@@ -265,3 +265,29 @@ the new census. The track's load is 31/32, back under budget.
 - **Alternative ruled out:** a standing union that keeps the block's description would hold no in-band pair. The clauses above rule it out.
 - **INTENT's sibling family:** INTENT's in-band glue-verdict row now carries it. Every k = 0.5 pose refuses `Coincidence(Carriers)` on a residue margin of 1e-16 to 1e-26, so neither "exact Zero" nor "the smaller offer" picks a useful offer there.
 — (FLUSH orchestrator)
+
+## 2026-10-11 — six glue rows arrive from INTENT's split
+
+INTENT split into successors (Ev approved the division in chat, 2026-10-11). Six topo boolean glue rows moved here by `git mv`, keeping ids and bodies, because FLUSH's charter is declared contact at the join:
+- `a-face-pair-row-only-where-its-decision-shaped-the-result`
+- `a-covered-arc-lying-on-a-carrier-places-its-ends-with-no-margin`
+- `an-in-band-glue-verdict-is-refused-as-the-corner-arms-unglued-coincidence` (the in-band sibling family above)
+- `boolean-given-pairs-glue-unmeasured-for-any-rust-caller`
+- `the-glue-door-re-witnesses-a-declared-tangent-pair`
+- `kept-boundary-undecided-has-no-live-fixture`
+
+None waits on an INTENT stage. A row that turns out to need one moves back. — (INTENT orchestrator)
+
+## 2026-10-11 — the E tail merges (PR 4714)
+
+- **Review:** single FULL. The PR claims refactors with no behaviour change, adds a new closed-form oracle, and moves about 3000 battery lines. Verdict APPROVE-WITH-FIXES, with three MINORs.
+- **The MINORs, all taken:**
+  - The shared judge's volume test got easier as the certificate degraded. Now the closed form must lie within 1e-7 of the certified enclosure, and the pad itself is held to a budget.
+  - The D-shape poses had a closed form; they are now judged (3592 UNJUDGED lines → SOUND).
+  - A sixth inline spelling of the join escalation was left behind; it now goes through `join_escalate`.
+- **`Turn::facing`** is the one decision now, with no re-decide.
+- **Closed:** five rows.
+- **Re-priced:** `two-pinch-poses-…` is now an M proof task, not a design fork. Pose 1 asks whether a cross-germ tie between pairs that share no germ can change the greedy matching.
+- **Merged over:** main's `mass_props` red (NURBS's row).
+- **An ε 1e-6 `near_tangent` red** the lane saw on main is CLEAVE's pin. Main fixed it in `5753a24` after the lane's base.
+— (FLUSH orchestrator)

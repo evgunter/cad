@@ -172,3 +172,47 @@ pin flips to 3′ passing:
 - `union_pinch_member_order`'s four rows (WIRE's
   `a-boolean-clipping-a-carried-contact-at-a-pinch-records-no-contact-for-the-pierce`);
 - `a_pinched_operands_pierces_…`, all twelve lines now `SOUND`.
+
+## Fix pass (PR 4728's dual review)
+
+**The MAJOR: a shared key was a value decision nothing recorded.**
+Taken as the orchestrator's option B: one key per pinch (Ev, PR 4057),
+plus a record.
+- `vtxfac::ring_groups` closes "one face, one point" transitively
+  (union-find). It keeps each joining pair's `one_vertex_at` margin.
+- `ops::ledger` records each pair whose operand vertices sit on two
+  point keys. That record is a `decide_one` row (a `VertexFusion`
+  coincidence, its margin kept), with a vertex-vertex record of the
+  piercing operand's citing it. The carry then records every pair of
+  result cells the two reach, and `cite_rows` emits the row for the
+  `unproven-coincidence` lint.
+- A pair already on one key is structure, and nothing is recorded.
+- `census` `Geo::same_point` now states its second case and why the
+  census does not ask for the record.
+
+Not taken:
+- A (distinct keys plus a record) revises PR 4057's pinch
+  representation, and `edge_join` would then kill a cone's vertex.
+  Measured: excluding ring keys from `zip::point_classes` left one
+  vertex at `v` on `a_pinchs_cones_share_one_point_key`'s `fib21 xy U`.
+- C (structural grouping only) contradicts D10's "glues it all the
+  same".
+
+**Rows.**
+- editor-core `coincidence_door::a_ring_serving_two_pierces_records_their_fusion_unproven`:
+  the lint names a fusion 1e-13 off bitwise, with the one-construction
+  recourse. A second op over the same pinch on one key records nothing.
+- Each flipped pin asserts the record and the row it rests on.
+- `ring_groups_close_transitively_and_escalate_in_band`.
+- `germs_of_two_pierces_on_one_ray_nest_and_a_third_refuses`.
+- `m3_pr4_boolean`'s guard that a ring of one mints where a per-pierce
+  ring did.
+- R1's tie probe, now `a_face_holding_the_pinch_line_ties_the_pierces_germs`:
+  its 18 lines refuse typed `PinchRaysInAFace` (they had refused
+  `JoinDesync`), and slope −0.5 builds.
+
+**Re-measured** (release, merge base `8b3ea728` against the fix head).
+`dbl_battery` moves the same 1 188 lines: 1 152 to `SOUND`, and 36
+`yx S` to `ZipCorrespondence` (23 `asym asym` `OK BAD`, 13 `Ltop asym`
+`ResultInvalid`). No line leaves `SOUND`. The other eight batteries
+are byte-identical.

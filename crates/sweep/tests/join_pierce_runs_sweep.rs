@@ -2413,9 +2413,7 @@ fn a_pinchs_cones_share_one_point_key() {
 /// vertex, in both operand orders. The ring's corners are one cyclic
 /// order whichever region roots it, and every root builds `SOUND` at the
 /// clipped volume. On the four `Ltop asym` poses the leaf region inside
-/// run 1's chord mints run 1's strut first, and a pierce the weld
-/// already joined then meets another copy of the same pierce, whose
-/// corners no corner of the joined vertex holds: the pair stays apart.
+/// run 1's chord mints run 1's strut first.
 #[test]
 fn a_pinchs_unions_from_every_root_of_the_ring() {
     for (names, (a, b), seed, fib) in [

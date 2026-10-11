@@ -252,6 +252,10 @@ impl<K: Ord + Copy> Roots<K> {
 /// two or more keys, read before any zip; [`share_points`] reads them
 /// after. Decided by the records alone: no position is read.
 ///
+/// A ring serving several pierces ties their keys too: the ring joined
+/// those pierces by a value decision, which the ledger records beside
+/// the result's records (`ops::ledger`).
+///
 /// # Errors
 ///
 /// [`BooleanError::ZipCorrespondence`] where a correspondent no longer

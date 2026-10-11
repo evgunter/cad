@@ -1576,6 +1576,49 @@ fn a_symbolic_run_with_a_resolver_refuses_every_node() {
     }
 }
 
+/// **Two copies of one body are two constructions placed apart, never
+/// one** (D10, `Placed::World`). A unit block placed at the identity
+/// and again turned half a turn about z and moved 2 along x and 1
+/// along y: the copies meet at x = 1, each by the image of the block's
+/// own +x wall, so every row between them names the same face, edge or
+/// vertex of the one construction in each cell. The door walks each
+/// cell through its copy's placement, so none of those rows is proven
+/// `SameConstruction`, and the check reports every one.
+///
+/// Red if the walk drops the placement: same-cell rows between copies
+/// then read as one construction and go silent.
+#[test]
+fn two_copies_meeting_by_the_same_face_are_not_one_construction() {
+    let doc = ProfileDoc::empty_derived("coincide-copies-same-face", Tol::witness());
+    let (doc, the_box) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, _) = crate::fixture::place(doc, the_box);
+    let turned: editor_core::Placement<Formula> = editor_core::Step::Rigid {
+        translation: [len(2.0), len(1.0), len(0.0)],
+        axis: [scl(0.0), scl(0.0), scl(1.0)],
+        angle: ang(std::f64::consts::PI),
+    }
+    .into();
+    let (doc, q) = crate::fixture::step(doc, editor_core::DocEdit::place(the_box, Some(turned)));
+    q.expect("the placement inserts");
+    let ev = run(&doc);
+    let product = editor_core::product_recorded(&doc, &ev, Tol::witness()).expect("it gathers");
+    let rows = product.coincidences.len();
+    assert!(
+        rows > 0
+            && product
+                .coincidences
+                .iter()
+                .all(|r| matches!(r.by, editor_core::AtRestBy::Copies(..))),
+        "the copies' touch is their rows: {:?}",
+        product.coincidences
+    );
+    let reported = unproven(&doc, &ev)
+        .into_iter()
+        .filter(|f| matches!(f.subject, FindingSubject::Copies { .. }))
+        .count();
+    assert_eq!(reported, rows, "every row between the copies is unproven");
+}
+
 /// **The door enters a report one way.** On a filleted corpus document,
 /// the registry split at rest reads the door pending and holds none of
 /// its findings; its job, run and settled, gives back the synchronous
@@ -1633,4 +1676,125 @@ fn a_report_settled_at_rest_is_the_synchronous_report() {
             .expect("an uncanceled door"),
     );
     assert_eq!(at_rest, sync);
+}
+
+/// The pinch of `union_pinch_member_order`: a plate and two blocks
+/// whose edges touch along the line x = 1.5, y = 1, the second block
+/// moved `dx` along x; the plate, the blocks and their union.
+fn ring_pinch(dx: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+    let doc = ProfileDoc::empty_derived("coincide-ring", Tol::witness());
+    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 0.0, 1.0);
+    let (doc, p1) = block(doc, (1.0, 1.5), (-1.0, 1.0), 0.5, 1.5);
+    let (doc, p2) = block(doc, (1.5 + dx, 2.0), (1.0, 3.0), 0.47, 1.23);
+    let (doc, blocks) = insert(
+        doc,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![p1.into(), p2.into()]),
+        },
+    );
+    (doc, plate, blocks)
+}
+
+/// The `VertexFusion` rows among `node`'s.
+fn fusions(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<NamedCoincidence> {
+    rows(ev, node)
+        .into_iter()
+        .filter(|r| r.site == DecisionSite::VertexFusion)
+        .collect()
+}
+
+/// **Two pierces one ring serves are an unproven vertex fusion.** The
+/// blocks' touching edges pierce the plate's top at (1.5, 1, 1), the
+/// second block's 1e-13 off the first's along x: two vertices of the
+/// blocks' union on two point keys, one point by `bool_contact_vertex`
+/// and not bit for bit. The plate's top mints one ring for both
+/// (`topo` `vtxfac::mint_ring`), and the intersection keeps both pierces
+/// as two vertices. It records the decision: one `VertexFusion`
+/// `OnCarrier` row, its two cells the two blocks' edges as the union
+/// names them, its margin the 1e-13 gap. The door leaves it unproven
+/// with the one-construction recourse, and the check reports it. Red if
+/// the ring glues the two by a shared point key alone, which records
+/// nothing.
+///
+/// **Two pierces already on one point key record nothing.** That
+/// intersection keeps the pierces on one key: the ring's copies, the
+/// plate's side. A slab whose face runs through (1.5, 1, 1) obliquely,
+/// intersected with it, meets the two vertices there as two pierces of
+/// one face on one key. They share the key as copies of one ring, which
+/// is structure, so the slab's intersection records no fusion of them,
+/// and the check reports nothing of the kind there.
+#[test]
+fn a_ring_serving_two_pierces_records_their_fusion_unproven() {
+    let (doc, plate, blocks) = ring_pinch(1e-13);
+    let (doc, common) = insert(
+        doc,
+        Node::Intersect {
+            members: editor_core::Bodies::Spelled(vec![plate.into(), blocks.into()]),
+        },
+    );
+    // The slab: the quadrilateral (0.5, 0), (2.5, 2), (4, 2), (4, 0) in
+    // x, z, whose edge from (0.5, 0) to (2.5, 2) runs through (1.5, 1),
+    // extruded across the blocks' y range.
+    let (doc, profile) = on_frame(
+        doc,
+        [0.0, 4.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0],
+        vec![vec![(0.5, 0.0), (4.0, 0.0), (4.0, 2.0), (2.5, 2.0)]],
+    );
+    let (doc, slab) = insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(6.0),
+            side: editor_core::ExtrudeSide::Along,
+        },
+    );
+    let (doc, cut) = insert(
+        doc,
+        Node::Intersect {
+            members: editor_core::Bodies::Spelled(vec![common.into(), slab.into()]),
+        },
+    );
+    let ev = run(&doc);
+    let fused = fusions(&ev, common);
+    assert_eq!(fused.len(), 1, "one recorded fusion: {fused:?}");
+    let row = &fused[0];
+    assert_eq!(row.relation, Relation::OnCarrier);
+    let gap = format!("{:?}", row.margin);
+    assert!(
+        row.margin.kind() == geom_core::MarginKind::Value
+            && !gap.starts_with("MarginDiag(Value(0.0"),
+        "the margin is the pierces' gap, not bit for bit zero: {gap}"
+    );
+    assert!(
+        row.cells
+            .iter()
+            .all(|c| matches!(c, NamedCell::Entity { input, .. } if *input == out(&doc, blocks))),
+        "both cells are the blocks' union's: {:?}",
+        row.cells
+    );
+    assert_eq!(
+        recourses(&proofs(&doc, common, &fused)),
+        vec![Some(coincide::Recourse::OneConstruction)],
+        "unproven, with the one-construction recourse"
+    );
+    let reported: Vec<_> = unproven(&doc, &ev)
+        .into_iter()
+        .filter(|f| {
+            matches!(&f.evidence, CheckEvidence::UnprovenCoincidence { row: r, .. } if **r == *row)
+        })
+        .collect();
+    assert_eq!(reported.len(), 1, "the check reports the fusion");
+    assert_eq!(reported[0].subject, FindingSubject::Node(common));
+    assert!(
+        failure(&ev, cut).is_none(),
+        "the slab's intersection builds: {:?}",
+        failure(&ev, cut)
+    );
+    assert_eq!(
+        fusions(&ev, cut),
+        vec![],
+        "two pierces on one key record nothing"
+    );
 }

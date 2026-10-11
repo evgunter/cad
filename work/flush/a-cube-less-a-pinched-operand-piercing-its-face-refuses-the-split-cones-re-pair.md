@@ -20,16 +20,16 @@ near face through `v`. Of its 2 160 lines, 36 refuse
 one" }`, raised by `crates/topo/src/boolean/zip.rs` `repair` after
 `split_cones` has split the vertices at `v` per cone.
 
-All 36 are `yx S`, the cube less the operand: 23 at `Ltop asym` seeds
-2296 and 2959, and 13 at `asym asym` seeds 15, 225, 268 and 426
+All 36 are `yx S`, the cube less the operand: 13 at `Ltop asym` seeds
+2296 and 2959, and 23 at `asym asym` seeds 15, 225, 268 and 426
 (directions 40 to 580). Replay one with
 `DBL_POSE="asym 268 100 yx S" cargo test -p sweep --release --test all
 dbl_one -- --ignored --nocapture`.
 
 On the base (`weld_pinches` still welding the two pierces), the same 36
-lines did not build right: 23 built `OK BAD` with three vertices at `v`
-for two cones (tier 3′ failing), and 13 refused `ResultInvalid
-{ RingMeetsOuter }`. So the typed refusal replaces a wrong body. It is
+lines did not build right: the 23 `asym asym` lines built `OK BAD` with
+three vertices at `v` for two cones (tier 3′ failing), and the 13
+`Ltop asym` lines refused `ResultInvalid { RingMeetsOuter }`. So the typed refusal replaces a wrong body. It is
 not a new failure of the split.
 
 ## Open

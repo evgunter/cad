@@ -839,7 +839,21 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
     red.enter_join_surgery();
     let connected = bool_connect(&mut red, a, b, band, tol);
     red.leave_join_surgery(connected.is_ok());
-    let connected = connected?;
+    // A ring whose cones touch along a ray in the face holds a corner of
+    // no angle, which a run round it may enclose: the unbuilt shape, not
+    // the kernel's defect.
+    let connected =
+        connected.map_err(|e| match (&e, red.pierce_rings.iter().find(|r| r.tied)) {
+            (BooleanError::JoinDesync { what }, Some(ring))
+                if *what == super::join::DEGENERATE_RING_WINDING =>
+            {
+                BooleanError::PinchRaysInAFace {
+                    operand: ring.operand.other(),
+                    face: ring.face,
+                }
+            }
+            _ => e,
+        })?;
     if connected.completed.is_empty() {
         return Err(BooleanError::JoinDesync {
             what: "null pairs joined into no completed polygon",
@@ -2827,12 +2841,12 @@ impl Descendants {
     ) -> Result<Option<Cell>, BooleanError> {
         let desync = |what| BooleanError::JoinDesync { what };
         let lineage =
-            super::fragments::Lineage::of(face, &self.fragments[usize::from(side == Operand::B)]);
-        if lineage.faces().nth(1).is_none() {
+            crate::lineage::Lineage::of(face, &self.fragments[usize::from(side == Operand::B)]);
+        if lineage.cells().nth(1).is_none() {
             return self.live(body, side, view, Cell::Face(face));
         }
         let mut pieces = Vec::new();
-        for f in lineage.faces() {
+        for f in lineage.cells() {
             if let Some(Cell::Face(p)) = self.live(body, side, view, Cell::Face(f))?
                 && !pieces.contains(&p)
             {
@@ -3092,6 +3106,35 @@ pub(super) fn ledger<T: Decide>(
                 band,
             )?;
         }
+    }
+    // Two pierces one ring serves, on two point keys: the ring joined
+    // them by a value decision. It is this op's, cited by a vertex-vertex
+    // record of the piercing operand's, so the carry records every pair
+    // of result cells the two reach. A pair on one point key is
+    // structure, and nothing is recorded.
+    for tie in &red.ring_ties {
+        let clone = match tie.operand {
+            Operand::A => &red.a,
+            Operand::B => &red.b,
+        };
+        let key = |v: VertexKey| {
+            clone
+                .get_vertex(v)
+                .map(|d| d.point)
+                .ok_or_else(|| desync("a ring tie's vertex does not resolve in its clone"))
+        };
+        if key(tie.a)? == key(tie.b)? {
+            continue;
+        }
+        let fresh = decide_one(
+            &mut pending,
+            (tie.operand, Cell::Vertex(tie.a)),
+            (tie.operand, Cell::Vertex(tie.b)),
+            tie.margin,
+        );
+        out[usize::from(tie.operand == Operand::B)]
+            .vv
+            .push(Cited::new(VvContact { a: tie.a, b: tie.b }, fresh));
     }
     Ok(Ledger {
         discovered: red.contacts.clone(),

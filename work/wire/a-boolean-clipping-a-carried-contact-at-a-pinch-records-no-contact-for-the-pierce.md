@@ -44,15 +44,23 @@ overlap. That comes from the carried record's lineage through the clip,
 not from geometry (the substitution door, `boolean::ops::carry`). When
 it does, the four pins turn green.
 
-## Fixed by FLUSH's pinch cluster (2026-10-11, branch `flush/pinch-cluster`)
+## Green on a recorded fusion, not on lineage (2026-10-11, FLUSH's PR 4728)
 
-The pierce point's two vertices came from two rings, one per pierce of
-the contact's two coincident edges, each on its own point key.
-`vtxfac::mint_ring` now mints one ring per face and point for all the
-pierces there, so they share one key, which tier 3′ reads as
-structural (`census` `Geo::same_point`). That PR flips the four pins
-to 3′ passing (release): plate ∩ blocks, plate ∖ X, X ∪ plate and
-plate ∪ X. It also renames the witnesses
+The four pins pass 3′ since FLUSH's PR 4728: plate ∩ blocks, plate ∖ X,
+X ∪ plate and plate ∪ X. The witnesses are renamed
 `the_plate_against_the_joined_blocks_builds_in_every_op` and
 `a_slab_holding_the_contact_is_one_vertex_only_on_one_fragment`, and
-drops `PIERCE_UNRECORDED`. The row can close when that PR merges.
+`PIERCE_UNRECORDED` is dropped.
+- The two pierces of the plate's top at the pinch now mint one ring
+  (`vtxfac::mint_ring`).
+- Grouping them is a value decision (`bool_contact_vertex`), recorded
+  as a `VertexFusion` row with its margin. A vertex-vertex record of
+  the piercing operand's cites that row (`ops::ledger`). The carry
+  turns it into records of every pair of result cells the two reach,
+  the pair at the pinch among them.
+- Each pin asserts that record and that row (`ring_fusion_recorded`).
+
+**The remainder, which this row keeps.** That record is backed by a
+fresh value decision of the op's. It is not backed by the carried
+record's lineage through the clip, which is what "Owed" asks for. The
+row stays open on that.

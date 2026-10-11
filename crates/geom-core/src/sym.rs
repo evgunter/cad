@@ -5271,6 +5271,10 @@ impl<T: SpanLocate> SpanLocate for Sym<T> {
     fn point_value(self) -> Option<f64> {
         self.value.point_value()
     }
+
+    fn split_projective<A: crate::spline::ProjectiveSplit<Self>>(arm: A) -> A::Out {
+        T::split_projective(crate::spline::projective::SymArm(arm))
+    }
 }
 
 /// **The whole of the tier's effect on decision-making** (E12): the

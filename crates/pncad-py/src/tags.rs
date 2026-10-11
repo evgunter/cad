@@ -1632,6 +1632,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::PairingMismatch => "pairing_mismatch",
         BooleanErrorKind::SharedVertexCrossings => "shared_vertex_crossings",
         BooleanErrorKind::PinchConesOnSeparateKeys => "pinch_cones_on_separate_keys",
+        BooleanErrorKind::PinchRaysInAFace => "pinch_rays_in_a_face",
         BooleanErrorKind::VertexReadTwice => "vertex_read_twice",
         BooleanErrorKind::NonManifoldResult => "non_manifold_result",
         BooleanErrorKind::ClassificationInvariant => "classification_invariant",
@@ -1718,6 +1719,7 @@ pub fn loft_error_tag(err: &LoftError) -> &'static str {
         LoftError::Pcurve(_) => "pcurve",
         LoftError::SeamStructure { .. } => "seam_structure",
         LoftError::SectionStructure => "section_structure",
+        LoftError::PlacementNotAPoint { .. } => "placement_not_a_point",
         LoftError::ReversedStacking { .. } => "reversed_stacking",
         LoftError::DegenerateStacking { .. } => "degenerate_stacking",
         LoftError::FarSectionNotForward { .. } => "far_section_not_forward",
@@ -2533,7 +2535,6 @@ pub fn attribution_tag(attribution: &Attribution) -> &'static str {
             relation: Relation::Declined,
             ..
         } => "carried_declined",
-        Attribution::Unattributed => "unattributed",
     }
 }
 

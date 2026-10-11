@@ -1663,7 +1663,7 @@ pub enum ValidationError {
         /// whose two faces share one carrier by key.
         margin: Option<geom_core::MarginDiag>,
     },
-    /// Tier 3′: a declared contact record has no geometric witness —
+    /// Tier 3′: a contact record has no geometric witness —
     /// the named entities do not coincide (or no longer resolve).
     /// Silent tolerance of unconfirmed declarations is forbidden
     /// (F1/F2(iii), the other direction of the certification diff).
@@ -1671,8 +1671,8 @@ pub enum ValidationError {
         /// The unconfirmed declaration.
         declaration: StaleDeclaration,
     },
-    /// Tier 3′ (C4): a declared contact meets DEFINITE counter-evidence
-    /// — the declaration is a lie where it meets the geometry.
+    /// Tier 3′ (C4): a contact record meets DEFINITE counter-evidence
+    /// — the record is a lie where it meets the geometry.
     ///
     /// Distinct from [`Self::StaleContactDeclaration`], which is the
     /// *absence* of a witness: this is the presence of a
@@ -1747,7 +1747,7 @@ pub enum ValidationError {
     /// chart-overlap lane, so a census arm that needs one could not
     /// examine this face pair — a fact about the door, not about the
     /// geometry. Two arms raise it: the conformal face-pair sweep on an
-    /// undeclared candidate, and the declared-record confirm pass
+    /// unrecorded candidate, and the record confirm pass
     /// (`confirm_curve_and_patch_records`' Door 2) on a declared patch.
     ///
     /// The `_structural` doors ([`validate_pseudomanifold_structural`],
@@ -2298,7 +2298,7 @@ impl fmt::Display for CensusContact {
     }
 }
 
-/// A declared contact the census could not confirm (tier 3′).
+/// A contact record the census could not confirm (tier 3′).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 // The variant roster the sample-coverage row reads (test builds only).
 #[cfg_attr(
@@ -3093,6 +3093,16 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
                 DEFECT.into(),
                 true,
             ),
+            P::ConeLoop { .. } => reading(
+                "a cone face's boundary does not bound a region of its cone once",
+                DEFECT.into(),
+                true,
+            ),
+            P::HolesExceedFace => reading(
+                "a face's holes cover more area than its outer boundary encloses",
+                DEFECT.into(),
+                true,
+            ),
             P::RingWoundWithFace => reading(
                 "a hole in a face is wound the same way as the face",
                 DEFECT.into(),
@@ -3500,7 +3510,7 @@ fn classify_contact_lane(e: &ContactRefusal) -> (&'static str, &'static str) {
             crate::contact::CONTACT_RECOURSE_MARKED,
         ),
         ContactRefusal::Undeclared { .. } => (
-            "the faces touch with no declared contact behind them",
+            "the faces touch with no contact record behind them",
             crate::contact::CONTACT_RECOURSE_MARKED,
         ),
         ContactRefusal::NotCertifiable { .. } => (
@@ -8934,7 +8944,7 @@ pub fn validate_pseudomanifold<
 /// chart-region candidate and backs no crossing by a declared pair**:
 /// the pass hands the census no region door, so its two chart-region
 /// arms refuse rather than examine — the conformal face-pair arm on
-/// every same-key opposed-sense curved pair, and the declared-record
+/// every same-key opposed-sense curved pair, and the record
 /// confirm arm on every patch record whose pair passes Door 1 — each
 /// as [`ValidationError::CensusLaneUnsupported`] naming the pair; and
 /// the crossing rung's backing consult answers `false`, so an in-plane

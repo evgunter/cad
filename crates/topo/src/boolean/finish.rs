@@ -375,7 +375,7 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
                 .all(|p| pairs.keys().next().is_some_and(|q| q.0 == p.0))
             && pairs.values().copied().collect::<BTreeSet<_>>() == *bs;
         let one_ring = pierce_runs.get(&a_survivor).is_some_and(|runs| {
-            runs.iter().all(|&(site, _)| one_ring(site, runs[0].0))
+            runs.iter().all(|&(site, _)| red.one_ring(site, runs[0].0))
                 && runs.iter().map(|&(_, b)| b).collect::<BTreeSet<_>>() == *bs
         });
         if bs.len() > 1 && !shared_cut && !one_ring {
@@ -411,18 +411,6 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
         graft,
         discards,
     })
-}
-
-/// Whether two pierce sites share a ring: one operand's vertices on one
-/// face of the other, which `vtxfac::mint_ring` rings once per point.
-fn one_ring(a: super::PairSite, b: super::PairSite) -> bool {
-    use super::PairSite::{VertexAOnFaceB, VertexBOnFaceA};
-    match (a, b) {
-        (VertexAOnFaceB(a), VertexAOnFaceB(b)) | (VertexBOnFaceA(a), VertexBOnFaceA(b)) => {
-            a.face == b.face
-        }
-        _ => false,
-    }
 }
 
 /// The one result key `kept` holds, if it holds exactly one.

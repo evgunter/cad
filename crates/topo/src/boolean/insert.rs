@@ -2107,10 +2107,10 @@ pub(super) fn strut_order<T: Decide>(
         return Ok(far1);
     }
     let order = Margin::levered(germs.0.cross(germs.1).dot(normal), arm);
-    match crate::validate::decide_nonzero("bool_strut_order", order, band).map_err(refuse)? {
-        NonzeroSign::Negative => Ok(true),
-        NonzeroSign::Positive => Ok(false),
-    }
+    Ok(
+        crate::validate::decide_nonzero("bool_strut_order", order, band).map_err(refuse)?
+            == NonzeroSign::Negative,
+    )
 }
 
 /// The unit direction of an orbit half-edge, one the sector walk

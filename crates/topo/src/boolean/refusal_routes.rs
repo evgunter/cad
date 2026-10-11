@@ -334,9 +334,10 @@ pub enum BooleanDecision {
     /// carrier read in band of a face says that an edge or a vertex of
     /// one solid lies within the band of a face of the other and not
     /// clearly on it. At the band's edge which way the reading falls
-    /// depends on the edge's orientation: a chord certifies its start
+    /// depends on the edge's orientation: certification bounds the
+    /// carrier, not its vertices, and a chord's carrier reads its start
     /// as its own origin and its end as `carrier(t₁)`, one rounding off
-    /// the vertex (`work/cleave/a-chords-end-sample-reads-carrier-t1-not-its-vertex.md`).
+    /// the vertex.
     /// Asked of the result, after every declaration was spent, so none
     /// is read.
     EdgeOnFaces,

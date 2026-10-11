@@ -51,3 +51,26 @@ goes from `sz=28 num=624 frozen=3706` to `sz=40 num=612 frozen=3732`, and
 theorems, because topo now reads the carriers' held domain ends.
 Decisions, shapes and verdicts are unchanged, and the `f64` lines are
 byte-identical. Re-cut the golden on a tree that carries PR 4708.
+
+PR 4726 (`the-skin-computes-its-values-in-t`) moves the serial-golden
+row again. Measured against main's own output for that row
+(`work/nurbs/the-arc-loft-thread-count-digest-is-red-on-main.md`'s
+table at ε = 1e-9), not the committed digest:
+- **`arc_loft_1e9eps`**: `v` and `a` are main's (`…d899`, `…3c57`), and
+  only the pads move, `vpad` `3eb0783423f55555` → `3eb0783424400000`
+  and `apad` `3fb5fb0bfc12a5e0` → `3fb5fb0bfc12a660`. Its verdicts are
+  unchanged. The likely cause is that the skin's arc conversion now
+  calls `Real`'s sines and cosines, the pure-Rust `libm` D9 prescribes,
+  where it called `f64`'s inherent (platform libm) ones. That moves an
+  arc's weight or tangent pole by an ulp on a few per cent of sweeps.
+- **The `Sym` lines' `frozen` column** reads 1060 (`sym_arc_loft
+  validate_geometric`) and 1177 (`sym_thin_strip`) at the PR's head,
+  against the committed 1244 and 1268. Main's own counts were not
+  re-measured here. The walls are computed in `T` instead of lifted as
+  opaque unknowns, and the fixture placements are constants rather
+  than `from_computed` unknowns. Decisions, `sz`, shapes and verdicts
+  read as the committed ones.
+
+The import row (`arc_loft_natively_computes_its_rational_volume`)
+builds an arc loft too, so it may move for the same libm reason.
+Re-cut on a tree that carries PR 4726.
