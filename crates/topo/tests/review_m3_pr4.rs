@@ -10,7 +10,7 @@
 
 use crate::common;
 
-use common::{brick, finished, flush_declarations, prism_z};
+use common::{brick, finished, prism_z};
 use geom_core::Decide;
 use geom_core::Tol;
 use topo::{AtRestBody, Body, BooleanError, BooleanOp, BooleanReduction, boolean_reduce, validate};
@@ -38,15 +38,7 @@ fn reduce_ok<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     b: &AtRestBody<T>,
 ) -> BooleanReduction<T> {
     let (da, db) = (dump(a), dump(b));
-    // M4 PR 5: the review corpus declares its intended flush contacts.
-    let red = topo::boolean_reduce_declared(
-        op,
-        a,
-        b,
-        &flush_declarations(a, b, Tol::witness()),
-        Tol::witness(),
-    )
-    .unwrap();
+    let red = topo::boolean_reduce(op, a, b, Tol::witness()).unwrap();
     assert_eq!(dump(a), da, "operand A mutated");
     assert_eq!(dump(b), db, "operand B mutated");
     validate(&red.a).unwrap();
@@ -313,21 +305,15 @@ fn l_prism_unit() -> AtRestBody<f64> {
     finished("the L-prism", l, Tol::witness())
 }
 
-/// `op` on `a` and `b` under `decls` builds a body that passes tiers 2
+/// `op` on `a` and `b` builds a body that passes tiers 2
 /// and 3′ and the at-rest certificate at the closed-form `volume`, or
 /// the empty result when `volume` is zero.
-fn assert_sound(
-    op: BooleanOp,
-    a: &AtRestBody<f64>,
-    b: &AtRestBody<f64>,
-    decls: &topo::BooleanDeclarations,
-    volume: f64,
-) {
+fn assert_sound(op: BooleanOp, a: &AtRestBody<f64>, b: &AtRestBody<f64>, volume: f64) {
     let tol = Tol::witness();
     let res = match op {
-        BooleanOp::Union => topo::union_with(a, b, decls, tol),
-        BooleanOp::Intersect => topo::intersect_with(a, b, decls, tol),
-        BooleanOp::Subtract => topo::subtract_with(a, b, decls, tol),
+        BooleanOp::Union => topo::union(a, b, tol),
+        BooleanOp::Intersect => topo::intersect(a, b, tol),
+        BooleanOp::Subtract => topo::subtract(a, b, tol),
     };
     let bb = match res {
         Ok(topo::BooleanResult::Empty) if volume == 0.0 => return,
@@ -354,11 +340,10 @@ fn assert_sound(
 /// Reflex edge, touch: a triangular prism nestled in the notch of an
 /// L-prism, its corner on the reflex vertical edge, adding its area to
 /// the L's 3 with nothing in common.
-/// - Sharing only that edge (area 0.42), no declaration is needed: the
-///   reduction finds the two v-v contacts and no seam. Both of the
+/// - Sharing only that edge (area 0.42): the reduction finds the two v-v contacts and no seam. Both of the
 ///   triangle's flankers lie outside both of the L's flanking planes, so
 ///   no verdict splits and the wedge's extent is never asked.
-/// - Flush along the +x arm's wall (area 0.4, declared): the wall's
+/// - Flush along the +x arm's wall (area 0.4): the wall's
 ///   anti-parallel tie reads the On ladder, which splits the verdicts,
 ///   and the union is right only if the 270° wedge reads reflex.
 #[test]
@@ -381,27 +366,26 @@ fn reflex_edge_touch_benign() {
             red.null_pairs.is_empty() && red.null_edges.is_empty(),
             "op {op:?}: seam minted at a touch-only reflex edge"
         );
-        assert_sound(op, &a, &edge, &topo::BooleanDeclarations::default(), volume);
+        assert_sound(op, &a, &edge, volume);
     }
     let flush = finished(
         "the flush triangle",
         prism_z::<f64>(&[(1.0, 1.0), (2.0, 1.0), (1.5, 1.8)], 0.0, 1.0, tol).body,
         tol,
     );
-    let decls = flush_declarations(&a, &flush, tol);
     for (op, volume) in [
         (BooleanOp::Union, 3.4),
         (BooleanOp::Intersect, 0.0),
         (BooleanOp::Subtract, 3.0),
     ] {
-        assert_sound(op, &a, &flush, &decls, volume);
+        assert_sound(op, &a, &flush, volume);
     }
 }
 
 /// Reflex edge, crossing: the triangle straddles the +x arm of the L
 /// from the reflex edge, so the edge-edge site reads the L's 270° wedge
-/// and must germ there. Undeclared, the coplanar caps refuse at the
-/// coincidence door; declared flush, each op builds the closed form:
+/// and must germ there. The coplanar caps glue on their decided zero,
+/// and each op builds the closed form:
 /// the L's 3 and the triangle's 0.4 share its lower half, 0.2.
 #[test]
 fn reflex_edge_crossing_builds_sound() {
@@ -417,19 +401,17 @@ fn reflex_edge_crossing_builds_sound() {
         .body,
         Tol::witness(),
     );
-    let decls = flush_declarations(&a, &b, Tol::witness());
     for (op, volume) in [
         (BooleanOp::Union, 3.2),
         (BooleanOp::Intersect, 0.2),
         (BooleanOp::Subtract, 2.8),
     ] {
-        assert_sound(op, &a, &b, &decls, volume);
-        assert_sound(op, &a, &b, &topo::BooleanDeclarations::none(), volume);
+        assert_sound(op, &a, &b, volume);
     }
 }
 
 /// Notch-fill: the brick exactly fills the L-prism's notch (every
-/// contact is a declared coplanar tie; union = full box). Runs the
+/// contact is a coplanar tie; union = full box). Runs the
 /// densest tie surface in the corpus: shared walls opposite-oriented,
 /// shared top/bottom SAME-oriented (⁺ row live), six v-v sites, the
 /// reflex edge shared. Expect: success with seams only where the ∪ rim
@@ -486,8 +468,7 @@ fn notch_fill_dense_ties() {
 /// plane_eq door: bit-DIFFERENT NaN normals must never compare Same
 /// (the PR 1 NaN lesson at the new seam) — and must not silently pass
 /// as Distinct either. An axis-plane revert pair (one normal the other's
-/// negation, a signed zero apart) decides SameOpposite on its margins,
-/// declared or not.
+/// negation, a signed zero apart) decides SameOpposite on its margins.
 #[test]
 fn plane_eq_nan_and_negzero() {
     use geom_core::{Band, Point3, Vec3};

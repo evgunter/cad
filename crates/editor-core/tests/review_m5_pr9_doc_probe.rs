@@ -89,7 +89,6 @@ fn boss_union_doc() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>, RecipeNodeId) 
     });
     let union = r.insert(Node::Union {
         members: editor_core::Bodies::Spelled(vec![plate.into(), boss.into()]),
-        declare: Vec::new(),
     });
     (r.doc, r.edits, union)
 }

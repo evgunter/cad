@@ -310,14 +310,9 @@ pub fn select_refusal_tag(err: &pncad::select::SelectRefusal) -> &'static str {
         R::Unreadable { .. } => "unreadable",
         R::NotADatum { .. } => "not_a_datum",
         R::DatumHasNoValue(_) => "datum_has_no_value",
-        R::NodeHasNoValue(_) => "node_has_no_value",
-        R::NodeHasNoOutput { .. } => "node_has_no_output",
         R::NotALength { .. } => "not_a_length",
-        R::PairInBand { .. } => "pair_in_band",
         R::BadValue(_) => "bad_value",
         R::Band(e) => band_error_tag(e),
-        R::DistinctFinding(_) => "distinct_finding",
-        R::AcrossSpaces { .. } => "across_spaces",
         _ => unmirrored_select_tag(UnmirroredSelect::Refusal),
     }
 }
@@ -610,9 +605,6 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::IndexedRead { .. } => "indexed_read",
         EditError::SetMembersOnNonList { .. } => "set_members_on_non_list",
         EditError::LoftSectionsSpelled { .. } => "loft_sections_spelled",
-        EditError::SetDeclareOnNonDeclaring { .. } => "set_declare_on_non_declaring",
-        EditError::DeclaredSiteNotAnOperand { .. } => "declared_site_not_an_operand",
-        EditError::DeclaredNameNotUpstream { .. } => "declared_name_not_upstream",
         EditError::SetProgramOnNonProfile { .. } => "set_program_on_non_profile",
         EditError::SetExtrudeSideOnNonExtrude { .. } => "set_extrude_side_on_non_extrude",
         EditError::StepIdsRefused { .. } => "step_ids_refused",
@@ -1023,10 +1015,6 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::PlacementRuleNonRigidFrame => "non_rigid_placement",
         C::UnschedulableCycle => "unschedulable_cycle",
         C::Naming => "naming",
-        C::DeclareResolve => "declare_resolve",
-        C::DeclareUnsupportedPair => "declare_unsupported_pair",
-        C::DeclaredContactUnbacked => "declared_contact_unbacked",
-        C::DeclareSiteNotAnOperand => "declare_site_not_an_operand",
         C::UnionFoldStep => "union_fold_step",
         C::FilletSelectionEmpty => "fillet_selection_empty",
         C::ChamferSelectionEmpty => "chamfer_selection_empty",
@@ -1206,10 +1194,6 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::PlacementRule(fault) => placement_rule_inner_tag(fault),
         NodeErrorKind::UnschedulableCycle => None,
         NodeErrorKind::Naming(inner) => Some(naming_error_tag(inner)),
-        NodeErrorKind::DeclareResolve { error, .. } => Some(resolve_error_tag(error)),
-        NodeErrorKind::DeclareSiteNotAnOperand { .. } => None,
-        NodeErrorKind::DeclareUnsupportedPair { .. } => None,
-        NodeErrorKind::DeclaredContactUnbacked { .. } => None,
         // The step's own refusal crosses in the message.
         NodeErrorKind::UnionFoldStep { .. } => None,
         NodeErrorKind::BlendSelectionEmpty { .. } => None,
@@ -1272,9 +1256,6 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::IndexedRead { fault, .. } => Some(input_fault_tag(fault)),
         EditError::SetMembersOnNonList { .. } => None,
         EditError::LoftSectionsSpelled { .. } => None,
-        EditError::SetDeclareOnNonDeclaring { .. } => None,
-        EditError::DeclaredSiteNotAnOperand { .. } => None,
-        EditError::DeclaredNameNotUpstream { .. } => None,
         EditError::SetProgramOnNonProfile { .. } => None,
         EditError::SetExtrudeSideOnNonExtrude { .. } => None,
         // What is wrong with the ids is the arm.
@@ -1647,7 +1628,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::SeamContradicted => "seam_contradicted",
         BooleanErrorKind::RimCuspArmUnbuilt => "rim_cusp_arm_unbuilt",
         BooleanErrorKind::TangentSlitArmUnbuilt => "tangent_slit_arm_unbuilt",
-        BooleanErrorKind::InvalidDeclaration => "invalid_declaration",
+        BooleanErrorKind::InvalidInput => "invalid_input",
         BooleanErrorKind::PairingMismatch => "pairing_mismatch",
         BooleanErrorKind::SharedVertexCrossings => "shared_vertex_crossings",
         BooleanErrorKind::PinchConesOnSeparateKeys => "pinch_cones_on_separate_keys",
@@ -1668,7 +1649,9 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::Join => "join",
         BooleanErrorKind::JoinUndecided => "join_undecided",
         BooleanErrorKind::JoinCarrierUnsupported => "join_carrier_unsupported",
+        BooleanErrorKind::RestPieceUnread => "rest_piece_unread",
         BooleanErrorKind::JoinDesync => "join_desync",
+        BooleanErrorKind::EdgeUndescribed => "edge_undescribed",
         BooleanErrorKind::TornComponent => "torn_component",
         BooleanErrorKind::ShellWitnessExhausted => "shell_witness_exhausted",
         BooleanErrorKind::CoincidentShell => "coincident_shell",
@@ -1735,6 +1718,7 @@ pub fn loft_error_tag(err: &LoftError) -> &'static str {
         LoftError::Pcurve(_) => "pcurve",
         LoftError::SeamStructure { .. } => "seam_structure",
         LoftError::SectionStructure => "section_structure",
+        LoftError::PlacementNotAPoint { .. } => "placement_not_a_point",
         LoftError::ReversedStacking { .. } => "reversed_stacking",
         LoftError::DegenerateStacking { .. } => "degenerate_stacking",
         LoftError::FarSectionNotForward { .. } => "far_section_not_forward",
@@ -1955,18 +1939,6 @@ pub fn offset_check_tag(cause: &OffsetCheck) -> &'static str {
     }
 }
 
-/// The stable tag for a declare-sugar refusal (the
-/// `Doc.declare`/`Doc.declare_all` doors over
-/// `editor_core::declare_all`). The `Edit` arm carries the document
-/// layer's own tag through rather than flattening it.
-pub fn declare_error_tag(err: &pncad::select::DeclareError) -> &'static str {
-    use pncad::select::DeclareError as E;
-    match err {
-        E::NoFindings => "no_findings",
-        E::Edit(inner) => edit_error_tag(inner),
-    }
-}
-
 /// The stable tag for a document-seam resolution failure — the
 /// vocabulary EVERY door that crosses the seam speaks.
 ///
@@ -2013,7 +1985,6 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::MintLogOrder { .. } => "mint_log_order",
         SnapshotError::NameReadNotMinted { .. } => "name_read_not_minted",
         SnapshotError::NameStepNotMinted { .. } => "name_step_not_minted",
-        SnapshotError::DeclaredNameNotUpstream { .. } => "declared_name_not_upstream",
         SnapshotError::OperandUnminted { .. } => "operand_unminted",
         SnapshotError::ReadsWorldCopy { .. } => "reads_world_copy",
         SnapshotError::SelectionShape { .. } => "selection_shape",
@@ -2145,7 +2116,6 @@ pub fn step_import_error_tag(err: &StepImportError) -> &'static str {
         StepImportError::Structure { .. } => "structure",
         StepImportError::MissingUncertainty => "missing_uncertainty",
         StepImportError::InvalidEpsOverride { .. } => "invalid_eps_override",
-        StepImportError::DeclarationUnresolved { .. } => "declaration_unresolved",
         StepImportError::MalformedReal { .. } => "malformed_real",
         StepImportError::Topology { .. } => "topology",
         StepImportError::Assembly { .. } => "assembly",
@@ -3028,7 +2998,6 @@ pub fn decision_site_tag(site: pncad::document::coincidence::DecisionSite) -> &'
         S::BatterySupportAxis => "battery_support_axis",
         S::VertexFusion => "vertex_fusion",
         S::CensusAtRest => "census_at_rest",
-        S::ImportAnchor => "import_anchor",
         S::ProfileJunction => "profile_junction",
     }
 }
@@ -3164,13 +3133,14 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::SolidOuterShells { .. } => "solid_outer_shells",
         ValidationError::VolumeSignUnresolved { .. } => "volume_sign_unresolved",
         ValidationError::ShellRoleUndecided { .. } => "shell_role_undecided",
-        ValidationError::UndeclaredContact { .. } => "undeclared_contact",
+        ValidationError::UnrecordedContact { .. } => "unrecorded_contact",
         ValidationError::StaleContactDeclaration { .. } => "stale_contact_declaration",
         ValidationError::ContactContradicted { .. } => "contact_contradicted",
         ValidationError::CensusEscalated { .. } => "census_escalated",
         ValidationError::CensusUnsupported { .. } => "census_unsupported",
         ValidationError::CensusLaneUnsupported { .. } => "census_lane_unsupported",
         ValidationError::CensusUndecidable { .. } => "census_undecidable",
+        ValidationError::ArcEndOffCorner { .. } => "arc_end_off_corner",
         ValidationError::InstanceInterference { .. } => "instance_interference",
         ValidationError::DanglingTopology { .. } => "dangling_topology",
         ValidationError::DanglingGeometry { .. } => "dangling_geometry",
@@ -3219,8 +3189,8 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
 /// worth a caller's branch: an `entity` subject is one carrier outside
 /// the certifiable inventory, and the repair is that carrier's —
 /// simplify it, or certify it through a supported lane. A `face_pair`
-/// is a candidate CONTACT, and the repair is the declaration protocol
-/// — declare the coincidence, or separate the two faces. The pair is
+/// is a candidate CONTACT, and the repair is that pair's, not either
+/// face's: move the geometry so the two faces separate. The pair is
 /// unordered as a subject, so a caller resolving a refusal against its
 /// own records matches the pair either way round.
 pub fn census_subject_tag(subject: &CensusSubject) -> &'static str {

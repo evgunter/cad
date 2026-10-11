@@ -1944,11 +1944,7 @@ pub struct Indeterminate {
 ///
 /// Message-pinning tests pin the fragment with `contains`, never with
 /// full-string pins that rot.
-pub const COINCIDENCE_RECOURSE: &str = concat!(
-    crate::coincidence_declare_arm!(),
-    ", or ",
-    crate::coincidence_move_arm!()
-);
+pub const COINCIDENCE_RECOURSE: &str = crate::coincidence_move_arm!();
 
 /// The one recourse for a quantity the floating-point format cannot
 /// hold — a length that overflows the norm or underflows to zero while
@@ -1958,13 +1954,6 @@ pub const COINCIDENCE_RECOURSE: &str = concat!(
 /// it with `contains`.
 pub const RANGE_RECOURSE: &str = "scale the geometry into the session's range";
 
-/// [`COINCIDENCE_RECOURSE`] at a door that takes no declaration: the
-/// one lever left, the geometry. The chord join that a split and a
-/// Boolean share composes it, since the join cannot know whether its
-/// caller declares; the Boolean's own wrapper adds the declaration
-/// back (`topo::BooleanError::Join`).
-pub const NO_DECLARATION_RECOURSE: &str = crate::coincidence_move_arm!();
-
 /// What a direction-length decision decides, in words: the one subject
 /// every door that asks whether a direction vector has any length
 /// renders (`UnitVec3Error::Escalated`, and the decision-word tables of
@@ -1972,8 +1961,8 @@ pub const NO_DECLARATION_RECOURSE: &str = crate::coincidence_move_arm!();
 /// evaluation), so the question reads the same wherever it escalates.
 pub const DIRECTION_LENGTH_SUBJECT: &str = "whether a direction has any length";
 
-/// [`NO_DECLARATION_RECOURSE`] at a split, whose plane is the first
-/// lever: a split takes no declarations (`topo::split`'s signature).
+/// [`COINCIDENCE_RECOURSE`] at a split, whose plane is the first
+/// lever.
 pub const SPLIT_PLANE_RECOURSE: &str = "move the split plane or the geometry";
 
 /// The one ending of a refusal that only a kernel defect reaches:
@@ -2050,16 +2039,6 @@ pub const KERNEL_LIMIT_RECOURSE: &str = concat!(
 macro_rules! kernel_defect_ending {
     () => {
         "There is no way through: this is a kernel defect; report it"
-    };
-}
-
-/// [`COINCIDENCE_RECOURSE`]'s declaration arm as a literal, for
-/// `concat!`; see `kernel_defect_ending!`.
-#[doc(hidden)]
-#[macro_export]
-macro_rules! coincidence_declare_arm {
-    () => {
-        "declare the coincidence"
     };
 }
 
@@ -2400,27 +2379,17 @@ impl Indeterminate {
     }
 }
 
-/// The escalation's sentence under [`COINCIDENCE_RECOURSE`], except
-/// where the margin was decided past the band: that sign is certain,
-/// no declaration changes it (D4 ¶1 (i)), and the geometry is the one
-/// lever ([`NO_DECLARATION_RECOURSE`]).
+/// The escalation's sentence under [`COINCIDENCE_RECOURSE`].
 impl fmt::Display for Indeterminate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let levers = if self.margin.placement(self.band) == Placement::Past {
-            NO_DECLARATION_RECOURSE
-        } else {
-            COINCIDENCE_RECOURSE
-        };
-        write!(f, "{}", self.under(levers))
+        write!(f, "{}", self.under(COINCIDENCE_RECOURSE))
     }
 }
 
 /// An [`Indeterminate`] rendered with what its reading is and the
-/// LEVERS the door supplies in place of [`COINCIDENCE_RECOURSE`] —
-/// for a door that takes no declaration
-/// ([`NO_DECLARATION_RECOURSE`]). The ending itself, label, the
-/// margin kind's own first lever and the valued tolerance arm, is
-/// [`Indeterminate::ending`]'s; the bare
+/// LEVERS the door supplies in place of [`COINCIDENCE_RECOURSE`]. The
+/// ending itself, label, the margin kind's own first lever and the
+/// valued tolerance arm, is [`Indeterminate::ending`]'s; the bare
 /// [`Indeterminate`] Display is this view under
 /// [`COINCIDENCE_RECOURSE`].
 #[derive(Debug, Clone, Copy)]

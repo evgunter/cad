@@ -58,7 +58,6 @@ fn subtract(doc: ProfileDoc, from: RecipeNodeId, tool: RecipeNodeId) -> (Profile
         Node::Subtract {
             from: from.into(),
             tool: tool.into(),
-            declare: Vec::new(),
         },
     )
 }
@@ -286,14 +285,13 @@ fn a_union_reads_a_cited_member_line_by_its_rows() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![notched.into(), post.into()]),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc, None);
     assert!(
-        crate::docm7_union_declare::failure(&ev, u).is_none(),
+        crate::blocks::failure(&ev, u).is_none(),
         "the union evaluates: {:?}",
-        crate::docm7_union_declare::failure(&ev, u)
+        crate::blocks::failure(&ev, u)
     );
     let bar_rows = &ev.value(notched).unwrap().name_table;
     let bar_read = crate::fixture::out(&doc, notched);

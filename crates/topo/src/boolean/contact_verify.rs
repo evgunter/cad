@@ -34,21 +34,24 @@
 //! finding 1, reproduced with extra steps.
 //!
 //! **The residue is that margin and NOTHING else**, which is a claim
-//! about code and is enforced by its shape: the on-surface residual
-//! (in band, or on the surface at a sample whose span bound is wider
-//! than the band) and the opposed-senses test return `Escalated`
-//! whether or not a declaration is in hand, and so does the
-//! first-order parallelism test — those three are C4's
+//! about code and is enforced by its shape: the pair's separation
+//! along the shared normal (the touch), the witness's residual on each
+//! surface (each in band, or decided on the surface at a sample whose
+//! span bound is wider than the band) and the opposed-senses test
+//! return `Escalated` whether or not a declaration is in hand, and so
+//! does the first-order parallelism test — those are C4's
 //! must-verify-DEFINITE list, and a list you may bridge is not a
 //! must-verify list. Only the second-order arm consults `declared`.
 //! In-band there is therefore a THIRD outcome, not a widened second
 //! one: verified / bridged-by-declaration / escalated, with
-//! contradiction sitting across all four arms.
+//! contradiction sitting across all five arms.
 //!
 //! **What this lane does NOT check, named** (C4's "definite crossing
-//! (II_rel definitely indefinite)"): crossing is decided here only
-//! through the transverse `κ_rel` the jet computes along the locus
-//! tangent's perpendicular. A full second-fundamental-form
+//! (II_rel definitely indefinite)"): a crossing at first order, the
+//! surfaces running into each other's material at a sample, is the
+//! touch's negative side (`touching`); a crossing at second order is
+//! decided only through the transverse `κ_rel` the jet computes along
+//! the locus tangent's perpendicular. A full second-fundamental-form
 //! indefiniteness test over all tangent directions needs machinery
 //! that does not exist yet. The honest consequence, stated in the
 //! direction the code actually takes: a declared tangency whose
@@ -208,20 +211,25 @@ pub(crate) fn rest_pair_reading<T: Decide>(
 /// Per sample on the certification schedule (the same 9 parameters,
 /// through `geom_brep::sample_param`):
 ///
-/// - **must-verify-DEFINITE**: the locus lies on BOTH surfaces (each
-///   implicit residual not definitely nonzero), and the two outward
-///   normals are definitely OPPOSED and parallel within the derived
-///   angle at lever arm `1/κ_rel` — the C7 threshold verbatim;
-/// - **contradicts**: definite separation (a residual definitely
-///   nonzero), definite normal independence (`sin θ` definitely
-///   nonzero at that arm), or aligned normals (containment, not
-///   tangency);
+/// - **must-verify-DEFINITE**: the two surfaces touch, their
+///   separation along the shared normal within ε (`touching`, and the
+///   span line after the loop); the witness lies within ε of each
+///   surface (`on_surface`); and the two outward normals are definitely
+///   OPPOSED and parallel within the derived angle at lever arm
+///   `1/κ_rel`, the C7 threshold verbatim;
+/// - **contradicts**: definite separation or definite crossing (the
+///   separation definitely positive or negative, with the `Fit` steer),
+///   a bad witness (a residual definitely nonzero where the pair
+///   touches, no steer), definite normal independence (`sin θ`
+///   definitely nonzero at that arm), or aligned normals (containment,
+///   not tangency);
 /// - **bridges** (declared only): the second-order margin and ONLY it
 ///   — in-band `κ_rel`, and exact zeros at isolated neutral points
 ///   (module docs, the #175 clause);
-/// - **escalates**: an in-band margin on ANY must-verify arm
-///   (residual, opposition, first-order parallelism), declared or not,
-///   and the second-order residue when undeclared.
+/// - **escalates**: an in-band margin on ANY must-verify arm (the
+///   touch at a sample or across a span, a residual, opposition,
+///   first-order parallelism), declared or not, and the second-order
+///   residue when undeclared.
 ///
 /// The span bounds between samples come from the same
 /// `tangent_span_bounds` the edge certifier uses, so the hull
@@ -309,12 +317,35 @@ pub fn tangent_locus_relation<T: Decide>(
     declared: bool,
     band: Band,
 ) -> Result<ContactVerdict, ContactRefusal> {
+    tangent_locus_reading(s1, sense1, s2, sense2, carrier, t0, t1, declared, band)
+        .map(|(verdict, _)| verdict)
+}
+
+/// [`tangent_locus_relation`] with the margin the touch was decided on:
+/// the span line's reading of the pair's separation
+/// (`contact_tangent_touch`), the margin a verified pair's row records.
+///
+/// # Errors
+///
+/// [`ContactRefusal`] — see [`tangent_pair_relation`].
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn tangent_locus_reading<T: Decide>(
+    s1: &geom::Surface<T>,
+    sense1: bool,
+    s2: &geom::Surface<T>,
+    sense2: bool,
+    carrier: &Curve3<T>,
+    t0: T,
+    t1: T,
+    declared: bool,
+    band: Band,
+) -> Result<(ContactVerdict, geom_core::MarginDiag), ContactRefusal> {
     tangent_table(
         s1, sense1, s2, sense2, carrier, t0, t1, declared, true, band,
     )
 }
 
-/// [`tangent_locus_relation`]'s table for a SEAM, B's sense bit already
+/// [`tangent_locus_reading`]'s table for a SEAM, B's sense bit already
 /// reversed by the caller: one material continuing across the locus,
 /// whose two faces leave it on opposite sides, so no material crescent
 /// between the sheets is read.
@@ -323,7 +354,7 @@ pub fn tangent_locus_relation<T: Decide>(
 ///
 /// [`ContactRefusal`] — see [`tangent_pair_relation`].
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn tangent_seam_relation<T: Decide>(
+pub(crate) fn tangent_seam_reading<T: Decide>(
     s1: &geom::Surface<T>,
     sense1: bool,
     s2: &geom::Surface<T>,
@@ -332,12 +363,12 @@ pub(crate) fn tangent_seam_relation<T: Decide>(
     t0: T,
     t1: T,
     band: Band,
-) -> Result<ContactVerdict, ContactRefusal> {
+) -> Result<(ContactVerdict, geom_core::MarginDiag), ContactRefusal> {
     tangent_table(s1, sense1, s2, sense2, carrier, t0, t1, true, false, band)
 }
 
 /// The C4 `Tangent` table along `carrier`, the material crescent read
-/// where `contact` ([`tangent_locus_relation`]).
+/// where `contact` ([`tangent_locus_relation`]), with the touch's margin.
 #[allow(clippy::too_many_arguments)]
 fn tangent_table<T: Decide>(
     s1: &geom::Surface<T>,
@@ -350,7 +381,7 @@ fn tangent_table<T: Decide>(
     declared: bool,
     contact: bool,
     band: Band,
-) -> Result<ContactVerdict, ContactRefusal> {
+) -> Result<(ContactVerdict, geom_core::MarginDiag), ContactRefusal> {
     // The lane gate FIRST: the demanded set is the certifiable set,
     // so a configuration whose span bounds do not exist gets no
     // per-sample verdict either — refusing here is the order-k
@@ -374,29 +405,28 @@ fn tangent_table<T: Decide>(
     let chord = carrier.eval(t0).distance(carrier.eval(t1));
     let extent = geom_brep::edge_extent(carrier, t0, t1, chord);
     let mut bridged = false;
+    let mut gap_max = T::zero();
     for i in 0..CERT_SAMPLES {
         let t = sample_param(t0, t1, i);
         let (p, tau) = carrier.ders1(t);
-        // (1) On both surfaces, read across the spans each sample
-        // bounds ([`on_surface`]).
-        for (name, miss, s) in [
-            ("contact_tangent_on_1", "contact_tangent_off_1", s1),
-            ("contact_tangent_on_2", "contact_tangent_off_2", s2),
-        ] {
-            let r = geom_brep::implicit_residual(s, p);
-            on_surface([name, miss], r, bounds.residual_sag, band)?;
-        }
-        let jet = tangent_jet(s1, s2, p, tau);
-        // (2) Senses opposed: the two faces' OUTWARD normals must
+        let (r1, r2) = (
+            geom_brep::implicit_residual(s1, p),
+            geom_brep::implicit_residual(s2, p),
+        );
+        // (1) Senses opposed: the two faces' OUTWARD normals must
         // point at each other. Aligned normals on a shared tangency
         // are containment, and a contact claiming it is a lie
         // (the C1 lemma, one dimension down from C3's patch clause).
         let n1: Vec3<T> = implicit_outward_normal(s1, sense1, p).vec();
         let n2: Vec3<T> = implicit_outward_normal(s2, sense2, p).vec();
+        // Which way the shared normal points is metered over the
+        // extent, as the edge certifier reads it (`tangent_gap_orientation`):
+        // a surface curving on a scale near ε still has an orientation,
+        // and its refusal is the second-order arm's, below.
         let arm = geom_brep::folded_lever_arm(s1, s2, p, extent);
         match crate::validate::decide(
             "contact_tangent_opposed",
-            Margin::levered(n1.dot(n2), arm),
+            Margin::levered(n1.dot(n2), extent),
             band,
         ) {
             Ok(Sign::Negative) => {}
@@ -430,6 +460,20 @@ fn tangent_table<T: Decide>(
             // third.
             Err(diag) => return Err(ContactRefusal::Escalated { diag }),
         }
+        // (2) The touch, before the witness: the pair's separation
+        // along the shared normal ([`touching`]), its orientation σ the
+        // one (1) decided.
+        let separation = touching(r1, sense1, r2, sense2, band)?;
+        gap_max = gap_max.max(separation.abs());
+        // The witness on both surfaces, read across the spans each
+        // sample bounds ([`on_surface`]).
+        for (name, miss, r) in [
+            ("contact_tangent_on_1", "contact_tangent_off_1", r1),
+            ("contact_tangent_on_2", "contact_tangent_off_2", r2),
+        ] {
+            on_surface([name, miss], r, bounds.residual_sag, band)?;
+        }
+        let jet = tangent_jet(s1, s2, p, tau);
         // (3) and (4) are decided TOGETHER because C7's first-order
         // threshold is derived FROM the second-order margin: the lever
         // arm of the normal-parallelism test is 1/κ_rel, so whether
@@ -449,18 +493,14 @@ fn tangent_table<T: Decide>(
         // usable lever) the lever is C7's own 1/κ_rel (`levered_inv`, verbatim what the edge
         // certifier uses). Without one the derived angle is unbounded,
         // which would make the test vacuous, so the margin falls back
-        // to the ordinary angular door: the defect metered at the
-        // extent over which the verdict is consumed. Both spellings
-        // answer the same question and carry the same predicate name.
-        // `geom_brep::certify`'s tangent arm spells the same fallback
-        // lever; the one deliberate difference is its role there, where
-        // it reads only after the second-order margin has refused and
-        // only a definite defect names that refusal, while here it is
-        // the first-order verdict itself, so an in-band reading escalates.
+        // to the folded arm (`geom_brep::folded_parallelism`, the one
+        // spelling the edge certifier's namings read too). Here it is
+        // the first-order verdict itself, so an in-band reading
+        // escalates; there it only names a refusal already made.
         let parallel = if matches!(second_order, Ok(Sign::Positive)) {
             Margin::levered_inv(jet.sin_theta, jet.kappa_rel.abs())
         } else {
-            Margin::levered(jet.sin_theta, arm)
+            geom_brep::folded_parallelism(jet.sin_theta, arm)
         };
         let (first_order, first_order_log) = geom_core::k_stats::detached(|| {
             crate::validate::decide("contact_tangent_parallel", parallel, band)
@@ -537,14 +577,86 @@ fn tangent_table<T: Decide>(
             }
         }
     }
-    Ok(if bridged {
+    // The touch between samples: the worst sampled separation plus its
+    // certified sag (`TangentSpanBounds::gap_sag`), the edge
+    // certifier's `tangent_gap_hull_sup` statement. Every sample decided
+    // on the surfaces, so a refusal here rests on the sag and carries
+    // this reading.
+    let touch = match geom_core::k_stats::decide_magnitude_reported(
+        "contact_tangent_touch",
+        Margin::of(gap_max + bounds.gap_sag),
+        band,
+    ) {
+        Ok((Magnitude::Zero, margin)) => margin,
+        Ok((Magnitude::Positive, margin)) => {
+            return Err(ContactRefusal::Escalated {
+                diag: Indeterminate {
+                    margin,
+                    band,
+                    predicate: Some("contact_tangent_touch"),
+                    terminal_sliver: false,
+                },
+            });
+        }
+        Err(diag) => return Err(ContactRefusal::Escalated { diag }),
+    };
+    let verdict = if bridged {
         ContactVerdict::Bridged
     } else {
         ContactVerdict::Definite
-    })
+    };
+    Ok((verdict, touch))
 }
 
-/// **The locus on a surface, read across the spans a sample bounds**:
+/// **The touch at a sample**: the two surfaces' separation along their
+/// shared normal, read off the witness point's residuals `r1`, `r2`.
+///
+/// `s = r₁ − σ·r₂`, σ the sign of the two implicit gradients'
+/// alignment. The opposed-senses reading has already decided the
+/// outward normals opposed, so σ is the senses' `−ε₁ε₂` (εᵢ = ±1 the
+/// face's bit), and `ε₁·s = ε₁r₁ + ε₂r₂` is the sum of the witness's
+/// heights above each face (a residual read along the face's outward
+/// normal): positive where the surfaces stand apart, negative where
+/// each runs into the other's material. The witness's position along
+/// the normal cancels, so a witness between the two surfaces reads
+/// their whole gap rather than each half of it.
+///
+/// - Zero passes; the span between samples is the caller's line.
+/// - A definite sign contradicts (`contact_tangent_gap`, its margin
+///   signed: positive is C4's definite separation, negative its
+///   definite crossing), with the `Fit` steer: a designed gap or
+///   interference is what the geometry holds.
+/// - In band escalates: the touch is MUST-VERIFY-DEFINITE (C4), never
+///   the bridged residue.
+///
+/// Returns the signed separation.
+fn touching<T: Decide>(
+    r1: T,
+    sense1: bool,
+    r2: T,
+    sense2: bool,
+    band: Band,
+) -> Result<T, ContactRefusal> {
+    let height = |r: T, sense: bool| if sense { r } else { -r };
+    let separation = height(r1, sense1) + height(r2, sense2);
+    match crate::validate::decide_reported("contact_tangent_gap", Margin::of(separation), band) {
+        Ok(geom_core::Decided {
+            sign: Sign::Zero, ..
+        }) => Ok(separation),
+        Ok(geom_core::Decided { margin, .. }) => Err(ContactRefusal::Contradicted {
+            diag: Indeterminate {
+                margin,
+                band,
+                predicate: Some("contact_tangent_gap"),
+                terminal_sliver: false,
+            },
+            steer: Some(FIT_DEFERRAL),
+        }),
+        Err(diag) => Err(ContactRefusal::Escalated { diag }),
+    }
+}
+
+/// **The witness on a surface, read across the spans a sample bounds**:
 /// `r` the sample's implicit residual and `sag` the span bound
 /// (`TangentSpanBounds::residual_sag`). A span's interior stands within
 /// its larger end residual plus `sag` (the edge certifier's
@@ -553,15 +665,17 @@ fn tangent_table<T: Decide>(
 /// - verified on the far side, `|r| + sag` within ε (`on`), which at
 ///   every sample bounds every point of the locus;
 /// - contradicted by the sample itself, `r` definitely nonzero (`off`):
-///   a measured point of the locus off the surface is a miss whatever
-///   the spans do, so the sag does not shrink it. The refusal carries
-///   the `off` reading;
+///   a measured point of the witness off the surface is a miss whatever
+///   the spans do, so the sag does not shrink it. The pair has already
+///   been read touching there ([`touching`]), so the miss is the
+///   witness's, a bad cache, and no gap could help: no `Fit` steer. The
+///   refusal carries the `off` reading;
 /// - escalated between. An in-band far side is its own escalation. A
 ///   far side decided beyond the band beside a sample decided on the
 ///   surface rests on the sag, so the refusal carries the `on` reading
 ///   and its margin; an in-band sample carries its own.
 ///
-/// MUST-VERIFY-DEFINITE (C4): "the locus on both surfaces within ε".
+/// MUST-VERIFY-DEFINITE (C4): "the witness within ε of each surface".
 /// The in-band residual is not the bridged residue — that list holds
 /// in-band κ_rel and nothing else — so it escalates, declared or not.
 fn on_surface<T: Decide>(
@@ -588,7 +702,7 @@ fn on_surface<T: Decide>(
             margin,
         }) => Err(ContactRefusal::Contradicted {
             diag: reading(off, margin),
-            steer: Some(FIT_DEFERRAL),
+            steer: None,
         }),
         Ok(geom_core::Decided {
             sign: Sign::Zero, ..
@@ -849,6 +963,97 @@ mod tests {
             };
             assert_eq!(got, want, "{why}: r = {r:e}, sag = {sag:e}");
         }
+    }
+
+    /// A unit cylinder resting on the plane `z = 0` with its axis lifted
+    /// to `z = 1 + gap` (a negative gap sinks it in), read along the
+    /// line at height `z = witness` under the ruling: the pair's touch
+    /// and the witness's place are set apart.
+    fn lifted_cylinder_on_plane(gap: f64, witness: f64) -> Result<ContactVerdict, ContactRefusal> {
+        let cyl = Surface::Cylinder {
+            origin: Point3::new(0.0, 0.0, 1.0 + gap),
+            axis: Vec3::new(1.0, 0.0, 0.0),
+            radius: 1.0,
+            u_ref: Vec3::new(0.0, 1.0, 0.0),
+        };
+        let flat = plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
+        let along = line([0.0, 0.0, witness], [1.0, 0.0, 0.0]);
+        tangent_locus_relation(&cyl, true, &flat, true, &along, -1.0, 1.0, true, band())
+    }
+
+    /// The signed margin a refusal's reading carries.
+    fn margin_of(diag: &Indeterminate) -> f64 {
+        diag.margin
+            .diagnostic_f64_for_error_text()
+            .value()
+            .expect("a decided point margin")
+    }
+
+    /// **The touch is read on the pair, not on each half of it.** A
+    /// witness halfway between two surfaces stands within each by half
+    /// their gap, so two residual rows each pass where the gap is under
+    /// 2ε; the separation `s = r₁ − σ·r₂` reads the whole gap.
+    ///
+    /// - 1.8ε apart: each residual is 0.9ε, within ε; the gap is in
+    ///   band and escalates under its own name.
+    /// - 15ε apart: the gap is definite, a separation (positive), and
+    ///   carries the `Fit` steer. Each residual (7.5ε) is in band, so a
+    ///   decider reading only the residuals escalates here.
+    /// - 15ε into each other: the gap is definite and negative, a
+    ///   crossing, with the same steer.
+    #[test]
+    fn a_witness_between_the_surfaces_reads_their_whole_gap() {
+        let eps = band().zero();
+        match lifted_cylinder_on_plane(1.8 * eps, 0.9 * eps) {
+            Err(ContactRefusal::Escalated { diag }) => {
+                assert_eq!(
+                    diag.predicate,
+                    Some("contact_tangent_gap"),
+                    "1.8ε: {diag:?}"
+                );
+            }
+            other => panic!("1.8ε apart escalates on the gap: {other:?}"),
+        }
+        for (gap, sign, what) in [(15.0, 1.0, "separation"), (-15.0, -1.0, "crossing")] {
+            match lifted_cylinder_on_plane(gap * eps, 0.5 * gap * eps) {
+                Err(ContactRefusal::Contradicted { diag, steer }) => {
+                    assert_eq!(
+                        diag.predicate,
+                        Some("contact_tangent_gap"),
+                        "{what}: {diag:?}"
+                    );
+                    assert!(
+                        margin_of(&diag) * sign > 0.0,
+                        "{what}: the margin's sign names it: {diag:?}"
+                    );
+                    assert_eq!(steer, Some(FIT_DEFERRAL), "{what}: the Fit steer");
+                }
+                other => panic!("{what} by 15ε contradicts on the gap: {other:?}"),
+            }
+        }
+    }
+
+    /// **A witness off a touching pair is a bad witness, not a gap.**
+    /// Displaced 11ε along the shared normal, the witness is 11ε out of
+    /// the cylinder and 11ε above the plane, and the two heights cancel
+    /// in the gap: the pair touches. The residual row contradicts,
+    /// naming the first surface it reads, with no `Fit` steer, since no
+    /// designed clearance is what the geometry holds.
+    #[test]
+    fn a_witness_off_a_touching_pair_contradicts_as_a_bad_witness() {
+        let eps = band().zero();
+        match lifted_cylinder_on_plane(0.0, 11.0 * eps) {
+            Err(ContactRefusal::Contradicted { diag, steer }) => {
+                assert_eq!(diag.predicate, Some("contact_tangent_off_1"), "{diag:?}");
+                assert_eq!(steer, None, "a bad witness carries no Fit steer");
+            }
+            other => panic!("a witness 11ε off contradicts on its residual: {other:?}"),
+        }
+        assert_eq!(
+            lifted_cylinder_on_plane(0.0, 0.0).unwrap(),
+            ContactVerdict::Definite,
+            "the same pair read along its ruling"
+        );
     }
 
     /// A pin in a bore, radii `1` and `1 + δ`, axes along z, placed so

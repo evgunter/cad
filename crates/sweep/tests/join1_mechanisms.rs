@@ -29,8 +29,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::outcomes::outcome;
-use crate::mate2_common::{collar_at, peg_at, volume, wall_decls};
+use crate::mate2_common::{collar_at, peg_at, volume};
 use geom_core::Tol;
 use sweep::test_support::finished;
 use topo::{BooleanError, BooleanResult};
@@ -53,8 +52,8 @@ fn assert_sound(what: &str, r: Result<BooleanResult<f64>, BooleanError>, want: f
 }
 
 /// **Locus matching.** A peg in a collar's bore, flush with the
-/// collar's bottom and proud above its top, every wall pair declared
-/// `Rest` and the flush bottom caps continuations (`wall_decls`). The
+/// collar's bottom and proud above its top, every wall pair a `Rest`
+/// and the flush bottom caps continuations. The
 /// peg's bottom rim arcs lie on the bore's: each section segment there
 /// is an edge of both solids, and the loci name the same two edges at
 /// both of its ends. The union is the collar with the peg's proud part:
@@ -67,7 +66,7 @@ fn matching_reads_the_germs_loci() {
     let c = finished("the collar", collar_at(0.0), tol());
     let p = finished("the peg", peg_at(0.0, 1.0, 1.5), tol());
     let want = volume(&c) + volume(&p);
-    let r = topo::union_with(&c, &p, &wall_decls(&c, &p), tol());
+    let r = topo::union(&c, &p, tol());
     if let Ok(BooleanResult::Body(bb)) = &r {
         assert!(
             bb.naming
@@ -82,9 +81,7 @@ fn matching_reads_the_germs_loci() {
 }
 
 /// **The structural skip.** A peg exactly the collar's height, flush
-/// at both ends, every wall pair and both cap pairs declared
-/// (`wall_decls`): the union is the
-/// unbored collar. Both rims are edges of both solids. Each solid
+/// at both ends: the union is the unbored collar. Both rims are edges of both solids. Each solid
 /// mints ONE copy of a rim arc, in the face its fold leaves Out, and
 /// keeps the rim itself as the other copy: the chord on the far side
 /// of the rim is skipped because the edge between the two halves there
@@ -94,11 +91,7 @@ fn the_skip_takes_the_locus_edge_for_the_segment() {
     let c = finished("the collar", collar_at(0.0), tol());
     let p = finished("the flush peg", peg_at(0.0, 1.0, 1.0), tol());
     let want = volume(&c) + volume(&p);
-    assert_sound(
-        "flush peg ∪ collar",
-        topo::union_with(&c, &p, &wall_decls(&c, &p), tol()),
-        want,
-    );
+    assert_sound("flush peg ∪ collar", topo::union(&c, &p, tol()), want);
 }
 
 /// **The OnEdge incidence check reads the whole site** (the dual
@@ -126,16 +119,12 @@ fn the_incidence_check_reads_the_whole_site() {
 
 /// **The north-star crosslap** (`demos/tour/src/crosslap.rs`;
 /// `test_north_star.py`'s `TestCrosslapGlued`): two notched beams mated.
-/// With every finding declared (the mate and the continuations) the
-/// union builds at the scene's oracle, 14 faces, sound and a legal
-/// operand. With the mate's `SameOpposite` pairs alone declared, or
-/// nothing, the beams' tops and bottoms flush across the notches glue
-/// as the continuations they are by margin, and the union is the
-/// declared body bit for bit (D10).
+/// The beams' tops and bottoms flush across the notches glue as the
+/// continuations they are by margin, and the union builds at the
+/// scene's oracle, 14 faces, sound and a legal operand.
 #[test]
-fn the_crosslap_glues_declared_or_not() {
+fn the_crosslap_glues() {
     use sweep::test_support::brick;
-    use topo::flush::{declare_all, find_flush_candidates};
     let sub = |beam: topo::Body<f64>, notch: topo::Body<f64>| {
         let beam = finished("the beam", beam, tol());
         let notch = finished("the notch", notch, tol());
@@ -152,29 +141,12 @@ fn the_crosslap_glues_declared_or_not() {
         brick((1.75, 2.25), (0.0, 4.0), (0.0, 0.5), tol()),
         brick((1.5, 2.5), (1.75, 2.25), (-0.25, 0.25), tol()),
     );
-    let found = find_flush_candidates(&a, &b, tol()).unwrap();
-    let mate: Vec<_> = found
-        .iter()
-        .filter(|f| f.evidence.relation == topo::PlaneRelation::SameOpposite)
-        .cloned()
-        .collect();
-    let r = topo::union_with(&a, &b, &declare_all(&found), tol());
+    let r = topo::union(&a, &b, tol());
     let faces = r
         .as_ref()
         .ok()
         .and_then(|r| r.body())
         .map(|bb| bb.body.faces().count());
-    assert_eq!(faces, Some(14), "every flush pair declared: {r:?}");
-    let want = outcome(&r);
+    assert_eq!(faces, Some(14), "every flush pair glued: {r:?}");
     assert_sound("crosslap ∪", r, 1.875);
-    for (posture, d) in [
-        ("the mate alone", declare_all(&mate)),
-        ("undeclared", topo::BooleanDeclarations::none()),
-    ] {
-        assert_eq!(
-            outcome(&topo::union_with(&a, &b, &d, tol())),
-            want,
-            "{posture}: the declared union"
-        );
-    }
 }
