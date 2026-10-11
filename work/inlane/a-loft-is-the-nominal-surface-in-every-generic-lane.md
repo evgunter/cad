@@ -83,6 +83,36 @@ Both answered yes. This item is the document half, after the skin unit.
 - **Acceptance:** the two pins above, a nonzero `Dual` wall derivative
   and an `Interval` enclosure of the family. Also: a loft on a face
   frame evaluates at `Interval`, `Dual` and `Sym`, and the f64 build is
-  bit-identical.
+  bit-identical. The `Interval` enclosure pin waits on
+  `the-skin-at-interval-encloses-the-nominal-skin`; the `Dual` pin
+  does not.
 - `a-loft-takes-its-placements-as-f64` dissolves here: the loft has no
   placement input to take as f64.
+
+## What the library offers this unit (PR 4726, the skin unit)
+
+- `sweep::loft_body`/`sweep_body` take sections (`ProfileLoop<T>` or
+  `ConstructedLoop<T>`) and placements in `T`. The structure is
+  selected at `f64` on their value channel (`SectionLoop::channel`, with
+  NaN where there is no point). Each section is then re-validated at
+  `T` along that record (`SectionLoop::validate_guided`), and the skin
+  runs in `T` at every projective scalar. At `Dual` a library loft over
+  a dual bulge carries the wall's derivative
+  (`sweep/tests/a_loft_computes_its_walls_in_t.rs`).
+- At an enclosure scalar (`Interval`, and `Dual`/`Sym` over it) the
+  library loft encloses the `f64` skin of the value channel
+  (`SpanLocate::split_projective`). A section wider than a point
+  therefore refuses at the structure pass
+  (`a_loft_over_a_section_wider_than_a_point_refuses_at_interval`).
+  A placement wider than a point refuses by name
+  (`LoftError::PlacementNotAPoint`). Enclosing the family over a box
+  is `the-skin-at-interval-encloses-the-nominal-skin`. A nominal
+  witness alone would not do it: in the enclosure half the `f64`
+  skin of the channel is the walls' VALUES, not only their structure,
+  so a section answering `SectionLoop::channel()` with its nominal
+  would certify the nominal over the box, the defect this item names.
+- The library keeps a separate `places` argument (Python, demos, the
+  test corpus). A document section that carries its own plane composes
+  onto it: the plane's placement is the `places[i]` it passes.
+- editor-core's `wire_loft` lifts its `f64` sections and placements
+  at the door through `from_computed` until this unit lands.

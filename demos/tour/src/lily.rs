@@ -962,19 +962,19 @@ fn leaf<S: Scalar>(
         })
         .collect();
     let path = pncad::geom::NurbsCurve3::interpolate(&pts, 3).expect("the leaf spine interpolates");
-    // The skinning lane's own door is `f64` (`sweep_body` takes an
-    // `Affine3<f64>`), so this frame is not lifted at all.
-    let place = authored_frame(base, u, v, tol).to_affine();
-    sweep_body::<S>(
-        &section.outline(tol),
-        place,
-        &path,
-        LEAF_STATIONS,
-        BLADE_V_DEGREE,
-        tol,
-    )
-    .expect("the leaf sweeps along its spine")
-    .body
+    // The outline and the frame are built in `f64`, so they enter `S`
+    // as the computed values they are.
+    let place = authored_frame(base, u, v, tol)
+        .to_affine()
+        .map(S::from_computed);
+    let outline: Vec<_> = section
+        .outline(tol)
+        .iter()
+        .map(|lp| lp.lift_computed())
+        .collect();
+    sweep_body::<S>(&outline, place, &path, LEAF_STATIONS, BLADE_V_DEGREE, tol)
+        .expect("the leaf sweeps along its spine")
+        .body
 }
 
 // ---------------------------------------------------------------
@@ -1356,6 +1356,12 @@ fn loft_plan<S: Scalar>(
         sections.push(said(plan.at(s)));
         places.push(authored_frame(p, uu, vv, tol).to_affine());
     }
+    // Built in `f64`, so they enter `S` as the computed values they are.
+    let sections: Vec<Vec<_>> = sections
+        .iter()
+        .map(|s| s.iter().map(|lp| lp.lift_computed()).collect())
+        .collect();
+    let places: Vec<Affine3<S>> = places.iter().map(|p| p.map(S::from_computed)).collect();
     loft_body::<S>(&sections, &places, BLADE_V_DEGREE, tol)
 }
 
