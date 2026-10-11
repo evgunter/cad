@@ -253,7 +253,7 @@ pub(crate) fn ladder<T: Decide, S, E: From<LadderRefusal>>(
 /// midpoint of each pair of the face's vertices, over its outer loop
 /// and every ring, then the points across its edges ([`across_edges`]).
 /// `None` when no candidate certifies.
-fn face_interior_point<T: Decide>(
+pub(crate) fn face_interior_point<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     normal: Vec3<T>,

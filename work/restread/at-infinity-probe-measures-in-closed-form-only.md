@@ -260,3 +260,32 @@ that way.
 Pinned by `a_curved_notch_at_a_corner_pinch_builds_bodies_two_lanes_cannot_read_yet`
 (poses `0 0 0 ab I` and `0 0 0 ab U` refuse; `9 4 4 ab S` passes):
 when this lane lands, flip those two expectations.
+
+## Measured (CLEAVE `cleave/missed-ray-side`, 2026-10-11)
+
+CLEAVE's missed-ray unit
+(`work/cleave/a-missed-ray-reads-the-solids-volume-sign-for-its-side`)
+reads a missed ray's side off a ray aimed at a planar face wherever the
+selection's volume does not decide it, and that includes this row's
+`VolumeUncertified` (`solid_contain.rs` `missed_side`, `aimed_side`).
+Each pin this row names was measured on the branch at ε 1e-9, 1e-6 and
+1e-12, and re-baselined to the answer it now gives:
+
+- `pis_arc_capped_poses::a_ray_meeting_nothing_refuses_only_where_no_ray_settles`
+  is now `a_ray_meeting_nothing_is_sided_by_a_ray_aimed_at_a_planar_face`:
+  `Out` at both bands.
+- `pis_arc_capped_poses` grids and `pis_cut_cavity`: no at-infinity
+  refusal on any case, so their `VolumeUncertified` escape arms are
+  gone.
+- `band_planar_oblique_fillet`: ∖ and ∪ with a brick apart build at
+  the closed-form volumes, and ∩ is empty.
+- `curved_notch_pinch`: the further union builds on all three pinned
+  poses, the brick's volume added. The test is renamed
+  `a_curved_notch_at_a_corner_pinch_builds_bodies_the_census_cannot_read_yet`.
+- `parallel_cylinder_join::the_rim_crossing_rods_build_in_every_op`: all
+  18 builds now take a union with a far brick.
+- `germ_tilted_rod` and `pole_slit_window`: every outside probe answers.
+
+What stays: a selection with no planar face offers no aim point, so
+where its closed form refuses, the refusal stands. No such pose was
+measured.

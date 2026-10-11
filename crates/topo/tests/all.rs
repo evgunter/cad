@@ -197,6 +197,8 @@ mod mesh12_parse_vs_certification;
 mod mesh12_rim_row_reach;
 #[path = "mesh8_coherence.rs"]
 mod mesh8_coherence;
+#[path = "missed_ray_side.rs"]
+mod missed_ray_side;
 #[path = "neighbours_across_a_closed_edge.rs"]
 mod neighbours_across_a_closed_edge;
 #[path = "offset_doors_read_charts_not_material.rs"]
