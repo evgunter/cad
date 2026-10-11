@@ -524,6 +524,16 @@ pub trait ProfilePayload: serde::Serialize + SlotPayload<VarId> {
     ) -> Result<Self, E>
     where
         Self: Sized;
+    /// **The document as the evaluator reads it**, where this is the
+    /// payload it evaluates; `None` for any other, which no replay
+    /// reads.
+    fn evaluable(doc: &crate::doc::Doc<Self>) -> Option<&crate::doc::Doc<ProfileProgram>>
+    where
+        Self: Sized,
+    {
+        let _ = doc;
+        None
+    }
     /// **This payload re-authored**, every slot written by `reader`,
     /// handed the slot's variable and the dimension its argument is
     /// read at.
@@ -2496,6 +2506,9 @@ impl<S: crate::expr::Slot> SlotPayload<S> for ProfileProgram<S> {
 
 impl ProfilePayload for ProfileProgram {
     type Authored = ProfileProgram<crate::Formula>;
+    fn evaluable(doc: &crate::doc::Doc<Self>) -> Option<&crate::doc::Doc<ProfileProgram>> {
+        Some(doc)
+    }
     fn lower<E>(
         authored: &Self::Authored,
         f: &mut dyn FnMut(&crate::Formula) -> Result<VarId, E>,

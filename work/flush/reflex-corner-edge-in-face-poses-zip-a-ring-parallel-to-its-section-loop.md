@@ -2,11 +2,14 @@
 id: reflex-corner-edge-in-face-poses-zip-a-ring-parallel-to-its-section-loop
 kind: issue
 title: At the 315-degree reflex corner, B's section ring runs parallel to A's section loop (SeamOrientation), and 32 edge-in-face poses reach it once joined
-status: open
+status: closed
 opened: 2026-10-02
 priority: P1
 cost: H
 refs: [3900, 3887]
+closed: 2026-10-11
+branch: flush/readers-closes
+pr: 4635
 ---
 
 
@@ -85,3 +88,35 @@ battery line changed. Pinned by `join_rc_probes`
 ## Released from the D10 hold (2026-10-08)
 
 Nothing D10 changes gates this row, so it is open: already fixed by PR 3900 (insert::strut_order) and its closing bar is met; it can close now. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Closed (2026-10-11, `flush/readers-closes`)
+
+The bar is met on main `19b704d92f`, release build:
+
+- `cargo test --release -p sweep --test all --exact
+  join1_r1_probes::join1_r1_reflex_battery -- --ignored --nocapture`
+  (the battery as named, flush-declared): 1152 lines, **0
+  `SeamOrientation`**. 879 `OK SOUND`, 81 `EMPTY ok`, and 192 refusals
+  that are all `S_ba` at the declaration door (144
+  `InvalidDeclaration`, 24 `ContactContradicted`, 24
+  `ContinuationContradicted`): the
+  `the-reflex-probes-run-b-minus-a-under-declarations-keyed-for-a-b`
+  row's subject, which never reaches the join.
+- The same 1152 poses and ops through the plain `topo::intersect` /
+  `union` / `subtract`: 1071 `OK SOUND`, 81 `EMPTY ok`, nothing else.
+  The plain run differs from the declared one in exactly those 192
+  `S_ba` lines.
+
+Pinned by `join_rc_probes`
+`reflex_corner_edge_in_face_poses_build_every_op_undeclared`: this
+row's ten mover poses (`sqQ2` at `(0, −0.5)`, `(0, −0.25)`,
+`(0.25, 0)`, `(0.5, 0)`; `dLeft` at `(0.25, ±0.25)`, `(0.5, ±0.5)`;
+`eRight` at `(0.25, 0)`, `(0.5, 0)`), all four ops through the plain
+booleans, each body checked sound at the closed form. A mutant that
+orders a strut's germs by bare cosine against the arrival edge
+(`insert::strut_order`'s order step replaced by the sign of
+`(g0 − g1)·e`) turns it red, with `SeamOrientation` at every `sqQ2`
+pose, and turns 152 lines of the plain battery to `SeamOrientation`.
+The `dLeft` and `eRight` poses stay sound under that mutant, so the
+mutant does not reproduce the pre-PR-3900 fault exactly. They stay in
+the pin because they are this row's own measured movers.
