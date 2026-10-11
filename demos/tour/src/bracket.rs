@@ -238,7 +238,8 @@ fn trimmed_and_broken(doc: &Doc<ProfileProgram>, body: RecipeNodeId, tol: Tol) -
 
 /// The split's `half`, read off its value.
 fn half_at(ev: &Evaluation<f64>, split: RecipeNodeId, half: SplitHalf) -> Body<f64> {
-    let ValuePayload::Split { above, below } = &ev.value(split).expect("the split evaluated").payload
+    let ValuePayload::Split { above, below } =
+        &ev.value(split).expect("the split evaluated").payload
     else {
         panic!("a split value");
     };
@@ -331,7 +332,9 @@ fn split_and_break(trimmed: &Trimmed, body: RecipeNodeId, tol: Tol) -> String {
         select(
             &ev,
             split,
-            &edges(vec![SegPat::tag(SegTag::SectionEdge).side(SplitHalf::Below)]),
+            &edges(vec![
+                SegPat::tag(SegTag::SectionEdge).side(SplitHalf::Below),
+            ]),
         ),
     ]
     .concat();
