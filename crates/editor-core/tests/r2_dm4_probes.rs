@@ -112,6 +112,76 @@ fn r2_place_lower_half() {
     assert_eq!(t.iter().count(), lower.iter().count());
 }
 
+/// A key sited on a transform's output whose transform is deleted: the
+/// loss is `NodeGone`; what do `resolve` at that read and the loss's
+/// enrichment answer?
+#[test]
+fn r2_resolve_at_a_deleted_read() {
+    let doc = ProfileDoc::empty_derived("r2_deleted_read", Tol::witness());
+    let (doc, plane) = insert(doc, xy_frame());
+    let (doc, pa) = insert(
+        doc,
+        Node::Profile(desc(
+            plane,
+            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
+        )),
+    );
+    let (doc, a) = insert(
+        doc,
+        Node::Extrude {
+            profile: pa.into(),
+            distance: len(1.0),
+            side: ExtrudeSide::Along,
+        },
+    );
+    let (doc, t) = insert(
+        doc,
+        fixture::xform(a, [0.0, 0.0, 2.0], [0.0, 0.0, 1.0], 0.0),
+    );
+    let t_read = doc.outputs(t)[0];
+    let face = fixture::fname(a, RoleSeg::Cap(editor_core::CapEnd::End));
+    let (doc, _) = fixture::step(
+        doc,
+        editor_core::DocEdit::SetAppearance {
+            body: t_read,
+            name: face.clone(),
+            attr: editor_core::Attr::Color(editor_core::Rgba8::opaque(1, 2, 3)),
+        },
+    );
+    let before = fixture::run(&doc, &Default::default());
+    let (gone, _) = fixture::step(doc.clone(), editor_core::DocEdit::DeleteNode { id: t });
+    let ev = fixture::run(&gone, &Default::default());
+    println!("losses: {:?}", ev.appearance.losses);
+    let ctx = editor_core::RunCtx {
+        doc: &gone,
+        eval: &ev,
+    };
+    let r = editor_core::resolve(ctx, t_read, &face);
+    println!("resolve at deleted read: {r:?}");
+    let prior = editor_core::RunCtx {
+        doc: &doc,
+        eval: &before,
+    };
+    let r2 = editor_core::resolve_with_prior(ctx, prior, t_read, &face);
+    println!("resolve_with_prior at deleted read: {r2:?}");
+    for loss in &ev.appearance.losses {
+        println!(
+            "enriched: {:?}",
+            editor_core::enrich_appearance_loss_with_prior(ctx, prior, loss)
+        );
+    }
+    assert!(
+        matches!(
+            r,
+            editor_core::Resolution::Failed(editor_core::ResolutionFailure {
+                error: editor_core::ResolveError::NodeGone { .. },
+                ..
+            })
+        ),
+        "a read whose operation is deleted answers NodeGone"
+    );
+}
+
 fn tool_of(doc: &ProfileDoc, split: RecipeNodeId) -> RecipeNodeId {
     doc.upstream(split)
         .into_iter()
