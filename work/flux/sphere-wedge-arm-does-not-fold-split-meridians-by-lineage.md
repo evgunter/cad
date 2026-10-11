@@ -2,12 +2,13 @@
 id: sphere-wedge-arm-does-not-fold-split-meridians-by-lineage
 kind: issue
 title: sphere()'s wedge arm reads a two-edge boundary and refuses a meridian that arrives in lineage pieces, where the torus arm folds pieces by lineage
-status: review
+status: closed
 opened: 2026-09-16
 refs: [2748, 542]
 priority: P0
 cost: H
 pr: 4573
+closed: 2026-10-11
 ---
 
 Found by BOOL-5's dual review (PR 2748) and filed by the S-BOOL
@@ -47,3 +48,8 @@ Witnesses: `geom-brep/tests/bool5_wedge_arm.rs`
 `a_split_meridian_wedge_measures_the_quarter_lune`,
 `bool5r1_probes.rs` (lineage pieces) and `bool5r2_wedge_probes.rs`, each
 at `2R²·π/2`.
+
+## Closed (2026-10-11, PR 4573)
+
+(FLUX orchestrator) Merged after dual review, three fix passes and two
+independent verifiers. The DR row is `docs/dual-review-log/rows/PR-4573.md`.

@@ -2,12 +2,13 @@
 id: sphere-face-with-a-hole-has-no-closed-form
 kind: issue
 title: A sphere face with a hole has no closed form (RingOnCurvedFace), though the Gauss–Bonnet loop lane extends to rings
-status: review
+status: closed
 opened: 2026-10-05
 priority: P1
 cost: M
 refs: [a-ring-on-a-sphere-face-has-no-island-winding]
 pr: 4573
+closed: 2026-10-11
 ---
 
 
@@ -78,3 +79,8 @@ slice integrals: `a_ring_on_a_sphere_face.rs` (every pose, every op),
 tilted 1.2, `m5_s13_review_probes::probe_edge_escape_lands_a_ring…`,
 and `shell_curved_mouth`'s sphere window. The mesh lane still refuses a
 ringed curved face (TESS's).
+
+## Closed (2026-10-11, PR 4573)
+
+(FLUX orchestrator) Merged after dual review, three fix passes and two
+independent verifiers. The DR row is `docs/dual-review-log/rows/PR-4573.md`.

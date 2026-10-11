@@ -2,11 +2,12 @@
 id: rim-side-and-rim-dir-group-signs-are-facts-about-cycle-order
 kind: issue
 title: props_rim_side and props_rim_dir_group read whichever rim the loop walk from Cycle::first meets first, so their recorded signs are facts about cycle order rather than about the face
-status: review
+status: closed
 opened: 2026-09-14
 priority: P0
 cost: H
 pr: 4573
+closed: 2026-10-11
 ---
 
 Filed by the TOPO revert-wrap fix pass (PR 2573, 2026-09-14), on this
@@ -146,3 +147,8 @@ offset, a face fact. Witnesses:
 `the_cone_gate_reads_one_side_at_every_anchor` and
 `props_sphere_pole_side.rs`
 `the_recorded_verdicts_are_a_face_fact_under_re_anchoring`.
+
+## Closed (2026-10-11, PR 4573)
+
+(FLUX orchestrator) Merged after dual review, three fix passes and two
+independent verifiers. The DR row is `docs/dual-review-log/rows/PR-4573.md`.

@@ -2,12 +2,13 @@
 id: sphere-flux-arm-carries-two-closed-forms-for-one-face-kind
 kind: issue
 title: The sphere flux arm measures a tilted-circle face by Gauss-Bonnet and every other face by the iso-rectangle form, where the first subsumes the second
-status: review
+status: closed
 opened: 2026-10-02
 priority: P1
 cost: H
 design: true
 pr: 4573
+closed: 2026-10-11
 ---
 
 
@@ -143,3 +144,8 @@ refusal is validity's. Witnesses: `sweep/tests/a_flipped_shallow_dimple.rs`
 alone), the L-shaped, plus and staircase faces at exact area
 (`geom-brep/tests/s58_iso_rectangle.rs`, `cert1_r1_probes.rs`,
 `props_sphere_pole_side.rs`).
+
+## Closed (2026-10-11, PR 4573)
+
+(FLUX orchestrator) Merged after dual review, three fix passes and two
+independent verifiers. The DR row is `docs/dual-review-log/rows/PR-4573.md`.

@@ -2,12 +2,13 @@
 id: a-sphere-face-whose-boundary-encodes-no-side-is-measured-under-its-bit-alone
 kind: issue
 title: A sphere face whose boundary encodes no side (the rimless band, a tilted-circle face with a pole on its loop) is measured under its sense bit alone, so a flipped bit measures the complement silently
-status: review
+status: closed
 opened: 2026-10-02
 priority: P2
 cost: M
 refs: [sphere-flux-arm-carries-two-closed-forms-for-one-face-kind]
 pr: 4573
+closed: 2026-10-11
 ---
 
 
@@ -66,3 +67,16 @@ are validity's to refuse
 (`work/restfront/validity-refuses-an-interior-chart-singularity.md`).
 Witness: `sweep/tests/tilted_sphere_pair.rs`,
 `a_flipped_remnant_with_a_pole_off_its_loop_is_refused_by_name`.
+
+## Closed (2026-10-11, PR 4573)
+
+(FLUX orchestrator) What this row measured is closed. Every encoded face
+now reads its side from the boundary. Each part of the residual has its
+own row, so this one closes rather than staying open as a container:
+
+- seam siblings flipped together:
+  `a-pair-of-seam-siblings-flipped-together-is-silent`;
+- a pole off the loop on each side: validity's
+  `validity-refuses-an-interior-chart-singularity`;
+- the in-band twin: pinned by
+  `a_pole_in_the_band_of_a_great_carriers_plane_leaves_the_loop_unread`.
