@@ -1,0 +1,5 @@
+fork: a-gone-read (INTENT DM4 unit 2, a-name-is-scoped-by-the-variable-holding-its-body, PR 4674)
+drawn: 2026-10-11T09:51:09Z, python3 os.urandom(1)
+byte: 51
+mapping: A = Fable designer, B = Opus designer
+protocol: d4ffadd10c
