@@ -161,13 +161,12 @@ fn silent_fixed_predicates_scale_linearly() {
         let a = fin("a", bx((0.0, 2.0), (0.0, 2.0), (0.0, 2.0)));
         let b = fin("b", bx((1.0, 2.0), (0.5, 1.5), (0.5, 1.5)));
         k_stats::start_recording();
-        // Flush: b's x-max face lies IN a's x=2 face plane. Undeclared,
-        // so the op REFUSES typed at bool_plane_offset — but the
-        // bool_plane_orient sample fires (and records) first, which is
-        // all this probe harvests.
+        // Flush: b's x-max face lies IN a's x=2 face plane, which the
+        // op glues on its decided zero; the bool_plane_orient sample
+        // fires on the way, which is all this probe harvests.
         assert!(
-            subtract(&a, &b, Tol::witness()).is_err(),
-            "undeclared flush must refuse"
+            subtract(&a, &b, Tol::witness()).is_ok(),
+            "the flush subtract builds"
         );
         // Oblique split of a cube.
         let body = bx((0.0, 2.0), (0.0, 2.0), (0.0, 2.0)).clone();

@@ -19,7 +19,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use geom_core::{Point3, Tol};
 use topo::test_support as fixtures;
-use topo::{AtRestBody, Body, BooleanDeclarations, BooleanError, BooleanResult, mass_properties};
+use topo::{AtRestBody, Body, BooleanError, BooleanResult, mass_properties};
 
 use crate::common::differential::outcome;
 use crate::join_pierce_runs_sweep::{convex_volume, frame};
@@ -201,11 +201,10 @@ fn roof_halves(along_x: bool) -> Vec<Half> {
 fn roof_cross(union: bool) -> Option<Shape> {
     let (w1, w2) = roofs();
     let (w1, w2) = (finished("roof x", w1), finished("roof y", w2));
-    let d = BooleanDeclarations::default();
     let r = if union {
-        topo::union_with(&w1, &w2, &d, tol())
+        topo::union(&w1, &w2, tol())
     } else {
-        topo::intersect_with(&w1, &w2, &d, tol())
+        topo::intersect(&w1, &w2, tol())
     };
     let body = match r {
         Ok(r) => r.body()?.body.clone(),
@@ -265,12 +264,7 @@ fn center(name: &str) -> Option<V3> {
     }
 }
 
-type Op = fn(
-    &AtRestBody<f64>,
-    &AtRestBody<f64>,
-    &BooleanDeclarations,
-    Tol,
-) -> Result<BooleanResult<f64>, BooleanError>;
+type Op = fn(&AtRestBody<f64>, &AtRestBody<f64>, Tol) -> Result<BooleanResult<f64>, BooleanError>;
 
 const EDGE: V3 = [0.0, -2.0, 0.0];
 const CORNER: V3 = [0.0, 0.0, 0.0];
@@ -298,20 +292,19 @@ fn pose_lines(s: &Shape, place: &str, f: [V3; 3], what: &str) -> Vec<String> {
     let va = s.volume_with(&[]);
     let vb = SIDE * SIDE * SIDE;
     let common = s.volume_with(&cube_planes(s.v, f, lo));
-    let d = BooleanDeclarations::default();
     let mut out = Vec::new();
     for (order, x, y, vx) in [("sc", &s.body, &cube, va), ("cs", &cube, &s.body, vb)] {
         let ops: [(&str, Op, f64); 3] = [
-            ("U", topo::union_with, va + vb - common),
-            ("I", topo::intersect_with, common),
-            ("S", topo::subtract_with, vx - common),
+            ("U", topo::union, va + vb - common),
+            ("I", topo::intersect, common),
+            ("S", topo::subtract, vx - common),
         ];
         for (op, run, want) in ops {
             let tag = format!("{} {place} {what} {order} {op}", s.name);
             if serial() {
                 eprintln!("R2RUN {tag}");
             }
-            let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run(x, y, &d, tol())));
+            let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run(x, y, tol())));
             let line = match r {
                 Ok(r) => {
                     let why = match &r {

@@ -10,8 +10,8 @@
 use crate::common::{brick, finished};
 use geom_core::Tol;
 use topo::{
-    AtRestBody, Backing, Body, BooleanBody, BooleanDeclarations, BooleanResult, Cell, Cited, Cites,
-    Contact, ContactClass, ContactKind, ContactRecords, Operand, RowCell, union_with,
+    AtRestBody, Backing, Body, BooleanBody, BooleanInputs, BooleanResult, Cell, Cited, Cites,
+    Contact, ContactKind, ContactRecords, Operand, RowCell,
 };
 
 fn tol() -> Tol {
@@ -22,12 +22,15 @@ fn box_of(x: (f64, f64), y: (f64, f64), z: (f64, f64), what: &str) -> AtRestBody
     finished(what, brick(x, y, z, tol()), tol())
 }
 
-fn union(
-    a: &AtRestBody<f64>,
-    b: &AtRestBody<f64>,
-    decls: &BooleanDeclarations,
-) -> BooleanBody<f64> {
-    match union_with(a, b, decls, tol()) {
+fn union(a: &AtRestBody<f64>, b: &AtRestBody<f64>, inputs: &BooleanInputs) -> BooleanBody<f64> {
+    match topo::boolean_op_with(
+        topo::BooleanOp::Union,
+        a,
+        b,
+        inputs,
+        topo::SweepStrategy::Realized,
+        tol(),
+    ) {
         Ok(BooleanResult::Body(r)) => r,
         other => panic!("the union builds: {other:?}"),
     }
@@ -106,14 +109,14 @@ fn a_carried_citation_past_index_zero_names_its_record_and_its_decision() {
     let b = box_of((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), "b");
     let c = box_of((-1.0, 0.0), (-1.0, 0.0), (-1.0, 0.0), "c");
     let far = box_of((5.0, 6.0), (5.0, 6.0), (5.0, 6.0), "far");
-    let kiss = union(&a, &b, &BooleanDeclarations::none());
+    let kiss = union(&a, &b, &BooleanInputs::default());
     assert_eq!(kiss.contacts.len(), 1, "{:?}", kiss.contacts);
     let r2 = union(
         &kiss.body,
         &c,
-        &BooleanDeclarations {
-            carried_a: kiss.contacts.carried(ContactClass::Rest),
-            ..BooleanDeclarations::none()
+        &BooleanInputs {
+            records_a: kiss.contacts.carried(),
+            ..BooleanInputs::default()
         },
     );
     assert_eq!(r2.contacts.len(), 2, "{:?}", r2.contacts);
@@ -133,9 +136,9 @@ fn a_carried_citation_past_index_zero_names_its_record_and_its_decision() {
     let r3 = union(
         &r2.body,
         &far,
-        &BooleanDeclarations {
-            carried_a: list.carried(ContactClass::Rest),
-            ..BooleanDeclarations::none()
+        &BooleanInputs {
+            records_a: list.carried(),
+            ..BooleanInputs::default()
         },
     );
     assert_eq!(r3.contacts.len(), 2, "{:?}", r3.contacts);

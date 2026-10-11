@@ -1430,19 +1430,11 @@ mod verbs_gate_r1_probes {
     //! `wall3_pinned` and `wall4_pinned`, so the two cannot drift.
     //!
     //! **Why the operand gate's covered-pair rung cannot reach wall 4.**
-    //! The gate does not refuse a pair the caller's declarations speak
-    //! for — but "the caller's declarations" is the
-    //! `BooleanDeclarations` value handed to the op, and both walls
-    //! below go through `pncad::topo::union` and `pncad::topo::subtract`,
-    //! the doors that take none. (Wall 3 refuses earlier still, on the
-    //! loop's NURBS edges, which no declaration speaks for.)
-    //!
-    //! Wall 4 is doubly out of reach and the second reason is the more
-    //! durable one: it is a SUBTRACT, and the revert roster it refuses
-    //! at, on the loop's NURBS wall, has no covered rung at all. A
-    //! declaration supplies the verdict a germ arm would have; it
-    //! cannot supply a seam lane to revert through, so declaring the
-    //! wall's pairs would not move wall 4.
+    //! It is a SUBTRACT, and the revert roster it refuses at, on the
+    //! loop's NURBS wall, has no covered rung at all: a decided
+    //! coincidence supplies the verdict a germ arm would have, and it
+    //! cannot supply a seam lane to revert through. (Wall 3 refuses
+    //! earlier still, on the loop's NURBS edges.)
 
     use super::*;
 

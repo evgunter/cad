@@ -22,7 +22,7 @@ use sweep::test_support::{assert_naming_totality, cube, finished};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::query::{self, SurfaceKindSet};
-use topo::{Body, BooleanDeclarations, EdgeKey};
+use topo::{Body, EdgeKey};
 
 const DIE_L: f64 = 1.0;
 const PIP_R: f64 = 0.09;
@@ -88,7 +88,7 @@ fn pipped_die() -> (Body<f64>, Vec<EdgeKey>, Vec<EdgeKey>) {
         BooleanOp::Subtract,
         &cube0,
         &pip,
-        &BooleanDeclarations::none(),
+        &topo::BooleanInputs::default(),
         SweepStrategy::Realized,
         Tol::witness(),
     )

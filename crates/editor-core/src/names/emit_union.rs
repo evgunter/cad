@@ -194,15 +194,9 @@ pub(crate) fn name_lone_member(
 
 /// **One entity of one member, in the union's own name space** — the
 /// row [`member_view`] puts into that member's operand table, for a
-/// caller that has the name rather than the table.
-///
-/// The declaration channel is that caller: a declared pair names
-/// SITED entities (`SitedRef { at, name }`), and the union rewrites
-/// each into this space before the shared resolver runs. Minting the
-/// row here rather than there is what keeps the member-keying rule to
-/// ONE definition — the view and the door cannot disagree about what
-/// a member's entity is called.
-pub(crate) fn member_name(union: RecipeNodeId, member: VarId, name: &StableName) -> StableName {
+/// test that has the name rather than the table.
+#[cfg(test)]
+fn member_name(union: RecipeNodeId, member: VarId, name: &StableName) -> StableName {
     keyed(union, member, NameRef::new(name.clone()), name.kind)
 }
 
@@ -2165,11 +2159,10 @@ fn without_tail(name: &StableName, drop: impl Fn(&Qualifier) -> bool) -> StableN
 ///
 /// Two callers, and the split is what tells them apart. [`name_union`]
 /// rewrites the LAST step's table, which names a finished body and is
-/// held to totality. The declaration door rewrites an INTERMEDIATE
-/// step's, and for a different purpose: a declared pair is written
-/// against what this node's refusals name (`collapse_name`), so the
-/// door that resolves one has to read the accumulation in that same
-/// space. The entities are untouched — same keys, same ties — so the
+/// held to totality. The fold rewrites an INTERMEDIATE step's, and
+/// for a different purpose: a step's rows are named in the space this
+/// node's refusals name (`collapse_name`), so the fold reads the
+/// accumulation in that same space. The entities are untouched — same keys, same ties — so the
 /// keys a lookup returns are the accumulation's own.
 pub(crate) fn collapse_table(
     node: RecipeNodeId,
