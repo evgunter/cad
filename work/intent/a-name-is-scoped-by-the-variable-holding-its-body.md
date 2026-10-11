@@ -2,11 +2,11 @@
 id: a-name-is-scoped-by-the-variable-holding-its-body
 kind: unit
 title: A name is scoped by the variable that holds its body: name tables and the evaluator's results per output variable, and a split's roles drop the half
-status: parked
+status: open
 opened: 2026-10-09
 priority: P0
 cost: H
-blocked_on: [a-union-member-is-keyed-by-its-read]
+blocked_on: []
 refs: [part-split-half-retires, operands-are-reads]
 ---
 
