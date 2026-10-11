@@ -172,10 +172,7 @@ fn carrier_verdict(
 
 /// The face `cell` names, as the replay built it: the body of the read
 /// it came in through and its key there, read in that read's own table.
-fn face_of<'e>(
-    ev: &'e Evaluation<Lane>,
-    cell: &NamedCell,
-) -> Option<(&'e Body<Lane>, FaceKey)> {
+fn face_of<'e>(ev: &'e Evaluation<Lane>, cell: &NamedCell) -> Option<(&'e Body<Lane>, FaceKey)> {
     let NamedCell::Entity { input, name } = cell else {
         return None;
     };
