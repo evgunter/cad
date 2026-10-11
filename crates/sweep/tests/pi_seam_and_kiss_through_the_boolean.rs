@@ -400,8 +400,8 @@ fn the_sphere_capped_tube_builds_with_its_hemisphere_turned() {
 
 /// **Turned within a hair of aligned**, the sphere-capped tube answers
 /// by how far its rim vertices sit apart. Inside the zero band it is the
-/// aligned body; in the sliver band the seam cover escalates.
-/// From there to about `√(70·ε·R)` apart, the tube's seam ruling, whose top
+/// aligned body. From the sliver band to about `√(70·ε·R)` apart, the
+/// tube's seam ruling, whose top
 /// end lies on the hemisphere's rim just outside one sphere face, keeps
 /// the covered line rung's door against that face
 /// (`a-covered-line-ending-just-off-the-face-keeps-the-door`): the
@@ -412,7 +412,6 @@ fn the_sphere_capped_tube_builds_with_its_hemisphere_turned() {
 fn the_sphere_capped_tube_turned_within_a_hair_of_aligned() {
     enum Expect {
         Builds((usize, usize, usize, usize)),
-        Escalates,
         RulingDoor,
     }
     let tol = Tol::witness();
@@ -426,7 +425,7 @@ fn the_sphere_capped_tube_turned_within_a_hair_of_aligned() {
     // side.
     for (apart, expect) in [
         (0.01 * zero, Expect::Builds((5, 8, 5, 1))),
-        (2.0 * (zero * escalate).sqrt(), Expect::Escalates),
+        (2.0 * (zero * escalate).sqrt(), Expect::RulingDoor),
         (5.0 * escalate, Expect::RulingDoor),
         ((R * escalate).sqrt(), Expect::RulingDoor),
         (-(R * escalate).sqrt(), Expect::RulingDoor),
@@ -452,14 +451,6 @@ fn the_sphere_capped_tube_turned_within_a_hair_of_aligned() {
                     );
                     assert_eq!(c, rims, "{label}: F, E, V, shells");
                 }
-                Expect::Escalates => assert!(
-                    matches!(
-                        &r,
-                        Err(BooleanError::Escalated { diag, .. })
-                            if diag.predicate.is_some_and(|p| p.starts_with("seam_cover_"))
-                    ),
-                    "{label}: the seam cover, in band: {r:?}"
-                ),
                 Expect::RulingDoor => {
                     let Err(BooleanError::CurvedPierceUnsupported { operand, edge, .. }) = r else {
                         panic!("{label}: the covered line rung's door: {r:?}");

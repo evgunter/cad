@@ -41,8 +41,8 @@ enum Kind {
 /// faces/edges/vertices, its closed-form volume and its tier-3′ verdict.
 ///
 /// A result 3′ refuses is refused by an operand's own contacts along its
-/// pinch line, which no boolean carries into its result
-/// (`work/wire/a-boolean-drops-its-operands-own-contact-records.md`).
+/// pinch line, which a kernel op called without `BooleanInputs` records
+/// does not carry into its result.
 type Row = (&'static str, Kind, bool, [usize; 3], f64, bool);
 
 fn t() -> Tol {

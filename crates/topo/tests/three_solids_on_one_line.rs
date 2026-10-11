@@ -207,9 +207,6 @@ fn three_off(d: f64) -> Vec<Prism> {
     p
 }
 
-/// A fold's contact record is its last step's.
-const DROPPED_RECORDS: &str = "work/wire/a-boolean-drops-its-operands-own-contact-records.md";
-
 /// Whether a census witness `"(x, y, z)…"` stands within a micron of
 /// the line.
 fn on_the_line(witness: &str) -> bool {
@@ -230,7 +227,9 @@ fn none(_: &[usize]) -> Option<&'static str> {
 }
 
 /// The left fold of `members` by union in `order`, or the step that
-/// refused and why.
+/// refused and why. A kernel op called without `BooleanInputs` records
+/// carries none of its operands' records, so the fold's contact record
+/// is its last step's.
 fn fold(
     members: &[AtRestBody<f64>],
     order: &[usize],
@@ -290,10 +289,10 @@ fn probes() -> Vec<[f64; 3]> {
 /// cannot trace the touch at this tolerance, typed, in place of a
 /// verdict.
 ///
-/// The 3′ verdict reads the last step's contact record alone, so it
-/// refuses the contacts between earlier members that the last one's do
-/// not cover, all on the line ([`DROPPED_RECORDS`]): `dropped[i]` of
-/// them when member `i` folds last.
+/// The 3′ verdict reads the last step's contact record alone
+/// ([`fold`]), so it refuses the contacts between earlier members that
+/// the last one's do not cover, all on the line: `dropped[i]` of them
+/// when member `i` folds last.
 fn every_order(
     label: &str,
     prisms: &[Prism],
@@ -369,7 +368,7 @@ fn every_order(
         let last = order[order.len() - 1];
         assert!(
             undecided || on_line.len() == dropped[last],
-            "{what}: tier 3′ refused by other than the records {DROPPED_RECORDS} drops: \
+            "{what}: tier 3′ refused by other than the records the uncarried fold drops: \
              {on_line:?}"
         );
         let v = topo::mass_properties(body, t()).unwrap().volume;
