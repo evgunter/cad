@@ -287,6 +287,8 @@ mod one_sum_differential;
 mod pcurve_spiric;
 #[path = "r2_mesh7_door_probes.rs"]
 mod r2_mesh7_door_probes;
+#[path = "review_4640_probes.rs"]
+mod review_4640_probes;
 #[path = "span_reach_differential.rs"]
 mod span_reach_differential;
 #[path = "span_reach_hunt.rs"]
@@ -297,5 +299,3 @@ mod tcost_k1_budget_exit;
 mod torus_chart_guards;
 #[path = "torus_meridian_radial.rs"]
 mod torus_meridian_radial;
-#[path = "review_4640_probes.rs"]
-mod review_4640_probes;

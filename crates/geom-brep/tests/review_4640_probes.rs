@@ -10,7 +10,9 @@
 use crate::shared::surf::arena2;
 use crate::shared::tol::band;
 use geom::{Curve3, Surface};
-use geom_brep::{CertCheck, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
+use geom_brep::{
+    CertCheck, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair,
+};
 use geom_core::{Point3, Vec3};
 
 fn certify_half_circle(delta: f64) -> (f64, Result<EdgeCurve<f64>, CertifyError>) {

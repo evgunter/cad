@@ -376,6 +376,8 @@ mod door_backstop_settled_residue;
 mod holes_meeting_at_a_vertex;
 #[path = "pierce_strut_at_a_pinch.rs"]
 mod pierce_strut_at_a_pinch;
+#[path = "review_4640_probes.rs"]
+mod review_4640_probes;
 #[path = "review_cleave_mint_doors.rs"]
 mod review_cleave_mint_doors;
 #[path = "spline_reanchor_rows.rs"]
@@ -386,5 +388,3 @@ mod split_tangent_edge;
 mod split_through_an_apex;
 #[path = "three_solids_on_one_line.rs"]
 mod three_solids_on_one_line;
-#[path = "review_4640_probes.rs"]
-mod review_4640_probes;
