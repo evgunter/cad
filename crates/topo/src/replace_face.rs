@@ -887,8 +887,6 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
                 f,
                 "an edge of the body cannot follow the offset: {what}. {NOT_YET_ENDING}"
             ),
-            // No offset door takes a declaration, so the escalation's
-            // own lever is the geometry alone.
             Self::Escalated { source } => write!(
                 f,
                 "{}",

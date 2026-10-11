@@ -29,7 +29,12 @@ use crate::body::Body;
 use crate::entity::{HalfEdgeKey, LoopBoundary, LoopKey};
 use crate::loop_winding::{ConicFrame, chord_bulge};
 use crate::validate::AtRestBody;
+use geom_brep::recourse::{LeverOnly, Reading, RefusedArm};
 use geom_core::Tol;
+
+/// The lever every section refusal names: a section takes no
+/// declarations, and its plane is the caller's.
+const SECTION_PLANE_RECOURSE: &str = "move the section plane";
 
 /// One section polygon: the closed boundary the plane cuts, by its
 /// corners — as 3-D points and as in-plane `(u, v)` coordinates in the
@@ -221,21 +226,24 @@ impl<T: Real> core::fmt::Display for SectionError<T> {
                 "{}",
                 diag.undecided(
                     "whether a polygon of the section is an outline or a hole",
-                    diag.ending(super::SPLIT_COINCIDENCE_RECOURSE),
+                    LeverOnly {
+                        lever: SECTION_PLANE_RECOURSE,
+                    }
+                    .recourse(RefusedArm::Undecided(diag), Reading::Build),
                 )
             ),
             Self::WindingUndecided { diag: None, .. } => write!(
                 f,
                 "whether a polygon of the section is an outline or a hole cannot be read: it \
                  encloses no area, or has a spiric or NURBS edge, whose winding the kernel \
-                 does not read. Recourse: move the section plane"
+                 does not read. Recourse: {SECTION_PLANE_RECOURSE}"
             ),
             Self::UnplacedHole { .. } => write!(
                 f,
                 "no outline of the section can be shown to enclose one of its holes: an \
                  outline edge the nesting cannot read (spiric or NURBS), a contact too close \
                  to call, or a sliver the section join mints across a curved face. Recourse: \
-                 move the section plane"
+                 {SECTION_PLANE_RECOURSE}"
             ),
             Self::NestingContradiction { .. } => write!(
                 f,

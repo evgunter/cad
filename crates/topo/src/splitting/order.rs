@@ -493,7 +493,8 @@ mod tests {
                 let said = crate::chord_join::SplitJoinError::OrderEscalated { diag }.to_string();
                 assert!(
                     said.starts_with("which direction in the section plane to order points along")
-                        && said.ends_with(&diag.ending(geom_core::COINCIDENCE_RECOURSE)),
+                        && said
+                            .ends_with(&format!("{}. Recourse: move the geometry", diag.payload())),
                     "{label}, {spread}: {said}"
                 );
             }

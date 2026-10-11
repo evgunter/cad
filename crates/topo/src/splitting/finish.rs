@@ -438,7 +438,7 @@ impl core::fmt::Display for SplitFinishError {
             Self::DescribeEscalated { diag, .. } => diag
                 .undecided(
                     "the angle between two faces along the cut",
-                    diag.ending(super::SPLIT_COINCIDENCE_RECOURSE),
+                    super::split_lever_ending(diag),
                 )
                 .fmt(f),
             Self::DescribeSideEscalated { diag, .. } => diag
@@ -454,7 +454,7 @@ impl core::fmt::Display for SplitFinishError {
                 .undecided(
                     "whether two faces touching along the cut curve apart there or share their \
                      curvature",
-                    diag.ending(super::SPLIT_COINCIDENCE_RECOURSE),
+                    super::split_lever_ending(diag),
                 )
                 .fmt(f),
             Self::SmoothJoinRefuted { .. } => write!(
@@ -469,7 +469,7 @@ impl core::fmt::Display for SplitFinishError {
             } => diag
                 .undecided(
                     "which side of a cut face is material",
-                    diag.ending(super::SPLIT_COINCIDENCE_RECOURSE),
+                    super::split_lever_ending(diag),
                 )
                 .fmt(f),
             Self::SectionWindingUndecided { diag: None, .. } => write!(
@@ -1741,5 +1741,72 @@ mod smooth_arm_rows {
             }
             other => panic!("an under-determined edge keeps no tangency, got {other:?}"),
         }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod escalation_endings {
+    use geom_core::{Band, Decide, Decided, Indeterminate, MarginDiag, Sign};
+
+    use super::SplitFinishError;
+    use crate::entity::{EdgeKey, FaceKey};
+
+    /// **A split's angle, bend and winding escalations end in the
+    /// split's lever alone.** None is a size the user chose, so a margin
+    /// read in the band offers no tolerance, a straddle no box to
+    /// subdivide, and only a poisoned margin adds the note.
+    #[test]
+    fn split_escalations_end_in_the_lever_alone() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let read = 3e-9_f64.sign_within(band).unwrap_err();
+        let straddle = geom_core::k_stats::straddle(
+            "finish_straddle",
+            Decided {
+                sign: Sign::Zero,
+                margin: MarginDiag::value(0.5e-9),
+            },
+            Decided {
+                sign: Sign::Positive,
+                margin: MarginDiag::value(3e-8),
+            },
+            band,
+        );
+        let poisoned = Indeterminate {
+            margin: MarginDiag::INVALID,
+            ..read
+        };
+        let tail = ". Recourse: move the split plane or the geometry";
+        for diag in [read, straddle] {
+            for refusal in [
+                SplitFinishError::DescribeEscalated {
+                    edge: EdgeKey::default(),
+                    diag,
+                },
+                SplitFinishError::DescribeBendEscalated {
+                    edge: EdgeKey::default(),
+                    diag,
+                },
+                SplitFinishError::SectionWindingUndecided {
+                    face: FaceKey::default(),
+                    diag: Some(diag),
+                },
+            ] {
+                let text = refusal.to_string();
+                assert!(
+                    text.contains(" is undecided: ") && text.ends_with(tail),
+                    "the lever alone, got {text}"
+                );
+            }
+        }
+        let text = SplitFinishError::DescribeEscalated {
+            edge: EdgeKey::default(),
+            diag: poisoned,
+        }
+        .to_string();
+        assert!(
+            text.contains(&format!("{tail}; ")),
+            "a poisoned margin: the lever and the note, got {text}"
+        );
     }
 }

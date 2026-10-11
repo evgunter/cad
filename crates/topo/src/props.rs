@@ -2928,10 +2928,7 @@ impl fmt::Display for ShellClassifyPayload<'_> {
             ShellClassifyError::Props { source, .. } => write!(f, "{source}"),
             ShellClassifyError::Escalated { source, .. } => write!(
                 f,
-                concat!(
-                    geom_core::undecided!("the sign of a shell's volume"),
-                    ": {}"
-                ),
+                geom_core::undecided!("the sign of a shell's volume", payload),
                 source.payload()
             ),
             ShellClassifyError::ZeroVolume { .. } => f.write_str(

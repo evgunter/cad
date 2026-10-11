@@ -459,10 +459,7 @@ impl core::fmt::Display for PointInLoopError {
                 .fmt(f),
             Self::RayExhausted { .. } => write!(
                 f,
-                concat!(
-                    geom_core::undecided!("whether a point lies in a loop"),
-                    ": {}"
-                ),
+                geom_core::undecided!("whether a point lies in a loop", payload),
                 ray_walk::NoRaySettled
             ),
             Self::CorruptLoop { r#loop } => {
@@ -470,10 +467,7 @@ impl core::fmt::Display for PointInLoopError {
             }
             Self::Uncrossable(u) => write!(
                 f,
-                concat!(
-                    geom_core::undecided!("whether a point lies in a loop"),
-                    ": {}"
-                ),
+                geom_core::undecided!("whether a point lies in a loop", payload),
                 u
             ),
             Self::OffPlane(o) => write!(f, "{o}"),
