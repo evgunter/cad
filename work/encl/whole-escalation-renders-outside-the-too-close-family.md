@@ -2,11 +2,12 @@
 id: whole-escalation-renders-outside-the-too-close-family
 kind: issue
 title: geom-brep IsoFamilyRefusal::Undecided renders an Indeterminate whole outside the undecided shape
-status: dispatched
+status: review
 opened: 2026-10-11
 priority: P3
 cost: E
 branch: encl/iso-family-undecided
+pr: 4756
 ---
 
 
