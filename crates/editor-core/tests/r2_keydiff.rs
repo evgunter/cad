@@ -15,8 +15,8 @@ use editor_core::ExtrudeSide;
 
 use editor_core::UnitSym;
 use editor_core::{
-    BooleanOp, CancelToken, Dimension, DocEdit, DocumentId, EvalOptions, Evaluation, Formula,
-    FreeVar, Node, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, VarName, apply, evaluate,
+    CancelToken, Dimension, DocEdit, DocumentId, EvalOptions, Evaluation, Formula, FreeVar, Node,
+    NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, VarName, apply, evaluate,
 };
 use fixture::{ang, len, scl};
 use geom_core::Tol;
@@ -130,10 +130,9 @@ fn r2_measure_free_content_keys() {
     let d5 = push(
         &d4,
         &DocEdit::InsertNode {
-            node: Box::new(Node::Boolean {
-                op: BooleanOp::Subtract,
-                a: a.into(),
-                b: b.into(),
+            node: Box::new(Node::Subtract {
+                from: a.into(),
+                tool: b.into(),
                 declare: Vec::new(),
             }),
             fresh: Vec::new(),

@@ -95,7 +95,7 @@ pub(super) fn rungs(
                             let ordinal = ordinals.entry(row.site).or_insert(0usize);
                             let at = *ordinal;
                             *ordinal += 1;
-                            prove_row(&ev, node, row, at, band)
+                            prove_row(doc, &ev, node, row, at, band)
                         })
                         .collect()
                 })
@@ -108,6 +108,7 @@ pub(super) fn rungs(
 /// The two symbolic rungs for one row, `at` its ordinal among its
 /// node's rows at its site.
 fn prove_row(
+    doc: &crate::doc::Doc<ProfileProgram>,
     ev: &Evaluation<Lane>,
     node: RecipeNodeId,
     row: &NamedCoincidence,
@@ -126,7 +127,7 @@ fn prove_row(
         .filter(|r| r.cells == row.cells && r.relation == row.relation)
         .ok_or(Unreplayed::OtherDecisions)?;
     if let Some(band) = band
-        && let Some(how) = carrier_verdict(ev, row, band)
+        && let Some(how) = carrier_verdict(doc, ev, row, band)
     {
         return Ok(Rung::CarrierVerdict(how));
     }
@@ -139,6 +140,7 @@ fn prove_row(
 /// the row decided two faces one carrier: the theorem that decided
 /// every Zero it stands on, or `None` where it is not one.
 fn carrier_verdict(
+    doc: &crate::doc::Doc<ProfileProgram>,
     ev: &Evaluation<Lane>,
     row: &NamedCoincidence,
     band: Band,
@@ -148,7 +150,7 @@ fn carrier_verdict(
         topo::Relation::SameOpposite => CarrierRelation::SameOpposite,
         _ => return None,
     };
-    let [a, b] = row.cells.each_ref().map(|cell| face_of(ev, cell));
+    let [a, b] = row.cells.each_ref().map(|cell| face_of(doc, ev, cell));
     let ((a, fa), (b, fb)) = (a?, b?);
     match topo::boolean::carrier_pair_decided(&a, fa, &b, fb, band) {
         Ok(Ok((relation, Some(margin)))) if relation == wanted => deferred::discharge(margin),
@@ -156,13 +158,17 @@ fn carrier_verdict(
     }
 }
 
-/// The face `cell` names, as the replay built it: its input's body and
-/// its key there.
-fn face_of(ev: &Evaluation<Lane>, cell: &NamedCell) -> Option<(Arc<Body<Lane>>, FaceKey)> {
+/// The face `cell` names, as the replay built it: the body of the read
+/// it came in through and its key there.
+fn face_of(
+    doc: &crate::doc::Doc<ProfileProgram>,
+    ev: &Evaluation<Lane>,
+    cell: &NamedCell,
+) -> Option<(Arc<Body<Lane>>, FaceKey)> {
     let NamedCell::Entity { input, name } = cell else {
         return None;
     };
-    let value = ev.value(*input)?;
+    let value = ev.value(doc.operation_of(*input)?)?;
     let Some(Entry::Unique(EntityRef {
         body,
         key: EntityKey::Face(face),

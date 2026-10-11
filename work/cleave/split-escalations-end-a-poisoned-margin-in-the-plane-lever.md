@@ -48,3 +48,42 @@ Carry how the reading stands, as `splitting::containment::Escalation` does (`Mar
 - the lever plus the note on poison an input can carry.
 
 This moves mints, so `agreed_section`, `rules:197` and `rules:319` wait on `topo-mints-indeterminates-outside-the-funnel` where that row owns the sites.
+
+## Built in part (branch `cleave/split-rules-mint-no-invalid`)
+
+`SplitReduceError::SliverSector` is done. It carries
+`SectorReading::{Escalated, GrazeAgainstNeighbours,
+SmoothEdgeDisagrees}` in place of an `Indeterminate`, and ends through
+`LeverOnly` at `Reading::Build`:
+
+- the lever alone on a read margin, or on either of the two decided
+  disagreements, which carry their margins;
+- the lever plus `UNREADABLE_MARGIN_NOTE` on a poisoned funnel margin.
+
+No `SliverSector` arm is a decided contradiction any more, so none
+takes the defect ending.
+
+Still open on this row: `CrossingEscalated`, `SplitJoinError`,
+`SectionError::WindingUndecided` and `SplitFinishError`.
+
+## `agreed_section` no longer mints poison (branch `cleave/split-straddles-carry-reading`)
+
+`agreed_section` now carries a straddle: the enclosure of the two
+readings, through `k_stats::straddle`, under
+`pc_axis_plane_parallel_straddle`. The
+same holds for the walk's conic straddles (`*_conic_straddle`,
+`bool_contact_arc_straddle`, `pm_census_ef_cross_arc_straddle`,
+`bool_sphere_region_arc_straddle`).
+
+Two readers still drop the straddle's type and end on the margin's
+kind. With an enclosure in place of `INVALID`, both now give the lever
+alone, which is what `RefusedArm::Straddle` gives:
+- the Boolean germ frame (`join::frame_refusal` →
+  `Coincide::Section`), whose unreadable-margin note is gone;
+- the census crossing cut (`CrossRefusal::Escalated` →
+  `ValidationError::CensusEscalated` → `too_close`), whose defect
+  ending is now the coincidence menu.
+
+The ending is still decided by the margin there, not by a typed
+`Escalation`. Carrying the type to those two errors is this row's
+repair.

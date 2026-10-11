@@ -7,7 +7,7 @@ opened: 2026-10-08
 priority: P2
 cost: M
 refs: [operands-are-reads, operations-state-their-outputs]
-branch: intent/part-split-half-retires
+branch: intent/part-split-half-retires-2
 ---
 
 FORK-1 (Ev, #4222): "a split defines two bodies; DM3's split-half

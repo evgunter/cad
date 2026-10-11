@@ -15,8 +15,7 @@
 use crate::docm7_union_declare::{block, failure, run};
 use crate::fixture::{ang, built_bits, desc, findings_declared, fname, insert, len};
 use editor_core::{
-    BooleanCoincidence, BooleanOp, BooleanValue, CapEnd, ExtrudeSide, Node, ProfileDoc, RoleSeg,
-    ValuePayload,
+    BooleanCoincidence, BooleanValue, CapEnd, ExtrudeSide, Node, ProfileDoc, RoleSeg, ValuePayload,
 };
 use geom_core::Tol;
 
@@ -61,10 +60,8 @@ fn the_flush_boss_unions_declared_or_not() {
     let union_of = |declare| {
         let (doc, union) = insert(
             doc.clone(),
-            Node::Boolean {
-                op: BooleanOp::Union,
-                a: blk.into(),
-                b: boss.into(),
+            Node::Union {
+                members: editor_core::Bodies::Spelled(vec![blk.into(), boss.into()]),
                 declare,
             },
         );
@@ -92,7 +89,7 @@ fn the_flush_boss_unions_declared_or_not() {
         (volume - want).abs() <= 1e-12 * want,
         "the union's volume {volume} vs {want}"
     );
-    let found = findings_declared(&undeclared, &[blk, boss]);
+    let found = findings_declared(&undeclared, &doc, &[blk, boss]);
     let classes: Vec<BooleanCoincidence> = found.iter().map(|(_, c)| *c).collect();
     assert!(
         classes.contains(&BooleanCoincidence::Continuation)

@@ -89,7 +89,8 @@ mod section;
 mod section_loops;
 pub(crate) mod spiric_arc;
 
-use geom_core::{BandError, Indeterminate, Point3, Real, UnitVec3};
+use geom_brep::recourse::{LeverOnly, Reading, RefusedArm};
+use geom_core::{Band, BandError, Indeterminate, MarginDiag, Point3, Real, UnitVec3};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
@@ -362,15 +363,17 @@ pub enum SplitReduceError {
         /// The escalation diagnostics.
         diag: Indeterminate,
     },
-    /// A sector-level predicate (coplanarity gate, material sense,
-    /// wideness, or bisector side) escalated at an ON vertex.
+    /// A sector-level reading at an ON vertex (the face's extent, the
+    /// coplanarity gate, the material sense, wideness, the bisector side,
+    /// or a grazed wall's material) cannot place the vertex's
+    /// neighbourhood at this ε.
     SliverSector {
         /// The ON vertex being classified.
         vertex: VertexKey,
         /// The sector's face.
         face: FaceKey,
-        /// The escalation diagnostics (named predicate inside).
-        diag: Indeterminate,
+        /// How the refused reading stands.
+        reading: SectorReading,
     },
     /// A sector's bounding chord has **no finite length**: its
     /// components overflow the norm (past ~1e154), or one of them is
@@ -459,12 +462,91 @@ pub enum SplitReduceError {
         edge: EdgeKey,
         /// Its endpoint vertices (the strictly Above/Below pair).
         endpoints: (VertexKey, VertexKey),
-        /// The underlying Euler refusal, untouched.
-        source: EulerOpError,
+        /// The underlying Euler refusal, untouched (boxed: it is the
+        /// largest payload any split refusal carries).
+        source: Box<EulerOpError>,
     },
     /// An underlying Euler operation refused (`split_edge` includes the
     /// certified-interiority refusals and escalations).
     Euler(EulerOpError),
+}
+
+/// **How the reading a [`SplitReduceError::SliverSector`] refuses
+/// stands**, which its ending follows from (D4 ¶1 (i)): every arm ends
+/// in the split's lever, read at the operation, and a margin that could
+/// not be read adds its note.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum SectorReading {
+    /// A sector predicate's escalation: its margin in the band or
+    /// unreadable, or a gate's rejection of the sign it decided
+    /// ([`geom_core::MarginDiag::rejected_sign`]).
+    Escalated(Indeterminate),
+    /// A wall the plane grazes holds its material across from the edges
+    /// beside it in the vertex's cycle: the wall's outward normal over its
+    /// face extent and those edges' own sides, decided apart.
+    GrazeAgainstNeighbours {
+        /// The sense margin the wall's material side was decided on.
+        margin: MarginDiag,
+    },
+    /// At a smooth edge in the plane, one face reads the plane tangent
+    /// over its own face extent and the other reads it clear over its own:
+    /// two decided readings of the plane's tilt, over two arms, that
+    /// disagree.
+    SmoothEdgeDisagrees(TangencyReadings),
+}
+
+/// The two decided readings a [`SectorReading::SmoothEdgeDisagrees`]
+/// holds: `split_sector_coplanar`'s sine margins, each over its face's
+/// extent.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TangencyReadings {
+    /// The grazed face's, decided zero.
+    pub tangent: MarginDiag,
+    /// The other face's, decided past the band.
+    pub clear: MarginDiag,
+    /// The band both were decided against.
+    pub band: Band,
+}
+
+impl SectorReading {
+    /// The refused arm the shared table reads this reading as.
+    #[must_use]
+    pub fn arm(&self) -> RefusedArm<'_> {
+        match self {
+            Self::Escalated(diag) => RefusedArm::Undecided(diag),
+            Self::GrazeAgainstNeighbours { margin } => RefusedArm::SignCertain(Some(*margin)),
+            Self::SmoothEdgeDisagrees(TangencyReadings { clear, .. }) => {
+                RefusedArm::SignCertain(Some(*clear))
+            }
+        }
+    }
+
+    /// The one ending a refusal of this reading carries.
+    #[must_use]
+    pub fn ending(&self) -> String {
+        LeverOnly {
+            lever: SPLIT_COINCIDENCE_RECOURSE,
+        }
+        .recourse(self.arm(), Reading::Build)
+    }
+}
+
+impl core::fmt::Display for SectorReading {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Escalated(diag) => diag.payload().fmt(f),
+            Self::GrazeAgainstNeighbours { margin } => write!(
+                f,
+                "a wall the plane grazes holds its material across from the edges beside it \
+                 (margin {margin:e})"
+            ),
+            Self::SmoothEdgeDisagrees(TangencyReadings { tangent, clear, .. }) => write!(
+                f,
+                "the faces at a smooth edge in the plane read it tangent (margin {tangent:e}) and \
+                 clear (margin {clear:e}), each over its own extent"
+            ),
+        }
+    }
 }
 
 impl From<BandError> for SplitReduceError {
@@ -553,11 +635,11 @@ impl core::fmt::Display for SplitReduceError {
                  {SPLIT_COINCIDENCE_RECOURSE}",
                 diag.payload()
             ),
-            Self::SliverSector { diag, .. } => write!(
+            Self::SliverSector { reading, .. } => write!(
                 f,
                 "which side of the split plane a face leaves a vertex on is too close to \
-                 call ({}). Recourse: {SPLIT_COINCIDENCE_RECOURSE}",
-                diag.payload()
+                 call ({reading}). {}",
+                reading.ending()
             ),
             Self::NonFiniteSectorChord { .. } => write!(
                 f,

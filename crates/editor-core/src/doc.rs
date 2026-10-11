@@ -1083,7 +1083,7 @@ impl<P> Doc<P> {
             .nodes
             .values()
             .filter_map(|node| match node {
-                Node::PlaceInWorld { body, .. } => Some(*body),
+                Node::PlaceInWorld { body, .. } if !body.is_indexed() => Some(body.read),
                 _ => None,
             })
             .collect();
@@ -1792,27 +1792,38 @@ impl<P> Doc<P> {
     /// **What is wrong with reading `held` at a seat admitting
     /// `expected`** (D10), if anything: a kind the seat does not admit
     /// ([`crate::SlotKind::admits`]); for a part projection that
-    /// selects `half` of a split, the split's other half; or a world
-    /// placement's copy (D10: construction never reads the world). Asked of a
-    /// live read by every door that writes or loads one — the edit
-    /// doors' lowering and the load door's operand walk — so the rule
-    /// is stated once; liveness is each door's own question, asked
-    /// before.
+    /// selects `half` of a split, the split's other half; or, for a
+    /// reader that constructs, a world placement's copy, read directly
+    /// or through a selection of it (D10: construction never reads the
+    /// world; a measure observes a copy's placed geometry). Asked of a live read by every door that writes
+    /// or loads one — the edit doors' lowering and the load door's
+    /// operand walk — so the rule is stated once; liveness is each
+    /// door's own question, asked before.
     pub(crate) fn read_fault(
         &self,
         held: &crate::Var,
         expected: crate::SlotKind,
         half: Option<crate::SplitHalf>,
+        reader: Reader,
     ) -> Option<ReadFault> {
         if !expected.admits(held) {
             return Some(ReadFault::Kind { found: held.kind() });
+        }
+        // A selection reads its body: constructing from a face of a copy
+        // reads the copy, whichever seat minted the selection.
+        if let (Reader::Constructs, Some(select)) = (reader, held.def().select()) {
+            let (body, _) = self.var(select.body)?.def().output()?;
+            return matches!(self.node(body), Some(Node::PlaceInWorld { .. }))
+                .then_some(ReadFault::WorldCopy { placement: body });
         }
         let (from, port) = held.def().output()?;
         match (half, self.node(from)) {
             (Some(half), Some(Node::Split { .. })) if u32::from(port) != half.output_body() => {
                 Some(ReadFault::OtherHalf { half })
             }
-            (_, Some(Node::PlaceInWorld { .. })) => Some(ReadFault::WorldCopy { placement: from }),
+            (_, Some(Node::PlaceInWorld { .. })) if reader == Reader::Constructs => {
+                Some(ReadFault::WorldCopy { placement: from })
+            }
             _ => None,
         }
     }
@@ -2715,14 +2726,15 @@ mod tests {
 
         doc.nodes.insert(
             RecipeNodeId::new(0, 0),
-            Node::Boolean {
-                op: crate::BooleanOp::Union,
-                a: crate::VarId::new(0, 98),
-                b: crate::VarId::new(0, 99),
+            Node::Union {
+                members: crate::Bodies::Spelled(vec![
+                    crate::VarId::new(0, 98).into(),
+                    crate::VarId::new(0, 99).into(),
+                ]),
                 declare: vec![(
                     (
-                        SitedRef::at_mint(first.clone()),
-                        SitedRef::at_mint(second.clone()),
+                        SitedRef::new(crate::VarId::new(0, 98), first.clone()),
+                        SitedRef::new(crate::VarId::new(0, 98), second.clone()),
                     ),
                     BooleanCoincidence::REST,
                 )],
@@ -2730,14 +2742,15 @@ mod tests {
         );
         doc.nodes.insert(
             RecipeNodeId::new(0, 1),
-            Node::Boolean {
-                op: crate::BooleanOp::Union,
-                a: crate::VarId::new(0, 98),
-                b: crate::VarId::new(0, 99),
+            Node::Union {
+                members: crate::Bodies::Spelled(vec![
+                    crate::VarId::new(0, 98).into(),
+                    crate::VarId::new(0, 99).into(),
+                ]),
                 declare: vec![(
                     (
-                        SitedRef::at_mint(third.clone()),
-                        SitedRef::at_mint(third.clone()),
+                        SitedRef::new(crate::VarId::new(0, 98), third.clone()),
+                        SitedRef::new(crate::VarId::new(0, 98), third.clone()),
                     ),
                     BooleanCoincidence::TANGENT,
                 )],
@@ -2885,6 +2898,30 @@ mod tests {
         let sizes = doc.expansion_nodes(&doc.definition_order());
         assert_eq!(sizes[&VarId::new(0, 2)], 3);
         assert_eq!(sizes[&prev], crate::edit::DEFINITION_NODE_BOUND + 1);
+    }
+}
+
+/// **How a seat reads its variable** ([`Doc::read_fault`]): a
+/// construction builds from it, a measure's selection observes it, and
+/// only an observer may read a world copy (D10).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Reader {
+    /// A construction seat.
+    Constructs,
+    /// A measure's reference seat, or a selection's own body read: a
+    /// selection names faces and builds nothing, so what reads it
+    /// decides.
+    Observes,
+}
+
+impl Reader {
+    /// How a seat of `kind` reads: a measure's observes, every other
+    /// constructs.
+    pub(crate) fn of(kind: crate::SlotKind) -> Self {
+        match kind {
+            crate::SlotKind::Measured(_) => Self::Observes,
+            _ => Self::Constructs,
+        }
     }
 }
 

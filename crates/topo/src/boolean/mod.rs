@@ -334,7 +334,6 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "point_in_loop_arm"
         | "point_in_arc_loop_segment"
         | "point_in_arc_loop_boundary"
-        | "point_in_arc_loop_boundary_disagreement"
         | "point_in_arc_loop_side"
         | "point_in_arc_loop_advance"
         | "point_in_arc_loop_arm"
@@ -1788,10 +1787,9 @@ fn tangent_struts<T: Real>(
         else {
             continue;
         };
-        if let geom_brep::EdgeDescription::TangentIntersection { s1: d1, s2: d2, .. } =
-            curve.description()
+        if let geom_brep::EdgeDescription::TangentIntersection { pair, .. } = curve.description()
             && f1 != f2
-            && Body::<T>::cites_pair((*d1, *d2), s1, s2)
+            && *pair == geom_brep::SurfacePair::new(s1, s2)
             && let (Some(k1), Some(k2)) = (body.get_surface(s1), body.get_surface(s2))
         {
             let (k1, k2) = (k1.kind(), k2.kind());
