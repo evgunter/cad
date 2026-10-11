@@ -149,7 +149,25 @@ fn r2_resolve_at_a_deleted_read() {
         },
     );
     let before = fixture::run(&doc, &Default::default());
-    let (gone, _) = fixture::step(doc.clone(), editor_core::DocEdit::DeleteNode { id: t });
+    let deleted = editor_core::apply(
+        &doc,
+        &editor_core::DocEdit::DeleteNode { id: t },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .expect("delete applies");
+    println!("delete maintenance: {:?}", deleted.maintenance);
+    assert!(
+        deleted.maintenance.iter().any(|m| matches!(
+            m,
+            editor_core::Maintenance::StrandedAppearance {
+                took: editor_core::Took::Body,
+                ..
+            }
+        )),
+        "Took::Body strand"
+    );
+    let gone = deleted.doc;
     let ev = fixture::run(&gone, &Default::default());
     println!("losses: {:?}", ev.appearance.losses);
     let ctx = editor_core::RunCtx {
@@ -179,6 +197,31 @@ fn r2_resolve_at_a_deleted_read() {
             })
         ),
         "a read whose operation is deleted answers NodeGone"
+    );
+}
+
+/// The flush finder across the two halves of one split: the section
+/// face is one name on both sides.
+#[test]
+fn r2_flush_between_halves() {
+    let (doc, _ext, split) = box_split();
+    let above = doc.output(split, SplitHalf::Above.port()).unwrap();
+    let below = doc.output(split, SplitHalf::Below.port()).unwrap();
+    let ev = fixture::run(&doc, &Default::default());
+    let found = editor_core::find_flush_candidates(&ev, above, below, Tol::witness());
+    match &found {
+        Ok(f) => {
+            for x in f {
+                println!("flush: {x:?}");
+            }
+        }
+        Err(e) => println!("refused: {e:?}"),
+    }
+    let f = found.expect("the finder answers");
+    assert_eq!(
+        f.len(),
+        5,
+        "the section faces (rest) and four wall fragment continuations"
     );
 }
 
