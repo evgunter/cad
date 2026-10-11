@@ -1173,6 +1173,15 @@ pub(super) fn ring_groups<T: Decide>(
                 }
             })?;
             if one {
+                if std::env::var_os("R2_RING_PROBE").is_some() {
+                    eprintln!(
+                        "R2RING bitwise={} same_vertex={} lead={:?} member={:?}",
+                        lead.point == plan.point,
+                        lead.contact.vertex == plan.contact.vertex,
+                        lead.contact.vertex,
+                        plan.contact.vertex
+                    );
+                }
                 home = Some(g);
                 break;
             }
