@@ -138,7 +138,7 @@ fn nurbs_vector_area<T: SpanLocate>(
     t1: T,
     ref_point: Point3<T>,
 ) -> Result<Vec3<T>, PropsError> {
-    if curve.weights().iter().any(|w| *w != 1.0) {
+    if curve.weight_channel().iter().any(|w| *w != 1.0) {
         return Err(PropsError::Unimplemented);
     }
     let degree = curve.degree().max(1);
@@ -200,9 +200,12 @@ mod tests {
             )
         };
         let curve = NurbsCurve3::new(
-            KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap(),
+            geom_core::spline::Knots::from(
+                KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap(),
+            )
+            .lift(geom_core::Real::from_f64),
             vec![c(0.0, 0.0), c(1.0, 2.0), c(2.0, 0.0), c(3.0, 1.0)],
-            vec![1.0; 4],
+            vec![geom_core::Real::one(); 4],
         )
         .unwrap();
         let a = nurbs_vector_area(

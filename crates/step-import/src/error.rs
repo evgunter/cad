@@ -526,3 +526,60 @@ impl fmt::Display for StepImportError {
 }
 
 impl std::error::Error for StepImportError {}
+
+#[cfg(test)]
+mod join_text {
+    //! **The import door's join reads the adopted body at rest**: an
+    //! undecided join keeps the reading's own lever in front of the
+    //! join's, and a poisoned margin takes the stored-geometry note in
+    //! place of a lever about an operation's inputs.
+    #![allow(clippy::unwrap_used)]
+
+    use geom_core::{Band, Indeterminate, MarginDiag, UNREADABLE_STORED_MARGIN_NOTE};
+
+    use super::StepImportError;
+
+    fn join(margin: MarginDiag) -> (Indeterminate, String) {
+        let diag = Indeterminate {
+            margin,
+            band: Band::new(1e-9, 1e-8).unwrap(),
+            predicate: Some("dihedral_arm"),
+            terminal_sliver: false,
+        };
+        let error = StepImportError::Join {
+            solid: 7,
+            refusal: topo::JoinRefusal::Undecided(topo::JoinUndecided {
+                vertex: topo::VertexKey::default(),
+                reading: topo::JoinReading::Regularity(diag),
+            }),
+        };
+        (diag, error.to_string())
+    }
+
+    #[test]
+    fn an_undecided_join_at_import_keeps_the_readings_lever() {
+        let lead = "step import: joining the edges of the solid at #7: ";
+        let subject = topo::JOIN_SUBJECT;
+        let lever = topo::JOIN_LEVER;
+        let (straddle, text) = join(MarginDiag::enclosure(-2e-9, 5e-9));
+        assert_eq!(
+            text,
+            format!(
+                "{lead}{subject} is undecided ({}). Recourse: subdivide the parameter box \
+                 for a tighter enclosure, or {lever}",
+                straddle.payload()
+            ),
+            "a straddle"
+        );
+        let (poisoned, text) = join(MarginDiag::INVALID);
+        assert_eq!(
+            text,
+            format!(
+                "{lead}{subject} is undecided ({}). Recourse: {lever}; \
+                 {UNREADABLE_STORED_MARGIN_NOTE}",
+                poisoned.payload()
+            ),
+            "an unreadable margin"
+        );
+    }
+}

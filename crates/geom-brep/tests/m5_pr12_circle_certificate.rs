@@ -238,11 +238,14 @@ fn tangent_cap_quarter<T: Decide>(r: f64, reversed: bool) -> Result<EdgeCurve<T>
 /// either order and at any scalar: its defect is first-order, and it
 /// carries the reading the scalar classified — a point margin at `f64`,
 /// an enclosure at `Interval` (`kind`) — lying wholly past the band's
-/// far edge, which a poisoned or zero reading would not.
+/// far edge, which a poisoned or zero reading would not. It is named at
+/// the first sample: the gap reads the shared normal's orientation at
+/// every sample, ends included, and perpendicular normals have none, so
+/// the defect at the folded arm names the refusal there.
 fn is_parallelism_defect(refusal: Option<CertifyError>, kind: geom_core::MarginKind) -> bool {
     let Some(CertifyError::ResidualExceeded {
         check: CertCheck::TangentParallel,
-        sample: 1,
+        sample: 0,
         margin,
     }) = refusal
     else {

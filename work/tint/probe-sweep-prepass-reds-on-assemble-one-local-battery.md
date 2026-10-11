@@ -38,3 +38,18 @@ Have the fixture place its union the way INTENT's `EmptyProduct`
 recourse says (the `Part` pick), then re-run the sweep's pre-pass.
 Found by GERM's `germ/circle-torus-slack-klint` lane, which needed the
 lint's reading and had to take it locally.
+
+## Progress (2026-10-11)
+
+The `assemble_one_local_battery` cause is fixed by INTENT's
+`the-probe-gated-assembly-battery-gathers-an-unplaced-fixture` (the
+row's caller places the union). It is not the only red: running every
+rostered plain suite locally at ε 1e-9 (the `run_plain` selection), two
+more fail, so the sweep still stops before the k-lint step:
+
+- `geom-brep::rim_dim_scale_twins` — filed as
+  `mm-scale-sphere-rim-probe-no-longer-refuses`;
+- `topo::rim_dim_review_probes` — already filed as
+  `silent-fixed-predicates-probe-reds-under-all-features-on-main`.
+
+This row closes when both are green and the pre-pass passes.
