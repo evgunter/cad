@@ -135,6 +135,12 @@ mod props_cone_apex_cap;
 mod props_cone_ring;
 #[path = "props_cone_vector_area.rs"]
 mod props_cone_vector_area;
+#[path = "review_4696_r1.rs"]
+mod review_4696_r1;
+#[path = "review_4696_r2.rs"]
+mod review_4696_r2;
+#[path = "review_4696_verify.rs"]
+mod review_4696_verify;
 #[path = "props_sphere_circle_loop.rs"]
 mod props_sphere_circle_loop;
 #[path = "props_sphere_pole_side.rs"]
