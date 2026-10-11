@@ -1392,8 +1392,8 @@ pub enum ValidationError {
     ///   rectangle (`geom_brep::props`' `props_rim_level`, S58) and
     ///   the certified-quadrature lane consumes only conic/NURBS trims.
     /// * `RingOnCurvedFace` — **row 2** as well: a ringed curved face
-    ///   other than a cone wall or a rim-and-ruling cylinder or torus
-    ///   wall, which a boolean pierce leaves in the face it pierces.
+    ///   other than a cone wall, a cylinder wall or a rim-and-ruling
+    ///   torus wall, which a boolean pierce leaves in the face it pierces.
     /// * `Corrupt`, `NullScaffoldEdge` — **row 1** by their own docs:
     ///   unresolvable structure and a mid-surgery body carrying M3
     ///   null-edge scaffolding.
@@ -3071,6 +3071,16 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
             ),
             P::SenseContradicted => reading(
                 "a sphere face is inside-out against its own boundary",
+                DEFECT.into(),
+                true,
+            ),
+            P::RingWoundWithFace => reading(
+                "a hole in a face is wound the same way as the face",
+                DEFECT.into(),
+                true,
+            ),
+            P::ChartPeriodJump => reading(
+                "a face's stored boundary images do not meet on its chart",
                 DEFECT.into(),
                 true,
             ),
