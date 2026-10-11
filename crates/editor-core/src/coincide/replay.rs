@@ -142,22 +142,11 @@ fn prove_row(
 /// Why the replay holds no value at `node`: a part it does not resolve
 /// where that is what failed there or upstream, else a refusal.
 fn why_no_value(ev: &Evaluation<Lane>, node: RecipeNodeId) -> Unreplayed {
-    let failed = match ev.result(node) {
-        Some(crate::eval::NodeResult::Poisoned { through }) => *through,
-        _ => node,
-    };
-    match ev.result(failed) {
-        Some(crate::eval::NodeResult::Failed(e))
-            if matches!(
-                e.kind,
-                crate::eval::NodeErrorKind::Part {
-                    fault: crate::eval::PartFault::NoResolver,
-                    ..
-                }
-            ) =>
-        {
-            Unreplayed::ThroughAPart
-        }
+    match ev.node_error(node).map(|e| &e.kind) {
+        Some(crate::eval::NodeErrorKind::Part {
+            fault: crate::eval::PartFault::NoResolver,
+            ..
+        }) => Unreplayed::ThroughAPart,
         _ => Unreplayed::Refused,
     }
 }
