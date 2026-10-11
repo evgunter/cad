@@ -2,7 +2,7 @@
 id: boolean-gate-mints-route-through-the-funnel
 kind: unit
 title: boolean, census and merge gates build their decided-sign escalations by hand, off the log (mints C10-C12, C19, C23)
-status: open
+status: review
 opened: 2026-10-10
 priority: P1
 cost: M
@@ -77,19 +77,30 @@ Per site:
   four `bool_contact_arc_end_vertex` readings are decided once through
   `decide_magnitude_reported`, which fits because they are norms. They
   ride in `ContainError::ArcEndClearOfCorners(Box<ArcEndGaps>)`.
-  - `ArcEndGaps::off_corner` holds where an end lies definitely off both
-    corners. The body's arc then contradicts its stored corner at this
-    band.
-  - Otherwise the band alone parted the two passes. That is reachable
-    only at K ≤ 3.
+  - Which arm is reached, and from where:
+    - **The band's own parting** (every end at a corner, the passes
+      parted by `K ≤ 3`): reachable at the run's band, at every caller.
+      This is the only arm the census meets.
+    - **An end off both corners** (`ArcEndGaps::off_corner`): tier 3
+      pins every carrier end within the run's zero band of its corner
+      (`carrier_endpoint_{start,end}`), so at the run's band it is not
+      reached. It is reached through the public `contfp` door at a
+      caller's finer band. At the census, which runs only behind a clean
+      tier 3, it is a D9 row 4 `unreachable!` with its values; at
+      `carrier_touch::ball_off_face` the arm is unreachable outright,
+      since a foot is placed only clear of every boundary carrier by at
+      least `escalate`.
   - `Escalation::Decided` had no other raiser, so it is retired, along
     with its two `CONTAINMENT_RAISED` rows. `(Boundary, Decided)` was
     already raised nowhere.
 - **C11** goes through `k_stats::gate_rejection` with
-  `SizedPass::NonZero`, so it is on the log and tagged Zero. The `On`
-  code keeps no margin: in `recl` it may be a coplanar record's `On`,
-  read off no bound at all. So the reading it quotes is the one every
-  `On` states, `±zero`.
+  `SizedPass::NonZero`, so it is on the log and tagged Zero.
+  - `vtxfac` quotes the bisector's own reading: `side_code_reported`
+    (and `geom_brep::enters_material_reported`) keeps the margin an `On`
+    was decided on, and `Entry::on` carries it to the refusal.
+  - `recl` quotes `±zero`: a `PairRecord` code keeps no margin, and a
+    coplanar pair's `On` is read off no bound at all. The site is pinned
+    and is listed as residue on `hand-minted-indeterminate-ratchet-gate`.
 - **C12** goes through `decide_nonzero` on the undeclared ladder. The
   declared `carrier_eq` caller keeps `orientation_zero` (D10-held).
 - **C19** is decided once. The dihedral is the last carrier screen: a
@@ -106,16 +117,22 @@ Endings, before → after, at every ε row:
   the point clear of the arc's end", now under a definite statement
   rather than "undecided: margin is invalid". The Boolean carries it as
   `PointInFaceRefused`.
-- **C10 at rest:**
-  - The census goes from `CensusEscalated`'s defect ending (by
-    `is_invalid()`) to `CensusUnsupported` with the defect ending by
-    type (`off_corner`). The K ≤ 3 case ends in the lever.
-  - `RingNestingUndecided` and `classify_contain` go from the lever to
-    the defect ending where an end is off its corner.
-- **C10 at the curved placements** (`wall_crossing`,
-  `carrier_touch::ball_off_face`): from a Containment escalation to
-  keeping the caller's door, as every other non-escalation refusal of
-  the face door does there.
+- **C10 at rest (the census):** the band's own parting goes from
+  `CensusEscalated`'s defect ending (by `is_invalid()`) to
+  `CensusUnsupported` with the arc end's lever, pinned on public-operator
+  geometry at `K = 1.25`. At the run's `K` the same point is the vertex
+  reading's escalation, pinned too. An end off both corners is an
+  `unreachable!` there (a `should_panic` pin).
+- **C10 at `reduce::wall_crossing`:** from a Containment escalation to
+  `SpanVerdict::Unsettled` (the caller keeps its door, as for the face
+  door's other non-escalation refusals), pinned.
+- **C10 at `carrier_touch::ball_off_face`:** unreachable, before and
+  after, by the clearance argument above.
+- **C10 at `rim_wedge::contains`:** before, the `bool_contact_arc_end_vertex`
+  `INVALID` escalation; after the first push, the `seam_cover_unread`
+  `INVALID` mint through the wildcard. Now `Ok(true)`: a point at an
+  arc's end lies on the arc, so on the boundary, and `contains` passes
+  on either boundary place. Pinned on both arms.
 - **C19:** `CensusEscalated` (defect) plus `EdgeEdgeCross { side:
   Some(Undecided) }` became `EdgeEdgeCross { side: None }`, the plain
   hard finding. The declaration is reported by the confirm pass

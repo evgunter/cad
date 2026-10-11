@@ -74,7 +74,7 @@ use super::plane_eq::PlaneEqError;
 use super::reduce::face_plane;
 use std::collections::BTreeMap;
 
-use super::sectors::{BoolSector, PierceLever, build_sectors, side_code};
+use super::sectors::{BoolSector, PierceLever, build_sectors, side_code, side_code_reported};
 use super::tables::{eq15_3_lump, lump_keeps_one};
 use super::{
     BoolNullEdgeRecord, BooleanError, BooleanOp, ContactRecords, NullEdgePairRecord, Operand,
@@ -390,6 +390,8 @@ struct Entry {
     he: HalfEdgeKey,
     is_edge: bool,
     class: SideCode,
+    /// The Zero this bound's own reading decided, where it read `On`.
+    on: Option<geom_core::Decided>,
     /// The class is Delta 2's lump, not this bound's own reading.
     lumped: bool,
 }
@@ -481,16 +483,18 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // which is why the primitive takes the typed one.
     let mut entries = Vec::with_capacity(n);
     for s in &sectors {
+        let (class, on) = side_code_reported(
+            s.end,
+            s.end_reach,
+            n_pierced,
+            pierced_lever.within(s.end_reach.length()),
+            band,
+        )?;
         entries.push(Entry {
             he: s.he,
             is_edge: s.end_edge(),
-            class: side_code(
-                s.end,
-                s.end_reach,
-                n_pierced,
-                pierced_lever.within(s.end_reach.length()),
-                band,
-            )?,
+            class,
+            on,
             lumped: false,
         });
     }
@@ -1268,7 +1272,14 @@ fn resolve_on_entries(entries: &mut [Entry], band: Band) -> Result<(), BooleanEr
         let (before, after) = (&entries[(k + n - 1) % n], &entries[(k + 1) % n]);
         let (prev, next) = (before.class, after.class);
         if !entries[k].is_edge && !before.lumped && !after.lumped && prev == next {
-            return Err(super::sectors::bisector_zero_refusal(band));
+            let Some(on) = entries[k].on else {
+                unreachable!(
+                    "a bound classed On with no Zero of its own: an entry reads On only from its \
+                     own side reading, or from a lump of two bounds both read On ({:?})",
+                    entries[k].he
+                )
+            };
+            return Err(super::sectors::bisector_zero_refusal(on, band));
         }
         entries[k].class = super::sectors::fold_on_bound(prev, next);
     }
@@ -1717,55 +1728,94 @@ mod tests {
         }
     }
 
-    fn entry(is_edge: bool, class: SideCode) -> Entry {
+    /// A bound's entry; an `On` carries the Zero `on_margin` it read.
+    fn entry(is_edge: bool, class: SideCode, on_margin: f64) -> Entry {
         Entry {
             he: HalfEdgeKey::default(),
             is_edge,
             class,
+            on: (class == On).then(|| geom_core::Decided {
+                sign: geom_core::Sign::Zero,
+                margin: geom_core::MarginDiag::value(on_margin),
+            }),
             lumped: false,
         }
     }
 
     /// A bisector reading On between two bounds read Out is the band's
     /// Zero (reachable only at K ≤ 2, which no suite runs), and it
-    /// refuses as the nonzero gate's rejection, on the frame's log; an
-    /// edge's On there, a real one, resolves; a bisector between mixed
-    /// neighbours resolves, since its code moves no edge.
+    /// refuses as the nonzero gate's rejection of the Zero the bisector's
+    /// own side reading decided, quoting that reading's margin, on the
+    /// frame's log; an edge's On there, a real one, resolves; a bisector
+    /// between mixed neighbours resolves, since its code moves no edge.
+    ///
+    /// The Zero is read, not supplied: a bisector of arm `1` tilted off
+    /// the face's plane by `asin(f·ε)` reads `f·ε` through
+    /// [`side_code_reported`], and the refusal quotes exactly that.
     #[test]
     fn a_bisector_on_between_one_sided_bounds_refuses() {
+        use super::super::sectors::{NO_CURVATURE, Reach};
+        use geom_brep::OutwardNormal;
+        use geom_core::{ErrorTextReading, Vec3};
         let band = Band::linear(Tol::witness()).unwrap();
-        for side in [Out, In] {
-            let mut one_sided = [entry(true, side), entry(false, On), entry(true, side)];
-            let bracket = geom_core::k_stats::Bracket::open();
-            let got = resolve_on_entries(&mut one_sided, band);
-            let log = bracket.finish();
-            let Err(BooleanError::Escalated {
-                decision: super::super::BooleanDecision::BisectorSide,
-                diag,
-            }) = got
-            else {
-                panic!("{side:?}: the bisector's Zero refuses as its own decision: {got:?}");
-            };
-            assert_eq!(
-                diag.predicate,
-                Some("bool_sector_bisector_side"),
-                "{side:?}"
-            );
-            assert_eq!(
-                diag.margin.rejected_sign(),
-                Some(geom_core::Sign::Zero),
-                "{side:?}: the nonzero gate's rejection of the Zero"
-            );
-            assert_eq!(
-                log.escalations.iter().map(|e| e.source).collect::<Vec<_>>(),
-                vec![diag],
-                "{side:?}: the rejection is the one escalation on the log"
-            );
+        let up = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
+        for f in [-0.7, 0.2, 0.9] {
+            let rise = f * band.zero();
+            let dir = Vec3::new((1.0 - rise * rise).sqrt(), 0.0, rise);
+            let (class, on) =
+                side_code_reported(dir, Reach::Bisector(1.0), up, NO_CURVATURE(), band).unwrap();
+            assert_eq!(class, On, "f {f}: the bisector reads On");
+            for side in [Out, In] {
+                let what = format!("f {f}, {side:?}");
+                let bisector = Entry {
+                    on,
+                    ..entry(false, On, 0.0)
+                };
+                let mut one_sided = [entry(true, side, 0.0), bisector, entry(true, side, 0.0)];
+                let bracket = geom_core::k_stats::Bracket::open();
+                let got = resolve_on_entries(&mut one_sided, band);
+                let log = bracket.finish();
+                let Err(BooleanError::Escalated {
+                    decision: super::super::BooleanDecision::BisectorSide,
+                    diag,
+                }) = got
+                else {
+                    panic!("{what}: the bisector's Zero refuses as its own decision: {got:?}");
+                };
+                assert_eq!(diag.predicate, Some("bool_sector_bisector_side"), "{what}");
+                assert_eq!(
+                    diag.margin.rejected_sign(),
+                    Some(geom_core::Sign::Zero),
+                    "{what}: the nonzero gate's rejection of the Zero"
+                );
+                let ErrorTextReading::Value(quoted) = diag.margin.diagnostic_f64_for_error_text()
+                else {
+                    panic!("{what}: a point reading: {diag:?}");
+                };
+                assert!(
+                    (quoted - rise).abs() <= 4.0 * f64::EPSILON * band.zero(),
+                    "{what}: the refusal quotes the bisector's own reading {rise:e}, not \
+                     {quoted:e}"
+                );
+                assert_eq!(
+                    log.escalations.iter().map(|e| e.source).collect::<Vec<_>>(),
+                    vec![diag],
+                    "{what}: the rejection is the one escalation on the log"
+                );
+            }
         }
-        let mut edge = [entry(true, Out), entry(true, On), entry(true, Out)];
+        let mut edge = [
+            entry(true, Out, 0.0),
+            entry(true, On, 0.0),
+            entry(true, Out, 0.0),
+        ];
         resolve_on_entries(&mut edge, band).unwrap();
         assert_eq!(edge[1].class, Out, "an edge's On resolves");
-        let mut mixed = [entry(true, Out), entry(false, On), entry(true, In)];
+        let mut mixed = [
+            entry(true, Out, 0.0),
+            entry(false, On, 0.0),
+            entry(true, In, 0.0),
+        ];
         resolve_on_entries(&mut mixed, band).unwrap();
         assert_eq!(
             mixed[1].class, In,
@@ -1925,7 +1975,7 @@ mod tests {
     /// lies inside it and its opposite does not.
     #[test]
     fn a_runs_germs_are_its_transition_sectors_rays() {
-        use super::super::sectors::{NO_CURVATURE, build_sectors, side_code, within};
+        use super::super::sectors::{NO_CURVATURE, build_sectors, within};
         use geom_brep::OutwardNormal;
         use geom_core::{Point3, Vec3};
         let tol = Tol::witness();
@@ -1954,12 +2004,17 @@ mod tests {
                 let outward = OutwardNormal::from_chart(n_p, true);
                 let mut entries: Vec<Entry> = sectors
                     .iter()
-                    .map(|s| Entry {
-                        he: s.he,
-                        is_edge: s.end_edge(),
-                        class: side_code(s.end, s.end_reach, outward, NO_CURVATURE(), band)
-                            .unwrap(),
-                        lumped: false,
+                    .map(|s| {
+                        let (class, on) =
+                            side_code_reported(s.end, s.end_reach, outward, NO_CURVATURE(), band)
+                                .unwrap();
+                        Entry {
+                            he: s.he,
+                            is_edge: s.end_edge(),
+                            class,
+                            on,
+                            lumped: false,
+                        }
                     })
                     .collect();
                 resolve_on_entries(&mut entries, band).unwrap();

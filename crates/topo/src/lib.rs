@@ -375,7 +375,7 @@ pub mod test_support {
             })
             .collect()
     }
-    pub use crate::test_support_samples::validation_error_samples;
+    pub use crate::test_support_samples::{arc_end_clear_of_corners, validation_error_samples};
 
     /// Runs `f` with every boolean on this thread taking its vertex
     /// pairs, and each pair's crossing records, in reverse order, and

@@ -520,10 +520,17 @@ fn contains<T: Decide>(
     let f = body.get_face(face).ok_or(unread)?;
     let read = match body.get_surface(f.surface) {
         Some(geom::Surface::Plane { normal, .. }) => {
-            Some(super::contain::contfp(body, face, *normal, p, band).map_err(lift)?)
+            super::contain::contfp(body, face, *normal, p, band).map(Some)
         }
-        Some(_) => super::contain::curved_face_containment(body, face, p, band).map_err(lift)?,
+        Some(_) => super::contain::curved_face_containment(body, face, p, band),
         None => return Err(unread),
+    };
+    // A point at an arc's end lies on the arc, so on the face's boundary,
+    // whichever stored corner the pass could not place it at: the
+    // question here passes on either.
+    let read = match read {
+        Err(super::contain::ContainError::ArcEndClearOfCorners(_)) => return Ok(true),
+        read => read.map_err(lift)?,
     };
     match read {
         Some(super::contain::FaceContainment::Out) => Ok(false),
@@ -1444,6 +1451,52 @@ mod r2_probes {
             up.expect("the routing answers"),
             down.expect("the routing answers"),
             "a stored sign cannot change a first-order verdict"
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod arc_end_rows {
+    use super::*;
+    use crate::test_support_fixtures::half_disc_cap;
+    use geom_core::{Tol, Vec3};
+
+    /// **A point at an arc's end is on the face's boundary, so the face
+    /// contains it**, whichever stored corner the boundary pass could not
+    /// place it at: the seam cover's question passes on either. Both arms
+    /// of the finding, on half-disc caps the public operators built: an
+    /// end off both corners (read at a band finer than the run's) and the
+    /// band's own parting (`K = 1.25`). Neither is the unread mint.
+    #[test]
+    fn a_point_at_an_arc_end_is_contained() {
+        let tol = Tol::witness();
+        let zero = Band::linear(tol).unwrap().zero();
+        let off = zero / 2.0;
+        let (body, cap, end) = half_disc_cap(off, tol);
+        let fine = Band::new(off / 50.0, off / 5.0).unwrap();
+        assert!(
+            matches!(
+                crate::boolean::contfp(&body, cap, Vec3::unit_z(), end, fine),
+                Err(crate::boolean::ContainError::ArcEndClearOfCorners(ref g)) if g.off_corner()
+            ),
+            "the end lies off both corners at the finer band"
+        );
+        assert_eq!(contains(&body, cap, end, fine), Ok(true), "off its corner");
+        let (body, cap, end) = half_disc_cap(0.0, tol);
+        let q = end + Vec3::new(-0.95 * zero, 0.95 * zero, 0.0);
+        let narrow = Band::new(zero, 1.25 * zero).unwrap();
+        assert!(
+            matches!(
+                crate::boolean::contfp(&body, cap, Vec3::unit_z(), q, narrow),
+                Err(crate::boolean::ContainError::ArcEndClearOfCorners(ref g)) if !g.off_corner()
+            ),
+            "the band's own parting"
+        );
+        assert_eq!(
+            contains(&body, cap, q, narrow),
+            Ok(true),
+            "the band's parting"
         );
     }
 }

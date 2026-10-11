@@ -3232,25 +3232,20 @@ fn classify_contain(e: &ContainError) -> (Cow<'static, str>, Cow<'static, str>) 
 }
 
 /// A point at an arc's end the corner pass placed clear of the edge's
-/// corners, read at rest. Where an end of the arc lies definitely off
-/// both corners, the stored arc contradicts the stored corners, which
-/// no move of the geometry repairs (D4 ¶1 (iv)); otherwise the band
-/// alone parted the two passes, and the arc end's own lever stands.
+/// corners, read at rest. At rest the run's band reads every carrier end
+/// at its corner (tier 3 pins them), so the passes parted on the band
+/// alone (`K ≤ 3`), and the arc end's own lever is the way through.
 fn arc_end_clear_of_corners(
     gaps: &crate::boolean::ArcEndGaps,
 ) -> (Cow<'static, str>, Cow<'static, str>) {
     use crate::boolean::{ContainDecision, placement_lever};
     (
         format!("a point lies at an arc's end clear of its corners: {gaps}").into(),
-        if gaps.off_corner() {
-            DEFECT.into()
-        } else {
-            format!(
-                "Recourse: {}",
-                placement_lever(Some(ContainDecision::ArcEnd))
-            )
-            .into()
-        },
+        format!(
+            "Recourse: {}",
+            placement_lever(Some(ContainDecision::ArcEnd))
+        )
+        .into(),
     )
 }
 

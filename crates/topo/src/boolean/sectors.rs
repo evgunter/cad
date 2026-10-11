@@ -42,9 +42,9 @@
 //! identical / identical-reversed region cases); touch-only sharing of
 //! a single bound is NOT overlap.
 
-use geom_brep::{EntersMaterial, OutwardNormal, enters_material};
+use geom_brep::{EntersMaterial, OutwardNormal, enters_material_reported};
 use geom_core::k_stats::{Magnitude, NonzeroSign};
-use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
+use geom_core::{Band, Decide, Decided, Margin, Point3, Sign, Vec3};
 
 use super::{
     BooleanDecision, BooleanError, Coincide, DeclarationRead, LeverArm, Operand, SideCode,
@@ -411,19 +411,14 @@ pub(super) fn sector_face<T: Decide>(
 /// on one side (`vtxfac`'s on-edge resolution,
 /// `recl::resolve_bisector_graze`): reachable only when K ≤ 2, where the
 /// Zero is the band's and does not decide. The side is read off a sign,
-/// so the Zero is the nonzero gate's rejection, on the log. The `On`
-/// code it rejects keeps no margin (a coplanar pair's codes are `On`
-/// with no bound read at all), so the reading it carries is what every
-/// `On` states: within `±zero`.
-pub(super) fn bisector_zero_refusal(band: Band) -> BooleanError {
+/// so `on`, the Zero the bisector's code was decided on, is the nonzero
+/// gate's rejection, on the log.
+pub(super) fn bisector_zero_refusal(on: Decided, band: Band) -> BooleanError {
     BooleanError::Escalated {
         decision: BooleanDecision::BisectorSide,
         diag: geom_core::k_stats::gate_rejection(
             "bool_sector_bisector_side",
-            geom_core::Decided {
-                sign: Sign::Zero,
-                margin: geom_core::MarginDiag::enclosure(-band.zero(), band.zero()),
-            },
+            on,
             band,
             geom_core::SizedPass::NonZero,
         ),
@@ -526,32 +521,63 @@ pub(super) fn side_code<T: Decide>(
     lever: T,
     band: Band,
 ) -> Result<SideCode, BooleanError> {
+    side_code_reported(dir, reach, face_normal, lever, band).map(|(code, _)| code)
+}
+
+/// [`side_code`], keeping the margin an `On` was decided on: the Zero a
+/// caller that cannot use it refuses through the gate
+/// ([`bisector_zero_refusal`]). `None` beside a side.
+pub(super) fn side_code_reported<T: Decide>(
+    dir: Vec3<T>,
+    reach: Reach<T>,
+    face_normal: OutwardNormal<T>,
+    lever: T,
+    band: Band,
+) -> Result<(SideCode, Option<geom_core::Decided>), BooleanError> {
     let n = face_normal.vec();
     let length = reach.length();
     let (verdict, displacement) = match reach {
         Reach::Chord { base, far } => {
             let offset = crate::sector_shape::plane_offset(base, n, far);
-            let verdict = match decide("bool_chord_side", Margin::of(offset), band) {
-                // Same mapping as `enters_material`: into the material
-                // is against the outward normal.
-                Ok(Sign::Negative) => SideCode::In,
-                Ok(Sign::Positive) => SideCode::Out,
-                Ok(Sign::Zero) => return Ok(SideCode::On),
-                Err(diag) => {
-                    return Err(BooleanError::coincidence(
-                        Coincide::SectorSide,
-                        DeclarationRead::Moot,
-                        diag,
-                    ));
-                }
-            };
+            let verdict =
+                match crate::validate::decide_reported("bool_chord_side", Margin::of(offset), band)
+                {
+                    // Same mapping as `enters_material`: into the material
+                    // is against the outward normal.
+                    Ok(Decided {
+                        sign: Sign::Negative,
+                        ..
+                    }) => SideCode::In,
+                    Ok(Decided {
+                        sign: Sign::Positive,
+                        ..
+                    }) => SideCode::Out,
+                    Ok(
+                        on @ Decided {
+                            sign: Sign::Zero, ..
+                        },
+                    ) => return Ok((SideCode::On, Some(on))),
+                    Err(diag) => {
+                        return Err(BooleanError::coincidence(
+                            Coincide::SectorSide,
+                            DeclarationRead::Moot,
+                            diag,
+                        ));
+                    }
+                };
             (verdict, offset.abs())
         }
         Reach::Extent(_) | Reach::Bisector(_) => {
-            let verdict = match enters_material(dir, face_normal, length, band) {
-                Ok(EntersMaterial::Enters) => SideCode::In,
-                Ok(EntersMaterial::Exits) => SideCode::Out,
-                Ok(EntersMaterial::Tangent) => return Ok(SideCode::On),
+            let verdict = match enters_material_reported(dir, face_normal, length, band) {
+                Ok((EntersMaterial::Enters, _)) => SideCode::In,
+                Ok((EntersMaterial::Exits, _)) => SideCode::Out,
+                Ok((EntersMaterial::Tangent, margin)) => {
+                    let on = Decided {
+                        sign: Sign::Zero,
+                        margin,
+                    };
+                    return Ok((SideCode::On, Some(on)));
+                }
                 Err(escalation) => {
                     return Err(BooleanError::of_lever(
                         LeverArm::SectorSide,
@@ -579,7 +605,7 @@ pub(super) fn side_code<T: Decide>(
         band,
     ) {
         Ok(decided) => match Refused::of(decided, band) {
-            None => Ok(verdict),
+            None => Ok((verdict, None)),
             Some(refused) => Err(BooleanError::CurvedSectorSideUnsupported { verdict: refused }),
         },
         Err(diag) => Err(BooleanError::Escalated {

@@ -2874,11 +2874,13 @@ impl<T: Decide> Body<T> {
                     sign: geom_core::Sign::Positive,
                     ..
                 }) => positive.push((slot, l)),
-                LoopWinding::Wound(Decided {
-                    sign: geom_core::Sign::Zero,
-                    margin,
-                }) => {
-                    zero.get_or_insert(margin);
+                LoopWinding::Wound(
+                    decided @ Decided {
+                        sign: geom_core::Sign::Zero,
+                        ..
+                    },
+                ) => {
+                    zero.get_or_insert(decided);
                 }
                 LoopWinding::Wound(Decided {
                     sign: geom_core::Sign::Negative,
@@ -2895,15 +2897,12 @@ impl<T: Decide> Body<T> {
             ([_, _, ..], _, _) => OutlineVerdict::SeveralPositive {
                 loops: positive.iter().map(|&(_, l)| l).collect(),
             },
-            ([], Some(margin), _) => {
+            ([], Some(decided), _) => {
                 return Err(MergeCoplanarError::Escalated {
                     decision: MergeDecision::LoopWinding,
                     diag: geom_core::k_stats::gate_rejection(
                         WINDING_PREDICATE,
-                        Decided {
-                            sign: geom_core::Sign::Zero,
-                            margin,
-                        },
+                        decided,
                         band,
                         LOOP_WINDING.passes,
                     ),

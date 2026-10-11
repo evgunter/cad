@@ -39,3 +39,19 @@ may fall but not rise.
   and a mint in a crate it does not scan.
 - **Each unit that retires a site** lowers its file's count in the same
   PR.
+
+## Residue: a hand-built verdict handed to a gate door (unit 4, PR 4613)
+
+The two passes above cannot see a `Decided` built by hand and handed to
+`k_stats::gate_rejection`, which mints on the log with a margin no
+classifier reached. One production site:
+
+- `crates/topo/src/boolean/recl.rs:1503` (`resolve_bisector_graze`):
+  the bisector's `On` rides a `PairRecord` code, which keeps no margin
+  (a coplanar pair's codes are `On` with no bound read), so the Zero is
+  quoted as `±zero`. Carrying a margin means a margin per code on
+  `PairRecord` (96 uses). The `vtxfac` caller carries its bisector's
+  own reading. Pinned by `recl::tests::a_grazing_bisector_between_one_sided_keys_refuses`.
+
+The gate should count `Decided {` literals that reach `gate_rejection(`
+or `straddle(` in production code, beside the two counts above.

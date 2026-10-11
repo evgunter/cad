@@ -261,10 +261,12 @@ pub enum ContainError {
 /// [`ContainError::ArcEndClearOfCorners`] carries. The two passes of
 /// [`boundary_pre_pass`] part only by as much as an end sits off its
 /// corner, plus the point's own slack at the end (two zero bands at
-/// most), so where an end lies at a corner the parting is the band's,
-/// reachable only at `K ≤ 3`, and otherwise an end lies definitely off
-/// both corners: the arc and its corners disagree at this band (a body
-/// certified at a coarser one).
+/// most). So where every end lies at a corner the parting is the band's,
+/// reachable only at `K ≤ 3`. An end definitely off both corners is
+/// reached only at a band finer than the run's: certification pins each
+/// end within the run's zero band of its corner (`geom_brep`'s
+/// `carrier_endpoint_{start,end}`), so it is a caller's band below that
+/// one that reads them apart.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ArcEndGaps {
     /// `gaps[i][j]`: the carrier's start (`i = 0`) or end (`i = 1`)
@@ -277,12 +279,19 @@ pub struct ArcEndGaps {
 
 impl ArcEndGaps {
     /// The end of the arc that lies definitely off both corners, as its
-    /// two readings: the stored arc and the stored corners disagree at
-    /// this band. `None` where the band alone parted the two passes.
-    fn off_end(&self) -> Option<[(Magnitude, MarginDiag); 2]> {
-        self.gaps
-            .into_iter()
-            .find(|end| end.iter().all(|(m, _)| *m == Magnitude::Positive))
+    /// gap to its own corner and then to the other: its own is the one
+    /// the other end does not lie at, or the one of its own index where
+    /// that end lies at neither. `None` where every end lies at a corner.
+    fn off_end(&self) -> Option<(MarginDiag, MarginDiag)> {
+        let off =
+            |end: &[(Magnitude, MarginDiag); 2]| end.iter().all(|(m, _)| *m == Magnitude::Positive);
+        let i = self.gaps.iter().position(off)?;
+        let other = self.gaps[1 - i];
+        let own = other
+            .iter()
+            .position(|(m, _)| *m == Magnitude::Zero)
+            .map_or(i, |j| 1 - j);
+        Some((self.gaps[i][own].1, self.gaps[i][1 - own].1))
     }
 
     /// Whether an end of the arc lies definitely off both corners.
@@ -296,9 +305,9 @@ impl core::fmt::Display for ArcEndGaps {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let zero = self.band.zero();
         match self.off_end() {
-            Some([(_, a), (_, b)]) => write!(
+            Some((own, far)) => write!(
                 f,
-                "the end lies {a:e} m and {b:e} m from them, past the band"
+                "the end lies {own:e} m from its own and {far:e} m from the other, past the band"
             ),
             None => write!(
                 f,
@@ -663,12 +672,13 @@ fn boundary_pre_pass<T: Decide>(
             // passes disagree only by as much as the carrier's ends
             // sit off the stored vertices, on its own row
             // (`bool_contact_arc_end_vertex`). Certification pins each
-            // carrier end to its vertex within the zero band of the
-            // band the body was CERTIFIED at (`geom_brep`'s
-            // `carrier_endpoint_{start,end}` rows), so a body certified
-            // at a coarser band than this query's carries up to that
-            // band's `ε`. An end in band of a corner escalates on that
-            // margin; with every one decided, the finding carries them.
+            // carrier end within the run's zero band of its vertex
+            // (`geom_brep`'s `carrier_endpoint_{start,end}` rows), so at
+            // the run's band the passes part only where `K ≤ 3`, and an
+            // end off both corners is read only at a caller's finer
+            // band. An end in band of a corner escalates on that margin;
+            // with every one decided, the finding carries them
+            // ([`ArcEndGaps`]).
             OnEdge::End => {
                 let Some(carrier_ends) = lp.edges[i].carrier_ends() else {
                     unreachable!("only a conic or spiric arc reads End")
@@ -1636,162 +1646,104 @@ mod tests {
         assert!(loops > 0, "the fixture must have loops to check");
     }
 
-    /// A planar half-disc cap — the unit circle's arc from `(1, 0, 0)` to
-    /// `(-1, 0, 0)` through `+y`, and its chord — with the arc's end
-    /// corner stored `off` along `-y`, off the carrier's end; and the
-    /// carrier's end, where the probe sits.
-    fn half_disc_off_its_corner(off: f64) -> (Body<f64>, Point3<f64>) {
-        use crate::euler::{FaceSurface, MefSite, MevSite};
-        use geom::{Curve3, Surface};
-        use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
-        let tol = Tol::witness();
-        let mut body = Body::<f64>::new();
-        let (p0, p1) = (Point3::new(1.0, 0.0, 0.0), Point3::new(-1.0, 0.0, 0.0));
-        let seed = body.mvfs(p0, true).unwrap();
-        let plane = body.add_surface(Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
-        });
-        let wall = body.add_surface(Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::unit_z(),
-            radius: 1.0,
-            u_ref: Vec3::unit_x(),
-        });
-        let arc = body
-            .mev(
-                MevSite::Lone {
-                    r#loop: seed.r#loop,
-                },
-                p1,
-                EdgeCurveSpec {
-                    description: EdgeDescriptionSpec::Intersection {
-                        pair: SurfacePair::new(wall, plane),
-                        witness: Point3::new(0.0, 1.0, 0.0),
-                    },
-                    carrier: Curve3::Circle {
-                        center: Point3::origin(),
-                        axis: Vec3::unit_z(),
-                        radius: 1.0,
-                        u_ref: Vec3::unit_x(),
-                    },
-                    param_start: 0.0,
-                    param_end: core::f64::consts::PI,
-                },
-                tol,
-            )
-            .unwrap();
-        body.mef(
-            MefSite::Chords {
-                he1: arc.he_minus,
-                he2: arc.he_plus,
-            },
-            EdgeCurveSpec::line_between(p1, p0),
-            FaceSurface::Shared {
-                key: plane,
-                sense: true,
-            },
-            tol,
-        )
-        .unwrap();
-        let point = body.get_vertex(arc.vertex).unwrap().point;
-        body.points[point] = p1 - Vec3::unit_y() * off;
-        (body, p1)
+    /// The point a band of `K < sqrt(2)` reads at the half-disc's arc end
+    /// and clear of its corner: `0.95·zero` off the circle and `0.95·zero`
+    /// along it from the end, so `≈ 1.34·zero` from the corner at the end.
+    fn beside_the_arc_end(end: Point3<f64>, zero: f64) -> Point3<f64> {
+        end + Vec3::new(-0.95 * zero, 0.95 * zero, 0.0)
     }
 
     /// **A point at an arc's end the vertex pass placed clear of its
-    /// corners is a finding, not an escalation** (D4 ¶1 (iv)). The
-    /// half-disc's arc end stands `off` past the band from its stored
-    /// corner, and the probe sits on the end: the vertex pass decides it
-    /// clear of both corners, the arc pass at the end. Both of the cap's
-    /// faces refuse with the arc's ends read against the corners, the end
-    /// the probe sits on decided off both of them by `off` and the edge's
-    /// length, nothing escalated onto the log. It tells the arc end's
-    /// story with its lever at a build and through the Boolean, and the
-    /// defect ending at rest, where the stored arc contradicts the stored
-    /// corner; where every end lies at a corner (`K ≤ 3`), the lever at
-    /// rest too.
+    /// corners is a finding, not an escalation** (D4 ¶1 (iv)), in both of
+    /// the two ways it is reached, through the public door on bodies the
+    /// public operators built.
+    ///
+    /// - **An end off both corners** is read only at a band finer than
+    ///   the run's: the cap's corner stands `off = zero/2` from its arc's
+    ///   end, certified at the run's band, and `contfp` reads it at a band
+    ///   of zero `off/50`. The finding leads with the gap to the end's own
+    ///   corner, `off`.
+    /// - **The band's own parting** (`K ≤ 3`): on a cap whose corner is
+    ///   its arc's end, a point `≈ 1.34·zero` from the corner reads clear
+    ///   of it at `K = 1.25` and at the end. At the run's `K` the same
+    ///   point is the vertex reading's escalation, not the finding.
+    ///
+    /// Both arms log no escalation, and each end is decided once against
+    /// each corner. They end in the arc end's lever at a build and
+    /// through the Boolean.
     #[test]
     fn a_point_at_an_arc_end_clear_of_its_corners_is_a_finding() {
         use crate::boolean::{BooleanError, Operand};
-        use crate::validate::{CensusSubject, CensusUnsupportedCause, ValidationError};
-        use geom_core::{ErrorTextReading, KERNEL_OR_FILE_DEFECT_ENDING, k_stats::Bracket};
-        let band = Band::linear(Tol::witness()).unwrap();
+        use crate::test_support_fixtures::half_disc_cap;
+        use geom_core::{ErrorTextReading, k_stats::Bracket};
+        let tol = Tol::witness();
+        let run = Band::linear(tol).unwrap();
+        let zero = run.zero();
         let lever = "Recourse: move the point clear of the arc's end";
-        let at_rest = |gaps: ArcEndGaps, face| {
-            ValidationError::CensusUnsupported {
-                subject: CensusSubject::Entity(EntityId::Face(face)),
-                cause: CensusUnsupportedCause::Containment(ContainError::ArcEndClearOfCorners(
-                    Box::new(gaps),
-                )),
-            }
-            .to_string()
+        let read = |m: MarginDiag| match m.diagnostic_f64_for_error_text() {
+            ErrorTextReading::Value(v) => v,
+            other => panic!("a point reading: {other:?}"),
         };
-        for off in [2.0, 5.0, 50.0].map(|f| f * band.escalate()) {
-            let (body, q) = half_disc_off_its_corner(off);
-            for (face, _) in body.faces() {
-                let what = format!("off {off:e}, face {face:?}");
-                let bracket = Bracket::open();
-                let got = contfp(&body, face, Vec3::unit_z(), q, band);
-                let log = bracket.finish();
-                let Err(ContainError::ArcEndClearOfCorners(gaps)) = &got else {
-                    panic!("{what}: the finding: {got:?}");
-                };
-                assert!(gaps.off_corner(), "{what}: an end lies off both corners");
-                assert!(log.escalations.is_empty(), "{what}: no escalation: {log:?}");
-                assert_eq!(
-                    log.verdicts
-                        .iter()
-                        .filter(|v| v.predicate == END_VERTEX)
-                        .count(),
-                    4,
-                    "{what}: each end decided once against each corner"
-                );
-                let read = |(_, m): (Magnitude, MarginDiag)| match m.diagnostic_f64_for_error_text()
-                {
-                    ErrorTextReading::Value(v) => v,
-                    other => panic!("{what}: a point reading: {other:?}"),
-                };
-                let mut ends: Vec<[f64; 2]> =
-                    gaps.gaps.iter().map(|end| (*end).map(&read)).collect();
-                ends.sort_by(|a, b| a[0].min(a[1]).total_cmp(&b[0].min(b[1])));
-                let nearest = ends[0][0].min(ends[0][1]);
-                let far = ends[1][0].min(ends[1][1]);
-                assert!(
-                    nearest == 0.0,
-                    "{what}: the start lies at its corner: {ends:?}"
-                );
-                // The carrier's end at `π` is evaluated to the circle's
-                // rounding (`sin π ≈ 1.2e-16`), not exactly `(-1, 0, 0)`.
-                assert!(
-                    (far - off).abs() <= 4.0 * f64::EPSILON,
-                    "{what}: the probe's end lies `off` from its corner: {ends:?}"
-                );
-                let built = got.as_ref().unwrap_err().to_string();
-                assert!(built.ends_with(lever), "{what}: {built}");
-                let boolean = BooleanError::PointInFaceRefused {
-                    operand: Operand::A,
-                    face,
-                    refusal: ContainError::ArcEndClearOfCorners(gaps.clone()),
-                }
-                .to_string();
-                assert!(boolean.ends_with(lever), "{what}: {boolean}");
-                let rest = at_rest(**gaps, face);
-                assert!(
-                    rest.ends_with(KERNEL_OR_FILE_DEFECT_ENDING) && !rest.contains("Recourse"),
-                    "{what}: {rest}"
-                );
-                let at_corner = ArcEndGaps {
-                    gaps: [
-                        [gaps.gaps[0][0], (Magnitude::Zero, gaps.gaps[0][1].1)],
-                        [(Magnitude::Zero, gaps.gaps[1][0].1), gaps.gaps[1][1]],
-                    ],
-                    band,
-                };
-                assert!(!at_corner.off_corner(), "{what}");
-                assert!(at_rest(at_corner, face).ends_with(lever), "{what}");
+        let finding = |what: &str, body: &Body<f64>, face, q, band| {
+            let bracket = Bracket::open();
+            let got = contfp(body, face, Vec3::unit_z(), q, band);
+            let log = bracket.finish();
+            let Err(ContainError::ArcEndClearOfCorners(gaps)) = &got else {
+                panic!("{what}: the finding: {got:?}");
+            };
+            assert!(log.escalations.is_empty(), "{what}: no escalation: {log:?}");
+            assert_eq!(
+                log.verdicts
+                    .iter()
+                    .filter(|v| v.predicate == END_VERTEX)
+                    .count(),
+                4,
+                "{what}: each end decided once against each corner"
+            );
+            let built = got.as_ref().unwrap_err().to_string();
+            assert!(built.ends_with(lever), "{what}: {built}");
+            let boolean = BooleanError::PointInFaceRefused {
+                operand: Operand::A,
+                face,
+                refusal: got.as_ref().unwrap_err().clone(),
             }
+            .to_string();
+            assert!(boolean.ends_with(lever), "{what}: {boolean}");
+            **gaps
+        };
+        let off = zero / 2.0;
+        let fine = Band::new(off / 50.0, off / 5.0).unwrap();
+        let (body, cap, end) = half_disc_cap(off, tol);
+        let gaps = finding("off its corner", &body, cap, end, fine);
+        let Some((own, far)) = gaps.off_end() else {
+            panic!("an end lies off both corners at the finer band: {gaps:?}");
+        };
+        assert!(
+            (read(own) - off).abs() <= 4.0 * f64::EPSILON && (read(far) - 2.0).abs() < 1e-9,
+            "the finding leads with the end's own corner, `off` away: {own:e}, {far:e}"
+        );
+        let (body, cap, end) = half_disc_cap(0.0, tol);
+        let q = beside_the_arc_end(end, zero);
+        let narrow = Band::new(zero, 1.25 * zero).unwrap();
+        let gaps = finding("the band's own parting", &body, cap, q, narrow);
+        assert!(!gaps.off_corner(), "every end lies at a corner: {gaps:?}");
+        if run.escalate() / zero <= 1.4 {
+            test_utils::vacuity::stood_down(
+                "a_point_at_an_arc_end_clear_of_its_corners_is_a_finding",
+                "the run's K is too narrow to read the corner gap in band",
+            );
+        } else {
+            assert!(
+                matches!(
+                    contfp(&body, cap, Vec3::unit_z(), q, run),
+                    Err(ContainError::Escalated {
+                        decision: Some(ContainDecision::Loop(LoopDecision::Boundary)),
+                        escalation: Escalation::Margin,
+                        diag,
+                    }) if diag.predicate == Some("bool_contact_vertex")
+                ),
+                "at the run's K the corner gap is in band, and escalates"
+            );
         }
     }
 }

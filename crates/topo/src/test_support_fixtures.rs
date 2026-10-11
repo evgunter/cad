@@ -1680,6 +1680,71 @@ pub(crate) fn oblique_rim_wall(phi: f64) -> (Body<f64>, FaceKey, crate::VertexKe
     (body, seed.face, seed.vertex)
 }
 
+/// **A planar half-disc cap** built through the public operators: the
+/// unit circle's arc from `(1, 0, 0)` to `(-1, 0, 0)` through `+y`, and
+/// its chord, the arc's end corner stored `off` along `-y` from the
+/// carrier's end (certified, so `off` lies within the run's zero band).
+/// Returns the body, the cap face, and the carrier's end at `π`.
+pub fn half_disc_cap(off: f64, tol: Tol) -> (Body<f64>, crate::FaceKey, Point3<f64>) {
+    let mut body = Body::<f64>::new();
+    let carrier = Curve3::Circle {
+        center: Point3::origin(),
+        axis: Vec3::unit_z(),
+        radius: 1.0,
+        u_ref: Vec3::unit_x(),
+    };
+    let (p0, end) = (
+        Point3::new(1.0, 0.0, 0.0),
+        carrier.eval(core::f64::consts::PI),
+    );
+    let p1 = end - Vec3::unit_y() * off;
+    let seed = body.mvfs(p0, true).unwrap();
+    let plane = body.add_surface(Surface::Plane {
+        origin: Point3::origin(),
+        normal: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    });
+    let wall = body.add_surface(Surface::Cylinder {
+        origin: Point3::origin(),
+        axis: Vec3::unit_z(),
+        radius: 1.0,
+        u_ref: Vec3::unit_x(),
+    });
+    let arc = body
+        .mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            p1,
+            EdgeCurveSpec {
+                description: EdgeDescriptionSpec::Intersection {
+                    pair: SurfacePair::new(wall, plane),
+                    witness: Point3::new(0.0, 1.0, 0.0),
+                },
+                carrier,
+                param_start: 0.0,
+                param_end: core::f64::consts::PI,
+            },
+            tol,
+        )
+        .unwrap();
+    let cap = body
+        .mef(
+            MefSite::Chords {
+                he1: arc.he_minus,
+                he2: arc.he_plus,
+            },
+            EdgeCurveSpec::line_between(p1, p0),
+            FaceSurface::Shared {
+                key: plane,
+                sense: true,
+            },
+            tol,
+        )
+        .unwrap();
+    (body, cap.face, end)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

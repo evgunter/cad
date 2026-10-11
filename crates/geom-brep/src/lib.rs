@@ -105,7 +105,7 @@ pub use edge_nurbs::{
 pub use enters::{
     EntersMaterial, LeverEscalation, LeverRung, NormalAlignment, OutwardNormal, ParallelNormal,
     ParallelSense, ReferenceNormal, WallBend, WallBendError, bends_into_material, enters_material,
-    enters_material_order2, normal_alignment,
+    enters_material_order2, enters_material_reported, normal_alignment,
 };
 pub use extent::{ExtentBall, Reach};
 pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane};

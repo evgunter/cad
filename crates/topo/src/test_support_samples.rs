@@ -254,6 +254,24 @@ fn point_in_solid_errors() -> Vec<crate::boolean::PointInSolidError> {
     ]
 }
 
+/// [`ContainError::ArcEndClearOfCorners`] at the sample band: an end
+/// decided off both corners (`off_corner`, read only at a band finer
+/// than the run's), or every end at a corner (the band's own parting,
+/// `K ≤ 3`, the one the census reaches).
+#[must_use]
+pub fn arc_end_clear_of_corners(off_corner: bool) -> ContainError {
+    let (zero, off) = (
+        (Magnitude::Zero, MarginDiag::value(5e-10)),
+        (Magnitude::Positive, MarginDiag::value(2e-8)),
+    );
+    let gaps = if off_corner {
+        [[zero, off], [off, off]]
+    } else {
+        [[zero, off], [off, zero]]
+    };
+    ContainError::ArcEndClearOfCorners(Box::new(crate::boolean::ArcEndGaps { gaps, band: band() }))
+}
+
 fn contain_errors() -> Vec<ContainError> {
     use crate::boolean::ContainDecision;
     use crate::splitting::{Escalation, LoopDecision};
@@ -289,22 +307,9 @@ fn contain_errors() -> Vec<ContainError> {
             }
         })
         .collect();
-    // An arc's end clear of its corners: an end decided off both, and
-    // (at `K ≤ 3`) every end at a corner.
-    let (zero, off) = (
-        (Magnitude::Zero, MarginDiag::value(5e-10)),
-        (Magnitude::Positive, MarginDiag::value(2e-8)),
-    );
-    let band = value.band;
     v.extend([
-        ContainError::ArcEndClearOfCorners(Box::new(crate::boolean::ArcEndGaps {
-            gaps: [[off, off], [off, zero]],
-            band,
-        })),
-        ContainError::ArcEndClearOfCorners(Box::new(crate::boolean::ArcEndGaps {
-            gaps: [[zero, off], [off, zero]],
-            band,
-        })),
+        arc_end_clear_of_corners(true),
+        arc_end_clear_of_corners(false),
         ContainError::RayExhausted,
         ContainError::StaleFace(crate::entity::FaceKey::default()),
         ContainError::EmptyLoop(LoopKey::default()),

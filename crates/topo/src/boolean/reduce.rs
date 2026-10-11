@@ -6437,3 +6437,42 @@ mod contact_acc_rows {
         );
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod arc_end_rows {
+    use super::{SpanVerdict, wall_crossing};
+    use crate::test_support_fixtures::half_disc_cap;
+    use geom_core::{Band, Tol, Vec3};
+
+    /// **A wall root landing at an arc's end its corners disagree with
+    /// keeps the caller's door**, as the face door's other refusals that
+    /// are no escalation do here. A line from a sphere's centre crosses
+    /// it at the point the band `(ε, 1.25ε)` reads at the half-disc
+    /// cap's arc end and clear of its corner; the face read is the cap's,
+    /// so the root is placed against that boundary.
+    #[test]
+    fn a_root_at_an_arc_end_clear_of_its_corners_is_unsettled() {
+        let tol = Tol::witness();
+        let zero = Band::linear(tol).unwrap().zero();
+        let (body, cap, end) = half_disc_cap(0.0, tol);
+        let q = end + Vec3::new(-0.95 * zero, 0.95 * zero, 0.0);
+        let narrow = Band::new(zero, 1.25 * zero).unwrap();
+        let reach = (q - geom_core::Point3::origin()).norm();
+        let sphere = geom::Surface::Sphere {
+            center: geom_core::Point3::origin(),
+            radius: reach,
+            axis: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let line = geom::Curve3::Line {
+            origin: geom_core::Point3::origin(),
+            dir: (q - geom_core::Point3::origin()) / reach,
+        };
+        let got = wall_crossing(&body, cap, &sphere, &line, 0.5 * reach, 1.5 * reach, narrow);
+        assert!(
+            matches!(got, Ok(SpanVerdict::Unsettled)),
+            "the root is not placed, and the caller keeps its door: {got:?}"
+        );
+    }
+}

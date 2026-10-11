@@ -1584,6 +1584,15 @@ fn read_containment<V>(
         // arm must be routed here deliberately rather than default
         // into the wrong half.
         Err(ContainError::StaleFace(face)) => crate::boolean::driver_face_stale(face),
+        // The census reads at the run's band a body tier 3 passed, and
+        // tier 3 pins every carrier end within that band's zero of its
+        // corner (`carrier_endpoint_{start,end}`); `census_and_certify`
+        // runs only on a clean tier 3 (the placeholder note above).
+        Err(ContainError::ArcEndClearOfCorners(gaps)) if gaps.off_corner() => unreachable!(
+            "the census read face {face:?} with an arc end off both its corners ({gaps:?}): \
+             tier 3, which the census runs behind, pins every carrier end within the zero \
+             band of its corner at this band"
+        ),
         Err(
             e @ (ContainError::Uncrossable(_)
             | ContainError::RayExhausted
@@ -7717,34 +7726,54 @@ mod tests {
         }
     }
 
-    /// **An arc's end clear of its corners reaches the census as the
-    /// containment door's own refusal, carried whole**: it left no margin
-    /// undecided, so it is no escalation.
+    /// **The arc-end finding the census reaches is the band's own
+    /// parting, carried whole**: at rest every carrier end lies at its
+    /// corner, so the census meets the finding only where `K ≤ 3` parts a
+    /// point at the end from the corner (the band `(ε, 1.25ε)` here, on a
+    /// half-disc cap the public operators built). It left no margin
+    /// undecided, so it is no escalation, and it ends in the arc end's
+    /// lever.
     #[test]
-    fn an_arc_end_clear_of_its_corners_is_carried_whole() {
-        use crate::boolean::ArcEndGaps;
-        use geom_core::k_stats::Magnitude;
-        let (zero, off) = (
-            (Magnitude::Zero, geom_core::MarginDiag::value(0.0)),
-            (Magnitude::Positive, geom_core::MarginDiag::value(2e-8)),
-        );
-        let refusal = ContainError::ArcEndClearOfCorners(Box::new(ArcEndGaps {
-            gaps: [[zero, off], [off, off]],
-            band: band(),
-        }));
-        let face = FaceKey::default();
+    fn the_band_parting_an_arc_end_from_its_corner_is_carried_whole() {
+        use crate::test_support_fixtures::half_disc_cap;
+        let tol = Tol::witness();
+        let zero = Band::linear(tol).unwrap().zero();
+        let (body, cap, end) = half_disc_cap(0.0, tol);
+        let q = end + Vec3::new(-0.95 * zero, 0.95 * zero, 0.0);
+        let narrow = Band::new(zero, 1.25 * zero).unwrap();
+        let read = crate::boolean::contfp(&body, cap, Vec3::unit_z(), q, narrow);
+        let Err(refusal @ ContainError::ArcEndClearOfCorners(_)) = read.clone() else {
+            panic!("the band's own parting: {read:?}");
+        };
         let mut errors = Vec::new();
-        assert_eq!(
-            read_containment::<()>(face, Err(refusal.clone()), &mut errors),
-            None
+        assert_eq!(read_containment(cap, read, &mut errors), None);
+        let want = ValidationError::CensusUnsupported {
+            subject: CensusSubject::Entity(EntityId::Face(cap)),
+            cause: CensusUnsupportedCause::Containment(refusal),
+        };
+        assert_eq!(errors, vec![want.clone()]);
+        let text = want.to_string();
+        assert!(
+            text.ends_with("Recourse: move the point clear of the arc's end"),
+            "{text}"
         );
-        assert_eq!(
-            errors,
-            vec![ValidationError::CensusUnsupported {
-                subject: CensusSubject::Entity(EntityId::Face(face)),
-                cause: CensusUnsupportedCause::Containment(refusal),
-            }]
-        );
+    }
+
+    /// **The census never reads an arc's end off both its corners**: tier
+    /// 3, which it runs behind, pins every carrier end within the run's
+    /// zero band of its corner. Read at a finer band, a certified cap's
+    /// end stands off its corner, and the census's routing panics with
+    /// the readings.
+    #[test]
+    #[should_panic(expected = "with an arc end off both its corners")]
+    fn an_arc_end_off_both_corners_is_no_census_reading() {
+        use crate::test_support_fixtures::half_disc_cap;
+        let tol = Tol::witness();
+        let off = Band::linear(tol).unwrap().zero() / 2.0;
+        let (body, cap, end) = half_disc_cap(off, tol);
+        let fine = Band::new(off / 50.0, off / 5.0).unwrap();
+        let read = crate::boolean::contfp(&body, cap, Vec3::unit_z(), end, fine);
+        read_containment(cap, read, &mut Vec::new());
     }
 
     // ================= R1 review probes (m9-2b-r1) =================

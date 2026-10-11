@@ -66,7 +66,7 @@
 //! `classify_dihedral` pattern.
 
 use geom_core::k_stats::{Magnitude, NonzeroSign};
-use geom_core::{Band, Decide, Indeterminate, Margin, MarginDiag, Real, Sign, Vec3};
+use geom_core::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Real, Sign, Vec3};
 
 /// Which rung of a reading metered over a lever arm escalated: the arm
 /// gate or the reading itself. [`enters_material`],
@@ -313,14 +313,33 @@ pub fn enters_material<T: Decide>(
     arm: T,
     band: Band,
 ) -> Result<EntersMaterial, LeverEscalation> {
+    enters_material_reported(dir, outward_normal, arm, band).map(|(verdict, _)| verdict)
+}
+
+/// [`enters_material`], keeping the reporting margin the verdict was
+/// decided on: for a `Tangent` a later refusal quotes.
+///
+/// # Errors
+///
+/// As [`enters_material`].
+pub fn enters_material_reported<T: Decide>(
+    dir: Vec3<T>,
+    outward_normal: OutwardNormal<T>,
+    arm: T,
+    band: Band,
+) -> Result<(EntersMaterial, MarginDiag), LeverEscalation> {
     let margin = sense_margin(dir, outward_normal, arm, band)?;
-    Ok(
-        match decide("enters_material", margin, band).map_err(LeverEscalation::reading)? {
+    let Decided { sign, margin } =
+        crate::dihedral::decide_reported("enters_material", margin, band)
+            .map_err(LeverEscalation::reading)?;
+    Ok((
+        match sign {
             Sign::Negative => EntersMaterial::Enters,
             Sign::Positive => EntersMaterial::Exits,
             Sign::Zero => EntersMaterial::Tangent,
         },
-    )
+        margin,
+    ))
 }
 
 /// How a face's outward normal stands against the line of a direction,

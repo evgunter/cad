@@ -2170,6 +2170,10 @@ mod attribution {
                 topo::CensusUnsupportedCause::Containment(topo::ContainError::LoopUnreadable(
                     Default::default(),
                 )),
+                // The census reaches it only on the band's own parting.
+                topo::CensusUnsupportedCause::Containment(
+                    topo::test_support::arc_end_clear_of_corners(false),
+                ),
             ]
         };
         // Site 1 — the pair arm. `a`/`b` is `fixture`'s own minted

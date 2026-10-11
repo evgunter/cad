@@ -2879,12 +2879,22 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("sectors.rs", "runs_in", "Coincide::EdgeOnPlane", 1),
     (
         "sectors.rs",
-        "side_code",
+        "side_code_reported",
         "BooleanDecision::PierceCurvature",
         1,
     ),
-    ("sectors.rs", "side_code", "Coincide::SectorSide", 1),
-    ("sectors.rs", "side_code", "LeverArm::SectorSide", 1),
+    (
+        "sectors.rs",
+        "side_code_reported",
+        "Coincide::SectorSide",
+        1,
+    ),
+    (
+        "sectors.rs",
+        "side_code_reported",
+        "LeverArm::SectorSide",
+        1,
+    ),
     ("sectors.rs", "tangent_lump", "Coincide::TangentLocus", 1),
     (
         "sectors.rs",

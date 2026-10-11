@@ -301,9 +301,17 @@ fn ball_off_face<T: Decide + Bounds>(
             | ContainError::LoopUnreadable(_)
             | ContainError::Curved(_)
             | ContainError::RayExhausted
-            | ContainError::Uncrossable(_)
-            | ContainError::ArcEndClearOfCorners(_),
+            | ContainError::Uncrossable(_),
         ) => Ok(false),
+        // The foot is placed only where every boundary edge's whole
+        // carrier (a segment, a circle, an ellipse's annulus) stands
+        // clear of a ball of at least `escalate` about it, so the
+        // boundary pass reads it definitely off every carrier, and an
+        // arc's end is read only at a point on its carrier.
+        Err(ContainError::ArcEndClearOfCorners(gaps)) => unreachable!(
+            "face {face:?} placed a foot at an arc's end ({gaps:?}), though every boundary \
+             carrier stands clear of the ball of radius {radius:?} about it"
+        ),
         Err(ContainError::Escalated {
             decision,
             escalation,
