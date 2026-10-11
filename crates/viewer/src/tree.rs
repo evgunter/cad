@@ -1112,6 +1112,39 @@ pub fn standing_as_drawn(standing: NodeStanding, evaluation: &Evaluation<f64>) -
     }
 }
 
+/// **A picked name's [`Resolution`]**, read in the read holding the
+/// body the pick met (NAMES N1: resolution names the read;
+/// `Doc::read_of_body`). A pick whose node the document no longer holds
+/// is stranded with it (`stranded_at`); one whose node defines no such
+/// read answers the node's standing.
+pub fn pick_resolution(
+    doc: &pncad::document::Doc<pncad::document::ProfileProgram>,
+    evaluation: &Evaluation<f64>,
+    node: pncad::document::RecipeNodeId,
+    body: u32,
+    name: &pncad::prelude::StableName,
+) -> Resolution {
+    if let Some(gone) = pncad::select::stranded_at(doc, node, name) {
+        return gone;
+    }
+    match doc.read_of_body(node, body) {
+        Some(read) => pncad::select::resolve(
+            pncad::select::RunCtx {
+                doc,
+                eval: evaluation,
+            },
+            read,
+            name,
+        ),
+        None => Resolution::Indeterminate(ResolveIndeterminate {
+            standing: match evaluation.usable(node) {
+                Err(standing) => standing,
+                Ok(_) => pncad::document::NodeStanding::NotInDocument { node },
+            },
+        }),
+    }
+}
+
 /// A name's [`Resolution`], its indeterminate standing re-read by
 /// [`standing_as_drawn`]; every other verdict is the resolution
 /// machinery's, unchanged.

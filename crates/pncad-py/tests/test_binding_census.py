@@ -1234,6 +1234,9 @@ BOUND_AS = {
     # as the `Evaluation`.
     "RunCtx": "Evaluation",
     "resolve": "Evaluation.resolve",
+    # A reference read at a node the document no longer holds: the
+    # verdict `Evaluation.resolve` answers when its `at` names one.
+    "stranded_at": "Evaluation.resolve",
     # The verdict's three PAYLOADS, curated so the arms cross. The
     # carrier-projection rule places them: `Resolution` projects a
     # discriminant (`resolution_status_tag`), so its payloads project
@@ -1972,7 +1975,7 @@ FAMILIES: dict[str, str] = {
 #: (LIB-B-RESOLVE). It held three names — `resolve`, `Resolution` and
 #: `RunCtx` — and the question a consumer that STORES names must ask
 #: on every run is now askable in the language whose whole selection
-#: story is store-then-reuse: `Evaluation.resolve(name)` answers a
+#: story is store-then-reuse: `Evaluation.resolve(at, name)` answers a
 #: three-state verdict for any name `select`, `all_faces` or a
 #: `PickHit` handed back on an earlier run.
 #:
@@ -2663,6 +2666,9 @@ NOT_BOUND = {
     # for `RoleSeg`'s reason.
     "Sense": SHAPE,
     "Side": SHAPE,
+    # Where a name door reads a table: a node at its one output or a
+    # read, which Python spells as the `NodeId | Var` argument itself.
+    "At": SHAPE,
     "SolidName": SHAPE,
     "SplitSide": SHAPE,
     "StableName": SHAPE,
@@ -3771,6 +3777,7 @@ MEMBERS_BOUND_AS = {
     "EditError::RebindAppearanceCollision": "EditError.variant",
     "EditError::AppearanceWrongKind": "EditError.variant",
     "EditError::AppearanceNamesMissingNode": "EditError.variant",
+    "EditError::AppearanceBodyNotARead": "EditError.variant",
     "EditError::AppearanceNotSet": "EditError.variant",
     "EditError::InvalidTolerance": "EditError.variant",
     "EditError::MetaUnversioned": "EditError.variant",
@@ -3954,6 +3961,7 @@ MEMBERS_BOUND_AS = {
     "SelectRefusal::DatumHasNoValue": "SelectRefusal.reason",
     "SelectRefusal::NodeHasNoValue": "SelectRefusal.reason",
     "SelectRefusal::NodeHasNoOutput": "SelectRefusal.reason",
+    "SelectRefusal::ReadNotAnOutput": "SelectRefusal.reason",
     "SelectRefusal::NotALength": "SelectRefusal.reason",
     "SelectRefusal::PairInBand": "SelectRefusal.reason",
     "SelectRefusal::BadValue": "SelectRefusal.reason",
@@ -4308,7 +4316,7 @@ MEMBERS_NOT_BOUND = {
     # THE PATH VERBS' ARC SPECS, one family. A spec's fields are its
     # CONSTRUCTOR's arguments — `Bulge(p, b)`, `Center(c, winding, p)` —
     # and nothing reads one back: the spec is consumed by the verb it is
-    # passed to. `SplitHalf`/`Side` and the radius sign are the same
+    # passed to. `Side` and the radius sign are the same
     # `different-shape` argument the selector plumbing carries.
     "ArcLen::r": SHAPE,
     "ArcLen::side": SHAPE,

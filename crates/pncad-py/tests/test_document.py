@@ -1736,14 +1736,14 @@ class TestTheWholeProgramEdit(unittest.TestCase):
         kept, so the fillet's name still denotes it and the accepted
         edit reports nothing. The document round-trips through the
         persisted form."""
-        doc, profile, _box, rim, s = self.filleted_box()
+        doc, profile, box, rim, s = self.filleted_box()
         reshaped, new = self.chain([(0, 0), (2, 0), (3, 1), (2, 2), (0, 2)])
         keep = {new[0]: s[0], new[1]: s[1], new[3]: s[2], new[4]: s[3], new[5]: s[4]}
         doc.apply(DocEdit.set_program(profile, reshaped, [keep]))
         # The reshaped program's values are variables of its own: the
         # old ones' retirement is all the edit reports.
         self.assertEqual(strands(doc), [])
-        self.assertEqual(evaluate(doc).resolve(rim).status, "resolved")
+        self.assertEqual(evaluate(doc).resolve(box, rim).status, "resolved")
         self.assertEqual(doc.step(profile, 0, new[4]), s[3], "the kept step keeps its id")
         self.assertNotIn(doc.step(profile, 0, new[2]), s, "the new leg mints fresh")
         # `Doc.save` writes the document as a SNAPSHOT with no log
@@ -1762,7 +1762,7 @@ class TestTheWholeProgramEdit(unittest.TestCase):
         `Evaluation.resolve`, it is a typed `vanished` failure — the new
         step's leg is under an id never minted before, so the name
         never comes to denote it."""
-        doc, profile, _box, rim, s = self.filleted_box()
+        doc, profile, box, rim, s = self.filleted_box()
         fillet = doc.order()[-1]
         reshaped, new = self.chain([(0, 0), (2, 0), (3, 1), (2, 2), (0, 2)])
         keep = {new[0]: s[0], new[1]: s[1], new[3]: s[2], new[5]: s[4]}
@@ -1771,7 +1771,7 @@ class TestTheWholeProgramEdit(unittest.TestCase):
         self.assertEqual(row.variant, "stranded_selection")
         self.assertEqual(row.node, fillet)
         self.assertEqual(row.name, rim)
-        verdict = evaluate(doc).resolve(row.name)
+        verdict = evaluate(doc).resolve(box, row.name)
         self.assertEqual(verdict.status, "failed")
         self.assertEqual(verdict.variant, "vanished")
 

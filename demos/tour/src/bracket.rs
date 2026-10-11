@@ -193,13 +193,20 @@ fn half(split: RecipeNodeId, half: SplitHalf) -> Operand {
     Operand::output(split, half.port())
 }
 
-/// The cap chords of the split's `half`, each named by its two end
-/// vertices under the cap face it lies in.
-fn chord_selector(half: SplitHalf) -> Selector {
+/// The cap chords of a half, each named by its two end vertices under
+/// the cap face it lies in. Selected in the half's read: a name tells
+/// apart only what its variable holds, so the half is the read's.
+fn chord_selector() -> Selector {
     Selector::of(NamePat::of_kind(EntityKind::Edge).path(vec![
-        SegPat::tag(SegTag::SectionEdge).side(half),
+        SegPat::tag(SegTag::SectionEdge),
         SegPat::tag(SegTag::Fragment),
     ]))
+}
+
+/// The read of the split's `half`.
+fn half_read(doc: &Doc<ProfileProgram>, split: RecipeNodeId, half: SplitHalf) -> pncad::document::VarId {
+    doc.output(split, half.port())
+        .expect("a split defines a port per half")
 }
 
 /// [`Node::Split`] along `x + y = CUT`, and [`Node::Chamfer`] on the
@@ -222,7 +229,11 @@ fn trimmed_and_broken(doc: &Doc<ProfileProgram>, body: RecipeNodeId, tol: Tol) -
         },
         tol,
     );
-    let chords = select(&eval(&doc, tol), split, &chord_selector(SplitHalf::Below));
+    let chords = select(
+        &eval(&doc, tol),
+        half_read(&doc, split, SplitHalf::Below),
+        &chord_selector(),
+    );
     let chamfer = insert(
         &mut doc,
         Node::chamfer(half(split, SplitHalf::Below), len(SETBACK), chords.clone()),
@@ -325,16 +336,18 @@ fn split_and_break(trimmed: &Trimmed, body: RecipeNodeId, tol: Tol) -> String {
         chords.clone(),
         select(
             &ev,
-            split,
-            &edges(vec![
-                SegPat::tag(SegTag::SectionEdge).side(SplitHalf::Below),
-            ]),
+            half_read(doc, split, SplitHalf::Below),
+            &edges(vec![SegPat::tag(SegTag::SectionEdge)]),
         ),
     ]
     .concat();
     rim.sort();
     assert_eq!(rim.len(), 8, "two section faces, four edges each: {rim:?}");
-    let off_chords = select(&ev, split, &chord_selector(SplitHalf::Above));
+    let off_chords = select(
+        &ev,
+        half_read(doc, split, SplitHalf::Above),
+        &chord_selector(),
+    );
 
     // Each chord's chamfer, ending on the leg's two parallel side walls
     // a unit apart, is a right-angle prism of section d²/2 that a 45°

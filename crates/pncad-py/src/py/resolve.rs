@@ -38,16 +38,15 @@
 //! document. Telling a user to rebind a name that never broke is
 //! exactly the confusion the kernel split this arm out to prevent.
 //!
-//! # Evaluation-wide, where `denotation` is node-scoped
+//! # In one read, as `denotation` is
 //!
-//! `Evaluation.denotation(node, name)` asks of ONE node's table:
-//! does this node's output carry the name, uniquely or as a tie.
-//! `Evaluation.resolve(name)` asks the whole evaluation and answers
-//! WHICH node carries it — the first in evaluation order, since
-//! pass-through tables carry the same rows downstream. So the two
-//! doors are not rungs of one ladder: a name can resolve here while
-//! `denotation` refuses `no_such_name` for the node you happened to
-//! ask, because the name lives one node upstream.
+//! `Evaluation.denotation(at, name)` asks of ONE output's table:
+//! does it carry the name, uniquely or as a tie.
+//! `Evaluation.resolve(at, name)` asks the same table and runs the
+//! N5 ladder when it does not (NAMES N1: a name tells apart only what
+//! its variable holds, so a split's two halves carry one section face
+//! name and the read says which). The two doors agree wherever both
+//! answer: `denotation` refuses where `resolve` diagnoses.
 //!
 //! # What crosses, and what does not
 //!

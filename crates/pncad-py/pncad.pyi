@@ -4489,12 +4489,6 @@ class MeridianEnd:
     Seam: Final[MeridianEnd]
     Pi: Final[MeridianEnd]
 
-class SplitHalf:
-    """A split output half (`SegPat.side`)."""
-
-    Above: Final[SplitHalf]
-    Below: Final[SplitHalf]
-
 class RimSupport:
     """Which support of a rim blend, by its ROLE in the carve
     (`SegPat.side`): `Host` is the planar support wherever the rim has
@@ -4545,7 +4539,7 @@ class SegPat:
     def tag(tag: SegTag) -> SegPat: ...
     @staticmethod
     def group(group: OpGroup) -> SegPat: ...
-    def side(self, side: CapEnd | MeridianEnd | SplitHalf | RimSupport) -> SegPat: ...
+    def side(self, side: CapEnd | MeridianEnd | RimSupport) -> SegPat: ...
     def of(self, args: list[NamePat]) -> SegPat:
         """Constrain the segment's sub-name arguments, positionally,
         as a PREFIX."""
@@ -5464,7 +5458,7 @@ class Evaluation:
 
     def succeeded(self, node: NodeId) -> bool: ...
     def order(self) -> list[NodeId]: ...
-    def all_edges(self, node: NodeId) -> list[str]:
+    def all_edges(self, node: NodeId | Var) -> list[str]:
         """Every edge name of `node`'s output, as of THIS evaluation —
         the strings `Node.fillet` selects with. A MATERIALIZER: store
         what it answers, because a recipe holds no live selection.
@@ -5477,10 +5471,10 @@ class Evaluation:
         alphabet.
         """
 
-    def all_faces(self, node: NodeId) -> list[str]: ...
-    def all_vertices(self, node: NodeId) -> list[str]: ...
-    def all_bodies(self, node: NodeId) -> list[str]: ...
-    def select(self, node: NodeId, selector: Selector) -> list[str]:
+    def all_faces(self, node: NodeId | Var) -> list[str]: ...
+    def all_vertices(self, node: NodeId | Var) -> list[str]: ...
+    def all_bodies(self, node: NodeId | Var) -> list[str]: ...
+    def select(self, node: NodeId | Var, selector: Selector) -> list[str]:
         """Every name of `node`'s output matching `selector`'s
         role-path shape, as of THIS evaluation — a materializer with
         `all_edges`' exact contract (canonical order, the caller
@@ -5490,7 +5484,7 @@ class Evaluation:
 
     def select_where(
         self,
-        node: NodeId,
+        node: NodeId | Var,
         selector: Selector,
         geom: list[GeomPred],
     ) -> list[str]:
@@ -5504,7 +5498,7 @@ class Evaluation:
         tied name whose candidates disagree, or an unreadable
         candidate refuse rather than silently including or dropping
         anything."""
-    def face_frame(self, node: NodeId, name: str) -> Pose:
+    def face_frame(self, node: NodeId | Var, name: str) -> Pose:
         """Where the named face SITS — its carrier's frame, as of THIS
         evaluation. The forward twin of the materializers: they hand
         out names, this asks one where it is, and `name` is one of
@@ -5523,7 +5517,7 @@ class Evaluation:
         a NURBS carrier, and the node ladder for a node this
         evaluation did not produce."""
 
-    def edge_frame(self, node: NodeId, name: str) -> Pose:
+    def edge_frame(self, node: NodeId | Var, name: str) -> Pose:
         """Where the named edge sits — `face_frame`'s sibling, same
         contract. A straight edge answers with `u_ref is None`: a line
         has a direction and no distinguished perpendicular, and the
@@ -5532,12 +5526,12 @@ class Evaluation:
         null-edge scaffolding."""
 
     def vertex_position(
-        self, node: NodeId, name: str
+        self, node: NodeId | Var, name: str
     ) -> tuple[Length, Length, Length]:
         """Where the named vertex sits — its stored position,
         dimensioned. Raises `ReadbackError` as `face_frame` does."""
 
-    def face_carrier_kind(self, node: NodeId, name: str) -> SurfaceKind:
+    def face_carrier_kind(self, node: NodeId | Var, name: str) -> SurfaceKind:
         """What KIND of surface carries the named face — the stored
         carrier tag, copied out.
 
@@ -5552,7 +5546,7 @@ class Evaluation:
         Raises `ReadbackError` as `face_frame` does, with
         `wrong_kind` for an edge or vertex name."""
 
-    def denotation(self, node: NodeId, name: str) -> Denotation:
+    def denotation(self, node: NodeId | Var, name: str) -> Denotation:
         """How this name resolves — uniquely, or as a tie. The
         referencing question, answered without exposing what it
         resolves to, and the door to ask BEFORE a frame: a frame door
@@ -5562,22 +5556,22 @@ class Evaluation:
         so this answer does not predict that one. Raises
         `ReadbackError` for `no_such_name` and the node ladder."""
 
-    def resolve(self, name: str) -> Resolution:
+    def resolve(self, at: NodeId | Var, name: str) -> Resolution:
         """Does this STORED name still denote, in THIS evaluation? —
         the question every consumer that keeps names must ask on every
         run, and the one Python's whole store-then-reuse story runs on.
 
-        Answers a `Resolution`, never a raise: "this name is gone" is a
-        verdict, not an error. The three states carry three different
-        repairs — see `Resolution`.
+        Answers a `Resolution`: "this name is gone" is a verdict, not an
+        error. The three states carry three different repairs — see
+        `Resolution`.
 
-        EVALUATION-WIDE, where `denotation` is node-scoped: this
-        searches every table in evaluation order and answers WHICH node
-        carries the name, so it resolves for a name `denotation` would
-        refuse `no_such_name` for at the node you happened to ask (a
-        pass-through node's output carries names its upstream minted).
+        IN ONE READ, as every name door is: `at` is a `Var` — an
+        output, `Doc.output(split, port)` for a split's half — or a
+        node, read at its one output (a name tells apart only what its
+        variable holds). A node the document no longer holds answers
+        `node_gone`; a node with several outputs is a `ValueError`.
 
-        The only raise is the boundary one every name-taking door
+        The other raise is the boundary one every name-taking door
         shares: text that is not a name at all is a `ValueError`. A
         well-formed name that denotes nothing is the `failed` verdict,
         which is the point of the door."""

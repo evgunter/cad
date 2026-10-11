@@ -48,7 +48,6 @@ from pncad import (
     SegTag,
     Selector,
     SketchPlane,
-    SplitHalf,
     Start,
     SurfaceKind,
     TubeWindow,
@@ -639,11 +638,13 @@ class TestBracket(unittest.TestCase):
         self.assertAlmostEqual(off, 2 * 0.75 * ((3 - self.CUT) + 0.5), delta=1e-12)
         self.assertAlmostEqual(off + kept, whole, delta=1e-12)
 
+        # The lower half's own chords: a name tells apart only what its
+        # variable holds, so the half is said by the read selected in.
         chords = evaluate(doc).select(
-            split,
+            doc.output(split, 1),
             Selector.of(
                 NamePat.of_kind(EntityKind.Edge).path(
-                    [SegPat.tag(SegTag.SectionEdge).side(SplitHalf.Below), SegPat.tag(SegTag.Fragment)]
+                    [SegPat.tag(SegTag.SectionEdge), SegPat.tag(SegTag.Fragment)]
                 )
             ),
         )

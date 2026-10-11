@@ -1715,13 +1715,19 @@ pub fn table(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NameTable {
         .unwrap_or_else(|| panic!("node {id:?} has no one table: {:?}", ev.nodes.get(&id)))
 }
 
-/// **The read `name` is read in where it was minted**: the one output
-/// of its minting node (NAMES N1: a name is resolved in the read that
-/// holds its body). A node the document no longer holds reads in a
-/// variable no document defines — the resolution ladder answers
-/// `NodeGone` before it reads any table.
-pub fn at_mint(doc: &ProfileDoc, name: &StableName) -> editor_core::VarId {
-    doc.read_of_node(name.node)
+/// **The read `name` is read in where it was minted**: the one named
+/// output of its minting node as the evaluation reads it, else as the
+/// document defines it (a node with no value in the run), NAMES N1: a
+/// name is resolved in the read that holds its body. A node neither
+/// holds reads in a variable no document defines — the resolution
+/// ladder answers `NodeGone` before it reads any table.
+pub fn at_mint<T: geom_core::Decide>(
+    ctx: editor_core::RunCtx<'_, T>,
+    name: &StableName,
+) -> editor_core::VarId {
+    ctx.eval
+        .at_var(name.node)
+        .or_else(|| ctx.doc.read_of_node(name.node))
         .unwrap_or(editor_core::VarId::new(0, 0))
 }
 
@@ -1732,7 +1738,7 @@ pub fn resolve_at_mint<T: geom_core::Decide>(
     ctx: editor_core::RunCtx<'_, T>,
     name: &StableName,
 ) -> editor_core::Resolution {
-    editor_core::resolve(ctx, at_mint(ctx.doc, name), name)
+    editor_core::resolve(ctx, at_mint(ctx, name), name)
 }
 
 /// [`editor_core::resolve_with_prior`] in the read `name` was minted in
@@ -1742,7 +1748,7 @@ pub fn resolve_with_prior_at_mint<T: geom_core::Decide, U: geom_core::Decide>(
     prior: editor_core::RunCtx<'_, U>,
     name: &StableName,
 ) -> editor_core::Resolution {
-    editor_core::resolve_with_prior(new, prior, at_mint(new.doc, name), name)
+    editor_core::resolve_with_prior(new, prior, at_mint(new, name), name)
 }
 
 /// **The body read an appearance entry on `name` is read in**, for a

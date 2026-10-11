@@ -54,7 +54,6 @@ from pncad import (
     SegTag,
     Selector,
     SketchPlane,
-    SplitHalf,
     Start,
     Piece,
     SurfaceKind,
@@ -273,12 +272,7 @@ DocEdit.bind_count_param(solid, "fins")  # ty: error
 
 # LIB-B-PART. A HALF IS NOT AN INSTANCE: a split's half is its output,
 # never a selector.
-PartSelect.instance(SplitHalf.Above)  # ty: error
-PartSelect.split_half(SplitHalf.Above)  # ty: error
-
-# The selector is a VALUE with its own type: a bare half is not one,
-# any more than a `Frame` is a `PatternKind`.
-Node.part(solid, SplitHalf.Below)  # ty: error
+PartSelect.split_half(solid)  # ty: error
 
 # An index is a count `Formula` — never a dimensioned quantity, and the
 # pattern's count is the same rule.

@@ -231,5 +231,5 @@ pub use editor_core::{
 // type.
 pub use editor_core::{
     AboutReference, Resolution, ResolutionFailure, ResolveError, ResolveIndeterminate, RunCtx,
-    resolve,
+    resolve, stranded_at,
 };

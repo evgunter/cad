@@ -1071,6 +1071,35 @@ pub fn resolve_with_prior<T: Decide, U: Decide>(
     resolve_impl(new, Prior { ctx: prior }, at, name)
 }
 
+/// **The verdict for a reference read at `node`, once the document no
+/// longer holds it**: `NodeGone`, naming the recipe edit that removed
+/// it (ids are never reused, so a live-then-gone node was deleted), or
+/// `None` while `node` is live. A caller that keeps a node rather than
+/// the read it was read in — a pick, a binding's node handle — has no
+/// read left to name once the node is deleted, since its outputs go
+/// with it; this is [`resolve`]'s answer for that read.
+pub fn stranded_at(
+    doc: &Doc<ProfileProgram>,
+    node: RecipeNodeId,
+    name: &StableName,
+) -> Option<Resolution> {
+    if doc.node(node).is_some() {
+        return None;
+    }
+    let edit = if doc.has_minted(node) {
+        RecipeEditRef::NodeDeleted { node }
+    } else {
+        RecipeEditRef::ForeignNode { node }
+    };
+    Some(Resolution::Failed(ResolutionFailure {
+        error: ResolveError::node_gone(name, doc).unwrap_or(ResolveError::NodeGone {
+            name: name.clone(),
+            edit,
+        }),
+        offers: Vec::new(),
+    }))
+}
+
 /// Enriches one appearance loss with the full N5 ladder (spec D9's
 /// enrichment mapping), single-run form: no prior evaluation, so
 /// `Vanished` diagnoses rest on current-run evidence only. Prefer

@@ -301,28 +301,6 @@ impl MeridianEnd {
     }
 }
 
-/// A split output half.
-#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-#[allow(
-    missing_docs,
-    reason = "each variant mirrors the documented `editor_core::SplitHalf` variant of the same name"
-)]
-pub(crate) enum SplitHalf {
-    Above,
-    Below,
-}
-
-impl SplitHalf {
-    /// The kernel half this mirrors.
-    pub(crate) fn to_kernel(self) -> s::SplitHalf {
-        match self {
-            Self::Above => s::SplitHalf::Above,
-            Self::Below => s::SplitHalf::Below,
-        }
-    }
-}
-
 /// Which support of a rim blend.
 #[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -335,7 +313,7 @@ pub(crate) enum RimSupport {
     Mate,
 }
 
-/// The end/side argument `SegPat.side` accepts: any one of the four
+/// The end/side argument `SegPat.side` accepts: any one of the three
 /// closed side vocabularies, exactly as Rust's `side(impl Into<Side>)`
 /// accepts them. The union is the BOUNDARY's typed extraction, not a
 /// Python-side `isinstance` ladder — the same overloading Rust spells
@@ -541,8 +519,8 @@ impl SegPat {
     }
 
     /// Constrains the end/side tag (`.side(CapEnd.End)`). Accepts any
-    /// of the four side vocabularies: `CapEnd`, `MeridianEnd`,
-    /// `SplitHalf`, `RimSupport`.
+    /// of the three side vocabularies: `CapEnd`, `MeridianEnd`,
+    /// `RimSupport`.
     fn side(&self, side: SideArg) -> Self {
         Self(self.0.clone().side(side.to_kernel()))
     }
@@ -949,7 +927,7 @@ pub(crate) fn select_refusal(
 )]
 mod growth_tripwire {
     use super::{
-        CapEnd, Cmp, CurveKind, MeridianEnd, OpGroup, RimSupport, SegTag, SideArg, SplitHalf, s,
+        CapEnd, Cmp, CurveKind, MeridianEnd, OpGroup, RimSupport, SegTag, SideArg, s,
     };
 
     // `EntityKind`'s and `SurfaceKind`'s tripwires are
@@ -1155,7 +1133,6 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<OpGroup>()?;
     m.add_class::<CapEnd>()?;
     m.add_class::<MeridianEnd>()?;
-    m.add_class::<SplitHalf>()?;
     m.add_class::<RimSupport>()?;
     m.add_class::<CurveKind>()?;
     m.add_class::<SurfaceKind>()?;

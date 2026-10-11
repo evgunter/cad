@@ -573,8 +573,10 @@ impl MateTool {
         let mut events = Vec::new();
         let [said_a, said_b] = std::mem::take(&mut self.said);
         let mut lost = |side: MateSide, pick: &FaceSelection| -> bool {
-            let verdict =
-                crate::tree::resolution_as_drawn(resolve(RunCtx { doc, eval }, &pick.name), eval);
+            let verdict = crate::tree::resolution_as_drawn(
+                crate::tree::pick_resolution(doc, eval, pick.node, pick.body, &pick.name),
+                eval,
+            );
             if resolves(&verdict) {
                 false
             } else {

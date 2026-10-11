@@ -98,12 +98,14 @@ fn assert_total(doc: &editor_core::ProfileDoc, ev: &Evaluation<f64>) -> usize {
                     }
                     None => panic!("reverse row without forward row for {name:?}"),
                 }
-                // Global resolvability: the name resolves (its first
-                // carrying node may be an earlier pass-through source
-                // — a split half re-indexes bodies, so only the NODE-
-                // LOCAL entity is asserted above) or is honestly tied.
-                match crate::fixture::resolve_at_mint(ctx, name) {
-                    Resolution::Resolved(_) => {}
+                // Resolvability in the read that holds the entity (N1:
+                // resolution names the read): the name resolves there,
+                // to this very entity of this node's value, or is
+                // honestly tied.
+                match editor_core::resolve(ctx, var, name) {
+                    Resolution::Resolved(r) => {
+                        assert_eq!((r.node, r.entity), (node, ent), "{name:?} resolves home");
+                    }
                     Resolution::Failed(f) => {
                         assert!(
                             matches!(

@@ -1651,8 +1651,8 @@ impl Evaluation {
     /// the question every consumer that keeps names must ask on every
     /// run, and the one Python's whole store-then-reuse story runs on.
     ///
-    /// Answers a `Resolution`, never a raise: "this name is gone" is
-    /// a verdict, not an error, and the three states are kept three
+    /// Answers a `Resolution`: "this name is gone" is a verdict, not
+    /// an error, and the three states are kept three
     /// because their repairs differ. `resolved` carries `node`, `body`
     /// and `kind`; `failed` means rebind (with `offers` as the
     /// kernel's suggestions, never its substitutions); `indeterminate`
@@ -1660,17 +1660,40 @@ impl Evaluation {
     /// failed, was poisoned or never evaluated, so the repair is
     /// upstream and the name resolves again when that node does.
     ///
-    /// **Evaluation-wide**, where `denotation` is node-scoped: this
-    /// searches every table in evaluation order and answers WHICH node
-    /// carries the name, so it resolves for a name `denotation` would
-    /// refuse `no_such_name` for at the node you happened to ask.
+    /// **In one read**, as every name door is (NAMES N1: a name tells
+    /// apart only what its variable holds): `at` is a `Var` — an
+    /// output, `Doc.output(split, port)` for a split's half — or a node,
+    /// read at its one output. A node the document no longer holds
+    /// answers `node_gone`: its read went with it. A node with several
+    /// outputs is a `ValueError`, since which one is meant is the
+    /// caller's to say.
     ///
-    /// The only raise here is the boundary one every name-taking door
+    /// The other raise is the boundary one every name-taking door
     /// shares: text that is not a name at all is a `ValueError`. A
     /// well-formed name that denotes nothing is the `failed` verdict,
     /// which is the whole point of the door.
-    fn resolve(&self, py: Python<'_>, name: &str) -> PyResult<super::resolve::Resolution> {
+    fn resolve(
+        &self,
+        py: Python<'_>,
+        at: super::doc::OperandArg,
+        name: &str,
+    ) -> PyResult<super::resolve::Resolution> {
         let name = super::doc::name_from_text(name)?;
+        let read = match at {
+            super::doc::OperandArg::Var(var) => var.0,
+            super::doc::OperandArg::Node(node) => match self.doc.read_of_node(node.0) {
+                Some(read) => read,
+                None => {
+                    if let Some(gone) = pncad::select::stranded_at(&self.doc, node.0, &name) {
+                        return super::resolve::resolution(py, &gone, &self.doc, &self.inner);
+                    }
+                    return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                        "{} defines several outputs; resolve in one of them, by `Doc.output`",
+                        self.doc.spoken(node.0)
+                    )));
+                }
+            },
+        };
         super::resolve::resolution(
             py,
             &pncad::select::resolve(
@@ -1678,6 +1701,7 @@ impl Evaluation {
                     doc: &self.doc,
                     eval: &self.inner,
                 },
+                read,
                 &name,
             ),
             &self.doc,
