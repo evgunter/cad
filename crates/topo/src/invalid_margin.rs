@@ -15,9 +15,9 @@
 //! - **two sound bounds straddling the band**: a lower and an upper
 //!   bound on one quantity, the one within the zero band and the other
 //!   beyond the escalation band. No single margin states that, so the
-//!   escalation names its own predicate (a `*_straddle` or
-//!   `*_disagreement` name that never reaches the funnel) rather than
-//!   the row whose margin it is not.
+//!   escalation names its own predicate rather than the row whose margin
+//!   it is not. Where both bounds' readings are in hand,
+//!   `geom_core::k_stats::straddle` carries their enclosure instead.
 
 use geom_core::{Band, Indeterminate, MarginDiag};
 
