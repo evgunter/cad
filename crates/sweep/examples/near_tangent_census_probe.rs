@@ -17,8 +17,10 @@
 //! refuses as in band its certified `V/A`. `scripts/near_tangent_census_classify.py`
 //! re-reads every `PAIR` at 60 digits and classifies it.
 //!
-//! `NT_D` (comma list) sets the tilts, `NT_ONLY` one prism, `NT_POSE`
-//! a substring of the pose tag, and `NT_DUMP=1` turns on the dump.
+//! `NT_D` (comma list) sets the tilts, `NT_A` (comma list) the
+//! sixteenths, off the integer grid too, `NT_ONLY` one prism, `NT_POSE`
+//! a substring of the pose tag, `NT_DUMP=1` turns on the dump, and
+//! `NT_FULL=1` prints each refusal whole.
 //!
 //! `cargo run -p sweep --release --example near_tangent_census_probe`
 
@@ -283,6 +285,9 @@ fn run_all(
                 }
                 Err(_) => {}
             }
+            if let (Err(e), true) = (&r, std::env::var("NT_FULL").is_ok()) {
+                after.push(format!("  FULL {line} | {e:?}"));
+            }
             println!("{line}: {}", outcome(r, want, tol()));
             for a in after {
                 println!("{a}");
@@ -300,6 +305,10 @@ fn main() {
         },
         |s| s.split(',').map(|x| x.parse().unwrap()).collect(),
     );
+    let sixteenths: Vec<f64> = std::env::var("NT_A").map_or_else(
+        |_| (0..16).map(f64::from).collect(),
+        |s| s.split(',').map(|x| x.parse().unwrap()).collect(),
+    );
     let only = std::env::var("NT_ONLY").ok();
     let pose = std::env::var("NT_POSE").ok();
     for pr in nt_prisms() {
@@ -308,7 +317,7 @@ fn main() {
         }
         let body = pr.body(tol());
         let va = mass_properties(&body, tol()).unwrap().volume;
-        for (j, a) in (0..3).flat_map(|j| (0..16).map(move |a| (j, a))) {
+        for (j, &a) in (0..3).flat_map(|j| sixteenths.iter().map(move |a| (j, a))) {
             for &d in &ds {
                 let tag = format!("{} nt e{j} a{a} d{d:e}", pr.name);
                 if pose.as_deref().is_some_and(|p| !tag.contains(p)) {

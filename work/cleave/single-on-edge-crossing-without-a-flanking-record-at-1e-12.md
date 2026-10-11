@@ -70,7 +70,8 @@ build sound at their closed forms (`a12 d1e-7`, `d1e-8`, every op and
 order), 18 refuse `Escalated Coincidence(Carriers)` as their other
 order already did on main (`a3`, `a11` at `d = −1e-7…−1e-9`, `cp`), and
 6 refuse `Escalated Coincidence(SectorSide)` (`a12 d1e-9`: the wedge's
-bisector reads 5.2e-11 m off the cube face, within the band).
+bisector departs the cube face by 5.17e-12 m, its 9.8e-11 rad tilt off
+that face levered at its 0.053 m arm, inside the band [1e-12, 1e-11]).
 
 Pinned in `crates/sweep/tests/near_tangent_pierce_poses.rs`: the nine
 poses join `POSES` (every row: closed form, tier 3′, no kernel-defect
@@ -84,3 +85,36 @@ read in band where `d`'s was definite) and 24 at 1e-12 to
 `ClassificationInvariant "germ direction not uniquely within its
 sector pair"` (`insert::germ_dir` re-reads the noisy `d` on the extra
 records).
+
+### Fix pass (review of `7f15149a1f`)
+
+The review's sweep found two sibling lookups in the same functions
+reachable on valid input, on main and on the branch, off the integer
+sixteenths. The census probe takes `NT_A` (sixteenths off the grid)
+now, and the pin's poses take a fractional `a`.
+
+- `resolve_bisector_graze`, "bisector-graze crossing without a twin
+  record": the lookup varied the own side's twin only, with the
+  reference fixed at the other solid's start-holder twin; at `w345 e1
+  a11.7 d−1e-7`, ε = 1e-6, the only record was on the reference's other
+  twin. Both lookups now try every twin of the reference across its
+  bisector (`twins`). `resolve_edge_sector`'s old partner, `ref − 1`,
+  was the wrong side for a start-holder reference.
+- `resolve_edge_sector`, "on-edge event without a reference sector"
+  (`find_ref_sector`): at `vee300 e0 a11.75 d−2e-8`, ε = 1e-12, one
+  record `(a3, b3)` carries both solids' edges On, rays 1.7e-8 rad apart
+  that `parallel_same_dir` reads as two events. The first event's germ
+  is that record, and `mark_germ` rewrites both its On codes, so the
+  second event found no record naming its bound. The reference is read
+  off the codes as first read now. The `cp` order then refuses
+  `Escalated Coincidence(Carriers)`, as `pc` already did.
+
+Census, every ε row, the integer grid (28 800 runs) and 80 sixteenths
+off it (`k + {0.25, 0.5, 0.7, 0.75, 0.8}`, 144 000 runs): no
+`ClassificationInvariant` remains anywhere. Against this branch's
+first head, off the grid: at 1e-9, 9 runs move from the reference
+invariant to `Escalated Carriers`; at 1e-6, 21 twin-invariant runs move,
+14 to built bodies within 3e-7 of their closed forms and 7 to typed
+refusals; at 1e-12, 9 reference-invariant runs move to `Escalated
+Carriers` and 12 twin-invariant runs to 9 sound builds and 3 typed
+refusals. The integer grid does not move.

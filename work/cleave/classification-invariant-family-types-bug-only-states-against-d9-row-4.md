@@ -106,3 +106,18 @@ its flanker) is reached by no census row, and the minting argument does
 not hold there, because a flanker coplanar with the reference holds the
 bound without the ray needing to lie in the reference. It is a row 4
 candidate.
+
+Two sibling lookups in `recl.rs`, both measured reachable by valid input
+off the census's integer sixteenths (fix pass on the same branch):
+
+- `resolve_bisector_graze`, "bisector-graze crossing without a twin
+  record" (126 runs at ε = 1e-6 in the review's sweep): the lookup never
+  tried the reference's other twin. It does now, and the arm left
+  (no twin of either solid carries the record) is reached by no row
+  measured.
+- `resolve_edge_sector`, "on-edge event without a reference sector" (9
+  runs at each of 1e-9 and 1e-12, `vee300 e0 a11.75`, `cp` order): an
+  earlier event's germ rewrote the only record naming the bound. The
+  reference is read off the codes as first read, which no germ
+  rewrites; the arm left (no first-read record names a bound some
+  record named) can only be a bug: a row 4 candidate.
