@@ -2,7 +2,7 @@
 id: a-pair-of-seam-siblings-flipped-together-is-silent
 kind: issue
 title: Two sphere seam siblings with both poles on their loops, flipped together, pass tier 3 and measure a wrong volume
-status: open
+status: dispatched
 opened: 2026-10-10
 priority: P2
 cost: M
