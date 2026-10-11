@@ -670,11 +670,18 @@ pub fn nurbs_pair_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
             what: geom::PLACEHOLDER_SURFACE,
         });
     }
-    let (la, lb) = (localized(a), localized(b));
-    let (op_a, op_b) = (
-        SsiOperand::nurbs(&la).map_err(refusal)?,
-        SsiOperand::nurbs(&lb).map_err(refusal)?,
-    );
+    // Each chart localized on its own cell grid, as the plane lane's wall.
+    let (grid_a, grid_b) = (wall_grid(a), wall_grid(b));
+    let op_a = match &grid_a {
+        Some(g) => SsiOperand::nurbs_on(a, g),
+        None => SsiOperand::nurbs(a),
+    }
+    .map_err(refusal)?;
+    let op_b = match &grid_b {
+        Some(g) => SsiOperand::nurbs_on(b, g),
+        None => SsiOperand::nurbs(b),
+    }
+    .map_err(refusal)?;
     let mut feet_a: Vec<Point2<f64>> = Vec::with_capacity(PXN_FIT_SAMPLES as usize);
     let pcurve_a = chart_image(carrier, a, |_, foot| {
         feet_a.push(foot);
