@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-06
 priority: P1
 cost: M
-refs: [survivor-folds-a-corrupt-fusion-list-onto-a-dead-key-outside-the-contact-remap, join-desync-is-the-catch-all-for-cyclic-lineage-records, 4116]
+refs: [join-desync-is-the-catch-all-for-cyclic-lineage-records, 4116]
 ---
 
 Found by the review of PR 4116 (ZIP, `zip/survivor-and-recourse`), as

@@ -8,6 +8,7 @@ priority: P1
 cost: M
 parent: topo-mints-indeterminates-outside-the-funnel
 refs: [a-gate-rejection-of-a-decided-enclosure-bisects-to-budget]
+branch: cleave/boolean-gate-mints
 ---
 
 Unit 4 of `topo-mints-indeterminates-outside-the-funnel`'s re-scope
