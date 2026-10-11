@@ -3781,8 +3781,8 @@ fn param_rate_gate<T: Decide>(
     let rate = param_rate(carrier);
     let extent = match *carrier {
         Curve3::Nurbs(ref n) => {
-            let (d0, d1) = n.domain();
-            T::from_f64(d1 - d0)
+            let (d0, d1) = n.knot_values().domain();
+            d1 - d0
         }
         _ => T::one(),
     };
@@ -5690,7 +5690,7 @@ fn nurbs_stretch_bounds<T: Real>(s: &geom::NurbsSurface<T>) -> (SupSpeed<T>, Sup
     // `side_of`'s boundary snap harder to admit and every slack term
     // larger, never the reverse. Exactly 1 for a weight-1 net, so no
     // integral-lane number moves.
-    let ratio = weight_ratio_factor::<T>(s.weight_channel());
+    let ratio = weight_ratio_factor::<T>(s.weight_channel(), s.weights());
     // ONE spelling of the derivative net for the whole file: this
     // function's two loops were the same walk as `derivative_net`'s,
     // down to the `denom == 0.0` skip, and a second copy of a
@@ -5905,8 +5905,13 @@ fn derivative_net<T: Real>(s: &geom::NurbsSurface<T>, along_v: bool) -> Vec<Vec3
     let (nu, nv) = s.control_counts();
     let ctl = s.control();
     let (n_out, n_in) = if along_v { (nv, nu) } else { (nu, nv) };
-    let knots = if along_v { s.knots_v() } else { s.knots_u() };
-    let (p, k) = (knots.degree(), knots.knots());
+    let knots = if along_v {
+        s.knot_values_v()
+    } else {
+        s.knot_values_u()
+    };
+    // The skip reads the structure; the factor the held knots.
+    let (p, k, held) = (knots.degree(), knots.structure().knots(), knots.values());
     let at = |i: usize, j: usize| -> geom_core::Point3<T> {
         if along_v {
             ctl[j * nv + i]
@@ -5921,7 +5926,7 @@ fn derivative_net<T: Real>(s: &geom::NurbsSurface<T>, along_v: bool) -> Vec<Vec3
         if denom == 0.0 {
             continue;
         }
-        let factor = T::from_f64(p as f64 / denom);
+        let factor = T::from_f64(p as f64) / (held[i + p + 1] - held[i + 1]);
         for j in 0..n_in {
             out.push((at(i + 1, j) - at(i, j)) * factor);
         }
@@ -5931,7 +5936,7 @@ fn derivative_net<T: Real>(s: &geom::NurbsSurface<T>, along_v: bool) -> Vec<Vec3
 
 /// [`chart_stretch_inf`]'s spline arm — the derivation lives there.
 fn nurbs_stretch_inf<T: Real>(s: &geom::NurbsSurface<T>) -> ChartStretchInf<T> {
-    let ratio = weight_ratio_factor::<T>(s.weight_channel());
+    let ratio = weight_ratio_factor::<T>(s.weight_channel(), s.weights());
     // The same two nets [`nurbs_stretch_bounds`] reads, from the same
     // door, so `sup_u`/`sup_v` below ARE that function's components.
     let (q_u, q_v) = (derivative_net(s, false), derivative_net(s, true));
@@ -5964,7 +5969,11 @@ fn nurbs_stretch_inf<T: Real>(s: &geom::NurbsSurface<T>) -> ChartStretchInf<T> {
 /// only refuse.
 fn curve_rate_bound<T: Real>(c: &NurbsCurve3<T>) -> SupSpeed<T> {
     let ctl = c.control();
-    let (p, k) = (c.knots().degree(), c.knots().knots());
+    let (p, k, held) = (
+        c.knots().degree(),
+        c.knots().knots(),
+        c.knot_values().values(),
+    );
     let mut sup = T::zero();
     #[allow(clippy::cast_precision_loss)]
     for i in 0..ctl.len().saturating_sub(1) {
@@ -5972,7 +5981,10 @@ fn curve_rate_bound<T: Real>(c: &NurbsCurve3<T>) -> SupSpeed<T> {
         if denom == 0.0 {
             continue;
         }
-        sup = sup.max((ctl[i + 1] - ctl[i]).norm() * T::from_f64(p as f64 / denom));
+        sup = sup.max(
+            (ctl[i + 1] - ctl[i]).norm()
+                * (T::from_f64(p as f64) / (held[i + p + 1] - held[i + 1])),
+        );
     }
     // The rational factor (M8-3), the curve-side twin of
     // `nurbs_stretch_bounds`': the control-difference bound above is a
@@ -5980,10 +5992,12 @@ fn curve_rate_bound<T: Real>(c: &NurbsCurve3<T>) -> SupSpeed<T> {
     // 1992) multiplies it by the weight ratio; squaring it is the
     // conservative reading. Exactly 1 on a unit-weight net, so no
     // integral-lane number moves.
-    SupSpeed::new(sup * weight_ratio_factor::<T>(c.weight_channel()))
+    SupSpeed::new(sup * weight_ratio_factor::<T>(c.weight_channel(), c.weights()))
 }
 
-/// `(w_max/w_min)²` — exactly 1 on a unit-weight net.
+/// `(w_max/w_min)²` — exactly 1 on a unit-weight net — formed in the
+/// scalar over the `held` weights; `channel` is their value channel,
+/// which the admissibility read below decides on.
 ///
 /// The constructors validate weights strictly positive and finite
 /// (`geom`'s `net::validate_counts`), but a refinement can write values
@@ -5993,19 +6007,19 @@ fn curve_rate_bound<T: Real>(c: &NurbsCurve3<T>) -> SupSpeed<T> {
 /// POISON — any number here is a factor on a SUP arm, and one below the
 /// true ratio under-states it in the unsafe direction. A ratio that
 /// overflows answers `+inf`, which over-states (the safe direction).
-fn weight_ratio_factor<T: Real>(weights: &[f64]) -> T {
-    let (mut lo, mut hi) = (f64::INFINITY, 0.0f64);
-    for w in weights {
-        if !(*w > 0.0 && w.is_finite()) {
-            return T::from_f64(f64::NAN);
-        }
+fn weight_ratio_factor<T: Real>(channel: &[f64], held: &[T]) -> T {
+    if channel.is_empty() || channel.len() != held.len() {
+        return T::from_f64(f64::NAN);
+    }
+    if channel.iter().any(|w| !(*w > 0.0 && w.is_finite())) {
+        return T::from_f64(f64::NAN);
+    }
+    let (mut lo, mut hi) = (held[0], held[0]);
+    for w in &held[1..] {
         lo = lo.min(*w);
         hi = hi.max(*w);
     }
-    if weights.is_empty() {
-        return T::from_f64(f64::NAN);
-    }
-    T::from_f64((hi / lo).powi(2))
+    (hi / lo).powi(2)
 }
 
 /// Check 3 for every lane: `|S(P(tᵢ)) − C(tᵢ)|` at the shared
@@ -6757,17 +6771,9 @@ fn traversed_column<T: Decide>(
     band: Band,
     esc: &impl Fn(Indeterminate) -> PcurveCertifyError,
 ) -> Result<(NurbsCurve3<T>, T), PcurveCertifyError> {
-    let (cu0, cu1) = payload.knots_u().domain();
+    let (cu0, cu1) = payload.knot_values_u().domain();
     Ok(
-        match side_of(
-            u_start,
-            T::from_f64(cu0),
-            T::from_f64(cu1),
-            stretch_u,
-            du_drift,
-            band,
-            esc,
-        )? {
+        match side_of(u_start, cu0, cu1, stretch_u, du_drift, band, esc)? {
             Some((end, slack_u)) => (
                 crate::nurbs_iso::boundary_iso_u(payload, end)
                     .map_err(|source| PcurveCertifyError::ChartRow { source })?,
@@ -6779,7 +6785,7 @@ fn traversed_column<T: Decide>(
                 // span's polynomial EXTENSION, which the chart does
                 // not have — metered through the same stretch the
                 // boundary decide used, refused typed.
-                let outside = escape((T::from_f64(cu0) - u_start).max(u_start - T::from_f64(cu1)));
+                let outside = escape((cu0 - u_start).max(u_start - cu1));
                 match decide(
                     "pcurve_iso_domain",
                     Margin::metered_sup(outside, stretch_u),
@@ -6874,7 +6880,7 @@ fn seam_envelope<T: Decide>(
                            class's construction",
             });
         }
-        let (p, kn) = (b.knots().degree(), b.knots().knots());
+        let (p, kn) = (b.knots().degree(), b.knot_values().values());
         let mut hull = T::zero();
         // `pl.y ≠ 0` is this class's own classification: the
         // `(false, true)` arm means the v channel MOVES, so
@@ -6884,9 +6890,12 @@ fn seam_envelope<T: Decide>(
         // a superset bound: sound and conservative, and no
         // measured caller exercises the partial case.
         for (i, cp) in b.control().iter().enumerate() {
+            // The Greville abscissa of the held knots, summed in
+            // order from the first (`f64`'s sum from `-0.0` is that).
+            let window = &kn[i + 1..=i + p];
             #[allow(clippy::cast_precision_loss)]
-            let xi = kn[i + 1..=i + p].iter().sum::<f64>() / p as f64;
-            let t_at = (T::from_f64(xi) - p0.y) / pl.y;
+            let xi = window[1..].iter().fold(window[0], |a, k| a + *k) / T::from_f64(p as f64);
+            let t_at = (xi - p0.y) / pl.y;
             hull = hull.max((*cp - (*origin + *dir * t_at)).norm());
         }
         // Domain containment, the siblings' gate verbatim on
@@ -6894,10 +6903,8 @@ fn seam_envelope<T: Decide>(
         // the column's own knot domain only.
         let v_at_0 = p0.y + pl.y * t0;
         let v_at_1 = p0.y + pl.y * t1;
-        let (d0, d1) = b.knots().domain();
-        let over = escape(
-            (T::from_f64(d0) - v_at_0.min(v_at_1)).max(v_at_0.max(v_at_1) - T::from_f64(d1)),
-        );
+        let (d0, d1) = b.knot_values().domain();
+        let over = escape((d0 - v_at_0.min(v_at_1)).max(v_at_0.max(v_at_1) - d1));
         match decide(
             "pcurve_iso_domain",
             Margin::metered_sup(over, stretch_v),
@@ -7019,7 +7026,7 @@ fn seam_envelope<T: Decide>(
     let v_at_1 = p0.y + pl.y * t1;
     let along = |t: T| {
         if backward {
-            T::from_f64(b.domain().0) + T::from_f64(c.domain().1) - t
+            b.knot_values().domain().0 + c.knot_values().domain().1 - t
         } else {
             t
         }
@@ -7029,13 +7036,13 @@ fn seam_envelope<T: Decide>(
     // Domain containment: the hull and rate bounds hold on the knot
     // domains only — the image's `v` on the row's, the span on the
     // carrier's (one domain, unless the carrier is reflected).
-    let (r0, r1) = b.domain();
-    let (d0, d1) = c.domain();
+    let (r0, r1) = b.knot_values().domain();
+    let (d0, d1) = c.knot_values().domain();
     let over = escape(
-        (T::from_f64(r0) - v_at_0.min(v_at_1))
-            .max(v_at_0.max(v_at_1) - T::from_f64(r1))
-            .max(T::from_f64(d0) - t0)
-            .max(t1 - T::from_f64(d1)),
+        (r0 - v_at_0.min(v_at_1))
+            .max(v_at_0.max(v_at_1) - r1)
+            .max(d0 - t0)
+            .max(t1 - d1),
     );
     match decide(
         "pcurve_iso_domain",
@@ -7170,10 +7177,7 @@ fn net_incidence<T: Decide>(
     surface: &Surface<T>,
     band: Band,
 ) -> Result<Incidence, PcurveCertifyError> {
-    let (t0, t1) = span.unwrap_or_else(|| {
-        let (d0, d1) = net.domain();
-        (T::from_f64(d0), T::from_f64(d1))
-    });
+    let (t0, t1) = span.unwrap_or_else(|| net.knot_values().domain());
     let n = f64::from(INCIDENCE_SAMPLES);
     let farthest = (0..=INCIDENCE_SAMPLES).fold(T::zero(), |far, i| {
         let t = t0 + (t1 - t0) * T::from_f64(f64::from(i) / n);
@@ -10173,7 +10177,7 @@ mod weight_ratio_poison {
     #[test]
     fn an_inadmissible_weight_list_is_poison_and_a_wide_one_over_states() {
         assert_eq!(
-            weight_ratio_factor::<f64>(&[1.0, 2.0]),
+            weight_ratio_factor::<f64>(&[1.0, 2.0], &[1.0, 2.0]),
             4.0,
             "the ratio, squared"
         );
@@ -10184,10 +10188,10 @@ mod weight_ratio_poison {
             ("an infinite weight", vec![1.0, f64::INFINITY]),
             ("no weights", vec![]),
         ] {
-            assert!(weight_ratio_factor::<f64>(&w).is_nan(), "{name}: {w:?}");
+            assert!(weight_ratio_factor::<f64>(&w, &w).is_nan(), "{name}: {w:?}");
         }
         assert_eq!(
-            weight_ratio_factor::<f64>(&[1e-200, 1.0]),
+            weight_ratio_factor::<f64>(&[1e-200, 1.0], &[1e-200, 1.0]),
             f64::INFINITY,
             "an overflowing ratio over-states"
         );
