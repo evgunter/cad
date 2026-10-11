@@ -75,9 +75,24 @@ pub struct Section<'a> {
 
 impl core::fmt::Debug for Section<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self {
+            a: _,
+            b: _,
+            sys: _,
+            ctx: _,
+            domain,
+            band,
+            speeds,
+            crossings,
+            branches,
+            tubes: _,
+        } = self;
         f.debug_struct("Section")
-            .field("crossings", &self.crossings.as_ref().map(Vec::len))
-            .field("branches", &self.branches.len())
+            .field("domain", domain)
+            .field("band", band)
+            .field("speeds", speeds)
+            .field("crossings", &crossings.as_ref().map(Vec::len))
+            .field("branches", &branches.len())
             .finish_non_exhaustive()
     }
 }
