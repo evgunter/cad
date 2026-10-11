@@ -19,7 +19,6 @@ lanes in flight are expected to close more, so the track is not split.
 | pri | item | cost | title |
 |---|---|---|---|
 | P0 | `an-apex-edge-in-the-partners-face-plane-fails-tier-3-prime-on-one-edge-face-overlap` | M | an apex edge in the partner's face plane fails tier 3′ on one `EdgeFaceOverlap` (the corner-pair row's six ARC lines, split out by PR 4650) |
-| P1 | `a-wedge-flush-on-a-block-top-refuses-every-op-undeclared-though-its-face-reads-zero` | M | a wedge flush on a block's top, its face Zero off the block's plane, refuses every op undeclared; the declared spelling builds and F retires it |
 | P1 | `the-pre-zip-pinch-weld-retires-once-coincident-pierces-split-per-cone` | H | the pre-zip pinch weld stays as the repair of an operand's coincident pierces |
 | P2 | `a-thin-walled-hollow-ships-while-a-slab-as-thin-refuses` | M | a thin-walled hollow ships while a slab as thin refuses: the door reads a sliver per shell, never per solid (design) |
 | P2 | `a-curved-notch-at-a-corner-pinch-refuses-join-desync-on-a-section-vertexs-null-edge-copies` | M | a curved notch at a corner pinch refuses `JoinDesync` on a section vertex's null-edge copies (15 lines, 5 poses) |
@@ -48,8 +47,9 @@ Parked, and not counted:
    `an-apex-edge-in-the-partners-face-plane-…` (one `EdgeFaceOverlap`
    on the six ARC lines).
 2. **Reader's closes** (done, PR 4635: all three closed with pins
-   through the plain booleans; the residue is
-   `a-wedge-flush-on-a-block-top-…`). Two rows said on their release from the D10 hold
+   through the plain booleans; the residue,
+   `a-wedge-flush-on-a-block-top-…`, closed with PR 4709 as D10's
+   correct refusal, pinned). Two rows said on their release from the D10 hold
    (2026-10-08) that they may already be done:
    `reflex-corner-edge-in-face-poses-…` ("already fixed by PR 3900 …
    it can close now") and `a-declared-flush-wedge-sunk-in-a-block-…`

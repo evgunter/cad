@@ -325,6 +325,10 @@ mod union_flush_onto_edge_contact;
 mod vertex_on_edge_records;
 #[path = "void_door.rs"]
 mod void_door;
+#[path = "wedge_flush_on_a_block_top.rs"]
+mod wedge_flush_on_a_block_top;
+#[path = "wedge_flush_review_probes.rs"]
+mod wedge_flush_review_probes;
 
 test_utils::every_suite_file_is_aggregated!();
 #[path = "f7d_delta_probes.rs"]
