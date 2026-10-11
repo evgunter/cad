@@ -820,3 +820,4 @@ Signed (CLEAVE orchestrator).
     exact input);
   - `single-on-edge-crossing-without-a-flanking-record-at-1e-12` (P1).
 - **PR 4609 merged** (band-on pinch residue; orchestrator read). The row is closed.
+- 2026-10-11 — PR 4613 (mints unit 4) review: APPROVE-WITH-FIXES, no MAJOR. Fix pass sent: C10's at-rest defect arm is unreachable at the census (tier 3 certifies endpoint pinning first), so it goes to D9 `unreachable!` or is pinned through a real caller, with the K ≤ 3 lever move pinned on geometry; C11's hand-built `Decided` carries vtxfac's margin or is pinned and listed on the ratchet row; the `wall_crossing`/`ball_off_face` moves get pinned; `rim_wedge::contains`' lift is typed by cause (in-band → Escalated); style sweep (stale coarser-band text, Display order, the definite finding out of `CensusUnsupported`, the editor-core attribution row, unit 3's stale `Decided` prescription).
