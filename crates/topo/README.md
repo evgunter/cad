@@ -60,11 +60,10 @@ operands. Three objects carry the design:
   without one (D1 (ii)).
 
 The coincidence ladder (D10): at the Boolean, a margin decided Zero
-glues, declared or not, and the decision is recorded where the two
-faces meet, at a point, an edge or an area (`crate::coincidence`), for
-the document's `unproven-coincidence` lint;
-a declaration is verified, never trusted, and bridges a margin in band;
-structure is decided at the document's door, not here. At rest,
+glues, and the decision is recorded where the two faces meet, at a
+point, an edge or an area (`crate::coincidence`), for the document's
+`unproven-coincidence` lint; a margin in band refuses, with nothing to
+bridge it; structure is decided at the document's door, not here. At rest,
 certification runs both ways — a finding with no backing declaration is
 `UndeclaredContact`, a declaration with no witness is
 `StaleContactDeclaration` — and the census never blesses what it
@@ -189,7 +188,7 @@ equals its skeleton; a contact of order k > 1 has no record type and
 refuses. Area sampling is rejected (it can miss a trim hole).
 
 **C4 — Declared contact as data.** A declaration names two faces by
-stable name on the consuming node and asserts a `ContactClass`:
+stable name on the mate that declares it and asserts a `ContactClass`:
 
 - `Rest` — same carrier, opposed senses, gap ≡ 0;
 - `Tangent` — curve or point touch, non-crossing;
@@ -372,7 +371,7 @@ typed error, and at rest between two copies it is always a finding
 quiets it; no blanket "disable interference checking" exists.
 
 **C7 — The join lane.** At the curved coplanar-lump sites (`vtxfac.rs`,
-`recl.rs`) a tangent pair the witness lane decides, declared or not (the
+`recl.rs`) a tangent pair the witness lane decides (the
 glue door, `boolean/glue.rs`), or a `Rest` its margin decides, descends
 to second order (`sectors.rs`: the
 sector's relative transverse curvature signed against the other face's
@@ -383,7 +382,7 @@ once, so at full engagement union volume is the operands' sum.
 
 A rim with a determinate G1 jet carries `TangentIntersection`. Rim
 routing by material wedge is `docs/MATE-7-TANGENCY-DESIGN.md`: π ⇒
-smooth seam (declared `Seam` or structural); 0/2π ⇒ the declared cusp
+smooth seam (a glued `Seam` pair or structural); 0/2π ⇒ the declared cusp
 family, defined but unbuilt (`BooleanError::RimCuspArmUnbuilt`). A
 verified `Tangent` union whose ruling runs through a plane face's
 interior is #131's doubled cusp, unbuilt, and refuses

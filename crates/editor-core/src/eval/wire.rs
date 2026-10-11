@@ -1,6 +1,6 @@
 //! **Four jobs**: node-to-kernel wiring, the mid-evaluation name
-//! ladder, the declaration routing that has no kernel op to wire to,
-//! and the placement-rule arithmetic two modules share.
+//! ladder, the union's fold, and the placement-rule arithmetic two
+//! modules share.
 //!
 //! **The wiring** (spec D3: wire, don't invent). Each F4 node that
 //! names a geometric operation maps to an EXISTING public kernel op;
@@ -14,12 +14,11 @@
 //! is a selection's ([`crate::VarDef::Select`]), and [`select`] is where
 //! it is resolved, against the tables THIS run has built so far, in the
 //! order [`ladder`] gives, and its entity's kind checked through
-//! [`super::entity_door`]. A declared pair's names are the ladder's only
-//! other reader.
+//! [`super::entity_door`].
 //!
 //! **The union's fold.** A union judges every member pair pairwise
 //! before its fold and hands each fold step the pass's verdicts, read
-//! through member lineage ([`given_verdicts`]), with each operand's own
+//! through member lineage ([`given_pairs`]), with each operand's own
 //! records carried in; the kernel takes them as [`BooleanInputs`].
 //!
 //! **The placement-rule arithmetic.** [`transform_map`],
@@ -2169,8 +2168,7 @@ pub(super) struct Selected {
 /// body read resolved to the operation whose value holds it, then each
 /// name through that value's table under the [`ladder`], then the
 /// entity's kind against the selection's. This is the one place a name
-/// a slot reads is resolved; a declared pair's names are the ladder's
-/// other caller.
+/// a slot reads is resolved.
 ///
 /// The road supplies the key and never the word for what it found:
 /// that word arrives as a token only `entity_door` can mint, which is
@@ -3038,7 +3036,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             records_b: members[step + 1].records.carried(),
         };
         if pairwise {
-            inputs.given = Some(given_verdicts(&verdicts, step + 1, &fold, &acc_body)?);
+            inputs.given = Some(given_pairs(&verdicts, step + 1, &fold, &acc_body)?);
         }
         // A pair's refusal is the pair's own; past two members a refusal
         // only a step raises names the member that step folds in.
@@ -3372,7 +3370,7 @@ fn judge_pairwise_contact(
 
 /// **One carrier pair a union's pairwise judgement glued**: a face of
 /// each of two members, by member index, and the relation it decided.
-/// The fold reads it through lineage ([`given_verdicts`]) and decides
+/// The fold reads it through lineage ([`given_pairs`]) and decides
 /// the pair nowhere else.
 #[derive(Clone, Copy, Debug)]
 struct PairVerdict {
@@ -3424,7 +3422,7 @@ fn pair_verdicts(p: usize, q: usize, rows: &[topo::Coincidence]) -> Vec<PairVerd
 /// An emission bug ([`UNION_VERDICTS_DISAGREE`]) where two verdicts
 /// glue one accumulation face to one member face under two relations,
 /// or an accumulation face carries no lineage.
-fn given_verdicts<T: Decide>(
+fn given_pairs<T: Decide>(
     verdicts: &[PairVerdict],
     member: usize,
     fold: &names::UnionFold,
@@ -3457,17 +3455,18 @@ fn given_verdicts<T: Decide>(
         .collect())
 }
 
-/// **Every face-pair row a fold step recorded is a pair it was given**
-/// (DM4, the fold re-glues no carrier pair): the verdict reuse, asserted
-/// where the step's rows come back. One naming a pair outside the
-/// step's given pairs is a fresh glue on a piece — what a glue door or
-/// recording site that ignored the given verdicts would add. Readings
-/// that record no row are outside it: the merge's continuation reading,
-/// the maximal-faces gate and the join's coaxial frame read a step's
+/// **A fold step records no face-pair row** (DM4, the fold re-glues no
+/// carrier pair): the verdict reuse, asserted where the step's rows come
+/// back. A step seeds its glue from its given pairs unmeasured, so the
+/// pairwise pass's rows are the union's and the step adds none; a
+/// face-pair row from a step is a carrier pair judged again at the
+/// piece's extent, whether a given pair re-verified or a fresh glue a
+/// door that ignored the given verdicts added. Readings that record no
+/// row are outside it: the merge's continuation reading, the
+/// maximal-faces gate and the join's coaxial frame read a step's
 /// carriers by their margins, as the pairwise pass read the members'.
 fn debug_assert_given(rows: &[topo::Coincidence], inputs: &BooleanInputs) {
-    if cfg!(debug_assertions) {
-        let given = inputs.given.as_deref().unwrap_or_default();
+    if cfg!(debug_assertions) && inputs.given.is_some() {
         for row in rows {
             if let [
                 topo::RowCell::Input {
@@ -3481,8 +3480,8 @@ fn debug_assert_given(rows: &[topo::Coincidence], inputs: &BooleanInputs) {
             ] = row.cells
             {
                 debug_assert!(
-                    given.iter().any(|g| g.a == fa && g.b == fb),
-                    "a union fold step decided the carrier pair {fa:?}/{fb:?} itself: its \
+                    false,
+                    "a union fold step judged the carrier pair {fa:?}/{fb:?} itself: its \
                      verdict is the pairwise judgement's, read through lineage"
                 );
             }
@@ -3494,9 +3493,8 @@ fn debug_assert_given(rows: &[topo::Coincidence], inputs: &BooleanInputs) {
 const UNION_FACE_NO_LINEAGE: &str = "a union fold's accumulation face has no member-face lineage";
 
 /// Two of a union's pairwise verdicts glue one accumulation face to one
-/// member face under two classes.
-const UNION_VERDICTS_DISAGREE: &str =
-    "a union's pairwise judgements glue one accumulation face to one member face under two classes";
+/// member face under two relations.
+const UNION_VERDICTS_DISAGREE: &str = "a union's pairwise judgements glue one accumulation face to one member face under two relations";
 
 /// A union's pairwise judgement returned the typed empty from two real
 /// bodies.

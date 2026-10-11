@@ -411,11 +411,11 @@ pub enum DocEdit<P: crate::ProfilePayload> {
     /// The explicit name repair (N5, spec D3), addressed by body and
     /// name (D10): rewrite every selection of `body` that names `from`
     /// EXACTLY to name `to`; with no body, every site no selection holds
-    /// (declared pairs, an instance's crossings, appearance keys). A name is scoped by the body it is read in (N1), so the
+    /// (an instance's crossings, appearance keys). A name is scoped by the body it is read in (N1), so the
     /// body says which entity the repair is about.
     /// One-shot recorded intent — no alias table persists, nothing
     /// follows automatically afterwards (the ratified EMPTY policy
-    /// menu). Validation mirrors Declare's edit-time carve-out: node
+    /// menu). Validation is the name-carrying edits' carve-out: node
     /// existence NOW (`to`'s node must be live; `from`'s node must at
     /// least have once existed — a never-minted id is a typo);
     /// name-level resolution stays an evaluation-time concern.
@@ -458,13 +458,13 @@ pub enum DocEdit<P: crate::ProfilePayload> {
     },
     /// Attach (or replace) one appearance attribute on a face or body
     /// stable name (M4 PR 7; [`crate::appearance`] module docs).
-    /// Validation mirrors declared pairs' ruled carve-out: the name's
+    /// Validation is the name-carrying edits' carve-out: the name's
     /// NODE must be live at edit time (a never-existed id is a typo,
     /// refused at the best-diagnostics door); name-LEVEL resolution
     /// happens at evaluation, where a non-resolving name surfaces as
     /// a typed [`crate::appearance::AppearanceLoss`] — never a silent
     /// drop. A later `DeleteNode` MAY strand the attachment (N5
-    /// dangling semantics, same as Declare), and reports it where it
+    /// dangling semantics), and reports it where it
     /// happens as a [`Maintenance::StrandedAppearance`] (DM7).
     SetAppearance {
         /// The face or body name attributed.
@@ -4295,7 +4295,7 @@ pub enum Maintenance {
     /// node's payload, so there is no surviving carrier to name and
     /// this is an arm of its own rather than a [`Self::Strand`] with
     /// a sentinel. Everything else is the payload strand's:
-    /// [`DocEdit::SetAppearance`] gives the key Declare's N5
+    /// [`DocEdit::SetAppearance`] gives the key N5's dangling
     /// semantics, evaluation answers
     /// [`crate::appearance::AppearanceLoss`], and [`DocEdit::Rebind`]
     /// is the repair — [`DocEdit::ClearAppearance`] is the other one,
@@ -4526,8 +4526,8 @@ impl core::fmt::Display for Maintenance {
 /// measure's arguments), then store keys in the store's own
 /// `BTreeMap` order, which is `StableName`'s. Nothing is sorted here.
 ///
-/// [`Node::payload_read_sites`] — a declared pair's sites — are NOT
-/// here. A read site is a node id rather than a name: no N5 ladder
+/// [`Node::payload_read_sites`] — none of today's payloads has one —
+/// are NOT here. A read site is a node id rather than a name: no N5 ladder
 /// resolves it and `Rebind` cannot repair it, so a delete that strands
 /// one is the evaluation's to refuse, not this door's to report.
 ///

@@ -102,9 +102,9 @@ impl ContactClass {
 /// **What a boolean glues a cross-operand face pair as** (C4's
 /// continuation and seam clauses): a contact, a continuation, or a
 /// seam — the class its decided relation makes it
-/// ([`crate::Relation::glued_class`]). Public as what a refusal
-/// read of a glued pair ([`crate::DeclarationRead`]); nothing takes it
-/// as an input.
+/// ([`crate::Relation::glued_class`]). Public as what a refusal's
+/// read of a glued pair names ([`crate::DeclarationRead`]); nothing
+/// takes it as an input.
 ///
 /// - [`Contact`](Self::Contact) — the pair touches, of that class.
 /// - [`Continuation`](Self::Continuation) — the pair lies on ONE

@@ -1044,6 +1044,9 @@ pub struct BooleanInputs {
     /// (`editor_core`'s n-ary union hands each step the pass's
     /// verdicts, read through member lineage); a caller of a pair
     /// boolean who set it would promise verdicts no pass decided.
+    /// Nothing enforces that yet: a Rust caller of
+    /// [`crate::boolean_op_with`] can set it, and its pairs glue
+    /// unmeasured (`work/intent/boolean-given-pairs-glue-unmeasured-for-any-rust-caller.md`).
     pub given: Option<Vec<GivenPair>>,
     /// Operand A's own contact records, carried into the result.
     pub records_a: OperandRecords,
@@ -1220,7 +1223,7 @@ pub(crate) fn unreadable_extent(face: carrier_pair::PairFace) -> BooleanError {
             carrier_pair::PairFace::First => Operand::A,
             carrier_pair::PairFace::Second => Operand::B,
         },
-        what: "declared face's consumed extent cannot be read (its box has no claim to make, \
+        what: "a glued face's consumed extent cannot be read (its box has no claim to make, \
                or its boundary cannot be walked)",
     }
 }
@@ -2615,9 +2618,10 @@ pub enum BooleanError {
         /// The operand whose declared face the locus runs through.
         interior: Operand,
     },
-    /// A [`Glue`] payload references an entity that
+    /// A boolean's input ([`BooleanInputs`]) references an entity that
     /// does not resolve in its operand (stale/foreign key, or a
-    /// non-planar declared face) — a caller bug, refused before any
+    /// non-planar given face), or gives a pair a relation that does not
+    /// glue — a caller bug, refused before any
     /// classification runs (M4 PR 5).
     InvalidInput {
         /// The operand whose key failed.
@@ -4031,7 +4035,7 @@ impl core::fmt::Display for BooleanError {
             ),
             Self::InvalidInput { operand, what } => write!(
                 f,
-                "a declaration on the {} operand is invalid: {what}",
+                "an input on the {} operand is invalid: {what}",
                 operand_word(*operand)
             ),
             Self::PairingMismatch { a_vertex, b_vertex } => write!(

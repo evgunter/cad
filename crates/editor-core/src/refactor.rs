@@ -104,7 +104,7 @@
 //! # Names re-anchor across the seam (the bridge, both directions)
 //!
 //! Split rewrites every remainder-side reference to a cut entity —
-//! declared pairs, fillet selections, appearance keys — from its local
+//! fillet selections, frame faces, appearance keys — from its local
 //! name to the `InPart`-wrapped name at the new instance, around the
 //! name the part's product spells it by, its cut placement's copy's
 //! (`Placed`; a recorded
@@ -342,7 +342,7 @@ fn gauges_first(source: &ProfileDoc, olds: &[RecipeNodeId]) -> Vec<RecipeNodeId>
 /// same re-statement, with no solve.
 ///
 /// A name the maps lack whose missing id belongs to a node still to
-/// come is a FORWARD reference (a declared pair or a blend selection rebound
+/// come is a FORWARD reference (a blend selection or a frame's face rebound
 /// onto a later node): no order of inserts satisfies it, and it refuses
 /// as the insert door would, [`EditError::DeclareNamesMissingNode`],
 /// spelled in `source`'s ids and so spoken from `source` (see
@@ -854,8 +854,8 @@ pub enum SplitError {
     },
     /// Replaying the constructed part-side edits refused — a
     /// construction bug in this module or a document state its edit
-    /// vocabulary cannot re-author (e.g. a declared pair rebound to a node
-    /// inserted after it, which no insertion order can satisfy).
+    /// vocabulary cannot re-author (e.g. a blend selection rebound to a
+    /// node inserted after it, which no insertion order can satisfy).
     /// Surfaced typed, never absorbed.
     PartEdit {
         /// The refusing edit's own diagnosis.
@@ -1823,9 +1823,8 @@ impl core::fmt::Display for ReplayTail<'_> {
         let Self(error, replay) = *self;
         match error {
             // A payload name on a node inserted AFTER the one carrying
-            // it — a blend selection or a frame's face rebound forward
-            // (a declared pair cannot be: its doors refuse a name not
-            // minted before its node). The
+            // it — a blend selection or a frame's face rebound forward.
+            // The
             // replay inserts in document order, so no order satisfies
             // it. The remainder inserts one instance, whose names the
             // replay wrote itself.

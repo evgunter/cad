@@ -900,7 +900,7 @@ pub(crate) enum Carrier {
     /// The selections' names ([`crate::VarDef::Select`]): the names a
     /// slot reads, each held by the variable that selects it.
     Selections,
-    /// The appearance store's keys: a `StableName` under Declare's N5
+    /// The appearance store's keys: a `StableName` under N5's dangling
     /// semantics (`DocEdit::SetAppearance`), held by the document
     /// itself rather than by any node.
     Appearance,

@@ -496,10 +496,6 @@ or `NodeGone { name, edit }`. `Diagnosis` is one of:
   derivation path;
 - `WitnessBifurcation` (SOLVER-DESIGN W3).
 
-`Diagnosis` also carries `ConsumedByFold`, which is not N5's: the n-ary union
-adds it for a fold that leaves no one entity for a member-space name to denote
-(`Node::Union`).
-
 Diagnosis is computable because every node evaluation records its verdict log
 (`k_stats`); `resolve/vdiff.rs` diffs two runs per predicate by sign population
 (permutation-invariant) and is shared with `SetTolerance`'s ε-audit.
@@ -600,8 +596,8 @@ tombstone, never a key. N3's offers ride beside the verbatim error in
 `ResolutionFailure::offers`. The automatic rebinding menu is empty: the only
 repair is `DocEdit::Rebind { body, from, to }`, recorded once, no alias
 table: with a body it rewrites that body's selections naming `from`, and
-without one the names no selection holds (a declared pair's, an instance's
-crossing `outer`, an appearance key).
+without one the names no selection holds (an instance's crossing `outer`, an
+appearance key).
 
 **N6 — A cell's construction is read from the document.** A recorded
 cell is named by the read it entered the deciding operation through and its

@@ -164,8 +164,8 @@ enum Decided {
     },
     /// The pass refused, the same in every order.
     Refused(String),
-    /// A fold step refused: its inner refusal's kind, without the
-    /// member it names.
+    /// A fold step refused: its inner refusal's kind. The member it
+    /// names moves with the order, and is checked where it is read.
     FoldStep(String),
 }
 
@@ -186,7 +186,23 @@ fn decide(
     );
     let ev = run(&doc);
     match failure(&ev, union) {
-        Some(NodeErrorKind::UnionFoldStep { refusal, .. }) => {
+        Some(NodeErrorKind::UnionFoldStep {
+            member,
+            read,
+            refusal,
+        }) => {
+            // The step names the member it folds in: never the first,
+            // which no step folds in, and that place's read.
+            let at = usize::try_from(*member).expect("a member index");
+            assert!(
+                (1..order.len()).contains(&at),
+                "a fold step names a member a step folds in: {member} of {order:?}"
+            );
+            assert_eq!(
+                *read,
+                doc.output(members[order[at]], 0).expect("a member's read"),
+                "the fold step at member {member} names that member's read"
+            );
             let inner = format!("{refusal:?}");
             let kind = inner
                 .split(|c: char| !c.is_alphanumeric() && c != '_')

@@ -188,8 +188,8 @@ is designed, not improvised.
 
 A boolean glues every coincidence its margins decide Zero and refuses
 the sliver band (D10, Booleans), so there is nothing for an author to
-declare and nothing for a detector to offer: the flush detector, the
-declare doors and the refusal menu's declare arm are gone. A
+declare and nothing for a detector to offer: no boolean takes a
+declaration, and no refusal offers one. A
 coincidence a boolean infers from values is recorded at the coincidence
 door and checked by the `unproven-coincidence` lint (D10, Coincidence).
 An in-band refusal's recourse is the geometry, and the tolerance where

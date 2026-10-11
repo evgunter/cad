@@ -4908,7 +4908,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   which `Doc::mint` answers. The doors read it and a consumer never
 ///   writes it; what a consumer holds is the ids themselves
 ///   (`RecipeNodeId`, `StepId`), carried.
-const NOT_CARRIED: [&str; 97] = [
+const NOT_CARRIED: [&str; 96] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -4933,7 +4933,6 @@ const NOT_CARRIED: [&str; 97] = [
     "EvalScalar",
     "FlipEvidence",
     "FlipSet",
-    "FoldConsumption",
     "FragmentGroups",
     "GroupCutters",
     "Implicated",
