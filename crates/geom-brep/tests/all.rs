@@ -93,6 +93,8 @@ mod d290_r2_e2e;
 mod decoration_plane_mint;
 #[path = "ellipse_signed_semi_axis_gate.rs"]
 mod ellipse_signed_semi_axis_gate;
+#[path = "end_samples_read_the_carrier.rs"]
+mod end_samples_read_the_carrier;
 #[path = "exhaust_lane_meters.rs"]
 mod exhaust_lane_meters;
 #[path = "germ_pose_gate.rs"]
