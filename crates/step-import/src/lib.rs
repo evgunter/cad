@@ -490,6 +490,11 @@ pub struct ImportOptions {
     /// ruling). A file has no arena keys to declare with, so the
     /// channel is POSITION-anchored; an anchor that does not resolve
     /// is [`StepImportError::DeclarationUnresolved`], never dropped.
+    ///
+    /// Import-side contact records, not a boolean declaration. It
+    /// retires with the at-rest refusal it serves, when an unattributed
+    /// contact at rest becomes a finding (`work/intent/an-unattributed-
+    /// contact-at-rest-is-a-finding.md`).
     pub declared_contacts: Vec<ImportContact>,
     /// **Ask for the chart-coherence examination** of the shipped body
     /// ([`topo::examine_chart_coherence`]), reported at
