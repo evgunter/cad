@@ -4,6 +4,7 @@ kind: issue
 title: plane×cone bounds its apex line outcomes at the apex, so a consumer whose span stays clear of it is refused a line that is within band of its section there
 status: review
 branch: germ/pn-apex-reach-over-span
+pr: 4646
 opened: 2026-10-10
 priority: P1
 cost: M
