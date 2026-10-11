@@ -6164,6 +6164,24 @@ fn run_fitted_checks<T: Decide>(
     ))
 }
 
+/// The arc-rim class' one decided margin: the chart column's held
+/// interior weight `w` (its second, the first sub-arc's; the pattern
+/// check has read every other as `1` or this one on the value channel)
+/// against `cos(h/2)` for the sub-arc angle `h = angle / spans` of the
+/// circle it claims to be. A column built over the same angle as the
+/// circle, in the scalar, is `w − w`: at `Sym` a symbolic Zero, which
+/// the weight held as an `f64` constant (`from_f64` of its value) is
+/// not. Poison for a column with fewer than two weights.
+fn arc_rim_weight_margin<T: SpanLocate>(column: &NurbsCurve3<T>, angle: T, spans: usize) -> T {
+    let Some(&w) = column.weights().get(1) else {
+        return T::from_f64(f64::NAN);
+    };
+    #[allow(clippy::cast_precision_loss)]
+    let h = angle / T::from_f64(spans as f64);
+    let (_, cos_half) = (h * T::from_f64(0.5)).sin_cos();
+    w - cos_half
+}
+
 /// **The ARC-RIM iso class** (M8-3) — certification of a
 /// [`Pcurve::IsoArc`], to the same bar as every other minted pcurve.
 ///
@@ -6286,11 +6304,10 @@ fn run_iso_arc_checks<T: Decide>(
     };
     let bad = |what: &'static str| PcurveCertifyError::IsoUnsupported { what };
     let (stretch_u, stretch_v) = nurbs_stretch_bounds(payload);
-    // The chart's OWN domain (`side_of`'s note, #327).
-    let (cu0f, cu1f) = payload.knots_u().domain();
-    let (cv0f, cv1f) = payload.knots_v().domain();
-    let (cu0, cu1) = (T::from_f64(cu0f), T::from_f64(cu1f));
-    let (cv0, cv1) = (T::from_f64(cv0f), T::from_f64(cv1f));
+    // The chart's OWN domain (`side_of`'s note, #327), as the chart
+    // holds it.
+    let (cu0, cu1) = payload.knot_values_u().domain();
+    let (cv0, cv1) = payload.knot_values_v().domain();
     // The moving channel is u and the fixed one v (the cap class'
     // geometry).
     let Some((end, slack_v)) = side_of(
@@ -6319,17 +6336,20 @@ fn run_iso_arc_checks<T: Decide>(
              arc construction is the only one this class certifies",
         ));
     }
-    let kn = b.knots().knots();
+    // The column's knots as the chart holds them, against the uniform
+    // sub-arc breaks over the chart's own held domain, both in `T`.
+    let kn = b.knot_values().values();
     #[allow(clippy::cast_precision_loss)]
-    let expected: Vec<f64> = {
-        let m = spans as f64;
-        let mut v = vec![cu0f, cu0f, cu0f];
+    let expected: Vec<T> = {
+        let m = T::from_f64(spans as f64);
+        let mut v = vec![cu0, cu0, cu0];
         for k in 1..spans {
-            let t = cu0f + (cu1f - cu0f) * (k as f64) / m;
+            #[allow(clippy::cast_precision_loss)]
+            let t = cu0 + (cu1 - cu0) * T::from_f64(k as f64) / m;
             v.push(t);
             v.push(t);
         }
-        v.extend([cu1f, cu1f, cu1f]);
+        v.extend([cu1, cu1, cu1]);
         v
     };
     if kn.len() != expected.len() {
@@ -6362,7 +6382,7 @@ fn run_iso_arc_checks<T: Decide>(
     // a new outcome on this path.
     let mut knot_dev = T::zero();
     for (a, b) in kn.iter().zip(&expected) {
-        knot_dev = knot_dev.max(T::from_f64(a - b).abs());
+        knot_dev = knot_dev.max((*a - *b).abs());
     }
     match decide(
         "pcurve_iso_boundary",
@@ -6387,6 +6407,8 @@ fn run_iso_arc_checks<T: Decide>(
             "an arc rim whose chart column weights are not the arc pattern",
         ));
     }
+    // The pattern is structure, read on the weights' value channel; the
+    // margin reads the column's held interior weight.
     let half_w = bw.get(1).copied().unwrap_or(f64::NAN);
     for (i, w) in bw.iter().enumerate() {
         let want = if i % 2 == 0 { 1.0 } else { half_w };
@@ -6399,12 +6421,14 @@ fn run_iso_arc_checks<T: Decide>(
     }
     // --- The one decided margin: `w = cos(h/2)`. ---
     #[allow(clippy::cast_precision_loss)]
-    let m_t = T::from_f64(spans as f64);
-    let h = angle / m_t;
+    let h = angle / T::from_f64(spans as f64);
     let (_, cos_half) = (h * T::from_f64(0.5)).sin_cos();
     match decide(
         "pcurve_iso_boundary",
-        Margin::metered(T::from_f64(half_w) - cos_half, InfSpeed::new(*radius)),
+        Margin::metered(
+            arc_rim_weight_margin(&b, angle, spans),
+            InfSpeed::new(*radius),
+        ),
         band,
     )
     .map_err(&esc)?
@@ -9924,6 +9948,73 @@ mod tests {
             }
             other => panic!("the domain gate must refuse by name: {other:?}"),
         }
+    }
+
+    /// **The NURBS weights-in-`T` pin, through the carrier**
+    /// (`work/intent/nurbs-weights-and-knots-are-the-scalar.md`): a
+    /// rational arc built in `T` over a variable sweep `θ`
+    /// (`geom::test_support::held_arc`), held by a `NurbsCurve2` at
+    /// `Sym`, gives the arc-rim class' margin `w − cos(h/2)` over the
+    /// same `θ` as a symbolic Zero — a theorem, not a reading. The same
+    /// carrier with its weights held as `f64` constants (the stored
+    /// weight before this item) decides the margin numerically: Zero
+    /// at the witness, but no theorem.
+    #[test]
+    fn the_arc_rim_weight_margin_over_a_held_arc_is_a_symbolic_zero() {
+        use core::num::NonZeroUsize;
+        use geom::test_support::held_arc::HeldArc;
+        use geom_core::Point3;
+        use geom_core::sym::with_session;
+        use geom_core::{ParamSymbol, Sym, SymBudget, Theorem};
+        type S = Sym<f64>;
+        let budget = SymBudget {
+            max_terms: 4096,
+            max_degree: 128,
+        };
+        let spans = 3;
+        let (theorems, _) = with_session(budget, || {
+            let theta = S::param(ParamSymbol::new(0x7e7a), 2.1);
+            let arc =
+                HeldArc::new(S::from_f64(1.5), theta, NonZeroUsize::new(spans).unwrap()).unwrap();
+            // The column a chart holds for the arc, in its plane.
+            let control: Vec<Point3<S>> = arc
+                .control
+                .iter()
+                .map(|p| Point3::new(p.x, p.y, S::zero()))
+                .collect();
+            let held =
+                NurbsCurve3::new(arc.knots.clone(), control.clone(), arc.weights.clone()).unwrap();
+            let frozen = NurbsCurve3::new(
+                arc.knots.clone(),
+                control,
+                held.weight_channel()
+                    .iter()
+                    .map(|w| S::from_f64(*w))
+                    .collect(),
+            )
+            .unwrap();
+            let theorem = |c: &NurbsCurve3<S>| {
+                let margin = arc_rim_weight_margin(c, theta, spans);
+                let d = geom_core::k_stats::decide_reported(
+                    "pcurve_iso_boundary",
+                    Margin::metered(margin, InfSpeed::new(S::from_f64(1.5))),
+                    band(),
+                )
+                .unwrap();
+                (d.sign, d.margin.theorem())
+            };
+            (theorem(&held), theorem(&frozen))
+        });
+        assert_eq!(
+            theorems.0,
+            (Sign::Zero, Some(Theorem::SymbolicZero)),
+            "held"
+        );
+        assert_eq!(theorems.1.0, Sign::Zero, "frozen: Zero at the witness");
+        assert_eq!(
+            theorems.1.1, None,
+            "frozen: no theorem over a frozen weight"
+        );
     }
 }
 

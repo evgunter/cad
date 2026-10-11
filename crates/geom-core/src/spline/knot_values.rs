@@ -261,6 +261,13 @@ impl<T: Real> Knots<T> {
         })
     }
 
+    /// The parameter domain as held: the first and last breakpoints,
+    /// whose value channel is [`KnotVector::domain`].
+    pub fn domain(&self) -> (T, T) {
+        let n = self.values.len();
+        (self.values[0], self.values[n - 1])
+    }
+
     /// The held value of the breakpoint whose value channel is `v`
     /// (bit-equal), or `None` when no breakpoint reads as `v`.
     pub fn value_at(&self, v: f64) -> Option<T> {
