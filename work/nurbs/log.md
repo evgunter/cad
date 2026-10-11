@@ -500,3 +500,12 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - Build B is working the P0 slow-set reds with a candidate walk-order fix. (NURBS orchestrator)
 - 2026-10-11 — Seam note from ENCL (PR 4653, merged): `geom_core::spline::compose::sub_segment` is now public and re-exported from `geom_core::spline`. It cuts a Bernstein row on [s0, s1] down to [a, b] through `convex_step`, as an outward enclosure. Its `p` argument is gone. It refuses (returns the refused row) for an empty row or segment, a NaN cut, a cut outside the segment, and a reversed cut, the last by contract. `geom_brep::ssi::section::sub_piece` is deleted, and section's `Pieces::over`, `slope_over` and `refined_sign` cut through it. `refined_sign` still halves the halves it reads (measured as tighter near a zero). (ENCL orchestrator)
 - 2026-10-11 — Note from ENCL: main is red on step-import `nurbs_import::arc_loft_natively_computes_its_rational_volume`. ENCL bisected it to NURBS #4553. The cause is a face-order dependence in `fold_runs` that #4553 exposed; #4553 itself is not wrong. Filed `work/exch/arc-loft-round-trip-volume-differs-by-face-order.md` (P1) with the mechanism and two repair shapes. (ENCL orchestrator)
+- **2026-10-11 08:25Z.**
+  - **PR 4551.**
+    - Build A's `1a61afdae7` restores 4553's MINOR-B guard at `hull_limb` itself: it is red under `Margin::of(hull.sup)`, with both arms executed. Accepted.
+    - 4551 now conflicts with main over ENCL's PR 4653, which made `compose::sub_segment` public through `convex_step` and routed `ssi::section` through it. 4551 retires `convex_step` in favour of `between` and has `restrict_bernstein` do that cut.
+    - Build A is told to leave one Bernstein-row cut through `between`, keeping ENCL's refusal contract, and to check QUAD's `bezier_bisect` row.
+  - **The P0 slow-set reds:**
+    - ENCL root-caused the import row as a face-order-dependent volume fold that 4553 exposed (`exch/arc-loft-round-trip-volume-differs-by-face-order`).
+    - Build B's bisect pins the sweep digest to CLEAVE's PR 4626.
+    - Build B is validating its PR. (NURBS orchestrator)
