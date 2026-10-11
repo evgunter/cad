@@ -6662,19 +6662,23 @@ fn segment<T: Real>((p0, p1): (Point3<T>, Point3<T>)) -> EdgeGeo<T> {
 /// **A record's confirm pass, one pair at a time**: whether two cells'
 /// interiors meet in `body`, decided as [`confirm_declarations`]
 /// decides a record of them, so a record placed by this answer is one
-/// the census confirms. The body is read once, at [`Self::of`].
+/// the census confirms. The body is read once, at [`Self::of`]. The
+/// chart-region door is the caller's, as at every census door: without
+/// it a face–face pair is outside the confirm's lanes.
 pub(crate) struct RecordConfirm<'b, T: Decide> {
     body: &'b Body<T>,
     geo: Geo<T>,
     band: Band,
+    region: Option<RegionLane<T>>,
 }
 
-impl<'b, T: Decide + geom_core::CertifiedBounds> RecordConfirm<'b, T> {
-    pub(crate) fn of(body: &'b Body<T>, band: Band) -> Self {
+impl<'b, T: Decide> RecordConfirm<'b, T> {
+    pub(crate) fn of(body: &'b Body<T>, band: Band, region: Option<RegionLane<T>>) -> Self {
         Self {
             body,
             geo: snapshot(body),
             band,
+            region,
         }
     }
 
@@ -6697,7 +6701,7 @@ impl<'b, T: Decide + geom_core::CertifiedBounds> RecordConfirm<'b, T> {
             &self.geo,
             &one,
             self.band,
-            Some(RegionLane::certified()),
+            self.region,
             &mut errors,
         );
         match errors

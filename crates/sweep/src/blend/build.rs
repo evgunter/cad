@@ -124,7 +124,7 @@ pub struct Blended<T: Real> {
     pub coincidences: Vec<topo::Coincidence>,
 }
 
-impl<T: Decide + geom_core::CertifiedBounds> Blended<T> {
+impl<T: Decide> Blended<T> {
     /// `records`, the operand's, carried onto the blended body: the blend
     /// keeps every key it does not carve away, so each cell is itself or
     /// the edge the closing join made of it ([`topo::joined_cell`]), and
@@ -133,7 +133,8 @@ impl<T: Decide + geom_core::CertifiedBounds> Blended<T> {
     /// split survives as its pieces
     /// ([`super::naming::BlendNaming::meridian_remnants`]), and a record
     /// on it lands on the piece whose interior still meets the other
-    /// cell ([`topo::ContactRecords::carried_through_pieces`]). What the
+    /// cell ([`topo::ContactRecords::carried_through_pieces`], at `band`
+    /// through `region`). What the
     /// blend's new faces would inherit from a record on a consumed cell
     /// is not decided, so no record lands on one. A body with no birth
     /// records names no join, so a cell a join took is refused with the
@@ -146,6 +147,7 @@ impl<T: Decide + geom_core::CertifiedBounds> Blended<T> {
         &self,
         records: &topo::ContactRecords,
         band: geom_core::Band,
+        region: Option<topo::RegionLane<T>>,
     ) -> Result<topo::ContactRecords, topo::CarryRefusal> {
         let joins = self.naming.as_ref().map_or(&[][..], |n| &n.edge_joins[..]);
         let remnants = self
@@ -165,6 +167,7 @@ impl<T: Decide + geom_core::CertifiedBounds> Blended<T> {
                 _ => Vec::new(),
             },
             band,
+            region,
         )
     }
 }

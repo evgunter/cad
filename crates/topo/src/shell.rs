@@ -906,7 +906,7 @@ pub struct Shelled<T: Real> {
     pub naming: ShellNaming,
 }
 
-impl<T: Decide + geom_core::CertifiedBounds> Shelled<T> {
+impl<T: Decide> Shelled<T> {
     /// `records`, the operand's, carried onto the thin solid: the outer
     /// walls keep their operand keys, so each cell is itself or the edge
     /// the closing join made of it, and a cell the construction retired
@@ -915,8 +915,9 @@ impl<T: Decide + geom_core::CertifiedBounds> Shelled<T> {
     /// ([`RimNaming::seam_pieces`]), and the chart's faces into the rim
     /// and the region at each further boundary ([`RimNaming::holes`]); a
     /// record on one lands on the pieces whose interiors still meet
-    /// ([`crate::ContactRecords::carried_through_pieces`]). The cavity
-    /// twins are new cells and no operand record names one.
+    /// ([`crate::ContactRecords::carried_through_pieces`], at `band`
+    /// through `region`). The cavity twins are new cells and no operand
+    /// record names one.
     ///
     /// # Errors
     ///
@@ -925,6 +926,7 @@ impl<T: Decide + geom_core::CertifiedBounds> Shelled<T> {
         &self,
         records: &crate::boolean::ContactRecords,
         band: Band,
+        region: Option<crate::RegionLane<T>>,
     ) -> Result<crate::boolean::ContactRecords, crate::boolean::CarryRefusal> {
         let seams: Vec<(EdgeKey, EdgeKey)> = self
             .naming
@@ -954,6 +956,7 @@ impl<T: Decide + geom_core::CertifiedBounds> Shelled<T> {
             |c| Some(crate::boolean::joined_cell(&self.naming.edge_joins, c)),
             pieces,
             band,
+            region,
         )
     }
 }

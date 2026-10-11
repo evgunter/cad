@@ -442,26 +442,30 @@ impl ContactRecords {
     /// confirms. A division only chooses among a record's own pieces:
     /// nothing else of the result is searched. Where no pair of pieces
     /// meets, the record is carried as [`Self::carried_through`] carries
-    /// it, so the census reads it stale or the carry refuses it.
+    /// it, so the census reads it stale or the carry refuses it. The
+    /// confirm reads at `band` through `region`, the chart-region door
+    /// the census's own doors take ([`crate::RegionLane`]); without it
+    /// a face–face pair of pieces is unread.
     ///
     /// # Errors
     ///
     /// As [`Self::carried_through`]; [`CarryRefusal::Unread`] for the
     /// first pair of pieces the confirm pass cannot read.
-    pub fn carried_through_pieces<T: geom_core::Decide + geom_core::CertifiedBounds>(
+    pub fn carried_through_pieces<T: geom_core::Decide>(
         &self,
         input: u32,
         result: &Body<T>,
         image: impl Fn(Cell) -> Option<Cell>,
         pieces: impl Fn(Cell) -> Vec<Cell>,
         band: geom_core::Band,
+        region: Option<crate::RegionLane<T>>,
     ) -> Result<Self, CarryRefusal> {
         let mut out = Self::default();
         let mut confirm = None;
         for k in 0..self.rows.len() {
             if self.divided(k, &pieces) {
-                let confirm =
-                    confirm.get_or_insert_with(|| crate::census::RecordConfirm::of(result, band));
+                let confirm = confirm
+                    .get_or_insert_with(|| crate::census::RecordConfirm::of(result, band, region));
                 let landed = self.landed_on_pieces(input, k, result, &image, &pieces, confirm)?;
                 if !landed.is_empty() {
                     out.extend(landed);
@@ -487,7 +491,7 @@ impl ContactRecords {
     ///
     /// [`CarryRefusal::Unread`] for the first pair `confirm` cannot
     /// read.
-    pub(crate) fn landed_on_pieces<T: geom_core::Decide + geom_core::CertifiedBounds>(
+    pub(crate) fn landed_on_pieces<T: geom_core::Decide>(
         &self,
         input: u32,
         k: usize,

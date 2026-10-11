@@ -53,7 +53,11 @@ fn edge_between(body: &topo::Body<f64>, p: Point3<f64>, q: Point3<f64>) -> topo:
 /// The kiss's record carried onto `out`, citing the operand's record 0.
 fn carried_kiss(what: &str, base: &BooleanBody<f64>, out: &Blended<f64>) -> ContactRecords {
     let carried = out
-        .carry_contacts(&base.contacts, geom_core::Band::linear(tol()).unwrap())
+        .carry_contacts(
+            &base.contacts,
+            geom_core::Band::linear(tol()).unwrap(),
+            Some(topo::RegionLane::certified()),
+        )
         .unwrap();
     assert_eq!(carried.vertex_vertex().count(), 1, "{what}: {carried:?}");
     assert_eq!(carried.len(), 1, "{what}: {carried:?}");
@@ -145,7 +149,11 @@ fn a_record_on_the_blended_edge_is_refused() {
         ),
     ] {
         assert_eq!(
-            out.carry_contacts(&records, geom_core::Band::linear(tol()).unwrap()),
+            out.carry_contacts(
+                &records,
+                geom_core::Band::linear(tol()).unwrap(),
+                Some(topo::RegionLane::certified())
+            ),
             Err(topo::CarryRefusal::Unmapped {
                 record: 1,
                 cell: topo::Cell::Edge(edge)
@@ -207,7 +215,7 @@ fn a_turns_third_edge_lands_a_resting_corners_record_on_the_surviving_piece() {
             .expect("birth records")
             .meridian_remnants;
         let carried = out
-            .carry_contacts(&base.contacts, band)
+            .carry_contacts(&base.contacts, band, Some(topo::RegionLane::certified()))
             .unwrap_or_else(|refusal| panic!("{what}: the records land: {refusal:?}"));
         let before: Vec<_> = base.contacts.vertex_edge().collect();
         let after: Vec<_> = carried.vertex_edge().collect();

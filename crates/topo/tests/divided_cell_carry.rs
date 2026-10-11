@@ -88,7 +88,7 @@ fn split_passes(
     let plane = common::split_plane(origin, normal, tol());
     let split = topo::split(&base.body, &plane, tol()).expect("the body splits");
     let sides = split
-        .carry_contacts(&base.contacts, band())
+        .carry_contacts(&base.contacts, band(), Some(topo::RegionLane::certified()))
         .unwrap_or_else(|refusal| panic!("{what}: the records land: {refusal:?}"));
     for (side, body, records) in [
         ("above", split.above.body(), &sides.above),
@@ -265,7 +265,7 @@ fn a_rim_around_a_hole_lands_a_resting_corners_record_on_the_holes_rim() {
         panic!("one hole rim: {:?}", rim.holes)
     };
     let carried = opened
-        .carry_contacts(&base.contacts, band())
+        .carry_contacts(&base.contacts, band(), Some(topo::RegionLane::certified()))
         .expect("the record lands");
     let (corner, _) = base.contacts.vertex_face().next().unwrap();
     assert_eq!(

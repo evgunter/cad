@@ -131,7 +131,7 @@ pub struct SplitContacts {
     pub below: crate::boolean::ContactRecords,
 }
 
-impl<T: Decide + geom_core::CertifiedBounds> SplitResult<T> {
+impl<T: Decide> SplitResult<T> {
     /// `records`, the operand's, carried onto each side that holds both of
     /// a record's cells, every record citing the operand's
     /// ([`crate::ContactRecords::carried_through`]). A side's survivors
@@ -145,8 +145,9 @@ impl<T: Decide + geom_core::CertifiedBounds> SplitResult<T> {
     /// a face it divided (`SplitNaming::face_fragments`, the section
     /// faces excluded) lands, on each side, on every pair of pieces whose
     /// interiors still meet, as
-    /// [`crate::ContactRecords::carried_through_pieces`] places it; where
-    /// no pair meets on either side it is carried by key as any other.
+    /// [`crate::ContactRecords::carried_through_pieces`] places it, at
+    /// `band` through `region`; where no pair meets on either side it is
+    /// carried by key as any other.
     ///
     /// # Errors
     ///
@@ -159,6 +160,7 @@ impl<T: Decide + geom_core::CertifiedBounds> SplitResult<T> {
         &self,
         records: &crate::boolean::ContactRecords,
         band: geom_core::Band,
+        region: Option<crate::RegionLane<T>>,
     ) -> Result<SplitContacts, CarryRefusal> {
         let sides: Vec<(PlaneSide, &Body<T>, Vec<crate::boolean::EdgeJoin>)> = [
             (PlaneSide::Above, self.above.body()),
@@ -204,7 +206,8 @@ impl<T: Decide + geom_core::CertifiedBounds> SplitResult<T> {
                 let mut landed = false;
                 for (i, (side, body, joins)) in sides.iter().enumerate() {
                     let image = |c: Cell| self.side_image(body, joins, c);
-                    let confirm = confirm[i].get_or_insert_with(|| RecordConfirm::of(body, band));
+                    let confirm =
+                        confirm[i].get_or_insert_with(|| RecordConfirm::of(body, band, region));
                     let rows = records.landed_on_pieces(0, k, body, &image, &pieces, confirm)?;
                     landed |= !rows.is_empty();
                     match side {

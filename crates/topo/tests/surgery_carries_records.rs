@@ -99,7 +99,11 @@ fn every_surgery_verb_carries_a_corner_kiss() {
         "shell",
         &shelled.body,
         &shelled
-            .carry_contacts(&base.contacts, geom_core::Band::linear(tol()).unwrap())
+            .carry_contacts(
+                &base.contacts,
+                geom_core::Band::linear(tol()).unwrap(),
+                Some(topo::RegionLane::certified()),
+            )
             .unwrap(),
     );
 
@@ -109,7 +113,11 @@ fn every_surgery_verb_carries_a_corner_kiss() {
         "shell_open",
         &opened.body,
         &opened
-            .carry_contacts(&base.contacts, geom_core::Band::linear(tol()).unwrap())
+            .carry_contacts(
+                &base.contacts,
+                geom_core::Band::linear(tol()).unwrap(),
+                Some(topo::RegionLane::certified()),
+            )
             .unwrap(),
     );
 
@@ -134,7 +142,11 @@ fn every_surgery_verb_carries_a_corner_kiss() {
     let plane = common::split_plane(Point3::new(0.5, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0), tol());
     let split = topo::split(&base.body, &plane, tol()).expect("the kiss splits");
     let sides = split
-        .carry_contacts(&base.contacts, geom_core::Band::linear(tol()).unwrap())
+        .carry_contacts(
+            &base.contacts,
+            geom_core::Band::linear(tol()).unwrap(),
+            Some(topo::RegionLane::certified()),
+        )
         .unwrap();
     let above = split.above.body().expect("material above");
     carries_the_kiss("split above", above, &sides.above);
@@ -164,7 +176,11 @@ fn a_record_the_cut_parts_is_refused() {
     let plane = common::split_plane(Point3::new(0.5, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0), tol());
     let split = topo::split(&base.body, &plane, tol()).expect("the kiss splits");
     assert_eq!(
-        split.carry_contacts(&records, geom_core::Band::linear(tol()).unwrap()),
+        split.carry_contacts(
+            &records,
+            geom_core::Band::linear(tol()).unwrap(),
+            Some(topo::RegionLane::certified())
+        ),
         Err(CarryRefusal::Parted { record: 1 })
     );
 }
@@ -346,7 +362,11 @@ fn a_rim_that_opens_under_a_resting_corner_leaves_its_record_stale() {
         .unwrap();
     let opened = topo::shell_open(&base.body, 0.1, &[top], tol()).expect("the slab opens");
     let carried = opened
-        .carry_contacts(&base.contacts, geom_core::Band::linear(tol()).unwrap())
+        .carry_contacts(
+            &base.contacts,
+            geom_core::Band::linear(tol()).unwrap(),
+            Some(topo::RegionLane::certified()),
+        )
         .unwrap();
     assert_eq!(
         carried.vertex_face().collect::<Vec<_>>(),

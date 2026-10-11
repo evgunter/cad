@@ -137,7 +137,11 @@ fn a_split_across_an_edge_kiss_refuses_both_sides() {
     );
     let plane = common::split_plane(Point3::new(0.0, 0.0, 0.5), Vec3::new(0.0, 0.0, 1.0), tol());
     let split = topo::split(&base.body, &plane, tol()).expect("the edge kiss splits");
-    let sides = split.carry_contacts(&base.contacts, geom_core::Band::linear(tol()).unwrap());
+    let sides = split.carry_contacts(
+        &base.contacts,
+        geom_core::Band::linear(tol()).unwrap(),
+        Some(topo::RegionLane::certified()),
+    );
     let sides = sides.expect("each record lands");
     assert_eq!((sides.above.len(), sides.below.len()), (1, 1), "{sides:?}");
     for (what, body, recs) in [
@@ -169,7 +173,11 @@ fn a_split_through_a_corner_kiss_carries_it_onto_both_sides() {
     let plane = common::split_plane(Point3::new(1.0, 1.0, 1.0), Vec3::new(1.0, -1.0, 0.0), tol());
     let split = topo::split(&base.body, &plane, tol()).expect("the kiss splits");
     let sides = split
-        .carry_contacts(&base.contacts, geom_core::Band::linear(tol()).unwrap())
+        .carry_contacts(
+            &base.contacts,
+            geom_core::Band::linear(tol()).unwrap(),
+            Some(topo::RegionLane::certified()),
+        )
         .expect("the record lands");
     for (what, body, recs) in [
         ("above", split.above.body(), &sides.above),
