@@ -1344,16 +1344,36 @@ impl Evaluation {
 
     /// **The coincidences `node` decided from values** (D10), in
     /// decision order, each with what the coincidence door decided
-    /// about it. A node with no value raises as [`Self::value`] does.
-    fn coincidences(&self, py: Python<'_>, node: &NodeId) -> PyResult<Vec<Coincidence>> {
+    /// about it, at the resident budget or, with `full_symbolic_pass`,
+    /// the full one. A node with no value raises as [`Self::value`]
+    /// does.
+    #[pyo3(signature = (node, full_symbolic_pass = false))]
+    fn coincidences(
+        &self,
+        py: Python<'_>,
+        node: &NodeId,
+        full_symbolic_pass: bool,
+    ) -> PyResult<Vec<Coincidence>> {
         self.value(py, node)?;
         let Some(value) = self.inner.value(node.0) else {
             return Ok(Vec::new());
         };
+        let pass = if full_symbolic_pass {
+            d::SymbolicPass::Full
+        } else {
+            d::SymbolicPass::Resident
+        };
+        let proofs = d::coincide::prove(
+            &self.doc,
+            &[(node.0, &*value.coincidences)],
+            Tol::witness(),
+            pass,
+        );
         value
             .coincidences
             .iter()
-            .map(|row| Coincidence::new(py, row, &d::coincide::prove(&self.doc, row), &self.doc))
+            .zip(proofs.into_iter().flatten())
+            .map(|(row, proof)| Coincidence::new(py, row, &proof, &self.doc))
             .collect()
     }
 
@@ -2567,6 +2587,7 @@ pub(crate) fn evaluate(
         profile_lift: defaults.profile_lift,
         param_box: defaults.param_box,
         seed: defaults.seed,
+        symbols: defaults.symbols,
     };
     let token = cancel.map_or_else(d::CancelToken::new, CancelToken::token);
     let recipe = &doc.inner;
@@ -2683,8 +2704,9 @@ impl Coincidence {
         self.site
     }
 
-    /// The door's rung that proved it structural (`same_construction`), or
-    /// `None`: the door does not prove it structural.
+    /// The door's rung that proved it structural (`same_construction`,
+    /// `carrier_verdict` or `margin_identity`), or `None`: the door does
+    /// not prove it structural.
     #[getter]
     fn rung(&self) -> Option<&'static str> {
         self.rung

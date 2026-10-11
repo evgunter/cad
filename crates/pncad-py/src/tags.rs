@@ -1844,6 +1844,8 @@ pub fn param_box_error_tag(err: &ParamBoxError) -> &'static str {
     match err {
         ParamBoxError::UnknownParam { .. } => "unknown_param",
         ParamBoxError::AxisUnrepresentable { .. } => "axis_unrepresentable",
+        ParamBoxError::SymbolsOverABox => "symbols_over_a_box",
+        ParamBoxError::SymbolsAcrossAPartSeam => "symbols_across_a_part_seam",
     }
 }
 
@@ -3036,6 +3038,8 @@ pub fn decision_site_tag(site: pncad::document::coincidence::DecisionSite) -> &'
 pub fn coincidence_rung_tag(rung: pncad::document::Rung) -> &'static str {
     match rung {
         pncad::document::Rung::SameConstruction => "same_construction",
+        pncad::document::Rung::CarrierVerdict(_) => "carrier_verdict",
+        pncad::document::Rung::MarginIdentity(_) => "margin_identity",
     }
 }
 

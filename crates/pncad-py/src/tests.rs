@@ -3956,6 +3956,7 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
                     RecipeNodeId::new(0, 3),
                 )),
             ],
+            replay: pncad::document::coincide::Unreplayed::NotReplayed,
         }),
         recourse: pncad::document::coincide::Recourse::OneConstruction,
     };
@@ -5039,7 +5040,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "coincidence_rung_tag",
-        values: &["same_construction"],
+        values: &["carrier_verdict", "margin_identity", "same_construction"],
         delegates: &[],
     },
     TagEntry {
@@ -5789,7 +5790,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "param_box_error_tag",
-        values: &["axis_unrepresentable", "unknown_param"],
+        values: &[
+            "axis_unrepresentable",
+            "symbols_across_a_part_seam",
+            "symbols_over_a_box",
+            "unknown_param",
+        ],
         delegates: &[],
     },
     TagEntry {
