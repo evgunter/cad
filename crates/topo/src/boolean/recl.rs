@@ -1054,7 +1054,9 @@ fn flank_rep<T: Decide>(
 /// material is the intersection of its flanking half-spaces, a reflex
 /// one's their union. A decided zero (a wedge of a half-turn, or of
 /// none) refuses: a representative that splits the two planes' verdicts
-/// there has nothing to read it by.
+/// there has nothing to read it by. [`resolve_edge_edge`]'s membership
+/// answers a representative lying in a half-turn's plane by the flank
+/// it lies along, before asking here.
 fn wedge_is_reflex<T: Decide>(
     secs: &[BoolSector<T>],
     fl: &[(usize, Rep<T>); 2],
@@ -1074,6 +1076,29 @@ fn wedge_is_reflex<T: Decide>(
             DeclarationRead::Moot,
             diag,
         )),
+    }
+}
+
+/// One flanking plane's reading of a representative
+/// ([`resolve_edge_edge`]).
+#[derive(Clone, Copy)]
+enum Half {
+    /// Off the plane: whether on its material side.
+    Off(bool),
+    /// On the plane, along the flank's own representative: whether the
+    /// coplanar verdict puts it in the material.
+    Along(bool),
+    /// On the plane, pointing away from the flank: touching it.
+    Away,
+}
+
+impl Half {
+    /// The half-space verdict: a touch is not inside.
+    const fn inside(self) -> bool {
+        match self {
+            Self::Off(inside) | Self::Along(inside) => inside,
+            Self::Away => false,
+        }
     }
 }
 
@@ -1098,7 +1123,10 @@ fn wedge_is_reflex<T: Decide>(
 /// resolved as above); two alike settle it at any wedge angle. Split
 /// verdicts put it in the material iff the wedge is reflex, the union
 /// of its two half-spaces rather than their intersection — which is
-/// [`wedge_is_reflex`]'s question, asked only then.
+/// [`wedge_is_reflex`]'s question, asked only then — except where the
+/// representative lies on both planes, along one flank and away from
+/// the other: the wedge is a half-turn, and the flank it lies along
+/// decides.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn resolve_edge_edge<T: Decide>(
     records: &[PairRecord],
@@ -1158,7 +1186,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
         } else {
             (b_body, a_body)
         };
-        let mut halves = [true; 2];
+        let mut halves = [Half::Off(true); 2];
         for (inside, &(oi, (ow, _))) in halves.iter_mut().zip(other) {
             match side_code(
                 w,
@@ -1168,7 +1196,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                 band,
             )? {
                 SideCode::In => {}
-                SideCode::Out => *inside = false,
+                SideCode::Out => *inside = Half::Off(false),
                 SideCode::On => {
                     // On the flanking plane: overlap-tie or touch. No
                     // declaration the door verifies settles it: two
@@ -1214,7 +1242,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                         }
                     };
                     if !same {
-                        *inside = false; // touching, not overlapping
+                        *inside = Half::Away;
                     } else {
                         let comparison = if own_is_a { Operand::A } else { Operand::B };
                         // Declared-`Tangent` flanking pairs (distinct
@@ -1281,48 +1309,70 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                                 )?;
                                 eq15_3_lump(op, comparison, rel)
                             };
-                        if lump != SideCode::In {
-                            *inside = false;
-                        }
+                        *inside = Half::Along(lump == SideCode::In);
                     }
                 }
             }
         }
         match halves {
-            [h0, h1] if h0 == h1 => Ok(h0),
+            // On both planes the rep lies in a half-turn wedge's one
+            // plane, on the face it lies along: that face's coplanar
+            // verdict is its membership, and the flank it points away
+            // from says nothing about it.
+            [Half::Along(inside), Half::Away] | [Half::Away, Half::Along(inside)] => Ok(inside),
+            [h0, h1] if h0.inside() == h1.inside() => Ok(h0.inside()),
             _ => wedge_is_reflex(other_secs, other, arm, band),
         }
     };
-    // A declared-`Tangent` flanking pair short-circuits the wedge
-    // membership: the verified declaration says the two carriers
-    // meet ALONG A LOCUS, and a coincident real-edge pair riding
-    // that locus IS a section curve of the boundary intersection —
-    // definitionally a germ (the rim the zip and the marks consume).
-    // The membership algebra cannot see it: at a tangency every
-    // in-plane rep reads On against the wall, and the first-order
-    // tie-breaks resolve "touching" — true of the WEDGES, not of the
-    // boundary curve the germ names.
-    let tangent_flank = [(fa_s, fb_s), (fa_s, fb_e), (fa_e, fb_s), (fa_e, fb_e)]
-        .into_iter()
-        .any(|(ia, ib)| {
-            declared.declares_tangent(
-                super::Operand::A,
-                a_sectors[ia].face,
-                super::Operand::B,
-                b_sectors[ib].face,
-            )
-        });
+    let a_fl = [
+        (fa_s, rep(&a_sectors[fa_s], true)?),
+        (fa_e, rep(&a_sectors[fa_e], false)?),
+    ];
+    let b_fl = [
+        (fb_s, rep(&b_sectors[fb_s], true)?),
+        (fb_e, rep(&b_sectors[fb_e], false)?),
+    ];
+    // A declared-`Tangent` flanking pair whose two faces leave the
+    // common line on one side short-circuits the wedge membership: the
+    // verified declaration says the two carriers meet ALONG A LOCUS,
+    // and a coincident real-edge pair riding that locus IS a section
+    // curve of the boundary intersection — definitionally a germ (the
+    // rim the zip and the marks consume). The membership algebra cannot
+    // see it: at a tangency every in-plane rep reads On against the
+    // wall, and the first-order tie-breaks resolve "touching" — true of
+    // the WEDGES, not of the boundary curve the germ names. Two tangent
+    // faces that leave the line on opposite sides meet only along it,
+    // so neither rides the other: their touch is the membership
+    // algebra's to read, and the coplanar pairs beside them decide.
+    let mut tangent_flank = false;
+    for &(ia, (wa, _)) in &a_fl {
+        for &(ib, (wb, _)) in &b_fl {
+            let (fa, fb) = (a_sectors[ia].face, b_sectors[ib].face);
+            if !declared.declares_tangent(super::Operand::A, fa, super::Operand::B, fb) {
+                continue;
+            }
+            match crate::validate::decide_nonzero(
+                "bool_dir_same",
+                Margin::levered(wa.dot(wb), arm),
+                band,
+            ) {
+                Ok(NonzeroSign::Positive) => tangent_flank = true,
+                Ok(NonzeroSign::Negative) => {}
+                Err(diag) => {
+                    let which = Coincide::CurvedFlankSense;
+                    let read = declared.read(
+                        &[(super::Operand::A, fa, super::Operand::B, fb)],
+                        which,
+                        &[],
+                    );
+                    return Err(BooleanError::coincidence(which, read, diag));
+                }
+            }
+        }
+    }
     let keys = if tangent_flank {
         None
     } else {
-        let a_fl = [
-            (fa_s, rep(&a_sectors[fa_s], true)?),
-            (fa_e, rep(&a_sectors[fa_e], false)?),
-        ];
-        let b_fl = [
-            (fb_s, rep(&b_sectors[fb_s], true)?),
-            (fb_e, rep(&b_sectors[fb_e], false)?),
-        ];
         let a_in = [
             membership(true, a_fl[0].0, a_fl[0].1, &b_fl)?,
             membership(true, a_fl[1].0, a_fl[1].1, &b_fl)?,

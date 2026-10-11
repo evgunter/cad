@@ -164,8 +164,8 @@ impl Deck {
 fn u_period<T: Real>(surface: &Surface<T>) -> T {
     match surface.spline_chart() {
         Some(payload) => {
-            let (u0, u1) = payload.knots_u().domain();
-            geom_core::spline::knot_difference(u0, u1)
+            let (u0, u1) = payload.knot_values_u().domain();
+            u1 - u0
         }
         None => T::tau(),
     }
