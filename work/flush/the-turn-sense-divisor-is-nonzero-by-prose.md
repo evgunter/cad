@@ -2,10 +2,11 @@
 id: the-turn-sense-divisor-is-nonzero-by-prose
 kind: issue
 title: Turn.sense is a bare T: the nonzero divisor turned_past and off_conic_slack read is held by call order, not by type
-status: open
+status: dispatched
 opened: 2026-10-09
 priority: P3
 cost: E
+branch: flush/e-tail
 ---
 
 

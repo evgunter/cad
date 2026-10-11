@@ -84,7 +84,7 @@ fn cube_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
     )
 }
 
-/// The corner-kiss part (`m4_pr5_declare`'s `kiss_base`, as a
+/// The corner-kiss part (`m4_pr5_glue`'s `kiss_base`, as a
 /// document): `[0,1]³` ∪ `[1,2]³`, whose union DISCOVERS the v-v kiss
 /// at (1,1,1) and records it, placed in its world. This is a part whose product carries
 /// declared contact records of its own — row 1's subject.
@@ -96,7 +96,6 @@ fn kiss_part(label: &str) -> ProfileDoc {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     );
     crate::fixture::place(doc, union).0

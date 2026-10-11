@@ -142,8 +142,10 @@ fn carries_no_fillet_recourse(err: &PathError<f64>, what: &str) {
 
 /// **What an in-band fillet verdict reads like**: the site the door was
 /// resolving, the gate's own sentence, and never the shared coincidence
-/// recourse — the caller authored no joint here, so there is no
-/// coincidence for them to declare.
+/// recourse as its recourse — the caller authored no joint here, so the
+/// gate's sentence says what to change. The shared recourse is matched as
+/// it renders (`Recourse: move the geometry`): a gate's own sentence may
+/// end on the same words as its last arm.
 fn carries_its_own_recourse(err: &PathError<f64>, sentence: &str, what: &str) {
     let shown = err.to_string();
     assert!(
@@ -155,7 +157,7 @@ fn carries_its_own_recourse(err: &PathError<f64>, sentence: &str, what: &str) {
         "{what}: the caller must read the gate's own sentence.\n  got: {shown}"
     );
     assert!(
-        !shown.contains(geom_core::COINCIDENCE_RECOURSE),
+        !shown.contains(&format!("Recourse: {}", geom_core::COINCIDENCE_RECOURSE)),
         "{what}: a fillet the caller asked for has no joint they declared.\n  got: {shown}"
     );
 }

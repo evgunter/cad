@@ -83,7 +83,6 @@ fn u_cutter_subtract() -> (ProfileDoc, RecipeNodeId) {
         Node::Subtract {
             from: a.into(),
             tool: b.into(),
-            declare: Vec::new(),
         },
     );
     (doc, sub)
