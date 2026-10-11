@@ -903,7 +903,7 @@ mod tests {
         // pair written inside the crossed edge's name orients it, as a
         // boolean's are, so a rewrite that reorders that pair flips the
         // sense and reverses the rank, and one that keeps it keeps both.
-        use crate::names::role::{Sense, SplitHalf};
+        use crate::names::role::Sense;
 
         let (x, y) = (face(9, 1), face(9, 2));
         let union_seam = |a: &StableName, b: &StableName| {
@@ -915,7 +915,6 @@ mod tests {
                 12,
                 vec![
                     RoleSeg::CrossingVertex {
-                        side: SplitHalf::Above,
                         edge: NameRef::new(edge),
                         sense,
                     },

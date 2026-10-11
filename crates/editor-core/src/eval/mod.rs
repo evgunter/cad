@@ -7649,7 +7649,7 @@ mod name_feed_tests {
 
     use super::memo::ContentKey;
     use super::{Fed, KeyHasher, SegFeed, feed_role_seg, feed_stable_name};
-    use crate::names::{CapEnd, EntityKind, NameRef, Qualifier, RoleSeg, SplitHalf, StableName};
+    use crate::names::{CapEnd, EntityKind, NameRef, Qualifier, RoleSeg, StableName};
     use crate::node::RecipeNodeId;
 
     fn key(name: &StableName) -> ContentKey {
@@ -7701,10 +7701,7 @@ mod name_feed_tests {
                 edge: NameRef::new(leaf(8)),
                 band: vec![name],
             },
-            3 => RoleSeg::SectionEdge {
-                side: SplitHalf::Below,
-                face: r,
-            },
+            3 => RoleSeg::SectionEdge { face: r },
             _ => RoleSeg::Seam {
                 a: r,
                 b: NameRef::new(leaf(9)),

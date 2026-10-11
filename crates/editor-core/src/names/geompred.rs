@@ -725,6 +725,9 @@ mod census {
             SelectRefusal::NodeHasNoOutput {
                 node: RecipeNodeId::new(0, 9),
             },
+            SelectRefusal::ReadNotAnOutput {
+                var: crate::VarId::new(0, 9),
+            },
             SelectRefusal::NotALength {
                 dim: Dimension::Angle,
             },

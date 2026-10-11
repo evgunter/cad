@@ -1877,28 +1877,15 @@ pub(super) mod tests {
                 R::Fragment(Qualifier::Keeps(vec![a.clone(), b.clone()])),
                 R::Fragment(Qualifier::Ends(vec![a.clone(), b.clone()])),
                 R::Fragment(Qualifier::OrderAlong { rank: 1, of: 3 }),
-                R::SplitBody(SplitHalf::Below),
-                R::SectionFace {
-                    side: SplitHalf::Above,
-                    section: 2,
-                },
-                R::SectionEdge {
-                    side: SplitHalf::Below,
-                    face: r(a),
-                },
-                R::SplitFragment {
-                    side: SplitHalf::Above,
-                    parent: r(b),
-                },
+                R::SplitBody,
+                R::SectionFace { section: 2 },
+                R::SectionEdge { face: r(a) },
+                R::SplitFragment { parent: r(b) },
                 R::CrossingVertex {
-                    side: SplitHalf::Below,
                     edge: r(a),
                     sense: crate::names::Sense::Leaves,
                 },
-                R::OnToolVertex {
-                    side: SplitHalf::Above,
-                    of: r(b),
-                },
+                R::OnToolVertex { of: r(b) },
                 R::From {
                     read: crate::VarId::new(1, 77),
                     of: r(a),
@@ -2004,7 +1991,7 @@ pub(super) mod tests {
     mod ours {
         pub(super) use super::super::super::role::{
             CapEnd, EntityKind, MeridianEnd, NameRef, PieceRole, PieceRun, ProfileEdgeRef,
-            ProfileVertexRef, Qualifier, RimSupport, RoleSeg, SectionCircle, SplitHalf, StableName,
+            ProfileVertexRef, Qualifier, RimSupport, RoleSeg, SectionCircle, StableName,
         };
         use crate::node::{RecipeNodeId, StepId};
 

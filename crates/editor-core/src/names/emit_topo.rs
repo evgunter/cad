@@ -4622,38 +4622,41 @@ mod split_carries_candidates {
     }
 
     fn table(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NameTable {
-        &ev.value(id)
+        ev.table_at(id)
             .unwrap_or_else(|| panic!("node {id:?} evaluates: {:?}", ev.nodes.get(&id)))
-            .name_table
     }
 
-    /// Every tied row of the subtract the split carries verbatim, as
-    /// (entry shape in the split, whether each candidate kept its
-    /// number). Keys are kept through the split, so an entity of the
-    /// split names the same key in the subtract's one body.
+    /// Every tied row of the subtract each half's table carries, as
+    /// (entry shape in that half, whether each candidate kept its
+    /// number). Keys are kept through the split, so an entity of a half
+    /// names the same key in the subtract's one body.
     fn carried_ties(y: f64, ny: f64) -> Vec<(bool, Vec<bool>)> {
         let (ev, sub, split) = split_u_cutter(y, ny);
-        let (sub, split) = (table(&ev, sub), table(&ev, split));
+        let sub = table(&ev, sub);
         let mut out = Vec::new();
-        for (name, entry) in sub.iter_refs() {
-            if !matches!(entry, Entry::Tied(_)) {
-                continue;
+        for port in 0..2 {
+            let var = ev.output_var(split, port).expect("a read per half");
+            let half = ev.table(var).expect("each half evaluates");
+            for (name, entry) in sub.iter_refs() {
+                if !matches!(entry, Entry::Tied(_)) {
+                    continue;
+                }
+                let Some(row) = half.rows().find(|(n, _)| *n == name).map(|(_, r)| r) else {
+                    continue;
+                };
+                let kept = row
+                    .pairs()
+                    .map(|(c, e)| {
+                        let upstream = EntityRef {
+                            body: 0,
+                            key: e.key,
+                        };
+                        sub.candidate_of(name, &upstream) == Some(c)
+                    })
+                    .collect();
+                let tied = matches!(half.entry_of(name), Some(Entry::Tied(_)));
+                out.push((tied, kept));
             }
-            let Some(row) = split.rows().find(|(n, _)| *n == name).map(|(_, r)| r) else {
-                continue;
-            };
-            let kept = row
-                .pairs()
-                .map(|(c, e)| {
-                    let upstream = EntityRef {
-                        body: 0,
-                        key: e.key,
-                    };
-                    sub.candidate_of(name, &upstream) == Some(c)
-                })
-                .collect();
-            let tied = matches!(split.entry_of(name), Some(Entry::Tied(_)));
-            out.push((tied, kept));
         }
         out
     }
@@ -4661,19 +4664,27 @@ mod split_carries_candidates {
     #[test]
     fn a_split_carries_each_tie_candidates_number_tied_or_narrowed() {
         // Planes between the prongs separate the candidates, one per
-        // half, and the split's own table keeps the tie `Tied` across
-        // its two bodies; a plane clear of both keeps both in one half.
-        for (what, y, ny) in [
-            ("between the prongs, +y", 2.0, 1.0),
-            ("between the prongs, -y", 2.0, -1.0),
-            ("clear of both prongs, +y", 3.5, 1.0),
-            ("clear of both prongs, -y", 3.5, -1.0),
+        // half, and each half's table narrows the tie to the candidate
+        // it holds, under its number; a plane clear of both keeps both
+        // in one half, `Tied`.
+        for (what, y, ny, together) in [
+            ("between the prongs, +y", 2.0, 1.0, false),
+            ("between the prongs, -y", 2.0, -1.0, false),
+            ("clear of both prongs, +y", 3.5, 1.0, true),
+            ("clear of both prongs, -y", 3.5, -1.0, true),
         ] {
             let rows = carried_ties(y, ny);
-            assert!(
-                rows.iter().any(|(tied, kept)| *tied && kept.len() == 2),
-                "{what}: the premise, a subtract tie the split keeps Tied: {rows:?}"
-            );
+            if together {
+                assert!(
+                    rows.iter().any(|(tied, kept)| *tied && kept.len() == 2),
+                    "{what}: the premise, a subtract tie one half keeps Tied: {rows:?}"
+                );
+            } else {
+                assert!(
+                    rows.iter().filter(|(_, kept)| kept.len() == 1).count() >= 2,
+                    "{what}: the premise, a subtract tie each half narrows: {rows:?}"
+                );
+            }
             assert!(
                 rows.iter().all(|(_, kept)| kept.iter().all(|k| *k)),
                 "{what}: a carried candidate lost its number: {rows:?}"
@@ -4719,7 +4730,7 @@ mod split_edge_lineage {
         else {
             panic!("the tool is a plane datum");
         };
-        let table = &value.name_table;
+        let table = ev.table_at(ext).expect("the extrude's table");
         let out = topo::split(
             &topo::test_support::finished("the extrude", (**body).clone(), Tol::witness()),
             &SplitPlane {
@@ -4904,7 +4915,7 @@ mod crossings_rank_along_the_line {
         let ValuePayload::Boolean(BooleanValue::Body { body, .. }) = &value.payload else {
             panic!("a body");
         };
-        let table = &value.name_table;
+        let table = ev.table_at(notched).expect("the notched disc's table");
         // The two top-rim arcs, each with its name and its interval.
         let mut arcs = Vec::new();
         for (name, entry) in table.iter() {
@@ -5035,7 +5046,7 @@ mod nurbs_crossings_rank_by_parameter {
 
     /// The loft through 2 × 2 squares at z = 0, 1, 2, 3 whose x offsets
     /// alternate `−a, a, −a, a`, skinned at v-degree 2: its value.
-    fn wavy(a: f64) -> (RecipeNodeId, crate::eval::NodeValue<f64>) {
+    fn wavy(a: f64) -> (RecipeNodeId, crate::eval::NodeValue<f64>, NameTable) {
         let mut doc = ProfileDoc::empty(DocumentId::derive("nurbs-crossings"), Tol::witness());
         let mut profiles = Vec::new();
         for (k, dx) in [-a, a, -a, a].into_iter().enumerate() {
@@ -5073,7 +5084,8 @@ mod nurbs_crossings_rank_by_parameter {
             Tol::witness(),
         );
         let value = ev.value(loft).expect("the loft evaluates").clone();
-        (loft, value)
+        let table = ev.table_at(loft).expect("the loft's table").clone();
+        (loft, value, table)
     }
 
     fn body_of(value: &crate::eval::NodeValue<f64>) -> &Body<f64> {
@@ -5204,9 +5216,9 @@ mod nurbs_crossings_rank_by_parameter {
 
     #[test]
     fn two_crossings_of_one_nurbs_piece_rank_by_its_parameter() {
-        let (loft, value) = wavy(0.25);
+        let (loft, value, table) = wavy(0.25);
         let body = body_of(&value);
-        let (e, name) = corner(body, &value.name_table);
+        let (e, name) = corner(body, &table);
         let (t0, t1) = param_span(body, e).unwrap();
         assert!(t0 < t1, "the corner runs as its carrier: {t0} to {t1}");
         let roots = crossings_of(body, e);
@@ -5219,7 +5231,7 @@ mod nurbs_crossings_rank_by_parameter {
         assert_eq!(s0, s2, "the first and third crossings have one sense");
         let (p, q) = (point_at(body, e, first), point_at(body, e, third));
         assert_eq!(
-            ranks(loft, (body, &value.name_table), e, &name, p, q),
+            ranks(loft, (body, &table), e, &name, p, q),
             Some((0, 1)),
             "the crossing at the lesser parameter ranks first: t {first} and {third}"
         );
@@ -5227,9 +5239,9 @@ mod nurbs_crossings_rank_by_parameter {
 
     #[test]
     fn two_crossings_of_one_nurbs_piece_the_band_cannot_part_tie() {
-        let (loft, value) = wavy(0.25);
+        let (loft, value, table) = wavy(0.25);
         let body = body_of(&value);
-        let (e, name) = corner(body, &value.name_table);
+        let (e, name) = corner(body, &table);
         let first = crossings_of(body, e)[0].0;
         let p = point_at(body, e, first);
         let along = carrier(body, e).deriv(first);
@@ -5237,12 +5249,12 @@ mod nurbs_crossings_rank_by_parameter {
         let apart = zero / 4.0;
         let q = p + along * (apart / along.norm());
         assert_eq!(
-            ranks(loft, (body, &value.name_table), e, &name, p, q),
+            ranks(loft, (body, &table), e, &name, p, q),
             None,
             "{apart} m apart"
         );
         assert_eq!(
-            ranks(loft, (body, &value.name_table), e, &name, p, p),
+            ranks(loft, (body, &table), e, &name, p, p),
             None,
             "one point"
         );
@@ -5482,7 +5494,7 @@ mod edge_pieces_of_one_line_tie {
             "between the same two vertices"
         );
         let mut t = NameTable::new();
-        for (name, entry) in value.name_table.iter() {
+        for (name, entry) in ev.table_at(cut).expect("the cut's table").iter() {
             if let (EntityKind::Vertex, Entry::Unique(e)) = (name.kind, entry) {
                 t.insert(name.clone(), *e).unwrap();
             }

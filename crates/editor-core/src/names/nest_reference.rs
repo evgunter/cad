@@ -17,7 +17,7 @@ use std::sync::Arc;
 
 pub(super) use super::role::{
     CapEnd, EntityKind, MeridianEnd, PieceRole, PieceRun, ProfileEdgeRef, ProfileVertexRef,
-    RimSupport, SectionCircle, Sense, SplitHalf,
+    RimSupport, SectionCircle, Sense,
 };
 pub(super) use crate::node::{RecipeNodeId, StepId};
 
@@ -147,26 +147,21 @@ pub(super) enum RoleSeg {
     Merged(Vec<StableName>),
     Fragment(Qualifier),
 
-    SplitBody(SplitHalf),
+    SplitBody,
     SectionFace {
-        side: SplitHalf,
         section: u32,
     },
     SectionEdge {
-        side: SplitHalf,
         face: NameRef,
     },
     SplitFragment {
-        side: SplitHalf,
         parent: NameRef,
     },
     CrossingVertex {
-        side: SplitHalf,
         edge: NameRef,
         sense: Sense,
     },
     OnToolVertex {
-        side: SplitHalf,
         of: NameRef,
     },
 

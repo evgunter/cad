@@ -264,7 +264,6 @@ mod tests {
             kind: EntityKind::Face,
             node: RecipeNodeId::new(0, 11),
             path: vec![RoleSeg::SplitFragment {
-                side: crate::names::role::SplitHalf::Below,
                 parent: wrap(from_a, a.clone()).into(),
             }],
         };
