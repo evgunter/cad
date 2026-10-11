@@ -1338,6 +1338,35 @@ mod tests {
         assert!(inexact >= 4, "the row's knots must round: {inexact} did");
     }
 
+    /// **A degree-1 vector hands back its partial as per-span
+    /// constants**: on the polyline through `(0, 0), (0.5, 1), (1, 1)`
+    /// the breaks are the vector's own breakpoints and difference
+    /// coefficient `i` is the slope on span `i` — 2, then 0. A degree-2
+    /// vector, whose partial [`KnotVector::derivative`] spells, has none.
+    #[test]
+    fn a_degree_1_partial_is_the_difference_coefficients_between_the_breaks() {
+        use crate::interval::certification::Certification;
+        let k = kv(&[0.0, 0.0, 0.5, 1.0, 1.0], 1);
+        assert!(k.derivative().is_none(), "degree 1 has no derived vector");
+        let breaks = k.span_constant_breaks().expect("degree 1 has breaks");
+        assert_eq!(breaks, [0.0, 0.5, 1.0], "the breaks");
+        let slopes = k.difference_coeffs(&[0.0, 1.0, 1.0]);
+        assert_eq!(slopes.len() + 1, breaks.len(), "one constant per span");
+        for (i, want) in [2.0, 0.0].into_iter().enumerate() {
+            assert!(
+                slopes[i].contains(want),
+                "span {i}: {:?} misses slope {want}",
+                slopes[i]
+            );
+        }
+        assert!(
+            kv(&[0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2)
+                .span_constant_breaks()
+                .is_none(),
+            "a degree-2 partial is a spline, not per-span constants"
+        );
+    }
+
     /// A domain stored reversed or collapsed is not mintable, so a
     /// consumer metering `d1 - d0` (certify's span meter) sees a positive
     /// width. The reversal here is in the END runs, which an interior

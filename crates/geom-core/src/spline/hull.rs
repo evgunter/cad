@@ -547,10 +547,25 @@ impl KnotVector {
     /// The vector of this one's derivative — the outer knot pair
     /// dropped, degree one less ([`KnotVector::derivative_knot_slice`])
     /// — or `None` when that is not a clamped vector: degree 1 (a
-    /// degree-0 vector is refused), or an interior knot of multiplicity
-    /// equal to the degree, where the derivative is discontinuous.
+    /// degree-0 vector is refused; the partial is
+    /// [`KnotVector::span_constant_breaks`]'s instead), or an interior
+    /// knot of multiplicity equal to the degree, where the derivative
+    /// is discontinuous.
     pub fn derivative(&self) -> Option<KnotVector> {
         KnotVector::clamped(self.derivative_knot_slice().to_vec(), self.degree() - 1).ok()
+    }
+
+    /// **A degree-1 vector's partial, as per-span constants** — the
+    /// derivative [`KnotVector::derivative`] has no vector for. Its
+    /// value on `breaks[i] .. breaks[i + 1]` is difference coefficient
+    /// `i` ([`KnotVector::difference_coeffs`]), where `breaks` is the
+    /// returned slice ([`KnotVector::derivative_knot_slice`]): the
+    /// vector's breakpoints, strictly ascending (a degree-1 interior
+    /// multiplicity is 1), one more than the difference coefficients.
+    /// `None` at degree ≥ 2.
+    #[must_use]
+    pub fn span_constant_breaks(&self) -> Option<&[f64]> {
+        (self.degree() == 1).then(|| self.derivative_knot_slice())
     }
 }
 
