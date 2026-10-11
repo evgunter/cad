@@ -40,3 +40,39 @@ piece the read does not place (`EdgeKindUnread`). Not a decided
 
 The arc-end case (`ContainError::ArcEndClearOfCorners`) already routes
 to `EdgeKindUnread` (PR 4613).
+
+## Built (branch cleave/seam-cover-boundary)
+
+`rim_wedge::contains` answers `In` → `Some(true)`, `Out` → `Some(false)`,
+and `OnEdge`/`OnVertex` → `None` (not placed), so the piece is
+`Cover::Unread` and `departures` refuses the claim as outside its
+envelope (`Departure::EdgeKindUnread`, the claim's `unsupported`), as
+the arc-end arm already did. A boundary reading at a piece's midpoint
+is the door and the cut walk parting (the walk cuts every point where
+the boundary meets the locus), so it places nothing. It is not typed a
+defect: valid geometry reaches it (a tangent arc, a barely turning
+corner, a cut within the band at `K < 2`), and the walk reads a ride's
+span at its carrier ends while the door reads the stored corners, which
+part by up to the band without any bug.
+
+Measured on `origin/main` at 1e-9, 1e-6 and 1e-12 (all identical):
+
+- line locus, three poses, an arc tangent at the piece's start and a
+  corner turning off it by `4K·zero`: midpoint `0.25`/`0.5` zero off the
+  boundary → `NoEdge`; `3` zero → the door's escalation
+  (`bool_contact_arc`/`bool_contact_edge`); `20` zero → `Untouched` /
+  `Opposite`.
+- corner midpoints at `K = 1.25` (piece `1.5·zero`): `NoEdge`.
+- through `verify_tangency_declaration` (shallow-cornered block top ×
+  a cylinder wall sheet tangent along the ride): `SeamContradicted {
+  fact: SeamFaceRunsOn }` at `0.5` zero, verified at `20` zero.
+
+After: every on-boundary row is `EdgeKindUnread` /
+`UnsupportedDeclarationClass { class: Seam }`; the in-band and clear rows
+are unchanged. Pinned in `rim_wedge::boundary_midpoint_rows` (line and
+rim families, corner rows, the door row), red on the old reading at all
+three ε.
+
+No public operation surfaced the contradiction: the declaration door's
+only production caller, `glue::tangency`, reads any refusal as "not
+glued", before and after.
