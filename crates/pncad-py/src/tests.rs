@@ -4766,13 +4766,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "attribution_tag",
-        values: &[
-            "carried_declined",
-            "carried_refuted",
-            "declined",
-            "refuted",
-            "unattributed",
-        ],
+        values: &["carried_declined", "carried_refuted", "declined", "refuted"],
         delegates: &[],
     },
     TagEntry {

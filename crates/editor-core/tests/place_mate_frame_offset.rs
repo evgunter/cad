@@ -445,7 +445,7 @@ fn a_rest_side_set_back_along_the_normal_is_refuted_by_the_gate() {
     assert!(
         findings.iter().any(|f| matches!(
             &f.attribution,
-            editor_core::Attribution::Refuted(d) if d.mate == m
+            Some(editor_core::Attribution::Refuted(d)) if d.mate == m
         )),
         "{err:?}"
     );

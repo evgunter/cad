@@ -1336,6 +1336,7 @@ mod torn_hop_rows {
                     on_vertices: Vec::new(),
                     null_edges: null_edges.clone(),
                     coincidences: Vec::new(),
+                    edge_pieces: Vec::new(),
                 };
                 fixed_partners(&red, &above, band()).map(|p| p.len())
             },

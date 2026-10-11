@@ -2425,8 +2425,9 @@ pub(crate) struct FittedEnvelope<T: Real> {
 /// ([`crate::FittedLane`]): the stored image's piece hulls (its sector
 /// and lever data), and the chart's canonical implicit form composed
 /// along `twin_net`, the carrier written in the frame of `twin`, the
-/// chart's orthonormal twin. Every value crosses into certification
-/// arithmetic through [`geom_core::Interval::from_certified`].
+/// chart's orthonormal twin, over parts cut at `cuts` besides the
+/// uniform ones. Every value crosses into certification arithmetic
+/// through [`geom_core::Interval::from_certified`].
 ///
 /// # Errors
 ///
@@ -2436,6 +2437,7 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
     image: &ProjectedImage<T>,
     twin_net: &NurbsCurve3<T>,
     twin: &Surface<T>,
+    cuts: &[f64],
 ) -> Result<projected::ProjectedHull, PcurveCertifyError> {
     use geom_core::Bounds;
     use geom_core::spline::compose::{CanonicalSurface, CurveCertData, canonical_composite};
@@ -2557,10 +2559,13 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
             return Err(PcurveCertifyError::UnsupportedChart { chart: twin.kind() });
         }
     };
+    let Some(meters) = projected::Meters::of(twin, &image.chart, cross) else {
+        unreachable!("the form above is analytic")
+    };
     // The composite of the net, and the same composite with each knot
-    // span cut into equal parts: the Bernstein hull over a part is
-    // tighter than over the whole span (its excess falls as the part's
-    // square). The parts are cut in the composite's own ring
+    // span cut into equal parts, and at `cuts`: the Bernstein hull over a
+    // part is tighter than over the whole span (its excess falls as the
+    // part's square). The parts are cut in the composite's own ring
     // (`CurveCertData::with_breaks`), not by refining the net through an
     // `f64` plan, which would re-round its controls and weights into a
     // neighbouring curve's. Each part reads the smaller of its own bound
@@ -2572,13 +2577,13 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
     let data = CurveCertData::new(twin_net.knots(), twin_net.weight_channel(), &coords)
         .map_err(|_| refuse("the re-derived net's certification data is malformed"))?;
     let composite_of = |data: &CurveCertData<'_>| {
-        let composite = canonical_composite(data, &form)
-            .map_err(|_| refuse("the canonical composite refused the re-derived net"))?;
-        Ok::<_, PcurveCertifyError>((composite.num.breaks().to_vec(), composite.span_sup_bounds()))
+        canonical_composite(data, &form)
+            .map_err(|_| refuse("the canonical composite refused the re-derived net"))
     };
-    let (whole_breaks, whole_sup) = composite_of(&data)?;
+    let whole = composite_of(&data)?;
+    let (whole_breaks, whole_sup) = (whole.num.breaks().to_vec(), whole.span_sup_bounds());
     let runs: Vec<f64> = twin_net.knots().knot_runs().map(|(k, _)| k).collect();
-    let cuts: Vec<f64> = runs
+    let mut all_cuts: Vec<f64> = runs
         .windows(2)
         .flat_map(|w| {
             (1..projected::INCIDENCE_CUTS).map(move |j| {
@@ -2587,8 +2592,16 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
                 w[0] + (w[1] - w[0]) * f
             })
         })
+        .chain(cuts.iter().copied())
         .collect();
-    let (breaks, part_sup) = composite_of(&data.clone().with_breaks(&cuts))?;
+    all_cuts.sort_by(f64::total_cmp);
+    all_cuts.dedup();
+    let parts = composite_of(&data.clone().with_breaks(&all_cuts))?;
+    let (breaks, part_sup, values) = (
+        parts.num.breaks().to_vec(),
+        parts.span_sup_bounds(),
+        parts.break_values(),
+    );
     // A bound the composite could not certify is NaN, which `f64::min`
     // passes over while the other is certified, and which its consumer
     // refuses (`projected::net_incidence`) when neither is.
@@ -2610,10 +2623,12 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
                     f_sup: f64::NAN,
                     rho_lo: f64::NAN,
                     z: (f64::NAN, f64::NAN),
+                    meters: f64::NAN,
+                    floors: (0.0, 0.0),
                 };
             };
-            let (boxed, support, z) =
-                projected::part_floors(&projected::piece_controls(&twin_net, piece));
+            let controls = projected::piece_controls(&twin_net, piece);
+            let (boxed, support, z) = projected::part_floors(&controls);
             // The support's divisor may not certify (a chord through the
             // axis): the box's floor stands alone then.
             let rho = if support.is_certified() {
@@ -2622,11 +2637,39 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
                 boxed
             };
             let ok = !uncertified(&twin_net, range);
+            let f_sup = if ok { part.min(whole) } else { f64::NAN };
+            let (rho_lo, z) = (lower(rho, ok), (lower(z.0, ok), upper(z.1, ok)));
+            let point = |x: f64| geom_core::Interval::from_bounds(x, x);
+            let meters_sup =
+                if f_sup.is_finite() && rho_lo.is_finite() && z.0.is_finite() && z.1.is_finite() {
+                    meters
+                        .over(point(f_sup), point(rho_lo), z, |lever| {
+                            if lower(lever, true) > 0.0 {
+                                Ok(lever)
+                            } else {
+                                Err(())
+                            }
+                        })
+                        .map_or(f64::INFINITY, |m| upper(m, true))
+                } else {
+                    f64::NAN
+                };
+            // A Bézier part interpolates its end controls, so they are
+            // its points at its ends.
+            let floors = match (ok, controls.first(), controls.last()) {
+                (true, Some(&(first, _)), Some(&(last, _))) => (
+                    projected::distance_floor(meters, values[j], first),
+                    projected::distance_floor(meters, values[j + 1], last),
+                ),
+                _ => (0.0, 0.0),
+            };
             SpanHull {
                 range,
-                f_sup: if ok { part.min(whole) } else { f64::NAN },
-                rho_lo: lower(rho, ok),
-                z: (lower(z.0, ok), upper(z.1, ok)),
+                f_sup,
+                rho_lo,
+                z,
+                meters: meters_sup,
+                floors,
             }
         })
         .collect();
