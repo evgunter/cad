@@ -276,8 +276,10 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    a pole or apex), **prefer-intrinsic enforcement** (D2) and the
    **positive-volume orientation invariant** (exact-B-rep signed volume
    definitely-negative ⇒ invalid; margin V/A_total, a length; zero and
-   escalated exempt — an orientation probe, not a thinness gate, so
-   ε-tightening never flips valid→invalid). Laminae live here, not at
+   escalated exempt — at rest an orientation probe, not a thinness
+   gate, so ε-tightening never flips valid→invalid; a boolean's door
+   reads a solid's only shell certified in band as the in-band shell
+   it is, D10's Booleans clause). Laminae live here, not at
    tier 2: two faces glued along their whole shared boundary is a
    two-hemisphere ball's incidence structure, so a zero-volume lamina
    is a geometric defect, not a topological one. Global
@@ -311,7 +313,9 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    - The census is exact on the planar inventory and admits every
      carrier kind: same-key opposed-sense curved pairs certify through
      the conformal arm, face–face records through the patch
-     certifier, cross-solid pairs with a curved
+     certifier on one carrier or two planes and the jet schedule
+     along the closed-form tangent line on two other carriers,
+     cross-solid pairs with a curved
      side in reach refuse as undecidable, and same-solid distinct-key
      curved pairs stay undetected until C9/C6 (`topo::census` module
      docs). A record or candidate outside a certifier's lane refuses

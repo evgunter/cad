@@ -668,9 +668,10 @@ fn props_errors() -> Vec<PropsError> {
         },
         PropsError::NappeSpanning,
         PropsError::SphereLoop {
-            what: "props_sphere_loop_closed",
+            what: "props_loop_closed",
         },
         PropsError::SenseContradicted,
+        PropsError::SenseInverted,
         PropsError::RingWoundWithFace,
         PropsError::ChartPeriodJump,
         PropsError::NotOneChartBranch {
@@ -1454,13 +1455,21 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             ValidationError::StaleContactDeclaration { declaration },
         ));
     }
-    // Door 1's whole-surface verdict (a Rest record), with and without
-    // the designed-clearance steer.
-    for (class, witness, predicate) in [(
-        ContactClass::Rest,
-        crate::census::CARRIER_COMPARISON_WITNESS,
-        "carrier_sphere_radius",
-    )] {
+    // Door 1's whole-surface verdict (a Rest record) and the tangent
+    // line of a face-face record on two carriers (a Tangent record),
+    // each with and without the designed-clearance steer.
+    for (class, witness, predicate) in [
+        (
+            ContactClass::Rest,
+            crate::census::CARRIER_COMPARISON_WITNESS,
+            "carrier_sphere_radius",
+        ),
+        (
+            ContactClass::Tangent,
+            crate::census::TANGENT_LOCUS_WITNESS,
+            "contact_tangent_opposed",
+        ),
+    ] {
         for steer in [None, Some(FIT_DEFERRAL)] {
             s.push((
                 format!(
