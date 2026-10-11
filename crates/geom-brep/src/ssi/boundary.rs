@@ -864,7 +864,7 @@ impl Pass<'_> {
                 let in_start = starts.contains(&corner);
                 // Inside a region's cell the root is the region's; in a
                 // cell the plane is certified clear of, it is none.
-                if regions.iter().chain(&clear).any(|c| holds(*c, point)) {
+                if regions.iter().chain(&clear).any(|c| c.holds(point)) {
                     continue;
                 }
                 if !in_start {
@@ -883,7 +883,7 @@ impl Pass<'_> {
                 // A region's cell holds its zero set only within the
                 // cover, so a root in the cell is the region's, wherever
                 // its settling put it.
-                if regions.iter().any(|r| holds(*r, point)) {
+                if regions.iter().any(|r| r.holds(point)) {
                     continue;
                 }
                 // One crossing per corner a branch starts at: its two
@@ -1228,11 +1228,6 @@ fn strip_reach<T: CertifiedBounds>(
         }
     }
     best
-}
-
-/// Whether a chart point lies in a rectangle.
-fn holds(r: UvRect, (u, v): (f64, f64)) -> bool {
-    u >= r.u.0 && u <= r.u.1 && v >= r.v.0 && v <= r.v.1
 }
 
 /// The graze refusal at `side` where the slope along it is not

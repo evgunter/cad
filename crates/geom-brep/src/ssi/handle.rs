@@ -6,6 +6,21 @@
 //! settling a seed, the branch through a settled seed and the check that
 //! its tube holds it, the crossings a certified branch already ends at,
 //! and the closed loops from the subdivision's seeds.
+//!
+//! # One unproven step
+//!
+//! Newton's convergence from a seed to the component nearest it is not
+//! proved, and nothing here catches a seed that settles onto another
+//! component: the branch is traced through the settled state, so its
+//! tube holds it ([`SsiError::SeedOutsideTube`] guards the trace and the
+//! certificate, not the selection). A seed far from the section is
+//! answered by whichever branch Newton reaches; no distance gate refuses
+//! it. The backstops sit with the caller: the offset door's seed, the old
+//! edge's middle, lies within `d / sin(φ/2)` of the moved seam at
+//! interior dihedral `φ`, and a branch that missed it disagrees with the
+//! edge's moved vertices (`VertexDisagreement`).
+
+use std::cell::OnceCell;
 
 use geom::NurbsSurface;
 use geom_core::Point3;
@@ -24,20 +39,20 @@ use geom_core::linalg::svd::Svd;
 /// A cell of a certified tube, read against an ℝ⁴ state.
 pub(crate) trait TubeCell: Copy {
     /// Whether the cell holds the state `x`.
-    fn holds(&self, x: &[f64; 4]) -> bool;
+    fn holds_state(&self, x: &[f64; 4]) -> bool;
 }
 
 /// The two-chart tube's cell: the state's four coordinates.
 impl TubeCell for Box4 {
-    fn holds(&self, x: &[f64; 4]) -> bool {
-        Box4::holds(*self, x)
+    fn holds_state(&self, x: &[f64; 4]) -> bool {
+        self.holds(x)
     }
 }
 
 /// The chart tube's cell: the wall's coordinates, the state's last two.
 impl TubeCell for UvRect {
-    fn holds(&self, x: &[f64; 4]) -> bool {
-        x[2] >= self.u.0 && x[2] <= self.u.1 && x[3] >= self.v.0 && x[3] <= self.v.1
+    fn holds_state(&self, x: &[f64; 4]) -> bool {
+        self.holds((x[2], x[3]))
     }
 }
 
@@ -54,6 +69,23 @@ pub(crate) fn foot(s: &NurbsSurface<f64>, seed: Point3<f64>) -> Result<(f64, f64
             t: f64::NAN,
             last_distance: e.last_distance,
         })
+}
+
+/// The boundary pass held in `cell`, run by `pass` if no reading has
+/// run it yet.
+///
+/// # Errors
+///
+/// `pass`'s.
+pub(crate) fn passed<P>(
+    cell: &OnceCell<P>,
+    pass: impl FnOnce() -> Result<P, SsiError>,
+) -> Result<&P, SsiError> {
+    if let Some(p) = cell.get() {
+        return Ok(p);
+    }
+    let p = pass()?;
+    Ok(cell.get_or_init(|| p))
 }
 
 impl Ends<'_> {
@@ -106,14 +138,22 @@ impl<T: TubeCell> Banked<T> {
 
     /// The certified branch whose tube holds `x`, by index.
     pub(crate) fn holding(&self, x: &[f64; 4]) -> Option<usize> {
-        self.tubes.iter().position(|t| t.iter().any(|c| c.holds(x)))
+        self.tubes
+            .iter()
+            .position(|t| t.iter().any(|c| c.holds_state(x)))
+    }
+
+    /// Bank `branch` with its tube; its index.
+    fn push(&mut self, branch: SsiBranch, tube: Vec<T>) -> usize {
+        self.tubes.push(tube);
+        self.branches.push(branch);
+        self.branches.len() - 1
     }
 
     /// Bank a certified branch and its tube; its index.
     pub(crate) fn bank(&mut self, branch: SsiBranch) -> usize {
-        self.tubes.push((self.tube_of)(&branch));
-        self.branches.push(branch);
-        self.branches.len() - 1
+        let tube = (self.tube_of)(&branch);
+        self.push(branch, tube)
     }
 
     /// **The branch through the settled state `x`**: traced to the
@@ -136,16 +176,14 @@ impl<T: TubeCell> Banked<T> {
         let (states, end) = ends.through_seed(x, crossings)?;
         let branch = ends.finish(&states, end)?;
         let tube = (self.tube_of)(&branch);
-        if !tube.iter().any(|c| c.holds(&x)) {
+        if !tube.iter().any(|c| c.holds_state(&x)) {
             return Err(SsiError::SeedOutsideTube { state: x });
         }
-        self.tubes.push(tube);
-        self.branches.push(branch);
-        Ok(self.branches.len() - 1)
+        Ok(self.push(branch, tube))
     }
 
     /// The `crossings` no certified branch already ends at.
-    pub(crate) fn open(&self, crossings: Vec<Crossing>) -> Vec<Crossing> {
+    pub(crate) fn open(&self, crossings: &[Crossing]) -> Vec<Crossing> {
         let ended: Vec<_> = self
             .branches
             .iter()
@@ -156,8 +194,9 @@ impl<T: TubeCell> Banked<T> {
             .flatten()
             .collect();
         crossings
-            .into_iter()
+            .iter()
             .filter(|c| !ended.contains(&c.at))
+            .copied()
             .collect()
     }
 
@@ -182,7 +221,7 @@ impl<T: TubeCell> Banked<T> {
         also: &[T],
     ) -> Result<(), SsiError> {
         let held = |bank: &Self, x: &[f64; 4]| {
-            bank.holding(x).is_some() || also.iter().any(|c| c.holds(x))
+            bank.holding(x).is_some() || also.iter().any(|c| c.holds_state(x))
         };
         let mut refused: Vec<([f64; 4], SsiError)> = Vec::new();
         for state in seeds {

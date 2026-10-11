@@ -18,7 +18,10 @@
 //! door transports, at every scalar; everywhere else it derives.
 
 use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
-use geom_brep::ssi::{BoundarySection, ChartAxis, SsiDomain, SsiError};
+use geom_brep::SectionReading;
+use geom_brep::ssi::{
+    BoundarySection, ChartAxis, ChartEnd, SsiBoundaryContact, SsiDomain, SsiError,
+};
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, SupSpeed, Vec3};
 
@@ -30,12 +33,21 @@ pub enum SectionVerdict {
     Closed(geom_brep::SectionError),
     /// The plane × spline-wall march refused, verbatim.
     Ssi(SsiError),
+    /// The section traced from the old edge's middle refused, verbatim:
+    /// the middle is the trace's seed.
+    FromMiddle(SsiError),
     /// The section has no branch near the edge: the moved surface no
     /// longer meets the neighbour there.
     NoBranch,
     /// The section near the edge is a tangency, which is classification
     /// data rather than a curve an edge can carry.
     Tangent,
+    /// The moved surface meets the neighbour within the band at a corner
+    /// of the neighbour's window only: a point, which no edge carries.
+    Corner {
+        /// The corner.
+        corner: geom_brep::ChartCorner,
+    },
     /// The door does not derive this section, in its own words.
     Unsupported {
         /// What the door could not do.
@@ -48,8 +60,18 @@ impl core::fmt::Display for SectionVerdict {
         match self {
             Self::Closed(e) => write!(f, "the closed-form section refused: {e}"),
             Self::Ssi(e) => write!(f, "the spline-wall section refused: {e}"),
+            Self::FromMiddle(e) => write!(
+                f,
+                "the section traced from the old edge's middle refused (the middle is the \
+                 trace's seed): {e}"
+            ),
             Self::NoBranch => f.write_str("the moved surface no longer meets the neighbour there"),
             Self::Tangent => f.write_str("the moved surface only touches the neighbour there"),
+            Self::Corner { corner } => write!(
+                f,
+                "the moved surface meets the neighbour only at {corner} of its window, a point \
+                 rather than an edge"
+            ),
             Self::Unsupported { what } => f.write_str(what),
         }
     }
@@ -727,9 +749,11 @@ const NEWTON_STEPS: usize = 24;
 /// **The plane × spline-wall section** through `old`'s middle: the
 /// wall's exact row where the plane cuts the wall along one (every
 /// control row level in the plane's normal, the case of a loft between
-/// parallel sections), otherwise [`geom_brep::PlaneSection`]'s branch at
-/// that point, the one whose certified chart tube holds where the middle
-/// settles.
+/// parallel sections), otherwise what [`geom_brep::PlaneSection`] reads
+/// at that point: the branch whose certified chart tube holds where the
+/// middle settles, or the wall's boundary row where a `Side` region
+/// holds it (the plane holds that row within the band). A `Corner`
+/// region is a point, and refuses.
 fn plane_wall_section(
     plane: &Surface<f64>,
     wall: &NurbsSurface<f64>,
@@ -762,18 +786,56 @@ fn plane_wall_section(
                 extent,
                 floor_scale: 1.0,
             };
-            match geom_brep::PlaneSection::of(plane, wall, domain, band)
-                .and_then(|mut s| s.branch_at(mid).map(|branch| branch.carrier.clone()))
-            {
-                Ok(Curve3::Nurbs(c)) => (*c).clone(),
-                Ok(_) => {
-                    unreachable!("an `SsiBranch`'s carrier is a fitted `Curve3::Nurbs` (C1 rung 3)")
-                }
+            let mut section = match geom_brep::PlaneSection::of(plane, wall, domain, band) {
+                Ok(s) => s,
                 Err(e) => return Ok(Err(SectionVerdict::Ssi(e))),
+            };
+            match section.branch_at(mid) {
+                Ok(SectionReading::Branch(branch)) => branch_carrier(branch),
+                Ok(SectionReading::Region(SsiBoundaryContact::Side { side, .. })) => {
+                    let (lo, hi) = match side.fixed {
+                        ChartAxis::U => wall.knots_u().domain(),
+                        ChartAxis::V => wall.knots_v().domain(),
+                    };
+                    let at = if side.end == ChartEnd::High { hi } else { lo };
+                    match wall_row(wall, side.fixed, at) {
+                        Some(row) => row,
+                        None => {
+                            return Ok(Err(SectionVerdict::Unsupported {
+                                what: "the moved plane holds a boundary row of a wall whose \
+                                       weights do not factor, which is no exact row",
+                            }));
+                        }
+                    }
+                }
+                Ok(SectionReading::Region(SsiBoundaryContact::Corner { corner, .. })) => {
+                    return Ok(Err(SectionVerdict::Corner { corner: *corner }));
+                }
+                Err(e) => return Ok(Err(seeded(e))),
             }
         }
     };
     running_as(carrier, (mid, tangent), band)
+}
+
+/// A refusal of the section traced from the old edge's middle, as the
+/// door reports it. A middle that settles onto the section outside the
+/// neighbour's window is the moved surface no longer meeting the
+/// neighbour there, which the exact-row reading reports as
+/// [`SectionVerdict::NoBranch`] too; any other refusal is the trace's.
+fn seeded(e: SsiError) -> SectionVerdict {
+    match e {
+        SsiError::SeedOffDomain { .. } => SectionVerdict::NoBranch,
+        e => SectionVerdict::FromMiddle(e),
+    }
+}
+
+/// A certified branch's carrier.
+fn branch_carrier(branch: &geom_brep::SsiBranch) -> NurbsCurve3<f64> {
+    let Curve3::Nurbs(c) = &branch.carrier else {
+        unreachable!("an `SsiBranch`'s carrier is a fitted `Curve3::Nurbs` (C1 rung 3)")
+    };
+    (**c).clone()
 }
 
 /// `carrier` in the old carrier's sense, read where it passes nearest
@@ -821,20 +883,21 @@ fn pair_section(
         extent,
         floor_scale: 1.0,
     };
-    let carrier = match geom_brep::Section::of(a, b, domain, band)
-        .and_then(|mut s| s.branch_at(mid).map(|branch| branch.carrier.clone()))
-    {
-        Ok(Curve3::Nurbs(c)) => (*c).clone(),
-        Ok(_) => unreachable!("an `SsiBranch`'s carrier is a fitted `Curve3::Nurbs` (C1 rung 3)"),
+    let mut section = match geom_brep::Section::of(a, b, domain, band) {
+        Ok(s) => s,
         Err(e) => return Ok(Err(SectionVerdict::Ssi(e))),
+    };
+    let carrier = match section.branch_at(mid) {
+        Ok(branch) => branch_carrier(branch),
+        Err(e) => return Ok(Err(seeded(e))),
     };
     running_as(carrier, (mid, tangent), band)
 }
 
 /// The parameter of `c`'s sample nearest `p` on a fixed schedule, and
-/// its distance: which branch an old edge's middle is beside, and the
-/// sense there, are coarse questions a schedule answers without a
-/// projection that may not settle.
+/// its distance: where a section passes beside the old edge's middle,
+/// at which its sense is read, is a coarse question a schedule answers
+/// without a projection that may not settle.
 fn nearest_sample(c: &NurbsCurve3<f64>, p: Point3<f64>) -> (f64, f64) {
     const SAMPLES: u32 = 64;
     let (lo, hi) = c.domain();
@@ -856,11 +919,11 @@ fn level_row(
     extent: f64,
     band: Band,
 ) -> Result<Option<Result<NurbsCurve3<f64>, SectionVerdict>>, Indeterminate> {
-    // Rows of the transpose are columns here: `transposed()` puts the
-    // row's own axis first, so `interior_iso_u` of it is the row.
-    for (net, cross) in [
-        (wall.clone(), wall.transposed()),
-        (wall.transposed(), wall.clone()),
+    // A net whose height depends on its `v` alone holds the plane along
+    // a row of fixed `v`: the wall's own rows first, then its columns.
+    for (net, fixed) in [
+        (wall.clone(), ChartAxis::V),
+        (wall.transposed(), ChartAxis::U),
     ] {
         let (nu, nv) = net.control_counts();
         let ctl = net.control();
@@ -933,9 +996,22 @@ fn level_row(
         let v = bisect(&column, origin, normal, root.bracket);
         // A row whose weights vary along both parameters is not exact
         // structure; the march states the section instead.
-        return Ok(geom_brep::interior_iso_u(&cross, v).ok().map(Ok));
+        return Ok(wall_row(wall, fixed, v).map(Ok));
     }
     Ok(None)
+}
+
+/// The wall's row where the parameter `fixed` holds `at`, extracted
+/// exactly (`None` where the wall's weights do not factor, so no row of
+/// it is exact structure).
+fn wall_row(wall: &NurbsSurface<f64>, fixed: ChartAxis, at: f64) -> Option<NurbsCurve3<f64>> {
+    // `transposed()` puts the `v` axis first, so `interior_iso_u` of it
+    // is the row of fixed `v`.
+    match fixed {
+        ChartAxis::U => geom_brep::interior_iso_u(wall, at),
+        ChartAxis::V => geom_brep::interior_iso_u(&wall.transposed(), at),
+    }
+    .ok()
 }
 
 /// The plane distance's root inside `bracket`, to the last bit.
@@ -1146,5 +1222,88 @@ mod holds {
                 "e = {e}"
             );
         }
+    }
+}
+
+/// The plane × spline-wall door where the old edge's middle settles in a
+/// region the boundary pass reports.
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod regions {
+    use super::{SectionVerdict, plane_wall_section, wall_row};
+    use geom::{Curve3, NurbsSurface, Surface};
+    use geom_brep::ssi::ChartAxis;
+    use geom_core::spline::KnotVector;
+    use geom_core::{Band, Point3, Tol, Vec3};
+    use std::sync::Arc;
+
+    /// A biquadratic over `[0, 1]²` whose height is `z(i, j)` at control
+    /// point `(i, j)`.
+    fn net(z: &dyn Fn(usize, usize) -> f64) -> NurbsSurface<f64> {
+        let k = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).expect("clamped");
+        let control = (0..9)
+            .map(|n| {
+                let (i, j) = (n / 3, n % 3);
+                Point3::new(0.5 * i as f64, 0.5 * j as f64, z(i, j))
+            })
+            .collect();
+        NurbsSurface::new(k.clone(), k, control, vec![1.0; 9]).expect("a biquadratic")
+    }
+
+    fn ground() -> Surface<f64> {
+        Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        }
+    }
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).expect("the witness band")
+    }
+
+    /// **A plane holding a wall's boundary row is that row.** The wall
+    /// rises from `z = 0` along its bottom row and leans along its others,
+    /// so no row is level and the march reads the section; the old edge
+    /// is that bottom row. Its middle settles in the pass's `Side`
+    /// region, and the edge is the wall's exact bottom row, as
+    /// `level_row` extracts a row. Red if the region refuses.
+    #[test]
+    fn a_side_region_is_the_walls_boundary_row() {
+        let wall = net(&|i, j| (0.5 + 0.2 * i as f64) * j as f64);
+        let row = geom_brep::boundary_iso_v(&wall, false).expect("the bottom row");
+        let span = row.domain();
+        let old = Curve3::Nurbs(Arc::new(row));
+        let carrier = match plane_wall_section(&ground(), &wall, &old, span, 1.0, band()) {
+            Ok(Ok(c)) => c,
+            other => panic!("the bottom row is the section, got {other:?}"),
+        };
+        let exact = wall_row(&wall, ChartAxis::V, 0.0).expect("an exact row");
+        let xyz = |c: &geom::NurbsCurve3<f64>| -> Vec<[f64; 3]> {
+            c.control().iter().map(|p| [p.x, p.y, p.z]).collect()
+        };
+        assert_eq!(
+            xyz(&carrier),
+            xyz(&exact),
+            "the edge is the wall's exact bottom row"
+        );
+    }
+
+    /// **A plane meeting a wall at a corner only refuses by the corner.**
+    /// The tilted wall `z = x + y` meets `z = 0` at its corner `(0, 0)`
+    /// alone, and an old edge through that corner settles in the pass's
+    /// `Corner` region: a point, which no edge carries.
+    #[test]
+    fn a_corner_region_refuses_by_the_corner() {
+        let wall = net(&|i, j| 0.5 * (i + j) as f64);
+        let old = Curve3::Line {
+            origin: Point3::origin(),
+            dir: Vec3::new(1.0, -1.0, 0.0) / 2.0_f64.sqrt(),
+        };
+        let got = plane_wall_section(&ground(), &wall, &old, (-0.1, 0.1), 1.0, band());
+        assert!(
+            matches!(got, Ok(Err(SectionVerdict::Corner { .. }))),
+            "expected the corner's refusal, got {got:?}"
+        );
     }
 }

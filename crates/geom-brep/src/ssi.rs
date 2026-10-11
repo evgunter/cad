@@ -158,7 +158,7 @@ pub use march::{
     STEP_BOUND_MINORITY, SettlingRefusal, StepBound, StepCap, StepFault, StepperMode,
 };
 pub use pair::Section;
-pub use plane::PlaneSection;
+pub use plane::{PlaneSection, SectionReading};
 pub use refine::{RefineStop, RefusedRound, ResidualTrend, RoundMargin};
 pub use section::{BandVerdict, BoundarySection, SectionRoot, boundary_section};
 
@@ -713,13 +713,6 @@ pub enum SsiError {
         /// The settled seed, `(u₁, v₁, u₂, v₂)`.
         state: [f64; 4],
     },
-    /// The seed [`PlaneSection::branch_at`] settled lies in a `Side` or
-    /// `Corner` region the boundary pass reported: the section there
-    /// runs along or touches the wall's boundary, and is no branch.
-    SeedInRegion {
-        /// The settled seed, `(plane u, plane v, wall u, wall v)`.
-        state: [f64; 4],
-    },
     /// A NURBS operand's chart cannot carry a length in metres into its
     /// parameters: a chart speed along one axis is zero or has no finite
     /// bound, or the chart is constant across the traced locus. Refused
@@ -1192,11 +1185,6 @@ impl core::fmt::Display for SsiError {
                 "ssi: the branch certified from the seed settled at {state:?} does not hold it \
                  in its uniqueness tube"
             ),
-            Self::SeedInRegion { state } => write!(
-                f,
-                "ssi: the seed settled at {state:?} lies in a side or corner region of the \
-                 wall's boundary, where the section is no branch"
-            ),
             Self::ChartSpeed(r) => write!(f, "ssi: {}", r.what()),
             Self::TubeDegenerate(d) => write!(f, "ssi: {}", d.what()),
             Self::WrongLane { expected } => write!(
@@ -1453,7 +1441,6 @@ impl SsiError {
             Self::ChartRow { .. } => defect_ending(reading).to_owned(),
             Self::PairBoundaryUnresolved { .. } => PAIR_BOUNDARY_RECOURSE.to_owned(),
             Self::SeedOutsideTube { .. } => SEED_RECOURSE.to_owned(),
-            Self::SeedInRegion { .. } => REGION_SEED_RECOURSE.to_owned(),
             // Limb 1 with no residual to state: its own decision.
             Self::FootPointInconclusive { .. } => crate::certify::recourse(
                 SsiLimb::OnLocus.check(),
@@ -2039,11 +2026,6 @@ const PAIR_BOUNDARY_RECOURSE: &str = "Recourse: move either surface so the secti
 /// [`SsiError::SeedRefinementFailed`]'s and [`SsiError::SeedOutsideTube`]'s
 /// ending, at the doors whose caller names the seed.
 const SEED_RECOURSE: &str = "Recourse: seed the trace at a point nearer where the surfaces meet";
-
-/// [`SsiError::SeedInRegion`]'s ending: the whole section reports the
-/// region as a boundary contact.
-const REGION_SEED_RECOURSE: &str = "Recourse: read the whole section, whose boundary contacts \
-     report the region, or seed the trace at a point away from the wall's side";
 
 /// [`SsiError::SeedOffDomain`]'s ending, at the doors whose caller names
 /// the seed: the seed settled definitely outside the march domain.
@@ -3544,11 +3526,6 @@ mod ending_tests {
             ),
             ("seed", super::SEED_RECOURSE, super::SEED_RECOURSE),
             (
-                "seed in region",
-                super::REGION_SEED_RECOURSE,
-                super::REGION_SEED_RECOURSE,
-            ),
-            (
                 "seed off domain",
                 super::SEED_OFF_DOMAIN_RECOURSE,
                 super::SEED_OFF_DOMAIN_RECOURSE,
@@ -3708,7 +3685,7 @@ mod ending_tests {
     }
 
     /// How many arms [`SsiError`] has: [`arm`]'s numbering.
-    const ARMS: usize = 45;
+    const ARMS: usize = 44;
 
     /// Each arm's number. No wildcard: a new arm does not compile until
     /// it is numbered, and [`each_ssi_ending_is_its_decisions`] then
@@ -3759,7 +3736,6 @@ mod ending_tests {
             SsiError::ChartRow { .. } => 41,
             SsiError::PairBoundaryUnresolved { .. } => 42,
             SsiError::SeedOutsideTube { .. } => 43,
-            SsiError::SeedInRegion { .. } => 44,
         }
     }
 
@@ -4201,12 +4177,6 @@ mod ending_tests {
                 "seed outside tube",
                 SsiError::SeedOutsideTube {
                     state: [0.25, 0.5, 0.75, 0.5],
-                },
-            ),
-            (
-                "seed in region",
-                SsiError::SeedInRegion {
-                    state: [0.25, 0.5, 0.0, 0.5],
                 },
             ),
             (

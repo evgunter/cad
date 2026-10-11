@@ -10,35 +10,29 @@
 //! crossings or regions. Its two readings are one contract, as on the
 //! NURBS × NURBS lane ([`super::Section`]):
 //!
-//! - [`PlaneSection::branch_at`] answers the branch through a seed: a
-//!   seed that settles into a tube already certified is that branch; one
-//!   that settles into a `Side` or `Corner` region the pass reported is
-//!   no branch and refuses ([`SsiError::SeedInRegion`]); any other is
-//!   traced to the crossings it reaches, fitted, refined and certified,
-//!   and the answer is the branch whose certified chart tube holds the
-//!   settled seed. What is proved is that the answer is the branch
-//!   through the point Newton settled on, not that this is the branch
-//!   nearest the seed.
+//! - [`PlaneSection::branch_at`] answers what holds a seed: a seed that
+//!   settles into a tube already certified is that branch; one that
+//!   settles into a `Side` or `Corner` region the pass reported is that
+//!   region; any other is traced to the crossings it reaches, fitted,
+//!   refined and certified, and the answer is the branch whose certified
+//!   chart tube holds the settled seed. What is proved is that the answer
+//!   holds the point Newton settled on, not that it is the piece of the
+//!   section nearest the seed (`super::handle`'s one unproven step).
 //! - [`PlaneSection::all`] answers every branch: each open branch
 //!   between crossings, each closed loop from the chart lane's seeds, the
 //!   pass's regions, and the accounting that every cell of the wall's
 //!   rectangle is excluded, in a tube, or in a region. Exhaustiveness is
 //!   `all`'s obligation.
-//!
-//! **One unproven step**, as on the NURBS × NURBS lane: Newton's
-//! convergence from a seed to the component nearest it is not proved,
-//! the branch is traced through the settled state so its tube holds it
-//! ([`SsiError::SeedOutsideTube`] guards the trace and the certificate,
-//! not the selection), and no distance gate refuses a far seed. The
-//! backstops sit with the caller.
+
+use std::cell::OnceCell;
 
 use geom::{NurbsSurface, Surface};
 use geom_core::{Band, Point3, Vec3};
 
-use super::boundary::{self, BoundaryPass};
+use super::boundary::{self, BoundaryPass, SsiBoundaryContact};
 use super::ends::Ends;
 use super::exhaust::{self, FloorKind, SweepFloor, UvRect};
-use super::handle::{Banked, TubeCell, foot};
+use super::handle::{Banked, TubeCell, foot, passed};
 use super::march::{MarchContext, MarchTol};
 use super::system::{Chart, ParametricPairR4};
 use super::{
@@ -46,46 +40,81 @@ use super::{
     boundary_pass, branch_chart_tubes, finite_net, finite_operand, spline_readout, window_reach,
 };
 
-/// **The section of a plane and a NURBS wall** (module docs): the
-/// operands checked, the boundary pass run once, and every branch
-/// certified so far.
-pub struct PlaneSection<'a> {
+/// **What holds a seed** ([`PlaneSection::branch_at`]): the branch
+/// through it, or the boundary region it settled in.
+#[derive(Clone, Copy, Debug)]
+pub enum SectionReading<'s> {
+    /// The certified branch whose tube holds the settled seed.
+    Branch(&'s SsiBranch),
+    /// The `Side` or `Corner` region the boundary pass reported that
+    /// holds the settled seed: the section there runs along a side of
+    /// the wall's rectangle, or leaves it at a corner, within the band.
+    Region(&'s SsiBoundaryContact),
+}
+
+/// What the section is read over: the operands, their charts and the
+/// march, fixed by [`PlaneSection::of`].
+struct Lane<'a> {
     plane: &'a Surface<f64>,
     /// The plane's origin, its unit normal, and its chart's two axes.
     frame: (Point3<f64>, Vec3<f64>, Vec3<f64>, Vec3<f64>),
     wall: ChartedNurbs<'a, f64>,
+    wall_op: SsiOperand<'a, f64>,
     sys: ParametricPairR4<'a>,
     ctx: MarchContext<4>,
     domain: SsiDomain,
     band: Band,
     seed_floor: SweepFloor<UvRect>,
     account_floor: SweepFloor<UvRect>,
-    /// The boundary pass, once it has run.
-    pass: Option<BoundaryPass>,
+}
+
+impl Lane<'_> {
+    /// The ends' reader over this lane.
+    fn ends(&self) -> Ends<'_> {
+        Ends::of(&self.sys, self.ctx, self.plane, &self.wall_op, self.band)
+    }
+
+    /// The state of the wall's point `p` at `(u, v)`: `p`'s coordinates
+    /// on the plane's chart, then the wall's.
+    fn state(&self, p: Point3<f64>, (u, v): (f64, f64)) -> [f64; 4] {
+        let (origin, _, u_ref, v_ref) = self.frame;
+        let q = p - origin;
+        [q.dot(u_ref), q.dot(v_ref), u, v]
+    }
+
+    /// The boundary pass (C3).
+    fn pass(&self) -> Result<BoundaryPass, SsiError> {
+        boundary_pass(
+            self.wall.surface(),
+            &self.wall,
+            self.plane,
+            &self.sys,
+            self.ctx.tol,
+            &self.domain,
+            self.band,
+        )
+    }
+}
+
+/// **The section of a plane and a NURBS wall** (module docs): the
+/// operands checked, the boundary pass run once, and every branch
+/// certified so far.
+pub struct PlaneSection<'a> {
+    lane: Lane<'a>,
+    /// The boundary pass, once a reading has run it.
+    pass: OnceCell<BoundaryPass>,
     banked: Banked<UvRect>,
 }
 
 impl core::fmt::Debug for PlaneSection<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let Self {
-            plane,
-            frame: _,
-            wall: _,
-            sys: _,
-            ctx: _,
-            domain,
-            band,
-            seed_floor: _,
-            account_floor: _,
-            pass,
-            banked,
-        } = self;
+        let Self { lane, pass, banked } = self;
         f.debug_struct("PlaneSection")
-            .field("plane", plane)
-            .field("domain", domain)
-            .field("band", band)
-            .field("crossings", &pass.as_ref().map(|p| p.crossings.len()))
-            .field("regions", &pass.as_ref().map(|p| p.contacts.len()))
+            .field("plane", lane.plane)
+            .field("domain", &lane.domain)
+            .field("band", &lane.band)
+            .field("crossings", &pass.get().map(|p| p.crossings.len()))
+            .field("regions", &pass.get().map(|p| p.contacts.len()))
             .field("branches", &banked.branches.len())
             .finish_non_exhaustive()
     }
@@ -182,45 +211,29 @@ impl<'a> PlaneSection<'a> {
             spent: Default::default(),
         };
         Ok(Self {
-            plane,
-            frame: (p0, normal, u_ref, normal.cross(u_ref)),
-            wall: charted,
-            sys,
-            ctx,
-            domain,
-            band,
-            seed_floor,
-            account_floor,
-            pass: None,
+            lane: Lane {
+                plane,
+                frame: (p0, normal, u_ref, normal.cross(u_ref)),
+                wall: charted,
+                wall_op: SsiOperand::Nurbs(charted),
+                sys,
+                ctx,
+                domain,
+                band,
+                seed_floor,
+                account_floor,
+            },
+            pass: OnceCell::new(),
             banked: Banked::new(branch_chart_tubes),
         })
     }
 
-    /// The boundary pass (C3), the pass run here if no reading has run
-    /// it yet.
-    fn pass(&mut self) -> Result<BoundaryPass, SsiError> {
-        if let Some(p) = &self.pass {
-            return Ok(p.clone());
-        }
-        let p = boundary_pass(
-            self.wall.surface(),
-            &self.wall,
-            self.plane,
-            &self.sys,
-            self.ctx.tol,
-            &self.domain,
-            self.band,
-        )?;
-        self.pass = Some(p.clone());
-        Ok(p)
-    }
-
-    /// **The branch through `seed`** (module docs). The seed is a point
-    /// in space; its feet on the plane's chart and the wall's, settled
-    /// onto the section by Newton, are the state the answer is selected
-    /// by. The answer is the branch through that settled state, wherever
-    /// Newton took it: that it is the component nearest the seed is not
-    /// proved, and no distance from the seed is refused.
+    /// **What holds `seed`** (module docs). The seed is a point in space;
+    /// its feet on the plane's chart and the wall's, settled onto the
+    /// section by Newton, are the state the answer is selected by. The
+    /// answer holds that settled state, wherever Newton took it: that it
+    /// is the piece of the section nearest the seed is not proved, and no
+    /// distance from the seed is refused.
     ///
     /// # Errors
     ///
@@ -229,31 +242,23 @@ impl<'a> PlaneSection<'a> {
     /// not settle onto the section, [`SsiError::SeedOffDomain`] when it
     /// settles outside the wall's rectangle, the transversality decision
     /// at the settled state ([`SsiError::TransversalityBand`] where the
-    /// plane is tangent to the wall there), the boundary pass's,
-    /// [`SsiError::SeedInRegion`] where a region the pass reported holds
-    /// the settled state, any refusal of the trace, the fit or the
-    /// certificate, and [`SsiError::SeedOutsideTube`] where the certified
-    /// branch's tube does not hold the settled state (a trace or
-    /// certificate fault; it does not detect a seed settled onto another
-    /// component).
-    pub fn branch_at(&mut self, seed: Point3<f64>) -> Result<&SsiBranch, SsiError> {
-        let (origin, _, u_ref, v_ref) = self.frame;
-        let q = seed - origin;
-        let (u, v) = foot(self.wall.surface(), seed)?;
-        let start = [q.dot(u_ref), q.dot(v_ref), u, v];
-        let wall_op = SsiOperand::Nurbs(self.wall);
-        let ends = Ends::of(&self.sys, self.ctx, self.plane, &wall_op, self.band);
-        let x = ends.settle(start)?;
+    /// plane is tangent to the wall there), the boundary pass's, any
+    /// refusal of the trace, the fit or the certificate, and
+    /// [`SsiError::SeedOutsideTube`] where the certified branch's tube
+    /// does not hold the settled state (a trace or certificate fault; it
+    /// does not detect a seed settled onto another component).
+    pub fn branch_at(&mut self, seed: Point3<f64>) -> Result<SectionReading<'_>, SsiError> {
+        let start = self.lane.state(seed, foot(self.lane.wall.surface(), seed)?);
+        let x = self.lane.ends().settle(start)?;
         if let Some(i) = self.banked.holding(&x) {
-            return Ok(&self.banked.branches[i]);
+            return Ok(SectionReading::Branch(&self.banked.branches[i]));
         }
-        let pass = self.pass()?;
-        if pass.regions.iter().any(|r| r.holds(&x)) {
-            return Err(SsiError::SeedInRegion { state: x });
+        let pass = passed(&self.pass, || self.lane.pass())?;
+        if let Some(i) = pass.regions.iter().position(|r| r.holds_state(&x)) {
+            return Ok(SectionReading::Region(&pass.contacts[i]));
         }
-        let ends = Ends::of(&self.sys, self.ctx, self.plane, &wall_op, self.band);
-        let i = self.banked.through(&ends, x, &pass.crossings)?;
-        Ok(&self.banked.branches[i])
+        let i = self.banked.through(&self.lane.ends(), x, &pass.crossings)?;
+        Ok(SectionReading::Branch(&self.banked.branches[i]))
     }
 
     /// **Every branch, and the proof they are all of them** (module
@@ -273,26 +278,24 @@ impl<'a> PlaneSection<'a> {
     /// accounting's ([`SsiError::ExhaustivenessInconclusive`],
     /// [`SsiError::CellBudget`]).
     pub fn all(mut self) -> Result<SsiOutcome, SsiError> {
-        let pass = self.pass()?;
-        let (origin, normal, u_ref, v_ref) = self.frame;
-        let wall = self.wall.surface();
-        let seeds = exhaust::seed_chart_plane(wall, origin, normal, self.seed_floor)?;
+        let lane = &self.lane;
+        let pass = passed(&self.pass, || lane.pass())?;
+        let (origin, normal, ..) = lane.frame;
+        let wall = lane.wall.surface();
+        let seeds = exhaust::seed_chart_plane(wall, origin, normal, lane.seed_floor)?;
         #[allow(clippy::cast_possible_truncation)]
         let seed_count = seeds.len() as u32;
 
-        let wall_op = SsiOperand::Nurbs(self.wall);
-        let ends = Ends::of(&self.sys, self.ctx, self.plane, &wall_op, self.band);
+        let ends = lane.ends();
         // ---- the open branches, between the crossings not yet ended ----
-        let open = self.banked.open(pass.crossings);
-        for branch in ends.branches(&open)? {
+        for branch in ends.branches(&self.banked.open(&pass.crossings))? {
             self.banked.bank(branch);
         }
 
         // ---- the closed loops, from the subdivision's seeds ----
-        let states = seeds.iter().map(|&(u, v)| {
-            let q = wall.eval(u, v) - origin;
-            [q.dot(u_ref), q.dot(v_ref), u, v]
-        });
+        let states = seeds
+            .iter()
+            .map(|&uv| lane.state(wall.eval(uv.0, uv.1), uv));
         self.banked.closed_loops(&ends, states, &pass.regions)?;
 
         let tubes: Vec<UvRect> = self.banked.tubes.iter().flatten().copied().collect();
@@ -303,11 +306,11 @@ impl<'a> PlaneSection<'a> {
             &tubes,
             &pass.regions,
             &pass.clear,
-            self.account_floor,
+            lane.account_floor,
         )?;
         Ok(SsiOutcome {
             branches: self.banked.branches,
-            boundary: pass.contacts,
+            boundary: pass.contacts.clone(),
             exhaustiveness,
             seeds: seed_count,
         })
@@ -321,9 +324,9 @@ mod tests {
     use geom_core::spline::KnotVector;
     use geom_core::{Band, Point3, Vec3};
 
-    use super::PlaneSection;
+    use super::{PlaneSection, SectionReading};
     use crate::ssi::handle::TubeCell;
-    use crate::ssi::{SsiDomain, SsiError};
+    use crate::ssi::{ChartAxis, ChartEnd, SsiBoundaryContact, SsiDomain};
 
     /// A biquadratic over `[0, 1]²` whose height is `z(i, j)` at control
     /// point `(i, j)`.
@@ -372,10 +375,12 @@ mod tests {
         let mut section = PlaneSection::of(&plane, &wall, domain(), band()).unwrap();
         let r = 0.1_f64.sqrt();
         for x in [0.5 - r, 0.5 + r] {
-            let mid = section
-                .branch_at(Point3::new(x + 1e-3, 0.4, 0.1))
-                .unwrap()
-                .witness;
+            let SectionReading::Branch(branch) =
+                section.branch_at(Point3::new(x + 1e-3, 0.4, 0.1)).unwrap()
+            else {
+                panic!("the seed beside x = {x} settles on a branch");
+            };
+            let mid = branch.witness;
             assert!(
                 (mid.x - x).abs() < 1e-6,
                 "the branch at x = {x} passes {mid:?}"
@@ -386,7 +391,7 @@ mod tests {
             let tube = &section.banked.tubes[i];
             let state = [x - 0.5, 0.2, x, 0.7];
             assert!(
-                tube.iter().any(|c| c.holds(&state)),
+                tube.iter().any(|c| c.holds_state(&state)),
                 "branch {i}'s tube holds the section at x = {x}"
             );
         }
@@ -401,17 +406,39 @@ mod tests {
         assert!(out.exhaustiveness.accounted > 0, "{}", out.exhaustiveness);
     }
 
-    /// **A seed a side region holds is no branch.** The plane `z = 0`
-    /// holds the bottom row of a wall rising from it, which the boundary
-    /// pass reports as a `Side` region; a seed on that row settles in the
-    /// region and refuses by it.
+    /// **A seed a side region holds is answered by the region.** The
+    /// plane `z = 0` holds the bottom row of a wall rising from it, which
+    /// the boundary pass reports as a `Side` region; a seed on that row
+    /// settles in the region, and the region is the answer.
     #[test]
-    fn a_seed_in_a_side_region_refuses() {
+    fn a_seed_in_a_side_region_is_answered_by_it() {
         let (plane, wall) = (level(0.0), net(&|_, j| 0.5 * j as f64));
         let mut section = PlaneSection::of(&plane, &wall, domain(), band()).unwrap();
-        let e = section
-            .branch_at(Point3::new(0.5, 0.0, 0.0))
-            .expect_err("the bottom row is a region");
-        assert!(matches!(e, SsiError::SeedInRegion { .. }), "{e:?}");
+        let reading = section.branch_at(Point3::new(0.5, 0.0, 0.0)).unwrap();
+        let SectionReading::Region(SsiBoundaryContact::Side { side, .. }) = reading else {
+            panic!("the bottom row is a side region, got {reading:?}");
+        };
+        assert_eq!(
+            (side.fixed, side.end),
+            (ChartAxis::V, ChartEnd::Low),
+            "the region is the bottom row"
+        );
+    }
+
+    /// **A seed a corner region holds is answered by the corner.** The
+    /// plane `z = 0` meets the tilted wall `z = x + y` only at its corner
+    /// `(0, 0)`; a seed there settles in the corner region.
+    #[test]
+    fn a_seed_in_a_corner_region_is_answered_by_it() {
+        let (plane, wall) = (level(0.0), net(&|i, j| 0.5 * (i + j) as f64));
+        let mut section = PlaneSection::of(&plane, &wall, domain(), band()).unwrap();
+        let reading = section.branch_at(Point3::new(0.0, 0.0, 0.0)).unwrap();
+        assert!(
+            matches!(
+                reading,
+                SectionReading::Region(SsiBoundaryContact::Corner { .. })
+            ),
+            "the wall meets the plane at its corner, got {reading:?}"
+        );
     }
 }

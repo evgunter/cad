@@ -36,20 +36,32 @@ door's refusals (`encl_curved_loft_shell`, `offd_r1_probes`).
 The plane × NURBS door has the handle Ev's ruling asks for:
 `geom_brep::ssi::PlaneSection` (`ssi/plane.rs`), `of`, `branch_at` and
 `all` under the NURBS × NURBS handle's contract, the boundary pass run
-once per handle at the first reading that needs it. `plane_nurbs_ssi`
-is `PlaneSection::of(..)?.all()`, and `offset_derive::plane_wall_section`
-calls `branch_at` at the old edge's middle: the answer is the branch
-whose certified chart tube holds where the middle settles. The rules
+once per handle at the first reading that needs it. `branch_at`
+answers what holds the settled seed (`SectionReading`): the branch
+whose certified chart tube holds it, or the `Side` or `Corner` region
+the pass reported. `plane_nurbs_ssi` is `PlaneSection::of(..)?.all()`.
+`offset_derive::plane_wall_section` calls `branch_at` at the old edge's
+middle:
+- a branch is the edge's carrier;
+- a `Side` region is the wall's boundary row there, extracted as
+  `level_row` extracts a row (`wall_row`);
+- a `Corner` region refuses `SectionVerdict::Corner`.
+
+Both seeded doors report a middle that settles outside the neighbour's
+window as `NoBranch`, the exact-row reading's verdict for the same
+cause, and any other refusal of the trace as `FromMiddle`. The rules
 the two handles share (settling a seed, the branch through it and its
 tube check, the crossings a branch already ends at, the closed loops
-from the seeds) are one module, `ssi/handle.rs`, which `pair.rs` now
-reads too. A seed a `Side` or `Corner` region holds is no branch and
-refuses `SsiError::SeedInRegion`.
+from the seeds, the lazily run pass) are one module, `ssi/handle.rs`.
 
 `all()`'s outcomes and bits are unchanged (a merge-base differential of
 every `plane_nurbs_ssi` call geom-brep's suite makes, at 1e-9, 1e-6
-and 1e-12). The door's rows that moved are `offd_r1_probes`'s: where
-the old rim's middle settles onto the plane × fit section outside the
-fit's window the door now refuses `SeedOffDomain`, where nearest-sample
-selection read `NoBranch` (no branch at all) or derived a partial
-branch that never reached the middle.
+and 1e-12). The door rows that moved:
+- At 1e-12, `offd_r1_probes`'s loft rims now refuse `NoBranch`.
+  Nearest-sample selection had derived the bottom rim from a partial
+  branch that never reached the old middle, and refused the top rim on
+  another branch's tube (`TubeNotOneArc`).
+- The pair door's seam verdicts (`common::approx::assert_seam_verdict`)
+  read `FromMiddle`, and `NoBranch` where they read `SeedOffDomain`.
+
+Filed: `work/ssiedge/all-depends-on-the-branch-at-calls-before-it.md`.

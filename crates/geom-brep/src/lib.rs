@@ -170,10 +170,10 @@ pub use ssi::{
     BandVerdict, BoundaryChart, BoundaryPoint, BoundarySection, ChartAxis, ChartCorner, ChartEnd,
     ChartSide, ChartSpeedRefusal, ChartedNurbs, DomainField, ExhaustLane, Exhaustiveness,
     ExhaustivenessRefusal, FloorFault, FloorKind, FloorRefusal, PlaneSection, ReachBound,
-    SSI_FIT_DEGREE, SSI_FLOOR, SSI_MAX_STEPS, Section, SectionRoot, SettlingRefusal,
-    SsiBoundaryContact, SsiBranch, SsiCertificate, SsiDomain, SsiError, SsiLimb, SsiOperand,
-    SsiOutcome, SsiTube, StepFault, StepperMode, TraceDecision, TubeDegeneracy, boundary_section,
-    certify_rung3, cylinder_sphere_ssi, idealized_trace_r3, plane_nurbs_ssi,
+    SSI_FIT_DEGREE, SSI_FLOOR, SSI_MAX_STEPS, Section, SectionReading, SectionRoot,
+    SettlingRefusal, SsiBoundaryContact, SsiBranch, SsiCertificate, SsiDomain, SsiError, SsiLimb,
+    SsiOperand, SsiOutcome, SsiTube, StepFault, StepperMode, TraceDecision, TubeDegeneracy,
+    boundary_section, certify_rung3, cylinder_sphere_ssi, idealized_trace_r3, plane_nurbs_ssi,
     trace_plane_nurbs_uncertified,
 };
 pub use tangent::{
