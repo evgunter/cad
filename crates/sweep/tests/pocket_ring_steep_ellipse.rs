@@ -701,3 +701,96 @@ fn steep_ellipse_poses_build_sound() {
         misses.join("\n")
     );
 }
+
+/// Review probe (flush/e-tail-review): every battery pose's built prism
+/// vertices against `prism_corners`, and the oracle's value, dumped for
+/// an independent integration.
+#[test]
+#[ignore = "review probe"]
+fn review_probe_prism_corners_dump() {
+    let site_sets: [[f64; 4]; 4] = [
+        [190.0, 195.0, 260.0, 90.0],
+        [200.0, 230.0, 300.0, 120.0],
+        [160.0, 175.0, 250.0, 60.0],
+        [225.0, 240.0, 320.0, 110.0],
+    ];
+    let mut poses = Vec::new();
+    for k in [0.5, 1.2, 2.0, 3.0, 5.0] {
+        for sites in site_sets {
+            for psi in [0.0, 1.1, 2.5, 4.0] {
+                for along in [true, false] {
+                    poses.push((k, sites, psi, along));
+                }
+            }
+        }
+    }
+    poses.push((6.0, [200.0, 230.0, 300.0, 120.0], 1.75, false));
+    poses.push((6.0, [225.0, 240.0, 320.0, 110.0], 1.658, false));
+    poses.push((6.0, [225.0, 240.0, 320.0, 110.0], 4.8, false));
+    poses.push((0.5, [200.0, 230.0, 300.0, 120.0], 0.0, false));
+    for (k, sites, psi, along) in poses {
+        let side = if along {
+            ExtrudeSide::Along
+        } else {
+            ExtrudeSide::Against
+        };
+        let pr = prism_turned(k, sites, 2.0, 1.5, side, psi);
+        let corners = prism_corners(k, sites, 2.0, 1.5, along, psi);
+        let pts: Vec<V3> = pr
+            .vertices()
+            .map(|(_, v)| {
+                let p = pr.get_point(v.point).unwrap();
+                Vec3::new(p.x, p.y, p.z)
+            })
+            .collect();
+        let worst = corners
+            .iter()
+            .map(|c| {
+                pts.iter()
+                    .map(|p| (*p - *c).norm())
+                    .fold(f64::INFINITY, f64::min)
+            })
+            .fold(0.0, f64::max);
+        let vi = prism_in_cylinder(&corners, (-8.0, 8.0));
+        let flat: Vec<String> = pts
+            .iter()
+            .map(|p| format!("{:.17e},{:.17e},{:.17e}", p.x, p.y, p.z))
+            .collect();
+        println!(
+            "PROBE k={k} sites={sites:?} psi={psi} along={along} nverts={} worst={worst:.3e} vi={vi:.15e} pts={}",
+            pts.len(),
+            flat.join(";")
+        );
+    }
+}
+
+/// Review probe: the far-brick union's refusal on a sample of the quad
+/// battery's built bodies.
+#[test]
+#[ignore = "review probe"]
+fn review_probe_steep_quad_operand_refusal() {
+    let base = cylinder(1.0, -8.0, 16.0);
+    let far = sweep::test_support::brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol());
+    let far = finished("far", far, tol());
+    let mut kinds = std::collections::BTreeMap::<String, usize>::new();
+    for k in [0.5, 2.0, 5.0] {
+        for sites in [[190.0, 195.0, 260.0, 90.0], [225.0, 240.0, 320.0, 110.0]] {
+            for psi in [0.0, 2.5] {
+                let pr = prism_turned(k, sites, 2.0, 1.5, ExtrudeSide::Along, psi);
+                for op in ["U", "S", "I"] {
+                    if let Ok(r) = door(op, &base, &pr)
+                        && let Some(bb) = r.body()
+                    {
+                        let line = match topo::union(&bb.body, &far, tol()) {
+                            Ok(_) => "unites".to_string(),
+                            Err(e) => format!("{e:?}").chars().take(60).collect(),
+                        };
+                        *kinds.entry(line.clone()).or_default() += 1;
+                        println!("OPND k={k} sites={sites:?} psi={psi} {op} => {line}");
+                    }
+                }
+            }
+        }
+    }
+    println!("{kinds:#?}");
+}

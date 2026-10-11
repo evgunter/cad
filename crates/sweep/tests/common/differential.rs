@@ -225,7 +225,7 @@ pub fn judged(
                         (
                             format!(
                                 "OK {verdict} t2={t2} t3p={t3} cert={cert} operand={operand} \
-                                 v={v:.9} {want_col}"
+                                 v={v:.9} {want_col} pad={pad:.3e}"
                             ),
                             Some(v),
                         )

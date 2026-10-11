@@ -356,6 +356,7 @@ fn a_face_through_two_vertices_on_one_point_tessellates() {
         if tol().eps() == 1e-6
             && let Some(&(_, predicate)) = REFUSES_AT_1E6.iter().find(|(t, _)| *t == tag)
         {
+            eprintln!("REVIEW_PINCH {tag}: {run:?}");
             let escalated = match &run {
                 Err(topo::BooleanError::Escalated { diag, .. }) => diag.predicate,
                 _ => None,

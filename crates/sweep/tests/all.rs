@@ -1072,5 +1072,7 @@ mod rest_zip_admission;
 mod letterform_intersects_in_every_order;
 #[path = "pole_ball_shells.rs"]
 mod pole_ball_shells;
+#[path = "review_noarm_fuzz.rs"]
+mod review_noarm_fuzz;
 #[path = "shell_curved_mouth.rs"]
 mod shell_curved_mouth;

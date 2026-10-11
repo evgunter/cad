@@ -916,7 +916,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
     let mut completed: Vec<UnresolvedPair> = Vec::new();
     let mut open = open_records(red)?;
 
-    for seg in &segments {
+    for (seg_i, seg) in segments.iter().enumerate() {
         let [(entry, entry_slot), (cand, cand_slot)] = seg.ends;
         let (ea, ra) = (open[entry].a[entry_slot].0.he, open[cand].a[cand_slot].0.he);
         let (eb, rb) = (open[entry].b[entry_slot].0.he, open[cand].b[cand_slot].0.he);
@@ -1027,6 +1027,19 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
             } else {
                 (Operand::A, &red.a, ea, &ga)
             };
+            let recorded = if matches!(ga, Sf::Plane { .. }) {
+                germ.b_face
+            } else {
+                germ.a_face
+            };
+            if std::env::var("REVIEW_NOARM").is_ok() {
+                eprintln!(
+                    "NOARM seg={seg_i}/{} recorded={recorded:?} now={:?} same={}",
+                    segments.len(),
+                    crate::chord_join::he_face(body, he),
+                    crate::chord_join::he_face(body, he).ok() == Some(recorded)
+                );
+            }
             match crate::chord_join::he_face(body, he) {
                 Ok(face) => BooleanError::CurvedBooleanUnsupported {
                     operand,
