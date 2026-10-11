@@ -2,11 +2,13 @@
 id: a-crown-touching-the-plane-along-one-edge-panics-at-the-section-spur-check
 kind: issue
 title: A crown whose ring touches the split plane at one corner panics at the join's section-spur check
-status: dispatched
+status: closed
 opened: 2026-10-10
 priority: P1
 cost: M
 branch: cleave/crown-spur-panic
+closed: 2026-10-11
+pr: 4622
 ---
 
 Found by the re-review fuzz of PR 4565, on main before it and on its
@@ -98,3 +100,12 @@ Pins, in `split_through_an_apex`:
   corners.
 
 All pass at the three ε.
+
+## Closed (PR 4622, 2026-10-11)
+
+Rule (b)'s reflex verdict leaves a strut on Below and a slit on Above.
+The join now kills every strut with `kev` before the section is
+recorded, and `plane_section` drops slits, straight or conic, from its
+outline, so the split and the query read one loop. An unpaired spur is
+D9 `unreachable!`. Pinned across crowns at 0, ±0.6ε and ±0.9ε, a
+boolean-built trench, and a curved keel, with outline corner counts.
