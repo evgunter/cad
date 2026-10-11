@@ -114,6 +114,21 @@ impl ContactClass {
 /// - [`Seam`](Self::Seam) — the pair lies on DISTINCT carriers tangent
 ///   along a curve with its senses ALIGNED: the two surfaces join G1,
 ///   material wedge π, and the zip mints the smooth seam.
+///
+/// **NOT carried to the façade's curated list, and that is a decision
+/// rather than an omission** (`scripts/payload-rung-sweep.py` names
+/// this rung under [`crate::BooleanError`]; the disposition table
+/// cites this paragraph as its home). It reaches a caller only inside
+/// a refusal's [`crate::DeclarationRead`], which says which glue a
+/// spent or read pair held; a Rust caller can already name and match
+/// it, since `pncad` re-exports `topo` whole. Carrying it would owe the
+/// CUR3 property row `carried_refusal_payloads_are_matchable_through_the_prelude`
+/// a new payload and the Python binding a word, and nothing a caller
+/// can do differs by the class: the recourse is the geometry's.
+///
+/// **The falsifier is a caller who must branch on the glue class a
+/// refusal names.** When one exists, the façade carries the class,
+/// and this paragraph and the disposition row go with it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum GlueClass {
     /// The pair is in contact, of this class.
