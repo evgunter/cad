@@ -20,8 +20,8 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    BooleanOp, BooleanValue, CancelToken, CapEnd, EvalOptions, Node, ProfileDoc, RecipeNodeId,
-    RoleSeg, SitedRef, ValuePayload, evaluate, load, save,
+    BooleanValue, CancelToken, CapEnd, EvalOptions, Node, ProfileDoc, RecipeNodeId, RoleSeg,
+    SitedRef, ValuePayload, evaluate, load, save,
 };
 use fixture::{fname, insert, len, on_frame, wall};
 use geom_core::Tol;
@@ -54,26 +54,27 @@ fn rest_doc() -> (ProfileDoc, RecipeNodeId) {
     // The author's intent, stated: the contact pair (A's end cap on
     // B's start cap, a `Rest`) plus the four flush wall pairs (the
     // same-plane sides the output stage merges — continuations).
+    let (ar, br) = (fixture::out(&doc, a), fixture::out(&doc, b));
     let rest = (
-        SitedRef::new(a, fname(a, RoleSeg::Cap(CapEnd::End))),
-        SitedRef::new(b, fname(b, RoleSeg::Cap(CapEnd::Start))),
+        SitedRef::new(ar, fname(a, RoleSeg::Cap(CapEnd::End))),
+        SitedRef::new(br, fname(b, RoleSeg::Cap(CapEnd::Start))),
     );
     let walls = vec![
         (
-            SitedRef::new(a, fname(a, wall(&doc, a, 0))),
-            SitedRef::new(b, fname(b, wall(&doc, b, 0))),
+            SitedRef::new(ar, fname(a, wall(&doc, a, 0))),
+            SitedRef::new(br, fname(b, wall(&doc, b, 0))),
         ),
         (
-            SitedRef::new(a, fname(a, wall(&doc, a, 1))),
-            SitedRef::new(b, fname(b, wall(&doc, b, 1))),
+            SitedRef::new(ar, fname(a, wall(&doc, a, 1))),
+            SitedRef::new(br, fname(b, wall(&doc, b, 1))),
         ),
         (
-            SitedRef::new(a, fname(a, wall(&doc, a, 2))),
-            SitedRef::new(b, fname(b, wall(&doc, b, 2))),
+            SitedRef::new(ar, fname(a, wall(&doc, a, 2))),
+            SitedRef::new(br, fname(b, wall(&doc, b, 2))),
         ),
         (
-            SitedRef::new(a, fname(a, wall(&doc, a, 3))),
-            SitedRef::new(b, fname(b, wall(&doc, b, 3))),
+            SitedRef::new(ar, fname(a, wall(&doc, a, 3))),
+            SitedRef::new(br, fname(b, wall(&doc, b, 3))),
         ),
     ];
     let mut pairs = vec![(rest, editor_core::BooleanCoincidence::REST)];
@@ -84,10 +85,8 @@ fn rest_doc() -> (ProfileDoc, RecipeNodeId) {
     );
     let (doc, u) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: a.into(),
-            b: b.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
             declare: pairs,
         },
     );

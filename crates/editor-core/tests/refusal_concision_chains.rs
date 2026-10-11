@@ -1210,7 +1210,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "DeclareSiteNotAnOperand",
             NodeErrorKind::DeclareSiteNotAnOperand {
-                at: RecipeNodeId::new(0, tagged(3)),
+                at: editor_core::VarId::new(0, tagged(3)),
             },
         ),
         row(
@@ -1641,6 +1641,50 @@ fn split() -> Vec<(String, NodeErrorKind)> {
         (
             "UnderflowedSectorChord",
             R::UnderflowedSectorChord { vertex, face },
+        ),
+        (
+            "SectionGermsEscalated(Line)",
+            R::SectionGermsEscalated {
+                vertex,
+                reading: topo::SectionGermReading::Line,
+                diag: diag(),
+            },
+        ),
+        (
+            "SectionGermsEscalated(Order)",
+            R::SectionGermsEscalated {
+                vertex,
+                reading: topo::SectionGermReading::Order,
+                diag: diag(),
+            },
+        ),
+        (
+            "SectionGermsUnordered(NoLine)",
+            R::SectionGermsUnordered {
+                vertex,
+                fault: topo::SectionGermFault::NoLine,
+            },
+        ),
+        (
+            "SectionGermsUnordered(Coincident)",
+            R::SectionGermsUnordered {
+                vertex,
+                fault: topo::SectionGermFault::Coincident,
+            },
+        ),
+        (
+            "SectionGermsUnordered(Alternation)",
+            R::SectionGermsUnordered {
+                vertex,
+                fault: topo::SectionGermFault::Alternation,
+            },
+        ),
+        (
+            "SectionGermsUnordered(Crossing)",
+            R::SectionGermsUnordered {
+                vertex,
+                fault: topo::SectionGermFault::Crossing,
+            },
         ),
         ("ConsecutiveOnSectors", R::ConsecutiveOnSectors { vertex }),
         ("StaleVertex", R::StaleVertex { vertex }),
@@ -3509,7 +3553,8 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "UnionFoldStep",
             NodeErrorKind::UnionFoldStep {
-                member: RecipeNodeId::new(0, tagged(2)),
+                member: 2,
+                read: editor_core::VarId::new(0, tagged(2)),
                 refusal: Box::new(NodeErrorKind::Boolean(topo::BooleanError::Escalated {
                     decision: topo::BooleanDecision::Coincidence(
                         topo::Coincide::Carriers,

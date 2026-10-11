@@ -799,3 +799,9 @@ Signed (CLEAVE orchestrator).
   - mints unit 4, `boolean-gate-mints-route-through-the-funnel`;
   - `split-band-on-at-a-concave-edge-may-mint-a-pinch-from-near-coincidence`, its post-D10 residue
     (kernel-defect voice at δ = 5e-10, and `SliverVertex` text beyond ε).
+- **PR 4565 merged** (apex section corners: review, re-review and two fix passes). Filed:
+  - TOPO's recharted-residual row (P2);
+  - CLEAVE's crown spur panic (P1);
+  - HONE's two-homes germ-order row.
+- **PR 4581 merged** (near-tangent invariants; single FULL review, fix pass done). The 1e-12 trade is
+  pinned as `SHIPS_A_FINDING` and points at FUSE's row and the door-census row.

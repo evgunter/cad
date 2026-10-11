@@ -27,11 +27,6 @@
 //! 6. **Measure** — mass properties.
 //! 7. **Tessellate and export** — mesh, STL, STEP.
 //! 8. **Or drive the document layer** — `Doc`, `DocEdit`, `evaluate`.
-//!
-//! `BooleanOp` is ONE type: the kernel operation, which the recipe
-//! node carries directly. The prelude and `pncad::document` name the
-//! same enum, so which one a caller imports it through cannot change
-//! what it means.
 
 // --- 1. Numbers and frames ------------------------------------
 pub use crate::authoring::{p2, p3, polygon, real, v2, v3, validated};

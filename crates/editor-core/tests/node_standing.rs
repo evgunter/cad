@@ -202,7 +202,7 @@ fn every_standing_renders_one_way_through_every_door() {
             );
         }
 
-        let flush = find_flush_candidates(eval, node, s.profile, Tol::witness())
+        let flush = find_flush_candidates(eval, &s.doc, node, s.profile, Tol::witness())
             .expect_err("a node with no value");
         assert!(
             matches!(flush, SelectRefusal::NodeHasNoValue(carried) if carried == standing),
