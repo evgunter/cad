@@ -7,7 +7,6 @@ use core::num::NonZeroUsize;
 use std::collections::BTreeMap;
 
 use crate::expr::{Dimension, Slot};
-use crate::names::SplitHalf;
 use crate::operand::Bodies;
 use crate::var::VarId;
 // The contact vocabulary is the KERNEL's (CONTACT-DESIGN C4, M9-1
@@ -40,7 +39,6 @@ macro_rules! name_free_node {
                 | $crate::node::Datum::Axis { .. }
                 | $crate::node::Datum::Point { .. }
                 | $crate::node::Datum::Frame { .. }
-                | $crate::node::Datum::AxisInPlane { .. }
                 | $crate::node::Datum::FaceFrame { .. },
         ) | $crate::node::Node::Profile(_)
             | $crate::node::Node::Extrude { .. }
@@ -983,45 +981,6 @@ pub enum Datum<S: Slot = crate::VarId> {
         /// component perpendicular to `u` is read.
         v: [S; 3],
     },
-    /// **An axis that lives IN a sketch frame**, authored in that
-    /// frame's own 2-D coordinates — a revolve's axis of revolution.
-    ///
-    /// [`Datum::Axis`] is a world-space line, and a revolve's axis has
-    /// to lie in the profile's plane. Spelling that axis in 3-D means
-    /// authoring six numbers whose legality is a *coincidence* the
-    /// evaluator then has to check, and checking it is a tolerance
-    /// decision on a direction residual — the audit's F15 row, whose
-    /// executed consequence is that a tilt classifies in-plane at
-    /// every model scale while the deviation it induces crosses the
-    /// band between a millimetre and a ten-metre profile.
-    ///
-    /// Four numbers in the frame's own coordinates cannot be out of
-    /// plane. So this variant does not make the check cheaper — it
-    /// makes the error **unrepresentable**, and the residual question
-    /// ("is this the SAME plane the profile is drawn on?") is answered
-    /// by comparing `plane` against the profile's, an identity of node
-    /// ids with no band and no scale.
-    ///
-    /// Nothing is lost by it: every 3-D axis a revolve could legally
-    /// have taken lay in the profile's plane by definition, so it was
-    /// always expressible here — and here it is expressible only in
-    /// the ways that are legal.
-    AxisInPlane {
-        /// The frame this axis lives in ([`crate::OperandSlot::Frame`]),
-        /// read exactly as a profile's frame is: the frame is the
-        /// meaning of the two coordinate pairs below, so an axis
-        /// without it is four numbers about nothing.
-        frame: S::Read,
-        /// A point on the axis, in the frame's 2-D coordinates —
-        /// Length, [`SlotId::Origin`]`(X | Y)`. There is no `Z` slot:
-        /// the third coordinate of a point in a plane is not a number
-        /// somebody may type.
-        origin: [S; 2],
-        /// The axis direction in the frame's 2-D coordinates — Scalar,
-        /// [`SlotId::Direction`]`(X | Y)`. Normalized at evaluation,
-        /// where a degenerate pair refuses loudly.
-        direction: [S; 2],
-    },
     /// **A sketch frame DERIVED from a face**
     /// (`crates/editor-core/REFERENCES.md` DM1): a [`Datum::Frame`] whose
     /// pose is computed at evaluation
@@ -1331,20 +1290,12 @@ pub enum PatternKind<S: Slot = crate::VarId> {
     Explicit(Vec<crate::placement::Frame>),
 }
 
-/// **Which body of a multi-body value a [`Node::Part`] selects**
-/// (`crates/editor-core/REFERENCES.md` DM3): the named half of a
-/// split, or one instance of a pattern by index.
-///
-/// The two are one enum because the node is one sentence — "this
-/// body, out of those" — and the value it reads decides which arm is
-/// well-typed: a half against a split, an index against a pattern's
-/// instances, and any other pairing refuses at evaluation.
+/// **Which body of a pattern's copies a [`Node::Part`] selects**
+/// (`crates/editor-core/REFERENCES.md` DM3).
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum PartSelect<S = crate::VarId> {
-    /// The named half of a [`Node::Split`] value.
-    SplitHalf(SplitHalf),
-    /// The `i`-th instance of a [`Node::Pattern`] value — a
-    /// Count-typed STRUCTURAL slot ([`SlotId::Instance`]).
+    /// The `i`-th instance of an `Instances` value — a Count-typed
+    /// STRUCTURAL slot ([`SlotId::Instance`]).
     Instance(S),
 }
 
@@ -1877,12 +1828,32 @@ pub enum Node<P, S: Slot = crate::VarId> {
         #[serde(with = "crate::persist::kernel_wire::extrude_side")]
         side: ExtrudeSide,
     },
-    /// Revolve an upstream profile about a datum axis.
+    /// Revolve an upstream profile about an axis in its own plane.
+    ///
+    /// # The axis is written in the profile's own plane
+    ///
+    /// The axis of revolution is two coordinate pairs in the profile's
+    /// 2-D axes, and its lift to 3-D is the node's `axis` output. A
+    /// revolve's axis has to lie in the profile's plane, and a 3-D axis
+    /// would make that a coincidence the evaluator checks, a tolerance
+    /// decision on a direction residual that classifies a tilt in-plane
+    /// at one model scale and not another (the audit's F15 row). Four
+    /// numbers in the plane cannot leave it: the error is
+    /// unrepresentable rather than checked, and every axis a revolve
+    /// could legally take is expressible here.
     Revolve {
         /// The profile node revolved.
         profile: S::Read,
-        /// The datum-axis node revolved about.
-        axis: S::Read,
+        /// A point on the axis, in the profile's 2-D coordinates —
+        /// Length, [`SlotId::Origin`]`(X | Y)`. There is no `Z` slot:
+        /// the third coordinate of a point in a plane is not a number
+        /// somebody may type.
+        axis_origin: [S; 2],
+        /// The axis direction in the profile's 2-D coordinates —
+        /// Scalar, [`SlotId::Direction`]`(X | Y)`. The kernel's
+        /// `RevolveAxis` takes any definitely nonzero vector and
+        /// refuses a sliver at its own door.
+        axis_direction: [S; 2],
         /// Sweep angle ([`SlotId::RevolveAngle`]).
         angle: S,
     },
@@ -2232,30 +2203,22 @@ pub enum Node<P, S: Slot = crate::VarId> {
         /// The replication rule.
         kind: PatternKind<S>,
     },
-    /// **One body out of a multi-body value**
-    /// (`crates/editor-core/REFERENCES.md` DM3): the named half of a
-    /// [`Node::Split`] value or the `i`-th
-    /// instance of a [`Node::Pattern`] value, as a `Body` value every
-    /// body-consuming node takes. The recipe's way of saying "union
-    /// the upper half of that split into this block" or "subtract
-    /// instance 3 of that pattern".
+    /// **One body out of a pattern's copies**
+    /// (`crates/editor-core/REFERENCES.md` DM3): the `i`-th instance of
+    /// an `Instances` value, as a `Body` value every body-consuming
+    /// node takes — "subtract instance 3 of that pattern". A split's
+    /// halves need no such node: each is a port of the split, read
+    /// like any other output.
     ///
     /// A projection, not an operation: the selected body is the
-    /// half's or the instance's own (the same `Arc`, no clone, no
-    /// re-stamp), and the node's name table is the input's table
-    /// restricted to that body with every name VERBATIM — a
-    /// pass-through in `Transform`'s sense, contributing no role
-    /// segment, so every selector already spelled against that half
-    /// or that instance resolves here unchanged.
+    /// instance's own (the same `Arc`, no clone, no re-stamp), and the
+    /// node's name table is the input's table restricted to that body
+    /// with every name VERBATIM — a pass-through in `Transform`'s
+    /// sense, contributing no role segment, so every selector already
+    /// spelled against that instance resolves here unchanged.
     ///
-    /// A node rather than a selector inside every consumer's operand:
-    /// one meaning, one node, and every consumer's operand door stays
-    /// as it is ([`Node::PlacedUnion`]'s ruling). A bare split or
-    /// pattern is still refused at a body seat; this node is how a
-    /// user says which body they meant.
-    ///
-    /// Because it moves nothing and renames nothing, an `Instance`
-    /// selection is a pass-through of A11's member walk too
+    /// Because it moves nothing and renames nothing, it is a
+    /// pass-through of A11's member walk too
     /// ([`crate::mate::member_of`]): a mate read at one, or below
     /// one, stands on the same member the pattern's copy does.
     ///
@@ -2264,7 +2227,7 @@ pub enum Node<P, S: Slot = crate::VarId> {
     /// two patterns is a user saying WHICH copy to replicate, a
     /// different document from the nest without it.
     Part {
-        /// The split or pattern whose value is read.
+        /// The copies read.
         of: S::Read,
         /// Which body of it.
         select: PartSelect<S>,
@@ -2599,16 +2562,6 @@ macro_rules! node_rows {
                 axis_rows!(S::Direction, direction, $out);
             }
             Node::Datum(Datum::Point { position }) => axis_rows!(S::Origin, position, $out),
-            // X and Y only: the frame supplies the third coordinate,
-            // and a slot for it would be a number nobody may set.
-            Node::Datum(Datum::AxisInPlane {
-                frame: _,
-                origin,
-                direction,
-            }) => {
-                axis_rows!(S::Origin, origin, $out);
-                axis_rows!(S::Direction, direction, $out);
-            }
             Node::Datum(Datum::Frame { origin, u, v }) => {
                 axis_rows!(S::Origin, origin, $out);
                 axis_rows!(S::U, u, $out);
@@ -2641,11 +2594,19 @@ macro_rules! node_rows {
                 selection: _,
             } => $out.push((S::ChamferDistance, distance)),
             Node::Shell { thickness, open: _ } => $out.push((S::ShellThickness, thickness)),
+            // X and Y only: the profile's plane supplies the third
+            // coordinate, and a slot for it would be a number nobody
+            // may set.
             Node::Revolve {
                 profile: _,
-                axis: _,
+                axis_origin,
+                axis_direction,
                 angle,
-            } => $out.push((S::RevolveAngle, angle)),
+            } => {
+                axis_rows!(S::Origin, axis_origin, $out);
+                axis_rows!(S::Direction, axis_direction, $out);
+                $out.push((S::RevolveAngle, angle));
+            }
             Node::Tube {
                 frame: _,
                 major_radius,
@@ -2716,12 +2677,10 @@ macro_rules! node_rows {
                 count,
                 kind,
             } => rule_rows!(count, kind, $out),
-            // A half is recipe payload, not a number anyone sets; an
-            // index is the one structural slot the projection carries.
-            Node::Part { of: _, select } => match select {
-                PartSelect::SplitHalf(_) => {}
-                PartSelect::Instance(index) => $out.push((S::Instance, index)),
-            },
+            Node::Part {
+                of: _,
+                select: PartSelect::Instance(index),
+            } => $out.push((S::Instance, index)),
             Node::Split { target, tool: _ } => index_rows!(O::Target, target, $rows, $out),
             Node::Subtract {
                 from,
@@ -3056,11 +3015,6 @@ impl<P> Node<P> {
                 .collect()
         };
         match self {
-            Node::Datum(Datum::AxisInPlane {
-                frame: plane,
-                origin: _,
-                direction: _,
-            }) => vec![(O::Frame, *plane)],
             Node::Datum(Datum::FaceFrame { face, spin: _ }) => vec![(O::Face, *face)],
             Node::Mate {
                 a,
@@ -3113,9 +3067,10 @@ impl<P> Node<P> {
             } => vec![(O::Profile, *profile)],
             Node::Revolve {
                 profile,
-                axis,
+                axis_origin: _,
+                axis_direction: _,
                 angle: _,
-            } => vec![(O::Profile, *profile), (O::Axis, *axis)],
+            } => vec![(O::Profile, *profile)],
             Node::Tube {
                 frame,
                 major_radius: _,
@@ -3210,11 +3165,6 @@ impl<P> Node<P> {
         // to a node does not compile until it is stated here too, so
         // the writable twin cannot fall behind the reading one.
         match self {
-            Node::Datum(Datum::AxisInPlane {
-                frame: plane,
-                origin: _,
-                direction: _,
-            }) => vec![(O::Frame, plane)],
             Node::Datum(Datum::FaceFrame { face, spin: _ }) => vec![(O::Face, face)],
             Node::Mate {
                 a,
@@ -3268,9 +3218,10 @@ impl<P> Node<P> {
             } => vec![(O::Profile, profile)],
             Node::Revolve {
                 profile,
-                axis,
+                axis_origin: _,
+                axis_direction: _,
                 angle: _,
-            } => vec![(O::Profile, profile), (O::Axis, axis)],
+            } => vec![(O::Profile, profile)],
             Node::Tube {
                 frame,
                 major_radius: _,
@@ -3348,18 +3299,6 @@ impl<P> Node<P> {
                 }
                 v
             }
-        }
-    }
-
-    /// **The half a part projection over a split selects**: `None` for
-    /// every other node.
-    pub(crate) fn selected_half(&self) -> Option<crate::SplitHalf> {
-        match self {
-            Node::Part {
-                select: crate::PartSelect::SplitHalf(half),
-                ..
-            } => Some(*half),
-            _ => None,
         }
     }
 
@@ -3686,15 +3625,6 @@ impl<S: Slot> Datum<S> {
                 u: map_array(u, f)?,
                 v: map_array(v, f)?,
             },
-            Datum::AxisInPlane {
-                frame: plane,
-                origin,
-                direction,
-            } => Datum::AxisInPlane {
-                frame: read(crate::OperandSlot::Frame, plane)?,
-                origin: map_array(origin, f)?,
-                direction: map_array(direction, f)?,
-            },
             Datum::FaceFrame { face, spin } => Datum::FaceFrame {
                 face: read(crate::OperandSlot::Face, face)?,
                 spin: f(spin)?,
@@ -3762,7 +3692,6 @@ impl<S> PartSelect<S> {
         f: &mut impl FnMut(&S) -> Result<S2, E>,
     ) -> Result<PartSelect<S2>, E> {
         Ok(match self {
-            PartSelect::SplitHalf(half) => PartSelect::SplitHalf(*half),
             PartSelect::Instance(index) => PartSelect::Instance(f(index)?),
         })
     }
@@ -3824,9 +3753,7 @@ impl<P, S: Slot> Node<P, S> {
         match self {
             Self::Datum(datum) => vec![match datum {
                 Datum::Plane { .. } => OutputPort::of("plane", VarKind::Plane),
-                Datum::Axis { .. } | Datum::AxisInPlane { .. } => {
-                    OutputPort::of("axis", VarKind::Axis)
-                }
+                Datum::Axis { .. } => OutputPort::of("axis", VarKind::Axis),
                 Datum::Point { .. } => OutputPort::of("point", VarKind::Point),
                 Datum::Frame { .. } | Datum::FaceFrame { .. } => {
                     OutputPort::of("frame", VarKind::Frame)
@@ -3913,11 +3840,13 @@ impl<P, S: Slot> Node<P, S> {
             },
             Node::Revolve {
                 profile,
-                axis,
+                axis_origin,
+                axis_direction,
                 angle,
             } => Node::Revolve {
                 profile: read(O::Profile, profile)?,
-                axis: read(O::Axis, axis)?,
+                axis_origin: map_array(axis_origin, f)?,
+                axis_direction: map_array(axis_direction, f)?,
                 angle: f(angle)?,
             },
             Node::Tube {
@@ -4083,7 +4012,6 @@ impl<P, S: Slot> Node<P, S> {
                 | Datum::Axis { .. }
                 | Datum::Point { .. }
                 | Datum::Frame { .. }
-                | Datum::AxisInPlane { .. }
                 | Datum::FaceFrame { .. },
             )
             | Node::Profile(_)
@@ -4162,19 +4090,15 @@ impl<P: crate::ProfilePayload> Node<P> {
     /// ([`crate::Doc::written_would_not_reproduce`]) and none was
     /// value-edited after its insert (its mint read the old value). A
     /// caller rebuilding a document checks the first and compares the
-    /// ids for the second. An anonymous selection an operand reads is
-    /// written as the selection it is ([`crate::Operand::Select`]).
+    /// ids for the second. An anonymous selection or pose an operand
+    /// reads is written as the definition it is
+    /// ([`crate::Operand::Select`], [`crate::Operand::Pose`]).
     #[must_use]
     pub fn written(&self, doc: &crate::Doc<P>) -> Node<P::Authored, crate::Formula> {
         self.authored_with(
             doc,
             &mut |var, dim| crate::Formula::from(doc.written(&crate::Expr::var(var, dim))),
-            &mut |var| match doc.selection(var) {
-                Some(select) if doc.var_name(var).is_none() => {
-                    crate::Operand::select(crate::Operand::Var(select.body), select.names.clone())
-                }
-                _ => crate::Operand::Var(var),
-            },
+            &mut |var| doc.written_operand(var),
         )
     }
 
@@ -4670,8 +4594,7 @@ impl<P> Node<P, crate::Formula> {
                 Datum::Plane { .. }
                 | Datum::Axis { .. }
                 | Datum::Point { .. }
-                | Datum::Frame { .. }
-                | Datum::AxisInPlane { .. },
+                | Datum::Frame { .. },
             )
             | Node::Profile(_)
             | Node::Extrude { .. }

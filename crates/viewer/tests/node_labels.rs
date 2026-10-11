@@ -306,12 +306,13 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
         },
         "block",
     );
-    let axis = session_axis(&mut session, frame);
     run(
         &mut session,
         SessionOp::AddRevolve {
             profile,
-            axis,
+            // An axis written in the profile's own frame.
+            axis_origin: common::len2([0.03, 0.0]),
+            axis_direction: common::scl2([0.0, 1.0]),
             angle: ang(core::f64::consts::PI),
         },
         "turned",
@@ -319,7 +320,7 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
     let moved = run(
         &mut session,
         SessionOp::AddTransform {
-            input: block,
+            input: block.into(),
             translation: len3([0.005, 0.007, 0.003]),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
             rotation_angle: ang(0.0),
@@ -329,7 +330,7 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
     run(
         &mut session,
         SessionOp::AddBoolean {
-            spec: BooleanSpec::Intersect(vec![block, moved]),
+            spec: BooleanSpec::Intersect(vec![block.into(), moved.into()]),
             declare: Vec::new(),
         },
         "overlap",
@@ -346,7 +347,7 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
     run(
         &mut session,
         SessionOp::AddSplit {
-            target: block,
+            target: block.into(),
             tool: plane,
         },
         "halves",
@@ -358,7 +359,7 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
     let pattern = run(
         &mut session,
         SessionOp::AddPattern {
-            input: block,
+            input: block.into(),
             count: 2,
             rule: row(),
         },
@@ -367,7 +368,7 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
     run(
         &mut session,
         SessionOp::AddPlacedUnion {
-            input: block,
+            input: block.into(),
             count: 2,
             rule: row(),
         },
@@ -381,7 +382,13 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
         },
         "second",
     );
-    run(&mut session, SessionOp::Duplicate { input: block }, "copy");
+    run(
+        &mut session,
+        SessionOp::Duplicate {
+            input: block.into(),
+        },
+        "copy",
+    );
     let edges = pncad::select::all_edges(session.evaluation().expect("landed"), block);
     run(
         &mut session,
@@ -430,20 +437,6 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
         "every creating op is sampled, and only those"
     );
     std::fs::remove_dir_all(&bench.dir).expect("the bench directory is removable");
-}
-
-/// An axis written in `frame`, for the revolve sample.
-fn session_axis(session: &mut DocSession, frame: RecipeNodeId) -> RecipeNodeId {
-    common::session_insert(
-        session,
-        SessionOp::AddDatum {
-            datum: viewer::session::DatumSpec::AxisInPlane {
-                plane: frame,
-                origin: common::len2([0.03, 0.0]),
-                direction: common::scl2([0.0, 1.0]),
-            },
-        },
-    )
 }
 
 /// **A failed row speaks its node as the document holds it now**: the
@@ -618,7 +611,7 @@ fn an_edit_door_refusal_says_a_rename_later_in_its_batch() {
         &mut session,
         &[
             SessionOp::AddBoolean {
-                spec: BooleanSpec::Union(vec![boss]),
+                spec: BooleanSpec::Union(vec![boss.into()]),
                 declare: findings,
             },
             SessionOp::SetLabel {

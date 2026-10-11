@@ -108,7 +108,7 @@ fn a_keyway_refuses_at_the_door_and_measures_in_the_flux_lane() {
 /// **Two homes, one lune.** A lune between two great circles a
 /// quarter turn apart is a chart rectangle in azimuth × latitude, so
 /// the door admits it; the flux lane measures it at the width the
-/// loop bounds (`props_wedge_azimuth`). The door's answer is the
+/// loop bounds, by Gauss–Bonnet. The door's answer is the
 /// shape's and does not depend on which lunes the flux lane measures.
 #[test]
 fn a_rimless_lune_passes_the_door_and_measures() {
@@ -130,19 +130,20 @@ fn a_rimless_lune_passes_the_door_and_measures() {
     );
 }
 
-/// An oblique plane section of the sphere — tilted 0.6 rad off the
-/// polar axis, offset 0.3 from the centre — is neither a coaxial rim
-/// nor a great circle. The door classifies it a rim (`n·â` definite)
-/// and refuses its incidence: the circle's axis is not the sphere's.
-/// This is the `walk::iso_side_starts` qualification's face, refused
-/// on rim structure before any walk could collapse it. The flux lane
-/// measures the same face — the cap the section bounds, split into two
-/// arcs — without a chart, at the cap's area `2πR·h` (`h = R − d`) and
-/// its flux `R·Area + c·A⃗`; with the centre at the origin the flux is
+/// An oblique plane section of the sphere — tilted 1.3 rad off the
+/// polar axis, offset 0.3 from the centre, so the cap it bounds holds
+/// neither pole — is neither a coaxial rim nor a great circle. The door
+/// classifies it a rim (`n·â` definite) and refuses its incidence: the
+/// circle's axis is not the sphere's. This is the
+/// `walk::iso_side_starts` qualification's face, refused on rim
+/// structure before any walk could collapse it. The flux lane measures
+/// the same face — the cap the section bounds, split into two arcs —
+/// without a chart, at the cap's area `2πR·h` (`h = R − d`) and its
+/// flux `R·Area + c·A⃗`; with the centre at the origin the flux is
 /// `R·Area`.
 #[test]
 fn an_oblique_sphere_section_is_refused_by_the_door_and_measured_by_the_flux_lane() {
-    let (a, d) = (0.6_f64, 0.3_f64);
+    let (a, d) = (1.3_f64, 0.3_f64);
     let r = (1.0 - d * d).sqrt();
     let n = v3(a.sin(), 0.0, a.cos());
     let section = |t0: f64, t1: f64, s: u32, e: u32| {
@@ -171,9 +172,9 @@ fn an_oblique_sphere_section_is_refused_by_the_door_and_measured_by_the_flux_lan
     let area = 2.0 * core::f64::consts::PI * (1.0 - d);
     assert!((fc.area - area).abs() < 1e-12, "area {} != {area}", fc.area);
     assert!((fc.flux - area).abs() < 1e-12, "flux {} != {area}", fc.flux);
-    // Traversed the other way round under the same bit, the loop bounds
-    // the complement — the face lies to the left of its traversal — and
-    // the arm measures that.
+    // Traversed the other way round, the loop's left side is the
+    // complement, which holds both poles: under the same bit the face
+    // is refused, and under the reversed bit it is the cap again.
     let rev: Vec<_> = cap
         .iter()
         .rev()
@@ -184,15 +185,23 @@ fn an_oblique_sphere_section_is_refused_by_the_door_and_measured_by_the_flux_lan
             ..e.clone()
         })
         .collect();
-    let fc = curved_face(&sphere(), &rev, true, band()).expect("the complement measures");
-    let big = 4.0 * core::f64::consts::PI - area;
-    assert!((fc.area - big).abs() < 1e-12, "area {} != {big}", fc.area);
+    assert_eq!(
+        curved_face(&sphere(), &rev, true, band()).map(|_| ()),
+        Err(PropsError::SenseContradicted)
+    );
+    let fc = curved_face(&sphere(), &rev, false, band()).expect("the cap, reversed");
+    assert!((fc.area - area).abs() < 1e-12, "area {} != {area}", fc.area);
+    assert!(
+        (fc.flux + area).abs() < 1e-12,
+        "flux {} != -{area}",
+        fc.flux
+    );
     // A loop whose arcs do not meet is refused, not integrated.
     let open = vec![section(0.0, 3.0, 0, 1), section(3.0, 6.0, 1, 0)];
     assert_eq!(
         curved_face(&sphere(), &open, true, band()).map(|_| ()),
         Err(PropsError::SphereLoop {
-            what: "props_sphere_loop_closed",
+            what: "props_loop_closed",
         })
     );
 }
@@ -399,7 +408,7 @@ fn pieces_from_distinct_edges_never_fold() {
 }
 
 // ---------------------------------------------------------------------
-// The sense-free residue of the flux lane's interior-side premise
+// The shape door's sense-free rim-side residue
 // ---------------------------------------------------------------------
 
 /// The sphere rim (a coaxial circle) at latitude `v`.
@@ -413,23 +422,19 @@ fn srim(v: f64, u0: f64, u1: f64, a: u32, b: u32) -> LoopEdge<f64> {
 ///
 /// The staircase face carries a rim at `lo` and a rim at `hi`
 /// traversed the same way. Its rims contradict each other about which
-/// side the material is on, so `linear_rim_side` answers a definite ±1
-/// whose value depends on which rim the owning body's loop walk hands
-/// over first — and the door used to answer `Ok(())` for it, because
-/// every rim does sit at an extreme. `unanimous_rim_side` needs no
-/// sense bit to see the contradiction, and the door now asks it: the
-/// same `props_rim_side` name the flux lane and the material-side gate
-/// refuse it by.
+/// side the material is on, so reading either rim alone answers a
+/// definite ±1 whose value depends on which rim the owning body's loop
+/// walk hands over first. `unanimous_rim_side` needs no sense bit to
+/// see the contradiction, and the door asks it whatever the anchor. The
+/// material-side gate reads no rim: the loop's left side holds the
+/// north pole and its right side the south one, so whichever side is
+/// material holds a pole, and the gate answers that the loop encodes
+/// no side.
 #[test]
 fn the_door_refuses_a_face_whose_rims_encode_different_sides() {
     let (lo, hi) = (-0.3_f64, 0.5_f64);
     let pi = core::f64::consts::PI;
     let tau = core::f64::consts::TAU;
-    let want = || {
-        Err(PropsError::NotIsoRectangle {
-            what: "props_rim_side",
-        })
-    };
     let stair = [
         srim(lo, 0.0, pi, 0, 1),
         great(pi, lo, hi, 1, 2),
@@ -442,31 +447,44 @@ fn the_door_refuses_a_face_whose_rims_encode_different_sides() {
             .collect();
         assert_eq!(
             require_iso_rectangle(&sphere(), &e, band()),
-            want(),
+            Err(PropsError::NotIsoRectangle {
+                what: "props_rim_side",
+            }),
             "k={k}: the door reads the contradiction whatever the anchor"
         );
-        // The gate refused it already; the door now agrees with it.
         assert_eq!(
-            boundary_material_sign(&sphere(), &e, band()).map(|_| ()),
-            want()
+            boundary_material_sign(&sphere(), &e, band()),
+            Ok(MaterialSign::Unencoded),
+            "k={k}: the gate"
         );
     }
     // The consistent zone — the same two rims traversed OPPOSITE ways —
-    // still passes: unanimity is not "refuse every two-rim face".
+    // still passes the door: unanimity is not "refuse every two-rim
+    // face". As two loops it measures and encodes its side.
     let zone = vec![srim(lo, 0.0, tau, 0, 0), srim(hi, tau, 0.0, 1, 1)];
     assert_eq!(require_iso_rectangle(&sphere(), &zone, band()), Ok(()));
-    assert!(curved_face(&sphere(), &zone, true, band()).is_ok());
+    let loops: [&[LoopEdge<f64>]; 2] = [&zone[..1], &zone[1..]];
+    let fc = geom_brep::props::curved_face_loops(&sphere(), &loops, true, band())
+        .expect("the zone measures");
+    let exact = tau * (hi.sin() - lo.sin());
+    assert!(
+        (fc.area - exact).abs() < 1e-12,
+        "area {} != {exact}",
+        fc.area
+    );
     assert_eq!(
-        boundary_material_sign(&sphere(), &zone, band()),
+        geom_brep::props::boundary_material_sign_loops(&sphere(), &loops, band()),
         Ok(MaterialSign::Encoded(geom_core::Sign::Positive))
     );
 }
 
 /// **The residue does not close the door's documented divergence.**
 /// The L-shaped complement of a half-cap has ONE rim, so there is
-/// nothing for unanimity to compare: the door still admits it and the
-/// flux lane still refuses it `props_rim_interior_side`. That residue
-/// is σ's, and σ needs the face's sense bit the door does not take.
+/// nothing for unanimity to compare and the door admits it. The flux
+/// lane reads its loop: the north pole lies on it and the south pole
+/// to its left, so under `sense = true` the face would hold the south
+/// pole and is refused, and under `sense = false` the face is the
+/// half-cap, measured exactly.
 #[test]
 fn the_one_rim_divergence_survives_the_residue() {
     let v0 = 0.5_f64;
@@ -479,9 +497,14 @@ fn the_one_rim_divergence_survives_the_residue() {
     );
     assert_eq!(
         curved_face(&sphere(), &complement, true, band()).map(|_| ()),
-        Err(PropsError::NotIsoRectangle {
-            what: "props_rim_interior_side"
-        })
+        Err(PropsError::SenseContradicted)
+    );
+    let fc = curved_face(&sphere(), &complement, false, band()).expect("the half-cap");
+    let exact = pi * (1.0 - v0.sin());
+    assert!(
+        (fc.area - exact).abs() < 1e-12,
+        "area {} != {exact}",
+        fc.area
     );
 }
 

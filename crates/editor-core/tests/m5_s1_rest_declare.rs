@@ -138,7 +138,7 @@ fn declared_rest_union_evaluates_green() {
         Ok(())
     );
     assert!(
-        contacts.vv.is_empty() && contacts.a_on_b.is_empty() && contacts.b_on_a.is_empty(),
+        contacts.vertex_vertex().next().is_none() && contacts.vertex_face().next().is_none(),
         "REST records consumed into seam structure: {contacts:?}"
     );
 }

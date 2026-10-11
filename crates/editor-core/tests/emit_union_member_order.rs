@@ -51,7 +51,12 @@ enum Op {
 
 impl Op {
     /// The node of this kind over `a` and `b`, declaring nothing.
-    fn node(self, a: RecipeNodeId, b: RecipeNodeId) -> editor_core::AuthoredNode {
+    fn node(
+        self,
+        a: impl Into<editor_core::Operand>,
+        b: impl Into<editor_core::Operand>,
+    ) -> editor_core::AuthoredNode {
+        let (a, b) = (a.into(), b.into());
         match self {
             Self::Union => Node::Union {
                 members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
@@ -339,11 +344,11 @@ fn no_name_rebinds_across_the_member_orders_of_a_cut_seam_union() {
 #[test]
 fn a_seam_passed_through_a_split_and_cut_later_is_named() {
     use crate::fixture::scl;
-    use editor_core::{Datum, PartSelect, SplitHalf};
+    use editor_core::{Datum, Operand, SplitHalf};
     let doc = ProfileDoc::empty_derived("emit_union_member_order_split", Tol::witness());
     let (doc, slab, rib) = slab_rib(doc);
-    let pair = |doc, op: Op, a: RecipeNodeId, b: RecipeNodeId| insert(doc, op.node(a, b));
-    let (doc, joined) = pair(doc, Op::Union, slab, rib);
+    let pair = |doc, op: Op, a: Operand, b: RecipeNodeId| insert(doc, op.node(a, b));
+    let (doc, joined) = pair(doc, Op::Union, slab.into(), rib);
     let (doc, tool) = insert(
         doc,
         Node::Datum(Datum::Plane {
@@ -358,15 +363,9 @@ fn a_seam_passed_through_a_split_and_cut_later_is_named() {
             tool: tool.into(),
         },
     );
-    let (doc, below) = insert(
-        doc,
-        Node::Part {
-            of: editor_core::Operand::output(split, SplitHalf::Below.port()),
-            select: PartSelect::SplitHalf(SplitHalf::Below),
-        },
-    );
+    let below = Operand::output(split, SplitHalf::Below.port());
     let (doc, cut) = block(doc, (0.7, 0.8), (0.3, 0.7), 0.95, 0.1);
-    let (doc, minus) = pair(doc, Op::Subtract, below, cut);
+    let (doc, minus) = pair(doc, Op::Subtract, below.clone(), cut);
     let (doc, plus) = pair(doc, Op::Union, below, cut);
     let ev = run(&doc);
     for (what, id) in [("subtract", minus), ("union", plus)] {

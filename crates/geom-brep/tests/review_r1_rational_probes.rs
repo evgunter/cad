@@ -877,7 +877,9 @@ fn probe_c0_kink_area() {
         &net,
         &weights,
         2.0 * 5.0 + 2.0,
-        None,
+        // `S·(S_u × S_v)` is `y·dx = 0` on the y = 0 leg and
+        // `x·dy = 1·4` on the x = 1 leg: flux 4, exactly.
+        Some(4.0),
         Some(5.0),
     );
     pin_floor("c0-kink-wall", posture, C0_KINK_FLOOR);
@@ -904,7 +906,7 @@ fn diag_refine_half_circle() {
     let plans = refine_plan_homogeneous(&kv, &add).unwrap();
     let mut cur_kv = kv.clone();
     for plan in &plans {
-        hom = plan.apply_points(&hom, [f64::NAN; 3], |x, y, l| {
+        hom = plan.apply_points(&hom, [f64::NAN; 3], |x, y, l: f64| {
             [
                 x[0] + (y[0] - x[0]) * l,
                 x[1] + (y[1] - x[1]) * l,

@@ -1105,10 +1105,10 @@ test_utils::f6_variants! {
         NodeNotMinted,
         OperandUnminted,
         SlotVarKind,
-        PartHalfPort,
         ReadsWorldCopy,
         SelectionShape,
         SelectionBody,
+        PoseShape,
         ReadCycle,
         WitnessSite,
         WitnessOnMissingNode,
@@ -1231,17 +1231,6 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             ],
         ),
         (
-            SnapshotError::PartHalfPort {
-                node: node(),
-                half: editor_core::SplitHalf::Below,
-                var: Box::new(editor_core::SpokenVar::new(
-                    editor_core::VarId::new(9, tagged(9)),
-                    None,
-                )),
-            },
-            vec!["selects the below half but reads #9:"],
-        ),
-        (
             SnapshotError::ReadsWorldCopy {
                 node: node(),
                 slot: editor_core::SlotId::Operand(editor_core::OperandSlot::From),
@@ -1268,6 +1257,13 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 },
             },
             vec!["selects in", "which is a profile, not a body"],
+        ),
+        (
+            SnapshotError::PoseShape {
+                var: editor_core::SpokenVar::new(editor_core::VarId::new(0, 7), None),
+                fault: editor_core::pose::PoseFault::DoubleFlip,
+            },
+            vec!["is not a pose a door writes", "flips a flip"],
         ),
         (
             SnapshotError::ReadCycle { at: absent(9) },

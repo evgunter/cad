@@ -238,8 +238,7 @@ pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, 
             // contributes no `RolePath` segment; a `Part` selecting an
             // instance moves nothing at all and carries every name
             // VERBATIM. Anything else — a boolean, a split's intact
-            // pass-through, a `Part` naming a split HALF — is a
-            // different body, not this one placed. (A union is the
+            // pass-through — is a different body, not this one placed. (A union is the
             // head of every name it carries, so the walk meets it
             // below, at the head.)
             match doc.node(at).and_then(crate::names::verbatim_edge) {
@@ -264,14 +263,7 @@ pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, 
                     part = Some(at);
                     at = doc.operation_of(of).ok_or(at)?;
                 }
-                Some(
-                    VerbatimEdge::Selected {
-                        select: PartSelect::SplitHalf(_),
-                        ..
-                    }
-                    | VerbatimEdge::Intact,
-                )
-                | None => return Err(at),
+                Some(VerbatimEdge::Intact) | None => return Err(at),
             }
             continue;
         }
@@ -435,7 +427,7 @@ pub(crate) fn member_authored<P>(doc: &Doc<P>, side: &crate::Operand) -> Option<
         O::Node(node) | O::Output { node, .. } => Some(*node),
         O::Var(var) => doc.operation_of(*var),
         O::Name(name) => doc.operation_of(doc.var_named(name.as_str())?),
-        O::Select { .. } => None,
+        O::Select { .. } | O::Pose(_) => None,
     };
     let head = match side {
         O::Select { body, names } => {
@@ -446,7 +438,7 @@ pub(crate) fn member_authored<P>(doc: &Doc<P>, side: &crate::Operand) -> Option<
         }
         O::Var(var) => head_of(doc, *var)?,
         O::Name(name) => head_of(doc, doc.var_named(name.as_str())?)?,
-        O::Node(_) | O::Output { .. } => return None,
+        O::Node(_) | O::Output { .. } | O::Pose(_) => return None,
     };
     member_of(doc, &head)
 }
@@ -763,7 +755,7 @@ pub(super) fn check_reference<P: crate::ProfilePayload, S>(
 /// **One length decision, two funnel names, ratified.** A circular
 /// rule's direction is a DATUM's axis direction, and this derivation
 /// re-derives it from the recipe expressions rather than reading the
-/// evaluated `DatumValue` whose `UnitVec3` normalized the same
+/// evaluated `PoseValue` whose `UnitVec3` normalized the same
 /// triple. So one datum direction is decided under two predicate
 /// names depending on which road reaches it — same body, same
 /// refusal shape, different name in the K census. That split is

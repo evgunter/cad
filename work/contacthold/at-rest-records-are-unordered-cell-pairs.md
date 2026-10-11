@@ -2,7 +2,8 @@
 id: at-rest-records-are-unordered-cell-pairs
 kind: unit
 title: Build the ruled at-rest record: ContactRecords is one list of unordered pairs of the body's cells plus citations; no operand label, stored granularity or witness
-status: spec
+status: review
+pr: 4598
 opened: 2026-10-10
 priority: P1
 cost: H
@@ -54,3 +55,11 @@ cells' carriers.
   that carry becomes one function. Coordinate with F if it is live.
 - Review tier: **dual** (an architectural change, broad and hard to
   change later), under `docs/DUAL-REVIEW-PROTOCOL.md`.
+
+## Built as a stack (2026-10-10)
+
+PR 4598 (1/2): the one-list type (`Contact`, `ContactKind`,
+`ContactRecords`), the reduction's `ReductionContacts`, and every
+producer and consumer, with the census reading what it read before.
+PR 4604 (2/2), stacked on it, is the census's carrier-read
+generalisation and the new edge–face and face–face rows.
