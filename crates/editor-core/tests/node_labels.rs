@@ -604,7 +604,7 @@ fn a_severing_split_speaks_both_ends_and_prints_no_decimal_id() {
     assert_eq!(
         text,
         format!(
-            "split: the cut severs the edge from Extrude \"base plate\" ({e}) to its input \
+            "split: the cut severs the edge from Extrude \"base plate\" ({e})'s profile to its input \
              Profile \"sketch\" ({p}). The consumer is kept and the input is cut, but a cut \
              must be closed under inputs and consumers. Recourse: add Extrude \"base plate\" \
              ({e}) to the cut, or leave Profile \"sketch\" ({p}) out of it",
