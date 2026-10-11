@@ -223,6 +223,100 @@ fn crown_above(ring: &[[f64; 3]], bottom: f64) -> f64 {
         .sum()
 }
 
+/// **A crown with one ring corner in the plane splits sound**: the
+/// [`posed_crown`] over a ring with one corner at the height of `MEET`,
+/// exactly or `0.6 ε` off it, and the rest above. The edge from `MEET`
+/// to that corner is a valley in the plane, and the material above
+/// runs round `MEET` from one side of it to the other, so the side
+/// above touches itself along the valley: its section face runs out
+/// along it and back, two chords from two copies of the corner to one
+/// vertex at `MEET`. The side below keeps no vertex at `MEET`: the
+/// valley lies inside its section face. Volumes against the closed
+/// form [`crown_above`], and the area `plane_section` reads against
+/// the bottom fan's section; the ring families vary its size and which
+/// corner lies in the plane, the seed corner the crown is built from
+/// among them.
+#[test]
+fn a_crown_with_one_corner_in_the_plane_splits_sound() {
+    let c2 = vec![
+        [0.4760, 1.3181, 0.3518],
+        [-0.7080, 0.8592, 0.1597],
+        [-1.1890, 0.5653, 0.1028],
+        [-1.1262, -0.2072, 0.0],
+        [0.4166, -1.4394, 0.2963],
+    ];
+    let around = |heights: &[f64]| -> Vec<[f64; 3]> {
+        let n = heights.len();
+        (0..n)
+            .map(|i| {
+                let a = std::f64::consts::TAU * (i as f64 + 0.13 * (i % 2) as f64) / n as f64;
+                let r = 1.0 + 0.1 * (i % 3) as f64;
+                [r * a.cos(), r * a.sin(), heights[i]]
+            })
+            .collect()
+    };
+    let rings = [
+        ("the fuzz's witness C2", c2),
+        ("three corners", around(&[0.2, 0.0, 0.3])),
+        (
+            "four corners, the seed in the plane",
+            around(&[0.0, 0.25, 0.3, 0.15]),
+        ),
+        (
+            "five corners, the last in the plane",
+            around(&[0.3, 0.2, 0.25, 0.1, 0.0]),
+        ),
+        ("six corners", around(&[0.3, 0.05, 0.0, 0.4, 0.2, 0.25])),
+    ];
+    let eps = t().eps();
+    for (name, ring) in rings {
+        let low = ring
+            .iter()
+            .position(|c| c[2] == 0.0)
+            .expect("one corner in the plane");
+        for s in [0.0, 0.6, -0.6] {
+            let mut ring = ring.clone();
+            ring[low][2] = s * eps;
+            let above = crown_above(&ring, -1.0);
+            // The section is the bottom fan's: the corners where its
+            // edges cross the plane, one the corner in it.
+            let cut: Vec<[f64; 2]> = ring
+                .iter()
+                .map(|c| {
+                    let s = 1.0 / (c[2] + 1.0);
+                    [s * c[0], s * c[1]]
+                })
+                .collect();
+            let section = (0..cut.len())
+                .map(|i| {
+                    let (p, q) = (cut[i], cut[(i + 1) % cut.len()]);
+                    p[0] * q[1] - p[1] * q[0]
+                })
+                .sum::<f64>()
+                / 2.0;
+            let what = format!("{name}, its corner at {s} ε");
+            for pose in poses() {
+                let u = posed_crown(&ring, [0.0, 0.0, -1.0], &pose, t());
+                let whole = topo::mass_properties(&u, t()).unwrap().volume;
+                splits_sound(&what, &u, &pose, [above, whole - above], Some([1, 0]));
+                for up in [true, false] {
+                    let what = format!("{what}, {}, the plane's normal up {up}", pose.label);
+                    let cut = topo::plane_section(&u, &plane_at(&pose, up), t())
+                        .unwrap_or_else(|e| panic!("{what}: the section refused: {e:?}"));
+                    let [region] = cut.regions.as_slice() else {
+                        panic!("{what}: {} regions, not one", cut.regions.len());
+                    };
+                    assert!(
+                        (region.area() - section).abs() < 1e-9 + eps,
+                        "{what}: section area {}, closed form {section}",
+                        region.area()
+                    );
+                }
+            }
+        }
+    }
+}
+
 /// A pyramid base from `(y, z)` corners in the plane half a unit along
 /// `+x`, `z` scaled by `ε` where `in_eps`.
 fn base_of(corners: &[(f64, f64, bool)]) -> Vec<[f64; 3]> {

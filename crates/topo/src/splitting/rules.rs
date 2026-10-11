@@ -82,7 +82,12 @@
 //! one vertex copy, cannot host both fans. Sending the tip `Below`
 //! separates the runs (`{slantL}`, `{slantR}` — two null edges, two
 //! vertex copies, one fan each; the tip edge survives inside Below's
-//! coplanar top as an artifact edge). TOG §3's AOA→ABOVE is the
+//! coplanar top as an artifact edge). Where Above's material joins round
+//! one end of the edge instead — a valley in the plane ending at a
+//! vertex whose other edges all rise — Above's piece touches itself
+//! along the edge, and its section runs out along it and back; the edge
+//! reaches into Below's section from its other end only, and the finish
+//! kills it there (`finish::kill_section_struts`). TOG §3's AOA→ABOVE is the
 //! erratum; the book's Program 14.6 is right. The touching-wedge
 //! fixture (the notch cut from below, `[slantL: Below, tip: ON,
 //! slantR: Below, cap-bisector: Above]`) reads the same physical

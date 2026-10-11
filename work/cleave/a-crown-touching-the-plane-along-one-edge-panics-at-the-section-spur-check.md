@@ -43,3 +43,39 @@ witness reaches.
 A row over C2 at every pose and both normals, at all three ε, that
 builds sound or refuses typed. Then the arm's argument re-made, or the
 arm made a typed refusal if the input class is honestly unbuildable.
+
+## Built (branch cleave/crown-spur-panic)
+
+Measured on `origin/main` at 6a304186a8 (PR 4565 merged): C2 panics at
+the `split_section_spur` `unreachable!` at all 5 poses × both normals,
+at ε = default, 1e-6 and 1e-12.
+
+Cause: the arm's argument was false. Rule (b) reads the valley from
+`MEET` to the corner in the plane reflex and sends it Below. At the
+corner the runs above lie apart (two null edges); at `MEET` they join
+round it (one null edge). So the polygon runs out along the valley and
+back, and both loops carry the spur. Below's loop has the valley edge
+itself, both halves in a row (a strut); Above's has two distinct
+chords from two copies of the corner to the one copy of `MEET` (a
+slit). The slit is right: Above's piece touches itself along the
+valley, through distinct entities. The strut is not: with the panic
+bypassed, every cell refused `ResultInvalid` with
+`ScaffoldingStrutVertex` at `MEET`'s Below copy.
+
+- `finish::kill_section_struts` kills each strut of a section loop
+  (`kev`) before promotion. Below's section face is then the plain
+  polygon, and Below keeps no vertex at `MEET`.
+- `Sweep::assert_spurs_paired` replaces `assert_no_spur`. It reads both
+  loops and requires as many straight struts as slits. A slit with no
+  strut, which is the contact-joined-into-a-section the old argument
+  ruled out, refuses `SplitJoinError::SectionInvariant`.
+- `meeting::corners_disjoint` reads a slit's tip as a full turn where
+  the face lies round it, and refuses a spur out of the face.
+
+Pin: `split_through_an_apex::a_crown_with_one_corner_in_the_plane_splits_sound`.
+C2 plus four ring families (3 to 6 corners; the seed, a middle and the
+last corner in the plane), the corner at 0 and ±0.6 ε, 5 poses × both
+normals. It asserts both sides' volumes against `crown_above`, tier 3,
+corners disjoint, one vertex at `MEET` above and none below, and
+`plane_section`'s area against the bottom fan's section. It passes at
+all three ε.

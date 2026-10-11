@@ -49,3 +49,18 @@ times. PR 4098 turned the straight-tip check into an invariant
 (`Sweep::assert_no_spur`, which panics on an exact spur) and retired
 `SplitJoinError::SectionSpur`. The curved blind spot this row names is
 now a blind spot of that invariant check, not of a refusal.
+
+## Evidence (CLEAVE, branch `cleave/crown-spur-panic`, 2026-10-11)
+
+The guard did have a producer: rule (b)'s reflex verdict, on a valley
+in the plane round one end of which the material above joins in one
+run (a `posed_crown` with one ring corner in the plane;
+`work/cleave/a-crown-touching-the-plane-along-one-edge-panics-at-the-section-spur-check.md`).
+Its spur is real. The check is now `Sweep::assert_spurs_paired`: an
+exact straight spur is legal as a strut on one loop (the edge itself,
+which `finish::kill_section_struts` kills) paired with a slit on the
+other (two distinct chords, the other side touching itself), and a
+slit with no strut refuses `SplitJoinError::SectionInvariant`. The
+curved blind spot stands for the pairing count, which reads straight
+tips only. The strut kill reads topology, so it takes a curved strut
+too.
