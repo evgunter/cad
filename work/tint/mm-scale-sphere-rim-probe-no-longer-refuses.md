@@ -1,0 +1,36 @@
+---
+id: mm-scale-sphere-rim-probe-no-longer-refuses
+kind: issue
+title: rim_dim_scale_twins' mm-scale sphere rim row is red under --features probe: the interior rim is no longer refused, so the probe sweep's pre-pass stops at geom-brep
+status: open
+opened: 2026-10-11
+priority: P1
+cost: E
+---
+
+
+## What
+
+`geom-brep::rim_dim_scale_twins::mm_scale_sphere_rim_level_margin_is_the_direction_chord`
+(`crates/geom-brep/tests/rim_dim_scale_twins.rs`, ~388, a
+`feature = "probe"` suite) panics on its first assertion, `the interior
+rim must be refused`: `rim_level_margins` over `sphere_interior_rim(1e-3,
+0.5)` reports no refusal. Red at default ε, 1e-6, 1e-9 and 1e-12, at
+`origin/main` 2026-10-11 (after `bf05e073d`, PR 4573's sphere arm,
+merged; not bisected).
+
+Found by INTENT's `intent/probe-battery-places-its-fixture` lane while
+running `scripts/k_probe_sweep.sh`'s plain pre-pass past
+`assemble_one_local_battery`: the pre-pass runs the roster in order, so
+this row is the next stop. `RUN_FLOOR` rosters
+`plain:geom-brep:rim_dim_scale_twins`, so nightly `k-lint (dev-probe)`
+still lints nothing while it is red (with
+`silent-fixed-predicates-probe-reds-under-all-features-on-main`, the
+topo row after it).
+
+## Owed
+
+Decide whether the probe's premise (an interior rim on a 1 mm sphere is
+refused) still holds: if the kernel now rightly accepts it, re-baseline
+the row to what it decides; if not, the refusal regressed. Then re-run
+the pre-pass (`run_plain` in `scripts/k_probe_sweep.sh`).
