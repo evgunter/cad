@@ -2,11 +2,12 @@
 id: a-placement-is-the-bundle-of-mates
 kind: issue
 title: D10 stage 3 PR B: Place { shapes, constraints } owns today's mates, the world is a node, an instance is a placement, spaces are kinds; gauges, offsets, PlaceInWorld, the spanning tree and roots retire
-status: open
+status: dispatched
 opened: 2026-10-08
 priority: P0
 cost: H
 refs: [intent-stage3-is-built, mate-offset-verified-against-the-solve-is-a-constraint-falling-back-to-an-assertion]
+branch: intent/s3-b-placement-is-the-bundle-of-mates
 ---
 
 INTENT stage 3, PR B. Spec: `docs/INTENT-STAGE3-SPEC.md` §3. Built on FORK-S3M (fork log row 97, PR 4326) and FORK-S3O (row 96, PR 4325).
