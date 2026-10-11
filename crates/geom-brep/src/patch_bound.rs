@@ -677,10 +677,7 @@ fn cross_norm_sup(a: &[[Interval; 3]], b: &[[Interval; 3]]) -> f64 {
             .collect();
         vectors_norm_sup(&about)
     };
-    let (ca, cb) = (
-        centre(a).map(Interval::point),
-        centre(b).map(Interval::point),
-    );
+    let (ca, cb) = (centre(a), centre(b));
     let terms = [
         norm_sup(&cross(&ca, &cb)),
         norm_sup(&ca),
@@ -701,7 +698,7 @@ fn cross_norm_sup(a: &[[Interval; 3]], b: &[[Interval; 3]]) -> f64 {
 /// overflowed or refused enclosure) contributes `0`, and a non-finite
 /// mean is taken as `0`, so the centre is always finite and the reach
 /// about it is what reports the trouble.
-fn centre(vectors: &[[Interval; 3]]) -> [f64; 3] {
+fn centre(vectors: &[[Interval; 3]]) -> [Interval; 3] {
     core::array::from_fn(|c| {
         let sum: f64 = vectors
             .iter()
@@ -710,7 +707,7 @@ fn centre(vectors: &[[Interval; 3]]) -> [f64; 3] {
             .sum();
         #[allow(clippy::cast_precision_loss)]
         let m = sum / vectors.len() as f64;
-        if m.is_finite() { m } else { 0.0 }
+        Interval::point(if m.is_finite() { m } else { 0.0 })
     })
 }
 
@@ -934,7 +931,7 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
             // active `P − c`, whose hull holds `S − c` (positive weights
             // make the rational basis a nonnegative partition of unity
             // over them), and the active coefficients of `Ã_u` and `Ã_v`.
-            let cc = centre(&window_vectors(&w.u_val, &w.v_val, point_at)).map(Interval::point);
+            let cc = centre(&window_vectors(&w.u_val, &w.v_val, point_at));
             let about = window_vectors(&w.u_val, &w.v_val, |k, i, j| point_at(k, i, j) - cc[k]);
             let au = window_vectors(&w.u_d1, &w.v_val, |k, i, j| {
                 tilde_entry(&a_nets[k].d10, &w_nets.d10, cc[k], i, j)

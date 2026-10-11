@@ -2901,7 +2901,7 @@ mod tests {
         // 5.6e-13 (7.5e-13 through `cell_bound`). The other columns are
         // norms of uncancelled vectors, a few products deep, and measure
         // 2e-15 to 4e-15: `sup‖M̃‖` 3.6e-15, both patches' speeds 2.0e-15
-        // and 2.1e-15, the meters' `sup‖S_u × S_v‖` 2.2e-15 (integral) and
+        // and 1.1e-15, the meters' `sup‖S_u × S_v‖` 2.2e-15 (integral) and
         // 4.0e-15 (rational). 1e-10 is ~130× the worst and nine decades
         // under a box fold.
         const DRIFT: f64 = 1e-10;
