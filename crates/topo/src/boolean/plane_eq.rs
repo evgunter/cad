@@ -39,7 +39,7 @@ use super::carrier_eq::{CarrierDesc, CoincidenceMeasure, ConsumedExtent};
 use geom_core::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Sign, Vec3};
 
 use crate::contact::ContactVerdict;
-use crate::validate::{decide, decide_nonzero};
+use crate::validate::{decide, decide_nonzero, decide_reported};
 use geom_core::k_stats::NonzeroSign;
 
 /// The relation between two oriented planes — the PLANE SPELLING of
