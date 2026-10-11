@@ -2,11 +2,13 @@
 id: a-chords-end-sample-reads-carrier-t1-not-its-vertex
 kind: issue
 title: Certification reads an edge's end sample at carrier(t1), one rounding off its vertex, so at the band's edge its verdict depends on the edge's orientation
-status: dispatched
+status: closed
 opened: 2026-10-11
 priority: P2
 cost: M
 branch: cleave/chord-end-sample
+closed: 2026-10-11
+pr: 4732
 ---
 
 
@@ -92,3 +94,7 @@ orientation dependence at the band's edge stands. No kernel change.
   It covers the converse found by the sweep: tier 3's planar arm, and
   `attach.rs` `edge_on_plane` after it, read an edge's ends at its
   vertices and never at its carrier.
+
+## Closed (PR 4732, 2026-10-11)
+
+Ruled the second way: check 4 certifies the carrier (D4 ¶2), so its end samples stay carrier points. Reading the vertex instead would bound the carrier's end only through check 3 plus ε, which infers a decision from two others (Q1). The one-rounding move is K-headroom noise, not an amplified error, and both orientations answer soundly (build, or escalate in band). The rule is pinned by `geom-brep` `end_samples_read_the_carrier`, which went red under a vertex-reading prototype.
