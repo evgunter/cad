@@ -2,11 +2,12 @@
 id: a-result-that-is-only-a-sliver-shell-passes-the-door
 kind: issue
 title: A result that is only a sliver shell passes the door: check 7 exempts its in-band volume sign and check 10 never reads a one-shell solid
-status: open
+status: review
 opened: 2026-10-09
 priority: P0
 cost: M
 refs: [4415]
+branch: flush/sliver-only-result-refuses
 ---
 
 
@@ -59,3 +60,38 @@ The pieces sort cannot give an in-band shell a solid of its own: an
 unread role blocks the move (`PieceSortError::RoleUnread`). So the class
 is reached where the build itself leaves the sliver alone in a solid,
 as in the repro above.
+
+## Measured
+
+On main at 19b704d92, ε = 1e-9, the piece
+`prism([(2,0),(4,0),(4,2),(2,1)], 1)` ∩ the `notch307 nt e0 a3` cube,
+through the plain `topo::intersect` (the row's `intersect_with` was not
+re-run: a declaration moves no body).
+- d = 1e-8: `Ok`, one solid of one shell. `classify_shells` refuses it
+  `Escalated`, walk `V/A` 3.050e-9. The certified enclosure (the
+  row's, and the one check 10 quotes in the two-solid case below) is
+  [3.28872e-9, 3.28872e-9], wholly in band.
+- d = 3e-8: `Ok`, one solid of one shell, walk `V/A` 9.822e-9.
+- d = −1e-8: `Ok`, empty.
+
+With a 0.4 m block added to the piece as a second solid, standing apart
+inside the cube, main already refuses `Escalated { ShellRole }` at
+d = 1e-8. The pieces sort leaves the wedge, whose role does not read,
+in the block's solid, so check 10 reads it. No boolean construction
+found here gives the wedge a solid of its own beside a lump.
+
+## Fix
+
+Check 7 (`validate.rs` `plus_v_by_sign`) keeps the certified sliver of
+its last open round (`OpenRound`). That sliver comes from
+`RoleUnread::certified_by`, read through `RoleUnread::sliver`. At the
+target the solid passes as `PlusVVerdict::Sliver`, so the at-rest
+exemption is unchanged. A solid whose only shell passed that way is
+listed as a `SliverSolid` on the kept `AtRestBody`
+(`AtRestBody::slivers`). The boolean door's `gate` (`boolean/ops.rs`)
+refuses a result with any such solid `Escalated { ShellRole }`. It does
+this through `escalated`, the binding-shell choice it now shares with
+`finished_body_refusal`. Tests are in `topo/tests/sliver_shell_role.rs`:
+`a_result_that_is_only_a_sliver_refuses_in_band` goes red on main, and
+`a_sliver_beside_a_lump_refuses_in_band` is a guard that also holds on
+main.
