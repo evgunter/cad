@@ -52,3 +52,5 @@ cleave-tangency)
   - `PointInSolidError::Escalated` gives the unnamed placement lever plus the reading's note, as `contfp`, `classify_point_in_solid` and the Boolean already did.
 
   `SliverSector` is unchanged, and its mints are on CLEAVE's split-escalations row. (ENCL orchestrator)
+
+- 2026-10-10 — Seam note from CONTACTHOLD: filed `a-shared-rims-identity-is-three-epsilon-rows-of-one-displacement` on this slate (rim_wedge.rs, found by both designers on CONTACTHOLD's tangent-tolerance fork). (CONTACTHOLD orchestrator)
