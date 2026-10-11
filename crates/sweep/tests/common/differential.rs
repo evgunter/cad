@@ -172,38 +172,97 @@ pub fn disc_clip_moments(r: f64, poly: &[(f64, f64)]) -> (f64, f64, f64) {
 /// **One pose's line**: the refusal, or the body's tiers 2 and 3′, the
 /// at-rest certificate, whether it is a legal operand (it unites with a
 /// far brick, `sweep::test_support::assert_legal_operand`'s question)
-/// and its volume against `want`, to 1e-7 beyond the volume's own
-/// certified pad. `SOUND` is all five; anything else that builds is
-/// `BAD`.
+/// and its volume against `want` ([`judged`]). `SOUND` is all five;
+/// anything else that builds is `BAD`.
 pub fn outcome(r: Result<BooleanResult<f64>, BooleanError>, want: f64, tol: Tol) -> String {
-    judged(r, Some(want), tol).0
+    judged(r, Some(want), tol).line
+}
+
+/// The volume claim a `SOUND` line makes: the closed form lies within
+/// this of the body's certified volume enclosure.
+pub const VOLUME_CLAIM: f64 = 1e-7;
+
+/// The widest certified volume enclosure (its half-width, `volume_pad`)
+/// a `SOUND` line accepts: no wider than [`VOLUME_CLAIM`], so a
+/// certificate that loosens cannot pass a volume it does not pin.
+pub const VOLUME_PAD_BUDGET: f64 = 1e-7;
+
+/// What [`judged`] read of a pose.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Verdict {
+    /// The op refused.
+    Refused,
+    /// An empty result where the closed form is empty.
+    EmptyOk,
+    /// An empty result where it is not.
+    EmptyWrong,
+    /// An empty result, with no closed form.
+    EmptyUnjudged,
+    /// A body passing every check.
+    Sound,
+    /// A body passing every check but the volume, with no closed form.
+    Unjudged,
+    /// A body failing a check.
+    Bad,
+    /// A body whose volume could not be measured.
+    Unmeasured,
+}
+
+/// One pose as [`judged`] read it: its line, the volume the result
+/// measured (zero for an empty one), and the verdict.
+#[derive(Clone, Debug)]
+pub struct Judgement {
+    /// The printed line.
+    pub line: String,
+    /// The measured volume.
+    pub volume: Option<f64>,
+    /// The verdict the line prints.
+    pub verdict: Verdict,
 }
 
 /// [`outcome`] where a pose may have no closed form (`want` `None`),
-/// with the volume the result measured (zero for an empty one) for a
-/// battery that checks it across ops. A body passing the other four
-/// checks against no closed form reads `UNJUDGED`, never `SOUND`.
+/// with the volume and the verdict. The volume passes where `want` lies
+/// within [`VOLUME_CLAIM`] of the measured enclosure, `v ± volume_pad`,
+/// and that enclosure is no wider than [`VOLUME_PAD_BUDGET`]; a nonzero
+/// pad is printed. A body passing the other four checks against no
+/// closed form reads `UNJUDGED`, never `SOUND`.
 pub fn judged(
     r: Result<BooleanResult<f64>, BooleanError>,
     want: Option<f64>,
     tol: Tol,
-) -> (String, Option<f64>) {
+) -> Judgement {
+    judge(r, want, tol, true)
+}
+
+/// [`judged`], with `extra` one more condition a `SOUND` line needs.
+fn judge(
+    r: Result<BooleanResult<f64>, BooleanError>,
+    want: Option<f64>,
+    tol: Tol,
+    extra: bool,
+) -> Judgement {
     let want_col = want.map_or("want=none".to_string(), |w| format!("want={w:.9}"));
+    let of = |line: String, volume, verdict| Judgement {
+        line,
+        volume,
+        verdict,
+    };
     match r {
         Err(e) => {
             let s = format!("{e:?}");
             let cut: String = s.chars().take(110).collect();
-            (format!("ERR {cut}"), None)
+            of(format!("ERR {cut}"), None, Verdict::Refused)
         }
         Ok(r) => match r.body() {
-            None => (
-                match want {
-                    None => "EMPTY unjudged".into(),
-                    Some(w) if w.abs() < 1e-9 => "EMPTY ok".into(),
-                    Some(w) => format!("EMPTY WRONG want={w}"),
-                },
-                Some(0.0),
-            ),
+            None => match want {
+                None => of("EMPTY unjudged".into(), Some(0.0), Verdict::EmptyUnjudged),
+                Some(w) if w.abs() < 1e-9 => of("EMPTY ok".into(), Some(0.0), Verdict::EmptyOk),
+                Some(w) => of(
+                    format!("EMPTY WRONG want={w}"),
+                    Some(0.0),
+                    Verdict::EmptyWrong,
+                ),
+            },
             Some(bb) => {
                 let t2 = topo::validate_closed(&bb.body).is_ok();
                 let t3 = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol).is_ok();
@@ -217,24 +276,37 @@ pub fn judged(
                 match topo::mass_properties(&bb.body, tol).map(|m| (m.volume, m.volume_pad)) {
                     Ok((v, pad)) => {
                         let verdict = match want {
-                            _ if !(t2 && t3 && cert && operand) => "BAD",
-                            None => "UNJUDGED",
-                            Some(w) if (v - w).abs() < 1e-7 + pad => "SOUND",
-                            Some(_) => "BAD",
+                            _ if !(t2 && t3 && cert && operand && extra) => Verdict::Bad,
+                            _ if pad > VOLUME_PAD_BUDGET => Verdict::Bad,
+                            None => Verdict::Unjudged,
+                            Some(w) if (v - w).abs() <= VOLUME_CLAIM + pad => Verdict::Sound,
+                            Some(_) => Verdict::Bad,
                         };
-                        (
+                        let word = match verdict {
+                            Verdict::Sound => "SOUND",
+                            Verdict::Unjudged => "UNJUDGED",
+                            _ => "BAD",
+                        };
+                        let pad_col = if pad > 0.0 {
+                            format!(" pad={pad:.1e}")
+                        } else {
+                            String::new()
+                        };
+                        of(
                             format!(
-                                "OK {verdict} t2={t2} t3p={t3} cert={cert} operand={operand} \
-                                 v={v:.9} {want_col}"
+                                "OK {word} t2={t2} t3p={t3} cert={cert} operand={operand} \
+                                 v={v:.9}{pad_col} {want_col}"
                             ),
                             Some(v),
+                            verdict,
                         )
                     }
-                    Err(e) => (
+                    Err(e) => of(
                         format!(
                             "OK-UNMEASURED t2={t2} t3p={t3} cert={cert} operand={operand} {e:?}"
                         ),
                         None,
+                        Verdict::Unmeasured,
                     ),
                 }
             }
@@ -289,21 +361,24 @@ pub fn seams(body: &Body<f64>) -> (usize, usize, usize) {
 }
 
 /// [`judged`], and where the op built, the body's [`seams`] as columns.
+/// A face cut in two (`samekey`) or a zero-length edge (`zero`) reads
+/// `BAD`; two faces on one plane (`coplanar`) is printed only.
 pub fn judged_with_seams(
     r: Result<BooleanResult<f64>, BooleanError>,
     want: Option<f64>,
     tol: Tol,
-) -> (String, Option<f64>) {
+) -> Judgement {
     let seams = r
         .as_ref()
         .ok()
         .and_then(BooleanResult::body)
         .map(|bb| seams(&bb.body));
-    let (line, v) = judged(r, want, tol);
-    match seams {
-        Some((sk, cp, z)) => (format!("{line} samekey={sk} coplanar={cp} zero={z}"), v),
-        None => (line, v),
+    let clean = seams.is_none_or(|(sk, _, z)| sk == 0 && z == 0);
+    let mut j = judge(r, want, tol, clean);
+    if let Some((sk, cp, z)) = seams {
+        j.line = format!("{} samekey={sk} coplanar={cp} zero={z}", j.line);
     }
+    j
 }
 
 /// A built body that [`outcome`] reads `SOUND` against `want` and that

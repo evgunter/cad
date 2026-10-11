@@ -1017,23 +1017,29 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         // No wired join arm for this germ pair (cyl×sphere's rung-3
         // fitted chords off any edge, a coaxial cylinder pair, which the
         // section door owns, plane×NURBS behind PR 7b): typed, citing
-        // the kind whose join arm is missing and the face that holds the
-        // segment's entry half now. The germ's recorded face may be one
-        // an earlier segment's `mef` divided; its fragments keep its
-        // surface, so the kind reads the same from either.
+        // the face that holds the segment's entry half now (an earlier
+        // segment's `mef` may have divided the germ's recorded face) and
+        // that face's kind.
         let no_arm = || {
-            let (operand, body, he, s) = if matches!(ga, Sf::Plane { .. }) {
-                (Operand::B, &red.b, eb, &gb)
+            let (operand, body, he) = if matches!(ga, Sf::Plane { .. }) {
+                (Operand::B, &red.b, eb)
             } else {
-                (Operand::A, &red.a, ea, &ga)
+                (Operand::A, &red.a, ea)
             };
-            match crate::chord_join::he_face(body, he) {
-                Ok(face) => BooleanError::CurvedBooleanUnsupported {
+            let face = match crate::chord_join::he_face(body, he) {
+                Ok(face) => face,
+                Err(e) => return BooleanError::Join(e),
+            };
+            match body
+                .get_face(face)
+                .and_then(|f| body.get_surface(f.surface))
+            {
+                Some(s) => BooleanError::CurvedBooleanUnsupported {
                     operand,
                     face,
                     kind: s.kind(),
                 },
-                Err(e) => BooleanError::Join(e),
+                None => desync("a segment's face holds no surface"),
             }
         };
         // A segment along a conic edge of one solid, inside the other's
@@ -1387,20 +1393,21 @@ mod turn {
     use super::{BooleanError, Sense, rotational_sense};
     use geom_core::{Band, Decide, Point3, Vec3};
 
-    /// The section's centre and axis; the germ's site and direction,
-    /// whose rotational sense says which way is ahead; then a site on
-    /// the conic and the line of the conic's tangent there, which
+    /// The section's frame; the germ's site and direction, whose
+    /// rotational sense says which way is ahead; then a site on the
+    /// conic and the line of the conic's tangent there, which
     /// [`super::turned_past`] measures from. The site and its tangent
     /// are another germ's (a partner's, or the germ's own in
-    /// [`Turn::read_from_germ`]), and that germ's direction may run either
-    /// way along the tangent: [`super::turned_past`] reads the tangent
-    /// only through magnitudes, so its orientation never reaches a
-    /// verdict.
+    /// [`Turn::read_from_germ`]), and that germ's direction may run
+    /// either way along the tangent: [`super::turned_past`] reads the
+    /// tangent only through magnitudes, so its orientation never
+    /// reaches a verdict.
     ///
-    /// Both directions' rotational senses are decided nonzero by
-    /// [`Turn::decide`], the one way to make a `Turn`: the germ's is the
-    /// sign ahead, and the site's is the divisor
-    /// [`super::turned_past`] and [`super::off_conic_slack`] read.
+    /// [`Turn::facing`] is the one way to make a `Turn`, and it decides
+    /// both directions' rotational senses nonzero against the frame it
+    /// stores: the germ's is the sign ahead, and the site's is the
+    /// divisor [`super::turned_past`] and [`super::off_conic_slack`]
+    /// read.
     #[derive(Clone, Copy)]
     pub(super) struct Turn<T: geom_core::Real> {
         center: Point3<T>,
@@ -1411,24 +1418,29 @@ mod turn {
     }
 
     impl<T: Decide> Turn<T> {
-        /// The germ at `germ` read toward `site`, each a point and its
-        /// direction, about `frame`: refuses where either direction has
-        /// no rotational sense there ([`rotational_sense`]).
-        pub(super) fn decide(
+        /// **Whether two germs on one loop of a conic section face each
+        /// other**, each a site and its direction, about the loop's
+        /// `frame`: they bound one rotational traversal of it exactly
+        /// when their [`rotational_sense`]s differ, and the turn from
+        /// `germ` toward `site` is then `Some`. A radial direction
+        /// refuses there ([`rotational_sense`]).
+        pub(super) fn facing(
             frame: (Point3<T>, Vec3<T>),
             germ: (Point3<T>, Vec3<T>),
             site: (Point3<T>, Vec3<T>),
             band: Band,
-        ) -> Result<Self, BooleanError> {
+        ) -> Result<Option<Self>, BooleanError> {
             let sense = rotational_sense(frame, germ.0, germ.1, band)?;
-            rotational_sense(frame, site.0, site.1, band)?;
-            Ok(Turn {
+            if rotational_sense(frame, site.0, site.1, band)? == sense {
+                return Ok(None);
+            }
+            Ok(Some(Turn {
                 center: frame.0,
                 axis: frame.1,
                 sense,
                 germ,
                 site,
-            })
+            }))
         }
     }
 
@@ -1554,7 +1566,7 @@ fn turn_of<T: geom_core::Real>(
 /// aspect `k`. At the half-turn it is the arc again to first order, by
 /// the conic's central symmetry; between, it is neither, and only its
 /// sign is read there. `|turn(t̂)|` is the site's rotational sense,
-/// decided nonzero when the [`Turn`] was made ([`Turn::decide`]).
+/// decided nonzero when the [`Turn`] was made ([`Turn::facing`]).
 /// Reading from the site cancels nothing near it.
 ///
 /// The sites are vertices, and a vertex lies within the band of its
@@ -1839,7 +1851,8 @@ fn partners<T: Decide>(
     // test; conic germ loci compare rotational senses about the section
     // frame, on one loop of it.
     let loops = germ_section_loops(red, &rga, band)?;
-    if !germs_face_each_other(loops.as_ref(), &rga, &ega, p_c, p_e, band)? {
+    let faced = facing(loops.as_ref(), &rga, &ega, p_c, p_e, band)?;
+    if let Faced::Apart = faced {
         return Ok(None);
     }
     // The B side at the SAME slots — mirror checks, not freedom:
@@ -1856,17 +1869,9 @@ fn partners<T: Decide>(
     if sb.is_up(&red.b, egb.he)? == sb.is_up(&red.b, rgb.he)? {
         return Err(desync("B senses agree at a matched pair"));
     }
-    let turn = match loops {
-        None => None,
-        Some(loops) => {
-            let (_, lp) = loops.at(p_c, band)?;
-            Some(Turn::decide(
-                lp.turn(),
-                (p_c, rga.dir),
-                (p_e, ega.dir),
-                band,
-            )?)
-        }
+    let turn = match faced {
+        Faced::Conic(turn) => Some(turn),
+        Faced::Apart | Faced::Straight => None,
     };
     Ok(Some(Reach {
         arm: germ_arm(turn, band)?,
@@ -2564,11 +2569,7 @@ impl<T: Decide> SectionLoops<T> {
                 what: "a germ site lies on neither loop of its section (its loop margin is in \
                        the band)",
             }),
-            Err(diag) => Err(BooleanError::coincidence(
-                Coincide::Join,
-                DeclarationRead::Moot,
-                diag,
-            )),
+            Err(diag) => Err(join_escalate(diag)),
         }
     }
 }
@@ -3279,16 +3280,8 @@ pub(super) fn cs_pair_frame<T: Decide>(
     }
 }
 
-/// Mutual germ facing along the germ LOCUS. Straight germ lines take
-/// the chord test: both dirs definitely point at each other along the
-/// chord (Zero = definite non-facing; in-band escalates in `decide`).
-/// On a CONIC germ locus the chord test is structurally degenerate — a
-/// semicircle arc leaves BOTH sites exactly perpendicular to the chord
-/// — so the arc-aware test asks whether the two germs bound ONE
-/// rotational traversal of the section conic: do their
-/// [`rotational_sense`]s differ? A radial germ is a loud desync there,
-/// never a silent non-match. Two germs on different loops of the
-/// section never face: each loop is its own traversal.
+/// Whether two germs face each other ([`facing`]).
+#[cfg(test)]
 pub(super) fn germs_face_each_other<T: Decide>(
     loops: Option<&SectionLoops<T>>,
     g1: &HalfGerm<T>,
@@ -3297,6 +3290,41 @@ pub(super) fn germs_face_each_other<T: Decide>(
     p2: geom_core::Point3<T>,
     band: Band,
 ) -> Result<bool, BooleanError> {
+    Ok(!matches!(
+        facing(loops, g1, g2, p1, p2, band)?,
+        Faced::Apart
+    ))
+}
+
+/// How two germs face each other ([`facing`]).
+enum Faced<T: geom_core::Real> {
+    /// They do not.
+    Apart,
+    /// They do, along a straight germ line.
+    Straight,
+    /// They do, along one loop of a conic section: the turn from `g1`
+    /// toward `g2`.
+    Conic(Turn<T>),
+}
+
+/// Mutual germ facing along the germ LOCUS. Straight germ lines take
+/// the chord test: both dirs definitely point at each other along the
+/// chord (Zero = definite non-facing; in-band escalates in `decide`).
+/// On a CONIC germ locus the chord test is structurally degenerate — a
+/// semicircle arc leaves BOTH sites exactly perpendicular to the chord
+/// — so the arc-aware test asks whether the two germs bound ONE
+/// rotational traversal of the section conic: do their
+/// [`rotational_sense`]s differ ([`Turn::facing`])? A radial germ is a loud desync there,
+/// never a silent non-match. Two germs on different loops of the
+/// section never face: each loop is its own traversal.
+fn facing<T: Decide>(
+    loops: Option<&SectionLoops<T>>,
+    g1: &HalfGerm<T>,
+    g2: &HalfGerm<T>,
+    p1: geom_core::Point3<T>,
+    p2: geom_core::Point3<T>,
+    band: Band,
+) -> Result<Faced<T>, BooleanError> {
     match loops {
         None => {
             let chord = p2 - p1;
@@ -3306,20 +3334,24 @@ pub(super) fn germs_face_each_other<T: Decide>(
             // the length band — class (c)).
             let f1 = g1.dir.dot(chord);
             let f2 = g2.dir.dot(-chord);
-            Ok(
-                decide("bool_join_facing", Margin::of(f1), band).map_err(join_escalate)?
-                    == Sign::Positive
-                    && decide("bool_join_facing", Margin::of(f2), band).map_err(join_escalate)?
-                        == Sign::Positive,
-            )
+            let faces = decide("bool_join_facing", Margin::of(f1), band).map_err(join_escalate)?
+                == Sign::Positive
+                && decide("bool_join_facing", Margin::of(f2), band).map_err(join_escalate)?
+                    == Sign::Positive;
+            Ok(if faces { Faced::Straight } else { Faced::Apart })
         }
         Some(loops) => {
-            let ((l1, f1), (l2, f2)) = (loops.at(p1, band)?, loops.at(p2, band)?);
+            let ((l1, f1), (l2, _)) = (loops.at(p1, band)?, loops.at(p2, band)?);
             if l1 != l2 {
-                return Ok(false);
+                return Ok(Faced::Apart);
             }
-            Ok(rotational_sense(f1.turn(), p1, g1.dir, band)?
-                != rotational_sense(f2.turn(), p2, g2.dir, band)?)
+            // One loop, one frame.
+            Ok(
+                match Turn::facing(f1.turn(), (p1, g1.dir), (p2, g2.dir), band)? {
+                    Some(turn) => Faced::Conic(turn),
+                    None => Faced::Apart,
+                },
+            )
         }
     }
 }
@@ -4076,15 +4108,13 @@ mod travel_rows {
             Reach {
                 arm: GermArm::Ahead,
                 chord: (site - germ).norm(),
-                turn: Some(
-                    Turn::decide(
-                        (Point3::origin(), Vec3::unit_z()),
-                        (germ, Vec3::unit_x()),
-                        (site, tangent),
-                        band(),
-                    )
-                    .unwrap(),
-                ),
+                turn: Turn::facing(
+                    (Point3::origin(), Vec3::unit_z()),
+                    (germ, Vec3::unit_x()),
+                    (site, tangent),
+                    band(),
+                )
+                .unwrap(),
             }
         })
     }
@@ -4146,14 +4176,15 @@ mod travel_rows {
         let arm = |k: f64| {
             let (germ, dir) = at(k, -FRAC_PI_4);
             let (site, tangent) = at(k, -FRAC_PI_4 + core::f64::consts::PI);
-            let turn = Turn::decide(
+            let turn = Turn::facing(
                 (Point3::origin(), Vec3::unit_z()),
                 (germ, dir * -1.0),
                 (site, tangent),
                 band(),
             )
             .unwrap();
-            germ_arm(Some(turn), band())
+            assert!(turn.is_some(), "the germ and its partner face");
+            germ_arm(turn, band())
         };
         assert!(matches!(arm(1.0), Ok(GermArm::Ahead)), "circle");
         assert!(

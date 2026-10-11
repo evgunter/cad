@@ -75,6 +75,18 @@ fn at_v(a: (f64, f64), b: (f64, f64), v: f64) -> f64 {
     a.0 + (b.0 - a.0) * (v - a.1) / (b.1 - a.1)
 }
 
+/// The prism's convex quad in its cap plane's own `(u, v)`: each long
+/// edge through its two ellipse sites ([`uv`]), cut at `v = ±cap`.
+fn quad(k: f64, sites: [f64; 4], cap: f64) -> [(f64, f64); 4] {
+    let [e1a, e1b, e2a, e2b] = sites.map(|d| uv(k, d));
+    [
+        (at_v(e1a, e1b, -cap), -cap),
+        (at_v(e2a, e2b, -cap), -cap),
+        (at_v(e2a, e2b, cap), cap),
+        (at_v(e1a, e1b, cap), cap),
+    ]
+}
+
 /// The prism: a convex quad in the plane `z = k x` (local u along
 /// `(1, 0, k)/√(1+k²)`, v along y), extruded `h` along the plane's
 /// normal (`side`) and turned `psi` about `z`. `sites` = (edge-1 φ
@@ -87,13 +99,7 @@ fn prism_turned(
     side: ExtrudeSide,
     psi: f64,
 ) -> Body<f64> {
-    let [e1a, e1b, e2a, e2b] = sites.map(|d| uv(k, d));
-    let quad = [
-        (at_v(e1a, e1b, -cap), -cap),
-        (at_v(e2a, e2b, -cap), -cap),
-        (at_v(e2a, e2b, cap), cap),
-        (at_v(e1a, e1b, cap), cap),
-    ];
+    let quad = quad(k, sites, cap);
     let lp = bulge_loop(
         quad.iter()
             .map(|&(u, v)| (Point2::new(u, v), 0.0))
@@ -122,13 +128,7 @@ fn prism_corners(k: f64, sites: [f64; 4], cap: f64, h: f64, along: bool, psi: f6
     let n = Vec3::new(-k, 0.0, 1.0) * (s * if along { h } else { -h });
     let ux = Vec3::new(1.0, 0.0, k) * s;
     let vy = Vec3::new(0.0, 1.0, 0.0);
-    let [e1a, e1b, e2a, e2b] = sites.map(|d| uv(k, d));
-    let quad = [
-        (at_v(e1a, e1b, -cap), -cap),
-        (at_v(e2a, e2b, -cap), -cap),
-        (at_v(e2a, e2b, cap), cap),
-        (at_v(e1a, e1b, cap), cap),
-    ];
+    let quad = quad(k, sites, cap);
     let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 0.0, 1.0), psi);
     core::array::from_fn(|i| {
         let (u, v) = quad[i % 4];
@@ -214,22 +214,14 @@ fn prism_in_cylinder(corners: &[V3; 8], zs: (f64, f64)) -> f64 {
 
 /// The quad prism's volume: its cap's area times its height.
 fn prism_volume(k: f64, sites: [f64; 4], cap: f64, h: f64) -> f64 {
-    let [e1a, e1b, e2a, e2b] = sites.map(|d| uv(k, d));
-    let quad = [
-        (at_v(e1a, e1b, -cap), -cap),
-        (at_v(e2a, e2b, -cap), -cap),
-        (at_v(e2a, e2b, cap), cap),
-        (at_v(e1a, e1b, cap), cap),
-    ];
-    area(&quad).abs() * h
+    area(&quad(k, sites, cap)).abs() * h
 }
 
 /// The quadrature [`prism_in_cylinder`] is checked against: a polar
 /// midpoint rule over the disc of each vertical line's extent inside
-/// the prism's half-spaces and the heights `zs`, independent of the
-/// face sum.
-fn prism_in_cylinder_by_quadrature(corners: &[V3; 8], zs: (f64, f64), n: usize) -> f64 {
-    let planes = prism_half_spaces(corners);
+/// the half-spaces `planes` (`n · p ≤ d`) and the heights `zs`,
+/// independent of the face sum.
+fn prism_in_cylinder_by_quadrature(planes: &[(V3, f64)], zs: (f64, f64), n: usize) -> f64 {
     let (nr, nt) = (n, 4 * n);
     let mut v = 0.0;
     for i in 0..nr {
@@ -238,7 +230,7 @@ fn prism_in_cylinder_by_quadrature(corners: &[V3; 8], zs: (f64, f64), n: usize) 
             let t = (j as f64 + 0.5) / nt as f64 * core::f64::consts::TAU;
             let (x, y) = (r * t.cos(), r * t.sin());
             let (mut lo, mut hi) = zs;
-            for &(nrm, d) in &planes {
+            for &(nrm, d) in planes {
                 let c = nrm.x * x + nrm.y * y;
                 if nrm.z > 0.0 {
                     hi = hi.min((d - c) / nrm.z);
@@ -256,9 +248,44 @@ fn prism_in_cylinder_by_quadrature(corners: &[V3; 8], zs: (f64, f64), n: usize) 
     v * (1.0 / nr as f64) * (core::f64::consts::TAU / nt as f64)
 }
 
-/// The face sum agrees with the quadrature, steep and shallow, along and
-/// against; and the quad's area times the height is the prism's volume
-/// the kernel measures.
+/// The facet planes `n · p ≤ d` (`n` outward) of the convex hull of
+/// `points`: every plane through three of them that holds the rest on
+/// one side.
+fn hull_planes(points: &[V3]) -> Vec<(V3, f64)> {
+    let mut planes: Vec<(V3, f64)> = Vec::new();
+    for i in 0..points.len() {
+        for j in i + 1..points.len() {
+            for k in j + 1..points.len() {
+                let n = (points[j] - points[i]).cross(points[k] - points[i]);
+                if n.norm() < 1e-9 {
+                    continue;
+                }
+                let n = n * (1.0 / n.norm());
+                let d = n.dot(points[i]);
+                let side: Vec<f64> = points.iter().map(|p| n.dot(*p) - d).collect();
+                let (n, d) = if side.iter().all(|&t| t <= 1e-9) {
+                    (n, d)
+                } else if side.iter().all(|&t| t >= -1e-9) {
+                    (-n, -d)
+                } else {
+                    continue;
+                };
+                if !planes
+                    .iter()
+                    .any(|&(m, e)| (m - n).norm() < 1e-9 && (e - d).abs() < 1e-9)
+                {
+                    planes.push((n, d));
+                }
+            }
+        }
+    }
+    planes
+}
+
+/// The face sum over [`prism_corners`] agrees with the quadrature over
+/// the hull of the vertices the kernel built ([`prism_turned`]), steep
+/// and shallow, along and against; and the quad's area times the height
+/// is the prism's volume the kernel measures.
 #[test]
 fn the_prism_in_cylinder_oracle_agrees_with_a_quadrature() {
     for (k, sites, psi, along) in [
@@ -266,21 +293,29 @@ fn the_prism_in_cylinder_oracle_agrees_with_a_quadrature() {
         (2.0, [200.0, 230.0, 300.0, 120.0], 1.1, false),
         (6.0, [225.0, 240.0, 320.0, 110.0], 1.658, false),
     ] {
-        let corners = prism_corners(k, sites, 2.0, 1.5, along, psi);
-        let exact = prism_in_cylinder(&corners, (-8.0, 8.0));
-        let quad = prism_in_cylinder_by_quadrature(&corners, (-8.0, 8.0), 400);
-        assert!(
-            (exact - quad).abs() < 3e-5,
-            "k = {k}: the face sum {exact} against the quadrature {quad}"
-        );
         let side = if along {
             ExtrudeSide::Along
         } else {
             ExtrudeSide::Against
         };
-        let measured = topo::mass_properties(&prism_turned(k, sites, 2.0, 1.5, side, psi), tol())
-            .unwrap()
-            .volume;
+        let body = prism_turned(k, sites, 2.0, 1.5, side, psi);
+        let exact = prism_in_cylinder(&prism_corners(k, sites, 2.0, 1.5, along, psi), (-8.0, 8.0));
+        let built: Vec<V3> = body
+            .vertex_points()
+            .map(|(_, p)| p - Point3::origin())
+            .collect();
+        let hull = hull_planes(&built);
+        assert_eq!(
+            hull.len(),
+            6,
+            "k = {k}: the built prism's hull has six faces"
+        );
+        let quadrature = prism_in_cylinder_by_quadrature(&hull, (-8.0, 8.0), 400);
+        assert!(
+            (exact - quadrature).abs() < 3e-5,
+            "k = {k}: the face sum {exact} against the quadrature of the built prism {quadrature}"
+        );
+        let measured = topo::mass_properties(&body, tol()).unwrap().volume;
         let closed = prism_volume(k, sites, 2.0, 1.5);
         assert!(
             (measured - closed).abs() < 1e-9,

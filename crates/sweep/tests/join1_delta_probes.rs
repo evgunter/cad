@@ -22,7 +22,7 @@ use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
 use topo::AtRestBody;
 
-use crate::common::differential::{area, clip_convex, judged_with_seams, outcome, seams};
+use crate::common::differential::{Verdict, area, clip_convex, judged_with_seams, outcome, seams};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -170,7 +170,7 @@ fn join1_delta_arc_battery() {
                         };
                         println!(
                             "ARC {na} {nb} d={d:?} zb={zb:?} {op} => {}",
-                            judged_with_seams(res, Some(want), tol()).0
+                            judged_with_seams(res, Some(want), tol()).line
                         );
                     }
                 }
@@ -215,7 +215,7 @@ fn join1_delta_brick_battery() {
                         };
                         println!(
                             "BRICK x={x:?} y={y:?} z={z:?} {order} {op} => {}",
-                            judged_with_seams(res, Some(want), tol()).0
+                            judged_with_seams(res, Some(want), tol()).line
                         );
                     }
                 }
@@ -241,12 +241,9 @@ fn overlapping_lens_prisms_union_builds() {
     if let Err(e) = &r {
         println!("[lens] {e:?}");
     }
-    let (line, _) = judged_with_seams(r, Some(want), tol());
-    println!("[lens] {line}");
-    assert!(
-        line.starts_with("OK SOUND") && line.contains(" samekey=0 ") && line.ends_with(" zero=0"),
-        "{line}"
-    );
+    let j = judged_with_seams(r, Some(want), tol());
+    println!("[lens] {}", j.line);
+    assert_eq!(j.verdict, Verdict::Sound, "{}", j.line);
     let r = topo::union(&a, &b, tol()).unwrap();
     sweep::test_support::assert_legal_operand("lens ∪", &r.body().unwrap().body, tol());
 }

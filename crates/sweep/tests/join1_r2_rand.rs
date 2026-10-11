@@ -12,7 +12,7 @@ use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
 use topo::AtRestBody;
 
-use crate::common::differential::judged;
+use crate::common::differential::{Verdict, judged};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -150,10 +150,10 @@ fn r2_random_zprism_pairs() {
             }
             built.push(format!("case {case} {op}"));
             // The shared judge, and the volume to the exact oracle's 1e-9.
-            let (line, v) = judged(r, Some(want), tol());
-            let exact = v.is_some_and(|v| (v - want).abs() <= 1e-9);
-            if !((line.starts_with("OK SOUND") || line == "EMPTY ok") && exact) {
-                wrong.push(format!("{what}: {line}"));
+            let j = judged(r, Some(want), tol());
+            let exact = j.volume.is_some_and(|v| (v - want).abs() <= 1e-9);
+            if !(matches!(j.verdict, Verdict::Sound | Verdict::EmptyOk) && exact) {
+                wrong.push(format!("{what}: {}", j.line));
             }
         }
     }

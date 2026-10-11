@@ -6,9 +6,6 @@ status: open
 opened: 2026-10-06
 priority: P3
 cost: M
-design: true
-branch: flush/e-tail
-pr: 4714
 ---
 
 Found by CLEAVE's ray-walk PR 4083. Its diff seeds `topo`, so it ran
@@ -64,7 +61,7 @@ side the bound lies on is not certain at that ε: the geometry's sliver,
 not the kernel's. Its pin in `pinch_faces_tessellate.rs`
 (`REFUSES_AT_1E6`) stays, and its comment now says why.
 
-**Pose 1 (`notch307 fib117 edge psi=1.9 cp S`) is a design question.**
+**Pose 1 (`notch307 fib117 edge psi=1.9 cp S`) waits on a proof.**
 A probe in `find_match` placed the escalation in its second stage, not
 in one germ's partner choice (`nearer_along`): `keep_nearer` over the
 germs' nearest pairs, between the pairs `((6,0),(1,0))` and
@@ -79,4 +76,6 @@ matcher to prove or refute, not a margin to re-read.
 
 ## Re-priced
 
-`cost: M, design: true`: pose 1 waits on that question; pose 2 is done.
+`cost: M`, a proof task (the orchestrator, 2026-10-11): pose 1 waits
+on that proof; pose 2 is done, its pin's comment written on
+`flush/e-tail` (PR 4714).

@@ -9,7 +9,8 @@
 //!   the top, the bottom, through, and flush with either cap, under ∪,
 //!   ∖ and ∩ in both orders. Oracle: the profile's own area (bulge
 //!   closed form, cross-checked against the operand's volume) times the
-//!   z-overlap.
+//!   z-overlap; a D profile past the block's edge is the disc against
+//!   the block's top cut by its flat ([`d_in_block`]).
 //! - `j3r2_tilted_battery`: the same profiles on tilted sketch planes,
 //!   so the block's caps cut the cutter's cylinder walls in ELLIPSE
 //!   arcs. Oracle: inclusion–exclusion across the three ops, and the
@@ -17,9 +18,10 @@
 //!   slab whole.
 //! - `j3r2_rand`: R2's random z-prism battery.
 //!
-//! Every line is [`judged_with_seams`]: a pose with no closed form
-//! (an off-centre pocket, a tilted blind cutter) reads `UNJUDGED` at
-//! best, and is checked by inclusion–exclusion across its ops.
+//! Every line is [`judged_with_seams`]: a pose with no closed form (a
+//! profile other than a D past the block's edge, a tilted blind cutter)
+//! reads `UNJUDGED` at best, and is checked by inclusion–exclusion
+//! across its ops.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -28,7 +30,7 @@ use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{ExtrudeSide, Extrusion, extrude};
 use topo::{AtRestBody, Body};
 
-use crate::common::differential::judged_with_seams;
+use crate::common::differential::{clip_convex, disc_clip_area, judged_with_seams};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -146,6 +148,51 @@ fn shapes_raw() -> Vec<(String, Shape)> {
     v
 }
 
+/// **The area a D profile has inside the block's top `[−1, 1]²`**: the
+/// [`ROD_R`](sweep::test_support::ROD_R) disc cut at `x ≤ flat`
+/// ([`d_shape`]), turned `phi` and moved by `off` ([`turn`]), in closed
+/// form — the disc against the square cut by the flat's half-plane.
+fn d_in_block(flat: f64, phi: f64, (dx, dy): (f64, f64)) -> f64 {
+    let (s, c) = phi.sin_cos();
+    let square = [
+        (-1.0 - dx, -1.0 - dy),
+        (1.0 - dx, -1.0 - dy),
+        (1.0 - dx, 1.0 - dy),
+        (-1.0 - dx, 1.0 - dy),
+    ];
+    // The half-plane `x ≤ flat` of the profile's own frame, as a box far
+    // wider than the block, turned with the profile.
+    let far = 10.0;
+    let half_plane: Vec<(f64, f64)> = [(-far, -far), (flat, -far), (flat, far), (-far, far)]
+        .iter()
+        .map(|&(x, y)| (c * x - s * y, s * x + c * y))
+        .collect();
+    disc_clip_area(
+        sweep::test_support::ROD_R,
+        &clip_convex(&square, &half_plane),
+    )
+}
+
+/// [`d_in_block`] is the profile's own area where the block holds it
+/// whole, at several flats and turns, and the square's share of the
+/// disc where the flat misses the disc.
+#[test]
+fn the_d_profile_oracle_reads_the_bulge_area_inside_the_block() {
+    for (flat, phi) in [(0.3, 0.7), (0.0, 4.0), (-0.45, 2.3), (0.49, 0.0)] {
+        let want = bulge_area(&d_shape(flat));
+        let got = d_in_block(flat, phi, (0.37, -0.21));
+        assert!(
+            (got - want).abs() < 1e-12,
+            "flat {flat}, phi {phi}: {got} against {want}"
+        );
+    }
+    // A flat past the disc keeps it whole: a quarter of it lies in the
+    // block when the centre sits on the corner.
+    let quarter = core::f64::consts::PI * 0.25 / 4.0;
+    let got = d_in_block(0.6, 0.0, (1.0, 1.0));
+    assert!((got - quarter).abs() < 1e-12, "{got} against {quarter}");
+}
+
 fn block() -> Body<f64> {
     body_of(
         SketchPlane::xy(),
@@ -198,7 +245,8 @@ fn run_ops(tag: &str, a: &Body<f64>, b: &Body<f64>, va: f64, vb: f64, vi: Option
                 "S" => topo::subtract(l, r, tol()),
                 _ => topo::intersect(l, r, tol()),
             };
-            let (line, v) = judged_with_seams(res, want, tol());
+            let j = judged_with_seams(res, want, tol());
+            let (line, v) = (j.line, j.volume);
             got.insert((op, order), v);
             println!("J3R2 {tag} {op} {order} => {line}");
         }
@@ -257,7 +305,13 @@ fn j3r2_pocket_battery() {
                     }
                     let ov = (1.0f64.min(z0 + h) - 0.0f64.max(z0)).max(0.0);
                     let tag = format!("pocket {name} phi={phi:.3} off={off:?} {entry}");
-                    run_ops(&tag, &blk, &c, vb, vc, inside.then_some(s * ov));
+                    let d = name.strip_prefix('D').map(|f| f.parse::<f64>().unwrap());
+                    let vi = match d {
+                        _ if inside => Some(s * ov),
+                        Some(flat) => Some(d_in_block(flat, phi, off) * ov),
+                        None => None,
+                    };
+                    run_ops(&tag, &blk, &c, vb, vc, vi);
                 }
             }
         }
