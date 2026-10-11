@@ -325,13 +325,13 @@ impl<T: Real> std::error::Error for IsoRowError<T> {}
 /// end decided rather than passed, which is what a consumer holding an
 /// iso chart image's fixed parameter actually has.
 ///
-/// Returns the row together with the DOMAIN endpoint it sits at, so
-/// the caller re-states the description against the chart's own float
-/// rather than the one it came in with.
+/// Returns the row together with the DOMAIN endpoint it sits at, as the
+/// chart holds it, so the caller re-states the description against the
+/// chart's own end knot rather than the parameter it came in with.
 ///
 /// The coincidence `at = a₀` / `at = a₁` is a named margined decide
 /// (`iso_row_at_domain_end`), not an equality: a stored parameter and a
-/// stored knot are two floats, and asking whether they name the same
+/// held end knot are two values, and asking whether they name the same
 /// chart line is a question with a band.
 ///
 /// # Errors
@@ -344,20 +344,24 @@ pub fn iso_boundary_row<T: Decide>(
     at: T,
     band: Band,
 ) -> Result<(NurbsCurve3<T>, T), IsoRowError<T>> {
-    let (a0, a1) = match axis {
-        ChartAxis::U => fit.knots_u().domain(),
-        ChartAxis::V => fit.knots_v().domain(),
+    // The domain as the chart holds it; the refusal names its value
+    // channel.
+    let held = match axis {
+        ChartAxis::U => fit.knot_values_u(),
+        ChartAxis::V => fit.knot_values_v(),
     };
-    let is_end = |end: f64| -> Result<bool, IsoRowError<T>> {
-        let margin = Margin::of(at - T::from_f64(end));
+    let (a0, a1) = held.structure().domain();
+    let (h0, h1) = held.domain();
+    let is_end = |end: T| -> Result<bool, IsoRowError<T>> {
+        let margin = Margin::of(at - end);
         let sign = decide("iso_row_at_domain_end", margin, band)
             .map_err(|source| IsoRowError::Escalated { source })?;
         Ok(sign == Sign::Zero)
     };
-    let end = if is_end(a0)? {
-        (false, a0)
-    } else if is_end(a1)? {
-        (true, a1)
+    let end = if is_end(h0)? {
+        (false, h0)
+    } else if is_end(h1)? {
+        (true, h1)
     } else {
         return Err(IsoRowError::Interior {
             axis,
@@ -370,7 +374,7 @@ pub fn iso_boundary_row<T: Decide>(
         ChartAxis::V => boundary_iso_v(fit, end.0),
     }
     .map_err(|source| IsoRowError::Structure { source })?;
-    Ok((row, T::from_f64(end.1)))
+    Ok((row, end.1))
 }
 
 #[cfg(test)]
@@ -464,7 +468,7 @@ mod tests {
     }
 
     /// [`iso_boundary_row`] selects the row the stored parameter names,
-    /// hands back the chart's OWN domain float for it, and refuses an
+    /// hands back the chart's OWN end knot for it, and refuses an
     /// interior parameter rather than approximating one.
     ///
     /// The row is asserted against the surface, not against a constant:
