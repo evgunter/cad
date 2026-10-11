@@ -51,7 +51,13 @@ fn shell_open_carries_a_record_through_its_join() {
     )]
     .into_iter()
     .collect();
-    let carried = shelled.carry_contacts(&records).unwrap();
+    let carried = shelled
+        .carry_contacts(
+            &records,
+            geom_core::Band::linear(tol).unwrap(),
+            Some(topo::RegionLane::certified()),
+        )
+        .unwrap();
     let joined = Cell::Edge(topo::joined_edge(joins, join.kept));
     assert_eq!(
         carried.cell_pairs().collect::<Vec<_>>(),
