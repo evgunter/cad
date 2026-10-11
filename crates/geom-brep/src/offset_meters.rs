@@ -334,7 +334,10 @@ impl core::fmt::Display for MeterError {
             ),
             Self::Escalated { source, .. } => write!(
                 f,
-                concat!(geom_core::undecided!("the face's offset"), ": {}"),
+                concat!(
+                    geom_core::undecided!("whether this face can be offset"),
+                    ": {}"
+                ),
                 source.payload()
             ),
         }
