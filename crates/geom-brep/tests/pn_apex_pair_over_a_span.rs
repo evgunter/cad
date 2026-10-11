@@ -295,9 +295,7 @@ fn a_span_reaching_the_apex_is_bounded_by_its_own_nappe() {
         match &got {
             Ok(PlaneConeSection::ApexLinePair { l1, l2 }) if served => {
                 let slant = (lo / alpha.cos(), hi / alpha.cos());
-                let worst = cut.miss(
-            &lines(l1, l2),
-            slant);
+                let worst = cut.miss(&lines(l1, l2), slant);
                 assert!(
                     worst <= eps,
                     "{label}: the pair stands {:.4}·ε off the section",
@@ -350,9 +348,7 @@ fn a_span_short_of_the_start_reads_the_start() {
             panic!("from twice the start, side {side}: got {got:?}");
         };
         let slant = (lo / alpha.cos(), hi / alpha.cos());
-        let worst = cut.miss(
-            &lines(l1, l2),
-            slant);
+        let worst = cut.miss(&lines(l1, l2), slant);
         assert!(
             worst <= eps,
             "from twice the start, side {side}: the pair stands {:.4}·ε off",
@@ -396,11 +392,9 @@ fn a_span_from_the_vertex_reads_the_vertex() {
         panic!("from ten times the vertex: got {got:?}");
     };
     let slant = (lo / alpha.cos(), hi / alpha.cos());
-    let worst = cut.miss(
-            &lines(l1, l2),
-            slant);
+    let worst = cut.miss(&lines(l1, l2), slant);
     assert!(worst <= eps, "the pair stands {:.4}·ε off", worst / eps);
-        let at_vertex = cut.miss(&lines(l1, l2), (vertex, vertex * (1.0 + 1e-9)));
+    let at_vertex = cut.miss(&lines(l1, l2), (vertex, vertex * (1.0 + 1e-9)));
     assert!(
         at_vertex > eps,
         "the vertex stands {:.4}·ε off the pair, past the band",
@@ -443,10 +437,7 @@ fn a_pair_near_tangency_reads_its_azimuths_rounding() {
     let got = plane_cone_section(&p, &c, &window(lo, hi, hi / alpha.cos()), band);
     if let Ok(PlaneConeSection::ApexLinePair { l1, l2 }) = &got {
         let cut = cut_of(&c, &p);
-        let worst = cut.miss(
-            &lines(l1, l2),
-            (lo / alpha.cos(), hi / alpha.cos()),
-        );
+        let worst = cut.miss(&lines(l1, l2), (lo / alpha.cos(), hi / alpha.cos()));
         panic!("served a pair {:.4}·ε off the section", worst / e);
     }
 }
@@ -499,10 +490,7 @@ fn a_plane_square_to_a_flat_cones_axis_reads_its_traces_rounding() {
     let got = plane_cone_section(&p, &c, &window(lo, hi, lo.abs() / alpha.cos()), band);
     if let Ok(PlaneConeSection::ApexLinePair { l1, l2 }) = &got {
         let cut = cut_of(&c, &p);
-        let worst = cut.miss(
-            &lines(l1, l2),
-            (lo / alpha.cos(), hi / alpha.cos()),
-        );
+        let worst = cut.miss(&lines(l1, l2), (lo / alpha.cos(), hi / alpha.cos()));
         assert!(
             worst <= e,
             "served a pair {:.4}·ε off the section",
@@ -542,10 +530,7 @@ fn a_span_is_read_at_its_distance_from_the_apex_no_farther() {
         panic!("from start/0.15: got {got:?}");
     };
     let cut = cut_of(&c, &p);
-    let worst = cut.miss(
-            &lines(l1, l2),
-            (lo / alpha.cos(), hi / alpha.cos()),
-    );
+    let worst = cut.miss(&lines(l1, l2), (lo / alpha.cos(), hi / alpha.cos()));
     assert!(worst <= eps, "the pair stands {:.4}·ε off", worst / eps);
 }
 
@@ -577,14 +562,267 @@ fn a_needles_plane_near_tangency_reads_its_normals_rounding() {
     let got = plane_cone_section(&p, &c, &window(lo, hi, hi / alpha.cos()), band);
     if let Ok(PlaneConeSection::ApexLinePair { l1, l2 }) = &got {
         let cut = cut_of(&c, &p);
-        let worst = cut.miss(
-            &lines(l1, l2),
-            (lo / alpha.cos(), hi / alpha.cos()),
-        );
+        let worst = cut.miss(&lines(l1, l2), (lo / alpha.cos(), hi / alpha.cos()));
         assert!(
             worst <= e,
             "served a pair {:.4}·ε off the section",
             worst / e
         );
     }
+}
+
+/// A plane built through a cone's apex, read at its stored `f64`s:
+/// `(apex, axis, u_ref, α, plane origin, plane normal)`.
+type Pose = (P3, P3, P3, f64, P3, P3);
+
+/// **What a pose built through the apex is served over `[0, 4]` up the
+/// axis**: refused, or the pair within ε of the section by the oracle;
+/// otherwise how far off the pair stands.
+/// Also checks the fixture: the kernel's gap reads the opposite sign to
+/// the oracle's, so a nappe read off it is the wrong one.
+fn through_the_apex_reads_its_gaps_rounding(label: &str, pose: Pose) -> Option<String> {
+    let e = 1e-9;
+    let band = Band::new(e, Tol::witness().k() * e).unwrap();
+    let (apex, axis, u_ref, alpha, origin, normal) = pose;
+    let v3 = |[x, y, z]: P3| Vec3::new(x, y, z);
+    let (apex, origin) = (Point3::origin() + v3(apex), Point3::origin() + v3(origin));
+    let (axis, normal) = (v3(axis), v3(normal));
+    let c = cone_at(apex, axis, v3(u_ref), alpha);
+    let p = Surface::Plane {
+        origin,
+        normal,
+        u_ref: (Vec3::unit_x() - normal * normal.x).normalize(),
+    };
+    let cut = cut_of(&c, &p);
+    let kernel = (apex - origin).dot(normal);
+    assert!(
+        kernel * cut.gap() < 0.0,
+        "{label}: the fixture reads its gap {kernel:e}, against the oracle's {:e}",
+        cut.gap()
+    );
+    let reach = Reach::Measured {
+        at: apex + axis * 2.0,
+        lever: 2.0,
+    };
+    if let Ok(PlaneConeSection::ApexLinePair { l1, l2 }) = plane_cone_section(&p, &c, &reach, band)
+    {
+        let worst = cut.miss(&lines(&l1, &l2), (0.0, 4.0 / alpha.cos()));
+        if worst > e {
+            return Some(format!(
+                "{label}: served a pair {:.4}·ε off the section",
+                worst / e
+            ));
+        }
+    }
+    None
+}
+
+/// **A plane built through the apex does not read its nappe off a gap
+/// that is rounding alone.** The review's pose, at ε = 1e-9: its plane's
+/// stored origin stands some 55 off the apex, so the gap reads
+/// `−1.78e-15` where it is `+1.84e-15`, and the near start `|δ|/M`,
+/// read on the nappe the window reaches, stood the pair `24·ε` off a
+/// section starting `67.7·ε` out.
+#[test]
+fn a_plane_through_the_apex_reads_its_gaps_sign_to_its_rounding() {
+    let missed = through_the_apex_reads_its_gaps_rounding(
+        "the review's pose",
+        (
+            [2.288555631545491, -1.6126513517833638, -0.31005890382800105],
+            [
+                0.09983488462206984,
+                -0.1622776398934971,
+                -0.9816817016747814,
+            ],
+            [
+                0.9950040179881176,
+                0.016282315611415507,
+                0.09849817453045641,
+            ],
+            0.39661458990091586,
+            [30.01237900854066, 46.07881013715315, -21.375307242251008],
+            [-0.8190023497470599, 0.24743249568078224, -0.517699054654318],
+        ),
+    );
+    assert!(missed.is_none(), "{}", missed.unwrap_or_default());
+}
+
+/// **The family**: planes built through the apex at random poses, each
+/// leaning to `D` in `1e-9…1e-5` and stored with its origin 10 to 60
+/// off the apex, so its gap reads the opposite sign to the truth. A
+/// search over 20,000 such draws found 892 sign flips, 104 of them
+/// served past the band where the nappe was read off that sign; these
+/// twelve span `1.8·ε` to `105·ε`.
+#[test]
+fn planes_through_the_apex_read_their_gaps_sign_to_its_rounding() {
+    let poses: [Pose; 12] = [
+        // 1.8·ε off at the frozen head
+        (
+            [2.4025411935435748, -1.4746658448701817, 0.8834801343833865],
+            [-0.46335346098759544, 0.1214560959451559, 0.8778109061458385],
+            [
+                -0.8169353690138936,
+                -0.4423903122676662,
+                -0.37001001941278594,
+            ],
+            0.37531639149235674,
+            [23.740520577428374, -17.9845255052883, -20.69201918763105],
+            [0.285578889988243, 0.8762594151862328, -0.3880903694895873],
+        ),
+        // 4.1·ε off at the frozen head
+        (
+            [0.33811282640334606, 0.0705031131770702, -0.6541660345019022],
+            [
+                -0.43608861298099855,
+                -0.8565281754303055,
+                -0.27601848909509835,
+            ],
+            [0.8744023620530446, -0.3308061905276273, -0.3549475645002449],
+            0.26501204217155294,
+            [-39.18288867723395, -24.883279540191527, -3.484074243622697],
+            [
+                -0.39958884548626294,
+                0.6999818335724339,
+                -0.5919072454629433,
+            ],
+        ),
+        // 12.8·ε off at the frozen head
+        (
+            [
+                -0.0043283772545303755,
+                -0.0027131576124703022,
+                -0.0034406492220980145,
+            ],
+            [0.38796946808235805, 0.7716441887128723, -0.5040287073784044],
+            [-0.8852771642605318, 0.4641487594882353, 0.0291594153638846],
+            0.1482496231192877,
+            [-1.6361625594969529, 10.27116667036495, -18.315702535873992],
+            [-0.493420525504461, 0.7390614977324577, 0.45861125976185757],
+        ),
+        // 14.9·ε off at the frozen head
+        (
+            [1.1450073433041927, -1.470290949107634, -1.9690077905877401],
+            [0.8845020738867584, 0.04812792823315296, 0.4640471784355638],
+            [0.31723907649858113, 0.6672655552858093, -0.6738813301104638],
+            0.5544603354090435,
+            [-21.504689827808953, 26.46976141174052, -9.29441746528368],
+            [-0.7651749747376162, -0.5211929939230157, 0.3779750271127073],
+        ),
+        // 81.3·ε off at the frozen head
+        (
+            [0.44672867708527514, 1.0209509214543344, 0.4588076200816059],
+            [
+                -0.5966782866199086,
+                -0.7661753650258358,
+                -0.23864268751390125,
+            ],
+            [-0.7936589033168566, 0.5194480210963413, 0.31666906790051275],
+            1.364469885805073,
+            [46.389216698599725, -23.622460711526394, -1.0221020641034988],
+            [0.47244048059956234, 0.8738792944013594, 0.11460790159250295],
+        ),
+        // 13.9·ε off at the frozen head
+        (
+            [
+                -1.4838748188562778,
+                -1.9719939336101773,
+                0.16337893238141646,
+            ],
+            [0.908978076050037, -0.1459130976994547, -0.3904717981879391],
+            [-0.04483468102771216, 0.897076952080374, -0.4395938960260138],
+            0.15165477688491907,
+            [-20.82604917450526, 0.8042963624066759, 19.91259044801621],
+            [0.4334738885732321, 0.8478570037279327, 0.3053504366374697],
+        ),
+        // 19.5·ε off at the frozen head
+        (
+            [-1.691011195189976, 0.9692680912757569, 1.3604110758632577],
+            [
+                -0.25347651304860025,
+                0.9507923492225291,
+                -0.17816724163725264,
+            ],
+            [
+                -0.35606462343842243,
+                0.07954634946579181,
+                0.9310694722856724,
+            ],
+            0.8645934457087794,
+            [17.28912634503809, 28.319406753140164, -19.40594081445473],
+            [-0.8001451164677668, 0.5972530802862486, 0.05528608035818744],
+        ),
+        // 6.6·ε off at the frozen head
+        (
+            [0.3139012303844912, 0.13490430234222692, 0.10550107028224068],
+            [-0.637747782083508, 0.4759159672518881, -0.6056250973682202],
+            [
+                -0.6249533001993683,
+                -0.7793240506103604,
+                0.04568803683874353,
+            ],
+            0.06978365165819356,
+            [31.992640033861818, -6.6627169886897395, 38.073026050872144],
+            [0.7725595723465767, 0.0886772247224962, -0.6287193785713866],
+        ),
+        // 16.4·ε off at the frozen head
+        (
+            [1.4656228125662287, 1.5496188873272976, -1.5447589902650534],
+            [0.6161501987006509, -0.7008341584355319, 0.3594306817887257],
+            [
+                -0.11079168910347062,
+                -0.5289278454816692,
+                -0.8414039077040939,
+            ],
+            0.2920383764992235,
+            [-35.8909209413708, 22.861633849462642, -16.891997630825227],
+            [-0.574499528093725, -0.6904060009306594, 0.4396474111137489],
+        ),
+        // 35.4·ε off at the frozen head
+        (
+            [0.088414819670411, 0.13182394094887634, 0.26946539334152203],
+            [
+                -0.983770026807748,
+                -0.1537279709604785,
+                -0.09254320774134125,
+            ],
+            [-0.16195732871091623, 0.982761958376845, 0.08915580095615049],
+            0.643741663741751,
+            [42.724018539596955, 10.650236707822742, -27.212051583400367],
+            [0.5037997410621137, 0.1704307582163594, 0.8468407037687455],
+        ),
+        // 105.1·ε off at the frozen head
+        (
+            [0.5601129491246063, -1.4671334782525358, -2.1699573812835866],
+            [
+                0.7354368942258926,
+                -0.6762066427198851,
+                -0.04332610013461952,
+            ],
+            [0.5934328114862354, 0.6736373100188265, -0.4405113764730051],
+            1.3551155721322217,
+            [-25.971567348084893, -38.58123221339789, -28.236565495244257],
+            [0.8475988973854985, -0.5143819732136776, -0.1303353167168855],
+        ),
+        // 17.1·ε off at the frozen head
+        (
+            [-0.8418815734099635, 0.7732260717814133, 0.820968180901873],
+            [0.9815974436078495, 0.09990303613265694, 0.16274471442726465],
+            [0.18181958912131121, -0.749480945640441, -0.6365688879718109],
+            0.5469094446436249,
+            [-16.036344433161776, 7.894336987622844, 12.090454158823077],
+            [
+                -0.435204826907871,
+                -0.9001519257049213,
+                -0.017979690926483438,
+            ],
+        ),
+    ];
+    let missed: Vec<String> = poses
+        .into_iter()
+        .enumerate()
+        .filter_map(|(i, pose)| {
+            through_the_apex_reads_its_gaps_rounding(&format!("pose {i}"), pose)
+        })
+        .collect();
+    assert!(missed.is_empty(), "{} of 12: {missed:#?}", missed.len());
 }
