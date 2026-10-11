@@ -40,12 +40,16 @@ at the e-e door (`recl.rs`'s flanking pairs, `tangent_lump`).
 
 1. Switch `vtxfac`'s declared-`Tangent` branch to per bound and run the
    fixture above: the three ops should hold their answers.
-2. Reconcile with
-   `work/contacthold/boolean-conic-side-code-zero-is-first-order.md`'s
-   prescription (descend to second order at a first-order Zero for
-   every curved bound, keep `On` only for a second-order tie): the
-   per-bound reading here is that prescription for declared pairs, so
-   the two should land as one rule.
+2. Reconcile with what
+   `work/contacthold/boolean-conic-side-code-zero-is-first-order.md`
+   landed (PR 4575): the vertex-on-face pass reads a conic tied with a
+   PLANE face by its bend (`sectors::pierce_side`), and its whole-sector
+   lump keys on first-order ties (`PierceSide::tied`), so a tangent
+   sector's conic bound takes the lump's side. Reading tangent sectors
+   per bound means un-keying that lump; measured on that PR, doing so
+   broke `wall_face_tangent_reach`'s subtract (`BisectorSide`: the
+   wall's bisector rides the tangency locus between two bounds read
+   `Out`).
 3. Rewrite the site comment above the branch, which states why it is
    whole-sector today.
 

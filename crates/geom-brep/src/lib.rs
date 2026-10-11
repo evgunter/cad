@@ -58,6 +58,8 @@ pub mod description;
 pub mod dihedral;
 pub mod edge_nurbs;
 pub mod enters;
+#[cfg(test)]
+mod exact_q;
 pub mod extent;
 pub mod fitted_lane;
 #[cfg(test)]
