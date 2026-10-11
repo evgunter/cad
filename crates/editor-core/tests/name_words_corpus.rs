@@ -165,7 +165,7 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// datum, so every id minted after that datum in the revolving
 /// documents moved. (Counted on its own tree; re-taken merged over
 /// FORK-DM4 unit 1, PR 4527, and the split-half retirement, PR 4618.)
-const SAID_DIGEST: u64 = 0xc39b_eeed_fc91_e884;
+const SAID_DIGEST: u64 = 0x975f_3e62_4f0b_8c18;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a
