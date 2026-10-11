@@ -2,10 +2,11 @@
 id: section-cert-axis-pose-decides-tilt-and-offset-one-at-a-time
 kind: issue
 title: section_cert's axis_pose decides the axes' tilt and offset one at a time, not their sum
-status: open
+status: dispatched
 opened: 2026-10-07
 priority: P2
 cost: M
+branch: cleave/section-cert-axis-pose
 ---
 
 ## What

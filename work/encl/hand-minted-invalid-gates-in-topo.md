@@ -118,10 +118,10 @@ Read against origin/main `2f10bc9a4d` (2026-10-09). Read-only lane.
 | 9 | `solid_contain.rs:2983` | `chart_azimuth_margin` | Same verdict as #8, a second caller of `narrower_than_period` | **D** | Same |
 | 10a | `solid_contain.rs:1934` (mint `:1919`) | `cone_nappe` | `bool_cone_trim_nappe` decided Negative: the window spans the apex | **D** | Same ending. PRED `cone-nappe-is-decided-in-five-places` overlaps |
 | 10b | `solid_contain.rs:1939` | `cone_nappe` | `bool_cone_trim_side` decided Zero | **D** | Same |
-| 11a | `solid_contain.rs:2756` (mint `:2696`) | `point_on_chart_wall` | Junction pieces decided on opposite sides | P(c) | Ending "too close … declare/move" is **not followable** for a contradiction |
-| 11b | `solid_contain.rs:2762` | same fn | Both ends of a piece active | P(c) | Same |
-| 11c | `solid_contain.rs:2770` | same fn | `bool_wall_trim` decided Zero on the azimuth margin (on the window edge) | D/U — is this a graze (`Ok(None)`) like the sibling Zero arms? | Same |
-| 12 | `solid_contain.rs:3530` | `latitude_extremes` | No boundary levels: a structural empty | P(k) | Ending says "too close"; it is a corrupt or empty face |
+| 11a | `solid_contain.rs:2756` (mint `:2696`) | `point_on_chart_wall` | Junction pieces decided on opposite sides | P(c) | Retired (PR 4607): reachable at small K; `PointInSolidError::JunctionSidesDisagree` carries both side margins and ends on the placement lever |
+| 11b | `solid_contain.rs:2762` | same fn | Both ends of a piece active | P(c) | Retired (PR 4607): reachable at K < 2 with a definite answer, read past both ends |
+| 11c | `solid_contain.rs:2770` | same fn | `bool_wall_trim` decided Zero on the azimuth margin (on the window edge) | D/U | Retired (PR 4607): not a graze; the nonzero gate's rejection, as `PointInSolidError::NarrowWindowUnread` (cause on INSIDE's `wall-piece-coverage-reads-a-collapsing-cosine-margin`) |
+| 12 | `solid_contain.rs:3530` | `latitude_extremes` | No boundary levels: a structural empty | P(k) | Retired (PR 4607): the empty set is a whole sphere, answered as the unconstrained trim; `latitude_extremes` takes a non-empty set by type |
 | 13 | `boolean/plane_eq.rs:363` | `unreadable_norm` | A norm decided negative: operand poison | P | Ending is owned by TOPO's `boolean-unreadable-norm-ends-as-a-kernel-defect` (released from the D10 hold) |
 | 14 | `boolean/carrier_eq.rs:190` | `CoincidenceMeasure::decide` | Datum not finite | P | `Unreadable` arm: fine |
 | 15 | `carrier_eq.rs:729` | `definite` (3 callers: `:812`, `:849`, `:888`) | A declared pair **definitely** distinct → `Contradicted{fact, diag}`. The doc says "the rung keeps no measure" | **D** | **D10** (declared pairs) |
@@ -147,8 +147,8 @@ Read against origin/main `2f10bc9a4d` (2026-10-09). Read-only lane.
 | 29 | `rules.rs:500` | `wall_bend_order2` | Sectors disagree | P(c) | Same |
 | 30 | `splitting/classify.rs:608` | `split_conic_graze_side` | `decide` gives `Zero`. This is reachable at K ≤ 2 according to its own comment | **D** | → `BellyGraze`. `decide_nonzero` keeps the tag |
 | 31 | `census.rs:2583` | `material_wedge_side` | `classify_dihedral` gives a definite **Transverse** after the edge screen | P(c) | `CensusEscalated` → `too_close` poison arm "check the inputs, then declare/move". The declare arm is not followable for a contradiction. On CLEAVE's parked row |
-| 32 | `boolean/sphere_region.rs:384` | `bool_sphere_region_roots_count` | `CircleRoots::CountDisagrees` (D9 invariant) | P(c) | Check the ending of `RegionRefusal::Escalated` |
-| 33 | `solid_contain.rs:5401` | `bool_ray_torus_count` | `TorusRoots::CountDisagrees` | P(c) | Ending is `PointInSolidError::Escalated` "too close … declare/move": **not followable** |
+| 32 | `boolean/sphere_region.rs:384` | (retired) | `CircleRoots::CountDisagrees` | P(c) | Retired (PR 4607): the variant is gone; the first-harmonic doors answer `FirstHarmonicRoots` |
+| 33 | `solid_contain.rs:5401` | (retired) | `TorusRoots::CountDisagrees` | P(c) | Retired (PR 4607): `PointInSolidError::RootCountDisagrees`, blocking the ray; the cause (rung 1's uncharged `Δ` rounding) is INSIDE's `ray-torus-count-certifies-on-an-uncharged-discriminant` |
 | 34 | `boolean/contain.rs:607` | `END_VERTEX` | Every end decided against every vertex, yet the point is still in the band of the end | P(c)/U | `Escalation::Decided` |
 | 35 | `chord_join.rs:905` | `agreed_section` | Two section readings of different classes | P(s) | `SectionError::Escalated`. Open PRs 4399 and 4394 touch the file |
 

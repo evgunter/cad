@@ -75,6 +75,15 @@ in-band grazes of 50 m and 500 m walls (circle) and a 5 m wall
 `conic_quadric::ellipse_rows::fuzz_rows` (a true-distance oracle at three bands, with
 the counterexample's seed pinned). This row can close with that PR.
 
+## The same family on the ray lane (CLEAVE, PR 4607 review, 2026-10-11)
+
+The quartic ladder's rung 1, which the half-angle lane still runs for its
+escalations, certifies a count on `Δ`'s `f64` rounding far past the band,
+and the ray × torus lane answers on it: at `R = 1e6` it gives silent
+wrong `Miss` answers. Filed with the measurements on INSIDE's
+`ray-torus-count-certifies-on-an-uncharged-discriminant`, which owns the
+fix (charge the discriminant's rounding).
+
 ## Closed (branch `germ/half-angle-meters`, 2026-10-10)
 
 Re-measured on main through the current door (`conic_quadric_roots`,
