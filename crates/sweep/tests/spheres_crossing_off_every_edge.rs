@@ -573,9 +573,11 @@ fn a_ball_escaping_through_a_plane_and_a_sphere() {
 /// ball's kept face by Gauss–Bonnet and asks no rim level, where the
 /// iso arm read that level in band and refused it at the result gate.
 /// The two lens-shaped differences build. The
-/// intersection builds a sliver `2·10⁻⁶` thick whose at-infinity side
-/// the next op cannot decide (`operand=false`), filed on the result
-/// gate as `a-built-sliver-is-not-a-legal-operand`.
+/// intersection builds a sliver `2·10⁻⁶` thick, sound: its two caps
+/// are small regions the sphere arm reads by the fan form, so its
+/// volume lands within about `1e-9` of the lens in either order (it
+/// read `−54%` and `−86%` before) and its at-infinity side decides, so
+/// it is a legal operand (`work/cleave/a-built-sliver-is-not-a-legal-operand.md`).
 #[test]
 fn a_large_ball_near_external_tangency_is_pinned() {
     if Tol::witness().get().eps != 1e-9 {
@@ -619,7 +621,7 @@ fn a_large_ball_near_external_tangency_is_pinned() {
     ] {
         let line = outcome(out, shared, tol);
         assert!(
-            line.starts_with("OK BAD t2=true t3p=true cert=true operand=false"),
+            line.starts_with("OK SOUND t2=true t3p=true cert=true operand=true"),
             "r 50, {op}: the sliver, {line}"
         );
     }
