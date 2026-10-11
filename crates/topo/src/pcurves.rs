@@ -1205,14 +1205,11 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
     // the wrong rectangle.
     let (cu0, cu1, cv0, cv1) = match surface.spline_chart() {
         Some(payload) => {
-            let (a, b) = payload.knots_u().domain();
-            let (c, d) = payload.knots_v().domain();
-            (
-                T::from_f64(a),
-                T::from_f64(b),
-                T::from_f64(c),
-                T::from_f64(d),
-            )
+            let ((a, b), (c, d)) = (
+                payload.knot_values_u().domain(),
+                payload.knot_values_v().domain(),
+            );
+            (a, b, c, d)
         }
         None => (T::zero(), T::one(), T::zero(), T::one()),
     };
@@ -1877,7 +1874,7 @@ fn chart_u_period<T: Decide>(surface: &Surface<T>, band: Band) -> Option<T> {
     let Some(payload) = surface.spline_chart() else {
         return Some(T::tau());
     };
-    let (u0, u1) = payload.knots_u().domain();
+    let (u0, u1) = payload.knot_values_u().domain();
     let (nu, nv) = payload.control_counts();
     if nu < 2 || nv == 0 {
         return None;
@@ -1891,7 +1888,7 @@ fn chart_u_period<T: Decide>(surface: &Surface<T>, band: Band) -> Option<T> {
             _ => return None,
         }
     }
-    Some(T::from_f64(u1 - u0))
+    Some(u1 - u0)
 }
 
 /// The meridional (second-channel) lever arm where that channel is
