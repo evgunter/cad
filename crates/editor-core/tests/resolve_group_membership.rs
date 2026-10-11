@@ -124,7 +124,8 @@ fn vanished(
                 },
                 var,
                 n,
-            ).unwrap();
+            )
+            .unwrap();
             let Resolution::Failed(f) = res else {
                 panic!("{n:?}: expected Failed, got {res:?}");
             };

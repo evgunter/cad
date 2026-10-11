@@ -3782,7 +3782,11 @@ pub fn split(
     // instance's body, its name read through it as a selection's is: a
     // Rebind keeps a key's read, and the cut takes that read with it.
     for (key, record) in remainder.doc().appearance().clone() {
-        let Some(at) = remainder.doc().operation_of(key.at).filter(|at| cut.contains(at)) else {
+        let Some(at) = remainder
+            .doc()
+            .operation_of(key.at)
+            .filter(|at| cut.contains(at))
+        else {
             continue;
         };
         let onto = crate::AppearanceKey::new(instance_body, in_part(&key.name, Some(at))?);

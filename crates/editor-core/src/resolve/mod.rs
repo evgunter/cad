@@ -1292,7 +1292,11 @@ fn enrich_impl<T: Decide, P: PriorCtx>(
     // `at` whose table holds the tie.
     if let AppearanceLossCause::Ambiguous { at, .. } = &loss.cause
         && let Some(Entry::Tied(ents)) = core::iter::once(loss.body)
-            .filter(|&body| new.eval.read_port(body).is_some_and(|(node, _)| node == *at))
+            .filter(|&body| {
+                new.eval
+                    .read_port(body)
+                    .is_some_and(|(node, _)| node == *at)
+            })
             .chain(new.eval.named_outputs(*at))
             .filter_map(|var| new.eval.table(var)?.lookup(&loss.name))
             .find(|entry| matches!(entry, Entry::Tied(_)))

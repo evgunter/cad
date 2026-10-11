@@ -1534,14 +1534,17 @@ fn resolution_status_tags_are_stable() {
 
     // RESOLVED: the ordinary run, asked about its own name.
     assert_eq!(
-        resolution_status_tag(&resolve(
-            RunCtx {
-                doc: &doc,
-                eval: &ev
-            },
-            read,
-            &stored
-        ).unwrap()),
+        resolution_status_tag(
+            &resolve(
+                RunCtx {
+                    doc: &doc,
+                    eval: &ev
+                },
+                read,
+                &stored
+            )
+            .unwrap()
+        ),
         "resolved"
     );
 
@@ -1563,7 +1566,8 @@ fn resolution_status_tags_are_stable() {
         },
         read,
         &stored,
-    ).unwrap();
+    )
+    .unwrap();
     assert_eq!(resolution_status_tag(&verdict), "failed");
     // ...and WHICH failure, which is the word a repair branches on: the
     // read it was resolved in went with the node, and that rung comes
@@ -1591,7 +1595,8 @@ fn resolution_status_tags_are_stable() {
         },
         read,
         &stored,
-    ).unwrap();
+    )
+    .unwrap();
     assert_eq!(resolution_status_tag(&verdict), "indeterminate");
     match &verdict {
         Resolution::Indeterminate(cause) => {

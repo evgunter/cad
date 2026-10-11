@@ -1805,8 +1805,7 @@ pub fn painted_in(doc: &ProfileDoc, name: &StableName) -> editor_core::VarId {
     if let Some(second) = held.next() {
         panic!(
             "{name:?} is painted in two reads ({:?} and {:?}): the row names its read",
-            first,
-            second.at
+            first, second.at
         );
     }
     first

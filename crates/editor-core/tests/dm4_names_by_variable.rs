@@ -123,7 +123,10 @@ fn a_piece_whose_side_flips_leaves_its_reads_table_diagnosed_as_a_predicate_flip
     };
 
     assert!(
-        matches!(resolve(new, below, &riser).unwrap(), Resolution::Resolved(_)),
+        matches!(
+            resolve(new, below, &riser).unwrap(),
+            Resolution::Resolved(_)
+        ),
         "the lower half's read holds it"
     );
     match resolve_with_prior(new, prior, above, &riser).unwrap() {
@@ -309,7 +312,10 @@ fn shared_fragment(
         doc.output(split, 0).expect("above"),
         doc.output(split, 1).expect("below"),
     );
-    let (ta, tb) = (ev.table(above).expect("above"), ev.table(below).expect("below"));
+    let (ta, tb) = (
+        ev.table(above).expect("above"),
+        ev.table(below).expect("below"),
+    );
     ta.iter()
         .find_map(|(n, _)| match n.path.last() {
             Some(RoleSeg::SplitFragment { parent })
@@ -396,7 +402,11 @@ fn a_rebind_offer_names_every_read_holding_a_shared_name() {
         .find(|(key, _)| key.name == parent)
         .map(|(_, offers)| offers.clone())
         .expect("the key has an offer row");
-    let reads: Vec<_> = mine.iter().filter(|o| o.name == frag).map(|o| o.at).collect();
+    let reads: Vec<_> = mine
+        .iter()
+        .filter(|o| o.name == frag)
+        .map(|o| o.at)
+        .collect();
     assert!(
         reads.contains(&above) && reads.contains(&below),
         "both halves hold the fragment, so both reads are offered: {reads:?}"
@@ -508,7 +518,10 @@ fn a_repoint_that_takes_a_keys_name_out_of_reach_strands_it() {
     };
     let (doc, a) = insert(doc, ext(pa));
     let (doc, b) = insert(doc, ext(pb));
-    let (doc, t) = insert(doc, fixture::xform(a, [0.0, 0.0, 2.0], [0.0, 0.0, 1.0], 0.0));
+    let (doc, t) = insert(
+        doc,
+        fixture::xform(a, [0.0, 0.0, 2.0], [0.0, 0.0, 1.0], 0.0),
+    );
     let cap = fixture::fname(a, RoleSeg::Cap(editor_core::CapEnd::End));
     let (doc, _) = fixture::step(
         doc.clone(),
@@ -518,7 +531,11 @@ fn a_repoint_that_takes_a_keys_name_out_of_reach_strands_it() {
             attr: editor_core::Attr::Color(editor_core::Rgba8::opaque(1, 2, 3)),
         },
     );
-    assert!(fixture::run(&doc, &Default::default()).appearance.is_lossless());
+    assert!(
+        fixture::run(&doc, &Default::default())
+            .appearance
+            .is_lossless()
+    );
     let applied = editor_core::apply(
         &doc,
         &DocEdit::SetParam {
@@ -564,7 +581,10 @@ fn cube_and_transform() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, StableName) 
             side: ExtrudeSide::Along,
         },
     );
-    let (doc, moved) = insert(doc, fixture::xform(cube, [0.0, 0.0, 2.0], [0.0, 0.0, 1.0], 0.0));
+    let (doc, moved) = insert(
+        doc,
+        fixture::xform(cube, [0.0, 0.0, 2.0], [0.0, 0.0, 1.0], 0.0),
+    );
     let cap = fixture::fname(cube, RoleSeg::Cap(editor_core::CapEnd::End));
     (doc, cube, moved, cap)
 }
@@ -674,7 +694,9 @@ fn a_read_that_holds_no_body_is_refused_and_a_gone_node_handle_says_so() {
     let (gone, _) = fixture::step(doc.clone(), DocEdit::DeleteNode { id: moved });
     assert_eq!(
         editor_core::stranded_at(&gone, moved, &cap),
-        Some(Err(editor_core::ResolveRefusal::NodeNotHeld { node: moved }))
+        Some(Err(editor_core::ResolveRefusal::NodeNotHeld {
+            node: moved
+        }))
     );
     let (gone, _) = fixture::step(gone, DocEdit::DeleteNode { id: cube });
     assert!(matches!(

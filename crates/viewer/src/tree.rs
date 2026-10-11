@@ -1142,7 +1142,9 @@ pub fn pick_resolution(
                 read,
                 name,
             )
-            .unwrap_or_else(|refusal| unreachable!("a pick met a body, read in a body output: {refusal}")),
+            .unwrap_or_else(|refusal| {
+                unreachable!("a pick met a body, read in a body output: {refusal}")
+            }),
             evaluation,
         ),
         None => Resolution::Indeterminate(ResolveIndeterminate {
