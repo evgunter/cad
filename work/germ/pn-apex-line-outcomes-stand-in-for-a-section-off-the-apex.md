@@ -2,8 +2,9 @@
 id: pn-apex-line-outcomes-stand-in-for-a-section-off-the-apex
 kind: issue
 title: plane×cone serves the apex line pair or tangent generator on a needle cone whose real section starts an extent-scale distance from the apex
-status: review
+status: closed
 opened: 2026-10-10
+closed: 2026-10-11
 priority: P2
 cost: M
 branch: germ/pn-apex-line-outcomes
@@ -65,3 +66,5 @@ true section, not ε. The pair is bounded by `|δ|/D` (`pn_apex_pair_reach`),
 the tangent generator by `|δ|/M` (`pn_apex_tangent_reach`). Once the
 pair's bound holds, the asymptote offset `|δ|·sin α/√(D·M)` is at most
 `ε·sin α`, so it needs no row of its own.
+
+**2026-10-11, closed (PR 4592, DR-157, HOLDOUT pair).** Both apex line outcomes are served only where the section they imply starts in the band: the pair is bounded by the far nappe's start `|δ|/D`, the tangent by the near start `|δ|/M`, and past the band the off-apex lane refuses the hyperbola or the parabola typed. The √ε asymptote offset is inside the band whenever the pair is served. The conservatism this costs (right bodies lost at near-coincident union and frame poses) is filed as `pn-apex-line-reach-is-read-at-the-apex-not-over-the-consumed-span` (P1).
