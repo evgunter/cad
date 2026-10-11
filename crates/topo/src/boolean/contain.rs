@@ -276,27 +276,35 @@ pub struct ArcEndGaps {
 }
 
 impl ArcEndGaps {
-    /// Whether an end of the arc lies definitely off both corners: the
-    /// stored arc and the stored corners disagree at this band, where
-    /// otherwise the band alone parted the two passes.
+    /// The end of the arc that lies definitely off both corners, as its
+    /// two readings: the stored arc and the stored corners disagree at
+    /// this band. `None` where the band alone parted the two passes.
+    fn off_end(&self) -> Option<[(Magnitude, MarginDiag); 2]> {
+        self.gaps
+            .into_iter()
+            .find(|end| end.iter().all(|(m, _)| *m == Magnitude::Positive))
+    }
+
+    /// Whether an end of the arc lies definitely off both corners.
     #[must_use]
     pub fn off_corner(&self) -> bool {
-        self.gaps
-            .iter()
-            .any(|end| end.iter().all(|(m, _)| *m == Magnitude::Positive))
+        self.off_end().is_some()
     }
 }
 
 impl core::fmt::Display for ArcEndGaps {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let [[(_, s0), (_, s1)], [(_, e0), (_, e1)]] = self.gaps;
-        write!(
-            f,
-            "the arc's start lies {s0:e} m and {s1:e} m from the edge's two corners, and its \
-             end {e0:e} m and {e1:e} m, against the ambiguity band ({:e}, {:e})",
-            self.band.zero(),
-            self.band.escalate()
-        )
+        let zero = self.band.zero();
+        match self.off_end() {
+            Some([(_, a), (_, b)]) => write!(
+                f,
+                "the end lies {a:e} m and {b:e} m from them, past the band"
+            ),
+            None => write!(
+                f,
+                "each end lies within ±{zero:e} of one, a parting this K cannot resolve"
+            ),
+        }
     }
 }
 
@@ -367,8 +375,7 @@ impl core::fmt::Display for ContainError {
             ),
             Self::ArcEndClearOfCorners(gaps) => write!(
                 f,
-                "contfp: the point lies at an end of an arc of the face's boundary but clear of \
-                 the corners stored for its edge: {gaps}. Recourse: {}",
+                "contfp: the point lies at an arc's end clear of its corners: {gaps}. Recourse: {}",
                 placement_lever(Some(ContainDecision::ArcEnd))
             ),
         }

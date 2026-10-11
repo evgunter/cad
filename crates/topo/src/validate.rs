@@ -3241,11 +3241,7 @@ fn arc_end_clear_of_corners(
 ) -> (Cow<'static, str>, Cow<'static, str>) {
     use crate::boolean::{ContainDecision, placement_lever};
     (
-        format!(
-            "a point it read lies at an end of an arc of the face's boundary but clear of the \
-             corners stored for its edge: {gaps}"
-        )
-        .into(),
+        format!("a point lies at an arc's end clear of its corners: {gaps}").into(),
         if gaps.off_corner() {
             DEFECT.into()
         } else {
