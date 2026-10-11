@@ -212,11 +212,12 @@ Escalated, Undeclared, NotCertifiable}`).
   Contradicted by a consumed point (a face vertex, or the whole extent)
   definitely off the other carrier, by aligned senses, or by definite
   separation on the patch. Escalated between.
-- *`Tangent`.* Must verify: first-order tangency along the witnessed
-  locus, and the witness within ε of each surface (C7's jet readings).
-  On the contact doors the witness is built on one surface (the locus
-  door's ruling, or face A's certified rim), so its residual on the
-  other is the pair's separation. Contradicted by definite
+- *`Tangent`.* Must verify: the two surfaces' separation along the
+  shared normal within ε at every sample (the touch), first-order
+  tangency along the witnessed locus, and the witness within ε of each
+  surface (C7's jet readings). Definite separation and definite
+  crossing are read on the separation; a witness off a surface is a bad
+  witness, not a gap. Contradicted by definite
   normal independence, definite crossing (as far as the sampled κ_rel
   sees it, C1), or definite separation. Bridged: in-band κ_rel
   *including exact zeros at isolated points* (a G1 tube chain's neutral

@@ -4,10 +4,8 @@ kind: issue
 title: Should C4/C7's Tangent decide its locus offsets and its tilt as one displacement, as Rest does, rather than as separate ε checks that together admit about 2ε?
 status: open
 opened: 2026-10-10
-design: true
 priority: P3
 cost: M
-needs_ev: true
 ---
 
 
@@ -38,3 +36,26 @@ Should `Tangent` be read as one displacement too, or is per-fact ε the
 intended tolerance for a tangency? The answer changes both lanes
 together, since the edge certificate and the declared verdict must
 decide one set (`tangent_certificate_lane`'s docs).
+
+## Ruled (Ev, PR 4595, 2026-10-11): (a), the pair's separation is served
+
+A served `Tangent` claims the two surfaces touch within ε along the
+locus (fork log row 111). C7 and C4 state it. What's left is the build,
+which is this row:
+
+- **Verifier** (`topo::boolean::contact_verify::on_surface` /
+  `tangent_locus_relation`): per sample, decide `s = r₁ − σ·r₂` (σ from
+  the normals' decided orientation) under its own predicate name. Zero
+  passes; a definite sign contradicts (separation positive, crossing
+  negative), carrying the `FIT_DEFERRAL` steer; in band escalates
+  (must-verify, never bridged). The residual rows stay as cache rows,
+  and their contradiction names a bad witness, with no Fit steer.
+- **Certifier** (`geom_brep::certify`'s tangent arm): a third per-sample
+  `check_residual` (`CertCheck::TangentGap`) beside the two surface
+  residuals, with σ from the gradients' alignment, plus a span line
+  beside `tangent_hull_sup` (max |s| plus both sags).
+- The `TangentWitness` coincidence records `s`'s margin.
+- Pins: a handed-in witness between two surfaces 1.8ε apart (escalates)
+  and 15ε apart (contradicts as separation); a witness 11ε off one
+  surface of a touching pair (contradicts as a bad witness, no Fit
+  steer); the contact-door paths unchanged.

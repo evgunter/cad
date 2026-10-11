@@ -544,9 +544,11 @@ table is a function of recipe structure and verdicts only.
 `Intersection` one differential order up. Its jet (`tangent.rs`,
 `TangentJet { sin_theta, kappa_rel }`) is certified per sample, one
 reading per equation of the jet system, each a length at its own lever:
-the witness within ε of each surface, normal parallelism within the
-derived angle at lever arm `1/κ_rel` (the witness's offset across the
-locus), and the relative transverse normal curvature
+the two surfaces' separation along the shared normal within ε (the
+touch itself, a fact about the pair), the witness within ε of each
+surface, normal parallelism within the derived angle at lever arm
+`1/κ_rel` (the witness's offset across the locus), and the relative
+transverse normal curvature
 `κ_rel = κ₁ − κ₂` bounded away from zero (the IFT denominator of the jet
 system), with C2's hull bounds and tube between samples. Where
 first-order sector ranking ties exactly, classification descends one
