@@ -833,6 +833,11 @@ pub enum ParamBoxError {
     /// The evaluation was asked to bind every variable a symbol and to
     /// widen some over a box: two environments, and a run has one.
     SymbolsOverABox,
+    /// The evaluation was asked to bind every variable a symbol and
+    /// carries a resolver: a part's variables are keyed by their ids in
+    /// its own document, and two documents mint the same ids, so two
+    /// parts' symbols could cancel. A symbolic run crosses no part seam.
+    SymbolsAcrossAPartSeam,
 }
 
 impl core::fmt::Display for ParamBoxError {
@@ -851,6 +856,10 @@ impl core::fmt::Display for ParamBoxError {
             Self::SymbolsOverABox => f.write_str(
                 "the evaluation was asked to bind every variable a symbol and to widen some over \
                  a box, and a run has one environment",
+            ),
+            Self::SymbolsAcrossAPartSeam => f.write_str(
+                "the evaluation was asked to bind every variable a symbol and to resolve parts, \
+                 and two documents' variables are not told apart as symbols",
             ),
         }
     }

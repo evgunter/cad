@@ -3293,7 +3293,8 @@ pub struct EvalOptions {
     /// coincidence door replays a document in. `false` — the default —
     /// is every other evaluation. Exclusive with `param_box`, which
     /// widens named variables over a box instead: an evaluation asked
-    /// for both refuses every node.
+    /// for both refuses every node. So does one that also carries a
+    /// `resolver` ([`crate::analysis::ParamBoxError::SymbolsAcrossAPartSeam`]).
     pub symbols: bool,
 }
 
@@ -3762,6 +3763,9 @@ where
     // each call site.
     let env = match (opts.param_box.as_deref(), opts.symbols) {
         (None, false) => Ok(doc.var_env::<T>()),
+        (None, true) if opts.resolver.is_some() => {
+            Err(crate::analysis::ParamBoxError::SymbolsAcrossAPartSeam)
+        }
         (None, true) => crate::analysis::var_env_symbolic::<T, _>(doc),
         (Some(b), false) => crate::analysis::var_env_over::<T, _>(doc, b),
         (Some(_), true) => Err(crate::analysis::ParamBoxError::SymbolsOverABox),

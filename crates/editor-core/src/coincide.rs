@@ -170,6 +170,10 @@ pub enum Unreplayed {
     Numeric,
     /// The resident pass did not replay the row; the full pass decides.
     ResidentBudget,
+    /// The row stands on a part instance, and the replay resolves no
+    /// part: a symbolic run crosses no part seam
+    /// ([`crate::analysis::ParamBoxError::SymbolsAcrossAPartSeam`]).
+    ThroughAPart,
     /// The row is not replayed: the at-rest census's rows ride the
     /// gathered product, which the door does not replay, and a
     /// document of a payload the evaluator does not read is not
@@ -186,7 +190,11 @@ impl fmt::Display for Unreplayed {
             }
             Self::Numeric => {
                 "with every variable a symbol, neither the carriers' verdict nor the deciding \
-                 margin is identically zero"
+                 margin is shown identically zero within the full pass's budget"
+            }
+            Self::ThroughAPart => {
+                "the row stands on a part, and the replay with every variable a symbol resolves \
+                 no part"
             }
             Self::ResidentBudget => {
                 "unproven at the resident budget; the full symbolic pass decides"

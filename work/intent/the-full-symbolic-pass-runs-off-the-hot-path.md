@@ -9,11 +9,12 @@ cost: M
 ---
 
 INTENT stage 4 C+D (`carriers-compare-in-canonical-form`) gives the
-coincidence door one budget parameter, `coincide::SymbolicPass`. The
+coincidence door one pass parameter, `coincide::SymbolicPass`. The
 `unproven-coincidence` resident runs after every evaluation at
-`Resident`: 64 terms, no retry ladder. It leaves every row it does not
-discharge saying "unproven at the resident budget; the full symbolic
-pass decides". The full pass (256 terms and the `kept_atom` ladder) is
+`Resident`, which is rung 0 alone and replays nothing (a 64-term
+replay was measured: it proved no corpus row). It leaves every row
+rung 0 does not prove saying "unproven at the resident budget; the
+full symbolic pass decides". The full pass (256 terms and the `kept_atom` ladder) is
 `ChecksConfig::symbolic_pass = Full`.
 
 Measured: the full pass costs 26 s per evaluation on

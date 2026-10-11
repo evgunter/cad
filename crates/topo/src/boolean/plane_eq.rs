@@ -342,6 +342,48 @@ mod tests {
         }
     }
 
+    /// **A coincidence of planes is a theorem only when parallelism is
+    /// one too.** Both planes pass through the extent's centre, so the
+    /// offset rung's margin is the zero polynomial; the second normal
+    /// leans by a symbol `t` that only its value, zero, sets upright.
+    /// The verdict's margin stands for both Zeros
+    /// (`MarginDiag::jointly`), so it discharges as no theorem.
+    #[test]
+    fn an_offset_identity_on_planes_parallel_by_value_is_no_theorem() {
+        use geom_core::sym::deferred::{discharge, with_deferred_session};
+        use geom_core::{ParamSymbol, Real, Sym, SymBudget, SymRetry, SymRules};
+        type S = Sym<f64>;
+        let budget = SymBudget {
+            max_terms: 256,
+            max_degree: 64,
+        };
+        let (got, _) = with_deferred_session(budget, SymRules::shipped(), SymRetry::none(), || {
+            let k = |v: f64| S::from_f64(v);
+            let t = S::param(ParamSymbol::new(test_utils::symbol_id("lean")), 0.0);
+            let flat = PlaneDesc {
+                origin: Point3::new(k(0.0), k(0.0), k(0.0)),
+                normal: Vec3::new(k(0.0), k(0.0), k(1.0)),
+            };
+            let leaning = PlaneDesc {
+                origin: Point3::new(k(0.0), k(0.0), k(0.0)),
+                normal: Vec3::new(k(0.0), t, k(1.0)),
+            };
+            let (rel, _, margin) = plane_ladder(
+                &flat,
+                &leaning,
+                PlaneIdentity::NONE,
+                &ConsumedExtent::arm(k(1.0)),
+                band(),
+            )
+            .unwrap();
+            (
+                rel,
+                discharge(margin.expect("a Zero verdict carries its margin")),
+            )
+        });
+        assert_eq!(got, (PlaneRelation::SameOriented, None));
+    }
+
     /// **Zero glues, whatever the planes' descriptions** (D10): two
     /// copies of one plane read one oriented plane, and exact negations
     /// read one plane opposed, each with the offset's decided margin.

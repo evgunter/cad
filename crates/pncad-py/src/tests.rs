@@ -5780,6 +5780,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "param_box_error_tag",
         values: &[
             "axis_unrepresentable",
+            "symbols_across_a_part_seam",
             "symbols_over_a_box",
             "unknown_param",
         ],

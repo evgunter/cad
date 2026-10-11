@@ -2565,7 +2565,7 @@ struct Session {
     /// **The Zeros a deferring session left for later**
     /// ([`with_deferred_session`]): `None` in every other session, which
     /// discharges each decision as it is taken.
-    deferred: Option<Vec<deferred::Pending>>,
+    deferred: Option<std::collections::HashMap<u32, deferred::Pending>>,
     /// **The roots the PLAIN walk was asked for** — the leaf's NEED is
     /// counted over their closure ([`leaf_need`]). A SET and not a
     /// list: one decision asks for one root many times over a leaf

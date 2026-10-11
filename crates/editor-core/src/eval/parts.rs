@@ -711,8 +711,9 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
             // arguments), which the unseeded nested run states exactly:
             // every tangent it carries is zero.
             seed: None,
-            // Inherited: it names no variable, and a part's variables
-            // are symbols wherever the instantiating run's are.
+            // Never true here: a symbolic run carries no resolver
+            // (`ParamBoxError::SymbolsAcrossAPartSeam`), because a
+            // part's variable ids collide with another document's.
             symbols: self.symbols,
         };
         let evaluation = super::evaluate_nested::<T>(

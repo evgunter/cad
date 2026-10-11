@@ -1389,12 +1389,20 @@ fn measure_a_corpus_document_at_sym() {
 fn an_unproven_row_says_which_pass_left_it() {
     use coincide::Unreplayed as U;
     assert_eq!(
-        [U::Numeric, U::ResidentBudget, U::NotReplayed].map(|u| u.to_string()),
+        [
+            U::Numeric,
+            U::ResidentBudget,
+            U::NotReplayed,
+            U::ThroughAPart
+        ]
+        .map(|u| u.to_string()),
         [
             "with every variable a symbol, neither the carriers' verdict nor the deciding \
-             margin is identically zero",
+             margin is shown identically zero within the full pass's budget",
             "unproven at the resident budget; the full symbolic pass decides",
             "the row is not replayed with every variable a symbol",
+            "the row stands on a part, and the replay with every variable a symbol resolves no \
+             part",
         ]
     );
 }
@@ -1452,6 +1460,99 @@ fn the_full_pass_proves_half_the_composed_dies_joints() {
                 .iter()
                 .all(|u| *u == Some(coincide::Unreplayed::ResidentBudget)),
             "{name}: {replayed:?}"
+        );
+    }
+}
+
+/// A resolver that resolves nothing: what a run carries when it may
+/// cross a part seam.
+#[derive(Debug)]
+struct NoParts;
+
+impl editor_core::PartResolver for NoParts {
+    fn resolve(
+        &self,
+        _: &editor_core::DocRef,
+        _: Tol,
+    ) -> Result<ProfileDoc, editor_core::ResolveFailure> {
+        Err(editor_core::ResolveFailure {
+            fault: editor_core::ResolveFault::Unresolved,
+            message: "no parts here".to_owned(),
+        })
+    }
+}
+
+/// **A symbolic run takes one environment**: asked for symbols and a
+/// parameter box too, it refuses every node, typed.
+#[test]
+fn a_symbolic_run_over_a_box_refuses_every_node() {
+    use editor_core::{NodeErrorKind, NodeResult, ParamBox, ParamBoxError};
+    let doc = ProfileDoc::empty_derived("coincide-symbols-box", Tol::witness());
+    let (doc, _) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let opts = editor_core::EvalOptions {
+        symbols: true,
+        param_box: Some(std::sync::Arc::new(ParamBox::from_axes(
+            std::collections::BTreeMap::new(),
+        ))),
+        ..editor_core::EvalOptions::default()
+    };
+    let ev: Evaluation<geom_core::Sym<f64>> = editor_core::evaluate(
+        &doc,
+        None,
+        &editor_core::CancelToken::new(),
+        &opts,
+        Tol::witness(),
+    );
+    assert!(!ev.order.is_empty());
+    for id in &ev.order {
+        assert!(
+            matches!(
+                ev.result(*id),
+                Some(NodeResult::Failed(e)) if matches!(
+                    e.kind,
+                    NodeErrorKind::ParamBox { source: ParamBoxError::SymbolsOverABox }
+                )
+            ),
+            "{:?}",
+            ev.result(*id)
+        );
+    }
+}
+
+/// **A symbolic run crosses no part seam.** Two documents built by the
+/// same edits mint the same variable ids, and a symbol is keyed by its
+/// id, so two parts' variables would be one symbol and their difference
+/// a false identity. A run asked for symbols and a resolver refuses
+/// every node, typed, before any runs.
+#[test]
+fn a_symbolic_run_with_a_resolver_refuses_every_node() {
+    use editor_core::{NodeErrorKind, NodeResult, ParamBoxError};
+    let doc = ProfileDoc::empty_derived("coincide-seam", Tol::witness());
+    let (doc, _) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let opts = editor_core::EvalOptions {
+        symbols: true,
+        resolver: Some(std::sync::Arc::new(NoParts)),
+        ..editor_core::EvalOptions::default()
+    };
+    let ev: Evaluation<geom_core::Sym<f64>> = editor_core::evaluate(
+        &doc,
+        None,
+        &editor_core::CancelToken::new(),
+        &opts,
+        Tol::witness(),
+    );
+    assert!(!ev.order.is_empty());
+    for id in &ev.order {
+        assert!(
+            matches!(
+                ev.result(*id),
+                Some(NodeResult::Failed(e)) if matches!(
+                    e.kind,
+                    NodeErrorKind::ParamBox { source: ParamBoxError::SymbolsAcrossAPartSeam }
+                )
+            ),
+            "{:?}",
+            ev.result(*id)
         );
     }
 }

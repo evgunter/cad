@@ -121,7 +121,7 @@ fn prove_row(
     if row.site == topo::DecisionSite::CensusAtRest {
         return Err(Unreplayed::NotReplayed);
     }
-    let value = ev.value(node).ok_or(Unreplayed::Refused)?;
+    let value = ev.value(node).ok_or_else(|| why_no_value(ev, node))?;
     let replayed = value
         .coincidences
         .iter()
@@ -137,6 +137,29 @@ fn prove_row(
     deferred::discharge(replayed.margin)
         .map(Rung::MarginIdentity)
         .ok_or(Unreplayed::Numeric)
+}
+
+/// Why the replay holds no value at `node`: a part it does not resolve
+/// where that is what failed there or upstream, else a refusal.
+fn why_no_value(ev: &Evaluation<Lane>, node: RecipeNodeId) -> Unreplayed {
+    let failed = match ev.result(node) {
+        Some(crate::eval::NodeResult::Poisoned { through }) => *through,
+        _ => node,
+    };
+    match ev.result(failed) {
+        Some(crate::eval::NodeResult::Failed(e))
+            if matches!(
+                e.kind,
+                crate::eval::NodeErrorKind::Part {
+                    fault: crate::eval::PartFault::NoResolver,
+                    ..
+                }
+            ) =>
+        {
+            Unreplayed::ThroughAPart
+        }
+        _ => Unreplayed::Refused,
+    }
 }
 
 /// **The kernel's carrier-pair verdict on the row's two cells**, where

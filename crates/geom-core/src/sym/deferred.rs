@@ -14,6 +14,12 @@
 //! not call the sign definite, which is where it calls `Zero` or
 //! escalates, so deferring changes which sign an escalation reads and
 //! nothing else.
+//!
+//! A margin names its entry by a number no other entry in the process
+//! carries ([`NEXT`]), so a margin carried out of its session reads as
+//! no Zero in any other one, never as that one's entry of the same
+//! place. Past the last number a Zero is kept as no entry at all, which
+//! discharges as nothing: the door then reports the row unproven.
 
 use super::{SESSION, SymBudget, SymCounts, SymId, SymRetry, SymRules};
 use crate::predicate::{Decided, Indeterminate, MarginDiag, Sign, Theorem};
@@ -42,7 +48,7 @@ pub fn with_deferred_session<R>(
     super::with_session_retry(budget, rules, retry, || {
         SESSION.with(|s| {
             if let Some(sess) = s.borrow_mut().as_mut() {
-                sess.deferred = Some(Vec::new());
+                sess.deferred = Some(std::collections::HashMap::new());
             }
         });
         f()
@@ -66,7 +72,10 @@ pub(super) fn defer(
                 margin,
             }) => Ok(Decided {
                 sign: Sign::Zero,
-                margin: margin.deferred_at(push(list, Pending::Zero(node))),
+                margin: match push(list, Pending::Zero(node)) {
+                    Some(index) => margin.deferred_at(index),
+                    None => margin,
+                },
             }),
             other => other,
         })
@@ -79,14 +88,28 @@ pub(crate) fn join(a: Pending, b: Pending) -> Option<u32> {
     SESSION.with(|s| {
         let mut slot = s.borrow_mut();
         let list = slot.as_mut()?.deferred.as_mut()?;
-        let (a, b) = (push(list, a), push(list, b));
-        Some(push(list, Pending::Both(a, b)))
+        let (a, b) = (push(list, a)?, push(list, b)?);
+        push(list, Pending::Both(a, b))
     })
 }
 
-fn push(list: &mut Vec<Pending>, entry: Pending) -> u32 {
-    list.push(entry);
-    u32::try_from(list.len() - 1).unwrap_or_else(|_| unreachable!("a session decides < 2³² Zeros"))
+/// The next entry's number, process-wide: an entry's number names it
+/// in no other session.
+static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+
+/// The last number an entry can carry: the margin's word spends four
+/// values on "none" and the theorems.
+const LAST: u32 = u32::MAX - 4;
+
+fn push(list: &mut std::collections::HashMap<u32, Pending>, entry: Pending) -> Option<u32> {
+    use std::sync::atomic::Ordering;
+    let index = NEXT
+        .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| {
+            (n < LAST).then_some(n + 1)
+        })
+        .ok()?;
+    list.insert(index, entry);
+    Some(index)
 }
 
 /// **Whether `margin`'s Zero is a theorem**, and of which kind: the
@@ -123,14 +146,7 @@ fn discharge_entry(first: Pending) -> Option<Theorem> {
 
 /// The entry at `index` of the installed session's list.
 pub(crate) fn entry(index: u32) -> Option<Pending> {
-    SESSION.with(|s| {
-        s.borrow()
-            .as_ref()?
-            .deferred
-            .as_ref()?
-            .get(usize::try_from(index).ok()?)
-            .copied()
-    })
+    SESSION.with(|s| s.borrow().as_ref()?.deferred.as_ref()?.get(&index).copied())
 }
 
 /// **How large the expressions behind `margin`'s Zeros are**: the
