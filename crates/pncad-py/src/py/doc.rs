@@ -242,8 +242,8 @@ fn declare_err(py: Python<'_>, err: &pncad::select::DeclareError) -> PyErr {
     )
 }
 
-/// The kernel's declared-pair list for a boolean's or union's
-/// `declare=` or a `DocEdit.set_declare`: each inspected finding's pair
+/// The kernel's declared-pair list for a union's, an intersect's or a
+/// subtract's `declare=` or a `DocEdit.set_declare`: each inspected finding's pair
 /// and class. An empty list is the undeclared node.
 fn declared_pairs(findings: Vec<super::flush::FlushFinding>) -> Vec<d::DeclaredPair> {
     let kernel: Vec<pncad::select::FlushFinding> = findings.into_iter().map(|f| f.0).collect();
@@ -798,6 +798,11 @@ fn slot_from_text(word: &str) -> PyResult<d::SlotId> {
                 "`{word}` addresses one entry of a list a node reads, and its position is not \
              carried by the word: `DocEdit.set_members` writes the list whole"
             )
+        } else if word == "index" {
+            "`index` addresses one index of a read of a family's member, and the rest of that \
+         address — the seat the read sits at and which index — is not carried by the word: \
+         the member read is re-authored"
+                .to_owned()
         } else if word == "mate_frame_step" {
             "`mate_frame_step` addresses one expression of a mate side's frame offset, and the \
          rest of that address — the side, the step index and which component — is not \
@@ -862,10 +867,97 @@ impl OperandArg {
     }
 }
 
+/// **One member of a family, read by index** (REFERENCES DM3): `xs[i]`,
+/// written `op[i]` on the family's operand — a node or a variable —
+/// with one count per index. It is a read of the family, not a
+/// variable: an operation reading it keys the member's names by the
+/// family's read. Every body seat takes one; an index out of the
+/// family's range refuses `instance_out_of_range` at `evaluate`.
+#[pyclass(frozen, module = "pncad", from_py_object)]
+#[derive(Clone)]
+pub(crate) struct IndexedRead {
+    read: OperandArg,
+    at: Vec<d::Formula>,
+}
+
+impl IndexedRead {
+    /// `read` at the one index `index`, read as a count.
+    fn of(py: Python<'_>, read: OperandArg, index: &super::expr::SlotArg) -> PyResult<Self> {
+        Ok(Self {
+            read,
+            at: vec![index.formula(py, d::Dimension::Count)?],
+        })
+    }
+}
+
+#[pymethods]
+impl IndexedRead {
+    fn __repr__(&self) -> String {
+        let read = match self.read {
+            OperandArg::Node(node) => format!("NodeId({})", node.0.full()),
+            OperandArg::Var(var) => format!("Var({})", var.0.full()),
+        };
+        let at: Vec<String> = self.at.iter().map(ToString::to_string).collect();
+        format!("{read}[{}]", at.join(", "))
+    }
+}
+
+/// **A read at a body seat as Python writes it**: an operand read
+/// plainly, or one member of a family (`op[i]`, [`IndexedRead`]).
+#[derive(FromPyObject, Clone)]
+pub(crate) enum BodyArg {
+    /// One member of a family.
+    Indexed(IndexedRead),
+    /// An operand, read plainly.
+    Read(OperandArg),
+}
+
+impl BodyArg {
+    /// The authored read.
+    pub(crate) fn read(self) -> d::BodyRead<d::Formula> {
+        match self {
+            Self::Indexed(IndexedRead { read, at }) => d::BodyRead::indexed(read.read(), at),
+            Self::Read(read) => d::BodyRead::plain(read.read()),
+        }
+    }
+}
+
+/// **A union's or an intersect's members as Python writes them**: ONE
+/// operand, a family read whole (a pattern's output), or a sequence of
+/// reads, each on its own (an operand, or a member `op[i]`) — the
+/// kernel's `Bodies`. Whether a read in a sequence is itself a family
+/// is the kernel's question at the door (`slot_var_kind`), not this
+/// one's.
+#[derive(FromPyObject)]
+pub(crate) enum MembersArg {
+    /// One read: the family it reads, whole.
+    Family(BodyArg),
+    /// A sequence of reads, in the order written.
+    Spelled(Vec<BodyArg>),
+}
+
+impl MembersArg {
+    /// The authored argument.
+    pub(crate) fn bodies(self) -> d::Bodies<d::BodyRead<d::Formula>> {
+        match self {
+            Self::Family(read) => d::Bodies::Family(read.read()),
+            Self::Spelled(reads) => {
+                d::Bodies::Spelled(reads.into_iter().map(BodyArg::read).collect())
+            }
+        }
+    }
+}
+
 #[pymethods]
 impl NodeId {
     fn __repr__(&self) -> String {
         format!("NodeId({})", self.0.full())
+    }
+
+    /// One member of the family this node's output is, at `index`
+    /// ([`IndexedRead`]).
+    fn __getitem__(&self, py: Python<'_>, index: super::expr::SlotArg) -> PyResult<IndexedRead> {
+        IndexedRead::of(py, OperandArg::Node(*self), &index)
     }
 
     fn __eq__(&self, other: &Self) -> bool {
@@ -1549,12 +1641,12 @@ impl Doc {
     fn place(
         &mut self,
         py: Python<'_>,
-        body: OperandArg,
+        body: BodyArg,
         pose: Option<super::place::Placement>,
         label: Option<&str>,
     ) -> PyResult<NodeId> {
         let label = label.map(|text| label_from_text(py, text)).transpose()?;
-        Node::place_in_world(py, body, pose.clone())?;
+        Node::place_in_world(py, body.clone(), pose.clone())?;
         self.insert_edit(d::DocEdit::place(body.read(), pose.map(|p| p.0)), label)
             .map_err(|err| edit_err(py, &err))
     }
@@ -1587,7 +1679,8 @@ impl Doc {
     }
 
     /// ADD one inspected finding's pair to the declared pairs of the
-    /// live boolean or union `node`, keeping every pair it declares
+    /// live union, intersect or subtract `node`, keeping every pair it
+    /// declares
     /// already — the detect/declare protocol's declare arm
     /// (SELECT-DESIGN §3). A pair on the same two sides as one already
     /// declared
@@ -1596,9 +1689,9 @@ impl Doc {
     /// (the ruled no-fusion boundary).
     ///
     /// Raises `EditError`: `set_declare_on_non_declaring` when `node`
-    /// is neither a boolean nor a union, `unknown_node` for a node the
-    /// document does not hold, `declared_site_not_an_operand` for a
-    /// finding inspected between other operands than `node`'s, and the
+    /// is none of the three, `unknown_node` for a node the document
+    /// does not hold, `declared_site_not_an_operand` for a finding
+    /// inspected between other operand reads than `node`'s, and the
     /// name checks an insert runs on a pair naming a node or step the
     /// document does not hold.
     fn declare(
@@ -1611,8 +1704,8 @@ impl Doc {
         self.accept_declared(py, applied)
     }
 
-    /// Declare a SET of inspected findings on the live boolean or union
-    /// `node`, replacing its whole declared-pair list —
+    /// Declare a SET of inspected findings on the live union, intersect
+    /// or subtract `node`, replacing its whole declared-pair list —
     /// `DocEdit.set_declare`'s replace, where `declare` adds (the
     /// boundary is fusion, not arity). Same refusals as `declare`; an
     /// EMPTY list refuses (`no_findings`) rather than
@@ -1918,58 +2011,13 @@ impl Doc {
     }
 }
 
-/// Which Boolean the document layer performs.
-///
-/// Rust has ONE `BooleanOp` — the kernel enum the recipe node carries
-/// — and this is its binding. The mirror exists because `#[pyclass]`
-/// cannot be attached to a type from another crate, so a python-side
-/// copy is forced; the obligation it owes the kernel is that every
-/// kernel operation has a member here, which
-/// [`_binds_every_kernel_operation`] is what enforces.
-#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) enum BooleanOp {
-    /// Fuse the operands.
-    Union,
-    /// Keep the common volume.
-    Intersect,
-    /// Remove `b` from `a`.
-    Subtract,
-}
-
-impl BooleanOp {
-    fn to_document(self) -> d::BooleanOp {
-        match self {
-            Self::Union => d::BooleanOp::Union,
-            Self::Intersect => d::BooleanOp::Intersect,
-            Self::Subtract => d::BooleanOp::Subtract,
-        }
-    }
-}
-
-/// Every kernel operation has a member on the python mirror.
-///
-/// The direction is the load-bearing one. `to_document` matches on
-/// `Self` — a closed local enum — so it says nothing about the kernel
-/// growing; an operation added there would leave the python surface
-/// silently short of it. This match is over the KERNEL enum, so that
-/// addition breaks this build and the binding must be written.
-///
-/// It is never called: a type-checked match is the whole product, and
-/// the leading underscore is what says so.
-const fn _binds_every_kernel_operation(kernel: d::BooleanOp) -> BooleanOp {
-    match kernel {
-        d::BooleanOp::Union => BooleanOp::Union,
-        d::BooleanOp::Intersect => BooleanOp::Intersect,
-        d::BooleanOp::Subtract => BooleanOp::Subtract,
-    }
-}
-
 /// Which side of its sketch plane a `Node.extrude` goes toward.
 ///
-/// The binding of the kernel's `ExtrudeSide`, mirrored for the reason
-/// [`BooleanOp`] is, and held to it the same way
-/// ([`_binds_every_kernel_side`]).
+/// The binding of the kernel's `ExtrudeSide`. The mirror exists
+/// because `#[pyclass]` cannot be attached to a type from another
+/// crate, so a python-side copy is forced; the obligation it owes the
+/// kernel is that every kernel side has a member here, which
+/// [`_binds_every_kernel_side`] is what enforces.
 #[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum ExtrudeSide {
@@ -1988,8 +2036,16 @@ impl ExtrudeSide {
     }
 }
 
-/// Every kernel side has a member on the python mirror — the match is
-/// over the KERNEL enum. Never called.
+/// Every kernel side has a member on the python mirror.
+///
+/// The direction is the load-bearing one. `to_document` matches on
+/// `Self` — a closed local enum — so it says nothing about the kernel
+/// growing; a side added there would leave the python surface
+/// silently short of it. This match is over the KERNEL enum, so that
+/// addition breaks this build and the binding must be written.
+///
+/// It is never called: a type-checked match is the whole product, and
+/// the leading underscore is what says so.
 const fn _binds_every_kernel_side(kernel: d::ExtrudeSide) -> ExtrudeSide {
     match kernel {
         d::ExtrudeSide::Along => ExtrudeSide::Along,
@@ -3004,7 +3060,7 @@ impl Node {
     /// A tool that is not a splitting surface, or a cut that produces
     /// nothing, refuses typed at `evaluate`.
     #[staticmethod]
-    fn split(target: OperandArg, tool: OperandArg) -> Self {
+    fn split(target: BodyArg, tool: OperandArg) -> Self {
         Self {
             inner: d::Node::Split {
                 target: target.read(),
@@ -3081,7 +3137,7 @@ impl Node {
     #[pyo3(signature = (body, pose=None))]
     fn place_in_world(
         py: Python<'_>,
-        body: OperandArg,
+        body: BodyArg,
         pose: Option<super::place::Placement>,
     ) -> PyResult<Self> {
         let inner = d::Node::place_in_world(
@@ -3092,66 +3148,90 @@ impl Node {
         Ok(Self { inner })
     }
 
-    /// A Boolean of two upstream solids.
+    /// **The union**: the material in ANY member, folded into ONE
+    /// body in the members' order (D9 — the fold order is the list's,
+    /// and the list is data).
     ///
-    /// `declare` is the boolean's declared contact pairs, given as the
-    /// `FlushFinding`s the caller INSPECTED — each carries its pair and
-    /// its class — and held as the node's own payload; an empty list
-    /// declares nothing. Operands whose faces a margin decides on one
-    /// surface glue there, declared or not, and the coincidence is
-    /// recorded for the `unproven_coincidence` check; a declaration
-    /// adds its verification. The protocol that fills this argument is
+    /// `members` is a list of operands, each read on its own, or ONE
+    /// operand standing for a whole family — a pattern's output — whose
+    /// bodies are the members in index order. Any count is a union: one
+    /// member is that body, none is the typed empty body, and a read
+    /// listed twice is the same material twice, so `[a, a]` is `a`. A
+    /// family read beside single reads in one list refuses at
+    /// `Doc.insert` (`slot_var_kind`), as does a member id the document
+    /// does not hold (`unresolved_input`). Whether a member is a BODY
+    /// is the kernel's question at `evaluate`, as it is at every other
+    /// operand seat.
+    ///
+    /// The membership is data, so `DocEdit.set_members` rewrites it on
+    /// the live node. Not `Node.placed_union`, whose members are one
+    /// prototype under a placement rule.
+    ///
+    /// `declare` is the node's declared contact pairs, given as the
+    /// `FlushFinding`s the caller INSPECTED — each carries its pair,
+    /// sited at the two member reads, and its class — and held as the
+    /// node's own payload; an empty list declares nothing. Members whose
+    /// faces a margin decides on one surface glue there, declared or not,
+    /// and the coincidence is recorded for the `unproven_coincidence`
+    /// check; a declaration adds its verification. A declared pair is fed
+    /// at the fold step its two members meet at. A refusal only a fold
+    /// step raises is `kind == "union_fold_step"`, naming the member it
+    /// folds in. The protocol that fills this argument is
     /// `Evaluation.find_flush_candidates` → inspect → this `declare=`,
     /// or `Doc.declare`/`Doc.declare_all` on the live node.
     #[staticmethod]
-    #[pyo3(signature = (op, a, b, declare=Vec::new()))]
-    fn boolean(
-        op: BooleanOp,
-        a: OperandArg,
-        b: OperandArg,
-        declare: Vec<super::flush::FlushFinding>,
-    ) -> PyResult<Self> {
+    #[pyo3(signature = (members, declare=Vec::new()))]
+    fn union(members: MembersArg, declare: Vec<super::flush::FlushFinding>) -> PyResult<Self> {
         Ok(Self {
-            inner: d::Node::Boolean {
-                op: op.to_document(),
-                a: a.read(),
-                b: b.read(),
+            inner: d::Node::Union {
+                members: members.bodies(),
                 declare: declared_pairs(declare),
             },
         })
     }
 
-    /// **The n-ary union**: two or more member bodies folded into ONE
-    /// body, in the LIST's order (D9 — the fold order is the list's,
-    /// and the list is data).
+    /// **The intersect**: the material in EVERY member, folded in the
+    /// members' order.
     ///
-    /// Not `Node.boolean`, which is the BINARY operation over two
-    /// named operand slots, and not `Node.placed_union`, whose
-    /// members are one prototype under a placement rule. Here every
-    /// member is authored on its own and the membership is a list, so
-    /// `DocEdit.set_members` can rewrite it on the live node — which
-    /// is the whole reason this node exists rather than a chain of
-    /// booleans, whose shape can only be re-authored.
-    ///
-    /// `declare` is the same declared-pair list `Node.boolean`
-    /// carries, consumed the same way one step further in: the fold's
-    /// steps are pairs, and a declared pair is fed at the step its two
-    /// members meet at. Members that touch glue as a binary boolean's
-    /// operands do. A refusal only a fold step raises is
-    /// `kind == "union_fold_step"`, naming the member it folds in.
-    ///
-    /// Refuses at `Doc.insert`, of the list as stated: fewer than two
-    /// members (`too_few_members`, carrying the `count` it found), a
-    /// member repeated (`duplicate_input`, naming it), a member id the
-    /// document does not hold (`unresolved_input`). Whether a member is
-    /// a BODY is not asked here — that is the kernel's question at
-    /// `evaluate`, as it is at every other operand seat.
+    /// `members` and `declare` are `Node.union`'s, read the same way:
+    /// a list of operands or one family read, any count — one member
+    /// is that body, none is the typed empty body, and `[a, a]` is
+    /// `a`. A fold step whose members share no material is the typed
+    /// empty body, not a refusal. `DocEdit.set_members` rewrites the
+    /// list on the live node.
     #[staticmethod]
     #[pyo3(signature = (members, declare=Vec::new()))]
-    fn union(members: Vec<OperandArg>, declare: Vec<super::flush::FlushFinding>) -> PyResult<Self> {
+    fn intersect(members: MembersArg, declare: Vec<super::flush::FlushFinding>) -> PyResult<Self> {
         Ok(Self {
-            inner: d::Node::Union {
-                members: members.iter().map(|m| m.read()).collect(),
+            inner: d::Node::Intersect {
+                members: members.bodies(),
+                declare: declared_pairs(declare),
+            },
+        })
+    }
+
+    /// **The subtract**: `from_` with the material of `tool` cut away.
+    ///
+    /// The one pair node: difference neither commutes nor associates,
+    /// so its two operands are named slots (`from`, spelled `from_`
+    /// here because `from` is a Python keyword, and `tool`). Several
+    /// tools are one subtract of their union,
+    /// `Node.subtract(body, Node.union([t1, t2]))`. A body cut by
+    /// itself, `Node.subtract(a, a)`, is the typed empty body.
+    ///
+    /// `declare` is `Node.union`'s declared-pair list, sited at the two
+    /// operand reads.
+    #[staticmethod]
+    #[pyo3(signature = (from_, tool, declare=Vec::new()))]
+    fn subtract(
+        from_: BodyArg,
+        tool: BodyArg,
+        declare: Vec<super::flush::FlushFinding>,
+    ) -> PyResult<Self> {
+        Ok(Self {
+            inner: d::Node::Subtract {
+                from: from_.read(),
+                tool: tool.read(),
                 declare: declared_pairs(declare),
             },
         })
@@ -3610,6 +3690,12 @@ impl Var {
 
     fn __repr__(&self) -> String {
         format!("Var({})", self.0.full())
+    }
+
+    /// One member of the family this variable holds, at `index`
+    /// ([`IndexedRead`]).
+    fn __getitem__(&self, py: Python<'_>, index: super::expr::SlotArg) -> PyResult<IndexedRead> {
+        IndexedRead::of(py, OperandArg::Var(*self), &index)
     }
 
     fn __eq__(&self, other: &Self) -> bool {
@@ -4195,55 +4281,60 @@ impl DocEdit {
         })
     }
 
-    /// **Replace a node's whole LIST input** — a `Node.union`'s
-    /// members, a `Node.loft`'s sections — with the list stated in
-    /// full.
+    /// **Replace a node's whole LIST input** — a `Node.union`'s or a
+    /// `Node.intersect`'s members, a `Node.loft`'s sections — with the
+    /// list stated in full. `members` takes `Node.union`'s shape: a
+    /// sequence of operands, or one operand reading a family whole.
     ///
     /// The one edit that changes a live node's inputs, and it can be
     /// that because it is unambiguous by construction: there is no
     /// positional spelling and no per-entry arm, so nothing is
     /// inferred about which of the old entries survived or moved.
     /// Dropping one member is this edit without it plus a
-    /// `DocEdit.delete_node` of the orphan, one committed action. A
-    /// union's declared pairs are left as they were, so a pair whose two
-    /// members are both still in the list re-routes to the step they
-    /// now meet at; a pair whose member was DROPPED has lost its site
-    /// and refuses at the next evaluation as a vanished name, rather
-    /// than being edited away silently.
+    /// `DocEdit.delete_node` of the orphan, one committed action. The
+    /// node's declared pairs are left as they were, so a pair whose two
+    /// member reads are both still in the list re-routes to the step
+    /// they now meet at; a pair whose member read was DROPPED has lost
+    /// its site and refuses at the next evaluation
+    /// (`declare_site_not_an_operand`), rather than being edited away
+    /// silently.
     ///
     /// Every check `Doc.insert` makes of a node's inputs is remade
     /// here, of the REWRITTEN node, so this edit cannot reach a state
     /// an insert would have refused: `unresolved_input` for a member
-    /// the document does not hold, `duplicate_input` for a repeat,
-    /// `too_few_members` for a list under the node's floor (carrying
-    /// the `count` it found), and `would_cycle` for a member
-    /// downstream of the node itself — the one refusal an insert gets
-    /// for free and this edit does not. A node carrying no list at all
-    /// refuses `set_members_on_non_list`.
+    /// the document does not hold, `slot_var_kind` for a family read
+    /// beside single reads, and `would_cycle` for a member downstream
+    /// of the node itself — the one refusal an insert gets for free
+    /// and this edit does not. Any count is a list: one member, or
+    /// none, is a union or intersect still. A loft's sections are
+    /// spelled one read each, so a family there refuses
+    /// `loft_sections_spelled`; a node carrying no list at all refuses
+    /// `set_members_on_non_list`.
     #[staticmethod]
-    fn set_members(node: &NodeId, members: Vec<OperandArg>) -> Self {
+    fn set_members(node: &NodeId, members: MembersArg) -> Self {
         Self {
             inner: d::DocEdit::SetMembers {
                 node: node.0,
-                members: members.iter().map(|m| m.read()).collect(),
+                members: members.bodies(),
             },
         }
     }
 
-    /// **Replace a live boolean's or union's whole declared-pair
-    /// list** with the pairs and classes of `findings` — the inspected
-    /// `FlushFinding`s, as `Node.boolean`'s `declare=` takes them. An
+    /// **Replace a live union's, intersect's or subtract's whole
+    /// declared-pair list** with the pairs and classes of `findings` —
+    /// the inspected `FlushFinding`s, as `Node.union`'s `declare=` takes
+    /// them. An
     /// empty list clears the declaration. Nothing is inferred about
     /// the old list: it is replaced whole.
     ///
     /// Refuses typed on `EditError`: `set_declare_on_non_declaring`
-    /// for a node that is neither a boolean nor a union,
+    /// for a node that is none of the three,
     /// `unknown_node` for a node the document does not hold, the name
     /// checks an insert runs (`declare_names_missing_node`,
     /// `name_step_never_minted`, `read_site_missing_node`) on a pair
     /// naming what the document does not hold, and the pair rule an
-    /// insert asks: `declared_site_not_an_operand` for a pair read at a
-    /// node that is not one of `node`'s operands,
+    /// insert asks: `declared_site_not_an_operand` for a pair sited at
+    /// a read that is not one of `node`'s operand reads,
     /// `declared_name_not_upstream` for a name not minted before `node`.
     #[staticmethod]
     fn set_declare(node: &NodeId, findings: Vec<super::flush::FlushFinding>) -> PyResult<Self> {
@@ -4292,7 +4383,7 @@ impl DocEdit {
     /// required and offered pair), and `slot_unknown_var_name` /
     /// `slot_var_kind` for a read the slot does not take; at an operand
     /// also `operand_unresolved`, `ambiguous_output`,
-    /// `defines_nothing`, `would_cycle` and `duplicate_input`.
+    /// `defines_nothing` and `would_cycle`.
     #[staticmethod]
     fn set_param(py: Python<'_>, node: &NodeId, slot: &str, value: SlotValueArg) -> PyResult<Self> {
         let slot = slot_from_text(slot)?;
@@ -5014,7 +5105,7 @@ impl TubeWindow {
 }
 
 /// Every kernel window spelling has a constructor on the python
-/// mirror, enforced in the load-bearing direction (the `BooleanOp`
+/// mirror, enforced in the load-bearing direction (the `ExtrudeSide`
 /// mirror's argument, verbatim): the match is over the KERNEL enum, so
 /// a variant added there breaks this build rather than leaving the
 /// python surface silently short of it. Never called.
@@ -5028,6 +5119,7 @@ const fn _binds_every_kernel_window(kernel: &d::TubeWindow<d::Formula>) -> &'sta
 /// Register the document surface on the module.
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<NodeId>()?;
+    m.add_class::<IndexedRead>()?;
     m.add_class::<Doc>()?;
     m.add_class::<DocEdit>()?;
     m.add_class::<VarName>()?;
@@ -5041,7 +5133,6 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<FreeValue>()?;
     m.add_class::<Node>()?;
     m.add_class::<SketchPlane>()?;
-    m.add_class::<BooleanOp>()?;
     m.add_class::<ExtrudeSide>()?;
     m.add_class::<PartSelect>()?;
     m.add_class::<TubeWindow>()?;

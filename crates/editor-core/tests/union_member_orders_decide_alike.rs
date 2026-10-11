@@ -176,7 +176,9 @@ fn decide(fixture: Members, order: &[usize]) -> Decided {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: order.iter().map(|&i| members[i].into()).collect(),
+            members: editor_core::Bodies::Spelled(
+                order.iter().map(|&i| members[i].into()).collect(),
+            ),
             declare: Vec::new(),
         },
     );
@@ -204,7 +206,7 @@ fn built(ev: &Evaluation<f64>, union: RecipeNodeId) -> Decided {
     // placeholder wherever a name cites it.
     let own = format!("{union:?}");
     let mut names = BTreeMap::new();
-    for line in named_geometry(ev, union, false).expect("a union is never empty") {
+    for line in named_geometry(ev, union).expect("a union is never empty") {
         let line = line.replace(&own, "the union");
         let (n, g) = line.rsplit_once(" @ ").expect("a name @ geometry row");
         assert!(
