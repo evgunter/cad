@@ -46,6 +46,29 @@ Stages 2–6 are not yet sliced into rows. Each is sliced, and split into
 its own program where it outgrows this one's budget, when the stage
 before it is in review.
 
+## Successors (2026-10-11)
+
+At 124 budget points against 45, INTENT split along its dependency
+seam (Ev approved the division in chat, 2026-10-11). The rows moved by
+`git mv`, keeping ids and bodies. INTENT keeps the D10 stage chain and
+every row that waits on it:
+- stage 3 B → C → D/E/F and patterns;
+- stage 4 H and I (and J, in flight);
+- stage 5 C;
+- the stage umbrellas, `d10-one-way-to-say-intent-is-unbuilt`, the
+  exit walk and the refactor hold.
+
+The rest went to programs that start now:
+- **COINCIDE** (P1): the door and its lint as stage 4 left them.
+- **REFS** (P1): DM4 unit 2, indexed reads and the façade's slot words.
+- **INLANE** (P2): every carrier's values in the lane scalar. Ev placed
+  this track below INTENT's.
+- **FLUSH** (existing): six topo glue rows, under its charter of
+  declared contact at the join.
+
+In-flight units keep reporting to the INTENT orchestrator until they
+merge: the skin (INLANE) and DM4 unit 2 (REFS).
+
 ## Review posture
 
 The repo-wide tiers (`memories/orchestration-model.md`,
