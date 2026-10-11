@@ -301,16 +301,12 @@ impl<T: geom_core::Real> core::fmt::Display for OffsetError<T> {
                 "the surface is already a fitted offset, and offsetting one again is not \
                  built. {NOT_YET_ENDING}"
             ),
-            // The offset door takes no declaration, so the escalation's
-            // own lever is the geometry alone.
-            Self::Escalated { source } => write!(
-                f,
-                concat!(
-                    geom_core::undecided!("whether the offset surface keeps a valid radius"),
-                    ": {}"
-                ),
-                source.under(COINCIDENCE_RECOURSE)
-            ),
+            Self::Escalated { source } => source
+                .undecided(
+                    "whether the offset surface keeps a valid radius",
+                    source.ending(COINCIDENCE_RECOURSE),
+                )
+                .fmt(f),
         }
     }
 }

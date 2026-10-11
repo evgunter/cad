@@ -76,7 +76,7 @@
 //! `fixed_n3_*` test.)
 
 use geom::Surface;
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
+use geom_core::{Band, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use crate::dihedral::decide;
 
@@ -120,15 +120,12 @@ impl core::fmt::Display for NewellError {
                 "vertex {vertex} lies definitely off the loop's plane, so the loop is not \
                  planar at tolerance"
             ),
-            Self::Escalated { vertex, cause } => write!(
-                f,
-                concat!(
-                    "whether vertex {} lies on the loop's plane",
-                    geom_core::undecided!(),
-                    ": {}"
-                ),
-                vertex, cause
-            ),
+            Self::Escalated { vertex, cause } => cause
+                .undecided(
+                    format_args!("whether vertex {vertex} lies on the loop's plane"),
+                    cause.ending(COINCIDENCE_RECOURSE),
+                )
+                .fmt(f),
         }
     }
 }
