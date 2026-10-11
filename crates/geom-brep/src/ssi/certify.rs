@@ -837,8 +837,14 @@ impl Halved {
 /// m = 64 rows' and five times the corpus's. A carrier whose first
 /// composite has more spans than this is read on that hull alone; the
 /// one such carrier measured, a dome arc at ε 1e-14 over 4242 to 14 814
-/// spans, reads its lowest bound there. The analytic rung-3 limb's 94
-/// calls over the same profiles all decide on their first hull (89
+/// spans, reads its lowest bound there.
+///
+/// The analytic rung-3 limb counts every part of its lane's composite,
+/// which covers the carrier's whole net whatever the edge's interval
+/// reads, so a long carrier shared by many edges spends nearly the whole
+/// budget on its first hull and gets few rounds or none. Measured once,
+/// on 2026-10-11, with a temporary probe in `net_offset_sup` over the
+/// same four ci profiles: 94 calls, all deciding on their first hull (89
 /// cleared, 5 on a break's value), the largest costing 4080 parts.
 pub(crate) const SSI_HULL_WORK: usize = 4096;
 

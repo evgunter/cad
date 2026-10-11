@@ -411,17 +411,73 @@ fn the_projection_is_the_nearest_point_on_every_chart() {
     }
 }
 
+/// The least of `g` over a turn of azimuth: the least sample of a grid,
+/// then a golden-section search on the two grid steps around it.
+fn least_over_a_turn(g: impl Fn(f64) -> f64) -> f64 {
+    const GRID: u32 = 720;
+    let step = TAU / f64::from(GRID);
+    let best = (0..GRID)
+        .map(|k| f64::from(k) * step)
+        .min_by(|a, b| g(*a).total_cmp(&g(*b)))
+        .expect("the grid is not empty");
+    let golden = (5f64.sqrt() - 1.0) / 2.0;
+    let (mut a, mut b) = (best - step, best + step);
+    for _ in 0..100 {
+        let (c, d) = (b - golden * (b - a), a + golden * (b - a));
+        if g(c) < g(d) {
+            b = d;
+        } else {
+            a = c;
+        }
+    }
+    g(0.5 * (a + b)).min(g(best))
+}
+
+/// The torus's three shapes: `r < R` (ring), `r = R` (horn), `r > R`
+/// (spindle). A stored torus may be any of them.
+fn torus_radii(s: &mut fuzz::Rng) -> (f64, f64) {
+    let major = s.range(1.0, 3.0);
+    let ratio = match s.below(3) {
+        0 => s.range(0.1, 0.9),
+        1 => 1.0,
+        _ => s.range(1.05, 2.0),
+    };
+    (major, major * ratio)
+}
+
+/// The torus's canonical form `(|p|² + R² − r²)² − 4R²ρ²` at `p`.
+fn torus_form(major: f64, minor: f64, p: Vec3<Interval>) -> Interval {
+    let iv = Interval::from_f64;
+    let q = p.x.powi(2) + p.y.powi(2) + p.z.powi(2) + iv(major).powi(2) - iv(minor).powi(2);
+    q.powi(2) - iv(4.0) * iv(major).powi(2) * (p.x.powi(2) + p.y.powi(2))
+}
+
+/// The distance of `p` from a torus, searched: the least over azimuth
+/// `θ` of its distance from the tube circle about `R·(cos θ, sin θ, 0)`.
+fn torus_distance(major: f64, minor: f64, p: Vec3<f64>) -> f64 {
+    least_over_a_turn(|t| {
+        let (e, tangent) = (
+            Vec3::new(t.cos(), t.sin(), 0.0),
+            Vec3::new(-t.sin(), t.cos(), 0.0),
+        );
+        let w = p - e * major;
+        w.dot(tangent).hypot(w.dot(e).hypot(w.z) - minor)
+    })
+}
+
 /// **A break's distance floor is a lower bound, and tight**: on every
-/// chart, in its canonical frame, `|f|`'s certified lower bound at a point
-/// over the upper end of [`Meters::divisor`] there, rounded down, never
-/// exceeds the point's distance from the chart's form's zero set, and
-/// meets it to rounding, since each divisor is the exact factor. Points
-/// near the chart and far from it.
+/// chart, in its canonical frame, [`distance_floor`] — the lane's own
+/// arithmetic — at a point never exceeds the point's distance from the
+/// chart's form's zero set, and meets it to the oracle's rounding, since
+/// each divisor is the exact factor. Points near the chart and far from
+/// it; tori ring, horn and spindle. The cone's and the torus's distances
+/// are searched over the azimuth of the surface's own lines and circles,
+/// not read off a closed form.
 ///
-/// [`Meters::divisor`]: super::super::projected::Meters::divisor
+/// [`distance_floor`]: super::super::projected::distance_floor
 #[test]
 fn the_distance_floor_is_below_the_distance_and_meets_it() {
-    use super::super::projected::Meters;
+    use super::super::projected::{Meters, distance_floor};
     use crate::offset::Nappe;
     type Form = Box<dyn Fn(Vec3<Interval>) -> Interval>;
     type Distance = Box<dyn Fn(Vec3<f64>) -> f64>;
@@ -430,7 +486,13 @@ fn the_distance_floor_is_below_the_distance_and_meets_it() {
     for _ in 0..fuzz::scaled(200) {
         for chart in CHARTS {
             let near = s.below(2) == 0;
-            let (meters, form, distance, on): (Meters<Interval>, Form, Distance, Vec3<f64>) = {
+            let (meters, form, distance, on, size): (
+                Meters<Interval>,
+                Form,
+                Distance,
+                Vec3<f64>,
+                f64,
+            ) = {
                 let (a, b) = (s.range(0.0, TAU), s.range(-1.0, 1.0));
                 match chart {
                     Chart::Plane => (
@@ -438,6 +500,7 @@ fn the_distance_floor_is_below_the_distance_and_meets_it() {
                         Box::new(|p: Vec3<Interval>| p.z),
                         Box::new(|p: Vec3<f64>| p.z.abs()),
                         Vec3::new(s.range(-2.0, 2.0), s.range(-2.0, 2.0), 0.0),
+                        1.0,
                     ),
                     Chart::Cylinder => {
                         let r = s.range(0.3, 2.0);
@@ -448,6 +511,7 @@ fn the_distance_floor_is_below_the_distance_and_meets_it() {
                             }),
                             Box::new(move |p: Vec3<f64>| (p.x.hypot(p.y) - r).abs()),
                             Vec3::new(r * a.cos(), r * a.sin(), 2.0 * b),
+                            r,
                         )
                     }
                     Chart::Sphere => {
@@ -460,6 +524,7 @@ fn the_distance_floor_is_below_the_distance_and_meets_it() {
                             }),
                             Box::new(move |p: Vec3<f64>| (p.norm() - r).abs()),
                             Vec3::new(r * c * a.cos(), r * c * a.sin(), r * z),
+                            r,
                         )
                     }
                     Chart::Cone => {
@@ -476,18 +541,20 @@ fn the_distance_floor_is_below_the_distance_and_meets_it() {
                                 iv(cos).powi(2) * (p.x.powi(2) + p.y.powi(2))
                                     - iv(sin).powi(2) * p.z.powi(2)
                             }),
+                            // The double cone is the lines through the
+                            // apex along `(sin α cos θ, sin α sin θ, cos α)`.
                             Box::new(move |p: Vec3<f64>| {
-                                let rho = p.x.hypot(p.y);
-                                (rho * cos - p.z * sin)
-                                    .abs()
-                                    .min((rho * cos + p.z * sin).abs())
+                                least_over_a_turn(|t| {
+                                    let d = Vec3::new(sin * t.cos(), sin * t.sin(), cos);
+                                    (p - d * p.dot(d)).norm()
+                                })
                             }),
                             Vec3::new(rho * a.cos(), rho * a.sin(), h),
+                            1.0,
                         )
                     }
                     Chart::Torus => {
-                        let major = s.range(1.0, 3.0);
-                        let minor = major * s.range(0.1, 0.9);
+                        let (major, minor) = torus_radii(&mut s);
                         let phi = s.range(0.0, TAU);
                         let rho = major + minor * phi.cos();
                         (
@@ -495,16 +562,10 @@ fn the_distance_floor_is_below_the_distance_and_meets_it() {
                                 major: iv(major),
                                 minor: iv(minor),
                             },
-                            Box::new(move |p: Vec3<Interval>| {
-                                let q = p.x.powi(2) + p.y.powi(2) + p.z.powi(2) + iv(major).powi(2)
-                                    - iv(minor).powi(2);
-                                q.powi(2)
-                                    - iv(4.0) * iv(major).powi(2) * (p.x.powi(2) + p.y.powi(2))
-                            }),
-                            Box::new(move |p: Vec3<f64>| {
-                                ((p.x.hypot(p.y) - major).hypot(p.z) - minor).abs()
-                            }),
+                            Box::new(move |p| torus_form(major, minor, p)),
+                            Box::new(move |p| torus_distance(major, minor, p)),
                             Vec3::new(rho * a.cos(), rho * a.sin(), minor * phi.sin()),
+                            major + minor,
                         )
                     }
                 }
@@ -517,25 +578,86 @@ fn the_distance_floor_is_below_the_distance_and_meets_it() {
             let p = on + unit(&mut s) * off;
             let point = Vec3::new(iv(p.x), iv(p.y), iv(p.z));
             let value = form(point);
-            let f = crate::ssi::enclose::zero_free_lower_bound(value);
-            let divisor = meters.divisor(point).abs().hi();
-            let floor =
-                (Interval::from_bounds(f, f) / Interval::from_bounds(divisor, divisor)).lo();
+            let floor = distance_floor(meters, value, point);
             let truth = distance(p);
+            // The oracle's rounding: a few ulps of the point's and the
+            // chart's size.
+            let rounding = 16.0 * f64::EPSILON * (p.norm() + size);
+            // The floor's own: the enclosure's width over the divisor.
+            let width = (value.hi() - value.lo()) / meters.divisor(point).abs().lo();
             let what = format!(
                 "{chart:?} at {p:?}: floor {floor:e}, distance {truth:e} — {}",
                 fuzz::replay()
             );
             assert!(
-                floor <= truth * (1.0 + 1e-9) + 1e-15,
+                floor <= truth + rounding,
                 "{what}: the floor is past the distance"
             );
             assert!(
-                floor >= truth * (1.0 - 1e-6) - 1e-12,
+                floor >= truth - rounding - 2.0 * width,
                 "{what}: the floor is loose"
             );
         }
     }
+}
+
+/// A spindle torus's form vanishes on its inner sheet as well, so the
+/// floor at a point nearer that sheet than the tube circle about its own
+/// azimuth reads the inner sheet's distance: at `ρ = ½` on `R = 1`,
+/// `r = 2` the tube circle is `1.5` away and the inner sheet `0.5`.
+#[test]
+fn a_spindle_toruss_floor_is_its_inner_sheets_distance() {
+    use super::super::projected::{Meters, distance_floor};
+    let iv = Interval::from_f64;
+    let (major, minor) = (1.0, 2.0);
+    let p = Vec3::new(0.5, 0.0, 0.0);
+    let point = Vec3::new(iv(p.x), iv(p.y), iv(p.z));
+    let floor = distance_floor(
+        Meters::Torus {
+            major: iv(major),
+            minor: iv(minor),
+        },
+        torus_form(major, minor, point),
+        point,
+    );
+    let truth = torus_distance(major, minor, p);
+    assert!(
+        (truth - 0.5).abs() < 1e-12,
+        "the searched distance is the inner sheet's: {truth:e}"
+    );
+    assert!(
+        floor <= truth && floor >= truth - 1e-12,
+        "the floor {floor:e} is the distance {truth:e}"
+    );
+}
+
+/// A spindle torus's incidence lever `(ρ + R)² − r²` goes negative near
+/// its axis, where the bound it divides by would read as no distance at
+/// all: [`Meters::over`] asks it positive first, as the cone's.
+///
+/// [`Meters::over`]: super::super::projected::Meters::over
+#[test]
+fn a_spindle_toruss_bound_asks_its_lever_positive() {
+    use super::super::projected::Meters;
+    let ask = |lever: f64| if lever > 0.0 { Ok(lever) } else { Err(lever) };
+    let spindle = Meters::Torus {
+        major: 1.0,
+        minor: 2.0,
+    };
+    assert_eq!(
+        spindle.over(1e-3, 0.5, (0.0, 0.0), ask),
+        Err(-1.75),
+        "the lever (ρ + R)² − r² = −1.75 at ρ = ½ is refused"
+    );
+    let ring = Meters::Torus {
+        major: 2.0,
+        minor: 1.0,
+    };
+    let bound = ring.over(1e-3, 0.5, (0.0, 0.0), ask);
+    assert!(
+        bound.is_ok_and(|m| m > 0.0),
+        "a ring torus's lever is positive and its bound is: {bound:?}"
+    );
 }
 
 /// One respect a dominance row moves.

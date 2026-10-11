@@ -130,10 +130,11 @@ fn lift(c: &NurbsCurve3<f64>) -> NurbsCurve3<Interval> {
 /// every schedule sample, and leaves the plane by about `h/2` between
 /// them. The planar face stores no pcurve row, so no row's incidence
 /// term reads that distance: the edge certificate's limb 2 against the
-/// plane does. Its halved parts put a break at the bulge's peak, where
-/// the carrier's certified distance from the plane is past the band, so
-/// it refuses on that measured miss, at `f64` and at `Interval`, which
-/// the import door reads. The same carrier without its bulge certifies.
+/// plane does. A uniform part break lands on the bulge's peak at `1/32`,
+/// where the carrier's certified distance from the plane is past the
+/// band, so it refuses on that measured miss, at `f64` and at
+/// `Interval`, which the import door reads. The same carrier without its
+/// bulge certifies.
 #[test]
 fn a_carrier_off_the_plane_between_samples_refuses_on_the_plane_limb() {
     let h = 2e-3;
@@ -493,4 +494,93 @@ fn limb_two_halves_the_parts_whose_bound_does_not_clear() {
         ),
         "{got:?}"
     );
+}
+
+/// The `x` axis as one degree-9 span, `x = t`, `y = 0`, with
+/// `z(t) = a·∏ⱼ (t − j/8)` over `j = 0..=8`: zero at every uniform part
+/// break `j/8`, and off the plane between them, its peak in `(0, 1/8)`.
+fn waved_between_the_breaks(a: f64) -> NurbsCurve3<f64> {
+    // Power coefficients of the product, then its Bernstein ones,
+    // `bᵢ = Σ_{k ≤ i} C(i, k)/C(9, k)·cₖ`.
+    let mut c = vec![a];
+    for j in 0..=8 {
+        let root = f64::from(j) / 8.0;
+        let mut next = vec![0.0; c.len() + 1];
+        for (k, ck) in c.iter().enumerate() {
+            next[k + 1] += ck;
+            next[k] -= root * ck;
+        }
+        c = next;
+    }
+    let choose = |n: u32, k: u32| (1..=k).fold(1.0, |m, i| m * f64::from(n + 1 - i) / f64::from(i));
+    let ctl: Vec<_> = (0..=9u32)
+        .map(|i| {
+            let z = (0..=i)
+                .map(|k| choose(i, k) / choose(9, k) * c[k as usize])
+                .sum();
+            Point3::new(f64::from(i) / 9.0, 0.0, z)
+        })
+        .collect();
+    let knots = [[0.0; 10], [1.0; 10]].concat();
+    NurbsCurve3::new(KnotVector::clamped(knots, 9).unwrap(), ctl, vec![1.0; 10]).unwrap()
+}
+
+/// **Limb 2 halves, then stops on a break's measured miss.** The carrier
+/// is on the plane at every uniform part break and well past the band's
+/// escalation between them, so the first hull neither clears nor names
+/// a miss. The halved parts' breaks `(2j + 1)/16` are past it, so the
+/// limb refuses on the plane there, on `HullValue`, at `f64` and at
+/// `Interval`.
+#[test]
+fn limb_two_halves_then_stops_on_a_breaks_miss() {
+    let band = band();
+    let side = Surface::Plane {
+        origin: Point3::origin(),
+        normal: Vec3::unit_y(),
+        u_ref: Vec3::unit_z(),
+    };
+    // `∏ⱼ |1/16 − j/8|`, the product at the first halved break.
+    let at_a_sixteenth = (1..=8).fold(1.0 / 16.0, |m, j| m * f64::from(2 * j - 1) / 16.0);
+    let carrier = waved_between_the_breaks(50.0 * band.zero() / at_a_sixteenth);
+    let z = |t: f64| carrier.eval(t).z.abs();
+    for j in 0..=8 {
+        let t = f64::from(j) / 8.0;
+        assert!(
+            z(t) < 1e-3 * band.zero(),
+            "on the plane at the break {t}: {:e}",
+            z(t)
+        );
+    }
+    let halved = (0..8)
+        .map(|j| z(f64::from(2 * j + 1) / 16.0))
+        .fold(0.0, f64::max);
+    let peak = (0..=100_000)
+        .map(|k| z(f64::from(k) / 1e5))
+        .fold(0.0, f64::max);
+    assert!(
+        halved > 2.0 * band.escalate(),
+        "past the band at a halved break: {halved:e}"
+    );
+    let refused = |got: &Result<(), AnalyticRung3Refusal>| {
+        matches!(
+            got,
+            Err(AnalyticRung3Refusal::Limb {
+                operand: geom::SurfaceKind::Plane,
+                limb: Rung3Limb::HullValue,
+                margin,
+            }) if upper(*margin) > band.escalate() && upper(*margin) <= peak
+        )
+    };
+    let got = geom_brep::analytic_rung3(&carrier, carrier.domain(), &plane(), &side, band);
+    assert!(refused(&got), "f64: {got:?}");
+    let lifted = lift(&carrier);
+    let (d0, d1) = lifted.domain();
+    let got = geom_brep::analytic_rung3(
+        &lifted,
+        (Interval::from_f64(d0), Interval::from_f64(d1)),
+        &plane(),
+        &side.map_scalar(Interval::from_f64),
+        band,
+    );
+    assert!(refused(&got), "Interval: {got:?}");
 }

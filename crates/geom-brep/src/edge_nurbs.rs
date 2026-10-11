@@ -816,11 +816,11 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         let offset = match net_offset_sup(carrier, params, operand, band, lane).map_err(refused)? {
             Offset::Bound(offset) => offset,
             Offset::Miss { floor, bound } => {
-                rung3_limb(kind, Rung3Limb::HullValue, floor, band)?;
+                rung3_limb(kind, Limb2::Miss, floor, band)?;
                 bound.map_err(refused)?
             }
         };
-        rung3_limb(kind, Rung3Limb::HullSup, offset, band)?;
+        rung3_limb(kind, Limb2::Bound, offset, band)?;
     }
     crate::ssi::certify::certify_branch(
         &piece,
@@ -842,17 +842,26 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     .map_err(AnalyticRung3Refusal::of_tube)
 }
 
-/// Limb 2's verdict against `operand` on `limb`'s reading `value`, in
-/// metres, decided zero against the band at the limb's predicate.
+/// Which of limb 2's readings a verdict decides on.
+#[derive(Clone, Copy)]
+enum Limb2 {
+    /// The bound over the edge's interval ([`Rung3Limb::HullSup`]).
+    Bound,
+    /// A break's measured miss ([`Rung3Limb::HullValue`]).
+    Miss,
+}
+
+/// Limb 2's verdict against `operand` on its reading `value`, in metres,
+/// decided zero against the band at the reading's predicate.
 fn rung3_limb<T: Decide>(
     operand: geom::SurfaceKind,
-    limb: Rung3Limb,
+    reading: Limb2,
     value: T,
     band: Band,
 ) -> Result<(), AnalyticRung3Refusal> {
-    let predicate = match limb {
-        Rung3Limb::HullValue => "ssi_hull_value",
-        Rung3Limb::HullSup | Rung3Limb::Tube => "ssi_hull_sup",
+    let (limb, predicate) = match reading {
+        Limb2::Bound => (Rung3Limb::HullSup, "ssi_hull_sup"),
+        Limb2::Miss => (Rung3Limb::HullValue, "ssi_hull_value"),
     };
     match crate::dihedral::decide_reported(predicate, geom_core::Margin::of(value), band) {
         Ok(Decided {

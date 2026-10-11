@@ -72,16 +72,19 @@
 //! `INCIDENCE_CUTS` parts in the composite's own ring
 //! (`CurveCertData::with_breaks`; the net itself is never refined
 //! through an `f64` plan, which would re-round it), and further halved
-//! by the edge certificate's limb 2 (`net_offset_sup`). The conversion divides `|f|` by a lower bound on
-//! `|∇f|` along the segment from the point to its nearest point on the
-//! chart, so each is tight to first order: `|f|` on the plane;
+//! by the edge certificate's limb 2 (`net_offset_sup`). The conversion
+//! divides `|f|` by a lower bound on `|∇f|` along the segment from the
+//! point to its nearest point on the chart, so each is tight to first
+//! order: `|f|` on the plane;
 //! `D = |f| / (R + max(ρ_min, R − |f|/R))` on the cylinder and the same
 //! with `r` on the sphere; `|f| / lever` on the cone, with
 //! `lever = ρ_min·cos α + (σz)_min·sin α` (the twin's `half_angle`),
 //! which must decide positive or the span refuses
 //! (`SectorRefused { channel: Lever }`); and on the torus
 //! `|f| / ((r + max(0, r − D₁))·((ρ_min + R)² − r²))` with
-//! `D₁ = |f| / (r·((ρ_min + R)² − r²))`. `ρ_min` and `(σz)_min` are
+//! `D₁ = |f| / (r·((ρ_min + R)² − r²))`, whose lever `(ρ_min + R)² − r²`
+//! must decide positive the same way (a spindle torus's inner sheet
+//! drives it negative). `ρ_min` and `(σz)_min` are
 //! read off each part's own controls (`piece_controls`, ratios in the
 //! scalar; `part_floors`: the box's nearest point maxed with the
 //! chord-support bound where its divisor certifies). The composite
@@ -94,6 +97,16 @@
 //! the distance to the tube's core), each with its lower bound read off
 //! the incidence term (`|ξ̂| ≥ r − incidence`, and so on) less the
 //! fidelity itself.
+//!
+//! **The distance floor** is the lower bound the other way, read at a
+//! part's break (`distance_floor`), where the composite's value `f(p)`
+//! is enclosed and `p` is the part's end control: `|f(p)|`'s lower end
+//! over an upper bound on `Meters::divisor` at `p`, a factor with
+//! `|f| = distance · divisor` exactly on the plane, cylinder, sphere and
+//! every torus, and `|f| ≥ distance · divisor` on the cone. Every
+//! surface lies in its form's zero set, so the floor is a certified
+//! lower bound on the carrier's distance from it there. Limb 2 reads it
+//! as a measured miss.
 //!
 //! **The sector condition**, decided per piece: the piece's radial hull
 //! (its Bézier controls rotated by `−θ_k`, or a circle's harmonic box)
@@ -861,8 +874,10 @@ pub enum SectorChannel {
     Tube,
     /// Two consecutive branch centres half a period apart or more.
     Branch,
-    /// A cone's metre lever `ρ·cos α + σz·sin α`: the piece reaches the
-    /// apex or the other nappe.
+    /// The metre lever a carrier span's incidence divides by
+    /// ([`Meters::over`]) is not positive: a cone's `ρ·cos α + σz·sin α`
+    /// (the span reaches the apex or the other nappe), or a torus's
+    /// `(ρ + R)² − r²` (the span reaches a spindle torus's inner sheet).
     Lever,
 }
 
@@ -877,7 +892,10 @@ impl SectorChannel {
             }
             Self::Tube => "its hull reaches the torus's tube core",
             Self::Branch => "two consecutive branch centres are half a period apart or more",
-            Self::Lever => "its cone lever is not positive: it reaches the apex or the other nappe",
+            Self::Lever => {
+                "its metre lever is not positive: it reaches the cone's apex or other nappe, \
+                 or a spindle torus's inner sheet"
+            }
         }
     }
 }
@@ -1403,8 +1421,10 @@ impl<S: Real> Meters<S> {
 
     /// An upper bound in metres on the distance of a part whose `|f|` is
     /// at most `f`, whose `ρ` is at least `rho` and whose `z` ranges over
-    /// `z`. On a cone the lever is `positive`'s answer on it first: the
-    /// division needs it positive.
+    /// `z`. The lever it divides by is `positive`'s answer on it first,
+    /// since the division needs it positive: on a cone
+    /// `ρ cos α + (σz) sin α`, on a torus `(ρ + R)² − r²`, which a
+    /// spindle torus (`R < r`) drives negative near its axis.
     pub(crate) fn over<E>(
         self,
         f: S,
@@ -1422,7 +1442,7 @@ impl<S: Real> Meters<S> {
                 f / positive(rho * cos + z * sin)?
             }
             Self::Torus { major, minor } => {
-                let outer = (rho + major).powi(2) - minor.powi(2);
+                let outer = positive((rho + major).powi(2) - minor.powi(2))?;
                 let first = f / (minor * outer);
                 f / ((minor + (minor - first).max(S::zero())) * outer)
             }
@@ -1434,11 +1454,15 @@ impl<S: Real> Meters<S> {
     /// that `|f(p)|` over an upper bound on it bounds the distance from
     /// below. On the cylinder, sphere and torus the distance is
     /// `|f| / divisor` exactly: `|ρ − R|·(ρ + R)`, `||p| − r|·(|p| + r)`,
-    /// and `|m − r|·(m + r)·((ρ + R)² + z² − r²)` with
-    /// `m = √((ρ − R)² + z²)`. On the cone `|f|` is
-    /// `|ρ cos α − z sin α|·|ρ cos α + z sin α|`, the distances from the
-    /// two generator lines of the meridian plane, the nearer of which is
-    /// the double cone's distance, and each factor is at most
+    /// and on the torus `f = (m² − r²)(M² − r²)` with
+    /// `m = √((ρ − R)² + z²)` and `M = √((ρ + R)² + z²)` the distances
+    /// from the meridian plane's two tube circles, so the distance
+    /// `min(|m − r|, |M − r|)` is `|f|` over
+    /// `max((m + r)·|M² − r²|, (M + r)·|m² − r²|)` at every `R` and `r`
+    /// (on a ring torus the first term is the larger). On the cone `|f|`
+    /// is `|ρ cos α − z sin α|·|ρ cos α + z sin α|`, the distances from
+    /// the two generator lines of the meridian plane, the nearer of which
+    /// is the double cone's distance, and each factor is at most
     /// `ρ cos α + |z| sin α`. Each surface lies in its form's zero set,
     /// so it is no nearer than that set.
     pub(crate) fn divisor(self, p: Vec3<S>) -> S {
@@ -1449,10 +1473,44 @@ impl<S: Real> Meters<S> {
             Self::Sphere { radius } => (p.x.powi(2) + p.y.powi(2) + p.z.powi(2)).sqrt() + radius,
             Self::Cone { sin, cos, .. } => rho * cos + p.z.abs() * sin,
             Self::Torus { major, minor } => {
-                let m = ((rho - major).powi(2) + p.z.powi(2)).sqrt();
-                (m + minor) * ((rho + major).powi(2) + p.z.powi(2) - minor.powi(2))
+                let (near, far) = (
+                    (rho - major).powi(2) + p.z.powi(2),
+                    (rho + major).powi(2) + p.z.powi(2),
+                );
+                let by_far = (near.sqrt() + minor) * (far - minor.powi(2)).abs();
+                let by_near = (far.sqrt() + minor) * (near - minor.powi(2)).abs();
+                by_far.max(by_near)
             }
         }
+    }
+}
+
+/// A certified lower bound in metres on the distance from the chart at
+/// a point `at` of its frame where the form's value is enclosed by
+/// `value`: `|f|`'s lower end over the upper end of
+/// [`Meters::divisor`] there, rounded down; `0` where either end is not
+/// certified or not positive.
+pub(crate) fn distance_floor(
+    meters: Meters<geom_core::Interval>,
+    value: geom_core::Interval,
+    at: Vec3<geom_core::Interval>,
+) -> f64 {
+    use geom_core::{Bounds, Interval};
+    let f = crate::ssi::enclose::zero_free_lower_bound(value);
+    let divisor = meters.divisor(at).abs();
+    if !divisor.is_certified() {
+        return 0.0;
+    }
+    let divisor = divisor.hi();
+    if f > 0.0 && divisor.is_finite() && divisor > 0.0 {
+        let floor = Interval::from_bounds(f, f) / Interval::from_bounds(divisor, divisor);
+        if floor.is_certified() {
+            floor.lo().max(0.0)
+        } else {
+            0.0
+        }
+    } else {
+        0.0
     }
 }
 
@@ -1531,13 +1589,16 @@ pub(crate) fn window_of<T: Decide>(
 ///   nappe) decided positive;
 /// - torus: `|m − r| = |f| / ((m + r)·((ρ + R)² + z² − r²))`, `m` the
 ///   distance to the tube's core, with `m ≥ max(0, r − D)` and the
-///   second factor `≥ (ρ_min + R)² − r²`, `D = |f| / (r·((ρ_min + R)² − r²))`.
+///   second factor `≥ (ρ_min + R)² − r²`, `D = |f| / (r·((ρ_min + R)² − r²))`,
+///   that lever decided positive (`|m − r|` bounds the distance on every
+///   torus, ring, horn or spindle).
 ///
 /// # Errors
 ///
 /// [`PcurveCertifyError::ImageMismatch`] when no part meets the window,
-/// or one that does has no certified composite bound or floor; the
-/// cone's lever refuses [`SectorChannel::Lever`] at the part.
+/// or one that does has no certified composite bound or floor; a cone's
+/// or a torus's lever that does not decide positive refuses
+/// [`SectorChannel::Lever`] at the part.
 pub(super) fn net_incidence<T: Decide>(
     hull: &ProjectedHull,
     (t0, t1): (T, T),

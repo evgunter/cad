@@ -2602,19 +2602,6 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
         parts.span_sup_bounds(),
         parts.break_values(),
     );
-    // A certified lower bound in metres on the distance at a part's end:
-    // `|f|`'s there over the divisor's upper end, rounded down.
-    let floor_at = |value: geom_core::Interval, at: Vec3<geom_core::Interval>| {
-        let f = crate::ssi::enclose::zero_free_lower_bound(value);
-        let divisor = upper(meters.divisor(at).abs(), true);
-        if f > 0.0 && divisor.is_finite() && divisor > 0.0 {
-            let floor = geom_core::Interval::from_bounds(f, f)
-                / geom_core::Interval::from_bounds(divisor, divisor);
-            lower(floor, true).max(0.0)
-        } else {
-            0.0
-        }
-    };
     // A bound the composite could not certify is NaN, which `f64::min`
     // passes over while the other is certified, and which its consumer
     // refuses (`projected::net_incidence`) when neither is.
@@ -2670,9 +2657,10 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
             // A Bézier part interpolates its end controls, so they are
             // its points at its ends.
             let floors = match (ok, controls.first(), controls.last()) {
-                (true, Some(&(first, _)), Some(&(last, _))) => {
-                    (floor_at(values[j], first), floor_at(values[j + 1], last))
-                }
+                (true, Some(&(first, _)), Some(&(last, _))) => (
+                    projected::distance_floor(meters, values[j], first),
+                    projected::distance_floor(meters, values[j + 1], last),
+                ),
                 _ => (0.0, 0.0),
             };
             SpanHull {
