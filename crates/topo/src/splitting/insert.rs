@@ -125,18 +125,19 @@ pub(super) fn above_runs(entries: &[SectorEntry]) -> Vec<AboveRun> {
 /// `n` exactly when `entries[c]` is Above: there it starts, and it ends
 /// at the next germ.
 ///
-/// The two germs either side of one in-plane entry share that entry's
-/// direction, and the material does not lie between them: both faces at
-/// the entry leave it to one side, and rule (b) sends the entry to the
-/// other only where its wedge there is reflex, which holds material on
-/// both sides of it in the plane. So such a pair is ordered end first,
-/// with no reading. Every other germ is placed by reading: by its sine
-/// about `n` from the first germ (`split_germ_side`), its cosine where
-/// that is zero (`split_germ_sense`), and its sine from another germ in
-/// the same half-turn (`split_germ_order`), each levered at the shortest
-/// reach it reads. Two germs of different sectors that a reading puts
-/// on one line are a coincidence to the tolerance: the section would
-/// hold two vertices within it of each other.
+/// The two germs either side of one in-plane entry share its direction
+/// and are paired with no reading. Their order is the one the
+/// alternation of starts and ends fixes from any other germ. Where every
+/// germ is one of such a pair, each pair is taken end first: rule (b)'s
+/// reflex row sends the entry across only where material lies on both
+/// sides of it in the plane. Its safety-default row (a smooth edge or
+/// duplicate, no graze) can reach this too, with no such guarantee.
+/// Every other germ is placed by reading its sine about `n` from the
+/// first germ (`split_germ_side`), its cosine where that is zero
+/// (`split_germ_sense`), or its sine from another germ in the same
+/// half-turn (`split_germ_order`), each levered at the shortest reach it
+/// reads. Two germs of different sectors that a reading puts on one line
+/// are a coincidence to the tolerance.
 ///
 /// # Errors
 ///
@@ -248,15 +249,23 @@ fn section_chords<T: Decide>(
         }
         groups.insert(at, (s, vec![i]));
     }
-    // A pair along one in-plane entry: its end first.
+    // Each pair along one in-plane entry in the order the alternation
+    // fixes from the first lone germ, or end first where there is none.
     let starts = |i: usize| entries[cuts[i]].class == PlaneSide::Above;
-    let seq: Vec<usize> = groups
-        .iter()
-        .flat_map(|(_, m)| match m[..] {
-            [a, b] if starts(a) => vec![b, a],
-            _ => m.clone(),
-        })
-        .collect();
+    let first = groups.iter().position(|(_, m)| m.len() == 1).unwrap_or(0);
+    let mut start = groups[first].1.len() == 1 && starts(groups[first].1[0]);
+    let mut seq = Vec::with_capacity(cuts.len());
+    for k in 0..groups.len() {
+        match groups[(first + k) % groups.len()].1[..] {
+            [a] => seq.push(a),
+            [a, b] => seq.extend(if starts(a) == start { [a, b] } else { [b, a] }),
+            _ => unreachable!("only the two germs beside one entry share a group"),
+        }
+        start = !starts(
+            *seq.last()
+                .unwrap_or_else(|| unreachable!("a group has a germ")),
+        );
+    }
     let m = seq.len();
     if (0..m).any(|j| starts(seq[j]) == starts(seq[(j + 1) % m])) {
         return Err(unordered(SectionGermFault::Alternation));
@@ -283,8 +292,7 @@ pub(super) struct Neighborhood<'a, T: Real> {
 /// # Errors
 ///
 /// [`section_chords`]'s refusals, [`SplitReduceError::SectionGermsUnordered`]
-/// where the corners cross as chords of the orbit or a corner's arc
-/// starts and ends on different sides, and the mint's own.
+/// where the corners cross as chords of the orbit, and the mint's own.
 pub(super) fn insert_null_edges<T: Decide>(
     body: &mut Body<T>,
     normal: Vec3<T>,
@@ -336,8 +344,15 @@ pub(super) fn insert_null_edges<T: Decide>(
         };
         let arc = |j: usize| &entries[(anchor + p + 1 + j) % n];
         let side = arc(0).class;
+        // A corner pairs a start with an end, and either way round the
+        // orbit its arc leaves the one and reaches the other on one side.
         if arc(q - p - 1).class != side {
-            return Err(unordered(SectionGermFault::ArcSides));
+            unreachable!(
+                "the corner {:?} at {vertex:?} has an arc from {:?} to {:?}",
+                (p, q),
+                side,
+                arc(q - p - 1).class
+            );
         }
         let mut real = (0..q - p)
             .map(arc)

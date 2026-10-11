@@ -1686,13 +1686,6 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 fault: topo::SectionGermFault::Crossing,
             },
         ),
-        (
-            "SectionGermsUnordered(ArcSides)",
-            R::SectionGermsUnordered {
-                vertex,
-                fault: topo::SectionGermFault::ArcSides,
-            },
-        ),
         ("ConsecutiveOnSectors", R::ConsecutiveOnSectors { vertex }),
         ("StaleVertex", R::StaleVertex { vertex }),
         ("LoneVertex", R::LoneVertex { vertex }),

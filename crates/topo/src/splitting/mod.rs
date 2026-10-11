@@ -150,12 +150,12 @@ pub enum SectionGermFault {
     /// tolerance.
     Coincident,
     /// The germs as read do not alternate between the material's starts
-    /// and ends.
+    /// and ends. Argued to need faces within the tolerance of one
+    /// another, which the readings decided apart rule out; not reached.
     Alternation,
-    /// The corners as read cross as chords of the vertex's orbit.
+    /// The corners as read cross as chords of the vertex's orbit. Argued
+    /// as `Alternation` is; not reached.
     Crossing,
-    /// A corner's arc of the orbit starts and ends on different sides.
-    ArcSides,
 }
 
 /// A trilean side verdict against the split plane (the classification
@@ -719,10 +719,6 @@ impl core::fmt::Display for SplitReduceError {
                     }
                     SectionGermFault::Crossing => {
                         "the corners of the section round a vertex cross one another"
-                    }
-                    SectionGermFault::ArcSides => {
-                        "a corner of the section round a vertex has both sides of the plane \
-                         beyond it"
                     }
                 };
                 write!(f, "{what}. Recourse: {SPLIT_COINCIDENCE_RECOURSE}")

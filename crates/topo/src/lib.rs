@@ -940,9 +940,8 @@ pub use splitting::{
     PointInLoopError, Section, SectionEdge, SectionError, SectionGermFault, SectionGermReading,
     SectionPolygon, SectionRegion, SectorEntry, SectorEntryKind, SectorReading, SplitError,
     SplitFinishError, SplitJoinError, SplitPart, SplitPlane, SplitReduceError, SplitReduction,
-    SplitResult, TangencyReadings,
-    Uncrossable, UncrossableCarrier, classify_neighborhood, plane_section, point_in_loop, split,
-    split_reduce, vertex_sides,
+    SplitResult, TangencyReadings, Uncrossable, UncrossableCarrier, classify_neighborhood,
+    plane_section, point_in_loop, split, split_reduce, vertex_sides,
 };
 pub use transform::{TransformError, check_rigid, not_rigid_reading, transform_rigid};
 pub use validate::{

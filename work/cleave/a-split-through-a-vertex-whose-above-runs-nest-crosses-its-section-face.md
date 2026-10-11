@@ -140,11 +140,29 @@ groups corners within `K·ε` rather than on a micron grid.
 
 Refusals name their cause: `SectionGermsEscalated { reading }` (`Line`
 or `Order`) and `SectionGermsUnordered { fault }` (`NoLine`,
-`Coincident`, `Alternation`, `Crossing`, `ArcSides`). `Coincident` has a
-witness. The others need readings decided outside the band to contradict
-the topology that tolerance-decided On verdicts encode, which a vertex
-decided On while off the plane can do, so they stay typed refusals.
+`Coincident`, `Alternation`, `Crossing`). `Coincident` has a witness.
+`Alternation` and `Crossing` are argued to need faces within ε of one
+another and were not reached in about 63k fuzz cells. A corner's arc
+always starts and ends on one side (a corner pairs a start with an
+end), so that check is an `unreachable!` with its values.
+
+The two germs beside one in-plane entry take the order the alternation
+fixes from any lone germ; only where every germ is in such a pair are
+they taken end first, an order argued for rule (b)'s reflex row and not
+for its safety-default row.
+
+The "no regression" measurement covers the review's 31-family probe.
+The review's random fuzz (about 63k cells) found head ships no crossed
+corner where main shipped about 1,500, and about 0.5% of cells per ε
+now refuse `ChartResidual` in the band at an On vertex off the plane
+where main's mirrored rerun had built them under the flipped normal.
+The class already had 124 cells on main. Rows: four random bases with
+corners in the band split sound, and one pins the residual refusal.
 
 Filed: `work/hone/germ-orders-about-a-normal-have-two-homes.md` (the
 split's germ order beside the boolean's `germ_order`, `strut_order` and
 `direction_sense`).
+`work/topo/a-split-recharts-an-edge-at-a-vertex-read-on-off-the-plane-into-the-band.md`
+(the residual class, its witness and orientation dependence);
+`work/cleave/a-crown-touching-the-plane-along-one-edge-panics-at-the-section-spur-check.md`
+(a D9 panic on exact input, on main and on this branch alike).
