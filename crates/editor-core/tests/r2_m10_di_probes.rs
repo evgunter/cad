@@ -140,7 +140,7 @@ impl Fnv {
                 for p in n.control() {
                     self.p3(p);
                 }
-                for w in n.weights() {
+                for w in n.weight_channel() {
                     self.u64(w.to_bits());
                 }
                 for k in n.knots().knots() {
@@ -220,7 +220,7 @@ impl Fnv {
                 for p in n.control() {
                     self.p3(p);
                 }
-                for w in n.weights() {
+                for w in n.weight_channel() {
                     self.u64(w.to_bits());
                 }
                 for k in n.knots_u().knots() {
@@ -509,14 +509,15 @@ fn assemble_census_door_matches_f64_at_dual64() {
     // public door. This assertion pins the divergence set so a change
     // in either direction (a gate returning to duals, or new corpus
     // members joining the divergence) is loud rather than silent.
-    // Observed 2026-08-29 at head 2435345d: `heat_sink` and
-    // `kitchen_sink` refuse at f64 with `UndeclaredContact` /
-    // `CensusUndecidable` findings; `cut_cylinder` with the split
-    // sides' undeclared section contacts. All three assemble green at
-    // `Dual64`.
+    // `kitchen_sink` and `cut_cylinder` refuse at f64 on
+    // `CensusUndecidable` (curved faces of two copies within reach),
+    // whose pairs' touches the gather records none of; both assemble
+    // green at `Dual64`. `heat_sink` left the set when the gather began
+    // recording copies' touches (D10): its fins' pierces are
+    // interference findings, which refuse nothing.
     assert_eq!(
         divergent,
-        vec!["heat_sink", "kitchen_sink", "cut_cylinder"],
+        vec!["kitchen_sink", "cut_cylinder"],
         "the f64-refuses/Dual64-assembles divergence set changed"
     );
 }

@@ -867,7 +867,7 @@ fn degree_two_body() -> (Body<f64>, topo::HalfEdgeKey, topo::SurfaceKey) {
 /// for `Approx × Nurbs`, which the oracle prism's own bowed wall earns
 /// identically with no `General` in the body at all — or, where the fit
 /// cannot reach the
-/// run's ε, at `Fit { BudgetExhausted }`. Both are SHELL's
+/// run's ε, at `Fit { SampleCapReached }`. Both are SHELL's
 /// `no-approx-faced-body-is-both-movable-and-valid` class. The row
 /// prints them; asserting a variant here would pin another program's
 /// frontier.

@@ -2,11 +2,13 @@
 id: a-crown-touching-the-plane-along-one-edge-panics-at-the-section-spur-check
 kind: issue
 title: A crown whose ring touches the split plane at one corner panics at the join's section-spur check
-status: dispatched
+status: closed
 opened: 2026-10-10
 priority: P1
 cost: M
 branch: cleave/crown-spur-panic
+closed: 2026-10-11
+pr: 4622
 ---
 
 Found by the re-review fuzz of PR 4565, on main before it and on its
@@ -44,3 +46,66 @@ witness reaches.
 A row over C2 at every pose and both normals, at all three ε, that
 builds sound or refuses typed. Then the arm's argument re-made, or the
 arm made a typed refusal if the input class is honestly unbuildable.
+
+## Built (branch cleave/crown-spur-panic)
+
+Measured on `origin/main` at 6a304186a8 (PR 4565 merged): C2 panics at
+the `split_section_spur` `unreachable!` at all 5 poses × both normals,
+at ε = default, 1e-6 and 1e-12.
+
+Cause: the arm's argument was false. Rule (b) reads the valley from
+`MEET` to the corner in the plane reflex and sends it Below. At the
+corner the runs above lie apart (two null edges); at `MEET` they join
+round it (one null edge). So the polygon runs out along the valley and
+back, and both loops carry the spur. Below's loop has the valley edge
+itself, both halves in a row (a strut); Above's has two distinct
+chords from two copies of the corner to the one copy of `MEET` (a
+slit). The slit is right: Above's piece touches itself along the
+valley, through distinct entities. The strut is not: with the panic
+bypassed, every cell refused `ResultInvalid` with
+`ScaffoldingStrutVertex` at `MEET`'s Below copy.
+
+- `Sweep::strip_spurs` (the join) replaces `assert_no_spur`. It reads
+  both loops' straight tips (`join::spur_tips`), requires as many struts
+  as slits (an unpaired one panics, as the old invariant did), and
+  kills every strut (`join::strut_turn`, curved included) with its tip.
+  Below's section face is then the plain polygon, Below keeps no vertex
+  at `MEET`, and the finish and `plane_section` read one loop.
+- `plane_section` takes each slit out of its outline
+  (`section::drop_slits`): the slit lies inside the region. A slit is
+  read straight or curved: two conic arcs that agree at the ends and at
+  a quarter, a half and three quarters of the way along are one.
+- `meeting::corners_disjoint` reads a slit's tip as a full turn where
+  the face lies round it, and refuses a spur out of the face
+  (`corner_sweep`, with a unit row for both).
+
+Pins, in `split_through_an_apex`:
+- `a_crown_with_one_corner_in_the_plane_splits_sound`: C2 plus four
+  ring families (3 to 6 corners; the seed, a middle and the last corner
+  in the plane), the corner at 0, ±0.6 ε and ±0.9 ε, 5 poses × both
+  normals. Both sides' volumes against `crown_above`, tier 3, corners
+  disjoint, one vertex at `MEET` above and none below, and
+  `plane_section`'s one region against the bottom fan's section: its
+  area, and an outline of as many distinct corners as the ring.
+- `a_trench_whose_keel_lies_in_the_plane_splits_sound`: a box less a
+  trench (`topo::subtract`) whose keel runs from `MEET` out through the
+  box's side, at every pose: the same assertions against the closed
+  form.
+
+- `sweep` `a_curved_keel_in_the_plane_splits_sound_and_sections_with_no_spur`:
+  a 270° annulus revolve less a 150° V revolve turned −20° or ±160°,
+  its keel an arc in the plane `y = 1`, the tip at 0, ±0.6 ε and
+  ±0.9 ε, both normals: the halves' volumes sum to the body's, tier 3,
+  and `plane_section` reads one region, the sector, with 5 distinct
+  corners.
+
+All pass at the three ε.
+
+## Closed (PR 4622, 2026-10-11)
+
+Rule (b)'s reflex verdict leaves a strut on Below and a slit on Above.
+The join now kills every strut with `kev` before the section is
+recorded, and `plane_section` drops slits, straight or conic, from its
+outline, so the split and the query read one loop. An unpaired spur is
+D9 `unreachable!`. Pinned across crowns at 0, ±0.6ε and ±0.9ε, a
+boolean-built trench, and a curved keel, with outline corner counts.

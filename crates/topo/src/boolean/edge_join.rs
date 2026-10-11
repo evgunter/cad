@@ -114,6 +114,22 @@ pub fn joined_edge(joins: &[EdgeJoin], edge: EdgeKey) -> EdgeKey {
         .fold(edge, |at, j| if j.gone == at { j.kept } else { at })
 }
 
+/// The live cell `cell` is after `joins`: a joined-away vertex or edge is
+/// the edge that holds its interior now ([`joined_edge`]), and every
+/// other cell is itself.
+#[must_use]
+pub fn joined_cell(joins: &[EdgeJoin], cell: super::Cell) -> super::Cell {
+    use super::Cell;
+    match cell {
+        Cell::Vertex(v) => joins
+            .iter()
+            .find(|j| j.vertex == v)
+            .map_or(cell, |j| Cell::Edge(joined_edge(joins, j.kept))),
+        Cell::Edge(e) => Cell::Edge(joined_edge(joins, e)),
+        Cell::Face(_) => cell,
+    }
+}
+
 /// One join an output stage made ([`join_stage`]): `vertex` and `gone`
 /// are dead, and `kept` holds both their interiors and its own.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1049,5 +1065,39 @@ mod join_door {
         assert!(out.joins.is_empty(), "{:?}", out.joins);
         assert_eq!(joinable_vertices(&body, band).unwrap(), vec![made.vertex]);
         assert_ne!(body.arena_counts(), whole, "the split stands");
+    }
+}
+
+#[cfg(test)]
+mod undecided_text {
+    //! **The join door ends an undecided join with the reading's own
+    //! lever in front of its own**: an enclosure the band leaves
+    //! undecided offers subdivision first.
+    #![allow(clippy::unwrap_used)]
+
+    use geom_core::{Band, Indeterminate, MarginDiag};
+
+    use super::{JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided};
+
+    #[test]
+    fn a_straddling_join_offers_subdivision_before_its_lever() {
+        let diag = Indeterminate {
+            margin: MarginDiag::enclosure(-2e-9, 5e-9),
+            band: Band::new(1e-9, 1e-8).unwrap(),
+            predicate: Some("dihedral_arm"),
+            terminal_sliver: false,
+        };
+        let refusal = JoinRefusal::Undecided(JoinUndecided {
+            vertex: crate::VertexKey::default(),
+            reading: JoinReading::Regularity(diag),
+        });
+        assert_eq!(
+            refusal.to_string(),
+            format!(
+                "{JOIN_SUBJECT} is undecided ({}). Recourse: subdivide the parameter box for \
+                 a tighter enclosure, or {JOIN_LEVER}",
+                diag.payload()
+            )
+        );
     }
 }

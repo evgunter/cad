@@ -1368,39 +1368,6 @@ fn the_mate_placed_recourse_followed_inlines_in_place() {
     }
 }
 
-/// **The flush detector refuses across spaces**: a world base lowered so
-/// its top cap is the plane z = 0, and an unplaced top whose own space
-/// puts its bottom cap on that plane. Nothing outside an unplaced group
-/// is compared with it, so the detector refuses `AcrossSpaces` naming
-/// the group, rather than answer `Rest`.
-#[test]
-fn the_flush_detector_refuses_an_unplaced_group_against_the_world() {
-    let p = parts("r1-flush");
-    let o = p.opts();
-    let doc = ProfileDoc::empty(DocumentId::derive("r1-flush"), Tol::witness());
-    let (doc, base) = insert(doc, Node::instantiate_part(p.base));
-    let doc = set_offset(
-        doc,
-        base,
-        Some(Placement::literal(&Frame::translation([0.0, 0.0, -1.0]))),
-    );
-    let (doc, top) = insert(doc, Node::instantiate_part(p.top));
-    let unplaced = set_offset(doc.clone(), top, None);
-    let ev = run(&unplaced, &o);
-    assert!(ev.unplaced.contains_key(&top) && !ev.unplaced.contains_key(&base));
-    match editor_core::find_flush_candidates(&ev, &unplaced, base, top, Tol::witness()) {
-        Err(editor_core::SelectRefusal::AcrossSpaces { group, cause }) => {
-            assert_eq!((group, cause), (top, editor_core::Unplaced::NoOffset));
-        }
-        other => panic!("the detector refuses across spaces: {other:?}"),
-    }
-    // Placed at the world origin, the same pair is flush.
-    let ev = run(&doc, &o);
-    let found = editor_core::find_flush_candidates(&ev, &doc, base, top, Tol::witness())
-        .expect("one space decides");
-    assert!(!found.is_empty(), "the placed pair is flush");
-}
-
 /// **The compound door refuses a re-gauge that would make another mate
 /// start placing**: c and b are bases on gauge g; a1 (a top on the
 /// world) declares a seat on c. "Copy b's gauge to a1, then mate a1 to
@@ -1622,4 +1589,85 @@ fn two_instances_on_one_gauge_are_one_component_with_no_mate() {
         components.iter().any(|comp| comp == &vec![c]),
         "a reference to a deleted gauge couples nothing: {components:?}"
     );
+}
+
+/// **A touch between two copies inside an unplaced group's own space is
+/// reported like one in the world** (D1 (iii), D10; A11 (2)). Two tops
+/// seated side by side on an unplaced base, flush along x = 1.5 with no
+/// mate between them: the space's gather records the touch as rows of
+/// the two copies, and the `unproven-coincidence` check reports them
+/// against the copies, read off `Product::spaces` beside the world's
+/// (empty) rows. Red if the check reads the world's rows alone.
+#[test]
+fn a_touch_between_copies_in_an_own_space_reaches_the_coincidence_check() {
+    let p = parts("r1-space-copies");
+    let o = p.opts();
+    let doc = ProfileDoc::empty(DocumentId::derive("r1-space-copies"), Tol::witness());
+    let (doc, x) = insert(doc, Node::instantiate_part(p.base));
+    let doc = set_offset(doc, x, None);
+    let (doc, a) = insert(doc, Node::instantiate_part(p.top));
+    let (doc, b) = insert(doc, Node::instantiate_part(p.top));
+    let doc = set_offset(set_offset(doc, a, None), b, None);
+    let doc = crate::fixture::place_all(doc, &[x, a, b]);
+    let (doc, _) = insert(
+        doc,
+        seat_on(
+            head(p.top_cap(a)),
+            head(p.base_cap(x)),
+            [0.5, 1.0, BASE_HEIGHT],
+        ),
+    );
+    let (doc, _) = insert(
+        doc,
+        seat_on(
+            head(p.top_cap(b)),
+            head(p.base_cap(x)),
+            [1.5, 1.0, BASE_HEIGHT],
+        ),
+    );
+    // Placed material far off, so the world gathers and the check runs.
+    let (doc, far) = insert(doc, Node::instantiate_part(p.base));
+    let doc = set_offset(
+        doc,
+        far,
+        Some(Placement::literal(&Frame::translation([100.0, 0.0, 0.0]))),
+    );
+    let doc = crate::fixture::place(doc, far).0;
+    let ev = run(&doc, &o);
+    assert!(ev.unplaced.contains_key(&a) && ev.unplaced.contains_key(&b));
+    let product =
+        editor_core::product_recorded(&doc, &ev, Tol::witness()).expect("the world gathers");
+    assert!(
+        product.coincidences.is_empty(),
+        "{:?}",
+        product.coincidences
+    );
+    let [space] = product.spaces.as_slice() else {
+        panic!("one own space: {:?}", product.spaces.len())
+    };
+    let copies = space
+        .gather
+        .as_ref()
+        .expect("the space gathers")
+        .coincidences
+        .iter()
+        .filter(|r| matches!(r.by, editor_core::AtRestBy::Copies(..)))
+        .count();
+    assert!(copies > 0, "the tops' touch is the space's rows");
+    let report = editor_core::run_checks(
+        &doc,
+        &ev,
+        &editor_core::ChecksConfig::default(),
+        Tol::witness(),
+    )
+    .expect("checks run");
+    let reported = report
+        .findings
+        .iter()
+        .filter(|f| {
+            f.check == editor_core::CheckId::UnprovenCoincidence
+                && matches!(f.subject, editor_core::FindingSubject::Copies { .. })
+        })
+        .count();
+    assert_eq!(reported, copies, "{:?}", report.findings);
 }

@@ -192,9 +192,7 @@ pub enum GeomPred {
 /// faults of a malformed query — [`NotADatum`](Self::NotADatum),
 /// [`DatumHasNoValue`](Self::DatumHasNoValue),
 /// [`NotALength`](Self::NotALength), [`BadValue`](Self::BadValue) —
-/// and the detector's [`PairInBand`](Self::PairInBand) and
-/// [`NodeHasNoValue`](Self::NodeHasNoValue) are about the query and
-/// the pair, not about the filter's exactness.
+/// are about the query, not about the filter's exactness.
 /// One door with one contract was preferred over splitting into an
 /// infallible and a fallible materializer.
 #[derive(Debug)]
@@ -247,54 +245,11 @@ pub enum SelectRefusal {
         /// The datum node's standing.
         NodeStanding,
     ),
-    /// One of the flush detector's two nodes has no value in this
-    /// evaluation, so there is no geometry to pair.
-    NodeHasNoValue(
-        /// That node's standing.
-        NodeStanding,
-    ),
-    /// One of the flush detector's two nodes defines no output for a
-    /// finding to be sited at.
-    NodeHasNoOutput {
-        /// That node.
-        node: RecipeNodeId,
-    },
     /// The stated value is not a length (`Dimension::Length`) — the
     /// comparand of a distance must be a distance.
     NotALength {
         /// What dimension the expression actually has.
         dim: crate::expr::Dimension,
-    },
-    /// A candidate PAIR's verify-door margin landed inside the
-    /// ambiguity band, or the door could not decide it: the flush
-    /// detector reports only DEFINITE findings, and an in-band pair
-    /// must be neither reported nor silently dropped (SELECT-DESIGN
-    /// §3a) — so the query refuses and NAMES the pair. The detector's
-    /// pair-shaped sibling of [`InBand`](Self::InBand).
-    PairInBand {
-        /// The face-name pair whose margin was indeterminate.
-        pair: Box<(StableName, StableName)>,
-        /// The nodes whose outputs hold the pair's two faces — the
-        /// flush query's two nodes, which may hold names alike (two
-        /// copies of one body), so the sentence says each.
-        at: (RecipeNodeId, RecipeNodeId),
-        /// The verify-door funnel site — `bool_plane_*` on the
-        /// planar rung, `carrier_sphere_*` / `carrier_cyl_*` /
-        /// `carrier_torus_*` on the curved ones, since detection
-        /// reuses the C4 verifier's own sites per carrier kind and
-        /// mints none of its own.
-        predicate: &'static str,
-        /// The funnel's own diagnostic (margin, band, recourse).
-        source: geom_core::Indeterminate,
-    },
-    /// The flush detector's two nodes live in different spaces (A9,
-    /// A11 (2)): one is in an unplaced group's own space, and nothing
-    /// outside an unplaced group is compared with it.
-    AcrossSpaces {
-        /// The unplaced group, by its root.
-        group: RecipeNodeId,
-        /// Why nothing places it.
-        cause: crate::mate::Unplaced,
     },
     /// The stated value expression did not evaluate.
     BadValue(crate::expr::EvalError),
@@ -315,11 +270,6 @@ pub enum SelectRefusal {
     /// restated here: two copies of one derivation are two things to
     /// keep true, and this one has already drifted apart from that one.
     Band(BandError),
-    /// The detector's verify door handed back `Distinct` as a finding's
-    /// evidence, which no finding carries
-    /// ([`topo::flush::DistinctFinding`]): a kernel defect, refused
-    /// rather than reported as either class.
-    DistinctFinding(topo::flush::DistinctFinding),
 }
 
 // The human-readable rendering (LIB-DOORS F6 shape): each arm states
@@ -350,7 +300,7 @@ impl crate::spoken::Say for SelectRefusal {
                     name.kind.noun()
                 )?;
                 named(f, name)?;
-                write!(f, "): {}", source.under(geom_core::NO_DECLARATION_RECOURSE))
+                write!(f, "): {}", source.under(geom_core::COINCIDENCE_RECOURSE))
             }
             Self::TiedDisagrees {
                 name,
@@ -388,51 +338,11 @@ impl crate::spoken::Say for SelectRefusal {
                     crate::spoken::Said(standing, by)
                 )
             }
-            Self::NodeHasNoValue(standing) => {
-                write!(
-                    f,
-                    "select: the flush query's node has no value: {}",
-                    crate::spoken::Said(standing, by)
-                )
-            }
-            Self::NodeHasNoOutput { node } => write!(
-                f,
-                "select: the flush query's {} defines no output to site a finding at",
-                by.node(*node)
-            ),
             Self::NotALength { dim } => write!(
                 f,
                 "select: the comparand of a distance is a distance, and this expression has \
                  dimension {dim}"
             ),
-            Self::PairInBand {
-                pair, at, source, ..
-            } => {
-                f.write_str("select: ")?;
-                // A name does not say the node holding it, so two copies
-                // of one body hold names alike: then each face is said
-                // with its node.
-                let (one, two) = (by.name(&pair.0).to_string(), by.name(&pair.1).to_string());
-                if one == two {
-                    write!(
-                        f,
-                        "{one} on {} and {two} on {}",
-                        by.node(at.0),
-                        by.node(at.1)
-                    )?;
-                } else {
-                    write!(f, "{one} and {two}")?;
-                }
-                // The margin is said as the sentence's own aside, so the
-                // sentence is the claim and the names' joins do not cut
-                // it off from the margin.
-                write!(
-                    f,
-                    " may coincide ({}){}",
-                    source.payload(),
-                    source.under(geom_core::NO_DECLARATION_RECOURSE).tail()
-                )
-            }
             Self::BadValue(error) => {
                 write!(f, "select: the stated value did not evaluate: {error}")
             }
@@ -440,16 +350,6 @@ impl crate::spoken::Say for SelectRefusal {
                 f,
                 "select: the ambiguity band itself could not be built from the ambient \
                  tolerance, so no comparison below it can be trusted: {error}"
-            ),
-            Self::DistinctFinding(defect) => write!(f, "select: {defect}"),
-            Self::AcrossSpaces { group, cause } => write!(
-                f,
-                "select: the two nodes live in different spaces — one is in the own space of the \
-                 group rooted at {}, unplaced because {}, and nothing outside an \
-                 unplaced group is compared with it. {}",
-                by.node(*group),
-                crate::spoken::Said(cause, by),
-                crate::sentence::Recourse(crate::mate::UNPLACED_RECOURSE)
             ),
         }
     }
@@ -660,14 +560,9 @@ mod census {
             Unreadable,
             NotADatum,
             DatumHasNoValue,
-            NodeHasNoValue,
-            NodeHasNoOutput,
             NotALength,
-            PairInBand,
-            AcrossSpaces,
             BadValue,
             Band,
-            DistinctFinding,
         ];
     }
 
@@ -713,24 +608,8 @@ mod census {
                 node: RecipeNodeId::new(0, 9),
                 through: RecipeNodeId::new(0, 4),
             }),
-            SelectRefusal::NodeHasNoValue(NodeStanding::Failed {
-                node: RecipeNodeId::new(0, 9),
-            }),
-            SelectRefusal::NodeHasNoOutput {
-                node: RecipeNodeId::new(0, 9),
-            },
             SelectRefusal::NotALength {
                 dim: Dimension::Angle,
-            },
-            SelectRefusal::PairInBand {
-                pair: Box::new((*name(), *name())),
-                at: (RecipeNodeId::new(0, 7), RecipeNodeId::new(0, 8)),
-                predicate: "bool_plane_side_of",
-                source: in_band(),
-            },
-            SelectRefusal::AcrossSpaces {
-                group: RecipeNodeId::new(0, 3),
-                cause: crate::mate::Unplaced::NoOffset,
             },
             SelectRefusal::BadValue(crate::expr::EvalError::ContinuousExprInCountEval {
                 found: Dimension::Length,
@@ -739,7 +618,6 @@ mod census {
                 zero: 5e-324,
                 escalate: 5e-324,
             }),
-            SelectRefusal::DistinctFinding(topo::flush::DistinctFinding),
         ];
         let read: Vec<String> = samples
             .iter()

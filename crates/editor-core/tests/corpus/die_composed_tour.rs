@@ -23,7 +23,7 @@
 //!
 //! Placing the blank as well puts a second die exactly on the first:
 //! that product refuses `assemble` at `f64` with vertex-vertex
-//! `UndeclaredContact` findings between the two dice, which would put
+//! `UnrecordedContact` findings between the two dice, which would put
 //! it in the divergence set `r2_m10_di_probes` pins — a row about
 //! coincident copies inside a pin about the dual census door.
 //!

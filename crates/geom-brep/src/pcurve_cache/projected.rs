@@ -222,10 +222,13 @@ impl<T: SpanLocate> FramedCarrier<T> {
 }
 
 impl<T: Real> FramedCarrier<T> {
-    /// The carrier parameters of the piece parameters `a`, `b`.
+    /// The carrier parameters of the piece parameters `a`, `b`. On a
+    /// net a piece end that is one of its breakpoints is that
+    /// breakpoint's held value; any other is a break the partition
+    /// chose (a schedule point), entered as the constant it is.
     fn piece_span(&self, a: f64, b: f64) -> (T, T) {
         match self {
-            Self::Net(_) => (T::from_f64(a), T::from_f64(b)),
+            Self::Net(net) => (net_param(net, a), net_param(net, b)),
             Self::Circle { origin, span, .. } => (
                 *origin + *span * T::from_f64(a),
                 *origin + *span * T::from_f64(b),
@@ -449,14 +452,27 @@ pub(crate) fn span_stretches(kv: &KnotVector, range: ParamRange) -> Option<Vec<P
         .collect()
 }
 
+/// The net parameter `v` in the scalar: one of the net's breakpoints is
+/// that breakpoint's held value; any other is a point the caller
+/// chose (a partition or halving break, or the `f64` end of an edge's
+/// certified parameter enclosure), entered as the constant it is.
+fn net_param<T: Real>(net: &NurbsCurve3<T>, v: f64) -> T {
+    net.knot_values()
+        .value_at(v)
+        .unwrap_or_else(|| T::from_f64(v))
+}
+
 /// The control points and weights of a net's restriction to `piece`
 /// `= [a, b]`, a sub-interval of one of its knot spans: the blossom
 /// `B(a^{p−m}, b^m)`, `m = 0…p`, of each homogeneous channel
 /// `(w·P, w)`, by the scalar's own restriction
-/// ([`SpanLocate::restrict_window`]) — at the certification scalar the
-/// window's certified restriction, so the controls enclose the true
-/// restriction's; every control is a combination of the span's with
-/// ratios in `[0, 1]`, so the weights stay positive.
+/// ([`SpanLocate::restrict_window`]) over the net's held knots — at the
+/// certification scalar the window's certified restriction, so the
+/// controls enclose the true restriction's; every control is a
+/// combination of the span's with ratios in `[0, 1]`, so the weights
+/// stay positive. A piece end that is one of the net's breakpoints is
+/// that breakpoint's held value, and any other end is entered as the
+/// caller's `f64` parameter.
 ///
 /// The span is the one `a` locates in. Inside one knot span's closure
 /// with `a < b` that is the span holding the piece; at `a == b` on a
@@ -467,16 +483,18 @@ pub(crate) fn piece_controls<T: SpanLocate>(
 ) -> Vec<(Vec3<T>, T)> {
     let ends = (piece.start(), piece.end());
     let (span, _) = net.knots().span_range(piece);
+    let held = net.knot_values().values();
+    let held_ends = (net_param(net, ends.0), net_param(net, ends.1));
     let homogeneous: Vec<(Vec3<T>, T)> = span
         .window()
         .map(|i| {
-            let w = T::from_f64(net.weights()[i]);
+            let w = net.weights()[i];
             ((net.control()[i] - Point3::origin()) * w, w)
         })
         .collect();
     let channel = |c: fn(&(Vec3<T>, T)) -> T| -> Vec<T> {
         let line: Vec<T> = homogeneous.iter().map(c).collect();
-        T::restrict_window(&line, span, ends)
+        T::restrict_window(&line, span, held, ends, held_ends)
     };
     let (x, y, z, w) = (
         channel(|q| q.0.x),
@@ -996,8 +1014,8 @@ fn chart_of<T: Decide>(
             let (sin, cos) = half_angle.sin_cos();
             let mid = match framed {
                 FramedCarrier::Net(net) => {
-                    let (d0, d1) = net.domain();
-                    net.eval(T::from_f64(0.5 * (d0 + d1))).z
+                    let (d0, d1) = net.knot_values().domain();
+                    net.eval(T::from_f64(0.5) * (d0 + d1)).z
                 }
                 FramedCarrier::Circle { origin, span, .. } => {
                     framed.eval(*origin + *span * T::from_f64(0.5)).z
@@ -1134,10 +1152,12 @@ enum Refine {
     Escalated(Indeterminate),
 }
 
-/// Whether the piece `[a, b]` lies wholly outside the edge interval
-/// `edge`, by more than the band: a SELECTION of the partition, read
-/// with nothing recorded, an undecided answer reading as inside.
-fn outside<T: Decide>(a: f64, b: f64, edge: Option<(T, T)>, band: Band) -> bool {
+/// Whether the piece `[a, b]` (on the carrier parameter,
+/// [`FramedCarrier::piece_span`]'s) lies wholly outside the edge
+/// interval `edge`, by more than the band: a SELECTION of the
+/// partition, read with nothing recorded, an undecided answer reading
+/// as inside.
+fn outside<T: Decide>((a, b): (T, T), edge: Option<(T, T)>, band: Band) -> bool {
     let Some((t0, t1)) = edge else {
         return false;
     };
@@ -1146,7 +1166,7 @@ fn outside<T: Decide>(a: f64, b: f64, edge: Option<(T, T)>, band: Band) -> bool 
             .0
             .unwrap_or(false)
     };
-    clear(t0 - T::from_f64(b)) || clear(T::from_f64(a) - t1)
+    clear(t0 - b) || clear(a - t1)
 }
 
 /// Halves `[a, b]` (on the piece parameter) until its piece holds its
@@ -1172,7 +1192,7 @@ fn refine<T: Decide>(
     };
     let (ta, tb) = image.carrier.piece_span(a, b);
     choose_quarters(image, 0, ta, tb, band);
-    let verdict = if outside(a, b, edge, band) {
+    let verdict = if outside((ta, tb), edge, band) {
         Ok(None)
     } else {
         piece_sector(image, 0, ta, tb, band)
@@ -1833,7 +1853,7 @@ pub(super) fn run_projected_checks<T: Decide>(
             // The structure is the carrier's, exactly (C6): one knot
             // vector and one weight vector, so the stored net and the
             // carrier's differ control point for control point.
-            if net.knots() != c.knots() || net.weights() != c.weights() {
+            if net.knots() != c.knots() || net.weight_channel() != c.weight_channel() {
                 return Err(refuse(
                     "the stored net's knots or weights are not the carrier's",
                 ));

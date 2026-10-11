@@ -437,17 +437,44 @@ mod tests {
         let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
         let span = kv.span_at(0.1).unwrap();
         let line = [0.1, 0.7, 1.3];
-        let f = <f64 as SpanLocate>::restrict_window(&line, span, (0.0, 1.0));
+        let held = kv.knots();
+        let at =
+            |ends: (f64, f64)| <f64 as SpanLocate>::restrict_window(&line, span, held, ends, ends);
+        let f = at((0.0, 1.0));
         assert!(f.iter().all(|c| c.is_nan()), "f64 extrapolated: {f:?}");
-        let ok = <f64 as SpanLocate>::restrict_window(&line, span, (0.0, 0.5));
+        let ok = at((0.0, 0.5));
         assert!(ok.iter().all(|c| c.is_finite()), "f64 in-span: {ok:?}");
         let lifted: Vec<Interval> = line.iter().map(|&c| Interval::point(c)).collect();
-        let i = <Interval as SpanLocate>::restrict_window(&lifted, span, (0.0, 1.0));
+        let held_i: Vec<Interval> = held.iter().map(|&k| Interval::point(k)).collect();
+        let pt = |(a, b): (f64, f64)| (Interval::point(a), Interval::point(b));
+        let i = <Interval as SpanLocate>::restrict_window(
+            &lifted,
+            span,
+            &held_i,
+            (0.0, 1.0),
+            pt((0.0, 1.0)),
+        );
         assert!(i.iter().all(|c| !c.is_certified()), "Interval: {i:?}");
-        let short = <f64 as SpanLocate>::restrict_window(&line[..2], span, (0.0, 0.5));
+        let short =
+            <f64 as SpanLocate>::restrict_window(&line[..2], span, held, (0.0, 0.5), (0.0, 0.5));
         assert!(
             short.len() == 3 && short.iter().all(|c| c.is_nan()),
             "{short:?}"
+        );
+        // Held knots that are not the vector's length refuse at both.
+        let f =
+            <f64 as SpanLocate>::restrict_window(&line, span, &held[1..], (0.0, 0.5), (0.0, 0.5));
+        assert!(f.iter().all(|c| c.is_nan()), "f64 short held: {f:?}");
+        let i = <Interval as SpanLocate>::restrict_window(
+            &lifted,
+            span,
+            &held_i[1..],
+            (0.0, 0.5),
+            pt((0.0, 0.5)),
+        );
+        assert!(
+            i.iter().all(|c| !c.is_certified()),
+            "Interval short held: {i:?}"
         );
     }
 

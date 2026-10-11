@@ -477,11 +477,10 @@ pub use geom::SurfaceKind;
 // Stated so the next curation pass re-measures rather than
 // re-deriving.
 pub use topo::{
-    AtRestBody, Backing, Body, BooleanBody, BooleanDeclarations, BooleanError, BooleanOp,
-    BooleanResult, BooleanResultKind, Cited, Cites, ContactRecords, Curve3, EdgeDescription,
-    EdgeKey, EntityId, FaceKey, GeomRef, LoopKey, Operand, PairRefusalSite, PlaneRelation,
-    ShellOrientation, Surface, TransformError, VertexKey, intersect, intersect_with, subtract,
-    subtract_with, transform_rigid, union, union_with,
+    AtRestBody, Backing, Body, BooleanBody, BooleanError, BooleanOp, BooleanResult,
+    BooleanResultKind, Cited, Cites, ContactRecords, Curve3, EdgeDescription, EdgeKey, EntityId,
+    FaceKey, GeomRef, LoopKey, Operand, PairRefusalSite, PlaneRelation, ShellOrientation, Surface,
+    TransformError, VertexKey, intersect, subtract, transform_rigid, union,
 };
 
 // --- 5. The validation ladder ---------------------------------
@@ -493,7 +492,7 @@ pub use topo::{
 // refusal and left its siblings a module hop away. These are
 // that inconsistency closed, not a new policy:
 //
-// - `CensusContact` is `UndeclaredContact`'s: which coincidence the
+// - `CensusContact` is `UnrecordedContact`'s: which coincidence the
 //   census found. The arms are not one fact — `EdgeFacePierce` is
 //   interpenetration and undeclarable, while `EdgeEdgeOverlap` is
 //   certifiable through the D3 reconstruction. A caller that cannot
@@ -587,33 +586,11 @@ pub use step_export::{StepExportError, StepOptions, step_string, write_step};
 // situation this curation rung exists to close: a fact
 // readable only out of a message is not matchable.
 //
-// **`ImportContact` is a different defect and is carried for a
-// different reason: it is an INPUT, not a payload.**
-// `ImportOptions::declared_contacts` is a `pub Vec<ImportContact>` —
-// the import-side declaration channel (M9-2, D7 step 4), the position
-// anchored declarations a caller attaches to an import so they are
-// certified by the SAME tier-3′ gate a native body's contact records
-// run. `ImportOptions` was on this list and `ImportContact` was not,
-// which is not a matchability gap but a REACH one: a prelude caller
-// could name the options struct, could set `eps_in`, and could not
-// put a declaration in it, because filling a public field means
-// spelling its element type. Every other door on this list is
-// callable from it; this one was callable and not fillable, so the
-// declaration channel had no prelude caller at all.
-//
-// The rung under both closes here rather than stopping.
-// `PromotedKind`'s arms carry nothing, and an `ImportContact` is one
-// arm carrying three `f64` — the anchor position — so a caller states
-// a declaration in numbers it already holds.
-//
 // The Python halves differ, and the difference follows the carrier
 // each time. `StepImportError` projects a tag, so `PromotedKind`
 // projects its own beside it (`StepImportError.promoted_kind`);
 // `ImportOptions` crosses FIELD BY FIELD rather than as a type —
-// Python's `import_step` takes `eps_in=`, and the declaration channel
-// is the field it withholds, because a list keyword whose elements a
-// caller cannot build is a door onto nothing — so `ImportContact`
-// has nothing to project until it gains a value class of its own.
+// Python's `import_step` takes `eps_in=`.
 // **The SUCCESS half crosses under the same clause, and it is the
 // reach one.** `import_step` answers
 // `Result<StepImport, StepImportError>`. The refusal above is
@@ -626,8 +603,8 @@ pub use step_export::{StepExportError, StepOptions, step_string, write_step};
 //
 // So `StepImport` joins the list with the record vocabulary its
 // `Solid` arm names, because the arm's fields are the answer and each
-// is a `pub` field of a curated type — the `ImportContact` reasoning
-// one paragraph up, applied to the other side of the call. The
+// is a `pub` field of a curated type: a door's answer is spellable
+// from the list that carries the door. The
 // records are what the adoption CHANGED about the file, and the
 // types' own documentation says twice that a caller reads them:
 // `SurfacePromotion` is "reported, never silent", and the assembly
@@ -695,7 +672,7 @@ pub use step_export::{StepExportError, StepOptions, step_string, write_step};
 // no examination, and `pncad-py`'s surface census carries that as a
 // `NotBound` row with its reason.
 pub use step_import::{
-    CurvePromotion, FaceCensus, ImportContact, ImportOptions, NormalizationKind, PlacedInstance,
+    CurvePromotion, FaceCensus, ImportOptions, NormalizationKind, PlacedInstance,
     PromotedCurveKind, PromotedKind, StepImport, StepImportError, StructureNormalization,
     import_step,
 };
@@ -754,20 +731,15 @@ pub use editor_core::{NameTextError, StableName};
 // away, so a prelude user could hold the type and do nothing with it.
 // These are that door, curated as one group in `crate::select` (whose
 // module docs carry the worked examples).
-// The detect/declare protocol rides in this group too: the
-// findings vocabulary, the detector, and the declare sugar (the
-// worked example is in `crate::select`'s module docs).
 pub use crate::select::{
-    BooleanCoincidence, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactFinding,
-    ContactRefusal, ContactVerdict, CurveKind, CurveKindSet, DeclareError, DeclaredContact,
-    Denotation, EntityKind, FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, GeomPred,
+    CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactFinding, ContactRefusal, ContactVerdict,
+    CurveKind, CurveKindSet, DeclaredContact, Denotation, EntityKind, FIT_DEFERRAL, GeomPred,
     InterrogateError, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, OpGroup, PieceRole,
     PieceRun, Pose, ProfileEdgeRef, ProfileVertexRef, ReadbackError, RimSupport, RolePath, RoleSeg,
     SEL_DATUM_DISTANCE, SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Sense, Side,
     SplitHalf, StepId, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices,
-    attribute, declare, declare_all, declared_pairs, denotation, edge_carrier_kind, edge_frame,
-    edge_name, face_carrier_kind, face_frame, face_name, find_flush_candidates, select,
-    select_where, vertex_position,
+    attribute, denotation, edge_carrier_kind, edge_frame, edge_name, face_carrier_kind, face_frame,
+    face_name, select, select_where, vertex_position,
 };
 // The KERNEL query seat (`topo::query`): the same selection
 // vocabulary as a pure function of a `Body`, for the caller who holds
@@ -781,14 +753,3 @@ pub use crate::select::{
 // mirror, and the sets `CurveKindSet` and `SurfaceKindSet` from
 // `topo::query`.
 pub use topo::query;
-// The KERNEL flush seat (`topo::flush`): the same detect/declare
-// protocol as a pure function of two `Body`s, for the caller who holds
-// arena keys and no document. A MODULE for the reason `query` is one,
-// and more sharply — all three door names collide with the document
-// seat's above (`find_flush_candidates`, `declare`, `declare_all`),
-// which answer names from an evaluation where `flush::` answers keys
-// from a body. The finding vocabulary the doors speak
-// (`BooleanCoincidence`, `FlushEvidence`, `FlushRung`, `PlaneRelation`) is
-// already above, one definition re-exported upward: `FlushFinding` is
-// literally the same type at both seats, over each seat's pair.
-pub use topo::flush;

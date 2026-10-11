@@ -663,7 +663,7 @@ fn assert_hit_floor(name: &str, step: &str, report: &MemoReport) {
 /// picture is the plain door's after every landing. Answers the
 /// per-step face counts of the picture, for the memo rows to read.
 fn drive(name: &str, doc: ProfileDoc, edits: &[(&str, Edit)], tol: Tol) -> Vec<Step> {
-    let mut session = DocSession::inline(doc, tol);
+    let mut session = crate::common::inline_without_door(doc, tol);
     session.pump();
     assert!(session.evaluation().is_some(), "{name}: the document lands");
     let mut seam = InlineIndexer::new();
@@ -805,7 +805,7 @@ fn the_worker_threads_memo_answers_across_landings_and_a_skipped_generation() {
             .find(|c| c.name == name)
             .expect("a corpus document");
         let (bump, revert) = bump_of(&c).expect("a parametric document");
-        let mut session = DocSession::inline(c.doc.clone(), tol);
+        let mut session = crate::common::inline_without_door(c.doc.clone(), tol);
         session.pump();
         let mut worker = viewer::evalseam::ThreadIndexer::spawn().expect("the worker starts");
         // Landing 0: open, indexed. Landing 1: the bump, NOT indexed by
@@ -907,7 +907,7 @@ fn the_ring_grazing_ray_answers_the_corner_it_grazes() {
     let doc = loaded.snapshot;
     let (node, slot, expr) = ring_bump(&doc);
     let bump = Edit { node, slot, expr };
-    let mut session = DocSession::inline(doc, tol);
+    let mut session = crate::common::inline_without_door(doc, tol);
     session.pump();
     let outcome = session.perform(bump.op(session.committed_doc()));
     assert!(
@@ -1030,7 +1030,7 @@ fn a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex() {
     let doc = loaded.snapshot;
     let (node, slot, expr) = ring_bump(&doc);
     let bump = Edit { node, slot, expr };
-    let mut session = DocSession::inline(doc, tol);
+    let mut session = crate::common::inline_without_door(doc, tol);
     session.pump();
     let outcome = session.perform(bump.op(session.committed_doc()));
     assert!(
@@ -1205,7 +1205,7 @@ fn a_wide_candidates_interval_reaching_the_aimed_vertex_refuses_with_both() {
         .into_iter()
         .find(|c| c.name == "tube_arc")
         .expect("tube_arc is a corpus document");
-    let mut session = DocSession::inline(c.doc.clone(), tol);
+    let mut session = crate::common::inline_without_door(c.doc.clone(), tol);
     session.pump();
     let index = common::index_at(&session, common::corpus_delta()).expect("tube_arc indexes");
     let vertex = Point3::new(

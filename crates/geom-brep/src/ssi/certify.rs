@@ -502,7 +502,7 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
         let mut breaks: Vec<f64> = grid.iter().chain(cuts).copied().collect();
         breaks.sort_by(f64::total_cmp);
         breaks.dedup();
-        let data = CurveCertData::new(carrier.knots(), carrier.weights(), &coords)
+        let data = CurveCertData::new(carrier.knots(), carrier.weight_channel(), &coords)
             .map_err(|_| SsiError::UnsupportedCertificate {
                 what: "the fitted carrier's enclosure data is malformed",
             })?
@@ -529,11 +529,16 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
         })
     };
     // ---- limb 1: the fixed schedule ----
+    // The schedule on the carrier's held domain (its ends held, its
+    // interior stations chosen points); the value channel names a
+    // refused sample.
     let (t0, t1) = carrier.domain();
+    let (h0, h1) = carrier.knot_values().domain();
     let mut worst = T::zero();
     for i in 0..CERT_SAMPLES {
         let t = sample_param(t0, t1, i);
-        let r = crate::implicit::implicit_residual(surface, carrier.eval(T::from_f64(t))).abs();
+        let station = crate::certify::held_station((t0, t1), (h0, h1), i, CERT_SAMPLES);
+        let r = crate::implicit::implicit_residual(surface, carrier.eval(station)).abs();
         // `max`, not a `>` branch: the running worst is a scalar-typed
         // quantity now, and generic evaluation code does not compare.
         worst = worst.max(r);
@@ -587,24 +592,21 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
         // analytic limb and the box chain, the cut itself made in the
         // ring (C6).
         let coords = carrier.certified_coords();
-        let cdata =
-            CurveCertData::new(carrier.knots(), carrier.weights(), &coords).map_err(|_| {
-                SsiError::UnsupportedCertificate {
-                    what: "the fitted carrier's enclosure data is malformed",
-                }
+        let cdata = CurveCertData::new(carrier.knots(), carrier.weight_channel(), &coords)
+            .map_err(|_| SsiError::UnsupportedCertificate {
+                what: "the fitted carrier's enclosure data is malformed",
             })?;
         let pcoords = pcurve.certified_coords();
-        let pdata =
-            CurveCertData::new(pcurve.knots(), pcurve.weights(), &pcoords).map_err(|_| {
-                SsiError::UnsupportedCertificate {
-                    what: "the traced pcurve's enclosure data is malformed",
-                }
-            })?;
+        let pdata = CurveCertData::new(pcurve.knots(), pcurve.weight_channel(), &pcoords).map_err(
+            |_| SsiError::UnsupportedCertificate {
+                what: "the traced pcurve's enclosure data is malformed",
+            },
+        )?;
         let scoords = surface.certified_coords();
         let sdata = tensor::SurfaceCertData::new(
             surface.knots_u(),
             surface.knots_v(),
-            surface.weights(),
+            surface.weight_channel(),
             &scoords,
         )
         .map_err(|_| SsiError::UnsupportedCertificate {
@@ -627,17 +629,22 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
         })
     };
     // ---- limb 1: the fixed schedule, through certified foot points --
+    // The schedule on the carrier's held domain (its ends held, its
+    // interior stations chosen points; the pcurve shares the carrier's
+    // parameter); the value channel names a refused sample.
     let (t0, t1) = carrier.domain();
+    let (h0, h1) = carrier.knot_values().domain();
     let mut worst = T::zero();
     for i in 0..CERT_SAMPLES {
         let t = sample_param(t0, t1, i);
-        let c = carrier.eval(T::from_f64(t));
+        let th = crate::certify::held_station((t0, t1), (h0, h1), i, CERT_SAMPLES);
+        let c = carrier.eval(th);
         // Warm-start from the trace's own pcurve: the projection is a
         // *check*, and starting it where the trace says the foot is
         // makes a disagreement visible rather than hidden by a global
         // seeding sweep landing somewhere else. The seed is a
         // parameter — `f64` structure on both sides of the M6-2 lift.
-        let p = pcurve.eval(T::from_f64(t));
+        let p = pcurve.eval(th);
         let proj = surface
             .project_from_seed(c, p.x.lo(), p.y.lo())
             .map_err(|e| SsiError::FootPointInconclusive {
@@ -1038,7 +1045,7 @@ fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
     // reads as a definite refusal (no box, so nothing banked).
     let Some((kv, coords)) = refined_net(
         carrier.knots(),
-        carrier.weights(),
+        carrier.weight_channel(),
         &carrier.certified_coords(),
     ) else {
         return out;
@@ -1409,8 +1416,8 @@ fn probe_tube_pair<T: Decide + Bounds + CertifiedEnclosure>(
     // bracket's upper end as the chart lane's is: the graph margin is
     // certified for whatever direction it is handed, so the read only
     // steers which determinant is asked.
-    let tangent = |t: f64| -> Option<[f64; 4]> {
-        let (da, db) = (pa.deriv(T::from_f64(t)), pb.deriv(T::from_f64(t)));
+    let tangent = |t: T| -> Option<[f64; 4]> {
+        let (da, db) = (pa.deriv(t), pb.deriv(t));
         let raw = [da.x.hi(), da.y.hi(), db.x.hi(), db.y.hi()];
         let scaled: [f64; 4] = core::array::from_fn(|k| raw[k] * speeds[k]);
         let n = scaled.iter().map(|v| v.powi(2)).sum::<f64>().sqrt();
@@ -1419,20 +1426,22 @@ fn probe_tube_pair<T: Decide + Bounds + CertifiedEnclosure>(
     let mut worst = f64::INFINITY;
     let mut boxes = Vec::with_capacity(chain.len());
     for (x, mid) in chain {
-        let e = tangent(mid)?;
+        // A chain box's midpoint steers which determinant is asked: a
+        // point the chain chose, entered as the constant it is.
+        let e = tangent(T::from_f64(mid))?;
         worst = worst.min(zero_free_lower_bound(graph_margin(&pair, x, e)));
         boxes.push(x);
     }
     // An end's state is a point the one-arc proof looks for inside an
     // end box `ε/8` wide on each axis: on the `f64` lane the bracket is
     // the point, and on a wider one any point of it is as good a read.
-    let state = |t: f64| {
-        let (p, q) = (pa.eval(T::from_f64(t)), pb.eval(T::from_f64(t)));
+    let state = |t: T| {
+        let (p, q) = (pa.eval(t), pb.eval(t));
         [p.x.lo(), p.y.lo(), q.x.lo(), q.y.lo()]
     };
     // Each end's dominant axis is read off its tangent; an unusable one
     // refuses the rung, as one inside the chain does.
-    let (t0, t1) = pa.domain();
+    let (t0, t1) = pa.knot_values().domain();
     let [Some(e0), Some(e1)] = [t0, t1].map(tangent) else {
         return None;
     };
@@ -1891,9 +1900,9 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
     // the f64 lane a point, not an enclosure of the exact end, which the
     // end checks then read within ε of
     // (`work/ssiarith/limb3-carrier-ends-read-at-f64-points.md`).
-    let (t0, t1) = carrier.domain();
+    let (t0, t1) = carrier.knot_values().domain();
     let ends = [t0, t1].map(|t| {
-        let p = carrier.eval(T::from_f64(t));
+        let p = carrier.eval(t);
         Box3 {
             x: Interval::from_certified(p.x),
             y: Interval::from_certified(p.y),
@@ -2161,15 +2170,15 @@ mod tests {
         /// and `S_v = (0, 1, 0)`, so `∇φ = (n·S_u, n·S_v) = (n.x, n.y)`.
         fn unit_patch() -> NurbsSurface<Interval> {
             NurbsSurface::new(
-                linear_kv(),
-                linear_kv(),
+                geom_core::spline::Knots::from(linear_kv()).lift(geom_core::Real::from_f64),
+                geom_core::spline::Knots::from(linear_kv()).lift(geom_core::Real::from_f64),
                 vec![
                     Point3::new(iv(0.0), iv(0.0), iv(0.0)),
                     Point3::new(iv(0.0), iv(1.0), iv(0.0)),
                     Point3::new(iv(1.0), iv(0.0), iv(0.0)),
                     Point3::new(iv(1.0), iv(1.0), iv(0.0)),
                 ],
-                vec![1.0; 4],
+                vec![geom_core::Real::one(); 4],
             )
             .expect("valid patch")
         }
@@ -2178,9 +2187,9 @@ mod tests {
         /// and the margin reads `n.y` alone.
         fn u_line() -> NurbsCurve2<Interval> {
             NurbsCurve2::new(
-                linear_kv(),
+                geom_core::spline::Knots::from(linear_kv()).lift(geom_core::Real::from_f64),
                 vec![Point2::new(iv(0.1), iv(0.5)), Point2::new(iv(0.9), iv(0.5))],
-                vec![1.0, 1.0],
+                vec![geom_core::Real::one(); 2],
             )
             .expect("valid pcurve")
         }
@@ -2262,9 +2271,9 @@ mod tests {
             );
             assert!(!bad.is_certified(), "fixture drifted: it certifies");
             let pcurve = NurbsCurve2::new(
-                linear_kv(),
+                geom_core::spline::Knots::from(linear_kv()).lift(geom_core::Real::from_f64),
                 vec![Point2::new(bad, iv(0.5)), Point2::new(iv(0.9), iv(0.5))],
-                vec![1.0, 1.0],
+                vec![geom_core::Real::one(); 2],
             )
             .expect("valid pcurve");
             let normal = Vec3::new(iv(0.0), iv(2.0), iv(0.0));
@@ -2292,8 +2301,13 @@ mod tests {
         #[test]
         fn a_chart_constant_across_the_locus_refuses_rather_than_trying_a_smaller_rung() {
             let p = Point3::new(iv(0.3), iv(0.3), iv(0.0));
-            let point_patch = NurbsSurface::new(linear_kv(), linear_kv(), vec![p; 4], vec![1.0; 4])
-                .expect("a patch a caller can build");
+            let point_patch = NurbsSurface::new(
+                geom_core::spline::Knots::from(linear_kv()).lift(geom_core::Real::from_f64),
+                geom_core::spline::Knots::from(linear_kv()).lift(geom_core::Real::from_f64),
+                vec![p; 4],
+                vec![geom_core::Real::one(); 4],
+            )
+            .expect("a patch a caller can build");
             let normal = Vec3::new(iv(0.0), iv(2.0), iv(0.0));
             let verdict = probe_tube_chart(
                 &u_line(),
@@ -2326,8 +2340,13 @@ mod tests {
         fn a_chart_constant_across_the_locus_refuses_on_a_net_that_is_not_one_point() {
             let a = Point3::new(iv(0.1), iv(0.1), iv(0.1));
             let b = Point3::new(iv(0.7), iv(0.7), iv(0.7));
-            let ridge = NurbsSurface::new(linear_kv(), linear_kv(), vec![a, a, b, b], vec![1.0; 4])
-                .expect("a patch a caller can build");
+            let ridge = NurbsSurface::new(
+                geom_core::spline::Knots::from(linear_kv()).lift(geom_core::Real::from_f64),
+                geom_core::spline::Knots::from(linear_kv()).lift(geom_core::Real::from_f64),
+                vec![a, a, b, b],
+                vec![geom_core::Real::one(); 4],
+            )
+            .expect("a patch a caller can build");
             let normal = Vec3::new(iv(0.0), iv(2.0), iv(0.0));
             let verdict = probe_tube_chart(
                 &u_line(),
@@ -2354,9 +2373,9 @@ mod tests {
         #[test]
         fn a_pcurve_with_no_tangent_refuses_rather_than_trying_a_smaller_rung() {
             let still = NurbsCurve2::new(
-                linear_kv(),
+                geom_core::spline::Knots::from(linear_kv()).lift(geom_core::Real::from_f64),
                 vec![Point2::new(iv(0.5), iv(0.5)), Point2::new(iv(0.5), iv(0.5))],
-                vec![1.0, 1.0],
+                vec![geom_core::Real::one(); 2],
             )
             .expect("a pcurve a caller can build");
             let normal = Vec3::new(iv(0.0), iv(2.0), iv(0.0));
@@ -2391,7 +2410,12 @@ mod tests {
         let n = kv.control_count();
         #[allow(clippy::cast_precision_loss)]
         let control = (0..n).map(|i| Point3::new(i as f64, 0.0, 0.0)).collect();
-        geom::NurbsCurve3::new(kv, control, vec![1.0; n]).unwrap()
+        geom::NurbsCurve3::new(
+            geom_core::spline::Knots::from(kv).lift(geom_core::Real::from_f64),
+            control,
+            vec![geom_core::Real::one(); n],
+        )
+        .unwrap()
     }
 
     /// `cert_grid` is the DOMAIN's 32nds, a grid point skipped up to
@@ -2439,7 +2463,12 @@ mod tests {
                     Point3::new(bend[0], bend[1], bend[2]),
                     Point3::new(1.0, 1.0, 1.0),
                 ];
-                let curve = geom::NurbsCurve3::new(kv, control, vec![1.0; 3]).unwrap();
+                let curve = geom::NurbsCurve3::new(
+                    geom_core::spline::Knots::from(kv).lift(geom_core::Real::from_f64),
+                    control,
+                    vec![geom_core::Real::one(); 3],
+                )
+                .unwrap();
                 let chain = super::box_chain(&curve);
                 let worst = chain
                     .iter()
@@ -2555,7 +2584,7 @@ mod tests {
             "refined_net missed the exact net at {missed:?}"
         );
         let curve = NurbsCurve3::new(
-            kv.clone(),
+            geom_core::spline::Knots::from(kv.clone()).lift(geom_core::Real::from_f64),
             ctl.iter().map(|p| Point3::new(p[0], p[1], p[2])).collect(),
             weights.clone(),
         )
@@ -2615,7 +2644,7 @@ mod tests {
         let pc = NurbsCurve2::new(
             KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
             vec![Point2::new(0.2, 0.4), Point2::new(0.6, 0.5)],
-            vec![1.0, 1.0],
+            vec![geom_core::Real::one(); 2],
         )
         .unwrap();
         let (pad_u, pad_v) = (0.125, 0.375);
@@ -2666,10 +2695,15 @@ mod tests {
             control.push(Point3::new(x, y, 0.0));
             control.push(Point3::new(x, y, 3.0));
         }
-        let wall = NurbsSurface::new(ku, kv, control, vec![1.0; 8])
-            .unwrap()
-            .refine_knots_u(&(1..16).map(|k| f64::from(k) / 16.0).collect::<Vec<_>>())
-            .unwrap();
+        let wall = NurbsSurface::new(
+            geom_core::spline::Knots::from(ku).lift(geom_core::Real::from_f64),
+            geom_core::spline::Knots::from(kv).lift(geom_core::Real::from_f64),
+            control,
+            vec![geom_core::Real::one(); 8],
+        )
+        .unwrap()
+        .refine_knots_u(&(1..16).map(|k| f64::from(k) / 16.0).collect::<Vec<_>>())
+        .unwrap();
         let n = Vec3::new(0.0, 0.25, 1.0);
         let n = n / n.norm();
         let u = Vec3::new(1.0, 0.0, 0.0);
@@ -2938,19 +2972,19 @@ mod tests {
                 )
             })
             .collect();
-        let wall = NurbsSurface::new(k2(), k2(), control, vec![1.0; 9]).unwrap();
+        let wall = NurbsSurface::new(k2(), k2(), control, vec![geom_core::Real::one(); 9]).unwrap();
         let k1 = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
         let carrier = NurbsCurve3::new(
             k1(),
             vec![Point3::new(0.0, 0.0, 0.0), Point3::new(0.0, l, 0.0)],
-            vec![1.0, 1.0],
+            vec![geom_core::Real::one(); 2],
         )
         .unwrap();
         let u0 = -x0 / (x1 - x0);
         let pcurve = NurbsCurve2::new(
             k1(),
             vec![Point2::new(u0, 0.0), Point2::new(u0, 1.0)],
-            vec![1.0, 1.0],
+            vec![geom_core::Real::one(); 2],
         )
         .unwrap();
         let plane = Surface::Plane {

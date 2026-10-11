@@ -240,3 +240,39 @@ that brick. The brick ∖ plug result is accepted. The refusal is the
 same at all 13 poses of that suite. Each body measures at its closed
 form through `topo::mass_properties`. The suite's apart pin does not
 assert legality for this reason.
+
+## 2026-10-11 — 1 023 boolean results at a curved corner pinch (FLUSH)
+
+`sweep` `curved_notch_pinch::curved_notch_pinch`
+(ignored, release; `notch343` with one face bowed into a cylinder arc,
+against a two-cube corner pinch, 84 directions × 3 turns, every op in
+both orders, plain booleans) on main `6e3985cb7`: 1 023 of 1 497
+built bodies refuse a union with a far brick
+`Containment(VolumeUncertified)`. Each has the right volume and
+passes tier 2 and the certificate. Instrumented on three poses, the
+probe's props refusal is the one this row names, on the bowed wall:
+`Face { source: NotIsoRectangle { what: "cylinder boundary carries an
+ellipse arc (curved cut) …" } }`. A cube face cutting the wall
+obliquely leaves an ellipse arc on its boundary. The 474 bodies whose
+further union passes are the poses where no cube face cuts the wall
+that way.
+
+Pinned by `a_curved_notch_at_a_corner_pinch_builds_bodies_two_lanes_cannot_read_yet`
+(poses `0 0 0 ab I` and `0 0 0 ab U` refuse; `9 4 4 ab S` passes):
+when this lane lands, flip those two expectations.
+
+## Two batteries read it as their one failure (FLUSH, 2026-10-11)
+
+Measured on `flush/e-tail` (main at `121741a2b` plus FLUSH's E tail),
+ε = 1e-9, once `crates/sweep/tests/pocket_ring_steep_ellipse.rs`
+`steep_quad_prism_battery` and `crates/sweep/tests/join3_r2_probes.rs`
+`j3r2_tilted_battery` judge their bodies through
+`common::differential::outcome`, which asks each built body to unite
+with the far brick `[50, 51]³`. Every body the two batteries read BAD
+passes tiers 2 and 3′ and the certificate and fails only that union:
+849 of 960 runs and 2 153 of 2 160. The cutters alone are legal
+operands (`j3r2_tilted_operands`: every one unites); the results
+carrying their ellipse-trimmed walls are not, and
+`j3r2_tilted_rod_operand` prints the refusal,
+`Containment(VolumeUncertified)`, for a tilted round rod and a tilted
+D at θ = 0.15 (a tilted square, with no curved wall, unites).

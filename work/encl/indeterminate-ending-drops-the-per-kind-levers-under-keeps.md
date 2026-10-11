@@ -2,11 +2,13 @@
 id: indeterminate-ending-drops-the-per-kind-levers-under-keeps
 kind: issue
 title: geom-core: Indeterminate::ending drops the per-kind levers under() adds (subdivide on a straddle, check inputs on an unreadable margin), so whole-escalation renders cannot take the one undecided shape
-status: dispatched
+status: closed
+closed: 2026-10-11
 branch: encl/indeterminate-ending-levers
 priority: P3
 cost: M
 opened: 2026-10-11
+pr: 4629
 ---
 
 (Found by the PR 4612 fix pass, the geom-brep slice of `too-close-to-call-remainder`.)

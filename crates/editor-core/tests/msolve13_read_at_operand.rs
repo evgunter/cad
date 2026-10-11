@@ -21,9 +21,9 @@ use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EvalOptions,
-    Formula, MateFrame, MatePrimitive, MateRole, Node, PartSelect, PatternKind, ProfileDoc,
-    RecipeNodeId, SitedFace, SplitError, StableName, member_of,
+    Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EvalOptions, Formula,
+    MateFrame, MatePrimitive, MateRole, Node, PartSelect, PatternKind, ProfileDoc, RecipeNodeId,
+    SitedFace, SplitError, StableName, member_of,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{
@@ -199,7 +199,6 @@ fn fused(s: &Scene, at_t1: impl Fn(&ProfileDoc, RecipeNodeId, RecipeNodeId) -> S
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![t1.into(), t2.into()]),
-            declare: Vec::new(),
         },
     );
     let (doc, _) = crate::fixture::place(doc, union);
@@ -250,16 +249,11 @@ fn a1a_mates_read_at_the_transforms_below_a_placed_union_mint_nothing() {
     let ev = run(&f.doc, &s.opts);
     crate::fixture::assert_mints_nothing(&f.doc, &ev, f.m1);
     crate::fixture::assert_mints_nothing(&f.doc, &ev, f.m2);
-    match gate(&f.doc, &ev) {
-        Err(AssemblyError::AtRest { findings }) => assert!(
-            !findings.is_empty()
-                && findings
-                    .iter()
-                    .all(|f| matches!(f.attribution, editor_core::Attribution::Unattributed)),
-            "A1(a): each seat is an unattributed contact: {findings:?}"
-        ),
-        other => panic!("A1(a): the undeclared seats refuse at rest, got {other:?}"),
-    }
+    assert!(
+        gate(&f.doc, &ev).is_ok(),
+        "A1(a): the unmated seats do not refuse"
+    );
+    crate::fixture::assert_copies_rows_alone(&f.doc, &ev);
 }
 
 // ---- A1 (b): a transform above the operand ----
@@ -333,7 +327,6 @@ fn a2_two_spellings_through_a_union_fold_into_one_pair() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![t1.into(), t2.into()]),
-            declare: Vec::new(),
         },
     );
     let (doc, _) = crate::fixture::place(doc, union);
@@ -496,7 +489,6 @@ fn a_mate_read_below_a_placed_consumer_mints_nothing() {
         with_far,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![t1.into(), far.into()]),
-            declare: Vec::new(),
         },
     );
     let boolean = crate::fixture::place(doc, fused).0;
@@ -554,7 +546,6 @@ fn a_part_above_a_union_is_refused_at_the_door() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![t1.into(), far.into()]),
-            declare: Vec::new(),
         },
     );
     let (doc, moved) = insert(doc, xform(union, [0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0));
@@ -731,7 +722,6 @@ fn a3d_a_group_with_a_mate_read_at_a_union_splits_and_inlines_back() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![s.top.into(), t1.into()]),
-            declare: Vec::new(),
         },
     );
     let (doc, _) = crate::fixture::place(doc, union);

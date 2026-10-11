@@ -18,7 +18,7 @@ use editor_core::{
     CancelToken, EntityKind, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId, RoleSeg,
     evaluate,
 };
-use fixture::{declare_x_offset_flush, insert, len, on_frame, table};
+use fixture::{insert, len, on_frame, table};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
@@ -55,12 +55,10 @@ fn a_band_along_a_joined_flush_edge_is_named_by_that_edge() {
     let doc = ProfileDoc::empty_derived("band_joined_rim_names", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0));
     let (doc, b) = block(doc, (0.5, 2.0));
-    let decl = declare_x_offset_flush(&doc, a, b);
     let (doc, u) = insert(
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: decl,
         },
     );
     let ev = run(&doc);

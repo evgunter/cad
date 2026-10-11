@@ -975,18 +975,19 @@ except ProductError as refusal:
 
 Read an `AssemblyError`'s `variant` first, and read it as three
 groups. `at_rest` is a verdict **against** the document, and it
-carries the findings: each `AtRestFinding`'s `attribution.relation`
-says which of the three things happened — `refuted` (the faces do not
-meet as the declaration claims), `declined` (no certifier lane for a
-face the declaration names, so nothing was decided either way), or
-`unattributed` (no declaration answers at all — an **undeclared
-contact**, which is the hard error by definition, and the same refusal
-the fail-loud tour meets on a single-document boolean). Where a
-finding is `refuted` or `unattributed`, `attribution.declaration`
-names the minted declaration it is about, by the two stable names the
-mate was authored in — the recourse is in the error. `uncertified` is the declared
-direction's **frontier**: nothing refuted, nothing undeclared, the
-census simply declined to certify, so nothing was decided either way.
+carries the findings: each `AtRestFinding`'s `attribution` is the
+declaration it names, `None` where it names none, and
+`attribution.relation` says which of two things happened — `refuted`
+(the faces do not meet as the declaration claims) or `declined` (no
+certifier lane for a face the declaration names, so nothing was
+decided either way). `attribution.declaration` names the minted
+declaration, by the two stable names the mate was authored in — the
+recourse is in the error. Two copies that touch where no mate relates
+them refuse nothing: the touch is a row of the product, and
+`run_checks` reports it as an `unproven_coincidence` finding whose
+`copies` are the two. `uncertified` is the declared direction's
+**frontier**: nothing refuted, the census simply declined to certify,
+so nothing was decided either way.
 Everything else refuses before any verdict exists:
 `unminted_mates` (this document's own mates that did not mint),
 `carried_mint_refusal` (the same for mates of documents below it), and

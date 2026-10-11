@@ -2,11 +2,13 @@
 id: nurbs-weights-and-knots-are-the-scalar
 kind: issue
 title: NURBS weights and knots are f64 by type, so every evaluation re-enters them into the symbolic lane as constants
-status: dispatched
+status: closed
 opened: 2026-10-10
 priority: P0
 cost: H
 refs: [a-computed-value-re-enters-as-a-constant, carriers-compare-in-canonical-form]
+pr: 4708
+closed: 2026-10-11
 ---
 
 
@@ -67,3 +69,20 @@ stored data re-read. Re-class them as each is touched. (Raised by PR
 4589's review, unverified.)
 
 Closing this removes a way for the coincidence door to report a false proof: the door's symbolic rungs (`carriers-compare-in-canonical-form`) are theorems about the expression the `Sym` replay saw, and a listed site re-enters a computed value there as a constant.
+
+## Closed
+
+Closed by four units: u1 #4608 (`Knots<T>`, the basis over held knots,
+`HeldArc`), u2 #4662 (the carriers hold `Knots<T>` and `Vec<T>` weights;
+the knot algebra and the meter at `T`; C6 re-worded), u3 #4703
+(geom-brep's readers; the pin through the carrier: a `NurbsCurve2<Sym>`
+holding `HeldArc` re-values with θ, and the arc-rim margin decides as
+`Theorem::SymbolicZero`, each red on the stored-`f64` weight) and u4
+#4708 (topo's readers; `apply_points` on its own `f64` channel; the
+bare-vector reads reclassed). No `stored-carrier-data` row of this item
+remains in `scripts/gates/from-f64-sites.tsv`.
+
+Filed on the way: `held-value-equalities-decided-on-the-value-channel`
+(P2: identities between held values decided on the channel only).
+The skinned arc wall remains the door-level pin, owed to
+`the-skin-computes-its-values-in-t`.
