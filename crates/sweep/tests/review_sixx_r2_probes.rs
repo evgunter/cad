@@ -616,7 +616,10 @@ fn review_sixx_pinch() {
     else {
         panic!("empty pinch");
     };
-    eprintln!("pinch contacts vv {}", pinch.contacts.vv.len());
+    eprintln!(
+        "pinch contacts vv {}",
+        pinch.contacts.vertex_vertex().count()
+    );
     let carried = rest_rows(&pinch.contacts);
     let pp: Vec<Vec<Half>> = ws.iter().flat_map(|w| w.pieces(IDENT, v)).collect();
     let va: f64 = pp.iter().map(|p| convex_volume(p)).sum();

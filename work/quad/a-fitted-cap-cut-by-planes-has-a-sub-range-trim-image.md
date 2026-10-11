@@ -35,3 +35,12 @@ over its own span. The closed form is waiting for it: the moved box's
 volume is `4 (1 + d)`, which the row above can then assert in place of
 the refusal. `a-fitted-face-trimmed-by-a-section-has-no-volume-rule` is
 the window refusal the same fit reaches when only a side moves.
+
+**A second producer** (SHELL's NURBS × NURBS section unit, 2026-10-10):
+the shelled twisted loft, `topo::shell(twisted_loft(0.3), 0.05)` at
+`CAD_TOLERANCE_EPS=1e-6`, with its top rims certified (on a scratch
+build, `work/iso/a-moved-lofts-top-rim-refuses-its-at-rest-certificate.md`),
+builds every edge and corner and stops at tier 3 with this refusal:
+`NotValid { VolumeUncomputable { face: FaceKey(9v1), source:
+QuadratureUnsupported { "a General trim image whose carrier interval is
+not its own knot domain …" } } }`.

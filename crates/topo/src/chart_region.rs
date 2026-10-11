@@ -1,5 +1,5 @@
 //! **Chart-region overlap** — the trim-region intersection predicate a
-//! `PatchContact` certifies through (CONTACT-DESIGN C3): two faces on
+//! face–face record certifies through (CONTACT-DESIGN C3): two faces on
 //! ONE chart, their trim loops read in `(u, v)`, the overlap answered
 //! as *definitely-positive area* / *empty* / *typed refusal or
 //! escalation* — never a guess (M9-2 PR-1; the census consumer is
@@ -156,7 +156,7 @@ use crate::validate::decide;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ChartOverlap {
     /// The trim regions' intersection has **definitely-positive
-    /// model-space area** — the `PatchContact` blessing direction.
+    /// model-space area** — the patch record's blessing direction.
     ///
     /// # Exactly what the margin behind this says, and about what
     ///
@@ -194,7 +194,7 @@ pub enum ChartOverlap {
     /// on the contracted copy that bounds the model's only after the
     /// `ρ/√T` factor.
     PositiveArea,
-    /// The trim regions are definitely disjoint — a `PatchContact`
+    /// The trim regions are definitely disjoint — a patch record
     /// claiming this pair is stale.
     Empty,
 }
@@ -756,7 +756,7 @@ pub fn chart_region_overlap<T: Decide + CertifiedBounds>(
     )
 }
 
-/// **The declared pair's overlap door** — what a `PatchContact` whose
+/// **The declared pair's overlap door** — what a face–face record whose
 /// chart authority may be a VERIFIED DECLARATION (rung 3) certifies
 /// through, in the fixed order structural-identity-first.
 ///

@@ -119,10 +119,23 @@ impl core::fmt::Display for ChartCorner {
     }
 }
 
-/// Where a branch meets the wall's knot rectangle: a side and the
-/// parameter along it (`v` on a `u` side, `u` on a `v` side).
+/// Which operand's knot rectangle a [`BoundaryPoint`] lies on: the
+/// plane × NURBS lane's wall is the second operand.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BoundaryChart {
+    /// The first operand's.
+    First,
+    /// The second operand's.
+    Second,
+}
+
+/// Where a branch meets a NURBS operand's knot rectangle: the operand,
+/// a side and the parameter along it (`v` on a `u` side, `u` on a `v`
+/// side).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BoundaryPoint {
+    /// Whose rectangle.
+    pub chart: BoundaryChart,
     /// The side.
     pub side: ChartSide,
     /// The parameter along the side.
@@ -665,7 +678,11 @@ impl Pass<'_> {
             return Err(refuse());
         }
         Ok(Crossing {
-            at: BoundaryPoint { side, t },
+            at: BoundaryPoint {
+                chart: BoundaryChart::Second,
+                side,
+                t,
+            },
             state,
         })
     }

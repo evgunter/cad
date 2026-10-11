@@ -3956,6 +3956,7 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
                     RecipeNodeId::new(0, 3),
                 )),
             ],
+            replay: pncad::document::coincide::Unreplayed::NotReplayed,
         }),
         recourse: pncad::document::coincide::Recourse::OneConstruction,
     };
@@ -4212,12 +4213,11 @@ fn every_stale_declaration_arm_projects_the_payload_it_carries() {
         Some("edge_edge")
     );
     assert_eq!(
-        word(StaleDeclaration::CurveLocus {
-            face_a: FaceKey::default(),
-            face_b: FaceKey::default(),
-            witness: Default::default(),
+        word(StaleDeclaration::EdgeFace {
+            edge: Default::default(),
+            face: FaceKey::default(),
         }),
-        Some("curve_locus")
+        Some("edge_face")
     );
     assert_eq!(
         word(StaleDeclaration::Patch {
@@ -4894,7 +4894,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "curved_edge_unsupported",
             "curved_pair_unsupported",
             "curved_pierce_unsupported",
-            "curved_rest_unrecorded",
             "curved_sector_side_unsupported",
             "declaration_contradicted",
             "degenerate_torus",
@@ -5039,7 +5038,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "coincidence_rung_tag",
-        values: &["same_construction"],
+        values: &["carrier_verdict", "margin_identity", "same_construction"],
         delegates: &[],
     },
     TagEntry {
@@ -5789,7 +5788,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "param_box_error_tag",
-        values: &["axis_unrepresentable", "unknown_param"],
+        values: &[
+            "axis_unrepresentable",
+            "symbols_across_a_part_seam",
+            "symbols_over_a_box",
+            "unknown_param",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -6317,8 +6321,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "stale_declaration_tag",
         values: &[
-            "curve_locus",
             "edge_edge",
+            "edge_face",
             "patch",
             "vertex_on_edge",
             "vertex_on_face",
