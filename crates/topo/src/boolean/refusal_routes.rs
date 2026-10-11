@@ -1692,6 +1692,59 @@ pub(in crate::boolean) mod tests {
         Band::linear(Tol::witness()).expect("the witness band forms")
     }
 
+    /// **A straddle `contfp` carries through `rim_wedge`'s seam cover**
+    /// (its containment refusal read as the bare diagnostic) ends where a
+    /// margin that was read ends: the seam door's and the tangent locus's
+    /// lever alone, where the poisoned margin it carried before the
+    /// enclosure added the unreadable-margin note. A rim no declaration
+    /// spent as a seam ends in its frontier either way.
+    #[test]
+    fn a_straddle_through_the_seam_cover_ends_in_the_lever_alone() {
+        use crate::contact::BooleanCoincidence;
+        use geom_core::{Decided, Sign};
+        let band = band();
+        let straddle = geom_core::k_stats::straddle(
+            "bool_contact_arc_straddle",
+            Decided {
+                sign: Sign::Zero,
+                margin: MarginDiag::value(0.5 * band.zero()),
+            },
+            Decided {
+                sign: Sign::Positive,
+                margin: MarginDiag::value(3.0 * band.escalate()),
+            },
+            band,
+        );
+        let poisoned = Indeterminate {
+            margin: MarginDiag::INVALID,
+            ..straddle
+        };
+        let said = |site, read, diag| BooleanError::coincidence(site, read, diag).to_string();
+        let seam = DeclarationRead::Spent(BooleanCoincidence::Seam);
+        for site in [Coincide::Rim, Coincide::TangentLocus] {
+            let (after, before) = (said(site, seam, straddle), said(site, seam, poisoned));
+            assert!(!after.contains(UNREADABLE_MARGIN_NOTE), "{site:?}: {after}");
+            assert!(
+                before.contains(UNREADABLE_MARGIN_NOTE),
+                "{site:?}: {before}"
+            );
+            assert_eq!(
+                after.rsplit_once("Recourse: ").map(|(_, r)| r),
+                before
+                    .rsplit_once("Recourse: ")
+                    .and_then(|(_, r)| r.split_once("; ").map(|(lever, _)| lever)),
+                "{site:?}: the same lever"
+            );
+        }
+        let rest = DeclarationRead::Spent(BooleanCoincidence::REST);
+        let ending = |s: String| s.rsplit_once("Recourse: ").map(|(_, r)| r.to_owned());
+        assert_eq!(
+            ending(said(Coincide::Rim, rest, straddle)),
+            ending(said(Coincide::Rim, rest, poisoned)),
+            "the rim frontier"
+        );
+    }
+
     fn diag_of(margin: MarginDiag) -> Indeterminate {
         Indeterminate {
             margin,

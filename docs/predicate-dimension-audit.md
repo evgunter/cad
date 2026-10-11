@@ -273,21 +273,23 @@ should know why. They live only in an `Indeterminate.predicate`:
 - six through `predicate: Some("…")`: `carrier_kind`,
   `contact_tangent_independent`, `contact_rest_senses_opposed`,
   `contact_rest_ladder_invariant`, `transversality`, `validate_probe`;
-- five through `topo::invalid_margin::invalid`:
-  - `bool_contact_arc_straddle` and `point_in_arc_loop_conic_straddle`,
-    an ellipse's lower and upper bound on one distance straddling the
-    whole band;
-  - `point_in_arc_loop_boundary_disagreement`, the carrier walk meeting
-    on an edge a point its caller's pass placed off it;
-  - `pc_axis_plane_parallel_disagreement` and
-    `pc_parallel_gap_disagreement`, a plane×cylinder section on the
-    declared-tangency path served one class over a wall face's reach
-    read over each edge's span and another over it read round each
-    edge's whole turn (`chord_join::agreed_section`);
+- five as the name argument of a `k_stats::straddle` call, two decided
+  bounds on one quantity straddling the band:
+  - an ellipse's lower and upper bound on one distance, or on its span's
+    overlap, under each caller's conic rows: `bool_contact_arc_straddle`,
+    `point_in_arc_loop_conic_straddle`, `pm_census_ef_cross_arc_straddle`
+    and `bool_sphere_region_arc_straddle` (whose arcs are circles, whose
+    two bounds are one, so it is never raised);
+  - `pc_axis_plane_parallel_straddle`, a plane×cylinder section on the
+    declared-tangency path read in the rulings' lane over a wall face's
+    reach measured over each edge's span and in the conic lane over it
+    measured round each edge's whole turn (`chord_join::agreed_section`);
 - one, `plane_nurbs_transversality_reported`, as the name argument of a
-  `k_stats::gate_measured` call. That records the escalation on the
-  open frame but classifies nothing, so it is outside this table for
-  the same reason the other eleven are.
+  `k_stats::gate_measured` call.
+
+The two `k_stats` doors record the escalation on the open frame but
+classify nothing, so their names are outside this table for the same
+reason the other six are.
 None decides anything, none appears in the M7 baseline, and none has a
 comparand to dimension.
 
