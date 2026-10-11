@@ -159,6 +159,19 @@ fn a_landings_door_reads_pending_until_its_own_answer_settles() {
         "the rod's support row is unproven: {report}"
     );
     assert!(pending_line(report).is_none());
+
+    // A second answer for the settled landing is dropped, not settled
+    // twice.
+    let again = second
+        .job
+        .run(&second.doc, &CancelToken::new())
+        .expect("an uncanceled door");
+    held.seen().answers.push(DoorDone {
+        generation: second.generation,
+        findings: Ok(again),
+    });
+    session.pump();
+    assert_eq!(unproven(&session), 1, "settled once");
 }
 
 /// **The threaded door seam answers the newest landing only.** Two jobs

@@ -659,9 +659,9 @@ pub fn drawn_node(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> RecipeNodeId
 
 /// **A door seam that answers nothing**: it drops every job, so a
 /// landing's checks report reads the coincidence door pending for
-/// good. For the rows that sweep the corpus for pictures and picks and
-/// never read the checks, which would otherwise pay the door's replay
-/// at every landing.
+/// good. For the rows that never read the coincidence door's findings
+/// (some read the other residents', which do not pend), which would
+/// otherwise pay the door's replay at every landing.
 pub struct NoDoor;
 
 impl viewer::evalseam::DoorService for NoDoor {

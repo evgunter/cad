@@ -853,7 +853,8 @@ impl DocSession {
 
     /// This session with its coincidence door run through `door`, in
     /// place of the inline seam [`DocSession::new`] gives it, which runs
-    /// a landing's door inside [`DocSession::pump`].
+    /// a landing's door inside [`DocSession::pump`]. Taken before the
+    /// first pump: a job the replaced seam holds is dropped with it.
     #[must_use]
     pub fn with_door(mut self, door: Box<dyn DoorService>) -> Self {
         self.door = door;

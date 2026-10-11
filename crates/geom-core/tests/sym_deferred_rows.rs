@@ -122,7 +122,8 @@ fn an_open_margin_says_whether_it_keeps_an_opaque_atom() {
 /// − 3` at `x = y = z = 1` decides Zero by value; at a budget of two
 /// terms its form freezes, so it does not discharge, and what keeps it
 /// open is a frozen form over the parameters alone, not a value
-/// computed apart from them. Reds if a frozen node reads as opaque.
+/// computed apart from them, though the session holds an opaque value
+/// elsewhere. Reds if a frozen node reads as opaque.
 #[test]
 fn a_frozen_form_over_the_parameters_keeps_no_opaque_atom() {
     let tight = SymBudget {
@@ -130,6 +131,7 @@ fn a_frozen_form_over_the_parameters_keeps_no_opaque_atom() {
         max_degree: 128,
     };
     let (got, _) = with_deferred_session(tight, SymRules::shipped(), SymRetry::none(), || {
+        let _elsewhere = Sym::opaque(1.0) - p("w", 1.0);
         let (x, y, z) = (p("x", 1.0), p("y", 1.0), p("z", 1.0));
         let three = <Sym<f64> as geom_core::Real>::from_f64(3.0);
         let frozen = zero(x * y + y * z + z * x - three);

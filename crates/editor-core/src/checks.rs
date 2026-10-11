@@ -804,7 +804,9 @@ pub struct ChecksReport {
     /// findings by root-list position then output index, residents in
     /// registry order. NOT one global sort — root 5's connectedness
     /// finding precedes root 1's separation finding, because each
-    /// resident appends its own pass in sequence.
+    /// resident appends its own pass in sequence, and the coincidence
+    /// door's are settled into the place its pass holds
+    /// ([`ChecksReport::settle`]).
     pub findings: Vec<CheckFinding>,
     /// Checks that did not run because their severity is `Off`.
     pub skipped: Vec<CheckId>,

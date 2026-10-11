@@ -1383,6 +1383,8 @@ fn census_the_door_over_the_corpus() {
             .filter(|(_, rows)| !rows.is_empty())
             .collect();
         let t = std::time::Instant::now();
+        // The replay alone, as `coincide/replay.rs` runs it: its budget
+        // and options spelled again here, kept in step with it by hand.
         let replay = (!nodes.is_empty()).then(|| {
             geom_core::sym::deferred::with_deferred_session(
                 geom_core::SymBudget {
@@ -1616,7 +1618,10 @@ fn a_symbolic_run_with_a_resolver_refuses_every_node() {
 /// **The door enters a report one way.** On a filleted corpus document,
 /// the registry split at rest reads the door pending and holds none of
 /// its findings; its job, run and settled, gives back the synchronous
-/// report exactly, findings in the same places.
+/// report exactly, findings in the same places. An expectation about a
+/// subject the document lacks is a connectedness finding, which the
+/// registry runs before the door: it stays first in both reports. Reds
+/// if the door's findings go anywhere but after the residents before it.
 #[test]
 fn a_report_settled_at_rest_is_the_synchronous_report() {
     let cd = crate::corpus::documents()
@@ -1625,7 +1630,8 @@ fn a_report_settled_at_rest_is_the_synchronous_report() {
         .expect("a corpus document");
     let ev = run(&cd.doc);
     let tol = Tol::witness();
-    let cfg = ChecksConfig::default();
+    let mut cfg = ChecksConfig::default();
+    cfg.expected_components.insert((ev.order[0], 99), 1);
     let gathered = editor_core::product_recorded(&cd.doc, &ev, tol).expect("the product gathers");
     let sync = editor_core::run_checks_on(
         &cd.doc,
@@ -1639,11 +1645,10 @@ fn a_report_settled_at_rest_is_the_synchronous_report() {
         sync.pending.is_empty(),
         "a synchronous report pends on nothing"
     );
-    assert!(
-        sync.findings
-            .iter()
-            .any(|f| f.check == CheckId::UnprovenCoincidence),
-        "the rod's support row is a finding: {sync}"
+    assert_eq!(
+        sync.findings.iter().map(|f| f.check).collect::<Vec<_>>()[..2],
+        [CheckId::Connectedness, CheckId::UnprovenCoincidence],
+        "the stale expectation, then the rod's support row: {sync}"
     );
     let (mut at_rest, job) = editor_core::run_checks_at_rest_on(
         &cd.doc,
