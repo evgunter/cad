@@ -2943,7 +2943,9 @@ impl Descendants {
             match piece_holds(body, p, q, band)? {
                 Some(true) => {
                     if held.replace(p).is_some() {
-                        return Err(desync("two pieces of one divided face hold a recorded vertex"));
+                        return Err(desync(
+                            "two pieces of one divided face hold a recorded vertex",
+                        ));
                     }
                 }
                 Some(false) => {}
