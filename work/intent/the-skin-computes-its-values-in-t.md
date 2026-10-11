@@ -2,7 +2,7 @@
 id: the-skin-computes-its-values-in-t
 kind: issue
 title: The skin computes its sections' values in f64 and lifts them as unknowns, so no lofted or swept carrier is a function of its variables
-status: open
+status: dispatched
 opened: 2026-10-11
 priority: P1
 cost: H
