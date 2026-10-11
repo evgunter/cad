@@ -43,8 +43,11 @@
 //!   form's own enclosures. `E` and `G` are DEPENDENT squares — no
 //!   cancellation to lose — so on a near-orthogonal chart (`F ≈ 0`)
 //!   this is far tighter than either cross-product assembly, whose
-//!   three components each carry the full width of two factors. It is
-//!   also the only assembly that tightens the SUP side.
+//!   three components each carry the full width of two factors.
+//!
+//! The SUP side is none of these: it is [`PatchCell::m_sup`], read from
+//! the norms of coefficient vectors (D4 ¶2), so a rigid map moves it
+//! only by rounding.
 //!
 //! ## Conservatism direction, stated
 //!
@@ -148,7 +151,7 @@ use geom_core::interval::{div_down, max_bound, min_bound, norm_sq, norm_sup};
 use geom_core::{Band, Indeterminate, Margin, SupSpeed};
 
 use crate::dihedral::decide_reported;
-use crate::patch_bound::{PatchBoundError, PatchCell, patch_cells_refined};
+use crate::patch_bound::{PatchBoundError, PatchCell, cross, patch_cells_refined};
 use crate::recourse::{
     AtZero, Reading, Refused, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
 };
@@ -428,25 +431,10 @@ pub fn mig(i: Interval) -> f64 {
     }
 }
 
-/// Interval dot product, fixed ascending order (D9).
+/// Interval dot product, fixed ascending order (D9): the borrow-shaped
+/// pair's other half beside [`crate::patch_bound::cross`].
 fn dot(a: &[Interval; 3], b: &[Interval; 3]) -> Interval {
     a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
-}
-
-/// Interval cross product, fixed component order (D9).
-///
-/// Component-for-component `ssi::enclose::cross3`, which is private
-/// to that module and takes its operands by value. [`dot`] and this
-/// are the borrow-shaped pair; if a third consumer ever wants them,
-/// the pair collapses into one `geom_core` home beside
-/// [`norm_sq`], which already has — noted at both sites so the
-/// duplication is a decision rather than an accident.
-fn cross(a: &[Interval; 3], b: &[Interval; 3]) -> [Interval; 3] {
-    [
-        a[1] * b[2] - a[2] * b[1],
-        a[2] * b[0] - a[0] * b[2],
-        a[0] * b[1] - a[1] * b[0],
-    ]
 }
 
 /// One cell's chart-normal facts: the enclosure of `S_u × S_v` and
@@ -460,8 +448,9 @@ pub struct CellNormal {
     /// area) — the regularity floor. Exactly `0.0` when neither
     /// assembly could separate the cell's normal from zero.
     pub floor: f64,
-    /// Certified UPPER bound on `‖m‖` over the cell, same units; NaN
-    /// when the cell's enclosures refused.
+    /// Certified UPPER bound on `‖m‖` over the cell, same units:
+    /// [`PatchCell::m_sup`], read from coefficient vectors (D4 ¶2)
+    /// rather than from [`Self::m`]'s box. NaN when refused.
     pub sup: f64,
 }
 
@@ -521,7 +510,7 @@ pub fn cell_normal(cell: &PatchCell) -> CellNormal {
         0.0
     };
     // Assembly C: the Gram determinant, `‖m‖² = EG − F²` (Lagrange's
-    // identity). It bounds BOTH ends, and on a chart whose parameter
+    // identity). On a chart whose parameter
     // directions are near-orthogonal it is dramatically tighter than
     // either cross-product assembly — `E` and `G` are DEPENDENT
     // squares with no cancellation to lose, while the cross product's
@@ -534,18 +523,16 @@ pub fn cell_normal(cell: &PatchCell) -> CellNormal {
     // outside fact that clamps it.
     let gram = norm_sq(&cell.s_u) * norm_sq(&cell.s_v) - dot(&cell.s_u, &cell.s_v).sqr();
     let root_c = gram.clamped_to(0.0, f64::INFINITY).sqrt();
-    let (c, gram_sup) = if !root_c.is_certified() {
-        (0.0, f64::NAN)
+    let c = if !root_c.is_certified() {
+        0.0
     } else {
-        (root_c.lo(), root_c.hi())
+        root_c.lo()
     };
     let floor = if a > b { a } else { b };
     CellNormal {
         m,
         floor: if floor > c { floor } else { c },
-        // Each side is a sound sup or NaN (refused): the join keeps
-        // whichever answered, and is NaN only when neither did.
-        sup: norm_sup(&m).min(gram_sup),
+        sup: cell.m_sup,
     }
 }
 
@@ -1298,6 +1285,7 @@ mod tests {
             s_vv: p(0.0, 0.0, 0.0),
             s_u_sup: 1.0,
             s_v_sup: 1.0,
+            m_sup: 1.0,
         };
         let refused = PatchCell {
             u: (1.0, 2.0),
@@ -1307,6 +1295,7 @@ mod tests {
                 Interval::point(0.0),
             ],
             s_u_sup: f64::NAN,
+            m_sup: f64::NAN,
             ..healthy
         };
         for (order, cells) in [

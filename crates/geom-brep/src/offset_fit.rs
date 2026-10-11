@@ -2971,19 +2971,23 @@ mod tests {
         }
     }
 
-    /// **The certificate's vector upper bounds are frame-invariant to
-    /// rounding (D4 ¶2).** A bowed patch and an offset "fit" of it are
-    /// rotated rigidly, and every cell's `sup‖Y‖` and `sup‖M̃‖`, the
-    /// regularity meter's chart speeds, and every cell's
+    /// **The certificate's and the meters' vector upper bounds are
+    /// frame-invariant to rounding (D4 ¶2).** A bowed patch, an offset
+    /// "fit" of it, and a rational twin of the patch are rotated
+    /// rigidly, and every cell's `sup‖Y‖` and `sup‖M̃‖`, every cell's
     /// [`Composite::cell_bound`] (at the unrotated frame's regularity
     /// floor, so the bound reads `Y` and `M̃` the way the certificate
-    /// does) are compared with the unrotated frame's, each against its
-    /// own largest value over the patch.
+    /// does), and both patches' chart speeds and per-cell
+    /// `sup‖S_u × S_v‖` (the meters' cells) are compared with the
+    /// unrotated frame's, each against its own largest value over the
+    /// patch.
     /// Read from the coefficient vectors' norms they move by rounding
     /// alone (measured worst `5.6e-13`, on `‖Y‖`); a box of three
     /// channel hulls folded into a norm reads up to `√3`× the vector's
     /// reach depending on how it sits against the axes, and moves `‖Y‖`
-    /// by `8.7e-2` here.
+    /// by `8.7e-2` here, the rational speeds by `1.3e-2` and the
+    /// meters' `sup‖S_u × S_v‖` by `1.7e-4` (integral) and `2.9e-2`
+    /// (rational) on the meters' first rung.
     ///
     /// The fit is deliberately crude — the base lifted by `d` along
     /// `z` — so that `Y` is a real vector, the normal's tilt times `d`,
@@ -3003,22 +3007,44 @@ mod tests {
             .unwrap();
         let d = 0.05;
         let fit = base.map_points(|p| Point3::new(p.x, p.y, p.z + d));
+        // Weights that vary along both directions, so every quotient
+        // term of the rational forms is live.
+        let weights: Vec<f64> = (0..base.weights().len())
+            .map(|k| 1.0 + 0.15 * f64::from(u32::try_from(k % 5).unwrap()) / 4.0)
+            .collect();
+        let rational = geom::NurbsSurface::new(
+            base.knots_u().clone(),
+            base.knots_v().clone(),
+            base.control().to_vec(),
+            weights,
+        )
+        .unwrap();
         // The regularity floor `τ` divides by is box-assembled, so it is
         // held at the unrotated frame's value: the `cell_bound` column
         // then moves only with the readings it takes from `Y` and `M̃`.
         let floor = crate::offset_meters::patch_regularity(
-            &crate::patch_bound::patch_cells(&base).unwrap(),
+            &crate::patch_bound::patch_cells_refined(&base, 1).unwrap(),
         )
         .floor;
-        let reading = |base: &geom::NurbsSurface<f64>, fit: &geom::NurbsSurface<f64>| {
+        let meters = |n: &geom::NurbsSurface<f64>| {
+            let cells = crate::patch_bound::patch_cells_refined(n, 1).unwrap();
+            let reg = crate::offset_meters::patch_regularity(&cells);
+            let normal = cells
+                .iter()
+                .map(|c| crate::offset_meters::cell_normal(c).sup)
+                .collect::<Vec<_>>();
+            (vec![reg.speed_u.get(), reg.speed_v.get()], normal)
+        };
+        let reading = |base: &geom::NurbsSurface<f64>,
+                       fit: &geom::NurbsSurface<f64>,
+                       rational: &geom::NurbsSurface<f64>| {
             let comp = Composite::build(base, fit, d).unwrap();
             let (nu, nv) = comp.x.cell_counts();
             let cells: Vec<(usize, usize)> = (0..nu)
                 .flat_map(|su| (0..nv).map(move |sv| (su, sv)))
                 .collect();
-            let reg = crate::offset_meters::patch_regularity(
-                &crate::patch_bound::patch_cells(base).unwrap(),
-            );
+            let (speeds, normal) = meters(base);
+            let (r_speeds, r_normal) = meters(rational);
             [
                 cells
                     .iter()
@@ -3028,26 +3054,41 @@ mod tests {
                     .iter()
                     .map(|&(su, sv)| comp.m_tilde_sup(su, sv))
                     .collect(),
-                vec![reg.speed_u.get(), reg.speed_v.get()],
+                speeds,
                 cells
                     .iter()
                     .map(|&(su, sv)| comp.cell_bound(su, sv, floor, d))
                     .collect(),
+                normal,
+                r_speeds,
+                r_normal,
             ]
         };
-        let names = ["sup‖Y‖", "sup‖M̃‖", "the chart speeds", "cell_bound"];
-        let at_rest = reading(&base, &fit);
+        let names = [
+            "sup‖Y‖",
+            "sup‖M̃‖",
+            "the chart speeds",
+            "cell_bound",
+            "the meters' sup‖S_u × S_v‖",
+            "the rational chart speeds",
+            "the rational meters' sup‖S_u × S_v‖",
+        ];
+        let at_rest = reading(&base, &fit, &rational);
         assert_eq!(
             at_rest[0].len(),
             16,
             "the refined bowed patch has 4×4 cells"
         );
-        let mut worst = [0.0f64; 4];
+        let mut worst = [0.0f64; 7];
         for axis in [[1.0, 1.0, 1.0], [0.3, -0.4, 0.8]] {
             for k in 1..=8 {
                 let t = 0.405 * f64::from(k);
                 let r = rotation(axis, t);
-                let moved = reading(&base.map_points(&r), &fit.map_points(&r));
+                let moved = reading(
+                    &base.map_points(&r),
+                    &fit.map_points(&r),
+                    &rational.map_points(&r),
+                );
                 for (q, (now, then)) in moved.iter().zip(&at_rest).enumerate() {
                     assert_eq!(now.len(), then.len());
                     let scale = then.iter().copied().fold(0.0f64, f64::max);
@@ -3064,8 +3105,8 @@ mod tests {
             }
         }
         eprintln!(
-            "worst drift: sup‖Y‖ {:e}, sup‖M̃‖ {:e}, speeds {:e}, cell_bound {:e}",
-            worst[0], worst[1], worst[2], worst[3]
+            "worst drift: {:?}",
+            names.iter().zip(worst).collect::<Vec<_>>()
         );
         for (q, w) in worst.iter().enumerate() {
             assert!(
