@@ -3866,7 +3866,7 @@ impl fmt::Display for ValidationError {
                 contact, witness, ..
             } => write!(
                 f,
-                "{contact} at {} is a contact no record backs. {}",
+                "{contact} at {} is an unrecorded contact. {}",
                 witness.split(" — ").next().unwrap_or(witness),
                 crate::contact::CONTACT_RECOURSE_MARKED
             ),

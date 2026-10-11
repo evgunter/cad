@@ -1172,7 +1172,7 @@ class TestAssemblyRefusals(BenchWorkspace):
             assemble(doc, ev)
         err = caught.exception
         self.assertEqual(err.variant, "at_rest")
-        self.assertIn("is a contact no record backs", str(err))
+        self.assertIn("is an unrecorded contact", str(err))
 
     def test_a_mate_head_that_is_not_a_face_refuses_where_the_mate_is_built(self):
         """A mate's declaration is a FACE-PAIR contact, and the kernel

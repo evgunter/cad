@@ -112,7 +112,7 @@ fn a_mate_read_below_a_pattern_declares_nothing_and_the_badge_turns_red() {
     );
     match session.at_rest() {
         Some(AtRestBadge::Refused { message }) => assert!(
-            message.contains("is a contact no record backs"),
+            message.contains("is an unrecorded contact"),
             "the seat the mate does not declare is the gate's unrecorded contact: {message}"
         ),
         other => panic!("a mate read below a pattern turns the badge red, got {other:?}"),
