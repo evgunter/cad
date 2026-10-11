@@ -25,7 +25,7 @@ use geom_core::{Band, OrthoFrame, Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane};
 use sweep::test_support::{brick, corners, finished, prism_on, revolved_about_y, sketch_from_axes};
 use sweep::{ExtrudeSide, Extrusion, Revolution, extrude};
-use topo::{AtRestBody, BooleanError, BooleanResult, FaceContainment};
+use topo::{AtRestBody, BooleanError, BooleanResult, ContactKind, FaceContainment};
 
 /// The wall's centre is `C` in from the edge along both box faces, so
 /// its radius is `C√2` and it crosses each of those faces `2C` from
@@ -134,27 +134,31 @@ fn checked(what: &str, r: Result<BooleanResult<f64>, BooleanError>, vf: usize) -
     topo::validate_closed(&bb.body).unwrap_or_else(|e| panic!("{what}: tier 2: {e:?}"));
     topo::validate_pseudomanifold(&bb.body, &bb.contacts, t)
         .unwrap_or_else(|e| panic!("{what}: tier 3′ against its records: {e:?}"));
-    let c = &bb.contacts;
-    let rests: Vec<_> = c.a_on_b.iter().chain(&c.b_on_a).collect();
+    let rests: Vec<_> = bb
+        .contacts
+        .kinds()
+        .filter_map(|k| match k {
+            ContactKind::VertexFace(v, f) => Some((v, f)),
+            _ => None,
+        })
+        .collect();
     assert_eq!(rests.len(), vf, "{what}: v-f records {rests:?}");
-    assert!(
-        c.vv.is_empty()
-            && c.ve.is_empty()
-            && c.ee.is_empty()
-            && c.curves.is_empty()
-            && c.patches.is_empty(),
-        "{what}: no other record kind: {c:?}"
+    assert_eq!(
+        bb.contacts.len(),
+        vf,
+        "{what}: no other record kind: {:?}",
+        bb.contacts
     );
     let band = Band::linear(t).unwrap();
-    for r in rests {
+    for r @ (vertex, face) in rests {
         let q = bb
             .body
             .vertex_points()
-            .find(|&(k, _)| k == r.vertex)
+            .find(|&(k, _)| k == vertex)
             .map(|(_, q)| q)
             .unwrap_or_else(|| panic!("{what}: {r:?}'s vertex is live"));
         assert_eq!(
-            topo::curved_face_containment(&bb.body, r.face, q, band).unwrap(),
+            topo::curved_face_containment(&bb.body, face, q, band).unwrap(),
             Some(FaceContainment::In),
             "{what}: {r:?}'s face holds its vertex"
         );

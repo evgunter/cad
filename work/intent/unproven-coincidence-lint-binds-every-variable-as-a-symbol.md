@@ -2,8 +2,9 @@
 id: unproven-coincidence-lint-binds-every-variable-as-a-symbol
 kind: issue
 title: Stage 4's unproven-coincidence lint binds every variable as a symbol in its own pass
-status: open
+status: closed
 opened: 2026-10-06
+closed: 2026-10-10
 ---
 
 
@@ -33,3 +34,16 @@ says the kernel must not trust.
 Done when the lint's symbolic binding is its own door, and a row shows
 two separately typed equal values flagged by the lint while the
 analysis lane decides their difference Zero.
+
+## Closed
+
+Closed by `carriers-compare-in-canonical-form`. The door's binding is
+its own door: `editor_core::analysis::var_env_symbolic`, reached
+through `EvalOptions::symbols`, binds every continuous free variable
+as a symbol keyed by its id, whatever its tolerance. The row is
+`two_variables_typed_equal_are_one_constant_to_the_analysis_lane_and_two_symbols_to_the_door`
+in `crates/editor-core/tests/coincidence_door.rs`. A block's height
+and a plate's floor, both typed 1 m, give a difference that
+`var_env_over` decides Zero as a theorem and that the door decides
+Zero by value alone. `a_declared_rest_is_one_unproven_row_named_by_its_operands`
+is the lint reporting that rest.

@@ -528,7 +528,7 @@ pub enum ImportContact {
     /// Two vertices of the assembled body coincide at `at` and are
     /// declared at REST: resolves to the exactly-two vertices within
     /// ε_in of the anchor — the FILE's tolerance, not the kernel band
-    /// — and mints their `VvContact`.
+    /// — and mints their vertex–vertex record.
     VertexRest {
         /// The anchor position (model metres).
         at: [f64; 3],
@@ -992,12 +992,15 @@ fn resolve_declarations(
         match *c {
             ImportContact::VertexRest { at } => {
                 let candidates = body.vertex_points();
-                let (pair, row) = vertex_rest_contact(candidates, at, eps_in)?;
+                let ([a, b], row) = vertex_rest_contact(candidates, at, eps_in)?;
+                let Ok(pair) =
+                    topo::Contact::new(body, topo::Cell::Vertex(a), topo::Cell::Vertex(b))
+                else {
+                    unreachable!("two hits of one walk over the vertices are two vertices")
+                };
                 let k = u32::try_from(rows.len()).unwrap_or(u32::MAX);
                 rows.push(row);
-                records
-                    .vv
-                    .push(topo::Cited::new(pair, topo::Cites::decided(k)));
+                records.extend([topo::Cited::new(pair, topo::Cites::decided(k))]);
             }
         }
     }
@@ -1006,14 +1009,14 @@ fn resolve_declarations(
 
 /// One vertex-rest anchor resolved against the body's vertices, each
 /// paired with its position: the exactly-two coincidences within ε_in
-/// of `at`, as the kernel's `VvContact`, and the row recording the
+/// of `at`, in walk order, and the row recording the
 /// decision. Its margin is the farther vertex's distance from the
 /// anchor, the comparison against ε_in that bound the pair.
 fn vertex_rest_contact(
     candidates: impl Iterator<Item = (topo::VertexKey, geom_core::Point3<f64>)>,
     at: [f64; 3],
     eps_in: f64,
-) -> Result<(topo::VvContact, topo::Coincidence), StepImportError> {
+) -> Result<([topo::VertexKey; 2], topo::Coincidence), StepImportError> {
     let mut hits = Vec::new();
     for (vk, p) in candidates {
         let d2 = (p.x - at[0]).powi(2) + (p.y - at[1]).powi(2) + (p.z - at[2]).powi(2);
@@ -1037,7 +1040,7 @@ fn vertex_rest_contact(
         margin: geom_core::MarginDiag::value(da.max(db).sqrt()),
         discharge: topo::Discharge::Numeric,
     };
-    Ok((topo::VvContact { a, b }, row))
+    Ok(([a, b], row))
 }
 
 #[cfg(test)]
@@ -1060,7 +1063,7 @@ mod declaration_tests {
     }
 
     /// The resolvable case, end to end through the walk: an anchor on
-    /// two coincident vertices mints their `VvContact`, citing the row
+    /// two coincident vertices mints their vertex–vertex record, citing the row
     /// that records the anchor's decision.
     #[test]
     fn a_vertex_rest_anchor_resolves_two_coincident_vertices() {
@@ -1074,10 +1077,10 @@ mod declaration_tests {
             1e-9,
         )
         .expect("two coincident vertices resolve");
-        assert_eq!(records.vv.len(), 1, "one declaration, one record");
+        assert_eq!(records.len(), 1, "one declaration, one record");
         assert_eq!(
-            [records.vv[0].a, records.vv[0].b],
-            [keys[0], keys[1]],
+            records.rows()[0].kind(),
+            topo::ContactKind::VertexVertex(keys[0].min(keys[1]), keys[0].max(keys[1])),
             "the record names the two vertices at the anchor"
         );
         assert_eq!(rows.len(), 1, "one anchor, one decision");
@@ -1091,7 +1094,7 @@ mod declaration_tests {
             "the row names the two vertices"
         );
         assert_eq!(
-            records.vv[0].cites,
+            records.rows()[0].cites,
             topo::Cites::decided(0),
             "the record cites the anchor's row"
         );

@@ -10,7 +10,7 @@ use geom::Surface;
 use geom_brep::{TangentLocus, TangentLocusError, tangent_locus};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
-use topo::{Body, ContactRecords, PatchContact, ValidationError, validate_pseudomanifold};
+use topo::{Body, ContactRecords, ValidationError, validate_pseudomanifold};
 
 fn band() -> Band {
     Band::new(1e-9, 1e-8).unwrap()
@@ -87,15 +87,11 @@ fn probe_bogus_planar_patch_record_never_silently_blesses() {
         }
         found.expect("a z-facing planar face")
     };
-    let patch = |fa, fb| ContactRecords {
-        patches: vec![topo::Cited::new(
-            PatchContact {
-                face_a: fa,
-                face_b: fb,
-            },
+    let patch = |fa, fb| {
+        topo::ContactRecords::from_iter(vec![topo::Cited::new(
+            topo::Contact::new(&body, topo::Cell::Face(fa), topo::Cell::Face(fb)).unwrap(),
             topo::Cites::decided(0),
-        )],
-        ..ContactRecords::default()
+        )])
     };
     let records = patch(z_facing(1.0, 1.0), z_facing(1.0, -1.0));
     let verdict = validate_pseudomanifold(&body, &records, Tol::witness());

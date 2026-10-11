@@ -199,6 +199,23 @@ fn slot_kind_tags_are_stable() {
     );
 }
 
+/// What a pose definition's read admits, as Python spells it: the
+/// fourth arm of `slot_kind_tag`.
+#[test]
+fn pose_admits_tags_are_stable() {
+    use pncad::document::SlotKind;
+    use pncad::document::pose::PoseAdmits as A;
+    for (admits, word) in [
+        (A::Carrier, "carrier"),
+        (A::Centre, "centre"),
+        (A::Sensed, "sensed"),
+        (A::Projected, "projected"),
+    ] {
+        assert_eq!(crate::errors::pose_admits_tag(admits), word);
+        assert_eq!(crate::errors::slot_kind_tag(SlotKind::Pose(admits)), word);
+    }
+}
+
 /// The FFI tag and the kernel's prose word are two spellings of one
 /// closed list. This crate owns the tag, so they are free to differ —
 /// but they do not, and a silent divergence between a refusal a user
@@ -2421,7 +2438,9 @@ fn node_error_tags_are_the_published_words() {
         MissingSlot => "missing_slot",
         VerbArity => "verb_arity",
         Escalated => "escalated",
-        AxisInDifferentPlane => "axis_in_different_plane",
+        PoseRead => "pose_read",
+        PoseDegenerate => "pose_degenerate",
+        PoseScalar => "pose_scalar",
         NonPositiveCount => "non_positive_count",
         NegativeSpacing => "negative_spacing",
         DegenerateSpacing => "degenerate_spacing",
@@ -3937,6 +3956,7 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
                     RecipeNodeId::new(0, 3),
                 )),
             ],
+            replay: pncad::document::coincide::Unreplayed::NotReplayed,
         }),
         recourse: pncad::document::coincide::Recourse::OneConstruction,
     };
@@ -4193,12 +4213,11 @@ fn every_stale_declaration_arm_projects_the_payload_it_carries() {
         Some("edge_edge")
     );
     assert_eq!(
-        word(StaleDeclaration::CurveLocus {
-            face_a: FaceKey::default(),
-            face_b: FaceKey::default(),
-            witness: Default::default(),
+        word(StaleDeclaration::EdgeFace {
+            edge: Default::default(),
+            face: FaceKey::default(),
         }),
-        Some("curve_locus")
+        Some("edge_face")
     );
     assert_eq!(
         word(StaleDeclaration::Patch {
@@ -5020,7 +5039,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "coincidence_rung_tag",
-        values: &["same_construction"],
+        values: &["carrier_verdict", "margin_identity", "same_construction"],
         delegates: &[],
     },
     TagEntry {
@@ -5153,6 +5172,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "pin_unchanged",
             "placement_axis",
             "placement_rule_mismatch",
+            "pose_shape",
             "profile_program_refused",
             "promote_member_offset",
             "promote_non_root",
@@ -5211,6 +5231,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_fault_tag",
             "meta_version_error_tag",
             "node_error_tag",
+            "pose_fault_tag",
             "program_refusal_tag",
             "selection_fault_tag",
             "step_id_fault_tag",
@@ -5551,7 +5572,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "node_error_tag",
         values: &[
             "assertion_dimension",
-            "axis_in_different_plane",
             "band",
             "boolean",
             "chamfer",
@@ -5625,6 +5645,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "placement_refused",
             "placement_rule_mismatch",
             "placements_uncertified",
+            "pose_degenerate",
+            "pose_read",
+            "pose_scalar",
             "product_operand",
             "profile",
             "profile_anchor",
@@ -5662,7 +5685,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "node_inner_kind_tag",
-        values: &[],
+        values: &["meet", "through"],
         delegates: &[
             "band_error_tag",
             "blend_error_tag",
@@ -5678,6 +5701,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "param_box_error_tag",
             "pieces_fault_tag",
             "placement_rule_inner_tag",
+            "pose_read_fault_tag",
             "profile_error_tag",
             "readback_error_tag",
             "replay_error_tag",
@@ -5765,7 +5789,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "param_box_error_tag",
-        values: &["axis_unrepresentable", "unknown_param"],
+        values: &[
+            "axis_unrepresentable",
+            "symbols_across_a_part_seam",
+            "symbols_over_a_box",
+            "unknown_param",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -5859,6 +5888,24 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "placement_rule_inner_tag",
         values: &[],
         delegates: &["count_mismatch_tag"],
+    },
+    TagEntry {
+        function: "pose_fault_tag",
+        values: &[
+            "cycle",
+            "double_flip",
+            "kind",
+            "projection",
+            "read_kind",
+            "scalar_kind",
+            "unminted",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "pose_read_fault_tag",
+        values: &["no_axis", "no_centre", "not_planar", "readback"],
+        delegates: &[],
     },
     TagEntry {
         function: "product_error_tag",
@@ -6213,6 +6260,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "placement_non_finite",
             "placement_non_rigid",
             "placement_rule",
+            "pose_shape",
             "read_cycle",
             "reader_of_unminted_var",
             "reads_world_copy",
@@ -6274,8 +6322,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "stale_declaration_tag",
         values: &[
-            "curve_locus",
             "edge_edge",
+            "edge_face",
             "patch",
             "vertex_on_edge",
             "vertex_on_face",
@@ -6363,10 +6411,14 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "cylindrical",
             "empty",
+            "parallel",
             "planar",
+            "plane_translation",
             "prismatic",
             "revolute",
             "se3",
+            "spherical",
+            "translation",
             "trivial",
         ],
         delegates: &[],
@@ -6742,11 +6794,17 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("placement_refused", 2),
     ("placement_rule_mismatch", 2),
     ("poisoned", 2),
+    // One fact at the edit and load doors: a pose definition of a shape
+    // no door admits (`PoseFault`), refused at the seat and in a file.
+    ("pose_shape", 2),
     // The profile operand and the profile node's own evaluation class:
     // one word for the one node kind. The profile PROGRAM's slot says
     // `program`, which leaves `profile` to the operand the slot
     // alphabet forwards.
     ("profile", 2),
+    // One fact: `topo::readback` refused the face it read, as a face
+    // frame's refusal and as a pose read off geometry's.
+    ("readback", 2),
     // One fact at the edit and load doors: a slot reads a world
     // placement's copy.
     ("reads_world_copy", 2),
@@ -6780,7 +6838,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("unjoined_operand", 2),
     ("unknown_node", 5),
     ("unknown_param", 3),
-    ("unminted", 2),
+    // One fact three times: a reference to something no mint holds —
+    // a program's step, a step handle, and (`pose_fault_tag`) a pose
+    // definition's read.
+    ("unminted", 3),
     ("unnamed", 3),
     // One fact (A11 (2)): a group nothing places — the node that read
     // across its space, the inline that has no frame to splice at, the
@@ -8440,6 +8501,14 @@ const ERRORS_MINTING_ITEMS: &[MintingItem] = &[
             name: "the_two_dimension_alphabets_are_one_list_in_two_cases",
             holds: "the four words as the capitalised spelling of `dimension_tag`'s, \
                     over `Dimension::ALL`",
+        }],
+    },
+    MintingItem {
+        owner: "pose_admits_tag",
+        literals: 4,
+        held_by: &[Holder::Test {
+            name: "pose_admits_tags_are_stable",
+            holds: "the four words",
         }],
     },
     MintingItem {
