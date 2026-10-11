@@ -30,3 +30,14 @@ in it (CPU features, libm), is not bit-stable for this fixture on every
 runner. The test's own claim is bit-determinism at any thread count
 (`work/perf/plan.md`). Nobody has root-caused it. The lane that saw
 this could not re-run the job (the integration gets a 403).
+
+**The drift is the host's, not random.** The re-run on head `79c53486f`
+(job 114407755680) failed with exactly the same bits. So did
+`flux/sphere-arm`'s run 38117163664. Locally, the test also passes with
+CI's build settings (`CARGO_PROFILE_{DEV,TEST}_OPT_LEVEL=1`,
+line-tables-only debug). So the four-thread result is deterministic per
+host. It differs between the hosted runner and the container the
+golden was cut in. The likeliest cause is libm transcendentals (the arc
+loft evaluates sin/cos), but that has not been measured. Until it is
+settled, every PR whose diff touches `sweep` fails `gate ok` on this
+test.
