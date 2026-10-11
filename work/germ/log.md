@@ -897,3 +897,10 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - Coded (`scratchpad/dr4592/coding.md`), **0 tallied**. The pair is fair but flagged: R2 saw the filename `brief-a.md` and did not open it.
   - Bilateral MIN/MIN: the boolean join IS reached, and right bodies are lost to the apex-read bound. The PR body's Consumers section is wrong, and the P3 is under-scoped (no nappe, no boolean).
   - Fix pass: cloud session `session_01WeYG31VoA55k12e6iaAiL3`. It is also asked to try serving the pair to a one-nappe consumer if a derivation allows.
+- 2026-10-11 00:01 — Check-in.
+  - **PR 4600** (the half-angle measure-first; SEQUENTIAL, byte 31) is up and CI is green. Nothing is reachable on main, so both items close and no kernel code changed. One local Opus review is dispatched (r4600) on frozen `6501b07e9`.
+  - **PR 4603**, the plane × torus germ-frame spec, is merged after a green docs CI. It cuts four units, U-T1 to U-T4, plus U-H1, which is held by D10. Its rulings on Q2–Q7 stand as the orchestrator's.
+    - The fork Q1 (trace or guard the fat corner bar's lens) belongs to U-T4. It goes to one Opus and one Fable designer once U-T3 lands, when the measurements behind F3 exist.
+    - The spec found the row stale: the lily stops at the dispatch (F2), not at the frame.
+  - **U-T1** (M) is dispatched. Arm byte 144, mod 3 = 0: **HOLDOUT**. Cloud session `session_014Sj6YgYpZtxCW7SzpqV4aK`, branch `germ/plane-torus-germ-frame`.
+  - The PR 4592 fix pass is running.
