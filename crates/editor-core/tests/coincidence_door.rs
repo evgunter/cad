@@ -1398,3 +1398,60 @@ fn an_unproven_row_says_which_pass_left_it() {
         ]
     );
 }
+
+/// **What the full pass proves on the tour's composed dies**: the blend
+/// joints whose `fillet3_chain_g1` margin is the zero polynomial. One of
+/// `die_composed`'s two and 21 of `die_composed_tour`'s 42 prove as
+/// theorems, and the rest stay unproven by the full pass; every one is
+/// left to the full pass by the resident one.
+#[test]
+fn the_full_pass_proves_half_the_composed_dies_joints() {
+    for (name, proved, rows) in [("die_composed", 1, 2), ("die_composed_tour", 21, 42)] {
+        let cd = crate::corpus::documents()
+            .into_iter()
+            .find(|cd| cd.name == name)
+            .unwrap_or_else(|| panic!("{name} is a corpus document"));
+        let ev = run(&cd.doc);
+        let nodes: Vec<(RecipeNodeId, &[NamedCoincidence])> = ev
+            .order
+            .iter()
+            .filter_map(|&node| ev.value(node).map(|v| (node, &*v.coincidences)))
+            .filter(|(_, rows)| !rows.is_empty())
+            .collect();
+        let count = |pass| {
+            let proofs = coincide::prove(&cd.doc, &nodes, Tol::witness(), pass);
+            let all: Vec<Proof> = proofs.into_iter().flatten().collect();
+            let theorems = all
+                .iter()
+                .filter(|p| {
+                    matches!(
+                        p,
+                        Proof::Structural(Rung::MarginIdentity(geom_core::Theorem::SymbolicZero))
+                    )
+                })
+                .count();
+            (theorems, replays(&all))
+        };
+        let (full, replayed) = count(SymbolicPass::Full);
+        assert_eq!(
+            (full, replayed.len()),
+            (proved, rows),
+            "{name}: the full pass"
+        );
+        assert!(
+            replayed
+                .iter()
+                .flatten()
+                .all(|u| *u == coincide::Unreplayed::Numeric),
+            "{name}: the rest are unproven by the full pass: {replayed:?}"
+        );
+        let (resident, replayed) = count(SymbolicPass::Resident);
+        assert_eq!(resident, 0, "{name}: the resident pass replays nothing");
+        assert!(
+            replayed
+                .iter()
+                .all(|u| *u == Some(coincide::Unreplayed::ResidentBudget)),
+            "{name}: {replayed:?}"
+        );
+    }
+}

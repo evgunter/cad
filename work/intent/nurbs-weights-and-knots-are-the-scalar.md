@@ -56,3 +56,5 @@ Once the weights are `T`, each is a value this crate computed, so it
 stays in `T` or enters through `from_computed`. It does not stay as
 stored data re-read. Re-class them as each is touched. (Raised by PR
 4589's review, unverified.)
+
+Closing this removes a way for the coincidence door to report a false proof: the door's symbolic rungs (`carriers-compare-in-canonical-form`) are theorems about the expression the `Sym` replay saw, and a listed site re-enters a computed value there as a constant.

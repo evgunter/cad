@@ -42,3 +42,5 @@ with the question in their reason: a `MetredRect` is a query cell
 whose corners the driver computes by subdividing the window in `f64`.
 Is a cell a constant of the query, so `constant`, or a function of the
 window, so it re-enters through `from_computed` or stays in `T`?
+
+Closing this removes a way for the coincidence door to report a false proof: the door's symbolic rungs (`carriers-compare-in-canonical-form`) are theorems about the expression the `Sym` replay saw, and a listed site re-enters a computed value there as a constant.
