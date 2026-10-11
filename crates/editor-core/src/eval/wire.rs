@@ -3101,16 +3101,16 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 let base = fold_rows.len();
                 let used = contacts.decided();
                 if pairwise {
-                    let cited = used
-                        .iter()
-                        .map(|&k| {
-                            out.coincidences.get(k as usize).copied().ok_or(
-                                NodeErrorKind::Naming(names::NamingError::Emission {
-                                    what: UNION_STEP_UNDECIDED_CITE,
-                                }),
-                            )
-                        })
-                        .collect::<Result<Vec<_>, _>>()?;
+                    let cited =
+                        used.iter()
+                            .map(|&k| {
+                                out.coincidences.get(k as usize).copied().ok_or(
+                                    NodeErrorKind::Naming(names::NamingError::Emission {
+                                        what: UNION_STEP_UNDECIDED_CITE,
+                                    }),
+                                )
+                            })
+                            .collect::<Result<Vec<_>, _>>()?;
                     let acc_view =
                         names::collapse_table(id, &acc_table).map_err(NodeErrorKind::Naming)?;
                     fold_rows.extend(
@@ -3211,33 +3211,34 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     };
     // The fold rows the node's records cite are published after the
     // pairwise judgement's, the records renumbered onto them.
-    let contacts = if pairwise {
-        let used = contacts.decided();
-        let base = coincidences.len();
-        for &k in &used {
-            coincidences.push(fold_rows.get(k as usize).cloned().ok_or(
-                NodeErrorKind::Naming(names::NamingError::Emission {
-                    what: UNION_STEP_UNDECIDED_CITE,
-                }),
-            )?);
-        }
-        Arc::new(
-            (*contacts)
-                .clone()
-                .renumbered(|k| {
-                    used.binary_search(&k)
-                        .ok()
-                        .map(|rank| u32::try_from(base + rank).unwrap_or(u32::MAX))
-                })
-                .map_err(|_| {
+    let contacts =
+        if pairwise {
+            let used = contacts.decided();
+            let base = coincidences.len();
+            for &k in &used {
+                coincidences.push(fold_rows.get(k as usize).cloned().ok_or(
                     NodeErrorKind::Naming(names::NamingError::Emission {
-                        what: UNION_CARRY_UNCITED,
+                        what: UNION_STEP_UNDECIDED_CITE,
+                    }),
+                )?);
+            }
+            Arc::new(
+                (*contacts)
+                    .clone()
+                    .renumbered(|k| {
+                        used.binary_search(&k)
+                            .ok()
+                            .map(|rank| u32::try_from(base + rank).unwrap_or(u32::MAX))
                     })
-                })?,
-        )
-    } else {
-        contacts
-    };
+                    .map_err(|_| {
+                        NodeErrorKind::Naming(names::NamingError::Emission {
+                            what: UNION_CARRY_UNCITED,
+                        })
+                    })?,
+            )
+        } else {
+            contacts
+        };
     Ok(OpOut::plain(
         ValuePayload::Boolean(BooleanValue::Body {
             body: Arc::new(body),

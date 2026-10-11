@@ -2,9 +2,9 @@
 id: boolean-declared-doors-still-offer-the-declare-menu
 kind: issue
 title: topo: the Boolean's escalations at doors whose pair is already declared still offer 'declare the coincidence'
-status: parked
+status: closed
+closed: 2026-10-11
 opened: 2026-09-30
-blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -116,3 +116,7 @@ rung (`coincidence-tangent-locus-contact-section-escalate-without-their-rung`).
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: the remaining levers sit at declared-Tangent and declared-Rest doors (insert, sectors, verify_tangent_declaration, rest.rs), all retired at stage 4. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Closed (2026-10-11, stage 4 F)
+
+No escalation offers a declaration: `COINCIDENCE_RECOURSE` is the geometry arm alone, and the `Sectors` settled ending lost its declare arm. Whether each site should carry its own lever (the repair shape here) is `boolean-coincidence-route-still-holds-join-and-self-check-decisions`'s, which stays open.

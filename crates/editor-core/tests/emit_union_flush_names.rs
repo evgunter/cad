@@ -265,9 +265,9 @@ fn near_slab() -> Case {
 /// fail on any refusal not pinned here, so a new one cannot pass by
 /// being skipped.
 const KNOWN_REFUSING: &[(&str, &str, usize, &str)] = &[
-    ("cross", "U", 4, "Naming:4"),
-    ("row", "U", 2, "Naming:2"),
-    ("rowids", "U", 2, "Naming:2"),
+    ("cross", "U", 10, "Naming:10"),
+    ("row", "U", 8, "Naming:8"),
+    ("rowids", "U", 8, "Naming:8"),
 ];
 
 /// Every refusal `case`'s runs meet, pinned against [`KNOWN_REFUSING`]
@@ -647,22 +647,9 @@ fn a_member_of_two_touching_shells_names_each_shell_for_itself() {
                 );
                 member_vertices_hold(&ev, union, &at);
                 seam_sides_hold(&ev, union, &at);
-                // `U1` records its own touch and passes 3′. The union
-                // over it drops `U1`'s records, so its value ships the
-                // touch undeclared, which 3′ refuses and the door (tier 3
-                // only, the census parked) does not; pinned as it stands
-                // (`work/wire/a-boolean-drops-its-operands-own-contact-records.md`).
-                match crate::blocks::census_of(&ev, union) {
-                    Ok(()) => assert!(union == u1, "{at}: the top union passes 3′"),
-                    Err(errors) => assert!(
-                        union == top
-                            && errors.iter().all(|e| matches!(
-                                e,
-                                topo::ValidationError::UndeclaredContact { .. }
-                            )),
-                        "{at}: 3′ refuses only the dropped touch: {errors:?}"
-                    ),
-                }
+                // `U1` records its own touch, and the union over it
+                // carries that record.
+                assert_eq!(crate::blocks::census_of(&ev, union), Ok(()), "{at}: 3′");
             }
             fused += 1;
         }

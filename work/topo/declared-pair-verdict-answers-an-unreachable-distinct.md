@@ -2,9 +2,8 @@
 id: declared-pair-verdict-answers-an-unreachable-distinct
 kind: issue
 title: topo: declared_pair_verdict answers the declared rung's unreachable Distinct verdict as 'do not merge'
-status: parked
+status: open
 opened: 2026-09-30
-blocked_on: [intent-stage4-is-built]
 ---
 
 (TOPO, the receipt of the D262 unit, PR 3532: its sweep of every
@@ -42,3 +41,7 @@ neighbouring `PlaneEqError::Undeclared` arm of
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: merge_faces::declared_pair_verdict maps the declared plane rung, which goes with declared pairs at stage 4. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Released by stage 4 F (2026-10-11)
+
+Stage 4 F (`declared-pairs-retire`) retired every boolean declaration: no author can declare a pair, the glue is what the margins decide, and the declare offer, the flush detector and the carried declarations are gone. What this row waited on has fired; re-read it against that tree.

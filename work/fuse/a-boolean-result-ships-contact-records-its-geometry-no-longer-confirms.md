@@ -2,11 +2,10 @@
 id: a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms
 kind: issue
 title: A boolean result ships contact records its geometry no longer confirms, so the tier-3′ pass refuses it StaleContactDeclaration
-status: parked
+status: open
 opened: 2026-10-02
 priority: P2
 cost: M
-blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -109,3 +108,7 @@ loop to `i = 1`, and print `validate_pseudomanifold`'s error in
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: StaleContactDeclaration comes from the declared-contact records remap_contacts carries; stage 4 retires the declared-contact seats and records found contacts at the one door. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Released by stage 4 F (2026-10-11)
+
+Stage 4 F (`declared-pairs-retire`) retired every boolean declaration: no author can declare a pair, the glue is what the margins decide, and the declare offer, the flush detector and the carried declarations are gone. What this row waited on has fired; re-read it against that tree.

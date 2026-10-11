@@ -2,9 +2,8 @@
 id: plane-orientation-offers-no-tolerance-at-a-declared-rest-door
 kind: issue
 title: topo: the plane orientation rung offers no tolerance at a declared Rest door, where a smaller one would pass, because the decision carries no read
-status: parked
+status: open
 opened: 2026-09-30
-blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -42,3 +41,7 @@ add a case to `offer_rows` that raises it through
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: the repair carries DeclarationRead/PlaneDoor::OnPair(Spent(Rest)) on the decision; that declared-Rest door retires at stage 4. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Released by stage 4 F (2026-10-11)
+
+Stage 4 F (`declared-pairs-retire`) retired every boolean declaration: no author can declare a pair, the glue is what the margins decide, and the declare offer, the flush detector and the carried declarations are gone. What this row waited on has fired; re-read it against that tree.

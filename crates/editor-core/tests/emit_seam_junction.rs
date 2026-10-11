@@ -185,9 +185,11 @@ fn a_slab_crossing_a_merged_rim_is_named_by_the_rim_and_the_slab() {
 }
 
 /// The member orders, spelled by member, in which the four-member
-/// document reaches the seam-vertex residue `Emission`: measured, and
-/// pinned exactly.
-const SEAM_VERTEX_RESIDUE: [&str; 2] = ["ahbg", "habg"];
+/// document reaches the seam-vertex residue `Emission`: the eight that
+/// fold `a` and `h` before `b`, measured, and pinned exactly.
+const SEAM_VERTEX_RESIDUE: [&str; 8] = [
+    "aghb", "ahbg", "ahgb", "gahb", "ghab", "habg", "hagb", "hgab",
+];
 
 /// **Every order of every such document names the crossing the same.**
 ///
@@ -254,7 +256,7 @@ fn a_crossing_of_a_merged_rim_is_named_the_same_in_every_order_that_fuses() {
                 }
                 // The seam-vertex residue, in exactly the measured
                 // orders
-                // (`a-legal-declared-union-reaches-the-seam-vertex-parentage-residue-emission`).
+                // (`work/wire/a-legal-declared-union-reaches-the-seam-vertex-parentage-residue-emission.md`).
                 Some(NodeErrorKind::Naming(NamingError::Emission {
                     what: "seam vertex parentage underdetermined from incident edges",
                 })) => {

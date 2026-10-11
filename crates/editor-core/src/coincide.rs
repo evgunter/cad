@@ -466,7 +466,6 @@ pub(crate) struct RowInputs<'a> {
     pub tool: Option<crate::VarId>,
 }
 
-
 /// **The kernel's rows, named**: each cell by its name in the input
 /// table its key is in.
 ///

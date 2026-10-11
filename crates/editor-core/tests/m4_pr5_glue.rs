@@ -2,7 +2,8 @@
 //! end-to-end through the recipe.
 //!
 //! - **D6.1**: a 3′ body (corner-kiss union) reused as an operand
-//!   meets the 3′ gate with its kiss as an undeclared contact.
+//!   carries its kiss's contact record into the next union, which
+//!   passes 3′.
 //! - **D6.3, the #91 flush-plane narrative**: a coincident-plane pair
 //!   glues (N3 `Merged` row minted); the decoupled variant is
 //!   untouched.
@@ -88,9 +89,10 @@ fn kiss_base(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, Recipe
 }
 
 /// D6.1: a corner-kiss union reused as an operand carries its
-/// operand-internal kiss into the next union's records.
+/// operand-internal kiss into the next union's records, and the next
+/// union passes 3′.
 #[test]
-fn a_reused_kiss_meets_the_census_as_an_undeclared_contact() {
+fn a_reused_kiss_carries_its_record_into_the_next_union() {
     let (doc, _, _, base) = kiss_base(ProfileDoc::empty_derived("m4_pr5_declare", Tol::witness()));
     let (doc, mover) = block(doc, (1.5, 2.5), (1.5, 2.5), 1.5, 1.0);
     let (doc, u2) = insert(
@@ -103,12 +105,11 @@ fn a_reused_kiss_meets_the_census_as_an_undeclared_contact() {
     let BooleanValue::Body { body, contacts, .. } = boolean_value(&ev, u2) else {
         panic!("union is a body");
     };
-    let errors = validate_pseudomanifold(body, contacts, Tol::witness()).unwrap_err();
-    assert!(
-        errors
-            .iter()
-            .all(|e| matches!(e, topo::ValidationError::UndeclaredContact { .. })),
-        "the reused kiss must 3'-refuse UndeclaredContact only: {errors:?}"
+    assert!(!contacts.vv.is_empty(), "the kiss's vertex-vertex record");
+    assert_eq!(
+        validate_pseudomanifold(body, contacts, Tol::witness()),
+        Ok(()),
+        "the union over the reused kiss: 3′"
     );
 }
 

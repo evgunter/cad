@@ -2,9 +2,8 @@
 id: boolean-coincidence-route-still-holds-join-and-self-check-decisions
 kind: issue
 title: topo: join matching, strut order, germ-line self-checks and the ray lane still end in the coincidence menu, which no face-pair declaration settles
-status: parked
+status: open
 opened: 2026-09-30
-blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -135,3 +134,7 @@ unvalued tolerance.
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: what is left is COINCIDENCE_RECOURSE / chord_join::UnderBoolean offering "declare the coincidence", which stage 4 retires with declared pairs. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Released by stage 4 F (2026-10-11)
+
+Stage 4 F (`declared-pairs-retire`) retired every boolean declaration: no author can declare a pair, the glue is what the margins decide, and the declare offer, the flush detector and the carried declarations are gone. What this row waited on has fired; re-read it against that tree.

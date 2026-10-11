@@ -389,21 +389,39 @@ fn no_order_of_the_probe_corpus_refuses_several_shared_rims() {
             }
         }
     }
-    // 256 cells fuse. In the two orders of `row` and `rowids` that fold `a` and
-    // `h` first, and in four of `cross`, the emitter reaches a residue
-    // ([`RESIDUES`]).
+    // 256 cells fuse. In the eight orders of `row` and `rowids` that fold
+    // `a` and `h` before `b`, and in ten of `cross`, the emitter reaches a
+    // residue ([`RESIDUES`]).
     assert_eq!(fused, 256, "cells fused");
     assert_eq!(
         residue,
         [
+            "row [0, 2, 3, 1]",
             "row [0, 3, 1, 2]",
+            "row [0, 3, 2, 1]",
+            "row [2, 0, 3, 1]",
+            "row [2, 3, 0, 1]",
             "row [3, 0, 1, 2]",
+            "row [3, 0, 2, 1]",
+            "row [3, 2, 0, 1]",
+            "rowids [0, 2, 3, 1]",
             "rowids [0, 3, 1, 2]",
+            "rowids [0, 3, 2, 1]",
+            "rowids [2, 0, 3, 1]",
+            "rowids [2, 3, 0, 1]",
             "rowids [3, 0, 1, 2]",
+            "rowids [3, 0, 2, 1]",
+            "rowids [3, 2, 0, 1]",
             "cross [0, 1, 2, 3]",
+            "cross [0, 2, 1, 3]",
+            "cross [0, 2, 3, 1]",
+            "cross [0, 3, 2, 1]",
             "cross [1, 0, 2, 3]",
             "cross [1, 2, 0, 3]",
+            "cross [2, 0, 1, 3]",
+            "cross [2, 0, 3, 1]",
             "cross [2, 1, 0, 3]",
+            "cross [3, 0, 2, 1]",
         ],
         "the orders that reach a residue"
     );

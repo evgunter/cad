@@ -2,12 +2,11 @@
 id: a-bridge-union-fuses-a-declared-tangent-rest-into-one-shell-with-an-edgeless-contact
 kind: issue
 title: A union bridging a declared plane-to-cylinder Tangent rest fuses its two shells into one whose wall touches the face interior along a line no edge carries, and both at-rest gates pass it
-status: parked
+status: open
 opened: 2026-10-03
 priority: P1
 cost: M
 refs: [tier-3-passes-a-curved-wall-touching-a-plane-face-interior-along-a-line, 3987]
-blocked_on: [declared-pairs-retire]
 ---
 
 
@@ -91,3 +90,7 @@ With E, the plain union glues the tangent too and refuses
 fused shell left is a carried `CarriedVf { Tangent }`, and F deletes
 `CarriedContacts`. Expected to close at F; re-check the census's
 same-solid face×face arm then. (CONTACTHOLD orchestrator)
+
+## Released by stage 4 F (2026-10-11)
+
+Stage 4 F (`declared-pairs-retire`) retired every boolean declaration: no author can declare a pair, the glue is what the margins decide, and the declare offer, the flush detector and the carried declarations are gone. What this row waited on has fired; re-read it against that tree.

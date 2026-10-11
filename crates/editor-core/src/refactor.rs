@@ -4901,7 +4901,6 @@ mod a_miss_two_segments_down_is_not_the_outer_name {
         assert_eq!(missing, Unmapped::Node(INNER));
         assert_ne!(missing, Unmapped::Node(face.node));
     }
-
 }
 
 /// **A remap that reorders ids republishes the canonical form.**

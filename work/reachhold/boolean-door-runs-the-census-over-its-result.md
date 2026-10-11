@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-03
 priority: P1
 cost: H
-blocked_on: [census-cross-solid-curved-pairs-undecidable-on-shell-results, a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms, a-two-pinch-union-ships-a-pinch-its-records-do-not-declare, a-boolean-drops-its-operands-own-contact-records]
+blocked_on: [census-cross-solid-curved-pairs-undecidable-on-shell-results, a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms, a-two-pinch-union-ships-a-pinch-its-records-do-not-declare]
 refs: [3987, 3870]
 ---
 

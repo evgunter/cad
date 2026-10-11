@@ -2,11 +2,11 @@
 id: declared-pairs-retire
 kind: issue
 title: D10 stage 4 PR F: declare, DeclaredPair, BooleanCoincidence, BooleanDeclarations, SetDeclare, the flush detector's declare protocol and the declared seats on booleans are deleted
-status: parked
+status: closed
+closed: 2026-10-11
 opened: 2026-10-08
 priority: P0
 cost: M
-blocked_on: [a-union-member-is-keyed-by-its-read]
 ---
 
 INTENT stage 4, PR F. Ev approved the design in PR 4323 (fork log row
@@ -64,3 +64,14 @@ certified sentences, "The declaration channel, sited at the members" and
 "Merges and order"; "The refusal names member faces" becomes "A row
 names member cells"; N2's union paragraph reads "the pairwise judgement
 of their two members (DM4) merged or covered them".
+
+## Closed (2026-10-11)
+
+Built on branch `intent/s4-f-declared-pairs-retire`; the PR body states the change and its measurements.
+
+- **Gone:** the declare surface at every layer: the node fields, `DeclaredPair`, `SetDeclare` and its edit refusals, the payload-walk arms, the routing and resolution of declared pairs, the four declare refusals, the editor and kernel flush detectors with their offer protocol, `BooleanDeclarations`, `FacePairDeclaration`, the `*_with` doors, `boolean_reduce_declared`, the declare arm of the shared recourse, and the Python, viewer and tour surfaces.
+- **Stays, under honest names:** the kernel's decided-pair index is the glue after E, so it is renamed rather than rebuilt (`Glue`, `GluedPair`, `GlueClass`, `GluedPairs`, `VerifiedGlue`). A boolean's one input beside its operands is `BooleanInputs { given, records_a, records_b }`.
+- **The fold:** each step is handed the pairwise pass's verdicts as `GivenPair`s, read through member lineage, and seeds them unmeasured, so a piece is never judged at its own extent.
+- **Records:** an operand's own records carry mechanically into every pair boolean and every union fold step. This closes WIRE's `a-boolean-drops-its-operands-own-contact-records`.
+- **Kept as a named interim:** `ImportOptions::declared_contacts`, which J (`an-unattributed-contact-at-rest-is-a-finding`) retires.
+- **Released or closed:** the 16 rows of spec §12, plus the rows parked on this one.

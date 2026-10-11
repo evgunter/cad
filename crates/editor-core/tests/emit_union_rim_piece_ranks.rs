@@ -374,10 +374,14 @@ pub(crate) fn runs_in(
 /// count of orders)`. Each is a real order dependence, owned by
 /// `work/emit/union-refuses-in-some-member-orders-and-publishes-in-others.md`
 /// and the rows it cites; a change here is a change to that row, measured.
+/// `row` and `rowids` refuse the seam-vertex residue
+/// (`work/wire/a-legal-declared-union-reaches-the-seam-vertex-parentage-residue-emission.md`),
+/// `cross` the held-edge residue
+/// (`work/emit/a-held-edge-wholly-inside-a-dropped-face-is-recorded-nowhere.md`).
 const KNOWN_MIXED: &[(&str, &str, usize, &str)] = &[
-    ("row", "U", 2, "Naming:2"),
-    ("rowids", "U", 2, "Naming:2"),
-    ("cross", "U", 4, "Naming:4"),
+    ("row", "U", 8, "Naming:8"),
+    ("rowids", "U", 8, "Naming:8"),
+    ("cross", "U", 10, "Naming:10"),
 ];
 
 /// **The cases whose fused orders publish different name sets**, pinned:
@@ -1015,9 +1019,9 @@ fn orders_that(outcomes: &[(Vec<usize>, String)], what: &str) -> Vec<Vec<usize>>
 /// (DM4's contact rule). `row` is `a`, `b`, `g`, `h`; `b` covers the
 /// `(a, h)` contact, which the margins decide one carrier. Each of the
 /// 24 member orders has the same outcome whichever order the members
-/// were created in (`rowids`): the orders below fuse, and the orders
-/// that fold `a` and `h` first refuse `Emission`
-/// (`a-legal-declared-union-reaches-the-seam-vertex-parentage-residue-emission`).
+/// were created in (`rowids`): the orders below fuse, and the eight
+/// that fold `a` and `h` before `b` refuse `Emission`
+/// (`work/wire/a-legal-declared-union-reaches-the-seam-vertex-parentage-residue-emission.md`).
 #[test]
 fn a_covered_contact_decides_alike_in_every_order() {
     let g = ((0.3, 0.4), (-1.0, 2.0), (0.5, 3.0));
@@ -1044,7 +1048,16 @@ fn a_covered_contact_decides_alike_in_every_order() {
         assert_eq!(orders_that(&got, "fuse"), fused, "{label}");
         assert_eq!(
             orders_that(&got, "Emission"),
-            [vec![0, 3, 1, 2], vec![3, 0, 1, 2]],
+            [
+                vec![0, 2, 3, 1],
+                vec![0, 3, 1, 2],
+                vec![0, 3, 2, 1],
+                vec![2, 0, 3, 1],
+                vec![2, 3, 0, 1],
+                vec![3, 0, 1, 2],
+                vec![3, 0, 2, 1],
+                vec![3, 2, 0, 1],
+            ],
             "{label}"
         );
     }
