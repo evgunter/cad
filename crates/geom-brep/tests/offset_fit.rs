@@ -30,14 +30,12 @@
 
 use geom::NurbsSurface;
 use geom_brep::offset_fit::{
-    BestBound, LastRound, OFFSET_FIT_BUDGET, OFFSET_FIT_SAMPLE_CAP, OffsetFitError, OffsetLimb,
-    certify_offset_at, fit_offset_at,
+    BestBound, OFFSET_FIT_SAMPLE_CAP, OffsetFitError, OffsetLimb, certify_offset_at, fit_offset_at,
 };
 use geom_brep::offset_meters::{MeterError, OFFSET_METER_LADDER, patch_collapse, patch_regularity};
 use geom_brep::patch_bound::{PatchBoundError, patch_cells_refined};
 use geom_brep::recourse::Refused;
 use geom_core::Bounds;
-use geom_core::KERNEL_LIMIT_LAST_RESORT;
 use geom_core::MarginDiag;
 use geom_core::Point3;
 use geom_core::interval::certification::Certification;
@@ -664,14 +662,13 @@ fn an_offset_past_the_curvature_reach_refuses_at_the_collapse_meter() {
     }
 }
 
-/// **The sample-cap face.** At 1e-15 the bumpy patch runs five of the
-/// six refinement rounds and is stopped by the per-direction sample
-/// cap — the sixth round's schedule would carry 66x67 samples against
-/// a cap of 48 — with a finite bound in hand. The refusal has to say
-/// so: a caller reading the round budget off it would raise the wrong
-/// knob, because the rounds were never what ran out.
+/// **The sample-cap face.** At 1e-15 the bumpy patch runs five
+/// refinement rounds and is stopped by the sample cap — the sixth
+/// round's schedule would carry 66x67 samples — with a finite bound in
+/// hand. The refusal names the cap and the samples, not the rounds:
+/// the rounds are not a knob.
 #[test]
-fn a_cap_stop_with_a_finite_bound_names_the_cap_not_the_round_budget() {
+fn a_cap_stop_with_a_finite_bound_names_the_cap_not_the_rounds() {
     let base = bumpy_patch();
     match fit_offset_at(&base, 0.05, 1e-15, band()) {
         Err(OffsetFitError::SampleCapReached {
@@ -687,8 +684,8 @@ fn a_cap_stop_with_a_finite_bound_names_the_cap_not_the_round_budget() {
                 grid: best_grid,
             } = best;
             assert_eq!(cap, OFFSET_FIT_SAMPLE_CAP);
-            assert_eq!(rounds, 5, "five of the six rounds ran before the cap");
-            assert!(grid.0 <= OFFSET_FIT_SAMPLE_CAP && grid.1 <= OFFSET_FIT_SAMPLE_CAP);
+            assert_eq!(rounds, 5, "five rounds ran before the cap");
+            assert!(grid.0 * grid.1 <= OFFSET_FIT_SAMPLE_CAP);
             assert!(achieved.is_finite() && achieved > tolerance);
             assert!(
                 best_bound > tolerance && best_bound <= achieved,
@@ -705,12 +702,12 @@ fn a_cap_stop_with_a_finite_bound_names_the_cap_not_the_round_budget() {
             };
             let msg = e.to_string();
             assert!(
-                msg.contains(&format!("limit of {cap} samples per direction")),
+                msg.contains(&format!("limit of {cap} samples,")),
                 "the cap is not what the message names: {msg}"
             );
             assert!(
                 !msg.contains("rounds"),
-                "the message points at the round budget: {msg}"
+                "the message points at the rounds: {msg}"
             );
             assert!(
                 msg.contains(&format!("best certified error was {best_bound} m")),
@@ -725,154 +722,6 @@ fn a_cap_stop_with_a_finite_bound_names_the_cap_not_the_round_budget() {
         }
         other => panic!("a cap stop with a finite bound did not name the cap: {other:?}"),
     }
-}
-
-/// **The budget's last round, and which face it wears.** The stall
-/// guard's refusal wants TWO non-improving rounds running, the second
-/// past a both-directions marking; a single non-improving round is
-/// not it, and the loop must reach the round budget's own face there
-/// rather than the stall's — a refusal saying "the strongest step
-/// gained nothing" on a loop that was given one weaker step sends the
-/// caller to the wrong knob.
-///
-/// The bumpy patch at `d = 5e-6` is that shape at an unreachable
-/// `1e-15`: it exhausts the budget on a round whose bound ROSE. The
-/// other side of the ordering — a second non-improving round wearing
-/// the stall's face — is pinned on scripted bounds, through the loop
-/// itself, by `geom_brep::offset_fit`'s `scripted_rounds` rows: no
-/// fixture grounded in the enclosure's width keeps stalling once the
-/// assembly narrows.
-///
-/// **What the face says on a round that rose.** Not "still improving",
-/// and not the last round's bound as the number to size against:
-/// `last_round` is `DidNotImprove`, and `best` is round 5's bound, the
-/// smallest any round reached, which is what the recourse names.
-///
-/// **The row asserts that the last round really did not improve**,
-/// because the name says so and a schedule change could otherwise
-/// leave it green over a loop that was never the shape it claims. The
-/// loop exposes no per-round trace, but it does not need to: at a
-/// fixed band the tolerance decides only WHERE the walk stops
-/// (`BestBound`'s recourse claim), so a request whose
-/// tolerance an earlier round already met certifies ON that round and
-/// hands back exactly the bound this run stepped off. The ladder read
-/// back that way (rounds 0 to 2 carry no bound under `1e-2`, so no
-/// tolerance stops on them):
-///
-/// ```text
-/// round 3   5.3775078e-6   (224 cells)
-/// round 4   3.2499002e-9   (256 cells)
-/// round 5   1.1283921e-9   (324 cells, grid 21x21)
-/// round 6   1.4353778e-6   — the budget face, HIGHER than round 5
-/// ```
-///
-/// **The subject is a hunt, not a constant.** The non-monotone round is
-/// the insertion fold's width and the bound's own readings growing with
-/// the grid faster than the geometry error falls, so a change that
-/// narrows either moves which requests show it. When one does, re-find
-/// it by sweeping `d` over 1e-9..1e-1 (1, 2 and 5 per decade, both
-/// signs) on the bumpy patch and on the quarter cylinder at an
-/// unreachable `1e-15`, and take a request whose refusal is the
-/// budget's face with `LastRound::DidNotImprove`; `d = 5e-6` was the
-/// only one in that sweep when the certificate's vector bounds moved to
-/// coefficient norms.
-///
-/// Round 6 is the non-improving one, and it is a LONE one. The
-/// read-back below shows the last step of that — round 5 came in under
-/// `2e-9` where round 4 did not, so round 5 improved, so the marking
-/// that built round 6's grid was the directional one rather than the
-/// both-directions fallback. **What covers the rounds BEFORE 4, which
-/// the read-back does not reach, is `stall_verdict`'s own first guard:
-/// `!prev_sup.is_finite()` answers `Refine::Directional`,** and rounds
-/// 3 and 4 each fell. (The stall guard firing would in any case have
-/// made this refusal `RefinementStalled`, so the budget's face is
-/// itself evidence the guard's two-round admission set was not met;
-/// the point of spelling the ladder out is that the row is about WHY
-/// it was not.)
-#[test]
-fn a_single_non_improving_round_is_the_budgets_face_not_the_stalls() {
-    let base = bumpy_patch();
-    let d = 5e-6;
-    let refusal = fit_offset_at(&base, d, 1e-15, band());
-    let (achieved, last_round, best) = match &refusal {
-        Err(OffsetFitError::BudgetExhausted {
-            budget,
-            grid,
-            achieved,
-            tolerance,
-            last_round,
-            best,
-        }) => {
-            assert_eq!(*budget, OFFSET_FIT_BUDGET);
-            assert!(achieved.is_finite() && achieved > tolerance);
-            assert!(
-                (achieved - 1.4353778e-6).abs() < achieved * 1e-5,
-                "the budget face carries {achieved:e}"
-            );
-            eprintln!(
-                "budget face: grid={grid:?} achieved={achieved:.7e} best={:.7e}",
-                best.bound
-            );
-            (*achieved, *last_round, *best)
-        }
-        other => panic!("the budget's last round did not wear the budget's face: {other:?}"),
-    };
-    let msg = refusal.err().map(|e| e.to_string()).unwrap_or_default();
-    // The round the budget face stepped off, read back through the
-    // door. `2e-9` is met by round 5 and by no round before it.
-    let (prev_fit, prev) = fit_offset_at(&base, d, 2e-9, band())
-        .unwrap_or_else(|e| panic!("the round before the budget face refused: {e}"));
-    assert!(
-        prev.rounds == 5 && (prev.hull_sup - 1.1283921e-9).abs() < prev.hull_sup * 1e-5,
-        "the ladder moved: round {} carries {:e}",
-        prev.rounds,
-        prev.hull_sup
-    );
-    // THE CLAIM IN THE NAME. The budget's last round gained nothing.
-    assert!(
-        achieved > prev.hull_sup,
-        "the last round improved ({:e} against {achieved:e}), so this fixture no longer \
-         exercises a non-improving round and the row's name is no longer its claim",
-        prev.hull_sup
-    );
-    // And it is a SINGLE one, which `prev.rounds == 5` above is what
-    // says: the loop stops at the FIRST round under the tolerance, so
-    // a `2e-9` request that ran to round 5 is a run where round 4's
-    // bound was still above `2e-9` and round 5's was below it. Round
-    // 5 therefore improved, and round 6's grid came from a
-    // directional marking. Two non-improving rounds in a row, the
-    // second past a both-directions marking, is the stall's admission
-    // set, and this is not it.
-    //
-    // The face's own account of that round. Rounds 0 to 4 sit above
-    // `2e-9` and round 6 above round 5, so round 5's bound is the
-    // smallest any round reached, and the payload carries it exactly,
-    // on the grid round 5's fit was interpolated on.
-    assert_eq!(
-        last_round,
-        LastRound::DidNotImprove,
-        "the face says a round that rose improved"
-    );
-    assert_eq!(
-        best.bound, prev.hull_sup,
-        "the face's best bound is not the smallest the run reached"
-    );
-    assert_eq!(
-        best.grid,
-        prev_fit.control_counts(),
-        "the best bound's grid"
-    );
-    let best = best.bound;
-    assert!(
-        !msg.contains("still improving"),
-        "the message says a round that rose was improving: {msg}"
-    );
-    assert!(
-        msg.ends_with(&format!(
-            "Recourse: loosen the tolerance to {best} m or more, {KERNEL_LIMIT_LAST_RESORT}"
-        )) && !msg.contains(&format!("{achieved} m")),
-        "the last resort is not sized to the best bound reached: {msg}"
-    );
 }
 
 /// **What the floor on `‖E‖` reaches on a non-analytic base.** The
@@ -896,7 +745,7 @@ fn the_bumpy_patch_certifies_a_micron_offset_below_a_nanometre() {
 /// **The never-finite face, and where it starts.** At `d = 1e-8` and
 /// `1e-9` on the quarter cylinder the certificate limb answers `+∞`
 /// on every grid the loop reaches — the sign witness does not pass on
-/// the cells that carry the sup — and the cap stops it after four
+/// the cells that carry the sup — and the cap stops it after five
 /// refinement rounds with no finite bound ever produced. A refusal
 /// that "carries the achieved bound" must not carry `inf` there: the
 /// face says there is no number, and prints none.
@@ -925,8 +774,8 @@ fn a_bound_that_never_became_finite_refuses_with_no_number() {
                 tolerance,
                 best,
             }) => {
-                assert_eq!(rounds, 4, "d = {d}: four rounds ran before the cap");
-                assert!(grid.0 <= OFFSET_FIT_SAMPLE_CAP && grid.1 <= OFFSET_FIT_SAMPLE_CAP);
+                assert_eq!(rounds, 5, "d = {d}: five rounds ran before the cap");
+                assert!(grid.0 * grid.1 <= OFFSET_FIT_SAMPLE_CAP);
                 assert_eq!(dd, d);
                 assert!(
                     best.is_none(),
@@ -944,9 +793,8 @@ fn a_bound_that_never_became_finite_refuses_with_no_number() {
                 // bound field — so the row asserts what the message DOES
                 // say: that no refinement bounded the error, the `d` it
                 // was asked for, and the distance as the repair, which
-                // the decade above (`1e-7` certifies) bears out. Neither
-                // the round budget nor the sample cap is named: raising
-                // either would not help.
+                // the decade above (`1e-7` certifies) bears out. The
+                // sample cap is not named: raising it would not help.
                 assert!(
                     msg.contains("no refinement of the offset surface's fit could bound its error"),
                     "d = {d}: {msg}"
@@ -1031,15 +879,14 @@ fn a_micron_scale_offset_certifies_and_names_its_limit() {
     // The honest other half: a tolerance below what the fit's own
     // absolute accuracy can reach refuses typed, carrying the bound
     // it did reach — never a number it cannot support. The stop is
-    // the sample cap's: the grid the bound wants exceeds it before
-    // the rounds run out.
+    // the sample cap's: the grid the bound wants exceeds it.
     match fit_offset_at(&base, d, 1e-9, band()) {
         Err(OffsetFitError::SampleCapReached {
             achieved, rounds, ..
         }) => {
-            assert_eq!(rounds, 5);
+            assert_eq!(rounds, 7);
             assert!(
-                (achieved - 3.74718e-7).abs() < 5e-11,
+                (achieved - 2.24527e-8).abs() < 5e-12,
                 "the cap stop carries {achieved:e}"
             );
             eprintln!(

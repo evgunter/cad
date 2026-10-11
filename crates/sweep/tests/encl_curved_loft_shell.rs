@@ -220,27 +220,31 @@ fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
     let ShellError::Face { face, error } = &e else {
         panic!("expected a per-face offset refusal, got {e}");
     };
-    // Which door answers first depends on ε: the fit reaches about
-    // 4.1e-9 m in its round budget, so below that the fit refuses, and
-    // above it the fit certifies and the seams derive.
+    // Which door answers first depends on ε: a wall's fit reaches
+    // 1.3958e-10 m on a 62 x 35 grid, the last within the sample cap,
+    // so below that the fit refuses at the cap, and above it the fit
+    // certifies and the seams derive.
     let eps = Tol::witness().eps();
-    if eps < 1e-8 {
+    if eps < 1.3958e-10 {
         assert!(
             is_spline_wall(&nurbs_walls(&body), *face),
             "the refusing face is not a wall: {e}"
         );
         let ReplaceFaceError::Fit {
-            error: geom_brep::OffsetFitError::BudgetExhausted { achieved, .. },
+            error: geom_brep::OffsetFitError::SampleCapReached { achieved, grid, .. },
             ..
         } = error.as_ref()
         else {
-            panic!("eps {eps:e}: expected the wall's fit to exhaust its budget, got {e}");
+            panic!("eps {eps:e}: expected the wall's fit to reach the sample cap, got {e}");
         };
         assert!(
-            *achieved > eps,
-            "eps {eps:e}: the fit stopped short of ε, at {achieved:e}"
+            *grid == (62, 35) && (achieved - 1.3958e-10).abs() < 1e-14,
+            "eps {eps:e}: the fit stopped at {achieved:e} on {grid:?}"
         );
     } else {
+        // Limb 2's value at a break: measured at 1e-6, 1.02e-6 m, in the
+        // band, so it escalates; at 1e-9, 1.64e-6 m, above it, so it
+        // refuses outright.
         let ReplaceFaceError::Op {
             error:
                 topo::EulerOpError::RechartFalsifies {
@@ -249,17 +253,19 @@ fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
                         geom_brep::CertifyError::Escalated {
                             check: geom_brep::CertCheck::PlaneNurbsHullValue,
                             ..
-                        },
+                        }
+                        | geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
+                            limb: geom_brep::ssi::SsiLimb::HullValueChart,
+                            ..
+                        }),
                     ..
                 },
             ..
         } = error.as_ref()
         else {
-            panic!("eps {eps:e}: expected a rim's at-rest limb 2 to refuse, got {e}");
+            panic!("eps {eps:e}: expected a rim's at-rest limb 2 to refuse, got {error:?}");
         };
-        // Measured at 1e-6: limb 2's value at a break, 1.02e-6 m, in the
-        // band. The refusing edge is a top rim: the top cap's edge with a
-        // wall.
+        // The refusing edge is a top rim: the top cap's edge with a wall.
         let halves = body.get_edge(*edge).expect("the refused edge resolves");
         let sides: Vec<FaceKey> = [halves.he_plus, halves.he_minus]
             .into_iter()
@@ -916,8 +922,9 @@ fn a_moved_fitted_cap_stands_its_corners_on_the_held_sides() {
 /// **A curved fitted cap moves where its fit certifies.** The unit
 /// box's cap is swapped for a biquadratic NURBS bump over `[-1, 3]²`
 /// (its middle control point raised 0.1 above `z = 1`) and moved by
-/// `±0.05`. Where ε is looser than the offset fit reaches (about
-/// 2.4e-9 m in its round budget) the move builds: its corners are the
+/// `±0.05`. Where ε is looser than the offset fit reaches (4.382e-11
+/// m within the sample cap) and the moved rims certify (not at 1e-9)
+/// the move builds: its corners are the
 /// side planes' roots along the plane × fit sections, tier 3 refuses the
 /// cap's volume alone
 /// (`work/quad/a-fitted-cap-cut-by-planes-has-a-sub-range-trim-image.md`),
@@ -951,16 +958,43 @@ fn a_moved_curved_fitted_cap_builds_where_its_fit_certifies() {
         )
         .expect("the cap takes a NURBS surface");
         let moved = topo::replace_face_offset(&mut body, cap, d, Tol::witness());
+        // The cap's fit reaches 4.382e-11 m on a 45 x 45 grid, the last
+        // within the sample cap. Above that it certifies, and at 1e-9 the
+        // moved cap's rim then refuses at its plane × fit limb 2
+        // (6.75e-7 m, above the band).
+        if eps < 4.382e-11 {
+            match &moved {
+                Err(ReplaceFaceError::Fit {
+                    error: geom_brep::OffsetFitError::SampleCapReached { achieved, grid, .. },
+                    ..
+                }) => assert!(
+                    *grid == (45, 45) && (achieved - 4.382e-11).abs() < 1e-14,
+                    "eps {eps:e}, d = {d}: the cap's fit stopped at {achieved:e} on {grid:?}"
+                ),
+                other => panic!(
+                    "eps {eps:e}, d = {d}: expected the cap's fit to reach the sample cap, got {other:?}"
+                ),
+            }
+            continue;
+        }
         if eps < 2e-9 {
             assert!(
                 matches!(
                     moved,
-                    Err(ReplaceFaceError::Fit {
-                        error: geom_brep::OffsetFitError::BudgetExhausted { .. },
+                    Err(ReplaceFaceError::Op {
+                        error: topo::EulerOpError::RechartFalsifies {
+                            error: geom_brep::CertifyError::PlaneNurbs(
+                                geom_brep::PlaneNurbsRefusal::Limb {
+                                    limb: geom_brep::ssi::SsiLimb::HullValueChart,
+                                    ..
+                                }
+                            ),
+                            ..
+                        },
                         ..
                     })
                 ),
-                "eps {eps:e}, d = {d}: expected the cap's fit to exhaust its budget, got {moved:?}"
+                "eps {eps:e}, d = {d}: expected the moved cap's rim to refuse its limb 2, got {moved:?}"
             );
             continue;
         }
