@@ -215,7 +215,7 @@ ellipse per Ev's 2026-10-01 ruling):
 | `PlaneConeSection` | frame |
 |---|---|
 | `TiltedEllipse`, `AxisNormalCircle` | `Some((center, axis))`, the conic's own |
-| `ApexLinePair` | `Ok(None)`, proved straight (two generators) |
+| `ApexLinePair` | `Ok(None)`, proved straight (two generators). The table serves it only where the real plane's section starts within the zero band of the apex on both nappes (`pn_apex_pair_reach`, the far start `\|δ\|/D`): in the band the frame escalates, past it the section is the hyperbola refused below |
 | `ApexTangentLine`, `ApexPoint` | `FrameError::Desync`: a touching configuration the reduction should not have paired, exactly as the sphere arm's `TangentPoint` |
 | `Err(Escalated)`, or the ellipse constructor's `Escalated` or `CircularAxes` | `FrameError::Escalated`: the classifier read a definite tilt, but the carrier cannot tell the curve from a circle |
 | parabola, hyperbola (`Err`, by decision R1) | **a typed refusal naming the conic**, not a desync |
@@ -485,7 +485,9 @@ production pipeline after the join (`sweep/tests/cone_join_lane.rs`):
   Recommendation: retire U8 there and point it here. The orchestrator
   edits that spec. Not a fork: Ev's ruling already admits the ellipse.
 - **Q2 ⚑ The apex sector, X1.** A plane through the apex cuts the cone
-  in two generators (`ApexLinePair`, in the inventory). Halving a cone
+  in two generators (`ApexLinePair`, in the inventory, served where the
+  real plane's section starts within the zero band of the apex on both
+  nappes, `pn_apex_pair_reach`). Halving a cone
   through its apex is a natural user pose. This spec refuses it at the
   apex vertex's sector (U-S2). An arm would classify the plane against
   the apex's cone of material directions, an algebra the sector lane
