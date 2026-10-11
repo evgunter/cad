@@ -1650,6 +1650,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::JoinUndecided => "join_undecided",
         BooleanErrorKind::JoinCarrierUnsupported => "join_carrier_unsupported",
         BooleanErrorKind::JoinDesync => "join_desync",
+        BooleanErrorKind::EdgeUndescribed => "edge_undescribed",
         BooleanErrorKind::TornComponent => "torn_component",
         BooleanErrorKind::ShellWitnessExhausted => "shell_witness_exhausted",
         BooleanErrorKind::CoincidentShell => "coincident_shell",

@@ -2,10 +2,11 @@
 id: a-wedge-flush-on-a-block-top-refuses-every-op-undeclared-though-its-face-reads-zero
 kind: issue
 title: A wedge flush on a block's top, its face tilted 1.2 to 2 eps, refuses every op undeclared though the face stands off the block's plane by a Zero margin; the declared spelling builds, and INTENT F retires it
-status: open
+status: dispatched
 opened: 2026-10-11
 priority: P1
 cost: M
+branch: flush/wedge-flush-reads-zero
 ---
 
 

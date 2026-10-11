@@ -2209,6 +2209,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::GermSectionSpiric
         | BooleanErrorKind::GermFrameCylinderPinch
         | BooleanErrorKind::JoinDesync
+        | BooleanErrorKind::EdgeUndescribed
         | BooleanErrorKind::JoinCarrierUnsupported
         | BooleanErrorKind::TornComponent
         | BooleanErrorKind::ShellWitnessExhausted
@@ -2581,6 +2582,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("ops.rs", "sphere_pair_cut", "SphereQuestion::CutIn", 1),
     ("ops.rs", "recut_lean", "BooleanDecision::Sphere", 1),
     ("ops.rs", "recut_lean", "SphereQuestion::RecutAlign", 1),
+    ("ops.rs", "of_describe", "BooleanDecision::EdgeOnFaces", 1),
     ("ops.rs", "seam_refusal", "BooleanDecision::SeamJet", 1),
     ("ops.rs", "escalated", "BooleanDecision::ShellRole", 1),
     ("ops.rs", "seam_refusal", "LeverArm::Seam", 1),

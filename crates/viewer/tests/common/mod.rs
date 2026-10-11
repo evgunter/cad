@@ -656,3 +656,32 @@ pub fn drawn_node(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> RecipeNodeId
         _ => node,
     }
 }
+
+/// **A door seam that answers nothing**: it drops every job, so a
+/// landing's checks report reads the coincidence door pending for
+/// good. For the rows that never read the coincidence door's findings
+/// (some read the other residents', which do not pend), which would
+/// otherwise pay the door's replay at every landing.
+pub struct NoDoor;
+
+impl viewer::evalseam::DoorService for NoDoor {
+    fn submit(&mut self, _request: viewer::evalseam::DoorRequest) {}
+
+    fn cancel(&mut self) {}
+
+    fn poll(&mut self) -> Option<viewer::evalseam::DoorDone> {
+        None
+    }
+
+    fn busy(&self) -> bool {
+        false
+    }
+}
+
+/// [`DocSession::inline`] with [`NoDoor`].
+pub fn inline_without_door(
+    doc: pncad::document::Doc<pncad::document::ProfileProgram>,
+    tol: pncad::geom_core::Tol,
+) -> viewer::session::DocSession {
+    viewer::session::DocSession::inline(doc, tol).with_door(Box::new(NoDoor))
+}
