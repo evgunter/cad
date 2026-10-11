@@ -507,11 +507,16 @@ fn digest() -> String {
 ///   and `num=604` / `612`, the committed counts. Decisions, shapes and
 ///   verdicts are unchanged.
 ///
-/// These lines are ported from PR 4684 into PR 4551, whose certified
-/// step (`Certification::between`, the monotone corner met with its
-/// convex form) `refine_dir` reaches through `apply_certified`. Measured
-/// on PR 4551's tree, the table reads these lines at all three ε,
-/// unchanged by the step.
+/// **Re-cut at all three ε when the certified step became the
+/// monotone corner met with its convex form** (`Certification::between`,
+/// PR 4551, which `quad`'s `refine_dir` reaches through
+/// `CurvePlan::apply_certified`), on top of PR 4684's lines above. Only
+/// `arc_loft_1e9eps` moves, the one body whose walls are rational
+/// patches: `v`, `a` and both pads in their last bits. Every new volume
+/// and area enclosure lies inside the old one; the volume pads fall by
+/// 2.6e-8, 5.0e-8 and 1.6e-7 of themselves at ε = 1e-6, 1e-9 and 1e-12,
+/// the area pads by about 5e-12. Verdicts, refusals, the other rows and
+/// the sym-session counts are unchanged.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),
