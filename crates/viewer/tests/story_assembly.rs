@@ -528,7 +528,11 @@ fn the_windmill_story() {
     );
     assert_eq!(
         session.at_rest(),
-        Some(&AtRestBadge::Certified { minted: 1 }),
+        Some(&AtRestBadge::Certified {
+            minted: 1,
+            loud: 0,
+            quiet: 0,
+        }),
         "the seated base certifies with its one declaration"
     );
 
@@ -573,7 +577,11 @@ fn the_windmill_story() {
     }
     assert_eq!(
         session.at_rest(),
-        Some(&AtRestBadge::Certified { minted: 1 }),
+        Some(&AtRestBadge::Certified {
+            minted: 1,
+            loud: 0,
+            quiet: 0,
+        }),
         "redo re-certifies what undo took away"
     );
 
@@ -797,7 +805,11 @@ fn the_windmill_story() {
     );
     assert_eq!(
         session.at_rest(),
-        Some(&AtRestBadge::Certified { minted: 3 }),
+        Some(&AtRestBadge::Certified {
+            minted: 3,
+            loud: 0,
+            quiet: 0,
+        }),
         "the declared overhanging blades certify through the crossing rung"
     );
 
@@ -879,7 +891,11 @@ fn the_windmill_story() {
     assert!(reopened.display().free_move_of(hub_i).is_none());
     assert_eq!(
         reopened.at_rest(),
-        Some(&AtRestBadge::Certified { minted: 3 }),
+        Some(&AtRestBadge::Certified {
+            minted: 3,
+            loud: 0,
+            quiet: 0,
+        }),
         "the reopened census reads the same design: {:?}",
         reopened.at_rest()
     );

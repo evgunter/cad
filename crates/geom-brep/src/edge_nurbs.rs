@@ -413,7 +413,13 @@ impl core::fmt::Display for PlaneNurbsRefusal {
                      them",
                     limb.name()
                 ),
-                SsiLimb::OnLocus | SsiLimb::Tube => write!(
+                SsiLimb::HullValueChart => write!(
+                    f,
+                    "{} reads {margin:e} m against the run tolerance — the declared carrier \
+                     is off the surface point its description names",
+                    limb.name()
+                ),
+                SsiLimb::OnLocus | SsiLimb::HullValue | SsiLimb::Tube => write!(
                     f,
                     "{} measured {margin:e} m against the run tolerance — the declared carrier \
                      is not on both surfaces",
@@ -564,7 +570,8 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         if i == 0 || i == PXN_FIT_SAMPLES - 1 {
             return Ok(());
         }
-        let jet = wall.ders(T::from_f64(foot.x), T::from_f64(foot.y));
+        let (u, v) = measured_foot(foot);
+        let jet = wall.ders(u, v);
         let sin_theta = normal_angle_sine(normal, jet.du.cross(jet.dv));
         // The point arm, the plane's curvature being zero.
         let kappa = crate::shape_operator::max_principal_curvature(&jet);
@@ -685,14 +692,14 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
             Ok(Decided { margin, .. }) => {
                 return Err(AnalyticRung3Refusal::Limb {
                     operand: kind,
-                    limb: SsiLimb::HullSup,
+                    limb: Rung3Limb::HullSup,
                     margin,
                 });
             }
             Err(cause) => {
                 return Err(AnalyticRung3Refusal::Escalated {
                     operand: Some(kind),
-                    limb: SsiLimb::HullSup,
+                    limb: Rung3Limb::HullSup,
                     cause,
                 });
             }
@@ -790,6 +797,41 @@ fn edge_piece<T: Real>(
         ))
 }
 
+/// The limbs the analytic rung-3 certificate decides, so the ones its
+/// refusals can name: limb 2 on [`analytic_rung3`]'s own bound, and
+/// limb 3, which it asks the SSI certificate for alone.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Rung3Limb {
+    /// Limb 2: the carrier's certified distance bound from an operand.
+    HullSup,
+    /// Limb 3: the uniqueness tube.
+    Tube,
+}
+
+impl Rung3Limb {
+    /// The limb's name, as [`SsiLimb::name`] gives the SSI limb this
+    /// one is (its check is not that limb's: [`Rung3Limb::check`]).
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::HullSup => SsiLimb::HullSup,
+            Self::Tube => SsiLimb::Tube,
+        }
+        .name()
+    }
+
+    /// The certification check a refusal of this limb is a refused arm
+    /// of: limb 2 here is the carrier's certified distance bound from an
+    /// analytic operand, not the plane × NURBS lane's.
+    #[must_use]
+    pub fn check(self) -> CertCheck {
+        match self {
+            Self::HullSup => CertCheck::AnalyticHull,
+            Self::Tube => SsiLimb::Tube.check(),
+        }
+    }
+}
+
 /// [`analytic_rung3`]'s typed refusal — the analytic pair's own
 /// vocabulary, closed, and carrying the measured number where one
 /// exists.
@@ -809,7 +851,7 @@ pub enum AnalyticRung3Refusal {
         /// The operand the bound is from.
         operand: geom::SurfaceKind,
         /// Which limb refused.
-        limb: SsiLimb,
+        limb: Rung3Limb,
         /// What the classifier saw of the certified bound, in metres,
         /// for error reporting only
         /// ([`MarginDiag`]): it rides [`AnalyticRung3Refusal::decision`]'s
@@ -821,7 +863,7 @@ pub enum AnalyticRung3Refusal {
         /// The operand whose distance escalated; `None` for the tube.
         operand: Option<geom::SurfaceKind>,
         /// Which limb.
-        limb: SsiLimb,
+        limb: Rung3Limb,
         /// The classifier's diagnostic.
         cause: Indeterminate,
     },
@@ -864,7 +906,7 @@ impl AnalyticRung3Refusal {
         match e {
             crate::PcurveCertifyError::Escalated { cause, .. } => Self::Escalated {
                 operand: Some(operand),
-                limb: SsiLimb::HullSup,
+                limb: Rung3Limb::HullSup,
                 cause,
             },
             crate::PcurveCertifyError::SectorRefused { channel, .. } => Self::NoOffsetBound {
@@ -883,11 +925,21 @@ impl AnalyticRung3Refusal {
         match e {
             SsiError::TubeStraddles { verdict, boxes } => Self::TubeStraddles { verdict, boxes },
             SsiError::TubeNotOneArc { rungs, cause } => Self::TubeNotOneArc { rungs, cause },
-            SsiError::CertificateEscalated { limb, cause } => Self::Escalated {
+            SsiError::CertificateEscalated {
+                limb: SsiLimb::Tube,
+                cause,
+            } => Self::Escalated {
                 operand: None,
-                limb,
+                limb: Rung3Limb::Tube,
                 cause,
             },
+            // `Limbs::Tube` asks no operand for limbs 1 and 2, so the
+            // only escalation `certify_branch` can return here is limb
+            // 3's own (`tube_transversality`).
+            SsiError::CertificateEscalated { limb, .. } => unreachable!(
+                "the tube-only certificate escalated on limb {}, which Limbs::Tube never asks",
+                limb.name()
+            ),
             SsiError::UnsupportedCertificate { what } => Self::Unsupported { what },
             _ => Self::Unsupported {
                 what: "the uniqueness tube refused for a reason outside this certificate's \
@@ -907,27 +959,14 @@ impl AnalyticRung3Refusal {
         self.decision().map(|(check, arm)| recourse(check, arm, at))
     }
 
-    /// The certification check a refusal of `limb` is a refused arm of in
-    /// this certificate: its limb 2 is the carrier's certified distance
-    /// bound from an analytic operand, not the plane × NURBS lane's.
-    #[must_use]
-    pub fn check(limb: SsiLimb) -> CertCheck {
-        match limb {
-            SsiLimb::HullSup => CertCheck::AnalyticHull,
-            SsiLimb::OnLocus | SsiLimb::Tube => limb.check(),
-        }
-    }
-
     /// The decision this refusal is a refused arm of, and which arm.
     #[must_use]
     pub fn decision(&self) -> Option<(CertCheck, RefusedArm<'_>)> {
         Some(match self {
             Self::Limb { limb, margin, .. } => {
-                (Self::check(*limb), RefusedArm::SignCertain(Some(*margin)))
+                (limb.check(), RefusedArm::SignCertain(Some(*margin)))
             }
-            Self::Escalated { limb, cause, .. } => {
-                (Self::check(*limb), RefusedArm::Undecided(cause))
-            }
+            Self::Escalated { limb, cause, .. } => (limb.check(), RefusedArm::Undecided(cause)),
             Self::TubeStraddles { verdict, .. } => (CertCheck::Transversality, verdict.arm()),
             // The one-arc proof is the SSI door's own decision, and
             // `ending` reads it there.
@@ -1196,6 +1235,12 @@ fn localized<T: Real>(wall: &NurbsSurface<T>) -> NurbsSurface<T> {
         .unwrap_or_else(|_| refined.clone())
 }
 
+/// A chart foot the projection measured, at the caller's scalar: two
+/// computed values, so at `Sym` two unknowns.
+fn measured_foot<T: Real>(foot: Point2<f64>) -> (T, T) {
+    (T::from_computed(foot.x), T::from_computed(foot.y))
+}
+
 /// `|n̂ × m̂|` — the sine of the angle between the plane's exact unit
 /// normal and the wall's normal `S_u × S_v`.
 ///
@@ -1214,9 +1259,10 @@ fn normal_angle_sine<T: Real>(plane_normal: Vec3<T>, wall_normal: Vec3<T>) -> T 
 /// operations, in that order: the interpolation's clamped `0 → 1`
 /// knots onto `[t0, t1]` through the curve's own domain door (ends
 /// exact, interior affine, at `f64`), then the control net through
-/// `T::from_f64` as a structural lift. The rescale is the only step
-/// that can refuse — the lift carries a validated curve's net verbatim
-/// — so the `Result` is the knot door's alone.
+/// `T::from_computed`: the net is a fit to measured feet, so at `Sym`
+/// each coordinate is its own unknown, never a constant. The rescale
+/// is the only step that can refuse — the lift carries a validated
+/// curve's net verbatim — so the `Result` is the knot door's alone.
 ///
 /// The knot map's own rounding is not a soundness question — the image
 /// is evidence that limb 2 bounds, not a certified quantity (module
@@ -1226,7 +1272,7 @@ fn on_carrier_domain<T: Real>(
     t0: f64,
     t1: f64,
 ) -> Result<NurbsCurve2<T>, SplineError> {
-    Ok(image.on_domain(t0, t1)?.map_scalar(T::from_f64))
+    Ok(image.on_domain(t0, t1)?.map_scalar(T::from_computed))
 }
 
 /// The SSI refusal, in this lane's vocabulary.
@@ -1363,6 +1409,38 @@ mod tests {
     /// The carrier interval the rows use: `0.3 + (0.9 − 0.3)` is an
     /// ulp above `0.9`, so a computed end would miss it.
     const CARRIER: (f64, f64) = (0.3, 0.9);
+
+    /// The fit's computed values enter as unknowns at `Sym`: a measured
+    /// foot's two coordinates, and every coordinate of the fitted
+    /// image's control net. A constant would re-value to its own bits.
+    #[test]
+    fn the_fit_enters_its_feet_and_its_net_as_computed_values() {
+        use geom_core::sym::revalue::revalue;
+        use geom_core::sym::with_session;
+        use geom_core::{Sym, SymBudget};
+        type S = Sym<f64>;
+        let budget = SymBudget {
+            max_terms: 64,
+            max_degree: 8,
+        };
+        let none = |_| None;
+        let ((foot, net), _) = with_session(budget, || {
+            let (u, v) = measured_foot::<S>(Point2::new(0.25, 0.75));
+            let (t0, t1) = CARRIER;
+            let lifted = on_carrier_domain::<S>(&image(), t0, t1).unwrap();
+            let net: Vec<_> = lifted
+                .control()
+                .iter()
+                .flat_map(|p| [revalue(p.x.node(), &none), revalue(p.y.node(), &none)])
+                .collect();
+            ((revalue(u.node(), &none), revalue(v.node(), &none)), net)
+        });
+        assert_eq!(foot, (None, None), "a measured foot's u and v are unknowns");
+        assert!(
+            net.iter().all(Option::is_none),
+            "the fitted net's coordinates are unknowns: {net:?}"
+        );
+    }
 
     /// The rescale is the rescale and the lift is the lift, at `f64`:
     /// the carrier-domain image's domain is `(t0, t1)` bit for bit,

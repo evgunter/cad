@@ -151,8 +151,9 @@ fn r1b_orientation_equivariance_pins_bob_from_aoa() {
         vertex_at(&fx.body, 3.0, 2.0, 1.0),
     );
 
-    // +n (Above = +y): BOB→ABOVE moves the tip edge to Above copies —
-    // physically the above side. One dangling null (wide cap bisector).
+    // +n (Above = +y): BOB→ABOVE moves the tip edge to an Above copy —
+    // physically the above side. The tip keeps one Below wedge and the
+    // other hangs at the copy: a path, no strut dangling.
     let red_pos = split_reduce(&operand, &plane_y(2.0, 1.0), Tol::witness()).unwrap();
     assert!(
         !joins(&red_pos.body, tip_b, tip_t),
@@ -164,8 +165,15 @@ fn r1b_orientation_equivariance_pins_bob_from_aoa() {
             .iter()
             .filter(|r| r.at_vertex == tip)
             .collect();
-        assert_eq!(recs.len(), 2);
-        assert_eq!(recs.iter().filter(|r| r.dangling).count(), 1);
+        assert_eq!(recs.len(), 1);
+        let copy = recs[0].attr.above_end;
+        let hung: Vec<_> = red_pos
+            .null_edges
+            .iter()
+            .filter(|r| r.at_vertex == copy)
+            .collect();
+        assert_eq!(hung.len(), 1);
+        assert!(!recs[0].dangling && !hung[0].dangling);
     }
 
     // −n (frame-Above = physical below): the tip context reads AOA;
@@ -341,10 +349,9 @@ fn r5_crossing_vertex_on_is_declared_not_measured() {
         // pin it and stop here for such rows.
         // (Fix pass MINOR-2: the refusal now carries the crossing site
         // — edge + straddling endpoints — with the typed error nested.)
-        Err(SplitReduceError::CrossingInsertion {
-            source: topo::EulerOpError::Certification { .. },
-            ..
-        }) => {
+        Err(SplitReduceError::CrossingInsertion { source, .. })
+            if matches!(*source, topo::EulerOpError::Certification { .. }) =>
+        {
             assert!(
                 band.zero() < 1e-10,
                 "certification refusal expected only at strict ε rows"
@@ -561,14 +568,14 @@ fn r9_interval_lane_equivariance_and_nondyadic_crossing() {
     ];
     let fx = prism::<Interval>(&wedge, 1.0, geom_core::Tol::witness());
     let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
-    for (ny, dangling_expected) in [(1.0, 2), (-1.0, 0)] {
+    for ny in [1.0, -1.0] {
         let red = split_reduce(&operand, &plane_y::<Interval>(2.0, ny), Tol::witness()).unwrap();
         // 2 tips + 4 crossings (x=0/x=10 walls at y=2, both rims).
         assert_eq!(red.on_vertices.len(), 6);
         // Tips mint 2 each; crossings 1 each.
         assert_eq!(red.null_edges.len(), 8, "ny = {ny}");
         let dangling = red.null_edges.iter().filter(|r| r.dangling).count();
-        assert_eq!(dangling, dangling_expected, "ny = {ny}");
+        assert_eq!(dangling, 0, "ny = {ny}");
     }
     // (b) Crossing at s = 1/3 on a diagonal edge: (9,0) → (10,3) meets
     // y = 1 at x = 28/3 — not dyadic; the interval interpolation yields

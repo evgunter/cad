@@ -9,16 +9,16 @@ points against 30 with its P0 units landed or parked (PRs 4363, 4368,
 
 ## The slate
 
-In flight (each row's file moves to `review` on its own PR):
+In flight:
 
-- PR 4558 (`contacthold/tangent-locus`, full single review): `contact-verify-on-surface-residual-subtracts-its-sag`, `contact-tangent-relation-decides-offsets-and-tilt-per-sample` (closes, no code), `contact-verify-logs-a-second-order-escalation-its-outcome-overruled`
-- PR 4559 (`contacthold/census-edge-pass`, full single review): `census-edge-pass-reads-no-line-conic-crossing` (closes, no code), `ef-bound-backed-migrates-to-region-confinement`, `census-declared-sites-read-a-torn-record-as-absent`
-- PR 4550 (`contacthold/census-backstop`, full single review, fix pass): `census-backstop-separates-curved-pairs-only-along-world-axes`, with `a-tube-rim-vertex-touching-a-face-along-its-tangent-unions-past-tier-3-prime` riding
-- `contacthold/side-code-order2` (dual review): `boolean-conic-side-code-zero-is-first-order`
+- PR 4575 (`contacthold/side-code-order2`, dual review, fix pass): `boolean-conic-side-code-zero-is-first-order`
+- `contacthold/at-rest-cell-pairs` (dual review): `at-rest-records-are-unordered-cell-pairs`, with `curve-contact-names-one-face-where-its-witness-edge-lies-in-two` and `contact-records-carry-operand-labels-into-the-at-rest-currency` riding
 
-Spec: `at-rest-records-are-unordered-cell-pairs` (H, dual review; Ev ruled on PR 4547). It waits for disk and build slots; `curve-contact-names-one-face-where-its-witness-edge-lies-in-two` and `contact-records-carry-operand-labels-into-the-at-rest-currency` ride with it.
+Merged: PR 4545 (wording), PR 4550 (census backstop), PR 4558 (tangent locus), PR 4559 (census edge passes).
 
-Open, held for designers: `contact-verify-lane-gate-answers-a-crossing-not-certifiable` (after PR 4558 lands; same function). Open: `zero-to-distinct-cells-on-one-point-doors-audit` (waits for a build slot).
+Open, held for designers: `contact-verify-lane-gate-answers-a-crossing-not-certifiable` (PR 4558 has landed; same function) and `tangent-offset-and-tilt-are-two-epsilon-checks-where-rest-is-one-displacement` (ratified C4/C7 text; a fork for Ev if the designers find one).
+
+Open, filed by this session's reviews: `zero-to-distinct-cells-on-one-point-doors-audit` (P2), `census-containment-gate-reads-instances-along-world-axes-only`, `a-vf-record-defers-a-whole-curved-face-pair-at-the-backstop` (measure first), `contact-verify-keeps-a-bridged-or-later-overruled-second-order-escalation`.
 
 Parked, each on its named trigger:
 

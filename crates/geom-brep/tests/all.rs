@@ -81,6 +81,8 @@ mod chart_box_span;
 
 #[path = "axis_rows_read_as_one_sum.rs"]
 mod axis_rows_read_as_one_sum;
+#[path = "computed_values_enter_as_unknowns.rs"]
+mod computed_values_enter_as_unknowns;
 #[path = "curved_torus_arc_residual.rs"]
 mod curved_torus_arc_residual;
 #[path = "cylinder_green_conditioning.rs"]
@@ -125,8 +127,8 @@ mod offb_r1_probes;
 mod onb_wall_frame_interval;
 #[path = "pcurve_frame_premise_rows.rs"]
 mod pcurve_frame_premise_rows;
-#[path = "pn_apex_point_reach.rs"]
-mod pn_apex_point_reach;
+#[path = "pn_apex_reach.rs"]
+mod pn_apex_reach;
 #[path = "props_cone_apex_cap.rs"]
 mod props_cone_apex_cap;
 #[path = "props_cone_ring.rs"]

@@ -185,14 +185,14 @@ fn a_torus_ring_wound_with_its_face_refuses() {
         rim(0.5, 0.6, 0.3, 12, 13),
         mer(0.3, 0.5, 0.3, 13, 10),
     ];
-    assert_refused(
-        "same-wound ring flux",
-        curved_face_loops(&s, &[&outer, &same], true, b),
-        "props_ring_winding",
+    let flux = curved_face_loops(&s, &[&outer, &same], true, b);
+    assert!(
+        matches!(flux, Err(PropsError::RingWoundWithFace)),
+        "same-wound ring flux: {flux:?}"
     );
-    assert_refused(
-        "same-wound ring side",
-        boundary_material_sign_loops(&s, &[&outer, &same], b),
-        "props_ring_winding",
+    let side = boundary_material_sign_loops(&s, &[&outer, &same], b);
+    assert!(
+        matches!(side, Err(PropsError::RingWoundWithFace)),
+        "same-wound ring side: {side:?}"
     );
 }

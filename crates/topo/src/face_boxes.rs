@@ -46,17 +46,17 @@ impl FaceBoxes {
     ///
     /// The face that could not be boxed, with the box builder's own
     /// [`BooleanError`]: a cylinder carrier whose axis has no decided
-    /// length.
+    /// length. Boxed, because a [`BooleanError`] is large.
     pub fn of<T: Decide + Bounds>(
         body: &Body<T>,
         band: Band,
-    ) -> Result<Self, (FaceKey, BooleanError)> {
+    ) -> Result<Self, Box<(FaceKey, BooleanError)>> {
         let pad = sweep_pad(band);
         let mut faces = Vec::new();
         let mut boxes = Vec::new();
         for (face, _) in body.faces() {
             faces.push(face);
-            boxes.push(face_box(body, face, pad, band).map_err(|e| (face, e))?);
+            boxes.push(face_box(body, face, pad, band).map_err(|e| Box::new((face, e)))?);
         }
         let tree = Bvh::build(&boxes);
         Ok(Self { faces, boxes, tree })

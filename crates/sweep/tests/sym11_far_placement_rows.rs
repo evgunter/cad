@@ -224,15 +224,15 @@ const TABLE: [[Cell; 4]; 3] = [
     [
         Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
         Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["MappedSource", "built", "built"], 0) },
-        Cell { bare: lane(["Surface2Residual", "Surface2Residual", "MappedSource"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
-        Cell { bare: lane(["Surface2Residual", "Surface2Residual", "MappedSource"], 0), inexact: lane(["Surface2Residual", "Surface2Residual", "MappedSource"], 3), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
+        Cell { bare: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
+        Cell { bare: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 0), inexact: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 3), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
     ],
     // ε = 1e-12: every placement off the origin disputes.
     [
         Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
-        Cell { bare: lane(["Surface2Residual", "Surface2Residual", "MappedSource"], 0), inexact: lane(["Surface2Residual", "Surface2Residual", "MappedSource"], 3), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
-        Cell { bare: lane(["Surface2Residual", "Surface2Residual", "MappedSource"], 0), inexact: lane(["Surface2Residual", "Surface2Residual", "MappedSource"], 3), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
-        Cell { bare: lane(["Surface2Residual", "Surface2Residual", "MappedSource"], 0), inexact: lane(["Surface2Residual", "Surface2Residual", "MappedSource"], 3), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
+        Cell { bare: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 0), inexact: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 3), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
+        Cell { bare: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 0), inexact: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 3), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
+        Cell { bare: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 0), inexact: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 3), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
     ],
 ];
 

@@ -118,17 +118,15 @@
 //!   by the smaller semi-axis, where a `Zero` grazes the ray and an
 //!   in-band margin sets it aside.
 //!
-//! Two escalation names never reach the funnel
-//! ([`crate::invalid_margin`]): **`point_in_arc_loop_conic_straddle`**, an
-//! ellipse's two bounds on its distance straddling the whole band, and
-//! **`point_in_arc_loop_boundary_disagreement`**, the walk meeting on an
-//! edge a point its caller's pass placed off it.
+//! **`point_in_arc_loop_conic_straddle`** classifies nothing: it names an
+//! ellipse's two decided bounds on one quantity straddling the whole band
+//! ([`geom_core::k_stats::straddle`]), its distance or its span's overlap.
 
 use geom_brep::recourse::{
     LeverOnly, Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
 };
-use geom_core::k_stats::{Magnitude, decide_magnitude, decide_magnitude_reported};
-use geom_core::{Band, Decide, Indeterminate, Margin, MarginDiag, Point3, Sign, Vec3};
+use geom_core::k_stats::{Magnitude, decide_magnitude, decide_magnitude_reported, decide_reported};
+use geom_core::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Sign, Vec3};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, LoopBoundary, LoopKey};
@@ -266,7 +264,8 @@ pub enum Escalation {
     /// The carried margin is the reading: in the band, or unreadable.
     Margin,
     /// Two sound bounds on the one quantity straddle the band, so no
-    /// margin states the reading; the carried diagnostic names the site.
+    /// verdict of either states the reading; the carried diagnostic is
+    /// their enclosure, under the site's straddle row.
     Straddle,
     /// The site's own row decided definitely, and the site still cannot
     /// answer on it; the carried diagnostic names the row.
@@ -304,11 +303,12 @@ impl From<Indeterminate> for ReadEscalation {
 }
 
 impl ReadEscalation {
-    /// Two bounds of one quantity straddling the band, named by `row`.
-    fn straddle(band: Band, row: &'static str) -> Self {
+    /// A decided lower and upper bound of one quantity straddling the
+    /// band, named by `row` ([`geom_core::k_stats::straddle`]).
+    fn straddle(row: &'static str, lower: Decided, upper: Decided, band: Band) -> Self {
         Self {
             escalation: Escalation::Straddle,
-            diag: crate::invalid_margin::invalid(band, row),
+            diag: geom_core::k_stats::straddle(row, lower, upper, band),
         }
     }
 }
@@ -712,7 +712,7 @@ pub(crate) struct ConicRows {
     /// The name an ellipse's escalation carries where a lower and an
     /// upper bound on one quantity straddle the whole band — no margin
     /// of `on` or `span` says that, so it is not charged to them
-    /// ([`crate::invalid_margin`]). It never reaches the funnel.
+    /// ([`geom_core::k_stats::straddle`]).
     pub(crate) straddle: &'static str,
 }
 
@@ -873,8 +873,12 @@ impl<T: Decide> ConicArc<T> {
         };
         let lever = a.min(b);
         let gap = T::tau() - (t1 - t0);
-        let low = decide(rows.span, Margin::levered(gap, lever), band);
-        if let Ok(Sign::Negative) = low {
+        let low = decide_reported(rows.span, Margin::levered(gap, lever), band);
+        if let Ok(Decided {
+            sign: Sign::Negative,
+            ..
+        }) = low
+        {
             return Err(ConicArcError::WoundPastPeriod);
         }
         // A circle's two levers are one, and its lower bound has spoken.
@@ -890,11 +894,17 @@ impl<T: Decide> ConicArc<T> {
         let speed = ((a * sm).powi(2) + (b * cm).powi(2)).sqrt()
             + a.abs().max(b.abs()) * gap.abs() * T::from_f64(0.5);
         if kind == ConicKind::Ellipse
-            && let Ok(Sign::Negative) = decide(rows.span, Margin::levered(gap, speed), band)
+            && let Ok(
+                high @ Decided {
+                    sign: Sign::Negative,
+                    ..
+                },
+            ) = decide_reported(rows.span, Margin::levered(gap, speed), band)
         {
             return Err(ConicArcError::Escalated(match low {
                 Err(diag) => diag.into(),
-                _ => ReadEscalation::straddle(band, rows.straddle),
+                // `Δ·speed` bounds the overlap's signed gap from below.
+                Ok(low) => ReadEscalation::straddle(rows.straddle, high, low, band),
             }));
         }
         let (s0, c0) = t0.sin_cos();
@@ -911,7 +921,7 @@ impl<T: Decide> ConicArc<T> {
             lever,
             span: (t0, t1),
             trim: [(c0, s0), (c1, s1), (cm, sm)],
-            span_turn: low,
+            span_turn: low.map(|d| d.sign),
         }))
     }
 
@@ -1049,8 +1059,8 @@ impl<T: Decide> ConicArc<T> {
         let small = a.abs().min(b.abs());
         let lower = two * f.abs() / (g + (g2 + T::from_f64(4.0) * f.abs() / small.powi(2)).sqrt());
         let lower = (lower.powi(2) + axial.powi(2)).sqrt();
-        let far = decide_magnitude(rows.on, Margin::of(lower), band);
-        if far == Ok(Magnitude::Positive) {
+        let far = decide_magnitude_reported(rows.on, Margin::of(lower), band);
+        if let Ok((Magnitude::Positive, _)) = far {
             return Ok(ConicHit::Off);
         }
         // Within the escalation band of the conic by the lower bound, so
@@ -1076,7 +1086,18 @@ impl<T: Decide> ConicArc<T> {
             // beyond it: the two straddle the whole band, which only an
             // ellipse bending tighter than the band resolves (`b²/a`
             // within a few `ε`) allows.
-            (Ok((Magnitude::Positive, _)), _) => Err(ReadEscalation::straddle(band, rows.straddle)),
+            (Ok((Magnitude::Positive, high)), Ok((_, low))) => Err(ReadEscalation::straddle(
+                rows.straddle,
+                Decided {
+                    sign: Sign::Zero,
+                    margin: low,
+                },
+                Decided {
+                    sign: Sign::Positive,
+                    margin: high,
+                },
+                band,
+            )),
         };
         // Undecided against the conic, as a circle's in-band miss: off
         // the edge only where the foot is definitely past its ends.
@@ -1302,6 +1323,43 @@ pub(crate) enum LoopEdge<T: geom_core::Real> {
     },
 }
 
+/// An [`EdgeContact`] that places the point off the edge: what a caller's
+/// boundary pass hands [`carrier_loop_side`] for each edge.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum OffEdge {
+    /// [`EdgeContact::Off`].
+    Off,
+    /// [`EdgeContact::Carrier`].
+    Carrier,
+    /// [`EdgeContact::Unread`].
+    Unread,
+}
+
+/// An [`EdgeContact`] that places the point on the edge or at one of its
+/// ends: what stops a boundary pass.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum OnEdge {
+    /// [`EdgeContact::On`].
+    On(MarginDiag),
+    /// [`EdgeContact::End`].
+    End,
+}
+
+impl EdgeContact {
+    /// This reading split by whether it places the point off the edge:
+    /// [`OffEdge`] is what a walk behind a boundary pass still needs of
+    /// it, [`OnEdge`] what ends that pass.
+    pub(crate) fn off(self) -> Result<OffEdge, OnEdge> {
+        match self {
+            Self::Off => Ok(OffEdge::Off),
+            Self::Carrier => Ok(OffEdge::Carrier),
+            Self::Unread => Ok(OffEdge::Unread),
+            Self::On(margin) => Err(OnEdge::On(margin)),
+            Self::End => Err(OnEdge::End),
+        }
+    }
+}
+
 /// Where a point sits against one boundary edge — [`LoopEdge::contact`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum EdgeContact {
@@ -1365,6 +1423,61 @@ impl<T: Decide> LoopEdge<T> {
             Self::Spiric(k) => Some(k.ends()),
             Self::Chord | Self::Unrowed { .. } => None,
         }
+    }
+}
+
+/// A loop whose every edge [`LoopEdge::contact`] placed one point off,
+/// with those readings in edge order: built only by
+/// [`CarrierLoop::place_off`], so each edge has exactly one.
+pub(crate) struct OffLoop<T: geom_core::Real> {
+    lp: CarrierLoop<T>,
+    off: Vec<OffEdge>,
+}
+
+/// The first edge [`CarrierLoop::place_off`] found the point on, and the
+/// loop it read.
+pub(crate) struct OnLoop<T: geom_core::Real> {
+    /// The loop.
+    pub(crate) lp: CarrierLoop<T>,
+    /// The edge's index in `lp`.
+    pub(crate) edge: usize,
+    /// Where on it the point lies.
+    pub(crate) on: OnEdge,
+}
+
+impl<T: Decide> CarrierLoop<T> {
+    /// **The boundary pass**: [`LoopEdge::contact`] of `q` against each
+    /// edge in turn, under `rows`, to the first that places it on the
+    /// edge or at an end.
+    ///
+    /// # Errors
+    ///
+    /// The first edge's escalation.
+    pub(crate) fn place_off(
+        self,
+        q: Point3<T>,
+        rows: BoundaryRows,
+        band: Band,
+    ) -> Result<Result<OffLoop<T>, OnLoop<T>>, ReadEscalation> {
+        let n = self.verts.len();
+        let mut off = Vec::with_capacity(n);
+        let mut hit = None;
+        for (i, edge) in self.edges.iter().enumerate() {
+            match edge
+                .contact((self.verts[i], self.verts[(i + 1) % n]), q, rows, band)?
+                .off()
+            {
+                Ok(reading) => off.push(reading),
+                Err(on) => {
+                    hit = Some((i, on));
+                    break;
+                }
+            }
+        }
+        Ok(match hit {
+            None => Ok(OffLoop { lp: self, off }),
+            Some((edge, on)) => Err(OnLoop { lp: self, edge, on }),
+        })
     }
 }
 
@@ -1673,14 +1786,14 @@ fn extent_from<T: Decide>(
 
 /// Whether the walk reads the boundary itself, or its caller has.
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum Boundary {
+enum Boundary<'a> {
     /// Answer `OnBoundary` where the point is on an edge.
     Verdict,
-    /// The caller has decided the point is definitely off every edge of
-    /// the loop through [`LoopEdge::contact`]; the walk reads a conic
-    /// only for whether the point is on its CARRIER, which the crossing
-    /// count needs.
-    Decided,
+    /// The caller's boundary pass ([`CarrierLoop::place_off`]) placed the
+    /// point off every edge of the loop, one reading per edge in edge
+    /// order; the walk takes those readings rather than deciding them
+    /// again.
+    Decided(&'a [OffEdge]),
 }
 
 /// **Trilean containment of `q` in a planar loop's region, read on its
@@ -1715,9 +1828,9 @@ enum Boundary {
 ///   with a piece still unsettled at the depth grazes; a boundary
 ///   reading that runs out
 ///   of depth or pieces is that edge's `Uncrossable` at once — it is no
-///   reading in the band. The walk reads a spiric's boundary itself even
-///   behind a caller's pass, since its crossing count presumes the point
-///   off the arc.
+///   reading in the band. Its crossing count presumes the point off the
+///   arc, which only that boundary reading says: behind a caller's pass
+///   the walk takes the caller's.
 /// - **A spline edge**: no crossing row exists, so it is held as its
 ///   control hull's ball: a ray definitely through that ball is blocked
 ///   by the edge, one within the zero band of it grazes, and one whose
@@ -1894,28 +2007,28 @@ fn certify_plane<T: Decide>(
     Ok(())
 }
 
-/// [`point_in_loop`] for a caller whose own boundary pass —
-/// [`LoopEdge::contact`] over every edge of `lp` — has already decided
-/// `q` is definitely off every edge: `true` inside, `false` outside.
-/// The walk's boundary pass is not run on lines or splines, and a
-/// crossing at `q` itself, which that precondition rules out, is a
-/// graze. A conic is read for whether `q` is on its carrier, and a
-/// spiric again in full, since its crossing count presumes `q` off it.
+/// [`point_in_loop`] for a caller whose own boundary pass
+/// ([`CarrierLoop::place_off`]) has already placed `q` off every edge
+/// of the loop it read: `true` inside, `false` outside. The walk reads no edge's boundary again: a crossing at `q`
+/// itself, which that pass rules out, is a graze, a conic's `Carrier`
+/// reading is what its crossing count needs, and a spiric that pass
+/// could not read refuses as uncrossable.
 ///
 /// # Errors
 ///
 /// As [`point_in_loop`].
 pub(crate) fn carrier_loop_side<T: Decide>(
     r#loop: LoopKey,
-    lp: &CarrierLoop<T>,
+    read: &OffLoop<T>,
     normal: Vec3<T>,
     q: Point3<T>,
     band: Band,
 ) -> Result<bool, PointInLoopError> {
+    let OffLoop { lp, off } = read;
     if lp.edges.iter().all(|e| matches!(e, LoopEdge::Chord)) {
         return Ok(polygon_walk(r#loop, &lp.verts, normal, q, band)? == LoopContainment::In);
     }
-    Ok(carrier_walk(r#loop, lp, normal, q, band, Boundary::Decided)? == WalkSide::In)
+    Ok(carrier_walk(r#loop, lp, normal, q, band, Boundary::Decided(off))? == WalkSide::In)
 }
 
 /// What [`carrier_walk`] says of a point.
@@ -1933,7 +2046,7 @@ fn carrier_walk<T: Decide>(
     normal: Vec3<T>,
     q: Point3<T>,
     band: Band,
-    boundary: Boundary,
+    boundary: Boundary<'_>,
 ) -> Result<WalkSide, PointInLoopError> {
     let on_boundary = PointInLoopError::on(r#loop, LoopDecision::Boundary);
     let escalate = PointInLoopError::on_margin(r#loop, LoopDecision::Ray);
@@ -1964,45 +2077,29 @@ fn carrier_walk<T: Decide>(
     // ---- Boundary pass, and which conics carry `q`. ----
     let mut on_carrier = vec![false; n];
     for (i, edge) in edges.iter().enumerate() {
-        // A spiric is read under both: its crossing count presumes `q`
-        // definitely off the arc, which only its own reading says.
-        if let (Boundary::Decided, LoopEdge::Chord | LoopEdge::Unrowed { .. }) = (boundary, edge) {
-            continue;
-        }
-        match edge
-            .contact((verts[i], verts[(i + 1) % n]), q, WALK_ROWS, band)
-            .map_err(on_boundary)?
-        {
-            EdgeContact::Unread if matches!(edge, LoopEdge::Spiric(_)) => {
+        let off = match boundary {
+            Boundary::Decided(off) => off[i],
+            Boundary::Verdict => match edge
+                .contact((verts[i], verts[(i + 1) % n]), q, WALK_ROWS, band)
+                .map_err(on_boundary)?
+                .off()
+            {
+                Ok(off) => off,
+                Err(_) => return Ok(WalkSide::OnBoundary),
+            },
+        };
+        match off {
+            // A spiric's crossing count presumes `q` definitely off the
+            // arc, which only its own reading says.
+            OffEdge::Unread if matches!(edge, LoopEdge::Spiric(_)) => {
                 return Err(PointInLoopError::Uncrossable(Uncrossable {
                     r#loop,
                     edge: lp.keys[i],
                     carrier: UncrossableCarrier::Spiric,
                 }));
             }
-            EdgeContact::Off | EdgeContact::Unread => {}
-            EdgeContact::Carrier => on_carrier[i] = true,
-            EdgeContact::On(_) | EdgeContact::End => match boundary {
-                Boundary::Verdict => return Ok(WalkSide::OnBoundary),
-                // The caller's pass ran the same arithmetic and placed `q`
-                // off this edge. The two agree whenever every decision is
-                // the band's own; they can part only where a decision was
-                // taken on something else — the test-only identity pass,
-                // which reads an in-band margin as `Zero`, is one such —
-                // and then the point is in the band of this edge, which
-                // is an escalation, never a panic.
-                Boundary::Decided => {
-                    // This walk's own row decided `q` on the edge, and the
-                    // caller's decided it off: decided, and still no answer.
-                    return Err(on_boundary(ReadEscalation {
-                        escalation: Escalation::Decided,
-                        diag: crate::invalid_margin::invalid(
-                            band,
-                            "point_in_arc_loop_boundary_disagreement",
-                        ),
-                    }));
-                }
-            },
+            OffEdge::Off | OffEdge::Unread => {}
+            OffEdge::Carrier => on_carrier[i] = true,
         }
     }
     // ---- The rays. ----
@@ -2462,16 +2559,98 @@ mod tests {
             }
             _ => panic!("expected an in-band span"),
         }
-        match ConicArc::of(&ellipse, over(0.5 * eps), WALK_ROWS.conic, band) {
-            Err(ConicArcError::Escalated(ReadEscalation {
-                escalation: Escalation::Straddle,
-                diag,
-            })) => assert_eq!(
-                LoopDecision::ArcSpan.ending(Escalation::Straddle, &diag, Reading::AtRest),
-                lever
-            ),
-            _ => panic!("expected a straddle"),
+        for (a, k) in [(100.0, 0.5), (100.0, 0.9), (20.0, 0.6), (20.0, 0.9)] {
+            let ellipse = geom::Curve3::Ellipse {
+                center: Point3::new(0.0, 0.0, 0.0),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                major: a,
+                minor: 1.0,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            };
+            let bracket = geom_core::k_stats::Bracket::open();
+            let got = ConicArc::of(&ellipse, over(k * eps), WALK_ROWS.conic, band);
+            let recorded = bracket.finish();
+            let Err(ConicArcError::Escalated(got)) = got else {
+                panic!("a/b {a}, overlap {k}·ε: expected a straddle");
+            };
+            // The window's signed gap to a period, levered by the edge's
+            // speed bound (the lower bound) and by its smaller semi-axis
+            // (the upper), as `ConicArc::of` reads them.
+            let (t0, t1) = over(k * eps);
+            let gap = core::f64::consts::TAU - (t1 - t0);
+            let (sm, cm) = (t0 - gap * 0.5).sin_cos();
+            let speed = ((a * sm).powi(2) + cm.powi(2)).sqrt() + a * gap.abs() * 0.5;
+            assert_straddle(
+                got,
+                &recorded,
+                LoopDecision::ArcSpan,
+                (gap * speed, gap * 1.0),
+                &format!("a/b {a}, {k}·ε"),
+            );
         }
+    }
+
+    /// The lower bound and the upper bound `ConicArc::hit` reads on the
+    /// distance from the ellipse of semi-axes `a` (along x) and `b` to the
+    /// point `x` out along its major axis: the Hessian-bounded root of the
+    /// implicit form, and the distance to the Newton foot, the vertex.
+    fn major_vertex_bounds(a: f64, b: f64, x: f64) -> (f64, f64) {
+        let u = x / a;
+        let f = u.powi(2) - 1.0;
+        let g = 2.0 * u / a;
+        let small = a.min(b);
+        let lower = 2.0 * f.abs() / (g + (g.powi(2) + 4.0 * f.abs() / small.powi(2)).sqrt());
+        (lower, x - a)
+    }
+
+    /// **A straddle is one escalation on the frame, carrying the
+    /// enclosure of its two bounds** (`k_stats::straddle`): under the
+    /// walk's straddle row, the enclosure `bounds` the site's own lower
+    /// and upper readings give, reaching from within the zero band to past
+    /// the escalation band, never a poisoned margin. Its ending is the
+    /// decision's lever alone, as before the enclosure was carried: the
+    /// straddle's own arm gives it, whatever the margin.
+    fn assert_straddle(
+        got: ReadEscalation,
+        recorded: &geom_core::k_stats::Recorded,
+        decision: LoopDecision,
+        bounds: (f64, f64),
+        label: &str,
+    ) {
+        let ReadEscalation {
+            escalation: Escalation::Straddle,
+            diag,
+        } = got
+        else {
+            panic!("{label}: expected a straddle, got {got:?}");
+        };
+        assert_eq!(diag.predicate, Some(WALK_ROWS.conic.straddle), "{label}");
+        let geom_core::ErrorTextReading::Enclosure { lo, hi } =
+            diag.margin.diagnostic_f64_for_error_text()
+        else {
+            panic!("{label}: expected an enclosure, got {:?}", diag.margin);
+        };
+        let close = |x: f64, y: f64| (x - y).abs() <= 1e-6 * y.abs();
+        assert!(
+            close(lo, bounds.0) && close(hi, bounds.1),
+            "{label}: [{lo:e}, {hi:e}] is the hull of the site's bounds {bounds:?}"
+        );
+        let band = diag.band;
+        assert!(
+            lo.abs().min(hi.abs()) <= band.zero() && lo.abs().max(hi.abs()) >= band.escalate(),
+            "{label}: [{lo:e}, {hi:e}] straddles the band"
+        );
+        assert!(!diag.terminal_sliver, "{label}");
+        assert_eq!(
+            recorded.escalations.last().map(|e| e.source),
+            Some(diag),
+            "{label}: on the frame"
+        );
+        assert_eq!(
+            decision.ending(Escalation::Straddle, &diag, Reading::AtRest),
+            format!("Recourse: {}", decision.lever()),
+            "{label}: the lever alone"
+        );
     }
 
     /// **The centre of an ellipse** is `b` from it, exactly the lower
@@ -2523,42 +2702,48 @@ mod tests {
     }
 
     /// **An ellipse bending tighter than the band** (`b²/a = ε/100`): at
-    /// its major vertex the lower bound on a point `20ε` out reads within
+    /// its major vertex the lower bound on a point `kε` out reads within
     /// the zero band while the upper bound — here the distance itself —
-    /// reads definitely beyond it. The answer escalates on its own
-    /// straddle name; it is never `On`, which reading ON off the lower
-    /// bound would give.
+    /// reads definitely beyond it. The answer escalates as a straddle of
+    /// the two ([`assert_straddle`]); it is never `On`, which reading ON
+    /// off the lower bound would give.
     #[test]
     fn an_ellipse_tighter_than_the_band_straddles_it() {
         let band = Band::linear(Tol::witness()).unwrap();
         let eps = band.zero();
-        let (a, b) = (1.0, (eps / 100.0).sqrt());
-        let carrier = geom::Curve3::Ellipse {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            major: a,
-            minor: b,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
-        let Ok(Some(k)) = ConicArc::of(
-            &carrier,
-            (0.0, core::f64::consts::TAU),
-            WALK_ROWS.conic,
-            band,
-        ) else {
-            panic!("the full ellipse is read");
-        };
-        let got = k.hit(Point3::new(a + 20.0 * eps, 0.0, 0.0), WALK_ROWS.conic, band);
-        assert!(
-            matches!(
-                &got,
-                Err(ReadEscalation {
-                    escalation: Escalation::Straddle,
-                    diag,
-                }) if diag.predicate == Some("point_in_arc_loop_conic_straddle")
-            ),
-            "{got:?}"
-        );
+        for a in [1.0, 4.0] {
+            let b = (a * eps / 100.0).sqrt();
+            let carrier = geom::Curve3::Ellipse {
+                center: Point3::new(0.0, 0.0, 0.0),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                major: a,
+                minor: b,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            };
+            let Ok(Some(k)) = ConicArc::of(
+                &carrier,
+                (0.0, core::f64::consts::TAU),
+                WALK_ROWS.conic,
+                band,
+            ) else {
+                panic!("a {a}: the full ellipse is read");
+            };
+            for out in [15.0, 20.0, 40.0] {
+                let bracket = geom_core::k_stats::Bracket::open();
+                let got = k.hit(Point3::new(a + out * eps, 0.0, 0.0), WALK_ROWS.conic, band);
+                let recorded = bracket.finish();
+                let Err(got) = got else {
+                    panic!("a {a}, {out}ε out: expected a straddle, got {got:?}");
+                };
+                assert_straddle(
+                    got,
+                    &recorded,
+                    LoopDecision::Boundary,
+                    major_vertex_bounds(a, b, a + out * eps),
+                    &format!("a {a}, {out}ε"),
+                );
+            }
+        }
     }
 
     /// The ellipse of semi-axes `a` along x and `b` along y about the
@@ -2593,16 +2778,18 @@ mod tests {
         ) else {
             panic!("the full ellipse is read");
         };
+        let bracket = geom_core::k_stats::Bracket::open();
         let got = k.hit(Point3::new(a + 20.0 * eps, 0.0, 0.0), WALK_ROWS.conic, band);
-        assert!(
-            matches!(
-                &got,
-                Err(ReadEscalation {
-                    escalation: Escalation::Straddle,
-                    diag,
-                }) if diag.predicate == Some("point_in_arc_loop_conic_straddle")
-            ),
-            "{got:?}"
+        let recorded = bracket.finish();
+        let Err(got) = got else {
+            panic!("expected a straddle, got {got:?}");
+        };
+        assert_straddle(
+            got,
+            &recorded,
+            LoopDecision::Boundary,
+            major_vertex_bounds(a, b, a + 20.0 * eps),
+            "stored minor first",
         );
     }
 

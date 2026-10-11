@@ -1753,8 +1753,9 @@ pub enum BlendError {
     Op {
         /// The surgery step that ran the operator.
         site: &'static str,
-        /// The operator's typed refusal.
-        source: topo::EulerOpError,
+        /// The operator's typed refusal (boxed: it is the largest
+        /// payload any blend refusal carries).
+        source: Box<topo::EulerOpError>,
     },
     /// **The join the blend ends with refused**
     /// (`Body::join_edges_within`, scoped to the shells the surgery
@@ -2328,7 +2329,7 @@ mod recourse_tests {
             },
             BlendError::Op {
                 site: "strut mev",
-                source: topo::EulerOpError::DescriptionNotAdjacent { edge: None },
+                source: Box::new(topo::EulerOpError::DescriptionNotAdjacent { edge: None }),
             },
             BlendError::Join {
                 refusal: topo::JoinRefusal::CarrierUnsupported {
