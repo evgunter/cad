@@ -85,35 +85,45 @@ impl Pose {
         self.axis * self.alpha.cos() + (self.u_ref * cu + v_ref * su) * self.alpha.sin()
     }
 
+    /// The plane's slope to the generator at azimuth `u`, `g(u)·n`.
+    fn slope(&self, u: f64) -> f64 {
+        self.generator(u).dot(self.normal)
+    }
+
+    /// The slope at its extreme under `key` (the generator maximizing
+    /// `key(g·n)`): the best of 1024 samples, refined by ternary search
+    /// about it.
+    fn extreme_slope(&self, key: impl Fn(f64) -> f64) -> f64 {
+        const N: usize = 1024;
+        let step = core::f64::consts::TAU / N as f64;
+        let at = |u: f64| key(self.slope(u));
+        let i = (0..N)
+            .max_by(|&i, &j| at(i as f64 * step).total_cmp(&at(j as f64 * step)))
+            .unwrap();
+        let (mut lo, mut hi) = ((i as f64 - 1.0) * step, (i as f64 + 1.0) * step);
+        for _ in 0..200 {
+            let (m1, m2) = (lo + (hi - lo) / 3.0, hi - (hi - lo) / 3.0);
+            if at(m1) > at(m2) {
+                hi = m2;
+            } else {
+                lo = m1;
+            }
+        }
+        self.slope(0.5 * (lo + hi))
+    }
+
     /// The oracle: the farthest the section reaches from the apex, or
     /// `None` where some generator runs parallel to the plane or crosses
     /// it on both nappes' sides (no closed section). The plane meets the
     /// line through generator `g` at `−gap/(g·n)`; the ellipse's farthest
     /// point is on the generator whose `|g·n|` is least.
     fn reach(&self) -> Option<f64> {
-        let slope = |u: f64| self.generator(u).dot(self.normal);
-        const N: usize = 1024;
-        let samples: Vec<f64> = (0..N)
-            .map(|i| slope(i as f64 * core::f64::consts::TAU / N as f64))
-            .collect();
-        let sign = samples[0].signum();
-        if samples.iter().any(|s| s.signum() != sign || *s == 0.0) {
-            return None;
-        }
-        let step = core::f64::consts::TAU / N as f64;
-        let i = (0..N)
-            .min_by(|&i, &j| samples[i].abs().total_cmp(&samples[j].abs()))
-            .unwrap();
-        let (mut lo, mut hi) = ((i as f64 - 1.0) * step, (i as f64 + 1.0) * step);
-        for _ in 0..200 {
-            let (m1, m2) = (lo + (hi - lo) / 3.0, hi - (hi - lo) / 3.0);
-            if slope(m1).abs() < slope(m2).abs() {
-                hi = m2;
-            } else {
-                lo = m1;
-            }
-        }
-        Some(self.realized_gap().abs() / slope(0.5 * (lo + hi)).abs())
+        let sign = self.slope(0.0).signum();
+        let crosses = (0..1024).any(|i| {
+            let s = self.slope(f64::from(i) * core::f64::consts::TAU / 1024.0);
+            s.signum() != sign || s == 0.0
+        });
+        (!crosses).then(|| self.realized_gap().abs() / self.extreme_slope(|x| -x.abs()).abs())
     }
 
     /// The second oracle: where the section starts on each nappe, as its
@@ -125,38 +135,16 @@ impl Pose {
     /// A plane through the apex starts its section at the apex, which
     /// both nappes share.
     fn starts(&self) -> (Option<f64>, Option<f64>) {
-        let slope = |u: f64| self.generator(u).dot(self.normal);
-        const N: usize = 1024;
-        let step = core::f64::consts::TAU / N as f64;
-        // The slope's extreme on one side (`side` = +1 its maximum, −1
-        // its minimum), refined about the best sample.
-        let extreme = |side: f64| {
-            let i = (0..N)
-                .max_by(|&i, &j| {
-                    (side * slope(i as f64 * step)).total_cmp(&(side * slope(j as f64 * step)))
-                })
-                .unwrap();
-            let (mut lo, mut hi) = ((i as f64 - 1.0) * step, (i as f64 + 1.0) * step);
-            for _ in 0..200 {
-                let (m1, m2) = (lo + (hi - lo) / 3.0, hi - (hi - lo) / 3.0);
-                if side * slope(m1) > side * slope(m2) {
-                    hi = m2;
-                } else {
-                    lo = m1;
-                }
-            }
-            slope(0.5 * (lo + hi))
-        };
-        let (most, least) = (extreme(1.0), extreme(-1.0));
         let gap = self.realized_gap();
+        if gap == 0.0 {
+            return (Some(0.0), Some(0.0));
+        }
+        let (most, least) = (self.extreme_slope(|x| x), self.extreme_slope(|x| -x));
         // The `+axis` nappe (`t > 0`) needs a slope of the sign of `−gap`.
         let start = |needed: f64| {
             let steepest = if needed > 0.0 { most } else { least };
             (steepest * needed > 0.0).then(|| gap.abs() / steepest.abs())
         };
-        if gap == 0.0 {
-            return (Some(0.0), Some(0.0));
-        }
         (start(-gap), start(gap))
     }
 
@@ -295,254 +283,6 @@ fn a_section_inside_the_band_keeps_the_apex_point() {
         };
         assert_eq!((p.x, p.y, p.z), (0.0, 0.0, 0.0), "θ {theta}: the apex");
     }
-}
-
-/// The poses the band edge is read at, each beside its mirror through
-/// the apex's tangent plane (`axis·normal < 0`): a cone of half-angle
-/// `π/6` cut by a plane leaning `θ` off its axis, and a near-flat cone
-/// (`cos α = 0.9/10.5`) cut across its axis, each `gap` off the apex.
-fn edge_poses(tilted: (f64, f64), flat_gap: f64) -> [(&'static str, Pose); 4] {
-    let (theta, tilted_gap) = tilted;
-    let flat = (0.9_f64 / 10.5).acos();
-    let mirror = |mut p: Pose| {
-        p.normal = Vec3::new(-p.normal.x, p.normal.y, -p.normal.z);
-        p
-    };
-    let t = || upright(core::f64::consts::FRAC_PI_6, theta, tilted_gap);
-    let f = || upright(flat, 0.0, flat_gap);
-    [
-        ("tilted", t()),
-        ("tilted, mirrored", mirror(t())),
-        ("flat", f()),
-        ("flat, mirrored", mirror(f())),
-    ]
-}
-
-/// The tilted pose's lean and gap putting its reach at `reach_bands`·ε.
-fn tilted_at(reach_bands: f64) -> (f64, f64) {
-    let gap = 0.5 * eps();
-    let alpha = core::f64::consts::FRAC_PI_6;
-    (lean_for(alpha, -gap / (reach_bands * eps())), gap)
-}
-
-/// The flat pose's gap putting its reach at `reach_bands`·ε.
-fn flat_gap(reach_bands: f64) -> f64 {
-    reach_bands * eps() * 0.9 / 10.5
-}
-
-/// **A reach inside the band escalates**: neither the apex point nor
-/// the section is served where `|δ|/|D|` lies in `(ε, Kε]`.
-#[test]
-fn a_reach_inside_the_band_escalates() {
-    let (e, k) = (eps(), Tol::witness().k());
-    for reach_bands in [1.5, 0.95 * k] {
-        for (name, pose) in edge_poses(tilted_at(reach_bands), flat_gap(reach_bands)) {
-            let reach = pose.reach().expect("an ellipse");
-            assert!(
-                (reach / e - reach_bands).abs() < 1e-6 * reach_bands,
-                "{name} at {reach_bands}·ε: the oracle's reach is {:e}·ε",
-                reach / e
-            );
-            let got = pose.served(1.0, band());
-            assert!(
-                matches!(
-                    &got,
-                    Err(SectionError::Escalated(d)) if d.predicate == Some("pn_apex_point_reach")
-                ),
-                "{name} at {reach_bands}·ε: the reach escalates, got {got:?}"
-            );
-        }
-    }
-}
-
-/// **A reach just past the band is the section's**: the flat cone's
-/// axis-normal circle is served, on both surfaces and at the oracle's
-/// reach. The tilted pose's ellipse has semi-axes inside `Kε` of each
-/// other (its semi-major is at most the reach), so the carrier door
-/// refuses it typed; it is never the apex point and never an escalation
-/// of the reach.
-#[test]
-fn a_reach_just_past_the_band_is_the_section() {
-    let (e, k) = (eps(), Tol::witness().k());
-    let reach_bands = 1.05 * k;
-    for (name, pose) in edge_poses(tilted_at(reach_bands), flat_gap(reach_bands)) {
-        let reach = pose.reach().expect("an ellipse");
-        let got = pose.served(1.0, band());
-        if name.starts_with("flat") {
-            let Ok(PlaneConeSection::AxisNormalCircle(c)) = &got else {
-                panic!("{name}: the {reach:e} m circle is the section, got {got:?}");
-            };
-            let (on_plane, on_cone, far) = pose.residuals(c);
-            assert!(
-                on_plane < k * e && on_cone < k * e && (far - reach).abs() < 1e-6 * reach,
-                "{name}: served {on_plane:e} off the plane, {on_cone:e} off the cone, reaching \
-                 {far:e} beside the oracle's {reach:e}"
-            );
-        } else {
-            assert!(
-                matches!(got, Err(SectionError::Carrier(_))),
-                "{name}: the sliver ellipse's carrier refuses, got {got:?}"
-            );
-        }
-    }
-}
-
-/// **A reach just short of the band keeps the apex point.**
-#[test]
-fn a_reach_just_short_of_the_band_keeps_the_apex_point() {
-    let e = eps();
-    for (name, pose) in edge_poses(tilted_at(0.95), flat_gap(0.95)) {
-        let reach = pose.reach().expect("an ellipse");
-        assert!(
-            reach > 0.9 * e && reach < e,
-            "{name}: the oracle's reach is {:e}·ε",
-            reach / e
-        );
-        let got = pose.served(1.0, band());
-        assert!(
-            matches!(got, Ok(PlaneConeSection::ApexPoint(_))),
-            "{name}: the apex point, got {got:?}"
-        );
-    }
-}
-
-/// **Counterexample search.** Planes through and near the apex of cones
-/// at random half-angles, placements, scales and ε: a served apex point
-/// whose oracle section reaches past the zero band, or a served conic off
-/// the oracle's reach or off either surface, is a contradiction. The
-/// outcome counts print on every run.
-#[test]
-fn apex_lane_outcomes_agree_with_the_oracle() {
-    let k = Tol::witness().k();
-    let mut g = fuzz::start("pn_apex_reach::apex_lane");
-    let mut counts = std::collections::BTreeMap::<&str, usize>::new();
-    let mut refusals = std::collections::BTreeMap::<String, usize>::new();
-    let mut contradictions = Vec::new();
-    for _ in 0..fuzz::scaled(2400) {
-        let e = 10f64.powf(g.range(-12.0, -5.0));
-        let band = Band::new(e, k * e).unwrap();
-        let scale = 10f64.powf(g.range(-1.0, 2.0));
-        let unit = |g: &mut fuzz::Rng| {
-            Vec3::new(g.range(-1.0, 1.0), g.range(-1.0, 1.0), g.range(-1.0, 1.0)).normalize()
-        };
-        let axis = unit(&mut g);
-        let side = unit(&mut g);
-        let u_ref = (side - axis * side.dot(axis)).normalize();
-        let extent = scale * g.range(0.5, 4.0);
-        // One draw in six is a near-flat cone cut within the band of
-        // its axis' normal, where a gap in the band reaches `|δ|/cos α`
-        // and the axis-normal circle is the section past it. The rest
-        // place the discriminant, in bands at the extent: mostly just
-        // past the band, sometimes inside it or on the line-pair side.
-        let (alpha, theta, d) = if g.below(6) == 0 {
-            let alpha = g.range(1.45, 1.56);
-            let theta = g.range(0.0, 0.5) * e / extent;
-            (alpha, theta, -(alpha + theta).cos())
-        } else {
-            let alpha = g.range(0.02, 1.5);
-            let d_bands = match g.below(5) {
-                0 => g.range(-1.5, 1.5),
-                1 => -10f64.powf(g.range(0.0, 4.0)),
-                2 => 10f64.powf(g.range(0.0, 4.0)),
-                _ => -g.range(9.0, 14.0),
-            };
-            let d = (d_bands * e / extent).clamp(-0.999_999, 0.999_999);
-            (alpha, lean_for(alpha, d), d)
-        };
-        if !(0.0..=core::f64::consts::FRAC_PI_2).contains(&theta) {
-            continue;
-        }
-        let d_bands = d * extent / e;
-        let azimuth = g.range(0.0, core::f64::consts::TAU);
-        let v_ref = axis.cross(u_ref);
-        let radial = u_ref * azimuth.cos() + v_ref * azimuth.sin();
-        // Half the draws face the normal down the axis (`axis·normal < 0`).
-        let facing = if g.below(2) == 0 { 1.0 } else { -1.0 };
-        let normal = (axis * theta.cos() + radial * theta.sin()).normalize() * facing;
-        let gap = if g.below(8) == 0 {
-            0.0
-        } else {
-            g.range(-1.2, 1.2) * e
-        };
-        let pose = Pose {
-            apex: Point3::new(
-                g.range(-1.0, 1.0) * scale,
-                g.range(-1.0, 1.0) * scale,
-                g.range(-1.0, 1.0) * scale,
-            ),
-            axis,
-            u_ref,
-            alpha,
-            normal,
-            gap,
-        };
-        let reach = pose.reach();
-        let got = pose.served(extent, band);
-        let label = || {
-            format!(
-                "ε {e:e}, α {alpha}, extent {extent}, D·extent {d_bands}·ε, gap {:.3}·ε, \
-                 oracle reach {reach:?}",
-                gap / e
-            )
-        };
-        let kind = match &got {
-            Ok(PlaneConeSection::ApexPoint(_)) => {
-                // Every section point within the zero band of the apex
-                // (no section at all, or the plane through it).
-                if reach.is_some_and(|r| r > e * (1.0 + 1e-6)) {
-                    contradictions.push(format!("apex point served: {}", label()));
-                }
-                "apex point"
-            }
-            Ok(PlaneConeSection::TiltedEllipse(c) | PlaneConeSection::AxisNormalCircle(c)) => {
-                let (on_plane, on_cone, far) = pose.residuals(c);
-                // The oracle and the kernel each read the plane's slope to
-                // a generator at f64, so each carries `f64::EPSILON/|D|`
-                // of relative error in the reach.
-                let rel = 1e-3 + 64.0 * f64::EPSILON / d.abs();
-                let off_reach = reach.is_none_or(|r| (far - r).abs() > rel * r + k * e);
-                if on_plane > k * e || on_cone > k * e || off_reach {
-                    contradictions.push(format!(
-                        "conic {on_plane:e} off the plane, {on_cone:e} off the cone, reaching \
-                         {far:e}: {}",
-                        label()
-                    ));
-                }
-                if matches!(got, Ok(PlaneConeSection::TiltedEllipse(_))) {
-                    "tilted ellipse"
-                } else {
-                    "axis-normal circle"
-                }
-            }
-            Ok(PlaneConeSection::ApexLinePair { .. }) => "line pair",
-            Ok(PlaneConeSection::ApexTangentLine(_)) => "tangent line",
-            Err(e) => {
-                let variant = format!("{e:?}");
-                *refusals
-                    .entry(
-                        variant
-                            .split(['(', ' ', '{'])
-                            .next()
-                            .unwrap_or("")
-                            .to_owned(),
-                    )
-                    .or_default() += 1;
-                "refused"
-            }
-        };
-        *counts.entry(kind).or_default() += 1;
-    }
-    eprintln!(
-        "apex lane outcomes: {counts:?}, refusals {refusals:?} ({})",
-        fuzz::replay()
-    );
-    assert!(
-        contradictions.is_empty(),
-        "{} contradictions ({}), first: {}",
-        contradictions.len(),
-        fuzz::replay(),
-        contradictions[0]
-    );
 }
 
 /// The line outcomes' bound: where the oracle's section starts on the
@@ -728,7 +468,7 @@ fn a_line_outcome_is_served_only_where_its_section_starts_in_the_band() {
                     let pair = lines.len() == 2;
                     let start = line_start(&pose, pair);
                     assert!(
-                        start.is_some_and(|s| s <= e * (1.0 + 1e-3)),
+                        start.is_some_and(|s| s <= e * (1.0 + 1e-9)),
                         "{label}: a line outcome served with its section starting {start:?} \
                          from the apex"
                     );
@@ -750,106 +490,186 @@ fn a_line_outcome_is_served_only_where_its_section_starts_in_the_band() {
     );
 }
 
-/// The line poses the band edge is read at, each with its section
-/// starting `start_bands·ε` from the apex beside a gap of `±½·ε`, and
-/// whether each is a pair: the plane along the axis (`sin α` the
-/// slope), a plane leaning off a `π/4` cone to the discriminant that
-/// puts the far nappe's start there, and the tangent plane to a cone and
-/// to its near-flat complement (`sin 2α` the slope); each leaning pose
-/// beside its mirror (`axis·normal < 0`).
-fn edge_lines(start_bands: f64, gap_sign: f64) -> Vec<(&'static str, Pose, bool)> {
+/// The apex outcome a pose's section stands beside, and the distance
+/// that bounds it: the apex point by the ellipse's reach, the pair by
+/// where its section starts on the farther nappe, the tangent generator
+/// by where it starts on the nearer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Apex {
+    Point,
+    Pair,
+    Tangent,
+}
+
+impl Apex {
+    /// The oracle's bound for this outcome at `pose`.
+    fn bound(self, pose: &Pose) -> Option<f64> {
+        match self {
+            Self::Point => pose.reach(),
+            Self::Pair => line_start(pose, true),
+            Self::Tangent => line_start(pose, false),
+        }
+    }
+
+    /// The reach predicate that decides the bound.
+    fn row(self) -> &'static str {
+        match self {
+            Self::Point => "pn_apex_point_reach",
+            Self::Pair => "pn_apex_pair_reach",
+            Self::Tangent => "pn_apex_tangent_reach",
+        }
+    }
+}
+
+/// The poses the band edge is read at, each with its bound at
+/// `bands·ε` beside a gap of `±½·ε`, and each leaning pose beside its
+/// mirror (`axis·normal < 0`):
+/// - the apex point: a `π/6` cone cut by a plane leaning to the
+///   discriminant that puts the reach there, and a near-flat cone
+///   (`cos α = 0.9/10.5`) cut across its axis at the gap that does;
+/// - the pair: the plane along the axis (`sin α` the slope), and a plane
+///   leaning off a `π/4` cone to the discriminant that puts the far
+///   nappe's start there;
+/// - the tangent: the tangent plane to a cone and to its near-flat
+///   complement (`sin 2α` the slope).
+fn edge_poses(bands: f64, gap_sign: f64) -> Vec<(&'static str, Apex, Pose)> {
     let gap = gap_sign * 0.5 * eps();
-    let slope = 0.5 / start_bands;
+    let slope = 0.5 / bands;
+    let sixth = core::f64::consts::FRAC_PI_6;
     let quarter = core::f64::consts::FRAC_PI_4;
+    let tilted = || upright(sixth, lean_for(sixth, -slope), gap);
+    let flat_cone = (0.9_f64 / 10.5).acos();
+    let flat = || upright(flat_cone, 0.0, gap_sign * bands * eps() * 0.9 / 10.5);
     let steep = || upright(quarter, lean_for(quarter, slope), gap);
     let narrow = 0.5 * slope.asin();
-    let flat = core::f64::consts::FRAC_PI_2 - narrow;
+    let wide = core::f64::consts::FRAC_PI_2 - narrow;
     vec![
-        ("pair along the axis", along_axis(slope.asin(), gap), true),
-        ("pair leaning", steep(), true),
-        ("pair leaning, mirrored", mirrored(steep()), true),
-        ("tangent", tangent(narrow, gap), false),
-        ("tangent, mirrored", mirrored(tangent(narrow, gap)), false),
-        ("tangent, near-flat", tangent(flat, gap), false),
+        ("point, tilted", Apex::Point, tilted()),
+        ("point, tilted, mirrored", Apex::Point, mirrored(tilted())),
+        ("point, flat", Apex::Point, flat()),
+        ("point, flat, mirrored", Apex::Point, mirrored(flat())),
+        (
+            "pair along the axis",
+            Apex::Pair,
+            along_axis(slope.asin(), gap),
+        ),
+        ("pair leaning", Apex::Pair, steep()),
+        ("pair leaning, mirrored", Apex::Pair, mirrored(steep())),
+        ("tangent", Apex::Tangent, tangent(narrow, gap)),
+        (
+            "tangent, mirrored",
+            Apex::Tangent,
+            mirrored(tangent(narrow, gap)),
+        ),
+        ("tangent, near-flat", Apex::Tangent, tangent(wide, gap)),
         (
             "tangent, near-flat, mirrored",
-            mirrored(tangent(flat, gap)),
-            false,
+            Apex::Tangent,
+            mirrored(tangent(wide, gap)),
         ),
     ]
 }
 
-/// Every edge pose at `start_bands`, its oracle start checked, with the
-/// section `plane_cone_section` serves it.
+/// Every edge pose at `bands`, its oracle bound checked, with the pose
+/// and the section `plane_cone_section` serves it.
 fn at_the_edge(
-    start_bands: f64,
-) -> Vec<(String, bool, Result<PlaneConeSection<f64>, SectionError>)> {
+    bands: f64,
+) -> Vec<(
+    String,
+    Apex,
+    Pose,
+    Result<PlaneConeSection<f64>, SectionError>,
+)> {
     let e = eps();
     let mut out = Vec::new();
     for gap_sign in [1.0, -1.0] {
-        for (name, pose, pair) in edge_lines(start_bands, gap_sign) {
-            let label = format!("{name}, gap {}·½ε at {start_bands}·ε", gap_sign);
-            let start = line_start(&pose, pair).expect("the section starts somewhere");
+        for (name, apex, pose) in edge_poses(bands, gap_sign) {
+            let label = format!("{name}, gap {gap_sign}·½ε at {bands}·ε");
+            let bound = apex.bound(&pose).expect("the section has a bound");
             assert!(
-                (start / e - start_bands).abs() < 1e-6 * start_bands,
-                "{label}: the oracle's section starts {:e}·ε off",
-                start / e
+                (bound / e - bands).abs() < 1e-6 * bands,
+                "{label}: the oracle's bound is {:e}·ε",
+                bound / e
             );
             let got = pose.served(1.0, band());
-            out.push((label, pair, got));
+            out.push((label, apex, pose, got));
         }
     }
     out
 }
 
-/// **A section starting inside the band escalates**: neither a line
-/// outcome nor the conic is served where the start lies in `(ε, Kε]`.
+/// **A bound inside the band escalates**: neither the apex outcome nor
+/// the section is served where the reach or the start lies in
+/// `(ε, Kε]`.
 #[test]
-fn a_line_start_inside_the_band_escalates() {
+fn a_bound_inside_the_band_escalates() {
     let k = Tol::witness().k();
-    for start_bands in [1.5, 0.95 * k] {
-        for (label, pair, got) in at_the_edge(start_bands) {
-            let row = if pair {
-                "pn_apex_pair_reach"
-            } else {
-                "pn_apex_tangent_reach"
-            };
+    for bands in [1.5, 0.95 * k] {
+        for (label, apex, _, got) in at_the_edge(bands) {
             assert!(
-                matches!(&got, Err(SectionError::Escalated(d)) if d.predicate == Some(row)),
-                "{label}: escalates on {row}, got {got:?}"
+                matches!(&got, Err(SectionError::Escalated(d)) if d.predicate == Some(apex.row())),
+                "{label}: escalates on {}, got {got:?}",
+                apex.row()
             );
         }
     }
 }
 
-/// **A section starting just past the band is the conic's**: the pair's
-/// hyperbola and the tangent's near-parabola each refuse naming it.
+/// **A bound just past the band is the section's.**
+/// - The flat cone's axis-normal circle is served, on both surfaces and
+///   at the oracle's reach.
+/// - The tilted pose's ellipse has semi-axes inside `Kε` of each other
+///   (its semi-major is at most the reach), so the carrier door refuses
+///   it typed: never the apex point, and never an escalation of the
+///   reach.
+/// - The pair's hyperbola and the tangent's near-parabola each refuse
+///   naming their conic.
 #[test]
-fn a_line_start_just_past_the_band_is_the_conic() {
-    let k = Tol::witness().k();
-    for (label, pair, got) in at_the_edge(1.05 * k) {
-        let conic = if pair {
-            OutsideConic::Hyperbola
-        } else {
-            OutsideConic::Parabola
-        };
-        assert!(
-            names(&got, conic),
-            "{label}: refuses naming the {conic:?}, got {got:?}"
-        );
+fn a_bound_just_past_the_band_is_the_section() {
+    let (e, k) = (eps(), Tol::witness().k());
+    for (label, apex, pose, got) in at_the_edge(1.05 * k) {
+        match apex {
+            Apex::Point if label.starts_with("point, flat") => {
+                let reach = pose.reach().expect("an ellipse");
+                let Ok(PlaneConeSection::AxisNormalCircle(c)) = &got else {
+                    panic!("{label}: the {reach:e} m circle is the section, got {got:?}");
+                };
+                let (on_plane, on_cone, far) = pose.residuals(c);
+                assert!(
+                    on_plane < k * e && on_cone < k * e && (far - reach).abs() < 1e-6 * reach,
+                    "{label}: served {on_plane:e} off the plane, {on_cone:e} off the cone, \
+                     reaching {far:e} beside the oracle's {reach:e}"
+                );
+            }
+            Apex::Point => assert!(
+                matches!(got, Err(SectionError::Carrier(_))),
+                "{label}: the sliver ellipse's carrier refuses, got {got:?}"
+            ),
+            Apex::Pair | Apex::Tangent => {
+                let conic = if apex == Apex::Pair {
+                    OutsideConic::Hyperbola
+                } else {
+                    OutsideConic::Parabola
+                };
+                assert!(
+                    names(&got, conic),
+                    "{label}: refuses naming the {conic:?}, got {got:?}"
+                );
+            }
+        }
     }
 }
 
-/// **A section starting just short of the band keeps its line outcome.**
+/// **A bound just short of the band keeps its apex outcome.**
 #[test]
-fn a_line_start_just_short_of_the_band_keeps_the_lines() {
-    for (label, pair, got) in at_the_edge(0.95) {
-        let kept = if pair {
-            matches!(got, Ok(PlaneConeSection::ApexLinePair { .. }))
-        } else {
-            matches!(got, Ok(PlaneConeSection::ApexTangentLine(_)))
+fn a_bound_just_short_of_the_band_keeps_the_apex_outcome() {
+    for (label, apex, _, got) in at_the_edge(0.95) {
+        let kept = match apex {
+            Apex::Point => matches!(got, Ok(PlaneConeSection::ApexPoint(_))),
+            Apex::Pair => matches!(got, Ok(PlaneConeSection::ApexLinePair { .. })),
+            Apex::Tangent => matches!(got, Ok(PlaneConeSection::ApexTangentLine(_))),
         };
-        assert!(kept, "{label}: the line outcome, got {got:?}");
+        assert!(kept, "{label}: the apex outcome, got {got:?}");
     }
 }
 
@@ -907,21 +727,72 @@ fn true_apex_lines_still_serve() {
     }
 }
 
-/// **Counterexample search for the line outcomes.** Planes through and
-/// near the apex of cones from needles (`sin α` down to just past the
-/// aperture guard) through ordinary to near-flat, along the axis,
-/// tangent or leaning to a discriminant on the line-pair side, both
-/// faces, at random placements, scales and ε. A served line outcome
-/// whose oracle section starts past the zero band of the apex, or a
-/// served line off the plane's band or off a generator through the
-/// apex, is a contradiction. The outcome counts print on every run.
+/// The cone's half-angle and the plane's lean off its axis for one fuzz
+/// draw, `e` the draw's ε and `extent` its extent, from one of two
+/// families.
+/// - **Around the apex point** (`D < 0`): one draw in six is a
+///   near-flat cone cut within the band of its axis' normal, where a gap
+///   in the band reaches `|δ|/cos α` and the axis-normal circle is the
+///   section past it. The rest place the discriminant, in bands at the
+///   extent: mostly just past the band, sometimes inside it or on the
+///   line-pair side.
+/// - **Around the line outcomes** (`D ≥ 0`): a needle or a near-flat
+///   cone opens by a sine or cosine from just past the aperture guard to
+///   a twentieth, the rest anywhere. The plane is tangent within the
+///   band, along the axis, or leaning to a discriminant on the pair
+///   side, from just past the band to steep.
+fn apex_draw(g: &mut fuzz::Rng, e: f64, extent: f64) -> (f64, f64) {
+    if g.below(5) < 3 {
+        if g.below(6) == 0 {
+            let alpha = g.range(1.45, 1.56);
+            return (alpha, g.range(0.0, 0.5) * e / extent);
+        }
+        let alpha = g.range(0.02, 1.5);
+        let d_bands = match g.below(5) {
+            0 => g.range(-1.5, 1.5),
+            1 => -10f64.powf(g.range(0.0, 4.0)),
+            2 => 10f64.powf(g.range(0.0, 4.0)),
+            _ => -g.range(9.0, 14.0),
+        };
+        let d = (d_bands * e / extent).clamp(-0.999_999, 0.999_999);
+        return (alpha, lean_for(alpha, d));
+    }
+    let thin = 10f64.powf(g.range((11.0 * e / extent).log10(), -1.3));
+    let alpha = match g.below(6) {
+        0 | 1 => thin.asin(),
+        2 => thin.acos(),
+        _ => g.range(0.02, 1.5),
+    };
+    let theta = match g.below(4) {
+        0 => lean_for(alpha, (g.range(-1.5, 1.5) * e / extent).clamp(-1.0, 1.0)),
+        1 => core::f64::consts::FRAC_PI_2,
+        _ => {
+            let d = 10f64.powf(g.range(1.0, 6.0)) * e / extent;
+            lean_for(alpha, d.min(alpha.sin() * g.range(0.5, 1.0)))
+        }
+    };
+    (alpha, theta)
+}
+
+/// **Counterexample search.** Planes through and near the apex of cones
+/// from needles through ordinary to near-flat, at random placements,
+/// scales, faces and ε ([`apex_draw`]). A contradiction is:
+/// - a served apex point whose oracle section reaches past the zero
+///   band;
+/// - a served conic off the oracle's reach, or off either surface;
+/// - a served line outcome whose oracle section starts past the zero
+///   band of the apex;
+/// - a served line off the plane's band, or off a generator through the
+///   apex.
+///
+/// The outcome counts print on every run.
 #[test]
-fn apex_lines_agree_with_the_oracle() {
+fn apex_outcomes_agree_with_the_oracle() {
     let k = Tol::witness().k();
-    let mut g = fuzz::start("pn_apex_reach::apex_lines");
+    let mut g = fuzz::start("pn_apex_reach::apex_outcomes");
     let mut counts = std::collections::BTreeMap::<String, usize>::new();
     let mut contradictions = Vec::new();
-    for _ in 0..fuzz::scaled(1600) {
+    for _ in 0..fuzz::scaled(4000) {
         let e = 10f64.powf(g.range(-12.0, -5.0));
         let band = Band::new(e, k * e).unwrap();
         let scale = 10f64.powf(g.range(-1.0, 2.0));
@@ -929,33 +800,20 @@ fn apex_lines_agree_with_the_oracle() {
             Vec3::new(g.range(-1.0, 1.0), g.range(-1.0, 1.0), g.range(-1.0, 1.0)).normalize()
         };
         let axis = unit(&mut g);
-        let side = unit(&mut g);
-        let u_ref = (side - axis * side.dot(axis)).normalize();
+        // Across the axis by a cross product, which leaves it square to
+        // the axis to rounding however near `side` lies to it: the
+        // oracle walks the generators off `u_ref`, and a skew of `σ`
+        // moves its slopes by `σ·sin α`, the whole of a small `D`.
+        let u_ref = axis.cross(unit(&mut g)).normalize();
         let extent = scale * g.range(0.5, 4.0);
-        // A needle or a near-flat cone opens by a sine or cosine from
-        // just past the aperture guard to a twentieth; the rest anywhere.
-        let thin = 10f64.powf(g.range((11.0 * e / extent).log10(), -1.3));
-        let alpha = match g.below(6) {
-            0 | 1 => thin.asin(),
-            2 => thin.acos(),
-            _ => g.range(0.02, 1.5),
-        };
-        // Tangent within the band, along the axis, or leaning to a
-        // discriminant on the pair side, from just past the band to steep.
-        let theta = match g.below(4) {
-            0 => lean_for(alpha, (g.range(-1.5, 1.5) * e / extent).clamp(-1.0, 1.0)),
-            1 => core::f64::consts::FRAC_PI_2,
-            _ => {
-                let d = 10f64.powf(g.range(1.0, 6.0)) * e / extent;
-                lean_for(alpha, d.min(alpha.sin() * g.range(0.5, 1.0)))
-            }
-        };
+        let (alpha, theta) = apex_draw(&mut g, e, extent);
         if !(0.0..=core::f64::consts::FRAC_PI_2).contains(&theta) {
             continue;
         }
         let azimuth = g.range(0.0, core::f64::consts::TAU);
         let v_ref = axis.cross(u_ref);
         let radial = u_ref * azimuth.cos() + v_ref * azimuth.sin();
+        // Half the draws face the normal down the axis (`axis·normal < 0`).
         let facing = if g.below(2) == 0 { 1.0 } else { -1.0 };
         let normal = (axis * theta.cos() + radial * theta.sin()).normalize() * facing;
         let gap = if g.below(8) == 0 {
@@ -978,36 +836,65 @@ fn apex_lines_agree_with_the_oracle() {
         let got = pose.served(extent, band);
         let label = || {
             format!(
-                "ε {e:e}, α {alpha}, θ {theta}, extent {extent}, gap {:.3}·ε, starts {:?}",
+                "ε {e:e}, α {alpha}, θ {theta}, extent {extent}, gap {:.3}·ε, reach {:?}, \
+                 starts {:?}",
                 gap / e,
+                pose.reach(),
                 pose.starts()
             )
         };
-        let (kind, lines): (String, Vec<&Curve3<f64>>) = match &got {
-            Ok(PlaneConeSection::ApexLinePair { l1, l2 }) => ("line pair".into(), vec![l1, l2]),
-            Ok(PlaneConeSection::ApexTangentLine(l)) => ("tangent line".into(), vec![l]),
-            Ok(other) => (
-                format!("{other:?}").split('(').next().unwrap().into(),
-                vec![],
-            ),
+        // The oracle and the kernel each read a slope to a generator at
+        // f64, so each carries `f64::EPSILON/slope` of relative error in a
+        // distance `|gap|/slope`.
+        let rel = |dist: f64| 64.0 * f64::EPSILON * (1.0 + dist / gap.abs().max(f64::MIN_POSITIVE));
+        let mut lines: Vec<&Curve3<f64>> = Vec::new();
+        let kind = match &got {
+            Ok(PlaneConeSection::ApexPoint(_)) => {
+                // Every section point within the zero band of the apex
+                // (no section at all, or the plane through it).
+                if pose.reach().is_some_and(|r| r > e * (1.0 + rel(r))) {
+                    contradictions.push(format!("apex point served: {}", label()));
+                }
+                "apex point".to_owned()
+            }
+            Ok(PlaneConeSection::TiltedEllipse(c) | PlaneConeSection::AxisNormalCircle(c)) => {
+                let (on_plane, on_cone, far) = pose.residuals(c);
+                // `residuals` samples the conic at 1024 points, which
+                // fall short of its farthest point by under 1e-5 of it.
+                let off_reach = pose
+                    .reach()
+                    .is_none_or(|r| (far - r).abs() > (1e-5 + rel(r)) * r + k * e);
+                if on_plane > k * e || on_cone > k * e || off_reach {
+                    contradictions.push(format!(
+                        "conic {on_plane:e} off the plane, {on_cone:e} off the cone, reaching \
+                         {far:e}: {}",
+                        label()
+                    ));
+                }
+                if matches!(got, Ok(PlaneConeSection::TiltedEllipse(_))) {
+                    "tilted ellipse".to_owned()
+                } else {
+                    "axis-normal circle".to_owned()
+                }
+            }
+            Ok(PlaneConeSection::ApexLinePair { l1, l2 }) => {
+                lines = vec![l1, l2];
+                "line pair".to_owned()
+            }
+            Ok(PlaneConeSection::ApexTangentLine(l)) => {
+                lines = vec![l];
+                "tangent line".to_owned()
+            }
             Err(r) => match r.outside_conic() {
-                Some(conic) => (format!("refused: {conic:?}"), vec![]),
-                None => (
-                    format!(
-                        "refused: {}",
-                        format!("{r:?}").split(['(', ' ', '{']).next().unwrap()
-                    ),
-                    vec![],
+                Some(conic) => format!("refused: {conic:?}"),
+                None => format!(
+                    "refused: {}",
+                    format!("{r:?}").split(['(', ' ', '{']).next().unwrap()
                 ),
             },
         };
         if !lines.is_empty() {
-            let pair = lines.len() == 2;
-            let start = line_start(&pose, pair);
-            // The oracle and the kernel each read the steepest slope at
-            // f64, so each carries `f64::EPSILON/slope` relative error,
-            // `slope = |gap|/start`, in the start.
-            let rel = |s: f64| 1e-3 + 64.0 * f64::EPSILON * s / gap.abs().max(f64::MIN_POSITIVE);
+            let start = line_start(&pose, lines.len() == 2);
             if start.is_none_or(|s| s > e * (1.0 + rel(s))) {
                 contradictions.push(format!("{kind} served: {}", label()));
             }
@@ -1027,7 +914,7 @@ fn apex_lines_agree_with_the_oracle() {
         }
         *counts.entry(kind).or_default() += 1;
     }
-    eprintln!("apex line outcomes: {counts:?} ({})", fuzz::replay());
+    eprintln!("apex outcomes: {counts:?} ({})", fuzz::replay());
     assert!(
         contradictions.is_empty(),
         "{} contradictions ({}), first: {}",
