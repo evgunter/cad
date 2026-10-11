@@ -305,28 +305,30 @@ class TestTheDoorAnswersTheKernelsOwnText(unittest.TestCase):
         doc = Doc()
         scene, node = ring(doc)
         # The top annulus opened: the other three bands survive the
-        # hollowing, and each wears its own name under the shell.
-        hollow = doc.insert(Node.shell(doc.output(node, 0), Formula.length_in(T, m), [band(node, scene.piece(0, 2))]))
+        # hollowing, and each wears its own name under the shell, keyed
+        # by the target read the shell takes them in through.
+        target = doc.output(node, 0)
+        hollow = doc.insert(Node.shell(target, Formula.length_in(T, m), [band(node, scene.piece(0, 2))]))
         ev = evaluate(doc)
         survivors = ev.select(
             hollow,
             Selector.of(
-                NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.FromTarget))
+                NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.From))
             ),
         )
         self.assertEqual(
             sorted(survivors),
-            sorted(carried(hollow, band(node, scene.piece(0, seg))) for seg in (0, 1, 3)),
+            sorted(carried(hollow, target, band(node, scene.piece(0, seg))) for seg in (0, 1, 3)),
         )
         # The kind is the inner name's, never re-decided: a carried
         # face resolves as a face.
-        self.assertEqual(ev.resolve(carried(hollow, band(node, scene.piece(0, 0)))).status, "resolved")
+        self.assertEqual(ev.resolve(carried(hollow, target, band(node, scene.piece(0, 0)))).status, "resolved")
 
     def test_text_that_is_not_a_name_refuses_at_the_boundary(self):
         doc = Doc()
         _scene, node = ring(doc)
         with self.assertRaises(ValueError):
-            carried(node, "the bottom face")
+            carried(node, doc.output(node, 0), "the bottom face")
 
 
 class TestASelectionAuthoredBeforeAnyEvaluation(unittest.TestCase):

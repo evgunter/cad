@@ -783,3 +783,4 @@ Signed (CLEAVE orchestrator).
   triplication is filed on HONE.
 - **PR 4578 merged** (mints unit 2; single FULL review, fix pass done). `k_stats` has one
   gate-rejection path, reconciled with 4571.
+- **PR 4609 merged** (band-on pinch residue; orchestrator read). The row is closed.

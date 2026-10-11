@@ -388,7 +388,29 @@ fn order(mut name: StableName, seams: Seams) -> StableName {
     if is_junction(&name) {
         name.path.sort();
     }
-    name
+    one_constituent(name)
+}
+
+/// **A `Merged` whose set has one element, minted by the node that minted
+/// the set, is that element** (N3): a face glued to its twin, the same
+/// read spelled twice (REFERENCES DM5), is named as the face, with
+/// whatever follows the set kept after it. A set of one name minted
+/// upstream stays a set: hoisting that name would publish another node's
+/// row in this node's table.
+fn one_constituent(name: StableName) -> StableName {
+    match name.path.split_first() {
+        Some((RoleSeg::Merged(set), rest)) if set.len() == 1 && set[0].node == name.node => {
+            let one = &set[0];
+            let mut path = one.path.clone();
+            path.extend(rest.iter().cloned());
+            StableName {
+                kind: name.kind,
+                node: one.node,
+                path,
+            }
+        }
+        _ => name,
+    }
 }
 
 /// Whether `name` is a seam JUNCTION: a vertex named by a run of two
@@ -449,14 +471,11 @@ fn segment(seg: RoleSeg, seams: Seams) -> RoleSeg {
         | RoleSeg::EdgeCrossing { .. }
         | RoleSeg::Crossing { .. }
         | RoleSeg::Fragment(Qualifier::OrderAlong { .. })
-        | RoleSeg::FromA(_)
-        | RoleSeg::FromB(_)
-        | RoleSeg::FromMember { .. }
+        | RoleSeg::From { .. }
         | RoleSeg::SectionEdge { .. }
         | RoleSeg::SplitFragment { .. }
         | RoleSeg::CrossingVertex { .. }
         | RoleSeg::OnToolVertex { .. }
-        | RoleSeg::FromTarget(_)
         | RoleSeg::BlendFace(_)
         | RoleSeg::CornerFace(_)
         | RoleSeg::TrimEdge { .. }
@@ -544,8 +563,8 @@ mod tests {
         StableName {
             kind: EntityKind::Face,
             node: RecipeNodeId::new(0, node),
-            path: vec![RoleSeg::FromMember {
-                member: RecipeNodeId::new(0, member),
+            path: vec![RoleSeg::From {
+                read: crate::VarId::new(1, member),
                 of: NameRef::new(StableName {
                     kind: EntityKind::Face,
                     node: RecipeNodeId::new(0, member),
@@ -811,7 +830,10 @@ mod tests {
                 EntityKind::Edge,
                 12,
                 vec![
-                    RoleSeg::FromA(NameRef::new(inner)),
+                    RoleSeg::From {
+                        read: crate::names::FOLD_A,
+                        of: NameRef::new(inner),
+                    },
                     ends(vertex(12, 1), vertex(12, 2)),
                 ],
             )

@@ -2,12 +2,14 @@
 id: split-band-on-at-a-concave-edge-may-mint-a-pinch-from-near-coincidence
 kind: issue
 title: Split's ON verdicts at margins within ε can mint a pinch from a value coincidence, which D1 tier 3′ (i) forbids
-status: open
+status: closed
 opened: 2026-10-02
 priority: P1
 cost: M
 refs: [3856]
 design: true
+closed: 2026-10-11
+pr: 4609
 ---
 
 
@@ -189,3 +191,20 @@ Measured on main (7244e06f5b), `NOTCHED` and `MIRRORED` under `±n`,
 Pins in `crates/topo/tests/m3_pr3_split.rs`, red on main at every ε:
 `a_plane_within_eps_of_a_pinch_cuts_it_and_records_the_pinch` and
 `a_vertex_in_the_band_of_the_split_plane_refuses_as_undecided`.
+
+## Closed (PR 4609, 2026-10-11)
+
+- `splitting::section_loops::chord_u_ref` takes the section face's chart
+  axis as its first chord projected into the plane, so a chord from a
+  minted crossing to an ON corner off the plane no longer tilts the
+  chart. That tilt is what refused ε/8 < |δ| ≤ ε at the attachment gate
+  (and as a zero-area section in the mirror lane).
+- Every |δ| < ε now cuts, with valid halves, and records its pinch as two
+  D10 rows, at every ε.
+- `SliverVertex` tells the undecided story: "whether a vertex lies on the
+  split plane is undecided: margin … lies inside the ambiguity band".
+- The SSI texts that claim "within the tolerance" for a band reading are
+  filed on SSIEDGE
+  (`ssi-boundary-texts-say-within-the-tolerance-of-a-side-read-in-the-band`)
+  and SSIMARCH
+  (`ssi-march-short-of-fit-counts-in-band-gaps-as-within-the-tolerance`).
