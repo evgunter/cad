@@ -2,7 +2,8 @@
 id: stored-spans-read-raw-past-winding-bound
 kind: issue
 title: props: two more stored spans read raw past the winding bound (torus single-edge meridian; the rim Δu sum for all four kinds)
-status: dispatched
+status: review
+pr: 4680
 opened: 2026-09-03
 github: 1618
 refs: [1617]
