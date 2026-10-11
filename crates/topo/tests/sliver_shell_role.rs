@@ -236,8 +236,8 @@ fn assert_refuses_in_band(what: &str, refusal: Result<(), BooleanError>) {
 /// lump, a wedge less than a band thick, as the only shell of its
 /// solid. At d = 1e-8 and 3e-8 its certified `V/A` lies wholly in band,
 /// and the ∩ refuses it as the operands' ill-conditioning (D10,
-/// Booleans); at d = −1e-8 the cube misses the piece and the ∩ is
-/// empty.
+/// Booleans); at d = 3.05e-8 it is past the band and the ∩ builds;
+/// at d = −1e-8 the cube misses the piece and the ∩ is empty.
 #[test]
 fn a_result_that_is_only_a_sliver_refuses_in_band() {
     let tol = Tol::witness();
@@ -251,20 +251,28 @@ fn a_result_that_is_only_a_sliver_refuses_in_band() {
         let refusal = topo::intersect(&piece, &cube, tol).map(|_| ());
         assert_refuses_in_band(&format!("d = {d:e}"), refusal);
     }
+    let (piece, cube) = corner_pose(&NOTCH307_PIECE, corner, edge, 3, 3.05e-8, tol);
+    let meet = topo::intersect(&piece, &cube, tol)
+        .unwrap_or_else(|e| panic!("d = 3.05e-8: the ∩ builds, got {e:?}"));
+    assert_eq!(
+        shells_per_solid(meet.body().expect("d = 3.05e-8: the ∩ is not empty")),
+        [1],
+        "d = 3.05e-8: one lump"
+    );
     let (piece, cube) = corner_pose(&NOTCH307_PIECE, corner, edge, 3, -1e-8, tol);
     let meet = topo::intersect(&piece, &cube, tol)
         .unwrap_or_else(|e| panic!("d = -1e-8: the ∩ builds, got {e:?}"));
     assert!(meet.body().is_none(), "d = -1e-8: the ∩ is empty");
 }
 
-/// **A sliver beside a definite lump refuses, whichever solid it lands
-/// in**: the piece of the row above and a block 0.4 m wide standing
-/// apart from it inside the cube, two solids, ∩ the cube at d = 1e-8.
-/// The block comes through whole. The pieces sort leaves the wedge,
-/// whose role does not read, in the block's solid, where check 10 reads
-/// it; alone in a solid of its own, check 7 would.
+/// **A wedge that lands in a lump's solid refuses through check 10**:
+/// the piece of the row above and a block 0.4 m wide standing apart
+/// from it inside the cube, two solids, ∩ the cube at d = 1e-8. The
+/// block comes through whole, and the pieces sort leaves the wedge,
+/// whose role does not read, in the block's solid, where check 10
+/// reads it (the path before check 7's was read at the door).
 #[test]
-fn a_sliver_beside_a_lump_refuses_in_band() {
+fn a_wedge_sharing_a_lumps_solid_refuses_through_check_10() {
     let tol = Tol::witness();
     if stood_down_off_1e9(tol) {
         return;
@@ -292,4 +300,65 @@ fn a_sliver_beside_a_lump_refuses_in_band() {
     assert_eq!(solids, [1, 1], "the piece and the block are two solids");
     let refusal = topo::intersect(&both.body, &cube, tol).map(|_| ());
     assert_refuses_in_band("piece and block", refusal);
+}
+
+/// Shells per solid of a boolean's result.
+fn shells_per_solid(meet: &topo::BooleanBody<f64>) -> Vec<usize> {
+    meet.body.solids().map(|(_, s)| s.shells.len()).collect()
+}
+
+/// A brick at rest.
+fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64), tol: Tol) -> AtRestBody<f64> {
+    AtRestBody::validate(common::brick::<f64>(x, y, z, tol), tol).expect("the brick is at rest")
+}
+
+/// A unit brick ∩ a brick standing on it from `z = 1 - t`: a slab `t`
+/// thick, 1 m by 1 m, its `V/A` about `t/2`.
+fn slab(t: f64, tol: Tol) -> Result<topo::BooleanResult<f64>, BooleanError> {
+    let a = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+    let b = brick((-1.0, 2.0), (-1.0, 2.0), (1.0 - t, 2.0), tol);
+    topo::intersect(&a, &b, tol)
+}
+
+/// **A slab is a sliver below twice the band**: its only shell's
+/// certified `V/A` is about `t/2`, so at t = 1e-8 it lies in band
+/// (1e-9 to 1e-8) and the ∩ refuses it as an in-band shell (D10,
+/// Booleans), and at t = 2.1e-8 it is past the band and builds.
+#[test]
+fn a_slab_thinner_than_two_bands_refuses_and_a_thicker_one_builds() {
+    let tol = Tol::witness();
+    if stood_down_off_1e9(tol) {
+        return;
+    }
+    assert_refuses_in_band("slab t = 1e-8", slab(1e-8, tol).map(|_| ()));
+    let meet = slab(2.1e-8, tol).unwrap_or_else(|e| panic!("slab t = 2.1e-8 builds, got {e:?}"));
+    assert_eq!(
+        shells_per_solid(meet.body().expect("slab t = 2.1e-8 is not empty")),
+        [1],
+        "slab t = 2.1e-8: one lump"
+    );
+}
+
+/// **A thin-walled hollow ships today**: a unit brick less a brick
+/// inset δ = 1e-8 on every side is one solid of two shells, each role
+/// definite, while its wall is as thin as the slab
+/// [`a_slab_thinner_than_two_bands_refuses_and_a_thicker_one_builds`]
+/// refuses. Pinned as it stands, the question open in
+/// `work/flush/a-thin-walled-hollow-ships-while-a-slab-as-thin-refuses.md`.
+#[test]
+fn a_thin_walled_hollow_ships_while_a_slab_as_thin_refuses() {
+    let tol = Tol::witness();
+    if stood_down_off_1e9(tol) {
+        return;
+    }
+    let d = 1e-8;
+    let a = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+    let core = brick((d, 1.0 - d), (d, 1.0 - d), (d, 1.0 - d), tol);
+    let hollow = topo::subtract(&a, &core, tol)
+        .unwrap_or_else(|e| panic!("the hollow builds today, got {e:?}"));
+    assert_eq!(
+        shells_per_solid(hollow.body().expect("the hollow is not empty")),
+        [2],
+        "one solid, its outer shell and its cavity"
+    );
 }

@@ -145,7 +145,7 @@ use crate::props::AtRestPolicy;
 use crate::props::QuadLane;
 use crate::splitting::finish::{carve, single_solid};
 use crate::validate::{
-    AtRestBody, ValidationError, decide, scaffolds_at_rest, validate, validate_closed,
+    AtRestBody, InBandShell, ValidationError, decide, scaffolds_at_rest, validate, validate_closed,
 };
 use geom_brep::recourse::Refused;
 use geom_core::k_stats::NonzeroSign;
@@ -4007,7 +4007,9 @@ pub(super) fn declared_surface_pairs<T: Real>(
 /// passed whose only shell is certified in band
 /// ([`crate::AtRestBody::slivers`]) is refused as the in-band shell it
 /// is: the at-rest invariant exempts it, and a result may not hold
-/// it (D10, Booleans). The structural
+/// it (D10, Booleans). A scalar that runs no at-rest gate
+/// ([`crate::AtRestOutcome::NotRunAtThisScalar`], a dual) reads no
+/// slivers. The structural
 /// gate's are structure alone, the kernel's.
 ///
 /// # Errors
@@ -4035,16 +4037,7 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
         kept.as_ref().map(|_| ()).map_err(Vec::as_slice),
     ));
     let kept = kept.map_err(finished_body_refusal)?;
-    let slivers: Vec<InBandShell> = kept
-        .slivers()
-        .iter()
-        .map(|sliver| InBandShell {
-            solid: sliver.solid,
-            shell: sliver.shell,
-            certified: *sliver.sliver.reading(),
-        })
-        .collect();
-    if let Some(refusal) = escalated(&slivers) {
+    if let Some(refusal) = escalated(kept.slivers()) {
         return Err(refusal);
     }
     if kept.outcome() == crate::AtRestOutcome::NotRunAtThisScalar {
@@ -4075,7 +4068,11 @@ fn finished_body_refusal(errors: Vec<ValidationError>) -> BooleanError {
 /// are. `None` where there are none.
 fn escalated(shells: &[InBandShell]) -> Option<BooleanError> {
     let binding = shells.iter().copied().reduce(|a, b| {
-        if a.certified.margin.binds_before(b.certified.margin) {
+        if a.sliver
+            .reading()
+            .margin
+            .binds_before(b.sliver.reading().margin)
+        {
             a
         } else {
             b
@@ -4087,19 +4084,8 @@ fn escalated(shells: &[InBandShell]) -> Option<BooleanError> {
             shell: binding.shell,
             others: shells.len() - 1,
         },
-        diag: binding.certified,
+        diag: *binding.sliver.reading(),
     })
-}
-
-/// A shell of the result certified in band.
-#[derive(Clone, Copy)]
-struct InBandShell {
-    /// Its solid.
-    solid: crate::entity::SolidKey,
-    /// The shell.
-    shell: ShellKey,
-    /// Its certified enclosure of `V/A`, wholly in one sliver band.
-    certified: Indeterminate,
 }
 
 /// **Which of Q1's arms one finding of the finished-body gate is**: the
@@ -4124,7 +4110,7 @@ fn finding_arm(finding: &ValidationError) -> Option<InBandShell> {
         } => Some(InBandShell {
             solid: *solid,
             shell: *shell,
-            certified: *certified.reading(),
+            sliver: **certified,
         }),
         // Undecided, and not certified in band: a role read whose
         // enclosure the arithmetic left wider than the band or straddling

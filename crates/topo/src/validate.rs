@@ -4925,13 +4925,14 @@ pub fn validate_geometric_certificate<
 }
 
 /// [`validate_geometric_certificate`], with the one-shell solids its
-/// check 7 passed as slivers ([`SliverSolid`]).
+/// check 7 passed as slivers, each its solid's only shell
+/// ([`InBandShell`]).
 fn validate_geometric_kept<
     T: geom_core::Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
 >(
     body: &Body<T>,
     tol: Tol,
-) -> Result<(crate::props::SignCertificate<'_, T>, Vec<SliverSolid>), Vec<ValidationError>> {
+) -> Result<(crate::props::SignCertificate<'_, T>, Vec<InBandShell>), Vec<ValidationError>> {
     // The structural phase runs WITH check 2's plane x NURBS lane
     // injected, which is what keeps this composed door re-deriving the
     // M7-8 certificate class at rest; the public structural door,
@@ -5109,7 +5110,7 @@ fn validate_geometric_certified<
 >(
     body: &Body<T>,
     tol: Tol,
-) -> Result<(crate::props::SignCertificate<'_, T>, Vec<SliverSolid>), Vec<ValidationError>> {
+) -> Result<(crate::props::SignCertificate<'_, T>, Vec<InBandShell>), Vec<ValidationError>> {
     let band = match Band::linear(tol) {
         Ok(band) => band,
         Err(error) => return Err(vec![ValidationError::Band { error }]),
@@ -5167,18 +5168,19 @@ fn validate_geometric_certified<
 /// asserts — and `Err` is check 7's verdicts, never empty (it is built
 /// only when one was pushed). There is no state where the check came
 /// back clean without a certificate to hand on. Beside it, `Ok` lists
-/// the one-shell solids it passed as slivers ([`SliverSolid`]).
+/// the shells it passed as slivers, each its solid's only one
+/// ([`InBandShell`]).
 fn plus_v_by_sign<'b, T: geom_core::Decide>(
     body: &'b Body<T>,
     band: Band,
     tol: Tol,
     quad: Option<crate::props::QuadLane<T>>,
-) -> Result<(crate::props::SignCertificate<'b, T>, Vec<SliverSolid>), Vec<ValidationError>> {
+) -> Result<(crate::props::SignCertificate<'b, T>, Vec<InBandShell>), Vec<ValidationError>> {
     let mut errors = Vec::new();
     let mut parts = Vec::new();
     let mut slivers = Vec::new();
     for (solid, faces) in check7_subjects(body) {
-        let last = core::cell::Cell::new(OpenRound::InBand(None));
+        let last = core::cell::Cell::new(OpenRound::AboutTheBody(None));
         match crate::props::sign_walk(
             body,
             &faces,
@@ -5196,7 +5198,7 @@ fn plus_v_by_sign<'b, T: geom_core::Decide>(
                         .get(solid)
                         .map(|record| record.shells.as_slice()),
                 ) {
-                    slivers.push(SliverSolid {
+                    slivers.push(InBandShell {
                         solid,
                         shell: *shell,
                         sliver: *sliver,
@@ -5536,7 +5538,7 @@ pub(crate) enum PlusVVerdict {
     Unresolved,
     /// The certified reading lies wholly inside one sliver band: the
     /// invariant exempts it and the solid passes, a sliver at this
-    /// tolerance. A boolean may not return it ([`SliverSolid`]).
+    /// tolerance. A boolean may not return it ([`InBandShell`]).
     Sliver(crate::props::CertifiedSliver),
 }
 
@@ -5544,24 +5546,29 @@ pub(crate) enum PlusVVerdict {
 /// [`plus_v_at_target`] to read once the schedule runs out.
 #[derive(Clone, Copy, Debug)]
 enum OpenRound {
-    /// In band, or straddling zero by the body's own rounding; with the
-    /// certified sliver where the reading lies wholly in band.
-    InBand(Option<crate::props::CertifiedSliver>),
+    /// Taken about the body ([`Certified::Open`]): in band, or straddling
+    /// zero by the body's own rounding; with the certified sliver where
+    /// the reading lies wholly in band.
+    AboutTheBody(Option<crate::props::CertifiedSliver>),
     /// Straddling zero at a face's world-origin width.
     Unresolved,
 }
 
-/// **A solid whose only shell check 7 certified wholly in band**: the
-/// at-rest invariant passes it, and the boolean door refuses a result
-/// holding one (D10, Booleans). A solid of several shells is not
-/// listed: check 10 reads each of its shells' roles.
+/// **A shell certified wholly in band**, which a boolean's result may
+/// not hold (D10, Booleans): check 10's role read of a shell of a
+/// solid of several ([`ValidationError::ShellRoleUndecided`]), or check
+/// 7's of a solid's only shell ([`AtRestBody::slivers`]), which the
+/// at-rest invariant passes. A solid of several shells whose total is
+/// in band while each shell's role decides is neither, and nothing
+/// refuses it
+/// (`work/flush/a-thin-walled-hollow-ships-while-a-slab-as-thin-refuses.md`).
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct SliverSolid {
-    /// The solid.
+pub(crate) struct InBandShell {
+    /// Its solid.
     pub(crate) solid: SolidKey,
-    /// Its one shell.
+    /// The shell.
     pub(crate) shell: crate::entity::ShellKey,
-    /// Check 7's certified reading of it.
+    /// The certified reading of its `V/A`.
     pub(crate) sliver: crate::props::CertifiedSliver,
 }
 
@@ -5604,8 +5611,8 @@ fn plus_v_at_target(
     match (refusal, last) {
         (Some(source), _) => PlusVVerdict::Uncomputable(source),
         (None, OpenRound::Unresolved) => PlusVVerdict::Unresolved,
-        (None, OpenRound::InBand(Some(sliver))) => PlusVVerdict::Sliver(sliver),
-        (None, OpenRound::InBand(None)) => PlusVVerdict::Pass,
+        (None, OpenRound::AboutTheBody(Some(sliver))) => PlusVVerdict::Sliver(sliver),
+        (None, OpenRound::AboutTheBody(None)) => PlusVVerdict::Pass,
     }
 }
 
@@ -5618,7 +5625,7 @@ fn plus_v_round(certified: Certified, last: &core::cell::Cell<OpenRound>) -> Opt
         Certified::Role(crate::props::ShellRole::Outer) => Some(PlusVVerdict::Pass),
         Certified::Role(crate::props::ShellRole::Void) => Some(PlusVVerdict::Refuse),
         Certified::Open(unread) => {
-            last.set(OpenRound::InBand(unread.sliver()));
+            last.set(OpenRound::AboutTheBody(unread.sliver()));
             None
         }
         Certified::Unresolved(_) => {
@@ -9020,7 +9027,7 @@ pub struct AtRestBody<T: Real> {
     body: Body<T>,
     outcome: AtRestOutcome,
     /// The one-shell solids check 7 passed as slivers.
-    slivers: Vec<SliverSolid>,
+    slivers: Vec<InBandShell>,
 }
 
 impl<T: Real> AtRestBody<T> {
@@ -9054,10 +9061,11 @@ impl<T: Real> AtRestBody<T> {
         }
     }
 
-    /// The one-shell solids the gate passed as slivers: check 7
-    /// certified each one's volume sign wholly in band, which the
-    /// invariant exempts at rest. Empty where the gate did not run.
-    pub(crate) fn slivers(&self) -> &[SliverSolid] {
+    /// The shells the gate passed as slivers, each its solid's only
+    /// shell: check 7 certified each one's volume sign wholly in band,
+    /// which the invariant exempts at rest. Empty where the gate did
+    /// not run.
+    pub(crate) fn slivers(&self) -> &[InBandShell] {
         &self.slivers
     }
 
@@ -10215,7 +10223,7 @@ mod tests {
         };
         let solid = SolidKey::default();
         let at_target = |certified| {
-            let last = core::cell::Cell::new(OpenRound::InBand(None));
+            let last = core::cell::Cell::new(OpenRound::AboutTheBody(None));
             assert!(
                 plus_v_round(certified, &last).is_none(),
                 "an open round decides nothing"

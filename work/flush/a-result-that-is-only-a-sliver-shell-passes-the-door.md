@@ -75,24 +75,49 @@ re-run: a declaration moves no body).
 - d = 3e-8: `Ok`, one solid of one shell, walk `V/A` 9.822e-9.
 - d = −1e-8: `Ok`, empty.
 
-With a 0.4 m block added to the piece as a second solid, standing apart
-inside the cube, main already refuses `Escalated { ShellRole }` at
-d = 1e-8. The pieces sort leaves the wedge, whose role does not read,
-in the block's solid, so check 10 reads it. No boolean construction
-found here gives the wedge a solid of its own beside a lump.
+The same pose with a 0.4 m block added to the piece as a second solid,
+standing apart inside the cube, refuses `Escalated { ShellRole }` at
+d = 1e-8 on main already. The pieces sort leaves the wedge, whose role
+does not read, in the block's solid, so check 10 reads it. A brick slab
+beside a taller brick lands the same way. No boolean construction found
+here gives a sliver a solid of its own beside a lump.
 
 ## Fix
 
 Check 7 (`validate.rs` `plus_v_by_sign`) keeps the certified sliver of
-its last open round (`OpenRound`). That sliver comes from
-`RoleUnread::certified_by`, read through `RoleUnread::sliver`. At the
-target the solid passes as `PlusVVerdict::Sliver`, so the at-rest
-exemption is unchanged. A solid whose only shell passed that way is
-listed as a `SliverSolid` on the kept `AtRestBody`
-(`AtRestBody::slivers`). The boolean door's `gate` (`boolean/ops.rs`)
-refuses a result with any such solid `Escalated { ShellRole }`. It does
-this through `escalated`, the binding-shell choice it now shares with
-`finished_body_refusal`. Tests are in `topo/tests/sliver_shell_role.rs`:
-`a_result_that_is_only_a_sliver_refuses_in_band` goes red on main, and
-`a_sliver_beside_a_lump_refuses_in_band` is a guard that also holds on
-main.
+its last open round (`OpenRound::AboutTheBody`). That sliver comes from
+`RoleUnread::certified_by`, read through `RoleUnread::sliver`.
+- At the target the solid passes as `PlusVVerdict::Sliver`, so the
+  at-rest exemption is unchanged.
+- A solid's only shell that passed that way is listed on the kept
+  `AtRestBody` (`AtRestBody::slivers`). It is listed as an
+  `InBandShell`, the one type that check 10's findings also map to in
+  `boolean/ops.rs` `finding_arm`.
+- The boolean door's `gate` refuses a result holding any such shell
+  `Escalated { ShellRole }`, through `escalated`, which it shares with
+  `finished_body_refusal`.
+
+**What newly refuses.** The measure of a sole shell is its certified
+V/A, the reading check 10 already applies to each shell of a
+multi-shell solid. So any boolean result whose only lump is under
+about 2Kε thick now refuses instead of shipping. At ε = 1e-9:
+- **The wedge.** d = 1e-8 and 3e-8 refuse; d = 3.05e-8 builds.
+- **A planar slab** (a unit brick ∩ a brick from z = 1 − t).
+  - t = 1e-8 ships `Ok` on main and now refuses `ShellRole`, with
+    certified V/A 5e-9.
+  - t = 1.9e-8 also refuses.
+  - t = 2.1e-8 builds on both.
+  - t ≤ 5e-9 refuses earlier as a coincidence, on both.
+
+A thin-walled hollow is a solid of several shells whose total is in
+band while each shell decides. It still ships:
+`a-thin-walled-hollow-ships-while-a-slab-as-thin-refuses`.
+
+**Tests** (`topo/tests/sliver_shell_role.rs`):
+- `a_result_that_is_only_a_sliver_refuses_in_band` and
+  `a_slab_thinner_than_two_bands_refuses_and_a_thicker_one_builds` go
+  red on main.
+- `a_wedge_sharing_a_lumps_solid_refuses_through_check_10` guards check
+  10's existing path for the one landing found. It holds on main too.
+- `a_thin_walled_hollow_ships_while_a_slab_as_thin_refuses` pins
+  today's hollow.
