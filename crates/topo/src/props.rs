@@ -118,9 +118,16 @@ impl<T: Real> MassProperties<T> {
     /// would move a margin the reporting door's telemetry pins.
     #[must_use]
     pub fn enclosure(&self) -> VolumeEnclosure<T> {
+        // A body with no quadrature face has no pad, structurally rather
+        // than as a measured zero; any other pad is the quadrature's.
+        let pad = if self.volume_pad == 0.0 {
+            T::zero()
+        } else {
+            T::from_computed(self.volume_pad)
+        };
         VolumeEnclosure {
-            volume_lo: self.volume - T::from_f64(self.volume_pad),
-            volume_hi: self.volume + T::from_f64(self.volume_pad),
+            volume_lo: self.volume - pad,
+            volume_hi: self.volume + pad,
             surface_area: self.surface_area,
         }
     }
@@ -2633,15 +2640,11 @@ fn face_flux<T: Decide>(
                             bounds
                         }
                     };
-                    let (fc, fp) = quad_lane::mid_pad(bounds.flux);
-                    let (ac, ap) = quad_lane::mid_pad(bounds.area);
+                    let (at, fp, ap) = quadrature_contribution(bounds.flux, bounds.area);
                     flux_pad += fp;
                     area_pad += ap;
                     enclosure = Some((bounds.flux, bounds.area));
-                    FaceContribution {
-                        flux: T::from_f64(fc),
-                        area: T::from_f64(ac),
-                    }
+                    at
                 }
                 // Either an iso boundary (the closed forms — the
                 // face's S10 sense entering at `curved_face`'s one
@@ -2670,6 +2673,22 @@ fn face_flux<T: Decide>(
         converged_at,
         refusal,
     })
+}
+
+/// A face's contribution as its two quadrature enclosures' midpoints,
+/// and their half-widths: each midpoint is an `f64` the quadrature
+/// computed, so it enters as a computed value.
+fn quadrature_contribution<T: Real>(
+    flux: Interval,
+    area: Interval,
+) -> (FaceContribution<T>, f64, f64) {
+    let (fc, fp) = quad_lane::mid_pad(flux);
+    let (ac, ap) = quad_lane::mid_pad(area);
+    let at = FaceContribution {
+        flux: T::from_computed(fc),
+        area: T::from_computed(ac),
+    };
+    (at, fp, ap)
 }
 
 /// Flatten one loop's half-edge cycle into [`LoopEdge`]s (traversal
@@ -4925,5 +4944,61 @@ mod shell_role_refusal_tests {
             assert_eq!(got.sliver.is_some(), want, "{name}");
             assert_eq!(got.hi, walk.hi, "{name}: the walk's own reading stays");
         }
+    }
+}
+
+#[cfg(test)]
+mod from_computed_rows {
+    use super::{MassProperties, quadrature_contribution};
+    use crate::revalue_pin::{Revalued, S, revalued};
+    use geom_core::Real;
+    use geom_core::interval::Interval;
+
+    /// The bracket's ends take the quadrature's pad as a computed value:
+    /// built at `Sym<f64>` with the volume a function of the parameter
+    /// and the pad the `f64` the quadrature computed from it, neither end
+    /// re-values to the pad `p0` measured.
+    #[test]
+    fn the_volume_bracket_takes_its_pad_as_computed() {
+        let found = revalued([1.0, 1.0 + 1.0e-3], |p, x| {
+            let props = MassProperties {
+                volume: x * x * x,
+                surface_area: S::from_f64(6.0) * x * x,
+                volume_pad: 1.0e-6 * p * p,
+                area_pad: 0.0,
+            };
+            let e = props.enclosure();
+            vec![e.volume_lo, e.volume_hi]
+        });
+        assert_eq!(
+            found,
+            Revalued {
+                kept: 0,
+                opaque: 2,
+                laundered: 0,
+            },
+            "each end is the volume's expression and one unknown for the pad"
+        );
+    }
+
+    /// The quadrature's midpoints enter as computed values: built at
+    /// `Sym<f64>` from enclosures the lane would measure off geometry
+    /// the parameter moves, neither re-values to the midpoint `p0`
+    /// measured.
+    #[test]
+    fn the_quadrature_midpoints_enter_as_computed() {
+        let found = revalued([1.0, 1.0 + 1.0e-3], |p, _| {
+            let x = Interval::from_f64(p);
+            let (at, _, _) = quadrature_contribution::<S>(x * x * x, x * x);
+            vec![at.flux, at.area]
+        });
+        assert_eq!(
+            found,
+            Revalued {
+                kept: 0,
+                opaque: 2,
+                laundered: 0,
+            }
+        );
     }
 }
