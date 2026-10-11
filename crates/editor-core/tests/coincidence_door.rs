@@ -13,8 +13,8 @@ use editor_core::{
     Advisory, CapEnd, CheckEvidence, CheckId, ChecksConfig, Datum, EntityKey, EntityKind, Entry,
     Evaluation, FindingSubject, Formula, LoopProgram, NamedCell, NamedCoincidence, Node,
     PartSelect, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, Proof,
-    RecipeNodeId, RoleSeg, Rung, Severity, SplitHalf, StableName, ValuePayload,
-    VarId, coincide, spoken_by,
+    RecipeNodeId, RoleSeg, Rung, Severity, SplitHalf, StableName, ValuePayload, VarId, coincide,
+    spoken_by,
 };
 use geom_core::{MarginDiag, Point3, Tol};
 use topo::{DecisionSite, Relation};
