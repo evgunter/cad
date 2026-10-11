@@ -64,6 +64,14 @@ pub enum SplineError {
         /// The requested upper end.
         hi: f64,
     },
+    /// A knot value held in the scalar reads as no single `f64` point
+    /// (`SpanLocate::point_value`): poison, or an enclosure wider than a
+    /// point. The `f64` knot vector is the values' value channel, and
+    /// such a value names no knot structure.
+    KnotNotAPoint {
+        /// Index of the offending knot.
+        index: usize,
+    },
 }
 
 impl core::fmt::Display for SplineError {
@@ -105,6 +113,12 @@ impl core::fmt::Display for SplineError {
                  whose ends are finite with lo < hi and whose width does not overflow",
                 Readable(*lo),
                 Readable(*hi)
+            ),
+            SplineError::KnotNotAPoint { index } => write!(
+                f,
+                "knot {index} is not one point (poison, or an enclosure wider than a point), \
+                 so it names no knot structure for the spans to be located in. Recourse: \
+                 build the carrier from knot values that are each a single number"
             ),
         }
     }

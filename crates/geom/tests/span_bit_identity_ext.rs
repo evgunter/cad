@@ -429,16 +429,15 @@ const ROW_COUNT: usize = 11_151;
 
 /// FNV-1a 64 over `"{label} {bits:#018x}\n"` for every row in order.
 ///
-/// **Re-captured when certification arithmetic became a newtype over the backend**
-/// (`0x606f_ae2d_7244_63e4` before): interval arithmetic padded one representable
-/// step outward on every operation and the backend pads only where the
-/// operation was inexact. Exactly 28 of these 11 151 rows moved, all of
-/// them a `derivative_span_hull` or `derivative_domain_hull` endpoint
-/// and all of them TIGHTER — a derivative hull is a fold of exact
-/// differences, which is where the retired pad had nothing to cover, so
-/// each one lands on the exact value the reals give (`-6`, `4.5`, `1.5`,
-/// `12`). None moved looser.
-const DIGEST: u64 = 0xd572_6f5c_cd9a_ef62;
+/// The `Interval` derivative rows read the basis's derivative ladder in
+/// interval arithmetic over the knots, not as an `f64` quotient lifted
+/// to a point: a lifted quotient encloses the rounded coefficient, not
+/// the real one. That is 487 of the rows, every one an `Interval`
+/// derivative endpoint (`.iv.deriv`, `.iv.deriv2`, `.ders`), each
+/// within 3e-14 relative of the point-lifted spelling: 416 looser and
+/// 71 tighter. No `f64` or `Dual` row, and no `Interval` evaluation
+/// row, reads the ladder.
+const DIGEST: u64 = 0x25a8_22b6_2014_5793;
 
 #[test]
 fn the_extended_corpus_is_bit_identical_to_the_retired_spellings() {

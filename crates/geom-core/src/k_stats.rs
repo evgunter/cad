@@ -1689,6 +1689,10 @@ impl crate::spline::SpanLocate for Probe {
         // f64); total anyway — poison, never a fabricated value.
         Self(f64::NAN)
     }
+
+    fn point_value(self) -> Option<f64> {
+        crate::spline::SpanLocate::point_value(self.0)
+    }
 }
 
 #[cfg(feature = "probe")]

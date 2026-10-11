@@ -1,10 +1,11 @@
 //! Generic B-spline basis evaluation — the **ring-ops half** of the
 //! spline substrate (C9): given a [`Span`] (structure, supplied by the
 //! caller — see [`super::locate`]), basis values and derivatives
-//! at a generic scalar `t` use only `+ − × ÷` and
-//! [`Real::from_f64`]-lifted structure constants. No comparisons on
-//! `t` appear anywhere in this file; every `f64` comparison below
-//! reads **knots** (structure), never the parameter.
+//! at a generic scalar `t` use only `+ − × ÷` over the knots, read
+//! either as the vector's `f64` values lifted ([`basis_funs`]) or as
+//! the values a [`super::Knots`] holds in `T` ([`basis_funs_in`]). No
+//! comparisons on `t` appear anywhere in this file; every `f64`
+//! comparison below reads **knots** (structure), never the parameter.
 //!
 //! # The span contract (binding, shared by every consumer)
 //!
@@ -35,18 +36,64 @@
 //! The triangular recursion runs ascending level `j = 1..=p`, ascending
 //! entry `r = 0..j`, exactly as written in [`basis_funs`]; derivative
 //! accumulation runs ascending `j` with the term order written in
-//! [`ders_basis_funs`]. Denominators are **pure knot differences
-//! computed at `f64`** (structure) and lifted once — not the textbook
+//! [`ders_basis_funs`]. Denominators are **pure knot differences**
+//! (taken in `f64` and lifted once for the `f64` knots, in `T` for
+//! knots held in `T`) — not the textbook
 //! `(U − t) + (t − U′)` form, whose exact-in-ℝ cancellation of `t`
 //! would widen enclosures at the interval scalar (and could put 0 in a
 //! denominator enclosure that is structurally positive).
 
-use super::knots::Span;
+use super::knot_values::KnotSpan;
+use super::knots::{KnotVector, Span};
 use crate::real::Real;
+
+/// Where a basis reads its knots: the vector's `f64` values lifted
+/// ([`Span`]), or the values a [`super::Knots`] holds in the scalar
+/// ([`KnotSpan`]). The structure (`kv`) is the same `f64` vector either
+/// way, and every decision below reads it alone.
+trait KnotRead<T> {
+    /// The structural span.
+    fn span(&self) -> Span<'_>;
+    /// Knot `i` in the scalar.
+    fn at(&self, i: usize) -> T;
+    /// `knot[hi] − knot[lo]` in the scalar.
+    fn gap(&self, hi: usize, lo: usize) -> T;
+}
+
+/// The `f64` knots lifted: each read is [`Real::from_f64`] of a stored
+/// knot, and a difference is taken in `f64` and lifted once.
+struct Lifted<'a>(Span<'a>);
+
+impl<T: Real> KnotRead<T> for Lifted<'_> {
+    fn span(&self) -> Span<'_> {
+        self.0
+    }
+    fn at(&self, i: usize) -> T {
+        T::from_f64(self.0.knots().knots()[i])
+    }
+    fn gap(&self, hi: usize, lo: usize) -> T {
+        let u = self.0.knots().knots();
+        T::from_f64(u[hi] - u[lo])
+    }
+}
+
+impl<T: Real> KnotRead<T> for KnotSpan<'_, T> {
+    fn span(&self) -> Span<'_> {
+        KnotSpan::span(*self)
+    }
+    fn at(&self, i: usize) -> T {
+        self.values()[i]
+    }
+    fn gap(&self, hi: usize, lo: usize) -> T {
+        let v = self.values();
+        v[hi] - v[lo]
+    }
+}
 
 /// The `p + 1` nonvanishing basis functions
 /// `N_{span−p,p}(t), …, N_{span,p}(t)` on `span` (Book A2.2 shape,
-/// structure-denominator form — module docs).
+/// structure-denominator form — module docs), the knots read as the
+/// vector's `f64` values.
 ///
 /// Total: a poisoned `t` propagates through the arithmetic, and there
 /// is no other route out. Division safety: every denominator is
@@ -62,25 +109,35 @@ use crate::real::Real;
 /// is exactly zero — so folding the tail write into the loop for
 /// uniformity computes `0/0` and poisons the row.
 pub fn basis_funs<T: Real>(span: Span<'_>, t: T) -> Vec<T> {
-    let kv = span.knots();
-    let p = kv.degree();
+    basis_row(&Lifted(span), t)
+}
+
+/// [`basis_funs`] with the knots read as the values `span`'s
+/// [`super::Knots`] holds in `T`: the same recursion, so a knot that is
+/// a function of the variables enters the row as that function.
+pub fn basis_funs_in<T: Real>(span: KnotSpan<'_, T>, t: T) -> Vec<T> {
+    basis_row(&span, t)
+}
+
+/// The triangle's level `p`, read through `k` (the recursion of
+/// [`basis_funs`]).
+fn basis_row<T: Real>(k: &impl KnotRead<T>, t: T) -> Vec<T> {
+    let p = k.span().degree();
     // The index, once — the recursion below reads knots around it. Its
     // range facts (`span ≥ p`, `span + 1 < len`) are the `Span`'s own
     // construction invariants, about these very knots.
-    let span = span.index();
-    let u = kv.knots();
+    let span = k.span().index();
     let mut n = vec![T::zero(); p + 1];
     n[0] = T::one();
     for j in 1..=p {
         let mut saved = T::zero();
-        for r in 0..j {
+        for (r, nr) in n.iter_mut().enumerate().take(j) {
             // Indexing justified: span + 1 + r ≤ span + j ≤ span + p ≤
             // len − 2, and span + 1 + r − j ≥ span + 1 − p ≥ 1 — the
             // `Span`'s own range invariant, established at construction.
-            let denom = u[span + 1 + r] - u[span + 1 + r - j];
-            let temp = n[r] / T::from_f64(denom);
-            n[r] = saved + (T::from_f64(u[span + 1 + r]) - t) * temp;
-            saved = (t - T::from_f64(u[span + 1 + r - j])) * temp;
+            let temp = *nr / k.gap(span + 1 + r, span + 1 + r - j);
+            *nr = saved + (k.at(span + 1 + r) - t) * temp;
+            saved = (t - k.at(span + 1 + r - j)) * temp;
         }
         n[j] = saved;
     }
@@ -92,25 +149,37 @@ pub fn basis_funs<T: Real>(span: Span<'_>, t: T) -> Vec<T> {
 /// row up to rounding-identical arithmetic — it *is* the same
 /// recursion). Rows with `k > degree` are exact zeros.
 ///
-/// Derivative coefficients (the Book's Eq. 2.10 ladder) are **pure
-/// `f64` structure** — quotients of knot differences with the
-/// standard zero-denominator convention (a zero denominator means the
+/// Derivative coefficients (the Book's Eq. 2.10 ladder) are quotients
+/// of knot differences, with the standard zero-denominator convention:
+/// a difference of two equal `f64` knots (structure) means the
 /// corresponding lower-degree basis function vanishes identically on
-/// the span; its coefficient is set to exactly 0). The generic scalar
-/// enters only in the stored basis triangle and the final ascending-`j`
-/// accumulation `Σ a_{k,j}·N_{i+j,p−k}`, scaled by `p!/(p−k)!`.
+/// the span, and its coefficient is exactly 0. The ladder is computed
+/// in `T` over the knots as read, then accumulated
+/// `Σ a_{k,j}·N_{i+j,p−k}` in ascending `j` and scaled by `p!/(p−k)!`.
 ///
 /// Total in the same way [`basis_funs`] is.
 pub fn ders_basis_funs<T: Real>(span: Span<'_>, t: T, n_ders: usize) -> Vec<Vec<T>> {
-    let kv = span.knots();
+    ders_rows(&Lifted(span), t, n_ders)
+}
+
+/// [`ders_basis_funs`] with the knots read as the values `span`'s
+/// [`super::Knots`] holds in `T` (as [`basis_funs_in`]).
+pub fn ders_basis_funs_in<T: Real>(span: KnotSpan<'_, T>, t: T, n_ders: usize) -> Vec<Vec<T>> {
+    ders_rows(&span, t, n_ders)
+}
+
+/// The rows of [`ders_basis_funs`], read through `k`.
+fn ders_rows<T: Real>(k: &impl KnotRead<T>, t: T, n_ders: usize) -> Vec<Vec<T>> {
+    let structural = k.span();
+    let kv: &KnotVector = structural.knots();
     let p = kv.degree();
     // The window's base, subtracted once inside `Span`, and the index
     // the knot reads are centred on. Both are in range for these knots
     // by the span's construction: the ladder's highest read is
     // `u[i + p + 1]` at `i = base + p = span.index()`, and
     // `index <= last_span()` puts that at `u.len() − 1` exactly.
-    let base = span.first_control();
-    let span = span.index();
+    let base = structural.first_control();
+    let span = structural.index();
     let u = kv.knots();
     // The full basis triangle: tri[j][r] = N_{span−j+r, j}(t),
     // levels j = 0..=p — the same recursion as `basis_funs`, all
@@ -121,12 +190,11 @@ pub fn ders_basis_funs<T: Real>(span: Span<'_>, t: T, n_ders: usize) -> Vec<Vec<
         let mut level = vec![T::zero(); j + 1];
         let mut saved = T::zero();
         for r in 0..j {
-            // Indexing justified as in `basis_funs`.
-            let denom = u[span + 1 + r] - u[span + 1 + r - j];
-            // Indexing justified: tri[j−1] has length j, r < j.
-            let temp = tri[j - 1][r] / T::from_f64(denom);
-            level[r] = saved + (T::from_f64(u[span + 1 + r]) - t) * temp;
-            saved = (t - T::from_f64(u[span + 1 + r - j])) * temp;
+            // Indexing justified as in `basis_funs`; tri[j−1] has
+            // length j, r < j.
+            let temp = tri[j - 1][r] / k.gap(span + 1 + r, span + 1 + r - j);
+            level[r] = saved + (k.at(span + 1 + r) - t) * temp;
+            saved = (t - k.at(span + 1 + r - j)) * temp;
         }
         level[j] = saved;
         tri.push(level);
@@ -136,47 +204,51 @@ pub fn ders_basis_funs<T: Real>(span: Span<'_>, t: T, n_ders: usize) -> Vec<Vec<
     // Indexing justified: tri has p + 1 levels.
     out.push(tri[p].clone());
     let mut factor = 1.0f64; // p·(p−1)···(p−k+1), exact for small p
-    for k in 1..=n_ders {
-        if k > p {
+    for kd in 1..=n_ders {
+        if kd > p {
             out.push(vec![T::zero(); p + 1]);
             continue;
         }
-        factor *= (p - k + 1) as f64;
+        factor *= (p - kd + 1) as f64;
         let mut row = Vec::with_capacity(p + 1);
         for r in 0..=p {
             let i = base + r; // control index — the window's base plus r
-            // a-ladder at f64 (structure): a_cur[j] = a_{k,j} for this i.
-            let mut a_prev = vec![0.0f64; k + 1];
-            let mut a_cur = vec![0.0f64; k + 1];
-            a_prev[0] = 1.0;
-            for kk in 1..=k {
+            // The a-ladder: a_cur[j] = a_{kd,j} for this i.
+            let mut a_prev = vec![T::zero(); kd + 1];
+            let mut a_cur = vec![T::zero(); kd + 1];
+            a_prev[0] = T::one();
+            for kk in 1..=kd {
                 // Indexing justified: i + p + 1 ≤ span + p + 1 ≤ len − 1.
                 for j in 0..=kk {
-                    let (num, den) = if j == 0 {
-                        (a_prev[0], u[i + p - kk + 1] - u[i])
+                    let (num, hi, lo) = if j == 0 {
+                        (a_prev[0], i + p - kk + 1, i)
                     } else if j == kk {
-                        (-a_prev[kk - 1], u[i + p + 1] - u[i + kk])
+                        (-a_prev[kk - 1], i + p + 1, i + kk)
                     } else {
-                        (a_prev[j] - a_prev[j - 1], u[i + p - kk + 1 + j] - u[i + j])
+                        (a_prev[j] - a_prev[j - 1], i + p - kk + 1 + j, i + j)
                     };
                     // Structure comparison on a knot difference — the
                     // zero-denominator convention (fn docs).
-                    a_cur[j] = if den == 0.0 { 0.0 } else { num / den };
+                    a_cur[j] = if u[hi] - u[lo] == 0.0 {
+                        T::zero()
+                    } else {
+                        num / k.gap(hi, lo)
+                    };
                 }
                 core::mem::swap(&mut a_prev, &mut a_cur);
             }
-            // Σ_j a_{k,j}·N_{i+j, p−k}: ascending j, term order as
+            // Σ_j a_{kd,j}·N_{i+j, p−kd}: ascending j, term order as
             // written; out-of-window basis values are identically zero
             // on this span and are skipped (structure decision).
             let mut acc = T::zero();
             for (j, a) in a_prev.iter().enumerate() {
-                let q_signed = (r + j) as isize - k as isize;
-                if q_signed < 0 || q_signed > (p - k) as isize {
+                let q_signed = (r + j) as isize - kd as isize;
+                if q_signed < 0 || q_signed > (p - kd) as isize {
                     continue;
                 }
-                // Indexing justified: 0 ≤ q ≤ p − k = tri level length − 1.
+                // Indexing justified: 0 ≤ q ≤ p − kd = tri level length − 1.
                 let q = q_signed as usize;
-                acc = acc + T::from_f64(*a) * tri[p - k][q];
+                acc = acc + *a * tri[p - kd][q];
             }
             row.push(acc * T::from_f64(factor));
         }
@@ -260,5 +332,73 @@ mod tests {
                 assert_eq!(ders[0][r].to_bits(), dual[r].value.to_bits());
             }
         }
+    }
+
+    /// At `f64` the held values are the vector's own, so the two reads
+    /// are one recursion over the same numbers: bit-identical rows.
+    #[test]
+    fn held_f64_knots_read_bit_identically_to_the_vector() {
+        let held = crate::spline::Knots::from(kv(&[0.0, 0.0, 0.0, 0.3, 1.7, 4.0, 4.0, 4.0], 2));
+        for t in [0.0, 0.2, 0.3, 1.1, 3.9, 4.0] {
+            let (span, _) = held.locate(t).expect("a numeric parameter");
+            let lifted = ders_basis_funs(span.span(), t, 3);
+            let read = ders_basis_funs_in(span, t, 3);
+            let bits = |rows: &[Vec<f64>]| -> Vec<u64> {
+                rows.iter().flatten().map(|x| x.to_bits()).collect()
+            };
+            assert_eq!(bits(&lifted), bits(&read), "ders rows at t = {t}");
+            let row: Vec<u64> = basis_funs_in(span, t).iter().map(|x| x.to_bits()).collect();
+            assert_eq!(row, bits(&lifted[..1]), "basis row at t = {t}");
+        }
+    }
+
+    /// A knot held as a function of a variable enters the row as that
+    /// function: its derivative channel is the row's derivative in the
+    /// knot, against a central difference of rebuilt `f64` vectors.
+    /// Lifted from the `f64` vector, the same knot is a constant and
+    /// the channel is zero.
+    #[test]
+    fn a_held_knot_variable_moves_the_row() {
+        let a = 0.8;
+        let at = |x: Dual64| {
+            vec![
+                Dual64::constant(0.0),
+                Dual64::constant(0.0),
+                Dual64::constant(0.0),
+                x,
+                Dual64::constant(2.0),
+                Dual64::constant(2.0),
+                Dual64::constant(2.0),
+            ]
+        };
+        let held = crate::spline::Knots::new(at(Dual64::variable(a)), 2).unwrap();
+        let t = Dual64::constant(1.2);
+        let (span, _) = held.locate(t).expect("a numeric parameter");
+        let row = basis_funs_in(span, t);
+        let ders = ders_basis_funs_in(span, t, 1);
+        let h = 1e-6;
+        let rebuilt = |x: f64| kv(&[0.0, 0.0, 0.0, x, 2.0, 2.0, 2.0], 2);
+        let (lo_kv, hi_kv) = (rebuilt(a - h), rebuilt(a + h));
+        let lo = ders_basis_funs(lo_kv.span_at(1.2).unwrap(), 1.2, 1);
+        let hi = ders_basis_funs(hi_kv.span_at(1.2).unwrap(), 1.2, 1);
+        let mut moved = false;
+        for r in 0..=2 {
+            for (kd, (l, h_row)) in lo.iter().zip(&hi).enumerate() {
+                let fd = (h_row[r] - l[r]) / (2.0 * h);
+                let got = if kd == 0 {
+                    row[r].deriv
+                } else {
+                    ders[kd][r].deriv
+                };
+                assert!((got - fd).abs() < 1e-6, "d/da row {kd}[{r}]: {got} vs {fd}");
+                moved |= fd.abs() > 1e-3;
+            }
+        }
+        assert!(moved, "the fixture's row does not depend on the knot");
+        let frozen = basis_funs(span.span(), t);
+        assert!(
+            frozen.iter().all(|n| n.deriv == 0.0),
+            "a lifted knot carried a channel"
+        );
     }
 }
