@@ -389,17 +389,13 @@ fn random_bases_with_corners_in_the_band_split_sound() {
     }
 }
 
-/// **A corner `0.9 ε` off the plane can leave a re-charted edge's
-/// residual in the band, and the split refuses it typed.** A base the
-/// review's fuzz drew (seed `0x9E3779B97F4A7C15`, its 123rd), split at
-/// the pose turned in general with the plane's normal down: the finish
-/// re-charts an edge at the vertex read On, and its residual lands in
-/// the band (`pcurve_map_residual`, about `1.1 ε`), so the split refuses
-/// `ChartResidual` rather than ship it. The other cells of this base
-/// split sound. The class is filed as
-/// `work/topo/a-split-recharts-an-edge-at-a-vertex-read-on-off-the-plane-into-the-band.md`.
+/// **A notch whose floor lies `0.9 ε` above the plane splits sound,
+/// the two lobes above it apart round the apex**, at every pose either
+/// way up, against the closed form: a base the review's fuzz drew
+/// (seed `0x9E3779B97F4A7C15`, its 123rd). The floor is read On, so the
+/// edge from the apex to it lies in the plane.
 #[test]
-fn a_recharted_residual_in_the_band_refuses_typed() {
+fn a_notch_floor_in_the_band_splits_sound() {
     let base = base_of(&[
         (-0.3709, 0.1491, false),
         (-0.0536, -0.2641, false),
@@ -407,24 +403,7 @@ fn a_recharted_residual_in_the_band_refuses_typed() {
         (-0.0022, 0.0927, false),
         (-0.0422, 0.9, true),
     ]);
-    let pose = poses().into_iter().find(|p| p.label == "turned").unwrap();
-    let u = apex_pyramid(&base, &pose, t());
-    match split(&u, &plane_at(&pose, false), t()) {
-        Err(topo::SplitError::Finish(topo::SplitFinishError::Euler(
-            topo::EulerOpError::RechartFalsifies { error, .. }
-            | topo::EulerOpError::Certification { error },
-        ))) => assert!(
-            matches!(
-                error,
-                topo::CertifyError::Escalated {
-                    check: geom_brep::CertCheck::ChartResidual,
-                    ..
-                }
-            ),
-            "{error:?}"
-        ),
-        other => panic!("{:?}", other.map(|_| "a body")),
-    }
+    pyramid_splits_sound("a notch floor 0.9 ε above", &base, Some([2, 1]));
 }
 
 /// A W-shaped base whose valley dips `1000 ε` below the top between

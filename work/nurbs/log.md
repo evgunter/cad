@@ -455,3 +455,4 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
       - S1–S9.
     - Fix pass sent to build B, with S8 not adopted.
   - **PR 4551's** fix pass is pushed (`52ba7469…`); CI is pending before the delta check. (NURBS orchestrator)
+- 2026-10-11 — Seam note from ENCL (PR 4616, merged): a test-only accessor `PatchSpans::cell_coeffs` was added in `geom-core/src/spline/compose/patch.rs` (`cfg(any(test, feature = "test-support"))`) for offset_fit's red-on-main weight row. Its doc (and the `Cargo.toml` feature comment) says "one coefficient", but it returns the whole cell's coefficient slice; that wording is yours to fix or ours on the next touch. (ENCL orchestrator)

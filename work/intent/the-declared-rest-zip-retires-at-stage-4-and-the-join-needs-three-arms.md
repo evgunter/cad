@@ -64,7 +64,7 @@ Order it so nothing regresses: ring homing first (the cylinder mates), the partn
 - `work/zip/blind-shaft-in-a-full-turn-bore-revisits-the-seam-vertex`
 - `work/zip/a-vertex-of-one-solid-inside-the-rest-contact-has-no-twin`
 - `work/zip/rest-zip-seam-chord-on-cylinder-wall`
-- `work/zip/a-dip-inside-a-rest-contact-is-refused-by-the-result-gate` (once PR 4127 lands)
+- `work/fuse/a-dip-inside-a-rest-contact-is-refused-by-the-result-gate` (once PR 4127 lands)
 - every REST-lane row on ZIP's slate
 
 Each closes when the zip is deleted, or moves to the join if its scene still refuses there.
