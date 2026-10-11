@@ -4,13 +4,16 @@
 //! a named row through `dihedral::decide`.
 
 use geom::Surface;
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
+use geom_core::{
+    Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, Vec3,
+};
 
 use crate::dihedral::decide;
 use crate::extent::{ExtentBall, Reach};
 use crate::intersect::{
-    ParallelAxes, PlaneCylinder, RuledSection, cylinder_axes_parallel, decide_across,
-    parallel_axes_at, parallel_cylinder_gap, parallel_swing, plane_cylinder_ruled,
+    ParallelAxes, PlaneCylinder, RuledSection, cylinder_axes_parallel_reported,
+    decide_across_reported, parallel_axes_at, parallel_cylinder_gap_reported, parallel_swing,
+    plane_cylinder_ruled,
 };
 
 /// **The certified-lane tangent LOCUS** (M9-2, the M9-1 PR-2 DEV-1
@@ -30,6 +33,9 @@ pub enum TangentLocus<T: Real> {
     Line {
         /// A point on the locus.
         origin: Point3<T>,
+        /// The margin that decided the two surfaces tangent: the gap
+        /// row's Zero.
+        gap: MarginDiag,
         /// The locus direction (the shared ruling / axis direction).
         dir: Vec3<T>,
     },
@@ -164,8 +170,8 @@ pub fn tangent_locus<T: Decide>(
             };
             let gap = "pc_parallel_gap";
             match plane_cylinder_ruled(&pc, reach, band).map_err(escalate)? {
-                Some(RuledSection::TangentLine { origin, dir }) => {
-                    Ok(TangentLocus::Line { origin, dir })
+                Some(RuledSection::TangentLine { origin, dir, gap }) => {
+                    Ok(TangentLocus::Line { origin, gap, dir })
                 }
                 Some(RuledSection::ParallelLines { .. }) => Err(TangentLocusError::NotTangent {
                     apart: false,
@@ -195,16 +201,24 @@ pub fn tangent_locus<T: Decide>(
                 ..
             },
         ) => {
-            match cylinder_axes_parallel(reach, (*o1, *a1), (*o2, *a2), band).map_err(escalate)? {
-                Sign::Zero => {}
-                Sign::Positive | Sign::Negative => {
-                    return Err(TangentLocusError::Unsupported {
-                        what: "cylinder×cylinder tangency is closed-form only for PARALLEL \
+            // Each tangency below is one only with the axes parallel, so
+            // its margin stands for both.
+            let parallel =
+                match cylinder_axes_parallel_reported(reach, (*o1, *a1), (*o2, *a2), band)
+                    .map_err(escalate)?
+                {
+                    Decided {
+                        sign: Sign::Zero,
+                        margin,
+                    } => margin,
+                    Decided { .. } => {
+                        return Err(TangentLocusError::Unsupported {
+                            what: "cylinder×cylinder tangency is closed-form only for PARALLEL \
                                axes (the generator line); skew/crossing axes are outside \
                                the lane",
-                    });
-                }
-            }
+                        });
+                    }
+                };
             let ParallelAxes {
                 foot1,
                 d_vec: w,
@@ -214,26 +228,27 @@ pub fn tangent_locus<T: Decide>(
             // External tangency first (|w| = r1 + r2): the common case
             // and the flush detector's; internal (|w| = |r1 − r2|)
             // second. Fixed probe order (D9).
-            match parallel_cylinder_gap((*r1, *r2), dist, swing, band).map_err(escalate)? {
-                Sign::Zero => {
+            match parallel_cylinder_gap_reported((*r1, *r2), dist, swing, band).map_err(escalate)? {
+                (Sign::Zero, gap) => {
                     let w_hat = w.normalize();
                     return Ok(TangentLocus::Line {
                         origin: foot1 + w_hat * *r1,
+                        gap: gap.jointly(parallel),
                         dir: *a1,
                     });
                 }
-                Sign::Negative => {
+                (Sign::Negative, _) => {
                     return Err(TangentLocusError::NotTangent {
                         apart: true,
                         predicate: "cc_parallel_gap",
                     });
                 }
-                Sign::Positive => {}
+                (Sign::Positive, _) => {}
             }
             // The internal gap moves with the axes' distance, so it is
             // read across the reach as the external one is.
             let internal = "tangent_locus_internal_gap";
-            match decide_across(
+            match decide_across_reported(
                 [internal, "tangent_locus_internal_gap_floor"],
                 (*r1 - *r2).abs() - dist,
                 swing,
@@ -241,7 +256,7 @@ pub fn tangent_locus<T: Decide>(
             )
             .map_err(escalate)?
             {
-                Sign::Zero => {
+                (Sign::Zero, gap) => {
                     // Internal tangency: the smaller cylinder rests
                     // inside the larger; the generator sits on the
                     // offset direction at the LARGER radius from the
@@ -281,18 +296,19 @@ pub fn tangent_locus<T: Decide>(
                     };
                     Ok(TangentLocus::Line {
                         origin: foot1 + w_hat * (sign * *r1),
+                        gap: gap.jointly(parallel),
                         dir: *a1,
                     })
                 }
                 // dist < |r1 − r2|: one cylinder nested strictly inside
                 // the other, their minimum distance |r1 − r2| − dist
                 // definitely positive: apart.
-                Sign::Positive => Err(TangentLocusError::NotTangent {
+                (Sign::Positive, _) => Err(TangentLocusError::NotTangent {
                     apart: true,
                     predicate: internal,
                 }),
                 // |r1 − r2| < dist < r1 + r2: the surfaces cross.
-                Sign::Negative => Err(TangentLocusError::NotTangent {
+                (Sign::Negative, _) => Err(TangentLocusError::NotTangent {
                     apart: false,
                     predicate: internal,
                 }),

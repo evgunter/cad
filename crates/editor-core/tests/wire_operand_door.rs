@@ -24,8 +24,12 @@
 //! kind the slot admits — so a door that stopped refusing it, and
 //! started shipping the evaluation's refusal to users, reds here.
 //!
-//! **One row is document-reachable**: the kind is right and the value
-//! is not — a 3-D axis where a revolve needs an axis in a sketch frame.
+//! **No row is document-reachable**: the last three that were — an
+//! axis in a sketch frame, and a half or an instance of a plain body —
+//! left with the in-plane axis datum (a revolve's axis is a line on
+//! the node) and with the split-half projection (a split's halves are
+//! read by port; a `Part` reads a pattern's copies alone, which the
+//! edit door checks). Every row is an edit-door refusal.
 //!
 //! These refusals are DOCUMENT-REACHABLE: the strings here are what an
 //! author reads. The SOURCE rules behind them (one construction site,
@@ -49,6 +53,10 @@ use geom_core::Tol;
 enum Owes {
     /// `WrongOperand`, with these two halves and the wired node as its
     /// `input`.
+    #[expect(
+        dead_code,
+        reason = "no row is document-reachable today; one that becomes so is written as this"
+    )]
     Refusal(&'static str, &'static str),
     /// The edit door refuses the node's read, the kind found against
     /// the kind its slot admits, so no evaluation happens and the
@@ -216,14 +224,6 @@ fn wired() -> (
     doc = add(
         doc,
         &mut rows,
-        "frame_value (an in-plane axis written against a body)",
-        Owes::EditDoor(VarKind::Body, SlotKind::Is(VarKind::Frame)),
-        fixture::axis_in_plane(body, (0.0, 0.0), (1.0, 0.0)),
-        body,
-    );
-    doc = add(
-        doc,
-        &mut rows,
         "wire_swept (an Extrude of a plane datum)",
         Owes::EditDoor(VarKind::Plane, SlotKind::Is(VarKind::Profile)),
         Node::Extrude {
@@ -240,22 +240,11 @@ fn wired() -> (
         Owes::EditDoor(VarKind::Plane, SlotKind::Is(VarKind::Profile)),
         Node::Revolve {
             profile: plane.into(),
-            axis: axis3.into(),
+            axis_origin: [len(0.0), len(0.0)],
+            axis_direction: [scl(0.0), scl(1.0)],
             angle: ang(1.0),
         },
         plane,
-    );
-    doc = add(
-        doc,
-        &mut rows,
-        "wire_revolve's axis (a Revolve about a 3-D axis)",
-        Owes::Refusal("an axis in a sketch frame (Datum::AxisInPlane)", "datum"),
-        Node::Revolve {
-            profile: profile.into(),
-            axis: axis3.into(),
-            angle: ang(1.0),
-        },
-        axis3,
     );
     doc = add(
         doc,
@@ -428,9 +417,11 @@ fn every_operand_refusal_names_the_phrase_asked_for_and_the_family_found() {
     // A census that read nothing would pass vacuously, and one whose
     // door rows reached a single kind would pin neither half against a
     // door that answers a constant.
-    assert_eq!(phrases.len(), 1, "the document-reachable row");
-    assert_eq!(families.len(), 1);
-    assert_eq!(doors.len(), 15, "the rows the edit door refuses");
+    assert!(
+        phrases.is_empty() && families.is_empty(),
+        "no row reaches an operand door"
+    );
+    assert_eq!(doors.len(), 14, "the rows the edit door refuses");
     let mut found: Vec<VarKind> = doors.iter().map(|d| d.0).collect();
     found.sort_unstable_by_key(|k| format!("{k:?}"));
     found.dedup();

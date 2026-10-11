@@ -940,8 +940,13 @@ pub(crate) enum RuledSection<T: Real> {
     /// The gap is definitely under `r`: two rulings.
     ParallelLines { l1: Curve3<T>, l2: Curve3<T> },
     /// The gap is coincident with `r`: the tangency ruling
-    /// `origin + t·dir`, `origin` the axis' foot on the plane.
-    TangentLine { origin: Point3<T>, dir: Vec3<T> },
+    /// `origin + t·dir`, `origin` the axis' foot on the plane, with the
+    /// margin that decided the gap Zero.
+    TangentLine {
+        origin: Point3<T>,
+        dir: Vec3<T>,
+        gap: MarginDiag,
+    },
     /// The gap is definitely over `r`.
     Empty,
 }
@@ -975,6 +980,8 @@ fn plane_cylinder_ruled_read<T: Decide>(
     let hinge = o - n * gap_signed;
     let cos = (T::one() - c.powi(2)).max(T::zero()).sqrt();
     let lever = reach.hinge_lever(o, -(gap_signed * c)) + reach.turn_lever(hinge, (n, a), c, cos);
+    // A tangent line's Zero is one only with this one, so its margin
+    // stands for both.
     let parallel = decide_reported("pc_axis_plane_parallel", Margin::levered(c, lever), band)?;
     if parallel.sign != Sign::Zero {
         return Ok((parallel, None));
@@ -983,13 +990,13 @@ fn plane_cylinder_ruled_read<T: Decide>(
     // levered from the hinge, and the wall stands `r − |gap|` off the
     // plane at the foot: the ruling stands at most their sum off the
     // section, so the gap is read across the reach with the tilt beside it.
-    let section = match decide_across(
+    let section = match decide_across_reported(
         ["pc_parallel_gap", "pc_parallel_gap_floor"],
         r - gap_signed.abs(),
         Margin::levered(c, lever).value(),
         band,
     )? {
-        Sign::Positive => {
+        (Sign::Positive, _) => {
             // Cross-section chord: the plane cuts the circle at
             // foot ± w·half, foot the axis' plane projection.
             let foot = o - n * gap_signed;
@@ -1006,11 +1013,12 @@ fn plane_cylinder_ruled_read<T: Decide>(
                 },
             }
         }
-        Sign::Zero => RuledSection::TangentLine {
+        (Sign::Zero, gap) => RuledSection::TangentLine {
             origin: o - n * gap_signed,
             dir: a,
+            gap: gap.jointly(parallel.margin),
         },
-        Sign::Negative => RuledSection::Empty,
+        (Sign::Negative, _) => RuledSection::Empty,
     };
     Ok((parallel, Some(section)))
 }
@@ -1575,7 +1583,21 @@ pub fn cylinder_axes_parallel<T: Decide>(
     line2: (Point3<T>, Vec3<T>),
     band: Band,
 ) -> Result<Sign, Indeterminate> {
-    decide(
+    cylinder_axes_parallel_reported(reach, line1, line2, band).map(|d| d.sign)
+}
+
+/// [`cylinder_axes_parallel`], keeping the reading it decided on.
+///
+/// # Errors
+///
+/// As [`cylinder_axes_parallel`].
+pub fn cylinder_axes_parallel_reported<T: Decide>(
+    reach: &Reach<T>,
+    line1: (Point3<T>, Vec3<T>),
+    line2: (Point3<T>, Vec3<T>),
+    band: Band,
+) -> Result<Decided, Indeterminate> {
+    decide_reported(
         "cc_axes_parallel",
         Margin::levered(
             line1.1.cross(line2.1).norm(),
@@ -1726,12 +1748,23 @@ pub fn parallel_axes_at<T: Real>(
 /// so the verdict does not depend on which cylinder is first. Shared
 /// with the tangent-locus lane.
 pub(crate) fn parallel_cylinder_gap<T: Decide>(
-    (r1, r2): (T, T),
+    radii: (T, T),
     d: T,
     swing: T,
     band: Band,
 ) -> Result<Sign, Indeterminate> {
-    decide_across(
+    parallel_cylinder_gap_reported(radii, d, swing, band).map(|(sign, _)| sign)
+}
+
+/// [`parallel_cylinder_gap`] with the margin it was decided on
+/// ([`decide_across_reported`]).
+pub(crate) fn parallel_cylinder_gap_reported<T: Decide>(
+    (r1, r2): (T, T),
+    d: T,
+    swing: T,
+    band: Band,
+) -> Result<(Sign, MarginDiag), Indeterminate> {
+    decide_across_reported(
         ["cc_parallel_gap", "cc_parallel_gap_floor"],
         r1 + r2 - d,
         swing,
@@ -1759,19 +1792,32 @@ pub(crate) fn parallel_cylinder_gap<T: Decide>(
 /// The two terms are never decided one at a time: each just inside the
 /// band would sum to nearly twice it.
 pub(crate) fn decide_across<T: Decide>(
-    [far, floor]: [&'static str; 2],
+    names: [&'static str; 2],
     datum: T,
     swing: T,
     band: Band,
 ) -> Result<Sign, Indeterminate> {
+    decide_across_reported(names, datum, swing, band).map(|(sign, _)| sign)
+}
+
+/// [`decide_across`] with the margin the `far` row was decided on: the
+/// Zero verdict's own margin where the row reads Zero, the margin the
+/// floor stood past otherwise.
+pub(crate) fn decide_across_reported<T: Decide>(
+    [far, floor]: [&'static str; 2],
+    datum: T,
+    swing: T,
+    band: Band,
+) -> Result<(Sign, MarginDiag), Indeterminate> {
     let swing = swing.abs();
-    match decide(far, Margin::of(datum.abs() + swing), band)? {
-        Sign::Zero => Ok(Sign::Zero),
+    let Decided { sign, margin } = decide_reported(far, Margin::of(datum.abs() + swing), band)?;
+    match sign {
+        Sign::Zero => Ok((Sign::Zero, margin)),
         Sign::Positive => {
             let near = (datum - swing).max(T::zero()) + (datum + swing).min(T::zero());
             Ok(match decide_nonzero(floor, Margin::of(near), band)? {
-                NonzeroSign::Positive => Sign::Positive,
-                NonzeroSign::Negative => Sign::Negative,
+                NonzeroSign::Positive => (Sign::Positive, margin),
+                NonzeroSign::Negative => (Sign::Negative, margin),
             })
         }
         Sign::Negative => unreachable!(

@@ -31,7 +31,7 @@ use editor_core::{
     CancelToken, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId, RimSupport, RoleSeg,
     evaluate,
 };
-use fixture::{ang, axis_in_plane, edge_of, insert, len, on_frame_keeping, table};
+use fixture::{ang, edge_of, insert, len, on_frame, revolve_about, table};
 use geom::Surface;
 use geom_core::Tol;
 use topo::{Body, EdgeKey};
@@ -50,27 +50,16 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
 /// stay one-line diffs against the reviewed fixture.
 fn lantern_with(profile_pts: Vec<(f64, f64)>) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("blend5_r2_probes", Tol::witness());
-    let (doc, plane, profile) = on_frame_keeping(
+    let (doc, profile) = on_frame(
         doc,
         [0.0; 3],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![profile_pts],
     );
-    let (doc, axis) = insert(
-        doc,
-        // The axis, in the frame's own coordinates: the profile's v is
-        // world +Y, so the line the revolve turns about is that
-        // frame's +y through (0, 0).
-        axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)),
-    );
     let (doc, revolve) = insert(
         doc,
-        Node::Revolve {
-            profile: profile.into(),
-            axis: axis.into(),
-            angle: ang(std::f64::consts::TAU),
-        },
+        revolve_about(profile, (0.0, 0.0), (0.0, 1.0), ang(std::f64::consts::TAU)),
     );
     (doc, revolve)
 }
