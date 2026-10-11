@@ -11808,6 +11808,50 @@ mod review_4604_r1 {
         assert!(names(&errors, wall, side), "{errors:?}");
     }
 
+    /// Two cylinder sheets with crossing axes have no closed-form
+    /// tangent locus: their face-face record is refused typed, naming
+    /// the pair and the contact lane. Pins `confirm_face_pair`'s
+    /// `NotCertifiable` arm, which no other row in the topo suite
+    /// reaches (a mutant that drops it is green there).
+    #[test]
+    fn a_two_carrier_record_with_no_closed_form_locus_refuses_typed() {
+        let tol = Tol::witness();
+        let mut body = Body::<f64>::new();
+        let a = cyl_wall_sheet(
+            &mut body,
+            CylFrame::canonical(1.0),
+            (-0.5, 0.5),
+            (0.0, 1.0),
+            tol,
+        );
+        let b = cyl_wall_sheet(
+            &mut body,
+            CylFrame::tilted(1.0, 0.3),
+            (-0.5, 0.5),
+            (0.0, 1.0),
+            tol,
+        );
+        let errors = census_and_certify(
+            &body,
+            &one(&body, Cell::Face(a), Cell::Face(b)),
+            band(),
+            tol,
+            None,
+        );
+        assert!(
+            errors.iter().any(|e| matches!(
+                e,
+                ValidationError::CensusUnsupported {
+                    subject: CensusSubject::FacePair(x, y),
+                    cause: CensusUnsupportedCause::ContactLane(
+                        crate::contact::ContactRefusal::NotCertifiable { .. }
+                    ),
+                } if (*x, *y) == (a.min(b), a.max(b)) || (*x, *y) == (a, b) || (*x, *y) == (b, a)
+            )),
+            "{errors:?}"
+        );
+    }
+
     /// Two sheets of two solids, internally tangent along x = 1: radius
     /// 1 about the z axis, its material inside (sense true), and radius
     /// 0.5 about (0.5, 0), its material OUTSIDE (sense false) — the
