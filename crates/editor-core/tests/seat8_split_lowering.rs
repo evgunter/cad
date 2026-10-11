@@ -233,12 +233,17 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// projections are gone from the evaluation this digest walks, and the
 /// union keys its members by the ports. `m4_pr8_corpus`'s exact mass
 /// pins held.
+///
+/// RE-BLESSED, `part_select` only, where the at-rest records' cell-pair
+/// shape met the split's ports: each moved it alone, and the merged
+/// tree is neither value. `m4_pr8_corpus`'s exact mass pins,
+/// `m5_pr8_bvh_diff` and `m10_p_fence`'s id-masked geometry held.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
         ("cut_cylinder", 0xa6c1_1622_9a6f_5245u64),
-        ("part_select", 0x34a7_8b59_cce5_b801),
+        ("part_select", 0x4679_9015_ec06_98b9),
         ("kitchen_sink", 0x16d4_ac3d_977a_1477),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
