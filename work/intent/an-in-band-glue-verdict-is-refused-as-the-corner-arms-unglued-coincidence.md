@@ -49,18 +49,31 @@ FLUSH's
 `work/flush/a-wedge-flush-on-a-block-top-refuses-every-op-undeclared-though-its-face-reads-zero`
 is the same structure: the glue door reads a planar pair in band over
 both faces (`bool_plane_parallel` 3.25ε to 5.42ε) and leaves it unglued,
-and the corner arm then refuses with its own reading
-(`Coincidence(Sectors)` via `recl.rs` `unglued_tilt`, quoting the
-wedge's bounds' Zero margin). There, the corner's reading is the one a
-smaller tolerance has to clear: with the geometry fixed, the ops still
+and the corner then refuses with its own reading: `Coincidence(Sectors)`
+from `vtxfac.rs`'s coplanar lump (`bool_sector_coplanar`), quoting the
+wedge's bounds' Zero margin. There, the corner's reading is the one a
+smaller tolerance has to clear. With the geometry fixed, the ops still
 refuse at the corner just under the offer the glue door's margin would
-make (ε 5.3e-10), and just under the corner's (1.7e-11) they build or meet a
-refusal with its own offer. So "refuse
-with the glue door's reading wherever a later arm meets the pair" would
-quote a false offer on those poses. A fix here should quote whichever
-reading's offer is the smaller (both decisions have to clear for the op
-to pass), or keep the corner's reading where it carries a nonzero margin
-and use the glue door's only where the corner's is an exact Zero, as at
-a7's ε/16 rung. Pinned in FLUSH's PR:
-`crates/topo/tests/wedge_flush_on_a_block_top.rs` and `offer_rows`'
-`thin_wedge_in_band_over_its_faces`.
+make (≈5.4e-10). Just under the corner's offer (1.7e-11) they build or
+meet a refusal with its own offer. So "refuse with the glue door's
+reading wherever a later arm meets the pair" would quote a false offer
+on those poses (pinned: `offer_rows`'
+`the_in_band_wedge_is_in_band_at_the_glue_door`).
+
+The same family also reaches this row's own shape. In the ignored grid
+`crates/topo/tests/wedge_flush_review_probes.rs` (`probe_other_poses`,
+ε 1e-9), every pose at `k = 0.5` (θ = 5e-10) refuses all six ops
+`Coincidence(Carriers)` (`carrier_unglued_coincidence`) while the glue
+door reads the pair in band: 20 poses, standing and sunk, φ ∈ {2°, 5°,
+20°, 60°, 90°}, big and tight blocks, wedge length 1. The quoted margins
+are rounding residue, or exact zero:
+
+- ±1.110e-16 at φ = 2°, 5° and 20°;
+- 5.170e-26 and 2.585e-26 at φ = 60° and 90°;
+- exactly 0 at φ = 90° standing.
+
+The glue door reads `bool_plane_parallel` 1.04 to 1.36ε, or on the
+tight block at 60° and 90° `bool_plane_reach` (`Undecided`, 1.30ε at
+60°). A rule keyed on the corner's margin being exactly Zero misses all
+but one of these. Quoting the smaller of the two offers would quote
+about 5e-27 m, which is true but useless.
