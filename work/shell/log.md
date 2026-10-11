@@ -1406,3 +1406,6 @@ Ev said go.
   - R2 executed: README:390's claim that "the tube check catches a seed that settled elsewhere" is false. `branch_at` tests the settled point, so a seed 2 m off returned the far branch. Ev's Decided text carries the same claim. Ruled MINOR: the decision stands, and its safety argument is corrected to the seed's proximity plus `VertexDisagreement`.
   - CI caught five gate failures first; the lane fixed them in 558bbc2.
   - Fix pass sent. Note: the orchestrator's "freeze" request contradicted protocol rule 3 ("pushing is never delayed"); the lane's three post-freeze commits go into the fix-pass delta.
+- **Unit 19** (2026-10-11 04:25Z):
+  - main's `split_through_an_apex` red is CLEAVE P0 (PR 4609); one standing-down comment posted on PR 4597.
+  - At 04:22Z the lane reported "ready for dual review" at d9a4152, apparently without the fix-pass message, so I resent it. The fix pass is not yet on the branch.
