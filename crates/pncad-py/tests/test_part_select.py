@@ -199,8 +199,8 @@ class TestTheHalfIsItsPort(unittest.TestCase):
         """A read of a half hands on that half's table verbatim — so
         every face name a reader answers with is a face name of the
         split's half, unchanged as text. A split's names spell no half:
-        each half is its own table, so the section face is ONE name the
-        two halves' tables each hold."""
+        each half is its own table, so the section face and each wall's
+        fragment are ONE name the two halves' tables each hold."""
         doc, split, above, below = self.build()
         ev = evaluate(doc)
         upper_half = set(ev.all_faces(doc.output(split, 0)))
@@ -208,7 +208,14 @@ class TestTheHalfIsItsPort(unittest.TestCase):
         upper, lower = set(ev.all_faces(above)), set(ev.all_faces(below))
         self.assertEqual(upper, upper_half)
         self.assertEqual(lower, lower_half)
-        print("SHARED", upper & lower)
+        # What the halves share is what the split's names no longer
+        # tell apart by half: the section face and the four walls'
+        # fragments, each one name that each half's table holds. The
+        # cap each half keeps whole is its own.
+        shared = upper & lower
+        self.assertEqual(len(shared), 5)
+        self.assertEqual(sum('"SectionFace"' in n for n in shared), 1)
+        self.assertEqual(sum('"SplitFragment"' in n for n in shared), 4)
         # A cut box is a 6-faced slab per side: four walls, the
         # original face, and the section.
         self.assertEqual(len(upper), 6)
