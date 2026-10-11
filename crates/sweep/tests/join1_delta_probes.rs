@@ -253,9 +253,9 @@ fn overlapping_lens_prisms_union_builds() {
 /// standing on `y = 0.5` over `z ∈ [0.5, 1.5]`. The partner's cap edges
 /// bound the apex edge's span on it, and the union records the span
 /// against what holds it: the partner's face `y = 0.5` (`tri`, `half`),
-/// or its corner edge along the apex (`quarter`). All planar, `tri tri`
-/// passes tier 3′ with the record confirmed; a curved partner's tier 3′
-/// is the cross-solid backstop's
+/// or its corner edge along the apex (`quarter`). Tier 3′ confirms the
+/// record in each: all planar, `tri tri` passes, and a curved partner
+/// refuses only on the cross-solid backstop
 /// (`census-cross-solid-curved-pairs-undecidable-on-shell-results`).
 #[test]
 fn an_apex_edge_in_the_partners_face_is_recorded() {
@@ -311,12 +311,18 @@ fn an_apex_edge_in_the_partners_face_is_recorded() {
             "tri ∪ {name}: one record of the apex edge's span against what holds it, in {:?}",
             bb.contacts
         );
-        if name == "tri" {
-            assert_eq!(
-                topo::validate_pseudomanifold(body, &bb.contacts, tol()),
-                Ok(()),
-                "tri ∪ tri: tier 3′ confirms the record"
-            );
+        // Tier 3′ confirms the record: no finding is a stale record or
+        // an unrecorded touch. A curved partner's only findings are the
+        // cross-solid backstop's.
+        match topo::validate_pseudomanifold(body, &bb.contacts, tol()) {
+            Ok(()) => assert_eq!(name, "tri", "tri ∪ {name}: the backstop refuses"),
+            Err(es) => assert!(
+                name != "tri"
+                    && es
+                        .iter()
+                        .all(|e| matches!(e, topo::ValidationError::CensusUndecidable { .. })),
+                "tri ∪ {name}: tier 3′: {es:?}"
+            ),
         }
     }
 }

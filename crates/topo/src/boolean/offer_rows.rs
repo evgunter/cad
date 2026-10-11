@@ -2690,8 +2690,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("ops.rs", "ledger", "BooleanDecision::SelfCheck", 1),
     ("ops.rs", "ledger", "BooleanDecision::VertexOnVertex", 1),
     ("ops.rs", "ledger", "SelfCheck::CarriedLineage", 1),
-    ("ops.rs", "record_spans", "BooleanDecision::SelfCheck", 1),
-    ("ops.rs", "record_spans", "SelfCheck::CarriedLineage", 1),
+    ("ops.rs", "span_in_band", "BooleanDecision::SelfCheck", 1),
+    ("ops.rs", "span_in_band", "SelfCheck::CarriedLineage", 1),
     (
         "ops.rs",
         "volume_backstop",

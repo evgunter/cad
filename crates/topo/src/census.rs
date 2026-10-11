@@ -1539,10 +1539,9 @@ fn on_edge_interior_reading<T: Decide>(
     let Some(margin) = gap_zero_reading("pm_census_ve_line_gap", off, band, errors)? else {
         return Some(None);
     };
-    let s = (q - e.p0).dot(e.dir);
     let mut interior = Some(Some(margin));
-    for m in [s, e.len - s] {
-        match decide("pm_census_ve_span", Margin::of(m), band) {
+    for side in span_sides(q, e, band) {
+        match side {
             Ok(Sign::Positive) => {}
             Ok(_) => interior = interior.map(|_| None),
             Err(cause) => {
@@ -1552,6 +1551,17 @@ fn on_edge_interior_reading<T: Decide>(
         }
     }
     interior
+}
+
+/// Where `q` lies along `e`'s span, read at its two ends: the signs of
+/// its distance past the start and short of the end, positive inside.
+fn span_sides<T: Decide>(
+    q: Point3<T>,
+    e: &EdgeGeo<T>,
+    band: Band,
+) -> [Result<Sign, Indeterminate>; 2] {
+    let s = (q - e.p0).dot(e.dir);
+    [s, e.len - s].map(|m| decide("pm_census_ve_span", Margin::of(m), band))
 }
 
 /// A signed residual as a trilean on-verdict: `Some(true)` on,
@@ -6676,16 +6686,46 @@ fn interiors_meet<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<bool> {
-    let ncross = ea.dir.cross(eb.dir);
-    match gap_is_zero(
+    match parallel(ea, eb, band, errors) {
+        Some(false) => crossing_reading(ea, eb, ea.dir.cross(eb.dir), band, errors)
+            .map(|cross| cross.is_some()),
+        Some(true) => {
+            let (ea, eb) = longer_first(ea, eb);
+            Some(collinear_overlap(ea, eb, band, errors).is_some())
+        }
+        None => None,
+    }
+}
+
+/// Whether two line edges are parallel: the sine between them levered
+/// at the shorter's length. `None` where it escalated (pushed).
+fn parallel<T: Decide>(
+    ea: &EdgeGeo<T>,
+    eb: &EdgeGeo<T>,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<bool> {
+    gap_is_zero(
         "pm_census_ee_parallel",
-        Margin::levered(ncross.norm(), ea.len.min(eb.len)),
+        Margin::levered(ea.dir.cross(eb.dir).norm(), ea.len.min(eb.len)),
         band,
         errors,
-    ) {
-        Some(false) => crossing_reading(ea, eb, ncross, band, errors).map(|cross| cross.is_some()),
-        Some(true) => Some(collinear_overlap(ea, eb, band, errors).is_some()),
-        None => None,
+    )
+}
+
+/// Two collinear edges in the order [`collinear_overlap`] reads them:
+/// the longer first, along whose line the shorter's tilt levers least.
+/// The order is the reading's, not a verdict: lengths are compared by
+/// their value channel, and a tie or a value with no point keeps the
+/// given order.
+fn longer_first<'e, T: Decide>(
+    ea: &'e EdgeGeo<T>,
+    eb: &'e EdgeGeo<T>,
+) -> (&'e EdgeGeo<T>, &'e EdgeGeo<T>) {
+    if eb.len.value_channel() > ea.len.value_channel() {
+        (eb, ea)
+    } else {
+        (ea, eb)
     }
 }
 
@@ -6792,6 +6832,54 @@ pub(crate) fn on_segment_interior<T: Decide>(
     let mut errors = Vec::new();
     let on = on_edge_interior(q, &segment(s), band, &mut errors);
     escalation(on, errors)
+}
+
+/// [`parallel`] over two segments.
+///
+/// # Errors
+///
+/// The escalated decision.
+pub(crate) fn segments_parallel<T: Decide>(
+    a: (Point3<T>, Point3<T>),
+    b: (Point3<T>, Point3<T>),
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    let mut errors = Vec::new();
+    let parallel = parallel(&segment(a), &segment(b), band, &mut errors);
+    escalation(parallel, errors)
+}
+
+/// The point of `a`'s line nearest `b`'s, for two segments whose lines
+/// are not parallel: where they cross, once they are decided to meet
+/// ([`ee_cross_point`]).
+pub(crate) fn segment_cross_point<T: Real>(
+    a: (Point3<T>, Point3<T>),
+    b: (Point3<T>, Point3<T>),
+) -> Point3<T> {
+    ee_cross_point(&segment(a), &segment(b))
+}
+
+/// Whether every point of `qs` is decided past one same end of
+/// segment `s`, read as the vertex-on-edge pass reads a point's span
+/// ([`span_sides`]): such points are not on `s`, and a segment whose
+/// ends both are does not meet `s`.
+///
+/// # Errors
+///
+/// The first escalated span reading.
+pub(crate) fn segment_past<T: Decide>(
+    s: (Point3<T>, Point3<T>),
+    qs: &[Point3<T>],
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    let e = segment(s);
+    let mut ends = [true, true];
+    for &q in qs {
+        for (end, side) in ends.iter_mut().zip(span_sides(q, &e, band)) {
+            *end &= side? == Sign::Negative;
+        }
+    }
+    Ok(ends.contains(&true))
 }
 
 /// A census answer, or the escalation it pushed.
