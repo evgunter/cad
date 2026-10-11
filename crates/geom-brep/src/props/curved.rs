@@ -83,11 +83,13 @@ pub enum MaterialSign {
     ///
     /// * one with both chart poles on its loop (a lune, a hemisphere
     ///   split at its poles), whose loop bounds the face and its
-    ///   complement alike with neither holding a pole. Such faces are
-    ///   seam siblings that meet along their meridians tangentially,
-    ///   where tier 3's check 4 reads a flip of one sibling as a
-    ///   lamina, though not a flip of both
-    ///   (`work/flux/a-pair-of-seam-siblings-flipped-together-is-silent.md`);
+    ///   complement alike with neither holding a pole. Tier 3 reads
+    ///   such a face through the region it forms with its seam
+    ///   siblings, the faces of its surface it reaches across shared
+    ///   edges ([`sphere_region_material_sign`]). A region whose own
+    ///   boundary carries both poles stays unread: for a region of one
+    ///   face that is no defect, as the flipped bit describes the
+    ///   complement, another valid body;
     ///   and, the same answer by the band rather than by the geometry,
     ///   one with a pole off its loop but within the ambiguity band of
     ///   a great (or near-great) carrier's plane: its antipode is the
@@ -3130,6 +3132,117 @@ fn pole_free_side<T: Decide>(
     Ok(reading.map_or(MaterialSign::Unencoded, MaterialSign::Encoded))
 }
 
+/// **The side of a seam region of one sphere's faces**, read off the
+/// region's own boundary. A face whose loop holds both chart poles
+/// encodes no side alone ([`pole_free_side`]), but the faces on its
+/// surface that it reaches across shared edges tile one region, the
+/// loops' traversals agree across every edge they share, and that
+/// region encodes a side wherever its boundary does. `boundary` is the
+/// region's boundary (the members' edges no other member shares,
+/// chained into loops); `members` is every loop of every member.
+///
+/// * **No boundary**: the region is the whole sphere, and its side is
+///   the orientation of the shell it closes, which tier 3's volume
+///   checks read. `Unencoded`.
+/// * **Two or more boundary loops**: the sign of the region's
+///   Gauss–Bonnet area, as for a face with holes.
+/// * **One boundary loop**: read at each pole off it. A pole on some
+///   member's loop lies on an edge interior to the region, so the
+///   region is the side of the boundary that holds it; a pole on no
+///   member's loop lies in no member (a chart singularity inside a face
+///   is a vertex of it), so the region is the side that does not. The
+///   readings that are made must agree. `Unencoded` when the boundary
+///   carries both poles: that region and its complement are both legal,
+///   and for a region of one face, flipping its bit describes the other
+///   one, a valid body and not a defect.
+///
+/// # Errors
+///
+/// As [`boundary_material_sign_loops`], over the boundary and the
+/// members; [`PropsError::SphereLoop`] for a surface that is not a
+/// sphere.
+pub fn sphere_region_material_sign<T: Decide>(
+    surface: &Surface<T>,
+    boundary: &[&[LoopEdge<T>]],
+    members: &[&[LoopEdge<T>]],
+    band: Band,
+) -> Result<MaterialSign, PropsError> {
+    let Surface::Sphere {
+        center,
+        radius,
+        axis,
+        ..
+    } = *surface
+    else {
+        return Err(PropsError::SphereLoop {
+            what: "a seam region read on a surface that is not a sphere",
+        });
+    };
+    let gauss = sphere_loops(center, radius, boundary, band)?;
+    let [one] = gauss.as_slice() else {
+        return if gauss.is_empty() {
+            Ok(MaterialSign::Unencoded)
+        } else {
+            side_of_sphere_loops(center, radius, axis, &gauss, band)
+        };
+    };
+    let members = sphere_loops(center, radius, members, band)?;
+    let up = axis / axis.norm();
+    let mut reading: Option<Sign> = None;
+    for pole in [up, -up] {
+        let p = center + pole * radius;
+        let interior = || -> Result<bool, PropsError> {
+            for arc in members.iter().flat_map(|m| &m.arcs) {
+                if pole_against_arc(arc, p, band)?.1 {
+                    return Ok(true);
+                }
+            }
+            Ok(false)
+        };
+        // An in-band reading leaves this pole unread; it never refuses
+        // the region.
+        let side = match pole_side(center, radius, pole, one, band).and_then(|side| {
+            side.map(|side| Ok(if interior()? { side.flip() } else { side }))
+                .transpose()
+        }) {
+            Ok(side) => side,
+            Err(PropsError::Escalated { .. }) => None,
+            Err(other) => return Err(other),
+        };
+        match (reading, side) {
+            (Some(a), Some(b)) if a != b => return Ok(MaterialSign::Unencoded),
+            (None, side) => reading = side,
+            _ => {}
+        }
+    }
+    Ok(reading.map_or(MaterialSign::Unencoded, MaterialSign::Encoded))
+}
+
+/// Where the point `p` on the sphere stands against `arc`: the side of
+/// its carrier plane (`props_sphere_pole_plane`, in metres), and whether
+/// it lies on the arc itself, in that plane and within the arc's span
+/// (`props_sphere_pole_on_arc`, [`arc_point_margin`]).
+fn pole_against_arc<T: Decide>(
+    arc: &SphereArc<T>,
+    p: Point3<T>,
+    band: Band,
+) -> Result<(Sign, bool), PropsError> {
+    let plane = classify(
+        "props_sphere_pole_plane",
+        Margin::of(arc.axis.dot(p - arc.centre)),
+        band,
+        PropsCheck::Inventory,
+    )?;
+    let on = plane == Sign::Zero
+        && classify(
+            "props_sphere_pole_on_arc",
+            arc_point_margin(arc, p),
+            band,
+            PropsCheck::Inventory,
+        )? != Sign::Negative;
+    Ok((plane, on))
+}
+
 /// **Which side of the loop the pole in direction `pole` lies on**:
 /// `Some(Positive)` when it is right of the loop under the chart
 /// normal (so the pole-free side is the left one), `Some(Negative)`
@@ -3170,20 +3283,8 @@ fn pole_side<T: Decide>(
     let p = center + pole * radius;
     let mut circulations = Vec::with_capacity(lp.arcs.len());
     for arc in &lp.arcs {
-        let plane = classify(
-            "props_sphere_pole_plane",
-            Margin::of(arc.axis.dot(p - arc.centre)),
-            band,
-            PropsCheck::Inventory,
-        )?;
-        if plane == Sign::Zero
-            && classify(
-                "props_sphere_pole_on_arc",
-                arc_point_margin(arc, p),
-                band,
-                PropsCheck::Inventory,
-            )? != Sign::Negative
-        {
+        let (plane, on) = pole_against_arc(arc, p, band)?;
+        if on {
             return Ok(None);
         }
         // The cap left of a forward arc is the one its axis points into.

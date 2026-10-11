@@ -6,10 +6,14 @@
 //!
 //! The six ball pairs are the silent cases of the PR 4573 flip review.
 
-use geom_core::{Tol, Vec3};
+#![allow(clippy::panic, clippy::unwrap_used, clippy::expect_used)]
+
+use geom::{Curve3, Surface};
+use geom_brep::EdgeCurveSpec;
+use geom_core::{Point3, Tol, Vec3};
 use std::f64::consts::PI;
-use sweep::test_support::{ball_poled, finished};
-use topo::{Body, FaceKey, ValidationError};
+use sweep::test_support::{ball_poled, brick, finished};
+use topo::{Body, FaceKey, FaceSurface, MefSite, ValidationError};
 
 #[derive(Clone, Copy)]
 enum Op {
@@ -245,4 +249,306 @@ fn seam_siblings_flipped_together_are_refused_by_name() {
             }
         }
     }
+}
+
+/// Flips every face of `set` and asserts tier 3 refuses the body,
+/// naming each of `named` `CurvedSenseInverted`.
+fn assert_refused(label: &str, body: &Body<f64>, set: &[FaceKey], named: &[FaceKey], tol: Tol) {
+    let flipped = set.iter().fold(body.clone(), |b, &k| {
+        b.flipped_face_sense_for_tests(k).unwrap()
+    });
+    let errs = topo::validate_geometric(&flipped, tol)
+        .err()
+        .unwrap_or_else(|| {
+            panic!(
+                "{label}: flipping {set:?} passes tier 3 (measures {:?})",
+                topo::mass_properties(&flipped, tol).map(|m| m.volume)
+            )
+        });
+    for &face in named {
+        assert!(
+            errs.iter().any(
+                |e| matches!(e, ValidationError::CurvedSenseInverted { face: f } if *f == face)
+            ),
+            "{label}: flipping {set:?} does not name {face:?} CurvedSenseInverted: {errs:?}"
+        );
+    }
+}
+
+fn sphere_faces(body: &Body<f64>) -> Vec<FaceKey> {
+    body.faces()
+        .filter(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Sphere { .. })))
+        .map(|(k, _)| k)
+        .collect()
+}
+
+#[test]
+fn a_flip_of_one_seam_sibling_is_named_by_the_regions_side() {
+    let tol = Tol::witness();
+    for p in &PAIRS {
+        let (body, _) = build(p, tol);
+        for [x, y] in seam_siblings(&body, tol) {
+            for face in [x, y] {
+                assert_refused(p.label, &body, &[face], &[face], tol);
+            }
+        }
+    }
+}
+
+/// A ball cut by a slab whose planes both cross the ball's seam: its two
+/// lunes each keep both poles on their loops, and together they form a
+/// band bounded by two section circles, whose side is the sign of its
+/// area.
+#[test]
+fn a_holed_region_reads_its_side_by_its_area() {
+    let tol = Tol::witness();
+    let ball = finished(
+        "ball",
+        ball_poled(1.0, v([0.0; 3]), v([0.0, 1.0, 0.0]), tol),
+        tol,
+    );
+    let slab = finished(
+        "slab",
+        brick((-0.5, 0.5), (-2.0, 2.0), (-2.0, 2.0), tol),
+        tol,
+    );
+    let body = Body::clone(
+        &topo::boolean::intersect(&ball, &slab, tol)
+            .unwrap()
+            .body()
+            .unwrap()
+            .body,
+    );
+    let siblings = seam_siblings(&body, tol);
+    assert_eq!(siblings.len(), 1, "the band is one pair of seam siblings");
+    let [x, y] = siblings[0];
+    let f = body.faces().find(|(k, _)| *k == x).unwrap().1;
+    assert_eq!(
+        topo::props::loop_edges(&body, f.outer).unwrap().0.len(),
+        6,
+        "each lune meets both slab planes and both seams"
+    );
+    for set in [vec![x], vec![y], vec![x, y]] {
+        assert_refused("slab ∩ ball", &body, &set, &set, tol);
+    }
+}
+
+/// A whole ball is two lunes that close the sphere: their region has no
+/// boundary, so its side is the orientation of the shell they close,
+/// which the volume check reads, and the sense check stays silent.
+#[test]
+fn a_whole_sphere_is_left_to_the_volume_check() {
+    let tol = Tol::witness();
+    let ball = finished(
+        "ball",
+        ball_poled(1.0, v([0.0; 3]), v([0.0, 1.0, 0.0]), tol),
+        tol,
+    );
+    let faces = sphere_faces(&ball);
+    assert_eq!(faces.len(), 2, "a ball is two lunes");
+    let flipped = faces.iter().fold(Body::clone(&ball), |b, &k| {
+        b.flipped_face_sense_for_tests(k).unwrap()
+    });
+    let errs = topo::validate_geometric(&flipped, tol).unwrap_err();
+    assert!(
+        errs.iter()
+            .any(|e| matches!(e, ValidationError::NegativeVolume { .. })),
+        "the inverted ball is a negative volume: {errs:?}"
+    );
+    assert!(
+        !errs
+            .iter()
+            .any(|e| matches!(e, ValidationError::CurvedSenseInverted { .. })),
+        "a region with no boundary encodes no side: {errs:?}"
+    );
+}
+
+/// A face of one sphere split from pole to pole along the meridian
+/// through the middle of its lune, by `mef`: the region it belongs to
+/// then holds three faces across three seams.
+fn split_along_a_meridian(
+    body: &mut Body<f64>,
+    face: FaceKey,
+    clear_of: (Vec3<f64>, f64),
+    tol: Tol,
+) {
+    let f = body.faces().find(|(k, _)| *k == face).unwrap().1.clone();
+    let Some(&Surface::Sphere {
+        center,
+        radius,
+        axis,
+        ..
+    }) = body.get_surface(f.surface)
+    else {
+        panic!("not a sphere face");
+    };
+    let pole = axis.normalize();
+    let (edges, hes) = topo::props::loop_edges(body, f.outer).unwrap();
+    let points: Vec<_> = body.vertex_points().collect();
+    let at = |h: topo::HalfEdgeKey| {
+        let v = body.get_half_edge(h).unwrap().start;
+        points.iter().find(|(k, _)| *k == v).unwrap().1
+    };
+    let near = |a: Point3<f64>, b: Point3<f64>| (a - b).norm() < 1e-9;
+    let north = center + pole * radius;
+    let south = center - pole * radius;
+    let he1 = *hes
+        .iter()
+        .find(|&&h| near(at(h), north))
+        .expect("a pole vertex");
+    let he2 = *hes
+        .iter()
+        .find(|&&h| near(at(h), south))
+        .expect("a pole vertex");
+    let mut seam = None;
+    let mut inside = None;
+    for e in &edges {
+        let Curve3::Circle {
+            center: c,
+            axis: n,
+            radius: r,
+            u_ref,
+        } = e.carrier
+        else {
+            continue;
+        };
+        if near(c, center) && (r - radius).abs() < 1e-9 && n.dot(pole).abs() < 1e-9 {
+            seam = Some(n.normalize());
+        } else {
+            let mid = 0.5 * (e.t0 + e.t1);
+            inside = Some(c + u_ref * (r * mid.cos()) + n.cross(u_ref) * (r * mid.sin()));
+        }
+    }
+    let n = seam.expect("a seam meridian on the loop");
+    let w = if n.dot(inside.expect("a section arc on the loop") - center) > 0.0 {
+        n
+    } else {
+        -n
+    };
+    // The lune's interior directions, from one seam half to the other;
+    // the first meridian clear of the cut.
+    let half = n.cross(pole);
+    let meridian = |phi: f64| w * phi.cos() + half * phi.sin();
+    let clear = |dir: Vec3<f64>| {
+        (1..32).all(|i| {
+            let t = PI * f64::from(i) / 32.0;
+            let q = center + (pole * t.cos() + dir * t.sin()) * radius;
+            (q - Point3::new(0.0, 0.0, 0.0) - clear_of.0).norm() > clear_of.1 + 0.05
+        })
+    };
+    let dir = (-8..=8)
+        .map(|k| meridian(f64::from(k) * PI / 20.0))
+        .find(|&d| clear(d))
+        .expect("a meridian across the lune clear of the cut");
+    let circle = Curve3::Circle {
+        center,
+        axis: pole.cross(dir),
+        radius,
+        u_ref: pole,
+    };
+    body.mef(
+        MefSite::Chords { he1, he2 },
+        EdgeCurveSpec::arc_of_circle(circle, 0.0, PI)
+            .unwrap()
+            .at_rest_in_chart(f.surface, false),
+        FaceSurface::Inherit,
+        tol,
+    )
+    .unwrap();
+}
+
+#[test]
+fn a_chain_of_three_siblings_reads_one_side() {
+    let tol = Tol::witness();
+    let p = &PAIRS[0];
+    let (mut body, want) = build(p, tol);
+    let [x, _] = seam_siblings(&body, tol)[0];
+    let on_a = match body.get_surface(body.faces().find(|(k, _)| *k == x).unwrap().1.surface) {
+        Some(Surface::Sphere { center, .. }) => {
+            (*center - Point3::new(0.0, 0.0, 0.0)).norm() < 1e-9
+        }
+        _ => panic!("not a sphere face"),
+    };
+    let other = if on_a {
+        (v(p.off), p.rb)
+    } else {
+        (v([0.0; 3]), 1.0)
+    };
+    split_along_a_meridian(&mut body, x, other, tol);
+    topo::validate_geometric(&body, tol).expect("the split body is valid");
+    let got = topo::mass_properties(&body, tol).unwrap().volume;
+    assert!(
+        (got - want).abs() <= 1e-9 * want,
+        "the split body measures {got}, the closed form is {want}"
+    );
+    let chain: Vec<FaceKey> =
+        seam_siblings(&body, tol)
+            .into_iter()
+            .flatten()
+            .fold(Vec::new(), |mut acc, f| {
+                if !acc.contains(&f) {
+                    acc.push(f);
+                }
+                acc
+            });
+    assert_eq!(
+        chain.len(),
+        3,
+        "three siblings encode no side alone: {chain:?}"
+    );
+    for mask in 1..8_u32 {
+        let set: Vec<FaceKey> = (0..3)
+            .filter(|i| mask & (1 << i) != 0)
+            .map(|i| chain[i])
+            .collect();
+        assert_refused(p.label, &body, &set, &set, tol);
+    }
+}
+
+/// A ball unioned with a brick whose face plane holds the ball's polar
+/// axis keeps one 180° lune with both poles on its loop. Its flip is
+/// the brick with a hemispherical dimple: the same faces, loops and
+/// surfaces, a valid body. Tier 3 accepts it and the mass properties
+/// measure the dimpled brick.
+#[test]
+fn a_lone_lune_through_both_poles_flips_into_another_valid_body() {
+    let tol = Tol::witness();
+    let ball = finished(
+        "ball",
+        ball_poled(1.0, v([0.0; 3]), v([0.0, 1.0, 0.0]), tol),
+        tol,
+    );
+    let block = finished(
+        "block",
+        brick((-3.0, 0.0), (-2.0, 2.0), (-2.0, 2.0), tol),
+        tol,
+    );
+    let body = Body::clone(
+        &topo::boolean::union(&ball, &block, tol)
+            .unwrap()
+            .body()
+            .unwrap()
+            .body,
+    );
+    let faces = sphere_faces(&body);
+    assert_eq!(faces.len(), 1, "one lune is left of the ball");
+    assert!(
+        unencoded(&body, faces[0], tol),
+        "the lune's loop holds both poles"
+    );
+    let half = 2.0 * PI / 3.0;
+    let measure = |b: &Body<f64>| {
+        topo::validate_geometric(b, tol).expect("tier 3 accepts the body");
+        topo::mass_properties(b, tol).unwrap().volume
+    };
+    let boss = measure(&body);
+    assert!(
+        (boss - (48.0 + half)).abs() <= 1e-9 * boss,
+        "the boss measures {boss}"
+    );
+    let dimple = measure(&body.flipped_face_sense_for_tests(faces[0]).unwrap());
+    assert!(
+        (dimple - (48.0 - half)).abs() <= 1e-9 * dimple,
+        "the flipped lune measures the dimpled brick, {dimple}"
+    );
 }

@@ -2728,6 +2728,17 @@ pub fn loop_edges<T: Decide>(
     let Some(cycle) = body.loop_cycle(first) else {
         return Err(corrupt("broken half-edge cycle"));
     };
+    Ok((run_edges(body, &cycle)?, cycle))
+}
+
+/// [`loop_edges`]' flattening over any closed run of half-edges, in
+/// the order given: a loop's cycle, or a chain of half-edges from
+/// several faces that closes on itself.
+pub(crate) fn run_edges<T: Decide>(
+    body: &Body<T>,
+    cycle: &[crate::entity::HalfEdgeKey],
+) -> Result<Vec<LoopEdge<T>>, LoopEdgesError> {
+    let corrupt = |what| LoopEdgesError::Corrupt { what };
     let mut tags: Vec<VertexKey> = Vec::new();
     let mut tag_of = |v: VertexKey| -> u32 {
         if let Some(i) = tags.iter().position(|&t| t == v) {
@@ -2738,9 +2749,7 @@ pub fn loop_edges<T: Decide>(
         }
     };
     let mut edges = Vec::with_capacity(cycle.len());
-    let mut hes = Vec::with_capacity(cycle.len());
-    for &he_key in &cycle {
-        hes.push(he_key);
+    for &he_key in cycle {
         let Some(he) = body.half_edges.get(he_key) else {
             return Err(corrupt("half-edge key does not resolve"));
         };
@@ -2775,7 +2784,7 @@ pub fn loop_edges<T: Decide>(
             end: tag_of(end),
         });
     }
-    Ok((edges, hes))
+    Ok(edges)
 }
 
 /// The derived outer/void designation of one shell. The shell list

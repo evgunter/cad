@@ -5282,6 +5282,97 @@ fn plus_v_by_sign<'b, T: geom_core::Decide>(
     }
 }
 
+/// **The seam region of a face**: the faces on `start`'s surface entity
+/// that it reaches across shared edges, every loop of each, and the
+/// region's boundary — the members' half-edges whose mates lie outside
+/// it — chained into simple loops. `None` where a record does not
+/// resolve or a chain does not close, which tier 1 rules out.
+#[allow(clippy::type_complexity)]
+fn seam_region<T: Decide>(
+    body: &Body<T>,
+    start: FaceKey,
+) -> Option<(
+    Vec<FaceKey>,
+    Vec<Vec<geom_brep::props::LoopEdge<T>>>,
+    Vec<Vec<geom_brep::props::LoopEdge<T>>>,
+)> {
+    let carrier = body.faces.get(start)?.surface;
+    let cycles =
+        |f: FaceKey| -> Option<Vec<(Vec<geom_brep::props::LoopEdge<T>>, Vec<HalfEdgeKey>)>> {
+            let face = body.faces.get(f)?;
+            core::iter::once(face.outer)
+                .chain(face.rings.iter().copied())
+                .map(|lk| crate::props::loop_edges(body, lk).ok())
+                .collect()
+        };
+    let mut members = vec![start];
+    let mut loops = Vec::new();
+    let mut half_edges = Vec::new();
+    let mut i = 0;
+    while let Some(&f) = members.get(i) {
+        for (edges, hes) in cycles(f)? {
+            for &h in &hes {
+                let other = body.face_of_half_edge(body.mate(h)?)?;
+                if body.faces.get(other)?.surface == carrier && !members.contains(&other) {
+                    members.push(other);
+                }
+            }
+            loops.push(edges);
+            half_edges.extend(hes);
+        }
+        i += 1;
+    }
+    let inside = |h: HalfEdgeKey| {
+        body.mate(h)
+            .and_then(|m| body.face_of_half_edge(m))
+            .is_some_and(|f| members.contains(&f))
+    };
+    let mut open: Vec<HalfEdgeKey> = half_edges.iter().copied().filter(|&h| !inside(h)).collect();
+    let mut boundary = Vec::new();
+    while let Some(&first) = open.first() {
+        // One boundary cycle: from a boundary half-edge to the next one
+        // out of its end vertex, turning through the region's interior
+        // edges there.
+        let mut cycle = Vec::new();
+        let mut h = first;
+        loop {
+            cycle.push(h);
+            open.retain(|&x| x != h);
+            let mut n = body.half_edges.get(h)?.next;
+            let mut turns = 0;
+            while inside(n) {
+                n = body.half_edges.get(body.mate(n)?)?.next;
+                turns += 1;
+                if turns > half_edges.len() {
+                    return None;
+                }
+            }
+            if n == first {
+                break;
+            }
+            if !open.contains(&n) {
+                return None;
+            }
+            h = n;
+        }
+        // A cycle through one vertex twice bounds two regions that touch
+        // there: one simple loop each.
+        let mut run: Vec<HalfEdgeKey> = Vec::new();
+        for h in cycle {
+            let v = body.half_edges.get(h)?.start;
+            if let Some(at) = run
+                .iter()
+                .position(|&r| body.half_edges.get(r).is_some_and(|r| r.start == v))
+            {
+                boundary.push(crate::props::run_edges(body, &run.split_off(at)).ok()?);
+            }
+            run.push(h);
+        }
+        boundary.push(crate::props::run_edges(body, &run).ok()?);
+    }
+    Some((members, loops, boundary))
+}
+
 /// **Where `body` holds material wound negative, read as tier 3 reads
 /// it**, at the lane `quad` gives: check 7's
 /// [`ValidationError::NegativeVolume`] verdicts, a solid at a time; then,
@@ -7143,11 +7234,20 @@ pub(crate) fn tier3_local_checks_marked<
     // single-face and whole-body — certify green today (executed on
     // the tilted-section cylinder, pinned as residual; closes when the
     // ellipse-rim material-side encoding lands). A one-loop sphere
-    // face with both poles on its loop returns `Unencoded` (its
-    // boundary encodes no side; the bit is the ONLY encoding) and
-    // stays exempt: the documented residual. So does one with a pole
-    // off its loop on each side, which holds a pole under either sense.
+    // face with both poles on its loop encodes no side alone
+    // (`Unencoded`), and is read through its SEAM REGION: the faces on
+    // its surface entity it reaches across shared edges
+    // ([`seam_region`]), whose boundary encodes a side wherever a pole
+    // lies off it (`sphere_region_material_sign`). Exempt: a region
+    // with no boundary (a whole sphere, its shell's orientation, which
+    // checks 7 and 10 read) and one whose boundary carries both poles.
+    // For a region of one face the latter is no defect: the flipped
+    // bit describes the region's complement, another valid body. So is
+    // a face with a pole off its loop on each side exempt, which holds
+    // a pole under either sense.
     // ------------------------------------------------------------------
+    // The seam regions read so far, with the side each encodes.
+    let mut regions: Vec<(Vec<FaceKey>, Option<geom_brep::props::MaterialSign>)> = Vec::new();
     for (face_key, face) in body.faces.iter() {
         let Some(surface) = body.surfaces.get(face.surface) else {
             continue; // unreachable on tier-1 input
@@ -7179,11 +7279,38 @@ pub(crate) fn tier3_local_checks_marked<
                     errors.push(ValidationError::CurvedSenseInverted { face: face_key });
                 }
             }
-            // The boundary encodes no side, so there is no second
-            // encoding to cross-check the stored bit against: a sphere
-            // face with both poles on its loop, the residual above.
-            // An ANSWER, not a refusal.
-            Ok(geom_brep::props::MaterialSign::Unencoded) => {}
+            // The face's own boundary encodes no side: its seam region's
+            // does, where the region has a boundary with a pole off it,
+            // and one read serves every member. A region read that
+            // refuses is exempt, as a face's is below.
+            Ok(geom_brep::props::MaterialSign::Unencoded) => {
+                let region = match regions
+                    .iter()
+                    .find(|(members, _)| members.contains(&face_key))
+                {
+                    Some((_, side)) => *side,
+                    None => {
+                        let read = seam_region(body, face_key).map(|(members, loops, boundary)| {
+                            let boundary: Vec<&[_]> = boundary.iter().map(Vec::as_slice).collect();
+                            let loops: Vec<&[_]> = loops.iter().map(Vec::as_slice).collect();
+                            let side = geom_brep::props::sphere_region_material_sign(
+                                surface, &boundary, &loops, band,
+                            );
+                            (members, side.ok())
+                        });
+                        let Some((members, side)) = read else {
+                            continue; // unreachable on tier-1 input
+                        };
+                        regions.push((members, side));
+                        side
+                    }
+                };
+                if let Some(geom_brep::props::MaterialSign::Encoded(side)) = region
+                    && (side == Sign::Positive) != face.sense
+                {
+                    errors.push(ValidationError::CurvedSenseInverted { face: face_key });
+                }
+            }
             // A REFUSED derivation is exempt here, never a
             // disagreement (the posture above, and the contract on
             // `boundary_material_sign` itself). It is not a discard:
@@ -7233,7 +7360,8 @@ pub(crate) fn tier3_local_checks_marked<
     // cannot detect an inside-out planar OR rim-bearing curved face
     // and does not claim to; its one sense-visible catch is the
     // rimless sphere band (the s_f the bit supplies), which is exactly
-    // the face the check-6 curved arm must exempt as Unencoded.
+    // the face whose own loop encodes no side for the check-6 curved
+    // arm.
     // ------------------------------------------------------------------
     if errors.is_empty() {
         // The DERIVATION and the DECISION, once each and per solid, and

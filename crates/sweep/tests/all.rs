@@ -1084,3 +1084,5 @@ mod pole_ball_shells;
 mod seam_siblings_flipped_together;
 #[path = "shell_curved_mouth.rs"]
 mod shell_curved_mouth;
+#[path = "sphere_face_flips_are_refused.rs"]
+mod sphere_face_flips_are_refused;
