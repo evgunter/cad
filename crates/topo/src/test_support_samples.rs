@@ -357,9 +357,7 @@ fn carrier_domain_collapsed() -> geom_brep::CarrierDomainRefusal {
     geom_brep::CarrierDomainRefusal {
         lo: 1.0e6,
         hi: 1.0e6 + 1.0e-9,
-        fault: geom_brep::CarrierDomainFault::Collapse(
-            geom_core::spline::KnotVectorIssue::InteriorMultiplicityTooHigh { index: 2 },
-        ),
+        fault: geom_brep::CarrierDomainFault::Merge,
     }
 }
 

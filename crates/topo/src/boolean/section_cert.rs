@@ -466,7 +466,9 @@ struct Pinch {
     name: &'static str,
     /// The margin's place in the list [`signs`] decided.
     index: usize,
-    zero: bool,
+    /// `None` where the margin decided `Zero`; its diagnostics where it
+    /// was undecided.
+    undecided: Option<geom_core::Indeterminate>,
 }
 
 impl<T: Real> From<Pinch> for Section<T> {
@@ -481,7 +483,7 @@ impl Pinch {
     /// loop about it, bounding a connected region where they stand within
     /// the margin; R-tan otherwise.
     fn touch<T: Real>(self, names: &[&'static str], at: impl FnOnce() -> Point3<T>) -> Section<T> {
-        if self.zero && names.contains(&self.name) {
+        if self.undecided.is_none() && names.contains(&self.name) {
             Section::Touch(Touch {
                 name: self.name,
                 at: at(),
@@ -500,24 +502,20 @@ fn signs<T: Decide, const N: usize>(
 ) -> Result<[bool; N], Pinch> {
     let mut out = [false; N];
     for (index, (slot, (name, m))) in out.iter_mut().zip(ms).enumerate() {
-        match sign(name, Margin::of(m), band) {
-            Some(Sign::Positive) => *slot = true,
-            Some(Sign::Negative) => {}
-            Some(Sign::Zero) => {
-                return Err(Pinch {
-                    name,
-                    index,
-                    zero: true,
-                });
+        let undecided = match decide(name, Margin::of(m), band) {
+            Ok(Sign::Positive) => {
+                *slot = true;
+                continue;
             }
-            None => {
-                return Err(Pinch {
-                    name,
-                    index,
-                    zero: false,
-                });
-            }
-        }
+            Ok(Sign::Negative) => continue,
+            Ok(Sign::Zero) => None,
+            Err(diag) => Some(diag),
+        };
+        return Err(Pinch {
+            name,
+            index,
+            undecided,
+        });
     }
     Ok(out)
 }
@@ -889,8 +887,6 @@ fn torus_plane<T: Decide>(
     n: Vec3<T>,
     band: Band,
 ) -> Section<T> {
-    const NEAR: &str = "section_torus_plane_near_tube";
-    const FAR: &str = "section_torus_plane_far_tube";
     let h = n.dot(p0 - c);
     let na = n.dot(a);
     let (s, in_pi) = meridian(c, a, n);
@@ -899,20 +895,17 @@ fn torus_plane<T: Decide>(
     // s·x + n_a·y = h, whose unit normal is (s, n_a); `d` is the
     // plane's offset from T_σ's centre and `(σR + d·s, d·n_a)` its foot.
     let offset = |sigma: T| h - sigma * s * big_r;
-    let [near, far] = match signs(
-        [
-            (NEAR, r - (h - s * big_r).abs()),
-            (FAR, r - (h + s * big_r).abs()),
-        ],
-        band,
-    ) {
-        Ok(x) => x,
+    match plane_cut(big_r, r, h, s, band) {
         // Tangent to T_σ at the foot, an elliptic point when the foot
         // stands on the tube's outer half: the extreme `σ(sR + r)` of
         // the height `n·(x − c)`, whose other critical values `±(sR − r)`
         // stand `2·min(sR, r) ≥ 2·σ·d·s` away.
-        Err(tan) => {
-            let sigma = if tan.index == 0 { T::one() } else { -T::one() };
+        PlaneCut::Pinch(tan) if tan.name == NEAR || tan.name == FAR => {
+            let sigma = if tan.name == NEAR {
+                T::one()
+            } else {
+                -T::one()
+            };
             let d = offset(sigma);
             if sign(
                 "section_torus_plane_touch_elliptic",
@@ -922,30 +915,90 @@ fn torus_plane<T: Decide>(
             {
                 return tan.into();
             }
-            return tan.touch(&[NEAR, FAR], || in_pi(sigma * big_r + d * s, d * na));
+            tan.touch(&[NEAR, FAR], || in_pi(sigma * big_r + d * s, d * na))
         }
-    };
-    match (near, far) {
-        (true, true) => essential_pair(true, false),
-        (false, false) => {
-            // The plane separates the two tube circles (two `(0,1)`
-            // curves) or misses the torus.
-            match signs(
-                [("section_torus_plane_between", s * big_r - r - h.abs())],
-                band,
-            ) {
-                Ok([true]) => essential_pair(true, false),
-                Ok([false]) => none(),
-                Err(tan) => tan.into(),
-            }
-        }
-        (true, false) | (false, true) => {
+        PlaneCut::Pinch(tan) => tan.into(),
+        PlaneCut::AroundAxis | PlaneCut::AroundTube => essential_pair(true, false),
+        PlaneCut::Empty => none(),
+        PlaneCut::Null { near } => {
             let sigma = if near { T::one() } else { -T::one() };
             let d = offset(sigma);
             let (fx, fy) = (sigma * big_r + d * s, d * na);
             let half = ((r - d.abs()) * (r + d.abs())).sqrt();
             lone(in_pi(fx - na * half, fy + s * half))
         }
+    }
+}
+
+/// [`torus_plane`]'s near-tube margin: the plane cuts the tube circle
+/// `T₊` of `Π`.
+const NEAR: &str = "section_torus_plane_near_tube";
+/// [`torus_plane`]'s far-tube margin: the plane cuts `T₋`.
+const FAR: &str = "section_torus_plane_far_tube";
+
+/// **How a plane cuts a ring torus**, by [`torus_plane`]'s margins in
+/// the meridian half-plane `Π` toward the plane's normal: the plane at
+/// height `h` over the centre, `s` the norm of its normal's part square
+/// to the axis.
+enum PlaneCut {
+    /// It cuts both tube circles of `Π`, so it crosses every meridian:
+    /// two loops, each round the axis.
+    AroundAxis,
+    /// It passes between the tube circles: two loops, each round the
+    /// tube.
+    AroundTube,
+    /// It cuts one tube circle, `T₊` where `near`: one null oval.
+    Null { near: bool },
+    /// It misses the torus.
+    Empty,
+    /// A margin decided `Zero` or undecided: a tangency.
+    Pinch(Pinch),
+}
+
+fn plane_cut<T: Decide>(big_r: T, r: T, h: T, s: T, band: Band) -> PlaneCut {
+    let [near, far] = match signs(
+        [
+            (NEAR, r - (h - s * big_r).abs()),
+            (FAR, r - (h + s * big_r).abs()),
+        ],
+        band,
+    ) {
+        Ok(x) => x,
+        Err(tan) => return PlaneCut::Pinch(tan),
+    };
+    match (near, far) {
+        (true, true) => PlaneCut::AroundAxis,
+        (false, false) => match signs(
+            [("section_torus_plane_between", s * big_r - r - h.abs())],
+            band,
+        ) {
+            Ok([true]) => PlaneCut::AroundTube,
+            Ok([false]) => PlaneCut::Empty,
+            Err(tan) => PlaneCut::Pinch(tan),
+        },
+        (true, false) | (false, true) => PlaneCut::Null { near },
+    }
+}
+
+/// **The loops a plane cuts on a ring torus**, by [`torus_plane`]'s own
+/// margins, so a refusal naming them and the certificate read one
+/// decision: `Ok(None)` where those margins decide a tangency or no
+/// section, and the diagnostics of the first margin they leave
+/// undecided. The plane runs through `p0` with normal `n`, the torus is
+/// `(c, a, R, r)`; neither direction need be unit.
+pub(super) fn torus_plane_loops<T: Decide>(
+    (c, a, big_r, r): (Point3<T>, Vec3<T>, T, T),
+    (p0, n): (Point3<T>, Vec3<T>),
+    band: Band,
+) -> Result<Option<super::SpiricLoops>, geom_core::Indeterminate> {
+    let (a, n) = (unit(a), unit(n));
+    let (_, s) = perp_to(n, a);
+    match plane_cut(big_r, r, n.dot(p0 - c), s, band) {
+        PlaneCut::AroundAxis => Ok(Some(super::SpiricLoops::AroundAxis)),
+        PlaneCut::AroundTube => Ok(Some(super::SpiricLoops::AroundTube)),
+        PlaneCut::Null { .. } => Ok(Some(super::SpiricLoops::Null)),
+        PlaneCut::Empty => Ok(None),
+        PlaneCut::Pinch(tan) => tan.undecided.map_or(Ok(None), Err),
     }
 }
 
@@ -2451,7 +2504,7 @@ mod section_cert_cone_pair_rows;
 mod section_cert_cone_rows;
 #[cfg(test)]
 #[path = "section_cert_rows.rs"]
-mod section_cert_rows;
+pub(super) mod section_cert_rows;
 #[cfg(test)]
 #[path = "section_cert_square_rows.rs"]
 mod section_cert_square_rows;
