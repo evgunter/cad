@@ -6909,8 +6909,10 @@ pub fn record_at_rest<T: Real>(
     let mut minted: Vec<(GroupPair, crate::Coincidence, crate::Contact)> = Vec::new();
     let mut overlapping: std::collections::BTreeSet<GroupPair> = std::collections::BTreeSet::new();
     let mut findings = Vec::new();
+    let mut read = 0;
     for pass in 1..=RECORDING_PASSES {
         let records = cite_minted(contacts, &minted, first_row);
+        read = minted.len();
         findings = census(&records);
         let found = findings
             .iter()
@@ -6941,6 +6943,12 @@ pub fn record_at_rest<T: Real>(
         if !changed {
             break;
         }
+    }
+    // A last pass that found a pair interpenetrating dropped its records
+    // after the census read them, so its touches are in no finding: read
+    // the census once more over what is kept, and report what it finds.
+    if minted.len() != read {
+        findings = census(&cite_minted(contacts, &minted, first_row));
     }
     RecordedAtRest {
         records: cite_minted(&ContactRecords::default(), &minted, first_row),
