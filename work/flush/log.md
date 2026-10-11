@@ -37,3 +37,27 @@ spelling and is bit-equal to E, so no FLUSH lane writes a new one;
 CONTACTHOLD's PRs 4598/4604 rewrite the census and `ContactRecords`
 under the tier-3′ rows; the E tail waits for F.
 — (FLUSH orchestrator)
+
+## 2026-10-11 — wave 1 dispatched
+
+Three lanes run as their own cloud sessions. This box has 4 cores and
+no warm target, and every lane needs a release battery, so running
+them here would serialize three cold builds (orchestration model:
+"Lanes may run in their own cloud sessions").
+
+- `flush/corner-ruling-tier3`: box ∩ cylinder through the corner edge
+  (P0). Also asked to measure the corner pair (P0) and the L-prism
+  (P1) as siblings, since all three are an operand edge lying in the
+  partner's face that tier 3′ reads as `UndeclaredContact`. If they
+  share a cause, one fix covers all three.
+- `flush/sliver-only-result-refuses`: the sliver-only result (P0), with
+  the shape the row gives. Seams: RESTFRONT's `validate.rs`, and
+  TALLY's three in-band typing rows (note on TALLY's log).
+- `flush/readers-closes`: the reflex corner (H), the declared-flush
+  wedge and the one-order declared intersect. Each is re-measured with
+  the plain booleans, then closed with a pin or priced.
+
+Review tiers are set when each lane reports, from what its diff turned
+out to be: a P0 fix whose cause is not yet known cannot be tiered
+honestly at dispatch.
+— (FLUSH orchestrator)
