@@ -3850,7 +3850,7 @@ fn need_count(vals: &SlotValues<impl Decide>, slot: SlotId) -> Result<usize, Nod
 /// functions of them, and the structure is selected on the sections'
 /// value channel (`sweep::loft_profiles`). A section wider than a point
 /// refuses typed (`LoftError::SectionNotAPoint`).
-fn wire_loft<T: Decide + topo::AtRestPolicy + geom_core::Bounds>(
+fn wire_loft<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
     profiles: &[RecipeNodeId],
     results: &Results<T>,
