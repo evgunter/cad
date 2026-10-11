@@ -130,68 +130,98 @@ pub struct SplitContacts {
 }
 
 impl<T: Real> SplitResult<T> {
-    /// `records`, the operand's, carried onto the side that holds both
-    /// of each record's cells, each cell read through that side's joins
-    /// ([`crate::boolean::joined_cell`]) and every record citing the
-    /// operand's ([`crate::ContactRecords::carried_through`]). A side's
-    /// survivors keep their operand keys (`carve` clones one arena), so
-    /// a record either lands whole on one side or is refused.
+    /// `records`, the operand's, carried onto each side that holds both of
+    /// a record's cells, every record citing the operand's
+    /// ([`crate::ContactRecords::carried_through`]). A side's survivors
+    /// keep their operand keys (`carve` clones one arena); a vertex the
+    /// cut copied (`SplitNaming::vertex_pairs`) is read on each side as
+    /// the copy that side holds, which shares its point, so a record at
+    /// such a vertex lands on every side that holds both its cells (D1
+    /// (ii)); and each cell is read through its side's joins.
     ///
     /// # Errors
     ///
     /// [`CarryRefusal::Parted`] for a record whose cells the cut put on
     /// different sides, and [`crate::ContactRecords::carried_through`]'s
-    /// refusals for one with a cell neither side holds.
+    /// refusals for one that lands on no side.
     pub fn carry_contacts(
         &self,
         records: &crate::boolean::ContactRecords,
     ) -> Result<SplitContacts, CarryRefusal> {
-        let joins = |side: PlaneSide| -> Vec<crate::boolean::EdgeJoin> {
-            self.naming
+        let sides: Vec<(PlaneSide, &Body<T>, Vec<crate::boolean::EdgeJoin>)> = [
+            (PlaneSide::Above, self.above.body()),
+            (PlaneSide::Below, self.below.body()),
+        ]
+        .into_iter()
+        .filter_map(|(side, body)| {
+            let joins = self
+                .naming
                 .edge_joins
                 .iter()
                 .filter(|(s, _)| *s == side)
                 .map(|&(_, j)| j)
-                .collect()
-        };
-        let sides = [
-            (self.above.body(), joins(PlaneSide::Above)),
-            (self.below.body(), joins(PlaneSide::Below)),
-        ];
-        let mut out = [
-            crate::boolean::ContactRecords::default(),
-            crate::boolean::ContactRecords::default(),
-        ];
-        for (k, row) in records.rows().iter().enumerate() {
-            let held = |(body, joins): &(Option<&Body<T>>, Vec<crate::boolean::EdgeJoin>),
-                        c: Cell| {
-                body.is_some_and(|b| {
-                    crate::boolean::records::holds(b, crate::boolean::joined_cell(joins, c))
-                })
-            };
-            let [x, y] = row.cells();
-            let side = sides.iter().position(|s| held(s, x) && held(s, y));
-            let Some(at) = side else {
-                let record = crate::boolean::reduce::index(k);
-                if sides.iter().any(|s| held(s, x)) && sides.iter().any(|s| held(s, y)) {
-                    return Err(CarryRefusal::Parted { record });
+                .collect();
+            body.map(|b| (side, b, joins))
+        })
+        .collect();
+        let mut out = SplitContacts::default();
+        for k in 0..records.len() {
+            let mut refusals = Vec::new();
+            let mut landed = false;
+            for (side, body, joins) in &sides {
+                let image = |c: Cell| self.side_image(body, joins, c);
+                match records.carried_row(0, k, body, &image) {
+                    Ok(row) => {
+                        landed = true;
+                        match side {
+                            PlaneSide::Above => out.above.extend(row),
+                            _ => out.below.extend(row),
+                        }
+                    }
+                    Err(refusal) => refusals.push(refusal),
                 }
-                let cell = if sides.iter().any(|s| held(s, x)) {
-                    y
-                } else {
-                    x
-                };
-                return Err(CarryRefusal::Unmapped { record, cell });
-            };
-            let (body, joins) = &sides[at];
-            let body = body.unwrap_or_else(|| unreachable!("a side that holds a cell has a body"));
-            out[at].push(
-                records
-                    .carried_row(0, k, body, &|c| Some(crate::boolean::joined_cell(joins, c)))?,
-            );
+            }
+            if !landed {
+                let record = crate::boolean::reduce::index(k);
+                return Err(match refusals[..] {
+                    [
+                        CarryRefusal::Unmapped { cell: a, .. },
+                        CarryRefusal::Unmapped { cell: b, .. },
+                    ] if a != b => CarryRefusal::Parted { record },
+                    [first, ..] => first,
+                    [] => CarryRefusal::Unmapped {
+                        record,
+                        cell: records.rows()[k].cells()[0],
+                    },
+                });
+            }
         }
-        let [above, below] = out;
-        Ok(SplitContacts { above, below })
+        Ok(out)
+    }
+
+    /// What the side `body`, ending with `joins`, made of operand cell
+    /// `c`: the cell, or the one copy of it the cut minted there, read
+    /// through the joins; `None` where the side holds neither, or more
+    /// than one copy.
+    fn side_image(
+        &self,
+        body: &Body<T>,
+        joins: &[crate::boolean::EdgeJoin],
+        c: Cell,
+    ) -> Option<Cell> {
+        let copies = self
+            .naming
+            .vertex_pairs
+            .iter()
+            .filter_map(|&(copy, original)| {
+                (Cell::Vertex(original) == c).then_some(Cell::Vertex(copy))
+            });
+        let mut held = core::iter::once(c)
+            .chain(copies)
+            .map(|x| crate::boolean::joined_cell(joins, x))
+            .filter(|&x| crate::boolean::records::holds(body, x));
+        let first = held.next()?;
+        held.next().is_none().then_some(first)
     }
 }
 

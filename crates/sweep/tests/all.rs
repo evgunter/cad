@@ -870,6 +870,8 @@ mod review_fillet_h5_r1_probes;
 
 #[path = "blend_carries_records.rs"]
 mod blend_carries_records;
+#[path = "shell_carries_records.rs"]
+mod shell_carries_records;
 #[path = "blend_per_shell.rs"]
 mod blend_per_shell;
 #[path = "blend_per_shell_carry.rs"]

@@ -14,7 +14,7 @@ refs: [topo-surgery-verbs-drop-a-bodys-contact-records, surgery-carry-keeps-a-di
 
 Each surgery verb's carry maps its operand's records through the verb's
 lineage (`ContactRecords::carried_through`,
-`crates/topo/src/boolean/records.rs`). Three verbs can remove what a
+`crates/topo/src/boolean/records.rs`). Two verbs can remove what a
 record stands on, and each one refuses today. None of them drops the
 record:
 
@@ -23,8 +23,7 @@ record:
   the requested edge with a blend face (`BlendNaming::blends`), a corner
   vertex with a patch (`BlendNaming::corners`), and retract vertices to
   feet (`BlendNaming::feet`). `shell_open` retires a designated chart's
-  merged-away faces (`ShellRetired`), and `merge_coplanar_faces` retires
-  a group's `killed_vertices`. A record on any of these is refused
+  merged-away faces (`ShellRetired`). A record on any of these is refused
   `CarryRefusal::Unmapped`. No reachable blend instance was found: on
   the corner kiss of `crates/sweep/tests/blend_carries_records.rs`, a
   fillet of an edge ending at the kiss vertex is refused first by the
@@ -41,7 +40,9 @@ record:
 In each case the record could be consumed, because the touch went with
 the material. Or it could move onto the cell that replaced its own
 (D1's "rewrites every record naming it onto the replacement, by
-substitution": a blend face, a corner patch, the merged face). Or the
+substitution": a blend face, a corner patch). A merge's killed cells are
+not in question: they lie inside the face the merge keeps, and
+`MergedGroup::substitutions` carries them there. Or the
 verb could refuse, as it does now. The answer may differ between a
 consumed cell and removed material. Weigh it before building it
 (`memories/orchestration-model.md`). Whatever is decided has to keep

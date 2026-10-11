@@ -72,17 +72,21 @@ no records, `UndeclaredContact` at the kiss vertex pair.
 `ContactRecords::carried_through` maps each record's cells through an
 op's lineage and re-cites it `Backing::Carried { input: 0, record }`.
 It refuses a cell the op removed without naming a replacement
-(`CarryRefusal::Unmapped`), and a pair that is no longer a record
+(`CarryRefusal::Unmapped`), and a pair that comes out incident
 (`CarryRefusal::Pair`). Each verb's outcome carries through it:
 
 - `OffsetOutcome::carry_contacts`, for all five offset doors;
 - `MergeCoplanarOutcome::carry_contacts`;
 - `Shelled::carry_contacts`;
-- `SplitResult::carry_contacts`, which returns one list per side and
-  refuses `Parted`;
+- `SplitResult::carry_contacts`, which returns one list per side, reads
+  a vertex the cut copied as each side's copy, and refuses `Parted`;
 - `Blended::carry_contacts`, for fillet and chamfer;
-- `transform_rigid`, which keeps its keys, through
-  `carried_through(0, &moved, Some)`.
+- `transform_rigid`, which keeps its keys, through `carried_from(0)`.
+
+The merge's lineage has one home, `MergedGroup::substitutions`, which
+both the carry and the boolean's descendant map read. A record whose
+two cells map to one cell is consumed, as in the boolean.
+`RekeyRefusal` was folded into `CarryRefusal`.
 
 Residue:
 `surgery-carry-keeps-a-divided-cells-record-on-the-piece-that-kept-its-key`,

@@ -132,20 +132,18 @@ impl<T: Real> Blended<T> {
     /// a vertex it retracts — is refused
     /// ([`topo::ContactRecords::carried_through`]). What the blend's new
     /// faces would inherit from a record on a consumed cell is not
-    /// decided, so no record lands on one.
+    /// decided, so no record lands on one. A body with no birth records
+    /// names no join, so a cell a join took is refused with the rest.
     ///
     /// # Errors
     ///
-    /// [`topo::CarryRefusal::NoLineage`] where the body carries no birth
-    /// records, and [`topo::ContactRecords::carried_through`]'s refusals.
+    /// As [`topo::ContactRecords::carried_through`].
     pub fn carry_contacts(
         &self,
         records: &topo::ContactRecords,
     ) -> Result<topo::ContactRecords, topo::CarryRefusal> {
-        let naming = self.naming.as_ref().ok_or(topo::CarryRefusal::NoLineage)?;
-        records.carried_through(0, &self.body, |c| {
-            Some(topo::joined_cell(&naming.edge_joins, c))
-        })
+        let joins = self.naming.as_ref().map_or(&[][..], |n| &n.edge_joins[..]);
+        records.carried_through(0, &self.body, |c| Some(topo::joined_cell(joins, c)))
     }
 }
 

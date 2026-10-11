@@ -91,7 +91,7 @@ fn every_surgery_verb_carries_a_corner_kiss() {
         tol(),
     )
     .expect("a rigid move");
-    let carried = base.contacts.carried_through(0, &moved, Some).unwrap();
+    let carried = base.contacts.carried_from(0);
     carries_the_kiss("transform_rigid", &moved, &carried);
 
     let shelled = topo::shell(&base.body, 0.1, tol()).expect("the kiss shells");
@@ -352,4 +352,138 @@ fn a_rim_that_opens_under_a_resting_corner_leaves_its_record_stale() {
             .all(|e| matches!(e, ValidationError::StaleContactDeclaration { .. })),
         "the corner touches nothing now: {refused:?}"
     );
+}
+
+/// One record of `x` and `y` in `body`, citing decision 0.
+fn one_record(body: &Body<f64>, x: Cell, y: Cell) -> ContactRecords {
+    [Cited::new(
+        Contact::new(body, x, y).unwrap(),
+        Cites::decided(0),
+    )]
+    .into_iter()
+    .collect()
+}
+
+/// **An offset door's join carries a record onto the edge it makes.** A
+/// brick with one edge split: its two faces stay put and every other
+/// face moves in, so the door ends by joining the split vertex away.
+/// Records on the vertex and on the split-off piece land on the joined
+/// edge, one record citing both. Red if the carry skips the join: the
+/// vertex and the piece are dead.
+#[test]
+fn an_offset_door_carries_a_record_through_its_join() {
+    let band = geom_core::Band::linear(tol()).unwrap();
+    let mut body = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol());
+    let e = body.edges().next().unwrap().0;
+    let still: Vec<FaceKey> = {
+        let d = body.get_edge(e).unwrap();
+        [d.he_plus, d.he_minus]
+            .into_iter()
+            .map(|h| body.face_of_half_edge(h).unwrap())
+            .collect()
+    };
+    let (t0, t1) = body
+        .get_curve_geom(body.get_edge(e).unwrap().curve)
+        .and_then(topo::CurveGeom::certified)
+        .unwrap()
+        .params();
+    let split = body.split_edge(e, 0.5 * (t0 + t1), tol()).unwrap();
+    let far = body
+        .faces()
+        .map(|(f, _)| f)
+        .find(|f| !still.contains(f))
+        .unwrap();
+    let mut records = one_record(&body, Cell::Vertex(split.vertex), Cell::Face(far));
+    records.extend(
+        one_record(&body, Cell::Edge(split.new_edge), Cell::Face(far))
+            .rows()
+            .to_vec(),
+    );
+    let moves: Vec<topo::ChartMove<f64>> = body
+        .faces()
+        .map(|(f, _)| topo::ChartMove {
+            faces: vec![f],
+            distance: if still.contains(&f) { 0.0 } else { -0.1 },
+        })
+        .collect();
+    let out = topo::offset_planes_together(&mut body, &moves, band, tol()).unwrap();
+    assert_eq!(out.joins.len(), 1, "{:?}", out.joins);
+    let joined = Cell::Edge(topo::joined_edge(&out.joins, out.joins[0].kept));
+    let carried = out.carry_contacts(&records, &body).unwrap();
+    let rows: Vec<([Cell; 2], Vec<Backing>)> = carried
+        .rows()
+        .iter()
+        .map(|r| (r.cells(), r.cites.iter().collect()))
+        .collect();
+    assert_eq!(
+        rows,
+        [(
+            Contact::new(&body, joined, Cell::Face(far))
+                .unwrap()
+                .cells(),
+            vec![
+                Backing::Carried {
+                    input: 0,
+                    record: 0
+                },
+                Backing::Carried {
+                    input: 0,
+                    record: 1
+                }
+            ]
+        )]
+    );
+}
+
+/// **A record at a conventional vertex is a record on its closed edge.**
+/// A disc planted in a brick's top is bounded by one closed circle whose
+/// one vertex has no other edge. Red if the carry keeps the vertex.
+#[test]
+fn a_record_at_a_conventional_vertex_lands_on_its_closed_edge() {
+    let mut body = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), tol());
+    let top = face_at_z(&body, 1.0);
+    let bottom = face_at_z(&body, 0.0);
+    let f = body.get_face(top).unwrap();
+    let topo::LoopBoundary::Cycle { first } = body.get_loop(f.outer).unwrap().boundary else {
+        panic!("the top loop is a cycle");
+    };
+    let disc = common::plant_disc_face(&mut body, first, Point3::new(1.0, 1.0, 1.0), 0.5, tol());
+    let v = body
+        .get_half_edge(body.get_edge(disc.edge).unwrap().he_plus)
+        .unwrap()
+        .start;
+    assert!(topo::is_conventional_vertex(&body, v));
+    let records = one_record(&body, Cell::Vertex(v), Cell::Face(bottom));
+    let carried = records.carried_through(0, &body, Some).unwrap();
+    assert_eq!(
+        carried.cell_pairs().collect::<Vec<_>>(),
+        [(Cell::Edge(disc.edge), Cell::Face(bottom))]
+    );
+}
+
+/// **A record whose two cells map to one is consumed**, as the boolean
+/// drops a record whose vertex pair it fused (D1). Red if the carry
+/// refuses it or keeps a one-cell record.
+#[test]
+fn a_record_whose_cells_map_to_one_cell_is_consumed() {
+    let base = kiss();
+    let [a, b] = base.contacts.rows()[0].cells();
+    let carried = base
+        .contacts
+        .carried_through(0, &base.body, |c| Some(if c == b { a } else { c }))
+        .unwrap();
+    assert!(carried.is_empty(), "{carried:?}");
+}
+
+fn face_at_z(body: &Body<f64>, z: f64) -> FaceKey {
+    body.faces()
+        .find(|(_, f)| {
+            matches!(
+                body.get_surface(f.surface),
+                Some(Surface::Plane { origin, normal, .. })
+                    if normal.z.abs() == 1.0 && origin.z == z
+            )
+        })
+        .map(|(k, _)| k)
+        .expect("a face on z")
 }

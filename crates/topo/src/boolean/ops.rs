@@ -2800,15 +2800,13 @@ impl Descendants {
             "absorb_merge: the boolean's merge is the unjoined one, so it reports no join"
         );
         for group in &merged.groups {
-            for &absorbed in &group.absorbed {
-                self.faces.insert(absorbed, group.kept);
-            }
-            let kept = Cell::Face(group.kept);
-            for &e in &group.killed_edges {
-                self.substitute(Cell::Edge(e), kept);
-            }
-            for &v in &group.killed_vertices {
-                self.substitute(Cell::Vertex(v), kept);
+            for (dead, by) in group.substitutions() {
+                match dead {
+                    Cell::Face(f) => {
+                        self.faces.insert(f, group.kept);
+                    }
+                    _ => self.substitute(dead, by),
+                }
             }
         }
     }
