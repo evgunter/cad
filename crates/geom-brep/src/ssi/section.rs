@@ -234,7 +234,10 @@ impl Pieces {
     /// The sign of `φ` along the whole curve ([`refined_sign`]).
     fn sign(&self, budget: &mut usize) -> Result<Option<bool>, SignBudget> {
         refined_sign(
-            self.pieces.iter().map(|(_, hc, _)| hc.clone()).collect(),
+            self.pieces
+                .iter()
+                .map(|(k, hc, _)| (Cut::of(hc, *k, *k), hc.clone()))
+                .collect(),
             budget,
         )
     }
@@ -253,12 +256,18 @@ impl Pieces {
         out
     }
 
-    /// For each piece overlapping `[a, b]`: the Bernstein coefficients
-    /// of `h` and `W` over the overlap.
-    fn over(&self, a: f64, b: f64) -> Vec<(Vec<Interval>, Vec<Interval>)> {
+    /// For each piece overlapping `[a, b]`: the overlap's cut of `h`,
+    /// and the Bernstein coefficients of `h` and `W` over it.
+    fn over(&self, a: f64, b: f64) -> Vec<(Cut<'_>, Vec<Interval>, Vec<Interval>)> {
         self.cuts(a, b)
             .into_iter()
-            .map(|((k, hc, wc), cut)| (sub_segment(hc, *k, cut), sub_segment(wc, *k, cut)))
+            .map(|((k, hc, wc), cut)| {
+                (
+                    Cut::of(hc, *k, cut),
+                    sub_segment(hc, *k, cut),
+                    sub_segment(wc, *k, cut),
+                )
+            })
             .collect()
     }
 
@@ -299,15 +308,47 @@ pub(crate) const SIDE_SIGN_HALVINGS: usize = 200_000;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct SignBudget;
 
+/// A stretch `at` of a Bézier piece of `h`: its row over its whole
+/// parameter span `segment`, which every halving of the stretch is cut
+/// from.
+#[derive(Clone, Copy)]
+struct Cut<'a> {
+    row: &'a [Interval],
+    segment: (f64, f64),
+    at: (f64, f64),
+}
+
+impl<'a> Cut<'a> {
+    fn of(row: &'a [Interval], segment: (f64, f64), at: (f64, f64)) -> Self {
+        Self { row, segment, at }
+    }
+
+    /// The Bernstein coefficients over `at`, cut from the row.
+    fn coefficients(self) -> Vec<Interval> {
+        sub_segment(self.row, self.segment, self.at)
+    }
+
+    /// The two halves of the stretch, each cut from the row; `None`
+    /// where the stretch has no `f64` strictly inside it.
+    fn halves(self) -> Option<[Self; 2]> {
+        let (a, b) = self.at;
+        let m = 0.5 * a + 0.5 * b;
+        (a < m && m < b).then_some([Self { at: (a, m), ..self }, Self { at: (m, b), ..self }])
+    }
+}
+
 /// **The sign of `φ` over pieces, read on a refined hull.** `φ` shares
 /// its sign with `h` (the weights are positive), so each piece's `h`
-/// coefficients are read. A piece whose hull straddles zero is halved
-/// ([`sub_segment`]), spending one of `budget`, and its halves are read.
+/// coefficients are read, given with the cut they are. A piece whose
+/// hull straddles zero is halved, spending one of `budget`, and its
+/// halves are read; every half is cut from its Bézier segment's own row
+/// ([`sub_segment`]), so no cut compounds another's width.
 ///
 /// - `Some`: every piece reads one-signed, all of one sign.
 /// - `None` (in band): two pieces read opposite signs, a hull is
-///   refused, or a straddling piece's halves' hull is no narrower than
-///   its own (the arithmetic's floor there).
+///   refused, or a straddling piece cannot be halved in `f64` or its
+///   halves' hull is no narrower than its own (the arithmetic's floor
+///   there).
 ///
 /// The pieces as given are all read before any is halved, so two of
 /// opposite sign read `None` in any order.
@@ -316,10 +357,10 @@ pub(crate) struct SignBudget;
 ///
 /// [`SignBudget`] where a halving is due with `budget` spent.
 fn refined_sign(
-    pieces: Vec<Vec<Interval>>,
+    pieces: Vec<(Cut<'_>, Vec<Interval>)>,
     budget: &mut usize,
 ) -> Result<Option<bool>, SignBudget> {
-    let signs: Vec<Option<bool>> = pieces.iter().map(|c| sign(hull(c))).collect();
+    let signs: Vec<Option<bool>> = pieces.iter().map(|(_, c)| sign(hull(c))).collect();
     if signs.contains(&Some(true)) && signs.contains(&Some(false)) {
         return Ok(None);
     }
@@ -329,7 +370,7 @@ fn refined_sign(
             continue;
         }
         let mut stack = vec![piece];
-        while let Some(c) = stack.pop() {
+        while let Some((cut, c)) = stack.pop() {
             let h = hull(&c);
             if let Some(s) = sign(h) {
                 if found.is_some_and(|f| f != s) {
@@ -346,15 +387,15 @@ fn refined_sign(
                 return Err(SignBudget);
             }
             *budget -= 1;
-            let (left, right) = (
-                sub_segment(&c, (0.0, 1.0), (0.0, 0.5)),
-                sub_segment(&c, (0.0, 1.0), (0.5, 1.0)),
-            );
-            if Certification::width(Interval::hull(hull(&left), hull(&right))) >= before {
+            let Some([left, right]) = cut.halves() else {
+                return Ok(None);
+            };
+            let (l, r) = (left.coefficients(), right.coefficients());
+            if Certification::width(Interval::hull(hull(&l), hull(&r))) >= before {
                 return Ok(None);
             }
-            stack.push(right);
-            stack.push(left);
+            stack.push((right, r));
+            stack.push((left, l));
         }
     }
     Ok(found)
@@ -383,7 +424,7 @@ impl SectionReader {
     }
 
     /// The stretch `[a, b]` of the curve: its pieces cut to it.
-    pub(crate) fn stretch(&self, (a, b): (f64, f64)) -> Stretch {
+    pub(crate) fn stretch(&self, (a, b): (f64, f64)) -> Stretch<'_> {
         Stretch {
             pieces: self.pieces.over(a, b),
         }
@@ -397,16 +438,16 @@ impl SectionReader {
 }
 
 /// A stretch of a curve, as the Bernstein coefficients of `h` and `W`
-/// over its pieces cut to it ([`SectionReader::stretch`]).
-pub(crate) struct Stretch {
-    pieces: Vec<(Vec<Interval>, Vec<Interval>)>,
+/// over its pieces cut to it, with each cut ([`SectionReader::stretch`]).
+pub(crate) struct Stretch<'a> {
+    pieces: Vec<(Cut<'a>, Vec<Interval>, Vec<Interval>)>,
 }
 
-impl Stretch {
+impl Stretch<'_> {
     /// The plane distance `φ` over the stretch, enclosed as
     /// [`Pieces::distance`] encloses the whole curve's.
     pub(crate) fn distance(&self) -> Interval {
-        ratio_hull(self.pieces.iter().map(|(hc, wc)| (hc, wc)))
+        ratio_hull(self.pieces.iter().map(|(_, hc, wc)| (hc, wc)))
     }
 
     /// The sign of `φ` over the stretch, read on its refined hull as
@@ -418,7 +459,10 @@ impl Stretch {
     /// As [`refined_sign`].
     pub(crate) fn sign(&self, budget: &mut usize) -> Result<Option<bool>, SignBudget> {
         refined_sign(
-            self.pieces.iter().map(|(hc, _)| hc.clone()).collect(),
+            self.pieces
+                .iter()
+                .map(|(cut, hc, _)| (*cut, hc.clone()))
+                .collect(),
             budget,
         )
     }
@@ -568,7 +612,7 @@ fn roots(
     let floor = SweepFloor::section(root, floor_meters, speed)?;
     let cells = isolate_section(floor, |cell| {
         let over = pieces.over(cell.t.0, cell.t.1);
-        Ok(!over.is_empty() && over.iter().all(|(h, _)| one_signed(hull(h))))
+        Ok(!over.is_empty() && over.iter().all(|(_, h, _)| one_signed(hull(h))))
     })?;
     // Contiguous survivors are one cluster: a root on a cell's end
     // survives in both cells beside it.
@@ -590,12 +634,12 @@ fn roots(
             .unwrap_or_else(Interval::refused);
         let w_hi = over
             .iter()
-            .map(|(_, w)| magnitude(hull(w)))
+            .map(|(_, _, w)| magnitude(hull(w)))
             .fold(0.0, max_bound);
         // `h` at the cluster's two ends: the first and last Bernstein
         // coefficients of the overlaps there.
-        let h_a = over.first().and_then(|(h, _)| h.first().copied());
-        let h_b = over.last().and_then(|(h, _)| h.last().copied());
+        let h_a = over.first().and_then(|(_, h, _)| h.first().copied());
+        let h_b = over.last().and_then(|(_, h, _)| h.last().copied());
         let rising = sign(dh);
         // At a root `h = 0`, so `dφ/dt = h′/W` there and
         // `|dφ/ds| ≥ inf|h′| / (sup W · sup‖C′‖)`.
@@ -719,15 +763,25 @@ mod tests {
     use geom_core::spline::KnotVector;
     use geom_core::{Band, Interval, Point3, SupSpeed, Vec3};
 
-    use super::{BoundarySection, SIDE_SIGN_HALVINGS, SignBudget, SsiError, refined_sign};
+    use super::{BoundarySection, Cut, SIDE_SIGN_HALVINGS, SignBudget, SsiError, refined_sign};
 
     /// One Bézier piece of `h`.
     fn piece(c: &[f64]) -> Vec<Interval> {
         c.iter().map(|&x| Interval::from_certified(x)).collect()
     }
 
+    /// Reads pieces, each a Bézier row of `h` on `[0, 1]`, within
+    /// `budget`'s halvings.
+    fn within(pieces: Vec<Vec<Interval>>, budget: &mut usize) -> Result<Option<bool>, SignBudget> {
+        let cuts = pieces
+            .iter()
+            .map(|c| (Cut::of(c, (0.0, 1.0), (0.0, 1.0)), c.clone()))
+            .collect();
+        refined_sign(cuts, budget)
+    }
+
     fn read(pieces: Vec<Vec<Interval>>) -> Result<Option<bool>, SignBudget> {
-        refined_sign(pieces, &mut SIDE_SIGN_HALVINGS.clone())
+        within(pieces, &mut SIDE_SIGN_HALVINGS.clone())
     }
 
     /// `(P, −N, P)` with `P > N`: its hull holds `−N`, but `φ ≥ (P − N)/2`
@@ -804,11 +858,7 @@ mod tests {
         let mut reversed = vec![piece(&[-e, -e])];
         reversed.extend(costly);
         for (at, pieces) in [("forward", forward), ("reversed", reversed)] {
-            assert_eq!(
-                refined_sign(pieces, &mut 2),
-                Ok(None),
-                "{at}, budget 2 of 4"
-            );
+            assert_eq!(within(pieces, &mut 2), Ok(None), "{at}, budget 2 of 4");
         }
     }
 
@@ -821,10 +871,10 @@ mod tests {
     fn the_sign_spends_one_halving_per_piece_halved() {
         let m = 64;
         let loose = vec![piece(&[P, -N, P]); m];
-        assert_eq!(refined_sign(loose.clone(), &mut { m }), Ok(Some(true)));
-        assert_eq!(refined_sign(loose, &mut (m - 1)), Err(SignBudget));
+        assert_eq!(within(loose.clone(), &mut { m }), Ok(Some(true)));
+        assert_eq!(within(loose, &mut (m - 1)), Err(SignBudget));
         let tight = vec![piece(&[P, P, P]); 4 * m];
-        assert_eq!(refined_sign(tight, &mut 0), Ok(Some(true)));
+        assert_eq!(within(tight, &mut 0), Ok(Some(true)));
     }
 
     /// `(0, y, h(y))` over `m` C0 quadratic spans of `y ∈ [0, 1]`, each
