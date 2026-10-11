@@ -4396,7 +4396,11 @@ fn resolve_appearance<T: Decide>(
             )
         })
         .collect();
-    appearance::resolve(doc.appearance(), order, &states)
+    let reads = appearance::Reads {
+        ports: doc.output_ports(),
+        feeds: doc.feeds(),
+    };
+    appearance::resolve(doc.appearance(), order, &states, &reads)
 }
 
 /// One node's evaluation step: the result plus whether it was a memo

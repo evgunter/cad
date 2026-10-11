@@ -34,8 +34,9 @@
 //! states WHICH names lost their targets and the coarse cause visible
 //! to the evaluation itself; the flipping predicate is PR 4's job.
 //!
-//! An entry counts as resolved when its name is found in ANY Ok
-//! node's table ([`AppearanceResolution`] docs spell out the ruled
+//! An entry is keyed by its body read and its name ([`AppearanceKey`];
+//! NAMES N1, the scope), and counts as resolved when that read's table
+//! carries the name ([`AppearanceResolution`] docs spell out the ruled
 //! consequence: operand paint does not follow the face through a
 //! boolean, and that gap is silent-by-design — N1 identity plus the
 //! empty N5 auto-rebind menu — with explicit re-attachment or PR 4's
@@ -46,7 +47,7 @@
 //! Appearance attachment is one of the four sanctioned seams where
 //! assemblies later compose the (document identity × local ref)
 //! wrapper AROUND the local name type. The store is document-local
-//! (keys are plain [`StableName`]s, GQ4 locality) and resolution is
+//! (keys are a body read and a [`StableName`], GQ4 locality) and resolution is
 //! per-document, per-evaluation; nothing here assumes global name
 //! uniqueness, so the wrapper composes without modifying this module.
 
@@ -175,9 +176,16 @@ impl AppearanceRecord {
     }
 }
 
-/// The document's appearance store: records keyed by stable name
-/// (the B11 wrapper-ready seam — document-local keys, module docs).
-pub type AppearanceMap = BTreeMap<StableName, AppearanceRecord>;
+/// **An appearance entry's key**: a name and the body read it is read
+/// in (NAMES N1, the scope — a name tells apart only what its variable
+/// holds, so a split's two halves carry one section face name and a
+/// paint names the half; D10, a repair is addressed by body and name).
+pub type AppearanceKey = crate::node::SitedRef<crate::VarId>;
+
+/// The document's appearance store: records keyed by body read and
+/// stable name (the B11 wrapper-ready seam — document-local keys,
+/// module docs).
+pub type AppearanceMap = BTreeMap<AppearanceKey, AppearanceRecord>;
 
 /// Why an appearance entry failed to resolve in an evaluation — the
 /// typed "appearance lost its target" state (N3/N5). PR 4's
@@ -227,6 +235,8 @@ pub enum AppearanceLossCause {
 /// holds it), and the typed cause.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AppearanceLoss {
+    /// The body read the entry is read in.
+    pub body: crate::VarId,
     /// The name whose target was lost.
     pub name: StableName,
     /// The attributes that were attached to it.
@@ -249,10 +259,11 @@ pub struct AppearanceLoss {
 /// die with it, G1); the durable attachment remains the document's
 /// name-keyed store.
 ///
-/// # Success criterion: resolves ANYWHERE (review A1, ruled)
+/// # Success criterion: resolves in its body read (review A1, ruled; N1)
 ///
-/// An entry is "resolved" when at least one Ok node's table carries
-/// its name — losses fire only when NO table does. Consequence,
+/// An entry is "resolved" when its body read's table carries its name,
+/// and paints every read downstream of it that carries the name too —
+/// losses fire when the body read's table does not. Consequence,
 /// upheld as correct v1 semantics: painting an OPERAND's face and
 /// then consuming the operand in a boolean paints the operand node's
 /// output only. The final node's corresponding face is a DIFFERENT
@@ -268,10 +279,11 @@ pub struct AppearanceLoss {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct AppearanceResolution {
     /// Per-node resolved rows: for each node whose table carried an
-    /// attributed name, the entity and its attributes. A name minted
-    /// at node `n` appears under every node whose table carries it
-    /// (pass-through ops keep names, so a transform's output carries
-    /// its input's attributes — N1 derivation-path semantics).
+    /// attributed name, the entity and its attributes. An entry appears
+    /// under its body read's node and every node downstream of that
+    /// read whose table carries the name (pass-through ops keep names,
+    /// so a transform's output carries its input's attributes — N1
+    /// derivation-path semantics).
     pub resolved: BTreeMap<RecipeNodeId, BTreeMap<EntityRef, AttrSet>>,
     /// Every appearance entry that failed to resolve, loudly typed
     /// (empty = every attribute landed). Per-name granularity: an
@@ -303,98 +315,152 @@ impl AppearanceResolution {
 /// halves at their ports, every other node's one output at 0).
 pub(crate) type NodeState<'a> = Result<Vec<(u32, &'a NameTable)>, NodeStanding>;
 
+/// **The reads appearance resolution walks**: each output read's node
+/// and port, and the output reads each read feeds — those of every live
+/// operation taking it as a body, directly or through a selection of it
+/// ([`crate::Doc::feeds`]).
+pub(crate) struct Reads {
+    /// Each output read and the port that defines it.
+    pub(crate) ports: BTreeMap<crate::VarId, (RecipeNodeId, u8)>,
+    /// Each read and the output reads of the operations that read it.
+    pub(crate) feeds: BTreeMap<crate::VarId, Vec<crate::VarId>>,
+}
+
+impl Reads {
+    /// `body` and every read downstream of it, each once, in the
+    /// evaluation's order (a read's node's place in `order`, then its
+    /// port).
+    fn downstream(&self, body: crate::VarId, order: &[RecipeNodeId]) -> Vec<crate::VarId> {
+        let mut seen = std::collections::BTreeSet::from([body]);
+        let mut stack = vec![body];
+        while let Some(read) = stack.pop() {
+            for &next in self.feeds.get(&read).into_iter().flatten() {
+                if seen.insert(next) {
+                    stack.push(next);
+                }
+            }
+        }
+        let place = |read: &crate::VarId| {
+            let (node, port) = self.ports.get(read).copied()?;
+            Some((order.iter().position(|&id| id == node)?, port))
+        };
+        let mut out: Vec<(usize, u8, crate::VarId)> = seen
+            .into_iter()
+            .filter_map(|read| place(&read).map(|(at, port)| (at, port, read)))
+            .collect();
+        out.sort_unstable();
+        out.into_iter().map(|(_, _, read)| read).collect()
+    }
+}
+
 /// Resolves the document's appearance store against one evaluation's
 /// tables (total: every entry lands in `resolved` or in `losses` —
 /// never both silently dropped, never panicking).
 ///
+/// An entry resolves in its body read's table (NAMES N1, the scope),
+/// and rides on downstream through every read that read feeds whose
+/// table carries the name verbatim (pass-through ops keep names, so a
+/// transform of the painted body shows the paint; the other half of a
+/// split, which carries the same section face name, does not).
+///
 /// `states` holds every live node of the document — a canceled run's
 /// unevaluated suffix with its standing like any other — so a name
 /// whose node it does not hold names a node the document no longer
-/// has. `order` is the evaluation's order over those nodes, the one the
-/// tables are read in: a node's inputs come before it, so the table
-/// that first carries a name is the one that defined it.
+/// has. `order` is the evaluation's order over those nodes.
 pub(crate) fn resolve(
     appearance: &AppearanceMap,
     order: &[RecipeNodeId],
     states: &BTreeMap<RecipeNodeId, NodeState<'_>>,
+    reads: &Reads,
 ) -> AppearanceResolution {
     let in_order = || order.iter().filter_map(|id| Some((*id, states.get(id)?)));
+    let table_of = |read: &crate::VarId| {
+        let &(node, port) = reads.ports.get(read)?;
+        let tables = states.get(&node)?.as_ref().ok()?;
+        let &(base, table) = tables.iter().find(|(p, _)| *p == u32::from(port))?;
+        Some((node, base, table))
+    };
     let mut resolution = AppearanceResolution::default();
-    for (name, rec) in appearance {
-        let Some(target) = states.get(&name.node) else {
-            resolution.losses.push(AppearanceLoss {
-                name: name.clone(),
-                attrs: rec.attrs.clone(),
-                metadata: rec.metadata.clone(),
-                cause: AppearanceLossCause::NodeGone,
-            });
-            continue;
-        };
-        // A name resolves in EVERY table that carries it: pass-through
-        // ops (Transform) keep upstream names, so downstream outputs
-        // inherit the attachment through the SAME name — no policy,
-        // just N1 lookup.
-        let mut hit = false;
-        // Losses are per NAME, one row per cause (review A2): a tied
-        // name carried by several tables (pass-through) reports ONE
-        // Ambiguous loss, at the first table in evaluation order — the
-        // defining site; the others are derivable by lookup.
-        let mut tie: Option<(RecipeNodeId, usize)> = None;
-        for (id, state) in in_order() {
-            let Ok(tables) = state else {
-                continue;
-            };
-            for &(base, table) in tables {
-                match table.lookup(name) {
-                    Some(Entry::Unique(ent)) => {
-                        hit = true;
-                        let ent = EntityRef {
-                            body: base + ent.body,
-                            key: ent.key,
-                        };
-                        resolution
-                            .resolved
-                            .entry(id)
-                            .or_default()
-                            .entry(ent)
-                            .or_default()
-                            .extend(rec.attrs.iter().map(|(k, v)| (*k, v.clone())));
-                    }
-                    Some(Entry::Tied(cands)) => {
-                        // N2: never auto-pick among equally admissible
-                        // candidates — painting all of them would be one.
-                        hit = true;
-                        if tie.is_none() {
-                            tie = Some((id, cands.len()));
-                        }
-                    }
-                    None => {}
-                }
-            }
-        }
-        if let Some((at, width)) = tie {
-            resolution.losses.push(AppearanceLoss {
-                name: name.clone(),
-                attrs: rec.attrs.clone(),
-                metadata: rec.metadata.clone(),
-                cause: AppearanceLossCause::Ambiguous { at, width },
-            });
-        }
-        if hit {
-            continue;
-        }
-        let cause = match target {
-            Err(standing) => AppearanceLossCause::Indeterminate(*standing),
-            Ok(_) => AppearanceLossCause::Vanished {
-                candidates: vanished_candidates(name, in_order()),
-            },
-        };
-        resolution.losses.push(AppearanceLoss {
+    for (key, rec) in appearance {
+        let (body, name) = (key.at, &key.name);
+        let loss = |cause| AppearanceLoss {
+            body,
             name: name.clone(),
             attrs: rec.attrs.clone(),
             metadata: rec.metadata.clone(),
             cause,
-        });
+        };
+        // The name's node, and the operation whose output the body read
+        // is, must both be the document's.
+        let site = reads.ports.get(&body).map(|&(node, _)| node);
+        let (Some(target), Some(Some(at))) = (states.get(&name.node), site.map(|n| states.get(&n)))
+        else {
+            resolution.losses.push(loss(AppearanceLossCause::NodeGone));
+            continue;
+        };
+        if let Err(standing) = target.as_ref().and(at.as_ref()) {
+            resolution
+                .losses
+                .push(loss(AppearanceLossCause::Indeterminate(*standing)));
+            continue;
+        }
+        // The body read's own table first, then each read downstream of
+        // it: a name resolves in EVERY one that carries it, so
+        // pass-through outputs inherit the attachment through the SAME
+        // name — no policy, just N1 lookup along the reads.
+        let mut hit = false;
+        // Losses are per entry, one row per cause (review A2): a tied
+        // name carried by several tables reports ONE Ambiguous loss, at
+        // the first table in evaluation order.
+        let mut tie: Option<(RecipeNodeId, usize)> = None;
+        for read in reads.downstream(body, order) {
+            let Some((node, base, table)) = table_of(&read) else {
+                if read == body {
+                    break;
+                }
+                continue;
+            };
+            match table.lookup(name) {
+                Some(Entry::Unique(ent)) => {
+                    hit = true;
+                    let ent = EntityRef {
+                        body: base + ent.body,
+                        key: ent.key,
+                    };
+                    resolution
+                        .resolved
+                        .entry(node)
+                        .or_default()
+                        .entry(ent)
+                        .or_default()
+                        .extend(rec.attrs.iter().map(|(k, v)| (*k, v.clone())));
+                }
+                Some(Entry::Tied(cands)) => {
+                    // N2: never auto-pick among equally admissible
+                    // candidates — painting all of them would be one.
+                    hit = true;
+                    if tie.is_none() {
+                        tie = Some((node, cands.len()));
+                    }
+                }
+                // The body read's own table is where the entry is: a
+                // name it does not hold is lost, whatever carries it
+                // downstream.
+                None if read == body => break,
+                None => {}
+            }
+        }
+        if let Some((at, width)) = tie {
+            resolution
+                .losses
+                .push(loss(AppearanceLossCause::Ambiguous { at, width }));
+        }
+        if hit {
+            continue;
+        }
+        resolution.losses.push(loss(AppearanceLossCause::Vanished {
+            candidates: vanished_candidates(name, in_order()),
+        }));
     }
     resolution
 }
@@ -446,6 +512,22 @@ mod tests {
         }
     }
 
+    /// An entry on `name`, read in its minting node's one output.
+    fn key(name: &StableName) -> AppearanceKey {
+        AppearanceKey::new(crate::VarId(name.node.0), name.clone())
+    }
+
+    /// Each node's one output read, at port 0, feeding nothing.
+    fn reads(states: &BTreeMap<RecipeNodeId, NodeState<'_>>) -> Reads {
+        Reads {
+            ports: states
+                .keys()
+                .map(|&node| (crate::VarId(node.0), (node, 0)))
+                .collect(),
+            feeds: BTreeMap::new(),
+        }
+    }
+
     fn color() -> AppearanceRecord {
         let mut s = AttrSet::new();
         s.insert(AttrKind::Color, Attr::Color(Rgba8::opaque(1, 2, 3)));
@@ -468,7 +550,7 @@ mod tests {
         // Appearance rides constituent `a`, whose node (7) is live but
         // whose name is in no table.
         let mut appearance = AppearanceMap::new();
-        appearance.insert(a.clone(), color());
+        appearance.insert(key(&a), color());
         // Node 7 evaluated Ok with an empty table (its face was
         // absorbed downstream).
         let empty = NameTable::new();
@@ -477,6 +559,7 @@ mod tests {
             &appearance,
             &states.keys().copied().collect::<Vec<_>>(),
             &states,
+            &reads(&states),
         );
         assert!(r.resolved.is_empty());
         assert_eq!(r.losses.len(), 1);
@@ -502,11 +585,12 @@ mod tests {
         let mut states = BTreeMap::new();
         states.insert(RecipeNodeId::new(0, 9), Ok(vec![(0, &empty)]));
         let mut appearance = AppearanceMap::new();
-        appearance.insert(merged.clone(), color());
+        appearance.insert(key(&merged), color());
         let r = resolve(
             &appearance,
             &states.keys().copied().collect::<Vec<_>>(),
             &states,
+            &reads(&states),
         );
         assert_eq!(r.losses.len(), 1);
         assert_eq!(
@@ -525,11 +609,12 @@ mod tests {
         let mut states = BTreeMap::new();
         states.insert(RecipeNodeId::new(0, 3), Ok(vec![(0, &t)]));
         let mut appearance = AppearanceMap::new();
-        appearance.insert(tied.clone(), color());
+        appearance.insert(key(&tied), color());
         let r = resolve(
             &appearance,
             &states.keys().copied().collect::<Vec<_>>(),
             &states,
+            &reads(&states),
         );
         assert!(r.resolved.is_empty(), "a tie must never be painted");
         assert_eq!(r.losses.len(), 1);

@@ -37,7 +37,8 @@
 use crate::appearance::AppearanceRecord;
 use crate::distribution::DistributionFault;
 use crate::doc::{
-    DocParamField, ExpansionFault, FreeVar, GaugeRefFault, VarName, VarReadFault, WitnessSiteFault,
+    DocParamField, ExpansionFault, FreeVar, GaugeRefFault, NameCarrier, VarName, VarReadFault,
+    WitnessSiteFault,
 };
 use crate::edit::DocEdit;
 use crate::expr::Expr;
@@ -882,10 +883,10 @@ fn first_non_finite(
     // door already refuses non-finite, and the frame's own components
     // are `Expr`s under the same door. There is no float left for this
     // walk to find.
-    for (name, rec) in &snapshot.appearance {
+    for (at, rec) in &snapshot.appearance {
         if let Some((key, path)) = record_non_finite(rec) {
             return Some(NonFiniteSite::Metadata {
-                name: snapshot.spoken_name(name),
+                name: snapshot.spoken_name(&at.name),
                 key,
                 path,
             });
@@ -979,7 +980,12 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
             var: var.clone(),
             field: DocParamField::Offset(d.first_non_finite()?),
         }),
-        DocEdit::SetAppearanceMeta { name, key, value } => {
+        DocEdit::SetAppearanceMeta {
+            body: _,
+            name,
+            key,
+            value,
+        } => {
             value
                 .first_non_finite()
                 .map(|path| NonFiniteSite::Metadata {
@@ -1996,8 +2002,14 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
         // And every read it carries, against the mint log: the entity
         // derives from that input, and a read is an id no embedded name
         // states.
+        // An appearance key's body read is one too (NAMES N1, the scope).
+        let body = match carrier {
+            NameCarrier::Store { body, .. } => Some(body),
+            NameCarrier::Payload { .. } | NameCarrier::Select { .. } => None,
+        };
         if let Some(read) = derivation_reads(carrier.name())
             .into_iter()
+            .chain(body)
             .find(|r| !doc.mint.has_var(*r))
         {
             return Err(SnapshotError::NameReadNotMinted {
@@ -2083,11 +2095,11 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
     // shared is the walk, irreducibly: the edit door holds the one
     // value it is about to write, and this door holds a map that
     // arrived whole. A walk over one value is not a walk.
-    for (name, rec) in &doc.appearance {
+    for (at, rec) in &doc.appearance {
         for (key, value) in &rec.metadata {
             if let Err(error) = value.require_versioned() {
                 return Err(SnapshotError::MetadataUnversioned {
-                    name: doc.spoken_name(name),
+                    name: doc.spoken_name(&at.name),
                     key: key.clone(),
                     error,
                 });
@@ -2882,7 +2894,10 @@ mod tests {
         record
             .metadata
             .insert("swatch".to_owned(), crate::meta::MetaValue::Float(f64::NAN));
-        doc.appearance.insert(name.clone(), record);
+        doc.appearance.insert(
+            crate::appearance::AppearanceKey::new(crate::VarId::new(0, 1), name.clone()),
+            record,
+        );
         match save(&doc, &[], tol) {
             Err(e @ PersistError::NonFinite { .. }) => {
                 let PersistError::NonFinite {
@@ -2944,7 +2959,10 @@ mod tests {
             "the empty document has minted nothing"
         );
         doc.appearance.insert(
-            rv_name(7, crate::names::EntityKind::Face),
+            crate::appearance::AppearanceKey::new(
+                crate::VarId::new(0, 1),
+                rv_name(7, crate::names::EntityKind::Face),
+            ),
             crate::appearance::AppearanceRecord::default(),
         );
         match save(&doc, &[], Tol::witness()) {

@@ -1,5 +1,6 @@
 //! Structural-key map encoding (spec D3: appearance keys are
-//! [`StableName`]s "serialized structurally"). JSON maps require
+//! [`StableName`]s "serialized structurally", each with the body read
+//! it is read in — [`AppearanceKey`], NAMES N1). JSON maps require
 //! string keys, so name-keyed maps persist as a LIST of `[key, value]`
 //! pairs — the key stays a structural tree. Strict on load: a
 //! duplicate key refuses typed (no silent last-wins, D6.3), and order
@@ -10,8 +11,7 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::appearance::AppearanceRecord;
-use crate::names::StableName;
+use crate::appearance::{AppearanceKey, AppearanceRecord};
 
 /// Serializes the appearance store as a pair list.
 ///
@@ -19,10 +19,10 @@ use crate::names::StableName;
 ///
 /// Only the underlying serializer's own errors.
 pub(crate) fn serialize<S: Serializer>(
-    map: &BTreeMap<StableName, AppearanceRecord>,
+    map: &BTreeMap<AppearanceKey, AppearanceRecord>,
     ser: S,
 ) -> Result<S::Ok, S::Error> {
-    let pairs: Vec<(&StableName, &AppearanceRecord)> = map.iter().collect();
+    let pairs: Vec<(&AppearanceKey, &AppearanceRecord)> = map.iter().collect();
     pairs.serialize(ser)
 }
 
@@ -34,8 +34,8 @@ pub(crate) fn serialize<S: Serializer>(
 /// ([`super::strict::duplicate_key`]).
 pub(crate) fn deserialize<'de, D: Deserializer<'de>>(
     de: D,
-) -> Result<BTreeMap<StableName, AppearanceRecord>, D::Error> {
-    let pairs: Vec<(StableName, AppearanceRecord)> = Vec::deserialize(de)?;
+) -> Result<BTreeMap<AppearanceKey, AppearanceRecord>, D::Error> {
+    let pairs: Vec<(AppearanceKey, AppearanceRecord)> = Vec::deserialize(de)?;
     let mut map = BTreeMap::new();
     for (key, value) in pairs {
         if map.insert(key.clone(), value).is_some() {
@@ -49,19 +49,23 @@ pub(crate) fn deserialize<'de, D: Deserializer<'de>>(
 mod tests {
     #![allow(clippy::panic, clippy::expect_used)]
 
-    use crate::appearance::AppearanceRecord;
+    use crate::appearance::{AppearanceKey, AppearanceRecord};
     use crate::names::{EntityKind, StableName};
     use crate::node::RecipeNodeId;
 
     /// A repeated appearance key refuses in the format's one
-    /// duplicate-key sentence, its name's minting node by tag.
+    /// duplicate-key sentence, its name's minting node by tag and the
+    /// body read it is read in.
     #[test]
     fn a_duplicate_appearance_key_is_said_by_its_minting_node() {
-        let name = StableName {
-            kind: EntityKind::Face,
-            node: RecipeNodeId::new(0, 0x3fa9_c1d2_a0b1_0042),
-            path: Vec::new(),
-        };
+        let name = AppearanceKey::new(
+            crate::VarId::new(0, 0x5be1_7a3c_0d42_0007),
+            StableName {
+                kind: EntityKind::Face,
+                node: RecipeNodeId::new(0, 0x3fa9_c1d2_a0b1_0042),
+                path: Vec::new(),
+            },
+        );
         let record = AppearanceRecord::default();
         let text = serde_json::to_string(&[(&name, &record), (&name, &record)])
             .expect("a pair list writes");
@@ -72,9 +76,8 @@ mod tests {
         };
         assert!(
             said.starts_with(
-                "duplicate appearance key the face of node 3fa9c1d2a0b1 — refused, no \
-                 silent last-wins"
-            ),
+                "duplicate appearance key the face of node 3fa9c1d2a0b1 read in variable"
+            ) && said.contains("— refused, no silent last-wins"),
             "{said}"
         );
     }

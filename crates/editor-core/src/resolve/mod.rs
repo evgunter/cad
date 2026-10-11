@@ -1154,7 +1154,8 @@ fn enrich_impl<T: Decide, P: PriorCtx>(
             offers: Vec::new(),
         });
     }
-    resolve_impl(new, prior, None, &loss.name)
+    // The entry's body read is its site (NAMES N1).
+    resolve_impl(new, prior, Some(loss.body), &loss.name)
 }
 
 /// Rebind suggestions for every appearance-carrying name (the spec D9
@@ -1174,10 +1175,10 @@ fn enrich_impl<T: Decide, P: PriorCtx>(
 pub fn appearance_rebind_suggestions<T: Decide>(
     appearance: &AppearanceMap,
     eval: &Evaluation<T>,
-) -> BTreeMap<StableName, Vec<StableName>> {
+) -> BTreeMap<crate::appearance::AppearanceKey, Vec<StableName>> {
     appearance
         .keys()
-        .map(|name| (name.clone(), rebind_suggestions(eval, name)))
+        .map(|key| (key.clone(), rebind_suggestions(eval, &key.name)))
         .collect()
 }
 

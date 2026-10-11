@@ -1946,6 +1946,7 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::EvaluationOfAnotherDocument { .. }
             | EditError::AppearanceWrongKind { .. }
             | EditError::AppearanceNamesMissingNode { .. }
+            | EditError::AppearanceBodyNotARead { .. }
             | EditError::AppearanceNotSet { .. }
             | EditError::InvalidTolerance { .. }
             | EditError::MetaUnversioned { .. }
@@ -3450,7 +3451,7 @@ pub fn split(
                     classify(name)?;
                 }
             }
-            NameCarrier::Store { name } => classify(name)?,
+            NameCarrier::Store { name, .. } => classify(name)?,
         }
     }
     // ---- The part document, as recorded edits from empty ----
@@ -4529,13 +4530,21 @@ pub fn inline(
     // The part's appearance records land on the spliced local names.
     // A collision with a host record is the Rebind door's own typed
     // refusal below — never an auto-pick.
-    for (name, record) in part.appearance().iter() {
+    for (at, record) in part.appearance().iter() {
+        let name = &at.name;
         let key = remap_name(name, &node_map, &step_map, &read_map)
             .map_err(|missing| InlineError::stranded(&part, name, missing))?;
+        // The body read lands on its spliced local read, as a name's
+        // carried reads do.
+        let body = read_map
+            .get(&at.at)
+            .copied()
+            .ok_or_else(|| InlineError::stranded(&part, name, Unmapped::Read(at.at)))?;
         for attr in record.attrs.values() {
             step(
                 &mut current,
                 DocEdit::SetAppearance {
+                    body,
                     name: key.clone(),
                     attr: attr.clone(),
                 },
@@ -4545,6 +4554,7 @@ pub fn inline(
             step(
                 &mut current,
                 DocEdit::SetAppearanceMeta {
+                    body,
                     name: key.clone(),
                     key: meta_key.clone(),
                     value: value.clone(),
