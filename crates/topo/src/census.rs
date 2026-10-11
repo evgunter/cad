@@ -11867,13 +11867,14 @@ mod two_carrier_records {
         assert!(names(&errors, wall, side), "{errors:?}");
     }
 
-    /// The brick's face x = 1 + ε/2, in the band of the cylinder's
-    /// tangent plane: whether the two carriers touch is undecided, and
-    /// the record's confirm escalates rather than reading it either way.
+    /// The brick's face x = 1 + 3ε, past the zero band of the
+    /// cylinder's tangent plane and inside its escalation edge: whether
+    /// the two carriers touch is undecided, and the record's confirm
+    /// escalates rather than reading it either way.
     #[test]
     fn a_two_carrier_record_in_the_band_escalates() {
         let tol = Tol::witness();
-        let x = 1.0 + 0.5 * tol.eps();
+        let x = 1.0 + 3.0 * tol.eps();
         let mut body = Body::<f64>::new();
         let wall = cyl_wall_sheet(
             &mut body,
