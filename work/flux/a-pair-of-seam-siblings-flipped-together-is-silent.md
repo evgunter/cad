@@ -2,11 +2,12 @@
 id: a-pair-of-seam-siblings-flipped-together-is-silent
 kind: issue
 title: Two sphere seam siblings with both poles on their loops, flipped together, pass tier 3 and measure a wrong volume
-status: dispatched
+status: review
 opened: 2026-10-10
 priority: P2
 cost: M
 refs: [a-sphere-face-whose-boundary-encodes-no-side-is-measured-under-its-bit-alone]
+pr: 4746
 ---
 
 ## Measured
