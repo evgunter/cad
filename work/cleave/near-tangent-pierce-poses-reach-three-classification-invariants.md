@@ -2,12 +2,14 @@
 id: near-tangent-pierce-poses-reach-three-classification-invariants
 kind: issue
 title: Near-tangent pierce poses reach ClassificationInvariant at three sites (an ON sector pair on distinct carriers, a pierce germ not within one sector, a coplanar sector on a distinct plane): 345 runs
-status: dispatched
+status: closed
 opened: 2026-10-08
 priority: P1
 cost: M
 refs: [4335]
 branch: cleave/near-tangent-invariants
+closed: 2026-10-11
+pr: 4581
 ---
 
 ## What
@@ -98,3 +100,20 @@ filed:
   (`single-on-edge-crossing-without-a-flanking-record-at-1e-12`).
 - The two germ readers' divergence
   (`two-germ-readers-sign-one-line-two-ways`).
+
+## Closed (PR 4581, 2026-10-11)
+
+All three sites census 0 at every ε row:
+- **recl and vtxfac coplanar:** the extent balls are centred at the corner and enclose what their
+  decision speaks for, so a verdict no longer depends on where the body sits.
+- **vtxfac germ:** signed by its transition's own codes, with a D9 row 5 check that membership
+  agrees.
+- **reduce `gate_maximal_faces`:** reads at the shared edge, and its ball holds the edge.
+
+At 1e-12, four runs now ship bodies with tier-3′ contact findings instead of refusing
+`ClassificationInvariant`. The orchestrator accepted that trade explicitly: it is FUSE's class and
+the door runs no census. The runs are pinned at their exact findings (`SHIPS_A_FINDING`).
+Follow-ups filed:
+- `a-minted-edge-along-a-folded-graze-refuses-join-desync` (P1);
+- `single-on-edge-crossing-without-a-flanking-record-at-1e-12` (P1);
+- `two-germ-readers-sign-one-line-two-ways` (P3).
