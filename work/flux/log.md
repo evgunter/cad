@@ -209,3 +209,10 @@ The rest moved by `git mv`, ids and bodies unchanged:
   - the elbow gets an e2e surface-area oracle, and a reference re-take script is committed.
 
   An independent verifier confirmed all seven items by execution. Its far-offset note is filed as FLUXTAIL's `a-spiric-elbow-a-hundred-kilometres-out-exhausts-the-quadrature-budget`. — (FLUX orchestrator)
+- 2026-10-11 — **Wave 1, the ringed cylinder wall: PR 4557 merges.** The unit got dual review, a concurrent pair on `60597c6d`.
+  - The real gap the review found (R2, demonstrated): the ring-winding gate ran only on a converged round, so an open window could carry a same-wound ring. It now runs on every round exit.
+  - The per-PR gate could not go red on a ring dropped from o·A⃗ (R1). A fast row now catches that.
+  - Corrupt loops now get typed defect refusals.
+  - The verifier caught one regression the fix pass itself introduced: a `debug_assert` replacing a typed refusal. It was restored.
+  - Filed on QUAD: the pre-existing thin-ring refinement gap. Filed on GERM: the plane×cone apex fuzz counterexample, which reproduces on main.
+  - Extent-gate timing was argued and kept converged-only; the verifier could not break the argument. — (FLUX orchestrator)
