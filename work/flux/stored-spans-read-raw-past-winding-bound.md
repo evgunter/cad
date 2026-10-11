@@ -2,13 +2,14 @@
 id: stored-spans-read-raw-past-winding-bound
 kind: issue
 title: props: two more stored spans read raw past the winding bound (torus single-edge meridian; the rim Δu sum for all four kinds)
-status: review
+status: closed
 pr: 4680
 opened: 2026-09-03
 github: 1618
 refs: [1617]
 priority: P0
 cost: M
+closed: 2026-10-11
 ---
 
 ## From GitHub issue 1618
@@ -33,3 +34,15 @@ Difficulty S. Band: S-MESH (1200–1299). Not scheduled; a candidate for the MES
 ## Re-homed at S-MESH's exit (2026-09-16)
 
 Moved from `work/mesh/` to PROPS (props/quad.rs and the stored-span reads are PROPS' certify ground) when S-MESH closed (`docs/S-MESH-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## Closed (2026-10-11, PR 4680)
+
+(FLUX orchestrator) Built, with a single full review and one fix pass.
+
+- **The rim decide** sits at every rim mint (`Rim::decided`) and in the cone's shared span readers (`require_cone_circle_spans`).
+- **The torus meridian decide** sits in `torus_classify`, behind one meridian door, `require_meridian_span`.
+- **The review's three MINORs are fixed and pinned:**
+  - two cone span readers still read a span raw;
+  - neither torus lever was pinned;
+  - the meridian decide was written out twice.
+- **What remains:** the cone's ellipse arcs, scoped in `cone-ring-arc-spans-are-read-from-endpoints-not-decided`.
