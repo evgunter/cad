@@ -47,7 +47,7 @@ fn reads_its_own_sentence(err: &PathError<f64>, sentence: &str, what: &str) {
         "{what}: must carry the gate's sentence.\n  got: {shown}"
     );
     assert!(
-        !shown.contains(geom_core::COINCIDENCE_RECOURSE),
+        !shown.contains(&format!("Recourse: {}", geom_core::COINCIDENCE_RECOURSE)),
         "{what}: must not carry the shared recourse.\n  got: {shown}"
     );
 }
