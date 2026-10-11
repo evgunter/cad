@@ -1150,23 +1150,8 @@ pub(crate) fn root_of(doc: &super::doc::Doc, instance: &NodeId) -> NodeId {
     NodeId(d::root_of(&doc.inner, instance.0))
 }
 
-/// The **reading edges**: for each mate, the instantiate node each of
-/// its references resolves through.
-///
-/// Recomputed from the name heads every time, never stored — a mate's
-/// references are not recipe edges (inserting a mate transfers no
-/// root), and this is the second sort of edge the partition reads on
-/// top of the consuming ones.
-#[pyfunction]
-pub(crate) fn reading_edges(doc: &super::doc::Doc) -> Vec<(NodeId, NodeId)> {
-    d::reading_edges(&doc.inner)
-        .into_iter()
-        .map(|(a, b)| (NodeId(a), NodeId(b)))
-        .collect()
-}
-
-/// The **relative-freedom partition**: components over consuming ∪
-/// reading edges, so mates couple what they constrain.
+/// The **relative-freedom partition**: components over reads and gauge
+/// references, so mates couple what they constrain.
 ///
 /// Coarser than `groups`, which partitions instances alone.
 #[pyfunction]
@@ -1301,7 +1286,6 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(solve_document, m)?)?;
     m.add_function(wrap_pyfunction!(groups, m)?)?;
     m.add_function(wrap_pyfunction!(root_of, m)?)?;
-    m.add_function(wrap_pyfunction!(reading_edges, m)?)?;
     m.add_function(wrap_pyfunction!(relative_freedom_components, m)?)?;
     m.add_function(wrap_pyfunction!(class_admission, m)?)?;
     m.add("CLASS_DEFERRAL", d::CLASS_DEFERRAL)?;

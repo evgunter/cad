@@ -16,3 +16,4 @@ with its id, body and history unchanged. Rows dispatchable: 11, for 30 points.
   - `PointInSolidError::Escalated` gives the unnamed placement lever plus the reading's note, as `contfp`, `classify_point_in_solid` and the Boolean already did.
 
   `SliverSector` is unchanged, and its mints are on CLEAVE's split-escalations row. (ENCL orchestrator)
+- 2026-10-11 — ZIP closed (`docs/doc-ledger/zip-leaves-the-tracker.md`); `tangent-lever-row-escalates-containment-at-eps-1e-6` moved here because its escalation is `contain.rs`'s containment ladder.

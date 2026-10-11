@@ -545,5 +545,5 @@ Two doors, as ruled and built:
 Residues filed:
 - `work/issues/arc-of-circle-scaffold-residual-straddles-the-1e-12-band`;
 - `work/topo/mev-fan-plan-trusts-the-orbits-start-vertices`;
-- `work/topo/the-re-basing-gates-staleness-and-both-halves-arms-have-no-door-left-to-feed-them`
+- `work/topotail/the-re-basing-gates-staleness-and-both-halves-arms-have-no-door-left-to-feed-them`
   (corrected).
