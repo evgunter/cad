@@ -49,3 +49,11 @@ dimension refuses `SectionNotAPoint`. A section on a derived frame
 refuses `PlacementNotAPoint` even with no box, because the frame's
 landed placement is an enclosure.
 
+**Acceptance carried here** (orchestrator, 2026-10-11): this item also
+carries `a-loft-is-the-nominal-surface-in-every-generic-lane`'s "a loft
+on a face frame evaluates at `Interval`". When the enclosure skin
+lands, flip both of these pins to evaluating and enclosing:
+- `docm1_face_frame_interval`'s
+  `a_section_on_a_derived_frame_refuses_a_wide_placement_at_interval`;
+- `eval10_section_reads_the_nominal`'s
+  `a_box_over_a_section_radius_refuses_rather_than_lofting_the_nominal`.
