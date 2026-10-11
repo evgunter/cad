@@ -27,7 +27,6 @@ use geom_core::k_stats::{self, Probe};
 use topo::{BooleanResult, subtract};
 
 const FIXED: &[&str] = &[
-    "props_rim_level_group",
     "props_rim_side",
     "bool_join_facing",
     "bool_strut_order",

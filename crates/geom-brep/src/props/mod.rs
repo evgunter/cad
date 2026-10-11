@@ -99,29 +99,24 @@
 //! was re-derived per consumer to three different strengths, and the
 //! rim-group span-sum rule that stood in for it admitted a
 //! cross-shaped domain and certified a 19%-low volume with
-//! `pad = 0.0` (#649). Its consumers:
+//! `pad = 0.0` (#649). Its one consumer is **[`require_iso_rectangle`]**,
+//! the predicate's own public door for a lane that rests on the premise
+//! without wanting a volume (`mesh`'s swept-rectangle walk), on every
+//! curved kind, with its sense-free companion: every rim encodes the
+//! SAME side (`curved::unanimous_rim_side`).
 //!
-//! * the **cone** flux lane, on a rim-and-generator outer loop
-//!   (`curved::cone_face_closed_form`);
-//! * **[`require_iso_rectangle`]**, the predicate's own public door
-//!   for a consumer whose lane rests on the premise without wanting a
-//!   volume (`mesh`'s swept-rectangle walk), on every curved kind,
-//!   with its sense-free companion: every rim encodes the SAME side
-//!   (`curved::unanimous_rim_side`).
-//!
-//! No side reading and no other flux lane rests on it. The cylinder and
-//! the torus integrate the region their loops bound by their chart
-//! Green forms, and the sphere reads any loops of circles by
-//! Gauss–Bonnet, so a notched or ringed face measures and encodes its
-//! side as a rectangle does. [`boundary_material_sign_loops`] reads
+//! No side reading and no flux lane rests on it. The cylinder and the
+//! torus integrate the region their loops bound by their chart Green
+//! forms, the cone reads its boundary's vector area, and the sphere
+//! reads any loops of circles by Gauss–Bonnet, so a notched or ringed
+//! face measures and encodes its side as a rectangle does. [`boundary_material_sign_loops`] reads
 //! each kind's side off the quantity its flux integrates.
 //!
 //! Closure: the cylinder's and torus's Green forms check it on the
 //! traversed endpoints (`props_loop_closed`, and
 //! `props_chart_loops_closed` / `props_torus_lift_closed_u` and `_v`),
-//! the sphere's Gauss–Bonnet on every junction
-//! (`props_loop_closed`), and a ringed cone face's loops
-//! (`props_loop_closed`). No lane reads the loop-local vertex **tags**
+//! the sphere's Gauss–Bonnet and the cone's vector area on every
+//! junction (`props_loop_closed`). No lane reads the loop-local vertex **tags**
 //! ([`LoopEdge`]).
 
 mod curved;

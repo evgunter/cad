@@ -20,12 +20,12 @@
 //! the tree on ONE arm, inside `torus()`, for a periodicity reason;
 //! this suite is the record that it now governs all four.
 //!
-//! **The cylinder and the torus have since left the premise.** Their
-//! flux lanes are chart Green forms — `A = −∮ v du` on the cylinder,
-//! `−∮ G(v) du` over the loop's lift on the torus — which integrate the
-//! region the boundary actually bounds, so their rows below MEASURE the
-//! plus and the L at their exact areas; the cone and sphere still
-//! refuse on the one predicate.
+//! **The flux lanes have since left the premise.** They integrate the
+//! region the boundary actually bounds — chart Green forms on the
+//! cylinder and torus, the boundary's vector area on the cone,
+//! Gauss–Bonnet on the sphere — so their rows below MEASURE the plus
+//! and the L at their exact areas; the predicate is the shape door's,
+//! `mesh`'s, and it still refuses the plus by name.
 //!
 //! Every row is built as key-free `LoopEdge`s and run through the
 //! public `curved_face`, the same entry `topo::mass_properties` uses
@@ -163,22 +163,6 @@ fn measures_exactly(kind: &str, s: &Surface<f64>, edges: &[LoopEdge<f64>], exact
     );
 }
 
-/// The non-rectangular domain must be refused by the ONE named
-/// predicate — not by some other check that happens to fire, which is
-/// the whole point of S58 (the torus was already protected, by a
-/// private rule, and that is what made the fragmentation invisible).
-fn refuses_on_rim_level(kind: &str, s: &Surface<f64>, edges: &[LoopEdge<f64>]) {
-    let band = band();
-    match curved_face(s, edges, true, band) {
-        Err(PropsError::NotIsoRectangle {
-            what: "props_rim_level",
-        }) => {}
-        other => panic!(
-            "{kind}: a non-rectangular iso domain was not refused by props_rim_level: {other:?}"
-        ),
-    }
-}
-
 // ---------------------------------------------------------------------
 // The four kinds, each with its own control
 // ---------------------------------------------------------------------
@@ -213,7 +197,7 @@ fn cylinder_plus_domain_and_the_rectangle_both_measure() {
 }
 
 #[test]
-fn cone_plus_domain_refuses_and_the_rectangle_still_measures() {
+fn cone_plus_domain_and_the_rectangle_both_measure() {
     let alpha: f64 = 0.5;
     let (sa, ca) = alpha.sin_cos();
     let s = Surface::Cone {
@@ -255,7 +239,22 @@ fn cone_plus_domain_refuses_and_the_rectangle_still_measures() {
         &rect_loop(&rim, &mer, a0, a3, -UO, UO),
         sa * 2.0 * UO * (a3 * a3 - a0 * a0) / 2.0,
     );
-    refuses_on_rim_level("cone", &s, &plus_loop(&rim, &mer, a0, a1, a2, a3, UC, UO));
+    // The vector area reads the plus as it reads the rectangle, at
+    // `sin α·Δu·(v_hi² − v_lo²)/2` per chart rectangle; the shape door
+    // still refuses it by the one named predicate.
+    let plus = plus_loop(&rim, &mer, a0, a1, a2, a3, UC, UO);
+    measures_exactly(
+        "cone",
+        &s,
+        &plus,
+        sa * plus_area(a0 * a0, a1 * a1, a2 * a2, a3 * a3) / 2.0,
+    );
+    assert_eq!(
+        require_iso_rectangle(&s, &plus, band()),
+        Err(PropsError::NotIsoRectangle {
+            what: "props_rim_level"
+        })
+    );
 }
 
 #[test]
@@ -561,9 +560,8 @@ fn the_material_side_gate_answers_one_sign_on_a_rectangle() {
 /// azimuthal lever from the first rim and falls back to `1.0` when
 /// there is none — a lever that is not a length of this model at all.
 /// Two generators and nothing else do not close: the material-side
-/// gate refuses the open loop on its own closure decide
-/// (`props_loop_closed`), and the flux lane refuses on the empty rim
-/// list before the fallback could be read.
+/// gate and the flux lane both refuse the open loop on the closure
+/// decide they share (`props_loop_closed`), and neither reads a rim.
 #[test]
 fn a_rim_free_cone_refuses_at_both_doors() {
     let alpha: f64 = 0.5;
@@ -602,7 +600,7 @@ fn a_rim_free_cone_refuses_at_both_doors() {
         matches!(
             curved_face(&s, &edges, true, band),
             Err(PropsError::NotIsoRectangle {
-                what: "curved face without a rim (non-sphere)"
+                what: "props_loop_closed"
             })
         ),
         "and so must the flux lane"
