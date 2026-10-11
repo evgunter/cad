@@ -1973,7 +1973,10 @@ mod attribution {
             path: vec![RoleSeg::OutputBody],
         };
         let minted = vec![MintedDeclaration {
-            mate: RecipeNodeId::new(0, 7),
+            mate: crate::mate::MateRef {
+                placement: RecipeNodeId::new(0, 7),
+                id: crate::node::ConstraintId(crate::MintId::new(0, 8)),
+            },
             a: name(1),
             b: name(2),
             class: ContactClass::Rest,
@@ -2154,7 +2157,10 @@ mod attribution {
             path: vec![RoleSeg::OutputBody],
         };
         let minted = vec![MintedDeclaration {
-            mate: RecipeNodeId::new(0, 7),
+            mate: crate::mate::MateRef {
+                placement: RecipeNodeId::new(0, 7),
+                id: crate::node::ConstraintId(crate::MintId::new(0, 8)),
+            },
             a: name(1),
             b: name(2),
             class: ContactClass::Rest,
@@ -2194,7 +2200,7 @@ mod attribution {
         for (x, y) in [(a, b), (b, a)] {
             assert!(matches!(
                 attribute(&contradicted(x, y), &minted),
-                Some(Attribution::Refuted(m)) if m.mate == RecipeNodeId::new(0, 7)
+                Some(Attribution::Refuted(m)) if m.mate.placement == RecipeNodeId::new(0, 7)
             ));
         }
         assert_eq!(
@@ -2303,7 +2309,10 @@ mod attribution {
             path: vec![RoleSeg::OutputBody],
         };
         let declaration = |mate, faces| MintedDeclaration {
-            mate: RecipeNodeId::new(0, mate),
+            mate: crate::mate::MateRef {
+                placement: RecipeNodeId::new(0, mate),
+                id: crate::node::ConstraintId(crate::MintId::new(0, 1)),
+            },
             a: name(1),
             b: name(2),
             class: ContactClass::Rest,
@@ -2314,7 +2323,7 @@ mod attribution {
             assert!(
                 matches!(
                     attribute(&unsupported_pair(pair.0, pair.1), &minted),
-                    Some(Attribution::Declined(m)) if m.mate == RecipeNodeId::new(0, mate)
+                    Some(Attribution::Declined(m)) if m.mate.placement == RecipeNodeId::new(0, mate)
                 ),
                 "the pair {pair:?} is mate {mate}'s declaration, in either order"
             );
@@ -2401,7 +2410,7 @@ mod attribution {
                     },
                     &minted
                 ),
-                Some(Attribution::Refuted(m)) if m.mate == RecipeNodeId::new(0, 7)
+                Some(Attribution::Refuted(m)) if m.mate.placement == RecipeNodeId::new(0, 7)
             ));
         }
     }

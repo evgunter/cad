@@ -4119,21 +4119,31 @@ impl<P, S: Slot> Node<P, S> {
     }
 
     /// Builds a [`Node::InstantiatePart`] with the EMPTY interface
-    /// record and an empty bundle — the authoring constructor: an
-    /// instance its edits have not yet pinned is a loose copy, and its
-    /// constraints are added one by one
-    /// ([`crate::DocEdit::AddConstraint`]). A non-empty record is
-    /// mintable only by the refactoring that observed declarations
-    /// crossing a cut, which reaches it through
-    /// [`Node::instantiate_part_with`]: an authored instance crosses
+    /// record, pinned to the world at the identity — the authoring
+    /// constructor, so every insert door yields an instance standing
+    /// where its part's world does ([`crate::mate::Mate::world_pin`]).
+    /// An instance placed by other constraints starts from
+    /// [`Node::instantiate_part_with`], its bundle empty. A non-empty
+    /// record is mintable only by the refactoring that observed
+    /// declarations crossing a cut: an authored instance crosses
     /// nothing.
     pub fn instantiate_part(doc_ref: crate::ident::DocRef) -> Self {
-        Self::instantiate_part_with(doc_ref, InterfaceRecord::default())
+        let mut node = Self::instantiate_part_with(doc_ref, InterfaceRecord::default());
+        if let Node::InstantiatePart { constraints, .. } = &mut node {
+            constraints.push(crate::mate::Constraint {
+                // The insert door mints the constraint's id.
+                id: ConstraintId(crate::MintId::new(0, 0)),
+                mate: crate::mate::Mate::world_pin(crate::placement::Placement::IDENTITY),
+            });
+        }
+        node
     }
 
     /// Builds a [`Node::InstantiatePart`] carrying a SEAM record
-    /// (ASM-R2b D-4): the split's door, since only a split knows what
-    /// crossed its cut.
+    /// (ASM-R2b D-4), its bundle empty: the split's door, since only a
+    /// split knows what crossed its cut, and the door of an instance
+    /// its own constraints will place ([`crate::DocEdit::AddConstraint`]),
+    /// a loose copy until they pin it.
     pub fn instantiate_part_with(doc_ref: crate::ident::DocRef, interface: InterfaceRecord) -> Self {
         Node::InstantiatePart {
             doc_ref,

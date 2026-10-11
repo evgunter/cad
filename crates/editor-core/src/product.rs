@@ -1492,9 +1492,6 @@ mod tests {
                 loose: Vec::new(),
             },
             ProductError::StrandedPlacement { placement: node },
-            ProductError::Unplaced {
-                groups: vec![(node, crate::mate::Unplaced::NoOffset)],
-            },
             ProductError::Graft {
                 node,
                 source: Box::new(topo::BooleanError::UnrepresentableResult),
@@ -1544,7 +1541,6 @@ mod tests {
                 ProductErrorKind::RootPoisoned => "RootPoisoned",
                 ProductErrorKind::EmptyProduct => "EmptyProduct",
                 ProductErrorKind::StrandedPlacement => "StrandedPlacement",
-                ProductErrorKind::Unplaced => "Unplaced",
                 ProductErrorKind::Graft => "Graft",
                 ProductErrorKind::RootInvalid => "RootInvalid",
                 ProductErrorKind::ProductInvalid => "ProductInvalid",
@@ -1559,7 +1555,6 @@ mod tests {
             "RootPoisoned",
             "EmptyProduct",
             "StrandedPlacement",
-            "Unplaced",
             "Graft",
             "RootInvalid",
             "ProductInvalid",
@@ -1617,7 +1612,6 @@ mod tests {
                 ProductError::EmptyProduct {
                     unplaced: vec![crate::VarId::new(0, test_utils::refusal::tagged(1))],
                     loose: Vec::new(),
-                loose: Vec::new(),
                 }
             )],
             "an empty world is the only gather refusal that is an absence \

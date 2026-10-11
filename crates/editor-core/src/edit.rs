@@ -7529,17 +7529,16 @@ mod tests {
             path: vec![],
         };
         let frame = crate::mate::MateFrame::from_face();
-        let mate: DocEdit<ProfileProgram> = DocEdit::InsertNode {
-            node: Box::new(crate::node::Node::Mate {
-                a: (crate::node::SitedFace::at_mint(
-                    crate::names::FaceName::new(name(id)).expect("a face"),
-                ))
-                .into(),
-                b: (crate::node::SitedFace::at_mint(
-                    crate::names::FaceName::new(name(crate::node::RecipeNodeId::new(0, 2)))
-                        .expect("a face"),
-                ))
-                .into(),
+        let face = |node| {
+            crate::mate::SideRead::Face(crate::Operand::from(crate::node::SitedFace::at_mint(
+                crate::names::FaceName::new(name(node)).expect("a face"),
+            )))
+        };
+        let mate: DocEdit<ProfileProgram> = DocEdit::place(
+            vec![crate::BodyRead::plain(crate::node::RecipeNodeId::new(0, 3))],
+            vec![crate::mate::Mate {
+                a: face(id),
+                b: face(crate::node::RecipeNodeId::new(0, 2)),
                 class: crate::mate::ContactClass::Rest,
                 alignment: crate::mate::Alignment {
                     a: frame.clone(),
@@ -7548,11 +7547,11 @@ mod tests {
                     sense: crate::mate::AxisSense::Aligned,
                     clocking: None,
                 },
-            }),
-            fresh: Vec::new(),
-        };
+            }],
+        );
         assert!(mate.writes_a_mates_datum());
         let step = crate::node::SlotId::MateFrameStep {
+            constraint: crate::node::ConstraintId(crate::MintId::new(0, 4)),
             side: crate::mate::MateSide::B,
             step: 0,
             arg: crate::node::RigidArg::RotationAngle,

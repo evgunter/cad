@@ -2094,7 +2094,10 @@ mod tests {
         let coarse = Band::linear_at(tol, 0.5).expect("a band");
         let compose = |offset: &crate::placement::Placement, band| {
             compose_offset(
-                RecipeNodeId::new(0, 1),
+                MateRef::new(
+                    RecipeNodeId::new(0, 1),
+                    crate::node::ConstraintId(crate::MintId::new(0, 2)),
+                ),
                 MateSide::A,
                 None,
                 offset,
@@ -2191,7 +2194,10 @@ mod tests {
                                 panic!("{frame:?}: one literal step");
                             };
                             let side = compose_offset(
-                                RecipeNodeId::new(0, 1),
+                                MateRef::new(
+                                    RecipeNodeId::new(0, 1),
+                                    crate::node::ConstraintId(crate::MintId::new(0, 2)),
+                                ),
                                 MateSide::A,
                                 None,
                                 &frame.offset,

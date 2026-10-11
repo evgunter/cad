@@ -2821,8 +2821,7 @@ mod tests {
                             .expect("the fixture spells a face"),
                     }],
                 },
-                gauge: None,
-                offset: Some(crate::placement::Placement::IDENTITY),
+                constraints: Vec::new(),
             },
         );
         for key in [&painted_b, &painted_a] {

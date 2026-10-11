@@ -702,9 +702,9 @@ mod tests {
     #[allow(clippy::too_many_lines)]
     fn witness(class: C) -> K {
         use crate::{EvalError, SlotId};
-        let n = |i| RecipeNodeId::new(0, i);
-        let c = |i| crate::ConstraintId(crate::MintId::new(i, i.into()));
-        let m = |i| crate::MateRef::new(n(i.into()), c(1));
+        let n = |i: u64| RecipeNodeId::new(0, i);
+        let c = |i: u32| crate::ConstraintId(crate::MintId::new(i, i.into()));
+        let m = |i: u64| crate::MateRef::new(n(i), c(1));
         match class {
             C::Expr => K::Expr {
                 slot: SlotId::Distance,
@@ -973,6 +973,7 @@ mod tests {
                 held: Default::default(),
                 refusal: crate::ProductError::EmptyProduct {
                     unplaced: Vec::new(),
+                    loose: Vec::new(),
                 }
                 .into(),
             }),

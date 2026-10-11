@@ -316,16 +316,17 @@ pub fn same_up_to_ids(
     }
     let position: BTreeMap<RecipeNodeId, usize> =
         b.ids().iter().enumerate().map(|(i, &id)| (id, i)).collect();
-    for group in editor_core::groups(a) {
-        let at: Vec<Option<usize>> = group
-            .iter()
-            .map(|m| map.get(m).and_then(|to| position.get(to).copied()))
-            .collect();
-        if at.windows(2).any(|w| w[0] >= w[1]) {
-            problems.push(format!(
-                "order: the group {group:?} reads at positions {at:?} in the second"
-            ));
-        }
+    // The placements keep their order: the product's copies are
+    // gathered in it.
+    let placements = a.placements();
+    let at: Vec<Option<usize>> = placements
+        .iter()
+        .map(|m| map.get(m).and_then(|to| position.get(to).copied()))
+        .collect();
+    if at.windows(2).any(|w| w[0] >= w[1]) {
+        problems.push(format!(
+            "order: the placements {placements:?} read at positions {at:?} in the second"
+        ));
     }
     // Variables are compared by name, a definition as written (each
     // anonymous variable it reads as what it holds) with the ids it

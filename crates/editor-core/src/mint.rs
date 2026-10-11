@@ -389,7 +389,7 @@ impl Mint {
     pub(crate) fn nodes(&self) -> impl Iterator<Item = RecipeNodeId> + '_ {
         self.log.iter().filter_map(|entry| match *entry {
             Minted::Node(id) => Some(id),
-            Minted::Step(_) | Minted::Var(_) => None,
+            Minted::Step(_) | Minted::Var(_) | Minted::Constraint(_) => None,
         })
     }
 

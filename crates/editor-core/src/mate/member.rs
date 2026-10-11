@@ -1011,7 +1011,10 @@ mod tests {
     const T1: RecipeNodeId = RecipeNodeId::new(63, 12);
     const T2: RecipeNodeId = RecipeNodeId::new(64, 13);
     const PATTERN: RecipeNodeId = RecipeNodeId::new(65, 14);
-    const MATE: RecipeNodeId = RecipeNodeId::new(66, 50);
+    const MATE: crate::mate::MateRef = crate::mate::MateRef::new(
+        RecipeNodeId::new(66, 50),
+        crate::node::ConstraintId(crate::MintId::new(67, 51)),
+    );
     const AXIS_OUT: crate::VarId = crate::VarId::new(67, 20);
     const FRAME2_OUT: crate::VarId = crate::VarId::new(68, 21);
     const T1_OUT: crate::VarId = crate::VarId::new(69, 22);
@@ -1131,7 +1134,7 @@ mod tests {
         .collect();
         doc.nodes.extend(stored);
         doc.mint = doc.mint.clone().logged(
-            [AXIS, FRAME2, T1, T2, PATTERN, MATE]
+            [AXIS, FRAME2, T1, T2, PATTERN, MATE.placement]
                 .map(crate::Minted::Node)
                 .into_iter()
                 .chain(

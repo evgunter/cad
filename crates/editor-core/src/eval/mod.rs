@@ -5267,7 +5267,7 @@ where
         // Fresh words: a placement's key is its shapes' upstream keys,
         // its bundle and the pose its bundle solved to; the world's is
         // its tag alone.
-        Node::Place { .. } => 38,
+        Node::Place { .. } => 40,
         Node::World => 39,
     };
     // NODE-KIND-VOCABULARY END

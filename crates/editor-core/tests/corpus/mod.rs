@@ -103,12 +103,13 @@ pub fn place_pattern_to(doc: ProfileDoc, count: i64) -> ProfileDoc {
         .placements()
         .into_iter()
         .filter(|&p| match doc.node(p) {
-            Some(Node::PlaceInWorld { body, .. }) => doc
-                .operation_of(body.read)
-                .and_then(|picked| doc.node(picked))
-                .is_some_and(|picked| {
-                    matches!(picked, Node::Part { of, .. } if doc.operation_of(*of) == Some(pattern))
-                }),
+            Some(Node::Place { shapes, .. }) => shapes.iter().any(|shape| {
+                doc.operation_of(shape.read)
+                    .and_then(|picked| doc.node(picked))
+                    .is_some_and(|picked| {
+                        matches!(picked, Node::Part { of, .. } if doc.operation_of(*of) == Some(pattern))
+                    })
+            }),
             _ => false,
         })
         .count();
@@ -612,14 +613,13 @@ pub fn sub_kinds<P, S: editor_core::Slot>(node: &Node<P, S>) -> Vec<&'static str
         | Node::Shell { .. }
         | Node::Split { .. }
         | Node::Transform { .. }
-        | Node::PlaceInWorld { .. }
+        | Node::Place { .. }
+        | Node::World
         | Node::Loft { .. }
         | Node::Sweep { .. }
-        | Node::Mate { .. }
         | Node::Measure { .. }
         | Node::Assertion { .. }
-        | Node::InstantiatePart { .. }
-        | Node::Gauge { .. } => Vec::new(),
+        | Node::InstantiatePart { .. } => Vec::new(),
     }
 }
 
@@ -643,17 +643,16 @@ pub fn node_kind<P, S: editor_core::Slot>(node: &Node<P, S>) -> &'static str {
         Node::Intersect { .. } => "Intersect",
         Node::Subtract { .. } => "Subtract",
         Node::Transform { .. } => "Transform",
-        Node::PlaceInWorld { .. } => "PlaceInWorld",
+        Node::Place { .. } => "Place",
+        Node::World => "World",
         Node::Pattern { .. } => "Pattern",
         Node::Part { .. } => "Part",
         Node::PlacedUnion { .. } => "PlacedUnion",
         Node::Loft { .. } => "Loft",
         Node::Sweep { .. } => "Sweep",
-        Node::Mate { .. } => "Mate",
         Node::Measure { .. } => "Measure",
         Node::Assertion { .. } => "Assertion",
         Node::InstantiatePart { .. } => "InstantiatePart",
-        Node::Gauge { .. } => "Gauge",
     }
 }
 
@@ -683,10 +682,8 @@ pub fn edit_kind(edit: &DocEdit<ProfileProgram>) -> &'static str {
         DocEdit::SetTolerance { .. } => "SetTolerance",
         DocEdit::SetAppearanceMeta { .. } => "SetAppearanceMeta",
         DocEdit::ClearAppearanceMeta { .. } => "ClearAppearanceMeta",
-        DocEdit::SetOffset { .. } => "SetOffset",
-        DocEdit::SetGauge { .. } => "SetGauge",
-        DocEdit::Promote { .. } => "Promote",
-        DocEdit::Fold { .. } => "Fold",
+        DocEdit::AddConstraint { .. } => "AddConstraint",
+        DocEdit::RemoveConstraint { .. } => "RemoveConstraint",
         DocEdit::UpdateReference { .. } => "UpdateReference",
         DocEdit::SetLabel { .. } => "SetLabel",
     }
