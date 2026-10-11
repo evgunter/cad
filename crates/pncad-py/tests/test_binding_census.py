@@ -614,6 +614,8 @@ BOUND_AS = {
     "Rung": "Coincidence.rung",
     "Residual": "Coincidence.residual",
     "Unreplayed": "Coincidence.residual",
+    # One door, two passes: Python asks for the full one by a flag.
+    "SymbolicPass": "ChecksConfig.full_symbolic_pass",
     # A finding's subject crosses as its three attributes, each `None`
     # for the arm it is not: `root` and `output_ix`, or `node`.
     "FindingSubject": "CheckFinding.node",
@@ -3600,6 +3602,7 @@ NOT_BOUND = {
 #: reach what that member is about, at that spelling. Not the same shape, not
 #: the same receiver, and nothing about semantics.
 MEMBERS_BOUND_AS = {
+    "ChecksConfig::symbolic_pass": "ChecksConfig.full_symbolic_pass",
     # --- an interference finding's overlap and quieting assertion ---
     "InterferenceFinding::overlap": ("InterferenceFinding.faces", "InterferenceFinding.unlocalized"),
     "InterferenceFinding::quiet": "InterferenceFinding.quiet_by",
