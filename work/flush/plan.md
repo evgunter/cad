@@ -18,10 +18,8 @@ lanes in flight are expected to close more, so the track is not split.
 
 | pri | item | cost | title |
 |---|---|---|---|
-| P0 | `a-box-and-a-cylinder-through-its-corner-edge-intersect-past-tier-3-prime` | M | box ∩ cylinder through its corner edge: the right volume, and tier 3′ fails |
-| P0 | `a-corner-pair-with-an-edge-in-the-partners-face-plane-builds-with-undeclared-contacts` | M | a corner pair with an edge in the partner's face plane: tier 3′ `UndeclaredContact`, `StaleContactDeclaration` |
+| P0 | `an-apex-edge-in-the-partners-face-plane-fails-tier-3-prime-on-one-edge-face-overlap` | M | an apex edge in the partner's face plane fails tier 3′ on one `EdgeFaceOverlap` (the corner-pair row's six ARC lines, split out by PR 4650) |
 | P1 | `a-wedge-flush-on-a-block-top-refuses-every-op-undeclared-though-its-face-reads-zero` | M | a wedge flush on a block's top, its face Zero off the block's plane, refuses every op undeclared; the declared spelling builds and F retires it |
-| P1 | `an-l-prism-top-edge-exactly-in-the-cube-face-plane-ships-an-undeclared-contact` | M | an L-prism's top edge in the cube's face plane ships an undeclared contact |
 | P1 | `the-pre-zip-pinch-weld-retires-once-coincident-pierces-split-per-cone` | H | the pre-zip pinch weld stays as the repair of an operand's coincident pierces |
 | P2 | `a-thin-walled-hollow-ships-while-a-slab-as-thin-refuses` | M | a thin-walled hollow ships while a slab as thin refuses: the door reads a sliver per shell, never per solid (design) |
 | P2 | `a-curved-face-at-a-shared-pinch-vertex-builds-bodies-the-census-and-the-reuse-check-refuse` | M | a curved face at a shared pinch vertex: bodies tier 3′ escalates and a further union refuses |
@@ -42,17 +40,13 @@ Parked, and not counted:
 
 ## Order
 
-1. **The P0 wrong bodies.** `a-box-and-a-cylinder-through-its-corner-edge-…`:
-   find which contact or edge the census reads as non-manifold at the
-   corner ruling, and decide whether the body or the census is wrong.
-   `a-result-that-is-only-a-sliver-shell-passes-the-door`: the door reads
-   check 7's in-band arm through `RoleUnread::certified_by` and types it
-   `Escalated { ShellRole }`. TALLY holds the sliver row's three
-   siblings on the door's in-band typing
-   (`the-door-gates-other-in-band-findings-are-typed-the-kernels`,
-   `a-threshold-straddling-in-band-shell-is-typed-the-kernels`,
-   `the-shell-role-refusal-locates-no-piece`), which touch the same
-   `finding_arm`; a lane here announces the seam on TALLY's log.
+1. **The P0 wrong bodies** (done). The corner ruling, its corner-pair
+   sibling and the L-prism closed with PR 4650: a record follows its
+   divided face to the piece that holds it. The sliver-only result
+   closed with PR 4636; its gate's future waits on Ev's ruling in
+   `[ev]` PR 4690. Next, the P0 residue:
+   `an-apex-edge-in-the-partners-face-plane-…` (one `EdgeFaceOverlap`
+   on the six ARC lines).
 2. **Reader's closes** (done, PR 4635: all three closed with pins
    through the plain booleans; the residue is
    `a-wedge-flush-on-a-block-top-…`). Two rows said on their release from the D10 hold
@@ -61,12 +55,9 @@ Parked, and not counted:
    it can close now") and `a-declared-flush-wedge-sunk-in-a-block-…`
    ("what is left is a reader's close"). Re-measure each on main and
    close it with the evidence, or price what is left.
-3. **The undeclared contacts.** `a-corner-pair-with-an-edge-in-the-partners-face-plane-…`,
-   `an-l-prism-top-edge-…` and `undeclared-anti-parallel-touch-…`: an
-   undeclared coincidence (an edge or vertex in the partner's face
-   plane) the op neither refuses nor records. They likely share one
-   cause, so one lane measures all three before any is built. Each reads
-   CONTACTHOLD's census PRs and the hold below first.
+3. **The undeclared contacts** (done). The corner pair and the L-prism
+   closed with PR 4650. The anti-parallel touch closed as fixed by
+   PR 4496 (PR 4649).
 4. **The declared-flush and pinch rows**:
    `declared-flush-intersect-refuses-in-one-operand-order` (folded into
    step 2's measuring lane), then the pinch rows:

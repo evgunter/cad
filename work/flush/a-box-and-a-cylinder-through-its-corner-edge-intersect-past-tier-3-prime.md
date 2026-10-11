@@ -2,13 +2,14 @@
 id: a-box-and-a-cylinder-through-its-corner-edge-intersect-past-tier-3-prime
 kind: issue
 title: A box intersected with a cylinder whose wall passes through the box's corner edge builds at the right volume and fails tier 3′
-status: review
+status: closed
 branch: flush/corner-ruling-tier3
 pr: 4650
 priority: P0
 cost: M
 opened: 2026-10-09
 refs: [4399]
+closed: 2026-10-11
 ---
 
 Found by the dual review of the tube-on-a-ball unit (PR 4399, review r1, its N4), and present on base `b1a15ad0` before that PR.
@@ -66,3 +67,11 @@ asked as the census confirms the record (`contfp`, or the chart trim);
 no holding piece drops the record. An undivided face reads as before.
 The cone sibling refuses `CurvedPierceUnsupported` before any record is
 carried: evidence added to ROOTS' `a-line-parallel-to-a-cone-generator-has-no-root-lane`.
+
+## Closed (2026-10-11, PR 4650)
+
+Fixed by PR 4650. A vertex-on-face record reads its divided face through `Descendants::holder`: the face's own pieces, asked by `boolean::contain::face_placement`, the one containment ask the census also uses. A piece it cannot read refuses `RestPieceUnread`. The PR had a dual review (holdout pair, `docs/dual-review-log/rows/PR-4650.md`), and its fix pass took the adjudicated union. The pins are in `a_ruling_through_a_box_corner_edge.rs` and `join_pierce_runs_sweep::an_edge_in_the_partners_face_plane_records_its_rests_where_the_result_keeps_them`. The residues are filed:
+- FLUSH `an-apex-edge-in-the-partners-face-plane-fails-tier-3-prime-on-one-edge-face-overlap`;
+- FUSE `an-edge-or-face-record-follows-its-faces-key-through-a-division`;
+- FUSE `a-line-edge-in-a-curved-faces-interior-is-recorded-at-its-ends-only`;
+- ORBIT `a-sphere-cut-in-divides-a-face-the-carry-reads-by-its-pre-cut-key`.

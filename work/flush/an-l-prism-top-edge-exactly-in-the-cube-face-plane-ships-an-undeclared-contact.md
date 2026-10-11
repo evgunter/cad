@@ -2,13 +2,14 @@
 id: an-l-prism-top-edge-exactly-in-the-cube-face-plane-ships-an-undeclared-contact
 kind: issue
 title: A cube ∪/∖ L-prism whose top edge lies exactly in the cube's face plane ships a body with an undeclared contact (tier 3′ red, pre-existing)
-status: review
+status: closed
 branch: flush/corner-ruling-tier3
 pr: 4650
 opened: 2026-10-05
 priority: P1
 cost: M
 refs: [3790, d10-one-way-to-say-intent-is-unbuilt]
+closed: 2026-10-11
 ---
 
 
@@ -67,3 +68,11 @@ Pinned: `join_pierce_runs_sweep.rs`
 `an_edge_in_the_partners_face_plane_records_its_rests_where_the_result_keeps_them`
 (the cube rebuilt exactly, `cube_at(V, frame(fib0, 1.9), (0, −2, 0))`,
 plain booleans), red on the merge base in `ab U`, `ab S` and `ba U`.
+
+## Closed (2026-10-11, PR 4650)
+
+Fixed by PR 4650. A vertex-on-face record reads its divided face through `Descendants::holder`: the face's own pieces, asked by `boolean::contain::face_placement`, the one containment ask the census also uses. A piece it cannot read refuses `RestPieceUnread`. The PR had a dual review (holdout pair, `docs/dual-review-log/rows/PR-4650.md`), and its fix pass took the adjudicated union. The pins are in `a_ruling_through_a_box_corner_edge.rs` and `join_pierce_runs_sweep::an_edge_in_the_partners_face_plane_records_its_rests_where_the_result_keeps_them`. The residues are filed:
+- FLUSH `an-apex-edge-in-the-partners-face-plane-fails-tier-3-prime-on-one-edge-face-overlap`;
+- FUSE `an-edge-or-face-record-follows-its-faces-key-through-a-division`;
+- FUSE `a-line-edge-in-a-curved-faces-interior-is-recorded-at-its-ends-only`;
+- ORBIT `a-sphere-cut-in-divides-a-face-the-carry-reads-by-its-pre-cut-key`.

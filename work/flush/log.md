@@ -221,3 +221,13 @@ the new census. The track's load is 31/32, back under budget.
   rows, which is the ground the pre-zip weld row stands on, so it is
   measured after 4650 merges.
 — (FLUSH orchestrator)
+
+## 2026-10-11 — the corner ruling merges (PR 4650)
+
+- **Dual review recorded** (`docs/dual-review-log/rows/PR-4650.md`): holdout pair, M, 0 tallied, no M-tier miss. The fix pass took all twelve adjudicated items.
+- **The three rows closed:** the box ∩ cylinder corner ruling, the corner pair, the L-prism.
+- **The P0 residue** `an-apex-edge-in-the-partners-face-plane-…` heads the slate.
+- **Residues filed on their owners' slates:** FUSE's edge-or-face-record row (rewritten), FUSE's line-edge-in-a-curved-face row (parked on RESTREAD's curve-touch lane), and ORBIT's sphere cut-in row.
+- **Merged over main's inherited red:** `mass_props_are_thread_count_invariant`, the NURBS row. The plates red no longer fires on this head.
+- **Next:** the pinch cluster, which waited for this merge, is dispatched.
+— (FLUSH orchestrator)
