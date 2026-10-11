@@ -953,3 +953,12 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - **The dual-review log is now one file per row** (PR 4645, protocol `24b76fff0e`): `docs/dual-review-log/rows/PR-<n>.md`, with front matter (`arm`, `letter`, `tallied`, `major`, `excluded`, `miss`) and no `dr:`, numbered on main by a workflow. `scripts/dual-review-log.py lint` must pass. U-T1's row is `PR-4614.md`: holdout, M, 0 tallied, major true, fair but flagged.
   - **Rule 9 changed** (Ev, PR 4645): a short readout at EVERY M-tier miss, and a full readout only on Ev's request.
   - **U-T2 dispatched**: arm byte 197, mod 3 = 2, **SEQUENTIAL**. Cloud session `session_01JR92wrXBUcEr5tPZdSTMkK`, branch `germ/plane-torus-join-dispatch`.
+- 2026-10-11 10:06 — **PR 4646's single review (r4646, SEQUENTIAL) is in: NOT-MERGEABLE-AS-IS, 1/4/1.**
+  - MAJOR (executed): the nappe is picked by the f64 sign of a rounding-only gap. On a plane built through the apex, a wrong sign hands the near start to the far nappe, and the PR serves a pair 1.3–33ε off on 6 of 12 sign-flipped poses where main refuses typed. Repro pinned in the fix brief.
+  - MINORs:
+    - the apex gap's own rounding is read by no margin (pre-existing; 7 over at 1e-12, worst 406ε);
+    - no row tests a caller's window (halving `cone_face_reach` leaves 86 rows green);
+    - `offset_derive` hands the old edge's window;
+    - `lever_from`'s Face doc contradicts the code.
+  - Held: the derivation, the R term (7 over against main's 114), and e2e unions right in 24/24 per ε against main's 4/24.
+  - Per rule 1's SEQUENTIAL arm, a MAJOR means a fix pass, then a SECOND review. Fix pass: cloud session `session_014SQNMgXS5CuJTwS7YqkWGd`. Report saved at `scratchpad/dr4646/R1.md`.
