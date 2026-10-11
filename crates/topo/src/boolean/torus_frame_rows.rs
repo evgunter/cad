@@ -512,11 +512,12 @@ fn a_torus_face_is_levered_at_its_own_reach_through_the_production_path() {
             ),
         ] {
             let read = match &got {
-                Err(BooleanError::Escalated {
-                    decision:
-                        super::BooleanDecision::Coincidence(super::refusal_routes::Coincide::Section, _),
-                    diag,
-                }) if diag.predicate == Some("pt_axis_in_plane") => "escalated",
+                Err(BooleanError::Escalated { decision, diag })
+                    if format!("{decision:?}") == "Coincidence(Section, Moot)"
+                        && diag.predicate == Some("pt_axis_in_plane") =>
+                {
+                    "escalated"
+                }
                 Err(BooleanError::GermSectionSpiric {
                     loops: SpiricLoops::AroundTube,
                     ..
