@@ -136,7 +136,10 @@ pub enum DecisionSite {
     /// The carrier ladder, for a curved pair.
     CarrierLadder,
     /// The tangent witness lane: two faces touching tangentially along
-    /// a closed-form locus or a shared rim, verified along it.
+    /// a closed-form locus or a shared rim, verified along it. The
+    /// margin is the touch: the pair's separation along the shared
+    /// normal, its worst sample plus the span's sag
+    /// (`contact_tangent_touch`).
     TangentWitness,
     /// The cylinder×sphere pair's coaxial classification: the sphere's
     /// centre on the cylinder's axis.

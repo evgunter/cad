@@ -940,13 +940,8 @@ pub(crate) enum RuledSection<T: Real> {
     /// The gap is definitely under `r`: two rulings.
     ParallelLines { l1: Curve3<T>, l2: Curve3<T> },
     /// The gap is coincident with `r`: the tangency ruling
-    /// `origin + t·dir`, `origin` the axis' foot on the plane, with the
-    /// margin that decided the gap Zero.
-    TangentLine {
-        origin: Point3<T>,
-        dir: Vec3<T>,
-        gap: MarginDiag,
-    },
+    /// `origin + t·dir`, `origin` the axis' foot on the plane.
+    TangentLine { origin: Point3<T>, dir: Vec3<T> },
     /// The gap is definitely over `r`.
     Empty,
 }
@@ -988,13 +983,13 @@ fn plane_cylinder_ruled_read<T: Decide>(
     // levered from the hinge, and the wall stands `r − |gap|` off the
     // plane at the foot: the ruling stands at most their sum off the
     // section, so the gap is read across the reach with the tilt beside it.
-    let section = match decide_across_reported(
+    let section = match decide_across(
         ["pc_parallel_gap", "pc_parallel_gap_floor"],
         r - gap_signed.abs(),
         Margin::levered(c, lever).value(),
         band,
     )? {
-        (Sign::Positive, _) => {
+        Sign::Positive => {
             // Cross-section chord: the plane cuts the circle at
             // foot ± w·half, foot the axis' plane projection.
             let foot = o - n * gap_signed;
@@ -1011,12 +1006,11 @@ fn plane_cylinder_ruled_read<T: Decide>(
                 },
             }
         }
-        (Sign::Zero, gap) => RuledSection::TangentLine {
+        Sign::Zero => RuledSection::TangentLine {
             origin: o - n * gap_signed,
             dir: a,
-            gap,
         },
-        (Sign::Negative, _) => RuledSection::Empty,
+        Sign::Negative => RuledSection::Empty,
     };
     Ok((parallel, Some(section)))
 }
@@ -1732,23 +1726,12 @@ pub fn parallel_axes_at<T: Real>(
 /// so the verdict does not depend on which cylinder is first. Shared
 /// with the tangent-locus lane.
 pub(crate) fn parallel_cylinder_gap<T: Decide>(
-    radii: (T, T),
-    d: T,
-    swing: T,
-    band: Band,
-) -> Result<Sign, Indeterminate> {
-    parallel_cylinder_gap_reported(radii, d, swing, band).map(|(sign, _)| sign)
-}
-
-/// [`parallel_cylinder_gap`] with the margin it was decided on
-/// ([`decide_across_reported`]).
-pub(crate) fn parallel_cylinder_gap_reported<T: Decide>(
     (r1, r2): (T, T),
     d: T,
     swing: T,
     band: Band,
-) -> Result<(Sign, MarginDiag), Indeterminate> {
-    decide_across_reported(
+) -> Result<Sign, Indeterminate> {
+    decide_across(
         ["cc_parallel_gap", "cc_parallel_gap_floor"],
         r1 + r2 - d,
         swing,
@@ -1776,32 +1759,19 @@ pub(crate) fn parallel_cylinder_gap_reported<T: Decide>(
 /// The two terms are never decided one at a time: each just inside the
 /// band would sum to nearly twice it.
 pub(crate) fn decide_across<T: Decide>(
-    names: [&'static str; 2],
-    datum: T,
-    swing: T,
-    band: Band,
-) -> Result<Sign, Indeterminate> {
-    decide_across_reported(names, datum, swing, band).map(|(sign, _)| sign)
-}
-
-/// [`decide_across`] with the margin the `far` row was decided on: the
-/// Zero verdict's own margin where the row reads Zero, the margin the
-/// floor stood past otherwise.
-pub(crate) fn decide_across_reported<T: Decide>(
     [far, floor]: [&'static str; 2],
     datum: T,
     swing: T,
     band: Band,
-) -> Result<(Sign, MarginDiag), Indeterminate> {
+) -> Result<Sign, Indeterminate> {
     let swing = swing.abs();
-    let Decided { sign, margin } = decide_reported(far, Margin::of(datum.abs() + swing), band)?;
-    match sign {
-        Sign::Zero => Ok((Sign::Zero, margin)),
+    match decide(far, Margin::of(datum.abs() + swing), band)? {
+        Sign::Zero => Ok(Sign::Zero),
         Sign::Positive => {
             let near = (datum - swing).max(T::zero()) + (datum + swing).min(T::zero());
             Ok(match decide_nonzero(floor, Margin::of(near), band)? {
-                NonzeroSign::Positive => (Sign::Positive, margin),
-                NonzeroSign::Negative => (Sign::Negative, margin),
+                NonzeroSign::Positive => Sign::Positive,
+                NonzeroSign::Negative => Sign::Negative,
             })
         }
         Sign::Negative => unreachable!(
