@@ -19,9 +19,7 @@
 use geom::Surface;
 use geom_core::Point3;
 use geom_core::Tol;
-use topo::{
-    FaceSurface, ValidationError, mass_properties, validate, validate_closed, validate_geometric,
-};
+use topo::{FaceSurface, ValidationError, mass_properties, validate, validate_closed, validate_geometric};
 
 use crate::common;
 

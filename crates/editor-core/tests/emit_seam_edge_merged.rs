@@ -13,7 +13,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus::body_of;
-use crate::docm7_union_declare::{block, declared_union, failure, flush_pairs, run};
+use crate::blocks::{block, declared_union, failure, flush_pairs, run};
 use crate::emit_shared_rim_several::is_rim_piece;
 use crate::fixture::{edge_of, table};
 

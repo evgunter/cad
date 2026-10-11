@@ -6,14 +6,14 @@
 
 use crate::common;
 
-use common::{brick, finished, flush_declarations};
+use common::{brick, finished};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
 use topo::boolean::carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation, carrier_eq};
 use topo::boolean::contact_verify::tangent_locus_relation;
 use topo::boolean::plane_eq::PlaneIdentity;
 use topo::contact::{ContactRefusal, ContactVerdict};
-use topo::{BooleanResult, ContactRecords, Surface, ValidationError, union_with};
+use topo::{BooleanResult, ContactRecords, Surface, ValidationError, union};
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
@@ -224,8 +224,7 @@ fn probe_replay_partial_eq_bites_on_mutation() {
         brick::<f64>((0.5, 1.5), (0.25, 1.25), (1.0, 2.0), tol),
         tol,
     );
-    let decls = flush_declarations(&a, &b, Tol::witness());
-    let BooleanResult::Body(x) = union_with(&a, &b, &decls, Tol::witness()).unwrap() else {
+    let BooleanResult::Body(x) = union(&a, &b, Tol::witness()).unwrap() else {
         panic!("overlapping union cannot be empty");
     };
     let mut mutated = x.contacts.clone();

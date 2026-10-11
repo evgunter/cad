@@ -16,7 +16,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus::body_of;
-use crate::docm7_union_declare::{block, failure, run};
+use crate::blocks::{block, failure, run};
 use crate::fixture::{ends, face_vertices, insert, point, table};
 
 use std::collections::{BTreeMap, BTreeSet};

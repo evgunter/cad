@@ -45,7 +45,7 @@
 use std::collections::BTreeMap;
 
 use crate::corpus::body_of;
-use crate::docm7_union_declare::{block, failure, run};
+use crate::blocks::{block, failure, run};
 use crate::emit_boolean_vertex_keys::named_geometry;
 use crate::fixture::insert;
 use editor_core::{Evaluation, Node, NodeErrorKind, ProfileDoc, RecipeNodeId};

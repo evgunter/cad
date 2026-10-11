@@ -14,15 +14,10 @@
 
 use crate::common;
 
-use common::{
-    brick, describe_as_intersections, finished, flush_declarations, holed_block, prism_z,
-};
+use common::{brick, describe_as_intersections, finished, holed_block, prism_z};
 use geom_core::Tol;
 use topo::validate::{validate_closed, validate_geometric};
-use topo::{
-    AtRestBody, Body, BooleanBody, BooleanDeclarations, BooleanResult, LoopBoundary,
-    mass_properties, union_with, validate_pseudomanifold,
-};
+use topo::{AtRestBody, Body, BooleanBody, BooleanResult, LoopBoundary, mass_properties, union, validate_pseudomanifold};
 
 fn unwrap_body(r: BooleanResult<f64>) -> BooleanBody<f64> {
     let BooleanResult::Body(bb) = r else {
@@ -81,9 +76,8 @@ fn a_union_f() -> BooleanBody<f64> {
         brick::<f64>((0.5, 1.5), (0.5, 1.5), (0.0, 1.0), tol),
         tol,
     );
-    let decls = flush_declarations(&a, &f, tol);
     assert_eq!(decls.coincident_faces.len(), 2, "both caps declared");
-    unwrap_body(union_with(&a, &f, &decls, tol).expect("the declared area-overlap union runs"))
+    unwrap_body(union(&a, &f, tol).expect("the declared area-overlap union runs"))
 }
 
 /// The third brick, touching both blocks.
@@ -131,9 +125,8 @@ fn the_merged_union_takes_a_third_brick_declared() {
     let tol = Tol::witness();
     let af = a_union_f();
     let c = c();
-    let decls = flush_declarations(&af.body, &c, tol);
     let bb = unwrap_body(
-        union_with(&af.body, &c, &decls, tol).expect("a merged union is a boolean operand"),
+        union(&af.body, &c, tol).expect("a merged union is a boolean operand"),
     );
     assert!(
         bb.naming.merge_skipped.is_empty(),
@@ -156,11 +149,11 @@ fn the_merged_union_glues_an_undeclared_third_brick_as_declared() {
     let af = a_union_f();
     let c = c();
     let declared = unwrap_body(
-        union_with(&af.body, &c, &flush_declarations(&af.body, &c, tol), tol)
+        union(&af.body, &c, tol)
             .expect("a merged union is a boolean operand"),
     );
     let undeclared = unwrap_body(
-        union_with(&af.body, &c, &BooleanDeclarations::none(), tol)
+        union(&af.body, &c, tol)
             .expect("c's flush faces glue on their decided zero"),
     );
     assert_eq!(
@@ -222,8 +215,7 @@ fn a_bent_seam_around_a_hole_merges_to_one_ringed_cap() {
         brick::<f64>((0.5, 2.5), (2.0, 3.5), (0.0, 1.0), tol),
         tol,
     );
-    let decls = flush_declarations(&u, &bar, tol);
-    let bb = unwrap_body(union_with(&u, &bar, &decls, tol).expect("the declared union runs"));
+    let bb = unwrap_body(union(&u, &bar, tol).expect("the declared union runs"));
     assert!(
         bb.naming.merge_skipped.is_empty(),
         "{:?}",
@@ -259,9 +251,8 @@ fn assert_plug_merges(plug: Body<f64>, volume: f64, what: &str) {
     let tol = Tol::witness();
     let plug = finished(what, plug, tol);
     let block = holed();
-    let decls = flush_declarations(&block, &plug, tol);
     let bb = unwrap_body(
-        union_with(&block, &plug, &decls, tol)
+        union(&block, &plug, tol)
             .unwrap_or_else(|e| panic!("{what}: the plugged block merges, got {e:?}")),
     );
     assert!(
@@ -285,9 +276,8 @@ fn assert_plug_merges(plug: Body<f64>, volume: f64, what: &str) {
         brick::<f64>((3.0, 4.0), (0.0, 2.0), (0.0, 2.0), tol),
         tol,
     );
-    let decls = flush_declarations(&bb.body, &next, tol);
     let nb = unwrap_body(
-        union_with(&bb.body, &next, &decls, tol)
+        union(&bb.body, &next, tol)
             .unwrap_or_else(|e| panic!("{what}: the result is an operand, got {e:?}")),
     );
     assert!(nb.naming.merge_skipped.is_empty(), "{what}: next union");
@@ -308,12 +298,10 @@ fn assert_plug_merges(plug: Body<f64>, volume: f64, what: &str) {
 fn an_exactly_plugged_hole_merges_to_whole_caps() {
     let plug = brick::<f64>((1.0, 2.0), (0.5, 1.5), (0.0, 2.0), Tol::witness());
     let block = holed();
-    let decls = flush_declarations(&block, &plug, Tol::witness());
     let join = topo::test_support::boolean_join_refusal(
         topo::BooleanOp::Union,
         &block,
         &plug,
-        &decls,
         Tol::witness(),
     );
     assert!(
@@ -355,9 +343,8 @@ fn a_plug_folded_first_merges_into_the_face_it_plugs() {
         tol,
     );
     let block = holed();
-    let decls = flush_declarations(&plug, &block, tol);
     let bb =
-        unwrap_body(union_with(&plug, &block, &decls, tol).expect("the plug folded first merges"));
+        unwrap_body(union(&plug, &block, tol).expect("the plug folded first merges"));
     assert!(
         bb.naming.merge_skipped.is_empty(),
         "{:?}",

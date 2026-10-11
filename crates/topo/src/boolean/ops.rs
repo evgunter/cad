@@ -6627,8 +6627,7 @@ mod tests {
     fn a_dead_end_drops_and_a_refused_fusion_fails_its_absorb() {
         use super::{Descendants, KeyView};
         use crate::boolean::{
-            CarriedVv, ContactClass, ContactRecords, Glue, OperandRecords, VvContact,
-        };
+CarriedRecord, ContactRecords, Glue, OperandRecords, VvContact};
         use crate::entity::VertexKey;
 
         let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
@@ -6644,9 +6643,8 @@ mod tests {
         };
         let decls = Glue {
             records_a: OperandRecords {
-                vv: vec![CarriedVv {
-                    pair,
-                    class: ContactClass::Rest,
+                vv: vec![CarriedRecord {
+                    contact: pair,
                     record: 0,
                 }],
                 ..OperandRecords::default()
@@ -6740,8 +6738,7 @@ mod tests {
     fn a_cycling_absorption_row_refuses_where_a_dead_end_drops() {
         use super::{Descendants, KeyView};
         use crate::boolean::{
-            CarriedVf, ContactClass, ContactRecords, Glue, OperandRecords, VfContact,
-        };
+CarriedRecord, ContactRecords, Glue, OperandRecords, VfContact};
         use crate::entity::FaceKey;
 
         let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
@@ -6781,9 +6778,8 @@ mod tests {
         // The carried lane reads the same chase.
         let decls = Glue {
             records_a: OperandRecords {
-                vf: vec![CarriedVf {
-                    rest: VfContact { vertex, face: d0 },
-                    class: ContactClass::Rest,
+                vf: vec![CarriedRecord {
+                    contact: VfContact { vertex, face: d0 },
                     record: 0,
                 }],
                 ..OperandRecords::default()

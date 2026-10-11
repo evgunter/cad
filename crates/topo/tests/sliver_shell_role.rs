@@ -14,10 +14,7 @@
 #![allow(clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point3, Tol};
-use topo::{
-    AtRestBody, BooleanDecision, BooleanDeclarations, BooleanError, ShellRole, classify_shells,
-    intersect_with,
-};
+use topo::{AtRestBody, BooleanDecision, BooleanError, ShellRole, classify_shells, intersect};
 
 use crate::common;
 
@@ -87,7 +84,7 @@ fn corner_pose(
 fn notch307_meet(a: u32, d: f64, tol: Tol) -> Result<topo::BooleanResult<f64>, BooleanError> {
     let profile = [(0.0, 0.0), (4.0, 0.0), (4.0, 2.0), (2.0, 1.0), (0.0, 2.0)];
     let (prism, cube) = corner_pose(&profile, [2.0, 1.0, 1.0], [2.0, 1.0, 0.0], a, d, tol);
-    intersect_with(&prism, &cube, &BooleanDeclarations::default(), tol)
+    intersect(&prism, &cube, tol)
 }
 
 /// Stands the row down where ε is wider than `widest`.
@@ -173,8 +170,8 @@ fn a_sliver_the_walk_reads_as_zero_refuses_in_band_in_both_orders() {
     let (prism, cube) = corner_pose(&profile, [2.0, 0.5, 1.0], [2.0, 3.5, 0.0], 1, 6e-9, tol);
     let decls = BooleanDeclarations::default();
     for (order, refusal) in [
-        ("prism first", intersect_with(&prism, &cube, &decls, tol)),
-        ("cube first", intersect_with(&cube, &prism, &decls, tol)),
+        ("prism first", intersect(&prism, &cube, tol)),
+        ("cube first", intersect(&cube, &prism, tol)),
     ] {
         let refusal = refusal.map(|_| ());
         let Err(BooleanError::Escalated {

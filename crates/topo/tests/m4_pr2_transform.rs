@@ -10,10 +10,7 @@ use std::f64::consts::FRAC_PI_2;
 use common::{brick, finished};
 use geom_core::Tol;
 use geom_core::{Affine3, Point3, Vec3};
-use topo::{
-    Body, BooleanResult, mass_properties, transform_rigid, validate, validate_closed,
-    validate_geometric,
-};
+use topo::{Body, BooleanResult, mass_properties, transform_rigid, validate, validate_closed, validate_geometric};
 
 fn tiers_ok(b: &Body<f64>) {
     assert_eq!(validate(b), Ok(()));
@@ -99,10 +96,9 @@ fn transformed_tool_subtracts_exactly() {
     let placed = transform_rigid(&tool, &map, Tol::witness()).unwrap();
     tiers_ok(&placed);
     let placed = finished("the placed tool", placed, Tol::witness());
-    let out = match topo::subtract_with(
+    let out = match topo::subtract(
         &base,
         &placed,
-        &common::flush_declarations(&base, &placed, Tol::witness()),
         Tol::witness(),
     )
     .unwrap()

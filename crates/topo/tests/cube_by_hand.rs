@@ -37,10 +37,7 @@ use geom_core::Point3;
 use geom_core::Tol;
 use topo::EulerCounts;
 use topo::readback::euler_counts;
-use topo::{
-    Body, EntityId, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated, Provenance, validate,
-    validate_closed,
-};
+use topo::{Body, EntityId, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated, Provenance, validate, validate_closed};
 
 /// Every operator result of one cube construction, in call order.
 #[derive(PartialEq, Eq, Debug)]

@@ -23,11 +23,7 @@ use crate::common;
 
 use common::{brick, finished};
 use geom_core::Tol;
-use topo::flush::{declare_all, find_flush_candidates};
-use topo::{
-    AtRestBody, Body, BooleanResult, BooleanResultKind, CarrierDesc, FaceKey, face_carrier,
-    union_with,
-};
+use topo::{AtRestBody, Body, BooleanResult, BooleanResultKind, CarrierDesc, FaceKey, face_carrier, union};
 
 /// A face's outward normal, rounded to a unit axis.
 type Axis = [i8; 3];
@@ -51,7 +47,7 @@ fn normal(body: &Body<f64>, f: FaceKey) -> Axis {
 fn covered(x: &AtRestBody<f64>, y: &AtRestBody<f64>) -> (BooleanResultKind, BTreeSet<AxisPair>) {
     let tol = Tol::witness();
     let decls = declare_all(&find_flush_candidates(x, y, tol).expect("the flush detector decides"));
-    let BooleanResult::Body(out) = union_with(x, y, &decls, tol).expect("the union fuses") else {
+    let BooleanResult::Body(out) = union(x, y, tol).expect("the union fuses") else {
         panic!("a union of non-empty blocks cannot be empty");
     };
     let pairs: BTreeSet<_> = out
@@ -139,14 +135,14 @@ fn a_discarded_face_holds_the_edges_of_the_kept_face_that_runs_into_it() {
         tol,
     );
     let BooleanResult::Body(cut) =
-        union_with(&b, &slab, &topo::BooleanDeclarations::default(), tol).expect("b ∪ slab")
+        union(&b, &slab, tol).expect("b ∪ slab")
     else {
         panic!("a union of non-empty blocks cannot be empty");
     };
     let decls = declare_all(
         &find_flush_candidates(&cut.body, &a, tol).expect("the flush detector decides"),
     );
-    let BooleanResult::Body(out) = union_with(&cut.body, &a, &decls, tol).expect("the union fuses")
+    let BooleanResult::Body(out) = union(&cut.body, &a, tol).expect("the union fuses")
     else {
         panic!("a union of non-empty blocks cannot be empty");
     };
@@ -266,7 +262,7 @@ fn a_held_edge_goes_only_to_the_fragment_it_enters() {
     let none = topo::BooleanDeclarations::default();
     let union = |x: &AtRestBody<f64>, y: &AtRestBody<f64>| -> AtRestBody<f64> {
         let BooleanResult::Body(o) =
-            union_with(x, y, &none, tol).expect("an undeclared union fuses")
+            union(x, y, tol).expect("an undeclared union fuses")
         else {
             panic!("a union of non-empty blocks cannot be empty");
         };
@@ -275,7 +271,7 @@ fn a_held_edge_goes_only_to_the_fragment_it_enters() {
     let x = union(&union(&union(&b, &slab), &bridge), &pillar);
     let decls =
         declare_all(&find_flush_candidates(&x, &a, tol).expect("the flush detector decides"));
-    let BooleanResult::Body(out) = union_with(&x, &a, &decls, tol).expect("the union fuses") else {
+    let BooleanResult::Body(out) = union(&x, &a, tol).expect("the union fuses") else {
         panic!("a union of non-empty blocks cannot be empty");
     };
     // `a`'s top's discarded fragments: how many stretches each borders
@@ -315,7 +311,7 @@ fn coplanar_faces_that_share_no_region_are_not_covered() {
             &find_flush_candidates(&a, &other, tol).expect("the flush detector decides"),
         );
         let BooleanResult::Body(out) =
-            union_with(&a, &other, &decls, tol).expect("the union fuses")
+            union(&a, &other, tol).expect("the union fuses")
         else {
             panic!("{label}: a union of non-empty blocks cannot be empty");
         };

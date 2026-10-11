@@ -11,10 +11,7 @@
 use crate::common;
 
 use geom_core::Tol;
-use topo::{
-    AtRestBody, AtRestOutcome, BooleanBody, BooleanOp, BooleanResult, BooleanResultKind,
-    boolean_op_with,
-};
+use topo::{AtRestBody, AtRestOutcome, BooleanBody, BooleanOp, BooleanResult, BooleanResultKind, boolean_op_with};
 
 fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> AtRestBody<f64> {
     let tol = Tol::witness();
@@ -40,7 +37,7 @@ fn every_result_kind_carries_tier_3s_verdict() {
     let far = brick((5.0, 6.0), unit, unit);
     let none = topo::BooleanDeclarations::none();
     let run = |op, a: &AtRestBody<f64>, b: &AtRestBody<f64>| {
-        boolean_op_with(op, a, b, &none, topo::SweepStrategy::Realized, tol)
+        boolean_op_with(op, a, b, &topo::BooleanInputs::default(), topo::SweepStrategy::Realized, tol)
     };
     for (what, op, a, b, kind) in [
         (

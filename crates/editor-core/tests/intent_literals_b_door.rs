@@ -9,7 +9,7 @@
 #![allow(clippy::expect_used, clippy::panic)]
 
 use crate::corpus;
-use crate::docm7_union_declare::block;
+use crate::blocks::block;
 use crate::fixture::resolver::{PartStore, in_part};
 use crate::fixture::{ang, head, len, scl};
 use editor_core::{

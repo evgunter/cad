@@ -27,7 +27,7 @@ use editor_core::ExtrudeSide;
 use std::collections::BTreeSet;
 
 use crate::corpus::body_of;
-use crate::docm7_union_declare::{block, declared_union, failure, flush_pairs, run};
+use crate::blocks::{block, declared_union, failure, flush_pairs, run};
 use crate::fixture::{
     ang, ename, ends, face_vertices, insert, len, on_frame, out, point, scl, table, vertex_of,
     vname,

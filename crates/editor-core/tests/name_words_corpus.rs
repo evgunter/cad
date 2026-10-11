@@ -639,7 +639,7 @@ fn documents_outside_the_corpus_read_apart_too() {
     let copies = [0.0, 0.75, 1.5, 2.25].map(|x| moved(&mut r, pin, [x, 0.0, 0.0]));
     let first = boolean(&mut r, BooleanOp::Subtract, block, copies[0]);
     let second = boolean(&mut r, BooleanOp::Subtract, first, copies[1]);
-    let (doc, union) = fixture::union_over(r.doc.clone(), &copies[2..], Vec::new());
+    let (doc, union) = fixture::union_over(r.doc.clone(), &copies[2..]);
     r.doc = doc;
     let cut = boolean(&mut r, BooleanOp::Subtract, second, union);
     docs.push(("copies".to_owned(), r.doc.clone()));
@@ -698,7 +698,7 @@ fn documents_outside_the_corpus_read_apart_too() {
     let upper = extrude(&mut r, upper, 0.5);
     boolean(&mut r, BooleanOp::Union, lower, upper);
     let apart = [lower, upper].map(|at| moved(&mut r, at, [6.0, 0.0, 0.0]));
-    let (doc, _) = fixture::union_over(r.doc.clone(), &[apart[0], apart[1], lower], Vec::new());
+    let (doc, _) = fixture::union_over(r.doc.clone(), &[apart[0], apart[1], lower]);
     docs.push(("loops and two profiles".to_owned(), doc));
 
     for op in [BooleanOp::Subtract, BooleanOp::Union] {
@@ -736,7 +736,7 @@ fn documents_outside_the_corpus_read_apart_too() {
         );
         let fillet = r.insert(Node::fillet(third, len(0.05), rim));
         let twice = [[0.0; 3], [0.0, 5.5, 0.0]].map(|at| moved(&mut r, fillet, at));
-        let (doc, _) = fixture::union_over(r.doc.clone(), &twice, Vec::new());
+        let (doc, _) = fixture::union_over(r.doc.clone(), &twice);
         docs.push((format!("round pins, {op:?}"), doc));
     }
 

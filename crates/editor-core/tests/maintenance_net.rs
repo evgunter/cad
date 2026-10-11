@@ -9,7 +9,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::docm7_union_declare::block;
+use crate::blocks::block;
 use crate::fixture::{ang, flush_pairs, fname, insert, union_over, wall};
 use editor_core::{
     Applied, Attr, AttrKind, DocEdit, EditError, Maintenance, Node, ProfileDoc, ProfileProgram,

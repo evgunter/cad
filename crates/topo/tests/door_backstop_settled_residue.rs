@@ -38,10 +38,7 @@
 
 use geom_core::{Band, Point3, Tol, Vec3};
 use topo::test_support::{brick, finished, mapped_cube};
-use topo::{
-    Body, BooleanCoincidence, BooleanDeclarations, BooleanError, BooleanResult, CarrierDesc,
-    FacePairDeclaration, face_carrier,
-};
+use topo::{Body, GlueClass, BooleanError, BooleanResult, CarrierDesc, face_carrier};
 
 /// The one face of `body` whose plane's normal leans along `facing`
 /// (`+1` up, `−1` down).
@@ -192,10 +189,10 @@ fn a_settled_in_band_coincidence_builds_within_its_gap_or_refuses_where_it_cross
         let ab = declared(top, face, class);
         let ba = declared(face, top, class);
         let ops = [
-            ("A ∪ B", topo::union_with(&block, &tool, &ab, tol)),
-            ("A ∩ B", topo::intersect_with(&block, &tool, &ab, tol)),
-            ("A ∖ B", topo::subtract_with(&block, &tool, &ab, tol)),
-            ("B ∖ A", topo::subtract_with(&tool, &block, &ba, tol)),
+            ("A ∪ B", topo::union(&block, &tool, tol)),
+            ("A ∩ B", topo::intersect(&block, &tool, tol)),
+            ("A ∖ B", topo::subtract(&block, &tool, tol)),
+            ("B ∖ A", topo::subtract(&tool, &block, tol)),
         ];
         for ((op, out), want) in ops.into_iter().zip(wants) {
             let label = format!("{pose} at θ = {over_eps}ε, {op}");

@@ -24,7 +24,7 @@ use editor_core::ExtrudeSide;
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::corpus::body_of;
-use crate::docm7_union_declare::{block, failure, run};
+use crate::blocks::{block, failure, run};
 use crate::emit_shared_rim_several::permutations;
 use crate::emit_union_flush_names::parent_of;
 use crate::fixture::{ang, face_vertices, frame, insert, len, on_frame, out, scl, step, table};
@@ -74,7 +74,7 @@ fn union_of(
     order: &[usize],
 ) -> (ProfileDoc, RecipeNodeId) {
     let ordered: Vec<RecipeNodeId> = order.iter().map(|&i| members[i]).collect();
-    crate::fixture::union_over(doc, &ordered, Vec::new())
+    crate::fixture::union_over(doc, &ordered)
 }
 
 /// Each uniquely named face of `union`'s table → the centroid of its
@@ -313,7 +313,7 @@ fn check(fx: &Fixture) -> usize {
             Some(op) => insert(doc.clone(), op.node(ids[0], ids[1])),
             None => {
                 let ordered: Vec<RecipeNodeId> = order.iter().map(|&i| ids[i]).collect();
-                crate::fixture::union_over(doc.clone(), &ordered, Vec::new())
+                crate::fixture::union_over(doc.clone(), &ordered)
             }
         };
         let ev = run(&d);

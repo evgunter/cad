@@ -21,11 +21,7 @@
 
 use crate::common;
 use geom_core::{Band, Point3, Tol, Vec3};
-use topo::{
-    AtRestBody, Body, BooleanError, BooleanResult, CarrierDesc, FaceKey, SolidContainment,
-    ValidationError, face_carrier, intersect, mass_properties, point_in_solid, split, subtract,
-    subtract_with, union, union_with, validate_geometric,
-};
+use topo::{AtRestBody, Body, BooleanError, BooleanResult, CarrierDesc, FaceKey, SolidContainment, ValidationError, face_carrier, intersect, mass_properties, point_in_solid, split, subtract, union, validate_geometric};
 
 /// The far end's depth, in zero thresholds: definite under a 1 m arm
 /// (`DIP/10` zeros) and Zero under a 1 mm one (`DIP/10⁴`).
@@ -340,8 +336,8 @@ fn a_sector_parallel_at_a_short_arm_is_coplanar_only_if_its_bounds_read_on() {
         face_with_normal(&wedge, [0.0, 0.0, -1.0]),
     ));
     for (what, r) in [
-        ("block - wedge", subtract_with(&block, &wedge, &decls, tol)),
-        ("union", union_with(&block, &wedge, &decls, tol)),
+        ("block - wedge", subtract(&block, &wedge, tol)),
+        ("union", union(&block, &wedge, tol)),
     ] {
         assert!(
             matches!(r, Err(BooleanError::ContactContradicted { .. })),
@@ -408,8 +404,8 @@ fn a_declared_plane_tilt_is_read_across_the_faces() {
         .coincident_faces
         .push(topo::FacePairDeclaration::rest(top, bottom));
     for (what, r) in [
-        ("block - wedge", subtract_with(&block, &wedge, &decls, tol)),
-        ("union", union_with(&block, &wedge, &decls, tol)),
+        ("block - wedge", subtract(&block, &wedge, tol)),
+        ("union", union(&block, &wedge, tol)),
     ] {
         assert!(
             matches!(r, Err(BooleanError::ContactContradicted { .. })),
@@ -492,7 +488,7 @@ fn a_declared_offset_and_tilt_each_in_band_do_not_bridge_their_sum() {
     decls
         .coincident_faces
         .push(topo::FacePairDeclaration::rest(top, bottom));
-    let r = union_with(&block, &wedge, &decls, Tol::witness());
+    let r = union(&block, &wedge, Tol::witness());
     assert!(
         matches!(r, Err(BooleanError::ContactContradicted { .. })),
         "the op refuses it at the door: {:?}",
@@ -551,7 +547,7 @@ fn an_unsettled_declared_pair_refuses_as_its_reach() {
     decls
         .coincident_faces
         .push(topo::FacePairDeclaration::rest(top, bottom));
-    let err = union_with(&block, &wedge, &decls, Tol::witness()).expect_err("it refuses");
+    let err = union(&block, &wedge, Tol::witness()).expect_err("it refuses");
     assert!(
         matches!(
             err,

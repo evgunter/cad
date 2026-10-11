@@ -38,10 +38,7 @@ use crate::common;
 use common::finished;
 use common::meeting::{MEET, PLATE, at, corners_disjoint, orders, shape};
 use geom_core::{Point3, Tol};
-use topo::{
-    AtRestBody, BooleanBody, BooleanError, BooleanResult, union, validate_geometric,
-    validate_pseudomanifold,
-};
+use topo::{AtRestBody, BooleanBody, BooleanError, BooleanResult, union, validate_geometric, validate_pseudomanifold};
 
 fn t() -> Tol {
     Tol::witness()
@@ -712,7 +709,7 @@ fn fold_from(
 /// pair takes neither `Tangent` nor `Seam`.
 #[test]
 fn a_declaration_at_the_contact_line_serves_the_undeclared_body_or_refuses() {
-    use topo::{BooleanCoincidence, BooleanDeclarations, FacePairDeclaration, union_with};
+    use topo::{GlueClass, union};
     let classes = [
         BooleanCoincidence::REST,
         BooleanCoincidence::TANGENT,
@@ -782,7 +779,7 @@ fn a_declaration_at_the_contact_line_serves_the_undeclared_body_or_refuses() {
 /// builds the undeclared fold's body.
 #[test]
 fn carrying_each_steps_records_serves_the_same_body() {
-    use topo::{BooleanDeclarations, CarriedContacts, ContactClass, union_with};
+    use topo::{ContactClass, union};
     let eps = t().eps();
     for (label, prisms) in [
         ("three", three()),

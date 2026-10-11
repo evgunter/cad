@@ -10,12 +10,9 @@
 
 use crate::common;
 
-use common::{brick, flush_declarations};
+use common::brick;
 use geom_core::{Bounds, Decide, Dual64, Interval, Tol};
-use topo::{
-    AtRestBody, AtRestOutcome, AtRestPolicy, Body, BooleanError, BooleanResult, Operand,
-    ValidationError, intersect_with, mass_properties, subtract_with, union_with,
-};
+use topo::{AtRestBody, AtRestOutcome, AtRestPolicy, Body, BooleanError, BooleanResult, Operand, ValidationError, intersect, mass_properties, subtract, union};
 
 /// The triangle (0,0), 80°, 190° on the unit circle, counterclockwise
 /// when `ccw`.
@@ -102,7 +99,6 @@ fn an_inside_out_operand_refuses_in_every_op_at_a_dual() {
     assert_eq!(wedge.outcome(), AtRestOutcome::NotRunAtThisScalar);
     for (name, op) in ops::<Dual64>() {
         for (a, b, inside_out) in [(&brick, &wedge, Operand::B), (&wedge, &brick, Operand::A)] {
-            let decls = flush_declarations(a, b, tol);
             match op(a, b, &decls, tol) {
                 Err(BooleanError::InsideOutOperand { operand, .. }) => assert_eq!(
                     operand, inside_out,
@@ -126,7 +122,6 @@ fn an_inside_out_operand_refuses_in_every_op_at_a_dual() {
 fn the_public_reduction_refuses_an_inside_out_operand_at_a_dual() {
     let tol = Tol::witness();
     let (brick, wedge) = operands::<Dual64>(false, tol);
-    let decls = flush_declarations(&brick, &wedge, tol);
     let (brick, wedge) = (
         Dual64::gate_at_rest_kept(brick, tol).expect("a dual gate runs nothing"),
         Dual64::gate_at_rest_kept(wedge, tol).expect("a dual gate runs nothing"),
@@ -141,7 +136,7 @@ fn the_public_reduction_refuses_an_inside_out_operand_at_a_dual() {
                 ("boolean_reduce", topo::boolean_reduce(op, a, b, tol)),
                 (
                     "boolean_reduce_declared",
-                    topo::boolean_reduce_declared(op, a, b, &decls, tol),
+                    topo::boolean_reduce(op, a, b, tol),
                 ),
             ] {
                 match r {
@@ -171,7 +166,6 @@ fn the_counterclockwise_wedge_answers_the_true_volumes() {
     let inside = 0.5 * (0.5 * p.0 * y0);
     let wedge = 0.5 * (0.5 * 110f64.to_radians().sin());
     let (brick, prism) = operands::<f64>(true, tol);
-    let decls = flush_declarations(&brick, &prism, tol);
     let (brick, prism) = (
         common::finished("the brick", brick, tol),
         common::finished("the outward wedge", prism, tol),
@@ -191,7 +185,6 @@ fn the_counterclockwise_wedge_answers_the_true_volumes() {
         );
     }
     let at_interval = operands::<Interval>(true, tol);
-    let decls = flush_declarations(&at_interval.0, &at_interval.1, tol);
     let at_interval = (
         common::finished("the brick", at_interval.0, tol),
         common::finished("the outward wedge", at_interval.1, tol),

@@ -4751,221 +4751,19 @@ mod declaration_order_rows {
         );
     }
 
-    /// The unique planar face of `body` whose outward normal is within a
-    /// milliradian of `n`.
-    fn face_facing(body: &crate::body::Body<f64>, n: [f64; 3]) -> crate::entity::FaceKey {
-        let n = geom_core::Vec3::from_array(n);
-        let hits: Vec<_> = body
-            .faces()
-            .map(|(k, _)| k)
-            .filter(|&k| {
-                matches!(crate::boolean::face_carrier(body, k),
-                    Some(crate::boolean::CarrierDesc::Plane { normal, .. }) if normal.dot(n) > 1.0 - 1e-6)
-            })
-            .collect();
-        assert_eq!(hits.len(), 1, "one face faces {n:?}");
-        hits[0]
-    }
-
-    /// `a ∪ b` with the pair `(fa, fb)` declared as `class`.
-    fn union_declared(
-        a: &crate::AtRestBody<f64>,
-        b: &crate::AtRestBody<f64>,
-        pair: (crate::entity::FaceKey, crate::entity::FaceKey),
-        class: Option<GlueClass>,
-    ) -> Result<(), BooleanError> {
-        crate::boolean::union(a, b, Tol::witness()).map(|_| ())
-    }
-
-    /// **A declared-`Tangent` pair's plane rung offers no second
-    /// declaration**, on the review's union poses (`zz_coincfr_probe.rs`,
-    /// G2, G5 and G6): a face of each solid in-band parallel, the pair
-    /// declared `Tangent`. The Tangent verification's conformal screen
-    /// runs the plane ladder on a pair already declared, so the refusal
-    /// states that read, names the tilt, and offers no declaration and
-    /// no tolerance: a smaller one decides the tilt, and the door then
-    /// refuses a `Tangent` claim on two planes whatever it decided
-    /// (executed: `offer_rows`' `tangent_screen_of_a_tilted_block`).
+    /// **A coplanar sector's in-band parallelism refuses on the sector**,
+    /// on a union: a parallelepiped cornered at a point of a block's top
+    /// face by a 5° wedge angle, its face there tilted by an in-band
+    /// angle about the wedge's one edge, so the wedge's two edges read
+    /// on that face while its normal reads in-band parallel at the
+    /// corner's arm. Two poses: standing on the block, its bottom face
+    /// opposed to the block's top; and sunk into it, its top face flush
+    /// with the block's top and aligned with it. The sector names the
+    /// one-carrier class the senses make the pair (`Rest` opposed, a
+    /// continuation aligned), and its recourse is the geometry or the
+    /// tolerance.
     #[test]
-    fn a_declared_tangent_pairs_plane_rung_offers_no_declaration() {
-        use crate::test_support_fixtures::{brick, mapped_cube};
-        let tol = Tol::witness();
-        let band = Band::linear(tol).expect("the witness band");
-        let d = (band.zero() + band.escalate()) / 2.0;
-        let cube = |map: fn(f64, f64, f64, f64) -> Point3<f64>| {
-            mapped_cube::<f64>(move |u, v, w| map(u, v, w, d), tol)
-        };
-        type Pose = (
-            &'static str,
-            crate::body::Body<f64>,
-            crate::body::Body<f64>,
-            [f64; 3],
-        );
-        let poses: [Pose; 3] = [
-            (
-                "G2, a tilted block on a block",
-                brick((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), tol),
-                cube(|u, v, w, d| Point3::new(1.0 + 2.0 * u, 1.0 + 2.0 * v, 1.0 + w + d * u)),
-                [0.0, 0.0, 1.0],
-            ),
-            (
-                "G5, a block tilted along another's edge",
-                brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
-                cube(|u, v, w, d| Point3::new(1.0 + u + d * w, 1.0 + v, w)),
-                [1.0, 0.0, 0.0],
-            ),
-            (
-                "G6, a sheared block on another's corner",
-                brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
-                cube(|u, v, w, d| Point3::new(1.0 + u + d * v, 1.0 + v, 1.0 + w + d * u)),
-                [0.0, 0.0, 1.0],
-            ),
-        ];
-        for (label, a, b, n) in poses {
-            let (a, b) = (finished(label, a, tol), finished(label, b, tol));
-            let pair = (face_facing(&a, n), face_facing(&b, [-n[0], -n[1], -n[2]]));
-            let got = union_declared(&a, &b, pair, Some(GlueClass::TANGENT));
-            assert_eq!(
-                decision_of(label, &got),
-                BooleanDecision::Coincidence(
-                    Coincide::Planes,
-                    DeclarationRead::Spent(GlueClass::TANGENT)
-                ),
-                "{label}"
-            );
-            let text = got.expect_err("it refuses").to_string();
-            assert!(
-                text.starts_with("whether a face of each solid lies on one plane is undecided: ")
-                    && text.ends_with(
-                        "Whichever way it reads, the Boolean cannot yet act on a Tangent \
-                         contact declared between two plane faces. There is no way through yet"
-                    )
-                    && !text.contains("declare the")
-                    && !text.contains("Recourse"),
-                "{label}: {text}"
-            );
-        }
-    }
-
-    /// **A coplanar sector's in-band parallelism offers the declaration
-    /// that settles it**, on a union: a parallelepiped cornered at a
-    /// point of a block's top face by a 5° wedge angle, its face there
-    /// tilted by an in-band angle about the wedge's one edge, so the
-    /// wedge's two edges read on that face while its normal reads
-    /// in-band parallel at the corner's arm. Two poses: standing on the
-    /// block, its bottom face opposed to the block's top; and sunk into
-    /// it, its top face flush with the block's top and aligned with it.
-    /// Undeclared, the sector refuses and offers the one-carrier
-    /// coincidence the senses make the pair (`Rest` opposed, a
-    /// continuation aligned). The block's top reaches far enough from
-    /// the tilt axis that its corners read definitely off the wedge's
-    /// plane, so the door, which reads the pair across both faces,
-    /// contradicts the offered declaration too: the offer does not
-    /// settle these poses
-    /// (`work/hone/a-coplanar-sector-offers-a-rest-the-door-contradicts-across-the-faces.md`).
-    /// The other class is contradicted as well.
-    /// **The lump takes a sector's in-band residue where the door
-    /// bridges it**: the two poses of the row below at a tilt the door
-    /// reads in band over both faces (standing tilted down by `1.2·ε`,
-    /// sunk at `2·ε`; standing tilted down by `2·ε` builds as well).
-    /// Standing
-    /// tilted UP, the union's residue crosses `vol(A) + vol(B)` and the
-    /// volume backstop refuses it
-    /// (`work/reachhold/a-settled-declared-coincidence-crosses-a-tight-volume-bound.md`,
-    /// pinned in `topo/tests/door_backstop_settled_residue.rs`). Undeclared,
-    /// the sector offers the class the senses make the pair; following
-    /// the offer, the union builds at the volume box arithmetic gives,
-    /// and the other class is contradicted.
-    #[test]
-    fn a_coplanar_sectors_in_band_residue_builds_through_the_lump_where_the_door_bridges_it() {
-        use crate::test_support_fixtures::{brick, mapped_cube};
-        let tol = Tol::witness();
-        let band = Band::linear(tol).expect("the witness band");
-        let phi = 5.0_f64.to_radians();
-        let p = Point3::new(0.5, 0.2, 1.0);
-        let block = finished(
-            "block",
-            brick((0.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol),
-            tol,
-        );
-        let block_volume = 3.0 * 4.5;
-        for (label, theta, sunk, facing, offered, other, volume) in [
-            (
-                "standing on the block",
-                -1.2 * band.zero(),
-                false,
-                -1.0,
-                GlueClass::REST,
-                GlueClass::Continuation,
-                // The parallelepiped's volume: its base
-                // parallelogram's area, `sin φ`, times its height.
-                block_volume + phi.sin(),
-            ),
-            (
-                "sunk into the block",
-                2.0 * band.zero(),
-                true,
-                1.0,
-                GlueClass::Continuation,
-                GlueClass::REST,
-                block_volume,
-            ),
-        ] {
-            let (ea, eb) = (
-                geom_core::Vec3::new(1.0, 0.0, 0.0),
-                geom_core::Vec3::new(phi.cos(), phi.sin(), theta * phi.sin()),
-            );
-            let wedge = finished(
-                label,
-                mapped_cube::<f64>(
-                    move |u, v, w| {
-                        let z = if sunk { 0.5 * (w - 1.0) } else { w };
-                        p + ea * u + eb * v + geom_core::Vec3::new(0.0, 0.0, z)
-                    },
-                    tol,
-                ),
-                tol,
-            );
-            let pair = (
-                face_facing(&block, [0.0, 0.0, 1.0]),
-                face_facing(&wedge, [0.0, 0.0, facing]),
-            );
-            let undeclared = union_declared(&block, &wedge, pair, None);
-            assert!(
-                matches!(
-                    decision_of(label, &undeclared),
-                    BooleanDecision::Coincidence(Coincide::Sectors, DeclarationRead::Settles(s))
-                        if s.class() == offered
-                ),
-                "{label}: the lookup offers {offered:?}: {undeclared:?}"
-            );
-            let built = crate::boolean::union(&block, &wedge, tol)
-                .unwrap_or_else(|e| panic!("{label}: following the offer, it builds: {e:?}"));
-            let body = &built.body().expect("a union is not empty").body;
-            let got = crate::mass_properties(body, tol)
-                .expect("its volume")
-                .volume;
-            // The lump takes an in-band residue: the face it glues
-            // moves by less than the band over less than unit area.
-            assert!(
-                (got - volume).abs() <= band.escalate(),
-                "{label}: {got} vs {volume}"
-            );
-            let contradicted = union_declared(&block, &wedge, pair, Some(other));
-            assert!(
-                matches!(
-                    contradicted,
-                    Err(BooleanError::ContactContradicted { .. }
-                        | BooleanError::ContinuationContradicted { .. })
-                ),
-                "{label}: declared {other:?}: {contradicted:?}"
-            );
-        }
-    }
-
-    #[test]
-    fn a_coplanar_sectors_in_band_parallelism_offers_a_declaration_the_door_reads_across_the_faces()
-    {
+    fn a_coplanar_sectors_in_band_parallelism_refuses_on_the_sector() {
         use crate::test_support_fixtures::{brick, mapped_cube};
         let tol = Tol::witness();
         let band = Band::linear(tol).expect("the witness band");
@@ -4976,30 +4774,19 @@ mod declaration_order_rows {
             geom_core::Vec3::new(phi.cos(), phi.sin(), theta * phi.sin()),
         );
         let p = Point3::new(0.5, 0.2, 1.0);
-        // Its top face reaches far enough from the tilt axis that each
-        // of its corners reads definitely off the wedge's tilted plane.
         let block = finished(
             "block",
             brick((0.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol),
             tol,
         );
-        type Pose = (
-            &'static str,
-            crate::body::Body<f64>,
-            f64,
-            GlueClass,
-            GlueClass,
-        );
-        let poses: [Pose; 2] = [
+        let poses: [(&'static str, crate::body::Body<f64>, GlueClass); 2] = [
             (
                 "standing on the block",
                 mapped_cube::<f64>(
                     move |u, v, w| p + ea * u + eb * v + geom_core::Vec3::new(0.0, 0.0, w),
                     tol,
                 ),
-                -1.0,
                 GlueClass::REST,
-                GlueClass::Continuation,
             ),
             (
                 "sunk into the block",
@@ -5009,78 +4796,29 @@ mod declaration_order_rows {
                     },
                     tol,
                 ),
-                1.0,
                 GlueClass::Continuation,
-                GlueClass::REST,
             ),
         ];
-        for (label, wedge, facing, offered, other) in poses {
+        for (label, wedge, class) in poses {
             let wedge = finished(label, wedge, tol);
-            let pair = (face_facing(&block, [0.0, 0.0, 1.0]), {
-                let hits: Vec<_> = wedge
-                    .faces()
-                    .map(|(k, _)| k)
-                    .filter(|&k| {
-                        matches!(crate::boolean::face_carrier(&wedge, k),
-                            Some(crate::boolean::CarrierDesc::Plane { normal, .. })
-                                if normal.z * facing > 0.99)
-                    })
-                    .collect();
-                assert_eq!(
-                    hits.len(),
-                    1,
-                    "{label}: the wedge's face on the block's top"
-                );
-                hits[0]
-            });
-            let undeclared = union_declared(&block, &wedge, pair, None);
+            let got = crate::boolean::union(&block, &wedge, tol).map(|_| ());
             assert!(
                 matches!(
-                    decision_of(label, &undeclared),
+                    decision_of(label, &got),
                     BooleanDecision::Coincidence(Coincide::Sectors, DeclarationRead::Settles(s))
-                        if s.class() == offered
+                        if s.class() == class
                 ),
-                "{label}: the lookup offers {offered:?}, as the senses make the pair: \
-                 {undeclared:?}"
+                "{label}: the sector names {class:?}, as the senses make the pair: {got:?}"
             );
-            let text = undeclared.expect_err("it refuses").to_string();
+            let text = got.expect_err("it refuses").to_string();
             assert!(
                 text.starts_with("how two corners of the two solids overlap where they meet is ")
                     && text.contains(
-                        "Recourse: declare the coincidence, or move the parts so they clearly \
-                         meet or clearly stand apart there, or, if this gap is intended, tighten \
-                         the tolerance below "
-                    ),
+                        "Recourse: move the parts so they clearly meet or clearly stand apart \
+                         there, or, if this gap is intended, tighten the tolerance below "
+                    )
+                    && !text.contains("declare"),
                 "{label}: {text}"
-            );
-            let followed = crate::boolean::union(&block, &wedge, tol);
-            assert!(
-                matches!(
-                    followed,
-                    Err(BooleanError::ContactContradicted {
-                        fact: Some(
-                            crate::boolean::refusal_routes::Contradiction::PlanesNotParallel
-                        ),
-                        ..
-                    } | BooleanError::ContinuationContradicted {
-                        fact: Some(
-                            crate::boolean::refusal_routes::Contradiction::PlanesNotParallel
-                        ),
-                        ..
-                    })
-                ),
-                "{label}: following the offer, the tilt across the block's top contradicts it: \
-                 {:?}",
-                followed.err()
-            );
-            let contradicted = union_declared(&block, &wedge, pair, Some(other));
-            assert!(
-                matches!(
-                    contradicted,
-                    Err(BooleanError::ContactContradicted { .. }
-                        | BooleanError::ContinuationContradicted { .. })
-                ),
-                "{label}: declared {other:?}: {contradicted:?}"
             );
         }
     }

@@ -21,9 +21,7 @@ use crate::common;
 use common::prism;
 use geom_core::Tol;
 use geom_core::{Point3, Vec3};
-use topo::{
-    Body, PlaneSide, SplitPlane, SplitReduceError, ValidationError, VertexKey, split_reduce,
-};
+use topo::{Body, PlaneSide, SplitPlane, SplitReduceError, ValidationError, VertexKey, split_reduce};
 
 fn plane_y<T: geom_core::Decide>(y: f64, ny: f64) -> SplitPlane<T> {
     topo::test_support::split_plane(

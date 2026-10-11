@@ -16,10 +16,7 @@ use crate::common;
 
 use common::{brick, finished, line, prism_z};
 use geom_core::{Point3, Tol};
-use topo::{
-    AtRestBody, Body, BooleanError, BooleanOp, FaceSurface, LoopBoundary, MefSite, MevSite,
-    ValidationError, boolean_reduce, validate, validate_closed,
-};
+use topo::{AtRestBody, Body, BooleanError, BooleanOp, FaceSurface, LoopBoundary, MefSite, MevSite, ValidationError, boolean_reduce, validate, validate_closed};
 
 fn point_of(b: &Body<f64>, he: topo::HalfEdgeKey) -> Point3<f64> {
     *b.get_point(

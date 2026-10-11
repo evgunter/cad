@@ -22,7 +22,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::corpus::body_of;
-use crate::docm7_union_declare::{
+use crate::blocks::{
     declared_union, declared_union_classed, failure, flush_pairs, run,
 };
 use crate::emit_shared_rim_several::{Bx, document, permutations, probe_corpus};
@@ -408,7 +408,7 @@ pub(crate) fn runs_in(
                 .collect();
             for olab in permutations(&(0..outer.len()).collect::<Vec<_>>()) {
                 let members: Vec<RecipeNodeId> = olab.iter().map(|&i| outer[i]).collect();
-                let (docx, top) = crate::fixture::union_over(d1.clone(), &members, Vec::new());
+                let (docx, top) = crate::fixture::union_over(d1.clone(), &members);
                 let ev = run(&docx);
                 each(
                     &format!("{inner:?}{olab:?}"),
@@ -424,7 +424,7 @@ pub(crate) fn runs_in(
     for order in permutations(&(0..case.blocks.len()).collect::<Vec<_>>()) {
         let members: Vec<_> = order.iter().map(|&i| ids[i]).collect();
         let (docx, union) = if case.flush.is_empty() {
-            crate::fixture::union_over(doc.clone(), &members, Vec::new())
+            crate::fixture::union_over(doc.clone(), &members)
         } else {
             declared_union(doc.clone(), &members, flush(&ids))
         };

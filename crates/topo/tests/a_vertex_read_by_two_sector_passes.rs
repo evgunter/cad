@@ -58,11 +58,7 @@ use common::meeting::{
     nest_polygon, orders, posed_box, posed_boxes, posed_prism, poses, wedge,
 };
 use geom_core::{Band, Point3, Tol, Vec3};
-use topo::{
-    AtRestBody, BooleanError, BooleanResult, CensusContact, EntityId, Operand, SectorRead,
-    SideCode, SolidContainment, ValidationError, intersect, mass_properties, point_in_solid,
-    point_in_solid_of, readback, subtract, union, validate_geometric, validate_pseudomanifold,
-};
+use topo::{AtRestBody, BooleanError, BooleanResult, CensusContact, EntityId, Operand, SectorRead, SideCode, SolidContainment, ValidationError, intersect, mass_properties, point_in_solid, point_in_solid_of, readback, subtract, union, validate_geometric, validate_pseudomanifold};
 
 const THIRD: f64 = 1.0 / 3.0;
 

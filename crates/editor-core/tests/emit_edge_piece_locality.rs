@@ -10,7 +10,7 @@
 use std::collections::BTreeMap;
 
 use crate::corpus::body_of;
-use crate::docm7_union_declare::{block, failure, run};
+use crate::blocks::{block, failure, run};
 use crate::fixture::{ang, insert, len, point, scl, step, table};
 use editor_core::{
     Axis3, DocEdit, EntityKey, Entry, Node, ProfileDoc, Qualifier, RoleSeg, SlotId, StableName,

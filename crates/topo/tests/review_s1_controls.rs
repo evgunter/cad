@@ -18,9 +18,9 @@
 
 use crate::common;
 
-use common::{brick, finished, flush_declarations};
+use common::{brick, finished};
 use geom_core::Tol;
-use topo::{Body, BooleanResult, mass_properties, subtract, union_with};
+use topo::{Body, BooleanResult, mass_properties, subtract, union};
 
 fn checked_mesh_volume(body: &Body<f64>) -> f64 {
     let mesh = mesh::tessellate(body, 1e-2, Tol::witness()).expect("tessellate");
@@ -119,10 +119,9 @@ fn control_ring_face_from_interior_pillar() {
         brick((0.75, 1.25), (0.75, 1.25), (2.0, 3.0), Tol::witness()),
         Tol::witness(),
     );
-    let g = match union_with(
+    let g = match union(
         &a,
         &b,
-        &flush_declarations(&a, &b, Tol::witness()),
         Tol::witness(),
     )
     .unwrap()
@@ -160,10 +159,9 @@ fn ring_sense_bridge_census() {
     let BooleanResult::Body(bb) = subtract(&blank, &notch, Tol::witness()).unwrap() else {
         panic!("bridge subtract yields a body");
     };
-    let g = match union_with(
+    let g = match union(
         &a,
         &bb.body,
-        &flush_declarations(&a, &bb.body, Tol::witness()),
         Tol::witness(),
     )
     .unwrap()

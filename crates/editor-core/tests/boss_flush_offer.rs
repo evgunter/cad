@@ -12,7 +12,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::docm7_union_declare::{block, failure, run};
+use crate::blocks::{block, failure, run};
 use crate::fixture::{ang, built_bits, desc, findings_declared, fname, insert, len};
 use editor_core::{
     BooleanCoincidence, BooleanValue, CapEnd, ExtrudeSide, Node, ProfileDoc, RoleSeg, ValuePayload,

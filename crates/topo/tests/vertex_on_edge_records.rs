@@ -9,10 +9,7 @@
 use crate::common;
 
 use geom_core::Tol;
-use topo::{
-    Body, CensusContact, ContactRecords, EdgeKey, StaleDeclaration, ValidationError, VeContact,
-    VertexKey, VfContact, validate_pseudomanifold,
-};
+use topo::{Body, CensusContact, ContactRecords, EdgeKey, StaleDeclaration, ValidationError, VeContact, VertexKey, VfContact, validate_pseudomanifold};
 
 /// `a` = the unit cube and `c` = x∈(0.5,1.5), y∈(−1,0), z∈(−1,0), in
 /// one arena: `c`'s top-front edge lies along `a`'s bottom-front edge

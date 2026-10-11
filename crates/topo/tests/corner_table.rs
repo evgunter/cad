@@ -14,11 +14,11 @@
 
 use crate::common;
 
-use common::{brick, finished, flush_declarations};
+use common::{brick, finished};
 use geom_core::Decide;
 use geom_core::Tol;
 use topo::validate::{validate_closed, validate_geometric};
-use topo::{BooleanResult, BooleanResultKind, mass_properties, union, union_with};
+use topo::{BooleanResult, BooleanResultKind, mass_properties, union};
 
 const TOP_VOL: f64 = 4.0 * 3.0 * 0.25; // 3.0
 const PER_LEG_GAIN: f64 = 0.5 * 0.5 * 1.125 - 0.5 * 0.5 * 0.125; // 0.25
@@ -58,10 +58,9 @@ fn leg<T: Decide + topo::AtRestPolicy>(cx: f64, cy: f64) -> topo::AtRestBody<T> 
 fn corner_aligned_leg_union_tier2_exact() {
     let a = top::<f64>();
     let b = leg(4.0, 3.0);
-    let r = union_with(
+    let r = union(
         &a,
         &b,
-        &flush_declarations(&a, &b, Tol::witness()),
         Tol::witness(),
     )
     .expect("REGRESSION: declared corner-aligned leg union refused");
@@ -93,10 +92,9 @@ fn corner_aligned_table_four_legs_builds() {
     let mut table = top::<f64>();
     for (cx, cy) in [(4.0, 3.0), (4.0, 0.0), (0.0, 3.0), (0.0, 0.0)] {
         let l = leg(cx, cy);
-        let r = union_with(
+        let r = union(
             &table,
             &l,
-            &flush_declarations(&table, &l, Tol::witness()),
             Tol::witness(),
         )
         .expect("declared corner-aligned leg union refused");
@@ -124,10 +122,9 @@ fn undeclared_corner_leg_is_the_declared_leg() {
         BooleanResult::Body(bb) => format!("{:?}", bb.body),
         BooleanResult::Empty => panic!("nonempty overlap cannot be Empty"),
     };
-    let declared = union_with(
+    let declared = union(
         &a,
         &b,
-        &flush_declarations(&a, &b, Tol::witness()),
         Tol::witness(),
     )
     .expect("declared corner-aligned leg union refused");
@@ -140,10 +137,9 @@ fn undeclared_corner_leg_is_the_declared_leg() {
 fn corner_aligned_leg_interval_refuses_or_exact() {
     let a = top::<geom_core::Interval>();
     let b = leg(4.0, 3.0);
-    match union_with(
+    match union(
         &a,
         &b,
-        &flush_declarations(&a, &b, geom_core::Tol::witness()),
         Tol::witness(),
     ) {
         Err(_) => {} // conservative refusal: acceptable

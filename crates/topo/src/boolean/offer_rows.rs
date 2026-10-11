@@ -262,12 +262,6 @@ cases! {
         Valued => turned_wedge(2, true, 200.0, 5.0, 1.0, -D);
     // The arms this pass withdrew, each on the raise that showed its
     // offer false.
-    // The tilt, `D/4` a metre, levered at the declared pair's extent:
-    // the ball around both faces' 3 m × 3 m footprint, `1.5·√2`.
-    tangent_screen_of_a_tilted_block: "Coincidence(Planes)",
-        D / 4.0 * 1.5 * core::f64::consts::SQRT_2, Public,
-        Withdrawn(Because::Refuses("UnsupportedDeclarationClass")) =>
-        tilted_block_declared_tangent();
     membership_along_a_curved_flank: "Coincidence(CurvedFlankSense)", D, Door::Site(
         "the membership tie is read inside the edge-edge resolution, on hand-built sectors: \
          an in-band sense needs a flanker arm inside the band, which the corner's arm rung \
@@ -1028,38 +1022,6 @@ fn lane_wedge(opening_deg: f64, tilt: f64) -> (crate::AtRestBody<f64>, crate::At
     )
 }
 
-/// A block tilted by an in-band angle on a block's top face, the pair
-/// declared `Tangent` (the review's G2 pose).
-fn tilted_block_declared_tangent() -> Result<(), BooleanError> {
-    block_declared_tangent_at(D / 2.0)
-}
-
-/// The same block, its top rising by `tilt` over each metre along `x`.
-fn block_declared_tangent_at(tilt: f64) -> Result<(), BooleanError> {
-    use crate::test_support_fixtures::{brick, mapped_cube};
-    let tol = Tol::witness();
-    let a = finished("block", brick((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), tol), tol);
-    let b = finished(
-        "tilted block",
-        mapped_cube::<f64>(
-            move |u, v, w| Point3::new(1.0 + 2.0 * u, 1.0 + 2.0 * v, 1.0 + w + tilt * u),
-            tol,
-        ),
-        tol,
-    );
-    let facing = |body: &crate::body::Body<f64>, up: bool| {
-        body.faces()
-            .map(|(k, _)| k)
-            .find(|&k| {
-                matches!(super::super::face_carrier(body, k),
-                    Some(super::super::CarrierDesc::Plane { normal, .. })
-                        if (normal.z > 0.99) == up && normal.z.abs() > 0.99)
-            })
-            .unwrap()
-    };
-    super::super::union(&a, &b, tol).map(|_| ())
-}
-
 /// Two corners sharing an edge along `z`, one flanked by a cylinder
 /// face and the other by a plane tangent to it along the edge, their
 /// flankers' arm `arm`: the membership tie on a curved flank (the
@@ -1773,30 +1735,6 @@ fn turned_wedge(
     public_op(k, &big_block(), &wedge)
 }
 
-/// The plane face of `body` whose outward normal is `±z` (`up`) through
-/// height `z`.
-fn z_face(body: &crate::body::Body<f64>, z: f64, up: bool) -> crate::entity::FaceKey {
-    body.faces()
-        .map(|(k, _)| k)
-        .find(|&k| {
-            matches!(super::super::face_carrier(body, k),
-                Some(super::super::CarrierDesc::Plane { normal, origin, .. })
-                    if (normal.z > 0.9) == up && normal.z.abs() > 0.9
-                        && (origin.z - z).abs() < 1e-3)
-        })
-        .unwrap()
-}
-
-/// A wedge on the block `block` (its top at `z = 1`), the wedge's bottom
-/// declared `Rest` on the block's top through the public door, by op `k`.
-fn declared_rest_wedge(
-    k: u8,
-    block: &crate::AtRestBody<f64>,
-    wedge: &crate::AtRestBody<f64>,
-) -> Result<(), BooleanError> {
-    public_op(k, block, wedge)
-}
-
 /// A unit block whose corner sits on the corner `(1, 1, 1)` of the unit
 /// block, turned about `axis` through it by `theta`: their union (the
 /// coincfr4 review's `corner_on_corner`).
@@ -2311,92 +2249,6 @@ fn every_arm_that_offers_a_value_has_an_executed_case() {
         "offering arms with no executed case: {missing:?}\ncases standing for no offering arm: \
          {stale:?}"
     );
-}
-
-// ------------------------------------------------------------------
-// A declared `Rest` at a decided tilt (the coincfr4 review's MAJOR-1).
-// ------------------------------------------------------------------
-
-/// Declares the C2 rows: one `#[ignore]`d child each, run at
-/// [`DESIGN_EPS`] by [`a_declared_rest_at_a_decided_tilt_is_contradicted`].
-macro_rules! declared_rows {
-    ($($name:ident => $raise:expr;)*) => {
-        $(
-            #[test]
-            #[ignore = "a child row: a_declared_rest_at_a_decided_tilt_is_contradicted runs it"]
-            fn $name() {
-                report(stringify!($name), &outcome($raise));
-            }
-        )*
-        const DECLARED_ROWS: &[&str] = &[$(stringify!($name)),*];
-    };
-}
-
-declared_rows! {
-    // The lane's own pose, whose normals decide its tilt at 1e-9.
-    declared_rest_on_a_wedge_tilted_past_the_band_union => {
-        let (block, wedge) = lane_wedge(2.0, 1.5e-8);
-        declared_rest_wedge(0, &block, &wedge)
-    };
-    declared_rest_on_a_wedge_tilted_past_the_band_subtract => {
-        let (block, wedge) = lane_wedge(2.0, 1.5e-8);
-        declared_rest_wedge(1, &block, &wedge)
-    };
-    declared_rest_on_a_wedge_tilted_past_the_band_intersect => {
-        let (block, wedge) = lane_wedge(2.0, 1.5e-8);
-        declared_rest_wedge(2, &block, &wedge)
-    };
-    // The review's W1: the door's ladder bridges the tilt, and the
-    // sector's normals decide it at the arm.
-    declared_rest_on_a_turned_wedge_union => {
-        declared_rest_wedge(0, &big_block(), &review_wedge(true, 37.0, 3.0, 2.0, D))
-    };
-    declared_rest_on_a_turned_wedge_subtract => {
-        declared_rest_wedge(1, &big_block(), &review_wedge(true, 37.0, 3.0, 2.0, D))
-    };
-}
-
-/// **A declared `Rest` pair whose sectors' tilt is decided is
-/// contradicted, and offers neither a declaration nor a tolerance**
-/// (C2, declared through `boolean_op_with`): a decided tilt is no
-/// coincidence a declaration settles, so the decided-tilt arm of `vtxfac`
-/// reads none and refuses the declared pair as the door does at a
-/// smaller tolerance. Removed, the declaration leaves the undeclared
-/// cases `thinner_wedge_tilted_past_the_band` and
-/// `wedge_turned_on_a_block_*`, whose offers are executed true.
-#[test]
-fn a_declared_rest_at_a_decided_tilt_is_contradicted() {
-    let module = module_path!()
-        .split_once("::")
-        .map_or(module_path!(), |(_, m)| m);
-    for name in DECLARED_ROWS {
-        let got = run(&format!("{module}::{name}"), DESIGN_EPS);
-        let Outcome::Refused { key, defect, text } = &got else {
-            panic!("{name}: a declared Rest at a decided tilt builds: {got:?}");
-        };
-        assert!(
-            key == "ContactContradicted"
-                && !defect
-                && text.contains("the declared planes are not parallel")
-                && !text.contains("declare the coincidence")
-                && !text.contains("tighten"),
-            "{name}: {got:?}"
-        );
-    }
-    // Undeclared, the same poses offer the tolerance and no declaration.
-    for name in [
-        "thinner_wedge_tilted_past_the_band",
-        "wedge_turned_on_a_block_union",
-    ] {
-        let got = run(&format!("{module}::{name}"), DESIGN_EPS);
-        assert!(
-            matches!(&got, Outcome::Refused { key, text, .. }
-                if key == "Coincidence(Sectors)"
-                    && !text.contains("declare")
-                    && text.contains("tighten")),
-            "{name}: {got:?}"
-        );
-    }
 }
 
 // ------------------------------------------------------------------
@@ -2924,12 +2776,6 @@ lever_rows! {
         arc_against_a_wall(1.0, Some(ContactClass::Rest));
     covered_vertex_moved_clear_of_its_face: Some("ContactContradicted") =>
         arc_against_a_wall(1.1, Some(ContactClass::Rest));
-    // `Coincidence(Planes)`: a declared-`Tangent` pair of planes, clearly
-    // parallel (contradicted) or clearly tilted (the class unsupported):
-    // no move of the parts passes, so the arm ends as that frontier.
-    tangent_planes_made_parallel: Some("ContactContradicted") => block_declared_tangent_at(0.0);
-    tangent_planes_clearly_tilted: Some("UnsupportedDeclarationClass") =>
-        block_declared_tangent_at(1e-3);
     // `FlankSense`, overlapping and undeclared: lengthened, the sense
     // decides and the coplanar pair, which no glue door glued here,
     // refuses next, whose own story is the declaration, which passes.

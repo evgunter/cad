@@ -7,12 +7,9 @@
 
 use crate::common;
 
-use common::{brick, finished, flush_declarations};
+use common::{brick, finished};
 use geom_core::Tol;
-use topo::{
-    AtRestBody, Body, BooleanBody, BooleanError, BooleanResult, CarriedVv, ContactClass,
-    intersect_with, mass_properties, subtract_with, union_with, validate_pseudomanifold,
-};
+use topo::{AtRestBody, Body, BooleanBody, BooleanError, BooleanResult, ContactClass, intersect, mass_properties, subtract, union, validate_pseudomanifold};
 
 /// `c`'s x-range: over `b` alone, inside `a ∩ b`, and across `a`'s
 /// far end.

@@ -8,10 +8,7 @@
 use crate::common;
 use common::{brick, finished};
 use geom_core::Tol;
-use topo::{
-    AtRestBody, Backing, BooleanBody, BooleanDeclarations, BooleanResult, Cell, Coincidence,
-    ContactClass, DecisionSite, Operand, Relation, RowCell, union_with,
-};
+use topo::{AtRestBody, Backing, BooleanBody, BooleanResult, Cell, Coincidence, ContactClass, DecisionSite, Operand, Relation, RowCell, union};
 
 fn tol() -> Tol {
     Tol::witness()

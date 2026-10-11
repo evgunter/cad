@@ -255,7 +255,7 @@ fn booleans_beside_a_far_carrier_never_answer_wrong() {
             {
                 let decls = topo::BooleanDeclarations::none();
                 let got =
-                    topo::boolean_op_with(op, &l, &c, &decls, topo::SweepStrategy::Realized, tol);
+                    topo::boolean_op_with(op, &l, &c, &topo::BooleanInputs::default(), topo::SweepStrategy::Realized, tol);
                 match got {
                     Ok(r) => {
                         let v = r

@@ -24,7 +24,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::docm7_union_declare::block;
+use crate::blocks::block;
 use crate::fixture;
 use crate::fixture::resolver::PartStore;
 use editor_core::Formula;

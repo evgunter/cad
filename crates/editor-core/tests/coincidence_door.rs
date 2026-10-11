@@ -6,7 +6,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::docm7_union_declare::{block, failure, run};
+use crate::blocks::{block, failure, run};
 use crate::fixture::{ang, fname, insert, len, len2, on_frame, out, scl, table};
 
 use editor_core::{
@@ -256,7 +256,7 @@ fn a_unions_rows_follow_its_member_order() {
     let mut seen = Vec::new();
     for members in [[a, b], [b, a]] {
         let (doc, union) =
-            crate::docm7_union_declare::declared_union(doc.clone(), &members, pairs.clone());
+            crate::blocks::declared_union(doc.clone(), &members, pairs.clone());
         let ev = run(&doc);
         let got = rows(&ev, union);
         assert_eq!(got.len(), n, "{members:?}: one row per declared pair");
@@ -958,9 +958,9 @@ fn a_union_records_a_vertex_touch_once() {
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (1.0, 2.0), (1.0, 2.0), 1.0, 2.0);
     let (doc, far) = block(doc, (6.0, 7.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, pair) = crate::docm7_union_declare::declared_union(doc, &[a, b], Vec::new());
+    let (doc, pair) = crate::blocks::crate::fixture::union_over(doc, &[a, b]);
     // The kiss is the last step's, so its record is the union's.
-    let (doc, union) = crate::docm7_union_declare::declared_union(doc, &[far, a, b], Vec::new());
+    let (doc, union) = crate::blocks::crate::fixture::union_over(doc, &[far, a, b]);
     let ev = run(&doc);
     let mut all = Vec::new();
     for (what, node) in [("pair", pair), ("union", union)] {

@@ -178,12 +178,6 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             },
         ),
         (
-            "SetDeclareOnNonDeclaring",
-            EditError::SetDeclareOnNonDeclaring {
-                node: s(5, "Extrude"),
-            },
-        ),
-        (
             "SetProgramOnNonProfile",
             EditError::SetProgramOnNonProfile {
                 node: s(5, "Extrude"),

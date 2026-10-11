@@ -14,7 +14,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus::body_of;
-use crate::docm7_union_declare::{
+use crate::blocks::{
     block, declared_union, declared_union_classed, failure, flush_pairs, run,
 };
 use crate::docm8_flat_merged::split_fixture;

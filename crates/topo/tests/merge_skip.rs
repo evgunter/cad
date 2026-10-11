@@ -18,10 +18,10 @@
 
 use crate::common;
 
-use common::{brick, finished, flush_declarations};
+use common::{brick, finished};
 use geom_core::Tol;
 use topo::validate::{validate_closed, validate_geometric};
-use topo::{BooleanResult, mass_properties, union_with, validate_pseudomanifold};
+use topo::{BooleanResult, mass_properties, union, validate_pseudomanifold};
 
 /// The probe: a = [0,1]³, b = [0.5,1.5]×[0.25,1.25]×[0,1] — caps flush
 /// (declared), walls offset (transversal). Exact dyadic volume:
@@ -39,9 +39,8 @@ fn declared_l_corner_caps_merge_and_stay_tier3_green() {
         brick::<f64>((0.5, 1.5), (0.25, 1.25), (0.0, 1.0), tol),
         tol,
     );
-    let decls = flush_declarations(&a, &b, Tol::witness());
     assert_eq!(decls.coincident_faces.len(), 2, "both caps declared");
-    let r = union_with(&a, &b, &decls, Tol::witness()).expect("declared flush-caps union runs");
+    let r = union(&a, &b, Tol::witness()).expect("declared flush-caps union runs");
     let BooleanResult::Body(bb) = r else {
         panic!("overlapping union cannot be Empty");
     };

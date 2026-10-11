@@ -32,10 +32,10 @@
 //! extrude plus the second union; the kiss chain is reused).
 
 use editor_core::ExtrudeSide;
-use editor_core::{CapEnd, DocEdit, Node, RecipeNodeId, RoleSeg, SitedRef, SlotId, StableName};
+use editor_core::{CapEnd, DocEdit, Node, RecipeNodeId, SlotId, StableName};
 
 use crate::fixture;
-use crate::fixture::{len, vname};
+use crate::fixture::len;
 
 use super::{CorpusDoc, MassPin, Recorder};
 
@@ -101,35 +101,8 @@ pub fn document() -> CorpusDoc {
         side: ExtrudeSide::Along,
     });
 
-    // The carry: the surviving kiss is re-entered BY NAME — both names
-    // resolve in u1's table (the A operand of the union below), so
-    // this is `resolve_declarations`' same-operand carried v-v arm,
-    // and the record survives into the second union's contacts.
-    let kiss_a = vname(
-        u1,
-        RoleSeg::From {
-            read: fixture::out(&r.doc, a),
-            of: outer_cap_vertex(&r.doc, a, CapEnd::End, 2).into(),
-        },
-    );
-    let kiss_b = vname(
-        u1,
-        RoleSeg::From {
-            read: fixture::out(&r.doc, b),
-            of: outer_cap_vertex(&r.doc, b, CapEnd::Start, 0).into(),
-        },
-    );
-    // Both names are rows of `u1`'s table — the same-operand
-    // carried pair — so both are sited there, which is what says
-    // they are operand A's carry and not a cross-operand contact.
-    let u1_out = fixture::out(&r.doc, u1);
-    let decl = editor_core::declare_rest(vec![(
-        SitedRef::new(u1_out, kiss_a),
-        SitedRef::new(u1_out, kiss_b),
-    )]);
     let u2 = r.insert(Node::Union {
         members: editor_core::Bodies::Spelled(vec![u1.into(), c.into()]),
-        declare: decl,
     });
 
     r.place(u2);

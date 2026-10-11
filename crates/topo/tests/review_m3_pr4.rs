@@ -10,7 +10,7 @@
 
 use crate::common;
 
-use common::{brick, finished, flush_declarations, prism_z};
+use common::{brick, finished, prism_z};
 use geom_core::Decide;
 use geom_core::Tol;
 use topo::{AtRestBody, Body, BooleanError, BooleanOp, BooleanReduction, boolean_reduce, validate};
@@ -39,11 +39,10 @@ fn reduce_ok<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 ) -> BooleanReduction<T> {
     let (da, db) = (dump(a), dump(b));
     // M4 PR 5: the review corpus declares its intended flush contacts.
-    let red = topo::boolean_reduce_declared(
+    let red = topo::boolean_reduce(
         op,
         a,
         b,
-        &flush_declarations(a, b, Tol::witness()),
         Tol::witness(),
     )
     .unwrap();
@@ -325,9 +324,9 @@ fn assert_sound(
 ) {
     let tol = Tol::witness();
     let res = match op {
-        BooleanOp::Union => topo::union_with(a, b, decls, tol),
-        BooleanOp::Intersect => topo::intersect_with(a, b, decls, tol),
-        BooleanOp::Subtract => topo::subtract_with(a, b, decls, tol),
+        BooleanOp::Union => topo::union(a, b, tol),
+        BooleanOp::Intersect => topo::intersect(a, b, tol),
+        BooleanOp::Subtract => topo::subtract(a, b, tol),
     };
     let bb = match res {
         Ok(topo::BooleanResult::Empty) if volume == 0.0 => return,
@@ -388,7 +387,6 @@ fn reflex_edge_touch_benign() {
         prism_z::<f64>(&[(1.0, 1.0), (2.0, 1.0), (1.5, 1.8)], 0.0, 1.0, tol).body,
         tol,
     );
-    let decls = flush_declarations(&a, &flush, tol);
     for (op, volume) in [
         (BooleanOp::Union, 3.4),
         (BooleanOp::Intersect, 0.0),
@@ -417,7 +415,6 @@ fn reflex_edge_crossing_builds_sound() {
         .body,
         Tol::witness(),
     );
-    let decls = flush_declarations(&a, &b, Tol::witness());
     for (op, volume) in [
         (BooleanOp::Union, 3.2),
         (BooleanOp::Intersect, 0.2),

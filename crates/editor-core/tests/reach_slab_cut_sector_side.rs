@@ -18,7 +18,7 @@ use editor_core::ExtrudeSide;
 use editor_core::Formula;
 
 use crate::corpus::body_of;
-use crate::docm7_union_declare::{block, failure, run};
+use crate::blocks::{block, failure, run};
 use crate::emit_shared_rim_several::permutations;
 use crate::fixture::{frame, insert, len};
 use editor_core::{Evaluation, LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId};

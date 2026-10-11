@@ -15,11 +15,7 @@ use crate::common;
 use common::{brick, finished, mapped_cube, prism_z};
 use geom_core::Tol;
 use geom_core::{Decide, Point3, Vec3};
-use topo::{
-    AtRestBody, BooleanBody, BooleanError, BooleanResult, ContactRecords, ValidationError,
-    intersect_with, mass_properties, subtract_with, union, union_with, validate_geometric,
-    validate_pseudomanifold,
-};
+use topo::{AtRestBody, BooleanBody, BooleanError, BooleanResult, ContactRecords, ValidationError, intersect, mass_properties, subtract, union, validate_geometric, validate_pseudomanifold};
 
 type BoolOp<T> = fn(
     &AtRestBody<T>,
@@ -139,10 +135,9 @@ fn skew_edges_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPoli
         "3′ ≡ tier 3 here"
     );
     assert!(matches!(
-        intersect_with(
+        intersect(
             &a,
             &b,
-            &common::flush_declarations(&a, &b, Tol::witness()),
             Tol::witness()
         )
         .unwrap(),

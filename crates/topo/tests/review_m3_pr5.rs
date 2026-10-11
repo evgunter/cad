@@ -13,14 +13,10 @@
 
 use crate::common;
 
-use common::{brick, finished, flush_declarations, prism_z};
+use common::{brick, finished, prism_z};
 use geom_core::Tol;
 use geom_core::{Band, Decide, Point3};
-use topo::{
-    AtRestBody, Body, BooleanBody, BooleanError, BooleanResult, BooleanResultKind,
-    SolidContainment, mass_properties, point_in_solid, subtract, subtract_with, union_with,
-    validate, validate_closed,
-};
+use topo::{AtRestBody, Body, BooleanBody, BooleanError, BooleanResult, BooleanResultKind, SolidContainment, mass_properties, point_in_solid, subtract, union, validate, validate_closed};
 
 /// The R2/R3 U-slab (nonconvex caps, two prongs).
 fn uslab() -> AtRestBody<f64> {
@@ -97,7 +93,6 @@ fn assert_props(body: &Body<f64>, volume: f64, area: f64) {
 /// untouched — never a silent wrong body.
 fn assert_typed_refusal<T: Decide>(op: BoolOp<T>, a: &AtRestBody<T>, b: &AtRestBody<T>) -> String {
     let (a0, b0) = (format!("{a:?}"), format!("{b:?}"));
-    let d = flush_declarations(a, b, Tol::witness());
     let e1 = op(a, b, &d, Tol::witness()).map(|_| ()).unwrap_err();
     let e2 = op(a, b, &d, Tol::witness()).map(|_| ()).unwrap_err();
     assert_eq!(format!("{a:?}"), a0, "operand A untouched by refusal");
@@ -219,10 +214,9 @@ fn pocket_orientation_matrix() {
     for (name, x, y, z) in pillars {
         let a = finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
         let b = finished_brick::<f64>(x, y, z);
-        match subtract_with(
+        match subtract(
             &a,
             &b,
-            &flush_declarations(&a, &b, Tol::witness()),
             Tol::witness(),
         ) {
             Ok(BooleanResult::Body(body)) => {
@@ -308,10 +302,9 @@ fn flush_pillar_rest_union_honest() {
 fn corner_flush_pillar_union_honest() {
     let a = finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = finished_brick::<f64>((0.0, 0.5), (0.0, 0.5), (2.0, 3.0));
-    match union_with(
+    match union(
         &a,
         &b,
-        &flush_declarations(&a, &b, Tol::witness()),
         Tol::witness(),
     ) {
         Ok(BooleanResult::Body(body)) => {

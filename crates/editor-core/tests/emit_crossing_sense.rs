@@ -10,7 +10,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus::body_of;
-use crate::docm7_union_declare::{block, failure, run};
+use crate::blocks::{block, failure, run};
 use crate::fixture::{ends, fname, insert, point, table};
 use editor_core::{
     CapEnd, EntityKey, Entry, Node, ProfileDoc, RecipeNodeId, RoleSeg, Sense, SitedRef, StableName,

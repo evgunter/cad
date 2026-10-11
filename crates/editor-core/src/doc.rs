@@ -2625,10 +2625,9 @@ mod tests {
     use crate::ident::{ContentPin, DocRef, DocumentId};
     use crate::mate::ContactClass;
     use crate::names::{EntityKind, FaceName, StableName};
-    use crate::node::{InterfaceCrossing, InterfaceRecord, Node, RecipeNodeId, SitedRef};
+    use crate::node::{InterfaceCrossing, InterfaceRecord, Node, RecipeNodeId};
     use crate::program::ProfileDoc;
     use geom_core::Tol;
-    use topo::BooleanCoincidence;
 
     test_utils::f6_variants! {
         /// **The document's name carriers**, welded to [`Carrier`] by
@@ -2718,46 +2717,11 @@ mod tests {
     #[test]
     fn name_carriers_reads_the_payloads_then_the_store() {
         let mut doc: ProfileDoc = Doc::empty_derived("carriers", Tol::witness());
-        let first = name(9, EntityKind::Face);
-        let second = name(9, EntityKind::Edge);
-        let third = name(10, EntityKind::Face);
         let painted_a = name(0, EntityKind::Face);
         let painted_b = name(1, EntityKind::Face);
 
-        doc.nodes.insert(
-            RecipeNodeId::new(0, 0),
-            Node::Union {
-                members: crate::Bodies::Spelled(vec![
-                    crate::VarId::new(0, 98).into(),
-                    crate::VarId::new(0, 99).into(),
-                ]),
-                declare: vec![(
-                    (
-                        SitedRef::new(crate::VarId::new(0, 98), first.clone()),
-                        SitedRef::new(crate::VarId::new(0, 98), second.clone()),
-                    ),
-                    BooleanCoincidence::REST,
-                )],
-            },
-        );
-        doc.nodes.insert(
-            RecipeNodeId::new(0, 1),
-            Node::Union {
-                members: crate::Bodies::Spelled(vec![
-                    crate::VarId::new(0, 98).into(),
-                    crate::VarId::new(0, 99).into(),
-                ]),
-                declare: vec![(
-                    (
-                        SitedRef::new(crate::VarId::new(0, 98), third.clone()),
-                        SitedRef::new(crate::VarId::new(0, 98), third.clone()),
-                    ),
-                    BooleanCoincidence::TANGENT,
-                )],
-            },
-        );
-        // The third payload shape this walk reaches: an instance's
-        // interface record. Its crossing's `outer` is a name in THIS
+        // The payload shape this walk reaches: an instance's interface
+        // record. Its crossing's `outer` is a name in THIS
         // document and is carried by the INSTANCE — which is what a
         // DM7 strand over it names — while its `inner` is no name of
         // this document at all (`Node::payload_names`' arm says why),
@@ -2790,22 +2754,6 @@ mod tests {
         assert_eq!(
             doc.name_carriers().collect::<Vec<_>>(),
             vec![
-                NameCarrier::Payload {
-                    node: RecipeNodeId::new(0, 0),
-                    name: &first,
-                },
-                NameCarrier::Payload {
-                    node: RecipeNodeId::new(0, 0),
-                    name: &second,
-                },
-                NameCarrier::Payload {
-                    node: RecipeNodeId::new(0, 1),
-                    name: &third,
-                },
-                NameCarrier::Payload {
-                    node: RecipeNodeId::new(0, 1),
-                    name: &third,
-                },
                 NameCarrier::Payload {
                     node: RecipeNodeId::new(0, 2),
                     name: &crossed,

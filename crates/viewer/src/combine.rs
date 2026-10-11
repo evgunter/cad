@@ -232,8 +232,7 @@ impl BooleanTool {
     }
 
     /// **The one committed edit**: the session op that inserts the
-    /// boolean node through the ordinary commit door, declaring no
-    /// contact.
+    /// boolean node through the ordinary commit door.
     ///
     /// # Errors
     ///

@@ -15,8 +15,7 @@ use crate::common;
 
 use common::{brick, finished};
 use geom_core::Tol;
-use topo::flush::{declare_all, find_flush_candidates};
-use topo::{AtRestBody, Body, BooleanError, BooleanResult, mass_properties, union_with};
+use topo::{AtRestBody, Body, BooleanError, BooleanResult, mass_properties, union};
 
 /// The union of `a` and `b`, every flush pair the detector finds
 /// declared.
@@ -26,7 +25,7 @@ fn declared_union(
 ) -> Result<AtRestBody<f64>, BooleanError> {
     let tol = Tol::witness();
     let decls = declare_all(&find_flush_candidates(a, b, tol).expect("the flush detector decides"));
-    match union_with(a, b, &decls, tol)? {
+    match union(a, b, tol)? {
         BooleanResult::Body(body) => Ok(body.body),
         BooleanResult::Empty => panic!("a union of non-empty blocks cannot be empty"),
     }

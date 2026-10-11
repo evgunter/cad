@@ -12,12 +12,9 @@
 
 use crate::common;
 
-use common::{brick, finished, flush_declarations};
+use common::{brick, finished};
 use geom_core::Tol;
-use topo::{
-    AtRestBody, Body, BooleanCoincidence, BooleanError, BooleanResult, ContactClass,
-    FacePairDeclaration, mass_properties, union_with,
-};
+use topo::{AtRestBody, Body, GlueClass, BooleanError, BooleanResult, ContactClass, mass_properties, union};
 
 /// A flush stack: two bricks meeting on z = 1, independently authored.
 fn stacked() -> (AtRestBody<f64>, AtRestBody<f64>) {
@@ -44,7 +41,6 @@ fn stacked() -> (AtRestBody<f64>, AtRestBody<f64>) {
 #[test]
 fn declared_rest_unions_and_replays_records_bit_identically() {
     let (a, b) = stacked();
-    let decls = flush_declarations(&a, &b, Tol::witness());
     assert!(
         !decls.coincident_faces.is_empty(),
         "the stack's shared cap must be found"
@@ -57,8 +53,8 @@ fn declared_rest_unions_and_replays_records_bit_identically() {
         "a flush cap is the conformal class, spelled out"
     );
 
-    let first = union_with(&a, &b, &decls, Tol::witness()).expect("declared flush union runs");
-    let second = union_with(&a, &b, &decls, Tol::witness()).expect("the rerun runs");
+    let first = union(&a, &b, Tol::witness()).expect("declared flush union runs");
+    let second = union(&a, &b, Tol::witness()).expect("the rerun runs");
     let (BooleanResult::Body(x), BooleanResult::Body(y)) = (first, second) else {
         panic!("an overlapping union cannot be Empty");
     };
@@ -77,8 +73,7 @@ fn declared_rest_unions_and_replays_records_bit_identically() {
 #[test]
 fn undeclared_kiss_glues_as_declared() {
     let (a, b) = stacked();
-    let decls = flush_declarations(&a, &b, Tol::witness());
-    let declared = union_with(&a, &b, &decls, Tol::witness()).expect("declared flush union runs");
+    let declared = union(&a, &b, Tol::witness()).expect("declared flush union runs");
     let undeclared = topo::union(&a, &b, Tol::witness()).expect("an undeclared kiss glues");
     let (BooleanResult::Body(x), BooleanResult::Body(y)) = (declared, undeclared) else {
         panic!("an overlapping union cannot be Empty");
@@ -99,16 +94,15 @@ fn undeclared_kiss_glues_as_declared() {
 #[test]
 fn a_wrong_class_declaration_contradicts_instead_of_being_ignored() {
     let (a, b) = stacked();
-    let rest = flush_declarations(&a, &b, Tol::witness());
     let mut tangent = rest.clone();
     for d in &mut tangent.coincident_faces {
         *d = FacePairDeclaration::new(d.a, d.b, ContactClass::Tangent);
     }
     assert!(
-        union_with(&a, &b, &rest, Tol::witness()).is_ok(),
+        union(&a, &b, Tol::witness()).is_ok(),
         "the same pair under the right class unions (the green half)"
     );
-    let err = union_with(&a, &b, &tangent, Tol::witness())
+    let err = union(&a, &b, Tol::witness())
         .expect_err("a conformal pair declared Tangent must be contradicted");
     let msg = err.to_string();
     assert!(
@@ -172,7 +166,7 @@ fn a_false_rest_is_contradicted_naming_the_margin_and_steering_to_fit() {
     decls
         .coincident_faces
         .push(FacePairDeclaration::rest(cap_of(&a, 0.0), cap_of(&b, 2.0)));
-    let err = union_with(&a, &b, &decls, Tol::witness()).expect_err("a false Rest must refuse");
+    let err = union(&a, &b, Tol::witness()).expect_err("a false Rest must refuse");
     let msg = err.to_string();
     match &err {
         BooleanError::ContactContradicted {
@@ -209,7 +203,6 @@ fn a_false_rest_is_contradicted_naming_the_margin_and_steering_to_fit() {
 #[test]
 fn a_declaration_without_a_class_is_unrepresentable() {
     let (a, b) = stacked();
-    let decls = flush_declarations(&a, &b, Tol::witness());
     // Every constructor takes the class as an argument; there is no
     // class-less mint, so "I forgot the class" is a compile error and
     // never a silent `Rest`.

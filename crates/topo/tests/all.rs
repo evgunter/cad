@@ -287,8 +287,6 @@ mod rigid_map_near_eps_plane_nurbs;
 mod rim_dim_boolean_twins;
 #[path = "rim_dim_review_probes.rs"]
 mod rim_dim_review_probes;
-#[path = "seat3_flush_detector.rs"]
-mod seat3_flush_detector;
 #[path = "shell_operand_gate.rs"]
 mod shell_operand_gate;
 #[path = "shell_roles.rs"]

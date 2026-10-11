@@ -499,13 +499,13 @@ class TestBenchStand(BenchWorkspace):
 
     def test_last_maintenance_describes_the_last_accepted_edit_at_every_door(self):
         """`last_maintenance` says "the LAST accepted edit", and `Doc`
-        has four doors that accept one: `apply`, `insert`, `declare`
-        and `declare_all`. A door that swaps the document without the
+        has two doors that accept one: `apply` and `insert`. A door
+        that swaps the document without the
         record leaves the reading describing an EARLIER edit, which is
         worse than no reading — it is a plausible one about the wrong
         subject.
 
-        The recorded refactorings are the fifth and sixth doors, and
+        The recorded refactorings are the third and fourth doors, and
         they answer for a whole edit LIST rather than one edit:
         `test_the_refactoring_doors_hand_back_the_maintenance_their_edits_performed`
         is their half of the same funnel."""
@@ -538,7 +538,7 @@ class TestBenchStand(BenchWorkspace):
         # is now EMPTY, not the clear still standing from before.
         lower = slab((0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
         upper = slab((0.25 * m, 0.75 * m), (0.25 * m, 0.75 * m), (1 * m, 1.5 * m))
-        glued = doc.insert(Node.union([lower, upper]))
+        doc.insert(Node.union([lower, upper]))
         self.assertEqual(doc.last_maintenance, [])
         # `apply`: deleting a mate records no frame, so it reports
         # nothing. Put post_b back at an offset and re-mate it through
@@ -562,17 +562,8 @@ class TestBenchStand(BenchWorkspace):
             [(r.variant, r.node) for r in doc.last_maintenance],
             [("offset_cleared", post_b)],
         )
-        # `declare` and `declare_all`: a declared flush contact joins
-        # no groups, so each door's own reading is empty — the clear
-        # belonged to the edit before it.
-        findings = evaluate(doc).find_flush_candidates(lower, upper)
-        self.assertEqual(len(findings), 1)
-        doc.declare(glued, findings[0])
-        self.assertEqual(doc.last_maintenance, [])
         doc.regauge_then_mate(remate, resolver=self.ws)
         self.assertEqual(doc.last_maintenance, [], "one group already: nothing joins")
-        doc.declare_all(glued, findings)
-        self.assertEqual(doc.last_maintenance, [])
 
     def test_the_refactoring_doors_hand_back_the_maintenance_their_edits_performed(
         self,

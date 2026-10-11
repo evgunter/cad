@@ -15,12 +15,7 @@
 use crate::common;
 
 use geom_core::{Decide, Dual64, Interval, Point3, Tol, Vec3};
-use topo::{
-    AtRestBody, AtRestOutcome, AtRestPolicy, Body, BooleanError, Operand, SectionError, ShellKey,
-    SolidKey, SplitError, SplitPart, SplitPlane, SplitReduceError, ValidationError,
-    classify_neighborhood, mass_properties, mass_properties_structural, plane_section, split,
-    split_reduce, vertex_sides,
-};
+use topo::{AtRestBody, AtRestOutcome, AtRestPolicy, Body, BooleanError, Operand, SectionError, ShellKey, SolidKey, SplitError, SplitPart, SplitPlane, SplitReduceError, ValidationError, classify_neighborhood, mass_properties, mass_properties_structural, plane_section, split, split_reduce, vertex_sides};
 
 /// The triangle (0,0), 80°, 190° on the unit circle, counterclockwise
 /// when `ccw`.

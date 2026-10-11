@@ -26,7 +26,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus::body_of;
-use crate::docm7_union_declare::{block, run};
+use crate::blocks::{block, run};
 use crate::emit_boolean_vertex_keys::{
     edge_touch_outside, ell_and_tip, face_touch, named_geometry, nested, seamed_touch,
 };
@@ -113,7 +113,7 @@ fn union_of(
     let doc = ProfileDoc::empty_derived("emit_union_member_order", Tol::witness());
     let (doc, x, y) = fixture(doc);
     let members = if swap { vec![y, x] } else { vec![x, y] };
-    let (doc, u) = crate::fixture::union_over(doc, &members, Vec::new());
+    let (doc, u) = crate::fixture::union_over(doc, &members);
     let (xr, yr) = (out(&doc, x), out(&doc, y));
     (run(&doc), u, [(x, xr), (y, yr)])
 }
@@ -366,7 +366,7 @@ fn a_seam_passed_through_a_split_and_cut_later_is_named() {
     let (doc, plus) = pair(doc, Op::Union, below, cut);
     let ev = run(&doc);
     for (what, id) in [("subtract", minus), ("union", plus)] {
-        if let Some(e) = crate::docm7_union_declare::failure(&ev, id) {
+        if let Some(e) = crate::blocks::failure(&ev, id) {
             panic!("{what} refused: {e}");
         }
         let ranked = named_geometry(&ev, id)
@@ -425,7 +425,7 @@ fn a_seam_between_two_placements_of_one_prototype_is_named() {
     ids.push(("union node", node));
     let ev = run(&doc);
     for (what, id) in ids {
-        if let Some(e) = crate::docm7_union_declare::failure(&ev, id) {
+        if let Some(e) = crate::blocks::failure(&ev, id) {
             panic!("{what} refused: {e}");
         }
         let seams = named_geometry(&ev, id)
@@ -453,7 +453,7 @@ fn a_seam_between_two_placements_of_one_prototype_is_named() {
 /// same face.
 #[test]
 fn a_fragments_borders_walls_are_one_spelling_in_every_member_order() {
-    use crate::docm7_union_declare::{declared_union, flush_pairs};
+    use crate::blocks::{declared_union, flush_pairs};
     let tables: Vec<std::collections::BTreeMap<String, String>> = [[0usize, 1, 2], [1, 0, 2]]
         .into_iter()
         .map(|p| {

@@ -3,9 +3,9 @@
 mod analysis;
 mod assembly;
 pub(crate) mod checks;
+mod contact;
 pub(crate) mod doc;
 mod expr;
-mod flush;
 mod mate;
 mod measure;
 mod mesh;
@@ -944,7 +944,7 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     mate::register(m)?;
     assembly::register(m)?;
     refactor::register(m)?;
-    flush::register(m)?;
+    contact::register(m)?;
     checks::register(m)?;
     mesh::register(m)?;
     value::register(m)?;

@@ -8,7 +8,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::docm7_union_declare::{block, declared_union, failure, flush_pairs, run};
+use crate::blocks::{block, declared_union, failure, flush_pairs, run};
 use crate::emit_shared_rim_several::{Bx, document, permutations};
 use crate::emit_union_rim_piece_ranks::signature;
 use crate::fixture::{flush_segs, fname, insert, member_entity, out, table};

@@ -1211,9 +1211,6 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         // The lane cannot carry what the named nodes hold; neither
         // node is wrong, and the f64 lane builds them.
         NodeErrorKind::SeedPinnedSection { .. } | NodeErrorKind::DerivedFrameSection { .. } => None,
-        // Names the site the declaration chose, and the declaration is
-        // the erring node's own payload: no other row to go to.
-        NodeErrorKind::DeclareSiteNotAnOperand { .. } => None,
         // Names the failing instance itself.
         NodeErrorKind::CrossingUnverified { .. } => None,
         // The kernel's own words: "repair <the node>" — the gauge, or
@@ -1230,7 +1227,6 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         // or a node in ANOTHER document's id space (`PartFault`), which
         // no row of this tree is.
         NodeErrorKind::Part { .. }
-        | NodeErrorKind::DeclareResolve { .. }
         | NodeErrorKind::SelectResolve { .. }
         | NodeErrorKind::SelectKind { .. }
         | NodeErrorKind::MeasureRefUnreadable { .. }
@@ -1273,8 +1269,6 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::PlacementsUncertified { .. }
         | NodeErrorKind::PlacementRule(_)
         | NodeErrorKind::UnschedulableCycle
-        | NodeErrorKind::DeclareUnsupportedPair { .. }
-        | NodeErrorKind::DeclaredContactUnbacked { .. }
         | NodeErrorKind::BlendSelectionEmpty { .. }
         | NodeErrorKind::Shell(_)
         | NodeErrorKind::ShellLaneUnsupported { .. }

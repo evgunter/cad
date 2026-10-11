@@ -59,7 +59,7 @@ fn three_boxes(order: [usize; 3]) -> (ProfileDoc, [RecipeNodeId; 3], RecipeNodeI
     let (doc, b) = cube(doc, 2.0);
     let (doc, c) = cube(doc, 4.0);
     let boxes = [a, b, c];
-    let (doc, u) = crate::fixture::union_over(doc, &order.map(|i| boxes[i]), Vec::new());
+    let (doc, u) = crate::fixture::union_over(doc, &order.map(|i| boxes[i]));
     (doc, boxes, u)
 }
 

@@ -8,16 +8,12 @@
 
 use crate::common;
 
-use common::{brick, finished, flush_declarations};
+use common::{brick, finished};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
 use topo::boolean::contact_verify::tangent_locus_relation;
 use topo::boolean::plane_eq::PlaneIdentity;
-use topo::{
-    Body, BooleanCoincidence, CarrierDesc, CarrierEqError, CarrierRelation, ContactClass,
-    ContactRecords, ContactRefusal, ContactVerdict, CurveContact, FacePairDeclaration,
-    PatchContact, ValidationError, carrier_eq, validate_pseudomanifold,
-};
+use topo::{Body, GlueClass, CarrierDesc, CarrierEqError, CarrierRelation, ContactClass, ContactRecords, ContactRefusal, ContactVerdict, CurveContact, PatchContact, ValidationError, carrier_eq, validate_pseudomanifold};
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
@@ -335,8 +331,7 @@ fn probe_records_partialeq_bites_on_mutation() {
         brick::<f64>((0.5, 1.5), (0.25, 1.25), (1.0, 2.0), Tol::witness()),
         Tol::witness(),
     );
-    let decls = flush_declarations(&a, &b, Tol::witness());
-    let topo::BooleanResult::Body(out) = topo::union_with(&a, &b, &decls, Tol::witness()).unwrap()
+    let topo::BooleanResult::Body(out) = topo::union(&a, &b, Tol::witness()).unwrap()
     else {
         panic!("union is a body");
     };
@@ -414,7 +409,7 @@ fn probe_dev8_false_declaration_is_a_silent_noop_at_the_op() {
     // And the op refuses it too, at the door, naming the same margin —
     // the gap is closed, and the two sites agree because they share a
     // ladder rather than mirroring one.
-    let err = topo::subtract_with(&c, &slot, &decls, Tol::witness())
+    let err = topo::subtract(&c, &slot, Tol::witness())
         .expect_err("a false declaration is no longer a silent no-op at the op");
     match &err {
         topo::BooleanError::ContactContradicted {
@@ -470,10 +465,9 @@ fn probe_declared_pair_direction_still_normalized() {
         brick::<f64>((0.0, 2.0), (0.0, 2.0), (1.0, 2.0), Tol::witness()),
         Tol::witness(),
     );
-    let decls = flush_declarations(&a, &b, Tol::witness());
     assert!(!decls.coincident_faces.is_empty());
     assert!(
-        topo::union_with(&a, &b, &decls, Tol::witness()).is_ok(),
+        topo::union(&a, &b, Tol::witness()).is_ok(),
         "declared flush pair verifies through the map exactly as through the set"
     );
     // Class mint honesty: the helper spells each class from the sense

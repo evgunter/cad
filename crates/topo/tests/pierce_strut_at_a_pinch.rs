@@ -22,12 +22,9 @@
 
 use crate::common;
 
-use common::{brick, finished, flush_declarations};
+use common::{brick, finished};
 use geom_core::Tol;
-use topo::{
-    AtRestBody, Body, BooleanDeclarations, BooleanResult, intersect, intersect_with, subtract,
-    subtract_with, union, union_with, validate_geometric, validate_pseudomanifold,
-};
+use topo::{AtRestBody, Body, BooleanResult, intersect, subtract, union, validate_geometric, validate_pseudomanifold};
 
 /// An op on the pair.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -163,7 +160,7 @@ fn block(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> AtRestBody<f64> {
 
 /// `base` less `cut`, the two flush where they share a plane.
 fn less(base: &AtRestBody<f64>, cut: &AtRestBody<f64>) -> AtRestBody<f64> {
-    match subtract_with(base, cut, &flush_declarations(base, cut, t()), t()).unwrap() {
+    match subtract(base, cut, t()).unwrap() {
         BooleanResult::Body(r) => r.body,
         BooleanResult::Empty => panic!("the cut leaves material"),
     }
@@ -231,7 +228,7 @@ fn the_staircase_and_the_plate_build_in_every_op() {
 fn a_pinch_through_a_face_builds_in_every_op() {
     let q1 = block((0.0, 1.0), (0.0, 1.0), (0.5, 1.5));
     let q3 = block((-1.0, 0.0), (-1.0, 0.0), (0.5, 1.5));
-    let pinch = match union_with(&q1, &q3, &BooleanDeclarations::default(), t()).unwrap() {
+    let pinch = match union(&q1, &q3, t()).unwrap() {
         BooleanResult::Body(r) => r.body,
         BooleanResult::Empty => panic!("the pinch is two bricks"),
     };
@@ -317,7 +314,7 @@ fn a_wedge_in_a_reflex_corner_through_a_face_builds_in_every_op() {
         common::prism_z::<f64>(&wedge, 0.5, 1.5, t()).body,
         t(),
     );
-    let pinch = match union_with(&l, &w, &BooleanDeclarations::default(), t()).unwrap() {
+    let pinch = match union(&l, &w, t()).unwrap() {
         BooleanResult::Body(r) => r.body,
         BooleanResult::Empty => panic!("the pinch is two prisms"),
     };
@@ -394,7 +391,7 @@ fn a_pinch_standing_on_a_face_builds_in_every_op() {
     ) -> Result<BooleanResult<f64>, topo::BooleanError>;
     let q1 = block((0.0, 1.0), (0.0, 1.0), (0.5, 1.5));
     let q3 = block((-1.0, 0.0), (-1.0, 0.0), (0.5, 1.5));
-    let pinch = match union_with(&q1, &q3, &BooleanDeclarations::default(), t()).unwrap() {
+    let pinch = match union(&q1, &q3, t()).unwrap() {
         BooleanResult::Body(r) => r.body,
         BooleanResult::Empty => panic!("the pinch is two bricks"),
     };

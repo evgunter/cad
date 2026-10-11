@@ -14,13 +14,10 @@
 
 use crate::common;
 
-use common::{brick, finished, flush_declarations, prism_z};
+use common::{brick, finished, prism_z};
 use geom_core::{Point3, Tol, Vec3};
 use topo::validate::{validate_closed, validate_geometric};
-use topo::{
-    AtRestBody, Body, BooleanDeclarations, BooleanError, BooleanResult, intersect_with,
-    mass_properties, split, subtract_with, union_with, validate_pseudomanifold,
-};
+use topo::{AtRestBody, Body, BooleanError, BooleanResult, intersect, mass_properties, split, subtract, union, validate_pseudomanifold};
 
 type Op = fn(
     &AtRestBody<f64>,
@@ -31,7 +28,6 @@ type Op = fn(
 
 fn exact(label: &str, op: Op, x: &AtRestBody<f64>, y: &AtRestBody<f64>, want: f64) {
     let tol = Tol::witness();
-    let decls = flush_declarations(x, y, tol);
     let r = op(x, y, &decls, tol).unwrap_or_else(|e| panic!("{label}: refused {e:?}"));
     let BooleanResult::Body(bb) = r else {
         panic!("{label}: an overlapping pair cannot be Empty");
@@ -65,7 +61,7 @@ fn a_merged_rim_vertex_under_a_coplanar_cap_answers_every_op() {
         tol,
     );
     let BooleanResult::Body(bar) =
-        union_with(&c, &d, &flush_declarations(&c, &d, tol), tol).expect("the bar folds")
+        union(&c, &d, tol).expect("the bar folds")
     else {
         panic!("the bar is not empty");
     };

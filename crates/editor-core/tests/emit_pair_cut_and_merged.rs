@@ -11,7 +11,7 @@
 //! `a`'s retired wall name.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::docm7_union_declare::{block, failure, flush_pairs, run};
+use crate::blocks::{block, failure, flush_pairs, run};
 use crate::fixture::{insert, table};
 
 use editor_core::{

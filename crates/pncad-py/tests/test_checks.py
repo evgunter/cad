@@ -456,20 +456,16 @@ class TestTheChecksCouldNotRun(unittest.TestCase):
 
 class TestTheUnprovenCoincidenceResident(unittest.TestCase):
     """The `unproven-coincidence` lint (D10): a plate resting flush on
-    a block, unioned under the declared `Rest` the flush detector
-    offers. The declaration is verified from values, so the union
-    records one coincidence, and the door does not prove it: the two
-    caps are two constructions. The report's rows are the evaluation's
+    a block, unioned. The margin decides the rest from values, so the
+    union records one coincidence, and the door does not prove it: the
+    two caps are two constructions. The report's rows are the evaluation's
     unproven rows, word for word."""
 
-    def test_a_declared_rest_is_one_unproven_coincidence(self):
+    def test_a_glued_rest_is_one_unproven_coincidence(self):
         doc = Doc()
         lower = slab(doc, 0.0, 1.0)
         upper = slab(doc, 0.25, 0.75, 0.25, 0.75, 1.0, 1.5)
-        findings = evaluate(doc).find_flush_candidates(lower, upper)
-        glued = doc.insert(
-            Node.union([lower, upper], declare=findings)
-        )
+        glued = doc.insert(Node.union([lower, upper]))
         ev = evaluate(doc)
         rows = ev.coincidences(glued)
         self.assertEqual(len(rows), 1)

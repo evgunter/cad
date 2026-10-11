@@ -8,7 +8,7 @@
 
 use crate::corpus;
 use crate::corpus::body_of;
-use crate::docm7_union_declare::{
+use crate::blocks::{
     block, declared_union, declared_union_classed, failure, flush_pairs, member_face, run,
 };
 use crate::fixture;

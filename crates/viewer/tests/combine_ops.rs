@@ -115,8 +115,7 @@ fn assert_volume(session: &mut DocSession, node: RecipeNodeId, want: f64, tol: T
 
 /// **The acceptance row**: a two-body boolean authored from nothing,
 /// evaluated, saved, reloaded and re-evaluated. The two boxes share no
-/// plane, so the union has no contact to declare and lands as one
-/// undeclared insert.
+/// plane, and the union lands as one insert.
 #[test]
 fn a_two_body_union_authors_evaluates_saves_and_reloads() {
     let tol = Tol::witness();
@@ -127,13 +126,9 @@ fn a_two_body_union_authors_evaluates_saves_and_reloads() {
             spec: BooleanSpec::Union(vec![a, b]),
         },
     );
-    // An op declaring nothing authors an empty declaration.
     assert!(matches!(
         session.committed_doc().node(union),
-        Some(Node::Union {
-            declare,
-            ..
-        }) if declare.is_empty()
+        Some(Node::Union { .. })
     ));
     let va = A[0] * A[1] * A[2];
     let vb = B[0] * B[1] * B[2];
@@ -209,7 +204,6 @@ fn a_three_pick_union_commits_one_union_of_three_spelled_members() {
     let doc = session.committed_doc();
     let Some(Node::Union {
         members: Bodies::Spelled(members),
-        declare,
     }) = doc.node(union)
     else {
         panic!("one union node: {:?}", doc.node(union));
@@ -219,7 +213,6 @@ fn a_three_pick_union_commits_one_union_of_three_spelled_members() {
         [a, b, c].map(|n| doc.output(n, 0)),
         "three spelled members, the picks' reads in pick order"
     );
-    assert!(declare.is_empty(), "nothing declared: {declare:?}");
     assert_eq!(
         common::world(doc),
         [union],
@@ -1331,8 +1324,7 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
                 from: first,
                 tool: second,
             },
-            declare,
-        }) if first == a && second == b && declare.is_empty()
+        }) if first == a && second == b
     ));
 
     // Deleting the REMOVED body's node empties that seat and leaves
@@ -3482,9 +3474,9 @@ fn a_duplicate_is_not_measured_off_a_picture_older_than_the_document() {
 
 /// **A union across two flush contacts lands as one action.** The
 /// block has a channel cut across its top, so its top is TWO faces, and
-/// a boss bridging the channel rests on both. The union declares
-/// nothing and commits one step. Red if it refuses, or lands anything
-/// but the channelled block plus the boss.
+/// a boss bridging the channel rests on both. The union commits one
+/// step. Red if it refuses, or lands anything but the channelled block
+/// plus the boss.
 #[test]
 fn a_union_across_two_flush_contacts_lands_as_one_action() {
     const CHANNEL: [f64; 3] = [0.01, 0.04, 0.01];

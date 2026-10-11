@@ -13,10 +13,7 @@ use crate::common;
 
 use common::{brick, finished, prism_z};
 use geom_core::{Decide, Tol};
-use topo::{
-    AtRestBody, Body, BooleanBody, BooleanError, BooleanResult, subtract_with, union_with,
-    validate_closed, validate_pseudomanifold,
-};
+use topo::{AtRestBody, Body, BooleanBody, BooleanError, BooleanResult, subtract, union, validate_closed, validate_pseudomanifold};
 
 type BoolOp<T> = fn(
     &AtRestBody<T>,

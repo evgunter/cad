@@ -15,10 +15,7 @@ use geom_core::{Point3, Tol, Vec3};
 use topo::test_support::{
     brick, describe_as_intersections, finished, holed_block, prism, split_plane,
 };
-use topo::{
-    AtRestBody, Body, SplitPart, SplitPlane, mass_properties, plane_section, split, union,
-    validate_closed,
-};
+use topo::{AtRestBody, Body, SplitPart, SplitPlane, mass_properties, plane_section, split, union, validate_closed};
 
 /// The plane through `o` with normal along `n` (normalized).
 fn plane(o: (f64, f64, f64), n: (f64, f64, f64)) -> SplitPlane<f64> {

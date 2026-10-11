@@ -19,10 +19,7 @@
 
 use crate::common;
 use geom_core::{Band, Point3, Tol};
-use topo::{
-    Body, ContactRecords, SolidContainment, SolidKey, ValidationError, VfContact, VoidContainment,
-    VoidEvidence, insert_void, point_in_solid_of, validate_pseudomanifold,
-};
+use topo::{Body, ContactRecords, SolidContainment, SolidKey, ValidationError, VfContact, VoidContainment, VoidEvidence, insert_void, point_in_solid_of, validate_pseudomanifold};
 
 type Range = (f64, f64);
 

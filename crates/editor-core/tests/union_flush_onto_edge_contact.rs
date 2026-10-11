@@ -6,7 +6,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus::body_of;
-use crate::docm7_union_declare::{block, declared_union, failure, flush_pairs, run};
+use crate::blocks::{block, declared_union, failure, flush_pairs, run};
 use crate::fixture::{flush_segs, fname, insert, out};
 use editor_core::{Node, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, VarId};
 use geom_core::Tol;

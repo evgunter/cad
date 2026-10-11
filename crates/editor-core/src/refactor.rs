@@ -4835,11 +4835,9 @@ mod remap_keeps_the_kind {
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod a_miss_two_segments_down_is_not_the_outer_name {
-    use super::{
-        NodeMap, ReadMap, RemapMiss, StepMap, Unmapped, remap_face, remap_name, remap_node,
-    };
+    use super::{NodeMap, ReadMap, StepMap, Unmapped, remap_face, remap_name};
     use crate::names::{FaceName, NameRef, RoleSeg, StableName};
-    use crate::node::{Node, RecipeNodeId, SitedRef};
+    use crate::node::RecipeNodeId;
     use crate::{CapEnd, EntityKind};
 
     const OUTER: RecipeNodeId = RecipeNodeId::new(0, 0);
@@ -4904,53 +4902,6 @@ mod a_miss_two_segments_down_is_not_the_outer_name {
         assert_ne!(missing, Unmapped::Node(face.node));
     }
 
-    /// The payload rewrite pairs them: the name it could not rewrite
-    /// AND the node it stopped at, which a caller raising a
-    /// name-shaped refusal passes on.
-    #[test]
-    fn a_payload_miss_carries_both_the_name_and_the_node() {
-        let name = nested(EntityKind::Edge);
-        let node = Node::Union {
-            members: crate::Bodies::Spelled(vec![
-                crate::VarId::new(0, 1).into(),
-                crate::VarId::new(0, 2).into(),
-            ]),
-            declare: crate::declare_rest(vec![(
-                SitedRef::new(crate::VarId::new(0, 1), name.clone()),
-                SitedRef::new(crate::VarId::new(0, 2), name.clone()),
-            )]),
-        };
-        match remap_node(
-            &node,
-            &map(),
-            &|_, var| Ok(var),
-            &StepMap::new(),
-            &reads(),
-            &|g| Ok(g),
-        ) {
-            Err(RemapMiss::Name {
-                name: reported,
-                missing,
-            }) => {
-                assert_eq!(*reported, name, "the refusal names the outer name");
-                assert_eq!(
-                    missing,
-                    Unmapped::Node(INNER),
-                    "and carries the node that actually failed"
-                );
-                assert_ne!(
-                    missing,
-                    Unmapped::Node(reported.node),
-                    "which the outer name does not say: they are different nodes"
-                );
-            }
-            Err(RemapMiss::Input(id)) => panic!("a name miss is not an input miss, got {id:?}"),
-            Err(RemapMiss::Read { var, .. } | RemapMiss::PayloadRead { var }) => {
-                panic!("a name miss is not a read miss, got {var:?}")
-            }
-            Ok(out) => panic!("INNER is unmapped, got {out:?}"),
-        }
-    }
 }
 
 /// **A remap that reorders ids republishes the canonical form.**

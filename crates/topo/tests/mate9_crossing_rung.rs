@@ -61,10 +61,7 @@
 use crate::common;
 
 use geom_core::Tol;
-use topo::{
-    Body, CensusContact, ContactRecords, CrossingSideVerdict, FaceKey, PatchContact,
-    ValidationError,
-};
+use topo::{Body, CensusContact, ContactRecords, CrossingSideVerdict, FaceKey, PatchContact, ValidationError};
 
 /// [`common::straddle_seat`] as this file's tuple:
 /// `(body, post_top, post_side_x030, shelf_bottom, shelf_side_y030)`.

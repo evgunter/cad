@@ -2,9 +2,9 @@
 //! body out of a multi-body value, spelled the way a user spells it.
 //!
 //! A box split by a plane at mid-height; BOTH halves selected by two
-//! `Node::Part`s and unioned back together (a declared rest contact
-//! across the two section faces, which is what a union of two
-//! resting bodies is); a three-instance linear pattern of the box with
+//! `Node::Part`s and unioned back together (a rest contact across the
+//! two section faces, which is what a union of two resting bodies
+//! is); a three-instance linear pattern of the box with
 //! its MIDDLE instance selected by a third `Part` and placed by a
 //! transform. Each selector is consumed downstream, so the census
 //! counts both sub-kinds and every standard row — evaluation at every
@@ -27,7 +27,7 @@
 use editor_core::ExtrudeSide;
 use editor_core::{
     Dimension, DocEdit, EntityKind, Formula, FreeVar, Node, PartSelect, PatternKind, RecipeNodeId,
-    RoleSeg, SitedRef, SlotId, SplitHalf, StableName, UnitSym, VarName,
+    RoleSeg, SlotId, SplitHalf, StableName, UnitSym, VarName,
 };
 
 use crate::fixture::{ang, desc, len, scl, xy_frame};
@@ -107,22 +107,9 @@ pub fn document() -> CorpusDoc {
         of: editor_core::Operand::output(split, SplitHalf::Below.port()),
         select: PartSelect::SplitHalf(SplitHalf::Below),
     });
-    // The two halves rest on each other across the section — a
-    // declared contact, named through the split's own vocabulary
-    // because each Part carries the split's names verbatim.
-    let rest = editor_core::declare_rest(vec![(
-        SitedRef::new(
-            crate::fixture::out(&r.doc, above),
-            section_face(split, SplitHalf::Above),
-        ),
-        SitedRef::new(
-            crate::fixture::out(&r.doc, below),
-            section_face(split, SplitHalf::Below),
-        ),
-    )]);
+    // The two halves rest on each other across the section.
     let whole = r.insert(Node::Union {
         members: editor_core::Bodies::Spelled(vec![above.into(), below.into()]),
-        declare: rest,
     });
 
     // ---- three boxes along x, and the middle one lifted ----

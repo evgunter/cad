@@ -20,22 +20,18 @@
 
 use crate::common;
 
-use common::{brick, finished, flush_declarations, prism_z};
+use common::{brick, finished, prism_z};
 use geom_core::Tol;
-use topo::{
-    Body, BooleanError, BooleanResult, BooleanResultKind, mass_properties, subtract, subtract_with,
-    union_with, validate_geometric, validate_pseudomanifold,
-};
+use topo::{Body, BooleanError, BooleanResult, BooleanResultKind, mass_properties, subtract, union, validate_geometric, validate_pseudomanifold};
 
 fn glued(
     a: &topo::AtRestBody<f64>,
     b: &topo::AtRestBody<f64>,
     volume: f64,
 ) -> topo::BooleanBody<f64> {
-    let g = match union_with(
+    let g = match union(
         a,
         b,
-        &flush_declarations(a, b, Tol::witness()),
         Tol::witness(),
     )
     .expect("declared union builds")
@@ -163,7 +159,7 @@ fn probe_near_miss_false_declaration_contradicts() {
         side_of(&bot, 0.0),
         side_of(&top, 0.0625),
     ));
-    let err = union_with(&bot, &top, &decls, Tol::witness()).unwrap_err();
+    let err = union(&bot, &top, Tol::witness()).unwrap_err();
     assert!(
         matches!(err, BooleanError::ContactContradicted { .. }),
         "near-miss false declaration must contradict: {err:?}"
@@ -203,9 +199,8 @@ fn probe_subtract_notch_rests_on_b() {
         brick((1.0, 2.0), (1.0, 2.0), (0.0, 1.0), Tol::witness()),
         Tol::witness(),
     );
-    let decls = flush_declarations(&a, &b, Tol::witness());
     assert!(!decls.coincident_faces.is_empty());
-    let BooleanResult::Body(sub) = subtract_with(&a, &b, &decls, Tol::witness())
+    let BooleanResult::Body(sub) = subtract(&a, &b, Tol::witness())
         .expect("an edge along B's open side decides it lies outside A")
     else {
         panic!("A ∖ B keeps A's material");

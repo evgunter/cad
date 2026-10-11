@@ -18,7 +18,7 @@
 use std::collections::BTreeSet;
 
 use crate::corpus::body_of;
-use crate::docm7_union_declare::{failure, run};
+use crate::blocks::{failure, run};
 use crate::emit_shared_rim_several::{Bx, document, permutations};
 use crate::emit_union_rim_piece_ranks::{Case, cases, runs, signature};
 use crate::fixture::{face_vertices, insert, table};
@@ -664,7 +664,7 @@ fn a_member_of_two_touching_shells_names_each_shell_for_itself() {
         );
         for order in permutations(&[0, 1]) {
             let members: Vec<_> = order.iter().map(|&i| [u1, ids[2]][i]).collect();
-            let (docx, top) = crate::fixture::union_over(doc.clone(), &members, Vec::new());
+            let (docx, top) = crate::fixture::union_over(doc.clone(), &members);
             let ev = run(&docx);
             let at = format!("{touch:?} {third:?} {order:?}");
             for union in [u1, top] {
@@ -680,7 +680,7 @@ fn a_member_of_two_touching_shells_names_each_shell_for_itself() {
                 // touch undeclared, which 3′ refuses and the door (tier 3
                 // only, the census parked) does not; pinned as it stands
                 // (`work/wire/a-boolean-drops-its-operands-own-contact-records.md`).
-                match crate::docm7_union_declare::census_of(&ev, union) {
+                match crate::blocks::census_of(&ev, union) {
                     Ok(()) => assert!(union == u1, "{at}: the top union passes 3′"),
                     Err(errors) => assert!(
                         union == top

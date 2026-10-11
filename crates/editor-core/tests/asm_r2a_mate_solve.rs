@@ -1701,6 +1701,17 @@ fn row7c_an_unadmitted_class_refuses_naming_the_fit_deferral() {
     assert!(message.contains("fit"), "{message}");
 }
 
+/// The `Fit` deferral sentence a refusal steers to is the KERNEL's,
+/// quoted verbatim through the re-export chain — one wording, and the
+/// mate verification cites the same constant.
+#[test]
+fn the_fit_deferral_sentence_is_quoted_not_paraphrased() {
+    assert_eq!(editor_core::FIT_DEFERRAL, topo::FIT_DEFERRAL);
+    assert_eq!(editor_core::names::FIT_DEFERRAL, topo::FIT_DEFERRAL);
+    assert!(editor_core::FIT_DEFERRAL.contains("Fit { gap }"));
+    assert!(editor_core::FIT_DEFERRAL.contains("not yet built"));
+}
+
 /// The typed escalation: a case split constructed to land INSIDE the
 /// ambiguity band at the run's own ε, so the row holds at every ε CI
 /// sweeps.

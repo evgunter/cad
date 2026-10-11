@@ -849,7 +849,7 @@ pub enum UnmirroredSelect {
     /// mirror, reached through the query door.
     Refusal,
     /// A `pncad::select::ContactClass` this binding does not mirror,
-    /// reached through a flush finding's `class_`.
+    /// reached through a mate's or a crossing's `class_`.
     ContactClass,
 }
 
@@ -916,7 +916,7 @@ pub enum StlRefusal<'a> {
 /// carry, and no cheaper discriminator was available — but it is a
 /// trade, not a free check.
 ///
-/// One arm disagrees with it on purpose: `crate::py::flush`'s
+/// One arm disagrees with it on purpose: `crate::py::contact`'s
 /// unknown-`ContactClass` refusal renders the unknown variant through
 /// `Debug`, having nothing else to render it with. Today that is a
 /// fieldless name mid-sentence, which passes. A future STRUCT variant

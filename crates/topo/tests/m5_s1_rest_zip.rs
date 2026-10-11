@@ -24,13 +24,10 @@
 
 use crate::common;
 
-use common::{brick, finished, flush_declarations, prism_z};
+use common::{brick, finished, prism_z};
 use geom_core::Decide;
 use geom_core::Tol;
-use topo::{
-    AtRestBody, BooleanBody, BooleanError, BooleanResult, BooleanResultKind, mass_properties,
-    subtract, subtract_with, union, union_with, validate_geometric, validate_pseudomanifold,
-};
+use topo::{AtRestBody, BooleanBody, BooleanError, BooleanResult, BooleanResultKind, mass_properties, subtract, union, validate_geometric, validate_pseudomanifold};
 
 /// The brick `x × y × z`, finished.
 fn finished_brick<T: Decide + topo::AtRestPolicy>(
@@ -46,10 +43,9 @@ fn glue<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(
     a: &AtRestBody<T>,
     b: &AtRestBody<T>,
 ) -> BooleanBody<T> {
-    match union_with(
+    match union(
         a,
         b,
-        &flush_declarations(a, b, Tol::witness()),
         Tol::witness(),
     )
     .expect("declared REST union builds")
@@ -167,8 +163,7 @@ fn corner_flush_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPo
     assert_glued(&g);
     // ∖ disposition: pure REST subtract classifies structurally — the
     // whole of A survives (never a join refusal; SPEC §1 note).
-    let decls = flush_declarations(&slab, &corner, Tol::witness());
-    match subtract_with(&slab, &corner, &decls, Tol::witness()).unwrap() {
+    match subtract(&slab, &corner, Tol::witness()).unwrap() {
         BooleanResult::Body(sub) => {
             assert_eq!(sub.kind, BooleanResultKind::OperandA);
             (g, sub)
@@ -222,7 +217,7 @@ fn false_rest_declaration_contradicts_at_the_lane() {
         bot.bottom_face,
         top.top_face,
     ));
-    let err = union_with(&bot_body, &top_body, &decls, Tol::witness()).unwrap_err();
+    let err = union(&bot_body, &top_body, Tol::witness()).unwrap_err();
     assert!(
         matches!(err, BooleanError::ContactContradicted { .. }),
         "false REST declaration must contradict, naming the class and the margin: {err:?}"
@@ -247,10 +242,9 @@ fn annular_rest_contact_unions_exactly_additively() {
     };
     let bot = tube(0.0, 1.0);
     let top = tube(1.0, 2.0);
-    let out = union_with(
+    let out = union(
         &bot,
         &top,
-        &flush_declarations(&bot, &top, Tol::witness()),
         Tol::witness(),
     )
     .expect("the annular REST union runs");
@@ -283,8 +277,7 @@ fn rest_subtract_and_intersect_resolve_structurally() {
     let BooleanResult::Body(b) = subtract(&beam_b, &cut_b, Tol::witness()).unwrap() else {
         panic!("notch B yields a body");
     };
-    let decls = flush_declarations(&a.body, &b.body, Tol::witness());
-    match subtract_with(&a.body, &b.body, &decls, Tol::witness()).unwrap() {
+    match subtract(&a.body, &b.body, Tol::witness()).unwrap() {
         BooleanResult::Body(sub) => {
             assert_eq!(sub.kind, BooleanResultKind::OperandA);
             assert_eq!(
@@ -296,7 +289,7 @@ fn rest_subtract_and_intersect_resolve_structurally() {
     }
     assert!(
         matches!(
-            topo::intersect_with(&a.body, &b.body, &decls, Tol::witness()).unwrap(),
+            topo::intersect(&a.body, &b.body, Tol::witness()).unwrap(),
             BooleanResult::Empty
         ),
         "disjoint interiors intersect to the typed Empty"

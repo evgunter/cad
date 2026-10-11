@@ -139,7 +139,7 @@ mod tests {
     #[test]
     fn the_correspondence_builds_the_boolean() {
         for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
-            let v: Verb<f64> = (boolean::<f64>().build)(op, BooleanInputs::none());
+            let v: Verb<f64> = (boolean::<f64>().build)(op, BooleanInputs::default());
             assert_eq!(
                 v.kind(),
                 VerbKind::Boolean(op),

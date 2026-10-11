@@ -11,7 +11,7 @@
 //! above half is empty.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::docm7_union_declare::{block, declared_union, failure, flush_pairs, run};
+use crate::blocks::{block, declared_union, failure, flush_pairs, run};
 use crate::fixture::{insert, len, scl};
 use editor_core::{Evaluation, Node, ProfileDoc, RecipeNodeId, SplitSide, ValuePayload};
 use geom_core::Tol;
@@ -98,7 +98,7 @@ fn the_tangent_contact_standing_alone_lands_below_whole() {
         assert_eq!(above, None, "{label}");
         assert!(near(below, 1.5), "{label}: below {below:?}");
     }
-    let (d, u) = declared_union(doc, &[a, g0], Vec::new());
+    let (d, u) = crate::fixture::union_over(doc, &[a, g0]);
     let (d, s) = split_of(d, u);
     let (above, below) = halves("[a, g0]", &run(&d), u, s);
     assert!(near(above, 0.4375), "[a, g0]: above {above:?}");

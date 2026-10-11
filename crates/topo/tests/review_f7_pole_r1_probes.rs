@@ -34,10 +34,7 @@ use crate::common;
 
 use common::{brick, finished, plant_ring_face, prism_z};
 use geom_core::Tol;
-use topo::{
-    AtRestBody, Body, BooleanError, BooleanOp, FaceSurface, MefSite, MekrSite, MevSite,
-    ValidationError, boolean_reduce, validate_closed,
-};
+use topo::{AtRestBody, Body, BooleanError, BooleanOp, FaceSurface, MefSite, MekrSite, MevSite, ValidationError, boolean_reduce, validate_closed};
 
 /// A brick far away from every fixture, so `gate_operand_pairs`' boxes
 /// never meet and the reduction of a PASSING pair is the trivial

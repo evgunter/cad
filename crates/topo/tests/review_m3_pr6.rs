@@ -10,11 +10,7 @@ use crate::common;
 use common::{brick, cube_into, finished, mapped_cube, prism, prism_z};
 use geom_core::Tol;
 use geom_core::{Decide, Point3, Vec3};
-use topo::{
-    Body, BooleanError, BooleanResult, ContactRecords, SplitError, SplitJoinError, SplitPart,
-    SplitPlane, ValidationError, intersect, mass_properties, split, subtract, union,
-    validate_pseudomanifold,
-};
+use topo::{Body, BooleanError, BooleanResult, ContactRecords, SplitError, SplitJoinError, SplitPart, SplitPlane, ValidationError, intersect, mass_properties, split, subtract, union, validate_pseudomanifold};
 
 fn plane_y<T: Decide>(c: f64, ny: f64) -> SplitPlane<T> {
     topo::test_support::split_plane(

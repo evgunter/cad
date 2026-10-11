@@ -12,7 +12,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus::{self, body_of, failures};
-use crate::docm7_union_declare::{block, failure, run};
+use crate::blocks::{block, failure, run};
 use crate::fixture::insert;
 use editor_core::{
     BooleanValue, DocEdit, Node, NodeErrorKind, ProfileDoc, Proof, RecipeNodeId, ValuePayload,

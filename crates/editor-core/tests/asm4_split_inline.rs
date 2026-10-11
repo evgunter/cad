@@ -20,7 +20,7 @@ use editor_core::ExtrudeSide;
 
 use std::collections::BTreeSet;
 
-use crate::docm7_union_declare::block;
+use crate::blocks::block;
 
 use editor_core::{
     DocEdit, DocumentId, EvalOptions, Formula, FreeVar, InlineError, Node, ProfileDoc,

@@ -16,7 +16,7 @@
 use std::collections::BTreeSet;
 
 use crate::corpus::body_of;
-use crate::docm7_union_declare::{
+use crate::blocks::{
     block, declared_union_classed, failure, flush_pairs, member_face, run,
 };
 use crate::fixture::{ename, fname, member_entity, table, vertex_of, wall};

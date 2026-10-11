@@ -464,9 +464,9 @@ pub const NODE_KINDS: [&str; 22] = [
 /// tally's DOMAIN, not the `DocEdit` vocabulary.
 ///
 /// It is a SUBSET, deliberately and visibly: `SetMembers`,
-/// `SetOffset`, `SetGauge`, `Promote`, `Fold`, `UpdateReference` and
-/// `SetDeclare` are arms of `DocEdit` that no corpus document authors,
-/// and listing them here would report seven permanent misses rather
+/// `SetOffset`, `SetGauge`, `Promote`, `Fold` and `UpdateReference`
+/// are arms of `DocEdit` that no corpus document authors, and listing
+/// them here would report six permanent misses rather
 /// than covering anything. `SetProgram` is
 /// listed: `reshaped_rod` authors one, the first persisted in the
 /// tree. What guards the
@@ -503,17 +503,14 @@ pub const EDIT_KINDS: [&str; 21] = [
 ];
 
 /// The node SUB-kinds the corpus must also cover in full: every datum
-/// flavour, the declared boolean, and
-/// both pattern kinds.
-pub const SUB_KINDS: [&str; 17] = [
+/// flavour and both pattern kinds.
+pub const SUB_KINDS: [&str; 16] = [
     "Datum::Plane",
     "Datum::Axis",
     "Datum::AxisInPlane",
     "Datum::Point",
     "Datum::Frame",
     "Datum::FaceFrame",
-    // A boolean that declares a coincidence, of any of the three.
-    "Boolean+Declare",
     "Pattern::Linear",
     "Pattern::Circular",
     // Both selectors of the projection node: `part_select` reads a
@@ -559,15 +556,7 @@ pub fn sub_kinds<P, S: editor_core::Slot>(node: &Node<P, S>) -> Vec<&'static str
         // in-plane axis for its revolve — which is the whole reason
         // they are two sub-kinds to count.
         Node::Datum(Datum::AxisInPlane { .. }) => vec!["Datum::AxisInPlane"],
-        Node::Union { declare, .. }
-        | Node::Intersect { declare, .. }
-        | Node::Subtract { declare, .. } => {
-            if declare.is_empty() {
-                Vec::new()
-            } else {
-                vec!["Boolean+Declare"]
-            }
-        }
+        Node::Union { .. } | Node::Intersect { .. } | Node::Subtract { .. } => Vec::new(),
         Node::Pattern { kind, .. } => vec![match kind {
             PatternKind::Linear { .. } => "Pattern::Linear",
             PatternKind::Circular { .. } => "Pattern::Circular",
@@ -695,7 +684,6 @@ pub fn edit_kind(edit: &DocEdit<ProfileProgram>) -> &'static str {
         DocEdit::Fold { .. } => "Fold",
         DocEdit::UpdateReference { .. } => "UpdateReference",
         DocEdit::SetLabel { .. } => "SetLabel",
-        DocEdit::SetDeclare { .. } => "SetDeclare",
     }
 }
 

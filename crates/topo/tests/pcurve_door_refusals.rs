@@ -13,10 +13,7 @@
 
 use geom_core::{Band, Point3, Tol};
 use topo::test_support::{CylFrame, cyl_wall_sheet};
-use topo::{
-    Body, EntityId, FaceKey, HalfEdgeKey, MevSite, NewVertexSide, PcurveMintError, chart_boundary,
-    mint_pcurves, mint_pcurves_of, pcurve_of,
-};
+use topo::{Body, EntityId, FaceKey, HalfEdgeKey, MevSite, NewVertexSide, PcurveMintError, chart_boundary, mint_pcurves, mint_pcurves_of, pcurve_of};
 
 fn tol() -> Tol {
     Tol::witness()

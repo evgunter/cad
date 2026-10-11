@@ -14,10 +14,7 @@ use crate::common;
 
 use common::{brick, finished};
 use geom_core::Tol;
-use topo::{
-    AtRestBody, Body, BooleanError, BooleanResult, BooleanResultKind, Operand, ShellOrientation,
-    intersect, mass_properties, subtract, union,
-};
+use topo::{AtRestBody, Body, BooleanError, BooleanResult, BooleanResultKind, Operand, ShellOrientation, intersect, mass_properties, subtract, union};
 
 /// `b`, finished.
 fn block(b: Body<f64>) -> AtRestBody<f64> {

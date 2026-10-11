@@ -36,10 +36,7 @@
 use crate::common;
 
 use geom_core::Tol;
-use topo::{
-    Body, CensusContact, ContactRecords, CrossingSideVerdict, FaceKey, PatchContact,
-    ValidationError,
-};
+use topo::{Body, CensusContact, ContactRecords, CrossingSideVerdict, FaceKey, PatchContact, ValidationError};
 
 fn declared(pairs: &[(FaceKey, FaceKey)]) -> ContactRecords {
     ContactRecords {

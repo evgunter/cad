@@ -33,7 +33,6 @@ from pncad import (
     AxisSense,
     Bulge,
     ClosedLoop,
-    BooleanCoincidence,
     CancelToken,
     CapEnd,
     Center,
@@ -66,8 +65,6 @@ from pncad import (
     EntityKind,
     Evaluation,
     EvaluationError,
-    FlushFinding,
-    FlushRung,
     Frame,
     FrameError,
     GeomPred,
@@ -102,7 +99,6 @@ from pncad import (
     SplitOutcome,
     Via,
     Open,
-    PlaneRelation,
     SegPat,
     SegTag,
     Ray,
@@ -488,24 +484,6 @@ declared_stadium: ClosedLoop = (
     .tangent_arc_to(Start.arrives_tangent())
 )
 
-# LIB-PYG5: the detect/declare protocol, typed end to end. Findings
-# are values; the declare doors consume THEM, not name text: the
-# boolean's declare= list, and the doors that set it on a live node.
-findings: list[FlushFinding] = ev.find_flush_candidates(plate, lightened)
-first_relation: PlaneRelation = findings[0].relation
-first_class: BooleanCoincidence = findings[0].class_
-first_rung: FlushRung = findings[0].rung
-opaque_a: str = findings[0].a
-opaque_b: str = findings[0].b
-glued: NodeId = doc.insert(
-    Node.union([plate, lightened], declare=findings)
-)
-fused_declared: Node = Node.union([plate, lightened], declare=findings)
-declared_one: None = doc.declare(glued, findings[0])
-declared_many: None = doc.declare_all(glued, findings)
-redeclared: DocEdit = DocEdit.set_declare(glued, findings)
-cleared: DocEdit = DocEdit.set_declare(glued, [])
-
 # LIB-PYPU: the group boolean and its placement vocabulary. Lengths
 # and angles are typed; the count is a plain int (the structural-slot
 # exception); a frame reads back as the dimensioned triple it took.
@@ -550,7 +528,7 @@ one_copy: NodeId = doc.insert(Node.part(family, by_index))
 # whole; a subtract names its two operands, `from_` (`from` is a
 # keyword) and `tool`.
 whole_family: Node = Node.union(family)
-common: Node = Node.intersect([plate, one_copy], declare=[])
+common: Node = Node.intersect([plate, one_copy])
 named_cut: Node = Node.subtract(from_=plate, tool=hole)
 # One member of a family is `family[i]`, taken at every body seat: in a
 # spelled list, at a subtract's seats, at a split's target.

@@ -17,10 +17,7 @@ use common::{brick, finished};
 use geom_core::Decide;
 use geom_core::Tol;
 use topo::test_support::{ArenaCounts, arena_counts};
-use topo::{
-    AtRestBody, Body, BooleanBody, BooleanError, BooleanResult, BooleanResultKind, mass_properties,
-    subtract, subtract_with, union, union_with, validate, validate_closed, validate_geometric,
-};
+use topo::{AtRestBody, Body, BooleanBody, BooleanError, BooleanResult, BooleanResultKind, mass_properties, subtract, union, validate, validate_closed, validate_geometric};
 
 /// A public declared boolean op as a value (M4 PR 5: the corpus
 /// declares its intended flush contacts — recipe intent, test form).
@@ -608,7 +605,6 @@ fn stacked_union_rests_on_a_contact_face_reversed_onto_its_opposite_chart() {
         })
         .map(|(k, _)| k)
         .expect("the lower brick's top");
-    let decls = common::flush_declarations(&a, &b, Tol::witness());
     let classes: Vec<_> = decls
         .coincident_faces
         .iter()
@@ -631,7 +627,7 @@ fn stacked_union_rests_on_a_contact_face_reversed_onto_its_opposite_chart() {
         bottom,
         topo::ContactClass::Rest,
     ));
-    let r = union_with(&a, &b, &stated, Tol::witness())
+    let r = union(&a, &b, Tol::witness())
         .expect("a rest whose carriers face apart is verified");
     assert_eq!(body_of(&r).kind, BooleanResultKind::Seamed);
 }
