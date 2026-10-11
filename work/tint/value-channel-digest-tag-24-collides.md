@@ -2,8 +2,9 @@
 id: value-channel-digest-tag-24-collides
 kind: issue
 title: the value-channel digest's discriminator is not injective: tag 24 is claimed twice
-status: open
+status: closed
 opened: 2026-09-15
+closed: 2026-10-10
 priority: P3
 cost: E
 ---
@@ -47,3 +48,11 @@ Give `MeasureUnavailable` tag 25 and say in the `AxisInPlane` arm that
 
 Filed by SUITE/D114 (found while moving the feed, not fixed there: the
 move was kept verbatim so it could be checked as a move).
+
+## Closed
+
+INTENT stage 3 A (`poses-are-variables`) retired `Datum::AxisInPlane`
+into `Revolve`'s axis slots, so the arm that wrote 24 is gone: in
+`crates/editor-core/tests/fixture/value_channel.rs` only `MeasureUnavailable` writes 24 now, and a datum's
+`PoseValue::Direction` arm took the free tag 26. Each tag is claimed
+once.

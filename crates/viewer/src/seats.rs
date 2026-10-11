@@ -117,8 +117,6 @@ vocabulary! {
     pub enum Seat {
         /// The profile a revolve sweeps.
         RevolveProfile,
-        /// The axis a revolve sweeps about.
-        RevolveAxis,
         /// A union's or an intersect's member — one of any number, held
         /// in pick order by the boolean tool rather than in a [`Seats`].
         Member,
@@ -167,7 +165,6 @@ impl Seat {
     pub fn wants(self) -> NodeKindWanted {
         match self {
             Self::RevolveProfile => NodeKindWanted::Profile,
-            Self::RevolveAxis => NodeKindWanted::SketchAxis,
             Self::PatternAxis => NodeKindWanted::Axis,
             Self::SplitPlane => NodeKindWanted::Plane,
             Self::PartInstance => NodeKindWanted::Instances,
@@ -185,7 +182,6 @@ impl Seat {
     pub fn name(self) -> &'static str {
         match self {
             Self::RevolveProfile => "profile",
-            Self::RevolveAxis => "axis",
             Self::Member => "member",
             Self::SubtractFrom => "body kept",
             Self::SubtractTool => "body removed",

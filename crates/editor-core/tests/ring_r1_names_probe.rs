@@ -11,10 +11,10 @@
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, EntityKind, EvalOptions, Evaluation, MeridianEnd, Node, ProfileDoc,
-    ProfileEdgeRef, RecipeNodeId, RoleSeg, band, band_pi, band_rim, evaluate, meridian_vertex,
+    CancelToken, EntityKind, EvalOptions, Evaluation, MeridianEnd, ProfileDoc, ProfileEdgeRef,
+    RecipeNodeId, RoleSeg, band, band_pi, band_rim, evaluate, meridian_vertex,
 };
-use fixture::{ang, axis_in_plane, insert, minted, on_frame_keeping, table};
+use fixture::{ang, insert, minted, on_frame, revolve_about, table};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
@@ -43,7 +43,7 @@ fn pv(
 #[test]
 fn full_wire_holed_revolve_names_totally() {
     let doc = ProfileDoc::empty_derived("ring_r1_names_probe", Tol::witness());
-    let (doc, plane, p) = on_frame_keeping(
+    let (doc, p) = on_frame(
         doc,
         [0.0; 3],
         [1.0, 0.0, 0.0],
@@ -55,20 +55,9 @@ fn full_wire_holed_revolve_names_totally() {
             vec![(0.5, 1.0), (1.5, 1.0), (1.5, 2.0), (0.5, 2.0)],
         ],
     );
-    let (doc, axis) = insert(
-        doc,
-        // The axis, in the frame's own coordinates: the profile's v is
-        // world +Y, so the line the revolve turns about is that
-        // frame's +y through (0, 0).
-        axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)),
-    );
     let (doc, rev) = insert(
         doc,
-        Node::Revolve {
-            profile: p.into(),
-            axis: axis.into(),
-            angle: ang(std::f64::consts::TAU),
-        },
+        revolve_about(p, (0.0, 0.0), (0.0, 1.0), ang(std::f64::consts::TAU)),
     );
     let ev = run(&doc);
     // Totality: `check_total` ran inside name_revolve — reaching a
