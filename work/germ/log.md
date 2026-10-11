@@ -904,3 +904,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
     - The spec found the row stale: the lily stops at the dispatch (F2), not at the frame.
   - **U-T1** (M) is dispatched. Arm byte 144, mod 3 = 0: **HOLDOUT**. Cloud session `session_014Sj6YgYpZtxCW7SzpqV4aK`, branch `germ/plane-torus-germ-frame`.
   - The PR 4592 fix pass is running.
+- 2026-10-11 01:02 — Check-in: nothing ready. The 4592 fix pass is running its ε sweep and gates. r4600 is running (container uptime 1h; it started after the restart). U-T1 has no PR yet.
