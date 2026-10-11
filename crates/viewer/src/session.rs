@@ -67,7 +67,7 @@ use pncad::document::{
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
-use pncad::select::{FlushFinding, Resolution, RunCtx, declared_pairs, resolve};
+use pncad::select::{FlushFinding, Resolution, declared_pairs};
 use pncad::topo::Body;
 
 use crate::blend::BlendKindChoice;

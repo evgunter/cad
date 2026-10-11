@@ -204,7 +204,11 @@ fn chord_selector() -> Selector {
 }
 
 /// The read of the split's `half`.
-fn half_read(doc: &Doc<ProfileProgram>, split: RecipeNodeId, half: SplitHalf) -> pncad::document::VarId {
+fn half_read(
+    doc: &Doc<ProfileProgram>,
+    split: RecipeNodeId,
+    half: SplitHalf,
+) -> pncad::document::VarId {
     doc.output(split, half.port())
         .expect("a split defines a port per half")
 }

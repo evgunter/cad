@@ -101,7 +101,7 @@ use pncad::document::{
     Speaker, SpokenNode, class_admission, held_by, member_reading, table_gap,
 };
 use pncad::prelude::StableName;
-use pncad::select::{ContactClass, InterrogateError, Resolution, RunCtx, face_frame, resolve};
+use pncad::select::{ContactClass, InterrogateError, Resolution, face_frame};
 
 use crate::session::select::resolves;
 use crate::session::{FaceSelection, SessionOp};

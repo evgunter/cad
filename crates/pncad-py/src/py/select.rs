@@ -926,9 +926,7 @@ pub(crate) fn select_refusal(
     reason = "compile-time exhaustiveness tripwires; the match is the check, no caller needed"
 )]
 mod growth_tripwire {
-    use super::{
-        CapEnd, Cmp, CurveKind, MeridianEnd, OpGroup, RimSupport, SegTag, SideArg, s,
-    };
+    use super::{CapEnd, Cmp, CurveKind, MeridianEnd, OpGroup, RimSupport, SegTag, SideArg, s};
 
     // `EntityKind`'s and `SurfaceKind`'s tripwires are
     // `super::entity_kind` and `super::surface_kind`, which are the

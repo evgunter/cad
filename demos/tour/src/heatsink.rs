@@ -416,10 +416,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // against the prior — the memo counters are the demo.
     let ev5 = eval(&r.doc, None, tol);
     assert_eq!(ev5.recomputed, 9, "a cold evaluation computes every node");
-    let names5 = ev5
-        .table_at(r.group)
-        .expect("the fin group @ 5")
-        .clone();
+    let names5 = ev5.table_at(r.group).expect("the fin group @ 5").clone();
 
     let mut doc = r.doc.clone();
     let mut evs: Vec<(usize, Evaluation<f64>, String)> = Vec::new();

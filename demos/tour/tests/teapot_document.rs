@@ -314,7 +314,7 @@ fn two_slits_on_one_meridian_carry_the_band_that_made_each() {
         "{:?}",
         ev.node_error(rolled)
     );
-    let table = &ev.value(rolled).expect("the roll evaluated").name_table;
+    let table = ev.table_at(rolled).expect("the roll evaluated");
     // The flange cone's seam meridian: the sharp lid's meridian
     // segment 1, on the revolve's seam.
     let seam = seam_of(&doc, lid, 1, tol);
@@ -469,9 +469,8 @@ fn the_rolled_names_are_one_set_at_two_radii() {
             ev.node_error(rolled)
         );
         let mut out: Vec<StableName> = ev
-            .value(rolled)
+            .table_at(rolled)
             .expect("the roll evaluated")
-            .name_table
             .iter()
             .map(|(n, _)| n.clone())
             .collect();
@@ -508,7 +507,7 @@ fn named_geometry(
         ends.sort_unstable();
         out.insert(n, ends.concat());
     }
-    for (n, _) in ev.value(node).unwrap().name_table.iter() {
+    for (n, _) in ev.table_at(node).unwrap().iter() {
         if n.kind == EntityKind::Vertex {
             let p = pncad::select::vertex_position(ev, node, n).expect("vertex reads");
             out.insert(n.clone(), vec![p.x.to_bits(), p.y.to_bits(), p.z.to_bits()]);
@@ -649,16 +648,14 @@ fn the_interval_lane_mints_the_f64_names() {
         tol,
     );
     let nf: Vec<StableName> = ef
-        .value(rolled)
+        .table_at(rolled)
         .unwrap()
-        .name_table
         .iter()
         .map(|(n, _)| n.clone())
         .collect();
     let ni: Vec<StableName> = ei
-        .value(rolled)
+        .table_at(rolled)
         .unwrap_or_else(|| panic!("the interval lane rolls: {:?}", ei.node_error(rolled)))
-        .name_table
         .iter()
         .map(|(n, _)| n.clone())
         .collect();

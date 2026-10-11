@@ -1471,7 +1471,10 @@ impl Evaluation {
         node: super::doc::OperandArg,
         selector: &super::select::Selector,
     ) -> PyResult<Vec<String>> {
-        names(py, pncad::select::select(&self.inner, node.at(), &selector.0))
+        names(
+            py,
+            pncad::select::select(&self.inner, node.at(), &selector.0),
+        )
     }
 
     /// **Materialize a selection narrowed by GEOMETRY**: `selector`

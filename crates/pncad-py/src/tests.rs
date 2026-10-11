@@ -1512,6 +1512,8 @@ fn resolution_status_tags_are_stable() {
     faces.sort();
     assert_eq!(faces.len(), 6, "a cube's six faces");
     let stored = faces.remove(0);
+    // The read the name is read in: the extrude's one output.
+    let read = doc.read_of_node(extrude).expect("the extrude's output");
 
     // RESOLVED: the ordinary run, asked about its own name.
     assert_eq!(
@@ -1520,6 +1522,7 @@ fn resolution_status_tags_are_stable() {
                 doc: &doc,
                 eval: &ev
             },
+            read,
             &stored
         )),
         "resolved"
@@ -1541,6 +1544,7 @@ fn resolution_status_tags_are_stable() {
             doc: &pruned,
             eval: &after,
         },
+        read,
         &stored,
     );
     assert_eq!(resolution_status_tag(&verdict), "failed");
@@ -1567,6 +1571,7 @@ fn resolution_status_tags_are_stable() {
             doc: &doc,
             eval: &partial,
         },
+        read,
         &stored,
     );
     assert_eq!(resolution_status_tag(&verdict), "indeterminate");
