@@ -12,10 +12,10 @@ cost: M
 ## What
 
 `topo::boolean::section_cert`'s `cone_cone`
-(`crates/topo/src/boolean/section_cert.rs:1995`), reached from
+(`crates/topo/src/boolean/section_cert.rs:2036`), reached from
 `axis_pose`'s parallel pose, decides the two cones' aperture gap
 `cos²α₁ − cos²α₂` levered at the reach (`section_cone_pair_aperture`,
-`:2016`) and on Zero serves `cone_plane_pair` (`:2042`): the section read
+`:2057`) and on Zero serves `cone_plane_pair` (`:2083`): the section read
 as one cone's section by the plane its forms' difference names, exact
 only for parallel axes and equal apertures. The tilt (decided Zero by
 `section_axes_tilt`) and the aperture gap are each just inside the band
@@ -30,7 +30,7 @@ a claim-level P3.
 
 ## The shape of a fix
 
-Carry the swing `axis_pose` now hands its parallel pose
-(`Pose::Parallel { swing, .. }`) and the aperture gap's own levered
+Carry the slack `axis_pose` now hands its parallel pose
+(`Pose::Parallel { slack, .. }`) and the aperture gap's own levered
 reading into `cone_plane`'s rows as one bracket, read across
-(`across` / `signs_across` in the same file).
+(`signs_across` in the same file, over `geom_brep::intersect::decide_across`).

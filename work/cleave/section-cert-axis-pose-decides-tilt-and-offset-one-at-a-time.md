@@ -63,3 +63,25 @@ cylinder pair's coincidence row beside its own tilt.
 
 Rows: `section_cert_axis_pose_rows.rs` (split, inside, narrow K, and the
 parallel floors), every ε.
+
+### Fix pass (review of `0c9b997823`)
+
+- The wall pair's coincidence row reads its swing as a turn about the
+  pivot on the second axis: radial motion slides along the wall, so only
+  a point's station (at most the reach's radius) moves it at first
+  order, `sin·radius + r₂·sin²`. Wide walls clearly apart (r = 100 at
+  20 and 40 bands, r = 1000 at 200 over a unit reach) serve their
+  rulings again, where the radius-levered swing refused them.
+- One story: the rows read through `geom_brep::intersect::decide_across`
+  (made public; its far row now goes through the magnitude door), the
+  chord is `carrier_eq`'s `line_tilt`, and the pivot and lever are
+  `ExtentBall`'s `foot_on` and `lever_from` (`Reach::ball`); `signs` and
+  `signs_across` share one loop.
+- A near-coaxial straddle refuses R-tan naming the offset row in the
+  torus arms (it was R-reach); the cone arms hand it to the ruling
+  charts, which bridge nothing.
+- Pins a halved swing, and each dropped turn, turn red: the straddles
+  sit between the whole swing's floor and half of it, and
+  `the_turn_of_a_point_read_off_the_pivot_counts` reads a tiny reach
+  about the pivot where the turn of the torus centre, the cone's apex
+  or the second apex is the residue past the band.

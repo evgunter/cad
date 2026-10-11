@@ -9,15 +9,21 @@
 //! verdict against the closed form: the wall's or the second tube's true
 //! stand-off from the torus's tube, per meridian.
 //!
-//! - **split**, `0.9 + 0.9` zero bands (offset at the pivot, tilt at its
-//!   lever): each row alone reads Zero, and main served the coaxial
-//!   reading; the swing is half the tilt's reading, so the offset reads
-//!   `1.35` bands far, and the pose is no reading at all;
+//! - **split**, `0.9 + 0.9` and `0.75 + 0.75` zero bands (offset at the
+//!   pivot, tilt at its lever): each row alone reads Zero, and main
+//!   served the coaxial reading; the swing is half the tilt's reading, so
+//!   the offset reads `1.35` and `1.125` bands far, and the pose refuses
+//!   on the offset row;
 //! - **inside**, `0.4 + 0.4`: coaxial, its rows read beside a slack of
 //!   `0.6`;
 //! - **narrow**, `K = 1.2` and `0.95 + 0.95`: main served two essential
 //!   parallels, or nothing, where the closed form puts the partner across
 //!   the tube on one side and clear of it on the other.
+//!
+//! The straddles sit between the floor of the whole swing and that of
+//! half of it, so an under-read swing serves them; and the turn rows read
+//! a pose whose only residue past the band is the turn of a point the arm
+//! reads off the pivot.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -152,32 +158,43 @@ fn k() -> f64 {
     band().escalate() / zero()
 }
 
+/// The offset row a pose refuses on: the far row while `1.35` bands sit
+/// inside the escalation edge, else the floor's.
+fn offset_row(s: &Section<f64>) -> &'static str {
+    let name = tangent(s);
+    assert!(
+        name == "section_axes_offset" || name == "section_axes_offset_floor",
+        "refused on the offset, got {name}"
+    );
+    name
+}
+
 /// **Split: no reading.** At `0.9 + 0.9` the partner stands `1.2` to
-/// `1.3` bands off the coaxial reading in the closed form, and main
-/// served it whatever the row read: two essential parallels or nothing
-/// past `K`, R-tan inside it.
+/// `1.3` bands off the coaxial reading in the closed form, and at
+/// `0.75 + 0.75` just over one; main served it whatever the row read: two
+/// essential parallels or nothing past `K`, R-tan inside it.
 #[test]
-fn a_split_pose_is_no_axis_reading() {
-    for m in [0.5, -0.5, k() + 1.0, -(k() + 1.0), 20.0, -20.0] {
-        for (label, s, (lo, hi)) in both(0.9, 0.9, m, band()) {
-            let z = zero();
-            assert!(
-                hi - lo > 2.2 * z,
-                "{label} m = {m}: the partner stands {} bands off the coaxial reading",
-                (hi - lo) / (2.0 * z)
-            );
-            assert!(
-                matches!(s, Section::Intractable),
-                "{label} m = {m}: split, no reading, got {s:?}"
-            );
+fn a_split_pose_refuses_on_the_offset() {
+    for split in [0.9, 0.75] {
+        for m in [0.5, -0.5, k() + 1.0, -(k() + 1.0), 20.0, -20.0] {
+            for (label, s, (lo, hi)) in both(split, split, m, band()) {
+                let z = zero();
+                assert!(
+                    hi - lo > 2.0 * z,
+                    "{label} {split} m = {m}: the partner stands {} bands off the coaxial reading",
+                    (hi - lo) / (2.0 * z)
+                );
+                offset_row(&s);
+            }
         }
     }
 }
 
 /// **Inside: coaxial, its rows across.** At `0.4 + 0.4` the pose reads
 /// coaxial with a slack of `0.6`: a row `K + 1` bands past the flip is
-/// served, and agrees with the closed form; `K + 0.3` straddles on the
-/// floor; `0.3` is a tangency on the far row.
+/// served, and agrees with the closed form; `K + 0.55` straddles on the
+/// floor (half the swing would serve it); `0.3` is a tangency on the far
+/// row.
 #[test]
 fn inside_the_band_the_coaxial_reading_serves_across() {
     let rows = [
@@ -204,7 +221,7 @@ fn inside_the_band_the_coaxial_reading_serves_across() {
                 assert_eq!(shape(&s).0, 0, "{label} {row}: apart");
             }
         }
-        for ((label, s, _), (_, row)) in both(0.4, 0.4, side * (k() + 0.3), band())
+        for ((label, s, _), (_, row)) in both(0.4, 0.4, side * (k() + 0.55), band())
             .into_iter()
             .zip(rows)
         {
@@ -234,9 +251,10 @@ fn a_narrow_band_serves_no_section_the_closed_form_contradicts() {
                 lo / z,
                 hi / z
             );
-            assert!(
-                matches!(s, Section::Intractable),
-                "{label} m = {m}: no reading, got {s:?}"
+            assert_eq!(
+                tangent(&s),
+                "section_axes_offset_floor",
+                "{label} m = {m}: a straddle"
             );
         }
     }
@@ -244,7 +262,7 @@ fn a_narrow_band_serves_no_section_the_closed_form_contradicts() {
 
 /// The parallel arms' rows, and the wall pair's coincidence, each `K +
 /// past` bands from the flip beside a swing of `0.45` (the tilt reading
-/// `0.9` at its lever, which is twice the swing's), its far row `row`.
+/// `0.9` at its lever, which is twice the swing's), its far row named.
 fn parallel_rows(past: f64) -> [(&'static str, Section<f64>); 3] {
     let z = zero();
     let gap = (k() + past) * z;
@@ -285,30 +303,145 @@ fn parallel_rows(past: f64) -> [(&'static str, Section<f64>); 3] {
     ]
 }
 
-/// **The parallel rows read on the floor.** `K + 0.2` bands past the
-/// flip beside a swing of `0.45` straddles, where main served the side;
-/// `K + 0.9` serves it.
+/// The served wall pair: one unbounded component, rulings or nothing.
+fn rulings(row: &str, s: &Section<f64>) {
+    match s {
+        Section::Components { parts, .. } => assert!(
+            parts.len() == 1 && parts[0].unbounded,
+            "{row}: rulings or nothing: {parts:?}"
+        ),
+        other => panic!("{row}: served, got {other:?}"),
+    }
+}
+
+/// **The parallel rows read on the floor.** `K + 0.35` bands past the
+/// flip beside a swing of `0.45` straddles, where main served the side
+/// (and half the swing would); `K + 0.9` serves it.
 #[test]
 fn parallel_rows_serve_a_side_on_the_floor() {
-    for (row, s) in parallel_rows(0.2) {
+    for (row, s) in parallel_rows(0.35) {
         assert_eq!(tangent(&s), format!("{row}_floor"), "{row}: straddles");
     }
     for (row, s) in parallel_rows(0.9) {
-        match s {
-            Section::Components { parts, .. } => match row {
-                "section_torus_offset_wall_near_outer" => {
-                    assert!(parts.is_empty(), "{row}: the pin is clear of the tube")
-                }
-                "section_cone_cylinder_apex" => assert!(
-                    parts.len() == 2 && parts.iter().all(|c| !c.essential_f && c.essential_g),
-                    "{row}: one loop per nappe, the wall clear of the axis: {parts:?}"
-                ),
-                _ => assert!(
-                    parts.len() == 1 && parts[0].unbounded,
-                    "{row}: rulings or nothing: {parts:?}"
-                ),
-            },
-            other => panic!("{row}: served, got {other:?}"),
+        match (row, &s) {
+            ("section_torus_offset_wall_near_outer", Section::Components { parts, .. }) => {
+                assert!(parts.is_empty(), "{row}: the pin is clear of the tube")
+            }
+            ("section_cone_cylinder_apex", Section::Components { parts, .. }) => assert!(
+                parts.len() == 2 && parts.iter().all(|c| !c.essential_f && c.essential_g),
+                "{row}: one loop per nappe, the wall clear of the axis: {parts:?}"
+            ),
+            ("section_cylinder_pair_coincident", _) => rulings(row, &s),
+            _ => panic!("{row}: served, got {s:?}"),
         }
+    }
+}
+
+/// **Wide walls are not read off their radius.** Two walls of radius
+/// `r` on one axis, `gap` bands apart in radius, read over a unit reach
+/// on the wall with their tilt at `0.9` of the band at the reach's
+/// diameter: a turn about the pivot slides the wall along itself, so only
+/// the station (at most the reach's radius) and the radius times the
+/// sine squared move it, and the walls are clearly apart. Levered at the
+/// radius, the swing would be `0.45·(r + 1)` bands and refuse both.
+#[test]
+fn wide_walls_clearly_apart_serve_their_rulings() {
+    let z = zero();
+    for (r, gap) in [(100.0, 20.0), (100.0, 40.0), (1000.0, 200.0)] {
+        let s = classify(
+            &cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), r),
+            &cylinder(p(0.0, 0.0, 0.0), tilted(0.45 * z), r + gap * z),
+            Reach {
+                centre: p(r, 0.0, 0.0),
+                radius: 1.0,
+            },
+            band(),
+        );
+        rulings("section_cylinder_pair_coincident", &s);
+    }
+}
+
+/// The reach about the pivot whose radius `L` makes the turn of a point
+/// half a metre along the axis from it, `0.5·sin²`, read `TURN` bands with
+/// the tilt at `TILT` of the band at its lever `2L`; the swing is `TILT/2`.
+const TILT: f64 = 0.85;
+const TURN: f64 = 0.9;
+fn turn_reach(at: Point3<f64>) -> (Reach<f64>, f64) {
+    let z = zero();
+    let radius = (0.5 * (TILT / 2.0).powi(2) * z / TURN).sqrt();
+    (Reach { centre: at, radius }, TILT * z / (2.0 * radius))
+}
+
+/// **The turn of a point read off the pivot counts.** A cone whose apex
+/// is the pivot, on the torus axis, against a torus whose centre stands
+/// `0.5` m up the axis from it; and a second torus whose centre stands
+/// `0.5` m down its own axis from the pivot. Neither has an offset, and
+/// the swing is `0.425` bands; the arm's coaxial reading reads the height
+/// at the centre or the apex, which the turn moves by `0.9` bands more,
+/// so each refuses on the offset; so does a second cone whose apex stands
+/// `0.5` m off the pivot along its axis. The same pose with the read point
+/// at the pivot is served: two parallels apart from the cone, two crossing
+/// the second tube, the coaxial cones' two parallels.
+#[test]
+fn the_turn_of_a_point_read_off_the_pivot_counts() {
+    let at = p(0.0, 0.0, 0.0);
+    let (reach, tilt) = turn_reach(at);
+    let d = tilted(tilt);
+    let cone = Surface::Cone {
+        apex: at,
+        axis: d,
+        half_angle: core::f64::consts::FRAC_PI_4,
+        u_ref: Vec3::unit_y(),
+    };
+    for (rise, refuses) in [(0.5, true), (0.0, false)] {
+        let s = classify(&torus(p(0.0, 0.0, rise), 2.0, 0.5), &cone, reach, band());
+        if refuses {
+            offset_row(&s);
+        } else {
+            assert_eq!(
+                shape(&s).0,
+                0,
+                "cone at the pivot's height: apart, got {s:?}"
+            );
+        }
+        let t2 = Surface::Torus {
+            center: at - d * rise,
+            axis: d,
+            major_radius: 2.3,
+            minor_radius: 0.5,
+            u_ref: Vec3::unit_y(),
+        };
+        let s = classify(&torus(p(0.0, 0.0, 0.5), 2.0, 0.5), &t2, reach, band());
+        if refuses {
+            offset_row(&s);
+        } else {
+            assert_eq!(
+                (shape(&s).0, shape(&s).2),
+                (2, vec![true, true]),
+                "torus at the pivot: two parallels, got {s:?}"
+            );
+        }
+        // A second cone whose apex stands `0.5` m along its own axis from
+        // the pivot, against a cone whose apex is a metre down the first
+        // axis: refused coaxial, the pair goes to the ruling charts.
+        let apexes = Surface::Cone {
+            apex: at + d * rise,
+            axis: d,
+            half_angle: core::f64::consts::FRAC_PI_4,
+            u_ref: Vec3::unit_y(),
+        };
+        let first = Surface::Cone {
+            apex: p(0.0, 0.0, -1.0),
+            axis: Vec3::unit_z(),
+            half_angle: core::f64::consts::FRAC_PI_4,
+            u_ref: Vec3::unit_x(),
+        };
+        let s = classify(&first, &apexes, reach, band());
+        let coaxial = matches!(
+            &s,
+            Section::Components { parts, .. } if parts.len() == 2
+                && parts.iter().all(|c| c.essential_f && c.essential_g && c.witness.is_none())
+        );
+        assert_eq!(coaxial, !refuses, "cones, apex {rise} off the pivot: {s:?}");
     }
 }

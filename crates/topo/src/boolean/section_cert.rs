@@ -176,22 +176,29 @@
 //!   `ε` times that distance. Read at the pivot, the same carrier line
 //!   classifies the same way whatever origin stores it.
 //! - **The lever** is the farthest the reach stands from the pivot,
-//!   `|centre − pivot| + radius`, doubled for the two axes' share: a
-//!   tilt decided `Zero` at that lever routes the pair to the parallel
-//!   and coaxial readings. Between two walls, whose tilt needs no pivot,
-//!   the lever is the reach's diameter.
+//!   `|centre − pivot| + radius`, doubled: a tilt decided `Zero` there
+//!   routes the pair to the parallel and coaxial readings having moved
+//!   the partner by at most half the band across the reach, which leaves
+//!   the other half to an offset a coaxial reading can still serve.
+//!   Between two walls, whose tilt needs no pivot, the lever is the
+//!   reach's diameter.
 //! - **The sum.** Routed there, the partner is read as its image under
 //!   the turn about the pivot onto the other axis's direction, which
 //!   moves it by at most the chord between the axes times
 //!   `|centre − pivot| + radius` anywhere the section can matter: the
 //!   swing, plus how far the turn moves a point other than the pivot
-//!   that the arm reads (a torus's centre, a cone's apex). The offset at
-//!   the pivot, and every row an arm serves on the parallel or coaxial
+//!   that the arm reads (a torus's centre, a cone's apex). Between two
+//!   walls only a point's station along the turned axis moves it off the
+//!   wall at first order, so their swing is the sine times the reach's
+//!   radius, plus the radius times the sine squared. The offset at the
+//!   pivot, and every row an arm serves on the parallel or coaxial
 //!   reading, is decided across the reach beside that swing: the zero
 //!   side on `|datum| + swing`, a definite side on the datum shrunk
-//!   toward zero by it (the row's `_floor`), a straddle undecided. Never
-//!   the two terms one at a time: each just inside the band would sum to
-//!   nearly twice it.
+//!   toward zero by it (the row's `_floor`). Never the two terms one at a
+//!   time: each just inside the band would sum to nearly twice it. A
+//!   straddle, or an undecided row, refuses R-tan naming it, except where
+//!   the ruling charts read the pose with nothing bridged (a cone's
+//!   partner off its axis).
 //!
 //! A LOOSER box widens the reach and lengthens the lever, so a tilt
 //! decides `Zero` less readily — the tilted arm, or a refusal on reach,
@@ -289,11 +296,13 @@
 //! blanket gate could only refuse. The conservative refusal they were
 //! known for — a cube standing in a donut's hole — is W0 or W2 here.
 
-use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
+use super::carrier_eq::line_tilt;
 use super::contain::FaceContainment;
-use crate::validate::{decide, decide_nonzero};
-use geom_core::k_stats::NonzeroSign;
+use crate::validate::decide;
+use geom_brep::ExtentBall;
+use geom_brep::intersect::decide_across;
 
 /// Which face of the pair a statement is about.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -313,6 +322,16 @@ pub(crate) struct Reach<T: Real> {
     pub centre: Point3<T>,
     /// Its half-diagonal.
     pub radius: T,
+}
+
+impl<T: Real> Reach<T> {
+    /// The reach as a consumed extent: its foot on an axis is the pivot
+    /// a datum on that axis is read at, and its farthest distance from a
+    /// point the travel of a turn about it (module docs, the lever and
+    /// its pivot).
+    fn ball(self) -> ExtentBall<T> {
+        ExtentBall::new(self.centre, self.radius)
+    }
 }
 
 /// One connected component of a pair's section.
@@ -506,22 +525,24 @@ impl Pinch {
     }
 }
 
-/// Decides every margin in `ms`; the first `Zero` or undecided one is
-/// the pair's tangency.
-fn signs<T: Decide, const N: usize>(
-    ms: [(&'static str, T); N],
-    band: Band,
+/// Reads every row by `read`, which names it and gives its verdict; the
+/// first `Zero` or undecided one is the pair's tangency, named by the row
+/// left undecided where one was.
+fn first_pinch<R, const N: usize>(
+    rows: [R; N],
+    read: impl Fn(R) -> (&'static str, Result<Sign, Indeterminate>),
 ) -> Result<[bool; N], Pinch> {
     let mut out = [false; N];
-    for (index, (slot, (name, m))) in out.iter_mut().zip(ms).enumerate() {
-        let undecided = match decide(name, Margin::of(m), band) {
+    for (index, (slot, row)) in out.iter_mut().zip(rows).enumerate() {
+        let (name, verdict) = read(row);
+        let (name, undecided) = match verdict {
             Ok(Sign::Positive) => {
                 *slot = true;
                 continue;
             }
             Ok(Sign::Negative) => continue,
-            Ok(Sign::Zero) => None,
-            Err(diag) => Some(diag),
+            Ok(Sign::Zero) => (name, None),
+            Err(diag) => (diag.predicate.unwrap_or(name), Some(diag)),
         };
         return Err(Pinch {
             name,
@@ -532,61 +553,24 @@ fn signs<T: Decide, const N: usize>(
     Ok(out)
 }
 
-/// **A row read across the reach** (module docs, the sum): `datum`
-/// where the pose reads it, `swing` the most the residue its pose bridged
-/// moves that reading anywhere the section can matter. Zero when
-/// `|datum| + swing` (`far`) decides Zero; otherwise the sign of the datum
-/// shrunk toward zero by the swing (`floor`), which holds at every point
-/// of the reach. `Err` names the row left undecided, a floor decided Zero
-/// beside a definite far reading (a straddle) included.
-fn across<T: Decide>(
-    [far, floor]: [&'static str; 2],
-    datum: T,
-    swing: T,
-    band: Band,
-) -> Result<Sign, &'static str> {
-    let swing = swing.abs();
-    match sign(far, Margin::of(datum.abs() + swing), band).ok_or(far)? {
-        Sign::Zero => Ok(Sign::Zero),
-        Sign::Positive | Sign::Negative => {
-            let near = (datum - swing).max(T::zero()) + (datum + swing).min(T::zero());
-            match decide_nonzero(floor, Margin::of(near), band).map_err(|_| floor)? {
-                NonzeroSign::Positive => Ok(Sign::Positive),
-                NonzeroSign::Negative => Ok(Sign::Negative),
-            }
-        }
-    }
-}
-
-/// [`signs`], each row `(far, floor, datum)` read [`across`] the reach
-/// beside `swing`.
-fn signs_across<T: Decide, const N: usize>(
-    rows: [(&'static str, &'static str, T); N],
-    swing: T,
+/// Decides every margin in `ms` ([`first_pinch`]).
+fn signs<T: Decide, const N: usize>(
+    ms: [(&'static str, T); N],
     band: Band,
 ) -> Result<[bool; N], Pinch> {
-    let mut out = [false; N];
-    for (index, (slot, (far, floor, m))) in out.iter_mut().zip(rows).enumerate() {
-        match across([far, floor], m, swing, band) {
-            Ok(Sign::Positive) => *slot = true,
-            Ok(Sign::Negative) => {}
-            Ok(Sign::Zero) => {
-                return Err(Pinch {
-                    name: far,
-                    index,
-                    zero: true,
-                });
-            }
-            Err(name) => {
-                return Err(Pinch {
-                    name,
-                    index,
-                    zero: false,
-                });
-            }
-        }
-    }
-    Ok(out)
+    first_pinch(ms, |(name, m)| (name, decide(name, Margin::of(m), band)))
+}
+
+/// [`signs`], each row `(far, floor, datum)` read across the reach beside
+/// `slack` (module docs, the sum; [`decide_across`]).
+fn signs_across<T: Decide, const N: usize>(
+    rows: [(&'static str, &'static str, T); N],
+    slack: T,
+    band: Band,
+) -> Result<[bool; N], Pinch> {
+    first_pinch(rows, |(far, floor, m)| {
+        (far, decide_across([far, floor], m, slack, band))
+    })
 }
 
 fn none<T: Real>() -> Section<T> {
@@ -799,7 +783,7 @@ fn torus_pair<T: Decide>(
             axis: d,
             radius: rc,
             ..
-        } => match axis_pose(c, a, origin, unit(d), |_, _, _| T::zero(), reach, band) {
+        } => match axis_pose(c, a, origin, unit(d), |_| T::zero(), reach, band) {
             Pose::Coaxial { slack } => {
                 // The cylinder's meridian is the line ρ = ρc against the
                 // tube circle.
@@ -817,9 +801,10 @@ fn torus_pair<T: Decide>(
                     Err(tan) => tan.into(),
                 }
             }
-            Pose::Parallel { e, toward, swing } => {
-                torus_parallel_cylinder(c, a, big_r, r, (e, swing), toward, rc, band)
+            Pose::Parallel { e, toward, slack } => {
+                torus_parallel_cylinder(c, a, big_r, r, (e, slack), toward, rc, band)
             }
+            Pose::Undecided(name) => Section::Tangent(name),
             Pose::Other => match square_pose(c, a, origin, unit(d), reach, band) {
                 Some(wall) => torus_square_cylinder(c, a, big_r, r, &wall, rc, band),
                 None => Section::Intractable,
@@ -839,7 +824,7 @@ fn torus_pair<T: Decide>(
             // The centre's height is read off `c2` itself, which the turn
             // onto the torus axis lifts by its station from the pivot
             // times `1 − cos`, at most `sin²`.
-            let turn = |at: Point3<T>, tilt: T, _: T| (c2 - at).dot(a2).abs() * tilt.powi(2);
+            let turn = |t: &Turn<T>| (c2 - t.at).dot(a2).abs() * t.tilt.powi(2);
             match axis_pose(c, a, c2, a2, turn, reach, band) {
                 Pose::Coaxial { slack } => {
                     let z2 = (c2 - c).dot(a);
@@ -865,6 +850,7 @@ fn torus_pair<T: Decide>(
                         Err(tan) => tan.into(),
                     }
                 }
+                Pose::Undecided(name) => Section::Tangent(name),
                 Pose::Parallel { .. } | Pose::Other => Section::Intractable,
             }
         }
@@ -879,8 +865,7 @@ fn torus_pair<T: Decide>(
             // turn onto the torus axis moves it by the torus centre's
             // station from the pivot times `1 − cos` (at most `sin²`),
             // and by the offset's part along the tilted axis.
-            let turn =
-                |at: Point3<T>, tilt: T, e: T| (c - at).dot(a).abs() * tilt.powi(2) + e * tilt;
+            let turn = |t: &Turn<T>| (c - t.at).dot(a).abs() * t.tilt.powi(2) + t.offset * t.tilt;
             match axis_pose(c, a, apex, d, turn, reach, band) {
                 Pose::Coaxial { slack } => {
                     // In the meridian half-plane about the apex, each
@@ -911,6 +896,7 @@ fn torus_pair<T: Decide>(
                         Err(tan) => tan.into(),
                     }
                 }
+                Pose::Undecided(name) => Section::Tangent(name),
                 Pose::Parallel { .. } | Pose::Other => Section::Intractable,
             }
         }
@@ -924,59 +910,51 @@ enum Pose<T: Real> {
     /// the partner anywhere the section can matter.
     Coaxial { slack: T },
     /// Parallel, at offset `e` read at the pivot, with `toward` the unit
-    /// direction from the torus axis to the partner's: anywhere the
-    /// section can matter the partner stands at most `swing` off the
-    /// parallel reading.
-    Parallel { e: T, toward: Vec3<T>, swing: T },
-    /// Tilted, undecided, or neither reading across the reach.
+    /// direction from the torus axis to the partner's: the parallel
+    /// reading stands at most `slack` off the partner anywhere the section
+    /// can matter.
+    Parallel { e: T, toward: Vec3<T>, slack: T },
+    /// The tilt routes the axes parallel, and the offset reads neither
+    /// coaxial nor parallel across the reach: the row left undecided.
+    Undecided(&'static str),
+    /// Tilted, or the tilt undecided.
     Other,
 }
 
-/// The partner axis's point nearest the reach's centre: where an offset
-/// between two nearly parallel axes is read (module docs).
-fn pivot<T: Real>(o: Point3<T>, d: Vec3<T>, reach: Reach<T>) -> Point3<T> {
-    o + d * (reach.centre - o).dot(d)
-}
-
-/// The reach's farthest distance from the point `at`.
-fn reach_from<T: Real>(at: Point3<T>, reach: Reach<T>) -> T {
-    (reach.centre - at).norm() + reach.radius
-}
-
 /// The lever of a tilt read about the pivot `at` (module docs, the lever
-/// and its pivot): the reach's farthest distance from it, doubled for the
-/// two axes' share.
+/// and its pivot): the reach's farthest distance from it, doubled.
 fn lever<T: Real>(at: Point3<T>, reach: Reach<T>) -> T {
-    reach_from(at, reach) * T::from_f64(2.0)
+    reach.ball().lever_from(at) * T::from_f64(2.0)
 }
 
-/// The chord between two unit axis directions read as one line, `d`
-/// against `a` or `−a` whichever is nearer: a turn about a point by the
-/// angle between them moves every point by at most this times its
-/// distance from that point.
-fn chord<T: Real>(a: Vec3<T>, d: Vec3<T>) -> T {
-    (d - a).norm().min((d + a).norm())
+/// Where the turn onto the torus axis is read: the pivot, the axes' tilt
+/// (the sine between them), and the partner axis's offset at the pivot.
+struct Turn<T: Real> {
+    at: Point3<T>,
+    tilt: T,
+    offset: T,
 }
 
-/// Decides the axis pose (module docs, the lever and its pivot). The tilt,
-/// levered from the pivot `at`, only routes. Below it the partner is
-/// read as its image under the turn about `at` that takes its axis onto
-/// `a`'s direction, which moves it by at most the [`chord`] times
-/// [`reach_from`]`(at)` anywhere the section can matter: the swing, plus
-/// `turn(at, tilt, e)`, how far the arm's own reading of that image moves
-/// with it (zero for a reading that is the image). Its offset `e`, read
-/// AT the pivot, is decided [`across`] the reach beside that swing:
-/// coaxial on the far row, parallel on the floor.
+/// Decides the axis pose (module docs, the lever and its pivot, the sum).
+/// The tilt, levered from the pivot `at`, only routes. Below it the
+/// partner is read as its image under the turn about `at` that takes its
+/// axis onto `a`'s direction, which moves it by at most the chord between
+/// the axes ([`line_tilt`]) times the reach's farthest distance from `at`
+/// anywhere the section can matter: the swing, plus `turn`, how far the
+/// arm's own reading moves with the image where it reads a point other
+/// than the pivot (zero for a reading that is the image). The offset at
+/// the pivot is decided across the reach beside that swing: coaxial on
+/// the far row, parallel on the floor.
 fn axis_pose<T: Decide>(
     c: Point3<T>,
     a: Vec3<T>,
     o: Point3<T>,
     d: Vec3<T>,
-    turn: impl FnOnce(Point3<T>, T, T) -> T,
+    turn: impl FnOnce(&Turn<T>) -> T,
     reach: Reach<T>,
     band: Band,
 ) -> Pose<T> {
-    let at = pivot(o, d, reach);
+    let at = reach.ball().foot_on(o, d);
     let tilt = a.cross(d).norm();
     if sign(
         "section_axes_tilt",
@@ -987,20 +965,25 @@ fn axis_pose<T: Decide>(
         return Pose::Other;
     }
     let (perp, e) = perp_to(at - c, a);
-    let swing = chord(a, d) * reach_from(at, reach) + turn(at, tilt, e);
-    match across(
-        ["section_axes_offset", "section_axes_offset_floor"],
-        e,
-        swing,
-        band,
-    ) {
+    let swing = line_tilt(a, d) * reach.ball().lever_from(at)
+        + turn(&Turn {
+            at,
+            tilt,
+            offset: e,
+        });
+    const OFFSET: &str = "section_axes_offset";
+    match decide_across([OFFSET, "section_axes_offset_floor"], e, swing, band) {
         Ok(Sign::Zero) => Pose::Coaxial { slack: e + swing },
         Ok(Sign::Positive) => Pose::Parallel {
             e,
             toward: perp / e,
-            swing,
+            slack: swing,
         },
-        Ok(Sign::Negative) | Err(_) => Pose::Other,
+        Ok(Sign::Negative) => unreachable!(
+            "`{OFFSET}` read a distance's floor Negative: the offset is a norm, and its floor \
+             is shrunk toward zero, never past it"
+        ),
+        Err(diag) => Pose::Undecided(diag.predicate.unwrap_or(OFFSET)),
     }
 }
 
@@ -1243,14 +1226,14 @@ fn torus_sphere_touch<T: Decide>(
 
 /// **Torus × a cylinder whose axis is parallel to the torus's**, at
 /// offset `e` in the direction `toward`, each row read across the
-/// `swing` the pose admitted.
+/// `slack` the pose admitted.
 #[allow(clippy::too_many_arguments)]
 fn torus_parallel_cylinder<T: Decide>(
     c: Point3<T>,
     a: Vec3<T>,
     big_r: T,
     r: T,
-    (e, swing): (T, T),
+    (e, slack): (T, T),
     toward: Vec3<T>,
     rc: T,
     band: Band,
@@ -1281,7 +1264,7 @@ fn torus_parallel_cylinder<T: Decide>(
                 hi - rho_max,
             ),
         ],
-        swing,
+        slack,
         band,
     ) {
         Ok(x) => x,
@@ -1349,7 +1332,7 @@ fn square_pose<T: Decide>(
 ) -> Option<SquareWall<T>> {
     if sign(
         "section_torus_square_wall_tilt",
-        Margin::levered(a.dot(d), lever(pivot(o, d, reach), reach)),
+        Margin::levered(a.dot(d), lever(reach.ball().foot_on(o, d), reach)),
         band,
     ) != Some(Sign::Zero)
     {
@@ -1814,21 +1797,17 @@ fn cone_pair<T: Decide>(
             axis: d,
             radius: rc,
             ..
-        } => match axis_pose(
-            apex,
-            cone.a,
-            origin,
-            unit(d),
-            |_, _, _| T::zero(),
-            reach,
-            band,
-        ) {
+        } => match axis_pose(apex, cone.a, origin, unit(d), |_| T::zero(), reach, band) {
             // The meridians meet at `h = ±r_c/τ`: a parallel per nappe.
             Pose::Coaxial { .. } => essential_pair(true, true),
-            Pose::Parallel { e, toward, swing } => {
-                cone_parallel_cylinder(&cone, (e, swing), toward, rc, band)
+            Pose::Parallel { e, toward, slack } => {
+                cone_parallel_cylinder(&cone, (e, slack), toward, rc, band)
             }
-            Pose::Other => cone_cylinder(&cone, origin, unit(d), rc, reach, band),
+            // The ruling charts read the pose as it stands, with nothing
+            // bridged, so an offset neither reading claims is theirs.
+            Pose::Undecided(_) | Pose::Other => {
+                cone_cylinder(&cone, origin, unit(d), rc, reach, band)
+            }
         },
         geom::Surface::Cone {
             apex: apex2,
@@ -1843,7 +1822,7 @@ fn cone_pair<T: Decide>(
             // The apexes' gap is read off `apex2` itself, which the turn
             // onto the first axis moves along it by its station from the
             // pivot times `1 − cos`, at most `sin²`.
-            |at, tilt, _| (apex2 - at).dot(unit(d)).abs() * tilt.powi(2),
+            |t| (apex2 - t.at).dot(unit(d)).abs() * t.tilt.powi(2),
             reach,
             band,
         ) {
@@ -1866,7 +1845,9 @@ fn cone_pair<T: Decide>(
                 let other = Cone::new(apex2, d, half_angle2, u_ref2);
                 cone_cone(&cone, &other, true, reach, band)
             }
-            Pose::Other => {
+            // As against a cylinder, the ruling charts take an offset
+            // neither reading claims.
+            Pose::Undecided(_) | Pose::Other => {
                 let other = Cone::new(apex2, d, half_angle2, u_ref2);
                 cone_cone(&cone, &other, false, reach, band)
             }
@@ -2335,11 +2316,11 @@ fn cone_sphere<T: Decide>(cone: &Cone<T>, cs: Point3<T>, rho: T, band: Band) -> 
 /// once, at `h = ±ρ₀/τ`: two components, each a graph over the
 /// cylinder's azimuth (essential on it), essential on the cone iff the
 /// cylinder encloses the cone's axis. `e − r_c` Zero is a ruling through
-/// the apex, read across the `swing` the pose admitted. The witnesses
+/// the apex, read across the `slack` the pose admitted. The witnesses
 /// sit on the ruling nearest the axis.
 fn cone_parallel_cylinder<T: Decide>(
     cone: &Cone<T>,
-    (e, swing): (T, T),
+    (e, slack): (T, T),
     toward: Vec3<T>,
     rc: T,
     band: Band,
@@ -2351,7 +2332,7 @@ fn cone_parallel_cylinder<T: Decide>(
             "section_cone_cylinder_apex_floor",
             e - rc,
         )],
-        swing,
+        slack,
         band,
     ) {
         Ok([outside]) => outside,
@@ -2393,21 +2374,22 @@ fn cylinder_cylinder<T: Decide>(
         // Parallel axes: common rulings, or nothing — unless the two
         // walls are ONE carrier, where the section is the surface itself
         // rather than a curve. L1 is an argument about curves, so a
-        // coincident pair refuses as the torus analog does (R-tan).
-        // Read as the second wall's image under the turn about the pivot
-        // onto the first's direction, which moves it by at most the chord
-        // times the reach's farthest distance from the pivot.
+        // coincident pair refuses as the torus analog does (R-tan),
+        // read across the reach. The second wall is read as its image
+        // turned about the pivot `at` onto the first's direction. A point
+        // of the wall in the reach stands at a station `s` along its axis
+        // from `at`, `|s|` at most the reach's radius (`at` is the
+        // centre's foot), and off the image's axis by `|s|·sin` plus its
+        // radius times between `cos` and one: radial motion slides along
+        // the wall, so the swing is `sin·radius + r₂·sin²`.
         Some(Sign::Zero) => {
-            let at = pivot(o2, d2, reach);
-            let w = at - o1;
-            let (_, offset) = perp_to(w, d1);
-            return match across(
-                [
-                    "section_cylinder_pair_coincident",
-                    "section_cylinder_pair_coincident_floor",
-                ],
+            const COINCIDENT: &str = "section_cylinder_pair_coincident";
+            let at = reach.ball().foot_on(o2, d2);
+            let (_, offset) = perp_to(at - o1, d1);
+            return match decide_across(
+                [COINCIDENT, "section_cylinder_pair_coincident_floor"],
                 offset + (r1 - r2).abs(),
-                chord(d1, d2) * reach_from(at, reach),
+                sin * reach.radius + r2 * sin.powi(2),
                 band,
             ) {
                 Ok(Sign::Positive) => Section::Components {
@@ -2419,10 +2401,12 @@ fn cylinder_cylinder<T: Decide>(
                     }],
                     single: false,
                 },
-                Ok(Sign::Zero | Sign::Negative) => {
-                    Section::Tangent("section_cylinder_pair_coincident")
-                }
-                Err(name) => Section::Tangent(name),
+                Ok(Sign::Zero) => Section::Tangent(COINCIDENT),
+                Ok(Sign::Negative) => unreachable!(
+                    "`{COINCIDENT}` read a sum of a norm and an `abs` Negative on its floor, \
+                     which is shrunk toward zero, never past it"
+                ),
+                Err(diag) => Section::Tangent(diag.predicate.unwrap_or(COINCIDENT)),
             };
         }
         Some(Sign::Positive) => {}
