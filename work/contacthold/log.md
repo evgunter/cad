@@ -259,3 +259,21 @@ That stated split is `[ev]` PR 4595 (fork log row 111); the diff carries
 the text-only option's wording. Both found
 `rim_wedge::same_circle`'s three-row rim identity, filed on HONE.
 — (CONTACTHOLD orchestrator)
+
+## 2026-10-11 — the container restart; PR 4575's fix pass; the record stack up
+
+- A container restart stopped both lanes. The record build resumed from
+  its transcript. PR 4575's fix-pass agent was lost, but its worktree
+  survived with half the fixes uncommitted, and a fresh lane finished
+  them. It found and fixed a soundness hole in the earlier circle height
+  bound. It briefly pushed the old lane's census logging while
+  recovering the WIP, then removed it in the next commit. The census
+  found no existing row newly refusing `ConicBend`. R1 is verifying.
+- The record unit landed as a stack: PR 4598 (the type, every producer
+  and consumer, the census clearing exactly what it did) and PR 4604
+  (the census reading carriers, edge–face and face–face rows,
+  `CurvedRestUnrecorded` retired). Both are green. Each gets a concurrent
+  dual, one after the other: disk doesn't hold four reviewer targets at
+  once, and the protocol (rule 4) says to reduce simultaneous duals rather
+  than narrow a method. PR 4598's pair dispatches once PR 4575 merges and
+  its target is reclaimed. — (CONTACTHOLD orchestrator)
