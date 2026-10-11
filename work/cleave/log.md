@@ -845,3 +845,4 @@ Signed (CLEAVE orchestrator).
   - text and skip style.
 
   The shared disk briefly hit 100% during the reviews. Running lanes are warned to rerun anything that died with ENOSPC, and the orchestrator's target dir and main worktree are freed (19G free).
+- 2026-10-11 — PR 4622 review: CHANGES. The split fix is right: the reviewer could not break it at any ε, both sides pass tier 3′, and killing a strut changes no point set. But public `plane_section` reads the join's loops before the kill, so for this class it now returns an outline with a zero-width spike, where main panicked. That is a wrong answer, and the pin checks area only. Fix pass sent: strip the strut where both consumers share it and pin outline simplicity; the unpaired slit becomes D9 `unreachable!`; widen the pin to ±0.9ε, add a boolean-built trench and a negative test for the helper; strut-definition and doc style.
