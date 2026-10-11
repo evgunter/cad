@@ -37,3 +37,5 @@ spelling check its own premise. The first step is to decide whether
 the helper's output is `Loose::Const`'s shape (per-span constants on
 the raw knots), and whether `patch_bound` and `nurbs_cert`, which want
 only the zero second partial, gain anything from it.
+
+Also (from PR 4616's delta review): `offset_fit.rs` `Composite::build`'s `lift` closure re-spells `patch_bound::check_direction`'s degree-1 crease test rather than calling it.

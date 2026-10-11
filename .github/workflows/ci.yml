@@ -246,6 +246,8 @@ jobs:
           ref: ${{ needs.filter.outputs.sha }}
       - name: work tracker lint
         run: python3 scripts/work.py lint
+      - name: dual-review log self-test
+        run: python3 scripts/dual-review-log.py --selftest
       - name: install ruff (pinned, official prebuilt)
         run: |
           mkdir -p "$HOME/ruff-bin"

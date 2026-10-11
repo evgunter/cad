@@ -2,7 +2,8 @@
 id: offset-fit-refuses-every-degree-1-base-direction
 kind: issue
 title: offset_fit refuses DerivedKnots, a kernel-defect note, on any degree-1 base direction
-status: review
+status: closed
+closed: 2026-10-11
 branch: encl/offset-fit-degree-1
 opened: 2026-10-10
 priority: P2
