@@ -26,10 +26,11 @@ The recipe admits three reference shapes, and every node is built from them:
   are frozen, and it defines a set (`Faces`, `Edges`) or a singleton
   (`Face`, `Edge`, `Vertex`) that a node reads like any variable — a
   `Fillet`'s or `Chamfer`'s edges, a `Shell`'s open faces, a
-  `Datum::FaceFrame`'s face, a `Measure`'s refs. The N5 ladder runs in the
+  `Datum::FaceFrame`'s face, a `Plane { face }` pose's face, a
+  `Measure`'s refs, a `Mate`'s two sides. The N5 ladder runs in the
   selection's evaluation and nowhere else for these. A **payload** is a
   name a node holds itself: a `Union`'s, `Intersect`'s or `Subtract`'s
-  declared pairs, `Mate` heads, an `InstantiatePart`'s interface crossings'
+  declared pairs and an `InstantiatePart`'s interface crossings'
   `outer`s (a crossing's `inner` is not a name of this document; the
   list's arm says why). The payload list has two homes, this clause and
   `Node::payload_names`' own doc; every other site points at the latter
@@ -38,16 +39,20 @@ The recipe admits three reference shapes, and every node is built from them:
   `mint_selection`, runs the same check on its names), and `split`'s
   `PartNameReachesRemainder` precondition, which refuses a cut whose taken
   node carries a name reaching the kept remainder (a selection's, a
-  declared pair's, a `Mate` head's, an instance's crossing `outer`). A
+  declared pair's, an instance's crossing `outer`). A
   later delete strands a name (N5) and says so (DM7).
 - **An `Expr` literal** in a slot, bit-pinned (D7).
 
 Two precedents these clauses extend. `SitedRef { at, name }` (`node.rs`)
 pairs a DAG edge with a frozen name: `at` says which evaluated value to read,
 `name` says which entity. A selection is the same pairing as a definition,
-its `body` the `at`. `Datum::AxisInPlane { frame, .. }` (`node.rs`) is
-the one datum with a DAG input: its meaning comes from another node, which
-does not make the check cheaper but makes the error unrepresentable.
+its `body` the `at`. A `Revolve`'s axis (`node.rs`, `axis_origin` and
+`axis_direction`) is two pairs in its profile's own coordinates: its
+meaning comes from the profile's plane, which does not make the check
+cheaper but makes an axis out of that plane unrepresentable. A pose
+definition (`VarDef::Pose`, `pose.rs`) is a variable read off geometry or
+constructed from other poses (D10), each of its reads a DAG edge, bound at
+the reader's seat.
 
 Also kept from elsewhere: a selection freezes (#217, `node.rs`); selectors
 materialize and are never stored (`names/select.rs`); `PlacedUnion` is a node
@@ -68,6 +73,14 @@ at the carrier's origin projected to the face's plane (the carrier's own
 distinguished point, `readback.rs` rule 2), its normal along the face's
 outward normal (DM1a), and sketch +x along the carrier's u-reference rotated
 by `spin`.
+
+A reader that reads the face as a plane reads the pose definition
+`Plane { face }` (`pose.rs`), not a frame: the same `Face` selection, the
+plane through the face with its outward normal (DM1a), and no `spin` and no
+u-reference, because a plane has no in-plane direction (D10: no pose
+definition takes a carrier's reference direction; the `FaceFrame` above still
+does, for its `spin`). A split's tool is such a reader. A frame
+on a face, which a sketch on the face reads, is the `FaceFrame` above.
 
 - **Why derived, not frozen.** A sketch carries no twelve-float plane snapshot
   (`program.rs`); a frame read off a face and written into nine literals
@@ -93,8 +106,10 @@ by `spin`.
   The asymmetry is principled — a sketch frame is consumed by evaluation,
   which reads geometry constantly; a mate frame by a solve that must not.
 - **DM1b — a non-planar carrier refuses typed at evaluation** (a
-  `NodeErrorKind` arm naming the carrier kind found), so a headless author
-  gets the same answer the chrome pre-empts under DM2.
+  `NodeErrorKind` arm naming the carrier kind found: `FaceFrameNotPlanar`
+  for a frame, `PoseRead` with `PoseReadFault::NotPlanar` for a plane read),
+  so a headless author gets the same answer the chrome pre-empts under
+  DM2.
 - **DM1c — the lanes.** A derived frame has no document elaboration, so the
   profile lift's "the sketch plane stays f64" fence (PP6,
   `crates/editor-core/README.md`, which carries the same rule) does not apply
@@ -132,10 +147,11 @@ is stored. `select_where` filters on `SurfaceKind` exactly
 ## DM3 — One member of a family is read by index; a split's halves are ports
 
 A `Split` defines two `Body` outputs, `above` and `below` (the port index is
-`SplitHalf::output_body`'s), read like any other output; DM3's split-half
-projection retires. One member of a family (D10, Repetition) is read as
-`xs[i]`, or `xs[i, j]` for a family keyed by two indices: a read of the
-family at one `Count` expression per index (VR4); an index outside the
+`SplitHalf::output_body`'s), read like any other output: a read of a port
+is that half, its body and its rows of the split's table. One member of a
+family (D10, Repetition) is read as `xs[i]`, or `xs[i, j]` for a family
+keyed by two indices: a read of the family at one `Count` expression per
+index (VR4); an index outside the
 range leaves the reader unresolved and typed at evaluation, never
 re-pointed. `xs[i]` is not a variable: it is the read a per-`k` reader
 makes implicitly, with the index written in the slot rather than supplied
@@ -396,8 +412,8 @@ three nodes over one `Bodies` argument, keyed by the read, FORK-DM4 unit 1
 No door refuses a repeated read. A read that appears twice among one node's
 inputs — `Union([A, A])`, `Subtract { from: X, tool: X }`, a loft section
 listed twice — is the same case as two distinct variables that evaluate to
-one body (two `Part`s selecting one half of a split, `Part(Instance(0))`
-beside its master), and the operation answers both alike:
+one body (two `Part`s selecting one copy of a pattern, a transform of `A`
+by the identity beside `A`), and the operation answers both alike:
 
 - **Union and intersect keep both and glue.** `[A, A]` is judged like any
   pair (DM4): every cell meets its twin, one construction read twice, so

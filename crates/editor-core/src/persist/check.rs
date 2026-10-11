@@ -189,6 +189,13 @@ pub(crate) enum Walk {
     /// stored form, and reads a body variable the mint holds, which, when
     /// live, is a `Body` no world placement defines. Snapshot only.
     Selection,
+    /// [`first_pose_fault`] over the variable table (D10): every pose
+    /// definition reads minted variables, a live read at a kind it
+    /// admits and a live scalar at its slot's dimension; no flip flips
+    /// a flip, no projection lacks its arm, a flip's stored kind is its
+    /// read's, and no definition reaches itself through its reads — the
+    /// predicates the seat door asks of a pose it mints. Snapshot only.
+    Pose,
     /// [`first_definition_read_fault`] over every defined variable's
     /// definition: it holds no name leaf, and every variable it reads
     /// is one the mint log holds, read at its kind when live — the
@@ -227,8 +234,8 @@ pub(crate) enum Walk {
     PayloadRead,
     /// [`first_operand_read_fault`] over every operand's read (D10): it
     /// names a minted variable, and a live one of a kind its seat
-    /// admits; a part projection over a split reads its own half. A
-    /// read of an output deleted since is legal — its reader is
+    /// admits that is no world placement's copy. A read of an output
+    /// deleted since is legal — its reader is
     /// stranded, refused at evaluation. Snapshot only.
     OperandRead,
     /// [`first_unnamed_reader_fault`] over the variable table: a
@@ -263,13 +270,14 @@ impl Walk {
     /// Every walk, in the order [`validate_document`] runs them —
     /// which it runs them BY, so this is the order rather than a
     /// description of it.
-    pub(crate) const ORDER: [Walk; 15] = [
+    pub(crate) const ORDER: [Walk; 16] = [
         Walk::NonFinite,
         Walk::Distribution,
         Walk::DisplayUnit,
         Walk::Vars,
         Walk::OutputSignature,
         Walk::Selection,
+        Walk::Pose,
         Walk::DefinitionRead,
         Walk::ObservedRead,
         Walk::DefinitionCycle,
@@ -314,6 +322,7 @@ impl Walk {
                 first_output_fault(snapshot).map(super::PersistError::Snapshot)
             }
             Walk::Selection => first_selection_fault(snapshot).map(super::PersistError::Snapshot),
+            Walk::Pose => first_pose_fault(snapshot).map(super::PersistError::Snapshot),
             Walk::DefinitionRead => {
                 first_definition_read_fault(snapshot).map(super::PersistError::Snapshot)
             }
@@ -594,11 +603,95 @@ fn first_output_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
     None
 }
 
-/// The first fault of the variable table itself, in the order the
-/// variable is built: its kind against its definition, its id against
-/// the mint log, then the names — each on a live variable, none held
-/// twice. The names are walked by id, so the pair a twice-held name
-/// reports is the two lowest ids holding it.
+/// The first pose definition, in id order, no door could have written
+/// ([`Walk::Pose`]). A read or a scalar the mint holds and the table no
+/// longer does is legal: its reader is unresolved, refused at
+/// evaluation (VR7).
+fn first_pose_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
+    use crate::pose::{PoseDef, PoseFault};
+    let fault_of = |id: crate::VarId, def: &PoseDef, kind: crate::VarKind| -> Option<PoseFault> {
+        for (read, &var, expected) in def.reads() {
+            match snapshot.var(var) {
+                None if snapshot.mint.has_var(var) => {}
+                None => return Some(PoseFault::Unminted { var }),
+                Some(held) if !expected.admits(held) => {
+                    return Some(PoseFault::ReadKind {
+                        read,
+                        found: held.kind(),
+                        expected,
+                    });
+                }
+                Some(_) => {}
+            }
+        }
+        for (slot, &var) in def.scalars() {
+            match snapshot.var(var) {
+                None if snapshot.mint.has_var(var) => {}
+                None => return Some(PoseFault::Unminted { var }),
+                Some(held) if held.kind().dimension() != Some(slot.dimension()) => {
+                    return Some(PoseFault::ScalarKind {
+                        slot,
+                        found: held.kind(),
+                    });
+                }
+                Some(_) => {}
+            }
+        }
+        match def {
+            PoseDef::Flip { pose } => match snapshot.var(*pose) {
+                Some(held)
+                    if held
+                        .def()
+                        .pose()
+                        .is_some_and(|d| matches!(d, PoseDef::Flip { .. })) =>
+                {
+                    return Some(PoseFault::DoubleFlip);
+                }
+                Some(held) if held.kind() != kind => {
+                    return Some(PoseFault::Kind {
+                        stored: kind,
+                        defined: held.kind(),
+                    });
+                }
+                _ => {}
+            },
+            PoseDef::Project { of, to } => {
+                if let Some(held) = snapshot.var(*of)
+                    && !crate::pose::projects(held.kind(), *to)
+                {
+                    return Some(PoseFault::Projection {
+                        from: held.kind(),
+                        to: *to,
+                    });
+                }
+            }
+            _ => {}
+        }
+        // A definition reaching itself through the poses it reads.
+        let mut stack: Vec<crate::VarId> = def.reads().into_iter().map(|(_, &r, _)| r).collect();
+        let mut seen = std::collections::BTreeSet::new();
+        while let Some(at) = stack.pop() {
+            if at == id {
+                return Some(PoseFault::Cycle);
+            }
+            if !seen.insert(at) {
+                continue;
+            }
+            if let Some(next) = snapshot.var(at).and_then(|held| held.def().pose()) {
+                stack.extend(next.reads().into_iter().map(|(_, &r, _)| r));
+            }
+        }
+        None
+    };
+    snapshot.vars.iter().find_map(|(&id, var)| {
+        let def = var.def().pose()?;
+        let fault = fault_of(id, def, var.kind())?;
+        Some(SnapshotError::PoseShape {
+            var: snapshot.spoken_var(id),
+            fault,
+        })
+    })
+}
 /// The first selection, in id order, no door could have written
 /// ([`Walk::Selection`]).
 fn first_selection_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
@@ -615,23 +708,30 @@ fn first_selection_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
             None if snapshot.mint.has_var(select.body) => return None,
             None => SelectionBodyFault::Unminted { body: select.body },
             Some(held) => {
-                // The body read observes; each seat reading the
-                // selection is asked of the copy in the operand walk.
-                match snapshot.read_fault(
-                    held,
-                    crate::SlotKind::Is(crate::VarKind::Body),
-                    None,
-                    crate::doc::Reader::Observes,
-                )? {
+                // Every seat reading the selection admits its body
+                // (the edit door's rule, `edit::selection_body_kind`):
+                // a `Bodies` only where mate sides alone read it. The
+                // body read observes; each seat reading the selection
+                // is asked of the copy in the operand walk.
+                let narrow = crate::SlotKind::Is(crate::VarKind::Body);
+                let expected = if snapshot.nodes.values().any(|node| {
+                    node.operand_rows().into_iter().any(|(slot, read)| {
+                        read == id
+                            && crate::edit::selection_body_kind(crate::SlotId::Operand(slot))
+                                == narrow
+                    })
+                }) {
+                    narrow
+                } else {
+                    crate::SlotKind::Placeable
+                };
+                match snapshot.read_fault(held, expected, crate::doc::Reader::Observes)? {
                     crate::doc::ReadFault::Kind { found } => SelectionBodyFault::Kind {
                         body: Box::new(snapshot.spoken_var(select.body)),
                         found,
                     },
                     crate::doc::ReadFault::WorldCopy { .. } => {
                         unreachable!("an observing read admits a world copy")
-                    }
-                    crate::doc::ReadFault::OtherHalf { .. } => {
-                        unreachable!("a selection's body read selects no half")
                     }
                 }
             }
@@ -643,6 +743,11 @@ fn first_selection_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
     })
 }
 
+/// The first fault of the variable table itself, in the order the
+/// variable is built: its kind against its definition, its id against
+/// the mint log, then the names — each on a live variable, none held
+/// twice. The names are walked by id, so the pair a twice-held name
+/// reports is the two lowest ids holding it.
 fn first_var_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
     // The mint log first, since `has_var` below asks it: its ordinals
     // count up from one, the only log a mint writes. The structural walk asks
@@ -759,7 +864,7 @@ fn first_slot_read_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, SlotId,
 /// within a node in field order: a read of a variable the mint log
 /// does not hold, or a live read [`crate::Doc::read_fault`] — the edit
 /// doors' rule, stated once — refuses: a kind its seat does not admit,
-/// or a part projection over a split reading the other half. A placer's read
+/// or a world placement's copy. A placer's read
 /// keeping its output's shape is [`Walk::OutputSignature`]'s.
 fn first_operand_read_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
     snapshot.nodes.iter().find_map(|(&id, node)| {
@@ -778,7 +883,6 @@ fn first_operand_read_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
                 match snapshot.read_fault(
                     held,
                     node.seat_kind(slot),
-                    node.selected_half(),
                     crate::doc::Reader::of(node.seat_kind(slot)),
                 )? {
                     crate::doc::ReadFault::Kind { found } => SnapshotError::SlotVarKind {
@@ -787,11 +891,6 @@ fn first_operand_read_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
                         var: Box::new(snapshot.spoken_var(var)),
                         found,
                         expected: node.seat_kind(slot),
-                    },
-                    crate::doc::ReadFault::OtherHalf { half } => SnapshotError::PartHalfPort {
-                        node: snapshot.spoken(id),
-                        half,
-                        var: Box::new(snapshot.spoken_var(var)),
                     },
                     crate::doc::ReadFault::WorldCopy { placement } => {
                         SnapshotError::ReadsWorldCopy {
@@ -1202,16 +1301,6 @@ pub enum SnapshotError {
         /// The read.
         var: SpokenVar,
     },
-    /// A part projection over a split reads the split's other half —
-    /// the edit doors' [`crate::EditError::PartHalfPort`].
-    PartHalfPort {
-        /// The part projection.
-        node: SpokenNode,
-        /// The half it selects.
-        half: crate::SplitHalf,
-        /// The output it reads, boxed so the refusal stays a small `Err`.
-        var: Box<SpokenVar>,
-    },
     /// A selection whose names are not in a stored form of its kind —
     /// the edit doors' [`crate::EditError::SelectionShape`].
     SelectionShape {
@@ -1219,6 +1308,15 @@ pub enum SnapshotError {
         var: SpokenVar,
         /// Why.
         fault: crate::var::SelectionFault,
+    },
+    /// A pose definition no door could have written — the edit doors'
+    /// [`crate::EditError::PoseShape`], and the reads and scalars the
+    /// seat door lowers ([`crate::pose::PoseFault`]).
+    PoseShape {
+        /// The pose variable.
+        var: SpokenVar,
+        /// Why.
+        fault: crate::pose::PoseFault,
     },
     /// A selection whose body read no door could have written.
     SelectionBody {
@@ -1615,12 +1713,14 @@ impl core::fmt::Display for SnapshotError {
                  was a read. {}",
                 crate::sentence::Recourse(super::REGENERATE_RECOURSE)
             ),
-            Self::PartHalfPort { node, half, var } => {
-                write!(f, "{node} selects the {} half but reads {var}", half.name())
-            }
             Self::SelectionShape { var, fault } => {
                 write!(f, "{var} is not a selection a door writes: {fault}")
             }
+            Self::PoseShape { var, fault } => write!(
+                f,
+                "{var} is not a pose a door writes: {fault}. {}",
+                crate::sentence::Recourse(super::REGENERATE_RECOURSE)
+            ),
             Self::SelectionBody { var, fault } => match fault {
                 SelectionBodyFault::Unminted { body } => write!(
                     f,
@@ -1996,7 +2096,7 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
     // carrier enumeration rather than a payload walk inside the node
     // loop above and a store walk down here, hundreds of lines apart
     // and neither reading as half of one list. An id the mint log lacks
-    // inside a mate head, a fillet selection or an appearance key is
+    // inside a mate side, a fillet selection or an appearance key is
     // as corrupt as one inside a declared pair, and as unrepairable
     // by `Rebind` (whose source door refuses a never-minted id) if it
     // loads. A carrier added to `Carrier` is checked here without
@@ -2236,6 +2336,7 @@ mod tests {
             Vars,
             OutputSignature,
             Selection,
+            Pose,
             DefinitionRead,
             ObservedRead,
             DefinitionCycle,
@@ -2260,6 +2361,7 @@ mod tests {
             Walk::Vars
             | Walk::OutputSignature
             | Walk::Selection
+            | Walk::Pose
             | Walk::DefinitionRead
             | Walk::ObservedRead
             | Walk::DefinitionCycle
@@ -2284,10 +2386,10 @@ mod tests {
             NameStepNotMinted,
             DeclaredNameNotUpstream,
             OperandUnminted,
-            PartHalfPort,
             ReadsWorldCopy,
             SelectionShape,
             SelectionBody,
+            PoseShape,
             ReadCycle,
             WitnessSite,
             WitnessOnMissingNode,
@@ -2339,6 +2441,7 @@ mod tests {
             SnapshotError::SelectionShape { .. } | SnapshotError::SelectionBody { .. } => {
                 Walk::Selection
             }
+            SnapshotError::PoseShape { .. } => Walk::Pose,
             // An operand's kind is the operand walk's; the expression
             // walks raise the rest, and the slot walk runs first.
             SnapshotError::SlotVarKind {
@@ -2349,9 +2452,9 @@ mod tests {
                 Walk::SlotRead
             }
             SnapshotError::PayloadVarKind { .. } => Walk::PayloadRead,
-            SnapshotError::OperandUnminted { .. }
-            | SnapshotError::PartHalfPort { .. }
-            | SnapshotError::ReadsWorldCopy { .. } => Walk::OperandRead,
+            SnapshotError::OperandUnminted { .. } | SnapshotError::ReadsWorldCopy { .. } => {
+                Walk::OperandRead
+            }
             SnapshotError::AnonymousVarUnread { .. } | SnapshotError::SharedVarNeedsName { .. } => {
                 Walk::UnnamedReader
             }
@@ -2450,11 +2553,6 @@ mod tests {
                 found: crate::VarKind::Profile,
                 expected: crate::SlotKind::Is(crate::VarKind::Body),
             },
-            SnapshotError::PartHalfPort {
-                node: node(),
-                half: crate::SplitHalf::Below,
-                var: Box::new(crate::SpokenVar::new(crate::VarId::new(0, 7), None)),
-            },
             SnapshotError::ReadsWorldCopy {
                 node: node(),
                 slot: SlotId::Operand(crate::OperandSlot::From),
@@ -2469,6 +2567,10 @@ mod tests {
                 fault: super::SelectionBodyFault::Unminted {
                     body: crate::VarId::new(0, 8),
                 },
+            },
+            SnapshotError::PoseShape {
+                var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
+                fault: crate::pose::PoseFault::DoubleFlip,
             },
             SnapshotError::ReadCycle { at: at(9) },
             SnapshotError::WitnessSite { node: node() },
@@ -2719,16 +2821,17 @@ mod tests {
             node: instance,
             path: vec![crate::names::RoleSeg::Cap(crate::names::CapEnd::Start)],
         };
-        // A mate head is a `SitedFace`, so the fixture's claim that
-        // the name it just built is a face is made where it is built.
+        // A mate side is authored as a `SitedFace`, so the fixture's
+        // claim that the name it just built is a face is made where it
+        // is built.
         let face_head = |name: crate::names::StableName| {
             crate::node::SitedFace::at_mint(
                 crate::names::FaceName::new(name).expect("the fixture names a face"),
             )
         };
         let mate = Node::Mate {
-            a: face_head(name(ids[0])),
-            b: face_head(name(ids[1])),
+            a: face_head(name(ids[0])).into(),
+            b: face_head(name(ids[1])).into(),
             class: topo::ContactClass::Rest,
             alignment: crate::mate::Alignment {
                 a: crate::mate::MateFrame::on_part(crate::placement::Placement::IDENTITY),

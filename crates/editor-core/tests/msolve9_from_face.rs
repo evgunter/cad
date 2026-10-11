@@ -45,9 +45,7 @@ use editor_core::{
     mate_reach, save,
 };
 use fixture::resolver::{PartStore, in_part, in_world, with_resolver};
-use fixture::{
-    at_the_door, gate, insert, len, on_frame, on_frame_keeping, run, solve, square, step, step_with,
-};
+use fixture::{at_the_door, gate, insert, len, on_frame, run, solve, square, step, step_with};
 use geom_core::Tol;
 
 // ---- Substrate ----
@@ -141,13 +139,14 @@ fn mate_on(
     alignment: Alignment<Formula>,
 ) -> AuthoredNode {
     Node::Mate {
-        a: fixture::head(
+        a: (fixture::head(
             FaceName::new(a_face.clone())
                 .expect("a face")
                 .in_part(a)
                 .into_name(),
-        ),
-        b: fixture::head(in_part(b, b_body, CapEnd::Start)),
+        ))
+        .into(),
+        b: fixture::head(in_part(b, b_body, CapEnd::Start)).into(),
         class: ContactClass::Rest,
         alignment,
     }
@@ -422,16 +421,15 @@ fn carrier(
 /// `loops` on the xz plane revolved a full turn about the plane's y
 /// axis (the world z).
 fn revolved(doc: ProfileDoc, loops: Vec<Vec<(f64, f64)>>) -> ProfileDoc {
-    let (doc, plane, profile) =
-        on_frame_keeping(doc, [0.0; 3], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0], loops);
-    let (doc, axis) = insert(doc, fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
+    let (doc, profile) = on_frame(doc, [0.0; 3], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0], loops);
     let (doc, _) = insert(
         doc,
-        Node::Revolve {
-            profile: profile.into(),
-            axis: axis.into(),
-            angle: fixture::ang(std::f64::consts::TAU),
-        },
+        fixture::revolve_about(
+            profile,
+            (0.0, 0.0),
+            (0.0, 1.0),
+            fixture::ang(std::f64::consts::TAU),
+        ),
     );
     doc
 }
@@ -443,7 +441,6 @@ fn revolved_program(doc: ProfileDoc, program: LoopProgram<Formula>) -> ProfileDo
         doc,
         fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
     );
-    let (doc, axis) = insert(doc, fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
@@ -454,11 +451,12 @@ fn revolved_program(doc: ProfileDoc, program: LoopProgram<Formula>) -> ProfileDo
     );
     let (doc, _) = insert(
         doc,
-        Node::Revolve {
-            profile: profile.into(),
-            axis: axis.into(),
-            angle: fixture::ang(std::f64::consts::TAU),
-        },
+        fixture::revolve_about(
+            profile,
+            (0.0, 0.0),
+            (0.0, 1.0),
+            fixture::ang(std::f64::consts::TAU),
+        ),
     );
     doc
 }
@@ -896,7 +894,7 @@ fn a_vanished_name_refuses_no_such_name_at_the_door_and_at_evaluation_never_at_l
     // post's: the entry carries the rows that door minted, which is
     // what replay re-applies.
     let logged = DocEdit::InsertNode {
-        node: Box::new(s.doc.node(s.mate).expect("the mate").authored(&s.doc)),
+        node: Box::new(s.doc.node(s.mate).expect("the mate").written(&s.doc)),
         fresh: Vec::new(),
     };
     let (unmated, _) = step_with(s.doc.clone(), DocEdit::DeleteNode { id: s.mate }, &reach);
@@ -960,8 +958,8 @@ fn a_vanished_name_refuses_no_such_name_at_the_door_and_at_evaluation_never_at_l
     let loaded = load(&text, Tol::witness()).expect("a face-based insert replays with no store");
     let replayed = *loaded.doc.ids().last().expect("the replayed mate");
     assert_eq!(
-        loaded.doc.node(replayed),
-        doc.node(s.mate),
+        loaded.doc.node(replayed).map(|n| n.written(&loaded.doc)),
+        doc.node(s.mate).map(|n| n.written(&doc)),
         "the mate as logged"
     );
     let ev = run(&loaded.doc, &s.opts);
@@ -1480,7 +1478,7 @@ fn a_face_sides_face_is_its_heads_row_in_the_part() {
         panic!("the mate");
     };
     assert_eq!(alignment.a, MateFrame::from_face());
-    let head: &SitedFace = a;
+    let head: &SitedFace = &crate::fixture::side_head(&s.doc, *a);
     assert_eq!(head.name.node, s.post_i, "a head is the instance's wrapper");
     assert_eq!(
         editor_core::head_face(&s.doc, head).map(FaceName::into_name),

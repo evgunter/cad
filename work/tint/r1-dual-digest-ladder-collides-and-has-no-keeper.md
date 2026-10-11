@@ -160,3 +160,7 @@ class to `crates/*/tests/`.
 **Recommend: keep open, widen to the three files**, and note that a
 keeper asserting distinctness has to be written once and shared, or the
 fix reproduces the defect it closes.
+
+## Note (INTENT stage 3 A, 2026-10-10)
+
+The `AxisInPlane` arm cited above is gone: INTENT stage 3 A retired `Datum::AxisInPlane` into `Revolve`'s axis slots, so tag 24 is `MeasureUnavailable`'s alone (`work/tint/value-channel-digest-tag-24-collides.md`, closed). The ladder and keeper halves of this finding are untouched.

@@ -34,7 +34,7 @@ use geom_brep::offset_fit::{
     certify_offset_at, fit_offset_at,
 };
 use geom_brep::offset_meters::{MeterError, OFFSET_METER_LADDER, patch_collapse, patch_regularity};
-use geom_brep::patch_bound::patch_cells_refined;
+use geom_brep::patch_bound::{PatchBoundError, patch_cells_refined};
 use geom_brep::recourse::Refused;
 use geom_core::Bounds;
 use geom_core::KERNEL_LIMIT_LAST_RESORT;
@@ -278,6 +278,109 @@ fn non_analytic_base_fits_and_the_bound_contains_the_sample() {
         cert.hull_sup,
         cert.normal_floor,
         cert.curvature_reach
+    );
+}
+
+// ---------------------------------------------------------------------
+// Degree-1 base directions
+// ---------------------------------------------------------------------
+
+/// A bilinear patch: the hyperbolic paraboloid `z = 0.4·u·v` on the
+/// unit square, degree 1 in both directions, read rationally under
+/// `weights`.
+fn bilinear(weights: Vec<f64>) -> NurbsSurface<f64> {
+    let control = vec![
+        Point3::new(0.0, 0.0, 0.0),
+        Point3::new(0.0, 1.0, 0.0),
+        Point3::new(1.0, 0.0, 0.0),
+        Point3::new(1.0, 1.0, 0.4),
+    ];
+    NurbsSurface::new(kv1(), kv1(), control, weights).unwrap()
+}
+
+/// A ruled patch, linear in `u` and quadratic in `v`: the ruling joins
+/// a parabola in the `x = 0` plane to a differently bent one in the
+/// `x = 1` plane, so the surface twists along the ruling.
+fn ruled_linear_in_u() -> NurbsSurface<f64> {
+    let control = vec![
+        Point3::new(0.0, 0.0, 0.0),
+        Point3::new(0.0, 0.5, 0.3),
+        Point3::new(0.0, 1.0, 0.0),
+        Point3::new(1.0, 0.0, 0.1),
+        Point3::new(1.0, 0.5, -0.2),
+        Point3::new(1.0, 1.0, 0.2),
+    ];
+    NurbsSurface::new(kv1(), kv2(), control, vec![1.0; 6]).unwrap()
+}
+
+/// A base with a degree-1 direction offsets and certifies through both
+/// public doors, and the certified sup contains a dense sample's max.
+/// The rows cover a degree-1 `u` and `v` together (integral, and
+/// rational with weights that differ along both rulings) and a
+/// degree-1 `u` against a quadratic `v`; the quarter cylinder carries
+/// a degree-1 `v` against a rational quadratic `u`.
+#[test]
+fn degree_1_base_directions_fit_and_certify() {
+    let tol = 1e-4;
+    let rows = [
+        ("bilinear", bilinear(vec![1.0; 4]), 0.05),
+        (
+            "rational bilinear",
+            bilinear(vec![1.0, 1.7, 0.6, 1.3]),
+            -0.05,
+        ),
+        ("ruled, linear in u", ruled_linear_in_u(), 0.05),
+    ];
+    for (name, base, d) in rows {
+        let (fit, cert) = fit_offset_at(&base, d, tol, band())
+            .unwrap_or_else(|e| panic!("{name} at d = {d}: fit_offset refused: {e}"));
+        assert!(
+            cert.hull_sup <= tol,
+            "{name} at d = {d}: certified sup {} exceeds {tol}",
+            cert.hull_sup
+        );
+        let worst = worst_offset_residual(&base, &fit, d, &grid(23, 19)).unwrap();
+        assert!(
+            worst <= cert.hull_sup,
+            "{name} at d = {d}: the certified sup {} UNDER-reports the sampled max {worst}",
+            cert.hull_sup
+        );
+        let again = certify_offset_at(&base, &fit, d, tol, band())
+            .unwrap_or_else(|e| panic!("{name} at d = {d}: certify_offset refused: {e}"));
+        assert!(
+            again.hull_sup <= tol,
+            "{name} at d = {d}: re-certified sup {} exceeds {tol}",
+            again.hull_sup
+        );
+        eprintln!(
+            "{name} d={d}: cells={} rounds={} hull_sup={:.3e} sampled={worst:.3e}",
+            cert.cells, cert.rounds, cert.hull_sup
+        );
+    }
+}
+
+/// A degree-1 direction with an interior knot is a crease, and refuses
+/// as one before any fit (`Degree1Crease`, whose recourse is to split
+/// the face), never at the composite.
+#[test]
+fn a_two_span_degree_1_direction_refuses_as_a_crease() {
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap();
+    let control = vec![
+        Point3::new(0.0, 0.0, 0.0),
+        Point3::new(0.0, 1.0, 0.0),
+        Point3::new(0.5, 0.0, 0.2),
+        Point3::new(0.5, 1.0, 0.1),
+        Point3::new(1.0, 0.0, 0.0),
+        Point3::new(1.0, 1.0, 0.3),
+    ];
+    let base = NurbsSurface::new(kv, kv1(), control, vec![1.0; 6]).unwrap();
+    let err = fit_offset_at(&base, 0.05, 1e-4, band()).unwrap_err();
+    assert!(
+        matches!(
+            err,
+            OffsetFitError::PatchBound(PatchBoundError::Degree1Crease)
+        ),
+        "a two-span degree-1 direction refused as {err:?}, not as a degree-1 crease"
     );
 }
 

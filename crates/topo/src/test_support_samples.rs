@@ -247,6 +247,25 @@ fn point_in_solid_errors() -> Vec<crate::boolean::PointInSolidError> {
             cause: uncrossable(),
         },
         S::WallOutlineUnsupported { face },
+        S::JunctionSidesDisagree {
+            face,
+            sides: (MarginDiag::value(2e-9), MarginDiag::value(-1.6e-9)),
+            band: Band::new(1e-9, 1.5e-9).expect("a well-formed band"),
+        },
+        S::NarrowWindowUnread {
+            face,
+            diag: Indeterminate {
+                margin: MarginDiag::value(5e-10),
+                band: Band::new(1e-9, 1e-8).expect("a well-formed band"),
+                predicate: Some("bool_wall_trim"),
+                terminal_sliver: false,
+            },
+        },
+        S::RootCountDisagrees {
+            face,
+            certified: 2,
+            constructed: 4,
+        },
         S::NoSuchSolid {
             solid: SolidKey::default(),
         },
@@ -833,13 +852,6 @@ fn offset_fit_errors() -> Vec<OffsetFitError> {
             bound: 3e-6,
             tolerance: 1e-6,
         },
-        // The payload the elevation's own `check_weights` produces.
-        OffsetFitError::Elevation(geom_core::spline::KnotAlgebraError::Structure(
-            geom_core::spline::SplineError::NonPositiveWeight {
-                index: 3,
-                weight: 0.0,
-            },
-        )),
     ];
     // Every patch-bound note is its own sentence, and the enum is
     // fieldless, so its compiler-derived roster is the sample list.

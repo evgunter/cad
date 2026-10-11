@@ -17,7 +17,7 @@ use crate::var::{VarId, VarKind};
 
 /// **An operand as an author writes it**: what the edit door lowers to
 /// the read a node stores.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Operand {
     /// A node, read through its one output (spec Q5). A node with
     /// several outputs — a revolve's body and axis, a split's two halves
@@ -47,6 +47,11 @@ pub enum Operand {
         /// The entities, by name.
         names: Vec<crate::names::StableName>,
     },
+    /// **A pose defined at this seat** (D10): the door lowers its reads
+    /// and formulas, mints one anonymous pose variable of the
+    /// definition's kind ([`crate::VarDef::Pose`]) and the seat reads
+    /// it, as a selection authored at a seat is minted there.
+    Pose(Box<crate::pose::PoseDef<Operand, crate::Formula>>),
 }
 
 impl From<RecipeNodeId> for Operand {
@@ -84,6 +89,11 @@ impl Operand {
                 held.extend(names);
                 held
             }
+            Self::Pose(def) => def
+                .reads()
+                .into_iter()
+                .flat_map(|(_, read, _)| read.selected_names())
+                .collect(),
             Self::Node(_) | Self::Output { .. } | Self::Var(_) | Self::Name(_) => Vec::new(),
         }
     }
@@ -108,6 +118,14 @@ impl core::fmt::Display for Operand {
             Self::Select { body, names } => {
                 write!(f, "the selection of {} names in {body}", names.len())
             }
+            Self::Pose(def) => match def.kind() {
+                Some(kind) => write!(
+                    f,
+                    "{} {kind} defined here",
+                    crate::sentence::article(&kind.to_string())
+                ),
+                None => f.write_str("a flipped pose defined here"),
+            },
         }
     }
 }
@@ -125,12 +143,10 @@ pub enum OperandSlot {
     Section(u32),
     /// A sweep's path profile.
     Path,
-    /// The axis a revolve turns about, or a circular rule's.
+    /// The axis a circular rule turns about.
     Axis,
-    /// The frame a tube is built in, a profile is drawn on, or an
-    /// in-plane axis is written in: the one operand kind a field of
-    /// each reads, so one slot (its field is `frame` on a tube and
-    /// `plane` on the other two).
+    /// The frame a tube is built in or a profile is drawn on: the one
+    /// operand kind a field of each reads, so one slot.
     Frame,
     /// The body a split cuts.
     Target,
@@ -140,6 +156,8 @@ pub enum OperandSlot {
     Open,
     /// The face a face frame is read off.
     Face,
+    /// One side of a mate: the face it is read off.
+    Side(crate::mate::MateSide),
     /// Reference `i` of a measure, in argument order, under its
     /// primitive (which decides what the reference admits).
     Measured(crate::MeasureVerb, u8),
@@ -155,7 +173,7 @@ pub enum OperandSlot {
     Members,
     /// What a transform, a pattern or a placed union places.
     Input,
-    /// What a part projection picks from.
+    /// The copies a part projection picks one of.
     Of,
     /// The body a world placement places.
     Body,
@@ -175,6 +193,7 @@ impl OperandSlot {
             Self::Selection => "selection".to_owned(),
             Self::Open => "open faces".to_owned(),
             Self::Face => "face".to_owned(),
+            Self::Side(side) => format!("side {}", side.name()),
             Self::Measured(_, i) => format!("reference {}", u16::from(i) + 1),
             Self::Tool => "tool".to_owned(),
             Self::From => "from".to_owned(),
@@ -198,12 +217,12 @@ impl OperandSlot {
             Self::Target | Self::From | Self::Cut | Self::Member(_) | Self::Body => {
                 SlotKind::Is(VarKind::Body)
             }
-            Self::Members => SlotKind::Is(VarKind::Bodies),
+            Self::Members | Self::Of => SlotKind::Is(VarKind::Bodies),
             Self::Selection => SlotKind::Is(VarKind::Edges),
             Self::Open => SlotKind::Is(VarKind::Faces),
-            Self::Face => SlotKind::Is(VarKind::Face),
+            Self::Face | Self::Side(_) => SlotKind::Is(VarKind::Face),
             Self::Measured(verb, _) => SlotKind::Measured(verb),
-            Self::Input | Self::Of => SlotKind::Placeable,
+            Self::Input => SlotKind::Placeable,
         }
     }
 }
@@ -233,6 +252,9 @@ pub enum SlotKind {
     /// What a reference of this primitive admits
     /// ([`crate::MeasureVerb::admits`]).
     Measured(crate::MeasureVerb),
+    /// What a pose definition's read admits beyond one kind
+    /// ([`crate::pose::PoseAdmits::kinds`]).
+    Pose(crate::pose::PoseAdmits),
 }
 
 impl SlotKind {
@@ -244,6 +266,7 @@ impl SlotKind {
             Self::Is(is) => kind == is,
             Self::Placeable => matches!(kind, VarKind::Body | VarKind::Bodies),
             Self::Measured(verb) => verb.admits(kind),
+            Self::Pose(admits) => admits.kinds().contains(&kind),
         }
     }
 
@@ -267,6 +290,15 @@ impl SlotKind {
                 E::Body => None,
             },
             Self::Placeable => None,
+            Self::Pose(admits) => {
+                let kind = match entity {
+                    E::Face => VarKind::Face,
+                    E::Edge => VarKind::Edge,
+                    E::Vertex => VarKind::Vertex,
+                    E::Body => return None,
+                };
+                admits.kinds().contains(&kind).then_some(kind)
+            }
         }
     }
 }
@@ -277,7 +309,31 @@ impl core::fmt::Display for SlotKind {
             Self::Is(kind) => write!(f, "{} {kind}", crate::sentence::article(&kind.to_string())),
             Self::Placeable => f.write_str("a body or a list of bodies"),
             Self::Measured(verb) => f.write_str(&verb.admitted()),
+            Self::Pose(admits) => {
+                let said: Vec<String> = admits
+                    .kinds()
+                    .iter()
+                    .map(|kind| {
+                        let word = kind.to_string();
+                        format!("{} {word}", crate::sentence::article(&word))
+                    })
+                    .collect();
+                match said.as_slice() {
+                    [init @ .., last] if !init.is_empty() => {
+                        write!(f, "{} or {last}", init.join(", "))
+                    }
+                    _ => f.write_str(&said.concat()),
+                }
+            }
         }
+    }
+}
+
+/// A mate side as its seat reads it: the `Face` selection of its name
+/// in `at`'s body.
+impl From<crate::SitedFace> for Operand {
+    fn from(r: crate::SitedFace) -> Self {
+        Self::select(r.at, vec![r.name.into_name()])
     }
 }
 

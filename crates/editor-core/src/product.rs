@@ -610,11 +610,9 @@ impl ProductError {
 /// other op's ride [`crate::eval::NodeValue::contacts`]. Downstream
 /// therefore never asks which op put records where.
 ///
-/// A [`crate::Node::Part`] is a `Body` value and contributes exactly
-/// the body it selected. The half or instance it did NOT select is in
-/// no product through it: a placement reads one `Body`, so the product
-/// of a document whose one placement reads a `Part(Above)` is that one
-/// half.
+/// A placement reads one `Body`, so the product of a document whose one
+/// placement reads a split's `above` port is that one half, and one
+/// reading a `Part` of a pattern is that one copy.
 pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<T>>> {
     let carried = || Arc::clone(&value.contacts);
     let none = || Arc::new(ContactRecords::default());
@@ -667,8 +665,8 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
                 })
                 .collect(),
         ),
-        // A12: the gather IGNORES a mate — it is a non-body root, and
-        // "ignored by the gather" is exactly this arm. E3/E10's two
+        // The gather IGNORES a mate — it denotes no body, and "ignored
+        // by the gather" is exactly this arm. E3/E10's two
         // sinks join it for the same reason: a measured quantity and an
         // an assertion's verdict denote no material, so a document
         // whose only addition is an assertion has the same product it
@@ -1168,14 +1166,21 @@ pub(crate) fn product_in<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     // graft, rather than being lost because the consuming document
     // never ran the mate loop.
     //
-    // Last, and after the gate: minting resolves references against
-    // the FINISHED name table, and the aggregate's own at-rest verdict
+    // Last, and after the gate: minting carries each mate's faces
+    // across the graft bridge, and the aggregate's own at-rest verdict
     // is about geometry, so a product that is not a body at all
     // refuses before any mate is read.
+    let bridge_of = |placement: RecipeNodeId| {
+        grafted
+            .iter()
+            .find(|((node, ..), _)| *node == placement)
+            .map(|(_, keys)| &**keys)
+    };
     let (minted, unminted) = crate::assembly::mint(
         doc,
         evaluation,
-        (&names, &aggregate),
+        &bridge_of,
+        &aggregate,
         &mut at_rest,
         space,
         geom_core::Band::linear(tol),

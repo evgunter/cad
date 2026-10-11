@@ -237,7 +237,9 @@ fn c1_every_separated_pair_measures_what_it_refuses() {
                                         format!("clash {predicate}")
                                     }
                                     Err(
-                                        stop @ (FoldStop::OutOfRange | FoldStop::Unleverable(_)),
+                                        stop @ (FoldStop::OutOfRange
+                                        | FoldStop::Unleverable(_)
+                                        | FoldStop::NoRepresentative { .. }),
                                     ) => {
                                         panic!(
                                             "every arm here decides angles and every meeting \
@@ -522,8 +524,8 @@ fn rest(
             .expect("a definite frame")
     };
     Node::Mate {
-        a: fixture::head(in_part(ids[0], body, CapEnd::Start)),
-        b: fixture::head(in_part(ids[1], body, CapEnd::Start)),
+        a: fixture::head(in_part(ids[0], body, CapEnd::Start)).into(),
+        b: fixture::head(in_part(ids[1], body, CapEnd::Start)).into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: side(origin),

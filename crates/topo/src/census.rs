@@ -3492,6 +3492,12 @@ pub(crate) enum Undecided {
     /// or gave nothing to read — for a vertex its pre-pass placed off the
     /// boundary.
     WitnessGrazed,
+    /// Arm 2: a vertex near the end of a narrow cylinder wall's window,
+    /// which the point-in-solid door's window reading cannot place.
+    WitnessNarrowWindow,
+    /// Arm 2: a ray the point-in-solid door cast met a torus face where
+    /// the kernel's count of its crossings came apart.
+    WitnessRootCount,
     /// Arm 2: an instance of (near-)zero signed volume. Tier 3's +V
     /// check passes a volume in band of zero, so the part is the
     /// model's to fix, as tier 3 reads it too.
@@ -3664,6 +3670,18 @@ impl Undecided {
                  settled where it lies: each grazed that boundary or could not be read. \
                  Recourse: move the parts until their bounding boxes no longer overlap"
             }
+            Self::WitnessNarrowWindow => {
+                "a corner of one lies near the end of a narrow cylinder wall of the other, \
+                 where the check's reading of the wall's window cannot place it. Recourse: \
+                 move the parts until their bounding boxes no longer overlap; a limit of the \
+                 kernel's narrow-window reading, worth reporting"
+            }
+            Self::WitnessRootCount => {
+                "a test ray from a corner of one met a torus face of the other where the \
+                 kernel's count of its crossings came apart. Recourse: move the parts until \
+                 their bounding boxes no longer overlap; this may indicate a kernel bug worth \
+                 reporting"
+            }
             Self::ZeroVolume => {
                 "one has no volume, so nothing can be inside it. Recourse: fix that part \
                  so it encloses a volume"
@@ -3696,7 +3714,9 @@ impl Undecided {
         use crate::boolean::PointInSolidError as E;
         use crate::splitting::PointInLoopError as L;
         match e {
-            E::Escalated { .. } => Self::WitnessTooClose(None),
+            E::Escalated { .. } | E::JunctionSidesDisagree { .. } => Self::WitnessTooClose(None),
+            E::NarrowWindowUnread { .. } => Self::WitnessNarrowWindow,
+            E::RootCountDisagrees { .. } => Self::WitnessRootCount,
             E::Loop(L::Escalated { decision, .. }) => Self::WitnessTooClose(Some(*decision)),
             E::RayExhausted | E::Loop(L::RayExhausted { .. }) => Self::WitnessGrazed,
             E::ZeroVolumeBody => Self::ZeroVolume,
@@ -6509,7 +6529,7 @@ pub fn census_rest_decision<T: Decide>(
         relation: crate::Relation::SameOpposite,
         site: crate::DecisionSite::CensusAtRest,
         margin,
-        discharge: crate::Discharge::Numeric,
+        discharge: crate::Discharge::of(margin),
     })
 }
 

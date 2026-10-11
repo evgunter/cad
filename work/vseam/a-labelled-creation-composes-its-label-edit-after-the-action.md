@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-03
 priority: P1
 cost: M
-refs: [three-loops-apply-several-edits-and-net-their-maintenance]
 ---
 
 Found by RECIPE's sweep for

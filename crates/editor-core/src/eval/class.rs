@@ -121,8 +121,12 @@ pub enum NodeErrorClass {
     VerbArity,
     /// [`NodeErrorKind::Escalated`].
     Escalated,
-    /// [`NodeErrorKind::AxisInDifferentPlane`].
-    AxisInDifferentPlane,
+    /// [`NodeErrorKind::PoseRead`].
+    PoseRead,
+    /// [`NodeErrorKind::PoseDegenerate`].
+    PoseDegenerate,
+    /// [`NodeErrorKind::PoseScalar`].
+    PoseScalar,
     /// [`NodeErrorKind::NonPositiveCount`].
     NonPositiveCount,
     /// [`NodeErrorKind::NegativeSpacing`].
@@ -237,6 +241,8 @@ pub enum NodeErrorClass {
     MateContradictory,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::Under`].
     MateUnder,
+    /// [`NodeErrorKind::Mate`] carrying [`MateFault::SideUnresolved`].
+    MateSideUnresolved,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::DanglingHead`].
     MateDanglingHead,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::PlacerRefused`].
@@ -325,7 +331,9 @@ impl NodeErrorKind {
             Self::MissingSlot { .. } => C::MissingSlot,
             Self::VerbArity { .. } => C::VerbArity,
             Self::Escalated { .. } => C::Escalated,
-            Self::AxisInDifferentPlane { .. } => C::AxisInDifferentPlane,
+            Self::PoseRead { .. } => C::PoseRead,
+            Self::PoseDegenerate { .. } => C::PoseDegenerate,
+            Self::PoseScalar { .. } => C::PoseScalar,
             Self::NonPositiveCount { .. } => C::NonPositiveCount,
             Self::NegativeSpacing { .. } => C::NegativeSpacing,
             Self::DegenerateSpacing => C::DegenerateSpacing,
@@ -429,6 +437,7 @@ impl NodeErrorClass {
             MateFault::Band { .. } => Self::MateBand,
             MateFault::Contradictory { .. } => Self::MateContradictory,
             MateFault::Under { .. } => Self::MateUnder,
+            MateFault::SideUnresolved { .. } => Self::MateSideUnresolved,
             MateFault::DanglingHead { .. } => Self::MateDanglingHead,
             MateFault::PlacerRefused { .. } => Self::MatePlacerRefused,
             MateFault::PartSelectsAnotherCopy { .. } => Self::MatePartSelectsAnotherCopy,
@@ -538,7 +547,9 @@ mod tests {
         MissingSlot,
         VerbArity,
         Escalated,
-        AxisInDifferentPlane,
+        PoseRead,
+        PoseDegenerate,
+        PoseScalar,
         NonPositiveCount,
         NegativeSpacing,
         DegenerateSpacing,
@@ -589,6 +600,7 @@ mod tests {
         MateBand,
         MateContradictory,
         MateUnder,
+        MateSideUnresolved,
         MateDanglingHead,
         MatePlacerRefused,
         MatePartSelectsAnotherCopy,
@@ -825,10 +837,18 @@ mod tests {
                 predicate: "side_of_plane",
                 source: diag(),
             },
-            C::AxisInDifferentPlane => K::AxisInDifferentPlane {
-                axis: n(3),
-                axis_plane: Some(n(1)),
-                profile_plane: Some(n(2)),
+            C::PoseRead => K::PoseRead {
+                pose: crate::VarKind::Axis,
+                fault: crate::pose::PoseReadFault::NoAxis {
+                    carrier: crate::pose::Carrier::Surface(geom::SurfaceKind::Plane),
+                },
+            },
+            C::PoseDegenerate => K::PoseDegenerate {
+                construction: crate::pose::PoseConstruction::Through,
+            },
+            C::PoseScalar => K::PoseScalar {
+                var: crate::VarId::new(2, 0),
+                source: EvalError::NonFiniteResult,
             },
             C::NonPositiveCount => K::NonPositiveCount { count: 0 },
             C::NegativeSpacing => K::NegativeSpacing {
@@ -909,7 +929,7 @@ mod tests {
             },
             C::DerivedFrameSection => K::DerivedFrameSection {
                 profile: n(3),
-                frame: n(2),
+                frame: Some(n(2)),
             },
             C::FrameDirectionDegenerate => frame_direction(UnitVec3Error::Degenerate),
             C::FrameDirectionNonFiniteLength => frame_direction(UnitVec3Error::NonFiniteLength),
@@ -1005,6 +1025,11 @@ mod tests {
                 parent: n(6),
                 child: n(7),
                 residual: crate::Subgroup::Se3,
+            }),
+            C::MateSideUnresolved => mate(crate::MateFault::SideUnresolved {
+                mate: n(9),
+                side: crate::MateSide::A,
+                read: crate::VarId::new(3, 3),
             }),
             C::MateDanglingHead => mate(crate::MateFault::DanglingHead {
                 mate: n(9),

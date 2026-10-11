@@ -10,7 +10,7 @@ Scope: D10's **Coincidence** and **Booleans** paragraphs (`docs/DESIGN.md` §D10
 
 **Rulings this spec follows.**
 
-- **D10** (#3990). Ev's words behind it are in the ruling row `work/recipe/one-way-to-say-dependency-and-intent.md`.
+- **D10** (#3990). Ev's words behind it are in the ruling row `work/intent/one-way-to-say-dependency-and-intent.md`.
   - Part 2: "i'm happy to build only (2) to begin with, and extend it to (3) later if necessary". Rung (2) is canonical-form equality and rung (3) is the symbolic tier's polynomial identity. Adding (3) is one more rung at the one door.
   - Part 3: a margin decided Zero glues whether or not it is structural, so the solid is the same under every lint setting. This retires DS2's "no knob".
   - Part 4: "the lint … checks every case where a coincidence is inferred from values to ensure that it holds symbolically".
@@ -304,6 +304,22 @@ A replay that refuses or escalates proves nothing, and the row stays `Unproven`.
 **The mitre** (Ev, 2026-10-06). D measures every box mitre in the corpus and the tour: rows, replay time, and normal-form size. The cosine of an extrude's cap/wall dihedral is `dot(d, cross(d, t))`, identically 0, so each box mitre is `Structural(PolynomialIdentity)`. If the measurement is too slow, D reports it to the program, and a per-node theorem cache is the fallback Ev allowed. D does not build it unasked. This closes `isosceles-mitre-reads-as-an-unproven-coincidence-on-every-box`.
 
 **Goldens.** None move. The mitre rows in B's goldens become proven.
+
+## 5b. After D — `the-symbolic-door-proves-at-one-strength-at-rest` (cost M)
+
+Ev, 2026-10-11 (PR 4644):
+
+- The door proves at **one strength**, a kernel constant with no
+  setting. Synchronous callers get its verdict.
+- The **viewer runs it at rest**, off the draw path, cancelled by the
+  next edit. Its rows read *pending* until it lands.
+- An unproven row is **one finding**. Where the residual keeps an
+  opaque atom, its recourse is an assertion. Ev: "it's pretty fair to
+  ask the user to assert that the two things are identical rather than
+  making a special undecided case for it".
+- The box mitre's frozen feet distance is SYM's to fix
+  (`the-mitres-feet-distance-freezes-at-sym`). The per-node theorem
+  cache stays parked behind it.
 
 ## 6. PR E — `booleans-glue-on-zero` (cost H; ~120 files, 4–6k lines)
 

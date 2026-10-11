@@ -101,7 +101,7 @@ pub use op::{
 pub use probe::{BoundsReading, BoundsTarget};
 pub use refuse::{
     FaceFrameFault, NO_FACE_PICKED, NodeKindWanted, Refusal, Step, VersionOffer, admits,
-    face_frame_seat, face_frame_seat_drawn,
+    admits_read, face_frame_seat, face_frame_seat_drawn,
 };
 pub use select::{EdgeSelection, FaceSelection, Hovered, Selection, Standing};
 
@@ -1643,8 +1643,8 @@ impl DocSession {
                 alignment,
             } => self.commit(DocEdit::InsertNode {
                 node: Box::new(Node::Mate {
-                    a,
-                    b,
+                    a: a.into(),
+                    b: b.into(),
                     class,
                     alignment,
                 }),
@@ -1662,9 +1662,10 @@ impl DocSession {
             SessionOp::AddExtrude { profile, distance } => self.add_extrude(profile, distance),
             SessionOp::AddRevolve {
                 profile,
-                axis,
+                axis_origin,
+                axis_direction,
                 angle,
-            } => self.add_revolve(profile, axis, angle),
+            } => self.add_revolve(profile, axis_origin, axis_direction, angle),
             SessionOp::AddBoolean { spec, declare } => self.add_boolean(spec, declare),
             SessionOp::AddSplit { target, tool } => self.add_split(target, tool),
             SessionOp::AddTransform {
@@ -2598,25 +2599,17 @@ impl DocSession {
     }
 
     /// Insert one datum node ([`SessionOp::AddDatum`]). Its slots are
-    /// literals; the two kinds that also name a node by PICK — an axis
-    /// in a sketch names its frame, a frame on a face names the body
-    /// its face is read out of — are gated by kind here, so a pick of
-    /// the wrong kind is refused `WrongNodeKind` before the edit.
+    /// literals; the one kind that also names a node by PICK — a frame
+    /// on a face names the body its face is read out of — is gated by
+    /// kind here, so a pick of the wrong kind is refused
+    /// `WrongNodeKind` before the edit.
     fn add_datum(&mut self, datum: DatumSpec) -> OpOutcome {
-        // An axis in a sketch names its frame by PICK, so it is gated
-        // at this door by kind, as the add-profile door gates its
-        // plane.
-        if let DatumSpec::AxisInPlane { plane, .. } = &datum
-            && let Err(refusal) = self.require_kind(*plane, NodeKindWanted::Frame)
-        {
-            return OpOutcome::refused(refusal);
-        }
         // A frame on a face names the node its face is read out of by
-        // PICK too, and that node has to denote ONE body: the
+        // PICK, and that node has to denote ONE body: the
         // evaluator reads the face through its single-body operand
         // door, so a split side or a pattern instance would mint a
-        // node that refuses after the edit lands. Gated here for the
-        // same reason the frame above is.
+        // node that refuses after the edit lands. Gated here, as the
+        // add-profile door gates its plane.
         if let DatumSpec::FaceFrame { at, .. } = &datum
             && let Err(refusal) = self.require_kind(*at, NodeKindWanted::Body)
         {
@@ -2805,23 +2798,22 @@ impl DocSession {
         })
     }
 
-    /// Insert one revolve of an existing profile about an existing
-    /// axis datum ([`SessionOp::AddRevolve`]).
+    /// Insert one revolve of an existing profile about an axis line in
+    /// its own plane ([`SessionOp::AddRevolve`]).
     fn add_revolve(
         &mut self,
         profile: RecipeNodeId,
-        axis: RecipeNodeId,
+        axis_origin: [Formula; 2],
+        axis_direction: [Formula; 2],
         angle: Formula,
     ) -> OpOutcome {
         if let Err(refusal) = self.require_kind(profile, NodeKindWanted::Profile) {
             return OpOutcome::refused(refusal);
         }
-        if let Err(refusal) = self.require_kind(axis, NodeKindWanted::SketchAxis) {
-            return OpOutcome::refused(refusal);
-        }
         self.create_placed(Node::Revolve {
             profile: profile.into(),
-            axis: axis.into(),
+            axis_origin,
+            axis_direction,
             angle,
         })
     }
@@ -2830,7 +2822,7 @@ impl DocSession {
     /// of the contacts it names ([`SessionOp::AddBoolean`]).
     fn add_boolean(&mut self, spec: BooleanSpec, declare: Vec<FlushFinding>) -> OpOutcome {
         for seat in spec.operands() {
-            if let Err(refusal) = self.require_kind(seat, NodeKindWanted::Body) {
+            if let Err(refusal) = self.require_read(&seat, NodeKindWanted::Body) {
                 return OpOutcome::refused(refusal);
             }
         }
@@ -2853,8 +2845,8 @@ impl DocSession {
 
     /// Insert one split of an existing body by an existing datum plane
     /// ([`SessionOp::AddSplit`]).
-    fn add_split(&mut self, target: RecipeNodeId, tool: RecipeNodeId) -> OpOutcome {
-        if let Err(refusal) = self.require_kind(target, NodeKindWanted::Body) {
+    fn add_split(&mut self, target: Operand, tool: RecipeNodeId) -> OpOutcome {
+        if let Err(refusal) = self.require_read(&target, NodeKindWanted::Body) {
             return OpOutcome::refused(refusal);
         }
         if let Err(refusal) = self.require_kind(tool, NodeKindWanted::Plane) {
@@ -2873,18 +2865,18 @@ impl DocSession {
     /// ([`SessionOp::AddTransform`]).
     fn add_transform(
         &mut self,
-        input: RecipeNodeId,
+        input: Operand,
         translation: [Formula; 3],
         rotation_axis: [Formula; 3],
         rotation_angle: Formula,
     ) -> OpOutcome {
-        if let Err(refusal) = self.require_kind(input, NodeKindWanted::Body) {
+        if let Err(refusal) = self.require_read(&input, NodeKindWanted::Body) {
             return OpOutcome::refused(refusal);
         }
         // Total, as the other lowerings are: slot dimensions are the
         // edit door's question.
         self.feature_over(
-            self.placements_of(input),
+            self.placements_of(&input),
             Node::transform(
                 input,
                 pncad::document::Step::Rigid {
@@ -2906,12 +2898,12 @@ impl DocSession {
     /// where a reader can see the pair side by side.
     fn add_pattern(
         &mut self,
-        input: RecipeNodeId,
+        input: Operand,
         count: i64,
         rule: PatternRuleSpec,
         output: PatternOutputChoice,
     ) -> OpOutcome {
-        if let Err(refusal) = self.require_kind(input, NodeKindWanted::Body) {
+        if let Err(refusal) = self.require_read(&input, NodeKindWanted::Body) {
             return OpOutcome::refused(refusal);
         }
         if let PatternRuleSpec::Circular { axis, .. } = rule
@@ -2928,27 +2920,16 @@ impl DocSession {
                 fresh: Vec::new(),
             }),
             PatternOutputChoice::Fused => self.feature_over(
-                self.placements_of(input),
+                self.placements_of(&input),
                 combine::placed_union_node(input, count, rule),
             ),
         }
     }
 
-    /// Insert one projection of a multi-body value
+    /// Insert one projection of a pattern's copies
     /// ([`SessionOp::AddPart`]).
-    ///
-    /// **The seat is the SELECTION's**, not one kind for both arms: a
-    /// half reads a split and an index reads a pattern, and which of
-    /// the two a node is, is a fact about the committed document. The
-    /// refusal therefore names the kind the chosen selector wanted,
-    /// which is what a user can act on — "that is a pattern, and a
-    /// half comes out of a split".
     fn add_part(&mut self, of: RecipeNodeId, select: PartSelectSpec) -> OpOutcome {
-        let wanted = match select {
-            PartSelectSpec::SplitHalf(_) => NodeKindWanted::Split,
-            PartSelectSpec::Instance(_) => NodeKindWanted::Instances,
-        };
-        if let Err(refusal) = self.require_kind(of, wanted) {
+        if let Err(refusal) = self.require_kind(of, NodeKindWanted::Instances) {
             return OpOutcome::refused(refusal);
         }
         self.create_placed(combine::part_node(of, select))
@@ -2963,8 +2944,8 @@ impl DocSession {
     /// it is placed where the person can see it, and it is a body of
     /// its own — a feature authored on it re-points the copy's
     /// placement alone.
-    fn add_duplicate(&mut self, input: RecipeNodeId) -> OpOutcome {
-        if let Err(refusal) = self.require_kind(input, NodeKindWanted::Body) {
+    fn add_duplicate(&mut self, input: Operand) -> OpOutcome {
+        if let Err(refusal) = self.require_read(&input, NodeKindWanted::Body) {
             return OpOutcome::refused(refusal);
         }
         // The kind gate above is the document's; this is the VALUE's —
@@ -2977,7 +2958,7 @@ impl DocSession {
         let step = match self.landed_pair() {
             None => Err(DuplicateFault::NotLanded),
             Some(_) if self.busy() => Err(DuplicateFault::Stale),
-            Some((doc, eval)) => combine::duplicate_step(doc, eval, input, self.tol),
+            Some((doc, eval)) => combine::duplicate_step(doc, eval, &input, self.tol),
         };
         let step = match step {
             Ok(step) => step,
@@ -3087,10 +3068,31 @@ impl DocSession {
         })
     }
 
-    /// The world placements of `target` ([`crate::world::placements_of_target`]),
-    /// in the committed document.
-    fn placements_of(&self, target: RecipeNodeId) -> Vec<RecipeNodeId> {
-        crate::world::placements_of_target(self.committed_doc(), target)
+    /// The world placements of the body `target` reads
+    /// ([`crate::world::placements_of_read`]), in the committed document.
+    fn placements_of(&self, target: &Operand) -> Vec<RecipeNodeId> {
+        crate::world::placements_of_read(self.committed_doc(), target)
+    }
+
+    /// [`Self::require_kind`] of a seat's read: a node named alone, or
+    /// one of its ports ([`admits_read`]).
+    fn require_read(&self, read: &Operand, wanted: NodeKindWanted) -> Result<(), Refusal> {
+        let doc = self.committed_doc();
+        if admits_read(doc, read, wanted) {
+            return Ok(());
+        }
+        match crate::world::read_output(doc, read) {
+            Some((node, _)) => Err(Refusal::WrongNodeKind {
+                node: doc.spoken(node),
+                wanted,
+            }),
+            None => match read {
+                Operand::Var(var) => Err(Refusal::NoSuchVariable(*var)),
+                _ => Err(Refusal::NotABodyRead {
+                    read: Box::new(read.clone()),
+                }),
+            },
+        }
     }
 
     /// The node-kind gate every creation seat shares: the named node
@@ -3438,18 +3440,18 @@ fn repoint(
 /// nothing.
 fn combine_in_world(
     run: &mut Recording<'_, ProfileProgram>,
-    operands: &[RecipeNodeId],
+    operands: &[Operand],
     result: RecipeNodeId,
 ) -> Result<(), EditError> {
-    let mut seen = std::collections::HashSet::new();
-    let distinct: Vec<RecipeNodeId> = operands
-        .iter()
-        .copied()
-        .filter(|operand| seen.insert(*operand))
-        .collect();
+    let mut distinct: Vec<&Operand> = Vec::new();
+    for operand in operands {
+        if !distinct.contains(&operand) {
+            distinct.push(operand);
+        }
+    }
     let mut placed = distinct
         .into_iter()
-        .map(|operand| crate::world::placements_of_target(run.doc(), operand))
+        .map(|operand| crate::world::placements_of_read(run.doc(), operand))
         .filter(|placements| !placements.is_empty())
         .collect::<Vec<_>>()
         .into_iter();

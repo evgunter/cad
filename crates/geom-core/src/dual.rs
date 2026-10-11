@@ -790,6 +790,10 @@ where
             deriv: self.deriv.enclosure_hull(other.deriv),
         }
     }
+
+    fn point_value(self) -> Option<f64> {
+        self.value.point_value()
+    }
 }
 
 /// Decide-by-value: classification delegates to the **value part only**;

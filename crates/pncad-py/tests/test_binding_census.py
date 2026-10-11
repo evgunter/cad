@@ -555,7 +555,7 @@ def audit_gap_ids():
 #:   and `transform_rigid` arrive as `Node.*`, and the three Boolean
 #:   verbs plus their `_with` siblings arrive as `Node.union`,
 #:   `Node.intersect` and `Node.subtract`.
-#: - **A type became the door that reads it.** `DatumValue` is what
+#: - **A type became the door that reads it.** `PoseValue` is what
 #:   `Value.datum` answers, and `geom_core::UnitVec3` — the witness
 #:   that makes a datum's normal unit, so that an unnormalized one has
 #:   no spelling in Rust either; not a curated façade name, since it
@@ -588,6 +588,9 @@ def audit_gap_ids():
 #:   next one.)
 BOUND_AS = {
     "CM": "cm",
+    # The pose module's authoring door: a pose defined at the seat that
+    # reads it, as Python's `PoseDef` constructors write it (D10).
+    "pose": "PoseDef",
     # An interference finding's copies and site, flattened: a copy is
     # its placement's variable beside its member index, and the overlap
     # is the bounding faces or, where the kernel could not bound it, the
@@ -613,6 +616,9 @@ BOUND_AS = {
     "Proof": "Coincidence.rung",
     "Rung": "Coincidence.rung",
     "Residual": "Coincidence.residual",
+    "Unreplayed": "Coincidence.residual",
+    # One door, two passes: Python asks for the full one by a flag.
+    "SymbolicPass": "ChecksConfig.full_symbolic_pass",
     # A finding's subject crosses as its three attributes, each `None`
     # for the arm it is not: `root` and `output_ix`, or `node`.
     "FindingSubject": "CheckFinding.node",
@@ -640,7 +646,7 @@ BOUND_AS = {
     "FreshFault": "EvalError.variant",
     "DEG": "deg",
     "AssertionVerdict": "Verdict",
-    "DatumValue": "Value.datum",
+    "PoseValue": "Value.datum",
     "DocumentId": "Doc.id",
     "IN": "inch",
     "M": "m",
@@ -2077,7 +2083,7 @@ FAMILIES: dict[str, str] = {
 #: INPUTS, and that is a step this census cannot prompt.
 #:
 #: What closing it bound: `Node.part(of, select)`,
-#: `PartSelect.split_half` / `PartSelect.instance`, `Node.pattern`,
+#: `PartSelect.instance`, `Node.pattern`,
 #: and `DocEdit.bind_instance_param`. The positive form is
 #: `tests/test_part_select.py`.
 #: **B-NOTATION is CLOSED and no longer a `gap` id here**
@@ -3084,6 +3090,10 @@ NOT_BOUND = {
     # and the face a refusal is about crosses already stripped, as
     # `MateFault.face`.
     "head_face": INTERIOR,
+    # A stored mate side's head — the body its selection is read in and
+    # its face name — what the member walk starts from; a Python author
+    # reads a side through the mate it belongs to.
+    "head_of": INTERIOR,
     # The coset table's static gaps (a clocking rider on a planar rest,
     # a standalone clocking), the one home the coset table and the
     # viewer's mate tool read. A Python caller meets the same sentence
@@ -3599,6 +3609,7 @@ NOT_BOUND = {
 #: reach what that member is about, at that spelling. Not the same shape, not
 #: the same receiver, and nothing about semantics.
 MEMBERS_BOUND_AS = {
+    "ChecksConfig::symbolic_pass": "ChecksConfig.full_symbolic_pass",
     # --- an interference finding's overlap and quieting assertion ---
     "InterferenceFinding::overlap": ("InterferenceFinding.faces", "InterferenceFinding.unlocalized"),
     "InterferenceFinding::quiet": "InterferenceFinding.quiet_by",
@@ -3636,6 +3647,7 @@ MEMBERS_BOUND_AS = {
     # branches on for ONE refused mate rides the row, not the gate.
     "MintRefusal::Reference": "MintRefusal.variant",
     "MintRefusal::NoAtRestRecord": "MintRefusal.variant",
+    "MintRefusal::Unevaluated": "MintRefusal.variant",
     # A route is three facts and Python reads all three, without
     # holding the type: the same spelling `Attribution` and
     # `CarriedDeclaration` use.
@@ -3699,6 +3711,7 @@ MEMBERS_BOUND_AS = {
     "EditError::UnresolvedInput": "EditError.variant",
     "EditError::WouldCycle": "EditError.variant",
     "EditError::SelectionShape": "EditError.variant",
+    "EditError::PoseShape": "EditError.variant",
     "EditError::IndexedRead": "EditError.variant",
     "EditError::SetMembersOnNonList": "EditError.variant",
     "EditError::LoftSectionsSpelled": "EditError.variant",
@@ -3710,7 +3723,6 @@ MEMBERS_BOUND_AS = {
     "EditError::OperandUnresolved": "EditError.variant",
     "EditError::AmbiguousOutput": "EditError.variant",
     "EditError::DefinesNothing": "EditError.variant",
-    "EditError::PartHalfPort": "EditError.variant",
     "EditError::ReadsWorldCopy": "EditError.variant",
     "EditError::UnknownSlot": "EditError.variant",
     "EditError::SlotDimensionMismatch": "EditError.variant",
@@ -3846,6 +3858,7 @@ MEMBERS_BOUND_AS = {
     "MateFault::Band": "MateFault.variant",
     "MateFault::Contradictory": "MateFault.variant",
     "MateFault::Under": "MateFault.variant",
+    "MateFault::SideUnresolved": "MateFault.variant",
     "MateFault::DanglingHead": "MateFault.variant",
     "MateFault::PlacerRefused": "MateFault.variant",
     "MateFault::PartSelectsAnotherCopy": "MateFault.variant",
@@ -3931,8 +3944,6 @@ MEMBERS_BOUND_AS = {
     "ReadbackError::NoCanonicalFrame": "ReadbackError.variant",
     "ReadbackError::NoCarrier": "ReadbackError.variant",
     # A value the at-rest gate hands back, not a raised refusal.
-    "RefusedRef::Vanished": "RefusedRef.variant",
-    "RefusedRef::MovedAbove": "RefusedRef.variant",
     "RefusedRef::Ambiguous": "RefusedRef.variant",
     # The VERDICT's three arms are `status`, not `variant`: `variant`
     # beside it is the failure's own arm, which is why the two words
@@ -3961,7 +3972,6 @@ MEMBERS_BOUND_AS = {
     "SplitError::PartIdCollides": "SplitError.variant",
     "SplitError::SeveredEdge": "SplitError.variant",
     "SplitError::RemainderReadUncarried": "SplitError.variant",
-    "SplitError::OperandSeveredFromMate": "SplitError.variant",
     "SplitError::TornGroup": "SplitError.variant",
     "SplitError::SeveredGauge": "SplitError.variant",
     "SplitError::TwoAnchors": "SplitError.variant",
@@ -4017,6 +4027,10 @@ MEMBERS_BOUND_AS = {
     "Subgroup::Cylindrical": "Subgroup.variant",
     "Subgroup::Prismatic": "Subgroup.variant",
     "Subgroup::Revolute": "Subgroup.variant",
+    "Subgroup::Spherical": "Subgroup.variant",
+    "Subgroup::Parallel": "Subgroup.variant",
+    "Subgroup::Translation": "Subgroup.variant",
+    "Subgroup::PlaneTranslation": "Subgroup.variant",
     "Subgroup::Trivial": "Subgroup.variant",
     "Subgroup::Empty": "Subgroup.variant",
     "TessellateError::InvalidChordalTolerance": "TessellateError.variant",
@@ -4175,7 +4189,6 @@ MEMBERS_BOUND_AS = {
     # and each reads back through `Value.datum()`.
     "Datum::Plane": "Node.datum_plane",
     "Datum::Axis": "Node.datum_axis",
-    "Datum::AxisInPlane": "Node.datum_axis_in_plane",
     "Datum::FaceFrame": "Node.datum_face_frame",
     "Datum::Point": "Node.datum_point",
     "Datum::Frame": "Node.datum_frame",
