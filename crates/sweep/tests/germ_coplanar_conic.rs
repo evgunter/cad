@@ -12,7 +12,8 @@
 //! - a donut revolved with its seam parallels at the equators, the box
 //!   top in the equator plane holding an arc of the outer equator (the
 //!   neighbours are the two torus faces; today every op refuses at the
-//!   join's germ frame, which has no torus × plane arm);
+//!   join's germ frame, where the box's face `z = 2.2`, parallel to the
+//!   axis past the inner equator, cuts a general spiric quartic);
 //! - a tube authored with a vertex at `ρ = 1`, `y = 0` on its outer
 //!   side, which the revolve does not keep: its outer wall is one face.
 //!   The box top in that plane cuts an arc of the wall (every op
@@ -342,9 +343,9 @@ const OUTCOMES: [&str; 15] = [
     "cylinder cap in the box top: A ∪ B: builds",
     "cylinder cap in the box top: A ∩ B: builds",
     "cylinder cap in the box top: A ∖ B: builds",
-    "outer equator arc in the box top: A ∪ B: GermFrameUnsupported",
-    "outer equator arc in the box top: A ∩ B: GermFrameUnsupported",
-    "outer equator arc in the box top: A ∖ B: GermFrameUnsupported",
+    "outer equator arc in the box top: A ∪ B: GermSectionSpiric",
+    "outer equator arc in the box top: A ∩ B: GermSectionSpiric",
+    "outer equator arc in the box top: A ∖ B: GermSectionSpiric",
     "tube strut arc in the box top: A ∪ B: builds",
     "tube strut arc in the box top: A ∩ B: builds",
     "tube strut arc in the box top: A ∖ B: builds",
