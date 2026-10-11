@@ -687,6 +687,7 @@ test_utils::f6_variants! {
         ConstantRefused,
         EmptyName,
         WrongNodeKind,
+        NotABodyRead,
         Duplicate,
         Edit,
         Dimension,

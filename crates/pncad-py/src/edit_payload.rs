@@ -392,10 +392,6 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
                 ..none
             }
         }
-        EditError::PartHalfPort { node, .. } => EditPayload {
-            node: Some(node.id()),
-            ..none
-        },
         EditError::ReadsWorldCopy { node, slot, .. } => EditPayload {
             node: Some(node.id()),
             slot: Some(slot_id_tag(slot)),
