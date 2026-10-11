@@ -28,7 +28,7 @@
 //!   pierces stay in two faces and so stay two vertices;
 //! - the plate against a slab the two blocks were cut from, in all six
 //!   ops: the pierces survive on two fragments of the plate's top, or on
-//!   one, and are welded only in the second case.
+//!   one, and are one vertex only in the second case.
 //!
 //! Each row also reads the result's contact record, its tier-3′ verdict
 //! and `check_mesh` on its tessellation: every result passes 3′, every
@@ -345,33 +345,6 @@ fn top() -> Point {
     micron(MEET[0], MEET[1], MEET[2])
 }
 
-/// Where a pair boolean clips a carried contact at the pinch and keeps
-/// the pierce as two vertices, recording nothing for it.
-const PIERCE_UNRECORDED: &str = "work/wire/a-boolean-clipping-a-carried-contact-at-a-pinch-records-no-contact-for-the-pierce.md";
-
-/// Asserts `o` is refused at 3′ by exactly an edge-edge overlap and a
-/// vertex-vertex contact at the pinch, the pair [`PIERCE_UNRECORDED`]
-/// leaves unrecorded.
-fn pierce_unrecorded(o: &Outcome, what: &str) {
-    let Err(es) = &o.verdict else {
-        panic!("{what}: passes 3′ — {PIERCE_UNRECORDED} may be fixed; assert Ok instead")
-    };
-    let kinds: Vec<&str> = es.iter().map(|(k, _)| k.as_str()).collect();
-    assert_eq!(
-        kinds,
-        [
-            "UndeclaredContact EdgeEdgeOverlap",
-            "UndeclaredContact VertexVertex"
-        ],
-        "{what}: refused at 3′ by other than the unrecorded pierce ({PIERCE_UNRECORDED}): {es:?}"
-    );
-    assert_eq!(
-        es[1].1,
-        Some(top()),
-        "{what}: the vertex pair lies at the pinch"
-    );
-}
-
 /// Every order of `0..n`.
 fn orders(n: usize) -> Vec<Vec<usize>> {
     if n == 0 {
@@ -519,7 +492,7 @@ fn holes_touching_at_a_corner_build_one_body_in_every_member_order() {
 /// builds the member-order body, a subtraction keeps the pinched top
 /// in two faces, and an intersection keeps the two footprints apart.**
 #[test]
-fn the_plate_against_the_joined_blocks_welds_a_kept_pinch_only() {
+fn the_plate_against_the_joined_blocks_builds_in_every_op() {
     let (doc, m) = pinch(ProfileDoc::empty_derived("union_pinch", Tol::witness()));
     let [plate, p1, p2] = m[..] else {
         panic!("the pinch fixture is three members")
@@ -572,7 +545,7 @@ fn the_plate_against_the_joined_blocks_welds_a_kept_pinch_only() {
     assert_eq!(tops, 2, "plate ∖ blocks: faces on the top");
 
     let o = checked(&ev, footprints, "plate ∩ blocks", NOTCHES);
-    pierce_unrecorded(&o, "plate ∩ blocks");
+    assert_eq!(o.verdict, Ok(()), "plate ∩ blocks: 3′");
     assert_eq!(o.manifold, Ok(()), "plate ∩ blocks: check_mesh");
     let s = o.shape;
     assert_eq!(
@@ -590,10 +563,10 @@ fn the_plate_against_the_joined_blocks_welds_a_kept_pinch_only() {
 ///   pierces stay two vertices, the body the contact builds.
 /// - `X` minus the plate, and either intersection, keep the piece the
 ///   slab covers, which is one fragment running through both pierces:
-///   they are welded into one vertex. In the intersection the contact
+///   they are one vertex. In the intersection the contact
 ///   then runs between one vertex at each end, as two coincident edges.
 #[test]
-fn a_slab_holding_the_contact_welds_only_a_pinch_on_one_fragment() {
+fn a_slab_holding_the_contact_is_one_vertex_only_on_one_fragment() {
     let doc = ProfileDoc::empty_derived("union_pinch", Tol::witness());
     let (doc, slab) = block(doc, (-1.0, 4.0), (-1.0, 3.0), 0.5, 2.5);
     let (doc, p1) = block(doc, (1.0, 1.5), (-2.0, 1.0), 0.3, 2.0);
@@ -674,13 +647,9 @@ fn a_slab_holding_the_contact_welds_only_a_pinch_on_one_fragment() {
     let mut outcomes = Vec::new();
     for (&(what, op, _, _, volume, counts, pinch), &id) in rows.iter().zip(&ids) {
         let o = checked(&ev, id, what, volume);
-        // X's own contact record carries into each result; where the op
-        // keeps the pierce as two vertices it records nothing for them.
-        if pinch == 2 {
-            pierce_unrecorded(&o, what);
-        } else {
-            assert_eq!(o.verdict, Ok(()), "{what}: 3′");
-        }
+        // X's own contact record carries into each result, and where the
+        // op keeps the pierce as two vertices they sit on one point key.
+        assert_eq!(o.verdict, Ok(()), "{what}: 3′");
         if op == BooleanOp::Intersect {
             // Two L-prisms touching along the contact line, which runs
             // between one vertex at each end as two coincident edges.

@@ -1,8 +1,8 @@
 //! **Two edges pinched along one line pierce a face at one point, and
 //! every op on the pair builds, whichever operand holds the face.**
 //!
-//! Each pierce mints a ring in the pierced face, and the ring is a
-//! strut: one null edge whose two vertices are both the pierce point.
+//! The two pierces mint one ring in the pierced face, a strut per run:
+//! null edges whose vertices are all the pierce point, on one point key.
 //! The first polygon through the point divides the face along an outline
 //! the second pierce's strut lies on at every vertex, so no point of
 //! the strut says which side it is on. Its own polygon does: the join
@@ -210,7 +210,7 @@ fn the_staircase_and_the_plate_build_in_every_op() {
             true,
             [20, 48, 30],
             p_volume - both,
-            false,
+            true,
         ),
         (
             "P ∪ X",

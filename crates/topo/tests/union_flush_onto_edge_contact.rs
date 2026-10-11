@@ -791,17 +791,18 @@ fn three_pieces_two_of_whose_cuts_tie_build_in_every_op() {
     );
 }
 
-/// **A pinch line crossing a face's interior drops the pinch's records
-/// at the new pinch end** (`work/fuse/a-pinch-line-crossing-a-face-interior-drops-the-pinchs-records.md`):
-/// pinned as it stands. The 80°–190° wedge sheared off the axis, so the
-/// pinch line runs inside its corner and leaves through its top face,
-/// and a brick holding the axis, which its top face crosses. Each op
-/// builds, the sheared one's volumes agreeing with each other; the
-/// results that keep the pinch's two pieces at the top face's crossing
-/// fail 3′ there with an undeclared `VertexVertex` at (0,0,1), and the
-/// rest pass. Red when that end gets its record.
+/// **A pinch line crossing a face's interior keeps the pinch at the new
+/// pinch end.** The 80°–190° wedge sheared off the axis, so the pinch
+/// line runs inside its corner and leaves through its top face, and a
+/// brick holding the axis, which its top face crosses. Each op builds,
+/// the sheared one's volumes agreeing with each other, and passes 3′:
+/// the pinch line's two edges pierce the face at one point and mint
+/// one ring there (`vtxfac::mint_ring`), so the pieces' vertices at the
+/// crossing sit on one point key. Red when each pierce mints its own
+/// ring: the results that keep the pinch's two pieces at the crossing
+/// fail 3′ with an undeclared `VertexVertex` at (0,0,1).
 #[test]
-fn a_pinch_line_through_a_face_drops_its_records_at_the_new_end() {
+fn a_pinch_line_through_a_face_keeps_the_pinch_at_the_new_end() {
     let tol = Tol::witness();
     let (pinch, carried) = pinch(tol);
     let cutter = sheared_wedge((0.3, -0.3), tol);
@@ -816,52 +817,31 @@ fn a_pinch_line_through_a_face_drops_its_records_at_the_new_end() {
     ba.records_b.vv.clone_from(&carried);
     let mut block_first = BooleanInputs::default();
     block_first.records_b.vv = carried;
-    let volume_of = |op: &str, got: Result<BooleanResult<f64>, BooleanError>, drops: bool| {
+    let volume_of = |op: &str, got: Result<BooleanResult<f64>, BooleanError>| {
         let BooleanResult::Body(out) = got.unwrap_or_else(|e| panic!("{op} refused: {e:?}")) else {
             panic!("{op} came back empty");
         };
-        match validate_pseudomanifold(&out.body, &out.contacts, tol) {
-            Ok(_) => assert!(!drops, "{op}: passes 3′; the row's pin flips"),
-            Err(errors) => {
-                assert!(drops, "{op}: 3′ refused {errors:?}");
-                assert!(
-                    format!("{errors:?}").contains("VertexVertex")
-                        && format!("{errors:?}").contains("(0.0, 0.0, 1.0)"),
-                    "{op}: the undeclared pair at the pinch's new end: {errors:?}"
-                );
-            }
-        }
+        let verdict = validate_pseudomanifold(&out.body, &out.contacts, tol);
+        assert!(verdict.is_ok(), "{op}: 3′ refused {:?}", verdict.err());
         mass_properties(&out.body, tol).expect("mass").volume
     };
-    let union = volume_of(
-        "pinch ∪ cutter",
-        union_in(&pinch.body, &cutter, &ab, tol),
-        false,
-    );
+    let union = volume_of("pinch ∪ cutter", union_in(&pinch.body, &cutter, &ab, tol));
     let pinch_less = volume_of(
         "pinch ∖ cutter",
         subtract_in(&pinch.body, &cutter, &ab, tol),
-        true,
     );
     let common = volume_of(
         "pinch ∩ cutter",
         intersect_in(&pinch.body, &cutter, &ab, tol),
-        true,
     );
-    let swapped = volume_of(
-        "cutter ∪ pinch",
-        union_in(&cutter, &pinch.body, &ba, tol),
-        false,
-    );
+    let swapped = volume_of("cutter ∪ pinch", union_in(&cutter, &pinch.body, &ba, tol));
     let cutter_less = volume_of(
         "cutter ∖ pinch",
         subtract_in(&cutter, &pinch.body, &ba, tol),
-        false,
     );
     let common_swapped = volume_of(
         "cutter ∩ pinch",
         intersect_in(&cutter, &pinch.body, &ba, tol),
-        true,
     );
     // Shearing keeps the cutter's volume: its triangle × the height.
     let cutter_volume = area(&triangle(80.0, 190.0)) * 0.5;
@@ -877,7 +857,6 @@ fn a_pinch_line_through_a_face_drops_its_records_at_the_new_end() {
     let block_common = volume_of(
         "block ∩ pinch",
         intersect_in(&block, &pinch.body, &block_first, tol),
-        true,
     );
     assert!(
         (block_common - 0.25).abs() < 1e-9,

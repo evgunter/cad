@@ -4483,11 +4483,14 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     let mut touches = std::collections::BTreeMap::new();
     let mut paired: std::collections::BTreeMap<_, Vec<vtxfac::PairRead<T>>> =
         std::collections::BTreeMap::new();
-    // Vertex-on-face classification (sonva then sonvb, as 15.5).
+    // Vertex-on-face classification (sonva then sonvb, as 15.5). Each
+    // pierce inserts its piercing side's null edges as it is read; the
+    // rings follow, one per face and point (`vtxfac::mint_ring`).
     for (operand, pierced) in [
         (Operand::A, &contacts.a_on_b),
         (Operand::B, &contacts.b_on_a),
     ] {
+        let mut minted = Vec::with_capacity(pierced.len());
         for c in pierced.iter().map(|c| c.record) {
             let reread = rereads.get(&(operand, c.vertex)).copied();
             let (piercing_body, pierced_body) = match operand {
@@ -4504,7 +4507,6 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                 &contacts,
                 reread,
                 band,
-                tol,
             )?;
             // `classify_vertex_on_face` refuses a re-read vertex that
             // would write, so a re-read one touched: its orbit, and the
@@ -4513,9 +4515,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                 reread.is_none() || (out.edges.is_empty() && out.ring.is_none()),
                 "a re-read pierce wrote"
             );
-            null_edges.extend(out.edges);
-            null_pairs.extend(out.pairs);
-            pierce_rings.extend(out.ring);
+            minted.push((out.edges, out.ring));
             covered.extend(out.covered);
             if reread.is_some() {
                 touches.insert(
@@ -4535,6 +4535,33 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                     &out.classes,
                     &edge_splits,
                 )?);
+            }
+        }
+        // Each ring is minted, and its records read, where its first
+        // pierce was: a face pierced at one point alone mints as it
+        // would beside its piercing side.
+        let plans: Vec<(usize, &vtxfac::RingPlan<T>)> = minted
+            .iter()
+            .enumerate()
+            .filter_map(|(i, (_, plan))| plan.as_ref().map(|plan| (i, plan)))
+            .collect();
+        let only: Vec<_> = plans.iter().map(|&(_, plan)| plan).collect();
+        let pierced_body = match operand {
+            Operand::A => &mut b,
+            Operand::B => &mut a,
+        };
+        let mut rings = std::collections::BTreeMap::new();
+        for group in vtxfac::ring_groups(&only, band)? {
+            let members: Vec<_> = group.iter().map(|&k| plans[k].1).collect();
+            let ring = vtxfac::mint_ring(pierced_body, &members, band, tol)?;
+            rings.insert(plans[group[0]].0, ring);
+        }
+        for (i, (edges, _)) in minted.into_iter().enumerate() {
+            null_edges.extend(edges);
+            if let Some(ring) = rings.remove(&i) {
+                null_edges.extend(ring.edges);
+                null_pairs.extend(ring.pairs);
+                pierce_rings.push(ring.ring);
             }
         }
     }

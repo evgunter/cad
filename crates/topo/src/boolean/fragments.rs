@@ -36,11 +36,6 @@ impl Lineage {
         Self(faces)
     }
 
-    /// Whether `face` is of the lineage.
-    pub(super) fn contains(&self, face: FaceKey) -> bool {
-        self.0.contains(&face)
-    }
-
     /// The lineage's faces, the root among them, in key order.
     pub(super) fn faces(&self) -> impl Iterator<Item = FaceKey> + '_ {
         self.0.iter().copied()
@@ -73,7 +68,11 @@ mod tests {
         let rows = [(f[2], f[1]), (f[3], f[4]), (f[1], f[0])];
         let lineage = Lineage::of(f[0], &rows);
         for (i, want) in [true, true, true, false, false].into_iter().enumerate() {
-            assert_eq!(lineage.contains(f[i]), want, "face {i} of f0's lineage");
+            assert_eq!(
+                lineage.faces().any(|g| g == f[i]),
+                want,
+                "face {i} of f0's lineage"
+            );
         }
     }
 }

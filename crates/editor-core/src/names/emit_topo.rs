@@ -2273,8 +2273,8 @@ enum Along {
 
 /// What a boolean fused, read once per boolean: each result vertex's
 /// fusion partners ([`fused_partners`]) and every pair of operand keys
-/// a B-side weld (`BooleanNaming::weld_merges_b`) or a null edge
-/// (`BooleanNaming::null_copies`) leaves at one point, both ways round.
+/// a null edge (`BooleanNaming::null_copies`) leaves at one point, both
+/// ways round.
 struct Fused {
     partners: BTreeMap<VertexKey, Vec<VertexKey>>,
     one_point: Vec<((topo::Operand, VertexKey), (topo::Operand, VertexKey))>,
@@ -2282,24 +2282,18 @@ struct Fused {
 
 impl Fused {
     fn of(naming: &topo::BooleanNaming) -> Self {
-        Self::from_rows(
-            naming.vertex_merges.rows(),
-            naming.weld_merges_b.rows(),
-            &naming.null_copies,
-        )
+        Self::from_rows(naming.vertex_merges.rows(), &naming.null_copies)
     }
 
-    /// From the zips' and A-side welds' fusions `(dead, kept)`, the
-    /// B-side welds' and the null copies, each in the order made.
+    /// From the zips' fusions `(dead, kept)` and the null copies, each
+    /// in the order made.
     fn from_rows(
         merges: &[(VertexKey, VertexKey)],
-        welds_b: &[(VertexKey, VertexKey)],
         null_copies: &[(topo::Operand, VertexKey, VertexKey)],
     ) -> Self {
-        let one_point = welds_b
+        let one_point = null_copies
             .iter()
-            .map(|&(dead, kept)| (topo::Operand::B, dead, kept))
-            .chain(null_copies.iter().copied())
+            .copied()
             .flat_map(|(side, x, y)| [((side, x), (side, y)), ((side, y), (side, x))])
             .collect();
         Self {
@@ -2342,9 +2336,8 @@ fn fused_partners(merges: &[(VertexKey, VertexKey)]) -> BTreeMap<VertexKey, Vec<
 /// **Every operand vertex result vertex `v` is**, `(operand, key)` in
 /// that operand's clone keys: its own key read through the layout
 /// ([`operand_key`]), each key fused into it, and, transitively, every
-/// key a B-side weld (`BooleanNaming::weld_merges_b`) or a null edge
-/// (`BooleanNaming::null_copies`) joins to any of those: either leaves
-/// two keys of one point.
+/// key a null edge (`BooleanNaming::null_copies`) joins to any of
+/// those: it leaves two keys of one point.
 fn operand_vertex_keys(
     naming: &topo::BooleanNaming,
     inv_vertices: &BTreeMap<VertexKey, VertexKey>,
@@ -2554,26 +2547,16 @@ mod fused_tests {
             .collect()
     }
 
-    /// **A vertex is every B key a chain of B-side welds fused into its
-    /// own**: `w0` welded into `w1`, then `w1` into the grafted `kb`.
+    /// **A copy of a null copy of the vertex is the vertex too**: one
+    /// null edge leaves `kb` a copy `kc`, and another leaves `kc` a
+    /// copy `w`, as a ring's struts hang from one another.
     #[test]
-    fn a_chain_of_b_welds_reaches_the_grafted_key() {
-        let (r, w0, w1, kb) = (vk(10), vk(1), vk(2), vk(3));
-        let fused = Fused::from_rows(&[], &[(w0, w1), (w1, kb)], &[]);
-        let mut want = vec![w0, w1, kb];
-        want.sort_unstable();
-        assert_eq!(b_keys_of(&fused, r, kb), want, "the welded keys");
-    }
-
-    /// **A weld into a null copy of the vertex is the vertex too**: the
-    /// null edge leaves `kb` a copy `kc`, and `w` was welded into `kc`.
-    #[test]
-    fn a_weld_into_a_null_copy_is_the_vertex() {
+    fn a_chain_of_null_copies_is_the_vertex() {
         let (r, kb, kc, w) = (vk(10), vk(1), vk(2), vk(3));
-        let fused = Fused::from_rows(&[], &[(w, kc)], &[(B, kb, kc)]);
+        let fused = Fused::from_rows(&[], &[(B, kb, kc), (B, kc, w)]);
         let mut want = vec![kb, kc, w];
         want.sort_unstable();
-        assert_eq!(b_keys_of(&fused, r, kb), want, "the copy and its weld");
+        assert_eq!(b_keys_of(&fused, r, kb), want, "the copies");
     }
 }
 

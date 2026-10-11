@@ -2474,13 +2474,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::ArcSphereRoots",
         1,
     ),
-    ("finish.rs", "corner_holds", "Coincide::Sectors", 1),
-    (
-        "finish.rs",
-        "weld_pinches",
-        "BooleanDecision::VertexOnVertex",
-        1,
-    ),
     ("insert.rs", "germ_dir", "BooleanDecision::SelfCheck", 1),
     ("insert.rs", "germ_dir", "SelfCheck::GermLine", 1),
     ("insert.rs", "record_germ_dir", "Coincide::TangentLocus", 2),
@@ -2784,6 +2777,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("vtxfac.rs", "germ_order", "Coincide::Sectors", 1),
     ("vtxfac.rs", "pierce_germ_dir", "Coincide::Sectors", 1),
+    (
+        "vtxfac.rs",
+        "ring_groups",
+        "BooleanDecision::VertexOnVertex",
+        1,
+    ),
     (
         "zip.rs",
         "one_vertex_sense",
