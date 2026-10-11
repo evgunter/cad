@@ -1080,5 +1080,7 @@ mod rest_zip_admission;
 mod letterform_intersects_in_every_order;
 #[path = "pole_ball_shells.rs"]
 mod pole_ball_shells;
+#[path = "seam_siblings_flipped_together.rs"]
+mod seam_siblings_flipped_together;
 #[path = "shell_curved_mouth.rs"]
 mod shell_curved_mouth;
