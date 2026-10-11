@@ -55,6 +55,8 @@ mod common;
 mod mate2_common;
 mod revolve_common;
 
+#[path = "a_curved_keel_in_the_plane.rs"]
+mod a_curved_keel_in_the_plane;
 #[path = "a_flank_touch_at_a_shared_corner.rs"]
 mod a_flank_touch_at_a_shared_corner;
 #[path = "a_flipped_shallow_dimple.rs"]
@@ -73,6 +75,8 @@ mod a_ring_on_a_cone_face;
 mod a_ring_on_a_sphere_face;
 #[path = "a_ruling_lying_on_a_wall.rs"]
 mod a_ruling_lying_on_a_wall;
+#[path = "a_ruling_through_a_box_corner_edge.rs"]
+mod a_ruling_through_a_box_corner_edge;
 #[path = "a_swaying_loft_corner_meters.rs"]
 mod a_swaying_loft_corner_meters;
 #[path = "a_swept_cusp_is_legal_at_rest.rs"]
@@ -867,6 +871,8 @@ mod fillet_h5_r2_probes;
 #[path = "review_fillet_h5_r1_probes.rs"]
 mod review_fillet_h5_r1_probes;
 
+#[path = "blend_carries_records.rs"]
+mod blend_carries_records;
 #[path = "blend_per_shell.rs"]
 mod blend_per_shell;
 #[path = "blend_per_shell_carry.rs"]
@@ -875,6 +881,8 @@ mod blend_per_shell_carry;
 mod blend_recourse_followability;
 #[path = "review_blend3_r3_probes.rs"]
 mod review_blend3_r3_probes;
+#[path = "shell_carries_records.rs"]
+mod shell_carries_records;
 
 #[path = "review_fillet_e2_probes.rs"]
 mod review_fillet_e2_probes;
