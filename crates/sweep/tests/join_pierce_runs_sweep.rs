@@ -1884,7 +1884,7 @@ fn a_run_turned_at_a_shared_vertex_holds_two_siblings() {
 /// order splits a face whose two chord arcs are one clean and one
 /// ring-held, and the clean one builds SOUND. Red when the outer lane
 /// takes a ring-held arc where a clean one exists: the other split
-/// leaves a vertex on a face tier 3 reads as an undeclared contact.
+/// leaves a vertex on a face tier 3 reads as an unrecorded contact.
 #[test]
 fn the_outer_lane_prefers_a_clean_arc_at_an_exact_tie() {
     let runs = corner_pair_runs(&wedge(343.0), &wedge(330.0), frame(direction(0, 1), 0.0));
@@ -2176,7 +2176,7 @@ fn dbl((a, b): (&Corner, &Corner), seed: u64, fib: u32) -> Dbl {
 /// join leaves it: the union builds `SOUND` at the clipped volume, with
 /// two vertices at `v` and no joinable vertex. Red if the join kills it:
 /// the joined edge runs through the other vertex, and tier 3′ refuses
-/// `UndeclaredContact { VertexOnEdge }` at `v`.
+/// `UnrecordedContact { VertexOnEdge }` at `v`.
 #[test]
 fn the_join_stage_leaves_a_pinchs_cones_their_vertices() {
     let v = asym().v;
@@ -2291,7 +2291,7 @@ fn a_pinched_operands_pierces_weld_where_their_corners_nest() {
 /// the zips the two cones' vertices move onto one key.
 /// Both unions build `SOUND` at the clipped volume, with one vertex per
 /// cone at `v`, on one key, and mesh. Red without the move: tier 3′
-/// refuses `UndeclaredContact { VertexVertex }` at `v`, and the output
+/// refuses `UnrecordedContact { VertexVertex }` at `v`, and the output
 /// stage's join, which reads the pinch from its keys, kills a cone's
 /// vertex (one vertex for two cones; the mesher refuses or panics).
 /// The unions rebind at least one class (a union whose zips already

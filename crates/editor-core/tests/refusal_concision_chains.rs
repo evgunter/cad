@@ -2241,7 +2241,7 @@ fn wall_endings() -> [(&'static str, String); 2] {
 ///   raises every arm but `WindowUnsupported` (the mint certifies over
 ///   the chart rectangle it fitted), `Limb` (a limb refusing at the
 ///   mint is `MintLimb`) and `Band` (below). The loop's own
-///   terminations — `BudgetExhausted`, `SampleCapReached`, `BoundNotFinite`,
+///   terminations — `SeedOverCap`, `SampleCapReached`, `BoundNotFinite`,
 ///   `RefinementStalled` — and the interpolation's `Fit`, `Structure`
 ///   and `NonFiniteSample` reach the user by this route and by the
 ///   transform's re-fit, and so does `MintLimb`, whose re-fit is the
@@ -2287,9 +2287,9 @@ fn offset_fit_routes() -> Vec<(String, NodeErrorKind)> {
         .collect();
     // The roster is borrowed, so its reach is checked on the roster
     // itself: a sample list that stopped carrying an arm would
-    // otherwise shrink these rows silently. `BudgetExhausted`,
-    // `BoundNotFinite`, `Limb` and `MintLimb` each carry two samples
-    // (both `LastRound` readings, both `best` cases, both limbs).
+    // otherwise shrink these rows silently. `BoundNotFinite`, `Limb`
+    // and `MintLimb` each carry two samples (both `best` cases, both
+    // limbs).
     for (arm, samples) in [
         ("Meter/NormalFloor", 2),
         ("Meter/CurvatureHeadroom", 2),
@@ -2299,7 +2299,7 @@ fn offset_fit_routes() -> Vec<(String, NodeErrorKind)> {
         ("Structure/", 1),
         ("InvalidRequest", 1),
         ("NonFiniteSample", 1),
-        ("BudgetExhausted", 2),
+        ("SeedOverCap", 1),
         ("SampleCapReached", 1),
         ("BoundNotFinite", 2),
         ("RefinementStalled", 1),

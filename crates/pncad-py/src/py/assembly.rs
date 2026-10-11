@@ -341,7 +341,7 @@ impl MintedDeclaration {
 /// declared — a finding against the document), `"declined"` (the
 /// census has no certifier lane for a face the declaration names, so
 /// nothing was decided either way), or `"unattributed"` (no
-/// declaration answers for the finding — an UNDECLARED contact, which
+/// declaration answers for the finding — an UNRECORDED contact, which
 /// is by definition the hard error).
 ///
 /// A declaration a document BELOW this one authored answers under

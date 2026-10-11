@@ -2,11 +2,13 @@
 id: a-split-through-a-wrap-edges-vertex-cuts-the-wall-along-it
 kind: issue
 title: A split or boolean whose section loop meets a one-face wall's wrap edge at one vertex leaves that wall's piece as two faces on one surface across the wrap edge: a cut the author did not write
-status: dispatched
+status: closed
 opened: 2026-10-06
 priority: P2
 cost: M
 branch: cleave/wrap-edge-split
+closed: 2026-10-11
+pr: 4722
 ---
 
 
@@ -105,3 +107,7 @@ with that PR in.
 The class sweep (holes) also found
 `work/cleave/a-plane-tangent-to-a-holes-rim-at-a-vertex-refuses-its-germs-as-coincident.md`
 (two-arc alike).
+
+## Closed (PR 4722, 2026-10-11)
+
+No defect. The row's split pose leaves a pinched-disc piece, where one face carrying the strut twice would fail Euler–Poincaré, so the two faces are forced (D1: the strut is where the author cut). The row's boolean census was misread. The behaviour is pinned across phases, tilts, both normals and in-band offsets, against closed-form volumes.
