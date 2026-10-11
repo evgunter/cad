@@ -5834,8 +5834,8 @@ pub(crate) fn apply_insert<P: Clone + crate::ProfilePayload>(
     tol: Tol,
     reach: &dyn MateReach,
 ) -> Result<(Applied<P>, RecipeNodeId), EditError> {
-    let (doc, minted, maintenance) = door(doc, tol, |new, reported| {
-        insert_into(doc, new, reported, node, &[], tol, Some(reach))
+    let (doc, minted, maintenance) = door(doc, tol, |new, _| {
+        insert_into(doc, new, node, &[], tol, Some(reach))
     })?;
     let id = minted.0;
     let applied = Applied {
@@ -5974,7 +5974,6 @@ fn inserted(
 fn insert_into<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
     new: &mut Doc<P>,
-    reported: &mut Vec<Maintenance>,
     authored: &Node<P::Authored, Formula>,
     fresh: &[FreshEntry],
     tol: Tol,
@@ -6232,7 +6231,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
 ) -> Result<EditRecord, EditError> {
     Ok(match edit {
         DocEdit::InsertNode { node, fresh } => {
-            inserted(insert_into(doc, new, reported, node, fresh, tol, reach)?)
+            inserted(insert_into(doc, new, node, fresh, tol, reach)?)
         }
         DocEdit::DeleteNode { id } => {
             if !new.nodes.contains_key(id) {
@@ -6285,14 +6284,12 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                                 formula,
                             )?);
                         }
-                        indices.push(at);
+                        indices.push((member.key.clone(), at));
                     }
                     let mut indices = indices.into_iter();
                     *list = reads.try_map(|_, &read| {
-                        Ok::<_, EditError>(crate::BodyRead {
-                            read,
-                            at: indices.next().unwrap_or_default(),
-                        })
+                        let (key, at) = indices.next().unwrap_or_default();
+                        Ok::<_, EditError>(crate::BodyRead { read, key, at })
                     })?;
                 }
                 Node::Loft { profiles, .. } => {
@@ -6305,7 +6302,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                         .map(|(i, section)| {
                             let slot =
                                 crate::OperandSlot::Section(u32::try_from(i).unwrap_or(u32::MAX));
-                            if section.is_indexed() {
+                            if section.is_member() {
                                 return Err(EditError::UnknownSlot {
                                     id: spoken(),
                                     slot: SlotId::Index { seat: slot, k: 0 },

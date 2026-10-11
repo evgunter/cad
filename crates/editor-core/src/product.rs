@@ -617,7 +617,7 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
         // which refuses any index `names::output_body` does not fit, or
         // by `Placeable::map`, which rebuilds an existing list one body
         // for one.
-        ValuePayload::Instances(bodies) | ValuePayload::Copies(bodies) => Some(
+        ValuePayload::Instances(bodies) => Some(
             bodies
                 .iter()
                 .enumerate()
@@ -629,6 +629,23 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
                 })
                 .collect(),
         ),
+        // A placement's copies, as the table indexes them: a `Place`'s
+        // flat, which carry no records, or an instance's part product as
+        // one body, which carries the part's records and rows exactly
+        // as a body would.
+        ValuePayload::Copies(copies) => Some(match copies.bodies.as_slice() {
+            [whole] => vec![(0, Arc::clone(whole), carried(), rows())],
+            bodies => bodies
+                .iter()
+                .enumerate()
+                .map(|(i, body)| {
+                    let ix = crate::names::output_body(i).unwrap_or_else(|e| {
+                        unreachable!("copy {i} outlived its minting op's index refusal: {e}")
+                    });
+                    (ix, Arc::clone(body), none(), norows())
+                })
+                .collect(),
+        }),
         // Split's halves are output bodies by `SplitHalf::output_body`
         // (the one definition of that mapping); an EMPTY half
         // contributes nothing but does not shift the other half's

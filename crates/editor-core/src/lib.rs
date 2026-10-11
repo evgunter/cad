@@ -137,8 +137,8 @@ pub use edit::{
 pub use eval::measure::{Observed, ObservedRefusal};
 pub use eval::{
     Arity, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel,
-    ContentBits, ContentKey, DirectionRefusal, Epoch, EvalOptions, EvalOutcome, EvalScalar,
-    Evaluation, FramePlacement, NamingKey, NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal,
+    ContentBits, ContentKey, Copies, DirectionRefusal, Epoch, EvalOptions, EvalOutcome, EvalScalar,
+    Evaluation, FramePlacement, KeyedCopy, NamingKey, NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal,
     NodeResult, NodeStanding, NodeValue, PartFault, PartReach, PiecesFault, PoseValue, ProfileLift,
     ProfilePieces, SectionScalar, SplitSide, StepTurns, ValuePayload, VerbKind, evaluate,
     mate_reach,
@@ -199,7 +199,7 @@ pub use node::{
     PortKind, RecipeNodeId, RigidArg, ConstraintId, SitedFace, SitedRef, SlotId, StepArg, StepId, TubeWindow,
     VectorSlot,
 };
-pub use operand::{Bodies, BodyRead, Operand, OperandSlot, SlotKind};
+pub use operand::{Bodies, BodyRead, CopyKey, Operand, OperandSlot, SlotKind};
 pub use parse::{ParseError, VarNameFault, VarNameReason, parse_formula};
 pub use part::{PartResolver, ResolveFailure, ResolveFault};
 pub use persist::{

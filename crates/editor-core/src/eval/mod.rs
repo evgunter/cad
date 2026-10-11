@@ -736,10 +736,12 @@ pub enum ValuePayload<T: Decide> {
     /// **The world** ([`crate::node::Node::World`]): it DENOTES NO
     /// BODY and defines no variable; its node's value says so.
     World,
-    /// **A placement's copies** where it copies more than one shape,
-    /// one per shape in list order, each read by its port. A placement
-    /// of one shape is a [`ValuePayload::Body`].
-    Copies(Vec<Arc<Body<T>>>),
+    /// **A placement's copies, keyed** ([`Copies`]): a `Place`'s over
+    /// several shapes, keyed by read, and an instance's, the part's
+    /// world copies keyed by their identity in the part. A `Place` of
+    /// one shape has that shape's value ([`ValuePayload::Body`] or
+    /// [`ValuePayload::Instances`]).
+    Copies(Arc<Copies<T>>),
     /// A `Measure` node's typed F1 quantity (E3): the measured value
     /// in kernel units with the dimension it was measured in. Not
     /// body-denoting — the product gather skips it exactly as it skips
@@ -812,6 +814,9 @@ macro_rules! family_word {
     (world) => {
         "world"
     };
+    (copies) => {
+        "copies"
+    };
     (measure) => {
         "measure"
     };
@@ -833,6 +838,7 @@ pub(crate) mod family {
     pub(crate) const SPLIT: &str = family_word!(split);
     pub(crate) const INSTANCES: &str = family_word!(instances);
     pub(crate) const WORLD: &str = family_word!(world);
+    pub(crate) const COPIES: &str = family_word!(copies);
     pub(crate) const MEASURE: &str = family_word!(measure);
     pub(crate) const ASSERTION: &str = family_word!(assertion);
 }
@@ -933,7 +939,7 @@ impl<T: Decide> ValuePayload<T> {
             Self::Split { .. } => family::SPLIT,
             Self::Instances(_) => family::INSTANCES,
             Self::World => family::WORLD,
-            Self::Copies(_) => family::BODY,
+            Self::Copies(_) => family::COPIES,
             Self::Measure { .. } => family::MEASURE,
             // The SAME family name as a measure that has a value: the
             // node kind is what a typed operand mismatch is about, and
@@ -1057,9 +1063,10 @@ pub(crate) fn node_value_kind<P>(doc: &Doc<P>, id: RecipeNodeId) -> Result<&'sta
         | Node::Union { .. }
         | Node::Intersect { .. }
         | Node::PlacedUnion { .. }
-        | Node::Part { .. }
-        | Node::Place { .. }
-        | Node::InstantiatePart { .. } => (family::BODY, true),
+        | Node::Part { .. } => (family::BODY, true),
+        Node::Place { shapes, .. } if shapes.len() > 1 => (family::COPIES, true),
+        Node::Place { .. } => (family::BODY, true),
+        Node::InstantiatePart { .. } => (family::COPIES, true),
     };
     match placer {
         Some(transform) if !placeable => Err(Box::new((
@@ -1089,6 +1096,45 @@ pub enum BooleanValue<T: Decide> {
         /// the result (the `BooleanBody` contract, spec D2).
         contacts: Arc<ContactRecords>,
     },
+}
+
+/// **A placement's copies, keyed** ([`ValuePayload::Copies`]).
+///
+/// `bodies` is what the node's name table indexes and the product
+/// gather grafts: a `Place`'s copies flat in key order, or an
+/// instance's part product as ONE body, whose arena keys the part's
+/// declared contact records. `members` is the same material copy by
+/// copy, each with its own table, for a reader of one copy
+/// ([`crate::BodyRead::key`]).
+#[derive(Debug, Clone)]
+pub struct Copies<T: Decide> {
+    /// The bodies the node's table indexes, in output-body order.
+    pub bodies: Vec<Arc<Body<T>>>,
+    /// Each copy by its key, in key order of its placement.
+    pub members: Vec<KeyedCopy<T>>,
+}
+
+/// **One copy of a placement's copies, by its key**: a body, or a
+/// family delivered flat under one key (a part's copy placed by a
+/// pattern, until `work/refs/an-indexed-read-of-rank-two-has-no-family`).
+#[derive(Debug, Clone)]
+pub struct KeyedCopy<T: Decide> {
+    /// The copy's key.
+    pub key: crate::CopyKey,
+    /// Its bodies: one for a body, the family's otherwise.
+    pub bodies: Vec<Arc<Body<T>>>,
+    /// Whether it is a family, whatever its count.
+    pub family: bool,
+    /// Its names, indexing `bodies` by position.
+    pub table: Arc<crate::names::NameTable>,
+}
+
+impl<T: Decide> Copies<T> {
+    /// The copy keyed `key`, if any.
+    #[must_use]
+    pub fn member(&self, key: &crate::CopyKey) -> Option<&KeyedCopy<T>> {
+        self.members.iter().find(|m| &m.key == key)
+    }
 }
 
 /// One side of a split's output (both parts are the node's output,
@@ -1621,6 +1667,32 @@ pub enum NodeErrorKind {
         index: i64,
         /// How many instances the value holds.
         count: usize,
+    },
+    /// A read of one copy ([`crate::BodyRead::key`]) whose key names no
+    /// copy of the placement's copies: the part no longer places it, or
+    /// the key was never one of these copies. Refused, never re-pointed.
+    NoSuchCopy {
+        /// The placement whose copies were read.
+        input: RecipeNodeId,
+        /// The key as written.
+        key: Box<crate::CopyKey>,
+    },
+    /// A `Place` over several shapes reading one variable twice, so two
+    /// of its copies key alike (FORK-DM4: an indexed read keys by its
+    /// family): copy the family whole, or place each member apart.
+    CopiesShareAKey {
+        /// The key both copies would carry.
+        key: Box<crate::CopyKey>,
+    },
+    /// A read of one copy at the other shape: an index into a copy that
+    /// is one body, or no index into one that is a family.
+    CopyShape {
+        /// The placement whose copies were read.
+        input: RecipeNodeId,
+        /// The key as written.
+        key: Box<crate::CopyKey>,
+        /// Whether the copy is a family.
+        family: bool,
     },
     /// A direction-valued vector decided to zero length. Which
     /// vectors those are is the ROLE constants' to say, not this
@@ -2241,6 +2313,31 @@ impl crate::spoken::Say for NodeErrorKind {
                 },
                 by.node(*input)
             ),
+            Self::NoSuchCopy { input, key } => write!(
+                f,
+                "{} delivers no copy keyed {key}",
+                by.node(*input)
+            ),
+            Self::CopiesShareAKey { key } => write!(
+                f,
+                "two of the placement's shapes read {key}, so two copies would be keyed alike; \
+                 copy the family whole, or place each member by its own placement"
+            ),
+            Self::CopyShape { input, key, family } => {
+                if *family {
+                    write!(
+                        f,
+                        "the copy keyed {key} of {} is a family; read one member of it by index",
+                        by.node(*input)
+                    )
+                } else {
+                    write!(
+                        f,
+                        "the copy keyed {key} of {} is one body; read it without an index",
+                        by.node(*input)
+                    )
+                }
+            }
             Self::InstanceOutOfRange {
                 input,
                 index,
@@ -4576,6 +4673,15 @@ mod tag {
         index {
             READS = 1,
         }
+        /// The word before a node's keyed reads ([`crate::BodyRead::key`]),
+        /// written only by a node holding one; then each keyed read's
+        /// place among the node's body seats and its key, segment by
+        /// segment: a part's placement, then the read that ends it.
+        copy_key {
+            READS = 1,
+            PART = 2,
+            READ = 3,
+        }
         /// The mate's fault flag, read after its role word: whether the
         /// solve recorded a fault against the node.
         fault {
@@ -5619,6 +5725,33 @@ where
         for (place, rank) in indexed {
             h.write_u64(place as u64);
             h.write_u64(rank as u64);
+        }
+    }
+    let keyed: Vec<(usize, &crate::CopyKey)> = node
+        .body_reads()
+        .into_iter()
+        .enumerate()
+        .filter_map(|(place, (_, read))| read.key.as_ref().map(|key| (place, key)))
+        .collect();
+    if !keyed.is_empty() {
+        h.write_tag(tag::copy_key::READS);
+        h.write_u64(keyed.len() as u64);
+        for (place, mut key) in keyed {
+            h.write_u64(place as u64);
+            loop {
+                match key {
+                    crate::CopyKey::Part { placement, within } => {
+                        h.write_tag(tag::copy_key::PART);
+                        h.write_id(placement.0);
+                        key = within;
+                    }
+                    crate::CopyKey::Read(var) => {
+                        h.write_tag(tag::copy_key::READ);
+                        h.write_id(var.0);
+                        break;
+                    }
+                }
+            }
         }
     }
     // Evaluated slot values, in the node's deterministic slot order,

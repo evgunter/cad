@@ -244,7 +244,11 @@ where
     // the split cannot hold. Every other node reads at most one body.
     let per_operand = matches!(
         node,
-        Node::Subtract { .. } | Node::Union { .. } | Node::Intersect { .. } | Node::Measure { .. }
+        Node::Subtract { .. }
+            | Node::Union { .. }
+            | Node::Intersect { .. }
+            | Node::Measure { .. }
+            | Node::Place { .. }
     );
     let projected = if per_operand {
         None
@@ -388,17 +392,24 @@ where
             if let Some(fault) = env.poses.fault(id) {
                 return Err(NodeErrorKind::Mate(Box::new(fault.clone())));
             }
-            let reads = shapes
+            // Each shape projected by itself: two halves of one split
+            // are two bodies, which one map keyed by the split cannot
+            // hold.
+            let rows: Vec<(O, crate::VarId)> = shapes
                 .iter()
                 .enumerate()
-                .map(|(i, shape)| {
-                    let seat = O::Shape(u32::try_from(i).unwrap_or(u32::MAX));
-                    let port = doc.defined_by(shape.read).map_or(0, |(_, port)| port);
-                    Ok(((at(seat, shape.read)?, shape.read), port))
+                .map(|(i, shape)| (O::Shape(u32::try_from(i).unwrap_or(u32::MAX)), shape.read))
+                .collect();
+            let each = project_each(&rows)?;
+            let reads = rows
+                .iter()
+                .zip(&each)
+                .map(|(&(seat, read), projected)| {
+                    Ok((at(seat, read)?, read, projected.as_ref().unwrap_or(unprojected)))
                 })
                 .collect::<Result<Vec<_>, NodeErrorKind>>()?;
             let map = placement_map(id, env.poses);
-            wire_place(id, &reads, map.as_ref(), results, tol)
+            wire_place(id, &reads, map.as_ref(), tol)
         }
         // The world DENOTES NO BODY and defines no variable.
         Node::World => Ok(OpOut::plain(ValuePayload::World, names::empty())),
@@ -573,8 +584,32 @@ where
             })
             .collect(),
     };
+    // The same material copy by copy, under the same map, for a reader
+    // of one copy: each named as the instance names it.
+    let members = part
+        .copies
+        .iter()
+        .map(|copy| {
+            let bodies = copy
+                .bodies
+                .iter()
+                .map(|body| place(body, map.as_ref(), tol).map(Arc::new))
+                .collect::<Result<Vec<_>, _>>()?;
+            let table =
+                names::name_in_part_copy(id, &copy.table, &bodies).map_err(NodeErrorKind::Naming)?;
+            Ok(super::KeyedCopy {
+                key: copy.key.clone(),
+                bodies,
+                family: copy.family,
+                table,
+            })
+        })
+        .collect::<Result<Vec<_>, NodeErrorKind>>()?;
     Ok(OpOut {
-        payload: ValuePayload::Body(Arc::new(placed)),
+        payload: ValuePayload::Copies(Arc::new(super::Copies {
+            bodies: vec![Arc::new(placed)],
+            members,
+        })),
         names: table,
         groups: Arc::default(),
         contacts: Arc::new(part.contacts.carried_from(0)),
@@ -797,7 +832,8 @@ fn read_body<T: Decide>(
     let v = value_of(results, input)?;
     match placeable_operand(v, input) {
         Ok(Placeable::Body(b)) => Ok(b),
-        Ok(Placeable::Instances(_)) | Err(NodeErrorKind::WrongOperand { .. }) => {
+        Ok(Placeable::Instances(_) | Placeable::Copies(_))
+        | Err(NodeErrorKind::WrongOperand { .. }) => {
             Err(wrong_operand(v, input, super::family::BODY))
         }
         Err(other) => Err(other),
@@ -813,6 +849,9 @@ enum Placeable<T: Decide> {
     /// Several placed bodies, in the input's own instance order; the
     /// input's name table indexes them by that order.
     Instances(Vec<Arc<Body<T>>>),
+    /// A placement's copies, keyed: moved whole, each copy by the same
+    /// map, the keys and every table kept.
+    Copies(Arc<super::Copies<T>>),
 }
 
 impl<T: Decide> Placeable<T> {
@@ -822,6 +861,7 @@ impl<T: Decide> Placeable<T> {
         match self {
             Self::Body(b) => core::slice::from_ref(b),
             Self::Instances(bs) => bs,
+            Self::Copies(copies) => &copies.bodies,
         }
     }
 
@@ -840,6 +880,30 @@ impl<T: Decide> Placeable<T> {
                     .map(|(i, b)| f(b, i).map(Arc::new))
                     .collect::<Result<_, _>>()?,
             ),
+            Self::Copies(copies) => {
+                let bodies = copies
+                    .bodies
+                    .iter()
+                    .enumerate()
+                    .map(|(i, b)| f(b, i).map(Arc::new))
+                    .collect::<Result<_, _>>()?;
+                let members = copies
+                    .members
+                    .iter()
+                    .map(|member| {
+                        Ok(super::KeyedCopy {
+                            bodies: member
+                                .bodies
+                                .iter()
+                                .enumerate()
+                                .map(|(i, b)| f(b, i).map(Arc::new))
+                                .collect::<Result<_, _>>()?,
+                            ..member.clone()
+                        })
+                    })
+                    .collect::<Result<_, NodeErrorKind>>()?;
+                ValuePayload::Copies(Arc::new(super::Copies { bodies, members }))
+            }
         })
     }
 }
@@ -860,6 +924,7 @@ fn placeable_operand<T: Decide>(
         }
         ValuePayload::Boolean(BooleanValue::Empty) => Err(NodeErrorKind::EmptyOperand { input }),
         ValuePayload::Instances(bodies) => Ok(Placeable::Instances(bodies.clone())),
+        ValuePayload::Copies(copies) => Ok(Placeable::Copies(Arc::clone(copies))),
         _ => Err(wrong_operand(v, input, super::phrase::BODY_OR_INSTANCES)),
     }
 }
@@ -2536,6 +2601,13 @@ fn reads_projected<T: Decide>(
 ) -> Result<Option<Results<T>>, NodeErrorKind> {
     let mut replaced: Vec<(RecipeNodeId, u32, super::NodeValue<T>)> = Vec::new();
     for &(seat, var) in rows {
+        if let Some(read) = node.body_read(seat)
+            && let Some(key) = &read.key
+        {
+            let placement = super::read_at(doc, seat, var)?;
+            replaced.push(copy_of(placement, key, read.is_indexed(), seat, results, vals)?);
+            continue;
+        }
         if node
             .body_read(seat)
             .is_some_and(crate::BodyRead::is_indexed)
@@ -2552,6 +2624,70 @@ fn reads_projected<T: Decide>(
         replaced.extend(split_port(var, doc, results)?);
     }
     Ok(with_replaced(results, replaced))
+}
+
+/// **One copy of a placement's copies, read by its key**
+/// ([`crate::BodyRead::key`]): the copy alone with its own table, or for
+/// a copy that is a family, the member at the read's index. A key that
+/// names no copy, and a read at the other shape, refuse typed: whether
+/// the key exists, and what it holds, is this evaluation's to answer.
+fn copy_of<T: Decide>(
+    placement: RecipeNodeId,
+    key: &crate::CopyKey,
+    indexed: bool,
+    seat: crate::OperandSlot,
+    results: &Results<T>,
+    vals: &SlotValues<T>,
+) -> Result<(RecipeNodeId, u32, super::NodeValue<T>), NodeErrorKind> {
+    let value = value_of(results, placement)?;
+    let ValuePayload::Copies(copies) = &value.payload else {
+        return Err(wrong_operand(value, placement, super::family::COPIES));
+    };
+    let Some((position, member)) = copies
+        .members
+        .iter()
+        .enumerate()
+        .find(|(_, member)| &member.key == key)
+    else {
+        return Err(NodeErrorKind::NoSuchCopy {
+            input: placement,
+            key: Box::new(key.clone()),
+        });
+    };
+    if member.family != indexed {
+        return Err(NodeErrorKind::CopyShape {
+            input: placement,
+            key: Box::new(key.clone()),
+            family: member.family,
+        });
+    }
+    let (body, table) = if indexed {
+        let (body, index) =
+            instance_of(placement, &member.bodies, vals, SlotId::Index { seat, k: 0 })?;
+        let table = member
+            .table
+            .project(index)
+            .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
+        (body, table)
+    } else {
+        let Some(body) = member.bodies.first() else {
+            unreachable!("a copy that is a body holds one")
+        };
+        (Arc::clone(body), member.table.as_ref().clone())
+    };
+    names::check_total(&table, &body, 0).map_err(NodeErrorKind::Naming)?;
+    Ok((
+        placement,
+        u32::try_from(position).unwrap_or(u32::MAX),
+        super::NodeValue {
+            payload: ValuePayload::Body(body),
+            name_table: Arc::new(table),
+            fragment_groups: Arc::default(),
+            contacts: Arc::default(),
+            carried: Arc::default(),
+            ..value.clone()
+        },
+    ))
 }
 
 /// [`reads_projected`]'s split ports alone, for reads no seat holds: a
@@ -2835,7 +2971,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             // Every door refuses an indexed family argument
             // (`InputFault::IndexedFamily`); one reaching here would
             // union the whole family, so it is refused, not read.
-            if family.is_indexed() {
+            if family.is_member() {
                 return Err(NodeErrorKind::Naming(names::NamingError::Emission {
                     what: UNION_FAMILY_INDEXED,
                 }));
@@ -3521,16 +3657,21 @@ fn wire_transform<T: Decide + topo::AtRestPolicy>(
     Ok(OpOut::plain(payload, Arc::clone(&value.name_table)).carrying(value.parts))
 }
 
-/// **A placement's copies** (D10): each shape read, at port `port` of
-/// the operation `of`, placed at the one motion `map` its bundle solved
-/// to (`None` the bit-exact identity), as one copy named under this
-/// node ([`names::name_placed`]). A split's half is its port, as a read
-/// of any port is that output. A boolean's empty result places as
-/// itself: an empty copy, a typed success (F8) the gather finds no solid
-/// in. Several shapes are several copies, each read by its port
-/// ([`ValuePayload::Copies`], [`names::name_placed_copies`]).
+/// **A placement's copies** (D10): each shape read, projected to the
+/// value it reads (a split's half, one copy of a placement's copies, a
+/// family's member), placed at the one motion `map` its bundle solved
+/// to (`None` the bit-exact identity) and named under this node.
 ///
-/// A copy of one shape carries the body's declared contact records and
+/// Over one shape the copy has the shape's shape: a body is one copy
+/// ([`names::name_placed`]), a family is a family, and a placement's
+/// copies are those copies, keyed as they were. A boolean's empty result
+/// places as itself: an empty copy, a typed success (F8) the gather
+/// finds no solid in. Over several shapes the copies are keyed by read
+/// ([`ValuePayload::Copies`], [`names::name_placed_copies`]), a family
+/// among them a family under its key; two reads of one variable key
+/// alike and refuse (FORK-DM4).
+///
+/// A copy of one body carries the body's declared contact records and
 /// the declaration rows keyed with them (ASM-R2b D-1) with their cells
 /// verbatim: a rigid placement keeps every arena key
 /// (`transform_rigid`), so they key the copy as they keyed the body.
@@ -3538,96 +3679,184 @@ fn wire_transform<T: Decide + topo::AtRestPolicy>(
 /// A split's half carries none, as its value carries none.
 fn wire_place<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
-    shapes: &[((RecipeNodeId, crate::VarId), u8)],
+    shapes: &[(RecipeNodeId, crate::VarId, &Results<T>)],
     map: Option<&Affine3<T>>,
-    results: &Results<T>,
     tol: Tol,
 ) -> OpResult<T> {
-    // One shape's body, its table projected, its records.
-    let shape = |&((of, _), port): &((RecipeNodeId, crate::VarId), u8)| {
-        let value = value_of(results, of)?;
-        let mut contacts = Arc::clone(&value.contacts);
-        let mut carried = Arc::clone(&value.carried);
-        let (body, index) = match &value.payload {
-            ValuePayload::Boolean(BooleanValue::Empty) => return Ok(None),
-            ValuePayload::Boolean(BooleanValue::Body {
-                body,
-                contacts: records,
-                ..
-            }) => {
-                contacts = Arc::clone(records);
-                (Arc::clone(body), 0)
+    let placed = |body: &Body<T>| place(body, map, tol).map(Arc::new);
+    let projected = |table: &names::NameTable, index: u32| {
+        table
+            .project(index)
+            .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))
+    };
+    let citing: Vec<crate::coincide::CitedInput> = shapes
+        .iter()
+        .map(|&(_, read, _)| crate::coincide::CitedInput::Read(read))
+        .collect();
+    if let [(of, read, results)] = shapes {
+        let value = value_of(results, *of)?;
+        let (body, contacts) = match &value.payload {
+            ValuePayload::Boolean(BooleanValue::Empty) => {
+                return Ok(OpOut::plain(
+                    ValuePayload::Boolean(BooleanValue::Empty),
+                    names::empty(),
+                ));
             }
-            ValuePayload::Split { above, below } => {
-                let half = if port == 0 {
-                    SplitHalf::Above
-                } else {
-                    SplitHalf::Below
-                };
-                contacts = Arc::default();
-                carried = Arc::default();
-                match if port == 0 { above } else { below } {
-                    SplitSide::Body(b) => (Arc::clone(b), half.output_body()),
-                    SplitSide::Empty => return Err(NodeErrorKind::EmptyHalf { input: of, half }),
-                }
+            ValuePayload::Boolean(BooleanValue::Body { body, contacts, .. }) => {
+                (body, Arc::clone(contacts))
+            }
+            ValuePayload::Body(body) => (body, Arc::clone(&value.contacts)),
+            ValuePayload::Instances(bodies) => {
+                let bodies = bodies.iter().map(|b| placed(b)).collect::<Result<Vec<_>, _>>()?;
+                let table = name_family(id, &value.name_table, &bodies)?;
+                return Ok(OpOut::plain(ValuePayload::Instances(bodies), table)
+                    .carrying(value.parts)
+                    .citing(citing));
             }
             ValuePayload::Copies(copies) => {
-                contacts = Arc::default();
-                carried = Arc::default();
-                let body = copies.get(usize::from(port)).ok_or(NodeErrorKind::MissingInput {
-                    input: of,
-                })?;
-                (Arc::clone(body), u32::from(port))
+                let bodies = copies
+                    .bodies
+                    .iter()
+                    .map(|b| placed(b))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let table = name_family(id, &value.name_table, &bodies)?;
+                let members = copies
+                    .members
+                    .iter()
+                    .map(|member| {
+                        let bodies = member
+                            .bodies
+                            .iter()
+                            .map(|b| placed(b))
+                            .collect::<Result<Vec<_>, _>>()?;
+                        Ok(super::KeyedCopy {
+                            key: member.key.clone(),
+                            table: name_family(id, &member.table, &bodies)?,
+                            family: member.family,
+                            bodies,
+                        })
+                    })
+                    .collect::<Result<Vec<_>, NodeErrorKind>>()?;
+                // The records ride the one body that keys them.
+                let whole = bodies.len() == 1;
+                return Ok(OpOut {
+                    contacts: if whole {
+                        Arc::new(value.contacts.carried_from(0))
+                    } else {
+                        Arc::default()
+                    },
+                    carried: if whole {
+                        Arc::clone(&value.carried)
+                    } else {
+                        Arc::default()
+                    },
+                    ..OpOut::plain(
+                        ValuePayload::Copies(Arc::new(super::Copies { bodies, members })),
+                        table,
+                    )
+                    .carrying(value.parts)
+                    .citing(citing)
+                });
             }
-            _ => (read_body(results, of)?, 0),
+            _ => return Err(wrong_operand(value, *of, super::phrase::BODY_OR_INSTANCES)),
         };
-        let table = value
-            .name_table
-            .project(index)
-            .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
-        let placed = place(&body, map, tol)?;
-        Ok(Some((placed, table, contacts, carried, value.parts)))
-    };
-    if let [one] = shapes {
-        let read = one.0.1;
-        let Some((placed, table, contacts, carried, parts)) = shape(one)? else {
-            return Ok(OpOut::plain(
-                ValuePayload::Boolean(BooleanValue::Empty),
-                names::empty(),
-            ));
-        };
-        let table = names::name_placed(id, &table, &placed).map_err(NodeErrorKind::Naming)?;
+        let table = projected(&value.name_table, 0)?;
+        let copy = place(body, map, tol)?;
+        let table = names::name_placed(id, &table, &copy).map_err(NodeErrorKind::Naming)?;
         return Ok(OpOut {
             contacts: Arc::new(contacts.carried_from(0)),
-            carried,
-            ..OpOut::plain(ValuePayload::Body(Arc::new(placed)), table)
-                .carrying(parts)
-                .citing(vec![crate::coincide::CitedInput::Read(read)])
+            carried: Arc::clone(&value.carried),
+            ..OpOut::plain(ValuePayload::Body(Arc::new(copy)), table)
+                .carrying(value.parts)
+                .citing(vec![crate::coincide::CitedInput::Read(*read)])
         });
     }
-    let mut copies: Vec<(Body<T>, names::NameTable)> = Vec::with_capacity(shapes.len());
+    // Several shapes: each copy keyed by its read, its bodies flat in
+    // list order, each with the table its value names it by.
+    let mut keys: Vec<crate::CopyKey> = Vec::with_capacity(shapes.len());
+    let mut flat: Vec<(names::NameTable, Arc<Body<T>>)> = Vec::new();
+    let mut spans: Vec<(core::ops::Range<u32>, bool)> = Vec::with_capacity(shapes.len());
     let mut parts = 0;
-    for one in shapes {
-        let Some((placed, table, _, _, p)) = shape(one)? else {
-            return Err(NodeErrorKind::EmptyOperand { input: one.0.0 });
+    for &(of, read, results) in shapes {
+        let key = crate::CopyKey::Read(read);
+        if keys.contains(&key) {
+            return Err(NodeErrorKind::CopiesShareAKey { key: Box::new(key) });
+        }
+        keys.push(key);
+        let value = value_of(results, of)?;
+        let start = u32::try_from(flat.len()).unwrap_or(u32::MAX);
+        let family = match &value.payload {
+            ValuePayload::Boolean(BooleanValue::Empty) => {
+                return Err(NodeErrorKind::EmptyOperand { input: of });
+            }
+            ValuePayload::Boolean(BooleanValue::Body { body, .. }) | ValuePayload::Body(body) => {
+                flat.push((projected(&value.name_table, 0)?, placed(body)?));
+                false
+            }
+            ValuePayload::Instances(bodies) => {
+                for (i, body) in bodies.iter().enumerate() {
+                    let index = names::output_body(i).map_err(NodeErrorKind::Naming)?;
+                    flat.push((projected(&value.name_table, index)?, placed(body)?));
+                }
+                true
+            }
+            _ => return Err(wrong_operand(value, of, super::phrase::BODY_OR_INSTANCES)),
         };
-        parts += p;
-        copies.push((placed, table));
+        parts += value.parts;
+        spans.push((start..u32::try_from(flat.len()).unwrap_or(u32::MAX), family));
     }
     let named: Vec<(&names::NameTable, &Body<T>)> =
-        copies.iter().map(|(body, table)| (table, body)).collect();
+        flat.iter().map(|(table, body)| (table, body.as_ref())).collect();
     let table = names::name_placed_copies(id, &named).map_err(NodeErrorKind::Naming)?;
+    let members = keys
+        .into_iter()
+        .zip(spans)
+        .map(|(key, (span, family))| {
+            let bodies = flat[span.start as usize..span.end as usize]
+                .iter()
+                .map(|(_, body)| Arc::clone(body))
+                .collect();
+            let table = table
+                .reindex(|b| span.contains(&b).then(|| b - span.start))
+                .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
+            Ok(super::KeyedCopy {
+                key,
+                bodies,
+                family,
+                table: Arc::new(table),
+            })
+        })
+        .collect::<Result<Vec<_>, NodeErrorKind>>()?;
     Ok(OpOut::plain(
-        ValuePayload::Copies(copies.into_iter().map(|(body, _)| Arc::new(body)).collect()),
+        ValuePayload::Copies(Arc::new(super::Copies {
+            bodies: flat.into_iter().map(|(_, body)| body).collect(),
+            members,
+        })),
         table,
     )
     .carrying(parts)
-    .citing(
-        shapes
-            .iter()
-            .map(|((_, read), _)| crate::coincide::CitedInput::Read(*read))
-            .collect(),
-    ))
+    .citing(citing))
+}
+
+/// **A placed family, named**: body `i` of `bodies` is body `i` of the
+/// value `table` names, each of its names qualified by the placement
+/// ([`names::name_placed_copies`]).
+fn name_family<T: Decide>(
+    id: RecipeNodeId,
+    table: &names::NameTable,
+    bodies: &[Arc<Body<T>>],
+) -> Result<Arc<names::NameTable>, NodeErrorKind> {
+    let tables = (0..bodies.len())
+        .map(|i| {
+            let index = names::output_body(i).map_err(NodeErrorKind::Naming)?;
+            table
+                .project(index)
+                .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let named: Vec<(&names::NameTable, &Body<T>)> =
+        tables.iter().zip(bodies).map(|(t, b)| (t, b.as_ref())).collect();
+    names::name_placed_copies(id, &named).map_err(NodeErrorKind::Naming)
 }
 
 /// **What `node`'s slots read as written** ([`crate::Doc::slot_expansion`]),

@@ -464,6 +464,51 @@ impl<S: crate::expr::Slot> ShapeRows<BodyRead<S>> for Vec<BodyRead<S>> {
     }
 }
 
+/// **A copy's key** (FORK-DM4: a member is keyed by its read): the
+/// identity of one copy in the placement that makes it, which a reader
+/// of one copy of a placement's `copies` names ([`BodyRead::key`]).
+///
+/// A `Place` over several shapes keys each copy by the variable it
+/// copies through, and over an indexed read by the family it reads
+/// (DM4, so `Place[xs[0], xs[1]]` keys twice alike and refuses). An
+/// instance keys each copy by its identity in the part: the part's
+/// placement, and the copy's key there.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CopyKey {
+    /// The copy a `Place` makes of the shape it reads through this
+    /// variable.
+    Read(VarId),
+    /// A copy a part delivers.
+    Part {
+        /// The part's placement that makes it.
+        placement: RecipeNodeId,
+        /// The copy's key in that placement.
+        within: Box<CopyKey>,
+    },
+}
+
+impl CopyKey {
+    /// The key of the copy `placement` of a part makes, keyed `within`
+    /// there.
+    #[must_use]
+    pub fn part(placement: RecipeNodeId, within: Self) -> Self {
+        Self::Part {
+            placement,
+            within: Box::new(within),
+        }
+    }
+}
+
+impl core::fmt::Display for CopyKey {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Read(var) => write!(f, "{var}"),
+            Self::Part { placement, within } => write!(f, "{placement}/{within}"),
+        }
+    }
+}
+
 /// **A read at a body seat** (REFERENCES DM3): the variable read, and
 /// one `Count` index per index of the family it reads (VR4) when the
 /// read picks one member. `xs[i]` is `BodyRead { read: xs, at: [i] }`;
@@ -476,13 +521,19 @@ impl<S: crate::expr::Slot> ShapeRows<BodyRead<S>> for Vec<BodyRead<S>> {
 /// [`Operand`] and each index's [`crate::Formula`]. Each index is a
 /// slot of its node ([`crate::SlotId::Index`]).
 ///
-/// Serialized as the bare read when it carries no index, and as
-/// `{"read": …, "at": [...]}` otherwise, and debug-printed the same
-/// way: a plain read as its read.
+/// Serialized as the bare read when it carries no index and no key,
+/// and as `{"read": …, "key": …, "at": [...]}` otherwise, each of
+/// `key` and `at` only when present, and debug-printed the same way: a
+/// plain read as its read.
 #[derive(Clone, PartialEq)]
 pub struct BodyRead<S: crate::expr::Slot> {
     /// The variable read: a body, or for an indexed read the family.
     pub read: S::Read,
+    /// The copy read, by its key, of a placement's `copies`
+    /// ([`CopyKey`]): applied before `at`, which indexes a copy that is
+    /// a family. Whether the key names a copy, and whether that copy is
+    /// a body or a family, is evaluation's to answer.
+    pub key: Option<CopyKey>,
     /// One `Count` per index of the family, empty for a plain read.
     pub at: Vec<S>,
 }
@@ -493,6 +544,17 @@ impl<S: crate::expr::Slot> BodyRead<S> {
     pub fn plain(read: impl Into<S::Read>) -> Self {
         Self {
             read: read.into(),
+            key: None,
+            at: Vec::new(),
+        }
+    }
+
+    /// The copy keyed `key` of the placement's copies `read`: `inst.copies[key]`.
+    #[must_use]
+    pub fn keyed(read: impl Into<S::Read>, key: CopyKey) -> Self {
+        Self {
+            read: read.into(),
+            key: Some(key),
             at: Vec::new(),
         }
     }
@@ -503,6 +565,7 @@ impl<S: crate::expr::Slot> BodyRead<S> {
     pub fn indexed(read: impl Into<S::Read>, at: Vec<S>) -> Self {
         Self {
             read: read.into(),
+            key: None,
             at,
         }
     }
@@ -513,11 +576,18 @@ impl<S: crate::expr::Slot> BodyRead<S> {
         !self.at.is_empty()
     }
 
+    /// Whether the read picks one member of a family, by index or by
+    /// key: a read of a member, not of the variable whole.
+    #[must_use]
+    pub fn is_member(&self) -> bool {
+        self.key.is_some() || self.is_indexed()
+    }
+
     /// The kinds the variable read may have at `seat`: the seat's own
     /// for a plain read, a family for an indexed one.
     #[must_use]
     pub fn kind(&self, seat: OperandSlot) -> SlotKind {
-        if self.is_indexed() {
+        if self.is_member() {
             SlotKind::Is(VarKind::Bodies)
         } else {
             seat.kind()
@@ -556,6 +626,7 @@ impl<S: crate::expr::Slot> BodyRead<S> {
     ) -> Result<BodyRead<S2>, E> {
         Ok(BodyRead {
             read: read(seat, &self.read)?,
+            key: self.key.clone(),
             at: self.at.iter().map(&mut *f).collect::<Result<_, _>>()?,
         })
     }
@@ -564,14 +635,19 @@ impl<S: crate::expr::Slot> BodyRead<S> {
 impl<S: crate::expr::Slot> core::fmt::Debug for BodyRead<S> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         // A plain read dumps as the bare read, as it serializes.
-        let Self { read, at } = self;
-        if at.is_empty() {
+        let Self { read, key, at } = self;
+        if key.is_none() && at.is_empty() {
             return read.fmt(f);
         }
-        f.debug_struct("BodyRead")
-            .field("read", read)
-            .field("at", at)
-            .finish()
+        let mut st = f.debug_struct("BodyRead");
+        st.field("read", read);
+        if let Some(key) = key {
+            st.field("key", key);
+        }
+        if !at.is_empty() {
+            st.field("at", at);
+        }
+        st.finish()
     }
 }
 
@@ -614,12 +690,18 @@ where
 impl<S: crate::expr::Slot> serde::Serialize for BodyRead<S> {
     fn serialize<Z: serde::Serializer>(&self, ser: Z) -> Result<Z::Ok, Z::Error> {
         use serde::ser::SerializeStruct as _;
-        if self.at.is_empty() {
+        if !self.is_member() {
             return self.read.serialize(ser);
         }
-        let mut st = ser.serialize_struct("BodyRead", 2)?;
+        let fields = 1 + usize::from(self.key.is_some()) + usize::from(self.is_indexed());
+        let mut st = ser.serialize_struct("BodyRead", fields)?;
         st.serialize_field("read", &self.read)?;
-        st.serialize_field("at", &self.at)?;
+        if let Some(key) = &self.key {
+            st.serialize_field("key", key)?;
+        }
+        if self.is_indexed() {
+            st.serialize_field("at", &self.at)?;
+        }
         st.end()
     }
 }
@@ -694,6 +776,7 @@ impl<'de, S: crate::expr::Slot> serde::Deserialize<'de> for BodyRead<S> {
                         v,
                         core::marker::PhantomData,
                     ))?,
+                    key: None,
                     at: Vec::new(),
                 })
             }
@@ -703,10 +786,11 @@ impl<'de, S: crate::expr::Slot> serde::Deserialize<'de> for BodyRead<S> {
                         read: <S::Read as serde::Deserialize<'de>>::deserialize(
                             MapAccessDeserializer::new(map),
                         )?,
+                        key: None,
                         at: Vec::new(),
                     });
                 };
-                if first != "read" && first != "at" {
+                if first != "read" && first != "at" && first != "key" {
                     let rest = Prepended {
                         first: Some(first),
                         rest: map,
@@ -715,29 +799,43 @@ impl<'de, S: crate::expr::Slot> serde::Deserialize<'de> for BodyRead<S> {
                         read: <S::Read as serde::Deserialize<'de>>::deserialize(
                             MapAccessDeserializer::new(rest),
                         )?,
+                        key: None,
                         at: Vec::new(),
                     });
                 }
-                let (mut read, mut at) = (None, None);
-                let mut key = Some(first);
-                while let Some(k) = key {
+                let (mut read, mut copy, mut at) = (None, None, None);
+                let mut next = Some(first);
+                while let Some(k) = next {
                     match k.as_str() {
                         "read" if read.is_none() => read = Some(map.next_value::<S::Read>()?),
+                        "key" if copy.is_none() => copy = Some(map.next_value::<CopyKey>()?),
                         "at" if at.is_none() => at = Some(map.next_value::<Vec<S>>()?),
-                        "read" | "at" => return Err(A::Error::duplicate_field("read or at")),
-                        other => return Err(A::Error::unknown_field(other, &["read", "at"])),
+                        "read" | "key" | "at" => {
+                            return Err(A::Error::duplicate_field("read, key or at"));
+                        }
+                        other => {
+                            return Err(A::Error::unknown_field(other, &["read", "key", "at"]));
+                        }
                     }
-                    key = map.next_key::<String>()?;
+                    next = map.next_key::<String>()?;
                 }
                 let read = read.ok_or_else(|| A::Error::missing_field("read"))?;
-                let at: Vec<S> = at.ok_or_else(|| A::Error::missing_field("at"))?;
-                if at.is_empty() {
-                    return Err(A::Error::invalid_length(
-                        0,
-                        &"at least one index (a plain read is written bare)",
-                    ));
-                }
-                Ok(BodyRead { read, at })
+                let at: Vec<S> = match (at, &copy) {
+                    (Some(at), _) if at.is_empty() => {
+                        return Err(A::Error::invalid_length(
+                            0,
+                            &"at least one index (a plain read is written bare)",
+                        ));
+                    }
+                    (Some(at), _) => at,
+                    (None, Some(_)) => Vec::new(),
+                    (None, None) => return Err(A::Error::missing_field("at")),
+                };
+                Ok(BodyRead {
+                    read,
+                    key: copy,
+                    at,
+                })
             }
         }
 

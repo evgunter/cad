@@ -76,7 +76,7 @@ use geom_core::Decide;
 use topo::{Cell, Contact, ContactRecords, FaceKey, ValidationError};
 
 use crate::doc::Doc;
-use crate::eval::{Evaluation, ValuePayload};
+use crate::eval::Evaluation;
 use crate::mate::{
     ClassAdmission, ContactClass, MateSide, NO_AT_REST_RECORD_RECOURSE, class_admission,
 };

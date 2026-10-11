@@ -1088,7 +1088,7 @@ impl<P> Doc<P> {
             .flat_map(|node| match node {
                 Node::Place { shapes, .. } => shapes
                     .iter()
-                    .filter(|shape| !shape.is_indexed())
+                    .filter(|shape| !shape.is_member())
                     .map(|shape| shape.read)
                     .collect(),
                 _ => Vec::new(),
@@ -2010,15 +2010,24 @@ impl<P> Doc<P> {
                     crate::PortKind::Of(kind) => kind,
                     // A placer has the shape of what it reads: `Bodies`
                     // over a `Bodies`, `Body` otherwise.
-                    crate::PortKind::Placed => {
-                        let Node::Transform { input, .. } = node else {
-                            unreachable!("only a transform's port is placed")
-                        };
-                        match self.vars.get(input)?.kind() {
+                    crate::PortKind::Placed => match node {
+                        Node::Transform { input, .. } => match self.vars.get(input)?.kind() {
                             crate::VarKind::Bodies => crate::VarKind::Bodies,
                             _ => crate::VarKind::Body,
-                        }
-                    }
+                        },
+                        // One shape's shape: a member read is a body.
+                        Node::Place { shapes, .. } => match shapes.as_slice() {
+                            [one] if !one.is_member() => {
+                                match self.vars.get(&one.read)?.kind() {
+                                    crate::VarKind::Bodies => crate::VarKind::Bodies,
+                                    _ => crate::VarKind::Body,
+                                }
+                            }
+                            [_] => crate::VarKind::Body,
+                            _ => crate::VarKind::Bodies,
+                        },
+                        _ => unreachable!("only a placer's port is placed"),
+                    },
                 };
                 Some((port.name, kind))
             })

@@ -577,9 +577,12 @@ pub(crate) fn output_body<T: Decide>(
                 SplitSide::Empty => Err(missing()),
             }
         }
-        ValuePayload::Instances(v) | ValuePayload::Copies(v) => {
-            v.get(index as usize).map(AsRef::as_ref).ok_or_else(missing)
-        }
+        ValuePayload::Instances(v) => v.get(index as usize).map(AsRef::as_ref).ok_or_else(missing),
+        ValuePayload::Copies(copies) => copies
+            .bodies
+            .get(index as usize)
+            .map(AsRef::as_ref)
+            .ok_or_else(missing),
         // The families that denote no body at all. A mate denotes
         // none, and interrogating one for geometry is the same category
         // error as interrogating a declaration — as is interrogating a

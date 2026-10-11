@@ -3097,7 +3097,7 @@ impl<P> Node<P> {
         // every family a node defines today), and a family argument none.
         if let Node::Union { members, .. } | Node::Intersect { members, .. } = self
             && let crate::Bodies::Family(read) = members
-            && read.is_indexed()
+            && read.is_member()
         {
             return Some(InputFault::IndexedFamily);
         }
@@ -3426,7 +3426,9 @@ pub enum PortKind {
     /// This kind.
     Of(crate::VarKind),
     /// A [`Node::Transform`]'s value, which has the shape of the
-    /// variable it reads: `Bodies` over a `Bodies`, `Body` otherwise.
+    /// variable it reads: `Bodies` over a `Bodies`, `Body` otherwise;
+    /// and a [`Node::Place`]'s, which has its one shape's shape, and is
+    /// `Bodies` over several (their copies, keyed by read).
     ///
     /// Read off the operand once, at the insert that mints the output;
     /// from then on the output's stored kind is the fact (VR3: a kind
@@ -3452,8 +3454,11 @@ impl<P, S: Slot> Node<P, S> {
     /// port ([`crate::Doc::output`]).
     ///
     /// A [`Node::Transform`]'s one port has its operand's shape:
-    /// `Bodies` over a `Bodies`, `Body` otherwise ([`PortKind::Placed`]). An instance defines one
-    /// `body` until world placements give it one per placement.
+    /// `Bodies` over a `Bodies`, `Body` otherwise ([`PortKind::Placed`]),
+    /// and so has a [`Node::Place`]'s over one shape; over several it is
+    /// their copies keyed by read. An instance defines one `copies`, the
+    /// part's world copies keyed by their identity in the part
+    /// ([`crate::CopyKey`]). No port count depends on a list.
     ///
     /// Exhaustive over the variants, so one added does not compile
     /// until it states what it defines.
@@ -3481,8 +3486,13 @@ impl<P, S: Slot> Node<P, S> {
                 name: "body",
                 kind: PortKind::Placed,
             }],
-            // One copy per shape, in list order.
-            Self::Place { shapes, .. } => vec![OutputPort::of("copy", VarKind::Body); shapes.len()],
+            // One port of its reads' shape, however many it copies.
+            Self::Place { .. } => vec![OutputPort {
+                name: "copies",
+                kind: PortKind::Placed,
+            }],
+            // The part's world copies, keyed by their identity there.
+            Self::InstantiatePart { .. } => vec![OutputPort::of("copies", VarKind::Bodies)],
             Self::Measure { primitive } => {
                 vec![OutputPort::of("value", VarKind::from(primitive.dim()))]
             }
@@ -3498,8 +3508,7 @@ impl<P, S: Slot> Node<P, S> {
             | Self::Union { .. }
             | Self::Intersect { .. }
             | Self::Part { .. }
-            | Self::PlacedUnion { .. }
-            | Self::InstantiatePart { .. } => vec![BODY],
+            | Self::PlacedUnion { .. } => vec![BODY],
             Self::World | Self::Assertion { .. } => Vec::new(),
         }
     }

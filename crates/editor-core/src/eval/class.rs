@@ -107,6 +107,12 @@ pub enum NodeErrorClass {
     EmptyHalf,
     /// [`NodeErrorKind::InstanceOutOfRange`].
     InstanceOutOfRange,
+    /// [`NodeErrorKind::NoSuchCopy`].
+    NoSuchCopy,
+    /// [`NodeErrorKind::CopyShape`].
+    CopyShape,
+    /// [`NodeErrorKind::CopiesShareAKey`].
+    CopiesShareAKey,
     /// [`NodeErrorKind::DegenerateDirection`].
     DegenerateDirection,
     /// [`NodeErrorKind::NonFiniteDirection`].
@@ -316,6 +322,9 @@ impl NodeErrorKind {
             Self::UnfinishedOperand { .. } => C::UnfinishedOperand,
             Self::EmptyHalf { .. } => C::EmptyHalf,
             Self::InstanceOutOfRange { .. } => C::InstanceOutOfRange,
+            Self::NoSuchCopy { .. } => C::NoSuchCopy,
+            Self::CopyShape { .. } => C::CopyShape,
+            Self::CopiesShareAKey { .. } => C::CopiesShareAKey,
             Self::DegenerateDirection { .. } => C::DegenerateDirection,
             Self::NonFiniteDirection { .. } => C::NonFiniteDirection,
             Self::UnderflowedDirection { .. } => C::UnderflowedDirection,
@@ -528,6 +537,9 @@ mod tests {
         UnfinishedOperand,
         EmptyHalf,
         InstanceOutOfRange,
+        NoSuchCopy,
+        CopyShape,
+        CopiesShareAKey,
         DegenerateDirection,
         NonFiniteDirection,
         UnderflowedDirection,
@@ -801,6 +813,18 @@ mod tests {
                 input: n(3),
                 index: 7,
                 count: 4,
+            },
+            C::NoSuchCopy => K::NoSuchCopy {
+                input: n(3),
+                key: Box::new(crate::CopyKey::part(n(1), crate::CopyKey::Read(crate::VarId::new(2, 0)))),
+            },
+            C::CopyShape => K::CopyShape {
+                input: n(3),
+                key: Box::new(crate::CopyKey::part(n(1), crate::CopyKey::Read(crate::VarId::new(2, 0)))),
+                family: true,
+            },
+            C::CopiesShareAKey => K::CopiesShareAKey {
+                key: Box::new(crate::CopyKey::Read(crate::VarId::new(2, 0))),
             },
             C::DegenerateDirection => K::DegenerateDirection {
                 role: "extrude direction",

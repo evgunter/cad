@@ -722,16 +722,24 @@ impl NameTable {
     /// rows keeps both distinct — but carried as the typed result
     /// rather than unwrapped: this crate has no panic paths.
     pub fn project(&self, body: u32) -> Result<NameTable, DuplicateName> {
-        let rekey = |e: &EntityRef| EntityRef {
-            body: 0,
-            key: e.key,
-        };
+        self.reindex(|b| (b == body).then_some(0))
+    }
+
+    /// The rows over the output bodies `onto` keeps, each re-indexed to
+    /// the body it answers: [`Self::project`] over several bodies at
+    /// once, so one copy that is a family keeps its members' rows.
+    ///
+    /// # Errors
+    ///
+    /// [`Self::project`]'s.
+    pub fn reindex(&self, onto: impl Fn(u32) -> Option<u32>) -> Result<NameTable, DuplicateName> {
         let mut out = NameTable::new();
         for (name, row) in &self.forward {
             let kept: Vec<(Candidate, EntityRef)> = row
                 .pairs()
-                .filter(|(_, e)| e.body == body)
-                .map(|(c, e)| (c, rekey(&e)))
+                .filter_map(|(c, e)| {
+                    onto(e.body).map(|body| (c, EntityRef { body, key: e.key }))
+                })
                 .collect();
             if !kept.is_empty() {
                 super::defer::narrow_into(&mut out, name.clone(), kept)?;

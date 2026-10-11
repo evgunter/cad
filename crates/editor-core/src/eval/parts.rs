@@ -100,6 +100,10 @@ pub(crate) const MAX_DEPTH: usize = 1024;
 pub(crate) struct PartValue<T: Decide> {
     pub body: Arc<Body<T>>,
     pub names: Arc<NameTable>,
+    /// The same product copy by copy, each keyed by its identity in the
+    /// part ([`crate::CopyKey`]), in the part's frame: what an instance's
+    /// `copies` delivers to a reader of one copy ([`keyed_copies`]).
+    pub copies: Arc<Vec<super::KeyedCopy<T>>>,
     pub contacts: Arc<topo::ContactRecords>,
     /// The minted declarations — which mate authored which of those
     /// records, keyed in the same arena the records are. The records
@@ -134,6 +138,7 @@ impl<T: Decide> Clone for PartValue<T> {
         Self {
             body: Arc::clone(&self.body),
             names: Arc::clone(&self.names),
+            copies: Arc::clone(&self.copies),
             contacts: Arc::clone(&self.contacts),
             minted: Arc::clone(&self.minted),
             unminted: Arc::clone(&self.unminted),
@@ -750,8 +755,10 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
                 value.parts
             })
             .sum();
+        let copies = Arc::new(keyed_copies(doc, &evaluation));
         Ok(PartValue {
             parts,
+            copies,
             body: Arc::new(product.body.into_body()),
             names: Arc::new(product.names),
             contacts: Arc::new(product.contacts),
@@ -786,6 +793,57 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
             ),
         })
     }
+}
+
+/// **A document's world copies, each keyed by its identity there**
+/// (FORK-DM4): the copy a world `Place` makes of each shape it reads,
+/// keyed by its placement and the read, and each copy a world instance
+/// delivers, keyed by its placement and the copy's key in its part. A
+/// copy a pattern placed is a family under one key. In the placements'
+/// document order, as the gather reads them, so the copies are the
+/// product's material copy by copy; an empty copy is none.
+pub(crate) fn keyed_copies<T: Decide>(
+    doc: &ProfileDoc,
+    evaluation: &super::Evaluation<T>,
+) -> Vec<super::KeyedCopy<T>> {
+    use super::{BooleanValue, KeyedCopy, ValuePayload};
+    use crate::CopyKey;
+    let mut out = Vec::new();
+    for node in doc.placements() {
+        if evaluation.space(node) != crate::mate::Space::World {
+            continue;
+        }
+        let Some(value) = evaluation.value(node) else {
+            continue;
+        };
+        let read = || match doc.node(node) {
+            Some(crate::node::Node::Place { shapes, .. }) => shapes.first().map(|s| s.read),
+            _ => None,
+        };
+        let one = |bodies: Vec<Arc<Body<T>>>, family: bool| {
+            read().map(|read| KeyedCopy {
+                key: CopyKey::part(node, CopyKey::Read(read)),
+                bodies,
+                family,
+                table: Arc::clone(&value.name_table),
+            })
+        };
+        match &value.payload {
+            ValuePayload::Body(body)
+            | ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
+                out.extend(one(vec![Arc::clone(body)], false));
+            }
+            ValuePayload::Instances(bodies) => out.extend(one(bodies.clone(), true)),
+            ValuePayload::Copies(copies) => {
+                out.extend(copies.members.iter().map(|member| KeyedCopy {
+                    key: CopyKey::part(node, member.key.clone()),
+                    ..member.clone()
+                }));
+            }
+            _ => {}
+        }
+    }
+    out
 }
 
 /// **The parts a nested evaluation instantiates, already evaluated** —
