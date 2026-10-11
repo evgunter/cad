@@ -51,3 +51,24 @@ goes from `sz=28 num=624 frozen=3706` to `sz=40 num=612 frozen=3732`, and
 theorems, because topo now reads the carriers' held domain ends.
 Decisions, shapes and verdicts are unchanged, and the `f64` lines are
 byte-identical. Re-cut the golden on a tree that carries PR 4708.
+
+PR 4726 (`the-skin-computes-its-values-in-t`) moves the serial-golden
+row again, in two ways.
+- **One `f64` line moves.** `arc_loft_1e9eps` goes from
+  `v=4022487ed6a9da05 a=403995a3b53c3c54 vpad=3eb0783c2ee00000
+  apad=3fb5fb0bfc379cc0` to `v=4022487ed6a9d899 a=403995a3b53c3c57
+  vpad=3eb0783424400000 apad=3fb5fb0bfc12a660`, with its verdicts
+  unchanged. The skin's arc conversion used to call `f64`'s inherent
+  `cos`/`sin_cos`, which go to the system libm. Generic over the
+  scalar, it now calls `Real`'s, which at `f64` is the pure-Rust
+  `libm` that D9 prescribes. The inherent call was a latent D9
+  platform dependence, and the ulp it moves is that dependence.
+- **The `Sym` lines' `frozen` column falls.** `sym_arc_loft
+  validate_geometric` goes from 1244 to 1060 and `sym_thin_strip` from
+  1268 to 1177, because the walls are computed in `T` instead of
+  lifted as opaque unknowns. Decisions, `sz`, shapes and verdicts are
+  unchanged.
+
+The import row (`arc_loft_natively_computes_its_rational_volume`)
+builds the same arc loft, so it may move for the same libm reason. Re-cut
+on a tree that carries PR 4726.
