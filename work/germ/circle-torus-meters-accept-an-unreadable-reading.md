@@ -124,10 +124,12 @@ consulted. Moving it to the parallel-axes sibling's posture (`Err` →
   too. The other two rows on record above stay green.
 - **sweep at 1e-12:** `parallel_cylinder_join::a_tipped_rod_…` and
   `cone_operand_rows::an_oblique_rod_and_a_tilted_cone_…` failed, but
-  they fail on main without the change and are filed already
+  they fail on main without the change: the first is filed
   (`work/tint/tipped-rod-join-escalates-at-1e-12.md`,
-  `work/tang/a-far-origin-rod-cut-escalates-its-mapped-source-at-eps-1e-12.md`,
-  `work/sect/cone-germ-pairs-against-a-curved-face-have-no-section-frame.md`).
+  `work/tang/a-far-origin-rod-cut-escalates-its-mapped-source-at-eps-1e-12.md`),
+  and the second, its `a rod clear` fixture refused
+  `FallbackExtentUnsupported` on near-tangent carriers, is filed by this
+  branch (`work/tint/an-oblique-rod-clear-of-a-cone-refuses-the-extent-scan-at-1e-12.md`).
 
 So refusing would cost a true `Miss` at 1e-12 and buy nothing measured.
 The 16-ulp term-bound charge needs no tightening for it.
