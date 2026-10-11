@@ -84,7 +84,8 @@
 //!   a curve, so a seam or `Tangent` declaration names only those: what
 //!   a suite drives a door WITH, as [`revert_ops`];
 //! - [`differential`] — the differential batteries' polygon oracles,
-//!   their one per-pose `outcome` line and the reflex-corner pose: a
+//!   their one per-pose `outcome` line, the reflex-corner pose and the
+//!   near-tangent corner poses: a
 //!   truth derived without the kernel plus the check every battery
 //!   prints, so beside [`oracles`];
 //! - [`stations`] — a station cut back into a rim by hand, and the

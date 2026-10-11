@@ -61,7 +61,7 @@
 //! the role is read off; a name's own `Display` is these words.
 //!
 //! **A name also says which node MADE the entity.** [`attribute`]
-//! walks a name's carry-through segments — `FromTarget`, `FromA`,
+//! walks a name's carry-through segments — `From`,
 //! `Instance` and their siblings — down to the role that minted it,
 //! so "which feature is this face's" is answered by the name rather
 //! than by whichever node happens to draw the body.

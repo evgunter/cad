@@ -105,8 +105,6 @@ pub enum NodeErrorClass {
     UnfinishedOperand,
     /// [`NodeErrorKind::EmptyHalf`].
     EmptyHalf,
-    /// [`NodeErrorKind::MembersShareAnOperation`].
-    MembersShareAnOperation,
     /// [`NodeErrorKind::InstanceOutOfRange`].
     InstanceOutOfRange,
     /// [`NodeErrorKind::DegenerateDirection`].
@@ -319,7 +317,6 @@ impl NodeErrorKind {
             Self::ProductOperand { .. } => C::ProductOperand,
             Self::UnfinishedOperand { .. } => C::UnfinishedOperand,
             Self::EmptyHalf { .. } => C::EmptyHalf,
-            Self::MembersShareAnOperation { .. } => C::MembersShareAnOperation,
             Self::InstanceOutOfRange { .. } => C::InstanceOutOfRange,
             Self::DegenerateDirection { .. } => C::DegenerateDirection,
             Self::NonFiniteDirection { .. } => C::NonFiniteDirection,
@@ -533,7 +530,6 @@ mod tests {
         ProductOperand,
         UnfinishedOperand,
         EmptyHalf,
-        MembersShareAnOperation,
         InstanceOutOfRange,
         DegenerateDirection,
         NonFiniteDirection,
@@ -803,10 +799,6 @@ mod tests {
                 input: n(3),
                 half: crate::SplitHalf::Above,
             },
-            C::MembersShareAnOperation => K::MembersShareAnOperation {
-                operation: n(3),
-                members: (0, 1),
-            },
             C::InstanceOutOfRange => K::InstanceOutOfRange {
                 input: n(3),
                 index: 7,
@@ -885,7 +877,9 @@ mod tests {
                 error: resolve_error(),
                 reference: 0,
             },
-            C::DeclareSiteNotAnOperand => K::DeclareSiteNotAnOperand { at: n(3) },
+            C::DeclareSiteNotAnOperand => K::DeclareSiteNotAnOperand {
+                at: crate::VarId::new(3, 3),
+            },
             C::DeclareUnsupportedPair => K::DeclareUnsupportedPair {
                 kinds: (EntityKind::Edge, EntityKind::Vertex),
                 cross_operand: true,
@@ -895,7 +889,8 @@ mod tests {
                 at_union_step: false,
             },
             C::UnionFoldStep => K::UnionFoldStep {
-                member: n(2),
+                member: 2,
+                read: crate::VarId::new(2, 2),
                 refusal: Box::new(K::UnschedulableCycle),
             },
             C::FilletSelectionEmpty => K::BlendSelectionEmpty {

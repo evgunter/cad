@@ -9,7 +9,7 @@
 
 use editor_core::ExtrudeSide;
 use editor_core::{
-    BooleanOp, EntityKey, Entry, EvalOptions, LoopProgram, NameTable, Node, NodeResult, ProfileDoc,
+    EntityKey, Entry, EvalOptions, LoopProgram, NameTable, Node, NodeResult, ProfileDoc,
     ProfileProgram, RecipeNodeId, RoleSeg, StableName,
 };
 
@@ -196,10 +196,9 @@ fn a_box_minus_a_cylinder_has_both_rims_filleted_in_one_node() {
     let (doc, drill) = disc(doc, 0.0, 0.0, 0.3, 3.0);
     let (doc, holed) = fixture::insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: block.into(),
-            b: drill.into(),
+        Node::Subtract {
+            from: block.into(),
+            tool: drill.into(),
             declare: Vec::new(),
         },
     );
@@ -219,7 +218,7 @@ fn holds_a_piece_qualifier(edge: &StableName) -> bool {
             return true;
         }
         match n.path.as_slice() {
-            [RoleSeg::FromA(inner) | RoleSeg::FromB(inner)] => n = inner,
+            [RoleSeg::From { of: inner, .. }] => n = inner,
             _ => return false,
         }
     }
@@ -266,19 +265,17 @@ fn a_band_crossing_a_wall_seams_piece_cites_the_seams_line() {
     );
     let (doc, notched) = fixture::insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: drill.into(),
-            b: notch.into(),
+        Node::Subtract {
+            from: drill.into(),
+            tool: notch.into(),
             declare: Vec::new(),
         },
     );
     let (doc, holed) = fixture::insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: block.into(),
-            b: notched.into(),
+        Node::Subtract {
+            from: block.into(),
+            tool: notched.into(),
             declare: Vec::new(),
         },
     );
@@ -301,10 +298,12 @@ fn a_band_crossing_a_wall_seams_piece_cites_the_seams_line() {
         4,
         "each band crosses both wall seams: {crossed:?}"
     );
+    let tool_read = fixture::out(&doc, notched);
     let cited_pieces = table(&ev, holed)
         .iter()
         .filter(|(n, _)| {
-            matches!(n.path.as_slice(), [RoleSeg::FromB(inner)] if holds_a_piece_qualifier(inner))
+            matches!(n.path.as_slice(), [RoleSeg::From { read, of: inner }]
+                if *read == tool_read && holds_a_piece_qualifier(inner))
         })
         .count();
     assert!(
