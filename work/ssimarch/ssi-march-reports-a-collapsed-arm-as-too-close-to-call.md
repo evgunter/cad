@@ -19,7 +19,7 @@ to `TraceDecision::TransversalityArm.escalated(cause)`, so an arm the
 gate DECIDED zero or negative (a point arm of no length) is an
 `SsiError::Escalated`. Its `Display` (`crates/geom-brep/src/ssi.rs:1133-1138`)
 reads "ssi: whether the crossing angle's lever arm … is a positive
-length is too close to call", which is false for a decided arm: the
+length is undecided", which is false for a decided arm: the
 question was answered, and the answer is that there is no arm.
 
 PR 3431 routed the ENDING: `TraceDecision::ending` now ends

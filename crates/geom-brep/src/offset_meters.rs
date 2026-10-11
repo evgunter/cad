@@ -334,7 +334,7 @@ impl core::fmt::Display for MeterError {
             ),
             Self::Escalated { source, .. } => write!(
                 f,
-                "the face's offset is too close to call: {}",
+                concat!(geom_core::undecided!("the face's offset"), ": {}"),
                 source.payload()
             ),
         }
