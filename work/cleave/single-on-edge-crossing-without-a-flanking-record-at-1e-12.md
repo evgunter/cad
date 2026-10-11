@@ -2,10 +2,11 @@
 id: single-on-edge-crossing-without-a-flanking-record-at-1e-12
 kind: issue
 title: A wedge's edge crossing a cube face near-tangent refuses ClassificationInvariant 'single-on-edge crossing without a flanking record' at eps 1e-12 (36 runs)
-status: open
+status: dispatched
 opened: 2026-10-10
 priority: P1
 cost: M
+branch: cleave/single-on-edge-record
 ---
 
 

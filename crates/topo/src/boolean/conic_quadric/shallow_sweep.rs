@@ -30,10 +30,6 @@ use crate::boolean::conic_oracle::{exact, unit};
 use geom_core::{Bounds, Interval, Point3, Real, Vec3};
 use test_utils::fuzz::{self, Rng};
 
-fn log_uniform(rng: &mut Rng, lo: f64, hi: f64) -> f64 {
-    10f64.powf(rng.range(lo.log10(), hi.log10()))
-}
-
 /// A pose: the carrier, its arc, the surface, and the carrier's top speed.
 struct Pose {
     carrier: geom::Curve3<f64>,
@@ -52,7 +48,7 @@ fn draw(rng: &mut Rng, family: usize) -> Pose {
         rng.range(-3.0, 3.0),
         rng.range(-3.0, 3.0),
     );
-    let r = log_uniform(rng, 0.01, 10.0);
+    let r = rng.log_uniform(0.01, 10.0);
     let (surface, on, normal, tangent) = if family == 1 {
         let n = unit(rng);
         let t = n.cross(unit(rng)).normalize();
@@ -86,13 +82,13 @@ fn draw(rng: &mut Rng, family: usize) -> Pose {
     };
     let b = rng.range(0.0, TAU);
     let toward = (normal * b.cos() + normal.cross(tangent) * b.sin()).normalize();
-    let major = log_uniform(rng, 0.01, 10.0);
+    let major = rng.log_uniform(0.01, 10.0);
     let minor = if family == 0 {
         major
     } else {
         major * rng.range(0.2, 0.999)
     };
-    let depth = if rng.unit() < 0.5 { -1.0 } else { 1.0 } * log_uniform(rng, 1e-11, 1e-3);
+    let depth = if rng.unit() < 0.5 { -1.0 } else { 1.0 } * rng.log_uniform(1e-11, 1e-3);
     let center = on + normal * depth - toward * major;
     let axis = toward.cross(tangent).normalize();
     let carrier = if family == 0 {
