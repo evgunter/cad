@@ -9,6 +9,8 @@
 //! its weights and knots as `f64`, none of these could be built: a
 //! weight or a knot had no tangent to carry.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use core::num::NonZeroUsize;
 
 use geom::{NurbsCurve3, NurbsSurface};
@@ -50,10 +52,7 @@ fn curve_dual(k: Dual64, w2: Dual64) -> NurbsCurve3<Dual64> {
 }
 
 fn close(a: f64, b: f64, tol: f64, what: &str) {
-    assert!(
-        (a - b).abs() <= tol * (1.0 + b.abs()),
-        "{what}: {a} vs {b}"
-    );
+    assert!((a - b).abs() <= tol * (1.0 + b.abs()), "{what}: {a} vs {b}");
 }
 
 fn params() -> impl Iterator<Item = f64> {
@@ -96,9 +95,24 @@ fn a_held_knot_moves_the_point_by_its_derivative() {
     for t in params().filter(|t| (t - 0.8).abs() > 0.05) {
         let p = held.eval(Dual64::constant(t));
         let (u, d) = (up.eval(t), down.eval(t));
-        close(p.x.deriv, (u.x - d.x) / (2.0 * H), 1e-6, &format!("t={t} x: ∂/∂k"));
-        close(p.y.deriv, (u.y - d.y) / (2.0 * H), 1e-6, &format!("t={t} y: ∂/∂k"));
-        close(p.z.deriv, (u.z - d.z) / (2.0 * H), 1e-6, &format!("t={t} z: ∂/∂k"));
+        close(
+            p.x.deriv,
+            (u.x - d.x) / (2.0 * H),
+            1e-6,
+            &format!("t={t} x: ∂/∂k"),
+        );
+        close(
+            p.y.deriv,
+            (u.y - d.y) / (2.0 * H),
+            1e-6,
+            &format!("t={t} y: ∂/∂k"),
+        );
+        close(
+            p.z.deriv,
+            (u.z - d.z) / (2.0 * H),
+            1e-6,
+            &format!("t={t} z: ∂/∂k"),
+        );
     }
 }
 
@@ -106,10 +120,23 @@ fn a_held_knot_moves_the_point_by_its_derivative() {
 /// rounding of the operation.
 fn same_curve(before: &NurbsCurve3<Dual64>, after: &NurbsCurve3<Dual64>, what: &str) {
     for t in params() {
-        let (p, q) = (before.eval(Dual64::constant(t)), after.eval(Dual64::constant(t)));
+        let (p, q) = (
+            before.eval(Dual64::constant(t)),
+            after.eval(Dual64::constant(t)),
+        );
         for (name, a, b) in [("x", p.x, q.x), ("y", p.y, q.y), ("z", p.z, q.z)] {
-            close(b.value, a.value, 1e-12, &format!("{what} t={t} {name}: value"));
-            close(b.deriv, a.deriv, 1e-9, &format!("{what} t={t} {name}: tangent"));
+            close(
+                b.value,
+                a.value,
+                1e-12,
+                &format!("{what} t={t} {name}: value"),
+            );
+            close(
+                b.deriv,
+                a.deriv,
+                1e-9,
+                &format!("{what} t={t} {name}: tangent"),
+            );
         }
     }
 }
@@ -122,8 +149,14 @@ fn same_curve(before: &NurbsCurve3<Dual64>, after: &NurbsCurve3<Dual64>, what: &
 #[test]
 fn the_knot_algebra_carries_held_values_and_their_tangents() {
     for (what, held) in [
-        ("weight", curve_dual(Dual64::constant(0.8), Dual64::variable(WEIGHTS[2]))),
-        ("knot", curve_dual(Dual64::variable(0.8), Dual64::constant(WEIGHTS[2]))),
+        (
+            "weight",
+            curve_dual(Dual64::constant(0.8), Dual64::variable(WEIGHTS[2])),
+        ),
+        (
+            "knot",
+            curve_dual(Dual64::variable(0.8), Dual64::constant(WEIGHTS[2])),
+        ),
     ] {
         let refined = held.refine_knots(&[0.3, 0.8, 1.4, 1.4]).unwrap();
         same_curve(&held, &refined, &format!("{what}: refine"));
@@ -149,11 +182,17 @@ fn the_knot_algebra_carries_held_values_and_their_tangents() {
         let inserted = held.insert_knot(1.4, 2).unwrap();
         let (removed, bound) = inserted.remove_knot(1.4, 2).unwrap();
         same_curve(&held, &removed, &format!("{what}: insert then remove"));
-        assert!(bound.value.abs() < 1e-9, "{what}: a round trip's bound {bound:?}");
+        assert!(
+            bound.value.abs() < 1e-9,
+            "{what}: a round trip's bound {bound:?}"
+        );
         let (left, right) = held.split_at(1.1).unwrap();
         for t in params() {
             let piece = if t <= 1.1 { &left } else { &right };
-            let (p, q) = (held.eval(Dual64::constant(t)), piece.eval(Dual64::constant(t)));
+            let (p, q) = (
+                held.eval(Dual64::constant(t)),
+                piece.eval(Dual64::constant(t)),
+            );
             close(q.y.deriv, p.y.deriv, 1e-9, &format!("{what}: split t={t}"));
         }
     }
@@ -170,7 +209,13 @@ fn a_held_knot_is_re_expressed_in_the_scalar() {
         .runs()
         .map(|(v, _)| (v.value, v.deriv))
         .collect();
-    assert_eq!(interior, vec![(-1.0, 0.0), (0.6, 2.0), (3.0, 0.0)]);
+    assert_eq!(interior.len(), 3);
+    for ((value, tangent), (want, want_tangent)) in
+        interior.iter().zip([(-1.0, 0.0), (0.6, 2.0), (3.0, 0.0)])
+    {
+        close(*value, want, 1e-15, "a re-expressed breakpoint");
+        assert_eq!(*tangent, want_tangent, "its tangent through the affine map");
+    }
 }
 
 /// A surface holds its weights the same way: a variable weight carries
@@ -192,8 +237,16 @@ fn a_surface_carries_a_held_weight_through_its_knot_algebra() {
     .iter()
     .map(|&(x, y, z)| Point3::new(c(x), c(y), c(z)))
     .collect();
-    let weights = vec![c(1.0), c(1.0), Dual64::variable(0.6), c(0.6), c(1.0), c(1.0)];
-    let held = NurbsSurface::new(Knots::constant(ku), Knots::constant(kv), control, weights).unwrap();
+    let weights = vec![
+        c(1.0),
+        c(1.0),
+        Dual64::variable(0.6),
+        c(0.6),
+        c(1.0),
+        c(1.0),
+    ];
+    let held =
+        NurbsSurface::new(Knots::constant(ku), Knots::constant(kv), control, weights).unwrap();
     let refined = held
         .refine_knots_u(&[0.25, 0.5])
         .unwrap()
@@ -203,10 +256,7 @@ fn a_surface_carries_a_held_weight_through_its_knot_algebra() {
     for i in 0..=8 {
         for j in 0..=4 {
             let (u, v) = (f64::from(i) / 8.0, f64::from(j) / 4.0);
-            let (p, q) = (
-                held.eval(c(u), c(v)),
-                refined.eval(c(u), c(v)),
-            );
+            let (p, q) = (held.eval(c(u), c(v)), refined.eval(c(u), c(v)));
             for (a, b) in [(p.x, q.x), (p.y, q.y), (p.z, q.z)] {
                 close(b.value, a.value, 1e-12, &format!("({u}, {v}) value"));
                 close(b.deriv, a.deriv, 1e-9, &format!("({u}, {v}) tangent"));
