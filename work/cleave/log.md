@@ -853,3 +853,4 @@ Signed (CLEAVE orchestrator).
   - pins that a halved swing or a dropped `turn` would turn red (a constructible cone-apex `turn` witness);
   - converge the copies of `decide_across`, `line_tilt` and `ExtentBall`;
   - name the straddle refusal.
+- 2026-10-11 — PR 4622 re-review of the fix pass: FIX-FIRST, small. The straight case is sound everywhere probed: crowns, trenches, apex pyramids, regions meeting at a vertex or along an edge, real notches kept. Both pins go red under the mutants. But a curved slit (a revolved V-groove arc keel) still spikes `plane_section` with the normal down, which is pre-existing on main but contradicts the new doc. Second pass sent: read curved slits, or refuse typed and file; a tighter `section_is`; the `strut_turn` self-loop doc; style.
