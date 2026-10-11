@@ -4710,7 +4710,10 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         )?;
         // A reversal moves a germ between flankers, after the touch is
         // read: the pass reads the touches the first did.
-        let first = line_touches.iter().filter(|(j, _)| *j == i).map(|(_, he)| he);
+        let first = line_touches
+            .iter()
+            .filter(|(j, _)| *j == i)
+            .map(|(_, he)| he);
         if !retouched.iter().eq(first) {
             return Err(BooleanError::ClassificationInvariant {
                 what: "a reversed edge pass reads other touches than the first pass at its vertex pair",
