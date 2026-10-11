@@ -2,11 +2,13 @@
 id: main-reds-on-plates-at-the-exact-support-of-a-frustum-and-a-torus
 kind: issue
 title: Main is red on sweep operand_gate_support_plates::plates_at_the_exact_support_of_a_frustum_and_a_torus_are_right_at_every_op (touching operands built as disjoint)
-status: dispatched
+status: closed
 opened: 2026-10-11
 priority: P0
 cost: M
 branch: cleave/support-plates-main-red
+closed: 2026-10-11
+pr: 4707
 ---
 
 
@@ -112,3 +114,11 @@ The test's expectation was stale. The kernel was right.
 - **Measured** on a wiped target, green at ε 1e-9, 1e-6 and 1e-12
   (built 510, 405 and 440). A mutant that drops `EdgeFace` records turns
   the row red at 90 rows (ε 1e-9).
+
+## Closed (PR 4707, 2026-10-11)
+
+The test's expectation was stale: #4604 records the frustum rim~plate
+point touch, which D1 ships as two solids and a record. The row now
+excludes every frustum support, and an excluded ∪ that records no
+contact is still wrong. It is green at all three ε, and a mutant that
+drops edge–face records reds it.
