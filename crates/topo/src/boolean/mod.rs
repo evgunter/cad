@@ -131,6 +131,8 @@ mod surface_group;
 pub mod tables;
 #[cfg(test)]
 mod torn_hop_rows;
+#[cfg(test)]
+mod torus_frame_rows;
 pub mod voids;
 pub(crate) mod vtxfac;
 pub(crate) mod zip;
@@ -1766,6 +1768,33 @@ pub enum SectorRead {
     Pair(VertexKey),
 }
 
+/// **The loops a plane cuts on a ring torus**, as the section
+/// certificate classifies them ([`BooleanError::GermSectionSpiric`]).
+///
+/// **NOT carried to the façade's curated list, and that is a decision
+/// rather than an omission** (`scripts/payload-rung-sweep.py` names
+/// this rung; the disposition table cites this paragraph as its home).
+/// A Rust caller can already name and match it — `pncad` re-exports
+/// `topo` whole — and the refusal's sentence names the loops, while the
+/// recourse it states is the same for all three (cut the torus with a
+/// plane the frame serves). Carrying it would add the CUR3 property row
+/// and a Python word with no reader that acts on the difference.
+///
+/// **The falsifier is a caller whose recourse depends on which loops a
+/// slanted plane cuts**: the day the general rung serves one class (the
+/// loops round the axis have a proved frame), a caller must tell it from
+/// the others to know whether the cut builds. Then carry it and delete
+/// this paragraph and the disposition row with it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SpiricLoops {
+    /// Two loops, each winding once round the torus's axis.
+    AroundAxis,
+    /// Two loops, each winding once round the tube.
+    AroundTube,
+    /// One loop on the tube that winds round neither.
+    Null,
+}
+
 /// Typed failure of [`boolean_reduce`]; the operands are never touched.
 #[derive(Debug)]
 pub enum BooleanError {
@@ -2597,6 +2626,27 @@ pub enum BooleanError {
         /// The section table's refusal, naming the conic.
         section: geom_brep::SectionError,
     },
+    /// **A germ pair whose plane cuts a torus face in a general spiric
+    /// quartic**: a plane neither through the torus's axis, nor square to
+    /// it, nor parallel to it short of its inner equator. The C5 table
+    /// routes that section to its general rung, which is unbuilt, and no
+    /// carrier holds the curve, so the pair is refused at its frame.
+    /// `loops` is the section certificate's own classification of the
+    /// section, and `section` the table's refusal.
+    GermSectionSpiric {
+        /// The A-side germ face.
+        a_face: FaceKey,
+        /// Its kind.
+        a_kind: geom::SurfaceKind,
+        /// The B-side germ face.
+        b_face: FaceKey,
+        /// Its kind.
+        b_kind: geom::SurfaceKind,
+        /// The loops the plane cuts.
+        loops: SpiricLoops,
+        /// The section table's refusal.
+        section: geom_brep::SectionError,
+    },
     /// **A germ pair of two cylinder walls whose axes definitely
     /// INTERSECT** — the frame dispatch's named sub-case of "no
     /// frame", and the door the intersecting equal-radius family
@@ -2671,19 +2721,6 @@ pub enum BooleanError {
         /// Whether the join closes (it wants a period) or runs on (it
         /// wants a parameter inverse).
         closed: bool,
-    },
-    /// **A record whose edge rests on a face's interior, the edge or
-    /// the face curved.** A record carried through a join or a merge
-    /// that lands on an edge and a face is consumed as structure only
-    /// on a line and a plane, which meet by lying one in the other or
-    /// by a pierce the boolean cut; a circle can rest on a plane at
-    /// one point, which no record kind stores
-    /// (`work/fuse/a-record-on-a-curved-edge-resting-on-a-face-refuses`).
-    CurvedRestUnrecorded {
-        /// The edge.
-        edge: EdgeKey,
-        /// The face it rests on.
-        face: FaceKey,
     },
     /// The A/B lockstep invariant failed during joining, finishing, or
     /// the combine door (a kernel bug or corrupt reduction, loudly).
@@ -2960,6 +2997,8 @@ pub enum BooleanErrorKind {
     GermFrameUnsupported,
     /// [`BooleanError::GermSectionOutsideInventory`].
     GermSectionOutsideInventory,
+    /// [`BooleanError::GermSectionSpiric`].
+    GermSectionSpiric,
     /// [`BooleanError::GermFrameCylinderPinch`].
     GermFrameCylinderPinch,
     /// [`BooleanError::Euler`].
@@ -2972,8 +3011,6 @@ pub enum BooleanErrorKind {
     JoinUndecided,
     /// [`BooleanError::JoinCarrierUnsupported`].
     JoinCarrierUnsupported,
-    /// [`BooleanError::CurvedRestUnrecorded`].
-    CurvedRestUnrecorded,
     /// [`BooleanError::JoinDesync`].
     JoinDesync,
     /// [`BooleanError::TornComponent`].
@@ -3185,13 +3222,13 @@ impl BooleanError {
             Self::GermSectionOutsideInventory { .. } => {
                 BooleanErrorKind::GermSectionOutsideInventory
             }
+            Self::GermSectionSpiric { .. } => BooleanErrorKind::GermSectionSpiric,
             Self::GermFrameCylinderPinch { .. } => BooleanErrorKind::GermFrameCylinderPinch,
             Self::Euler(_) => BooleanErrorKind::Euler,
             Self::Pcurves { .. } => BooleanErrorKind::Pcurves,
             Self::Join(_) => BooleanErrorKind::Join,
             Self::JoinUndecided(_) => BooleanErrorKind::JoinUndecided,
             Self::JoinCarrierUnsupported { .. } => BooleanErrorKind::JoinCarrierUnsupported,
-            Self::CurvedRestUnrecorded { .. } => BooleanErrorKind::CurvedRestUnrecorded,
             Self::JoinDesync { .. } => BooleanErrorKind::JoinDesync,
             Self::TornComponent { .. } => BooleanErrorKind::TornComponent,
             Self::ShellWitnessExhausted { .. } => BooleanErrorKind::ShellWitnessExhausted,
@@ -3529,6 +3566,17 @@ impl core::fmt::Display for BooleanError {
                     geom_brep::OutsideConic::Hyperbola => "a hyperbola",
                 },
             ),
+            Self::GermSectionSpiric { loops, .. } => write!(
+                f,
+                "a flat face of one part cuts a torus face of the other at a slant, along a \
+                 curve the Boolean cannot yet trace ({}). {}",
+                match loops {
+                    SpiricLoops::AroundAxis => "two loops round the axis",
+                    SpiricLoops::AroundTube => "two loops round the tube",
+                    SpiricLoops::Null => "one loop on the tube",
+                },
+                meeting_recourse(kind_word(geom::SurfaceKind::Torus)),
+            ),
             // One sentence for BOTH radius cases: the walls may have
             // equal radii (the section crosses itself) or not (a space
             // quartic), and `equal_radii` carries which.
@@ -3749,12 +3797,6 @@ impl core::fmt::Display for BooleanError {
                 } else {
                     "through the other edge's far end"
                 }
-            ),
-            Self::CurvedRestUnrecorded { edge, face } => write!(
-                f,
-                "the Boolean cannot yet record edge {edge:?} resting on the interior of face \
-                 {face:?} where one of them is curved: no contact record stores such a rest \
-                 (work/fuse/a-record-on-a-curved-edge-resting-on-a-face-refuses)"
             ),
             Self::JoinDesync { what } => write!(
                 f,
@@ -5211,6 +5253,159 @@ impl Tangency {
     }
 }
 
+/// **The closed-form tangent line of two faces' carriers** (DEV-1,
+/// [`geom_brep::tangent_locus`]: plane × cylinder along a ruling,
+/// parallel cylinders) and both faces' extents along it: the one witness
+/// a `Tangent` declaration ([`verify_tangency_declaration`]) and a
+/// face–face record on two carriers at rest ([`tangent_pair_at_rest`])
+/// are verified along.
+pub(crate) struct TangentLine<T: Real> {
+    /// The line, `origin + t·dir` with `dir` unit.
+    pub(crate) carrier: geom::Curve3<T>,
+    /// The union of the two faces' extents along it.
+    pub(crate) span: (T, T),
+    /// Where both faces' extents along it meet: empty where `.0 > .1`.
+    pub(crate) overlap: (T, T),
+    /// The margin that decided the carriers tangent.
+    pub(crate) gap: MarginDiag,
+}
+
+/// [`TangentLine`] of `fa` on `a` and `fb` on `b`, their surfaces given.
+///
+/// # Errors
+///
+/// The outer [`BooleanError`] where a face's extent or boundary cannot be
+/// read; the inner [`geom_brep::TangentLocusError`] where the carriers
+/// derive no line.
+fn tangent_line<T: Decide>(
+    (a, fa, sa): (&Body<T>, FaceKey, &geom::Surface<T>),
+    (b, fb, sb): (&Body<T>, FaceKey, &geom::Surface<T>),
+    band: Band,
+) -> Result<Result<TangentLine<T>, geom_brep::TangentLocusError>, BooleanError> {
+    let reach = carrier_pair::pair_extent(a, fa, b, fb, band)
+        .map_err(unreadable_extent)?
+        .reach;
+    match geom_brep::tangent_locus(sa, sb, reach, band) {
+        Ok(geom_brep::TangentLocus::Line { origin, dir, gap }) => {
+            let (span, overlap) = witness_span(a, fa, b, fb, origin, dir)?;
+            Ok(Ok(TangentLine {
+                carrier: geom::Curve3::Line { origin, dir },
+                span,
+                overlap,
+                gap,
+            }))
+        }
+        Err(e) => Ok(Err(e)),
+    }
+}
+
+/// What a face–face record on two carriers reads at rest
+/// ([`tangent_pair_at_rest`]).
+pub(crate) enum RestTangent<T: Real> {
+    /// The two faces' extents along their tangent line are definitely
+    /// disjoint: no point of the line is in both.
+    Apart,
+    /// The jet schedule verified the line over where both extents meet,
+    /// `overlap`; whether the line lies in the two faces there is the
+    /// caller's to read.
+    Line {
+        /// The tangent line.
+        carrier: geom::Curve3<T>,
+        /// The parameter span both faces' extents hold.
+        overlap: (T, T),
+    },
+}
+
+/// **A face–face record on two carriers, read at rest** (C3): the
+/// closed-form line their carriers derive ([`tangent_line`]), the two
+/// faces' extents along it, and, where those meet, the C4 `Tangent`
+/// table along it there ([`contact_verify::tangent_locus_relation`], the
+/// declared posture, the record standing as the declaration), material
+/// sides included.
+///
+/// # Errors
+///
+/// [`crate::contact::ContactRefusal::Contradicted`] where the pair is
+/// definitely not tangent, labelled with the row that refused it, or the
+/// table contradicts it; `Escalated` where a margin is in band; and
+/// `NotCertifiable` where no closed-form locus derives, a face cannot be
+/// read (naming why), or the extents meet at one point.
+pub(crate) fn tangent_pair_at_rest<T: Decide>(
+    body: &Body<T>,
+    fa: FaceKey,
+    fb: FaceKey,
+    band: Band,
+) -> Result<RestTangent<T>, crate::contact::ContactRefusal> {
+    use crate::contact::ContactRefusal;
+    let surface = |f| {
+        let face = body.get_face(f)?;
+        Some((body.get_surface(face.surface)?.clone(), face.sense))
+    };
+    let ((sa, sense_a), (sb, sense_b)) =
+        surface(fa)
+            .zip(surface(fb))
+            .ok_or(ContactRefusal::NotCertifiable {
+                what: "a face of the face-face record has no surface",
+            })?;
+    let line = tangent_line((body, fa, &sa), (body, fb, &sb), band).map_err(|e| {
+        ContactRefusal::NotCertifiable {
+            what: match e {
+                BooleanError::InvalidDeclaration { what, .. } => what,
+                _ => "a face of the face-face record has no extent to read",
+            },
+        }
+    })?;
+    let line = match line {
+        Ok(line) => line,
+        Err(geom_brep::TangentLocusError::Escalated(diag)) => {
+            return Err(ContactRefusal::Escalated { diag });
+        }
+        Err(geom_brep::TangentLocusError::NotTangent { predicate, .. }) => {
+            return Err(ContactRefusal::Contradicted {
+                diag: Indeterminate {
+                    margin: MarginDiag::INVALID,
+                    band,
+                    predicate: Some(predicate),
+                    terminal_sliver: false,
+                },
+                steer: None,
+            });
+        }
+        Err(geom_brep::TangentLocusError::Unsupported { .. }) => {
+            return Err(ContactRefusal::NotCertifiable {
+                what: "a face-face record on two carriers with no closed-form tangent locus \
+                       (plane x cylinder along a ruling, parallel cylinders)",
+            });
+        }
+    };
+    let (t0, t1) = line.overlap;
+    match crate::validate::decide("pm_census_tangent_overlap", Margin::of(t1 - t0), band) {
+        Ok(Sign::Positive) => {}
+        Ok(Sign::Negative) => return Ok(RestTangent::Apart),
+        Ok(Sign::Zero) => {
+            return Err(ContactRefusal::NotCertifiable {
+                what: "the faces' extents along their tangent line meet at one point",
+            });
+        }
+        Err(diag) => return Err(ContactRefusal::Escalated { diag }),
+    }
+    contact_verify::tangent_locus_relation(
+        &sa,
+        sense_a,
+        &sb,
+        sense_b,
+        &line.carrier,
+        t0,
+        t1,
+        true,
+        band,
+    )?;
+    Ok(RestTangent::Line {
+        carrier: line.carrier,
+        overlap: line.overlap,
+    })
+}
+
 /// The `Tangent` door alone, for the unit rows that drive it.
 #[cfg(test)]
 pub(crate) fn verify_tangent_declaration<T: Decide>(
@@ -5350,15 +5545,11 @@ fn verify_tangency_declaration<T: Decide>(
     let (sb, sense_b) = face_of(b, fb, Operand::B)?;
     let kinds = (sa.kind(), sb.kind());
     // 2. The witness locus.
-    let reach = carrier_pair::pair_extent(a, fa, b, fb, band)
-        .map_err(unreadable_extent)?
-        .reach;
     let mut overlap = None;
-    let (carrier, t0, t1, rim, margin) = match geom_brep::tangent_locus(&sa, &sb, reach, band) {
-        Ok(geom_brep::TangentLocus::Line { origin, dir, gap }) => {
-            let ((t0, t1), both) = witness_span(a, fa, b, fb, origin, dir)?;
-            overlap = Some(both);
-            (geom::Curve3::Line { origin, dir }, t0, t1, None, gap)
+    let (carrier, t0, t1, rim, margin) = match tangent_line((a, fa, &sa), (b, fb, &sb), band)? {
+        Ok(line) => {
+            overlap = Some(line.overlap);
+            (line.carrier, line.span.0, line.span.1, None, line.gap)
         }
         Err(geom_brep::TangentLocusError::Escalated(diag)) => {
             return Err(BooleanError::coincidence(
@@ -5400,9 +5591,15 @@ fn verify_tangency_declaration<T: Decide>(
     // 3. The C4 `Tangent` table along the witness, B's sense reversed
     // for a seam.
     let sense_b = sense_b != (claim == Tangency::Seam);
-    match contact_verify::tangent_locus_relation(
-        &sa, sense_a, &sb, sense_b, &carrier, t0, t1, true, band,
-    ) {
+    let table = match claim {
+        Tangency::Contact => contact_verify::tangent_locus_relation(
+            &sa, sense_a, &sb, sense_b, &carrier, t0, t1, true, band,
+        ),
+        Tangency::Seam => contact_verify::tangent_seam_relation(
+            &sa, sense_a, &sb, sense_b, &carrier, t0, t1, band,
+        ),
+    };
+    match table {
         Ok(_) => {}
         Err(crate::contact::ContactRefusal::Contradicted { diag, steer }) => {
             let margin = match (claim, diag.predicate) {
@@ -6613,6 +6810,17 @@ mod tests {
                     why: "a hyperbola",
                 },
             },
+            BooleanError::GermSectionSpiric {
+                a_face: face,
+                a_kind: geom::SurfaceKind::Plane,
+                b_face: face,
+                b_kind: geom::SurfaceKind::Torus,
+                loops: SpiricLoops::Null,
+                section: geom_brep::SectionError::RoutesToGeneralRung {
+                    pair: "plane×torus",
+                    why: "a folded loop",
+                },
+            },
             BooleanError::GermFrameCylinderPinch {
                 a_face: face,
                 b_face: face,
@@ -6743,13 +6951,13 @@ mod tests {
                 BooleanErrorKind::SpheresMeet => "SpheresMeet",
                 BooleanErrorKind::GermFrameUnsupported => "GermFrameUnsupported",
                 BooleanErrorKind::GermSectionOutsideInventory => "GermSectionOutsideInventory",
+                BooleanErrorKind::GermSectionSpiric => "GermSectionSpiric",
                 BooleanErrorKind::GermFrameCylinderPinch => "GermFrameCylinderPinch",
                 BooleanErrorKind::Euler => "Euler",
                 BooleanErrorKind::Pcurves => "Pcurves",
                 BooleanErrorKind::Join => "Join",
                 BooleanErrorKind::JoinUndecided => "JoinUndecided",
                 BooleanErrorKind::JoinCarrierUnsupported => "JoinCarrierUnsupported",
-                BooleanErrorKind::CurvedRestUnrecorded => "CurvedRestUnrecorded",
                 BooleanErrorKind::JoinDesync => "JoinDesync",
                 BooleanErrorKind::TornComponent => "TornComponent",
                 BooleanErrorKind::ShellWitnessExhausted => "ShellWitnessExhausted",
