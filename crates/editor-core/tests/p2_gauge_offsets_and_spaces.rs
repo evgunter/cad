@@ -1368,39 +1368,6 @@ fn the_mate_placed_recourse_followed_inlines_in_place() {
     }
 }
 
-/// **The flush detector refuses across spaces**: a world base lowered so
-/// its top cap is the plane z = 0, and an unplaced top whose own space
-/// puts its bottom cap on that plane. Nothing outside an unplaced group
-/// is compared with it, so the detector refuses `AcrossSpaces` naming
-/// the group, rather than answer `Rest`.
-#[test]
-fn the_flush_detector_refuses_an_unplaced_group_against_the_world() {
-    let p = parts("r1-flush");
-    let o = p.opts();
-    let doc = ProfileDoc::empty(DocumentId::derive("r1-flush"), Tol::witness());
-    let (doc, base) = insert(doc, Node::instantiate_part(p.base));
-    let doc = set_offset(
-        doc,
-        base,
-        Some(Placement::literal(&Frame::translation([0.0, 0.0, -1.0]))),
-    );
-    let (doc, top) = insert(doc, Node::instantiate_part(p.top));
-    let unplaced = set_offset(doc.clone(), top, None);
-    let ev = run(&unplaced, &o);
-    assert!(ev.unplaced.contains_key(&top) && !ev.unplaced.contains_key(&base));
-    match editor_core::find_flush_candidates(&ev, &unplaced, base, top, Tol::witness()) {
-        Err(editor_core::SelectRefusal::AcrossSpaces { group, cause }) => {
-            assert_eq!((group, cause), (top, editor_core::Unplaced::NoOffset));
-        }
-        other => panic!("the detector refuses across spaces: {other:?}"),
-    }
-    // Placed at the world origin, the same pair is flush.
-    let ev = run(&doc, &o);
-    let found = editor_core::find_flush_candidates(&ev, &doc, base, top, Tol::witness())
-        .expect("one space decides");
-    assert!(!found.is_empty(), "the placed pair is flush");
-}
-
 /// **The compound door refuses a re-gauge that would make another mate
 /// start placing**: c and b are bases on gauge g; a1 (a top on the
 /// world) declares a seat on c. "Copy b's gauge to a1, then mate a1 to

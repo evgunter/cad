@@ -26,10 +26,7 @@ use geom_core::{Affine3, Point2, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::finished;
 use sweep::{ExtrudeSide, Extrusion, extrude};
-use topo::{
-    AtRestBody, Body, BooleanDeclarations, BooleanResult, ContactClass, FacePairDeclaration,
-    mass_properties,
-};
+use topo::{AtRestBody, BooleanResult, mass_properties};
 
 /// The profile plane: `(u, v)` maps to `(x = v, z = u)`, extruded along
 /// `+y` from `y0`.
@@ -135,40 +132,6 @@ fn slab(x1: f64, y0: f64, depth: f64) -> AtRestBody<f64> {
     )
 }
 
-fn plane_face(body: &Body<f64>, z: f64, up: bool) -> topo::FaceKey {
-    let hits: Vec<_> = body
-        .faces()
-        .filter(|(_, f)| match body.get_surface(f.surface) {
-            Some(geom::Surface::Plane { origin, normal, .. }) => {
-                (origin.z - z).abs() < 1e-12 && normal.z.abs() > 0.5 && (normal.z > 0.5) == up
-            }
-            _ => false,
-        })
-        .map(|(k, _)| k)
-        .collect();
-    let [f] = hits[..] else {
-        panic!("expected exactly one z = {z} face (up = {up}), got {hits:?}");
-    };
-    f
-}
-
-fn cyl_face(body: &Body<f64>) -> topo::FaceKey {
-    let hits: Vec<_> = body
-        .faces()
-        .filter(|(_, f)| {
-            matches!(
-                body.get_surface(f.surface),
-                Some(geom::Surface::Cylinder { .. })
-            )
-        })
-        .map(|(k, _)| k)
-        .collect();
-    let [f] = hits[..] else {
-        panic!("expected exactly one wall face, got {hits:?}");
-    };
-    f
-}
-
 fn report(what: &str, r: Result<BooleanResult<f64>, topo::BooleanError>, want: Option<f64>) {
     let got = match r {
         Ok(BooleanResult::Empty) => "Empty".to_string(),
@@ -182,47 +145,12 @@ fn report(what: &str, r: Result<BooleanResult<f64>, topo::BooleanError>, want: O
     eprintln!("SIDECODE-FIXTURE {what}: want {want}; got {got}");
 }
 
-/// The ops' declarations at `level`: 0 undeclared, 1 the resting faces
-/// `Rest`, 2 the wall `Tangent` to the slab top too, each pair oriented
-/// as the op reads it (`slab_first`).
-fn declarations(
-    s: &AtRestBody<f64>,
-    round: &AtRestBody<f64>,
-    level: u8,
-    slab_first: bool,
-) -> BooleanDeclarations {
-    let mut d = BooleanDeclarations::none();
-    let mut push = |fs: topo::FaceKey, fr: topo::FaceKey, class: ContactClass| {
-        let (a, b) = if slab_first { (fs, fr) } else { (fr, fs) };
-        d.coincident_faces
-            .push(FacePairDeclaration::new(a, b, class));
-    };
-    if level >= 1 {
-        push(
-            plane_face(s, 1.0, true),
-            plane_face(round, 1.0, false),
-            ContactClass::Rest,
-        );
-    }
-    if level >= 2 {
-        push(
-            plane_face(s, 1.0, true),
-            cyl_face(round),
-            ContactClass::Tangent,
-        );
-    }
-    d
-}
-
-const LEVELS: [(&str, u8); 3] = [("undeclared", 0), ("Rest", 1), ("Rest+Tangent", 2)];
-
-/// **The wide slab's answers, at every declaration level**: the
-/// differences are the operands and the intersection is empty. The
+/// **The wide slab's answers**: the differences are the operands and the intersection is empty. The
 /// round's wall touches the slab's top along the rim and lumps whole
 /// as a tangent sector at the rim vertex, and the arc it shares with
 /// the cap takes the lump's side.
 #[test]
-fn the_wide_slab_minus_and_meet_the_round_at_every_level() {
+fn the_wide_slab_minus_and_meet_the_round() {
     let round = quarter_round();
     let s = slab(5.0, -1.0, 6.0);
     let vol = |b: &AtRestBody<f64>| mass_properties(b, Tol::witness()).unwrap().volume;
@@ -231,31 +159,21 @@ fn the_wide_slab_minus_and_meet_the_round_at_every_level() {
         Ok(BooleanResult::Body(b)) => vol(&b.body),
         other => panic!("{what}: want a body, got {other:?}"),
     };
-    for (decl, level) in LEVELS {
-        let fwd = declarations(&s, &round, level, true);
-        let rev = declarations(&s, &round, level, false);
-        let got = body(
-            &format!("{decl}: slab ∖ round"),
-            topo::subtract_with(&s, &round, &fwd, Tol::witness()),
-        );
-        assert!(
-            (got - vs).abs() <= 1e-12 * vs,
-            "{decl}: slab ∖ round is the slab: {got} vs {vs}"
-        );
-        let got = body(
-            &format!("{decl}: round ∖ slab"),
-            topo::subtract_with(&round, &s, &rev, Tol::witness()),
-        );
-        assert!(
-            (got - vr).abs() <= 1e-12 * vr,
-            "{decl}: round ∖ slab is the round: {got} vs {vr}"
-        );
-        let meet = topo::intersect_with(&s, &round, &fwd, Tol::witness());
-        assert!(
-            matches!(meet, Ok(BooleanResult::Empty)),
-            "{decl}: a resting contact encloses no volume: {meet:?}"
-        );
-    }
+    let got = body("slab ∖ round", topo::subtract(&s, &round, Tol::witness()));
+    assert!(
+        (got - vs).abs() <= 1e-12 * vs,
+        "slab ∖ round is the slab: {got} vs {vs}"
+    );
+    let got = body("round ∖ slab", topo::subtract(&round, &s, Tol::witness()));
+    assert!(
+        (got - vr).abs() <= 1e-12 * vr,
+        "round ∖ slab is the round: {got} vs {vr}"
+    );
+    let meet = topo::intersect(&s, &round, Tol::witness());
+    assert!(
+        matches!(meet, Ok(BooleanResult::Empty)),
+        "a resting contact encloses no volume: {meet:?}"
+    );
 }
 
 /// **The tilted dip meets the slab in its closed form.** Turned by `α`
@@ -280,7 +198,6 @@ fn a_tilted_dipping_round_meets_the_slab_in_its_closed_form() {
     let s = slab(5.0, -6.0, 12.0);
     let vol = |b: &AtRestBody<f64>| mass_properties(b, Tol::witness()).unwrap().volume;
     let vs = vol(&s);
-    let d = BooleanDeclarations::none();
     for alpha in [0.3f64, 0.6] {
         let round = tilted_dipping_round(alpha);
         let vr = vol(&round);
@@ -288,22 +205,22 @@ fn a_tilted_dipping_round_meets_the_slab_in_its_closed_form() {
         for (op, got, want) in [
             (
                 "slab ∪ round",
-                topo::union_with(&s, &round, &d, Tol::witness()),
+                topo::union(&s, &round, Tol::witness()),
                 vs + vr - lens,
             ),
             (
                 "slab ∖ round",
-                topo::subtract_with(&s, &round, &d, Tol::witness()),
+                topo::subtract(&s, &round, Tol::witness()),
                 vs - lens,
             ),
             (
                 "round ∖ slab",
-                topo::subtract_with(&round, &s, &d, Tol::witness()),
+                topo::subtract(&round, &s, Tol::witness()),
                 vr - lens,
             ),
             (
                 "slab ∩ round",
-                topo::intersect_with(&s, &round, &d, Tol::witness()),
+                topo::intersect(&s, &round, Tol::witness()),
                 lens,
             ),
         ] {
@@ -344,25 +261,24 @@ fn the_flush_and_corner_postures() {
         mass_properties(&wide, Tol::witness()).unwrap().volume,
     );
     let lens = 4.0 - core::f64::consts::PI;
-    let d = BooleanDeclarations::none();
     report(
         "dip / slab ∪ round",
-        topo::union_with(&wide, &dip, &d, Tol::witness()),
+        topo::union(&wide, &dip, Tol::witness()),
         Some(vw + vd - lens),
     );
     report(
         "dip / slab ∖ round",
-        topo::subtract_with(&wide, &dip, &d, Tol::witness()),
+        topo::subtract(&wide, &dip, Tol::witness()),
         Some(vw - lens),
     );
     report(
         "dip / round ∖ slab",
-        topo::subtract_with(&dip, &wide, &d, Tol::witness()),
+        topo::subtract(&dip, &wide, Tol::witness()),
         Some(vd - lens),
     );
     report(
         "dip / slab ∩ round",
-        topo::intersect_with(&wide, &dip, &d, Tol::witness()),
+        topo::intersect(&wide, &dip, Tol::witness()),
         Some(lens),
     );
     let round = quarter_round();
@@ -372,28 +288,26 @@ fn the_flush_and_corner_postures() {
         ("corner", slab(2.0, 0.0, 4.0)),
     ] {
         let vs = mass_properties(&s, Tol::witness()).unwrap().volume;
-        for (decl, level) in LEVELS {
-            let fwd = declarations(&s, &round, level, true);
-            let rev = declarations(&s, &round, level, false);
-            let tag = |op: &str| format!("{posture} / {decl} / {op}");
+        {
+            let tag = |op: &str| format!("{posture} / {op}");
             report(
                 &tag("slab ∪ round"),
-                topo::union_with(&s, &round, &fwd, Tol::witness()),
+                topo::union(&s, &round, Tol::witness()),
                 Some(vs + vr),
             );
             report(
                 &tag("slab ∖ round"),
-                topo::subtract_with(&s, &round, &fwd, Tol::witness()),
+                topo::subtract(&s, &round, Tol::witness()),
                 Some(vs),
             );
             report(
                 &tag("round ∖ slab"),
-                topo::subtract_with(&round, &s, &rev, Tol::witness()),
+                topo::subtract(&round, &s, Tol::witness()),
                 Some(vr),
             );
             report(
                 &tag("slab ∩ round"),
-                topo::intersect_with(&s, &round, &fwd, Tol::witness()),
+                topo::intersect(&s, &round, Tol::witness()),
                 None,
             );
         }
@@ -429,7 +343,6 @@ fn slab_between(x0: f64, x1: f64, y0: f64, depth: f64) -> AtRestBody<f64> {
 #[ignore = "measurement: prints each op's outcome; run with --ignored --nocapture"]
 fn review_tilted_dip_off_the_vertex_on_face_pass() {
     let vol = |b: &AtRestBody<f64>| mass_properties(b, Tol::witness()).unwrap().volume;
-    let d = BooleanDeclarations::none();
     for alpha in [0.3f64, 0.6] {
         let round = tilted_dipping_round(alpha);
         let vr = vol(&round);
@@ -445,22 +358,22 @@ fn review_tilted_dip_off_the_vertex_on_face_pass() {
             let w = |v: f64| if v == 0.0 { None } else { Some(v) };
             report(
                 &tag("slab ∪ round"),
-                topo::union_with(&s, &round, &d, Tol::witness()),
+                topo::union(&s, &round, Tol::witness()),
                 Some(vs + vr - meet),
             );
             report(
                 &tag("slab ∖ round"),
-                topo::subtract_with(&s, &round, &d, Tol::witness()),
+                topo::subtract(&s, &round, Tol::witness()),
                 w(vs - meet),
             );
             report(
                 &tag("round ∖ slab"),
-                topo::subtract_with(&round, &s, &d, Tol::witness()),
+                topo::subtract(&round, &s, Tol::witness()),
                 w(vr - meet),
             );
             report(
                 &tag("slab ∩ round"),
-                topo::intersect_with(&s, &round, &d, Tol::witness()),
+                topo::intersect(&s, &round, Tol::witness()),
                 w(meet),
             );
         }
@@ -539,7 +452,6 @@ fn tilted_round(alpha: f64) -> AtRestBody<f64> {
 #[test]
 fn a_round_tilted_to_bend_its_arc_out_of_the_slab_answers() {
     let vol = |b: &AtRestBody<f64>| mass_properties(b, Tol::witness()).unwrap().volume;
-    let d = BooleanDeclarations::none();
     for alpha in [-0.3f64, -0.2] {
         let t = alpha.abs().tan();
         let round = tilted_round(alpha);
@@ -566,22 +478,22 @@ fn a_round_tilted_to_bend_its_arc_out_of_the_slab_answers() {
             for (op, got, want) in [
                 (
                     "slab ∪ round",
-                    topo::union_with(&s, &round, &d, Tol::witness()),
+                    topo::union(&s, &round, Tol::witness()),
                     vs + vr - meet,
                 ),
                 (
                     "slab ∖ round",
-                    topo::subtract_with(&s, &round, &d, Tol::witness()),
+                    topo::subtract(&s, &round, Tol::witness()),
                     vs - meet,
                 ),
                 (
                     "round ∖ slab",
-                    topo::subtract_with(&round, &s, &d, Tol::witness()),
+                    topo::subtract(&round, &s, Tol::witness()),
                     vr - meet,
                 ),
                 (
                     "slab ∩ round",
-                    topo::intersect_with(&s, &round, &d, Tol::witness()),
+                    topo::intersect(&s, &round, Tol::witness()),
                     meet,
                 ),
             ] {

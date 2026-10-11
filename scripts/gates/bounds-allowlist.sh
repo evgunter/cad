@@ -469,7 +469,13 @@ BOUNDS_ALLOWLIST=(
   # instantiated at `Dual64` (`crates/topo/tests/inside_out_operand.rs`),
   # which has no certified enclosure (`real.rs`'s entry).
   'crates/topo/src/boolean/carrier_touch.rs 4 2026-07-29 (M5 PR 8), the driver amendment'
-  'crates/topo/src/boolean/mod.rs 5 2026-07-29 (M5 PR 8), the driver amendment'
+  # mod.rs's four are the reduction's doors: `boolean_reduce`, the
+  # strategy driver it and the ops call (`boolean_reduce_declared_strategy`),
+  # and the two trace doors (`sweep_traces`, `sweep_traces_with_pad`).
+  # Each sweeps through the certified face boxes the driver reads. The
+  # fifth, `boolean_reduce_declared`, went with the declaration channel
+  # (INTENT stage 4 F), its body now `boolean_reduce`'s.
+  'crates/topo/src/boolean/mod.rs 4 2026-07-29 (M5 PR 8), the driver amendment'
   # glue.rs's three are the glue door's box sweep, the amendment's
   # funnel shape: `overlapping_pairs` builds each face's certified box
   # (`boxes::face_box`) and walks the box-overlapping cross pairs, and
@@ -486,18 +492,20 @@ BOUNDS_ALLOWLIST=(
   # callers, `interior_loop_verdict` (crossings) and
   # `section_extent_pass` (no crossings), which replaced the torus and
   # cylinder extent gates; and `section_report`, the test door over the
-  # same scan. With the eleven pre-existing seams (the nine public and
-  # pipeline doors, `sphere_extent_scan` and `apply_recuts`) the count
-  # is 15. Four more ride the same seam: `face_rows`, which builds each
+  # same scan. With the eight pre-existing seams (the six public and
+  # pipeline doors, `sphere_extent_scan` and `apply_recuts`; the three
+  # declaring doors `union_with`, `intersect_with` and `subtract_with`
+  # went with the declaration channel, INTENT stage 4 F) the count is
+  # 12. Four more ride the same seam: `face_rows`, which builds each
   # face's certified box once; `walk_pairs`, the one walker over
   # box-overlapping row pairs that `section_pairs` and the extent
   # scan's face-scoped reading both take; `pair_verdict`, the per-pair
   # rule's driver, which builds the pair's reach from the two boxes;
   # and `sphere_faces_apart`, that face-scoped reading of a crossing
-  # or touching sphere pair. 15 + 4 = 19. One more reads the edge boxes
+  # or touching sphere pair. 12 + 4 = 16. One more reads the edge boxes
   # of one face against a region and decides on them:
   # `face_boundary_meets`, the walk the plane arm's whole-circle
-  # membership takes. 19 + 1 = 20. `section_cert.rs` itself, the
+  # membership takes. 16 + 1 = 17. `section_cert.rs` itself, the
   # classifier and the per-pair rule, reads no box and carries no
   # compound bound. Four more carry the result gate's box read (the
   # finished-body door, PR 3987): `gate`, which sorts the result into
@@ -505,8 +513,8 @@ BOUNDS_ALLOWLIST=(
   # tier 3 finishes it; `fallback` and `finish_fallback`, the two
   # fallback sites that build a result and hand it to `gate`; and
   # `boolean_door`, the front door's body, split from `boolean_op_with`
-  # so the door can time and meter the call around it. 20 + 4 = 24.
-  'crates/topo/src/boolean/ops.rs 24 2026-07-29 (M5 PR 8), the driver amendment'
+  # so the door can time and meter the call around it. 17 + 4 = 21.
+  'crates/topo/src/boolean/ops.rs 21 2026-07-29 (M5 PR 8), the driver amendment'
   # reduce.rs's four are the sweep's own doors (`first_unsupported_pair`,
   # `gate_operand_pairs`, `face_tree`, `sweep_direction`); the fifth,
   # `sweep_and_settle`, is the one driver every boolean sweeps through,

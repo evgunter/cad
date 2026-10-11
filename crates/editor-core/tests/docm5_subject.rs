@@ -639,7 +639,6 @@ fn failing_root(id: &str) -> (ProfileDoc, RecipeNodeId) {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     );
     crate::fixture::place(doc, fused)

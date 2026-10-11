@@ -24,7 +24,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::docm7_union_declare::block;
+use crate::blocks::block;
 use crate::fixture;
 use crate::fixture::resolver::PartStore;
 use editor_core::Formula;
@@ -33,7 +33,7 @@ use editor_core::{
     EntityKind, Maintenance, MateFrame, MatePrimitive, MeasurePrimitive, Node, ProfileDoc,
     RecipeNodeId, Rgba8, RoleSeg, SitedRef, StableName, apply, cascade_delete_order,
 };
-use fixture::{ang, flush_pairs, fname, insert, len, wall};
+use fixture::{ang, fname, insert, len, wall};
 use geom_core::Tol;
 
 /// The strand rows an accepted edit reported, in the order it reported
@@ -116,130 +116,6 @@ fn delete(
 }
 
 // ---------------------------------------------------------------------
-// The declared union — DOCM-7's R1 probe, as a row.
-// ---------------------------------------------------------------------
-
-/// Three blocks under a union whose own payload declares the flush
-/// contact of the first two, each side sited at the member whose table
-/// holds it, then `SetMembers` dropping the second: the union still
-/// carries pairs naming `b`, and nothing consumes `b` any more.
-fn union_released_from_a_declared_member(
-    name: &str,
-) -> (ProfileDoc, ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let doc = ProfileDoc::empty_derived(name, Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, c) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
-    let pairs = editor_core::declare_continuation(flush_pairs(&doc, (a, a), (b, b)));
-    let (declared, union) = crate::fixture::union_over(doc, &[a, b, c], pairs);
-    let released = apply(
-        &declared,
-        &DocEdit::SetMembers {
-            node: union,
-            members: editor_core::Bodies::Spelled(vec![a.into(), c.into()]),
-        },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    )
-    .expect("the member list is replaceable");
-    // The re-point is accepted and reports, never refuses (DM6): each
-    // pair side minted by `b` is now out of the union's reach.
-    let reached: Vec<(RecipeNodeId, RecipeNodeId)> =
-        crate::fixture::without_anonymous(&released.maintenance)
-            .iter()
-            .map(|row| match row {
-                Maintenance::Strand {
-                    node,
-                    name,
-                    took: editor_core::Took::Reach,
-                } => (node.id(), name.name().node),
-                other => panic!(
-                    "a member re-point reports only the names it takes out of reach, got {other}"
-                ),
-            })
-            .collect();
-    assert_eq!(
-        reached,
-        vec![(union, b); 4],
-        "one strand per pair side minted by the dropped member, on the union"
-    );
-    (declared, released.doc, union, b)
-}
-
-/// **A strand per NAME and none per site**, on a declared union.
-///
-/// A member is a read, so deleting it while the union reads it is
-/// accepted and reports the stranded read. What the declared pairs
-/// NAME is not a read: once `SetMembers` has dropped the member, the
-/// delete strands the names minted there, one row per name, on the
-/// union that still carries them. The SITE is reported by no delete: a
-/// deleted site is N5's dangling case refused at the next evaluation (`Node::payload_read_sites`, DM7's
-/// sentence).
-#[test]
-fn deleting_a_declared_member_names_its_pairs_and_its_site_reports_nothing() {
-    let (declared, doc, union, b) = union_released_from_a_declared_member("dm7_declared_union");
-
-    // A member is a read: the delete is accepted, and leaves the union
-    // reading the deleted output, reported (D10).
-    let deleted = apply(
-        &declared,
-        &DocEdit::DeleteNode { id: b },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    )
-    .expect("deleting a read node is accepted");
-    assert!(
-        deleted.maintenance.iter().any(|row| matches!(
-            row,
-            Maintenance::StrandedRead { node, .. } if node.id() == union
-        )),
-        "the union's read of the deleted member is reported stranded: {:?}",
-        deleted.maintenance
-    );
-
-    let Some(Node::Union { declare: pairs, .. }) = doc.node(union) else {
-        panic!("the declaring node is a union")
-    };
-    assert_eq!(pairs.len(), 4, "four flush pairs");
-    assert!(
-        pairs
-            .iter()
-            .flat_map(|((x, y), _)| [x, y])
-            .all(|r| doc.operation_of(r.at) == Some(r.name.node)),
-        "every side is sited at the member whose table holds it"
-    );
-
-    let applied = delete(&doc, b);
-    let expected: Vec<(RecipeNodeId, StableName)> = pairs
-        .iter()
-        .flat_map(|((x, y), _)| [x, y])
-        .filter(|r| r.name.node == b)
-        .map(|r| (union, r.name.clone()))
-        .collect();
-    assert_eq!(
-        expected.len(),
-        4,
-        "one name per pair is minted in the deleted member"
-    );
-    assert_eq!(
-        strands(&crate::fixture::without_anonymous(&applied.maintenance)),
-        expected,
-        "the accepted delete names every stranded name, in the payload's own order, and no site"
-    );
-    // NOT "the union survives": a strand row names a SURVIVING carrier
-    // by construction, so the rows above already say that. What they do
-    // not say is that the payload is untouched — DM7 reports, it does
-    // not repair — so that is what is asserted.
-    let Some(Node::Union { declare: after, .. }) = applied.doc.node(union) else {
-        panic!("the union survives the member it no longer consumes")
-    };
-    assert_eq!(
-        after, pairs,
-        "the report changes nothing: every pair still says exactly what it said"
-    );
-}
-
-// ---------------------------------------------------------------------
 // Every payload kind that carries a name.
 // ---------------------------------------------------------------------
 
@@ -260,7 +136,6 @@ fn every_payload_kind_that_carries_a_name_reports_its_strand() {
     let doc = ProfileDoc::empty_derived("dm7_carriers", Tol::witness());
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, victim) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, other) = block(doc, (8.0, 9.0), (0.0, 1.0), 0.0, 1.0);
 
     let f0 = fname(victim, wall(&doc, victim, 0));
     let f1 = fname(victim, wall(&doc, victim, 1));
@@ -304,35 +179,6 @@ fn every_payload_kind_that_carries_a_name_reports_its_strand() {
             SitedRef::new(fillet, f0.clone()),
         ],
     );
-    // Sited at the operands, as every pair must be, and naming the
-    // victim's walls while the boolean reads the victim (D10: a pair
-    // names what its node reads). The re-point to `other` then reports
-    // the names out of reach and never refuses them, so the delete
-    // strands them without taking an operand.
-    let (body_read, victim_read) = (
-        crate::fixture::out(&doc, body),
-        crate::fixture::out(&doc, victim),
-    );
-    let (doc, boolean) = insert(
-        doc,
-        Node::Union {
-            members: editor_core::Bodies::Spelled(vec![body.into(), victim.into()]),
-            declare: editor_core::declare_rest(vec![(
-                SitedRef::new(body_read, f1.clone()),
-                SitedRef::new(victim_read, f2.clone()),
-            )]),
-        },
-    );
-    let (doc, _) = crate::fixture::step(
-        doc,
-        DocEdit::SetParam {
-            node: boolean,
-            slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Member(1)),
-            value: editor_core::Operand::Node(other).into(),
-            fresh: Vec::new(),
-        },
-    );
-
     // **The expectation is DERIVED by a match over `Node`, not
     // written out as a list.** A list is only ever as complete as
     // whoever last edited it. Each name-carrying kind gets an arm
@@ -351,12 +197,6 @@ fn every_payload_kind_that_carries_a_name_reports_its_strand() {
             Node::Datum(Datum::FaceFrame { .. }) => expected.push((id, f3.clone())),
             // Argument order, which is meaning for a measure.
             Node::Measure { .. } => expected.extend([(id, f4.clone()), (id, f0.clone())]),
-            Node::Union { .. } => expected.extend([(id, f1.clone()), (id, f2.clone())]),
-            // A subtract's and an intersect's declared pairs ride the
-            // same payload as a union's; this fixture builds neither.
-            Node::Subtract { .. } | Node::Intersect { .. } => {
-                panic!("this fixture builds no subtract or intersect")
-            }
             // A mate's heads need an instance to be minted by, which
             // this document has none of: its row is
             // `a_mates_head_strands_and_its_read_site_does_not`.
@@ -383,22 +223,18 @@ fn every_payload_kind_that_carries_a_name_reports_its_strand() {
     // The match is total over `Node`; this says it ran over the
     // document this fixture actually built, so an arm cannot go
     // unreached and look satisfied.
-    // The report walks the payloads, then the selections in the order
-    // they were minted.
-    expected.sort_by_key(|(id, _)| *id != boolean);
+    // The report walks the carriers in the order they were minted.
     assert_eq!(
         expected.iter().map(|(id, _)| *id).collect::<Vec<_>>(),
-        vec![
-            boolean, boolean, fillet, chamfer, shell, derived, measure, measure
-        ],
-        "six carriers, eight names: the payloads, then the selections as minted"
+        vec![fillet, chamfer, shell, derived, measure, measure],
+        "five carriers, six names, as minted"
     );
 
     let applied = delete(&doc, victim);
     assert_eq!(
         strands(&crate::fixture::without_anonymous(&applied.maintenance)),
         expected,
-        "one row per carried name, payloads first, each in its own order"
+        "one row per carried name, each in its own order"
     );
 }
 
@@ -623,7 +459,17 @@ fn a_mates_side_strands_as_a_read() {
 /// door again rather than needing them carried across the boundary.
 #[test]
 fn a_round_tripped_document_reports_the_same_strands() {
-    let (_, doc, _union, b) = union_released_from_a_declared_member("dm7_round_trip");
+    let doc = ProfileDoc::empty_derived("dm7_round_trip", Tol::witness());
+    let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
+    let wall_of_b = fname(b, wall(&doc, b, 0));
+    let (doc, _) = insert(
+        doc,
+        Node::Fillet {
+            radius: len(0.1),
+            selection: editor_core::Operand::select(body, vec![wall_of_b]),
+        },
+    );
 
     let text = editor_core::persist::save(&doc, &[], Tol::witness()).expect("the document saves");
     let loaded = editor_core::persist::load(&text, Tol::witness()).expect("and loads");
@@ -633,7 +479,7 @@ fn a_round_tripped_document_reports_the_same_strands() {
     let after_load = delete(&loaded.doc, b);
     assert!(
         !crate::fixture::without_anonymous(&direct.maintenance).is_empty(),
-        "the delete strands the declared pairs' names"
+        "the delete strands the fillet's selected name"
     );
     assert_eq!(
         crate::fixture::without_anonymous(&direct.maintenance),

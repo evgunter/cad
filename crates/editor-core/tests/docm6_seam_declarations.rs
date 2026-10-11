@@ -1216,7 +1216,6 @@ fn union_with_far_cube(
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), far.into()]),
-            declare: Vec::new(),
         },
     )
 }

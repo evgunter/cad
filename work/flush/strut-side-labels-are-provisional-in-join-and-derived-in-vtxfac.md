@@ -2,10 +2,11 @@
 id: strut-side-labels-are-provisional-in-join-and-derived-in-vtxfac
 kind: issue
 title: join.rs calls pierce-ring strut labels provisional; vtxfac mints them as derived sense data
-status: open
+status: dispatched
 opened: 2026-10-08
 priority: P4
 cost: E
+branch: flush/e-tail
 ---
 
 

@@ -623,43 +623,6 @@ pub(crate) struct RowInputs<'a> {
     pub tool: Option<crate::VarId>,
 }
 
-/// **The rows `records` cite, published**: each row of `rows` a record
-/// cites ([`topo::Backing::Decided`]), named in `inputs` and appended to
-/// `published` in decision order, and the records renumbered onto the
-/// published rows. For a node whose records come from a step whose rows
-/// it does not publish whole (an n-ary union's last fold step).
-///
-/// # Errors
-///
-/// As [`name_rows`].
-pub(crate) fn publish_cited(
-    records: &topo::ContactRecords,
-    rows: &[topo::Coincidence],
-    inputs: &RowInputs<'_>,
-    published: &mut Vec<NamedCoincidence>,
-) -> Result<topo::ContactRecords, NamingError> {
-    let used = records.decided();
-    let cited: Vec<topo::Coincidence> = used
-        .iter()
-        .map(|&k| {
-            rows.get(k as usize).copied().ok_or(NamingError::Emission {
-                what: "a contact record cites a row its step did not decide",
-            })
-        })
-        .collect::<Result<_, _>>()?;
-    let base = published.len();
-    published.extend(name_rows(&cited, inputs)?);
-    Ok(records
-        .clone()
-        .renumbered(|k| {
-            let rank = used
-                .binary_search(&k)
-                .unwrap_or_else(|_| unreachable!("every decided citation is in `used`"));
-            Some(u32::try_from(base + rank).unwrap_or(u32::MAX))
-        })
-        .unwrap_or_else(|_| unreachable!("every decided citation renumbers")))
-}
-
 /// **The kernel's rows, named**: each cell by its name in the input
 /// table its key is in.
 ///

@@ -33,6 +33,10 @@ declared, since stage 4 B2. `contacthold/declared-wording` left these
 alone because this PR retires `UndeclaredContact` and reshapes that
 relation; rename them with it.
 
+## `ImportOptions::declared_contacts` retires here (stage 4 F, 2026-10-11)
+
+F (`declared-pairs-retire`) kept `step-import`'s `ImportOptions::declared_contacts` (and `ImportContact`, `StepImportError::DeclarationUnresolved`) as a named interim: they are import-side contact records, not a boolean declaration, and they are what lets a touching STEP assembly pass the aggregate tier-3′ gate today. This PR deletes them together with the at-rest refusal they serve (spec §7, D1: an imported assembly's contacts are `unproven-coincidence` findings quieted by an assertion).
+
 ## Closed
 
 The gather runs the tier-3′ census through the census's recording door

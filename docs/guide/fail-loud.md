@@ -184,11 +184,9 @@ rather than one size read twice. The solid is the same under every
 setting of that check (D10): the check reports, it never changes what
 was built.
 
-A declaration still has a job. Declaring a contact
-(`union_with(&a, &b, &decls)`) bridges a margin in the ambiguity band —
-"these are one plane, the residue is noise" — and it is verified, not
-believed: a declaration whose planes are definitely apart is
-`DeclarationContradicted`.
+Nothing bridges a margin in the ambiguity band: a boolean that meets
+one refuses, and its recourse is the geometry, or the tolerance where
+the margin gives one.
 
 ## 4. The edit door: refusals before anything is evaluated
 

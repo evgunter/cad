@@ -1,5 +1,5 @@
-//! **A part seated in another, every pair of mating faces declared
-//! `Rest`, answers every op in closed form.**
+//! **A part seated in another, every pair of mating faces a `Rest`,
+//! answers every op in closed form.**
 //!
 //! The interiors are disjoint, so `∪` is the two volumes summed, `∩` is
 //! empty and each difference is its minuend whole. A shaft set in a
@@ -15,8 +15,7 @@
 //! The matrix varies the common radius, the collar's length, the
 //! shaft's span (through both rims, flush at both, flush at one and
 //! proud of the other, and blind: in through one rim, ending inside the
-//! bore), the azimuth and the pose. `∩` and both differences run with
-//! the declarations in their own operand order. The oracle is the closed
+//! bore), the azimuth and the pose. The oracle is the closed
 //! form, never the kernel: `π(R² − r²)L` for the collar, `πr²h` for the
 //! shaft.
 //!
@@ -25,14 +24,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::outcomes::outcome;
-use crate::mate2_common::{
-    collar_of, declare_rest, full_turn_collar, onto_y, peg_of, spheres_at, wall_decls_at,
-};
+use crate::mate2_common::{collar_of, full_turn_collar, onto_y, peg_of};
 use core::f64::consts::PI;
 use geom_core::{Affine3, Point3, Tol, Vec3};
 use sweep::test_support::{ball_poled_y, finished};
-use topo::{AtRestBody, Body, BooleanDeclarations, BooleanOp, BooleanResult, mass_properties};
+use topo::{AtRestBody, Body, BooleanOp, BooleanResult, mass_properties};
 
 /// The collar's wall thickness, outside its bore.
 const WALL: f64 = 1.0;
@@ -143,18 +139,23 @@ fn holds(
     );
 }
 
-/// `∩` in both operand orders, and `c ∖ s`, `s ∖ c`, each with the
-/// declarations in its own order.
+/// `∩` in both operand orders, and `c ∖ s`, `s ∖ c`.
 fn intersect_and_differences(m: Mate, c: &Body<f64>, s: &Body<f64>, tag: &str) {
     let tol = Tol::witness();
     let scale = m.collar_volume().max(m.shaft_volume());
-    let (cs, sc) = (wall_decls_at(c, s, m.r), wall_decls_at(s, c, m.r));
     let (c, s) = (&fin("the collar", c), &fin("the shaft", s));
-    let op = |op, a: &AtRestBody<f64>, b: &AtRestBody<f64>, d| {
-        topo::boolean_op_with(op, a, b, d, topo::SweepStrategy::Realized, tol)
+    let op = |op, a: &AtRestBody<f64>, b: &AtRestBody<f64>| {
+        topo::boolean_op_with(
+            op,
+            a,
+            b,
+            &topo::BooleanInputs::default(),
+            topo::SweepStrategy::Realized,
+            tol,
+        )
     };
-    for (order, a, b, d) in [("collar ∩ shaft", c, s, &cs), ("shaft ∩ collar", s, c, &sc)] {
-        match op(BooleanOp::Intersect, a, b, d) {
+    for (order, a, b) in [("collar ∩ shaft", c, s), ("shaft ∩ collar", s, c)] {
+        match op(BooleanOp::Intersect, a, b) {
             Ok(BooleanResult::Empty) => {}
             Ok(BooleanResult::Body(bb)) => panic!(
                 "{tag}: {order}: a body of volume {}, want empty",
@@ -164,13 +165,13 @@ fn intersect_and_differences(m: Mate, c: &Body<f64>, s: &Body<f64>, tag: &str) {
         }
     }
     holds(
-        op(BooleanOp::Subtract, c, s, &cs),
+        op(BooleanOp::Subtract, c, s),
         (m.collar_volume(), 1),
         scale,
         &format!("{tag}: collar ∖ shaft"),
     );
     holds(
-        op(BooleanOp::Subtract, s, c, &sc),
+        op(BooleanOp::Subtract, s, c),
         (m.shaft_volume(), 1),
         scale,
         &format!("{tag}: shaft ∖ collar"),
@@ -184,7 +185,7 @@ fn unions(m: Mate, c: &Body<f64>, s: &Body<f64>, tag: &str) {
     let (c, s) = (&fin("the collar", c), &fin("the shaft", s));
     for (order, a, b) in [("collar ∪ shaft", c, s), ("shaft ∪ collar", s, c)] {
         holds(
-            topo::union_with(a, b, &wall_decls_at(a, b, m.r), tol),
+            topo::union(a, b, tol),
             (want, 1),
             want,
             &format!("{tag}: {order}"),
@@ -311,15 +312,6 @@ fn hollow(r: f64, outer: f64) -> Body<f64> {
     }
 }
 
-/// Every pair of sphere faces of radius `r` across `a` and `b`
-/// declared `Rest`.
-fn sphere_decls(a: &Body<f64>, b: &Body<f64>, r: f64) -> BooleanDeclarations {
-    let mut d = BooleanDeclarations::none();
-    declare_rest(&mut d, &spheres_at(a, r), &spheres_at(b, r));
-    assert!(!d.coincident_faces.is_empty(), "a declared sphere pair");
-    d
-}
-
 #[test]
 fn a_ball_filling_a_spherical_cavity_answers_every_op_in_closed_form() {
     let tol = Tol::witness();
@@ -328,29 +320,28 @@ fn a_ball_filling_a_spherical_cavity_answers_every_op_in_closed_form() {
         for (pose_name, pose) in poses() {
             let tag = format!("ball {r} in a cavity of a ball {outer}, pose {pose_name}");
             let (h, b) = (placed(&hollow(r, outer), &pose), placed(&ball(r), &pose));
-            let (hb, bh) = (sphere_decls(&h, &b, r), sphere_decls(&b, &h, r));
             let (h, b) = (fin("the hollow", &h), fin("the ball", &b));
             let scale = ball_volume(outer);
-            for (order, x, y, d) in [("hollow", &h, &b, &hb), ("ball", &b, &h, &bh)] {
+            for (order, x, y) in [("hollow", &h, &b), ("ball", &b, &h)] {
                 holds(
-                    topo::union_with(x, y, d, tol),
+                    topo::union(x, y, tol),
                     (ball_volume(outer), 1),
                     scale,
                     &format!("{tag}: {order} first, ∪"),
                 );
                 assert!(
-                    matches!(topo::intersect_with(x, y, d, tol), Ok(BooleanResult::Empty)),
+                    matches!(topo::intersect(x, y, tol), Ok(BooleanResult::Empty)),
                     "{tag}: {order} first, ∩ is empty"
                 );
             }
             holds(
-                topo::subtract_with(&h, &b, &hb, tol),
+                topo::subtract(&h, &b, tol),
                 (ball_volume(outer) - ball_volume(r), 2),
                 scale,
                 &format!("{tag}: hollow ∖ ball"),
             );
             holds(
-                topo::subtract_with(&b, &h, &bh, tol),
+                topo::subtract(&b, &h, tol),
                 (ball_volume(r), 1),
                 scale,
                 &format!("{tag}: ball ∖ hollow"),
@@ -359,57 +350,8 @@ fn a_ball_filling_a_spherical_cavity_answers_every_op_in_closed_form() {
     }
 }
 
-/// **A cavity with one of its sphere pairs undeclared is the cavity
-/// with all four declared.** The hollow's cavity and the ball each
-/// carry two sphere faces, face `i` of each on the same side of the
-/// same seam. A pair `(i, j)`, `i ≠ j`, left undeclared is one carrier
-/// by margin, so the boolean declares it `Rest` itself and every op is
-/// the fully declared op bit for bit (D10).
-#[test]
-fn a_cavity_with_one_sphere_pair_undeclared_is_the_full_declaration() {
-    let tol = Tol::witness();
-    let (h, b) = (
-        fin("the hollow", &hollow(0.5, 1.0)),
-        fin("the ball", &ball(0.5)),
-    );
-    let (fh, fb) = (spheres_at(&h, 0.5), spheres_at(&b, 0.5));
-    assert_eq!((fh.len(), fb.len()), (2, 2), "two sphere faces each");
-    let declared = |skip: Option<(usize, usize)>| {
-        let (mut hb, mut bh) = (BooleanDeclarations::none(), BooleanDeclarations::none());
-        for (i, &x) in fh.iter().enumerate() {
-            for (j, &y) in fb.iter().enumerate() {
-                if Some((i, j)) != skip {
-                    declare_rest(&mut hb, &[x], &[y]);
-                    declare_rest(&mut bh, &[y], &[x]);
-                }
-            }
-        }
-        (hb, bh)
-    };
-    let ops = |hb: &BooleanDeclarations, bh: &BooleanDeclarations| {
-        [
-            ("hollow ∪ ball", topo::union_with(&h, &b, hb, tol)),
-            ("hollow ∩ ball", topo::intersect_with(&h, &b, hb, tol)),
-            ("hollow ∖ ball", topo::subtract_with(&h, &b, hb, tol)),
-            ("ball ∖ hollow", topo::subtract_with(&b, &h, bh, tol)),
-        ]
-    };
-    let (hb, bh) = declared(None);
-    let full = ops(&hb, &bh);
-    for (oh, ob) in [(0, 1), (1, 0)] {
-        let (hb, bh) = declared(Some((oh, ob)));
-        for ((op, out), (_, want)) in ops(&hb, &bh).into_iter().zip(&full) {
-            assert_eq!(
-                outcome(&out),
-                outcome(want),
-                "pair ({oh}, {ob}) undeclared: {op}: the full declaration"
-            );
-        }
-    }
-}
-
 /// **A second shell beside the mate is classified as any shell is.**
-/// The shaft through the arc-split collar, declared as everywhere here,
+/// The shaft through the arc-split collar, mated as everywhere here,
 /// with a pebble (a ball of radius 0.2) buried in the collar's wall
 /// and joined to the shaft as a second solid of one operand: `∩` is
 /// the pebble, the collar minus it keeps it as a cavity, the operand
@@ -437,30 +379,29 @@ fn a_pebble_buried_in_the_collar_beside_the_mate_is_its_own_shell() {
             other => panic!("{tag}: shaft and pebble: {other:?}"),
         };
         assert_eq!(two.shells().count(), 2, "{tag}: two solids");
-        let (cb, bc) = (wall_decls_at(&c, &two, 0.5), wall_decls_at(&two, &c, 0.5));
         let (c, two) = (fin("the collar", &c), fin("shaft and pebble", &two));
         let scale = collar_volume;
         holds(
-            topo::intersect_with(&c, &two, &cb, tol),
+            topo::intersect(&c, &two, tol),
             (pebble_volume, 1),
             scale,
             &format!("{tag}: collar ∩ shaft and pebble"),
         );
         holds(
-            topo::subtract_with(&c, &two, &cb, tol),
+            topo::subtract(&c, &two, tol),
             (collar_volume - pebble_volume, 2),
             scale,
             &format!("{tag}: collar ∖ shaft and pebble"),
         );
         holds(
-            topo::subtract_with(&two, &c, &bc, tol),
+            topo::subtract(&two, &c, tol),
             (shaft_volume, 1),
             scale,
             &format!("{tag}: shaft and pebble ∖ collar"),
         );
-        for (order, x, y, d) in [("collar", &c, &two, &cb), ("shaft", &two, &c, &bc)] {
+        for (order, x, y) in [("collar", &c, &two), ("shaft", &two, &c)] {
             holds(
-                topo::union_with(x, y, d, tol),
+                topo::union(x, y, tol),
                 (collar_volume + shaft_volume, 1),
                 scale,
                 &format!("{tag}: {order} first, ∪"),

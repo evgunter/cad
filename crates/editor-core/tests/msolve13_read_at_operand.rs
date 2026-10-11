@@ -199,7 +199,6 @@ fn fused(s: &Scene, at_t1: impl Fn(&ProfileDoc, RecipeNodeId, RecipeNodeId) -> S
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![t1.into(), t2.into()]),
-            declare: Vec::new(),
         },
     );
     let (doc, _) = crate::fixture::place(doc, union);
@@ -328,7 +327,6 @@ fn a2_two_spellings_through_a_union_fold_into_one_pair() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![t1.into(), t2.into()]),
-            declare: Vec::new(),
         },
     );
     let (doc, _) = crate::fixture::place(doc, union);
@@ -491,7 +489,6 @@ fn a_mate_read_below_a_placed_consumer_mints_nothing() {
         with_far,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![t1.into(), far.into()]),
-            declare: Vec::new(),
         },
     );
     let boolean = crate::fixture::place(doc, fused).0;
@@ -549,7 +546,6 @@ fn a_part_above_a_union_is_refused_at_the_door() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![t1.into(), far.into()]),
-            declare: Vec::new(),
         },
     );
     let (doc, moved) = insert(doc, xform(union, [0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0));
@@ -726,7 +722,6 @@ fn a3d_a_group_with_a_mate_read_at_a_union_splits_and_inlines_back() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![s.top.into(), t1.into()]),
-            declare: Vec::new(),
         },
     );
     let (doc, _) = crate::fixture::place(doc, union);

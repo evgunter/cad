@@ -835,11 +835,7 @@ pub fn renoded(name: &StableName, from: RecipeNodeId, to: RecipeNodeId) -> Stabl
 /// so one node under one id — an insert mints its id from its node,
 /// the members' order included (N1) — which is what a row comparing
 /// member orders compares.
-pub fn union_over(
-    doc: ProfileDoc,
-    members: &[RecipeNodeId],
-    declare: Vec<editor_core::DeclaredPair>,
-) -> (ProfileDoc, RecipeNodeId) {
+pub fn union_over(doc: ProfileDoc, members: &[RecipeNodeId]) -> (ProfileDoc, RecipeNodeId) {
     let mut inserted = members.to_vec();
     inserted.sort();
     let (doc, union) = insert(
@@ -848,7 +844,6 @@ pub fn union_over(
             members: editor_core::Bodies::Spelled(
                 inserted.clone().into_iter().map(Into::into).collect(),
             ),
-            declare,
         },
     );
     if inserted == members {
@@ -864,25 +859,6 @@ pub fn union_over(
         },
     );
     (doc, union)
-}
-
-/// **Every flush finding between each two of `members`, as declared
-/// pairs** — the list a caller following the detector writes, so a row
-/// can set an undeclared document beside its declared twin.
-pub fn findings_declared(
-    ev: &Evaluation<f64>,
-    doc: &ProfileDoc,
-    members: &[RecipeNodeId],
-) -> Vec<editor_core::DeclaredPair> {
-    let mut pairs = Vec::new();
-    for (i, &a) in members.iter().enumerate() {
-        for &b in &members[i + 1..] {
-            let found = editor_core::find_flush_candidates(ev, doc, a, b, tol())
-                .unwrap_or_else(|e| panic!("the detector answers {a:?} × {b:?}: {e:?}"));
-            pairs.extend(editor_core::declared_pairs(&found));
-        }
-    }
-    pairs
 }
 
 /// The `Debug` of the one body `id` built — its bits, for setting two
@@ -1506,32 +1482,12 @@ pub fn die() -> Die {
         masters.push((ext, u, v, pips));
     }
 
-    // Interleaved Transform + declared Subtract pairs (M4 PR 5,
-    // F5): every pip's outer cap lies exactly ON its cube face — a
-    // coincidence the recipe DECLARES per subtract (name pairs
-    // resolved through the operands' tables at evaluation; the
-    // retired bit rung no longer infers it from values). The A-side
-    // face name wraps in `FromA` per boolean, tracked here.
-    let face_name = |node: RecipeNodeId, seg: RoleSeg| StableName {
-        kind: EntityKind::Face,
-        node,
-        path: vec![seg],
-    };
-    // faces() order: -z, +x, -x, +y, -y, +z against the cube extrude's
-    // roles (profile (0,0)->(2,0)->(2,2)->(0,2): wall seg 0 = -y,
-    // 1 = +x, 2 = +y, 3 = -x; caps: Bottom = -z, Top = +z).
-    let wall = |seg: u32| wall(&r.doc, cube, seg);
-    let mut cube_face_names: [StableName; 6] = [
-        face_name(cube, RoleSeg::Cap(CapEnd::Start)),
-        face_name(cube, wall(1)),
-        face_name(cube, wall(3)),
-        face_name(cube, wall(2)),
-        face_name(cube, wall(0)),
-        face_name(cube, RoleSeg::Cap(CapEnd::End)),
-    ];
+    // Interleaved Transform + Subtract pairs: every pip's outer cap
+    // lies exactly ON its cube face, a coincidence the subtract's
+    // margins decide and glue.
     let mut acc = cube;
     let mut pz_transform = acc; // overwritten below
-    for (face_idx, &(ext, u, v, pips)) in masters.iter().enumerate() {
+    for &(ext, u, v, pips) in &masters {
         for &(a, b) in pips {
             let t = [
                 a * u[0] + b * v[0],
@@ -1546,34 +1502,12 @@ pub fn die() -> Die {
                     angle: ang(0.0),
                 },
             ));
-            // The pip master extrudes INWARD (against the normal), so
-            // its OUTER cap — the flush one — is Bottom (on the
-            // sketch plane, which IS the cube face's plane), and it
-            // faces out of the cube as that face does: a continuation.
-            let pip_cap = face_name(ext, RoleSeg::Cap(CapEnd::Start));
-            let (acc_read, tr_read) = (out(&r.doc, acc), out(&r.doc, tr));
-            let decl = editor_core::declare_continuation(vec![(
-                SitedRef::new(acc_read, cube_face_names[face_idx].clone()),
-                SitedRef::new(tr_read, pip_cap),
-            )]);
             let sub = r.insert(Node::Subtract {
                 from: acc.into(),
                 tool: tr.into(),
-                declare: decl,
             });
             acc = sub;
             pz_transform = tr;
-            // Every A-side face name wraps once per boolean (N1
-            // derivation paths through the new subtract node).
-            for name in &mut cube_face_names {
-                *name = face_name(
-                    sub,
-                    RoleSeg::From {
-                        read: acc_read,
-                        of: name.clone().into(),
-                    },
-                );
-            }
         }
     }
 
@@ -1696,7 +1630,6 @@ pub fn u_cutter_tie(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
         Node::Subtract {
             from: target.into(),
             tool: cutter.into(),
-            declare: Vec::new(),
         },
     )
 }
@@ -1997,8 +1930,8 @@ pub fn wall(doc: &editor_core::ProfileDoc, ext: RecipeNodeId, seg: u32) -> RoleS
 
 /// **The four flush families two x-offset blocks share** — the walls
 /// y0/y1 (segments 0/2, the `square`/`desc` corner order) and both
-/// caps — in ONE place, so a suite that names them and a suite that
-/// declares them cannot disagree about which four they are.
+/// caps — in ONE place, so every suite that names them agrees about
+/// which four they are.
 pub fn flush_segs(doc: &editor_core::ProfileDoc, ext: RecipeNodeId) -> [RoleSeg; 4] {
     [
         wall(doc, ext, 0),
@@ -2008,10 +1941,10 @@ pub fn flush_segs(doc: &editor_core::ProfileDoc, ext: RecipeNodeId) -> [RoleSeg;
     ]
 }
 
-/// **Those four families as a declared pair list**, each side SITED:
-/// `at` is the operand (or member) the entity is read at, and the
-/// name is the one the extrude `ext` minted, which a pass-through op
-/// carries verbatim (N1).
+/// **Those four families as name pairs**, each side SITED: `at` is
+/// the operand (or member) the entity is read at, and the name is the
+/// one the extrude `ext` minted, which a pass-through op carries
+/// verbatim (N1).
 pub fn flush_pairs(
     doc: &ProfileDoc,
     (a_at, a_ext): (RecipeNodeId, RecipeNodeId),
@@ -2031,8 +1964,8 @@ pub fn flush_pairs(
 }
 
 /// **The read of `node`'s one output** — what an operand reading the
-/// node holds, and so what a declared pair is sited at and a carried
-/// name is keyed by (`RoleSeg::From`).
+/// node holds, and so what a sited name is read at and a carried name
+/// is keyed by (`RoleSeg::From`).
 pub fn out(doc: &ProfileDoc, node: RecipeNodeId) -> VarId {
     doc.output(node, 0)
         .unwrap_or_else(|| panic!("{node} defines an output"))
@@ -2065,38 +1998,6 @@ pub fn member_entity(
 /// wants.
 pub fn member_face(union: RecipeNodeId, member: VarId, of: StableName) -> StableName {
     member_entity(union, member, of, EntityKind::Face)
-}
-
-/// The declared pairs joining the flush planes of two axis-aligned
-/// extruded blocks that share their y-range and z-range and differ
-/// along x only (the corpus's standard sliding-overlap shape): walls
-/// y0/y1 (segments 0/2, the `square`/`desc` corner order) plus both
-/// caps (M4 PR 5 — the recipe states the coincidence intent the
-/// retired bit rung used to infer from values).
-pub fn declare_x_offset_flush(
-    doc: &ProfileDoc,
-    a_ext: RecipeNodeId,
-    b_ext: RecipeNodeId,
-) -> Vec<editor_core::DeclaredPair> {
-    declare_x_offset_flush_at(doc, (a_ext, a_ext), (b_ext, b_ext))
-}
-
-/// The same, when the consuming boolean's OPERAND is not the extrude
-/// that minted the names — a transform of it, which contributes no
-/// role segment (N1) and so carries the extrude's names verbatim.
-///
-/// The site is the operand, always: it is what says which side of the
-/// boolean the name is read on.
-pub fn declare_x_offset_flush_at(
-    doc: &ProfileDoc,
-    (a_at, a_ext): (RecipeNodeId, RecipeNodeId),
-    (b_at, b_ext): (RecipeNodeId, RecipeNodeId),
-) -> Vec<editor_core::DeclaredPair> {
-    // Each name is sited at the OPERAND whose table holds it, which
-    // is what says which side of the boolean it is read on.
-    // The four families face the same way on both blocks: one carrier,
-    // aligned senses — continuations.
-    editor_core::declare_continuation(flush_pairs(doc, (a_at, a_ext), (b_at, b_ext)))
 }
 
 /// **What every at-rest finding says about a declaration, in one
@@ -2329,7 +2230,6 @@ pub fn two_blocks_and_their_union(label: &str) -> (ProfileDoc, RecipeNodeId) {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     )
 }

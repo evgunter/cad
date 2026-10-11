@@ -11,14 +11,14 @@
 //!   face a merge lists is published by no face of its own;
 //! - a seam edge's sides are the parents of the faces it lies between;
 //! - a document whose finished body depends on member order (a vertex a
-//!   declared merge left behind) still publishes, with no two rows
+//!   flush merge left behind) still publishes, with no two rows
 //!   sharing a name.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::BTreeSet;
 
+use crate::blocks::{failure, run};
 use crate::corpus::body_of;
-use crate::docm7_union_declare::{failure, run};
 use crate::emit_shared_rim_several::{Bx, document, permutations};
 use crate::emit_union_rim_piece_ranks::{Case, cases, runs, signature};
 use crate::fixture::{face_vertices, insert, table};
@@ -253,9 +253,9 @@ const NEAR: Bx = ((0.499, 0.501), (-1.0, 2.0), (0.5, 2.0));
 
 /// The ZIP row's shape
 /// (`work/fuse/a-declared-merge-leaves-a-collinear-valence-two-vertex-an-earlier-cut-made.md`):
-/// `a`, `b` declared flush and a slab over `b`'s end.
+/// `a`, `b` flush and a slab over `b`'s end.
 fn near_slab() -> Case {
-    Case::flat("near", vec![A, B, NEAR], vec![0, 1, 2], vec![(0, 1)])
+    Case::flat("near", vec![A, B, NEAR], vec![0, 1, 2])
 }
 
 /// The unions that refuse in some member orders, as `(case, union,
@@ -265,32 +265,9 @@ fn near_slab() -> Case {
 /// fail on any refusal not pinned here, so a new one cannot pass by
 /// being skipped.
 const KNOWN_REFUSING: &[(&str, &str, usize, &str)] = &[
-    ("abg", "U", 2, "DeclareResolve:2"),
-    ("abgg2", "U", 16, "DeclareResolve:16"),
-    ("abgids", "U", 2, "DeclareResolve:2"),
-    ("abglow", "U", 2, "DeclareResolve:2"),
-    ("cross", "U", 12, "DeclareResolve:8/Naming:4"),
-    ("fam000", "U", 2, "DeclareResolve:2"),
-    ("fam001", "U", 2, "DeclareResolve:2"),
-    ("fam002", "U", 2, "DeclareResolve:2"),
-    ("fam012", "U", 2, "DeclareResolve:2"),
-    ("fam022", "U", 2, "DeclareResolve:2"),
-    ("fam100", "U", 4, "DeclareResolve:4"),
-    ("fam101", "U", 4, "DeclareResolve:4"),
-    ("fam102", "U", 4, "DeclareResolve:4"),
-    ("fam112", "U", 4, "DeclareResolve:4"),
-    ("fam122", "U", 4, "DeclareResolve:4"),
-    ("fam200", "U", 2, "DeclareResolve:2"),
-    ("fam201", "U", 2, "DeclareResolve:2"),
-    ("fam202", "U", 2, "DeclareResolve:2"),
-    ("fam212", "U", 2, "DeclareResolve:2"),
-    ("fam222", "U", 2, "DeclareResolve:2"),
-    ("near", "U", 2, "DeclareResolve:2"),
-    ("r1flush", "U", 18, "DeclareResolve:18"),
-    ("r2endsg", "U", 12, "DeclareResolve:12"),
-    ("r4trig", "U", 12, "DeclareResolve:12"),
-    ("row", "U", 18, "DeclareResolve:16/Naming:2"),
-    ("rowids", "U", 18, "DeclareResolve:16/Naming:2"),
+    ("cross", "U", 10, "Naming:10"),
+    ("row", "U", 8, "Naming:8"),
+    ("rowids", "U", 8, "Naming:8"),
 ];
 
 /// Every refusal `case`'s runs meet, pinned against [`KNOWN_REFUSING`]
@@ -405,7 +382,7 @@ fn wall_at_y0(ev: &Evaluation<f64>, union: RecipeNodeId, m: RecipeNodeId) -> Sta
 
 /// **A face cut and merged in one step publishes no piece under a
 /// constituent's name** (N3). `fam012`: `a` = x 0..1 and `b` = x
-/// 0.5..1.5, declared flush, and a slab `g` at x 0.3..0.4 through `a`'s
+/// 0.5..1.5, flush, and a slab `g` at x 0.3..0.4 through `a`'s
 /// y = 0 wall. In `[b, g, a]` one step cuts `a`'s wall and merges its
 /// right piece with `b`'s; in `[a, b, g]` the wall merges first and `g`
 /// cuts the merge. Either way the wall is two faces, both fragments of
@@ -452,7 +429,7 @@ fn a_face_cut_and_merged_in_one_step_publishes_no_constituent() {
 }
 
 /// **The ZIP document's body is one in every member order.** `[b, s, a]`
-/// and `[s, b, a]` cut the slab's bottom seam before the declared merge
+/// and `[s, b, a]` cut the slab's bottom seam before the flush merge
 /// meets it; the output stage joins the vertex that cut leaves between
 /// the slab's bottom and the merged wall (maximal edges), so they build
 /// the vertex set the other orders build, and every order publishes.
@@ -596,12 +573,7 @@ fn one_table(faces: &std::collections::BTreeMap<String, BTreeSet<StableName>>) {
 #[test]
 fn a_boss_on_one_piece_of_a_covered_face_is_cited_in_no_order() {
     const PILLAR: Bx = ((0.1, 0.2), (0.4, 0.6), (0.5, 2.0));
-    let case = Case::flat(
-        "nearpillar",
-        vec![A, B, NEAR, PILLAR],
-        vec![0, 1, 2, 3],
-        vec![(0, 1)],
-    );
+    let case = Case::flat("nearpillar", vec![A, B, NEAR, PILLAR], vec![0, 1, 2, 3]);
     let (faces, ids) = face_tables(&case);
     assert!(
         faces.len() >= 8,
@@ -660,12 +632,11 @@ fn a_member_of_two_touching_shells_names_each_shell_for_itself() {
             doc,
             Node::Union {
                 members: editor_core::Bodies::Spelled(vec![ids[0].into(), ids[1].into()]),
-                declare: Vec::new(),
             },
         );
         for order in permutations(&[0, 1]) {
             let members: Vec<_> = order.iter().map(|&i| [u1, ids[2]][i]).collect();
-            let (docx, top) = crate::fixture::union_over(doc.clone(), &members, Vec::new());
+            let (docx, top) = crate::fixture::union_over(doc.clone(), &members);
             let ev = run(&docx);
             let at = format!("{touch:?} {third:?} {order:?}");
             for union in [u1, top] {
@@ -676,22 +647,9 @@ fn a_member_of_two_touching_shells_names_each_shell_for_itself() {
                 );
                 member_vertices_hold(&ev, union, &at);
                 seam_sides_hold(&ev, union, &at);
-                // `U1` records its own touch and passes 3′. The union
-                // over it drops `U1`'s records, so its value ships the
-                // touch undeclared, which 3′ refuses and the door (tier 3
-                // only, the census parked) does not; pinned as it stands
-                // (`work/wire/a-boolean-drops-its-operands-own-contact-records.md`).
-                match crate::docm7_union_declare::census_of(&ev, union) {
-                    Ok(()) => assert!(union == u1, "{at}: the top union passes 3′"),
-                    Err(errors) => assert!(
-                        union == top
-                            && errors.iter().all(|e| matches!(
-                                e,
-                                topo::ValidationError::UnrecordedContact { .. }
-                            )),
-                        "{at}: 3′ refuses only the dropped touch: {errors:?}"
-                    ),
-                }
+                // `U1` records its own touch, and the union over it
+                // carries that record.
+                assert_eq!(crate::blocks::census_of(&ev, union), Ok(()), "{at}: 3′");
             }
             fused += 1;
         }
