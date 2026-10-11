@@ -1996,21 +1996,8 @@ impl<P> Doc<P> {
     /// outputs (a revolve's body and axis, a split's two halves), whose
     /// read names its port; the edit door refuses each typed.
     pub fn read_of_node(&self, node: RecipeNodeId) -> Option<VarId> {
-        let outputs = self.outputs(node);
-        if let [one] = outputs.as_slice() {
-            return Some(*one);
-        }
-        // Several outputs: the one that holds a body, as the evaluation's
-        // node named alone is its one output that carries names (a
-        // revolve's body beside its axis); a split's two halves are two.
-        let kinds = self.signature(node)?;
-        let mut bodies = outputs
-            .iter()
-            .zip(kinds)
-            .filter(|(_, (_, kind))| matches!(kind, crate::VarKind::Body | crate::VarKind::Bodies))
-            .map(|(var, _)| *var);
-        match (bodies.next(), bodies.next()) {
-            (Some(one), None) => Some(one),
+        match self.outputs(node).as_slice() {
+            [one] => Some(*one),
             _ => None,
         }
     }

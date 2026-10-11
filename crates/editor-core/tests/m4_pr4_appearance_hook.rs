@@ -247,7 +247,10 @@ fn node_gone_loss_enriches_with_the_derived_deletion_edit() {
     let cap = minted(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
     // Read in a transform of the extrude, so the entry's read outlives
     // the name's minting node: the loss is the name's, `NodeGone`.
-    let (doc, moved) = insert(doc, fixture::xform(ext, [0.0, 0.0, 2.0], [0.0, 0.0, 1.0], 0.0));
+    let (doc, moved) = insert(
+        doc,
+        fixture::xform(ext, [0.0, 0.0, 2.0], [0.0, 0.0, 1.0], 0.0),
+    );
     let (doc, _) = step(
         doc.clone(),
         DocEdit::SetAppearance {

@@ -1666,7 +1666,16 @@ impl Evaluation {
         let name = super::doc::name_from_text(name)?;
         let read = match at {
             super::doc::AtArg::Var(var) => var.0,
-            super::doc::AtArg::Node(node) => match self.doc.read_of_node(node.0) {
+            // A node named alone is its one named output, as in every
+            // name door (`Evaluation::at_var`): a revolve's body beside
+            // its axis; a split's two halves are no one read. A node with
+            // no value this run is read at its one output, if it has one,
+            // and answers its standing.
+            super::doc::AtArg::Node(node) => match self
+                .inner
+                .at_var(node.0)
+                .or_else(|| self.doc.read_of_node(node.0))
+            {
                 Some(read) => read,
                 None => {
                     match pncad::select::stranded_at(&self.doc, node.0, &name) {

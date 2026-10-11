@@ -470,11 +470,13 @@ fn an_appearance_read_must_hold_a_body_and_its_delete_strands_the_key() {
     );
 }
 
-/// **A node named alone is one read in every door**: a revolve's body
-/// beside its axis is the node's one body, to the document and to the
-/// evaluation alike; a split's two halves are no one read to either.
+/// **A node named alone is one read to every NAME door**: the
+/// evaluation's one named output (`at_var`), so a revolve is its body
+/// beside its axis, and a split's two halves are no one read. As an
+/// OPERAND, a node named alone is its one output (`read_of_node`), and
+/// a revolve, with two, names its port: two questions, two rules.
 #[test]
-fn a_node_named_alone_is_the_same_read_to_the_document_and_the_evaluation() {
+fn a_node_named_alone_reads_its_one_named_output_in_a_name_door() {
     let doc = ProfileDoc::empty_derived("dm4_named_alone", Tol::witness());
     let (doc, profile) = on_frame(
         doc,
@@ -493,8 +495,12 @@ fn a_node_named_alone_is_the_same_read_to_the_document_and_the_evaluation() {
         },
     );
     let ev = fixture::run(&doc, &Default::default());
-    assert!(doc.read_of_node(revolve).is_some(), "the revolve's body");
-    assert_eq!(ev.at_var(revolve), doc.read_of_node(revolve));
+    assert_eq!(
+        ev.at_var(revolve),
+        doc.output(revolve, 0),
+        "the revolve's body, beside its axis"
+    );
+    assert_eq!(doc.read_of_node(revolve), None, "an operand names the port");
     let (doc, _, _, split) = step_split(1.0);
     let ev = fixture::run(&doc, &Default::default());
     assert_eq!((ev.at_var(split), doc.read_of_node(split)), (None, None));

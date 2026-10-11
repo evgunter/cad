@@ -1543,7 +1543,7 @@ fn resolution_status_tags_are_stable() {
                 read,
                 &stored
             )
-            .unwrap()
+            .expect("the extrude's read, or none")
         ),
         "resolved"
     );
@@ -1567,7 +1567,7 @@ fn resolution_status_tags_are_stable() {
         read,
         &stored,
     )
-    .unwrap();
+    .expect("the extrude's read, or none");
     assert_eq!(resolution_status_tag(&verdict), "failed");
     // ...and WHICH failure, which is the word a repair branches on: the
     // read it was resolved in went with the node, and that rung comes
@@ -1596,7 +1596,7 @@ fn resolution_status_tags_are_stable() {
         read,
         &stored,
     )
-    .unwrap();
+    .expect("the extrude's read, or none");
     assert_eq!(resolution_status_tag(&verdict), "indeterminate");
     match &verdict {
         Resolution::Indeterminate(cause) => {
@@ -6036,11 +6036,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
-        function: "resolve_refusal_tag",
-        values: &["node_not_held", "read_not_an_output"],
-        delegates: &[],
-    },
-    TagEntry {
         function: "resolve_fault_tag",
         values: &["part_epsilon_seam", "part_pin_mismatch", "part_unresolved"],
         delegates: &[],
@@ -6048,6 +6043,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "resolve_indeterminate_tag",
         values: &["target_failed", "target_not_evaluated", "target_poisoned"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "resolve_refusal_tag",
+        values: &["node_not_held", "read_not_an_output"],
         delegates: &[],
     },
     TagEntry {
@@ -6822,6 +6822,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // `program`, which leaves `profile` to the operand the slot
     // alphabet forwards.
     ("profile", 2),
+    // One fact: a read that is no output holding a body, so no table to
+    // ask, at the select door and at the resolve door.
+    ("read_not_an_output", 2),
     // One fact: `topo::readback` refused the face it read, as a face
     // frame's refusal and as a pose read off geometry's.
     ("readback", 2),
