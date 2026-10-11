@@ -35,3 +35,16 @@ the rendered text names the edge. E.
 Unowned at filing — `boolean/ops.rs` is S-BOOL's glob; on the CURVED
 handover list. Filed by the CURVED orchestrator at the merge-door
 dual's adjudication.
+
+## Built (branch cleave/folded-graze-join-desync)
+
+`describe_minted_edges`' refusals carry the attachment gate's refusal:
+`DescribeRefusal::Failed` and `MergeCoplanarError::KeptBoundaryUndescribed`
+hold it as `cause`, and the Boolean refuses a definite failure as
+`BooleanError::EdgeUndescribed { edge, failure, cause }`, whose text
+names the edge, the check, the sample, the surface and the miss and
+ends in the kernel-defect ending (`JoinDesync`'s `&'static str` has
+~100 construction sites, so the payload rides the sibling this issue
+named). An in-band surface residual is the input's and refuses as
+`Escalated { EdgeOnFaces }` (`work/cleave/a-minted-edge-along-a-folded-graze-refuses-join-desync.md`).
+Pinned by `boolean::ops` `a_describe_refusal_carries_its_certification`.

@@ -2259,7 +2259,7 @@ fn describe_worklist<T: Real>(
         merged.skipped.iter().flat_map(|s| s.faces.iter().copied()),
     )
     .ok_or(BooleanError::JoinDesync {
-        what: join_desync_text(EdgeDescribeFailure::NotWalkable),
+        what: "description worklist edge not walkable",
     })?;
     worklist.extend(skipped.into_iter().map(|(_, edge)| edge));
     Ok(worklist)
@@ -2294,29 +2294,53 @@ pub(crate) fn boundary_edges<T: Real>(
     Some(edges)
 }
 
-/// The boolean's words for what the describer could not do: a join
-/// desync, as its own description pass has always raised it.
-const fn join_desync_text(failure: EdgeDescribeFailure) -> &'static str {
-    match failure {
-        EdgeDescribeFailure::NotWalkable => "description worklist edge not walkable",
-        EdgeDescribeFailure::Intersection => "minted-edge description failed certification",
-        EdgeDescribeFailure::Tangency => "tangent-seam description failed certification",
-        EdgeDescribeFailure::NoConventionalLane => {
-            "stale CURVED smooth-seam description (no conventional re-description lane exists \
-             for this carrier kind)"
-        }
-        EdgeDescribeFailure::Arc => "stale arc description failed re-certification",
-        EdgeDescribeFailure::Line => "stale in-plane description failed re-certification",
+/// The boolean's refusal for an edge its describer could not describe.
+/// A carrier read in band of one of its faces is the input's (D9 row 1);
+/// every other failure is the kernel's.
+pub(super) fn of_describe(refusal: DescribeRefusal) -> BooleanError {
+    match refusal {
+        DescribeRefusal::Failed {
+            edge,
+            failure,
+            cause,
+        } => BooleanError::EdgeUndescribed {
+            edge,
+            failure,
+            cause,
+        },
+        DescribeRefusal::Undecided { reading, diag, .. } => seam_refusal(reading, diag),
+        DescribeRefusal::OffFace {
+            edge,
+            surface,
+            diag,
+        } => BooleanError::Escalated {
+            decision: BooleanDecision::EdgeOnFaces { edge, surface },
+            diag,
+        },
     }
 }
 
-/// The boolean's refusal for an edge its describer could not describe.
-pub(super) fn of_describe(refusal: DescribeRefusal) -> BooleanError {
-    match refusal {
-        DescribeRefusal::Failed { failure, .. } => BooleanError::JoinDesync {
-            what: join_desync_text(failure),
-        },
-        DescribeRefusal::Undecided { reading, diag, .. } => seam_refusal(reading, diag),
+/// The describer's refusal for `edge` when the attachment gate refuses
+/// its description: a residual against one of its faces' surfaces read
+/// in band is [`DescribeRefusal::OffFace`], and every other refusal
+/// fails the edge, carrying the gate's.
+fn of_attachment(
+    edge: crate::entity::EdgeKey,
+    failure: EdgeDescribeFailure,
+    cause: crate::euler::EulerOpError,
+) -> DescribeRefusal {
+    match cause {
+        crate::euler::EulerOpError::Certification {
+            error:
+                geom_brep::CertifyError::Escalated {
+                    check:
+                        geom_brep::CertCheck::SurfaceResidual { surface }
+                        | geom_brep::CertCheck::WitnessSurfaceResidual { surface },
+                    cause: diag,
+                    ..
+                },
+        } => DescribeRefusal::off_face(edge, surface, diag),
+        cause => DescribeRefusal::refused(edge, failure, cause),
     }
 }
 
@@ -2401,7 +2425,7 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
                     draft.into_spec(geom_brep::SurfacePair::new(s1, s2)),
                     tol,
                 )
-                .map_err(|_| DescribeRefusal::failed(edge, EdgeDescribeFailure::Intersection))?;
+                .map_err(|e| of_attachment(edge, EdgeDescribeFailure::Intersection, e))?;
             }
             geom_brep::DihedralClass::Smooth => {
                 // F1 (the declared-merge SKIP lane): a SURVIVING
@@ -2464,9 +2488,8 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
                         param_start: t0,
                         param_end: t1,
                     };
-                    body.set_edge_curve(edge, spec, tol).map_err(|_| {
-                        DescribeRefusal::failed(edge, EdgeDescribeFailure::Tangency)
-                    })?;
+                    body.set_edge_curve(edge, spec, tol)
+                        .map_err(|e| of_attachment(edge, EdgeDescribeFailure::Tangency, e))?;
                 } else if stale {
                     if curved {
                         // The conventional re-description for an arc
@@ -2491,7 +2514,7 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
                             ));
                         };
                         body.set_edge_curve(edge, spec.at_rest_in_chart(s1, false), tol)
-                            .map_err(|_| DescribeRefusal::failed(edge, EdgeDescribeFailure::Arc))?;
+                            .map_err(|e| of_attachment(edge, EdgeDescribeFailure::Arc, e))?;
                     } else {
                         body.set_edge_curve(
                             edge,
@@ -2499,7 +2522,7 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
                                 .at_rest_in_chart(s1, false),
                             tol,
                         )
-                        .map_err(|_| DescribeRefusal::failed(edge, EdgeDescribeFailure::Line))?;
+                        .map_err(|e| of_attachment(edge, EdgeDescribeFailure::Line, e))?;
                     }
                 }
             }
@@ -7687,6 +7710,15 @@ mod tests {
             ),
             DescribeRefusal::undecided(strut, DihedralReading::Bend, diag),
         ];
+        let residual = crate::euler::EulerOpError::Certification {
+            error: geom_brep::CertifyError::ResidualExceeded {
+                check: geom_brep::CertCheck::SurfaceResidual {
+                    surface: crate::geometry::SurfaceKey::default(),
+                },
+                sample: 8,
+                margin: geom_core::MarginDiag::value(3.0 * band.escalate()),
+            },
+        };
         for failure in [
             EdgeDescribeFailure::NotWalkable,
             EdgeDescribeFailure::Intersection,
@@ -7696,17 +7728,142 @@ mod tests {
             EdgeDescribeFailure::Line,
         ] {
             every.push(DescribeRefusal::failed(strut, failure));
+            every.push(DescribeRefusal::refused(strut, failure, residual.clone()));
         }
+        every.push(DescribeRefusal::off_face(
+            strut,
+            crate::geometry::SurfaceKey::default(),
+            diag,
+        ));
         for described in every {
             let worded = crate::merge_faces::MergeCoplanarError::of_kept_boundary(
                 &[(kept, strut)],
-                described,
+                described.clone(),
             );
             assert_eq!(
                 format!("{:?}", super::of_merge(worded)),
-                format!("{:?}", super::of_describe(described)),
+                format!("{:?}", super::of_describe(described.clone())),
                 "{described:?} passes through as the boolean's own"
             );
+        }
+    }
+
+    /// **An attachment refusal at the describe pass tells its own
+    /// story**: a residual against one of the edge's faces read in band
+    /// (the near-tangent census's 12 witnesses, `sweep`'s
+    /// `near_tangent_pierce_poses`) is the input's, ending in the
+    /// lever and naming the edge and the surface; a definite miss, or
+    /// any other refusal, is the kernel's, carrying the edge, the check,
+    /// the sample and the miss. Both doors word each the same way.
+    #[test]
+    fn a_describe_refusal_carries_its_certification() {
+        use crate::euler::EulerOpError;
+        use crate::merge_faces::EdgeDescribeFailure;
+        use geom_brep::{CertCheck, CertifyError};
+        let band = geom_core::Band::linear(Tol::witness()).unwrap();
+        let (edge, surface) = (
+            crate::entity::EdgeKey::default(),
+            crate::geometry::SurfaceKey::default(),
+        );
+        let in_band = geom_core::Indeterminate {
+            margin: geom_core::MarginDiag::value(band.zero() * (1.0 + 5e-8)),
+            band,
+            predicate: Some("carrier_on_surface_2"),
+            terminal_sliver: false,
+        };
+        let certification = |error| EulerOpError::Certification { error };
+        let escalated = |check| {
+            certification(CertifyError::Escalated {
+                check,
+                sample: 8,
+                cause: in_band,
+            })
+        };
+        let said = |cause| {
+            let refusal = super::of_attachment(edge, EdgeDescribeFailure::Intersection, cause);
+            let merged = crate::merge_faces::MergeCoplanarError::of_kept_boundary(
+                &[(crate::entity::FaceKey::default(), edge)],
+                refusal.clone(),
+            );
+            let own = super::of_describe(refusal);
+            assert_eq!(
+                format!("{:?}", super::of_merge(merged)),
+                format!("{own:?}"),
+                "the merge door's refusal comes back as the boolean's own"
+            );
+            own
+        };
+        for check in [
+            CertCheck::SurfaceResidual { surface },
+            CertCheck::WitnessSurfaceResidual { surface },
+        ] {
+            let err = said(escalated(check));
+            assert!(
+                matches!(
+                    err,
+                    BooleanError::Escalated {
+                        decision: BooleanDecision::EdgeOnFaces { edge: e, surface: s },
+                        diag,
+                    } if (e, s) == (edge, surface) && diag == in_band
+                ),
+                "{check:?} read in band is the edge's reading against its face: {err:?}"
+            );
+            assert_eq!(
+                err.to_string(),
+                format!(
+                    "whether an edge of the result lies on both faces it bounds is undecided: {}. \
+                     Recourse: move the parts so each edge and vertex of one that meets a face of \
+                     the other lies clearly on that face or clearly off it",
+                    in_band.payload()
+                ),
+                "{check:?}: the decision's one sentence, ending in the lever alone"
+            );
+        }
+        let definite = definite_miss(band, surface);
+        let in_band_transversality = escalated(CertCheck::Transversality);
+        for cause in [definite, in_band_transversality] {
+            let err = said(cause.clone());
+            assert_eq!(
+                err.to_string(),
+                format!(
+                    "edge {edge:?} of the result cannot be described against the two faces it \
+                     lies between: its two faces' intersection does not certify on its curve \
+                     ({}). {}",
+                    crate::merge_faces::refusal_payload(&cause),
+                    geom_core::KERNEL_DEFECT_ENDING
+                ),
+                "{cause:?} is the kernel's, and carries the gate's payload"
+            );
+        }
+        assert_eq!(
+            crate::merge_faces::refusal_payload(&escalated(CertCheck::SurfaceResidual { surface })),
+            format!(
+                "the residual against one of the edge's surfaces at sample 8 escalated: {}, read \
+                 against surface {surface:?}",
+                in_band.payload()
+            ),
+            "the payload names the check, the sample and the surface, and quotes the margin"
+        );
+        assert!(
+            crate::merge_faces::refusal_payload(&definite_miss(band, surface)).ends_with(&format!(
+                ", read against surface {surface:?}, missing by {}",
+                geom_core::MarginDiag::value(3.0 * band.escalate())
+            )),
+            "a definite miss quotes the miss"
+        );
+    }
+
+    /// A definite miss of a carrier against `surface` at the end sample.
+    fn definite_miss(
+        band: geom_core::Band,
+        surface: crate::geometry::SurfaceKey,
+    ) -> crate::euler::EulerOpError {
+        crate::euler::EulerOpError::Certification {
+            error: geom_brep::CertifyError::ResidualExceeded {
+                check: geom_brep::CertCheck::SurfaceResidual { surface },
+                sample: 8,
+                margin: geom_core::MarginDiag::value(3.0 * band.escalate()),
+            },
         }
     }
 

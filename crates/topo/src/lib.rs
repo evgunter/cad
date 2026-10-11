@@ -597,6 +597,7 @@ pub mod test_support {
         match d {
             crate::BooleanDecision::Coincidence(which, _) => format!("Coincidence({which:?})"),
             crate::BooleanDecision::ShellRole { .. } => "ShellRole".to_owned(),
+            crate::BooleanDecision::EdgeOnFaces { .. } => "EdgeOnFaces".to_owned(),
             other => format!("{other:?}"),
         }
     }

@@ -17,21 +17,28 @@
 //!   `pierce_germ_dir`): the germ along a bound read On lies a definite
 //!   angle outside the sector at its arm, so neither ray read within.
 //!   The ray is the transition's own, and [`GERM_WITNESSES`] build.
+//! - **A section edge read in band of a face it bounds**
+//!   (`boolean/ops.rs` `describe_edges`): the cube's near face lies
+//!   `d` rad off the prism's vertical edge, so at `|d| = ε` the edge's
+//!   far vertex reads on the face at the zero band's edge, and the
+//!   section edge ending there reads its carrier's residual against the
+//!   face just in band. That is the input's, refused typed
+//!   ([`EDGE_ON_FACES`]), never a desync.
 //!
 //! [`NtPrism::near_normal`]: crate::common::differential::NtPrism::near_normal
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{KERNEL_DEFECT_ENDING, Tol};
-use topo::{BooleanError, BooleanResult, ValidationError};
+use topo::{BooleanDecision, BooleanError, BooleanErrorKind, BooleanResult, ValidationError};
 
 use crate::common::differential::{nt_cube, nt_prisms};
 
 /// `(prism, edge, sixteenths, tilt)`: the census's `"{prism} nt e{edge}
 /// a{sixteenths} d{tilt}"`, each beside the site it refused at and the
 /// ε row: `germ` the pierce germ, `coplanar` the coplanar lump, `recl`
-/// the ON sector pair.
-const POSES: [(&str, usize, u32, f64); 28] = [
+/// the ON sector pair, `describe` the minted edges' description.
+const POSES: [(&str, usize, u32, f64); 32] = [
     ("Lbot", 0, 12, -1e-9),    // germ, ε = 1e-9
     ("Lmirror", 0, 12, -1e-9), // germ, ε = 1e-9
     ("Ltop", 0, 12, -1e-9),    // germ, ε = 1e-9
@@ -60,6 +67,10 @@ const POSES: [(&str, usize, u32, f64); 28] = [
     ("w60", 1, 11, -1e-7),     // recl, ε = 1e-12
     ("convex", 0, 4, 1e-5),    // recl, ε = 1e-9
     ("Ltop", 0, 12, 1e-9),     // germ, ε = 1e-9
+    ("Ltop", 2, 13, -1e-9),    // describe, ε = 1e-9
+    ("Lbot", 2, 9, 1e-9),      // describe, ε = 1e-9
+    ("Lmirror", 2, 9, -1e-9),  // describe, ε = 1e-9
+    ("asym", 2, 13, -1e-9),    // describe, ε = 1e-9
 ];
 
 /// `(prism, edge, sixteenths, tilt, run)` at ε = 1e-12: the runs that
@@ -128,6 +139,42 @@ const GERM_WITNESSES: [(&str, usize, u32, f64); 5] = [
     ("Lbot", 0, 12, -1e-6),
 ];
 
+/// The census's poses whose section edge, minted from the prism's
+/// vertical edge's far vertex across its bottom or top face, ends at
+/// a vertex `|d|` m off the cube's near face, read on it at the zero
+/// band's edge; the carrier's residual there reads ~5e-17 m past it.
+/// `(prism, edge, sixteenths, tilt, runs refusing in band at ε = 1e-9)`.
+const EDGE_ON_FACES: [(&str, usize, u32, f64, [&str; 3]); 4] = [
+    (
+        "Ltop",
+        2,
+        13,
+        -1e-9,
+        ["prism ∪ cube", "prism ∖ cube", "cube ∩ prism"],
+    ),
+    (
+        "Lbot",
+        2,
+        9,
+        1e-9,
+        ["prism ∩ cube", "cube ∪ prism", "cube ∖ prism"],
+    ),
+    (
+        "Lmirror",
+        2,
+        9,
+        -1e-9,
+        ["prism ∪ cube", "prism ∖ cube", "cube ∩ prism"],
+    ),
+    (
+        "asym",
+        2,
+        13,
+        -1e-9,
+        ["prism ∪ cube", "prism ∖ cube", "cube ∩ prism"],
+    ),
+];
+
 /// A pose, one of its runs, and the findings that run ships.
 type Shipped = (
     &'static str,
@@ -143,7 +190,8 @@ type Run = (&'static str, Result<BooleanResult<f64>, BooleanError>, f64);
 
 /// A pose's six runs, every op in both orders, against the clipping
 /// oracle's closed forms: what is wrong with them, and how many built.
-/// A refusal is wrong where it is a kernel defect. A built body is
+/// A refusal is wrong where it is a kernel defect, a lockstep desync
+/// among them. A built body is
 /// wrong off its closed form by more than ε over its area, or failing
 /// tier 3′ on more than an in-band census escalation, unless it ships
 /// what [`SHIPS_A_FINDING`] pins at ε = 1e-12. An empty result is wrong
@@ -197,8 +245,10 @@ fn check_pose((name, edge, a, d): (&str, usize, u32, f64), tol: Tol) -> (Vec<Str
             .map(|&(.., findings)| findings);
         let bb = match &r {
             Err(e) => {
-                if matches!(e, BooleanError::ClassificationInvariant { .. })
-                    || e.to_string().ends_with(KERNEL_DEFECT_ENDING)
+                if matches!(
+                    e.kind(),
+                    BooleanErrorKind::ClassificationInvariant | BooleanErrorKind::JoinDesync
+                ) || e.to_string().ends_with(KERNEL_DEFECT_ENDING)
                 {
                     wrong.push(format!("{tag}: a kernel defect: {e:?}"));
                 }
@@ -275,4 +325,61 @@ fn the_pierce_germs_witnesses_build_every_run() {
             wrong.join("\n")
         );
     }
+}
+
+/// **A section edge read in band of its face refuses as the input's**:
+/// at ε = 1e-9 each [`EDGE_ON_FACES`] pose's named runs refuse
+/// `Escalated` on [`BooleanDecision::EdgeOnFaces`] with the lever, and
+/// its other runs do not refuse it; at ε = 1e-6 and 1e-12 the vertex
+/// reads clearly on or off the face and no run refuses it.
+#[test]
+fn a_section_edge_read_in_band_of_its_face_refuses_typed() {
+    let tol = Tol::witness();
+    let at = |e: f64| (tol.eps() - e).abs() < e * 1e-9;
+    if !(at(1e-9) || at(1e-6) || at(1e-12)) {
+        println!("SKIPPED at this ε: the census measured the in-band runs at 1e-9, 1e-6 and 1e-12");
+        return;
+    }
+    let prisms = nt_prisms();
+    let mut wrong = Vec::new();
+    for (name, edge, a, d, want) in EDGE_ON_FACES {
+        let pr = prisms.iter().find(|p| p.name == name).unwrap();
+        let body = pr.body(tol);
+        let cube = nt_cube(pr.v, pr.near_normal(edge, a, d), tol);
+        let runs = [
+            ("prism ∪ cube", topo::union(&body, &cube, tol)),
+            ("cube ∪ prism", topo::union(&cube, &body, tol)),
+            ("prism ∩ cube", topo::intersect(&body, &cube, tol)),
+            ("cube ∩ prism", topo::intersect(&cube, &body, tol)),
+            ("prism ∖ cube", topo::subtract(&body, &cube, tol)),
+            ("cube ∖ prism", topo::subtract(&cube, &body, tol)),
+        ];
+        for (op, r) in runs {
+            let in_band = match &r {
+                Err(
+                    e @ BooleanError::Escalated {
+                        decision: BooleanDecision::EdgeOnFaces { .. },
+                        ..
+                    },
+                ) => {
+                    let text = e.to_string();
+                    if !text.ends_with(
+                        "Recourse: move the parts so each edge and vertex of one that meets a \
+                         face of the other lies clearly on that face or clearly off it",
+                    ) {
+                        wrong.push(format!("{name} {op}: ends otherwise: {text}"));
+                    }
+                    true
+                }
+                _ => false,
+            };
+            if in_band != (at(1e-9) && want.contains(&op)) {
+                wrong.push(format!(
+                    "{name} nt e{edge} a{a} d{d:e}, {op}: in band {in_band}: {:?}",
+                    r.err()
+                ));
+            }
+        }
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
