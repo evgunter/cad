@@ -110,6 +110,7 @@ pub use assembly::{
     CarriedDeclarations, CarriedRefusal, CarriedUnplaced, MintRefusal, MintedDeclaration,
     RefusedRef, Relation, Route, assemble, assemble_gathered,
 };
+pub use checks::at_rest::{CopyRef, FaceSite, InterferenceFinding, Overlap, Unlocalized};
 pub use checks::{
     Advisory, ChartCoherenceLane, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal,
     ChecksConfig, ChecksError, ChecksReport, FindingSubject, Severity, Subject, enforce_checks,
@@ -164,8 +165,8 @@ pub use mate::{
     MatePrimitive, MateReach, MateRole, MateSide, Member, NO_AT_REST_RECORD_RECOURSE,
     OFFSET_RECOURSE, OffsetCheck, PlacerRow, Placing, PoseRefusal, PoseSymmetry, ReachRefusal,
     RefusingReach, SolvedPoses, Space, Subgroup, SubgroupFamily, UNDER_RECOURSE, UNPLACED_RECOURSE,
-    Unplaced, class_admission, gauge_chain, groups, head_face, member_of, member_reading, places,
-    reading_edges, relative_freedom_components, root_of, solve_document, table_gap,
+    Unplaced, class_admission, gauge_chain, groups, head_face, head_of, member_of, member_reading,
+    places, relative_freedom_components, root_of, solve_document, table_gap,
 };
 pub use mc::{
     DEFAULT_SAMPLES, DEFAULT_SEED, McAssertion, McConfig, McMeasure, McRefusal, McReport, McValue,
@@ -193,12 +194,12 @@ pub use names::{
     vertex_position,
 };
 pub use node::{
-    AuthoredNode, Axis3, BooleanOp, CountMismatch, Datum, DeclaredPair, ExtrudeSide, InputFault,
+    AuthoredNode, Axis3, CountMismatch, Datum, DeclaredPair, ExtrudeSide, InputFault,
     InterfaceCrossing, InterfaceRecord, ListFault, Node, OutputPort, PartSelect, PatternKind,
     PlacementRuleFault, PortKind, RecipeNodeId, RigidArg, SitedFace, SitedRef, SlotId, StepArg,
     StepId, TubeWindow, VectorSlot, declare_continuation, declare_rest,
 };
-pub use operand::{Operand, OperandSlot, SlotKind};
+pub use operand::{Bodies, BodyRead, Operand, OperandSlot, SlotKind};
 pub use parse::{ParseError, VarNameFault, VarNameReason, parse_formula};
 pub use part::{PartResolver, ResolveFailure, ResolveFault};
 pub use persist::{
@@ -233,9 +234,9 @@ pub use resolve::{
     NodeVerdictDelta, PredicateDivergence, RecipeEditRef, Resolution, ResolutionFailure,
     ResolveError, ResolveIndeterminate, Resolved, RunCtx, RunStatus, TieWitness, Tombstone,
     UnnamedEntity, UpstreamCause, VerdictFlip, appearance_rebind_suggestions, apply_with_names,
-    body_name, derivation_nodes, diff_verdicts, edge_name, enrich_appearance_loss,
-    enrich_appearance_loss_with_prior, entity_name, face_name, rebind_suggestions, resolve,
-    resolve_with_prior, vertex_name,
+    body_name, derivation_nodes, derivation_reads, diff_verdicts, edge_name,
+    enrich_appearance_loss, enrich_appearance_loss_with_prior, entity_name, face_name,
+    rebind_suggestions, resolve, resolve_with_prior, vertex_name,
 };
 pub use resolve::{
     NodeVerdicts, SummaryDelta, SummaryDivergence, SummaryFlip, SummaryFlipSet, VerdictRow,

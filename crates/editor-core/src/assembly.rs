@@ -70,7 +70,7 @@
 use std::sync::Arc;
 
 use geom_core::Decide;
-use topo::{AtRestPolicy, ContactRecords, FaceKey, PatchContact, ValidationError};
+use topo::{ContactRecords, FaceKey, PatchContact, ValidationError};
 
 use crate::doc::Doc;
 use crate::eval::{Evaluation, ValuePayload};
@@ -478,62 +478,24 @@ pub struct Assembly<T: Decide> {
     /// declarations too, and without these rows a certified assembly
     /// could not say which inner mates its verdict answered for.
     pub carried: Vec<CarriedDeclaration>,
+    /// Every overlap between two copies' material, in the world and in
+    /// each unplaced group's own space, in the census's order (D10):
+    /// reported, quiet or loud, and never a refusal
+    /// ([`crate::checks::at_rest`]).
+    pub interference: Vec<crate::checks::at_rest::InterferenceFinding>,
 }
 
-/// Why a mate reference did not resolve to a product face.
+/// Why a mate side did not resolve to one product face.
 ///
-/// The gate reads the name where the mate reads it — in the table of
-/// the OPERAND, the node the reference is read at — and carries it up
-/// the operand's consumers to the product's roots, each consumer
-/// spelling it as it carries it (`names::lift`). Each arm is one way
-/// that carry fails to end on exactly one product face.
-///
-/// `Vanished` and `Ambiguous` are the silence and the tie every name
-/// lookup refuses with (`ResolveError` spells them for a boolean's
-/// declared names). The subject here is the operand's table and the
-/// tables above it, not a boolean operand's.
+/// The face itself is resolved at the side's selection, which the
+/// mate's evaluation reads, so a name that does not resolve is the
+/// mate's own refusal, never this gate's. What is left here is the
+/// copy: a declaration names one pair of faces, and a body placed more
+/// than once has a face on each copy.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RefusedRef {
-    /// No single face carries the name to the product.
-    ///
-    /// `by: None` is a name nothing answers to where the mate reads it:
-    /// the operand's own table is silent. `by: Some(node)` is a name
-    /// the operand spells and `node` consumes on its way up: it merges
-    /// or cuts the face, so its table holds no row under the name — or,
-    /// only where no consumer does that, it reads the body in a seat
-    /// that holds no face of it (a datum, a measure, an axis, a split's
-    /// tool).
-    ///
-    /// It is also the release answer where the product's table holds a
-    /// row whose KEY is not a face under a face name, or holds no row
-    /// for a root's own face. Each is the product's own rule broken
-    /// rather than a document this gate may refuse, so it is asserted
-    /// in debug at the site and answered here with the silence rather
-    /// than given a vocabulary of its own.
-    Vanished {
-        /// The node that consumed the face on its way to the product,
-        /// when the operand spells it.
-        by: Option<RecipeNodeId>,
-    },
-    /// The operand spells the face, but a node above it PLACES it again
-    /// — a transform, a pattern, a placed union — before the product
-    /// holds it, and no other route carries it to the product
-    /// unmoved. The face the mate speaks about is where `at` holds it;
-    /// the product holds it where `by` put it, so the face is picked
-    /// again on `by`.
-    MovedAbove {
-        /// The operand the mate reads at.
-        at: RecipeNodeId,
-        /// The nearest node above `at` that places the face again.
-        by: RecipeNodeId,
-        /// Whether `by` places COPIES — a pattern or a placed union —
-        /// so a face picked on it names which copy.
-        copies: bool,
-    },
-    /// Several product faces answer to it — a tie in the product's
-    /// table, or two routes from the operand to two faces. A mate
-    /// declaration must name ONE face, and a tie is never broken by
-    /// picking.
+    /// Several world placements read the side's body, so several
+    /// product faces answer to it. A tie is never broken by picking.
     Ambiguous {
         /// How many faces answer.
         width: usize,
@@ -799,6 +761,19 @@ pub enum MintRefusal {
         /// terms. Sourced from the table, never restated here.
         why: &'static str,
     },
+    /// The mate has no value in this evaluation, so it declares nothing
+    /// about the product: its own refusal (a side whose selection no
+    /// longer resolves, a fault the solve recorded against it) or one it
+    /// was poisoned by. Raised here rather than passed over, so a mate
+    /// that stops evaluating cannot leave the gate certifying a product
+    /// it no longer speaks for.
+    Unevaluated {
+        /// The mate.
+        mate: RecipeNodeId,
+        /// Why it has no value ([`crate::Evaluation::node_error`] answers
+        /// a failed mate's typed cause).
+        standing: crate::eval::NodeStanding,
+    },
 }
 
 impl MintRefusal {
@@ -806,7 +781,9 @@ impl MintRefusal {
     #[must_use]
     pub fn mate(&self) -> RecipeNodeId {
         match self {
-            Self::Reference { mate, .. } | Self::NoAtRestRecord { mate, .. } => *mate,
+            Self::Reference { mate, .. }
+            | Self::NoAtRestRecord { mate, .. }
+            | Self::Unevaluated { mate, .. } => *mate,
         }
     }
 }
@@ -844,6 +821,12 @@ impl crate::spoken::Say for MintRefusal {
                  not minted with an invented witness — {NO_AT_REST_RECORD_RECOURSE}",
                 by.node_as(*mate, "mate"),
                 class.name()
+            ),
+            Self::Unevaluated { mate, standing } => write!(
+                f,
+                "{} declares nothing about the product, since it has no value: {}",
+                by.node_as(*mate, "mate"),
+                crate::spoken::Said(standing, by.about(*mate))
             ),
         }
     }
@@ -987,34 +970,12 @@ impl crate::spoken::Say for RefusedRef {
     fn say(
         &self,
         f: &mut core::fmt::Formatter<'_>,
-        by: crate::spoken::Speaker<'_>,
+        _by: crate::spoken::Speaker<'_>,
     ) -> core::fmt::Result {
         match self {
-            Self::Vanished { by: None } => {
-                f.write_str("no entity answers to it at the node the mate reads it at")
-            }
-            Self::Vanished { by: Some(node) } => write!(
-                f,
-                "{} consumes it before the product holds it — it merges or cuts the face, \
-                 or holds no face of it — so no one face carries it to the product",
-                by.node(*node)
-            ),
-            Self::MovedAbove {
-                at,
-                by: placer,
-                copies,
-            } => write!(
-                f,
-                "it is read at {}, but {} places it again before the product holds it; \
-                 re-pick the face on {}{}",
-                by.node(*at),
-                by.node(*placer),
-                by.node(*placer),
-                if *copies { ", naming the copy" } else { "" }
-            ),
             Self::Ambiguous { width } => write!(
                 f,
-                "{width} entities answer to it — a mate declaration names ONE face, and \
+                "{width} world copies answer to it — a mate declaration names ONE face, and \
                  a tie is never broken by picking"
             ),
         }
@@ -1173,7 +1134,7 @@ impl core::error::Error for AssemblyError {}
 /// so: a document whose mates declare a cross-instance contact
 /// refuses [`AssemblyError::Uncertified`], which a caller must match
 /// separately from the verdicts against their own document.
-pub fn assemble<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
+pub fn assemble<P: crate::ProfilePayload, T: crate::checks::at_rest::LocalizeLane>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
     tol: Tol,
@@ -1190,7 +1151,11 @@ pub fn assemble<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
                 refusal.kind(),
                 crate::ProductErrorKind::Unplaced | crate::ProductErrorKind::EmptyProduct
             ) {
-                gate_spaces(crate::product::own_spaces(doc, evaluation, tol), tol)?;
+                gate_spaces(
+                    crate::product::own_spaces(doc, evaluation, tol),
+                    tol,
+                    &mut Vec::new(),
+                )?;
             }
             Err(AssemblyError::Product(Box::new(refusal)))
         }
@@ -1201,13 +1166,14 @@ pub fn assemble<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
 /// against nothing outside it (A11 (2)): the gate over each
 /// [`crate::OwnSpace`] in turn, a space whose roots denote no body
 /// holding nothing to check.
-fn gate_spaces<T: Decide + AtRestPolicy>(
+fn gate_spaces<T: crate::checks::at_rest::LocalizeLane>(
     spaces: Vec<crate::OwnSpace<T>>,
     tol: Tol,
+    interference: &mut Vec<crate::checks::at_rest::InterferenceFinding>,
 ) -> Result<(), AssemblyError> {
     for space in spaces {
         match space.gather {
-            Ok(product) => verdict(&product, tol)?,
+            Ok(product) => interference.extend(verdict(&product, tol)?),
             Err(refusal) if refusal.kind().means_no_body() => {}
             Err(refusal) => {
                 return Err(AssemblyError::Space {
@@ -1248,11 +1214,11 @@ fn gate_spaces<T: Decide + AtRestPolicy>(
 /// wrapper's arm: a mate reference that names no product face, a class
 /// with no at-rest record ([`crate::mate::class_admission`]), and the
 /// kernel's tier-3' findings attributed back to their mates.
-pub fn assemble_gathered<T: Decide + AtRestPolicy>(
+pub fn assemble_gathered<T: crate::checks::at_rest::LocalizeLane>(
     product: Product<T>,
     tol: Tol,
 ) -> Result<Assembly<T>, AssemblyError> {
-    verdict(&product, tol)?;
+    let mut interference = verdict(&product, tol)?;
     let Product {
         body,
         names,
@@ -1262,20 +1228,24 @@ pub fn assemble_gathered<T: Decide + AtRestPolicy>(
         spaces,
         ..
     } = product;
-    gate_spaces(spaces, tol)?;
+    gate_spaces(spaces, tol, &mut interference)?;
     Ok(Assembly {
         body: body.into_body(),
         names,
         contacts,
         minted,
         carried,
+        interference,
     })
 }
 
 /// **The gate's verdict over one gathered space** — the world, or one
 /// unplaced group's own ([`gate_spaces`]): the one copy of the gate's
 /// checks, their attributions and their refusal order.
-fn verdict<T: Decide + AtRestPolicy>(product: &Product<T>, tol: Tol) -> Result<(), AssemblyError> {
+fn verdict<T: crate::checks::at_rest::LocalizeLane>(
+    product: &Product<T>,
+    tol: Tol,
+) -> Result<Vec<crate::checks::at_rest::InterferenceFinding>, AssemblyError> {
     // Inner mint health, before this document's own: an outer assembly
     // is unusable while an inner part is broken, and the file the
     // author must open is the inner one. Verification still runs once
@@ -1307,7 +1277,13 @@ fn verdict<T: Decide + AtRestPolicy>(product: &Product<T>, tol: Tol) -> Result<(
         .unwrap_or_default();
     errors.extend(product.refused_at_rest.iter().cloned());
     if errors.is_empty() {
-        return Ok(());
+        return Ok(Vec::new());
+    }
+    // An overlap between two copies is a finding, never a refusal
+    // (D10); what is left is refused as it always was.
+    let (interference, errors) = crate::checks::at_rest::partition(product, errors, tol);
+    if errors.is_empty() {
+        return Ok(interference);
     }
     let findings: Vec<AtRestFinding> = errors
         .into_iter()
@@ -1340,7 +1316,7 @@ fn verdict<T: Decide + AtRestPolicy>(product: &Product<T>, tol: Tol) -> Result<(
 
 /// **Declaration minting** (D-2): each live mate's declaration, in
 /// DOCUMENT ORDER, appended to `contacts` as the kernel's own record
-/// type and keyed to the placed faces its references resolve to.
+/// type and keyed to the faces of its members' WORLD COPIES.
 ///
 /// INVARIANT: a mate's ROLE does not enter. A determining mate and a
 /// declaring one mint the same record, because minting is the act of
@@ -1348,10 +1324,22 @@ fn verdict<T: Decide + AtRestPolicy>(product: &Product<T>, tol: Tol) -> Result<(
 /// (Verification is the caller's next line, and it too is
 /// role-blind.)
 ///
-/// A mate whose node failed or never ran mints nothing: the gather
-/// already refused the document in that case, so reaching here means
-/// every root evaluated, and a mate value that is absent is a node
-/// that is not live.
+/// A mate that is not a live value of this evaluation mints nothing and
+/// yields a [`MintRefusal::Unevaluated`] row: a side whose selection
+/// does not resolve, or a solve that faulted it, is the mate's own
+/// refusal, and a mate that speaks for nothing is not let pass. A mate
+/// one of whose sides reads a body nothing places is asked nothing
+/// here, live or not: it is no statement about the product.
+///
+/// **A mate mints on the copies of what it reads** (#4220): each side's
+/// face is the selection's entity, and the copy is the world placement
+/// reading the selection's body, whose own value holds that entity
+/// under the same key (a placement moves a body and re-mints nothing);
+/// `copies` is the graft bridge from each placement's copy to the
+/// product. A side whose body no placement reads has no world copy, so
+/// the mate mints nothing: such a mate relates, say, a boolean's
+/// operands in the workbench, which is the boolean's coincidence door's
+/// business, not an at-rest fact of the product.
 ///
 /// **Total over the document's live mates**: a mate this cannot mint
 /// yields a [`MintRefusal`] row and the walk CONTINUES, so the record
@@ -1359,10 +1347,11 @@ fn verdict<T: Decide + AtRestPolicy>(product: &Product<T>, tol: Tol) -> Result<(
 /// prefix before its first bad one. The refusals ride back in document
 /// order for [`assemble`] to raise — one implementation of what a mate
 /// declares, and one of what it costs when it cannot.
-pub(crate) fn mint<P: crate::ProfilePayload, T: Decide>(
+pub(crate) fn mint<'k, P: crate::ProfilePayload, T: Decide>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
-    (names, body): (&NameTable, &topo::Body<T>),
+    copies: &dyn Fn(RecipeNodeId) -> Option<&'k topo::GraftKeys>,
+    body: &topo::Body<T>,
     at_rest: &mut AtRestRows,
     space: crate::mate::Space,
     band: Result<geom_core::Band, geom_core::BandError>,
@@ -1370,38 +1359,57 @@ pub(crate) fn mint<P: crate::ProfilePayload, T: Decide>(
     let mut minted = Vec::new();
     let mut unminted = Vec::new();
     // The space a member lives in: its instance's.
-    let space_of = |r: &crate::node::SitedFace| {
-        crate::mate::member_of(doc, r).map(|m| evaluation.space(m.instance))
+    let space_of = |head: &Option<SitedFace>| {
+        let member = crate::mate::member_of(doc, head.as_ref()?)?;
+        Some(evaluation.space(member.instance))
     };
     for id in doc.ids() {
         let Some(Node::Mate { a, b, class, .. }) = doc.node(id) else {
             continue;
         };
+        let (head_a, head_b) = (
+            crate::mate::member::head_of(doc, *a),
+            crate::mate::member::head_of(doc, *b),
+        );
         // Only a mate whose two members live in the gathered space
         // states anything about it (A9): a mate across spaces compares
-        // nothing, and one in another space is that space's gather's.
-        // A head that resolves to no member is minted wherever it is
-        // asked, so its refusal is the gather's to raise, in the world.
-        match (space_of(a), space_of(b)) {
-            (Some(sa), Some(sb)) if sa == space && sb == space => {}
-            (None, _) | (_, None) if space == crate::mate::Space::World => {}
-            _ => continue,
-        }
-        // A mate that is not a live value of this evaluation declares
-        // nothing here (see the doc comment).
-        if !evaluation
-            .value(id)
-            .is_some_and(|v| matches!(v.payload, ValuePayload::Mate(_)))
-        {
+        // nothing, and one in another space is that space's gather's. A
+        // side that resolves to no member is asked about wherever it is
+        // asked, so its refusal is raised once, in the world.
+        let in_space = match (space_of(&head_a), space_of(&head_b)) {
+            (Some(sa), Some(sb)) => sa == space && sb == space,
+            _ => space == crate::mate::Space::World,
+        };
+        if !in_space {
             continue;
         }
+        // A side whose body nothing places is no member of the product,
+        // and the mate states nothing there, live or not (spec §7): its
+        // business is the workbench's, and its own refusal is the
+        // evaluation's.
+        if !side_placed(doc, *a) || !side_placed(doc, *b) {
+            continue;
+        }
+        // A mate with no value declares nothing, and says so (see the
+        // doc comment).
+        match evaluation.usable(id) {
+            Ok(value) if matches!(value.payload, ValuePayload::Mate(_)) => {}
+            Ok(_) => unreachable!("a mate evaluates to its role"),
+            Err(standing) => {
+                unminted.push(MintRefusal::Unevaluated { mate: id, standing });
+                continue;
+            }
+        }
+        let (Some(head_a), Some(head_b)) = (head_a, head_b) else {
+            unreachable!("a mate that evaluated reads two faces of live bodies")
+        };
         let (face_a, face_b) = match (
-            resolve_face(doc, evaluation, names, id, MateSide::A, a),
-            resolve_face(doc, evaluation, names, id, MateSide::B, b),
+            copy_face(doc, evaluation, copies, id, MateSide::A, *a, &head_a),
+            copy_face(doc, evaluation, copies, id, MateSide::B, *b, &head_b),
         ) {
             (Ok(Some(face_a)), Ok(Some(face_b))) => (face_a, face_b),
-            // A member no placement is built from is not in the
-            // product: the mate states nothing about it there.
+            // A member no placement reads is not in the product: the
+            // mate states nothing about it there.
             (Ok(None), Ok(_)) | (Ok(_), Ok(None)) => continue,
             // The `a` side answers first when both sides refuse: one
             // mate contributes one row, and which side it names is the
@@ -1436,7 +1444,20 @@ pub(crate) fn mint<P: crate::ProfilePayload, T: Decide>(
                     "a live mate's two references resolved to one face: \
                      the solve door's `SelfMate` refusal was bypassed"
                 );
-                at_rest.decide(id, body, (a, face_a), (b, face_b), band);
+                // Each side's cell is named at the read the side selects
+                // in: its selection's body (D10).
+                let read = |side: &crate::VarId| {
+                    doc.selection(*side)
+                        .map(|select| select.body)
+                        .unwrap_or_else(|| unreachable!("a live mate's side is a selection"))
+                };
+                at_rest.decide(
+                    id,
+                    body,
+                    (&head_a, face_a, read(a)),
+                    (&head_b, face_b, read(b)),
+                    band,
+                );
             }
             other => {
                 unminted.push(MintRefusal::NoAtRestRecord {
@@ -1449,8 +1470,8 @@ pub(crate) fn mint<P: crate::ProfilePayload, T: Decide>(
         }
         minted.push(MintedDeclaration {
             mate: id,
-            a: (*a.name).clone(),
-            b: (*b.name).clone(),
+            a: (*head_a.name).clone(),
+            b: (*head_b.name).clone(),
             class: *class,
             faces: (face_a, face_b),
         });
@@ -1488,8 +1509,8 @@ impl AtRestRows {
         &mut self,
         mate: RecipeNodeId,
         body: &topo::Body<T>,
-        (a, face_a): (&SitedFace, FaceKey),
-        (b, face_b): (&SitedFace, FaceKey),
+        (a, face_a, read_a): (&SitedFace, FaceKey, crate::VarId),
+        (b, face_b, read_b): (&SitedFace, FaceKey, crate::VarId),
         band: Result<geom_core::Band, geom_core::BandError>,
     ) {
         let decided = match band {
@@ -1498,15 +1519,15 @@ impl AtRestRows {
         };
         match decided {
             Ok(row) => {
-                let cell = |r: &SitedFace| crate::coincide::NamedCell::Entity {
-                    input: r.at,
+                let cell = |r: &SitedFace, input| crate::coincide::NamedCell::Entity {
+                    input,
                     name: (*r.name).clone(),
                 };
                 let k = u32::try_from(self.coincidences.len()).unwrap_or(u32::MAX);
                 self.coincidences.push(AtRestRow {
                     mate,
                     row: crate::coincide::NamedCoincidence {
-                        cells: [cell(a), cell(b)],
+                        cells: [cell(a, read_a), cell(b, read_b)],
                         relation: row.relation,
                         site: row.site,
                         margin: row.margin,
@@ -1523,149 +1544,116 @@ impl AtRestRows {
     }
 }
 
-/// One mate reference → the product face it names, `None` where no
-/// world placement reads its operand (the member is not in the
-/// product, so the mate mints nothing there), or the typed refusal. A
-/// tie is never broken by picking a side.
+/// **One mate side → the product face of its member's world copy**:
+/// `None` where no world placement reads the side's body (the member is
+/// not in the product, so the mate mints nothing there), or the typed
+/// refusal. A tie is never broken by picking a copy.
 ///
-/// **The name is read where the mate reads it.** The operand's own
-/// table must spell it, or it refuses [`RefusedRef::Vanished`]. From
-/// there the face is carried up the operand's consumers, each spelling
-/// it as it carries it ([`crate::names::lift`]), to the world
-/// placements, where the product's table — every copy's rows, carried
-/// by the gather — answers with the face. The lift reads the recipe and
-/// each consumer's evaluated table; it evaluates nothing.
+/// The face is resolved ONCE, at the selection, where the mate's own
+/// evaluation already resolved it: its entity in the body the
+/// selection reads. The copy holds that entity under the same key,
+/// because a placement moves its body and re-mints nothing
+/// (`topo::transform_rigid`), and the graft bridge carries it into the
+/// product. Nothing is resolved against the product's table.
 ///
-/// - **Exactly one product face** reached: that face.
-/// - Two or more ([`RefusedRef::Ambiguous`]): a tie in the product's
-///   table, or two routes to two faces.
-/// - None, with a PLACER on a route ([`RefusedRef::MovedAbove`]): the
-///   product holds the face where that node moved it, which is not
-///   where the mate reads it — so a route through a placer never
-///   succeeds.
-/// - None, with a consumer that merged or cut it
-///   ([`RefusedRef::Vanished`] naming it) — and only when no consumer
-///   lost it that way, one that reads it in a seat holding no face of
-///   it (a datum, a measure, an axis, a split's tool).
-///
-/// A placement spells its body's face under itself, so the product
-/// answers to the name the placement's copy carries.
-///
-/// **There is no kind question here.** A head is a [`SitedFace`], so
-/// the name this resolves denotes a face before the lookup runs, and
-/// the only multiplicity left to decide is a tie among faces.
-///
-/// An operand that is not a live value has no table to answer with,
-/// and the gate never asks it: an operand a placement reads that
-/// failed or was poisoned has a failed or poisoned placement above it,
-/// and the gather's first pass refuses the document
-/// (`ProductError::Root`, with the placement's
-/// standing) before any mate is read. Such an operand, and a consumer
-/// with no value, answer as silence here rather than unwrapped.
-fn resolve_face<P: crate::ProfilePayload, T: Decide>(
+/// - **One placement** reads the body, or the `Part` that picks the
+///   entity's copy out of a pattern's bodies: its copy's face.
+/// - **Two or more** ([`RefusedRef::Ambiguous`]): the body is placed
+///   twice, and a declaration names ONE pair of faces.
+fn copy_face<'k, P: crate::ProfilePayload, T: Decide>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
-    names: &NameTable,
+    copies: &dyn Fn(RecipeNodeId) -> Option<&'k topo::GraftKeys>,
     mate: RecipeNodeId,
     side: MateSide,
-    reference: &SitedFace,
+    read: crate::VarId,
+    head: &SitedFace,
 ) -> Result<Option<FaceKey>, MintRefusal> {
-    let refuse = |why| MintRefusal::Reference {
-        mate,
-        side,
-        name: Box::new((*reference.name).clone()),
-        why,
+    let Some(select) = doc.selection(read) else {
+        unreachable!("a live mate's side is a selection: the mate evaluated")
     };
-    let spells = |at: RecipeNodeId, name: &StableName| {
-        evaluation
-            .value(at)
-            .is_some_and(|value| value.name_table.lookup(name).is_some())
+    // The entity the mate's evaluation resolved: a live mate's selection
+    // landed on one face of `head.at`'s table (`eval::wire::select`), and
+    // the ladder's landing is that table's row under the name.
+    let ent = evaluation
+        .value(head.at)
+        .and_then(|value| match value.name_table.lookup(&head.name) {
+            Some(Entry::Unique(ent)) if ent.key.face().is_some() => Some(ent),
+            Some(Entry::Unique(_) | Entry::Tied(_)) | None => None,
+        })
+        .unwrap_or_else(|| {
+            unreachable!(
+                "a live mate's side resolved to one face of its body: the mate's evaluation \
+                 reads the selection"
+            )
+        });
+    let Some(key) = ent.key.face() else {
+        unreachable!("the landing is a face")
     };
-    let at = reference.at;
-    // Placed: some world placement is built from the site — reads it,
-    // or reads a body made from it (a placed boolean over it) — so the
-    // lift below finds its face in the product.
-    let placed = doc
+    // The copies of the side's body: a placement of the body itself, or
+    // of the one copy a `Part` picks from a pattern's bodies — the copy
+    // the entity is in. A `Part` moves nothing and re-mints nothing, so
+    // the copy holds the entity under the same key.
+    let env = doc.var_env::<f64>();
+    let copies_body = |body: crate::VarId| {
+        body == select.body
+            || matches!(
+                doc.operation_of(body).and_then(|at| doc.node(at)),
+                Some(Node::Part {
+                    of,
+                    select: crate::node::PartSelect::Instance(index),
+                }) if *of == select.body
+                    && crate::expr::eval_var_count(*index, &env).ok() == Some(i64::from(ent.body))
+            )
+    };
+    let placements: Vec<RecipeNodeId> = doc
         .placements()
         .into_iter()
-        .any(|p| crate::doc::strict_ancestors(doc, p).contains(&at));
-    if !placed {
-        return Ok(None);
-    }
-    if !spells(at, &reference.name) {
-        return Err(refuse(RefusedRef::Vanished { by: None }));
-    }
-    let mut faces: Vec<FaceKey> = Vec::new();
-    let mut moved: Vec<RecipeNodeId> = Vec::new();
-    let mut lost: Vec<RecipeNodeId> = Vec::new();
-    let mut dropped: Vec<RecipeNodeId> = Vec::new();
-    let mut seen: Vec<(RecipeNodeId, StableName)> = Vec::new();
-    let mut frontier = std::collections::VecDeque::from([(at, (*reference.name).clone())]);
-    while let Some((node, name)) = frontier.pop_front() {
-        if seen.contains(&(node, name.clone())) {
-            continue;
+        .filter(
+            |&p| matches!(doc.node(p), Some(Node::PlaceInWorld { body, .. }) if copies_body(body.read)),
+        )
+        .collect();
+    let placement = match placements.as_slice() {
+        [] => return Ok(None),
+        [placement] => *placement,
+        several => {
+            return Err(MintRefusal::Reference {
+                mate,
+                side,
+                name: Box::new((*head.name).clone()),
+                why: RefusedRef::Ambiguous {
+                    width: several.len(),
+                },
+            });
         }
-        seen.push((node, name.clone()));
-        if matches!(doc.node(node), Some(Node::PlaceInWorld { .. })) {
-            let row = names.lookup(&name);
-            debug_assert!(
-                row.is_some(),
-                "a placement's face row is absent from the product's table: \
-                 `product::carry_names` carries every face row of every copy"
-            );
-            match row {
-                Some(Entry::Unique(ent)) => {
-                    // A face by the head's type and the table's own
-                    // rule that a row's kind is its name's: a key that
-                    // is not a face here is that rule broken, which is
-                    // this crate's bug and not a document.
-                    debug_assert!(
-                        matches!(ent.key, crate::names::EntityKey::Face(_)),
-                        "the product's table holds a non-face under a face name: \
-                         `NameTable::insert` admits a row only at its name's kind"
-                    );
-                    faces.extend(ent.key.face());
-                }
-                Some(Entry::Tied(ents)) => faces.extend(ents.iter().filter_map(|e| e.key.face())),
-                None => {}
-            }
-            continue;
-        }
-        for consumer in doc.ids() {
-            let Some(consumer_node) = doc.node(consumer) else {
-                continue;
-            };
-            let defined_by = |var| doc.read_operation(var);
-            for step in crate::names::lift(consumer, consumer_node, node, &name, &defined_by) {
-                match step {
-                    crate::names::Lift::Spelled(carried) if spells(consumer, &carried) => {
-                        frontier.push_back((consumer, carried));
-                    }
-                    crate::names::Lift::Spelled(_) => lost.push(consumer),
-                    crate::names::Lift::Dropped => dropped.push(consumer),
-                    crate::names::Lift::Moved => moved.push(consumer),
-                }
-            }
-        }
-    }
-    faces.sort_unstable();
-    faces.dedup();
-    let consumed = lost.first().or(dropped.first());
-    match (faces.as_slice(), moved.first(), consumed) {
-        ([face], _, _) => Ok(Some(*face)),
-        ([], Some(&by), _) => Err(refuse(RefusedRef::MovedAbove {
-            at,
-            by,
-            copies: matches!(
-                doc.node(by),
-                Some(Node::Pattern { .. } | Node::PlacedUnion { .. })
-            ),
-        })),
-        ([], None, by) => Err(refuse(RefusedRef::Vanished { by: by.copied() })),
-        (several, _, _) => Err(refuse(RefusedRef::Ambiguous {
-            width: several.len(),
-        })),
-    }
+    };
+    // A placement whose copy is empty grafted nothing, and one in another
+    // space is not in this gather: either way no product face is its. A
+    // copy that grafted carries every face of its body across the bridge.
+    Ok(copies(placement).map(|keys| {
+        keys.face(key).unwrap_or_else(|| {
+            unreachable!("a grafted copy's bridge carries every face of the body it copies")
+        })
+    }))
+}
+
+/// **Whether anything places the body a mate side reads**: a placement
+/// of the body, or of a `Part` picking one of its copies. Which copy is
+/// [`copy_face`]'s question, asked only of a live mate. A side that is
+/// no selection at all is not answered here: the mate is refused as the
+/// evaluation refused it.
+fn side_placed<P: crate::ProfilePayload>(doc: &Doc<P>, read: crate::VarId) -> bool {
+    let Some(select) = doc.selection(read) else {
+        return true;
+    };
+    doc.placements().into_iter().any(|p| {
+        matches!(doc.node(p), Some(Node::PlaceInWorld { body, .. })
+        if body.read == select.body
+            || matches!(
+                doc.operation_of(body.read).and_then(|at| doc.node(at)),
+                Some(Node::Part { of, .. }) if *of == select.body
+            ))
+    })
 }
 
 /// **What a kernel finding says about what was minted** — which
@@ -1862,7 +1850,9 @@ fn attribute(
         // over face keys can match. `InstanceInterference` is that
         // arm's decided verdict — two solids and a vertex, a statement
         // about placement that no contact record makes and no mate
-        // answers for (recorded gate-skips do not exist).
+        // answers for. Between two copies the gate takes it out first
+        // (`checks::at_rest::partition`), so what reaches here is an
+        // overlap inside one copy's body.
         ValidationError::UndeclaredContact { .. }
         | ValidationError::StaleContactDeclaration {
             declaration:

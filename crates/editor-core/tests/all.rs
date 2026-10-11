@@ -118,6 +118,12 @@ mod coincidence_door;
 mod declared_pairs_payload;
 #[path = "display_contract.rs"]
 mod display_contract;
+#[path = "dm3_indexed_read.rs"]
+mod dm3_indexed_read;
+#[path = "dm4_migration_one_shot.rs"]
+mod dm4_migration_one_shot;
+#[path = "dm4_reads_key_booleans.rs"]
+mod dm4_reads_key_booleans;
 #[path = "dm7_delete_strands.rs"]
 mod dm7_delete_strands;
 #[path = "docm1_face_frame.rs"]
@@ -769,12 +775,18 @@ mod intent_s2_c_world;
 mod intent_s2_d_measure;
 #[path = "intent_s2_e_select.rs"]
 mod intent_s2_e_select;
+#[path = "intent_s2_f_mates.rs"]
+mod intent_s2_f_mates;
 #[path = "intent_s5_a_relation.rs"]
 mod intent_s5_a_relation;
+#[path = "intent_s5_b_interference.rs"]
+mod intent_s5_b_interference;
 #[path = "intent_vars_2_table.rs"]
 mod intent_vars_2_table;
 #[path = "intent_vars_3_readers.rs"]
 mod intent_vars_3_readers;
+#[path = "review_s5b_r2_probes.rs"]
+mod review_s5b_r2_probes;
 #[path = "run_wall_offers.rs"]
 mod run_wall_offers;
 #[path = "union_member_orders_decide_alike.rs"]

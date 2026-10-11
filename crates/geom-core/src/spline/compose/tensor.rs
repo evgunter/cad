@@ -139,7 +139,7 @@ use super::{
     BernsteinSpans, ComposeError, CurveCertData, bern_mul_row, binom_row, to_bezier_spans_extra,
 };
 use crate::interval::certification::Certification;
-use crate::interval::{Interval, div_up, max_bound, norm_sup};
+use crate::interval::{Interval, div_up, max_bound, norm_sq, norm_sup};
 use crate::real::Bounds;
 
 // ---------------------------------------------------------------------
@@ -237,6 +237,7 @@ impl<'a> SurfaceCertData<'a> {
 pub struct SurfaceResidual {
     breaks: Vec<f64>,
     spans: Vec<f64>,
+    values: Vec<Interval>,
 }
 
 impl SurfaceResidual {
@@ -261,6 +262,15 @@ impl SurfaceResidual {
             .copied()
             .reduce(max_bound)
             .unwrap_or(f64::NAN)
+    }
+
+    /// Certified enclosures of `|S(P(t)) − C(t)|` in meters AT the
+    /// breaks, one per entry of [`Self::breaks`]: the composite's end
+    /// coefficients there, which a Bernstein row interpolates, hulled
+    /// over the cells the span touches. Refused where the composition
+    /// is.
+    pub fn break_values(&self) -> &[Interval] {
+        &self.values
     }
 }
 
@@ -400,18 +410,37 @@ struct SpanRows<'a> {
     wc: &'a [Interval],
 }
 
-/// The residual bound of one `t`-span against one surface cell: the
+/// One `t`-span's residual against one surface cell: the bound over the
+/// span and the value at each of its ends.
+struct CellResidual {
+    /// [`coefficient_norm_bound`] of the composite; `NaN` wherever
+    /// interval arithmetic refuses (budget, a denominator that is not
+    /// one-signed).
+    bound: f64,
+    /// Enclosures of `|N/D|` at the span's start and end, read off the
+    /// end coefficients a Bernstein row interpolates.
+    ends: [Interval; 2],
+}
+
+/// The residual of one `t`-span against one surface cell: the
 /// module-docs composition, the difference formed at the coefficient
-/// level, then [`coefficient_norm_bound`]. `NaN` wherever interval
-/// arithmetic refuses (budget, a denominator that is not one-signed).
-fn cell_residual(surf: &[&TensorSpans; 4], su: usize, sv: usize, rows: &SpanRows<'_>) -> f64 {
+/// level, then its bound and its end values.
+fn cell_residual(
+    surf: &[&TensorSpans; 4],
+    su: usize,
+    sv: usize,
+    rows: &SpanRows<'_>,
+) -> CellResidual {
     let (mu, mv) = (surf[0].deg_u, surf[0].deg_v);
     // The one budget case the automatic NaN row cannot reach: a
     // degree-0 curve pair composes to degree-0 rows whose binomials
     // never overflow, while `C(m_u,i)·C(m_v,j)` still could. Refuse
     // explicitly rather than round silently.
     if mu + mv > super::BINOM_EXACT_MAX {
-        return f64::NAN;
+        return CellResidual {
+            bound: f64::NAN,
+            ends: [Interval::refused(); 2],
+        };
     }
     let (ua, ub) = (surf[0].breaks_u[su], surf[0].breaks_u[su + 1]);
     let (va, vb) = (surf[0].breaks_v[sv], surf[0].breaks_v[sv + 1]);
@@ -451,7 +480,14 @@ fn cell_residual(surf: &[&TensorSpans; 4], su: usize, sv: usize, rows: &SpanRows
             &bern_mul_row(rows.ac[d], &n[3]),
         )
     });
-    coefficient_norm_bound([&num[0], &num[1], &num[2]], &den)
+    let end = |k: usize| -> Interval {
+        let q: [Interval; 3] = core::array::from_fn(|d| num[d][k] / den[k]);
+        norm_sq(&q).sqrt()
+    };
+    CellResidual {
+        bound: coefficient_norm_bound([&num[0], &num[1], &num[2]], &den),
+        ends: [end(0), end(den.len() - 1)],
+    }
 }
 
 /// A certified upper bound on `|N(t)/D(t)|` over the span, for the
@@ -656,6 +692,10 @@ pub fn surface_curve_residual(
     // and the largest bound across cells (ascending, D9).
     let breaks = pu.breaks.clone();
     let mut spans: Vec<f64> = Vec::with_capacity(breaks.len() - 1);
+    // Each span's end values, hulled over the cells it touches: the cell
+    // serving the curve at an end is one of them, and the others' values
+    // only widen the hull.
+    let mut ends: Vec<[Interval; 2]> = Vec::with_capacity(breaks.len() - 1);
     for s in 0..breaks.len() - 1 {
         let rows = SpanRows {
             u: &pu.spans[s],
@@ -670,6 +710,7 @@ pub fn surface_curve_residual(
             ParamRange::certified(row_hull(rows.v) / wden),
         ) else {
             spans.push(f64::NAN);
+            ends.push([Interval::refused(); 2]);
             continue;
         };
         // Located in the SAME break arrays `cell_residual` indexes
@@ -684,14 +725,29 @@ pub fn surface_curve_residual(
         let (v0, v1) = cells_touched(&surf[0].breaks_v, wv);
         // `cells_touched` always returns at least one cell.
         let cells = (u0..=u1).flat_map(|su| (v0..=v1).map(move |sv| (su, sv)));
-        spans.push(
-            cells
-                .map(|(su, sv)| cell_residual(&surf, su, sv, &rows))
-                .reduce(max_bound)
-                .unwrap_or(f64::NAN),
-        );
+        let mut bound = f64::NAN;
+        let mut at = [Interval::refused(); 2];
+        for (n, (su, sv)) in cells.enumerate() {
+            let cell = cell_residual(&surf, su, sv, &rows);
+            if n == 0 {
+                (bound, at) = (cell.bound, cell.ends);
+            } else {
+                bound = max_bound(bound, cell.bound);
+                at = core::array::from_fn(|e| Interval::hull(at[e], cell.ends[e]));
+            }
+        }
+        spans.push(bound);
+        ends.push(at);
     }
-    Ok(SurfaceResidual { breaks, spans })
+    // A break's value is read off the span it starts, the last break's
+    // off the last span's end.
+    let mut values: Vec<Interval> = ends.iter().map(|e| e[0]).collect();
+    values.push(ends.last().map_or(Interval::refused(), |e| e[1]));
+    Ok(SurfaceResidual {
+        breaks,
+        spans,
+        values,
+    })
 }
 
 #[cfg(test)]

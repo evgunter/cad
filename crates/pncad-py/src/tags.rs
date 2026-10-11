@@ -137,7 +137,8 @@ use pncad::document::{
     NodeErrorClass, NodeErrorKind, NodeStanding, OffsetCheck, ParseError, PersistError,
     PiecesFault, PlacementRuleFault, ProgramFault, ProgramRefusal, ReachRefusal,
     RecordedProgramError, RefusedRef, Relation, ResolveFault, ShellClassifyError, SlotId,
-    SnapshotError, SplitError, StepHandleRefusal, StepIdFault, Subgroup, Unplaced, UpdateError,
+    SnapshotError, SplitError, StepHandleRefusal, StepIdFault, Subgroup, Unlocalized, Unplaced,
+    UpdateError,
 };
 use pncad::geom_core::{
     BandError, BandField, FrameError, FrameInput, FrameVector, OrthoAxis, OrthoFrameError,
@@ -158,8 +159,8 @@ use pncad::sweep::blend::BlendError;
 use pncad::sweep::{ExtrudeError, LoftError, RevolveError, SkinError, TubeError};
 use pncad::topo::splitting::SplitError as SplitOpError;
 use pncad::topo::{
-    BooleanErrorKind, CensusContact, CensusSubject, EntityId, JoinRefusal, RingContact,
-    RingPairContact, ShellError, SplitFinishError, StaleDeclaration, TransformError,
+    BooleanErrorKind, CensusContact, CensusSubject, CrossingSideVerdict, EntityId, JoinRefusal,
+    RingContact, RingPairContact, ShellError, SplitFinishError, StaleDeclaration, TransformError,
     ValidationError,
 };
 use pncad::topo::{CoherenceCondition, Unexaminable};
@@ -310,6 +311,7 @@ pub fn select_refusal_tag(err: &pncad::select::SelectRefusal) -> &'static str {
         R::NotADatum { .. } => "not_a_datum",
         R::DatumHasNoValue(_) => "datum_has_no_value",
         R::NodeHasNoValue(_) => "node_has_no_value",
+        R::NodeHasNoOutput { .. } => "node_has_no_output",
         R::NotALength { .. } => "not_a_length",
         R::PairInBand { .. } => "pair_in_band",
         R::BadValue(_) => "bad_value",
@@ -530,6 +532,7 @@ pub fn slot_id_tag(slot: &SlotId) -> &'static str {
         SlotId::Stations => "stations",
         SlotId::Profile { .. } => "program",
         SlotId::Operand(operand) => operand_slot_tag(operand),
+        SlotId::Index { .. } => "index",
         SlotId::PlacementStep { .. } => "placement_step",
         SlotId::MateFrameStep { .. } => "mate_frame_step",
     }
@@ -550,8 +553,11 @@ pub fn attr_kind_tag(kind: &AttrKind) -> &'static str {
 }
 
 /// The stable tag for an operand slot — the field a node reads an
-/// output through. A loft's section and a union's member are one word
-/// each: the position rides the payload's `index`.
+/// output through. A loft's section and a union's or an intersect's
+/// member are one word each: the position rides the payload's `index`.
+/// A subtract's tool is `cut`, not `tool`, which is a split's plane: a
+/// word names ONE slot, because [`crate::slot_word::slot_from_word`]
+/// reads it back without the node it was refused at.
 pub fn operand_slot_tag(slot: &pncad::document::OperandSlot) -> &'static str {
     use pncad::document::OperandSlot as S;
     match slot {
@@ -564,14 +570,26 @@ pub fn operand_slot_tag(slot: &pncad::document::OperandSlot) -> &'static str {
         S::Selection => "selection",
         S::Open => "open",
         S::Face => "face",
+        S::Side(_) => "side",
         S::Measured(..) => "measured",
         S::Tool => "tool",
-        S::A => "a",
-        S::B => "b",
+        S::From => "from",
+        S::Cut => "cut",
         S::Member(_) => "member",
+        S::Members => "members",
         S::Input => "input",
         S::Of => "of",
         S::Body => "body",
+    }
+}
+
+/// The stable tag for what is wrong with an admitted node's inputs
+/// (`InputFault`).
+pub fn input_fault_tag(fault: &pncad::document::InputFault) -> &'static str {
+    use pncad::document::InputFault as F;
+    match fault {
+        F::IndexedFamily => "indexed_family",
+        F::IndexRank { .. } => "index_rank",
     }
 }
 
@@ -587,19 +605,16 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::ProfileProgramRefused { .. } => "profile_program_refused",
         EditError::UnresolvedInput { .. } => "unresolved_input",
         EditError::WouldCycle { .. } => "would_cycle",
-        // The list-input door's three (DM4/DM5), reached from Python
-        // through `Node.union` and `DocEdit.set_members` — the node
-        // whose members are a list and the edit that rewrites one.
-        EditError::DuplicateInput { .. } => "duplicate_input",
         EditError::SelectionShape { .. } => "selection_shape",
+        EditError::IndexedRead { .. } => "indexed_read",
         EditError::SetMembersOnNonList { .. } => "set_members_on_non_list",
+        EditError::LoftSectionsSpelled { .. } => "loft_sections_spelled",
         EditError::SetDeclareOnNonDeclaring { .. } => "set_declare_on_non_declaring",
         EditError::DeclaredSiteNotAnOperand { .. } => "declared_site_not_an_operand",
         EditError::DeclaredNameNotUpstream { .. } => "declared_name_not_upstream",
         EditError::SetProgramOnNonProfile { .. } => "set_program_on_non_profile",
         EditError::SetExtrudeSideOnNonExtrude { .. } => "set_extrude_side_on_non_extrude",
         EditError::StepIdsRefused { .. } => "step_ids_refused",
-        EditError::TooFewMembers { .. } => "too_few_members",
         // The read doors: a read that resolves to no output, a node
         // named alone that defines two or nothing, and a part over a
         // split reading the other half. A read of a kind its slot does
@@ -1038,8 +1053,6 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         // material, and an instance index outside the pattern's count.
         C::EmptyHalf => "empty_half",
         C::InstanceOutOfRange => "instance_out_of_range",
-        // A union of two members read out of one operation.
-        C::MembersShareAnOperation => "members_share_an_operation",
         C::WitnessBifurcation => "witness_bifurcation",
         // The seam faults stay separable at the tag level:
         // "the pin does not hold" and "the tolerances disagree" are
@@ -1069,6 +1082,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::MateBand => "mate_band",
         C::MateContradictory => "mate_contradictory",
         C::MateUnder => "mate_under",
+        C::MateSideUnresolved => "mate_side_unresolved",
         C::MateDanglingHead => "mate_dangling_head",
         C::MatePlacerRefused => "mate_placer_refused",
         C::MatePartSelectsAnotherCopy => "mate_part_selects_another_copy",
@@ -1165,7 +1179,6 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         // `half` is WHICH side was empty, a value the caller asked
         // for — the payload question, not the fault one.
         NodeErrorKind::EmptyHalf { .. } => None,
-        NodeErrorKind::MembersShareAnOperation { .. } => None,
         NodeErrorKind::InstanceOutOfRange { .. } => None,
         NodeErrorKind::DegenerateDirection { .. } => None,
         NodeErrorKind::NonFiniteDirection { .. } => None,
@@ -1248,9 +1261,10 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::UnknownNode { .. } => None,
         EditError::UnresolvedInput { .. } => None,
         EditError::WouldCycle { .. } => None,
-        EditError::DuplicateInput { .. } => None,
         EditError::SelectionShape { fault, .. } => Some(selection_fault_tag(fault)),
+        EditError::IndexedRead { fault, .. } => Some(input_fault_tag(fault)),
         EditError::SetMembersOnNonList { .. } => None,
+        EditError::LoftSectionsSpelled { .. } => None,
         EditError::SetDeclareOnNonDeclaring { .. } => None,
         EditError::DeclaredSiteNotAnOperand { .. } => None,
         EditError::DeclaredNameNotUpstream { .. } => None,
@@ -1258,7 +1272,6 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::SetExtrudeSideOnNonExtrude { .. } => None,
         // What is wrong with the ids is the arm.
         EditError::StepIdsRefused { fault, .. } => Some(step_id_fault_tag(fault)),
-        EditError::TooFewMembers { .. } => None,
         EditError::OperandUnresolved { .. } => None,
         EditError::AmbiguousOutput { .. } => None,
         EditError::DefinesNothing { .. } => None,
@@ -1990,6 +2003,7 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::NodeNotMinted { .. } => "node_not_minted",
         SnapshotError::StepIds { .. } => "step_ids",
         SnapshotError::MintLogOrder { .. } => "mint_log_order",
+        SnapshotError::NameReadNotMinted { .. } => "name_read_not_minted",
         SnapshotError::NameStepNotMinted { .. } => "name_step_not_minted",
         SnapshotError::DeclaredNameNotUpstream { .. } => "declared_name_not_upstream",
         SnapshotError::OperandUnminted { .. } => "operand_unminted",
@@ -2026,7 +2040,6 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::MateAlignment { .. } => "mate_alignment",
         SnapshotError::PlacementRule { .. } => "placement_rule",
         SnapshotError::InputList { .. } => "input_list",
-        SnapshotError::DuplicateInput { .. } => "duplicate_input",
         SnapshotError::ObservedRead { .. } => "observed_read",
         SnapshotError::AssertionBound { .. } => "assertion_bound",
         SnapshotError::MetadataUnversioned { .. } => "metadata_unversioned",
@@ -2443,8 +2456,6 @@ pub fn binary_header_error_tag(err: &BinaryHeaderError) -> &'static str {
 /// (the assembly gate's `Reference` arm rides one).
 pub fn refused_ref_tag(why: &RefusedRef) -> &'static str {
     match why {
-        RefusedRef::Vanished { .. } => "ref_vanished",
-        RefusedRef::MovedAbove { .. } => "ref_moved_above",
         RefusedRef::Ambiguous { .. } => "ref_ambiguous",
     }
 }
@@ -2486,6 +2497,7 @@ pub fn mint_refusal_tag(refusal: &MintRefusal) -> &'static str {
     match refusal {
         MintRefusal::Reference { .. } => "mate_reference_refused",
         MintRefusal::NoAtRestRecord { .. } => "no_at_rest_record",
+        MintRefusal::Unevaluated { .. } => "mate_unevaluated",
     }
 }
 
@@ -2548,6 +2560,18 @@ pub fn attribution_tag(attribution: &Attribution) -> &'static str {
     }
 }
 
+/// The stable tag for why an interference has no site.
+pub fn unlocalized_tag(why: &Unlocalized) -> &'static str {
+    match why {
+        Unlocalized::Refused { .. } => "refused",
+        Unlocalized::Invalid { .. } => "invalid",
+        Unlocalized::Empty => "empty",
+        Unlocalized::Unnamed => "unnamed",
+        Unlocalized::Lane => "lane",
+        Unlocalized::Containment { .. } => "containment",
+    }
+}
+
 /// The stable tag for a split refusal.
 pub fn split_error_tag(err: &SplitError) -> &'static str {
     match err {
@@ -2556,7 +2580,6 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::PartIdCollides { .. } => "part_id_collides",
         SplitError::SeveredEdge { .. } => "severed_edge",
         SplitError::RemainderReadUncarried { .. } => "remainder_read_uncarried",
-        SplitError::OperandSeveredFromMate { .. } => "operand_severed_from_mate",
         SplitError::TornGroup { .. } => "torn_group",
         SplitError::SeveredGauge { .. } => "severed_gauge",
         SplitError::TwoAnchors { .. } => "two_anchors",
@@ -2610,6 +2633,7 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
         InlineError::InstanceBodyNameReferenced { .. } => "instance_body_name_referenced",
         InlineError::ForeignInstanceName { .. } => "foreign_instance_name",
         InlineError::StrandedPartName { .. } => "stranded_part_name",
+        InlineError::StrandedPartRead { .. } => "stranded_part_read",
         InlineError::NameOnDroppedStep { .. } => "name_on_dropped_step",
         InlineError::Edit { .. } => "inline_edit",
     }
@@ -3249,6 +3273,18 @@ pub fn entity_kind_tag(kind: EntityKind) -> &'static str {
 
 /// The stable tag for WHICH coincidence the tier-3′ census found.
 ///
+/// The stable tag for an in-plane crossing's side verdict
+/// (`CensusContact::EdgeEdgeCross`'s `side`): a `same_side` crossing
+/// is interpenetration, an `opposite_sides` one a contact, and
+/// `undecided` neither.
+pub fn crossing_side_tag(side: &CrossingSideVerdict) -> &'static str {
+    match side {
+        CrossingSideVerdict::OppositeSides => "opposite_sides",
+        CrossingSideVerdict::SameSide => "same_side",
+        CrossingSideVerdict::Undecided => "undecided",
+    }
+}
+
 /// The arms are not one fact and the word is the difference between
 /// two opposite recourses: an `edge_face_pierce` is interpenetration
 /// and categorically undeclarable, while an `edge_edge_overlap` is

@@ -160,7 +160,7 @@ macro_rules! nurbs_project {
                         #[allow(clippy::cast_precision_loss)]
                         let frac = j as f64 / (PROJECT_SEEDS_PER_SPAN - 1) as f64;
                         let t = u0 + (u1 - u0) * frac;
-                        let d = span.eval_in_span(T::from_f64(t)) - p;
+                        let d = span.eval_in_span(T::from_computed(t)) - p;
                         let d2 = mid(d.dot(d));
                         // Strict `<`: first minimum wins, NaN never does.
                         if d2 < best_d2 {
@@ -214,7 +214,7 @@ macro_rules! nurbs_project {
                     let Some(span) = self.span_at(t) else {
                         break;
                     };
-                    let (c, c1, c2) = span.ders_in_span(T::from_f64(t));
+                    let (c, c1, c2) = span.ders_in_span(T::from_computed(t));
                     let d = c - p;
                     // The iteration reads structure through the
                     // brackets; the T-valued jet above is what the
@@ -253,7 +253,7 @@ macro_rules! nurbs_project {
                         // for bit with the order-2 door's first two
                         // components, whose third row this acceptance
                         // has no use for.
-                        let (c, c1) = span.ders1_in_span(T::from_f64(tn));
+                        let (c, c1) = span.ders1_in_span(T::from_computed(tn));
                         let d = c - p;
                         let dist = d.norm();
                         if !mid(dist).is_nan() {

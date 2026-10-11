@@ -2505,16 +2505,14 @@ pub(super) fn pair_section_frame_at<T: Decide>(
             across,
             round,
         } => {
-            let read = |across| {
-                let reach = geom_brep::Reach::Face {
-                    at,
-                    below,
-                    above,
-                    across,
-                };
-                geom_brep::plane_cylinder_section(plane_s, cyl_s, &reach, band)
+            let reach = crate::chord_join::WallReach {
+                at,
+                below,
+                above,
+                span: across,
+                round,
             };
-            crate::chord_join::agreed_section(read(across), read(round), band)
+            crate::chord_join::agreed_section(plane_s, cyl_s, reach, band)
         }
         FrameExtent::Radii | FrameExtent::Span(_) => geom_brep::plane_cylinder_section(
             plane_s,
@@ -4203,8 +4201,7 @@ mod frame_dispatch_tests {
                 end,
                 geom_brep::EdgeCurveSpec {
                     description: geom_brep::EdgeDescriptionSpec::Intersection {
-                        s1: cyl,
-                        s2: plane,
+                        pair: geom_brep::SurfacePair::new(cyl, plane),
                         witness: carrier.eval(core::f64::consts::FRAC_PI_2),
                     },
                     carrier: carrier.clone(),
@@ -4436,8 +4433,26 @@ mod frame_dispatch_tests {
             for (label, got) in plane_frames(&body, face, Point3::new(r, 0.0, 0.0), normal) {
                 assert_eq!(
                     verdict(&got),
-                    "pc_axis_plane_parallel_disagreement",
+                    "pc_axis_plane_parallel_straddle",
                     "k = {k} ({label}): the span's rulings against the whole turn's conic"
+                );
+                let Err(FrameError::Escalated(diag)) = got else {
+                    unreachable!("named as an escalation")
+                };
+                // The Boolean's ending: the section question's lever alone,
+                // the straddle's, with no unreadable-margin note — the
+                // enclosure is read, where the poison it replaced was not.
+                let said = crate::boolean::BooleanError::coincidence(
+                    crate::boolean::Coincide::Section,
+                    crate::boolean::DeclarationRead::Moot,
+                    diag,
+                )
+                .to_string();
+                assert!(
+                    said.ends_with(
+                        "Recourse: move the parts so they clearly meet or clearly stand apart there"
+                    ) && !said.contains(geom_core::UNREADABLE_MARGIN_NOTE),
+                    "k = {k} ({label}): {said}"
                 );
             }
         }
@@ -4483,8 +4498,7 @@ mod frame_dispatch_tests {
             carrier.eval(quarter),
             geom_brep::EdgeCurveSpec {
                 description: geom_brep::EdgeDescriptionSpec::Intersection {
-                    s1: cyl,
-                    s2: rim_plane,
+                    pair: geom_brep::SurfacePair::new(cyl, rim_plane),
                     witness: carrier.mid_point(0.0, quarter),
                 },
                 carrier,
@@ -5789,9 +5803,15 @@ mod radical_plane_rows {
             let witness = Point3::new(0.0, 0.0, 0.5);
             geom_brep::EdgeCurveSpec {
                 description: if tangent {
-                    geom_brep::EdgeDescriptionSpec::TangentIntersection { s1, s2, witness }
+                    geom_brep::EdgeDescriptionSpec::TangentIntersection {
+                        pair: geom_brep::SurfacePair::new(s1, s2),
+                        witness,
+                    }
                 } else {
-                    geom_brep::EdgeDescriptionSpec::Intersection { s1, s2, witness }
+                    geom_brep::EdgeDescriptionSpec::Intersection {
+                        pair: geom_brep::SurfacePair::new(s1, s2),
+                        witness,
+                    }
                 },
                 carrier: line.clone(),
                 param_start: 0.0,

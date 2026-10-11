@@ -51,7 +51,6 @@ fn var() -> editor_core::SpokenVar {
 test_utils::f6_variants! {
     const SPLIT: SplitError = [
         EmptyCut, UnknownCutNode, PartIdCollides, SeveredEdge, RemainderReadUncarried,
-        OperandSeveredFromMate,
         TornGroup, SeveredGauge, TwoAnchors, PlacingMateLeft, DeadGaugeReference,
         NoMaterial, UnplaceableRoot, UnplacedAlone, WouldStartPlacing, MateFrameCrosses,
         UncutVarReference, DefinitionStraddlesCut, UnresolvedVarCrossesCut,
@@ -70,7 +69,7 @@ test_utils::f6_variants! {
         UnplaceableFrame, MatePlaced, Unplaced,
         MovedMemberOffset, PartDeadGauge, MateFrameCrosses, MatePairSplits,
         InstanceBodyNameReferenced, ForeignInstanceName, NameOnDroppedStep,
-        StrandedPartName, Edit,
+        StrandedPartName, StrandedPartRead, Edit,
     ];
 }
 
@@ -86,6 +85,7 @@ fn split_refusals() -> Vec<SplitError> {
         },
         SplitError::SeveredEdge {
             consumer: s(5, "Extrude"),
+            slot: Some(editor_core::OperandSlot::Profile),
             input: s(3, "Profile"),
             consumer_is_cut: true,
         },
@@ -98,12 +98,6 @@ fn split_refusals() -> Vec<SplitError> {
             why: editor_core::Uncarried::Posed {
                 placement: s(4, "PlaceInWorld"),
             },
-        },
-        SplitError::OperandSeveredFromMate {
-            mate: s(7, "Mate"),
-            side: MateSide::A,
-            operand: s(3, "InstantiatePart"),
-            mate_is_cut: false,
         },
         SplitError::TornGroup {
             root: s(2, "InstantiatePart"),
@@ -313,6 +307,10 @@ fn inline_refusals() -> Vec<InlineError> {
         InlineError::StrandedPartName {
             name: name(),
             missing: s(6, "Extrude"),
+        },
+        InlineError::StrandedPartRead {
+            name: name(),
+            read: editor_core::SpokenVar::new(editor_core::VarId::new(0, 6), None),
         },
         InlineError::Edit {
             error: Box::new(EditError::UnknownNode {

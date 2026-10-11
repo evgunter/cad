@@ -101,17 +101,16 @@ pub use editor_core::{
 // the cost of the button and builds the sequence behind it from this.
 pub use editor_core::cascade_delete_order;
 
-// Node vocabulary. `BooleanOp` is the KERNEL's, which the recipe node
-// carries directly; it is re-exported here so document-layer code can
-// spell the whole node vocabulary through one module. `CountMismatch`
+// Node vocabulary. A union or intersect takes one `Bodies` argument (a
+// family read, or spelled reads); a subtract is binary. `CountMismatch`
 // rides with `PlacementRuleFault`: it is what that fault and
 // `EditError::PlacementRuleMismatch` carry. An operand field is an
 // `Operand` read, written at an `OperandSlot` (a `SlotId::Operand`)
 // that admits a `SlotKind`; `DocEdit::SetParam` writes a `SlotValue`.
 pub use editor_core::{
-    Axis3, BooleanOp, CountMismatch, Datum, DeclaredPair, ExtrudeSide, InputFault, ListFault,
-    MintId, Node, Operand, OperandSlot, OutputPort, PartSelect, PatternKind, PlacementRuleFault,
-    PortKind, RecipeNodeId, RigidArg, SlotId, SlotKind, TubeWindow, VectorSlot,
+    Axis3, Bodies, BodyRead, CountMismatch, Datum, DeclaredPair, ExtrudeSide, InputFault,
+    ListFault, MintId, Node, Operand, OperandSlot, OutputPort, PartSelect, PatternKind,
+    PlacementRuleFault, PortKind, RecipeNodeId, RigidArg, SlotId, SlotKind, TubeWindow, VectorSlot,
     declare_continuation, declare_rest,
 };
 
@@ -439,8 +438,8 @@ pub use editor_core::{
     MatePrimitive, MateReach, MateRole, MateSide, Member, OFFSET_RECOURSE, OffsetCheck, PartReach,
     PlacerRow, Placing, PoseRefusal, PoseSymmetry, ReachRefusal, RefusingReach, SolvedPoses, Space,
     Subgroup, SubgroupFamily, UNDER_RECOURSE, UNPLACED_RECOURSE, Unplaced, gauge_chain, groups,
-    head_face, mate_reach, member_of, member_reading, places, reading_edges,
-    relative_freedom_components, root_of, solve_document,
+    head_face, head_of, mate_reach, member_of, member_reading, places, relative_freedom_components,
+    root_of, solve_document,
 };
 /// Why a mate's face base did not resolve to a pose, which
 /// [`MateFault::FaceUnresolved`] carries — by the same payload rule.
@@ -502,10 +501,15 @@ pub use editor_core::{CLASS_DEFERRAL, ClassAdmission, class_admission, table_gap
 // `NoAtRestRecord` row ends on, carried for the reason `UNDER_RECOURSE`
 // is: a caller asserting that a refusal reaches its recourse must not
 // do it by re-typing the sentence.
+// An overlap between two copies' material is not a refusal but an
+// `InterferenceFinding` on `Assembly::interference` (D10): its copies
+// (`CopyRef`), its `Overlap` (the bounding faces as `FaceSite`s, or
+// `Unlocalized` with why), and the assertion that quiets it, if any.
 pub use editor_core::{
     Assembly, AssemblyError, AtRestFinding, Attribution, CarriedDeclaration, CarriedDeclarations,
-    CarriedRefusal, CarriedUnplaced, MintRefusal, MintedDeclaration, NO_AT_REST_RECORD_RECOURSE,
-    RefusedRef, Relation, Route, assemble, assemble_gathered,
+    CarriedRefusal, CarriedUnplaced, CopyRef, FaceSite, InterferenceFinding, MintRefusal,
+    MintedDeclaration, NO_AT_REST_RECORD_RECOURSE, Overlap, RefusedRef, Relation, Route,
+    Unlocalized, assemble, assemble_gathered,
 };
 
 // Split and inline: the first-class

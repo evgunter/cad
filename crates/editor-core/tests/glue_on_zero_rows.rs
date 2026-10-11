@@ -15,8 +15,8 @@ use crate::corpus::{self, body_of, failures};
 use crate::docm7_union_declare::{block, failure, run};
 use crate::fixture::insert;
 use editor_core::{
-    BooleanOp, BooleanValue, DocEdit, Node, NodeErrorKind, ProfileDoc, Proof, RecipeNodeId,
-    ValuePayload, coincide,
+    BooleanValue, DocEdit, Node, NodeErrorKind, ProfileDoc, Proof, RecipeNodeId, ValuePayload,
+    coincide,
 };
 use geom_core::Tol;
 use topo::{DecisionSite, Relation};
@@ -30,10 +30,8 @@ fn plate_on_a_block(gap: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, Recipe
     let (doc, plate) = block(doc, (0.5, 1.5), (0.5, 1.5), 1.0 + gap, 0.5);
     let (doc, union) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: base.into(),
-            b: plate.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![base.into(), plate.into()]),
             declare: Vec::new(),
         },
     );
@@ -101,7 +99,7 @@ fn a_zero_glued_union_passes_tier_three_prime() {
 }
 
 /// **Row 17: declared and undeclared are one body.** For every corpus
-/// document, every Boolean and Union that declares contacts builds the
+/// document, every Union, Intersect and Subtract that declares contacts builds the
 /// same body, bit for bit, with its declarations removed.
 #[test]
 fn every_declared_corpus_scene_builds_the_same_body_undeclared() {
@@ -112,9 +110,11 @@ fn every_declared_corpus_scene_builds_the_same_body_undeclared() {
             .ids()
             .into_iter()
             .filter(|&id| match doc.node(id) {
-                Some(Node::Boolean { declare, .. } | Node::Union { declare, .. }) => {
-                    !declare.is_empty()
-                }
+                Some(
+                    Node::Union { declare, .. }
+                    | Node::Intersect { declare, .. }
+                    | Node::Subtract { declare, .. },
+                ) => !declare.is_empty(),
                 _ => false,
             })
             .collect();

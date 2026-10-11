@@ -437,6 +437,22 @@ fn digest() -> String {
 /// `num` 596 → 604; `sym_thin_strip` 652 → 660, `num` 604 → 612).
 /// Every verdict hash, pad, volume, refusal and `frozen` column is
 /// unchanged.
+///
+/// **Re-cut at all three ε when the cylinder quadrature began deciding
+/// that no junction of a loop is a period off on the chart**
+/// (`props_quad_junction_period`, one decision per junction, so that it
+/// can read a face's rings). Only `tilted_cut_upper`'s verdict count
+/// moves, by 8 at every ε (4 → 12, 10 → 18, 16 → 24 at ε = 1e-6 / 1e-9 /
+/// 1e-12), and its hash with it; its volume, area and pads are
+/// bit-identical and no other line moves.
+///
+/// **Re-cut at all three ε when the integral speed meter took a third,
+/// per-piece assembly** (`geom::NurbsCurve3::speed_lower_bound`'s
+/// `piece_assembly`). Only `sym_arc_loft`'s `validate_geometric`
+/// `frozen` column moves, by one at every ε (607 → 606 / 539 → 538 /
+/// 606 → 605 at ε = 1e-6 / 1e-9 / 1e-12). Decisions, discharges, shapes
+/// and every verdict are unchanged. Measured by disabling only that
+/// assembly on a probe build, which restores the old column.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),

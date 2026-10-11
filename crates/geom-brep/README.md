@@ -46,7 +46,7 @@ escalated typed refusal, never a raw comparison.
 
 **C1 — Intersection loci live on a three-rung ladder.** The *carrier*
 of an `Intersection` edge (the 3-D curve cached against the intensional
-description `{s1, s2, witness}`) is, by surface-kind pair and most exact
+description `{pair, witness}`) is, by surface-kind pair and most exact
 first: rung 1, closed-form `Line`/`Circle`; rung 2, the exact conic
 `Curve3::Ellipse` (tilted plane×cylinder, tilted plane×cone,
 equal-radius cylinder×cylinder)
@@ -81,7 +81,22 @@ search's limbs do not yet, which is why their rung-3 arms are
 unretired), and `compose::tensor` encloses
 `S(P(t)) − C(t)` as one composite for a NURBS operand so the
 cancellation that is the whole content of the claim survives into the
-bound. (3) The uniqueness tube: over a chain of boxes of certified radius
+bound. Where the bound does not clear the band, the composite's
+uncleared spans are halved round by round under a budget
+(`SSI_HULL_WORK` spans recomputed over the rounds, `SSI_HULL_CUTS`
+breaks added), each piece cut from its Bézier segment's own row so no
+cut compounds another's width: the limb passes once the bound clears;
+refuses on the composite's certified value at a break where that lies
+past the band's zero, since no bound over a span holding the break can
+clear (against an analytic operand that value is limb 1's residual, a
+measured miss; against a NURBS one it is the bound's own quantity at a
+point, a bound on the miss); and refuses on the lowest bound any round
+reached where the budget is spent, or two rounds in a row leave that
+lowest bound where it was, first — so a first composite already over
+`SSI_HULL_WORK` spans is never subdivided and refuses on its first
+hull, a later round whose bound is NaN stops on the lowest certified
+bound before it rather than escalating, and a round that only equals
+the lowest bound counts as not lowering it. (3) The uniqueness tube: over a chain of boxes of certified radius
 around the carrier, the enclosure of `(∇f₁ × ∇f₂)·e` excludes zero, so
 by a mean-value argument each slice holds at most one solution, and each
 connected piece of the solution set in a box ends on the box's boundary
@@ -525,17 +540,25 @@ table is a function of recipe structure and verdicts only.
 ### Tangency
 
 **C7 — `TangentIntersection` and second-order sector classification.**
-`EdgeDescription::TangentIntersection { s1, s2, witness }` mirrors
+`EdgeDescription::TangentIntersection { pair, witness }` mirrors
 `Intersection` one differential order up. Its jet (`tangent.rs`,
-`TangentJet { sin_theta, kappa_rel }`) is certified per sample: surface
-coincidence within ε, normal parallelism within the derived angle at
-lever arm `1/κ_rel`, and the relative transverse normal curvature
+`TangentJet { sin_theta, kappa_rel }`) is certified per sample, one
+reading per equation of the jet system, each a length at its own lever:
+the two surfaces' separation along the shared normal within ε (the
+touch itself, a fact about the pair), the witness within ε of each
+surface, normal parallelism within the derived angle at lever arm
+`1/κ_rel` (the witness's offset across the locus), and the relative
+transverse normal curvature
 `κ_rel = κ₁ − κ₂` bounded away from zero (the IFT denominator of the jet
 system), with C2's hull bounds and tube between samples. Where
 first-order sector ranking ties exactly, classification descends one
 order (`enters_material_order2`, consumed by
 `topo::splitting::neighborhood` and `topo::boolean::sectors`); an in-band
-second-order tie escalates. Tier 3 has two levels: every
+second-order tie escalates. Readings of different equations are never
+summed: the witness's offset along the shared normal and across the
+locus are perpendicular, and a residual is a defect of its equation, not
+a distance to the locus (as for `Intersection`). Two terms are summed
+only when both move one reading, as a residual and its span sag do. Tier 3 has two levels: every
 definitely-tangent edge carries a recorded `ContactMark` (`Tangent` when
 jet-determinate, `SmoothUnderdetermined` when the surfaces
 under-determine the locus, e.g. a G2 sketch join), and the must-carry
@@ -657,7 +680,11 @@ harmonic pcurve boundaries, polynomial and rational patch flux; a cone
 face needs none, its flux `apex·VA` and area `|axis·VA|/sin α` closed in
 the boundary's vector area; rational
 pcurve channels refuse `QuadratureUnsupported`; exhaustion is
-`QuadratureBudget`, never a silent Gaussian. A sphere face whose
+`QuadratureBudget`, never a silent Gaussian. A plane cap or torus wall
+bounded by a `Curve3::Spiric` takes `props/spiric.rs`: the cap's vector
+area and the wall's chart Green form along the spiric are elliptic
+integrals in the torus minor angle, enclosed by a fifth-order Taylor
+rule whose only non-ring operation is `√`, on the same schedule. A sphere face whose
 boundary circles are tilted against its chart has no conic or spline
 trim and is on the closed-form lane, measured by Gauss–Bonnet over its
 circle arcs (`props/curved.rs`, `sphere_circle_loop`). A chart

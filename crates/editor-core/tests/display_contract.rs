@@ -157,8 +157,8 @@ fn stable_name_display_is_its_role_of_its_feature() {
 }
 
 /// **A flush pair one boolean carried says two different faces**, each
-/// by its role and its feature, and the one the boolean's B brought in
-/// by its join; the sentence meets the refusal standard.
+/// by its role and its feature and by the read the boolean carried it
+/// in through; the sentence meets the refusal standard.
 #[test]
 fn a_pair_in_band_says_two_faces_of_one_node_apart() {
     use editor_core::NameRef;
@@ -167,15 +167,18 @@ fn a_pair_in_band_says_two_faces_of_one_node_apart() {
         node: RecipeNodeId::new(0, tagged(node)),
         path: vec![RoleSeg::Cap(end)],
     };
-    let carried = |seg: fn(NameRef) -> RoleSeg, inner| StableName {
+    let carried = |read: u64, inner| StableName {
         kind: EntityKind::Face,
         node: RecipeNodeId::new(0, tagged(9)),
-        path: vec![seg(NameRef::new(inner))],
+        path: vec![RoleSeg::From {
+            read: editor_core::VarId::new(0, tagged(read)),
+            of: NameRef::new(inner),
+        }],
     };
     let refusal = SelectRefusal::PairInBand {
         pair: Box::new((
-            carried(RoleSeg::FromA, operand(2, CapEnd::End)),
-            carried(RoleSeg::FromB, operand(5, CapEnd::Start)),
+            carried(2, operand(2, CapEnd::End)),
+            carried(5, operand(5, CapEnd::Start)),
         )),
         at: (
             RecipeNodeId::new(0, tagged(9)),
@@ -187,8 +190,9 @@ fn a_pair_in_band_says_two_faces_of_one_node_apart() {
     let shown = refusal.to_string();
     assert!(
         shown.starts_with(
-            "select: the end cap of node 000000000002 and the start cap of node \
-             000000000005, through operand B of node 000000000009 may coincide (margin "
+            "select: the end cap of node 000000000002, through read 000000000002 at node \
+             000000000009 and the start cap of node 000000000005, through read \
+             000000000005 at node 000000000009 may coincide (margin "
         ),
         "{shown}"
     );
@@ -1132,12 +1136,12 @@ test_utils::f6_variants! {
         MateAlignment,
         PlacementRule,
         InputList,
-        DuplicateInput,
         AssertionBound,
         ObservedRead,
         MetadataUnversioned,
         StepIds,
         MintLogOrder,
+        NameReadNotMinted,
         NameStepNotMinted,
         DeclaredNameNotUpstream,
     ];
@@ -1240,10 +1244,10 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
         (
             SnapshotError::ReadsWorldCopy {
                 node: node(),
-                slot: editor_core::SlotId::Operand(editor_core::OperandSlot::A),
+                slot: editor_core::SlotId::Operand(editor_core::OperandSlot::From),
                 placement: absent(9),
             },
-            vec!["reads the world copy", "only the product and export read"],
+            vec!["reads the world copy", "no construction reads"],
         ),
         (
             SnapshotError::SelectionShape {
@@ -1580,16 +1584,9 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
         (
             SnapshotError::InputList {
                 node: held(5, "Union"),
-                fault: ListFault::TooFew { found: 1 },
+                fault: ListFault::IndexedFamily,
             },
-            vec!["Union 000000000005: a list input takes two or more entries"],
-        ),
-        (
-            SnapshotError::DuplicateInput {
-                node: held(5, "Union"),
-                input: held(9, "Revolve"),
-            },
-            vec!["Union 000000000005: Revolve 000000000009 is taken as an input twice"],
+            vec!["Union 000000000005: the family argument carries an index"],
         ),
         (
             SnapshotError::AssertionBound {
@@ -1645,6 +1642,32 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 "does not count up from one at step 000000000006",
                 "which no mint writes",
                 geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
+            ],
+        ),
+        (
+            SnapshotError::NameReadNotMinted {
+                name: editor_core::test_support::spoken_name(
+                    StableName {
+                        kind: EntityKind::Face,
+                        node: RecipeNodeId::new(0, tagged(5)),
+                        path: vec![RoleSeg::From {
+                            read: editor_core::VarId::new(0, tagged(9)),
+                            of: StableName {
+                                kind: EntityKind::Face,
+                                node: RecipeNodeId::new(0, tagged(4)),
+                                path: vec![RoleSeg::Cap(editor_core::CapEnd::End)],
+                            }
+                            .into(),
+                        }],
+                    },
+                    node(),
+                ),
+                read: editor_core::VarId::new(0, tagged(9)),
+            },
+            vec![
+                "carries the read",
+                "mint log does not hold",
+                "never minted it",
             ],
         ),
         (
@@ -1948,8 +1971,8 @@ fn a_resized_group_states_the_group_fact_and_claims_no_flip() {
     let member_wall = StableName {
         kind: EntityKind::Face,
         node: RecipeNodeId::new(0, tagged(8)),
-        path: vec![RoleSeg::FromMember {
-            member: RecipeNodeId::new(0, tagged(7)),
+        path: vec![RoleSeg::From {
+            read: editor_core::VarId::new(0, tagged(7)),
             of: NameRef::new(wall(2)),
         }],
     };
@@ -1967,9 +1990,12 @@ fn a_resized_group_states_the_group_fact_and_claims_no_flip() {
                 gone: vec![],
                 new: vec![member_wall],
             },
+            // By tag the carry says the read the member's wall came in
+            // through and the node that carried it; what that node made
+            // of it is the document's to say.
             "the parent has new seams with the side wall over the profile step \
-             000000000002 of node 000000000006, joined at node 000000000008 from node \
-             000000000007",
+             000000000002 of node 000000000006, through read 000000000007 at node \
+             000000000008",
         ),
         (
             GroupCutters::Read {
@@ -2183,84 +2209,32 @@ fn refusals_that_name_a_stable_name_forward_its_display() {
         mate: RecipeNodeId::new(0, tagged(2)),
         side: MateSide::A,
         name: Box::new(face_name()),
-        why: RefusedRef::Vanished { by: None },
+        why: RefusedRef::Ambiguous { width: 2 },
     });
     let shown = reference.to_string();
     assert!(
         shown.contains(&format!("({phrase})")),
         "the mate reference re-spells the name instead of forwarding it: {shown:?}"
     );
-    assert!(
-        shown.contains("no entity answers to it at the node the mate reads it at"),
-        "a vanished name is one the operand's table does not answer to: {shown:?}"
-    );
 }
 
 /// The WHY clause of a mate-reference refusal says what the gate
-/// checked and no more: a face placed again above its operand names
-/// the operand, the placer and the recourse; a face consumed on its
-/// way up names the consumer; a tie names its width. Every other row
-/// asserting these sentences compares against the impl, so this is
-/// their one home.
+/// checked and no more: a body placed twice names how many copies
+/// answer, and a mate with no value says it declares nothing. Every
+/// other row asserting these sentences compares against the impl, so
+/// this is their one home.
 #[test]
 fn a_mate_reference_refusal_says_what_the_gate_checked() {
-    let moved = mint(MintRefusal::Reference {
+    let unevaluated = mint(MintRefusal::Unevaluated {
         mate: RecipeNodeId::new(0, tagged(2)),
-        side: MateSide::B,
-        name: Box::new(face_name()),
-        why: RefusedRef::MovedAbove {
-            at: RecipeNodeId::new(0, tagged(5)),
-            by: RecipeNodeId::new(0, tagged(6)),
-            copies: false,
+        standing: editor_core::NodeStanding::Failed {
+            node: RecipeNodeId::new(0, tagged(2)),
         },
     });
     assert_f6(
-        &moved,
-        &[
-            "mate 000000000002's b reference",
-            "does not name a face of the product",
-            "it is read at node 000000000005, but node 000000000006 places it again before the \
-             product holds it; re-pick the face on node 000000000006",
-        ],
-        &["MovedAbove", "Reference"],
-    );
-    assert!(
-        !moved.to_string().contains("naming the copy"),
-        "a placer that places no copies asks for no copy: {moved}"
-    );
-
-    let copied = mint(MintRefusal::Reference {
-        mate: RecipeNodeId::new(0, tagged(2)),
-        side: MateSide::B,
-        name: Box::new(face_name()),
-        why: RefusedRef::MovedAbove {
-            at: RecipeNodeId::new(0, tagged(5)),
-            by: RecipeNodeId::new(0, tagged(6)),
-            copies: true,
-        },
-    });
-    assert_f6(
-        &copied,
-        &["re-pick the face on node 000000000006, naming the copy"],
-        &["MovedAbove", "Reference"],
-    );
-
-    let consumed = mint(MintRefusal::Reference {
-        mate: RecipeNodeId::new(0, tagged(2)),
-        side: MateSide::B,
-        name: Box::new(face_name()),
-        why: RefusedRef::Vanished {
-            by: Some(RecipeNodeId::new(0, tagged(7))),
-        },
-    });
-    assert_f6(
-        &consumed,
-        &[
-            "mate 000000000002's b reference",
-            "node 000000000007 consumes it before the product holds it — it merges or cuts the \
-             face, or holds no face of it — so no one face carries it to the product",
-        ],
-        &["Vanished", "Reference"],
+        &unevaluated,
+        &["mate 000000000002 declares nothing about the product, since it has no value"],
+        &["Unevaluated", "Failed"],
     );
 
     let tied = mint(MintRefusal::Reference {
@@ -2273,7 +2247,7 @@ fn a_mate_reference_refusal_says_what_the_gate_checked() {
         &tied,
         &[
             "mate 000000000002's a reference",
-            "2 entities answer to it",
+            "2 world copies answer to it",
             "a tie is never broken by picking",
         ],
         &["Ambiguous", "Reference"],
@@ -2372,7 +2346,7 @@ fn the_mint_arms_render_every_refusal_they_hold() {
                 mate: RecipeNodeId::new(0, tagged(2)),
                 side: MateSide::A,
                 name: Box::new(face_name()),
-                why: RefusedRef::Vanished { by: None },
+                why: RefusedRef::Ambiguous { width: 2 },
             },
             MintRefusal::NoAtRestRecord {
                 mate: RecipeNodeId::new(0, tagged(5)),
@@ -2411,7 +2385,7 @@ fn the_mint_arms_render_every_refusal_they_hold() {
                     mate: RecipeNodeId::new(0, tagged(2)),
                     side: MateSide::A,
                     name: Box::new(face_name()),
-                    why: RefusedRef::Vanished { by: None },
+                    why: RefusedRef::Ambiguous { width: 2 },
                 },
                 held: Default::default(),
             },
@@ -2931,7 +2905,7 @@ fn naming_error_display_names_its_content_not_its_struct() {
         ),
         (
             NamingError::MemberEdgeTied {
-                member: RecipeNodeId::new(0, tagged(37)),
+                member: editor_core::VarId::new(0, tagged(37)),
                 edge: Box::new(StableName {
                     kind: EntityKind::Edge,
                     node: RecipeNodeId::new(0, tagged(37)),
@@ -2942,7 +2916,8 @@ fn naming_error_display_names_its_content_not_its_struct() {
                 }),
             },
             vec![
-                "member node 000000000025",
+                // By tag a member read is said by its whole id.
+                "member read 000000000025's edge",
                 "a tie stands where one edge is needed",
             ],
         ),
@@ -3829,7 +3804,7 @@ fn an_edit_refusal_does_not_repeat_the_noun_its_spoken_node_says() {
                     },
                     held(4, "Extrude"),
                 ),
-                site: held(4, "Extrude"),
+                site: editor_core::SpokenVar::new(editor_core::VarId::new(0, tagged(4)), None),
             },
             vec![held(6, "Union"), held(4, "Extrude")],
         ),
