@@ -2,10 +2,11 @@
 id: seam-cover-reads-a-boundary-point-as-the-face-interior
 kind: issue
 title: seam cover reads a touch piece on a face's boundary as its interior, and ships a decided SeamFaceRunsOn contradiction
-status: open
+status: dispatched
 opened: 2026-10-11
 priority: P2
 cost: E
+branch: cleave/seam-cover-boundary
 ---
 
 Found by the review of PR 4613 (CLEAVE mints unit 4).
