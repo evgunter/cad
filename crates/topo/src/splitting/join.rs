@@ -765,7 +765,7 @@ impl<T: Decide> Sweep<T> {
                 let outer_loop = body.get_face(face).ok_or_else(|| corrupt_face(face))?.outer;
                 let (above_loop, below_loop) = self.resolve_roles(body, face, outer_loop, ring)?;
                 self.certify_section_area(body, face, below_loop)?;
-                self.assert_spurs_paired(body, face, [above_loop, below_loop])?;
+                self.assert_spurs_paired(body, face, above_loop, below_loop)?;
                 body.set_null_face_pair(
                     face,
                     NullFacePair::Split {
@@ -980,10 +980,11 @@ impl<T: Decide> Sweep<T> {
         &self,
         body: &Body<T>,
         face: FaceKey,
-        loops: [LoopKey; 2],
+        above_loop: LoopKey,
+        below_loop: LoopKey,
     ) -> Result<(), SplitJoinError> {
         let (mut struts, mut slits) = (0_usize, 0_usize);
-        for l in loops {
+        for l in [above_loop, below_loop] {
             let LoopBoundary::Cycle { first } =
                 body.get_loop(l).ok_or_else(|| corrupt_loop(l))?.boundary
             else {
