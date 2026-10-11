@@ -233,13 +233,20 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// projections are gone from the evaluation this digest walks, and the
 /// union keys its members by the ports. `m4_pr8_corpus`'s exact mass
 /// pins held.
+///
+/// RE-BLESSED, `kitchen_sink` only, for INTENT stage 3 A (a revolve's
+/// axis is a line on the node): its in-plane axis datum left, so every
+/// later node id re-mints and the name table with it. No outcome or
+/// point moved: the id-free fence with the pointless datum outcomes
+/// dropped is equal on the base tree and this one. Re-taken merged over
+/// FORK-DM4 unit 1 (PR 4527) and the split-half retirement (PR 4618).
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
         ("cut_cylinder", 0xa6c1_1622_9a6f_5245u64),
         ("part_select", 0xdedb_e992_c753_8c6e),
-        ("kitchen_sink", 0xcb26_4ee0_cf3b_2848),
+        ("kitchen_sink", 0xf4ce_f4d4_a447_cbaa),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()

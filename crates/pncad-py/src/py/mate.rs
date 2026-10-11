@@ -534,43 +534,64 @@ impl Subgroup {
         subgroup_tag(&self.0)
     }
 
-    /// The plane's unit normal, for `planar`.
+    /// The plane's unit normal, for `planar` and `plane_translation`.
     #[getter]
     fn normal(&self) -> Option<(f64, f64, f64)> {
         use d::Subgroup as S;
         match self.0 {
-            S::Planar { normal } => Some(direction(normal.get())),
+            S::Planar { normal } | S::PlaneTranslation { normal } => Some(direction(normal.get())),
             S::Se3
             | S::Cylindrical { .. }
             | S::Prismatic { .. }
             | S::Revolute { .. }
+            | S::Spherical { .. }
+            | S::Parallel { .. }
+            | S::Translation
             | S::Trivial
             | S::Empty => None,
         }
     }
 
-    /// A point on the axis, for `cylindrical` and `revolute`.
+    /// A point on the axis, for `cylindrical` and `revolute`; the fixed
+    /// point, for `spherical`.
     #[getter]
     fn point(&self) -> Option<(Length, Length, Length)> {
         use d::Subgroup as S;
         match self.0 {
-            S::Cylindrical { point: p, .. } | S::Revolute { point: p, .. } => Some(point(p)),
-            // `planar` and `prismatic` are point-free on purpose, as
-            // the class doc says; the three remaining arms have no
-            // geometry to be based at.
-            S::Planar { .. } | S::Prismatic { .. } | S::Se3 | S::Trivial | S::Empty => None,
+            S::Cylindrical { point: p, .. }
+            | S::Revolute { point: p, .. }
+            | S::Spherical { point: p } => Some(point(p)),
+            // `planar`, `prismatic`, `parallel` and `plane_translation`
+            // are point-free on purpose, as the class doc says; the
+            // remaining arms have no geometry to be based at.
+            S::Planar { .. }
+            | S::Prismatic { .. }
+            | S::Parallel { .. }
+            | S::PlaneTranslation { .. }
+            | S::Translation
+            | S::Se3
+            | S::Trivial
+            | S::Empty => None,
         }
     }
 
-    /// The unit direction, for `cylindrical`, `prismatic`, `revolute`.
+    /// The unit direction, for `cylindrical`, `prismatic`, `revolute`
+    /// and `parallel`.
     #[getter]
     fn direction(&self) -> Option<(f64, f64, f64)> {
         use d::Subgroup as S;
         match self.0 {
             S::Cylindrical { direction: v, .. }
             | S::Prismatic { direction: v }
-            | S::Revolute { direction: v, .. } => Some(direction(v.get())),
-            S::Se3 | S::Planar { .. } | S::Trivial | S::Empty => None,
+            | S::Revolute { direction: v, .. }
+            | S::Parallel { direction: v } => Some(direction(v.get())),
+            S::Se3
+            | S::Planar { .. }
+            | S::PlaneTranslation { .. }
+            | S::Spherical { .. }
+            | S::Translation
+            | S::Trivial
+            | S::Empty => None,
         }
     }
 

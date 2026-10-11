@@ -149,6 +149,15 @@ fn sans_epsilon(t: &str) -> String {
 /// selection variable each such node reads, so their node ids moved and
 /// every row naming them; every other row held its word, and the
 /// id-masked geometry fence held untouched.
+///
+/// **Re-pinned for INTENT stage 3 PR A** (a revolve's axis is a line on
+/// the node): the five documents that revolve — `kitchen_sink`,
+/// `die_pips`, `die_tool`, `die_composed` and `die_composed_tour` —
+/// hold no in-plane axis datum,
+/// so their later node ids moved and every row naming them; every other
+/// row held its word, and no point moved. Re-taken merged over
+/// FORK-DM4 unit 1 (PR 4527), whose names keyed by read had moved the
+/// same rows on main.
 const PINNED: &[(&str, u64, u64)] = &[
     ("die", 0xd72f039cbf03dff5, 0xc4419fe7887fa041),
     ("corner_table", 0xd096c8d3473a2924, 0xcc1c35defda29f84),
@@ -166,20 +175,20 @@ const PINNED: &[(&str, u64, u64)] = &[
         0xfb5a08f4fe601def,
     ),
     ("declared_tangency", 0xe7249c941ad4e6dd, 0x4ef7c39092eca21a),
-    ("kitchen_sink", 0x7127daf9a4b6c1af, 0xc616f8b316833a58),
+    ("kitchen_sink", 0x5a7d3b3ed8e09af1, 0x4f34742aaeaa5d3c),
     ("cut_cylinder", 0x366fa42a35257323, 0x0b1584874c6521a2),
     ("measured_web", 0x2d097b245fc55683, 0xe50e6ef2701011c2),
     ("boss_union", 0x74cf52484fc485b5, 0x68bcb37795f66fb1),
     ("die_fillet", 0x5f66bd80c3d330ba, 0xcc827f4ab84ab2f7),
     ("die_chamfer", 0x1bcc33b8f554b03e, 0x955720216d75cf9a),
-    ("die_pips", 0x616dac9dca092edb, 0x7603bde68cf8365c),
+    ("die_pips", 0x4ec20f70889e7162, 0xa4282ad9313d4347),
     ("heat_sink_fins", 0x248682fac9898b5a, 0xbdeed2f79c7c0af9),
-    ("die_tool", 0x4df1a715b6a5bf95, 0x6e12b8258221a554),
+    ("die_tool", 0xfcc650b447308395, 0x257df21a520356e8),
     ("face_sketch", 0x25f0c5c4ab521837, 0x6ff3c25647b7831b),
     ("part_select", 0xe08422a647eb3501, 0x4fba54c848554e94),
     ("loft_prism", 0x9f15f3e0cf1e8ace, 0xc7ef1ffc56e06ac4),
-    ("die_composed", 0xacf3a30de51c0c59, 0x8ba6dc435818506e),
-    ("die_composed_tour", 0x8d4e6d256441d6d1, 0x7d09609a8c3a88e5),
+    ("die_composed", 0xb46772e78d36a18c, 0xe8e716c077c42cec),
+    ("die_composed_tour", 0xd17ab9b94d3343fe, 0xf7c0a1ee810ee567),
     ("plate_param", 0x234a7b9c5eb3d7c1, 0xe9e582f56c7ce4e9),
     ("kiss_carry", 0x60c1e65c8178fd2f, 0xc3d2696f3427398b),
     ("tube_ring", 0x33da3ceb7454021f, 0x9a8176ec901ca54c),

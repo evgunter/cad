@@ -365,6 +365,12 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
                 ..none
             }
         }
+        EditError::PoseShape { node, slot, fault: _ } => EditPayload {
+            node: Some(node.id()),
+            slot: Some(slot_id_tag(slot)),
+            index: operand_index(slot),
+            ..none
+        },
         EditError::IndexedRead { node, .. } => EditPayload {
             node: Some(node.id()),
             ..none

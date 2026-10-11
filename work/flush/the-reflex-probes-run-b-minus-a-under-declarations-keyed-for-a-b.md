@@ -45,6 +45,18 @@ op through the plain booleans, so no op carries a declaration keyed for
 the other order. When F merges this row closes on F's diff, unless F's
 lane closes it in its own PR.
 
+## Measured on main without declarations (`flush/readers-closes`, 2026-10-11)
+
+On main `19b704d92f`, release, the 288 `S_ba` runs of
+`join1_r1_reflex_battery`'s poses through the plain
+`topo::subtract(&p.b, &p.a, tol)` all come out `OK SOUND` or `EMPTY ok`.
+They differ from the declared run in exactly the 192 refusals above.
+INTENT stage 4 F (`intent/s4-f-declared-pairs-retire`) rewrites
+`reflex_run` onto the plain booleans and drops `ReflexPose::d`, which
+removes this row's subject. What would then be left is the
+`join_rc_probes` pins' `&REFLEX_OPS[..3]`, which skip `S_ba` only
+because of the keyed declarations.
+
 ## Closed (2026-10-11, stage 4 F)
 
 No op takes declarations: `ReflexPose` lost its declaration field (`crates/sweep/tests/common/differential.rs`), and `S_ba` runs the plain `topo::subtract(&p.b, &p.a, tol)` under no keys at all.

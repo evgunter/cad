@@ -40,8 +40,9 @@ impl VarId {
 /// The scalars are read by expressions at their dimension. The poses,
 /// the shapes and the selections are reference kinds: no expression
 /// reads one, and none has a free arm, a unit or a distribution. Only an
-/// operation defines a pose or a shape ([`VarDef::Output`]); a
-/// selection is defined by naming entities of one body
+/// operation defines a shape ([`VarDef::Output`]); a pose is an
+/// operation's output or a pose definition ([`VarDef::Pose`]), never
+/// free; a selection is defined by naming entities of one body
 /// ([`VarDef::Select`]).
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
@@ -138,9 +139,9 @@ impl VarKind {
     /// **A pose kind's symmetry** (D10, A11 (1)): the family of the
     /// subgroup of rigid motions a value of this kind is a frame known
     /// up to, the one the mates fold. `None` for a kind that is not a
-    /// pose, and for `Point` and `Direction`, whose subgroups (rotation
-    /// about a point; translation with spin about a direction) the
-    /// family does not hold.
+    /// pose. A pose value states the subgroup itself
+    /// ([`crate::PoseValue`]'s [`crate::PoseSymmetry`]), and the pose
+    /// evaluator asserts the two agree for every value it binds.
     #[must_use]
     pub fn symmetry(self) -> Option<crate::mate::SubgroupFamily> {
         use crate::mate::SubgroupFamily;
@@ -148,9 +149,9 @@ impl VarKind {
             Self::Frame => Some(SubgroupFamily::Trivial),
             Self::Plane => Some(SubgroupFamily::Planar),
             Self::Axis => Some(SubgroupFamily::Cylindrical),
-            Self::Point
-            | Self::Direction
-            | Self::Length
+            Self::Direction => Some(SubgroupFamily::Parallel),
+            Self::Point => Some(SubgroupFamily::Spherical),
+            Self::Length
             | Self::Angle
             | Self::Scalar
             | Self::Count
@@ -235,6 +236,11 @@ pub enum VarDef {
     /// by `StableName`. The kind is the variable's (a `Face`, an
     /// `Edge`, or a set of either); a singleton holds one name.
     Select(Select),
+    /// **A pose definition** (D10): a pose read off geometry, written
+    /// in a frame, or constructed from other poses
+    /// ([`crate::pose::PoseDef`]). The kind is the definition's, or for
+    /// a flip its read's.
+    Pose(crate::pose::PoseDef),
 }
 
 /// **What a selection names** ([`VarDef::Select`]): one body read, and
@@ -388,6 +394,7 @@ impl VarDef {
         match self {
             Self::Free(free) => Some(VarKind::from(free.dim())),
             Self::Defined(expr) => Some(VarKind::from(expr.dim())),
+            Self::Pose(def) => def.kind(),
             Self::Output { .. } | Self::Select(_) => None,
         }
     }
@@ -397,7 +404,7 @@ impl VarDef {
     pub fn free(&self) -> Option<&FreeVar> {
         match self {
             Self::Free(free) => Some(free),
-            Self::Defined(_) | Self::Output { .. } | Self::Select(_) => None,
+            Self::Defined(_) | Self::Output { .. } | Self::Select(_) | Self::Pose(_) => None,
         }
     }
 
@@ -406,7 +413,7 @@ impl VarDef {
     pub fn defined(&self) -> Option<&Expr> {
         match self {
             Self::Defined(expr) => Some(expr),
-            Self::Free(_) | Self::Output { .. } | Self::Select(_) => None,
+            Self::Free(_) | Self::Output { .. } | Self::Select(_) | Self::Pose(_) => None,
         }
     }
 
@@ -415,7 +422,16 @@ impl VarDef {
     pub fn select(&self) -> Option<&Select> {
         match self {
             Self::Select(select) => Some(select),
-            Self::Free(_) | Self::Defined(_) | Self::Output { .. } => None,
+            Self::Free(_) | Self::Defined(_) | Self::Output { .. } | Self::Pose(_) => None,
+        }
+    }
+
+    /// The pose definition, when the definition is one.
+    #[must_use]
+    pub fn pose(&self) -> Option<&crate::pose::PoseDef> {
+        match self {
+            Self::Pose(def) => Some(def),
+            Self::Free(_) | Self::Defined(_) | Self::Output { .. } | Self::Select(_) => None,
         }
     }
 
@@ -424,7 +440,7 @@ impl VarDef {
     pub fn output(&self) -> Option<(crate::RecipeNodeId, u8)> {
         match *self {
             Self::Output { node, port } => Some((node, port)),
-            Self::Free(_) | Self::Defined(_) | Self::Select(_) => None,
+            Self::Free(_) | Self::Defined(_) | Self::Select(_) | Self::Pose(_) => None,
         }
     }
 
@@ -434,10 +450,17 @@ impl VarDef {
         match (self, other) {
             (Self::Free(a), Self::Free(b)) => a.bit_eq(b),
             (Self::Defined(a), Self::Defined(b)) => a.bit_eq(b),
-            (Self::Output { .. }, Self::Output { .. }) | (Self::Select(_), Self::Select(_)) => {
-                self == other
-            }
-            (Self::Free(_) | Self::Defined(_) | Self::Output { .. } | Self::Select(_), _) => false,
+            (Self::Output { .. }, Self::Output { .. })
+            | (Self::Select(_), Self::Select(_))
+            | (Self::Pose(_), Self::Pose(_)) => self == other,
+            (
+                Self::Free(_)
+                | Self::Defined(_)
+                | Self::Output { .. }
+                | Self::Select(_)
+                | Self::Pose(_),
+                _,
+            ) => false,
         }
     }
 }
@@ -454,6 +477,8 @@ pub enum WrittenDef {
     Defined(Expr),
     /// A selection of the stated kind.
     Select(VarKind, Select),
+    /// A pose definition of the stated kind (a flip's is its read's).
+    Pose(VarKind, crate::pose::PoseDef),
 }
 
 impl WrittenDef {
@@ -463,7 +488,7 @@ impl WrittenDef {
         match self {
             Self::Free(free) => VarKind::from(free.dim()),
             Self::Defined(expr) => VarKind::from(expr.dim()),
-            Self::Select(kind, _) => *kind,
+            Self::Select(kind, _) | Self::Pose(kind, _) => *kind,
         }
     }
 }
@@ -474,6 +499,7 @@ impl From<WrittenDef> for VarDef {
             WrittenDef::Free(free) => Self::Free(free),
             WrittenDef::Defined(expr) => Self::Defined(expr),
             WrittenDef::Select(_, select) => Self::Select(select),
+            WrittenDef::Pose(_, def) => Self::Pose(def),
         }
     }
 }
@@ -566,7 +592,7 @@ impl VarDecl {
         match def {
             VarDef::Free(free) => Some(Self::Free(free)),
             VarDef::Defined(expr) => Some(Self::Defined(crate::Formula::from(expr))),
-            VarDef::Output { .. } | VarDef::Select(_) => None,
+            VarDef::Output { .. } | VarDef::Select(_) | VarDef::Pose(_) => None,
         }
     }
 }
@@ -625,7 +651,7 @@ impl Var {
     pub(crate) fn select_mut(&mut self) -> Option<&mut Select> {
         match &mut self.def {
             VarDef::Select(select) => Some(select),
-            VarDef::Free(_) | VarDef::Defined(_) | VarDef::Output { .. } => None,
+            VarDef::Free(_) | VarDef::Defined(_) | VarDef::Output { .. } | VarDef::Pose(_) => None,
         }
     }
 

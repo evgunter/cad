@@ -1243,6 +1243,7 @@ fn lower_read<P: crate::ProfilePayload>(
         crate::Operand::Select { body, names } => {
             mint_selection(doc, spoken, slot, body, names, expected)?
         }
+        crate::Operand::Pose(def) => mint_pose(doc, spoken, slot, def)?,
     };
     // A selection read here is read in a body this seat admits, whoever
     // authored it: a selection of a pattern's copies, authored at a mate
@@ -1261,6 +1262,98 @@ fn lower_read<P: crate::ProfilePayload>(
         )?;
     }
     check_read(doc, spoken, slot, var, expected, reader, unresolved)
+}
+
+/// **A pose defined at a seat, minted** (D10): each read lowered at the
+/// kinds it admits, as an operand of the seat (a selection authored in
+/// it minted there), each formula to the scalar its slot stores at the
+/// slot's dimension, and one anonymous pose variable minted for the
+/// seat to read, of the definition's kind (a flip's is its read's). A
+/// flip of a flip is the pose it flips, normalised here rather than
+/// minted; a projection with no arm refuses ([`EditError::PoseShape`]).
+/// A pose defined at two seats is two variables; a seat shares one by
+/// reading it by id or name.
+fn mint_pose<P: crate::ProfilePayload>(
+    doc: &mut Doc<P>,
+    spoken: &impl Fn() -> SpokenNode,
+    slot: SlotId,
+    def: &crate::pose::PoseDef<crate::Operand, Formula>,
+) -> Result<VarId, EditError> {
+    use crate::pose::{PoseDef, PoseFault};
+    let shape = |fault| EditError::PoseShape {
+        node: spoken(),
+        slot,
+        fault,
+    };
+    // A flip of a flip is the pose it flips: an involution the door
+    // normalises to one side (FORK-S3M), so the twice-flipped read is
+    // lowered where the inner flip's read would have been, at what a
+    // flip admits — a point, which has no sense, still refuses.
+    if let PoseDef::Flip {
+        pose: crate::Operand::Pose(inner),
+    } = def
+        && let PoseDef::Flip { pose: twice } = inner.as_ref()
+    {
+        let sensed = crate::SlotKind::Pose(crate::pose::PoseAdmits::Sensed);
+        return lower_operand(doc, spoken, slot, twice, sensed);
+    }
+    let admits: Vec<crate::SlotKind> = def.reads().into_iter().map(|(_, _, k)| k).collect();
+    let mut at = admits.into_iter();
+    // Two passes, the reads then the formulas, each holding the document
+    // alone: the reads mint first, as a node's operands do.
+    let read: PoseDef<VarId, Formula> = def.try_map(
+        &mut |_, read| {
+            let expected = at
+                .next()
+                .unwrap_or_else(|| unreachable!("one admitted kind per read, in one order"));
+            lower_operand(doc, spoken, slot, read, expected)
+        },
+        &mut |_, formula| Ok::<_, EditError>(formula.clone()),
+    )?;
+    let stored: PoseDef = read.try_map(&mut |_, &var| Ok(var), &mut |pose_slot, formula| {
+        let var = Lowering::none()
+            .slot(doc, formula)
+            .map_err(|fault| fault.at(doc, spoken(), ExprSite::Slot(slot)))?;
+        let found = doc.var(var).map_or(VarKind::Scalar, Var::kind);
+        let expected = VarKind::from(pose_slot.dimension());
+        if found != expected {
+            return Err(EditError::SlotVarKind {
+                var: Box::new(doc.spoken_var(var)),
+                node: spoken(),
+                slot,
+                found,
+                expected: crate::SlotKind::Is(expected),
+            });
+        }
+        Ok(var)
+    })?;
+    let kind = match &stored {
+        PoseDef::Flip { pose } => {
+            // A flip of a flip defined elsewhere is its read, the same
+            // normalisation over a variable.
+            if let Some(VarDef::Pose(PoseDef::Flip { pose: twice })) = doc.var(*pose).map(Var::def)
+            {
+                return Ok(*twice);
+            }
+            doc.var(*pose)
+                .map(Var::kind)
+                .unwrap_or_else(|| unreachable!("a lowered read is live"))
+        }
+        PoseDef::Project { of, to } => {
+            let from = doc
+                .var(*of)
+                .map(Var::kind)
+                .unwrap_or_else(|| unreachable!("a lowered read is live"));
+            if !crate::pose::projects(from, *to) {
+                return Err(shape(PoseFault::Projection { from, to: *to }));
+            }
+            *to
+        }
+        other => other
+            .kind()
+            .unwrap_or_else(|| unreachable!("every arm but a flip states its kind")),
+    };
+    mint_anonymous(doc, WrittenDef::Pose(kind, stored))
 }
 
 /// **What a selection authored at `slot` may be read in**: a `Body`, or
@@ -1429,6 +1522,32 @@ pub fn selection_into<P>(
             names: names.to_vec(),
         },
     );
+    let id = doc.mint.declare_anonymous(&def);
+    doc.vars.insert(id, Var::written(def));
+    id
+}
+
+/// **A pose definition minted into `doc` as given**, outside any edit:
+/// of the definition's kind (a flip's is its read's), reading what it
+/// reads, with no door around it. The test support's rows build their
+/// poses through it.
+///
+/// # Panics
+///
+/// If a flip's read is not live.
+#[doc(hidden)]
+#[track_caller]
+#[allow(clippy::expect_used)]
+pub fn pose_into<P>(doc: &mut Doc<P>, def: crate::pose::PoseDef) -> VarId {
+    let kind = def.kind().unwrap_or_else(|| {
+        let crate::pose::PoseDef::Flip { pose } = &def else {
+            unreachable!("every arm but a flip states its kind")
+        };
+        doc.var(*pose)
+            .map(Var::kind)
+            .expect("a flip reads a live pose")
+    });
+    let def = WrittenDef::Pose(kind, def);
     let id = doc.mint.declare_anonymous(&def);
     doc.vars.insert(id, Var::written(def));
     id
@@ -1890,6 +2009,20 @@ pub enum EditError {
         slot: SlotId,
         /// Why.
         fault: crate::var::SelectionFault,
+    },
+    /// A pose this edit defines at `slot` ([`crate::Operand::Pose`]) is
+    /// not one the document can store ([`crate::pose::PoseFault`]): a
+    /// projection its source has no arm to. (A flip of a flip is the
+    /// pose it flips, which the door normalises rather than refuses.) A
+    /// read of a kind the definition does not admit is the read's own
+    /// [`EditError::SlotVarKind`].
+    PoseShape {
+        /// The node whose seat the pose is defined at.
+        node: SpokenNode,
+        /// The seat.
+        slot: SlotId,
+        /// Why.
+        fault: crate::pose::PoseFault,
     },
     /// The node this edit writes carries an indexed read its family
     /// cannot take ([`crate::node::InputFault::IndexedFamily`],
@@ -2983,6 +3116,11 @@ impl EditError {
                 slot: _,
                 fault: _,
             }
+            | Self::PoseShape {
+                node,
+                slot: _,
+                fault: _,
+            }
             | Self::IndexedRead { node, fault: _ }
             | Self::SetMembersOnNonList { node }
             | Self::LoftSectionsSpelled { node }
@@ -3298,6 +3436,19 @@ impl EditError {
                     format_args!(
                         "read the family whole, or spell its members in a list with one index \
                          each"
+                    ),
+                )
+            }
+            Self::PoseShape { slot, fault, .. } => {
+                write!(
+                    f,
+                    "the pose defined at {slot} is not one a document stores: {fault}"
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!(
+                        "project a frame to its plane, axis or origin, or a plane or an axis to \
+                         its direction"
                     ),
                 )
             }
@@ -5335,7 +5486,7 @@ fn standing_var<P>(
         VarDef::Free(free) => Ok((id, doc.spoken_var(id), free.clone())),
         VarDef::Output { .. } => Err(EditError::output_refusal(doc, id, door)
             .unwrap_or_else(|| unreachable!("an output's refusal is the output's"))),
-        VarDef::Defined(_) | VarDef::Select(_) => Err(EditError::NotAFreeVar {
+        VarDef::Defined(_) | VarDef::Select(_) | VarDef::Pose(_) => Err(EditError::NotAFreeVar {
             var: doc.spoken_var(id),
             door,
         }),
@@ -6717,7 +6868,9 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                         outputs: Vec::new(),
                     }
                 }
-                WrittenDef::Select(..) => unreachable!("a declaration lowers to no selection"),
+                WrittenDef::Select(..) | WrittenDef::Pose(..) => {
+                    unreachable!("a declaration lowers to no selection and no pose")
+                }
             };
             EditRecord {
                 fresh: lowering.finish(new)?,

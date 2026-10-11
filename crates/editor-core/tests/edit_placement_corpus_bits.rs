@@ -40,6 +40,13 @@ use editor_core::Node;
 /// mints one selection ahead of its transforms, so each of its rows'
 /// ordinals moved by one and its words with them; every other row held,
 /// and so did the ids-masked geometry fence.
+///
+/// **Re-pinned for INTENT stage 3 PR A** (a revolve's axis is a line on
+/// the node): `kitchen_sink`, `die_pips`, `die_composed` and the tour
+/// document hold no in-plane axis datum, so their later ids moved —
+/// ordinals by two where the datum and its frame read went — and every
+/// row naming them; every other row held its word, and the ids-masked
+/// geometry fence held. Taken merged over FORK-DM4 unit 1 (PR 4527).
 const PINNED: &[(&str, u32, u64)] = &[
     ("die", 206, 0x1d1f8e2cc2c77841),
     ("die", 217, 0x3785f6c2ba33c653),
@@ -68,30 +75,30 @@ const PINNED: &[(&str, u32, u64)] = &[
     ("heat_sink", 107, 0x3c57788966584962),
     ("heat_sink", 118, 0xb3a54c8e814e0680),
     ("kitchen_sink", 95, 0x804d2736f9974e1d),
-    ("die_pips", 68, 0xa472d779713b2147),
+    ("die_pips", 66, 0x3d71a421838e2998),
     ("part_select", 60, 0x36f2cf9c61b0b7b5),
-    ("die_composed", 68, 0xa472d779713b2147),
-    ("die_composed_tour", 72, 0x946fdec16be6d4dd),
-    ("die_composed_tour", 81, 0x8eaed71b23301bfd),
-    ("die_composed_tour", 90, 0xfc3b3de8efc6758e),
-    ("die_composed_tour", 99, 0x33e44e7a6da83e50),
-    ("die_composed_tour", 108, 0x47899f4dbb6e06d1),
-    ("die_composed_tour", 117, 0x55a0e22c09cd72b3),
-    ("die_composed_tour", 126, 0x9393640358f0a14d),
-    ("die_composed_tour", 135, 0xb8f5e9625272f447),
-    ("die_composed_tour", 144, 0xda481e05995355f4),
-    ("die_composed_tour", 153, 0xf2d03fc0ce47d5c1),
-    ("die_composed_tour", 162, 0x3a0663e09342758b),
-    ("die_composed_tour", 171, 0x4ccd69a862624e8b),
-    ("die_composed_tour", 180, 0x50d0d0fe162f7752),
-    ("die_composed_tour", 189, 0x1ca5ce6ab267170f),
-    ("die_composed_tour", 198, 0x714866b5613a5ca2),
-    ("die_composed_tour", 207, 0x3a8ad70f8f177b47),
-    ("die_composed_tour", 216, 0x92f388cd59467203),
-    ("die_composed_tour", 225, 0x5c88068ff4e0ab59),
-    ("die_composed_tour", 234, 0xefcbd4ff15552011),
-    ("die_composed_tour", 243, 0x04565645be915e1e),
-    ("die_composed_tour", 252, 0x822bf60af8fa5633),
+    ("die_composed", 66, 0x3d71a421838e2998),
+    ("die_composed_tour", 70, 0x39eec164647550ed),
+    ("die_composed_tour", 79, 0xfc601184b6fc2fbf),
+    ("die_composed_tour", 88, 0xd3f0085f4000e2a7),
+    ("die_composed_tour", 97, 0x788d10cc494d92a3),
+    ("die_composed_tour", 106, 0x61ecd055b6d6ac98),
+    ("die_composed_tour", 115, 0xa84c1386e8975904),
+    ("die_composed_tour", 124, 0xe5c58557ae0952af),
+    ("die_composed_tour", 133, 0x06706c8ffe901572),
+    ("die_composed_tour", 142, 0xceebc2885fb47bc7),
+    ("die_composed_tour", 151, 0x1353af534d629e31),
+    ("die_composed_tour", 160, 0x44345bd453aa5c84),
+    ("die_composed_tour", 169, 0x1e93a5002169d373),
+    ("die_composed_tour", 178, 0x090d47379b784835),
+    ("die_composed_tour", 187, 0xdd1947903d37f26e),
+    ("die_composed_tour", 196, 0x22c7d552b7124fef),
+    ("die_composed_tour", 205, 0x963d7364ae8c897a),
+    ("die_composed_tour", 214, 0x770471b37929ce4d),
+    ("die_composed_tour", 223, 0x1452417a62d0fb02),
+    ("die_composed_tour", 232, 0x12eda247c5a28e71),
+    ("die_composed_tour", 241, 0xfc3510c67d5d1089),
+    ("die_composed_tour", 250, 0x213b8c3b14c19ff2),
 ];
 
 #[test]
