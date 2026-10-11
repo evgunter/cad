@@ -195,6 +195,8 @@ mod rehome_rings_lune;
 mod review_r2_vv_probes;
 #[path = "review_sixx_r2_probes.rs"]
 mod review_sixx_r2_probes;
+#[path = "saddle_fit_reach_probe.rs"]
+mod saddle_fit_reach_probe;
 #[path = "scaffolding_on_a_blend_support_face_does_not_finish.rs"]
 mod scaffolding_on_a_blend_support_face_does_not_finish;
 #[path = "sf2a_r1.rs"]
