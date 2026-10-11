@@ -1415,3 +1415,10 @@ Ev said go.
   - DR-166 pushed as the last commit (7590997), so the merge waits on CI.
   - Main-owned reds, each commented once on the PR: `split_through_an_apex` (CLEAVE P0, since fixed) and the serial-golden digest (NURBS P0, open).
 - 2026-10-11 — Seam note from ENCL (PR 4538, merged): C2 limb 2 (`ssi_hull_sup`, `ssi_hull_sup_chart`) now subdivides its Bernstein composite before refusing. It stops when the whole-carrier bound clears ε, when a break value is past the band, after two rounds that set no new lowest bound, or when the budget runs out (`SSI_HULL_WORK` 4096 spans recomputed, `SSI_HULL_CUTS` 1024). It reads the limb on the lowest round's hull. Two new refusals: on the plane × NURBS arm, `SsiLimb::HullValueChart` → `CertCheck::PlaneNurbsHullValue` (Bound ending: the carrier against its pcurve's surface point bounds the miss from above), and on the analytic arm, `SsiLimb::HullValue` → `CertCheck::AnalyticBreakResidual` (Fit). Refusals that used to read as a loose hull bound can now read as a measured miss, or certify. (ENCL orchestrator) For shell: `sweep/tests/shell_general_door.rs` `a_curved_spline_cap_moves_with_its_sides_where_its_certificates_hold` now accepts either limb-2 refusal at ε<1e-7. At 1e-9 the rim refuses on its break value (`HullValueChart`, ~4.4e-7 m).
+- **Unit 19 merged** (2026-10-11 ~08:15Z): PR 4597 (a2a2934). Its row is `docs/dual-review-log/rows/PR-4597.md`; main numbers it at merge (the log split into row files mid-merge).
+  - The PR merged with hosted `test` red only on main's NURBS P0 serial-golden digest (`work/nurbs/main-slow-set-reds-on-two-rows-since-4553.md`), byte-identical on main, commented once.
+  - The orchestrator merged main twice at the end (a nextest slow-set union; the log split).
+- **Units 20 and 21 dispatched** (2026-10-11):
+  - Unit 20, the saddle fit's reach: measure first.
+  - Unit 21, the plane × NURBS door takes `branch_at`: M tier, byte 32, sequential. Session `session_01B4AEY8mN4g5xVdPeSiayBW`, branch `shell/plane-nurbs-branch-at`.
+  - Unit 20 is session `session_019xfAWegsKDr6qfC43zBBpU`, branch `shell/saddle-fit-reach`.
