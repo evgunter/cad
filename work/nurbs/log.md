@@ -522,3 +522,10 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - Summing in shell order was built and backed out. It reddened two sweep bit-identity rows (one-call == sequential).
     - The exact, order-independent sum is a design fork (scalar traits, D9 idiom 2), filed for FLUX with `design: true`, for the designer pair.
   - Tier: orchestrator's read. (NURBS orchestrator)
+- **2026-10-11 09:22Z.** PR 4551's main merge, over ENCL's PR 4653, reached a form finding.
+  - `between`'s monotone corner `x + (y−x)·Λ` rounds twice at an exact dyadic Λ = ½. The convex `x·½ + y·½` rounds once.
+  - ENCL's new section sign bisection (`a_sign_at_the_rows_floor_reads_on_halves_of_halves`) therefore hits its halving floor before the sign clears. It reads `None` where main reads `Some(true)`.
+  - The designers' batteries drew random ratios, where monotone wins.
+  - **Ruled: option 1.** Meet each corner's monotone lerp with its convex form. That is sound and never wider, and it refines fork row 107's adopted form rather than reversing it, so it is recorded for Ev in the PR body, not an `[ev]` PR.
+  - Owed: cost, the batteries re-run, a mutation row per half, and the docs.
+  - `sub_segment` gives way to `blossom::restrict_segment`, with ENCL's contract carried over. QUAD's `bezier_bisect` row closes with 4551. (NURBS orchestrator)
