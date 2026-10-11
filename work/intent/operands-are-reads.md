@@ -8,7 +8,7 @@ priority: P0
 cost: H
 branch: intent/s2-b-reads
 pr: 4342
-refs: [d10-one-way-to-say-intent-is-unbuilt, an-operand-slot-is-re-pointed-by-the-slot-door, set-members-admits-a-forward-member-the-save-validator-refuses]
+refs: [d10-one-way-to-say-intent-is-unbuilt, an-operand-slot-is-re-pointed-by-the-slot-door]
 closed: 2026-10-10
 ---
 

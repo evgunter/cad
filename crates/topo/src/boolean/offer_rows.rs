@@ -2599,14 +2599,20 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     (
         "conic_quadric/mod.rs",
         "conic_quadric_roots",
+        "BooleanDecision::ArcSphereRoots",
+        1,
+    ),
+    (
+        "conic_quadric/mod.rs",
+        "quadric_ladder",
         "BooleanDecision::ArcCylinderRoots",
         1,
     ),
     (
         "conic_quadric/mod.rs",
-        "conic_quadric_roots",
+        "quadric_ladder",
         "BooleanDecision::ArcSphereRoots",
-        2,
+        1,
     ),
     ("finish.rs", "corner_holds", "Coincide::Sectors", 1),
     (
