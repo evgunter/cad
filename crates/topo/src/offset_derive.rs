@@ -368,11 +368,11 @@ fn normal_in_plane_along<T: Decide>(
     if nu < 2 {
         return false;
     }
-    let (a0, a1) = net.knots_u().domain();
+    let (a0, a1) = net.knot_values_u().domain();
     // The boundary row and the one next in from it.
-    let (first, second) = if zero("offset_holds_row_at_start", at - T::from_f64(a0)) {
+    let (first, second) = if zero("offset_holds_row_at_start", at - a0) {
         (0, 1)
-    } else if zero("offset_holds_row_at_end", at - T::from_f64(a1)) {
+    } else if zero("offset_holds_row_at_end", at - a1) {
         (nu - 1, nu - 2)
     } else {
         return false;

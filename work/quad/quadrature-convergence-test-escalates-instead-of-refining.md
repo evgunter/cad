@@ -260,3 +260,23 @@ Related, from review R2 of PR 4557 (NOTE-2, its probes on
 `review/4557-01DDWu57`): hair-thin (1e-3 m) bars through the unit pipe
 refuse `QuadratureBudget` on their ringless walls — the lane's other
 number-wanting outcome on hairline faces, and not that PR's change.
+
+## More witnesses (CLEAVE, `cleave/wrap-edge-split`)
+
+`a_split_through_a_wrap_edges_vertex::a_boolean_through_a_strut_vertex_keeps_one_face_where_the_piece_goes_round`:
+a one-segment circle (r = 1, its vertex at azimuth 2 rad) extruded 2,
+tilted about x, against the brick `z ≤ z₀` whose top face passes
+through the bottom vertex. The boolean refuses
+`VolumeUnmeasured { operand: None, source: Face { .., source: Escalated { check: Converged } } }`
+on `props_quad_converged`:
+
+- ε = 1e-9: tilt 0.9, A ∩ B, margin −4.65e-9;
+- ε = 1e-12: tilts 0.4 and π/4, A ∩ B, margins 1.1e-12 and 1.5e-12;
+- the two-arc circle (vertices at azimuths 2 and 2 − π) at ε = 1e-12:
+  the same two tilts refuse B − A instead, at the same margins, and
+  build A ∩ B.
+
+On the one-segment form every other op of those poses builds at its
+closed-form volume. A ∩ B and B − A keep the same wall face, in
+opposite senses, and it measures in one of them and not the other.
+The test accepts this refusal by name and cites this row.

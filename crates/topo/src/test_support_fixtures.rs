@@ -729,6 +729,52 @@ pub fn mapped_cube<T: geom_core::Decide + crate::props::AtRestPolicy>(
     body
 }
 
+/// **A wedge cornered on a block's top**: the block `[−1, 3] × [−2, 2.5]
+/// × [0, 1]`, and a parallelepiped cornered at `(0.5, 0.2, 1)` by an
+/// `opening_deg` wedge angle, its face in the block's top plane tilted
+/// about the wedge's `x` edge by `tilt` (m/m). It stands `height` tall,
+/// sunk `depth` into the block. Returns `(block, wedge)`.
+pub fn wedge_on_a_block_top(
+    opening_deg: f64,
+    tilt: f64,
+    height: f64,
+    depth: f64,
+    tol: Tol,
+) -> (Body<f64>, Body<f64>) {
+    let phi = opening_deg.to_radians();
+    let (ea, eb) = (
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(phi.cos(), phi.sin(), tilt * phi.sin()),
+    );
+    let p = Point3::new(0.5, 0.2, 1.0);
+    (
+        brick((-1.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol),
+        mapped_cube(
+            move |u, v, w| p + ea * u + eb * v + Vec3::new(0.0, 0.0, height * w - depth),
+            tol,
+        ),
+    )
+}
+
+/// The one planar face of `body` whose outward normal leans along
+/// `facing` in `z` (`+1` up, `−1` down).
+///
+/// # Panics
+///
+/// Unless exactly one face does.
+pub fn face_facing(body: &Body<f64>, facing: f64) -> crate::entity::FaceKey {
+    let hits: Vec<_> = body
+        .faces()
+        .map(|(k, _)| k)
+        .filter(|&k| {
+            matches!(crate::face_carrier(body, k),
+                Some(crate::CarrierDesc::Plane { normal, .. }) if normal.z * facing > 0.99)
+        })
+        .collect();
+    assert_eq!(hits.len(), 1, "one face faces {facing}");
+    hits[0]
+}
+
 /// [`mapped_cube`] into an EXISTING body (a second `mvfs` seeds a
 /// second solid — the hand-built self-intersection control's door).
 pub fn cube_into<T: geom_core::Decide + crate::props::AtRestPolicy>(

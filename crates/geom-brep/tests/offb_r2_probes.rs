@@ -493,11 +493,11 @@ fn p6_a_regular_patch_is_refused_when_d_is_small() {
 /// pinned from outside: an unreachable tolerance must stop, and the
 /// `achieved` it reports must be a bound the same door re-derives.
 #[test]
-fn p5_budget_refusal_payload_is_the_bound_the_door_re_derives() {
+fn p5_cap_refusal_payload_is_the_bound_the_door_re_derives() {
     let base = skinned_loft();
     let d = 0.08;
     match fit_offset_at(&base, d, 1e-14, band()) {
-        Err(OffsetFitError::BudgetExhausted {
+        Err(OffsetFitError::SampleCapReached {
             achieved,
             tolerance,
             grid,
@@ -516,7 +516,7 @@ fn p5_budget_refusal_payload_is_the_bound_the_door_re_derives() {
             });
             assert!(cert.hull_sup <= achieved * 1.5);
             eprintln!(
-                "P5: budget refusal grid={grid:?} achieved={achieved:.3e}; \
+                "P5: cap refusal grid={grid:?} achieved={achieved:.3e}; \
                  re-fit at 1.5x certifies at {:.3e}",
                 cert.hull_sup
             );

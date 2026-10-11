@@ -93,7 +93,7 @@ fn probe_cross_instance_conformal_wall_touch_at_three_prime() {
     assert!(
         !errs.iter().any(|e| matches!(
             e,
-            topo::ValidationError::UndeclaredContact {
+            topo::ValidationError::UnrecordedContact {
                 contact: topo::CensusContact::EdgeFacePierce { .. }
                     | topo::CensusContact::ConformalPatch { .. },
                 ..
