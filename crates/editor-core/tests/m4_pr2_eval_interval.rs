@@ -9,7 +9,7 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    BooleanOp, BooleanValue, CancelToken, EvalOptions, Node, ProfileDoc, ValuePayload, evaluate,
+    BooleanValue, CancelToken, EvalOptions, Node, ProfileDoc, ValuePayload, evaluate,
 };
 use fixture::{ang, insert, len, on_frame, scl};
 use geom_core::Tol;
@@ -67,20 +67,19 @@ fn interval_evaluation_of_a_boolean_doc_brackets_the_oracle() {
     // which carries the pip's names verbatim (N1).
     let decl = editor_core::declare_continuation(vec![(
         editor_core::SitedRef::new(
-            cube,
+            fixture::out(&doc, cube),
             fixture::fname(cube, editor_core::RoleSeg::Cap(editor_core::CapEnd::End)),
         ),
         editor_core::SitedRef::new(
-            placed,
+            fixture::out(&doc, placed),
             fixture::fname(pip, editor_core::RoleSeg::Cap(editor_core::CapEnd::Start)),
         ),
     )]);
     let (doc, sub) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: cube.into(),
-            b: placed.into(),
+        Node::Subtract {
+            from: cube.into(),
+            tool: placed.into(),
             declare: decl,
         },
     );

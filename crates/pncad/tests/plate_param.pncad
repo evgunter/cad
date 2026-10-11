@@ -3,7 +3,7 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
   "snapshot": {
     "id": "5ef5ef0364b6939c4ca61f34b393f7b3",
     "mint": {
-      "chain": "fb91cb56feb2d9f114cc36f9336d4bb88195c90bc9b47533ec7a972e5f2acac8",
+      "chain": "f80d33bbe824c08036c842f6419fb06143f00a7da2d44171e35fd79dcf8d1ea2",
       "log": [
         {
           "var": "1:e2382e0f27e19466"
@@ -201,34 +201,34 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
           "var": "65:70ec8f3caf767345"
         },
         {
-          "node": "66:2360ab8e49e34ae6"
+          "node": "66:635f15fc6093420d"
         },
         {
-          "var": "67:81d23535ef691fa6"
+          "var": "67:83d417af4c82c485"
         },
         {
-          "node": "68:003152ce9c66a87e"
+          "node": "68:8bcf2fdc58dee6c0"
         },
         {
-          "var": "69:12952787d4d3f826"
+          "var": "69:4c85c303fae316bf"
         },
         {
-          "var": "70:fbfb705b32ca91e9"
+          "var": "70:4a13fb9cdaaf5ccc"
         },
         {
-          "var": "71:10c75a8c0868ecc1"
+          "var": "71:616c07795d9beed6"
         },
         {
-          "node": "72:590477ca724c7164"
+          "node": "72:1dc65489d79c554c"
         },
         {
-          "var": "73:6f3dc8112b35669f"
+          "var": "73:44eb07496caa56a5"
         },
         {
-          "var": "74:9eb0e12b848d7790"
+          "var": "74:c41213b7924d2658"
         },
         {
-          "node": "75:fb91cb56feb2d9f1"
+          "node": "75:f80d33bbe824c080"
         }
       ]
     },
@@ -419,36 +419,39 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
           "side": "along"
         }
       },
-      "66:2360ab8e49e34ae6": {
-        "Boolean": {
-          "op": "Union",
-          "a": "36:622f0e2e9d68ff0f",
-          "b": "65:70ec8f3caf767345",
+      "66:635f15fc6093420d": {
+        "Union": {
+          "members": {
+            "Spelled": [
+              "36:622f0e2e9d68ff0f",
+              "65:70ec8f3caf767345"
+            ]
+          },
           "declare": []
         }
       },
-      "68:003152ce9c66a87e": {
+      "68:8bcf2fdc58dee6c0": {
         "PlaceInWorld": {
-          "body": "67:81d23535ef691fa6",
+          "body": "67:83d417af4c82c485",
           "pose": {
             "steps": []
           }
         }
       },
-      "72:590477ca724c7164": {
+      "72:1dc65489d79c554c": {
         "Measure": {
           "primitive": {
             "Distance": {
-              "a": "70:fbfb705b32ca91e9",
-              "b": "71:10c75a8c0868ecc1"
+              "a": "70:4a13fb9cdaaf5ccc",
+              "b": "71:616c07795d9beed6"
             }
           }
         }
       },
-      "75:fb91cb56feb2d9f1": {
+      "75:f80d33bbe824c080": {
         "Assertion": {
-          "value": "73:6f3dc8112b35669f",
-          "bound": "74:9eb0e12b848d7790",
+          "value": "73:44eb07496caa56a5",
+          "bound": "74:c41213b7924d2658",
           "relation": "AtLeast"
         }
       }
@@ -1000,25 +1003,25 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
           }
         }
       },
-      "67:81d23535ef691fa6": {
+      "67:83d417af4c82c485": {
         "kind": "Body",
         "def": {
           "Output": {
-            "node": "66:2360ab8e49e34ae6",
+            "node": "66:635f15fc6093420d",
             "port": 0
           }
         }
       },
-      "69:12952787d4d3f826": {
+      "69:4c85c303fae316bf": {
         "kind": "Body",
         "def": {
           "Output": {
-            "node": "68:003152ce9c66a87e",
+            "node": "68:8bcf2fdc58dee6c0",
             "port": 0
           }
         }
       },
-      "70:fbfb705b32ca91e9": {
+      "70:4a13fb9cdaaf5ccc": {
         "kind": "Face",
         "def": {
           "Select": {
@@ -1044,7 +1047,7 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
           }
         }
       },
-      "71:10c75a8c0868ecc1": {
+      "71:616c07795d9beed6": {
         "kind": "Face",
         "def": {
           "Select": {
@@ -1070,16 +1073,16 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
           }
         }
       },
-      "73:6f3dc8112b35669f": {
+      "73:44eb07496caa56a5": {
         "kind": "Length",
         "def": {
           "Output": {
-            "node": "72:590477ca724c7164",
+            "node": "72:1dc65489d79c554c",
             "port": 0
           }
         }
       },
-      "74:9eb0e12b848d7790": {
+      "74:c41213b7924d2658": {
         "kind": "Length",
         "def": {
           "Free": {

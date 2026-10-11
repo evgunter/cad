@@ -70,10 +70,13 @@ fn p1_shrunk_supports_wrap_exactly_the_targets_face_names() {
     let ev = eval(&doc);
     let table = table_of(&ev, blank);
     let target = table_of(&ev, cube);
+    let target_read = fixture::out(&doc, cube);
 
     let mut inner: Vec<StableName> = Vec::new();
     for (n, _) in table.iter() {
-        if let RoleSeg::FromTarget(up) = n.path.first().expect("a role") {
+        if let RoleSeg::From { read, of: up } = n.path.first().expect("a role")
+            && *read == target_read
+        {
             assert_eq!(
                 n.kind,
                 EntityKind::Face,
@@ -114,13 +117,14 @@ fn p1_shrunk_supports_wrap_exactly_the_targets_face_names() {
 fn p2_surgery_supports_wrap_names_the_target_table_carries() {
     let doc = die_composed::document();
     let ev = eval(&doc.doc);
-    let (fillet, target) = {
+    let (fillet, target, target_read) = {
         let mut found = None;
         for id in doc.doc.ids() {
             if let Some(Node::Fillet { selection, .. }) = doc.doc.node(id) {
                 found = Some((
                     id,
                     doc.doc.read_operation(*selection).expect("a live target"),
+                    doc.doc.selection(*selection).expect("a selection").body,
                 ));
             }
         }
@@ -133,7 +137,9 @@ fn p2_surgery_supports_wrap_names_the_target_table_carries() {
         if n.kind != EntityKind::Face {
             continue;
         }
-        if let RoleSeg::FromTarget(up) = n.path.first().expect("a role") {
+        if let RoleSeg::From { read, of: up } = n.path.first().expect("a role")
+            && *read == target_read
+        {
             face_survivors += 1;
             assert!(
                 target_table.lookup(up).is_some(),

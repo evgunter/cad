@@ -2,11 +2,11 @@
 id: declared-pairs-retire
 kind: issue
 title: D10 stage 4 PR F: declare, DeclaredPair, BooleanCoincidence, BooleanDeclarations, SetDeclare, the flush detector's declare protocol and the declared seats on booleans are deleted
-status: parked
+status: open
 opened: 2026-10-08
 priority: P0
 cost: M
-blocked_on: [a-union-member-is-keyed-by-its-read]
+blocked_on: []
 ---
 
 INTENT stage 4, PR F. Ev approved the design in PR 4323 (fork log row
