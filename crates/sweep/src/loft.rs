@@ -528,8 +528,8 @@ fn build<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>>(
         .iter()
         .map(|s| s.iter().map(SectionLoop::channel).collect())
         .collect();
-    let (canonical, structures) = validate_loft(&channel_sections, &channel_places, v_degree, tol)
-        .map_err(LoftError::Skin)?;
+    let (canonical, structures) =
+        validate_loft(&channel_sections, channel_places, v_degree, tol).map_err(LoftError::Skin)?;
     T::split_projective(LoftBuild {
         sections,
         places,
