@@ -797,10 +797,14 @@ fn three_pieces_two_of_whose_cuts_tie_build_in_every_op() {
 /// brick holding the axis, which its top face crosses. Each op builds,
 /// the sheared one's volumes agreeing with each other, and passes 3′:
 /// the pinch line's two edges pierce the face at one point and mint
-/// one ring there (`vtxfac::mint_ring`), so the pieces' vertices at the
-/// crossing sit on one point key. Red when each pierce mints its own
-/// ring: the results that keep the pinch's two pieces at the crossing
-/// fail 3′ with an undeclared `VertexVertex` at (0,0,1).
+/// one ring there (`vtxfac::mint_ring`). Where a result keeps the
+/// pinch's two pieces at the crossing (`pinch ∖`, both `∩`s and the
+/// block's), a vertex-vertex record names the two vertices there,
+/// citing the `VertexFusion` row the ring's grouping decided; the rest
+/// keep one vertex and record nothing there. Red when each pierce mints
+/// its own ring: those results fail 3′ with an undeclared `VertexVertex`
+/// at (0,0,1). Red when the ring's grouping is unrecorded: they hold no
+/// record of the pair.
 #[test]
 fn a_pinch_line_through_a_face_keeps_the_pinch_at_the_new_end() {
     let tol = Tol::witness();
@@ -817,31 +821,60 @@ fn a_pinch_line_through_a_face_keeps_the_pinch_at_the_new_end() {
     ba.records_b.vv.clone_from(&carried);
     let mut block_first = BooleanInputs::default();
     block_first.records_b.vv = carried;
-    let volume_of = |op: &str, got: Result<BooleanResult<f64>, BooleanError>| {
+    let volume_of = |op: &str, got: Result<BooleanResult<f64>, BooleanError>, pieces: bool| {
         let BooleanResult::Body(out) = got.unwrap_or_else(|e| panic!("{op} refused: {e:?}")) else {
             panic!("{op} came back empty");
         };
         let verdict = validate_pseudomanifold(&out.body, &out.contacts, tol);
         assert!(verdict.is_ok(), "{op}: 3′ refused {:?}", verdict.err());
+        // Where the result keeps the two pieces at the crossing, a record
+        // of theirs backs the pair, citing the fusion the ring decided.
+        let at = keys_at(&out.body, (0.0, 0.0, 1.0));
+        let recorded = out
+            .contacts
+            .vertex_vertex()
+            .filter(|(a, b)| at.contains(a) && at.contains(b))
+            .count();
+        let fused = out
+            .coincidences
+            .iter()
+            .any(|c| c.site == topo::DecisionSite::VertexFusion);
+        assert_eq!(
+            (at.len(), recorded, fused),
+            if pieces { (2, 1, true) } else { (1, 0, false) },
+            "{op}: vertices at the crossing, the record of them, a fusion row"
+        );
         mass_properties(&out.body, tol).expect("mass").volume
     };
-    let union = volume_of("pinch ∪ cutter", union_in(&pinch.body, &cutter, &ab, tol));
+    let union = volume_of(
+        "pinch ∪ cutter",
+        union_in(&pinch.body, &cutter, &ab, tol),
+        false,
+    );
     let pinch_less = volume_of(
         "pinch ∖ cutter",
         subtract_in(&pinch.body, &cutter, &ab, tol),
+        true,
     );
     let common = volume_of(
         "pinch ∩ cutter",
         intersect_in(&pinch.body, &cutter, &ab, tol),
+        true,
     );
-    let swapped = volume_of("cutter ∪ pinch", union_in(&cutter, &pinch.body, &ba, tol));
+    let swapped = volume_of(
+        "cutter ∪ pinch",
+        union_in(&cutter, &pinch.body, &ba, tol),
+        false,
+    );
     let cutter_less = volume_of(
         "cutter ∖ pinch",
         subtract_in(&cutter, &pinch.body, &ba, tol),
+        false,
     );
     let common_swapped = volume_of(
         "cutter ∩ pinch",
         intersect_in(&cutter, &pinch.body, &ba, tol),
+        true,
     );
     // Shearing keeps the cutter's volume: its triangle × the height.
     let cutter_volume = area(&triangle(80.0, 190.0)) * 0.5;
@@ -857,6 +890,7 @@ fn a_pinch_line_through_a_face_keeps_the_pinch_at_the_new_end() {
     let block_common = volume_of(
         "block ∩ pinch",
         intersect_in(&block, &pinch.body, &block_first, tol),
+        true,
     );
     assert!(
         (block_common - 0.25).abs() < 1e-9,
@@ -1936,5 +1970,98 @@ fn three_corners_alternating_round_the_cube_refuse_three_ops() {
         ("∪", union, 1.0 + less),
     ] {
         assert!((got - want).abs() < 1e-9, "{what}: {got}, want {want}");
+    }
+}
+
+/// **A face holding the pinch line ties its pierces' germs** (PR 4728's
+/// review r1): a cutter whose near face holds the whole pinch line, so at
+/// each end of the line the two bricks' pierces of that face share a
+/// germ along the line, and the ring orders the two by their chords
+/// (`vtxfac::tie_breaks_after`). With the face's normal at slopes 0.5
+/// (either side) and 2 the join cannot wind a run round the corner of no
+/// angle the tie leaves, and every op refuses typed `PinchRaysInAFace`,
+/// not as the kernel's defect. At slope −0.5 every op builds, passing 3′:
+/// the unions 33, `pinch ∖` and both `∩`s 1, `cutter ∖` 31.
+#[test]
+fn a_face_holding_the_pinch_line_ties_the_pierces_germs() {
+    let tol = Tol::witness();
+    let (pinch, carried) = pinch(tol);
+    for (slope, side) in [(0.5, -1.0), (0.5, 1.0), (2.0, -1.0), (-0.5, -1.0)] {
+        // The near face is the plane through the z-axis with normal
+        // n ∝ (1, −slope, 0); the cutter lies on `side` of it.
+        let k = (1.0f64 + slope * slope).sqrt();
+        let n = [side / k, -side * slope / k, 0.0];
+        let w = [slope / k, 1.0 / k, 0.0];
+        let u = [0.0, 0.0, 1.0];
+        // (w, u, n) right-handed when side = −1? Pick the handed order.
+        let wxu = [
+            w[1] * u[2] - w[2] * u[1],
+            w[2] * u[0] - w[0] * u[2],
+            w[0] * u[1] - w[1] * u[0],
+        ];
+        let rh = wxu[0] * n[0] + wxu[1] * n[1] + wxu[2] * n[2] > 0.0;
+        let (e0, e1) = if rh { (u, w) } else { (w, u) };
+        let (r0, r1) = if rh {
+            ((-1.0, 3.0), (-2.0, 2.0))
+        } else {
+            ((-2.0, 2.0), (-1.0, 3.0))
+        };
+        let cutter = topo::test_support::mapped_cube::<f64>(
+            move |x, y, z| {
+                let (a, b, c) = (r0.0 + (r0.1 - r0.0) * x, r1.0 + (r1.1 - r1.0) * y, -2.0 * z);
+                geom_core::Point3::new(
+                    a * e0[0] + b * e1[0] + c * n[0],
+                    a * e0[1] + b * e1[1] + c * n[1],
+                    a * e0[2] + b * e1[2] + c * n[2],
+                )
+            },
+            tol,
+        );
+        let cutter = finished("the cutter", cutter, tol);
+        let mut ab = BooleanInputs::default();
+        ab.records_a.vv.clone_from(&carried);
+        let mut ba = BooleanInputs::default();
+        ba.records_b.vv.clone_from(&carried);
+        for (what, r) in [
+            ("pinch ∪ cutter", union_in(&pinch.body, &cutter, &ab, tol)),
+            (
+                "pinch ∖ cutter",
+                subtract_in(&pinch.body, &cutter, &ab, tol),
+            ),
+            (
+                "pinch ∩ cutter",
+                intersect_in(&pinch.body, &cutter, &ab, tol),
+            ),
+            ("cutter ∪ pinch", union_in(&cutter, &pinch.body, &ba, tol)),
+            (
+                "cutter ∖ pinch",
+                subtract_in(&cutter, &pinch.body, &ba, tol),
+            ),
+            (
+                "cutter ∩ pinch",
+                intersect_in(&cutter, &pinch.body, &ba, tol),
+            ),
+        ] {
+            let pose = format!("slope={slope} side={side} {what}");
+            if slope < 0.0 {
+                let Ok(BooleanResult::Body(out)) = r else {
+                    panic!("{pose}: {r:?}")
+                };
+                let v = mass_properties(&out.body, tol).expect("mass").volume;
+                let want = match what {
+                    "pinch ∪ cutter" | "cutter ∪ pinch" => 33.0,
+                    "cutter ∖ pinch" => 31.0,
+                    _ => 1.0,
+                };
+                assert!((v - want).abs() < 1e-9, "{pose}: volume {v}, want {want}");
+                let verdict = validate_pseudomanifold(&out.body, &out.contacts, tol);
+                assert!(verdict.is_ok(), "{pose}: 3′ refused {:?}", verdict.err());
+            } else {
+                assert!(
+                    matches!(r, Err(BooleanError::PinchRaysInAFace { .. })),
+                    "{pose}: {r:?}"
+                );
+            }
+        }
     }
 }

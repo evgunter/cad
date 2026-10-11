@@ -2887,14 +2887,13 @@ fn point_on_chart_wall<T: Decide>(
             (true, false) => true,
             (false, false) => {
                 let m = chart_azimuth_margin(face, axis, u_ref, piece.az, radial, radius, band)?;
-                match crate::validate::decide_nonzero("bool_wall_trim", m, band) {
-                    Ok(geom_core::k_stats::NonzeroSign::Positive) => true,
-                    Ok(geom_core::k_stats::NonzeroSign::Negative) => false,
-                    Err(diag) if diag.margin.rejected_sign() == Some(Sign::Zero) => {
-                        return Err(PointInSolidError::NarrowWindowUnread { face, diag });
+                crate::validate::decide_nonzero("bool_wall_trim", m, band).map_err(|diag| {
+                    if diag.margin.rejected_sign() == Some(Sign::Zero) {
+                        PointInSolidError::NarrowWindowUnread { face, diag }
+                    } else {
+                        escalate(diag)
                     }
-                    Err(diag) => return Err(escalate(diag)),
-                }
+                })? == geom_core::k_stats::NonzeroSign::Positive
             }
         };
         if covers {

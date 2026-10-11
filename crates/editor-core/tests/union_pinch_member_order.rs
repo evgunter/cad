@@ -347,6 +347,27 @@ fn top() -> Point {
     micron(MEET[0], MEET[1], MEET[2])
 }
 
+/// Asserts `o`, node `id`'s result, records its two vertices at the
+/// pinch as a pair, and that the node recorded a `VertexFusion`: the
+/// ring that served both blocks' pierces of the plate's top grouped
+/// them by value (`topo` `vtxfac::ring_groups`).
+fn ring_fusion_recorded(ev: &Evaluation<f64>, id: RecipeNodeId, o: &Outcome, what: &str) {
+    assert!(
+        o.record.vv.contains(&[top(), top()]),
+        "{what}: a record of the two vertices at the pinch: {:?}",
+        o.record.vv
+    );
+    let value = ev.value(id).expect("the node evaluated");
+    assert!(
+        value
+            .coincidences
+            .iter()
+            .any(|c| c.site == topo::DecisionSite::VertexFusion),
+        "{what}: the ring's grouping recorded: {:?}",
+        value.coincidences
+    );
+}
+
 /// Every order of `0..n`.
 fn orders(n: usize) -> Vec<Vec<usize>> {
     if n == 0 {
@@ -548,6 +569,7 @@ fn the_plate_against_the_joined_blocks_builds_in_every_op() {
 
     let o = checked(&ev, footprints, "plate ∩ blocks", NOTCHES);
     assert_eq!(o.verdict, Ok(()), "plate ∩ blocks: 3′");
+    ring_fusion_recorded(&ev, footprints, &o, "plate ∩ blocks");
     assert_eq!(o.manifold, Ok(()), "plate ∩ blocks: check_mesh");
     let s = o.shape;
     assert_eq!(
@@ -649,9 +671,13 @@ fn a_slab_holding_the_contact_is_one_vertex_only_on_one_fragment() {
     let mut outcomes = Vec::new();
     for (&(what, op, _, _, volume, counts, pinch), &id) in rows.iter().zip(&ids) {
         let o = checked(&ev, id, what, volume);
-        // X's own contact record carries into each result, and where the
-        // op keeps the pierce as two vertices they sit on one point key.
+        // X's own contact record carries into each result. Where the op
+        // keeps the pierce as two vertices, a record of the pair cites the
+        // fusion the ring serving both pierces decided.
         assert_eq!(o.verdict, Ok(()), "{what}: 3′");
+        if pinch == 2 {
+            ring_fusion_recorded(&ev, id, &o, what);
+        }
         if op == BooleanOp::Intersect {
             // Two L-prisms touching along the contact line, which runs
             // between one vertex at each end as two coincident edges.

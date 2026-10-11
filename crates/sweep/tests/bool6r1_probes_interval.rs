@@ -48,7 +48,13 @@ fn an_interior_slab_at_the_band_edges_decides_the_same_at_interval() {
     for step in [0.5 * eps, 0.5 * (1.0 + k) * eps, 2.0 * k * eps] {
         let sections = vec![sq(), sq(), sq(), sq()];
         let places = stacked(&[0.0, 1.0, 1.0 + step, 2.0]);
-        let got = loft_body::<Interval>(&sections, &places, 2, tol).map(|_| ());
+        let got = loft_body::<Interval>(
+            &sweep::test_support::lift_sections::<Interval>(&sections),
+            &sweep::test_support::lift_places::<Interval>(&places),
+            2,
+            tol,
+        )
+        .map(|_| ());
         let want = geom_core::k_stats::decide("loft_stacking", Margin::of(step), band);
         match (want, &got) {
             (Ok(Sign::Positive), Ok(())) => {}
@@ -70,7 +76,12 @@ fn a_forward_stack_builds_at_interval_at_every_station_count() {
         #[allow(clippy::cast_precision_loss)]
         let zs: Vec<f64> = (0..k).map(|i| i as f64).collect();
         let sections = vec![sq(); k];
-        let out = loft_body::<Interval>(&sections, &stacked(&zs), k.min(4) - 1, tol);
+        let out = loft_body::<Interval>(
+            &sweep::test_support::lift_sections::<Interval>(&sections),
+            &sweep::test_support::lift_places::<Interval>(&stacked(&zs)),
+            k.min(4) - 1,
+            tol,
+        );
         assert!(
             out.is_ok(),
             "the forward stack of {k} sections builds at interval"
