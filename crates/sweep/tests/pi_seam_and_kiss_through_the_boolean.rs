@@ -916,17 +916,16 @@ fn a_rim_in_band_of_the_partners_wall_escalates() {
 ///   of no volume, so the union sits on the volume backstop's tight
 ///   bound `vol(A ∪ B) ≤ vol(A) + vol(B)`, crossed only by the kept
 ///   rim's standoff (`work/reachhold/a-settled-declared-coincidence-crosses-a-tight-volume-bound.md`).
-///   At the default ε and 1e-6 both orders refuse at that bound. At
-///   ε = 1e-12, order 0 (the tube's rim kept, standing off the dome's
-///   sphere by `2.5e-13`) builds: the sphere arm's fan form reads that
-///   rim on its own circle's sphere, which takes the standoff out of the
-///   volume, so the union is the closed form to `1e-16` and does not
-///   cross the bound; order 1 (the dome's rim kept on the tube's wall)
-///   still crosses it by `1.05e-12` and refuses. The member orders do
-///   NOT answer alike there, and the row states that rather than hiding
-///   it: an order that builds is held to `slack(k)` (and to the other
-///   order's volume, should both build), and an order that refuses
-///   refuses at the tight bound.
+///   At the default ε and 1e-6 both orders refuse at that bound, and the
+///   row asserts it. At ε = 1e-12 the member orders do NOT answer
+///   alike, and the row pins each one exactly: order 0 (the tube's rim
+///   kept, standing off the dome's sphere by `2.5e-13`) builds within
+///   `slack(k)`, because the sphere arm's fan form reads that rim on its
+///   own circle's sphere and takes the standoff out of the volume (the
+///   closed form to `1e-16`); order 1 (the dome's rim kept on the tube's
+///   wall) crosses the bound by `1.05e-12` and refuses
+///   `ResultVolumeImplausible` at it. Filed as
+///   `work/fluxtail/a-kept-rim-off-its-sphere-is-read-on-its-own-sphere-so-member-orders-diverge.md`.
 /// - `k = ±0.9`: the dome's meridian meets the tube's wall `√2·|k|·zero`
 ///   along its arc from the rim, and the crossing layer escalates on that
 ///   arc length, both orders
@@ -955,6 +954,7 @@ fn a_rim_offset_inside_the_zero_band_answers_alike_in_both_member_orders() {
         let tube_rim = rim_radius(&tube)[0];
         let want = PI * tube_rim * tube_rim * H + cap;
         let slack = (k.abs() * band.zero() / R + 64.0 * f64::EPSILON) * want;
+        let fine = tol.eps() == 1e-12;
         let mut built = Vec::new();
         for (order, r) in unions_with_discs_rest(&tube, &dome).into_iter().enumerate() {
             let label = format!("k = {k}, order {order}");
@@ -975,10 +975,16 @@ fn a_rim_offset_inside_the_zero_band_answers_alike_in_both_member_orders() {
                 built.push((label, topo::mass_properties(&b, tol).unwrap().volume));
                 continue;
             }
-            if (-0.5..0.0).contains(&k)
-                && let Ok(BooleanResult::Body(b)) = &r
-            {
-                built.push((label, topo::mass_properties(&b.body, tol).unwrap().volume));
+            // At ε = 1e-12 the member orders part: order 0 builds, order
+            // 1 refuses at the tight bound (the fluxtail row in the doc
+            // above). At every other ε both refuse alike.
+            let order_zero_builds = (-0.5..0.0).contains(&k) && fine && order == 0;
+            if order_zero_builds {
+                let b = match r {
+                    Ok(BooleanResult::Body(b)) => b.body,
+                    other => panic!("{label}: at ε 1e-12 order 0 builds: {other:?}"),
+                };
+                built.push((label, topo::mass_properties(&b, tol).unwrap().volume));
                 continue;
             }
             let e = r.err().unwrap_or_else(|| panic!("{label}: refuses"));
