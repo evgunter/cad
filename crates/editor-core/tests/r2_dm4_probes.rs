@@ -96,6 +96,22 @@ fn r2_union_of_halves_moved_apart() {
     );
 }
 
+/// A world placement of the LOWER half: its table is the lower half's.
+#[test]
+fn r2_place_lower_half() {
+    let (doc, _ext, split) = box_split();
+    let below = doc.output(split, SplitHalf::Below.port()).unwrap();
+    let (doc, placed) = fixture::step(doc, editor_core::DocEdit::place(below, None));
+    let placed = placed.unwrap();
+    let ev = fixture::run(&doc, &Default::default());
+    println!("placement: ok={:?}", ev.value(placed).is_some());
+    let pv = doc.outputs(placed)[0];
+    let t = ev.table(pv).expect("the placement's table");
+    let lower = ev.table(below).unwrap();
+    println!("placement rows {} lower rows {}", t.iter().count(), lower.iter().count());
+    assert_eq!(t.iter().count(), lower.iter().count());
+}
+
 fn tool_of(doc: &ProfileDoc, split: RecipeNodeId) -> RecipeNodeId {
     doc.upstream(split)
         .into_iter()
