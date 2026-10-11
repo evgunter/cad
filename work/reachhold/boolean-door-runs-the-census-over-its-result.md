@@ -89,3 +89,19 @@ when the probe ran it. The other 4 passed tier 3′ as well, so the census
 would not have caught every one of them. The admission fix makes the zip
 decline all 16, so the door no longer ships these bodies. It still shows
 that the door's tier-3-only gate lets a body tier 3′ refuses reach the caller.
+
+## Evidence: four near-tangent results the door ships (branch `cleave/near-tangent-invariants`, 2026-10-10)
+
+PR 4581 retired the pierce-germ `ClassificationInvariant` that refused
+four of JOIN's near-tangent census runs at ε = 1e-12. Those runs now
+build their closed-form volume and fail tier 3′ definitely, which this
+door does not see:
+- `w345 nt e1 a13 d1e-8` and `d1e-9`, prism ∩ cube: two stale `VertexOnFace` records each.
+- `w345 nt e1 a14 d1e-8`, cube ∩ prism: two stale `VertexOnFace` records.
+- `w345 nt e1 a14 d1e-8`, cube ∖ prism: three undeclared contacts (`VertexOnFace` at `(2, 0, 1)` and `(2, 0, 0)`, an `EdgeFaceOverlap` at `(2, 0, 0.5)`).
+
+`crates/sweep/tests/near_tangent_pierce_poses.rs` pins them at exactly
+those findings (`SHIPS_A_FINDING`), so a door census that refuses them
+turns that pin red, to be re-pinned at the refusal. The findings are
+FUSE's (`work/fuse/a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms.md`,
+where the full list is).

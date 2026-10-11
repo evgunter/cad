@@ -58,3 +58,18 @@ For each finding, either show its margin conditioned and type its
 in-band arm `Escalated` in `finding_arm`, or give it a certified reading
 the way the shell role has one. The census findings join this when the
 door runs the census (`boolean-door-runs-the-census-over-its-result`).
+
+**More evidence (CLEAVE, 2026-10-10).** Take the unit ball against
+`ball(50)` at `d = 51 − 2e-6`, ε = 1e-9
+(`crates/sweep/tests/spheres_crossing_off_every_edge.rs`,
+`a_large_ball_near_external_tangency_is_pinned`). Both `a ∪ b` and
+`b ∪ a` refuse `ResultInvalid { VolumeUncomputable }`. The face's
+`props_rim_level` enclosure is [0, 1.22e-9] (or [0, 1.24e-9]), in band,
+`check: Inventory`. The gate types `VolumeUncomputable` as a lane that
+cannot run.
+
+Whether this margin is the geometry's is unshown. The rim sits about
+2e-3 rad from the re-charted pole, which is the
+`sphere-rim-level-cosine-cancels-near-a-pole` (FLUXTAIL) neighbourhood.
+So it joins this inventory as another undecided finding typed the
+kernel's.

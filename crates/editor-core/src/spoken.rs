@@ -51,7 +51,7 @@ use crate::doc::Doc;
 use crate::label::Label;
 use crate::names::words::Detail;
 use crate::names::{NameTable, StableName};
-use crate::node::{BooleanOp, Datum, MintId, Node, RecipeNodeId, StepId};
+use crate::node::{Datum, MintId, Node, RecipeNodeId, StepId};
 use crate::program::ProfilePayload;
 
 /// How many hex digits a tag shows (`test_utils::refusal::NODE_TAG_DIGITS`
@@ -88,6 +88,18 @@ impl fmt::Display for RecipeNodeId {
 impl fmt::Display for StepId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write_tag(f, self.0)
+    }
+}
+
+/// **A read's tag**: `read` and the variable's digest as a node's tag is
+/// spelled (`read 3fa9c1d2a0b1`) — how a name said by tag says the read
+/// a carry came through, where no document says what defines it.
+pub(crate) struct ReadTag(pub(crate) crate::var::VarId);
+
+impl fmt::Display for ReadTag {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("read ")?;
+        write_tag(f, self.0.0)
     }
 }
 
@@ -374,8 +386,12 @@ impl HoldsNodes for SpokenNameParts {
         self.held.sole_profile(feature)
     }
 
-    fn boolean_op(&self, id: RecipeNodeId) -> Option<BooleanOp> {
-        self.held.boolean_op(id)
+    fn carry(&self, id: RecipeNodeId) -> Option<Carry> {
+        self.held.carry(id)
+    }
+
+    fn output_of(&self, var: crate::var::VarId) -> Option<OutputOf> {
+        self.held.output_of(var)
     }
 
     fn speak_var(&self, id: crate::var::VarId) -> Option<crate::doc::VarName> {
@@ -561,14 +577,17 @@ trait HoldsNodes {
     /// The one profile `feature` reads, `None` where it reads none or
     /// several, or is not held here.
     fn sole_profile(&self, feature: RecipeNodeId) -> Option<RecipeNodeId>;
-    /// The operation of the Boolean `id`, `None` where `id` is no
-    /// Boolean, or is not held here.
-    fn boolean_op(&self, id: RecipeNodeId) -> Option<BooleanOp>;
+    /// What the node `id` makes of an entity it carries in
+    /// ([`Carry`]), `None` where it carries none, or is not held here.
+    fn carry(&self, id: RecipeNodeId) -> Option<Carry>;
+    /// The operation and port defining the variable `var`, `None` where
+    /// it is no output, or is not held here.
+    fn output_of(&self, var: crate::var::VarId) -> Option<OutputOf>;
     /// The name the document holds for the variable `id`, if any.
     fn speak_var(&self, id: crate::var::VarId) -> Option<crate::doc::VarName>;
     /// The operation `id` is an output of, and its port's name, where
     /// the document holds it.
-    fn output_of(&self, _id: crate::var::VarId) -> Option<(RecipeNodeId, &'static str)> {
+    fn output_port(&self, _id: crate::var::VarId) -> Option<(RecipeNodeId, &'static str)> {
         None
     }
     /// A reader of `id` at `dim` as written ([`Doc::written`]), where
@@ -630,7 +649,7 @@ impl<P: ProfilePayload> HoldsNodes for Doc<P> {
         self.var_name(id).cloned()
     }
 
-    fn output_of(&self, id: crate::var::VarId) -> Option<(RecipeNodeId, &'static str)> {
+    fn output_port(&self, id: crate::var::VarId) -> Option<(RecipeNodeId, &'static str)> {
         let (node, port) = self.defined_by(id)?;
         let name = self.node(node)?.outputs().get(usize::from(port))?.name;
         Some((node, name))
@@ -667,11 +686,24 @@ impl<P: ProfilePayload> HoldsNodes for Doc<P> {
         }
     }
 
-    fn boolean_op(&self, id: RecipeNodeId) -> Option<BooleanOp> {
-        match self.node(id)? {
-            Node::Boolean { op, .. } => Some(*op),
-            _ => None,
-        }
+    fn carry(&self, id: RecipeNodeId) -> Option<Carry> {
+        Some(match self.node(id)? {
+            Node::Union { .. } => Carry::Union,
+            Node::Intersect { .. } => Carry::Intersect,
+            Node::Subtract { from, .. } => Carry::Subtract { from: from.read },
+            Node::Fillet { .. } | Node::Chamfer { .. } | Node::Shell { .. } => Carry::Continued,
+            _ => return None,
+        })
+    }
+
+    fn output_of(&self, var: crate::var::VarId) -> Option<OutputOf> {
+        let (node, port) = self.var(var)?.def().output()?;
+        let ports = self.node(node)?.outputs();
+        let port = match ports.len() {
+            0 | 1 => None,
+            _ => Some(ports.get(usize::from(port))?.name),
+        };
+        Some(OutputOf { node, port })
     }
 
     fn reference_slot(
@@ -739,9 +771,35 @@ pub struct HeldNodes {
     nodes: Box<[SpokenNode]>,
     vars: Box<[SpokenVar]>,
     /// What the words read beyond a node's name — where a profile step
-    /// sits, a feature's sole profile, a Boolean's operation: one
+    /// sits, a feature's sole profile, what a node makes of what it
+    /// carries in, a read's operation: one
     /// slice, so a refusal carrying these stays three pointers wide.
     facts: Box<[NodeFact]>,
+}
+
+/// **What a node makes of an entity it carries in** ([`crate::RoleSeg::From`]),
+/// as a name's words say it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Carry {
+    /// The body's own continuation: a blend's or a shell's target.
+    Continued,
+    /// Joined into a union.
+    Union,
+    /// Intersected.
+    Intersect,
+    /// Cut: the entity of `from` continues, the tool's is cut in.
+    Subtract {
+        /// The subtract's `from` read.
+        from: crate::var::VarId,
+    },
+}
+
+/// **The operation and port defining a variable**, the port named where
+/// the operation has several.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct OutputOf {
+    node: RecipeNodeId,
+    port: Option<&'static str>,
 }
 
 /// One thing a sentence's words read off the document beyond a node's
@@ -752,8 +810,10 @@ enum NodeFact {
     Step(StepId, StepAt),
     /// A feature, with the one profile it read.
     SoleProfile(RecipeNodeId, RecipeNodeId),
-    /// A Boolean, with its operation.
-    Op(RecipeNodeId, BooleanOp),
+    /// A node that carries entities in, with what it makes of them.
+    Carry(RecipeNodeId, Carry),
+    /// A variable an operation defines, with that operation and port.
+    Output(crate::var::VarId, OutputOf),
 }
 
 impl NodeFact {
@@ -762,7 +822,8 @@ impl NodeFact {
         match self {
             Self::Step(id, _) => (0, id.0),
             Self::SoleProfile(node, _) => (1, node.0),
-            Self::Op(node, _) => (2, node.0),
+            Self::Carry(node, _) => (2, node.0),
+            Self::Output(var, _) => (3, var.0),
         }
     }
 
@@ -778,8 +839,11 @@ impl NodeFact {
             Self::SoleProfile(feature, _) if doc.node(feature).is_some() => {
                 Some(Self::SoleProfile(feature, doc.sole_profile(feature)?))
             }
-            Self::Op(boolean, _) if doc.node(boolean).is_some() => {
-                Some(Self::Op(boolean, doc.boolean_op(boolean)?))
+            Self::Carry(node, _) if doc.node(node).is_some() => {
+                Some(Self::Carry(node, doc.carry(node)?))
+            }
+            Self::Output(var, _) if doc.var(var).is_some() => {
+                Some(Self::Output(var, doc.output_of(var)?))
             }
             held => Some(held),
         }
@@ -864,9 +928,16 @@ impl HoldsNodes for HeldNodes {
         })
     }
 
-    fn boolean_op(&self, id: RecipeNodeId) -> Option<BooleanOp> {
+    fn carry(&self, id: RecipeNodeId) -> Option<Carry> {
         self.facts.iter().find_map(|fact| match *fact {
-            NodeFact::Op(held, op) if held == id => Some(op),
+            NodeFact::Carry(held, carry) if held == id => Some(carry),
+            _ => None,
+        })
+    }
+
+    fn output_of(&self, var: crate::var::VarId) -> Option<OutputOf> {
+        self.facts.iter().find_map(|fact| match *fact {
+            NodeFact::Output(held, of) if held == var => Some(of),
             _ => None,
         })
     }
@@ -904,8 +975,8 @@ impl<P: ProfilePayload> HoldsNodes for Recording<'_, P> {
         var.name().cloned()
     }
 
-    fn output_of(&self, id: crate::var::VarId) -> Option<(RecipeNodeId, &'static str)> {
-        let (node, port) = self.doc.output_of(id)?;
+    fn output_port(&self, id: crate::var::VarId) -> Option<(RecipeNodeId, &'static str)> {
+        let (node, port) = self.doc.output_port(id)?;
         let _ = self.speak(node);
         Some((node, port))
     }
@@ -927,10 +998,17 @@ impl<P: ProfilePayload> HoldsNodes for Recording<'_, P> {
         Some(profile)
     }
 
-    fn boolean_op(&self, id: RecipeNodeId) -> Option<BooleanOp> {
-        let op = self.doc.boolean_op(id)?;
-        self.said.borrow_mut().keep(NodeFact::Op(id, op));
-        Some(op)
+    fn carry(&self, id: RecipeNodeId) -> Option<Carry> {
+        let carry = self.doc.carry(id)?;
+        self.said.borrow_mut().keep(NodeFact::Carry(id, carry));
+        Some(carry)
+    }
+
+    fn output_of(&self, var: crate::var::VarId) -> Option<OutputOf> {
+        let of = self.doc.output_of(var)?;
+        self.said.borrow_mut().keep(NodeFact::Output(var, of));
+        let _ = self.speak(of.node);
+        Some(of)
     }
 }
 
@@ -1025,10 +1103,30 @@ impl<'a> Speaker<'a> {
             .unwrap_or(Detail::Full)
     }
 
-    /// The operation of the Boolean `id` in this speaker's document,
-    /// `None` by tag or where it holds no such Boolean.
-    pub(crate) fn boolean_op(self, id: RecipeNodeId) -> Option<BooleanOp> {
-        self.doc?.boolean_op(id)
+    /// What the node `id` makes of an entity it carries in, in this
+    /// speaker's document; `None` by tag or where it holds no such node.
+    pub(crate) fn carry(self, id: RecipeNodeId) -> Option<Carry> {
+        self.doc?.carry(id)
+    }
+
+    /// **The read `var`, said**: its name where the document holds one,
+    /// else the operation defining it (`Split 1ab2's above` for one of
+    /// several outputs), else its id.
+    pub(crate) fn read(self, var: crate::var::VarId) -> String {
+        let Some(doc) = self.doc else {
+            return ReadTag(var).to_string();
+        };
+        if let Some(name) = doc.speak_var(var) {
+            return name.to_string();
+        }
+        match doc.output_of(var) {
+            Some(OutputOf { node, port: None }) => self.node(node).to_string(),
+            Some(OutputOf {
+                node,
+                port: Some(port),
+            }) => format!("{}'s {port}", self.node(node)),
+            None => format!("{var}"),
+        }
     }
 
     /// The node `id` as this speaker's document holds it, `noun` said
@@ -1156,7 +1254,7 @@ impl<'a> Speaker<'a> {
         if let Some(name) = doc.speak_var(var) {
             return format!("`{name}`");
         }
-        match doc.output_of(var) {
+        match doc.output_port(var) {
             Some((node, port)) => format!("the {port} of {}", self.node(node)),
             None => var.to_string(),
         }
@@ -1298,9 +1396,10 @@ pub fn node_kind_noun<P, S: crate::Slot>(node: &Node<P, S>) -> &'static str {
         Node::Extrude { .. } => "Extrude",
         Node::Revolve { .. } => "Revolve",
         Node::Transform { .. } => "Transform",
+        Node::Subtract { .. } => "Subtract",
         Node::PlaceInWorld { .. } => "PlaceInWorld",
-        Node::Boolean { .. } => "Boolean",
         Node::Union { .. } => "Union",
+        Node::Intersect { .. } => "Intersect",
         Node::Split { .. } => "Split",
         Node::Pattern { .. } => "Pattern",
         Node::Part { .. } => "Part",

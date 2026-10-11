@@ -42,3 +42,19 @@ measure it.
 ## Re-homed from FLUX to SCALAR (2026-10-10)
 
 (FLUX orchestrator) FLUX measured 125.5 budget points against 30 and was cut on its priority seam: FLUX kept the curved closed-form arms. SCALAR collects the scalar doors and the readers over them: the certified-door family, the margin and recourse readers, the unit-direction doors, and the box driver's readings. The id and the body above are unchanged; the move may have set `priority`, `cost` or `status` in the header.
+
+## Two more doors mint onto the log (CLEAVE, branch `cleave/split-straddles-carry-reading`)
+
+- `k_stats::gate_rejection` is now the one mint of a gate's rejection.
+  The gate doors call it, and so does a site that decides a schedule
+  and refuses once after it. Its first reachable caller is `topo`'s
+  join frame (`split_join_frame_arm`, every member decided Zero), which
+  adds a decided rejection to this row's population.
+- `k_stats::straddle` records two decided bounds' enclosure with
+  `terminal_sliver: false`, so the driver reads it as `Bisect`. That is
+  D9 row 1's posture for a straddling enclosure. Where the two bounds
+  are slack in the geometry and not in the box (an ellipse bending
+  tighter than the band), no sub-box closes the gap, which is this
+  row's shape again.
+
+Not measured through `drive`.

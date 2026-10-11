@@ -1666,6 +1666,59 @@ pub(in crate::boolean) mod tests {
         Band::linear(Tol::witness()).expect("the witness band forms")
     }
 
+    /// **A straddle `contfp` carries through `rim_wedge`'s seam cover**
+    /// (its containment refusal read as the bare diagnostic) ends where a
+    /// margin that was read ends: the seam door's and the tangent locus's
+    /// lever alone, where the poisoned margin it carried before the
+    /// enclosure added the unreadable-margin note. A rim no declaration
+    /// spent as a seam ends in its frontier either way.
+    #[test]
+    fn a_straddle_through_the_seam_cover_ends_in_the_lever_alone() {
+        use crate::contact::BooleanCoincidence;
+        use geom_core::{Decided, Sign};
+        let band = band();
+        let straddle = geom_core::k_stats::straddle(
+            "bool_contact_arc_straddle",
+            Decided {
+                sign: Sign::Zero,
+                margin: MarginDiag::value(0.5 * band.zero()),
+            },
+            Decided {
+                sign: Sign::Positive,
+                margin: MarginDiag::value(3.0 * band.escalate()),
+            },
+            band,
+        );
+        let poisoned = Indeterminate {
+            margin: MarginDiag::INVALID,
+            ..straddle
+        };
+        let said = |site, read, diag| BooleanError::coincidence(site, read, diag).to_string();
+        let seam = DeclarationRead::Spent(BooleanCoincidence::Seam);
+        for site in [Coincide::Rim, Coincide::TangentLocus] {
+            let (after, before) = (said(site, seam, straddle), said(site, seam, poisoned));
+            assert!(!after.contains(UNREADABLE_MARGIN_NOTE), "{site:?}: {after}");
+            assert!(
+                before.contains(UNREADABLE_MARGIN_NOTE),
+                "{site:?}: {before}"
+            );
+            assert_eq!(
+                after.rsplit_once("Recourse: ").map(|(_, r)| r),
+                before
+                    .rsplit_once("Recourse: ")
+                    .and_then(|(_, r)| r.split_once("; ").map(|(lever, _)| lever)),
+                "{site:?}: the same lever"
+            );
+        }
+        let rest = DeclarationRead::Spent(BooleanCoincidence::REST);
+        let ending = |s: String| s.rsplit_once("Recourse: ").map(|(_, r)| r.to_owned());
+        assert_eq!(
+            ending(said(Coincide::Rim, rest, straddle)),
+            ending(said(Coincide::Rim, rest, poisoned)),
+            "the rim frontier"
+        );
+    }
+
     fn diag_of(margin: MarginDiag) -> Indeterminate {
         Indeterminate {
             margin,
@@ -3458,6 +3511,96 @@ pub(in crate::boolean) mod tests {
             offered_below(&text),
             Some(Some(point_margin(&diag) / k())),
             "{text}"
+        );
+    }
+
+    /// **The maximal-faces gate reads a pair at the edge they share,
+    /// wherever the operand stands** (F7): the split top's half tilted
+    /// about the diagonal by an angle whose sweep over the edge's extent
+    /// reads zero is one plane with its neighbour, on the unit prism and
+    /// on the prism moved hundreds of metres across the diagonal, where
+    /// the planes part by many bands at the world origin.
+    #[test]
+    fn the_maximal_faces_gate_reads_a_tilted_neighbour_alike_wherever_it_stands() {
+        let (b, tol) = (band(), Tol::witness());
+        for share in [0.5, 0.9] {
+            let body = top_split_redescribed(|p0, along, diagonal| {
+                let theta = share * b.zero() / diagonal;
+                let up = Vec3::new(0.0, 0.0, 1.0);
+                crate::Surface::Plane {
+                    origin: p0,
+                    normal: up * theta.cos() + along.cross(up) * theta.sin(),
+                    u_ref: along,
+                }
+            });
+            for shift in [
+                Vec3::new(0.0, 0.0, 0.0),
+                Vec3::new(600.0, -400.0, 250.0),
+                Vec3::new(-300.0, 0.0, 0.0),
+            ] {
+                let moved = crate::transform::transform_rigid(
+                    &body,
+                    &geom_core::Affine3::translation(shift),
+                    tol,
+                )
+                .expect("a translation is rigid");
+                let read = super::super::reduce::gate_maximal_faces(&moved, Operand::A, b);
+                assert!(
+                    matches!(read, Err(BooleanError::NonMaximalFaces { .. })),
+                    "a {share} band tilt moved by {shift:?}: {read:?}"
+                );
+            }
+        }
+    }
+
+    /// **The maximal-faces gate levers a bend at a ball holding the
+    /// shared edge** (F7): a disc on a block's top, its circle split
+    /// into arcs of 270° and 90°, the disc bent about its diameter
+    /// along `x` by an angle whose sweep reads just past the zero band
+    /// over the circle's diameter. The 270° arc reaches the diameter from
+    /// its start, so the gate reads the bend in band and refuses it as
+    /// its own escalation, where the arc's chord or sagitta (1.71 r)
+    /// would read it zero and call the two faces one plane.
+    #[test]
+    fn the_maximal_faces_gate_reads_an_arc_past_a_half_turn_at_its_diameter() {
+        let (b, tol) = (band(), Tol::witness());
+        let square = [(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)];
+        let prism = crate::test_support_fixtures::prism_z::<f64>(&square, 0.0, 1.0, tol);
+        let mut body = prism.body;
+        let outer = body.get_face(prism.top_face).unwrap().outer;
+        let crate::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+            panic!("the top face's outer loop is a cycle");
+        };
+        let (center, radius) = (Point3::new(1.0, 1.0, 1.0), 0.5);
+        let disc =
+            crate::test_support_fixtures::plant_disc_face(&mut body, first, center, radius, tol);
+        body.split_edge(disc.edge, 1.5 * std::f64::consts::PI, tol)
+            .expect("the circle splits at three quarters of a turn");
+        let sin = 1.1 * b.zero() / (2.0 * radius);
+        let (up, along) = (Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0));
+        body.set_face_surface_unvouched_for_tests(
+            disc.face,
+            crate::euler::FaceSurface::New {
+                surface: crate::Surface::Plane {
+                    origin: center,
+                    normal: up * (1.0 - sin * sin).sqrt() + along.cross(up) * sin,
+                    u_ref: along,
+                },
+                sense: true,
+            },
+        )
+        .unwrap();
+        let err = super::super::reduce::gate_maximal_faces(&body, Operand::A, b)
+            .expect_err("a bend in band refuses");
+        assert!(
+            matches!(
+                err,
+                BooleanError::Escalated {
+                    decision: BooleanDecision::Neighbours(PlaneRung::Parallel),
+                    ..
+                }
+            ),
+            "the bend reads in band over the arc's diameter: {err:?}"
         );
     }
 

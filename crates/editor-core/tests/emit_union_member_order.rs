@@ -30,7 +30,7 @@ use crate::docm7_union_declare::{block, run};
 use crate::emit_boolean_vertex_keys::{
     edge_touch_outside, ell_and_tip, face_touch, named_geometry, nested, seamed_touch,
 };
-use crate::fixture::{ends, fname, insert, len, member_face, on_frame, point, table};
+use crate::fixture::{ends, fname, insert, len, member_face, on_frame, out, point, table};
 use editor_core::ExtrudeSide;
 
 use editor_core::{
@@ -40,6 +40,35 @@ use editor_core::{
 use geom_core::Tol;
 
 type Fixture = fn(ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId);
+
+/// Which two-operand boolean node a row builds.
+#[derive(Clone, Copy)]
+enum Op {
+    Union,
+    Subtract,
+    Intersect,
+}
+
+impl Op {
+    /// The node of this kind over `a` and `b`, declaring nothing.
+    fn node(self, a: RecipeNodeId, b: RecipeNodeId) -> editor_core::AuthoredNode {
+        match self {
+            Self::Union => Node::Union {
+                members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+                declare: Vec::new(),
+            },
+            Self::Intersect => Node::Intersect {
+                members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+                declare: Vec::new(),
+            },
+            Self::Subtract => Node::Subtract {
+                from: a.into(),
+                tool: b.into(),
+                declare: Vec::new(),
+            },
+        }
+    }
+}
 
 /// A slab and an inverted-U rib standing in it: the rib's arms (x in
 /// [0.5, 1] and [2, 2.5], y in [0.5, 1.5]) cross the slab's top at
@@ -82,13 +111,14 @@ fn union_of(
 ) -> (
     editor_core::Evaluation<f64>,
     RecipeNodeId,
-    [RecipeNodeId; 2],
+    [(RecipeNodeId, editor_core::VarId); 2],
 ) {
     let doc = ProfileDoc::empty_derived("emit_union_member_order", Tol::witness());
     let (doc, x, y) = fixture(doc);
     let members = if swap { vec![y, x] } else { vec![x, y] };
     let (doc, u) = crate::fixture::union_over(doc, &members, Vec::new());
-    (run(&doc), u, [x, y])
+    let (xr, yr) = (out(&doc, x), out(&doc, y));
+    (run(&doc), u, [(x, xr), (y, yr)])
 }
 
 /// **Reordering a union's two members rebinds no name.**
@@ -108,8 +138,8 @@ fn reordering_a_unions_two_members_rebinds_no_name() {
     for (what, fixture) in fixtures {
         let (ev_xy, u_xy, _) = union_of(fixture, false);
         let (ev_yx, u_yx, _) = union_of(fixture, true);
-        let xy = named_geometry(&ev_xy, u_xy, false).expect("a union is never empty");
-        let yx = named_geometry(&ev_yx, u_yx, false).expect("a union is never empty");
+        let xy = named_geometry(&ev_xy, u_xy).expect("a union is never empty");
+        let yx = named_geometry(&ev_yx, u_yx).expect("a union is never empty");
         let diff: Vec<_> = xy.symmetric_difference(&yx).collect();
         assert!(
             diff.is_empty(),
@@ -130,11 +160,11 @@ fn a_unions_seam_chain_is_named_by_its_ends() {
     let mut named: std::collections::BTreeMap<(String, i64), StableName> =
         std::collections::BTreeMap::new();
     for swap in [false, true] {
-        let (ev, u, [slab, rib]) = union_of(slab_rib, swap);
-        let top = member_face(u, slab, fname(slab, RoleSeg::Cap(CapEnd::End)));
+        let (ev, u, [(slab, slab_read), (rib, rib_read)]) = union_of(slab_rib, swap);
+        let top = member_face(u, slab_read, fname(slab, RoleSeg::Cap(CapEnd::End)));
         let body = body_of(&ev, u);
         for cap in [CapEnd::End, CapEnd::Start] {
-            let rib_cap = member_face(u, rib, fname(rib, RoleSeg::Cap(cap)));
+            let rib_cap = member_face(u, rib_read, fname(rib, RoleSeg::Cap(cap)));
             let (a, b) = if top <= rib_cap {
                 (top.clone(), rib_cap)
             } else {
@@ -212,7 +242,7 @@ fn bindings(
     u: RecipeNodeId,
 ) -> std::collections::BTreeMap<String, String> {
     let mut out = std::collections::BTreeMap::new();
-    for line in named_geometry(ev, u, false).expect("a union is never empty") {
+    for line in named_geometry(ev, u).expect("a union is never empty") {
         let (n, g) = line.rsplit_once(" @ ").expect("a name @ geometry row");
         let prior = out.insert(n.to_string(), g.to_string());
         assert!(prior.is_none(), "{n} binds two entities");
@@ -266,7 +296,9 @@ fn no_name_rebinds_across_the_member_orders_of_a_cut_seam_union() {
                 let (doc, u) = insert(
                     doc,
                     Node::Union {
-                        members: p.iter().map(|&i| m[i].into()).collect(),
+                        members: editor_core::Bodies::Spelled(
+                            p.iter().map(|&i| m[i].into()).collect(),
+                        ),
                         declare: Vec::new(),
                     },
                 );
@@ -307,21 +339,11 @@ fn no_name_rebinds_across_the_member_orders_of_a_cut_seam_union() {
 #[test]
 fn a_seam_passed_through_a_split_and_cut_later_is_named() {
     use crate::fixture::scl;
-    use editor_core::{BooleanOp, Datum, PartSelect, SplitHalf};
+    use editor_core::{Datum, PartSelect, SplitHalf};
     let doc = ProfileDoc::empty_derived("emit_union_member_order_split", Tol::witness());
     let (doc, slab, rib) = slab_rib(doc);
-    let pair = |doc, op, a: RecipeNodeId, b: RecipeNodeId| {
-        insert(
-            doc,
-            Node::Boolean {
-                op,
-                a: a.into(),
-                b: b.into(),
-                declare: Vec::new(),
-            },
-        )
-    };
-    let (doc, joined) = pair(doc, BooleanOp::Union, slab, rib);
+    let pair = |doc, op: Op, a: RecipeNodeId, b: RecipeNodeId| insert(doc, op.node(a, b));
+    let (doc, joined) = pair(doc, Op::Union, slab, rib);
     let (doc, tool) = insert(
         doc,
         Node::Datum(Datum::Plane {
@@ -344,14 +366,14 @@ fn a_seam_passed_through_a_split_and_cut_later_is_named() {
         },
     );
     let (doc, cut) = block(doc, (0.7, 0.8), (0.3, 0.7), 0.95, 0.1);
-    let (doc, minus) = pair(doc, BooleanOp::Subtract, below, cut);
-    let (doc, plus) = pair(doc, BooleanOp::Union, below, cut);
+    let (doc, minus) = pair(doc, Op::Subtract, below, cut);
+    let (doc, plus) = pair(doc, Op::Union, below, cut);
     let ev = run(&doc);
     for (what, id) in [("subtract", minus), ("union", plus)] {
         if let Some(e) = crate::docm7_union_declare::failure(&ev, id) {
             panic!("{what} refused: {e}");
         }
-        let ranked = named_geometry(&ev, id, false)
+        let ranked = named_geometry(&ev, id)
             .expect("a body")
             .into_iter()
             .filter(|l| l.contains("Ends") && l.contains("Seam"))
@@ -373,7 +395,6 @@ fn a_seam_passed_through_a_split_and_cut_later_is_named() {
 #[test]
 fn a_seam_between_two_placements_of_one_prototype_is_named() {
     use crate::fixture::{ang, scl};
-    use editor_core::BooleanOp;
     let doc = ProfileDoc::empty_derived("emit_union_member_order_same", Tol::witness());
     let (doc, _slab, rib) = slab_rib(doc);
     let (doc, turned) = insert(
@@ -390,27 +411,19 @@ fn a_seam_between_two_placements_of_one_prototype_is_named() {
     let mut doc = doc;
     let mut ids = Vec::new();
     for (what, op, a, b) in [
-        ("union", BooleanOp::Union, rib, turned),
-        ("union, swapped", BooleanOp::Union, turned, rib),
-        ("subtract", BooleanOp::Subtract, rib, turned),
-        ("intersect", BooleanOp::Intersect, rib, turned),
+        ("union", Op::Union, rib, turned),
+        ("union, swapped", Op::Union, turned, rib),
+        ("subtract", Op::Subtract, rib, turned),
+        ("intersect", Op::Intersect, rib, turned),
     ] {
-        let (d, id) = insert(
-            doc,
-            Node::Boolean {
-                op,
-                a: a.into(),
-                b: b.into(),
-                declare: Vec::new(),
-            },
-        );
+        let (d, id) = insert(doc, op.node(a, b));
         doc = d;
         ids.push((what, id));
     }
     let (doc, node) = insert(
         doc,
         Node::Union {
-            members: vec![rib.into(), turned.into()],
+            members: editor_core::Bodies::Spelled(vec![rib.into(), turned.into()]),
             declare: Vec::new(),
         },
     );
@@ -420,7 +433,7 @@ fn a_seam_between_two_placements_of_one_prototype_is_named() {
         if let Some(e) = crate::docm7_union_declare::failure(&ev, id) {
             panic!("{what} refused: {e}");
         }
-        let seams = named_geometry(&ev, id, false)
+        let seams = named_geometry(&ev, id)
             .expect("a body")
             .into_iter()
             .filter(|l| l.contains("Seam"))

@@ -334,7 +334,6 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "point_in_loop_arm"
         | "point_in_arc_loop_segment"
         | "point_in_arc_loop_boundary"
-        | "point_in_arc_loop_boundary_disagreement"
         | "point_in_arc_loop_side"
         | "point_in_arc_loop_advance"
         | "point_in_arc_loop_arm"

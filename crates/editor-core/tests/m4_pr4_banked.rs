@@ -23,9 +23,9 @@ use editor_core::ExtrudeSide;
 use std::collections::BTreeMap;
 
 use editor_core::{
-    BooleanOp, CancelToken, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions, Evaluation, Node,
-    ProfileDoc, Qualifier, RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SlotId,
-    StableName, diff_verdicts, evaluate, resolve_with_prior,
+    CancelToken, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions, Evaluation, Node, ProfileDoc,
+    Qualifier, RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SlotId, StableName,
+    diff_verdicts, evaluate, resolve_with_prior,
 };
 use fixture::{ang, insert, len, on_frame, scl, step};
 use geom_core::Tol;
@@ -115,10 +115,9 @@ fn band_cut() -> BandCut {
     );
     let (doc, sub) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: a.into(),
-            b: transform.into(),
+        Node::Subtract {
+            from: a.into(),
+            tool: transform.into(),
             declare: Vec::new(),
         },
     );
@@ -224,10 +223,8 @@ fn dropped_fused_vertex_identity_diagnoses_honestly() {
     let decl = fixture::declare_x_offset_flush_at(&doc, (a, a), (transform, b0));
     let (doc, u) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: a.into(),
-            b: transform.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), transform.into()]),
             declare: decl,
         },
     );
@@ -278,7 +275,11 @@ fn fused_vertex_scenario(
         .keys()
         .filter(|n| {
             n.kind == EntityKind::Vertex
-                && matches!(n.path.first(), Some(RoleSeg::FromA(_) | RoleSeg::FromB(_)))
+                && matches!(
+                    n.path.first(),
+                    // Either operand's: every carried name.
+                    Some(RoleSeg::From { .. })
+                )
                 && !r2.contains_key(*n)
         })
         .collect();
