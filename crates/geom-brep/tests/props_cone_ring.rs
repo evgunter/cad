@@ -163,12 +163,7 @@ fn a_ring_wound_with_its_face_refuses() {
     for with in [true, false] {
         let got = measure(&[window(OUTER.0, OUTER.1, with), window(HOLE.0, HOLE.1, with)]);
         assert!(
-            matches!(
-                got,
-                Err(PropsError::NotIsoRectangle {
-                    what: "props_ring_winding"
-                })
-            ),
+            matches!(got, Err(PropsError::RingWoundWithFace)),
             "traversal {with}: {got:?}"
         );
     }
