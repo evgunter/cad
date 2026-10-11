@@ -25,6 +25,7 @@ use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{ProfileLoop, RawLoop};
 use sweep::test_support::{brick, finished};
 use sweep::{Revolution, revolve};
+use test_utils::cone_cut::ConeCut;
 use topo::{AtRestBody, Body, FaceKey};
 
 fn p(x: f64, y: f64, z: f64) -> Point3<f64> {
@@ -193,13 +194,10 @@ fn cone_of(body: &Body<f64>) -> Surface<f64> {
         .expect("the body has a cone wall")
 }
 
-/// Where the section of the plane `(origin, normal)` starts on each
-/// nappe of `cone`, read off the surfaces: the real plane meets the line
-/// through a unit generator `g` at `−δ/(g·n)` from the apex (`δ` the
-/// apex gap), and `g·n` runs over `[−D, M]` (mirrored where `a·n < 0`),
-/// so one nappe's section starts `|δ|/M` from the apex and the other's
-/// `|δ|/D`. Returns `(on the +axis nappe, on the −axis nappe, |δ|/D)`.
-fn nappe_starts(cone: &Surface<f64>, origin: Point3<f64>, normal: Vec3<f64>) -> (f64, f64, f64) {
+/// The oracle's cut of `cone` by the plane `(origin, normal)`, in
+/// double-double arithmetic off the stored `f64`s
+/// ([`test_utils::cone_cut`]); it never reads the arm's bound.
+fn cut(cone: &Surface<f64>, origin: Point3<f64>, normal: Vec3<f64>) -> ConeCut {
     let Surface::Cone {
         apex,
         axis,
@@ -209,55 +207,34 @@ fn nappe_starts(cone: &Surface<f64>, origin: Point3<f64>, normal: Vec3<f64>) -> 
     else {
         unreachable!("a cone")
     };
-    let (sin_a, cos_a) = half_angle.sin_cos();
-    let (c, s) = (axis.dot(normal), axis.cross(normal).norm());
-    let (d, m) = (sin_a * s - cos_a * c.abs(), sin_a * s + cos_a * c.abs());
-    let gap = (apex - origin).dot(normal);
-    // On the +axis nappe `t > 0`, so `g·n` has the sign of `−δ`: the
-    // steep end `M` lies on the side of `c`.
-    let (plus, minus) = if -gap * c > 0.0 { (m, d) } else { (d, m) };
-    (gap.abs() / plus, gap.abs() / minus, gap.abs() / d)
+    let p3 = |q: Point3<f64>| [q.x, q.y, q.z];
+    let w3 = |v: Vec3<f64>| [v.x, v.y, v.z];
+    ConeCut::new(p3(apex), w3(axis), half_angle, (p3(origin), w3(normal)))
 }
 
-/// How far the line pair through the apex stands from the section of
-/// the plane `(origin, normal)` over a span of `cone` whose points lie
-/// `(lo, hi)` along its axis from the apex: the lesser of the far start,
-/// and `max(t₀ − ρ, 0) + H` over the nappes the span reaches past the
-/// apex (the nearer start where it holds the apex), where `ρ`
-/// is the span's least distance from the apex, `t₀` a nappe's start
-/// ([`nappe_starts`]), and `H = 2|δ|/(σ + √max(σ² − 2s|δ|/(ρ·sin α), 0))`
-/// with `σ = √(D·M)/sin α`, the sine of the angle between the plane and
-/// the cone along a line of the pair: every section point on a
-/// generator `g` stands `|δ|·sin∠(g, line)/|g·n|` from the line, which
-/// is at most `H` wherever it is `ρ` or more from the apex.
-fn pair_bound_over(
+/// Where the section of the plane `(origin, normal)` starts on `cone`'s
+/// `+axis` and `−axis` nappes, and the farther of the two, by the oracle.
+fn nappe_starts(cone: &Surface<f64>, origin: Point3<f64>, normal: Vec3<f64>) -> (f64, f64, f64) {
+    let cut = cut(cone, origin, normal);
+    let (plus, minus) = (cut.start(1.0), cut.start(-1.0));
+    (plus, minus, plus.max(minus))
+}
+
+/// How far the line pair through the apex parallel to the plane
+/// `(origin, normal)` stands from its section with `cone` over the
+/// points `(lo, hi)` along the axis from the apex, by the oracle: both
+/// ways round, each section point from the nearer line and each line
+/// point from the section.
+fn pair_miss(
     cone: &Surface<f64>,
     (origin, normal): (Point3<f64>, Vec3<f64>),
     (lo, hi): (f64, f64),
 ) -> f64 {
-    let Surface::Cone {
-        apex,
-        axis,
-        half_angle,
-        ..
-    } = *cone
-    else {
+    let Surface::Cone { half_angle, .. } = *cone else {
         unreachable!("a cone")
     };
-    let (sin_a, cos_a) = half_angle.sin_cos();
-    let (c, s) = (axis.dot(normal), axis.cross(normal).norm());
-    let (d, m) = (sin_a * s - cos_a * c.abs(), sin_a * s + cos_a * c.abs());
-    let gap = (apex - origin).dot(normal).abs();
-    let (plus, minus, far) = nappe_starts(cone, origin, normal);
-    let rho = lo.max(-hi).max(0.0) / cos_a;
-    let on = |reached: bool, start: f64| if reached { (start - rho).max(0.0) } else { 0.0 };
-    let start = on(hi > 0.0, plus)
-        .max(on(lo < 0.0, minus))
-        .max(on(lo <= 0.0 && hi >= 0.0, plus.min(minus)));
-    let sigma_sq = d * m / (sin_a * sin_a);
-    let lean = 2.0 * s * gap / (sin_a * rho.max(f64::MIN_POSITIVE));
-    let h = 2.0 * gap / (sigma_sq.sqrt() + (sigma_sq - lean).max(0.0).sqrt());
-    far.min(start + h)
+    let cos = half_angle.cos();
+    cut(cone, origin, normal).pair_miss((lo / cos, hi / cos))
 }
 
 /// What the plane×cone arm serves for a pair whose far branch starts
@@ -388,7 +365,8 @@ fn a_cap_moved_into_the_band_of_a_wedge_apex_escalates() {
 /// to `y = 3/8` moved by `±0.9·ε` cuts the wall in a hyperbola whose
 /// branches start `≈ 58·ε` from the apex, past the band. The wall edge
 /// the cap shares stays `1/256` clear of the apex, and over that span
-/// the pair stands within [`pair_bound_over`] of the hyperbola, so the
+/// the pair stands within ε of the hyperbola by the oracle
+/// ([`pair_miss`]), so the
 /// offset keeps the generator: every edge plans, and the offset door
 /// moves the cap.
 ///
@@ -421,7 +399,7 @@ fn a_cap_moved_off_a_frustum_wedge_apex_plans_its_wall_edge() {
                 far > k * eps,
                 "{label}: the hyperbola starts {far:e} off the apex"
             );
-            let bound = pair_bound_over(&cone, (moved, normal), (y0, y1));
+            let bound = pair_miss(&cone, (moved, normal), (y0, y1));
             assert_eq!(
                 start_class(bound),
                 Start::Served,
@@ -520,8 +498,8 @@ fn frustum_wedge(y0: f64, t: f64) -> (AtRestBody<f64>, Solid) {
 ///
 /// The wedge's wall, and the section the join reads on it, stay `y0`
 /// clear of the apex, on one nappe. Over that span the pair stands
-/// within [`pair_bound_over`] of the hyperbola (`≈ δ·(1 + δ/(y0·sin α))`
-/// here), which is within ε at every pose, so the arm serves the pair
+/// about `δ·(1 + δ/(y0·sin α))` off the hyperbola, within ε at every
+/// pose by the oracle ([`pair_miss`]), so the arm serves the pair
 /// and the union builds: `V_wedge + V_brick − overlap`, against the
 /// closed-form volume, tier 3 and `point_in_solid` on a grid. Read at
 /// the apex alone, 20 of the 24 refuse.
@@ -557,7 +535,7 @@ fn a_half_space_flush_with_a_frustum_wedge_cap_builds_the_union() {
                 if start_class(far) != Start::Served {
                     past_the_apex_reading += 1;
                 }
-                let bound = pair_bound_over(&cone, (origin, normal), (y0, 1.0));
+                let bound = pair_miss(&cone, (origin, normal), (y0, 1.0));
                 assert_eq!(
                     start_class(bound),
                     Start::Served,
@@ -646,8 +624,8 @@ fn frustum_and_virtual_apex_box(apex_y: f64, pose: &Affine3<f64>) -> [(AtRestBod
 /// default ε, past the band at 1e-12.
 ///
 /// The frustum stays `≈ 0.55/cos α` clear of the apex, and over that
-/// span the pair stands within [`pair_bound_over`] (`≈ 2e-14`) of the
-/// section, so every op builds, in both orders, at both ε, against the
+/// span the pair stands within ε of the section by the oracle
+/// ([`pair_miss`]), so every op builds, in both orders, at both ε, against the
 /// closed-form truth. The two apex heights put the frustum on the near
 /// nappe (start `|δ|/M ≈ 1e-16`) and on the far one.
 ///
@@ -683,11 +661,19 @@ fn a_box_face_through_a_virtual_apex_builds_every_op() {
         let (plus, minus, far) = nappe_starts(&cone, origin, normal);
         let (eps, k) = (tol.eps(), tol.k());
         let rims = [0.25, 1.0].map(|y| (pose.transform_point(p(0.0, y, 0.0)) - apex).dot(axis));
-        if gap.abs() / far <= k * eps {
-            println!(
-                "SKIPPED at this ε: D = {:e} leaves the box face within the band of tangent to \
-                 the cone, which the boolean decides as a coincidence before the apex lane",
-                gap.abs() / far
+        let Surface::Cone { half_angle, .. } = cone else {
+            unreachable!("a cone")
+        };
+        let d = half_angle.sin() * axis.cross(normal).norm()
+            - half_angle.cos() * axis.dot(normal).abs();
+        if d <= k * eps {
+            test_utils::vacuity::stood_down(
+                "a box face through a virtual apex",
+                &format!(
+                    "at ε = {eps:e}, D = {d:e} leaves the box face within the band of tangent \
+                     to the cone, which the boolean decides as a coincidence before the apex \
+                     lane: no op is built or checked"
+                ),
             );
             return;
         }
@@ -699,7 +685,7 @@ fn a_box_face_through_a_virtual_apex_builds_every_op() {
         };
         own.push((start, far));
         let label = format!("apex at {apex_y}, start {far:e} (its own nappe {start:e})");
-        let bound = pair_bound_over(
+        let bound = pair_miss(
             &cone,
             (origin, normal),
             (rims[0].min(rims[1]), rims[0].max(rims[1])),
