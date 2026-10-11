@@ -387,13 +387,12 @@ fn side_readers<T: CertifiedBounds>(
     (n, p0): ([Interval; 3], [Interval; 3]),
 ) -> [Option<SectionReader>; 4] {
     SIDES.map(|side| {
-        let row = super::boundary::side_row(boxes.surface(), side).ok()?;
+        let (knots, row, weights) = super::boundary::side_row_parts(boxes.surface(), side);
         let control: Vec<[Interval; 3]> = row
-            .control()
             .iter()
             .map(|c| [c.x, c.y, c.z].map(Interval::from_certified))
             .collect();
-        SectionReader::of(row.knots(), &control, row.weights(), (p0, n))
+        SectionReader::of(&knots, &control, &weights, (p0, n))
     })
 }
 
