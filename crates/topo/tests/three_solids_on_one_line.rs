@@ -357,7 +357,7 @@ fn every_order(
             .flatten()
             .filter(|_| !undecided)
             .map(|e| match e {
-                topo::ValidationError::UndeclaredContact { witness, .. }
+                topo::ValidationError::UnrecordedContact { witness, .. }
                     if on_the_line(witness) =>
                 {
                     witness.clone()

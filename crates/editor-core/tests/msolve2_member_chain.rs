@@ -473,7 +473,7 @@ fn assert_loop_closes(
             .iter()
             .any(|f| matches!(f.attribution, Attribution::Refuted(_))),
         "{what}: the refusal names the declaration the geometry \
-         contradicts, rather than only an undeclared contact: {findings:?}"
+         contradicts, rather than only an unrecorded contact: {findings:?}"
     );
 }
 

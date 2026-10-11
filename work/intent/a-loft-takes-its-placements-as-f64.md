@@ -41,6 +41,6 @@ only the path's offsets, turn axes and angles through
 of its lane as `f64` (`section_of`, DM1c) and lifts it at the door
 through `Real::from_computed` (`wire_loft`), so in a document the
 placements still reach the loft as unknowns at `Sym`. Feeding them in
-`T` is the document lane of
-`a-loft-is-the-nominal-surface-in-every-generic-lane`, parked with it
-on the `[ev]` question that revises DM1c.
+`T` is the document half,
+`a-loft-is-the-nominal-surface-in-every-generic-lane`, where (per its
+ruling) this item dissolves.

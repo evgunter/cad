@@ -510,7 +510,7 @@ fn assemble_census_door_matches_f64_at_dual64() {
     // in either direction (a gate returning to duals, or new corpus
     // members joining the divergence) is loud rather than silent.
     // Observed 2026-08-29 at head 2435345d: `heat_sink` and
-    // `kitchen_sink` refuse at f64 with `UndeclaredContact` /
+    // `kitchen_sink` refuse at f64 with `UnrecordedContact` /
     // `CensusUndecidable` findings; `cut_cylinder` with the split
     // sides' undeclared section contacts. All three assemble green at
     // `Dual64`.

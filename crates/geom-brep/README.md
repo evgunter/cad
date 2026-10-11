@@ -865,10 +865,12 @@ a degenerate one). The fit (`offset_fit.rs`) is the NURBS Book's A9.4
 grid interpolation at the base's own parameters, then a
 certify-and-insert loop that refines the cells carrying the sup until
 every cell certifies or the loop refuses naming what stopped it —
-`BudgetExhausted` (the round budget, saying whether the last round
-improved or did not improve) or `SampleCapReached` (the per-direction
-sample cap); `RefinementStalled` when the strongest step gains nothing,
-on the last round as on any other; each carries the last grid's bound
+`SeedOverCap` before any round, or `SampleCapReached`, both read
+against the cap on a grid's total sample count, which bounds each
+fit's size but not the run's total work: there is no round budget, and
+the round count is bounded because every round that does not refuse
+grows the grid under the cap; `RefinementStalled` when the strongest
+step gains nothing; the last two carry the last grid's bound
 and the smallest any round reached (`BestBound`, whose doc states when a
 request at it certifies); `BoundNotFinite`, carrying that smallest
 finite bound or none, when the last grid's bound is not finite;

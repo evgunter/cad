@@ -5,6 +5,9 @@ title: A loft or sweep is its nominal surface in every generic lane: Dual sees n
 status: open
 opened: 2026-10-11
 priority: P1
+cost: M
+blocked_on: [the-skin-computes-its-values-in-t]
+refs: [the-pinned-profile-lift-launders-at-sym, a-loft-takes-its-placements-as-f64]
 ---
 
 
@@ -33,21 +36,79 @@ at each of `Dual` and `Interval`. A loft over a section whose radius is
 a dual variable shows a nonzero wall derivative. A loft over a widened
 radius encloses the radius's family at a sample.
 
-**Owed: the document lane.** The library half landed with
-`the-skin-computes-its-values-in-t`: `sweep::loft_body` and
-`sweep::sweep_body` take their sections and placements in `T` and skin
-them there at every projective scalar, so a library loft at `Dual` over
-a dual bulge carries the wall's derivative
-(`sweep/tests/a_loft_computes_its_walls_in_t.rs`,
-`a_lofted_arc_walls_weight_carries_the_bulges_derivative`). At
-`Interval` the library loft encloses the `f64` skin of its sections'
-value channel, and a section wider than a point refuses
-(`a_loft_over_a_section_wider_than_a_point_refuses_at_interval`)
-instead of standing for the nominal over its family. What is left is
-editor-core's Loft node: `section_of` resolves each section at the
-lane's nominal (DM1c, `crates/editor-core/REFERENCES.md`) and
-`wire_loft` lifts it at the door through `Real::from_computed`, so in
-a document every section value still reaches the loft as an unknown at
-`Sym` and a dual constant at `Dual`. Feeding the document's sections in
-`T` revises DM1c (and likely PP6), which is Ev's call: parked on that
-`[ev]` question.
+## Ruling (orchestrator, 2026-10-11): the document feeds sections in `T`
+
+A designer pair weighed whether the document should feed loft and
+sweep sections in the lane scalar (`docs/DESIGN-FORK-LOG.md` row 115).
+Both answered yes. This item is the document half, after the skin unit.
+
+- **A loft reads each section operand's Profile value at `T`, as an
+  extrude reads its profile.** It reads the loops and plane at `T`,
+  and the pass-1 pieces and naming for wall naming. Nothing is
+  re-resolved and nothing is read at `LaneEnv::nominal`. A section's
+  placement is its profile's plane, so the loft takes no separate
+  placement input.
+- **Retired:** `section_of`, `SectionScalar`, `SeedPinnedSection`,
+  `DerivedFrameSection` and their tags and tests, plus `LaneEnv::seed`
+  if nothing else reads it. In the docs: DM1c's "a loft or sweep
+  section on a derived frame refuses typed at any scalar but f64, since
+  a section's geometry stays f64" (`crates/editor-core/REFERENCES.md`)
+  and PP6's Sections bullet (`crates/editor-core/README.md`). DM1c's
+  "a profile on a derived frame is placed at the lane scalar" stays.
+- **Structure stays C6.** Every skin decision is taken under the
+  library's rule, which is the skin unit's call: f64 selects, `T`
+  re-verifies, and an indeterminate or flipped result refuses typed.
+  The profile's own 2-D structure is already pinned by its PP1 record.
+- **No `[ev]` PR.** `git log --all -S` finds no Ev words behind the
+  section clause:
+  - 3f3ef8c40f writes it as the orchestrator's consequence 2 of Ev's
+    in-chat ruling A, recorded in 57d56934b7's spec amendment;
+  - ruling A chose *place at the lane value* over *refuse off f64*;
+  - the in-chat ratification of DM1-DM6 (0877790361) predates the
+    clause.
+
+  Ev's 2026-10-03 remark ("a bit shocked that parameters are f64 only
+  now") points the same way. The unit's PR body says where it looked.
+- **PP6 is shared with `the-pinned-profile-lift-launders-at-sym`.**
+  That item owes PP6's sketch-plane rewrite (the pinned lift is the f64
+  build, and every other scalar elaborates and places at that scalar).
+  This unit owns the Sections bullet. Whichever lands second merges the
+  other's text rather than re-writing it.
+- **The wrong answer at `Interval` is live until this lands.**
+  `section_of` checks only `lane.seed`, so a parameter box that reaches
+  a section is resolved at the nominal. The lane then certifies the
+  nominal wall over the box. If this unit does not follow the skin
+  unit promptly, an interim typed refusal for a box that reaches a
+  section is owed.
+- **Acceptance:** the two pins above, a nonzero `Dual` wall derivative
+  and an `Interval` enclosure of the family. Also: a loft on a face
+  frame evaluates at `Interval`, `Dual` and `Sym`, and the f64 build is
+  bit-identical.
+- `a-loft-takes-its-placements-as-f64` dissolves here: the loft has no
+  placement input to take as f64.
+
+## What the library offers this unit (PR 4726, the skin unit)
+
+- `sweep::loft_body`/`sweep_body` take sections (`ProfileLoop<T>` or
+  `ConstructedLoop<T>`) and placements in `T`. The structure is
+  selected at `f64` on their value channel (`SectionLoop::channel`, with
+  NaN where there is no point). Each section is then re-validated at
+  `T` along that record (`SectionLoop::validate_guided`), and the skin
+  runs in `T` at every projective scalar. At `Dual` a library loft over
+  a dual bulge carries the wall's derivative
+  (`sweep/tests/a_loft_computes_its_walls_in_t.rs`).
+- At an enclosure scalar (`Interval`, and `Dual`/`Sym` over it) the
+  library loft encloses the `f64` skin of the value channel
+  (`SpanLocate::split_projective`). A section wider than a point
+  therefore refuses at the structure pass
+  (`a_loft_over_a_section_wider_than_a_point_refuses_at_interval`).
+  Enclosing the family over a box still needs a nominal witness for
+  the structure. `SectionLoop::channel` is the one place a section
+  type can supply one: a section carrying its `T` loops and its nominal
+  could answer `channel()` with the nominal. The placements' channel
+  is read off `point_value` in `build`.
+- The library keeps a separate `places` argument (Python, demos, the
+  test corpus). A document section that carries its own plane composes
+  onto it: the plane's placement is the `places[i]` it passes.
+- editor-core's `wire_loft` lifts its `f64` sections and placements
+  at the door through `from_computed` until this unit lands.
