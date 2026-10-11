@@ -13,8 +13,8 @@
 //! integral of the ball and box: each slice is a disc against a rectangle, exact, and
 //! only the stack over height is quadrature. A result whose ball face
 //! keeps the ring as a hole (the ball's side of ∪ and of ball ∖ box)
-//! refuses at the result gate, `VolumeUncomputable { RingOnCurvedFace }`
-//! (`work/flux/sphere-face-with-a-hole-has-no-closed-form.md`).
+//! is measured like the rest: the sphere arm reads every loop of a face
+//! by Gauss–Bonnet (`work/flux/sphere-face-with-a-hole-has-no-closed-form.md`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -26,7 +26,7 @@ use topo::{AtRestBody, BooleanError, BooleanResult};
 
 use crate::common::oracles::{ball_volume, lens_volume};
 
-use Want::{Body, Gate, Lumps};
+use Want::{Body, Lumps};
 
 /// A box `[x0, x1] × [y0, y1] × [z0, z1]`.
 type Bounds = [(f64, f64); 3];
@@ -85,8 +85,6 @@ enum Want {
     /// each other
     /// (`work/restread/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`).
     Lumps,
-    /// The result gate's refusal of the ball face the ring holes.
-    Gate,
 }
 
 /// `a ∪ b`, `b ∪ a`, `a ∖ b`, `b ∖ a`, `a ∩ b`, `b ∩ a` against `wants`,
@@ -132,14 +130,6 @@ fn assert_six(
                     "{label}: volume {v} against the slice integral {volume}"
                 );
             }
-            (Err(BooleanError::ResultInvalid { errors }), Gate)
-                if matches!(
-                    errors.as_slice(),
-                    [topo::ValidationError::VolumeUncomputable {
-                        source: topo::MassPropsError::RingOnCurvedFace { .. },
-                        ..
-                    }]
-                ) => {}
             (out, want) => panic!(
                 "{label}: wanted {want:?}, got {:?}",
                 out.map(|r| r.body().map(|b| b.body.faces().count()))
@@ -149,9 +139,9 @@ fn assert_six(
 }
 
 /// A box against a ball whose face keeps the section as a hole on the
-/// ball's side of ∪ and of ball ∖ box: those two refuse at the result
-/// gate in both member orders, and the box's ∖ and ∩ build.
-const BOX_RING: [Want; 6] = [Gate, Gate, Body, Gate, Body, Body];
+/// ball's side of ∪ and of ball ∖ box: every op builds, the ringed ball
+/// face measured with its hole.
+const BOX_RING: [Want; 6] = [Body; 6];
 
 /// The operand and shared volumes of the box `bounds` against the ball
 /// `(r, c)`.
@@ -237,7 +227,7 @@ fn a_ring_on_the_section_circle_winds_by_its_arc() {
         &big,
         &small,
         (ball_volume(1.0), ball_volume(0.6), lens_volume(1.0, 0.6, d)),
-        [Gate, Gate, Gate, Body, Body, Body],
+        [Body, Body, Body, Body, Body, Body],
     );
 }
 
@@ -392,7 +382,7 @@ fn an_island_holding_the_far_caps_pole_winds() {
                     &tool,
                     &unit_ball(Vec3::new(0.0, 1.0, 0.0), spin, tilt),
                     (vt, ball_volume(1.0), shared),
-                    [Body, Body, Gate, Body, Gate, Gate],
+                    [Body, Body, Body, Body, Body, Body],
                 );
             }
         }
@@ -419,7 +409,7 @@ fn a_bar_through_a_ball_winds_both_rings() {
                 &boxed(b),
                 &ball,
                 box_ball(b, 1.0, o),
-                [Gate, Gate, Lumps, Gate, Body, Body],
+                [Body, Body, Lumps, Body, Body, Body],
             );
         }
     }
@@ -445,7 +435,7 @@ fn a_ring_beside_an_outer_loop_on_the_run_is_read_from_an_edge_midpoint() {
             &boxed(b),
             &ball,
             box_ball(b, 1.0, o),
-            [Gate, Gate, Lumps, Gate, Body, Body],
+            [Body, Body, Lumps, Body, Body, Body],
         );
     }
     let b: Bounds = [
@@ -460,7 +450,7 @@ fn a_ring_beside_an_outer_loop_on_the_run_is_read_from_an_edge_midpoint() {
         &boxed(b),
         &ball,
         box_ball(b, 1.0, o),
-        [Gate, Gate, Lumps, Gate, Body, Body],
+        [Body, Body, Lumps, Body, Body, Body],
     );
 }
 
@@ -469,9 +459,9 @@ fn a_ring_beside_an_outer_loop_on_the_run_is_read_from_an_edge_midpoint() {
 /// turned off every axis (a review's random pair 82): the first
 /// outer-loop point's great circle crosses a run arc's plane in the
 /// escalation band, and the reading moves on to the next point rather
-/// than refusing the op. The small ball's ∖ and both ∩ build at the
-/// lens; the ops whose big ball keeps the ring as a hole refuse at the
-/// result gate. Above ε 1e-9 every op escalates first, certifying a
+/// than refusing the op. Every op builds, the ops whose big ball keeps
+/// the ring as a hole with that face measured over both its loops.
+/// Above ε 1e-9 every op escalates first, certifying a
 /// pcurve on the sphere's chart, as on main.
 #[test]
 fn a_path_escalating_at_a_graze_hands_the_winding_to_the_next() {
@@ -531,6 +521,6 @@ fn a_path_escalating_at_a_graze_hands_the_winding_to_the_next() {
             ball_volume(r2),
             lens_volume(r1, r2, c2.norm()),
         ),
-        [Gate, Gate, Gate, Body, Body, Body],
+        [Body, Body, Body, Body, Body, Body],
     );
 }

@@ -2675,19 +2675,6 @@ pub enum BooleanError {
         /// wants a parameter inverse).
         closed: bool,
     },
-    /// **A record whose edge rests on a face's interior, the edge or
-    /// the face curved.** A record carried through a join or a merge
-    /// that lands on an edge and a face is consumed as structure only
-    /// on a line and a plane, which meet by lying one in the other or
-    /// by a pierce the boolean cut; a circle can rest on a plane at
-    /// one point, which no record kind stores
-    /// (`work/fuse/a-record-on-a-curved-edge-resting-on-a-face-refuses`).
-    CurvedRestUnrecorded {
-        /// The edge.
-        edge: EdgeKey,
-        /// The face it rests on.
-        face: FaceKey,
-    },
     /// The A/B lockstep invariant failed during joining, finishing, or
     /// the combine door (a kernel bug or corrupt reduction, loudly).
     JoinDesync {
@@ -2975,8 +2962,6 @@ pub enum BooleanErrorKind {
     JoinUndecided,
     /// [`BooleanError::JoinCarrierUnsupported`].
     JoinCarrierUnsupported,
-    /// [`BooleanError::CurvedRestUnrecorded`].
-    CurvedRestUnrecorded,
     /// [`BooleanError::JoinDesync`].
     JoinDesync,
     /// [`BooleanError::TornComponent`].
@@ -3194,7 +3179,6 @@ impl BooleanError {
             Self::Join(_) => BooleanErrorKind::Join,
             Self::JoinUndecided(_) => BooleanErrorKind::JoinUndecided,
             Self::JoinCarrierUnsupported { .. } => BooleanErrorKind::JoinCarrierUnsupported,
-            Self::CurvedRestUnrecorded { .. } => BooleanErrorKind::CurvedRestUnrecorded,
             Self::JoinDesync { .. } => BooleanErrorKind::JoinDesync,
             Self::TornComponent { .. } => BooleanErrorKind::TornComponent,
             Self::ShellWitnessExhausted { .. } => BooleanErrorKind::ShellWitnessExhausted,
@@ -3752,12 +3736,6 @@ impl core::fmt::Display for BooleanError {
                 } else {
                     "through the other edge's far end"
                 }
-            ),
-            Self::CurvedRestUnrecorded { edge, face } => write!(
-                f,
-                "the Boolean cannot yet record edge {edge:?} resting on the interior of face \
-                 {face:?} where one of them is curved: no contact record stores such a rest \
-                 (work/fuse/a-record-on-a-curved-edge-resting-on-a-face-refuses)"
             ),
             Self::JoinDesync { what } => write!(
                 f,
@@ -5228,6 +5206,159 @@ impl Tangency {
     }
 }
 
+/// **The closed-form tangent line of two faces' carriers** (DEV-1,
+/// [`geom_brep::tangent_locus`]: plane × cylinder along a ruling,
+/// parallel cylinders) and both faces' extents along it: the one witness
+/// a `Tangent` declaration ([`verify_tangency_declaration`]) and a
+/// face–face record on two carriers at rest ([`tangent_pair_at_rest`])
+/// are verified along.
+pub(crate) struct TangentLine<T: Real> {
+    /// The line, `origin + t·dir` with `dir` unit.
+    pub(crate) carrier: geom::Curve3<T>,
+    /// The union of the two faces' extents along it.
+    pub(crate) span: (T, T),
+    /// Where both faces' extents along it meet: empty where `.0 > .1`.
+    pub(crate) overlap: (T, T),
+    /// The margin that decided the carriers tangent.
+    pub(crate) gap: MarginDiag,
+}
+
+/// [`TangentLine`] of `fa` on `a` and `fb` on `b`, their surfaces given.
+///
+/// # Errors
+///
+/// The outer [`BooleanError`] where a face's extent or boundary cannot be
+/// read; the inner [`geom_brep::TangentLocusError`] where the carriers
+/// derive no line.
+fn tangent_line<T: Decide>(
+    (a, fa, sa): (&Body<T>, FaceKey, &geom::Surface<T>),
+    (b, fb, sb): (&Body<T>, FaceKey, &geom::Surface<T>),
+    band: Band,
+) -> Result<Result<TangentLine<T>, geom_brep::TangentLocusError>, BooleanError> {
+    let reach = carrier_pair::pair_extent(a, fa, b, fb, band)
+        .map_err(unreadable_extent)?
+        .reach;
+    match geom_brep::tangent_locus(sa, sb, reach, band) {
+        Ok(geom_brep::TangentLocus::Line { origin, dir, gap }) => {
+            let (span, overlap) = witness_span(a, fa, b, fb, origin, dir)?;
+            Ok(Ok(TangentLine {
+                carrier: geom::Curve3::Line { origin, dir },
+                span,
+                overlap,
+                gap,
+            }))
+        }
+        Err(e) => Ok(Err(e)),
+    }
+}
+
+/// What a face–face record on two carriers reads at rest
+/// ([`tangent_pair_at_rest`]).
+pub(crate) enum RestTangent<T: Real> {
+    /// The two faces' extents along their tangent line are definitely
+    /// disjoint: no point of the line is in both.
+    Apart,
+    /// The jet schedule verified the line over where both extents meet,
+    /// `overlap`; whether the line lies in the two faces there is the
+    /// caller's to read.
+    Line {
+        /// The tangent line.
+        carrier: geom::Curve3<T>,
+        /// The parameter span both faces' extents hold.
+        overlap: (T, T),
+    },
+}
+
+/// **A face–face record on two carriers, read at rest** (C3): the
+/// closed-form line their carriers derive ([`tangent_line`]), the two
+/// faces' extents along it, and, where those meet, the C4 `Tangent`
+/// table along it there ([`contact_verify::tangent_locus_relation`], the
+/// declared posture, the record standing as the declaration), material
+/// sides included.
+///
+/// # Errors
+///
+/// [`crate::contact::ContactRefusal::Contradicted`] where the pair is
+/// definitely not tangent, labelled with the row that refused it, or the
+/// table contradicts it; `Escalated` where a margin is in band; and
+/// `NotCertifiable` where no closed-form locus derives, a face cannot be
+/// read (naming why), or the extents meet at one point.
+pub(crate) fn tangent_pair_at_rest<T: Decide>(
+    body: &Body<T>,
+    fa: FaceKey,
+    fb: FaceKey,
+    band: Band,
+) -> Result<RestTangent<T>, crate::contact::ContactRefusal> {
+    use crate::contact::ContactRefusal;
+    let surface = |f| {
+        let face = body.get_face(f)?;
+        Some((body.get_surface(face.surface)?.clone(), face.sense))
+    };
+    let ((sa, sense_a), (sb, sense_b)) =
+        surface(fa)
+            .zip(surface(fb))
+            .ok_or(ContactRefusal::NotCertifiable {
+                what: "a face of the face-face record has no surface",
+            })?;
+    let line = tangent_line((body, fa, &sa), (body, fb, &sb), band).map_err(|e| {
+        ContactRefusal::NotCertifiable {
+            what: match e {
+                BooleanError::InvalidInput { what, .. } => what,
+                _ => "a face of the face-face record has no extent to read",
+            },
+        }
+    })?;
+    let line = match line {
+        Ok(line) => line,
+        Err(geom_brep::TangentLocusError::Escalated(diag)) => {
+            return Err(ContactRefusal::Escalated { diag });
+        }
+        Err(geom_brep::TangentLocusError::NotTangent { predicate, .. }) => {
+            return Err(ContactRefusal::Contradicted {
+                diag: Indeterminate {
+                    margin: MarginDiag::INVALID,
+                    band,
+                    predicate: Some(predicate),
+                    terminal_sliver: false,
+                },
+                steer: None,
+            });
+        }
+        Err(geom_brep::TangentLocusError::Unsupported { .. }) => {
+            return Err(ContactRefusal::NotCertifiable {
+                what: "a face-face record on two carriers with no closed-form tangent locus \
+                       (plane x cylinder along a ruling, parallel cylinders)",
+            });
+        }
+    };
+    let (t0, t1) = line.overlap;
+    match crate::validate::decide("pm_census_tangent_overlap", Margin::of(t1 - t0), band) {
+        Ok(Sign::Positive) => {}
+        Ok(Sign::Negative) => return Ok(RestTangent::Apart),
+        Ok(Sign::Zero) => {
+            return Err(ContactRefusal::NotCertifiable {
+                what: "the faces' extents along their tangent line meet at one point",
+            });
+        }
+        Err(diag) => return Err(ContactRefusal::Escalated { diag }),
+    }
+    contact_verify::tangent_locus_relation(
+        &sa,
+        sense_a,
+        &sb,
+        sense_b,
+        &line.carrier,
+        t0,
+        t1,
+        true,
+        band,
+    )?;
+    Ok(RestTangent::Line {
+        carrier: line.carrier,
+        overlap: line.overlap,
+    })
+}
+
 /// The `Tangent` door alone, for the unit rows that drive it.
 #[cfg(test)]
 pub(crate) fn verify_tangent_declaration<T: Decide>(
@@ -5367,15 +5498,11 @@ fn verify_tangency_declaration<T: Decide>(
     let (sb, sense_b) = face_of(b, fb, Operand::B)?;
     let kinds = (sa.kind(), sb.kind());
     // 2. The witness locus.
-    let reach = carrier_pair::pair_extent(a, fa, b, fb, band)
-        .map_err(unreadable_extent)?
-        .reach;
     let mut overlap = None;
-    let (carrier, t0, t1, rim, margin) = match geom_brep::tangent_locus(&sa, &sb, reach, band) {
-        Ok(geom_brep::TangentLocus::Line { origin, dir, gap }) => {
-            let ((t0, t1), both) = witness_span(a, fa, b, fb, origin, dir)?;
-            overlap = Some(both);
-            (geom::Curve3::Line { origin, dir }, t0, t1, None, gap)
+    let (carrier, t0, t1, rim, margin) = match tangent_line((a, fa, &sa), (b, fb, &sb), band)? {
+        Ok(line) => {
+            overlap = Some(line.overlap);
+            (line.carrier, line.span.0, line.span.1, None, line.gap)
         }
         Err(geom_brep::TangentLocusError::Escalated(diag)) => {
             return Err(BooleanError::coincidence(
@@ -5417,9 +5544,15 @@ fn verify_tangency_declaration<T: Decide>(
     // 3. The C4 `Tangent` table along the witness, B's sense reversed
     // for a seam.
     let sense_b = sense_b != (claim == Tangency::Seam);
-    match contact_verify::tangent_locus_relation(
-        &sa, sense_a, &sb, sense_b, &carrier, t0, t1, true, band,
-    ) {
+    let table = match claim {
+        Tangency::Contact => contact_verify::tangent_locus_relation(
+            &sa, sense_a, &sb, sense_b, &carrier, t0, t1, true, band,
+        ),
+        Tangency::Seam => contact_verify::tangent_seam_relation(
+            &sa, sense_a, &sb, sense_b, &carrier, t0, t1, band,
+        ),
+    };
+    match table {
         Ok(_) => {}
         Err(crate::contact::ContactRefusal::Contradicted { diag, steer }) => {
             let margin = match (claim, diag.predicate) {
@@ -6756,7 +6889,6 @@ mod tests {
                 BooleanErrorKind::Join => "Join",
                 BooleanErrorKind::JoinUndecided => "JoinUndecided",
                 BooleanErrorKind::JoinCarrierUnsupported => "JoinCarrierUnsupported",
-                BooleanErrorKind::CurvedRestUnrecorded => "CurvedRestUnrecorded",
                 BooleanErrorKind::JoinDesync => "JoinDesync",
                 BooleanErrorKind::TornComponent => "TornComponent",
                 BooleanErrorKind::ShellWitnessExhausted => "ShellWitnessExhausted",
