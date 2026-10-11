@@ -1890,11 +1890,7 @@ fn cone_loop_refusal(e: PropsError) -> PropsError {
 ///   other two exact, a circle tilted by `θ` is off the cone by at most
 ///   `r·(sin θ·sin α + (1 − cos θ)·cos α)` and one whose centre is `o`
 ///   off the axis by at most `o·cos α`, both attained. The iso parse
-///   asks the stricter question whether the circle is the iso rim
-///   ([`require_rim_incidence`]): a tilt moves its points along the
-///   cone by `r·sin θ` while moving them off it by far less toward a
-///   needle, and an offset by `o` while moving them off it by far less
-///   toward the flat;
+///   asks instead whether it is the iso rim ([`require_rim_incidence`]);
 /// - an ellipse is the cone's section by its plane
 ///   (`props_cone_ellipse_on_cone`): five points determine a conic, so
 ///   five points of the carrier spread round its whole period, each on
@@ -1950,8 +1946,9 @@ fn require_on_cone<T: Decide>(
             )
         }
         Curve3::Ellipse { .. } => {
-            for k in 0..5 {
-                let t = T::tau() * T::from_f64(f64::from(k) / 5.0);
+            let fifth = T::tau() / T::from_f64(5.0);
+            let mut t = T::zero();
+            for _ in 0..5 {
                 require_zero(
                     "props_cone_ellipse_on_cone",
                     Margin::of(cone_elevation(
@@ -1964,6 +1961,7 @@ fn require_on_cone<T: Decide>(
                     band,
                     Premise::OnSurface,
                 )?;
+                t = t + fifth;
             }
             Ok(())
         }
@@ -2007,8 +2005,8 @@ fn require_cone_generator<T: Decide>(
 /// **Every conic span the cone reads, decided.** The cone's flux lane
 /// and material sign integrate each edge's stored span through
 /// [`loop_vector_area`] and [`cone_edge_length`], and its winding reads
-/// it through [`cone_loop_winding`], on every loop, rings and the
-/// ellipse-cut branch included, none of which mints a [`Rim`]. A circle
+/// it through [`cone_loop_winding`], on every loop, rings included,
+/// and none of them mints a [`Rim`]. A circle
 /// on a cone is a coaxial section, so its span is a rim's and is decided
 /// under the rim's names at its own radius ([`require_rim_span`]). An
 /// ellipse arc is no rim: its span is decided under its own names,
