@@ -27,9 +27,9 @@
 //!
 //! # One schedule, two arithmetics
 //!
-//! An insertion plan is applied by [`CurvePlan::apply_points`] in the
-//! caller's scalar and by [`CurvePlan::apply_certified`] in the certification
-//! ring, off the SAME [`Step`] list — same targets, same sources, same
+//! An insertion plan is applied by [`CurvePlan::apply_points`] at an
+//! evaluation scalar ([`ProjectiveScalar`]) and by
+//! [`CurvePlan::apply_certified`] in the certification ring, off the SAME [`Step`] list — same targets, same sources, same
 //! order. The two differ in the coefficient the combination is taken
 //! with, and they must: the projective applier's `λ` is an `f64`
 //! quotient of weights, while interval arithmetic applier re-derives the Boehm
@@ -43,9 +43,11 @@
 //! `λ` is needed.
 
 use super::knots::{InteriorKnot, KnotVector, SplineError, find_span_in};
+use super::projective::{ProjectivePoint, ProjectiveScalar};
 use crate::interval::Interval;
 use crate::interval::certification::Certification;
 use crate::readable::Readable;
+use crate::real::Bounds;
 
 /// A typed knot-algebra refusal (fail-loud; the kernel never panics).
 #[derive(Clone, Debug, PartialEq)]
@@ -160,10 +162,10 @@ enum Src {
 /// [`CurvePlan::apply_certified`]. A stored `f64` ratio would leave interval arithmetic
 /// applier padding a rounded number by a guess.
 #[derive(Clone, Copy, Debug)]
-struct Ratio {
-    inserted: f64,
-    lo: f64,
-    hi: f64,
+pub(super) struct Ratio {
+    pub(super) inserted: f64,
+    pub(super) lo: f64,
+    pub(super) hi: f64,
 }
 
 /// One plan step: assign new-polygon slot `target`.
@@ -213,16 +215,18 @@ impl CurvePlan {
 
     /// Applies the point schedule: `old` is the previous control
     /// polygon, `lerp(x, y, λ)` the caller's affine combination
-    /// (`x + (y − x)·λ` with `λ` lifted via `from_f64` — the fixed
-    /// association every consumer documents), and `poison` the
-    /// caller's poison point — the total fallback for a malformed
-    /// plan, which the constructors rule out but the applier does not
-    /// trust (D4: fail loud, never panic).
-    pub fn apply_points<P: Copy>(
+    /// (`x + (y − x)·λ`, the fixed association every consumer
+    /// documents) with `λ` lifted to the caller's scalar `T` here, and
+    /// `poison` the caller's poison point — the total fallback for a
+    /// malformed plan, which the constructors rule out but the applier
+    /// does not trust (D4: fail loud, never panic). `T` is a
+    /// [`ProjectiveScalar`] and `P` a [`ProjectivePoint`] over it; the
+    /// certification ring's applier is [`CurvePlan::apply_certified`].
+    pub fn apply_points<T: ProjectiveScalar, P: ProjectivePoint<T>>(
         &self,
         old: &[P],
         poison: P,
-        lerp: impl Fn(P, P, f64) -> P,
+        lerp: impl Fn(P, P, T) -> P,
     ) -> Vec<P> {
         let n_new = self.knots.control_count();
         let mut new: Vec<Option<P>> = vec![None; n_new];
@@ -248,7 +252,7 @@ impl CurvePlan {
                 } => {
                     if target < n_new {
                         let combined = match (fetch(&new, x), fetch(&new, y)) {
-                            (Some(px), Some(py)) => Some(lerp(px, py, lambda)),
+                            (Some(px), Some(py)) => Some(lerp(px, py, T::from_f64(lambda))),
                             _ => None,
                         };
                         new[target] = combined;
@@ -331,16 +335,30 @@ impl CurvePlan {
     /// length. The refusal then flows through every hull the caller
     /// reads.
     pub fn apply_certified(&self, old: &[Interval]) -> Vec<Interval> {
+        self.apply_ratios(old, Interval::refused(), |x, y, r| {
+            convex_step(x, y, r.lo, r.hi, r.inserted)
+        })
+    }
+
+    /// The fold both homogeneous appliers are: `Carry` copies, a ratio
+    /// step combines through `step`, and a ratio-less step, a malformed
+    /// plan or a short channel leaves `refused` in its target.
+    pub(super) fn apply_ratios<P: Copy>(
+        &self,
+        old: &[P],
+        refused: P,
+        step: impl Fn(P, P, Ratio) -> P,
+    ) -> Vec<P> {
         let n_new = self.knots.control_count();
-        let mut new: Vec<Option<Interval>> = vec![None; n_new];
-        let fetch = |new: &[Option<Interval>], s: Src| -> Option<Interval> {
+        let mut new: Vec<Option<P>> = vec![None; n_new];
+        let fetch = |new: &[Option<P>], s: Src| -> Option<P> {
             match s {
                 Src::Old(i) => old.get(i).copied(),
                 Src::New(i) => new.get(i).copied().flatten(),
             }
         };
-        for step in &self.steps {
-            match *step {
+        for plan_step in &self.steps {
+            match *plan_step {
                 Step::Carry { target, from } => {
                     if target < n_new {
                         new[target] = old.get(from).copied();
@@ -355,9 +373,7 @@ impl CurvePlan {
                 } => {
                     if target < n_new {
                         new[target] = match (fetch(&new, x), fetch(&new, y), ratio) {
-                            (Some(cx), Some(cy), Some(r)) => {
-                                Some(convex_step(cx, cy, r.lo, r.hi, r.inserted))
-                            }
+                            (Some(cx), Some(cy), Some(r)) => Some(step(cx, cy, r)),
                             _ => None,
                         };
                     }
@@ -365,7 +381,7 @@ impl CurvePlan {
             }
         }
         new.into_iter()
-            .map(|slot| slot.unwrap_or_else(Interval::refused))
+            .map(|slot| slot.unwrap_or(refused))
             .collect()
     }
 }
@@ -670,6 +686,108 @@ pub fn equal_split_plan(
     splits: usize,
 ) -> Result<Vec<CurvePlan>, KnotAlgebraError> {
     refine_plan_homogeneous(kv, &equal_split_points(kv, splits))
+}
+
+/// **A knot refinement in the certification ring**: the insertion chain
+/// from a vector, and the vector it ends on. The one spelling of a ring
+/// refinement. It owns the refined vector ([`RingRefinement::knots`],
+/// the source itself when nothing is inserted) and the extent guard
+/// ([`RingRefinement::refine`] refuses a channel that is not one entry
+/// per source control point), so no caller re-derives either.
+///
+/// A channel is homogeneous (`w·P` per coordinate, or `w`) or
+/// unit-weight, which a plain convex combination refines; a rational
+/// net goes through it as its homogeneous channels and comes back
+/// through [`dehomogenize`].
+#[derive(Clone, Debug)]
+pub struct RingRefinement {
+    plans: Vec<CurvePlan>,
+    source: usize,
+    knots: KnotVector,
+}
+
+impl RingRefinement {
+    /// `add` inserted into `kv` ([`refine_plan_homogeneous`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`refine_plan`].
+    pub fn new(kv: &KnotVector, add: &[f64]) -> Result<Self, KnotAlgebraError> {
+        Ok(Self::of_chain(kv, refine_plan_homogeneous(kv, add)?))
+    }
+
+    /// Every nonempty span of `kv` split into `splits` equal pieces
+    /// ([`equal_split_plan`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`refine_plan`].
+    pub fn equal_split(kv: &KnotVector, splits: usize) -> Result<Self, KnotAlgebraError> {
+        Ok(Self::of_chain(kv, equal_split_plan(kv, splits)?))
+    }
+
+    fn of_chain(kv: &KnotVector, plans: Vec<CurvePlan>) -> Self {
+        let knots = plans
+            .last()
+            .map_or_else(|| kv.clone(), |plan| plan.knots().clone());
+        Self {
+            plans,
+            source: kv.control_count(),
+            knots,
+        }
+    }
+
+    /// The refined vector.
+    #[must_use]
+    pub fn knots(&self) -> &KnotVector {
+        &self.knots
+    }
+
+    /// The source vector's control count: the length a channel must
+    /// have.
+    #[must_use]
+    pub fn source_count(&self) -> usize {
+        self.source
+    }
+
+    /// The insertion chain, one plan per inserted point: for an applier
+    /// at another scalar (`SpanLocate::refine_homogeneous`).
+    #[must_use]
+    pub fn plans(&self) -> &[CurvePlan] {
+        &self.plans
+    }
+
+    /// `channel` through every plan in order, each by
+    /// [`CurvePlan::apply_certified`], so the result encloses the refined
+    /// channel of the described net. A channel that is not
+    /// [`RingRefinement::source_count`] long refuses: every entry of the
+    /// refined length is refused.
+    #[must_use]
+    pub fn refine(&self, channel: &[Interval]) -> Vec<Interval> {
+        if channel.len() != self.source {
+            return vec![Interval::refused(); self.knots.control_count()];
+        }
+        self.plans
+            .iter()
+            .fold(channel.to_vec(), |c, plan| plan.apply_certified(&c))
+    }
+}
+
+/// Every weight certified and its enclosure strictly positive: the
+/// weights a de-homogenization may divide by, and the convex-combination
+/// licence of a rational net's hulls. The one spelling of that guard.
+#[must_use]
+pub fn certainly_positive(weights: &[Interval]) -> bool {
+    weights.iter().all(|w| w.is_certified() && w.lo() > 0.0)
+}
+
+/// A refined homogeneous channel `w·x` read back as `x`: the quotient by
+/// the refined weights `w`, entry by entry. `None` unless the two are
+/// one length and the weights are [`certainly_positive`].
+#[must_use]
+pub fn dehomogenize(channel: &[Interval], weights: &[Interval]) -> Option<Vec<Interval>> {
+    (channel.len() == weights.len() && certainly_positive(weights))
+        .then(|| channel.iter().zip(weights).map(|(a, w)| *a / *w).collect())
 }
 
 /// How close a grid point may come to a mandatory point (a knot, a

@@ -304,3 +304,4 @@ the text-only option's wording. Both found
   locally. Then a DR-log conflict silently stopped CI, which I caught on
   a zero-checks read. Both later merges were compile-checked before
   pushing. — (CONTACTHOLD orchestrator)
+- 2026-10-11 `boolean-conic-side-code-zero-is-first-order` closed: PR 4575 merged (DR-164); the residue rides `conic-ties-outside-the-vertex-on-face-pass-still-read-first-order`.

@@ -4,6 +4,8 @@ kind: issue
 title: a display prune's withdrawals list instances in id order, which since ids are digests is no order a reader can follow
 status: open
 opened: 2026-10-02
+priority: P4
+cost: E
 ---
 
 
@@ -37,3 +39,7 @@ it so. A row red under reversed ids pins whichever is chosen:
 `assembly_display::a_fused_instances_refusal_lists_the_others_in_document_order`
 shows a way to make the ids disagree with the document deterministically
 (grow the instance count until they do).
+
+## Priced (2026-10-11)
+
+P4 E: naming and order hygiene in labels and lists.

@@ -9,8 +9,10 @@ rust-version.workspace = true
 workspace = true
 
 [features]
-# Test-only. Two things ride it: the `test_support` module (the
-# suites' one reading of a reporting margin's upper end), and the
+# Test-only. Three things ride it: the `test_support` module (the
+# suites' one reading of a reporting margin's upper end),
+# `PatchSpans::cell_coeffs` (one Bernstein coefficient, read by
+# geom-brep's composite rows), and the
 # variant rosters behind `topo`'s sample-coverage row
 # (`topo::test_support_samples`): with this on, the enums a
 # `topo::ValidationError` renders through derive a companion

@@ -992,7 +992,7 @@ fn a_hide_the_picture_can_no_longer_honour_is_dropped_and_reported() {
     assert!(session.display().is_hidden(bench.post_b));
 
     let outcome = session.perform(SessionOp::AddBoolean {
-        spec: BooleanSpec::Union(vec![bench.post_b, bench.post_a]),
+        spec: BooleanSpec::Union(vec![bench.post_b.into(), bench.post_a.into()]),
         declare: Vec::new(),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
