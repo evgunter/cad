@@ -306,7 +306,10 @@ impl<T: geom_core::Real> core::fmt::Display for OffsetError<T> {
             // own lever is the geometry alone.
             Self::Escalated { source } => write!(
                 f,
-                "whether the offset surface keeps a valid radius is too close to call: {}",
+                concat!(
+                    geom_core::undecided!("whether the offset surface keeps a valid radius"),
+                    ": {}"
+                ),
                 source.under(NO_DECLARATION_RECOURSE)
             ),
         }
