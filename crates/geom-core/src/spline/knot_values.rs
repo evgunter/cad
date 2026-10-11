@@ -28,7 +28,9 @@ use crate::real::Real;
 pub struct Knots<T> {
     structure: KnotVector,
     /// One per knot of `structure`: each breakpoint's value copied
-    /// across its run, so the run is one quantity.
+    /// across its run, so the run is one quantity. A vector converted at
+    /// `f64` ([`From<KnotVector>`]) keeps its own knots bit for bit, so
+    /// its run copies agree on `==` and may differ in a zero's sign.
     values: Vec<T>,
 }
 
@@ -42,6 +44,94 @@ pub struct KnotSpan<'a, T> {
 }
 
 impl<T: SpanLocate> Knots<T> {
+    /// These knots carried onto `structure`, the vector a knot-algebra
+    /// plan made of this one: a breakpoint `structure` shares with this
+    /// vector (bit-equal value channel) keeps its held value, so it
+    /// stays one quantity through the operation, and a new one is
+    /// `fresh(v)`, the caller's entry of the value it inserted.
+    ///
+    /// # Panics
+    ///
+    /// When `fresh` moves a new breakpoint's point: the structure would
+    /// no longer be the values' value channel.
+    #[must_use]
+    pub fn restructure(&self, structure: KnotVector, fresh: impl Fn(f64) -> T) -> Self {
+        let held: Vec<(f64, T)> = {
+            let mut at = 0;
+            self.structure
+                .knot_runs()
+                .map(|(v, m)| {
+                    let value = self.values[at];
+                    at += m;
+                    (v, value)
+                })
+                .collect()
+        };
+        let mut values = Vec::with_capacity(structure.knots().len());
+        let mut next = 0;
+        for (v, m) in structure.knot_runs() {
+            while next < held.len() && held[next].0 < v {
+                next += 1;
+            }
+            let value = match held.get(next) {
+                Some((h, value)) if h.to_bits() == v.to_bits() => *value,
+                _ => {
+                    let value = fresh(v);
+                    assert!(
+                        value.point_value().map(f64::to_bits) == Some(v.to_bits()),
+                        "Knots::restructure entered breakpoint {v} as {:?}",
+                        value.point_value()
+                    );
+                    value
+                }
+            };
+            values.extend(core::iter::repeat_n(value, m));
+        }
+        Self { structure, values }
+    }
+
+    /// The same knots re-expressed on `[lo, hi]`, in `T`: the ends are
+    /// `lo` and `hi` entered as constants, and each interior breakpoint
+    /// `k` maps to `lo + (hi − lo)·((k − a)/(b − a))` over the held
+    /// values, `[a, b]` the held domain — [`KnotVector::on_domain`]'s
+    /// formula and association, so at `f64` the structure is that
+    /// door's, bit for bit.
+    ///
+    /// # Errors
+    ///
+    /// [`SplineError::DomainInvalid`] as [`KnotVector::on_domain`];
+    /// otherwise [`Self::new`]'s refusals. Two breakpoints that
+    /// rounding collapses onto one value refuse
+    /// ([`SplineError::KnotRunsNotIncreasing`]) rather than merge, and
+    /// at an enclosure scalar an interior breakpoint whose map is
+    /// inexact comes out wider than a point and refuses
+    /// ([`SplineError::KnotNotAPoint`]).
+    pub fn on_domain(&self, lo: f64, hi: f64) -> Result<Self, SplineError> {
+        let span = hi - lo;
+        if !(lo.is_finite() && hi.is_finite() && lo < hi && span.is_finite()) {
+            return Err(SplineError::DomainInvalid { lo, hi });
+        }
+        let p = self.structure.degree();
+        let n = self.values.len();
+        let (a, b) = (self.values[p], self.values[n - 1 - p]);
+        let width = super::knots::knot_difference::<T>(lo, hi);
+        let (lo_t, hi_t) = (T::from_f64(lo), T::from_f64(hi));
+        let mut runs: Vec<(T, NonZeroUsize)> = Vec::new();
+        let last = self.structure.knot_runs().count() - 1;
+        for (i, (value, m)) in self.runs().enumerate() {
+            let mapped = if i == 0 {
+                lo_t
+            } else if i == last {
+                hi_t
+            } else {
+                lo_t + width * ((value - a) / (b - a))
+            };
+            let m = NonZeroUsize::new(m).unwrap_or(NonZeroUsize::MIN);
+            runs.push((mapped, m));
+        }
+        Self::new(runs, p)
+    }
+
     /// The clamped vector of degree `degree` whose breakpoints are
     /// `runs`, each a value and its multiplicity, ascending. The `f64`
     /// vector is read off the values through
@@ -119,6 +209,37 @@ impl<T: SpanLocate> Knots<T> {
 }
 
 impl<T: Real> Knots<T> {
+    /// The same knots at another scalar under a LIFT `f`, one that
+    /// keeps each breakpoint's point: `f` applied once per breakpoint,
+    /// the structure carried over. That `f` keeps the point is the
+    /// caller's contract, the one every `map_scalar` door states; a
+    /// caller at a scalar that reads its point takes [`Self::map`],
+    /// which checks it.
+    #[must_use]
+    pub fn lift<U: Real>(&self, f: impl Fn(T) -> U) -> Knots<U> {
+        let mut values = Vec::with_capacity(self.values.len());
+        for (_, m) in self.structure.knot_runs() {
+            let mapped = f(self.values[values.len()]);
+            values.extend(core::iter::repeat_n(mapped, m));
+        }
+        Knots {
+            structure: self.structure.clone(),
+            values,
+        }
+    }
+
+    /// These knots reflected through 0, `k'_i = 0 − k_{m−i}` in `T`
+    /// over the held values, on [`KnotVector::negated`]'s structure:
+    /// negation does not round, so the structure is still the values'
+    /// value channel.
+    #[must_use]
+    pub fn negated(&self) -> Self {
+        Self {
+            structure: self.structure.negated(),
+            values: self.values.iter().rev().map(|k| T::zero() - *k).collect(),
+        }
+    }
+
     /// The value channel: the structure every `f64` reader of these
     /// knots reads.
     pub fn structure(&self) -> &KnotVector {
@@ -140,6 +261,24 @@ impl<T: Real> Knots<T> {
             at += m;
             (v, m)
         })
+    }
+
+    /// The parameter domain as held: the end runs' values at the
+    /// indices [`KnotVector::domain`] reads (`p` and `n − 1 − p`), so
+    /// at `f64` it is that door's pair bit for bit, a clamp run that
+    /// mixes `-0.0` and `0.0` included.
+    pub fn domain(&self) -> (T, T) {
+        let (n, p) = (self.values.len(), self.structure.degree());
+        (self.values[p], self.values[n - 1 - p])
+    }
+
+    /// The held value of the breakpoint whose value channel is `v`
+    /// (bit-equal), or `None` when no breakpoint reads as `v`.
+    pub fn value_at(&self, v: f64) -> Option<T> {
+        self.runs()
+            .zip(self.structure.knot_runs())
+            .find(|(_, (k, _))| k.to_bits() == v.to_bits())
+            .map(|((value, _), _)| value)
     }
 
     /// The degree `p`.
@@ -272,6 +411,84 @@ mod tests {
         });
         assert_eq!(calls.get(), 3, "one call per breakpoint");
         assert_eq!(lifted.structure().knots(), k.structure().knots());
+    }
+
+    /// A breakpoint the new structure shares keeps its held value, so a
+    /// variable knot stays one quantity through an insertion; only the
+    /// value brought in is entered fresh.
+    #[test]
+    fn a_restructure_keeps_shared_breakpoints_and_enters_new_ones() {
+        let c = Dual64::constant;
+        let k = Knots::new(
+            vec![
+                (c(0.0), m(3)),
+                (Dual64::variable(0.4), m(1)),
+                (c(1.0), m(3)),
+            ],
+            2,
+        )
+        .unwrap();
+        let inserted =
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.25, 0.4, 0.4, 1.0, 1.0, 1.0], 2).unwrap();
+        let r = k.restructure(inserted, Dual64::constant);
+        assert_eq!(
+            r.structure().knots(),
+            &[0.0, 0.0, 0.0, 0.25, 0.4, 0.4, 1.0, 1.0, 1.0]
+        );
+        let derivs: Vec<f64> = r.values().iter().map(|v| v.deriv).collect();
+        assert_eq!(derivs, vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0]);
+    }
+
+    /// `on_domain` is `KnotVector::on_domain`'s formula at `f64`, bit
+    /// for bit, and carries a variable breakpoint's tangent through the
+    /// affine map in `T`; constants enter at `from_f64`.
+    #[test]
+    fn on_domain_and_constant_agree_with_the_vector_doors() {
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.3, 0.3, 0.7, 2.0, 2.0, 2.0], 2).unwrap();
+        let want = kv.on_domain(-1.5, 4.25).unwrap();
+        let got = Knots::from(kv.clone()).on_domain(-1.5, 4.25).unwrap();
+        let bits = |v: &[f64]| v.iter().map(|x| x.to_bits()).collect::<Vec<_>>();
+        assert_eq!(bits(got.structure().knots()), bits(want.knots()));
+        assert_eq!(bits(got.values()), bits(want.knots()));
+        let c = Dual64::constant;
+        let k = Knots::new(
+            vec![
+                (c(0.0), m(3)),
+                (Dual64::variable(0.5), m(1)),
+                (c(2.0), m(3)),
+            ],
+            2,
+        )
+        .unwrap();
+        let moved = k.on_domain(0.0, 4.0).unwrap();
+        assert_eq!(moved.values()[3].value, 1.0);
+        assert_eq!(moved.values()[3].deriv, 2.0, "d/dk of 4·k/2");
+        assert!(matches!(
+            Knots::from(kv).on_domain(1.0, 1.0),
+            Err(SplineError::DomainInvalid { .. })
+        ));
+    }
+
+    /// `domain` is `KnotVector::domain` bit for bit at `f64`, a clamp
+    /// run that mixes `-0.0` and `0.0` included (the vector reads its
+    /// ends at `p` and `n − 1 − p`, and a converted vector keeps its own
+    /// bits).
+    #[test]
+    fn the_held_domain_is_the_vectors_at_f64_signed_zeros_included() {
+        for knots in [
+            vec![-0.0, 0.0, 0.0, 1.0, 1.0, 1.0],
+            vec![0.0, -0.0, -0.0, 0.5, 2.0, 2.0, 2.0],
+            vec![-1.0, -1.0, -1.0, -0.0, -0.0, -0.0],
+        ] {
+            let kv = KnotVector::clamped(knots.clone(), 2).unwrap();
+            let (a, b) = kv.domain();
+            let (ha, hb) = Knots::from(kv).domain();
+            assert_eq!(
+                (ha.to_bits(), hb.to_bits()),
+                (a.to_bits(), b.to_bits()),
+                "{knots:?}"
+            );
+        }
     }
 
     #[test]

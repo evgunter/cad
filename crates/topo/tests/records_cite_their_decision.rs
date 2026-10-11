@@ -9,8 +9,8 @@ use crate::common;
 use common::{brick, finished};
 use geom_core::Tol;
 use topo::{
-    AtRestBody, Backing, BooleanBody, BooleanDeclarations, BooleanResult, Cell, Coincidence,
-    ContactClass, DecisionSite, Operand, Relation, RowCell, union_with,
+    AtRestBody, Backing, BooleanBody, BooleanInputs, BooleanResult, Cell, Coincidence,
+    DecisionSite, Operand, Relation, RowCell, union,
 };
 
 fn tol() -> Tol {
@@ -21,12 +21,17 @@ fn box_of(x: (f64, f64), y: (f64, f64), z: (f64, f64), what: &str) -> AtRestBody
     finished(what, brick(x, y, z, tol()), tol())
 }
 
-fn union(
-    a: &AtRestBody<f64>,
-    b: &AtRestBody<f64>,
-    decls: &BooleanDeclarations,
-) -> BooleanBody<f64> {
-    match union_with(a, b, decls, tol()) {
+/// `a ∪ b` under `inputs`, which must build a body.
+fn united(a: &AtRestBody<f64>, b: &AtRestBody<f64>, inputs: &BooleanInputs) -> BooleanBody<f64> {
+    let built = topo::boolean_op_with(
+        topo::BooleanOp::Union,
+        a,
+        b,
+        inputs,
+        topo::SweepStrategy::Realized,
+        tol(),
+    );
+    match built {
         Ok(BooleanResult::Body(r)) => r,
         other => panic!("the union builds: {other:?}"),
     }
@@ -69,7 +74,7 @@ fn cited_rows(r: &BooleanBody<f64>) -> Vec<Vec<&Coincidence>> {
 fn a_corner_kiss_cites_the_vertex_fusion_that_decided_it() {
     let a = box_of((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), "a");
     let b = box_of((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), "b");
-    let r = union(&a, &b, &BooleanDeclarations::none());
+    let r = united(&a, &b, &BooleanInputs::default());
     assert_eq!(
         r.contacts.vertex_vertex().count(),
         1,
@@ -121,7 +126,7 @@ fn a_corner_kiss_cites_the_vertex_fusion_that_decided_it() {
 fn a_crossing_union_emits_no_vertex_fusion() {
     let a = box_of((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), "a");
     let b = box_of((1.0, 3.0), (1.0, 3.0), (1.0, 3.0), "b");
-    let r = union(&a, &b, &BooleanDeclarations::none());
+    let r = united(&a, &b, &BooleanInputs::default());
     assert!(r.contacts.cell_pairs().next().is_none(), "{:?}", r.contacts);
     assert!(
         !r.coincidences
@@ -141,13 +146,13 @@ fn a_crossing_union_emits_no_vertex_fusion() {
 fn a_carried_record_cites_its_operands_record() {
     let a = box_of((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), "a");
     let b = box_of((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), "b");
-    let kiss = union(&a, &b, &BooleanDeclarations::none());
+    let kiss = united(&a, &b, &BooleanInputs::default());
     let far = box_of((5.0, 6.0), (5.0, 6.0), (5.0, 6.0), "far");
-    let decls = BooleanDeclarations {
-        carried_a: kiss.contacts.carried(ContactClass::Rest),
-        ..BooleanDeclarations::none()
+    let carried = BooleanInputs {
+        records_a: kiss.contacts.carried(),
+        ..BooleanInputs::default()
     };
-    let r = union(&kiss.body, &far, &decls);
+    let r = united(&kiss.body, &far, &carried);
     assert_eq!(r.contacts.vertex_vertex().count(), 1, "{:?}", r.contacts);
     assert_eq!(
         r.contacts.rows()[0].cites,
@@ -213,8 +218,7 @@ fn blocks_apart_record_no_row_axis_aligned_or_turned() {
     for turn in [0.0, core::f64::consts::FRAC_PI_4] {
         let a = turned_square((0.0, 0.0), turn, "a");
         let b = turned_square((1.2, 0.0), turn, "b");
-        let r = union_with(&a, &b, &BooleanDeclarations::none(), tol())
-            .unwrap_or_else(|e| panic!("the union at turn {turn}: {e:?}"));
+        let r = union(&a, &b, tol()).unwrap_or_else(|e| panic!("the union at turn {turn}: {e:?}"));
         assert_eq!(face_pair_rows(&r), 0, "turn {turn}: {r:?}");
     }
 }
@@ -229,8 +233,7 @@ fn blocks_side_by_side_record_equal_rows_axis_aligned_and_turned() {
     let rows = [0.0, core::f64::consts::FRAC_PI_4].map(|turn| {
         let a = turned_square((0.0, 0.0), turn, "a");
         let b = turned_square((1.0, 0.0), turn, "b");
-        let r = union_with(&a, &b, &BooleanDeclarations::none(), tol())
-            .unwrap_or_else(|e| panic!("the union at turn {turn}: {e:?}"));
+        let r = union(&a, &b, tol()).unwrap_or_else(|e| panic!("the union at turn {turn}: {e:?}"));
         face_pair_rows(&r)
     });
     assert_eq!(rows[0], rows[1], "axis-aligned vs turned: {rows:?}");
@@ -269,8 +272,7 @@ fn a_block_apart_in_an_l_notch_records_no_row() {
     // opposed).
     for z in [(0.0, 1.0), (1.0, 2.0)] {
         let block = box_of((2.5, 3.5), (2.5, 3.5), z, "the block");
-        let r = union_with(&l, &block, &BooleanDeclarations::none(), tol())
-            .unwrap_or_else(|e| panic!("the union at {z:?}: {e:?}"));
+        let r = union(&l, &block, tol()).unwrap_or_else(|e| panic!("the union at {z:?}: {e:?}"));
         assert_eq!(face_pair_rows(&r), 0, "{z:?}: {r:?}");
     }
 }
@@ -288,9 +290,9 @@ fn a_block_apart_in_an_l_notch_records_no_row() {
 fn a_cell_reached_from_both_sides_cites_its_shortest_chain() {
     let a = box_of((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), "a");
     let b = box_of((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), "b");
-    let kiss = union(&a, &b, &BooleanDeclarations::none());
+    let kiss = united(&a, &b, &BooleanInputs::default());
     let c = box_of((1.0, 2.0), (0.0, 1.0), (0.0, 1.0), "c");
-    let r = union(&kiss.body, &c, &BooleanDeclarations::none());
+    let r = united(&kiss.body, &c, &BooleanInputs::default());
     let cited = cited_rows(&r);
     assert_eq!(cited.len(), 2, "two records: {:?}", r.contacts);
     for rows in &cited {
@@ -338,7 +340,7 @@ fn a_carried_vertex_on_face_record_cites_its_operands_record() {
         topo::transform_rigid(&turned, &lift, tol()).expect("a rigid lift"),
         tol(),
     );
-    let kiss = union(&a, &on_corner, &BooleanDeclarations::none());
+    let kiss = united(&a, &on_corner, &BooleanInputs::default());
     assert_eq!(
         (
             kiss.contacts.vertex_face().count(),
@@ -354,11 +356,11 @@ fn a_carried_vertex_on_face_record_cites_its_operands_record() {
         .position(|k| matches!(k, topo::ContactKind::VertexFace(..)))
         .expect("the vertex-on-face record");
     let far = box_of((5.0, 6.0), (5.0, 6.0), (5.0, 6.0), "far");
-    let decls = BooleanDeclarations {
-        carried_a: kiss.contacts.carried(ContactClass::Rest),
-        ..BooleanDeclarations::none()
+    let carried = BooleanInputs {
+        records_a: kiss.contacts.carried(),
+        ..BooleanInputs::default()
     };
-    let r = union(&kiss.body, &far, &decls);
+    let r = united(&kiss.body, &far, &carried);
     let carried: Vec<_> = r.contacts.cites().cloned().collect();
     assert_eq!(
         carried,

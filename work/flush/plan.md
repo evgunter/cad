@@ -10,7 +10,7 @@ Ev approved the plan in chat on 2026-10-10). Every row here moved from
 
 ## The slate
 
-**33.5 points** of dispatchable work against a ceiling of 32
+**31 points** of dispatchable work against a ceiling of 32
 (`work/flush/program.md` states why it is not 30). INTENT stage 4 E
 released three rows on 2026-10-10 (each says so in its own section);
 step 2's reader's closes took back 10 and filed one P1 residue, and the
@@ -27,7 +27,6 @@ lanes in flight are expected to close more, so the track is not split.
 | P2 | `a-curved-face-at-a-shared-pinch-vertex-builds-bodies-the-census-and-the-reuse-check-refuse` | M | a curved face at a shared pinch vertex: bodies tier 3′ escalates and a further union refuses |
 | P2 | `a-hole-weld-cannot-tell-a-figure-eight-hole-from-an-island-face` | M | `Joint::Hole` cannot tell a figure-8 hole from an island face |
 | P2 | `a-pinch-the-seams-do-not-link-keeps-its-cones-on-separate-keys` | M | a pinch whose keys no seam ties keeps its cones on separate point keys |
-| P2 | `undeclared-anti-parallel-touch-builds-a-scaffold-at-rest-in-one-op` | M | an undeclared anti-parallel touch at a wedge builds a scaffold at rest, one op and order per pose |
 | P3 | `the-turn-sense-divisor-is-nonzero-by-prose` | E | `Turn.sense`'s nonzero divisor is held by call order, not by type |
 | P3 | `two-pinch-poses-escalate-at-eps-1e-6` | E | two `pinch_faces_tessellate` poses escalate at ε 1e-6 |
 | P4 | `a-curved-boolean-refusal-cites-the-germs-recorded-face-after-a-mef` | E | `CurvedBooleanUnsupported` cites the germ's recorded face, which a `mef` may have divided |
@@ -40,7 +39,6 @@ Parked, and not counted:
 | pri | item | cost | waits on |
 |---|---|---|---|
 | P0 | `a-near-tangent-vertex-lands-within-the-band-of-a-face-and-ships-unrecorded` | M | `boolean-door-runs-the-census-over-its-result` (REACHHOLD) |
-| P3 | `the-reflex-probes-run-b-minus-a-under-declarations-keyed-for-a-b` | E | `declared-pairs-retire` (INTENT stage 4 F deletes the declarations it is about) |
 
 ## Order
 
@@ -74,13 +72,11 @@ Parked, and not counted:
    step 2's measuring lane), then the pinch rows:
    `the-pre-zip-pinch-weld-retires-…`, `a-pinch-the-seams-do-not-link-…`,
    `a-hole-weld-cannot-tell-…` and `a-curved-face-at-a-shared-pinch-vertex-…`.
-5. **The E tail**, batched by file into one or two lanes:
+5. **The E tail** (dispatched after F as one lane, `flush/e-tail`):
    `the-turn-sense-divisor-…`, `strut-side-labels-…`,
    `a-curved-boolean-refusal-cites-…` and `levered-sign-as-bool-…` in
    `boolean/`; `two-pinch-poses-…` and `sibling-batteries-…` in the
-   sweep tests. These wait for F to merge: F rewrites most of
-   `boolean/` and the batteries, and a cheap row is not worth a
-   conflict with it.
+   sweep tests.
 
 ## The intent-refactor hold (Ev, `[ev]` PR 3990, 2026-10-03)
 
@@ -100,22 +96,17 @@ by INTENT's re-homing on 2026-10-08, each with its reason in its own
 own topology, which D10 keeps. A lane that finds its row does need
 declared pairs or contact after all parks it on its INTENT stage row.
 
-**What is in flight on the same ground (2026-10-11).** INTENT stage 4
-F (`declared-pairs-retire`, branch `intent/s4-f-declared-pairs-retire`)
-deletes `declare`, `DeclaredPair`, `BooleanCoincidence`,
-`BooleanDeclarations`, the flush detector (`topo/src/flush.rs`) and the
-declared seats, with every digest bit-equal to E's: a declaration
-already moves no body. So a FLUSH lane writes no new test or code
-through a declared spelling (`*_with(.., decl, ..)`,
-`flush_declarations`, `BooleanDeclarations`); it uses the plain
-booleans, which build the same body and survive F. F rewrites most of
-`boolean/` and the sweep batteries but not `join.rs` or
-`loop_winding.rs`. Stage 4 C/D (`intent/s4-cd-symbolic-door`) moves the
-door's coincidence pass. CONTACTHOLD's PRs 4598 and 4604 make
-`ContactRecords` one list of unordered cell pairs and rewrite how the
-census reads a touch, which is the ground every tier-3′
-`UndeclaredContact` row here stands on: those rows (step 3, and the
-corner pair) read the census as those PRs leave it.
+**What is in flight on the same ground (2026-10-11, after F).** INTENT
+stage 4 F (PR 4641) merged. The declared surface is gone:
+`declare`, `DeclaredPair`, `BooleanCoincidence`, `BooleanDeclarations`,
+the flush detector and the `*_with` booleans. A boolean's one other
+input is `BooleanInputs { given, records_a, records_b }`, so FLUSH lanes
+use the plain booleans. CONTACTHOLD's PRs 4598 and 4604 (merged) made
+`ContactRecords` one list of unordered cell pairs and rewrote how the
+census reads a touch. FLUSH's PR 4650 changes how a record follows a
+divided face (`Descendants::holder`, which includes the pinch welds'
+fragments), so the pinch cluster is measured after it merges. Stage 4
+C/D (`intent/s4-cd-symbolic-door`) moves the door's coincidence pass.
 
 ## Review posture
 

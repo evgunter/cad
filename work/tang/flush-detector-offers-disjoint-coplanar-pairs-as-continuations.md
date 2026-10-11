@@ -2,11 +2,11 @@
 id: flush-detector-offers-disjoint-coplanar-pairs-as-continuations
 kind: issue
 title: find_flush_candidates offers disjoint coplanar face pairs — as Continuation, and opposite-facing as Rest — though neither abuts nor overlaps
-status: parked
+status: closed
+closed: 2026-10-11
 opened: 2026-10-02
 priority: P1
 cost: E
-blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -72,3 +72,7 @@ Make the candidate generation require the pair's regions to meet
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: find_flush_candidates and rest.rs carrier_pair_verdict generate declaration offers; at stage 4 found coincidences go to the one door and the lint. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Closed (2026-10-11, stage 4 F)
+
+The flush detector is deleted at both seats (`topo::flush`, `editor_core::names::flush`); a boolean's glue door keeps a decided pair only where its two faces meet (`boolean::glue::touched`).

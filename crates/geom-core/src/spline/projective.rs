@@ -6,11 +6,10 @@
 //! [`CurvePlan::apply_points`] in the projective form, at the scalars
 //! named by [`ProjectiveScalar`] only, and [`CurvePlan::apply_certified`]
 //! in the homogeneous form, in the certification ring.
-//! [`CurvePlan::apply_homogeneous`] is the homogeneous form at a
-//! caller's generic scalar.
+//! [`CurvePlan::apply_homogeneous_in`] is the homogeneous form at a
+//! caller's generic scalar, over the knots held there.
 
-use super::algebra::CurvePlan;
-use super::knots::knot_difference;
+use super::algebra::{Coef, CurvePlan, Form, KnotAt};
 use super::locate::SpanLocate;
 use crate::real::Real;
 use crate::{Point2, Point3};
@@ -123,29 +122,36 @@ impl CurvePlan {
     /// caller generic over [`Real`] that refines a homogeneous channel
     /// (`w`, or one coordinate of `w·P`): each step is
     /// `β·x + α·y` with `α = (u − U_j)/Δ` and `β = (U_{j+p} − u)/Δ`
-    /// taken in `T` from the knots, so at `Interval` both ratios are
-    /// outward-rounded enclosures and the result encloses the refined
-    /// channel of the described curve, with no `f64` ratio standing in.
-    /// It has no hull meet, which `Real` cannot spell, so it is not the
-    /// ring's step: a caller generic over the scalar refines through
+    /// taken in `T` from `knots`, the knot values of the vector this
+    /// plan was made against (one per knot), and the inserted value:
+    /// a breakpoint already present is read there, so it stays one
+    /// quantity, and a new one enters as the constant of the schedule
+    /// it is. At `Interval` both ratios are outward-rounded
+    /// enclosures and the result encloses the refined channel of the
+    /// described curve, with no `f64` ratio standing in. It has no
+    /// hull meet, which `Real` cannot spell, so it is not the ring's
+    /// step: a caller generic over the scalar refines through
     /// [`SpanLocate::refine_homogeneous`], which is this at every
     /// scalar but `Interval` and
     /// [`RingRefinement::refine`](super::RingRefinement::refine) there,
     /// and a caller that holds `Interval` channels refines through
     /// [`RingRefinement`](super::RingRefinement).
     ///
-    /// Total: a ratio-less step (elevation, removal), a malformed plan
-    /// or a short channel yields `T`'s poison (`from_f64(NaN)`) in the
-    /// targets it reaches.
-    pub fn apply_homogeneous<T: Real>(&self, old: &[T]) -> Vec<T> {
-        self.apply_ratios(old, T::from_f64(f64::NAN), |x, y, r| {
-            let span = knot_difference::<T>(r.lo, r.hi);
-            let (lo, hi, u) = (
-                T::from_f64(r.lo),
-                T::from_f64(r.hi),
-                T::from_f64(r.inserted),
-            );
-            x * ((hi - u) / span) + y * ((u - lo) / span)
+    /// Total: a ratio-less step (elevation, removal), a malformed plan,
+    /// a short channel or a knot index past `knots` yields `T`'s poison
+    /// (`from_f64(NaN)`) in the targets it reaches.
+    pub fn apply_homogeneous_in<T: Real>(&self, knots: &[T], old: &[T]) -> Vec<T> {
+        self.apply_ratios(old, T::from_f64(f64::NAN), |x, y, _, form| {
+            let Form::Blend(Coef::Knots { u, lo, hi }) = form else {
+                return None;
+            };
+            let u = match u {
+                KnotAt::Index(i) => *knots.get(i)?,
+                KnotAt::Fresh(v) => T::from_f64(v),
+            };
+            let (lo, hi) = (*knots.get(lo)?, *knots.get(hi)?);
+            let span = hi - lo;
+            Some(x * ((hi - u) / span) + y * ((u - lo) / span))
         })
     }
 }

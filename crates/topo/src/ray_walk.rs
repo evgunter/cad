@@ -73,7 +73,7 @@
 //! relabel.
 
 use geom_core::{
-    Band, Decide, Indeterminate, Margin, NO_DECLARATION_RECOURSE, Point2, Point3, Sign, Vec2, Vec3,
+    Band, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Point2, Point3, Sign, Vec2, Vec3,
 };
 
 use crate::validate::decide;
@@ -258,7 +258,7 @@ impl core::fmt::Display for NoRaySettled {
             "the point is off its boundary, but no test ray from it settled where it \
              lies: each grazed the boundary, at a vertex, along an edge or at a \
              tangency, or could not be cast or read from the point. Recourse: \
-             {NO_DECLARATION_RECOURSE}"
+             {COINCIDENCE_RECOURSE}"
         )
     }
 }

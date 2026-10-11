@@ -52,7 +52,6 @@ fn cone_block_union_refusal() -> String {
             editor_core::Operand::output(cone, 0).into(),
             block.into(),
         ]),
-        declare: Vec::new(),
     });
     let ev = eval::<f64>(&r.doc);
     match ev.nodes.get(&union) {
@@ -392,6 +391,20 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
+            "GermSectionSpiric",
+            BooleanError::GermSectionSpiric {
+                a_face: face,
+                a_kind: SurfaceKind::Plane,
+                b_face: face,
+                b_kind: SurfaceKind::Torus,
+                loops: topo::SpiricLoops::AroundTube,
+                section: geom_brep::SectionError::RoutesToGeneralRung {
+                    pair: "plane×torus",
+                    why: "generic tilt cuts a spiric quartic",
+                },
+            },
+        ),
+        (
             "GermFrameCylinderPinch",
             BooleanError::GermFrameCylinderPinch {
                 a_face: face,
@@ -467,7 +480,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             BooleanError::Escalated {
                 decision: topo::BooleanDecision::Coincidence(
                     topo::Coincide::TangentSide,
-                    topo::DeclarationRead::Spent(topo::BooleanCoincidence::TANGENT),
+                    topo::DeclarationRead::Spent(topo::GlueClass::TANGENT),
                 ),
                 diag: enclosed,
             },
@@ -532,7 +545,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             BooleanError::Escalated {
                 decision: topo::BooleanDecision::Coincidence(
                     topo::Coincide::TangentSide,
-                    topo::DeclarationRead::Spent(topo::BooleanCoincidence::TANGENT),
+                    topo::DeclarationRead::Spent(topo::GlueClass::TANGENT),
                 ),
                 diag: in_band,
             },

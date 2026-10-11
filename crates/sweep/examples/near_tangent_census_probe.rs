@@ -37,8 +37,8 @@ use differential::{
 use geom_core::{Band, Point3, Tol};
 use topo::entity::{EntityId, LoopBoundary};
 use topo::{
-    AtRestBody, Body, BooleanBody, BooleanDecision, BooleanDeclarations, BooleanError,
-    BooleanResult, CensusStrategy, RegionLane, ValidationError, mass_properties,
+    AtRestBody, Body, BooleanBody, BooleanDecision, BooleanError, BooleanResult, CensusStrategy,
+    RegionLane, ValidationError, mass_properties,
 };
 
 type V3 = [f64; 3];
@@ -220,12 +220,7 @@ fn dump(tag: &str, body: &BooleanBody<f64>) -> Vec<String> {
     out
 }
 
-type Op = fn(
-    &AtRestBody<f64>,
-    &AtRestBody<f64>,
-    &BooleanDeclarations,
-    Tol,
-) -> Result<BooleanResult<f64>, BooleanError>;
+type Op = fn(&AtRestBody<f64>, &AtRestBody<f64>, Tol) -> Result<BooleanResult<f64>, BooleanError>;
 
 fn run_all(
     tag: &str,
@@ -236,16 +231,15 @@ fn run_all(
     common: f64,
     lumps: &[String],
 ) {
-    let decls = BooleanDeclarations::default();
     let dumping = std::env::var("NT_DUMP").is_ok();
     for (order, x, y, vx) in [("pc", prism, cube, va), ("cp", cube, prism, vb)] {
         let ops: [(&str, Op, f64); 3] = [
-            ("U", topo::union_with, va + vb - common),
-            ("I", topo::intersect_with, common),
-            ("S", topo::subtract_with, vx - common),
+            ("U", topo::union, va + vb - common),
+            ("I", topo::intersect, common),
+            ("S", topo::subtract, vx - common),
         ];
         for (op, f, want) in ops {
-            let r = f(x, y, &decls, tol());
+            let r = f(x, y, tol());
             let line = format!("{tag} {order} {op}");
             let mut after = Vec::new();
             match &r {

@@ -22,11 +22,11 @@
 
 use crate::common;
 
-use common::{brick, finished, flush_declarations};
+use common::{brick, finished};
 use geom_core::Tol;
 use topo::{
-    AtRestBody, Body, BooleanDeclarations, BooleanResult, intersect, intersect_with, subtract,
-    subtract_with, union, union_with, validate_geometric, validate_pseudomanifold,
+    AtRestBody, Body, BooleanResult, intersect, subtract, union, validate_geometric,
+    validate_pseudomanifold,
 };
 
 /// An op on the pair.
@@ -41,8 +41,8 @@ enum Kind {
 /// faces/edges/vertices, its closed-form volume and its tier-3′ verdict.
 ///
 /// A result 3′ refuses is refused by an operand's own contacts along its
-/// pinch line, which no boolean carries into its result
-/// (`work/wire/a-boolean-drops-its-operands-own-contact-records.md`).
+/// pinch line, which a kernel op called without `BooleanInputs` records
+/// does not carry into its result.
 type Row = (&'static str, Kind, bool, [usize; 3], f64, bool);
 
 fn t() -> Tol {
@@ -163,7 +163,7 @@ fn block(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> AtRestBody<f64> {
 
 /// `base` less `cut`, the two flush where they share a plane.
 fn less(base: &AtRestBody<f64>, cut: &AtRestBody<f64>) -> AtRestBody<f64> {
-    match subtract_with(base, cut, &flush_declarations(base, cut, t()), t()).unwrap() {
+    match subtract(base, cut, t()).unwrap() {
         BooleanResult::Body(r) => r.body,
         BooleanResult::Empty => panic!("the cut leaves material"),
     }
@@ -231,7 +231,7 @@ fn the_staircase_and_the_plate_build_in_every_op() {
 fn a_pinch_through_a_face_builds_in_every_op() {
     let q1 = block((0.0, 1.0), (0.0, 1.0), (0.5, 1.5));
     let q3 = block((-1.0, 0.0), (-1.0, 0.0), (0.5, 1.5));
-    let pinch = match union_with(&q1, &q3, &BooleanDeclarations::default(), t()).unwrap() {
+    let pinch = match union(&q1, &q3, t()).unwrap() {
         BooleanResult::Body(r) => r.body,
         BooleanResult::Empty => panic!("the pinch is two bricks"),
     };
@@ -317,7 +317,7 @@ fn a_wedge_in_a_reflex_corner_through_a_face_builds_in_every_op() {
         common::prism_z::<f64>(&wedge, 0.5, 1.5, t()).body,
         t(),
     );
-    let pinch = match union_with(&l, &w, &BooleanDeclarations::default(), t()).unwrap() {
+    let pinch = match union(&l, &w, t()).unwrap() {
         BooleanResult::Body(r) => r.body,
         BooleanResult::Empty => panic!("the pinch is two prisms"),
     };
@@ -389,12 +389,11 @@ fn a_pinch_standing_on_a_face_builds_in_every_op() {
     type DeclaredOp = fn(
         &AtRestBody<f64>,
         &AtRestBody<f64>,
-        &BooleanDeclarations,
         Tol,
     ) -> Result<BooleanResult<f64>, topo::BooleanError>;
     let q1 = block((0.0, 1.0), (0.0, 1.0), (0.5, 1.5));
     let q3 = block((-1.0, 0.0), (-1.0, 0.0), (0.5, 1.5));
-    let pinch = match union_with(&q1, &q3, &BooleanDeclarations::default(), t()).unwrap() {
+    let pinch = match union(&q1, &q3, t()).unwrap() {
         BooleanResult::Body(r) => r.body,
         BooleanResult::Empty => panic!("the pinch is two bricks"),
     };
@@ -402,17 +401,16 @@ fn a_pinch_standing_on_a_face_builds_in_every_op() {
     // Each op's counts and volume, or `None` where it is empty.
     type Want = Option<([usize; 3], f64)>;
     let rows: [(&str, DeclaredOp, bool, Want); 6] = [
-        ("pinch ∪ B", union_with, false, Some(([13, 30, 19], 4.0))),
-        ("pinch − B", subtract_with, false, Some(([12, 24, 16], 2.0))),
-        ("pinch ∩ B", intersect_with, false, None),
-        ("B ∪ pinch", union_with, true, Some(([13, 30, 19], 4.0))),
-        ("B − pinch", subtract_with, true, Some(([6, 12, 8], 2.0))),
-        ("B ∩ pinch", intersect_with, true, None),
+        ("pinch ∪ B", union, false, Some(([13, 30, 19], 4.0))),
+        ("pinch − B", subtract, false, Some(([12, 24, 16], 2.0))),
+        ("pinch ∩ B", intersect, false, None),
+        ("B ∪ pinch", union, true, Some(([13, 30, 19], 4.0))),
+        ("B − pinch", subtract, true, Some(([6, 12, 8], 2.0))),
+        ("B ∩ pinch", intersect, true, None),
     ];
     for (name, op, swap, want) in rows {
         let (x, y) = if swap { (&b, &pinch) } else { (&pinch, &b) };
-        let got = op(x, y, &flush_declarations(x, y, t()), t())
-            .unwrap_or_else(|e| panic!("{name}: refused: {e:?}"));
+        let got = op(x, y, t()).unwrap_or_else(|e| panic!("{name}: refused: {e:?}"));
         match (got, want) {
             (BooleanResult::Empty, None) => {}
             (BooleanResult::Body(r), Some((counts, volume))) => {

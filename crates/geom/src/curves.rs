@@ -496,9 +496,9 @@ pub enum CurveDatum {
     MinorRadius,
     /// A spiric's plane stand-off `offset`.
     Offset,
-    /// A `Nurbs` carrier's control net — the one datum a spline stores
-    /// that is a number at the curve's scalar (its knots and weights are
-    /// `f64` structure, validated finite at construction).
+    /// A `Nurbs` carrier's control net — the datum this read checks
+    /// (its knots and weights are held at the scalar too, and refused
+    /// non-finite on their value channel at construction).
     Control,
 }
 
@@ -2461,9 +2461,9 @@ mod tests {
             "knots must be carried verbatim"
         );
         assert_eq!(
-            lifted.weights(),
-            source.weights(),
-            "weights must be carried verbatim"
+            lifted.weight_channel(),
+            source.weight_channel(),
+            "the weights\' value channel must be carried verbatim"
         );
         for t in knot_and_span_params(&c) {
             let p = cd.eval(Dual::variable(t));
@@ -2812,9 +2812,9 @@ mod tests {
                 "knots must be carried verbatim"
             );
             assert_eq!(
-                lifted.weights(),
-                source.weights(),
-                "weights must be carried verbatim"
+                lifted.weight_channel(),
+                source.weight_channel(),
+                "the weights\' value channel must be carried verbatim"
             );
             for t in super::knot_and_span_params(&c) {
                 let p = ci.eval(Interval::from_f64(t));
