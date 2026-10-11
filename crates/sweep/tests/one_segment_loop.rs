@@ -273,7 +273,6 @@ fn one_segment_circles_extrude_at_interval() {
 #[test]
 fn a_boolean_on_an_extruded_seam_wall_builds_along_and_across_it() {
     use sweep::test_support::brick;
-    use topo::BooleanDeclarations;
     use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 
     let cyl = extruded(vec![circle(0.0, 0.0, 1.0, TAU)], 2.0, ExtrudeSide::Along).body;
@@ -317,7 +316,7 @@ fn a_boolean_on_an_extruded_seam_wall_builds_along_and_across_it() {
             op,
             &topo::test_support::finished("the seam cylinder", cyl.clone(), tol()),
             &topo::test_support::finished("the tool", tool, tol()),
-            &BooleanDeclarations::none(),
+            &topo::BooleanInputs::default(),
             SweepStrategy::Realized,
             tol(),
         );

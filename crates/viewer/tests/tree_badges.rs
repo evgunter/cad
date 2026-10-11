@@ -429,7 +429,6 @@ fn a_boolean_over_a_refused_groups_instances_points_at_the_mate() {
         &mut session,
         SessionOp::AddBoolean {
             spec: BooleanSpec::Union(vec![bench.post_a.into(), bench.shelf_i.into()]),
-            declare: Vec::new(),
         },
     );
     session.pump();
@@ -525,7 +524,6 @@ fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
         &mut session,
         SessionOp::AddBoolean {
             spec: BooleanSpec::Union(vec![bench.post_a.into(), bench.shelf_i.into()]),
-            declare: Vec::new(),
         },
     );
     session.pump();
@@ -1363,7 +1361,6 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         &doc,
         Node::Intersect {
             members: Bodies::Spelled(vec![near.into(), far.into()]),
-            declare: Vec::new(),
         },
         tol,
     );
@@ -1449,7 +1446,6 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         Node::Subtract {
             from: near.into(),
             tool: far.into(),
-            declare: Vec::new(),
         },
         tol,
     );

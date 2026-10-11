@@ -4,7 +4,7 @@ use core::fmt;
 
 use geom_core::Real;
 use sweep::{Revolution, RevolveAxis};
-use topo::{BooleanDeclarations, BooleanOp, EdgeKey, FaceKey, SplitPlane};
+use topo::{BooleanInputs, BooleanOp, EdgeKey, FaceKey, SplitPlane};
 
 /// **One kernel operation, with its parameters as data.**
 ///
@@ -84,7 +84,7 @@ pub enum Verb<T: Real> {
     /// is the exact full turn or a partial one is a decided predicate
     /// at the document layer's own funnel site, and its escalation is
     /// a document-layer refusal — so what reaches the payload is the
-    /// classified value, exactly as the boolean's `declare` reaches it
+    /// classified value, exactly as the boolean's inputs reach it
     /// already resolved to arena keys.
     Revolve {
         /// The axis of revolution, in sketch-plane coordinates.
@@ -96,25 +96,25 @@ pub enum Verb<T: Real> {
     ///
     /// The payload is the boolean door's own parameter list with the
     /// operands and the run witnesses removed: which regularized op,
-    /// and the declared coincidence intents in the kernel's lowered
-    /// form — arena keys into the two operands, resolved by whoever
-    /// built the value (the recipe layer's name resolution never
-    /// enters this crate). The candidate-sweep strategy is NOT here:
+    /// and its inputs ([`BooleanInputs`]) — arena keys into the two
+    /// operands, resolved by whoever built the value (the recipe
+    /// layer's name resolution never enters this crate). The candidate-sweep strategy is NOT here:
     /// it is a property of the run, not of the operation (both
     /// strategies produce bit-identical results), so it comes in at
     /// [`Verb::run_pair`] beside the tolerance witness.
     Boolean {
         /// The regularized set operation.
         op: BooleanOp,
-        /// Declared coincidence intents, in operand arena keys, boxed so
-        /// the verb stays one small value whatever the declarations hold.
-        declare: Box<BooleanDeclarations>,
+        /// The operands' carried records and any given verdicts, in
+        /// operand arena keys, boxed so the verb stays one small value
+        /// whatever they hold.
+        inputs: Box<BooleanInputs>,
     },
     /// Parts the operand body by a plane into its two sides.
     ///
     /// The plane is a kernel VALUE in the payload — a point and a unit
-    /// normal — exactly as the boolean carries its declarations
-    /// already resolved: whatever document object the plane was read
+    /// normal — exactly as the boolean carries its inputs already
+    /// resolved: whatever document object the plane was read
     /// off (a datum node, upstairs) is the recipe layer's business, and
     /// what reaches this crate is the split door's own `SplitPlane`.
     /// The body is the one operand and stays out of the payload like

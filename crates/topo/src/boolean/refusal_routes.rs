@@ -45,7 +45,7 @@ use geom_core::Indeterminate;
 use crate::boolean::ContainDecision;
 use crate::splitting::Escalation;
 
-use crate::contact::{BooleanCoincidence, ContactClass};
+use crate::contact::{ContactClass, GlueClass};
 
 pub use super::plane_eq::PlaneRung;
 pub use super::solid_contain::WallRung;
@@ -371,12 +371,12 @@ pub enum BooleanDecision {
 
 /// **What a coincidence's door read of the face pair's declaration
 /// ahead of the question**, and so whether a declaration would change
-/// the verdict (D4 ¶1 (i)). Only [`DeclaredPairs::read`] mints
+/// the verdict (D4 ¶1 (i)). Only [`GluedPairs::read`] mints
 /// [`DeclarationRead::Settles`]: it looks the pair up, and settles only
 /// a question a declaration of a class the door admits there would
 /// change ([`Coincide::settled_by`]). Only it offers a declaration.
 ///
-/// [`DeclaredPairs::read`]: super::DeclaredPairs::read
+/// [`GluedPairs::read`]: super::GluedPairs::read
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DeclarationRead {
     /// The door looked the pair up and found no declaration, and a
@@ -386,7 +386,7 @@ pub enum DeclarationRead {
     /// The door looked the pair up and found it declared under this
     /// class, and the question refused all the same: the declaration is
     /// spent there, and no second one is offered.
-    Spent(BooleanCoincidence),
+    Spent(GlueClass),
     /// No declaration read ahead of the question settles it: the site
     /// takes no declarations, or the door found none and admits no class
     /// that would change the verdict.
@@ -401,16 +401,16 @@ pub enum DeclarationRead {
 /// there ([`BooleanDecision::Coincidence`] renders it unsettled).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Settling {
-    class: BooleanCoincidence,
+    class: GlueClass,
     question: Coincide,
 }
 
 impl Settling {
     /// The coincidence a declaration of which would settle the
     /// question: the one the pair's senses make it, where the door read
-    /// them ([`BooleanCoincidence::of_senses`]).
+    /// them ([`GlueClass::of_senses`]).
     #[must_use]
-    pub const fn class(self) -> BooleanCoincidence {
+    pub const fn class(self) -> GlueClass {
         self.class
     }
 
@@ -421,7 +421,7 @@ impl Settling {
     }
 }
 
-impl<T: geom_core::Real> super::DeclaredPairs<T> {
+impl<T: geom_core::Real> super::GluedPairs<T> {
     /// **What a door read of the declaration ahead of `question`**,
     /// looked up for the face pairs it asks about, in order: the first
     /// declared pair's class is [`DeclarationRead::Spent`] (the question
@@ -439,7 +439,7 @@ impl<T: geom_core::Real> super::DeclaredPairs<T> {
             crate::entity::FaceKey,
         )],
         question: Coincide,
-        admitted: &[BooleanCoincidence],
+        admitted: &[GlueClass],
     ) -> DeclarationRead {
         if let Some(class) = pairs
             .iter()
@@ -461,7 +461,7 @@ impl<T: geom_core::Real> super::DeclaredPairs<T> {
     /// with what it read of the pair's declaration: a one-carrier
     /// declaration bridges an in-band parallelism
     /// ([`Coincide::OnPlanes`]), and the door admits the one the pair's
-    /// `senses` make it ([`BooleanCoincidence::of_senses`]). Senses the
+    /// `senses` make it ([`GlueClass::of_senses`]). Senses the
     /// door could not read admit none: a guess would offer a declaration
     /// the declaration door contradicts.
     pub(crate) fn on_pair_door(
@@ -474,7 +474,7 @@ impl<T: geom_core::Real> super::DeclaredPairs<T> {
         ),
         senses: Option<super::CarrierRelation>,
     ) -> PlaneDoor {
-        let admitted = senses.and_then(BooleanCoincidence::of_senses);
+        let admitted = senses.and_then(GlueClass::of_senses);
         PlaneDoor::OnPair(self.read(&[pair], Coincide::OnPlanes, admitted.as_slice()))
     }
 
@@ -491,7 +491,7 @@ impl<T: geom_core::Real> super::DeclaredPairs<T> {
         ),
         relation: super::CarrierRelation,
     ) -> DeclarationRead {
-        let admitted = BooleanCoincidence::of_senses(relation);
+        let admitted = GlueClass::of_senses(relation);
         self.read(&[pair], Coincide::Carriers, admitted.as_slice())
     }
 }
@@ -673,7 +673,7 @@ impl Coincide {
 
     /// Whether a declaration of `class`, where the door admits it, would
     /// change this question's verdict: the one statement
-    /// [`DeclaredPairs::read`](super::DeclaredPairs::read) settles by.
+    /// [`GluedPairs::read`](super::GluedPairs::read) settles by.
     ///
     /// - [`Coincide::OnPlanes`]: a one-carrier pair's (`Rest` or a
     ///   continuation) ladder bridges an in-band parallelism
@@ -686,8 +686,8 @@ impl Coincide {
     /// Every other question refuses a declared pair as it refuses an
     /// undeclared one, or meets no declaration its door verifies.
     #[must_use]
-    pub const fn settled_by(self, class: BooleanCoincidence) -> bool {
-        use BooleanCoincidence::{Contact, Continuation, Seam};
+    pub const fn settled_by(self, class: GlueClass) -> bool {
+        use GlueClass::{Contact, Continuation, Seam};
         match (self, class) {
             (Self::OnPlanes | Self::Carriers, Contact(ContactClass::Rest) | Continuation)
             | (Self::Sectors, Contact(ContactClass::Rest | ContactClass::Tangent) | Continuation) => {
@@ -754,11 +754,7 @@ impl Coincide {
         match self {
             Self::OnPlanes | Self::Carriers => Ending::Lever(geom_core::COINCIDENCE_RECOURSE),
             Self::Sectors => Ending::Sized(SizedDecision {
-                lever: concat!(
-                    geom_core::coincidence_declare_arm!(),
-                    ", or ",
-                    proximity_lever!()
-                ),
+                lever: proximity_lever!(),
                 ..proximity(SizedPass::AnySign)
             }),
             // No declaration settles these (`settled_by`), so no read
@@ -1481,12 +1477,12 @@ impl BooleanDecision {
             // both senses pass there.
             Self::Coincidence(
                 Coincide::FlankSense,
-                DeclarationRead::Spent(BooleanCoincidence::REST | BooleanCoincidence::Continuation),
+                DeclarationRead::Spent(GlueClass::REST | GlueClass::Continuation),
             ) => Ending::Sized(CORNER_SENSE),
             // A declared seam is verified along the rim the two faces
             // share: one circle passes, and a definitely different one
             // leaves the seam without a locus, refused as a class.
-            Self::Coincidence(Coincide::Rim, DeclarationRead::Spent(BooleanCoincidence::Seam)) => {
+            Self::Coincidence(Coincide::Rim, DeclarationRead::Spent(GlueClass::Seam)) => {
                 Ending::Lever(RIM_SEAM_LEVER)
             }
             Self::Coincidence(which, _) => which.ending(),
@@ -1716,7 +1712,7 @@ pub(in crate::boolean) mod tests {
     /// spent as a seam ends in its frontier either way.
     #[test]
     fn a_straddle_through_the_seam_cover_ends_in_the_lever_alone() {
-        use crate::contact::BooleanCoincidence;
+        use crate::contact::GlueClass;
         use geom_core::{Decided, Sign};
         let band = band();
         let straddle = geom_core::k_stats::straddle(
@@ -1736,7 +1732,7 @@ pub(in crate::boolean) mod tests {
             ..straddle
         };
         let said = |site, read, diag| BooleanError::coincidence(site, read, diag).to_string();
-        let seam = DeclarationRead::Spent(BooleanCoincidence::Seam);
+        let seam = DeclarationRead::Spent(GlueClass::Seam);
         for site in [Coincide::Rim, Coincide::TangentLocus] {
             let (after, before) = (said(site, seam, straddle), said(site, seam, poisoned));
             assert!(!after.contains(UNREADABLE_MARGIN_NOTE), "{site:?}: {after}");
@@ -1752,7 +1748,7 @@ pub(in crate::boolean) mod tests {
                 "{site:?}: the same lever"
             );
         }
-        let rest = DeclarationRead::Spent(BooleanCoincidence::REST);
+        let rest = DeclarationRead::Spent(GlueClass::REST);
         let ending = |s: String| s.rsplit_once("Recourse: ").map(|(_, r)| r.to_owned());
         assert_eq!(
             ending(said(Coincide::Rim, rest, straddle)),
@@ -1985,25 +1981,25 @@ pub(in crate::boolean) mod tests {
     }
 
     /// Every read a door can hand `which`, each minted by the one
-    /// constructor ([`crate::boolean::DeclaredPairs::read`]): the pair
-    /// declared under each class ([`BooleanCoincidence::ALL`]), and undeclared
+    /// constructor ([`crate::boolean::GluedPairs::read`]): the pair
+    /// declared under each class ([`GlueClass::ALL`]), and undeclared
     /// with each class admitted, and with none.
     fn every_read(which: Coincide) -> impl Iterator<Item = DeclarationRead> + Clone {
-        use crate::boolean::{BooleanDeclarations, DeclaredPairs, FacePairDeclaration};
+        use crate::boolean::{Glue, GluedPair, GluedPairs};
         let face = crate::entity::FaceKey::default();
         let pair = [(Operand::A, face, Operand::B, face)];
-        let declared = |class: Option<BooleanCoincidence>| {
-            let decls = BooleanDeclarations {
-                coincident_faces: class
-                    .map(|class| vec![FacePairDeclaration::new(face, face, class)])
+        let declared = |class: Option<GlueClass>| {
+            let decls = Glue {
+                pairs: class
+                    .map(|class| vec![GluedPair::new(face, face, class)])
                     .unwrap_or_default(),
-                ..BooleanDeclarations::none()
+                ..Glue::none()
             };
-            DeclaredPairs::<f64>::without_struts(&decls, Default::default())
+            GluedPairs::<f64>::without_struts(&decls, Default::default())
         };
         let mut reads = vec![declared(None).read(&pair, which, &[])];
-        for &class in BooleanCoincidence::ALL {
-            reads.push(declared(Some(class)).read(&pair, which, BooleanCoincidence::ALL));
+        for &class in GlueClass::ALL {
+            reads.push(declared(Some(class)).read(&pair, which, GlueClass::ALL));
             reads.push(declared(None).read(&pair, which, &[class]));
         }
         reads.dedup();
@@ -2142,17 +2138,16 @@ pub(in crate::boolean) mod tests {
     }
 
     /// Each settleable coincidence's ending where a declaration read
-    /// ahead of it would settle it: the declaration, then its own lever,
+    /// ahead of it would settle it: its own lever,
     /// and the tolerance only where its own pass set holds a nonzero
     /// sign. `None` for a question no declaration settles.
     fn coincide_settled(which: Coincide) -> Option<Ending> {
         match which {
-            Coincide::OnPlanes | Coincide::Carriers => Some(Ending::Lever(
-                "Recourse: declare the coincidence, or move the geometry",
-            )),
+            Coincide::OnPlanes | Coincide::Carriers => {
+                Some(Ending::Lever("Recourse: move the geometry"))
+            }
             Coincide::Sectors => Some(Ending::Sized(
-                "Recourse: declare the coincidence, or move the parts so they clearly meet or \
-                 clearly stand apart there",
+                "Recourse: move the parts so they clearly meet or clearly stand apart there",
                 SizedPass::AnySign,
             )),
             Coincide::Planes
@@ -2199,7 +2194,7 @@ pub(in crate::boolean) mod tests {
             // face the door verified: both senses pass.
             BooleanDecision::Coincidence(
                 Coincide::FlankSense,
-                DeclarationRead::Spent(BooleanCoincidence::REST | BooleanCoincidence::Continuation),
+                DeclarationRead::Spent(GlueClass::REST | GlueClass::Continuation),
             ) => (
                 coincide_subject(Coincide::FlankSense),
                 Ending::Sized(LONGER, SizedPass::NonZero),
@@ -2207,7 +2202,7 @@ pub(in crate::boolean) mod tests {
             // A declared seam's rim is its locus: the shared circle passes.
             BooleanDecision::Coincidence(
                 Coincide::Rim,
-                DeclarationRead::Spent(BooleanCoincidence::Seam),
+                DeclarationRead::Spent(GlueClass::Seam),
             ) => (
                 coincide_subject(Coincide::Rim),
                 Ending::Lever(
@@ -2594,15 +2589,9 @@ pub(in crate::boolean) mod tests {
                     "{label}: the routing name stays out: {text}"
                 );
                 let readable = !margin.is_invalid();
-                assert_eq!(
-                    text.contains("declare the coincidence"),
-                    readable
-                        && matches!(
-                            decision,
-                            BooleanDecision::Coincidence(_, DeclarationRead::Settles(_))
-                        ),
-                    "{label}: only a coincidence a declaration read ahead would settle offers \
-                     one, and never on a margin no declaration reads: {text}"
+                assert!(
+                    !text.contains("declare the"),
+                    "{label}: no escalation offers a declaration: {text}"
                 );
                 let (subject, ending) = want(decision, readable);
                 let head = format!("{subject} is undecided: {}. ", diag.payload());
@@ -2710,28 +2699,25 @@ pub(in crate::boolean) mod tests {
     }
 
     /// **A declaration is offered only where the lookup mints it**: the
-    /// one constructor ([`crate::boolean::DeclaredPairs::read`]) settles
+    /// one constructor ([`crate::boolean::GluedPairs::read`]) settles
     /// a question only for a class the door admits and the question
     /// states it is settled by, spends a declared pair's class, and says
     /// `Moot` otherwise, over every question and class. Each settleable
     /// question's settling classes, stated here on their own.
     #[test]
     fn a_declaration_read_is_minted_by_the_lookup_alone() {
-        use crate::boolean::{BooleanDeclarations, DeclaredPairs, FacePairDeclaration};
+        use crate::boolean::{Glue, GluedPair, GluedPairs};
         let face = crate::entity::FaceKey::default();
         let pair = [(Operand::A, face, Operand::B, face)];
-        let none =
-            DeclaredPairs::<f64>::without_struts(&BooleanDeclarations::none(), Default::default());
-        let settled = |which: Coincide| -> &'static [BooleanCoincidence] {
+        let none = GluedPairs::<f64>::without_struts(&Glue::none(), Default::default());
+        let settled = |which: Coincide| -> &'static [GlueClass] {
             match which {
                 Coincide::OnPlanes | Coincide::Carriers => {
-                    &[BooleanCoincidence::REST, BooleanCoincidence::Continuation]
+                    &[GlueClass::REST, GlueClass::Continuation]
                 }
-                Coincide::Sectors => &[
-                    BooleanCoincidence::REST,
-                    BooleanCoincidence::TANGENT,
-                    BooleanCoincidence::Continuation,
-                ],
+                Coincide::Sectors => {
+                    &[GlueClass::REST, GlueClass::TANGENT, GlueClass::Continuation]
+                }
                 Coincide::Planes
                 | Coincide::VertexOnFace
                 | Coincide::VertexOnCurvedFace
@@ -2753,7 +2739,7 @@ pub(in crate::boolean) mod tests {
             }
         };
         for which in Coincide::iter() {
-            for &class in BooleanCoincidence::ALL {
+            for &class in GlueClass::ALL {
                 let got = none.read(&pair, which, &[class]);
                 let want = if settled(which).contains(&class) {
                     DeclarationRead::Settles(Settling {
@@ -2769,13 +2755,13 @@ pub(in crate::boolean) mod tests {
                     DeclarationRead::Moot,
                     "{which:?}: a door that admits no class settles nothing"
                 );
-                let decls = BooleanDeclarations {
-                    coincident_faces: vec![FacePairDeclaration::new(face, face, class)],
-                    ..BooleanDeclarations::none()
+                let decls = Glue {
+                    pairs: vec![GluedPair::new(face, face, class)],
+                    ..Glue::none()
                 };
-                let declared = DeclaredPairs::<f64>::without_struts(&decls, Default::default());
+                let declared = GluedPairs::<f64>::without_struts(&decls, Default::default());
                 assert_eq!(
-                    declared.read(&pair, which, BooleanCoincidence::ALL),
+                    declared.read(&pair, which, GlueClass::ALL),
                     DeclarationRead::Spent(class),
                     "{which:?} declared {class:?}: the declaration is spent"
                 );
@@ -2785,13 +2771,10 @@ pub(in crate::boolean) mod tests {
         // nothing on senses it could not read.
         use crate::boolean::CarrierRelation;
         for (senses, offer) in [
-            (
-                Some(CarrierRelation::SameOpposite),
-                Some(BooleanCoincidence::REST),
-            ),
+            (Some(CarrierRelation::SameOpposite), Some(GlueClass::REST)),
             (
                 Some(CarrierRelation::SameOriented),
-                Some(BooleanCoincidence::Continuation),
+                Some(GlueClass::Continuation),
             ),
             (Some(CarrierRelation::Distinct), None),
             (None, None),
@@ -2808,42 +2791,6 @@ pub(in crate::boolean) mod tests {
                 "senses {senses:?}"
             );
         }
-    }
-
-    /// **A read settles only the question the lookup minted it for** (the
-    /// coincfr3 review's MINOR-2 probe, which carried an `OnPlanes` read
-    /// to `FlankSense` and rendered "declare"): every settling read,
-    /// carried to every other question, renders that question unsettled.
-    ///
-    /// Mutant: `BooleanDecision::ending` settling on any `Settles` read.
-    #[test]
-    fn a_settling_read_carried_to_another_question_offers_no_declaration() {
-        use crate::boolean::{BooleanDeclarations, DeclaredPairs};
-        let face = crate::entity::FaceKey::default();
-        let pair = [(Operand::A, face, Operand::B, face)];
-        let none =
-            DeclaredPairs::<f64>::without_struts(&BooleanDeclarations::none(), Default::default());
-        let diag = diag_of(MarginDiag::value((band().zero() + band().escalate()) / 2.0));
-        let mut carried_any = 0;
-        for minted in Coincide::iter() {
-            for &class in BooleanCoincidence::ALL {
-                let read = none.read(&pair, minted, &[class]);
-                if !matches!(read, DeclarationRead::Settles(_)) {
-                    continue;
-                }
-                for carried in Coincide::iter() {
-                    let decision = BooleanDecision::Coincidence(carried, read);
-                    let text = BooleanError::Escalated { decision, diag }.to_string();
-                    assert_eq!(
-                        text.contains("declare the coincidence"),
-                        carried == minted,
-                        "{minted:?}'s {class:?} read carried to {carried:?}: {text}"
-                    );
-                    carried_any += usize::from(carried != minted);
-                }
-            }
-        }
-        assert!(carried_any > 0, "the lookup mints a settling read to carry");
     }
 
     /// **A containment escalation on a residual rung names no
@@ -2941,7 +2888,7 @@ pub(in crate::boolean) mod tests {
                 );
             }
             assert!(
-                split.ends_with(&format!("Recourse: {}", geom_core::NO_DECLARATION_RECOURSE))
+                split.ends_with(&format!("Recourse: {}", geom_core::COINCIDENCE_RECOURSE))
                     && !split.contains("declare"),
                 "{predicate}: the split takes no declaration: {split}"
             );
@@ -3389,7 +3336,7 @@ pub(in crate::boolean) mod tests {
                     let text = BooleanError::plane_identity(
                         PlaneRung::Orientation,
                         PlaneDoor::OnPair(if id.declared {
-                            DeclarationRead::Spent(BooleanCoincidence::REST)
+                            DeclarationRead::Spent(GlueClass::REST)
                         } else {
                             DeclarationRead::Moot
                         }),
@@ -3789,21 +3736,19 @@ pub(in crate::boolean) mod tests {
     }
 
     /// **The two definite arms, and the maximal-faces gate's, pass the
-    /// refusal-shape guard and offer a declaration only where their
-    /// door takes one**: the curved pierce frontier (the declared-cover
-    /// rung reads a declaration of the edge's face against the curved
-    /// one) ends in the coincidence's levers without the tolerance; the
+    /// refusal-shape guard and offer no declaration**: the curved pierce
+    /// frontier ends in the coincidence's lever without the tolerance; the
     /// pierce curvature, on both refused verdicts, names its lever, with
     /// the tolerance a zero-band margin gives.
     #[test]
-    fn the_definite_arms_offer_a_declaration_only_where_their_door_takes_one() {
+    fn the_definite_arms_offer_no_declaration() {
         use crate::entity::FaceKey;
         use geom_brep::recourse::Refused;
         let b = band();
         let zero_margin = 0.5 * b.zero();
         let diag = diag_of(MarginDiag::value((b.zero() + b.escalate()) / 2.0));
         let face = FaceKey::default();
-        let rows: [(&str, BooleanError, bool, Option<f64>); 4] = [
+        let rows: [(&str, BooleanError, Option<f64>); 4] = [
             (
                 "curved pierce",
                 BooleanError::CurvedPierceUnsupported {
@@ -3812,7 +3757,6 @@ pub(in crate::boolean) mod tests {
                     edge: EdgeKey::default(),
                     band: b,
                 },
-                true,
                 None,
             ),
             (
@@ -3823,7 +3767,6 @@ pub(in crate::boolean) mod tests {
                         band: b,
                     }),
                 },
-                false,
                 Some(zero_margin / k()),
             ),
             (
@@ -3833,7 +3776,6 @@ pub(in crate::boolean) mod tests {
                         margin: MarginDiag::value(-1e-3),
                     },
                 },
-                false,
                 None,
             ),
             (
@@ -3843,15 +3785,14 @@ pub(in crate::boolean) mod tests {
                     faces: [face, face],
                     offset: diag,
                 },
-                false,
                 Some(point_margin(&diag) / k()),
             ),
         ];
-        for (name, err, declares, offer) in rows {
+        for (name, err, offer) in rows {
             let text = err.to_string();
             let problems = short_of_the_guard(&text, &[]);
             assert!(problems.is_empty(), "{name}: {problems:?}: {text}");
-            assert_eq!(text.contains("declare the"), declares, "{name}: {text}");
+            assert!(!text.contains("declare"), "{name}: {text}");
             assert_eq!(offered_below(&text), offer.map(Some), "{name}: {text}");
         }
         let pierce = BooleanError::CurvedPierceUnsupported {
@@ -3862,7 +3803,7 @@ pub(in crate::boolean) mod tests {
         }
         .to_string();
         assert!(
-            pierce.ends_with("Recourse: declare the coincidence, or move the geometry"),
+            pierce.ends_with("Recourse: move the geometry"),
             "the frontier's definite half keeps its in-band sibling's levers, less the \
              tolerance: {pierce}"
         );
@@ -3912,8 +3853,8 @@ pub(in crate::boolean) mod tests {
         // Every door a plane rung reaches, the undeclared ones included:
         // no declaration reads poison, so none is offered, and the
         // refusal is the kernel's.
-        let undeclared = crate::boolean::DeclaredPairs::<f64>::without_struts(
-            &crate::boolean::BooleanDeclarations::none(),
+        let undeclared = crate::boolean::GluedPairs::<f64>::without_struts(
+            &crate::boolean::Glue::none(),
             Default::default(),
         );
         let face = crate::entity::FaceKey::default();
@@ -3922,8 +3863,8 @@ pub(in crate::boolean) mod tests {
                 (Operand::A, face, Operand::B, face),
                 Some(crate::boolean::CarrierRelation::SameOpposite),
             ),
-            PlaneDoor::OnPair(DeclarationRead::Spent(BooleanCoincidence::REST)),
-            PlaneDoor::Screen(DeclarationRead::Spent(BooleanCoincidence::TANGENT)),
+            PlaneDoor::OnPair(DeclarationRead::Spent(GlueClass::REST)),
+            PlaneDoor::Screen(DeclarationRead::Spent(GlueClass::TANGENT)),
             PlaneDoor::Neighbours,
         ];
         let merge = MergeCoplanarError::of_declared_refusal(unreadable_norm(b)).to_string();

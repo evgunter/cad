@@ -179,10 +179,7 @@ impl core::fmt::Display for UnitVec3Error {
             Self::Escalated(source) => source
                 .undecided(
                     crate::predicate::DIRECTION_LENGTH_SUBJECT,
-                    crate::predicate::lever_recourse(
-                        crate::predicate::NO_DECLARATION_RECOURSE,
-                        None,
-                    ),
+                    crate::predicate::lever_recourse(crate::predicate::COINCIDENCE_RECOURSE, None),
                 )
                 .fmt(f),
         }
@@ -219,10 +216,7 @@ impl core::fmt::Display for LeveredUnitError {
             Self::Arm(Some(source)) => source
                 .undecided(
                     "the arm a direction's length is levered by",
-                    crate::predicate::lever_recourse(
-                        crate::predicate::NO_DECLARATION_RECOURSE,
-                        None,
-                    ),
+                    crate::predicate::lever_recourse(crate::predicate::COINCIDENCE_RECOURSE, None),
                 )
                 .fmt(f),
             Self::Direction(e) => e.fmt(f),
@@ -924,7 +918,7 @@ mod interval_tests {
             "{said}"
         );
         assert!(
-            said.contains(crate::predicate::NO_DECLARATION_RECOURSE),
+            said.contains(crate::predicate::COINCIDENCE_RECOURSE),
             "{said}"
         );
         assert!(!said.contains("declare"), "{said}");

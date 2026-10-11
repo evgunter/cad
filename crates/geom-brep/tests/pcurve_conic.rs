@@ -371,10 +371,7 @@ fn ellipse_differential_interval_lane() {
     .unwrap();
     let oracle = rational_quadratic_arc(&e, 0.3, 2.9);
     // Lift the oracle to Interval (same structure, bracketed data).
-    let ctrl: Vec<Point3<Interval>> = oracle.control().iter().map(|p| p.map(iv)).collect();
-    let oracle_iv =
-        geom::NurbsCurve3::<Interval>::new(oracle.knots().clone(), ctrl, oracle.weights().to_vec())
-            .unwrap();
+    let oracle_iv: geom::NurbsCurve3<Interval> = oracle.map_scalar(iv);
     let center = Point3::new(iv(-0.5), iv(4.0), iv(1.25));
     let axis = Vec3::new(iv(2.0 / 3.0), iv(2.0 / 3.0), iv(1.0 / 3.0));
     let u_ref = Vec3::new(iv(1.0 / 3.0), iv(-2.0 / 3.0), iv(2.0 / 3.0));

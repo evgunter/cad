@@ -932,7 +932,7 @@ fn a6_a_mate_graph_edit_on_an_unresolvable_part_is_not_refused() {
 /// on its coincidence is decided over its two parts, once each — and
 /// joins the third instance's group, clearing the offset of its first
 /// operand's group root (the mate door). An offset, an appearance, a
-/// union and its declared-pair list, a fourth instance and every delete — the mate's, the root's — ask nothing:
+/// union, a fourth instance and every delete — the mate's, the root's — ask nothing:
 /// no edit records a frame, so none solves.
 #[test]
 fn a6_only_a_mate_inserts_rider_asks_the_store() {
@@ -999,7 +999,6 @@ fn a6_only_a_mate_inserts_rider_asks_the_store() {
             &DocEdit::InsertNode {
                 node: Box::new(Node::Union {
                     members: editor_core::Bodies::Spelled(vec![b.into(), c.into()]),
-                    declare: Vec::new(),
                 }),
                 fresh: Vec::new(),
             },
@@ -1007,19 +1006,7 @@ fn a6_only_a_mate_inserts_rider_asks_the_store() {
             &counting,
         )
         .expect("a union asks nothing");
-    let u = union.record.minted.expect("the union is minted");
-    let doc = union
-        .doc
-        .apply(
-            &DocEdit::SetDeclare {
-                node: u,
-                pairs: Vec::new(),
-            },
-            tol,
-            &counting,
-        )
-        .expect("a declared-pair list asks nothing")
-        .doc;
+    let doc = union.doc;
     let doc = doc
         .apply(
             &DocEdit::InsertNode {

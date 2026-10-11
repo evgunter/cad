@@ -14,9 +14,9 @@ use sweep::ExtrudeSide;
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
+use topo::Body;
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::query;
-use topo::{Body, BooleanDeclarations};
 
 /// The oblique clip `m5_pr12_fix_pass`'s f4 row fillets, at `Dual64`.
 fn oblique_clip() -> Body<Dual64> {
@@ -64,7 +64,7 @@ fn oblique_clip() -> Body<Dual64> {
         BooleanOp::Intersect,
         &finished("the unit cube", c1, Tol::witness()),
         &finished("the tilted cube", c2, Tol::witness()),
-        &BooleanDeclarations::none(),
+        &topo::BooleanInputs::default(),
         SweepStrategy::Realized,
         Tol::witness(),
     )
