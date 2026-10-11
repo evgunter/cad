@@ -89,6 +89,8 @@ mod carried_citations_past_index_zero;
 mod cell_pair_records;
 #[path = "census_g2_carrier.rs"]
 mod census_g2_carrier;
+#[path = "census_records_what_it_decides.rs"]
+mod census_records_what_it_decides;
 #[path = "cone_apex_cap_body.rs"]
 mod cone_apex_cap_body;
 #[path = "cone_apex_sector_joints.rs"]

@@ -356,7 +356,7 @@ GAP = re.compile(r"far-end gap \S+ \((\w+)\)")
 TAG = re.compile(r"^(\S+) nt e(\d) a(\d+) d(\S+) (pc|cp) ([UIS])$")
 FINDING = re.compile(r"^  FINDING (.*?) \| esc pm_census_(\S+) (\S+)$")
 CROSS = re.compile(
-    r"^  FINDING (.*?) \| UndeclaredContact \{ contact: EdgeEdgeCross "
+    r"^  FINDING (.*?) \| UnrecordedContact \{ contact: EdgeEdgeCross "
     r"\{ a: (EdgeKey\(\S+\)), b: (EdgeKey\(\S+\)) \}"
 )
 

@@ -1637,12 +1637,15 @@ pub enum ValidationError {
         /// the arithmetic or the geometry left the role unread.
         sliver: Option<Box<crate::props::CertifiedSliver>>,
     },
-    /// Tier 3′ (M3 PR 6a): the global coincidence census found a
-    /// position coincidence between distinct entities that no declared
-    /// contact record backs (directly, or via the D3 segment
-    /// reconstruction) — an **undeclared contact** is a hard error,
-    /// never blessed (F1/F2(iii): discovery ≠ declaration, ever).
-    UndeclaredContact {
+    /// Tier 3′: the global coincidence census found a position
+    /// coincidence between distinct entities that no contact record
+    /// backs (directly, or via the D3 segment reconstruction).
+    /// Inside one group of a body (one op's result, one copy, one
+    /// imported solid) it is that group's defect; between two groups
+    /// at rest the census records it rather than report it, a row of
+    /// its Zero and a record citing it (`census::record_at_rest`, D1
+    /// (iii), D10).
+    UnrecordedContact {
         /// The coinciding entity pair, typed by census kind.
         contact: CensusContact,
         /// Where the contact was witnessed, read after "at" in the
@@ -1653,6 +1656,12 @@ pub enum ValidationError {
         /// edge-edge crossing's side verdict) appends it after " — ";
         /// the message renders the part before, and `Debug` the whole.
         witness: String,
+        /// The margin the census decided Zero to find the coincidence
+        /// (an edge lying in a plane: both ends' residuals, jointly).
+        /// `None` where no Zero decided it: a pierce, which is a
+        /// crossing rather than a coincidence, and a conformal patch,
+        /// whose two faces share one carrier by key.
+        margin: Option<geom_core::MarginDiag>,
     },
     /// Tier 3′: a declared contact record has no geometric witness —
     /// the named entities do not coincide (or no longer resolve).
@@ -2265,7 +2274,7 @@ pub enum CensusContact {
 }
 
 /// Prose, not `Debug` guts: this payload is quoted verbatim into
-/// [`ValidationError::UndeclaredContact`]'s message, which every façade
+/// [`ValidationError::UnrecordedContact`]'s message, which every façade
 /// pastes as the refusal a user reads. The arena keys stay `{:?}` —
 /// tuple-shaped, and the key IS the name a caller resolves — while the
 /// enum's own struct-variant braces do not reach the message.
@@ -2951,17 +2960,14 @@ fn classify_offset_fit(e: &geom_brep::OffsetFitError) -> (&'static str, Cow<'sta
             };
             return (why, m.ending(Reading::AtRest).into());
         }
-        O::BudgetExhausted {
-            last_round: geom_brep::LastRound::Improved,
-            ..
+        O::SampleCapReached { .. } => (DRIFT, "Recourse: split the face"),
+        O::SeedOverCap { .. } => (
+            "its fitted surface has more knot spans than the fit's sample limit can seed",
+            "Recourse: split the face",
+        ),
+        O::RefinementStalled { .. } | O::BoundNotFinite { best: Some(_), .. } => {
+            (DRIFT, geom_core::KERNEL_LIMIT_RECOURSE)
         }
-        | O::SampleCapReached { .. } => (DRIFT, "Recourse: split the face"),
-        O::BudgetExhausted {
-            last_round: geom_brep::LastRound::DidNotImprove,
-            ..
-        }
-        | O::RefinementStalled { .. }
-        | O::BoundNotFinite { best: Some(_), .. } => (DRIFT, geom_core::KERNEL_LIMIT_RECOURSE),
         O::BoundNotFinite { best: None, .. } => (
             "the fitted surface's error cannot be bounded at this offset distance",
             "Recourse: use an offset distance of larger magnitude",
@@ -3884,9 +3890,11 @@ impl fmt::Display for ValidationError {
             }
             // The position alone: a witness may carry detail after " — "
             // (the field's contract), which rides in `Debug`.
-            Self::UndeclaredContact { contact, witness } => write!(
+            Self::UnrecordedContact {
+                contact, witness, ..
+            } => write!(
                 f,
-                "{contact} at {} is an undeclared contact. {}",
+                "{contact} at {} is an unrecorded contact. {}",
                 witness.split(" — ").next().unwrap_or(witness),
                 crate::contact::CONTACT_RECOURSE_MARKED
             ),
@@ -8847,7 +8855,7 @@ fn vertex_point<T: Real>(body: &Body<T>, vertex: VertexKey) -> Option<geom_core:
 ///    the derivation.
 /// 4. The certification diff, both directions: every census finding
 ///    must be backed by a declaration
-///    ([`ValidationError::UndeclaredContact`] otherwise — the
+///    ([`ValidationError::UnrecordedContact`] otherwise — the
 ///    validator never blesses discovered contacts; F1: no
 ///    scan-to-bless) and every declaration must be geometrically
 ///    confirmed ([`ValidationError::StaleContactDeclaration`]
@@ -8932,7 +8940,7 @@ pub fn validate_pseudomanifold<
 /// the crossing rung's backing consult answers `false`, so an in-plane
 /// `EdgeEdgeCross` at a declared seat that [`validate_pseudomanifold`]
 /// reports backed is reported here as
-/// [`ValidationError::UndeclaredContact`], with the declaration in
+/// [`ValidationError::UnrecordedContact`], with the declaration in
 /// hand. The declaration is not found wrong; it is not read.
 ///
 /// # Errors
@@ -8940,7 +8948,7 @@ pub fn validate_pseudomanifold<
 /// As [`validate_pseudomanifold`], less the check-2 verdicts above,
 /// plus the closed form's typed refusal at check 7, plus the census's
 /// `CensusLaneUnsupported` on every conformal candidate and every
-/// Door-1-verified patch record, and an `UndeclaredContact` on every
+/// Door-1-verified patch record, and an `UnrecordedContact` on every
 /// crossing a declared pair would have backed.
 pub fn validate_pseudomanifold_structural<
     T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy,
@@ -15561,7 +15569,7 @@ mod tests {
     }
 
     /// S6 (two-tolerance, D4 ¶1 addendum): the census pair —
-    /// exactly-touching (`UndeclaredContact`) and in-band
+    /// exactly-touching (`UnrecordedContact`) and in-band
     /// (`CensusEscalated`) — is one user situation, both arms carrying
     /// the shared recourse fragment. Also the regression net for the
     /// S6 `{:?}` bug: `CensusEscalated` used Debug formatting on its
@@ -15570,7 +15578,7 @@ mod tests {
     fn census_pair_carries_the_shared_recourse() {
         use crate::entity::VertexKey;
 
-        let contact = ValidationError::UndeclaredContact {
+        let contact = ValidationError::UnrecordedContact {
             contact: CensusContact::VertexVertex {
                 a: VertexKey::default(),
                 b: VertexKey::default(),
@@ -15580,6 +15588,7 @@ mod tests {
             // triple as `(0.0, 0.0, 0.0)`. The arm treats the field as
             // opaque, so any triple-shaped string exercises it.
             witness: "(0e0, 0e0, 0e0)".to_string(),
+            margin: Some(geom_core::MarginDiag::value(0.0)),
         };
         let msg = contact.to_string();
         // The CONTACT tier carries the two-arm menu (SELECT-DESIGN
@@ -15636,7 +15645,7 @@ mod review_census_display_keys {
         for (label, e) in &samples {
             let keys_in_debug = format!("{e:?}").matches("Key(").count();
             match e {
-                super::ValidationError::UndeclaredContact { contact, .. } => {
+                super::ValidationError::UnrecordedContact { contact, .. } => {
                     assert!(!contact.to_string().contains("Key("), "{label}: {contact}");
                     // Every contact names two entities.
                     assert!(keys_in_debug >= 2, "{label}: {e:?}");
@@ -15959,13 +15968,13 @@ mod offset_fit_door_rows {
     }
 
     /// The checks window ends each refinement refusal in its routed
-    /// sentence: a loop still improving when its budget or sample cap
-    /// ran out names splitting the face and no loosening at all, and a
+    /// sentence: a loop still improving when its sample cap ran out
+    /// names splitting the face and no loosening at all, and a
     /// loop that stopped improving names loosening as the last resort,
     /// whole, with nothing after it.
     #[test]
     fn a_refinement_refusal_ends_in_its_routed_sentence() {
-        use geom_brep::{BestBound, LastRound, OffsetFitError};
+        use geom_brep::{BestBound, OffsetFitError};
         let best = BestBound {
             bound: 1.5e-9,
             grid: (4, 5),
@@ -15977,31 +15986,19 @@ mod offset_fit_door_rows {
             }
             .to_string()
         };
-        let budget = |last_round| OffsetFitError::BudgetExhausted {
-            budget: 8,
-            grid: (5, 5),
+        let split = [says(OffsetFitError::SampleCapReached {
+            cap: 64,
+            rounds: 3,
+            grid: (64, 5),
             achieved: 2e-9,
             tolerance: 1e-9,
-            last_round,
             best,
-        };
-        let split = [
-            says(budget(LastRound::Improved)),
-            says(OffsetFitError::SampleCapReached {
-                cap: 64,
-                rounds: 3,
-                grid: (64, 5),
-                achieved: 2e-9,
-                tolerance: 1e-9,
-                best,
-            }),
-        ];
+        })];
         for msg in split {
             assert!(msg.ends_with("Recourse: split the face"), "{msg}");
             assert!(!msg.contains("loosen"), "{msg}");
         }
         let last_resort = [
-            says(budget(LastRound::DidNotImprove)),
             says(OffsetFitError::RefinementStalled {
                 rounds: 3,
                 grid: (5, 5),
