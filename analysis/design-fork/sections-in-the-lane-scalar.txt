@@ -1,0 +1,5 @@
+fork: sections-in-the-lane-scalar (INTENT, the-skin-computes-its-values-in-t follow-on; DM1c/PP6)
+drawn: 2026-10-11T15:54:17Z, python3 os.urandom(1)
+byte: 172
+mapping: A = Opus designer, B = Fable designer
+protocol: d4ffadd10c
