@@ -790,3 +790,7 @@ Signed (CLEAVE orchestrator).
 - **PR 4581 merged** (near-tangent invariants; single FULL review, fix pass done). The 1e-12 trade is
   pinned as `SHIPS_A_FINDING` and points at FUSE's row and the door-census row.
 - **PR 4609 merged** (band-on pinch residue; orchestrator read). The row is closed.
+- **PR 4609 merged** (band-on residue).
+- **PR 4607 merged** (mints unit 3; single FULL review, fix pass done). INSIDE's P1
+  `ray-torus-count-certifies-on-an-uncharged-discriminant` carries 7 silent wrong `Miss` rays at
+  R = 1e6.

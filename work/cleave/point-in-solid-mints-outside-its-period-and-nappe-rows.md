@@ -2,13 +2,15 @@
 id: point-in-solid-mints-outside-its-period-and-nappe-rows
 kind: unit
 title: point_in_solid's wall junction, wall trim, latitude and root-count arms mint INVALID by hand (mints C13-C18)
-status: dispatched
+status: closed
 opened: 2026-10-10
 priority: P1
 cost: M
 parent: topo-mints-indeterminates-outside-the-funnel
 refs: [classification-invariant-family-types-bug-only-states-against-d9-row-4, period-headroom-margin-has-no-shared-home, cone-nappe-is-decided-in-five-places]
 branch: cleave/point-in-solid-mints
+closed: 2026-10-11
+pr: 4607
 ---
 
 Unit 3 of `topo-mints-indeterminates-outside-the-funnel`'s re-scope
@@ -133,3 +135,18 @@ outcomes:
 | 2 | `sphere_region.rs` | 0 | 0 |
 | impossible variants read as outcomes | `sphere_region.rs` | `AtApex` | 0 |
 | impossible variants read as outcomes | `ops.rs` | `AtApex` | 0 |
+
+## Closed (PR 4607, 2026-10-11)
+
+C13–C18 are off `INVALID`:
+- **C13:** `JunctionSidesDisagree`, reachable only at K < 2.
+- **C14:** answers. A piece with both ends active does not cover the hit, checked against
+  exact parity.
+- **C15:** `NarrowWindowUnread`, with its cause on INSIDE.
+- **C16:** the whole sphere answers its unconstrained trim.
+- **C17:** `RootCountDisagrees` blocks the ray, and its story at every door is the lever plus the
+  kernel-bug note. The certified count is the wrong one (rung 1's uncharged Δ rounding), filed P1 on
+  INSIDE: `ray-torus-count-certifies-on-an-uncharged-discriminant`.
+- **C18:** deleted, as row 0.
+
+The first-harmonic doors return `FirstHarmonicRoots`, so `AtApex` cannot be represented there.
