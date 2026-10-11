@@ -65,8 +65,8 @@ pub struct EditPayload<'a> {
     /// The node the refusal is ABOUT — the edit's target, the node
     /// being written, the node on the cycle.
     pub node: Option<RecipeNodeId>,
-    /// A node the subject NAMES: an operand that does not resolve, an
-    /// input reached twice, the measure an assertion constrains.
+    /// A node the subject NAMES: an operand that does not resolve, the
+    /// measure an assertion constrains.
     pub input: Option<RecipeNodeId>,
     /// The named expression slot the refusal is about
     /// ([`crate::tags::slot_id_tag`]).
@@ -88,7 +88,7 @@ pub struct EditPayload<'a> {
     pub from_kind: Option<EntityKind>,
     /// A rebind's TARGET entity kind.
     pub to_kind: Option<EntityKind>,
-    /// How many entries a short list would have had.
+    /// A count the refusal names: the nodes a definition expands to.
     pub count: Option<usize>,
     /// The position a selection's shape fault is reported at. The
     /// fault decides which position it is: a repeated face's first
@@ -290,6 +290,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             ..none
         },
         EditError::SetMembersOnNonList { node }
+        | EditError::LoftSectionsSpelled { node }
         | EditError::SetDeclareOnNonDeclaring { node }
         | EditError::SetProgramOnNonProfile { node }
         | EditError::SetExtrudeSideOnNonExtrude { node }
@@ -317,11 +318,6 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             ..none
         },
         EditError::UnresolvedInput { input } => EditPayload {
-            input: Some(input.id()),
-            ..none
-        },
-        EditError::DuplicateInput { node, input } => EditPayload {
-            node: Some(node.id()),
             input: Some(input.id()),
             ..none
         },
@@ -370,11 +366,8 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
                 ..none
             }
         }
-        // `found` here is a COUNT, not a dimension, so it takes the
-        // `count` attribute: one attribute never carries two types.
-        EditError::TooFewMembers { node, found } => EditPayload {
+        EditError::IndexedRead { node, .. } => EditPayload {
             node: Some(node.id()),
-            count: Some(*found),
             ..none
         },
         // An operand's slot rides `slot` in the slot vocabulary, its
@@ -604,11 +597,13 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         // (the `ProductError` arm's precedent, same refusal one door
         // over).
         EditError::EvaluationOfAnotherDocument { .. } => none,
-        // The declaring node, the side's name, and the node the side
-        // is read at, which is not one of the node's operands.
+        // The declaring node, the side's name, and the read the side
+        // is sited at, which is not one of the node's operand reads: a
+        // read crosses as `param`, by the name the document holds for
+        // it, as every refusal naming a variable does.
         EditError::DeclaredSiteNotAnOperand { node, name, site } => EditPayload {
             node: Some(node.id()),
-            input: Some(site.id()),
+            param: site.name(),
             name: Some(name.name()),
             ..none
         },

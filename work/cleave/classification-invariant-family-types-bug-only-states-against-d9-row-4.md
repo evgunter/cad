@@ -90,3 +90,38 @@ bug-only. Both are reachable because `Tolerance` accepts any finite K > 1:
   `PointInSolidError::JunctionSidesDisagree`.
 - C14 (both ends of a piece active) is reachable at K < 2. The parity there
   has a definite answer, and the arm gives it.
+
+## Evidence: three near-tangent sites (branch `cleave/near-tangent-invariants`, 2026-10-10)
+
+`near-tangent-pierce-poses-reach-three-classification-invariants`
+measured three `ClassificationInvariant` sites reachable by valid input
+(JOIN's near-tangent census, 28 800 runs per ε row: 345 at 1e-9, 108 at
+1e-6, 552 at 1e-12). None was a bug-only state; each was an earlier
+decision and a later one reading one question two ways. After that
+branch:
+
+- `boolean/vtxfac.rs` `pierce_germ_dir`, "pierce germ direction not
+  uniquely within its sector": **retired** (row 0). The ray is the
+  transition's own (`OutBound`, from the codes that made the sector a
+  transition), so no reading can return both or neither.
+- `boolean/vtxfac.rs`, "geometrically coplanar sector with
+  definitely-distinct plane": the unglued pair's extent ball was
+  centred at the world origin, so the offset rung read the tilt at the
+  corner's distance from the origin while `bool_sector_coplanar` read
+  it at the arm. The ball is now centred at the pierce point. It reaches
+  to the sector's farther bound, and the unglued pair's tilt is read at
+  that same reach, so the parallel rung reads the tilt's own margin,
+  decided zero. The offset is `p`'s standing off two planes it lies on.
+  `Distinct` is now bug-only: a row 4 candidate.
+- `boolean/recl.rs` `require_same`, "geometrically-ON sector pair with
+  definitely-distinct carriers": the same origin-centred ball, now
+  centred at the corner and reaching over the region the coplanarity
+  was read on (`ReadOn`).
+  - For an all-On record, that region is `pair_search`'s
+    `bool_faces_parallel` at the pair's arm: the parallel rung reads that
+    margin, and `Distinct` is bug-only (row 4 candidate).
+  - For a flanker or a wedge representative, the first sector's bounds
+    read On at their reach, and a thin sector tilted about a bound
+    reaches `Distinct` at that reach. That is now a typed refusal on the
+    bounds' margin (`recl::unglued_tilt`). Its own `Ok` arm ("a sector
+    bound read On departs definitely from the other's plane") is bug-only.
