@@ -3563,3 +3563,42 @@ fn a_union_across_two_flush_contacts_lands_as_one_action() {
         "channelled block plus boss: {got} vs {want}"
     );
 }
+
+/// R2 probe (PR #4618): `SessionOp::Duplicate` now takes an `Operand`,
+/// and a read by variable id (a public spelling of one body) reaches
+/// `duplicate_step`'s "a seat holds a node or one of its ports" arm.
+#[test]
+fn r2_a_duplicate_of_a_body_read_by_var_refuses_typed() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let body = common::xy_box_in(&mut session, A);
+    session.pump();
+    let var = session
+        .committed_doc()
+        .read_of_node(body)
+        .expect("a box defines one body");
+    let outcome = session.perform(SessionOp::Duplicate {
+        input: pncad::document::Operand::Var(var),
+    });
+    eprintln!("duplicate by var: refusal {:?}", outcome.refusal);
+}
+
+/// R2 probe: a transform whose input is a selection reaches
+/// `require_read`'s unreachable arm instead of `WrongNodeKind`.
+#[test]
+fn r2_b_transform_of_a_selection_refuses_typed() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let body = common::xy_box_in(&mut session, A);
+    session.pump();
+    let outcome = session.perform(SessionOp::AddTransform {
+        input: pncad::document::Operand::Select {
+            body: Box::new(body.into()),
+            names: Vec::new(),
+        },
+        translation: len3([0.0, 0.0, 0.0]),
+        rotation_axis: scl3([0.0, 0.0, 1.0]),
+        rotation_angle: ang(0.0),
+    });
+    eprintln!("transform of a selection: refusal {:?}", outcome.refusal);
+}

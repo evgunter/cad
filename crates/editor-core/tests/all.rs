@@ -767,6 +767,7 @@ mod intent_literals_c_slots;
 mod intent_literals_d_constants;
 #[path = "intent_part_split_half.rs"]
 mod intent_part_split_half;
+#[path = "r2_probe_split_halves.rs"]
 mod r2_probe_split_halves;
 #[path = "intent_s2_a_outputs.rs"]
 mod intent_s2_a_outputs;
