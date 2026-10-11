@@ -4546,12 +4546,36 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             .filter_map(|(i, (_, plan))| plan.as_ref().map(|plan| (i, plan)))
             .collect();
         let only: Vec<_> = plans.iter().map(|&(_, plan)| plan).collect();
+        let groups = vtxfac::ring_groups(&only, band)?;
+        // Review probe (PR 4728 r1): what decided each group of two or
+        // more pierces one point.
+        if std::env::var_os("RING_GROUP_PROBE").is_some() {
+            let piercing_body = match operand {
+                Operand::A => &a,
+                Operand::B => &b,
+            };
+            for group in groups.iter().filter(|g| g.len() > 1) {
+                let lead = plans[group[0]].1;
+                let key = |v| piercing_body.get_vertex(v).map(|d| d.point);
+                for &k in &group[1..] {
+                    let m = plans[k].1;
+                    let d = m.point - lead.point;
+                    eprintln!(
+                        "RING_GROUP_PROBE bitwise={} same_vertex={} same_key={} diff={:?}",
+                        format!("{:?}", m.point) == format!("{:?}", lead.point),
+                        m.contact.vertex == lead.contact.vertex,
+                        key(m.contact.vertex) == key(lead.contact.vertex),
+                        d,
+                    );
+                }
+            }
+        }
         let pierced_body = match operand {
             Operand::A => &mut b,
             Operand::B => &mut a,
         };
         let mut rings = std::collections::BTreeMap::new();
-        for group in vtxfac::ring_groups(&only, band)? {
+        for group in groups {
             let members: Vec<_> = group.iter().map(|&k| plans[k].1).collect();
             let ring = vtxfac::mint_ring(pierced_body, &members, band, tol)?;
             rings.insert(plans[group[0]].0, ring);

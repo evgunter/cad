@@ -1938,3 +1938,84 @@ fn three_corners_alternating_round_the_cube_refuse_three_ops() {
         assert!((got - want).abs() < 1e-9, "{what}: {got}, want {want}");
     }
 }
+
+/// Review probe (PR 4728 r1, claim 4): a cutter whose near face holds
+/// the whole pinch line, so at each end of the line the two bricks'
+/// pierces of that face share a germ along the line (a cross-pierce tie,
+/// `vtxfac::tie_breaks_after`). Prints every op's outcome and volume.
+#[test]
+#[ignore = "review probe; run with --ignored --nocapture"]
+fn review_r1_a_face_holding_the_pinch_line_ties_the_pierces_germs() {
+    let tol = Tol::witness();
+    let (pinch, carried) = pinch(tol);
+    for (slope, side) in [(0.5, -1.0), (0.5, 1.0), (2.0, -1.0), (-0.5, -1.0)] {
+        // The near face is the plane through the z-axis with normal
+        // n ∝ (1, −slope, 0); the cutter lies on `side` of it.
+        let k = (1.0f64 + slope * slope).sqrt();
+        let n = [side / k, -side * slope / k, 0.0];
+        let w = [slope / k, 1.0 / k, 0.0];
+        let u = [0.0, 0.0, 1.0];
+        // (w, u, n) right-handed when side = −1? Pick the handed order.
+        let wxu = [
+            w[1] * u[2] - w[2] * u[1],
+            w[2] * u[0] - w[0] * u[2],
+            w[0] * u[1] - w[1] * u[0],
+        ];
+        let rh = wxu[0] * n[0] + wxu[1] * n[1] + wxu[2] * n[2] > 0.0;
+        let (e0, e1) = if rh { (u, w) } else { (w, u) };
+        let (r0, r1) = if rh {
+            ((-1.0, 3.0), (-2.0, 2.0))
+        } else {
+            ((-2.0, 2.0), (-1.0, 3.0))
+        };
+        let cutter = topo::test_support::mapped_cube::<f64>(
+            move |x, y, z| {
+                let (a, b, c) = (r0.0 + (r0.1 - r0.0) * x, r1.0 + (r1.1 - r1.0) * y, -2.0 * z);
+                geom_core::Point3::new(
+                    a * e0[0] + b * e1[0] + c * n[0],
+                    a * e0[1] + b * e1[1] + c * n[1],
+                    a * e0[2] + b * e1[2] + c * n[2],
+                )
+            },
+            tol,
+        );
+        let cutter = finished("the cutter", cutter, tol);
+        let mut ab = BooleanInputs::default();
+        ab.records_a.vv.clone_from(&carried);
+        let mut ba = BooleanInputs::default();
+        ba.records_b.vv.clone_from(&carried);
+        for (what, r) in [
+            ("pinch ∪ cutter", union_in(&pinch.body, &cutter, &ab, tol)),
+            (
+                "pinch ∖ cutter",
+                subtract_in(&pinch.body, &cutter, &ab, tol),
+            ),
+            (
+                "pinch ∩ cutter",
+                intersect_in(&pinch.body, &cutter, &ab, tol),
+            ),
+            ("cutter ∪ pinch", union_in(&cutter, &pinch.body, &ba, tol)),
+            (
+                "cutter ∖ pinch",
+                subtract_in(&cutter, &pinch.body, &ba, tol),
+            ),
+            (
+                "cutter ∩ pinch",
+                intersect_in(&cutter, &pinch.body, &ba, tol),
+            ),
+        ] {
+            let line = match r {
+                Ok(BooleanResult::Body(out)) => format!(
+                    "built v={:.9} 3′={:?}",
+                    mass_properties(&out.body, tol)
+                        .map(|m| m.volume)
+                        .unwrap_or(f64::NAN),
+                    validate_pseudomanifold(&out.body, &out.contacts, tol).err()
+                ),
+                Ok(_) => "empty".into(),
+                Err(e) => format!("ERR {e:?}"),
+            };
+            println!("R1TIE slope={slope} side={side} {what}: {line}");
+        }
+    }
+}

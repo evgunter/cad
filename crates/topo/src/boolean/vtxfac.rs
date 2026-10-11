@@ -1399,10 +1399,12 @@ fn germ_order<T: Decide>(
         }
         let (g, h) = (germs[i].0, germs[j].0);
         let side = Margin::levered(g.cross(h).dot(normal), arm);
-        Ok(
-            decide("bool_strut_side", side, band).map_err(refuse)? == Sign::Zero
-                && super::sectors::direction_sense(g, h, arm, band)?,
-        )
+        let t = decide("bool_strut_side", side, band).map_err(refuse)? == Sign::Zero
+            && super::sectors::direction_sense(g, h, arm, band)?;
+        if t && std::env::var_os("RING_GROUP_PROBE").is_some() {
+            eprintln!("TIE_PROBE germs={} i={i} j={j}", germs.len());
+        }
+        Ok(t)
     };
     let apart = |g: Vec3<T>, arm: T| -> Result<(), BooleanError> {
         let side = Margin::levered(g.cross(from).dot(normal), arm);
