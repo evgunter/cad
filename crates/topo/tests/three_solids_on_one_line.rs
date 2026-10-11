@@ -851,3 +851,56 @@ fn pierces_a_weld_leaves_apart_build_one_body_in_every_member_order() {
         }
     }
 }
+
+/// **Reviewer row (PR 4740, R2): the carried fold passes 3′.** Where
+/// each step carries the last one's records, nothing on the line is
+/// dropped, so the result passes 3′ with no finding: the `dropped`
+/// counts [`every_order`] pins are the uncarried fold's alone. Red if a
+/// carried edge-edge row's lineage loses a touch, or if the census asks
+/// for a row the carry never brings.
+#[test]
+fn the_carried_fold_passes_three_prime_in_every_member_order() {
+    let eps = t().eps();
+    for (label, prisms) in [
+        ("three", three()),
+        ("four", four()),
+        ("three, one moved 0.1ε", three_off(0.1 * eps)),
+    ] {
+        let p = common::brick(PLATE[0], PLATE[1], PLATE[2], t());
+        let mut members = vec![finished("the plate", p, t())];
+        members.extend(prisms.iter().map(Prism::body));
+        for order in orders(members.len()) {
+            let what = format!("{label}, member order {order:?}");
+            let mut body = members[order[0]].clone();
+            let mut carried = topo::OperandRecords::default();
+            let mut last = None;
+            for (k, &i) in order.iter().enumerate().skip(1) {
+                let inputs = topo::BooleanInputs {
+                    records_a: carried,
+                    ..topo::BooleanInputs::default()
+                };
+                let r = match topo::boolean_op_with(
+                    topo::BooleanOp::Union,
+                    &body,
+                    &members[i],
+                    &inputs,
+                    topo::SweepStrategy::Realized,
+                    t(),
+                ) {
+                    Ok(BooleanResult::Body(r)) => r,
+                    other => panic!("{what}: step {k}: {other:?}"),
+                };
+                carried = r.contacts.carried();
+                body = r.body.clone();
+                last = Some(r);
+            }
+            let r = last.expect("at least two members");
+            assert_eq!(
+                validate_pseudomanifold(&r.body, &r.contacts, t()).err(),
+                None,
+                "{what}: the carried fold at 3′ ({} e-e rows)",
+                r.contacts.edge_edge().count()
+            );
+        }
+    }
+}
