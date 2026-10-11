@@ -4408,17 +4408,17 @@ mod tests {
                 Some(*diag),
                 "k = {k}: on the frame"
             );
-            // The ending the join has always given it, at a split and
-            // under a Boolean.
+            // The escalation's ending under the join's levers at a
+            // split, and under the Boolean's.
             assert!(
                 err.to_string()
-                    .ends_with(&format!("Recourse: {}", geom_core::NO_DECLARATION_RECOURSE)),
+                    .ends_with(&diag.ending(geom_core::NO_DECLARATION_RECOURSE)),
                 "k = {k}: {err}"
             );
             assert!(
                 UnderBoolean(&err)
                     .to_string()
-                    .ends_with(&format!("Recourse: {}", geom_core::COINCIDENCE_RECOURSE)),
+                    .ends_with(&diag.ending(geom_core::COINCIDENCE_RECOURSE)),
                 "k = {k}: {}",
                 UnderBoolean(&err)
             );
