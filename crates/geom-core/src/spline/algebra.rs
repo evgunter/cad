@@ -29,12 +29,14 @@
 //!
 //! # One schedule, two arithmetics
 //!
-//! An insertion plan is applied by [`CurvePlan::apply_points`] at an
-//! evaluation scalar ([`ProjectiveScalar`]) and by
+//! An insertion plan is applied by [`CurvePlan::apply_rational`] at an
+//! evaluation scalar ([`ProjectiveScalar`]), by
+//! [`CurvePlan::apply_points`] on its own `f64` channel, and by
 //! [`CurvePlan::apply_certified`] in the certification ring, off the SAME [`Step`] list — same targets, same sources, same
-//! order. The two differ in the coefficient the combination is taken
-//! with, and they must: the projective applier's `λ` is an `f64`
-//! quotient of weights, while interval arithmetic applier re-derives the Boehm
+//! order. They differ in the coefficient the combination is taken
+//! with, and they must: the projective appliers' `λ` is a quotient of
+//! weights (formed at `T` from the held weights, or the plan's `f64`),
+//! while interval arithmetic applier re-derives the Boehm
 //! ratios `α = (u − U_j)/Δ` and `β = (U_{j+p} − u)/Δ` from the knots
 //! they are made of ([`Step::Combo`]'s `ratio`) so that they round
 //! OUTWARD. A ring consumer that took the stored `λ` and padded it by a
@@ -267,8 +269,10 @@ impl CurvePlan {
     /// `f64` reference [`CurvePlan::apply_rational`] is pinned against;
     /// a carrier at any scalar is refined by that applier, over its
     /// held knots and weights, and the certification ring's applier is
-    /// [`CurvePlan::apply_certified`].
-    pub fn apply_points<P: Copy>(
+    /// [`CurvePlan::apply_certified`]. `P` is a [`ProjectivePoint`]
+    /// over `f64`, so ring enclosures cannot be combined with the plan's
+    /// `f64` `λ` here either.
+    pub fn apply_points<P: ProjectivePoint<f64>>(
         &self,
         old: &[P],
         poison: P,

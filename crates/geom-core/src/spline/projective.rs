@@ -72,6 +72,22 @@ use crate::{Point2, Point3};
 /// );
 /// ```
 ///
+/// Nor does [`CurvePlan::apply_points`], the plan's own `f64` reference,
+/// combine ring enclosures with its `f64` `λ`:
+///
+/// ```compile_fail,E0277
+/// use geom_core::Interval;
+/// use geom_core::interval::certification::Certification;
+/// use geom_core::spline::{KnotVector, algebra::refine_plan};
+/// let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+/// let plan = refine_plan(&kv, &[1.0, 1.0, 1.0], &[0.5]).unwrap().remove(0);
+/// let pt = |x: f64| Interval::from_bounds(x, x);
+/// let old = [pt(0.0), pt(1.0), pt(2.0)];
+/// let _ = plan.apply_points(&old, Interval::refused(), |x, y, l: f64| {
+///     x + (y - x) * Interval::from_bounds(l, l)
+/// });
+/// ```
+///
 /// What the bound cannot see is a closure that computes in the ring
 /// and carries the result out through a capture rather than its
 /// return value: its inputs and output are at an evaluation scalar.
@@ -119,8 +135,9 @@ impl<T: ProjectiveScalar> ProjectiveScalar for crate::dual::Dual<T> where
 impl<T: ProjectiveScalar> sealed::Sealed for crate::sym::Sym<T> {}
 impl<T: ProjectiveScalar> ProjectiveScalar for crate::sym::Sym<T> {}
 
-/// The control data [`CurvePlan::apply_points`] combines at the
-/// projective scalar `T`: `T` itself, and the points and coordinate
+/// The control data [`CurvePlan::apply_rational`] combines at the
+/// projective scalar `T` (and [`CurvePlan::apply_points`] at `f64`):
+/// `T` itself, and the points and coordinate
 /// arrays over it. The applier's `λ` and its points share one scalar,
 /// so neither can be a certification enclosure ([`ProjectiveScalar`]).
 ///

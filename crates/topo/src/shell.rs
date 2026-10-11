@@ -5637,4 +5637,67 @@ mod tests {
             Err(ShellError::OpenFaceStale { face }) if face == stale
         ));
     }
+
+    /// **The speed bound reads the held knots and weights.** A cubic
+    /// with an interior breakpoint held as the variable re-values its
+    /// bound with it (`kept`), and so does one with a held weight; with
+    /// the knot or weight read off the `f64` channel the bound would
+    /// launder it.
+    #[test]
+    fn the_speed_bound_carries_a_held_knot_and_weight() {
+        use crate::revalue_pin::{Revalued, S, revalued};
+        use core::num::NonZeroUsize;
+        let m = |n| NonZeroUsize::new(n).unwrap();
+        let control = |c: f64| {
+            [(0.0, 0.0), (1.0, 2.0), (2.0, -1.0), (3.0, 1.0), (4.0, 0.0)]
+                .map(|(x, y)| geom_core::Point3::new(S::from_f64(x), S::from_f64(y * c), S::zero()))
+                .to_vec()
+        };
+        let knot = revalued([0.4, 0.4 + 1.0e-3], |_, k| {
+            let knots = geom_core::spline::Knots::new(
+                vec![
+                    (S::from_f64(0.0), m(4)),
+                    (k, m(1)),
+                    (S::from_f64(1.0), m(4)),
+                ],
+                3,
+            )
+            .unwrap();
+            let c = geom::NurbsCurve3::new(knots, control(1.0), vec![S::one(); 5]).unwrap();
+            vec![spline_speed(&c)]
+        });
+        assert_eq!(
+            knot,
+            Revalued {
+                kept: 1,
+                opaque: 0,
+                laundered: 0,
+            },
+            "a held breakpoint"
+        );
+        let weight = revalued([0.6, 0.6 + 1.0e-3], |_, w| {
+            let kv = geom_core::spline::KnotVector::clamped(
+                vec![0.0, 0.0, 0.0, 0.0, 0.4, 1.0, 1.0, 1.0, 1.0],
+                3,
+            )
+            .unwrap();
+            let one = S::one();
+            let c = geom::NurbsCurve3::new(
+                geom_core::spline::Knots::from(kv).lift(S::from_f64),
+                control(1.0),
+                vec![one, one, w, one, one],
+            )
+            .unwrap();
+            vec![spline_speed(&c)]
+        });
+        assert_eq!(
+            weight,
+            Revalued {
+                kept: 1,
+                opaque: 0,
+                laundered: 0,
+            },
+            "a held weight"
+        );
+    }
 }
