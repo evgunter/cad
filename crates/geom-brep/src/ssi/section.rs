@@ -40,8 +40,7 @@ use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
 use geom_core::interval::max_bound;
 use geom_core::k_stats::decide;
-use geom_core::spline::algebra::refine_plan_homogeneous;
-use geom_core::spline::restrict_bernstein;
+use geom_core::spline::{RingRefinement, restrict_bernstein};
 use geom_core::{Band, Decide, Indeterminate, Interval, Margin, Point3, Sign, SupSpeed, Vec3};
 
 use super::SsiError;
@@ -206,13 +205,9 @@ impl Pieces {
             .interior_knots()
             .flat_map(|(k, mult)| core::iter::repeat_n(k, p.saturating_sub(mult)))
             .collect();
-        let plans = refine_plan_homogeneous(kv, &add).ok()?;
-        let (mut h, mut w, mut knots) = (h, w, kv.clone());
-        for plan in &plans {
-            h = plan.apply_certified(&h);
-            w = plan.apply_certified(&w);
-            knots = plan.knots().clone();
-        }
+        let refinement = RingRefinement::new(kv, &add).ok()?;
+        let (h, w) = (refinement.refine(&h), refinement.refine(&w));
+        let knots = refinement.knots();
         let breaks: Vec<f64> = knots.knot_runs().map(|(k, _)| k).collect();
         let mut pieces = Vec::new();
         for (i, pair) in breaks.windows(2).enumerate() {

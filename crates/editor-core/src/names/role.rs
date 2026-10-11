@@ -981,7 +981,7 @@ impl SplitHalf {
     /// definition of the mapping every reader of a split's table and
     /// value keys by: the emitter writes the rows under it, the
     /// product gather and the interrogation doors read the value by
-    /// it, and a projection of one half selects by it. `Above` is
+    /// it, and a read of the split's port names it. `Above` is
     /// body 0 and `Below` is body 1 because that is the order the
     /// value's fields are declared in; nothing else fixes it, so
     /// nothing else may restate it.
@@ -1740,7 +1740,7 @@ pub(crate) enum VerbatimEdge<'a> {
     /// The one body of `of` that `select` names, projected: a
     /// [`Node::Part`](crate::node::Node::Part).
     Selected {
-        /// The read of the split half or the pattern.
+        /// The read of the pattern's copies.
         of: crate::VarId,
         /// Which body of it.
         select: &'a crate::node::PartSelect,

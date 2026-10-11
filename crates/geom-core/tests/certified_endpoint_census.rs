@@ -387,6 +387,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          `clamped_to` and `meet`), `between` (the corner choice, the exact-end and \
          point-source fast paths, and the four corners), `width` and `mag`",
     ),
+    ("crates/geom-core/src/spline/algebra.rs", 1, 1, ""),
     ("crates/geom-core/src/spline/compose/tensor.rs", 4, 4, ""),
     (
         "crates/geom-core/src/sym/signed.rs",
@@ -398,7 +399,6 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          (`is_certified().then_some`), so every bracket read there certifies by \
          construction",
     ),
-    ("crates/geom/src/curves/nurbs.rs", 4, 4, ""),
     ("crates/geom/src/curves/second_derivative.rs", 1, 1, ""),
     ("crates/topo/src/props/quad_lane.rs", 7, 7, ""),
 ];

@@ -838,6 +838,22 @@ impl crate::spline::SpanLocate for Interval {
         crate::spline::blossom::restrict_window(window, span, piece)
     }
 
+    fn refine_homogeneous(
+        refinement: &crate::spline::RingRefinement,
+        channel: &[Self],
+    ) -> Vec<Self> {
+        refinement.refine(channel)
+    }
+
+    fn refine_weights(
+        refinement: &crate::spline::RingRefinement,
+        weights: &[f64],
+    ) -> Option<Vec<Self>> {
+        let lifted: Vec<Self> = weights.iter().map(|w| Self::from_f64(*w)).collect();
+        let refined = refinement.refine(&lifted);
+        crate::spline::algebra::certainly_positive(&refined).then_some(refined)
+    }
+
     fn point_value(self) -> Option<f64> {
         let (lo, hi) = (Bounds::lo(self), Bounds::hi(self));
         (lo == hi && !lo.is_nan()).then_some(lo)

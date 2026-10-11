@@ -2,10 +2,11 @@
 id: bool-pair-gap-is-eps-coupled-and-flags-74-rows-per-eps-under-k-lint
 kind: issue
 title: bool_pair_gap records 24·eps on touching pairs: an eps-coupled margin off the rule (4) roster, 74 k-lint rule-2/3 flags per eps row
-status: open
+status: dispatched
 opened: 2026-10-10
 priority: P2
 cost: M
+branch: cleave/pair-gap-eps-coupled
 ---
 
 ## What
