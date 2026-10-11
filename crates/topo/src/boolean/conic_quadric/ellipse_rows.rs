@@ -522,7 +522,6 @@ mod fuzz_rows {
                         );
                     }
                     CircleRoots::Uncertain | CircleRoots::OnSurface => uncertain += 1,
-                    CircleRoots::CountDisagrees => panic!("{label}: CountDisagrees"),
                     CircleRoots::AtApex => panic!("{label}: no apex on a sphere or a wall"),
                 }
             }
@@ -757,7 +756,6 @@ mod graze_rows {
                             assert!(off <= eps, "{label}: root {t} lies {off} off");
                         }
                     }
-                    Ok(CircleRoots::CountDisagrees) => panic!("{label}: CountDisagrees"),
                     _ => declined += 1,
                 }
             }

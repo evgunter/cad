@@ -7,7 +7,7 @@ opened: 2026-10-10
 priority: P1
 cost: M
 parent: topo-mints-indeterminates-outside-the-funnel
-blocked_on: [point-in-solid-mints-outside-its-period-and-nappe-rows, boolean-gate-mints-route-through-the-funnel, glue-disagreements-and-held-contradictions-after-stage-4, period-headroom-margin-has-no-shared-home, cone-nappe-is-decided-in-five-places, chart-region-mints-indeterminates-after-a-definite-sign, chart-definite-diag-labels-an-interval-lower-end-as-an-f64-value, boolean-unreadable-norm-ends-as-a-kernel-defect, ring-contact-and-sliver-split-endings-want-their-decisions, contact-gate-readers-drop-the-arm-verdict-or-mint-invalid]
+blocked_on: [boolean-gate-mints-route-through-the-funnel, glue-disagreements-and-held-contradictions-after-stage-4, period-headroom-margin-has-no-shared-home, cone-nappe-is-decided-in-five-places, chart-region-mints-indeterminates-after-a-definite-sign, chart-definite-diag-labels-an-interval-lower-end-as-an-f64-value, boolean-unreadable-norm-ends-as-a-kernel-defect, ring-contact-and-sliver-split-endings-want-their-decisions, contact-gate-readers-drop-the-arm-verdict-or-mint-invalid]
 ---
 
 Unit 6 of `topo-mints-indeterminates-outside-the-funnel`'s re-scope
@@ -22,7 +22,7 @@ item 1.
 - Fixtures move to a `test-support` constructor. On 2026-10-10 that
   covers 136 test literals and 85 `INVALID` spellings outside
   `geom-core`.
-- `crates/topo/src/invalid_margin.rs` is deleted.
+- `crates/topo/src/invalid_margin.rs` is deleted: done in PR 4613, when its last production caller went.
 - `scripts/gates/reporting-margin-door.sh`'s `terminal_sliver: true`
   literal pin becomes a compile error. Its prose says so.
 

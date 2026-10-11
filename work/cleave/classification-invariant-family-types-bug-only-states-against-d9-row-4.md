@@ -55,6 +55,42 @@ battery reaches the check. If that ordering is a proof, `corner_bound`'s
 refusal is bug-only and belongs in row 4 with the other two. If it is
 not, its comment should name the input that reaches it.
 
+## Ruling for `CountDisagrees` (CLEAVE unit `point-in-solid-mints-outside-its-period-and-nappe-rows`, 2026-10-10; corrected 2026-10-11)
+
+**`TorusRoots::CountDisagrees` is reachable by input, so it is typed,
+not a panic. The cause is a kernel defect: the certified count is wrong.**
+The shared quartic ladder (`solid_contain.rs` `depressed_quartic_roots`)
+reads its count off `Δ`'s sign, and `Δ`'s `f64` rounding (3e-7 to 6e-6 in
+`Δ/L¹¹`, against a 1e-8 band) is charged to no decision. Counted exactly,
+the four quartics the half-angle lane hands it
+(`torus_predicate_rows::the_ladder_disagrees_with_itself_on_a_lanes_coefficients`)
+have 2, 4, 4 and 4 real roots. The factorization builds those counts; the
+sign ladder certified 4, 2, 2, 2. A ray at `R = 1e6`, `r = 1e4` reaches it
+too (`a_far_ray_reaches_the_count_disagreement`). The same defect also
+gives silent wrong `Miss` answers that no rung sees. INSIDE's P1
+`ray-torus-count-certifies-on-an-uncharged-discriminant` owns the fix.
+
+- **C17** (`point_in_solid`'s torus arm): `PointInSolidError::RootCountDisagrees
+  { face, certified, constructed }`. It blocks that ray (`confined`,
+  `RayFault::Blocked`, through `torus_crossings`), since another ray or
+  witness can settle the point. At every door it ends on its lever plus
+  "this may indicate a kernel bug worth reporting", which is true.
+- **C18** (`sphere_region` `ray`): D9 row 0. `CircleRoots::CountDisagrees`
+  is gone, and the first-harmonic doors answer
+  `circle_roots::FirstHarmonicRoots`, which has neither it nor `AtApex`.
+- **`reduce.rs` `line_roots`** keeps `ClassificationInvariant` with the
+  kernel-defect ending for `TorusRoots::CountDisagrees`, and that ending is
+  right: the cause is the defect above. (The first version of this note
+  suggested moving it. That is retracted.)
+
+The same unit found the two wall-junction mints K-dependent rather than
+bug-only. Both are reachable because `Tolerance` accepts any finite K > 1:
+- C13 (sides disagree at an active junction) is reachable for K below
+  2, or about 3.2 with radial misses, in
+  `PointInSolidError::JunctionSidesDisagree`.
+- C14 (both ends of a piece active) is reachable at K < 2. The parity there
+  has a definite answer, and the arm gives it.
+
 ## Evidence: three near-tangent sites (branch `cleave/near-tangent-invariants`, 2026-10-10)
 
 `near-tangent-pierce-poses-reach-three-classification-invariants`
