@@ -2,10 +2,9 @@
 id: an-unattributed-contact-at-rest-is-a-finding
 kind: issue
 title: D10 stage 4 PR J: A5's hard error on an unattributed contact becomes an unproven-coincidence finding; a contact between copies no mate attributes is recorded at the door
-status: parked
+status: dispatched
 priority: P0
 cost: M
-blocked_on: [carriers-compare-in-canonical-form]
 opened: 2026-10-09
 ---
 

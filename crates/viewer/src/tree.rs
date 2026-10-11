@@ -633,12 +633,7 @@ pub fn frame_pose(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>) -> Opt
                 None => "on a face of a deleted body".to_owned(),
             },
         ),
-        Node::Datum(
-            Datum::Plane { .. }
-            | Datum::Axis { .. }
-            | Datum::Point { .. }
-            | Datum::AxisInPlane { .. },
-        )
+        Node::Datum(Datum::Plane { .. } | Datum::Axis { .. } | Datum::Point { .. })
         | Node::Profile(_)
         | Node::Extrude { .. }
         | Node::Revolve { .. }
@@ -1233,10 +1228,7 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         // The named input evaluated to a legal value that the failing
         // node's own choice does not fit — a family the operand does
         // not take, an empty body or split side, an index outside the
-        // pattern's instances, an axis on another frame than the
-        // profile's — and nothing on it refused. The frames
-        // `AxisInDifferentPlane` names are evidence of which frame each
-        // sits on.
+        // pattern's instances — and nothing on it refused.
         NodeErrorKind::WrongOperand { .. }
         // An operand reads an output its operation no longer defines:
         // the repair is a re-point at the reading node itself.
@@ -1244,8 +1236,7 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::EmptyOperand { .. }
         | NodeErrorKind::ProductOperand { .. }
         | NodeErrorKind::EmptyHalf { .. }
-        | NodeErrorKind::InstanceOutOfRange { .. }
-        | NodeErrorKind::AxisInDifferentPlane { .. } => None,
+        | NodeErrorKind::InstanceOutOfRange { .. } => None,
         // Names an id no live node holds, so there is no row to go to.
         NodeErrorKind::MissingInput { .. } => None,
         // The input's door shipped a body that does not finish: a
@@ -1283,6 +1274,9 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         NodeErrorKind::UnionFoldStep { .. } => None,
         // Name no node beside the failing one.
         NodeErrorKind::Expr { .. }
+        | NodeErrorKind::PoseRead { .. }
+        | NodeErrorKind::PoseDegenerate { .. }
+        | NodeErrorKind::PoseScalar { .. }
         | NodeErrorKind::Profile(_)
         | NodeErrorKind::ProfileReplay { .. }
         | NodeErrorKind::ProfileLaneReplay { .. }

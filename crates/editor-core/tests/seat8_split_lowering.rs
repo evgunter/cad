@@ -234,7 +234,25 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// union keys its members by the ports. `m4_pr8_corpus`'s exact mass
 /// pins held.
 ///
-/// RE-BLESSED, all three, when a name came to be scoped by the variable
+/// RE-BLESSED, `kitchen_sink` only, for INTENT stage 3 A (a revolve's
+/// axis is a line on the node): its in-plane axis datum left, so every
+/// later node id re-mints and the name table with it. No outcome or
+/// point moved: the id-free fence with the pointless datum outcomes
+/// dropped is equal on the base tree and this one. Re-taken merged over
+/// FORK-DM4 unit 1 (PR 4527) and the split-half retirement (PR 4618).
+///
+/// RE-BLESSED, `part_select` only, where the at-rest records' cell-pair
+/// shape met the split's ports: each moved it alone, and the merged
+/// tree is neither value. `m4_pr8_corpus`'s exact mass pins,
+/// `m5_pr8_bvh_diff` and `m10_p_fence`'s id-masked geometry held.
+///
+/// RE-BLESSED, `kitchen_sink`, beside `part_select` above,, merging main's INTENT stage 3 A
+/// re-pin with the at-rest records' cell-pair shape: each moved it
+/// alone, and the merged tree is neither value. `m4_pr8_corpus`'s exact
+/// mass pins, `m5_pr8_bvh_diff` and `m10_p_fence`'s id-masked geometry
+/// held.
+///
+/// RE-BLESSED, all three, merged over the two re-pins above,, when a name came to be scoped by the variable
 /// holding its body (FORK-DM4 unit 2): a split's halves are two tables
 /// and its names spell no half, which is what this digest's name table
 /// feed reads; `part_select`'s union, declared by the half-free section
@@ -244,9 +262,9 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x17d8_7760_c728_b7f6u64),
-        ("part_select", 0x51ca_6d3e_a5b3_ea1c),
-        ("kitchen_sink", 0xfcad_2de0_d2ba_0e7a),
+        ("cut_cylinder", 0xa6c1_1622_9a6f_5245u64),
+        ("part_select", 0x4679_9015_ec06_98b9),
+        ("kitchen_sink", 0x5447_b24c_1bdd_7c39),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()

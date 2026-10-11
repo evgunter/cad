@@ -2,12 +2,13 @@
 id: boolean-conic-side-code-zero-is-first-order
 kind: issue
 title: A curved edge's side code at a boolean vertex reads its departure to first order, so an arc tangent to the other face at the vertex reads On while it curves off
-status: review
+status: closed
 opened: 2026-09-28
 priority: P3
 cost: H
 branch: contacthold/side-code-order2
 pr: 4575
+closed: 2026-10-11
 ---
 
 
@@ -95,4 +96,13 @@ included. The pass's whole-sector lump keys on first-order ties
 (`PierceSide::tied`), so a sector tangent to the face still lumps whole.
 `side_code` and `Reach::departure` stay first order and share `rise`.
 What still reads first order, and why, is
+`conic-ties-outside-the-vertex-on-face-pass-still-read-first-order`.
+
+## Closed 2026-10-11 (PR 4575)
+
+The vertex-on-face pass reads a conic tied with a plane one order down
+(`sectors::pierce_side` / `conic_side`, `Reach::Conic { extent, bend }`,
+refusing `BooleanDecision::ConicBend` where the bend certifies nothing).
+Conic ties elsewhere (the sector passes, recl, curved faces) still read
+first order. They are filed as
 `conic-ties-outside-the-vertex-on-face-pass-still-read-first-order`.

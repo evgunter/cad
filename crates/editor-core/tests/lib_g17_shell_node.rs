@@ -752,7 +752,6 @@ fn a_tubes_wall_opens_into_two_bands_and_its_seam_pieces_are_named() {
         [1.0, 0.0, 0.0],
         [0.0, 0.0, 1.0],
     ));
-    let axis = r.insert(fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
     let meridian = LoopProgram::Chain(vec![
         ProgramStep::At(fixture::len2([0.25, 0.0])),
         ProgramStep::LineTo(ProgramTarget::Point(fixture::len2([0.5, 0.0]))),
@@ -765,11 +764,12 @@ fn a_tubes_wall_opens_into_two_bands_and_its_seam_pieces_are_named() {
         loops: vec![meridian],
         ids: Vec::new(),
     }));
-    let tube = r.insert(Node::Revolve {
-        profile: profile.into(),
-        axis: axis.into(),
-        angle: fixture::ang(std::f64::consts::TAU),
-    });
+    let tube = r.insert(fixture::revolve_about(
+        profile,
+        (0.0, 0.0),
+        (0.0, 1.0),
+        fixture::ang(std::f64::consts::TAU),
+    ));
     // The outer wall: the meridian's second segment, at r = 1/2.
     let wall_piece = fixture::piece(&r.doc, tube, 0, 1);
     let wall = editor_core::band(tube, wall_piece);
