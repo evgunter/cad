@@ -913,3 +913,10 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
     - row 3's 1e-12 slack is about 4× too loose, from the judge's own wrap;
     - circle × torus answers definitely in the gap (114 of 4,500 poses, all true), which is evidence for HONE `circle-torus-clear-margin-reads-the-floor`.
   - Fix pass: cloud session `session_015NqA7H5FNUR7a8UGfuSwwj`.
+- 2026-10-11 02:09 — **PR 4592 merged as DR-157**: HOLDOUT pair, 0 tallied, fair but flagged.
+  - Before merging I merged main in and verified the touched rows at three ε (geom-brep 77/77, sweep 5/5), every gate, clippy on geom-brep and sweep, and fmt.
+  - The M-tier count toward the next full readout is 7.
+  - The fix pass re-banded the conservatism item to **P1**, `pn-apex-line-reach-is-read-at-the-apex-not-over-the-consumed-span`: a public union now refuses where main answered right. I agree.
+  - That P1 is dispatched: arm byte 155, mod 3 = 2, **SEQUENTIAL**. Cloud session `session_01UhKjVzeZdBqikzsCiharxN`, branch `germ/pn-apex-reach-over-span`.
+  - The conic-past-band P2 waits on it, since both are in `intersect.rs`.
+  - U-T1's PR 4614 has a red lint check; the lane is polling CI and will see it. 4600's fix pass is running.
