@@ -332,7 +332,7 @@ pyo3::create_exception!(
      it.\n\n\
      **The two verdict arms are NOT interchangeable.** `at_rest` is a \
      finding AGAINST the document — a refuted declaration or an \
-     undeclared contact. `uncertified` is the declared direction's \
+     unrecorded contact. `uncertified` is the declared direction's \
      FRONTIER: nothing was refuted and nothing was undeclared, the \
      census simply has no certifier lane for the faces a declaration \
      names, so nothing was decided about the geometry either way. A \

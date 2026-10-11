@@ -6,7 +6,7 @@
 //! because three consumers must speak the same words and no two of
 //! them can depend on each other:
 //!
-//! - the boolean's `UndeclaredContact`/`ContactContradicted` refusals
+//! - the boolean's `UnrecordedContact`/`ContactContradicted` refusals
 //!   carry the class the detector produced (SELECT-DESIGN §3d, "one
 //!   vocabulary end-to-end") and `topo` cannot depend on `editor-core`;
 //! - the recipe layer's flush detector mints findings in it;

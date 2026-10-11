@@ -36,11 +36,12 @@
 //! - **A section edge read in band of a face it bounds**
 //!   (`boolean/ops.rs` `describe_edges`): the cube's near face lies
 //!   `d` rad off the prism's vertical edge, so at `|d| = ε` the edge's
-//!   far vertex lies on the zero band's edge. A run whose section chord
-//!   starts at that vertex certifies it as the chord's own origin, in
-//!   the zero band, and builds; a run whose chord ends there certifies
-//!   `carrier(t₁)`, one rounding off the vertex and just in band, and
-//!   refuses typed as the input's ([`EDGE_ON_FACES`]), never a desync.
+//!   far vertex lies on the zero band's edge. Certification reads the
+//!   section chord's carrier, its ends included: a run whose chord starts
+//!   at that vertex reads it as the chord's own origin, in the zero band,
+//!   and builds; a run whose chord ends there reads `carrier(t₁)`, one
+//!   rounding off the vertex and just in band, and refuses typed as the
+//!   input's ([`EDGE_ON_FACES`]), never a desync.
 //!
 //! [`NtPrism::near_normal`]: crate::common::differential::NtPrism::near_normal
 
@@ -134,7 +135,7 @@ const SHIPS_A_FINDING: [Shipped; 1] = [
         1e-7,
         "prism ∪ cube",
         &[
-            r#"UndeclaredContact { contact: EdgeEdgeCross { a: EdgeKey(16v1), b: EdgeKey(31v3), side: None }, witness: "(2.0, 1.018657088811564e-5, 1.0)" }"#,
+            r#"UnrecordedContact { contact: EdgeEdgeCross { a: EdgeKey(16v1), b: EdgeKey(31v3), side: None }, witness: "(2.0, 1.018657088811564e-5, 1.0)", margin: Some(MarginDiag(Value(2.1931706656334435e-15, None, ZeroWord(0)))) }"#,
         ],
     ),
 ];
@@ -167,12 +168,12 @@ const EDGE_WITNESSES: [(f64, &str, usize, f64, f64, usize); 4] = [
 /// The census's poses whose section edge across the prism's bottom or
 /// top face meets the far vertex of its vertical edge, `|d|` m off the
 /// cube's near face: on the zero band's edge at ε = 1e-9. Which runs
-/// refuse depends on the chord's orientation: where it runs from the
-/// pierce to the vertex, the end sample `carrier(t₁)` lands one
+/// refuse depends on the chord's orientation, because certification
+/// bounds the chord's carrier and not its vertices: where it runs from
+/// the pierce to the vertex, the end sample `carrier(t₁)` lands one
 /// rounding off the vertex, ~5e-17 m past the band's edge, and refuses
 /// in band; where it runs from the vertex, the vertex is its origin,
-/// read in the zero band, and the run builds
-/// (`work/cleave/a-chords-end-sample-reads-carrier-t1-not-its-vertex.md`).
+/// read in the zero band, and the run builds.
 /// `(prism, edge, sixteenths, tilt, runs refusing in band at ε = 1e-9)`.
 const EDGE_ON_FACES: [(&str, usize, f64, f64, [&str; 3]); 4] = [
     (
