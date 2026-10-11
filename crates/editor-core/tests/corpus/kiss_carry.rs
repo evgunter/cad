@@ -1,20 +1,18 @@
 //! Corpus document **kiss_carry** — the tier-3′ carry as a recipe: a
-//! corner-kiss assembly union whose surviving v-v record is RE-ENTERED
-//! by name as a declared pair on the next boolean, so a boolean
-//! value with NON-EMPTY surviving contacts exists in the corpus.
+//! corner-kiss assembly union whose surviving v-v record the next
+//! boolean carries from its operand, so a boolean value with NON-EMPTY
+//! surviving contacts exists in the corpus.
 //!
 //! That non-emptiness is the document's reason to exist: every other
-//! corpus boolean's `ContactRecords` come out empty (declared REST
-//! unions consume their records into seam structure; subtracts drop
-//! the B side), so before this document no corpus row could tell a
-//! lowering that carries the contacts from one that drops them. The
-//! two boolean values here carry one v-v record each — the first
-//! DISCOVERED by the op at the kiss, the second CARRIED through the
-//! declared same-operand vertex pair (`resolve_declarations`' third
-//! arm, which no other corpus document reaches).
+//! corpus boolean's `ContactRecords` come out empty (glued rests are
+//! consumed into seam structure; subtracts drop the B side), so no
+//! other corpus row can tell a lowering that carries the contacts from
+//! one that drops them. The two boolean values here carry one v-v
+//! record each — the first DISCOVERED by the op at the kiss, the second
+//! CARRIED from the first union, its operand.
 //!
-//! Vocabulary: Profile, Extrude, Boolean (Union, declared carried
-//! v-v), `InsertNode`, `SetParam`.
+//! Vocabulary: Profile, Extrude, Boolean (Union), `InsertNode`,
+//! `SetParam`.
 //!
 //! Geometry (dyadic): block a `[0,1]³`; block b `[1,2]² × [1,2]`,
 //! kissing a at the single point `(1,1,1)`; mover c
@@ -32,26 +30,11 @@
 //! extrude plus the second union; the kiss chain is reused).
 
 use editor_core::ExtrudeSide;
-use editor_core::{CapEnd, DocEdit, Node, RecipeNodeId, SlotId, StableName};
+use editor_core::{DocEdit, Node, SlotId};
 
-use crate::fixture;
 use crate::fixture::len;
 
 use super::{CorpusDoc, MassPin, Recorder};
-
-/// A cap-vertex name at `node`, on the document's one outer loop.
-fn outer_cap_vertex(
-    doc: &editor_core::ProfileDoc,
-    node: RecipeNodeId,
-    end: CapEnd,
-    vertex: u32,
-) -> StableName {
-    fixture::cap_vertex(
-        node,
-        end,
-        crate::fixture::vpiece(doc, node, 0, vertex as usize),
-    )
-}
 
 /// The kiss-carry corpus document.
 pub fn document() -> CorpusDoc {
@@ -82,8 +65,8 @@ pub fn document() -> CorpusDoc {
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
-    // The kiss union: nothing is declared — the v-v kiss at (1,1,1) is
-    // DISCOVERED by the op and recorded in the result's contacts.
+    // The kiss union: the v-v kiss at (1,1,1) is DISCOVERED by the op
+    // and recorded in the result's contacts.
     let u1 = r.insert(Node::Union {
         members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
     });
@@ -109,7 +92,7 @@ pub fn document() -> CorpusDoc {
 
     CorpusDoc {
         name: "kiss_carry",
-        about: "corner-kiss assembly; the surviving v-v record re-entered by a declared pair",
+        about: "corner-kiss assembly; the surviving v-v record carried into the next union",
         edits: r.edits,
         doc: r.doc,
         result: Some(u2),

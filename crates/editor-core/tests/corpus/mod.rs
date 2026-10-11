@@ -282,9 +282,8 @@ pub fn documents() -> Vec<CorpusDoc> {
         plate_param::document(),
         // `kiss_carry` (SEAT-5): the one corpus boolean whose result
         // carries NON-EMPTY surviving contacts — the discovered
-        // corner kiss, then the same record re-entered by name as a
-        // declared pair (the carried v-v arm of `resolve_declarations`,
-        // reached nowhere else in the corpus). Registered so a pin can
+        // corner kiss, then the same record carried from the operand
+        // into the next union. Registered so a pin can
         // tell a lowering that carries the tier-3′ records from one
         // that drops them.
         kiss_carry::document(),

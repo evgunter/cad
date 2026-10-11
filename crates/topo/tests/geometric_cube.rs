@@ -13,10 +13,15 @@ use geom_brep::{
     CertCheck, CertifyError, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, SurfacePair,
 };
 use geom_core::{Point3, Vec3};
-use topo::{Body, ContactRecords, EulerOpError, FaceSurface, MefSite, MevSite, validate, validate_closed, validate_geometric};
+use topo::{
+    Body, ContactRecords, EulerOpError, FaceSurface, MefSite, MevSite, validate, validate_closed,
+    validate_geometric,
+};
 
 use crate::common;
-use common::{CubeOps, assert_every_chord_named_by_both_rules, describe_as_intersections, geometric_cube};
+use common::{
+    CubeOps, assert_every_chord_named_by_both_rules, describe_as_intersections, geometric_cube,
+};
 use geom_core::Tol;
 
 #[test]

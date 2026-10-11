@@ -253,8 +253,14 @@ fn booleans_beside_a_far_carrier_never_answer_wrong() {
                 .into_iter()
                 .zip(want)
             {
-                let got =
-                    topo::boolean_op_with(op, &l, &c, &topo::BooleanInputs::default(), topo::SweepStrategy::Realized, tol);
+                let got = topo::boolean_op_with(
+                    op,
+                    &l,
+                    &c,
+                    &topo::BooleanInputs::default(),
+                    topo::SweepStrategy::Realized,
+                    tol,
+                );
                 match got {
                     Ok(r) => {
                         let v = r

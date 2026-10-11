@@ -22,7 +22,10 @@ use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Bounds, Interval, Point2, Point3, Real, SpanLocate, SupSpeed, Tol, Vec3};
 use topo::pcurves::ChartArm;
-use topo::{Body, ChartBound, ChartEdge, ChartLoop, FaceSurface, LoopBoundary, MefSite, MetredRect, MevSite, PcurveMintError, chart_boundary};
+use topo::{
+    Body, ChartBound, ChartEdge, ChartLoop, FaceSurface, LoopBoundary, MefSite, MetredRect,
+    MevSite, PcurveMintError, chart_boundary,
+};
 
 use crate::common;
 

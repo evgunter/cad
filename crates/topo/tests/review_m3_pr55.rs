@@ -22,7 +22,10 @@ use crate::common;
 use common::{brick, finished, prism_z};
 use geom_core::Tol;
 use geom_core::{Decide, Point3};
-use topo::{AtRestBody, Body, BooleanBody, BooleanError, BooleanResult, BooleanResultKind, mass_properties, subtract, union, validate, validate_closed};
+use topo::{
+    AtRestBody, Body, BooleanBody, BooleanError, BooleanResult, BooleanResultKind, mass_properties,
+    subtract, union, validate, validate_closed,
+};
 
 /// A right prism over `profile` x [z0, z1] pushed through the linear
 /// map `m` (rows; dyadic entries, det > 0 so outward stays outward):
@@ -69,11 +72,7 @@ fn finished_brick<T: Decide + topo::AtRestPolicy>(
     finished("brick", brick::<T>(x, y, z, tol), tol)
 }
 
-type BoolOp<T> = fn(
-    &AtRestBody<T>,
-    &AtRestBody<T>,
-    Tol,
-) -> Result<BooleanResult<T>, BooleanError>;
+type BoolOp<T> = fn(&AtRestBody<T>, &AtRestBody<T>, Tol) -> Result<BooleanResult<T>, BooleanError>;
 
 /// Functional run: operands bitwise untouched, result tier-1+2 valid,
 /// D9 bitwise replay.
@@ -163,13 +162,7 @@ fn assert_typed_refusal<T: Decide>(op: BoolOp<T>, a: &AtRestBody<T>, b: &AtRestB
 /// matched slots) and the (d, -d) strut opposite-sense claim.
 /// Returns the germ counts by how the two sides' senses relate.
 fn sense_census(op: topo::BooleanOp, a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> SenseCensus {
-    let red = topo::boolean_reduce(
-        op,
-        a,
-        b,
-        Tol::witness(),
-    )
-    .unwrap();
+    let red = topo::boolean_reduce(op, a, b, Tol::witness()).unwrap();
     // Edge keys are body-lineage-scoped (F9): the pair's a_edge must be
     // resolved among A-operand records only (keys can collide across
     // arenas).
@@ -392,11 +385,7 @@ fn a_multi_spike_shared_corner_vertex() {
     // edge at both ends in both solids, and each solid folds the edge
     // into its In run by its own membership at both ends, so the joint
     // builds.
-    match topo::intersect(
-        &ab,
-        &c,
-        Tol::witness(),
-    ) {
+    match topo::intersect(&ab, &c, Tol::witness()) {
         Ok(BooleanResult::Body(bb)) => {
             assert_eq!(validate_closed(&bb.body), Ok(()));
             assert_eq!(
@@ -450,11 +439,7 @@ fn a_reflex_315_corner_tilted_cap() {
         assert_eq!(vol(&a), 14.0);
         let b = tprism::<f64>(&sq, 1.0, 3.0, m);
         assert_eq!(vol(&b), 8.0);
-        match topo::intersect(
-            &a,
-            &b,
-            Tol::witness(),
-        ) {
+        match topo::intersect(&a, &b, Tol::witness()) {
             Ok(BooleanResult::Body(bb)) => {
                 assert_eq!(validate_closed(&bb.body), Ok(()), "variant {k}");
                 let v = vol(&bb.body);
@@ -486,11 +471,7 @@ fn a_reflex_315_corner_tilted_cap() {
     // "reflex sector". Exact dyadic oracle 3/8.
     let a = finished_brick::<f64>((-2.0, 0.0), (-2.0, 0.0), (0.0, 1.0));
     let b = tprism::<f64>(&sq, 1.0, 3.0, shears[0]);
-    match topo::intersect(
-        &a,
-        &b,
-        Tol::witness(),
-    ) {
+    match topo::intersect(&a, &b, Tol::witness()) {
         Ok(BooleanResult::Body(bb)) => {
             assert_eq!(validate_closed(&bb.body), Ok(()));
             assert_eq!(vol(&bb.body), 0.375, "convex-vertex control EXACT");
@@ -771,12 +752,7 @@ fn e_collinear_mixed_with_transversal() {
     // segments now measure the point distance exactly and the mixed
     // lane lands the exact oracle:
     // removed = prongs 3 * (1 * 1.5 * 0.75) + base 5 * 0.5 * 0.75.
-    let r = subtract(
-        &w,
-        &b,
-        Tol::witness(),
-    )
-    .unwrap();
+    let r = subtract(&w, &b, Tol::witness()).unwrap();
     let BooleanResult::Body(bb) = r else {
         panic!("nonempty");
     };
@@ -785,11 +761,7 @@ fn e_collinear_mixed_with_transversal() {
     // Neighbor variant: the same channel cut crossing the prongs
     // ENTIRELY (no collinear stub on the prong line).
     let b2 = finished_brick::<f64>((-1.0, 6.0), (0.5, 3.5), (0.25, 1.5));
-    match subtract(
-        &w,
-        &b2,
-        Tol::witness(),
-    ) {
+    match subtract(&w, &b2, Tol::witness()) {
         Ok(BooleanResult::Body(bb)) => {
             assert_eq!(validate_closed(&bb.body), Ok(()));
             assert_eq!(vol(&bb.body), 11.0 - 4.5 - 1.875, "full-cross EXACT");
@@ -856,11 +828,7 @@ fn f_residual_probe_all_corners_on_boundary() {
     )
     .body;
     let b = finished("b", b, Tol::witness());
-    match subtract(
-        &a,
-        &b,
-        Tol::witness(),
-    ) {
+    match subtract(&a, &b, Tol::witness()) {
         Ok(BooleanResult::Body(bb)) => {
             assert_eq!(validate_closed(&bb.body), Ok(()));
             assert_eq!(vol(&bb.body), 4.0, "inscribed cutter EXACT");
@@ -972,13 +940,7 @@ fn g_boundary_on_boundary_contacts_sharp() {
 fn g_stacked_full_on_edge_germ_dump() {
     let a = finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (2.0, 3.0));
-    let red = topo::boolean_reduce(
-        topo::BooleanOp::Union,
-        &a,
-        &b,
-        Tol::witness(),
-    )
-    .unwrap();
+    let red = topo::boolean_reduce(topo::BooleanOp::Union, &a, &b, Tol::witness()).unwrap();
     assert_eq!(red.contacts.vv.len(), 4, "four shared rim corners");
     assert!(!red.null_edges.is_empty(), "seam scaffolding minted");
     let mut horizontal_axis = 0;

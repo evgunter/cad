@@ -17,14 +17,13 @@ use common::{brick, finished};
 use geom_core::Decide;
 use geom_core::Tol;
 use topo::test_support::{ArenaCounts, arena_counts};
-use topo::{AtRestBody, Body, BooleanBody, BooleanError, BooleanResult, BooleanResultKind, mass_properties, subtract, union, validate, validate_closed, validate_geometric};
+use topo::{
+    AtRestBody, Body, BooleanBody, BooleanError, BooleanResult, BooleanResultKind, mass_properties,
+    subtract, union, validate, validate_closed, validate_geometric,
+};
 
 /// A public boolean op as a value.
-type BoolOp<T> = fn(
-    &AtRestBody<T>,
-    &AtRestBody<T>,
-    Tol,
-) -> Result<BooleanResult<T>, BooleanError>;
+type BoolOp<T> = fn(&AtRestBody<T>, &AtRestBody<T>, Tol) -> Result<BooleanResult<T>, BooleanError>;
 
 /// Runs one op functionally, checking the operands stayed bitwise untouched and the
 /// result passes tier 1 + 2.
@@ -34,12 +33,7 @@ fn run<T: Decide + geom_core::Bounds>(
     b: &AtRestBody<T>,
 ) -> BooleanResult<T> {
     let (a0, b0) = (format!("{a:?}"), format!("{b:?}"));
-    let out = op(
-        a,
-        b,
-        Tol::witness(),
-    )
-    .unwrap();
+    let out = op(a, b, Tol::witness()).unwrap();
     assert_eq!(format!("{a:?}"), a0, "operand A untouched");
     assert_eq!(format!("{b:?}"), b0, "operand B untouched");
     if let BooleanResult::Body(body) = &out {
@@ -108,10 +102,7 @@ fn generic_scenarios<T: Decide + geom_core::Bounds + topo::AtRestPolicy>() {
     assert_eq!(body_of(&r).kind, BooleanResultKind::Voided);
     let a = finished_brick::<T>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
     let b = finished_brick::<T>((2.0, 3.0), (2.0, 3.0), (2.0, 3.0));
-    assert!(matches!(
-        run(topo::intersect, &a, &b),
-        BooleanResult::Empty
-    ));
+    assert!(matches!(run(topo::intersect, &a, &b), BooleanResult::Empty));
 }
 
 #[test]
@@ -271,10 +262,7 @@ fn disjoint_operands() {
     );
     assert_props(&body.body, 2.0, 12.0);
     // ∩: the typed empty success.
-    assert!(matches!(
-        run(topo::intersect, &a, &b),
-        BooleanResult::Empty
-    ));
+    assert!(matches!(run(topo::intersect, &a, &b), BooleanResult::Empty));
     // ∖: A untouched.
     let r = run(subtract, &a, &b);
     let body = body_of(&r);
@@ -338,10 +326,7 @@ fn corner_kiss_operands() {
     // touching via distinct entities — F2's representable class).
     assert_ne!(c.a, c.b);
     // ∩: regularized empty. ∖: A, contacts dropped (B not in result).
-    assert!(matches!(
-        run(topo::intersect, &a, &b),
-        BooleanResult::Empty
-    ));
+    assert!(matches!(run(topo::intersect, &a, &b), BooleanResult::Empty));
     let r = run(subtract, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::OperandA);
@@ -626,10 +611,7 @@ fn tangential_rest_operands() {
     // Full-face coplanar rest (PR 4: ∩/∖ classify to contacts only).
     let a = finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (2.0, 4.0));
-    assert!(matches!(
-        run(topo::intersect, &a, &b),
-        BooleanResult::Empty
-    ));
+    assert!(matches!(run(topo::intersect, &a, &b), BooleanResult::Empty));
     let r = run(subtract, &a, &b);
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::OperandA);

@@ -18,10 +18,7 @@ use geom_core::Tol;
 use topo::{AtRestBody, Body, BooleanError, BooleanResult, mass_properties, union};
 
 /// The union of `a` and `b`.
-fn fused(
-    a: &AtRestBody<f64>,
-    b: &AtRestBody<f64>,
-) -> Result<AtRestBody<f64>, BooleanError> {
+fn fused(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> Result<AtRestBody<f64>, BooleanError> {
     let tol = Tol::witness();
     match union(a, b, tol)? {
         BooleanResult::Body(body) => Ok(body.body),
@@ -136,8 +133,7 @@ fn a_non_convex_end_face_offers_only_a_certified_interior_point() {
             common::prism_z::<f64>(&profile, 0.5, 1.5, tol).body,
             tol,
         );
-        let all = fused(&ac, &b)
-            .unwrap_or_else(|e| panic!("profile from vertex {start}: {e:?}"));
+        let all = fused(&ac, &b).unwrap_or_else(|e| panic!("profile from vertex {start}: {e:?}"));
         assert_valid_with_volume(&format!("profile from vertex {start}"), &all, 6.0);
     }
 }

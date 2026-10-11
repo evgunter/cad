@@ -26,7 +26,10 @@ use crate::probe_support::wall_sheet;
 use geom::Surface;
 use geom_core::{Band, Point3, Tol, Vec3};
 use topo::test_support::{CylFrame, cyl_wall_sheet};
-use topo::{Body, ChartOverlap, ChartRegionError, ContactVerdict, FaceKey, FaceSurface, declared_pair_overlap};
+use topo::{
+    Body, ChartOverlap, ChartRegionError, ContactVerdict, FaceKey, FaceSurface,
+    declared_pair_overlap,
+};
 
 fn band() -> Band {
     let tol = Tol::witness();

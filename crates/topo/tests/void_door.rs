@@ -20,7 +20,10 @@ use crate::common;
 
 use common::{brick, finished};
 use geom_core::{Sign, Tol};
-use topo::{Body, BooleanResult, BooleanResultKind, SolidContainment, VoidContainment, VoidEvidence, VoidInsertError, insert_void, mass_properties, subtract, validate, validate_closed};
+use topo::{
+    Body, BooleanResult, BooleanResultKind, SolidContainment, VoidContainment, VoidEvidence,
+    VoidInsertError, insert_void, mass_properties, subtract, validate, validate_closed,
+};
 
 fn outer_and_cavity() -> (Body<f64>, Body<f64>) {
     (

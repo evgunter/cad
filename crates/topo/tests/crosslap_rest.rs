@@ -19,7 +19,9 @@ use crate::common;
 
 use common::{brick, finished};
 use geom_core::Tol;
-use topo::{BooleanResult, mass_properties, subtract, union, validate_geometric, validate_pseudomanifold};
+use topo::{
+    BooleanResult, mass_properties, subtract, union, validate_geometric, validate_pseudomanifold,
+};
 
 const NOTCH_VOL: f64 = 0.5 * 0.5 * 0.25;
 const BEAM_VOL: f64 = 4.0 * 0.5 * 0.5;
@@ -52,13 +54,7 @@ fn notched_beams() -> (topo::AtRestBody<f64>, topo::AtRestBody<f64>) {
 /// The glued union (the declared door), shared by the pins below.
 fn glued() -> topo::BooleanBody<f64> {
     let (a, b) = notched_beams();
-    match union(
-        &a,
-        &b,
-        Tol::witness(),
-    )
-    .expect("declared mate unions")
-    {
+    match union(&a, &b, Tol::witness()).expect("declared mate unions") {
         BooleanResult::Body(body) => body,
         BooleanResult::Empty => panic!("mated union cannot be empty"),
     }

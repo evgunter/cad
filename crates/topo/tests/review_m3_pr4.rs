@@ -38,13 +38,7 @@ fn reduce_ok<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     b: &AtRestBody<T>,
 ) -> BooleanReduction<T> {
     let (da, db) = (dump(a), dump(b));
-    let red = topo::boolean_reduce(
-        op,
-        a,
-        b,
-        Tol::witness(),
-    )
-    .unwrap();
+    let red = topo::boolean_reduce(op, a, b, Tol::witness()).unwrap();
     assert_eq!(dump(a), da, "operand A mutated");
     assert_eq!(dump(b), db, "operand B mutated");
     validate(&red.a).unwrap();
@@ -314,12 +308,7 @@ fn l_prism_unit() -> AtRestBody<f64> {
 /// `op` on `a` and `b` builds a body that passes tiers 2
 /// and 3′ and the at-rest certificate at the closed-form `volume`, or
 /// the empty result when `volume` is zero.
-fn assert_sound(
-    op: BooleanOp,
-    a: &AtRestBody<f64>,
-    b: &AtRestBody<f64>,
-    volume: f64,
-) {
+fn assert_sound(op: BooleanOp, a: &AtRestBody<f64>, b: &AtRestBody<f64>, volume: f64) {
     let tol = Tol::witness();
     let res = match op {
         BooleanOp::Union => topo::union(a, b, tol),

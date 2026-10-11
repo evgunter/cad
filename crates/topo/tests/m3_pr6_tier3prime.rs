@@ -15,13 +15,12 @@ use crate::common;
 use common::{brick, finished, mapped_cube, prism_z};
 use geom_core::Tol;
 use geom_core::{Decide, Point3, Vec3};
-use topo::{AtRestBody, BooleanBody, BooleanError, BooleanResult, ContactRecords, ValidationError, intersect, mass_properties, subtract, union, validate_geometric, validate_pseudomanifold};
+use topo::{
+    AtRestBody, BooleanBody, BooleanError, BooleanResult, ContactRecords, ValidationError,
+    intersect, mass_properties, subtract, union, validate_geometric, validate_pseudomanifold,
+};
 
-type BoolOp<T> = fn(
-    &AtRestBody<T>,
-    &AtRestBody<T>,
-    Tol,
-) -> Result<BooleanResult<T>, BooleanError>;
+type BoolOp<T> = fn(&AtRestBody<T>, &AtRestBody<T>, Tol) -> Result<BooleanResult<T>, BooleanError>;
 
 /// Runs one op, which must build a body.
 fn run_body<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(
@@ -29,13 +28,7 @@ fn run_body<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(
     a: &AtRestBody<T>,
     b: &AtRestBody<T>,
 ) -> BooleanBody<T> {
-    match op(
-        a,
-        b,
-        Tol::witness(),
-    )
-    .unwrap()
-    {
+    match op(a, b, Tol::witness()).unwrap() {
         BooleanResult::Body(body) => body,
         BooleanResult::Empty => panic!("expected a non-empty boolean result"),
     }
@@ -132,12 +125,7 @@ fn skew_edges_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPoli
         "3′ ≡ tier 3 here"
     );
     assert!(matches!(
-        intersect(
-            &a,
-            &b,
-            Tol::witness()
-        )
-        .unwrap(),
+        intersect(&a, &b, Tol::witness()).unwrap(),
         BooleanResult::Empty
     ));
     let sub = run_body(subtract as BoolOp<T>, &a, &b);

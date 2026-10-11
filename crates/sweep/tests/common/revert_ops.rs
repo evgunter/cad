@@ -1,14 +1,14 @@
-//! **∖ in both operand orders and ∩** — the three ops that route through `revert`, run over one operand pair
-//! the way a roster row asks its question. What a suite drives a door
-//! WITH, so it routes here beside [`super::poses`] ([`super`]'s routing
-//! rule).
+//! **∖ in both operand orders and ∩** — the three ops that route
+//! through `revert`, run over one operand pair the way a roster row
+//! asks its question. What a suite drives a door WITH, so it routes
+//! here beside [`super::poses`] ([`super`]'s routing rule).
 
 use geom_core::Tol;
 use sweep::test_support::finished;
 use topo::{Body, BooleanError, BooleanResult};
 
-/// `A ∖ B`, `B ∖ A` and `A ∩ B`, each
-/// labelled for an assertion message. Each operand is finished once
+/// `A ∖ B`, `B ∖ A` and `A ∩ B`, each labelled for an assertion
+/// message. Each operand is finished once
 /// (`sweep::test_support::finished`) before the three ops read it.
 pub fn subtract_both_orders_and_intersect(
     a: &Body<f64>,

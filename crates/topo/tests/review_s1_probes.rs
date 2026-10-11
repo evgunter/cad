@@ -22,20 +22,17 @@ use crate::common;
 
 use common::{brick, finished, prism_z};
 use geom_core::Tol;
-use topo::{BooleanResult, BooleanResultKind, mass_properties, subtract, union, validate_geometric, validate_pseudomanifold};
+use topo::{
+    BooleanResult, BooleanResultKind, mass_properties, subtract, union, validate_geometric,
+    validate_pseudomanifold,
+};
 
 fn glued(
     a: &topo::AtRestBody<f64>,
     b: &topo::AtRestBody<f64>,
     volume: f64,
 ) -> topo::BooleanBody<f64> {
-    let g = match union(
-        a,
-        b,
-        Tol::witness(),
-    )
-    .expect("declared union builds")
-    {
+    let g = match union(a, b, Tol::witness()).expect("declared union builds") {
         BooleanResult::Body(g) => g,
         BooleanResult::Empty => panic!("REST union cannot be empty"),
     };

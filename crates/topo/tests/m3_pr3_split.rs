@@ -15,7 +15,10 @@ use common::{brick, prism};
 use geom_core::Tol;
 use geom_core::{Point3, Vec3};
 use topo::readback::euler_counts;
-use topo::{Body, SplitError, SplitFinishError, SplitJoinError, SplitPart, SplitPlane, SplitReduceError, Surface, mass_properties, plane_section, split, validate_closed, validate_geometric};
+use topo::{
+    Body, SplitError, SplitFinishError, SplitJoinError, SplitPart, SplitPlane, SplitReduceError,
+    Surface, mass_properties, plane_section, split, validate_closed, validate_geometric,
+};
 
 /// The split plane y = c, Above = +y.
 fn plane_y<T: geom_core::Decide>(c: f64) -> SplitPlane<T> {

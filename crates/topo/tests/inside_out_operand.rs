@@ -12,7 +12,10 @@ use crate::common;
 
 use common::brick;
 use geom_core::{Bounds, Decide, Dual64, Interval, Tol};
-use topo::{AtRestBody, AtRestOutcome, AtRestPolicy, Body, BooleanError, BooleanResult, Operand, ValidationError, intersect, mass_properties, subtract, union};
+use topo::{
+    AtRestBody, AtRestOutcome, AtRestPolicy, Body, BooleanError, BooleanResult, Operand,
+    ValidationError, intersect, mass_properties, subtract, union,
+};
 
 /// The triangle (0,0), 80°, 190° on the unit circle, counterclockwise
 /// when `ccw`.
@@ -34,11 +37,7 @@ fn operands<T: Decide + AtRestPolicy>(ccw: bool, tol: Tol) -> (Body<T>, Body<T>)
     )
 }
 
-type Op<T> = fn(
-    &AtRestBody<T>,
-    &AtRestBody<T>,
-    Tol,
-) -> Result<BooleanResult<T>, BooleanError>;
+type Op<T> = fn(&AtRestBody<T>, &AtRestBody<T>, Tol) -> Result<BooleanResult<T>, BooleanError>;
 
 fn ops<T: Decide + Bounds + AtRestPolicy>() -> [(&'static str, Op<T>); 3] {
     [
@@ -135,10 +134,7 @@ fn the_public_reduction_refuses_an_inside_out_operand_at_a_dual() {
                     operand, inside_out,
                     "{op:?}: the refusal names the inside-out operand"
                 ),
-                other => panic!(
-                    "{op:?}: want InsideOutOperand, got {:?}",
-                    other.map(|_| ())
-                ),
+                other => panic!("{op:?}: want InsideOutOperand, got {:?}", other.map(|_| ())),
             }
         }
     }

@@ -39,7 +39,10 @@
 use geom_core::Point3;
 use geom_core::Tol;
 use topo::readback::euler_counts;
-use topo::{BadArgument, Body, EntityId, EulerCounts, EulerOpError, LoopBoundary, MefSite, MevSite, ValidationError, validate, validate_closed};
+use topo::{
+    BadArgument, Body, EntityId, EulerCounts, EulerOpError, LoopBoundary, MefSite, MevSite,
+    ValidationError, validate, validate_closed,
+};
 
 fn pt(x: f64, y: f64) -> Point3<f64> {
     Point3::new(x, y, 0.0)

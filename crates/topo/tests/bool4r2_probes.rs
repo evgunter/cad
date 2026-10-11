@@ -12,7 +12,11 @@
 
 use crate::common;
 use geom_core::{Band, Point3, Tol};
-use topo::{Body, CensusContact, ContactRecords, EntityId, SolidContainment, SolidKey, ValidationError, VfContact, VoidContainment, VoidEvidence, insert_void, point_in_solid, point_in_solid_of, validate_pseudomanifold};
+use topo::{
+    Body, CensusContact, ContactRecords, EntityId, SolidContainment, SolidKey, ValidationError,
+    VfContact, VoidContainment, VoidEvidence, insert_void, point_in_solid, point_in_solid_of,
+    validate_pseudomanifold,
+};
 
 const L_PROFILE: [(f64, f64); 6] = [
     (0.0, 0.0),

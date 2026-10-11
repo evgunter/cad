@@ -58,12 +58,8 @@ fn leg<T: Decide + topo::AtRestPolicy>(cx: f64, cy: f64) -> topo::AtRestBody<T> 
 fn corner_aligned_leg_union_tier2_exact() {
     let a = top::<f64>();
     let b = leg(4.0, 3.0);
-    let r = union(
-        &a,
-        &b,
-        Tol::witness(),
-    )
-    .expect("REGRESSION: declared corner-aligned leg union refused");
+    let r = union(&a, &b, Tol::witness())
+        .expect("REGRESSION: declared corner-aligned leg union refused");
     let BooleanResult::Body(bb) = r else {
         panic!("nonempty overlap cannot be Empty")
     };
@@ -92,12 +88,8 @@ fn corner_aligned_table_four_legs_builds() {
     let mut table = top::<f64>();
     for (cx, cy) in [(4.0, 3.0), (4.0, 0.0), (0.0, 3.0), (0.0, 0.0)] {
         let l = leg(cx, cy);
-        let r = union(
-            &table,
-            &l,
-            Tol::witness(),
-        )
-        .expect("declared corner-aligned leg union refused");
+        let r =
+            union(&table, &l, Tol::witness()).expect("declared corner-aligned leg union refused");
         let BooleanResult::Body(bb) = r else {
             panic!("nonempty overlap cannot be Empty")
         };
@@ -122,12 +114,8 @@ fn undeclared_corner_leg_is_the_declared_leg() {
         BooleanResult::Body(bb) => format!("{:?}", bb.body),
         BooleanResult::Empty => panic!("nonempty overlap cannot be Empty"),
     };
-    let declared = union(
-        &a,
-        &b,
-        Tol::witness(),
-    )
-    .expect("declared corner-aligned leg union refused");
+    let declared =
+        union(&a, &b, Tol::witness()).expect("declared corner-aligned leg union refused");
     let undeclared = union(&a, &b, Tol::witness()).expect("the undeclared leg glues on Zero");
     assert_eq!(body(undeclared), body(declared));
 }
@@ -137,11 +125,7 @@ fn undeclared_corner_leg_is_the_declared_leg() {
 fn corner_aligned_leg_interval_refuses_or_exact() {
     let a = top::<geom_core::Interval>();
     let b = leg(4.0, 3.0);
-    match union(
-        &a,
-        &b,
-        Tol::witness(),
-    ) {
+    match union(&a, &b, Tol::witness()) {
         Err(_) => {} // conservative refusal: acceptable
         Ok(BooleanResult::Body(bb)) => {
             assert_eq!(validate_closed(&bb.body), Ok(()));

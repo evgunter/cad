@@ -24,7 +24,10 @@ use crate::common;
 
 use common::{brick, finished};
 use geom_core::Tol;
-use topo::{AtRestBody, Body, BooleanResult, intersect, subtract, union, validate_geometric, validate_pseudomanifold};
+use topo::{
+    AtRestBody, Body, BooleanResult, intersect, subtract, union, validate_geometric,
+    validate_pseudomanifold,
+};
 
 /// An op on the pair.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -407,8 +410,7 @@ fn a_pinch_standing_on_a_face_builds_in_every_op() {
     ];
     for (name, op, swap, want) in rows {
         let (x, y) = if swap { (&b, &pinch) } else { (&pinch, &b) };
-        let got = op(x, y, t())
-            .unwrap_or_else(|e| panic!("{name}: refused: {e:?}"));
+        let got = op(x, y, t()).unwrap_or_else(|e| panic!("{name}: refused: {e:?}"));
         match (got, want) {
             (BooleanResult::Empty, None) => {}
             (BooleanResult::Body(r), Some((counts, volume))) => {

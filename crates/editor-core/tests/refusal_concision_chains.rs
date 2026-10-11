@@ -106,7 +106,7 @@ pub(crate) const ALLOWED_LABELS: &[(&str, &str)] = &[
 /// still red.
 pub(crate) const FILED: &[(&str, &str)] = &[
     // `geom/src/curves.rs` (#2861): `EllipseInvalid` opens with
-    // "ellipse construction:" and offers "declare" under a split:
+    // "ellipse construction:":
     // work/chrome/the-refusal-shape-guard-has-blind-spots.md
     ("Split/Join/Section(Carrier)", "ellipse construction"),
     ("Boolean/Join/Section(Carrier)", "ellipse construction"),
@@ -167,7 +167,7 @@ pub(crate) const FILED_NAMESPACES: &[(&str, &str, bool)] = &[];
 /// The split rows that may still offer "declare", which a split has no
 /// door for, each filed with its owner (the note above `FILED`'s
 /// `EllipseInvalid` entries).
-pub(crate) const FILED_DECLARE: &[&str] = &["Split/Join/Section(Carrier)"];
+pub(crate) const FILED_DECLARE: &[&str] = &[];
 
 /// The rows that render a key or a hex id, by exact row id and the
 /// exact span, each filed with its owner.

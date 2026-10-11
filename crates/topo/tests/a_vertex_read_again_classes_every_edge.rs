@@ -30,7 +30,10 @@ use common::meeting::{
 };
 use geom_core::{Band, Tol, Vec3};
 use std::collections::BTreeMap;
-use topo::{AtRestBody, BooleanError, BooleanResult, Operand, SideCode, intersect, readback, subtract, union, validate_geometric};
+use topo::{
+    AtRestBody, BooleanError, BooleanResult, Operand, SideCode, intersect, readback, subtract,
+    union, validate_geometric,
+};
 
 fn t() -> Tol {
     Tol::witness()

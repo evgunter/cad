@@ -21,7 +21,11 @@
 
 use crate::common;
 use geom_core::{Band, Point3, Tol, Vec3};
-use topo::{AtRestBody, Body, BooleanError, BooleanResult, CarrierDesc, FaceKey, SolidContainment, ValidationError, face_carrier, intersect, mass_properties, point_in_solid, split, subtract, union, validate_geometric};
+use topo::{
+    AtRestBody, Body, BooleanError, BooleanResult, CarrierDesc, FaceKey, SolidContainment,
+    ValidationError, face_carrier, intersect, mass_properties, point_in_solid, split, subtract,
+    union, validate_geometric,
+};
 
 /// The far end's depth, in zero thresholds: definite under a 1 m arm
 /// (`DIP/10` zeros) and Zero under a 1 mm one (`DIP/10⁴`).
@@ -389,10 +393,7 @@ fn a_declared_plane_tilt_is_read_across_the_faces() {
 /// ball about the mean of the two faces' box centres, `(2.5, 0.25, 0)`,
 /// out to the top's far corner: radius `√200 + |(2.5, 0.25)| ≈
 /// 16.655 m`.
-fn wedge_on_the_top(
-    rise: f64,
-    lift: f64,
-) -> Result<topo::ContactVerdict, topo::ContactRefusal> {
+fn wedge_on_the_top(rise: f64, lift: f64) -> Result<topo::ContactVerdict, topo::ContactRefusal> {
     let tol = Tol::witness();
     let band = Band::linear(tol).unwrap();
     let block = common::finished(

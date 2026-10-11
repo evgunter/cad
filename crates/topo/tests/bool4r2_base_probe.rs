@@ -7,7 +7,10 @@
 
 use crate::common;
 use geom_core::{Band, Point3, Tol};
-use topo::{Body, ContactRecords, SolidContainment, ValidationError, VfContact, VoidContainment, VoidEvidence, insert_void, validate_pseudomanifold};
+use topo::{
+    Body, ContactRecords, SolidContainment, ValidationError, VfContact, VoidContainment,
+    VoidEvidence, insert_void, validate_pseudomanifold,
+};
 
 const L_PROFILE: [(f64, f64); 6] = [
     (0.0, 0.0),

@@ -17,7 +17,10 @@ use crate::common;
 use common::{brick, describe_as_intersections, finished, holed_block, prism_z};
 use geom_core::Tol;
 use topo::validate::{validate_closed, validate_geometric};
-use topo::{AtRestBody, Body, BooleanBody, BooleanResult, LoopBoundary, mass_properties, union, validate_pseudomanifold};
+use topo::{
+    AtRestBody, Body, BooleanBody, BooleanResult, LoopBoundary, mass_properties, union,
+    validate_pseudomanifold,
+};
 
 fn unwrap_body(r: BooleanResult<f64>) -> BooleanBody<f64> {
     let BooleanResult::Body(bb) = r else {
@@ -124,9 +127,7 @@ fn the_merged_union_takes_a_third_brick() {
     let tol = Tol::witness();
     let af = a_union_f();
     let c = c();
-    let bb = unwrap_body(
-        union(&af.body, &c, tol).expect("a merged union is a boolean operand"),
-    );
+    let bb = unwrap_body(union(&af.body, &c, tol).expect("a merged union is a boolean operand"));
     assert!(
         bb.naming.merge_skipped.is_empty(),
         "{:?}",
@@ -318,8 +319,7 @@ fn a_plug_folded_first_merges_into_the_face_it_plugs() {
         tol,
     );
     let block = holed();
-    let bb =
-        unwrap_body(union(&plug, &block, tol).expect("the plug folded first merges"));
+    let bb = unwrap_body(union(&plug, &block, tol).expect("the plug folded first merges"));
     assert!(
         bb.naming.merge_skipped.is_empty(),
         "{:?}",

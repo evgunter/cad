@@ -22,7 +22,9 @@ use crate::common;
 
 use common::{brick, finished};
 use geom_core::Tol;
-use topo::{AtRestBody, Body, BooleanResult, BooleanResultKind, CarrierDesc, FaceKey, face_carrier, union};
+use topo::{
+    AtRestBody, Body, BooleanResult, BooleanResultKind, CarrierDesc, FaceKey, face_carrier, union,
+};
 
 /// A face's outward normal, rounded to a unit axis.
 type Axis = [i8; 3];
@@ -132,13 +134,10 @@ fn a_discarded_face_holds_the_edges_of_the_kept_face_that_runs_into_it() {
         brick((0.499, 0.501), (-1.0, 2.0), (0.5, 2.0), tol),
         tol,
     );
-    let BooleanResult::Body(cut) =
-        union(&b, &slab, tol).expect("b ∪ slab")
-    else {
+    let BooleanResult::Body(cut) = union(&b, &slab, tol).expect("b ∪ slab") else {
         panic!("a union of non-empty blocks cannot be empty");
     };
-    let BooleanResult::Body(out) = union(&cut.body, &a, tol).expect("the union fuses")
-    else {
+    let BooleanResult::Body(out) = union(&cut.body, &a, tol).expect("the union fuses") else {
         panic!("a union of non-empty blocks cannot be empty");
     };
     // Each holding row: `a`'s face's normal, and each held edge's ends,
@@ -255,8 +254,7 @@ fn a_held_edge_goes_only_to_the_fragment_it_enters() {
         tol,
     );
     let fused = |x: &AtRestBody<f64>, y: &AtRestBody<f64>| -> AtRestBody<f64> {
-        let BooleanResult::Body(o) = union(x, y, tol).expect("the union fuses")
-        else {
+        let BooleanResult::Body(o) = union(x, y, tol).expect("the union fuses") else {
             panic!("a union of non-empty blocks cannot be empty");
         };
         o.body
@@ -298,9 +296,7 @@ fn coplanar_faces_that_share_no_region_are_not_covered() {
         ("apart", brick((2.0, 3.0), unit, unit, tol)),
     ] {
         let other = finished(label, other, tol);
-        let BooleanResult::Body(out) =
-            union(&a, &other, tol).expect("the union fuses")
-        else {
+        let BooleanResult::Body(out) = union(&a, &other, tol).expect("the union fuses") else {
             panic!("{label}: a union of non-empty blocks cannot be empty");
         };
         assert_eq!(out.naming.covered, vec![], "{label}: covered pairs");

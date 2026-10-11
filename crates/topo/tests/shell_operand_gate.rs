@@ -18,7 +18,10 @@
 use crate::common;
 
 use geom_core::{Tol, Vec2};
-use topo::{AtRestBody, Body, FaceKey, ShellDoor, ShellError, Shelled, ValidationError, mass_properties, shell};
+use topo::{
+    AtRestBody, Body, FaceKey, ShellDoor, ShellError, Shelled, ValidationError, mass_properties,
+    shell,
+};
 
 /// What every shell door answers at `f64`.
 type Answer = Result<Shelled<f64>, ShellError<f64>>;

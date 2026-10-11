@@ -9,8 +9,8 @@ use crate::common;
 use common::{brick, finished};
 use geom_core::Tol;
 use topo::{
-    AtRestBody, Backing, BooleanBody, BooleanInputs, BooleanResult, Cell, Coincidence, DecisionSite,
-    Operand, Relation, RowCell, union,
+    AtRestBody, Backing, BooleanBody, BooleanInputs, BooleanResult, Cell, Coincidence,
+    DecisionSite, Operand, Relation, RowCell, union,
 };
 
 fn tol() -> Tol {
@@ -213,8 +213,7 @@ fn blocks_apart_record_no_row_axis_aligned_or_turned() {
     for turn in [0.0, core::f64::consts::FRAC_PI_4] {
         let a = turned_square((0.0, 0.0), turn, "a");
         let b = turned_square((1.2, 0.0), turn, "b");
-        let r = union(&a, &b, tol())
-            .unwrap_or_else(|e| panic!("the union at turn {turn}: {e:?}"));
+        let r = union(&a, &b, tol()).unwrap_or_else(|e| panic!("the union at turn {turn}: {e:?}"));
         assert_eq!(face_pair_rows(&r), 0, "turn {turn}: {r:?}");
     }
 }
@@ -229,8 +228,7 @@ fn blocks_side_by_side_record_equal_rows_axis_aligned_and_turned() {
     let rows = [0.0, core::f64::consts::FRAC_PI_4].map(|turn| {
         let a = turned_square((0.0, 0.0), turn, "a");
         let b = turned_square((1.0, 0.0), turn, "b");
-        let r = union(&a, &b, tol())
-            .unwrap_or_else(|e| panic!("the union at turn {turn}: {e:?}"));
+        let r = union(&a, &b, tol()).unwrap_or_else(|e| panic!("the union at turn {turn}: {e:?}"));
         face_pair_rows(&r)
     });
     assert_eq!(rows[0], rows[1], "axis-aligned vs turned: {rows:?}");
@@ -269,8 +267,7 @@ fn a_block_apart_in_an_l_notch_records_no_row() {
     // opposed).
     for z in [(0.0, 1.0), (1.0, 2.0)] {
         let block = box_of((2.5, 3.5), (2.5, 3.5), z, "the block");
-        let r = union(&l, &block, tol())
-            .unwrap_or_else(|e| panic!("the union at {z:?}: {e:?}"));
+        let r = union(&l, &block, tol()).unwrap_or_else(|e| panic!("the union at {z:?}: {e:?}"));
         assert_eq!(face_pair_rows(&r), 0, "{z:?}: {r:?}");
     }
 }

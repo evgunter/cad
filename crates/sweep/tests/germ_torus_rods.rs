@@ -30,7 +30,7 @@ use crate::revolve_common::{self, axis_y, validated};
 use geom_core::{Band, Point3, Tol, Vec3};
 use sweep::{Revolution, revolve};
 use test_utils::fuzz;
-use topo::{Body, BooleanDeclarations, BooleanResult};
+use topo::{Body, BooleanResult};
 
 fn volume(b: &Body<f64>) -> f64 {
     topo::mass_properties(b, Tol::witness())
@@ -76,7 +76,7 @@ fn random_rods_through_the_tube_never_answer_a_wrong_body() {
         };
         let mut vols = [None; 3];
         for (k, (op, r)) in
-            subtract_both_orders_and_intersect(&donut, &rod, &BooleanDeclarations::none())
+            subtract_both_orders_and_intersect(&donut, &rod)
                 .into_iter()
                 .enumerate()
         {

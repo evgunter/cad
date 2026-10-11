@@ -13,7 +13,9 @@ use crate::common;
 use common::prism;
 use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
-use topo::{Body, PlaneSide, SplitPlane, SplitReduceError, VertexKey, classify_neighborhood, split_reduce};
+use topo::{
+    Body, PlaneSide, SplitPlane, SplitReduceError, VertexKey, classify_neighborhood, split_reduce,
+};
 
 /// The split plane y = 1, Above = +y (the fixtures' tool).
 fn plane_y1<T: geom_core::Decide>() -> SplitPlane<T> {

@@ -24,7 +24,10 @@ use crate::common;
 
 use geom::Surface;
 use geom_core::{Band, Point3, Tol};
-use topo::{Body, ChartOverlap, ChartRegionError, ContactVerdict, FaceKey, FaceSurface, declared_pair_overlap};
+use topo::{
+    Body, ChartOverlap, ChartRegionError, ContactVerdict, FaceKey, FaceSurface,
+    declared_pair_overlap,
+};
 
 fn band() -> Band {
     let tol = Tol::witness();

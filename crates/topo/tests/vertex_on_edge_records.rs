@@ -9,7 +9,10 @@
 use crate::common;
 
 use geom_core::Tol;
-use topo::{Body, CensusContact, ContactRecords, EdgeKey, StaleDeclaration, ValidationError, VeContact, VertexKey, VfContact, validate_pseudomanifold};
+use topo::{
+    Body, CensusContact, ContactRecords, EdgeKey, StaleDeclaration, ValidationError, VeContact,
+    VertexKey, VfContact, validate_pseudomanifold,
+};
 
 /// `a ∪ b` carrying `inputs`.
 fn united(
@@ -303,9 +306,7 @@ fn joined_edge_touch(tol: Tol) -> topo::BooleanBody<f64> {
         common::brick((0.5, 1.5), (-1.0, 0.0), (-1.0, 0.0), tol),
         tol,
     );
-    let topo::BooleanResult::Body(y) =
-        topo::union(&a, &c, tol).expect("a ∪ c")
-    else {
+    let topo::BooleanResult::Body(y) = topo::union(&a, &c, tol).expect("a ∪ c") else {
         panic!("a ∪ c came back empty");
     };
     y
@@ -372,8 +373,8 @@ fn a_vertex_on_edge_record_follows_its_vertex_onto_a_piece_of_a_split_edge() {
             records_a: carried.clone(),
             ..topo::BooleanInputs::default()
         };
-        let topo::BooleanResult::Body(out) = united(&y.body, &s, &inputs, tol)
-            .unwrap_or_else(|e| panic!("slab {slab:?}: {e:?}"))
+        let topo::BooleanResult::Body(out) =
+            united(&y.body, &s, &inputs, tol).unwrap_or_else(|e| panic!("slab {slab:?}: {e:?}"))
         else {
             panic!("slab {slab:?}: empty");
         };
@@ -427,9 +428,7 @@ fn a_vertex_on_edge_record_stays_before_a_split_moves_past_it_and_meets_it() {
         common::brick((0.0, 1.0), (-0.5, 0.5), (0.0, 1.0), tol),
         tol,
     );
-    let topo::BooleanResult::Body(y) =
-        topo::union(&b, &c, tol).expect("b ∪ c")
-    else {
+    let topo::BooleanResult::Body(y) = topo::union(&b, &c, tol).expect("b ∪ c") else {
         panic!("b ∪ c came back empty");
     };
     let corner = vertex_at(&y.body, [0.0, 0.0, 0.0]);
@@ -470,8 +469,8 @@ fn a_vertex_on_edge_record_stays_before_a_split_moves_past_it_and_meets_it() {
             records_a: carried.clone(),
             ..topo::BooleanInputs::default()
         };
-        let topo::BooleanResult::Body(out) = united(&y.body, &s, &inputs, tol)
-            .unwrap_or_else(|e| panic!("slab {slab:?}: {e:?}"))
+        let topo::BooleanResult::Body(out) =
+            united(&y.body, &s, &inputs, tol).unwrap_or_else(|e| panic!("slab {slab:?}: {e:?}"))
         else {
             panic!("slab {slab:?}: empty");
         };
@@ -520,8 +519,8 @@ fn a_vertex_on_edge_record_stays_before_a_split_moves_past_it_and_meets_it() {
 /// box's edge runs along (0, 1, 1)/√2 through that point, which is its
 /// own edge's midpoint, and its material opens away from the cube on
 /// both sides of the cube's top-front edge, so the two edges cross skew
-/// there and the bodies meet nowhere else. Built by the boolean, with no
-/// declarations: the union crosses the two edges and records the two
+/// there and the bodies meet nowhere else. Built by the boolean: the
+/// union crosses the two edges and records the two
 /// vertices it cut them at.
 fn skew_crossing(tol: Tol) -> topo::BooleanBody<f64> {
     let cube = common::finished(
@@ -542,9 +541,7 @@ fn skew_crossing(tol: Tol) -> topo::BooleanBody<f64> {
         ),
         tol,
     );
-    let topo::BooleanResult::Body(out) =
-        topo::union(&cube, &box_, tol)
-            .expect("cube ∪ box")
+    let topo::BooleanResult::Body(out) = topo::union(&cube, &box_, tol).expect("cube ∪ box")
     else {
         panic!("cube ∪ box came back empty");
     };
@@ -610,8 +607,8 @@ fn crossing_into(y: &topo::BooleanBody<f64>, slab: (f64, f64), tol: Tol) -> topo
         },
         ..topo::BooleanInputs::default()
     };
-    let topo::BooleanResult::Body(out) = united(&y.body, &s, &inputs, tol)
-        .unwrap_or_else(|e| panic!("slab {slab:?}: {e:?}"))
+    let topo::BooleanResult::Body(out) =
+        united(&y.body, &s, &inputs, tol).unwrap_or_else(|e| panic!("slab {slab:?}: {e:?}"))
     else {
         panic!("slab {slab:?}: empty");
     };
@@ -729,9 +726,7 @@ fn a_split_at_the_other_edges_end_records_a_vertex_vertex_pair() {
         common::brick((0.5, 1.5), (-1.0, 0.0), (1.0, 2.0), tol),
         tol,
     );
-    let topo::BooleanResult::Body(y) =
-        topo::union(&a, &b, tol).expect("a ∪ b")
-    else {
+    let topo::BooleanResult::Body(y) = topo::union(&a, &b, tol).expect("a ∪ b") else {
         panic!("a ∪ b came back empty");
     };
     let a_edge = edge_between(&y.body, [0.0, 0.0, 1.0], [1.0, 0.0, 1.0]);
@@ -793,8 +788,7 @@ fn a_split_at_the_other_edges_end_records_a_vertex_vertex_pair() {
         },
         ..topo::BooleanInputs::default()
     };
-    let topo::BooleanResult::Body(out) =
-        united(&y.body, &plate, &inputs, tol).expect("y ∪ plate")
+    let topo::BooleanResult::Body(out) = united(&y.body, &plate, &inputs, tol).expect("y ∪ plate")
     else {
         panic!("y ∪ plate came back empty");
     };

@@ -38,7 +38,10 @@ use crate::common;
 use common::{brick, finished, prism_z};
 use geom_core::Decide;
 use geom_core::Tol;
-use topo::{AtRestBody, BooleanBody, BooleanResult, intersect, mass_properties, subtract, union, validate, validate_closed, validate_pseudomanifold};
+use topo::{
+    AtRestBody, BooleanBody, BooleanResult, intersect, mass_properties, subtract, union, validate,
+    validate_closed, validate_pseudomanifold,
+};
 
 /// Tube: outer [1,3]², hole [1.5,2.5]², z ∈ [0.5, 3] (cutter strictly
 /// taller so the subtract pierces cleanly).

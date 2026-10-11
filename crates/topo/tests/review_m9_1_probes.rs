@@ -13,7 +13,10 @@ use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
 use topo::boolean::contact_verify::tangent_locus_relation;
 use topo::boolean::plane_eq::PlaneIdentity;
-use topo::{CarrierDesc, CarrierEqError, CarrierRelation, ContactRecords, ContactRefusal, ContactVerdict, CurveContact, PatchContact, ValidationError, carrier_eq, validate_pseudomanifold};
+use topo::{
+    CarrierDesc, CarrierEqError, CarrierRelation, ContactRecords, ContactRefusal, ContactVerdict,
+    CurveContact, PatchContact, ValidationError, carrier_eq, validate_pseudomanifold,
+};
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
@@ -331,8 +334,7 @@ fn probe_records_partialeq_bites_on_mutation() {
         brick::<f64>((0.5, 1.5), (0.25, 1.25), (1.0, 2.0), Tol::witness()),
         Tol::witness(),
     );
-    let topo::BooleanResult::Body(out) = topo::union(&a, &b, Tol::witness()).unwrap()
-    else {
+    let topo::BooleanResult::Body(out) = topo::union(&a, &b, Tol::witness()).unwrap() else {
         panic!("union is a body");
     };
     let mut mutated = out.contacts.clone();
@@ -382,4 +384,3 @@ fn probe_aq6_definite_beats_declaration_both_directions() {
         Err(CarrierEqError::Contradicted { .. })
     ));
 }
-

@@ -77,9 +77,8 @@
 //!   against a fresh re-certification: a check of a body that
 //!   evaluates, so it routes beside [`orient`] rather than beside the
 //!   readers of stored data;
-//! - [`revert_ops`] — ∖ in both operand orders and ∩ under one set of
-//!   declarations, swapped for the reversed order: what a suite drives
-//!   a door WITH, as [`poses`];
+//! - [`revert_ops`] — ∖ in both operand orders and ∩: what a suite
+//!   drives a door WITH, as [`poses`];
 //! - [`seam_pairs`] — the face pairs of two face sets that meet along
 //!   a curve, so a seam or `Tangent` declaration names only those: what
 //!   a suite drives a door WITH, as [`revert_ops`];

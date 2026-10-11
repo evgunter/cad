@@ -389,10 +389,10 @@ fn no_order_of_the_probe_corpus_refuses_several_shared_rims() {
             }
         }
     }
-    // 172 cells fuse. In the two orders of `row` and `rowids` that fold `a` and
+    // 256 cells fuse. In the two orders of `row` and `rowids` that fold `a` and
     // `h` first, and in four of `cross`, the emitter reaches a residue
     // ([`RESIDUES`]).
-    assert_eq!(fused, 172, "cells fused");
+    assert_eq!(fused, 256, "cells fused");
     assert_eq!(
         residue,
         [

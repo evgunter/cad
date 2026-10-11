@@ -37,7 +37,10 @@ use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
 use geom_core::spline::KnotVector;
 use geom_core::{Point3, Tol, Vec3};
 use topo::readback::{ReadbackError, edge_carrier_kind, edge_pose, face_carrier_kind, face_pose};
-use topo::{Body, CurveKind, EdgeKey, EntityId, FaceKey, FaceSurface, MevSite, NewVertexSide, Surface, query};
+use topo::{
+    Body, CurveKind, EdgeKey, EntityId, FaceKey, FaceSurface, MevSite, NewVertexSide, Surface,
+    query,
+};
 
 /// A seed face carrying `surface`.
 fn seed_face(surface: Surface<f64>) -> (Body<f64>, FaceKey) {

@@ -22,7 +22,10 @@ use crate::common;
 use common::meeting::{MEET, Pose, apex_pyramid, at, poses};
 use common::{FaceGeometry, describe_as_intersections, finished, prism_ops};
 use geom_core::{Band, Tol};
-use topo::{AtRestBody, Body, BooleanError, BooleanResult, Operand, SideCode, SolidContainment, intersect, point_in_solid, readback, subtract, union};
+use topo::{
+    AtRestBody, Body, BooleanError, BooleanResult, Operand, SideCode, SolidContainment, intersect,
+    point_in_solid, readback, subtract, union,
+};
 
 fn t() -> Tol {
     Tol::witness()

@@ -38,7 +38,10 @@ use crate::common;
 use common::finished;
 use common::meeting::{MEET, PLATE, at, corners_disjoint, orders, shape};
 use geom_core::{Point3, Tol};
-use topo::{AtRestBody, BooleanBody, BooleanError, BooleanResult, union, validate_geometric, validate_pseudomanifold};
+use topo::{
+    AtRestBody, BooleanBody, BooleanError, BooleanResult, union, validate_geometric,
+    validate_pseudomanifold,
+};
 
 fn t() -> Tol {
     Tol::witness()

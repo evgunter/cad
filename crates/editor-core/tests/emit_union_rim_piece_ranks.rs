@@ -377,31 +377,9 @@ pub(crate) fn runs_in(
 /// `work/emit/union-refuses-in-some-member-orders-and-publishes-in-others.md`
 /// and the rows it cites; a change here is a change to that row, measured.
 const KNOWN_MIXED: &[(&str, &str, usize, &str)] = &[
-    ("row", "U", 18, "DeclareResolve:16/Naming:2"),
-    ("rowids", "U", 18, "DeclareResolve:16/Naming:2"),
-    ("abg", "U", 2, "DeclareResolve:2"),
-    ("abgids", "U", 2, "DeclareResolve:2"),
-    ("abglow", "U", 2, "DeclareResolve:2"),
-    ("abgg2", "U", 16, "DeclareResolve:16"),
-    ("cross", "U", 12, "DeclareResolve:8/Naming:4"),
-    ("fam000", "U", 2, "DeclareResolve:2"),
-    ("fam001", "U", 2, "DeclareResolve:2"),
-    ("fam002", "U", 2, "DeclareResolve:2"),
-    ("fam012", "U", 2, "DeclareResolve:2"),
-    ("fam022", "U", 2, "DeclareResolve:2"),
-    ("fam100", "U", 4, "DeclareResolve:4"),
-    ("fam101", "U", 4, "DeclareResolve:4"),
-    ("fam102", "U", 4, "DeclareResolve:4"),
-    ("fam112", "U", 4, "DeclareResolve:4"),
-    ("fam122", "U", 4, "DeclareResolve:4"),
-    ("fam200", "U", 2, "DeclareResolve:2"),
-    ("fam201", "U", 2, "DeclareResolve:2"),
-    ("fam202", "U", 2, "DeclareResolve:2"),
-    ("fam212", "U", 2, "DeclareResolve:2"),
-    ("fam222", "U", 2, "DeclareResolve:2"),
-    ("r1flush", "U", 18, "DeclareResolve:18"),
-    ("r2endsg", "U", 12, "DeclareResolve:12"),
-    ("r4trig", "U", 12, "DeclareResolve:12"),
+    ("row", "U", 2, "Naming:2"),
+    ("rowids", "U", 2, "Naming:2"),
+    ("cross", "U", 4, "Naming:4"),
 ];
 
 /// **The cases whose fused orders publish different name sets**, pinned:
@@ -1035,26 +1013,33 @@ fn orders_that(outcomes: &[(Vec<usize>, String)], what: &str) -> Vec<Vec<usize>>
         .collect()
 }
 
-/// **A covered contact decides alike declared or not, in every member
-/// order** (DM4's contact rule). `row` is `a`, `b`, `g`, `h`, with
-/// `(a, b)` got; `b` covers the `(a, h)` contact. The margins decide
-/// `(a, h)` one carrier, so leaving it undeclared or declaring it gives
-/// every one of the 24 orders the same outcome, whichever order the
-/// members are in and whichever order they were created in (`rowids`):
-/// 6 orders fuse, 2 refuse `Emission`
-/// (`a-legal-declared-union-reaches-the-seam-vertex-parentage-residue-emission`)
-/// and 16 refuse `DeclareResolve` on a got face the fold split
-/// (`union-refuses-in-some-member-orders-and-publishes-in-others`).
+/// **A covered contact decides alike in every creation order**
+/// (DM4's contact rule). `row` is `a`, `b`, `g`, `h`; `b` covers the
+/// `(a, h)` contact, which the margins decide one carrier. Each of the
+/// 24 member orders has the same outcome whichever order the members
+/// were created in (`rowids`): the orders below fuse, and the orders
+/// that fold `a` and `h` first refuse `Emission`
+/// (`a-legal-declared-union-reaches-the-seam-vertex-parentage-residue-emission`).
 #[test]
-fn a_covered_contact_decides_alike_declared_or_not_in_every_order() {
+fn a_covered_contact_decides_alike_in_every_order() {
     let g = ((0.3, 0.4), (-1.0, 2.0), (0.5, 3.0));
     let fused = [
         vec![0, 1, 2, 3],
         vec![0, 1, 3, 2],
+        vec![0, 2, 1, 3],
         vec![1, 0, 2, 3],
         vec![1, 0, 3, 2],
         vec![1, 2, 0, 3],
+        vec![1, 2, 3, 0],
+        vec![1, 3, 0, 2],
+        vec![1, 3, 2, 0],
+        vec![2, 0, 1, 3],
         vec![2, 1, 0, 3],
+        vec![2, 1, 3, 0],
+        vec![2, 3, 1, 0],
+        vec![3, 1, 0, 2],
+        vec![3, 1, 2, 0],
+        vec![3, 2, 1, 0],
     ];
     for (label, creation) in [("row", [0, 1, 2, 3]), ("rowids", [3, 2, 1, 0])] {
         let got = outcomes(&[A, B, g, H], &creation);
@@ -1064,21 +1049,14 @@ fn a_covered_contact_decides_alike_declared_or_not_in_every_order() {
             [vec![0, 3, 1, 2], vec![3, 0, 1, 2]],
             "{label}"
         );
-        assert_eq!(
-            orders_that(&got, "DeclareResolve").len(),
-            16,
-            "{label}"
-        );
     }
 }
 
-/// **The covered-contact row itself: `{a, b, h}`**, alike got or
-/// not. `[a, b, h]` and `[b, a, h]` fuse: `b` consumes `a`'s wall whole
-/// before `h` joins, so a declaration of `(a, h)` is satisfied. The
-/// other four refuse: `Emission` where `a` and `h` meet first, and
-/// `DeclareResolve` on a face of `b` that `h` split, which is GATHER's.
+/// **The covered-contact row itself: `{a, b, h}`.** `[a, b, h]`,
+/// `[b, a, h]`, `[b, h, a]` and `[h, b, a]` fuse; `Emission` where `a`
+/// and `h` meet first.
 #[test]
-fn a_contact_b_covers_decides_alike_declared_or_not() {
+fn a_contact_b_covers_decides_in_every_order() {
     let got = outcomes(&[A, B, H], &[0, 1, 2]);
     assert_eq!(
         got,
@@ -1086,9 +1064,9 @@ fn a_contact_b_covers_decides_alike_declared_or_not() {
             (vec![0, 1, 2], "fuse"),
             (vec![0, 2, 1], "Emission"),
             (vec![1, 0, 2], "fuse"),
-            (vec![1, 2, 0], "DeclareResolve"),
+            (vec![1, 2, 0], "fuse"),
             (vec![2, 0, 1], "Emission"),
-            (vec![2, 1, 0], "DeclareResolve"),
+            (vec![2, 1, 0], "fuse"),
         ]
         .map(|(o, r)| (o, r.to_string()))
     );

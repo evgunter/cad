@@ -19,7 +19,11 @@ use geom::Surface;
 use geom_brep::{EdgeDescriptionSpec, MappedCurve, MappedSource, SketchSegment, newell_plane};
 use geom_core::Tol;
 use geom_core::{Affine3, Arc2, Band, Decide, Point2, Point3, Vec3};
-use topo::{BadArgument, Body, EdgeCurveSpec, EdgeDescription, EntityId, EulerOpError, FaceSurface, GeomRef, MefSite, MevSite, SurfaceKey, ValidationError, validate, validate_closed, validate_geometric};
+use topo::{
+    BadArgument, Body, EdgeCurveSpec, EdgeDescription, EntityId, EulerOpError, FaceSurface,
+    GeomRef, MefSite, MevSite, SurfaceKey, ValidationError, validate, validate_closed,
+    validate_geometric,
+};
 
 use crate::common;
 

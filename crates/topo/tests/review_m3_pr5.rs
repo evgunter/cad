@@ -16,7 +16,10 @@ use crate::common;
 use common::{brick, finished, prism_z};
 use geom_core::Tol;
 use geom_core::{Band, Decide, Point3};
-use topo::{AtRestBody, Body, BooleanBody, BooleanError, BooleanResult, BooleanResultKind, SolidContainment, mass_properties, point_in_solid, subtract, union, validate, validate_closed};
+use topo::{
+    AtRestBody, Body, BooleanBody, BooleanError, BooleanResult, BooleanResultKind,
+    SolidContainment, mass_properties, point_in_solid, subtract, union, validate, validate_closed,
+};
 
 /// The R2/R3 U-slab (nonconvex caps, two prongs).
 fn uslab() -> AtRestBody<f64> {
@@ -49,21 +52,12 @@ fn finished_brick<T: Decide + topo::AtRestPolicy>(
     finished("brick", brick::<T>(x, y, z, tol), tol)
 }
 
-type BoolOp<T> = fn(
-    &AtRestBody<T>,
-    &AtRestBody<T>,
-    Tol,
-) -> Result<BooleanResult<T>, BooleanError>;
+type BoolOp<T> = fn(&AtRestBody<T>, &AtRestBody<T>, Tol) -> Result<BooleanResult<T>, BooleanError>;
 
 /// Functional run: operands bitwise untouched, result tier-1+2 valid.
 fn run<T: Decide>(op: BoolOp<T>, a: &AtRestBody<T>, b: &AtRestBody<T>) -> BooleanResult<T> {
     let (a0, b0) = (format!("{a:?}"), format!("{b:?}"));
-    let r = op(
-        a,
-        b,
-        Tol::witness(),
-    )
-    .unwrap();
+    let r = op(a, b, Tol::witness()).unwrap();
     assert_eq!(format!("{a:?}"), a0, "operand A untouched");
     assert_eq!(format!("{b:?}"), b0, "operand B untouched");
     if let BooleanResult::Body(body) = &r {
@@ -211,11 +205,7 @@ fn pocket_orientation_matrix() {
     for (name, x, y, z) in pillars {
         let a = finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
         let b = finished_brick::<f64>(x, y, z);
-        match subtract(
-            &a,
-            &b,
-            Tol::witness(),
-        ) {
+        match subtract(&a, &b, Tol::witness()) {
             Ok(BooleanResult::Body(body)) => {
                 assert_eq!(validate_closed(&body.body), Ok(()), "{name}");
                 let m = mass_properties(&body.body, Tol::witness()).unwrap();
@@ -286,10 +276,7 @@ fn flush_pillar_rest_union_honest() {
     let body = body_of(&r);
     assert_eq!(body.kind, BooleanResultKind::OperandA);
     assert_props(&body.body, 8.0, 24.0);
-    assert!(matches!(
-        run(topo::intersect, &a, &b),
-        BooleanResult::Empty
-    ));
+    assert!(matches!(run(topo::intersect, &a, &b), BooleanResult::Empty));
 }
 
 /// Corner-flush rest: the pillar's bottom rests flush at A's top-face
@@ -299,11 +286,7 @@ fn flush_pillar_rest_union_honest() {
 fn corner_flush_pillar_union_honest() {
     let a = finished_brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = finished_brick::<f64>((0.0, 0.5), (0.0, 0.5), (2.0, 3.0));
-    match union(
-        &a,
-        &b,
-        Tol::witness(),
-    ) {
+    match union(&a, &b, Tol::witness()) {
         Ok(BooleanResult::Body(body)) => {
             assert_eq!(validate_closed(&body.body), Ok(()));
             let m = mass_properties(&body.body, Tol::witness()).unwrap();

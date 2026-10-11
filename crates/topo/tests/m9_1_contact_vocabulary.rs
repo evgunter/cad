@@ -53,4 +53,3 @@ fn a_rest_unions_and_replays_records_bit_identically() {
         mass_properties(&y.body, Tol::witness()).unwrap().volume
     );
 }
-

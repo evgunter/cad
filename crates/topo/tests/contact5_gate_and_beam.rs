@@ -11,7 +11,11 @@
 
 use crate::common;
 use geom_core::{Band, Point3, Tol};
-use topo::{Body, CensusContact, ContactRecords, EntityId, PatchContact, SolidContainment, SolidKey, ValidationError, VfContact, VoidContainment, VoidEvidence, insert_void, validate_pseudomanifold};
+use topo::{
+    Body, CensusContact, ContactRecords, EntityId, PatchContact, SolidContainment, SolidKey,
+    ValidationError, VfContact, VoidContainment, VoidEvidence, insert_void,
+    validate_pseudomanifold,
+};
 
 fn block(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
     common::brick::<f64>(x, y, z, Tol::witness())

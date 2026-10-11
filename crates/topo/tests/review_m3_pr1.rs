@@ -10,7 +10,10 @@
 
 use geom_core::Point3;
 use topo::readback::euler_counts;
-use topo::{Body, EulerOpError, FaceSurface, MefSite, MevSite, NewVertexSide, ValidationError, validate, validate_closed, validate_geometric};
+use topo::{
+    Body, EulerOpError, FaceSurface, MefSite, MevSite, NewVertexSide, ValidationError, validate,
+    validate_closed, validate_geometric,
+};
 
 use crate::common;
 use common::{describe_as_intersections, geometric_cube, line, plane};

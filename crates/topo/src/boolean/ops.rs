@@ -6626,8 +6626,7 @@ mod tests {
     #[test]
     fn a_dead_end_drops_and_a_refused_fusion_fails_its_absorb() {
         use super::{Descendants, KeyView};
-        use crate::boolean::{
-CarriedRecord, ContactRecords, Glue, OperandRecords, VvContact};
+        use crate::boolean::{CarriedRecord, ContactRecords, Glue, OperandRecords, VvContact};
         use crate::entity::VertexKey;
 
         let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
@@ -6737,8 +6736,7 @@ CarriedRecord, ContactRecords, Glue, OperandRecords, VvContact};
     #[test]
     fn a_cycling_absorption_row_refuses_where_a_dead_end_drops() {
         use super::{Descendants, KeyView};
-        use crate::boolean::{
-CarriedRecord, ContactRecords, Glue, OperandRecords, VfContact};
+        use crate::boolean::{CarriedRecord, ContactRecords, Glue, OperandRecords, VfContact};
         use crate::entity::FaceKey;
 
         let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];

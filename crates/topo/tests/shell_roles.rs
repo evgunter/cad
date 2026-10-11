@@ -18,7 +18,9 @@ use crate::common;
 
 use common::{brick, finished};
 use geom_core::{Sign, Tol};
-use topo::{Body, BooleanResult, BooleanResultKind, ShellRole, classify_shells, mass_properties, subtract};
+use topo::{
+    Body, BooleanResult, BooleanResultKind, ShellRole, classify_shells, mass_properties, subtract,
+};
 
 /// `A ∖ B` with `B` strictly inside `A`: the void birth — one solid,
 /// two shells (outer + reverted interior).

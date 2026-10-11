@@ -119,13 +119,7 @@ fn control_ring_face_from_interior_pillar() {
         brick((0.75, 1.25), (0.75, 1.25), (2.0, 3.0), Tol::witness()),
         Tol::witness(),
     );
-    let g = match union(
-        &a,
-        &b,
-        Tol::witness(),
-    )
-    .unwrap()
-    {
+    let g = match union(&a, &b, Tol::witness()).unwrap() {
         BooleanResult::Body(g) => g,
         BooleanResult::Empty => panic!("pillar union cannot be empty"),
     };
@@ -159,13 +153,7 @@ fn ring_sense_bridge_census() {
     let BooleanResult::Body(bb) = subtract(&blank, &notch, Tol::witness()).unwrap() else {
         panic!("bridge subtract yields a body");
     };
-    let g = match union(
-        &a,
-        &bb.body,
-        Tol::witness(),
-    )
-    .unwrap()
-    {
+    let g = match union(&a, &bb.body, Tol::witness()).unwrap() {
         BooleanResult::Body(g) => g,
         BooleanResult::Empty => panic!("bridge union cannot be empty"),
     };

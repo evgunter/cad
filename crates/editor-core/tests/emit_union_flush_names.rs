@@ -265,32 +265,9 @@ fn near_slab() -> Case {
 /// fail on any refusal not pinned here, so a new one cannot pass by
 /// being skipped.
 const KNOWN_REFUSING: &[(&str, &str, usize, &str)] = &[
-    ("abg", "U", 2, "DeclareResolve:2"),
-    ("abgg2", "U", 16, "DeclareResolve:16"),
-    ("abgids", "U", 2, "DeclareResolve:2"),
-    ("abglow", "U", 2, "DeclareResolve:2"),
-    ("cross", "U", 12, "DeclareResolve:8/Naming:4"),
-    ("fam000", "U", 2, "DeclareResolve:2"),
-    ("fam001", "U", 2, "DeclareResolve:2"),
-    ("fam002", "U", 2, "DeclareResolve:2"),
-    ("fam012", "U", 2, "DeclareResolve:2"),
-    ("fam022", "U", 2, "DeclareResolve:2"),
-    ("fam100", "U", 4, "DeclareResolve:4"),
-    ("fam101", "U", 4, "DeclareResolve:4"),
-    ("fam102", "U", 4, "DeclareResolve:4"),
-    ("fam112", "U", 4, "DeclareResolve:4"),
-    ("fam122", "U", 4, "DeclareResolve:4"),
-    ("fam200", "U", 2, "DeclareResolve:2"),
-    ("fam201", "U", 2, "DeclareResolve:2"),
-    ("fam202", "U", 2, "DeclareResolve:2"),
-    ("fam212", "U", 2, "DeclareResolve:2"),
-    ("fam222", "U", 2, "DeclareResolve:2"),
-    ("near", "U", 2, "DeclareResolve:2"),
-    ("r1flush", "U", 18, "DeclareResolve:18"),
-    ("r2endsg", "U", 12, "DeclareResolve:12"),
-    ("r4trig", "U", 12, "DeclareResolve:12"),
-    ("row", "U", 18, "DeclareResolve:16/Naming:2"),
-    ("rowids", "U", 18, "DeclareResolve:16/Naming:2"),
+    ("cross", "U", 4, "Naming:4"),
+    ("row", "U", 2, "Naming:2"),
+    ("rowids", "U", 2, "Naming:2"),
 ];
 
 /// Every refusal `case`'s runs meet, pinned against [`KNOWN_REFUSING`]

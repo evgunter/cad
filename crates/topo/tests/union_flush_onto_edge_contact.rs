@@ -73,8 +73,7 @@ fn members(c_span: (f64, f64), tol: Tol) -> [AtRestBody<f64>; 3] {
     ]
 }
 
-/// Folds `order`, each step declaring its flush pairs and, when
-/// `carry`, carrying the accumulator's own records in ([`carried_rows`]).
+/// Folds `order`, each step, when `carry`, carrying the accumulator's own records in ([`carried_rows`]).
 /// Every step's result, or the refusal and the step it came at.
 fn fold(
     bodies: &[AtRestBody<f64>; 3],
@@ -154,7 +153,7 @@ fn carried_records_certify_every_order_of_the_fold() {
     }
 }
 
-/// Every row of `records` carried in as `Rest`: the v-v rows, and the
+/// Every row of `records` carried in: the v-v rows, and the
 /// `(vertex, edge)` and edge-edge rows a join leaves.
 fn carried_rows(records: &topo::ContactRecords) -> topo::OperandRecords {
     topo::OperandRecords {
@@ -256,9 +255,7 @@ fn quarter_pinch(
             tol,
         )
     });
-    let BooleanResult::Body(pinch) =
-        union(&p, &q, tol).expect("an edge contact builds")
-    else {
+    let BooleanResult::Body(pinch) = union(&p, &q, tol).expect("an edge contact builds") else {
         panic!("a union of two bricks came back empty");
     };
     assert_eq!(
@@ -464,8 +461,10 @@ fn clip(subject: &[(f64, f64)], window: &[(f64, f64)]) -> Vec<(f64, f64)> {
 /// the cutter by that much per unit of height ([`sheared`]).
 fn crossings_at_one_corner(spans: &[(f64, f64)], cutter: (f64, f64), shear: (f64, f64), tol: Tol) {
     let fold = |acc: &BooleanBody<f64>, next: &AtRestBody<f64>| {
-        let mut decls = BooleanInputs::default();
-        decls.records_a = carried_rows(&acc.contacts);
+        let decls = BooleanInputs {
+            records_a: carried_rows(&acc.contacts),
+            ..BooleanInputs::default()
+        };
         match union_in(&acc.body, next, &decls, tol).expect("a touching wedge folds in") {
             BooleanResult::Body(out) => out,
             BooleanResult::Empty => panic!("a union of wedges came back empty"),
@@ -475,12 +474,9 @@ fn crossings_at_one_corner(spans: &[(f64, f64)], cutter: (f64, f64), shear: (f64
         .iter()
         .map(|&(d0, d1)| wedge(d0, d1, (0.5, 1.5), tol))
         .collect();
-    let BooleanResult::Body(two) = union(
-        &wedges[0],
-        &wedges[1],
-        tol,
-    )
-    .expect("two wedges touching along an edge build") else {
+    let BooleanResult::Body(two) =
+        union(&wedges[0], &wedges[1], tol).expect("two wedges touching along an edge build")
+    else {
         panic!("a union of wedges came back empty");
     };
     let pinch = wedges[2..].iter().fold(two, |acc, next| fold(&acc, next));
@@ -933,11 +929,7 @@ fn a_face_through_a_pinch_line_builds_in_every_op() {
             subtract_in(&pinch.body, &upper, &cut, tol),
             1.5,
         ),
-        (
-            "pinch ∪ wall",
-            union_in(&pinch.body, &wall, &ab, tol),
-            3.5,
-        ),
+        ("pinch ∪ wall", union_in(&pinch.body, &wall, &ab, tol), 3.5),
         (
             "pinch ∖ wall",
             subtract_in(&pinch.body, &wall, &ab, tol),
@@ -948,11 +940,7 @@ fn a_face_through_a_pinch_line_builds_in_every_op() {
             intersect_in(&pinch.body, &wall, &ab, tol),
             0.5,
         ),
-        (
-            "wall ∪ pinch",
-            union_in(&wall, &pinch.body, &ba, tol),
-            3.5,
-        ),
+        ("wall ∪ pinch", union_in(&wall, &pinch.body, &ba, tol), 3.5),
     ] {
         let BooleanResult::Body(out) = got.unwrap_or_else(|e| panic!("{op} refused: {e:?}")) else {
             panic!("{op} came back empty");
@@ -990,9 +978,7 @@ fn a_four_row_remap_group_certifies_a_subtract_of_two_pinches() {
         brick::<f64>((0.0, 1.0), (-1.0, 0.0), (1.0, 2.0), tol),
         tol,
     );
-    let BooleanResult::Body(pinch_b) =
-        union(&q2, &q4, tol).expect("a pinch builds")
-    else {
+    let BooleanResult::Body(pinch_b) = union(&q2, &q4, tol).expect("a pinch builds") else {
         panic!("a union of two bricks came back empty");
     };
     let mut decls = BooleanInputs::default();
@@ -1042,10 +1028,14 @@ fn against_the_cube(
         brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
         tol,
     );
-    let mut ab = BooleanInputs::default();
-    ab.records_a = carried.clone();
-    let mut ba = BooleanInputs::default();
-    ba.records_b = carried.clone();
+    let ab = BooleanInputs {
+        records_a: carried.clone(),
+        ..BooleanInputs::default()
+    };
+    let ba = BooleanInputs {
+        records_b: carried.clone(),
+        ..BooleanInputs::default()
+    };
     topo::test_support::ops_under_test(|| {
         [
             ("y ∪ cube", union_in(y, &cube, &ab, tol)),
@@ -1325,21 +1315,22 @@ fn pit_holding_spikes_built(
         brick::<f64>((-1.0, 1.0), (-1.0, 1.0), (-1.0, 1.0), tol),
         tol,
     );
-    let BooleanResult::Body(mut y) =
-        subtract(&block, &pit, tol)
-            .expect("the pit is cut")
-    else {
+    let BooleanResult::Body(mut y) = subtract(&block, &pit, tol).expect("the pit is cut") else {
         panic!("the block ∖ pit came back empty");
     };
     for &(rays, scale) in spikes {
         let spike = corner_prism(rays, scale, tol);
         let got = if spike_first {
-            let mut decls = BooleanInputs::default();
-            decls.records_b = carried_rows(&y.contacts);
+            let decls = BooleanInputs {
+                records_b: carried_rows(&y.contacts),
+                ..BooleanInputs::default()
+            };
             union_in(&spike, &y.body, &decls, tol)
         } else {
-            let mut decls = BooleanInputs::default();
-            decls.records_a = carried_rows(&y.contacts);
+            let decls = BooleanInputs {
+                records_a: carried_rows(&y.contacts),
+                ..BooleanInputs::default()
+            };
             union_in(&y.body, &spike, &decls, tol)
         };
         let BooleanResult::Body(next) = got.expect("the spike touches the pit's apex") else {
@@ -1477,19 +1468,18 @@ fn lens_ys(
         brick::<f64>((-1.0, 1.0), (-1.0, 1.0), (-1.0, 1.0), tol),
         tol,
     );
-    let BooleanResult::Body(cut) = subtract(
-        &block,
-        &k.body,
-        tol,
-    )
-    .expect("the lens is cut") else {
+    let BooleanResult::Body(cut) = subtract(&block, &k.body, tol).expect("the lens is cut") else {
         panic!("the block ∖ lens came back empty");
     };
     let piece = lens(inner, scale, tol);
-    let mut cut_first = BooleanInputs::default();
-    cut_first.records_a = carried_rows(&cut.contacts);
-    let mut piece_first = BooleanInputs::default();
-    piece_first.records_b = carried_rows(&cut.contacts);
+    let cut_first = BooleanInputs {
+        records_a: carried_rows(&cut.contacts),
+        ..BooleanInputs::default()
+    };
+    let piece_first = BooleanInputs {
+        records_b: carried_rows(&cut.contacts),
+        ..BooleanInputs::default()
+    };
     [
         (
             "cut ∪ lens",
@@ -1512,9 +1502,7 @@ fn lens_ys(
 /// The lens over `rays` ([`lens_prisms`]) at `scale`.
 fn lens(rays: [[[f64; 3]; 3]; 2], scale: f64, tol: Tol) -> BooleanBody<f64> {
     let [up, down] = rays.map(|r| corner_prism(r, scale, tol));
-    let BooleanResult::Body(lens) =
-        union(&up, &down, tol).expect("a lens")
-    else {
+    let BooleanResult::Body(lens) = union(&up, &down, tol).expect("a lens") else {
         panic!("the lens came back empty");
     };
     lens
@@ -1731,8 +1719,10 @@ fn two_dangling_null_edges_with_one_segment_ending_in_the_cubes_face_build_in_ev
 /// if given.
 fn notched(y: &BooleanBody<f64>, notch: Lens, fill: Option<Lens>, tol: Tol) -> BooleanBody<f64> {
     let notch = lens(notch.0, notch.1, tol);
-    let mut decls = BooleanInputs::default();
-    decls.records_a = carried_rows(&y.contacts);
+    let decls = BooleanInputs {
+        records_a: carried_rows(&y.contacts),
+        ..BooleanInputs::default()
+    };
     let BooleanResult::Body(mut y) =
         subtract_in(&y.body, &notch.body, &decls, tol).expect("the notch is cut")
     else {
@@ -1740,10 +1730,12 @@ fn notched(y: &BooleanBody<f64>, notch: Lens, fill: Option<Lens>, tol: Tol) -> B
     };
     if let Some((rays, scale)) = fill {
         let fill = lens(rays, scale, tol);
-        let mut decls = BooleanInputs::default();
-        decls.records_a = carried_rows(&y.contacts);
-        let BooleanResult::Body(next) = union_in(&y.body, &fill.body, &decls, tol)
-            .expect("the fill touches the notch's apex")
+        let decls = BooleanInputs {
+            records_a: carried_rows(&y.contacts),
+            ..BooleanInputs::default()
+        };
+        let BooleanResult::Body(next) =
+            union_in(&y.body, &fill.body, &decls, tol).expect("the fill touches the notch's apex")
         else {
             panic!("the filled y came back empty");
         };
@@ -1924,13 +1916,13 @@ fn three_corners_alternating_round_the_cube_refuse_three_ops() {
         ],
     ];
     let [i, j, k] = rays.map(|r| corner_prism(r, 0.4, tol));
-    let BooleanResult::Body(two) =
-        union(&i, &j, tol).expect("i ∪ j")
-    else {
+    let BooleanResult::Body(two) = union(&i, &j, tol).expect("i ∪ j") else {
         panic!("i ∪ j came back empty");
     };
-    let mut decls = BooleanInputs::default();
-    decls.records_a = carried_rows(&two.contacts);
+    let decls = BooleanInputs {
+        records_a: carried_rows(&two.contacts),
+        ..BooleanInputs::default()
+    };
     let BooleanResult::Body(y) = union_in(&two.body, &k, &decls, tol).expect("∪ k") else {
         panic!("∪ k came back empty");
     };

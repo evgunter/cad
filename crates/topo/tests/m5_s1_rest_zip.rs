@@ -24,7 +24,10 @@ use crate::common;
 use common::{brick, finished};
 use geom_core::Decide;
 use geom_core::Tol;
-use topo::{AtRestBody, BooleanBody, BooleanResult, BooleanResultKind, mass_properties, subtract, union, validate_geometric, validate_pseudomanifold};
+use topo::{
+    AtRestBody, BooleanBody, BooleanResult, BooleanResultKind, mass_properties, subtract, union,
+    validate_geometric, validate_pseudomanifold,
+};
 
 /// The brick `x × y × z`, finished.
 fn finished_brick<T: Decide + topo::AtRestPolicy>(
@@ -40,13 +43,7 @@ fn glue<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(
     a: &AtRestBody<T>,
     b: &AtRestBody<T>,
 ) -> BooleanBody<T> {
-    match union(
-        a,
-        b,
-        Tol::witness(),
-    )
-    .expect("the REST union builds")
-    {
+    match union(a, b, Tol::witness()).expect("the REST union builds") {
         BooleanResult::Body(body) => body,
         BooleanResult::Empty => panic!("REST union cannot be empty"),
     }
@@ -180,12 +177,7 @@ fn annular_rest_contact_unions_exactly_additively() {
     };
     let bot = tube(0.0, 1.0);
     let top = tube(1.0, 2.0);
-    let out = union(
-        &bot,
-        &top,
-        Tol::witness(),
-    )
-    .expect("the annular REST union runs");
+    let out = union(&bot, &top, Tol::witness()).expect("the annular REST union runs");
     let BooleanResult::Body(b) = out else {
         panic!("a stacked-tube union cannot be empty");
     };

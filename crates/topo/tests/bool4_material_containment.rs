@@ -20,7 +20,11 @@
 
 use crate::common;
 use geom_core::{Band, Point3, Tol};
-use topo::{Body, CensusContact, ContactRecords, EntityId, FaceKey, SolidContainment, SolidKey, ValidationError, VfContact, VoidContainment, VoidEvidence, insert_void, point_in_solid_of, validate_pseudomanifold};
+use topo::{
+    Body, CensusContact, ContactRecords, EntityId, FaceKey, SolidContainment, SolidKey,
+    ValidationError, VfContact, VoidContainment, VoidEvidence, insert_void, point_in_solid_of,
+    validate_pseudomanifold,
+};
 
 /// The issue's L profile: counterclockwise from `+z`, reflex at (1, 1).
 const L_PROFILE: [(f64, f64); 6] = [

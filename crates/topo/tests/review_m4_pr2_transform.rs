@@ -12,7 +12,10 @@ use std::f64::consts::{FRAC_PI_2, FRAC_PI_3};
 use common::{brick, describe_as_intersections};
 use geom_core::Tol;
 use geom_core::{Affine3, Mat3, Vec3};
-use topo::{Body, TransformError, mass_properties, transform_rigid, validate, validate_closed, validate_geometric};
+use topo::{
+    Body, TransformError, mass_properties, transform_rigid, validate, validate_closed,
+    validate_geometric,
+};
 
 fn tiers_ok(b: &Body<f64>) {
     assert_eq!(validate(b), Ok(()));
