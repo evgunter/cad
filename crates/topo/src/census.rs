@@ -1586,13 +1586,12 @@ fn read_containment<V>(
         Err(ContainError::StaleFace(face)) => crate::boolean::driver_face_stale(face),
         // The census reads at the run's band a body tier 3 passed, and
         // tier 3 pins every carrier end within that band's zero of its
-        // corner (`carrier_endpoint_{start,end}`); `census_and_certify`
-        // runs only on a clean tier 3 (the placeholder note above).
-        Err(ContainError::ArcEndClearOfCorners(gaps)) if gaps.off_corner() => unreachable!(
-            "the census read face {face:?} with an arc end off both its corners ({gaps:?}): \
-             tier 3, which the census runs behind, pins every carrier end within the zero \
-             band of its corner at this band"
-        ),
+        // corner, so an end read off both corners is the kernel's two
+        // readings of one end parting (rounding): a defect, not a reading.
+        Err(ContainError::ArcEndClearOfCorners(gaps)) if gaps.off_corner() => {
+            errors.push(ValidationError::ArcEndOffCorner { face, gaps });
+            None
+        }
         Err(
             e @ (ContainError::Uncrossable(_)
             | ContainError::RayExhausted
@@ -7759,21 +7758,102 @@ mod tests {
         );
     }
 
-    /// **The census never reads an arc's end off both its corners**: tier
-    /// 3, which it runs behind, pins every carrier end within the run's
-    /// zero band of its corner. Read at a finer band, a certified cap's
-    /// end stands off its corner, and the census's routing panics with
-    /// the readings.
+    /// **An arc's end read off both corners at the census is a defect**:
+    /// tier 3, which the census runs behind, pins every carrier end within
+    /// the run's zero band of its corner, so an end the census reads off
+    /// both is the kernel's two readings of one end parting. A certified
+    /// cap read at a band finer than the run's stands in for that parting
+    /// here; the census reports it as its own finding, with the defect
+    /// ending, and never as a face it "could not check".
     #[test]
-    #[should_panic(expected = "with an arc end off both its corners")]
-    fn an_arc_end_off_both_corners_is_no_census_reading() {
+    fn an_arc_end_off_both_corners_is_a_census_defect() {
         use crate::test_support_fixtures::half_disc_cap;
         let tol = Tol::witness();
         let off = Band::linear(tol).unwrap().zero() / 2.0;
         let (body, cap, end) = half_disc_cap(off, tol);
         let fine = Band::new(off / 50.0, off / 5.0).unwrap();
         let read = crate::boolean::contfp(&body, cap, Vec3::unit_z(), end, fine);
-        read_containment(cap, read, &mut Vec::new());
+        let mut errors = Vec::new();
+        assert_eq!(read_containment(cap, read, &mut errors), None);
+        let [ValidationError::ArcEndOffCorner { face, gaps }] = errors.as_slice() else {
+            panic!("the census's own finding: {errors:?}");
+        };
+        assert!(*face == cap && gaps.off_corner(), "{errors:?}");
+        let text = errors[0].to_string();
+        assert!(
+            text.ends_with(geom_core::KERNEL_OR_FILE_DEFECT_ENDING)
+                && !text.contains("could not be checked"),
+            "{text}"
+        );
+    }
+
+    /// **A far arc at `K` near one reads its end where certification
+    /// pinned it** (the review's witness). A cap on a circle of radius
+    /// `98765.4` at ε = 1e-9 (scaled with ε), centre and axis generic,
+    /// over `[0, 2.5]`, its end corner certified `0.9905·zero` off the
+    /// carrier's end, along the direction from the end the conic's own
+    /// frame computes to the one `Curve3::eval` computes; the point
+    /// `0.95·zero` back along the arc from the end and `0.3·zero` off it.
+    /// The two ends part by rounding past `(K − 1)·zero` at `K = 1.001`,
+    /// so a boundary pass reading the frame's end read the end off its
+    /// corner. It reads `eval`'s, the point certification pinned: at
+    /// `K = 1.001` and `K = 1.2` every end lies at a corner (the band's
+    /// own parting), and the census reports no defect.
+    #[test]
+    fn a_far_arc_at_k_near_one_reads_its_end_where_certification_pinned_it() {
+        use crate::test_support_fixtures::arc_cap;
+        use geom::Curve3;
+        let tol = Tol::witness();
+        let zero = Band::linear(tol).unwrap().zero();
+        let axis = Vec3::new(0.3, -0.2, 1.0).normalize();
+        let u_ref = axis.cross(Vec3::new(0.6, 0.7, 0.1)).normalize();
+        let v_ref = axis.cross(u_ref);
+        let t1 = 2.5_f64;
+        let (s, c) = t1.sin_cos();
+        // The review's radius at ε = 1e-9, scaled with ε, and the first of
+        // a few nearby where the frame and `eval` part by rounding past
+        // `(K − 1)·zero` at `K = 1.001`: the witness is sharp at every row.
+        let circle = |r: f64| {
+            let center = Point3::new(0.31 * r, -0.17 * r, 0.05 * r);
+            let carrier = Curve3::Circle {
+                center,
+                axis,
+                radius: r,
+                u_ref,
+            };
+            let end = carrier.eval(t1);
+            let frame_end = center + u_ref * (r * c) + v_ref * (r * s);
+            (carrier, center, end, end - frame_end)
+        };
+        let (carrier, center, end, parting) = [1.0, 1.07, 1.13, 0.91, 0.83, 1.29]
+            .into_iter()
+            .map(|m| circle(98765.4 * (zero / 1e-9) * m))
+            .find(|(.., parting)| parting.norm() > 0.001 * zero)
+            .expect("a radius where the frame's end and eval's part past (K - 1)·zero");
+        let r = (end - center).norm();
+        let away = parting / parting.norm();
+        let parting = parting.norm();
+        let (body, cap) = arc_cap(carrier, (0.0, t1), away * (0.9905 * zero), tol);
+        let tangent = u_ref * (-s) + v_ref * c;
+        let radial = (end - center) / r;
+        let q = end - tangent * (0.95 * zero) + radial * (0.3 * zero);
+        for k in [1.001, 1.2] {
+            let band = Band::new(zero, k * zero).unwrap();
+            let read = crate::boolean::contfp(&body, cap, axis, q, band);
+            assert!(
+                matches!(&read, Err(ContainError::ArcEndClearOfCorners(g)) if !g.off_corner()),
+                "K {k}: the end lies at its corner, and only the band parts the passes (frame \
+                 and eval part by {parting:e}): {read:?}"
+            );
+            let mut errors = Vec::new();
+            read_containment(cap, read, &mut errors);
+            assert!(
+                !errors
+                    .iter()
+                    .any(|e| matches!(e, ValidationError::ArcEndOffCorner { .. })),
+                "K {k}: the census reports no defect: {errors:?}"
+            );
+        }
     }
 
     // ================= R1 review probes (m9-2b-r1) =================

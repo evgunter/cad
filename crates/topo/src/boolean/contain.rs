@@ -262,11 +262,14 @@ pub enum ContainError {
 /// [`boundary_pre_pass`] part only by as much as an end sits off its
 /// corner, plus the point's own slack at the end (two zero bands at
 /// most). So where every end lies at a corner the parting is the band's,
-/// reachable only at `K ≤ 3`. An end definitely off both corners is
-/// reached only at a band finer than the run's: certification pins each
-/// end within the run's zero band of its corner (`geom_brep`'s
-/// `carrier_endpoint_{start,end}`), so it is a caller's band below that
-/// one that reads them apart.
+/// reachable only at `K ≤ 3`. Certification pins each end within the
+/// run's zero band of its corner (`geom_brep`'s
+/// `carrier_endpoint_{start,end}`), and the ends here are read through
+/// the same `Curve3::eval`, so an end off both corners is read where a
+/// caller's band is finer than the run's, or where the certifier's
+/// distance and this reading's part by rounding across a band whose
+/// width `(K − 1)·zero` is narrower than that rounding: the kernel's two
+/// readings of one end disagreeing.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ArcEndGaps {
     /// `gaps[i][j]`: the carrier's start (`i = 0`) or end (`i = 1`)
@@ -307,11 +310,11 @@ impl core::fmt::Display for ArcEndGaps {
         match self.off_end() {
             Some((own, far)) => write!(
                 f,
-                "the end lies {own:e} m from its own and {far:e} m from the other, past the band"
+                "the end lies {own:e} m from its own corner, {far:e} m from the other"
             ),
             None => write!(
                 f,
-                "each end lies within ±{zero:e} of one, a parting this K cannot resolve"
+                "each end lies within ±{zero:e} of one corner, a parting this K cannot resolve"
             ),
         }
     }
@@ -673,12 +676,11 @@ fn boundary_pre_pass<T: Decide>(
             // sit off the stored vertices, on its own row
             // (`bool_contact_arc_end_vertex`). Certification pins each
             // carrier end within the run's zero band of its vertex
-            // (`geom_brep`'s `carrier_endpoint_{start,end}` rows), so at
-            // the run's band the passes part only where `K ≤ 3`, and an
-            // end off both corners is read only at a caller's finer
-            // band. An end in band of a corner escalates on that margin;
-            // with every one decided, the finding carries them
-            // ([`ArcEndGaps`]).
+            // (`geom_brep`'s `carrier_endpoint_{start,end}` rows), and the
+            // ends are read through the same `Curve3::eval`; [`ArcEndGaps`]
+            // says where each of its arms is read. An end in band of a
+            // corner escalates on that margin; with every one decided,
+            // the finding carries them.
             OnEdge::End => {
                 let Some(carrier_ends) = lp.edges[i].carrier_ends() else {
                     unreachable!("only a conic or spiric arc reads End")
@@ -1658,8 +1660,8 @@ mod tests {
     /// the two ways it is reached, through the public door on bodies the
     /// public operators built.
     ///
-    /// - **An end off both corners** is read only at a band finer than
-    ///   the run's: the cap's corner stands `off = zero/2` from its arc's
+    /// - **An end off both corners**, here at a band finer than the
+    ///   run's: the cap's corner stands `off = zero/2` from its arc's
     ///   end, certified at the run's band, and `contfp` reads it at a band
     ///   of zero `off/50`. The finding leads with the gap to the end's own
     ///   corner, `off`.

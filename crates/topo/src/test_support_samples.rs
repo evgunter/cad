@@ -853,13 +853,6 @@ fn offset_fit_errors() -> Vec<OffsetFitError> {
             bound: 3e-6,
             tolerance: 1e-6,
         },
-        // The payload the elevation's own `check_weights` produces.
-        OffsetFitError::Elevation(geom_core::spline::KnotAlgebraError::Structure(
-            geom_core::spline::SplineError::NonPositiveWeight {
-                index: 3,
-                weight: 0.0,
-            },
-        )),
     ];
     // Every patch-bound note is its own sentence, and the enum is
     // fieldless, so its compiler-derived roster is the sample list.
@@ -1551,6 +1544,13 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             },
         ));
     }
+    let ContainError::ArcEndClearOfCorners(gaps) = arc_end_clear_of_corners(true) else {
+        unreachable!("the sample builds the arc-end finding")
+    };
+    s.push((
+        "ArcEndOffCorner".to_owned(),
+        ValidationError::ArcEndOffCorner { face, gaps },
+    ));
     s
 }
 

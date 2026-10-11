@@ -1680,35 +1680,39 @@ pub(crate) fn oblique_rim_wall(phi: f64) -> (Body<f64>, FaceKey, crate::VertexKe
     (body, seed.face, seed.vertex)
 }
 
-/// **A planar half-disc cap** built through the public operators: the
-/// unit circle's arc from `(1, 0, 0)` to `(-1, 0, 0)` through `+y`, and
-/// its chord, the arc's end corner stored `off` along `-y` from the
-/// carrier's end (certified, so `off` lies within the run's zero band).
-/// Returns the body, the cap face, and the carrier's end at `π`.
-pub fn half_disc_cap(off: f64, tol: Tol) -> (Body<f64>, crate::FaceKey, Point3<f64>) {
-    let mut body = Body::<f64>::new();
-    let carrier = Curve3::Circle {
-        center: Point3::origin(),
-        axis: Vec3::unit_z(),
-        radius: 1.0,
-        u_ref: Vec3::unit_x(),
+/// **A planar cap on an arc of `carrier`** (a circle) over `span`,
+/// closed by its chord, built through the public operators: the arc's
+/// start corner at the carrier's start, its end corner at the carrier's
+/// end plus `off` (certified, so `off` lies within the run's zero band).
+/// Returns the body and the cap face.
+pub fn arc_cap(
+    carrier: Curve3<f64>,
+    span: (f64, f64),
+    off: Vec3<f64>,
+    tol: Tol,
+) -> (Body<f64>, FaceKey) {
+    let Curve3::Circle {
+        center,
+        axis,
+        radius,
+        u_ref,
+    } = carrier
+    else {
+        unreachable!("an arc cap is cut from a circle, and the caller passed another curve")
     };
-    let (p0, end) = (
-        Point3::new(1.0, 0.0, 0.0),
-        carrier.eval(core::f64::consts::PI),
-    );
-    let p1 = end - Vec3::unit_y() * off;
+    let mut body = Body::<f64>::new();
+    let (p0, p1) = (carrier.eval(span.0), carrier.eval(span.1) + off);
     let seed = body.mvfs(p0, true).unwrap();
     let plane = body.add_surface(Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        origin: center,
+        normal: axis,
+        u_ref,
     });
     let wall = body.add_surface(Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
-        radius: 1.0,
-        u_ref: Vec3::unit_x(),
+        origin: center,
+        axis,
+        radius,
+        u_ref,
     });
     let arc = body
         .mev(
@@ -1719,11 +1723,11 @@ pub fn half_disc_cap(off: f64, tol: Tol) -> (Body<f64>, crate::FaceKey, Point3<f
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
                     pair: SurfacePair::new(wall, plane),
-                    witness: Point3::new(0.0, 1.0, 0.0),
+                    witness: carrier.eval(0.5 * (span.0 + span.1)),
                 },
                 carrier,
-                param_start: 0.0,
-                param_end: core::f64::consts::PI,
+                param_start: span.0,
+                param_end: span.1,
             },
             tol,
         )
@@ -1742,7 +1746,24 @@ pub fn half_disc_cap(off: f64, tol: Tol) -> (Body<f64>, crate::FaceKey, Point3<f
             tol,
         )
         .unwrap();
-    (body, cap.face, end)
+    (body, cap.face)
+}
+
+/// **A planar half-disc cap** ([`arc_cap`]): the unit circle's arc from
+/// `(1, 0, 0)` to `(-1, 0, 0)` through `+y`, its end corner stored `off`
+/// along `-y` from the carrier's end. Returns the body, the cap face, and
+/// the carrier's end at `π`.
+pub fn half_disc_cap(off: f64, tol: Tol) -> (Body<f64>, FaceKey, Point3<f64>) {
+    let carrier = Curve3::Circle {
+        center: Point3::origin(),
+        axis: Vec3::unit_z(),
+        radius: 1.0,
+        u_ref: Vec3::unit_x(),
+    };
+    let span = (0.0, core::f64::consts::PI);
+    let end = carrier.eval(span.1);
+    let (body, cap) = arc_cap(carrier, span, -Vec3::unit_y() * off, tol);
+    (body, cap, end)
 }
 
 #[cfg(test)]

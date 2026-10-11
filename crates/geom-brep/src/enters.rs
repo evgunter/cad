@@ -513,7 +513,9 @@ pub fn enters_material_order2<T: Decide>(
         .map_err(LeverEscalation::arm)?;
     let margin = Margin::sagitta(deriv2.dot(reference_normal.vec()) / speed_sq, arm);
     Ok(
-        match decide("tangent_sector_order2", margin, band).map_err(LeverEscalation::reading)? {
+        match crate::dihedral::decide("tangent_sector_order2", margin, band)
+            .map_err(LeverEscalation::reading)?
+        {
             Sign::Negative => EntersMaterial::Enters,
             Sign::Positive => EntersMaterial::Exits,
             Sign::Zero => EntersMaterial::Tangent,
@@ -614,7 +616,7 @@ pub fn bends_into_material<T: Decide>(
     let mean_into = trace / g_norm * fold / T::from_f64(2.0);
     let margin = Margin::sagitta(mean_into, arm);
     Ok(
-        match decide("wall_bend_order2", margin, band)
+        match crate::dihedral::decide("wall_bend_order2", margin, band)
             .map_err(|d| WallBendError::Lever(LeverEscalation::reading(d)))?
         {
             Sign::Positive => WallBend::IntoMaterial,
@@ -622,16 +624,6 @@ pub fn bends_into_material<T: Decide>(
             Sign::Zero => WallBend::Flat,
         },
     )
-}
-
-/// The crate-local funnel wrapper (the `geom-brep` pattern: one
-/// greppable `sign_within` door per crate, unified recorder — M2 PR 7).
-fn decide<T: Decide>(
-    name: &'static str,
-    margin: Margin<T>,
-    band: Band,
-) -> Result<Sign, Indeterminate> {
-    geom_core::k_stats::decide(name, margin, band)
 }
 
 #[cfg(test)]

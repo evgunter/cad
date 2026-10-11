@@ -1788,6 +1788,19 @@ pub enum ValidationError {
         /// The not-yet-supported class, named.
         what: &'static str,
     },
+    /// Tier 3′: the census read a point at an arc's end that lies
+    /// definitely off both of its edge's corners, on a body tier 3 passed
+    /// at the same band, which pins every carrier end within the zero
+    /// band of its corner. The kernel's two readings of one end disagree
+    /// (certification's against the boundary walk's, which part by
+    /// rounding alone), so this is a defect to report, never a reading
+    /// of the geometry.
+    ArcEndOffCorner {
+        /// The face whose boundary the census read.
+        face: FaceKey,
+        /// The arc's ends against its edge's corners.
+        gaps: Box<crate::boolean::ArcEndGaps>,
+    },
     /// Tier 3′ (the census's instance-containment arm): one instance's
     /// material contains a vertex of another's — an interference fit,
     /// DECIDED by the material test and not undecidable. A vertex
@@ -2969,8 +2982,7 @@ fn classify_offset_fit(e: &geom_brep::OffsetFitError) -> (&'static str, Cow<'sta
         | O::Structure(_)
         | O::InvalidRequest { .. }
         | O::NonFiniteSample { .. }
-        | O::WindowUnsupported { .. }
-        | O::Elevation(_) => ("its stored fit is not well-formed", DEFECT),
+        | O::WindowUnsupported { .. } => ("its stored fit is not well-formed", DEFECT),
         // The body was checked at a valid tolerance whose derived band
         // failed anyway, so `classify_band`'s repairs (thresholds that
         // are not finite and positive) are not this arm's: what every
@@ -3232,20 +3244,26 @@ fn classify_contain(e: &ContainError) -> (Cow<'static, str>, Cow<'static, str>) 
 }
 
 /// A point at an arc's end the corner pass placed clear of the edge's
-/// corners, read at rest. At rest the run's band reads every carrier end
-/// at its corner (tier 3 pins them), so the passes parted on the band
-/// alone (`K ≤ 3`), and the arc end's own lever is the way through.
+/// corners, read at rest. Where an end of the arc lies definitely off
+/// both corners on a body certified at this band, the kernel's two
+/// readings of one end disagree, which no move of the geometry repairs;
+/// otherwise the band alone parted the two passes (`K ≤ 3`), and the arc
+/// end's own lever is the way through.
 fn arc_end_clear_of_corners(
     gaps: &crate::boolean::ArcEndGaps,
 ) -> (Cow<'static, str>, Cow<'static, str>) {
     use crate::boolean::{ContainDecision, placement_lever};
     (
         format!("a point lies at an arc's end clear of its corners: {gaps}").into(),
-        format!(
-            "Recourse: {}",
-            placement_lever(Some(ContainDecision::ArcEnd))
-        )
-        .into(),
+        if gaps.off_corner() {
+            DEFECT.into()
+        } else {
+            format!(
+                "Recourse: {}",
+                placement_lever(Some(ContainDecision::ArcEnd))
+            )
+            .into()
+        },
     )
 }
 
@@ -3875,6 +3893,11 @@ impl fmt::Display for ValidationError {
                  decided about the geometry. Recourse: run the certified check \
                  (validate_pseudomanifold, or validate_pseudomanifold_certificate for a \
                  certificate) at a certifying scalar"
+            ),
+            Self::ArcEndOffCorner { gaps, .. } => write!(
+                f,
+                "a face's boundary reads an arc's end off its corner where certification pinned \
+                 it: {gaps}. {DEFECT}"
             ),
             Self::CensusUndecidable { a, b, what } => write!(
                 f,

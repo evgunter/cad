@@ -1501,9 +1501,12 @@ fn resolve_bisector_graze<T: Decide>(
     // the Zero the gate rejects is the one every `On` states: within
     // `±zero`.
     if k1 == k2 && k1 != SideCode::On {
-        let on = geom_core::Decided {
-            sign: geom_core::Sign::Zero,
-            margin: geom_core::MarginDiag::enclosure(-band.zero(), band.zero()),
+        let on = super::sectors::OnReading {
+            predicate: "bool_sector_bisector_side",
+            decided: geom_core::Decided {
+                sign: geom_core::Sign::Zero,
+                margin: geom_core::MarginDiag::enclosure(-band.zero(), band.zero()),
+            },
         };
         return Err(super::sectors::bisector_zero_refusal(on, band));
     }

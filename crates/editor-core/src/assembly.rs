@@ -1876,6 +1876,8 @@ fn attribute(
             ..
         }
         | ValidationError::CensusUndecidable { .. }
+        // A kernel defect in one face's boundary reading, about no pair.
+        | ValidationError::ArcEndOffCorner { .. }
         | ValidationError::InstanceInterference { .. } => Attribution::Unattributed,
         // Everything the tier-1/2/3 passes find: the body's own
         // structure and geometry. None of these is a statement about

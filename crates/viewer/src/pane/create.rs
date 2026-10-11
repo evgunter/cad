@@ -15,19 +15,18 @@ use pncad::topo::BooleanOp;
 
 use crate::app::ViewerBehavior;
 use crate::blend::{BlendError, BlendKindChoice, BlendTarget, FREEZE_NOTE};
-use crate::combine::{DUPLICATE_GAP, PatternOutputChoice, STEP_DIRECTION};
+use crate::combine::{BooleanTool, DUPLICATE_GAP, PatternOutputChoice, STEP_DIRECTION};
 use crate::drafts::{CommitFault, Drafts, scalars};
 use crate::forms::{
     ANGLE_DRAG_SPEED, COUNT_DRAG_SPEED, DatumKindChoice, FIELD_DRAG_SPEED, MATE_PRIMITIVES,
-    PartSelectChoice, PatternKindChoice, ShapeKind, UNIT_DRAG_SPEED, boolean_op_label,
-    split_half_label,
+    PatternKindChoice, ShapeKind, UNIT_DRAG_SPEED, boolean_op_label, split_half_label,
 };
 use crate::frame::{self, Tone};
 use crate::matetool::{MateChoice, MateToolState, admitted_classes};
 use crate::pane::profile::{notation_row, path_steps_ui, preview_verdict};
 use crate::parts::{PartChooser, PartEntry};
 use crate::props::{Notation, render_number};
-use crate::seats::{Seats, seat_line};
+use crate::seats::{Seat, Seats, seat_line};
 use crate::session::{
     Creation, FaceFrameFault, FaceSelection, ProfilePlane, Selection, SessionOp, Standing,
     face_frame_seat_drawn,
@@ -55,66 +54,30 @@ pub(crate) const MIN_PART_INSTANCE: i64 = 0;
 /// before the click: the projected body is placed in the world, so it
 /// is drawn beside whatever is drawn already (A10).
 ///
-/// The split or pattern it reads is never drawn itself — it defines
-/// several bodies, which no world placement reads — so it is reached
-/// from the feature tree, and a person who wants another of its bodies
-/// projects that one too.
-pub(crate) const PROJECTION_IS_PLACED: &str = "the selected body is placed in the world and drawn: the split or pattern it is read out of \
-     is not drawn itself — to project another of its bodies, pick it again in the feature tree";
+/// The pattern it reads is never drawn itself — it defines several
+/// bodies, which no world placement reads — so it is reached from the
+/// feature tree, and a person who wants another of its copies projects
+/// that one too.
+pub(crate) const PROJECTION_IS_PLACED: &str = "the selected copy is placed in the world and drawn: the pattern it is read out of is not \
+     drawn itself — to project another of its copies, pick it again in the feature tree";
 
-/// **The part form's selector rows**: which of the two selections is
-/// being authored, the one field or radio row that selection needs,
-/// and what committing it does to the picture
-/// ([`PROJECTION_IS_PLACED`]).
+/// **The part form's rows**: the instance index, and what committing it
+/// does to the picture ([`PROJECTION_IS_PLACED`]).
 ///
 /// A free function over the `Ui` for [`profile_plane_row`]'s reason —
 /// `ViewerBehavior` borrows the whole application, so this is the only
 /// seam a headless row can drive, and the method's job is to call it.
-pub(crate) fn part_selector_rows(
-    ui: &mut egui::Ui,
-    theme: &Theme,
-    select: &mut PartSelectChoice,
-    half: &mut SplitHalf,
-    instance: &mut i64,
-) {
+pub(crate) fn part_selector_rows(ui: &mut egui::Ui, theme: &Theme, instance: &mut i64) {
     ui.horizontal(|ui| {
-        ui.label("select");
-        for (choice, label) in PartSelectChoice::ALL {
-            ui.radio_value(select, choice, label);
-        }
+        ui.label("instance");
+        ui.add(number_field(instance, COUNT_DRAG_SPEED).range(MIN_PART_INSTANCE..=i64::MAX));
     });
-    match select {
-        PartSelectChoice::Half => {
-            ui.horizontal(|ui| {
-                ui.label("half");
-                // One button per half the KERNEL has, in its order:
-                // the form offers the vocabulary, never a copy of it.
-                for side in SplitHalf::ALL {
-                    ui.radio_value(half, side, split_half_label(side));
-                }
-            });
-            crate::widgets::message_toned(
-                ui,
-                "the tool plane's normal side is above",
-                theme,
-                Tone::Advisory,
-            );
-        }
-        PartSelectChoice::Instance => {
-            ui.horizontal(|ui| {
-                ui.label("instance");
-                ui.add(
-                    number_field(instance, COUNT_DRAG_SPEED).range(MIN_PART_INSTANCE..=i64::MAX),
-                );
-            });
-            crate::widgets::message_toned(
-                ui,
-                "instances are numbered from zero, in placement order",
-                theme,
-                Tone::Advisory,
-            );
-        }
-    }
+    crate::widgets::message_toned(
+        ui,
+        "instances are numbered from zero, in placement order",
+        theme,
+        Tone::Advisory,
+    );
     crate::widgets::message_toned(ui, PROJECTION_IS_PLACED, theme, Tone::Advisory);
 }
 
@@ -147,13 +110,81 @@ pub(crate) fn duplicate_note() -> String {
 /// has no roles to re-list and no line to compose; a free function over
 /// the `Ui` so a headless row can read what it paints
 /// (`crate::pane::headless`).
+///
+/// A seat holding a split picked in the tree reads one of its halves,
+/// still to choose: the row offers the two, and answers the seat and
+/// the half a click chose, which the caller hands to the open tool
+/// ([`crate::tools::Tools::choose_half`]).
 pub(crate) fn seats_row(
     ui: &mut egui::Ui,
     seats: &Seats,
     doc: &Doc<ProfileProgram>,
     theme: &Theme,
-) {
+) -> Option<(usize, SplitHalf)> {
     crate::widgets::message_toned(ui, seat_line(seats, doc), theme, Tone::Advisory);
+    half_rows(
+        ui,
+        (0..2)
+            .filter(|&i| seats.awaits_half(i))
+            .map(|i| (i, seats.role(i).name().to_owned())),
+        theme,
+    )
+}
+
+/// **One row per pick still waiting for its half**, each offering the
+/// two: `waiting` names the pick's index and how the panel calls it,
+/// and the answer is the pick and the half a click chose. Under the
+/// rows, which side is which.
+pub(crate) fn half_rows(
+    ui: &mut egui::Ui,
+    waiting: impl IntoIterator<Item = (usize, String)>,
+    theme: &Theme,
+) -> Option<(usize, SplitHalf)> {
+    let mut chosen = None;
+    let mut any = false;
+    for (i, said) in waiting {
+        any = true;
+        ui.horizontal(|ui| {
+            ui.label(format!("{said}: read the"));
+            // One button per half the KERNEL has, in its order: the row
+            // offers the vocabulary, never a copy of it.
+            for half in SplitHalf::ALL {
+                if ui.button(split_half_label(half)).clicked() {
+                    chosen = Some((i, half));
+                }
+            }
+            ui.label("half");
+        });
+    }
+    if any {
+        crate::widgets::message_toned(
+            ui,
+            "the split plane's normal side is above",
+            theme,
+            Tone::Advisory,
+        );
+    }
+    chosen
+}
+
+/// **The boolean tool's picks still waiting for a half**, each called
+/// as its panel line calls it: a member by its place in the list, a
+/// subtraction's seat by its role.
+pub(crate) fn boolean_waiting(tool: &BooleanTool) -> Vec<(usize, String)> {
+    tool.awaiting_half()
+        .into_iter()
+        .map(|i| {
+            let said = match tool.operation() {
+                BooleanOp::Subtract => [Seat::SubtractFrom, Seat::SubtractTool][i]
+                    .name()
+                    .to_owned(),
+                BooleanOp::Union | BooleanOp::Intersect => {
+                    format!("{} {}", Seat::Member.name(), i + 1)
+                }
+            };
+            (i, said)
+        })
+        .collect()
 }
 
 /// **What the boolean tool asks for under `op`**: any number of bodies
@@ -1314,7 +1345,9 @@ impl ViewerBehavior<'_> {
             ui,
             ToolKind::Revolve.says(&"pick the profile, then the axis"),
         );
-        seats_row(ui, tool.seats(), self.session.doc(), &self.theme);
+        if let Some((seat, half)) = seats_row(ui, tool.seats(), self.session.doc(), &self.theme) {
+            self.tools.choose_half(seat, half);
+        }
         ui.horizontal(|ui| {
             ui.label("angle");
             unit_field(
@@ -1372,6 +1405,12 @@ impl ViewerBehavior<'_> {
             &self.theme,
             Tone::Advisory,
         );
+        if let Some((pick, half)) = half_rows(ui, boolean_waiting(&tool), &self.theme) {
+            self.tools.choose_half(pick, half);
+        }
+        let Some(tool) = self.tools.boolean() else {
+            return;
+        };
         if ui
             .add_enabled(!tool.is_empty(), egui::Button::new("Clear picks"))
             .clicked()
@@ -1395,7 +1434,9 @@ impl ViewerBehavior<'_> {
             ui,
             ToolKind::Split.says(&"pick the body, then the datum plane"),
         );
-        seats_row(ui, tool.seats(), self.session.doc(), &self.theme);
+        if let Some((seat, half)) = seats_row(ui, tool.seats(), self.session.doc(), &self.theme) {
+            self.tools.choose_half(seat, half);
+        }
         self.tool_commit_row(ui, ToolKind::Split, |_, _| Ok(tool.op()?));
     }
 
@@ -1409,7 +1450,9 @@ impl ViewerBehavior<'_> {
             return;
         };
         crate::widgets::message(ui, ToolKind::Transform.says(&"pick the body to place"));
-        seats_row(ui, tool.seats(), self.session.doc(), &self.theme);
+        if let Some((seat, half)) = seats_row(ui, tool.seats(), self.session.doc(), &self.theme) {
+            self.tools.choose_half(seat, half);
+        }
         ui.horizontal(|ui| {
             unit_vec3_row(
                 ui,
@@ -1464,7 +1507,9 @@ impl ViewerBehavior<'_> {
             ui,
             ToolKind::Pattern.says(&"pick the body, then (circular) the axis"),
         );
-        seats_row(ui, tool.seats(), self.session.doc(), &self.theme);
+        if let Some((seat, half)) = seats_row(ui, tool.seats(), self.session.doc(), &self.theme) {
+            self.tools.choose_half(seat, half);
+        }
         ui.horizontal(|ui| {
             ui.label("rule");
             for (kind, label) in PatternKindChoice::ALL {
@@ -1537,21 +1582,13 @@ impl ViewerBehavior<'_> {
     }
 
     /// The projection tool's panel — [`crate::combine::PartTool`],
-    /// which authors a `Node::Part`: one pick of a split or a pattern,
-    /// the selector with its field, and the one committed edit.
+    /// which authors a `Node::Part`: one pick of a pattern, the index
+    /// field, and the one committed edit.
     ///
     /// Called the PROJECTION tool on screen because "part" is already
     /// the word the `Add part…` chooser beside it uses for another
     /// document, and the two gestures have nothing to do with each
     /// other.
-    ///
-    /// **Two seats, one pick.** A half is read out of a split and an
-    /// index out of a pattern, so the two selections want different
-    /// node kinds and the seat machinery routes a click to the seat
-    /// only it can fill ([`crate::combine::PartTool`]). The selector
-    /// then picks which seat the commit reads, so a user who picked a
-    /// pattern and asked for a half is told which pick is missing
-    /// rather than having one silently substituted.
     pub(crate) fn projection_tool_ui(&mut self, ui: &mut egui::Ui) {
         let Some(tool) = self.tools.part() else {
             if ui.button(ToolKind::Part.button()).clicked() {
@@ -1561,24 +1598,14 @@ impl ViewerBehavior<'_> {
         };
         crate::widgets::message(
             ui,
-            ToolKind::Part.says(
-                &"pick a split or a pattern, in the viewport or the tree, to project one body out \
-                  of",
-            ),
+            ToolKind::Part.says(&"pick a pattern in the tree to project one of its copies"),
         );
-        seats_row(ui, tool.seats(), self.session.doc(), &self.theme);
-        part_selector_rows(
-            ui,
-            &self.theme,
-            &mut self.drafts.part_select,
-            &mut self.drafts.part_half,
-            &mut self.drafts.part_instance,
-        );
+        if let Some((seat, half)) = seats_row(ui, tool.seats(), self.session.doc(), &self.theme) {
+            self.tools.choose_half(seat, half);
+        }
+        part_selector_rows(ui, &self.theme, &mut self.drafts.part_instance);
         self.tool_commit_row(ui, ToolKind::Part, |drafts, _| {
-            Ok(match drafts.part_select {
-                PartSelectChoice::Half => tool.half_op(drafts.part_half)?,
-                PartSelectChoice::Instance => tool.instance_op(drafts.part_instance)?,
-            })
+            Ok(tool.instance_op(drafts.part_instance)?)
         });
     }
 
@@ -1598,7 +1625,9 @@ impl ViewerBehavior<'_> {
             return;
         };
         crate::widgets::message(ui, ToolKind::Duplicate.says(&"pick the body to duplicate"));
-        seats_row(ui, tool.seats(), self.session.doc(), &self.theme);
+        if let Some((seat, half)) = seats_row(ui, tool.seats(), self.session.doc(), &self.theme) {
+            self.tools.choose_half(seat, half);
+        }
         crate::widgets::message_toned(ui, duplicate_note(), &self.theme, Tone::Advisory);
         self.tool_commit_row(ui, ToolKind::Duplicate, |_, _| Ok(tool.op()?));
     }
@@ -1932,19 +1961,18 @@ mod tests {
     use pncad::document::{Doc, ProfileProgram, RecipeNodeId};
     use pncad::geom_core::Tol;
     use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
-    use pncad::select::SplitHalf;
 
     use super::{
         NEW_XY_LABEL, ProfilePlane, clear_picks_button, duplicate_note, mate_picks_row,
-        part_selector_rows, profile_plane_row,
+        part_selector_rows, profile_plane_row, seats_row,
     };
     use crate::combine::BooleanTool;
-    use crate::forms::PartSelectChoice;
     use crate::frame::Tone;
     use crate::matetool::MateToolState;
     use crate::pane::headless::{painted_after_clicking, painted_text, painted_while_hovering};
     use crate::session::FaceSelection;
     use crate::theme::Theme;
+    use pncad::select::SplitHalf;
     use pncad::topo::BooleanOp;
 
     /// A face pick on the body of `node`.
@@ -2022,73 +2050,52 @@ mod tests {
         );
     }
 
-    /// The part form's selector rows, driven: the half choice paints
-    /// the kernel's own two sides and no index field.
-    ///
-    /// The row exists because the two selections are one form: a form
-    /// that painted both a half choice and an index would be offering
-    /// a pairing no node has, and the selector is the only thing
-    /// keeping them apart.
+    /// **A body seat holding a split picked in the tree offers its two
+    /// halves**, and a click answers that seat and the half it chose —
+    /// what the panel hands the open tool.
     #[test]
-    fn the_part_form_paints_the_halves_when_a_half_is_selected() {
-        let (mut select, mut half, mut instance) =
-            (PartSelectChoice::Half, SplitHalf::Above, 1_i64);
-        let drawn = painted_text(|ui| {
-            part_selector_rows(ui, &Theme::DEFAULT, &mut select, &mut half, &mut instance)
+    fn a_seat_holding_a_split_offers_its_halves() {
+        use crate::test_support::{inserted, len3, scl3};
+        let tol = Tol::witness();
+        let (doc, block, _) = crate::test_support::boss_on_block("seats-half", tol);
+        let (doc, plane) = inserted(
+            &doc,
+            pncad::document::Node::Datum(pncad::document::Datum::Plane {
+                origin: len3([0.0, 0.0, 0.001]),
+                normal: scl3([0.0, 0.0, 1.0]),
+            }),
+            tol,
+        );
+        let (doc, split) = inserted(
+            &doc,
+            pncad::document::Node::Split {
+                target: block.into(),
+                tool: plane.into(),
+            },
+            tol,
+        );
+        let mut tool = crate::combine::TransformTool::new();
+        tool.pick(&doc, split);
+        let mut chosen = None;
+        let drawn = painted_after_clicking(crate::tree::split_half_label(SplitHalf::Below), |ui| {
+            if let Some(choice) = seats_row(ui, tool.seats(), &doc, &Theme::DEFAULT) {
+                chosen = Some(choice);
+            }
         });
-        assert!(drawn.contains("half"), "{drawn}");
-        assert!(
-            drawn.contains("above") && drawn.contains("below"),
-            "{drawn}"
-        );
-        assert!(
-            !drawn.contains("numbered from zero"),
-            "the index field's own sentence is not painted under the half choice: {drawn}"
-        );
+        assert!(drawn.contains("half not chosen"), "{drawn}");
+        assert_eq!(chosen, Some((0, SplitHalf::Below)), "{drawn}");
     }
 
-    /// And the index choice paints the field with its numbering
-    /// sentence, and no half radios.
+    /// The part form paints the index field with its numbering
+    /// sentence.
     #[test]
-    fn the_part_form_paints_the_index_when_an_instance_is_selected() {
-        let (mut select, mut half, mut instance) =
-            (PartSelectChoice::Instance, SplitHalf::Above, 3_i64);
-        let drawn = painted_text(|ui| {
-            part_selector_rows(ui, &Theme::DEFAULT, &mut select, &mut half, &mut instance)
-        });
+    fn the_part_form_paints_the_index() {
+        let mut instance = 3_i64;
+        let drawn = painted_text(|ui| part_selector_rows(ui, &Theme::DEFAULT, &mut instance));
         assert!(drawn.contains("instance"), "{drawn}");
         assert!(
             drawn.contains("numbered from zero"),
             "the field says where the numbering starts: {drawn}"
-        );
-        assert!(
-            !drawn.contains("the tool plane's normal side"),
-            "the half choice's own sentence is not painted here: {drawn}"
-        );
-    }
-
-    /// **The selector row actually switches the form**: clicking the
-    /// instance radio leaves the index field painted where the half
-    /// radios were.
-    ///
-    /// Drives the widget rather than the enum, because a radio row
-    /// that painted the right labels and wrote to nothing would pass
-    /// every assertion above.
-    #[test]
-    fn clicking_the_instance_selector_opens_the_index_field() {
-        let (mut select, mut half, mut instance) =
-            (PartSelectChoice::Half, SplitHalf::Above, 1_i64);
-        let drawn = painted_after_clicking("instance of a pattern", |ui| {
-            part_selector_rows(ui, &Theme::DEFAULT, &mut select, &mut half, &mut instance);
-        });
-        assert_eq!(
-            select,
-            PartSelectChoice::Instance,
-            "the click wrote: {drawn}"
-        );
-        assert!(
-            drawn.contains("numbered from zero"),
-            "and the form now paints the index field: {drawn}"
         );
     }
 
@@ -2118,25 +2125,20 @@ mod tests {
     }
 
     /// **The projection panel says what a projection does to the
-    /// picture**, under either selector — the body it selects is placed
-    /// and drawn, and a person should hear that before the click, not
-    /// discover it after.
+    /// picture** — the copy it selects is placed and drawn, and a person
+    /// should hear that before the click, not discover it after.
     #[test]
     fn the_part_form_says_the_projection_is_placed() {
-        for choice in [PartSelectChoice::Half, PartSelectChoice::Instance] {
-            let (mut select, mut half, mut instance) = (choice, SplitHalf::Above, 1_i64);
-            let drawn = painted_text(|ui| {
-                part_selector_rows(ui, &Theme::DEFAULT, &mut select, &mut half, &mut instance);
-            });
-            assert!(
-                drawn.contains("the selected body is placed in the world and drawn"),
-                "{choice:?}: {drawn}"
-            );
-            assert!(
-                drawn.contains("pick it again in the feature tree"),
-                "and where the rest can still be reached from: {drawn}"
-            );
-        }
+        let mut instance = 1_i64;
+        let drawn = painted_text(|ui| part_selector_rows(ui, &Theme::DEFAULT, &mut instance));
+        assert!(
+            drawn.contains("the selected copy is placed in the world and drawn"),
+            "{drawn}"
+        );
+        assert!(
+            drawn.contains("pick it again in the feature tree"),
+            "and where the rest can still be reached from: {drawn}"
+        );
     }
 
     /// A stand-in labeller: the number alone, so a row asserting on
