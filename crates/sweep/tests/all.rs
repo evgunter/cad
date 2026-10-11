@@ -75,12 +75,16 @@ mod a_ruling_lying_on_a_wall;
 mod a_swaying_loft_corner_meters;
 #[path = "a_swept_cusp_is_legal_at_rest.rs"]
 mod a_swept_cusp_is_legal_at_rest;
+#[path = "a_tangent_arc_at_other_boolean_vertices.rs"]
+mod a_tangent_arc_at_other_boolean_vertices;
 #[path = "a_thin_cap_keeps_its_digits.rs"]
 mod a_thin_cap_keeps_its_digits;
 #[path = "a_tube_ending_on_a_ball.rs"]
 mod a_tube_ending_on_a_ball;
 #[path = "an_annular_tube_through_a_plate.rs"]
 mod an_annular_tube_through_a_plate;
+#[path = "an_arc_tangent_at_a_boolean_vertex.rs"]
+mod an_arc_tangent_at_a_boolean_vertex;
 #[path = "at_rest_pcurve_faces.rs"]
 mod at_rest_pcurve_faces;
 #[path = "band_apart_partners_on_a_steep_ellipse.rs"]
