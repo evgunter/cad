@@ -34,3 +34,7 @@ Decide whether the probe's premise (an interior rim on a 1 mm sphere is
 refused) still holds: if the kernel now rightly accepts it, re-baseline
 the row to what it decides; if not, the refusal regressed. Then re-run
 the pre-pass (`run_plain` in `scripts/k_probe_sweep.sh`).
+
+**Also reproduced** by the INTENT orchestrator, on main at 6e3985cb76:
+`cargo nextest run --workspace --all-features -E 'test(mm_scale_sphere_rim_level_margin_is_the_direction_chord)'`
+fails at `rim_dim_scale_twins.rs:388` ("the interior rim must be refused"). The row's doc cites the near-polar accepting-direction hazard (retired audit note N7), so treat the lost refusal as a defect until shown otherwise.
