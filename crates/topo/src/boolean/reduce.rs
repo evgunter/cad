@@ -490,7 +490,7 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
 pub(super) fn gate_operand_pairs<T: Decide + Bounds>(
     a: &Body<T>,
     b: &Body<T>,
-    declared: &super::DeclaredPairs<T>,
+    declared: &super::GluedPairs<T>,
     band: Band,
     roster: impl Fn(&geom::Surface<T>) -> bool,
 ) -> Result<(), BooleanError> {
@@ -810,7 +810,7 @@ fn face_tree<T: Decide + Bounds>(
 /// What the sweep's door read of the declaration ahead of `question`,
 /// asked of `edge` of `x` against `face` of the other operand: each of
 /// the edge's parent faces paired with `face`, looked up in turn
-/// ([`super::DeclaredPairs::read`]). No question the sweep asks of an
+/// ([`super::GluedPairs::read`]). No question the sweep asks of an
 /// edge is one a declaration settles (the declared cover spends the
 /// declaration, and an undeclared pair's refusal is the same pose's),
 /// so the door admits no class that would.
@@ -819,7 +819,7 @@ fn edge_face_read<T: geom_core::Real>(
     x_is: Operand,
     edge: &crate::entity::Edge,
     face: FaceKey,
-    declared: &super::DeclaredPairs<T>,
+    declared: &super::GluedPairs<T>,
     question: Coincide,
 ) -> DeclarationRead {
     let pairs: Vec<_> = [
@@ -838,7 +838,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
     x: &mut Body<T>,
     y: &mut Body<T>,
     x_is: Operand,
-    declared: &super::DeclaredPairs<T>,
+    declared: &super::GluedPairs<T>,
     contacts: &mut ContactAcc,
     band: Band,
     strategy: SweepStrategy,
@@ -1358,7 +1358,7 @@ fn edge_ends<T: Decide>(
 pub(super) fn sweep_and_settle<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &mut Body<T>,
     b: &mut Body<T>,
-    declared: &super::DeclaredPairs<T>,
+    declared: &super::GluedPairs<T>,
     contacts: &mut ContactAcc,
     band: Band,
     strategy: SweepStrategy,
@@ -1455,7 +1455,7 @@ pub(super) fn settle_deferred<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &mut Body<T>,
     b: &mut Body<T>,
     deferred: Vec<DeferredTouch>,
-    declared: &super::DeclaredPairs<T>,
+    declared: &super::GluedPairs<T>,
     contacts: &mut ContactAcc,
     band: Band,
     mut traces: [Option<&mut SweepTrace>; 2],
@@ -1555,7 +1555,7 @@ pub(super) fn settle_deferred<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// **The one-sided cover rung** (C4's cover clause at the crossing
 /// layer): a zero-clearance incidence whose edge has a parent face
 /// whose carrier is CERTIFIED to lie in one closed side of `face`'s
-/// ([`super::DeclaredPairs::one_sided`]) — by a verified `Rest` or
+/// ([`super::GluedPairs::one_sided`]) — by a verified `Rest` or
 /// continuation (the edge bounds a face on the shared carrier, so it
 /// lies ON that carrier), a verified `Tangent` (the on-carrier locus IS
 /// the verified tangency: the ruling a tangent edge realizes), or a
@@ -1683,13 +1683,13 @@ pub(super) fn settle_deferred<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// REPORTED here and performed there rather than the body being
 /// threaded in for one branch.
 /// The one-sided covers an edge's parent faces hold against `face`
-/// ([`super::DeclaredPairs::cover`]), one per covering parent.
+/// ([`super::GluedPairs::cover`]), one per covering parent.
 fn edge_covers<T: Decide>(
     x: &Body<T>,
     x_is: Operand,
     edge: &crate::entity::Edge,
     face: FaceKey,
-    declared: &super::DeclaredPairs<T>,
+    declared: &super::GluedPairs<T>,
 ) -> Vec<super::CoverSide> {
     [
         x.face_of_half_edge(edge.he_plus),
@@ -1713,7 +1713,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
     face: FaceKey,
     pu: Point3<T>,
     pv: Point3<T>,
-    declared: &super::DeclaredPairs<T>,
+    declared: &super::GluedPairs<T>,
     contacts: &mut ContactAcc,
     band: Band,
     tol: Tol,
@@ -2107,7 +2107,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
         // MAXIMUM, not its minimum — q(0) = 0, q(1) > 0 can dip
         // negative between): it is the cover's invariant — the edge's
         // parent carrier lies wholly in ONE closed residual half-space
-        // of `face`'s ([`super::DeclaredPairs::one_sided`]; for a
+        // of `face`'s ([`super::GluedPairs::one_sided`]; for a
         // `Tangent` source that is the witness lane's separation
         // invariant, the contract sentence on
         // [`geom_brep::tangent_locus`], and a one-carrier source's
@@ -2561,7 +2561,7 @@ fn conic_clearance<T: Decide>(
 ///
 /// `Rest` and a continuation are the classes that license it, and only
 /// where the declaration door's carrier ladder CALLED the pair one carrier
-/// ([`super::DeclaredPairs::verified_one_carrier`], recorded once at the
+/// ([`super::GluedPairs::verified_one_carrier`], recorded once at the
 /// door rather than re-derived per event). An edge bounding a face on
 /// that carrier lies on it. `Tangent` licenses nothing of the kind — a
 /// tangent pair shares a locus, not a carrier — and an undeclared pair
@@ -2571,7 +2571,7 @@ fn on_declared_shared_carrier<T: Decide>(
     x_is: Operand,
     edge: &crate::entity::Edge,
     face: FaceKey,
-    declared: &super::DeclaredPairs<T>,
+    declared: &super::GluedPairs<T>,
 ) -> bool {
     [
         x.face_of_half_edge(edge.he_plus),
@@ -4191,10 +4191,10 @@ mod planar_lane_carrier_rows;
 mod declaration_order_rows {
     use super::{ContactAcc, CurvedEvent, FaceContainment, curved_face_arm};
     use crate::boolean::{
-        BooleanDecision, BooleanDeclarations, BooleanError, Coincide, DeclarationRead,
-        DeclaredPairs, FacePairDeclaration, Operand,
+        BooleanDecision, BooleanError, Coincide, DeclarationRead, Glue, GluedPair, GluedPairs,
+        Operand,
     };
-    use crate::contact::{BooleanCoincidence, ContactClass};
+    use crate::contact::{ContactClass, GlueClass};
     use crate::entity::VertexKey;
     use crate::test_support::finished;
     use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet, prism_z};
@@ -4273,15 +4273,15 @@ mod declaration_order_rows {
             (0.0, 1.0),
             tol,
         );
-        let decls = BooleanDeclarations {
-            coincident_faces: class
-                .map(|class| vec![FacePairDeclaration::new(prism.side_faces[3], wall, class)])
+        let decls = Glue {
+            pairs: class
+                .map(|class| vec![GluedPair::new(prism.side_faces[3], wall, class)])
                 .unwrap_or_default(),
-            carried_a: Default::default(),
-            carried_b: Default::default(),
+            records_a: Default::default(),
+            records_b: Default::default(),
             verdicts: Default::default(),
         };
-        let declared = DeclaredPairs::<f64>::without_struts(&decls, Default::default());
+        let declared = GluedPairs::<f64>::without_struts(&decls, Default::default());
         let mut acc = ContactAcc::default();
         curved_face_arm(
             &x,
@@ -4438,12 +4438,12 @@ mod declaration_order_rows {
             (0.0, 1.0),
             tol,
         );
-        let decls = BooleanDeclarations {
-            coincident_faces: class
-                .map(|class| vec![FacePairDeclaration::new(xw, yw, class)])
+        let decls = Glue {
+            pairs: class
+                .map(|class| vec![GluedPair::new(xw, yw, class)])
                 .unwrap_or_default(),
-            carried_a: Default::default(),
-            carried_b: Default::default(),
+            records_a: Default::default(),
+            records_b: Default::default(),
             verdicts: Default::default(),
         };
         let one = if one_carrier {
@@ -4451,7 +4451,7 @@ mod declaration_order_rows {
         } else {
             Default::default()
         };
-        let declared = DeclaredPairs::<f64>::without_struts(&decls, one);
+        let declared = GluedPairs::<f64>::without_struts(&decls, one);
         let door = class.map(|class| {
             crate::boolean::contact_pair_verdict(&x, xw, &y, yw, class, None, b).is_ok()
         });
@@ -4522,21 +4522,21 @@ mod declaration_order_rows {
                 true,
                 Some(true),
                 Coincide::VertexOnCoveredFace,
-                DeclarationRead::Spent(BooleanCoincidence::REST),
+                DeclarationRead::Spent(GlueClass::REST),
             ),
             (
                 Some(ContactClass::Rest),
                 false,
                 Some(true),
                 uncovered,
-                DeclarationRead::Spent(BooleanCoincidence::REST),
+                DeclarationRead::Spent(GlueClass::REST),
             ),
             (
                 Some(ContactClass::Tangent),
                 false,
                 Some(false),
                 uncovered,
-                DeclarationRead::Spent(BooleanCoincidence::TANGENT),
+                DeclarationRead::Spent(GlueClass::TANGENT),
             ),
         ];
         for (class, one, door, which, read) in postures {
@@ -4711,8 +4711,7 @@ mod declaration_order_rows {
             *x.get_point(x.get_vertex(k).expect("a live vertex").point)
                 .expect("a live point")
         };
-        let declared =
-            DeclaredPairs::<f64>::without_struts(&BooleanDeclarations::none(), Default::default());
+        let declared = GluedPairs::<f64>::without_struts(&Glue::none(), Default::default());
         let mut acc = ContactAcc::default();
         let got = curved_face_arm(
             &x,
@@ -4773,15 +4772,9 @@ mod declaration_order_rows {
         a: &crate::AtRestBody<f64>,
         b: &crate::AtRestBody<f64>,
         pair: (crate::entity::FaceKey, crate::entity::FaceKey),
-        class: Option<BooleanCoincidence>,
+        class: Option<GlueClass>,
     ) -> Result<(), BooleanError> {
-        let decls = BooleanDeclarations {
-            coincident_faces: class
-                .map(|class| vec![FacePairDeclaration::new(pair.0, pair.1, class)])
-                .unwrap_or_default(),
-            ..BooleanDeclarations::none()
-        };
-        crate::boolean::union_with(a, b, &decls, Tol::witness()).map(|_| ())
+        crate::boolean::union(a, b, Tol::witness()).map(|_| ())
     }
 
     /// **A declared-`Tangent` pair's plane rung offers no second
@@ -4831,12 +4824,12 @@ mod declaration_order_rows {
         for (label, a, b, n) in poses {
             let (a, b) = (finished(label, a, tol), finished(label, b, tol));
             let pair = (face_facing(&a, n), face_facing(&b, [-n[0], -n[1], -n[2]]));
-            let got = union_declared(&a, &b, pair, Some(BooleanCoincidence::TANGENT));
+            let got = union_declared(&a, &b, pair, Some(GlueClass::TANGENT));
             assert_eq!(
                 decision_of(label, &got),
                 BooleanDecision::Coincidence(
                     Coincide::Planes,
-                    DeclarationRead::Spent(BooleanCoincidence::TANGENT)
+                    DeclarationRead::Spent(GlueClass::TANGENT)
                 ),
                 "{label}"
             );
@@ -4902,8 +4895,8 @@ mod declaration_order_rows {
                 -1.2 * band.zero(),
                 false,
                 -1.0,
-                BooleanCoincidence::REST,
-                BooleanCoincidence::Continuation,
+                GlueClass::REST,
+                GlueClass::Continuation,
                 // The parallelepiped's volume: its base
                 // parallelogram's area, `sin φ`, times its height.
                 block_volume + phi.sin(),
@@ -4913,8 +4906,8 @@ mod declaration_order_rows {
                 2.0 * band.zero(),
                 true,
                 1.0,
-                BooleanCoincidence::Continuation,
-                BooleanCoincidence::REST,
+                GlueClass::Continuation,
+                GlueClass::REST,
                 block_volume,
             ),
         ] {
@@ -4946,11 +4939,7 @@ mod declaration_order_rows {
                 ),
                 "{label}: the lookup offers {offered:?}: {undeclared:?}"
             );
-            let decls = BooleanDeclarations {
-                coincident_faces: vec![FacePairDeclaration::new(pair.0, pair.1, offered)],
-                ..BooleanDeclarations::none()
-            };
-            let built = crate::boolean::union_with(&block, &wedge, &decls, tol)
+            let built = crate::boolean::union(&block, &wedge, tol)
                 .unwrap_or_else(|e| panic!("{label}: following the offer, it builds: {e:?}"));
             let body = &built.body().expect("a union is not empty").body;
             let got = crate::mass_properties(body, tol)
@@ -4998,8 +4987,8 @@ mod declaration_order_rows {
             &'static str,
             crate::body::Body<f64>,
             f64,
-            BooleanCoincidence,
-            BooleanCoincidence,
+            GlueClass,
+            GlueClass,
         );
         let poses: [Pose; 2] = [
             (
@@ -5009,8 +4998,8 @@ mod declaration_order_rows {
                     tol,
                 ),
                 -1.0,
-                BooleanCoincidence::REST,
-                BooleanCoincidence::Continuation,
+                GlueClass::REST,
+                GlueClass::Continuation,
             ),
             (
                 "sunk into the block",
@@ -5021,8 +5010,8 @@ mod declaration_order_rows {
                     tol,
                 ),
                 1.0,
-                BooleanCoincidence::Continuation,
-                BooleanCoincidence::REST,
+                GlueClass::Continuation,
+                GlueClass::REST,
             ),
         ];
         for (label, wedge, facing, offered, other) in poses {
@@ -5064,11 +5053,7 @@ mod declaration_order_rows {
                     ),
                 "{label}: {text}"
             );
-            let decls = BooleanDeclarations {
-                coincident_faces: vec![FacePairDeclaration::new(pair.0, pair.1, offered)],
-                ..BooleanDeclarations::none()
-            };
-            let followed = crate::boolean::union_with(&block, &wedge, &decls, tol);
+            let followed = crate::boolean::union(&block, &wedge, tol);
             assert!(
                 matches!(
                     followed,

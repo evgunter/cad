@@ -1639,7 +1639,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::SeamContradicted => "seam_contradicted",
         BooleanErrorKind::RimCuspArmUnbuilt => "rim_cusp_arm_unbuilt",
         BooleanErrorKind::TangentSlitArmUnbuilt => "tangent_slit_arm_unbuilt",
-        BooleanErrorKind::InvalidDeclaration => "invalid_declaration",
+        BooleanErrorKind::InvalidInput => "invalid_input",
         BooleanErrorKind::PairingMismatch => "pairing_mismatch",
         BooleanErrorKind::SharedVertexCrossings => "shared_vertex_crossings",
         BooleanErrorKind::PinchConesOnSeparateKeys => "pinch_cones_on_separate_keys",

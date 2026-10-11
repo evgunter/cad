@@ -39,7 +39,7 @@ use geom::NurbsSurface;
 use geom_core::k_stats::decide;
 use geom_core::spline::basis::basis_funs;
 use geom_core::spline::{SpanLocate, SplineError};
-use geom_core::{Band, Decide, Indeterminate, Margin, NO_DECLARATION_RECOURSE, Point3, Real, Sign};
+use geom_core::{Band, Decide, Indeterminate, Margin, COINCIDENCE_RECOURSE, Point3, Real, Sign};
 
 use crate::ssi::ChartAxis;
 
@@ -303,7 +303,7 @@ impl<T: Real> core::fmt::Display for IsoRowError<T> {
                 f,
                 "whether an edge lies on the boundary of its face's fitted surface is too \
                  close to call: {}",
-                source.under(NO_DECLARATION_RECOURSE)
+                source.under(COINCIDENCE_RECOURSE)
             ),
             Self::WeightsNotSeparable { control_counts } => write!(
                 f,
@@ -660,7 +660,7 @@ mod tests {
             // `contains` rather than by position. Never a declaration:
             // this door takes none.
             assert!(
-                text.contains(NO_DECLARATION_RECOURSE) && !text.contains("declare"),
+                text.contains(COINCIDENCE_RECOURSE) && !text.contains("declare"),
                 "{kind}: no declaration is offered where none is taken: {text}"
             );
         }

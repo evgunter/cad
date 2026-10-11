@@ -836,13 +836,13 @@ fn a_cone_face_still_cannot_be_declared_at_all() {
     let err = topo::union_with(&cone, &other, &decls, Tol::witness())
         .expect_err("a cone face cannot be declared");
     match err {
-        BooleanError::InvalidDeclaration { what, .. } => {
+        BooleanError::InvalidInput { what, .. } => {
             assert!(
                 what.contains("certified inventory"),
                 "the refusal must name the inventory: {what}"
             );
         }
-        other => panic!("expected InvalidDeclaration, got {other:?}"),
+        other => panic!("expected InvalidInput, got {other:?}"),
     }
 }
 

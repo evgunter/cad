@@ -64,7 +64,7 @@ fn a_carried_edge_edge_row_on_an_arc_refuses_at_the_door() {
     assert!(
         matches!(
             got,
-            Err(topo::BooleanError::InvalidDeclaration {
+            Err(topo::BooleanError::InvalidInput {
                 operand: topo::Operand::A,
                 what: "carried e-e edge is not a certified line",
             })

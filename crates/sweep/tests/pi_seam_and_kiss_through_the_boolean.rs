@@ -682,7 +682,7 @@ fn a_seam_declared_on_a_transverse_pair_is_contradicted() {
         tol,
     );
     assert!(
-        matches!(r, Err(BooleanError::InvalidDeclaration { .. })),
+        matches!(r, Err(BooleanError::InvalidInput { .. })),
         "the cone is outside the declaration inventory: {r:?}"
     );
 }

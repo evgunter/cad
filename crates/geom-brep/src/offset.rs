@@ -102,7 +102,7 @@
 
 use geom::Surface;
 use geom_core::{
-    Band, Indeterminate, KERNEL_DEFECT_ENDING, Margin, NO_DECLARATION_RECOURSE, NOT_YET_ENDING,
+    Band, Indeterminate, KERNEL_DEFECT_ENDING, Margin, COINCIDENCE_RECOURSE, NOT_YET_ENDING,
     Sign,
 };
 
@@ -307,7 +307,7 @@ impl<T: geom_core::Real> core::fmt::Display for OffsetError<T> {
             Self::Escalated { source } => write!(
                 f,
                 "whether the offset surface keeps a valid radius is too close to call: {}",
-                source.under(NO_DECLARATION_RECOURSE)
+                source.under(COINCIDENCE_RECOURSE)
             ),
         }
     }

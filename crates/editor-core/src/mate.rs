@@ -1618,7 +1618,7 @@ impl crate::spoken::Say for MateFault {
                 "{}: a case split could not be decided — {}. Recourse: {}",
                 mate_(*mate),
                 diag.payload(),
-                geom_core::NO_DECLARATION_RECOURSE
+                geom_core::COINCIDENCE_RECOURSE
             ),
             Self::PoseOutOfRange { held, added } => {
                 if held == added {

@@ -2522,12 +2522,7 @@ const REPARAMETERIZE: &str = geom_brep::CARRIER_DOMAIN_RECOURSE;
 fn too_close(margin: &geom_core::MarginDiag) -> &'static str {
     own_close(
         margin,
-        concat!(
-            "Recourse: ",
-            geom_core::coincidence_declare_arm!(),
-            ", or ",
-            geom_core::coincidence_move_arm!()
-        ),
+        concat!("Recourse: ", geom_core::coincidence_move_arm!()),
     )
 }
 

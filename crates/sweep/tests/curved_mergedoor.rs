@@ -813,7 +813,7 @@ fn mixed_kind_declared_pair_still_refuses_typed() {
         assert!(
             matches!(
                 err,
-                MergeCoplanarError::InvalidDeclaration {
+                MergeCoplanarError::InvalidInput {
                     surface,
                     what: "declared surfaces are not one kind",
                 } if surface == k2
@@ -837,7 +837,7 @@ fn mixed_kind_declared_pair_still_refuses_typed() {
         assert!(
             matches!(
                 err,
-                MergeCoplanarError::InvalidDeclaration {
+                MergeCoplanarError::InvalidInput {
                     surface,
                     what: "declared surfaces are not one kind",
                 } if surface == cyl
@@ -874,7 +874,7 @@ fn unresolved_declared_key_still_refuses() {
         assert!(
             matches!(
                 err,
-                MergeCoplanarError::InvalidDeclaration {
+                MergeCoplanarError::InvalidInput {
                     surface,
                     what: "declared surface key does not resolve",
                 } if surface == dangling

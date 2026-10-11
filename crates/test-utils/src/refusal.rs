@@ -76,7 +76,7 @@ const SENTENCE_WORDS: &[&str] = &[
 
 /// The recourse phrases the kernel's shared vocabulary states WITHOUT a
 /// `Recourse:` label (`geom_core::COINCIDENCE_RECOURSE`,
-/// `SPLIT_PLANE_RECOURSE` and `NO_DECLARATION_RECOURSE`, longest
+/// `SPLIT_PLANE_RECOURSE` and `COINCIDENCE_RECOURSE`, longest
 /// first, since the last is a suffix of the first). This crate is a
 /// dependency-free leaf, so the text is restated here;
 /// `editor-core/tests/refusal_concision_chains.rs`

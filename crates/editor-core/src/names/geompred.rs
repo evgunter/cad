@@ -349,7 +349,7 @@ impl crate::spoken::Say for SelectRefusal {
                     name.kind.noun()
                 )?;
                 named(f, name)?;
-                write!(f, "): {}", source.under(geom_core::NO_DECLARATION_RECOURSE))
+                write!(f, "): {}", source.under(geom_core::COINCIDENCE_RECOURSE))
             }
             Self::TiedDisagrees {
                 name,
@@ -429,7 +429,7 @@ impl crate::spoken::Say for SelectRefusal {
                     f,
                     " may coincide ({}){}",
                     source.payload(),
-                    source.under(geom_core::NO_DECLARATION_RECOURSE).tail()
+                    source.under(geom_core::COINCIDENCE_RECOURSE).tail()
                 )
             }
             Self::BadValue(error) => {

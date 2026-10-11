@@ -18,9 +18,7 @@ use super::search_kit::band;
 use super::*;
 use crate::boolean::ops;
 use crate::test_support_fixtures::{CylFrame, brick, cyl_wall_sheet};
-use crate::{
-    Body, BooleanDeclarations, FaceKey, FacePairDeclaration, FaceSurface, MefSite, MevSite, Operand,
-};
+use crate::{Body, FaceKey, FaceSurface, MefSite, MevSite, Operand};
 use core::f64::consts::{PI, TAU};
 use geom::{Curve3, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
@@ -1592,26 +1590,27 @@ fn a_lone_vertex_ring_on_the_b_side_refuses_the_pair() {
     );
 }
 
-/// **A declaration speaks for its own pair only.** A face of A declared
-/// against B's face `Y` meets B's other faces undeclared, and B's `Y`
-/// meets A's other faces undeclared.
+/// **A glued pair speaks for itself only.** A face of A glued to B's
+/// face `Y` meets B's other faces unglued, and B's `Y` meets A's other
+/// faces unglued.
 #[test]
-fn a_declaration_exempts_its_own_pair_only() {
+fn a_glued_pair_exempts_itself_only() {
+    use crate::boolean::{Glue, GluedPair};
     let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let b = brick::<f64>((0.0, 1.0), (0.0, 1.0), (1.0, 2.0), Tol::witness());
     let fa: Vec<FaceKey> = a.faces().map(|(k, _)| k).collect();
     let fb: Vec<FaceKey> = b.faces().map(|(k, _)| k).collect();
-    let decls = BooleanDeclarations {
-        coincident_faces: vec![FacePairDeclaration {
+    let decls = Glue {
+        pairs: vec![GluedPair {
             a: fa[0],
             b: fb[0],
-            class: crate::contact::BooleanCoincidence::REST,
+            class: crate::contact::GlueClass::REST,
         }],
-        ..BooleanDeclarations::default()
+        ..Glue::default()
     };
-    assert!(ops::declares_pair(&decls, fa[0], fb[0]));
-    assert!(!ops::declares_pair(&decls, fa[0], fb[1]));
-    assert!(!ops::declares_pair(&decls, fa[1], fb[0]));
+    assert!(ops::glues_pair(&decls, fa[0], fb[0]));
+    assert!(!ops::glues_pair(&decls, fa[0], fb[1]));
+    assert!(!ops::glues_pair(&decls, fa[1], fb[0]));
 }
 
 // -------------------------------------------------------------------

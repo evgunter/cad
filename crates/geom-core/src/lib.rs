@@ -47,10 +47,10 @@ pub use predicate::{
     Decided, ErrorTextReading, FileCoincidence, Indeterminate, IndeterminatePayload,
     IndeterminateUnder, InfSpeed, KERNEL_DEFECT_ENDING, KERNEL_LIMIT_LAST_RESORT,
     KERNEL_LIMIT_RECOURSE, KERNEL_OR_FILE_DEFECT_ENDING, Margin, MarginDiag, MarginKind,
-    MissReading, MissSource, MissingRecourse, NO_DECLARATION_RECOURSE, NOT_YET_ENDING,
-    RANGE_RECOURSE, Recourse, SPLIT_PLANE_RECOURSE, Sign, SizedPass, SizedWords, SupSpeed,
-    UNNAMED_DECISION, UNREADABLE_MARGIN_NOTE, UNREADABLE_STORED_MARGIN_NOTE, UndecidedRefusal,
-    UnderTail, lever_recourse, noted,
+    MissReading, MissSource, MissingRecourse, NOT_YET_ENDING, RANGE_RECOURSE, Recourse,
+    SPLIT_PLANE_RECOURSE, Sign, SizedPass, SizedWords, SupSpeed, UNNAMED_DECISION,
+    UNREADABLE_MARGIN_NOTE, UNREADABLE_STORED_MARGIN_NOTE, UndecidedRefusal, UnderTail,
+    lever_recourse, noted,
 };
 pub use readable::Readable;
 pub use real::{

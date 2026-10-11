@@ -16,7 +16,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::{ContactAcc, SweepKnobs, SweepStrategy, sweep_and_settle};
-use crate::boolean::{BooleanError, ContactRecords, DeclaredPairs, VfContact};
+use crate::boolean::{BooleanError, ContactRecords, GluedPairs, VfContact};
 use crate::test_support_fixtures::{CylFrame, brick, cyl_wall_sheet};
 use crate::{Body, FaceKey, VertexKey};
 use geom::Curve3;
@@ -98,7 +98,7 @@ pub(in crate::boolean) fn sweep(
 ) -> Result<ContactRecords, BooleanError> {
     let (mut x, mut y) = (x.clone(), y.clone());
     let mut acc = ContactAcc::default();
-    let declared = DeclaredPairs::default();
+    let declared = GluedPairs::default();
     sweep_and_settle(
         &mut x,
         &mut y,

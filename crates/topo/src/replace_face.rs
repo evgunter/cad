@@ -222,9 +222,8 @@ use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, Nappe, SurfacePair};
 use geom_core::k_stats::decide;
 use geom_core::{
-    Affine3, Band, BandError, Decide, Indeterminate, KERNEL_DEFECT_ENDING,
-    KERNEL_OR_FILE_DEFECT_ENDING, Margin, NO_DECLARATION_RECOURSE, NOT_YET_ENDING, Point3, Real,
-    Sign, Tol, Vec3,
+    Affine3, Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, KERNEL_DEFECT_ENDING,
+    KERNEL_OR_FILE_DEFECT_ENDING, Margin, NOT_YET_ENDING, Point3, Real, Sign, Tol, Vec3,
 };
 
 use crate::attach::Rechart;
@@ -894,7 +893,7 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
                 f,
                 "whether the offset face and its edges land where they should is too close to \
                  call: {}",
-                source.under(NO_DECLARATION_RECOURSE)
+                source.under(COINCIDENCE_RECOURSE)
             ),
             Self::Op {
                 edge: Some(_),

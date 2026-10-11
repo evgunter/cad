@@ -105,13 +105,13 @@ pub enum Relation {
 }
 
 impl Relation {
-    /// The class a declaration of a face pair glued under this relation
-    /// asserts: one carrier opposed a `Rest` contact, aligned a
-    /// continuation, a tangency a `Tangent` contact or a seam. `None`
-    /// for a relation that glues no face pair.
+    /// The class a face pair glued under this relation glues as: one
+    /// carrier opposed a `Rest` contact, aligned a continuation, a
+    /// tangency a `Tangent` contact or a seam. `None` for a relation
+    /// that glues no face pair.
     #[must_use]
-    pub const fn glued_class(self) -> Option<crate::contact::BooleanCoincidence> {
-        use crate::contact::BooleanCoincidence as C;
+    pub const fn glued_class(self) -> Option<crate::contact::GlueClass> {
+        use crate::contact::GlueClass as C;
         match self {
             Self::SameOpposite => Some(C::REST),
             Self::SameOriented => Some(C::Continuation),

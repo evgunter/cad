@@ -451,7 +451,7 @@ fn the_bare_recourses_are_geom_cores_constants() {
         [
             geom_core::COINCIDENCE_RECOURSE,
             geom_core::SPLIT_PLANE_RECOURSE,
-            geom_core::NO_DECLARATION_RECOURSE,
+            geom_core::COINCIDENCE_RECOURSE,
         ]
     );
 }
@@ -677,7 +677,7 @@ fn every_node_refusal_renders_within_the_budget() {
         // carries the margin payload beside it. An arm with a lever of
         // its own — "move the geometry", for a definite verdict no
         // declaration would change — is NOT it, and the levers alone no
-        // longer tell the two apart now that `NO_DECLARATION_RECOURSE`
+        // longer tell the two apart now that `COINCIDENCE_RECOURSE`
         // is the lever and not a sentence.
         if let Some(arm) = name.strip_prefix("Boolean/Join/") {
             let split = rows
@@ -693,7 +693,7 @@ fn every_node_refusal_renders_within_the_budget() {
             ]
             .iter()
             .any(|p| split.contains(p));
-            if escalated && split.contains(geom_core::NO_DECLARATION_RECOURSE) {
+            if escalated && split.contains(geom_core::COINCIDENCE_RECOURSE) {
                 assert!(
                     text.contains(geom_core::COINCIDENCE_RECOURSE),
                     "{name}: {text}"

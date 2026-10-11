@@ -834,7 +834,7 @@ fn a_carried_edge_edge_row_whose_key_does_not_resolve_refuses_at_the_door() {
         assert!(
             matches!(
                 got,
-                Err(topo::BooleanError::InvalidDeclaration {
+                Err(topo::BooleanError::InvalidInput {
                     operand: topo::Operand::A,
                     what: w,
                 }) if w == what
@@ -917,7 +917,7 @@ fn an_edge_edge_record_backs_its_crossing_and_is_stale_without_one() {
 
 /// **A carried `(vertex, edge)` row is validated at the door**, as its
 /// v-v and v-on-f siblings are: a key that does not resolve in its
-/// operand refuses `InvalidDeclaration` before anything runs. Red when
+/// operand refuses `InvalidInput` before anything runs. Red when
 /// the door reads carried v-on-e rows unchecked (the row would reach the
 /// substitution door and leave silently).
 #[test]
@@ -947,7 +947,7 @@ fn a_carried_vertex_on_edge_row_whose_key_does_not_resolve_refuses_at_the_door()
     assert!(
         matches!(
             got,
-            Err(topo::BooleanError::InvalidDeclaration {
+            Err(topo::BooleanError::InvalidInput {
                 operand: topo::Operand::A,
                 what: "carried v-on-e edge key does not resolve",
             })

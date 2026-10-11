@@ -2064,7 +2064,7 @@ fn arc_side<T: Decide>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-    use crate::contact::BooleanCoincidence;
+    use crate::contact::GlueClass;
     use geom_core::Tol;
 
     fn band() -> Band {
@@ -5375,7 +5375,7 @@ mod tests {
             p,
             d,
             arm,
-            DeclarationRead::Spent(BooleanCoincidence::TANGENT),
+            DeclarationRead::Spent(GlueClass::TANGENT),
             b,
         )
         .expect_err("an in-band sagitta escalates the reading");
@@ -5386,7 +5386,7 @@ mod tests {
             decision,
             BooleanDecision::Coincidence(
                 Coincide::TangentSide,
-                DeclarationRead::Spent(BooleanCoincidence::TANGENT)
+                DeclarationRead::Spent(GlueClass::TANGENT)
             )
         );
         assert_eq!(diag.predicate, Some("tangent_sector_order2"));
@@ -5644,7 +5644,7 @@ mod tests {
             Operand::B,
             FaceKey::default(),
             0.5,
-            DeclarationRead::Spent(BooleanCoincidence::TANGENT),
+            DeclarationRead::Spent(GlueClass::TANGENT),
             b,
         )
         .unwrap();
@@ -5662,7 +5662,7 @@ mod tests {
             Operand::A,
             FaceKey::default(),
             0.5,
-            DeclarationRead::Spent(BooleanCoincidence::TANGENT),
+            DeclarationRead::Spent(GlueClass::TANGENT),
             b,
         )
         .unwrap();
@@ -5690,7 +5690,7 @@ mod tests {
             Operand::A,
             FaceKey::default(),
             0.25,
-            DeclarationRead::Spent(BooleanCoincidence::TANGENT),
+            DeclarationRead::Spent(GlueClass::TANGENT),
             b,
         )
         .unwrap();
@@ -5719,7 +5719,7 @@ mod tests {
                 Operand::A,
                 FaceKey::default(),
                 arm,
-                DeclarationRead::Spent(BooleanCoincidence::TANGENT),
+                DeclarationRead::Spent(GlueClass::TANGENT),
                 b,
             )
         };
@@ -5757,7 +5757,7 @@ mod tests {
             Operand::A,
             FaceKey::default(),
             0.5,
-            DeclarationRead::Spent(BooleanCoincidence::TANGENT),
+            DeclarationRead::Spent(GlueClass::TANGENT),
             b,
         ) {
             Err(BooleanError::ClassificationInvariant { .. }) => {}
@@ -5779,7 +5779,7 @@ mod tests {
             Operand::A,
             FaceKey::default(),
             0.5,
-            DeclarationRead::Spent(BooleanCoincidence::TANGENT),
+            DeclarationRead::Spent(GlueClass::TANGENT),
             b,
         ) {
             Err(BooleanError::CurvedBooleanUnsupported { .. }) => {}
