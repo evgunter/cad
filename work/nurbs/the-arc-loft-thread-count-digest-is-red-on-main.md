@@ -58,3 +58,15 @@ a re-cut alone should not paper over. The likely mover is PR 4703
 (NURBS weights and knots in `T`, which reclassed the arc rim's
 decisions). Found on INTENT's PR 4669 (the slow set runs there because
 its diff seeds sweep).
+
+## Also moved (PR 4732's CI, ε = 1e-9)
+
+Seen on `cleave/chord-end-sample` at `090278cdb`, whose diff changes no
+kernel code. CI run 38159733248, job "test (the slow set of the crates
+this diff seeds)". Besides `arc_loft_1e9eps`, two `Sym` rows of the same
+digest move. Their decisions and shapes do not:
+
+| line | committed | got |
+|---|---|---|
+| `sym_arc_loft validate_geometric` | `sz=48 num=604 frozen=1244` | `sz=40 num=612 frozen=3732` |
+| `sym_thin_strip validate_geometric` | `sz=48 num=612 frozen=1268` | `sz=36 num=624 frozen=2792` |
