@@ -408,16 +408,17 @@ fn the_torus_meridian_decide_holds_at_the_interval_scalar() {
 // The cone reads circle spans the parse never mints as rims
 // ---------------------------------------------------------------------
 
-/// A zero-span ellipse edge at the cone's low level: it adds nothing
-/// to the loop's vector area, and its presence alone steers
-/// `cone_face_closed_form` onto the ellipse-cut branch, which reads its
-/// loops' endpoints and vector areas and parses no rim.
+/// A zero-span ellipse edge on the cone's low rim, its carrier the rim
+/// stated as an ellipse: it adds nothing to the loop's vector area, and
+/// its presence alone steered `cone_face_closed_form` onto the
+/// ellipse-cut branch, which read its loops' endpoints and vector areas
+/// and parsed no rim.
 fn null_ellipse<T: Real>() -> LoopEdge<T> {
     let c = Curve3::Ellipse {
         center: p(0.0, 0.0, S0 * HALF.cos()),
         axis: v(0.0, 0.0, 1.0),
         major: f(S0 * HALF.sin()),
-        minor: f(S0 * HALF.sin() * 0.5),
+        minor: f(S0 * HALF.sin()),
         u_ref: v(1.0, 0.0, 0.0),
     };
     LoopEdge::hand_built(c, f(0.0), f(0.0), true, 0, 0)

@@ -34,6 +34,7 @@ use geom_core::{
 
 use super::{FaceContribution, LoopEdge, PropsCheck, PropsError, loop_vector_area};
 use crate::dihedral::decide;
+use crate::implicit::cone_elevation;
 
 /// The flux and area of a curved face from its **outer** loop:
 /// [`curved_face_loops`] over that one loop. `band` is the run's
@@ -222,7 +223,9 @@ pub fn boundary_material_sign_loops<T: Decide>(
 /// `props_rim_axis_parallel`, `props_rim_center_on_axis`, the
 /// `props_meridian_*` incidences, `props_rim_level`), so a
 /// `NotIsoRectangle` from here carries the `what` the flux lane would
-/// report for the same face.
+/// report for the same face — except a cone circle's tilt and offset,
+/// which the cone's flux lane, reading no level off it, decides as
+/// incidence under its own pair ([`require_on_cone`]).
 ///
 /// **Carrier membership is not arc membership; this door decides the
 /// former and [`require_one_chart_branch`] decides the latter** (issue
@@ -1649,8 +1652,10 @@ fn min_max<T: Real>(levels: &[T]) -> Result<(T, T), PropsError> {
 /// a region whose closure holds the apex, where `n` is undefined on a
 /// set of no area. What it needs, each decided by name:
 ///
-/// - **edges on the cone** — generators through the apex, rims of the
-///   cone's own radius (the incidence premises, in [`cone_loops`]);
+/// - **edges on the cone** — generators through the apex, coaxial
+///   sections, plane sections (the incidence premises,
+///   [`require_on_cone`]), each conic's span within a period
+///   ([`require_cone_conic_spans`]);
 /// - **one nappe** — the boundary does not cross the apex
 ///   (`props_cone_nappe`, in [`cone_loops`]);
 /// - **closed loops** that bound the region **once**: every joint
@@ -1682,7 +1687,8 @@ fn min_max<T: Real>(levels: &[T]) -> Result<(T, T), PropsError> {
 /// [`PropsError::DegenerateFace`] for a face of no area;
 /// [`PropsError::ConeLoop`] naming the decide for a loop that does not
 /// close, goes round the axis twice, meets itself at a vertex, or a
-/// ring that winds the axis or reaches the apex;
+/// ring that winds the axis or reaches the apex, and for an ellipse
+/// arc's span not forward or past a period;
 /// [`PropsError::RingWoundWithFace`] for a ring wound with the face;
 /// [`PropsError::HolesExceedFace`] for holes that cover more than the
 /// outer loop; [`PropsError::Escalated`] for an in-band decision.
@@ -1771,13 +1777,10 @@ struct ConeLoops<T: Real> {
 /// area against the chart normal, off the axial vector area.
 ///
 /// Every edge must lie on the cone, decided as incidence
-/// ([`PropsError::OffSurface`]): a line is a generator — at the
-/// generator angle to the axis (`props_meridian_generator`) and through
-/// the apex (`props_meridian_apex`) — and a circle is a rim, coaxial
-/// (`props_circle_axis_class`, `props_rim_axis_parallel`,
-/// `props_rim_center_on_axis`) at the cone's radius for its height
-/// (`props_rim_fit`). An ellipse is read as the plane section it is
-/// stated to be, its incidence undecided here.
+/// ([`PropsError::OffSurface`], [`require_on_cone`]): a line is a
+/// generator, a circle a coaxial section and an ellipse the section by
+/// its plane. Every circle and ellipse span is decided within a period
+/// ([`require_cone_conic_spans`]) before any reader takes it.
 ///
 /// The chart normal makes `n·axis = −sin α` on the `v > 0` nappe and
 /// `+sin α` on the other, so a face whose traversal places it left of
@@ -1808,9 +1811,9 @@ fn cone_loops<T: Decide>(
     let slant = |p: Point3<T>| (p - apex).dot(axis) / cos_a;
     for &edges in loops {
         for e in edges {
-            require_on_cone(apex, axis, sin_a, cos_a, e, band)?;
+            require_on_cone(apex, axis, half_angle, e, band)?;
         }
-        require_cone_circle_spans(edges, band)?;
+        require_cone_conic_spans(edges, band)?;
     }
     let (mut ends, mut length, mut axial, mut va) =
         (Vec::new(), T::zero(), T::zero(), Vec3::zero());
@@ -1874,43 +1877,40 @@ fn cone_loop_refusal(e: PropsError) -> PropsError {
     }
 }
 
-/// **An edge lies on the cone** — the incidence premises the iso parse
-/// ([`cone_boundary`]) decides, under the same names: a line at the
-/// generator angle through the apex, a circle coaxial at the cone's
-/// radius for its height. An ellipse passes undecided ([`cone_loops`]).
+/// **An edge lies on the cone**, each premise decided at the true
+/// distance from the cone of the edge's farthest point:
 ///
-/// Each meters a point's distance from the cone: a line's angle off the
-/// generator, `sin(β − α) = |dir × axis|·cos α − |dir·axis|·sin α`, over
-/// its span, and a rim's distance in its meridian plane,
-/// `r·cos α − |h|·sin α` with `h` the centre's axial height — neither
-/// divides by `sin α` or `cos α`, so neither is levered toward a needle
-/// or a near-flat cone.
+/// - a line is a generator ([`require_cone_generator`]), under the iso
+///   parse's names;
+/// - a circle is coaxial (`props_circle_axis_class`) at the cone's
+///   radius for its height (`props_rim_fit`, `r·cos α − |h|·sin α` with
+///   `h` the centre's axial height), and neither tilted
+///   (`props_cone_circle_tilt`) nor off the axis
+///   (`props_cone_circle_off_axis`) by more than the band. With the
+///   other two exact, a circle tilted by `θ` is off the cone by at most
+///   `r·(sin θ·sin α + (1 − cos θ)·cos α)` and one whose centre is `o`
+///   off the axis by at most `o·cos α`, both attained. The iso parse
+///   asks the stricter question whether the circle is the iso rim
+///   ([`require_rim_incidence`]): a tilt moves its points along the
+///   cone by `r·sin θ` while moving them off it by far less toward a
+///   needle, and an offset by `o` while moving them off it by far less
+///   toward the flat;
+/// - an ellipse is the cone's section by its plane
+///   (`props_cone_ellipse_on_cone`): five points determine a conic, so
+///   five points of the carrier spread round its whole period, each on
+///   the cone (its elevation, [`cone_elevation`], the exact distance),
+///   make the carrier the section of the cone by its plane, and the
+///   decide does not degrade with a short span.
 fn require_on_cone<T: Decide>(
     apex: Point3<T>,
     axis: Vec3<T>,
-    sin_a: T,
-    cos_a: T,
+    half_angle: T,
     e: &LoopEdge<T>,
     band: Band,
 ) -> Result<(), PropsError> {
+    let (sin_a, cos_a) = half_angle.sin_cos();
     match e.carrier {
-        Curve3::Line { dir, .. } => {
-            require_zero(
-                "props_meridian_generator",
-                Margin::levered(
-                    dir.cross(axis).norm() * cos_a - dir.dot(axis).abs() * sin_a,
-                    e.t1 - e.t0,
-                ),
-                band,
-                Premise::OnSurface,
-            )?;
-            require_zero(
-                "props_meridian_apex",
-                Margin::norm3((apex - e.p0()).cross(dir)),
-                band,
-                Premise::OnSurface,
-            )
-        }
+        Curve3::Line { dir, .. } => require_cone_generator(apex, axis, sin_a, cos_a, dir, e, band),
         Curve3::Circle {
             center,
             axis: n_c,
@@ -1934,27 +1934,105 @@ fn require_on_cone<T: Decide>(
                 band,
                 Premise::OnSurface,
             )?;
-            require_rim_incidence(center - apex, n_c, r_c, axis, band, Premise::OnSurface)
+            let cos_t = n_c.dot(axis).abs();
+            require_zero(
+                "props_cone_circle_tilt",
+                Margin::of(r_c * (n_c.cross(axis).norm() * sin_a + (T::one() - cos_t) * cos_a)),
+                band,
+                Premise::OnSurface,
+            )?;
+            let w = center - apex;
+            require_zero(
+                "props_cone_circle_off_axis",
+                Margin::of((w - axis * w.dot(axis)).norm() * cos_a),
+                band,
+                Premise::OnSurface,
+            )
         }
-        Curve3::Ellipse { .. } => Ok(()),
+        Curve3::Ellipse { .. } => {
+            for k in 0..5 {
+                let t = T::tau() * T::from_f64(f64::from(k) / 5.0);
+                require_zero(
+                    "props_cone_ellipse_on_cone",
+                    Margin::of(cone_elevation(
+                        apex,
+                        axis,
+                        half_angle,
+                        None,
+                        e.carrier.eval(t),
+                    )),
+                    band,
+                    Premise::OnSurface,
+                )?;
+            }
+            Ok(())
+        }
         Curve3::Nurbs(_) | Curve3::Spiric { .. } => Err(PropsError::Unimplemented),
     }
 }
 
-/// **Every circle span the cone reads, decided** ([`require_rim_span`]).
-/// The cone's flux lane and material sign integrate each edge's stored
-/// span through [`loop_vector_area`] (`R²·Δt`) and [`cone_edge_length`]
-/// (`R·|Δt|`) on every loop, rings and the ellipse-cut branch included,
-/// none of which mints a [`Rim`]; a circle on a cone is a coaxial
-/// section, so its span is a rim's and is decided under the rim's names
-/// at its own radius.
-fn require_cone_circle_spans<T: Decide>(
+/// **A line on the cone is a generator**: at the generator angle to the
+/// axis (`props_meridian_generator`) and through the apex
+/// (`props_meridian_apex`, the apex's distance from the line, `dir`
+/// unit). A line through the apex at angle `β` to the axis is off the
+/// cone by `s·sin(β − α)` at distance `s` from the apex, with
+/// `sin(β − α) = |dir × axis|·cos α − |dir·axis|·sin α`, so the angle is
+/// levered by the edge's reach from the apex, the farther of its ends.
+fn require_cone_generator<T: Decide>(
+    apex: Point3<T>,
+    axis: Vec3<T>,
+    sin_a: T,
+    cos_a: T,
+    dir: Vec3<T>,
+    e: &LoopEdge<T>,
+    band: Band,
+) -> Result<(), PropsError> {
+    require_zero(
+        "props_meridian_generator",
+        Margin::levered(
+            dir.cross(axis).norm() * cos_a - dir.dot(axis).abs() * sin_a,
+            (e.p0() - apex).norm().max((e.p1() - apex).norm()),
+        ),
+        band,
+        Premise::OnSurface,
+    )?;
+    require_zero(
+        "props_meridian_apex",
+        Margin::norm3((apex - e.p0()).cross(dir)),
+        band,
+        Premise::OnSurface,
+    )
+}
+
+/// **Every conic span the cone reads, decided.** The cone's flux lane
+/// and material sign integrate each edge's stored span through
+/// [`loop_vector_area`] and [`cone_edge_length`], and its winding reads
+/// it through [`cone_loop_winding`], on every loop, rings and the
+/// ellipse-cut branch included, none of which mints a [`Rim`]. A circle
+/// on a cone is a coaxial section, so its span is a rim's and is decided
+/// under the rim's names at its own radius ([`require_rim_span`]). An
+/// ellipse arc is no rim: its span is decided under its own names,
+/// `props_cone_ellipse_span_forward` / `props_cone_ellipse_span_winding`,
+/// at certification's ellipse meter, the smaller semi-axis magnitude,
+/// refusing as [`PropsError::ConeLoop`].
+fn require_cone_conic_spans<T: Decide>(
     edges: &[LoopEdge<T>],
     band: Band,
 ) -> Result<(), PropsError> {
     for e in edges {
-        if let Curve3::Circle { radius, .. } = e.carrier {
-            require_rim_span(e, radius, band)?;
+        match e.carrier {
+            Curve3::Circle { radius, .. } => require_rim_span(e, radius, band)?,
+            Curve3::Ellipse { major, minor, .. } => require_span_within_period(
+                e,
+                major.abs().min(minor),
+                band,
+                [
+                    "props_cone_ellipse_span_forward",
+                    "props_cone_ellipse_span_winding",
+                ],
+                |what| PropsError::ConeLoop { what },
+            )?,
+            _ => {}
         }
     }
     Ok(())
@@ -2309,25 +2387,7 @@ fn cone_boundary<T: Decide>(
         match e.carrier {
             Curve3::Line { dir, .. } => {
                 generators = true;
-                require_zero(
-                    "props_meridian_generator",
-                    Margin::levered(
-                        dir.cross(axis).norm() * cos_a - dir.dot(axis).abs() * sin_a,
-                        e.t1 - e.t0,
-                    ),
-                    band,
-                    Premise::OnSurface,
-                )?;
-                // Incidence: a line at the generator angle is a
-                // generator iff it passes through the apex — the
-                // apex-to-line distance `‖(apex − p) × dir‖` (`dir`
-                // unit, so meters directly).
-                require_zero(
-                    "props_meridian_apex",
-                    Margin::norm3((apex - e.p0()).cross(dir)),
-                    band,
-                    Premise::OnSurface,
-                )?;
+                require_cone_generator(apex, axis, sin_a, cos_a, dir, e, band)?;
                 levels.push((e.p0() - apex).dot(axis) / cos_a);
                 levels.push((e.p1() - apex).dot(axis) / cos_a);
             }
@@ -3253,7 +3313,7 @@ fn arc_point_margin<T: Decide>(arc: &SphereArc<T>, p: Point3<T>) -> Margin<T> {
 /// circle's own radius `r_c`, as `props_rim_span_forward` /
 /// `props_rim_span_winding`, refusing [`PropsError::NotIsoRectangle`].
 /// Asked by [`Rim::decided`] at every rim mint, and by
-/// [`require_cone_circle_spans`] wherever the cone reads a circle's span
+/// [`require_cone_conic_spans`] wherever the cone reads a circle's span
 /// without minting a rim.
 fn require_rim_span<T: Decide>(e: &LoopEdge<T>, r_c: T, band: Band) -> Result<(), PropsError> {
     require_span_within_period(
@@ -3306,6 +3366,10 @@ fn require_meridian_span<T: Decide>(
 /// * a meridian, through [`require_meridian_span`];
 /// * a rim of any kind, and every circle the cone reads, through
 ///   [`require_rim_span`];
+/// * every ellipse arc the cone reads, at the smaller semi-axis
+///   magnitude, `props_cone_ellipse_span_forward` /
+///   `props_cone_ellipse_span_winding`, refusing as
+///   [`PropsError::ConeLoop`] ([`require_cone_conic_spans`]);
 /// * every arc of the sphere's flux lane ([`sphere_loop`]) at the arc's
 ///   own radius, `props_sphere_arc_span_forward` /
 ///   `props_sphere_arc_span_winding`, refusing as
