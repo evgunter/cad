@@ -3748,6 +3748,25 @@ impl<P, S: Slot> Node<P, S> {
         find_row(self.body_reads(), seat)
     }
 
+    /// [`Self::body_read`], exclusive.
+    pub fn body_read_mut(&mut self, seat: crate::OperandSlot) -> Option<&mut crate::BodyRead<S>> {
+        use crate::OperandSlot as O;
+        match (self, seat) {
+            (Node::Split { target, .. }, O::Target) => Some(target),
+            (Node::Subtract { from, .. }, O::From) => Some(from),
+            (Node::Subtract { tool, .. }, O::Cut) => Some(tool),
+            (Node::Union { members, .. } | Node::Intersect { members, .. }, _) => members
+                .rows_mut()
+                .into_iter()
+                .find_map(|(at, read)| (at == seat).then_some(read)),
+            (Node::Place { shapes, .. }, _) => shapes
+                .rows_mut()
+                .into_iter()
+                .find_map(|(at, read)| (at == seat).then_some(read)),
+            _ => None,
+        }
+    }
+
     /// **The kinds the variable read at operand `seat` may have**: the
     /// seat's own ([`crate::OperandSlot::kind`]), except at a body seat
     /// whose read is indexed, where the variable read is the family

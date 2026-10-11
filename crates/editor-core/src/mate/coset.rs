@@ -1243,25 +1243,6 @@ fn member_of<T: SolveScalar>(
     Ok(())
 }
 
-/// **Whether `x` is the identity**, decided as membership of the
-/// trivial subgroup over `arm` — the test a checked offset meets
-/// against the solve (A11 (2)).
-///
-/// # Errors
-///
-/// [`member_of`]'s, and [`FoldStop::Unleverable`] when `arm` decides no
-/// angle at `band` ([`Arm::decides_over`]).
-pub(super) fn trivial_member<T: SolveScalar>(
-    x: Affine3<T>,
-    band: Band,
-    arm: Arm,
-) -> Result<(), FoldStop> {
-    let arm = arm
-        .decides_over(band)
-        .map_err(|refusal| FoldStop::Unleverable(Box::new(refusal)))?;
-    member_of(Subgroup::Trivial, x, band, arm)
-}
-
 /// A rotation's departure from the identity as a pure number: the
 /// Frobenius norm of `Q − I`. The caller levers it, so the number a
 /// refusal quotes is the one the predicate decided on.

@@ -432,34 +432,6 @@ pub fn head_of<P>(doc: &Doc<P>, side: crate::VarId) -> Option<crate::node::Sited
     ))
 }
 
-/// **[`member_of`] for a side as an author writes it** — before the edit
-/// door has lowered it: a selection authored at the side, read in the
-/// body its operand names, or an existing selection read by id or by
-/// name. `None` where [`member_of`] would answer `None` of the lowered
-/// side, and for a spelling that is no selection at all, which the
-/// door refuses on its own.
-pub(crate) fn member_authored<P>(doc: &Doc<P>, side: &crate::Operand) -> Option<Member> {
-    use crate::Operand as O;
-    let operation = |body: &O| match body {
-        O::Node(node) | O::Output { node, .. } => Some(*node),
-        O::Var(var) => doc.operation_of(*var),
-        O::Name(name) => doc.operation_of(doc.var_named(name.as_str())?),
-        O::Select { .. } | O::Pose(_) => None,
-    };
-    let head = match side {
-        O::Select { body, names } => {
-            let [name] = names.as_slice() else {
-                return None;
-            };
-            crate::node::SitedFace::new(operation(body)?, crate::FaceName::new(name.clone()).ok()?)
-        }
-        O::Var(var) => head_of(doc, *var)?,
-        O::Name(name) => head_of(doc, doc.var_named(name.as_str())?)?,
-        O::Node(_) | O::Output { .. } | O::Pose(_) => return None,
-    };
-    member_of(doc, &head)
-}
-
 /// **[`member_of`] for a MATE's side**: the walk, with the mate and
 /// side that attribute its refusal (N5).
 ///

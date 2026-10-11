@@ -825,6 +825,12 @@ fn finished_operand<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 /// other in its own one-body word. A reader consumes no material (a
 /// datum's face frame reads a face), so a product is read as it is;
 /// the product refusal is [`body_operand`]'s.
+///
+/// An instance's copies are read as its part product, one body, where
+/// a selection names a face of it by the part-local name path: that is
+/// how a selection reads one copy until it holds a member read (stage
+/// G's question). A seat reading the copies whole refuses at its door,
+/// by kind.
 fn read_body<T: Decide>(
     results: &Results<T>,
     input: RecipeNodeId,
@@ -832,6 +838,9 @@ fn read_body<T: Decide>(
     let v = value_of(results, input)?;
     match placeable_operand(v, input) {
         Ok(Placeable::Body(b)) => Ok(b),
+        Ok(Placeable::Copies(copies)) if copies.bodies.len() == 1 => {
+            Ok(Arc::clone(&copies.bodies[0]))
+        }
         Ok(Placeable::Instances(_) | Placeable::Copies(_))
         | Err(NodeErrorKind::WrongOperand { .. }) => {
             Err(wrong_operand(v, input, super::family::BODY))

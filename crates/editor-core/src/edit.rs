@@ -43,6 +43,16 @@ pub enum SlotValue {
     Formula(Formula),
     /// A read of a variable, as written.
     Read(crate::Operand),
+    /// **A read of one copy** of a placement's `copies`, at a body seat
+    /// ([`crate::BodyRead::key`]): `of` is the copies read, `key` the
+    /// copy. The door checks the read's kind as written; whether the
+    /// key names a copy is evaluation's.
+    Copy {
+        /// The placement's copies.
+        of: crate::Operand,
+        /// The copy, by its key.
+        key: crate::CopyKey,
+    },
 }
 
 impl From<Formula> for SlotValue {
@@ -670,6 +680,7 @@ impl<P: crate::ProfilePayload> DocEdit<P> {
     /// **Exhaustive, with no wildcard arm**: an arm added without an
     /// answer here stops the crate compiling rather than writing a
     /// datum past the admission.
+    #[cfg(test)]
     pub(crate) fn writes_a_mates_datum(&self) -> bool {
         match self {
             Self::InsertNode { node, .. } => {
@@ -2384,6 +2395,14 @@ pub enum EditError {
         /// The value the edit offered.
         offered: FreeValue,
     },
+    /// A read of one copy ([`SlotValue::Copy`]) written at a slot that
+    /// is no body seat: only a body seat reads a member.
+    CopyReadOffBodySeat {
+        /// The node.
+        node: SpokenNode,
+        /// The slot.
+        slot: SlotId,
+    },
     /// A `SetExpression` path runs off the expression tree (spec D5).
     PathOffTree {
         /// The node whose slot the path addresses.
@@ -3032,6 +3051,7 @@ impl EditError {
                 slot: _,
                 path: _,
             }
+            | Self::CopyReadOffBodySeat { node, slot: _ }
             | Self::WitnessOnNonSketch { node }
             | Self::DuplicateWitnessEntry { node }
             | Self::WorldIsUndeletable { node }
@@ -3752,6 +3772,18 @@ impl EditError {
                         "offer a value of the declared kind, or declare a new variable of the \
                          other"
                     ),
+                )
+            }
+            Self::CopyReadOffBodySeat { node, slot } => {
+                write!(
+                    f,
+                    "{node}'s {} slot is no body seat, so it cannot read one copy of a \
+                     placement's copies",
+                    slot.label()
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!("read the copy at a body seat, or read a body here"),
                 )
             }
             Self::PathOffTree { node, slot, path } => {
@@ -5464,6 +5496,7 @@ fn set_operand<P: Clone + crate::ProfilePayload>(
     node: RecipeNodeId,
     slot: crate::OperandSlot,
     read: &crate::Operand,
+    key: Option<&crate::CopyKey>,
     tol: Tol,
 ) -> Result<EditRecord, EditError> {
     let Some(current) = new.nodes.get(&node).cloned() else {
@@ -5477,13 +5510,25 @@ fn set_operand<P: Clone + crate::ProfilePayload>(
             slot: SlotId::Operand(slot),
         });
     }
-    let expected = match (&current, new.output(node, 0).and_then(|v| new.var(v))) {
+    // A read of one copy reads the copies, at a body seat alone.
+    if key.is_some() && current.body_read(slot).is_none() {
+        return Err(EditError::CopyReadOffBodySeat {
+            node: doc.spoken(node),
+            slot: SlotId::Operand(slot),
+        });
+    }
+    // The read as written: one copy by its key, or the variable plain
+    // (a body seat's indices kept either way).
+    let mut rewritten = current;
+    if let Some(body) = rewritten.body_read_mut(slot) {
+        body.key = key.cloned();
+    }
+    let expected = match (&rewritten, new.output(node, 0).and_then(|v| new.var(v))) {
         (Node::Transform { .. }, Some(output)) => crate::SlotKind::Is(output.kind()),
-        _ => current.seat_kind(slot),
+        _ => rewritten.seat_kind(slot),
     };
     let spoken = || doc.spoken(node);
     let var = lower_operand(new, &spoken, SlotId::Operand(slot), read, expected)?;
-    let mut rewritten = current;
     for (at, held) in rewritten.operand_rows_mut() {
         if at == slot {
             *held = var;
@@ -6434,7 +6479,19 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     if !fresh.is_empty() {
                         return Err(EditError::FreshUnread { index: 0 });
                     }
-                    return set_operand(doc, new, reported, *node, *operand, read, tol);
+                    return set_operand(doc, new, reported, *node, *operand, read, None, tol);
+                }
+                (SlotId::Operand(operand), SlotValue::Copy { of, key }) => {
+                    if !fresh.is_empty() {
+                        return Err(EditError::FreshUnread { index: 0 });
+                    }
+                    return set_operand(doc, new, reported, *node, *operand, of, Some(key), tol);
+                }
+                (_, SlotValue::Copy { .. }) => {
+                    return Err(EditError::CopyReadOffBodySeat {
+                        node: doc.spoken(*node),
+                        slot: *slot,
+                    });
                 }
                 (_, SlotValue::Formula(formula)) => std::borrow::Cow::Borrowed(formula),
                 // A read at a scalar slot is the formula of the one
@@ -7214,16 +7271,6 @@ fn stranded_reads<P: crate::ProfilePayload>(
         .collect()
 }
 
-/// What a [`DocEdit::Promote`] builds: the gauge's parent and
-/// placement, and the group that moves onto it.
-pub(crate) struct PromotePlan {
-    /// The instance's gauge, which the minted gauge sits on.
-    pub(crate) parent: Option<RecipeNodeId>,
-    /// The instance's offset, which the minted gauge holds.
-    pub(crate) offset: crate::placement::Placement,
-    /// The instance's group, in document order.
-    pub(crate) group: Vec<RecipeNodeId>,
-}
 
 
 /// A witness edit's site check: the store's key rule

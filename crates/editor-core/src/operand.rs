@@ -228,14 +228,14 @@ impl OperandSlot {
             | Self::From
             | Self::Cut
             | Self::Member(_)
-            | Self::Body
-            | Self::Shape(_) => SlotKind::Is(VarKind::Body),
+            | Self::Body => SlotKind::Is(VarKind::Body),
             Self::Members | Self::Of => SlotKind::Is(VarKind::Bodies),
             Self::Selection => SlotKind::Is(VarKind::Edges),
             Self::Open => SlotKind::Is(VarKind::Faces),
             Self::Face | Self::Side { .. } => SlotKind::Is(VarKind::Face),
             Self::Measured(verb, _) => SlotKind::Measured(verb),
-            Self::Input => SlotKind::Placeable,
+            // A placement copies a body or a family whole.
+            Self::Input | Self::Shape(_) => SlotKind::Placeable,
         }
     }
 }
