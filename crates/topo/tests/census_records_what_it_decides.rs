@@ -62,12 +62,31 @@ fn a_touch_between_two_groups_is_a_row_and_a_record_citing_it() {
         "{:?}",
         recorded.rows
     );
-    let rows = u32::try_from(recorded.rows.len()).unwrap();
-    let cited = recorded.records.decided();
-    assert!(
-        cited.iter().all(|k| (first..first + rows).contains(k)),
-        "each record cites a row of this door's: {cited:?}"
-    );
+    // Each record cites exactly the rows that decided its own pair, and
+    // each row's margin is the Zero the census decided for that touch.
+    for record in recorded.records.rows() {
+        let cells = record.cells();
+        for backing in record.cites.iter() {
+            let topo::Backing::Decided(k) = backing else {
+                panic!("a minted record cites a row: {backing:?}");
+            };
+            let row = &recorded.rows[(k - first) as usize];
+            let mut row_cells = row.cells.map(|c| match c {
+                topo::RowCell::Result { cell } => cell,
+                other => panic!("a census row's cell is the body's: {other:?}"),
+            });
+            row_cells.sort();
+            assert_eq!(row_cells, cells, "record {cells:?} cites row {k}");
+        }
+    }
+    let bare_rows: Vec<topo::Coincidence> =
+        bare.iter().filter_map(topo::census_contact_row).collect();
+    for row in &recorded.rows {
+        assert!(
+            bare_rows.contains(row),
+            "each row is the bare census's own reading of its touch: {row:?}"
+        );
+    }
     assert_eq!(
         topo::validate_pseudomanifold(&seat.body, &recorded.records, Tol::witness()),
         Ok(()),
@@ -94,9 +113,87 @@ fn a_touch_inside_one_group_stays_a_finding() {
     assert_eq!(recorded.findings, bare);
 }
 
+/// Two blocks one unit wide, grafted as two solids of one body.
+fn two_blocks(
+    (ax, ay, az): ((f64, f64), (f64, f64), (f64, f64)),
+    (bx, by, bz): ((f64, f64), (f64, f64), (f64, f64)),
+) -> Body<f64> {
+    let block = |(x0, x1): (f64, f64), (y0, y1): (f64, f64), (z0, z1): (f64, f64)| {
+        common::prism_z::<f64>(
+            &[(x0, y0), (x1, y0), (x1, y1), (x0, y1)],
+            z0,
+            z1,
+            Tol::witness(),
+        )
+        .body
+    };
+    let mut body = block(ax, ay, az);
+    topo::graft_disjoint_all_keyed(&mut body, &block(bx, by, bz)).unwrap();
+    body
+}
+
+/// **An overlap with flush sides records nothing.** Two blocks of two
+/// groups overlapping by half their height, their side faces flush:
+/// no edge pierces a face, and the census reads the overlap off the
+/// touches between them (`CensusUndecidable`, "one passes into the
+/// other where they touch"). Recording those touches would erase that
+/// evidence and certify the pair with its volume counted twice, so the
+/// pair has nothing recorded and its findings stay. Red if the
+/// overlapping pair records a touch or comes back clean.
+#[test]
+fn an_overlap_with_flush_sides_records_nothing_and_stays_loud() {
+    let body = two_blocks(
+        ((0.0, 1.0), (0.0, 1.0), (0.0, 1.0)),
+        ((0.0, 1.0), (0.0, 1.0), (0.5, 1.5)),
+    );
+    let groups = by_solid(&body);
+    let recorded = topo::record_at_rest(
+        &body,
+        &ContactRecords::default(),
+        census(&body),
+        &|s| groups.get(&s).copied(),
+        0,
+    );
+    assert!(
+        recorded.records.is_empty() && recorded.rows.is_empty(),
+        "{:?}",
+        recorded.records
+    );
+    assert!(
+        recorded
+            .findings
+            .iter()
+            .any(|e| matches!(e, ValidationError::CensusUndecidable { .. })),
+        "{:?}",
+        recorded.findings
+    );
+}
+
+/// **Stacked blocks certify.** The same two blocks one on the other,
+/// meeting over the face between them and nowhere inside: every touch
+/// is recorded, and the records confirm.
+#[test]
+fn stacked_blocks_certify_with_their_touches_recorded() {
+    let body = two_blocks(
+        ((0.0, 1.0), (0.0, 1.0), (0.0, 1.0)),
+        ((0.0, 1.0), (0.0, 1.0), (1.0, 2.0)),
+    );
+    let groups = by_solid(&body);
+    let recorded = topo::record_at_rest(
+        &body,
+        &ContactRecords::default(),
+        census(&body),
+        &|s| groups.get(&s).copied(),
+        0,
+    );
+    assert!(recorded.findings.is_empty(), "{:?}", recorded.findings);
+    assert!(!recorded.records.is_empty());
+}
+
 /// **Interpenetration is not a coincidence**: a post pushed up into the
-/// shelf pierces it, and the pierce stays a finding however the solids
-/// are grouped. Red if a pierce is recorded.
+/// shelf pierces it, the pierce stays a finding, and nothing else
+/// between the two groups is recorded either. Red if a pierce, or any
+/// touch of the pierced pair, is recorded.
 #[test]
 fn a_pierce_between_two_groups_stays_a_finding() {
     let tol = Tol::witness();
@@ -136,11 +233,8 @@ fn a_pierce_between_two_groups_stays_a_finding() {
         .collect();
     assert!(!pierces.is_empty(), "{:?}", recorded.findings);
     assert!(
-        recorded
-            .records
-            .cell_pairs()
-            .all(|pair| !pierces.contains(&pair)),
-        "no pierce is recorded: {:?}",
+        recorded.records.is_empty() && recorded.rows.is_empty(),
+        "nothing between interpenetrating groups is recorded: {:?}",
         recorded.records
     );
 }

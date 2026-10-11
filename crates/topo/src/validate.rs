@@ -1637,9 +1637,10 @@ pub enum ValidationError {
     /// Tier 3′: the global coincidence census found a position
     /// coincidence between distinct entities that no contact record
     /// backs (directly, or via the D3 segment reconstruction).
-    /// Discovery is never a record (F1/F2(iii)): inside one op's result
-    /// it is that op's defect, and between two copies at rest the
-    /// document layer records it as an `unproven-coincidence` row (D1
+    /// Inside one group of a body (one op's result, one copy, one
+    /// imported solid) it is that group's defect; between two groups
+    /// at rest the census records it rather than report it, a row of
+    /// its Zero and a record citing it (`census::record_at_rest`, D1
     /// (iii), D10).
     UnrecordedContact {
         /// The coinciding entity pair, typed by census kind.
