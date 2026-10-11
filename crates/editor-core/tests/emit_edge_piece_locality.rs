@@ -224,18 +224,14 @@ fn a_second_crossing_by_the_same_face_keeps_the_first_crossing_and_its_pieces_na
             _ => panic!("a split value"),
         };
         let mut out = Vec::new();
-        for (n, e) in table(ev, cut).iter() {
-            let (Entry::Unique(r), Some(RoleSeg::CrossingVertex { side, .. })) =
-                (e, n.path.first())
+        for (n, e) in crate::fixture::half(ev, cut, SplitHalf::Below).iter() {
+            let (Entry::Unique(r), Some(RoleSeg::CrossingVertex { .. })) = (e, n.path.first())
             else {
                 continue;
             };
             let EntityKey::Vertex(v) = r.key else {
                 continue;
             };
-            if *side != SplitHalf::Below || r.body != 1 {
-                continue;
-            }
             let q = point(&below, v);
             if q.z.abs() < 1e-9 && q.y > -1e-9 {
                 out.push(((q.x, q.y), n.clone()));
@@ -261,7 +257,7 @@ fn a_second_crossing_by_the_same_face_keeps_the_first_crossing_and_its_pieces_na
     // twice. (The cap's section chord ends at P too, and at the other
     // crossing, which the edit moved.)
     let ending_at = |ev: &editor_core::Evaluation<f64>, vertex: &StableName| {
-        table(ev, cut)
+        crate::fixture::half(ev, cut, SplitHalf::Below)
             .iter()
             .filter(|(n, _)| {
                 matches!(n.path.first(), Some(RoleSeg::SplitFragment { .. }))

@@ -145,9 +145,8 @@ fn ambiguous_loss_enriches_by_table_lookup_at_the_recorded_site() {
     let (doc, sub) = tie_fixture();
     let ev = run(&doc);
     let tied = ev
-        .value(sub)
+        .table_at(sub)
         .unwrap()
-        .name_table
         .iter()
         .find_map(|(n, e)| {
             matches!(e, editor_core::Entry::Tied(c) if c.len() == 2).then(|| n.clone())
@@ -201,9 +200,8 @@ fn a_carried_tie_is_reported_at_its_defining_table() {
     let (doc, sub) = tie_fixture();
     let ev = run(&doc);
     let tied = ev
-        .value(sub)
+        .table_at(sub)
         .unwrap()
-        .name_table
         .iter()
         .find_map(|(n, e)| {
             matches!(e, editor_core::Entry::Tied(c) if c.len() == 2).then(|| n.clone())
@@ -214,9 +212,8 @@ fn a_carried_tie_is_reported_at_its_defining_table() {
     let doc = set(doc, tied.clone(), red());
     let ev = run(&doc);
     assert!(
-        ev.value(moved)
+        ev.table_at(moved)
             .unwrap()
-            .name_table
             .iter()
             .any(|(n, e)| *n == tied && matches!(e, editor_core::Entry::Tied(_))),
         "the transform carries the tie"
@@ -290,9 +287,8 @@ fn vanished_loss_with_prior_enriches_diagnosis_and_tombstone() {
     );
     let ev = run(&doc);
     let inst2_face = ev
-        .value(pat)
+        .table_at(pat)
         .unwrap()
-        .name_table
         .iter()
         .find_map(|(n, _)| {
             (n.kind == EntityKind::Face
@@ -382,9 +378,8 @@ fn indeterminate_losses_enrich_to_the_matching_indeterminate_arm() {
     );
     let ev = run(&doc);
     let uni_face = ev
-        .value(uni)
+        .table_at(uni)
         .unwrap()
-        .name_table
         .iter()
         .find_map(|(n, e)| {
             (n.kind == EntityKind::Face

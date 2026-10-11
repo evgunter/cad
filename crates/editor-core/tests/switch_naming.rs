@@ -90,9 +90,8 @@ fn names_of(doc: &editor_core::ProfileDoc, id: RecipeNodeId) -> BTreeSet<StableN
         &EvalOptions::default(),
         Tol::witness(),
     );
-    ev.value(id)
+    ev.table_at(id)
         .expect("node evaluates")
-        .name_table
         .iter()
         .map(|(n, _)| n.clone())
         .collect()
@@ -264,7 +263,7 @@ fn stale_program_refs_refuse_vanished() {
             crate::fixture::no_piece().into(), // the program draws no such piece
         )],
     };
-    let table = &ev.value(doc.ids()[2]).expect("extrude").name_table;
+    let table = ev.table_at(doc.ids()[2]).expect("extrude");
     assert!(
         table.lookup(&ghost).is_none(),
         "a ref beyond the program's segments resolves to NOTHING — the \
@@ -427,7 +426,7 @@ fn hole_circle_anchor_recovers_reversal() {
     // the hole's CANONICAL indices — its two program segments,
     // reflected.
     use editor_core::{EntityKind, RoleSeg};
-    let table = &ev.value(doc.ids()[2]).expect("extrude").name_table;
+    let table = ev.table_at(doc.ids()[2]).expect("extrude");
     for seg in 0..2u32 {
         let name = StableName {
             kind: EntityKind::Face,

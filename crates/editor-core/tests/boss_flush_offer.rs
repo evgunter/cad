@@ -89,7 +89,7 @@ fn the_flush_boss_unions_declared_or_not() {
         (volume - want).abs() <= 1e-12 * want,
         "the union's volume {volume} vs {want}"
     );
-    let found = findings_declared(&undeclared, &doc, &[blk, boss]);
+    let found = findings_declared(&undeclared, &[blk, boss]);
     let classes: Vec<BooleanCoincidence> = found.iter().map(|(_, c)| *c).collect();
     assert!(
         classes.contains(&BooleanCoincidence::Continuation)

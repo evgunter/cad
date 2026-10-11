@@ -303,7 +303,7 @@ fn attribute_survives_no_flip_parameter_motion_on_the_die() {
     // names the FINAL node mints.
     let body = minted(EntityKind::Body, d.final_node, RoleSeg::OutputBody);
     let ev0 = run(&d.doc);
-    let final_table = &ev0.value(d.final_node).unwrap().name_table;
+    let final_table = ev0.table_at(d.final_node).unwrap();
     let face = final_table
         .iter()
         .find_map(|(n, e)| {
@@ -510,9 +510,8 @@ fn poisoned_target_node_reports_the_failed_ancestor() {
     // Attribute a UNION-minted face name (node = the boolean).
     let ev = run(&doc);
     let uni_face = ev
-        .value(uni)
+        .table_at(uni)
         .unwrap()
-        .name_table
         .iter()
         .find_map(|(n, e)| {
             (n.kind == EntityKind::Face
@@ -567,9 +566,8 @@ fn structural_count_reduction_vanishes_the_instance_name_loudly() {
     // Attribute a face of instance 2 by its pattern-minted name.
     let ev = run(&doc);
     let inst2_face = ev
-        .value(pat)
+        .table_at(pat)
         .unwrap()
-        .name_table
         .iter()
         .find_map(|(n, _)| {
             (n.kind == EntityKind::Face
@@ -658,9 +656,8 @@ fn tie_fixture() -> (ProfileDoc, RecipeNodeId) {
 
 /// A tied name (width 2) from the fixture's subtract table.
 fn tied_name(ev: &Evaluation<f64>, sub: RecipeNodeId) -> StableName {
-    ev.value(sub)
+    ev.table_at(sub)
         .unwrap()
-        .name_table
         .iter()
         .find_map(|(n, e)| {
             matches!(e, editor_core::Entry::Tied(c) if c.len() == 2).then(|| n.clone())

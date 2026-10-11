@@ -237,10 +237,11 @@ fn the_union_of_a_splits_two_halves_builds_the_block() {
         doc.output(split, 0).expect("the upper half"),
         doc.output(split, 1).expect("the lower half"),
     );
-    let section = |side: editor_core::SplitHalf| StableName {
+    // One name, each half's read its own copy (NAMES N1).
+    let section = |_: editor_core::SplitHalf| StableName {
         kind: EntityKind::Face,
         node: split,
-        path: vec![RoleSeg::SectionFace { side, section: 0 }],
+        path: vec![RoleSeg::SectionFace { section: 0 }],
     };
     let declare = editor_core::declare_rest(vec![(
         editor_core::SitedRef::new(above, section(editor_core::SplitHalf::Above)),
@@ -290,8 +291,7 @@ fn a_three_member_intersect_with_coincident_faces_folds() {
     let (doc, c) = block(doc, (0.0, 3.0), (0.0, 1.0), 0.5);
     let ev = run(&doc);
     let pair = |p, q| {
-        editor_core::find_flush_candidates(&ev, &doc, p, q, Tol::witness())
-            .expect("definite findings")
+        editor_core::find_flush_candidates(&ev, p, q, Tol::witness()).expect("definite findings")
     };
     let mut declare = Vec::new();
     for (p, q) in [(a, b), (a, c), (b, c)] {
@@ -329,7 +329,7 @@ fn a_declared_pair_sited_at_a_read_spelled_twice_builds_in_every_order() {
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, b) = block(doc, (1.0, 2.0), (0.0, 1.0), 1.0);
     let declare = editor_core::declared_pairs(
-        &editor_core::find_flush_candidates(&run(&doc), &doc, a, b, Tol::witness())
+        &editor_core::find_flush_candidates(&run(&doc), a, b, Tol::witness())
             .expect("the blocks' findings"),
     );
     assert!(!declare.is_empty(), "the premise: a and b touch");

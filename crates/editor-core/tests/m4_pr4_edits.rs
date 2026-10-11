@@ -602,10 +602,7 @@ fn witness_change_moves_the_content_key_and_reproduces_bits() {
     // does not read the witness, so tables and verdicts reproduce
     // exactly.
     for id in [profile, extrude] {
-        assert_eq!(
-            ev1.value(id).unwrap().name_table,
-            ev2.value(id).unwrap().name_table
-        );
+        assert_eq!(ev1.table_at(id).unwrap(), ev2.table_at(id).unwrap());
         assert_eq!(
             ev1.value(id).unwrap().verdicts,
             ev2.value(id).unwrap().verdicts

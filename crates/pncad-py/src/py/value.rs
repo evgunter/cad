@@ -1752,12 +1752,11 @@ impl Evaluation {
     /// collapsed back onto ε, `"invalid_value"` when it overflowed).
     fn find_flush_candidates(
         &self,
-        py: Python<'_>,
         a: &NodeId,
         b: &NodeId,
     ) -> PyResult<Vec<super::flush::FlushFinding>> {
         let tol = Tol::witness();
-        match pncad::select::find_flush_candidates(&self.inner, &self.doc, a.0, b.0, tol) {
+        match pncad::select::find_flush_candidates(&self.inner, a.0, b.0, tol) {
             Ok(findings) => Ok(findings
                 .into_iter()
                 .map(super::flush::FlushFinding)

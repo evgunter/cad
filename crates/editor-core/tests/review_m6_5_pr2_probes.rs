@@ -34,14 +34,10 @@ fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
     )
 }
 
-fn table_of(
-    ev: &editor_core::Evaluation<f64>,
-    node: RecipeNodeId,
-) -> std::sync::Arc<editor_core::NameTable> {
-    match ev.nodes.get(&node) {
-        Some(NodeResult::Ok(v)) => std::sync::Arc::clone(&v.name_table),
-        other => panic!("node {node:?} did not evaluate: {other:?}"),
-    }
+fn table_of(ev: &editor_core::Evaluation<f64>, node: RecipeNodeId) -> editor_core::NameTable {
+    ev.table_at(node)
+        .unwrap_or_else(|| panic!("node {node:?} did not evaluate: {:?}", ev.nodes.get(&node)))
+        .clone()
 }
 
 /// P1: the shrunk supports' `FromTarget` rows are a BIJECTION onto the

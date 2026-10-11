@@ -238,9 +238,8 @@ fn flush_plane_pair_glues_declared_or_not() {
         "the declared union is the undeclared one's body"
     );
     let merged = |kind| {
-        ev.value(u)
+        ev.table_at(u)
             .unwrap()
-            .name_table
             .iter()
             .filter(|(n, _)| n.kind == kind && matches!(n.path.first(), Some(RoleSeg::Merged(_))))
             .count()
@@ -344,9 +343,8 @@ fn crossing_slots_recipe_document_evaluates_and_resolves() {
         },
     );
     let merged_row: StableName = ev
-        .value(s2)
+        .table_at(s2)
         .unwrap()
-        .name_table
         .iter()
         .find_map(|(n, _)| {
             matches!(n.path.first(), Some(RoleSeg::Merged(cs)) if cs.contains(&wrapped_floor1))
@@ -521,9 +519,8 @@ fn declared_l_corner_caps_merge_at_the_recipe_door_tier3_green() {
     // corner, the one vertex the merge deletes, is not among them.
     // Assert they exist.
     let wall_crossings = ev
-        .value(u)
+        .table_at(u)
         .unwrap()
-        .name_table
         .iter()
         .filter(|(n, _)| {
             n.kind == EntityKind::Vertex
@@ -646,9 +643,8 @@ fn declare_doors_node_gone_and_ambiguous() {
     );
     let ev1 = run(&doc);
     let tied: StableName = ev1
-        .value(us)
+        .table_at(us)
         .expect("U subtract evaluates")
-        .name_table
         .iter()
         .find_map(|(n, e)| matches!(e, editor_core::Entry::Tied(_)).then(|| n.clone()))
         .expect("the U fixture ties");
@@ -762,9 +758,8 @@ fn crossing_slots_swapped_order_hits_the_junction_arm() {
     // The junction arm's product: a vertex named by ≥ 2 Seam
     // segments (the sorted line set).
     let junctions = ev
-        .value(s2)
+        .table_at(s2)
         .unwrap()
-        .name_table
         .iter()
         .filter(|(n, _)| {
             n.kind == EntityKind::Vertex
@@ -801,11 +796,7 @@ fn an_unsupported_declared_pair_answers_its_kinds_with_a_tied_name_in_it() {
         Tol::witness(),
     ));
     let ev1 = run(&doc);
-    let table = ev1
-        .value(us)
-        .expect("the U subtract evaluates")
-        .name_table
-        .clone();
+    let table = ev1.table_at(us).expect("the U subtract evaluates").clone();
     let tied: StableName = table
         .iter()
         .find_map(|(n, e)| {
@@ -913,11 +904,7 @@ fn a_tied_first_name_waits_behind_the_second_names_own_faults() {
         Tol::witness(),
     ));
     let ev1 = run(&doc);
-    let table = ev1
-        .value(us)
-        .expect("the U subtract evaluates")
-        .name_table
-        .clone();
+    let table = ev1.table_at(us).expect("the U subtract evaluates").clone();
     let tied: StableName = table
         .iter()
         .find_map(|(n, e)| {

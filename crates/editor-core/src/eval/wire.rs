@@ -2545,15 +2545,14 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             )
         })
         .collect();
-    OpOut::per_output(ValuePayload::Split { above, below }, outputs)
-        .recording(
-            &coincidences,
-            &crate::coincide::RowInputs {
-                a: (target_read, &target_table),
-                b: None,
-                tool: Some(tool_read),
-            },
-        )
+    OpOut::per_output(ValuePayload::Split { above, below }, outputs).recording(
+        &coincidences,
+        &crate::coincide::RowInputs {
+            a: (target_read, &target_table),
+            b: None,
+            tool: Some(tool_read),
+        },
+    )
 }
 
 /// **The projection node** (DM3): ONE body out of a pattern's copies,

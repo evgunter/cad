@@ -68,8 +68,8 @@ fn p1b_order_on_distinct_charts_moves_the_key_but_nothing_else() {
     let (ea, eb) = (eval::<f64>(&da), eval::<f64>(&db));
     assert!(failures(&ea).is_empty(), "{:?}", failures(&ea));
     assert!(failures(&eb).is_empty(), "{:?}", failures(&eb));
-    let ta = &ea.value(sa).unwrap().name_table;
-    let tb = &eb.value(sb).unwrap().name_table;
+    let ta = ea.table_at(sa).unwrap();
+    let tb = eb.table_at(sb).unwrap();
     let mut na: Vec<_> = ta.iter().map(|(n, _)| n.clone()).collect();
     let mut nb: Vec<_> = tb
         .iter()
@@ -360,7 +360,7 @@ fn p6_rebinding_the_designation_moves_the_rim() {
     .doc;
     let ev = eval::<f64>(&doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
-    let t = &ev.value(shell).unwrap().name_table;
+    let t = ev.table_at(shell).unwrap();
     let rim_bottom = shelled(
         shell,
         EntityKind::Face,
@@ -419,7 +419,7 @@ fn p7_a_holed_designated_face_mints_a_hole_rim() {
         "P7: the holed slab must hollow:\n{}",
         bad.join("\n")
     );
-    let t = &ev.value(shell).unwrap().name_table;
+    let t = ev.table_at(shell).unwrap();
     let hole_rims: Vec<_> = t
         .iter()
         .filter(|(n, _)| matches!(n.path.first(), Some(RoleSeg::HoleRim { .. })))

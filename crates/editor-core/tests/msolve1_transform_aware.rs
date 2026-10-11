@@ -1250,7 +1250,7 @@ fn a10_a_nested_pattern_head_is_a_member() {
     );
 
     // The numbering: the walk's (j, i) = (1, 1) is flat body 1·3 + 1.
-    let table = &ev.value(outer).expect("the outer").name_table;
+    let table = ev.table_at(outer).expect("the outer");
     let Some(editor_core::Entry::Unique(row)) = table.lookup(&nested) else {
         panic!(
             "the nested name resolves uniquely: {:?}",
@@ -1639,7 +1639,7 @@ fn a11_a_transform_between_two_patterns_composes_outer_t_inner() {
     assert!(ev.value(outer).is_some(), "{:?}", ev.node_error(outer));
     assert_seated(&doc, &ev, &a, &nested, &control_seat("msolve1-a11"), "A11");
     assert!(gate(&doc, &ev).is_ok(), "{:?}", gate(&doc, &ev).err());
-    let table = &ev.value(outer).unwrap().name_table;
+    let table = ev.table_at(outer).unwrap();
     let Some(editor_core::Entry::Unique(row)) = table.lookup(&nested) else {
         panic!("{:?}", table.lookup(&nested))
     };

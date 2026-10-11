@@ -50,13 +50,14 @@ const LIFT: f64 = 2.0;
 /// The document parameter the box's height reads.
 pub const H: &str = "h";
 
-/// The split's section face bounding `side`, in the naming
-/// vocabulary — the name a read of that half carries verbatim.
-pub fn section_face(split: RecipeNodeId, side: SplitHalf) -> StableName {
+/// The split's section face, in the naming vocabulary — the name each
+/// read of a half carries for its own copy of the section (NAMES N1: the
+/// read scopes it, so the two halves' faces are one name).
+pub fn section_face(split: RecipeNodeId) -> StableName {
     StableName {
         kind: EntityKind::Face,
         node: split,
-        path: vec![RoleSeg::SectionFace { side, section: 0 }],
+        path: vec![RoleSeg::SectionFace { section: 0 }],
     }
 }
 
@@ -108,14 +109,8 @@ pub fn document() -> CorpusDoc {
     // declared contact, named through the split's own vocabulary
     // because each read of a half carries the split's names verbatim.
     let rest = editor_core::declare_rest(vec![(
-        SitedRef::new(
-            half(&r, SplitHalf::Above),
-            section_face(split, SplitHalf::Above),
-        ),
-        SitedRef::new(
-            half(&r, SplitHalf::Below),
-            section_face(split, SplitHalf::Below),
-        ),
+        SitedRef::new(half(&r, SplitHalf::Above), section_face(split)),
+        SitedRef::new(half(&r, SplitHalf::Below), section_face(split)),
     )]);
     let whole = r.insert(Node::Union {
         members: editor_core::Bodies::Spelled(vec![

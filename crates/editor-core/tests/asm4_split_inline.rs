@@ -441,9 +441,8 @@ fn row2_appearance_rides_the_bridge_both_ways() {
     // A face name minted at the SECOND instance, keyed with an
     // appearance attribute (the asm2a row-3 idiom).
     let face = ev
-        .value(ids[1])
+        .table_at(ids[1])
         .expect("the instance evaluated")
-        .name_table
         .iter()
         .map(|(n, _)| n.clone())
         .find(|n| n.kind == editor_core::EntityKind::Face)
@@ -1273,7 +1272,7 @@ fn a_reaching_name_names_the_earliest_node_outside_the_cut_in_document_order() {
         },
     );
     let ev = run(&doc, &EvalOptions::default());
-    let table = &ev.value(u).expect("the union evaluates").name_table;
+    let table = ev.table_at(u).expect("the union evaluates");
     let a_read = crate::fixture::out(&doc, a);
     let from_a = table
         .iter()
@@ -1364,7 +1363,7 @@ fn a_reaching_name_names_a_live_node_before_a_deleted_one() {
         },
     );
     let ev = run(&doc, &EvalOptions::default());
-    let table = &ev.value(u).expect("the union evaluates").name_table;
+    let table = ev.table_at(u).expect("the union evaluates");
     let a_read = crate::fixture::out(&doc, a);
     let from_a = table
         .iter()

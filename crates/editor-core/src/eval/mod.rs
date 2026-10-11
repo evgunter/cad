@@ -906,6 +906,89 @@ impl<T: Decide> NodeValue<T> {
     }
 }
 
+/// **Hand-built values and evaluations** (`test-support`): for rows that
+/// probe a door on a table no evaluation mints. Each node's names are
+/// its one output's, read through a variable minted from its id.
+#[cfg(any(test, feature = "test-support"))]
+impl NodeValue<f64> {
+    /// A gauge value whose one output carries `table` and `groups`, with
+    /// `verdicts` as its log.
+    #[must_use]
+    pub fn hand_built(
+        table: NameTable,
+        groups: crate::names::FragmentGroups,
+        verdicts: VerdictLog,
+    ) -> Self {
+        Self {
+            payload: ValuePayload::Gauge,
+            outputs: vec![OutputNames::new(Arc::new(table), Arc::new(groups))].into(),
+            contacts: Arc::new(topo::ContactRecords::default()),
+            carried: Arc::new(crate::assembly::CarriedDeclarations::default()),
+            coincidences: Arc::new([]),
+            cited_inputs: Arc::new([]),
+            parts: 1,
+            verdicts: Arc::new(verdicts),
+            escalations: Arc::new(vec![]),
+            placement: None,
+            witness: WitnessSlot::default(),
+            content_key: ContentKey(0),
+            naming_key: NamingKey(0),
+        }
+    }
+
+    /// The value with output `port`'s table replaced by `table`.
+    ///
+    /// # Panics
+    ///
+    /// If the value has no output `port`.
+    pub fn replace_table(&mut self, port: u8, table: NameTable) {
+        let mut outputs = self.outputs.to_vec();
+        let at = &mut outputs[usize::from(port)];
+        *at = OutputNames::new(Arc::new(table), Arc::clone(&at.groups));
+        self.outputs = outputs.into();
+    }
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl Evaluation<f64> {
+    /// A completed evaluation of `document` holding `nodes` in `order`,
+    /// each node's one output read through the variable [`Self::hand_read`]
+    /// mints for it.
+    #[must_use]
+    pub fn hand_built(
+        document: crate::DocumentId,
+        order: Vec<RecipeNodeId>,
+        nodes: BTreeMap<RecipeNodeId, NodeResult<f64>>,
+    ) -> Self {
+        let reads = nodes
+            .keys()
+            .map(|&node| (Self::hand_read(node), (node, 0)))
+            .collect();
+        Self {
+            epoch: crate::Epoch::mint(),
+            unplaced: BTreeMap::new(),
+            unplaced_below: BTreeMap::new(),
+            document,
+            prior_refused: None,
+            recomputed: order.len(),
+            order,
+            nodes,
+            outcome: EvalOutcome::Completed,
+            reused: 0,
+            part_evaluations: 0,
+            appearance: AppearanceResolution::default(),
+            env: crate::expr::VarEnv::default(),
+            reads: Arc::new(reads),
+        }
+    }
+
+    /// The variable a hand-built evaluation reads `node`'s output by.
+    #[must_use]
+    pub fn hand_read(node: RecipeNodeId) -> crate::VarId {
+        crate::VarId(node.0)
+    }
+}
+
 /// One evaluation's per-node verdict vector (the [`NodeValue::verdicts`]
 /// payload): [`geom_core::k_stats::Verdict`]s in decision order.
 pub type VerdictLog = Vec<geom_core::k_stats::Verdict>;
@@ -7071,8 +7154,8 @@ mod tag_vocabulary_tests {
 
     use super::{
         KeyHasher, RETIRED_NODE_KIND_TAGS, RETIRED_VERB_TAGS, arc_mode_tag, extrude_side_tag,
-        feed_lane_step, feed_step, seg_content_tag, side_tag, tag, target_tag,
-        verb_content_tag, verb_tag, winding_tag,
+        feed_lane_step, feed_step, seg_content_tag, side_tag, tag, target_tag, verb_content_tag,
+        verb_tag, winding_tag,
     };
     use crate::names::SegTag;
 

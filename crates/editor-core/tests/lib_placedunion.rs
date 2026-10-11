@@ -286,7 +286,7 @@ fn every_instance_is_one_instance_segment_deep() {
         .copied()
         .find(|&id| matches!(d.doc.node(id), Some(Node::PlacedUnion { .. })))
         .expect("the group node");
-    let table = &ev.value(tool).expect("the group evaluated").name_table;
+    let table = ev.table_at(tool).expect("the group evaluated");
     let mut per_instance = [0usize; 6];
     for (name, _) in table.iter() {
         match name.path.as_slice() {

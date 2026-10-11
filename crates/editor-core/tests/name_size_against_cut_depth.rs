@@ -149,9 +149,11 @@ fn longest(doc: &ProfileDoc, ev: &Evaluation<f64>, trims: &[Trim]) -> Vec<(usize
     trims
         .iter()
         .map(|&(id, body)| {
-            let value = ev.value(id).expect("every trim evaluates");
-            value
-                .name_table
+            // The read holding the trim's body, and its index there (a
+            // split's half is body 0 of its own table, NAMES N1).
+            let (var, body) = ev.body_read_of(id, body).expect("every trim evaluates");
+            ev.table(var)
+                .expect("every trim evaluates")
                 .iter()
                 .filter(|(_, entry)| match entry {
                     Entry::Unique(e) => e.body == body,

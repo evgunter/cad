@@ -777,11 +777,10 @@ fn both_kinds_mint_a_total_name_table_through_the_revolve_emitter() {
         let ev = eval::<f64>(&d.doc);
         assert!(failures(&ev).is_empty(), "{what}: {:?}", failures(&ev));
         let id = d.result.expect("a result node");
-        let value = ev.value(id).expect("a value");
         let body = body_of(&ev, id);
         let entities = body.faces().count() + body.edges().count() + body.vertices().count() + 1;
         assert_eq!(
-            value.name_table.len(),
+            ev.table_at(id).expect("a table").len(),
             entities,
             "{what}: every face, edge and vertex plus the body itself is named — an \
              emitter that skipped one would leave a silent naming dead end"

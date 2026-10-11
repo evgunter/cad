@@ -35,8 +35,8 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
     };
     for id in &ev.order {
         feed(&format!("#{id:?}"));
-        if let Some(v) = ev.value(*id) {
-            for (n, e) in v.name_table.iter() {
+        for t in crate::fixture::tables(ev, *id) {
+            for (n, e) in t.iter() {
                 feed(&format!("{n:?}={e:?};"));
             }
         }

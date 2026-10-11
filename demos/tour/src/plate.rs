@@ -277,7 +277,7 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
         evaluate(doc, None, &CancelToken::new(), &EvalOptions::default(), tol)
     };
     let subtract = |doc: &mut ProfileDoc, a: RecipeNodeId, b: RecipeNodeId| {
-        let found = find_flush_candidates(&eval_here(doc), doc, a, b, tol)
+        let found = find_flush_candidates(&eval_here(doc), a, b, tol)
             .expect("the hole's caps are definite flush pairs");
         // The inspection: the hole's two caps, each continuing the
         // blank's cap it lies in.

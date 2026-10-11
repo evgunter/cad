@@ -80,24 +80,29 @@ fn tables_digest(ev: &editor_core::Evaluation<f64>) -> u64 {
     let mut h = Fnv::new();
     for id in &ev.order {
         h.feed(&format!("#{id:?}"));
-        let Some(v) = ev.value(*id) else { continue };
-        for (n, e) in v.name_table.iter() {
-            h.feed(&format!("fwd {n:?}={e:?};"));
-        }
-        for (n, e) in v.name_table.iter() {
-            for ent in match e {
-                editor_core::names::Entry::Unique(one) => vec![*one],
-                editor_core::names::Entry::Tied(many) => many.clone(),
-            } {
-                h.feed(&format!(
-                    "rev {ent:?}={:?};",
-                    v.name_table.name_of(&ent).map(|n| format!("{n:?}"))
-                ));
-            }
-            let _ = n;
+        for t in crate::fixture::tables(ev, *id) {
+            perf2_table_digest(&mut h, t);
         }
     }
     h.0
+}
+
+/// One table's rows into `h`, forward then reverse.
+fn perf2_table_digest(h: &mut Fnv, t: &editor_core::NameTable) {
+    for (n, e) in t.iter() {
+        h.feed(&format!("fwd {n:?}={e:?};"));
+    }
+    for (_, e) in t.iter() {
+        for ent in match e {
+            editor_core::names::Entry::Unique(one) => vec![*one],
+            editor_core::names::Entry::Tied(many) => many.clone(),
+        } {
+            h.feed(&format!(
+                "rev {ent:?}={:?};",
+                t.name_of(&ent).map(|n| format!("{n:?}"))
+            ));
+        }
+    }
 }
 
 /// The saved text with its one `"epsilon":` line removed — the line CI's

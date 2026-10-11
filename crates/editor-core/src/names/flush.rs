@@ -216,7 +216,9 @@ pub fn find_flush_candidates<T: Decide>(
             }
         };
         ev.usable(node).map_err(SelectRefusal::NodeHasNoValue)?;
-        let var = ev.at_var(at).ok_or(SelectRefusal::NodeHasNoOutput { node })?;
+        let var = ev
+            .at_var(at)
+            .ok_or(SelectRefusal::NodeHasNoOutput { node })?;
         Ok((node, var))
     };
     let ((a, at_a), (b, at_b)) = (side(a.into())?, side(b.into())?);

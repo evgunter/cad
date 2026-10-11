@@ -96,10 +96,9 @@ fn vanished(
     node: RecipeNodeId,
     pick: impl Fn(&StableName, &Entry) -> bool,
 ) -> Vec<(StableName, Diagnosis)> {
-    let now = &ev2.value(node).expect("the node evaluates now").name_table;
-    ev1.value(node)
+    let now = ev2.table_at(node).expect("the node evaluates now");
+    ev1.table_at(node)
         .expect("the node evaluated before")
-        .name_table
         .iter()
         .filter(|(n, e)| matches!(n.path.last(), Some(RoleSeg::Fragment(_))) && pick(n, e))
         .filter(|(n, _)| now.lookup(n).is_none())
@@ -469,7 +468,7 @@ fn a_seam_group_tied_parents_share_is_not_counted() {
     let ev2 = silent(run(&doc2, Some(&ev1)));
     let ev1 = silent(ev1);
     // A seam whose A face is one of the first cut's TIED rows.
-    let tied = &ev1.value(sub).expect("the first cut evaluates").name_table;
+    let tied = ev1.table_at(sub).expect("the first cut evaluates");
     let rows = vanished((&doc, &ev2), (&doc, &ev1), cut, |n, _| {
         match n.path.first() {
             Some(RoleSeg::Seam { a, .. }) => matches!(tied.lookup(a), Some(Entry::Tied(_))),
@@ -541,7 +540,7 @@ fn a_union_group_a_later_step_partly_swallows_names_what_is_published() {
         });
         assert!(rows.is_empty(), "{label}: {rows:?}");
         for ev in [&ev1, &ev2] {
-            let t = &ev.value(u).expect("the union evaluates").name_table;
+            let t = ev.table_at(u).expect("the union evaluates");
             let plate_faces: Vec<_> = t
                 .iter()
                 .filter(|(n, _)| {
@@ -943,9 +942,8 @@ fn the_pieces_of_one_line_from_two_parents_are_one_group() {
     let ev1 = silent(ev1);
     let from_read = crate::fixture::out(&doc, notched);
     let pieces = |ev: &Evaluation<f64>| {
-        ev.value(cut)
+        ev.table_at(cut)
             .expect("the cut evaluates")
-            .name_table
             .iter()
             .filter(|(n, _)| {
                 n.kind == EntityKind::Edge

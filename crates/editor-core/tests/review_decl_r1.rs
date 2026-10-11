@@ -366,7 +366,7 @@ fn flush_findings_of_two_placements_declare_and_fuse_through_a_union() {
     let (doc, m1) = placed(doc, proto, 0.0);
     let (doc, m2) = placed(doc, proto, 0.5);
     let ev = run(&doc);
-    let findings = find_flush_candidates(&ev, &doc, m1, m2, Tol::witness()).expect("detects");
+    let findings = find_flush_candidates(&ev, m1, m2, Tol::witness()).expect("detects");
     assert_eq!(findings.len(), 4, "{findings:?}");
     let reads = (crate::fixture::out(&doc, m1), crate::fixture::out(&doc, m2));
     for f in &findings {

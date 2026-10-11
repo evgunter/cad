@@ -53,11 +53,18 @@ type Pair = (topo::EdgeKey, topo::FaceKey);
 /// `bool_vertex_face_side` on pairs the tree never examines). The
 /// RESULT — bodies, contacts, names, keys — is what D9 pins
 /// bit-equal; the log is telemetry about the evaluation path.
-fn scrubbed<T: geom_core::Decide>(nr: Option<&editor_core::NodeResult<T>>) -> String {
-    match nr {
+fn scrubbed<T: geom_core::Decide>(
+    ev: &editor_core::Evaluation<T>,
+    node: editor_core::RecipeNodeId,
+) -> String {
+    match ev.nodes.get(&node) {
         Some(editor_core::NodeResult::Ok(v)) => format!(
-            "Ok(payload: {:?}, table: {:?}, witness: {:?}, content: {:?}, naming: {:?})",
-            v.payload, v.name_table, v.witness, v.content_key, v.naming_key
+            "Ok(payload: {:?}, tables: {:?}, witness: {:?}, content: {:?}, naming: {:?})",
+            v.payload,
+            crate::fixture::tables(ev, node),
+            v.witness,
+            v.content_key,
+            v.naming_key
         ),
         other => format!("{other:?}"),
     }
@@ -98,10 +105,7 @@ fn corpus_evaluations_bit_equal_realized_vs_idealized() {
         // (and the first divergent byte region) instead of dumping
         // two whole evaluations.
         for &id in &real.order {
-            let (r, i) = (
-                scrubbed(real.nodes.get(&id)),
-                scrubbed(ideal.nodes.get(&id)),
-            );
+            let (r, i) = (scrubbed(&real, id), scrubbed(&ideal, id));
             if r != i {
                 let at = r
                     .bytes()
@@ -200,8 +204,8 @@ fn corpus_evaluations_bit_equal_at_interval() {
         let ideal: Evaluation<Interval> = eval_with(&d.doc, SweepStrategy::Idealized);
         for &id in &real.order {
             assert_eq!(
-                scrubbed(real.nodes.get(&id)),
-                scrubbed(ideal.nodes.get(&id)),
+                scrubbed(&real, id),
+                scrubbed(&ideal, id),
                 "{}: interval node {id:?} diverged between sweep strategies",
                 d.name
             );

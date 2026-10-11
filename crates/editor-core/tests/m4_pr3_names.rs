@@ -625,43 +625,46 @@ fn split_names_sections_fragments_and_crossings() {
         },
     );
     let ev = run(&doc);
-    let t = table(&ev, split);
-    // Both halves total: 2 bodies + 12 faces + 24 edges + 16 vertices.
-    assert_eq!(t.len(), 54);
+    // Each half its own table (NAMES N1), each total: 1 body + 6 faces
+    // + 12 edges + 8 vertices, its body that table's body 0.
+    let half = |side| fixture::half(&ev, split, side);
     for side in [SplitHalf::Above, SplitHalf::Below] {
+        let t = half(side);
+        assert_eq!(t.len(), 27, "{side:?}");
         assert!(
-            t.lookup(&minted(EntityKind::Body, split, RoleSeg::SplitBody(side)))
+            t.lookup(&minted(EntityKind::Body, split, RoleSeg::SplitBody))
                 .is_some()
         );
         assert!(
             t.lookup(&minted(
                 EntityKind::Face,
                 split,
-                RoleSeg::SectionFace { side, section: 0 }
+                RoleSeg::SectionFace { section: 0 }
             ))
             .is_some()
         );
     }
     // Caps pass through UNCHANGED (names still minted at the extrude;
     // the split contributes no segment): the end cap lives in the
-    // above body (index 0), the start cap below (index 1).
-    let end = t
-        .lookup(&minted(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End)))
-        .expect("end cap passes through");
-    let start = t
-        .lookup(&minted(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::Start)))
-        .expect("start cap passes through");
-    match (end, start) {
-        (Entry::Unique(a), Entry::Unique(b)) => {
+    // above half, the start cap below, each absent from the other.
+    let cap = |side, end| half(side).lookup(&minted(EntityKind::Face, ext, RoleSeg::Cap(end)));
+    match (
+        cap(SplitHalf::Above, CapEnd::End),
+        cap(SplitHalf::Below, CapEnd::Start),
+    ) {
+        (Some(Entry::Unique(a)), Some(Entry::Unique(b))) => {
             assert_eq!(a.body, 0);
-            assert_eq!(b.body, 1);
+            assert_eq!(b.body, 0);
         }
         other => panic!("caps not unique: {other:?}"),
     }
+    assert!(cap(SplitHalf::Below, CapEnd::End).is_none());
+    assert!(cap(SplitHalf::Above, CapEnd::Start).is_none());
     // Each side wall is a side-tagged fragment of its lateral; each
     // strut edge likewise; each strut crossing is a CrossingVertex;
     // each cut wall contributes a SectionEdge.
     for side in [SplitHalf::Above, SplitHalf::Below] {
+        let t = half(side);
         for s in 0..4 {
             let lateral = minted(
                 EntityKind::Face,
@@ -673,7 +676,6 @@ fn split_names_sections_fragments_and_crossings() {
                     EntityKind::Face,
                     split,
                     RoleSeg::SplitFragment {
-                        side,
                         parent: lateral.clone().into()
                     }
                 ))
@@ -685,7 +687,6 @@ fn split_names_sections_fragments_and_crossings() {
                     EntityKind::Edge,
                     split,
                     RoleSeg::SectionEdge {
-                        side,
                         face: lateral.into()
                     }
                 ))
@@ -699,7 +700,6 @@ fn split_names_sections_fragments_and_crossings() {
             );
             // The strut's one piece on each side, named by its ends.
             let fragment = RoleSeg::SplitFragment {
-                side,
                 parent: strut.clone().into(),
             };
             assert_eq!(
@@ -727,7 +727,6 @@ fn split_names_sections_fragments_and_crossings() {
                     EntityKind::Vertex,
                     split,
                     RoleSeg::CrossingVertex {
-                        side,
                         edge: strut.into(),
                         sense,
                     }

@@ -237,8 +237,8 @@ fn run_names_agree_across_scalar_types() {
             v.sort();
             v
         };
-        let a = names(&ev.value(n).expect("f64 value").name_table);
-        let b = names(&evi.value(n).expect("interval value").name_table);
+        let a = names(ev.table_at(n).expect("f64 value"));
+        let b = names(evi.table_at(n).expect("interval value"));
         assert!(
             a.iter()
                 .any(|x| x.contains("Lateral([") || x.contains("Band([")),

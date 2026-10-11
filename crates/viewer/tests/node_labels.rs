@@ -610,7 +610,6 @@ fn an_edit_door_refusal_says_a_rename_later_in_its_batch() {
     // first.
     let findings = pncad::select::find_flush_candidates(
         session.evaluation().expect("the scene lands"),
-        session.committed_doc(),
         block,
         boss,
         tol,

@@ -268,7 +268,7 @@ fn build_doc(tol: Tol, seat: Seat) -> Recipe {
     let declare = match seat {
         Seat::Sunk => Vec::new(),
         Seat::Flush => {
-            let found = find_flush_candidates(&eval(&doc, None, tol), &doc, base, group, tol)
+            let found = find_flush_candidates(&eval(&doc, None, tol), base, group, tol)
                 .expect("the fin feet are definite flush pairs");
             // The inspection: one resting contact per fin, the base top
             // against that fin's foot.

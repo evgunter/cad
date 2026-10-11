@@ -218,7 +218,7 @@ fn edge_keys(
     body: u32,
     names: &[StableName],
 ) -> Vec<topo::EdgeKey> {
-    let table = &ev.value(node).expect("a value").name_table;
+    let table = ev.table_at(node).expect("a value");
     let mut keys: Vec<topo::EdgeKey> = names
         .iter()
         .map(|n| match table.lookup(n) {
@@ -356,9 +356,8 @@ fn a2_the_instance_is_the_instance() {
 
 /// The edge names of ONE output body of a node's table.
 fn edges_of_body(ev: &Evaluation<f64>, node: RecipeNodeId, body: u32) -> Vec<StableName> {
-    ev.value(node)
+    ev.table_at(node)
         .expect("a value")
-        .name_table
         .iter()
         .filter_map(|(name, entry)| match entry {
             Entry::Unique(e) if e.body == body && name.kind == EntityKind::Edge => {
@@ -442,8 +441,8 @@ fn a3_names_pass_through_and_only_the_selected_bodys() {
     let pat = pattern3(&mut r, cube);
     let p1 = part(&mut r, pat, instance(1));
     let base = eval(&r.doc);
-    let master = base.value(cube).expect("the master").name_table.len();
-    let table = &base.value(p1).expect("the Part").name_table;
+    let master = base.table_at(cube).expect("the master").len();
+    let table = base.table_at(p1).expect("the Part");
     assert_eq!(table.len(), master, "exactly the master's row count");
     for (name, _) in table.iter() {
         assert!(
@@ -748,10 +747,10 @@ fn the_two_section_planes_of_one_split_face_away_from_each_other() {
     let (above, below) = sides(&ev, split);
     // Each half's section face, by its name among that half's rows.
     let section = |side: SplitHalf, body: &Body<f64>| {
-        let name = corpus::part_select::section_face(split, side);
-        let table = &ev.value(split).expect("the split evaluates").name_table;
+        let name = corpus::part_select::section_face(split);
+        let table = crate::fixture::half(&ev, split, side);
         let face = match table.lookup(&name) {
-            Some(Entry::Unique(e)) if e.body == side.output_body() => match e.key {
+            Some(Entry::Unique(e)) if e.body == 0 => match e.key {
                 EntityKey::Face(k) => k,
                 other => panic!("{name} is not a face: {other:?}"),
             },
@@ -837,9 +836,8 @@ fn ties(
     ev: &Evaluation<f64>,
     node: RecipeNodeId,
 ) -> Vec<(StableName, Vec<editor_core::EntityRef>)> {
-    ev.value(node)
+    ev.table_at(node)
         .expect("a value")
-        .name_table
         .iter()
         .filter_map(|(n, e)| match e {
             Entry::Tied(c) => Some((n.clone(), c.clone())),
@@ -903,7 +901,7 @@ fn a_tie_the_split_separates_is_unique_through_each_port() {
         }
         // The split's own table is untouched: still tied there.
         assert!(
-            ev.value(split).expect("the split").name_table.is_tied(name),
+            ev.table_at(split).expect("the split").is_tied(name),
             "{name} stays tied on the split"
         );
     }
@@ -971,12 +969,12 @@ fn project_narrows_a_tie_by_the_flush_rule() {
     assert_eq!(keys.len(), 4);
     let face = |k: usize| EntityKey::Face(keys[k]);
     let ent = |body: u32, key: EntityKey| EntityRef { body, key };
-    let name = |h: SplitHalf| StableName {
+    let name = |section: u32| StableName {
         kind: EntityKind::Face,
         node: RecipeNodeId::new(0, 7),
-        path: vec![RoleSeg::SplitBody(h)],
+        path: vec![RoleSeg::SectionFace { section }],
     };
-    let (inside, outside) = (name(SplitHalf::Above), name(SplitHalf::Below));
+    let (inside, outside) = (name(0), name(1));
 
     let mut t = NameTable::new();
     t.insert_tied(inside.clone(), vec![ent(0, face(0)), ent(0, face(1))])

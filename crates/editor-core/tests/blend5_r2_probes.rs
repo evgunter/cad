@@ -161,8 +161,8 @@ fn the_corpus_band_trim_census_is_the_recorded_one() {
             let n = ev
                 .order
                 .iter()
-                .filter_map(|id| ev.value(*id))
-                .flat_map(|v| v.name_table.iter())
+                .flat_map(|id| crate::fixture::tables(&ev, *id))
+                .flat_map(|t| t.iter())
                 // A joined edge's members included (the blend's closing
                 // join names two trimlines it made one by both names).
                 .map(|(n, _)| match n.path.first() {

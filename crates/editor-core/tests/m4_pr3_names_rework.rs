@@ -73,7 +73,7 @@ fn union_cross_bar_names_totally() {
         "cross-bar union failed: {:?}",
         ev.nodes.get(&u)
     );
-    assert!(!v.unwrap().name_table.is_empty());
+    assert!(!ev.table_at(u).expect("one table").is_empty());
 }
 
 #[test]
@@ -168,20 +168,22 @@ fn split_through_operand_edges_names_totally() {
         },
     );
     let ev = run(&doc);
-    let v = ev
-        .value(sp)
-        .unwrap_or_else(|| panic!("diagonal split failed: {:?}", ev.nodes.get(&sp)));
+    assert!(
+        ev.value(sp).is_some(),
+        "diagonal split failed: {:?}",
+        ev.nodes.get(&sp)
+    );
     // The four passed-through corner vertices: 2 per half.
-    let mut above = 0;
-    let mut below = 0;
-    for (n, _) in v.name_table.iter() {
-        if let Some(RoleSeg::OnToolVertex { side, .. }) = n.path.first() {
-            match side {
-                editor_core::SplitHalf::Above => above += 1,
-                editor_core::SplitHalf::Below => below += 1,
-            }
-        }
-    }
+    let copies = |side| {
+        crate::fixture::half(&ev, sp, side)
+            .iter()
+            .filter(|(n, _)| matches!(n.path.first(), Some(RoleSeg::OnToolVertex { .. })))
+            .count()
+    };
+    let (above, below) = (
+        copies(editor_core::SplitHalf::Above),
+        copies(editor_core::SplitHalf::Below),
+    );
     assert_eq!(
         (above, below),
         (4, 4),
@@ -239,15 +241,21 @@ fn split_through_a_reflex_corner_names_its_copy_where_the_corner_stands() {
         },
     );
     let ev = run(&doc);
-    let v = ev
-        .value(sp)
-        .unwrap_or_else(|| panic!("reflex-corner split failed: {:?}", ev.nodes.get(&sp)));
-    let copies: Vec<_> = v
-        .name_table
-        .iter()
-        .filter_map(|(n, _)| match n.path.first() {
-            Some(RoleSeg::OnToolVertex { side, of }) => Some((*side, of.clone())),
-            _ => None,
+    assert!(
+        ev.value(sp).is_some(),
+        "reflex-corner split failed: {:?}",
+        ev.nodes.get(&sp)
+    );
+    let half = |side| crate::fixture::half(&ev, sp, side);
+    let copies: Vec<_> = [editor_core::SplitHalf::Above, editor_core::SplitHalf::Below]
+        .into_iter()
+        .flat_map(|side| {
+            half(side)
+                .iter()
+                .filter_map(move |(n, _)| match n.path.first() {
+                    Some(RoleSeg::OnToolVertex { of }) => Some((side, of.clone())),
+                    _ => None,
+                })
         })
         .collect();
     let sides: Vec<_> = copies.iter().map(|c| c.0).collect();
@@ -256,18 +264,9 @@ fn split_through_a_reflex_corner_names_its_copy_where_the_corner_stands() {
         vec![editor_core::SplitHalf::Above],
         "the corner's copy Above, and none Below: {copies:?}"
     );
-    let below_chords: Vec<_> = v
-        .name_table
+    let below_chords: Vec<_> = half(editor_core::SplitHalf::Below)
         .iter()
-        .filter(|(n, _)| {
-            matches!(
-                n.path.as_slice(),
-                [RoleSeg::SectionEdge {
-                    side: editor_core::SplitHalf::Below,
-                    ..
-                }]
-            )
-        })
+        .filter(|(n, _)| matches!(n.path.as_slice(), [RoleSeg::SectionEdge { .. }]))
         .collect();
     assert!(
         !below_chords.is_empty(),
@@ -327,23 +326,13 @@ fn a_pattern_of_a_split_port_is_the_pattern_of_its_half() {
     );
     let ev = run(&doc);
     let copies = ev
-        .value(by_port)
+        .table_at(by_port)
         .unwrap_or_else(|| panic!("{:?}", ev.nodes.get(&by_port)));
-    let rows = |body: u32| {
-        ev.value(sp)
-            .expect("the split")
-            .name_table
-            .iter()
-            .filter(|(_, entry)| match entry {
-                editor_core::Entry::Unique(e) => e.body == body,
-                editor_core::Entry::Tied(c) => c.iter().any(|e| e.body == body),
-            })
-            .count()
-    };
-    let above = rows(editor_core::SplitHalf::Above.output_body());
-    assert!(above > 0 && rows(editor_core::SplitHalf::Below.output_body()) > 0);
+    let rows = |side| crate::fixture::half(&ev, sp, side).len();
+    let above = rows(editor_core::SplitHalf::Above);
+    assert!(above > 0 && rows(editor_core::SplitHalf::Below) > 0);
     assert_eq!(
-        copies.name_table.len(),
+        copies.len(),
         2 * above,
         "each of the two copies carries the above half's rows, and no other"
     );
@@ -419,11 +408,14 @@ fn graze_split_edge_names(
     );
     let ev = run(&doc);
     let edges = |node| -> Vec<Vec<RoleSeg>> {
-        let mut out: Vec<Vec<RoleSeg>> = ev
-            .value(node)
-            .unwrap_or_else(|| panic!("evaluates: {:?}", ev.nodes.get(&node)))
-            .name_table
-            .iter()
+        assert!(
+            ev.value(node).is_some(),
+            "evaluates: {:?}",
+            ev.nodes.get(&node)
+        );
+        let mut out: Vec<Vec<RoleSeg>> = crate::fixture::tables(&ev, node)
+            .into_iter()
+            .flat_map(|t| t.iter())
             .filter(|(n, _)| n.kind == editor_core::EntityKind::Edge)
             .map(|(n, _)| n.path.clone())
             .collect();

@@ -93,9 +93,8 @@ fn xs(body: &topo::Body<f64>) -> Vec<f64> {
 }
 
 fn names_of(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<StableName> {
-    ev.value(node)
+    ev.table_at(node)
         .expect("the node evaluated")
-        .name_table
         .iter()
         .map(|(n, _)| n.clone())
         .collect()
@@ -381,8 +380,8 @@ fn digest(ev: &Evaluation<f64>) -> u64 {
     };
     for (at, id) in ev.order.iter().enumerate() {
         feed(&format!("#{at}"));
-        if let Some(v) = ev.value(*id) {
-            for (n, e) in v.name_table.iter() {
+        for t in crate::fixture::tables(ev, *id) {
+            for (n, e) in t.iter() {
                 feed(&at_position(format!("{n:?}={e:?};")));
             }
         }

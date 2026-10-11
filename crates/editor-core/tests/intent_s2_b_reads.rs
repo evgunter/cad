@@ -498,9 +498,8 @@ fn a_split_port_read_is_its_half() {
         "the half (0.5) and the block (1): {volume}"
     );
     let above_rows: Vec<editor_core::StableName> = ev
-        .value(split)
+        .table_at(split)
         .expect("the split")
-        .name_table
         .iter()
         .filter(|(_, e)| {
             matches!(e, editor_core::Entry::Unique(r) if r.body == editor_core::SplitHalf::Above.output_body())
@@ -511,9 +510,8 @@ fn a_split_port_read_is_its_half() {
         .output(split, editor_core::SplitHalf::Above.port())
         .expect("the split's above port");
     let carried: Vec<editor_core::StableName> = ev
-        .value(by_port)
+        .table_at(by_port)
         .expect("the union")
-        .name_table
         .iter()
         .filter_map(|(n, _)| match n.path.first() {
             Some(editor_core::RoleSeg::From { read, of }) if *read == port_read => {
@@ -852,8 +850,8 @@ fn a_port_re_point_keys_apart_and_the_memo_serves_no_stale_half() {
         "the memo builds what a fresh evaluation builds"
     );
     assert_eq!(
-        format!("{:?}", memo.value(boolean).map(|v| &v.name_table)),
-        format!("{:?}", fresh.value(boolean).map(|v| &v.name_table)),
+        format!("{:?}", memo.table_at(boolean)),
+        format!("{:?}", fresh.table_at(boolean)),
         "and names it alike"
     );
 }
@@ -881,8 +879,8 @@ fn dm5_is_over_the_variables_read() {
     // halves of one operation are two members: their union is the
     // block. The section is a contact, so it is declared.
     let (above, below) = (
-        crate::corpus::part_select::section_face(split, editor_core::SplitHalf::Above),
-        crate::corpus::part_select::section_face(split, editor_core::SplitHalf::Below),
+        crate::corpus::part_select::section_face(split),
+        crate::corpus::part_select::section_face(split),
     );
     let halves = (
         doc.output(split, 0).expect("above"),
@@ -976,14 +974,14 @@ fn a_pair_declared_across_one_splits_halves_is_sited_by_read() {
             _ => None,
         })
         .expect("the split's target");
-    let held = |id| before.value(id).expect("a value").name_table.clone();
+    let held = |id| before.table_at(id).expect("a value").clone();
     let (whole, cut) = (held(target), held(split));
     let wall = whole
         .iter()
         .map(|(name, _)| name.clone())
         .find(|name| name.kind == editor_core::EntityKind::Face && cut.lookup(name).is_none())
         .expect("a wall the cut renamed");
-    let section = |side| crate::corpus::part_select::section_face(split, side);
+    let section = |_: editor_core::SplitHalf| crate::corpus::part_select::section_face(split);
     let half = |h: editor_core::SplitHalf| Operand::output(split, h.port()).into();
     let read = |h: editor_core::SplitHalf| doc.output(split, h.port()).expect("a half's read");
     let pair = |(h0, first), (h1, second)| {

@@ -467,6 +467,7 @@ test_utils::f6_variants! {
         NoBodies,
         NoSuchBody,
         Readback,
+        SeveralOutputs,
     ];
 }
 
@@ -508,6 +509,10 @@ fn interrogate_error_display_names_its_content_not_its_struct() {
         (
             InterrogateError::Readback(topo::ReadbackError::NoCarrier),
             vec!["scaffolding", "tier 2 refuses at rest"],
+        ),
+        (
+            InterrogateError::SeveralOutputs { node },
+            vec!["several outputs", "names of its own", "by its port"],
         ),
     ];
     assert_f6_every_variant(&cases, &INTERROGATE_ERROR, &[]);

@@ -949,9 +949,15 @@ fn r2_a_violated_assertion_is_invisible_to_every_shared_node() {
                     x.content_key, y.content_key,
                     "node {id:?} content key moved"
                 );
+                let size = |ev, id| -> Vec<usize> {
+                    crate::fixture::tables(ev, id)
+                        .iter()
+                        .map(|t| t.len())
+                        .collect()
+                };
                 assert_eq!(
-                    x.name_table.len(),
-                    y.name_table.len(),
+                    size(&a, *id),
+                    size(&c, *id),
                     "node {id:?} name table size moved"
                 );
             }

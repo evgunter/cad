@@ -98,7 +98,7 @@ fn stacked() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 fn resting_contact_is_one_same_opposite_finding() {
     let (doc, base, top) = stacked();
     let ev = eval(&doc);
-    let findings = find_flush_candidates(&ev, &doc, base, top, Tol::witness()).unwrap();
+    let findings = find_flush_candidates(&ev, base, top, Tol::witness()).unwrap();
     assert_eq!(findings.len(), 1, "{findings:?}");
     let f = &findings[0];
     assert_eq!(f.class, BooleanCoincidence::REST);
@@ -128,7 +128,7 @@ fn flush_walls_are_same_oriented_findings() {
     );
     let (doc, post) = box_at(doc, 0.0, (0.0, 0.0), (0.5, 1.0), 1.0);
     let ev = eval(&doc);
-    let findings = find_flush_candidates(&ev, &doc, slab, post, Tol::witness()).unwrap();
+    let findings = find_flush_candidates(&ev, slab, post, Tol::witness()).unwrap();
     // x = 0, y = 0, y = 1 walls, and the two z = 0 floors.
     assert_eq!(findings.len(), 4, "{findings:?}");
     for f in &findings {
@@ -156,14 +156,14 @@ fn separated_answers_empty_and_a_node_with_no_value_refuses() {
     let (doc, far) = box_at(doc, 3.0, (2.0, 2.0), (3.0, 3.0), 1.0);
     let ev = eval(&doc);
     assert!(
-        find_flush_candidates(&ev, &doc, base, far, Tol::witness())
+        find_flush_candidates(&ev, base, far, Tol::witness())
             .unwrap()
             .is_empty()
     );
     // A foreign id has no value here, and says which standing.
     let foreign = RecipeNodeId::new(0, 999);
     let standing = NodeStanding::NotInDocument { node: foreign };
-    let refusal = find_flush_candidates(&ev, &doc, base, foreign, Tol::witness())
+    let refusal = find_flush_candidates(&ev, base, foreign, Tol::witness())
         .expect_err("a node with no value refuses");
     assert!(
         matches!(refusal, SelectRefusal::NodeHasNoValue(carried) if carried == standing),
@@ -211,7 +211,7 @@ fn detect_declare_boolean_round_trip_builds_the_undeclared_body() {
 
     // The declare arm: findings (values) → sugar → the union's own
     // declared pairs.
-    let findings = find_flush_candidates(&ev, &undeclared, base, top, Tol::witness()).unwrap();
+    let findings = find_flush_candidates(&ev, base, top, Tol::witness()).unwrap();
     assert!(!findings.is_empty(), "the resting top has a finding");
     let applied = declare_all(&undeclared, union, &findings, Tol::witness()).unwrap();
     assert_eq!(applied.record.minted, None, "declaring mints no node");
@@ -250,7 +250,7 @@ fn in_band_gap_refuses_pair_in_band() {
     );
     let (doc, top) = box_at(doc, 1.0 + gap, (0.25, 0.25), (0.75, 0.75), 0.5);
     let ev = eval(&doc);
-    let refusal = find_flush_candidates(&ev, &doc, base, top, Tol::witness()).err();
+    let refusal = find_flush_candidates(&ev, base, top, Tol::witness()).err();
     let text = refusal.as_ref().map(ToString::to_string);
     match refusal {
         Some(SelectRefusal::PairInBand {
@@ -302,7 +302,7 @@ fn empty_findings_refuse() {
 fn declare_sets_the_pair() {
     let (doc, base, top) = stacked();
     let ev = eval(&doc);
-    let findings = find_flush_candidates(&ev, &doc, base, top, Tol::witness()).unwrap();
+    let findings = find_flush_candidates(&ev, base, top, Tol::witness()).unwrap();
     let (doc, union) = undeclared_union(doc, base, top);
     let doc = declare(&doc, union, &findings[0], Tol::witness())
         .unwrap()
@@ -322,7 +322,7 @@ fn declare_sets_the_pair() {
 fn declare_on_a_non_declaring_node_refuses_typed() {
     let (doc, base, top) = stacked();
     let ev = eval(&doc);
-    let findings = find_flush_candidates(&ev, &doc, base, top, Tol::witness()).unwrap();
+    let findings = find_flush_candidates(&ev, base, top, Tol::witness()).unwrap();
     match declare_all(&doc, base, &findings, Tol::witness()) {
         Err(DeclareError::Edit(EditError::SetDeclareOnNonDeclaring { node })) => {
             assert_eq!(node.id(), base);
@@ -390,7 +390,7 @@ fn tilted_in_band_pairs_pin_the_verification_arm() {
             },
         );
         let ev = eval(&doc);
-        match find_flush_candidates(&ev, &doc, base, tilted, Tol::witness()) {
+        match find_flush_candidates(&ev, base, tilted, Tol::witness()) {
             Err(SelectRefusal::PairInBand { predicate, .. }) => {
                 assert_eq!(predicate, "bool_plane_parallel", "theta = {theta:e}");
             }

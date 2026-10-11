@@ -61,7 +61,7 @@ pub fn digest(ev: &Evaluation<f64>) -> u64 {
     for id in &ev.order {
         feed(format!("#{id:?}").as_bytes());
         let Some(value) = ev.value(*id) else { continue };
-        for (name, entry) in value.name_table.iter() {
+        for (name, entry) in super::tables(ev, *id).into_iter().flat_map(|t| t.iter()) {
             feed(format!("{name:?}={entry:?}").as_bytes());
         }
         feed(value.payload.kind_name().as_bytes());

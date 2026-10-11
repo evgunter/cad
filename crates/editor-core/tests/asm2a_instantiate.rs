@@ -420,9 +420,8 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
 // ---- Row 3: instance-qualified naming ----
 
 fn instance_names(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<StableName> {
-    ev.value(node)
+    ev.table_at(node)
         .expect("the instance evaluated")
-        .name_table
         .iter()
         .map(|(n, _)| n.clone())
         .collect()

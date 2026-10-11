@@ -17,16 +17,12 @@ use crate::fixture;
 use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
-use std::sync::Arc;
-
 use editor_core::NodeStanding;
-use editor_core::eval::WitnessSlot;
 use editor_core::{
-    CancelToken, CapEnd, ContentKey, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions,
-    EvalOutcome, Evaluation, NameTable, NamingKey, Node, ProfileDoc, Qualifier, RecipeEditRef,
-    RecipeNodeId, Resolution, ResolveError, ResolveIndeterminate, RoleSeg, RunCtx, SitedRef,
-    SlotId, StableName, apply_with_names, evaluate, rebind_suggestions, resolve,
-    resolve_with_prior,
+    CancelToken, CapEnd, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions, Evaluation, NameTable,
+    Node, ProfileDoc, Qualifier, RecipeEditRef, RecipeNodeId, Resolution, ResolveError,
+    ResolveIndeterminate, RoleSeg, RunCtx, SitedRef, SlotId, StableName, apply_with_names,
+    evaluate, rebind_suggestions, resolve, resolve_with_prior,
 };
 use fixture::{ang, insert, len, minted, on_frame, scl, step};
 use geom_core::Tol;
@@ -196,9 +192,8 @@ fn slide_to(s: &Slide, tx: f64) -> ProfileDoc {
 /// edge along both blocks' rims, named for the set of them
 /// (`[Merged([FromA(RimEdge..), FromB(RimEdge..)])]`).
 fn joined_rim_name(ev: &Evaluation<f64>, union: RecipeNodeId) -> StableName {
-    ev.value(union)
+    ev.table_at(union)
         .unwrap()
-        .name_table
         .iter()
         .find_map(|(n, e)| {
             let joined =
@@ -305,9 +300,8 @@ fn tied_name_resolves_ambiguous_with_the_tie_witness() {
     );
     let ev = run(&doc, None);
     let tied: StableName = ev
-        .value(sub)
+        .table_at(sub)
         .unwrap()
-        .name_table
         .iter()
         .find_map(|(n, e)| matches!(e, Entry::Tied(_)).then(|| n.clone()))
         .expect("the U fixture ties");
@@ -348,20 +342,15 @@ fn ranked_reference_widens_to_the_tied_base_row() {
     let src = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
     let (src, ext) = block(src, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let sev = run(&src, None);
-    let mut edges = sev
-        .value(ext)
-        .unwrap()
-        .name_table
-        .iter()
-        .filter_map(|(n, e)| {
-            if n.kind != EntityKind::Edge {
-                return None;
-            }
-            match e {
-                Entry::Unique(r) => Some(*r),
-                Entry::Tied(_) => None,
-            }
-        });
+    let mut edges = sev.table_at(ext).unwrap().iter().filter_map(|(n, e)| {
+        if n.kind != EntityKind::Edge {
+            return None;
+        }
+        match e {
+            Entry::Unique(r) => Some(*r),
+            Entry::Tied(_) => None,
+        }
+    });
     let (e1, e2) = (edges.next().unwrap(), edges.next().unwrap());
 
     // A one-node doc whose table we hand-build.
@@ -379,38 +368,13 @@ fn ranked_reference_widens_to_the_tied_base_row() {
     let mut nodes = std::collections::BTreeMap::new();
     nodes.insert(
         node,
-        editor_core::NodeResult::Ok(editor_core::NodeValue {
-            payload: editor_core::ValuePayload::Gauge,
-            name_table: Arc::new(table),
-            fragment_groups: Arc::default(),
-            contacts: Arc::new(topo::ContactRecords::default()),
-            carried: Arc::new(editor_core::CarriedDeclarations::default()),
-            coincidences: Arc::new([]),
-            cited_inputs: Arc::new([]),
-            parts: 1,
-            verdicts: Arc::new(vec![]),
-            escalations: Arc::new(vec![]),
-            placement: None,
-            witness: WitnessSlot::default(),
-            content_key: ContentKey(0),
-            naming_key: NamingKey(0),
-        }),
+        editor_core::NodeResult::Ok(editor_core::NodeValue::hand_built(
+            table,
+            editor_core::FragmentGroups::default(),
+            vec![],
+        )),
     );
-    let ev = Evaluation::<f64> {
-        epoch: editor_core::Epoch::mint(),
-        unplaced: Default::default(),
-        unplaced_below: Default::default(),
-        document: doc.id(),
-        prior_refused: None,
-        order: vec![node],
-        nodes,
-        outcome: EvalOutcome::Completed,
-        recomputed: 1,
-        reused: 0,
-        part_evaluations: 0,
-        appearance: editor_core::AppearanceResolution::default(),
-        env: Default::default(),
-    };
+    let ev = Evaluation::<f64>::hand_built(doc.id(), vec![node], nodes);
     let mut ranked = base.clone();
     ranked
         .path
@@ -1104,7 +1068,7 @@ fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
         | RoleSeg::RevolveCap(_)
         | RoleSeg::Pole(_)
         | RoleSeg::AxisEdge(_)
-        | RoleSeg::SplitBody(_)
+        | RoleSeg::SplitBody
         | RoleSeg::SectionFace { .. }
         | RoleSeg::LoftWall(_)
         | RoleSeg::LoftSeam(_) => false,
@@ -1221,9 +1185,8 @@ fn suggestions_never_offer_wall_phantoms_and_are_kind_filtered() {
     let ev = run(&doc, None);
     // A wall recorded in some piece's `Borders` set.
     let partner: StableName = ev
-        .value(sub)
+        .table_at(sub)
         .expect("subtract evaluates")
-        .name_table
         .iter()
         .find_map(|(n, e)| {
             if !matches!(e, Entry::Unique(_) | Entry::Tied(_)) {
@@ -1423,7 +1386,7 @@ fn grandparent_repoint_rederives_the_grandchild_names() {
                 matches!(v.payload, ValuePayload::Body(_)),
                 "grandchild is a body"
             );
-            &v.name_table
+            ev2.table_at(n).expect("the grandchild's table")
         }
         other => panic!("grandchild must evaluate, got {other:?}"),
     };
@@ -1541,38 +1504,13 @@ fn one_node_eval(
     let mut nodes = std::collections::BTreeMap::new();
     nodes.insert(
         node,
-        editor_core::NodeResult::Ok(editor_core::NodeValue {
-            payload: editor_core::ValuePayload::Gauge,
-            name_table: Arc::new(t),
-            fragment_groups: Arc::default(),
-            contacts: Arc::new(topo::ContactRecords::default()),
-            carried: Arc::new(editor_core::CarriedDeclarations::default()),
-            coincidences: Arc::new([]),
-            cited_inputs: Arc::new([]),
-            parts: 1,
-            verdicts: Arc::new(vec![]),
-            escalations: Arc::new(vec![]),
-            placement: None,
-            witness: WitnessSlot::default(),
-            content_key: ContentKey(0),
-            naming_key: NamingKey(0),
-        }),
+        editor_core::NodeResult::Ok(editor_core::NodeValue::hand_built(
+            t,
+            editor_core::FragmentGroups::default(),
+            vec![],
+        )),
     );
-    Evaluation::<f64> {
-        epoch: editor_core::Epoch::mint(),
-        unplaced: Default::default(),
-        unplaced_below: Default::default(),
-        document,
-        prior_refused: None,
-        order: vec![node],
-        nodes,
-        outcome: EvalOutcome::Completed,
-        recomputed: 1,
-        reused: 0,
-        part_evaluations: 0,
-        appearance: editor_core::AppearanceResolution::default(),
-        env: Default::default(),
-    }
+    Evaluation::<f64>::hand_built(document, vec![node], nodes)
 }
 
 fn body_ent(i: u32) -> editor_core::EntityRef {

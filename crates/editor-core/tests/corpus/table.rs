@@ -123,7 +123,7 @@ pub fn document() -> CorpusDoc {
             &EvalOptions::default(),
             Tol::witness(),
         );
-        let findings = find_flush_candidates(&ev, &r.doc, acc, ext, Tol::witness())
+        let findings = find_flush_candidates(&ev, acc, ext, Tol::witness())
             .expect("corner-table flush pairs are definite");
         // The inspection. Each leg shares planes with the accumulated
         // body in three families: its two corner wall planes (against

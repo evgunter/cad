@@ -120,9 +120,8 @@ where
     // The FIRST FromA rim-edge piece in table order — a
     // deterministic probe.
     let piece: StableName = ev1
-        .value(u)
+        .table_at(u)
         .expect("union evaluates")
-        .name_table
         .iter()
         .find_map(|(n, e)| {
             let hit = n.kind == EntityKind::Edge
@@ -241,9 +240,8 @@ where
     );
     let evu = run::<T>(&docu, None);
     let tied: StableName = evu
-        .value(us)
+        .table_at(us)
         .expect("U subtract evaluates")
-        .name_table
         .iter()
         .find_map(|(n, e)| matches!(e, Entry::Tied(_)).then(|| n.clone()))
         .expect("the U fixture ties");

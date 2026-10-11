@@ -733,9 +733,8 @@ fn a_tied_face_refuses_ambiguous_at_the_door() {
     ));
     let ev = run(&part, &EvalOptions::default());
     let tied = ev
-        .value(sub)
+        .table_at(sub)
         .expect("the U subtract evaluates")
-        .name_table
         .iter()
         .find_map(|(name, entry)| match entry {
             editor_core::Entry::Tied(_) if name.kind == EntityKind::Face => Some(name.clone()),
@@ -1065,7 +1064,7 @@ fn a4_the_key_moves_under_an_edit_to_the_faces_part_and_holds_under_one_outside_
         earlier.value(mate),
         later.value(mate),
     ) {
-        (Some(a), Some(b)) => Arc::ptr_eq(&a.name_table, &b.name_table),
+        (Some(a), Some(b)) => Arc::ptr_eq(&a.verdicts, &b.verdicts),
         _ => false,
     };
     let placed_z = move |doc: &ProfileDoc, opts: &EvalOptions| {

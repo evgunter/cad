@@ -631,11 +631,7 @@ fn name_split_edges_vertices<T: Decide>(
                 let sense = if forward { sense } else { sense.flipped() };
                 let on = by_line.entry((edge_line(&parent.name), sense)).or_default();
                 on.0 |= parent.tied;
-                on.1.push((
-                    ent(0, EntityKey::Vertex(v)),
-                    vertex_point(body, v)?,
-                    along,
-                ));
+                on.1.push((ent(0, EntityKey::Vertex(v)), vertex_point(body, v)?, along));
             }
         }
         for ((line, sense), (tied, on)) in by_line {
@@ -3611,7 +3607,13 @@ fn name_split_faces<T: Decide>(
             Parent::Elsewhere,
         );
         if let [f] = members.as_slice() {
-            put(&mut h.t, &mut h.tie, from_tie, base_name, ent(0, EntityKey::Face(*f)))?;
+            put(
+                &mut h.t,
+                &mut h.tie,
+                from_tie,
+                base_name,
+                ent(0, EntityKey::Face(*f)),
+            )?;
             continue;
         }
         // Same-side multiplicity: each piece by the parent's boundary

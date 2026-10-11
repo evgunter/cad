@@ -234,13 +234,15 @@ fn evaluated() -> Vec<Sample> {
                 continue;
             };
             let node = doc.node(id).expect("an evaluated node is in its document");
-            let heads = || value.name_table.iter().map(|(n, _)| n);
+            let _ = value;
+            let tables = crate::fixture::tables(&ev, id);
+            let heads = || tables.iter().flat_map(|t| t.iter()).map(|(n, _)| n);
             out.push(Sample {
                 doc: name,
                 id,
                 kind: test_utils::f6::variant_identifier(node),
                 edge: verbatim_kind(node),
-                rows: value.name_table.len(),
+                rows: tables.iter().map(|t| t.len()).sum(),
                 foreign: heads().find(|n| n.node != id).cloned(),
                 own: heads().find(|n| n.node == id).cloned(),
             });

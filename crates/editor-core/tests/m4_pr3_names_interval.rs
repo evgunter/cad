@@ -180,12 +180,8 @@ fn f64_and_interval_lanes_emit_identical_name_tables() {
     let ties = ef
         .order
         .iter()
-        .filter_map(|id| ef.value(*id))
-        .flat_map(|v| {
-            v.name_table
-                .iter()
-                .map(|(_, e)| matches!(e, Entry::Tied(_)))
-        })
+        .flat_map(|id| crate::fixture::tables(&ef, *id))
+        .flat_map(|t| t.iter().map(|(_, e)| matches!(e, Entry::Tied(_))))
         .filter(|tied| *tied)
         .count();
     assert!(
@@ -199,8 +195,10 @@ fn f64_and_interval_lanes_emit_identical_name_tables() {
         let vi = ei
             .value(*id)
             .unwrap_or_else(|| panic!("interval node {id:?} failed: {:?}", ei.nodes.get(id)));
+        let _ = (vf, vi);
         assert_eq!(
-            vf.name_table, vi.name_table,
+            crate::fixture::tables(&ef, *id),
+            crate::fixture::tables(&ei, *id),
             "lane disagreement at node {id:?}"
         );
     }

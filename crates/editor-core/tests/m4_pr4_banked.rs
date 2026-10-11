@@ -131,9 +131,8 @@ fn band_cut() -> BandCut {
 type Rows = BTreeMap<StableName, Entry>;
 
 fn rows(ev: &Evaluation<f64>, node: RecipeNodeId) -> Rows {
-    ev.value(node)
+    ev.table_at(node)
         .unwrap()
-        .name_table
         .iter()
         .map(|(n, e)| (n.clone(), e.clone()))
         .collect()

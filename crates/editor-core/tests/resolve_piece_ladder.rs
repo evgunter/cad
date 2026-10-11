@@ -13,14 +13,10 @@
 use crate::fixture;
 use editor_core::ExtrudeSide;
 
-use std::sync::Arc;
-
-use editor_core::eval::WitnessSlot;
 use editor_core::{
-    Axis3, CancelToken, ContentKey, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions,
-    EvalOutcome, Evaluation, FragmentGroups, GroupCutters, NameTable, NamingKey, Node, ProfileDoc,
-    Qualifier, RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SlotId, StableName,
-    evaluate, resolve_with_prior,
+    Axis3, CancelToken, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions, Evaluation,
+    FragmentGroups, GroupCutters, NameTable, Node, ProfileDoc, Qualifier, RecipeNodeId, Resolution,
+    ResolveError, RoleSeg, RunCtx, SlotId, StableName, evaluate, resolve_with_prior,
 };
 use fixture::{ang, insert, len, minted, on_frame, scl, step};
 use geom_core::Tol;
@@ -137,9 +133,8 @@ fn slide(s: &Slot, axis: Axis3, to: f64) -> ProfileDoc {
 /// The `Borders`-qualified cap pieces of `cut`'s table, left to right.
 fn border_pieces(ev: &Evaluation<f64>, cut: RecipeNodeId) -> Vec<StableName> {
     let fragments = ev
-        .value(cut)
+        .table_at(cut)
         .expect("the cut evaluates")
-        .name_table
         .iter()
         .filter_map(|(n, e)| {
             let discriminated = matches!(
@@ -266,38 +261,9 @@ fn one_node_eval(
     let mut nodes = std::collections::BTreeMap::new();
     nodes.insert(
         node,
-        editor_core::NodeResult::Ok(editor_core::NodeValue {
-            payload: editor_core::ValuePayload::Gauge,
-            name_table: Arc::new(t),
-            fragment_groups: Arc::new(groups),
-            contacts: Arc::new(topo::ContactRecords::default()),
-            carried: Arc::new(editor_core::CarriedDeclarations::default()),
-            coincidences: Arc::new([]),
-            cited_inputs: Arc::new([]),
-            parts: 1,
-            verdicts: Arc::new(log),
-            escalations: Arc::new(vec![]),
-            placement: None,
-            witness: WitnessSlot::default(),
-            content_key: ContentKey(0),
-            naming_key: NamingKey(0),
-        }),
+        editor_core::NodeResult::Ok(editor_core::NodeValue::hand_built(t, groups, log)),
     );
-    Evaluation::<f64> {
-        epoch: editor_core::Epoch::mint(),
-        unplaced: Default::default(),
-        unplaced_below: Default::default(),
-        document,
-        prior_refused: None,
-        order: vec![node],
-        nodes,
-        outcome: EvalOutcome::Completed,
-        recomputed: 1,
-        reused: 0,
-        part_evaluations: 0,
-        appearance: editor_core::AppearanceResolution::default(),
-        env: Default::default(),
-    }
+    Evaluation::<f64>::hand_built(document, vec![node], nodes)
 }
 
 /// A two-frame document and the vanished/base/wall names
@@ -452,9 +418,8 @@ fn a_collapsed_edge_piece_group_at_the_cut_is_diagnosed_group_resized() {
         };
         let plate = plate.read;
         let pieces: Vec<StableName> = ev1
-            .value(s.cut)
+            .table_at(s.cut)
             .expect("the cut evaluates")
-            .name_table
             .iter()
             .filter_map(|(n, e)| {
                 // The plate's rim pieces: the bar's own edges are lone
@@ -475,9 +440,8 @@ fn a_collapsed_edge_piece_group_at_the_cut_is_diagnosed_group_resized() {
         let gone: Vec<&StableName> = pieces
             .iter()
             .filter(|n| {
-                ev2.value(s.cut)
+                ev2.table_at(s.cut)
                     .expect("the cut evaluates")
-                    .name_table
                     .lookup(n)
                     .is_none()
             })

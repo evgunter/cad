@@ -345,31 +345,31 @@ pub(crate) fn resolve(
                 continue;
             };
             for &(base, table) in tables {
-            match table.lookup(name) {
-                Some(Entry::Unique(ent)) => {
-                    hit = true;
-                    let ent = EntityRef {
-                        body: base + ent.body,
-                        key: ent.key,
-                    };
-                    resolution
-                        .resolved
-                        .entry(id)
-                        .or_default()
-                        .entry(ent)
-                        .or_default()
-                        .extend(rec.attrs.iter().map(|(k, v)| (*k, v.clone())));
-                }
-                Some(Entry::Tied(cands)) => {
-                    // N2: never auto-pick among equally admissible
-                    // candidates — painting all of them would be one.
-                    hit = true;
-                    if tie.is_none() {
-                        tie = Some((id, cands.len()));
+                match table.lookup(name) {
+                    Some(Entry::Unique(ent)) => {
+                        hit = true;
+                        let ent = EntityRef {
+                            body: base + ent.body,
+                            key: ent.key,
+                        };
+                        resolution
+                            .resolved
+                            .entry(id)
+                            .or_default()
+                            .entry(ent)
+                            .or_default()
+                            .extend(rec.attrs.iter().map(|(k, v)| (*k, v.clone())));
                     }
+                    Some(Entry::Tied(cands)) => {
+                        // N2: never auto-pick among equally admissible
+                        // candidates — painting all of them would be one.
+                        hit = true;
+                        if tie.is_none() {
+                            tie = Some((id, cands.len()));
+                        }
+                    }
+                    None => {}
                 }
-                None => {}
-            }
             }
         }
         if let Some((at, width)) = tie {

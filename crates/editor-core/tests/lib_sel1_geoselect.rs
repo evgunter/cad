@@ -683,8 +683,8 @@ fn tied_box() -> (
     let (low, high) = (pick(0.0), pick(1.0));
 
     let (e_low, e_high) = {
-        let value = ev.value(cube).expect("the box evaluated");
-        let ent = |n| match value.name_table.lookup(n) {
+        let table = ev.table_at(cube).expect("the box evaluated");
+        let ent = |n| match table.lookup(n) {
             Some(editor_core::Entry::Unique(e)) => *e,
             _ => panic!("a corner vertex resolves uniquely before the swap"),
         };
@@ -696,7 +696,7 @@ fn tied_box() -> (
         .insert_tied(low.clone(), vec![e_low, e_high])
         .expect("two distinct vertex candidates make a tie");
     match ev.nodes.get_mut(&cube) {
-        Some(editor_core::NodeResult::Ok(v)) => v.name_table = std::sync::Arc::new(table),
+        Some(editor_core::NodeResult::Ok(v)) => v.replace_table(0, table),
         _ => panic!("the box evaluated"),
     }
     (ev, cube, datum, low)
@@ -732,9 +732,8 @@ fn a_tied_name_meets_geometry_as_a_trilean() {
     // The name comes back, and it is still the TIED name.
     assert_eq!(go(Cmp::Less, 5.0).expect("all match"), vec![tied.clone()]);
     assert!(matches!(
-        ev.value(cube)
+        ev.table_at(cube)
             .expect("evaluated")
-            .name_table
             .lookup(&tied),
         Some(editor_core::Entry::Tied(c)) if c.len() == 2,
     ));

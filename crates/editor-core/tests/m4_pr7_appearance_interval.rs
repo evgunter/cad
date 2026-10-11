@@ -72,9 +72,8 @@ fn f64_and_interval_lanes_resolve_appearance_identically() {
     // end cap (resolves in A's own table).
     let ev: Evaluation<f64> = run(&doc);
     let uni_face = ev
-        .value(uni)
+        .table_at(uni)
         .unwrap()
-        .name_table
         .iter()
         .find_map(|(n, e)| {
             (n.kind == EntityKind::Face && matches!(e, editor_core::Entry::Unique(_)))

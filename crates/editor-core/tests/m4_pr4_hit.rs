@@ -82,14 +82,19 @@ fn assert_total(doc: &editor_core::ProfileDoc, ev: &Evaluation<f64>) -> usize {
                 let name = entity_name(ev, node, ent)
                     .unwrap_or_else(|e| panic!("unnamed entity at {node:?}: {e:?}"));
                 assert_eq!(name.kind, key.kind(), "kind agreement at {node:?}");
-                // Per-table bidirectionality: THIS node's forward row
-                // gives the entity back (unique, or a tie listing it).
-                match v.name_table.lookup(name) {
+                // Per-table bidirectionality: the forward row of the
+                // read holding the entity gives it back (unique, or a
+                // tie listing it) — a split's half its own table.
+                let (var, at) = ev
+                    .entity_read(node, ent)
+                    .unwrap_or_else(|| panic!("no read holds {ent:?} at {node:?}"));
+                let table = ev.table(var).expect("the read's table");
+                match table.lookup(name) {
                     Some(editor_core::Entry::Unique(r)) => {
-                        assert_eq!(*r, ent, "table round trip moved {name:?}");
+                        assert_eq!(*r, at, "table round trip moved {name:?}");
                     }
                     Some(editor_core::Entry::Tied(c)) => {
-                        assert!(c.contains(&ent), "tie row lost {name:?}");
+                        assert!(c.contains(&at), "tie row lost {name:?}");
                     }
                     None => panic!("reverse row without forward row for {name:?}"),
                 }
@@ -297,9 +302,8 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
     );
     let ev2 = run(&doc2);
     let some_face = ev2
-        .value(ext2)
+        .table_at(ext2)
         .unwrap()
-        .name_table
         .iter()
         .find_map(|(_, e)| match e {
             editor_core::Entry::Unique(r) if matches!(r.key, EntityKey::Face(_)) => Some(*r),

@@ -99,14 +99,10 @@ fn block(
     )
 }
 
-fn table_of(
-    ev: &editor_core::Evaluation<f64>,
-    node: RecipeNodeId,
-) -> std::sync::Arc<editor_core::NameTable> {
-    match ev.nodes.get(&node) {
-        Some(NodeResult::Ok(v)) => std::sync::Arc::clone(&v.name_table),
-        other => panic!("node {node:?} did not evaluate: {other:?}"),
-    }
+fn table_of(ev: &editor_core::Evaluation<f64>, node: RecipeNodeId) -> editor_core::NameTable {
+    ev.table_at(node)
+        .unwrap_or_else(|| panic!("node {node:?} did not evaluate: {:?}", ev.nodes.get(&node)))
+        .clone()
 }
 
 /// The die blank: a unit cube with EVERY edge blended. Returns the

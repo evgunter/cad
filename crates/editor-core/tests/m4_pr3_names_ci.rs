@@ -36,8 +36,8 @@ fn digest(ev: &Evaluation<f64>) -> u64 {
     };
     for id in &ev.order {
         feed(&format!("#{id:?}"));
-        if let Some(v) = ev.value(*id) {
-            for (n, e) in v.name_table.iter() {
+        for t in crate::fixture::tables(ev, *id) {
+            for (n, e) in t.iter() {
                 feed(&format!("{n:?}={e:?};"));
             }
         }
@@ -59,8 +59,8 @@ fn digest_names(ev: &Evaluation<f64>) -> u64 {
     };
     for id in &ev.order {
         feed(&format!("#{id:?}"));
-        if let Some(v) = ev.value(*id) {
-            for (n, e) in v.name_table.iter() {
+        for t in crate::fixture::tables(ev, *id) {
+            for (n, e) in t.iter() {
                 let shape = match e {
                     editor_core::Entry::Unique(r) => format!("u{}", r.body),
                     editor_core::Entry::Tied(c) => format!("t{}", c.len()),
@@ -162,8 +162,8 @@ fn pip_depth_motion_without_flips_leaves_every_table_identical() {
     let mut changed = 0usize;
     for id in &ev1.order {
         let (a, b) = (ev1.value(*id), ev2.value(*id));
-        let (a, b) = (a.expect("ev1 value"), b.expect("ev2 value"));
-        if a.name_table != b.name_table {
+        assert!(a.is_some() && b.is_some(), "both runs value {id:?}");
+        if crate::fixture::tables(&ev1, *id) != crate::fixture::tables(&ev2, *id) {
             changed += 1;
         }
     }
@@ -183,10 +183,13 @@ fn memo_reuse_transfers_tables_bit_identically() {
     );
     assert_eq!(ev2.recomputed, 0, "unchanged doc must be a full memo hit");
     for id in &ev1.order {
-        let (a, b) = (ev1.value(*id).unwrap(), ev2.value(*id).unwrap());
+        let (a, b) = (
+            crate::fixture::tables(&ev1, *id),
+            crate::fixture::tables(&ev2, *id),
+        );
         // The table rides the value: reuse is the SAME Arc.
         assert!(
-            std::sync::Arc::ptr_eq(&a.name_table, &b.name_table),
+            a.len() == b.len() && a.iter().zip(&b).all(|(x, y)| std::ptr::eq(*x, *y)),
             "memo reuse did not transfer the table for {id:?}"
         );
     }

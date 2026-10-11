@@ -222,9 +222,9 @@ fn both_sweeps_evaluate_in_one_document() {
     let bad = failures(&ev);
     assert!(bad.is_empty(), "the two-sweep document failed: {bad:?}");
     for id in fixture.sweeps {
-        let value = ev.value(id).expect("the sweep node produced a value");
+        let table = ev.table_at(id).expect("the sweep node produced a value");
         assert!(
-            value.name_table.iter().count() > 0,
+            table.iter().count() > 0,
             "node {id:?} produced an empty name table"
         );
     }

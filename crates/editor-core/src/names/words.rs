@@ -895,10 +895,9 @@ fn role<'n, 's>(
         }
         RoleSeg::SplitBody => one("the split's body".to_owned()),
         RoleSeg::SectionFace { section } => one(format!("the split's section face {section}")),
-        RoleSeg::SectionEdge { face } => vec![
-            text("the split's section edge across "),
-            cites.one(face),
-        ],
+        RoleSeg::SectionEdge { face } => {
+            vec![text("the split's section edge across "), cites.one(face)]
+        }
         RoleSeg::CrossingVertex { edge, sense } => vec![
             text("the split's crossing where "),
             cites.one(edge),

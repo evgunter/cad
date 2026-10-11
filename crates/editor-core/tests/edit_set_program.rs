@@ -1553,7 +1553,7 @@ fn a_parameter_through_a_state_that_does_not_replay_moves_no_name() {
         "the round trip is the document it left"
     );
     let ev = fixture::run(&end.doc, &EvalOptions::default());
-    let table = &ev.value(ext).expect("the extrude evaluates").name_table;
+    let table = ev.table_at(ext).expect("the extrude evaluates");
     assert!(
         table.lookup(&half).is_some(),
         "the hole's half is named again"
@@ -2457,7 +2457,7 @@ fn a_loft_wall_whose_pairing_changes_vanishes() {
             && applied.doc.appearance().contains_key(&moved),
         "both painted names keep their spelling"
     );
-    let table = &ev.value(loft).expect("the loft evaluates").name_table;
+    let table = ev.table_at(loft).expect("the loft evaluates");
     assert!(table.lookup(&kept).is_some(), "wall 0 pairs what it paired");
     assert!(
         table.lookup(&moved).is_none(),
@@ -2530,9 +2530,8 @@ fn a_later_sections_reshaping_moves_a_loft_name_only_where_it_drops_a_step() {
     let live = |doc: &ProfileDoc| {
         let ev = fixture::run(doc, &EvalOptions::default());
         let table = ev
-            .value(loft)
+            .table_at(loft)
             .unwrap_or_else(|| panic!("the loft evaluates: {:?}", corpus::failures(&ev)))
-            .name_table
             .clone();
         move |n: &StableName| table.lookup(n).is_some()
     };

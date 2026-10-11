@@ -160,8 +160,8 @@ const SAID_DIGEST: u64 = 0x5dec_4f41_9ab8_a75b;
 struct Gone;
 
 impl NameTables for Gone {
-    fn table(&self, _: RecipeNodeId) -> Option<&NameTable> {
-        None
+    fn tables(&self, _: RecipeNodeId) -> Vec<&NameTable> {
+        Vec::new()
     }
 }
 
@@ -196,9 +196,9 @@ fn census(label: &str, doc: &ProfileDoc, ev: &Evaluation<f64>) -> Census {
     let scoped = full.within(ev);
     let mut out = Census::default();
     for id in doc.ids() {
-        let Some(value) = ev.value(id) else { continue };
         let mut groups: [BTreeMap<String, usize>; 3] = Default::default();
-        for (name, _) in value.name_table.iter() {
+        let tables = crate::fixture::tables(ev, id);
+        for (name, _) in tables.into_iter().flat_map(|t| t.iter()) {
             let said = full.name(name).to_string();
             let by_tag = name.to_string();
             *groups[0].entry(said.clone()).or_default() += 1;
@@ -728,9 +728,8 @@ fn documents_outside_the_corpus_read_apart_too() {
         let third = boolean(&mut r, op, second, copies[2]);
         let ev = fixture::run(&r.doc, &EvalOptions::default());
         let rim: Vec<StableName> = ev
-            .value(third)
+            .table_at(third)
             .unwrap_or_else(|| panic!("the round pins evaluate: {:?}", corpus::failures(&ev)))
-            .name_table
             .iter()
             .map(|(name, _)| name)
             .filter(|name| {
@@ -867,10 +866,9 @@ fn each_boolean_join_says_its_operation() {
         let (block, pin) = block_and_pin(&mut r);
         let at = boolean(&mut r, op, block, pin);
         let ev = fixture::run(&r.doc, &EvalOptions::default());
-        let table = &ev
-            .value(at)
-            .unwrap_or_else(|| panic!("{op:?} evaluates: {:?}", corpus::failures(&ev)))
-            .name_table;
+        let table = ev
+            .table_at(at)
+            .unwrap_or_else(|| panic!("{op:?} evaluates: {:?}", corpus::failures(&ev)));
         let by = Speaker::of(&r.doc);
         let pin_read = fixture::out(&r.doc, pin);
         // A member's join also says the read it came in through; a
@@ -919,7 +917,7 @@ fn two_copies_of_one_body_read_apart_where_a_sentence_names_both() {
     let two = moved(&mut r, block, [0.5, 0.0, 0.0]);
     let doc = r.doc;
     let ev = fixture::run(&doc, &EvalOptions::default());
-    let findings = editor_core::find_flush_candidates(&ev, &doc, one, two, fixture::tol())
+    let findings = editor_core::find_flush_candidates(&ev, one, two, fixture::tol())
         .expect("the copies' flush faces are decided");
     let alike = findings
         .iter()
@@ -983,15 +981,14 @@ fn a_failed_row_said_within_the_largest_table_is_cheap_again() {
                 .iter()
                 .copied()
                 .filter(|&id| ev.value(id).is_some())
-                .max_by_key(|&id| ev.value(id).map_or(0, |v| v.name_table.iter().count()))?;
+                .max_by_key(|&id| ev.table_at(id).map_or(0, |t| t.iter().count()))?;
             Some((doc, ev, node))
         })
-        .max_by_key(|(_, ev, node)| ev.value(*node).map_or(0, |v| v.name_table.iter().count()))
+        .max_by_key(|(_, ev, node)| ev.table_at(*node).map_or(0, |t| t.iter().count()))
         .expect("the corpus evaluates");
     let faces: Vec<StableName> = ev
-        .value(node)
+        .table_at(node)
         .expect("the largest table's node")
-        .name_table
         .iter()
         .map(|(name, _)| name.clone())
         .filter(|name| name.node == node && name.kind == EntityKind::Face)
@@ -1020,7 +1017,7 @@ fn a_failed_row_said_within_the_largest_table_is_cheap_again() {
     let again = again.elapsed() / FRAMES;
     println!(
         "{} names in the largest table: the first saying {first:?}, each later one {again:?}",
-        ev.value(node).map_or(0, |v| v.name_table.iter().count())
+        ev.table_at(node).map_or(0, |t| t.iter().count())
     );
     assert!(
         again * 4 < first,

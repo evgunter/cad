@@ -1071,12 +1071,12 @@ fn a_later_fold_step_glues_a_flush_member_as_the_pair_does() {
     let ev = run(&bare);
     assert_eq!(failure(&ev, pair), None, "the pair spelling builds");
     assert_eq!(failure(&ev, u), None, "the fold builds through step 2");
-    let table = format!("{:?}", ev.value(u).expect("the union built").name_table);
+    let table = format!("{:?}", ev.table_at(u).expect("the union built"));
     assert!(
         !table.contains("FromA(") && !table.contains("FromB("),
         "the union publishes an uncollapsed fold row: {table}"
     );
-    let pairs = crate::fixture::findings_declared(&ev, &bare, &[a, b, d]);
+    let pairs = crate::fixture::findings_declared(&ev, &[a, b, d]);
     assert!(!pairs.is_empty(), "the flush members have findings");
     let (declared, du) = crate::fixture::union_over(doc, &[a, b, d], pairs);
     let dev = run(&declared);

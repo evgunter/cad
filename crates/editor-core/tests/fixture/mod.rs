@@ -871,13 +871,12 @@ pub fn union_over(
 /// can set an undeclared document beside its declared twin.
 pub fn findings_declared(
     ev: &Evaluation<f64>,
-    doc: &ProfileDoc,
     members: &[RecipeNodeId],
 ) -> Vec<editor_core::DeclaredPair> {
     let mut pairs = Vec::new();
     for (i, &a) in members.iter().enumerate() {
         for &b in &members[i + 1..] {
-            let found = editor_core::find_flush_candidates(ev, doc, a, b, tol())
+            let found = editor_core::find_flush_candidates(ev, a, b, tol())
                 .unwrap_or_else(|e| panic!("the detector answers {a:?} × {b:?}: {e:?}"));
             pairs.extend(editor_core::declared_pairs(&found));
         }
@@ -1712,9 +1711,31 @@ pub fn ename(node: RecipeNodeId, seg: RoleSeg) -> StableName {
 /// The name table `id` published, or a panic naming what it did
 /// instead.
 pub fn table(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NameTable {
-    &ev.value(id)
-        .unwrap_or_else(|| panic!("node {id:?} has no value: {:?}", ev.nodes.get(&id)))
-        .name_table
+    ev.table_at(id)
+        .unwrap_or_else(|| panic!("node {id:?} has no one table: {:?}", ev.nodes.get(&id)))
+}
+
+/// **The name table of `split`'s half `half`** — the read of its port
+/// (NAMES N1: each half its own table, its body that table's body 0).
+pub fn half(ev: &Evaluation<f64>, split: RecipeNodeId, half: editor_core::SplitHalf) -> &NameTable {
+    ev.output_var(split, half.port())
+        .and_then(|var| ev.table(var))
+        .unwrap_or_else(|| {
+            panic!(
+                "split {split:?} has no {half:?} table: {:?}",
+                ev.nodes.get(&split)
+            )
+        })
+}
+
+/// **Every name table `id`'s outputs carry**, in port order (NAMES N1:
+/// one per output variable, a split's two halves two) — empty for a
+/// node with no value.
+pub fn tables<T: geom_core::Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> Vec<&NameTable> {
+    ev.named_outputs(id)
+        .into_iter()
+        .filter_map(|var| ev.table(var))
+        .collect()
 }
 
 /// The one entity a name answers to — the row's loud end when a mint
@@ -2140,11 +2161,8 @@ pub fn relations(findings: &[editor_core::AtRestFinding]) -> Vec<(RecipeNodeId, 
 /// face carried through untouched booleans before being merged again
 /// is nesting exactly as a bare one is.
 pub fn assert_no_nested_merged<T: geom_core::Decide>(ev: &editor_core::Evaluation<T>) {
-    for (id, result) in &ev.nodes {
-        let editor_core::NodeResult::Ok(value) = result else {
-            continue;
-        };
-        for (name, _) in value.name_table.iter() {
+    for id in ev.nodes.keys() {
+        for (name, _) in tables(ev, *id).into_iter().flat_map(NameTable::iter) {
             let nested = merged_sets(name)
                 .into_iter()
                 .flat_map(|set| set.iter())
@@ -2250,7 +2268,7 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::RevolveCap(_)
         | RoleSeg::Pole(_)
         | RoleSeg::AxisEdge(_)
-        | RoleSeg::SplitBody(_)
+        | RoleSeg::SplitBody
         | RoleSeg::SectionFace { .. }
         | RoleSeg::LoftWall(_)
         | RoleSeg::LoftSeam(_) => Vec::new(),

@@ -53,8 +53,7 @@ use crate::node::RecipeNodeId;
 use super::geompred::{self, GeomPred, SelectRefusal};
 use super::interrogate;
 use super::role::{
-    CapEnd, EntityKind, MeridianEnd, Qualifier, RimSupport, RoleSeg, StableName,
-    name_free_seg,
+    CapEnd, EntityKind, MeridianEnd, Qualifier, RimSupport, RoleSeg, StableName, name_free_seg,
 };
 use super::table::{EntityRef, Entry};
 
@@ -823,7 +822,11 @@ impl Selector {
 /// consumes the stored selection reads `node` as its input, so it is
 /// poisoned through it while it has no value, and refuses the empty
 /// selection once it has one.
-pub fn select<T: Decide>(ev: &Evaluation<T>, at: impl Into<crate::At>, sel: &Selector) -> Vec<StableName> {
+pub fn select<T: Decide>(
+    ev: &Evaluation<T>,
+    at: impl Into<crate::At>,
+    sel: &Selector,
+) -> Vec<StableName> {
     // No value, no names: this function's doc.
     let Some(table) = ev.table_at(at) else {
         return Vec::new();

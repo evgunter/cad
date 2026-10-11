@@ -322,14 +322,8 @@ fn a_tied_selection_name_refuses_ambiguous_with_its_witness() {
     let (doc, us) = symmetric_u();
     let ev = eval(&doc);
     let tied: StableName = ev
-        .nodes
-        .get(&us)
-        .and_then(|r| match r {
-            NodeResult::Ok(v) => Some(v),
-            _ => None,
-        })
+        .table_at(us)
         .expect("the U subtract evaluates")
-        .name_table
         .iter()
         // Any tied row will do: the resolver reaches the TIE before it
         // reaches the kind check, so ambiguity is refused first — which

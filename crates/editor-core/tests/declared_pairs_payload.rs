@@ -138,7 +138,7 @@ fn declaring_each_finding_in_turn_adds_it_and_builds_the_undeclared_body() {
     assert_eq!(volume, 9.0 + 4.0 + 1.0);
     let mut findings = Vec::new();
     for (a, b) in [(low, mid), (mid, top)] {
-        let found = editor_core::find_flush_candidates(&undeclared, &doc, a, b, Tol::witness())
+        let found = editor_core::find_flush_candidates(&undeclared, a, b, Tol::witness())
             .expect("the detector answers");
         assert_eq!(found.len(), 1, "one resting contact: {found:?}");
         findings.extend(found);

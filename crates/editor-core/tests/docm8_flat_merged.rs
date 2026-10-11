@@ -1036,7 +1036,7 @@ fn a_contact_against_a_fold_minted_fragment_glues_undeclared() {
             fname(d, RoleSeg::Cap(CapEnd::Start)),
         ),
     );
-    let found = editor_core::find_flush_candidates(&ev, &docx, a, d, Tol::witness())
+    let found = editor_core::find_flush_candidates(&ev, a, d, Tol::witness())
         .expect("the detector answers");
     assert_eq!(found.len(), 1, "one contact between a and d: {found:?}");
     let finding = &found[0];

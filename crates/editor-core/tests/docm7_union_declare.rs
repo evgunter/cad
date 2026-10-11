@@ -939,7 +939,7 @@ fn set_declare_on_a_live_union_edits_it_in_place() {
         "the undeclared union refused: {:?}",
         failure(&undeclared, union)
     );
-    let pairs = fixture::findings_declared(&undeclared, &doc, &[m1, m2]);
+    let pairs = fixture::findings_declared(&undeclared, &[m1, m2]);
     assert!(!pairs.is_empty(), "the flush placements have findings");
     let applied = doc
         .apply(
@@ -1219,7 +1219,7 @@ fn a_member_flush_under_a_merged_wall_fuses_declared_or_not() {
     assert_eq!(volume, 3.0, "the placements' 1.5 and m3's 1.5");
     let mut pairs = placements;
     for m in [m1, m2] {
-        let found = fixture::findings_declared(&undeclared, &bare, &[m, m3]);
+        let found = fixture::findings_declared(&undeclared, &[m, m3]);
         assert!(
             found
                 .iter()
