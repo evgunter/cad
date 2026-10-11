@@ -369,9 +369,9 @@ impl<T: Real> Reach<T> {
     ///   the germ frame's longer of the larger radius and the walls'
     ///   span, which the cylinder pair also floors at the foot's distance
     ///   from `at` ([`Self::lever_between`]).
-    /// - [`Self::Face`]: its farthest distance from `at`, whatever the
-    ///   pivot, as [`Self::Measured`]'s length: the plane×cone arm levers
-    ///   its apex reading at it. The plane×cylinder row reads a face from
+    /// - [`Self::Face`]: its farthest distance from `at`, plus `at`'s
+    ///   from `pivot` (the triangle inequality): the plane×cone arm levers
+    ///   its apex reading there. The plane×cylinder row reads a face from
     ///   its hinge instead ([`Self::hinge_lever`]).
     /// - [`Self::Span`]: per carrier, never an underestimate and exact
     ///   where the carrier allows:
@@ -392,7 +392,7 @@ impl<T: Real> Reach<T> {
         match self {
             Self::Ball(ball) => ball.lever_from(pivot),
             Self::Measured { lever, .. } => *lever,
-            Self::Face { across, .. } => *across,
+            Self::Face { at, across, .. } => (*at - pivot).norm() + *across,
             Self::Span { carrier, .. } => match carrier {
                 Curve3::Circle { center, radius, .. } => (*center - pivot).norm() + radius.abs(),
                 Curve3::Ellipse {

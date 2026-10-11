@@ -2098,8 +2098,13 @@ pub enum PlaneConeSection<T: Real> {
 ///    other's `|δ|/D`, with `D ≤ M`; where `D < 0` the section is an
 ///    ellipse on one nappe, whose farthest point stands `|δ|/|D|` off.
 ///    Each step below decides one of these distances as a magnitude,
-///    levered by `|δ|`: Zero serves the apex outcome, Positive leaves
-///    the section to steps 3–4.
+///    levered by `|δ|` read with its own rounding: the gap `δ̂` is a
+///    rounded dot product of the apex's offset from the plane's origin,
+///    `|δ̂ − δ| ≤ e_δ = 5u·Σ|(apex − origin)ᵢ·nᵢ|` (`u = f64::EPSILON/2`:
+///    `u` for the difference, `γ₃` for the sum), and `|δ̂| + e_δ` is the
+///    lever. A plane built through the apex reads a `δ̂` that is that
+///    rounding alone, and the `1/D` above amplifies it. Zero serves the
+///    apex outcome, Positive leaves the section to steps 3–4.
 ///
 ///    2a. `pn_apex_point_reach` — margin `|δ|/|D|`, the farthest the
 ///    ellipse reaches: Zero ⇒ [`PlaneConeSection::ApexPoint`].
@@ -2107,38 +2112,9 @@ pub enum PlaneConeSection<T: Real> {
 ///    2b. `pn_apex_pair_reach` — the pair runs through the apex on
 ///    both nappes. Its margin is the lesser of two bounds on how far it
 ///    stands from the real plane's section over the consumed points:
-///    the farther start `|δ|/D`, and the bound over the reach
-///    ([`pair_bound`]). Zero ⇒ [`PlaneConeSection::ApexLinePair`].
-///
-///    **The bound over the reach.** Put the generators at azimuth `u`,
-///    `g·n = s·sin α·(cos(u − φ) − cos γ)`, the served pair at
-///    `u = φ ± γ` (`cos γ = −c·cos α/(s·sin α)`, so `s·sin γ = σ =
-///    √(D·M)/sin α`, the sine of the dihedral angle between the plane
-///    and the cone along a served generator). The section point on `g`
-///    and the served line `L` both lie in the plane through `L` and
-///    `g`, which meets the real plane in a line parallel to `L`; so the
-///    point stands `|δ|·sin∠(g, L)/|g·n|` from `L`. With `p, q` the
-///    moduli of `sin((u − φ ± γ)/2)` and `sin∠(g, L) ≤ |g − g_L| =
-///    2·sin α·|sin(Δu/2)|`, that is at most `|δ|/(s·p)` from one line
-///    and `|δ|/(s·q)` from the other, while `|g·n| = 2s·sin α·p·q`.
-///    - A consumed point stands `ρ` or more from the apex, so
-///      `p·q ≤ |δ|/(2ρ·s·sin α)`; and `p + q ≥ sin γ`, the two angles
-///      differing by `γ`. So `P = max(p, q)` clears both `sin γ/2` and
-///      the larger root of `P² − sin γ·P + |δ|/(2ρ·s·sin α)`, and every
-///      consumed section point is within
-///      `H = 2|δ|/(σ + √max(σ² − 2s|δ|/(ρ·sin α), 0))` of the pair:
-///      `2|δ|/σ` anywhere, the asymptote's offset `|δ|/σ` far out.
-///    - A consumed point `τ` along a served line, on the nappe whose
-///      section starts `t₀` from the apex: that nappe's branch runs from
-///      its start, whose foot on the line is at most `t₀` out, to
-///      infinity along the line, so some section point has its foot at
-///      `max(|τ|, t₀)`, at most `H` off; the point stands within
-///      `max(t₀ − ρ, 0) + H`.
-///
-///    Every term is a bound in ℝ: the margin is a `min`, `max`, sum and
-///    product of lengths each read through its door, so an `Interval`
-///    run encloses it, and an `f64` run reads it to rounding, as the
-///    other reaches are read.
+///    the farther start `|δ|/D`, and the bound over the reach, whose
+///    derivation is [`pair_bound`]'s. Zero ⇒
+///    [`PlaneConeSection::ApexLinePair`].
 ///
 ///    2c. `pn_apex_tangent_reach` — margin `|δ|/M`: the tangent
 ///    generator stands in for a touching whose clearing nappe may carry
@@ -2254,23 +2230,32 @@ pub fn plane_cone_section<T: Decide>(
         // (step 2's doc): the apex outcome stands in for it only within
         // the zero band.
         let steep = sin_a * s + cos_a * c.abs();
+        // Each read's rounding off the stored `f64`s (step 2): `u` for
+        // the offset's difference and `γ₃` for each sum.
+        let rounding = |x: Vec3<T>, y: Vec3<T>, ulps: f64| {
+            T::from_f64(ulps * f64::EPSILON)
+                * (x.x.abs() * y.x.abs() + x.y.abs() * y.y.abs() + x.z.abs() * y.z.abs())
+        };
+        let gap_err = rounding(apex - q, n, 2.5);
+        let size = apex_gap.abs() + gap_err;
         let (name, bound) = match verdict {
             Sign::Positive => (
                 "pn_apex_pair_reach",
                 pair_bound(
                     reach,
                     (apex, a, cos_a, sin_a),
-                    (discr, steep, s, c),
-                    apex_gap,
+                    (discr, steep, s),
+                    (apex_gap, gap_err),
+                    (c, rounding(a, n, 2.0)),
                 ),
             ),
             Sign::Zero => (
                 "pn_apex_tangent_reach",
-                Margin::levered(T::one() / steep, apex_gap.abs()),
+                Margin::levered(T::one() / steep, size),
             ),
             Sign::Negative => (
                 "pn_apex_point_reach",
-                Margin::levered(T::one() / discr.abs(), apex_gap.abs()),
+                Margin::levered(T::one() / discr.abs(), size),
             ),
         };
         if decide_magnitude(name, bound, band).map_err(SectionError::Escalated)? == Magnitude::Zero
@@ -2364,63 +2349,113 @@ pub fn plane_cone_section<T: Decide>(
 }
 
 /// **How far [`PlaneConeSection::ApexLinePair`] stands from the real
-/// plane's section over what `reach` consumes** (step 2b's doc): the
-/// lesser of the far start `|δ|/D`, read at the apex, and the bound over
-/// the consumed span and nappes, `max(start − ρ, 0) + H` per nappe the
-/// reach touches.
+/// plane's section over what `reach` consumes** (step 2b): the lesser of
+/// the far start `|δ|/D`, read at the apex, and the bound over the
+/// consumed span and nappes, `max(t₀ − ρ, 0) + H` per nappe the reach
+/// touches, beside the served lines' own rounding. `|δ|` is read as
+/// `|δ̂| + e_δ` throughout (step 2), and `gap`, `c` arrive with their
+/// rounding `(δ̂, e_δ)`, `(ĉ, e_c)`.
 ///
-/// - `ρ`: the consumed points' least distance from the apex, the least
-///   `|(x − apex)·a|` over the reach's window along the axis
-///   ([`Reach::range_along`]) over `cos α`, zero where the window holds
-///   the apex.
-/// - The nappe `+a` starts `|δ|/M` from the apex where `δ·c < 0`, else
-///   `|δ|/D`; the nappe `−a` the other. A nappe counts where the window
-///   reaches past the apex into it; a window holding the apex counts the
-///   apex, whose section stands the nearer start off.
-/// - `H = 2|δ| / (σ + √max(σ² − 2s|δ|/(ρ·sin α), 0))`, `σ = √(D·M)/sin α`.
-/// - Beside both, the served lines' own rounding, which the plane's near
-///   tangency amplifies, read with `u = f64::EPSILON/2` per operation on
-///   unit vectors. `c` is read `3u` off and `s` `4u` off, so
-///   `cos γ = −c·cos α/(s·sin α)` is read
-///   `3u·cot α/s + (4u/s + 6u)·|cos γ|` off, and `acos` turns that by
-///   `s/σ` (`sin γ = σ/s`) and adds `2u`. `φ`, the `atan2` of the
-///   normal's two components across the axis, each `3u` off and together
-///   `s` long, is `5u/s` off, and the sum and its sine and cosine `12u`.
-///   A line turned `Δ` in azimuth moves `sin α·Δ` per unit of its
-///   distance from the apex, and its direction's own sum `3u`: so
-///   `u·((3·cos α + 4·sin α + 6s·sin α)/σ + 5·sin α/s + 12·sin α + 3)`
-///   per unit of the farthest consumed point's distance from the apex,
-///   `max(|lo|, |hi|)/cos α` over the window.
+/// **The derivation.** Write `c = a·n`, `s = |a×n|`, `D = sin α·s −
+/// cos α·|c| > 0` on this lane, `M = sin α·s + cos α·|c|`. A unit
+/// generator at azimuth `u` has `g·n = s·sin α·(cos(u − φ) − cos γ)`,
+/// `cos γ = −c·cos α/(s·sin α)`; the served lines `L±` lie at `u = φ ± γ`,
+/// and `s·sin γ = σ = √(D·M)/sin α`, the sine of the dihedral angle
+/// between the plane and the cone along `L±`.
 ///
-/// `D > 0` on this lane, so every divisor is positive; `ρ` is floored at
-/// the least positive `f64`, which leaves `H` at its `ρ = 0` value
-/// `2|δ|/σ`.
+/// 1. *A section point's distance from a served line.* The section
+///    point on `g` is `X = −δ/(g·n)·g`. `X` and `L+` lie in the plane
+///    through `g` and `L+`, which meets the real plane in a line parallel
+///    to `L+`, so `dist(X, L+) = |δ|·sin∠(g, L+)/|g·n|`, with
+///    `sin∠ ≤ |g − g+| = 2·sin α·|sin(Δu/2)|`. With `w = (u − φ)/2`,
+///    `p = |sin(w + γ/2)|`, `q = |sin(w − γ/2)|`: `|g·n| = 2s·sin α·p·q`,
+///    `dist(X, L+) ≤ |δ|/(s·p)` and `dist(X, L−) ≤ |δ|/(s·q)`.
+/// 2. *Over the consumed points.* A consumed point stands `ρ` or more
+///    from the apex, so `p·q ≤ |δ|/(2ρ·s·sin α)`; the two angles differ
+///    by `γ`, so `p + q ≥ sin γ`. With `P = max(p, q)`, `Q = min(p, q)`:
+///    `P ≥ sin γ − Q ≥ sin γ − p·q/P`, so `P² − sin γ·P +
+///    |δ|/(2ρ·s·sin α) ≥ 0`, and `P ≥ sin γ/2` is no less than its
+///    smaller root; so `P` clears the larger root wherever the
+///    discriminant is non-negative, and
+///    `dist(X, pair) ≤ |δ|/(s·P) ≤ H = 2|δ|/(σ + √max(σ² − 2s|δ|/(ρ·sin α), 0))`:
+///    `2|δ|/σ` anywhere, the asymptote's offset `|δ|/σ` far out.
+/// 3. *A consumed point `τ·g+` of a served line,* on the nappe whose
+///    section starts `t₀` from the apex. That nappe's branch has its
+///    vertex at its start (`u = φ`, or `φ + π`, where `|g·n|` peaks), and
+///    the half-branch from there to `L+`'s asymptote has `p ≥ q`: there
+///    `s·p = s·P`, so step 2 bounds its points' distance from `L+` itself
+///    by `H`. Its feet on `L+` run from at most `t₀` out to infinity, so
+///    one of its points has its foot at `max(|τ|, t₀)`, and the line point
+///    stands within `max(t₀ − |τ|, 0) + H ≤ max(t₀ − ρ, 0) + H`. A
+///    window holding the apex consumes the apex, which stands the nearer
+///    start off. A consumer reads a chord between two points of the
+///    window, and the axial coordinate is linear along a segment, so the
+///    window is all a served line's consumed points can reach.
+/// 4. *The starts.* The nappe `+a` starts `|δ|/M` from the apex where
+///    `δ·c < 0`, else `|δ|/D`; the nappe `−a` the other. That sign is
+///    read off `δ̂` and `ĉ` only where each clears its rounding
+///    (`|δ̂| > e_δ`, `|ĉ| > e_c`); a plane built through the apex reads a
+///    `δ̂` that is rounding alone, whose sign is noise. Where either is
+///    undecided both nappes take `|δ|/D`, which bounds either start
+///    (`D ≤ M`), and step 3 holds for any `t₀` past the true start.
+/// 5. *The lines' own rounding*, which near tangency amplifies, read
+///    with `u` per operation on unit vectors: `ĉ` is `3u` off and `s`
+///    `4u` off, so `cos γ` is `3u·cot α/s + (4u/s + 6u)·|cos γ|` off;
+///    `acos` turns that by `s/σ` (`sin γ = σ/s`) and adds `2u`. `φ`, the
+///    `atan2` of the normal's two components across the axis, each `3u`
+///    off and together `s` long, is `5u/s` off, and the sum and its sine
+///    and cosine `12u`. A line turned `Δ` in azimuth moves `sin α·Δ` per
+///    unit of its distance from the apex, and its direction's own sum
+///    `3u`: so `u·((3·cos α + 4·sin α + 6s·sin α)/σ + 5·sin α/s +
+///    12·sin α + 3)` per unit of the farthest consumed point's distance
+///    from the apex, `max(|lo|, |hi|)/cos α` over the window.
+///
+/// `ρ` is the least `|(x − apex)·a|` over the reach's window along the
+/// axis ([`Reach::range_along`]) over `cos α`, zero where the window
+/// holds the apex; a nappe counts where the window reaches past the apex
+/// into it. Every term is a `min`, `max`, sum, product or quotient of
+/// non-negative lengths, each read through its door, so an `Interval`
+/// run encloses the margin and its sign choices hull both arms where
+/// undecided. `D > 0` on this lane, so every divisor is positive; `ρ` is
+/// floored at the least positive `f64`, which leaves `H` at its `ρ = 0`
+/// value `2|δ|/σ`.
 #[allow(clippy::many_single_char_names)] // the derivation's own symbols
 fn pair_bound<T: Real>(
     reach: &Reach<T>,
     (apex, a, cos_a, sin_a): (Point3<T>, Vec3<T>, T, T),
-    (d, m, s, c): (T, T, T, T),
-    gap: T,
+    (d, m, s): (T, T, T),
+    (gap, gap_err): (T, T),
+    (c, c_err): (T, T),
 ) -> Margin<T> {
     let zero = T::zero();
-    let far = Margin::levered(T::one() / d, gap.abs()).value();
-    let near = Margin::levered(T::one() / m, gap.abs()).value();
+    let size = gap.abs() + gap_err;
+    let far = Margin::levered(T::one() / d, size).value();
+    let near = Margin::levered(T::one() / m, size).value();
     let (lo, hi) = reach.range_along(apex, a);
     let rho = lo.max(zero - hi).max(zero) / cos_a;
-    let (plus, minus) = (
-        (gap * c).select_le_zero(near, far),
-        (gap * c).select_le_zero(far, near),
-    );
+    // `δ·c < 0` puts the near start on `+a`; read only where both signs
+    // clear their rounding (step 4).
+    let undecided = (gap.abs() - gap_err).min(c.abs() - c_err);
+    let unlike = |when_unlike: T, when_like: T| {
+        undecided.select_le_zero(
+            far,
+            gap.select_le_zero(
+                c.select_le_zero(when_like, when_unlike),
+                c.select_le_zero(when_unlike, when_like),
+            ),
+        )
+    };
+    let (plus, minus) = (unlike(near, far), unlike(far, near));
     let start = hi
         .select_le_zero(zero, (plus - rho).max(zero))
         .max((zero - lo).select_le_zero(zero, (minus - rho).max(zero)))
         .max(lo.max(zero - hi).select_le_zero(near, zero));
     let sigma_sq = d * m / sin_a.powi(2);
     let floor = T::from_f64(f64::MIN_POSITIVE);
-    let lean = T::from_f64(2.0) * s * gap.abs() / (sin_a * rho.max(floor));
+    let lean = T::from_f64(2.0) * s * size / (sin_a * rho.max(floor));
     let offset = Margin::levered(
         T::from_f64(2.0) / (sigma_sq.sqrt() + (sigma_sq - lean).max(zero).sqrt()),
-        gap.abs(),
+        size,
     )
     .value();
     let turn = (T::from_f64(3.0) * cos_a + T::from_f64(4.0) * sin_a + T::from_f64(6.0) * s * sin_a)
