@@ -47,7 +47,7 @@ use editor_core::{
     RecipeNodeId, SlotId, StepArg, VarName, evaluate, persist,
 };
 use fixture::digest::digest;
-use fixture::{ang, axis_in_plane, frame, insert, len, scl, square, step, tol, xy_frame};
+use fixture::{ang, frame, insert, len, revolve_about, scl, square, step, tol, xy_frame};
 use geom_core::{Affine3, Point2, Point3, Vec3};
 use topo::{Body, BooleanError, FaceKey};
 
@@ -174,12 +174,12 @@ fn both_sweeps() -> BothSweeps {
         loops: vec![LoopProgram::polygon(square(0.0, -2.0, 0.5)).unwrap()],
         ids: Vec::new(),
     }));
-    let axis = r.insert(axis_in_plane(rev_frame, (0.0, 0.0), (1.0, 0.0)));
-    let revolved = r.insert(Node::Revolve {
-        profile: rev_profile.into(),
-        axis: axis.into(),
-        angle: ang(PI / 2.0),
-    });
+    let revolved = r.insert(revolve_about(
+        rev_profile,
+        (0.0, 0.0),
+        (1.0, 0.0),
+        ang(PI / 2.0),
+    ));
     BothSweeps {
         snapshot,
         doc: r.doc,
@@ -343,6 +343,13 @@ fn both_sweeps_evaluate_in_one_document() {
 /// RE-BLESSED, `cut_cylinder` only, when a split's section face came to
 /// take its chart axis as its first chord projected into the plane: the
 /// tilted section's `u_ref` moved by one ulp in `z`, and nothing else did.
+///
+/// RE-BLESSED, `kitchen_sink` only, for INTENT stage 3 A (a revolve's
+/// axis is a line on the node): its in-plane axis datum left, so every
+/// later node id re-mints and the name table with it. No outcome or
+/// point moved: the id-free fence with the pointless datum outcomes
+/// dropped is equal on the base tree and this one. Re-taken merged over
+/// FORK-DM4 unit 1 (PR 4527).
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
@@ -350,7 +357,7 @@ fn the_sweep_documents_evaluate_to_their_committed_digests() {
         ("corner_table", 0x3a0c_c743_4ba5_7aed),
         ("cut_cylinder", 0xa6c1_1622_9a6f_5245),
         ("boss_union", 0x95b5_a63f_f861_7235),
-        ("kitchen_sink", 0xe9f2_08e8_5449_a003),
+        ("kitchen_sink", 0x6b95_5c68_645c_448d),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {
@@ -465,14 +472,9 @@ fn a_revolve_over_an_on_axis_edge_mints_no_wall_for_it() {
             ids: Vec::new(),
         }),
     );
-    let (doc, axis) = insert(doc, axis_in_plane(plane, (0.0, 0.0), (1.0, 0.0)));
     let (doc, solid) = insert(
         doc,
-        Node::Revolve {
-            profile: profile.into(),
-            axis: axis.into(),
-            angle: ang(2.0 * PI),
-        },
+        revolve_about(profile, (0.0, 0.0), (1.0, 0.0), ang(2.0 * PI)),
     );
     let ev = eval::<f64>(&doc);
     let bad = failures(&ev);

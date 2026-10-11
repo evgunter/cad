@@ -286,7 +286,7 @@ pub use editor_core::DocParamField;
 // REFUSAL is the detect/declare protocol's trigger, and
 // `NodeError`/`NodeErrorKind` were unreachable without the result
 // enum that carries them.
-// `DatumValue`'s direction fields are `geom_core::UnitVec3`, reached
+// `PoseValue`'s direction fields are `geom_core::UnitVec3`, reached
 // through the re-exported `geom_core` crate rather than curated here:
 // a consumer cannot read a datum's normal, or build a datum at all,
 // without naming the type that makes it unit, and it names it at the
@@ -326,9 +326,9 @@ pub use editor_core::DocParamField;
 // `StepTurns` rides with `NodeErrorKind`: it is `FullRangeStep`'s
 // `turns`, how the copies of a step a turn or more would land.
 pub use editor_core::{
-    Arity, BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, DatumValue,
-    DirectionRefusal, EvalOptions, EvalOutcome, Evaluation, Found, FramePlacement, Mispaired,
-    NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue,
+    Arity, BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, DirectionRefusal,
+    EvalOptions, EvalOutcome, Evaluation, Found, FramePlacement, Mispaired, NodeError,
+    NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue, PoseValue,
     ProfileLift, SplitSide, StepTurns, ValuePayload, VerbKind, evaluate,
 };
 
@@ -570,6 +570,10 @@ pub use editor_core::{
 // profile piece names it by `select`'s `ProfileEdgeRef`, curated there.
 pub use editor_core::coincide;
 pub use editor_core::{CitedInput, NamedCell, NamedCoincidence, Proof, Residual, Rung};
+// The pose definitions (D10): how a pose variable is defined, read off
+// geometry or constructed, and the faults the doors and the evaluator
+// name. A module, so its arms keep their names (`pose::PoseDef::Plane`).
+pub use editor_core::pose;
 /// The shell door's typed refusal, which two `CheckEvidence` arms
 /// carry — by the payload rule this list states at `VerbKind`.
 ///

@@ -2,10 +2,13 @@
 id: a-declared-flush-wedge-sunk-in-a-block-refuses-its-intersect-join-desync
 kind: issue
 title: A flush wedge sunk into a block, its continuation declared, refuses its intersect and subtract JoinDesync though every face is planar
-status: open
+status: closed
 opened: 2026-10-02
 priority: P1
 cost: M
+closed: 2026-10-11
+branch: flush/readers-closes
+pr: 4635
 ---
 
 
@@ -79,3 +82,29 @@ those. Close this row if a reader agrees.
 ## Released from the D10 hold (2026-10-08)
 
 Nothing D10 changes gates this row, so it is open: both ops build at +2ε since PR 3866 and door_backstop_settled_residue.rs pins it; what is left is a reader's close, and loop_roles is unchanged by D10. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Closed (2026-10-11, `flush/readers-closes`)
+
+The `JoinDesync` / `SectionLoopUndecided` this row reports no longer
+reproduces in either spelling on main `19b704d92f` (release,
+`cargo test --release -p topo --test all a_settled_in_band`, with
+`CAD_TOLERANCE_EPS` at 1e-9, 1e-6 and 1e-12):
+
+- **Declared, as the row describes it.**
+  `door_backstop_settled_residue.rs`
+  `a_settled_in_band_coincidence_builds_within_its_gap_or_refuses_where_it_crosses`
+  is green at all three ε. The row's own poses are there. At sunk
+  `+2ε`, `A ∩ B` and `A ∖ B` must build within the gap of the box
+  arithmetic. At sunk `−2ε` they must build, or refuse
+  `ResultVolumeImplausible` naming the bound they cross. Any other
+  refusal panics, a `JoinDesync` included. So the pin covers both tilt
+  signs and both ops this row names, plus the other four poses.
+- **Undeclared** (plain `topo::union` / `intersect` / `subtract`):
+  every op at every pose refuses `Escalated` at
+  `recl.rs` `unglued_tilt`, typed and never `JoinDesync`.
+
+Nothing of the join defect is left. Two things remain, both outside
+this row's question: the undeclared refusal, where the face reads Zero,
+and the fact that INTENT F deletes this fixture together with the
+declared spelling that builds it. Both are filed as
+`a-wedge-flush-on-a-block-top-refuses-every-op-undeclared-though-its-face-reads-zero`.
