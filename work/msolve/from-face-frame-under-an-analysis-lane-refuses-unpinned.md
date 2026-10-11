@@ -129,6 +129,6 @@ with its Python tag (`unpinned`) and census entry.
   `a5_certified_clearance_runs_over_a_face_framed_mate`.
 
 What a box run still cannot do with a widened pose is the placement
-door's, not the solve's: `work/topo/a-boxed-rotation-refuses-not-rigid-at-every-placer.md`
+door's, not the solve's: `work/topotail/a-boxed-rotation-refuses-not-rigid-at-every-placer.md`
 (its "Measured" section: a box-wide translation refuses at
 certification too).

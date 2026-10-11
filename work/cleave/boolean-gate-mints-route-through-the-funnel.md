@@ -2,12 +2,13 @@
 id: boolean-gate-mints-route-through-the-funnel
 kind: unit
 title: boolean, census and merge gates build their decided-sign escalations by hand, off the log (mints C10-C12, C19, C23)
-status: open
+status: dispatched
 opened: 2026-10-10
 priority: P1
 cost: M
 parent: topo-mints-indeterminates-outside-the-funnel
 refs: [a-gate-rejection-of-a-decided-enclosure-bisects-to-budget]
+branch: cleave/boolean-gate-mints
 ---
 
 Unit 4 of `topo-mints-indeterminates-outside-the-funnel`'s re-scope

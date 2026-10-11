@@ -1148,7 +1148,7 @@ fn assert_encloses_corners(
 /// transform, which certifies each placed edge on its placed carrier,
 /// and a box-wide translation widens those two independently past the
 /// band — a refusal every boxed placer meets today
-/// (`work/topo/a-boxed-rotation-refuses-not-rigid-at-every-placer.md`,
+/// (`work/topotail/a-boxed-rotation-refuses-not-rigid-at-every-placer.md`,
 /// its "Measured" section). A box a fraction of ε wide is placed, and
 /// the rows that read the BODY read it over one; the rows that read
 /// the SOLVE read it over a wide one ([`assert_pose_encloses_corners`]).
