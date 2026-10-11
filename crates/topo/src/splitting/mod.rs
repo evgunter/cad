@@ -386,9 +386,10 @@ pub enum SplitReduceError {
         /// The check-11 findings, each naming its vertex.
         errors: Vec<ValidationError>,
     },
-    /// A vertex landed in the sliver band of the plane (F6): the
-    /// operand/plane pair is ill-conditioned at this ε. No snapping —
-    /// resolution is an explicit repair/adoption op (D7 machinery).
+    /// Whether a vertex lies on the plane is undecided (F6): its distance
+    /// lies in the ambiguity band, beyond ε, or cannot be read. No
+    /// snapping — resolution is an explicit repair/adoption op (D7
+    /// machinery).
     SliverVertex {
         /// The offending vertex.
         vertex: VertexKey,
@@ -680,12 +681,15 @@ impl core::fmt::Display for SplitReduceError {
             Self::UnjoinedOperand { .. } => {
                 write!(f, "the body {}", Unfinished::UNJOINED_REFUSAL)
             }
-            Self::SliverVertex { diag, .. } => write!(
-                f,
-                "a vertex lies within tolerance of the split plane ({}). Recourse: \
-                 {SPLIT_COINCIDENCE_RECOURSE}",
-                diag.payload()
-            ),
+            Self::SliverVertex { diag, .. } => diag
+                .undecided(
+                    "whether a vertex lies on the split plane",
+                    LeverOnly {
+                        lever: SPLIT_COINCIDENCE_RECOURSE,
+                    }
+                    .recourse(RefusedArm::Undecided(diag), Reading::Build),
+                )
+                .fmt(f),
             Self::SliverSector { reading, .. } => write!(
                 f,
                 "which side of the split plane a face leaves a vertex on is too close to \

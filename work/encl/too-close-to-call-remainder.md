@@ -34,6 +34,10 @@ these sources (at `origin/main` 9409cb5e43; doc comments omitted):
   `chord_join.rs` (three), `props.rs` (sign of a shell's volume),
   `replace_face.rs`, `shell.rs`, `splitting/finish.rs` (three, with the
   payload in parentheses), `splitting/mod.rs`, `splitting/section.rs`;
+  `splitting/containment.rs` (`PointInLoopError::RayExhausted` and
+  `Uncrossable`) and `chord_join.rs` (`RingHoming`'s `RayExhausted`
+  arm), which already say "is undecided" but spell it by hand as
+  `"… is undecided: {}"` rather than through `geom_core::undecided!`;
   and `validate.rs`'s `ContactRefusal::Escalated` reason, left out
   because contact ground is held under D10.
 - `crates/sweep/src/`: `extrude.rs` (two), `loft.rs` (two),
@@ -53,15 +57,41 @@ these sources (at `origin/main` 9409cb5e43; doc comments omitted):
   `topo/tests/{review_s6_probe, review_ssiflat_r1_probes}.rs`.
 
 Most `"{what} is too close to call: {source}"` sites render an
-`Indeterminate` whole, which is `{payload}. {ending}`: the
-`Indeterminate::undecided` shape with the escalation's own ending.
+`Indeterminate` whole. That render is `IndeterminateUnder`'s,
+`{payload} — {advice}; {ending}` (the bare `Indeterminate` Display is
+`under(COINCIDENCE_RECOURSE)`, or `under(NO_DECLARATION_RECOURSE)` on a
+margin decided past the band), and not the `Indeterminate::undecided`
+shape, `{payload}. {ending}`. The two differ in more than the joint:
+on an enclosure that straddles the band `under` puts "subdivide the
+parameter box for a tighter enclosure" in front of the door's levers,
+and on an unreadable margin "check the operation's inputs upstream";
+`Indeterminate::ending` carries neither.
+
+**Done: the geom-brep slice, in PR 4612.** Its seven sentences spell the
+verdict through `geom_core::undecided!`. Four Displays carry the payload
+only (`SsiError`'s two arms, `MeterError::Escalated`,
+`PlaneNurbsRefusal::TransversalityEscalated`), and their ending is the
+caller's, per `Reading`. Three render the whole escalation
+(`NewellError::Escalated` through the bare `Indeterminate` Display,
+`IsoRowError::Escalated` and `OffsetError::Escalated` through
+`under(NO_DECLARATION_RECOURSE)`), so their tail is `IndeterminateUnder`'s
+` — {advice}; {ending}`, per-kind levers included.
 
 ## Repair shape
 
-Route each through `Indeterminate::undecided` (payload in the
-sentence) or `geom_core::undecided!` (static clause), one crate per
-PR, re-baselining the texts each moves; drop `"too close to call"`
-from `DECISION_PHRASES` with the last one.
+One crate per PR, re-baselining the texts each moves; drop
+`"too close to call"` from `DECISION_PHRASES` with the last one. The
+rule for each site:
+
+- **A payload-only Display** (the sentence carries `payload()` and the
+  ending is someone else's) writes its subject through
+  `geom_core::undecided!`.
+- **A whole-escalation render** goes through `Indeterminate::undecided`
+  with `ending(<recourse>)`, the recourse picked from the door's
+  callers (`NO_DECLARATION_RECOURSE` where none takes a declaration).
+  Where the site renders through `under(..)` today, `ending(..)` drops
+  the per-kind levers above, so it moves only with an ending that
+  carries them.
 
 ## Also in this family (from the review of PR 4443)
 
