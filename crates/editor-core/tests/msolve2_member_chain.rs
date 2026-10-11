@@ -5,11 +5,11 @@
 //! a pattern OVER a pattern does not evaluate. The nested shape a
 //! user can build runs through `Node::Part { select: Instance(i) }`,
 //! which projects one body out of the instances carrying every name
-//! VERBATIM: `Pattern` over `Part` over `Pattern`. The walk from a
-//! mate's operand passes the `Part` contributing nothing, consumes an
+//! VERBATIM: `Pattern` over `Part` over `Pattern`. The walk from the
+//! body a mate's side reads passes the `Part` contributing nothing, consumes an
 //! `Instance(i)` qualifier at each pattern, and lands on the
 //! instance that minted the name — so a nested copy's member is that
-//! instance, the CHAIN of copies, and the operand.
+//! instance, the CHAIN of copies, and the body read.
 //!
 //! Every row goes through ordinary doors — `DocEdit::InsertNode`,
 //! `solve_document`, `evaluate`, `product`, `assemble` — and the
@@ -28,8 +28,8 @@ use std::collections::BTreeMap;
 use editor_core::{
     Alignment, AssemblyError, Attribution, AxisSense, CapEnd, ContactClass, Datum, Dimension,
     DocEdit, DocumentId, EvalOptions, Formula, FreeValue, FreeVar, MateFault, MateFrame,
-    MatePrimitive, MateRole, MateSide, MintRefusal, Node, PartSelect, PatternKind, ProfileDoc,
-    RecipeNodeId, RefusedRef, SitedFace, StableName, VarName, groups, member_of, product,
+    MatePrimitive, MateRole, MateSide, Node, PartSelect, PatternKind, ProfileDoc, RecipeNodeId,
+    SitedFace, StableName, VarName, groups, member_of, product,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::seat::{assert_seated as assert_seated_named, seat_map as seat_map_named};
@@ -77,8 +77,8 @@ fn part_doc(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
 /// declares the seat a sibling copy actually lands in.
 fn seat_at(a: SitedFace, b: SitedFace, a_origin: [f64; 3]) -> AuthoredNode {
     Node::Mate {
-        a,
-        b,
+        a: a.into(),
+        b: b.into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: MateFrame::authored(
@@ -744,7 +744,7 @@ fn a3a_a_part_selected_copy_read_at_the_part_is_a_member() {
     );
 }
 
-/// **A3(b).** One copy, two OPERANDS: a mate read at the pattern
+/// **A3(b).** One copy, two bodies read: a mate read at the pattern
 /// under `Instance(1)` and a mate read at a `Part` selecting that
 /// same instance are one placement spelled two ways, so one member:
 /// the `Part` places nothing, and both walks pass the same copy. The
@@ -946,16 +946,13 @@ fn a4_a_part_that_selects_another_copy_refuses_typed() {
 
 /// **What the at-rest gate says for a mate read BELOW the outer
 /// pattern** — on a nested document. The SOLVE places such a mate;
-/// the gate refuses it, because the name's row is the `Part`'s own
-/// and the outer pattern places that body again before the product
-/// holds it. The refusal is in the operand's voice: `MovedAbove { at:
-/// part, by: outer }`, naming the `Part` the mate reads at and the
-/// pattern that moves it, rather than calling the name vanished.
-/// Reading the same
+/// the gate mints nothing for it, because the side reads the `Part`,
+/// which no placement places — the outer pattern's copies are what the
+/// world holds. Reading the same
 /// document's mate AT the outer pattern (every other row here) holds,
 /// because there the name is a root's own row.
 #[test]
-fn the_gate_on_a_mate_read_below_the_outer_pattern_names_the_operand() {
+fn the_gate_on_a_mate_read_below_the_outer_pattern_mints_nothing() {
     let s = scene("msolve2-gate");
     let (base, top) = (s.base, s.top);
     let (base_body, top_body) = (s.base_body, s.top_body);
@@ -991,39 +988,12 @@ fn the_gate_on_a_mate_read_below_the_outer_pattern_names_the_operand() {
         product(&doc, &ev, Tol::witness()).is_ok(),
         "the product gathers"
     );
-    let err = gate(&doc, &ev).expect_err("the gate refuses the unrooted name");
-    let AssemblyError::Mint { refusals } = &err else {
-        panic!("expected the reference refusal, got {err:?}");
-    };
-    let [
-        MintRefusal::Reference {
-            mate: at,
-            side,
-            why,
-            ..
-        },
-    ] = refusals.as_slice()
-    else {
-        panic!("expected one reference refusal, got {refusals:?}");
-    };
-    assert_eq!((*at, *side), (mate, MateSide::B));
-    // The gate names the operand the mate reads at and the placer
-    // above it, not a vanished name: the `Part`'s row is there, one
-    // level below the root. (The sentence is pinned in
-    // `display_contract`.)
-    assert_eq!(
-        *why,
-        RefusedRef::MovedAbove {
-            at: part,
-            by: outer,
-            copies: true,
-        }
-    );
-    // Read AT the outer pattern instead, the same document gathers
-    // and the gate holds: the difference is whether the name is a
-    // product ROOT's own row.
+    // No placement reads the `Part` the mate reads at, so the mate has
+    // no world copy to mint on.
+    crate::fixture::assert_mints_nothing(&doc, &ev, mate);
+    let _ = part;
     assert!(
-        gate(&doc, &ev).is_err() && solve(&doc, &s.opts, Tol::witness()).fault(outer).is_none(),
+        solve(&doc, &s.opts, Tol::witness()).fault(outer).is_none(),
         "the outer pattern itself carries no fault"
     );
 }

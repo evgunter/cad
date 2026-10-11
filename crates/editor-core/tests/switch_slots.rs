@@ -817,8 +817,8 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
             },
         ),
         Node::Mate {
-            a: crate::fixture::head(fixture::fname(nid(1), RoleSeg::Cap(CapEnd::Start))),
-            b: crate::fixture::head(fixture::fname(nid(2), RoleSeg::Cap(CapEnd::End))),
+            a: crate::fixture::head(fixture::fname(nid(1), RoleSeg::Cap(CapEnd::Start))).into(),
+            b: crate::fixture::head(fixture::fname(nid(2), RoleSeg::Cap(CapEnd::End))).into(),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: MateFrame::authored(

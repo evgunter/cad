@@ -122,8 +122,12 @@ impl core::fmt::Display for NewellError {
             ),
             Self::Escalated { vertex, cause } => write!(
                 f,
-                "whether vertex {vertex} lies on the loop's plane is too close to call: \
-                 {cause}"
+                concat!(
+                    "whether vertex {} lies on the loop's plane",
+                    geom_core::undecided!(),
+                    ": {}"
+                ),
+                vertex, cause
             ),
         }
     }

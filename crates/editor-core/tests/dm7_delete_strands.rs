@@ -173,8 +173,7 @@ fn union_released_from_a_declared_member(
 /// NAME is not a read: once `SetMembers` has dropped the member, the
 /// delete strands the names minted there, one row per name, on the
 /// union that still carries them. The SITE is reported by no delete: a
-/// site is a reading edge, and a deleted one is N5's dangling case
-/// refused at the next evaluation (`Node::payload_read_sites`, DM7's
+/// deleted site is N5's dangling case refused at the next evaluation (`Node::payload_read_sites`, DM7's
 /// sentence).
 #[test]
 fn deleting_a_declared_member_names_its_pairs_and_its_site_reports_nothing() {
@@ -527,7 +526,7 @@ fn a_cascade_reports_each_strand_at_the_step_that_made_it() {
 }
 
 // ---------------------------------------------------------------------
-// A mate: a head is a name, an operand is not.
+// A mate: a side is a read.
 // ---------------------------------------------------------------------
 
 fn mate_frame() -> MateFrame<Formula> {
@@ -555,18 +554,13 @@ fn instance_face(instance: RecipeNodeId, part_body: RecipeNodeId) -> StableName 
     }
 }
 
-/// **A mate's HEAD strands and its operand does not.**
+/// **A mate's side strands as a read.**
 ///
-/// The two references a mate carries are different kinds of thing. The
-/// head is a `StableName` — resolved through the N5 ladder, repairable
-/// by `Rebind` — so its minting node going is a strand and is reported.
-/// The operand is a bare node id (`Node::payload_read_sites`, the A12
-/// reading edge): nothing resolves it through a ladder and `Rebind`
-/// cannot touch it, so a delete that takes it away is the solve's to
-/// refuse, and this door says nothing about it. One row per head is
-/// therefore the whole report, although the deleted instance was both.
+/// A mate side is a read (D10): deleting the instance it is read in
+/// strands the read, reported once, typed by the side's slot. The
+/// side's name rides its selection and is not a second row.
 #[test]
-fn a_mates_head_strands_and_its_read_site_does_not() {
+fn a_mates_side_strands_as_a_read() {
     let mut store = PartStore::new();
     let part = ProfileDoc::empty_derived("dm7_mate_part", Tol::witness());
     let (part, part_body) = block(part, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
@@ -579,8 +573,8 @@ fn a_mates_head_strands_and_its_read_site_does_not() {
     let (doc, mate) = insert(
         doc,
         Node::Mate {
-            a: crate::fixture::head(head_a.clone()),
-            b: crate::fixture::head(instance_face(ib, part_body)),
+            a: crate::fixture::head(head_a.clone()).into(),
+            b: crate::fixture::head(instance_face(ib, part_body)).into(),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: mate_frame(),
@@ -593,16 +587,23 @@ fn a_mates_head_strands_and_its_read_site_does_not() {
     );
 
     let applied = delete(&doc, ia);
+    let rows = crate::fixture::without_anonymous(&applied.maintenance);
     assert_eq!(
-        strands(&crate::fixture::without_anonymous(&applied.maintenance)),
-        vec![(mate, head_a)],
-        "the head is a name and is reported; the operand at the same id is not"
+        rows.first(),
+        Some(&Maintenance::StrandedRead {
+            node: doc.spoken(mate),
+            slot: editor_core::OperandSlot::Side(editor_core::MateSide::A),
+            var: doc.spoken_var(doc.output(ia, 0).expect("the instance's body")),
+        }),
+        "the side's read is reported"
     );
-    assert_eq!(
-        crate::fixture::without_anonymous(&applied.maintenance).len(),
-        1,
-        "deleting a placed member records no frame: {:?}",
-        crate::fixture::without_anonymous(&applied.maintenance)
+    assert!(
+        matches!(
+            &rows[1..],
+            [Maintenance::StrandedSelection { readers, name, .. }]
+                if readers == &vec![doc.spoken(mate)] && *name.name() == head_a
+        ),
+        "and its selection, once, naming the side's face: {rows:?}"
     );
 }
 
@@ -788,8 +789,8 @@ fn a_delete_reports_its_strands_alone_and_only_a_mate_insert_clears_an_offset() 
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Mate {
-                a: crate::fixture::head(head_a.clone()),
-                b: crate::fixture::head(instance_face(ib, part_body)),
+                a: crate::fixture::head(head_a.clone()).into(),
+                b: crate::fixture::head(instance_face(ib, part_body)).into(),
                 class: ContactClass::Rest,
                 alignment: Alignment {
                     a: mate_frame(),
@@ -819,20 +820,18 @@ fn a_delete_reports_its_strands_alone_and_only_a_mate_insert_clears_an_offset() 
     let doc = paint(&doc, &painted);
 
     let applied = delete(&doc, ia);
-    assert_eq!(
-        crate::fixture::without_anonymous(&applied.maintenance),
-        vec![
-            Maintenance::Strand {
-                node: doc.spoken(mate),
-                name: doc.spoken_name(&head_a),
-                took: editor_core::Took::Node
-            },
-            Maintenance::StrandedAppearance {
-                name: doc.spoken_name(&painted),
-                took: editor_core::Took::Node
-            },
-        ],
-        "both strand kinds are read at the door, and the delete reports no placement row"
+    let rows = crate::fixture::without_anonymous(&applied.maintenance);
+    assert!(
+        matches!(
+            rows.as_slice(),
+            [
+                Maintenance::StrandedRead { node, .. },
+                Maintenance::StrandedSelection { .. },
+                Maintenance::StrandedAppearance { name, .. },
+            ] if *node == doc.spoken(mate) && *name == doc.spoken_name(&painted)
+        ),
+        "both strand kinds are read at the door, and the delete reports no placement row: \
+         {rows:?}"
     );
 }
 

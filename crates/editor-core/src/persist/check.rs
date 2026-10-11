@@ -615,13 +615,24 @@ fn first_selection_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
             None if snapshot.mint.has_var(select.body) => return None,
             None => SelectionBodyFault::Unminted { body: select.body },
             Some(held) => {
-                // The body read observes; each seat reading the
-                // selection is asked of the copy in the operand walk.
-                match snapshot.read_fault(
-                    held,
-                    crate::SlotKind::Is(crate::VarKind::Body),
-                    crate::doc::Reader::Observes,
-                )? {
+                // Every seat reading the selection admits its body
+                // (the edit door's rule, `edit::selection_body_kind`):
+                // a `Bodies` only where mate sides alone read it. The
+                // body read observes; each seat reading the selection
+                // is asked of the copy in the operand walk.
+                let narrow = crate::SlotKind::Is(crate::VarKind::Body);
+                let expected = if snapshot.nodes.values().any(|node| {
+                    node.operand_rows().into_iter().any(|(slot, read)| {
+                        read == id
+                            && crate::edit::selection_body_kind(crate::SlotId::Operand(slot))
+                                == narrow
+                    })
+                }) {
+                    narrow
+                } else {
+                    crate::SlotKind::Placeable
+                };
+                match snapshot.read_fault(held, expected, crate::doc::Reader::Observes)? {
                     crate::doc::ReadFault::Kind { found } => SelectionBodyFault::Kind {
                         body: Box::new(snapshot.spoken_var(select.body)),
                         found,
@@ -1973,7 +1984,7 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
     // carrier enumeration rather than a payload walk inside the node
     // loop above and a store walk down here, hundreds of lines apart
     // and neither reading as half of one list. An id the mint log lacks
-    // inside a mate head, a fillet selection or an appearance key is
+    // inside a mate side, a fillet selection or an appearance key is
     // as corrupt as one inside a declared pair, and as unrepairable
     // by `Rebind` (whose source door refuses a never-minted id) if it
     // loads. A carrier added to `Carrier` is checked here without
@@ -2690,16 +2701,17 @@ mod tests {
             node: instance,
             path: vec![crate::names::RoleSeg::Cap(crate::names::CapEnd::Start)],
         };
-        // A mate head is a `SitedFace`, so the fixture's claim that
-        // the name it just built is a face is made where it is built.
+        // A mate side is authored as a `SitedFace`, so the fixture's
+        // claim that the name it just built is a face is made where it
+        // is built.
         let face_head = |name: crate::names::StableName| {
             crate::node::SitedFace::at_mint(
                 crate::names::FaceName::new(name).expect("the fixture names a face"),
             )
         };
         let mate = Node::Mate {
-            a: face_head(name(ids[0])),
-            b: face_head(name(ids[1])),
+            a: face_head(name(ids[0])).into(),
+            b: face_head(name(ids[1])).into(),
             class: topo::ContactClass::Rest,
             alignment: crate::mate::Alignment {
                 a: crate::mate::MateFrame::on_part(crate::placement::Placement::IDENTITY),
