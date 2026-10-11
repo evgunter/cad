@@ -214,7 +214,7 @@ pub(crate) fn coaxial_rows<T: Decide + Bounds>(
                 relation: crate::Relation::OnCarrier,
                 site: crate::DecisionSite::CoaxialSphere,
                 margin,
-                discharge: crate::Discharge::Numeric,
+                discharge: crate::Discharge::of(margin),
             });
         }
     }

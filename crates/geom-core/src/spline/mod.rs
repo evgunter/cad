@@ -53,6 +53,7 @@ pub mod range;
 pub use algebra::{CurvePlan, KnotAlgebraError, RemovalStep, RingRefinement};
 pub use compose::{
     BernsteinSpans, CanonicalSurface, ComposeError, CompositeForm, CurveCertData, ImplicitSurface,
+    sub_segment,
 };
 pub use hull::{CoeffWindow, RationalCoeffs, RationalWindow, SplineCoeffs, SplineCoeffsBuf};
 pub use knot_values::{KnotSpan, Knots};

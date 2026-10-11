@@ -62,7 +62,7 @@
 //! scalar-free or `f64`-only channels a caller compares directly.
 
 use editor_core::{
-    AssertionVerdict, BooleanValue, DatumValue, Dimension, Evaluation, NodeResult, RecipeNodeId,
+    AssertionVerdict, BooleanValue, Dimension, Evaluation, NodeResult, PoseValue, RecipeNodeId,
     SplitSide, ValuePayload,
 };
 use geom_core::{Decide, Dual64};
@@ -193,43 +193,28 @@ fn feed_node<T: Decide + ValueChannelBits>(d: &mut Digest, ev: &Evaluation<T>, i
         Some(NodeResult::Ok(v)) => {
             d.u64(3);
             match &v.payload {
-                ValuePayload::Datum(DatumValue::Plane { origin, normal }) => {
+                ValuePayload::Datum(PoseValue::Plane { origin, normal }) => {
                     d.u64(10);
                     d.point3(*origin);
                     d.vec3(normal.get());
                 }
-                ValuePayload::Datum(DatumValue::Axis { origin, dir }) => {
+                ValuePayload::Datum(PoseValue::Axis { origin, dir }) => {
                     d.u64(11);
                     d.point3(*origin);
                     d.vec3(dir.get());
                 }
-                ValuePayload::Datum(DatumValue::Point { position }) => {
+                ValuePayload::Datum(PoseValue::Point { position }) => {
                     d.u64(12);
                     d.point3(*position);
                 }
-                ValuePayload::Datum(DatumValue::Frame(f)) => {
+                ValuePayload::Datum(PoseValue::Frame(f)) => {
                     d.u64(23);
                     d.point3(f.origin());
                     d.vec3(f.u().get());
                     d.vec3(f.v().get());
                 }
-                // Tag 24, appended: an in-plane axis is its own
-                // payload, and BOTH its spellings are digested —
-                // the sketch pair is what a revolve consumes, so a
-                // drift there that the world lift happened to hide
-                // must still move the digest.
-                ValuePayload::Datum(DatumValue::AxisInPlane {
-                    plane_origin,
-                    plane_dir,
-                    origin,
-                    dir,
-                }) => {
-                    d.u64(24);
-                    d.scalar(plane_origin.x);
-                    d.scalar(plane_origin.y);
-                    d.scalar(plane_dir.x);
-                    d.scalar(plane_dir.y);
-                    d.point3(*origin);
+                ValuePayload::Datum(PoseValue::Direction { dir }) => {
+                    d.u64(26);
                     d.vec3(dir.get());
                 }
                 ValuePayload::Profile(p) => {
