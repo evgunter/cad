@@ -2,13 +2,15 @@
 id: boolean-gate-mints-route-through-the-funnel
 kind: unit
 title: boolean, census and merge gates build their decided-sign escalations by hand, off the log (mints C10-C12, C19, C23)
-status: review
+status: closed
 opened: 2026-10-10
 priority: P1
 cost: M
 parent: topo-mints-indeterminates-outside-the-funnel
 refs: [a-gate-rejection-of-a-decided-enclosure-bisects-to-budget]
 branch: cleave/boolean-gate-mints
+closed: 2026-10-11
+pr: 4613
 ---
 
 Unit 4 of `topo-mints-indeterminates-outside-the-funnel`'s re-scope
@@ -157,3 +159,16 @@ Census passes over the five files, production code only (pass 1 / pass 2):
 | `boolean/plane_eq.rs` | 3 / 2 | 3 / 2 (`orientation_zero` for the D10-held caller; `unreadable_norm`, TOPO's row) |
 | `census.rs` | 1 / 0 | 0 / 0 |
 | `merge_faces.rs` | 5 / 3 | 4 / 2 (`merge_pair_extent` ×2, D10-held class d) |
+
+## Closed (PR 4613, 2026-10-11)
+
+Unit 4's mints route through the funnel's doors. C10's arc-end finding
+is typed (`ArcEndClearOfCorners` in band, a defect finding
+`ArcEndOffCorner` off both corners, with ends read through
+`Curve3::eval` as certification pins them). C11's vtxfac margin is
+carried, and recl's ±zero site is pinned and listed on the ratchet row.
+C19's dihedral is the last screen, and C23 keeps its `Decided` whole.
+`rim_wedge`'s arc-end touch now refuses as the seam cover's typed lane
+limit rather than a decided contradiction; the pre-existing
+boundary-as-interior reading is filed as
+`seam-cover-reads-a-boundary-point-as-the-face-interior`.
