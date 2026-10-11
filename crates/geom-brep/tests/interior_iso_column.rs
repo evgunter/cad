@@ -88,23 +88,15 @@ fn imported_wall(perturb: Option<usize>) -> NurbsSurface<f64> {
     NurbsSurface::new(ku, kv, control, weights).unwrap()
 }
 
-/// The surface lifted to `T` (control points through `from_f64`;
-/// weights and knots are `f64` structure and stay so).
+/// The surface lifted to `T`: control points, weights and knots
+/// through `from_f64`.
 fn lift_surface<T: Real>(s: &NurbsSurface<f64>) -> NurbsSurface<T> {
-    let control = s.control().iter().map(|p| p.map(T::from_f64)).collect();
-    NurbsSurface::new(
-        s.knots_u().clone(),
-        s.knots_v().clone(),
-        control,
-        s.weights().to_vec(),
-    )
-    .unwrap()
+    s.map_scalar(T::from_f64)
 }
 
 /// The curve lifted to `T`, as [`lift_surface`].
 fn lift_curve<T: Real>(c: &NurbsCurve3<f64>) -> NurbsCurve3<T> {
-    let control = c.control().iter().map(|p| p.map(T::from_f64)).collect();
-    NurbsCurve3::new(c.knots().clone(), control, c.weights().to_vec()).unwrap()
+    c.map_scalar(T::from_f64)
 }
 
 /// `certify` of the column `u = u_star` traversing the whole `v`

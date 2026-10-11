@@ -10,7 +10,7 @@ Ev approved the plan in chat on 2026-10-10). Every row here moved from
 
 ## The slate
 
-**33.5 points** of dispatchable work against a ceiling of 32
+**31 points** of dispatchable work against a ceiling of 32
 (`work/flush/program.md` states why it is not 30). INTENT stage 4 E
 released three rows on 2026-10-10 (each says so in its own section);
 step 2's reader's closes took back 10 and filed one P1 residue, and the
@@ -27,7 +27,6 @@ lanes in flight are expected to close more, so the track is not split.
 | P2 | `a-curved-face-at-a-shared-pinch-vertex-builds-bodies-the-census-and-the-reuse-check-refuse` | M | a curved face at a shared pinch vertex: bodies tier 3′ escalates and a further union refuses |
 | P2 | `a-hole-weld-cannot-tell-a-figure-eight-hole-from-an-island-face` | M | `Joint::Hole` cannot tell a figure-8 hole from an island face |
 | P2 | `a-pinch-the-seams-do-not-link-keeps-its-cones-on-separate-keys` | M | a pinch whose keys no seam ties keeps its cones on separate point keys |
-| P2 | `undeclared-anti-parallel-touch-builds-a-scaffold-at-rest-in-one-op` | M | an undeclared anti-parallel touch at a wedge builds a scaffold at rest, one op and order per pose |
 | P3 | `the-turn-sense-divisor-is-nonzero-by-prose` | E | `Turn.sense`'s nonzero divisor is held by call order, not by type |
 | P3 | `two-pinch-poses-escalate-at-eps-1e-6` | E | two `pinch_faces_tessellate` poses escalate at ε 1e-6 |
 | P4 | `a-curved-boolean-refusal-cites-the-germs-recorded-face-after-a-mef` | E | `CurvedBooleanUnsupported` cites the germ's recorded face, which a `mef` may have divided |
