@@ -63,16 +63,28 @@ SmoothEdgeDisagrees}` in place of an `Indeterminate`, and ends through
 No `SliverSector` arm is a decided contradiction any more, so none
 takes the defect ending.
 
-`SplitJoinError` (`Escalated`, `OrderEscalated`),
-`SectionError::WindingUndecided` and `SplitFinishError`
+Since PR 4745, `SectionError::WindingUndecided`, `SplitFinishError`
 (`DescribeEscalated`, `DescribeBendEscalated`, `SectionWindingUndecided`)
-end the same way since PR 4745, with the join's, the section's and the
-split's lever. `RingHoming` ends as the walk's `LoopDecision` does.
+and `SplitJoinError::OrderEscalated`'s frame decisions
+(`split_join_frame_axis`, `_arm`) end the same way, with the section's,
+the split's and the join's lever. `RingHoming` ends in the walk
+decision's lever alone. `SplitJoinError::Escalated` and the order
+decisions `split_join_order_u`/`_v` are sized (a pose's gap, an apex's
+offset, a tangent chord's advance, a metred coordinate), so they take
+`Indeterminate::ending`, the ending geom-brep gives the same decision.
 
-Still open on this row: `CrossingEscalated` (no note on poison), and,
-at those sites, an invalid margin minted from a contradiction of
-decided readings, which still takes the lever and the note rather
-than the defect ending until the mint carries its `Escalation`.
+Still open on this row:
+- `CrossingEscalated` (no note on poison).
+- At the sites above, an invalid margin minted from a contradiction
+  of decided readings still takes the lever and the note rather than
+  the defect ending until the mint carries its `Escalation`.
+- **A straddle reads as a subdividable enclosure.**
+  `pc_axis_plane_parallel_straddle` is a `k_stats::straddle`, but
+  `SplitJoinError::Escalated` ends it through `Indeterminate::ending`,
+  which puts "subdivide the parameter box for a tighter enclosure" in
+  front of the lever. `RefusedArm::Straddle` and this row say a
+  straddle ends in the lever alone. The escalation does not carry its
+  `Escalation`, so the ending cannot tell.
 
 ## `agreed_section` no longer mints poison (branch `cleave/split-straddles-carry-reading`)
 

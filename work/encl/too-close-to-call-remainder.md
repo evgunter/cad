@@ -105,7 +105,9 @@ rule for each site:
   with `ending(<recourse>)`, the recourse picked from the door's
   callers — or with the ending its decision's kind warrants: a
   margin that is no size the user chose ends through `LeverOnly`, and
-  an escalation that carries its decision ends as that decision does.
+  an escalation that carries its decision ends as that decision does
+  at that door. A sized decision another crate also renders keeps
+  `ending(..)`, so it has one ending (D4 ¶1).
 
 ## Also in this family (from the review of PR 4443)
 

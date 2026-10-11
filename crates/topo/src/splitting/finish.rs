@@ -476,7 +476,8 @@ impl core::fmt::Display for SplitFinishError {
                 f,
                 "which side of a cut face is material cannot be read: its outline \
                  encloses no area, or has a spiric or NURBS edge, whose winding the \
-                 kernel does not read. Recourse: move the split plane"
+                 kernel does not read. Recourse: {}",
+                super::SPLIT_COINCIDENCE_RECOURSE
             ),
             Self::NestingContradiction { hole } => write!(
                 f,

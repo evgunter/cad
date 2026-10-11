@@ -671,7 +671,9 @@ pub enum ReplaceFaceError<T: Real> {
         what: &'static str,
     },
     /// A margined predicate escalated: the margin landed in the
-    /// ambiguity band or was poisoned (escalate-never-guess, D4 ¶3).
+    /// ambiguity band or was poisoned (escalate-never-guess, D4 ¶3). No
+    /// offset door takes a declaration, so its ending offers the
+    /// geometry lever alone ([`COINCIDENCE_RECOURSE`]).
     Escalated {
         /// The predicate-layer escalation.
         source: Indeterminate,

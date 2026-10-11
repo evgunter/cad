@@ -106,6 +106,7 @@
 //! tangent ruling has no self-loop: its two ends coincide along the
 //! ruling, which refuses.
 
+use geom_brep::recourse::{LeverOnly, Reading, RefusedArm};
 use geom_brep::{EdgeCurveSpec, Pcurve, chart_pcurve};
 use geom_core::{
     Band, BandError, Decide, Indeterminate, InfSpeed, Margin, Point3, Real, Sign, UnitVec3, Vec3,
@@ -372,7 +373,6 @@ impl From<PointInLoopError> for SplitJoinError {
     }
 }
 
-use geom_brep::recourse::{LeverOnly, Reading, RefusedArm};
 /// The lever the section join's refusals carry, under a split and a
 /// Boolean alike: the geometry.
 use geom_core::COINCIDENCE_RECOURSE as JOIN_RECOURSE;
@@ -391,43 +391,66 @@ fn order_decision(predicate: Option<&str>) -> &'static str {
     }
 }
 
-/// The ending of a join escalation: the join's lever alone, since the
-/// order of section points and where a section runs are no size the
-/// user chose (D4 ¶1 (i)), with the unreadable-margin note on poison.
-fn join_lever_ending(diag: &Indeterminate) -> String {
-    LeverOnly {
-        lever: JOIN_RECOURSE,
+/// The ending of a join order escalation. The frame's two decisions
+/// (an axis component, an arm's length in the plane) are no size the
+/// user chose, so they end in the join's lever alone (D4 ¶1 (i)); the
+/// order of two points compares metred coordinates, a size, and takes
+/// the escalation's whole ending.
+fn order_ending(diag: &Indeterminate) -> String {
+    match diag.predicate {
+        Some("split_join_frame_axis" | "split_join_frame_arm") => LeverOnly {
+            lever: JOIN_RECOURSE,
+        }
+        .recourse(RefusedArm::Undecided(diag), Reading::Build),
+        _ => diag.ending(JOIN_RECOURSE),
     }
-    .recourse(RefusedArm::Undecided(diag), Reading::Build)
 }
 
 impl core::fmt::Display for SplitJoinError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let recourse = JOIN_RECOURSE;
         match self {
-            Self::OrderEscalated { diag } => {
-                write!(
-                    f,
-                    "{}",
-                    diag.undecided(order_decision(diag.predicate), join_lever_ending(diag))
-                )
-            }
+            Self::OrderEscalated { diag } => write!(
+                f,
+                "{}",
+                diag.undecided(order_decision(diag.predicate), order_ending(diag))
+            ),
+            // The section's sized decisions (a pose's gap, an apex's
+            // offset, a tangent chord's advance) end as geom-brep ends
+            // them: the escalation's whole ending.
             Self::Escalated { diag, .. } => write!(
                 f,
                 "{}",
                 diag.undecided(
                     "where a section runs across a face",
-                    join_lever_ending(diag)
+                    diag.ending(JOIN_RECOURSE)
                 )
             ),
             Self::DegenerateSection { .. } => write!(
                 f,
-                "a section is degenerate: it bounds zero area. Recourse: {recourse}"
+                "a section is degenerate: it bounds zero area. Recourse: {JOIN_RECOURSE}"
             ),
             Self::RingHoming(e) => match e {
-                // The walk's decision is the question, and its ending is
-                // the decision's own.
-                crate::splitting::PointInLoopError::Escalated { .. } => write!(f, "{e}"),
+                // The walk's decision is the question. The join asks it of
+                // many vertices, and a smaller tolerance moves the others'
+                // readings into the band as it decides one, so it ends in
+                // the decision's lever alone, as the Boolean's placement
+                // does (`refusal_routes`'s `Ending::Placement`).
+                crate::splitting::PointInLoopError::Escalated {
+                    decision,
+                    escalation,
+                    diag,
+                    ..
+                } => write!(
+                    f,
+                    "re-homing a hole loop: {}",
+                    diag.undecided(
+                        decision.subject(),
+                        LeverOnly {
+                            lever: decision.lever(),
+                        }
+                        .recourse(escalation.arm(diag), Reading::Build),
+                    )
+                ),
                 // The rays are the walk's own, so the levers are its.
                 crate::splitting::PointInLoopError::RayExhausted { .. } => write!(
                     f,
@@ -439,17 +462,17 @@ impl core::fmt::Display for SplitJoinError {
                 }
                 crate::splitting::PointInLoopError::Uncrossable(u) => write!(
                     f,
-                    "which piece holds a hole loop cannot be read: {u}. Recourse: {recourse}"
+                    "which piece holds a hole loop cannot be read: {u}. Recourse: {JOIN_RECOURSE}"
                 ),
                 crate::splitting::PointInLoopError::OffPlane(o) => write!(
                     f,
-                    "which piece holds a hole loop cannot be read: {o}. Recourse: {recourse}"
+                    "which piece holds a hole loop cannot be read: {o}. Recourse: {JOIN_RECOURSE}"
                 ),
             },
             Self::RingHomingAmbiguous { .. } => write!(
                 f,
                 "every vertex of a hole loop lies on the boundary of the piece being \
-                 divided off, so which piece holds it cannot be decided. Recourse: {recourse}"
+                 divided off, so which piece holds it cannot be decided. Recourse: {JOIN_RECOURSE}"
             ),
             Self::UnpairedLooseEnds { count } => write!(
                 f,
@@ -498,7 +521,7 @@ impl core::fmt::Display for SplitJoinError {
             } => write!(
                 f,
                 "{} is undecided for the section through a curved face: {}. Recourse: \
-                 {recourse}",
+                 {JOIN_RECOURSE}",
                 geom::EllipseInvalid::escalated_subject(diag),
                 diag.payload()
             ),
@@ -525,7 +548,7 @@ impl core::fmt::Display for SplitJoinError {
             Self::SectionCrossings { case, band, .. } => write!(
                 f,
                 "a curved face's crossings cannot be paired along the section: {case} \
-                 ('split_join_conic_heading', band ({:e}, {:e})). Recourse: {recourse}",
+                 ('split_join_conic_heading', band ({:e}, {:e})). Recourse: {JOIN_RECOURSE}",
                 band.zero(),
                 band.escalate(),
             ),
@@ -4394,11 +4417,16 @@ mod tests {
                 Some(*diag),
                 "k = {k}: on the frame"
             );
-            // A straddle of two sound readings: the join's lever alone,
-            // with no box to subdivide and no tolerance to offer.
+            // The section's escalation ends as geom-brep ends it: the
+            // enclosure's whole ending, kind lever first. (That a
+            // straddle's enclosure reads as subdividable is open on the
+            // cleave row `split-escalations-end-a-poisoned-margin-in-the-plane-lever`.)
             assert!(
-                err.to_string()
-                    .ends_with(&format!("{}. Recourse: move the geometry", diag.payload())),
+                err.to_string().contains(&format!(
+                    "{}. Recourse: subdivide the parameter box for a tighter enclosure, or \
+                     move the geometry",
+                    diag.payload()
+                )),
                 "k = {k}: {err}"
             );
         }
@@ -4640,11 +4668,10 @@ mod tests {
         );
     }
 
-    /// **A hole loop's re-homing ends as the walk's decision does.** A
-    /// ray or plane escalation ends in the decision's lever alone, read
-    /// or straddled; a boundary escalation offers the tolerance on a
-    /// read margin and the lever alone on a straddle. None of them offers
-    /// the join's lever or a box to subdivide.
+    /// **A hole loop's re-homing ends in the walk decision's lever
+    /// alone.** The join asks the walk of many vertices, so no margin it
+    /// carries binds the operation: no tolerance is offered on a read
+    /// margin or a straddle, and no box to subdivide.
     #[test]
     fn ring_homing_ends_in_the_walks_decision() {
         use crate::splitting::{Escalation, LoopDecision};
@@ -4663,38 +4690,38 @@ mod tests {
             },
             band,
         );
-        let said = |decision, escalation, diag| {
-            SplitJoinError::RingHoming(PointInLoopError::Escalated {
-                r#loop: LoopKey::default(),
-                decision,
-                escalation,
-                diag,
-            })
-            .to_string()
-        };
-        let ray = "where a test ray from a point meets the loop's boundary is undecided: ";
-        let ray_tail = ". Recourse: nudge the point so no boundary corner lines up with it";
-        for (escalation, diag) in [(Escalation::Margin, read), (Escalation::Straddle, straddle)] {
-            let text = said(LoopDecision::Ray, escalation, diag);
-            assert!(
-                text.starts_with(ray) && text.ends_with(ray_tail),
-                "{escalation:?}: the ray's subject and its lever alone, got {text}"
-            );
+        let cases = [
+            (
+                LoopDecision::Ray,
+                "where a test ray from a point meets the loop's boundary",
+                "nudge the point so no boundary corner lines up with it",
+            ),
+            (
+                LoopDecision::Boundary,
+                "whether a point lies on the loop's boundary or clear of it",
+                "move the point exactly onto the boundary or clearly off it",
+            ),
+        ];
+        for (decision, subject, lever) in cases {
+            for (escalation, diag) in [(Escalation::Margin, read), (Escalation::Straddle, straddle)]
+            {
+                let text = SplitJoinError::RingHoming(PointInLoopError::Escalated {
+                    r#loop: LoopKey::default(),
+                    decision,
+                    escalation,
+                    diag,
+                })
+                .to_string();
+                assert_eq!(
+                    text,
+                    format!(
+                        "re-homing a hole loop: {subject} is undecided: {}. Recourse: {lever}",
+                        diag.payload()
+                    ),
+                    "{decision:?}, {escalation:?}"
+                );
+            }
         }
-        let boundary = "Recourse: move the point exactly onto the boundary or clearly off it";
-        let text = said(LoopDecision::Boundary, Escalation::Straddle, straddle);
-        assert!(
-            text.ends_with(&format!(". {boundary}")),
-            "a straddled boundary: the lever alone, got {text}"
-        );
-        let text = said(LoopDecision::Boundary, Escalation::Margin, read);
-        assert!(
-            text.contains(&format!(
-                ". {boundary}, or, if this distance is intended, tighten the \
-                 tolerance below "
-            )),
-            "a read boundary margin: the lever and the valued tolerance, got {text}"
-        );
     }
 
     /// The split lane's adjacency question on a conic between edge (a

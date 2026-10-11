@@ -502,3 +502,46 @@ fn section_walk<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<Half<T>>, S
     }
     Ok(halves)
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod winding_ending {
+    use geom_core::{Band, Decide, Indeterminate, MarginDiag, Point3};
+
+    use super::SectionError;
+
+    /// **An undecided section winding ends in the section's lever
+    /// alone**, as its unreadable sibling does: no tolerance on a read
+    /// margin, the unreadable-margin note on poison.
+    #[test]
+    fn an_undecided_winding_ends_in_the_section_lever() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let read = 3e-9_f64.sign_within(band).unwrap_err();
+        let text = SectionError::<f64>::WindingUndecided {
+            corner: Point3::origin(),
+            diag: Some(read),
+        }
+        .to_string();
+        assert_eq!(
+            text,
+            format!(
+                "whether a polygon of the section is an outline or a hole is undecided: {}. \
+                 Recourse: move the section plane",
+                read.payload()
+            )
+        );
+        let poisoned = Indeterminate {
+            margin: MarginDiag::INVALID,
+            ..read
+        };
+        let text = SectionError::<f64>::WindingUndecided {
+            corner: Point3::origin(),
+            diag: Some(poisoned),
+        }
+        .to_string();
+        assert!(
+            text.contains(". Recourse: move the section plane; "),
+            "the lever and the note, got {text}"
+        );
+    }
+}
