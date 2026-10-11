@@ -59,7 +59,7 @@ reaches doors that take no declaration:
 
 - `NewellError::Escalated` (`crates/geom-brep/src/newell.rs` near
   :95, `Display` near :113): "whether vertex {vertex} lies on the
-  loop's plane is too close to call: {cause}". Wrapped whole by
+  loop's plane is undecided: {cause}". Wrapped whole by
   `ExtrudeError::CapPlane`/`SidePlane`, `RevolveError::CapPlane`
   and `LoftError::CapPlane` (`crates/sweep/src/`). No extrude,
   revolve or loft node takes a declaration.
