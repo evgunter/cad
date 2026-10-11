@@ -7279,7 +7279,8 @@ pub enum IsoFamilyRefusal {
     /// (`pcurve_chart_radial_moving`): a ruling or a moving carrier,
     /// undecided. The mint takes the ruling's form there as a structure
     /// tie-break that its envelope keeps honest; a family cannot be
-    /// read off a tie-break.
+    /// read off a tie-break. Its sentence carries the payload alone:
+    /// the ending is the door's that holds it.
     Undecided(Indeterminate),
 }
 
@@ -7289,8 +7290,12 @@ impl core::fmt::Display for IsoFamilyRefusal {
             Self::Image(e) => write!(f, "{e}"),
             Self::Undecided(diag) => write!(
                 f,
-                "whether the edge runs along a cylinder's ruling or around it is undecided: \
-                 {diag}"
+                concat!(
+                    "whether the edge runs along a cylinder's ruling or around it",
+                    geom_core::undecided!(),
+                    ": {}"
+                ),
+                diag.payload()
             ),
         }
     }
@@ -10470,6 +10475,23 @@ mod iso_family {
             chart_iso_family(&line(1e-7), &cylinder, band),
             Err(IsoFamilyRefusal::Undecided(_))
         ));
+    }
+
+    /// The undecided family's sentence is its question and payload: the
+    /// door holding it writes the ending.
+    #[test]
+    fn an_undecided_family_says_its_payload_and_no_ending() {
+        let refusal = IsoFamilyRefusal::Undecided(geom_core::Indeterminate {
+            margin: geom_core::MarginDiag::value(5e-8),
+            band: Band::new(1e-9, 1e-6).expect("a band"),
+            predicate: Some("pcurve_chart_radial_moving"),
+            terminal_sliver: false,
+        });
+        assert_eq!(
+            refusal.to_string(),
+            "whether the edge runs along a cylinder's ruling or around it is undecided: margin \
+             5e-8 lies inside the ambiguity band (1e-9, 1e-6)"
+        );
     }
 }
 

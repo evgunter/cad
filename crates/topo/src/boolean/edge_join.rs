@@ -188,17 +188,47 @@ pub enum JoinReading {
     ChartClass(geom_brep::IsoFamilyRefusal),
 }
 
+/// The whole refusal, as the Boolean renders it: a regularity reading
+/// is the escalation itself, and a chart-class reading says its own
+/// question with the payload, so the ending is written here once, under
+/// the Boolean's lever.
 impl core::fmt::Display for JoinUndecided {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let subject = JoinSubject(self.vertex);
+        match &self.reading {
+            JoinReading::Regularity(diag) => write!(
+                f,
+                "{}",
+                diag.undecided(subject, diag.ending(geom_core::COINCIDENCE_RECOURSE))
+            ),
+            JoinReading::ChartClass(e @ geom_brep::IsoFamilyRefusal::Undecided(diag)) => write!(
+                f,
+                concat!("{}", geom_core::undecided!(), ": {}. {}"),
+                subject,
+                e,
+                diag.ending(geom_core::COINCIDENCE_RECOURSE)
+            ),
+            JoinReading::ChartClass(e @ geom_brep::IsoFamilyRefusal::Image(_)) => {
+                write!(
+                    f,
+                    concat!("{}", geom_core::undecided!(), ": {}"),
+                    subject, e
+                )
+            }
+        }
+    }
+}
+
+/// [`JoinUndecided`]'s question, at its vertex.
+struct JoinSubject(VertexKey);
+
+impl core::fmt::Display for JoinSubject {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(
             f,
-            "whether valence-2 vertex {:?} joins its two edges is undecided: ",
-            self.vertex
-        )?;
-        match &self.reading {
-            JoinReading::Regularity(diag) => write!(f, "{diag}"),
-            JoinReading::ChartClass(e) => write!(f, "{e}"),
-        }
+            "whether valence-2 vertex {:?} joins its two edges",
+            self.0
+        )
     }
 }
 
@@ -1098,6 +1128,41 @@ mod undecided_text {
                  a tighter enclosure, or {JOIN_LEVER}",
                 diag.payload()
             )
+        );
+    }
+
+    /// **The Boolean's join refusal ends once**: a chart-class reading
+    /// says its own question with its payload, and a regularity reading
+    /// is the escalation itself; either way the one ending follows.
+    #[test]
+    fn the_booleans_undecided_join_ends_once() {
+        let diag = Indeterminate {
+            margin: MarginDiag::value(5e-9),
+            band: Band::new(1e-9, 1e-8).unwrap(),
+            predicate: Some("pcurve_chart_radial_moving"),
+            terminal_sliver: false,
+        };
+        let join = |reading| JoinUndecided {
+            vertex: crate::VertexKey::default(),
+            reading,
+        };
+        assert_eq!(
+            join(JoinReading::ChartClass(
+                geom_brep::IsoFamilyRefusal::Undecided(diag)
+            ))
+            .to_string(),
+            "whether valence-2 vertex VertexKey(null) joins its two edges is undecided: whether \
+             the edge runs along a cylinder's ruling or around it is undecided: margin 5e-9 lies \
+             inside the ambiguity band (1e-9, 1e-8). Recourse: move the geometry, or, if this \
+             size is intended, tighten the tolerance below 5e-10 m",
+            "a chart-class reading"
+        );
+        assert_eq!(
+            join(JoinReading::Regularity(diag)).to_string(),
+            "whether valence-2 vertex VertexKey(null) joins its two edges is undecided: margin \
+             5e-9 lies inside the ambiguity band (1e-9, 1e-8). Recourse: move the geometry, or, \
+             if this size is intended, tighten the tolerance below 5e-10 m",
+            "a regularity reading"
         );
     }
 }
