@@ -1,5 +1,6 @@
 //! **Axis-aligned blocks and the unions over them** — the evaluation,
 //! refusal and census helpers the boolean suites share.
+#![allow(clippy::expect_used, clippy::panic)]
 
 use crate::fixture::{insert, len, on_frame};
 use editor_core::{
