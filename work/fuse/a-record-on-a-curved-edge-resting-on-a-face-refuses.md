@@ -2,11 +2,12 @@
 id: a-record-on-a-curved-edge-resting-on-a-face-refuses
 kind: issue
 title: A carried record that lands on a curved edge and a face refuses CurvedRestUnrecorded: no record kind stores a circle resting on a plane at a point
-status: open
+status: closed
 opened: 2026-10-07
 priority: P1
 cost: H
 design: true
+closed: 2026-10-11
 ---
 
 ## The finding
