@@ -10,12 +10,12 @@ client over the API), functional style, fail-loud.
   as revisions to the doc, discussed with Ev first.
 - `work/` — the tracker. `work/STATUS.md` is the board (generated on
   main, never hand-edited); `work/README.md` is the contract, and
-  orchestrators read it in full, and again after every compaction.
+  orchestrators read it in full.
 - Design docs for finished work live as README pages beside the code
   they govern (`crates/<crate>/README.md`), present tense only, with
   their clause ids kept; DESIGN.md's companion table lists them.
 - `memories/MEMORY.md` — memory index; read it, follow pointers as
-  relevant (orchestrators: again after every compaction).
+  relevant.
 - `docs/prompts/implementer-discipline.md`,
   `docs/prompts/reviewer-style-lane.md` and
   `docs/prompts/designer.md` — the standing discipline handed
