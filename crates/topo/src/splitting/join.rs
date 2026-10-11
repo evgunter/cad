@@ -48,10 +48,10 @@
 //!
 //! When [`ChordJoiner::cut_core`] reports the polygon COMPLETE, the
 //! 2-loop null face comes back with its roles unresolved. This lane
-//! resolves them by membership of the minted above-copy vertex set,
+//! resolves them by membership of the null edges' above-end vertex set,
 //! certifies the polygon's area definitely-positive
 //! (**`split_section_area`**, margin 2·A/P) — a zero-area section
-//! polygon (a below-side pinch) is refused typed,
+//! polygon is refused typed,
 //! [`SplitJoinError::DegenerateSection`] — holds a positive-area
 //! polygon to carrying no zero-width spur (`split_section_spur`;
 //! `Sweep::assert_no_spur`), and writes the F9 record.
@@ -80,9 +80,9 @@ use geom_core::Tol;
 pub(crate) struct CompletedSection {
     /// The null face (two coincident loops).
     pub(crate) face: FaceKey,
-    /// The loop through the minted above copies.
+    /// The loop through the null edges' above ends.
     pub(crate) above_loop: LoopKey,
-    /// The loop through the original below-side vertices.
+    /// The loop through their below ends.
     pub(crate) below_loop: LoopKey,
 }
 
@@ -374,7 +374,7 @@ fn leave_on<T: Decide>(
 struct Crossing<T: Decide> {
     half: HalfEdgeKey,
     point: Point3<T>,
-    /// Starts at an above copy (`Sweep::is_down`).
+    /// Starts at an above end (`Sweep::is_down`).
     down: bool,
     /// The section's direction into the face there ([`split_leave`]).
     leave: geom_core::Vec3<T>,
@@ -685,7 +685,7 @@ struct Sweep<T: Decide> {
     joiner: ChordJoiner,
     /// Completed polygons, in completion order.
     completed: Vec<CompletedSection>,
-    /// Minted above copies (role membership).
+    /// The null edges' above ends (role membership).
     above_set: SecondaryMap<VertexKey, ()>,
     /// The split plane (section-area certification).
     plane: SplitPlane<T>,
