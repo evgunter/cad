@@ -271,11 +271,13 @@ pub struct AppearanceLoss {
 /// neither the paint nor a loss, and [`Self::is_lossless`] is true.
 /// This is deliberate: auto-following a face through a boolean would
 /// be a silent rebinding policy, and the N5 policy menu is EMPTY by
-/// ratified decision. The repairs are explicit — attribute the name
-/// the displayed node's table actually mints (what a GUI does), or
-/// [`crate::edit::DocEdit::Rebind`] (which moves the appearance key;
-/// [`crate::resolve::appearance_rebind_suggestions`] feeds exactly
-/// this gap with the wrapping final-node derivations).
+/// ratified decision. The repair is explicit: attribute the name the
+/// displayed node's table actually mints, read in that node's output
+/// (what a GUI does) — a re-attachment, `SetAppearance` there and
+/// `ClearAppearance` here, since a [`crate::edit::DocEdit::Rebind`]
+/// repairs a key's name and never moves its read;
+/// [`crate::resolve::appearance_rebind_suggestions`] feeds exactly this
+/// gap with the wrapping final-node derivations and their reads.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct AppearanceResolution {
     /// Per-node resolved rows: for each node whose table carried an

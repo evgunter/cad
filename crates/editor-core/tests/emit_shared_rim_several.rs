@@ -484,7 +484,7 @@ fn a_retired_rim_piece_is_offered_its_joined_edge() {
         doc: &docx,
         eval: &ev,
     };
-    let editor_core::Resolution::Failed(f) = editor_core::resolve(ctx, &piece) else {
+    let editor_core::Resolution::Failed(f) = crate::fixture::resolve_at_mint(ctx, &piece) else {
         panic!("the retired piece resolves");
     };
     assert!(
@@ -672,7 +672,7 @@ fn partial_overlaps_name_each_joined_edge_for_the_rims_it_runs_along() {
         doc: &docx,
         eval: &ev,
     };
-    let editor_core::Resolution::Failed(f) = editor_core::resolve(ctx, &piece) else {
+    let editor_core::Resolution::Failed(f) = crate::fixture::resolve_at_mint(ctx, &piece) else {
         panic!("the retired piece resolves");
     };
     for set in &listing {

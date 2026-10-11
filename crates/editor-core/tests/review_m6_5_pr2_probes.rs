@@ -155,7 +155,7 @@ fn p2_surgery_supports_wrap_names_the_target_table_carries() {
 /// edges, 18 vertices; every entity named, every name resolves.
 #[test]
 fn p3_totality_holds_for_a_triangular_prism() {
-    use editor_core::resolve::{Resolution, RunCtx, resolve};
+    use editor_core::resolve::{Resolution, RunCtx};
     let doc = ProfileDoc::empty_derived("review_m6_5_pr2_probes", Tol::witness());
     let (doc, p) = fixture::on_frame(
         doc,
@@ -194,7 +194,7 @@ fn p3_totality_holds_for_a_triangular_prism() {
             doc: &doc,
             eval: &ev,
         };
-        match resolve(ctx, name) {
+        match crate::fixture::resolve_at_mint(ctx, name) {
             Resolution::Resolved { .. } => {}
             other => panic!("{name:?} did not resolve: {other:?}"),
         }

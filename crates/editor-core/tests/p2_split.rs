@@ -246,7 +246,7 @@ fn s2_a_cut_holding_a_gauge_moves_verbatim_and_round_trips() {
     let resolves = |d: &ProfileDoc, o: &EvalOptions, name: &StableName| {
         let eval = run(d, o);
         matches!(
-            editor_core::resolve(
+            crate::fixture::resolve_at_mint(
                 editor_core::RunCtx {
                     doc: d,
                     eval: &eval

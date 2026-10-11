@@ -16,7 +16,7 @@ use editor_core::ExtrudeSide;
 use editor_core::{
     Axis3, CancelToken, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions, Evaluation,
     FragmentGroups, GroupCutters, NameTable, Node, ProfileDoc, Qualifier, RecipeNodeId, Resolution,
-    ResolveError, RoleSeg, RunCtx, SlotId, StableName, evaluate, resolve_with_prior,
+    ResolveError, RoleSeg, RunCtx, SlotId, StableName, evaluate,
 };
 use fixture::{ang, insert, len, minted, on_frame, scl, step};
 use geom_core::Tol;
@@ -332,7 +332,7 @@ fn a_withdrawn_bar_is_answered_by_the_recorded_flip() {
     let doc2 = slide(&s, Axis3::X, 5.0);
     let ev2 = run(&doc2, Some(&ev1));
     assert!(border_pieces(&ev2, s.cut).is_empty(), "the cap is whole");
-    let res = resolve_with_prior(
+    let res = crate::fixture::resolve_with_prior_at_mint(
         RunCtx {
             doc: &doc2,
             eval: &ev2,
@@ -369,7 +369,7 @@ fn a_collapsed_borders_group_is_diagnosed_group_resized_and_offers_the_survivor(
         let doc2 = slide(&s, Axis3::Y, to);
         let ev2 = run(&doc2, Some(&ev1));
         assert!(border_pieces(&ev2, s.cut).is_empty(), "y = {to}");
-        let res = resolve_with_prior(
+        let res = crate::fixture::resolve_with_prior_at_mint(
             RunCtx {
                 doc: &doc2,
                 eval: &ev2,
@@ -448,7 +448,7 @@ fn a_collapsed_edge_piece_group_at_the_cut_is_diagnosed_group_resized() {
             .collect();
         assert!(!gone.is_empty(), "y = {to}: some edge piece vanishes");
         for name in gone {
-            let res = resolve_with_prior(
+            let res = crate::fixture::resolve_with_prior_at_mint(
                 RunCtx {
                     doc: &doc2,
                     eval: &ev2,
@@ -553,7 +553,7 @@ fn group_diagnosis(
         record(prior_groups),
     );
     let new_ev = one_node_eval(h.doc.id(), h.node, table(now), vec![], record(now_groups));
-    let res = resolve_with_prior(
+    let res = crate::fixture::resolve_with_prior_at_mint(
         RunCtx {
             doc: &h.doc,
             eval: &new_ev,
@@ -827,7 +827,7 @@ fn without_a_prior_run_there_is_no_size_to_change_from() {
     }
     let groups = FragmentGroups::from_sizes([(h.base.clone(), 1)]);
     let ev = one_node_eval(h.doc.id(), h.node, t, vec![], groups);
-    let res = editor_core::resolve(
+    let res = crate::fixture::resolve_at_mint(
         RunCtx {
             doc: &h.doc,
             eval: &ev,

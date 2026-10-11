@@ -351,11 +351,11 @@ fn crossing_slots_recipe_document_evaluates_and_resolves() {
                 .then(|| n.clone())
         })
         .expect("the glued floors mint a Merged row embedding the slot-floor lineage");
-    match editor_core::resolve::resolve(ctx, &merged_row) {
+    match crate::fixture::resolve_at_mint(ctx, &merged_row) {
         editor_core::resolve::Resolution::Resolved(r) => assert_eq!(r.node, s2),
         other => panic!("the Merged floor must resolve on the final body: {other:?}"),
     }
-    match editor_core::resolve::resolve(ctx, &wrapped_floor1) {
+    match crate::fixture::resolve_at_mint(ctx, &wrapped_floor1) {
         editor_core::resolve::Resolution::Failed(f) => assert!(
             f.offers.contains(&merged_row),
             "the retired floor lineage must offer its merge: {f:?}"

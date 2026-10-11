@@ -14,7 +14,7 @@ use editor_core::Formula;
 use editor_core::{
     DocEdit, EntityKind, LoopProgram, Node, PieceRun, ProfileDoc, ProfileEdgeRef, ProfileProgram,
     ProgramStep, ProgramTarget, RecipeNodeId, Resolution, RoleSeg, RunCtx, StableName, StepId,
-    apply, resolve,
+    apply,
 };
 use geom_core::Tol;
 
@@ -88,7 +88,7 @@ fn lateral(ex: RecipeNodeId, pieces: Vec<ProfileEdgeRef>) -> StableName {
 /// The offers on `name`'s failed resolution; panics if it resolves.
 fn offers(doc: &ProfileDoc, name: &StableName) -> Vec<StableName> {
     let ev = run(doc, &Default::default());
-    match resolve(RunCtx { doc, eval: &ev }, name) {
+    match crate::fixture::resolve_at_mint(RunCtx { doc, eval: &ev }, name) {
         Resolution::Failed(f) => f.offers,
         other => panic!("{name:?} should vanish, resolved {other:?}"),
     }

@@ -1101,7 +1101,7 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
     use editor_core::{
         ChecksError, Cmp, Diagnosis, EntityKind, HitTestError, InterrogateError, NamePat, NodePick,
         NodePickError, NodeStanding, Resolution, ResolveError, RunCtx, SelectRefusal, Selector,
-        SlotId, resolve, select, select_where,
+        SlotId, select, select_where,
     };
 
     let tol = Tol::witness();
@@ -1230,7 +1230,7 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
 
     let (gone, _) = step(doc.clone(), DocEdit::DeleteNode { id: extrude });
     let gone_ev = eval(&gone);
-    let Resolution::Failed(failure) = resolve(
+    let Resolution::Failed(failure) = crate::fixture::resolve_at_mint(
         RunCtx {
             doc: &gone,
             eval: &gone_ev,

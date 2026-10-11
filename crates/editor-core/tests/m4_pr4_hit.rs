@@ -14,7 +14,7 @@ use editor_core::NodeStanding;
 use editor_core::{
     BooleanValue, CancelToken, CapEnd, DocumentId, EntityKey, EntityKind, EntityRef, EvalOptions,
     Evaluation, HitTestError, Node, PickHit, ProfileDoc, RecipeNodeId, Resolution, RoleSeg, RunCtx,
-    SplitSide, StableName, UnnamedEntity, ValuePayload, body_name, entity_name, evaluate, resolve,
+    SplitSide, StableName, UnnamedEntity, ValuePayload, body_name, entity_name, evaluate,
 };
 use fixture::{ang, die, insert, len, on_frame, scl};
 use geom_core::Tol;
@@ -102,7 +102,7 @@ fn assert_total(doc: &editor_core::ProfileDoc, ev: &Evaluation<f64>) -> usize {
                 // carrying node may be an earlier pass-through source
                 // — a split half re-indexes bodies, so only the NODE-
                 // LOCAL entity is asserted above) or is honestly tied.
-                match resolve(ctx, name) {
+                match crate::fixture::resolve_at_mint(ctx, name) {
                     Resolution::Resolved(_) => {}
                     Resolution::Failed(f) => {
                         assert!(

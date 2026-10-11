@@ -233,7 +233,7 @@ fn an_appearance_record_on_a_fillet_minted_face_resolves() {
 /// is an ordinary reference.
 #[test]
 fn every_fillet_minted_role_resolves_through_the_ladder() {
-    use editor_core::resolve::{Resolution, RunCtx, resolve};
+    use editor_core::resolve::{Resolution, RunCtx};
     let (doc, cube, blank) = filleted_blank();
     let target_read = fixture::out(&doc, cube);
     let ev = eval(&doc);
@@ -255,7 +255,7 @@ fn every_fillet_minted_role_resolves_through_the_ladder() {
             doc: &doc,
             eval: &ev,
         };
-        match resolve(ctx, name) {
+        match crate::fixture::resolve_at_mint(ctx, name) {
             Resolution::Resolved { .. } => {}
             other => panic!("{role} name {name:?} did not resolve: {other:?}"),
         }

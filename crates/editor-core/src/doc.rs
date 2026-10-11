@@ -1880,6 +1880,19 @@ impl<P> Doc<P> {
         }
     }
 
+    /// **The read holding output body `body` of `node`'s value**: its one
+    /// output, which holds every body of it (a family's members at their
+    /// places), or, for an operation with several outputs, the port
+    /// `body` (a split's half). `None` for a node that is not live or
+    /// defines no such port. What a pick — a node and the body the ray
+    /// met — resolves its name in ([`crate::resolve::resolve`]).
+    pub fn read_of_body(&self, node: RecipeNodeId, body: u32) -> Option<VarId> {
+        match self.outputs(node).as_slice() {
+            [one] => Some(*one),
+            several => several.get(usize::try_from(body).ok()?).copied(),
+        }
+    }
+
     /// **The variables `node` defines**, in port order: one per port of
     /// its signature ([`Node::outputs`]) while it is live, none once it
     /// is gone.

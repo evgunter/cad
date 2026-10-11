@@ -423,7 +423,7 @@ fn sibling_versions_mint_two_node_ids_and_neither_resolves_the_others_names() {
     for (what, doc, carried) in [("A's top on B", &b, tall), ("B's top on A", &a, taller)] {
         let eval = corpus::eval::<f64>(doc);
         let top = fixture::fname(carried, RoleSeg::Cap(editor_core::CapEnd::End));
-        match editor_core::resolve(editor_core::RunCtx { doc, eval: &eval }, &top) {
+        match crate::fixture::resolve_at_mint(editor_core::RunCtx { doc, eval: &eval }, &top) {
             editor_core::Resolution::Failed(f) => assert!(
                 matches!(
                     &f.error,

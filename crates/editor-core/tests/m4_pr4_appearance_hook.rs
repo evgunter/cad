@@ -463,27 +463,31 @@ fn indeterminate_losses_enrich_to_the_matching_indeterminate_arm() {
     );
 }
 
-// ---- The banked obligation: operand→final Rebind ergonomics ----
+// ---- The banked obligation: operand→final re-attachment ergonomics ----
 
-/// The union-side suggestion for `cap`: a face name minted at `uni`
-/// wrapping `cap` (`FromA(cap)`-headed derivation).
+/// The union-side offer for `cap`: a face name minted at `uni`
+/// wrapping `cap` (`From(cap)`-headed derivation), with the read that
+/// holds it.
 fn union_suggestion(
-    suggestions: &std::collections::BTreeMap<editor_core::AppearanceKey, Vec<StableName>>,
+    suggestions: &std::collections::BTreeMap<
+        editor_core::AppearanceKey,
+        Vec<editor_core::AppearanceKey>,
+    >,
     cap: &StableName,
     uni: RecipeNodeId,
-) -> StableName {
+) -> editor_core::AppearanceKey {
     suggestions
         .iter()
         .find_map(|(key, offers)| (key.name == *cap).then_some(offers))
         .expect("the suggestion map is total over the appearance store")
         .iter()
-        .find(|s| s.node == uni && s.kind == EntityKind::Face)
+        .find(|s| s.name.node == uni && s.name.kind == EntityKind::Face)
         .expect("the final node's wrapping derivation is offered")
         .clone()
 }
 
 #[test]
-fn suggestions_offer_the_final_wrapping_derivation_and_rebind_repairs_the_gap() {
+fn suggestions_offer_the_final_wrapping_derivation_and_a_reattachment_repairs_the_gap() {
     let (doc, a, uni, cap) = gap_fixture();
     let ev = run(&doc);
     // The gap is silent by design (ruled A1): lossless, painted on
@@ -497,39 +501,53 @@ fn suggestions_offer_the_final_wrapping_derivation_and_rebind_repairs_the_gap() 
     let suggestions = appearance_rebind_suggestions(doc.appearance(), &ev);
     let target = union_suggestion(&suggestions, &cap, uni);
     assert!(
-        matches!(target.path.first(), Some(RoleSeg::From { read, of: inner }) if *read == fixture::out(&doc, a) && **inner == cap),
+        matches!(target.name.path.first(), Some(RoleSeg::From { read, of: inner }) if *read == fixture::out(&doc, a) && **inner == cap),
         "the offered name wraps the painted one: {target:?}"
     );
-
-    // The explicit repair: Rebind moves the appearance key (the
-    // attribute rides the name) and is presentation-only here — no
-    // Declare pair moved, nothing recomputes.
-    let applied = doc
-        .apply(
-            &DocEdit::Rebind {
-                body: None,
-                from: cap.clone(),
-                to: target.clone(),
-            },
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        )
-        .expect("an appearance key is a rebind site");
-    assert!(!applied.record.structural);
-    assert!(crate::fixture::painted(&applied.doc, &cap).is_none());
     assert_eq!(
-        crate::fixture::painted(&applied.doc, &target)
-            .unwrap()
-            .attrs[&AttrKind::Color],
+        target.at,
+        fixture::out(&doc, uni),
+        "read in the final node's output"
+    );
+
+    // The explicit repair moves the paint to another body, so it is a
+    // re-attachment and not a rebind (which never moves a key's read):
+    // set it at the offered read, clear it at the operand's.
+    // Presentation-only — nothing recomputes.
+    let apply = |doc: &ProfileDoc, edit| {
+        doc.apply(&edit, Tol::witness(), &editor_core::RefusingReach)
+            .expect("a re-attachment edit applies")
+    };
+    let set_it = apply(
+        &doc,
+        DocEdit::SetAppearance {
+            body: target.at,
+            name: target.name.clone(),
+            attr: red(),
+        },
+    );
+    let cleared = apply(
+        &set_it.doc,
+        DocEdit::ClearAppearance {
+            body: fixture::out(&doc, a),
+            name: cap.clone(),
+            kind: AttrKind::Color,
+        },
+    );
+    assert!(!set_it.record.structural && !cleared.record.structural);
+    let doc = cleared.doc;
+    assert!(crate::fixture::painted(&doc, &cap).is_none());
+    assert_eq!(
+        doc.appearance_of(target.at, &target.name).unwrap().attrs[&AttrKind::Color],
         red()
     );
 
     // The paint now lands on the final node.
-    let ev = run(&applied.doc);
+    let ev = run(&doc);
     assert!(ev.appearance.is_lossless());
     assert!(
         ev.appearance.for_node(uni).is_some(),
-        "the repaired attachment resolves on the final body"
+        "the re-attached paint resolves on the final body"
     );
 }
 
@@ -537,34 +555,50 @@ fn suggestions_offer_the_final_wrapping_derivation_and_rebind_repairs_the_gap() 
 fn appearance_only_rebind_counts_as_a_site_not_no_references() {
     // Before the appearance store landed, this exact edit was refused
     // RebindNoReferences (no Declare pair references `cap`); the key
-    // itself is now a site.
-    let (doc, _, uni, cap) = gap_fixture();
+    // itself is now a site. It keeps the read it is read in: a rebind
+    // repairs the name, and an appearance key is a `SitedRef` whose
+    // `at` no rebind moves.
+    let (doc, a, uni, cap) = gap_fixture();
     let ev = run(&doc);
     let suggestions = appearance_rebind_suggestions(doc.appearance(), &ev);
     let target = union_suggestion(&suggestions, &cap, uni);
-    assert!(
-        doc.apply(
+    let applied = doc
+        .apply(
             &DocEdit::Rebind {
                 body: None,
                 from: cap,
-                to: target
+                to: target.name.clone(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach
+            &editor_core::RefusingReach,
         )
-        .is_ok()
+        .expect("an appearance key is a rebind site");
+    assert!(
+        applied
+            .doc
+            .appearance_of(fixture::out(&doc, a), &target.name)
+            .is_some(),
+        "the key kept the operand's read"
     );
 }
 
 #[test]
 fn rebind_appearance_collision_is_refused_typed() {
-    let (doc, _, uni, cap) = gap_fixture();
+    let (doc, a, uni, cap) = gap_fixture();
     let ev = run(&doc);
     let suggestions = appearance_rebind_suggestions(doc.appearance(), &ev);
-    let target = union_suggestion(&suggestions, &cap, uni);
-    // The target already carries a Color of its own: which value
-    // survives would be an auto-pick — refused loudly.
-    let doc = set(doc, target.clone(), Attr::Color(Rgba8::opaque(1, 2, 3)));
+    let target = union_suggestion(&suggestions, &cap, uni).name;
+    let read = fixture::out(&doc, a);
+    // The target already carries a Color of its own in the same read:
+    // which value survives would be an auto-pick — refused loudly.
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetAppearance {
+            body: read,
+            name: target.clone(),
+            attr: Attr::Color(Rgba8::opaque(1, 2, 3)),
+        },
+    );
     assert_eq!(
         doc.apply(
             &DocEdit::Rebind {
@@ -583,7 +617,6 @@ fn rebind_appearance_collision_is_refused_typed() {
     );
     // Disjoint kinds merge: clear the source's Color, carry a Label
     // instead — both kinds land on the target.
-    let read = crate::fixture::painted_in(&doc, &cap);
     let (doc, _) = step(
         doc,
         DocEdit::ClearAppearance {
@@ -592,10 +625,13 @@ fn rebind_appearance_collision_is_refused_typed() {
             kind: AttrKind::Color,
         },
     );
-    let doc = set(
+    let (doc, _) = step(
         doc,
-        cap.clone(),
-        Attr::Label(editor_core::Label::new("lid").unwrap()),
+        DocEdit::SetAppearance {
+            body: read,
+            name: cap.clone(),
+            attr: Attr::Label(editor_core::Label::new("lid").unwrap()),
+        },
     );
     let applied = doc
         .apply(
@@ -608,7 +644,7 @@ fn rebind_appearance_collision_is_refused_typed() {
             &editor_core::RefusingReach,
         )
         .expect("disjoint attribute kinds merge");
-    let merged = crate::fixture::painted(&applied.doc, &target).unwrap();
+    let merged = applied.doc.appearance_of(read, &target).unwrap();
     assert_eq!(merged.attrs.len(), 2);
     assert_eq!(
         merged.attrs[&AttrKind::Label],
@@ -634,5 +670,5 @@ fn suggestion_map_is_total_over_the_store() {
     assert_eq!(suggestions.len(), 1);
     let (key, offers) = suggestions.first_key_value().expect("one key");
     assert_eq!(key.name, cap);
-    assert_eq!(*offers, Vec::<StableName>::new());
+    assert_eq!(*offers, Vec::<editor_core::AppearanceKey>::new());
 }

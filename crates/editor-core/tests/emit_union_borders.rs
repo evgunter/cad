@@ -625,7 +625,7 @@ fn a_boss_moved_onto_the_divider_is_the_border_delta() {
     let [left] = gone.as_slice() else {
         panic!("exactly the left piece's name changes: {before:?} -> {after:?}");
     };
-    let res = editor_core::resolve(
+    let res = crate::fixture::resolve_at_mint(
         editor_core::RunCtx {
             doc: &doc2,
             eval: &ev2,

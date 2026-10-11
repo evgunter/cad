@@ -13,7 +13,7 @@ use std::collections::BTreeSet;
 use editor_core::{
     Axis3, CancelToken, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions, Evaluation, NameTable,
     Node, ProfileDoc, Qualifier, RecipeEditRef, RecipeNodeId, Resolution, ResolveError, RoleSeg,
-    RunCtx, SlotId, StableName, UpstreamCause, evaluate, resolve_with_prior,
+    RunCtx, SlotId, StableName, UpstreamCause, evaluate,
 };
 use fixture::{ang, insert, len, on_frame, scl, step};
 use geom_core::Sign;
@@ -116,7 +116,7 @@ fn diagnosis(
     (doc1, ev1): (&ProfileDoc, &Evaluation<f64>),
     name: &StableName,
 ) -> Diagnosis {
-    let res = resolve_with_prior(
+    let res = crate::fixture::resolve_with_prior_at_mint(
         RunCtx {
             doc: doc2,
             eval: ev2,

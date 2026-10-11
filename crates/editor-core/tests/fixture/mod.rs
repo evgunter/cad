@@ -1715,6 +1715,36 @@ pub fn table(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NameTable {
         .unwrap_or_else(|| panic!("node {id:?} has no one table: {:?}", ev.nodes.get(&id)))
 }
 
+/// **The read `name` is read in where it was minted**: the one output
+/// of its minting node (NAMES N1: a name is resolved in the read that
+/// holds its body). A node the document no longer holds reads in a
+/// variable no document defines — the resolution ladder answers
+/// `NodeGone` before it reads any table.
+pub fn at_mint(doc: &ProfileDoc, name: &StableName) -> editor_core::VarId {
+    doc.read_of_node(name.node)
+        .unwrap_or(editor_core::VarId::new(0, 0))
+}
+
+/// [`editor_core::resolve`] in the read `name` was minted in
+/// ([`at_mint`]): the row's site when it is about a name where its own
+/// node published it.
+pub fn resolve_at_mint<T: geom_core::Decide>(
+    ctx: editor_core::RunCtx<'_, T>,
+    name: &StableName,
+) -> editor_core::Resolution {
+    editor_core::resolve(ctx, at_mint(ctx.doc, name), name)
+}
+
+/// [`editor_core::resolve_with_prior`] in the read `name` was minted in
+/// ([`at_mint`], in the new document).
+pub fn resolve_with_prior_at_mint<T: geom_core::Decide, U: geom_core::Decide>(
+    new: editor_core::RunCtx<'_, T>,
+    prior: editor_core::RunCtx<'_, U>,
+    name: &StableName,
+) -> editor_core::Resolution {
+    editor_core::resolve_with_prior(new, prior, at_mint(new.doc, name), name)
+}
+
 /// **The body read an appearance entry on `name` is read in**, for a
 /// row that paints a name where it was minted (NAMES N1: an entry is
 /// keyed by its body read and its name): the read an entry the store

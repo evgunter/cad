@@ -8,9 +8,8 @@
 //! - a piece whose split side flips when the plane moves leaves its
 //!   read's table rather than renaming, and N5 diagnoses `PredicateFlip`
 //!   from the split's recorded classification, not from the name
-//!   (NAMES N2, the Split op's pieces) — through the sited door, since
-//!   the bare door finds the name in the other half and calls it
-//!   resolved;
+//!   (NAMES N2, the Split op's pieces) — resolution names the read, and
+//!   the other half's read holds the name now;
 //! - a name a split mints in both halves (the section face) is one name,
 //!   each half's read its own copy, and a paint keyed by one half's read
 //!   leaves the other half's copy unpainted;
@@ -22,7 +21,7 @@ use crate::fixture::{self, insert, len, on_frame, scl};
 use editor_core::{
     Axis3, Datum, Diagnosis, DocEdit, EntityKind, Entry, ExtrudeSide, Node, ProfileDoc,
     RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SlotId, SplitHalf, StableName,
-    resolve, resolve_at, resolve_at_with_prior,
+    resolve, resolve_with_prior,
 };
 use geom_core::Tol;
 
@@ -75,9 +74,8 @@ fn step_split(at: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId)
 /// **A piece whose side flips leaves its read's table, and N5 says why.**
 /// The riser passes through the split whole, under the extrude's own
 /// name, in the half its side puts it in. Moving the plane across it
-/// moves it to the other half's table: the bare door still finds the
-/// name there and resolves it, which is exactly why a reference is sited
-/// by its read; through the read of the half it was in, it vanishes,
+/// moves it to the other half's table, where the other half's read
+/// resolves it; through the read of the half it was in, it vanishes,
 /// diagnosed `PredicateFlip` off the split's recorded classification.
 #[test]
 fn a_piece_whose_side_flips_leaves_its_reads_table_diagnosed_as_a_predicate_flip() {
@@ -125,14 +123,10 @@ fn a_piece_whose_side_flips_leaves_its_reads_table_diagnosed_as_a_predicate_flip
     };
 
     assert!(
-        matches!(resolve(new, &riser), Resolution::Resolved(_)),
-        "the bare door finds the name in the other half"
+        matches!(resolve(new, below, &riser), Resolution::Resolved(_)),
+        "the lower half's read holds it"
     );
-    assert!(
-        matches!(resolve_at(new, below, &riser), Resolution::Resolved(_)),
-        "and the lower half's read holds it"
-    );
-    match resolve_at_with_prior(new, prior, above, &riser) {
+    match resolve_with_prior(new, prior, above, &riser) {
         Resolution::Failed(f) => match f.error {
             ResolveError::Vanished {
                 diagnosis: Diagnosis::PredicateFlip { predicate, .. },
@@ -167,7 +161,7 @@ fn the_section_face_is_one_name_and_each_halfs_read_resolves_its_own() {
     let mut held = Vec::new();
     for half in [SplitHalf::Above, SplitHalf::Below] {
         let read = doc.output(split, half.port()).expect("a half's read");
-        let Resolution::Resolved(r) = resolve_at(ctx, read, &section) else {
+        let Resolution::Resolved(r) = resolve(ctx, read, &section) else {
             panic!("{half:?}: the section face resolves through its read");
         };
         assert_eq!(r.node, split, "{half:?}");
@@ -211,7 +205,7 @@ fn a_paint_on_one_halfs_section_face_leaves_the_other_halfs_unpainted() {
         doc: &painted,
         eval: &ev,
     };
-    let face = |half| match resolve_at(ctx, read(half), &section) {
+    let face = |half| match resolve(ctx, read(half), &section) {
         Resolution::Resolved(r) => r.entity,
         other => panic!("{half:?}: the section face resolves: {other:?}"),
     };

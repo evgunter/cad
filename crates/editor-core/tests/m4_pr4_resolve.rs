@@ -22,7 +22,7 @@ use editor_core::{
     CancelToken, CapEnd, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions, Evaluation, NameTable,
     Node, ProfileDoc, Qualifier, RecipeEditRef, RecipeNodeId, Resolution, ResolveError,
     ResolveIndeterminate, RoleSeg, RunCtx, SitedRef, SlotId, StableName, apply_with_names,
-    evaluate, rebind_suggestions, resolve, resolve_with_prior,
+    evaluate, rebind_suggestions,
 };
 use fixture::{ang, insert, len, minted, on_frame, scl, step};
 use geom_core::Tol;
@@ -239,11 +239,11 @@ fn union_names_resolve_uniquely_and_pass_through_transforms() {
     let mut constituents = vec![wrapped.clone(), wrapped_b];
     constituents.sort_unstable();
     let merged = minted(EntityKind::Face, s.union, RoleSeg::Merged(constituents));
-    match resolve(ctx, &merged) {
+    match crate::fixture::resolve_at_mint(ctx, &merged) {
         Resolution::Resolved(r) => assert_eq!(r.node, s.union),
         other => panic!("expected Resolved, got {other:?}"),
     }
-    match resolve(ctx, &wrapped) {
+    match crate::fixture::resolve_at_mint(ctx, &wrapped) {
         Resolution::Failed(f) => assert!(
             f.offers.contains(&merged),
             "retired constituent must offer its merge: {f:?}"
@@ -253,7 +253,7 @@ fn union_names_resolve_uniquely_and_pass_through_transforms() {
     // The operand-level cap name resolves too — at the EXTRUDE (first
     // carrying node in evaluation order; the transform pass-through
     // carries B's names identically).
-    match resolve(ctx, &cap) {
+    match crate::fixture::resolve_at_mint(ctx, &cap) {
         Resolution::Resolved(r) => assert_eq!(r.node, s.a),
         other => panic!("expected Resolved, got {other:?}"),
     }
@@ -305,7 +305,7 @@ fn tied_name_resolves_ambiguous_with_the_tie_witness() {
         .iter()
         .find_map(|(n, e)| matches!(e, Entry::Tied(_)).then(|| n.clone()))
         .expect("the U fixture ties");
-    match resolve(
+    match crate::fixture::resolve_at_mint(
         RunCtx {
             doc: &doc,
             eval: &ev,
@@ -379,7 +379,7 @@ fn ranked_reference_widens_to_the_tied_base_row() {
     ranked
         .path
         .push(RoleSeg::Fragment(Qualifier::OrderAlong { rank: 1, of: 2 }));
-    match resolve(
+    match crate::fixture::resolve_at_mint(
         RunCtx {
             doc: &doc,
             eval: &ev,
@@ -416,7 +416,7 @@ fn deleting_a_named_node_strands_names_as_node_gone() {
     // N5's ratified dangling semantics.
     let (doc2, _) = step(doc, DocEdit::DeleteNode { id: b });
     let ev = run(&doc2, None);
-    match resolve(
+    match crate::fixture::resolve_at_mint(
         RunCtx {
             doc: &doc2,
             eval: &ev,
@@ -444,7 +444,7 @@ fn never_minted_node_reports_foreign_not_deleted() {
         RecipeNodeId::new(0, 9999),
         RoleSeg::Cap(CapEnd::End),
     );
-    match resolve(
+    match crate::fixture::resolve_at_mint(
         RunCtx {
             doc: &doc,
             eval: &ev,
@@ -476,7 +476,7 @@ fn flip_vanished_name_diagnoses_the_predicate_flip_with_tombstone() {
     let probe = joined_rim_name(&ev1, s.union);
     let doc2 = slide_to(&s, 2.5); // disjoint: the joined rims vanish
     let ev2 = run(&doc2, Some(&ev1));
-    let res = resolve_with_prior(
+    let res = crate::fixture::resolve_with_prior_at_mint(
         RunCtx {
             doc: &doc2,
             eval: &ev2,
@@ -563,7 +563,7 @@ fn pattern_count_shrink_diagnoses_structural_param() {
         },
     );
     assert!(matches!(
-        resolve(
+        crate::fixture::resolve_at_mint(
             RunCtx {
                 doc: &doc,
                 eval: &ev1
@@ -582,7 +582,7 @@ fn pattern_count_shrink_diagnoses_structural_param() {
         },
     );
     let ev2 = run(&doc2, Some(&ev1));
-    let res = resolve_with_prior(
+    let res = crate::fixture::resolve_with_prior_at_mint(
         RunCtx {
             doc: &doc2,
             eval: &ev2,
@@ -637,7 +637,7 @@ fn instance_of_vanished_master_name_diagnoses_cascade() {
         },
     );
     assert!(matches!(
-        resolve(
+        crate::fixture::resolve_at_mint(
             RunCtx {
                 doc: &doc,
                 eval: &ev1
@@ -658,7 +658,7 @@ fn instance_of_vanished_master_name_diagnoses_cascade() {
         },
     );
     let ev2 = run(&doc2, Some(&ev1));
-    let res = resolve_with_prior(
+    let res = crate::fixture::resolve_with_prior_at_mint(
         RunCtx {
             doc: &doc2,
             eval: &ev2,
@@ -683,7 +683,7 @@ fn instance_of_vanished_master_name_diagnoses_cascade() {
         "the upstream vanish carries the root cause"
     );
     // And the through-name's own resolution chains to the flip.
-    let res_master = resolve_with_prior(
+    let res_master = crate::fixture::resolve_with_prior_at_mint(
         RunCtx {
             doc: &doc2,
             eval: &ev2,
@@ -737,14 +737,14 @@ fn failed_and_poisoned_targets_resolve_indeterminate_not_vanished() {
     };
     let cap_a = minted(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End));
     assert_eq!(
-        resolve(ctx, &cap_a),
+        crate::fixture::resolve_at_mint(ctx, &cap_a),
         Resolution::Indeterminate(ResolveIndeterminate {
             standing: NodeStanding::Failed { node: a }
         })
     );
     let union_body = minted(EntityKind::Body, u, RoleSeg::OutputBody);
     assert_eq!(
-        resolve(ctx, &union_body),
+        crate::fixture::resolve_at_mint(ctx, &union_body),
         Resolution::Indeterminate(ResolveIndeterminate {
             standing: NodeStanding::Poisoned {
                 node: u,
@@ -1263,7 +1263,7 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
     let target = member_cap(b);
     assert!(
         matches!(
-            resolve(
+            crate::fixture::resolve_at_mint(
                 RunCtx {
                     doc: &doc1,
                     eval: &ev1
@@ -1287,7 +1287,7 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
     // the memo even though the twins are bit-identical. Pinned WITH
     // memo transfer.
     let ev2 = run(&doc2, Some(&ev1));
-    let res = resolve_with_prior(
+    let res = crate::fixture::resolve_with_prior_at_mint(
         RunCtx {
             doc: &doc2,
             eval: &ev2,
@@ -1322,7 +1322,7 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
     // c's cap — the value the recipe actually denotes.
     assert!(
         matches!(
-            resolve(
+            crate::fixture::resolve_at_mint(
                 RunCtx {
                     doc: &doc2,
                     eval: &ev2
@@ -1434,7 +1434,7 @@ fn single_run_vanished_falls_back_to_cause_not_in_evidence() {
             of: master_body.into(),
         },
     );
-    let res = resolve(
+    let res = crate::fixture::resolve_at_mint(
         RunCtx {
             doc: &doc,
             eval: &ev,
@@ -1565,7 +1565,7 @@ fn border_delta_reads_the_walls_off_the_names_without_any_flip_set_evidence() {
         (diagnosis, last_good)
     };
     let single = |ev: &Evaluation<f64>| {
-        diagnosis_of(resolve(
+        diagnosis_of(crate::fixture::resolve_at_mint(
             RunCtx {
                 doc: &doc,
                 eval: ev,
@@ -1574,7 +1574,7 @@ fn border_delta_reads_the_walls_off_the_names_without_any_flip_set_evidence() {
         ))
     };
     let with_prior = |ev: &Evaluation<f64>, prior: &Evaluation<f64>| {
-        diagnosis_of(resolve_with_prior(
+        diagnosis_of(crate::fixture::resolve_with_prior_at_mint(
             RunCtx {
                 doc: &doc,
                 eval: ev,

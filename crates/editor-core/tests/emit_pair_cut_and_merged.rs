@@ -16,7 +16,6 @@ use crate::fixture::{insert, table};
 
 use editor_core::{
     EntityKind, NameRef, Node, ProfileDoc, Qualifier, Resolution, RoleSeg, RunCtx, StableName,
-    resolve,
 };
 use geom_core::Tol;
 
@@ -98,7 +97,7 @@ fn a_face_cut_and_merged_in_one_pair_step_publishes_no_constituent() {
                 !t.iter().any(|(n, _)| is_piece_of(n, c)),
                 "a piece of {c:?}, a constituent of {row:?}, is published"
             );
-            match resolve(ctx, c) {
+            match crate::fixture::resolve_at_mint(ctx, c) {
                 Resolution::Failed(f) => assert!(
                     f.offers.contains(row),
                     "{c:?} does not offer {row:?}: {:?}",

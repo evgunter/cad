@@ -1042,54 +1042,33 @@ pub struct RunCtx<'a, T: Decide> {
     pub eval: &'a Evaluation<T>,
 }
 
-/// Resolves `name` against a single run, with no prior-run history
-/// (the diagnosis then rests on current-run evidence only — module
-/// docs). Prefer [`resolve_with_prior`] whenever a last-good run
-/// exists.
-pub fn resolve<T: Decide>(new: RunCtx<'_, T>, name: &StableName) -> Resolution {
-    resolve_impl(new, NoPrior, None, name)
+/// **Resolves `name` in the table of the read `at`** (NAMES N1, the
+/// scope: a name tells apart only what its variable holds), against a
+/// single run, with no prior-run history (the diagnosis then rests on
+/// current-run evidence only — module docs). Every reference is sited
+/// by the read it is read in — a selection's body, a declaration's
+/// [`crate::SitedRef`], an appearance key's body — and a name minted at
+/// a node with one output is read in that output. The name a split's
+/// other half carries is not this half's, so it does not resolve here.
+/// Prefer [`resolve_with_prior`] whenever a last-good run exists.
+pub fn resolve<T: Decide>(new: RunCtx<'_, T>, at: crate::VarId, name: &StableName) -> Resolution {
+    resolve_impl(new, NoPrior, at, name)
 }
 
-/// **Resolves `name` in the table of the read `read`** (NAMES N1, the
-/// scope: a name tells apart only what its variable holds), with no
-/// prior-run history. What a reference sited by its body's read asks —
-/// a selection's body read, a declaration's [`crate::SitedRef`]: the
-/// name a split's other half carries is not this half's, so it does not
-/// resolve here. Prefer [`resolve_at_with_prior`] whenever a last-good
-/// run exists.
-pub fn resolve_at<T: Decide>(
-    new: RunCtx<'_, T>,
-    read: crate::VarId,
-    name: &StableName,
-) -> Resolution {
-    resolve_impl(new, NoPrior, Some(read), name)
-}
-
-/// [`resolve_at`] with the last-good run as diagnosis context, as
-/// [`resolve_with_prior`] is [`resolve`]'s: a piece whose split side
+/// [`resolve`] with the last-good run as diagnosis context: `Vanished`
+/// carries the verdict-diff diagnosis (N5's promise) and the tombstone
+/// when the prior run still resolved the name. A piece whose split side
 /// flips when the plane moves leaves its read's table, and N5 diagnoses
 /// the flip from the split's recorded classification (NAMES N2, the
-/// Split op's pieces).
-pub fn resolve_at_with_prior<T: Decide, U: Decide>(
-    new: RunCtx<'_, T>,
-    prior: RunCtx<'_, U>,
-    read: crate::VarId,
-    name: &StableName,
-) -> Resolution {
-    resolve_impl(new, Prior { ctx: prior }, Some(read), name)
-}
-
-/// Resolves `name` against the new run with the last-good run as
-/// diagnosis context: `Vanished` carries the verdict-diff diagnosis
-/// (N5's promise) and the tombstone when the prior run still resolved
-/// the name. The two runs may use different scalars (verdict logs are
-/// scalar-independent).
+/// Split op's pieces). The two runs may use different scalars (verdict
+/// logs are scalar-independent).
 pub fn resolve_with_prior<T: Decide, U: Decide>(
     new: RunCtx<'_, T>,
     prior: RunCtx<'_, U>,
+    at: crate::VarId,
     name: &StableName,
 ) -> Resolution {
-    resolve_impl(new, Prior { ctx: prior }, None, name)
+    resolve_impl(new, Prior { ctx: prior }, at, name)
 }
 
 /// Enriches one appearance loss with the full N5 ladder (spec D9's
@@ -1155,30 +1134,48 @@ fn enrich_impl<T: Decide, P: PriorCtx>(
         });
     }
     // The entry's body read is its site (NAMES N1).
-    resolve_impl(new, prior, Some(loss.body), &loss.name)
+    resolve_impl(new, prior, loss.body, &loss.name)
 }
 
-/// Rebind suggestions for every appearance-carrying name (the spec D9
+/// Re-attachment offers for every appearance entry (the spec D9
 /// BANKED obligation, ruled at PR 7 review A1): the operand→final
 /// paint gap means an attribute on an operand-node name resolves on
 /// the intermediate body only — the final node's corresponding face
 /// is a DIFFERENT derivation (`From(r, x)` ≠ `x`, N1 identity), showing
 /// neither paint nor loss. The explicit repair must be ergonomic:
 /// this maps EVERY appearance key (resolving or not — the gap is
-/// silent by design, so suggestions cannot be gated on a loss) to the
-/// evaluation's derivations wrapping it ([`rebind_suggestions`]'s
-/// ladder). Total over the store: a name with nothing wrapping it
-/// maps to an empty list, never a dropped row. Suggestions feed an
-/// explicit [`crate::edit::DocEdit::Rebind`] — which also MOVES the
-/// appearance key (the attribute rides the name) — and nothing
-/// follows automatically (the ratified EMPTY policy menu).
+/// silent by design, so offers cannot be gated on a loss) to the
+/// evaluation's derivations wrapping its name ([`rebind_suggestions`]'s
+/// ladder), each with the read whose table holds it. Total over the
+/// store: a key with nothing wrapping its name maps to an empty list,
+/// never a dropped row.
+///
+/// An offer names another body than the key's, so taking it is a
+/// RE-ATTACHMENT — [`crate::edit::DocEdit::SetAppearance`] at the
+/// offered read, [`crate::edit::DocEdit::ClearAppearance`] at the key's
+/// — and not a [`crate::edit::DocEdit::Rebind`], which never moves a
+/// key's read (an appearance key is a [`crate::SitedRef`], and a
+/// rebind repairs only the name). Nothing follows automatically (the
+/// ratified EMPTY policy menu).
 pub fn appearance_rebind_suggestions<T: Decide>(
     appearance: &AppearanceMap,
     eval: &Evaluation<T>,
-) -> BTreeMap<crate::appearance::AppearanceKey, Vec<StableName>> {
+) -> BTreeMap<crate::appearance::AppearanceKey, Vec<crate::appearance::AppearanceKey>> {
     appearance
         .keys()
-        .map(|key| (key.clone(), rebind_suggestions(eval, &key.name)))
+        .map(|key| {
+            let offers = rebind_suggestions(eval, &key.name)
+                .into_iter()
+                .filter_map(|name| {
+                    let read = tables(eval).find_map(|carrier| {
+                        carrier.table.lookup(&name)?;
+                        eval.output_var(carrier.node, carrier.port)
+                    })?;
+                    Some(crate::appearance::AppearanceKey::new(read, name))
+                })
+                .collect();
+            (key.clone(), offers)
+        })
         .collect()
 }
 
@@ -1413,7 +1410,7 @@ impl<U: Decide> PriorCtx for Prior<'_, U> {
 fn resolve_impl<T: Decide, P: PriorCtx>(
     new: RunCtx<'_, T>,
     prior: P,
-    site: Option<crate::VarId>,
+    site: crate::VarId,
     name: &StableName,
 ) -> Resolution {
     // 1. NodeGone: the minting node is not live.
@@ -1423,22 +1420,16 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
             offers: Vec::new(),
         });
     }
-    // A sited read whose node has no value answers nothing either way.
-    if let Some((node, _)) = site.and_then(|read| new.eval.read_port(read))
+    // A read whose node has no value answers nothing either way.
+    if let Some((node, _)) = new.eval.read_port(site)
         && let Err(standing) = new.eval.usable(node)
     {
         return Resolution::Indeterminate(ResolveIndeterminate { standing });
     }
-    // The name's own rows: in the sited read's table, or the first
-    // carrying table in evaluation order.
-    let here = |n: &StableName| match site {
-        Some(read) => lookup_in(new.eval, read, n),
-        None => lookup(new.eval, n),
-    };
+    // The name's own rows, in the read's table.
+    let here = |n: &StableName| lookup_in(new.eval, site, n);
 
-    // 2. The table lookup (N4: resolution IS this read). First
-    //    carrying node in evaluation order wins (deterministic;
-    //    pass-through tables carry the same rows).
+    // 2. The table lookup (N4: resolution IS this read).
     match here(name) {
         Some((carrier, Entry::Unique(entity))) => {
             return Resolution::Resolved(Resolved {
@@ -1532,10 +1523,7 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
     // A sited reference's path runs on to the read's node: the name left
     // that read's table there (a split piece whose side flipped).
     let mut path = derivation_nodes(name);
-    path.extend(
-        site.and_then(|read| new.eval.read_port(read))
-            .map(|(node, _)| node),
-    );
+    path.extend(new.eval.read_port(site).map(|(node, _)| node));
     let diagnosis = if let Some(through) = cascade {
         Diagnosis::Cascade { through }
     } else {

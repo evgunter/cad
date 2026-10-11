@@ -10,8 +10,7 @@
 use editor_core::ExtrudeSide;
 use editor_core::{
     CancelToken, CapEnd, DocEdit, EntityKind, Entry, EvalOptions, Evaluation, Node, ProfileDoc,
-    Qualifier, RecipeNodeId, Resolution, RoleSeg, RunCtx, SlotId, StableName, evaluate, resolve,
-    resolve_with_prior,
+    Qualifier, RecipeNodeId, Resolution, RoleSeg, RunCtx, SlotId, StableName, evaluate,
 };
 
 use super::{ang, insert, len, minted, on_frame, scl, step};
@@ -159,8 +158,14 @@ where
         doc: &doc,
         eval: &ev1,
     };
-    out.push(("flip-vanish", resolve_with_prior(new, prior, &piece)));
-    out.push(("cascade", resolve_with_prior(new, prior, &inst)));
+    out.push((
+        "flip-vanish",
+        crate::fixture::resolve_with_prior_at_mint(new, prior, &piece),
+    ));
+    out.push((
+        "cascade",
+        crate::fixture::resolve_with_prior_at_mint(new, prior, &inst),
+    ));
 
     // ---- Scenario B: pattern count shrink (StructuralParam). ----
     let (doc3, _) = step(
@@ -175,7 +180,7 @@ where
     let ev3 = run::<T>(&doc3, Some(&ev1));
     out.push((
         "structural-param",
-        resolve_with_prior(
+        crate::fixture::resolve_with_prior_at_mint(
             RunCtx {
                 doc: &doc3,
                 eval: &ev3,
@@ -194,7 +199,7 @@ where
     let evd = run::<T>(&docd, None);
     out.push((
         "node-gone",
-        resolve(
+        crate::fixture::resolve_at_mint(
             RunCtx {
                 doc: &docd,
                 eval: &evd,
@@ -247,7 +252,7 @@ where
         .expect("the U fixture ties");
     out.push((
         "ambiguous",
-        resolve(
+        crate::fixture::resolve_at_mint(
             RunCtx {
                 doc: &docu,
                 eval: &evu,

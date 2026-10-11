@@ -419,7 +419,7 @@ fn reprogrammed(
 /// What a vanished name is offered.
 fn offers(doc: &ProfileDoc, name: &StableName) -> Vec<StableName> {
     let ev = run(doc, &Default::default());
-    match editor_core::resolve(editor_core::RunCtx { doc, eval: &ev }, name) {
+    match crate::fixture::resolve_at_mint(editor_core::RunCtx { doc, eval: &ev }, name) {
         editor_core::Resolution::Failed(f) => f.offers,
         other => panic!("{name:?} should vanish, resolved {other:?}"),
     }

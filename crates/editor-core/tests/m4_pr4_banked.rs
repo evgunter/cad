@@ -25,7 +25,7 @@ use std::collections::BTreeMap;
 use editor_core::{
     CancelToken, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions, Evaluation, Node, ProfileDoc,
     Qualifier, RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SlotId, StableName,
-    diff_verdicts, evaluate, resolve_with_prior,
+    diff_verdicts, evaluate,
 };
 use fixture::{ang, insert, len, on_frame, scl, step};
 use geom_core::Tol;
@@ -289,7 +289,7 @@ fn fused_vertex_scenario(
     for name in dropped {
         // No N3-style retirement row: nothing in the new table lists
         // the loser as a Merged constituent.
-        let res = resolve_with_prior(
+        let res = crate::fixture::resolve_with_prior_at_mint(
             RunCtx {
                 doc: doc2,
                 eval: &ev2,

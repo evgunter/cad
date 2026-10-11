@@ -12,7 +12,7 @@ use editor_core::{
     BifurcationKind, BooleanCoincidence, BranchCertification, BranchMarginEvidence, CancelToken,
     CapEnd, Diagnosis, DocEdit, EditError, EntityKind, EvalOptions, Evaluation, Implicated, Node,
     ProfileDoc, RecipeNodeId, Resolution, RoleSeg, RunCtx, SitedRef, StableName, VarId, WitnessAge,
-    WitnessBifurcation, WitnessDatum, evaluate, resolve,
+    WitnessBifurcation, WitnessDatum, evaluate,
 };
 use fixture::{insert, len, on_frame, step};
 use geom_core::Tol;
@@ -189,7 +189,7 @@ fn rebind_repairs_a_stranded_name_after_node_gone() {
     let (doc, _) = step(t.doc, DocEdit::DeleteNode { id: t.b });
     let ev = run(&doc, None);
     assert!(matches!(
-        resolve(RunCtx { doc: &doc, eval: &ev }, &cap(t.b)),
+        crate::fixture::resolve_at_mint(RunCtx { doc: &doc, eval: &ev }, &cap(t.b)),
         Resolution::Failed(f) if matches!(f.error, editor_core::ResolveError::NodeGone { .. })
     ));
     // The source's node is dead-but-once-lived: the rebind APPLIES.
@@ -210,7 +210,7 @@ fn rebind_repairs_a_stranded_name_after_node_gone() {
         )]
     );
     assert!(matches!(
-        resolve(
+        crate::fixture::resolve_at_mint(
             RunCtx {
                 doc: &doc,
                 eval: &ev

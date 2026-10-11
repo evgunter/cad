@@ -27,7 +27,7 @@ use editor_core::ExtrudeSide;
 use editor_core::{
     Axis3, CancelToken, Datum, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions, Evaluation,
     GroupCutters, Node, ProfileDoc, RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx,
-    SlotId, StableName, evaluate, resolve_with_prior,
+    SlotId, StableName, evaluate,
 };
 use fixture::{ang, insert, len, on_frame, scl, step};
 use geom_core::Tol;
@@ -111,7 +111,7 @@ fn vanished(
         })
         .filter(|(n, e)| matches!(n.path.last(), Some(RoleSeg::Fragment(_))) && pick(n, e))
         .map(|(n, _)| {
-            let res = resolve_with_prior(
+            let res = crate::fixture::resolve_with_prior_at_mint(
                 RunCtx {
                     doc: doc2,
                     eval: ev2,

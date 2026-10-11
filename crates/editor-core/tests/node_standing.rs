@@ -33,7 +33,7 @@ use editor_core::{
     GeomPred, HitTestError, InterrogateError, NameLookupError, NamePat, Node, NodePick,
     NodePickError, NodeStanding, ProfileDoc, RecipeNodeId, Resolution, ResolveIndeterminate,
     RoleSeg, RunCtx, RunStatus, SelectRefusal, Selector, SlotId, VerdictRow, VerdictVector,
-    body_name, denotation, evaluate, find_flush_candidates, resolve, run_checks, select_where,
+    body_name, denotation, evaluate, find_flush_candidates, run_checks, select_where,
 };
 use geom_core::Tol;
 
@@ -291,7 +291,7 @@ fn every_standing_renders_one_way_through_every_door() {
         (&s.canceled, unevaluated),
     ] {
         let name = minted(EntityKind::Body, standing.node(), RoleSeg::OutputBody);
-        let verdict = resolve(RunCtx { doc: &s.doc, eval }, &name);
+        let verdict = crate::fixture::resolve_at_mint(RunCtx { doc: &s.doc, eval }, &name);
         let Resolution::Indeterminate(cause) = verdict else {
             panic!("{standing:?}: the reference is indeterminate, got {verdict:?}");
         };
