@@ -931,3 +931,7 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - The fix pass filed `tint/an-oblique-rod-clear-of-a-cone-refuses-the-extent-scan-at-1e-12` and `hone/subdivision-width-row-has-no-row-that-fails-without-it`.
   - The M-tier count toward the next full readout is 9.
 - 2026-10-11 05:07 — Check-in: nothing ready. The r4614 pair is alive (the restart at about 04:05 came before its dispatch; reports updated 04:30 and 04:58). The apex-reach P1 lane has pushed rows and is running per-crate nextest; no PR yet.
+- 2026-10-11 06:09 — Check-in.
+  - **U-T1 (4614): R2 (r4614b) is in.** NOT-MERGEABLE-AS-IS, MAJOR (executed): on a one-face torus, `wrap_site_segments`' shared-locus check (`join.rs:751`) turns main's typed refusal into `JoinDesync` for every meridian, concentric and spiric half-space pose, at all ε. Report saved at `scratchpad/dr4614/R2.md`.
+  - R1 (r4614a) is still running. When it is in, code the pair. If R1 raised no MAJOR, this is an M-tier miss, the second after DR-144, which makes a FULL readout due under rule 9.
+  - **The apex-reach P1 is up as PR 4646** (+1639/−257, 26 files). Hosted `test` is still running and the lane is waiting on it. I'll freeze and send the single review next check-in.
