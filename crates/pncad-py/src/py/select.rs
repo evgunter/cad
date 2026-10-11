@@ -732,16 +732,13 @@ impl GeomPred {
 /// catching a `SelectRefusal` gets `None`, never an `AttributeError`,
 /// whichever door refused. A door whose arm carries a payload
 /// overwrites its own entries through [`fill`], by NAME; the
-/// contact-class crossing in `crate::py::flush` carries none and takes
+/// contact-class crossing in `crate::py::contact` carries none and takes
 /// the list as it stands.
 pub(crate) fn refusal_fields(py: Python<'_>, reason: &str) -> Vec<(&'static str, Py<PyAny>)> {
     let none = || py.None().into_any();
     vec![
         ("reason", PyString::new(py, reason).unbind().into_any()),
         ("name", none()),
-        ("other", none()),
-        ("at", none()),
-        ("other_at", none()),
         ("predicate", none()),
         ("matched", none()),
         ("candidates", none()),
@@ -873,46 +870,9 @@ pub(crate) fn select_refusal(
                 standing.spoken(doc)
             )
         }
-        R::NodeHasNoValue(standing) => {
-            format!(
-                "a node the flush query reads has no value: {}",
-                standing.spoken(doc)
-            )
-        }
-        // The node is spoken in the message, as `node_has_no_value`'s
-        // standing is.
-        R::NodeHasNoOutput { .. } => err.spoken(doc, evaluation),
         R::NotALength { dim } => {
             fill(&mut fields, "dim", text(dimension_tag(*dim)));
             "the comparand of a distance must be a length".to_string()
-        }
-        R::PairInBand {
-            pair,
-            at,
-            predicate,
-            ..
-        } => {
-            let a = match crate::py::doc::name_text(py, &pair.0) {
-                Ok(t) => t,
-                Err(failed) => return failed,
-            };
-            let b = match crate::py::doc::name_text(py, &pair.1) {
-                Ok(t) => t,
-                Err(failed) => return failed,
-            };
-            // Two copies of one body hold names alike: the node holding
-            // each face tells them apart.
-            for (attribute, node) in [("at", at.0), ("other_at", at.1)] {
-                let node = match NodeId(node).into_pyobject(py) {
-                    Ok(bound) => bound.unbind().into_any(),
-                    Err(failed) => return failed,
-                };
-                fill(&mut fields, attribute, node);
-            }
-            fill(&mut fields, "name", text(&a));
-            fill(&mut fields, "other", text(&b));
-            fill(&mut fields, "predicate", text(predicate));
-            err.spoken(doc, evaluation)
         }
         R::BadValue(inner) => format!("the stated value did not evaluate: {inner}"),
         R::Band(error) => format!(

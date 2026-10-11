@@ -30,7 +30,7 @@ use sweep::test_support::{
     rim_arcs_at, z_rim,
 };
 use sweep::{Extrusion, Revolution, extrude};
-use topo::boolean::{BooleanDeclarations, BooleanOp, SweepStrategy, boolean_op_with};
+use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, EdgeKey, FaceKey, mass_properties, validate_geometric};
 
 fn tol() -> Tol {
@@ -344,7 +344,7 @@ fn r1_diag_cylinder_pierces() {
             BooleanOp::Subtract,
             &finished(name, a.clone(), tol()),
             &finished(name, ball, tol()),
-            &BooleanDeclarations::none(),
+            &topo::BooleanInputs::default(),
             SweepStrategy::Realized,
             tol(),
         );

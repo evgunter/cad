@@ -796,8 +796,6 @@ mod mate2_r1_probes;
 mod mate2_r2_probes;
 #[path = "mate7a_r1_probes.rs"]
 mod mate7a_r1_probes;
-#[path = "mate7a_r2_probes.rs"]
-mod mate7a_r2_probes;
 #[path = "mate7a_torus_rest.rs"]
 mod mate7a_torus_rest;
 #[path = "near_tangent_pierce_poses.rs"]
@@ -831,6 +829,9 @@ mod r1_probes_m9_3;
 
 #[path = "curved_mergedoor.rs"]
 mod curved_mergedoor;
+
+#[path = "curved_notch_pinch.rs"]
+mod curved_notch_pinch;
 
 #[path = "verbs_gate_r1_probes.rs"]
 mod verbs_gate_r1_probes;

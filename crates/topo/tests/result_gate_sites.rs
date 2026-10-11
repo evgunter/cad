@@ -38,9 +38,15 @@ fn every_result_kind_carries_tier_3s_verdict() {
     let overlap = brick((1.0, 3.0), (1.0, 3.0), (1.0, 3.0));
     let near = brick(unit, unit, unit);
     let far = brick((5.0, 6.0), unit, unit);
-    let none = topo::BooleanDeclarations::none();
     let run = |op, a: &AtRestBody<f64>, b: &AtRestBody<f64>| {
-        boolean_op_with(op, a, b, &none, topo::SweepStrategy::Realized, tol)
+        boolean_op_with(
+            op,
+            a,
+            b,
+            &topo::BooleanInputs::default(),
+            topo::SweepStrategy::Realized,
+            tol,
+        )
     };
     for (what, op, a, b, kind) in [
         (

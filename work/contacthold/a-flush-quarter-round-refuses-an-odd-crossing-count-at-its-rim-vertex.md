@@ -87,3 +87,8 @@ bottom's lump decides and the wall's touch is no reading of it. Before
 this, the split went to `wedge_is_reflex`, which refuses a half-turn at
 a decided zero, the capsule's `bool_wedge_reflex`
 (`the-capsule-rod-ending-on-the-joint-parts-by-member-order`).
+
+The same-side tangent pairs the short-circuit still serves refuse at
+every op where they only touch along the line. Whether to remove the
+short-circuit waits on what a tangent touch's union should produce:
+`a-same-side-tangent-touch-refuses-at-every-op`.

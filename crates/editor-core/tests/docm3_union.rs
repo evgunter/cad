@@ -59,7 +59,7 @@ fn three_boxes(order: [usize; 3]) -> (ProfileDoc, [RecipeNodeId; 3], RecipeNodeI
     let (doc, b) = cube(doc, 2.0);
     let (doc, c) = cube(doc, 4.0);
     let boxes = [a, b, c];
-    let (doc, u) = crate::fixture::union_over(doc, &order.map(|i| boxes[i]), Vec::new());
+    let (doc, u) = crate::fixture::union_over(doc, &order.map(|i| boxes[i]));
     (doc, boxes, u)
 }
 
@@ -148,14 +148,12 @@ fn the_fold_and_the_pairwise_chain_are_the_same_body() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![boxes[0].into(), boxes[1].into()]),
-            declare: Vec::new(),
         },
     );
     let (doc, abc) = insert(
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![ab.into(), boxes[2].into()]),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -235,14 +233,12 @@ fn a_repeated_input_glues_at_the_insert_door() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![x.into(), x.into()]),
-            declare: Vec::new(),
         },
     );
     let (doc, meet) = insert(
         doc,
         Node::Intersect {
             members: editor_core::Bodies::Spelled(vec![x.into(), x.into()]),
-            declare: Vec::new(),
         },
     );
     let (doc, cut) = insert(
@@ -250,7 +246,6 @@ fn a_repeated_input_glues_at_the_insert_door() {
         Node::Subtract {
             from: x.into(),
             tool: x.into(),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -379,7 +374,6 @@ fn set_members_refuses_a_node_with_no_list_input() {
         Node::Subtract {
             from: boxes[0].into(),
             tool: boxes[1].into(),
-            declare: Vec::new(),
         },
     );
     let err = doc
@@ -428,7 +422,6 @@ fn set_members_refuses_a_cycle() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![u.into(), boxes[0].into()]),
-            declare: Vec::new(),
         },
     );
     let err = doc
@@ -617,7 +610,6 @@ fn two_placements_of_one_prototype_are_two_members() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![left.into(), right.into()]),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -880,7 +872,6 @@ fn the_dies_union_is_the_chain_it_replaced() {
                 doc,
                 Node::Union {
                     members: editor_core::Bodies::Spelled(vec![acc.into(), (*pip).into()]),
-                    declare: Vec::new(),
                 },
             )
         },
@@ -1044,10 +1035,8 @@ fn failure(ev: &Evaluation<f64>, id: RecipeNodeId) -> Option<String> {
 /// 1 does not cover, so step 2 folds a coincident pair against the
 /// ACCUMULATED operand, whose table is the pair emitter's,
 /// `FromA`/`FromB`-headed. The margins decide that pair one carrier, so
-/// the step glues it undeclared exactly as the pair spelling `a ∪ d`
-/// does; the union's published table carries no fold row; and declaring
-/// every finding the detector reports between the members builds the
-/// same body bit for bit.
+/// the step glues it exactly as the pair spelling `a ∪ d` does, and the
+/// union's published table carries no fold row.
 #[test]
 fn a_later_fold_step_glues_a_flush_member_as_the_pair_does() {
     let doc = ProfileDoc::empty_derived("docm3_union_menu", Tol::witness());
@@ -1058,14 +1047,12 @@ fn a_later_fold_step_glues_a_flush_member_as_the_pair_does() {
         doc.clone(),
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into(), d.into()]),
-            declare: Vec::new(),
         },
     );
     let (bare, pair) = insert(
         bare,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), d.into()]),
-            declare: Vec::new(),
         },
     );
     let ev = run(&bare);
@@ -1075,16 +1062,6 @@ fn a_later_fold_step_glues_a_flush_member_as_the_pair_does() {
     assert!(
         !table.contains("FromA(") && !table.contains("FromB("),
         "the union publishes an uncollapsed fold row: {table}"
-    );
-    let pairs = crate::fixture::findings_declared(&ev, &bare, &[a, b, d]);
-    assert!(!pairs.is_empty(), "the flush members have findings");
-    let (declared, du) = crate::fixture::union_over(doc, &[a, b, d], pairs);
-    let dev = run(&declared);
-    assert_eq!(failure(&dev, du), None, "the declared union builds");
-    assert_eq!(
-        crate::fixture::built_bits(&dev, du),
-        crate::fixture::built_bits(&ev, u),
-        "the declared union is the undeclared one's body"
     );
 }
 

@@ -499,7 +499,6 @@ fn a_pick_on_a_fused_body_is_not_an_instance_pick() {
                 from: bench.post_b.into(),
                 tool: bench.post_a.into(),
             },
-            declare: Vec::new(),
         },
     );
     session.pump();
@@ -544,7 +543,6 @@ fn a_pick_on_a_union_of_instances_stands_on_the_member() {
                 bench.post_a.into(),
                 bench.post_b.into(),
             ]),
-            declare: Vec::new(),
         },
         tol,
     );

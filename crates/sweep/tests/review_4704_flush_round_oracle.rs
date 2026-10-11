@@ -16,7 +16,7 @@ use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::finished;
 use sweep::{ExtrudeSide, Extrusion, extrude};
-use topo::{AtRestBody, BooleanDeclarations, BooleanResult, SolidContainment, mass_properties};
+use topo::{AtRestBody, BooleanResult, SolidContainment, mass_properties};
 
 /// The profile is laid in `(u, v) ↦ (x = v, z = u)` before the turn: the
 /// plane's `u` axis is `R ẑ`, its `v` axis `R x̂`, `R` the turn by `beta`
@@ -240,28 +240,23 @@ fn pose(slab: Slab, beta: f64, mirror: bool, meet: f64) -> Vec<String> {
     let vol = |b: &AtRestBody<f64>| mass_properties(b, Tol::witness()).unwrap().volume;
     let (vs, vr) = (vol(&s), vol(&r));
     let pts = samples(slab, beta, mirror);
-    let d = BooleanDeclarations::none();
     [
         (
             Op::Union,
-            topo::union_with(&s, &r, &d, Tol::witness()),
+            topo::union(&s, &r, Tol::witness()),
             vs + vr - meet,
         ),
         (
             Op::SlabMinus,
-            topo::subtract_with(&s, &r, &d, Tol::witness()),
+            topo::subtract(&s, &r, Tol::witness()),
             vs - meet,
         ),
         (
             Op::RoundMinus,
-            topo::subtract_with(&r, &s, &d, Tol::witness()),
+            topo::subtract(&r, &s, Tol::witness()),
             vr - meet,
         ),
-        (
-            Op::Meet,
-            topo::intersect_with(&s, &r, &d, Tol::witness()),
-            meet,
-        ),
+        (Op::Meet, topo::intersect(&s, &r, Tol::witness()), meet),
     ]
     .into_iter()
     .map(|(op, got, want)| format!("{op:?}: {}", judge(op, &got, want, &pts)))

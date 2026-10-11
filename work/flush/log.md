@@ -158,3 +158,66 @@ the new census. The track's load is 31/32, back under budget.
 - **Still held on F (PR 4641):** the pinch cluster, the wedge residue
   and the E tail. Corner-ruling PR 4650 is merging 4598's conflict.
 — (FLUSH orchestrator)
+
+## 2026-10-11 — the thin-hollow fork goes to Ev; PR 4650 gets its dual review
+
+- **The thin-hollow fork** (DESIGN-FORK-LOG row 113) went three rounds:
+  - round 2 crossed, so a third round ran;
+  - round 3 converged on judging a result's thinness by its pairs alone.
+
+  That changes D10's Booleans clause, so it waits on Ev in `[ev]` PR
+  4690. The two follow-up rows went in through PR 4689:
+  - CLEAVE's missed-ray side, P1;
+  - FLUSH's check-10 cavity role, P2 with `design: true`.
+- **Corner ruling (PR 4650).**
+  - **Tier:** dual review. The fix resolves a split face's record by
+    containment among the face's own pieces, which touches D10's
+    record naming, and a subtract shipped silently on main.
+  - **Arm:** M, drawn at dispatch; urandom byte 48, mod 3 = 0 gives
+    HOLDOUT, a concurrent pair.
+  - **Frozen head:** `5b6b4a0c`.
+  - **Reviews:** both say APPROVE-WITH-FIXES with no MAJOR.
+  - **Fix pass (with the lane):** taken from the adjudicated union.
+    - The unread-piece fallback refuses typed instead of silently
+      keeping or dropping a record.
+    - The containment ask gets one home and lineage gets one walker.
+    - The arms get rows that can go red.
+    - The battery count is corrected to 16380.
+    - FUSE's row is rewritten around the real blind spot (`cell_rows`
+      chasing a face by its key).
+    - The sphere cut-in blind spot is filed.
+- **Class finding** (adjudication, both reviewers): this fix, which
+  closes a lineage defect, minted a second lineage walker and a third
+  copy of the containment ask. That is the style-lane trap again, and
+  the fix pass removes both.
+— (FLUSH orchestrator)
+
+## 2026-10-11 — F merged: wave 3 (the wedge residue, the E tail); the pinch cluster waits for 4650
+
+- **INTENT F (PR 4641) merged.**
+  - It closed `the-reflex-probes-run-b-minus-a-…` itself.
+  - The declared surface is gone, so the common brief now says so.
+- **Curved pinch (PR 4698).**
+  - **Tier:** the orchestrator's read. The PR is a pin suite, an ignored
+    battery and tracker evidence, with no kernel code.
+  - **Finding:** the bodies are right. What fails is three lanes
+    outside the boolean, each already a row there, now with replay
+    evidence:
+    - RESTREAD's at-infinity probe, 1 023 lines;
+    - RESTREAD's cross-solid census, 542 lines;
+    - TESS's thin arc face, 37 lines.
+
+    A JoinDesync residue is filed as a FLUSH P2.
+  - **Before merging:** the lane merges F and re-runs CI.
+- **Dispatched:**
+  - `flush/wedge-flush-reads-zero`. The undeclared carrier reading reads
+    over a span-lever ball rather than the faces. The lane stops before
+    building if the answer is a design fork. It reads INTENT's in-band
+    glue-verdict row, which may be the same cause.
+  - `flush/e-tail`: the six E rows in one lane, which may close any row
+    already moot.
+- **Held:** the pinch cluster (the pre-zip weld, H; seams; hole weld).
+  PR 4650 changes how records reach the pierce copies through the weld
+  rows, which is the ground the pre-zip weld row stands on, so it is
+  measured after 4650 merges.
+— (FLUSH orchestrator)

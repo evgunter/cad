@@ -8,17 +8,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::an_arc_tangent_at_a_boolean_vertex::{
-    LEVELS, cyl_face, declarations, plane_face, quarter_round, slab, slab_between,
-};
+use crate::an_arc_tangent_at_a_boolean_vertex::{quarter_round, slab, slab_between};
 use geom_core::{Affine3, Point2, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::finished;
 use sweep::{ExtrudeSide, Extrusion, extrude};
-use topo::{
-    AtRestBody, BooleanDeclarations, BooleanResult, ContactClass, FacePairDeclaration,
-    mass_properties,
-};
+use topo::{AtRestBody, BooleanResult, mass_properties};
 
 /// The quarter round turned by `theta` about its rim line `x = 2, z = 1`
 /// (along `y`): `theta > 0` lifts its bottom off `z = 1` (the wall then
@@ -86,7 +81,7 @@ fn outcome(r: &Result<BooleanResult<f64>, topo::BooleanError>) -> Result<Option<
 }
 
 /// **The flush and corner postures against an independent oracle**:
-/// volume, surface area and solid count of every op, at every level.
+/// volume, surface area and solid count of every op.
 /// Union: `vs + vr`, area `As + Ar − 2·6` (the 1.5 × 4 resting contact
 /// counted on both sides), one solid. Differences: the operand's volume,
 /// area and one solid. Meet: `Empty`.
@@ -100,51 +95,46 @@ fn flush_and_corner_against_area_and_solid_count() {
         ("corner", slab(2.0, 0.0, 4.0)),
     ] {
         let sv = read(&s);
-        for (decl, level) in LEVELS {
-            let fwd = declarations(&s, &round, level, true);
-            let rev = declarations(&s, &round, level, false);
-            let cases = [
-                (
-                    "slab ∪ round",
-                    topo::union_with(&s, &round, &fwd, Tol::witness()),
-                    sv.volume + r.volume,
-                    sv.area + r.area - 2.0 * contact,
-                ),
-                (
-                    "slab ∖ round",
-                    topo::subtract_with(&s, &round, &fwd, Tol::witness()),
-                    sv.volume,
-                    sv.area,
-                ),
-                (
-                    "round ∖ slab",
-                    topo::subtract_with(&round, &s, &rev, Tol::witness()),
-                    r.volume,
-                    r.area,
-                ),
-            ];
-            for (op, res, vol, area) in cases {
-                let tag = format!("{posture} / {decl} / {op}");
-                let g = outcome(&res)
-                    .unwrap_or_else(|e| panic!("{tag}: {e}"))
-                    .unwrap_or_else(|| panic!("{tag}: Empty"));
-                eprintln!("R1-ORACLE {tag}: {g:?} want vol {vol} area {area}");
-                assert!(
-                    (g.volume - vol).abs() <= 1e-9 * vol,
-                    "{tag}: volume {g:?} vs {vol}"
-                );
-                assert!(
-                    (g.area - area).abs() <= 1e-9 * area,
-                    "{tag}: area {g:?} vs {area}"
-                );
-                assert_eq!(g.solids, 1, "{tag}: one solid: {g:?}");
-            }
-            let meet = topo::intersect_with(&s, &round, &fwd, Tol::witness());
+        let cases = [
+            (
+                "slab ∪ round",
+                topo::union(&s, &round, Tol::witness()),
+                sv.volume + r.volume,
+                sv.area + r.area - 2.0 * contact,
+            ),
+            (
+                "slab ∖ round",
+                topo::subtract(&s, &round, Tol::witness()),
+                sv.volume,
+                sv.area,
+            ),
+            (
+                "round ∖ slab",
+                topo::subtract(&round, &s, Tol::witness()),
+                r.volume,
+                r.area,
+            ),
+        ];
+        for (op, res, vol, area) in cases {
+            let tag = format!("{posture} / {op}");
+            let g = outcome(&res)
+                .unwrap_or_else(|e| panic!("{tag}: {e}"))
+                .unwrap_or_else(|| panic!("{tag}: Empty"));
             assert!(
-                matches!(meet, Ok(BooleanResult::Empty)),
-                "{posture} / {decl}: meet {meet:?}"
+                (g.volume - vol).abs() <= 1e-9 * vol,
+                "{tag}: volume {g:?} vs {vol}"
             );
+            assert!(
+                (g.area - area).abs() <= 1e-9 * area,
+                "{tag}: area {g:?} vs {area}"
+            );
+            assert_eq!(g.solids, 1, "{tag}: one solid: {g:?}");
         }
+        let meet = topo::intersect(&s, &round, Tol::witness());
+        assert!(
+            matches!(meet, Ok(BooleanResult::Empty)),
+            "{posture}: meet {meet:?}"
+        );
     }
 }
 
@@ -156,7 +146,6 @@ fn flush_and_corner_against_area_and_solid_count() {
 #[test]
 #[ignore = "review probe: prints; run with --ignored --nocapture"]
 fn r1_turned_about_the_rim() {
-    let none = BooleanDeclarations::none();
     let eps = Tol::witness().eps();
     for phi in [
         1e-15, 1e-12, 1e-10, 1e-9, 3e-9, 1e-8, 1e-7, 1e-5, 1e-3, 1e-1,
@@ -174,22 +163,22 @@ fn r1_turned_about_the_rim() {
                 for (op, res, want) in [
                     (
                         "∪",
-                        topo::union_with(&s, &round, &none, Tol::witness()),
+                        topo::union(&s, &round, Tol::witness()),
                         Some(sv.volume + r.volume - ov),
                     ),
                     (
                         "s∖r",
-                        topo::subtract_with(&s, &round, &none, Tol::witness()),
+                        topo::subtract(&s, &round, Tol::witness()),
                         Some(sv.volume - ov),
                     ),
                     (
                         "r∖s",
-                        topo::subtract_with(&round, &s, &none, Tol::witness()),
+                        topo::subtract(&round, &s, Tol::witness()),
                         Some(r.volume - ov),
                     ),
                     (
                         "∩",
-                        topo::intersect_with(&s, &round, &none, Tol::witness()),
+                        topo::intersect(&s, &round, Tol::witness()),
                         if ov > 0.0 { Some(ov) } else { None },
                     ),
                 ] {
@@ -222,7 +211,6 @@ fn r1_turned_about_the_rim() {
 /// on the same side (`+x`) and touch only along it, and the round's
 /// bottom overhangs. Slab ∖ round and round ∖ slab are the operands,
 /// the meet is `Empty`; the union is the two touching along a line.
-/// Undeclared and with the wall declared `Tangent` to the top.
 #[test]
 #[ignore = "review probe: prints; run with --ignored --nocapture"]
 fn r1_same_side_beyond_the_rim() {
@@ -233,45 +221,28 @@ fn r1_same_side_beyond_the_rim() {
         ("beyond-corner", slab_between(2.0, 5.0, 0.0, 4.0)),
     ] {
         let sv = read(&s);
-        for (decl, tangent) in [("undeclared", false), ("Tangent", true)] {
-            let mk = |slab_first: bool| {
-                let mut d = BooleanDeclarations::none();
-                if tangent {
-                    let (fs, fr) = (plane_face(&s, 1.0, true), cyl_face(&round));
-                    let (a, b) = if slab_first { (fs, fr) } else { (fr, fs) };
-                    d.coincident_faces
-                        .push(FacePairDeclaration::new(a, b, ContactClass::Tangent));
-                }
-                d
-            };
-            let (fwd, rev) = (mk(true), mk(false));
-            for (op, res, want) in [
-                (
-                    "∪",
-                    topo::union_with(&s, &round, &fwd, Tol::witness()),
-                    Some(sv.volume + r.volume),
-                ),
-                (
-                    "s∖r",
-                    topo::subtract_with(&s, &round, &fwd, Tol::witness()),
-                    Some(sv.volume),
-                ),
-                (
-                    "r∖s",
-                    topo::subtract_with(&round, &s, &rev, Tol::witness()),
-                    Some(r.volume),
-                ),
-                (
-                    "∩",
-                    topo::intersect_with(&s, &round, &fwd, Tol::witness()),
-                    None,
-                ),
-            ] {
-                eprintln!(
-                    "R1-SAME {posture} / {decl} / {op}: want {want:?}; got {:?}",
-                    outcome(&res)
-                );
-            }
+        for (op, res, want) in [
+            (
+                "∪",
+                topo::union(&s, &round, Tol::witness()),
+                Some(sv.volume + r.volume),
+            ),
+            (
+                "s∖r",
+                topo::subtract(&s, &round, Tol::witness()),
+                Some(sv.volume),
+            ),
+            (
+                "r∖s",
+                topo::subtract(&round, &s, Tol::witness()),
+                Some(r.volume),
+            ),
+            ("∩", topo::intersect(&s, &round, Tol::witness()), None),
+        ] {
+            eprintln!(
+                "R1-SAME {posture} / {op}: want {want:?}; got {:?}",
+                outcome(&res)
+            );
         }
     }
 }

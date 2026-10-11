@@ -2,9 +2,9 @@
 id: union-refuses-in-some-member-orders-and-publishes-in-others
 kind: issue
 title: A union refuses in some member orders and publishes in others, over PR 3112's review corpus and the #3168 review fixtures
-status: parked
+status: closed
+closed: 2026-10-11
 opened: 2026-09-24
-blocked_on: [intent-stage4-is-built]
 priority: P1
 cost: H
 refs: [a-declaration-on-a-face-one-fold-step-cut-and-partly-merged-cannot-be-routed-by-names, a-legal-declared-union-reaches-the-seam-vertex-parentage-residue-emission]
@@ -285,3 +285,7 @@ today:
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: the class left is DeclareResolve/ConsumedByFold on routed declarations (wire.rs look_through_fold), removed when stage 4 retires declared pairs. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Closed (2026-10-11, stage 4 F)
+
+Measured at F's head over `emit_shared_rim_several::probe_corpus` (34 unions), every order: the `DeclareResolve` class is gone with the declarations, and every union but `row`, `rowids` and `cross` decides alike in all its member orders, its rows, names, topology and volume equal (`union_member_orders_decide_alike::every_union_of_the_emit_corpus_decides_alike_in_every_member_order`). Those three reach the emitter residues their own rows own (`a-legal-declared-union-reaches-the-seam-vertex-parentage-residue-emission`, `a-held-edge-wholly-inside-a-dropped-face-is-recorded-nowhere`), in more orders now that `DeclareResolve` no longer hides them: row and rowids 2 → 8 orders, cross 4 → 10, pinned in `emit_shared_rim_several`'s `RESIDUES`. This is the fan-out experiment's measurement, made on the built fold: the fold reads the pass's verdicts through lineage, as the experiment fed them.
