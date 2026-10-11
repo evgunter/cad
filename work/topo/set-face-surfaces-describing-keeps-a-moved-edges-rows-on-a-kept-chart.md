@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-06
 priority: P3
 refs: [set-edge-curve-keeps-a-certified-edges-rows-across-a-reparameterization]
+cost: M
 ---
 
 

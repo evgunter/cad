@@ -392,9 +392,9 @@ fn a_coaxial_circle_is_on_the_wall_or_a_miss_off_it() {
 
 /// **The first-harmonic arm escalates a tangency** — a circle square to the
 /// axis touching the wall from outside puts an extreme in the zero
-/// band, and that is not a crossing at any order this lane sees. (The
-/// ladder carries no such guarantee: it can read a tangency as a
-/// miss, `work/germ/the-half-angle-ladder-certifies-in-band-configurations.md`.)
+/// band, and that is not a crossing at any order this lane sees. A tilted
+/// tangency is the subdivision's
+/// (`in_band_sweep::an_exact_tangency_is_escalated_at_every_tilt`).
 #[test]
 fn a_tangent_circle_square_to_the_axis_is_uncertain() {
     assert!(matches!(

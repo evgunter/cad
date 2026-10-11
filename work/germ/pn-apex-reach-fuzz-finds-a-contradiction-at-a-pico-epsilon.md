@@ -33,3 +33,18 @@ is −11.3 ε and whose gap is −0.47 ε: a pose by the band edge, at
 Pin the seed as a deterministic row beside the fix (implementer
 discipline §8), and decide which side is wrong: the lane's reach or the
 oracle's.
+
+## Second seed (CLEAVE orchestrator, 2026-10-11)
+
+Red again on hosted CI for PR 4565 (`cleave/apex-section-corners`, head `c756c24`, run
+38099971804), whose diff touches no `geom-brep` code:
+
+```
+1 contradictions (reproduce with CAD_FUZZ_SEED=0x5a26154859e91c73 CAD_FUZZ_EFFORT=1),
+first: conic 2.884e-16 off the plane, 2.845e-16 off the cone, reaching 6.768e-2:
+ε 1.372e-12, α 0.4783, extent 16.74, D·extent −9.33·ε, gap −0.169·ε, oracle reach Some(0.0856)
+```
+
+The lane's reach (0.0677) falls short of the oracle's (0.0856) by about 21% at a pose by the band
+edge. That is the same shape as the first seed. The fuzzer reds unrelated PRs at random, so this
+is a live red on the default suite.
