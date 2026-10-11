@@ -5331,11 +5331,10 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                     band,
                 )?;
                 let thetas = match roots {
-                    super::circle_roots::CircleRoots::Miss => continue,
-                    super::circle_roots::CircleRoots::Certified { count, thetas } => {
-                        thetas[..count].to_vec()
-                    }
-                    _ => {
+                    super::circle_roots::FirstHarmonicRoots::Miss => continue,
+                    super::circle_roots::FirstHarmonicRoots::Certified(thetas) => thetas.to_vec(),
+                    super::circle_roots::FirstHarmonicRoots::OnSurface
+                    | super::circle_roots::FirstHarmonicRoots::Uncertain => {
                         return Err(refuse(
                             "a boundary arc of the sphere face meets the cut's meridian plane \
                              where its roots are not certified",

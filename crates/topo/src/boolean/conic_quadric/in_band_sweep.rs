@@ -399,8 +399,7 @@ fn a_circle_grazing_a_torus_is_answered_truly_or_not_at_all() {
             let (m, h) = (rng.range(-PI, PI), rng.range(0.01, PI));
             let got = circle_torus_roots(&c, m - h, m + h, &torus, band);
             let true_answer = match &got {
-                Ok(CircleRoots::Uncertain | CircleRoots::CountDisagrees | CircleRoots::AtApex)
-                | Err(_) => continue,
+                Ok(CircleRoots::Uncertain | CircleRoots::AtApex) | Err(_) => continue,
                 Ok(CircleRoots::Miss) => truth.roots.is_empty(),
                 Ok(CircleRoots::Certified { count, .. }) => *count == truth.roots.len(),
                 Ok(CircleRoots::OnSurface) => false,

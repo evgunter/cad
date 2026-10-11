@@ -555,7 +555,7 @@ def audit_gap_ids():
 #:   and `transform_rigid` arrive as `Node.*`, and the three Boolean
 #:   verbs plus their `_with` siblings arrive as `Node.union`,
 #:   `Node.intersect` and `Node.subtract`.
-#: - **A type became the door that reads it.** `DatumValue` is what
+#: - **A type became the door that reads it.** `PoseValue` is what
 #:   `Value.datum` answers, and `geom_core::UnitVec3` — the witness
 #:   that makes a datum's normal unit, so that an unnormalized one has
 #:   no spelling in Rust either; not a curated façade name, since it
@@ -588,6 +588,9 @@ def audit_gap_ids():
 #:   next one.)
 BOUND_AS = {
     "CM": "cm",
+    # The pose module's authoring door: a pose defined at the seat that
+    # reads it, as Python's `PoseDef` constructors write it (D10).
+    "pose": "PoseDef",
     # An interference finding's copies and site, flattened: a copy is
     # its placement's variable beside its member index, and the overlap
     # is the bounding faces or, where the kernel could not bound it, the
@@ -643,7 +646,7 @@ BOUND_AS = {
     "FreshFault": "EvalError.variant",
     "DEG": "deg",
     "AssertionVerdict": "Verdict",
-    "DatumValue": "Value.datum",
+    "PoseValue": "Value.datum",
     "DocumentId": "Doc.id",
     "IN": "inch",
     "M": "m",
@@ -3708,6 +3711,7 @@ MEMBERS_BOUND_AS = {
     "EditError::UnresolvedInput": "EditError.variant",
     "EditError::WouldCycle": "EditError.variant",
     "EditError::SelectionShape": "EditError.variant",
+    "EditError::PoseShape": "EditError.variant",
     "EditError::IndexedRead": "EditError.variant",
     "EditError::SetMembersOnNonList": "EditError.variant",
     "EditError::LoftSectionsSpelled": "EditError.variant",
@@ -4023,6 +4027,10 @@ MEMBERS_BOUND_AS = {
     "Subgroup::Cylindrical": "Subgroup.variant",
     "Subgroup::Prismatic": "Subgroup.variant",
     "Subgroup::Revolute": "Subgroup.variant",
+    "Subgroup::Spherical": "Subgroup.variant",
+    "Subgroup::Parallel": "Subgroup.variant",
+    "Subgroup::Translation": "Subgroup.variant",
+    "Subgroup::PlaneTranslation": "Subgroup.variant",
     "Subgroup::Trivial": "Subgroup.variant",
     "Subgroup::Empty": "Subgroup.variant",
     "TessellateError::InvalidChordalTolerance": "TessellateError.variant",
@@ -4181,7 +4189,6 @@ MEMBERS_BOUND_AS = {
     # and each reads back through `Value.datum()`.
     "Datum::Plane": "Node.datum_plane",
     "Datum::Axis": "Node.datum_axis",
-    "Datum::AxisInPlane": "Node.datum_axis_in_plane",
     "Datum::FaceFrame": "Node.datum_face_frame",
     "Datum::Point": "Node.datum_point",
     "Datum::Frame": "Node.datum_frame",
