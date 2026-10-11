@@ -638,7 +638,7 @@ the declarations its own producer minted for it, so
 choice above is already made. An `assemble`d at-rest body arrives
 with its mates' records and passes over its seats; `product`, which
 gathers the same solids and carries no records, reports every seat
-as a contact no record backs.
+as an unrecorded contact.
 
 ```
 use pncad::prelude::*;
