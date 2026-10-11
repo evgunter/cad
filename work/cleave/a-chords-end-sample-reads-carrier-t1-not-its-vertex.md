@@ -2,10 +2,11 @@
 id: a-chords-end-sample-reads-carrier-t1-not-its-vertex
 kind: issue
 title: Certification reads an edge's end sample at carrier(t1), one rounding off its vertex, so at the band's edge its verdict depends on the edge's orientation
-status: open
+status: dispatched
 opened: 2026-10-11
 priority: P2
 cost: M
+branch: cleave/chord-end-sample
 ---
 
 

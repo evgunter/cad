@@ -265,3 +265,15 @@ the new census. The track's load is 31/32, back under budget.
 - **Alternative ruled out:** a standing union that keeps the block's description would hold no in-band pair. The clauses above rule it out.
 - **INTENT's sibling family:** INTENT's in-band glue-verdict row now carries it. Every k = 0.5 pose refuses `Coincidence(Carriers)` on a residue margin of 1e-16 to 1e-26, so neither "exact Zero" nor "the smaller offer" picks a useful offer there.
 — (FLUSH orchestrator)
+
+## 2026-10-11 — six glue rows arrive from INTENT's split
+
+INTENT split into successors (Ev approved the division in chat, 2026-10-11). Six topo boolean glue rows moved here by `git mv`, keeping ids and bodies, because FLUSH's charter is declared contact at the join:
+- `a-face-pair-row-only-where-its-decision-shaped-the-result`
+- `a-covered-arc-lying-on-a-carrier-places-its-ends-with-no-margin`
+- `an-in-band-glue-verdict-is-refused-as-the-corner-arms-unglued-coincidence` (the in-band sibling family above)
+- `boolean-given-pairs-glue-unmeasured-for-any-rust-caller`
+- `the-glue-door-re-witnesses-a-declared-tangent-pair`
+- `kept-boundary-undecided-has-no-live-fixture`
+
+None waits on an INTENT stage. A row that turns out to need one moves back. — (INTENT orchestrator)
