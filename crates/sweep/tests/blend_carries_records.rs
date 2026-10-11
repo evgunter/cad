@@ -101,3 +101,54 @@ fn a_blend_away_from_the_kiss_carries_it() {
         "chamfer: withheld, the kiss is undeclared: {withheld:?}"
     );
 }
+
+/// **A record on the edge a blend consumes is refused, typed, never
+/// dropped or kept on the dead key** (review of PR 4694). The record is
+/// bookkeeping (no touch: the far cube's top face), so only the carry's
+/// lineage is read. Red if the carry drops the record, or keeps it on
+/// the excised edge.
+#[test]
+fn a_record_on_the_blended_edge_is_refused() {
+    let base = kiss();
+    let edge = edge_between(
+        &base.body,
+        Point3::new(0.0, 0.0, 0.0),
+        Point3::new(1.0, 0.0, 0.0),
+    );
+    let far = base
+        .body
+        .faces()
+        .find(|(_, f)| {
+            matches!(
+                base.body.get_surface(f.surface),
+                Some(topo::Surface::Plane { origin, normal, .. })
+                    if normal.z.abs() == 1.0 && origin.z == 2.0
+            )
+        })
+        .map(|(k, _)| k)
+        .expect("the far cube's top");
+    let mut records = base.contacts.clone();
+    records.extend([topo::Cited::new(
+        topo::Contact::new(&base.body, topo::Cell::Edge(edge), topo::Cell::Face(far)).unwrap(),
+        topo::Cites::decided(7),
+    )]);
+    for (what, out) in [
+        (
+            "fillet",
+            fillet_edges(&base.body, &[edge], R, tol()).expect("the fillet builds"),
+        ),
+        (
+            "chamfer",
+            chamfer_edges(&base.body, &[edge], R, tol()).expect("the chamfer builds"),
+        ),
+    ] {
+        assert_eq!(
+            out.carry_contacts(&records),
+            Err(topo::CarryRefusal::Unmapped {
+                record: 1,
+                cell: topo::Cell::Edge(edge)
+            }),
+            "{what}: the consumed edge's record is refused"
+        );
+    }
+}
