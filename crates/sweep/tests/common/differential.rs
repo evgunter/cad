@@ -172,8 +172,9 @@ pub fn disc_clip_moments(r: f64, poly: &[(f64, f64)]) -> (f64, f64, f64) {
 /// **One pose's line**: the refusal, or the body's tiers 2 and 3′, the
 /// at-rest certificate, whether it is a legal operand (it unites with a
 /// far brick, `sweep::test_support::assert_legal_operand`'s question)
-/// and its volume against `want`. `SOUND` is all five; anything else
-/// that builds is `BAD`.
+/// and its volume against `want`, to 1e-7 beyond the volume's own
+/// certified pad. `SOUND` is all five; anything else that builds is
+/// `BAD`.
 pub fn outcome(r: Result<BooleanResult<f64>, BooleanError>, want: f64, tol: Tol) -> String {
     judged(r, Some(want), tol).0
 }
@@ -213,12 +214,12 @@ pub fn judged(
                     tol,
                 );
                 let operand = topo::union(&bb.body, &far, tol).is_ok();
-                match topo::mass_properties(&bb.body, tol).map(|m| m.volume) {
-                    Ok(v) => {
+                match topo::mass_properties(&bb.body, tol).map(|m| (m.volume, m.volume_pad)) {
+                    Ok((v, pad)) => {
                         let verdict = match want {
                             _ if !(t2 && t3 && cert && operand) => "BAD",
                             None => "UNJUDGED",
-                            Some(w) if (v - w).abs() < 1e-7 => "SOUND",
+                            Some(w) if (v - w).abs() < 1e-7 + pad => "SOUND",
                             Some(_) => "BAD",
                         };
                         (

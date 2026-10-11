@@ -1,6 +1,7 @@
 //! JOIN-1 review (lane r2): randomized z-prism pairs on a coarse grid
 //! (shared corners, collinear vertical edges). Every body that builds
-//! must hold the exact oracle `area(P ∩ Q) · z-overlap`.
+//! must be sound by the differential batteries' shared judge and hold
+//! the exact oracle `area(P ∩ Q) · z-overlap` to 1e-9.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -10,6 +11,8 @@ use sweep::ExtrudeSide;
 use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
 use topo::AtRestBody;
+
+use crate::common::differential::judged;
 
 fn tol() -> Tol {
     Tol::witness()
@@ -140,36 +143,17 @@ fn r2_random_zprism_pairs() {
             ("∩", topo::intersect(&bp, &bq, tol()), ov),
         ] {
             let what = format!("case {case} {op} P={p:?} z{zp:?} Q={q:?} z{zq:?}");
-            match r {
-                Err(e) => {
-                    let k: String = format!("{:?}", e.kind()).chars().take(70).collect();
-                    *refusals.entry(k).or_default() += 1;
-                }
-                Ok(r) => {
-                    let Some(bb) = r.body() else {
-                        built.push(format!("case {case} {op} empty"));
-                        if want.abs() > 1e-9 {
-                            wrong.push(format!("{what}: empty against {want}"));
-                        }
-                        continue;
-                    };
-                    built.push(format!("case {case} {op}"));
-                    let mut bad = Vec::new();
-                    if let Err(e) = topo::validate_closed(&bb.body) {
-                        bad.push(format!("tier 2 {e:?}"));
-                    }
-                    if let Err(e) = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()) {
-                        bad.push(format!("tier 3′ {e:?}"));
-                    }
-                    match topo::mass_properties(&bb.body, tol()) {
-                        Ok(m) if (m.volume - want).abs() <= 1e-9 => {}
-                        Ok(m) => bad.push(format!("volume {} against {want}", m.volume)),
-                        Err(e) => bad.push(format!("volume unmeasured {e:?}")),
-                    }
-                    if !bad.is_empty() {
-                        wrong.push(format!("{what}: {}", bad.join("; ")));
-                    }
-                }
+            if let Err(e) = &r {
+                let k: String = format!("{:?}", e.kind()).chars().take(70).collect();
+                *refusals.entry(k).or_default() += 1;
+                continue;
+            }
+            built.push(format!("case {case} {op}"));
+            // The shared judge, and the volume to the exact oracle's 1e-9.
+            let (line, v) = judged(r, Some(want), tol());
+            let exact = v.is_some_and(|v| (v - want).abs() <= 1e-9);
+            if !((line.starts_with("OK SOUND") || line == "EMPTY ok") && exact) {
+                wrong.push(format!("{what}: {line}"));
             }
         }
     }

@@ -2,10 +2,11 @@
 id: levered-sign-as-bool-has-no-shared-home
 kind: issue
 title: A levered sign read as a bool has no shared home across boolean/
-status: open
+status: review
 opened: 2026-10-03
 priority: P4
 cost: E
+branch: flush/e-tail
 ---
 
 
@@ -42,3 +43,30 @@ its place is the open question.
 
 Found by the PR 3962 review (S2). Its fix pass left the three sites as
 they are.
+
+## Fix (branch `flush/e-tail`)
+
+Measured on `main` at `121741a2b`: `decide_nonzero` now returns
+`geom_core::k_stats::NonzeroSign`, an enum with no `Zero`, so the
+shared home the row asked for already exists: the type. What each
+site still spelt out was the bool read, a two-arm `match` returning
+`true` and `false`. Each now reads
+`decide_nonzero(..).map_err(<its own refusal>)? == NonzeroSign::Positive`
+(or `Negative`), so the refusal stays the caller's and no helper is
+added. Five sites, one more than the row listed (`solid_contain.rs`'s
+`bool_wall_trim`):
+
+- `recl.rs` `wedge_is_reflex` (`bool_wedge_reflex`): fixed.
+- `recl.rs` `resolve_edge_edge`'s flank sense (`bool_dir_same`), whose
+  refusal reads the face kinds and the pair: fixed, the refusal built
+  in its `map_err`.
+- `sectors.rs` `direction_sense` (`bool_dir_same`): fixed.
+- `insert.rs` `strut_order` (`bool_strut_order`, `Negative` reads
+  true): fixed.
+- `solid_contain.rs` the wall-trim cover (`bool_wall_trim`, a definite
+  zero refused `NarrowWindowUnread`, anything else escalated): fixed.
+
+The rest of `NonzeroSign`'s matches map the sign to a domain value
+(`SideCode`, `MaterialWedge`, `ParallelSense`, `MaterialPairing`, a
+`±1`, a `Sign`, a slot index or a bucket) and are not a bool read.
+The sweep and its blind spot are in the PR body.

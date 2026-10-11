@@ -174,3 +174,20 @@ bore:
 - the union of the nested tubes `r ∈ [0.75, 1]` and `[0.25, 0.5]`,
   `z ∈ [0.5, 2.5]`, and its `∩` with the plate (both orders) and its
   `∖` the plate.
+
+## Boolean results meet it too (FLUSH, 2026-10-11)
+
+`crates/sweep/tests/join3_r2_probes.rs` `j3r2_pocket_battery` reads 14
+of its 10 800 runs BAD on tier 3′ alone (tiers 2 and the certificate
+pass, and the body unites with a far brick), on `main` at `121741a2b`
+and on `flush/e-tail` alike. All are at the offset `(0.75, 0.75)`,
+where the cutter reaches past the block's corner, and each result is
+two solids: block ∪ a `D-0.45` turned 4 rad, which the block does not
+meet (2 solids, 10 faces, the volume the block's 4 plus the cutter's,
+in all five entries, both orders), and block ∖ a `D0`, `D0.3` or
+`lens` cutter run through, which severs a corner (2 solids). Each
+fails `validate_pseudomanifold` with 5 to 7 `CensusUndecidable` ("a
+curved face of one is within reach of the other") between the cutter's
+or the corner's curved wall and the other solid's faces. The tags are
+`pocket D-0.45 phi=4.000 off=(0.75, 0.75) {top,bottom,through,flushtop,flushbot} U {AB,BA}`
+and `pocket {D0,D0.3,lens} phi={0.700,4.000} off=(0.75, 0.75) through S AB`.
