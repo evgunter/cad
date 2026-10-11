@@ -17,7 +17,9 @@ use geom_brep::{
     Rung3Limb, SurfaceKey, SurfacePair, chart_pcurve_over,
 };
 use geom_core::spline::KnotVector;
-use geom_core::{Band, FileCoincidence, Interval, KERNEL_LIMIT_RECOURSE, Point3, Real, Vec3};
+use geom_core::{
+    Band, FileCoincidence, Interval, KERNEL_OR_FILE_DEFECT_ENDING, Point3, Real, Vec3,
+};
 use slotmap::SlotMap;
 
 use crate::shared::tol::band;
@@ -108,14 +110,14 @@ fn certify<T: geom_core::Decide + geom_core::CertifiedBounds>(
     )
 }
 
-/// The import door's words on a certified bound on the miss that lies
-/// within the file's `eps_in`.
+/// The import door's words on a measured miss of a fitted carrier that
+/// lies within the file's `eps_in`.
 fn in_file_words(eps_in: f64) -> String {
     format!(
-        "The certificate's bound on this miss lies within the file's declared coincidence \
-         distance ε_in = {eps_in:e} m. Recourse: re-export the file more \
-         precisely, or, as a stopgap, set the tolerance to ε_in = {eps_in:e} m; this refusal \
-         may indicate a kernel bug worth reporting"
+        "This miss lies beyond the tolerance and within the file's declared coincidence \
+         distance ε_in = {eps_in:e} m, and may be the kernel's own approximation. Recourse: \
+         re-export the file more precisely, or, as a stopgap, set the tolerance to \
+         ε_in = {eps_in:e} m; this refusal may indicate a kernel bug worth reporting"
     )
 }
 
@@ -128,9 +130,10 @@ fn lift(c: &NurbsCurve3<f64>) -> NurbsCurve3<Interval> {
 /// every schedule sample, and leaves the plane by about `h/2` between
 /// them. The planar face stores no pcurve row, so no row's incidence
 /// term reads that distance: the edge certificate's limb 2 against the
-/// plane does, and refuses it with the measurement, at `f64` and at
-/// `Interval`, which the import door reads. The same carrier without its
-/// bulge certifies.
+/// plane does. Its halved parts put a break at the bulge's peak, where
+/// the carrier's certified distance from the plane is past the band, so
+/// it refuses on that measured miss, at `f64` and at `Interval`, which
+/// the import door reads. The same carrier without its bulge certifies.
 #[test]
 fn a_carrier_off_the_plane_between_samples_refuses_on_the_plane_limb() {
     let h = 2e-3;
@@ -144,24 +147,27 @@ fn a_carrier_off_the_plane_between_samples_refuses_on_the_plane_limb() {
     }
     let off = carrier.eval(1.0 / 32.0).z;
     assert!(off > 5e-4, "the bulge is real between samples: {off:e}");
+    // A lower bound on the distance at a break: at most the peak's, and
+    // close to it, since a break lands on the peak.
     let plane_limb = |e: &CertifyError| {
         matches!(
             e,
             CertifyError::AnalyticRung3(AnalyticRung3Refusal::Limb {
                 operand: geom::SurfaceKind::Plane,
-                limb: Rung3Limb::HullSup,
+                limb: Rung3Limb::HullValue,
                 margin,
                 ..
-            }) if upper(*margin) >= off
+            }) if upper(*margin) <= off && upper(*margin) >= 0.99 * off
         )
     };
     let at_f64 = certify(&carrier, plane(), cylinder_z(), true).map(|_| ());
     assert!(at_f64.as_ref().is_err_and(plane_limb), "f64: {at_f64:?}");
     let at_iv = certify(&lift(&carrier), plane(), cylinder_z(), true).map(|_| ());
     assert!(at_iv.as_ref().is_err_and(plane_limb), "Interval: {at_iv:?}");
-    // The limb refuses on a certified bound on the miss, not the miss:
-    // at rest that is the certificate's limit, and the import door names
-    // the bound where ε_in holds it and reads the limit where it does not.
+    // The limb refuses on the miss itself, measured: at rest a stored
+    // edge off its face is a contradiction, and the import door names
+    // the fit's approximation where ε_in holds the miss and the
+    // contradiction where it does not.
     for refused in [&at_f64, &at_iv] {
         let Err(e @ CertifyError::AnalyticRung3(AnalyticRung3Refusal::Limb { margin, .. })) =
             refused
@@ -171,7 +177,7 @@ fn a_carrier_off_the_plane_between_samples_refuses_on_the_plane_limb() {
         let value = upper(*margin);
         assert_eq!(
             e.ending(Reading::AtRest).as_deref(),
-            Some(KERNEL_LIMIT_RECOURSE),
+            Some(KERNEL_OR_FILE_DEFECT_ENDING),
             "{e:?}"
         );
         assert_eq!(
@@ -181,7 +187,7 @@ fn a_carrier_off_the_plane_between_samples_refuses_on_the_plane_limb() {
         );
         assert_eq!(
             e.ending(FileCoincidence::new(0.5 * value)).as_deref(),
-            Some(KERNEL_LIMIT_RECOURSE),
+            Some(KERNEL_OR_FILE_DEFECT_ENDING),
             "{e:?}"
         );
     }
@@ -358,8 +364,8 @@ fn certify_over(
 /// the plane over `[0, ½]` and bulged off it over `(½, 1]`: the edge
 /// over `[0, ½]` certifies (the net past its end is not the edge's — a
 /// split edge keeps its parent's carrier), and the edge over `[½, 1]`
-/// refuses on the plane limb. (Ported from PR 4304's confirming
-/// review.)
+/// refuses on the plane limb's measured miss. (Ported from PR 4304's
+/// confirming review.)
 #[test]
 fn an_edges_limbs_read_only_its_own_interval_of_the_carrier() {
     let bumped = bulged(16, 2e-3);
@@ -386,9 +392,9 @@ fn an_edges_limbs_read_only_its_own_interval_of_the_carrier() {
             past,
             Err(CertifyError::AnalyticRung3(AnalyticRung3Refusal::Limb {
                 operand: geom::SurfaceKind::Plane,
+                limb: Rung3Limb::HullValue,
                 margin,
-                ..
-            })) if upper(margin) >= off
+            })) if upper(margin) <= off && upper(margin) >= 0.99 * off
         ),
         "{past:?}"
     );
@@ -420,4 +426,71 @@ fn a_rational_carriers_tube_reads_its_whole_net() {
             "{stretch:?}: {got:?}"
         );
     }
+}
+
+/// The `x` axis as one degree-6 span, `x = t`, `y = 0`, its `z`
+/// controls zero at the ends and alternating `∓a` between, so that
+/// `z(t) = a·((1 − 2t)⁶ − (1 − t)⁶ − t⁶)`, whose largest magnitude is
+/// `0.27204…·a`: a net much wider than its curve.
+fn oscillating(a: f64) -> NurbsCurve3<f64> {
+    let ctl: Vec<_> = (0..=6)
+        .map(|i| {
+            let z = match i {
+                0 | 6 => 0.0,
+                i if i % 2 == 0 => a,
+                _ => -a,
+            };
+            Point3::new(f64::from(i) / 6.0, 0.0, z)
+        })
+        .collect();
+    let knots = [[0.0; 7], [1.0; 7]].concat();
+    NurbsCurve3::new(KnotVector::clamped(knots, 6).unwrap(), ctl, vec![1.0; 7]).unwrap()
+}
+
+/// **Limb 2 halves the parts it cannot clear.** The oscillating span's
+/// fixed parts bound its distance from `z = 0` about 1.3 % above its
+/// peak, so a peak 0.3 % inside the band is past the band on those
+/// parts, and the edge certifies only on the halved ones. A peak twenty
+/// times the band's zero refuses on the plane, on a break's measured
+/// distance.
+#[test]
+fn limb_two_halves_the_parts_whose_bound_does_not_clear() {
+    let zero = band().zero();
+    let side = Surface::Plane {
+        origin: Point3::origin(),
+        normal: Vec3::unit_y(),
+        u_ref: Vec3::unit_z(),
+    };
+    let peak = |c: &NurbsCurve3<f64>| {
+        (0..=100_000)
+            .map(|k| c.eval(f64::from(k) / 1e5).z.abs())
+            .fold(0.0, f64::max)
+    };
+    let inside = oscillating(3.665 * zero);
+    assert!(peak(&inside) < 0.998 * zero, "{:e}", peak(&inside));
+    let got = geom_brep::analytic_rung3(&inside, inside.domain(), &plane(), &side, band());
+    assert!(got.is_ok(), "f64: {got:?}");
+    let lifted = lift(&inside);
+    let (d0, d1) = lifted.domain();
+    let got = geom_brep::analytic_rung3(
+        &lifted,
+        (Interval::from_f64(d0), Interval::from_f64(d1)),
+        &plane(),
+        &side.map_scalar(Interval::from_f64),
+        band(),
+    );
+    assert!(got.is_ok(), "Interval: {got:?}");
+    let past = oscillating(20.0 / 0.272_044 * zero);
+    let got = geom_brep::analytic_rung3(&past, past.domain(), &plane(), &side, band());
+    assert!(
+        matches!(
+            got,
+            Err(AnalyticRung3Refusal::Limb {
+                operand: geom::SurfaceKind::Plane,
+                limb: Rung3Limb::HullValue,
+                margin,
+            }) if upper(margin) > 10.0 * zero && upper(margin) <= 20.0 * zero
+        ),
+        "{got:?}"
+    );
 }

@@ -76,9 +76,9 @@ metres form is a root of a polynomial, which no polynomial composite
 carries, so the conversion is a per-span lever instead: a scalar bound
 on the carrier's distance from the axis, whose one square root is of a
 bound, in the scalar's own outward-rounded arithmetic. The edge
-certificate reads it (`pcurve_cache::projected::net_offset_sup`); the
-search's limbs do not yet, which is why their rung-3 arms are
-unretired), and `compose::tensor` encloses
+certificate reads it per part of the carrier's knot spans
+(`pcurve_cache::projected::net_offset_sup`); the search's limbs do not
+yet, which is why their rung-3 arms are unretired), and `compose::tensor` encloses
 `S(P(t)) − C(t)` as one composite for a NURBS operand so the
 cancellation that is the whole content of the claim survives into the
 bound. Where the bound does not clear the band, the composite's
@@ -89,8 +89,10 @@ cut compounds another's width: the limb passes once the bound clears;
 refuses on the composite's certified value at a break where that lies
 past the band's zero, since no bound over a span holding the break can
 clear (against an analytic operand that value is limb 1's residual, a
-measured miss; against a NURBS one it is the bound's own quantity at a
-point, a bound on the miss); and refuses on the lowest bound any round
+measured miss — at the edge certificate the carrier's distance from the
+surface, bounded below by `|f|` over an upper bound on the factor that
+divides it to metres, read off the break's point; against a NURBS one it
+is the bound's own quantity at a point, a bound on the miss); and refuses on the lowest bound any round
 reached where the budget is spent, or two rounds in a row leave that
 lowest bound where it was, first — so a first composite already over
 `SSI_HULL_WORK` spans is never subdivided and refuses on its first

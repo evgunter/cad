@@ -2660,15 +2660,20 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
             let f_sup = if ok { part.min(whole) } else { f64::NAN };
             let (rho_lo, z) = (lower(rho, ok), (lower(z.0, ok), upper(z.1, ok)));
             let point = |x: f64| geom_core::Interval::from_bounds(x, x);
-            let meters_sup = if f_sup.is_finite() && rho_lo.is_finite() && z.0.is_finite() && z.1.is_finite() {
-                meters
-                    .over(point(f_sup), point(rho_lo), z, |lever| {
-                        if lower(lever, true) > 0.0 { Ok(lever) } else { Err(()) }
-                    })
-                    .map_or(f64::INFINITY, |m| upper(m, true))
-            } else {
-                f64::NAN
-            };
+            let meters_sup =
+                if f_sup.is_finite() && rho_lo.is_finite() && z.0.is_finite() && z.1.is_finite() {
+                    meters
+                        .over(point(f_sup), point(rho_lo), z, |lever| {
+                            if lower(lever, true) > 0.0 {
+                                Ok(lever)
+                            } else {
+                                Err(())
+                            }
+                        })
+                        .map_or(f64::INFINITY, |m| upper(m, true))
+                } else {
+                    f64::NAN
+                };
             // A Bézier part interpolates its end controls, so they are
             // its points at its ends.
             let floors = match (ok, controls.first(), controls.last()) {

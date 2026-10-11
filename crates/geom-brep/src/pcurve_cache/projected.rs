@@ -71,7 +71,8 @@
 //! metres per part of the twin net's knot spans, each cut into
 //! `INCIDENCE_CUTS` parts in the composite's own ring
 //! (`CurveCertData::with_breaks`; the net itself is never refined
-//! through an `f64` plan, which would re-round it). The conversion divides `|f|` by a lower bound on
+//! through an `f64` plan, which would re-round it), and further halved
+//! by the edge certificate's limb 2 (`net_offset_sup`). The conversion divides `|f|` by a lower bound on
 //! `|∇f|` along the segment from the point to its nearest point on the
 //! chart, so each is tight to first order: `|f|` on the plane;
 //! `D = |f| / (R + max(ρ_min, R − |f|/R))` on the cylinder and the same
@@ -1200,8 +1201,9 @@ pub(crate) struct ProjectedHull {
     /// `x′`, and of the tube's `X′` (`+∞` off a torus).
     pub(crate) pieces: Vec<PieceHull>,
     /// Per part of the re-derived twin net (each knot span cut into
-    /// [`INCIDENCE_CUTS`]): its parameter range, the bound of `|f|`, and
-    /// the floors its metre conversion reads.
+    /// [`INCIDENCE_CUTS`], and at the caller's cuts): its parameter
+    /// range, the bound of `|f|`, the floors its metre conversion reads,
+    /// and its metre readings.
     pub(crate) spans: Vec<SpanHull>,
 }
 
@@ -1684,7 +1686,9 @@ pub(crate) fn net_offset_sup<T: Decide>(
             }
             let before = k.checked_sub(1).and_then(|i| hull.spans.get(i));
             let after = hull.spans.get(k);
-            before.map_or(0.0, |s| s.floors.1).max(after.map_or(0.0, |s| s.floors.0))
+            before
+                .map_or(0.0, |s| s.floors.1)
+                .max(after.map_or(0.0, |s| s.floors.0))
         };
         Ok(Hull {
             // A refused part refuses the bound (`f64::max` would pass
@@ -1708,8 +1712,9 @@ pub(crate) fn net_offset_sup<T: Decide>(
             data: hull,
         })
     };
-    let bound =
-        |hull: &ProjectedHull| net_incidence(hull, window, &image.chart, &twin, d, band).map(|(incidence, _)| incidence);
+    let bound = |hull: &ProjectedHull| {
+        net_incidence(hull, window, &image.chart, &twin, d, band).map(|(incidence, _)| incidence)
+    };
     Ok(match subdivide(round, band)? {
         Subdivided::Bound(hull) => Offset::Bound(bound(&hull.data)?),
         Subdivided::Value { hull, floor, .. } => Offset::Miss {

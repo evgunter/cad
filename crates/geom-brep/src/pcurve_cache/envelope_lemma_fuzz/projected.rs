@@ -411,6 +411,136 @@ fn the_projection_is_the_nearest_point_on_every_chart() {
     }
 }
 
+/// **A break's distance floor is a lower bound, and tight**: on every
+/// chart, in its canonical frame, `|f|`'s certified lower bound at a point
+/// over the upper end of [`Meters::divisor`] there, rounded down, never
+/// exceeds the point's distance from the chart's form's zero set, and
+/// meets it to rounding, since each divisor is the exact factor. Points
+/// near the chart and far from it.
+///
+/// [`Meters::divisor`]: super::super::projected::Meters::divisor
+#[test]
+fn the_distance_floor_is_below_the_distance_and_meets_it() {
+    use super::super::projected::Meters;
+    use crate::offset::Nappe;
+    let mut s = fuzz::start("projected_distance_floor");
+    let iv = Interval::from_f64;
+    for _ in 0..fuzz::scaled(200) {
+        for chart in CHARTS {
+            let near = s.below(2) == 0;
+            let (meters, form, distance, on): (
+                Meters<Interval>,
+                Box<dyn Fn(Vec3<Interval>) -> Interval>,
+                Box<dyn Fn(Vec3<f64>) -> f64>,
+                Vec3<f64>,
+            ) = {
+                let (a, b) = (s.range(0.0, TAU), s.range(-1.0, 1.0));
+                match chart {
+                    Chart::Plane => (
+                        Meters::Plane,
+                        Box::new(|p: Vec3<Interval>| p.z),
+                        Box::new(|p: Vec3<f64>| p.z.abs()),
+                        Vec3::new(s.range(-2.0, 2.0), s.range(-2.0, 2.0), 0.0),
+                    ),
+                    Chart::Cylinder => {
+                        let r = s.range(0.3, 2.0);
+                        (
+                            Meters::Cylinder { radius: iv(r) },
+                            Box::new(move |p: Vec3<Interval>| {
+                                p.x.powi(2) + p.y.powi(2) - iv(r).powi(2)
+                            }),
+                            Box::new(move |p: Vec3<f64>| (p.x.hypot(p.y) - r).abs()),
+                            Vec3::new(r * a.cos(), r * a.sin(), 2.0 * b),
+                        )
+                    }
+                    Chart::Sphere => {
+                        let r = s.range(0.3, 2.0);
+                        let (c, z) = ((1.0 - b * b).sqrt(), b);
+                        (
+                            Meters::Sphere { radius: iv(r) },
+                            Box::new(move |p: Vec3<Interval>| {
+                                p.x.powi(2) + p.y.powi(2) + p.z.powi(2) - iv(r).powi(2)
+                            }),
+                            Box::new(move |p: Vec3<f64>| (p.norm() - r).abs()),
+                            Vec3::new(r * c * a.cos(), r * c * a.sin(), r * z),
+                        )
+                    }
+                    Chart::Cone => {
+                        let (sin, cos) = s.range(0.2, 1.3).sin_cos();
+                        let h = 2.0 * b;
+                        let rho = h.abs() * sin / cos;
+                        (
+                            Meters::Cone {
+                                sin: iv(sin),
+                                cos: iv(cos),
+                                nappe: Nappe::Opening,
+                            },
+                            Box::new(move |p: Vec3<Interval>| {
+                                iv(cos).powi(2) * (p.x.powi(2) + p.y.powi(2))
+                                    - iv(sin).powi(2) * p.z.powi(2)
+                            }),
+                            Box::new(move |p: Vec3<f64>| {
+                                let rho = p.x.hypot(p.y);
+                                (rho * cos - p.z * sin)
+                                    .abs()
+                                    .min((rho * cos + p.z * sin).abs())
+                            }),
+                            Vec3::new(rho * a.cos(), rho * a.sin(), h),
+                        )
+                    }
+                    Chart::Torus => {
+                        let major = s.range(1.0, 3.0);
+                        let minor = major * s.range(0.1, 0.9);
+                        let phi = s.range(0.0, TAU);
+                        let rho = major + minor * phi.cos();
+                        (
+                            Meters::Torus {
+                                major: iv(major),
+                                minor: iv(minor),
+                            },
+                            Box::new(move |p: Vec3<Interval>| {
+                                let q = p.x.powi(2) + p.y.powi(2) + p.z.powi(2) + iv(major).powi(2)
+                                    - iv(minor).powi(2);
+                                q.powi(2)
+                                    - iv(4.0) * iv(major).powi(2) * (p.x.powi(2) + p.y.powi(2))
+                            }),
+                            Box::new(move |p: Vec3<f64>| {
+                                ((p.x.hypot(p.y) - major).hypot(p.z) - minor).abs()
+                            }),
+                            Vec3::new(rho * a.cos(), rho * a.sin(), minor * phi.sin()),
+                        )
+                    }
+                }
+            };
+            let off = if near {
+                s.log_uniform(1e-9, 1e-2)
+            } else {
+                s.range(0.1, 1.0)
+            };
+            let p = on + unit(&mut s) * off;
+            let point = Vec3::new(iv(p.x), iv(p.y), iv(p.z));
+            let value = form(point);
+            let f = crate::ssi::enclose::zero_free_lower_bound(value);
+            let divisor = meters.divisor(point).abs().hi();
+            let floor =
+                (Interval::from_bounds(f, f) / Interval::from_bounds(divisor, divisor)).lo();
+            let truth = distance(p);
+            let what = format!(
+                "{chart:?} at {p:?}: floor {floor:e}, distance {truth:e} — {}",
+                fuzz::replay()
+            );
+            assert!(
+                floor <= truth * (1.0 + 1e-9) + 1e-15,
+                "{what}: the floor is past the distance"
+            );
+            assert!(
+                floor >= truth * (1.0 - 1e-6) - 1e-12,
+                "{what}: the floor is loose"
+            );
+        }
+    }
+}
+
 /// One respect a dominance row moves.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Moved {

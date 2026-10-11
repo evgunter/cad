@@ -112,6 +112,9 @@ fn a_carrier_bumped_off_the_plane_between_samples_refuses_at_mev() {
             "bump {bump:e}: on the plane at the samples ({at_samples:e}), off it between \
              ({between:e})"
         );
+        // A break of the halved parts lands on the bump's peak, so the
+        // refusal is the measured miss there: a certified lower bound on
+        // the carrier's distance, within rounding of the sampled peak.
         let (_, made) = build(&c);
         assert!(
             matches!(
@@ -119,10 +122,10 @@ fn a_carrier_bumped_off_the_plane_between_samples_refuses_at_mev() {
                 Err(EulerOpError::Certification {
                     error: CertifyError::AnalyticRung3(AnalyticRung3Refusal::Limb {
                         operand: geom::SurfaceKind::Plane,
+                        limb: geom_brep::Rung3Limb::HullValue,
                         margin,
-                        ..
                     }),
-                }) if upper(*margin) >= between
+                }) if (0.99 * between..=1.01 * between).contains(&upper(*margin))
             ),
             "bump {bump:e} (off the plane by {between:e}): {made:?}"
         );

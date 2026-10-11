@@ -658,8 +658,11 @@ pub fn is_analytic<T: Real>(surface: &Surface<T>) -> bool {
 ///   certified over the edge's interval `params`
 ///   ([`crate::pcurve_cache::projected::net_offset_sup`]: the operand's
 ///   canonical implicit form composed along the carrier, converted to
-///   metres per span) and decided zero against the band. Limb 1, the
-///   same distance at the schedule's samples, is implied by it;
+///   metres per part, the parts halved under limb 2's budget) and
+///   decided zero against the band, or, where the halving stops on a
+///   break whose certified distance lies past the band, that measured
+///   miss decided first ([`Rung3Limb::HullValue`]). Limb 1, the same
+///   distance at the schedule's samples, is implied by it;
 /// - **limb 3**: over a chain of boxes around the carrier the
 ///   enclosure of `(∇f₁ × ∇f₂)·e` excludes zero, so the solution set in
 ///   the chain is one arc and it spans the carrier over `params`.
