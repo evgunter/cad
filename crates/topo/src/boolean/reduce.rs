@@ -66,7 +66,7 @@ use super::contain::{ContainError, CurvedPlacement, FaceContainment, contfp_deci
 use super::plane_eq::PlaneDesc;
 use super::separating::Item;
 use super::{BooleanDecision, Coincide, CrossingDecision, DeclarationRead};
-use super::{BooleanError, ContactRecords, Operand, VfContact, VvContact};
+use super::{BooleanError, Operand, ReductionContacts, VfContact, VvContact};
 use crate::body::Body;
 use crate::coincidence::{Cited, Cites};
 use crate::entity::{EdgeKey, EntityId, FaceKey, VertexKey};
@@ -143,7 +143,7 @@ pub(super) struct SweepKnobs {
 /// The (deduplicating, order-preserving) contact accumulator.
 #[derive(Default)]
 pub(super) struct ContactAcc {
-    records: ContactRecords,
+    records: ReductionContacts,
     /// Every edge split the sweep made, in split order.
     pub(super) splits: Vec<super::EdgeSplit>,
     /// Every decision a push made, in decision order: the rows the
@@ -227,7 +227,7 @@ impl ContactAcc {
         }
     }
     /// The records, each citing rows of the decisions alongside them.
-    pub(super) fn finish(self) -> (ContactRecords, Vec<PendingRow>) {
+    pub(super) fn finish(self) -> (ReductionContacts, Vec<PendingRow>) {
         (self.records, self.pending)
     }
 }
@@ -6436,7 +6436,7 @@ mod contact_acc_rows {
             "one record of each kind"
         );
         assert_eq!(pending.len(), 3, "a question asked twice is one decision");
-        let cited: Vec<Vec<crate::Backing>> = r.cites().map(|c| c.iter().collect()).collect();
+        let cited: Vec<Vec<crate::Backing>> = r.rows().map(|(_, c)| c.iter().collect()).collect();
         assert_eq!(
             cited,
             [0, 1, 2].map(|k| vec![crate::Backing::Decided(k)]).to_vec(),

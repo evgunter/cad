@@ -688,9 +688,10 @@ fn props_errors() -> Vec<PropsError> {
         },
         PropsError::NappeSpanning,
         PropsError::SphereLoop {
-            what: "props_sphere_loop_closed",
+            what: "props_loop_closed",
         },
         PropsError::SenseContradicted,
+        PropsError::SenseInverted,
         PropsError::RingWoundWithFace,
         PropsError::ChartPeriodJump,
         PropsError::NotOneChartBranch {
@@ -926,10 +927,9 @@ fn stale_declarations() -> Vec<StaleDeclaration> {
             a: EdgeKey::default(),
             b: EdgeKey::default(),
         },
-        StaleDeclaration::CurveLocus {
-            face_a: face,
-            face_b: face,
-            witness: EdgeKey::default(),
+        StaleDeclaration::EdgeFace {
+            edge: EdgeKey::default(),
+            face,
         },
         StaleDeclaration::Patch {
             face_a: face,
@@ -1475,9 +1475,9 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             ValidationError::StaleContactDeclaration { declaration },
         ));
     }
-    // Door 1's whole-surface verdict (a Rest record) and the curve
-    // record's witnessing edge (a Tangent record), each with and
-    // without the designed-clearance steer.
+    // Door 1's whole-surface verdict (a Rest record) and the tangent
+    // line of a face-face record on two carriers (a Tangent record),
+    // each with and without the designed-clearance steer.
     for (class, witness, predicate) in [
         (
             ContactClass::Rest,
@@ -1486,7 +1486,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         ),
         (
             ContactClass::Tangent,
-            crate::census::CURVE_RECORD_WITNESS,
+            crate::census::TANGENT_LOCUS_WITNESS,
             "contact_tangent_opposed",
         ),
     ] {

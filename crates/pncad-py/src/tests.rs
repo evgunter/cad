@@ -4213,12 +4213,11 @@ fn every_stale_declaration_arm_projects_the_payload_it_carries() {
         Some("edge_edge")
     );
     assert_eq!(
-        word(StaleDeclaration::CurveLocus {
-            face_a: FaceKey::default(),
-            face_b: FaceKey::default(),
-            witness: Default::default(),
+        word(StaleDeclaration::EdgeFace {
+            edge: Default::default(),
+            face: FaceKey::default(),
         }),
-        Some("curve_locus")
+        Some("edge_face")
     );
     assert_eq!(
         word(StaleDeclaration::Patch {
@@ -4895,7 +4894,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "curved_edge_unsupported",
             "curved_pair_unsupported",
             "curved_pierce_unsupported",
-            "curved_rest_unrecorded",
             "curved_sector_side_unsupported",
             "declaration_contradicted",
             "degenerate_torus",
@@ -6323,8 +6321,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "stale_declaration_tag",
         values: &[
-            "curve_locus",
             "edge_edge",
+            "edge_face",
             "patch",
             "vertex_on_edge",
             "vertex_on_face",
