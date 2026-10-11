@@ -162,13 +162,13 @@ pub use formula::{Formula, FreshFault, LowerFault, NameFault};
 pub use ident::{ContentPin, DocRef, DocumentId, Mispaired};
 pub use label::{Label, LabelFault};
 pub use mate::{
-    Alignment, AxisSense, CLASS_DEFERRAL, CONTRADICTORY_RECOURSE, Clash, ClassAdmission, Coset,
-    FacePoseRefusal, FaceRefusal, FrameBase, Lever, LeverRefusal, MateFault, MateFrame,
-    MatePrimitive, MateReach, MateRole, MateSide, Member, NO_AT_REST_RECORD_RECOURSE,
-    OFFSET_RECOURSE, OffsetCheck, PlacerRow, Placing, PoseRefusal, PoseSymmetry, ReachRefusal,
-    RefusingReach, SolvedPoses, Space, Subgroup, SubgroupFamily, UNDER_RECOURSE, UNPLACED_RECOURSE,
-    Unplaced, class_admission, gauge_chain, groups, head_face, head_of, member_of, member_reading,
-    places, relative_freedom_components, root_of, solve_document, table_gap,
+    Alignment, AxisSense, CLASS_DEFERRAL, CONTRADICTORY_RECOURSE, Clash, ClassAdmission, Constraint,
+    Coset, FacePoseRefusal, FaceRefusal, FrameBase, Lever, LeverRefusal, Mate, MateFault, MateFrame,
+    MatePrimitive, MateReach, MateRef, MateSide, Member, NO_AT_REST_RECORD_RECOURSE,
+    OVERCONSTRAINED_RECOURSE, PlacerRow, Placing, PoseRefusal, PoseSymmetry, ReachRefusal,
+    RefusingReach, SideRead, SolvedPoses, Space, Subgroup, SubgroupFamily, class_admission,
+    head_face, head_of, member_of, member_reading, relative_freedom_components, solve_document,
+    table_gap,
 };
 pub use mc::{
     DEFAULT_SAMPLES, DEFAULT_SEED, McAssertion, McConfig, McMeasure, McRefusal, McReport, McValue,
@@ -196,7 +196,7 @@ pub use names::{
 pub use node::{
     AuthoredNode, Axis3, CountMismatch, Datum, ExtrudeSide, InputFault, InterfaceCrossing,
     InterfaceRecord, ListFault, Node, OutputPort, PartSelect, PatternKind, PlacementRuleFault,
-    PortKind, RecipeNodeId, RigidArg, SitedFace, SitedRef, SlotId, StepArg, StepId, TubeWindow,
+    PortKind, RecipeNodeId, RigidArg, ConstraintId, SitedFace, SitedRef, SlotId, StepArg, StepId, TubeWindow,
     VectorSlot,
 };
 pub use operand::{Bodies, BodyRead, Operand, OperandSlot, SlotKind};

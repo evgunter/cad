@@ -417,14 +417,15 @@ pub enum FrameSite {
         /// Its index in the placement list.
         index: usize,
     },
-    /// Step `index` of the placement chain a node holds: a
-    /// transform's, a gauge's, or an instance's offset.
+    /// Step `index` of the placement chain a transform holds.
     Step {
         /// Its index in the chain.
         index: usize,
     },
-    /// Step `index` of a mate side's frame offset.
+    /// Step `index` of a constraint side's frame offset.
     MateStep {
+        /// Which constraint of the placement.
+        constraint: crate::node::ConstraintId,
         /// Which side's frame.
         side: crate::mate::MateSide,
         /// Its index in the offset's chain.
@@ -442,8 +443,12 @@ impl FrameSite {
         match self {
             Self::Listed { index } => format!("placement {index} of {node}"),
             Self::Step { index } => format!("step {} of {node}'s placement", index + 1),
-            Self::MateStep { side, index } => format!(
-                "step {} of {node}'s {} frame offset",
+            Self::MateStep {
+                constraint,
+                side,
+                index,
+            } => format!(
+                "step {} of constraint {constraint} of {node}'s {} frame offset",
                 index + 1,
                 side.name()
             ),

@@ -38,7 +38,7 @@ pub(crate) fn schedule<P: crate::ProfilePayload>(doc: &Doc<P>) -> Schedule {
     let upstream: BTreeMap<RecipeNodeId, Vec<RecipeNodeId>> = doc
         .nodes
         .iter()
-        .map(|(&id, node)| (id, doc.upstream_of(node)))
+        .map(|(&id, node)| (id, doc.upstream_of(id, node)))
         .collect();
     for (&id, inputs) in &upstream {
         let live_inputs: Vec<RecipeNodeId> = inputs

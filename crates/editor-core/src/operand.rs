@@ -156,8 +156,15 @@ pub enum OperandSlot {
     Open,
     /// The face a face frame is read off.
     Face,
-    /// One side of a mate: the face it is read off.
-    Side(crate::mate::MateSide),
+    /// One side of a placement's constraint: the face it is read off.
+    Side {
+        /// The constraint.
+        constraint: crate::node::ConstraintId,
+        /// Which side.
+        side: crate::mate::MateSide,
+    },
+    /// Shape `i` of a placement's list, the `i`-th it copies.
+    Shape(u32),
     /// Reference `i` of a measure, in argument order, under its
     /// primitive (which decides what the reference admits).
     Measured(crate::MeasureVerb, u8),
@@ -193,7 +200,10 @@ impl OperandSlot {
             Self::Selection => "selection".to_owned(),
             Self::Open => "open faces".to_owned(),
             Self::Face => "face".to_owned(),
-            Self::Side(side) => format!("side {}", side.name()),
+            Self::Side { constraint, side } => {
+                format!("constraint {constraint} side {}", side.name())
+            }
+            Self::Shape(i) => format!("shape {}", u64::from(i) + 1),
             Self::Measured(_, i) => format!("reference {}", u16::from(i) + 1),
             Self::Tool => "tool".to_owned(),
             Self::From => "from".to_owned(),
@@ -421,6 +431,33 @@ impl<R> Bodies<R> {
                     .collect::<Result<_, _>>()?,
             ),
         })
+    }
+}
+
+/// **A placement's shapes, by seat** ([`OperandSlot::Shape`]): the
+/// list a `Place` copies, read as a union reads its members. A trait
+/// over the list so a node's tables read it through the borrow they
+/// hold.
+pub(crate) trait ShapeRows<R> {
+    /// The reads with their seats, in list order.
+    fn rows(&self) -> Vec<(OperandSlot, &R)>;
+    /// The same, exclusive.
+    fn rows_mut(&mut self) -> Vec<(OperandSlot, &mut R)>;
+}
+
+impl<S: crate::expr::Slot> ShapeRows<BodyRead<S>> for Vec<BodyRead<S>> {
+    fn rows(&self) -> Vec<(OperandSlot, &BodyRead<S>)> {
+        self.iter()
+            .enumerate()
+            .map(|(i, r)| (OperandSlot::Shape(u32::try_from(i).unwrap_or(u32::MAX)), r))
+            .collect()
+    }
+
+    fn rows_mut(&mut self) -> Vec<(OperandSlot, &mut BodyRead<S>)> {
+        self.iter_mut()
+            .enumerate()
+            .map(|(i, r)| (OperandSlot::Shape(u32::try_from(i).unwrap_or(u32::MAX)), r))
+            .collect()
     }
 }
 

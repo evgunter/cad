@@ -268,7 +268,9 @@ pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, 
             continue;
         }
         match doc.node(at) {
-            Some(Node::InstantiatePart { .. }) => {
+            // A placement's copy, an instance's or a `Place`'s: the
+            // member the solve poses.
+            Some(Node::InstantiatePart { .. } | Node::Place { .. }) => {
                 return Ok(Walk {
                     member: Member {
                         instance: at,
@@ -310,6 +312,21 @@ pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, 
                 part = None;
                 name = of;
                 at = doc.operation_of(*read).ok_or(at)?;
+            }
+            // A construction of the document's one kind (the named
+            // interim of INTENT stage 3 B): the world's kind, at the
+            // identity, so a mate reads it as a body of the space its
+            // copy joins.
+            Some(node) if !matches!(node, Node::World | Node::Measure { .. } | Node::Assertion { .. }) => {
+                return Ok(Walk {
+                    member: Member {
+                        instance: at,
+                        chain: chain.iter().copied().map(Placing::from).collect(),
+                    },
+                    chain,
+                    head: r.name.clone(),
+                    placed: name.clone(),
+                });
             }
             _ => return Err(at),
         }
@@ -461,7 +478,7 @@ pub(crate) fn member_authored<P>(doc: &Doc<P>, side: &crate::Operand) -> Option<
 /// refusal to a node that is often perfectly live and perfectly fine.
 pub(super) fn walk_of<P>(
     doc: &Doc<P>,
-    mate: RecipeNodeId,
+    mate: crate::mate::MateRef,
     side: MateSide,
     read: crate::VarId,
 ) -> Result<Walk, MateFault> {
@@ -530,7 +547,7 @@ pub(super) fn walk_of<P>(
 pub(super) fn check_reference<P: crate::ProfilePayload, S>(
     doc: &Doc<P>,
     env: &VarEnv<S>,
-    mate: RecipeNodeId,
+    mate: crate::mate::MateRef,
     side: MateSide,
     w: &Walk,
 ) -> Result<(), MateFault> {
@@ -771,7 +788,7 @@ pub(super) fn check_reference<P: crate::ProfilePayload, S>(
 pub(super) fn derived_offset<P: crate::ProfilePayload, T: Decide>(
     doc: &Doc<P>,
     env: &VarEnv<T>,
-    mate: RecipeNodeId,
+    mate: crate::mate::MateRef,
     side: MateSide,
     w: &Walk,
     band: Band,
@@ -808,7 +825,7 @@ pub(super) fn derived_offset<P: crate::ProfilePayload, T: Decide>(
 /// axis datum, a transform on the way to it) is its node's own, stated
 /// on that node's row.
 fn refuse(
-    mate: RecipeNodeId,
+    mate: crate::mate::MateRef,
     side: MateSide,
     on_chain: RecipeNodeId,
     (at, kind): (RecipeNodeId, NodeErrorKind),

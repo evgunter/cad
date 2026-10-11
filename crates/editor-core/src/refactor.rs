@@ -2978,7 +2978,7 @@ pub fn split(
                 }
             }
         }
-        for input in doc.upstream_of(node) {
+        for input in doc.upstream_of(consumer, node) {
             if consumer_is_cut != cut.contains(&input) && !carried.contains(&input) {
                 let slot = node.operand_rows().into_iter().find_map(|(slot, var)| {
                     let read = doc.selection(var).map_or(var, |select| select.body);

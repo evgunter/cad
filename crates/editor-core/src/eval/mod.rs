@@ -3838,7 +3838,7 @@ fn unplaced_below<P: crate::ProfilePayload, T: Decide>(
             usable_in(nodes, id, || NodeStanding::NotEvaluated { node: id })
                 .map(|value| value.carried.unplaced.clone())
                 .unwrap_or_default();
-        for input in doc.upstream_of(node) {
+        for input in doc.upstream_of(id, node) {
             for row in out.get(&input).into_iter().flatten() {
                 if !rows.contains(row) {
                     rows.push(row.clone());
@@ -4103,7 +4103,7 @@ where
         return fail(bracket, NodeErrorKind::Mate(Box::new(fault.clone())));
     }
     let mut keys: BTreeMap<RecipeNodeId, (ContentKey, NamingKey)> = BTreeMap::new();
-    for input in doc.upstream_of(node) {
+    for input in doc.upstream_of(id, node) {
         // Every input the document has precedes this node in the
         // order and so has its result: an absent one is not in it.
         match usable_in(results, input, || NodeStanding::NotInDocument {
