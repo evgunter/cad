@@ -423,17 +423,14 @@ fn the_projection_is_the_nearest_point_on_every_chart() {
 fn the_distance_floor_is_below_the_distance_and_meets_it() {
     use super::super::projected::Meters;
     use crate::offset::Nappe;
+    type Form = Box<dyn Fn(Vec3<Interval>) -> Interval>;
+    type Distance = Box<dyn Fn(Vec3<f64>) -> f64>;
     let mut s = fuzz::start("projected_distance_floor");
     let iv = Interval::from_f64;
     for _ in 0..fuzz::scaled(200) {
         for chart in CHARTS {
             let near = s.below(2) == 0;
-            let (meters, form, distance, on): (
-                Meters<Interval>,
-                Box<dyn Fn(Vec3<Interval>) -> Interval>,
-                Box<dyn Fn(Vec3<f64>) -> f64>,
-                Vec3<f64>,
-            ) = {
+            let (meters, form, distance, on): (Meters<Interval>, Form, Distance, Vec3<f64>) = {
                 let (a, b) = (s.range(0.0, TAU), s.range(-1.0, 1.0));
                 match chart {
                     Chart::Plane => (

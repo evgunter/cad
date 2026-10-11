@@ -2,7 +2,7 @@
 id: analytic-rung3-hull-limb-refuses-on-fixed-parts-without-subdividing
 kind: issue
 title: geom-brep: the AnalyticRung3 hull limb (net_offset_sup) refuses on its fixed INCIDENCE_CUTS parts, with no adaptive subdivision and no measured value at a break
-status: dispatched
+status: review
 branch: encl/rung3-hull-refine
 opened: 2026-10-10
 priority: P3
