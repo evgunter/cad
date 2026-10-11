@@ -222,10 +222,17 @@ impl<T: SpanLocate> FramedCarrier<T> {
 }
 
 impl<T: Real> FramedCarrier<T> {
-    /// The carrier parameters of the piece parameters `a`, `b`.
+    /// The carrier parameters of the piece parameters `a`, `b`. On a
+    /// net a piece end that is one of its breakpoints is that
+    /// breakpoint's held value; any other is a break the partition
+    /// chose (a schedule point), entered as the constant it is.
     fn piece_span(&self, a: f64, b: f64) -> (T, T) {
         match self {
-            Self::Net(_) => (T::from_f64(a), T::from_f64(b)),
+            Self::Net(net) => {
+                let held = net.knot_values();
+                let at = |v: f64| held.value_at(v).unwrap_or_else(|| T::from_f64(v));
+                (at(a), at(b))
+            }
             Self::Circle { origin, span, .. } => (
                 *origin + *span * T::from_f64(a),
                 *origin + *span * T::from_f64(b),
@@ -978,8 +985,8 @@ fn chart_of<T: Decide>(
             let (sin, cos) = half_angle.sin_cos();
             let mid = match framed {
                 FramedCarrier::Net(net) => {
-                    let (d0, d1) = net.domain();
-                    net.eval(T::from_f64(0.5 * (d0 + d1))).z
+                    let (d0, d1) = net.knot_values().domain();
+                    net.eval(T::from_f64(0.5) * (d0 + d1)).z
                 }
                 FramedCarrier::Circle { origin, span, .. } => {
                     framed.eval(*origin + *span * T::from_f64(0.5)).z
@@ -1116,10 +1123,12 @@ enum Refine {
     Escalated(Indeterminate),
 }
 
-/// Whether the piece `[a, b]` lies wholly outside the edge interval
-/// `edge`, by more than the band: a SELECTION of the partition, read
-/// with nothing recorded, an undecided answer reading as inside.
-fn outside<T: Decide>(a: f64, b: f64, edge: Option<(T, T)>, band: Band) -> bool {
+/// Whether the piece `[a, b]` (on the carrier parameter,
+/// [`FramedCarrier::piece_span`]'s) lies wholly outside the edge
+/// interval `edge`, by more than the band: a SELECTION of the
+/// partition, read with nothing recorded, an undecided answer reading
+/// as inside.
+fn outside<T: Decide>((a, b): (T, T), edge: Option<(T, T)>, band: Band) -> bool {
     let Some((t0, t1)) = edge else {
         return false;
     };
@@ -1128,7 +1137,7 @@ fn outside<T: Decide>(a: f64, b: f64, edge: Option<(T, T)>, band: Band) -> bool 
             .0
             .unwrap_or(false)
     };
-    clear(t0 - T::from_f64(b)) || clear(T::from_f64(a) - t1)
+    clear(t0 - b) || clear(a - t1)
 }
 
 /// Halves `[a, b]` (on the piece parameter) until its piece holds its
@@ -1154,7 +1163,7 @@ fn refine<T: Decide>(
     };
     let (ta, tb) = image.carrier.piece_span(a, b);
     choose_quarters(image, 0, ta, tb, band);
-    let verdict = if outside(a, b, edge, band) {
+    let verdict = if outside((ta, tb), edge, band) {
         Ok(None)
     } else {
         piece_sector(image, 0, ta, tb, band)

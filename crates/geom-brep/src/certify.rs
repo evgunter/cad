@@ -1972,6 +1972,22 @@ pub fn sample_param<T: Real>(t0: T, t1: T, i: u32) -> T {
     schedule_param(t0, t1, i, CERT_SAMPLES)
 }
 
+/// Station `i` of a uniform `samples`-point schedule over a carrier's
+/// held domain `held`, whose value channel is `domain`: the ends are
+/// the held ends themselves (the carrier's own data), and every other
+/// station is the `f64` [`schedule_param`] over `domain`, a point the
+/// schedule chose, entered as the constant it is. Bit for bit
+/// [`schedule_param`] at `f64`; at an enclosure scalar an interior
+/// station stays a point rather than widening by the station's own
+/// arithmetic, which a check at a chosen point has no use for.
+pub(crate) fn held_station<T: Real>(domain: (f64, f64), held: (T, T), i: u32, samples: u32) -> T {
+    match schedule_fraction(i, samples) {
+        0.0 => held.0,
+        1.0 => held.1,
+        _ => T::from_f64(schedule_param(domain.0, domain.1, i, samples)),
+    }
+}
+
 /// The fraction `i / (samples − 1)` of a uniform `samples`-point
 /// schedule — an exact dyadic when `samples − 1` is a power of two, as
 /// every fixed schedule in this crate's certificates is. The same
@@ -2550,8 +2566,8 @@ fn run_checks<T: Decide>(
         // meter's alone.
         Curve3::Nurbs(n) => {
             let meter = n.speed_lower_bound();
-            let (d0, d1) = n.domain();
-            let net_length = Margin::metered(T::from_f64(d1 - d0), meter);
+            let (d0, d1) = n.knot_values().domain();
+            let net_length = Margin::metered(d1 - d0, meter);
             decide_positive("nurbs_span_meter", net_length, band).map_err(|cause| {
                 match Refused::rejected(&cause) {
                     Some(verdict) => CertifyError::SpanMeterCollapsed { verdict },

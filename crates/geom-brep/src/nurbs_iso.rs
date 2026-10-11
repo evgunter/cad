@@ -350,20 +350,24 @@ pub fn iso_boundary_row<T: Decide>(
     at: T,
     band: Band,
 ) -> Result<(NurbsCurve3<T>, T), IsoRowError<T>> {
-    let (a0, a1) = match axis {
-        ChartAxis::U => fit.knots_u().domain(),
-        ChartAxis::V => fit.knots_v().domain(),
+    // The domain as the chart holds it; the refusal names its value
+    // channel.
+    let held = match axis {
+        ChartAxis::U => fit.knot_values_u(),
+        ChartAxis::V => fit.knot_values_v(),
     };
-    let is_end = |end: f64| -> Result<bool, IsoRowError<T>> {
-        let margin = Margin::of(at - T::from_f64(end));
+    let (a0, a1) = held.structure().domain();
+    let (h0, h1) = held.domain();
+    let is_end = |end: T| -> Result<bool, IsoRowError<T>> {
+        let margin = Margin::of(at - end);
         let sign = decide("iso_row_at_domain_end", margin, band)
             .map_err(|source| IsoRowError::Escalated { source })?;
         Ok(sign == Sign::Zero)
     };
-    let end = if is_end(a0)? {
-        (false, a0)
-    } else if is_end(a1)? {
-        (true, a1)
+    let end = if is_end(h0)? {
+        (false, h0)
+    } else if is_end(h1)? {
+        (true, h1)
     } else {
         return Err(IsoRowError::Interior {
             axis,
@@ -376,7 +380,7 @@ pub fn iso_boundary_row<T: Decide>(
         ChartAxis::V => boundary_iso_v(fit, end.0),
     }
     .map_err(|source| IsoRowError::Structure { source })?;
-    Ok((row, T::from_f64(end.1)))
+    Ok((row, end.1))
 }
 
 #[cfg(test)]
