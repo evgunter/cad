@@ -76,12 +76,12 @@
 //!    entities ([`StepImportError::TierInvalid`]) — a statement about
 //!    the FILE's geometry, never the kernel-bug voice.
 //!
-//!    **Scope, named**: the gate is tier 3, and 3′ on an empty contact
-//!    record is strictly stronger (it runs the coincidence census).
-//!    Imports declare no contacts, so an imported assembly whose parts
-//!    TOUCH is checked less than its native twin, whose pipeline
-//!    carries declarations. Import-side declared contacts are banked
-//!    with the M8 contact program (D7 step 4).
+//!    **The aggregate gate is tier 3′** (D7 step 4): the coincidence
+//!    census over the assembled body, each solid its own group, records
+//!    every touch between two solids as a row of its own Zero and a
+//!    record citing it (`topo::record_at_rest`), which ship on
+//!    [`StepImport::Solid`]; a touch inside one solid, or two solids
+//!    that overlap, refuse.
 //!
 //! # Two tolerances (D7)
 //!
@@ -629,8 +629,8 @@ pub enum StepImport {
         /// finding is a measurement, and reading it as a verdict is
         /// reading intent into a number.
         coherence: Option<topo::CoherenceReport>,
-        /// **The contacts between the file's instances**: one record
-        /// per touch the at-rest census found between two of `body`'s
+        /// **The contacts between the body's solids**: one record per
+        /// touch the at-rest census found between two of `body`'s
         /// solids, each citing its row in `coincidences` and confirmed
         /// by the census like any other record ([`topo::record_at_rest`]).
         /// An imported assembly whose parts touch certifies (D7 step 4),
@@ -860,11 +860,13 @@ pub fn import_step(
             // D1 (iii)): the aggregate body is held to
             // `validate_pseudomanifold` — the SAME gate a native body's
             // contact records run — through the census's recording
-            // door, each instance its own group. A touch between two
-            // instances is a row and a record citing it, confirmed on
-            // the census's next pass, so an imported assembly whose
-            // parts touch certifies; a touch inside one instance is that
-            // solid's defect and refuses. The per-solid gates above stay
+            // door, each solid its own group: the file's instance
+            // structure is not recoverable from its solids, so a solid
+            // is the unit a touch is between. A touch between two solids
+            // is a row and a record citing it, confirmed on the census's
+            // next pass, so an imported assembly whose parts touch
+            // certifies; a touch inside one solid is its defect, and
+            // two solids that overlap refuse. The per-solid gates above stay
             // tier 3: contact is an aggregate-body fact, and the
             // aggregate census sweeps every entity of every instance.
             let (contacts, coincidences, enclosure) = gate3(&body, tol)?;
@@ -915,7 +917,7 @@ fn gate(body: &topo::Body<f64>, solid: Option<u64>, tol: Tol) -> Result<(), Step
 
 /// The aggregate subject's gate: the tier-3′ form, recording the
 /// contacts it finds between the body's solids
-/// ([`topo::record_at_rest`], each solid its own instance) — the same
+/// ([`topo::record_at_rest`], each solid its own group) — the same
 /// function a caller runs over a native body's contact records, with the
 /// same no-opinion contract as [`gate`] — followed by the measurement
 /// the reader ships.
@@ -936,7 +938,7 @@ fn gate(body: &topo::Body<f64>, solid: Option<u64>, tol: Tol) -> Result<(), Step
 /// read once there and once again here: a two-instance assembly of
 /// certifying solids records twice one measurement's quadrature
 /// verdicts through `import_step`. Where it does not, the import pays
-/// this gate only, once, or twice where its instances touch: the second
+/// this gate only, once, or twice where its solids touch: the second
 /// pass confirms the records the first one's touches minted.
 #[allow(clippy::type_complexity)] // the gate's three products, read once at its one caller
 fn gate3(

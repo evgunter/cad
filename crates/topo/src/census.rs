@@ -2701,22 +2701,11 @@ fn ee_overlap_midpoint<T: Real>(ea: &EdgeGeo<T>, eb: &EdgeGeo<T>) -> Point3<T> {
 
 /// Whether two non-parallel edges cross at a point inside both their
 /// spans: their lines meet (`pm_census_ee_gap`) and the crossing is
-/// strictly interior to each (`pm_census_ee_span`). `None` where a
-/// decision escalated (pushed). The crossing lane and the confirm pass
-/// of an edge-edge record ask this one question.
-fn crossing_in_both_interiors<T: Decide>(
-    ea: &EdgeGeo<T>,
-    eb: &EdgeGeo<T>,
-    ncross: Vec3<T>,
-    band: Band,
-    errors: &mut Vec<ValidationError>,
-) -> Option<bool> {
-    crossing_reading(ea, eb, ncross, band, errors).map(|cross| cross.is_some())
-}
-
-/// [`crossing_in_both_interiors`], keeping the reading of the Zero that
-/// made the two lines meet: `Some(Some(margin))` a crossing, `Some(None)`
-/// none, `None` escalated (pushed).
+/// strictly interior to each (`pm_census_ee_span`). `Some(Some(margin))`
+/// a crossing, with the reading of the Zero that made the lines meet;
+/// `Some(None)` none; `None` where a decision escalated (pushed). The
+/// crossing lane and the confirm pass of an edge-edge record ask this
+/// one question.
 fn crossing_reading<T: Decide>(
     ea: &EdgeGeo<T>,
     eb: &EdgeGeo<T>,
@@ -6456,7 +6445,7 @@ fn interiors_meet<T: Decide>(
         band,
         errors,
     ) {
-        Some(false) => crossing_in_both_interiors(ea, eb, ncross, band, errors),
+        Some(false) => crossing_reading(ea, eb, ncross, band, errors).map(|cross| cross.is_some()),
         Some(true) => Some(collinear_overlap(ea, eb, band, errors).is_some()),
         None => None,
     }
@@ -6607,22 +6596,30 @@ pub fn census_rest_decision<T: Decide>(
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct RecordedAtRest {
     /// A record for each touch between two groups that no record
-    /// backed, each citing its row by `first_row` plus its place in
-    /// [`Self::rows`].
+    /// backed, each citing the rows of [`Self::rows`] that decided its
+    /// pair, numbered from the caller's `first_row`. They certify the
+    /// body only beside empty [`Self::findings`]: a refusal leaves them
+    /// as far as the census got.
     pub records: ContactRecords,
     /// The census's decisions those records cite, in the order it made
     /// them ([`crate::DecisionSite::CensusAtRest`]).
     pub rows: Vec<crate::Coincidence>,
     /// Every other finding, in the census's order: a touch inside one
-    /// group (that group's defect, D1 (iii)), a pierce or a same-side
-    /// crossing, and whatever else the census refuses.
+    /// group (that group's defect, D1 (iii)), every touch between two
+    /// groups the census found interpenetrating, and whatever else the
+    /// census refuses.
     pub findings: Vec<ValidationError>,
 }
 
 /// How many times [`record_at_rest`] runs the census before it reports
-/// what is still unrecorded: once to find the touches, once to confirm
-/// their records, and once for a touch only those records expose.
-const RECORDING_PASSES: usize = 3;
+/// what it found: once to find the touches, once to confirm their
+/// records, and twice more for what a recorded touch exposes — a pair
+/// found interpenetrating whose touches were recorded on an earlier
+/// pass, or an edge in a face whose bounds those records back.
+const RECORDING_PASSES: usize = 4;
+
+/// Two groups, the lesser first.
+type GroupPair = (u32, u32);
 
 /// **The tier-3′ census over a body at rest, recording what it
 /// decides** (D1 (ii), (iii); D10): every touch it finds between cells
@@ -6630,12 +6627,20 @@ const RECORDING_PASSES: usize = 3;
 /// Zero, and a record of that pair citing it, and the census runs again
 /// over the records so each is confirmed like any other; an edge lying
 /// in a face is recorded by its bounds alone, which back it on that next
-/// pass (D1). `group` is the
-/// caller's partition of the body's solids: a placement's copies, a
-/// file's instances. Where everything is one group nothing is recorded,
-/// and the census is an op's finished-body gate. A touch inside one
-/// group stays a finding, as do a pierce and a same-side crossing, which
-/// are interpenetration rather than coincidence.
+/// pass (D1). `group` is the caller's partition of the body's solids (a
+/// placement's copies, an import's solids); a solid it answers `None`
+/// for is in no group, and no touch of it is recorded. Where everything
+/// is one group nothing is recorded, and the census is an op's
+/// finished-body gate.
+///
+/// **Two groups that interpenetrate have nothing recorded.** Where the
+/// census finds the pair's material overlapping, or cannot clear it —
+/// an instance's vertex inside the other's material, an edge piercing
+/// a face, a crossing whose side test reads `SameSide` or does not
+/// decide, a cross-solid pair it cannot look at — every touch between
+/// the two stays a finding: the census reads an overlap off those
+/// touches, and a record would erase the evidence. A touch inside one
+/// group stays a finding too.
 ///
 /// `census` is the caller's door to the tier-3′ pass over `body` with
 /// the records it is handed (its at-rest policy, or the certificate
@@ -6648,50 +6653,125 @@ pub fn record_at_rest<T: Real>(
     group: &dyn Fn(crate::SolidKey) -> Option<u32>,
     first_row: u32,
 ) -> RecordedAtRest {
-    let mut recorded = RecordedAtRest::default();
-    let mut all = contacts.clone();
+    let groups = |x: crate::SolidKey, y: crate::SolidKey| -> Option<GroupPair> {
+        let (gx, gy) = (group(x)?, group(y)?);
+        (gx != gy).then_some((gx.min(gy), gx.max(gy)))
+    };
+    let mut minted: Vec<(GroupPair, crate::Coincidence, crate::Contact)> = Vec::new();
+    let mut overlapping: std::collections::BTreeSet<GroupPair> = std::collections::BTreeSet::new();
+    let mut findings = Vec::new();
     for pass in 1..=RECORDING_PASSES {
-        let mut minted = false;
-        let mut kept = Vec::new();
-        for finding in census(&all) {
-            let between = (pass < RECORDING_PASSES)
-                .then(|| census_contact_row(&finding))
-                .flatten()
-                .and_then(|row| {
-                    let [x, y] = row.cells.map(|cell| match cell {
-                        crate::RowCell::Result { cell } => {
-                            cell_solid(body, cell).and_then(group).map(|g| (cell, g))
-                        }
-                        crate::RowCell::Input { .. } | crate::RowCell::Tool => None,
-                    });
-                    let ((x, gx), (y, gy)) = (x?, y?);
-                    let contact = crate::Contact::new(body, x, y).ok()?;
-                    // An edge lying in a face is confirmed from its
-                    // bounds' records, never one of its own (D1).
-                    let in_face = matches!(contact.kind(), crate::ContactKind::EdgeFace(..));
-                    (gx != gy && !in_face).then_some((row, contact))
-                });
-            match between {
-                Some((row, contact)) => {
-                    let k = u32::try_from(recorded.rows.len())
-                        .ok()
-                        .and_then(|k| first_row.checked_add(k))
-                        .unwrap_or_else(|| unreachable!("a body's rows number fewer than u32"));
-                    recorded.rows.push(row);
-                    let cited = crate::Cited::new(contact, crate::Cites::decided(k));
-                    recorded.records.extend([cited.clone()]);
-                    all.extend([cited]);
-                    minted = true;
+        let records = cite_minted(contacts, &minted, first_row);
+        findings = census(&records);
+        let found = findings
+            .iter()
+            .filter_map(|f| interpenetrating(body, f))
+            .filter_map(|(x, y)| groups(x, y))
+            .filter(|pair| !overlapping.contains(pair))
+            .collect::<Vec<_>>();
+        let mut changed = !found.is_empty();
+        overlapping.extend(found);
+        let before = minted.len();
+        minted.retain(|(pair, ..)| !overlapping.contains(pair));
+        changed |= minted.len() != before;
+        if pass < RECORDING_PASSES {
+            let mut kept = Vec::new();
+            for finding in findings {
+                match recordable(body, &finding, &groups)
+                    .filter(|(pair, ..)| !overlapping.contains(pair))
+                {
+                    Some(touch) => {
+                        minted.push(touch);
+                        changed = true;
+                    }
+                    None => kept.push(finding),
                 }
-                None => kept.push(finding),
             }
+            findings = kept;
         }
-        if !minted {
-            recorded.findings = kept;
+        if !changed {
             break;
         }
     }
-    recorded
+    RecordedAtRest {
+        records: cite_minted(&ContactRecords::default(), &minted, first_row),
+        rows: minted.into_iter().map(|(_, row, _)| row).collect(),
+        findings,
+    }
+}
+
+/// `contacts`, then each of `minted` citing its row, numbered from
+/// `first_row`.
+fn cite_minted(
+    contacts: &ContactRecords,
+    minted: &[(GroupPair, crate::Coincidence, crate::Contact)],
+    first_row: u32,
+) -> ContactRecords {
+    let mut records = contacts.clone();
+    records.extend(minted.iter().zip(0u32..).map(|((_, _, contact), k)| {
+        let row = first_row
+            .checked_add(k)
+            .unwrap_or_else(|| unreachable!("a body's rows number fewer than u32"));
+        crate::Cited::new(*contact, crate::Cites::decided(row))
+    }));
+    records
+}
+
+/// A finding's touch between two groups, as the row recording it and
+/// the record of its pair: `None` for any finding but a coincidence
+/// [`census_contact_row`] reads, for a touch not between two groups,
+/// and for an edge lying in a face, which its bounds' records back.
+fn recordable(
+    body: &Body<impl Real>,
+    finding: &ValidationError,
+    groups: &dyn Fn(crate::SolidKey, crate::SolidKey) -> Option<GroupPair>,
+) -> Option<(GroupPair, crate::Coincidence, crate::Contact)> {
+    let row = census_contact_row(finding)?;
+    let [x, y] = row.cells.map(|cell| match cell {
+        crate::RowCell::Result { cell } => Some(cell),
+        crate::RowCell::Input { .. } | crate::RowCell::Tool => None,
+    });
+    let (x, y) = (x?, y?);
+    let pair = groups(cell_solid(body, x)?, cell_solid(body, y)?)?;
+    let contact = crate::Contact::new(body, x, y).ok()?;
+    (!matches!(contact.kind(), crate::ContactKind::EdgeFace(..))).then_some((pair, row, contact))
+}
+
+/// The two solids a finding says interpenetrate, or that the census
+/// could not clear of it: an instance's vertex inside the other's
+/// material, a pierce, a crossing whose side test read `SameSide` or
+/// did not decide, and a cross-solid pair the census cannot look at.
+/// `None` for every other finding.
+fn interpenetrating<T: Real>(
+    body: &Body<T>,
+    finding: &ValidationError,
+) -> Option<(crate::SolidKey, crate::SolidKey)> {
+    let entity = |e: EntityId| match e {
+        EntityId::Solid(s) => Some(s),
+        EntityId::Face(f) => body.solid_of_face(f),
+        EntityId::Edge(e) => cell_solid(body, crate::Cell::Edge(e)),
+        EntityId::Vertex(v) => cell_solid(body, crate::Cell::Vertex(v)),
+        EntityId::Shell(_) | EntityId::Loop(_) | EntityId::HalfEdge(_) => None,
+    };
+    let edge = |e| cell_solid(body, crate::Cell::Edge(e));
+    match finding {
+        ValidationError::InstanceInterference { outer, inner, .. } => Some((*outer, *inner)),
+        ValidationError::CensusUndecidable { a, b, .. } => Some((entity(*a)?, entity(*b)?)),
+        ValidationError::UnrecordedContact {
+            contact: CensusContact::EdgeFacePierce { edge: e, face },
+            ..
+        } => Some((edge(*e)?, body.solid_of_face(*face)?)),
+        ValidationError::UnrecordedContact {
+            contact:
+                CensusContact::EdgeEdgeCross {
+                    a,
+                    b,
+                    side: Some(CrossingSideVerdict::SameSide | CrossingSideVerdict::Undecided),
+                },
+            ..
+        } => Some((edge(*a)?, edge(*b)?)),
+        _ => None,
+    }
 }
 
 /// The solid a cell of `body` belongs to: a face's, or an edge's or a
@@ -6709,8 +6789,9 @@ fn cell_solid<T: Real>(body: &Body<T>, cell: crate::Cell) -> Option<crate::Solid
 /// it** ([`crate::DecisionSite::CensusAtRest`]): a contact no record
 /// backs whose Zero the census decided, its cells in the body's own keys
 /// and its margin that Zero's. `None` for every other finding, and for a
-/// contact no Zero decided or that is interpenetration rather than a
-/// coincidence: a pierce, and a crossing whose side test read `SameSide`.
+/// contact no Zero decided or that may be interpenetration rather than a
+/// coincidence: a pierce, and a crossing whose side test read `SameSide`
+/// or did not decide.
 #[must_use]
 pub fn census_contact_row(finding: &ValidationError) -> Option<crate::Coincidence> {
     let ValidationError::UnrecordedContact {
@@ -6731,10 +6812,10 @@ pub fn census_contact_row(finding: &ValidationError) -> Option<crate::Coincidenc
         | CensusContact::EdgeEdgeCross {
             a,
             b,
-            side: None | Some(CrossingSideVerdict::OppositeSides | CrossingSideVerdict::Undecided),
+            side: None | Some(CrossingSideVerdict::OppositeSides),
         } => [Edge(a), Edge(b)],
         CensusContact::EdgeEdgeCross {
-            side: Some(CrossingSideVerdict::SameSide),
+            side: Some(CrossingSideVerdict::SameSide | CrossingSideVerdict::Undecided),
             ..
         }
         | CensusContact::EdgeFacePierce { .. }
