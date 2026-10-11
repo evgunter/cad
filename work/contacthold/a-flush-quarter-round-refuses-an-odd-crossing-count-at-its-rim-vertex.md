@@ -2,11 +2,14 @@
 id: a-flush-quarter-round-refuses-an-odd-crossing-count-at-its-rim-vertex
 kind: issue
 title: A quarter round resting flush with a slab's edge or corner refuses its differences and intersection with an odd count of surviving crossing records at the rim vertex pair
-status: open
+status: closed
 opened: 2026-10-10
 priority: P1
 cost: M
 refs: [boolean-conic-side-code-zero-is-first-order, a-vertex-pair-near-coincidence-refuses-where-its-long-edges-decide, two-discs-kissing-externally-refuse-classification-invariant]
+branch: contacthold/flush-quarter-round
+pr: 4704
+closed: 2026-10-11
 ---
 
 
@@ -47,3 +50,50 @@ Before INTENT's E unit (PR 4496) the undeclared postures refused
 Possibly related, not checked against this fixture:
 `work/sector/a-vertex-pair-near-coincidence-refuses-where-its-long-edges-decide.md`,
 `work/tang/two-discs-kissing-externally-refuse-classification-invariant.md`.
+
+## Measured
+
+Instrumented on `contacthold/flush-quarter-round` (main at 6e3985cb76),
+`flush`, undeclared, slab ∖ round, at the rim vertex pair `(2, 4, 1)`
+(the slab's vertex split onto the round's rim vertex). The slab's
+sectors are its side face `x = 2` and its top, each halved by a
+bisector. The round's sectors are the wall (outward normal `−z` at the
+rim), the cap halved by a bisector, and the bottom. `recl_edges` reads
+two events:
+
+- **the rim, `−y`**: a real edge of both solids, so
+  `resolve_edge_edge`. The slab's top and the round's wall are a
+  `Tangent` pair, declared or verified by the door undeclared, so the
+  declared-`Tangent` short-circuit skipped the membership and marked
+  the flanking record (slab side, round wall) as the germ, whatever the
+  op;
+- **the round's cap/bottom edge, `−x`**, in the slab's top: the
+  edge-sector rule, Table II through the Eq. 15.3 lump of the coplanar
+  top and bottom (opposite orientation). It is a germ for ∪ (the lump
+  is In) and none for ∖ and ∩.
+
+So ∪ held two survivors and ∖ and ∩ one, at both rim vertices: the odd
+count. The arc's side never enters it.
+
+## The fix
+
+The tangent short-circuit only applies where the tangent faces leave
+the common line on the same side, riding the locus together. The
+slab's top leaves the rim along `−x` and the wall along `+x`, so they
+meet only along the line, and the membership algebra decides. In it,
+the slab top's representative lies on both of the round's flanking
+planes: the wall's tangent plane is the bottom's plane, a half-turn
+wedge. It points along the bottom and away from the wall, so the
+bottom's lump decides and the wall's touch is no reading of it. Before
+this, the split went to `wedge_is_reflex`, which refuses a half-turn at
+a decided zero, the capsule's `bool_wedge_reflex`
+(`the-capsule-rod-ending-on-the-joint-parts-by-member-order`).
+
+The same-side tangent pairs the short-circuit still serves refuse at
+every op where they only touch along the line. Whether to remove the
+short-circuit waits on what a tangent touch's union should produce:
+`a-same-side-tangent-touch-refuses-at-every-op`.
+
+## Closed 2026-10-11 (PR 4704)
+
+Merged after a holdout dual review (DR row file `PR-4704`). The same-side residue is `a-same-side-tangent-touch-refuses-at-every-op`, now with Ev in PR 4723.

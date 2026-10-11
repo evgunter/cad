@@ -170,7 +170,7 @@ fn carried_rows(records: &topo::ContactRecords) -> topo::OperandRecords {
 /// one vertex, edge and face count, for each span (16, 24 and 12). Red
 /// when the join drops the v-v record whose vertex it joined away: the
 /// touching corner then rests on the joined rim unrecorded
-/// (`UndeclaredContact` `VertexOnEdge` and the overlap it bounds). Red
+/// (`UnrecordedContact` `VertexOnEdge` and the overlap it bounds). Red
 /// when a step's output stage skips the join: the step holds a
 /// joinable vertex, and the orders that cut the rim before the flush
 /// pair merges keep a vertex the others never mint.

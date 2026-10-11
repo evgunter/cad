@@ -233,6 +233,11 @@ cases! {
     // its bounds still read On: the bounds' margin decides it.
     thinner_wedge_tilted_past_the_band: "Coincidence(Sectors)", 1.5e-8 * sin_deg(2.0), Public,
         Valued => wedge_on_a_block(super::super::BooleanOp::Union, 2.0, 1.5e-8);
+    // Tilted in band over the two faces, so the glue door leaves the pair
+    // unglued: the corner's bounds' margin, not the glue door's, is the
+    // one a smaller tolerance clears.
+    thin_wedge_in_band_over_its_faces: "Coincidence(Sectors)", 2e-9 * sin_deg(5.0), Public,
+        Valued => wedge_on_a_block(super::super::BooleanOp::Union, 5.0, 2e-9);
     // The coincfr4 review's wedges (W1–W4), on its own poses: turned,
     // scaled, hanging from the bottom face, and tilted into the block,
     // each through the three public ops.
@@ -1028,26 +1033,106 @@ fn wedge_on_a_block(
 
 /// The block and the wedge of [`wedge_on_a_block`].
 fn lane_wedge(opening_deg: f64, tilt: f64) -> (crate::AtRestBody<f64>, crate::AtRestBody<f64>) {
-    use crate::test_support_fixtures::{brick, mapped_cube};
     let tol = Tol::witness();
-    let phi = opening_deg.to_radians();
-    let (ea, eb) = (
-        Vec3::new(1.0, 0.0, 0.0),
-        Vec3::new(phi.cos(), phi.sin(), tilt * phi.sin()),
-    );
-    let p = Point3::new(0.5, 0.2, 1.0);
-    let wedge = mapped_cube::<f64>(
-        move |u, v, w| p + ea * u + eb * v + Vec3::new(0.0, 0.0, w),
-        tol,
-    );
+    let (block, wedge) =
+        crate::test_support_fixtures::wedge_on_a_block_top(opening_deg, tilt, 1.0, 0.0, tol);
     (
-        finished(
-            "the lane's block",
-            brick((-1.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol),
-            tol,
-        ),
+        finished("the lane's block", block, tol),
         finished("the lane's wedge", wedge, tol),
     )
+}
+
+/// The wedge `thin_wedge_in_band_over_its_faces` raises, every op in
+/// both orders: the first outcome other than a `Coincidence(Sectors)`
+/// refusal, or that refusal where every op gives it.
+#[test]
+#[ignore = "a child row: the_in_band_wedge_is_in_band_at_the_glue_door runs it"]
+fn wedge_in_band_every_op() {
+    use super::super::BooleanOp::{Intersect, Subtract, Union};
+    let tol = Tol::witness();
+    let (block, wedge) = lane_wedge(5.0, 2e-9);
+    let run = |op, a, b| {
+        super::super::boolean_op_with(
+            op,
+            a,
+            b,
+            &super::super::BooleanInputs::default(),
+            super::super::SweepStrategy::Realized,
+            tol,
+        )
+        .map(|_| ())
+    };
+    let outcomes = [
+        run(Union, &block, &wedge),
+        run(Union, &wedge, &block),
+        run(Intersect, &block, &wedge),
+        run(Intersect, &wedge, &block),
+        run(Subtract, &block, &wedge),
+        run(Subtract, &wedge, &block),
+    ]
+    .map(outcome);
+    let sectors =
+        |o: &Outcome| matches!(o, Outcome::Refused { key, .. } if key == "Coincidence(Sectors)");
+    let first = outcomes
+        .iter()
+        .find(|o| !sectors(o))
+        .unwrap_or(&outcomes[0]);
+    report("wedge_in_band_every_op", first);
+}
+
+/// `thin_wedge_in_band_over_its_faces`' glue door reads its pair in band
+/// over the two faces, and `thin_wedge_on_a_block`'s reads it apart: the
+/// two cases are the corner's refusal with and without an in-band glue
+/// verdict before it. Just below the tolerance the glue door's margin
+/// would offer, the glue door reads the pair apart and every op still
+/// refuses at the corner, so that offer would be false; the corner's own
+/// executes (the case above).
+#[test]
+fn the_in_band_wedge_is_in_band_at_the_glue_door() {
+    use super::super::carrier_pair::carrier_pair_relation;
+    use crate::test_support_fixtures::face_facing;
+    let read = |tilt: f64, band| {
+        let (block, wedge) = lane_wedge(5.0, tilt);
+        carrier_pair_relation(
+            &block,
+            face_facing(&block, 1.0),
+            &wedge,
+            face_facing(&wedge, -1.0),
+            false,
+            band,
+        )
+    };
+    let glue_margin = match read(2e-9, design_band()) {
+        Ok(Err(crate::CarrierEqError::Escalated { diag, .. })) => {
+            geom_core::test_support::upper(diag.margin)
+        }
+        other => panic!("in band at 2e-9: {other:?}"),
+    };
+    assert!(
+        matches!(
+            read(D, design_band()),
+            Ok(Ok(crate::CarrierRelation::Distinct))
+        ),
+        "apart at D: {:?}",
+        read(D, design_band())
+    );
+    let below = test_utils::offer::BELOW * glue_margin / geom_core::tolerance::DEFAULT_K;
+    let tighter = Band::new(below, geom_core::tolerance::DEFAULT_K * below).unwrap();
+    assert!(
+        matches!(
+            read(2e-9, tighter),
+            Ok(Ok(crate::CarrierRelation::Distinct))
+        ),
+        "apart below the glue door's offer {below:e}: {:?}",
+        read(2e-9, tighter)
+    );
+    let module = module_path!()
+        .split_once("::")
+        .map_or(module_path!(), |(_, m)| m);
+    match run(&format!("{module}::wedge_in_band_every_op"), below) {
+        Outcome::Refused { key, .. } if key == "Coincidence(Sectors)" => {}
+        other => panic!("every op refuses at the corner at {below:e}: {other:?}"),
+    }
 }
 
 /// Two corners sharing an edge along `z`, one flanked by a cylinder
@@ -2616,7 +2701,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "recl.rs",
         "resolve_edge_edge",
         "Coincide::CurvedFlankSense",
-        1,
+        2,
     ),
     ("recl.rs", "resolve_edge_edge", "Coincide::FlankSense", 1),
     ("recl.rs", "resolve_edge_edge", "Coincide::TangentSide", 1),

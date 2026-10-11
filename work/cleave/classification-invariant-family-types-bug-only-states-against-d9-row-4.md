@@ -125,3 +125,51 @@ branch:
     reaches `Distinct` at that reach. That is now a typed refusal on the
     bounds' margin (`recl::unglued_tilt`). Its own `Ok` arm ("a sector
     bound read On departs definitely from the other's plane") is bug-only.
+
+## Evidence: the fourth near-tangent site (branch `cleave/single-on-edge-record`, 2026-10-11)
+
+`boolean/recl.rs` `resolve_edge_sector`, "single-on-edge crossing
+without a flanking record": 36 runs of the `w345` prism at ε = 1e-12
+(`single-on-edge-crossing-without-a-flanking-record-at-1e-12`), and the
+census's only `ClassificationInvariant` left after PR 4581. Reachable by
+valid input, not bug-only: the fold rule names the flanker nearly
+coplanar with the reference, and `pair_search` reads that pair off its
+planes' common line, which swings off the shared edge by the edge's
+in-band offset over the planes' sine. The `Yes` cell now mints the
+pair's record, as the edge-edge rule does, so that arm no longer
+refuses. The arm left (a `Rule` or `NotRule` cell with no record of
+its flanker) is reached by no census row, and the minting argument does
+not hold there, because a flanker coplanar with the reference holds the
+bound without the ray needing to lie in the reference. It is a row 4
+candidate.
+
+Two sibling lookups in `recl.rs`, both measured reachable by valid input
+off the census's integer sixteenths (fix pass on the same branch):
+
+- `resolve_bisector_graze`, "bisector-graze crossing without a twin
+  record" (126 runs at ε = 1e-6 in the review's sweep): the lookup never
+  tried the reference's other twin. It does now, and the arm left
+  (no twin of either solid carries the record) is reached by no row
+  measured.
+- `resolve_edge_sector`, "on-edge event without a reference sector" (9
+  runs at each of 1e-9 and 1e-12, `vee300 e0 a11.75`, `cp` order): an
+  earlier event's germ rewrote the only record naming the bound. The
+  reference is read off the codes as first read, which no germ
+  rewrites; the arm left (no first-read record names a bound some
+  record named) can only be a bug: a row 4 candidate.
+
+A candidate the same mechanism could reach, unmeasured: `recl.rs`
+`resolve_bisector_graze` reads its reference off `records` as they
+stand (`find_ref_sector(records, …)`, ~:1544) and returns `Ok(None)`,
+"not crossed", where none names the bisector. `mark_germ` (~:587)
+rewrites every On of a germ record, by design so as to fold a grazing
+bisector on the record's other side into that germ. Where the
+bisector's ray and the germ's are read apart by `parallel_same_dir`
+(~:719), as the vee300 edges are, the graze is a second event whose
+On an earlier germ consumed, and the `Ok(None)` is a silent skip, not
+a resolution. Both On codes of one record lie On the other sector's
+plane, so both lie on the pair's one common line to the band, and a
+record crosses along one ray: the graze is most likely that germ read
+twice. That fails only where the two Ons lie on opposite rays of the
+line. Whether any census row reaches the arm after an earlier germ
+consumed its On has not been instrumented.

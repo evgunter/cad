@@ -280,11 +280,11 @@ fn interference_solids<T: Decide>(
     };
     match error {
         ValidationError::InstanceInterference { outer, inner, .. } => Some((*outer, *inner)),
-        ValidationError::UndeclaredContact {
+        ValidationError::UnrecordedContact {
             contact: CensusContact::EdgeFacePierce { edge, face },
             ..
         } => Some((of_edge(*edge)?, body.solid_of_face(*face)?)),
-        ValidationError::UndeclaredContact {
+        ValidationError::UnrecordedContact {
             contact:
                 CensusContact::EdgeEdgeCross {
                     a,

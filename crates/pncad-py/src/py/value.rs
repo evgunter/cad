@@ -411,7 +411,7 @@ impl MassProperties {
 /// kernel's own contract is that 3′ ≡ tier 3 plus the census actually
 /// run, which is the STRICTEST rung of the ladder — so a door that
 /// mints a body without records can only make this gate refuse
-/// (`UndeclaredContact`), never falsely pass.
+/// (`UnrecordedContact`), never falsely pass.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
 pub(crate) struct Body {
@@ -563,7 +563,7 @@ impl Body {
     /// certified against THIS body's own declared contacts.
     ///
     /// The census is a diff in both directions. Every coincidence it
-    /// finds must be backed by a declaration (`UndeclaredContact`
+    /// finds must be backed by a declaration (`UnrecordedContact`
     /// otherwise — no scan-to-bless) and every declaration must be
     /// geometrically confirmed (`StaleContactDeclaration` otherwise).
     /// There is no contacts argument because a body already carries
@@ -2242,9 +2242,7 @@ impl ImportReport {
 /// a check restated here.
 ///
 /// Its options are a literal naming every field, held to
-/// `ImportOptions` by the surface census's options roster — which is
-/// also where `declared_contacts`, the field this door does not take,
-/// carries its reason.
+/// `ImportOptions` by the surface census's options roster.
 #[pyfunction]
 #[pyo3(signature = (text, *, eps_in = None))]
 pub(crate) fn import_step(
@@ -2256,7 +2254,6 @@ pub(crate) fn import_step(
     let defaults = pncad::step_import::ImportOptions::default();
     let options = pncad::step_import::ImportOptions {
         eps_in: eps_in.map(|e| e.0.meters()).or(defaults.eps_in),
-        declared_contacts: defaults.declared_contacts,
         // This door asks for no chart-coherence examination, because
         // `ImportReport` has no field to report one on: asking would
         // measure the body and drop the measurement. Written as the
@@ -2279,10 +2276,13 @@ pub(crate) fn import_step(
             // examination, and `None` means NOT ASKED — which is the
             // one thing an empty report would not say.
             coherence: _,
-            // Empty by construction: the options declare no anchor.
+            contacts,
+            // The rows `contacts` cite: the body carries its records,
+            // and the rows are the import's own decisions, which no
+            // document reads through this door.
             coincidences: _,
         }) => Ok(ImportReport {
-            body: Body::plain(Arc::new(body)),
+            body: Body::declared(Arc::new(body), Arc::new(contacts)),
             enclosure: enclosure.map(MassProperties::from),
             eps_in,
             normalizations: normalizations
@@ -2639,7 +2639,7 @@ impl Coincidence {
     /// Where it was decided: `plane_ladder`, `carrier_ladder`,
     /// `tangent_witness`, `coaxial_sphere`, `split_on`, `battery_turn`,
     /// `battery_joint`, `battery_support_axis`, `profile_junction`,
-    /// `vertex_fusion`, `census_at_rest` or `import_anchor`.
+    /// `vertex_fusion` or `census_at_rest`.
     #[getter]
     fn site(&self) -> &'static str {
         self.site

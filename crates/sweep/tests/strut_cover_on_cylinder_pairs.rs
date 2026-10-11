@@ -22,8 +22,8 @@
 //! its subtract and intersect stop at the fallback extent; the
 //! one-profile capsule's
 //! sphere × cylinder strut, met by a coaxial rod, refuses at the
-//! crossing layer, save the rod ending on the joint, whose two member
-//! orders part. The `#[ignore]`d row meters the covered stack against
+//! crossing layer, save the rod ending on the joint, which unions at its
+//! closed form in both member orders. The `#[ignore]`d row meters the covered stack against
 //! point probes through its mesh, which the tessellation refuses; run
 //! it with `cargo nextest run -p sweep --run-ignored only -E
 //! 'test(strut_cover_on_cylinder_pairs)'`.
@@ -468,9 +468,8 @@ fn rod(z0: f64, len: f64) -> AtRestBody<f64> {
 /// capsule's, reaching the joint circle past it
 /// (into the half ball, or past the whole ball) or starting from it
 /// refuses `CurvedPierceUnsupported` in both member orders. Ending ON
-/// the joint, the two member orders part: rod first, the union builds,
-/// the capsule with the rod's stub below it; capsule first, the sector
-/// coincidence at the joint escalates on `bool_wedge_reflex`. With the
+/// the joint, the union builds in both member orders, the capsule with
+/// the rod's stub below it. With the
 /// strut column's sphere row admitted each pose refuses at a later door
 /// instead (the join's `CurvedBooleanUnsupported`, the interior-loop
 /// guard's `CurvedPairUnsupported`, or an escalated sector coincidence),
@@ -498,7 +497,7 @@ fn the_capsules_strut_waits_at_the_crossing_layer() {
         for (order, a, b) in [("capsule, rod", &cap, &rod), ("rod, capsule", &rod, &cap)] {
             let got = topo::union(a, b, tol());
             match (pose, order, &got) {
-                ("ending on the joint", "rod, capsule", Ok(BooleanResult::Body(bb))) => {
+                ("ending on the joint", _, Ok(BooleanResult::Body(bb))) => {
                     let v = topo::mass_properties(&bb.body, tol()).unwrap().volume;
                     let want = capsule_volume + PI * R * R;
                     assert!(
@@ -506,15 +505,6 @@ fn the_capsules_strut_waits_at_the_crossing_layer() {
                         "{pose}, {order}: {v} against {want}"
                     );
                 }
-                (
-                    "ending on the joint",
-                    "capsule, rod",
-                    Err(BooleanError::Escalated { diag, .. }),
-                ) => assert_eq!(
-                    diag.predicate,
-                    Some("bool_wedge_reflex"),
-                    "{pose}, {order}: the joint's sector coincidence: {got:?}"
-                ),
                 (
                     "into the half ball" | "over the half ball" | "from the joint",
                     _,
