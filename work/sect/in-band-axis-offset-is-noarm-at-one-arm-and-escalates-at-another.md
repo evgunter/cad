@@ -31,7 +31,7 @@ length margin, and treat the band differently:
 Both in-band cases are coaxial ground, unreached through a public door
 (the coincidence ladder and the crossing layer meet such poses first),
 and held under D10 while
-`work/recipe/d10-one-way-to-say-intent-is-unbuilt.md` is unbuilt.
+`work/intent/d10-one-way-to-say-intent-is-unbuilt.md` is unbuilt.
 
 ## Decide
 
