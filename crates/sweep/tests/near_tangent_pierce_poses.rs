@@ -134,7 +134,7 @@ const SHIPS_A_FINDING: [Shipped; 1] = [
         1e-7,
         "prism ∪ cube",
         &[
-            r#"UnrecordedContact { contact: EdgeEdgeCross { a: EdgeKey(16v1), b: EdgeKey(31v3), side: None }, witness: "(2.0, 1.018657088811564e-5, 1.0)" }"#,
+            r#"UnrecordedContact { contact: EdgeEdgeCross { a: EdgeKey(16v1), b: EdgeKey(31v3), side: None }, witness: "(2.0, 1.018657088811564e-5, 1.0)", margin: Some(MarginDiag(Value(2.1931706656334435e-15, None, ZeroWord(0)))) }"#,
         ],
     ),
 ];
