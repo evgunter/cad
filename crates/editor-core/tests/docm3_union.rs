@@ -1,17 +1,15 @@
 //! **The n-ary union** (DOCM-3; DM4–DM6): names keyed by member and
 //! not by position, the fold that equals the chain it replaces, the
-//! list-input edit, and the pairwise-distinct-inputs rule at both
-//! doors.
+//! list-input edit, and the repeated-read glue at every door.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use crate::corpus::body_of;
 use editor_core::{
-    BooleanOp, CancelToken, DocEdit, EditError, EntityKind, EvalOptions, Evaluation, Node,
-    ProfileDoc, RecipeNodeId, RoleSeg, StableName, all_faces, evaluate,
+    CancelToken, DocEdit, EditError, EntityKind, EvalOptions, Evaluation, Node, ProfileDoc,
+    RecipeNodeId, RoleSeg, StableName, all_faces, evaluate,
 };
 use fixture::{insert, len, on_frame};
 use geom_core::Tol;
@@ -66,12 +64,12 @@ fn three_boxes(order: [usize; 3]) -> (ProfileDoc, [RecipeNodeId; 3], RecipeNodeI
 }
 
 /// The member a union-minted name came from, or `None` for a name that
-/// is not a `FromMember` row. Read off the member EDGE, which is the
-/// only thing that answers: the inner name's minting node is the
+/// is not a carried (`From`) row. Read off the member's READ, which is
+/// the only thing that answers: the inner name's minting node is the
 /// PROTOTYPE's where a member is a placement of one.
-fn member_of(name: &StableName) -> Option<RecipeNodeId> {
+fn member_of(doc: &ProfileDoc, name: &StableName) -> Option<RecipeNodeId> {
     match name.path.first() {
-        Some(RoleSeg::FromMember { member, .. }) => Some(*member),
+        Some(RoleSeg::From { read, .. }) => doc.operation_of(*read),
         _ => None,
     }
 }
@@ -96,19 +94,19 @@ fn a_members_face_names_are_the_same_first_or_last() {
     let (ev, rev_ev) = (run(&doc), run(&rev_doc));
 
     for (k, member) in boxes.iter().enumerate() {
-        let faces_under = |ev: &Evaluation<f64>, u: RecipeNodeId| -> Vec<StableName> {
+        let faces_under = |doc: &ProfileDoc, ev: &Evaluation<f64>, u: RecipeNodeId| {
             let mut v: Vec<StableName> = all_faces(ev, u)
                 .into_iter()
-                .filter(|n| member_of(n) == Some(*member))
+                .filter(|n| member_of(doc, n) == Some(*member))
                 .collect();
             v.sort();
             v
         };
-        let forward = faces_under(&ev, u);
+        let forward = faces_under(&doc, &ev, u);
         assert_eq!(forward.len(), 6, "member {k} contributes its six box faces");
         assert_eq!(
             forward,
-            faces_under(&rev_ev, rev_u),
+            faces_under(&rev_doc, &rev_ev, rev_u),
             "member {k}'s face names moved with its list position"
         );
     }
@@ -124,14 +122,11 @@ fn every_union_name_wraps_its_member_exactly_once() {
     for name in all_faces(&ev, u) {
         assert_eq!(name.node, u, "a union's names are minted by the union");
         match name.path.as_slice() {
-            [RoleSeg::FromMember { of, .. }] => assert!(
-                !matches!(
-                    of.path.first(),
-                    Some(RoleSeg::FromA(_) | RoleSeg::FromB(_) | RoleSeg::FromMember { .. })
-                ),
+            [RoleSeg::From { of, .. }] => assert!(
+                !matches!(of.path.first(), Some(RoleSeg::From { .. })),
                 "the wrapped name is the member's own, not a fold row: {of:?}"
             ),
-            other => panic!("a disjoint union's faces are single `FromMember` rows: {other:?}"),
+            other => panic!("a disjoint union's faces are single `From` rows: {other:?}"),
         }
     }
 }
@@ -151,19 +146,15 @@ fn the_fold_and_the_pairwise_chain_are_the_same_body() {
     let (doc, boxes, u) = three_boxes([0, 1, 2]);
     let (doc, ab) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: boxes[0].into(),
-            b: boxes[1].into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![boxes[0].into(), boxes[1].into()]),
             declare: Vec::new(),
         },
     );
     let (doc, abc) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: ab.into(),
-            b: boxes[2].into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![ab.into(), boxes[2].into()]),
             declare: Vec::new(),
         },
     );
@@ -207,135 +198,172 @@ fn the_fold_and_the_pairwise_chain_are_the_same_body() {
     // And the names are what moved: the chain's are two descents deep
     // for the first member, the fold's are one wrapper for every member.
     let chain_names = all_faces(&ev, abc);
+    let (ab_read, first_read) = (fixture::out(&doc, ab), fixture::out(&doc, boxes[0]));
     assert!(
-        chain_names
-            .iter()
-            .any(|n| matches!(n.path.first(), Some(RoleSeg::FromA(inner))
-                if matches!(inner.path.first(), Some(RoleSeg::FromA(_))))),
+        chain_names.iter().any(
+            |n| matches!(n.path.first(), Some(RoleSeg::From { read, of: inner })
+                if *read == ab_read
+                    && matches!(inner.path.first(),
+                        Some(RoleSeg::From { read: r, .. }) if *r == first_read))
+        ),
         "the pairwise chain nests its first operand twice"
     );
 }
 
 // ---------------------------------------------------------------------
-// A4 — DM5 refuses at both doors.
+// A4 — a repeated read GLUES (DM4, ratified): no door refuses it.
 // ---------------------------------------------------------------------
 
-/// **A node's inputs are pairwise distinct**, refused at the INSERT
-/// door for every shape that can repeat one: the pair boolean and the
-/// n-ary union's list. (A split's target and tool read different
-/// kinds, so one read in both is refused by kind first.)
-#[test]
-fn insert_refuses_a_node_that_takes_one_input_twice() {
-    let (doc, boxes, _) = three_boxes([0, 1, 2]);
-    let x = boxes[0];
-    let shapes: Vec<AuthoredNode> = vec![
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: x.into(),
-            b: x.into(),
-            declare: Vec::new(),
-        },
-        Node::Union {
-            members: vec![x.into(), x.into()],
-            declare: Vec::new(),
-        },
-    ];
-    for node in shapes {
-        let err = doc
-            .apply(
-                &DocEdit::InsertNode {
-                    node: Box::new(node.clone()),
-                    fresh: Vec::new(),
-                },
-                Tol::witness(),
-                &editor_core::RefusingReach,
-            )
-            .expect_err("a repeated input must refuse");
-        assert!(
-            matches!(&err, EditError::DuplicateInput { input, .. } if input.id() == x),
-            "{node:?} refused with {err:?}"
-        );
-    }
+/// True iff `id` evaluated to the typed empty body.
+fn is_empty_body(ev: &Evaluation<f64>, id: RecipeNodeId) -> bool {
+    matches!(
+        ev.value(id).map(|v| &v.payload),
+        Some(editor_core::ValuePayload::Boolean(
+            editor_core::BooleanValue::Empty
+        ))
+    )
 }
 
-/// The same rule at the OTHER door: a `SetMembers` that would leave
-/// one node in the list twice.
+/// **A node that takes one input twice is accepted at the INSERT door
+/// and glues**: `Union[X, X]` and `Intersect[X, X]` are `X` (its six
+/// faces), and `Subtract { X, X }` is the typed empty body.
 #[test]
-fn set_members_refuses_a_duplicate_member() {
+fn a_repeated_input_glues_at_the_insert_door() {
+    let (doc, boxes, _) = three_boxes([0, 1, 2]);
+    let x = boxes[0];
+    let (doc, union) = insert(
+        doc,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![x.into(), x.into()]),
+            declare: Vec::new(),
+        },
+    );
+    let (doc, meet) = insert(
+        doc,
+        Node::Intersect {
+            members: editor_core::Bodies::Spelled(vec![x.into(), x.into()]),
+            declare: Vec::new(),
+        },
+    );
+    let (doc, cut) = insert(
+        doc,
+        Node::Subtract {
+            from: x.into(),
+            tool: x.into(),
+            declare: Vec::new(),
+        },
+    );
+    let ev = run(&doc);
+    for (what, id) in [("Union[X, X]", union), ("Intersect[X, X]", meet)] {
+        assert_eq!(
+            body_of(&ev, id).faces().count(),
+            body_of(&ev, x).faces().count(),
+            "{what} is X: {:?}",
+            ev.nodes.get(&id)
+        );
+    }
+    assert!(
+        is_empty_body(&ev, cut),
+        "Subtract {{ X, X }} is the typed empty body: {:?}",
+        ev.nodes.get(&cut)
+    );
+}
+
+/// The same rule at the OTHER door: a `SetMembers` that leaves one
+/// node in the list twice is accepted, and the repeat glues — the
+/// union is the two distinct boxes' twelve faces.
+#[test]
+fn set_members_accepts_a_repeated_member_and_glues_it() {
     let (doc, boxes, u) = three_boxes([0, 1, 2]);
-    let err = doc
+    let doc = doc
         .apply(
             &DocEdit::SetMembers {
                 node: u,
-                members: vec![boxes[0].into(), boxes[1].into(), boxes[0].into()],
+                members: editor_core::Bodies::Spelled(vec![
+                    boxes[0].into(),
+                    boxes[1].into(),
+                    boxes[0].into(),
+                ]),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
         )
-        .expect_err("a duplicate member must refuse");
-    assert!(
-        matches!(&err, EditError::DuplicateInput { node, input } if node.id() == u && input.id() == boxes[0]),
-        "{err:?}"
+        .expect("a repeated member glues")
+        .doc;
+    let ev = run(&doc);
+    assert_eq!(
+        body_of(&ev, u).faces().count(),
+        12,
+        "two distinct boxes, one of them read twice, fuse to twelve faces"
     );
 }
 
-/// The THIRD door: a SNAPSHOT carrying a node the edit doors refuse.
-///
-/// A saved file is data, and its snapshot is the one way a node
-/// reaches a document without passing `apply` — the edit log beside it
-/// replays through the doors. So the load validator asks the same
-/// function, and a hand-written file holding `Boolean { a: X, b: X }`
-/// or a one-member union refuses rather than loading.
+/// The THIRD door: a SNAPSHOT carrying a repeated member, or a
+/// one-member union, LOADS — the load validator asks the same function
+/// the edit doors do, and neither shape is a fault any more.
 #[test]
-fn a_snapshot_carrying_a_refused_node_does_not_load() {
+fn a_snapshot_carrying_a_repeated_or_single_member_loads() {
     let tol = Tol::witness();
     let (doc, boxes, u) = three_boxes([0, 1, 2]);
-    // The document is valid as saved; the corruption is introduced in
-    // the SNAPSHOT afterwards, which is what a tampered file is.
     let text = editor_core::persist::save(&doc, &[], tol).expect("the document saves");
-    // The member list is rewritten in place, whatever whitespace the
-    // writer used around it, so the fixture is about the LIST and not
-    // about the formatting.
+    // The spelled member list is rewritten in place, whatever
+    // whitespace the writer used around it, so the fixture is about the
+    // LIST and not about the formatting.
     let corrupt = |members: String| {
         let (head, rest) = text
-            .split_once("\"members\": [")
-            .expect("the union's list is on the wire");
-        let (_, tail) = rest.split_once(']').expect("the list closes");
-        let tampered = format!("{head}\"members\": [{members}]{tail}");
+            .split_once("\"Spelled\":")
+            .expect("the union's spelled list is on the wire");
+        let (gap, list) = rest.split_once('[').expect("the list opens");
+        let (_, tail) = list.split_once(']').expect("the list closes");
+        let tampered = format!("{head}\"Spelled\":{gap}[{members}]{tail}");
         editor_core::persist::load(&tampered, tol)
     };
-    // A repeated member in the union's list.
     let read = |node| doc.output(node, 0).expect("a box defines its body").0;
-    let err = corrupt(format!(
-        "\"{}\",\"{}\",\"{}\"",
+    let members_of = |loaded: &editor_core::ProfileDoc| -> Vec<RecipeNodeId> {
+        let Some(Node::Union { members, .. }) = loaded.node(u) else {
+            panic!("the union loaded as something else")
+        };
+        members
+            .reads()
+            .map(|m| {
+                loaded
+                    .operation_of(m.read)
+                    .expect("a member reads a live output")
+            })
+            .collect()
+    };
+    // A repeated member in the union's list. Every box stays read, so
+    // the snapshot's root set still covers the document.
+    let loaded = corrupt(format!(
+        "\"{}\",\"{}\",\"{}\",\"{}\"",
         read(boxes[0]),
         read(boxes[1]),
+        read(boxes[2]),
         read(boxes[0])
     ))
-    .expect_err("a duplicate member must refuse");
-    let said = format!("{err}");
-    let editor_core::PersistError::Snapshot(editor_core::SnapshotError::DuplicateInput {
-        node,
-        input,
-    }) = &err
-    else {
-        panic!("a repeated member is the load door's DuplicateInput, got {err:?}");
-    };
-    assert_eq!((node, input), (&doc.spoken(u), &doc.spoken(boxes[0])));
-    assert!(
-        said.contains("pairwise distinct")
-            && said.contains(&format!(
-                "Union {}: ",
-                test_utils::refusal::tag(u.0.digest())
-            ))
-            && said.contains(&format!("{input} is taken as an input twice")),
-        "{said}"
+    .expect("a repeated member loads");
+    assert_eq!(
+        members_of(&loaded.doc),
+        vec![boxes[0], boxes[1], boxes[2], boxes[0]]
     );
-    // And a list left under two.
-    let err =
-        corrupt(format!("\"{}\"", read(boxes[0]))).expect_err("a one-member union must refuse");
-    let said = format!("{err}");
-    assert!(said.contains("two or more"), "{said}");
+    // And a list of one. Dropping two boxes from the list in the text
+    // would leave them roots the snapshot's root set does not name, so
+    // the one-member union is authored at the edit door, which keeps the
+    // root set, and the load door reads what the writer saved.
+    let one = doc
+        .apply(
+            &DocEdit::SetMembers {
+                node: u,
+                members: editor_core::Bodies::Spelled(vec![boxes[0].into()]),
+            },
+            tol,
+            &editor_core::RefusingReach,
+        )
+        .expect("a one-member union is accepted")
+        .doc;
+    let text = editor_core::persist::save(&one, &[], tol).expect("the document saves");
+    let loaded = editor_core::persist::load(&text, tol).expect("a one-member union loads");
+    assert_eq!(members_of(&loaded.doc), vec![boxes[0]]);
 }
 
 // ---------------------------------------------------------------------
@@ -348,10 +376,9 @@ fn set_members_refuses_a_node_with_no_list_input() {
     let (doc, boxes, _) = three_boxes([0, 1, 2]);
     let (doc, pair) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: boxes[0].into(),
-            b: boxes[1].into(),
+        Node::Subtract {
+            from: boxes[0].into(),
+            tool: boxes[1].into(),
             declare: Vec::new(),
         },
     );
@@ -359,12 +386,12 @@ fn set_members_refuses_a_node_with_no_list_input() {
         .apply(
             &DocEdit::SetMembers {
                 node: pair,
-                members: vec![boxes[0].into(), boxes[2].into()],
+                members: editor_core::Bodies::Spelled(vec![boxes[0].into(), boxes[2].into()]),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
         )
-        .expect_err("a boolean carries no list");
+        .expect_err("a subtract carries no list");
     assert!(
         matches!(&err, EditError::SetMembersOnNonList { node } if node.id() == pair),
         "{err:?}"
@@ -380,7 +407,7 @@ fn set_members_refuses_a_member_that_is_not_live() {
         .apply(
             &DocEdit::SetMembers {
                 node: u,
-                members: vec![boxes[0].into(), ghost.into()],
+                members: editor_core::Bodies::Spelled(vec![boxes[0].into(), ghost.into()]),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -399,10 +426,8 @@ fn set_members_refuses_a_cycle() {
     let (doc, boxes, u) = three_boxes([0, 1, 2]);
     let (doc, downstream) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: u.into(),
-            b: boxes[0].into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![u.into(), boxes[0].into()]),
             declare: Vec::new(),
         },
     );
@@ -410,7 +435,7 @@ fn set_members_refuses_a_cycle() {
         .apply(
             &DocEdit::SetMembers {
                 node: u,
-                members: vec![boxes[1].into(), downstream.into()],
+                members: editor_core::Bodies::Spelled(vec![boxes[1].into(), downstream.into()]),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -419,23 +444,40 @@ fn set_members_refuses_a_cycle() {
     assert!(matches!(err, EditError::WouldCycle { .. }), "{err:?}");
 }
 
-/// A list left with one entry.
+/// A list left with ONE entry is accepted and builds that member's
+/// body; a list left EMPTY is accepted and builds the typed empty body
+/// (DM4, ratified: neither is a refusal any more).
 #[test]
-fn set_members_refuses_fewer_than_two() {
+fn set_members_accepts_one_member_and_none() {
     let (doc, boxes, u) = three_boxes([0, 1, 2]);
-    let err = doc
-        .apply(
+    let set = |members: Vec<editor_core::Operand>| {
+        doc.apply(
             &DocEdit::SetMembers {
                 node: u,
-                members: vec![boxes[0].into()],
+                members: editor_core::Bodies::Spelled(
+                    members.into_iter().map(Into::into).collect(),
+                ),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
         )
-        .expect_err("a union of one is its own input");
+        .expect("a short list is a legal edit")
+        .doc
+    };
+    let one = set(vec![boxes[0].into()]);
+    let ev = run(&one);
+    assert_eq!(
+        body_of(&ev, u).faces().count(),
+        6,
+        "a union of one is its member's body: {:?}",
+        ev.nodes.get(&u)
+    );
+    let none = set(Vec::new());
+    let ev = run(&none);
     assert!(
-        matches!(&err, EditError::TooFewMembers { node, found } if node.id() == u && *found == 1),
-        "{err:?}"
+        is_empty_body(&ev, u),
+        "a union of none is the typed empty body: {:?}",
+        ev.nodes.get(&u)
     );
 }
 
@@ -460,7 +502,7 @@ fn a_union_and_a_set_members_replay_bit_identically() {
         .collect();
     edits.push(DocEdit::SetMembers {
         node: u,
-        members: vec![boxes[2].into(), boxes[0].into()],
+        members: editor_core::Bodies::Spelled(vec![boxes[2].into(), boxes[0].into()]),
     });
     edits.push(DocEdit::DeleteNode { id: boxes[1] });
     let mut replayed = empty.clone();
@@ -483,11 +525,11 @@ fn a_union_and_a_set_members_replay_bit_identically() {
         panic!("the union survived as something else")
     };
     let members: Vec<RecipeNodeId> = members
-        .iter()
-        .map(|&m| {
+        .reads()
+        .map(|m| {
             loaded
                 .doc
-                .operation_of(m)
+                .operation_of(m.read)
                 .expect("a member reads a live output")
         })
         .collect();
@@ -503,13 +545,13 @@ fn dropping_a_member_leaves_the_others_names_alone() {
     let before = run(&doc);
     let kept: Vec<StableName> = all_faces(&before, u)
         .into_iter()
-        .filter(|n| member_of(n) != Some(boxes[0]))
+        .filter(|n| member_of(&doc, n) != Some(boxes[0]))
         .collect();
     let doc = doc
         .apply(
             &DocEdit::SetMembers {
                 node: u,
-                members: vec![boxes[1].into(), boxes[2].into()],
+                members: editor_core::Bodies::Spelled(vec![boxes[1].into(), boxes[2].into()]),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -574,7 +616,7 @@ fn two_placements_of_one_prototype_are_two_members() {
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: vec![left.into(), right.into()],
+            members: editor_core::Bodies::Spelled(vec![left.into(), right.into()]),
             declare: Vec::new(),
         },
     );
@@ -595,7 +637,7 @@ fn two_placements_of_one_prototype_are_two_members() {
         assert_eq!(
             faces
                 .iter()
-                .filter(|n| member_of(n) == Some(member))
+                .filter(|n| member_of(&doc, n) == Some(member))
                 .count(),
             6,
             "member {member:?} contributes its six faces"
@@ -606,7 +648,7 @@ fn two_placements_of_one_prototype_are_two_members() {
     let inner: std::collections::BTreeSet<StableName> = faces
         .iter()
         .filter_map(|n| match n.path.first() {
-            Some(RoleSeg::FromMember { of, .. }) => Some((**of).clone()),
+            Some(RoleSeg::From { of, .. }) => Some((**of).clone()),
             _ => None,
         })
         .collect();
@@ -650,7 +692,8 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
     let Some(Node::Union { members, .. }) = doc.node(union) else {
         panic!("the union is a union")
     };
-    let members: Vec<RecipeNodeId> = members
+    let member_reads: Vec<editor_core::VarId> = members.reads().map(|m| m.read).collect();
+    let members: Vec<RecipeNodeId> = member_reads
         .iter()
         .map(|&m| doc.operation_of(m).expect("a member reads a live output"))
         .collect();
@@ -660,7 +703,7 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
     let rim_blend = match doc.placements().as_slice() {
         [placement] => match doc.node(*placement) {
             Some(Node::PlaceInWorld { body, .. }) => doc
-                .operation_of(*body)
+                .operation_of(body.read)
                 .expect("the placement reads the die"),
             other => panic!("a placement, got {other:?}"),
         },
@@ -700,7 +743,9 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
             .apply(
                 &DocEdit::SetMembers {
                     node: union,
-                    members: kept.into_iter().map(Into::into).collect(),
+                    members: editor_core::Bodies::Spelled(
+                        kept.into_iter().map(Into::into).collect(),
+                    ),
                 },
                 tol,
                 &editor_core::RefusingReach,
@@ -723,13 +768,13 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
             tol,
         );
         // The removed pip's OWN rim arcs are gone with it, and their
-        // frozen names say so — every one of them names the dead
-        // member and nothing else does. That is the whole claim: the
+        // frozen names say so — every one of them carries the dead
+        // member's read and nothing else does. That is the whole claim: the
         // damage is exactly the removed member's, told apart by the
         // member edge in the name and by nothing positional.
         let doomed: Vec<StableName> = rims
             .iter()
-            .filter(|n| editor_core::derivation_nodes(n).contains(&members[k]))
+            .filter(|n| editor_core::derivation_reads(n).contains(&member_reads[k]))
             .cloned()
             .collect();
         assert_eq!(
@@ -821,8 +866,11 @@ fn the_dies_union_is_the_chain_it_replaced() {
         panic!("the union is a union")
     };
     let members: Vec<RecipeNodeId> = members
-        .iter()
-        .map(|&m| doc.operation_of(m).expect("a member reads a live output"))
+        .reads()
+        .map(|m| {
+            doc.operation_of(m.read)
+                .expect("a member reads a live output")
+        })
         .collect();
     // The chain this replaced, re-authored over the same members.
     let (doc, chain) = members.iter().skip(1).fold(
@@ -830,10 +878,8 @@ fn the_dies_union_is_the_chain_it_replaced() {
         |(doc, acc): (ProfileDoc, RecipeNodeId), pip| {
             insert(
                 doc,
-                Node::Boolean {
-                    op: BooleanOp::Union,
-                    a: acc.into(),
-                    b: (*pip).into(),
+                Node::Union {
+                    members: editor_core::Bodies::Spelled(vec![acc.into(), (*pip).into()]),
                     declare: Vec::new(),
                 },
             )
@@ -882,16 +928,24 @@ fn the_dies_union_is_the_chain_it_replaced() {
     let depth = |n: &StableName| {
         let mut d = 0;
         let mut cur = n.path.first();
-        while let Some(RoleSeg::FromA(inner) | RoleSeg::FromB(inner)) = cur {
+        while let Some(RoleSeg::From { read, of: inner }) = cur {
             d += 1;
+            // A read of a fold step (a union node) is one more descent;
+            // the first read that is not one is the member's own.
+            if !matches!(
+                doc.operation_of(*read).and_then(|n| doc.node(n)),
+                Some(Node::Union { .. })
+            ) {
+                break;
+            }
             cur = inner.path.first();
         }
         d
     };
     assert_eq!(
         all_faces(&ev, union).iter().map(depth).max(),
-        Some(0),
-        "a union's names carry no operand descent at all"
+        Some(1),
+        "a union's names carry one member wrapper and no operand descent"
     );
     assert_eq!(
         all_faces(&ev, chain).iter().map(depth).max(),
@@ -1003,16 +1057,14 @@ fn a_later_fold_step_glues_a_flush_member_as_the_pair_does() {
     let (bare, u) = insert(
         doc.clone(),
         Node::Union {
-            members: vec![a.into(), b.into(), d.into()],
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into(), d.into()]),
             declare: Vec::new(),
         },
     );
     let (bare, pair) = insert(
         bare,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: a.into(),
-            b: d.into(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), d.into()]),
             declare: Vec::new(),
         },
     );
@@ -1024,7 +1076,7 @@ fn a_later_fold_step_glues_a_flush_member_as_the_pair_does() {
         !table.contains("FromA(") && !table.contains("FromB("),
         "the union publishes an uncollapsed fold row: {table}"
     );
-    let pairs = crate::fixture::findings_declared(&ev, &[a, b, d]);
+    let pairs = crate::fixture::findings_declared(&ev, &bare, &[a, b, d]);
     assert!(!pairs.is_empty(), "the flush members have findings");
     let (declared, du) = crate::fixture::union_over(doc, &[a, b, d], pairs);
     let dev = run(&declared);
@@ -1072,73 +1124,48 @@ fn loft_doc() -> (ProfileDoc, RecipeNodeId, Vec<RecipeNodeId>) {
     (doc, loft, profiles)
 }
 
-/// **A ONE-SECTION loft is refused at the insert door**, where before
-/// this unit it was accepted.
-///
-/// `input_fault`'s floor clause reads [`Node::list_input`], which
-/// answers for `Loft` as well as for `Union`, so DM4's two-entry floor
-/// reaches the loft too. This is a widening of what the door refuses
-/// and it is deliberate: a single section has nothing to loft between,
-/// the sweep refused it downstream anyway, and refusing it where it is
-/// AUTHORED names the list rather than naming the sweep.
+/// **A ONE-SECTION loft is accepted at the insert door** (DM4: the
+/// list floor is retired), and the loft itself refuses it when it
+/// evaluates — a single section has nothing to loft between.
 #[test]
-fn a_one_section_loft_is_refused_at_the_insert_door() {
+fn a_one_section_loft_is_accepted_at_the_insert_door() {
     let (doc, _, profiles) = loft_doc();
-    let err = doc
-        .apply(
-            &DocEdit::InsertNode {
-                node: Box::new(Node::Loft {
-                    profiles: vec![profiles[0].into()],
-                    v_degree: editor_core::Formula::count(1),
-                }),
-                fresh: Vec::new(),
-            },
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        )
-        .expect_err("a one-section loft has no second section to loft to");
-    assert!(
-        matches!(err, EditError::TooFewMembers { found: 1, .. }),
-        "{err:?}"
+    let (doc, loft) = insert(
+        doc,
+        Node::Loft {
+            profiles: vec![profiles[0].into()],
+            v_degree: editor_core::Formula::count(1),
+        },
     );
-    // The floor answers BEFORE anything else the node might be wrong
-    // about, so the message names the list and not the sweep.
-    let said = format!("{err}");
+    let ev = run(&doc);
     assert!(
-        said.contains("a list input takes two or more entries"),
-        "the refusal forwards `InputFault`'s own sentence: {said}"
+        ev.value(loft).is_none(),
+        "a one-section loft has no second section to loft to: {:?}",
+        ev.nodes.get(&loft)
     );
 }
 
-/// The LOAD-door twin: the same one-section loft in a SNAPSHOT.
-///
-/// `validate_document` is `input_fault`'s third caller, so a
-/// hand-written file carrying a one-section loft refuses rather than
-/// loading — the floor is not an edit-door courtesy that a file can
-/// walk around.
+/// The LOAD-door twin: the same one-section loft in a SNAPSHOT loads,
+/// since the load validator asks `input_fault`, which carries no
+/// floor. The snapshot is the saved document itself, so its root set
+/// is the one the document holds.
 #[test]
-fn a_snapshot_carrying_a_one_section_loft_does_not_load() {
+fn a_snapshot_carrying_a_one_section_loft_loads() {
     let tol = Tol::witness();
-    let (doc, _, _) = loft_doc();
-    let text = editor_core::persist::save(&doc, &[], tol).expect("the document saves");
-    let (head, rest) = text
-        .split_once("\"profiles\": [")
-        .expect("the loft's list is on the wire");
-    let (kept, tail) = rest.split_once(']').expect("the list closes");
-    let first = kept
-        .split(',')
-        .next()
-        .expect("the list has a first entry")
-        .trim()
-        .to_owned();
-    let tampered = format!("{head}\"profiles\": [{first}]{tail}");
-    let err = editor_core::persist::load(&tampered, tol)
-        .expect_err("a one-section loft must refuse at the load door");
-    let said = format!("{err}");
-    assert!(
-        said.contains("a list input takes two or more entries"),
-        "the load door forwards the same sentence the edit door does: {said}"
+    let (doc, _, profiles) = loft_doc();
+    let (doc, loft) = insert(
+        doc,
+        Node::Loft {
+            profiles: vec![profiles[0].into()],
+            v_degree: editor_core::Formula::count(1),
+        },
     );
+    let text = editor_core::persist::save(&doc, &[], tol).expect("the document saves");
+    let loaded = editor_core::persist::load(&text, tol).expect("a one-section loft loads");
+    let Some(Node::Loft { profiles: read, .. }) = loaded.doc.node(loft) else {
+        panic!("the loft loaded as something else")
+    };
+    assert_eq!(read.len(), 1, "the loft keeps its one section");
 }
 
 // ---------------------------------------------------------------------
@@ -1155,7 +1182,7 @@ fn set_members_refuses_an_unknown_node() {
         .apply(
             &DocEdit::SetMembers {
                 node: RecipeNodeId::new(0, 9999),
-                members: vec![boxes[0].into(), boxes[1].into()],
+                members: editor_core::Bodies::Spelled(vec![boxes[0].into(), boxes[1].into()]),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -1191,20 +1218,16 @@ fn list_input_and_set_list_input_agree_on_every_node_kind() {
         for id in doc.ids() {
             let Some(node) = doc.node(id) else { continue };
             seen.insert(crate::corpus::node_kind(node));
-            let has_list = node.list_input().is_some();
-            let members = node.list_input().map(|list| {
-                list.iter()
-                    .map(|&m| doc.operation_of(m).expect("a member reads a live output"))
-                    .collect::<Vec<RecipeNodeId>>()
-            });
+            let list = list_input(node);
+            let has_list = list.is_some();
             let outcome = doc.apply(
                 &DocEdit::SetMembers {
                     node: id,
-                    members: members
-                        .unwrap_or_else(|| doc.ids()[..2].to_vec())
-                        .into_iter()
-                        .map(Into::into)
-                        .collect(),
+                    members: list.unwrap_or_else(|| {
+                        editor_core::Bodies::Spelled(
+                            doc.ids()[..2].iter().map(Into::into).collect(),
+                        )
+                    }),
                 },
                 tol,
                 &editor_core::RefusingReach,
@@ -1226,4 +1249,28 @@ fn list_input_and_set_list_input_agree_on_every_node_kind() {
         "the corpus offered only {} node kinds to hold the two matches to",
         seen.len()
     );
+}
+
+/// The list a node carries, as the reads it holds — a union's or an
+/// intersect's members, or a loft's sections — or `None` for a node
+/// with no list. The test-side twin of the retired `Node::list_input`.
+fn list_input(
+    node: &editor_core::Node<editor_core::ProfileProgram>,
+) -> Option<editor_core::Bodies<editor_core::BodyRead<editor_core::Formula>>> {
+    match node {
+        Node::Union { members, .. } | Node::Intersect { members, .. } => Some(
+            members
+                .try_map(|_, m| {
+                    Ok::<_, std::convert::Infallible>(editor_core::BodyRead::plain(m.read))
+                })
+                .unwrap_or_else(|never| match never {}),
+        ),
+        Node::Loft { profiles, .. } => Some(editor_core::Bodies::Spelled(
+            profiles
+                .iter()
+                .map(|&m| editor_core::BodyRead::plain(m))
+                .collect(),
+        )),
+        _ => None,
+    }
 }

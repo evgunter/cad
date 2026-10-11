@@ -524,10 +524,8 @@ fn r1_study_document() -> (ProfileDoc, editor_core::RecipeNodeId) {
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
-    let fused = r.insert(Node::Boolean {
-        op: editor_core::BooleanOp::Union,
-        a: slab.into(),
-        b: boss.into(),
+    let fused = r.insert(Node::Union {
+        members: editor_core::Bodies::Spelled(vec![slab.into(), boss.into()]),
         declare: Vec::new(),
     });
     let tool = r.insert(Node::Datum(Datum::Plane {

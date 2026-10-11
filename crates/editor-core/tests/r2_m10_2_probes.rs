@@ -19,11 +19,11 @@ use editor_core::ExtrudeSide;
 
 use editor_core::UnitSym;
 use editor_core::{
-    AssertionRelation, AssertionVerdict, Axis3, BooleanOp, CancelToken, Dimension, DocEdit,
-    DocumentId, EntityKind, EvalOptions, Evaluation, Formula, FreeValue, FreeVar, GeomPred,
-    LoopProgram, MeasurePrimitive, NamePat, Node, NodeErrorKind, NodeResult, PersistError,
-    ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector,
-    SitedRef, SnapshotError, StableName, SurfaceKindSet, ValuePayload, VarName, apply, evaluate,
+    AssertionRelation, AssertionVerdict, Axis3, CancelToken, Dimension, DocEdit, DocumentId,
+    EntityKind, EvalOptions, Evaluation, Formula, FreeValue, FreeVar, GeomPred, LoopProgram,
+    MeasurePrimitive, NamePat, Node, NodeErrorKind, NodeResult, PersistError, ProfileDoc,
+    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector, SitedRef,
+    SnapshotError, StableName, SurfaceKindSet, ValuePayload, VarName, apply, evaluate,
     select_where,
 };
 use fixture::{ang, len, scl};
@@ -839,19 +839,16 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
         let attempts: Vec<(&str, AuthoredNode)> = vec![
             (
                 "boolean-a",
-                Node::Boolean {
-                    op: BooleanOp::Union,
-                    a: victim.into(),
-                    b: b.into(),
+                Node::Union {
+                    members: editor_core::Bodies::Spelled(vec![victim.into(), b.into()]),
                     declare: Vec::new(),
                 },
             ),
             (
                 "boolean-b",
-                Node::Boolean {
-                    op: BooleanOp::Subtract,
-                    a: b.into(),
-                    b: victim.into(),
+                Node::Subtract {
+                    from: b.into(),
+                    tool: victim.into(),
                     declare: Vec::new(),
                 },
             ),
