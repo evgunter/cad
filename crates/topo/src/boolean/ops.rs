@@ -3012,7 +3012,8 @@ fn piece_holds<T: Decide>(
             | ContainError::EmptyLoop(_)
             | ContainError::LoopUnreadable(_)
             | ContainError::Uncrossable(_)
-            | ContainError::Curved(_)),
+            | ContainError::Curved(_)
+            | ContainError::ArcEndClearOfCorners(_)),
         )) => Ok(PieceRead::Unread(Some(refusal))),
     }
 }
