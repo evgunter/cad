@@ -5313,9 +5313,7 @@ fn seam_region<T: Decide>(
         for (edges, hes) in cycles(f)? {
             for &h in &hes {
                 let other = body.face_of_half_edge(body.mate(h)?)?;
-                if (body.faces.get(other)?.surface == carrier || std::env::var("M4746").as_deref() == Ok("bfs"))
-                    && !members.contains(&other)
-                {
+                if body.faces.get(other)?.surface == carrier && !members.contains(&other) {
                     members.push(other);
                 }
             }
@@ -5362,18 +5360,16 @@ fn seam_region<T: Decide>(
         let mut run: Vec<HalfEdgeKey> = Vec::new();
         for h in cycle {
             let v = body.half_edges.get(h)?.start;
-            if let Some(at) = (std::env::var("M4746").as_deref() != Ok("pinch")).then_some(()).and(run
+            if let Some(at) = run
                 .iter()
-                .position(|&r| body.half_edges.get(r).is_some_and(|r| r.start == v)))
+                .position(|&r| body.half_edges.get(r).is_some_and(|r| r.start == v))
             {
-                if std::env::var("T4746").is_ok() { eprintln!("T4746 PINCH split at {v:?}"); }
                 boundary.push(crate::props::run_edges(body, &run.split_off(at)).ok()?);
             }
             run.push(h);
         }
         boundary.push(crate::props::run_edges(body, &run).ok()?);
     }
-    if std::env::var("T4746").is_ok() { eprintln!("T4746 REGION members={} boundary_loops={}", members.len(), boundary.len()); }
     Some((members, loops, boundary))
 }
 
@@ -7292,7 +7288,6 @@ pub(crate) fn tier3_local_checks_marked<
                     .iter()
                     .find(|(members, _)| members.contains(&face_key))
                 {
-                    Some(_) if std::env::var("M4746").as_deref() == Ok("first") => None,
                     Some((_, side)) => *side,
                     None => {
                         let read = seam_region(body, face_key).map(|(members, loops, boundary)| {

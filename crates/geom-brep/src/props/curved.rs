@@ -3178,9 +3178,6 @@ pub fn sphere_region_material_sign<T: Decide>(
             what: "a seam region read on a surface that is not a sphere",
         });
     };
-    if std::env::var("M4746").as_deref() == Ok("unenc") {
-        return Ok(MaterialSign::Unencoded);
-    }
     let gauss = sphere_loops(center, radius, boundary, band)?;
     let [one] = gauss.as_slice() else {
         return if gauss.is_empty() {
@@ -3205,21 +3202,19 @@ pub fn sphere_region_material_sign<T: Decide>(
         // An in-band reading leaves this pole unread; it never refuses
         // the region.
         let side = match pole_side(center, radius, pole, one, band).and_then(|side| {
-            side.map(|side| Ok(if (match std::env::var("M4746").as_deref() { Ok("pole_int") => false, Ok("pole_out") => true, _ => interior()? }) { side.flip() } else { side }))
+            side.map(|side| Ok(if interior()? { side.flip() } else { side }))
                 .transpose()
         }) {
             Ok(side) => side,
             Err(PropsError::Escalated { .. }) => None,
             Err(other) => return Err(other),
         };
-        if std::env::var("T4746").is_ok() { eprintln!("T4746 POLE side={side:?} interior={:?}", interior()); }
         match (reading, side) {
-            (Some(a), Some(b)) if a != b => { if std::env::var("T4746").is_ok() { eprintln!("T4746 DISAGREE"); } return Ok(MaterialSign::Unencoded) },
+            (Some(a), Some(b)) if a != b => return Ok(MaterialSign::Unencoded),
             (None, side) => reading = side,
             _ => {}
         }
     }
-    if std::env::var("T4746").is_ok() { eprintln!("T4746 READ one-loop {reading:?}"); }
     Ok(reading.map_or(MaterialSign::Unencoded, MaterialSign::Encoded))
 }
 
