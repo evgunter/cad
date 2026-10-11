@@ -1791,6 +1791,19 @@ pub enum ValidationError {
         /// The not-yet-supported class, named.
         what: &'static str,
     },
+    /// Tier 3′: the census read a point at an arc's end that lies
+    /// definitely off both of its edge's corners, on a body tier 3 passed
+    /// at the same band, which pins every carrier end within the zero
+    /// band of its corner. The kernel's two readings of one end disagree
+    /// (certification's against the boundary walk's, which part by
+    /// rounding alone), so this is a defect to report, never a reading
+    /// of the geometry.
+    ArcEndOffCorner {
+        /// The face whose boundary the census read.
+        face: FaceKey,
+        /// The arc's ends against its edge's corners.
+        gaps: Box<crate::boolean::ArcEndGaps>,
+    },
     /// Tier 3′ (the census's instance-containment arm): one instance's
     /// material contains a vertex of another's — an interference fit,
     /// DECIDED by the material test and not undecidable. A vertex
@@ -2144,16 +2157,13 @@ pub enum CrossingSideVerdict {
     /// interpenetration evidence. Refuses, naming this verdict.
     SameSide,
     /// The side question did not reach a verdict at a candidate that
-    /// held the crossing: the site's margins escalated in band, or —
-    /// contradicting the carrier screens that just passed — the
-    /// dihedral gate could not establish the Smooth precondition the
-    /// sense algebra requires (`geom_brep::classify_material_pairing`'s
-    /// contract). Escalated typed either way
-    /// ([`ValidationError::CensusEscalated`]), never sampled, never a
-    /// fake side verdict. A pair whose carriers are DEFINITELY
-    /// transverse at the crossing never reaches this arm at all: the
-    /// edge screen refuses it silently first, because a question about
-    /// "the shared carrier" has no subject there.
+    /// held the crossing: the dihedral or the sense algebra
+    /// (`geom_brep::classify_material_pairing`) escalated in band.
+    /// Escalated typed ([`ValidationError::CensusEscalated`]), never
+    /// sampled, never a fake side verdict. A pair whose carriers are
+    /// DEFINITELY transverse at the crossing never reaches this arm at
+    /// all: the carrier screens refuse it silently first, because a
+    /// question about "the shared carrier" has no subject there.
     Undecided,
 }
 
@@ -2523,12 +2533,7 @@ const REPARAMETERIZE: &str = geom_brep::CARRIER_DOMAIN_RECOURSE;
 fn too_close(margin: &geom_core::MarginDiag) -> &'static str {
     own_close(
         margin,
-        concat!(
-            "Recourse: ",
-            geom_core::coincidence_declare_arm!(),
-            ", or ",
-            geom_core::coincidence_move_arm!()
-        ),
+        concat!("Recourse: ", geom_core::coincidence_move_arm!()),
     )
 }
 
@@ -2946,17 +2951,14 @@ fn classify_offset_fit(e: &geom_brep::OffsetFitError) -> (&'static str, Cow<'sta
             };
             return (why, m.ending(Reading::AtRest).into());
         }
-        O::BudgetExhausted {
-            last_round: geom_brep::LastRound::Improved,
-            ..
+        O::SampleCapReached { .. } => (DRIFT, "Recourse: split the face"),
+        O::SeedOverCap { .. } => (
+            "its fitted surface has more knot spans than the fit's sample limit can seed",
+            "Recourse: split the face",
+        ),
+        O::RefinementStalled { .. } | O::BoundNotFinite { best: Some(_), .. } => {
+            (DRIFT, geom_core::KERNEL_LIMIT_RECOURSE)
         }
-        | O::SampleCapReached { .. } => (DRIFT, "Recourse: split the face"),
-        O::BudgetExhausted {
-            last_round: geom_brep::LastRound::DidNotImprove,
-            ..
-        }
-        | O::RefinementStalled { .. }
-        | O::BoundNotFinite { best: Some(_), .. } => (DRIFT, geom_core::KERNEL_LIMIT_RECOURSE),
         O::BoundNotFinite { best: None, .. } => (
             "the fitted surface's error cannot be bounded at this offset distance",
             "Recourse: use an offset distance of larger magnitude",
@@ -3238,7 +3240,32 @@ fn classify_contain(e: &ContainError) -> (Cow<'static, str>, Cow<'static, str>) 
         ContainError::LoopUnreadable(_) => (UNWALKABLE.into(), DEFECT.into()),
         ContainError::Curved(e) => classify_point_in_solid(e),
         ContainError::Uncrossable(u) => (uncrossable(u), NOT_YET_ENDING.into()),
+        ContainError::ArcEndClearOfCorners(gaps) => arc_end_clear_of_corners(gaps),
     }
+}
+
+/// A point at an arc's end the corner pass placed clear of the edge's
+/// corners, read at rest. Where an end of the arc lies definitely off
+/// both corners on a body certified at this band, the kernel's two
+/// readings of one end disagree, which no move of the geometry repairs;
+/// otherwise the band alone parted the two passes (`K ≤ 3`), and the arc
+/// end's own lever is the way through.
+fn arc_end_clear_of_corners(
+    gaps: &crate::boolean::ArcEndGaps,
+) -> (Cow<'static, str>, Cow<'static, str>) {
+    use crate::boolean::{ContainDecision, placement_lever};
+    (
+        format!("a point lies at an arc's end clear of its corners: {gaps}").into(),
+        if gaps.off_corner() {
+            DEFECT.into()
+        } else {
+            format!(
+                "Recourse: {}",
+                placement_lever(Some(ContainDecision::ArcEnd))
+            )
+            .into()
+        },
+    )
 }
 
 const UNWALKABLE: &str = "its boundary could not be walked";
@@ -3902,6 +3929,11 @@ impl fmt::Display for ValidationError {
                  decided about the geometry. Recourse: run the certified check \
                  (validate_pseudomanifold, or validate_pseudomanifold_certificate for a \
                  certificate) at a certifying scalar"
+            ),
+            Self::ArcEndOffCorner { gaps, .. } => write!(
+                f,
+                "a face's boundary reads an arc's end off its corner where certification pinned \
+                 it: {gaps}. {DEFECT}"
             ),
             Self::CensusUndecidable { a, b, what } => write!(
                 f,
@@ -11349,44 +11381,15 @@ mod tests {
     /// No ending this module renders tells the user to lower the
     /// tolerance (D4 ¶1 (i)): a tolerance is tightened only on a
     /// band-decided arm of a sized decision, conditionally and with its
-    /// value. The coincidence menu `too_close` spells is
-    /// `geom_core::COINCIDENCE_RECOURSE`'s wording, the constant's own to
-    /// change, so it is taken out of exactly the arms that compose it (on
-    /// a margin that was read), and those arms are held to composing it.
+    /// value.
     #[test]
     fn no_validate_ending_says_lower_the_tolerance() {
-        use crate::chart_region::ChartRegionError as R;
-        let menu = geom_core::COINCIDENCE_RECOURSE;
-        let composes = |e: &ValidationError| match e {
-            ValidationError::CensusEscalated { cause: diag }
-            | ValidationError::CensusUnsupported {
-                cause: CensusUnsupportedCause::ChartRegion(R::Escalated(diag)),
-                ..
-            } => !diag.margin.is_invalid(),
-            _ => false,
-        };
-        let samples = crate::test_support_samples::validation_error_samples();
-        let mut problems = Vec::new();
-        let mut menus = 0;
-        for (label, e) in &samples {
-            let text = e.to_string();
-            if composes(e) != text.contains(menu) {
-                problems.push(format!("{label} composes the menu unexpectedly: {text}"));
-            }
-            let text = if composes(e) {
-                menus += 1;
-                text.replace(menu, "")
-            } else {
-                text
-            };
-            if text.contains("lower the tolerance") {
-                problems.push(format!("{label}: {text}"));
-            }
-        }
-        assert!(
-            menus > 0,
-            "no sample composes the menu: the exemption is vacuous"
-        );
+        let problems: Vec<_> = crate::test_support_samples::validation_error_samples()
+            .iter()
+            .map(|(label, e)| (label, e.to_string()))
+            .filter(|(_, text)| text.contains("lower the tolerance"))
+            .map(|(label, text)| format!("{label}: {text}"))
+            .collect();
         assert!(problems.is_empty(), "{}", problems.join("\n"));
     }
 
@@ -15953,13 +15956,13 @@ mod offset_fit_door_rows {
     }
 
     /// The checks window ends each refinement refusal in its routed
-    /// sentence: a loop still improving when its budget or sample cap
-    /// ran out names splitting the face and no loosening at all, and a
+    /// sentence: a loop still improving when its sample cap ran out
+    /// names splitting the face and no loosening at all, and a
     /// loop that stopped improving names loosening as the last resort,
     /// whole, with nothing after it.
     #[test]
     fn a_refinement_refusal_ends_in_its_routed_sentence() {
-        use geom_brep::{BestBound, LastRound, OffsetFitError};
+        use geom_brep::{BestBound, OffsetFitError};
         let best = BestBound {
             bound: 1.5e-9,
             grid: (4, 5),
@@ -15971,31 +15974,19 @@ mod offset_fit_door_rows {
             }
             .to_string()
         };
-        let budget = |last_round| OffsetFitError::BudgetExhausted {
-            budget: 8,
-            grid: (5, 5),
+        let split = [says(OffsetFitError::SampleCapReached {
+            cap: 64,
+            rounds: 3,
+            grid: (64, 5),
             achieved: 2e-9,
             tolerance: 1e-9,
-            last_round,
             best,
-        };
-        let split = [
-            says(budget(LastRound::Improved)),
-            says(OffsetFitError::SampleCapReached {
-                cap: 64,
-                rounds: 3,
-                grid: (64, 5),
-                achieved: 2e-9,
-                tolerance: 1e-9,
-                best,
-            }),
-        ];
+        })];
         for msg in split {
             assert!(msg.ends_with("Recourse: split the face"), "{msg}");
             assert!(!msg.contains("loosen"), "{msg}");
         }
         let last_resort = [
-            says(budget(LastRound::DidNotImprove)),
             says(OffsetFitError::RefinementStalled {
                 rounds: 3,
                 grid: (5, 5),

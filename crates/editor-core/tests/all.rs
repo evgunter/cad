@@ -51,6 +51,7 @@
 //
 // There is no `#![allow(clippy::duplicate_mod)]` here because no file is
 // loaded twice any more; if one ever is, the lint is meant to fire.
+mod blocks;
 mod corpus;
 mod fixture;
 // The wire-surgery helper, editor-core's alone — `tests/fixture/` and
@@ -114,8 +115,6 @@ mod cascade_delete;
 mod cert3r1_dump;
 #[path = "coincidence_door.rs"]
 mod coincidence_door;
-#[path = "declared_pairs_payload.rs"]
-mod declared_pairs_payload;
 #[path = "display_contract.rs"]
 mod display_contract;
 #[path = "dm3_indexed_read.rs"]
@@ -144,8 +143,6 @@ mod docm4_evaluation_identity;
 mod docm5_subject;
 #[path = "docm6_seam_declarations.rs"]
 mod docm6_seam_declarations;
-#[path = "docm7_union_declare.rs"]
-mod docm7_union_declare;
 #[path = "docm8_flat_merged.rs"]
 mod docm8_flat_merged;
 #[path = "docm9_range.rs"]
@@ -260,8 +257,6 @@ mod lib_g17_shell_node;
 mod lib_placedunion;
 #[path = "lib_sel1_geoselect.rs"]
 mod lib_sel1_geoselect;
-#[path = "lib_sel2_flush.rs"]
-mod lib_sel2_flush;
 #[path = "lib_u5_interrogate.rs"]
 mod lib_u5_interrogate;
 #[path = "lib_u7_select.rs"]
@@ -417,8 +412,8 @@ mod m4_pr4_hit;
 mod m4_pr4_interval;
 #[path = "m4_pr4_resolve.rs"]
 mod m4_pr4_resolve;
-#[path = "m4_pr5_declare.rs"]
-mod m4_pr5_declare;
+#[path = "m4_pr5_glue.rs"]
+mod m4_pr5_glue;
 #[path = "m4_pr6_eps_diff.rs"]
 mod m4_pr6_eps_diff;
 #[path = "m4_pr6_floats.rs"]
@@ -457,8 +452,8 @@ mod m5_pr5_corpus_probe;
 mod m5_pr6_pcurve_persistence;
 #[path = "m5_pr8_bvh_diff.rs"]
 mod m5_pr8_bvh_diff;
-#[path = "m5_s1_rest_declare.rs"]
-mod m5_s1_rest_declare;
+#[path = "m5_s1_rest_union.rs"]
+mod m5_s1_rest_union;
 #[path = "m6_5_downstream.rs"]
 mod m6_5_downstream;
 #[path = "m6_5_selection_refusals.rs"]
@@ -467,10 +462,6 @@ mod m6_5_selection_refusals;
 mod m6_5_selection_wire;
 #[path = "m6_composed_node.rs"]
 mod m6_composed_node;
-#[path = "m9_1_declaration_wire.rs"]
-mod m9_1_declaration_wire;
-#[path = "m9_1_declare_classes.rs"]
-mod m9_1_declare_classes;
 #[path = "m9_d1_r1_probes.rs"]
 mod m9_d1_r1_probes;
 #[path = "m9_d1_r2_probes.rs"]
@@ -550,6 +541,8 @@ mod product_gate_attribution;
 #[path = "props_verdict_shapes.rs"]
 mod props_verdict_shapes;
 
+#[path = "peg_in_bore_union.rs"]
+mod peg_in_bore_union;
 #[path = "r1_bool11_ec_probe.rs"]
 mod r1_bool11_ec_probe;
 #[path = "r1_dual_probes.rs"]
@@ -570,8 +563,6 @@ mod r2_m10_6_probes_interval;
 mod r2_m10_di_probes;
 #[path = "rev_fix_xsplit_unreachable.rs"]
 mod rev_fix_xsplit_unreachable;
-#[path = "review_decl_r1.rs"]
-mod review_decl_r1;
 #[path = "review_gui1_r1.rs"]
 mod review_gui1_r1;
 #[path = "review_m4_pr1.rs"]
@@ -606,8 +597,6 @@ mod seat4_verb_lowering;
 mod seat7_sweep_lowering;
 #[path = "seat8_split_lowering.rs"]
 mod seat8_split_lowering;
-#[path = "seatfw_curved_flush.rs"]
-mod seatfw_curved_flush;
 #[path = "step_handle_binding.rs"]
 mod step_handle_binding;
 #[path = "switch_display_units.rs"]
@@ -795,5 +784,7 @@ mod intent_vars_3_readers;
 mod review_s5b_r2_probes;
 #[path = "run_wall_offers.rs"]
 mod run_wall_offers;
+#[path = "union_flush_fuses.rs"]
+mod union_flush_fuses;
 #[path = "union_member_orders_decide_alike.rs"]
 mod union_member_orders_decide_alike;

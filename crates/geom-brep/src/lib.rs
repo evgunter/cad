@@ -108,7 +108,7 @@ pub use edge_nurbs::{
 pub use enters::{
     EntersMaterial, LeverEscalation, LeverRung, NormalAlignment, OutwardNormal, ParallelNormal,
     ParallelSense, ReferenceNormal, WallBend, WallBendError, bends_into_material, enters_material,
-    enters_material_order2, normal_alignment,
+    enters_material_order2, enters_material_reported, normal_alignment,
 };
 pub use extent::{ExtentBall, Reach};
 pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane};
@@ -146,7 +146,7 @@ pub use offset::{
     ConeOffset, Nappe, OffsetDistanceError, OffsetError, offset_distance, offset_surface,
 };
 pub use offset_fit::{
-    BestBound, LastRound, OffsetCertificate, OffsetFitError, OffsetLimb, approx_offset_surface,
+    BestBound, OffsetCertificate, OffsetFitError, OffsetLimb, approx_offset_surface,
     approx_offset_surface_at, certify_offset, certify_offset_at, certify_offset_over,
     certify_offset_over_at, fit_offset, fit_offset_at, recertify_approx, recertify_approx_at,
 };
@@ -169,11 +169,12 @@ pub use props::{
 pub use ssi::{
     BandVerdict, BoundaryChart, BoundaryPoint, BoundarySection, ChartAxis, ChartCorner, ChartEnd,
     ChartSide, ChartSpeedRefusal, ChartedNurbs, DomainField, ExhaustLane, Exhaustiveness,
-    ExhaustivenessRefusal, FloorFault, FloorKind, FloorRefusal, ReachBound, SSI_FIT_DEGREE,
-    SSI_FLOOR, SSI_MAX_STEPS, Section, SectionRoot, SettlingRefusal, SsiBoundaryContact, SsiBranch,
-    SsiCertificate, SsiDomain, SsiError, SsiLimb, SsiOperand, SsiOutcome, SsiTube, StepFault,
-    StepperMode, TraceDecision, TubeDegeneracy, boundary_section, certify_rung3,
-    cylinder_sphere_ssi, idealized_trace_r3, plane_nurbs_ssi, trace_plane_nurbs_uncertified,
+    ExhaustivenessRefusal, FloorFault, FloorKind, FloorRefusal, PlaneSection, ReachBound,
+    SSI_FIT_DEGREE, SSI_FLOOR, SSI_MAX_STEPS, Section, SectionReading, SectionRoot,
+    SettlingRefusal, SsiBoundaryContact, SsiBranch, SsiCertificate, SsiDomain, SsiError, SsiLimb,
+    SsiOperand, SsiOutcome, SsiTube, StepFault, StepperMode, TraceDecision, TubeDegeneracy,
+    boundary_section, certify_rung3, cylinder_sphere_ssi, idealized_trace_r3, plane_nurbs_ssi,
+    trace_plane_nurbs_uncertified,
 };
 pub use tangent::{
     TangentJet, TangentSpanBounds, tangent_certificate_lane, tangent_jet, tangent_span_bounds,

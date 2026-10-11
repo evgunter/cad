@@ -420,8 +420,7 @@ fn census_contact_is_matchable(contact: CensusContact) -> bool {
 /// An `Entity` subject is one carrier outside the certifiable
 /// inventory: simplify that carrier, or certify it through a
 /// supported lane. A `FacePair` is a candidate CONTACT, so the
-/// recourse is the declaration protocol — declare the coincidence, or
-/// separate the two faces. Both payload types are on the prelude, so
+/// recourse concerns the pair: separate the two faces. Both payload types are on the prelude, so
 /// the answer is read out whole rather than bound and re-rendered.
 ///
 /// The pair is UNORDERED as a subject, which a caller resolving a
@@ -2597,14 +2596,12 @@ fn the_export_door_refuses_typed_not_vaguely() {
         Node::Subtract {
             from: first_box.into(),
             tool: second_box.into(),
-            declare: Vec::new(),
         },
     );
     let (doc, downstream) = insert(
         doc,
         Node::Union {
             members: pncad::document::Bodies::Spelled(vec![cut.into(), first_box.into()]),
-            declare: Vec::new(),
         },
     );
     let ev = doors_evaluate(&doc);
@@ -2748,7 +2745,6 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
         doc,
         Node::Union {
             members: pncad::document::Bodies::Spelled(vec![plate.into(), tab.into()]),
-            declare: Vec::new(),
         },
     );
     let (doc, _) = place(doc, solid);
@@ -4908,7 +4904,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   which `Doc::mint` answers. The doors read it and a consumer never
 ///   writes it; what a consumer holds is the ids themselves
 ///   (`RecipeNodeId`, `StepId`), carried.
-const NOT_CARRIED: [&str; 98] = [
+const NOT_CARRIED: [&str; 97] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceKey",
@@ -4934,7 +4930,6 @@ const NOT_CARRIED: [&str; 98] = [
     "EvalScalar",
     "FlipEvidence",
     "FlipSet",
-    "FoldConsumption",
     "FragmentGroups",
     "GroupCutters",
     "Implicated",

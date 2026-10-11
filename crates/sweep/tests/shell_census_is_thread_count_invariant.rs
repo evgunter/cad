@@ -95,6 +95,8 @@ fn voided_rods_verdicts_as_a_sorted_multiset() {
         ("props_rim_axis_parallel Zero", 8),
         ("props_rim_center_on_axis Zero", 8),
         ("props_rim_fit Zero", 8),
+        ("props_rim_span_forward Positive", 8),
+        ("props_rim_span_winding Positive", 8),
     ]
     .into_iter()
     .map(|(k, n)| (k.to_string(), n))

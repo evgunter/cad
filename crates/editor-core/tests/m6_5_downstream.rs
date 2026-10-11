@@ -299,7 +299,6 @@ fn a_boolean_over_a_filleted_body_composes_downstream_of_the_fillet() {
         &doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![blank.into(), far.into()]),
-            declare: Vec::new(),
         },
     );
     let ev = eval(&doc);

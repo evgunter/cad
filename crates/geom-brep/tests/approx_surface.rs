@@ -119,8 +119,8 @@ fn an_unreachable_tolerance_refuses_typed() {
     let e = approx_offset_surface_at(Arc::new(bowed()), 0.3, 1e-18, band())
         .expect_err("1e-18 m on a bowed patch is not reachable");
     assert!(
-        matches!(e, OffsetFitError::BudgetExhausted { .. }),
-        "expected the budget refusal, got {e}"
+        matches!(e, OffsetFitError::SampleCapReached { .. }),
+        "expected the sample cap's refusal, got {e}"
     );
 }
 

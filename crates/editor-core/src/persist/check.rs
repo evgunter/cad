@@ -1134,8 +1134,6 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
         | DocEdit::InsertNode { .. }
         // A list of node ids carries no float.
         | DocEdit::SetMembers { .. }
-        // Sited names and a class tag carry no float.
-        | DocEdit::SetDeclare { .. }
         // A program's continuous arguments are `Expr` literals, finite
         // by the construction door like an inserted profile's; its
         // step ids are integers.
@@ -1294,17 +1292,6 @@ pub enum SnapshotError {
         name: SpokenName,
         /// The step it spells.
         step: crate::node::StepId,
-    },
-    /// A Boolean's or a Union's declared name is minted by the node
-    /// itself — the edit doors' [`crate::EditError::DeclaredNameNotUpstream`],
-    /// by the same rule, as far as a stored document is held to it: a
-    /// re-point may move a minter out of reach, which strands the name
-    /// and loads, and no edit makes a node declare its own name.
-    DeclaredNameNotUpstream {
-        /// The declaring node.
-        node: SpokenNode,
-        /// The name.
-        name: SpokenName,
     },
     /// An operand reads a variable the mint log does not hold — one
     /// the document never minted. A read of a variable minted and since
@@ -1721,12 +1708,6 @@ impl core::fmt::Display for SnapshotError {
                 "{name} spells the profile step id {step}, which the document's mint log \
                  does not hold — the document never minted it",
             ),
-            Self::DeclaredNameNotUpstream { node, name } => write!(
-                f,
-                "the declaration names {name}, which {node} mints itself — no edit writes such a \
-                 pair. {}",
-                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
-            ),
             // A document written before operands were reads holds a
             // node id in every operand, which the log holds as a node.
             Self::OperandUnminted { node, slot, var } => write!(
@@ -2120,7 +2101,7 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
     // loop above and a store walk down here, hundreds of lines apart
     // and neither reading as half of one list. An id the mint log lacks
     // inside a mate side, a fillet selection or an appearance key is
-    // as corrupt as one inside a declared pair, and as unrepairable
+    // as corrupt as one anywhere else, and as unrepairable
     // by `Rebind` (whose source door refuses a never-minted id) if it
     // loads. A carrier added to `Carrier` is checked here without
     // being remembered into this door.
@@ -2174,29 +2155,6 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
     // the one thing a file can be wrong about here.
     if let Some(&at) = crate::eval::schedule::schedule(doc).unschedulable.first() {
         return Err(SnapshotError::ReadCycle { at: doc.spoken(at) });
-    }
-    // Every declared pair, by the rule its edit doors ask
-    // (`node::declared_side_fault`), as far as a stored document can
-    // still be held to it: a re-point (`SetParam` at an operand, `SetMembers`)
-    // strands a site or a name it moved out of reach, and that loads.
-    // What no edit leaves is a node declaring a name it mints itself.
-    for (&id, node) in &doc.nodes {
-        match crate::node::declared_side_fault(
-            crate::node::declared_sides(node.declared_pairs()),
-            None,
-            |n| n != id,
-        ) {
-            None => {}
-            Some((_, crate::node::DeclaredSideFault::SiteNotAnOperand)) => {
-                unreachable!("the load door judges no declared site")
-            }
-            Some((side, crate::node::DeclaredSideFault::NameNotUpstream)) => {
-                return Err(SnapshotError::DeclaredNameNotUpstream {
-                    node: doc.spoken(id),
-                    name: doc.spoken_name(&side.name),
-                });
-            }
-        }
     }
     // The witness store's key rule, by the same
     // `doc::witness_site_fault` the witness edit doors ask: a witness
@@ -2422,7 +2380,6 @@ mod tests {
             NameReadNotMinted,
             AppearanceReadNotABody,
             NameStepNotMinted,
-            DeclaredNameNotUpstream,
             OperandUnminted,
             ReadsWorldCopy,
             SelectionShape,
@@ -2508,7 +2465,6 @@ mod tests {
             | SnapshotError::NameReadNotMinted { .. }
             | SnapshotError::AppearanceReadNotABody { .. }
             | SnapshotError::NameStepNotMinted { .. }
-            | SnapshotError::DeclaredNameNotUpstream { .. }
             | SnapshotError::ReadCycle { .. }
             | SnapshotError::WitnessSite { .. }
             | SnapshotError::WitnessOnMissingNode { .. }
@@ -2579,10 +2535,6 @@ mod tests {
             SnapshotError::NameStepNotMinted {
                 name: crate::SpokenName::absent(face()),
                 step: crate::node::StepId::new(0, 9),
-            },
-            SnapshotError::DeclaredNameNotUpstream {
-                node: node(),
-                name: crate::SpokenName::absent(face()),
             },
             SnapshotError::OperandUnminted {
                 node: node(),

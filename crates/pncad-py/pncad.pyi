@@ -277,8 +277,7 @@ class ValidationFinding:
     - `subject_kind` — what a census refusal is ABOUT: `"entity"` (one
       carrier outside the certifiable inventory) or `"face_pair"` (a
       candidate contact). Two different repairs: simplify or certify
-      the carrier, versus declare the coincidence or separate the two
-      faces.
+      the carrier, versus move the geometry so the two faces separate.
     - `entity_kind` — that entity's kind (`"face"`, `"edge"`,
       `"vertex"`, `"loop"`, `"half_edge"`, `"shell"`, `"solid"`);
       `None` for a `"face_pair"`, whose two sides are faces.
@@ -636,28 +635,20 @@ class SelectRefusal(PncadError):
     own typed refusal, crossing under its own name.
 
     `reason` is `in_band`, `tied_disagrees`, `unreadable`,
-    `not_a_datum`, `datum_has_no_value`, `node_has_no_value`,
-    `node_has_no_output` (a flush query's node defines no output for a
-    finding to be sited at), `read_not_an_output` (a read that is no
-    body output, so no table to ask — `Evaluation.resolve` raises it
-    too), `node_not_held` (`Evaluation.resolve` at a node handle the
-    document no longer holds, for a name it did not mint),
-    `not_a_length`, `pair_in_band`, `bad_value`, `band`, or
-    `distinct_finding` (a kernel defect). The other attributes are
-    the refusing arm's payload, always present and `None` where
-    inapplicable: `name` (the candidate's opaque name text, a flush
-    pair's first face), `other` (a flush pair's second face), `at` and
-    `other_at` (the nodes holding a flush pair's two faces, which tell
-    two copies of one body apart), `predicate` (the funnel site), `matched`/`candidates` (a tied
+    `not_a_datum`, `datum_has_no_value`, `not_a_length`, `bad_value`,
+    `band`, `read_not_an_output` (`Evaluation.resolve` asked in a read
+    that is no body output, so no table to ask), or `node_not_held`
+    (`Evaluation.resolve` at a node handle the document no longer
+    holds, for a name it did not mint). The other attributes are the
+    refusing arm's payload, always present and `None` where
+    inapplicable: `name` (the candidate's opaque name text),
+    `predicate` (the funnel site), `matched`/`candidates` (a tied
     name's disagreement counts), `datum` (the non-datum reference, or
     the datum with no value), `found` (what it evaluated to),
     `dim` (a non-length comparand's dimension tag)."""
 
     reason: str
     name: Optional[str]
-    other: Optional[str]
-    at: Optional[NodeId]
-    other_at: Optional[NodeId]
     predicate: Optional[str]
     matched: Optional[int]
     candidates: Optional[int]
@@ -1015,8 +1006,8 @@ class FrameError(PncadError):
     margin carries the band and no number. This is diagnostic data,
     for error text only and not a decision input: the escalation
     contract is that no sound branch exists here, so
-    the recourse is the message's own three levers — declare the
-    coincidence, move the geometry, or lower the tolerance.
+    the recourse is the message's own levers — move the geometry,
+    or lower the tolerance.
 
     `band` wraps a band-construction refusal, whose word rides on
     `inner_variant` (`invalid_value`, `invalid_lever_arm`, `empty`)
@@ -2454,9 +2445,7 @@ class Node:
         `Node.transform_by`'s is."""
 
     @staticmethod
-    def union(
-        members: Sequence[_BodyArg] | _Operand, declare: list[FlushFinding] = []
-    ) -> Node:
+    def union(members: Sequence[_BodyArg] | _Operand) -> Node:
         """The UNION: the material in any member, folded into ONE body
         in the members' order.
 
@@ -2475,33 +2464,24 @@ class Node:
         placement rule: here the membership is data, which
         `DocEdit.set_members` rewrites on the live node.
 
-        `declare` is the node's declared contact pairs, given as the
-        INSPECTED findings (each carries its pair, sited at the two
-        member reads, and its class) and held as the node's own
-        payload; each pair is fed at the fold step its two members meet
-        at. An empty list declares nothing. Members whose faces a margin
-        decides on one surface glue there, declared or not, and each
-        such coincidence is recorded for the `unproven_coincidence`
-        check; a declaration adds its verification. A refusal only a
-        fold step raises is `kind == "union_fold_step"`, naming the
-        member it folds in. `Doc.declare` / `Doc.declare_all` set the
-        list on the live node.
+        Members whose faces a margin decides on one surface glue there,
+        and each such coincidence is recorded for the
+        `unproven_coincidence` check. A refusal only a fold step raises
+        is `kind == "union_fold_step"`, naming the member it folds in.
 
         A closed surface of one member that lies wholly on another's —
         one read at two seats, or a member carried into a union
         unchanged — is answered where every face of it is the same face
-        as one of the other's, by recipe or by declaration; where they
+        as one of the other's, by recipe or by a decided margin; where they
         do not show that, the evaluation refuses with
         `inner_kind == "coincident_shell"`."""
 
     @staticmethod
-    def intersect(
-        members: Sequence[_BodyArg] | _Operand, declare: list[FlushFinding] = []
-    ) -> Node:
+    def intersect(members: Sequence[_BodyArg] | _Operand) -> Node:
         """The INTERSECT: the material in every member, folded in the
         members' order.
 
-        `members` and `declare` are `union`'s, read the same way: a
+        `members` is `union`'s, read the same way: a
         sequence of operands or one family read, any count — one
         member is that body, none is the typed empty body, and
         `[a, a]` is `a`. A fold step whose members share no material
@@ -2509,9 +2489,7 @@ class Node:
         rewrites the list on the live node."""
 
     @staticmethod
-    def subtract(
-        from_: _BodyArg, tool: _BodyArg, declare: list[FlushFinding] = []
-    ) -> Node:
+    def subtract(from_: _BodyArg, tool: _BodyArg) -> Node:
         """The SUBTRACT: `from_` with the material of `tool` cut away.
 
         The one pair node — difference neither commutes nor associates
@@ -2520,8 +2498,7 @@ class Node:
         `tool` (slot word `cut`). Several tools are one subtract of
         their union, `Node.subtract(body, Node.union([t1, t2]))`. A
         body cut by itself, `Node.subtract(a, a)`, is the typed empty
-        body. `declare` is `union`'s declared-pair list, sited at the
-        two operand reads."""
+        body."""
 
     @staticmethod
     def pattern(input: _Operand, count: _CountArg, kind: PatternKind) -> Node:
@@ -2687,8 +2664,8 @@ class Node:
         name the minting node for the authored one. Both are legal and
         they are different questions.
 
-        These references ARE recipe edges, unlike a boolean's declared
-        pairs and `Node.mate`'s names: each is a selection of the named
+        These references ARE recipe edges, unlike `Node.mate`'s names:
+        each is a selection of the named
         node's body (or, for a whole body, a read of it), so deleting a
         referenced node is accepted and reported on the measure
         (`stranded_read` and `stranded_selection`), like any other
@@ -3469,10 +3446,7 @@ class DocEdit:
         The one edit that changes a live node's inputs: no positional
         spelling and no per-entry arm, so nothing is inferred about
         which old entry survived. Dropping a member is this edit
-        without it plus `delete_node` of the orphan. The node's
-        declared pairs are left as they were: a pair whose member read
-        was dropped refuses at the next evaluation
-        (`declare_site_not_an_operand`).
+        without it plus `delete_node` of the orphan.
 
         Every input check `Doc.insert` makes is remade of the
         REWRITTEN node — `unresolved_input`, `slot_var_kind` (a family
@@ -3481,23 +3455,6 @@ class DocEdit:
         sections are spelled one read each, so a family there refuses
         `loft_sections_spelled`, and a node carrying no list refuses
         `set_members_on_non_list`."""
-
-    @staticmethod
-    def set_declare(node: NodeId, findings: list[FlushFinding]) -> DocEdit:
-        """Replace a live union's, intersect's or subtract's whole
-        declared-pair list with the pairs and classes of `findings`,
-        the inspected `FlushFinding`s `Node.union`'s `declare=` takes.
-        An empty list clears the declaration.
-
-        Refuses `set_declare_on_non_declaring` on a node that is none
-        of the three, `unknown_node` for a node the document does not
-        hold, the name checks an insert runs
-        (`declare_names_missing_node`, `name_step_never_minted`,
-        `read_site_missing_node`), and the pair rule an insert asks:
-        `declared_site_not_an_operand` for a pair sited at a read that
-        is not one of `node`'s operand reads (the read rides `param`),
-        `declared_name_not_upstream` for a name not minted before
-        `node`."""
 
     @staticmethod
     def set_param(node: NodeId, slot: str, value: _SlotArg | NodeId) -> DocEdit:
@@ -3747,8 +3704,7 @@ class DocEdit:
         """Repair a stored name, addressed by body and name: with `body`
         (`Doc.output(node)`), rewrite every selection of that body that
         names `from_name` EXACTLY to name `to_name`; with no body, every
-        site no selection holds (a declaration's pairs, a mate's heads,
-        an appearance key).
+        site no selection holds (a mate's heads, an appearance key).
 
         THE name repair, and the only one. A selection stores stable
         names — a fillet's edges, a chamfer's, a shell's open faces —
@@ -4097,22 +4053,6 @@ class Doc:
         body are two copies. `label=` labels the placement in the same
         call, as `insert`'s does."""
 
-    def declare(self, node: NodeId, finding: FlushFinding) -> None:
-        """ADD one inspected finding's pair to the declared pairs of the
-        live union, intersect or subtract `node`, keeping every pair it
-        declares already (the detect/declare protocol's declare arm). A pair on
-        the same two sides as one already declared replaces it. Raises
-        EditError, typed: `set_declare_on_non_declaring` on a node
-        that is none of the three, `unknown_node`,
-        `declared_site_not_an_operand` for a finding inspected between
-        other operand reads than `node`'s, and the name checks an
-        insert runs."""
-
-    def declare_all(self, node: NodeId, findings: list[FlushFinding]) -> None:
-        """Set `node`'s whole declared-pair list to a SET of findings —
-        `DocEdit.set_declare`'s replace, where `declare` adds. An empty list raises
-        EditError (`no_findings`); `DocEdit.set_declare(node, [])` is
-        the spelling that clears."""
     @property
     def node_count(self) -> int: ...
     def order(self) -> list[NodeId]: ...
@@ -5066,74 +5006,15 @@ class Verdict:
     @property
     def reason(self) -> Optional[str]: ...
 
-# --- detect / declare -------------------------------------------------
-# The flush-contact protocol's value vocabulary. A finding is a
-# REPORT: `Evaluation.find_flush_candidates` answers with them, the
-# caller inspects, and `Node.union` / `Node.intersect` /
-# `Node.subtract`'s `declare=`, `Doc.declare` / `Doc.declare_all` and
-# `DocEdit.set_declare` put inspected findings on one of those nodes as
-# its declared pairs. Detection and declaration are separate doors ON PURPOSE: no fused
-# detect-and-declare door exists.
-
-class PlaneRelation:
-    """The verify door's relation verdict: `SameOpposite` = resting
-    contact (opposed outward normals), `SameOriented` = flush walls
-    (a continuation). `Distinct` exists as vocabulary; a
-    finding never carries it."""
-
-    SameOriented: Final[PlaneRelation]
-    SameOpposite: Final[PlaneRelation]
-    Distinct: Final[PlaneRelation]
+# --- contact ----------------------------------------------------------
 
 class ContactClass:
     """The contact class a mate asserts: `Rest` (cosurface contact,
     opposed senses, on any carrier the verify ladder names — plane,
-    sphere, cylinder, torus) or `Tangent`. A union's declaration
-    speaks `BooleanCoincidence`, which adds the continuation."""
+    sphere, cylinder, torus) or `Tangent`."""
 
     Rest: Final[ContactClass]
     Tangent: Final[ContactClass]
-
-class BooleanCoincidence:
-    """What a boolean node may declare about a face pair: a contact
-    (`Rest`, `Tangent`), a `Continuation` — one carrier with aligned
-    senses, as two stacked parts' outer walls are, which the union
-    merges — or a `Seam` — two carriers joining G1 with aligned senses,
-    as a cap on a tube does. The flush detector reports `Rest` for an
-    opposed pair and `Continuation` for an aligned one; it never reports
-    a seam."""
-
-    Rest: Final[BooleanCoincidence]
-    Tangent: Final[BooleanCoincidence]
-    Continuation: Final[BooleanCoincidence]
-    Seam: Final[BooleanCoincidence]
-
-class FlushRung:
-    """Which rung of the verify ladder decided a finding:
-    `DecidedCoincident` = the geometric trilean's coincident arm."""
-
-    DecidedCoincident: Final[FlushRung]
-
-class FlushFinding:
-    """One flush finding: "this face pair would verify as declared" —
-    a VALUE to inspect and declare, never itself a declaration. The
-    detector's reach is the carrier ladder's, so a pair may be
-    cosurface on a plane, a sphere, a cylinder or a torus. `a`/`b` are the pair's names in the same OPAQUE text
-    alphabet every materializer speaks (store them, hand them back;
-    never parse). `class_` spells `class` (a Python keyword)
-    with the `or_` trailing-underscore precedent."""
-
-    @property
-    def a(self) -> str: ...
-    @property
-    def b(self) -> str: ...
-    @property
-    def relation(self) -> PlaneRelation: ...
-    @property
-    def class_(self) -> BooleanCoincidence: ...
-    @property
-    def rung(self) -> FlushRung: ...
-    def __eq__(self, other: object) -> bool: ...
 
 class Value:
     """A node's successful value."""
@@ -5502,14 +5383,10 @@ class Evaluation:
         `min_clearance` at this point scalar); an evaluation over the
         bound values that refuses raises `ExprError`."""
 
-    def coincidences(
-        self, node: NodeId, full_symbolic_pass: bool = False
-    ) -> list[Coincidence]:
+    def coincidences(self, node: NodeId) -> list[Coincidence]:
         """The coincidences `node` decided from values (D10), in
         decision order, each with what the coincidence door decided
-        about it: at the resident budget, or at the full one with
-        `full_symbolic_pass`. A node with no value raises as `value`
-        does."""
+        about it. A node with no value raises as `value` does."""
 
     def succeeded(self, node: NodeId) -> bool: ...
     def order(self) -> list[NodeId]: ...
@@ -5666,18 +5543,6 @@ class Evaluation:
         evaluation has no value for; then the loud `unnamed` bug arm
         if the winning face inverts to no name."""
 
-    def find_flush_candidates(
-        self, a: NodeId | Var, b: NodeId | Var
-    ) -> list[FlushFinding]:
-        """The cross-body flush candidates between `a`'s and `b`'s
-        outputs, as of THIS evaluation — the detect arm of the
-        detect/declare protocol, run by the C4 verifier itself (a
-        finding cannot disagree with the boolean's verify-at-use).
-        Findings are DEFINITE and canonically ordered. Raises
-        `SelectRefusal`, typed (`node_has_no_value` when either node
-        has no value, `pair_in_band`, `tied_disagrees`, `unreadable`,
-        `band`, `distinct_finding` for a kernel defect) — an ambiguous
-        pair is never silently included or dropped."""
     @property
     def recomputed(self) -> int:
         """How many nodes ran their op. With no `prior=` that is every
@@ -7000,11 +6865,7 @@ class ChecksConfig:
     not in the default pass. It reads every face of every rest body,
     and it reports a trimmed face's loops as out of its reach, which
     is true and is not actionable; ask for it rather than pay for it
-    on every run. `Off` is visible in `ChecksReport.skipped`.
-
-    `full_symbolic_pass` runs the coincidence door's symbolic rungs at
-    the full budget; by default they run at the resident one, cheap
-    enough for every evaluation."""
+    on every run. `Off` is visible in `ChecksReport.skipped`."""
 
     def __init__(
         self,
@@ -7013,7 +6874,6 @@ class ChecksConfig:
         separation: Advisory = ...,
         chart_coherence: Advisory = ...,
         unproven_coincidence: Advisory = ...,
-        full_symbolic_pass: bool = False,
     ) -> None: ...
     @property
     def connectedness(self) -> Severity: ...
@@ -7023,11 +6883,6 @@ class ChecksConfig:
     def chart_coherence(self) -> Advisory: ...
     @property
     def unproven_coincidence(self) -> Advisory: ...
-    @property
-    def full_symbolic_pass(self) -> bool:
-        """Whether the `unproven_coincidence` lint's door runs its
-        symbolic rungs at the full budget rather than the resident one,
-        which leaves a row it does not discharge saying so."""
     @property
     def expected_components(self) -> list[tuple[NodeId, int, int]]:
         """The stated expectations, ascending by subject."""

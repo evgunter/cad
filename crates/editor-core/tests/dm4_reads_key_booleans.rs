@@ -116,7 +116,6 @@ fn a_union_of_a_read_with_itself_is_that_body_named_as_its() {
         doc,
         Node::Union {
             members: spelled(&[a, a]),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -136,7 +135,6 @@ fn an_intersect_of_a_read_with_itself_is_that_body_named_as_its() {
         doc,
         Node::Intersect {
             members: spelled(&[a, a]),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -157,7 +155,6 @@ fn a_subtract_of_a_read_from_itself_is_the_typed_empty_body() {
         Node::Subtract {
             from: a.into(),
             tool: a.into(),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -171,14 +168,12 @@ fn a_union_or_intersect_of_one_body_is_that_body() {
         doc,
         Node::Union {
             members: spelled(&[a]),
-            declare: Vec::new(),
         },
     );
     let (doc, i) = insert(
         doc,
         Node::Intersect {
             members: spelled(&[a]),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -196,14 +191,12 @@ fn a_union_or_intersect_of_no_body_is_the_typed_empty_body() {
         doc,
         Node::Union {
             members: Bodies::Spelled(Vec::new()),
-            declare: Vec::new(),
         },
     );
     let (doc, i) = insert(
         doc,
         Node::Intersect {
             members: Bodies::Spelled(Vec::new()),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -215,7 +208,7 @@ fn a_union_or_intersect_of_no_body_is_the_typed_empty_body() {
 
 /// **A split's two halves are two reads** (the finding the item was
 /// opened on): their union is named member by member and builds the
-/// block again, a declared rest contact across the section.
+/// block again, a rest contact across the section.
 #[test]
 fn the_union_of_a_splits_two_halves_builds_the_block() {
     let (doc, target) = unit_block("dm4-halves");
@@ -237,16 +230,6 @@ fn the_union_of_a_splits_two_halves_builds_the_block() {
         doc.output(split, 0).expect("the upper half"),
         doc.output(split, 1).expect("the lower half"),
     );
-    // One name, each half's read its own copy (NAMES N1).
-    let section = |_: editor_core::SplitHalf| StableName {
-        kind: EntityKind::Face,
-        node: split,
-        path: vec![RoleSeg::SectionFace { section: 0 }],
-    };
-    let declare = editor_core::declare_rest(vec![(
-        editor_core::SitedRef::new(above, section(editor_core::SplitHalf::Above)),
-        editor_core::SitedRef::new(below, section(editor_core::SplitHalf::Below)),
-    )]);
     let (doc, u) = insert(
         doc,
         Node::Union {
@@ -254,7 +237,6 @@ fn the_union_of_a_splits_two_halves_builds_the_block() {
                 Operand::output(split, 0).into(),
                 Operand::output(split, 1).into(),
             ]),
-            declare,
         },
     );
     let ev = run(&doc);
@@ -282,26 +264,17 @@ fn the_union_of_a_splits_two_halves_builds_the_block() {
 /// share a face plane, fold through the intersect lane. `[0,2]×[0,1]×[0,1]`
 /// ∩ `[1,3]×[0,1]×[0,1]` ∩ `[0,3]×[0,1]×[0,1/2]` is `[1,2]×[0,1]×[0,1/2]`;
 /// every member's floor lies on z = 0 and the first two share y = 0,
-/// y = 1 and z = 1, all declared as continuations of one another.
+/// y = 1 and z = 1.
 #[test]
 fn a_three_member_intersect_with_coincident_faces_folds() {
     let doc = ProfileDoc::empty_derived("dm4-three-intersect", Tol::witness());
     let (doc, a) = block(doc, (0.0, 2.0), (0.0, 1.0), 1.0);
     let (doc, b) = block(doc, (1.0, 3.0), (0.0, 1.0), 1.0);
     let (doc, c) = block(doc, (0.0, 3.0), (0.0, 1.0), 0.5);
-    let ev = run(&doc);
-    let pair = |p, q| {
-        editor_core::find_flush_candidates(&ev, p, q, Tol::witness()).expect("definite findings")
-    };
-    let mut declare = Vec::new();
-    for (p, q) in [(a, b), (a, c), (b, c)] {
-        declare.extend(editor_core::declared_pairs(&pair(p, q)));
-    }
     let (doc, i) = insert(
         doc,
         Node::Intersect {
             members: spelled(&[a, b, c]),
-            declare,
         },
     );
     let ev = run(&doc);
@@ -313,26 +286,17 @@ fn a_three_member_intersect_with_coincident_faces_folds() {
     assert_eq!(volume(&ev, i), 0.5);
 }
 
-/// **A declared pair sited at a read spelled twice sites both of its
-/// members** (REFERENCES DM5, the work item's pinned row; reviews of
-/// PR 4527). `a` and `b` rest on each other at `x = 1`; the pair the
-/// detector finds between them is declared on a union listing `a` twice,
-/// in each of the three orders the repeat can take. Each builds the two
-/// blocks, volume 2: the repeated read is the same material, and the
-/// declaration between its read and `b`'s is judged once.
-///
-/// Red if a declared pair whose site appears twice is judged against the
-/// repeat itself, or routed to no step.
+/// **A read spelled twice beside a resting partner builds in every
+/// order** (REFERENCES DM5; reviews of PR 4527). `a` and `b` rest on
+/// each other at `x = 1`, in a union listing `a` twice, in each of the
+/// three orders the repeat can take. Each builds the two blocks,
+/// volume 2: the repeated read is the same material, and the contact
+/// between its read and `b`'s is judged once.
 #[test]
-fn a_declared_pair_sited_at_a_read_spelled_twice_builds_in_every_order() {
+fn a_read_spelled_twice_beside_a_resting_partner_builds_in_every_order() {
     let doc = ProfileDoc::empty_derived("dm5-decl-twice", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, b) = block(doc, (1.0, 2.0), (0.0, 1.0), 1.0);
-    let declare = editor_core::declared_pairs(
-        &editor_core::find_flush_candidates(&run(&doc), a, b, Tol::witness())
-            .expect("the blocks' findings"),
-    );
-    assert!(!declare.is_empty(), "the premise: a and b touch");
     let mut doc = doc;
     let mut unions = Vec::new();
     for order in [[a, a, b], [a, b, a], [b, a, a]] {
@@ -340,7 +304,6 @@ fn a_declared_pair_sited_at_a_read_spelled_twice_builds_in_every_order() {
             doc,
             Node::Union {
                 members: spelled(&order),
-                declare: declare.clone(),
             },
         );
         doc = next;
@@ -374,7 +337,6 @@ fn a_stored_name_carrying_a_read_the_document_never_minted_refuses_at_load() {
         doc,
         Node::Union {
             members: spelled(&[a, b]),
-            declare: Vec::new(),
         },
     );
     let read = fixture::out(&doc, a);

@@ -105,7 +105,6 @@ fn slot() -> Slot {
         Node::Subtract {
             from: a.into(),
             tool: tr.into(),
-            declare: Vec::new(),
         },
     );
     Slot {

@@ -21,8 +21,8 @@ use editor_core::NodeStanding;
 use editor_core::{
     CancelToken, CapEnd, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions, Evaluation, NameTable,
     Node, ProfileDoc, Qualifier, RecipeEditRef, RecipeNodeId, Resolution, ResolveError,
-    ResolveIndeterminate, RoleSeg, RunCtx, SitedRef, SlotId, StableName, apply_with_names,
-    evaluate, rebind_suggestions,
+    ResolveIndeterminate, RoleSeg, RunCtx, SlotId, StableName, apply_with_names, evaluate,
+    rebind_suggestions,
 };
 use fixture::{ang, insert, len, minted, on_frame, scl, step};
 use geom_core::Tol;
@@ -155,13 +155,11 @@ fn slide_union(tx: f64) -> Slide {
     // The B side is read at the TRANSFORM — the boolean's operand —
     // and named in `b0`'s vocabulary, which the transform carries
     // verbatim (N1).
-    let decl = fixture::declare_x_offset_flush_at(&doc, (a, a), (transform, b0));
     let (a_read, t_read) = (fixture::out(&doc, a), fixture::out(&doc, transform));
     let (doc, union) = insert(
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), transform.into()]),
-            declare: decl,
         },
     );
     Slide {
@@ -295,7 +293,6 @@ fn tied_name_resolves_ambiguous_with_the_tie_witness() {
         Node::Subtract {
             from: a.into(),
             tool: b.into(),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc, None);
@@ -717,7 +714,6 @@ fn failed_and_poisoned_targets_resolve_indeterminate_not_vanished() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     );
     // Zero the A extrude's distance: A fails, the union poisons.
@@ -785,140 +781,10 @@ fn rebind_suggestions_offer_wrapping_derivations() {
 
 // ---- R6: name-level edit-time validation (banked from PR 3) ----
 
-/// **`apply_with_names` holds a declared name to the evaluation it is
-/// given where it can, and defers where it cannot**: a real pair is
-/// accepted, a typo role on an evaluated node refuses
-/// `NameUnresolvedInEvaluation`, a backward name the evaluation has
-/// not seen passes to evaluation-time resolution, and a forward name
-/// is the door's `DeclaredNameNotUpstream`, not the carve-out's.
-#[test]
-fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() {
-    let doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (2.0, 3.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, u) = insert(
-        doc,
-        Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
-        },
-    );
-    let ev = run(&doc, None);
-    let (ra, rb) = (fixture::out(&doc, a), fixture::out(&doc, b));
-    let cap_a = minted(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End));
-    let cap_b = minted(EntityKind::Face, b, RoleSeg::Cap(CapEnd::End));
-    // A real pair: accepted.
-    assert!(
-        apply_with_names(
-            &doc,
-            &DocEdit::SetDeclare {
-                node: u,
-                pairs: editor_core::declare_rest(vec![(
-                    SitedRef::new(ra, cap_a.clone()),
-                    SitedRef::new(rb, cap_b),
-                )]),
-            },
-            &ev,
-            Tol::witness(),
-            &editor_core::RefusingReach
-        )
-        .is_ok()
-    );
-    // A typo role on an EVALUATED node: refused at the edit door.
-    let bogus = minted(
-        EntityKind::Face,
-        a,
-        RoleSeg::Lateral(crate::fixture::no_piece().into()),
-    );
-    let err = apply_with_names(
-        &doc,
-        &DocEdit::SetDeclare {
-            node: u,
-            pairs: editor_core::declare_rest(vec![(
-                SitedRef::new(ra, cap_a.clone()),
-                SitedRef::new(ra, bogus.clone()),
-            )]),
-        },
-        &ev,
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    )
-    .unwrap_err();
-    assert_eq!(
-        err,
-        editor_core::EditError::NameUnresolvedInEvaluation {
-            name: doc.spoken_name(&bogus)
-        }
-    );
-    // The carve-out: a name on a node the supplied evaluation has NOT
-    // seen passes through, and is resolved at evaluation. Here that
-    // evaluation predates `b`, so a role `b` does not have passes,
-    // where the same typo on the evaluated `a` refused above.
-    let bogus_b = minted(
-        EntityKind::Face,
-        b,
-        RoleSeg::Lateral(crate::fixture::no_piece_of(&doc).into()),
-    );
-    let (early, _) = block(
-        ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness()),
-        (0.0, 1.0),
-        (0.0, 1.0),
-        0.0,
-        1.0,
-    );
-    let ev_early = run(&early, None);
-    let deferred = apply_with_names(
-        &doc,
-        &DocEdit::SetDeclare {
-            node: u,
-            pairs: editor_core::declare_rest(vec![(
-                SitedRef::new(ra, cap_a.clone()),
-                SitedRef::new(rb, bogus_b),
-            )]),
-        },
-        &ev_early,
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    )
-    .map(|_| ());
-    assert!(
-        deferred.is_ok(),
-        "a name the evaluation has not seen defers to evaluation-time resolution: {deferred:?}"
-    );
-    // A FORWARD reference is not the carve-out's: a name minted after
-    // the declaring node is refused at the door whatever the
-    // evaluation has seen, since none of the node's operands can hold
-    // it.
-    let (doc2, c) = block(doc.clone(), (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
-    let cap_c = minted(EntityKind::Face, c, RoleSeg::Cap(CapEnd::End));
-    assert_eq!(
-        apply_with_names(
-            &doc2,
-            &DocEdit::SetDeclare {
-                node: u,
-                pairs: editor_core::declare_rest(vec![(
-                    SitedRef::new(ra, cap_a),
-                    SitedRef::new(rb, cap_c.clone()),
-                )]),
-            },
-            &ev,
-            Tol::witness(),
-            &editor_core::RefusingReach
-        )
-        .unwrap_err(),
-        editor_core::EditError::DeclaredNameNotUpstream {
-            node: doc2.spoken(u),
-            name: doc2.spoken_name(&cap_c),
-        },
-        "a forward reference is refused at the door"
-    );
-}
-
-/// The same door, same obligation, for the OTHER payloads that carry a
-/// name. A fillet's selection is checkable exactly when a declared
-/// pair is — the minting node evaluated `Ok` — so a typo role on an
-/// evaluated node is refused here rather than surviving to the fillet's
-/// own resolution.
+/// **`apply_with_names` holds a payload name to the evaluation it is
+/// given.** A fillet's selection is checkable exactly when its minting
+/// node evaluated `Ok`, so a typo role on an evaluated node is refused
+/// here rather than surviving to the fillet's own resolution.
 #[test]
 fn apply_with_names_checks_a_fillet_selection_under_the_same_rule() {
     let doc = ProfileDoc::empty_derived("m4_pr4_resolve_fillet_door", Tol::witness());
@@ -1179,7 +1045,6 @@ fn suggestions_never_offer_wall_phantoms_and_are_kind_filtered() {
         Node::Subtract {
             from: _a.into(),
             tool: tr.into(),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc, None);
@@ -1247,7 +1112,6 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     );
     let ev1 = run(&doc1, None);
@@ -1354,7 +1218,6 @@ fn grandparent_repoint_rederives_the_grandchild_names() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![b.into(), d.into()]),
-            declare: Vec::new(),
         },
     );
     let (doc1, n) = insert(

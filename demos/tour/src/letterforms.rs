@@ -14,15 +14,11 @@
 //! The letters meet where a person drawing them would make them meet:
 //! the T's stem spans exactly the H's bar band (y ∈ [1.25, 1.75]), and
 //! every letter's box is the block's, so their outer walls share
-//! carriers. Those contacts are DECLARED
-//! ([`crate::booleans::try_intersect_declared`]); the same operands
-//! undeclared glue the same contacts on their decided zero (D10), and
-//! the scene checks the two are one solid before it builds.
+//! carriers. The intersects glue those contacts on their decided zero
+//! (D10).
 //!
-//! The 3-way is built `C ∩ (H × T)`. The other operand order refuses
-//! `JoinDesync` on the same declared contacts — a live wall probe in
-//! [`stops`], filed as
-//! `work/flush/declared-flush-intersect-refuses-in-one-operand-order.md`.
+//! The 3-way is built `C ∩ (H × T)`; [`stops`] builds the other operand
+//! order, `(H × T) ∩ C`, and it lands the same 3-way.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -31,7 +27,7 @@ use pncad::profile::SketchPlane;
 use pncad::sweep::{Extrusion, extrude};
 use pncad::topo::{AtRestBody, Body, BooleanBody};
 
-use crate::booleans::{check, expect_seamed, finished, try_intersect, try_intersect_declared};
+use crate::booleans::{check, expect_seamed, finished, try_intersect};
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
 use pncad::authoring::{p3, polygon, validated};
@@ -135,33 +131,18 @@ const V_2WAY: f64 = 4.25;
 /// — 11/4.
 const V_3WAY: f64 = 2.75;
 
-/// Builds the 2-way and 3-way results, checking first that the
-/// undeclared H x T is the declared one; also hands back the C prism
+/// Builds the 2-way and 3-way results; also hands back the C prism
 /// the 3-way consumed.
 pub(crate) fn build<S: Scalar>(tol: Tol) -> (BooleanBody<S>, BooleanBody<S>, AtRestBody<S>) {
     let (h, t, c) = (h_prism::<S>(tol), t_prism::<S>(tol), c_prism::<S>(tol));
-    let undeclared = expect_seamed(
-        "undeclared H x T intersect",
+    let two = expect_seamed(
+        "H x T intersect",
         check(try_intersect(&h, &t, tol), V_2WAY, tol),
         V_2WAY,
     );
-    println!(
-        "   H x T UNDECLARED glues its flush contacts on their decided zero (D10): \
-         the same solid as the declared scene"
-    );
-    let two = expect_seamed(
-        "declared H x T intersect",
-        check(try_intersect_declared(&h, &t, tol), V_2WAY, tol),
-        V_2WAY,
-    );
-    assert_eq!(
-        format!("{:?}", undeclared.body),
-        format!("{:?}", two.body),
-        "declared and undeclared H x T are one body"
-    );
     let three = expect_seamed(
-        "declared C x (H x T) intersect",
-        check(try_intersect_declared(&c, &two.body, tol), V_3WAY, tol),
+        "C x (H x T) intersect",
+        check(try_intersect(&c, &two.body, tol), V_3WAY, tol),
         V_3WAY,
     );
     (two, three, c)
@@ -214,11 +195,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         assert_eq!(shadow, area, "the 3-way's shadow is the whole {letter}");
     }
     // The other order, (H x T) x C, builds the same 3-way: intersection
-    // is commutative, and the join no longer refuses it
-    // (`work/flush/declared-flush-intersect-refuses-in-one-operand-order.md`).
+    // is commutative.
     expect_seamed(
-        "declared (H x T) x C intersect",
-        check(try_intersect_declared(&two.body, &c, tol), V_3WAY, tol),
+        "(H x T) x C intersect",
+        check(try_intersect(&two.body, &c, tol), V_3WAY, tol),
         V_3WAY,
     );
     // The shadow PROOF renders (standalone, not montage panels): the
@@ -258,13 +238,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             montage: false,
             story: "shadow-silhouette solid: its z-shadow is an H, its x-shadow is a T \
                     — the tour's first `intersect`",
-            ops: "extrude H (xy sketch, +z) x extrude T (yz sketch, +x), flush contacts \
-                  declared -> 1 intersect node",
+            ops: "extrude H (xy sketch, +z) x extrude T (yz sketch, +x) -> 1 intersect node",
             delta: 1e-2,
             note: Some(format!(
                 "volume {V_2WAY} = 17/4 (gated 1e-9); the T's stem spans exactly the H's \
-                 bar band and both letters fill one block, so the contacts are declared — \
-                 undeclared, the same operands glue them alike"
+                 bar band and both letters fill one block, so their walls are flush, and \
+                 the intersect glues those contacts on their decided zero"
             )),
             view: View {
                 elev: 24.0,
@@ -284,12 +263,11 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             montage: true,
             story: "three letter shadows: a blocky C prism along +y intersected with the \
                     H x T solid — intersect-of-intersect, boolean-of-boolean",
-            ops: "extrude C (zx sketch, +y) x silhouette result, flush contacts declared \
-                  -> 1 more intersect node",
+            ops: "extrude C (zx sketch, +y) x silhouette result -> 1 more intersect node",
             delta: 1e-2,
             note: Some(format!(
-                "volume {V_3WAY} = 11/4 (gated 1e-9); built C x (H x T) because \
-                 (H x T) x C refuses JoinDesync on the same declarations (wall 1)"
+                "volume {V_3WAY} = 11/4 (gated 1e-9); built C x (H x T), and \
+                 (H x T) x C builds the same 3-way"
             )),
             view: View {
                 elev: 24.0,

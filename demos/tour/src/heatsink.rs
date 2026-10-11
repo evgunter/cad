@@ -25,16 +25,16 @@
 //! **The fins sit 1/16 inside the base rather than flush on it** — "the
 //! table-leg pattern", a transversal union instead of a face contact.
 //! A real extruded heat sink's fins are flush with its base, and the
-//! flush document builds: fins sketched ON the base top, the five
-//! base-face pairs found by `find_flush_candidates` (each a `Rest`,
-//! `SameOpposite`), declared through `declared_pairs` on the union, and the union
-//! against the five-shell `PlacedUnion` operand comes out at the
-//! closed-form volume of the rounded base + 5 fins.
+//! flush document builds: fins sketched ON the base top, the union
+//! glues the five base-face contacts on their decided zero (D10,
+//! Booleans), and the union against the five-shell `PlacedUnion`
+//! operand comes out at the closed-form volume of the rounded base + 5
+//! fins.
 //!
 //! The count EDIT builds in one step too: the edit to 7 leaves
-//! `Instance(5)` and `Instance(6)` flush with nothing declaring them,
-//! and the union glues them on their decided zero (D10, Booleans), at
-//! the closed-form volume of 7 fins with the union keeping its id. The
+//! `Instance(5)` and `Instance(6)` flush with the base, and the union
+//! glues them alike, at the closed-form volume of 7 fins with the
+//! union keeping its id. The
 //! scene keeps the sunk fins as its subject, and measures the flush
 //! document's edit beside them.
 //!
@@ -71,11 +71,7 @@ use pncad::document::{
 // (see its note), and it rides the `probe` feature with it.
 #[cfg(feature = "probe")]
 use pncad::geom_core::Probe;
-use pncad::prelude::PlaneRelation;
-use pncad::select::{
-    BooleanCoincidence, ContactClass, EntityKind, NamePat, SegPat, SegTag, Selector,
-    declared_pairs, find_flush_candidates, select,
-};
+use pncad::select::{EntityKind, NamePat, SegPat, SegTag, Selector, select};
 
 use crate::scalar::Scalar;
 
@@ -113,9 +109,9 @@ const FIN_GAIN: f64 = 0.1875 * 0.75 * 0.75;
 /// How a fin meets the base.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Seat {
-    /// 1/16 inside the base: a transversal union, nothing to declare.
+    /// 1/16 inside the base: a transversal union.
     Sunk,
-    /// On the base top, every foot declared as a `Rest` contact.
+    /// On the base top, every foot a flush contact the union glues.
     Flush,
 }
 
@@ -182,7 +178,7 @@ fn scene_doc(tol: Tol) -> Recipe {
 }
 
 /// Builds the heat sink at five fins. Where a stored selection is
-/// needed — the fillet's edges, the declared contacts — it is taken
+/// needed — the fillet's edges — it is taken
 /// from an evaluation of the document so far: evaluate, select, store.
 fn build_doc(tol: Tol, seat: Seat) -> Recipe {
     let base_loops = vec![
@@ -265,29 +261,10 @@ fn build_doc(tol: Tol, seat: Seat) -> Recipe {
         .expect("a Linear rule is parametric, so it carries a count"),
         tol,
     );
-    let declare = match seat {
-        Seat::Sunk => Vec::new(),
-        Seat::Flush => {
-            let found = find_flush_candidates(&eval(&doc, None, tol), base, group, tol)
-                .expect("the fin feet are definite flush pairs");
-            // The inspection: one resting contact per fin, the base top
-            // against that fin's foot.
-            assert_eq!(found.len(), 5, "one contact per fin: {found:#?}");
-            assert!(
-                found.iter().all(
-                    |f| f.class == BooleanCoincidence::Contact(ContactClass::Rest)
-                        && f.evidence.relation == PlaneRelation::SameOpposite
-                ),
-                "every foot rests on the top: {found:#?}"
-            );
-            declared_pairs(&found)
-        }
-    };
     let union = insert(
         &mut doc,
         Node::Union {
             members: Bodies::Spelled(vec![base.into(), group.into()]),
-            declare,
         },
         tol,
     );
@@ -392,7 +369,7 @@ fn flush_fins(tol: Tol) {
     let ev5 = eval(&flush.doc, None, tol);
     solidify(&flush, &ev5, 5, tol);
     println!(
-        "   flush fins, 5 declared Rest contacts: the union builds, volume {} (gated 1e-9)",
+        "   flush fins, 5 Rest contacts: the union glues them and builds, volume {} (gated 1e-9)",
         volume(5)
     );
 
@@ -401,7 +378,7 @@ fn flush_fins(tol: Tol) {
     let edited = Recipe { doc: doc7, ..flush };
     solidify(&edited, &ev7, 7, tol);
     println!(
-        "   flush fins, count edited 5 -> 7: the union glues the two new feet undeclared and \
+        "   flush fins, count edited 5 -> 7: the union glues the two new feet and \
          builds, volume {} (one edit; recomputed {}, reused {}; the union keeps its id)",
         volume(7),
         ev7.recomputed,
@@ -497,7 +474,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                     "{recompute_story}; fins sunk 1/16 into a base rounded at r = 1/32 \
                      after the union (volume {} = the rounded plate's closed form + {n} fins, \
                      gated 1e-9); flush fins build too, and a count edit's new feet glue \
-                     undeclared on their decided zero",
+                     on their decided zero",
                     volume(n)
                 )),
                 view: View {
@@ -613,7 +590,7 @@ mod scene {
     //! The PR gate runs the tour's tests, not the tour: this is where the
     //! scene's own assertions — the recompute and reuse counts, the
     //! surviving names, the volume at every count, and the flush fins'
-    //! refusal and recourse — run on every PR that touches the tour.
+    //! build — run on every PR that touches the tour.
 
     #[test]
     fn the_scene_holds() {

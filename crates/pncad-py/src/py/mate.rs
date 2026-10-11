@@ -474,7 +474,7 @@ impl ClassAdmission {
 #[pyfunction]
 pub(crate) fn class_admission(
     py: Python<'_>,
-    class_: super::flush::ContactClass,
+    class_: super::contact::ContactClass,
 ) -> PyResult<ClassAdmission> {
     Ok(ClassAdmission(d::class_admission(class_.to_kernel(py)?)))
 }

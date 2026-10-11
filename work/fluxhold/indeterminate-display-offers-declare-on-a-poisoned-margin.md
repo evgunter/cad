@@ -2,9 +2,9 @@
 id: indeterminate-display-offers-declare-on-a-poisoned-margin
 kind: issue
 title: geom-core: the bare Indeterminate Display offers 'declare the coincidence' on a poisoned margin
-status: parked
+status: closed
+closed: 2026-10-11
 opened: 2026-10-10
-blocked_on: [declared-pairs-retire]
 priority: P3
 cost: E
 ---
@@ -35,3 +35,7 @@ Decide at the geom-core home what the bare `Display` ends a poisoned margin in. 
 ## Re-homed from FLUX to FLUXHOLD (2026-10-10)
 
 (FLUX orchestrator) FLUX measured 125.5 budget points against 30 and was cut on its priority seam: FLUX kept the curved closed-form arms. FLUXHOLD holds FLUX's rows on the D10 hold (`work/intent/d10-one-way-to-say-intent-is-unbuilt.md`). Each waits on the INTENT unit that rebuilds its ground, named in `blocked_on`. The id and the body above are unchanged; the move may have set `priority`, `cost` or `status` in the header.
+
+## Closed (2026-10-11, stage 4 F)
+
+`geom_core::COINCIDENCE_RECOURSE` is now the geometry arm alone ("move the geometry"): no recourse anywhere offers a declaration, and `Indeterminate`'s Display renders one recourse on every margin, poisoned or not.

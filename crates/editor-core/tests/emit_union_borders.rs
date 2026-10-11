@@ -23,8 +23,8 @@
 use editor_core::ExtrudeSide;
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::blocks::{block, failure, run};
 use crate::corpus::body_of;
-use crate::docm7_union_declare::{block, failure, run};
 use crate::emit_shared_rim_several::permutations;
 use crate::emit_union_flush_names::parent_of;
 use crate::fixture::{ang, face_vertices, frame, insert, len, on_frame, out, scl, step, table};
@@ -74,7 +74,7 @@ fn union_of(
     order: &[usize],
 ) -> (ProfileDoc, RecipeNodeId) {
     let ordered: Vec<RecipeNodeId> = order.iter().map(|&i| members[i]).collect();
-    crate::fixture::union_over(doc, &ordered, Vec::new())
+    crate::fixture::union_over(doc, &ordered)
 }
 
 /// Each uniquely named face of `union`'s table → the centroid of its
@@ -313,7 +313,7 @@ fn check(fx: &Fixture) -> usize {
             Some(op) => insert(doc.clone(), op.node(ids[0], ids[1])),
             None => {
                 let ordered: Vec<RecipeNodeId> = order.iter().map(|&i| ids[i]).collect();
-                crate::fixture::union_over(doc.clone(), &ordered, Vec::new())
+                crate::fixture::union_over(doc.clone(), &ordered)
             }
         };
         let ev = run(&d);
@@ -362,17 +362,15 @@ enum PairOp {
 }
 
 impl PairOp {
-    /// The node of this kind over `a` and `b`, declaring nothing.
+    /// The node of this kind over `a` and `b`.
     fn node(self, a: RecipeNodeId, b: RecipeNodeId) -> editor_core::AuthoredNode {
         match self {
             Self::Union => Node::Union {
                 members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-                declare: Vec::new(),
             },
             Self::Subtract => Node::Subtract {
                 from: a.into(),
                 tool: b.into(),
-                declare: Vec::new(),
             },
         }
     }
@@ -1032,7 +1030,6 @@ fn tied_prongs() -> (ProfileDoc, RecipeNodeId) {
         Node::Subtract {
             from: a.into(),
             tool: u.into(),
-            declare: Vec::new(),
         },
     )
 }
@@ -1275,7 +1272,6 @@ fn a_curved_divider_names_as_the_pair_boolean_does() {
         doc.clone(),
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![plate.into(), cyl.into()]),
-            declare: Vec::new(),
         },
     );
     // The edge pieces each table names by their ends: (seam head, the
@@ -1356,7 +1352,6 @@ fn a_slot_across_a_sunk_boss_divides_its_merged_wall_by_the_slot_walls() {
         doc.clone(),
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![plate.into(), boss.into()]),
-            declare: Vec::new(),
         },
     );
     let mut joins = vec![("pair".to_owned(), pair_doc, pair)];
@@ -1370,7 +1365,6 @@ fn a_slot_across_a_sunk_boss_divides_its_merged_wall_by_the_slot_walls() {
             Node::Subtract {
                 from: joined.into(),
                 tool: slab.into(),
-                declare: Vec::new(),
             },
         );
         let ev = run(&doc);
@@ -1408,7 +1402,6 @@ fn a_slot_along_x_across_a_sunk_boss_names() {
         doc.clone(),
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![plate.into(), boss.into()]),
-            declare: Vec::new(),
         },
     );
     let mut joins = vec![("pair".to_owned(), pair_doc, pair)];
@@ -1422,7 +1415,6 @@ fn a_slot_along_x_across_a_sunk_boss_names() {
             Node::Subtract {
                 from: joined.into(),
                 tool: slab.into(),
-                declare: Vec::new(),
             },
         );
         let ev = run(&doc);

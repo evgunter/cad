@@ -93,7 +93,6 @@ fn slot(doc: ProfileDoc, dx: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Node::Subtract {
             from: a.into(),
             tool: tr.into(),
-            declare: Vec::new(),
         },
     );
     (doc, tr, cut)
@@ -239,7 +238,6 @@ fn a_flip_upstream_of_the_minting_node_is_reported_as_upstream() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![b1.into(), tr.into()]),
-            declare: Vec::new(),
         },
     );
     let (doc, cut) = insert(
@@ -247,7 +245,6 @@ fn a_flip_upstream_of_the_minting_node_is_reported_as_upstream() {
         Node::Subtract {
             from: a.into(),
             tool: cutter.into(),
-            declare: Vec::new(),
         },
     );
     let ev1 = run(&doc, None);
@@ -370,14 +367,12 @@ fn an_ancestor_is_one_in_either_run_walked_within_that_run() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![c1.into(), c2.into()]),
-            declare: Vec::new(),
         },
     );
     let (doc, x) = insert(
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![tr.into(), p.into()]),
-            declare: Vec::new(),
         },
     );
     let (doc, cut) = insert(
@@ -385,7 +380,6 @@ fn an_ancestor_is_one_in_either_run_walked_within_that_run() {
         Node::Subtract {
             from: a.into(),
             tool: x.into(),
-            declare: Vec::new(),
         },
     );
     let doc2 = set_members(set_members(doc.clone(), x, vec![tr, c3]), p, vec![c1, r]);
@@ -450,7 +444,6 @@ fn a_node_that_feeds_the_name_only_now_is_upstream_too() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![b1.into(), b2.into()]),
-            declare: Vec::new(),
         },
     );
     let (doc, n) = placed(doc, x);
@@ -493,7 +486,6 @@ fn a_recipe_edit_upstream_is_reported_as_upstream() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![bar.into(), f1.into()]),
-            declare: Vec::new(),
         },
     );
     let (doc, tr) = placed(doc, u);
@@ -502,7 +494,6 @@ fn a_recipe_edit_upstream_is_reported_as_upstream() {
         Node::Subtract {
             from: a.into(),
             tool: tr.into(),
-            declare: Vec::new(),
         },
     );
     let doc2 = slide(
@@ -564,7 +555,6 @@ fn a_structural_parameter_upstream_is_reported_as_upstream() {
         Node::Subtract {
             from: a.into(),
             tool: part.into(),
-            declare: Vec::new(),
         },
     );
     let ev1 = run(&doc, None);

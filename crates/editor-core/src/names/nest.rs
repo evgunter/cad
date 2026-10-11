@@ -2290,7 +2290,7 @@ pub(super) mod tests {
             );
             let face = wrapped(leaf(1), DEEP, 6, from_b);
             assert!(
-                super::super::face_descends_from(&face, &leaf(1)),
+                super::super::seam_pair::face_descends_from(&face, &leaf(1)),
                 "a face descends from its foot"
             );
             let merged = named(

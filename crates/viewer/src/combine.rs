@@ -278,17 +278,13 @@ impl BooleanTool {
     }
 
     /// **The one committed edit**: the session op that inserts the
-    /// boolean node through the ordinary commit door, declaring no
-    /// contact.
+    /// boolean node through the ordinary commit door.
     ///
     /// # Errors
     ///
     /// [`BooleanTool::spec`]'s.
     pub fn op(&self) -> Result<SessionOp, SeatError> {
-        Ok(SessionOp::AddBoolean {
-            spec: self.spec()?,
-            declare: Vec::new(),
-        })
+        Ok(SessionOp::AddBoolean { spec: self.spec()? })
     }
 }
 

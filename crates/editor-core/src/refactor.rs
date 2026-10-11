@@ -104,7 +104,7 @@
 //! # Names re-anchor across the seam (the bridge, both directions)
 //!
 //! Split rewrites every remainder-side reference to a cut entity —
-//! declared pairs, fillet selections, appearance keys — from its local
+//! fillet selections, frame faces, appearance keys — from its local
 //! name to the `InPart`-wrapped name at the new instance, around the
 //! name the part's product spells it by, its cut placement's copy's
 //! (`Placed`; a recorded
@@ -342,7 +342,7 @@ fn gauges_first(source: &ProfileDoc, olds: &[RecipeNodeId]) -> Vec<RecipeNodeId>
 /// same re-statement, with no solve.
 ///
 /// A name the maps lack whose missing id belongs to a node still to
-/// come is a FORWARD reference (a declared pair or a blend selection rebound
+/// come is a FORWARD reference (a blend selection or a frame's face rebound
 /// onto a later node): no order of inserts satisfies it, and it refuses
 /// as the insert door would, [`EditError::DeclareNamesMissingNode`],
 /// spelled in `source`'s ids and so spoken from `source` (see
@@ -421,8 +421,7 @@ fn carry<E>(
             }
             other => miss(old, other),
         };
-        let carried =
-            remap_node(node, &node_map, &rd, &step_map, &out_map, &regauge).map_err(&refuse)?;
+        let carried = remap_node(node, &rd, &regauge).map_err(&refuse)?;
         let mut selects: BTreeMap<VarId, crate::Operand> = BTreeMap::new();
         for (slot, var) in node.operand_rows() {
             let Some(select) = source.selection(var) else {
@@ -855,8 +854,8 @@ pub enum SplitError {
     },
     /// Replaying the constructed part-side edits refused — a
     /// construction bug in this module or a document state its edit
-    /// vocabulary cannot re-author (e.g. a declared pair rebound to a node
-    /// inserted after it, which no insertion order can satisfy).
+    /// vocabulary cannot re-author (e.g. a blend selection rebound to a
+    /// node inserted after it, which no insertion order can satisfy).
     /// Surfaced typed, never absorbed.
     PartEdit {
         /// The refusing edit's own diagnosis.
@@ -1824,9 +1823,8 @@ impl core::fmt::Display for ReplayTail<'_> {
         let Self(error, replay) = *self;
         match error {
             // A payload name on a node inserted AFTER the one carrying
-            // it — a blend selection or a frame's face rebound forward
-            // (a declared pair cannot be: its doors refuse a name not
-            // minted before its node). The
+            // it — a blend selection or a frame's face rebound forward.
+            // The
             // replay inserts in document order, so no order satisfies
             // it. The remainder inserts one instance, whose names the
             // replay wrote itself.
@@ -1884,9 +1882,6 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::PoseShape { .. }
             | EditError::IndexedRead { .. }
             | EditError::SetMembersOnNonList { .. }
-            | EditError::SetDeclareOnNonDeclaring { .. }
-            | EditError::DeclaredSiteNotAnOperand { .. }
-            | EditError::DeclaredNameNotUpstream { .. }
             | EditError::SetProgramOnNonProfile { .. }
             | EditError::SetExtrudeSideOnNonExtrude { .. }
             | EditError::StepIdsRefused { .. }
@@ -2235,39 +2230,9 @@ fn remap_rule(
     })
 }
 
-/// Rewrites a subtract's, union's or intersect's declared pairs. Each
-/// half remaps like an operand: the NAME through the name door and the
-/// SITE through the read door, because a site is a read. Either one the
-/// cut severed makes the remap MISS loudly.
-///
-/// # Errors
-///
-/// The first [`RemapMiss`].
-fn remap_declared(
-    pairs: &[crate::DeclaredPair],
-    rd: &dyn Fn(crate::OperandSlot, VarId) -> Result<VarId, RemapMiss>,
-    nm: &impl Fn(&StableName) -> Result<StableName, RemapMiss>,
-) -> Result<Vec<crate::DeclaredPair>, RemapMiss> {
-    // A site is not an operand slot; it is read as the subtract's
-    // `from` is for the miss's sentence.
-    let site = |at: VarId| rd(crate::OperandSlot::From, at);
-    pairs
-        .iter()
-        .map(|((a, b), class)| {
-            Ok((
-                (
-                    crate::node::SitedRef::new(site(a.at)?, nm(&a.name)?),
-                    crate::node::SitedRef::new(site(b.at)?, nm(&b.name)?),
-                ),
-                *class,
-            ))
-        })
-        .collect()
-}
-
-/// Rewrites a node payload's id references — DAG inputs AND
-/// name-reference payloads — through `map`, and gauge references
-/// through `regauge`, for insertion into the other document.
+/// Rewrites a node payload's reads through `rd` and its gauge
+/// references through `regauge`, for insertion into the other
+/// document.
 /// `InstantiatePart`'s document reference crosses verbatim: it
 /// is a document seam, not a local id, and its interface record rides
 /// with it BECAUSE the [`SplitError::PartNameReachesRemainder`]
@@ -2286,18 +2251,9 @@ fn remap_declared(
 /// The first [`RemapMiss`].
 fn remap_node(
     node: &Node<ProfileProgram>,
-    map: &NodeMap,
     rd: &dyn Fn(crate::OperandSlot, VarId) -> Result<VarId, RemapMiss>,
-    steps: &StepMap,
-    reads: &ReadMap,
     regauge: &dyn Fn(Option<RecipeNodeId>) -> Result<Option<RecipeNodeId>, RemapMiss>,
 ) -> Result<Node<ProfileProgram>, RemapMiss> {
-    let nm = |n: &StableName| {
-        remap_name(n, map, steps, reads).map_err(|missing| RemapMiss::Name {
-            name: Box::new(n.clone()),
-            missing,
-        })
-    };
     // A body seat's read crosses through `rd`; its indices are slots,
     // which cross as every slot does.
     let br = |seat: crate::OperandSlot, read: &crate::BodyRead<VarId>| {
@@ -2419,22 +2375,15 @@ fn remap_node(
             target: br(crate::OperandSlot::Target, target)?,
             tool: rd(crate::OperandSlot::Tool, *tool)?,
         },
-        Node::Subtract {
-            from,
-            tool,
-            declare,
-        } => Node::Subtract {
+        Node::Subtract { from, tool } => Node::Subtract {
             from: br(crate::OperandSlot::From, from)?,
             tool: br(crate::OperandSlot::Cut, tool)?,
-            declare: remap_declared(declare, rd, &nm)?,
         },
-        Node::Union { members, declare } => Node::Union {
+        Node::Union { members } => Node::Union {
             members: members.try_map(&br)?,
-            declare: remap_declared(declare, rd, &nm)?,
         },
-        Node::Intersect { members, declare } => Node::Intersect {
+        Node::Intersect { members } => Node::Intersect {
             members: members.try_map(&br)?,
-            declare: remap_declared(declare, rd, &nm)?,
         },
         Node::Transform { input, placement } => Node::Transform {
             input: rd(crate::OperandSlot::Input, *input)?,
@@ -4979,9 +4928,9 @@ mod remap_keeps_the_kind {
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod a_miss_two_segments_down_is_not_the_outer_name {
-    use super::{NodeMap, ReadMap, RemapMiss, StepMap, Unmapped, remap_name, remap_node};
+    use super::{NodeMap, ReadMap, StepMap, Unmapped, remap_name};
     use crate::names::{NameRef, RoleSeg, StableName};
-    use crate::node::{Node, RecipeNodeId, SitedRef};
+    use crate::node::RecipeNodeId;
     use crate::{CapEnd, EntityKind};
 
     const OUTER: RecipeNodeId = RecipeNodeId::new(0, 0);
@@ -5033,54 +4982,6 @@ mod a_miss_two_segments_down_is_not_the_outer_name {
             Unmapped::Node(name.node),
             "the node that failed is not the name's own mint"
         );
-    }
-
-    /// The payload rewrite pairs them: the name it could not rewrite
-    /// AND the node it stopped at, which a caller raising a
-    /// name-shaped refusal passes on.
-    #[test]
-    fn a_payload_miss_carries_both_the_name_and_the_node() {
-        let name = nested(EntityKind::Edge);
-        let node = Node::Union {
-            members: crate::Bodies::Spelled(vec![
-                crate::VarId::new(0, 1).into(),
-                crate::VarId::new(0, 2).into(),
-            ]),
-            declare: crate::declare_rest(vec![(
-                SitedRef::new(crate::VarId::new(0, 1), name.clone()),
-                SitedRef::new(crate::VarId::new(0, 2), name.clone()),
-            )]),
-        };
-        match remap_node(
-            &node,
-            &map(),
-            &|_, var| Ok(var),
-            &StepMap::new(),
-            &reads(),
-            &|g| Ok(g),
-        ) {
-            Err(RemapMiss::Name {
-                name: reported,
-                missing,
-            }) => {
-                assert_eq!(*reported, name, "the refusal names the outer name");
-                assert_eq!(
-                    missing,
-                    Unmapped::Node(INNER),
-                    "and carries the node that actually failed"
-                );
-                assert_ne!(
-                    missing,
-                    Unmapped::Node(reported.node),
-                    "which the outer name does not say: they are different nodes"
-                );
-            }
-            Err(RemapMiss::Input(id)) => panic!("a name miss is not an input miss, got {id:?}"),
-            Err(RemapMiss::Read { var, .. } | RemapMiss::PayloadRead { var }) => {
-                panic!("a name miss is not a read miss, got {var:?}")
-            }
-            Ok(out) => panic!("INNER is unmapped, got {out:?}"),
-        }
     }
 }
 

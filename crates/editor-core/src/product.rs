@@ -1318,10 +1318,19 @@ fn carry_contacts<T: geom_core::Real>(
             Cell::Face(f) => keys.face(f).map(Cell::Face),
         })
         .map_err(|refusal| match refusal {
-            topo::RekeyRefusal::Unmapped(Cell::Vertex(_)) => "vertex",
-            topo::RekeyRefusal::Unmapped(Cell::Edge(_)) => "edge",
-            topo::RekeyRefusal::Unmapped(Cell::Face(_)) => "face",
-            topo::RekeyRefusal::Pair(_) => "cell pair",
+            topo::CarryRefusal::Unmapped {
+                cell: Cell::Vertex(_),
+                ..
+            } => "vertex",
+            topo::CarryRefusal::Unmapped {
+                cell: Cell::Edge(_),
+                ..
+            } => "edge",
+            topo::CarryRefusal::Unmapped {
+                cell: Cell::Face(_),
+                ..
+            } => "face",
+            topo::CarryRefusal::Pair { .. } | topo::CarryRefusal::Parted { .. } => "cell pair",
         })?;
     into.extend(moved.rows().iter().cloned());
     Ok(())

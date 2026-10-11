@@ -5,7 +5,7 @@ A selection names faces, edges or vertices of a solid so a later step
 how that is said: the naming table, the four whole-body
 materializers, the pattern language over the SHAPE of a name, the
 geometric filters that narrow one, the doors from a name back to
-geometry, and the detect/declare protocol for flush contact.
+geometry, and how flush contact glues.
 
 The vocabulary is `pncad::select`, and every worked example below is
 a doctest of this crate.
@@ -416,25 +416,18 @@ assert!(matches!(
 ));
 ```
 
-## Detect and declare: flush contact as a conversation
+## Flush contact glues
 
 Two bodies that touch face-to-face glue where their margins decide
-the faces one surface, declared or not, and the boolean records each
-such coincidence. A declaration still bridges a pair whose margin
-lies in the tolerance's ambiguity band, so the detect/declare
-protocol stays: `find_flush_candidates` REPORTS the flush pairs as
-`FlushFinding` values — the contact verifier itself run in
-candidate-generation mode, so a finding can never disagree with
-the boolean's own verify-at-use — and `declare` /
-`declare_all` set findings the caller has INSPECTED as a live
-boolean's or union's declared pairs (the `SetDeclare` edit; a new
-node takes them as its `declare` list). Detection and declaration are
-separate doors on purpose (the ruled no-fusion boundary): findings
-pass through your hands as values, never straight into a recipe.
+the faces one surface, and the boolean records each such coincidence
+on the node's value (`NodeValue::coincidences`), each cell named in
+the table of the member it came from. Nothing is declared: a pair the
+margin leaves in the tolerance's ambiguity band refuses, and its
+recourse is the geometry.
 
 ```
 use pncad::prelude::*;
-use pncad::document::{Bodies, BooleanValue, NodeResult};
+use pncad::document::{Bodies, BooleanValue};
 
 let tol = Tol::witness();
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
@@ -472,31 +465,16 @@ let (doc, cap) = insert(&doc, frame_at(1.0));
 let (doc, pf2) = insert(&doc, Node::Profile(footprint(0.25, 0.25, 0.75, 0.75, cap)));
 let (doc, block) = insert(&doc, Node::Extrude { profile: pf2.into(), distance: len(0.5), side: ExtrudeSide::Along });
 
-// Undeclared, the union glues the rest its margin decides.
+// The union glues the rest its margin decides, and records it.
 let (doc, uni) = insert(
     &doc,
-    Node::Union { members: Bodies::Spelled(vec![base.into(), block.into()]), declare: Vec::new() },
+    Node::Union { members: Bodies::Spelled(vec![base.into(), block.into()]) },
 );
 let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
-assert!(matches!(ev.nodes.get(&uni), Some(NodeResult::Ok(_))));
-
-// The declare arm: detect, INSPECT, declare on the live union.
-// The declared union is the same body: the declaration names what
-// the margins decided, and is verified at use.
-let findings = find_flush_candidates(&ev, base, block, tol).expect("definite findings");
-assert_eq!(findings.len(), 1);
-assert_eq!(findings[0].class, BooleanCoincidence::REST);
-let applied = declare_all(&doc, uni, &findings, tol).expect("declarable");
-// `applied` is the accepted edit whole: the document, and the
-// maintenance the edit performed (none — a declaration moves no
-// group). A caller that keeps a mirror of that record takes both
-// together; this one keeps none.
-let doc = applied.doc;
-let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
-let ValuePayload::Boolean(BooleanValue::Body { body, .. }) =
-    &ev.value(uni).expect("the declared union evaluates").payload
-else {
+let value = ev.value(uni).expect("the union evaluates");
+let ValuePayload::Boolean(BooleanValue::Body { body, .. }) = &value.payload else {
     panic!("expected a body");
 };
 assert_eq!(mass_properties(body, tol).expect("mass").volume, 1.125);
+assert_eq!(value.coincidences.len(), 1, "the one resting pair of faces");
 ```

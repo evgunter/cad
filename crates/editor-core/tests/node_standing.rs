@@ -33,7 +33,7 @@ use editor_core::{
     GeomPred, HitTestError, InterrogateError, NameLookupError, NamePat, Node, NodePick,
     NodePickError, NodeStanding, ProfileDoc, RecipeNodeId, Resolution, ResolveIndeterminate,
     RoleSeg, RunCtx, RunStatus, SelectRefusal, Selector, SlotId, VerdictRow, VerdictVector,
-    body_name, denotation, evaluate, find_flush_candidates, run_checks, select_where,
+    body_name, denotation, evaluate, run_checks, select_where,
 };
 use geom_core::Tol;
 
@@ -201,19 +201,6 @@ fn every_standing_renders_one_way_through_every_door() {
                 standing,
             );
         }
-
-        let flush = find_flush_candidates(eval, node, s.profile, Tol::witness())
-            .expect_err("a node with no value");
-        assert!(
-            matches!(flush, SelectRefusal::NodeHasNoValue(carried) if carried == standing),
-            "{flush:?}"
-        );
-        speaks(
-            "the flush query",
-            "select: the flush query's node has no value: ",
-            &flush,
-            standing,
-        );
     }
 
     // The checks registry and the gather read the document's

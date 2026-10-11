@@ -251,7 +251,6 @@ fn unusable_nodes_surface_typed_errors() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![bad.into(), good.into()]),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc);

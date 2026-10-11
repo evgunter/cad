@@ -90,6 +90,8 @@ mod doc_io;
 mod docm1_face_frame;
 #[path = "docm9_range_vs_probe.rs"]
 mod docm9_range_vs_probe;
+#[path = "door_at_rest.rs"]
+mod door_at_rest;
 #[path = "edge_pick.rs"]
 mod edge_pick;
 #[path = "edit_maintenance.rs"]

@@ -395,9 +395,9 @@ fn a_boolean_document_round_trips_byte_identical() {
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0x14b0_b373_a5ef_2fc2u64),
-        ("heat_sink", 0x1118_b961_66a7_c4e6),
-        ("kiss_carry", 0x3cb3_44b9_f8f5_7d86),
+        ("crossing_slots", 0x2454_2319_8a2e_6027u64),
+        ("heat_sink", 0x077d_7601_580e_739f),
+        ("kiss_carry", 0xb6cf_9a24_aba9_b50b),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -491,7 +491,6 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     });
     let boolean = r.insert(Node::Intersect {
         members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-        declare: Vec::new(),
     });
     let ev = corpus::eval::<f64>(&r.doc);
     let failures = corpus::failures(&ev);
@@ -506,7 +505,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat5 empty_intersect: {got:#018x}");
     assert_eq!(
-        got, 0xb842_ec1f_ddcf_bdf0,
+        got, 0xa08d_ae41_19ad_b45b,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }

@@ -1344,31 +1344,20 @@ impl Evaluation {
 
     /// **The coincidences `node` decided from values** (D10), in
     /// decision order, each with what the coincidence door decided
-    /// about it, at the resident budget or, with `full_symbolic_pass`,
-    /// the full one. A node with no value raises as [`Self::value`]
-    /// does.
-    #[pyo3(signature = (node, full_symbolic_pass = false))]
-    fn coincidences(
-        &self,
-        py: Python<'_>,
-        node: &NodeId,
-        full_symbolic_pass: bool,
-    ) -> PyResult<Vec<Coincidence>> {
+    /// about it. A node with no value raises as [`Self::value`] does.
+    fn coincidences(&self, py: Python<'_>, node: &NodeId) -> PyResult<Vec<Coincidence>> {
         self.value(py, node)?;
         let Some(value) = self.inner.value(node.0) else {
             return Ok(Vec::new());
         };
-        let pass = if full_symbolic_pass {
-            d::SymbolicPass::Full
-        } else {
-            d::SymbolicPass::Resident
-        };
-        let proofs = d::coincide::prove(
+        let Ok(proofs) = d::coincide::prove(
             &self.doc,
             &[(node.0, &*value.coincidences)],
             Tol::witness(),
-            pass,
-        );
+            &d::CancelToken::new(),
+        ) else {
+            unreachable!("a token no one else holds is never canceled")
+        };
         value
             .coincidences
             .iter()
@@ -1742,54 +1731,6 @@ impl Evaluation {
         ray: &super::pick::Ray,
     ) -> PyResult<Option<super::pick::PickHit>> {
         super::pick::pick_face(py, self, targets, ray)
-    }
-
-    /// **The cross-body flush candidates between `a`'s and
-    /// `b`'s outputs, as of THIS evaluation** — the detect arm of the
-    /// detect/declare protocol: the verifier run in
-    /// candidate-generation mode, so a
-    /// finding can never disagree with the boolean's own
-    /// verify-at-use.
-    ///
-    /// Findings come back in canonical order and are only ever
-    /// DEFINITE values — inspect them, then hand the inspected
-    /// findings to `Node.union`'s, `Node.intersect`'s or
-    /// `Node.subtract`'s `declare=`, or to `Doc.declare` /
-    /// `Doc.declare_all` on the live node.
-    /// Detection and declaration are separate doors ON PURPOSE (the
-    /// ruled no-fusion boundary).
-    ///
-    /// Raises `SelectRefusal`, typed, exactly where the Rust door
-    /// refuses: either node with no value in this evaluation
-    /// (`reason="node_has_no_value"`, its standing in the message), a
-    /// pair whose verify-door margin is inside the
-    /// ambiguity band (`reason="pair_in_band"` — neither reported nor
-    /// silently dropped), a tied name whose candidates disagree
-    /// (`"tied_disagrees"`), an unreadable name-table entry
-    /// (`"unreadable"`), a matched pair the kernel classifies as
-    /// distinct (`"distinct_finding"`, a kernel defect), and an
-    /// ambient tolerance admitting no band at
-    /// all under the constructor's own word (`reason="empty"` when K·ε
-    /// collapsed back onto ε, `"invalid_value"` when it overflowed).
-    fn find_flush_candidates(
-        &self,
-        py: Python<'_>,
-        a: super::doc::AtArg,
-        b: super::doc::AtArg,
-    ) -> PyResult<Vec<super::flush::FlushFinding>> {
-        let tol = Tol::witness();
-        match pncad::select::find_flush_candidates(&self.inner, a.at(), b.at(), tol) {
-            Ok(findings) => Ok(findings
-                .into_iter()
-                .map(super::flush::FlushFinding)
-                .collect()),
-            Err(refusal) => Err(super::select::select_refusal(
-                py,
-                &refusal,
-                &self.doc,
-                &self.inner,
-            )),
-        }
     }
 
     /// How many nodes ran their op this evaluation.

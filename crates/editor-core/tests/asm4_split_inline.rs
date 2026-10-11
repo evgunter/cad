@@ -20,12 +20,12 @@ use editor_core::ExtrudeSide;
 
 use std::collections::BTreeSet;
 
-use crate::docm7_union_declare::block;
+use crate::blocks::block;
 
 use editor_core::{
     DocEdit, DocumentId, EvalOptions, Formula, FreeVar, InlineError, Node, ProfileDoc,
-    RecipeNodeId, ResolveFault, RoleSeg, SitedRef, SplitError, StableName, VarName, content_pin,
-    inline, load, product_named, save,
+    RecipeNodeId, ResolveFault, RoleSeg, SplitError, StableName, VarName, content_pin, inline,
+    load, product_named, save,
 };
 use fixture::resolver::{PartStore, with_resolver};
 use fixture::{desc, insert, len, on_frame, run, split_world as split, square, step, xy_frame};
@@ -1137,7 +1137,7 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
         other => panic!("expected BodyNameCrossesCut, got {other:?}"),
     }
 
-    // NameStraddlesCut: a name declared on a KEPT union derives from a
+    // NameStraddlesCut: a name a KEPT fillet selects derives from a
     // kept node AND (through an embedded operand name) from a cut node.
     let doc = part("asm4-min2-straddle-kept", 0.0, 1.0);
     let kept_e = doc.ids()[BODY_POSITION];
@@ -1167,29 +1167,11 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
             .into(),
         }],
     };
-    let partner = StableName {
-        kind: EntityKind::Edge,
-        node: kept_e,
-        path: vec![RoleSeg::OutputBody],
-    };
-    let kept_p = doc.ids()[BODY_POSITION - 1];
-    let (doc, kept_twin) = insert(
-        doc,
-        Node::Extrude {
-            profile: kept_p.into(),
-            distance: len(1.0),
-            side: ExtrudeSide::Along,
-        },
-    );
-    let kept_read = crate::fixture::out(&doc, kept_e);
     let (doc, _) = insert(
         doc,
-        Node::Union {
-            members: editor_core::Bodies::Spelled(vec![kept_e.into(), kept_twin.into()]),
-            declare: editor_core::declare_rest(vec![(
-                SitedRef::new(kept_read, straddler.clone()),
-                SitedRef::new(kept_read, partner),
-            )]),
+        Node::Fillet {
+            radius: len(0.1),
+            selection: editor_core::Operand::select(kept_e, vec![straddler.clone()]),
         },
     );
     match split(
@@ -1272,7 +1254,6 @@ fn a_reaching_name_names_the_earliest_node_outside_the_cut_in_document_order() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc, &EvalOptions::default());
@@ -1363,7 +1344,6 @@ fn a_reaching_name_names_a_live_node_before_a_deleted_one() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc, &EvalOptions::default());
@@ -1601,8 +1581,8 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
     }
 
     // StrandedPartName / StrandedPartRead: the referenced document
-    // carries an N5-stranded declared-pair reference (its node deleted
-    // after authoring) — there is nothing to remap it onto. BOTH shapes
+    // carries an N5-stranded selected name (its node deleted after
+    // authoring) — there is nothing to remap it onto. BOTH shapes
     // run. The FLAT name is minted AT the deleted node, so the node the
     // refusal carries is the name's own mint; the NESTED name is minted
     // at the SURVIVING body and carries the deleted node's name in
@@ -1619,9 +1599,8 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
             [0.0, 1.0, 0.0],
             vec![square(10.0, 0.0, 0.5)],
         );
-        // A body the union reads while its pair is written (D10: a pair
-        // names what its node reads), then drops: the re-point reports
-        // the name out of reach, and the delete strands it.
+        // A body whose name a fillet on the part body selects; the
+        // delete strands it.
         let (part_doc, extra) = insert(
             part_doc,
             Node::Extrude {
@@ -1649,39 +1628,14 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
         } else {
             at_extra
         };
-        let anchor = StableName {
-            kind: EntityKind::Edge,
-            node: body,
-            path: vec![RoleSeg::OutputBody],
-        };
-        let profile = part_doc.ids()[BODY_POSITION - 1];
-        let (part_doc, twin) = insert(
+        // The selection is READ at the surviving body; the stranded
+        // NAME derives from the extra node, which is what the delete
+        // below strands.
+        let (part_doc, _) = insert(
             part_doc,
-            Node::Extrude {
-                profile: profile.into(),
-                distance: len(1.0),
-                side: ExtrudeSide::Along,
-            },
-        );
-        let anchor_read = crate::fixture::out(&part_doc, anchor.node);
-        let (part_doc, union) = insert(
-            part_doc,
-            Node::Union {
-                members: editor_core::Bodies::Spelled(vec![body.into(), twin.into(), extra.into()]),
-                // Both sides are READ at the surviving body; the
-                // stranded side's NAME derives from the extra node,
-                // which is what the delete below strands.
-                declare: editor_core::declare_rest(vec![(
-                    SitedRef::new(anchor_read, stranded.clone()),
-                    SitedRef::new(anchor_read, anchor),
-                )]),
-            },
-        );
-        let (part_doc, _) = step(
-            part_doc,
-            DocEdit::SetMembers {
-                node: union,
-                members: editor_core::Bodies::Spelled(vec![body.into(), twin.into()]),
+            Node::Fillet {
+                radius: len(0.1),
+                selection: editor_core::Operand::select(body, vec![stranded.clone()]),
             },
         );
         let (part_doc, _) = step(part_doc, DocEdit::DeleteNode { id: extra });

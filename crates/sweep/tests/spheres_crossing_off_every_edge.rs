@@ -27,7 +27,7 @@
 
 use geom_core::{Affine3, Band, Point3, Tol, Vec3};
 use sweep::test_support::{ball_poled_y, brick, finished};
-use topo::{AtRestBody, BooleanDeclarations, BooleanError, BooleanResult};
+use topo::{AtRestBody, BooleanError, BooleanResult};
 
 use crate::common::differential::outcome;
 use crate::common::oracles::{ball_lens as lens, ball_volume, cap_volume};
@@ -174,22 +174,14 @@ fn assert_six(
     (va, vb, shared): (f64, f64, f64),
     wants: [Want; 6],
 ) {
-    let (tol, none) = (Tol::witness(), BooleanDeclarations::none());
+    let tol = Tol::witness();
     let ops = [
-        (
-            "a ∪ b",
-            va + vb - shared,
-            topo::union_with(a, b, &none, tol),
-        ),
-        (
-            "b ∪ a",
-            va + vb - shared,
-            topo::union_with(b, a, &none, tol),
-        ),
-        ("a ∖ b", va - shared, topo::subtract_with(a, b, &none, tol)),
-        ("b ∖ a", vb - shared, topo::subtract_with(b, a, &none, tol)),
-        ("a ∩ b", shared, topo::intersect_with(a, b, &none, tol)),
-        ("b ∩ a", shared, topo::intersect_with(b, a, &none, tol)),
+        ("a ∪ b", va + vb - shared, topo::union(a, b, tol)),
+        ("b ∪ a", va + vb - shared, topo::union(b, a, tol)),
+        ("a ∖ b", va - shared, topo::subtract(a, b, tol)),
+        ("b ∖ a", vb - shared, topo::subtract(b, a, tol)),
+        ("a ∩ b", shared, topo::intersect(a, b, tol)),
+        ("b ∩ a", shared, topo::intersect(b, a, tol)),
     ];
     for ((op, volume, out), want) in ops.into_iter().zip(wants) {
         check(&format!("{pose}, {op}"), out, (volume, va + vb), want);
@@ -588,13 +580,12 @@ fn a_large_ball_near_external_tangency_is_pinned() {
         return;
     }
     let tol = Tol::witness();
-    let none = BooleanDeclarations::none();
     let d = 51.0 - 2e-6;
     let (a, b) = (unit(), ball(50.0, Vec3::new(0.0, 0.0, d)));
     let (va, vb, shared) = (ball_volume(1.0), ball_volume(50.0), lens(1.0, 50.0, d));
     for (op, out) in [
-        ("a ∪ b", topo::union_with(&a, &b, &none, tol)),
-        ("b ∪ a", topo::union_with(&b, &a, &none, tol)),
+        ("a ∪ b", topo::union(&a, &b, tol)),
+        ("b ∪ a", topo::union(&b, &a, tol)),
     ] {
         check(
             &format!("r 50, {op}"),
@@ -605,19 +596,19 @@ fn a_large_ball_near_external_tangency_is_pinned() {
     }
     check(
         "r 50, a ∖ b",
-        topo::subtract_with(&a, &b, &none, tol),
+        topo::subtract(&a, &b, tol),
         (va - shared, va + vb),
         Draws,
     );
     check(
         "r 50, b ∖ a",
-        topo::subtract_with(&b, &a, &none, tol),
+        topo::subtract(&b, &a, tol),
         (vb - shared, va + vb),
         Draws,
     );
     for (op, out) in [
-        ("a ∩ b", topo::intersect_with(&a, &b, &none, tol)),
-        ("b ∩ a", topo::intersect_with(&b, &a, &none, tol)),
+        ("a ∩ b", topo::intersect(&a, &b, tol)),
+        ("b ∩ a", topo::intersect(&b, &a, tol)),
     ] {
         let line = outcome(out, shared, tol);
         assert!(
@@ -638,8 +629,8 @@ fn a_large_ball_near_external_tangency_is_pinned() {
         let (a, b) = (unit(), ball(50.0, Vec3::new(0.0, 0.0, d)));
         let want = lens(1.0, 50.0, d);
         for (op, out) in [
-            ("a ∩ b", topo::intersect_with(&a, &b, &none, tol)),
-            ("b ∩ a", topo::intersect_with(&b, &a, &none, tol)),
+            ("a ∩ b", topo::intersect(&a, &b, tol)),
+            ("b ∩ a", topo::intersect(&b, &a, tol)),
         ] {
             let body = out
                 .ok()

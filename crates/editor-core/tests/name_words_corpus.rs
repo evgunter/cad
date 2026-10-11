@@ -166,6 +166,9 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// documents moved. (Counted on its own tree; re-taken merged over
 /// FORK-DM4 unit 1, PR 4527, and the split-half retirement, PR 4618.)
 ///
+/// INTENT stage 4 PR F: a boolean node lost its `declare` field, so the
+/// nodes minted after the first boolean took new tags.
+///
 /// FORK-DM4 unit 2 (a name is scoped by the variable holding its body)
 /// moved it with [`NAME_WORDS`], in `cut_cylinder`, `kitchen_sink` and
 /// `part_select` alone, each holding a split: a split's names say no
@@ -176,7 +179,7 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// now `… 0740ba2c7086`). Both totals shrank; no other word moved.
 /// Re-taken merged over INTENT stage 3 PR A, whose node tags moved
 /// the same documents' words: the merged digest is neither tree's.
-const SAID_DIGEST: u64 = 0x9404_db6e_4173_aee2;
+const SAID_DIGEST: u64 = 0x4078_ef92_e7f0_953e;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a
@@ -579,16 +582,6 @@ fn refusals(
             .spoken(doc, tables),
         ),
         (
-            "SelectRefusal::PairInBand",
-            SelectRefusal::PairInBand {
-                pair: Box::new((a.clone(), b.clone())),
-                at: (a.node, b.node),
-                predicate: "bool_plane_offset",
-                source: band(),
-            }
-            .spoken(doc, tables),
-        ),
-        (
             "NodeErrorKind::CrossingUnverified",
             NodeError {
                 node: instance,
@@ -624,20 +617,16 @@ fn moved(r: &mut Recorder, input: RecipeNodeId, by: [f64; 3]) -> RecipeNodeId {
 }
 
 fn boolean(r: &mut Recorder, op: BooleanOp, a: RecipeNodeId, b: RecipeNodeId) -> RecipeNodeId {
-    let declare = Vec::new();
     r.insert(match op {
         BooleanOp::Subtract => Node::Subtract {
             from: a.into(),
             tool: b.into(),
-            declare,
         },
         BooleanOp::Union => Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare,
         },
         BooleanOp::Intersect => Node::Intersect {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare,
         },
     })
 }
@@ -678,7 +667,7 @@ fn documents_outside_the_corpus_read_apart_too() {
     let copies = [0.0, 0.75, 1.5, 2.25].map(|x| moved(&mut r, pin, [x, 0.0, 0.0]));
     let first = boolean(&mut r, BooleanOp::Subtract, block, copies[0]);
     let second = boolean(&mut r, BooleanOp::Subtract, first, copies[1]);
-    let (doc, union) = fixture::union_over(r.doc.clone(), &copies[2..], Vec::new());
+    let (doc, union) = fixture::union_over(r.doc.clone(), &copies[2..]);
     r.doc = doc;
     let cut = boolean(&mut r, BooleanOp::Subtract, second, union);
     docs.push(("copies".to_owned(), r.doc.clone()));
@@ -737,7 +726,7 @@ fn documents_outside_the_corpus_read_apart_too() {
     let upper = extrude(&mut r, upper, 0.5);
     boolean(&mut r, BooleanOp::Union, lower, upper);
     let apart = [lower, upper].map(|at| moved(&mut r, at, [6.0, 0.0, 0.0]));
-    let (doc, _) = fixture::union_over(r.doc.clone(), &[apart[0], apart[1], lower], Vec::new());
+    let (doc, _) = fixture::union_over(r.doc.clone(), &[apart[0], apart[1], lower]);
     docs.push(("loops and two profiles".to_owned(), doc));
 
     for op in [BooleanOp::Subtract, BooleanOp::Union] {
@@ -774,7 +763,7 @@ fn documents_outside_the_corpus_read_apart_too() {
         );
         let fillet = r.insert(Node::fillet(third, len(0.05), rim));
         let twice = [[0.0; 3], [0.0, 5.5, 0.0]].map(|at| moved(&mut r, fillet, at));
-        let (doc, _) = fixture::union_over(r.doc.clone(), &twice, Vec::new());
+        let (doc, _) = fixture::union_over(r.doc.clone(), &twice);
         docs.push((format!("round pins, {op:?}"), doc));
     }
 
@@ -935,8 +924,8 @@ fn each_boolean_join_says_its_operation() {
 
 /// **Two copies of one body read apart where a sentence names a face of
 /// each**: the copies' faces carry names alike, since a name says the
-/// node that made it and not the node holding it, so the flush query's
-/// in-band pair and the pick's tie say each face's node.
+/// node that made it and not the node holding it, so the pick's tie
+/// says each face's node.
 #[test]
 fn two_copies_of_one_body_read_apart_where_a_sentence_names_both() {
     let mut r = Recorder::new();
@@ -946,28 +935,10 @@ fn two_copies_of_one_body_read_apart_where_a_sentence_names_both() {
     let two = moved(&mut r, block, [0.5, 0.0, 0.0]);
     let doc = r.doc;
     let ev = fixture::run(&doc, &EvalOptions::default());
-    let findings = editor_core::find_flush_candidates(&ev, one, two, fixture::tol())
-        .expect("the copies' flush faces are decided");
-    let alike = findings
-        .iter()
-        .find(|finding| finding.pair.0.name == finding.pair.1.name)
-        .expect("the copies' end caps lie flush, and carry one name");
-    let face = alike.pair.0.name.clone();
+    // The copies' end caps carry one name: the extrude's.
+    let face = fixture::fname(block, editor_core::RoleSeg::Cap(editor_core::CapEnd::End));
     let by = Speaker::of(&doc).within(&ev);
     let (at_one, at_two) = (doc.spoken(one).to_string(), doc.spoken(two).to_string());
-    let band = geom_core::Indeterminate {
-        margin: geom_core::MarginDiag::value(3e-11),
-        band: geom_core::Band::new(1e-12, 1e-9).expect("zero < escalate"),
-        predicate: Some("bool_plane_offset"),
-        terminal_sliver: false,
-    };
-    let pair = SelectRefusal::PairInBand {
-        pair: Box::new((face.clone(), face.clone())),
-        at: (one, two),
-        predicate: "bool_plane_offset",
-        source: band,
-    }
-    .spoken(&doc, &ev);
     let hit = |node| PickHit {
         name: face.clone(),
         node,
@@ -982,13 +953,11 @@ fn two_copies_of_one_body_read_apart_where_a_sentence_names_both() {
     }
     .spoken(&doc, &ev);
     let said = by.name(&face).to_string();
-    for text in [&pair, &tie] {
-        assert!(
-            text.contains(&format!("{said} on {at_one}"))
-                && text.contains(&format!("{said} on {at_two}")),
-            "each face is said with the copy holding it: {text}"
-        );
-    }
+    assert!(
+        tie.contains(&format!("{said} on {at_one}"))
+            && tie.contains(&format!("{said} on {at_two}")),
+        "each face is said with the copy holding it: {tie}"
+    );
 }
 
 /// **A failed row said within the largest corpus table costs no search

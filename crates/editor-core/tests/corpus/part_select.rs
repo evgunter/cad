@@ -2,13 +2,12 @@
 //! body out of a multi-body value, spelled the way a user spells it.
 //!
 //! A box split by a plane at mid-height; BOTH halves read by port and
-//! unioned back together (a declared rest contact across the two
-//! section faces, which is what a union of two resting bodies is, each
-//! face sited at the split and sided by the half that holds it); a
-//! three-instance linear pattern of the box with its MIDDLE instance
-//! selected by a `Part` and placed by a transform. Every standard row
-//! — evaluation at every CI ε row and under `interval`, persistence
-//! round-trip (D6.1), the latency table — runs both end to end.
+//! unioned back together (a rest contact across the two section faces,
+//! which is what a union of two resting bodies is); a three-instance
+//! linear pattern of the box with its MIDDLE instance selected by a
+//! `Part` and placed by a transform. Every standard row — evaluation at
+//! every CI ε row and under `interval`, persistence round-trip (D6.1),
+//! the latency table — runs both end to end.
 //!
 //! The box's height is a document parameter (`h`) that the split's
 //! target reads, so the Interval-lane rows (`docm2_part_interval`)
@@ -27,7 +26,7 @@
 use editor_core::ExtrudeSide;
 use editor_core::{
     Dimension, DocEdit, EntityKind, Formula, FreeVar, Node, PartSelect, PatternKind, RecipeNodeId,
-    RoleSeg, SitedRef, SlotId, SplitHalf, StableName, UnitSym, VarName,
+    RoleSeg, SlotId, SplitHalf, StableName, UnitSym, VarName,
 };
 
 use crate::fixture::{ang, desc, len, scl, xy_frame};
@@ -105,19 +104,12 @@ pub fn document() -> CorpusDoc {
             .output(split, side.port())
             .expect("a split defines a port per half")
     };
-    // The two halves rest on each other across the section — a
-    // declared contact, named through the split's own vocabulary
-    // because each read of a half carries the split's names verbatim.
-    let rest = editor_core::declare_rest(vec![(
-        SitedRef::new(half(&r, SplitHalf::Above), section_face(split)),
-        SitedRef::new(half(&r, SplitHalf::Below), section_face(split)),
-    )]);
+    // The two halves rest on each other across the section.
     let whole = r.insert(Node::Union {
         members: editor_core::Bodies::Spelled(vec![
             half(&r, SplitHalf::Above).into(),
             half(&r, SplitHalf::Below).into(),
         ]),
-        declare: rest,
     });
 
     // ---- three boxes along x, and the middle one lifted ----

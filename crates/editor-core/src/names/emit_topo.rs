@@ -4596,7 +4596,6 @@ mod split_carries_candidates {
             Node::Subtract {
                 from: a.into(),
                 tool: b.into(),
-                declare: Vec::new(),
             },
         );
         let (doc, tool) = ins(
@@ -4903,7 +4902,6 @@ mod crossings_rank_along_the_line {
             Node::Subtract {
                 from: disc.into(),
                 tool: notch.into(),
-                declare: Vec::new(),
             },
         );
         let ev = evaluate::<f64>(
@@ -5458,7 +5456,6 @@ mod edge_pieces_of_one_line_tie {
             Node::Subtract {
                 from: rod.into(),
                 tool: top.into(),
-                declare: Vec::new(),
             },
         );
         let ev = evaluate::<f64>(
