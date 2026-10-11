@@ -179,7 +179,9 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// now `… 0740ba2c7086`). Both totals shrank; no other word moved.
 /// Re-taken merged over INTENT stage 3 PR A, whose node tags moved
 /// the same documents' words: the merged digest is neither tree's.
-const SAID_DIGEST: u64 = 0x4078_ef92_e7f0_953e;
+/// Re-taken merged over INTENT stage 4 F (declared pairs retire), whose
+/// re-bless moved the same words: the merged digest is neither tree's.
+const SAID_DIGEST: u64 = 0x59e0_4ad3_6e6f_0a08;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a

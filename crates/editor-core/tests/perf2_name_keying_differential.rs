@@ -179,6 +179,10 @@ fn sans_epsilon(t: &str) -> String {
 /// line on the node), which moved `kitchen_sink` too: its merged row is
 /// neither tree's value; every other row is the one of the two trees
 /// that moved it.
+///
+/// **Re-taken merged over INTENT stage 4 F** (declared pairs retire):
+/// main's re-bless and this unit's each moved these rows, so the merged
+/// rows are neither tree's value; the id-masked geometry fence held.
 const PINNED: &[(&str, u64, u64)] = &[
     ("die", 0xd72f039cbf03dff5, 0xc4419fe7887fa041),
     ("corner_table", 0xd096c8d3473a2924, 0xcc1c35defda29f84),
@@ -196,8 +200,8 @@ const PINNED: &[(&str, u64, u64)] = &[
         0xfb5a08f4fe601def,
     ),
     ("declared_tangency", 0xe7249c941ad4e6dd, 0x4ef7c39092eca21a),
-    ("kitchen_sink", 0x5a7d3b3ed8e09af1, 0x4f34742aaeaa5d3c),
-    ("cut_cylinder", 0x366fa42a35257323, 0x0b1584874c6521a2),
+    ("kitchen_sink", 0xd8e3571111038d97, 0xd81725b2bace1143),
+    ("cut_cylinder", 0x6184d061f986e7dd, 0x0b1584874c6521a2),
     ("measured_web", 0x2d097b245fc55683, 0xe50e6ef2701011c2),
     ("boss_union", 0x74cf52484fc485b5, 0x68bcb37795f66fb1),
     ("die_fillet", 0x5f66bd80c3d330ba, 0xcc827f4ab84ab2f7),
@@ -206,7 +210,7 @@ const PINNED: &[(&str, u64, u64)] = &[
     ("heat_sink_fins", 0x248682fac9898b5a, 0xbdeed2f79c7c0af9),
     ("die_tool", 0xfcc650b447308395, 0x257df21a520356e8),
     ("face_sketch", 0x25f0c5c4ab521837, 0x6ff3c25647b7831b),
-    ("part_select", 0xe08422a647eb3501, 0x4fba54c848554e94),
+    ("part_select", 0x463bfdf04ebf3a03, 0x4fba54c848554e94),
     ("loft_prism", 0x9f15f3e0cf1e8ace, 0xc7ef1ffc56e06ac4),
     ("die_composed", 0xb46772e78d36a18c, 0xe8e716c077c42cec),
     ("die_composed_tour", 0xd17ab9b94d3343fe, 0xf7c0a1ee810ee567),
