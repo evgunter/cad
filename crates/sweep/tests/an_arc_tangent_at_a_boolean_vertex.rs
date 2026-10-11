@@ -322,21 +322,76 @@ fn a_tilted_dipping_round_meets_the_slab_in_its_closed_form() {
     }
 }
 
-/// **The flush and corner postures, and the untilted dip, printed.**
-/// Flush and corner: the differences and the intersection refuse in
-/// `insert::plan_null_pairs` with an odd count of surviving crossing
-/// records at the rim vertex pair, whichever way the arc reads
-/// (`work/contacthold/a-flush-quarter-round-refuses-an-odd-crossing-count-at-its-rim-vertex.md`).
-/// The dip: its wall touches the slab's top along the rim and lumps
-/// whole as a tangent sector, and the differences and intersection
-/// refuse in `sectors::along`, a run boundary on the coplanar bottom
-/// sector beside it with both its edges on the top
+/// **The flush and corner slabs' answers, at every declaration level**:
+/// the union is the two operands' sum, the differences are the
+/// operands, and the intersection is empty. At each rim vertex the
+/// round's rim runs along the slab's top edge, the slab's top and the
+/// round's bottom coincide, and the slab's top and the round's wall are
+/// tangent along the rim, leaving it on opposite sides, so they meet
+/// only along it: the rim is a crossing exactly where the coplanar
+/// contact beside it lumps In, which is the union alone.
+#[test]
+fn the_flush_and_corner_slabs_answer_at_every_level() {
+    let round = quarter_round();
+    let vol = |b: &AtRestBody<f64>| mass_properties(b, Tol::witness()).unwrap().volume;
+    let vr = vol(&round);
+    let body = |what: &str, r: Result<BooleanResult<f64>, topo::BooleanError>| match r {
+        Ok(BooleanResult::Body(b)) => vol(&b.body),
+        other => panic!("{what}: want a body, got {other:?}"),
+    };
+    for (posture, s) in [
+        ("flush", slab(2.0, -1.0, 6.0)),
+        ("corner", slab(2.0, 0.0, 4.0)),
+    ] {
+        let vs = vol(&s);
+        for (decl, level) in LEVELS {
+            let fwd = declarations(&s, &round, level, true);
+            let rev = declarations(&s, &round, level, false);
+            let tag = |op: &str| format!("{posture} / {decl} / {op}");
+            for (op, got, want) in [
+                (
+                    "slab ∪ round",
+                    topo::union_with(&s, &round, &fwd, Tol::witness()),
+                    vs + vr,
+                ),
+                (
+                    "slab ∖ round",
+                    topo::subtract_with(&s, &round, &fwd, Tol::witness()),
+                    vs,
+                ),
+                (
+                    "round ∖ slab",
+                    topo::subtract_with(&round, &s, &rev, Tol::witness()),
+                    vr,
+                ),
+            ] {
+                let got = body(&tag(op), got);
+                assert!(
+                    (got - want).abs() <= 1e-12 * want,
+                    "{}: {got} vs {want}",
+                    tag(op)
+                );
+            }
+            let meet = topo::intersect_with(&s, &round, &fwd, Tol::witness());
+            assert!(
+                matches!(meet, Ok(BooleanResult::Empty)),
+                "{}: a resting contact encloses no volume: {meet:?}",
+                tag("slab ∩ round")
+            );
+        }
+    }
+}
+
+/// **The untilted dip, printed.** Its wall touches the slab's top along
+/// the rim and lumps whole as a tangent sector, and the differences and
+/// intersection refuse in `sectors::along`, a run boundary on the
+/// coplanar bottom sector beside it with both its edges on the top
 /// (`work/contacthold/a-dipping-round-refuses-at-a-run-boundary-on-its-coplanar-bottom-sector.md`);
 /// the union refuses `TangentSlitArmUnbuilt`. It asserts nothing. Run:
-/// `cargo test -p sweep --test all the_flush_and_corner_postures -- --ignored --nocapture`
+/// `cargo test -p sweep --test all the_untilted_dip -- --ignored --nocapture`
 #[test]
 #[ignore = "measurement: prints each op's outcome; run with --ignored --nocapture"]
-fn the_flush_and_corner_postures() {
+fn the_untilted_dip() {
     let dip = dipping_round();
     let wide = slab(5.0, -1.0, 6.0);
     let (vd, vw) = (
@@ -365,39 +420,6 @@ fn the_flush_and_corner_postures() {
         topo::intersect_with(&wide, &dip, &d, Tol::witness()),
         Some(lens),
     );
-    let round = quarter_round();
-    let vr = mass_properties(&round, Tol::witness()).unwrap().volume;
-    for (posture, s) in [
-        ("flush", slab(2.0, -1.0, 6.0)),
-        ("corner", slab(2.0, 0.0, 4.0)),
-    ] {
-        let vs = mass_properties(&s, Tol::witness()).unwrap().volume;
-        for (decl, level) in LEVELS {
-            let fwd = declarations(&s, &round, level, true);
-            let rev = declarations(&s, &round, level, false);
-            let tag = |op: &str| format!("{posture} / {decl} / {op}");
-            report(
-                &tag("slab ∪ round"),
-                topo::union_with(&s, &round, &fwd, Tol::witness()),
-                Some(vs + vr),
-            );
-            report(
-                &tag("slab ∖ round"),
-                topo::subtract_with(&s, &round, &fwd, Tol::witness()),
-                Some(vs),
-            );
-            report(
-                &tag("round ∖ slab"),
-                topo::subtract_with(&round, &s, &rev, Tol::witness()),
-                Some(vr),
-            );
-            report(
-                &tag("slab ∩ round"),
-                topo::intersect_with(&s, &round, &fwd, Tol::witness()),
-                None,
-            );
-        }
-    }
 }
 
 /// A slab `x ∈ [x0, x1]`, `z ∈ [0, 1]`, `y ∈ [y0, y0 + depth]`.

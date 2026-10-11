@@ -30,3 +30,13 @@ in its external kiss row. The declared route for the wedge end it
 would leave is `work/tang/declared-cusps-second-order-wedge-arm.md`
 item 3. What this issue needs is a typed door, in place of the
 invariant, wherever that arm does not reach.
+
+**Checked against CONTACTHOLD's fix**
+(`work/contacthold/a-flush-quarter-round-refuses-an-odd-crossing-count-at-its-rim-vertex.md`).
+This row did not move. That fix keeps `recl::resolve_edge_edge`'s
+declared-`Tangent` short-circuit only where the tangent faces leave the
+common line on the same side, and here each wall pair does: both walls
+leave the kiss line along `±y`. With the short-circuit removed
+altogether (measured, not landed), this union builds two solids, and
+`verbs_cylcyl_r1_review_probes` reads that as the D10 disjoint sum. The germ the short-circuit marks is what
+reaches the odd count here.

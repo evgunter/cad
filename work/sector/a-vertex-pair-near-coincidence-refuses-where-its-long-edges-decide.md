@@ -44,3 +44,11 @@ long reaches: the germ tests (`within`) and the edge-sector event's
 keys, not only the side codes. It is the pair-lane sibling of the pierce
 lane, which answers the same pose placed on the face (CONTACT-9's
 pierce rows).
+
+**Checked against CONTACTHOLD's flush quarter round**
+(`work/contacthold/a-flush-quarter-round-refuses-an-odd-crossing-count-at-its-rim-vertex.md`).
+The two rows share the refusal text but not the cause. That row's odd
+count came from `recl::resolve_edge_edge`'s tangent short-circuit,
+which marked a germ whatever the op. This row's comes from
+`pair_search` and `within` reading at the shorter arm. That fix leaves
+`contact9_side_codes` as it was.
