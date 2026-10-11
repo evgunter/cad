@@ -486,7 +486,7 @@ fn the_fitted_obstruction_holds_on_a_curved_fit() {
                 other_kind: geom::SurfaceKind::Plane,
                 ref verdict,
                 ..
-            } => assert_top_rim_verdict(name, verdict),
+            } => assert_refused_rim_verdict(name, verdict),
             // The fit could not reach this run's ε, so the structural
             // door was never reached. Legitimate only where the base is
             // genuinely curved AND the run's ε is tighter than what the
@@ -519,8 +519,11 @@ fn the_fitted_obstruction_holds_on_a_curved_fit() {
 /// wherever it does at `5e-10`. A wall's seam with the next wall is then
 /// the section of their two moved fits, which the NURBS × NURBS arm
 /// takes. Each moved cap plane misses its walls' fits outward, their
-/// windows the bases' own, and a rim's `NoBranch` is the refusal
-/// reported; the seams' own verdicts are not read here.
+/// windows the bases' own, and a rim's refusal is the one reported: the
+/// prism's `NoBranch`, the planar wall's row the plane no longer cuts;
+/// the loft's `SeedOffDomain`, the old rim's middle settling onto the
+/// plane × fit section outside the fit's window, by `1.09·(100·ε)` at
+/// every ε row. The seams' own verdicts are not read here.
 #[test]
 fn moved_together_outward_every_edge_leaves_the_fits_windows() {
     for (name, body, curved) in [
@@ -551,14 +554,22 @@ fn moved_together_outward_every_edge_leaves_the_fits_windows() {
             );
             continue;
         }
-        let ReplaceFaceError::EdgeSection {
-            edge,
-            verdict: topo::SectionVerdict::NoBranch,
-            ..
-        } = e
-        else {
+        let ReplaceFaceError::EdgeSection { edge, verdict, .. } = &e else {
             panic!("{name}: expected a rim to leave the fits' window, got {e}");
         };
+        let left = if curved {
+            matches!(
+                verdict,
+                topo::SectionVerdict::Ssi(geom_brep::SsiError::SeedOffDomain { .. })
+            )
+        } else {
+            matches!(verdict, topo::SectionVerdict::NoBranch)
+        };
+        assert!(
+            left,
+            "{name}: expected a rim to leave the fits' window, got {e}"
+        );
+        let edge = *edge;
         let data = body.get_edge(edge).expect("the rim resolves");
         let kinds: Vec<geom::SurfaceKind> = [data.he_plus, data.he_minus]
             .into_iter()
@@ -728,12 +739,13 @@ fn a_hex_prisms_side_moves_with_its_corners_on_its_oblique_neighbours() {
 /// above's `d = 5e-10`:
 /// - both rims of the prism's wall derive as the cap planes' sections
 ///   of the fit;
-/// - the loft's bottom rim derives, and its top rim's section is
-///   refused, deferred to the corners: the offset fit's window, the
-///   base's own, stops short of the top cap plane on this twisted wall,
-///   so the plane has no branch through it (`NoBranch`, at every ε ≥
-///   1e-9); at 1e-12 the trace's tube is not decided one arc first
-///   (`TubeNotOneArc`);
+/// - at every ε ≥ 1e-9 the loft's bottom rim derives, and its top rim's
+///   section is refused, deferred to the corners: the offset fit's
+///   window, the base's own, stops short of the top cap plane on this
+///   twisted wall, so the plane has no branch through it (`NoBranch`);
+///   at 1e-12 the fit's rows are not level within ε, and both rims'
+///   sections through the old middles settle outside the fit's window,
+///   by 2.3e-11 m (`SeedOffDomain`, [`assert_refused_rim_verdict`]);
 /// - both seams are the NURBS × NURBS section of the fit and the held
 ///   wall beside it, and both refuse at that section, each verdict as
 ///   `common::approx::assert_seam_verdict` pins it per ε.
@@ -778,10 +790,17 @@ fn a_fitted_walls_rims_answer_for_themselves_behind_its_seams() {
         let [(_, bottom), (_, top)] = rims.as_slice() else {
             panic!("{name}: the wall has two rims, got {}", rims.len());
         };
-        assert!(
-            matches!(bottom, Ok(None)),
-            "{name}: the bottom rim derives, got {bottom:?}"
-        );
+        if curved && eps < 1e-9 {
+            let Ok(Some(ReplaceFaceError::EdgeSection { verdict, .. })) = bottom else {
+                panic!("{name}: the bottom rim's section is refused, deferred; got {bottom:?}");
+            };
+            assert_refused_rim_verdict(name, verdict);
+        } else {
+            assert!(
+                matches!(bottom, Ok(None)),
+                "{name}: the bottom rim derives, got {bottom:?}"
+            );
+        }
         if curved {
             let Ok(Some(ReplaceFaceError::EdgeSection {
                 kind: geom::SurfaceKind::Approx,
@@ -792,7 +811,7 @@ fn a_fitted_walls_rims_answer_for_themselves_behind_its_seams() {
             else {
                 panic!("{name}: the top rim's section is refused, deferred; got {top:?}");
             };
-            assert_top_rim_verdict(name, verdict);
+            assert_refused_rim_verdict(name, verdict);
         } else {
             assert!(
                 matches!(top, Ok(None)),
@@ -811,23 +830,25 @@ fn a_fitted_walls_rims_answer_for_themselves_behind_its_seams() {
     }
 }
 
-/// The loft's top rim's verdict with one wall moved by `5e-10`: the
-/// fit's window, the base's own, stops short of the top cap plane on
-/// this twisted wall, so the plane has no branch through it (`NoBranch`,
-/// at every ε ≥ 1e-9); at 1e-12 the trace's tube is not decided one arc
-/// first (`TubeNotOneArc`).
-fn assert_top_rim_verdict(name: &str, verdict: &topo::SectionVerdict) {
+/// A loft rim's refused verdict with one wall moved by `5e-10`: the
+/// top rim's at every ε, the bottom rim's at 1e-12. At every ε ≥ 1e-9
+/// the fit's rows are level within ε, and its window, the base's own,
+/// stops short of the top cap plane on this twisted wall, so the plane
+/// has no branch through it (`NoBranch`). At 1e-12 they are not, the
+/// plane × fit section answers, and each old rim's middle settles onto
+/// it outside the fit's window (`SeedOffDomain`).
+fn assert_refused_rim_verdict(name: &str, verdict: &topo::SectionVerdict) {
     let eps = Tol::witness().eps();
     let ok = if eps >= 1e-9 {
         matches!(verdict, topo::SectionVerdict::NoBranch)
     } else {
         matches!(
             verdict,
-            topo::SectionVerdict::Ssi(geom_brep::SsiError::TubeNotOneArc { .. })
+            topo::SectionVerdict::Ssi(geom_brep::SsiError::SeedOffDomain { .. })
         )
     };
     assert!(
         ok,
-        "{name}: the top rim's verdict moved at {eps:e}: {verdict:?}"
+        "{name}: a refused rim's verdict moved at {eps:e}: {verdict:?}"
     );
 }

@@ -113,8 +113,8 @@ pub enum SplineRoot {
 
 /// The plane × spline-wall section and the plane's root along a spline
 /// carrier — the offset door's spline lane, at the one scalar its
-/// march is written in (`geom_brep::plane_nurbs_ssi` is an `f64`
-/// module). Where a scalar holds none
+/// march is written in (`geom_brep::PlaneSection` traces in
+/// `f64`). Where a scalar holds none
 /// ([`crate::AtRestPolicy::section_lane`]), a slanted spline edge
 /// refuses by name rather than transporting.
 #[derive(Clone, Copy)]
@@ -724,10 +724,12 @@ pub(crate) fn analytic_root<T: Decide>(
 /// one offset away, so far more than the digits need.
 const NEWTON_STEPS: usize = 24;
 
-/// **The plane × spline-wall section** nearest `old`: the wall's exact
-/// row where the plane cuts the wall along one (every control row level
-/// in the plane's normal, the case of a loft between parallel
-/// sections), the march's certified branch otherwise.
+/// **The plane × spline-wall section** through `old`'s middle: the
+/// wall's exact row where the plane cuts the wall along one (every
+/// control row level in the plane's normal, the case of a loft between
+/// parallel sections), otherwise [`geom_brep::PlaneSection`]'s branch at
+/// that point, the one whose certified chart tube holds where the middle
+/// settles.
 fn plane_wall_section(
     plane: &Surface<f64>,
     wall: &NurbsSurface<f64>,
@@ -760,23 +762,14 @@ fn plane_wall_section(
                 extent,
                 floor_scale: 1.0,
             };
-            let outcome = match geom_brep::plane_nurbs_ssi(plane, wall, domain, band) {
-                Ok(o) => o,
-                Err(e) => return Ok(Err(SectionVerdict::Ssi(e))),
-            };
-            let mut best: Option<(NurbsCurve3<f64>, f64)> = None;
-            for branch in outcome.branches {
-                let Curve3::Nurbs(c) = branch.carrier else {
-                    continue;
-                };
-                let (_, r) = nearest_sample(&c, mid);
-                if best.as_ref().is_none_or(|(_, rb)| r < *rb) {
-                    best = Some(((*c).clone(), r));
+            match geom_brep::PlaneSection::of(plane, wall, domain, band)
+                .and_then(|mut s| s.branch_at(mid).map(|branch| branch.carrier.clone()))
+            {
+                Ok(Curve3::Nurbs(c)) => (*c).clone(),
+                Ok(_) => {
+                    unreachable!("an `SsiBranch`'s carrier is a fitted `Curve3::Nurbs` (C1 rung 3)")
                 }
-            }
-            match best {
-                Some((c, _)) => c,
-                None => return Ok(Err(SectionVerdict::NoBranch)),
+                Err(e) => return Ok(Err(SectionVerdict::Ssi(e))),
             }
         }
     };

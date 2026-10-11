@@ -37,7 +37,7 @@
 //! | arm | trace shape | why |
 //! |---|---|---|
 //! | [`cylinder_sphere_ssi`] | **ℝ³** implicit pair, 2×3 SVD | shape (iv)'s planted small loop and the σ₂-sliver row — **retired**, all three limbs (M5 PR 7) |
-//! | [`plane_nurbs_ssi`] | **ℝ⁴** parametric×parametric, 3×4 SVD | shape (iii)'s substrate — **retired 2026-07-31**, all three limbs (M5 PR 7b) |
+//! | [`PlaneSection`] | **ℝ⁴** parametric×parametric, 3×4 SVD | shape (iii)'s substrate — **retired 2026-07-31**, all three limbs (M5 PR 7b); one complete operation read at a seed or whole (`plane`), [`plane_nurbs_ssi`] its whole reading |
 //! | [`Section`] | **ℝ⁴** on two NURBS charts, 3×4 SVD | the shelled loft's wall–wall seams — all three limbs, the third the two-chart tube; one complete operation read at a seed or whole (`pair`) |
 //!
 //! # The plane×NURBS arm's retirement (M5 PR 7b)
@@ -122,10 +122,12 @@ pub mod enclose;
 mod ends;
 pub mod exhaust;
 mod four;
+mod handle;
 pub mod jet;
 pub mod march;
 mod one_arc;
 mod pair;
+mod plane;
 mod refine;
 pub mod section;
 pub mod system;
@@ -156,14 +158,13 @@ pub use march::{
     STEP_BOUND_MINORITY, SettlingRefusal, StepBound, StepCap, StepFault, StepperMode,
 };
 pub use pair::Section;
+pub use plane::PlaneSection;
 pub use refine::{RefineStop, RefusedRound, ResidualTrend, RoundMargin};
 pub use section::{BandVerdict, BoundarySection, SectionRoot, boundary_section};
 
 use enclose::{Box3, NurbsBoxes};
 use exhaust::{RateClause, SweepFloor, UvRect};
-use march::{
-    MarchContext, MarchTol, Readout, RectEnd, RectExit, Trace, march, march_both, trace_points,
-};
+use march::{MarchContext, MarchTol, Readout, Trace, march_both, trace_points};
 use system::{Chart, ImplicitPairR3, ParametricPairR4};
 
 /// The two chart-parameter sample sequences of an ℝ⁴ trace — the
@@ -712,6 +713,13 @@ pub enum SsiError {
         /// The settled seed, `(u₁, v₁, u₂, v₂)`.
         state: [f64; 4],
     },
+    /// The seed [`PlaneSection::branch_at`] settled lies in a `Side` or
+    /// `Corner` region the boundary pass reported: the section there
+    /// runs along or touches the wall's boundary, and is no branch.
+    SeedInRegion {
+        /// The settled seed, `(plane u, plane v, wall u, wall v)`.
+        state: [f64; 4],
+    },
     /// A NURBS operand's chart cannot carry a length in metres into its
     /// parameters: a chart speed along one axis is zero or has no finite
     /// bound, or the chart is constant across the traced locus. Refused
@@ -1184,6 +1192,11 @@ impl core::fmt::Display for SsiError {
                 "ssi: the branch certified from the seed settled at {state:?} does not hold it \
                  in its uniqueness tube"
             ),
+            Self::SeedInRegion { state } => write!(
+                f,
+                "ssi: the seed settled at {state:?} lies in a side or corner region of the \
+                 wall's boundary, where the section is no branch"
+            ),
             Self::ChartSpeed(r) => write!(f, "ssi: {}", r.what()),
             Self::TubeDegenerate(d) => write!(f, "ssi: {}", d.what()),
             Self::WrongLane { expected } => write!(
@@ -1440,6 +1453,7 @@ impl SsiError {
             Self::ChartRow { .. } => defect_ending(reading).to_owned(),
             Self::PairBoundaryUnresolved { .. } => PAIR_BOUNDARY_RECOURSE.to_owned(),
             Self::SeedOutsideTube { .. } => SEED_RECOURSE.to_owned(),
+            Self::SeedInRegion { .. } => REGION_SEED_RECOURSE.to_owned(),
             // Limb 1 with no residual to state: its own decision.
             Self::FootPointInconclusive { .. } => crate::certify::recourse(
                 SsiLimb::OnLocus.check(),
@@ -2025,6 +2039,11 @@ const PAIR_BOUNDARY_RECOURSE: &str = "Recourse: move either surface so the secti
 /// [`SsiError::SeedRefinementFailed`]'s and [`SsiError::SeedOutsideTube`]'s
 /// ending, at the doors whose caller names the seed.
 const SEED_RECOURSE: &str = "Recourse: seed the trace at a point nearer where the surfaces meet";
+
+/// [`SsiError::SeedInRegion`]'s ending: the whole section reports the
+/// region as a boundary contact.
+const REGION_SEED_RECOURSE: &str = "Recourse: read the whole section, whose boundary contacts \
+     report the region, or seed the trace at a point away from the wall's side";
 
 /// [`SsiError::SeedOffDomain`]'s ending, at the doors whose caller names
 /// the seed: the seed settled definitely outside the march domain.
@@ -2680,26 +2699,15 @@ fn window_reach(chart: &Chart<'_>, half: f64) -> Box3 {
         .hull(Box3::between(corner(-half, half), corner(half, -half)))
 }
 
-/// **plane × NURBS wall** — the ℝ⁴ parametric×parametric arm (3×4 SVD,
-/// module docs). **Retired 2026-07-31 (M5 PR 7b)**: marches, fits, and
-/// proves all three C2 limbs — limb 2 through the tensor-product
-/// Bernstein composite of `S(P(t)) − C(t)`
-/// (`geom_core::spline::compose::tensor`; module docs carry the
-/// retirement record, the C5 table's `(Plane, Nurbs)` note carries it
-/// where a caller reads it). PR 7b turned the arm on by deleting
-/// nothing: the refusal path IS the certification path, minus the
-/// refusal.
+/// **plane × NURBS wall**, read whole: [`PlaneSection::all`] on
+/// [`PlaneSection::of`], every branch of the section over the wall's
+/// knot rectangle and the accounting that they are all of them. Its
+/// limb 2 reads the tensor-product Bernstein composite of
+/// `S(P(t)) − C(t)` (`geom_core::spline::compose::tensor`; module docs).
 ///
 /// # Errors
 ///
-/// Any [`SsiError`]. Notably: [`SsiError::CertificateEscalated`] naming
-/// [`SsiLimb::HullSup`] when the fitted pair's real between-samples
-/// deviation lands in the band (an inflected wall can genuinely earn
-/// this — module docs), [`SsiError::RefinementExhausted`] where
-/// refinement meets the band or the branch's step budget,
-/// [`SsiError::OperandNotFinite`] for a plane or wall that is not
-/// finite, and [`SsiError::ChartSpeed`] for a wall whose chart speed
-/// along an axis is zero or has no finite bound.
+/// [`PlaneSection::of`]'s and [`PlaneSection::all`]'s.
 pub fn plane_nurbs_ssi(
     plane: &Surface<f64>,
     wall: &NurbsSurface<f64>,
@@ -2717,144 +2725,7 @@ fn plane_nurbs_ssi_within(
     band: Band,
     max_steps: usize,
 ) -> Result<SsiOutcome, SsiError> {
-    let Surface::Plane {
-        origin: p0,
-        normal,
-        u_ref,
-    } = *plane
-    else {
-        return Err(SsiError::WrongLane {
-            expected: "a plane and a NURBS surface traced in ℝ⁴ on their charts",
-        });
-    };
-    // Before any sweep: the chart sweep lifts the plane's origin and
-    // normal into intervals, which refuse a non-finite point, and its
-    // refusal arm can only name the wall's net.
-    finite_operand("plane", plane)?;
-    finite_net("NURBS wall", wall)?;
-    domain.check()?;
-    let half = domain.half_extent;
-    let Some(chart_a) = Chart::plane_of(plane, (-half, half), (-half, half)) else {
-        return Err(SsiError::WrongLane {
-            expected: "a plane and a NURBS surface traced in ℝ⁴ on their charts",
-        });
-    };
-    let window = window_reach(&chart_a, half);
-    let chart_b = Chart::Nurbs(wall);
-    let ((pu, pv), (ud, vd)) = (chart_a.domain(), chart_b.domain());
-    let sys = ParametricPairR4 {
-        a: chart_a,
-        b: chart_b,
-    };
-    let root = UvRect { u: ud, v: vd };
-
-    // The wall's chart speeds, minted once per axis; the mint refuses
-    // a zero or non-finite axis by name. The chart floors are metres ÷
-    // the larger of the two, so a floor stated in metres means the same
-    // thing in both lanes, and dividing by a sup UNDER-states the
-    // parameter reach — the safe side of a floor. Each floor is minted
-    // once over the wall's domain, which refuses one the domain cannot
-    // resolve, the proof obligation's first.
-    let charted = ChartedNurbs::mint(wall)?;
-    let speed = charted.speeds().max();
-    let wall_op = SsiOperand::Nurbs(charted);
-    let account_floor = SweepFloor::chart(root, domain.floor(band), speed, FloorKind::Accounting)?;
-    let seed_floor = SweepFloor::chart(root, domain.seed_floor(), speed, FloorKind::Seeding)?;
-    let tol = MarchTol::from_band(band, spline_readout(window, wall, root, speed))?;
-    // The plane's window is the caller's (a plane is unbounded, so a
-    // window is a caller obligation, never a guess), and it holds the
-    // wall, so the march ends only at the wall's knot rectangle.
-    boundary::window_holds_wall((p0, u_ref, normal.cross(u_ref)), wall, half)?;
-
-    let ctx = MarchContext::<4> {
-        domain: [[pu.0, pu.1], [pv.0, pv.1], [ud.0, ud.1], [vd.0, vd.1]],
-        extent: domain.extent,
-        tol,
-        max_steps,
-        spent: Default::default(),
-    };
-
-    // ---- the boundary pass: the wall's knot rectangle against the
-    // plane, before any march (C3) ----
-    let pass = boundary_pass(wall, &charted, plane, &sys, tol, &domain, band)?;
-
-    let seeds = exhaust::seed_chart_plane(wall, p0, normal, seed_floor)?;
-    let seed_count = seeds.len() as u32;
-
-    // ---- the open branches, between the crossings ----
-    let ends = ends::Ends::of(&sys, ctx, plane, &wall_op, band);
-    let mut branches = ends.branches(&pass.crossings)?;
-    let mut tubes: Vec<UvRect> = branches.iter().flat_map(branch_chart_tubes).collect();
-
-    // ---- the closed loops, from the subdivision's seeds ----
-    let v_ref = normal.cross(u_ref);
-    let to_plane_chart = |p: Point3<f64>| {
-        let q = p - p0;
-        (q.dot(u_ref), q.dot(v_ref))
-    };
-    let holds =
-        |r: &UvRect, x: &[f64; 4]| x[2] >= r.u.0 && x[2] <= r.u.1 && x[3] >= r.v.0 && x[3] <= r.v.1;
-    // A march that refuses from a seed some later branch's tube turns
-    // out to hold was a wasted march, not the op's refusal.
-    let mut refused: Vec<([f64; 4], SsiError)> = Vec::new();
-    for (u, v) in seeds.iter() {
-        let (pu, pv) = to_plane_chart(wall.eval(*u, *v));
-        let state = [pu, pv, *u, *v];
-        // Dedup against where the seed lands, as the ℝ³ lane does.
-        let landed = march::newton_refine(&sys, state, tol).unwrap_or(state);
-        if tubes.iter().chain(&pass.regions).any(|r| holds(r, &landed)) {
-            continue;
-        }
-        let trace = match march(
-            &sys,
-            &RectExit::WALL,
-            state,
-            ctx,
-            StepperMode::Realized,
-            1.0,
-            band,
-        ) {
-            Ok(t) => t,
-            // As in `cylinder_sphere_ssi`: only a seed that will not
-            // settle inside the domain is no branch.
-            Err(SsiError::SeedRefinementFailed { .. } | SsiError::SeedOffDomain { .. }) => continue,
-            Err(e) => {
-                refused.push((landed, e));
-                continue;
-            }
-        };
-        // A seed on an open branch: the branch reaches the wall's
-        // boundary, where it was traced from its crossings, and the
-        // accounting pass decides whether that left anything out.
-        let RectEnd::Closed = trace.end else {
-            continue;
-        };
-        let branch = ends.finish(&trace.states, BranchEnd::Closed)?;
-        tubes.extend(branch_chart_tubes(&branch));
-        branches.push(branch);
-    }
-    if let Some((_, e)) = refused
-        .into_iter()
-        .find(|(x, _)| !tubes.iter().any(|r| holds(r, x)))
-    {
-        return Err(e);
-    }
-
-    let exhaustiveness = exhaust::account_chart_plane(
-        wall,
-        p0,
-        normal,
-        &tubes,
-        &pass.regions,
-        &pass.clear,
-        account_floor,
-    )?;
-    Ok(SsiOutcome {
-        branches,
-        boundary: pass.contacts,
-        exhaustiveness,
-        seeds: seed_count,
-    })
+    PlaneSection::within(plane, wall, domain, band, max_steps)?.all()
 }
 
 /// The boundary pass over `wall`'s knot rectangle against `plane`, at
@@ -3673,6 +3544,11 @@ mod ending_tests {
             ),
             ("seed", super::SEED_RECOURSE, super::SEED_RECOURSE),
             (
+                "seed in region",
+                super::REGION_SEED_RECOURSE,
+                super::REGION_SEED_RECOURSE,
+            ),
+            (
                 "seed off domain",
                 super::SEED_OFF_DOMAIN_RECOURSE,
                 super::SEED_OFF_DOMAIN_RECOURSE,
@@ -3832,7 +3708,7 @@ mod ending_tests {
     }
 
     /// How many arms [`SsiError`] has: [`arm`]'s numbering.
-    const ARMS: usize = 44;
+    const ARMS: usize = 45;
 
     /// Each arm's number. No wildcard: a new arm does not compile until
     /// it is numbered, and [`each_ssi_ending_is_its_decisions`] then
@@ -3883,6 +3759,7 @@ mod ending_tests {
             SsiError::ChartRow { .. } => 41,
             SsiError::PairBoundaryUnresolved { .. } => 42,
             SsiError::SeedOutsideTube { .. } => 43,
+            SsiError::SeedInRegion { .. } => 44,
         }
     }
 
@@ -4324,6 +4201,12 @@ mod ending_tests {
                 "seed outside tube",
                 SsiError::SeedOutsideTube {
                     state: [0.25, 0.5, 0.75, 0.5],
+                },
+            ),
+            (
+                "seed in region",
+                SsiError::SeedInRegion {
+                    state: [0.25, 0.5, 0.0, 0.5],
                 },
             ),
             (

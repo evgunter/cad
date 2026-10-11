@@ -54,10 +54,8 @@ use super::enclose::Box3;
 use super::ends::Ends;
 use super::exhaust::{self, FloorKind, PairCell, SweepFloor};
 use super::four::{Box4, PAIR_BOUNDARY_PIECES, PairBoxes, face_roots};
-use super::march::{
-    BranchEnd, MarchContext, MarchTol, Readout, RectEnd, RectExit, StepperMode,
-    decide_transversality, march, newton_refine,
-};
+use super::handle::{Banked, foot};
+use super::march::{MarchContext, MarchTol, Readout};
 use super::system::{Chart, LocalSystem, ParametricPairR4};
 use super::{
     ChartAxis, ChartedNurbs, SSI_MAX_STEPS, SSI_NEWTON_ITERS, SSI_SPLINE_NOISE_ULPS, SsiBranch,
@@ -77,8 +75,7 @@ pub struct Section<'a> {
     speeds: [f64; 4],
     /// The boundary pass's crossings, once it has run.
     crossings: Option<Vec<Crossing>>,
-    branches: Vec<SsiBranch>,
-    tubes: Vec<Vec<Box4>>,
+    banked: Banked<Box4>,
 }
 
 impl core::fmt::Debug for Section<'_> {
@@ -92,15 +89,14 @@ impl core::fmt::Debug for Section<'_> {
             band,
             speeds,
             crossings,
-            branches,
-            tubes: _,
+            banked,
         } = self;
         f.debug_struct("Section")
             .field("domain", domain)
             .field("band", band)
             .field("speeds", speeds)
             .field("crossings", &crossings.as_ref().map(Vec::len))
-            .field("branches", &branches.len())
+            .field("branches", &banked.branches.len())
             .finish_non_exhaustive()
     }
 }
@@ -174,8 +170,7 @@ impl<'a> Section<'a> {
             band,
             speeds,
             crossings: None,
-            branches: Vec::new(),
-            tubes: Vec::new(),
+            banked: Banked::new(Self::tube_of),
         })
     }
 
@@ -309,18 +304,6 @@ impl<'a> Section<'a> {
             .unwrap_or_default()
     }
 
-    /// The certified branch whose tube holds `x`, by index.
-    fn holding(&self, x: &[f64; 4]) -> Option<usize> {
-        self.tubes.iter().position(|t| t.iter().any(|b| b.holds(x)))
-    }
-
-    /// Bank a certified branch and its tube; its index.
-    fn bank(&mut self, branch: SsiBranch) -> usize {
-        self.tubes.push(Self::tube_of(&branch));
-        self.branches.push(branch);
-        self.branches.len() - 1
-    }
-
     /// **The branch through `seed`** (module docs). The seed is a point
     /// in space; each chart's foot of it, settled onto the section by
     /// Newton, is the state the answer is selected by. The answer is the
@@ -343,41 +326,15 @@ impl<'a> Section<'a> {
     /// certificate fault; it does not detect a seed settled onto another
     /// component).
     pub fn branch_at(&mut self, seed: Point3<f64>) -> Result<&SsiBranch, SsiError> {
-        let mode = StepperMode::Realized;
-        let foot = |s: &NurbsSurface<f64>| {
-            s.project(seed)
-                .map_err(|e| SsiError::FootPointInconclusive {
-                    t: f64::NAN,
-                    last_distance: e.last_distance,
-                })
-        };
-        let (fa, fb) = (foot(self.a.surface())?, foot(self.b.surface())?);
-        let start = [fa.u, fa.v, fb.u, fb.v];
-        let x = newton_refine(&self.sys, start, self.ctx.tol)
-            .ok_or(SsiError::SeedRefinementFailed { mode: mode.name() })?;
-        if !RectExit::PAIR.inside(&x, &self.ctx) {
-            return Err(SsiError::SeedOffDomain {
-                mode: mode.name(),
-                margin: super::march::domain_margin(&x, &self.ctx, &self.sys, &x),
-            });
-        }
-        let sigma = Svd::<3, 4>::new(self.sys.jacobian(&x)).sigma_min();
-        decide_transversality(&self.sys, &x, sigma, self.ctx.extent, self.band)?;
-        if let Some(i) = self.holding(&x) {
-            return Ok(&self.branches[i]);
+        let (fa, fb) = (foot(self.a.surface(), seed)?, foot(self.b.surface(), seed)?);
+        let x = self.ends().settle([fa.0, fa.1, fb.0, fb.1])?;
+        if let Some(i) = self.banked.holding(&x) {
+            return Ok(&self.banked.branches[i]);
         }
         let crossings = self.pass()?;
-        let ends = self.ends();
-        let (states, end) = ends.through_seed(x, &crossings)?;
-        let branch = ends.finish(&states, end)?;
-        let i = self.bank(branch);
-        if self.tubes[i].iter().any(|b| b.holds(&x)) {
-            Ok(&self.branches[i])
-        } else {
-            self.tubes.pop();
-            self.branches.pop();
-            Err(SsiError::SeedOutsideTube { state: x })
-        }
+        let ends = Ends::pair(&self.sys, self.ctx, (self.a, self.b), self.band);
+        let i = self.banked.through(&ends, x, &crossings)?;
+        Ok(&self.banked.branches[i])
     }
 
     /// **Every branch, and the proof they are all of them** (module
@@ -402,66 +359,23 @@ impl<'a> Section<'a> {
         )?;
 
         // ---- the open branches, between the crossings not yet ended ----
-        let ended: Vec<BoundaryPoint> = self
-            .branches
-            .iter()
-            .filter_map(|b| match b.end {
-                BranchEnd::Crossings { from, to } => Some([from, to]),
-                _ => None,
-            })
-            .flatten()
-            .collect();
-        let open: Vec<Crossing> = self
-            .pass()?
-            .into_iter()
-            .filter(|c| !ended.contains(&c.at))
-            .collect();
+        let crossings = self.pass()?;
+        let open = self.banked.open(crossings);
         let found = self.ends().branches(&open)?;
         for branch in found {
-            self.bank(branch);
+            self.banked.bank(branch);
         }
 
         // ---- the closed loops, from the subdivision's seeds ----
         let seeds = exhaust::seed_pair(&pair, seed_floor)?;
         #[allow(clippy::cast_possible_truncation)]
         let seed_count = seeds.len() as u32;
-        let mut refused: Vec<([f64; 4], SsiError)> = Vec::new();
-        for state in seeds {
-            let landed = newton_refine(&self.sys, state, self.ctx.tol).unwrap_or(state);
-            if self.holding(&landed).is_some() {
-                continue;
-            }
-            let trace = match march(
-                &self.sys,
-                &RectExit::PAIR,
-                state,
-                self.ctx,
-                StepperMode::Realized,
-                1.0,
-                self.band,
-            ) {
-                Ok(t) => t,
-                Err(SsiError::SeedRefinementFailed { .. } | SsiError::SeedOffDomain { .. }) => {
-                    continue;
-                }
-                Err(e) => {
-                    refused.push((landed, e));
-                    continue;
-                }
-            };
-            let RectEnd::Closed = trace.end else {
-                continue;
-            };
-            let branch = self.ends().finish(&trace.states, BranchEnd::Closed)?;
-            self.bank(branch);
-        }
-        if let Some((_, e)) = refused.into_iter().find(|(x, _)| self.holding(x).is_none()) {
-            return Err(e);
-        }
+        let ends = Ends::pair(&self.sys, self.ctx, (self.a, self.b), self.band);
+        self.banked.closed_loops(&ends, seeds, &[])?;
 
-        let exhaustiveness = self.account(&self.tubes)?;
+        let exhaustiveness = self.account(&self.banked.tubes)?;
         Ok(SsiOutcome {
-            branches: self.branches,
+            branches: self.banked.branches,
             boundary: Vec::new(),
             exhaustiveness,
             seeds: seed_count,
@@ -551,13 +465,13 @@ mod tests {
         for x in [0.5 - r, 0.5 + r] {
             section.branch_at(Point3::new(x, y, z)).unwrap();
         }
-        assert_eq!(section.tubes.len(), 2, "both branches certified");
+        assert_eq!(section.banked.tubes.len(), 2, "both branches certified");
         let whole = section
-            .account(&section.tubes)
+            .account(&section.banked.tubes)
             .expect("both tubes close it");
         assert!(whole.accounted > 0, "{whole}");
         for dropped in 0..2 {
-            let kept = vec![section.tubes[1 - dropped].clone()];
+            let kept = vec![section.banked.tubes[1 - dropped].clone()];
             let e = section
                 .account(&kept)
                 .expect_err("one branch's cells are left unaccounted");
