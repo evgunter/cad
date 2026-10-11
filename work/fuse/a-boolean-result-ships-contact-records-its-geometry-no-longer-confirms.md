@@ -135,3 +135,20 @@ which goes red when this row or
 Main already ships the same findings at the neighbouring pose
 `w345 nt e1 a14 d1e-9`; the census counts 6 stale and 596 undeclared
 findings at 1e-12 on main, and these add 6 and 3.
+
+## Evidence: an off-grid wedge pose at ε 1e-6 (branch `cleave/single-on-edge-record`, PR 4630)
+
+`w345 nt e1 a3.8 d1e-7` (3.8 sixteenths, off the census's integer
+grid), prism ∪ cube, at ε = 1e-6: main refuses it
+`ClassificationInvariant "bisector-graze crossing without a twin
+record"`. Once the twin lookup tries the reference's other twin, it
+builds its closed-form volume (to 1.2e-8), passes tier 2 and the
+certificate, and fails tier 3′ definitely with one undeclared contact:
+`EdgeEdgeCross { a: EdgeKey(16v1), b: EdgeKey(31v3) }` witnessed at
+`(2.0, 1.0187e-5, 1.0)`. That is the far end of the prism's edge `e1`,
+2 m from the corner, which lies within ε of the cube's face at that
+tilt. The door runs no census, so it ships it. Ruled acceptable by the
+CLEAVE orchestrator at PR 4630's review (a kernel-defect refusal on
+valid input traded for this class's finding), and pinned by
+`SHIPS_A_FINDING` (its ε row 1e-6) in
+`crates/sweep/tests/near_tangent_pierce_poses.rs`.

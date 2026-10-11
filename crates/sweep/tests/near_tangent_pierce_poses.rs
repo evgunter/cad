@@ -48,7 +48,7 @@ use crate::common::differential::{nt_cube, nt_prisms};
 /// ε row: `germ` the pierce germ, `coplanar` the coplanar lump, `recl`
 /// the ON sector pair, `edge` the edge-sector crossing, `twin` the
 /// reference's other twin, `reference` the reference read after a germ.
-const POSES: [(&str, usize, f64, f64); 47] = [
+const POSES: [(&str, usize, f64, f64); 48] = [
     ("Lbot", 0, 12.0, -1e-9),    // germ, ε = 1e-9
     ("Lmirror", 0, 12.0, -1e-9), // germ, ε = 1e-9
     ("Ltop", 0, 12.0, -1e-9),    // germ, ε = 1e-9
@@ -94,6 +94,7 @@ const POSES: [(&str, usize, f64, f64); 47] = [
     ("w345", 1, 11.7, -1e-7),    // twin, ε = 1e-6
     ("w345", 1, 11.8, 1e-7),     // twin, ε = 1e-6
     ("w345", 1, 11.8, -1e-7),    // twin, ε = 1e-6
+    ("vee300", 0, 11.75, -1e-7), // reference, ε = 1e-9 and 1e-12
     ("vee300", 0, 11.75, -2e-8), // reference, ε = 1e-12
     ("vee300", 0, 11.75, -2e-9), // reference, ε = 1e-12
 ];

@@ -157,3 +157,19 @@ off the census's integer sixteenths (fix pass on the same branch):
   reference is read off the codes as first read, which no germ
   rewrites; the arm left (no first-read record names a bound some
   record named) can only be a bug: a row 4 candidate.
+
+A candidate the same mechanism could reach, unmeasured: `recl.rs`
+`resolve_bisector_graze` reads its reference off `records` as they
+stand (`find_ref_sector(records, …)`, ~:1544) and returns `Ok(None)`,
+"not crossed", where none names the bisector. `mark_germ` (~:587)
+rewrites every On of a germ record, by design so as to fold a grazing
+bisector on the record's other side into that germ. Where the
+bisector's ray and the germ's are read apart by `parallel_same_dir`
+(~:719), as the vee300 edges are, the graze is a second event whose
+On an earlier germ consumed, and the `Ok(None)` is a silent skip, not
+a resolution. Both On codes of one record lie On the other sector's
+plane, so both lie on the pair's one common line to the band, and a
+record crosses along one ray: the graze is most likely that germ read
+twice. That fails only where the two Ons lie on opposite rays of the
+line. Whether any census row reaches the arm after an earlier germ
+consumed its On has not been instrumented.

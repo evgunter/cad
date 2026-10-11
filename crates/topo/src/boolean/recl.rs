@@ -517,11 +517,9 @@ fn find_on_record(records: &[PairRecord], a: usize, b: usize) -> Option<usize> {
 
 /// The reference sector for an on-bound event whose own-side bound has
 /// start-holder `f_s`: the other-solid sector index of the first record,
-/// its codes as first read, whose own-side On code names **that bound**
-/// (start-holder match). The first-read codes, because an earlier
-/// event's germ record has every On code rewritten ([`mark_germ`]),
-/// one on the other side's bound naming a different ray among them —
-/// NOT any On record on the flanking twins: a vertex pair can host
+/// in `records`, whose own-side On code names **that bound**
+/// (start-holder match) — NOT any On record on the flanking twins: a
+/// vertex pair can host
 /// several distinct on-direction events at once (e.g. a collinear-edge
 /// overlap AND a transverse crossing along a subdivision bisector — the
 /// R-1 fixture), and matching any On record conflates them, keying the
@@ -989,12 +987,14 @@ impl EdgeGerm {
 /// event marked it its germ: a record that crosses along one ray of
 /// the pair's two planes crosses along no other, so its codes then are
 /// this event's On codes (cancelled below whatever they read) or a
-/// lump with nothing to cross. An edge-sector germ is placed only where
-/// no record of the pair, on either twin of the reference, carries an
-/// On code, so a record of the pair that exists has had its codes
-/// resolved: by 15.10, a lump with nothing to cross, or by an earlier
-/// event's germ. A record an earlier event already holds as its germ
-/// would lose that germ, which is refused, never overwritten.
+/// lump with nothing to cross. An edge-sector germ is minted on the
+/// pair of its fold flanker and the reference itself, and only where no
+/// record of the fold flanker with the reference or any of its
+/// [`twins`] carries an On code: a record of the minted pair that exists
+/// has had its codes resolved, by 15.10 (a lump with nothing to cross)
+/// or by an earlier event's germ. A record an earlier event already
+/// holds as its germ would lose that germ, which is refused, never
+/// overwritten.
 fn place_germ(
     records: &mut Vec<PairRecord>,
     first_read: &mut Vec<PairRecord>,
@@ -1420,6 +1420,12 @@ fn resolve_edge_sector<T: Decide>(
     let f_e = (f_s + 1) % n_own;
     let ref_idx = match other_holder {
         Some(h) => h,
+        // Read off the codes as first read: an edge read On decides
+        // which flanker carries its crossing, so it is read against the
+        // face it was read On against even where another event's germ,
+        // sharing its record, has since rewritten that On (`mark_germ`
+        // rewrites every On of a germ record, a second edge's on a ray
+        // `parallel_same_dir` reads apart among them).
         None => find_ref_sector(first_read, a_side, f_s, n_own).ok_or(
             BooleanError::ClassificationInvariant {
                 what: "on-edge event without a reference sector",
@@ -1485,19 +1491,12 @@ fn resolve_edge_sector<T: Decide>(
             if let Some(g) = held {
                 return Ok(Some(EdgeGerm::Held(g)));
             }
-            // The reference holds the on-bound's ray: `find_ref_sector`
-            // took it from a record, as first read, whose own-side On
-            // names this bound, a pair `pair_search` met along that
-            // bound; or the ray runs along the reference's own bisector
-            // (`other_holder`), grouped with it as one ray. Both of a
-            // `Yes` cell's flankers hold the on-bound and read their
-            // other bound off the reference's plane, so the reference
-            // meets the fold flanker along it too. `pair_search` reads
-            // that pair off its planes' common line, which for a flanker
-            // nearly coplanar with the reference swings off the bound by
-            // the bound's in-band offset over the planes' sine: the
-            // record is the pair as its codes read it, whether or not
-            // the search met it.
+            // The reference holds the on-bound's ray (its record named
+            // the bound, or the ray runs along its bisector), and both of
+            // a `Yes` cell's flankers hold the bound, so the reference
+            // meets the fold flanker along it whether or not
+            // `pair_search`'s common line, which swings off the bound
+            // where the two planes are nearly parallel, met that pair.
             if verdict != TableIiVerdict::Yes {
                 return Err(BooleanError::ClassificationInvariant {
                     what: "single-on-edge crossing without a flanking record",
@@ -1537,6 +1536,11 @@ fn resolve_bisector_graze<T: Decide>(
     let f_e = (f_s + 1) % n_own;
     let ref_idx = match if a_side { b_holder } else { a_holder } {
         Some(h) => h,
+        // Read off the codes as they stand: a bisector's On only relays
+        // its sector's side between twins, and `mark_germ` resolves a
+        // grazing bisector on its germ record's other side into that
+        // germ's transition, so a graze no surviving record names is
+        // already resolved.
         None => match find_ref_sector(records, a_side, f_s, n_own) {
             Some(f) => f,
             None => return Ok(None),
@@ -2342,6 +2346,49 @@ mod tests {
         assert_eq!(flankers(2, true, 4), (2, 3));
         assert_eq!(flankers(0, false, 4), (3, 0));
         assert_eq!(flankers(3, true, 4), (3, 0));
+    }
+
+    /// A sector's twins lie across its bisector bounds: the next entry
+    /// across a bisector start, the previous across a bisector end,
+    /// wrapping round the orbit, and none across a real edge.
+    #[test]
+    fn twins_lie_across_the_bisector_bounds() {
+        use super::super::sectors::Reach;
+        let sector = |start_bisector: bool, end_bisector: bool| {
+            let reach = |bisector| {
+                if bisector {
+                    Reach::Bisector(1.0)
+                } else {
+                    Reach::Extent(1.0)
+                }
+            };
+            BoolSector {
+                he: crate::entity::HalfEdgeKey::default(),
+                start: Vec3::new(1.0, 0.0, 0.0),
+                end: Vec3::new(0.0, 1.0, 0.0),
+                start_reach: reach(start_bisector),
+                end_reach: reach(end_bisector),
+                face: crate::entity::FaceKey::default(),
+                normal: geom_brep::OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
+                arm: 1.0,
+            }
+        };
+        // Two halved sectors, one split across the wrap.
+        let halves = [
+            sector(false, true),
+            sector(true, false),
+            sector(false, true),
+            sector(true, false),
+        ];
+        let got: Vec<Vec<usize>> = (0..4).map(|i| twins(&halves, i)).collect();
+        assert_eq!(got, [vec![0, 3], vec![1, 2], vec![2, 1], vec![3, 0]]);
+        // A sector split in three: the middle entry has a twin each way.
+        let thirds = [sector(true, false), sector(true, true), sector(false, true)];
+        assert_eq!(twins(&thirds, 1), [1, 2, 0]);
+        assert_eq!(twins(&thirds, 0), [0, 1]);
+        assert_eq!(twins(&thirds, 2), [2, 1]);
+        // No bisector bound: no twin.
+        assert_eq!(twins(&[sector(false, false), sector(false, false)], 0), [0]);
     }
 
     /// `mark_germ` rewrites the On bound to the transition partner.
