@@ -10,7 +10,7 @@
 
 use crate::common::interval::iv;
 use geom::Curve3;
-use geom_core::{Band, Bounds, Interval, Point2, Point3, Vec3};
+use geom_core::{Band, Bounds, Interval, Point2, Point3, Sign, Vec3};
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendDecision, BlendError, FILLET3_CAP_ELLIPSE_RECOURSE};
 use sweep::test_support::{
@@ -459,28 +459,41 @@ fn drilled(s: f64, t: f64, h: f64, rad: f64) -> Body<f64> {
 /// between the elliptic arc and the old vertex, and nothing of the wall
 /// the band keeps. On the 45° wall (`s = 1`, major semi-axis `r·√2`
 /// along the wall, minor `r` down it, about `(r·√2, r)` in wall
-/// coordinates), a hole in the sliver — mid-sliver, in the cusp at the
-/// major vertex, in the cusp at the top foot — refuses
-/// `RingClearance`; a hole inside the ellipse but outside the disc of
-/// its minor semi-axis, or near its major vertex, builds, as it does
-/// on the square wall and at a 0.3 lean.
+/// coordinates), a hole wholly in the sliver — mid-sliver, or in the
+/// cusp at the major vertex — refuses `WhollyInside`, read against the
+/// sliver itself through the elliptic arc; the hole in the cusp at the
+/// top foot reaches past the arc (its top `(0.1, 0.0045)` is inside the
+/// ellipse, whose arc is at `0.0995` there) and refuses `RingClearance`
+/// as a measurement; a hole inside the ellipse but outside the disc of
+/// its minor
+/// semi-axis, or near its major vertex, builds, as it does on the
+/// square wall and at a 0.3 lean.
 #[test]
 fn a_hole_in_a_slanted_wall_refuses_in_the_sliver_and_builds_in_the_kept_wall() {
     let front = |body: &Body<f64>| edge(body, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
     for (what, t, h, rad) in [
         ("mid-sliver", 0.04, 0.015, 0.004),
         ("the cusp at the major vertex", 0.004, 0.05, 0.0018),
-        ("the cusp at the top foot", 0.10, 0.003, 0.0015),
     ] {
         let body = drilled(1.0, t, h, rad);
         match Verb::Fillet.run(&body, &[front(&body)]) {
-            Err(BlendError::RingClearance { .. }) => {}
+            Err(BlendError::WhollyInside {
+                at: topo::EntityId::Loop(_),
+                margin,
+                ..
+            }) => assert_eq!(margin.sign, Sign::Negative, "{what}: definite, {margin}"),
             other => panic!(
-                "a hole at {what} is in the sliver: RingClearance, got {:?}",
+                "a hole at {what} is wholly in the sliver: WhollyInside, got {:?}",
                 other.map(|_| ())
             ),
         }
     }
+    let body = drilled(1.0, 0.10, 0.003, 0.0015);
+    let top = Verb::Fillet.run(&body, &[front(&body)]).map(|_| ());
+    assert!(
+        matches!(top, Err(BlendError::RingClearance { bounded: false, .. })),
+        "a hole across the arc at the top foot: a measured RingClearance, got {top:?}"
+    );
     for (what, t, h, rad) in [
         (
             "inside the ellipse, outside its minor disc",
@@ -504,6 +517,37 @@ fn a_hole_in_a_slanted_wall_refuses_in_the_sliver_and_builds_in_the_kept_wall() 
                 .unwrap_or_else(|e| panic!("a hole {what} at s = {s}: tier 3, got {e:?}"));
         }
     }
+}
+
+/// **The square wall's mid-sliver hole under both verbs**: the fillet's
+/// round end reads it against the sliver itself, wholly inside
+/// (`WhollyInside`); the chamfer's chord end has only the enclosing
+/// region, which cannot tell inside from crossing, so it refuses
+/// `RingClearance` as a bound.
+#[test]
+fn a_hole_in_a_square_walls_sliver_is_wholly_inside_under_the_fillet_and_a_bound_under_the_chamfer()
+{
+    let body = drilled(0.0, 0.04, 0.015, 0.004);
+    let front = edge(&body, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
+    let fillet = Verb::Fillet.run(&body, &[front]).map(|_| ());
+    assert!(
+        matches!(
+            fillet,
+            Err(BlendError::WhollyInside {
+                at: topo::EntityId::Loop(_),
+                ..
+            })
+        ),
+        "the fillet: WhollyInside, got {fillet:?}"
+    );
+    let chamfer = Verb::Chamfer.run(&body, &[front]).map(|_| ());
+    assert!(
+        matches!(
+            chamfer,
+            Err(BlendError::RingClearance { bounded: true, .. })
+        ),
+        "the chamfer: a bounded RingClearance, got {chamfer:?}"
+    );
 }
 
 /// **A steep wall's own edges stay clear of its sliver**: at `s = 20`

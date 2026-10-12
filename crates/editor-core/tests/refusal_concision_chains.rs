@@ -2711,6 +2711,14 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
+            "WhollyInside",
+            E::WhollyInside {
+                at: topo::EntityId::Face(face),
+                chain: sweep::blend::Convexity::Convex,
+                margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
+            },
+        ),
+        (
             "ScaffoldingOperand",
             E::ScaffoldingOperand {
                 errors: vec![topo::ValidationError::ScaffoldingStrutVertex { vertex }],

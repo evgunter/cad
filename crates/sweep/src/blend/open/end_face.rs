@@ -34,7 +34,9 @@
 //! material beyond the band, on the concave side the band's fill covers
 //! it. Every other edge of `C` stays where it was, so each is metered
 //! before any mutation against a region that encloses the sliver
-//! ([`CapSliver`]), whichever the band's convexity.
+//! ([`CapSliver`]), whichever the band's convexity, and a cycle not
+//! clear of it is read against the sliver itself: wholly inside it,
+//! crossing it, or neither certified.
 
 use geom::Curve3;
 use geom::Surface;
@@ -263,7 +265,9 @@ impl<T: Decide + Bounds> EndCut<T> {
 /// the feet, and `center` its midpoint.
 ///
 /// An edge that misses `Ω` misses `S`; the converse does not hold, and
-/// that is the meter's conservative direction.
+/// that is the meter's conservative direction. So `Ω` answers only
+/// "clear": a cycle wholly inside `S`, or crossing its boundary, is read
+/// against that boundary itself ([`SliverBoundary`]).
 ///
 /// Two of its terms are pinned by no assembly row, only by the piece
 /// meters' unit row: the arc's term of a floor, which binds only when a
@@ -286,7 +290,29 @@ pub(in crate::blend) struct CapSliver<T: Real> {
     /// Each direction `dₖ`, with the least `(p − center)·dₖ` over the
     /// sliver.
     floors: Vec<(Vec3<T>, T)>,
+    /// `S`'s own boundary, on a round end: what the reading against `S`
+    /// itself takes ([`Self::ring_inside`], [`Self::reaches_in`]), since
+    /// `Ω` contains `S` and so can answer only "clear".
+    boundary: Option<SliverBoundary<T>>,
 }
+
+/// **The sliver's own boundary on a round end**: the end curve's two
+/// feet, the axis the arc runs forward about from `face_a`'s foot to
+/// `face_b`'s (under half a turn), and the two rim pieces from the feet
+/// to the old vertex. With the arc they close the Jordan curve that
+/// bounds `S`.
+struct SliverBoundary<T: Real> {
+    feet: [Point3<T>; 2],
+    axis: Vec3<T>,
+    rims: [(Curve3<T>, (T, T)); 2],
+}
+
+/// How many places along an end-face edge, ends included, the reading
+/// against `S` looks for a point certainly inside it or certainly
+/// outside it. Each is a witness, decided exactly where it is read; how
+/// many there are decides only how readily a crossing is told from a
+/// bound.
+const WITNESS_SAMPLES: u32 = 9;
 
 /// A round section's frame in the end plane: `p − center` is inside
 /// it when `(d·u/major)² + (d·w/minor)² < 1`.
@@ -327,6 +353,39 @@ impl<T: Bounds> SectionFrame<T> {
             Curve3::Spiric { .. } | Curve3::Nurbs(_) => return None,
         };
         Some(self.minor * (T::one() - rho))
+    }
+
+    /// **How far outside the section an edge stays**, in meters:
+    /// positive when every point of `carrier` over `window` lies outside
+    /// it. The least scaled radius of a segment is its distance from the
+    /// origin in the scaled frame, the scaling being linear; a circle or
+    /// an ellipse of semi-axis at most `a` about `c` stays at least
+    /// `a/minor` short of `c`'s. A scaled radius `ρ > 1` is at least
+    /// `minor·(ρ − 1)` from the section, as in [`Self::depth`]. `None`
+    /// for a carrier with no closed form.
+    fn outside(self, carrier: &Curve3<T>, (ta, tb): (T, T), center: Point3<T>) -> Option<T> {
+        let rho = match *carrier {
+            Curve3::Line { origin, dir } => {
+                let at = |p: Point3<T>| {
+                    let d = p - center;
+                    (d.dot(self.u) / self.major, d.dot(self.w) / self.minor)
+                };
+                let (a, b) = (at(origin + dir * ta), at(origin + dir * tb));
+                let (ex, ey) = (b.0 - a.0, b.1 - a.1);
+                let s = (T::zero() - (a.0 * ex + a.1 * ey) / (ex.powi(2) + ey.powi(2)))
+                    .max(T::zero())
+                    .min(T::one());
+                ((a.0 + ex * s).powi(2) + (a.1 + ey * s).powi(2)).sqrt()
+            }
+            Curve3::Circle {
+                center: c, radius, ..
+            } => self.scaled(c - center) - radius / self.minor,
+            Curve3::Ellipse {
+                center: c, major, ..
+            } => self.scaled(c - center) - major / self.minor,
+            Curve3::Spiric { .. } | Curve3::Nurbs(_) => return None,
+        };
+        Some(self.minor * (rho - T::one()))
     }
 }
 
@@ -475,7 +534,145 @@ impl<T: Bounds> CapSliver<T> {
     }
 }
 
+/// **A lower bound on the distance between two pieces lying in one
+/// plane** of unit normal `n`: positive certifies that they do not meet;
+/// `None` for a carrier with no closed form here.
+///
+/// A circle is read whole: every point of the other piece is
+/// `‖x − o‖ ∈ [near, far]` from its centre ([`piece_distance`]), so at
+/// least `near − radius` from it outside and `radius − far` inside. An
+/// ellipse is read the same way through the disc of its major
+/// semi-axis, which holds it, and the disc of its minor, which it holds.
+/// Two segments are read by each one's line: two segments that do not
+/// meet always leave one of them wholly on one side of the other's line.
+fn apart<T: Bounds>(a: Piece<'_, T>, b: Piece<'_, T>, n: Vec3<T>) -> Option<T> {
+    let round = |c: &Curve3<T>| match *c {
+        Curve3::Circle { center, radius, .. } => Some((center, radius, radius)),
+        Curve3::Ellipse {
+            center,
+            major,
+            minor,
+            ..
+        } => Some((center, major, minor)),
+        _ => None,
+    };
+    let about = |(o, outer, inner): (Point3<T>, T, T), (carrier, window): Piece<'_, T>| {
+        let (near, far) = piece_distance(carrier, window, o)?;
+        Some((near - outer).max(inner - far))
+    };
+    let side = |(x, _): Piece<'_, T>, (y, window): Piece<'_, T>| {
+        let Curve3::Line { origin, dir } = *x else {
+            return None;
+        };
+        let (low, high) = piece_along(y, window, origin, n.cross(dir).normalize())?;
+        Some(low.max(T::zero() - high))
+    };
+    match (round(a.0), round(b.0)) {
+        (Some(ra), Some(rb)) => Some(about(ra, b)?.max(about(rb, a)?)),
+        (Some(ra), None) => about(ra, b),
+        (None, Some(rb)) => about(rb, a),
+        (None, None) => Some(side(a, b)?.max(side(b, a)?)),
+    }
+}
+
 impl<T: Decide + Bounds> CapSliver<T> {
+    /// **How surely the point `p` of the end plane lies inside `S`**:
+    /// positive when it certainly does; `None` on a chord end, or where a
+    /// rim has no closed form.
+    ///
+    /// `S` is the region the Jordan curve `A ∪ Pa ∪ Pb` bounds (the arc
+    /// and the two rim pieces), and the section's centre `c` is not in
+    /// it: the section is convex and `S` lies outside it. The segment
+    /// `[c, p]` meets the section's boundary once, and that point is on
+    /// `A` when `p` lies outside the section and strictly inside the
+    /// wedge `A` subtends at `c`, the arc running under half a turn. If
+    /// the segment also misses both rim pieces it crosses the curve once,
+    /// so `p` is inside. The reading is the least of `p`'s distance
+    /// outside the section (`minor·(ρ − 1)`, `ρ` its scaled radius), its
+    /// distance inside each of the wedge's two lines, and the segment's
+    /// clearance from each rim piece ([`apart`]).
+    fn inside_point(&self, p: Point3<T>) -> Option<T> {
+        let (b, section) = (self.boundary.as_ref()?, self.inside?);
+        let q = p - self.center;
+        let [ua, ub] = b.feet.map(|f| f - self.center);
+        let mut least = (section.minor * (section.scaled(q) - T::one()))
+            .min(b.axis.cross(ua).normalize().dot(q))
+            .min(ub.cross(b.axis).normalize().dot(q));
+        let ray = Curve3::Line {
+            origin: self.center,
+            dir: q,
+        };
+        let span = (T::zero(), T::one());
+        for (rim, window) in &b.rims {
+            least = least.min(apart((&ray, span), (rim, *window), b.axis)?);
+        }
+        Some(least)
+    }
+
+    /// **How surely the point `p` of the end plane lies outside `S`**:
+    /// positive when it certainly does — outside `Ω` (each term bounds
+    /// from below `p`'s distance from a set containing `Ω`, as in
+    /// [`Self::line_clearance`]), or inside the section, which `S` lies
+    /// outside of (`minor·(1 − ρ)`, as [`SectionFrame::depth`] reads it).
+    fn outside_point(&self, p: Point3<T>) -> T {
+        let q = p - self.center;
+        let mut most = q.norm() - self.reach;
+        if let Some(section) = self.inside {
+            most = most.max(section.minor * (T::one() - section.scaled(q)));
+        }
+        self.floors
+            .iter()
+            .fold(most, |m, &(d, floor)| m.max(floor - q.dot(d)))
+    }
+
+    /// [`WITNESS_SAMPLES`] places along the `carrier` over `window`,
+    /// ends included.
+    fn places(carrier: &Curve3<T>, (ta, tb): (T, T)) -> impl Iterator<Item = Point3<T>> + '_ {
+        (0..WITNESS_SAMPLES)
+            .map(move |i| carrier.eval(geom_brep::schedule_param(ta, tb, i, WITNESS_SAMPLES)))
+    }
+
+    /// **How surely some point of an end-face edge lies inside `S`**:
+    /// positive when one of its witnesses does ([`Self::inside_point`]).
+    pub(in crate::blend) fn reaches_in(&self, carrier: &Curve3<T>, window: (T, T)) -> Option<T> {
+        Self::places(carrier, window).try_fold(None, |most: Option<T>, p| {
+            let x = self.inside_point(p)?;
+            Some(Some(most.map_or(x, |m| m.max(x))))
+        })?
+    }
+
+    /// **How surely some point of an end-face edge lies outside `S`**:
+    /// positive when one of its witnesses does ([`Self::outside_point`]).
+    pub(in crate::blend) fn reaches_out(&self, carrier: &Curve3<T>, window: (T, T)) -> T {
+        Self::places(carrier, window)
+            .map(|p| self.outside_point(p))
+            .fold(self.outside_point(carrier.eval(window.0)), |m, x| m.max(x))
+    }
+
+    /// **How surely a whole cycle of the end face lies inside `S`**:
+    /// positive when it certainly does, and then a lower bound on its
+    /// distance from `∂S`; `None` on a chord end, or for a piece with no
+    /// closed form. `pieces` is every edge of the cycle.
+    ///
+    /// A connected curve that misses `∂S` lies wholly inside `S` or
+    /// wholly outside it, so it is inside when it misses the arc, misses
+    /// both rim pieces and has one point inside. Each piece misses the
+    /// arc by lying outside the section ([`SectionFrame::outside`]),
+    /// misses a rim piece by [`apart`], and the cycle's first point is
+    /// read by [`Self::inside_point`].
+    pub(in crate::blend) fn ring_inside(&self, pieces: &[Piece<'_, T>]) -> Option<T> {
+        let (b, section) = (self.boundary.as_ref()?, self.inside?);
+        let (first, (t0, _)) = *pieces.first()?;
+        let mut least = self.inside_point(first.eval(t0))?;
+        for &(carrier, window) in pieces {
+            least = least.min(section.outside(carrier, window, self.center)?);
+            for (rim, rim_window) in &b.rims {
+                least = least.min(apart((carrier, window), (rim, *rim_window), b.axis)?);
+            }
+        }
+        Some(least)
+    }
+
     /// **The region a cut-off removes from its end face**, read off the
     /// source before any mutation. `rims` pairs each rim with its foot,
     /// `face_a`'s first. The end curves differ only in the curve's own
@@ -561,22 +758,22 @@ impl<T: Decide + Bounds> CapSliver<T> {
                 } else {
                     at(foot_a).max(at(foot_b))
                 };
-                (center, Some((arc, (ta, tb), frame, far)))
+                (center, Some((arc, (ta, tb), frame, far, axis)))
             }
         };
         let toward = (pv - center).normalize();
         let mut directions = vec![toward];
-        if let Some((_, _, frame, _)) = round {
+        if let Some((_, _, frame, _, _)) = round {
             directions.extend([frame.u, -frame.u, frame.w, -frame.w]);
         }
         let mut reach = match round {
-            Some((_, _, _, far)) => far,
+            Some((_, _, _, far, _)) => far,
             None => (foot_a - center).norm().max((foot_b - center).norm()),
         };
         let mut floors = Vec::with_capacity(directions.len());
         for d in directions {
             let low = match round {
-                Some((arc, window, _, _)) => {
+                Some((arc, window, _, _, _)) => {
                     piece_along(arc, window, center, d)
                         .ok_or_else(|| {
                             unbuilt_geometry(EntityId::Vertex(vertex), "a cut-off's round section")
@@ -605,13 +802,19 @@ impl<T: Decide + Bounds> CapSliver<T> {
                 *floor = floor.min(low);
             }
         }
+        let boundary = round.map(|(_, _, _, _, axis)| SliverBoundary {
+            feet: [foot_a, foot_b],
+            axis,
+            rims: pieces.map(|(carrier, window)| (carrier.clone(), window)),
+        });
         Ok(Self {
             cap,
             rims: [rim_a, rim_b],
             center,
-            inside: round.map(|(_, _, frame, _)| frame),
+            inside: round.map(|(_, _, frame, _, _)| frame),
             reach,
             floors,
+            boundary,
         })
     }
 }
@@ -981,6 +1184,7 @@ mod tests {
                     .iter()
                     .map(|&((x, y), floor)| (v(x, y), f(floor)))
                     .collect(),
+                boundary: None,
             }
         }
 

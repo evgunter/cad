@@ -2720,10 +2720,20 @@ fn ring_clearance_pass<T: Decide + Bounds>(
     // sliver. An edge whose carrier has no closed form here, one with no
     // certified geometry, or a lone-vertex cycle refuses rather than
     // being skipped: no sampled screen meters an end face.
+    //
+    // A cycle not clear of that region is read against the sliver `S`
+    // itself, three ways. Another cycle wholly inside `S` refuses
+    // `WhollyInside`. A cycle with a point certainly inside `S` and one
+    // certainly outside it crosses `S`'s boundary and refuses
+    // `RingClearance` as a measurement; the cut cycle always has points
+    // outside, its rims running on past the feet. Anything else refuses
+    // as a bound: the enclosing region cannot tell inside from crossing.
     for &(s, convexity) in slivers {
         let fd = body
             .get_face(s.cap)
             .ok_or_else(|| not_intact(EntityId::Face(s.cap), "a cut-off's end face"))?;
+        let decision = BlendDecision::RingClearance;
+        let sure = |x: T| x.lo() >= band.escalate();
         for lp in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
             let lone = body
                 .get_loop(lp)
@@ -2737,6 +2747,10 @@ fn ring_clearance_pass<T: Decide + Bounds>(
             }
             let walk = loop_walk(body, lp)
                 .ok_or_else(|| not_intact(EntityId::Loop(lp), "a cut-off end face's cycle"))?;
+            let cut = walk.iter().any(|(_, _, edge)| s.rims.contains(edge));
+            let mut pieces = Vec::with_capacity(walk.len());
+            let mut unclear: Option<(T, Sign)> = None;
+            let mut reaches_in = false;
             for (_, _, edge) in walk {
                 if s.rims.contains(&edge) {
                     continue;
@@ -2755,8 +2769,38 @@ fn ring_clearance_pass<T: Decide + Bounds>(
                          an ellipse, which the sliver meter needs",
                     )
                 })?;
-                ring_clearance(s.cap, convexity, margin, false, band)?;
+                pieces.push((carrier, window));
+                let sign = classify(BlendSite::Chain, decision, Margin::of(margin), band)?;
+                if sign == Sign::Positive {
+                    continue;
+                }
+                if unclear.is_none_or(|(least, _)| margin.hi() < least.hi()) {
+                    unclear = Some((margin, sign));
+                }
+                reaches_in |= s.reaches_in(carrier, window).is_some_and(sure);
             }
+            let Some((margin, sign)) = unclear else {
+                continue;
+            };
+            if !cut && let Some(depth) = s.ring_inside(&pieces).filter(|d| sure(*d)) {
+                let deep = T::zero() - depth;
+                let sign = classify(BlendSite::Chain, decision, Margin::of(deep), band)?;
+                return Err(BlendError::WhollyInside {
+                    at: EntityId::Loop(lp),
+                    chain: convexity,
+                    margin: super::battery::classified(decision, deep, band, sign),
+                });
+            }
+            let reaches_out = cut
+                || pieces
+                    .iter()
+                    .any(|&(carrier, window)| sure(s.reaches_out(carrier, window)));
+            return Err(BlendError::RingClearance {
+                face: s.cap,
+                chain: convexity,
+                margin: super::battery::classified(decision, margin, band, sign),
+                bounded: !(reaches_in && reaches_out),
+            });
         }
     }
     // (d) Planar strips: the local carve moves each requested edge's

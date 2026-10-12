@@ -156,64 +156,52 @@ fn bore(x: f64, y: f64, a: f64) -> ProfileLoop<f64> {
     ])
 }
 
-/// **A bore in the sliver a keyhole crease's cut-off removes refuses**,
-/// where the cut-off runs in the cap's keyhole RING and the bore is a
-/// second ring of the same cap. At r = 0.1 the upper junction's ball
-/// centre is `c = (√0.27, 0.3)` and its old vertex `V = (√0.21, 0.2)`,
-/// so the sliver lies within `0.1 ≤ ‖p − c‖ ≤ ‖V − c‖ ≈ 0.1173`; the
-/// bore at `(0.4623, 0.204)` spans `‖p − c‖ ∈ [0.1108, 0.1128]`, wholly
-/// in the material the band removes.
+/// **A bore in the sliver a keyhole crease's cut-off removes refuses
+/// `WhollyInside`**, where the cut-off runs in the cap's keyhole RING
+/// and the bore is a second ring of the same cap: it would go with the
+/// sliver, and that carve is not built. At r = 0.1 the upper junction's
+/// ball centre is `c = (√0.27, 0.3)` and its old vertex
+/// `V = (√0.21, 0.2)`, so the sliver lies within
+/// `0.1 ≤ ‖p − c‖ ≤ ‖V − c‖ ≈ 0.1173`; the bore at `(0.4623, 0.204)`
+/// spans `‖p − c‖ ∈ [0.1108, 0.1128]`, wholly in the material the band
+/// removes. The reading is its least clearance, from the slot wall
+/// `y = 0.2`: `0.204 − 0.001 − 0.2`.
 #[test]
-fn a_bore_in_a_keyhole_creases_removed_sliver_refuses_ring_clearance() {
+fn a_bore_in_a_keyhole_creases_removed_sliver_refuses_wholly_inside() {
     let body = keyhole_block_with(vec![bore(0.4623, 0.204, 0.001)]);
     validate_geometric(&body, tol()).expect("the bored keyhole block is tier-3 valid");
     let creases = rod_creases(&body);
     assert_eq!(creases.len(), 2, "the two disc/slot junctions");
-    match fillet_edges(
+    let got = fillet_edges(
         &sweep::test_support::at_rest(&body, tol()),
         &creases,
         0.1,
         tol(),
     )
-    .map_err(|e| {
-        let text = e.error.to_string();
-        (e.error, text)
-    }) {
-        Err((
-            BlendError::RingClearance {
-                face,
-                chain,
-                margin,
-                bounded: false,
-            },
-            text,
-        )) => {
-            assert_eq!(
-                chain,
-                Convexity::Convex,
-                "a cap meter refuses only beside a convex crease"
-            );
-            assert!(
-                text.contains(
-                    "lies in the part of a face the blend cuts away with the material it removes"
-                ),
-                "the sentence says the edge is cut away with the sliver: {text}"
-            );
-            assert_eq!(margin.sign, Sign::Negative, "definite, got {margin}");
-            let f = body
-                .get_face(face)
-                .expect("the refusal names a source face");
-            assert_eq!(
-                f.rings.len(),
-                2,
-                "the face named is a cap: keyhole and bore"
-            );
-        }
-        Err((other, _)) => panic!("expected RingClearance at the cap, got {other:?}"),
-        Ok(_) => {
-            panic!("the carve returned a body keeping the bore on a cap that no longer covers it")
-        }
-    }
+    .map(|_| ())
+    .map_err(|e| e.error);
+    let Err(BlendError::WhollyInside { at, chain, margin }) = got else {
+        panic!("expected WhollyInside at the cap, got {got:?}")
+    };
+    assert_eq!(chain, Convexity::Convex, "the convex ring crease's sliver");
+    assert_eq!(margin.sign, Sign::Negative, "definite, got {margin}");
+    let read = margin
+        .reading
+        .diagnostic_f64_for_error_text()
+        .value()
+        .expect("a value at f64");
+    assert!(
+        (read + 0.003).abs() < 1e-12,
+        "the depth is the bore's clearance from the slot wall, read {read}"
+    );
+    let topo::EntityId::Loop(ring) = at else {
+        panic!("names the bore's cycle, got {at:?}")
+    };
+    assert!(
+        body.faces()
+            .any(|(_, f)| f.rings.len() == 2 && f.rings.contains(&ring)),
+        "the cycle named is a ring of a cap carrying the keyhole and the bore"
+    );
 }
 
 /// **A bore clear of both slivers carves at the keyhole's closed form**,

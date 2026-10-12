@@ -53,11 +53,15 @@ reach would need the band trimmed by it, which the surgery has no step
 for, and refuses. The supports' own
 boundary features are judged first, by the battery's screen and the
 surgery's exact ring and boundary meters; the reach runs after them,
-before any mutation, and refuses `BlendError::FaceClearance` — a
-measurement (`bounded: false`) when a point of the face's own boundary
-lies inside a region that is the band's material exactly (plane
-supports, or a whole rim over a plane and a cylinder), and a bound
-(`bounded: true`) whenever the face could not be certified clear.
+before any mutation. A face not certified clear is read against each
+region that is a band's material exactly (plane supports, or a whole
+rim over a plane and a cylinder): it crosses it when one point of its
+own boundary lies inside and another outside, and refuses
+`BlendError::FaceClearance` as a measurement (`bounded: false`); it is
+wholly inside when every cell of its box that may hold a point of its
+surface lies inside, and refuses `BlendError::WhollyInside`, the carve
+that takes it with the material not being built; and anything else
+refuses `BlendError::FaceClearance` as a bound (`bounded: true`).
 
 Each reach is an intersection of 1-Lipschitz bounds: per link, the
 cross-section between the supports, the sector the ball's arc subtends
@@ -391,8 +395,17 @@ enclosure meets zero is skipped rather than spread over the edge.
 A circle or ellipse edge must clear one face whole.
 The meter is
 the same ring carry-through pass under the same
-`fillet3_ring_clearance`; an edge not definitely clear of the region
-refuses `RingClearance` at the cap
+`fillet3_ring_clearance`. The region contains the sliver, so it answers
+only "clear": a cycle with an edge not definitely clear of it is read
+against the sliver itself, bounded by the arc and the two rim pieces,
+on a round end. A cycle other than the cut one that misses all three
+and has a point inside lies wholly inside, and refuses
+`WhollyInside`, the carve that takes it with the sliver not being
+built; a cycle with a
+point certainly inside and one certainly outside crosses, and refuses
+`RingClearance` as a measurement (the cut cycle always has points
+outside, its rims running on past the feet); anything else, and every
+chord end, refuses `RingClearance` as a bound
 (`crates/sweep/tests/band_ruled_cap_ring.rs`). A
 curved end face refuses typed.
 Consumer: the rod with a flat milled along it (`cylinder ∖ box`), both

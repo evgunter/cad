@@ -8,7 +8,11 @@
 //! metered, over its own window, against a region enclosing the sliver
 //! before any carve: `r ≤ ‖p − c‖ ≤ ρ` (`ρ` the farthest the sliver
 //! reaches from `c`, which on this rod is `‖V − c‖`), cut down to the
-//! half-plane `(p − c)·(V − c) ≥ floor` the sliver lies in.
+//! half-plane `(p − c)·(V − c) ≥ floor` the sliver lies in. A cycle
+//! not clear of that region is read against the sliver itself: wholly
+//! inside it (`WhollyInside`, since the bore would go with the sliver
+//! and that carve is not built), crossing it (`RingClearance`, a
+//! measurement), or neither certified (`RingClearance`, a bound).
 //!
 //! The fixture is the D-rod (`test_support::rod_d_profile_at`'s D at
 //! [`ROD_FLAT`]) with a second profile loop through it, or a channel in
@@ -28,7 +32,7 @@ use sweep::blend::{BlendError, Convexity, fillet_edges};
 use sweep::test_support::{
     ROD_FILLET, ROD_FLAT, ROD_L, ROD_R, extruded, rod_chord_at, rod_creases, rod_section_cut,
 };
-use topo::{AtRestPolicy, Body, mass_properties, validate_geometric};
+use topo::{AtRestPolicy, Body, EntityId, mass_properties, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -45,6 +49,15 @@ fn bore(x: f64, y: f64, a: f64) -> ProfileLoop<f64> {
     bulge_loop(vec![
         (Point2::new(x + a, y), 1.0),
         (Point2::new(x - a, y), 1.0),
+    ])
+}
+
+/// [`bore`] at any scalar.
+fn round_loop<T: Real>(x: f64, y: f64, a: f64) -> ProfileLoop<T> {
+    let f = T::from_f64;
+    bulge_loop(vec![
+        (Point2::new(f(x + a), f(y)), f(1.0)),
+        (Point2::new(f(x - a), f(y)), f(1.0)),
     ])
 }
 
@@ -124,14 +137,127 @@ fn assert_cap_ring_refusal(body: &Body<f64>, what: &str) {
     }
 }
 
-/// **A bore wholly inside the removed sliver refuses** rather than
-/// being left on the cap outside the region it bounds. The bore at
-/// `(0.297, 0.395)` is `0.003` from the flat, `0.0033` from the wall
-/// and `≈ 0.1085` from `c`: every point of it is in the material the
-/// band removes.
+/// The refusal a cycle wholly inside the sliver owes: `WhollyInside`,
+/// naming a ring of a cap beside the convex crease, at `depth` below
+/// zero to rounding — the least of the ring's clearances from the arc
+/// and from the two rims.
+fn assert_wholly_inside_the_sliver(body: &Body<f64>, depth: f64, what: &str) {
+    validate_geometric(body, tol()).unwrap_or_else(|e| panic!("{what}: source tier 3, {e:?}"));
+    let creases = rod_creases(body);
+    let got = fillet_edges(
+        &sweep::test_support::at_rest(body, tol()),
+        &creases,
+        ROD_FILLET,
+        tol(),
+    )
+    .map(|out| out.body.faces().count())
+    .map_err(|e| e.error);
+    let Err(BlendError::WhollyInside { at, chain, margin }) = got else {
+        panic!("{what}: expected WhollyInside at the cap, got {got:?}")
+    };
+    assert_eq!(
+        chain,
+        Convexity::Convex,
+        "{what}: the convex crease's sliver"
+    );
+    assert_eq!(margin.predicate, "fillet3_ring_clearance", "{what}");
+    assert_eq!(
+        margin.sign,
+        Sign::Negative,
+        "{what}: definite, got {margin}"
+    );
+    let read = margin
+        .reading
+        .diagnostic_f64_for_error_text()
+        .value()
+        .expect("a value at f64");
+    assert!(
+        (read + depth).abs() < 1e-12,
+        "{what}: the depth is the ring's least clearance, read {read}, want {}",
+        -depth
+    );
+    let EntityId::Loop(ring) = at else {
+        panic!("{what}: names the ring's cycle, got {at:?}")
+    };
+    assert!(
+        body.faces().any(|(_, f)| f.rings.contains(&ring)),
+        "{what}: the cycle named is a ring of a source face"
+    );
+    let text = BlendError::WhollyInside { at, chain, margin }.to_string();
+    assert!(
+        text.contains("a ring of an end face lies wholly inside the material its band removes"),
+        "{what}: {text}"
+    );
+}
+
+/// **A bore wholly inside the removed sliver refuses `WhollyInside`**:
+/// it would go with the sliver, and that carve is not built. The bore
+/// at `(0.297, 0.395)` is `0.003` from the flat, `0.0033` from the wall
+/// and `≈ 0.1085` from `c`; the reading is its clearance from the flat,
+/// `0.3 − 0.297 − 0.002`.
 #[test]
-fn a_bore_inside_the_d_rods_removed_sliver_refuses_ring_clearance() {
-    assert_cap_ring_refusal(&bored_d_rod(0.297, 0.395, 0.002), "bore in the sliver");
+fn a_bore_inside_the_d_rods_removed_sliver_refuses_wholly_inside() {
+    assert_wholly_inside_the_sliver(
+        &bored_d_rod(0.297, 0.395, 0.002),
+        0.001,
+        "bore in the sliver",
+    );
+}
+
+/// **The same bore at the certified scalar**: `WhollyInside`, its
+/// enclosure holding `−0.001`.
+#[test]
+fn a_bore_inside_the_d_rods_removed_sliver_refuses_wholly_inside_at_interval() {
+    let tol = tol();
+    let body = sweep::test_support::finished(
+        "bored",
+        extruded(
+            SketchPlane::xy(),
+            vec![d_loop(), round_loop(0.297, 0.395, 0.002)],
+            Interval::from_f64(ROD_L),
+            tol,
+        ),
+        tol,
+    );
+    let got = fillet_edges(&body, &rod_creases(&body), iv(ROD_FILLET), tol).map(|_| ());
+    let Err(e) = got else {
+        panic!("the bore refuses at Interval")
+    };
+    let BlendError::WhollyInside { margin, .. } = e.error else {
+        panic!("expected WhollyInside at Interval, got {:?}", e.error)
+    };
+    let geom_core::ErrorTextReading::Enclosure { lo, hi } =
+        margin.reading.diagnostic_f64_for_error_text()
+    else {
+        panic!("an enclosure at Interval: {margin}")
+    };
+    assert!(
+        lo <= -0.001 + 1e-12 && (-0.001 - 1e-12..0.0).contains(&hi),
+        "the enclosure holds −0.001 below zero: [{lo}, {hi}]"
+    );
+}
+
+/// **A hair either side of the arc and a hair off the flat.** On the
+/// ray from `c` towards `V`, a bore of radius `0.004` whose near side is
+/// `1e-4` past the arc lies wholly inside (its least clearance is that
+/// `1e-4`), and one `1e-4` short of it crosses; a bore `1e-4` off the
+/// flat inside the sliver is wholly inside at `1e-4`.
+#[test]
+fn a_bore_a_hair_inside_the_slivers_boundary_is_wholly_inside_and_one_across_it_crosses() {
+    let (c, v) = upper_corner(ROD_FILLET);
+    let (dx, dy) = (v.0 - c.0, v.1 - c.1);
+    let n = dx.hypot(dy);
+    let (a, hair) = (0.004, 1e-4);
+    let on_ray = |d: f64| (c.0 + d * dx / n, c.1 + d * dy / n);
+    let (x, y) = on_ray(ROD_FILLET + a + hair);
+    assert_wholly_inside_the_sliver(&bored_d_rod(x, y, a), hair, "a hair past the arc");
+    let (x, y) = on_ray(ROD_FILLET + a - hair);
+    assert_cap_ring_refusal(&bored_d_rod(x, y, a), "a hair short of the arc");
+    assert_wholly_inside_the_sliver(
+        &bored_d_rod(ROD_FLAT - 0.002 - hair, 0.395, 0.002),
+        hair,
+        "a hair off the flat",
+    );
 }
 
 /// **A bore straddling the cut-off arc refuses**: centred ON the arc,

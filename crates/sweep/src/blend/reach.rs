@@ -3,12 +3,16 @@
 //!
 //! A convex band removes the material between its supports and its
 //! blend surface, a concave one adds it: call that region the band's
-//! REACH. A face the chain does not blend that meets it would be cut
-//! through or buried, so the request refuses before any mutation:
-//! [`BlendError::FaceClearance`] with `bounded: false` when a point of
-//! the face's own boundary lies inside a region that is exactly the
-//! band's material, `bounded: true` when the face could not be
-//! certified clear.
+//! REACH. Each face the chain does not blend is read three ways, before
+//! any mutation: clear of it; crossing a region that is exactly a
+//! band's material, a point of the face's own boundary inside it and
+//! another outside ([`BlendError::FaceClearance`], `bounded: false`),
+//! which would need the band trimmed by the face; or wholly inside such
+//! a region, every cell of the face's box that may hold a point of its
+//! surface inside it ([`BlendError::WhollyInside`]), where the face goes
+//! with the material and that carve is not built. A face certified none
+//! of the three refuses [`BlendError::FaceClearance`] with
+//! `bounded: true`.
 //!
 //! # The region
 //!
@@ -60,7 +64,10 @@
 //! diagonal falls within the band's `escalate`, or the face's
 //! [`CELL_BUDGET`] is spent. The face's margin is the least cell bound:
 //! a cell of the surface may lie outside the face's trim, so a clear
-//! face can be refused uncertified, never the reverse.
+//! face can be refused uncertified, never the reverse. The inside
+//! reading is the same walk from the other side ([`inside_bound`]), over
+//! the face's whole box: a face whose surface leaves the material
+//! outside its trim is read uncertified, never inside.
 
 use std::collections::VecDeque;
 
@@ -404,6 +411,16 @@ impl<T: Real> Bound<T> {
                 Some((lo, hi)) => (*w * lo).max(*w * hi),
                 None => self.at(cell.c) + cell.lever,
             },
+        }
+    }
+
+    /// [`Self::high`] read as a statement about the band's own material,
+    /// as [`Self::at_strict`] reads `g`: the whole cell lies in the
+    /// material when it is negative.
+    fn high_strict(&self, cell: &Cell<T>) -> T {
+        match self {
+            Self::Sheet { slack, .. } => self.high(cell) + *slack + *slack,
+            _ => self.high(cell),
         }
     }
 
@@ -1457,18 +1474,63 @@ fn face_bound<T: Decide + Bounds>(
             (a, b) => a.or(b),
         };
         if least.read(inner, off, small, band) {
-            let k = (0..3)
-                .max_by(|&i, &j| (hi[i] - lo[i]).total_cmp(&(hi[j] - lo[j])))
-                .unwrap_or(0);
-            let mid = 0.5 * (lo[k] + hi[k]);
-            let (mut h1, mut l2) = (hi, lo);
-            h1[k] = mid;
-            l2[k] = mid;
-            queue.push_back((lo, h1));
-            queue.push_back((l2, hi));
+            queue.extend(halves(lo, hi));
         }
     }
     least.done(band)
+}
+
+/// A box's two halves across its longest side.
+fn halves(lo: [f64; 3], hi: [f64; 3]) -> [([f64; 3], [f64; 3]); 2] {
+    let k = (0..3)
+        .max_by(|&i, &j| (hi[i] - lo[i]).total_cmp(&(hi[j] - lo[j])))
+        .unwrap_or(0);
+    let mid = 0.5 * (lo[k] + hi[k]);
+    let (mut h1, mut l2) = (hi, lo);
+    h1[k] = mid;
+    l2[k] = mid;
+    [(lo, h1), (l2, hi)]
+}
+
+/// **How surely a whole face lies inside a band's own material**: the
+/// most of the core's strict upper bounds over the cells of the face's
+/// box that may hold a point of its surface, `Some` only when each of
+/// those lies in the material by `escalate` — which puts every point of
+/// the face there, the box holding the face. `None` when a cell is
+/// neither off the surface nor inside before it can usefully be halved
+/// or the face's [`CELL_BUDGET`] is spent, or for a poison box.
+fn inside_bound<T: Bounds>(
+    core: &[Bound<T>],
+    surface: &Surface<T>,
+    (lo, hi): ([f64; 3], [f64; 3]),
+    band: Band,
+) -> Option<T> {
+    if lo.iter().chain(&hi).any(|x| x.is_nan()) {
+        return None;
+    }
+    let mut queue = VecDeque::from([(lo, hi)]);
+    let mut most: Option<T> = None;
+    let mut spent = 0;
+    while let Some((lo, hi)) = queue.pop_front() {
+        let cell = Cell::<T>::new(lo, hi);
+        if off_surface(surface, &cell).is_some_and(|off| off.lo() >= band.escalate()) {
+            continue;
+        }
+        let inner = core
+            .iter()
+            .map(|b| b.high_strict(&cell))
+            .reduce(|m, g| m.max(g))?;
+        if inner.hi() <= -band.escalate() {
+            most = Some(most.map_or(inner, |m| m.max(inner)));
+            continue;
+        }
+        spent += 1;
+        if spent >= CELL_BUDGET || cell.lever.hi() <= band.escalate() {
+            return None;
+        }
+        queue.extend(halves(lo, hi));
+    }
+    most
 }
 
 /// A coaxial face's image in the sheet, along its own trace: an axial
@@ -1798,25 +1860,31 @@ fn face_bound_in_sheet<T: Decide + Bounds>(
     Some(least.done(band))
 }
 
-/// The point of a face's boundary deepest in a reach's core: the most
-/// negative strict bound ([`Bound::at_strict`]) over [`EDGE_SAMPLES`]
-/// places along each boundary edge, ends included.
-fn deepest_boundary_point<T: Decide>(
+/// **A face's boundary read against a reach's core**, at
+/// [`EDGE_SAMPLES`] places along each boundary edge, ends included:
+/// the least strict bound ([`Bound::at_strict`]) of a place — negative,
+/// it is in the band's material — and the most plain one
+/// ([`Bound::at`]) — positive, it is out of it. `None` for a face with
+/// no boundary place.
+fn boundary_reading<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     core: &[Bound<T>],
-) -> Result<Option<T>, BlendError> {
+) -> Result<Option<(T, T)>, BlendError> {
     let f = body
         .get_face(face)
         .ok_or_else(|| not_intact(EntityId::Face(face), "a face the band reach reads"))?;
-    let strict = |x: Point3<T>| {
+    let most = |x: Point3<T>, g: fn(&Bound<T>, Point3<T>) -> T| {
         core.iter()
-            .map(|b| b.at_strict(x))
+            .map(|b| g(b, x))
             .reduce(|m, g| m.max(g))
             .unwrap_or_else(T::zero)
     };
-    let mut least: Option<T> = None;
-    let mut fold = |g: T| least = Some(least.map_or(g, |l: T| l.min(g)));
+    let mut reading: Option<(T, T)> = None;
+    let mut fold = |x: Point3<T>| {
+        let (inner, outer) = (most(x, Bound::at_strict), most(x, Bound::at));
+        reading = Some(reading.map_or((inner, outer), |(i, o)| (i.min(inner), o.max(outer))));
+    };
     for lp in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
         let l = body
             .get_loop(lp)
@@ -1824,7 +1892,7 @@ fn deepest_boundary_point<T: Decide>(
         let first = match l.boundary {
             topo::LoopBoundary::Cycle { first } => first,
             topo::LoopBoundary::Empty { vertex } => {
-                fold(strict(point_of(body, vertex)?));
+                fold(point_of(body, vertex)?);
                 continue;
             }
         };
@@ -1840,16 +1908,11 @@ fn deepest_boundary_point<T: Decide>(
                 continue;
             };
             for i in 0..EDGE_SAMPLES {
-                fold(strict(c.eval(geom_brep::schedule_param(
-                    t0,
-                    t1,
-                    i,
-                    EDGE_SAMPLES,
-                ))));
+                fold(c.eval(geom_brep::schedule_param(t0, t1, i, EDGE_SAMPLES)));
             }
         }
     }
-    Ok(least)
+    Ok(reading)
 }
 
 /// **Meter every chain's reach against every face of the body it does
@@ -2006,27 +2069,42 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
             if sign == Sign::Positive {
                 continue;
             }
-            // Refused: a measurement where a point of the face's own
-            // boundary lies definitely inside the material of a band
-            // whose bounds are its own exactly, and the face is no
-            // chain's support (whose boundary the request may itself be
-            // carving away); a bound otherwise.
+            // Not clear: read against each reach whose bounds are its band's
+            // material exactly, unless the face is a chain's support (whose
+            // boundary the request may itself be carving away) or one that
+            // reach skips. CROSSING, a measurement, where a point of the
+            // face's boundary is certainly in that material and another
+            // certainly out of it; WHOLLY INSIDE where every point of the
+            // face is certainly in it; otherwise a bound.
             let supports_a_band = reaches
                 .iter()
                 .any(|r| r.replaces.iter().any(|(f, _)| *f == face));
-            for exact in reaches.iter().filter(|r| !r.core.is_empty()) {
-                if supports_a_band || exact.skip.binary_search(&face).is_ok() {
-                    continue;
-                }
-                let Some(depth) = deepest_boundary_point(body, face, &exact.core)? else {
+            let exacts: Vec<&Reach<T>> = reaches
+                .iter()
+                .filter(|r| {
+                    !r.core.is_empty() && !supports_a_band && r.skip.binary_search(&face).is_err()
+                })
+                .collect();
+            for exact in &exacts {
+                let Some((depth, out)) = boundary_reading(body, face, &exact.core)? else {
                     continue;
                 };
-                if classify_bound(depth)? == Sign::Negative {
+                if classify_bound(depth)? == Sign::Negative && out.lo() >= band.escalate() {
                     return Err(BlendError::FaceClearance {
                         at: EntityId::Face(face),
                         chain: chains[exact.chain].first().convexity,
                         margin: classified(decision, depth, band, Sign::Negative),
                         bounded: false,
+                    });
+                }
+            }
+            for exact in &exacts {
+                if let Some(deep) = inside_bound(&exact.core, &surface, fbox, band) {
+                    let sign = classify_bound(deep)?;
+                    return Err(BlendError::WhollyInside {
+                        at: EntityId::Face(face),
+                        chain: chains[exact.chain].first().convexity,
+                        margin: classified(decision, deep, band, sign),
                     });
                 }
             }
