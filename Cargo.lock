@@ -3956,6 +3956,7 @@ dependencies = [
  "geom-brep",
  "geom-core",
  "mesh",
+ "num-bigint",
  "proptest",
  "rayon",
  "slotmap",

@@ -32,25 +32,11 @@ fn fin(body: &topo::Body<f64>) -> topo::AtRestBody<f64> {
 const Q: f64 = 0.414_213_562_373_095_03;
 
 fn prism(pts: &[(f64, f64, f64)], z0: f64, h: f64) -> Body<f64> {
-    // Declare every joint where an arc meets a line tangentially (the
-    // probes' arcs are all fillets or chords' bulges).
-    let n = pts.len();
-    let joints = (0..n)
-        .filter(|&i| {
-            let (prev, here) = (pts[(i + n - 1) % n].2, pts[i].2);
-            (prev.abs() == Q) != (here.abs() == Q)
-        })
-        .collect();
     let chain = pts
         .iter()
         .map(|&(x, y, b)| (Point2::new(x, y), b))
         .collect();
-    extruded(
-        sketch_at(z0),
-        vec![bulge_loop(chain).with_tangent_joints(joints)],
-        h,
-        tol(),
-    )
+    extruded(sketch_at(z0), vec![bulge_loop(chain)], h, tol())
 }
 
 fn ell_rounded(r: f64) -> ProfileLoop<f64> {
@@ -90,63 +76,32 @@ fn run(label: &str, p: &Body<f64>, q: &Body<f64>) -> Vec<String> {
     }
     for (order, a, b) in [("PA", p, q), ("QA", q, p)] {
         let (va, vb) = (vol(a), vol(b));
-        let dab = match topo::flush::find_flush_candidates(a, b, tol()) {
-            Ok(f) => topo::flush::declare_all(&f),
-            Err(e) => {
-                out.push(format!("{label} {order} decls ERR {e:?}"));
-                continue;
-            }
+        let join = match topo::test_support::boolean_join_refusal(BooleanOp::Union, a, b, tol()) {
+            Ok(None) => "join=builds".to_string(),
+            Ok(Some(e)) => format!(
+                "join=refuses:{}",
+                format!("{e:?}").chars().take(60).collect::<String>()
+            ),
+            Err(e) => format!(
+                "join=reduce-err:{}",
+                format!("{e:?}").chars().take(60).collect::<String>()
+            ),
         };
-        let dba = match topo::flush::find_flush_candidates(b, a, tol()) {
-            Ok(f) => topo::flush::declare_all(&f),
-            Err(e) => {
-                out.push(format!("{label} {order} decls ERR {e:?}"));
-                continue;
-            }
-        };
-        let join =
-            match topo::test_support::boolean_join_refusal(BooleanOp::Union, a, b, &dab, tol()) {
-                Ok(None) => "join=builds".to_string(),
-                Ok(Some(e)) => format!(
-                    "join=refuses:{}",
-                    format!("{e:?}").chars().take(60).collect::<String>()
-                ),
-                Err(e) => format!(
-                    "join=reduce-err:{}",
-                    format!("{e:?}").chars().take(60).collect::<String>()
-                ),
-            };
         out.push(format!(
             "{label} {order} U {} [{join}]",
-            outcome(
-                topo::union_with(&fin(a), &fin(b), &dab, tol()),
-                va + vb,
-                tol()
-            )
+            outcome(topo::union(&fin(a), &fin(b), tol()), va + vb, tol())
         ));
         out.push(format!(
             "{label} {order} S_ab {}",
-            outcome(
-                topo::subtract_with(&fin(a), &fin(b), &dab, tol()),
-                va,
-                tol()
-            )
+            outcome(topo::subtract(&fin(a), &fin(b), tol()), va, tol())
         ));
         out.push(format!(
             "{label} {order} S_ba {}",
-            outcome(
-                topo::subtract_with(&fin(b), &fin(a), &dba, tol()),
-                vb,
-                tol()
-            )
+            outcome(topo::subtract(&fin(b), &fin(a), tol()), vb, tol())
         ));
         out.push(format!(
             "{label} {order} I {}",
-            outcome(
-                topo::intersect_with(&fin(a), &fin(b), &dab, tol()),
-                0.0,
-                tol()
-            )
+            outcome(topo::intersect(&fin(a), &fin(b), tol()), 0.0, tol())
         ));
     }
     out
@@ -486,12 +441,7 @@ fn unions_through_ring_vertices_and_like_far_ends_build_sound() {
         } else {
             (&lower, &upper)
         };
-        let d = topo::test_support::flush_declarations(a, b, tol());
-        let line = outcome(
-            topo::union_with(&fin(a), &fin(b), &d, tol()),
-            vol(a) + vol(b),
-            tol(),
-        );
+        let line = outcome(topo::union(&fin(a), &fin(b), tol()), vol(a) + vol(b), tol());
         println!("{label} {order} U {line}");
         if !line.starts_with("OK SOUND") {
             failed.push(format!("{label} {order}: {line}"));

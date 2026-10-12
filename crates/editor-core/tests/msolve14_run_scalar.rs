@@ -92,7 +92,7 @@ fn block(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(h),
             side: ExtrudeSide::Along,
         },
@@ -155,8 +155,8 @@ fn authored(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
 /// a point of its top cap, or the cap face's own pose.
 fn seat(mover: SitedFace, onto: SitedFace, onto_frame: MateFrame<Formula>) -> AuthoredNode {
     Node::Mate {
-        a: mover,
-        b: onto,
+        a: mover.into(),
+        b: onto.into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: authored([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
@@ -277,7 +277,7 @@ fn bolted(label: &str, slab_frame: MateFrame<Formula>) -> Bolted {
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: bolt,
+            input: bolt.into(),
             count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [1.0, 0.0, 0.0].map(scl),
@@ -401,8 +401,8 @@ fn shaft(label: &str, shape: ShaftShape, (bolt_at, slab_at): Bores) -> Shaft {
     let doc = declare(doc, rise(), RISE, Dimension::Length);
     let doc = declare(doc, idle(), IDLE, Dimension::Length);
     let bore = |a: [f64; 3], b: [f64; 3], clocking: Option<f64>| Node::Mate {
-        a: head(p.bolt_foot(bolt)),
-        b: head(p.slab_top(slab)),
+        a: head(p.bolt_foot(bolt)).into(),
+        b: head(p.slab_top(slab)).into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: authored(a, [0.0, 0.0, -1.0]),
@@ -413,8 +413,8 @@ fn shaft(label: &str, shape: ShaftShape, (bolt_at, slab_at): Bores) -> Shaft {
         },
     };
     let rest = Node::Mate {
-        a: head(p.bolt_foot(bolt)),
-        b: head(p.slab_top(slab)),
+        a: head(p.bolt_foot(bolt)).into(),
+        b: head(p.slab_top(slab)).into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: authored([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
@@ -493,8 +493,8 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     let p = parts("msolve14-c-coax");
     let (doc, slab, bolts) = slab_and_bolts(&p, "msolve14-c-coax", 1);
     let coax = Node::Mate {
-        a: head(p.bolt_foot(bolts[0])),
-        b: head(p.slab_top(slab)),
+        a: head(p.bolt_foot(bolts[0])).into(),
+        b: head(p.slab_top(slab)).into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: authored([0.5, 0.5, 0.0], [0.0, 0.0, -1.0]),
@@ -505,8 +505,8 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
         },
     };
     let rest = Node::Mate {
-        a: head(p.bolt_foot(bolts[0])),
-        b: head(p.slab_top(slab)),
+        a: head(p.bolt_foot(bolts[0])).into(),
+        b: head(p.slab_top(slab)).into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: authored([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
@@ -527,8 +527,8 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
         Node::Mate {
             class, alignment, ..
         } => Node::Mate {
-            a: head(p.bolt_foot(_bolts[0])),
-            b: head(p.slab_top(_slab)),
+            a: head(p.bolt_foot(_bolts[0])).into(),
+            b: head(p.slab_top(_slab)).into(),
             class,
             alignment,
         },
@@ -705,8 +705,8 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     let (doc, _) = insert(
         doc,
         Node::Mate {
-            a: head(p.bolt_foot(bolts[1])),
-            b: head(p.bolt_foot(bolts[0])),
+            a: head(p.bolt_foot(bolts[1])).into(),
+            b: head(p.bolt_foot(bolts[0])).into(),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: authored([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
@@ -726,8 +726,8 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     let p = parts("msolve14-c-two-pin");
     let (doc, slab, bolts) = slab_and_bolts(&p, "msolve14-c-two-pin", 1);
     let pin = |a: [f64; 3], b: [f64; 3]| Node::Mate {
-        a: head(p.bolt_foot(bolts[0])),
-        b: head(p.slab_top(slab)),
+        a: head(p.bolt_foot(bolts[0])).into(),
+        b: head(p.slab_top(slab)).into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: MateFrame::authored(a, [0.0, 0.0, -1.0], [0.6, 0.8, 0.0], Tol::witness())
@@ -744,8 +744,8 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     let (doc, _) = insert(
         doc,
         Node::Mate {
-            a: head(p.bolt_foot(bolts[0])),
-            b: head(p.slab_top(slab)),
+            a: head(p.bolt_foot(bolts[0])).into(),
+            b: head(p.slab_top(slab)).into(),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: authored([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
@@ -767,8 +767,8 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     let (doc, _) = insert(
         doc,
         Node::Mate {
-            a: head(p.bolt_foot(bolts[0])),
-            b: head(p.slab_top(slab)),
+            a: head(p.bolt_foot(bolts[0])).into(),
+            b: head(p.slab_top(slab)).into(),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: authored([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
@@ -782,8 +782,8 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     let (doc, _) = insert(
         doc,
         Node::Mate {
-            a: head(p.bolt_foot(bolts[0])),
-            b: head(p.slab_top(slab)),
+            a: head(p.bolt_foot(bolts[0])).into(),
+            b: head(p.slab_top(slab)).into(),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: MateFrame::authored(
@@ -899,6 +899,11 @@ fn run_at<T: editor_core::EvalScalar>(
 /// the three the hosted matrix runs; any other ε has no measurement and
 /// the row fails rather than pass on nothing.
 ///
+/// Re-taken when an intrinsic edge description's surfaces became a
+/// set (`geom_brep::SurfacePair`): the digest feeds the evaluated
+/// bodies' `Debug`, which spells the pair differently, and no pose moved
+/// (the id-free rows held).
+///
 /// The digest feeds node ids, so it moves whenever ids do — a declare
 /// extends the mint chain, and an insert's preimage holds its readers by
 /// variable id — with no pose moving: this file's id-free rows (each
@@ -914,10 +919,27 @@ fn run_at<T: editor_core::EvalScalar>(
 /// with each id replaced by its document position measured equal on
 /// main and on the branch at all three ε, so no pose, role, fault or
 /// placement moved.
+///
+/// And again for INTENT stage 2 C (all three rows): each part places
+/// its body in its world, so every part's pin — and every instance id
+/// hashing it — moved, and the part's names reach an instance under its
+/// placement's copy. The id-free rows held.
+///
+/// And again for INTENT stage 4 E (all three rows): the bodies this
+/// digest feeds carry no provenance side tables, and a node error is
+/// the value-decided refusal or the glued build. The id-free rows held.
+///
+/// And again for INTENT stage 2 F (all three rows): a mate's sides are
+/// selections, minted at its insert, so every id after a mate moved,
+/// and a mate's content key reads its bodies' keys. Each instance's
+/// solved and world pose, each mate's role and whether it faulted,
+/// keyed by document position, measured equal on main and on the
+/// branch at all three ε. Taken over the surface pair's set spelling
+/// above, which landed beside it.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x76be_7889_78b2_4a63),
-    (1e-6, 0xce5d_7fa0_04ae_bccb),
-    (1e-12, 0x4f11_e7b4_127c_0d12),
+    (1e-9, 0xb917_d447_d10b_70f6),
+    (1e-6, 0x0972_1080_d45a_cb46),
+    (1e-12, 0xf104_317b_97ae_0ad1),
 ];
 
 /// **A3, the `f64` fence**: the corpus's solved poses, roles, faults and
@@ -1126,7 +1148,7 @@ fn assert_encloses_corners(
 /// transform, which certifies each placed edge on its placed carrier,
 /// and a box-wide translation widens those two independently past the
 /// band — a refusal every boxed placer meets today
-/// (`work/topo/a-boxed-rotation-refuses-not-rigid-at-every-placer.md`,
+/// (`work/topotail/a-boxed-rotation-refuses-not-rigid-at-every-placer.md`,
 /// its "Measured" section). A box a fraction of ε wide is placed, and
 /// the rows that read the BODY read it over one; the rows that read
 /// the SOLVE read it over a wide one ([`assert_pose_encloses_corners`]).
@@ -1297,8 +1319,9 @@ fn a2_a_box_on_the_bolts_spacing_encloses_the_bolt_at_every_corner() {
 /// **Over a wide box the solve places the bolt, and the instance meets
 /// the placement door's refusal** — the residual every boxed placer
 /// meets today (a `Transform` node with a boxed translation refuses the
-/// same way): the mate evaluates, and the bolt's own refusal is the
-/// rigid transform's certification, not a mate fault.
+/// same way): the solve faults no mate, the bolt's own refusal is the
+/// rigid transform's certification, and the mate, which reads the
+/// bolt, is poisoned through it.
 #[test]
 fn a2_over_a_wide_box_the_bolts_refusal_is_the_placement_doors() {
     let b = bolted("msolve14-a2-wide", slab_at(6.0, 4.0));
@@ -1308,9 +1331,12 @@ fn a2_over_a_wide_box_the_bolts_refusal_is_the_placement_doors() {
         None,
     );
     assert!(
-        ev.node_error(b.mate).is_none(),
+        matches!(
+            ev.result(b.mate),
+            Some(NodeResult::Poisoned { through }) if *through == b.bolt
+        ),
         "{:?}",
-        ev.node_error(b.mate)
+        ev.result(b.mate)
     );
     let kind = &ev
         .node_error(b.bolt)
@@ -1961,8 +1987,8 @@ fn escalation<T: geom_core::Decide>(
 /// or the member whose checked offset it was faults `OffsetUnchecked`
 /// with the same cause — over an enclosure (never a poisoned margin),
 /// under a predicate the table names for this document at this ε; the
-/// escalation is on a mate's own log, and what the fault reaches fails
-/// with it; everything else reads as at `f64`. A document the table
+/// escalation is on a mate's own log, or a mate is poisoned through the
+/// member it faulted, and what the fault reaches fails with it; everything else reads as at `f64`. A document the table
 /// names escalates.
 fn assert_interval_structure(
     doc: &ProfileDoc,
@@ -2016,9 +2042,24 @@ fn assert_interval_structure(
         "{label}: at ε = {eps:e} the corpus's escalations list {allowed:?}, and Interval \
          escalated at {moved:?}"
     );
+    // A mate reading a member whose offset check escalated is poisoned
+    // through it (D10: reading is the dependency), and its log goes
+    // with it; the escalation is then the member's own fault, checked
+    // above.
+    // Member by member: each escalated member that is no mate has a mate
+    // poisoned through it.
+    let poisoned_through = |member: RecipeNodeId| {
+        doc.ids().iter().any(|&id| {
+            matches!(doc.node(id), Some(Node::Mate { .. }))
+                && matches!(i.result(id), Some(NodeResult::Poisoned { through }) if *through == member)
+        })
+    };
+    let mate_poisoned_through_moved = moved.iter().all(|&member| {
+        matches!(doc.node(member), Some(Node::Mate { .. })) || poisoned_through(member)
+    });
     if !moved.is_empty() {
         assert!(
-            mate_log_escalated,
+            mate_log_escalated || mate_poisoned_through_moved,
             "{label}: Interval escalated at {moved:?} with no escalation on a mate's log"
         );
     }
@@ -2094,21 +2135,18 @@ fn c5_one_documents_structure_is_the_same_in_every_lane_and_the_dual_value_is_f6
 #[test]
 fn a5_sensitivities_cross_a_face_framed_mate() {
     use editor_core::stackup::{SensitivityOutcome, SensitivityRefusal, sensitivities};
-    use editor_core::{MeasureExpr, MeasurePrimitive, SitedRef};
+    use editor_core::{MeasurePrimitive, SitedRef};
     let b = bolted("msolve14-a5-stackup", MateFrame::from_face());
     let ev = run_at::<f64>(&b.doc, &b.opts, None);
     let foot = all_vertices(&ev, b.bolt)[0].clone();
     let corner = all_vertices(&ev, b.slab)[0].clone();
-    let (doc, m) = insert(
-        b.doc.clone(),
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            vec![
-                SitedRef::new(b.bolt, foot.clone()),
-                SitedRef::new(b.slab, corner.clone()),
-            ],
-        )
-        .expect("both indices address a reference"),
+    let (doc, m) = crate::fixture::measure_node(
+        &b.doc,
+        MeasurePrimitive::Distance { a: 0, b: 1 },
+        vec![
+            SitedRef::new(b.bolt, foot.clone()),
+            SitedRef::new(b.slab, corner.clone()),
+        ],
     );
     // The closed form: the bolt moves by `−2` per unit of spacing along
     // `x` and the slab holds still, so `∂|d|/∂s = d · (−2, 0, 0) / |d|`
@@ -2129,8 +2167,16 @@ fn a5_sensitivities_cross_a_face_framed_mate() {
             distribution: Some(editor_core::Distribution::Normal { sigma: 1e-4 }),
         },
     );
-    let entries = sensitivities(&doc, m, None, None, false, Some(&resolver), Tol::witness())
-        .expect("the driver runs");
+    let entries = sensitivities(
+        &doc,
+        crate::fixture::output(&doc, m),
+        None,
+        None,
+        false,
+        Some(&resolver),
+        Tol::witness(),
+    )
+    .expect("the driver runs");
     assert_eq!(entries.len(), 1, "one entry, the toleranced spacing's");
     let entry = entries
         .iter()
@@ -2150,7 +2196,7 @@ fn a5_sensitivities_cross_a_face_framed_mate() {
         matches!(
             sensitivities(
                 &doc,
-                m,
+                crate::fixture::output(&doc, m),
                 Some(&unresolved),
                 None,
                 false,

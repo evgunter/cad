@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-03
 priority: P3
 cost: E
-refs: [boolean-door-adopts-the-finished-body-type]
+refs: [3987]
 ---
 
 

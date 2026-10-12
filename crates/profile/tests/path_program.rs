@@ -25,7 +25,7 @@
 
 use crate::common;
 
-use common::{coverage_corpus, pinned};
+use common::{coverage_corpus, pinned, pinned_constructed};
 use geom_core::Point2;
 use geom_core::Tol;
 use profile::{
@@ -449,7 +449,7 @@ fn circle_is_a_one_step_program_that_replays_to_its_two_poles() {
         1,
         "a circle program is exactly one step"
     );
-    let lowered = pinned(closed);
+    let lowered = pinned_constructed(closed);
     assert_eq!(lowered.vertices().len(), 2);
     assert_eq!(lowered.vertices()[0].x.to_bits(), 2.25_f64.to_bits());
     assert_eq!(lowered.vertices()[1].x.to_bits(), 0.75_f64.to_bits());
@@ -458,9 +458,10 @@ fn circle_is_a_one_step_program_that_replays_to_its_two_poles() {
         (4.0 * geom_core::Real::atan(1.0_f64)).to_bits(),
         "a semicircle, lowered from the bulge 1"
     );
-    assert!(
-        lowered.tangent_joints().is_empty(),
-        "same-carrier joints declare nothing — there is no tangency to claim"
+    assert_eq!(
+        lowered.constructed_joints(),
+        &[0, 1],
+        "the form constructs its two joints: one carrier continuing through each"
     );
     validate_ok(&lowered);
 }
@@ -468,14 +469,14 @@ fn circle_is_a_one_step_program_that_replays_to_its_two_poles() {
 /// **`circle_split`'s declared subdivision (LIB-SWITCH corpus ruling).**
 /// One carrier, `n` structural vertices: the program is one step, the
 /// replay reproduces the lowering from `(centre, r, n, phase)` alone,
-/// every bulge is `tan(π/(2n))`, and nothing is declared tangent
-/// (same-carrier identities, exactly `circle`'s posture).
+/// every bulge is `tan(π/(2n))`, and every joint is constructed — one
+/// carrier continuing through it, exactly `circle`'s posture.
 #[test]
 fn circle_split_is_a_one_step_program_with_structural_seams() {
     let closed =
         profile::circle_split(Point2::new(1.0, 0.5), 0.4, 3, 0.25, Tol::witness()).unwrap();
     assert_eq!(verbs(&program_of(&closed)), vec![Verb::CircleSplit]);
-    let lowered = pinned(closed);
+    let lowered = pinned_constructed(closed);
     assert_eq!(lowered.vertices().len(), 3, "n vertices, n arcs");
     // Expected values through the SAME libm-pure trig the lowering uses
     // (geom-core `Real`; std's tan/sin_cos may differ by an ulp).
@@ -493,9 +494,10 @@ fn circle_split_is_a_one_step_program_with_structural_seams() {
         assert_eq!(v.x.to_bits(), (1.0 + 0.4 * c).to_bits());
         assert_eq!(v.y.to_bits(), (0.5 + 0.4 * s).to_bits());
     }
-    assert!(
-        lowered.tangent_joints().is_empty(),
-        "structural subdivisions declare nothing — one carrier, no tangency claim"
+    assert_eq!(
+        lowered.constructed_joints(),
+        &[0, 1, 2],
+        "every structural subdivision is a constructed joint of the one carrier"
     );
     validate_ok(&lowered);
 }
@@ -522,7 +524,7 @@ fn circle_split_refuses_nonpositive_radius_and_tiny_counts() {
 /// **The half-disc equator through the lattice's own spelling** (the
 /// need `arc_continue` served, re-authored — BOOL-10, Ev's ruling of
 /// 2026-09-13: the sixth round already admits adjacent same-carrier
-/// arcs as declared tangent joints, so no second verb and no split form
+/// arcs as constructed tangent joints, so no second verb and no split form
 /// is needed). Two quarter arcs on ONE carrier: the first authored
 /// (`arc_to(Bulge { .. })`, bulge tan(π/8)), the second
 /// `.tangent().tangent_arc_to(p)` — its joint DECLARED, its arc derived
@@ -562,7 +564,7 @@ fn the_equator_through_tangent_arc_to_is_arc_continues_table_bit_for_bit() {
             Verb::LineTo
         ],
     );
-    let lowered = pinned(closed);
+    let lowered = pinned_constructed(closed);
     assert_eq!(lowered.vertices().len(), 3);
     let v1 = lowered.vertices()[1];
     assert_eq!(
@@ -578,7 +580,7 @@ fn the_equator_through_tangent_arc_to_is_arc_continues_table_bit_for_bit() {
         "the arc is lowered from the retired verb's derived bulge, bit for bit (got {:#x})",
         sweep_of(&lowered, 1).to_bits()
     );
-    assert_eq!(lowered.tangent_joints(), &[1], "the joint is declared");
+    assert_eq!(lowered.constructed_joints(), &[1], "the joint is declared");
     validate_ok(&lowered);
 }
 

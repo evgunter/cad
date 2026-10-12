@@ -7,8 +7,8 @@
 use crate::fixture::{ang, len, scl};
 use editor_core::ExtrudeSide;
 use editor_core::{
-    Dimension, DocEdit, EditError, Formula, FreeVar, RecipeNodeId, SitedRef, SlotId, VarEnv,
-    VarName, eval, eval_count,
+    Dimension, DocEdit, EditError, Formula, FreeVar, RecipeNodeId, SlotId, VarEnv, VarName, eval,
+    eval_count,
 };
 use geom_core::Tol;
 
@@ -24,6 +24,10 @@ impl editor_core::ProfilePayload for Fake {
     fn lower<E>(
         authored: &Self,
         _: &mut dyn FnMut(&editor_core::Formula) -> Result<editor_core::VarId, E>,
+        _: &mut dyn FnMut(
+            editor_core::OperandSlot,
+            &editor_core::Operand,
+        ) -> Result<editor_core::VarId, E>,
     ) -> Result<Self, E> {
         Ok(*authored)
     }
@@ -53,6 +57,30 @@ fn point_edit(x: Formula) -> Edit {
         })),
         fresh: Vec::new(),
     }
+}
+
+/// Insert a body: an extrude of a stand-in profile, for a row whose
+/// operand slot reads a body.
+fn body(doc: Doc) -> (Doc, RecipeNodeId) {
+    let (doc, ids) = apply_all(
+        doc,
+        &[DocEdit::InsertNode {
+            node: Box::new(editor_core::Node::Profile(Fake("profile"))),
+            fresh: Vec::new(),
+        }],
+    );
+    let (doc, ids) = apply_all(
+        doc,
+        &[DocEdit::InsertNode {
+            node: Box::new(editor_core::Node::Extrude {
+                profile: ids[0].into(),
+                distance: len(1.0),
+                side: ExtrudeSide::Along,
+            }),
+            fresh: Vec::new(),
+        }],
+    );
+    (doc, ids[0])
 }
 
 fn apply_all(doc: Doc, edits: &[Edit]) -> (Doc, Vec<RecipeNodeId>) {
@@ -350,8 +378,8 @@ fn r2_count_to_scalar_i64_min_is_typed_error_not_panic() {
 /// expression makes an old path resolve to a DIFFERENT subexpression
 /// with no error and no way to detect it (no generation/version on
 /// the slot). D5 only *claims* stability under edits to other
-/// expressions/sibling subtrees, so this is out-of-claim — but PR 5's
-/// GeomSource must not assume same-slot edits are detectable.
+/// expressions/sibling subtrees, so this is out-of-claim, and no
+/// consumer may assume same-slot edits are detectable.
 #[test]
 fn r3_ancestor_replace_silently_repoints_exprpath() {
     use editor_core::{Axis3, ExprPath};
@@ -468,7 +496,7 @@ fn r3_referent_survives_out_of_claim_edits_bitwise() {
             &Edit::SetParam {
                 node: id,
                 slot: SlotId::Origin(Axis3::Z),
-                expr: len(6.0),
+                value: len(6.0).into(),
                 fresh: Vec::new(),
             },
             Tol::witness(),
@@ -477,115 +505,6 @@ fn r3_referent_survives_out_of_claim_edits_bitwise() {
         .unwrap()
         .doc;
     check(&d);
-}
-
-/// R4 (RULED, spec D3 carve-out) — `StableName.node` is a REFERENCE,
-/// not a DAG edge (a boolean's `inputs()` are its operands, never what
-/// its declared pairs name), so:
-/// (1) DeleteNode of a node referenced ONLY by a boolean's declared
-///     pairs is ACCEPTED → the pairs strand (N5 dangling semantics:
-///     loud `NodeGone` at resolution, `Rebind` repairs);
-/// (2) declared pairs naming a node that does not EXIST at edit time
-///     are a TYPED REFUSAL (a never-existed id is a typo, caught at the
-///     best-diagnostics door).
-#[test]
-fn r4_stablename_node_refs_escape_ref_validation() {
-    use editor_core::{BooleanOp, EntityKind, Node, StableName};
-    let (doc, ids) = apply_all(
-        Doc::empty_derived("review_m4_pr1", Tol::witness()),
-        &[
-            point_edit(len(1.0)), // the node the name will denote
-            point_edit(len(2.0)),
-            point_edit(len(3.0)),
-        ],
-    );
-    let (target, a, b) = (ids[0], ids[1], ids[2]);
-    // Each side is read at an operand; the name is `node`'s.
-    let pairs = |node| {
-        let name = StableName {
-            kind: EntityKind::Face,
-            node,
-            path: vec![],
-        };
-        editor_core::declare_rest(vec![(
-            SitedRef::new(a, name.clone()),
-            SitedRef::new(b, name),
-        )])
-    };
-    let boolean = |node| Edit::InsertNode {
-        node: Box::new(Node::Boolean {
-            op: BooleanOp::Union,
-            a,
-            b,
-            declare: pairs(node),
-        }),
-        fresh: Vec::new(),
-    };
-    let inserted = doc
-        .apply(
-            &boolean(target),
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        )
-        .unwrap();
-    let boolean_id = inserted.record.minted.unwrap();
-    // (1) Delete the named node — ACCEPTED despite the live boolean.
-    let after = inserted.doc.apply(
-        &Edit::DeleteNode { id: target },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    );
-    let after = after.expect("WITNESS: delete of name-referenced node accepted");
-    assert!(after.doc.node(target).is_none());
-    // The boolean survives, holding a stale id.
-    match after.doc.node(boolean_id).unwrap() {
-        Node::Boolean { declare, .. } => {
-            assert_eq!(declare[0].0.0.name.node, target, "stale RecipeNodeId held");
-        }
-        n => panic!("expected Boolean, got {n:?}"),
-    }
-    // (2) Declared pairs naming an id that never existed: REFUSED, at
-    // the insert and at `SetDeclare` alike.
-    let phantom = RecipeNodeId::new(0, 9999);
-    let inserting = doc.apply(
-        &boolean(phantom),
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    );
-    let setting = inserted.doc.apply(
-        &Edit::SetDeclare {
-            node: boolean_id,
-            pairs: pairs(phantom),
-        },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    );
-    for (door, res) in [("insert", inserting), ("SetDeclare", setting)] {
-        match res {
-            Err(EditError::DeclareNamesMissingNode { name }) => {
-                assert_eq!(
-                    name.name().node,
-                    phantom,
-                    "{door}: refusal names the typo'd id"
-                );
-            }
-            other => panic!("{door}: phantom StableName.node must be refused, got {other:?}"),
-        }
-    }
-    // Contrast: a DAG-edge ref to the same phantom is refused.
-    let res2 = Doc::empty_derived("review_m4_pr1", Tol::witness()).apply(
-        &Edit::InsertNode {
-            node: Box::new(Node::Extrude {
-                profile: phantom,
-                distance: len(1.0),
-                side: ExtrudeSide::Along,
-            }),
-            fresh: Vec::new(),
-        },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    );
-    assert!(matches!(res2, Err(EditError::UnresolvedInput { .. })));
 }
 
 /// R4 — cycles via multi-edit sequences: the v1 edit vocabulary has
@@ -608,7 +527,7 @@ fn r4_cycle_unconstructible_by_any_edit_sequence() {
         .apply(
             &Edit::InsertNode {
                 node: Box::new(Node::Extrude {
-                    profile: ids[0],
+                    profile: ids[0].into(),
                     distance: len(1.0),
                     side: ExtrudeSide::Along,
                 }),
@@ -635,11 +554,8 @@ fn r4_cycle_unconstructible_by_any_edit_sequence() {
         .unwrap();
     let res = doc.apply(
         &Edit::InsertNode {
-            node: Box::new(Node::Boolean {
-                op: editor_core::BooleanOp::Union,
-                a: extrude,
-                b: next_would_be,
-                declare: Vec::new(),
+            node: Box::new(Node::Union {
+                members: editor_core::Bodies::Spelled(vec![extrude.into(), next_would_be.into()]),
             }),
             fresh: Vec::new(),
         },
@@ -747,7 +663,7 @@ fn r5_apply_pure_and_deterministic_bitwise() {
     let e = Edit::SetParam {
         node: ids[0],
         slot: SlotId::Origin(editor_core::Axis3::Y),
-        expr: len(f64::from_bits(0x3FF0000000000001)),
+        value: len(f64::from_bits(0x3FF0000000000001)).into(),
         fresh: Vec::new(),
     };
     let a1 = doc
@@ -932,10 +848,10 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
         )
         .unwrap()
         .doc;
-    let (doc, ids) = apply_all(doc, &[point_edit(len(0.0))]);
+    let (doc, input) = body(doc);
     let pattern = |count: Formula| Edit::InsertNode {
         node: Box::new(Node::Pattern {
-            input: ids[0],
+            input: input.into(),
             count,
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -998,32 +914,6 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
     )
     .unwrap();
     assert_eq!(n_before, n_after);
-    // FALSE POSITIVE witness: `SetDeclare` re-setting a boolean's empty
-    // declared-pair list (no geometry, no slots, no inputs move) is
-    // flagged structural under the wide reading.
-    let (doc, boolean) = apply_all(
-        a2.doc,
-        &[Edit::InsertNode {
-            node: Box::new(Node::Boolean {
-                op: editor_core::BooleanOp::Union,
-                a: ids[0],
-                b: pat_id,
-                declare: Vec::new(),
-            }),
-            fresh: Vec::new(),
-        }],
-    );
-    let a3 = doc
-        .apply(
-            &Edit::SetDeclare {
-                node: boolean[0],
-                pairs: Vec::new(),
-            },
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        )
-        .unwrap();
-    assert!(a3.record.structural, "SetDeclare flags structural");
 }
 
 /// BIT-compare two docs: structure via PartialEq fields, floats via
@@ -1042,6 +932,11 @@ fn assert_bit_identical(a: &Doc, b: &Doc) {
     assert_eq!(a.var_names(), b.var_names(), "variable names");
     for (name, var) in pa {
         let theirs = pb.get(name).expect("variable present");
+        // An operation's output holds no value: the two are one port.
+        if var.def().output().is_some() {
+            assert_eq!(var, theirs, "output {name:?}");
+            continue;
+        }
         match (var.free().expect("free"), theirs.free().expect("free")) {
             (
                 FreeVar::Continuous { dim, value, .. },
@@ -1060,7 +955,7 @@ fn assert_bit_identical(a: &Doc, b: &Doc) {
     }
     for id in a.ids() {
         let (na, nb) = (a.node(id).unwrap(), b.node(id).unwrap());
-        assert_eq!(na.inputs(), nb.inputs(), "inputs of {id:?}");
+        assert_eq!(a.upstream(id), b.upstream(id), "upstream of {id:?}");
         assert_eq!(na.slots(), nb.slots(), "slots of {id:?}");
         for slot in na.slots() {
             let (ea, eb) = (

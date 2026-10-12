@@ -4,10 +4,9 @@
 //! its faces and one shell of the other operand, and refuses
 //! `CoincidentShell` where those pairs do not certify it.
 //!
-//! The settled pairs here are rung 1's: every description is stamped
-//! with a recipe source, as the recipe layer stamps a minted body, so
-//! one stamped body twice is one carrier face for face. The declared
-//! rung is `contained_flush_witness`'s.
+//! The settled pairs here are the margins': one body twice is one
+//! carrier face for face, decided Zero. The declared rung is
+//! `contained_flush_witness`'s.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -16,24 +15,18 @@ use crate::common;
 use common::{brick, finished};
 use geom_core::Tol;
 use topo::{
-    AtRestBody, Body, BooleanError, BooleanResult, BooleanResultKind, GeomSource, Operand,
-    ShellOrientation, intersect, mass_properties, subtract, union,
+    AtRestBody, Body, BooleanError, BooleanResult, BooleanResultKind, Operand, ShellOrientation,
+    intersect, mass_properties, subtract, union,
 };
 
-/// `b` with every surface stamped with a distinct `minted(node, i)`,
-/// as the recipe layer's `stamp_minted` does, finished.
-fn stamped(mut b: Body<f64>, node: u64) -> AtRestBody<f64> {
-    let keys: Vec<_> = b.surfaces().map(|(k, _)| k).collect();
-    for (i, k) in keys.into_iter().enumerate() {
-        b.set_surface_source(k, GeomSource::minted(node, u32::try_from(i).unwrap()))
-            .unwrap();
-    }
-    finished("a stamped block", b, Tol::witness())
+/// `b`, finished.
+fn block(b: Body<f64>) -> AtRestBody<f64> {
+    finished("a block", b, Tol::witness())
 }
 
-fn unit_block(node: u64) -> AtRestBody<f64> {
+fn unit_block() -> AtRestBody<f64> {
     let unit = (0.0, 1.0);
-    stamped(brick(unit, unit, unit, Tol::witness()), node)
+    block(brick(unit, unit, unit, Tol::witness()))
 }
 
 /// The body's volume, shell count and result kind, the body valid at
@@ -66,12 +59,12 @@ fn assert_empty(label: &str, result: Result<BooleanResult<f64>, BooleanError>) {
     }
 }
 
-/// One stamped body at both seats: `A ∪ A = A ∩ A = A` (A's copy, one
+/// One body at both seats: `A ∪ A = A ∩ A = A` (A's copy, one
 /// shell), `A − A` the typed empty result.
 #[test]
 fn one_body_twice_is_answered_under_every_op() {
     let tol = Tol::witness();
-    let a = unit_block(7);
+    let a = unit_block();
     for (label, result) in [
         ("A ∪ A", union(&a, &a, tol)),
         ("A ∩ A", intersect(&a, &a, tol)),
@@ -94,8 +87,8 @@ fn one_body_twice_is_answered_under_every_op() {
 #[test]
 fn a_union_member_carried_unchanged_lies_on_itself() {
     let tol = Tol::witness();
-    let x = unit_block(7);
-    let z = stamped(brick((3.0, 4.0), (0.0, 1.0), (0.0, 2.0), tol), 8);
+    let x = unit_block();
+    let z = block(brick((3.0, 4.0), (0.0, 1.0), (0.0, 2.0), tol));
     let BooleanResult::Body(xz) = union(&x, &z, tol).unwrap() else {
         panic!("X ∪ Z is not empty");
     };
@@ -130,8 +123,8 @@ fn a_union_member_carried_unchanged_lies_on_itself() {
 #[test]
 fn a_lump_filling_a_void_lies_on_it_opposed() {
     let tol = Tol::witness();
-    let x = stamped(brick((0.0, 3.0), (0.0, 3.0), (0.0, 3.0), tol), 7);
-    let y = stamped(brick((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), tol), 8);
+    let x = block(brick((0.0, 3.0), (0.0, 3.0), (0.0, 3.0), tol));
+    let y = block(brick((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), tol));
     let BooleanResult::Body(hollow) = subtract(&x, &y, tol).unwrap() else {
         panic!("X − Y is not empty");
     };
@@ -177,7 +170,7 @@ fn a_lump_filling_a_void_lies_on_it_opposed() {
 #[test]
 fn a_shell_its_partner_does_not_cover_back_refuses() {
     let tol = Tol::witness();
-    let x = unit_block(7);
+    let x = unit_block();
     let pocket = finished(
         "pocket",
         brick::<f64>((0.05, 0.25), (0.75, 0.95), (0.5, 2.0), tol),
@@ -216,9 +209,9 @@ fn a_shell_its_partner_does_not_cover_back_refuses() {
 #[test]
 fn an_uncut_component_of_a_seamed_boolean_lies_on_its_twin() {
     let tol = Tol::witness();
-    let x = unit_block(7);
-    let z = stamped(brick((3.0, 4.0), (0.0, 1.0), (0.0, 1.0), tol), 8);
-    let w = stamped(brick((3.5, 5.0), (0.25, 0.75), (0.25, 0.75), tol), 9);
+    let x = unit_block();
+    let z = block(brick((3.0, 4.0), (0.0, 1.0), (0.0, 1.0), tol));
+    let w = block(brick((3.5, 5.0), (0.25, 0.75), (0.25, 0.75), tol));
     let fused = |p: &AtRestBody<f64>, q: &AtRestBody<f64>| match union(p, q, tol).unwrap() {
         BooleanResult::Body(b) => b.body,
         BooleanResult::Empty => panic!("a union of blocks is not empty"),

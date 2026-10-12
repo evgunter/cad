@@ -11,17 +11,25 @@
 //! answer (a validated span range — structure) without branching on
 //! values.
 //!
+//! A **poison** scalar locates nothing: the locator answers `None`, and
+//! every caller answers what its type already gives for poison (an
+//! evaluator its NaN/NaI point). Poison flows through values, never
+//! through the choice of a span.
+//!
 //! Per-instantiation behavior:
 //!
 //! - **`f64`**: binary search with the fixed tie-break of
-//!   [`KnotVector::find_span`] — at a knot value, the span *starting*
-//!   there; last span closed. One span, always.
+//!   [`KnotVector::span_at`] — at a knot value, the span *starting*
+//!   there; last span closed. One span; none at NaN.
 //! - **`Probe`**: via its `f64` (it *is* an `f64` with a recorder).
 //! - **`Interval`**: the inclusive hull of the
 //!   spans overlapped by `[lo, hi]` — sound containment (evaluating
 //!   every overlapped span's polynomial extension over the box and
 //!   hulling contains the true image; each span's extension agrees
-//!   with the curve on the span itself).
+//!   with the curve on the span itself). It reads the **bracket**, not
+//!   the certificate: a `Trv` enclosure is sound and still locates, and
+//!   its decoration rides through to the reader that certifies. A NaI
+//!   or empty enclosure has no bracket and locates nothing.
 //! - **`Dual<T>`**: the value channel's spans, verbatim — the ratified
 //!   kink convention ("the derivative of the program as evaluated"):
 //!   at a knot, `Dual<f64>` differentiates the polynomial of the span
@@ -42,8 +50,18 @@
 //! same style rule as [`crate::Bounds`] — it is a `Real` subtrait, so
 //! the ring operations come with it).
 
+use super::algebra::RingRefinement;
+use super::knot_values::Knots;
 use super::knots::{KnotVector, Span};
 use crate::real::Real;
+
+/// The answer an evaluator gives for the poison parameter `seed`: `seed`
+/// times NaN, which is poison in every channel `seed` carries. A bare
+/// `T::from_f64(f64::NAN)` is not that at the dual scalar — it is a dual
+/// CONSTANT, whose derivative channel is a zero that reads as data.
+pub fn poison_from<T: Real>(seed: T) -> T {
+    seed * T::from_f64(f64::NAN)
+}
 
 /// Seals [`SpanLocate`]: implemented for exactly the kernel scalars.
 pub(crate) mod sealed {
@@ -63,7 +81,7 @@ pub(crate) mod sealed {
 ///
 /// Both ends are [`Span`]s rather than bare indices: span validity
 /// originates *here*, in the locator, and every locator route is
-/// [`KnotVector::span_at`], which is total. Carrying the proof out
+/// [`KnotVector::span_at`] or [`KnotVector::span_range`]. Carrying the proof out
 /// means no consumer re-derives *nonemptiness* or the window base — an
 /// evaluator taking a `usize` would have to. The set borrows the
 /// `knots` it was located in, through both of its spans, so a consumer
@@ -85,14 +103,14 @@ pub struct SpanSet<'a> {
 /// enum-level NURBS evaluators run at every kernel scalar without
 /// giving [`Real`] a comparison surface.
 pub trait SpanLocate: sealed::Sealed + Real {
-    /// The spans of `knots` this value overlaps (module docs for the
-    /// per-scalar semantics; [`KnotVector::find_span`] for the f64
-    /// tie-break and NaN totalization).
+    /// The spans of `knots` this value overlaps, or `None` for a poison
+    /// value (module docs for the per-scalar semantics;
+    /// [`KnotVector::span_at`] for the f64 tie-break).
     ///
     /// The lifetime is on the method, not the trait: the answer
     /// borrows the vector it located in, and the scalar implementing
     /// this holds nothing.
-    fn locate_spans<'a>(self, knots: &'a KnotVector) -> SpanSet<'a>;
+    fn locate_spans<'a>(self, knots: &'a KnotVector) -> Option<SpanSet<'a>>;
 
     /// Combines two per-span evaluation results into one enclosure.
     /// Through the evaluators it is invoked only when
@@ -115,21 +133,131 @@ pub trait SpanLocate: sealed::Sealed + Real {
     /// selection would follow one branch's tangent and drop the
     /// other's — unsound for a straddling enclosure).
     fn enclosure_hull(self, other: Self) -> Self;
+
+    /// One homogeneous channel (`w`, or one coordinate of `w·P`) of a
+    /// curve whose knots are `knots` through `refinement` at this
+    /// scalar, per scalar as the locator is. At `Interval` it is the
+    /// certification ring's refinement ([`RingRefinement::refine`]),
+    /// so the result encloses the described curve's refined channel
+    /// through the ring's one step; the ring reads the knots off the
+    /// value channel, which at `Interval` is every held knot exactly (a
+    /// held knot is a point). At every other scalar it is
+    /// [`CurvePlan::apply_homogeneous_in`](super::CurvePlan::apply_homogeneous_in)
+    /// per plan, both Boehm ratios formed in the scalar from the held
+    /// knots, carried plan to plan by [`Knots::restructure`] (a point
+    /// the schedule inserts is its constant). Either way a channel that
+    /// is not one entry per source control point refuses: every entry
+    /// of the refined length is poison.
+    fn refine_homogeneous(
+        refinement: &RingRefinement,
+        knots: &Knots<Self>,
+        channel: &[Self],
+    ) -> Vec<Self> {
+        if channel.len() != refinement.source_count()
+            || knots.structure().control_count() != refinement.source_count()
+        {
+            return vec![Self::from_f64(f64::NAN); refinement.knots().control_count()];
+        }
+        let mut held = knots.clone();
+        let mut c = channel.to_vec();
+        for plan in refinement.plans() {
+            c = plan.apply_homogeneous_in(held.values(), &c);
+            held = held.restructure(plan.knots().clone(), Self::from_f64);
+        }
+        c
+    }
+
+    /// A rational curve's `weights`, over its `knots`, through
+    /// `refinement` at this scalar, or `None` unless every refined
+    /// weight is certainly positive: the weights a de-homogenization
+    /// divides by, and the licence of a rational hull. One refinement at
+    /// `f64` (the check reads the weights it returns) and at `Interval`
+    /// (the ring's, checked by
+    /// [`certainly_positive`](super::algebra::certainly_positive)). At
+    /// every other scalar the check reads the `f64` refinement of the
+    /// weights' value channel ([`SpanLocate::point_value`]; a weight
+    /// that is no point refuses), and the weights are
+    /// [`SpanLocate::refine_homogeneous`]'s.
+    fn refine_weights(
+        refinement: &RingRefinement,
+        knots: &Knots<Self>,
+        weights: &[Self],
+    ) -> Option<Vec<Self>> {
+        let channel: Vec<f64> = weights
+            .iter()
+            .map(|w| w.point_value())
+            .collect::<Option<_>>()?;
+        f64::refine_weights(
+            refinement,
+            &Knots::from(knots.structure().clone()),
+            &channel,
+        )?;
+        Some(Self::refine_homogeneous(refinement, knots, weights))
+    }
+
+    /// The one `f64` this value locates by, or `None` when it is no
+    /// single point: poison, or an enclosure wider than a point.
+    ///
+    /// This is how knot values held in the scalar give the `f64` knot
+    /// vector its value channel ([`super::Knots::new`]): the read the
+    /// locator itself makes, and nothing else. An interval answers only for a point
+    /// bracket, because a wide one names no knot structure, and a
+    /// midpoint would invent one.
+    fn point_value(self) -> Option<f64>;
+
+    /// [`SpanLocate::point_value`], or NaN where there is none: the
+    /// `f64` a structure decision reads, so that a value with no point
+    /// (poison, an enclosure wider than a point) takes every
+    /// NaN-catching refusal arm.
+    fn value_channel(self) -> f64 {
+        self.point_value().unwrap_or(f64::NAN)
+    }
+
+    /// **Which side of the projective partition this scalar is on**,
+    /// answered by running one of `arm`'s two halves: its
+    /// [`projective`](super::ProjectiveSplit::projective) half, which
+    /// may call the projective knot algebra, at `f64`, `Probe`, and
+    /// `Dual` and `Sym` over them; its
+    /// [`enclosure`](super::ProjectiveSplit::enclosure) half at
+    /// `Interval` and the wrappers over it. A wrapper answers by its
+    /// base, so the dispatch is the type's and no value is read.
+    /// Declared, never defaulted: a new scalar says which half it runs.
+    fn split_projective<A: super::ProjectiveSplit<Self>>(arm: A) -> A::Out;
 }
 
 impl SpanLocate for f64 {
-    fn locate_spans<'a>(self, knots: &'a KnotVector) -> SpanSet<'a> {
-        let span = knots.span_at(self);
-        SpanSet {
+    fn locate_spans<'a>(self, knots: &'a KnotVector) -> Option<SpanSet<'a>> {
+        let span = knots.span_at(self)?;
+        Some(SpanSet {
             first: span,
             last: span,
-        }
+        })
     }
 
     fn enclosure_hull(self, _other: Self) -> Self {
         // Unreachable through the evaluators (single-span locator);
         // total anyway — poison, never a fabricated point value.
         f64::NAN
+    }
+
+    fn refine_weights(
+        refinement: &RingRefinement,
+        knots: &Knots<Self>,
+        weights: &[f64],
+    ) -> Option<Vec<Self>> {
+        let w = Self::refine_homogeneous(refinement, knots, weights);
+        // `!(w > 0.0)` catches NaN too.
+        #[allow(clippy::neg_cmp_op_on_partial_ord)]
+        let refused = w.iter().any(|w| !(*w > 0.0) || !w.is_finite());
+        (!refused).then_some(w)
+    }
+
+    fn point_value(self) -> Option<f64> {
+        (!self.is_nan()).then_some(self)
+    }
+
+    fn split_projective<A: super::ProjectiveSplit<Self>>(arm: A) -> A::Out {
+        arm.projective()
     }
 }
 
@@ -145,17 +273,21 @@ mod tests {
 
     /// `Span`'s fields are private (that is the point), so the
     /// locator's answer is compared as the pair of indices it names.
-    fn indices(set: SpanSet<'_>) -> (usize, usize) {
+    fn indices(set: Option<SpanSet<'_>>) -> (usize, usize) {
+        let set = set.expect("a numeric value locates");
         (set.first.index(), set.last.index())
     }
 
     #[test]
-    fn f64_locates_one_span_with_the_find_span_tie_break() {
+    fn f64_locates_one_span_with_the_span_at_tie_break() {
         let k = kv();
         assert_eq!(indices(0.5.locate_spans(&k)), (2, 2));
         assert_eq!(indices(1.0.locate_spans(&k)), (3, 3));
         assert_eq!(indices(2.0.locate_spans(&k)), (3, 3));
+        assert!(f64::NAN.locate_spans(&k).is_none(), "NaN located a span");
         assert!(0.5f64.enclosure_hull(0.6).is_nan());
+        assert_eq!(0.5f64.point_value(), Some(0.5));
+        assert_eq!(f64::NAN.point_value(), None, "NaN read as a point");
     }
 
     /// The `Probe` half is behind the `probe` feature (the recording
@@ -172,6 +304,12 @@ mod tests {
         }
         let d = Dual64::variable(1.0);
         assert_eq!(indices(d.locate_spans(&k)), (3, 3));
+        assert_eq!(d.point_value(), Some(1.0), "the dual's value channel");
+        assert_eq!(Dual::new(f64::NAN, 1.0).point_value(), None);
+        assert!(
+            Dual::new(f64::NAN, 1.0).locate_spans(&k).is_none(),
+            "a poisoned value channel located a span"
+        );
         // Dual hulls channel-wise: over f64 channels that is poison.
         let h = Dual::new(0.25, 1.0).enclosure_hull(Dual::new(0.75, -1.0));
         assert!(h.value.is_nan() && h.deriv.is_nan());

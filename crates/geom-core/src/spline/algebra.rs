@@ -1,20 +1,20 @@
 //! Knot-algebra **plans**: insertion, refinement, removal, and degree
-//! elevation computed entirely as `f64` STRUCTURE (new knot vectors,
-//! new weights, and affine combination schedules), applied to
-//! generically-typed control points by a tiny fold
-//! ([`CurvePlan::apply_points`]).
+//! elevation, DECIDED as `f64` STRUCTURE on the weights' and knots'
+//! value channel (new knot vectors, the combination schedule, and
+//! every refusal), and applied to a net held at the caller's scalar by
+//! a tiny fold ([`CurvePlan::apply_rational`]).
 //!
 //! # Why plans
 //!
 //! Every algorithm here (Book §5.2–§5.5) combines control points with
-//! coefficients that depend only on knots and weights — both `f64`
-//! structure (C6). Splitting each operation into a structure-computed
-//! *plan* plus a generic *applier* keeps the C6 boundary a module
-//! boundary: raw `f64` comparisons live in the plan constructors,
-//! while the applier does nothing but `from_f64`-lifted two-point
-//! affine combinations (`lerp`, fixed association `x + (y − x)·λ`) in
-//! plan order. One plan implementation serves 2-D curves, 3-D curves,
-//! and each row/column of a surface net.
+//! coefficients that depend only on knots and weights. Splitting each
+//! operation into a structure-computed *plan* plus a generic *applier*
+//! keeps the C6 boundary a module boundary: raw `f64` comparisons live
+//! in the plan constructors, on the value channel, while the applier
+//! forms each step's coefficient, weight and `λ` at its scalar from the
+//! held knots and weights and combines (`lerp`, fixed association
+//! `x + (y − x)·λ`) in plan order. One plan implementation serves 2-D
+//! curves, 3-D curves, and each row/column of a surface net.
 //!
 //! # Projective form (rational)
 //!
@@ -22,17 +22,21 @@
 //! `Q = a·(wᵢPᵢ, wᵢ) + b·(wⱼPⱼ, wⱼ)` becomes the structure weight
 //! `w_Q = a·wᵢ + b·wⱼ` and the **affine point combination**
 //! `P_Q = lerp(Pⱼ, Pᵢ, λ)` with `λ = a·wᵢ / w_Q` — exact in ℝ because
-//! the two projective coefficients sum to 1 by construction. Weights
-//! stay `f64` forever; only points are generic.
+//! the two projective coefficients sum to 1 by construction. A plan
+//! records the step's form (`Form`) and the constructor takes it on
+//! the `f64` channel ([`CurvePlan::weights`]); the applier takes the
+//! same form on the held values.
 //!
 //! # One schedule, two arithmetics
 //!
-//! An insertion plan is applied by [`CurvePlan::apply_points`] in the
-//! caller's scalar and by [`CurvePlan::apply_certified`] in the certification
-//! ring, off the SAME [`Step`] list — same targets, same sources, same
-//! order. The two differ in the coefficient the combination is taken
-//! with, and they must: the projective applier's `λ` is an `f64`
-//! quotient of weights, while interval arithmetic applier re-derives the Boehm
+//! An insertion plan is applied by [`CurvePlan::apply_rational`] at an
+//! evaluation scalar ([`ProjectiveScalar`]), by
+//! [`CurvePlan::apply_points`] on its own `f64` channel, and by
+//! [`CurvePlan::apply_certified`] in the certification ring, off the SAME [`Step`] list — same targets, same sources, same
+//! order. They differ in the coefficient the combination is taken
+//! with, and they must: the projective appliers' `λ` is a quotient of
+//! weights (formed at `T` from the held weights, or the plan's `f64`),
+//! while interval arithmetic applier re-derives the Boehm
 //! ratios `α = (u − U_j)/Δ` and `β = (U_{j+p} − u)/Δ` from the knots
 //! they are made of ([`Step::Combo`]'s `ratio`) so that they round
 //! OUTWARD. A ring consumer that took the stored `λ` and padded it by a
@@ -42,10 +46,12 @@
 //! coefficients, where the combination is the plain convex one and no
 //! `λ` is needed.
 
-use super::knots::{InteriorKnot, KnotVector, SplineError};
+use super::knots::{InteriorKnot, KnotVector, SplineError, find_span_in};
+use super::projective::{ProjectivePoint, ProjectiveScalar};
 use crate::interval::Interval;
 use crate::interval::certification::Certification;
 use crate::readable::Readable;
+use crate::real::Bounds;
 
 /// A typed knot-algebra refusal (fail-loud; the kernel never panics).
 #[derive(Clone, Debug, PartialEq)]
@@ -160,10 +166,51 @@ enum Src {
 /// [`CurvePlan::apply_certified`]. A stored `f64` ratio would leave interval arithmetic
 /// applier padding a rounded number by a guess.
 #[derive(Clone, Copy, Debug)]
-struct Ratio {
-    inserted: f64,
-    lo: f64,
-    hi: f64,
+pub(super) struct Ratio {
+    pub(super) inserted: f64,
+    pub(super) lo: f64,
+    pub(super) hi: f64,
+}
+
+/// Where a combination's coefficient `a` comes from, so an applier can
+/// form it at its own scalar: a ratio of the input vector's knots,
+/// `(u − U[lo])/(U[hi] − U[lo])`, or a combinatorial constant.
+#[derive(Clone, Copy, Debug)]
+pub(super) enum Coef {
+    /// `(u − U[lo])/(U[hi] − U[lo])`, the knots read off the vector the
+    /// step was planned against.
+    Knots { u: KnotAt, lo: usize, hi: usize },
+    /// Degree elevation's `i/(p + 1)`, a constant of the operation.
+    Constant(f64),
+}
+
+/// The `u` of a [`Coef::Knots`] ratio: a knot of the input vector (a
+/// removal's, or an insertion at a breakpoint already present, so the
+/// ratio reads that breakpoint's one quantity), or a value the
+/// insertion brings in.
+#[derive(Clone, Copy, Debug)]
+pub(super) enum KnotAt {
+    Index(usize),
+    Fresh(f64),
+}
+
+/// How a combination forms its weight `w_Q` and its projective `λ`
+/// from the source weights `w_x`, `w_y` and its coefficient `a`; the
+/// point is `lerp(x, y, λ)` in every form. The plan constructors take
+/// these exact operations in `f64` on the weights' value channel, and
+/// [`CurvePlan::apply_rational`] takes them again at the applier's
+/// scalar, so at `f64` the two agree bit for bit.
+#[derive(Clone, Copy, Debug)]
+pub(super) enum Form {
+    /// Insertion and elevation: `w_Q = a·w_y + (1 − a)·w_x`,
+    /// `λ = a·w_y/w_Q`.
+    Blend(Coef),
+    /// Removal's forward chain: `w_Q = (w_y − (1 − a)·w_x)/a`,
+    /// `λ = (w_y/a)/w_Q`.
+    UnblendForward(Coef),
+    /// Removal's backward chain: `w_Q = (w_y − a·w_x)/(1 − a)`,
+    /// `λ = (w_y/(1 − a))/w_Q`.
+    UnblendBackward(Coef),
 }
 
 /// One plan step: assign new-polygon slot `target`.
@@ -185,6 +232,7 @@ enum Step {
         y: Src,
         lambda: f64,
         ratio: Option<Ratio>,
+        form: Form,
     },
 }
 
@@ -211,14 +259,20 @@ impl CurvePlan {
         &self.weights
     }
 
-    /// Applies the point schedule: `old` is the previous control
-    /// polygon, `lerp(x, y, λ)` the caller's affine combination
-    /// (`x + (y − x)·λ` with `λ` lifted via `from_f64` — the fixed
-    /// association every consumer documents), and `poison` the
-    /// caller's poison point — the total fallback for a malformed
-    /// plan, which the constructors rule out but the applier does not
-    /// trust (D4: fail loud, never panic).
-    pub fn apply_points<P: Copy>(
+    /// Applies the point schedule on the plan's own `f64` channel:
+    /// `old` is the previous control polygon, `lerp(x, y, λ)` the
+    /// caller's affine combination (`x + (y − x)·λ`, the fixed
+    /// association every consumer documents) with the plan's `f64` `λ`,
+    /// and `poison` the caller's poison point — the total fallback for
+    /// a malformed plan, which the constructors rule out but the
+    /// applier does not trust (D4: fail loud, never panic). It is the
+    /// `f64` reference [`CurvePlan::apply_rational`] is pinned against;
+    /// a carrier at any scalar is refined by that applier, over its
+    /// held knots and weights, and the certification ring's applier is
+    /// [`CurvePlan::apply_certified`]. `P` is a [`ProjectivePoint`]
+    /// over `f64`, so ring enclosures cannot be combined with the plan's
+    /// `f64` `λ` here either.
+    pub fn apply_points<P: ProjectivePoint<f64>>(
         &self,
         old: &[P],
         poison: P,
@@ -257,6 +311,104 @@ impl CurvePlan {
             }
         }
         new.into_iter().map(|slot| slot.unwrap_or(poison)).collect()
+    }
+
+    /// **The schedule over a rational net held at `T`**: the points
+    /// AND the weights combine at the caller's scalar, each step's
+    /// coefficient formed in `T` from `knots`, the input vector's knot
+    /// values (one per knot of the vector this plan was made against),
+    /// and each new weight and projective `λ` formed in `T` from the
+    /// source weights by the step's form — the operations, in the
+    /// order, the plan constructor took on the weights' `f64` value
+    /// channel. So at `f64` the result is [`Self::apply_points`] and
+    /// [`Self::weights`] bit for bit, and at `Sym` a weight or a knot
+    /// that is a function of a document's variables stays that function
+    /// through the operation.
+    ///
+    /// The plan's structure (its steps, and every refusal its
+    /// constructor ran on the value channel) is the `f64` decision; this
+    /// applies it, and decides nothing.
+    ///
+    /// A value the step brings in that the input vector does not hold
+    /// (an insertion of a knot not present) is `fresh(v)`: the caller's
+    /// entry of it, which is the constant it is for an insertion at the
+    /// caller's `f64` parameter, and the held value a removal took out
+    /// when its bound reinserts it.
+    ///
+    /// Total: a malformed plan, a short channel or a knot index past
+    /// `knots` leaves `poison` and `T`'s poison weight
+    /// (`from_f64(NaN)`) in the targets it reaches.
+    pub fn apply_rational<T: ProjectiveScalar, P: ProjectivePoint<T>>(
+        &self,
+        knots: &[T],
+        old: &[P],
+        old_w: &[T],
+        (poison, fresh): (P, &dyn Fn(f64) -> T),
+        lerp: impl Fn(P, P, T) -> P,
+    ) -> (Vec<P>, Vec<T>) {
+        let n_new = self.knots.control_count();
+        let mut new: Vec<Option<(P, T)>> = vec![None; n_new];
+        let fetch = |new: &[Option<(P, T)>], s: Src| -> Option<(P, T)> {
+            match s {
+                Src::Old(i) => Some((*old.get(i)?, *old_w.get(i)?)),
+                Src::New(i) => new.get(i).copied().flatten(),
+            }
+        };
+        let coef = |c: Coef| -> Option<T> {
+            match c {
+                Coef::Constant(a) => Some(T::from_f64(a)),
+                Coef::Knots { u, lo, hi } => {
+                    let u = match u {
+                        KnotAt::Index(i) => *knots.get(i)?,
+                        KnotAt::Fresh(v) => fresh(v),
+                    };
+                    let (lo, hi) = (*knots.get(lo)?, *knots.get(hi)?);
+                    Some((u - lo) / (hi - lo))
+                }
+            }
+        };
+        let one = T::from_f64(1.0);
+        for step in &self.steps {
+            match *step {
+                Step::Carry { target, from } => {
+                    if target < n_new {
+                        new[target] = fetch(&new, Src::Old(from));
+                    }
+                }
+                Step::Combo {
+                    target, x, y, form, ..
+                } => {
+                    if target < n_new {
+                        new[target] = (|| {
+                            let ((px, wx), (py, wy)) = (fetch(&new, x)?, fetch(&new, y)?);
+                            let (wq, lambda) = match form {
+                                Form::Blend(c) => {
+                                    let a = coef(c)?;
+                                    let wq = a * wy + (one - a) * wx;
+                                    (wq, a * wy / wq)
+                                }
+                                Form::UnblendForward(c) => {
+                                    let a = coef(c)?;
+                                    let wq = (wy - (one - a) * wx) / a;
+                                    (wq, (wy / a) / wq)
+                                }
+                                Form::UnblendBackward(c) => {
+                                    let a = coef(c)?;
+                                    let b = one - a;
+                                    let wq = (wy - a * wx) / b;
+                                    (wq, (wy / b) / wq)
+                                }
+                            };
+                            Some((lerp(px, py, lambda), wq))
+                        })();
+                    }
+                }
+            }
+        }
+        let refused = T::from_f64(f64::NAN);
+        new.into_iter()
+            .map(|slot| slot.unwrap_or((poison, refused)))
+            .unzip()
     }
 
     /// **The same schedule, applied in the certification ring to one
@@ -331,16 +483,30 @@ impl CurvePlan {
     /// length. The refusal then flows through every hull the caller
     /// reads.
     pub fn apply_certified(&self, old: &[Interval]) -> Vec<Interval> {
+        self.apply_ratios(old, Interval::refused(), |x, y, r, _| {
+            Some(convex_step(x, y, r.lo, r.hi, r.inserted))
+        })
+    }
+
+    /// The fold both homogeneous appliers are: `Carry` copies, a ratio
+    /// step combines through `step`, and a ratio-less step, a malformed
+    /// plan or a short channel leaves `refused` in its target.
+    pub(super) fn apply_ratios<P: Copy>(
+        &self,
+        old: &[P],
+        refused: P,
+        step: impl Fn(P, P, Ratio, Form) -> Option<P>,
+    ) -> Vec<P> {
         let n_new = self.knots.control_count();
-        let mut new: Vec<Option<Interval>> = vec![None; n_new];
-        let fetch = |new: &[Option<Interval>], s: Src| -> Option<Interval> {
+        let mut new: Vec<Option<P>> = vec![None; n_new];
+        let fetch = |new: &[Option<P>], s: Src| -> Option<P> {
             match s {
                 Src::Old(i) => old.get(i).copied(),
                 Src::New(i) => new.get(i).copied().flatten(),
             }
         };
-        for step in &self.steps {
-            match *step {
+        for plan_step in &self.steps {
+            match *plan_step {
                 Step::Carry { target, from } => {
                     if target < n_new {
                         new[target] = old.get(from).copied();
@@ -351,13 +517,12 @@ impl CurvePlan {
                     x,
                     y,
                     ratio,
+                    form,
                     ..
                 } => {
                     if target < n_new {
                         new[target] = match (fetch(&new, x), fetch(&new, y), ratio) {
-                            (Some(cx), Some(cy), Some(r)) => {
-                                Some(convex_step(cx, cy, r.lo, r.hi, r.inserted))
-                            }
+                            (Some(cx), Some(cy), Some(r)) => step(cx, cy, r, form),
                             _ => None,
                         };
                     }
@@ -365,7 +530,7 @@ impl CurvePlan {
             }
         }
         new.into_iter()
-            .map(|slot| slot.unwrap_or_else(Interval::refused))
+            .map(|slot| slot.unwrap_or(refused))
             .collect()
     }
 }
@@ -379,10 +544,11 @@ impl CurvePlan {
 /// [`CurvePlan::apply_certified`]'s docs.
 ///
 /// **Precondition: `lo`, `u` and `hi` are exact `f64` knots with
-/// `lo < u < hi`.** Both callers insert `u` strictly inside the span
-/// `[U_j, U_{j+p}]` of the vector they plan against (`insert_once`'s
-/// band, `insert_once_ring`'s window), so `Δ > 0` and neither quotient
-/// refuses.
+/// `lo ≤ u ≤ hi` and `lo < hi`.** The insertions place `u` strictly
+/// inside the span `[U_j, U_{j+p}]` of the vector they plan against
+/// (`insert_once`'s band, `insert_once_ring`'s window); `compose`'s
+/// `sub_segment` runs de Casteljau steps at a cut `u ∈ [lo, hi]` of a
+/// Bézier segment `[lo, hi]`. So `Δ > 0` and neither quotient refuses.
 ///
 /// **Why the hull meet is sound.** `α` and `β` round outward
 /// INDEPENDENTLY, so `α_hi + β_hi > 1` and `β·x + α·y` alone reaches a
@@ -448,8 +614,6 @@ fn check_weights(kv: &KnotVector, weights: &[f64]) -> Result<(), KnotAlgebraErro
 ///
 /// [`KnotAlgebraError`] on structure mismatch, out-of-domain `u`, or
 /// multiplicity overflow. `times == 0` is a no-op (empty chain).
-// NaN-catching negated comparisons — see `check_weights`' note.
-#[allow(clippy::neg_cmp_op_on_partial_ord)]
 pub fn insert_knot_plan(
     kv: &KnotVector,
     weights: &[f64],
@@ -457,10 +621,9 @@ pub fn insert_knot_plan(
     times: usize,
 ) -> Result<Vec<CurvePlan>, KnotAlgebraError> {
     check_weights(kv, weights)?;
-    let (lo, hi) = kv.domain();
-    if !u.is_finite() || !(u > lo) || !(u < hi) {
+    let Some(knot) = kv.interior_knot(u) else {
         return Err(KnotAlgebraError::ParameterOutsideDomain { u });
-    }
+    };
     let have = kv.multiplicity_of(u).map_or(0, |(s, _)| s);
     if have + times > kv.degree() {
         return Err(KnotAlgebraError::MultiplicityOverflow {
@@ -473,7 +636,7 @@ pub fn insert_knot_plan(
     let mut cur_kv = kv.clone();
     let mut cur_w = weights.to_vec();
     for _ in 0..times {
-        let plan = insert_once(&cur_kv, &cur_w, u);
+        let plan = insert_once(&cur_kv, &cur_w, knot);
         cur_kv = plan.knots.clone();
         cur_w = plan.weights.clone();
         plans.push(plan);
@@ -483,7 +646,9 @@ pub fn insert_knot_plan(
 
 /// One insertion pass — preconditions established by the callers
 /// (`u` strictly interior, multiplicity budget available, weights
-/// validated).
+/// validated). `u` was minted against the chain's first vector; an
+/// insertion leaves both clamp runs alone, so it is interior to every
+/// vector of the chain.
 ///
 /// **The Boehm structure is shared with [`super::compose`]'s
 /// `insert_once_ring`, and the two are now a FILED duplication rather
@@ -501,11 +666,19 @@ pub fn insert_knot_plan(
 /// step, where a plan chain rebuilds one per insertion. Filed on PROPS'
 /// `f64-refinement-inside-an-enclosure-has-five-more-sites`; not done
 /// here.
-fn insert_once(kv: &KnotVector, weights: &[f64], u: f64) -> CurvePlan {
+fn insert_once(kv: &KnotVector, weights: &[f64], knot: InteriorKnot) -> CurvePlan {
     let p = kv.degree();
     let knots = kv.knots();
-    let k = kv.find_span(u);
+    let k = find_span_in(knots, p, knot);
+    let u = knot.value();
     let s = kv.multiplicity_of(u).map_or(0, |(s, _)| s);
+    // A breakpoint already present is `knots[k]` (the span's start), so
+    // the ratio reads its one quantity; a new one is the value inserted.
+    let inserted = if s > 0 {
+        KnotAt::Index(k)
+    } else {
+        KnotAt::Fresh(u)
+    };
     let n_old = kv.control_count();
     let n_new = n_old + 1;
 
@@ -541,6 +714,11 @@ fn insert_once(kv: &KnotVector, weights: &[f64], u: f64) -> CurvePlan {
                 inserted: u,
                 lo: knots[j],
                 hi: knots[j + p],
+            }),
+            form: Form::Blend(Coef::Knots {
+                u: inserted,
+                lo: j,
+                hi: j + p,
             }),
         });
     }
@@ -671,47 +849,168 @@ pub fn equal_split_plan(
     refine_plan_homogeneous(kv, &equal_split_points(kv, splits))
 }
 
-/// How close a grid point may come to a knot before it is dropped
-/// instead of minting a hairline span or cell, in ulps of the range's
-/// own width — the clearance [`GridSkip::WithinUlps`] is spelled with.
+/// **A knot refinement in the certification ring**: the insertion chain
+/// from a vector, and the vector it ends on. The one spelling of a ring
+/// refinement. It owns the refined vector ([`RingRefinement::knots`],
+/// the source itself when nothing is inserted) and the extent guard
+/// ([`RingRefinement::refine`] refuses a channel that is not one entry
+/// per source control point), so no caller re-derives either.
 ///
-/// A few ulps, because that is the whole width of the defect: the
-/// grid point and the knot are describing the same place, and the
-/// span between them is arithmetic noise rather than geometry. It is
-/// deliberately NOT a tolerance in the ε sense — no input's meaning
-/// depends on it, only whether one redundant subdivision is taken.
-pub const SLIVER_CLEARANCE_ULPS: u32 = 8;
+/// A channel is homogeneous (`w·P` per coordinate, or `w`) or
+/// unit-weight, which a plain convex combination refines; a rational
+/// net goes through it as its homogeneous channels and comes back
+/// through [`dehomogenize`].
+#[derive(Clone, Debug)]
+pub struct RingRefinement {
+    plans: Vec<CurvePlan>,
+    source: usize,
+    knots: KnotVector,
+}
 
-/// When a uniform grid ([`domain_grid_points`], [`range_grid_points`])
-/// counts a grid point as already one of the MANDATORY points it
-/// defers to — a vector's interior knots, or a caller's cut set — and
-/// skips it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum GridSkip {
-    /// Skip a grid point that IS a mandatory point: `f64` equality, so
-    /// a knot one ulp off a grid point does not suppress it and both
-    /// reach the output's consumer. The same rule as `WithinUlps(0)`,
-    /// named for the reader.
-    BitEqual,
-    /// Skip a grid point within `ulps · ε · |hi − lo|` of a mandatory
-    /// point, `[lo, hi]` the grid's range: the mandatory point stands
-    /// and the hairline span the grid point would open beside it is
-    /// never minted. [`SLIVER_CLEARANCE_ULPS`] is the clearance the tree
-    /// uses.
-    WithinUlps(u32),
+impl RingRefinement {
+    /// `add` inserted into `kv` ([`refine_plan_homogeneous`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`refine_plan`].
+    pub fn new(kv: &KnotVector, add: &[f64]) -> Result<Self, KnotAlgebraError> {
+        Ok(Self::of_chain(kv, refine_plan_homogeneous(kv, add)?))
+    }
+
+    /// Every nonempty span of `kv` split into `splits` equal pieces
+    /// ([`equal_split_plan`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`refine_plan`].
+    pub fn equal_split(kv: &KnotVector, splits: usize) -> Result<Self, KnotAlgebraError> {
+        Ok(Self::of_chain(kv, equal_split_plan(kv, splits)?))
+    }
+
+    fn of_chain(kv: &KnotVector, plans: Vec<CurvePlan>) -> Self {
+        let knots = plans
+            .last()
+            .map_or_else(|| kv.clone(), |plan| plan.knots().clone());
+        Self {
+            plans,
+            source: kv.control_count(),
+            knots,
+        }
+    }
+
+    /// The refined vector.
+    #[must_use]
+    pub fn knots(&self) -> &KnotVector {
+        &self.knots
+    }
+
+    /// The source vector's control count: the length a channel must
+    /// have.
+    #[must_use]
+    pub fn source_count(&self) -> usize {
+        self.source
+    }
+
+    /// The insertion chain, one plan per inserted point: for an applier
+    /// at another scalar (`SpanLocate::refine_homogeneous`).
+    #[must_use]
+    pub fn plans(&self) -> &[CurvePlan] {
+        &self.plans
+    }
+
+    /// `channel` through every plan in order, each by
+    /// [`CurvePlan::apply_certified`], so the result encloses the refined
+    /// channel of the described net. A channel that is not
+    /// [`RingRefinement::source_count`] long refuses: every entry of the
+    /// refined length is refused.
+    #[must_use]
+    pub fn refine(&self, channel: &[Interval]) -> Vec<Interval> {
+        if channel.len() != self.source {
+            return vec![Interval::refused(); self.knots.control_count()];
+        }
+        self.plans
+            .iter()
+            .fold(channel.to_vec(), |c, plan| plan.apply_certified(&c))
+    }
+}
+
+/// Every weight certified and its enclosure strictly positive: the
+/// weights a de-homogenization may divide by, and the convex-combination
+/// licence of a rational net's hulls. The one spelling of that guard.
+#[must_use]
+pub fn certainly_positive(weights: &[Interval]) -> bool {
+    weights.iter().all(|w| w.is_certified() && w.lo() > 0.0)
+}
+
+/// A refined homogeneous channel `w·x` read back as `x`: the quotient by
+/// the refined weights `w`, entry by entry. `None` unless the two are
+/// one length and the weights are [`certainly_positive`].
+#[must_use]
+pub fn dehomogenize(channel: &[Interval], weights: &[Interval]) -> Option<Vec<Interval>> {
+    (channel.len() == weights.len() && certainly_positive(weights))
+        .then(|| channel.iter().zip(weights).map(|(a, w)| *a / *w).collect())
+}
+
+/// How close a grid point may come to a mandatory point (a knot, a
+/// caller's cut) before it is dropped, as a FRACTION OF THE GRID'S OWN
+/// SPACING `|hi − lo|/pieces`: the clearance of [`domain_grid_points`]
+/// and [`range_grid_points`], spelled out by [`grid_clearance`].
+///
+/// Grid points only subdivide, so either choice is sound; each costs
+/// width.
+///
+/// * **Skipping** one lets the span it would have closed run on to the
+///   mandatory point: at most `(1 + f)` spacings, under 0.4% wider at
+///   `f = 2⁻⁸`.
+/// * **Inserting** one at a gap `g` opens a span `g` wide, and every
+///   derivative read off it carries the inserted point's rounding over
+///   `g`. That excess grows as `1/g` without bound as the gap closes,
+///   which is why the clearance is a fraction of the spacing and not a
+///   count of ulps.
+///
+/// A measurement, not a guarded contract: on the rational quarter
+/// cylinder split a gap `g` above a point of the 16-span grid
+/// (`geom-brep`'s `props::quad` row
+/// `the_refine_grid_enclosure_has_no_cliff_at_any_knot_offset`), the
+/// round-0 flux width with the point inserted exceeds the on-grid
+/// `2.0e-2` by about `1.7e-15 / g` over `g` from `1.8e-15` (`47×`) to
+/// `1e-8`; with it skipped the width is about 0.2% wider than inserted
+/// at gaps of `1e-10` and more, and the two cross near `g ≈ 4e-11`. That
+/// row asserts only that no offset leaves `1.25×` of on-grid, so the
+/// law and the crossover are unguarded: they are the evidence for `f`,
+/// and nothing reads them.
+///
+/// `2⁻⁸` skips every gap below `spacing/256` — far past that crossover,
+/// paying the skip's few-tenths-of-a-percent there for decades of
+/// margin over the `1/g` regime on grids and consumers the row does not
+/// measure. It is exact in binary, so the clearance rounds once. It is
+/// NOT a tolerance in the ε sense: no input's meaning depends on it,
+/// only whether one optional subdivision is taken.
+pub const GRID_CLEARANCE: f64 = 1.0 / 256.0;
+
+/// The clearance of the `pieces`-span grid on `[lo, hi]`:
+/// [`GRID_CLEARANCE`] of its spacing `|hi − lo|/pieces`. A grid point
+/// within this of a mandatory point, inclusive, is dropped by
+/// [`range_grid_points`].
+#[must_use]
+pub fn grid_clearance(lo: f64, hi: f64, pieces: usize) -> f64 {
+    #[allow(clippy::cast_precision_loss)]
+    let spacing = (hi - lo).abs() / pieces as f64;
+    spacing * GRID_CLEARANCE
 }
 
 /// **The domain-uniform grid**: the interior points
 /// `lo + (hi − lo)·k/pieces`, `0 < k < pieces`, of the vector's DOMAIN
-/// `[lo, hi]`, ascending, minus every point `skip` finds on an interior
-/// knot — the `new_knots` a caller hands [`refine_plan`] or
-/// [`refine_plan_homogeneous`] to refine to at least `pieces` spans
-/// over the whole domain, or a break list for a per-span extraction.
+/// `[lo, hi]`, ascending, minus every point within [`GRID_CLEARANCE`]
+/// of the grid spacing of an interior knot — the `new_knots` a caller
+/// hands [`refine_plan`] or [`refine_plan_homogeneous`] to refine to
+/// about `pieces` spans over the whole domain, or a break list for a
+/// per-span extraction.
 ///
 /// **Not the equal-split schedule**: [`equal_split_points`] cuts each
 /// nonempty SPAN into equal pieces, so its grid restarts at every knot
 /// and a knot is a span end by construction. This grid is blind to
-/// where the knots fall, which is why it takes a `skip` rule and the
+/// where the knots fall, which is why it needs a clearance and the
 /// per-span schedule does not.
 ///
 /// It refines ANY vector, however fine already. A caller for whom a
@@ -719,17 +1018,17 @@ pub enum GridSkip {
 /// tests that itself and does not call; the grid does not decide it.
 /// `pieces` of 0 or 1 yields none.
 #[must_use]
-pub fn domain_grid_points(kv: &KnotVector, pieces: usize, skip: GridSkip) -> Vec<f64> {
+pub fn domain_grid_points(kv: &KnotVector, pieces: usize) -> Vec<f64> {
     let (lo, hi) = kv.domain();
     let knots: Vec<f64> = kv.interior_knots().map(|(k, _)| k).collect();
-    range_grid_points(lo, hi, pieces, skip, &knots)
+    range_grid_points(lo, hi, pieces, &knots)
 }
 
 /// **The range-uniform grid** under [`domain_grid_points`]: the
 /// interior points `lo + (hi − lo)·k/pieces`, `0 < k < pieces`, of an
 /// arbitrary range `[lo, hi]`, ascending, minus every point that falls
-/// outside the open range or that `skip` finds on a point of
-/// `mandatory` — `skip`'s clearance scaled by `|hi − lo|`.
+/// outside the open range or within [`grid_clearance`] of a point of
+/// `mandatory`.
 ///
 /// `mandatory` is whatever set the grid must defer to, and it is not
 /// the grid's to widen: [`domain_grid_points`] passes a vector's
@@ -737,38 +1036,23 @@ pub fn domain_grid_points(kv: &KnotVector, pieces: usize, skip: GridSkip) -> Vec
 /// slice passes its whole cut set, which carries the range's ends
 /// for completeness — the open-range test already keeps every grid
 /// point off them. The test is against `mandatory` alone, never
-/// against other grid points, so a point two grids share (a coarse
-/// grid's point is a fine grid's when the counts divide) is kept by
-/// both or dropped by both.
+/// against other grid points.
 ///
-/// The clearance is `|hi − lo|·(ulps·ε)`: `ulps·ε` is exact, so the
-/// product rounds once and a finite width never overflows it to `∞`
-/// (which would drop every grid point beside any mandatory one).
+/// The clearance scales with the grid's spacing, so a coarser grid
+/// clears more: a point a coarse grid shares with a finer one (the
+/// counts dividing) is dropped by the finer grid only if the coarser
+/// one drops it too. So doubling `pieces` keeps every point the
+/// coarser grid kept.
 ///
 /// `pieces` of 0 or 1 yields none.
 #[must_use]
-pub fn range_grid_points(
-    lo: f64,
-    hi: f64,
-    pieces: usize,
-    skip: GridSkip,
-    mandatory: &[f64],
-) -> Vec<f64> {
-    let sliver = match skip {
-        GridSkip::BitEqual => None,
-        GridSkip::WithinUlps(ulps) => Some((hi - lo).abs() * (f64::from(ulps) * f64::EPSILON)),
-    };
+pub fn range_grid_points(lo: f64, hi: f64, pieces: usize, mandatory: &[f64]) -> Vec<f64> {
+    let clearance = grid_clearance(lo, hi, pieces);
     (1..pieces)
         .filter_map(|k| {
             #[allow(clippy::cast_precision_loss)]
             let t = lo + (hi - lo) * (k as f64 / pieces as f64);
-            (t > lo
-                && t < hi
-                && mandatory.iter().all(|m| match sliver {
-                    None => *m != t,
-                    Some(sliver) => (t - *m).abs() > sliver,
-                }))
-            .then_some(t)
+            (t > lo && t < hi && mandatory.iter().all(|m| (t - *m).abs() > clearance)).then_some(t)
         })
         .collect()
 }
@@ -928,6 +1212,12 @@ fn remove_once(kv: &KnotVector, weights: &[f64], u: f64) -> Result<CurvePlan, Kn
     // U[i+p+1] ≥ U[r+1] > u for i ≥ r−p (above it) — validated
     // structure, so both divisions below are safe.
     let alpha = |i: usize| (u - knots[i]) / (knots[i + p + 1] - knots[i]);
+    // The same ratio as an applier forms it: `u` is the knot at `r`.
+    let removal_ratio = |i: usize| Coef::Knots {
+        u: KnotAt::Index(r),
+        lo: i,
+        hi: i + p + 1,
+    };
 
     let mut new_w = vec![0.0f64; n_new];
     let mut steps = Vec::with_capacity(n_new);
@@ -966,6 +1256,7 @@ fn remove_once(kv: &KnotVector, weights: &[f64], u: f64) -> Result<CurvePlan, Kn
             // Removal's λ is not a ratio of knots (module docs on
             // `Step::Combo`): no ring applier reads this step.
             ratio: None,
+            form: Form::UnblendForward(removal_ratio(i)),
         });
         new_w[i] = wq;
     }
@@ -990,6 +1281,7 @@ fn remove_once(kv: &KnotVector, weights: &[f64], u: f64) -> Result<CurvePlan, Kn
             lambda,
             // As the forward chain: not a knot ratio.
             ratio: None,
+            form: Form::UnblendBackward(removal_ratio(i + 1)),
         });
         new_w[i] = wq;
     }
@@ -1107,6 +1399,7 @@ fn elevate_bezier_stage(kv: &KnotVector, weights: &[f64]) -> CurvePlan {
                 // Elevation's λ comes from a binomial ratio, not from
                 // knots (module docs on `Step::Combo`).
                 ratio: None,
+                form: Form::Blend(Coef::Constant(c)),
             });
             new_w[o2 + i] = wq;
         }
@@ -1134,7 +1427,7 @@ mod tests {
     /// plan machinery is dimension-agnostic, so scalar control points
     /// are a complete test bed.
     fn eval1(kv: &KnotVector, w: &[f64], x: &[f64], t: f64) -> f64 {
-        let span = kv.span_at(t);
+        let span = kv.span_at(t).expect("a numeric parameter");
         let n = basis_funs(span, t);
         let (mut num, mut den) = (0.0, 0.0);
         for (j, nj) in n.iter().enumerate() {
@@ -1205,32 +1498,33 @@ mod tests {
     }
 
     /// The domain-uniform grid runs over the whole domain, blind to
-    /// the spans: on `[0, 1]` with knots at `0.5` and one ulp above
-    /// `0.25`, the quarters grid is `0.25, 0.75` under the bit-equal
-    /// skip (`0.5` is a knot; `0.25` is not) and `0.75` alone under an
-    /// 8-ulp clearance. A vector already finer than the grid is still
+    /// the spans, and drops a grid point within `GRID_CLEARANCE` of the
+    /// grid's spacing of a knot. On `[0, 1]` in quarters (clearance
+    /// `2⁻¹⁰`): a knot one ulp above `0.25` drops `0.25`; a knot exactly
+    /// `2⁻¹⁰` below `0.75` drops it too (the clearance is inclusive);
+    /// `0.5` is a knot. A vector already finer than the grid is still
     /// given it, and `pieces` of 0 or 1 yields none.
     #[test]
-    fn domain_grid_points_skip_rules_and_no_cut_off() {
+    fn domain_grid_points_clearance_and_no_cut_off() {
         let near = f64::from_bits(0.25f64.to_bits() + 1);
-        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, near, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
-        assert_eq!(domain_grid_points(&kv, 4, GridSkip::BitEqual), [0.25, 0.75]);
-        assert_eq!(
-            domain_grid_points(&kv, 4, GridSkip::WithinUlps(SLIVER_CLEARANCE_ULPS)),
-            [0.75]
-        );
-        // The clearance scales with the domain's width: on `[0, 4]` a
-        // knot 4 ulps of `1.0` off the grid point `1.0` is inside it.
-        let off = f64::from_bits(1.0f64.to_bits() + 4);
-        let wide = KnotVector::clamped(vec![0.0, 0.0, off, 4.0, 4.0], 1).unwrap();
-        assert_eq!(
-            domain_grid_points(&wide, 4, GridSkip::BitEqual),
-            [1.0, 2.0, 3.0]
-        );
-        assert_eq!(
-            domain_grid_points(&wide, 4, GridSkip::WithinUlps(SLIVER_CLEARANCE_ULPS)),
-            [2.0, 3.0]
-        );
+        let edge = 0.75f64 - 1.0 / 1024.0;
+        let kv =
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, near, 0.5, edge, 1.0, 1.0, 1.0], 2).unwrap();
+        assert!(domain_grid_points(&kv, 4).is_empty());
+        // One ulp further from `0.75` and the grid point stands.
+        let past = KnotVector::clamped(
+            vec![0.0, 0.0, 0.0, near, 0.5, edge.next_down(), 1.0, 1.0, 1.0],
+            2,
+        )
+        .unwrap();
+        assert_eq!(domain_grid_points(&past, 4), [0.75]);
+        // The clearance is a fraction of the SPACING, not of the domain:
+        // on `[0, 4]` in quarters the spacing is `1`, so a knot `2⁻⁹`
+        // off the grid point `1.0` is inside its `2⁻⁸` clearance; in
+        // eighths (spacing `½`, clearance `2⁻⁹`) it is on the edge.
+        let wide = KnotVector::clamped(vec![0.0, 0.0, 1.0 + 1.0 / 512.0, 4.0, 4.0], 1).unwrap();
+        assert_eq!(domain_grid_points(&wide, 4), [2.0, 3.0]);
+        assert_eq!(domain_grid_points(&wide, 8), [0.5, 1.5, 2.0, 2.5, 3.0, 3.5]);
         // Ten spans, a grid of four: every quarter is still offered.
         let fine = KnotVector::clamped(
             vec![
@@ -1240,20 +1534,17 @@ mod tests {
         )
         .unwrap();
         assert_eq!(fine.control_count(), 11);
-        assert_eq!(
-            domain_grid_points(&fine, 4, GridSkip::BitEqual),
-            [0.25, 0.5, 0.75]
-        );
-        assert!(domain_grid_points(&kv, 1, GridSkip::BitEqual).is_empty());
-        assert!(domain_grid_points(&kv, 0, GridSkip::BitEqual).is_empty());
+        assert_eq!(domain_grid_points(&fine, 4), [0.25, 0.5, 0.75]);
+        assert!(domain_grid_points(&kv, 1).is_empty());
+        assert!(domain_grid_points(&kv, 0).is_empty());
         // A non-dyadic domain pins the grid ARITHMETIC: `lo + (hi − lo)·(k/n)`
         // rounds to these values, and the counted-from-the-top form
         // `hi − (hi − lo)·((n − k)/n)` to others (`0.15999999999999992`,
         // `0.39999999999999997`, …). The knot at `0.4` is the grid's own
-        // point, so the bit-equal skip drops it.
+        // point, so the clearance drops it.
         let odd = KnotVector::clamped(vec![0.1, 0.1, 0.4, 0.7, 0.7], 1).unwrap();
         assert_eq!(
-            domain_grid_points(&odd, 10, GridSkip::BitEqual),
+            domain_grid_points(&odd, 10),
             [
                 0.16,
                 0.22,
@@ -1270,7 +1561,7 @@ mod tests {
         // `0.1923076923076923` at k = 2, `0.23846153846153845` at k = 3
         // and `0.6538461538461537` at k = 12.
         assert_eq!(
-            domain_grid_points(&odd, 13, GridSkip::BitEqual),
+            domain_grid_points(&odd, 13),
             [
                 0.146_153_846_153_846_16,
                 0.192_307_692_307_692_32,
@@ -1286,21 +1577,12 @@ mod tests {
                 0.653_846_153_846_153_9
             ]
         );
-        // A finite width near `f64::MAX`: the clearance is
-        // `|hi − lo|·(ulps·ε)`, finite, so a grid point clear of the
-        // knot stands. Spelled `(|hi − lo|·ulps)·ε` the product
-        // overflows to `∞` first and every point is dropped.
+        // A finite width near `f64::MAX`: `grid_clearance` divides
+        // before it scales, so it is finite and a grid point
+        // clear of the knot stands.
         let big = f64::MAX / 2.0;
         let huge = KnotVector::clamped(vec![-big, -big, 0.5 * big, big, big], 1).unwrap();
-        assert_eq!(
-            domain_grid_points(&huge, 4, GridSkip::WithinUlps(SLIVER_CLEARANCE_ULPS)),
-            [-0.5 * big, 0.0]
-        );
-        // `WithinUlps(0)` is the bit-equal rule.
-        assert_eq!(
-            domain_grid_points(&odd, 10, GridSkip::WithinUlps(0)),
-            domain_grid_points(&odd, 10, GridSkip::BitEqual)
-        );
+        assert_eq!(domain_grid_points(&huge, 4), [-0.5 * big, 0.0]);
     }
 
     fn apply_chain(plans: &[CurvePlan], x: &[f64]) -> Vec<f64> {
@@ -1578,6 +1860,170 @@ mod tests {
             let a = eval1(&kv, &w, &x, t);
             let b = eval1(&final_kv, &final_w, &xr, t);
             assert!((a - b).abs() < 1e-10, "t={t}: {a} vs {b}");
+        }
+    }
+
+    /// Runs a chain through [`CurvePlan::apply_rational`] at `f64` and
+    /// through [`CurvePlan::apply_points`] beside it, requiring the
+    /// points and the weights to agree with the projective applier and
+    /// the plans' own weights bit for bit at every link.
+    fn rational_agrees_bitwise(
+        plans: &[CurvePlan],
+        kv: &KnotVector,
+        w: &[f64],
+        x: &[f64],
+        what: &str,
+    ) {
+        let bits = |v: &[f64]| v.iter().map(|x| x.to_bits()).collect::<Vec<_>>();
+        let (mut knots, mut xr, mut wr) = (kv.knots().to_vec(), x.to_vec(), w.to_vec());
+        let mut xp = x.to_vec();
+        for (n, plan) in plans.iter().enumerate() {
+            (xr, wr) = plan.apply_rational(&knots, &xr, &wr, (f64::NAN, &|v| v), lerp1);
+            xp = plan.apply_points(&xp, f64::NAN, lerp1);
+            assert_eq!(bits(&xr), bits(&xp), "{what} link {n}: points");
+            assert_eq!(bits(&wr), bits(plan.weights()), "{what} link {n}: weights");
+            knots = plan.knots().knots().to_vec();
+        }
+    }
+
+    /// The rational applier forms each step at the caller's scalar with
+    /// the operations the plan constructor took on `f64`, so at `f64`
+    /// it IS the projective applier and the plans' weights: insertion
+    /// (fresh and at a present breakpoint), removal's two chains, and
+    /// elevation's binomial stage.
+    #[test]
+    fn the_rational_applier_is_the_plan_at_f64() {
+        let (kv, w, x) = fixture();
+        rational_agrees_bitwise(
+            &insert_knot_plan(&kv, &w, 1.4, 2).unwrap(),
+            &kv,
+            &w,
+            &x,
+            "insert fresh",
+        );
+        rational_agrees_bitwise(
+            &insert_knot_plan(&kv, &w, 2.0, 1).unwrap(),
+            &kv,
+            &w,
+            &x,
+            "insert present",
+        );
+        rational_agrees_bitwise(
+            &refine_plan(&kv, &w, &[0.3, 1.4, 1.4, 2.5]).unwrap(),
+            &kv,
+            &w,
+            &x,
+            "refine",
+        );
+        rational_agrees_bitwise(&elevate_plan(&kv, &w).unwrap(), &kv, &w, &x, "elevate");
+        let cubic = KnotVector::clamped(
+            vec![0.0, 0.0, 0.0, 0.0, 0.7, 0.7, 0.7, 2.0, 2.0, 2.0, 2.0],
+            3,
+        )
+        .unwrap();
+        let (wc, xc) = (
+            vec![1.0, 0.8, 1.3, 2.0, 0.6, 1.1, 0.9],
+            vec![0.0, 1.0, -2.0, 3.0, 0.5, 4.0, 1.0],
+        );
+        let removal: Vec<CurvePlan> = remove_knot_plan(&cubic, &wc, 0.7, 3)
+            .unwrap()
+            .into_iter()
+            .map(|step| step.plan)
+            .collect();
+        rational_agrees_bitwise(&removal, &cubic, &wc, &xc, "remove");
+        // Distinct knots around the removed one, so each chain's ratio
+        // index is seen: `α(i) ≠ α(i + 1)` at every step of both chains.
+        // The net is 0.7, absent from the base, inserted to full
+        // multiplicity, so removing all three copies is exact (no weight
+        // collapses) and the last pass has two unknowns: one forward
+        // step and one backward step.
+        let base = KnotVector::clamped(
+            vec![0.0, 0.0, 0.0, 0.0, 0.2, 0.45, 1.3, 1.6, 2.0, 2.0, 2.0, 2.0],
+            3,
+        )
+        .unwrap();
+        let (wb, xb) = (
+            vec![1.0, 0.8, 1.3, 2.0, 0.6, 1.1, 0.9, 1.4],
+            vec![0.0, 1.0, -2.0, 3.0, 0.5, 4.0, 1.0, -1.0],
+        );
+        let ins = insert_knot_plan(&base, &wb, 0.7, 3).unwrap();
+        let last = ins.last().unwrap();
+        let (spread, ws) = (last.knots().clone(), last.weights().to_vec());
+        let xs = apply_chain(&ins, &xb);
+        let removal: Vec<CurvePlan> = remove_knot_plan(&spread, &ws, 0.7, 3)
+            .unwrap()
+            .into_iter()
+            .map(|step| step.plan)
+            .collect();
+        rational_agrees_bitwise(&removal, &spread, &ws, &xs, "remove, distinct neighbours");
+    }
+
+    /// A weight held as a variable carries its derivative through every
+    /// form: the refined weights and points are the `f64` ones in value
+    /// and move with the variable in tangent (checked against a central
+    /// difference of the `f64` plan's own weights).
+    #[test]
+    fn a_variable_weight_moves_through_the_rational_applier() {
+        use crate::dual::Dual64;
+        let (kv, w, x) = fixture();
+        let lerp = |a: Dual64, b: Dual64, l: Dual64| a + (b - a) * l;
+        for (what, chain) in [
+            ("insert", insert_knot_plan(&kv, &w, 1.4, 2).unwrap()),
+            ("elevate", elevate_plan(&kv, &w).unwrap()),
+        ] {
+            let mut knots: Vec<Dual64> = kv.knots().iter().map(|k| Dual64::constant(*k)).collect();
+            let mut wd: Vec<Dual64> = w.iter().map(|v| Dual64::constant(*v)).collect();
+            wd[2] = Dual64::variable(w[2]);
+            let mut xd: Vec<Dual64> = x.iter().map(|v| Dual64::constant(*v)).collect();
+            for plan in &chain {
+                (xd, wd) = plan.apply_rational(
+                    &knots,
+                    &xd,
+                    &wd,
+                    (Dual64::constant(f64::NAN), &Dual64::constant),
+                    lerp,
+                );
+                knots = plan
+                    .knots()
+                    .knots()
+                    .iter()
+                    .map(|k| Dual64::constant(*k))
+                    .collect();
+            }
+            let last = chain.last().unwrap();
+            let h = 1e-6;
+            let at = |dw: f64| {
+                let mut wv = w.clone();
+                wv[2] += dw;
+                let plans = if what == "insert" {
+                    insert_knot_plan(&kv, &wv, 1.4, 2).unwrap()
+                } else {
+                    elevate_plan(&kv, &wv).unwrap()
+                };
+                plans.last().unwrap().weights().to_vec()
+            };
+            let (up, down) = (at(h), at(-h));
+            for (i, d) in wd.iter().enumerate() {
+                assert_eq!(
+                    d.value.to_bits(),
+                    last.weights()[i].to_bits(),
+                    "{what} weight {i}: value"
+                );
+                let fd = (up[i] - down[i]) / (2.0 * h);
+                assert!(
+                    (d.deriv - fd).abs() < 1e-6,
+                    "{what} weight {i}: {} vs {fd}",
+                    d.deriv
+                );
+            }
+            assert!(
+                wd.iter().any(|d| d.deriv != 0.0),
+                "{what}: the variable reached no weight"
+            );
+            assert!(
+                xd.iter().any(|d| d.deriv != 0.0),
+                "{what}: the variable reached no point"
+            );
         }
     }
 

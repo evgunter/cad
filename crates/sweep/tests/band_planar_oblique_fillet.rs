@@ -173,11 +173,11 @@ fn a_near_perpendicular_end_escalates_or_decides_the_circle() {
 /// watertight. The boolean takes it with a brick beside the band and
 /// with one through it, in every op, tier-3 valid at the closed forms:
 /// the notch's overlap is its box, the slot's its box less the band's
-/// section over the slot's width. A brick wholly apart refuses at the
-/// containment door, whose rays from the far brick meet nothing and
-/// whose volume fallback is closed-form only — the boolean's open row
-/// (`work/contact/at-infinity-probe-measures-in-closed-form-only.md`),
-/// pinned here so it retires with it.
+/// section over the slot's width. A brick wholly apart is sided by the
+/// containment door, whose rays from the far brick meet nothing: the
+/// closed-form volume cannot read the at-infinity side of the band an
+/// ellipse trims, and a ray aimed at a planar face of it does. `∖` keeps
+/// the filleted body, `∪` adds the brick, `∩` is empty.
 #[test]
 fn the_ellipse_edges_pass_the_tessellator_and_the_boolean() {
     let body = parallelogram::<f64>();
@@ -226,19 +226,25 @@ fn the_ellipse_edges_pass_the_tessellator_and_the_boolean() {
         brick((5.0, 6.0), (5.0, 6.0), (5.0, 6.0), tol()),
         tol(),
     );
-    for (op, result) in [
-        ("subtract", topo::subtract(&operand, &apart, tol())),
-        ("union", topo::union(&operand, &apart, tol())),
+    for (op, result, want) in [
+        ("subtract", topo::subtract(&operand, &apart, tol()), v),
+        ("union", topo::union(&operand, &apart, tol()), v + 1.0),
     ] {
-        match result {
-            Err(BooleanError::Containment(topo::PointInSolidError::VolumeUncertified)) => {}
-            other => panic!(
-                "a brick apart ({op}): the containment door's closed-form fallback refuses, got \
-                 {:?} — retire this pin with the boolean's row",
-                other.map(|_| ())
-            ),
-        }
+        let result = result.unwrap_or_else(|e| panic!("a brick apart ({op}): builds, got {e:?}"));
+        let result = &result.body().expect("not empty").body;
+        let (got, pad_r) = volume_enclosure(result);
+        assert!(
+            (got - want).abs() < 1e-12 + pad + pad_r,
+            "a brick apart ({op}): V {got} vs the closed form {want}"
+        );
     }
+    assert!(
+        matches!(
+            topo::intersect(&operand, &apart, tol()),
+            Ok(topo::BooleanResult::Empty)
+        ),
+        "a brick apart (intersect): empty"
+    );
 }
 
 /// The edge between two points of an `Interval` body, either way round.
@@ -539,7 +545,7 @@ fn a_brick_through_a_steep_elliptic_end_builds_in_every_op() {
             op,
             &operand,
             &tool,
-            &topo::BooleanDeclarations::none(),
+            &topo::BooleanInputs::default(),
             topo::boolean::SweepStrategy::Realized,
             tol(),
         )

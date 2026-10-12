@@ -59,6 +59,27 @@ struct Run {
     trace: CensusTrace,
 }
 
+/// The product's records as the census first reads them: every record
+/// but those the gather's census minted between copies, so the
+/// comparator sweeps the touches those records would otherwise back.
+fn mated_records(product: &editor_core::Product<f64>) -> topo::ContactRecords {
+    product
+        .contacts
+        .rows()
+        .iter()
+        .filter(|record| {
+            !record.cites.iter().any(|backing| match backing {
+                topo::Backing::Decided(k) => product
+                    .coincidences
+                    .get(k as usize)
+                    .is_some_and(|row| matches!(row.by, editor_core::AtRestBy::Copies(..))),
+                topo::Backing::Carried { .. } => false,
+            })
+        })
+        .cloned()
+        .collect()
+}
+
 fn run(name: &str, doc: &ProfileDoc, strategy: CensusStrategy) -> Run {
     let tol = Tol::witness();
     let ev = eval::<f64>(doc);
@@ -72,7 +93,7 @@ fn run(name: &str, doc: &ProfileDoc, strategy: CensusStrategy) -> Run {
         .unwrap_or_else(|e| panic!("{name}: the product gathers: {e:?}"));
     let (errors, trace) = census_traces(
         &product.body,
-        &product.contacts,
+        &mated_records(&product),
         band(),
         tol,
         Some(RegionLane::certified()),
@@ -118,28 +139,30 @@ fn pin(name: &str, doc: &ProfileDoc) -> usize {
 /// [-1.5, -0.5]): the torus's lowest circle lies on the planar cap.
 fn torus_on_cylinder() -> ProfileDoc {
     let mut r = Recorder::new();
-    let spine = r.insert(Node::Datum(Datum::Axis {
+    let spine = r.insert(Node::Datum(Datum::Frame {
         origin: [len(0.0), len(0.0), len(0.0)],
-        direction: [scl(0.0), scl(0.0), scl(1.0)],
+        u: [scl(1.0), scl(0.0), scl(0.0)],
+        v: [scl(0.0), scl(1.0), scl(0.0)],
     }));
-    r.insert(Node::Tube {
-        spine,
-        u_ref: [scl(1.0), scl(0.0), scl(0.0)],
+    let body = r.insert(Node::Tube {
+        frame: spine.into(),
         major_radius: len(2.0),
         window: TubeWindow::Full,
         minor_radius: len(0.5),
     });
+    r.place(body);
     let plane = r.insert(frame([0.0, 0.0, -1.5], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let disc = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![LoopProgram::circle_split(0.0, 0.0, 3.0, 3, 0.0).unwrap()],
         ids: Vec::new(),
     }));
-    r.insert(Node::Extrude {
-        profile: disc,
+    let body = r.insert(Node::Extrude {
+        profile: disc.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
+    r.place(body);
     r.doc
 }
 
@@ -150,28 +173,30 @@ fn boss_on_plate() -> ProfileDoc {
     let mut r = Recorder::new();
     let plate_plane = r.insert(xy_frame());
     let plate = r.insert(Node::Profile(ProfileProgram {
-        plane: plate_plane,
+        frame: plate_plane.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (3.0, 0.0), (3.0, 3.0), (0.0, 3.0)]).unwrap(),
         ],
         ids: Vec::new(),
     }));
-    r.insert(Node::Extrude {
-        profile: plate,
+    let body = r.insert(Node::Extrude {
+        profile: plate.into(),
         distance: len(0.8),
         side: ExtrudeSide::Along,
     });
+    r.place(body);
     let boss_plane = r.insert(frame([0.0, 0.0, 0.8], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let boss = r.insert(Node::Profile(ProfileProgram {
-        plane: boss_plane,
+        frame: boss_plane.into(),
         loops: vec![LoopProgram::circle_split(1.2, 1.7, 0.35, 3, 0.0).unwrap()],
         ids: Vec::new(),
     }));
-    r.insert(Node::Extrude {
-        profile: boss,
+    let body = r.insert(Node::Extrude {
+        profile: boss.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
+    r.place(body);
     r.doc
 }
 
@@ -182,15 +207,16 @@ fn tangent_cylinders() -> ProfileDoc {
     for cx in [0.0, 2.0] {
         let plane = r.insert(xy_frame());
         let disc = r.insert(Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![LoopProgram::circle_split(cx, 0.0, 1.0, 3, 0.0).unwrap()],
             ids: Vec::new(),
         }));
-        r.insert(Node::Extrude {
-            profile: disc,
+        let body = r.insert(Node::Extrude {
+            profile: disc.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         });
+        r.place(body);
     }
     r.doc
 }
@@ -202,7 +228,7 @@ fn loft_with_brick() -> ProfileDoc {
     let section = |r: &mut Recorder, z: f64, pts: [(f64, f64); 4]| {
         let plane = r.insert(frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
         r.insert(Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![LoopProgram::polygon(pts).unwrap()],
             ids: Vec::new(),
         }))
@@ -210,23 +236,25 @@ fn loft_with_brick() -> ProfileDoc {
     let bottom = section(&mut r, 0.0, PRISM_SQUARE);
     let middle = section(&mut r, 1.0, PRISM_TRAPEZOID);
     let top = section(&mut r, 2.0, PRISM_SQUARE);
-    r.insert(Node::Loft {
-        profiles: vec![bottom, middle, top],
+    let body = r.insert(Node::Loft {
+        profiles: vec![bottom.into(), middle.into(), top.into()],
         v_degree: Formula::count(2),
     });
+    r.place(body);
     let brick_plane = r.insert(frame([0.0, 0.0, 2.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let brick = r.insert(Node::Profile(ProfileProgram {
-        plane: brick_plane,
+        frame: brick_plane.into(),
         loops: vec![
             LoopProgram::polygon([(-0.5, -0.5), (0.5, -0.5), (0.5, 0.5), (-0.5, 0.5)]).unwrap(),
         ],
         ids: Vec::new(),
     }));
-    r.insert(Node::Extrude {
-        profile: brick,
+    let body = r.insert(Node::Extrude {
+        profile: brick.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
+    r.place(body);
     r.doc
 }
 
@@ -238,7 +266,7 @@ fn grazing_notch() -> ProfileDoc {
     let mut r = Recorder::new();
     let l_plane = r.insert(xy_frame());
     let l = r.insert(Node::Profile(ProfileProgram {
-        plane: l_plane,
+        frame: l_plane.into(),
         loops: vec![
             LoopProgram::polygon([
                 (0.0, 0.0),
@@ -252,24 +280,26 @@ fn grazing_notch() -> ProfileDoc {
         ],
         ids: Vec::new(),
     }));
-    r.insert(Node::Extrude {
-        profile: l,
+    let body = r.insert(Node::Extrude {
+        profile: l.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
+    r.place(body);
     let brick_plane = r.insert(frame([0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let brick = r.insert(Node::Profile(ProfileProgram {
-        plane: brick_plane,
+        frame: brick_plane.into(),
         loops: vec![
             LoopProgram::polygon([(1.25, 1.25), (1.75, 1.25), (1.75, 1.75), (1.25, 1.75)]).unwrap(),
         ],
         ids: Vec::new(),
     }));
-    r.insert(Node::Extrude {
-        profile: brick,
+    let body = r.insert(Node::Extrude {
+        profile: brick.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
+    r.place(body);
     r.doc
 }
 
@@ -322,13 +352,14 @@ fn the_grazing_notch_keeps_the_candidate_the_exact_predicate_rejects() {
     );
 }
 
-/// The corpus heat sink with its fin count driven to `fins`.
+/// The corpus heat sink with its fin count driven to `fins`, and each
+/// fin placed.
 fn heatsink_at(fins: i64) -> ProfileDoc {
     let entry = documents()
         .into_iter()
         .find(|d| d.name == "heat_sink")
         .expect("the corpus carries the heat sink");
-    apply(
+    let driven = apply(
         &entry.doc,
         &DocEdit::DefineVar {
             var: VarName::from_static("fins").into(),
@@ -339,7 +370,8 @@ fn heatsink_at(fins: i64) -> ProfileDoc {
         &editor_core::RefusingReach,
     )
     .expect("the fin count is a document parameter")
-    .doc
+    .doc;
+    crate::corpus::place_pattern_to(driven, fins)
 }
 
 #[test]
@@ -356,9 +388,10 @@ fn planted_degradation_is_caught() {
     let tol = Tol::witness();
     let ev = eval::<f64>(&doc);
     let product = product_recorded(&doc, &ev, tol).expect("the boss gathers");
+    let records = mated_records(&product);
     let (_, ideal) = census_traces(
         &product.body,
-        &product.contacts,
+        &records,
         band(),
         tol,
         Some(RegionLane::certified()),
@@ -374,7 +407,7 @@ fn planted_degradation_is_caught() {
     };
     let (_, real) = census_traces_planted(
         &product.body,
-        &product.contacts,
+        &records,
         band(),
         tol,
         Some(RegionLane::certified()),

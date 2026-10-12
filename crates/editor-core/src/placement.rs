@@ -690,7 +690,7 @@ impl Placement {
         let dims: std::collections::BTreeMap<crate::VarId, crate::Dimension> = self
             .rows()
             .into_iter()
-            .map(|(slot, &var)| (var, slot.dimension()))
+            .map(|(slot, &var)| (var, slot.expr_dimension()))
             .collect();
         let Ok(authored) = self.try_map_slots(&mut |var| {
             let Some(&dim) = dims.get(var) else {
@@ -787,6 +787,20 @@ impl Placement {
     ) -> Result<Affine3<T>, NodeErrorKind> {
         self.chain_motion(Motion::Identity, vals, band)
             .map(Motion::affine)
+    }
+
+    /// [`Placement::motion`] with the bit-exact identity kept marked
+    /// ([`Motion`]), for a door that skips it.
+    ///
+    /// # Errors
+    ///
+    /// [`Placement::motion`]'s.
+    pub(crate) fn motion_kept<T: Decide>(
+        &self,
+        vals: &SlotValues<T>,
+        band: Band,
+    ) -> Result<Motion<T>, NodeErrorKind> {
+        self.chain_motion(Motion::Identity, vals, band)
     }
 
     /// [`Placement::motion`] after `before`, with the identity kept

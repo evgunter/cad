@@ -16,7 +16,7 @@
 use core::f64::consts::FRAC_PI_2;
 
 use geom::{Curve3, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
 use geom_core::{Band, Point3, Tol, Vec3};
 
 use super::{ball_off_face, clusters, edge_clear_of_ball, reach, speed_bound};
@@ -191,8 +191,7 @@ fn elliptic_edge(b_in_major: bool) -> (Body<f64>, EdgeKey) {
     });
     let arc = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
-            s1: plane,
-            s2: cyl,
+            pair: SurfacePair::new(plane, cyl),
             witness: carrier.eval(0.5 * (t0 + t1)),
         },
         carrier,
@@ -259,7 +258,6 @@ fn a_ball_holding_a_face_vertex_in_the_band_of_its_foot_is_not_off_the_face() {
     let face = cyl_wall_sheet(
         &mut body,
         CylFrame::canonical(1.0),
-        None,
         (0.0, FRAC_PI_2),
         (0.0, 1.0),
         tol,

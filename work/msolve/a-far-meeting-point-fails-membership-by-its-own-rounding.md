@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-01
 priority: P2
 cost: M
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage3-is-built]
 ---
 
 
@@ -68,3 +68,7 @@ A decided statement of the session's range that the translation stage
 asks of its candidate, refusing `PoseOutOfRange` past it; or membership
 margins carried as enclosures so a residual inside its own rounding
 escalates as the enclosure it is.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage3-is-built`, not on the whole program: the false Contradictory comes from the membership re-measure (mate_member_translation_in_plane), which stage 3's measure-free overconstraint retires. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

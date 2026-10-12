@@ -17,7 +17,9 @@
 //! asks points of the dome at both scalars; the slit face's rims wrap
 //! the axis, so the door reads its latitude window and not the azimuth
 //! one, and a pick that refused the straddle instead would turn every
-//! verdict into a partial-sphere refusal.
+//! verdict into a partial-sphere refusal. A point outside the dome whose
+//! rays meet nothing is answered off a ray aimed at its base: the slit's
+//! cusp leaves the at-infinity volume uncertified.
 //!
 //! A third row hands the slit to the Boolean, which serves finished
 //! bodies only: a slit operand — the dome against a brick, and a slit
@@ -36,9 +38,9 @@ use geom_core::{Band, Bounds, Decide, Dual64, Interval, Point2, Point3, Real, To
 use sweep::Revolution;
 use sweep::test_support::{finished, revolved_about_y_at};
 use topo::{
-    AtRestPolicy, Body, BooleanDeclarations, BooleanError, BooleanOp, BooleanResult,
-    SolidContainment, SplitError, SplitReduceError, SweepStrategy, ValidationError,
-    face_azimuth_window_traces, point_in_solid, validate, validate_closed,
+    AtRestPolicy, Body, BooleanError, BooleanOp, BooleanResult, SolidContainment, SplitError,
+    SplitReduceError, SweepStrategy, ValidationError, face_azimuth_window_traces, point_in_solid,
+    validate, validate_closed,
 };
 
 fn f<T: Real>(x: f64) -> T {
@@ -118,6 +120,10 @@ fn verdicts<T: Decide + topo::AtRestPolicy + Bounds>(lane: &str) {
     for (i, slit) in slits::<T>().iter().enumerate() {
         for ((x, y, z), want) in TABLE {
             let got = point_in_solid(slit, Point3::new(f(x), f(y), f(z)), band, Tol::witness());
+            // A point outside is read off a ray aimed at the base: the
+            // slit's strut tip is a cusp of the sphere face's loop, which
+            // the sphere arm of the volume refuses
+            // (`props_sphere_loop_cusp`), so the volume reads no side.
             assert!(
                 matches!(got, Ok(v) if v == want),
                 "[{lane}] slit {i}: point ({x}, {y}, {z}) against the slit dome: \
@@ -196,7 +202,7 @@ fn subtract<T: Decide + topo::AtRestPolicy + Bounds>(
         BooleanOp::Subtract,
         &finished("operand A", a.clone(), Tol::witness()),
         &finished("operand B", b.clone(), Tol::witness()),
-        &BooleanDeclarations::none(),
+        &topo::BooleanInputs::default(),
         SweepStrategy::Realized,
         Tol::witness(),
     )

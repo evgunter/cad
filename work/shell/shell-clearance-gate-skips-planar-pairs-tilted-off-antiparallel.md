@@ -2,10 +2,13 @@
 id: shell-clearance-gate-skips-planar-pairs-tilted-off-antiparallel
 kind: issue
 title: wall_clearance reads only antiparallel planar pairs, so two planar walls meeting at an angle across less than 2t shell silently
-status: open
+status: closed
 opened: 2026-10-06
 priority: P1
 cost: M
+pr: 4311
+branch: shell/tilted-walls
+closed: 2026-10-08
 ---
 
 
@@ -45,3 +48,16 @@ A closing gate reads, for a facing non-antiparallel pair, the least
 distance between the two faces' offset regions (or refuses any facing
 pair whose dihedral is below a threshold and whose footprints overlap,
 the #571 direction), and is decided per pair like `shell_wall_clearance`.
+
+## Closed
+
+2026-10-08, PR 4311. `moved_walls_cross` reads every transversal,
+non-adjacent planar pair on the cavity the offset doors built, cutting
+both faces by the line their moved planes share (lines, circles and
+ellipses exactly), and refuses `ShellError::OffsetsCross` where the cuts
+overlap. Both witnesses (the notched prism, the long thin arm) refuse
+typed; the thick wedge at the same lean shells to its closed form; a
+merge-base differential moved no outcome outside the PR's rows. Residues
+filed: `tilted-read-accepts-a-zero-touch-on-any-vertex-sharing-pair`,
+`tilted-read-takes-a-spline-or-spiric-edge-as-its-carrier-ball`,
+`tilted-read-skips-edge-adjacent-pairs-that-cross-away-from-their-edge`.

@@ -35,10 +35,15 @@ pub(crate) fn schedule<P: crate::ProfilePayload>(doc: &Doc<P>) -> Schedule {
     // no edge and the node fails later at operand lookup.
     let mut indegree: BTreeMap<RecipeNodeId, usize> = BTreeMap::new();
     let mut dependents: BTreeMap<RecipeNodeId, Vec<RecipeNodeId>> = BTreeMap::new();
-    for (&id, node) in &doc.nodes {
-        let live_inputs: Vec<RecipeNodeId> = node
-            .inputs()
-            .into_iter()
+    let upstream: BTreeMap<RecipeNodeId, Vec<RecipeNodeId>> = doc
+        .nodes
+        .iter()
+        .map(|(&id, node)| (id, doc.upstream_of(node)))
+        .collect();
+    for (&id, inputs) in &upstream {
+        let live_inputs: Vec<RecipeNodeId> = inputs
+            .iter()
+            .copied()
             .filter(|i| doc.node(*i).is_some())
             .collect();
         indegree.insert(id, live_inputs.len());
@@ -56,16 +61,13 @@ pub(crate) fn schedule<P: crate::ProfilePayload>(doc: &Doc<P>) -> Schedule {
     let mut level: BTreeMap<RecipeNodeId, usize> = BTreeMap::new();
     while let Some(Reverse(id)) = ready.pop() {
         order.push(id);
-        let lvl = doc
-            .node(id)
-            .map(|node| {
-                node.inputs()
-                    .into_iter()
-                    .filter_map(|i| level.get(&i).copied())
-                    .max()
-                    .map_or(0, |m| m + 1)
-            })
-            .unwrap_or(0);
+        let lvl = upstream
+            .get(&id)
+            .into_iter()
+            .flatten()
+            .filter_map(|i| level.get(i).copied())
+            .max()
+            .map_or(0, |m| m + 1);
         level.insert(id, lvl);
         for &dep in dependents.get(&id).into_iter().flatten() {
             if let Some(d) = indegree.get_mut(&dep) {

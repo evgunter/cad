@@ -19,7 +19,7 @@ is documented in `crates/topo/README.md`; the user-facing walk is
 |---|---|
 | A2 evaluation seam, memo | `src/part.rs` (`PartResolver`, `ResolveFault`), `src/eval/parts.rs` (`PartCache`, `PartFault`); `transform_rigid`, `graft_disjoint_all_keyed` in `crates/topo/src/instance.rs` |
 | A2a pairing doors | `mispaired`, `Mispaired` in `src/ident.rs`; the doors in `src/product.rs`, `src/assembly.rs`, `src/mate/solve.rs`, `src/checks.rs`, `src/resolve/mod.rs`, `src/resolve/pick.rs`; the memo's drop in `src/eval/mod.rs` |
-| A3, A11, A12 mates, solve | `src/mate.rs` (`class_admission`, `MateFault`), `src/mate/coset.rs`, `src/mate/solve.rs` |
+| A3, A11 mates, solve | `src/mate.rs` (`class_admission`, `MateFault`), `src/mate/coset.rs`, `src/mate/solve.rs` |
 | A4, A13 identity, pins, update | `src/ident.rs`, `src/update.rs`, `DocEdit::UpdateReference` in `src/edit.rs` |
 | A4 split and inline | `src/refactor.rs`; `InterfaceRecord` in `src/node.rs`; `DocEdit::Promote`/`Fold` in `src/edit.rs` |
 | A5 at-rest gate | `src/assembly.rs` (`assemble`, `AssemblyError`) |
@@ -28,7 +28,7 @@ is documented in `crates/topo/README.md`; the user-facing walk is
 | A9, A11 partitions | `relative_freedom_components`, `groups`, `root_of` in `src/mate/solve.rs` |
 | A11 (2) gauges, offsets, spaces | `Node::Gauge` and `InstantiatePart`'s `gauge`/`offset` in `src/node.rs`; `DocEdit::SetOffset`/`SetGauge`, the mate door (`clear_joined_offsets`) and `regauge_then_mate` in `src/edit.rs`; `group_frame`, `Pose`, `check_offsets`, `spaces_with` in `src/mate/solve.rs`; `instance_frame` in `src/eval/wire.rs`; the per-space gather and gate (`Product::spaces`, `own_spaces`, `gate_spaces`) in `src/product.rs` and `src/assembly.rs`; the one cross-space predicate `Evaluation::across_spaces`; an unplaced group below as `CarriedUnplaced` (`Evaluation::unplaced_below`) |
 | A11 (3) roots | `root_and_cause` in `src/mate/solve.rs` (a pattern's copies are values of the pattern node, never `InstantiatePart` nodes, so none is a root candidate) |
-| A10 roots and gather | `src/roots.rs`, `src/product.rs`, `DocEdit::SetRoots` |
+| A10 the world and the gather | `Node::PlaceInWorld` in `src/node.rs`, `Doc::placements`/`Doc::unplaced` in `src/doc.rs`, `src/product.rs`, `DocEdit::place` in `src/edit.rs` |
 | Store (AQ1) | `Workspace` in `crates/pncad/src/workspace.rs` |
 
 ## Scope
@@ -46,8 +46,9 @@ numerically solved mates (SE(3) witnesses under the witness contract in
 instantiate node resolves its `DocRef` through the evaluation's
 `PartResolver` (`EvalOptions::resolver`; with none, instantiate nodes
 refuse typed), evaluates the pinned document at the ambient ε, takes its
-world (A10), one `Body` per world placement at its world coordinates,
-and materializes it through `topo::transform_rigid`
+world (A10), one `Body` per world placement, all in one space (no body
+has world coordinates: the world sets only the coordinates export
+writes), and materializes it through `topo::transform_rigid`
 (rigidity re-decided, every carrier re-certified) and the disjoint
 graft. A resolved document whose recorded ε disagrees refuses
 `ResolveFault::EpsilonSeam`. `PartCache` memoizes per `(DocRef, ε)`
@@ -92,8 +93,8 @@ The doors that refuse:
 - `run_checks_on`, and `run_checks` as its wrapper
   (`ChecksError::EvaluationOfAnotherDocument`), which checks the
   evaluation and the document a `Subject::Product` carries, because a
-  resident reading `doc.roots()` against a foreign evaluation finds a
-  value for every root;
+  resident reading `doc.placements()` against a foreign evaluation
+  finds a value for every placement;
 - `resolve::apply_with_names` (`EditError::EvaluationOfAnotherDocument`),
   which reads the handed evaluation's name tables, so a foreign one
   admits a name the edited document does not carry or refuses one it
@@ -149,16 +150,18 @@ row `pair-doors-outside-the-three-do-not-check-document-identity`.
 **A3 — The node vocabulary; mates are declarations.**
 `Node::InstantiatePart { doc_ref, interface, gauge, offset }`
 instantiates a pinned document; it names its gauge and may carry an
-offset in it (A11 (2)). `Node::Pattern` replicates an instance by
-`PatternKind::Linear`, `Circular` or `Explicit`.
+offset in it (A11 (2)). Repetition is an index variable (D10,
+Repetition): a placement whose reads reach an index places one copy per
+value of it, and no node is a pattern.
 
 `Node::Mate { a, b, class, alignment }` is one contact declaration that
 also places:
 
-- `a`/`b` are `SitedFace`s: an instance-qualified face name
-  (`names::FaceName`, whose one constructor is the only way a face name
-  is made) plus the operand node it is read at, so a mate naming an
-  edge is a program that does not compile.
+- `a`/`b` each read one `Face` variable (`OperandSlot::Side`): a
+  selection of the body the side is read in by an instance-qualified
+  face name (D10). The authored spelling is a `SitedFace`, a
+  `names::FaceName` (whose one constructor is the only way a face name
+  is made) and the node whose body it is read in.
 - `class` is the kernel `topo::ContactClass`.
 - `alignment` is an `Alignment`: two `MateFrame`s, a `MatePrimitive`,
   and an authored `AxisSense` (so no π-flip is inferred). Each
@@ -180,27 +183,21 @@ Evaluation mints each mate's declaration into the product's
 declarations are verified, never trusted. `class_admission` is the one
 table both the solve and the mint door read: `Rest` solves and mints;
 `Tangent` solves and refuses at the mint door
-(`MintRefusal::NoAtRestRecord`: no witness edge at rest; recourse
+(`MintRefusal::NoAtRestRecord`: the census at rest decides nothing
+along a tangency's locus for its face–face record to cite; recourse
 `NO_AT_REST_RECORD_RECOURSE`); anything else, including the reserved
 and unbuilt `Fit { gap }`, refuses at the solve door.
 
-**A12 — Mate edges and roots.** Each of a mate's two `SitedFace`s
-contributes a *reading edge* to the member its operand resolves to: the
-walk's minting instance, whatever the depth of the copy chain above it.
-Reading edges are recomputed by `reading_edges`, never stored, and are
-not operand edges: `inputs()` stays empty. A9's partition runs over
-operand ∪ reading edges and A11's groups over placing mates. A mate
-places nothing in the world, so it is never in the product (A10).
-
-A dangling reference (name or operand) contributes no edge, and the
-fault names the node the walk stopped at; `Rebind` repairs a name and
-carries an at-mint operand with it, and a stranded operand is
-re-authored. A cut that would leave a mate and one of its operands on
-opposite sides refuses at the split door
-(`SplitError::OperandSeveredFromMate`), the reading edge's twin of D-2's
-closure rule. The exception is the interface crossing itself, where a
-kept mate's at-mint operand re-anchors through the minted instance with
-the name it is authored on.
+**A12 — Mate sides are reads.** Retired by D10: a mate side is a
+read like any other, so a mate depends on the bodies its faces are read
+in, A9's partition runs over reads (D10, Operations), and a cut that
+separates a mate from a body it reads is D-2's ordinary severed read. The
+member a side lands on is the walk from the selection's body down to its
+name's minting instance, whatever the depth of the copy chain above it
+(`mate::member_of`). A side whose body is deleted leaves the mate
+unresolved and typed, and a name that stops resolving is the selection's
+refusal, repaired by `Rebind` addressed by the body. A mate places
+nothing in the world, so it is never in the product (A10).
 
 ## Identity, pins, split and inline
 
@@ -296,46 +293,50 @@ re-evaluation, which re-verifies crossings (A4).
 ## Validity
 
 **A5 — The at-rest gate.** `assembly::assemble` gathers the product
-(`product::product_recorded`), mints every solved mate's declaration as
-a `MintedDeclaration` (declaring mates mint like determining ones), and
-runs the scalar's at-rest policy, `topo::validate_pseudomanifold`'s
-verdict, over body plus records. The gather's own tier-3 verdict rides
-on the product's body (`topo::AtRestBody`), so the gate runs tier 3′'s
-census over it rather than the local battery a second time. The gate
+(`product::product_recorded`), which mints every solved mate's
+declaration as a `MintedDeclaration` (declaring mates mint like
+determining ones) and runs the scalar's at-rest policy,
+`topo::validate_pseudomanifold`'s census, over body plus records, once,
+keeping its findings on the product (`Product::census`); the gate reads
+them and runs no census of its own. A mate places and never checks (D10):
+its record cites the at-rest census's decision that its two faces rest
+on one carrier (`topo::census_rest_decision`, a `CensusAtRest` row on
+the product, which the `unproven-coincidence` check reads), and a pair
+the census refuses mints no record, its finding raised by the gate
+beside the census's own. The gather's own tier-3 verdict rides
+on the product's body (`topo::AtRestBody`), so the gate reads both
+verdicts rather than running either a second time. The gate
 runs no predicate of its own; kernel findings come back as
 `AtRestFinding`s attributed to the mate whose declaration they concern.
-Undeclared contact between instances is a hard error, never blessed.
+A touch between two copies that no record backs refuses nothing (D1
+(iii), D10): the gather's census records it (`topo::record_at_rest`,
+each copy its own group) as a `CensusAtRest` row of the product
+(`AtRestBy::Copies`) and a record citing it, which the census's next
+pass confirms, and the `unproven-coincidence` check reports each row
+the coincidence door does not prove. Such a record backs no mate, so it
+quiets no `Separation` finding. A touch inside one copy that no record
+backs is that copy's defect, and refuses.
 `AssemblyError::AtRest` is a verdict against the document;
 `AssemblyError::Uncertified` is the declared direction's frontier
 (every finding declined, none refuted). A disjoint assembly certifies as
 a multi-solid tier-3 body.
 
-*Where a declaration is minted.* Minting reads each reference's name
-where the mate reads it, in its operand's table, and carries it up the
-operand's consumers to the product's roots, each consumer spelling it as
-it carries it (`names::lift`, exhaustive over node kinds: a `Part` and a
-split's target carry it verbatim, a union as its member's name, a pair
-boolean as `FromA`/`FromB`, a fillet, chamfer or shell as `FromTarget`;
-a transform, pattern or placed union places it again). Where the operand
-is a root, or reaches one through `Part` selections and split targets
-alone, the lift is the identity. Exactly one product face reached is the
-face minted on; otherwise the reference refuses with one of three
-`RefusedRef` arms:
-
-- `Ambiguous`: two or more product faces are reached.
-- `MovedAbove { at, by }`: no route carries the face to the product
-  unmoved, and `by` is a placer on the way up. A route through a placer
-  never succeeds, because the product holds the face where the placer
-  put it, not where the mate reads it. The recourse is to re-pick the
-  face on `by` (naming the copy, when `by` places copies).
-- `Vanished { by }`: `by` is a consumer that merges or cuts the face,
-  or, when none does, a consumer reading the body in a seat that holds
-  no face of it. A name the operand does not spell is
-  `Vanished { by: None }`.
-
-There is no kind arm, and the gate asks no kind question: a head is a
-`SitedFace` over a `FaceName` (A3), so what the name denotes is fixed by
-the type.
+*Where a declaration is minted.* A mate's declaration is minted on the
+world copies of its members, read through those copies' placements
+(#4220). Each side's face is resolved once, at its selection, where the
+mate's own evaluation resolves it: its entity in the body the selection
+reads. The copy is the world placement reading that body, or reading
+the `Part` that picks the entity's copy out of a pattern's bodies; a
+placement moves its body and re-mints nothing, so the copy holds the
+entity under the same key, and the graft carries it into the product.
+Nothing is resolved against the product's table. A side whose body no
+placement reads has no world copy, and the mate mints nothing: such a
+mate relates a boolean's operands in the workbench, which is the
+boolean's coincidence door's business, not an at-rest fact of the
+product. A body placed twice refuses `RefusedRef::Ambiguous`, since a
+declaration names one pair of faces, and a mate with no value in the
+evaluation refuses `MintRefusal::Unevaluated` rather than passing the
+gate silently.
 
 *Across the seam.* A sub-assembly's declarations ride through the seam
 as records (`PartValue::contacts`), and so does the bookkeeping that
@@ -353,10 +354,14 @@ gate.
 `Attribution::Carried`, naming that mate, that document and that route,
 in the same `Relation` (`refuted` or `declined`) the own-minted arms
 use; so a carried decline reaches `AssemblyError::Uncertified` under its
-own name. `Attribution::Unattributed` is a finding no declaration this
-document holds a row for answers for, its own or a part's. That is
-currently every declaration in the tree, because the only path a record
-can take without its row (a boolean over a source) is one no instance
+own name. A finding no declaration this document holds a row for
+answers for, its own or a part's, carries no attribution
+(`AtRestFinding::attribution` is `None`): a finding about no
+declaration at all (a structural defect, an overlap or a touch no
+record backs inside one copy, an unrecorded touch of a pair the census
+could not clear, a census that could not look), never a declaration
+that lost its row. Every declaration in the tree keeps its row,
+because the only path a record can take without its row (a boolean over a source) is one no instance
 carrying a declaration can reach: such an instance is a product of
 several parts, whose part count the placers and a sub-assembly that
 instantiates it carry through (`NodeValue::parts`), and every op that
@@ -370,11 +375,39 @@ such row in gather order, before this document's own unminted rows and
 before the at-rest gate: an outer assembly is unusable while an inner
 part's contact is unverified.
 
-*Interference.* An interference fit (one instance's material containing
-a vertex of another's) is decided by the census's material test and
-refused typed (`ValidationError::InstanceInterference`). The recorded
-gate-skips that `crates/topo/README.md`'s C6 declares are not
-implemented.
+*Interference.* An overlap of two copies' material is a finding of its
+own, never a refusal (D10; `checks::at_rest`). The census decides that
+two copies interfere: a vertex of one strictly inside the other's
+material (`ValidationError::InstanceInterference`), an edge piercing a
+face (`CensusContact::EdgeFacePierce`), or an in-plane crossing whose
+side test reads `SameSide`. The gate takes those verdicts out of its
+refusal, with every `CensusUndecidable` the census left on the same
+pair of copies, and intersects the two copies. Each connected solid of
+the intersection is one `InterferenceFinding` on
+`Assembly::interference`, named by the faces of both copies that bound
+it. An intersection the kernel cannot form leaves one
+`Overlap::Unlocalized` finding for the pair, which is loud and which
+nothing quiets; so does a decided overlap at an analysis scalar, which
+has no localizing lane (`LocalizeLane`: `f64` builds bodies). A pair the
+census decided nothing about is refused as before.
+
+A finding is quiet when a holding assertion reads a `Gap`'s output
+directly over an opposed pair of faces of the two copies, admits only
+negative values (`≤ b` or `= b`, `b` decided negative), and its two
+faces bound the overlap, and the overlap lies between their carriers.
+The last is the kernel's own boolean: the
+region past each asserted carrier, away from its copy's material, is
+built as a solid (a box past a plane, the solid cylinder inside a bore,
+the tube outside a pin) and intersected with the overlap, which lies
+between when neither intersection keeps any of it. A containment check
+that refuses leaves the finding `Unlocalized`. A quiet finding carries
+no verdict nothing checked: every `CensusUndecidable` on the pair must
+be a face pair bounding the quieted overlap, so an undecided pair
+beside it (a pin pressed into one bore and slipped into another) keeps
+it loud. Every other overlap is loud. Between two solids of one copy an overlap stays the kernel's
+typed error. The partition takes interference verdicts only: a press
+fit whose pin is flush with its plate also touches at the coplanar
+caps, which the gather records as rows of the two copies.
 
 ## Mirror
 
@@ -382,11 +415,13 @@ implemented.
 part so an improper frame (det = −1) is representable, and it is refused
 wherever a document admits a frame, by one predicate
 (`Frame::admission_fault`): a literal step of an instance's offset, a
-gauge's placement or a transform's chain, and an explicit placement
-rule's listed frames, refuse `EditError::ImproperPlacement` for det ≤ 0,
-naming which frame, and the load validator refuses the same. Mirrored
-instances are not implemented; STEP import refuses a mirroring
-placement.
+gauge's placement or a transform's chain refuse
+`EditError::ImproperPlacement` for det ≤ 0, naming which frame, and the
+load validator refuses the same. A mirror is not a placement: a
+reflection is not a pose, so a mirrored body is the construction
+`Mirror { body, plane }`, which defines a new `Body` (MIRROR-DESIGN
+P1–P4), and no placement needs an improper frame. STEP import refuses a
+mirroring placement.
 
 ## Interchange
 
@@ -408,7 +443,7 @@ declarations are not exported.
 
 **A9 — Relative freedom is component structure.** Two instances are
 relatively unconstrained exactly when they lie in different connected
-components of the DAG under consuming ∪ reading edges
+components of the recipe under its reads and its gauge references
 (`relative_freedom_components`); no solver, no geometry. Evaluation
 stays deterministic, and every placed group has a world pose, so the
 placed part of an assembly is one body. A group nothing places lives in
@@ -420,7 +455,9 @@ never persisted (`crates/viewer/src/display.rs`).
 document's world placements define, in the document order of those
 placements. A world placement (`PlaceInWorld`) is an operation reading
 one `Body` and defining its copy as an output, so two placements of one
-body are two copies. Nothing else places: no edit places or unplaces as
+body are two copies. Its pose relates the copy to the world, and only
+the gather and export read it: it sets the coordinates export writes,
+and no construction, measure or check reads it. Nothing else places: no edit places or unplaces as
 a side effect, and nothing derives a placement from what reads what. An
 empty world is a valid document with an empty product; a door needing a
 product refuses `EmptyProduct`, naming the unplaced bodies. A placement
@@ -434,8 +471,11 @@ naming it. Split and inline move placements with their bodies (A4).
 
 **(1) Primitives fold by coset intersection.** Each primitive pins the
 pair's relative pose to a coset of an SE(3) subgroup; the closure is
+the symmetry groups of the pose kinds a primitive equates (D10), and
+one `Subgroup` type is both a pose's symmetry and what a mate folds:
 `Subgroup::{Se3, Planar, Cylindrical, Prismatic, Revolute, Trivial,
-Empty}`, and several mates on one pair fold by exact coset intersection
+Empty}`, which grows a `Point`'s and a `Direction`'s when a reader needs
+them, and several mates on one pair fold by exact coset intersection
 (`mate/coset.rs`) to DETERMINED, UNDER or CONTRADICTORY, the last
 refusing with the added mate's measured clash. The edit door asks the
 same per-mate admission of a mate being inserted (the walk, the class,
@@ -487,7 +527,7 @@ supplies.
 **(3) Roots.** A group's tree is rooted at its earliest member carrying
 an offset when its gauge chain is live, and at its earliest instance in
 document order otherwise, a convention that decides nothing a user
-placed. Pattern-placed instances are root-ineligible.
+placed.
 
 **(4) Tree mates determine; the rest declare.** `solve_document` takes
 the deterministic spanning tree rooted at the group's root. Tree mates
@@ -517,7 +557,7 @@ read.
 down to a live `InstantiatePart`, through any number of `Transform`s and
 `Part` instance selections, any number of `Pattern` levels (each of
 which the name qualifies `Instance`) and any number of `Union`s (each of
-which the name qualifies `FromMember`, naming the member the walk
+which the name qualifies `From`, naming the member read the walk
 continues at). The member's frame is the composed offset of every node
 that walk passed, evaluated as that node is evaluated, on that
 instance's pose, so mates never solve for a pattern's or transform's
@@ -607,13 +647,13 @@ states the cause on its own row, and the mate points there.
 - **AQ8 — the crossing record's reachability.** A placing mate welds
   its ends into one group and never crosses a cut; a declaring mate
   (its ends on different gauges) may, and populates `InterfaceRecord`,
-  so no conversion door is needed. **Only a mate EDGE can cross**
-  (ruled: option (b), SKIP): a mate that is not an A12 edge — a head
-  outside A11's member vocabulary, or a node not in the document —
-  contributes no interface crossing however its names fall across a
-  cut. Such a mate never solved, and a record minted from it would
+  so no conversion door is needed. **Only a mate both of whose sides
+  resolve to members can cross** (ruled: option (b), SKIP): a mate a
+  side of which resolves to no member — a head outside A11's member vocabulary, or a
+  read of nothing live — contributes no interface crossing however its
+  names fall across a cut. Such a mate never solved, and a record minted from it would
   assert a relationship evaluation never established: trusted-at-rest
   state, which this design forbids. The mate stays in the document and
   its names rebind like any other (N5); it says nothing about the seam.
-  The split collector gates on `member_of` for both heads, the same
-  predicate A12's reading edges and A11's groups ask.
+  The split collector gates on `member_of` for both sides, the same
+  predicate A11's groups ask.

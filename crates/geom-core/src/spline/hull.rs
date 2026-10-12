@@ -128,7 +128,7 @@
 //! refusal route: it is refused at the mint, before there is a door to
 //! answer.
 
-use super::knots::{KnotVector, Span};
+use super::knots::{KnotVector, KnotVectorIssue, Span, SplineError, knot_difference};
 use crate::interval::Interval;
 use crate::interval::certification::Certification;
 use crate::real::CertifiedBounds;
@@ -165,7 +165,7 @@ use crate::real::CertifiedBounds;
 /// let theirs = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 0.75, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
 /// let coeffs = vec![0.0f64; mine.control_count()];
 /// let pair = mine.with_coeffs(&coeffs).unwrap();
-/// let _ = pair.span(theirs.span_at(0.3)).unwrap().hull();
+/// let _ = pair.span(theirs.span_at(0.3).unwrap()).unwrap().hull();
 /// ```
 ///
 /// Its twin, differing in one respect — the span is asked of the pair,
@@ -176,7 +176,7 @@ use crate::real::CertifiedBounds;
 /// let mine = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.25, 0.5, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
 /// let coeffs = vec![0.0f64; mine.control_count()];
 /// let pair = mine.with_coeffs(&coeffs).unwrap();
-/// let _ = pair.span_at(0.3).hull();
+/// let _ = pair.span_at(0.3).unwrap().hull();
 /// ```
 ///
 /// **(b) A span whose index is EMPTY in the coefficients' vector.**
@@ -215,7 +215,7 @@ use crate::real::CertifiedBounds;
 /// let quad = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.3, 0.6, 0.8, 1.0, 1.0, 1.0], 2).unwrap();
 /// let coeffs = vec![0.0f64; mine.control_count()];
 /// let pair = mine.with_coeffs(&coeffs).unwrap();
-/// let _ = pair.span_at(0.7).sup_norm_bound(quad.span_at(0.7));
+/// let _ = pair.span_at(0.7).unwrap().sup_norm_bound(quad.span_at(0.7).unwrap());
 /// ```
 ///
 /// The twin differs in one respect — the door is called with nothing:
@@ -225,7 +225,7 @@ use crate::real::CertifiedBounds;
 /// let mine = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
 /// let coeffs = vec![0.0f64; mine.control_count()];
 /// let pair = mine.with_coeffs(&coeffs).unwrap();
-/// assert!(pair.span_at(0.7).sup_norm_bound().is_finite());
+/// assert!(pair.span_at(0.7).unwrap().sup_norm_bound().is_finite());
 /// ```
 ///
 /// **(d) A rational claim on a pair minted without weights.** There
@@ -237,7 +237,7 @@ use crate::real::CertifiedBounds;
 /// let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
 /// let coeffs = vec![0.0f64; kv.control_count()];
 /// let pair = kv.with_coeffs(&coeffs).unwrap();
-/// let _ = pair.span_at(0.3).hull_rational();
+/// let _ = pair.span_at(0.3).unwrap().hull_rational();
 /// ```
 ///
 /// The twin differs in one respect — the pair is minted with the
@@ -249,7 +249,7 @@ use crate::real::CertifiedBounds;
 /// let coeffs = vec![0.0f64; kv.control_count()];
 /// let weights = vec![1.0f64; kv.control_count()];
 /// let pair = kv.with_rational_coeffs(&coeffs, &weights).unwrap();
-/// assert!(pair.span_at(0.3).hull_rational().is_certified());
+/// assert!(pair.span_at(0.3).unwrap().hull_rational().is_certified());
 /// ```
 ///
 /// **What these rows do and do not check.** Stable rustdoc checks only
@@ -510,10 +510,13 @@ impl KnotVector {
     /// error it is, never as an empty line.
     ///
     /// This is the one door beside the mints that takes a coefficient
-    /// array, and it takes it only to mint: every consumer of it holds
-    /// its coefficients as an owned `Vec` beside a vector (a tensor
-    /// net's lines, a derivative ladder's levels), and a door on the
-    /// pair would make each of them spell the same mint-then-map.
+    /// array, and it takes it only to mint — which is why it is the line
+    /// step [`super::net::TensorCoeffs`] hands [`super::net::TensorNet::diff_u`]:
+    /// a line of the wrong count comes back as the one-entry refusal
+    /// that refuses the whole line there. A consumer whose array is
+    /// its own construction builds it with
+    /// [`KnotVector::with_coeffs_from_fn`] instead, and one that
+    /// differences a level again holds it as a [`SplineCoeffsBuf`].
     pub fn difference_coeffs<E: CertifiedBounds>(&self, coeffs: &[E]) -> Vec<Interval> {
         self.with_coeffs(coeffs).map_or_else(
             || vec![Interval::refused()],
@@ -522,11 +525,181 @@ impl KnotVector {
     }
 }
 
+impl KnotVector {
+    /// The coefficient array of exactly [`KnotVector::control_count`]
+    /// entries that `entry` builds, index by index in ascending order,
+    /// handed to `f` minted as **this** vector's — the mint by
+    /// construction rather than by count, for a caller whose array is
+    /// its own intermediate (a line of a tensor net, a collapse's
+    /// per-row results) and so has no length to check.
+    pub fn with_coeffs_from_fn<E: CertifiedBounds, T>(
+        &self,
+        entry: impl FnMut(usize) -> E,
+        f: impl FnOnce(SplineCoeffs<'_, E>) -> T,
+    ) -> T {
+        let coeffs: Vec<E> = (0..self.control_count()).map(entry).collect();
+        f(SplineCoeffs {
+            knots: self,
+            coeffs: &coeffs,
+        })
+    }
+
+    /// This vector's derivative, by cause: [`Derived`].
+    pub fn derived(&self) -> Derived<'_> {
+        let slice = self.derivative_knot_slice();
+        if self.degree() == 1 {
+            return Derived::SpanConstant(slice);
+        }
+        let degree = self.degree() - 1;
+        match KnotVector::clamped(slice.to_vec(), degree) {
+            Ok(kv) => Derived::Vector(kv),
+            Err(SplineError::KnotVectorInvalid {
+                reason: KnotVectorIssue::InteriorMultiplicityTooHigh { .. },
+            }) => Derived::Discontinuous {
+                knots: slice,
+                degree,
+            },
+            Err(e) => unreachable!("a clamped vector's derived knots refused as {e:?}"),
+        }
+    }
+
+    /// Whether this vector's spline is C¹ for every control net: the
+    /// break that refuses it otherwise.
+    ///
+    /// # Errors
+    ///
+    /// [`C1Break::Degree1Crease`] at degree 1 with an interior knot,
+    /// [`C1Break::Crease`] at a full-multiplicity interior knot.
+    pub fn c1(&self) -> Result<(), C1Break> {
+        match self.derived() {
+            Derived::Vector(_) => Ok(()),
+            Derived::SpanConstant(breaks) if breaks.len() == 2 => Ok(()),
+            Derived::SpanConstant(_) => Err(C1Break::Degree1Crease),
+            Derived::Discontinuous { .. } => Err(C1Break::Crease),
+        }
+    }
+
+    /// The vector of this one's derivative, where it has one
+    /// ([`Derived::Vector`]).
+    pub fn derivative(&self) -> Option<KnotVector> {
+        self.derived().vector()
+    }
+}
+
+/// A derivative, by the structure of its knots. The outer knot pair
+/// dropped and the degree one less
+/// ([`KnotVector::derivative_knot_slice`]) is a clamped vector, or one
+/// of the two structures [`KnotVector::clamped`] refuses.
+#[derive(Clone, Debug)]
+pub enum Derived<'a, V = KnotVector> {
+    /// A clamped vector, or what a door builds on it.
+    Vector(V),
+    /// Degree 1: the derivative is constant on each span. Difference
+    /// coefficient `i` is its value on `breaks[i] .. breaks[i + 1]`,
+    /// `breaks` strictly ascending.
+    SpanConstant(&'a [f64]),
+    /// Degree ≥ 2 with an interior knot of multiplicity equal to the
+    /// degree: a spline discontinuous at that knot.
+    Discontinuous {
+        /// The derivative's raw knot list.
+        knots: &'a [f64],
+        /// The derivative's degree, one less than the vector's.
+        degree: usize,
+    },
+}
+
+impl<'a, V> Derived<'a, V> {
+    /// The [`Derived::Vector`] payload, `None` at the other two.
+    pub fn vector(self) -> Option<V> {
+        match self {
+            Self::Vector(v) => Some(v),
+            Self::SpanConstant(_) | Self::Discontinuous { .. } => None,
+        }
+    }
+
+    /// The same cause, with `f` applied to a [`Derived::Vector`]
+    /// payload.
+    pub fn map<W>(self, f: impl FnOnce(V) -> W) -> Derived<'a, W> {
+        match self {
+            Self::Vector(v) => Derived::Vector(f(v)),
+            Self::SpanConstant(b) => Derived::SpanConstant(b),
+            Self::Discontinuous { knots, degree } => Derived::Discontinuous { knots, degree },
+        }
+    }
+}
+
+/// What keeps a knot vector's spline from being C¹
+/// ([`KnotVector::c1`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum C1Break {
+    /// Degree 1 with an interior knot: the derivative jumps there.
+    Degree1Crease,
+    /// An interior knot of multiplicity equal to the degree.
+    Crease,
+}
+
+/// A [`SplineCoeffs`] that owns both halves: the coefficient array and
+/// the knot vector it is a proof about, held together so a derivative
+/// level travels as one value. Minted only by
+/// [`SplineCoeffs::derived`], whose coefficients have the derivative
+/// vector's control count by the knot-difference formula — so
+/// [`SplineCoeffsBuf::pair`] needs no check.
+#[derive(Clone)]
+pub struct SplineCoeffsBuf<E: CertifiedBounds> {
+    knots: KnotVector,
+    coeffs: Vec<E>,
+}
+
+/// The knot vector's degree and the array's length, never the arrays
+/// (see [`SplineCoeffs`]).
+impl<E: CertifiedBounds> core::fmt::Debug for SplineCoeffsBuf<E> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self { knots, coeffs } = self;
+        f.debug_struct("SplineCoeffsBuf")
+            .field("degree", &knots.degree())
+            .field("len", &coeffs.len())
+            .finish()
+    }
+}
+
+impl<E: CertifiedBounds> SplineCoeffsBuf<E> {
+    /// The borrowed pair every door reads.
+    pub fn pair(&self) -> SplineCoeffs<'_, E> {
+        SplineCoeffs {
+            knots: &self.knots,
+            coeffs: &self.coeffs,
+        }
+    }
+}
+
 impl<'a, E: CertifiedBounds> SplineCoeffs<'a, E> {
     /// The [`KnotVector`] these coefficients are a proof about — the
     /// one every door here reads its knots from.
     pub fn knots(self) -> &'a KnotVector {
         self.knots
+    }
+
+    /// The coefficient array, [`KnotVector::control_count`] long.
+    pub fn coeffs(self) -> &'a [E] {
+        self.coeffs
+    }
+
+    /// The derivative as a pair: [`SplineCoeffs::derivative_coeffs`]
+    /// against [`KnotVector::derivative`], or `None` exactly when that
+    /// vector is not a clamped one (degree 1, or a discontinuous
+    /// derivative). A caller that wants the coefficients regardless
+    /// reads [`SplineCoeffs::derivative_coeffs`].
+    pub fn derivative(self) -> Option<SplineCoeffsBuf<Interval>> {
+        self.derived().vector()
+    }
+
+    /// The derivative by cause ([`KnotVector::derived`]), the
+    /// [`Derived::Vector`] arm carrying the pair.
+    pub fn derived(self) -> Derived<'a, SplineCoeffsBuf<Interval>> {
+        self.knots.derived().map(|knots| SplineCoeffsBuf {
+            knots,
+            coeffs: self.derivative_coeffs(),
+        })
     }
 
     /// The window of this pair at span `index` — `None` when the index
@@ -540,14 +713,14 @@ impl<'a, E: CertifiedBounds> SplineCoeffs<'a, E> {
         })
     }
 
-    /// The window containing `t` — total on all of `f64` for exactly
-    /// the reasons [`KnotVector::span_at`] is (out-of-domain clamps to
-    /// an end span, NaN lands on the first).
-    pub fn span_at(self, t: f64) -> CoeffWindow<'a, E> {
-        CoeffWindow {
+    /// The window containing `t`, or `None` at NaN, exactly as
+    /// [`KnotVector::span_at`] locates it (out-of-domain clamps to an
+    /// end span).
+    pub fn span_at(self, t: f64) -> Option<CoeffWindow<'a, E>> {
+        Some(CoeffWindow {
             pair: self,
-            span: self.knots.span_at(t),
-        }
+            span: self.knots.span_at(t)?,
+        })
     }
 
     /// Enclosure of the scalar B-spline's values over its whole domain:
@@ -602,7 +775,7 @@ impl<'a, E: CertifiedBounds> SplineCoeffs<'a, E> {
         if i + 1 >= coeffs.len() || i + p + 1 >= u.len() {
             return Interval::refused();
         }
-        let du = Interval::point(u[i + p + 1]) - Interval::point(u[i + 1]);
+        let du = knot_difference::<Interval>(u[i + 1], u[i + p + 1]);
         let dc = Interval::from_certified(coeffs[i + 1]) - Interval::from_certified(coeffs[i]);
         #[allow(clippy::cast_precision_loss)]
         let scale = Interval::point(p as f64);
@@ -661,13 +834,13 @@ impl<'a, E: CertifiedBounds> RationalCoeffs<'a, E> {
         })
     }
 
-    /// The window containing `t` — total on all of `f64` for exactly
-    /// the reasons [`KnotVector::span_at`] is.
-    pub fn span_at(self, t: f64) -> RationalWindow<'a, E> {
-        RationalWindow {
+    /// The window containing `t`, or `None` at NaN, exactly as
+    /// [`KnotVector::span_at`] locates it.
+    pub fn span_at(self, t: f64) -> Option<RationalWindow<'a, E>> {
+        Some(RationalWindow {
             pair: self,
-            span: self.knots.span_at(t),
-        }
+            span: self.knots.span_at(t)?,
+        })
     }
 
     /// The same coefficients as a proof about the same vector, with
@@ -719,6 +892,14 @@ impl<'a, E: CertifiedBounds> CoeffWindow<'a, E> {
     /// vector.
     pub fn span(self) -> Span<'a> {
         self.span
+    }
+
+    /// The `p + 1` coefficients active on this span, in
+    /// [`CoeffWindow::window`] order — the slice an evaluator restricted
+    /// to the span reads.
+    pub fn coeffs(self) -> &'a [E] {
+        // In range: index ≤ control_count() − 1 = coeffs.len() − 1 by the mint.
+        &self.pair.coeffs[self.span.first_control()..=self.span.index()]
     }
 
     /// The inclusive coefficient window this span's doors read,
@@ -822,5 +1003,74 @@ impl<E: CertifiedBounds> RationalWindow<'_, E> {
             span: self.span,
         }
         .hull()
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::{C1Break, Derived, KnotVector};
+    use crate::interval::certification::Certification;
+
+    fn kv(knots: &[f64], p: usize) -> KnotVector {
+        KnotVector::clamped(knots.to_vec(), p).unwrap()
+    }
+
+    /// **Each cause of a derivative is its own variant.** On the
+    /// polyline through `(0, 0), (0.5, 1), (1, 1)` the breaks are the
+    /// vector's own breakpoints and difference coefficient `i` is the
+    /// slope on span `i` — 2, then 0; a C¹ quadratic has a clamped
+    /// derived vector; a quadratic with a double interior knot is
+    /// discontinuous there, on the raw list with one outer pair dropped.
+    #[test]
+    fn a_derivative_splits_into_vector_span_constant_and_discontinuous() {
+        let line = kv(&[0.0, 0.0, 0.5, 1.0, 1.0], 1);
+        let Derived::SpanConstant(breaks) = line.derived() else {
+            panic!("degree 1 read as {:?}", line.derived());
+        };
+        assert_eq!(breaks, [0.0, 0.5, 1.0], "the breaks");
+        let slopes = line.difference_coeffs(&[0.0, 1.0, 1.0]);
+        assert_eq!(slopes.len() + 1, breaks.len(), "one constant per span");
+        for (i, want) in [2.0, 0.0].into_iter().enumerate() {
+            assert!(
+                slopes[i].contains(want),
+                "span {i}: {:?} misses slope {want}",
+                slopes[i]
+            );
+        }
+
+        let smooth = kv(&[0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2);
+        let Derived::Vector(d) = smooth.derived() else {
+            panic!("a C¹ quadratic read as {:?}", smooth.derived());
+        };
+        assert_eq!(
+            (d.knots(), d.degree()),
+            (&[0.0, 0.0, 0.5, 1.0, 1.0][..], 1),
+            "the derived vector"
+        );
+
+        let kinked = kv(&[0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2);
+        let Derived::Discontinuous { knots, degree } = kinked.derived() else {
+            panic!("a double knot at degree 2 read as {:?}", kinked.derived());
+        };
+        assert_eq!(
+            (knots, degree),
+            (&[0.0, 0.0, 0.5, 0.5, 1.0, 1.0][..], 1),
+            "the raw list"
+        );
+        assert!(kinked.derivative().is_none(), "no clamped vector");
+
+        let creased = kv(&[0.0, 0.0, 0.5, 1.0, 1.0], 1);
+        let single = kv(&[0.0, 0.0, 1.0, 1.0], 1);
+        assert_eq!(
+            [single.c1(), smooth.c1(), creased.c1(), kinked.c1()],
+            [
+                Ok(()),
+                Ok(()),
+                Err(C1Break::Degree1Crease),
+                Err(C1Break::Crease)
+            ],
+            "the C¹ admission names each break"
+        );
     }
 }

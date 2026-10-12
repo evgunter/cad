@@ -41,12 +41,16 @@ fn rows(label: &str, body: &Body<f64>) {
 }
 
 fn shelled(label: &str, body: &Body<f64>, t: f64, open: &[FaceKey]) {
-    match topo::shell_open(
-        &finished("the operand", body.clone(), tol()),
-        t,
-        open,
-        tol(),
-    ) {
+    // A hand-split operand is construction state (tier 3's check 11):
+    // the gate's refusal is the dump's line for it.
+    let operand = match topo::AtRestBody::validate(body.clone(), tol()) {
+        Ok(operand) => operand,
+        Err(e) => {
+            println!("[r2rows] {label}: not at rest {e:?}");
+            return;
+        }
+    };
+    match topo::shell_open(&operand, t, open, tol()) {
         Ok(s) => rows(label, &s.body),
         Err(e) => println!("[r2rows] {label}: Err {e}"),
     }

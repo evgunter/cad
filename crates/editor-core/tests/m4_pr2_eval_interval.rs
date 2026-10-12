@@ -9,7 +9,7 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    BooleanOp, BooleanValue, CancelToken, EvalOptions, Node, ProfileDoc, ValuePayload, evaluate,
+    BooleanValue, CancelToken, EvalOptions, Node, ProfileDoc, ValuePayload, evaluate,
 };
 use fixture::{ang, insert, len, on_frame, scl};
 use geom_core::Tol;
@@ -31,7 +31,7 @@ fn interval_evaluation_of_a_boolean_doc_brackets_the_oracle() {
     let (doc, cube) = insert(
         doc,
         Node::Extrude {
-            profile: cube_p,
+            profile: cube_p.into(),
             distance: len(2.0),
             side: ExtrudeSide::Along,
         },
@@ -46,7 +46,7 @@ fn interval_evaluation_of_a_boolean_doc_brackets_the_oracle() {
     let (doc, pip) = insert(
         doc,
         Node::Extrude {
-            profile: pip_p,
+            profile: pip_p.into(),
             distance: len(0.125),
             side: ExtrudeSide::Against,
         },
@@ -62,26 +62,12 @@ fn interval_evaluation_of_a_boolean_doc_brackets_the_oracle() {
             },
         ),
     );
-    // The pip's outer cap lies ON the cube's top — declared (M4 PR 5).
-    // The B side is read at the TRANSFORM, the subtract's operand,
-    // which carries the pip's names verbatim (N1).
-    let decl = editor_core::declare_continuation(vec![(
-        editor_core::SitedRef::new(
-            cube,
-            fixture::fname(cube, editor_core::RoleSeg::Cap(editor_core::CapEnd::End)),
-        ),
-        editor_core::SitedRef::new(
-            placed,
-            fixture::fname(pip, editor_core::RoleSeg::Cap(editor_core::CapEnd::Start)),
-        ),
-    )]);
+    // The pip's outer cap lies ON the cube's top; the subtract glues it.
     let (doc, sub) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: cube,
-            b: placed,
-            declare: decl,
+        Node::Subtract {
+            from: cube.into(),
+            tool: placed.into(),
         },
     );
 

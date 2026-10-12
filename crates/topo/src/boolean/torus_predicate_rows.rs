@@ -81,7 +81,7 @@ fn every_quartic_outcome_is_reached_by_a_real_pose() {
             Ok(TorusRoots::Certified { count, .. }) => {
                 panic!("a certified count is 2 or 4, never {count}")
             }
-            Ok(TorusRoots::CountDisagrees) => panic!("the constructed roots disagree"),
+            Ok(TorusRoots::CountDisagrees { .. }) => panic!("the constructed roots disagree"),
             Err(_) => uncertain += 1,
         }
     }
@@ -180,23 +180,18 @@ fn the_period_guards_zero_arm_is_what_serves_a_wrapping_face() {
     assert_eq!(count, 4, "a diameter of the ring crosses four walls");
 }
 
-/// **`TorusRoots::CountDisagrees` is not reached by anything**, and this row
-/// is the record of that rather than an exercise of it.
+/// **On a unit torus the certified count and the constructed roots
+/// agree.** Rung 5 compares the CONSTRUCTED root count against the
+/// CERTIFIED one; at this scale neither review lane's oracle reached a
+/// disagreement (1310 rays geometrically counted, 3000+ independently
+/// bisected), and nothing here does. At a large torus a ray does
+/// ([`a_far_ray_reaches_the_count_disagreement`]).
 ///
-/// Rung 5 compares the CONSTRUCTED root count against the CERTIFIED one.
-/// Neither review lane's oracle reached a disagreement (1310 rays
-/// geometrically counted, 3000+ independently bisected), and nothing
-/// here does either. It stays because it is the one place the sign
-/// ladder and the factorization — two different computations on the same
-/// coefficients — are made to agree at run time, which is what keeps
-/// "answered only on a certified count" falsifiable rather than a claim
-/// about the algebra.
-///
-/// What this row CAN pin is the invariant that would have to break for
-/// it to fire: every certified answer carries exactly `count` roots, and
-/// every one of them is on the tube.
+/// What this row pins is the invariant that would have to break for it
+/// to fire here: every certified answer carries exactly `count` roots,
+/// and every one of them is on the tube.
 #[test]
-fn the_certified_count_and_the_constructed_roots_have_never_disagreed() {
+fn the_certified_count_and_the_constructed_roots_agree_on_a_lattice() {
     let mut certified = 0;
     for i in 0..12 {
         for j in 0..7 {
@@ -332,5 +327,142 @@ fn a_query_on_the_axis_refuses_through_the_major_window_alone() {
             assert_eq!(diag.predicate, Some("bool_torus_frame_radius"));
         }
         other => panic!("an on-axis query must refuse at the frame radius: {other:?}"),
+    }
+}
+
+/// **The quartic ladder's two counts come apart on coefficients an input
+/// gives**, so a disagreement is reachable and typed, not a panic. These
+/// are the depressed quartics the half-angle lane hands
+/// [`depressed_quartic_roots`] for `circle_wall_rows`' and
+/// `ellipse_rows`' `a_graze_is_read_by_its_depth` (a circle crossing a
+/// 500 m wall by 1e-8 m; ellipses on 50 m and 500 m walls), at their
+/// band. Counted exactly (`work/inside/ray-torus-count-certifies-on-an-uncharged-discriminant.md`),
+/// they have 2, 4, 4 and 4 real roots: the construction is right each
+/// time and the certified count is the wrong one — rung 1's `Δ/L¹¹`
+/// carries rounding of 3e-7 to 6e-6, far past the band, and two of the
+/// four are in band exactly.
+#[test]
+fn the_ladder_disagrees_with_itself_on_a_lanes_coefficients() {
+    let band = Band::new(1e-9, 1e-8).unwrap();
+    for (p, q, s, lever, certified, constructed) in [
+        (
+            -13_656_854.407_337_9,
+            -413.763_656_616_210_94,
+            46_627_416_997_969.55,
+            1000.0,
+            4,
+            2,
+        ),
+        (
+            -49_164.676_076_010_146,
+            -0.121_574_014_425_277_71,
+            604_291_324.293_685_2,
+            60.0,
+            2,
+            4,
+        ),
+        (
+            -4_916_467.545_374_04,
+            -24.314_849_853_515_625,
+            6_042_913_242_936.852,
+            600.0,
+            2,
+            4,
+        ),
+        (
+            -49_164.676_853_847_835,
+            -0.243_148_043_751_716_6,
+            604_291_324.293_685_2,
+            60.0,
+            2,
+            4,
+        ),
+    ] {
+        match depressed_quartic_roots(p, q, s, lever, &RAY_TORUS_ROWS, band) {
+            Ok(TorusRoots::CountDisagrees {
+                certified: c,
+                constructed: b,
+            }) => assert_eq!((c, b), (certified, constructed), "({p}, {q}, {s}, {lever})"),
+            other => panic!("({p}, {q}, {s}, {lever}): {other:?}"),
+        }
+    }
+}
+
+/// **A ray at a large torus reaches the disagreement.** Probed by the
+/// review of PR 4607 among 400k near-tangent rays at `R = 1e6`,
+/// `r = 1e4`: this ray's quartic has four real roots (exactly, on the
+/// kernel's own coefficients and on the geometry), rung 1 certifies two
+/// on `Δ`'s rounding, and the factorization builds four.
+#[test]
+fn a_far_ray_reaches_the_count_disagreement() {
+    let q = Point3::new(
+        -191_510.386_776_324_04,
+        7_625.099_170_928_492,
+        -454_591.902_880_141_8,
+    );
+    let d = Vec3::new(
+        0.634_206_811_213_916_8,
+        0.003_546_043_054_673_617_2,
+        -0.773_155_318_282_510_4,
+    );
+    let band = Band::new(1e-9, 1e-8).unwrap();
+    let roots = line_torus_roots(q, d, centre(), axis(), 1e6, 1e4, band).unwrap();
+    assert!(
+        matches!(
+            roots,
+            TorusRoots::CountDisagrees {
+                certified: 2,
+                constructed: 4
+            }
+        ),
+        "{roots:?}"
+    );
+}
+
+/// **A ray whose crossings could not be built to their certified count is
+/// blocked, not the query refused**, through the arm's own reading of the
+/// quartic ([`torus_crossings`], which `cast_ray` calls). The refusal
+/// carries both counts and tells one story at every door — the solid
+/// door, the census and the validator: its lever, and that it may
+/// indicate a kernel bug.
+#[test]
+fn a_count_disagreement_blocks_the_ray_and_says_so() {
+    let face = FaceKey::default();
+    for (certified, constructed) in [(2, 4), (4, 2), (2, 0)] {
+        let roots: TorusRoots<f64> = TorusRoots::CountDisagrees {
+            certified,
+            constructed,
+        };
+        let Err(RayFault::Blocked(e)) = torus_crossings(face, roots) else {
+            panic!("({certified}, {constructed}): the ray is blocked");
+        };
+        assert_eq!(
+            e,
+            PointInSolidError::RootCountDisagrees {
+                face,
+                certified,
+                constructed
+            }
+        );
+        assert!(e.confined() && !e.in_band(), "{e:?}");
+        let text = e.to_string();
+        for want in [
+            format!("({constructed}) disagree"),
+            format!("certify ({certified})"),
+            "Recourse: test a point farther from that face".to_owned(),
+        ] {
+            assert!(text.contains(&want), "{want}: {text}");
+        }
+        let census = crate::census::Undecided::of_point_in_solid(&e).what();
+        let at_rest = crate::validate::classify_point_in_solid(&e).1.into_owned();
+        for (door, ending) in [
+            ("solid", text.as_str()),
+            ("census", census),
+            ("validator", at_rest.as_str()),
+        ] {
+            assert!(ending.contains("Recourse: "), "{door}: {ending}");
+            assert!(ending.ends_with(KERNEL_BUG_NOTE), "{door}: {ending}");
+            assert!(!ending.contains("unreadable"), "{door}: {ending}");
+        }
     }
 }

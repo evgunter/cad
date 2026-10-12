@@ -241,6 +241,24 @@ pub fn cap_volume(r: f64, h: f64) -> f64 {
     PI * h.powi(2) * (3.0 * r - h) / 3.0
 }
 
+/// The volume balls of radii `big` and `small` share at centre distance
+/// `d`, in the closed form that never forms the radical plane (so it
+/// does not share a formula with the kernel's section circle): all of
+/// the smaller ball when one holds the other, nothing when they stand
+/// apart.
+pub fn ball_lens(big: f64, small: f64, d: f64) -> f64 {
+    if d >= big + small {
+        return 0.0;
+    }
+    if d <= (big - small).abs() {
+        return ball_volume(big.min(small));
+    }
+    PI * (big + small - d).powi(2)
+        * (d.powi(2) + 2.0 * d * small - 3.0 * small.powi(2) + 2.0 * d * big + 6.0 * small * big
+            - 3.0 * big.powi(2))
+        / (12.0 * d)
+}
+
 /// The lens two balls `r1`, `r2` at centre distance `d` share.
 pub fn lens_volume(r1: f64, r2: f64, d: f64) -> f64 {
     let x = (d.powi(2) + r1.powi(2) - r2.powi(2)) / (2.0 * d);
@@ -293,7 +311,7 @@ fn disc_in_rect(rho: f64, (cx, cy): (f64, f64), (x0, x1): (f64, f64), (y0, y1): 
 }
 
 /// Adaptive Simpson on `[a, b]`.
-fn simpson(f: &dyn Fn(f64) -> f64, a: f64, b: f64) -> f64 {
+pub fn simpson(f: &dyn Fn(f64) -> f64, a: f64, b: f64) -> f64 {
     /// One panel `(a, b)`, its end and middle values, and its estimate.
     fn step(
         f: &dyn Fn(f64) -> f64,
@@ -339,4 +357,13 @@ pub fn ball_in_box(r: f64, c: (f64, f64, f64), b: [(f64, f64); 3]) -> f64 {
 /// The volume of a ball of radius `r`.
 pub fn ball_volume(r: f64) -> f64 {
     4.0 / 3.0 * PI * r.powi(3)
+}
+
+/// **How far a body's integrated volume may stand from its closed
+/// form**: the quadrature's certified pad, the run's ε over the body's
+/// surface (every edge and vertex the kernel places stands within ε of
+/// its carriers, so the boundary between them moves by no more), and the
+/// rounding of the sums.
+pub fn volume_slack(m: &topo::MassProperties<f64>, want: f64) -> f64 {
+    m.volume_pad + m.surface_area * geom_core::Tol::witness().eps() + 1e-12 * want.abs().max(1.0)
 }

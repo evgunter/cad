@@ -149,6 +149,11 @@ impl Rng {
         lo + (hi - lo) * self.unit()
     }
 
+    /// Log-uniform in `[lo, hi)`, both positive: uniform in the exponent.
+    pub fn log_uniform(&mut self, lo: f64, hi: f64) -> f64 {
+        10f64.powf(self.range(lo.log10(), hi.log10()))
+    }
+
     /// A uniform index in `0..n`. Panics on `n == 0`, like indexing does.
     pub fn below(&mut self, n: usize) -> usize {
         (self.next_u64() % n as u64) as usize

@@ -103,9 +103,9 @@ impl InterfaceCrossing {
 
     /// The class the crossing declares.
     #[getter]
-    fn class_(&self, py: Python<'_>) -> PyResult<super::flush::ContactClass> {
+    fn class_(&self, py: Python<'_>) -> PyResult<super::contact::ContactClass> {
         match self.0 {
-            d::InterfaceCrossing::Mate { class, .. } => super::flush::contact_class(py, class),
+            d::InterfaceCrossing::Mate { class, .. } => super::contact::contact_class(py, class),
         }
     }
 
@@ -219,14 +219,13 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             input: i,
             ..
         } => (none(), id(c), id(i), none(), none(), none(), none(), none()),
-        // The reading edge's own severed case: the MATE takes the
-        // `node` slot and the OPERAND the `input` slot, which is the
-        // pair a caller reads off `severed_edge` too — one shape for
-        // "these two ended up on opposite sides".
-        E::OperandSeveredFromMate { mate, operand, .. } => (
-            id(mate),
+        // As inline's `instance_read_uncarried`: the reader is the
+        // consumer, and why no one body carries the read is in the
+        // message.
+        E::RemainderReadUncarried { reader, why: _ } => (
             none(),
-            id(operand),
+            id(reader),
+            none(),
             none(),
             none(),
             none(),
@@ -364,6 +363,7 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
         ),
         E::NameStraddlesCut { name, .. }
         | E::BodyNameCrossesCut { name }
+        | E::NameOutsidePartWorld { name }
         | E::NameOnDroppedStep { name, .. } => (
             none(),
             none(),
@@ -630,9 +630,29 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
             none(),
             none(),
         ),
-        E::InstanceConsumed { node: n, by: b } => {
-            (id(n), id(b), none(), none(), none(), none(), none(), none())
-        }
+        // A host placement of the instance at a pose of its own.
+        E::PlacementPoseCrosses { placement: n } => (
+            id(n),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
+        // The host node reading the instance rides `by`; why no one
+        // body takes its read is in the message.
+        E::InstanceReadUncarried { reader, why: _ } => (
+            none(),
+            id(reader),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
         E::Unresolved { failure } => (
             none(),
             none(),
@@ -666,7 +686,7 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
             none(),
             none(),
         ),
-        E::VarNameConflict { name: p } => (
+        E::VarNameConflict { name: p } | E::InstanceOutputUncarried { name: p, why: _ } => (
             none(),
             none(),
             none(),
@@ -750,6 +770,7 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
         E::InstanceBodyNameReferenced { name }
         | E::ForeignInstanceName { name }
         | E::StrandedPartName { name, .. }
+        | E::StrandedPartRead { name, .. }
         | E::NameOnDroppedStep { name, .. } => (
             none(),
             none(),

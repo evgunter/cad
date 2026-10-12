@@ -308,7 +308,7 @@ pub(crate) struct ArcFilletCandidate<T: Real> {
     /// classification ([`crate::Facts::Decided`]); see [`OffsetCentres`].
     pub centre_facts: crate::Facts,
     /// The incoming leg's `fillet_leg_fit` classification: `Positive`
-    /// emits the trimmed piece + declared joint, `Zero` suppresses both.
+    /// emits the trimmed piece + constructed joint, `Zero` suppresses both.
     pub fit_in: Sign,
     /// The outgoing leg's fit classification, same rule.
     pub fit_out: Sign,

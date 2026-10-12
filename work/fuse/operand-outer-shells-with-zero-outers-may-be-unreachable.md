@@ -2,11 +2,13 @@
 id: operand-outer-shells-with-zero-outers-may-be-unreachable
 kind: issue
 title: ShellError::OperandOuterShells with zero outers may be unreachable now that shell takes an AtRestBody
-status: open
+status: closed
 opened: 2026-10-06
 priority: P3
 cost: E
 refs: [one-home-for-where-a-shell-stands]
+closed: 2026-10-08
+pr: 4315
 ---
 
 
@@ -22,3 +24,12 @@ zero-outers arm of `ShellError::OperandOuterShells` is unreachable:
 It did not change the variant. Confirm with a mutant (`unreachable!`
 in that arm, full ci suite). If the arm is unreachable, retire it or
 make it an invariant; otherwise pin the reaching input.
+
+## Closed (PR 4315, 2026-10-08)
+
+Confirmed and retired on SHELL's
+`shell-operand-shape-arms-behind-the-at-rest-gate`: the zero-outers arm
+is check 7's `NegativeVolume` on a finished operand (shells each
+decided negative cannot certify a positive sum; check 10 can stay silent
+where a shell's witnesses do not read), and the role count is now an
+`unreachable!` invariant.

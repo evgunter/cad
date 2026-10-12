@@ -13,19 +13,9 @@ fn import_text(text: &str) -> Result<StepImport, StepImportError> {
 }
 
 fn solid(text: &str, what: &str) -> topo::Body<f64> {
-    let options = if what.contains("kiss") {
-        // The corner kiss is declared through the M9-2 import channel
-        // (D7 step 4); undeclared it refuses at the shared 3′ gate.
-        ImportOptions {
-            declared_contacts: vec![step_import::ImportContact::VertexRest {
-                at: [1.0, 1.0, 1.0],
-            }],
-            ..ImportOptions::default()
-        }
-    } else {
-        ImportOptions::default()
-    };
-    match import_step(text, &options, Tol::witness()).unwrap_or_else(|e| panic!("{what}: {e}")) {
+    match import_step(text, &ImportOptions::default(), Tol::witness())
+        .unwrap_or_else(|e| panic!("{what}: {e}"))
+    {
         StepImport::Solid { body, .. } => body,
         StepImport::Wireframe { .. } => panic!("{what}: wireframe"),
     }
@@ -136,12 +126,12 @@ fn c3a_rotated_circle_axis_refuses_adoption() {
         );
     let err = import_text(&text).expect_err("a tilted rim circle must not adopt");
     match err {
-        StepImportError::Adoption { id, attempts } => {
+        StepImportError::Adoption { id, attempts, file } => {
             assert_eq!(id, 15, "the refusal names the EDGE_CURVE");
             assert!(!attempts.is_empty(), "attempts carried as data");
             println!(
                 "c3a refusals: {}",
-                StepImportError::Adoption { id, attempts }
+                StepImportError::Adoption { id, attempts, file }
             );
         }
         other => panic!("expected Adoption, got: {other}"),
@@ -158,10 +148,10 @@ fn c3b_cylinder_radius_mismatch_refuses_adoption() {
     );
     let err = import_text(&text).expect_err("radius mismatch must not adopt");
     match err {
-        StepImportError::Adoption { id, attempts } => {
+        StepImportError::Adoption { id, attempts, file } => {
             println!(
                 "c3b refusals: {}",
-                StepImportError::Adoption { id, attempts }
+                StepImportError::Adoption { id, attempts, file }
             );
         }
         other => panic!("expected Adoption, got: {other}"),
@@ -178,10 +168,10 @@ fn c3c_wrong_surface_pair_refuses_adoption() {
     );
     let err = import_text(&text).expect_err("wrong surface pair must not adopt");
     match err {
-        StepImportError::Adoption { id, attempts } => {
+        StepImportError::Adoption { id, attempts, file } => {
             println!(
                 "c3c refusals: {}",
-                StepImportError::Adoption { id, attempts }
+                StepImportError::Adoption { id, attempts, file }
             );
         }
         other => panic!("expected Adoption, got: {other}"),
@@ -198,10 +188,10 @@ fn c3d_curve_off_intersection_refuses_adoption() {
     );
     let err = import_text(&text).expect_err("off-locus carrier must not adopt");
     match err {
-        StepImportError::Adoption { id, attempts } => {
+        StepImportError::Adoption { id, attempts, file } => {
             println!(
                 "c3d refusals: {}",
-                StepImportError::Adoption { id, attempts }
+                StepImportError::Adoption { id, attempts, file }
             );
         }
         other => panic!("expected Adoption, got: {other}"),

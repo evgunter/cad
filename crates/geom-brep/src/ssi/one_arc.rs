@@ -62,12 +62,14 @@
 //! says so ([`Shortfall::Undecided`]).
 
 use geom::{NurbsCurve2, Surface};
-use geom_core::{Band, Bounds, CertifiedBounds, Interval};
+use geom_core::{Band, Bounds, CertifiedBounds, Interval, Point2};
 
 use super::ChartAxis;
 use super::boundary::{ChartEnd, ChartSide, Reading, SIDES, cut_along, read_stretch, side_stretch};
 use super::certify::ChartWindow;
-use super::enclose::{Box3, NurbsBoxes, implicit_enclosure, implicit_gradient_enclosure};
+use super::enclose::{
+    Box3, NurbsBoxes, UvWindow, implicit_enclosure, implicit_gradient_enclosure, refused_box,
+};
 use super::exhaust::UvRect;
 use super::section::{SectionReader, sign};
 
@@ -119,7 +121,7 @@ fn phi_over<T: CertifiedBounds>(
     (n, p0): ([Interval; 3], [Interval; 3]),
     (u0, u1, v0, v1): (f64, f64, f64, f64),
 ) -> Interval {
-    let b = boxes.rect_box(u0, u1, v0, v1);
+    let b = UvWindow::new(u0, u1, v0, v1).map_or_else(refused_box, |w| boxes.rect_box(w));
     n[0] * (b.x - p0[0]) + n[1] * (b.y - p0[1]) + n[2] * (b.z - p0[2])
 }
 
@@ -197,7 +199,8 @@ fn edge_runs<T: CertifiedBounds>(
         } else {
             (across.0, across.1, s, t)
         };
-        let d = boxes.deriv_box(r0, r1, r2, r3, along_u);
+        let d =
+            UvWindow::new(r0, r1, r2, r3).map_or_else(refused_box, |w| boxes.deriv_box(w, along_u));
         let slope = n[0] * d.x + n[1] * d.y + n[2] * d.z;
         // `[m − h, m + h]` holds `[s, t]`: `h` is the larger half,
         // rounded up.
@@ -384,13 +387,12 @@ fn side_readers<T: CertifiedBounds>(
     (n, p0): ([Interval; 3], [Interval; 3]),
 ) -> [Option<SectionReader>; 4] {
     SIDES.map(|side| {
-        let row = super::boundary::side_row(boxes.surface(), side).ok()?;
+        let (knots, row, weights) = super::boundary::side_row_parts(boxes.surface(), side);
         let control: Vec<[Interval; 3]> = row
-            .control()
             .iter()
             .map(|c| [c.x, c.y, c.z].map(Interval::from_certified))
             .collect();
-        SectionReader::of(row.knots(), &control, row.weights(), (p0, n))
+        SectionReader::of(&knots, &control, &weights, (p0, n))
     })
 }
 
@@ -523,7 +525,7 @@ fn crossing_near<T: CertifiedBounds>(
     };
     // The wall over the whole chord farther than `eps` from the end: no
     // solution on it is near, whatever its signs.
-    let chord = boxes.rect_box(a.0.min(b.0), a.0.max(b.0), a.1.min(b.1), a.1.max(b.1));
+    let chord = UvWindow::spanning(a, b).map_or_else(refused_box, |w| boxes.rect_box(w));
     if nearest(chord, end) > eps {
         return Near::Far;
     }
@@ -535,12 +537,7 @@ fn crossing_near<T: CertifiedBounds>(
     }
     let (mut lo, mut hi) = (a, b);
     for _ in 0..NEAR_HALVINGS {
-        let seg = boxes.rect_box(
-            lo.0.min(hi.0),
-            lo.0.max(hi.0),
-            lo.1.min(hi.1),
-            lo.1.max(hi.1),
-        );
+        let seg = UvWindow::spanning(lo, hi).map_or_else(refused_box, |w| boxes.rect_box(w));
         if farthest(seg, end) <= eps {
             return Near::Found;
         }
@@ -746,6 +743,13 @@ fn link<T: CertifiedBounds>(
     }
 }
 
+/// The pcurve's point at a parameter the walk chose in `f64` (a
+/// window's end): a computed value, so at `Sym` an unknown. `None` off
+/// the pcurve's spans.
+fn pcurve_at<T: CertifiedBounds>(pcurve: &NurbsCurve2<T>, t: f64) -> Option<Point2<T>> {
+    Some(pcurve.span_at(t)?.eval_in_span(T::from_computed(t)))
+}
+
 /// **The chart chain's solution set is one arc, and it spans the
 /// carrier** (module docs).
 ///
@@ -769,7 +773,9 @@ pub(crate) fn one_arc<T: CertifiedBounds>(
     ends: [Box3; 2],
 ) -> Result<(), Shortfall> {
     let at = |t: f64| {
-        let p = pcurve.span_at(t).eval_in_span(T::from_f64(t));
+        let Some(p) = pcurve_at(pcurve, t) else {
+            return (f64::NAN, f64::NAN);
+        };
         (0.5 * (p.x.lo() + p.x.hi()), 0.5 * (p.y.lo() + p.y.hi()))
     };
     let clipped = windows
@@ -1239,6 +1245,32 @@ mod tests {
             vec![1.0; spans as usize + 1],
         )
         .unwrap()
+    }
+
+    /// A window's end is a parameter the walk chose in `f64`, so the
+    /// pcurve point read there is a function of an unknown at `Sym`; a
+    /// constant parameter would re-value to its own bits.
+    #[test]
+    fn a_window_ends_parameter_enters_as_a_computed_value() {
+        use geom_core::sym::revalue::revalue;
+        use geom_core::sym::with_session;
+        use geom_core::{Real, Sym, SymBudget};
+        type S = Sym<f64>;
+        let budget = SymBudget {
+            max_terms: 64,
+            max_degree: 8,
+        };
+        let none = |_| None;
+        let (revalued, _) = with_session(budget, || {
+            let pc = across(0.25, 2).map_scalar(S::from_f64);
+            let p = super::pcurve_at(&pc, 0.3).expect("0.3 is on the pcurve");
+            (revalue(p.x.node(), &none), revalue(p.y.node(), &none))
+        });
+        assert_eq!(
+            revalued,
+            (None, None),
+            "the point reads the walk's parameter"
+        );
     }
 
     /// The fold's run band, at its ε.

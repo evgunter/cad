@@ -1,7 +1,5 @@
-//! The wire form of a contact class — the mate node's `class` field
-//! and, through [`pairs`], a declared-pair list's
-//! coincidences (a contact class, `continuation` or `seam`). ONE vocabulary,
-//! one wire spelling of it, one table (ASM-R2a D-1).
+//! The wire form of a contact class — the mate node's `class` field.
+//! ONE vocabulary, one wire spelling of it, one table (ASM-R2a D-1).
 //!
 //! Lowercase because the class vocabulary was minted straight into a
 //! `with` module at the v11 break and never had a derive to match; see
@@ -39,15 +37,13 @@
 //!   costs a lookup and it catches a `tag` that answers for a class
 //!   the search cannot then find. That refusal has no test row and can
 //!   have none — in a build whose read table is complete, nothing
-//!   constructs the state it guards — exactly as the sibling
-//!   `boolean_op` module's does; what the suite reaches is the admit
-//!   path, through the schema round trip.
+//!   constructs the state it guards; what the suite reaches is the
+//!   admit path, through the schema round trip.
 
-use crate::node::SitedRef;
 use serde::de::Error as _;
 use serde::ser::Error as _;
 use serde::{Deserialize, Deserializer, Serializer};
-use topo::{BooleanCoincidence, ContactClass};
+use topo::ContactClass;
 
 /// The wire spelling of a class, or `None` if this build has no name
 /// for it.
@@ -151,88 +147,4 @@ fn unknown(spelling: &str) -> String {
 pub(crate) fn deserialize<'de, D: Deserializer<'de>>(de: D) -> Result<ContactClass, D::Error> {
     let spelling = String::deserialize(de)?;
     untag(&spelling).ok_or_else(|| D::Error::custom(unknown(&spelling)))
-}
-
-/// The wire spelling of a boolean node's coincidence: a contact under
-/// its class's spelling ([`tag`]), the continuation as `continuation`
-/// and the seam as `seam`.
-fn coincidence_tag(c: BooleanCoincidence) -> Option<&'static str> {
-    match c {
-        BooleanCoincidence::Contact(class) => tag(class),
-        BooleanCoincidence::Continuation => Some("continuation"),
-        BooleanCoincidence::Seam => Some("seam"),
-    }
-}
-
-/// The inverse of [`coincidence_tag`], over the kernel's enumeration.
-fn coincidence_untag(s: &str) -> Option<BooleanCoincidence> {
-    BooleanCoincidence::ALL
-        .iter()
-        .copied()
-        .find(|c| coincidence_tag(*c) == Some(s))
-}
-
-/// The coincidence spellings this build can read, for a refusal.
-fn coincidence_known() -> String {
-    BooleanCoincidence::ALL
-        .iter()
-        .filter_map(|c| coincidence_tag(*c).map(|t| format!("`{t}`")))
-        .collect::<Vec<_>>()
-        .join(", ")
-}
-
-/// The declare payload's `((a, b), class)` list. A contact spells its
-/// class with the same table as the single-class form above, so a
-/// declaration written before the continuation existed reads unchanged.
-pub(crate) mod pairs {
-    use super::{
-        BooleanCoincidence, SitedRef, coincidence_known, coincidence_tag, coincidence_untag,
-        round_trip,
-    };
-    use serde::de::Error as _;
-    use serde::ser::Error as _;
-    use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
-    type Pairs = Vec<((SitedRef, SitedRef), BooleanCoincidence)>;
-
-    /// # Errors
-    ///
-    /// A class with no spelling in this build, or none this build
-    /// could read back, refuses rather than inventing one.
-    pub(crate) fn serialize<S: Serializer>(pairs: &Pairs, ser: S) -> Result<S::Ok, S::Error> {
-        let mut out = Vec::with_capacity(pairs.len());
-        for ((a, b), class) in pairs {
-            let t = round_trip(
-                *class,
-                coincidence_tag,
-                coincidence_untag,
-                "declared coincidence",
-                coincidence_known,
-            )
-            .map_err(|why| S::Error::custom(format!("persist: {why}")))?;
-            out.push(((a, b), t));
-        }
-        out.serialize(ser)
-    }
-
-    /// # Errors
-    ///
-    /// An unknown spelling refuses typed, quoting the table and the
-    /// `Fit` deferral.
-    pub(crate) fn deserialize<'de, D: Deserializer<'de>>(de: D) -> Result<Pairs, D::Error> {
-        let raw: Vec<((SitedRef, SitedRef), String)> = Vec::deserialize(de)?;
-        raw.into_iter()
-            .map(|(pair, t)| {
-                coincidence_untag(&t)
-                    .map(|class| (pair, class))
-                    .ok_or_else(|| {
-                        D::Error::custom(format!(
-                            "unknown declared coincidence '{t}' — a document spells one of {}; {}",
-                            coincidence_known(),
-                            topo::FIT_DEFERRAL
-                        ))
-                    })
-            })
-            .collect()
-    }
 }

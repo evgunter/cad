@@ -77,10 +77,8 @@ pub fn loop_vector_area<T: SpanLocate>(
             Curve3::Nurbs(ref payload) => nurbs_vector_area(payload, e.t0, e.t1, ref_point)?,
             // The spiric's sector integral `∫ P × P′ dv` carries
             // `√((R + r cos v)² − d²)` against `sin v` and `cos v` — an
-            // elliptic integral, no closed form. The cap it bounds is
-            // the props quadrature lane's (the spiric unit's next PR);
-            // until then the planar cap of a hollowed partial revolve
-            // refuses here, typed.
+            // elliptic integral, no closed form. A face it bounds is
+            // measured by the quadrature lane (`super::spiric`).
             Curve3::Spiric { .. } => return Err(PropsError::Unimplemented),
         };
         // Reversed traversal flips the line integral's sign.
@@ -140,7 +138,7 @@ fn nurbs_vector_area<T: SpanLocate>(
     t1: T,
     ref_point: Point3<T>,
 ) -> Result<Vec3<T>, PropsError> {
-    if curve.weights().iter().any(|w| *w != 1.0) {
+    if curve.weight_channel().iter().any(|w| *w != 1.0) {
         return Err(PropsError::Unimplemented);
     }
     let degree = curve.degree().max(1);
@@ -152,8 +150,11 @@ fn nurbs_vector_area<T: SpanLocate>(
         });
     };
     let kv = curve.knots();
-    let lo_spans = t0.locate_spans(kv);
-    let hi_spans = t1.locate_spans(kv);
+    let (Some(lo_spans), Some(hi_spans)) = (t0.locate_spans(kv), t1.locate_spans(kv)) else {
+        // A poison end locates no span, and the area is poison in every
+        // channel the ends carry.
+        return Ok(Vec3::<T>::zero().map(|_| geom_core::spline::poison_from(t0 + t1)));
+    };
     let first = lo_spans.first.index().min(hi_spans.first.index());
     let last = lo_spans.last.index().max(hi_spans.last.index());
     let half = T::from_f64(0.5);
@@ -163,8 +164,9 @@ fn nurbs_vector_area<T: SpanLocate>(
         let Some(span) = curve.span(index) else {
             continue;
         };
-        let lo = t0.max(T::from_f64(kv.knots()[index]));
-        let hi = t1.min(T::from_f64(kv.knots()[index + 1]));
+        let held = curve.knot_values().values();
+        let lo = t0.max(held[index]);
+        let hi = t1.min(held[index + 1]);
         let half_len = ((hi - lo) * half).max(T::zero());
         let mid = (lo + hi) * half;
         for (x, w) in nodes.iter().zip(weights) {
@@ -182,6 +184,42 @@ fn nurbs_vector_area<T: SpanLocate>(
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
+
+    /// A poison end locates no span, so the NURBS area is poison in every
+    /// channel the ends carry — at `Dual` the derivative channel too,
+    /// where a bare `from_f64(NaN)` would be a dual constant whose
+    /// derivative reads as a zero.
+    #[test]
+    fn a_poison_end_integrates_to_poison_in_every_dual_channel() {
+        use geom_core::Dual64;
+        use geom_core::spline::KnotVector;
+        let c = |x: f64, y: f64| {
+            Point3::new(
+                Dual64::constant(x),
+                Dual64::constant(y),
+                Dual64::constant(0.0),
+            )
+        };
+        let curve = NurbsCurve3::new(
+            geom_core::spline::Knots::from(
+                KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap(),
+            )
+            .lift(geom_core::Real::from_f64),
+            vec![c(0.0, 0.0), c(1.0, 2.0), c(2.0, 0.0), c(3.0, 1.0)],
+            vec![geom_core::Real::one(); 4],
+        )
+        .unwrap();
+        let a = nurbs_vector_area(
+            &curve,
+            Dual64::variable(f64::NAN),
+            Dual64::constant(1.0),
+            c(0.0, 0.0),
+        )
+        .unwrap();
+        for v in [a.x, a.y, a.z] {
+            assert!(v.value.is_nan() && v.deriv.is_nan(), "{a:?}");
+        }
+    }
 
     fn line_edge(a: Point3<f64>, b: Point3<f64>, forward: bool) -> LoopEdge<f64> {
         let d = b - a;

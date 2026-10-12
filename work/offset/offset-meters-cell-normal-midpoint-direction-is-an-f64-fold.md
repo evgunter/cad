@@ -43,9 +43,10 @@ norm through `norm_sup` on point intervals.
 Measured on the sibling site this was found from — `offset_fit`'s
 `m_sup`, the same shape on the same kind of hulls — the `f64` fold sat
 below the ring reading on **306 of 308 cells** of a real grid, worst
-deficit 4.70e-16 relative (`d = 1e-6`, quarter cylinder; the
-in-module row `the_normal_divisor_is_the_rings_reading_not_an_f64_fold`
-still counts it). Assembly B's operands are midpoints rather than
+deficit 4.70e-16 relative (`d = 1e-6`, quarter cylinder; counted by
+the in-module row `the_normal_divisor_is_the_rings_reading_not_an_f64_fold`,
+retired when `m_sup` moved to coefficient norms — ENCL,
+`encl/offset-cert-coefficient-norms`). Assembly B's operands are midpoints rather than
 magnitudes, so the count will differ, but the mechanism is identical.
 
 ## Why it is filed rather than fixed
