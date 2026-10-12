@@ -80,6 +80,158 @@ impl Divisions {
     }
 }
 
+/// What is wrong with a lineage row a list refused at append
+/// ([`Substitutions::push`], [`FaceDivisions::push`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RowDefect {
+    /// The row maps a cell to itself.
+    SelfRow,
+    /// The row names a cell an earlier row of the list retired.
+    NamesRetired,
+    /// A division row's new cell is named by an earlier row: a minted
+    /// cell is new to the list.
+    NotFresh,
+}
+
+/// A lineage row refused at append: its defect and the cell it is
+/// about. The list is left as it was.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RowRefusal {
+    /// What is wrong with the row.
+    pub defect: RowDefect,
+    /// The cell the defect is about.
+    pub cell: Cell,
+}
+
+/// **A substitution list**: rows `(dead, by)`, each saying `by` holds
+/// `dead`'s interior now, in the order the stages retired them.
+/// [`Self::push`] refuses a row that maps a cell to itself or names a
+/// cell an earlier row retired, so the list cannot cycle and a chase
+/// through it ends within its length. The list sees only its own rows.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Substitutions {
+    rows: Vec<(Cell, Cell)>,
+    by_dead: std::collections::BTreeMap<Cell, Cell>,
+}
+
+impl Substitutions {
+    /// Appends the row `(dead, by)`.
+    ///
+    /// # Errors
+    ///
+    /// [`RowDefect::SelfRow`] where `dead` is `by`, and
+    /// [`RowDefect::NamesRetired`] where an earlier row retired either;
+    /// the list is left as it was.
+    pub fn push(&mut self, (dead, by): (Cell, Cell)) -> Result<(), RowRefusal> {
+        let refuse = |defect, cell| Err(RowRefusal { defect, cell });
+        if dead == by {
+            return refuse(RowDefect::SelfRow, dead);
+        }
+        if let Some(cell) = [dead, by]
+            .into_iter()
+            .find(|c| self.by_dead.contains_key(c))
+        {
+            return refuse(RowDefect::NamesRetired, cell);
+        }
+        self.by_dead.insert(dead, by);
+        self.rows.push((dead, by));
+        Ok(())
+    }
+
+    /// The cell holding `dead`'s interior, where a row retired it.
+    #[must_use]
+    pub fn get(&self, dead: Cell) -> Option<Cell> {
+        self.by_dead.get(&dead).copied()
+    }
+
+    /// The rows, in the order they were added.
+    #[must_use]
+    pub fn rows(&self) -> &[(Cell, Cell)] {
+        &self.rows
+    }
+
+    /// The first cell `live` holds along the rows from `at`: `Ok(live)`,
+    /// or `Err(dead)` where the rows stop at a cell `live` does not hold.
+    /// Total, since the list cannot cycle.
+    pub fn chase(&self, mut at: Cell, live: impl Fn(Cell) -> bool) -> Result<Cell, Cell> {
+        loop {
+            if live(at) {
+                return Ok(at);
+            }
+            match self.get(at) {
+                Some(by) => at = by,
+                None => return Err(at),
+            }
+        }
+    }
+}
+
+/// **A face division list**: rows `(new face, divided-from face)` in
+/// the order the faces were minted. [`Self::push`] refuses a row whose
+/// two faces are one, or whose new face an earlier row names: a minted
+/// face is new to the list. So no chase from a face to the face it was
+/// divided from can cycle: a cycle would need each of its rows to come
+/// before the row that names its new face as divided-from.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct FaceDivisions {
+    rows: Vec<(FaceKey, FaceKey)>,
+    named: BTreeSet<FaceKey>,
+}
+
+impl FaceDivisions {
+    /// Appends the division `(new, from)`.
+    ///
+    /// # Errors
+    ///
+    /// [`RowDefect::SelfRow`] where `new` is `from`, and
+    /// [`RowDefect::NotFresh`] where an earlier row names `new`; the
+    /// list is left as it was.
+    pub fn push(&mut self, (new, from): (FaceKey, FaceKey)) -> Result<(), RowRefusal> {
+        let refuse = |defect| {
+            Err(RowRefusal {
+                defect,
+                cell: Cell::Face(new),
+            })
+        };
+        if new == from {
+            return refuse(RowDefect::SelfRow);
+        }
+        if self.named.contains(&new) {
+            return refuse(RowDefect::NotFresh);
+        }
+        self.named.extend([new, from]);
+        self.rows.push((new, from));
+        Ok(())
+    }
+
+    /// The rows, in the order they were added.
+    #[must_use]
+    pub fn rows(&self) -> &[(FaceKey, FaceKey)] {
+        &self.rows
+    }
+
+    /// The face `face` was divided from, where a row divided it off one.
+    #[must_use]
+    pub fn from(&self, face: FaceKey) -> Option<FaceKey> {
+        self.rows
+            .iter()
+            .find(|&&(new, _)| new == face)
+            .map(|&(_, from)| from)
+    }
+
+    /// The face `face` descends from through every division: itself
+    /// where no row divided it off one. Total, since the list cannot
+    /// cycle.
+    #[must_use]
+    pub fn root(&self, face: FaceKey) -> FaceKey {
+        let mut at = face;
+        while let Some(from) = self.from(at) {
+            at = from;
+        }
+        at
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
