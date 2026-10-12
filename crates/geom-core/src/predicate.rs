@@ -501,7 +501,8 @@ impl Band {
     ///   directions are being compared.
     /// - **Parallelism decisions** — the face extent: the largest in-plane
     ///   distance over which an angular error accumulates into a gap.
-    /// - **Conservative universal arm** — the session-box extent (D4 ¶4):
+    /// - **Conservative universal arm** — the session-box extent (D4 ¶4,
+    ///   [`SESSION_BOX_EXTENT`](crate::tolerance::SESSION_BOX_EXTENT)):
     ///   the largest lever arm anything in the model can have, giving the
     ///   tightest angular threshold that is always safe.
     ///
