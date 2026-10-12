@@ -911,3 +911,4 @@ Signed (CLEAVE orchestrator).
   - the split reads a vertex against its section (δ/sin ψ), not against the plane.
 
   Filed: units `a-section-ellipse-is-re-posed-at-its-nearest-principal-vertex` (P2), `the-section-table-admits-a-curve-on-its-resolution` (P2, parked on the re-pose) and `the-split-reads-a-vertex-against-the-section-it-ends-not-the-plane` (P2), plus germ's P3 `circular-axes-refuses-between-the-rim-alignment-band-and-the-axes-band`. A note went on GERM's conic row (FLUX's quadrature row is still on 4810's branch; the re-pose unit re-measures it), and seam notes to CURVED, GERM and PCERT. PR 4810 is reworked on top of the first two units.
+- 2026-10-12 — Dispatched the re-pose unit to the 4810 lane (`cleave/section-ellipse-re-pose`; then admission, then the 4810 rework, in order). Dispatched the vertex-against-section unit to a new lane (`cleave/vertex-against-section`).
