@@ -2,7 +2,8 @@
 id: curve-projection-orthogonality-field-has-no-reader
 kind: issue
 title: geom: Projection3's orthogonality field has no production reader, and the curve projection docs still say a consumer bands it with the distance
-status: open
+status: review
+pr: 4835
 opened: 2026-10-10
 priority: P3
 cost: E
