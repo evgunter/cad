@@ -17,15 +17,18 @@
 //!
 //! A planar face's section, and a ruling the table reads a curved face
 //! in, is minted straight, through the vertices it ends at or along the
-//! ruling they lie on, so it reads nothing past the plane offset. A
-//! vertex with no conic section through it reads the plane offset
-//! alone.
+//! ruling they lie on, so it reads nothing past the plane offset. Nor
+//! does a face whose boundary runs along the plane at the vertex: its
+//! section there is that edge, which ends at the vertex. A vertex with
+//! no other conic section through it reads the plane offset alone.
 
-use geom_core::{Band, Decide, Decided, Indeterminate, Margin, Point3, Sign, UnitVec3};
+use geom_core::{Band, Decide, Decided, Indeterminate, Margin, Point3, Sign, UnitVec3, Vec3};
 
 use crate::body::Body;
 use crate::chord_join::{SectionCase, WallSection, wall_section};
-use crate::entity::VertexKey;
+use crate::entity::{FaceKey, VertexKey};
+use crate::null::CurveGeom;
+use crate::splitting::{ConicPlaneMeet, PlaneCrossingLane, plane_crossing_lane};
 use crate::validate::decide_reported;
 
 /// K name: a vertex ON a plane read against the conic sections the
@@ -78,9 +81,10 @@ pub(crate) fn decide_vertex_on_plane<T: Decide>(
 /// whose dihedral `ψ` with the plane at the vertex is shallowest, the
 /// first-order distance along that face from the vertex to where the
 /// plane meets it. `None` where no face at the vertex has a conic
-/// section: a planar face, a ruling, a face the table refuses (that
-/// refusal is the join's to report, where it reads the face), and a
-/// vertex whose orbit does not read.
+/// section to mint: a planar face, a ruling, a face beside an edge at
+/// the vertex that runs along the plane ([`runs_along`]), a face the
+/// table refuses (that refusal is the join's to report, where it reads
+/// the face), and a vertex whose orbit does not read.
 fn section_offset<T: Decide>(
     body: &Body<T>,
     (vertex, at): (VertexKey, Point3<T>),
@@ -89,8 +93,10 @@ fn section_offset<T: Decide>(
     band: Band,
 ) -> Option<T> {
     let n = normal.get();
+    let along = runs_along(body, vertex, (origin, n), band)?;
     body.faces_of_vertex(vertex)?
         .into_iter()
+        .filter(|face| !along.contains(face))
         .filter_map(
             |face| match wall_section(body, band, origin, normal, face, vertex) {
                 Ok(Some(WallSection {
@@ -105,4 +111,33 @@ fn section_offset<T: Decide>(
         )
         .reduce(|a, b| a.min(b))
         .map(|sine| offset / sine)
+}
+
+/// The faces beside each conic edge at `vertex` whose plane the
+/// crossing lane reads parallel to the plane through `origin` along
+/// `n` ([`crate::splitting::plane_crossing_lane`]): with one end ON, the
+/// edge lies in the plane to the band, and is the section of both its
+/// faces there. `None` where the vertex's edges do not read.
+fn runs_along<T: Decide>(
+    body: &Body<T>,
+    vertex: VertexKey,
+    (origin, n): (Point3<T>, Vec3<T>),
+    band: Band,
+) -> Option<Vec<FaceKey>> {
+    let mut faces = Vec::new();
+    for edge_key in body.edges_of_vertex(vertex)? {
+        let edge = body.get_edge(edge_key)?;
+        let CurveGeom::Certified(curve) = body.edge_curve_linked(edge_key, edge) else {
+            continue;
+        };
+        let (t0, t1) = curve.params();
+        if let PlaneCrossingLane::Conic(ConicPlaneMeet::Parallel { .. }) =
+            plane_crossing_lane(curve.carrier(), t0, t1, origin, n, band)
+        {
+            for he in [edge.he_plus, edge.he_minus] {
+                faces.extend(body.face_of_half_edge(he));
+            }
+        }
+    }
+    Some(faces)
 }
