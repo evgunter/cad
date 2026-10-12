@@ -735,3 +735,61 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - **S1:** a six-site disposition table; the shared home is filed as `the-span-derivative-scale-is-spelled-in-six-places` (P4).
   - CI is green. The digest is unchanged at all three ε. The geom suite passes 418/418.
   - Rows 1 and 3 are closed. Row 2 is PR 4834. — (NURBS orchestrator)
+- 2026-10-12 12:40Z — **PR 4841 merges (`45a5059c3d`).**
+  - **The change:** the interval backend's `Mul` folds only a point operand's distinct corners, and `between` skips the identity clamp for an interior certified ratio. Output is bit-identical, so nothing was re-cut.
+  - **Cost:** the sweep digest row drops from 1.70× to 1.22× of its pre-4807 time at opt1, and from 1.73× to 1.12× in debug. The review reproduced the speedup at 0.79× of main.
+  - **CI on `37f905e685`:** the only red is editor-core's 1e-12 base row, which fails identically on the base and on main and is already filed on FLUSH. The interval oracle job ran and passed.
+  - **Since the reviewed head:** the census row (8, 8) → (9, 9), and comments and docs (S1–S4).
+  - The `routed-de-boor-costs-the-sweep-digest-row-1-7x` row is closed.
+- 2026-10-12 12:41Z — **Build B dispatched** on `interval-division-folds-duplicate-corners-for-a-point-operand` (P3, E), branch `nurbs/div-point-paths`.
+  - **Tier: single FULL**, the same as `Mul`: a backend op sits under every certified value.
+  - **The oracle** is the literal four-corner code, independent of the shared helper (the 4841 review's N2).
+  - The refined-scan row (`the-rational-meters-refined-scan-costs-190-ms-per-loft`, P3, M) goes to build C after 4834. Build A is standing by. — (NURBS orchestrator)
+- 2026-10-12 12:47Z — **PR 4834 merges (`8602894934`).** `SpanLocate::plain_constant` lets the speed meter take its integral arm only when every weight is the same plain literal; Dual and Sym weights take the rational arm.
+  - **Fix pass `2200a6dcc4`, verified:**
+    - MINOR-1: INLANE's class row cites this PR and lists the two new sites, plus the migration note.
+    - S1: `SymNode::literal` is the one spelling of the literal node.
+    - S3: renamed `held_constant` → `plain_constant`. The seam notes on DECIDE, SYM, SCALAR and VERDICT use the old working name; logs are append-only, so this line is the correction.
+    - S2, S4, S5 are done.
+    - S7: the sweep `skin.rs` and m7 citations are updated.
+    - NOTE-1: the E12 qualification is added.
+    - NOTE-2: the issue body is corrected.
+  - CI is green. The digest is unchanged at all three ε. Row 2 is closed, and with it all three rows of the speed meter's arm decision.
+- 2026-10-12 12:48Z — **Build C dispatched** on `the-rational-meters-refined-scan-costs-190-ms-per-loft` (P3, M), branch `nurbs/refined-scan-cost`. It measures what the refined scan decides that the piece assembly doesn't, then drops it, cheapens it, or keeps it with a stated reason. A cost-versus-reach trade on a nameable class stops for a ruling. **Tier: single FULL.** — (NURBS orchestrator)
+- 2026-10-12 12:52Z — **Build A dispatched** on `the-speed-meter-memo-is-visible-to-a-sym-session` (P3, E, filed by CLEAVE), branch `nurbs/memo-sym-invisible`.
+  - PR 4803's memo caches the meter before any Sym session exists, so the cached value freezes in every later session. That is the cause of the `Sym` frozen move that PR 4814 re-cut, and it makes the memo's invisibility claim false at Sym.
+  - **My lean:** keep the contract and don't serve a pre-session value inside a session, rather than documenting the exception. The lane weighs both on cost and stops if neither is clearly right.
+  - **Tier: single FULL**, because Sym semantics and the digest are involved.
+  - With this, all three builds are busy: A on the memo, B on the Div point paths, C on the refined scan.
+  - **Remaining P4 slate:**
+    - the six-place derivative scale;
+    - non-monotone refinement;
+    - the integral arm reading below the rational arm;
+    - degree elevation, which is conditional on a consumer. — (NURBS orchestrator)
+- 2026-10-12 13:06Z — **PR 4851 review** (Div point paths). Tier single FULL, reviewer session_017xPqznz4GPEmbFbt1CzfYe at `ce1223dc15`. Verdict **APPROVE**, no MAJOR and no MINOR.
+  - **Executed:**
+    - a 6M Div plus 6M Mul differential against the old literal code, and a 3.45M-pair edge table, with zero diffs;
+    - the ±0-numerator premise holds;
+    - touching divisors are excluded by construction;
+    - 11 of 12 mutants go red;
+    - the op is about 2.6× faster.
+  - **NOTE N1:** `lower_of`'s zero rule is dead in the least-fold, because no lo corner is ever −0. The equivalent mutant survives, so nothing can pin that rule today.
+  - **Style S1** is the style brief's named trap: the fix removed the duplicate fold but minted a duplicate four-arm dispatch in `Mul` and `Div`. It is sent back with S5 (the corner pair becomes structural) and S2. — (NURBS orchestrator)
+- 2026-10-12 13:29Z — **PR 4853 merges (`557ce59178`).** It is a doc-only sentence at Sym's `plain_constant` saying why the check does not read the node's form: a form expansion moves the digest's `SymCounts`. The sentence missed the 4834 merge, and build C correctly re-landed it on a fresh branch.
+  - **Friction (second instance today):** a message to build C reached it about 40 min late. The refined-scan dispatch was sent at 12:48Z and had not arrived by 13:27Z. Re-sent as an interrupt, with a request to acknowledge. — (NURBS orchestrator)
+- 2026-10-12 13:33Z — **Ruled: drop the rational meter's refined scan (option A).** Build C measured before building, on main `f581d1ae29`.
+  - **What the refined scan decides:**
+    - On every m5_pr7 fixture the piece assembly is at least as high as the refined scan, frontier rows included.
+    - Across 12,000 random rational nets (degrees 1–6, four weight regimes) it changes **no decision**.
+    - It wins by more than 1% only on degree 2: about 1% of those nets, usually by 1–3%, at worst 2.07×.
+  - **Cost:** the refined scan is about 74% of the rational meter on a long carrier (36.8 of 49.9 ms on a 37-span cubic). About 90% of that is quadratic refinement plumbing (`equal_split` plans, `refine_homogeneous` per channel).
+  - **Options weighed:**
+    - (B): make it local and linear. A real rewrite in geom-core spline, done only to keep reach that decides nothing measured.
+    - (C): keep it and document.
+  - **Why (A):**
+    - it is the simpler final state;
+    - it is reversible, since a degree-2 consumer that needs the reach would get it in the piece assembly;
+    - above degree 24 the meter refuses typed.
+  - This is the orchestrator's call: an internal meter trade with a dominant measurement, touching no ratified text.
+  - Build C builds it with pin rows for degree 2 and degree 25, and re-cuts any golden that moves. Any other caller of the refinement plumbing gets its own cost row.
+  - **Tier: single FULL.** — (NURBS orchestrator)
