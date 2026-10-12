@@ -10,7 +10,7 @@ priority: P1
 cost: H
 design: true
 branch: germ/plane-torus-chord-spiric
-pr: 4847
+pr: 4927
 ---
 
 ## From GitHub issue 1057
@@ -173,7 +173,7 @@ today. U-T4 is unblocked.
 
 ## U-T4, the plane × torus chord for the spiric ovals (GERM, 2026-10-12)
 
-On `germ/plane-torus-chord-spiric`. The chord layer's torus arm takes an
+On `germ/plane-torus-chord-spiric` (PR 4927). The chord layer's torus arm takes an
 arc of the spiric oval the chord's sites lie on, on the oval's own
 parameter, through the arc rule every curved chord uses; the torus
 face's ring lane reads oval arcs as it reads meridians, and the plane
