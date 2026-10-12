@@ -1002,3 +1002,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
     - Arm byte 169, mod 3 = 1: **SEQUENTIAL**.
     - Cloud session `session_01X4Xg9GKw7z9LuZF8GHceko`, branch `germ/conic-past-band`.
   - The U-T2 fix pass is running.
+- 2026-10-12 07:29 — Check-in: nothing ready. The U-T2 fix pass pushed `ad772e3a` and is waiting on hosted CI. The conic P2 lane is measuring (the aligned cylinder sweeps are done; it is comparing generic and aligned poses at 1e-9).
