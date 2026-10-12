@@ -868,7 +868,7 @@ fn tangent_side(arm_gate: bool) -> Result<(), BooleanError> {
     } else {
         (2.0 * D / (accel(&ball) - accel(&floor)).abs()).sqrt()
     };
-    let read = DeclarationRead::Spent(GlueClass::TANGENT);
+    let read = DeclarationRead::Spent(GlueClass::Tangent);
     tangent_relative_side(&ball, &floor, n, p, d, arm, read, band()).map(|_| ())
 }
 
@@ -1288,7 +1288,7 @@ fn tangent_side_of(side: f64) -> Result<(), BooleanError> {
         -geom_brep::implicit_hessian_form(s, p, d) / geom_brep::implicit_gradient(s, p).dot(n.vec())
     };
     let arm = (2.0 * D / (accel(&ball) - accel(&floor)).abs()).sqrt();
-    let read = DeclarationRead::Spent(GlueClass::TANGENT);
+    let read = DeclarationRead::Spent(GlueClass::Tangent);
     tangent_relative_side(&ball, &floor, n, p, d, arm, read, band()).map(|_| ())
 }
 
@@ -2261,7 +2261,6 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::ContactContradicted
         | BooleanErrorKind::ContinuationContradicted
         | BooleanErrorKind::UnsupportedDeclarationClass
-        | BooleanErrorKind::SeamContradicted
         | BooleanErrorKind::RimCuspArmUnbuilt
         | BooleanErrorKind::TangentSlitArmUnbuilt
         | BooleanErrorKind::InvalidInput
@@ -2614,20 +2613,10 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("mod.rs", "unsettled_rest", "Coincide::DeclaredReach", 1),
-    ("mod.rs", "tangent_rim_refusal", "Coincide::Rim", 1),
-    (
-        "mod.rs",
-        "verify_tangency_declaration",
-        "Coincide::Contact",
-        1,
-    ),
-    ("mod.rs", "verify_tangency_declaration", "Coincide::Rim", 2),
-    (
-        "mod.rs",
-        "verify_tangency_declaration",
-        "Coincide::TangentLocus",
-        2,
-    ),
+    ("mod.rs", "route_rim", "Coincide::Rim", 1),
+    ("mod.rs", "verify_tangency", "Coincide::Contact", 1),
+    ("mod.rs", "verify_tangency", "Coincide::Rim", 1),
+    ("mod.rs", "verify_tangency", "Coincide::TangentLocus", 1),
     (
         "ops.rs",
         "bound_holds",
@@ -2810,6 +2799,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("sectors.rs", "read_side", "LeverArm::SectorSide", 1),
     ("sectors.rs", "runs_in", "Coincide::EdgeOnPlane", 1),
     ("sectors.rs", "tangent_lump", "Coincide::TangentLocus", 1),
+    ("sectors.rs", "tangent_lump", "Coincide::TangentSide", 1),
     (
         "sectors.rs",
         "tangent_relative_side",

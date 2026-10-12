@@ -899,8 +899,15 @@ fn the_tube_and_an_overlapping_ball_refuse_at_the_crossing_layer() {
     }
 }
 
+/// **The stadium: a slab whose top and bottom end on a rod's rulings.**
+/// Each is tangent to the rod along its ruling with their outward
+/// normals agreeing, so the glue door glues the pair `Tangent`; the
+/// slab's top edge runs along the rod wall's interior there, and that
+/// edge–sector site has no tangent arm yet
+/// (`recl::require_same`, filed:
+/// `work/contacthold/a-same-side-slab-past-the-round-stops-at-curved-boolean-unsupported.md`).
 #[test]
-fn the_stadium_refuses_at_the_crossing_layer() {
+fn the_stadium_refuses_at_the_edge_sector_tangent_door() {
     let tol = Tol::witness();
     let slab: AtRestBody<f64> = finished(
         "the slab",
@@ -929,12 +936,9 @@ fn the_stadium_refuses_at_the_crossing_layer() {
     .body;
     let rod = finished("the rod", rod, tol);
     for e in union_both_orders(&slab, &rod) {
-        // Which of the two the run's band lands on is ε-dependent: the
-        // `B ∪ A` order escalates at the default ε on a contact-vertex
-        // margin and pierces at 1e-6 and 1e-12.
         assert!(
-            is_pierce(&e) || matches!(e, BooleanError::Escalated { .. }),
-            "the crossing layer's refusal: {e:?}"
+            matches!(e, BooleanError::CurvedBooleanUnsupported { .. }),
+            "the edge-sector tangent door's refusal: {e:?}"
         );
     }
 }

@@ -1029,19 +1029,24 @@ fn at_departure<T: Decide>(
 /// derivation runs): the descent exists exactly where the witness
 /// lane reaches, and nowhere else.
 ///
+/// The lump opens for every tangency the glue door decides, whichever
+/// side the two materials lie on (C7): an internal tangency reads `In`
+/// where an external one reads `Out`.
+///
 /// Verdicts: definitely curving into the other body's material ⇒
-/// `In`; definitely away ⇒ `Out`; an EXACT second-order zero is the
-/// isolated osculating point whose residue the verified declaration
-/// bridges (C4's #175 clause) — the pair is locally conformal to
-/// every order the kernel measures, and the declaration's verified
-/// opposed material sides make that the Eq. 15.3 ⁻ lump; an in-band
-/// margin escalates (an osculating pair is a sliver at this ε — F6).
+/// `In`; definitely away ⇒ `Out`; an EXACT second-order zero is an
+/// isolated osculating point, locally conformal to every order the
+/// kernel measures, so it lumps as a one-carrier pair does under the
+/// pair's sense bit (`sector_outward` against `other_outward`: opposed
+/// the Eq. 15.3 ⁻ lump, aligned the ⁺); an in-band margin escalates (an
+/// osculating pair is a sliver at this ε — F6).
 #[allow(clippy::too_many_arguments)]
 pub(super) fn tangent_lump<T: Decide>(
     sector_surface: &geom::Surface<T>,
     other_surface: &geom::Surface<T>,
     reach: geom_brep::ExtentBall<T>,
     other_outward: OutwardNormal<T>,
+    sector_outward: OutwardNormal<T>,
     p: geom_core::Point3<T>,
     op: super::BooleanOp,
     on_side: Operand,
@@ -1095,14 +1100,27 @@ pub(super) fn tangent_lump<T: Decide>(
     )? {
         SideCode::In => Ok(SideCode::In),
         SideCode::Out => Ok(SideCode::Out),
-        // The exact-zero osculating residue, bridged by the verified
-        // declaration (doc above): locally conformal with verified
-        // opposed senses IS the Eq. 15.3 ⁻ posture.
-        SideCode::On => Ok(super::tables::eq15_3_lump(
-            op,
-            on_side,
-            super::plane_eq::PlaneRelation::SameOpposite,
-        )),
+        // The exact-zero osculating residue (doc above): locally
+        // conformal, so the pair's sense bit picks the Eq. 15.3 posture.
+        SideCode::On => {
+            let relation = match crate::validate::decide(
+                "tangent_lump_senses",
+                Margin::levered(sector_outward.vec().dot(n_ref), arm),
+                band,
+            ) {
+                Ok(Sign::Positive) => super::plane_eq::PlaneRelation::SameOriented,
+                Ok(Sign::Negative) => super::plane_eq::PlaneRelation::SameOpposite,
+                Ok(Sign::Zero) => {
+                    return Err(BooleanError::ClassificationInvariant {
+                        what: "a tangent sector pair's outward normals are perpendicular",
+                    });
+                }
+                Err(diag) => {
+                    return Err(BooleanError::coincidence(Coincide::TangentSide, read, diag));
+                }
+            };
+            Ok(super::tables::eq15_3_lump(op, on_side, relation))
+        }
     }
 }
 
@@ -6051,7 +6069,7 @@ mod tests {
             p,
             d,
             arm,
-            DeclarationRead::Spent(GlueClass::TANGENT),
+            DeclarationRead::Spent(GlueClass::Tangent),
             b,
         )
         .expect_err("an in-band sagitta escalates the reading");
@@ -6062,7 +6080,7 @@ mod tests {
             decision,
             BooleanDecision::Coincidence(
                 Coincide::TangentSide,
-                DeclarationRead::Spent(GlueClass::TANGENT)
+                DeclarationRead::Spent(GlueClass::Tangent)
             )
         );
         assert_eq!(diag.predicate, Some("tangent_sector_order2"));
@@ -6315,12 +6333,13 @@ mod tests {
             &plate_top(),
             fixture_reach(),
             plate_out,
+            OutwardNormal::from_chart(Vec3::new(0.0, 0.0, -1.0), true),
             p,
             super::super::BooleanOp::Union,
             Operand::B,
             FaceKey::default(),
             0.5,
-            DeclarationRead::Spent(GlueClass::TANGENT),
+            DeclarationRead::Spent(GlueClass::Tangent),
             b,
         )
         .unwrap();
@@ -6333,12 +6352,13 @@ mod tests {
             &y_cyl(1.5, 0.5),
             fixture_reach(),
             wall_out,
+            OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
             p,
             super::super::BooleanOp::Union,
             Operand::A,
             FaceKey::default(),
             0.5,
-            DeclarationRead::Spent(GlueClass::TANGENT),
+            DeclarationRead::Spent(GlueClass::Tangent),
             b,
         )
         .unwrap();
@@ -6361,24 +6381,55 @@ mod tests {
             &y_cyl(1.5, 0.5),
             fixture_reach(),
             fat_out,
+            OutwardNormal::from_chart(Vec3::new(0.0, 0.0, -1.0), true),
             p,
             super::super::BooleanOp::Union,
             Operand::A,
             FaceKey::default(),
             0.25,
-            DeclarationRead::Spent(GlueClass::TANGENT),
+            DeclarationRead::Spent(GlueClass::Tangent),
             b,
         )
         .unwrap();
         assert_eq!(lump, SideCode::In);
+        // At an exact second-order zero the two outward normals AGREE
+        // here, so the osculating residue lumps as a continuation does,
+        // not as the opposed contact the external pair below lumps as.
+        let zero_arm = (b.zero() * 0.5).sqrt();
+        let at_zero = tangent_lump(
+            &y_cyl(1.25, 0.25),
+            &y_cyl(1.5, 0.5),
+            fixture_reach(),
+            fat_out,
+            OutwardNormal::from_chart(Vec3::new(0.0, 0.0, -1.0), true),
+            p,
+            super::super::BooleanOp::Union,
+            Operand::A,
+            FaceKey::default(),
+            zero_arm,
+            DeclarationRead::Spent(GlueClass::Tangent),
+            b,
+        )
+        .unwrap();
+        let aligned = super::super::tables::eq15_3_lump(
+            super::super::BooleanOp::Union,
+            Operand::A,
+            super::super::plane_eq::PlaneRelation::SameOriented,
+        );
+        let opposed = super::super::tables::eq15_3_lump(
+            super::super::BooleanOp::Union,
+            Operand::A,
+            super::super::plane_eq::PlaneRelation::SameOpposite,
+        );
+        assert_ne!(aligned, opposed, "the fixture's op tells the two senses apart");
+        assert_eq!(at_zero, aligned, "an aligned exact zero lumps by its senses");
     }
 
     /// Three-outcome honesty on the metered row: the SAME external
     /// tangency at three lever arms — definite (Out), in-band
     /// (escalates, an osculating pair is a sliver at this ε), and
-    /// exactly-zero displacement (the isolated osculating residue the
-    /// verified declaration bridges: the Eq. 15.3 minus-lump, In for
-    /// a Union A-sector).
+    /// exactly-zero displacement (the isolated osculating residue, its
+    /// opposed senses the Eq. 15.3 minus-lump, In for a Union A-sector).
     #[test]
     fn tangent_lump_is_three_outcome_honest_on_the_arm() {
         let b = band();
@@ -6390,12 +6441,13 @@ mod tests {
                 &plate_top(),
                 fixture_reach(),
                 plate_out,
+                OutwardNormal::from_chart(Vec3::new(0.0, 0.0, -1.0), true),
                 p,
                 super::super::BooleanOp::Union,
                 Operand::A,
                 FaceKey::default(),
                 arm,
-                DeclarationRead::Spent(GlueClass::TANGENT),
+                DeclarationRead::Spent(GlueClass::Tangent),
                 b,
             )
         };
@@ -6428,12 +6480,13 @@ mod tests {
             &plate_top(),
             fixture_reach(),
             plate_out,
+            OutwardNormal::from_chart(Vec3::new(0.0, 0.0, -1.0), true),
             p,
             super::super::BooleanOp::Union,
             Operand::A,
             FaceKey::default(),
             0.5,
-            DeclarationRead::Spent(GlueClass::TANGENT),
+            DeclarationRead::Spent(GlueClass::Tangent),
             b,
         ) {
             Err(BooleanError::ClassificationInvariant { .. }) => {}
@@ -6450,12 +6503,13 @@ mod tests {
             &plate_top(),
             fixture_reach(),
             plate_out,
+            OutwardNormal::from_chart(Vec3::new(0.0, 0.0, -1.0), true),
             p,
             super::super::BooleanOp::Union,
             Operand::A,
             FaceKey::default(),
             0.5,
-            DeclarationRead::Spent(GlueClass::TANGENT),
+            DeclarationRead::Spent(GlueClass::Tangent),
             b,
         ) {
             Err(BooleanError::CurvedBooleanUnsupported { .. }) => {}

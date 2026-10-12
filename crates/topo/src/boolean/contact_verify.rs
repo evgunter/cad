@@ -341,20 +341,34 @@ pub(crate) fn tangent_locus_reading<T: Decide>(
     band: Band,
 ) -> Result<(ContactVerdict, geom_core::MarginDiag), ContactRefusal> {
     tangent_table(
-        s1, sense1, s2, sense2, carrier, t0, t1, declared, true, band,
+        s1,
+        sense1,
+        s2,
+        sense2,
+        carrier,
+        t0,
+        t1,
+        declared,
+        Claim::Contact,
+        band,
     )
+    .map(|(verdict, touch, _)| (verdict, touch))
 }
 
-/// [`tangent_locus_reading`]'s table for a SEAM, B's sense bit already
-/// reversed by the caller: one material continuing across the locus,
-/// whose two faces leave it on opposite sides, so no material crescent
-/// between the sheets is read.
+/// **The boolean glue door's tangency**: the C4 `Tangent` table along
+/// `carrier` with no claim about the materials. It keeps the touch, the
+/// witness on both surfaces, first-order parallelism and the
+/// second-order margin, which must be DEFINITE (jet-determinate: no
+/// declaration stands behind the pair to bridge an in-band or exactly
+/// zero `κ_rel`). The outward normals may agree or oppose, and the
+/// crescent between the sheets may be void or shared; both are
+/// reported ([`Posture`]), and neither contradicts.
 ///
 /// # Errors
 ///
 /// [`ContactRefusal`] — see [`tangent_pair_relation`].
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn tangent_seam_reading<T: Decide>(
+pub(crate) fn tangency_reading<T: Decide>(
     s1: &geom::Surface<T>,
     sense1: bool,
     s2: &geom::Surface<T>,
@@ -363,12 +377,44 @@ pub(crate) fn tangent_seam_reading<T: Decide>(
     t0: T,
     t1: T,
     band: Band,
-) -> Result<(ContactVerdict, geom_core::MarginDiag), ContactRefusal> {
-    tangent_table(s1, sense1, s2, sense2, carrier, t0, t1, true, false, band)
+) -> Result<(geom_core::MarginDiag, Posture), ContactRefusal> {
+    tangent_table(
+        s1,
+        sense1,
+        s2,
+        sense2,
+        carrier,
+        t0,
+        t1,
+        false,
+        Claim::Tangency,
+        band,
+    )
+    .map(|(_, touch, posture)| (touch, posture))
 }
 
-/// The C4 `Tangent` table along `carrier`, the material crescent read
-/// where `contact` ([`tangent_locus_relation`]), with the touch's margin.
+/// What a tangency reading saw of the two faces' senses along the locus,
+/// read off every sample.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Posture {
+    /// The outward normals agree along the locus.
+    pub(crate) aligned: bool,
+    /// The normals oppose and the crescent between the sheets is void at
+    /// every sample: the posture of two materials touching from outside.
+    pub(crate) void: bool,
+}
+
+/// What the table is asked to verify.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Claim {
+    /// A contact: senses opposed and the crescent void (C4's `Tangent`).
+    Contact,
+    /// A tangency alone, claiming nothing of the materials.
+    Tangency,
+}
+
+/// The C4 `Tangent` table along `carrier` under `claim`, with the
+/// touch's margin and the senses' posture.
 #[allow(clippy::too_many_arguments)]
 fn tangent_table<T: Decide>(
     s1: &geom::Surface<T>,
@@ -379,9 +425,9 @@ fn tangent_table<T: Decide>(
     t0: T,
     t1: T,
     declared: bool,
-    contact: bool,
+    claim: Claim,
     band: Band,
-) -> Result<(ContactVerdict, geom_core::MarginDiag), ContactRefusal> {
+) -> Result<(ContactVerdict, geom_core::MarginDiag, Posture), ContactRefusal> {
     // The lane gate FIRST: the demanded set is the certifiable set,
     // so a configuration whose span bounds do not exist gets no
     // per-sample verdict either — refusing here is the order-k
@@ -406,6 +452,8 @@ fn tangent_table<T: Decide>(
     let extent = geom_brep::edge_extent(carrier, t0, t1, chord);
     let mut bridged = false;
     let mut gap_max = T::zero();
+    let mut aligned = None;
+    let mut void = true;
     for i in 0..CERT_SAMPLES {
         let t = sample_param(t0, t1, i);
         let (p, tau) = carrier.ders1(t);
@@ -413,10 +461,12 @@ fn tangent_table<T: Decide>(
             geom_brep::implicit_residual(s1, p),
             geom_brep::implicit_residual(s2, p),
         );
-        // (1) Senses opposed: the two faces' OUTWARD normals must
-        // point at each other. Aligned normals on a shared tangency
-        // are containment, and a contact claiming it is a lie
-        // (the C1 lemma, one dimension down from C3's patch clause).
+        // (1) Senses: a contact's two OUTWARD normals must point at each
+        // other, since aligned normals on a shared tangency are
+        // containment and a contact claiming it is a lie (the C1 lemma,
+        // one dimension down from C3's patch clause). A tangency takes
+        // either, reading the second face as reversed where they agree
+        // so the touch below reads one convention.
         let n1: Vec3<T> = implicit_outward_normal(s1, sense1, p).vec();
         let n2: Vec3<T> = implicit_outward_normal(s2, sense2, p).vec();
         // Which way the shared normal points is metered over the
@@ -429,7 +479,16 @@ fn tangent_table<T: Decide>(
             Margin::levered(n1.dot(n2), extent),
             band,
         ) {
-            Ok(Sign::Negative) => {}
+            Ok(Sign::Negative) => {
+                if aligned.replace(false) == Some(true) {
+                    return Err(sides_mixed(band));
+                }
+            }
+            Ok(Sign::Positive) if claim == Claim::Tangency => {
+                if aligned.replace(true) == Some(false) {
+                    return Err(sides_mixed(band));
+                }
+            }
             Ok(Sign::Positive) => {
                 return Err(ContactRefusal::Contradicted {
                     diag: Indeterminate {
@@ -463,6 +522,7 @@ fn tangent_table<T: Decide>(
         // (2) The touch, before the witness: the pair's separation
         // along the shared normal ([`touching`]), its orientation σ the
         // one (1) decided.
+        let sense2 = sense2 != (aligned == Some(true));
         let separation = touching(r1, sense1, r2, sense2, band)?;
         gap_max = gap_max.max(separation.abs());
         // The witness on both surfaces, read across the spans each
@@ -542,7 +602,7 @@ fn tangent_table<T: Decide>(
             // A definite κ_rel has a definite sign: the sheets leave the
             // locus one above the other, and a contact's materials must
             // be on the outer sides of that pair, not between it.
-            Ok(Sign::Positive) if contact => {
+            Ok(Sign::Positive) if claim == Claim::Contact => {
                 let crescent =
                     Margin::sagitta(geom_brep::material_kappa_rel(jet.kappa_rel, sense1), arm);
                 match crate::validate::decide("contact_tangent_overlap", crescent, band) {
@@ -561,7 +621,15 @@ fn tangent_table<T: Decide>(
                     Err(diag) => return Err(ContactRefusal::Escalated { diag }),
                 }
             }
-            Ok(Sign::Positive) => {}
+            Ok(Sign::Positive) => {
+                let crescent =
+                    Margin::sagitta(geom_brep::material_kappa_rel(jet.kappa_rel, sense1), arm);
+                void &= aligned == Some(false)
+                    && matches!(
+                        crate::validate::decide("contact_tangent_overlap", crescent, band),
+                        Ok(Sign::Negative)
+                    );
+            }
             residue => {
                 if !declared {
                     return Err(ContactRefusal::Escalated {
@@ -605,7 +673,25 @@ fn tangent_table<T: Decide>(
     } else {
         ContactVerdict::Definite
     };
-    Ok((verdict, touch))
+    let posture = Posture {
+        aligned: aligned == Some(true),
+        void: void && aligned == Some(false),
+    };
+    Ok((verdict, touch, posture))
+}
+
+/// A tangency whose outward normals agree at one sample and oppose at
+/// another: no single pair of sides runs along the locus.
+fn sides_mixed(band: Band) -> ContactRefusal {
+    ContactRefusal::Contradicted {
+        diag: Indeterminate {
+            margin: geom_core::MarginDiag::INVALID,
+            band,
+            predicate: Some("tangency_sides_mixed"),
+            terminal_sliver: false,
+        },
+        steer: None,
+    }
 }
 
 /// **The touch at a sample**: the two surfaces' separation along their

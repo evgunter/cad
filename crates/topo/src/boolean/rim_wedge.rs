@@ -1576,7 +1576,7 @@ mod arc_end_rows {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod boundary_midpoint_rows {
     use super::*;
-    use crate::test_support_fixtures::{CylFrame, Prism, arc_cap, cyl_wall_sheet, prism_z};
+    use crate::test_support_fixtures::{Prism, arc_cap, prism_z};
     use geom_core::{Tol, Vec3};
 
     /// A block in the plane `z = 0` (its top face there) over the polygon
@@ -1647,8 +1647,7 @@ mod boundary_midpoint_rows {
     ///   there, `s·δ/2` from the midpoint. Clear of the band the pair
     ///   meets only along the ride, on opposite banks: `Opposite`.
     ///
-    /// Neither is the face's interior: `NoEdge` there would be the
-    /// declaration door's decided `SeamFaceRunsOn`.
+    /// Neither is the face's interior, where the read is `NoEdge`.
     #[test]
     fn a_boundary_midpoint_on_a_line_is_not_placed() {
         let tol = Tol::witness();
@@ -1822,62 +1821,5 @@ mod boundary_midpoint_rows {
                 &format!("tangent circle, alpha {alpha}"),
             );
         }
-    }
-
-    /// **Through the declaration door**: a seam claim between the
-    /// shallow-cornered block's top and a cylinder wall tangent to its
-    /// plane along the ride's line, the wall's meridian running `δ` past
-    /// the corner. On the boundary the claim is refused as outside the
-    /// envelope, never contradicted; clear of the band the door verifies
-    /// the seam.
-    #[test]
-    fn the_seam_door_refuses_a_boundary_midpoint_typed() {
-        let tol = Tol::witness();
-        let band = Band::linear(tol).unwrap();
-        let zero = band.zero();
-        let s = 4.0 * tol.k() * zero;
-        let corner = prism_z::<f64>(
-            &[
-                (-1.0, 0.0),
-                (1.0, 0.0),
-                (1.0, 1.0 - s),
-                (0.0, 1.0),
-                (-1.0, 1.0),
-            ],
-            -1.0,
-            0.0,
-            tol,
-        );
-        let wall_frame = CylFrame {
-            origin: Point3::new(0.0, 1.0, -1.0),
-            axis: Vec3::unit_x(),
-            radius: 1.0,
-            u_ref: Vec3::unit_z(),
-        };
-        let claim = |gap: f64| {
-            let delta = 2.0 * gap * zero / s;
-            let mut body = Body::<f64>::new();
-            let wall = cyl_wall_sheet(&mut body, wall_frame, (0.0, 1.0), (-1.0, delta), tol);
-            crate::boolean::verify_tangency_declaration(
-                &corner.body,
-                corner.top_face,
-                &body,
-                wall,
-                crate::boolean::Tangency::Seam,
-                band,
-            )
-            .map(|_| ())
-        };
-        assert!(
-            matches!(
-                claim(0.5),
-                Err(crate::boolean::BooleanError::UnsupportedDeclarationClass {
-                    class: crate::contact::GlueClass::Seam
-                })
-            ),
-            "on the boundary: refused typed, got {:?}",
-            claim(0.5)
-        );
-        assert!(claim(20.0).is_ok(), "clear of the band: the seam verifies");
     }
 }

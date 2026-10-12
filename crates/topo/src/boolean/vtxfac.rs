@@ -607,80 +607,30 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 predicate: Some("bool_sector_coplanar"),
                 terminal_sliver: false,
             };
-            return Err(match class {
-                GlueClass::Continuation => {
-                    BooleanError::ContinuationContradicted { a, b, fact, margin }
-                }
-                GlueClass::Seam => BooleanError::SeamContradicted { a, b, fact, margin },
-                GlueClass::Contact(class) => BooleanError::ContactContradicted {
-                    declaration: crate::contact::DeclaredContact { a, b, class },
-                    steer: fact.and_then(super::contact_verify::fit_steer),
-                    fact,
-                    margin,
-                },
-            });
+            return Err(super::glue_contradicted(a, b, class, fact, margin));
         }
-        // A declared one-carrier pair's lump bridges an in-band tilt, and
-        // a `Tangent` pair's descends to the second order; a seam has no
-        // lump arm here, so its in-band tilt refuses as an undeclared
-        // one does.
+        // A glued one-carrier pair's lump bridges an in-band tilt, and a
+        // tangency's descends to the second order.
         let refused = match (&tilt, class) {
-            (Ok(Sign::Zero), _) => false,
-            (Err(_), Some(GlueClass::Seam) | None) | (Ok(Sign::Positive | Sign::Negative), _) => {
-                true
-            }
-            (Err(_), Some(_)) => false,
+            (Ok(Sign::Zero), _) | (Err(_), Some(_)) => false,
+            (Err(_), None) | (Ok(Sign::Positive | Sign::Negative), _) => true,
         };
         if refused {
-            // A one-carrier declaration bridges the residue only against
-            // a planar pierced face (a curved one refuses below whatever
-            // is declared), and the door admits the one the pair's senses
-            // make it, or none where it cannot read them; `Tangent` only
-            // where the door's witness lane derives the pair's tangency,
-            // which it checks before it admits one.
-            fn surface<T: Decide>(
-                body: &Body<T>,
-                f: crate::entity::FaceKey,
-            ) -> Option<&geom::Surface<T>> {
-                body.get_face(f)
-                    .and_then(|face| body.get_surface(face.surface))
-            }
-            let tangent = match (
-                surface(piercing_body, s.face),
-                surface(pierced_body, contact.face),
-                match class {
-                    Some(_) => {
-                        Some(declared.reach_of(piercing, s.face, pierced_op, contact.face)?)
-                    }
-                    // An undeclared pair's extent, read mid-operation:
-                    // a face whose box no longer reads offers no
-                    // `Tangent` (`work/tang/the-tangent-offer-drops-for-a-face-with-null-scaffolding-mid-op.md`).
-                    None => super::carrier_pair::pair_extent(
-                        piercing_body,
-                        s.face,
-                        pierced_body,
-                        contact.face,
-                        band,
-                    )
-                    .ok()
-                    .map(|extent| extent.reach),
-                },
-            ) {
-                (Some(a), Some(b), Some(reach)) => {
-                    geom_brep::tangent_locus(a, b, reach, band).is_ok()
-                }
-                _ => false,
-            };
-            let one_carrier = plane
+            // An unglued pair: a one-carrier class would bridge the
+            // residue against a planar pierced face (a curved one refuses
+            // below whatever is glued), and the door admits the one the
+            // pair's senses make it, or none where it cannot read them. A
+            // tangency is never offered: the glue door has already read
+            // the pair, and leaves it unglued only where it is no
+            // tangency (D10).
+            let admitted: Vec<GlueClass> = plane
                 .is_some()
                 .then(|| {
                     super::plane_eq::senses(s.normal.vec(), n_pierced.vec(), s.arm, band)
                         .and_then(GlueClass::of_senses)
                 })
-                .flatten();
-            let admitted: Vec<GlueClass> = one_carrier
+                .flatten()
                 .into_iter()
-                .chain(tangent.then_some(GlueClass::TANGENT))
                 // A decided tilt admits no class: no declaration settles it.
                 .filter(|_| !decided_tilt)
                 .collect();
@@ -717,7 +667,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         // band too, so the two `On`s are the consecutive-`On` refusal
         // (`work/hone/an-arc-tangent-to-a-face-at-its-end-is-split-at-the-edge-of-the-band.md`;
         // pinned by `m9_3_zip::a_tangent_curved_sector_on_a_face_lumps_whole`).
-        if class == Some(GlueClass::TANGENT) {
+        if class == Some(GlueClass::Tangent) {
             let surface_of = |body: &Body<T>, f| {
                 body.get_face(f)
                     .and_then(|face| body.get_surface(face.surface))
@@ -735,7 +685,8 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             );
             let reach = declared.reach_of(piercing, s.face, pierced_op, contact.face)?;
             let lump = super::sectors::tangent_lump(
-                &s_sector, &s_pierced, reach, n_pierced, p, op, piercing, s.face, s.arm, read, band,
+                &s_sector, &s_pierced, reach, n_pierced, s.normal, p, op, piercing, s.face, s.arm,
+                read, band,
             )?;
             entries[k].class = lump;
             entries[(k + 1) % n].class = lump;

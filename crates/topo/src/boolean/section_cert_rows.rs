@@ -1600,7 +1600,7 @@ fn a_glued_pair_exempts_itself_only() {
         pairs: vec![GluedPair {
             a: fa[0],
             b: fb[0],
-            class: crate::contact::GlueClass::REST,
+            class: crate::contact::GlueClass::Rest,
         }],
         ..Glue::default()
     };

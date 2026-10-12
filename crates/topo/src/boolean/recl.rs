@@ -341,7 +341,7 @@ pub(super) fn recl_sectors<T: Decide>(
             Coincide::TangentSide,
             &[],
         );
-        if read == DeclarationRead::Spent(crate::contact::GlueClass::TANGENT) {
+        if read == DeclarationRead::Spent(crate::contact::GlueClass::Tangent) {
             let surface_of = |body: &Body<T>, face| {
                 body.get_face(face)
                     .and_then(|f| body.get_surface(f.surface))
@@ -1279,7 +1279,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                             &[],
                         );
                         let lump =
-                            if read == DeclarationRead::Spent(crate::contact::GlueClass::TANGENT) {
+                            if read == DeclarationRead::Spent(crate::contact::GlueClass::Tangent) {
                                 let surface_of = |body: &Body<T>, face| {
                                     body.get_face(face)
                                         .and_then(|f| body.get_surface(f.surface))
@@ -1306,6 +1306,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                                     &s_other,
                                     reach,
                                     other_sec.normal,
+                                    own_sec.normal,
                                     p,
                                     op,
                                     comparison,
@@ -2059,7 +2060,7 @@ mod tests {
                 (None, DeclarationRead::Moot),
                 (
                     Some(ContactClass::Rest),
-                    DeclarationRead::Spent(GlueClass::REST),
+                    DeclarationRead::Spent(GlueClass::Rest),
                 ),
             ] {
                 let bracket = Bracket::open();

@@ -459,12 +459,10 @@ fn a_cut_turned_about_the_ruling_refuses_before_the_chord() {
 // The boolean: a tangent operand pair refuses at the op.
 // ---------------------------------------------------------------------
 
-/// **Each kiss the curved boolean could turn into a wedge end refuses
-/// typed at the op** — internal (the crescent a subtract would leave)
-/// and a plane cutter tangent to a hole wall. Neither is a
-/// wedge-specific door yet: the internal kiss stops at the crossing
-/// layer's frontier, the plane cutter at the join; the declared route
-/// is `work/tang/declared-cusps-second-order-wedge-arm.md` item 3.
+/// **The internal kiss the curved boolean could turn into a wedge end
+/// refuses typed at the op** (the crescent a subtract would leave): it
+/// stops at the crossing layer's frontier; the route is
+/// `work/tang/declared-cusps-second-order-wedge-arm.md` item 3.
 #[test]
 fn a_boolean_that_would_kiss_a_curved_face_refuses_typed_at_the_op() {
     let disc = |what: &str, c: ProfileLoop<f64>, z0: f64, z1: f64| {
@@ -472,32 +470,48 @@ fn a_boolean_that_would_kiss_a_curved_face_refuses_typed_at_the_op() {
     };
     let big = disc("the big disc", circle(0.0, 2.0, 2.0), 0.0, 1.0);
     let small = disc("the small disc", circle(0.0, 1.0, 1.0), -1.0, 3.0);
+    match topo::subtract(&big, &small, tol()) {
+        Err(e) => assert_eq!(
+            e.kind(),
+            BooleanErrorKind::CurvedPierceUnsupported,
+            "internal kiss, subtract: {e}"
+        ),
+        Ok(r) => panic!("internal kiss, subtract: expected a refusal, got a result {r:?}"),
+    }
+}
+
+/// **A plane cutter tangent to a hole wall answers every op.** The
+/// cutter's face `x = 1` touches the unit hole of a 6 × 6 × 1 plate
+/// along the ruling `x = 1, y = 0`, their outward normals agreeing
+/// there: the glue door glues the pair `Tangent`, claiming nothing of
+/// the materials, and each op's result is tier-3 valid at its closed
+/// form.
+#[test]
+fn a_plane_tangent_to_a_hole_answers_every_op() {
+    let plate = finished("the holed plate", plate_with_hole(), tol());
     let cutter = finished(
         "the cutter",
         brick::<f64>((1.0, 4.0), (-4.0, 4.0), (-1.0, 2.0), tol()),
         tol(),
     );
-    let rows = [
-        (
-            "internal kiss, subtract",
-            topo::subtract(&big, &small, tol()),
-            BooleanErrorKind::CurvedPierceUnsupported,
-        ),
-        (
-            "plane tangent to a hole, subtract",
-            topo::subtract(
-                &finished("the holed plate", plate_with_hole(), tol()),
-                &cutter,
-                tol(),
-            ),
-            BooleanErrorKind::CurvedBooleanUnsupported,
-        ),
-    ];
-    for (name, got, want) in rows {
-        match got {
-            Err(e) => assert_eq!(e.kind(), want, "{name}: {e}"),
-            Ok(r) => panic!("{name}: expected {want:?}, got a result {r:?}"),
-        }
+    let pi = std::f64::consts::PI;
+    for (name, got, want) in [
+        ("plate ∖ cutter", topo::subtract(&plate, &cutter, tol()), 24.0 - pi),
+        ("cutter ∖ plate", topo::subtract(&cutter, &plate, tol()), 60.0),
+        ("plate ∪ cutter", topo::union(&plate, &cutter, tol()), 96.0 - pi),
+        ("plate ∩ cutter", topo::intersect(&plate, &cutter, tol()), 12.0),
+    ] {
+        let body = match got {
+            Ok(topo::BooleanResult::Body(b)) => b.body,
+            other => panic!("{name}: want a body, got {other:?}"),
+        };
+        let v = topo::mass_properties(&body, tol()).unwrap().volume;
+        assert!((v - want).abs() < 1e-9, "{name}: volume {v}, want {want}");
+        assert_eq!(
+            topo::validate_geometric(&body, tol()),
+            Ok(()),
+            "{name}: tier 3"
+        );
     }
 }
 
@@ -588,3 +602,4 @@ fn shell_refuses_a_cusp_or_slit_body_typed() {
         }
     }
 }
+

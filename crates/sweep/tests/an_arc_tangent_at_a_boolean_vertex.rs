@@ -332,6 +332,58 @@ fn the_untilted_dip() {
     );
 }
 
+/// **The dip on a slab deep enough to hold its whole lens**
+/// (z ∈ [−1, 1]): the round's own wedge-0 corner at (x = 3, z = 0) lies
+/// inside the slab, so the only junction the ops meet is the rim, where
+/// the wall leaves the slab's top tangent and bends into it. The pair is
+/// glued `Tangent` with no claim about the materials, and the lump reads
+/// the wall `In`: ∪ is one solid, ∖ leaves a smooth π junction, the
+/// round ∖ slab is the box above z = 1, and ∩ is the lens, a knife edge
+/// along the rim.
+#[test]
+fn the_dip_on_a_deep_slab_answers_every_op() {
+    let dip = dipping_round();
+    let deep = slab_deep(0.0, 5.0, -1.0, 6.0, -1.0);
+    let vol = |b: &AtRestBody<f64>| mass_properties(b, Tol::witness()).unwrap().volume;
+    let (vd, vs) = (vol(&dip), vol(&deep));
+    let lens = 4.0 - core::f64::consts::PI;
+    let rows: [(&str, Result<BooleanResult<f64>, topo::BooleanError>, f64); 4] = [
+        (
+            "slab ∪ round",
+            topo::union(&deep, &dip, Tol::witness()),
+            vs + vd - lens,
+        ),
+        (
+            "slab ∖ round",
+            topo::subtract(&deep, &dip, Tol::witness()),
+            vs - lens,
+        ),
+        (
+            "round ∖ slab",
+            topo::subtract(&dip, &deep, Tol::witness()),
+            vd - lens,
+        ),
+        (
+            "slab ∩ round",
+            topo::intersect(&deep, &dip, Tol::witness()),
+            lens,
+        ),
+    ];
+    let mut failed = Vec::new();
+    for (what, got, want) in rows {
+        match got {
+            Ok(BooleanResult::Body(b)) => {
+                let v = vol(&b.body);
+                if (v - want).abs() >= 1e-6 {
+                    failed.push(format!("{what}: volume {v}, want {want}"));
+                }
+            }
+            other => failed.push(format!("{what}: want volume {want}, got {other:?}")),
+        }
+    }
+    assert!(failed.is_empty(), "the deep dip:\n{}", failed.join("\n"));
+}
+
 /// A slab `x ∈ [x0, x1]`, `z ∈ [0, 1]`, `y ∈ [y0, y0 + depth]`.
 pub(crate) fn slab_between(x0: f64, x1: f64, y0: f64, depth: f64) -> AtRestBody<f64> {
     lying_extrude(
