@@ -65,9 +65,9 @@ fn lofted_geometry(sections: &[Section], places: &[Affine3<f64>]) -> LoftGeometr
     loft_geometry(sections, places, 2, &params, Tol::witness()).expect("geometry")
 }
 
-/// Every weight of every wall, bit-exactly `1.0` — the kernel's own
-/// definition of non-rational (`speed_lower_bound`'s test), asserted
-/// with `==` because an ulp here is a change of KIND, not an error.
+/// Every weight of every wall, bit-exactly `1.0` — the integral lane's
+/// output, asserted with `==` because an ulp here is a change of KIND,
+/// not an error.
 fn walls_are_integral(g: &LoftGeometry, what: &str) {
     for (l, loop_walls) in g.walls.iter().enumerate() {
         for (j, wall) in loop_walls.iter().enumerate() {

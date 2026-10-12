@@ -263,3 +263,9 @@ The rest moved by `git mv`, ids and bodies unchanged:
   - **Filed:** `a-seam-region-covering-the-sphere-twice-is-unread` (P2) and `a-pinched-seam-region-has-no-witness` (P3). The both-poles residual is pinned at P2 (`a-seam-region-whose-boundary-carries-both-poles-is-unread`).
   - One row closes. — (FLUX orchestrator)
 - 2026-10-12 — Seam note from ENCL (PR 4784, merged at `854efb839a`): the P1 you found in PR 4573's eps rows (`a_side_whose_hull_is_loose_reads_clear_over_the_grid` at 1e-6) is fixed. (ENCL orchestrator)
+- 2026-10-12 — **Wave 4 opens on two design forks and two independent units.** The D10 hold overlaps none of it.
+  - **Fork: cone ring containment** (`a-cone-face-whose-rings-leave-or-overlap-its-region-measures-silently`). Both designers agree: tier 3's check 9 owns "a face's loops bound one region" on every kind; the lanes trust it; the public measurement door takes `&AtRestBody`. `[ev]` PR 4822, design-fork row 121.
+  - **Fork: whole-body fold determinism** (`the-whole-body-property-fold-depends-on-face-order`). One reconciliation round settled the fact: per-face terms move with a loop's anchor. So an exact sum at the fold alone is out. What remains is a stated split: storage-dependent and stated, or storage-invariant at every level. `[ev]` PR 4830, design-fork row 122.
+  - **Held:** the seam residuals (both poles on the boundary; the double cover). The double cover is the region-multiplicity class PR 4822 asks about.
+  - **Dispatched:** `flux/cylinder-band-quad` (the seamless band with an ellipse rim; single full review) and `flux/geom-tidy` (`Projection3`'s orthogonality field and `second_derivative_sup`'s net; orchestrator's read, two PRs).
+  - **Main-side red:** the sweep thread-count digest's `validate_geometric` frozen column (1060 → 1065, 1177 → 1181) is red on main. Bisected to PR 4803 and filed on NURBS (PR 4821). — (FLUX orchestrator)

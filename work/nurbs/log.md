@@ -683,3 +683,55 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - It profiles first. The shape is the lane's own, for example a point-ratio fast path or per-level hoisting, but soundness must not move; if the only fast route changes what `between` promises, it stops and reports. Goldens and digests are re-cut if bits move.
   - **Tier: single FULL.**
   - Build A is standing by. Build C is on the speed meter's PR 1 (integral32), with PR 2 (held-constant weights) to follow. — (NURBS orchestrator)
+- 2026-10-12 10:16Z — **PR 4824 review** (integral32 plus one home for the derivative net and centroid). Tier single FULL, reviewer session_01Kuu9qM227brVKpQWJGGj37 at `a390565cc2`. Verdict APPROVE-WITH-FIXES, no MAJOR.
+  - **Executed:**
+    - Soundness holds: 0 violations over 6000 curves at both lanes.
+    - The refactor commit's output is byte-identical to main.
+    - The k/64 stall grid is needed: a mutant that skips a piece is invisible on k/32.
+    - The arm choice is monotone on the swaying family.
+    - The 1.5× cost was not reproduced in a meter-only microbench.
+  - **MINORs:**
+    - M1: degree 11–13 integral carriers lose the piece assembly at 32 pieces. Fix: fall back to the largest admissible power of two.
+    - M2: about 5% of nets read lower at 32 than at 16, worst −24%, because each sub-piece picks its own direction. Disclose it, pin it, and file a P4 row for monotone refinement.
+  - **Class line (S1):** five more spellings of the span derivative net exist outside `nurbs.rs` (topo `shell.rs`, geom-brep `pcurve_cache.rs` ×2, geom-core `hull.rs` `deriv_coeff`, `offset_derive.rs`, `ssi/enclose.rs`). The fix pass lists them and files a shared-home row.
+  - **Also:** the `RATIONAL_PIECE_SPLITS` equality claim is held by hand (S2); the monotone row's 1% tolerance is loose (N1, S4).
+  - The fix pass is sent to build C. — (NURBS orchestrator)
+- 2026-10-12 11:19Z — **PR 4834** (build C's PR 2, `held_constant`, stacked on 4824) is up and green at `2fdcb41f58`. Build C reports it found no public "plain constant" spelling to reuse (Q1). The digest is unchanged, because the fixtures' weights are literals. A single FULL reviewer is dispatched on the delta over 4824: session_012aviQwSFoTSQnMXiDKyFH9.
+  - **Seam:** a `Probe` impl in `k_stats.rs` (SCALAR, VERDICT), noted on both logs.
+  - **Friction:** the 4824 fix pass, sent at 10:16Z and again at 10:33Z, went unacknowledged while build C built PR 2. It was re-sent at 11:18Z as an interrupt. The likely cause is that the lane read messages only at turn boundaries during a long local run. — (NURBS orchestrator)
+- 2026-10-12 11:22Z — **PR 4841** (build B, the `between` cost) is up at `8938a02769`.
+  - **Profile:** 99.96% of `between` calls on the row have a point ratio, and about half the cost was the interval multiply's 8 corner products.
+  - **Fix:**
+    - the backend `Mul` (`interval-transcendentals/src/arith.rs`) folds only a point operand's distinct corners;
+    - `between` skips the clamp for a certified ratio already inside (0, 1).
+  - **Claimed:** bit-identical, with no re-cuts. The slowdown goes from 1.70× to 1.22× at opt1 and from 1.73× to 1.12× in debug.
+  - **Filed:** Div's point sibling (P3, E).
+  - **Tier: single FULL**, reviewer session_01MaoqGhPJrPGK4KTSjVjNya. The backend multiply sits under every certified result, so bit-identity is the soundness claim; the review is pointed at signed zeros, infinities, the exactness witness and rounding direction.
+  - **Seam:** `between_exact_fuzz.rs` is TCOST/TINT ground (a new test file). — (NURBS orchestrator)
+- 2026-10-12 11:52Z — **PR 4841 review** (the `between` cost; interval point-Mul). Tier single FULL, reviewer session_01MaoqGhPJrPGK4KTSjVjNya at `8938a02769`. **APPROVE**, with no MAJOR and no MINOR.
+  - **Executed:**
+    - a 20M-pair differential against the old literal four-corner fold, bit-identical on bounds and decoration, covering ±0, subnormals, ±∞, NaI, and raw `[−0, +0]` and `[+∞, +∞]` points;
+    - the interval crate is green with `oracle-inari`;
+    - the clamp skip is shown to be the identity, and its mutants go red;
+    - the digest and step-export sidecars are unchanged;
+    - the timing reproduces at 0.79×.
+  - **NOTE N1** corrects my dispatch: `between_exact_fuzz.rs` predates the PR.
+  - **Style:** the skip guard's comment understates the set it covers; Div keeps a literal four-corner fold beside `corner_bounds` (its filed row should say to reuse the helper); the `ops.rs` prose is stale; the point path's `+0` premise is unnamed. A comment-and-doc pass is sent to build B.
+  - **Head:** `bb0bdaf74d` adds only the census row `certified_endpoint_census` (8, 8) → (9, 9) for the skip's guarded endpoint read. — (NURBS orchestrator)
+- 2026-10-12 11:55Z — **PR 4834 review** (`held_constant`). Tier single FULL, reviewer session_012aviQwSFoTSQnMXiDKyFH9, on the delta over 4824. Verdict APPROVE-WITH-FIXES, no MAJOR.
+  - **Executed:** the edge-probe row; mutants M1–M5, each red; the digest, unchanged at all three ε; no session side effects.
+  - **MINOR-1 (class):** INLANE's P2 `held-value-equalities-decided-on-the-value-channel` is this class, and it prescribes a T-margin primitive. The reviewer found two more sites (`loop_area.rs` `nurbs_vector_area`, `nurbs_iso.rs` `interior_iso_u`).
+    - **Ruled:** no primitive switch in 4834. The plain-constant gate is sound and strictly more conservative, and the T-margin would only add reach. The PR cross-links the issue, adds the two sites as evidence, and records the migration. A seam note is on INLANE's log.
+  - **Style:** a fourth spelling of the Lit node (needs one constructor); `held_constant` is renamed because "held" means the opposite elsewhere; stale "bit-exact unit weights" citations in sweep `skin.rs` and the m7 test. The fix pass is queued behind 4824's. — (NURBS orchestrator)
+- 2026-10-12 11:56Z — **Friction (CI):** a comment-only fix pass on PR 4841 (`37f905e685`) cancelled the in-progress run on the green-bound `bb0bdaf` (cancel-in-progress concurrency). The change filter also gates `.rs` comment edits as code, so a style pass that touches only comments costs a full gate. The docs-only merge rule does not save it either, because there was no green head left to merge on. To bring to CIW if it recurs: a run on a head about to be superseded by a comment-only commit could be allowed to finish, or the filter could recognise a comment-only `.rs` diff. — (NURBS orchestrator)
+- 2026-10-12 12:08Z — **PR 4824 merges (`eaa4953dc4`).** The integral meter now reads 32 pieces, and the derivative net and centroid each have one helper. Fix pass `ecd814c6e2`, verified against the review:
+  - **M1:** `piece_count` falls back to the largest power of two that `pieces_exact` admits: 32 pieces to derivative degree 9, 16 to 12, 8 to 16, 4 to 24, 2 to 47.
+    - Both arms use it. The rational arm abstains above p = 24, and `binomial_is_exact_to_47` pins the pair products to p = 24.
+    - Row `a_high_degree_net_keeps_its_piece_reading` (degree 11 and 13) is red without the fallback.
+    - The rational-arm extension past degree 9 is the orchestrator's read, not the reviewer's: the same exactness machinery, pinned by tests.
+  - **M2:** disclosed. Case 2349 is pinned (`a_finer_schedule_can_read_lower_on_a_degree_ten_net`) and filed as `the-integral-meters-piece-refinement-is-not-monotone` (P4).
+  - **N1 and S4 found something:** the specified random-net row fails. On 4.3% of nets the rational arm reads up to 4.6% higher one ulp off, because at w ≡ 1 its numerator is the degree-elevated derivative (same direction, tighter hull) and because of the refined scan. The fuzz `the_rational_piece_reading_is_the_elevated_integral_one` pins the inequality, and the gap is filed as `the-integral-arm-reads-below-the-rational-arm-on-an-equal-weight-net` (P4).
+  - **S2:** `RATIONAL_PIECE_SPLITS = INTEGRAL_METER_SPLITS` by definition.
+  - **S1:** a six-site disposition table; the shared home is filed as `the-span-derivative-scale-is-spelled-in-six-places` (P4).
+  - CI is green. The digest is unchanged at all three ε. The geom suite passes 418/418.
+  - Rows 1 and 3 are closed. Row 2 is PR 4834. — (NURBS orchestrator)
