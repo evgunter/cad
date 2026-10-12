@@ -117,15 +117,12 @@ pub(super) fn plan<T: Decide>(
         return Ok(Vec::new());
     }
     let refuse = || {
-        consumed.refusal.clone().map_or_else(
-            || {
-                not_intact(
-                    EntityId::Face(FaceKey::default()),
-                    "an inside verdict with no refusal",
-                )
-            },
-            |r| r,
-        )
+        consumed.refusal.clone().unwrap_or_else(|| {
+            not_intact(
+                EntityId::Face(FaceKey::default()),
+                "an inside verdict with no refusal",
+            )
+        })
     };
     let faces = &consumed.faces;
     let ring_of = |lp: LoopKey| consumed.rings.iter().find(|r| r.ring == lp);

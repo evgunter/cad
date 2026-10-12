@@ -2157,7 +2157,7 @@ fn host_side_half<T: Decide>(body: &Body<T>, link: &Link<T>, host: FaceKey) -> O
 
 /// A loop's cycle as `(half-edge, start vertex, edge)` rows, in cycle
 /// order (D9: the stored anchor's order, never re-sorted).
-fn loop_walk<T: Decide>(
+pub(super) fn loop_walk<T: Decide>(
     body: &Body<T>,
     lp: LoopKey,
 ) -> Option<Vec<(HalfEdgeKey, VertexKey, EdgeKey)>> {

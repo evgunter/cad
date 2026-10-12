@@ -84,7 +84,7 @@ use super::arms::{chamfer_corner_patch, corner_ball, line_meet};
 use super::battery::{
     Chain, Convexity, Link, carrier_of, classified, face_clearance_margin, outward,
 };
-use super::surgery::not_intact;
+use super::surgery::{loop_walk, not_intact};
 use super::{BlendDecision, BlendError, BlendKind, BlendSite, classify};
 
 /// How many cells one face may be cut into against one reach before it
@@ -1998,8 +1998,9 @@ fn boundary_reading<T: Decide>(
 
 /// **How surely a face lies wholly inside the prism a convex ruled band
 /// removes**, read through the cycles its caps' meter read inside the
-/// sliver (`rings`, this link's): `Some` with its depth (negative) when
-/// it certainly does, `None` when that is not certified.
+/// sliver (`rings`, this link's): positive when it certainly does, and
+/// then a lower bound on how far inside; `None` when the face is not of
+/// the shape the reading takes.
 ///
 /// The band's material `M` is the prism over its cross-section `S⊥`
 /// along the spine `τ` (both supports and the band are ruled along `τ`),
@@ -2018,28 +2019,21 @@ fn boundary_reading<T: Decide>(
 /// exceeds the lines' slack plus the face's extent along its `a`-lines
 /// (its box's diagonal) times `|a × τ|`; and it lies between the cap
 /// planes, being a convex combination of boundary points that do. The
-/// depth reported is that excess.
-fn prism_inside<T: Decide + Bounds>(
+/// reading is that excess.
+fn prism_inside<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     surface: &Surface<T>,
     (flo, fhi): ([f64; 3], [f64; 3]),
     tau: Vec3<T>,
     rings: &[CapRing<T>],
-    band: Band,
 ) -> Result<Option<T>, BlendError> {
     if rings.is_empty() || flo.iter().chain(&fhi).any(|x| !x.is_finite()) {
         return Ok(None);
     }
     let a = match surface {
         Surface::Cylinder { axis, .. } => axis.normalize(),
-        Surface::Plane { normal, .. } => {
-            let t = tau - *normal * normal.dot(tau);
-            if t.norm().lo() <= 0.0 {
-                return Ok(None);
-            }
-            t.normalize()
-        }
+        Surface::Plane { normal, .. } => (tau - *normal * normal.dot(tau)).normalize(),
         _ => return Ok(None),
     };
     let mut ring_edges: Vec<EdgeKey> = Vec::new();
@@ -2051,12 +2045,12 @@ fn prism_inside<T: Decide + Bounds>(
         };
         let deep = (T::zero() - r.depth) * normal.dot(tau).abs();
         least = Some(least.map_or(deep, |l| l.min(deep)));
-        for (he, _) in cycle_of(body, r.ring)? {
-            let h = body
-                .get_half_edge(he)
-                .ok_or_else(|| not_intact(EntityId::HalfEdge(he), "a cap cycle's half-edge"))?;
-            ring_edges.push(h.edge);
-            ring_vertices.push(h.start);
+        let Some(walk) = loop_walk(body, r.ring) else {
+            return Ok(None);
+        };
+        for (_, start, edge) in walk {
+            ring_edges.push(edge);
+            ring_vertices.push(start);
         }
     }
     let Some(least) = least else {
@@ -2067,17 +2061,16 @@ fn prism_inside<T: Decide + Bounds>(
         .ok_or_else(|| not_intact(EntityId::Face(face), "a face the band reach reads"))?;
     let mut slack = T::zero();
     for lp in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
-        for (he, edge) in cycle_of(body, lp)? {
+        let Some(walk) = loop_walk(body, lp) else {
+            return Ok(None);
+        };
+        for (he, u, edge) in walk {
             if ring_edges.contains(&edge) {
                 continue;
             }
-            let ends = (
-                body.get_half_edge(he).map(|h| h.start),
-                body.half_edge_end(he),
-            );
-            let (Some(u), Some(w)) = ends else {
-                return Err(not_intact(EntityId::HalfEdge(he), "a face edge's ends"));
-            };
+            let w = body
+                .half_edge_end(he)
+                .ok_or_else(|| not_intact(EntityId::HalfEdge(he), "a face edge's end"))?;
             let Some((Curve3::Line { dir, .. }, _, _)) = carrier_of(body, edge) else {
                 return Ok(None);
             };
@@ -2088,37 +2081,12 @@ fn prism_inside<T: Decide + Bounds>(
             slack = slack.max(run * dir.normalize().cross(tau).norm());
         }
     }
-    let diagonal = Vec3::new(
-        T::from_f64(fhi[0]) - T::from_f64(flo[0]),
-        T::from_f64(fhi[1]) - T::from_f64(flo[1]),
-        T::from_f64(fhi[2]) - T::from_f64(flo[2]),
-    )
-    .norm();
-    let margin = least - slack - diagonal * a.cross(tau).norm();
-    Ok(sure(margin, band).then(|| T::zero() - margin))
-}
-
-/// Each half-edge of `lp`'s cycle with its edge; a lone-vertex cycle
-/// has none.
-fn cycle_of<T: Decide>(
-    body: &Body<T>,
-    lp: LoopKey,
-) -> Result<Vec<(topo::HalfEdgeKey, EdgeKey)>, BlendError> {
-    let l = body
-        .get_loop(lp)
-        .ok_or_else(|| not_intact(EntityId::Loop(lp), "a face's loop"))?;
-    let topo::LoopBoundary::Cycle { first } = l.boundary else {
-        return Ok(Vec::new());
+    let corner = |v: [f64; 3]| {
+        let [x, y, z] = v.map(T::from_computed);
+        Point3::new(x, y, z)
     };
-    body.loop_cycle(first)
-        .ok_or_else(|| not_intact(EntityId::Loop(lp), "a face's cycle"))?
-        .into_iter()
-        .map(|he| {
-            body.get_half_edge(he)
-                .map(|h| (he, h.edge))
-                .ok_or_else(|| not_intact(EntityId::HalfEdge(he), "a face's boundary"))
-        })
-        .collect()
+    let diagonal = (corner(fhi) - corner(flo)).norm();
+    Ok(Some(least - slack - diagonal * a.cross(tau).norm()))
 }
 
 /// **The request's three-way verdict**, over every face and end-face
@@ -2525,7 +2493,9 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
                     .filter(|r| r.crease == edge)
                     .copied()
                     .collect();
-                if let Some(deep) = prism_inside(body, face, &surface, fbox, tau, &mine, band)? {
+                let reading = prism_inside(body, face, &surface, fbox, tau, &mine)?;
+                if let Some(excess) = reading.filter(|x| sure(*x, band)) {
+                    let deep = T::zero() - excess;
                     let sign = classify_bound(deep)?;
                     unclear.prism_face(
                         face,
@@ -2735,6 +2705,7 @@ mod tests {
     /// bounds at one margin, refuse naming the lesser key whichever is
     /// read first.
     #[test]
+    #[allow(clippy::expect_used, clippy::panic)]
     fn a_margin_tie_names_the_least_entity_in_either_order() {
         use super::super::{BlendDecision, BlendError, Convexity, battery::classified};
         use geom_core::{Band, Sign, Tol};
