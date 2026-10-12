@@ -1,7 +1,7 @@
 ---
 id: the-integral-arm-reads-below-the-rational-arm-on-an-equal-weight-net
 kind: issue
-title: The integral arm reads a little below the rational arm on an equal-weight net: degree elevation and the refined scan
+title: The integral arm reads a little below the rational arm on an equal-weight net, by degree elevation
 status: open
 opened: 2026-10-12
 priority: P4
@@ -34,3 +34,11 @@ Degree-elevate in the integral piece assembly (cost: rows of degree
 `2p − 1` instead of `p − 1`), or give the integral arm the refined
 chords. Weigh against `the-rational-meters-refined-scan-costs-190-ms-per-loft`,
 which may remove the refined scan instead.
+
+## Update (2026-10-12, `nurbs/refined-scan-cost`)
+
+The rational arm's refined scan, the second cause above, is gone. On
+the same 1697 nets (seed `0x77`) the one-ulp-off reading is now higher
+on 33 (1.9%, was 4.3%), by a median 0.03% and at worst 0.20% (was
+4.6%): degree elevation alone. The shape that remains is the first
+bullet's.

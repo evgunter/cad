@@ -838,8 +838,8 @@ impl RingRefinement {
         self.source
     }
 
-    /// The insertion chain, one plan per inserted point: for an applier
-    /// at another scalar (`SpanLocate::refine_homogeneous`).
+    /// The insertion chain, one plan per inserted point, for an applier
+    /// that walks it plan by plan.
     #[must_use]
     pub fn plans(&self) -> &[CurvePlan] {
         &self.plans

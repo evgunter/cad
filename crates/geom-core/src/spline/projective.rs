@@ -232,11 +232,7 @@ impl CurvePlan {
     /// enclosures and the result encloses the refined channel of the
     /// described curve, with no `f64` ratio standing in. It has no
     /// hull meet, which `Real` cannot spell, so it is not the ring's
-    /// step: a caller generic over the scalar refines through
-    /// [`SpanLocate::refine_homogeneous`], which is this at every
-    /// scalar but `Interval` and
-    /// [`RingRefinement::refine`](super::RingRefinement::refine) there,
-    /// and a caller that holds `Interval` channels refines through
+    /// step: a caller that holds `Interval` channels refines through
     /// [`RingRefinement`](super::RingRefinement).
     ///
     /// Total: a ratio-less step (elevation, removal), a malformed plan,

@@ -392,7 +392,7 @@ fn the_conservative_frontier_is_stated_not_hidden() {
     // below refuses with a comfortably positive true minimum speed, so
     // what it pins is the schedules' conservatism, not a property of
     // the geometry — stated out loud so the frontier moves visibly if
-    // `RATIONAL_METER_SPLITS` or `RATIONAL_PIECE_SPLITS` is ever
+    // `RATIONAL_PIECE_SPLITS` is ever
     // revisited. Refusing is always sound; it is only ever a usability
     // cost.
     let sharp_turn = {
@@ -557,4 +557,88 @@ fn an_illegal_rational_carrier_is_still_poison() {
         Point3::new(1.0, 0.0, 0.0),
     ];
     assert!(NurbsCurve3::<f64>::new(kv, control, vec![1.0, -0.5, 1.0]).is_err());
+}
+
+/// **The recorded cost of the rational meter's one assembly.** A random
+/// degree-2 rational net on which the retired refined-span scan read
+/// 0.008833, 2.07× the piece assembly's 0.004256 — the worst of 12 000
+/// random rational nets, none of which it flipped from refusal to a
+/// positive answer (PR body: the measurement behind dropping it). The
+/// pieces still give a sound positive meter here.
+#[test]
+fn a_degree_two_net_the_refined_scan_read_higher_still_meters() {
+    let kv = KnotVector::clamped(
+        vec![
+            0.0,
+            0.0,
+            0.0,
+            0.8765904702210048,
+            2.0031049934219385,
+            2.207242093548355,
+            2.417476068503517,
+            3.040458953263717,
+            3.040458953263717,
+            3.040458953263717,
+        ],
+        2,
+    )
+    .unwrap();
+    let control = [
+        (0.47042533060786207, 1.8368122137932459, 0.8471070191345498),
+        (-0.2786359689427669, -1.1026781083948687, -1.362308809483579),
+        (-0.13928010552090742, 1.4262453860626425, 0.9629405596731022),
+        (-0.1900937229785984, 1.4543248093512102, 1.031269722454271),
+        (-1.2556596330023742, 1.6476863440168557, -1.8518385988427881),
+        (0.3243157925096418, -1.721451095336202, 0.5596239356538915),
+        (-0.21717040994542858, 1.4076384529133108, 1.350528973580087),
+    ];
+    let c = NurbsCurve3::<f64>::new(
+        kv,
+        control
+            .iter()
+            .map(|&(x, y, z)| Point3::new(x, y, z))
+            .collect(),
+        vec![
+            2.418682293830656,
+            0.721487013986017,
+            4.454650574995238,
+            3.482305738782208,
+            4.699800986831008,
+            2.3774051196670034,
+            1.5430068958036145,
+        ],
+    )
+    .unwrap();
+    let m = c.speed_lower_bound().get();
+    let (lo, hi) = c.domain();
+    let speed = (0..=40_000)
+        .map(|i| c.deriv(lo + (hi - lo) * f64::from(i) / 40_000.0).norm())
+        .fold(f64::INFINITY, f64::min);
+    assert!(
+        m > 0.0 && m <= speed,
+        "meter {m} (the pieces read 0.004256; the retired refined scan read 0.008833), \
+         sampled speed {speed}"
+    );
+}
+
+/// **Past the rational meter's degree ceiling the meter refuses.** At
+/// degree 25 the piece assembly's binomials are past the range pinned
+/// exact, and no other assembly stands behind it: the meter is poison
+/// (NaN), which every consumer's gate refuses, never a looser number.
+#[test]
+fn a_rational_carrier_past_degree_24_refuses() {
+    let p = 25;
+    let knots: Vec<f64> = std::iter::repeat_n(0.0, p + 1)
+        .chain(std::iter::repeat_n(1.0, p + 1))
+        .collect();
+    let control = (0..=p)
+        .map(|i| Point3::new(i as f64, 0.1 * (i % 2) as f64, 0.0))
+        .collect();
+    let weights = (0..=p)
+        .map(|i| if i % 2 == 0 { 1.0 } else { 1.5 })
+        .collect();
+    let c =
+        NurbsCurve3::<f64>::new(KnotVector::clamped(knots, p).unwrap(), control, weights).unwrap();
+    let m = c.speed_lower_bound().get();
+    assert!(m.is_nan(), "a degree-25 rational carrier metered {m}");
 }
