@@ -1063,6 +1063,9 @@ mod wire_loft_end_profile_lift;
 #[path = "wedge_end_doors.rs"]
 mod wedge_end_doors;
 
+#[path = "tang_split_review_probes.rs"]
+mod tang_split_review_probes;
+
 #[path = "review_3701_probes.rs"]
 mod review_3701_probes;
 
