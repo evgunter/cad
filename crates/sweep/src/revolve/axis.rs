@@ -423,11 +423,18 @@ fn classify_segment<T: Decide>(
 ) -> Result<WallClass<T>, RevolveError> {
     let classify = |decision: ClearanceDecision, margin: Margin<T>| {
         let name = decision.predicate();
-        decide(name, margin, band).map_err(|source| RevolveError::SliverAxisClearance {
-            loop_index,
-            segment_index: s.canonical_segment,
-            decision,
-            source,
+        decide(name, margin, band).map_err(|source| {
+            debug_assert_eq!(
+                source.predicate,
+                Some(name),
+                "the escalation names its decision"
+            );
+            RevolveError::SliverAxisClearance {
+                loop_index,
+                segment_index: s.canonical_segment,
+                decision,
+                source,
+            }
         })
     };
     // A stored sign in the CANONICAL basis: the swept reversal negated

@@ -143,7 +143,9 @@ pub enum TubeError {
         /// between the two stored radii did not clear it.
         eps: f64,
     },
-    /// A window or wall classification escalated.
+    /// A window or wall classification escalated. The door builds it
+    /// only where it meters `decision` under its own name, so `source`
+    /// carries `decision.predicate()`.
     Escalated {
         /// The classification that escalated.
         decision: TubeDecision,
@@ -386,7 +388,14 @@ fn build<T: Decide + topo::AtRestPolicy>(
     let arm = major_radius + minor_radius;
     let classify = |decision: TubeDecision, margin: Margin<T>| {
         let name = decision.predicate();
-        decide(name, margin, band).map_err(|source| TubeError::Escalated { decision, source })
+        decide(name, margin, band).map_err(|source| {
+            debug_assert_eq!(
+                source.predicate,
+                Some(name),
+                "the escalation names its decision"
+            );
+            TubeError::Escalated { decision, source }
+        })
     };
 
     // ---- The wall, decided FIRST: nothing is minted behind it, and

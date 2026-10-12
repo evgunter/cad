@@ -4,6 +4,8 @@ kind: issue
 title: ClearanceDecision and TubeDecision are payload rungs under RevolveError and TubeError that the prelude does not carry
 status: open
 opened: 2026-10-12
+priority: P4
+cost: E
 ---
 
 

@@ -2301,7 +2301,8 @@ impl Indeterminate {
     /// the build (D4 ¶1 (i)): `levers` alone, labelled `Recourse:`, since
     /// no smaller tolerance is its recourse, and
     /// [`UNREADABLE_MARGIN_NOTE`] after them on a margin nobody could
-    /// read.
+    /// read. Fixed to the build reading: a reader over stored geometry
+    /// takes its own note instead.
     #[must_use]
     pub fn lever_ending(&self, levers: &str) -> String {
         lever_recourse(levers, self.margin.unreadable_note(UNREADABLE_MARGIN_NOTE))

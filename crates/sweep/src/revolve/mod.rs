@@ -491,7 +491,9 @@ pub enum RevolveError {
         segment_index: usize,
     },
     /// A segment's axis-clearance classification escalated: its margin
-    /// landed in the sliver band or was poisoned.
+    /// landed in the sliver band or was poisoned. The revolve builds it
+    /// only where it meters `decision` under its own name, so `source`
+    /// carries `decision.predicate()`.
     SliverAxisClearance {
         /// Canonical index of the loop.
         loop_index: usize,
@@ -690,12 +692,27 @@ impl ClearanceDecision {
     }
 
     /// Whether the margin is a size the user chose. The span is an
-    /// angle, and the line runs and the centre's distance select the
-    /// wall's form, passing on any definite sign; the apex and the
-    /// clearance are distances the profile must keep from the axis.
+    /// angle. The line runs select the wall's form (zero a cylinder or a
+    /// plane annulus, either sign a cone), passing on any definite sign;
+    /// the centre's distance selects sphere (zero) or torus (positive),
+    /// and a negative one is refused. The apex and the clearance are
+    /// distances the profile must keep from the axis.
     #[must_use]
     pub const fn sized(self) -> bool {
         matches!(self, Self::ArcApex | Self::ArcClearance)
+    }
+
+    /// What the decision asks of the segment, as the noun it is about
+    /// and the clause after "at loop {i} segment {j}".
+    const fn question(self) -> (&'static str, &'static str) {
+        match self {
+            Self::LineRadial => ("the line", "runs parallel to the revolve axis"),
+            Self::LineAxial => ("the line", "runs square to the revolve axis"),
+            Self::ArcCenter => ("the centre of the arc", "lies on the revolve axis"),
+            Self::ArcSpan => ("the arc", "spans no more than a half turn"),
+            Self::ArcApex => ("the arc", "stays off the revolve axis at its apex"),
+            Self::ArcClearance => ("the arc", "clears the revolve axis"),
+        }
     }
 
     /// The ending of this decision's escalation: a size's tolerance
@@ -795,17 +812,19 @@ impl fmt::Display for RevolveError {
                 segment_index,
                 decision,
                 source,
-            } => write!(
-                f,
-                "{}",
-                source.undecided(
-                    format_args!(
-                        "whether the arc at loop {loop_index} segment {segment_index} clears \
-                         the revolve axis"
-                    ),
-                    decision.ending(source),
+            } => {
+                let (noun, clause) = decision.question();
+                write!(
+                    f,
+                    "{}",
+                    source.undecided(
+                        format_args!(
+                            "whether {noun} at loop {loop_index} segment {segment_index} {clause}"
+                        ),
+                        decision.ending(source),
+                    )
                 )
-            ),
+            }
             Self::UnsupportedToroid {
                 loop_index,
                 segment_index,
@@ -1011,14 +1030,38 @@ mod tests {
     fn a_revolve_escalation_ends_by_its_decisions_kind() {
         use crate::swept::undecided_fixtures::{LEVER, SIZED, expected, readings};
         let clearances = [
-            (ClearanceDecision::LineRadial, LEVER),
-            (ClearanceDecision::LineAxial, LEVER),
-            (ClearanceDecision::ArcCenter, LEVER),
-            (ClearanceDecision::ArcSpan, LEVER),
-            (ClearanceDecision::ArcApex, SIZED),
-            (ClearanceDecision::ArcClearance, SIZED),
+            (
+                ClearanceDecision::LineRadial,
+                "whether the line at loop 0 segment 2 runs parallel to the revolve axis",
+                LEVER,
+            ),
+            (
+                ClearanceDecision::LineAxial,
+                "whether the line at loop 0 segment 2 runs square to the revolve axis",
+                LEVER,
+            ),
+            (
+                ClearanceDecision::ArcCenter,
+                "whether the centre of the arc at loop 0 segment 2 lies on the revolve axis",
+                LEVER,
+            ),
+            (
+                ClearanceDecision::ArcSpan,
+                "whether the arc at loop 0 segment 2 spans no more than a half turn",
+                LEVER,
+            ),
+            (
+                ClearanceDecision::ArcApex,
+                "whether the arc at loop 0 segment 2 stays off the revolve axis at its apex",
+                SIZED,
+            ),
+            (
+                ClearanceDecision::ArcClearance,
+                "whether the arc at loop 0 segment 2 clears the revolve axis",
+                SIZED,
+            ),
         ];
-        assert_eq!(clearances.map(|(d, _)| d), ClearanceDecision::ALL);
+        assert_eq!(clearances.map(|(d, ..)| d), ClearanceDecision::ALL);
         type Build = fn(Indeterminate) -> RevolveError;
         let cases: [(&'static str, &str, [&str; 3], Build); 4] = [
             ("revolve_angle", "the revolve angle", LEVER, |source| {
@@ -1053,8 +1096,7 @@ mod tests {
                 built.push((text, build(source)));
             }
         }
-        for (decision, endings) in clearances {
-            let subject = "whether the arc at loop 0 segment 2 clears the revolve axis";
+        for (decision, subject, endings) in clearances {
             for (source, text) in readings(decision.predicate())
                 .into_iter()
                 .zip(expected(subject, endings))
