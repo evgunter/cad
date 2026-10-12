@@ -2911,7 +2911,10 @@ impl Descendants {
     }
 
     /// The vertices `zip::share_points` moved onto their class's key:
-    /// each sits at a seam point now, as a fused vertex does.
+    /// each sits at a seam point now, as a fused vertex does. A class
+    /// closes seam pairs each one point within the zero band, so a moved
+    /// vertex can sit past that band from its own point, where
+    /// [`at_rest`] would escalate a rebind that is the op's own.
     fn absorb_shared(&mut self, moved: &[VertexKey]) {
         self.fused.extend(moved.iter().copied());
     }
@@ -9303,6 +9306,28 @@ mod holder_rows {
                 })
             ),
             "{got:?}"
+        );
+    }
+
+    /// A vertex `zip::share_points` moved onto its class's key sits at a
+    /// seam point, as a fused vertex does: its rows are an incidence and
+    /// skip, even where its rest is in band of where it sits now. A class
+    /// is the closure of seam pairs, each one point within the zero band,
+    /// so two keys of a class of three or more can sit apart past it.
+    /// Red when the moved vertices are not skipped (`at_rest` escalates).
+    #[test]
+    fn a_vertex_share_points_moved_skips_as_seam_structure() {
+        let (mut body, top, other) = divided();
+        let v = lone(&mut body, 1.5, 0.5, 1.0);
+        let rests = BTreeMap::from([(
+            (Operand::A, v),
+            Point3::new(1.5 + 3.0 * band().zero(), 0.5, 1.0),
+        )]);
+        let mut desc = Descendants::default();
+        desc.absorb_shared(&[v]);
+        assert_eq!(
+            carried_from(&body, v, top, vec![(other, top)], desc, &rests).unwrap(),
+            []
         );
     }
 
