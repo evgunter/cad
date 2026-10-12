@@ -18,7 +18,7 @@
 //! to lie between, and they record none.
 
 use crate::body::Body;
-use crate::entity::{EdgeKey, FaceKey, LoopBoundary, VertexKey};
+use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, VertexKey};
 use crate::provenance::Provenance;
 
 use super::{BooleanError, Operand};
@@ -167,7 +167,7 @@ impl<T: geom_core::Real> HeldInto<'_, T> {
 /// `kept_across(mate)` says whether the face across an edge is one the
 /// result keeps beside it (the stretch is then `bordered`); `kept_ends`
 /// maps that stretch's two ends, in `body`'s keys, to the kept side's
-/// ends in result keys, given the face across it. `held` gives the row
+/// ends in result keys, given the half-edge across it. `held` gives the row
 /// its held stretches; a path that holds no covered pair passes `None`.
 pub(super) fn discard_row<T: geom_core::Real>(
     body: &Body<T>,
@@ -175,7 +175,7 @@ pub(super) fn discard_row<T: geom_core::Real>(
     operand: Operand,
     kept_across: &dyn Fn(FaceKey) -> bool,
     kept_ends: &dyn Fn(
-        FaceKey,
+        HalfEdgeKey,
         VertexKey,
         VertexKey,
     ) -> Result<(VertexKey, VertexKey), BooleanError>,
@@ -209,15 +209,14 @@ pub(super) fn discard_row<T: geom_core::Real>(
                 .get_half_edge(he)
                 .ok_or_else(|| desync("a discarded face's half-edge no longer resolves"))?;
             boundary.insert(h.start);
-            let mate_face = body
-                .mate(he)
-                .and_then(|m| body.face_of_half_edge(m))
-                .ok_or_else(|| desync("a discarded face's edge has no face across it"))?;
+            let across = || desync("a discarded face's edge has no face across it");
+            let mate = body.mate(he).ok_or_else(across)?;
+            let mate_face = body.face_of_half_edge(mate).ok_or_else(across)?;
             if kept_across(mate_face) {
                 let end = body
                     .half_edge_end(he)
                     .ok_or_else(|| desync("a discarded face's half-edge has no end"))?;
-                row.bordered.push(kept_ends(mate_face, h.start, end)?);
+                row.bordered.push(kept_ends(mate, h.start, end)?);
             } else {
                 let mut chain = vec![h.edge];
                 let mut at = h.edge;

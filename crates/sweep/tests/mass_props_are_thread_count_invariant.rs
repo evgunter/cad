@@ -521,6 +521,23 @@ fn digest() -> String {
 /// at ε = 1e-6, 1e-9 and 1e-12, the area pads by about 5e-12. Verdicts,
 /// refusals, the other rows and the sym-session counts are unchanged.
 ///
+/// **Re-cut at all three ε when the integral speed meter was memoised
+/// on the curve** (PR 4803, `880e5d2508`: `NurbsCurve3`'s
+/// `speed_lower_bound` is computed once per carrier and kept in a
+/// `OnceLock`). Only the two `validate_geometric` rows' `frozen` column
+/// moves, and up: `sym_arc_loft` 1062 → 1067 / 1060 → 1065 /
+/// 1061 → 1066 and `sym_thin_strip` 1178 → 1182 / 1177 → 1181 /
+/// 1177 → 1181 at ε = 1e-6 / 1e-9 / 1e-12. Bisected (by another lane) on main's
+/// first-parent merges: `98e7807a` reads the old column and the 4803
+/// merge the new one. Decisions, `sz`, `num`, shapes, verdicts and
+/// every f64 row are unchanged, and every predicate-and-outcome count
+/// at ε = 1e-9 equals the pre-4803 head's. The split is deterministic:
+/// 1 and 4 threads, each run twice, read alike. A memoised meter's
+/// value is built by the first call on a carrier and shared by every
+/// later read, where each read used to build its own. That changes
+/// which nodes the early walk meets and freezes; which freeze cause
+/// each added count is, is not measured.
+///
 /// **Re-cut at all three ε when `props::quad`'s `de_boor` began
 /// evaluating a node inside its span as the window's blossom** (every
 /// level `Certification::between`, where the affine step had carried
