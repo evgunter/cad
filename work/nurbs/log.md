@@ -818,3 +818,13 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - It measures both fixes first: sub-pieces trying the parent direction, and max of the two schedules.
   - "Leave it, disclosed" is an acceptable answer. A trade stops for a ruling.
   - **Tier: single FULL.** — (NURBS orchestrator)
+- 2026-10-12 14:35Z — **PR 4869** (build A, the memo invisible in Sym) is up at `afff68b0d8`.
+  - **The fix:** the memo serves only when no Sym session is installed (`sym::session_counts()`). A per-session key would thrash, and documenting the exception would leave a session's result depending on read history.
+  - **Row:** `a_meter_read_before_a_session_is_not_served_inside_it`, red on main.
+  - **Cost:** unchanged within noise.
+  - **Finding:** the `Sym` frozen counts rise to about 1915/2094, not back to 1060/1177.
+    - The memo had hidden PR 4834 (the `plain_constant` gate) from the digest. In-session, carriers whose weights are equal but non-literal now take the rational arm. Build A bisected merges 4803 → 4849 to pin it on 4834.
+    - Decisions, `sz`, `num` and the f64 rows are unchanged. The whole rise is contradiction checks on numerically decided signs (54 → 1848).
+    - **Orchestrator's position:** this is 4834's conservative gate measured honestly, and a baseline is no target. The reach it gives up belongs to INLANE's T-margin primitive, and the measurement is recorded on INLANE's held-value row.
+    - **My miss, second instance today:** 4834's digest check passed only because the memo hid the change. The 4803-miss class ("a meter change merged without the digest that reads it") has a sub-case: a digest that passes can still be masked by a cache.
+  - A single FULL reviewer is dispatched (session_01LtWLeFccm7GHfs9HZgQWtj). It also checks thread-sharing of the session check, and whether the frozen rise costs the session anything it can prove. — (NURBS orchestrator)
