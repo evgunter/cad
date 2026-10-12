@@ -18,7 +18,8 @@ PR 3513 gave two raisers typed rungs:
 - `SectionError::RadiusEscalated { radius: SectionRadius, diag }` for
   `cylinder_sphere_section`'s `cs_cylinder_radius`/`cs_sphere_radius`
   and `cone_cylinder_section`'s `coc_cylinder_radius`;
-- `geom_brep::LeverEscalation { rung: LeverRung, diag }` on
+- `geom_brep::LeverEscalation`, whose `rung()` names a `LeverRung` beside
+  its `diag()`, on
   `enters_material`, `enters_material_order2` and `classify_dihedral`.
 
 The same class remains untyped elsewhere:
@@ -77,7 +78,7 @@ the rim screen's through `WedgeCheck::of_rung`
 What remains of this row: the section arms' other
 operand guards, and `must_carry_over_edge`, `topo::census`, the
 splitting rules, neighbourhood and finish, and `sweep::extrude` and
-`sweep::revolve::upgrade`, which still read `.diag` and drop the rung
+`sweep::revolve::upgrade`, which still read only `diag()` and drop the rung
 (none of them offers an angle tolerance: the split ends in its own
 coincidence menu, and the others fold the escalation into a finding of
 their own).
@@ -87,7 +88,7 @@ their own).
 
 One more reader drops the rung: `topo::boolean::rim_wedge::classify_shared_rim`
 (`crates/topo/src/boolean/rim_wedge.rs`, its first-order screen's
-`.map_err(|escalation| escalation.diag)`). Its only caller, the
+`.map_err(|escalation| escalation.diag())`). Its only caller, the
 declared-`Tangent` door's shared-rim route
 (`boolean::verify_tangent_declaration`), reads any escalation there as
 "the samples could not settle the rim" and ends in the bare class

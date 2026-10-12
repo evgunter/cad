@@ -79,7 +79,7 @@ use test_utils::fuzz::{self, Rng};
 use test_utils::vacuity::Exposure;
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::query::{self, CurveKind, CurveKindSet, SurfaceKindSet};
-use topo::{Body, BooleanDeclarations, EdgeKey};
+use topo::{Body, EdgeKey};
 
 /// How many random edge subsets each corpus body gets — one multiple
 /// of `CAD_FUZZ_EFFORT` per body. `CAD_FUZZ_SEED` pins the draws.
@@ -135,7 +135,7 @@ fn realized_or_none(op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Option<Body<
         op,
         &finished("operand A", a.clone(), Tol::witness()),
         &finished("operand B", b.clone(), Tol::witness()),
-        &BooleanDeclarations::none(),
+        &topo::BooleanInputs::default(),
         SweepStrategy::Realized,
         Tol::witness(),
     )
@@ -398,10 +398,12 @@ fn class(e: &BlendError) -> &'static str {
         BlendError::BodyNotIntact { .. } => "BodyNotIntact(row 1)",
         BlendError::ScaffoldingOperand { .. } => "ScaffoldingOperand(row 1)",
         BlendError::InsideOutOperand { .. } => "InsideOutOperand(row 1)",
+        BlendError::UnjoinedOperand { .. } => "UnjoinedOperand(row 1)",
         BlendError::SurgeryInvariant { .. } => "SurgeryInvariant(row 4)",
         BlendError::RingClearance { .. } => "RingClearance",
         BlendError::Certify { .. } => "Certify",
         BlendError::Op { .. } => "Op",
+        BlendError::Join { .. } => "Join",
     }
 }
 

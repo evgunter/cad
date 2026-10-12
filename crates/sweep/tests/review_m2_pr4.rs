@@ -487,17 +487,15 @@ fn survives_reversal_maps_and_orientation() {
     // → (0,1). Canonical start (0,0), CCW as written, n = 5.
     let b = FRAC_PI_8.tan();
     // The quarter arc joins both neighbor lines tangentially (a
-    // rounded step) -- declared per the #101 discipline.
-    // Only (2,0) leaves on an arc; the two joints bracketing it are
-    // the declared tangencies.
-    let mut lp = bulge_loop(vec![
+    // rounded step). Only (2,0) leaves on an arc; the two joints
+    // bracketing it are the tangencies.
+    let lp = bulge_loop(vec![
         (Point2::new(0.0, 0.0), 0.0),
         (Point2::new(2.0, 0.0), b),
         (Point2::new(2.5, 0.5), 0.0),
         (Point2::new(2.5, 1.5), 0.0),
         (Point2::new(0.0, 1.0), 0.0),
     ]);
-    lp = lp.with_tangent_joints(vec![1, 2]);
     let vp = validated(vec![lp]);
     let canon: Vec<Point2<f64>> = vp.loops()[0].vertices().to_vec();
     let n = canon.len();
@@ -589,8 +587,14 @@ fn survives_sliver_join_reports_canonical_index_both_directions() {
             ExtrudeError::SliverJoin {
                 loop_index,
                 vertex_index,
+                reading,
                 source,
             } => {
+                assert_eq!(
+                    reading,
+                    topo::DihedralReading::Lever(geom_brep::LeverRung::Reading),
+                    "a sliver corner is the first-order wedge's escalation"
+                );
                 assert_eq!(loop_index, 0);
                 assert_eq!(vertex_index, 1, "canonical index broken for d = {d}");
                 assert_eq!(source.predicate, Some("dihedral_wedge"));
@@ -1236,8 +1240,10 @@ fn survives_sub_eps_oblique_vector_used_as_given() {
     // the field that now holds it. Nothing about what is checked
     // moves: the stored vector is still the input, bitwise, and the
     // raised vertices are still measured against it below.
-    let geom_brep::EdgeAuthority::Declared(geom_brep::MappedCurve::ExtrudedPoint { vec, .. }) =
-        authority(&t.body, t.strut_edges()[0][1].unwrap())
+    let geom_brep::EdgeAuthority::Declared(geom_brep::MappedCurve {
+        source: geom_brep::MappedSource::ExtrudedPoint { vec, .. },
+        ..
+    }) = authority(&t.body, t.strut_edges()[0][1].unwrap())
     else {
         panic!("the circle's cut strut keeps its declaring pushforward");
     };

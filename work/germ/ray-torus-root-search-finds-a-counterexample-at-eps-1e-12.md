@@ -154,6 +154,6 @@ generic-pose row draws the torus's axis at random too, so `d.z = 0.81`
 said nothing about the ray's angle to the axis.
 
 **Residue, filed:**
-- `work/contact/ray-wall-and-cone-near-root-cancels-over-a-small-lead.md`
-- `work/contact/torus-split-lead-escalates-a-legitimately-small-resolvent-root.md`
+- `ray-wall-and-cone-near-root-cancels-over-a-small-lead` (closed, PR 3755)
+- `work/inside/torus-split-lead-escalates-a-legitimately-small-resolvent-root.md`
 - `work/germ/generic-pose-window-is-tighter-than-the-biquadratic-arm-bound.md`

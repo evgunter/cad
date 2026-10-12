@@ -8,8 +8,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::corpus::{body_of, failures};
-use crate::fixture::{axis_in_plane, insert, len, on_frame, on_frame_keeping, prism_edges, square};
+use crate::corpus::failures;
+use crate::fixture::{insert, len, on_frame, prism_edges, revolve_about, square};
 use editor_core::{
     CancelToken, Dimension, DimensionError, Distribution, DistributionRefusal, DocEdit, DocumentId,
     EvalError, EvalOptions, Evaluation, Expr, ExtrudeSide, Formula, FreeVar, LowerFault, Node,
@@ -17,7 +17,6 @@ use editor_core::{
     VarEnv, VarId, VarName, VarNameReason, apply, eval, evaluate, load, parse_formula, save,
 };
 use geom_core::{Bounds, Interval, Tol};
-use topo::{Body, SurfaceField};
 
 fn n(name: &'static str) -> VarName {
     VarName::from_static(name)
@@ -62,7 +61,7 @@ fn filleted(doc: ProfileDoc, cx: f64, radius: Formula) -> (ProfileDoc, RecipeNod
     let (doc, cube) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -72,20 +71,10 @@ fn filleted(doc: ProfileDoc, cx: f64, radius: Formula) -> (ProfileDoc, RecipeNod
     (doc, blend)
 }
 
-/// The radius token a blend's cylinder carries.
-fn radius_token(body: &Body<f64>) -> topo::ParamSource {
-    let face = topo::query::all_faces(body)
-        .into_iter()
-        .find(|&f| {
-            body.get_face(f)
-                .and_then(|fd| body.get_surface(fd.surface))
-                .is_some_and(|s| matches!(s, geom::Surface::Cylinder { .. }))
-        })
-        .expect("a blended cube carries quarter-cylinder blends");
-    let surface = body.get_face(face).expect("a live face").surface;
-    body.surface_field_source(surface, SurfaceField::CylinderRadius)
-        .expect("a document-built blend declares its radius")
-        .clone()
+/// The spelling the content key writes for a blend's radius.
+fn radius_spelling(doc: &ProfileDoc, blend: RecipeNodeId) -> Vec<u8> {
+    editor_core::test_support::slot_spelling(doc, blend, SlotId::Radius)
+        .expect("a blend has a radius slot")
 }
 
 /// The variables a slot's defined variable reads, in order.
@@ -133,8 +122,8 @@ fn a_constant_is_its_exact_value() {
     let (doc, c) = filleted(doc, 8.0, times(1, 3));
     let ev = evaluated(&doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
-    let token = |blend| radius_token(body_of(&ev, blend));
-    assert_eq!(token(a), token(b), "equal constants lower to one token");
+    let token = |blend| radius_spelling(&doc, blend);
+    assert_eq!(token(a), token(b), "equal constants spell one");
     assert_ne!(token(a), token(c));
 
     let tenth = parse_formula("0.1", &Default::default()).unwrap();
@@ -174,22 +163,14 @@ fn a_constant_is_its_exact_value() {
 
 /// A revolve of a square beside its axis by `angle`: the revolve's id.
 fn revolved(doc: ProfileDoc, angle: Formula) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, plane, profile) = on_frame_keeping(
+    let (doc, profile) = on_frame(
         doc,
         [0.0; 3],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![square(2.0, 0.0, 0.5)],
     );
-    let (doc, axis) = insert(doc, axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
-    insert(
-        doc,
-        Node::Revolve {
-            profile,
-            axis,
-            angle,
-        },
-    )
+    insert(doc, revolve_about(profile, (0.0, 0.0), (0.0, 1.0), angle))
 }
 
 /// The symbolic tier's theorems a session of `run` adds by deciding,
@@ -350,7 +331,7 @@ fn two_typed_values_in_formulas_are_two_variables() {
     let (doc, d) = filleted(doc, 12.0, plus(named("v")));
     let ev = evaluated(&doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
-    let token = |blend| radius_token(body_of(&ev, blend));
+    let token = |blend| radius_spelling(&doc, blend);
     assert_ne!(token(a), token(b));
     assert_eq!(
         token(c),
@@ -405,7 +386,7 @@ fn a_definitions_quantities_mint_first_and_retire_after_it() {
         DocEdit::SetParam {
             node: blend,
             slot: SlotId::Radius,
-            expr: named("w"),
+            value: named("w").into(),
             fresh: Vec::new(),
         },
     );
@@ -454,7 +435,7 @@ fn a_definitions_quantity_is_in_its_edits_mint_log() {
         DocEdit::SetParam {
             node: blend,
             slot: SlotId::Radius,
-            expr: named("w"),
+            value: named("w").into(),
             fresh: Vec::new(),
         },
     )
@@ -722,7 +703,7 @@ fn a_count_a_definition_reads_does_not_reproduce() {
         &doc,
         DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: Formula::mul(
                     named("w"),
                     Formula::count_to_scalar(Formula::fresh(0, Dimension::Count)).unwrap(),
@@ -730,7 +711,7 @@ fn a_count_a_definition_reads_does_not_reproduce() {
                 .unwrap(),
                 side: ExtrudeSide::Along,
             }),
-            fresh: vec![VarDecl::Free(FreeVar::Count { value: 2 })],
+            fresh: vec![VarDecl::Free(FreeVar::Count { value: 2 }).into()],
         },
     );
     let [entry] = applied.record.fresh[..] else {
@@ -748,7 +729,7 @@ fn read_with_w(text: &str) -> (Formula, f64) {
     let parsed = parse_formula(text, &params).unwrap_or_else(|e| panic!("{text}: {e}"));
     let w = VarId::new(1, 1);
     let lowered = parsed
-        .lower(&|name| (name.as_str() == "w").then_some((w, Dimension::Length)))
+        .lower(&|name| (name.as_str() == "w").then_some((w, editor_core::VarKind::Length)))
         .unwrap();
     let mut env = VarEnv::<f64>::default();
     env.bindings.insert(

@@ -16,7 +16,7 @@
 use crate::common;
 use common::*;
 use geom_core::Tol;
-use topo::{BooleanDeclarations, BooleanOp, boolean_op_with};
+use topo::{BooleanInputs, BooleanOp, boolean_op_with};
 
 fn slab(y0: f64) -> topo::AtRestBody<f64> {
     let body = sweep::test_support::brick((-2.0, 2.0), (-2.0, y0), (0.0, 2.0), Tol::witness());
@@ -34,7 +34,7 @@ fn r2_bool_door_near_pole() {
             BooleanOp::Intersect,
             &ball,
             &slab(y0),
-            &BooleanDeclarations::default(),
+            &BooleanInputs::default(),
             topo::SweepStrategy::Realized,
             Tol::witness(),
         );

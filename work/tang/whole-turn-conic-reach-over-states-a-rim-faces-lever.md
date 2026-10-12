@@ -2,10 +2,11 @@
 id: whole-turn-conic-reach-over-states-a-rim-faces-lever
 kind: issue
 title: the whole-turn conic reach in face_reach_from and face_extent over-states a rim face's lever and serves definite conics against in-band truths
-status: open
+status: closed
 opened: 2026-10-07
 priority: P2
 cost: M
+closed: 2026-10-08
 ---
 
 

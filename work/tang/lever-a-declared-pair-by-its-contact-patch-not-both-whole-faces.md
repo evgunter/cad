@@ -2,11 +2,10 @@
 id: lever-a-declared-pair-by-its-contact-patch-not-both-whole-faces
 kind: issue
 title: A declared pair is levered over both whole faces, so a small part on a large plate refuses a tilt its contact patch holds in band
-status: parked
+status: open
 opened: 2026-10-02
 priority: P2
 cost: M
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
@@ -39,3 +38,11 @@ to the boundary points inside it. This changes which faces' extent a
 verdict is read over, so the declared rows (`rest::lever_rows`,
 `contact9_side_codes`' wedge rows) need re-measuring with it. Filed
 from the fix pass of PR 3795 (item 6b).
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: the fix site is the declared Rest door (carrier_eq::declared_reading, rest::pair_extent), retired with declared pairs at stage 4. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Released by stage 4 F (2026-10-11)
+
+Stage 4 F (`declared-pairs-retire`) retired every boolean declaration: no author can declare a pair, the glue is what the margins decide, and the declare offer, the flush detector and the carried declarations are gone. What this row waited on has fired; re-read it against that tree.

@@ -2,8 +2,8 @@
 
 Opened by Ev, in-chat, 2026-09-23. This file holds ONLY the protocol
 in force now; it is edited in place when the protocol changes and
-carries no history — git does. The rows live in
-`docs/DUAL-REVIEW-LOG.md`.
+carries no history — git does. The rows live one file each in
+`docs/dual-review-log/rows/`, rendered as `docs/DUAL-REVIEW-LOG.md`.
 
 **The question: what does a SECOND independent review buy?** The
 instrument is the one the A/B protocol's v6 dual review stream ran on
@@ -107,27 +107,38 @@ under.
    records a CORRESPONDENCE PRE-NOTE (bilateral headline, unilateral
    findings each direction, tally candidates); the tally itself is
    what the blinded coding confirms.
-8. **Record at merge.** The row rides the unit's own PR as its LAST
-   commit, after every review is delivered, and a missing field is a
-   merge blocker for the row. **Row numbers are assigned AT MERGE in
-   main's merge order** (DR-1, DR-2, …); a collision on a concurrent
-   merge is resolved by renumbering the later merge, never by
-   renumbering a row already on main.
-9. **Readout point: a readout is owed when TWENTY M-tier units have
-   been recorded under rule 1's arms (holdout and sequential
-   together), or at the first M-TIER MISS, whichever comes first**
-   (Ev, 2026-10-01, PR 3704). An M-tier miss is either
+8. **Record at merge.** The row is its own file,
+   `docs/dual-review-log/rows/PR-<n>.md`, named by the unit's PR
+   number, and rides the unit's own PR as its LAST commit, after every
+   review is delivered; a missing field is a merge blocker for the row.
+   Its front matter carries the fields the foot is computed from
+   (`scripts/dual-review-log.py` names them) and no row number. **Row
+   numbers are assigned on main in main's merge order** (DR-1, DR-2,
+   …): after the merge a workflow numbers the row and re-renders
+   `docs/DUAL-REVIEW-LOG.md`, which is generated and never
+   hand-edited. No PR assigns a number, and a row already numbered is
+   never renumbered.
+9. **Readout point.** Two kinds of readout (Ev, 2026-10-11, PR 4645):
+   - a **short readout** at EVERY M-tier miss: an FYI to Ev naming
+     the miss, with no options;
+   - a **full readout** only when Ev requests one.
+
+   An M-tier miss is either
    - a tallied finding in a holdout pair whose other review raised no
      MAJOR at all (taken first, the sequential arm would have shipped
      it), or
    - a later escape (rule 11) traced to a sequential unit that meets
      rule 6(b) and (d) and that no review of the unit raised as MAJOR.
-   This is a readout, not a stop — the arms continue until Ev rules
-   on the result. The orchestrator recording the triggering row asks
-   Ev per `CLAUDE.md` "Asking Ev". The running tally, the count of
-   fair pairs that found any MAJOR, the count of M-tier units toward
-   twenty and the M-tier misses are kept at the foot of the log's
-   rows table.
+
+   A readout is not a stop — the arms continue until Ev rules
+   otherwise. The orchestrator recording a row that is an M-tier miss
+   sends the short readout per `CLAUDE.md` "Asking Ev". The running
+   tally, the count of fair pairs that found any MAJOR, the M-tier
+   units and the M-tier misses since the last full readout are
+   computed from the rows' front matter and rendered at the foot of
+   the log's rows table; a full readout, once Ev has ruled on it, is
+   recorded in `docs/dual-review-log/readouts.md` by its trigger,
+   which closes the counting window.
 10. **Readouts are off-file**, on the standing A/B rule: a directional
     result ("the second review rarely finds anything") creates
     expectancy effects on how pairs are adjudicated and triaged. They

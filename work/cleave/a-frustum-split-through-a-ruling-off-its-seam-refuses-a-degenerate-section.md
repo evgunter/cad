@@ -152,7 +152,7 @@ All ten refused `DegenerateSection` on main. The record is in
 
 **Not done here (S1):** `SectionCase::Straight` still carries `Curve3`, because the tables in
 `geom-brep` build it so, and typing it only in `topo` would move the non-line arm rather than
-remove it. Filed as `work/reach/the-ruled-section-tables-carry-their-rulings-as-any-curve.md`.
+remove it. Filed as `work/gauge/the-ruled-section-tables-carry-their-rulings-as-any-curve.md`.
 
 ## Closed (PR 4181, 2026-10-06)
 

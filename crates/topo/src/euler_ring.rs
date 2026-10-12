@@ -1760,9 +1760,7 @@ impl<T: Decide> Body<T> {
     /// row certified on one is certified on the other?
     ///
     /// Answered from identity evidence only: one surface key, or two
-    /// keys sharing one NURBS / `Approx` payload `Arc`. A
-    /// [`crate::GeomSource`] stamp is not read — [`crate::source`]'s
-    /// module docs name this question and the declared one apart.
+    /// keys sharing one NURBS / `Approx` payload `Arc`.
     ///
     /// Two keys holding equal values with no identity tie answer
     /// `false`, and their rows drop and are re-minted: the price of
@@ -4074,7 +4072,6 @@ mod tests {
             let wall = cyl_wall_sheet(
                 &mut body,
                 CylFrame::canonical(1.0),
-                None,
                 (0.2, 1.4),
                 (0.0, 1.0),
                 tol,

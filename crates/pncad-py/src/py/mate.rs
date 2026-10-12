@@ -474,7 +474,7 @@ impl ClassAdmission {
 #[pyfunction]
 pub(crate) fn class_admission(
     py: Python<'_>,
-    class_: super::flush::ContactClass,
+    class_: super::contact::ContactClass,
 ) -> PyResult<ClassAdmission> {
     Ok(ClassAdmission(d::class_admission(class_.to_kernel(py)?)))
 }
@@ -534,43 +534,64 @@ impl Subgroup {
         subgroup_tag(&self.0)
     }
 
-    /// The plane's unit normal, for `planar`.
+    /// The plane's unit normal, for `planar` and `plane_translation`.
     #[getter]
     fn normal(&self) -> Option<(f64, f64, f64)> {
         use d::Subgroup as S;
         match self.0 {
-            S::Planar { normal } => Some(direction(normal.get())),
+            S::Planar { normal } | S::PlaneTranslation { normal } => Some(direction(normal.get())),
             S::Se3
             | S::Cylindrical { .. }
             | S::Prismatic { .. }
             | S::Revolute { .. }
+            | S::Spherical { .. }
+            | S::Parallel { .. }
+            | S::Translation
             | S::Trivial
             | S::Empty => None,
         }
     }
 
-    /// A point on the axis, for `cylindrical` and `revolute`.
+    /// A point on the axis, for `cylindrical` and `revolute`; the fixed
+    /// point, for `spherical`.
     #[getter]
     fn point(&self) -> Option<(Length, Length, Length)> {
         use d::Subgroup as S;
         match self.0 {
-            S::Cylindrical { point: p, .. } | S::Revolute { point: p, .. } => Some(point(p)),
-            // `planar` and `prismatic` are point-free on purpose, as
-            // the class doc says; the three remaining arms have no
-            // geometry to be based at.
-            S::Planar { .. } | S::Prismatic { .. } | S::Se3 | S::Trivial | S::Empty => None,
+            S::Cylindrical { point: p, .. }
+            | S::Revolute { point: p, .. }
+            | S::Spherical { point: p } => Some(point(p)),
+            // `planar`, `prismatic`, `parallel` and `plane_translation`
+            // are point-free on purpose, as the class doc says; the
+            // remaining arms have no geometry to be based at.
+            S::Planar { .. }
+            | S::Prismatic { .. }
+            | S::Parallel { .. }
+            | S::PlaneTranslation { .. }
+            | S::Translation
+            | S::Se3
+            | S::Trivial
+            | S::Empty => None,
         }
     }
 
-    /// The unit direction, for `cylindrical`, `prismatic`, `revolute`.
+    /// The unit direction, for `cylindrical`, `prismatic`, `revolute`
+    /// and `parallel`.
     #[getter]
     fn direction(&self) -> Option<(f64, f64, f64)> {
         use d::Subgroup as S;
         match self.0 {
             S::Cylindrical { direction: v, .. }
             | S::Prismatic { direction: v }
-            | S::Revolute { direction: v, .. } => Some(direction(v.get())),
-            S::Se3 | S::Planar { .. } | S::Trivial | S::Empty => None,
+            | S::Revolute { direction: v, .. }
+            | S::Parallel { direction: v } => Some(direction(v.get())),
+            S::Se3
+            | S::Planar { .. }
+            | S::PlaneTranslation { .. }
+            | S::Spherical { .. }
+            | S::Translation
+            | S::Trivial
+            | S::Empty => None,
         }
     }
 
@@ -1150,23 +1171,8 @@ pub(crate) fn root_of(doc: &super::doc::Doc, instance: &NodeId) -> NodeId {
     NodeId(d::root_of(&doc.inner, instance.0))
 }
 
-/// The **reading edges**: for each mate, the instantiate node each of
-/// its references resolves through.
-///
-/// Recomputed from the name heads every time, never stored — a mate's
-/// references are not recipe edges (inserting a mate transfers no
-/// root), and this is the second sort of edge the partition reads on
-/// top of the consuming ones.
-#[pyfunction]
-pub(crate) fn reading_edges(doc: &super::doc::Doc) -> Vec<(NodeId, NodeId)> {
-    d::reading_edges(&doc.inner)
-        .into_iter()
-        .map(|(a, b)| (NodeId(a), NodeId(b)))
-        .collect()
-}
-
-/// The **relative-freedom partition**: components over consuming ∪
-/// reading edges, so mates couple what they constrain.
+/// The **relative-freedom partition**: components over reads and gauge
+/// references, so mates couple what they constrain.
 ///
 /// Coarser than `groups`, which partitions instances alone.
 #[pyfunction]
@@ -1193,8 +1199,9 @@ pub(crate) fn relative_freedom_components(doc: &super::doc::Doc) -> Vec<Vec<Node
 /// inapplicable: `node` and `offset` for an `offset_cleared` — a
 /// member of the mate's first operand's group, now placed on the
 /// second's, and the offset it gave up; `node` and `name` for a
-/// strand, and `name` alone for a `stranded_appearance`, whose carrier is
-/// the appearance store and not a node.
+/// strand, `node` (the selection's first reader) and `name` for a
+/// `stranded_selection`, and `name` alone for a `stranded_appearance`,
+/// whose carrier is the appearance store and not a node.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct Maintenance(pub(crate) d::Maintenance);
@@ -1213,9 +1220,11 @@ impl Maintenance {
     }
 
     /// The node this row is about: the instance whose offset the mate
-    /// door cleared, or the surviving node whose payload carries a
-    /// stranded name. `None` for a `stranded_appearance`, which has
-    /// no carrying node to name.
+    /// door cleared, the surviving node whose payload carries a
+    /// stranded name, the first node that reads a selection naming
+    /// one (a `stranded_selection`), or the node whose operand reads
+    /// what a delete removed (a `stranded_read`). `None` for a
+    /// `stranded_appearance`, which has no carrying node to name.
     ///
     /// The arms answer different questions with one attribute on
     /// purpose: each is the node a reader would go and look at, which
@@ -1225,8 +1234,13 @@ impl Maintenance {
     fn node(&self) -> Option<NodeId> {
         match &self.0 {
             d::Maintenance::OffsetCleared { instance, .. } => Some(NodeId(instance.id())),
-            d::Maintenance::Strand { node, .. } => Some(NodeId(node.id())),
+            d::Maintenance::Strand { node, .. } | d::Maintenance::StrandedRead { node, .. } => {
+                Some(NodeId(node.id()))
+            }
             d::Maintenance::LabelDropped { gauge, .. } => Some(NodeId(gauge.id())),
+            d::Maintenance::StrandedSelection { readers, .. } => {
+                readers.first().map(|reader| NodeId(reader.id()))
+            }
             d::Maintenance::StrandedAppearance { .. }
             | d::Maintenance::AnonymousVarRemoved { .. } => None,
         }
@@ -1234,19 +1248,23 @@ impl Maintenance {
 
     /// The name this row is about, in the opaque text every name door
     /// on this surface speaks — the stranded payload name for a
-    /// `strand`, the appearance store's stranded key for a
-    /// `stranded_appearance`. A stranded name is spelled as the
-    /// document holds it — its minting node deleted, or its profile
-    /// piece no longer drawn — and `DocEdit.rebind` from that spelling
-    /// is the repair this surface carries.
+    /// `strand`, the selected name for a `stranded_selection`, the
+    /// appearance store's stranded key for a `stranded_appearance`. A
+    /// stranded name is spelled as the document holds it — its minting
+    /// node deleted, or its profile piece no longer drawn — and
+    /// `DocEdit.rebind` from that spelling is the repair this surface
+    /// carries (with `body=` the selection's body for a
+    /// `stranded_selection`).
     #[getter]
     fn name(&self, py: Python<'_>) -> PyResult<Option<String>> {
         match &self.0 {
             d::Maintenance::Strand { name, .. }
+            | d::Maintenance::StrandedSelection { name, .. }
             | d::Maintenance::StrandedAppearance { name, .. } => {
                 super::doc::name_text(py, name.name()).map(Some)
             }
             d::Maintenance::OffsetCleared { .. }
+            | d::Maintenance::StrandedRead { .. }
             | d::Maintenance::LabelDropped { .. }
             | d::Maintenance::AnonymousVarRemoved { .. } => Ok(None),
         }
@@ -1260,6 +1278,8 @@ impl Maintenance {
                 Some(super::place::Placement(offset.authored()))
             }
             d::Maintenance::Strand { .. }
+            | d::Maintenance::StrandedRead { .. }
+            | d::Maintenance::StrandedSelection { .. }
             | d::Maintenance::StrandedAppearance { .. }
             | d::Maintenance::LabelDropped { .. }
             | d::Maintenance::AnonymousVarRemoved { .. } => None,
@@ -1287,7 +1307,6 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(solve_document, m)?)?;
     m.add_function(wrap_pyfunction!(groups, m)?)?;
     m.add_function(wrap_pyfunction!(root_of, m)?)?;
-    m.add_function(wrap_pyfunction!(reading_edges, m)?)?;
     m.add_function(wrap_pyfunction!(relative_freedom_components, m)?)?;
     m.add_function(wrap_pyfunction!(class_admission, m)?)?;
     m.add("CLASS_DEFERRAL", d::CLASS_DEFERRAL)?;

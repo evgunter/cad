@@ -12,7 +12,9 @@
 //!   seam is wholly inside or wholly outside the other sphere and can
 //!   never cross it — at any depth and at any radius ratio. No crossing
 //!   is found, the containment fallback runs, and its curved-extent
-//!   scan refuses `SpheresMeet`.
+//!   scan re-charts each ball with its pole on the centre line, so the
+//!   re-entered pipeline finds the seams crossing the circle the
+//!   spheres meet in and joins it.
 //! * **Offset along X or Y.** The seam circle now meets the other
 //!   sphere, so a seam edge crosses a CURVED face and the circle ×
 //!   sphere roots pierce it. The pair reaches the join, which hands each
@@ -35,6 +37,9 @@ use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::finished;
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{AtRestBody, BooleanError};
+
+use crate::common::differential::assert_sound_and_meshed;
+use crate::common::oracles::{ball_lens, ball_volume};
 
 /// A radius-`r` ball at `centre`, poles on world Y (the pip corpus's
 /// constructor chart).
@@ -60,10 +65,6 @@ fn ball_at_tol(r: f64, centre: Vec3<f64>, tol: Tol) -> AtRestBody<f64> {
     finished("the ball", ball, tol)
 }
 
-fn union_err(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> BooleanError {
-    topo::union(a, b, Tol::witness()).expect_err("the pair is refused")
-}
-
 /// **The nesting question offers a tolerance only where a smaller one
 /// passes, and its decided arms tell the same story** (the second
 /// review's probe P5, adopted). A half ball inside a unit ball, its
@@ -75,8 +76,7 @@ fn union_err(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> BooleanError {
 ///   tolerance decides it negative, and the pair meets);
 /// - a zero-band depth short of tangency is a decided zero, refused as
 ///   the pair meeting with the tolerance its margin gives, and a clear
-///   depth past it is the boundaries crossing, refused with the same
-///   lever alone.
+///   depth past it is the boundaries crossing, which builds.
 #[test]
 fn a_nested_ball_near_tangency_offers_a_tolerance_only_short_of_it() {
     let tol = Tol::witness();
@@ -131,38 +131,37 @@ fn a_nested_ball_near_tangency_offers_a_tolerance_only_short_of_it() {
         .value()
         .unwrap();
     assert!(err.to_string().ends_with(&offer(m)), "{err}");
-    let err = union(1e-3);
-    assert!(
-        matches!(
-            err,
-            BooleanError::SpheresMeet {
-                verdict: geom_brep::recourse::Refused::Negative { .. },
-                ..
-            }
-        ) && err.to_string().ends_with(LEVER),
-        "crossing boundaries end in the same lever alone: {err}"
+    assert_sound_and_meshed(
+        "crossing boundaries build",
+        topo::union(
+            &ball_at(1.0, Vec3::new(2.0, 2.0, 0.5)),
+            &ball_at(0.5, Vec3::new(2.0, 2.0, 1.001)),
+            tol,
+        ),
+        ball_volume(1.0) + ball_volume(0.5) - ball_lens(1.0, 0.5, 0.501),
+        tol,
     );
 }
 
 /// A Z offset keeps both seams clear of the other sphere at every depth
-/// and every radius ratio, so the scan — not the pierce — is the door.
+/// and every radius ratio, so the scan — not the pierce — is the door,
+/// and the union is the two balls less their lens.
 #[test]
-fn z_offset_pairs_refuse_at_the_curved_extent_scan() {
+fn z_offset_pairs_build_through_the_curved_extent_scan() {
     for (r2, z2, label) in [
         (1.0, 1.9, "shallow, equal radii"),
         (1.0, 1.1, "deep, equal radii"),
         (0.2, 1.4, "unequal radii, seam wholly inside the big ball"),
     ] {
-        let err = union_err(
-            &ball_at(1.0, Vec3::new(2.0, 2.0, 0.5)),
-            &ball_at(r2, Vec3::new(2.0, 2.0, z2)),
-        );
-        let BooleanError::SpheresMeet { verdict, .. } = err else {
-            panic!("{label}: expected the scan's typed refusal, got {err:?}");
-        };
-        assert!(
-            matches!(verdict, geom_brep::recourse::Refused::Negative { .. }),
-            "{label}: the boundaries cross: {verdict:?}"
+        assert_sound_and_meshed(
+            label,
+            topo::union(
+                &ball_at(1.0, Vec3::new(2.0, 2.0, 0.5)),
+                &ball_at(r2, Vec3::new(2.0, 2.0, z2)),
+                Tol::witness(),
+            ),
+            ball_volume(1.0) + ball_volume(r2) - ball_lens(1.0, r2, z2 - 0.5),
+            Tol::witness(),
         );
     }
 }

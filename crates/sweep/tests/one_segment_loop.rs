@@ -261,54 +261,54 @@ fn one_segment_circles_extrude_at_interval() {
 /// r = 1 about the z axis from z = 0 to 2, its seam strut on the
 /// meridian x = 1. Every operand pair is plane × cylinder.
 ///
-/// - Cuts ALONG the wall build, at all three tiers and their closed
-///   forms: the half x ≥ 0 cut away (the seam inside the tool), the half
-///   y ≥ 0 cut away (the tool's face through the seam), and a bar united
-///   through the wall around the seam.
-/// - Cuts ACROSS the wall refuse, typed: a cap-parallel plane meets the
-///   wall in a circle that crosses the one seam once, a closed section
-///   loop with one site, which the join does not build
-///   (`Join(SingleSiteSectionLoop)`, `work/join/closed-in-face-section-loop-has-one-site.md`).
+/// Every cut builds, at all three tiers and its closed form:
+///
+/// - ALONG the wall: the half x ≥ 0 cut away (the seam inside the
+///   tool), the half y ≥ 0 cut away (the tool's face through the seam),
+///   and a bar united through the wall around the seam;
+/// - ACROSS it: a slab kept and cut away, each cap-parallel plane
+///   meeting the wall in a circle that crosses the one seam once, a
+///   section loop with one site (every op in both orders:
+///   `a_plane_across_a_one_face_wall.rs`).
 #[test]
-fn a_boolean_on_an_extruded_seam_wall_builds_along_it_and_refuses_across_it() {
+fn a_boolean_on_an_extruded_seam_wall_builds_along_and_across_it() {
     use sweep::test_support::brick;
     use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
-    use topo::{BooleanDeclarations, BooleanError, SplitJoinError};
 
     let cyl = extruded(vec![circle(0.0, 0.0, 1.0, TAU)], 2.0, ExtrudeSide::Along).body;
     // ∫_{-1/2}^{1/2} √(1 − y²) dy: the disc's share of a bar of width 1
     // reaching past x = 1 from x = 0.
     let bar_in_disc = 0.75f64.sqrt() * 0.5 + (0.5f64).asin();
-    let cases: Vec<(&str, BooleanOp, Body<f64>, Option<f64>)> = vec![
+    let cases: Vec<(&str, BooleanOp, Body<f64>, f64)> = vec![
         (
             "x ≥ 0 cut away",
             BooleanOp::Subtract,
             brick((0.0, 3.0), (-3.0, 3.0), (-1.0, 3.0), tol()),
-            Some(PI),
+            PI,
         ),
         (
             "y ≥ 0 cut away",
             BooleanOp::Subtract,
             brick((-3.0, 3.0), (0.0, 3.0), (-1.0, 3.0), tol()),
-            Some(PI),
+            PI,
         ),
         (
             "a bar through the seam",
             BooleanOp::Union,
             brick((0.0, 3.0), (-0.5, 0.5), (0.5, 1.5), tol()),
-            Some(2.0 * PI + 3.0 - bar_in_disc),
+            2.0 * PI + 3.0 - bar_in_disc,
         ),
         (
             "a slab kept",
             BooleanOp::Intersect,
             brick((-3.0, 3.0), (-3.0, 3.0), (0.5, 1.0), tol()),
-            None,
+            0.5 * PI,
         ),
         (
             "a slab cut away",
             BooleanOp::Subtract,
             brick((-3.0, 3.0), (-3.0, 3.0), (0.5, 1.0), tol()),
-            None,
+            1.5 * PI,
         ),
     ];
     for (what, op, tool, want) in cases {
@@ -316,30 +316,17 @@ fn a_boolean_on_an_extruded_seam_wall_builds_along_it_and_refuses_across_it() {
             op,
             &topo::test_support::finished("the seam cylinder", cyl.clone(), tol()),
             &topo::test_support::finished("the tool", tool, tol()),
-            &BooleanDeclarations::none(),
+            &topo::BooleanInputs::default(),
             SweepStrategy::Realized,
             tol(),
         );
-        match (out, want) {
-            (Ok(out), Some(want)) => {
-                let body = &out
-                    .body()
-                    .unwrap_or_else(|| panic!("{what}: the boolean left no body"))
-                    .body;
-                tiers(body, what);
-                close(volume(body), want, what);
-            }
-            (Err(BooleanError::Join(SplitJoinError::SingleSiteSectionLoop { count })), None) => {
-                assert_eq!(count, 2, "{what}: one loop per cutting plane");
-            }
-            (out, want) => panic!(
-                "{what}: want {}, got {:?}",
-                want.map_or("the single-site refusal".to_string(), |v| format!(
-                    "volume {v}"
-                )),
-                out.map(|_| "a body")
-            ),
-        }
+        let out = out.unwrap_or_else(|e| panic!("{what}: {e:?}"));
+        let body = &out
+            .body()
+            .unwrap_or_else(|| panic!("{what}: the boolean left no body"))
+            .body;
+        tiers(body, what);
+        close(volume(body), want, what);
     }
 }
 
@@ -625,8 +612,13 @@ fn a_lofted_one_segment_section_is_one_spline_wall_with_a_wrap_strut() {
             "{what}: the strut is the body's one wrap edge"
         );
         let at_i = |loops: Vec<ProfileLoop<f64>>| {
-            let lofted = sweep::loft_body::<Interval>(&[loops.clone(), loops], &places, 1, tol())
-                .unwrap_or_else(|e| panic!("{what}: the loft builds at Interval: {e}"));
+            let lofted = sweep::loft_body::<Interval>(
+                &sweep::test_support::lift_sections::<Interval>(&[loops.clone(), loops]),
+                &sweep::test_support::lift_places::<Interval>(&places),
+                1,
+                tol(),
+            )
+            .unwrap_or_else(|e| panic!("{what}: the loft builds at Interval: {e}"));
             assert_eq!(validate(&lofted.body), Ok(()), "{what} at Interval: tier 1");
             assert_eq!(
                 validate_closed(&lofted.body),
@@ -1061,6 +1053,172 @@ fn segment_curve_converts_a_closed_arc_only_as_one_full_turn() {
         assert!(
             start.distance(end) < 1e-12 && (start.x - 1.0).abs() < 1e-12,
             "a full turn of {sweep} closes on its start: {start:?} → {end:?}"
+        );
+    }
+}
+
+/// **A moved closed spline wall plans its wrap edge as a row of its new
+/// fit.** The wrap edge is the seam the wall shares with itself, so
+/// both of its sides move with the fit, and the door extracts the new
+/// fit's boundary column rather than sectioning it with anything,
+/// re-stated as a `u` row of the wall's own chart.
+///
+/// A lofted circle's wall carries the rational circle's C⁰ knots, which
+/// the offset fit refuses as a crease, so the one-segment cylinder's
+/// wall is re-charted onto a smooth closed chart through the same wrap
+/// line `(1, 0, z)`: a flat ring in the plane `y = 0`, one cubic span
+/// closed in `u` about `(1, 0, −1)` and linear in `v` from radius 1 to
+/// 3, whose offset its fit reproduces exactly. The strut is re-described as that chart's wrap column; the
+/// rims, which the plan of the wrap edge does not read, stay as the
+/// loft left them.
+#[test]
+fn a_moved_closed_walls_wrap_edge_is_a_row_of_its_fit() {
+    use geom_core::spline::KnotVector;
+    let places = sweep::test_support::stacked_at(&[0.0, 2.0]);
+    let section = vec![circle(0.0, 0.0, 1.0, TAU)];
+    let mut body = sweep::loft_body::<f64>(&[section.clone(), section], &places, 1, tol())
+        .expect("the cylinder lofts")
+        .body;
+    let [(wall, strut)] = wrap_edges(&body)[..] else {
+        panic!("one wrap edge");
+    };
+    // The ring's direction about the centre, in the plane's (x, z): one
+    // closed cubic span, whose offset the fit reproduces exactly.
+    let ring = [(0.0, 1.0), (4.0, -3.0), (-4.0, -3.0), (0.0, 1.0)];
+    let control = ring
+        .iter()
+        .flat_map(|&(x, z)| {
+            [1.0, 3.0].map(|r| geom_core::Point3::new(1.0 + r * x, 0.0, -1.0 + r * z))
+        })
+        .collect();
+    let tube = geom::NurbsSurface::new(
+        KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap(),
+        KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+        control,
+        vec![1.0; 8],
+    )
+    .expect("a closed flat ring");
+    // The wrap column run top to bottom, on `[−1, 0]`.
+    let column = geom_brep::reversed_column(&geom_brep::boundary_iso_u(&tube, false).unwrap());
+    // Lifts RechartStrandsDescriptions: the strut is re-described onto
+    // the new chart next, and only the strut is planned.
+    let wall_key = body
+        .set_face_surface_unvouched_for_tests(
+            wall,
+            topo::FaceSurface::New {
+                surface: geom::Surface::Nurbs(std::sync::Arc::new(tube)),
+                sense: true,
+            },
+        )
+        .expect("the attach-layer door accepts a live face");
+    body.set_edge_curve(
+        strut,
+        geom_brep::EdgeCurveSpec {
+            description: geom_brep::EdgeDescriptionSpec::wrap_iso(
+                wall_key, 0.0, 1.0, 0.0, -1.0, 0.0,
+            ),
+            carrier: geom::Curve3::Nurbs(std::sync::Arc::new(column)),
+            param_start: -1.0,
+            param_end: 0.0,
+        },
+        tol(),
+    )
+    .expect("the strut is the tube's wrap column");
+    let d = 0.05;
+    let spec = topo::offset_edge_specs_for_tests(&body, wall, d, tol())
+        .into_iter()
+        .find(|(edge, _)| *edge == strut)
+        .map(|(_, spec)| spec)
+        .expect("the wrap edge is on the wall's boundary")
+        .unwrap_or_else(|e| panic!("the wrap edge plans: {e}"));
+    assert!(
+        matches!(
+            spec.description,
+            geom_brep::EdgeDescriptionSpec::Chart {
+                surface,
+                image: Some(geom_brep::Pcurve::IsoLine { p0, pl }),
+                wrap: true,
+                ..
+            } if surface == wall_key && p0.x == 0.0 && pl.x == 0.0 && pl.y == -1.0
+        ),
+        "the wrap edge is the u = 0 wrap row of the wall's chart, run back \
+         (`pl = (0, −1)`), got {:?}",
+        spec.description
+    );
+    // The strut runs top to bottom, as it did: its span forward on the
+    // row reflected through 0, from `z = 2` down to `z = 0`.
+    assert!(
+        spec.param_start < spec.param_end,
+        "the span runs forward on its carrier, got {}..{}",
+        spec.param_start,
+        spec.param_end
+    );
+    for (t, z) in [(spec.param_start, 2.0), (spec.param_end, 0.0)] {
+        let p = spec.carrier.eval(t);
+        assert!(
+            (p.x - 1.0).abs() < 1e-9 && (p.y.abs() - d).abs() < 1e-9 && (p.z - z).abs() < 1e-9,
+            "the column stands on the wrap line carried d off the ring's plane, at z = {z}, \
+             got {p:?}"
+        );
+    }
+}
+
+/// **A one-segment strut runs its column back without rounding a knot.**
+/// The wall's `u = 0` column carries the sections' chord-length
+/// parameters, and on many of these stacks some have no reflection
+/// about `[0, 1]` that is an `f64` (`1 − fl(1/3)` is not one; refusing
+/// those would stop 4 equal sections at degree 1, `[0, 1, 3]` at
+/// degree 1, and 6, 7 and 8 sections at several degrees), so the strut
+/// is the column reflected through 0: on `[−1, 0]`, the column's knots
+/// negated. Every stack builds at every degree up to 3 it supports,
+/// and each strut's carrier is exactly that.
+#[test]
+fn a_one_segment_strut_runs_its_column_back_on_the_negated_knots() {
+    let stacks: Vec<Vec<f64>> = [&[0.0, 1.0, 3.0][..], &[0.0, 0.7, 2.0]]
+        .into_iter()
+        .map(<[f64]>::to_vec)
+        .chain((2..=9).map(|k| (0..k).map(f64::from).collect()))
+        .collect();
+    let cases: Vec<(&[f64], usize)> = stacks
+        .iter()
+        .flat_map(|z| (1..z.len().min(4)).map(move |degree| (&z[..], degree)))
+        .collect();
+    assert_eq!(
+        cases.len(),
+        25,
+        "every stack at every degree up to 3 it supports"
+    );
+    for (z, degree) in cases {
+        let places = sweep::test_support::stacked_at(z);
+        let sections: Vec<_> = z
+            .iter()
+            .map(|_| vec![circle::<f64>(0.0, 0.0, 1.0, TAU)])
+            .collect();
+        let lofted = sweep::loft_body::<f64>(&sections, &places, degree, tol())
+            .unwrap_or_else(|e| panic!("{z:?} at degree {degree}: the loft builds: {e}"));
+        let [(wall, strut)] = wrap_edges(&lofted.body)[..] else {
+            panic!("{z:?}: one wrap edge")
+        };
+        let Some(topo::CurveGeom::Certified(c)) = lofted
+            .body
+            .get_curve_geom(lofted.body.get_edge(strut).unwrap().curve)
+        else {
+            panic!("{z:?}: the strut is certified")
+        };
+        let geom::Curve3::Nurbs(carrier) = c.carrier() else {
+            panic!("{z:?}: the strut is a spline")
+        };
+        let Some(geom::Surface::Nurbs(chart)) = lofted
+            .body
+            .get_surface(lofted.body.get_face(wall).unwrap().surface)
+        else {
+            panic!("{z:?}: the wall is a spline chart")
+        };
+        assert_eq!(c.params(), (-1.0, 0.0), "{z:?}: the strut's interval");
+        assert_eq!(
+            carrier.knots().knots(),
+            chart.knots_v().negated().knots(),
+            "{z:?}: the strut's knots are the column's, negated"
         );
     }
 }

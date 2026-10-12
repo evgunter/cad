@@ -4,6 +4,7 @@ import: Ok(Solid) solids=1 shells=1 faces=6 edges=12 vertices=8
 import: Ok(Solid) solids=1 shells=1 faces=11 edges=24 vertices=16
 ## kiss_assembly
 import: Ok(Solid) solids=2 shells=2 faces=22 edges=48 vertices=32
+record (Vertex(VertexKey(4v1)), Vertex(VertexKey(26v1))) Coincidence { cells: [Result { cell: Vertex(VertexKey(4v1)) }, Result { cell: Vertex(VertexKey(26v1)) }], relation: OnCarrier, site: CensusAtRest, margin: MarginDiag(Value(0.0, None, ZeroWord(0))), discharge: Numeric }
 ## cut_cylinder
 import: Ok(Solid) solids=1 shells=1 faces=4 edges=6 vertices=4
 ## boss_union
@@ -25,7 +26,7 @@ import: Ok(Solid) solids=1 shells=1 faces=26 edges=48 vertices=24
 ## die_pips
 import: Ok(Solid) solids=1 shells=1 faces=48 edges=96 vertices=71
 ## composed_die
-import: Ok(Solid) solids=1 shells=1 faces=89 edges=195 vertices=129
+import: Ok(Solid) solids=1 shells=1 faces=89 edges=174 vertices=108
 ## loft_prism
 import: Ok(Solid) solids=1 shells=1 faces=6 edges=12 vertices=8
 ## nonuniform_loft

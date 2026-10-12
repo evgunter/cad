@@ -81,6 +81,8 @@ mod curves_domain_door;
 mod curves_fit_certify;
 #[path = "curves/fitting.rs"]
 mod curves_fitting;
+#[path = "curves/held_weights_and_knots.rs"]
+mod curves_held_weights_and_knots;
 #[path = "curves/hull_circle_rehearsal.rs"]
 mod curves_hull_circle_rehearsal;
 #[path = "curves/lt_r1_probes.rs"]
@@ -121,6 +123,8 @@ mod curves_nurbs_interval;
 mod curves_param_near;
 #[path = "curves/param_near_interval.rs"]
 mod curves_param_near_interval;
+#[path = "curves/piece_coverage_meter.rs"]
+mod curves_piece_coverage_meter;
 #[path = "curves/projection.rs"]
 mod curves_projection;
 #[path = "curves/r2_lt_probes.rs"]
@@ -137,6 +141,8 @@ mod curves_review_m5_pr4_adversarial;
 mod curves_span_window_pairing;
 #[path = "curves/split_at.rs"]
 mod curves_split_at;
+#[path = "curves/swaying_corner_meter.rs"]
+mod curves_swaying_corner_meter;
 #[path = "dual_foot_tangent.rs"]
 mod dual_foot_tangent;
 #[path = "n2r1_probes.rs"]
@@ -163,6 +169,8 @@ mod surfaces_m5_pr7_surface_projection;
 mod surfaces_nurbs_surface;
 #[path = "surfaces/nurbs_surface_interval.rs"]
 mod surfaces_nurbs_surface_interval;
+#[path = "surfaces/poison_parameter.rs"]
+mod surfaces_poison_parameter;
 #[path = "surfaces/review_m2_pr1.rs"]
 mod surfaces_review_m2_pr1;
 #[path = "surfaces/review_m2_pr1_interval.rs"]

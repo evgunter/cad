@@ -216,7 +216,7 @@ fn is_poison_point(p: Point3<f64>) -> bool {
 ///
 /// Under the retired guard this pairing was *admitted and wrong*: the
 /// compares related a window to a surface's shape, never to its knot
-/// values, so `b.eval_in_span(a.window_at(..), ..)` answered finitely
+/// values, so `b.eval_in_span(a.window_at(..).expect("numeric parameters"), ..)` answered finitely
 /// with `a`'s spans over `b`'s net. That expression no longer exists.
 #[test]
 fn a_window_answers_for_its_own_surface() {
@@ -230,8 +230,8 @@ fn a_window_answers_for_its_own_surface() {
     );
     assert_eq!(a.control_counts(), b.control_counts());
 
-    let wa = a.window_at(1.5, 1.5);
-    let wb = b.window_at(1.5, 1.5);
+    let wa = a.window_at(1.5, 1.5).expect("numeric parameters");
+    let wb = b.window_at(1.5, 1.5).expect("numeric parameters");
     let (pa, pb) = (wa.eval_in_span(1.5, 1.5), wb.eval_in_span(1.5, 1.5));
     assert!(!is_poison_point(pa) && !is_poison_point(pb));
     assert_ne!(
@@ -271,7 +271,10 @@ fn the_stride_and_both_vectors_come_from_the_windows_surface() {
         clamped(vec![0.0, 0.0, 0.0, 1.0, 2.0, 2.0, 2.0], 2),
         clamped(vec![0.0, 0.0, 0.0, 1.0, 2.0, 2.0, 2.0], 2),
     );
-    let (ww, wn) = (wide.window_at(1.5, 1.5), narrow.window_at(1.5, 1.5));
+    let (ww, wn) = (
+        wide.window_at(1.5, 1.5).expect("numeric parameters"),
+        narrow.window_at(1.5, 1.5).expect("numeric parameters"),
+    );
     assert_ne!(ww.stride(), wn.stride());
     assert_eq!(ww.stride(), wide.control_counts().1);
     assert_eq!(wn.stride(), narrow.control_counts().1);
@@ -306,8 +309,17 @@ fn the_constructor_relates_the_net_to_the_vectors_by_count_alone() {
     let hybrid = NurbsSurface::new(ku.clone(), kv.clone(), theirs, mine.weights().to_vec())
         .expect("the count relation is all `new` checks");
     assert_ne!(
-        pbits(hybrid.window_at(0.25, 0.25).eval_in_span(0.25, 0.25)),
-        pbits(mine.window_at(0.25, 0.25).eval_in_span(0.25, 0.25)),
+        pbits(
+            hybrid
+                .window_at(0.25, 0.25)
+                .expect("numeric parameters")
+                .eval_in_span(0.25, 0.25)
+        ),
+        pbits(
+            mine.window_at(0.25, 0.25)
+                .expect("numeric parameters")
+                .eval_in_span(0.25, 0.25)
+        ),
         "the two nets must disagree, or this row proves nothing"
     );
 

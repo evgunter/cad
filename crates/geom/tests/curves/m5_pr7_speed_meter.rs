@@ -40,6 +40,7 @@
 use geom::NurbsCurve3;
 use geom_core::Point3;
 use geom_core::spline::KnotVector;
+use geom_core::spline::Knots;
 use test_utils::tightness::Meter;
 
 #[test]
@@ -480,15 +481,63 @@ fn the_interval_meter_brackets_the_f64_meter() {
         )
     };
     let ci = NurbsCurve3::<Interval>::new(
-        kv,
+        Knots::from(kv).lift(geom_core::Real::from_f64),
         vec![pt(0.0, 0.0, 0.0), pt(0.5, 0.3, 0.0), pt(1.0, 0.0, 0.0)],
-        weights,
+        weights
+            .iter()
+            .map(|w| Interval::from_bounds(*w, *w))
+            .collect(),
     )
     .unwrap();
     let mi = ci.speed_lower_bound().get();
     assert!(
         mi.lo() <= mf && mf <= mi.hi(),
         "the interval meter [{}, {}] does not bracket the f64 meter {mf}",
+        mi.lo(),
+        mi.hi()
+    );
+}
+
+/// **A carrier on non-dyadic knots meters at both scalars**: its `f64`
+/// reading is real and under the sampled speed, and the `Interval`
+/// reading is real and brackets it. That is all it shows: a meter that
+/// took the knot difference as `T::from_f64(hi − lo)` reads this carrier
+/// alike. The difference's own enclosure is held by
+/// `knot_difference`'s exact row in `geom_core::spline::knots`.
+#[test]
+fn a_carrier_on_non_dyadic_knots_meters_at_both_scalars() {
+    use geom_core::{Bounds, Interval};
+    let knots = vec![0.0, 0.0, 0.0, 0.1, 0.7, 1.0, 1.0, 1.0];
+    let ctl = [
+        (0.0, 0.0, 0.0),
+        (0.3, 0.4, 0.0),
+        (0.9, 0.5, 0.1),
+        (1.4, 0.1, 0.0),
+        (2.0, 0.3, 0.0),
+    ];
+    let weights = vec![1.0, 0.3, 2.0, 0.6, 1.0];
+    let kv = KnotVector::clamped(knots, 2).unwrap();
+    let cf = NurbsCurve3::<f64>::new(
+        kv.clone(),
+        ctl.iter().map(|&(x, y, z)| Point3::new(x, y, z)).collect(),
+        weights.clone(),
+    )
+    .unwrap();
+    assert_real_and_sound("non-dyadic", &cf);
+    let mf = cf.speed_lower_bound().get();
+    let pt = |x: f64| Interval::from_bounds(x, x);
+    let ci = NurbsCurve3::<Interval>::new(
+        Knots::from(kv).lift(geom_core::Real::from_f64),
+        ctl.iter()
+            .map(|&(x, y, z)| Point3::new(pt(x), pt(y), pt(z)))
+            .collect(),
+        weights.iter().map(|w| pt(*w)).collect(),
+    )
+    .unwrap();
+    let mi = ci.speed_lower_bound().get();
+    assert!(
+        mi.lo() > 0.0 && mi.lo() <= mf && mf <= mi.hi(),
+        "the interval meter [{}, {}] must be real and bracket the f64 meter {mf}",
         mi.lo(),
         mi.hi()
     );

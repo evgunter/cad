@@ -30,15 +30,20 @@ each door at a dual.
   and refuses. Tier 3 also refuses `VolumeUncomputable` itself; the
   dual read passes it. Reasoning by inspection; no witness was built.
 - **Tier-3-only findings are not read at all.** By design the read is
-  tier 2 plus checks 7 and 10, so every other tier-3 finding passes.
+  tier 2, checks 7 and 10, and check 11 (which answers at every scalar
+  the join reads at), so every other tier-3 finding passes.
   Measured: a full-revolve cylinder whose wall is merged into one face
   by plain `kef` on one seam meridian leaves the survivor a slit, which
   tier 3 refuses (`DescriptionNotAdjacent`, "an edge whose halves bound
   one face is that face's wrap edge"), so it does not finish at `f64`.
   At a dual it passes `gate_unverdicted` and reaches the blend's
-  half-band gate. The finished spelling is
-  `fillet_h5_r2_probes::a_finished_curved_single_face_carrying_both_arcs_refuses_at_the_half_band_gate`
-  (`kef_describing` restating the survivor as the wall's wrap edge).
+  half-band gate. The `kef_describing` spelling (the survivor restated
+  as the wall's wrap edge) no longer finishes at `f64` either: each
+  rim's two arcs meet at the killed meridian's end, which tier 3's
+  check 11 refuses
+  (`fillet_h5_r2_probes::a_curved_single_face_carrying_both_arcs_is_construction_state`),
+  and `gate_unverdicted` reads check 11 at a dual as well
+  (`unjoined_operand_at_a_dual.rs`).
 
 Owed: decide what a dual door owes an operand it cannot certify. One
 answer: a sign the dual cannot measure refuses, as tier 3 refuses it,

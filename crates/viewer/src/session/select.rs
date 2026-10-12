@@ -48,7 +48,7 @@ impl FaceSelection {
     /// the entity the name denotes, read off the name's own
     /// carry-through segments (`pncad::select::attribute`).
     ///
-    /// A fillet's `FromTarget(f)` face is still the target's face `f`,
+    /// A fillet's `From { of: f }` face is still the target's face `f`,
     /// so clicking a flat on a filleted body reaches the feature that
     /// swept the flat and not the fillet that shrank it. That is the
     /// question the feature tree's highlight, the property panel's
@@ -60,7 +60,7 @@ impl FaceSelection {
     ///
     /// Falls back to [`FaceSelection::node`] for a name the vocabulary
     /// walk cannot classify, so an unclassified role degrades to the
-    /// drawn root rather than to no feature at all.
+    /// drawn copy rather than to no feature at all.
     pub fn feature(&self) -> RecipeNodeId {
         attribute(&self.name).minted_by().unwrap_or(self.node)
     }
@@ -181,10 +181,10 @@ pub enum Selection {
     None,
     /// A recipe node, selected in the feature tree.
     Node(RecipeNodeId),
-    /// A document parameter, selected in the property panel — where
+    /// A document variable, selected in the property panel — where
     /// the expression-driven refusal's affordance navigates to. Keyed
     /// by the variable's id, so a rename keeps it selected.
-    Param(VarId),
+    Variable(VarId),
     /// A face, picked in the viewport.
     Face(FaceSelection),
     /// An edge, picked in the viewport — what a blend is authored
@@ -196,7 +196,7 @@ impl Selection {
     /// The recipe node this selection is about, when it is about one:
     /// the node itself, or the feature a picked face belongs to
     /// ([`FaceSelection::feature`] — the node that MADE the face, not
-    /// the root that drew it).
+    /// the copy that drew it).
     ///
     /// **The one home for the viewport→tree inversion.** The feature
     /// tree's highlight and the property panel's slot rows both read
@@ -207,7 +207,7 @@ impl Selection {
             Self::Node(id) => Some(*id),
             Self::Face(face) => Some(face.feature()),
             Self::Edge(edge) => Some(edge.feature()),
-            Self::None | Self::Param(_) => None,
+            Self::None | Self::Variable(_) => None,
         }
     }
 
@@ -226,16 +226,25 @@ impl Selection {
     /// highlight and the property panel ask [`Selection::node`], and
     /// every seated tool asks this — `crate::tools`' one pick route.
     ///
-    /// A pick on a pattern's or a split's picture answers the PATTERN
-    /// or the SPLIT, since that is the root whose value was drawn; the
-    /// output-body index riding on the pick says which of its bodies,
-    /// and no seat reads it.
+    /// A pick is on a world placement's copy (A10), and a seat takes the
+    /// body that placement places: [`crate::seats::Seats::pick`] reads
+    /// it through [`crate::world::seat_read`].
     pub fn seat_node(&self) -> Option<RecipeNodeId> {
         match self {
             Self::Node(id) => Some(*id),
             Self::Face(face) => Some(face.node),
             Self::Edge(edge) => Some(edge.node),
-            Self::None | Self::Param(_) => None,
+            Self::None | Self::Variable(_) => None,
+        }
+    }
+
+    /// **The output body a viewport pick hit** ([`FaceSelection::body`]),
+    /// beside [`Selection::seat_node`]; a tree click names none.
+    pub fn seat_body(&self) -> Option<u32> {
+        match self {
+            Self::Face(face) => Some(face.body),
+            Self::Edge(edge) => Some(edge.body),
+            Self::None | Self::Node(_) | Self::Variable(_) => None,
         }
     }
 
@@ -243,7 +252,7 @@ impl Selection {
     pub fn face(&self) -> Option<&FaceSelection> {
         match self {
             Self::Face(face) => Some(face),
-            Self::None | Self::Node(_) | Self::Param(_) | Self::Edge(_) => None,
+            Self::None | Self::Node(_) | Self::Variable(_) | Self::Edge(_) => None,
         }
     }
 
@@ -251,7 +260,7 @@ impl Selection {
     pub fn edge(&self) -> Option<&EdgeSelection> {
         match self {
             Self::Edge(edge) => Some(edge),
-            Self::None | Self::Node(_) | Self::Param(_) | Self::Face(_) => None,
+            Self::None | Self::Node(_) | Self::Variable(_) | Self::Face(_) => None,
         }
     }
 
@@ -267,7 +276,7 @@ impl Selection {
             Self::Node(id) => vec![*id],
             Self::Face(face) => vec![face.name.node, face.feature(), face.node],
             Self::Edge(edge) => vec![edge.name.node, edge.feature(), edge.node],
-            Self::None | Self::Param(_) => Vec::new(),
+            Self::None | Self::Variable(_) => Vec::new(),
         }
     }
 
@@ -278,7 +287,7 @@ impl Selection {
         match self {
             Self::Face(face) => Some(&face.name),
             Self::Edge(edge) => Some(&edge.name),
-            Self::None | Self::Node(_) | Self::Param(_) => None,
+            Self::None | Self::Node(_) | Self::Variable(_) => None,
         }
     }
 }
@@ -304,10 +313,10 @@ pub enum Standing {
         /// Whether it is still in the recipe.
         present: bool,
     },
-    /// A parameter selection, and whether the document still declares
+    /// A variable selection, and whether the document still declares
     /// it.
-    Param {
-        /// The parameter, as the document spoke it.
+    Variable {
+        /// The variable, as the document spoke it.
         var: SpokenVar,
         /// Whether it is still declared.
         present: bool,
@@ -375,7 +384,7 @@ impl Standing {
     pub fn live(&self) -> bool {
         match self {
             Self::Empty => false,
-            Self::Node { present, .. } | Self::Param { present, .. } => *present,
+            Self::Node { present, .. } | Self::Variable { present, .. } => *present,
             Self::Face { resolution, .. } | Self::Edge { resolution, .. } => {
                 resolution.as_deref().is_some_and(resolves)
             }
@@ -390,7 +399,7 @@ impl Standing {
     /// A selection that no longer denotes is [`Tone::Actionable`], and
     /// each arm names what the reader does about it:
     ///
-    /// - a deleted node or an undeclared parameter: reselect;
+    /// - a deleted node or an undeclared variable: reselect;
     /// - a picked entity whose name failed to resolve: rebind it to one
     ///   of the offers, or reselect;
     /// - one the evaluation could not answer for
@@ -414,12 +423,12 @@ impl Standing {
     /// loud a viewer draws it. This type is where the viewer already
     /// reads that verdict for its chrome — [`Standing::live`] and
     /// [`Standing::unresolved`] are two readings of it — and it holds
-    /// the node and parameter arms a function keyed on `Resolution`
+    /// the node and variable arms a function keyed on `Resolution`
     /// could not reach.
     pub fn tone(&self) -> Tone {
         match self {
             Self::Empty => Tone::Advisory,
-            Self::Node { present, .. } | Self::Param { present, .. } => {
+            Self::Node { present, .. } | Self::Variable { present, .. } => {
                 if *present {
                     Tone::Advisory
                 } else {
@@ -445,7 +454,7 @@ impl Standing {
             Self::Face { resolution, .. } | Self::Edge { resolution, .. } => resolution
                 .as_deref()
                 .filter(|resolution| !resolves(resolution)),
-            Self::Empty | Self::Node { .. } | Self::Param { .. } => None,
+            Self::Empty | Self::Node { .. } | Self::Variable { .. } => None,
         }
     }
 }
@@ -469,14 +478,14 @@ mod tests {
             node: RecipeNodeId::new(0, 3),
             present,
         };
-        let param = |present| Standing::Param {
+        let standing = |present| Standing::Variable {
             var: SpokenVar::new(VarId::new(0, 7), Some(VarName::from_static("thickness"))),
             present,
         };
         assert_eq!(node(false).tone(), Tone::Actionable);
-        assert_eq!(param(false).tone(), Tone::Actionable);
+        assert_eq!(standing(false).tone(), Tone::Actionable);
         assert_eq!(node(true).tone(), Tone::Advisory);
-        assert_eq!(param(true).tone(), Tone::Advisory);
+        assert_eq!(standing(true).tone(), Tone::Advisory);
         assert_eq!(Standing::Empty.tone(), Tone::Advisory);
     }
 }

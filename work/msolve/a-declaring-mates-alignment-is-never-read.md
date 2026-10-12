@@ -7,7 +7,7 @@ opened: 2026-10-03
 priority: P3
 cost: M
 design: true
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage3-is-built]
 ---
 
 
@@ -20,3 +20,7 @@ A mate between instances on two gauges declares (A11 (2)). Its `Alignment` (fram
 ## The question
 
 Should a declaring mate hold an alignment at all, or should the gate check it (the declared contact at the declared frames)? Either is a design choice on MSOLVE's and ASSEMBLY's ground; today the field promises a meaning nothing enforces.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage3-is-built`, not on the whole program: places compares gauge refs; declaring mates exist only between gauges, and A11 (2) gauges and A11 (4) declaring mates retire at stage 3. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

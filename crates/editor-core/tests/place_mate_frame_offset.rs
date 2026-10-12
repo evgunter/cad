@@ -31,6 +31,14 @@ use geom_core::Tol;
 
 // ---- substrate ----
 
+/// **An instance of `part`, placed in `doc`'s world at the identity**
+/// (A10): each instance here is in the product, as the product roots
+/// were.
+fn instance(doc: ProfileDoc, part: editor_core::DocRef) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, id) = insert(doc, Node::instantiate_part(part));
+    (crate::fixture::place(doc, id).0, id)
+}
+
 fn slide() -> VarName {
     VarName::from_static("slide")
 }
@@ -60,8 +68,8 @@ fn slid_by_the_parameter() -> Placement<Formula> {
 /// outward normals opposed.
 fn seat(top: SitedFace, base: SitedFace, offset: Placement<Formula>) -> AuthoredNode {
     Node::Mate {
-        a: top,
-        b: base,
+        a: top.into(),
+        b: base.into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: MateFrame::from_face(),
@@ -84,8 +92,8 @@ fn seated(
 ) -> (Parts, ProfileDoc, [RecipeNodeId; 3]) {
     let p = parts(label);
     let doc = prelude(ProfileDoc::empty(DocumentId::derive(label), Tol::witness()));
-    let (doc, base) = insert(doc, Node::instantiate_part(p.base));
-    let (doc, top) = insert(doc, Node::instantiate_part(p.top));
+    let (doc, base) = instance(doc, p.base);
+    let (doc, top) = instance(doc, p.top);
     let opts = p.opts();
     let reach = editor_core::mate_reach::<f64>(&opts, Tol::witness());
     let (doc, m) = step_with(
@@ -143,12 +151,14 @@ fn a_face_side_with_an_in_plane_offset_follows_the_face_through_a_part_edit() {
     // The base part grows on disk; its names hold, its pin moves.
     let (base_doc, base_body) = block(&format!("{label}-base"), 3.0, 1.0);
     assert_eq!(base_body, p.base_body, "the same base document");
+    // As stored: its body placed in its world.
+    let base_doc = crate::fixture::place(base_doc, base_body).0;
     let (grown, _) = step(
         base_doc,
         DocEdit::SetParam {
             node: base_body,
             slot: SlotId::Distance,
-            expr: len(2.0),
+            value: len(2.0).into(),
             fresh: Vec::new(),
         },
     );
@@ -178,8 +188,8 @@ fn a_face_side_with_an_in_plane_offset_follows_the_face_through_a_part_edit() {
 /// base cap's offset reads the document's `slide`: at 0.5 the top
 /// sits at x = 1.5, and one value edit to 1.0 moves it to 2.0 — the
 /// evaluation fed the first as its memo re-keys the mate and the top
-/// and serves neither from the memo. The parameter is a reading edge
-/// for both doors that check one: a mate naming an undeclared
+/// and serves neither from the memo. The parameter is read by the mate
+/// at both doors that check one: a mate naming an undeclared
 /// parameter refuses at insert, and one reading an angle parameter
 /// as a length refuses, each naming the offset's own slot.
 #[test]
@@ -312,15 +322,15 @@ fn an_authored_side_is_the_part_base_with_one_literal_step_bit_for_bit() {
     let p = parts(label);
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive(label), tol);
-    let (doc, base) = insert(doc, Node::instantiate_part(p.base));
+    let (doc, base) = instance(doc, p.base);
     // No offset of its own, so the base stays the group's root.
     let (doc, top) = insert(doc, fixture::mated_instance(p.top));
     let (doc, _) = step(
         doc,
         DocEdit::InsertNode {
             node: Box::new(Node::Mate {
-                a: head(p.base_cap(base)),
-                b: head(p.top_cap(top)),
+                a: head(p.base_cap(base)).into(),
+                b: head(p.top_cap(top)).into(),
                 class: ContactClass::Rest,
                 alignment: Alignment {
                     a,
@@ -435,7 +445,7 @@ fn a_rest_side_set_back_along_the_normal_is_refuted_by_the_gate() {
     assert!(
         findings.iter().any(|f| matches!(
             &f.attribution,
-            editor_core::Attribution::Refuted(d) if d.mate == m
+            Some(editor_core::Attribution::Refuted(d)) if d.mate == m
         )),
         "{err:?}"
     );
@@ -459,7 +469,7 @@ fn the_offset_and_its_parameter_cross_split_and_inline() {
     let before = top_corner(&doc, &o, top);
     let out = editor_core::split(
         &doc,
-        &cut(&[base, top, m]),
+        &cut(&doc, &[base, top, m]),
         DocumentId::derive(&format!("{label}-part")),
         Tol::witness(),
         o.resolver.as_ref(),
@@ -490,7 +500,7 @@ fn the_offset_and_its_parameter_cross_split_and_inline() {
     // A kept declaring mate reading `slide`: a third block on its own
     // gauge, its lower cap on the top's upper cap slid by `slide`.
     let (doc, g) = insert(doc, Node::gauge(None, literal([0.0, 0.0, 8.0])));
-    let (doc, k) = insert(doc, Node::instantiate_part(p.top));
+    let (doc, k) = instance(doc, p.top);
     let doc = set_gauge(doc, k, Some(g));
     let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
     let (doc, _) = step_with(
@@ -507,7 +517,7 @@ fn the_offset_and_its_parameter_cross_split_and_inline() {
     );
     let err = editor_core::split(
         &doc,
-        &cut(&[base, top, m]),
+        &cut(&doc, &[base, top, m]),
         DocumentId::derive(&format!("{label}-part2")),
         Tol::witness(),
         o.resolver.as_ref(),
@@ -533,7 +543,7 @@ fn the_offset_and_its_parameter_cross_split_and_inline() {
     );
     let out = editor_core::split(
         &doc,
-        &cut(&[base, top, plain.expect("minted")]),
+        &cut(&doc, &[base, top, plain.expect("minted")]),
         DocumentId::derive(&format!("{label}-part3")),
         Tol::witness(),
         o.resolver.as_ref(),
@@ -582,7 +592,7 @@ fn a_slot_edit_at_a_frame_step_is_admitted_as_the_insert_is() {
         &DocEdit::SetParam {
             node: m,
             slot: axis(editor_core::Axis3::X),
-            expr: scl(0.0),
+            value: scl(0.0).into(),
             fresh: Vec::new(),
         },
         Tol::witness(),
@@ -605,7 +615,7 @@ fn a_slot_edit_at_a_frame_step_is_admitted_as_the_insert_is() {
         DocEdit::SetParam {
             node: m,
             slot: axis(editor_core::Axis3::Z),
-            expr: scl(0.0),
+            value: scl(0.0).into(),
             fresh: Vec::new(),
         },
     );
@@ -643,8 +653,8 @@ fn a_mates_alignment_compares_by_bits() {
         ProfileProgram<Formula>,
         Formula,
     >::Mate {
-        a: cap(1, editor_core::CapEnd::Start),
-        b: cap(2, editor_core::CapEnd::End),
+        a: cap(1, editor_core::CapEnd::Start).into(),
+        b: cap(2, editor_core::CapEnd::End).into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: MateFrame::from_face(),

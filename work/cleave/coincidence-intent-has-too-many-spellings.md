@@ -2,12 +2,11 @@
 id: coincidence-intent-has-too-many-spellings
 kind: issue
 title: Coincidence intent can be said in too many ways (shared key, face-pair declaration, split declaration, carried records, derived datum, shared parameters); weigh whether they reduce to fewer
-status: parked
+status: open
 opened: 2026-10-03
 priority: P2
 cost: M
 design: true
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
@@ -35,3 +34,11 @@ Owed:
 
 Weigh this before CONTACT's vertex-declaration fork lands, so that fork
 does not add another spelling.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: the spellings it lists (FacePairDeclaration/DeclaredPair, split declarations, carried/ON-set records, FlushFinding) retire at stage 4's one recording door (D10 Coincidence). (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Released by stage 4 F (2026-10-11)
+
+Stage 4 F (`declared-pairs-retire`) retired every boolean declaration: no author can declare a pair, the glue is what the margins decide, and the declare offer, the flush detector and the carried declarations are gone. What this row waited on has fired; re-read it against that tree.

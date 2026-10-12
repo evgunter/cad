@@ -37,44 +37,11 @@
 use geom::NurbsCurve3;
 use geom::NurbsSurface;
 use geom_core::k_stats::decide;
-use geom_core::spline::basis::basis_funs;
-use geom_core::spline::{KnotVector, SpanLocate, SplineError};
-use geom_core::{Band, Decide, Indeterminate, Margin, NO_DECLARATION_RECOURSE, Point3, Real, Sign};
+use geom_core::spline::basis::basis_funs_in;
+use geom_core::spline::{SpanLocate, SplineError};
+use geom_core::{Band, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Point3, Real, Sign};
 
-/// A surface's net as the iso doors read it: both knot vectors and
-/// the row-major control and weight slices. The doors index the net by
-/// counts taken from the knots, so [`NetView::counts`] checks the
-/// slices against those counts before any index is formed.
-struct NetView<'a, T: Real> {
-    knots_u: &'a KnotVector,
-    knots_v: &'a KnotVector,
-    control: &'a [Point3<T>],
-    weights: &'a [f64],
-}
-
-impl<'a, T: Real> NetView<'a, T> {
-    fn of(s: &'a NurbsSurface<T>) -> Self {
-        Self {
-            knots_u: s.knots_u(),
-            knots_v: s.knots_v(),
-            control: s.control(),
-            weights: s.weights(),
-        }
-    }
-
-    /// `(nu, nv)`, once the slices pass the surface's own count rule
-    /// ([`NurbsSurface::check_net_counts`]) — the counts every index
-    /// below is formed from.
-    fn counts(&self) -> Result<(usize, usize), SplineError> {
-        NurbsSurface::<T>::check_net_counts(
-            self.knots_u,
-            self.knots_v,
-            self.control.len(),
-            self.weights.len(),
-        )?;
-        Ok((self.knots_u.control_count(), self.knots_v.control_count()))
-    }
-}
+use crate::ssi::ChartAxis;
 
 /// The `u = 0` (`end = false`) or `u = 1` (`end = true`) boundary
 /// iso-curve of a clamped surface: the first/last u-row of the control
@@ -82,50 +49,41 @@ impl<'a, T: Real> NetView<'a, T> {
 ///
 /// # Errors
 ///
-/// [`SplineError`], each arm unreachable for a surface
-/// `NurbsSurface::new` built and surfaced rather than swallowed
-/// (D4 ¶2): [`SplineError::ControlCountMismatch`] or
-/// [`SplineError::WeightCountMismatch`] for a net whose length
-/// disagrees with its knot vectors, refused before any row is indexed
-/// (the counts are the whole net's); [`SplineError::NonPositiveWeight`]
-/// or [`SplineError::NonFiniteWeight`] for a bad weight on the
-/// extracted row (its `index` counts along the row).
-pub fn boundary_iso_u<T: Real>(
+/// [`SplineError::NonPositiveWeight`] or
+/// [`SplineError::NonFiniteWeight`] for a bad weight on the extracted
+/// row (its `index` counts along the row) — unreachable for a surface
+/// `NurbsSurface::new` built, surfaced rather than swallowed (D4 ¶2).
+pub fn boundary_iso_u<T: SpanLocate>(
     s: &NurbsSurface<T>,
     end: bool,
 ) -> Result<NurbsCurve3<T>, SplineError> {
-    net_iso_u(&NetView::of(s), end)
-}
-
-fn net_iso_u<T: Real>(net: &NetView<'_, T>, end: bool) -> Result<NurbsCurve3<T>, SplineError> {
-    let (nu, nv) = net.counts()?;
+    let (nu, nv) = s.control_counts();
     let base = if end { (nu - 1) * nv } else { 0 };
-    let control = net.control[base..base + nv].to_vec();
-    let weights = net.weights[base..base + nv].to_vec();
-    NurbsCurve3::new(net.knots_v.clone(), control, weights)
+    let control = s.control()[base..base + nv].to_vec();
+    let weights = s.weights()[base..base + nv].to_vec();
+    NurbsCurve3::new(s.knot_values_v().clone(), control, weights)
 }
 
-/// `column` run back: its knots mirrored across its domain `[a, b]`,
-/// its control points and weights reversed, so its point at `t` is
-/// `column`'s at `a + b − t`. A wrap edge a construction lays against
-/// its column's direction is carried by this (D1), and the seam-class
-/// pcurve certification compares it against the same reversal of the
-/// chart's own column.
+/// `column` run back: its knots reflected through 0
+/// ([`KnotVector::negated`](geom_core::spline::KnotVector::negated), exact for every vector), its control
+/// points and weights reversed, so on `[−b, −a]` its point at `t` is
+/// `column`'s at `−t`. A wrap edge a construction lays against its
+/// column's direction is carried by this (D1), on that reflected
+/// domain; the seam-class pcurve certification reads the relation back
+/// with [`KnotVector::is_reflection_of`](geom_core::spline::KnotVector::is_reflection_of).
 ///
-/// # Errors
-///
-/// [`SplineError`] from re-validating the mirrored knot vector or the
-/// curve's counts, each unreachable for a curve
-/// [`NurbsCurve3::new`] built.
-pub fn reversed_column<T: Real>(column: &NurbsCurve3<T>) -> Result<NurbsCurve3<T>, SplineError> {
-    let knots = column.knots();
-    let (a, b) = knots.domain();
-    let mirrored = knots.knots().iter().rev().map(|&k| (a + b) - k).collect();
+/// The reflection about the column's own domain, `a + b − t`, is not
+/// offered: `a + b − k` is not an `f64` for most knots (`1 − fl(1/3)`,
+/// on a four-section loft's column), and a curve on rounded knots is
+/// not the column run back.
+#[must_use]
+pub fn reversed_column<T: SpanLocate>(column: &NurbsCurve3<T>) -> NurbsCurve3<T> {
     NurbsCurve3::new(
-        geom_core::spline::KnotVector::clamped(mirrored, knots.degree())?,
+        column.knot_values().negated(),
         column.control().iter().rev().copied().collect(),
         column.weights().iter().rev().copied().collect(),
     )
+    .unwrap_or_else(|e| unreachable!("a valid curve's net reversed onto its negated knots: {e}"))
 }
 
 /// The `v = 0` (`end = false`) or `v = 1` (`end = true`) boundary
@@ -135,19 +93,15 @@ pub fn reversed_column<T: Real>(column: &NurbsCurve3<T>) -> Result<NurbsCurve3<T
 /// # Errors
 ///
 /// [`SplineError`], as [`boundary_iso_u`]'s.
-pub fn boundary_iso_v<T: Real>(
+pub fn boundary_iso_v<T: SpanLocate>(
     s: &NurbsSurface<T>,
     end: bool,
 ) -> Result<NurbsCurve3<T>, SplineError> {
-    net_iso_v(&NetView::of(s), end)
-}
-
-fn net_iso_v<T: Real>(net: &NetView<'_, T>, end: bool) -> Result<NurbsCurve3<T>, SplineError> {
-    let (nu, nv) = net.counts()?;
+    let (nu, nv) = s.control_counts();
     let offset = if end { nv - 1 } else { 0 };
-    let control = (0..nu).map(|iu| net.control[iu * nv + offset]).collect();
-    let weights = (0..nu).map(|iu| net.weights[iu * nv + offset]).collect();
-    NurbsCurve3::new(net.knots_u.clone(), control, weights)
+    let control = (0..nu).map(|iu| s.control()[iu * nv + offset]).collect();
+    let weights = (0..nu).map(|iu| s.weights()[iu * nv + offset]).collect();
+    NurbsCurve3::new(s.knot_values_u().clone(), control, weights)
 }
 
 /// **The interior iso-curve `u = u*` of a clamped surface, by de Boor
@@ -194,49 +148,49 @@ fn net_iso_v<T: Real>(net: &NetView<'_, T>, end: bool) -> Result<NurbsCurve3<T>,
 /// # Errors
 ///
 /// [`IsoRowError::WeightsNotSeparable`] for a net that factors neither
-/// way; [`IsoRowError::Structure`] for a net whose length disagrees
-/// with its knot vectors, refused before any row is indexed, or a row
-/// that is not valid spline structure — unreachable for a surface
-/// `NurbsSurface::new` built, surfaced rather than swallowed (D4 ¶2).
+/// way; [`IsoRowError::Structure`] for a row that is not valid spline
+/// structure — unreachable for a surface `NurbsSurface::new` built,
+/// surfaced rather than swallowed (D4 ¶2).
 pub fn interior_iso_u<T: SpanLocate>(
     s: &NurbsSurface<T>,
     u: T,
 ) -> Result<NurbsCurve3<T>, IsoRowError<T>> {
-    net_interior_iso_u(&NetView::of(s), u)
-}
-
-fn net_interior_iso_u<T: SpanLocate>(
-    net: &NetView<'_, T>,
-    u: T,
-) -> Result<NurbsCurve3<T>, IsoRowError<T>> {
-    let (nu, nv) = net
-        .counts()
-        .map_err(|source| IsoRowError::Structure { source })?;
-    let w = net.weights;
-    let along_u_constant = (0..nu).all(|i| (0..nv).all(|j| w[i * nv + j] == w[j]));
-    let along_v_constant = (0..nu).all(|i| (0..nv).all(|j| w[i * nv + j] == w[i * nv]));
+    let (nu, nv) = s.control_counts();
+    // The separability tests read the weights' value channel, bitwise
+    // (structure decisions); the factors and the row's weights are the
+    // held weights.
+    let c = s.weight_channel();
+    let w = s.weights();
+    let along_u_constant = (0..nu).all(|i| (0..nv).all(|j| c[i * nv + j] == c[j]));
+    let along_v_constant = (0..nu).all(|i| (0..nv).all(|j| c[i * nv + j] == c[i * nv]));
     // The per-row factor `ωᵢ` of `λᵢ ∝ Nᵢ(u*)·ωᵢ`, and the weights the
     // row is wrapped with (module docs: the two separable cases).
-    let (omega, weights): (Vec<f64>, Vec<f64>) = if along_u_constant {
-        (vec![1.0; nu], w[..nv].to_vec())
+    let (omega, weights): (Vec<T>, Vec<T>) = if along_u_constant {
+        (vec![T::one(); nu], w[..nv].to_vec())
     } else if along_v_constant {
-        ((0..nu).map(|i| w[i * nv]).collect(), vec![1.0; nv])
+        ((0..nu).map(|i| w[i * nv]).collect(), vec![T::one(); nv])
     } else {
         return Err(IsoRowError::WeightsNotSeparable {
             control_counts: (nu, nv),
         });
     };
-    let ku = net.knots_u;
-    let spans = u.locate_spans(ku);
+    let ku = s.knot_values_u();
+    let Some((first, last)) = ku.locate(u) else {
+        // A poison `u*` locates no span, and the row is poison in every
+        // channel `u*` carries.
+        let control = vec![Point3::<T>::origin().map(|_| geom_core::spline::poison_from(u)); nv];
+        return NurbsCurve3::new(s.knot_values_v().clone(), control, weights)
+            .map_err(|source| IsoRowError::Structure { source });
+    };
     let mut hulled: Option<Vec<Point3<T>>> = None;
-    for index in spans.first.index()..=spans.last.index() {
+    for index in first.span().index()..=last.span().index() {
         // The locator's range may cross an EMPTY span (interior knot
         // multiplicity); the evaluators skip those the same way.
         let Some(span) = ku.span(index) else {
             continue;
         };
-        let n = basis_funs(span, u);
-        let base = span.first_control();
+        let n = basis_funs_in(span, u);
+        let base = span.span().first_control();
         // `λᵢ = Nᵢ·ωᵢ / Σₖ Nₖ·ωₖ`, the denominator once per span (it
         // does not depend on `j`). In case (a) `ωᵢ = 1` and the
         // denominator is the partition of unity, identically 1 in ℝ:
@@ -246,14 +200,14 @@ fn net_interior_iso_u<T: SpanLocate>(
         let lam: Vec<T> = n
             .iter()
             .enumerate()
-            .map(|(r, nr)| *nr * T::from_f64(omega[base + r]))
+            .map(|(r, nr)| *nr * omega[base + r])
             .collect();
         let den = lam.iter().fold(T::zero(), |acc, l| acc + *l);
         let row: Vec<Point3<T>> = (0..nv)
             .map(|j| {
                 let (mut x, mut y, mut z) = (T::zero(), T::zero(), T::zero());
                 for (r, l) in lam.iter().enumerate() {
-                    let p = net.control[(base + r) * nv + j];
+                    let p = s.control()[(base + r) * nv + j];
                     x = x + *l * p.x;
                     y = y + *l * p.y;
                     z = z + *l * p.z;
@@ -285,7 +239,7 @@ fn net_interior_iso_u<T: SpanLocate>(
     let Some(control) = hulled else {
         unreachable!("locate_spans returned no nonempty span")
     };
-    NurbsCurve3::new(net.knots_v.clone(), control, weights)
+    NurbsCurve3::new(s.knot_values_v().clone(), control, weights)
         .map_err(|source| IsoRowError::Structure { source })
 }
 
@@ -293,18 +247,19 @@ fn net_interior_iso_u<T: SpanLocate>(
 /// a row.
 #[derive(Clone, Debug)]
 pub enum IsoRowError<T: Real> {
-    /// `u` is not either end of the surface's own `u` domain, so there
-    /// is no domain-end float to re-state the description at
-    /// ([`iso_boundary_row`]'s contract; the collapse itself is
-    /// [`interior_iso_u`]).
+    /// The fixed parameter is not either end of the surface's own
+    /// domain along its axis, so there is no domain-end float to
+    /// re-state the description at ([`iso_boundary_row`]'s contract;
+    /// the `u` collapse itself is [`interior_iso_u`]).
     Interior {
-        /// The `u` asked for, echoed as data.
-        u: T,
-        /// The surface's `u` domain.
+        /// The axis the row holds fixed.
+        axis: ChartAxis,
+        /// The parameter asked for, echoed as data.
+        at: T,
+        /// The surface's domain along `axis`.
         domain: (f64, f64),
     },
-    /// The net's length disagrees with its knot vectors, or the row is
-    /// not valid spline structure — unreachable for a surface
+    /// The row is not valid spline structure — unreachable for a surface
     /// `NurbsSurface::new` built, surfaced rather than swallowed
     /// (D4 ¶2).
     Structure {
@@ -329,24 +284,29 @@ pub enum IsoRowError<T: Real> {
 impl<T: Real> core::fmt::Display for IsoRowError<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Interior { u, domain } => write!(
-                f,
-                "iso_boundary_row: u = {u:?} is interior to the chart's u domain {domain:?} — \
-                 only a boundary row has a domain-end float to re-state the description at"
-            ),
+            Self::Interior { axis, at, domain } => {
+                let name = match axis {
+                    ChartAxis::U => "u",
+                    ChartAxis::V => "v",
+                };
+                write!(
+                    f,
+                    "iso_boundary_row: {name} = {at:?} is interior to the chart's {name} domain \
+                     {domain:?} — only a boundary row has a domain-end float to re-state the \
+                     description at"
+                )
+            }
             Self::Structure { source } => write!(
                 f,
                 "a surface's control net, or the iso row read from it, is not valid spline \
                  structure: {source}"
             ),
-            // `iso_boundary_row` takes no declaration: the margin kind's
-            // own advice stays, the declaration leaves the recourse.
-            Self::Escalated { source } => write!(
-                f,
-                "whether an edge lies on the boundary of its face's fitted surface is too \
-                 close to call: {}",
-                source.under(NO_DECLARATION_RECOURSE)
-            ),
+            Self::Escalated { source } => source
+                .undecided(
+                    "whether an edge lies on the boundary of its face's fitted surface",
+                    source.ending(COINCIDENCE_RECOURSE),
+                )
+                .fmt(f),
             Self::WeightsNotSeparable { control_counts } => write!(
                 f,
                 "interior_iso_u: the {control_counts:?} weight net varies along both u and v, \
@@ -359,48 +319,62 @@ impl<T: Real> core::fmt::Display for IsoRowError<T> {
 
 impl<T: Real> std::error::Error for IsoRowError<T> {}
 
-/// **The `u = const` boundary row of a chart, selected by the stored
-/// parameter** — [`boundary_iso_u`] with the end decided rather than
-/// passed, which is what a consumer holding an
-/// an iso chart image's `u` actually has.
+/// **The boundary row of a chart at a fixed parameter, selected by the
+/// stored parameter** — [`boundary_iso_u`] (`axis` [`ChartAxis::U`],
+/// the `u = const` row) or [`boundary_iso_v`] (`ChartAxis::V`) with the
+/// end decided rather than passed, which is what a consumer holding an
+/// iso chart image's fixed parameter actually has.
 ///
-/// Returns the row together with the DOMAIN endpoint it sits at, so
-/// the caller re-states the description against the chart's own float
-/// rather than the one it came in with.
+/// Returns the row together with the DOMAIN endpoint it sits at, as the
+/// chart holds it, so the caller re-states the description against the
+/// chart's own end knot rather than the parameter it came in with.
 ///
-/// The coincidence `u = u₀` / `u = u₁` is a named margined decide
+/// The coincidence `at = a₀` / `at = a₁` is a named margined decide
 /// (`iso_row_at_domain_end`), not an equality: a stored parameter and a
-/// stored knot are two floats, and asking whether they name the same
+/// held end knot are two values, and asking whether they name the same
 /// chart line is a question with a band.
 ///
 /// # Errors
 ///
-/// [`IsoRowError`] — an interior `u`, an escalated coincidence, or a
-/// row the spline layer refuses.
+/// [`IsoRowError`] — an interior parameter, an escalated coincidence,
+/// or a row the spline layer refuses.
 pub fn iso_boundary_row<T: Decide>(
     fit: &NurbsSurface<T>,
-    u: T,
+    axis: ChartAxis,
+    at: T,
     band: Band,
 ) -> Result<(NurbsCurve3<T>, T), IsoRowError<T>> {
-    let (u0, u1) = fit.knots_u().domain();
-    let at = |end: f64| -> Result<bool, IsoRowError<T>> {
-        let margin = Margin::of(u - T::from_f64(end));
+    // The domain as the chart holds it; the refusal names its value
+    // channel.
+    let held = match axis {
+        ChartAxis::U => fit.knot_values_u(),
+        ChartAxis::V => fit.knot_values_v(),
+    };
+    let (a0, a1) = held.structure().domain();
+    let (h0, h1) = held.domain();
+    let is_end = |end: T| -> Result<bool, IsoRowError<T>> {
+        let margin = Margin::of(at - end);
         let sign = decide("iso_row_at_domain_end", margin, band)
             .map_err(|source| IsoRowError::Escalated { source })?;
         Ok(sign == Sign::Zero)
     };
-    let end = if at(u0)? {
-        (false, u0)
-    } else if at(u1)? {
-        (true, u1)
+    let end = if is_end(h0)? {
+        (false, h0)
+    } else if is_end(h1)? {
+        (true, h1)
     } else {
         return Err(IsoRowError::Interior {
-            u,
-            domain: (u0, u1),
+            axis,
+            at,
+            domain: (a0, a1),
         });
     };
-    let row = boundary_iso_u(fit, end.0).map_err(|source| IsoRowError::Structure { source })?;
-    Ok((row, T::from_f64(end.1)))
+    let row = match axis {
+        ChartAxis::U => boundary_iso_u(fit, end.0),
+        ChartAxis::V => boundary_iso_v(fit, end.0),
+    }
+    .map_err(|source| IsoRowError::Structure { source })?;
+    Ok((row, end.1))
 }
 
 #[cfg(test)]
@@ -424,11 +398,77 @@ mod tests {
             Point3::new(2.0, 0.0, -0.3),
             Point3::new(2.0, 1.0, 0.1),
         ];
-        NurbsSurface::<f64>::new(ku, kv, control, vec![1.0; 6]).unwrap()
+        NurbsSurface::<f64>::new(ku, kv, control, vec![geom_core::Real::one(); 6]).unwrap()
+    }
+
+    /// A poison `u*` locates no span, so the collapsed row is poison in
+    /// every channel `u*` carries — at `Dual` the derivative channel
+    /// too, where a bare `from_f64(NaN)` would be a dual constant whose
+    /// derivative reads as a zero.
+    #[test]
+    fn a_poison_iso_parameter_collapses_to_a_row_poison_in_every_dual_channel() {
+        let s = surface();
+        let ku = s.knots_u().clone();
+        let kv = s.knots_v().clone();
+        let control: Vec<Point3<geom_core::Dual64>> = s
+            .control()
+            .iter()
+            .map(|p| p.map(geom_core::Dual64::constant))
+            .collect();
+        let dual = NurbsSurface::new(
+            geom_core::spline::Knots::from(ku).lift(geom_core::Real::from_f64),
+            geom_core::spline::Knots::from(kv).lift(geom_core::Real::from_f64),
+            control,
+            vec![geom_core::Real::one(); 6],
+        )
+        .unwrap();
+        let row = interior_iso_u(&dual, geom_core::Dual64::variable(f64::NAN))
+            .expect("a separable net collapses");
+        for p in row.control() {
+            for c in [p.x, p.y, p.z] {
+                assert!(c.value.is_nan() && c.deriv.is_nan(), "{p:?}");
+            }
+        }
+    }
+
+    /// The collapse reads the surface's HELD weights: a weight held as a
+    /// `Dual` variable (one quantity along its u-row, so the net is
+    /// constant along `v` on its value channel) moves the row's points
+    /// exactly as it moves the surface at `(u*, v)`, value and tangent.
+    #[test]
+    fn the_collapsed_row_carries_a_held_weights_tangent() {
+        use geom_core::Dual64;
+        let s = surface();
+        let c = Dual64::constant;
+        let w = Dual64::variable(0.6);
+        let dual = NurbsSurface::new(
+            geom_core::spline::Knots::from(s.knots_u().clone()).lift(c),
+            geom_core::spline::Knots::from(s.knots_v().clone()).lift(c),
+            s.control().iter().map(|p| p.map(c)).collect(),
+            vec![c(1.0), c(1.0), w, w, c(1.0), c(1.0)],
+        )
+        .unwrap();
+        let u = 0.3;
+        let row = interior_iso_u(&dual, c(u)).expect("a separable net collapses");
+        let mut moved = false;
+        for j in 0..=8 {
+            let v = f64::from(j) / 8.0;
+            let (on_row, on_surface) = (row.eval(c(v)), dual.eval(c(u), c(v)));
+            for (a, b) in [
+                (on_row.x, on_surface.x),
+                (on_row.y, on_surface.y),
+                (on_row.z, on_surface.z),
+            ] {
+                assert!((a.value - b.value).abs() < 1e-14, "v={v}: {a:?} vs {b:?}");
+                assert!((a.deriv - b.deriv).abs() < 1e-12, "v={v}: {a:?} vs {b:?}");
+                moved |= b.deriv != 0.0;
+            }
+        }
+        assert!(moved, "the held weight reached no point of the row");
     }
 
     /// [`iso_boundary_row`] selects the row the stored parameter names,
-    /// hands back the chart's OWN domain float for it, and refuses an
+    /// hands back the chart's OWN end knot for it, and refuses an
     /// interior parameter rather than approximating one.
     ///
     /// The row is asserted against the surface, not against a constant:
@@ -441,7 +481,8 @@ mod tests {
         let band = geom_core::Band::linear(geom_core::Tol::witness()).unwrap();
         let (u0, u1) = s.knots_u().domain();
 
-        let (first, at) = iso_boundary_row(&s, u0, band).expect("the u0 row extracts");
+        let (first, at) =
+            iso_boundary_row(&s, ChartAxis::U, u0, band).expect("the u0 row extracts");
         assert_eq!(
             at, u0,
             "the description is re-stated at the chart's own float"
@@ -457,7 +498,7 @@ mod tests {
             "the selected row IS the u0 row, point for point"
         );
 
-        let (last, at) = iso_boundary_row(&s, u1, band).expect("the u1 row extracts");
+        let (last, at) = iso_boundary_row(&s, ChartAxis::U, u1, band).expect("the u1 row extracts");
         assert_eq!(at, u1);
         let want = boundary_iso_u(&s, true).unwrap();
         assert!(
@@ -469,11 +510,45 @@ mod tests {
         );
 
         let mid = (u0 + u1) * 0.5;
-        let e = iso_boundary_row(&s, mid, band).expect_err("an interior u has no row");
+        let e =
+            iso_boundary_row(&s, ChartAxis::U, mid, band).expect_err("an interior u has no row");
         assert!(
-            matches!(e, IsoRowError::Interior { u, domain } if u == mid && domain == (u0, u1)),
+            matches!(e, IsoRowError::Interior { axis: ChartAxis::U, at, domain }
+                if at == mid && domain == (u0, u1)),
             "expected the interior refusal echoing the ask, got {e}"
         );
+
+        // The `v` axis selects a column the same way: its row runs over
+        // `knots_u`, and an interior `v` refuses naming its axis.
+        let (v0, v1) = s.knots_v().domain();
+        for (end, v) in [(false, v0), (true, v1)] {
+            let (column, at) =
+                iso_boundary_row(&s, ChartAxis::V, v, band).expect("a boundary column extracts");
+            assert_eq!(at, v);
+            assert_eq!(column.knots().knots(), s.knots_u().knots());
+            let want = boundary_iso_v(&s, end).unwrap();
+            assert!(
+                column
+                    .control()
+                    .iter()
+                    .zip(want.control())
+                    .all(|(a, b)| a.distance(*b) == 0.0),
+                "the selected column IS the v = {v} column, point for point"
+            );
+        }
+        let e = iso_boundary_row(&s, ChartAxis::V, 0.5 * (v0 + v1), band)
+            .expect_err("an interior v has no row");
+        assert!(
+            matches!(
+                e,
+                IsoRowError::Interior {
+                    axis: ChartAxis::V,
+                    ..
+                }
+            ),
+            "expected the interior refusal on v, got {e}"
+        );
+        assert!(e.to_string().contains("v = 0.5"), "{e}");
     }
 
     /// The collapse IS `S(u*, ·)`: on the 3×2 fixture, at a mid-span
@@ -583,77 +658,20 @@ mod tests {
         );
     }
 
-    /// A net whose length disagrees with its knot vectors refuses
-    /// typed at every door, before any row is indexed — on both ends
-    /// and both directions, short a control point or short a weight.
-    /// `NurbsSurface::new` cannot build such a net, so the rows read
-    /// the doors through [`NetView`] over the fixture's own parts.
-    /// Without the count check each `end = true` row panics in its
-    /// slice and each `end = false` row extracts `Ok`.
-    #[test]
-    fn a_net_whose_length_disagrees_with_its_knots_refuses_typed() {
-        let s = surface();
-        let (control, weights) = (s.control(), s.weights());
-        let short_control = NetView {
-            control: &control[..5],
-            ..NetView::of(&s)
-        };
-        let short_weights = NetView {
-            weights: &weights[..5],
-            ..NetView::of(&s)
-        };
-        let control_arm = |e: &SplineError| {
-            matches!(
-                e,
-                SplineError::ControlCountMismatch {
-                    control: 5,
-                    expected: 6
-                }
-            )
-        };
-        let weight_arm = |e: &SplineError| {
-            matches!(
-                e,
-                SplineError::WeightCountMismatch {
-                    weights: 5,
-                    control: 6
-                }
-            )
-        };
-        for (what, net, arm) in [
-            (
-                "one control point short",
-                &short_control,
-                &control_arm as &dyn Fn(&SplineError) -> bool,
-            ),
-            ("one weight short", &short_weights, &weight_arm),
-        ] {
-            for end in [false, true] {
-                for (door, got) in [("u", net_iso_u(net, end)), ("v", net_iso_v(net, end))] {
-                    let e = got.expect_err("a net that disagrees with its knots has no row");
-                    assert!(arm(&e), "{what}, boundary_iso_{door}(end = {end}): {e}");
-                }
-            }
-            let e = net_interior_iso_u(net, 0.25).expect_err("nor an interior row");
-            assert!(
-                matches!(&e, IsoRowError::Structure { source } if arm(source)),
-                "{what}, interior_iso_u: {e}"
-            );
-        }
-    }
-
     /// The boundary-row coincidence escalating, raised for real at
     /// each margin kind: its sentence says what was being decided,
-    /// keeps the kind's own advice, and routes the two levers a door
-    /// without a declaration has, once.
+    /// keeps what the kind adds to the ending (a lever in front of the
+    /// door's, or, at a value, the tolerance arm after it), and routes
+    /// the one lever a door without a declaration has, once.
     #[test]
     fn an_escalated_row_states_its_decision_and_no_declaration() {
         let band = geom_core::Band::new(1e-6, 1e-3).unwrap();
         let s = surface();
-        let value = iso_boundary_row(&s, 1e-4, band).map(|_| ());
-        let invalid = iso_boundary_row(&s, f64::NAN, band).map(|_| ());
+        let value = iso_boundary_row(&s, ChartAxis::U, 1e-4, band).map(|_| ());
+        let invalid = iso_boundary_row(&s, ChartAxis::U, f64::NAN, band).map(|_| ());
         let enclosure = iso_boundary_row(
             &s.map_scalar(<geom_core::Interval as Real>::from_f64),
+            ChartAxis::U,
             geom_core::Interval::from_bounds(-1e-4, 1e-4),
             band,
         )
@@ -662,14 +680,36 @@ mod tests {
             IsoRowError::Escalated { source } => IsoRowError::<f64>::Escalated { source },
             other => panic!("the straddling enclosure escalates, got {other}"),
         });
-        for (kind, got, advice) in [
-            ("value", value, "a near-coincidence"),
-            ("invalid", invalid, "check the operation's inputs upstream"),
-            ("enclosure", enclosure, "subdivide the parameter box"),
+        for (kind, got, added) in [
+            (
+                "value",
+                value,
+                "or, if this size is intended, tighten the tolerance below",
+            ),
+            (
+                "invalid",
+                invalid,
+                "Recourse: check the operation's inputs upstream, then",
+            ),
+            (
+                "enclosure",
+                enclosure,
+                "Recourse: subdivide the parameter box",
+            ),
         ] {
             let e = got.expect_err("the margin is in the band");
-            assert!(matches!(e, IsoRowError::Escalated { .. }), "{kind}: {e}");
+            let IsoRowError::Escalated { source } = &e else {
+                panic!("{kind}: {e}");
+            };
             let text = e.to_string();
+            assert!(
+                text.starts_with(&format!(
+                    "whether an edge lies on the boundary of its face's fitted surface is \
+                     undecided: {}. Recourse: ",
+                    source.payload()
+                )),
+                "{kind}: the one undecided shape: {text}"
+            );
             assert!(
                 test_utils::refusal::subjectless_escalations(&text).is_empty(),
                 "{kind}: the escalation names its decision: {text}"
@@ -680,18 +720,18 @@ mod tests {
                 "{kind}: one recourse: {text}"
             );
             assert!(
-                text.contains(advice),
-                "{kind}: the margin kind keeps its own advice: {text}"
+                text.contains(added),
+                "{kind}: the margin kind keeps what it adds to the ending: {text}"
             );
             // The door's one lever, labelled (the marker count above
             // reads the label) and — on a band-decided arm whose margin
             // gives one — followed by the tolerance below which a
-            // smaller one decides it. An unreadable margin puts the
-            // input check in front of the lever, so the lever is read by
-            // `contains` rather than by position. Never a declaration:
+            // smaller one decides it. An unreadable or straddling
+            // margin puts its own lever in front of the door's, so the
+            // door's is read by `contains` rather than by position. Never a declaration:
             // this door takes none.
             assert!(
-                text.contains(NO_DECLARATION_RECOURSE) && !text.contains("declare"),
+                text.contains(COINCIDENCE_RECOURSE) && !text.contains("declare"),
                 "{kind}: no declaration is offered where none is taken: {text}"
             );
         }

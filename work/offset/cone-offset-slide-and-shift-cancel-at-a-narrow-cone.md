@@ -36,8 +36,8 @@ from the same `v`); what moves is WHICH parallel it is.
 ## Why it is not a wrong answer today
 
 The error lands on a rim vertex that must still stand on an untouched
-neighbour, and the per-chart door's re-anchor gate
-(`ReanchorOffCarrier`) and the attach layer's certification measure
+neighbour, and the per-chart door's corner agreement
+(`VertexDisagreement`) and the attach layer's certification measure
 exactly that residual. So a narrow enough cone refuses loudly at a
 gap that is rounding rather than geometry — a spurious refusal, never
 a silent one.

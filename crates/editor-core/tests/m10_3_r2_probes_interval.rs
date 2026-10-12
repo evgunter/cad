@@ -78,12 +78,12 @@ fn slab_with(nominal: f64, dist: Distribution, distance: Formula) -> ProfileDoc 
     });
     let xy_frame_0 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane: xy_frame_0,
+        frame: xy_frame_0.into(),
         loops: vec![unit_square()],
         ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance,
         side: ExtrudeSide::Along,
     });
@@ -622,7 +622,7 @@ fn a_consumer_drives_a_two_parameter_document_at_four_widths() {
         }
         let xy_frame_1 = r.insert(xy_frame());
         let p = r.insert(Node::Profile(ProfileProgram {
-            plane: xy_frame_1,
+            frame: xy_frame_1.into(),
             loops: vec![
                 LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)])
                     .expect("finite plate corners"),
@@ -634,7 +634,7 @@ fn a_consumer_drives_a_two_parameter_document_at_four_widths() {
             ids: Vec::new(),
         }));
         r.insert(Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: Formula::named(name("plate_h"), Dimension::Length),
             side: ExtrudeSide::Along,
         });

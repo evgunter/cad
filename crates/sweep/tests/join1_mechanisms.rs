@@ -29,7 +29,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::mate2_common::{collar_at, peg_at, volume, wall_decls};
+use crate::mate2_common::{collar_at, peg_at, volume};
 use geom_core::Tol;
 use sweep::test_support::finished;
 use topo::{BooleanError, BooleanResult};
@@ -52,49 +52,36 @@ fn assert_sound(what: &str, r: Result<BooleanResult<f64>, BooleanError>, want: f
 }
 
 /// **Locus matching.** A peg in a collar's bore, flush with the
-/// collar's bottom and proud above its top, every wall pair declared
-/// `Rest` and the flush bottom caps continuations (`wall_decls`). The
+/// collar's bottom and proud above its top, every wall pair a `Rest`
+/// and the flush bottom caps continuations. The
 /// peg's bottom rim arcs lie on the bore's: each section segment there
 /// is an edge of both solids, and the loci name the same two edges at
 /// both of its ends. The union is the collar with the peg's proud part:
 /// additive.
 ///
-/// The declared-REST zip takes over a declared union the join refuses,
-/// and builds this one too, so the volume alone cannot tell the lanes
-/// apart; the merge door's record can. The zip keeps the bore wall for
-/// the door, which records the declared cylinder pair it has no arm
-/// for; the join discards the bore wall with its surface, so the door
-/// is handed no pair. The row asserts the join's answer.
+/// The join discards the bore wall with its surface, so what the merge
+/// door records is only a cylinder run's full-period closure.
 #[test]
 fn matching_reads_the_germs_loci() {
     let c = finished("the collar", collar_at(0.0), tol());
     let p = finished("the peg", peg_at(0.0, 1.0, 1.5), tol());
     let want = volume(&c) + volume(&p);
-    let r = topo::union_with(&c, &p, &wall_decls(&c, &p), tol());
+    let r = topo::union(&c, &p, tol());
     if let Ok(BooleanResult::Body(bb)) = &r {
-        let declared = bb
-            .naming
-            .merge_skipped
-            .iter()
-            .filter(|s| {
-                matches!(
-                    s.reason,
-                    topo::MergeCoplanarError::DeclaredCarrierUnsupported { .. }
-                )
-            })
-            .count();
-        assert_eq!(
-            declared, 0,
-            "the chord join builds the union, not the zip that takes over its refusal"
+        assert!(
+            bb.naming
+                .merge_skipped
+                .iter()
+                .all(|s| matches!(s.reason, topo::MergeCoplanarError::PeriodClosure { .. })),
+            "the merge door records only period closures: {:?}",
+            bb.naming.merge_skipped
         );
     }
     assert_sound("peg ∪ collar", r, want);
 }
 
 /// **The structural skip.** A peg exactly the collar's height, flush
-/// at both ends, every wall pair and both cap pairs declared
-/// (`wall_decls`): the union is the
-/// unbored collar. Both rims are edges of both solids. Each solid
+/// at both ends: the union is the unbored collar. Both rims are edges of both solids. Each solid
 /// mints ONE copy of a rim arc, in the face its fold leaves Out, and
 /// keeps the rim itself as the other copy: the chord on the far side
 /// of the rim is skipped because the edge between the two halves there
@@ -104,11 +91,7 @@ fn the_skip_takes_the_locus_edge_for_the_segment() {
     let c = finished("the collar", collar_at(0.0), tol());
     let p = finished("the flush peg", peg_at(0.0, 1.0, 1.0), tol());
     let want = volume(&c) + volume(&p);
-    assert_sound(
-        "flush peg ∪ collar",
-        topo::union_with(&c, &p, &wall_decls(&c, &p), tol()),
-        want,
-    );
+    assert_sound("flush peg ∪ collar", topo::union(&c, &p, tol()), want);
 }
 
 /// **The OnEdge incidence check reads the whole site** (the dual
@@ -136,15 +119,12 @@ fn the_incidence_check_reads_the_whole_site() {
 
 /// **The north-star crosslap** (`demos/tour/src/crosslap.rs`;
 /// `test_north_star.py`'s `TestCrosslapGlued`): two notched beams mated.
-/// With the mate's `SameOpposite` pairs alone declared, the beams' tops
-/// and bottoms flush across the notches are an undeclared continuation,
-/// refused at the reduction. With every finding declared (the mate and
-/// the continuations) the union builds at the scene's oracle, 14 faces,
-/// sound and a legal operand.
+/// The beams' tops and bottoms flush across the notches glue as the
+/// continuations they are by margin, and the union builds at the
+/// scene's oracle, 14 faces, sound and a legal operand.
 #[test]
-fn the_declared_crosslap_glues() {
+fn the_crosslap_glues() {
     use sweep::test_support::brick;
-    use topo::flush::{declare_all, find_flush_candidates};
     let sub = |beam: topo::Body<f64>, notch: topo::Body<f64>| {
         let beam = finished("the beam", beam, tol());
         let notch = finished("the notch", notch, tol());
@@ -161,29 +141,12 @@ fn the_declared_crosslap_glues() {
         brick((1.75, 2.25), (0.0, 4.0), (0.0, 0.5), tol()),
         brick((1.5, 2.5), (1.75, 2.25), (-0.25, 0.25), tol()),
     );
-    let found = find_flush_candidates(&a, &b, tol()).unwrap();
-    let mate: Vec<_> = found
-        .iter()
-        .filter(|f| f.evidence.relation == topo::PlaneRelation::SameOpposite)
-        .cloned()
-        .collect();
-    let r = topo::union_with(&a, &b, &declare_all(&mate), tol());
-    assert!(
-        matches!(
-            r,
-            Err(BooleanError::UndeclaredCoincidence {
-                relation: topo::PlaneRelation::SameOriented,
-                ..
-            })
-        ),
-        "the mate alone leaves the continuations undeclared: {r:?}"
-    );
-    let r = topo::union_with(&a, &b, &declare_all(&found), tol());
+    let r = topo::union(&a, &b, tol());
     let faces = r
         .as_ref()
         .ok()
         .and_then(|r| r.body())
         .map(|bb| bb.body.faces().count());
-    assert_eq!(faces, Some(14), "every flush pair declared: {r:?}");
+    assert_eq!(faces, Some(14), "every flush pair glued: {r:?}");
     assert_sound("crosslap ∪", r, 1.875);
 }

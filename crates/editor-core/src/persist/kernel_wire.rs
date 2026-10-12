@@ -29,20 +29,13 @@
 //! **The casing is whatever the type's bytes already are — it is not a
 //! style choice.** These modules are written for types that are
 //! already persisted, so their job is to reproduce existing bytes
-//! exactly; the format may not shift under a refactor. That is why the
-//! two spellings here disagree and must keep disagreeing:
+//! exactly; the format may not shift under a refactor. `contact_class`
+//! writes `"rest"`/`"tangent"`, lowercase because the class vocabulary
+//! was minted straight into a `with` module at the v11 break and never
+//! had a derive to match.
 //!
-//! - `boolean_op` writes `"Union"`/`"Intersect"`/`"Subtract"` —
-//!   capitalised because it replaced a `#[derive(Serialize)]`, whose
-//!   spelling of a unit variant is the variant's own name. Anything
-//!   else would have been a format break.
-//!   
-//! - `contact_class` writes `"rest"`/`"tangent"` — lowercase because
-//!   the class vocabulary was minted straight into a `with` module at
-//!   the v11 break and never had a derive to match.
-//!
-//! A THIRD module inherits neither: it takes whatever its type's bytes
-//! are today, and pins them by test before changing anything. Only a
+//! A module for an already-persisted type takes whatever its type's
+//! bytes are today, and pins them by test before changing anything. Only a
 //! vocabulary with no bytes yet is free to choose, and then lowercase
 //! is the house style.
 //!
@@ -55,8 +48,7 @@
 //! down once, in the module's `tag`, and the read direction searches
 //! the vocabulary by `tag` rather than repeating the pairs — so the
 //! two directions cannot disagree, and neither can a refusal message
-//! that quotes the same table. Both modules here do this, and a third
-//! owes it too.
+//! that quotes the same table. Every module here does this.
 //!
 //! **Take the vocabulary from where the type lives, when it is there
 //! to take.** `contact_class` searches `topo::ContactClass::ALL` — the
@@ -66,19 +58,17 @@
 //! enum is `#[non_exhaustive]`, so this crate cannot enumerate it
 //! correctly even in principle, and the kernel's doc records the
 //! measurement that such a literal stays GREEN under a planted third
-//! variant. `boolean_op` keeps a local list because its enum is this
-//! crate's own and offers none — and there the completeness of the
-//! list genuinely is unchecked, since safe Rust cannot tie an array
-//! literal to a variant list without a proc macro and the workspace
-//! has none.
+//! variant. A local list is kept only for an enum of this crate's own
+//! that offers none — and there the completeness of the list genuinely
+//! is unchecked, since safe Rust cannot tie an array literal to a
+//! variant list without a proc macro and the workspace has none.
 //!
 //! **Check the round trip on the way out, either way.** Before
 //! writing, a module verifies its own `tag` reads back and refuses if
 //! it does not. Where the domain comes from the kernel that is
 //! belt-and-braces; where it is a local list it is the only guard the
 //! gap has. It costs a lookup, so it is not worth deciding per module:
-//! both do it.
+//! every one does it.
 
-pub(crate) mod boolean_op;
 pub(crate) mod contact_class;
 pub(crate) mod extrude_side;

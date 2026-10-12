@@ -119,8 +119,9 @@ pub const ENV_K: &str = "CAD_AMBIGUITY_K";
 ///   (the cap would need K ≥ 400 / K ≥ 4e5); **at ε = 1e-6 the cap
 ///   already binds at the ratified K = 10** and keeps binding for any
 ///   K ≥ 0.4, so that row says nothing about K at all;
-/// * rules (2)-below, (3) and (4) key off `zero` = ε and
-///   `BASELINE_FLOOR_MARGIN`, and do not read K.
+/// * rules (3) and (4) key off `zero` = ε and `BASELINE_FLOOR_MARGIN`,
+///   and do not read K; nor does rule (2)'s zero arm, which keys off
+///   `zero` and is a tally that gates nothing.
 ///
 /// So the register is real and gating, and it is narrower than "the
 /// distribution K was chosen against": it is K-sensitive at three ε

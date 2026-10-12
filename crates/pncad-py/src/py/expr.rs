@@ -430,6 +430,20 @@ impl SlotArg {
             Self::Scalar(x) => literal(py, *x, d::Dimension::Scalar),
         }
     }
+    /// The dimension a value or a formula carries of itself, for an
+    /// expression offered where no dimension is fixed (an operand,
+    /// whose refusal names it). A variable has none of its own and
+    /// `DocEdit.set_param` writes one there as a read; asked anyway, it
+    /// answers a length.
+    pub(crate) fn own_dimension(&self) -> d::Dimension {
+        match self {
+            Self::Formula(formula) => formula.0.dim(),
+            Self::WrittenAngle(_) | Self::Angle(_) => d::Dimension::Angle,
+            Self::Count(_) => d::Dimension::Count,
+            Self::Scalar(_) => d::Dimension::Scalar,
+            Self::Var(_) | Self::WrittenLength(_) | Self::Length(_) => d::Dimension::Length,
+        }
+    }
 }
 
 /// **A stored expression** — what a document holds once the edit door
@@ -505,7 +519,11 @@ pub(crate) fn name_fault_err(py: Python<'_>, fault: &d::NameFault) -> PyErr {
                 fault.name
             ),
         ),
-        d::Unlowered::Kind { declared, .. } => (dim(fault.dim), dim(declared), fault.to_string()),
+        d::Unlowered::Kind { declared, .. } => (
+            dim(fault.dim),
+            text(crate::errors::var_kind_tag(declared)),
+            fault.to_string(),
+        ),
     };
     let fields = [
         ("variant", text(crate::tags::name_fault_tag(fault))),
@@ -767,7 +785,7 @@ pub(crate) fn eval_err(
         E::Unlowered(fault) => return lower_fault_err(py, fault),
         // The defined variable read; its definition's own refusal is
         // the sentence's.
-        E::UnresolvedVar { var } | E::DefinitionRefused { var, .. } => {
+        E::UnresolvedVar { var } | E::OutputRead { var } | E::DefinitionRefused { var, .. } => {
             (text(&var_text(var)), none(), none(), none())
         }
         E::VarKindMismatch { var, bound, read } => {

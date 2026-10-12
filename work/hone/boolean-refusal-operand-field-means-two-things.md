@@ -55,7 +55,7 @@ brick does not finish: the row is
 `a_placeholder_nurbs_wall_is_refused_at_rest`, pinning
 `UncertifiableSurface` and the four `DescriptionNotAdjacent` at the
 at-rest gate. No row reaches `curved_face_arm`'s raise with a finished
-body; `work/reach/the-operand-gates-curved-arms-have-no-finished-fixture.md`.
+body; `work/roots/the-operand-gates-curved-arms-have-no-finished-fixture.md`.
 
 ## 2026-10-05 — `ArcLoopContainmentUnsupported`'s half: wired at every site, witnessed at two
 

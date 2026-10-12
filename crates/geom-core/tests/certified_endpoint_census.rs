@@ -102,8 +102,10 @@
 //! 7. **A read spelled as a path** — `Bounds::lo(x)`, or `Bounds::lo`
 //!    handed on as a function — carries no `.lo()` and is not counted.
 //!    The production ones in the population are `Bounds` reads on the
-//!    evaluation scalar (`ssi.rs`'s `TubeScale::uniform`) or the type's
-//!    own body (`interval.rs`'s `from_certified` and span locator).
+//!    evaluation scalar (`ssi/certify.rs`'s `certify_branch`, the tube
+//!    ladder's widest rung; `edge_nurbs.rs`'s per-sample lever, a
+//!    refusal's payload) or the type's own body (`interval.rs`'s
+//!    `from_certified` and span locator).
 //!
 //! # Where it lives, and why here
 //!
@@ -268,9 +270,12 @@ const HOLDERS: &[&str] = &[
 const ROSTER: &[(&str, usize, usize, &str)] = &[
     (
         "crates/geom-brep/src/offset_fit.rs",
-        7,
-        7,
-        "every read is in `cell_bound`, which refuses to `f64::INFINITY`",
+        10,
+        9,
+        "nine reads are in `cell_terms`, which refuses to `None` by name. The \
+         remainder is `e_low_witness`, the `e_low` that `cell_bound` hands \
+         `cell_terms`: its only production call is there, after both \
+         `e_floors` intervals have asked `is_certified()`",
     ),
     (
         "crates/geom-brep/src/offset_meters.rs",
@@ -280,24 +285,36 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/patch_bound.rs",
+        3,
         2,
-        2,
-        "both are in `rational_cells`, and only one of them is guarded by the \
-         `is_certified()` this counts — blind spot 2. That one is the refined weight \
-         licence, which asks by name before reading `lo`. The other is the cell \
-         CENTROID, safe because a centre is a translation choice and no enclosure \
-         rests on it: the site takes each refined control point's midpoint and \
-         contributes `0` for a non-finite one, so a refused point still yields a \
-         finite centre and the widened hulls report the trouble",
+        "two are in `rational_cells`, guarded by the `is_certified()` this counts: \
+         the refined weight licence, which asks by name before reading `lo`, and the \
+         cell's weight hull `w_cell.lo()`, read only after `w_cell` and both \
+         weight-partial hulls have asked. The remainder is `centre`, safe because a \
+         centre is a translation choice and no enclosure rests on it: it takes \
+         midpoints, contributes `0` for a non-finite one and answers `0` for a \
+         non-finite mean, so a refused input still yields a finite centre and the \
+         reach about it reports the trouble",
     ),
+    ("crates/geom-brep/src/pcurve_cache.rs", 2, 2, ""),
+    ("crates/geom-brep/src/pcurve_cache/projected.rs", 2, 2, ""),
     (
         "crates/geom-brep/src/props/quad.rs",
-        12,
-        7,
+        11,
+        6,
         "the remaining 5 are safe by construction: `cos_step`/`sin_step` and the two \
          half-angle clamps build from `pt` of a finite f64 with nonzero exact divisors, \
          so no operand can leave a domain (argued at each). Every other read goes \
-         through `lo_or_refuse`/`hi_or_refuse`/`mid`, which are the guarded ones",
+         through `lo_or_refuse`/`certified_hi`/`mid`, which are the guarded ones",
+    ),
+    (
+        "crates/geom-brep/src/props/spiric.rs",
+        10,
+        9,
+        "the remaining 1 is `trig_range`'s half-width, safe by construction: it reads \
+         `pt` differences of two f64 ends the function has checked finite and ordered, \
+         so no operand can be refused. Every other read sits in a function that refuses \
+         a refused input by name (`trig_of`, `span_rates`, `composite`, `wall_chart`)",
     ),
     (
         "crates/geom-brep/src/ssi.rs",
@@ -310,17 +327,19 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/ssi/certify.rs",
-        12,
+        11,
         2,
         "the 2 that ask are the chart tube's span-hull window (`chart_tube_windows` \
          refuses either window hull by name before padding it — a refused hull is NaI, \
-         and its NaN ends name no window). The other 10 are `T: Bounds` reads on the \
+         and its NaN ends name no window). The other 9 are `T: Bounds` reads on the \
          evaluation scalar and not certification endpoints at all — blind spot 1: two \
          of them are `probe_tube_chart`'s reads of the pcurve's tangent, which select \
          a direction (structure, not a bound) and whose norm the probe refuses unless \
          positive finite, and one is `probe_tube_analytic`'s midpoint of the box \
          chain's axis at each end, which selects the axis the end's slice is cut \
-         across (structure)",
+         across (structure), and two are `probe_tube_pair`'s reads of the two \
+         pcurves, their tangents (a direction the probe refuses unless positive \
+         finite) and their end states (where an end's slice is cut, structure)",
     ),
     (
         "crates/geom-brep/src/ssi/enclose.rs",
@@ -335,6 +354,17 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          refuses every term and offset by name before any is centred",
     ),
     ("crates/geom-brep/src/ssi/exhaust.rs", 1, 1, ""),
+    (
+        "crates/geom-brep/src/ssi/four.rs",
+        5,
+        4,
+        "the 4 that ask are the Krawczyk test's preconditioner midpoint, image, \
+         containment and miss reads, which refuse a piece unless every image row is \
+         certified. The 1 that does not ask is `mean_value_excludes`' column midpoints, \
+         which select an exclusion direction: any fixed direction is sound, and the form \
+         built along it is read only through `sign`, which refuses an uncertified \
+         enclosure by name",
+    ),
     (
         "crates/geom-brep/src/ssi/one_arc.rs",
         18,
@@ -371,7 +401,8 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
         "the reads that serve a door, each refusing first: `narrowed_to` (the one body of \
          `clamped_to` and `meet`), `width` and `mag`",
     ),
-    ("crates/geom-core/src/spline/compose/tensor.rs", 6, 6, ""),
+    ("crates/geom-core/src/spline/algebra.rs", 1, 1, ""),
+    ("crates/geom-core/src/spline/compose/tensor.rs", 4, 4, ""),
     (
         "crates/geom-core/src/sym/signed.rs",
         13,
@@ -382,9 +413,8 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          (`is_certified().then_some`), so every bracket read there certifies by \
          construction",
     ),
-    ("crates/geom/src/curves/nurbs.rs", 4, 4, ""),
     ("crates/geom/src/curves/second_derivative.rs", 1, 1, ""),
-    ("crates/topo/src/props/quad_lane.rs", 5, 5, ""),
+    ("crates/topo/src/props/quad_lane.rs", 7, 7, ""),
 ];
 
 /// The repo root: this crate's directory, two levels up.

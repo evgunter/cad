@@ -22,7 +22,7 @@ use sweep::test_support::{cube, finished};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::query::{self, SurfaceKindSet};
-use topo::{Body, BooleanDeclarations, EdgeKey};
+use topo::{Body, EdgeKey};
 
 const DIE_L: f64 = 1.0;
 const DIE_R: f64 = 0.12;
@@ -69,7 +69,7 @@ fn subtract(a: &Body<f64>, b: &Body<f64>) -> Result<Body<f64>, topo::BooleanErro
         BooleanOp::Subtract,
         &finished("operand A", a.clone(), Tol::witness()),
         &finished("operand B", b.clone(), Tol::witness()),
-        &BooleanDeclarations::none(),
+        &topo::BooleanInputs::default(),
         SweepStrategy::Realized,
         Tol::witness(),
     )?;
@@ -316,8 +316,10 @@ fn p3_one_and_two_pip_ladders_and_tight_pair() {
             Ok(()),
             "tier 3"
         );
-        assert_eq!(die.vertices().count(), 24 + 5);
-        assert_eq!(die.edges().count(), 48 + 7);
+        // `m6_surgery`'s per-pip 5 / 7 / 3, less the closing join of the
+        // plane-trim foot the slit does not reach.
+        assert_eq!(die.vertices().count(), 24 + 4);
+        assert_eq!(die.edges().count(), 48 + 6);
         assert_eq!(die.faces().count(), 26 + 3);
         // The band: ring-free, and its outer cycle traverses the slit TWICE.
         let bf = out.band_faces[0];
@@ -331,7 +333,9 @@ fn p3_one_and_two_pip_ladders_and_tight_pair() {
             .iter()
             .map(|he| die.get_half_edge(*he).unwrap().edge)
             .collect();
-        assert_eq!(edges.len(), 6, "2 ta + 2 tb + slit twice");
+        // The two plane trims (ta) meet at the plane-trim foot the slit
+        // does not reach, and the closing join makes them one.
+        assert_eq!(edges.len(), 5, "1 joined ta + 2 tb + slit twice");
         edges.sort_unstable();
         let mut doubled = 0;
         let mut i = 0;
@@ -362,7 +366,7 @@ fn p3_one_and_two_pip_ladders_and_tight_pair() {
             BooleanOp::Union,
             &finished("the first pip ball", b1, Tol::witness()),
             &finished("the second pip ball", b2, Tol::witness()),
-            &BooleanDeclarations::none(),
+            &topo::BooleanInputs::default(),
             SweepStrategy::Realized,
             Tol::witness(),
         )
@@ -430,7 +434,7 @@ fn p3_one_and_two_pip_ladders_and_tight_pair() {
             BooleanOp::Union,
             &finished("the first pip ball", b1, Tol::witness()),
             &finished("the second pip ball", b2, Tol::witness()),
-            &BooleanDeclarations::none(),
+            &topo::BooleanInputs::default(),
             SweepStrategy::Realized,
             Tol::witness(),
         )

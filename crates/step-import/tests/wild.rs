@@ -546,9 +546,10 @@ fn wild_refusals_are_typed_and_name_their_class() {
 /// **The band re-mint, pinned as data.** Open CASCADE never splits a
 /// periodic face: a cylinder's or torus's lateral band arrives as its
 /// two full-period rim circles with no seam generator between them,
-/// and the kernel's face model (one outer loop plus rings) has no
-/// volume construction for the ring adoption would make of the second
-/// rim (`RingOnCurvedFace`). Until M7-5 that was a NAMED refusal on
+/// and in the kernel's face model (one outer loop plus rings) the ring
+/// adoption would make of the second rim winds the chart's period, a
+/// loop tier 3's pcurve mint refuses (`topo::PcurveMintError::LoopWraps`).
+/// Until M7-5 that was a NAMED refusal on
 /// both fixtures here; the band seam re-mint (`normalize::band_seam`)
 /// retired it by minting the seam generator at the surface's own
 /// u_ref azimuth and re-writing each band as one single-loop face.
@@ -559,6 +560,12 @@ fn wild_refusals_are_typed_and_name_their_class() {
 /// azimuth splits nowhere (ftc_11's cylinders), every other rim
 /// splits once (cq's two rims; ftc_11's tori, whose rim vertices sit
 /// at −π/2 and π), and every band gains exactly one seam edge.
+///
+/// The re-mint leaves the file's own rim vertices at valence 2 where it
+/// splits a rim elsewhere, two arcs of one circle meeting there, and
+/// the import ends with the join (`docs/DESIGN.md`, maximal edges):
+/// each such vertex is joined and reported after the bands, as a
+/// `JoinedEdges` record keyed by the least face the joined edge bounds.
 /// One pinned band mapping: the `ADVANCED_FACE` entity id, the
 /// boundary census the file states for it, and the census the re-mint
 /// leaves — each census as (faces, edges, vertices).
@@ -567,12 +574,15 @@ type BandCensusRow = (u64, (usize, usize, usize), (usize, usize, usize));
 #[test]
 fn the_band_re_mint_reports_its_normalizations() {
     use step_import::{FaceCensus, NormalizationKind};
-    let rows: [(&str, &[BandCensusRow]); 2] = [
+    let rows: [(&str, &[BandCensusRow], &[u64]); 2] = [
         (
             "occ-oss/cq_red_cube_blue_cylinder.step",
             // One cylinder band; both rim vertices half a turn from
-            // u_ref, so both rims split.
+            // u_ref, so both rims split, and the file's own rim
+            // vertices are joined away, each keyed by the cap its rim
+            // bounds.
             &[(54, (1, 2, 2), (1, 5, 4))],
+            &[44, 50],
         ),
         (
             "nist/nist_ftc_11_asme1_rb.stp",
@@ -586,9 +596,12 @@ fn the_band_re_mint_reports_its_normalizations() {
                 (175, (1, 2, 2), (1, 5, 4)),
                 (187, (1, 2, 2), (1, 5, 4)),
             ],
+            // The two rim vertices the tori's splits leave at valence
+            // 2, both on rims face #163 bounds.
+            &[163, 163],
         ),
     ];
-    for (name, expected) in rows {
+    for (name, expected, joined) in rows {
         let Ok(StepImport::Solid { normalizations, .. }) =
             import_step(&wild(name), &ImportOptions::default(), Tol::witness())
         else {
@@ -613,6 +626,14 @@ fn the_band_re_mint_reports_its_normalizations() {
                     face_census(kernel),
                 )
             })
+            .chain(joined.iter().map(|&face| {
+                (
+                    face,
+                    NormalizationKind::JoinedEdges,
+                    face_census((0, 2, 1)),
+                    face_census((0, 1, 0)),
+                )
+            }))
             .collect();
         assert_eq!(got, want, "{name}: the reported band normalizations");
     }

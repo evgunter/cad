@@ -277,7 +277,7 @@ fn assert_pierces_on_the_section(label: &str, body: &Body<f64>, d: f64) {
 /// the residual's near extreme cannot place the pierce point to within
 /// `1e-12`: the circle × sphere roots answer uncertain and every op
 /// refuses at the pierce door
-/// (`work/reach/f64-cannot-place-a-shallow-crossing-within-the-finest-band.md`).
+/// (`work/apex/f64-cannot-place-a-shallow-crossing-within-the-finest-band.md`).
 #[test]
 fn the_near_tangent_family_stops_at_1e_7_at_eps_1e_12() {
     if Tol::witness().get().eps != 1e-12 {
@@ -529,7 +529,7 @@ fn a_lens_against_a_ball_crossing_both_its_caps_builds() {
 /// partner face of the ball is both a plane×sphere germ's partner (its
 /// aux is a copy of the ball's sphere) and a sphere pair's (its aux is
 /// a radical plane). Keyed by the partner face alone, the two auxes
-/// collide and every op refuses `ResidualExceeded { Surface2Residual }`;
+/// collide and every op refuses `ResidualExceeded { SurfaceResidual }`;
 /// keyed by the datum each one is, every op builds to the oracle — in
 /// both operand orders.
 #[test]
@@ -1445,7 +1445,7 @@ fn the_fallback_assembly_carries_the_kept_operands_certificates() {
 /// the circle's interior, `(u, E)`, never `(u, v)`, and tier 3′ answers
 /// alike, its curved cross-solid reach the only finding. The census
 /// still sweeps the vertex's point: stripped of its record, the corner
-/// at the vertex is an undeclared contact, so the record is what backs
+/// at the vertex is an unrecorded contact, so the record is what backs
 /// it.
 #[test]
 fn a_corner_at_a_caps_conventional_vertex_reads_the_circles_interior() {
@@ -1528,13 +1528,14 @@ fn a_corner_at_a_caps_conventional_vertex_reads_the_circles_interior() {
             );
             let c = &bb.contacts;
             let records = [
-                c.vv.len(),
-                c.a_on_b.len() + c.b_on_a.len(),
-                c.ve.len(),
-                c.ee.len(),
+                c.vertex_vertex().count(),
+                c.vertex_face().count(),
+                c.vertex_edge().count(),
+                c.edge_edge().count(),
             ];
             assert_eq!(records, [0, 0, 1, 0], "{label}: one (u, E) record");
-            let edge = bb.body.get_edge(c.ve[0].edge).unwrap();
+            let (_, e) = c.vertex_edge().next().unwrap();
+            let edge = bb.body.get_edge(e).unwrap();
             assert!(
                 matches!(
                     bb.body
@@ -1549,8 +1550,13 @@ fn a_corner_at_a_caps_conventional_vertex_reads_the_circles_interior() {
             );
             // Stripped of the record, the touch at the vertex is found:
             // the sweeps still read a conventional vertex's point.
-            let mut bare = bb.contacts.clone();
-            bare.ve.clear();
+            let bare: topo::ContactRecords = bb
+                .contacts
+                .rows()
+                .iter()
+                .filter(|c| !matches!(c.kind(), topo::ContactKind::VertexEdge(..)))
+                .cloned()
+                .collect();
             let stripped: Vec<String> = topo::validate_pseudomanifold(&bb.body, &bare, tol)
                 .err()
                 .unwrap_or_default()
@@ -1561,7 +1567,7 @@ fn a_corner_at_a_caps_conventional_vertex_reads_the_circles_interior() {
             if along == 0.0 {
                 assert!(
                     matches!(stripped.as_slice(), [e] if e.starts_with(
-                        "UndeclaredContact { contact: VertexVertex"
+                        "UnrecordedContact { contact: VertexVertex"
                     )),
                     "{label}: without its record the corner at the vertex is undeclared: \
                      {stripped:?}"
@@ -1644,10 +1650,10 @@ fn a_plane_through_a_caps_conventional_vertex_cuts_as_elsewhere() {
             let got = (
                 (b.faces().count(), b.edges().count(), b.vertices().count()),
                 [
-                    c.vv.len(),
-                    c.a_on_b.len() + c.b_on_a.len(),
-                    c.ve.len(),
-                    c.ee.len(),
+                    c.vertex_vertex().count(),
+                    c.vertex_face().count(),
+                    c.vertex_edge().count(),
+                    c.edge_edge().count(),
                 ],
             );
             assert_eq!(
@@ -1659,4 +1665,44 @@ fn a_plane_through_a_caps_conventional_vertex_cuts_as_elsewhere() {
         }
     }
     assert!(seen.windows(2).all(|w| w[0] == w[1]), "one body: {seen:?}");
+}
+
+/// **A closed join through the door leaves a conventional vertex**
+/// (`Body::join_edges`, `docs/DESIGN.md`, maximal edges). The lens ∩
+/// bricks cap's circle is one closed edge whose one vertex is
+/// conventional; split at its middle, it is two arcs between two
+/// vertices of valence 2. The join door makes it one closed edge
+/// again: one join, whose survivor it reports as conventional, and the
+/// body at tier 3 with no joinable vertex left.
+#[test]
+fn a_closed_join_through_the_door_leaves_a_conventional_vertex() {
+    let tol = Tol::witness();
+    let band = geom_core::Band::linear(tol).unwrap();
+    let lens = run(BooleanOp::Intersect, &ball(R1, 0.0), &ball(R2, D));
+    let bricks = run(
+        BooleanOp::Union,
+        &brick_toward(dir(68.0, 130.0), 0.985, 0.2, 0.3),
+        &brick_toward(dir(68.0, 50.0), 0.985, 0.2, 0.3),
+    );
+    let mut caps = run(BooleanOp::Intersect, &lens, &bricks).into_body();
+    let circle = caps
+        .vertices()
+        .find(|&(v, _)| topo::is_conventional_vertex(&caps, v))
+        .map(|(_, d)| caps.get_half_edge(d.emanating.unwrap()).unwrap().edge)
+        .expect("a cap circle's conventional vertex");
+    let (t0, t1) = caps
+        .get_curve_geom(caps.get_edge(circle).unwrap().curve)
+        .and_then(topo::CurveGeom::certified)
+        .unwrap()
+        .params();
+    let counts = (caps.vertices().count(), caps.edges().count());
+    caps.split_edge(circle, 0.5 * (t0 + t1), tol).unwrap();
+    assert_eq!(topo::joinable_vertices(&caps, band).unwrap().len(), 2);
+    let joins = caps.join_edges(band, tol).unwrap();
+    assert_eq!(joins.len(), 1, "one join closes the circle");
+    let survivor = joins[0].conventional.expect("the survivor is conventional");
+    assert!(topo::is_conventional_vertex(&caps, survivor));
+    assert_eq!((caps.vertices().count(), caps.edges().count()), counts);
+    assert!(topo::joinable_vertices(&caps, band).unwrap().is_empty());
+    topo::validate_geometric(&caps, tol).unwrap();
 }
