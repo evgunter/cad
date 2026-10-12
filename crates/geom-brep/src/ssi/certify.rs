@@ -130,7 +130,7 @@ use crate::dihedral::{decide_positive, decide_reported};
 
 use super::enclose::{
     Box3, NurbsBoxes, UvWindow, chart_transverse_margin, graph_margin, in_meters, mag_in_meters,
-    zero_free_lower_bound,
+    tube_margin, zero_free_lower_bound,
 };
 use super::exhaust::UvRect;
 use super::one_arc::{Shortfall, dominant_axis, one_arc, one_arc_r3};
@@ -1116,13 +1116,11 @@ fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
         // midpoint, normalized. Any direction transverse to the
         // solution set works; this is the natural one.
         //
-        // The `n > 0.0` guard the f64 form carried is GONE rather than
-        // lifted: it is a value branch, which generic evaluation code
-        // may not take (Q1), and it bought nothing. A degenerate span
+        // No `n > 0.0` guard: it would be a value branch, which generic
+        // evaluation code may not take (Q1). A degenerate span
         // (zero-length tangent) divided by zero poisons `e`, the graph
-        // margin's certification enclosure is refused with it, and
-        // `zero_free_lower_bound` reports 0 — the same typed refusal
-        // the guarded zero vector produced, reached without a branch.
+        // margin's enclosure is refused with it, and the probe reads
+        // that rung as unprobed ([`tube_margin`]).
         let t = carrier.deriv(T::from_f64(0.5 * (a + b)));
         let n = t.norm();
         out.push((bx, t / n));
@@ -1134,13 +1132,29 @@ fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
 /// smallest zero-free margin (dimensionless, the `sin θ` scale), its box
 /// count, and, where the margin is zero-free, what the one-arc proof
 /// found. `one_arc` is `None` where the chain is no graph, so the proof
-/// had no hypothesis; it never reads as proved where nothing was.
+/// had no hypothesis; it never reads as proved where nothing was. The
+/// margin is `NaN` where a box's transversality enclosure was refused
+/// ([`Rung::refused`]).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Rung {
     pub(crate) tube: SsiTube<f64>,
     pub(crate) margin: f64,
     pub(crate) boxes: u32,
     pub(crate) one_arc: Option<Result<(), Shortfall>>,
+}
+
+impl Rung {
+    /// A rung at which a box's transversality enclosure was refused
+    /// ([`tube_margin`]): it measured nothing, so it has no margin and
+    /// no proof, and [`limb_three`] counts it rather than reading it.
+    fn refused(tube: SsiTube<f64>) -> Self {
+        Self {
+            tube,
+            margin: f64::NAN,
+            boxes: 0,
+            one_arc: None,
+        }
+    }
 }
 
 /// Limb 3's **enclosure probe** for an analytic pair: the graph
@@ -1155,8 +1169,8 @@ pub(crate) struct Rung {
 /// telemetry and blur the one decision that matters. The single named
 /// decision runs once, upstairs, on the chosen radius.
 ///
-/// `None` when the chain is broken or an enclosure refused, which is a
-/// definite structural refusal.
+/// `None` when the chain is empty or broken, a definite structural
+/// refusal; [`Rung::refused`] where a box's transversality enclosure is.
 fn probe_tube_analytic<T: Decide + Bounds + CertifiedEnclosure>(
     chain: &[(Box3, Vec3<T>)],
     s1: &Surface<T>,
@@ -1183,7 +1197,9 @@ fn probe_tube_analytic<T: Decide + Bounds + CertifiedEnclosure>(
         }
         prev = Some(bx);
         padded.push(bx);
-        let m = zero_free_lower_bound(graph_margin(s1, s2, bx, *e));
+        let Some(m) = tube_margin(graph_margin(s1, s2, bx, *e)) else {
+            return Some(Rung::refused(SsiTube::Spatial { radius }));
+        };
         if m < worst {
             worst = m;
         }
@@ -1308,9 +1324,9 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
     };
     // The plane equation is what the whole limb certifies, so the
     // plane crosses through the CERTIFIED door: a component whose
-    // computation left its domain is refused and the transversality
-    // margin collapses to zero, rather than a zero-free enclosure of
-    // an equation nobody evaluated.
+    // computation left its domain is refused, and so is every window's
+    // margin, rather than a zero-free enclosure of an equation nobody
+    // evaluated.
     let n = [normal.x, normal.y, normal.z].map(Interval::from_certified);
     let mut worst = f64::INFINITY;
     let mut probed = Vec::with_capacity(windows.len());
@@ -1340,6 +1356,13 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
         let Some(margin) = chart_transverse_margin(boxes, n, rect, (tx, ty, tn))? else {
             return Ok(None);
         };
+        if margin.is_nan() {
+            return Ok(Some(Rung::refused(SsiTube::Chart {
+                rung,
+                pad_u: pad.0,
+                pad_v: pad.1,
+            })));
+        }
         if margin < worst {
             worst = margin;
         }
@@ -1434,7 +1457,7 @@ type PairPads = ((f64, f64), (f64, f64));
 ///
 /// `None` when either pcurve has no windows, the two disagree on their
 /// spans, or a tangent is unusable: a definite structural refusal at
-/// this rung.
+/// this rung. [`Rung::refused`] where a box's margin is.
 fn probe_tube_pair<T: Decide + Bounds + CertifiedEnclosure>(
     (pa, pb): (&NurbsCurve2<T>, &NurbsCurve2<T>),
     (na, nb): (super::ChartedNurbs<'_, T>, super::ChartedNurbs<'_, T>),
@@ -1463,7 +1486,14 @@ fn probe_tube_pair<T: Decide + Bounds + CertifiedEnclosure>(
         // A chain box's midpoint steers which determinant is asked: a
         // point the chain chose, entered as the constant it is.
         let e = tangent(T::from_f64(mid))?;
-        worst = worst.min(zero_free_lower_bound(graph_margin(&pair, x, e)));
+        // No row reaches this refusal: the ℝ⁴ Jacobian is refused only
+        // from a non-finite chart net, whose speeds `ChartedNurbs::mint`
+        // refuses before any tube exists. It shares `tube_margin` and
+        // the refused rung with the ℝ³ probe, which a row does reach.
+        let Some(m) = tube_margin(graph_margin(&pair, x, e)) else {
+            return Some(Rung::refused(SsiTube::TwoChart { rung, pad_a, pad_b }));
+        };
+        worst = worst.min(m);
         boxes.push(x);
     }
     // An end's state is a point the one-arc proof looks for inside an
@@ -1611,11 +1641,16 @@ fn limb_three<T: Decide>(
         });
     }
     let mut not_one_arc = 0u32;
+    let mut refused = 0u32;
     let mut narrowest: Option<Rung> = None;
     for radius in ladder.iter().copied() {
         let Some(rung) = probe(radius)? else {
             continue;
         };
+        if rung.margin.is_nan() {
+            refused += 1;
+            continue;
+        }
         match (rung.margin > 0.0, rung.one_arc) {
             (true, Some(Ok(()))) => {
                 let t = tube_transversality(rung.margin, extent, rung.boxes, band)?;
@@ -1634,6 +1669,7 @@ fn limb_three<T: Decide>(
         #[allow(clippy::cast_possible_truncation)]
         return Err(SsiError::TubeProbeSilent {
             rungs: ladder.len() as u32,
+            refused,
         });
     };
     let shortfall = match (rung.margin > 0.0, rung.one_arc) {
@@ -1655,7 +1691,10 @@ fn limb_three<T: Decide>(
             match decide_positive("ssi_tube_one_arc", Margin::of(T::from_f64(f64::NAN)), band) {
                 Err(cause) => OneArcRefusal::Undecided(cause),
                 Ok(()) => {
-                    return Err(SsiError::TubeProbeSilent { rungs: not_one_arc });
+                    return Err(SsiError::TubeProbeSilent {
+                        rungs: not_one_arc,
+                        refused: 0,
+                    });
                 }
             }
         }
@@ -2339,14 +2378,16 @@ mod tests {
                 (0.0, (0.01, 0.01)),
                 at_ends(),
             )
-            .expect("the unit patch's chart is not degenerate");
-            let margin = verdict.map_or(0.0, |c| c.margin);
-            assert_eq!(
-                margin, 0.0,
+            .expect("the unit patch's chart is not degenerate")
+            .expect("the probe answers at this rung");
+            assert!(
+                verdict.margin.is_nan() && verdict.one_arc.is_none(),
                 "a domain-violated plane normal produced transversality \
-                 margin {margin} — the crossing read the BRACKET door, so \
-                 the chart tube certifies uniqueness from a plane equation \
-                 that was clamped out of its own domain"
+                 margin {} — the crossing read the BRACKET door, so the \
+                 chart tube certifies uniqueness from a plane equation that \
+                 was clamped out of its own domain; refused, the rung \
+                 measured nothing",
+                verdict.margin
             );
         }
 
@@ -2705,6 +2746,111 @@ mod tests {
         let (_, net) = super::refined_net(&kv, &weights, &short).unwrap();
         assert!(net[1].iter().all(|x| !x.is_certified()));
         assert!(net[0].iter().all(|x| x.is_certified()));
+    }
+
+    /// **The tube's box chain encloses the described carrier, at `f64`
+    /// and at `Interval`.** The rational cubic of
+    /// `refined_net_encloses_the_exact_refined_net`: each box of
+    /// [`super::box_chain`] contains the exact refined control points of
+    /// its span (Boehm's insertion in exact rationals), so by the convex
+    /// hull property it contains the carrier's own arc over the span.
+    /// A chain read off the `f64` insertion plan (`refine_knots`) misses
+    /// some extremal point by its rounding.
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn the_box_chain_encloses_the_exact_refined_net_at_every_scalar() {
+        use geom::NurbsCurve3;
+        use geom_core::spline::KnotVector;
+        use geom_core::{Bounds, Interval, Point3};
+
+        use crate::exact_q::{Q, refine_u};
+        use crate::ssi::enclose::Box3;
+
+        let knots = vec![0.0, 0.0, 0.0, 0.0, 0.3, 0.7, 1.0, 1.0, 1.0, 1.0];
+        let kv = KnotVector::clamped(knots.clone(), 3).unwrap();
+        let ctl = [
+            [0.1, 0.2, 0.3],
+            [0.9, 1.3, -0.3],
+            [1.7, -0.6, 0.4],
+            [2.3, 0.7, 1.3],
+            [3.1, 0.1, 0.7],
+            [3.7, 0.9, -0.1],
+        ];
+        let weights = vec![1.0, 0.3, 2.7, 0.6, 1.1, 0.9];
+        let curve = NurbsCurve3::new(
+            geom_core::spline::Knots::from(kv.clone()).lift(geom_core::Real::from_f64),
+            ctl.iter().map(|p| Point3::new(p[0], p[1], p[2])).collect(),
+            weights.clone(),
+        )
+        .unwrap();
+        let exact: Vec<[Q; 4]> = ctl
+            .iter()
+            .zip(&weights)
+            .map(|(p, &w)| {
+                let w = Q::of(w);
+                let [x, y, z] = p.map(|c| w.mul(&Q::of(c)));
+                [x, y, z, w]
+            })
+            .collect();
+        let breaks = super::cert_grid(&kv);
+        let (exact, fine) = refine_u(&exact, (ctl.len(), 1), (&knots, 3), &breaks);
+        let spans: Vec<usize> = (3..fine.len() - 4)
+            .filter(|&i| fine[i] < fine[i + 1])
+            .collect();
+        let misses = |chain: &[Box3]| -> Vec<String> {
+            assert_eq!(chain.len(), spans.len(), "one box per non-empty span");
+            let mut out = Vec::new();
+            for (bx, &i) in chain.iter().zip(&spans) {
+                for (k, h) in exact.iter().enumerate().take(i + 1).skip(i - 3) {
+                    for (c, iv) in [bx.x, bx.y, bx.z].into_iter().enumerate() {
+                        if !h[c].div(&h[3]).within(iv.lo(), iv.hi()) {
+                            out.push(format!("span {i} point {k}.{c}"));
+                        }
+                    }
+                }
+            }
+            out
+        };
+        let at_f64: Vec<Box3> = super::box_chain(&curve)
+            .into_iter()
+            .map(|(b, _)| b)
+            .collect();
+        let at_f64 = misses(&at_f64);
+        assert!(at_f64.is_empty(), "f64 chain missed {at_f64:?}");
+        let at_interval: Vec<Box3> =
+            super::box_chain(&curve.map_scalar(<Interval as geom_core::Real>::from_f64))
+                .into_iter()
+                .map(|(b, _)| b)
+                .collect();
+        let at_interval = misses(&at_interval);
+        assert!(
+            at_interval.is_empty(),
+            "Interval chain missed {at_interval:?}"
+        );
+        // Contrast: hulls of the f64-planned refinement, lifted thin.
+        let planned = curve.refine_knots(&breaks).unwrap();
+        let hull = |xs: &[Point3<f64>], c: usize| {
+            let v = xs.iter().map(|p| [p.x, p.y, p.z][c]);
+            let lo = v.clone().fold(f64::INFINITY, f64::min);
+            let hi = v.fold(f64::NEG_INFINITY, f64::max);
+            Interval::from_bounds(lo, hi)
+        };
+        let planned: Vec<Box3> = spans
+            .iter()
+            .map(|&i| {
+                let net = &planned.control()[i - 3..=i];
+                Box3 {
+                    x: hull(net, 0),
+                    y: hull(net, 1),
+                    z: hull(net, 2),
+                }
+            })
+            .collect();
+        assert!(
+            !misses(&planned).is_empty(),
+            "the f64-planned chain must miss the exact net somewhere, or this row cannot tell \
+             the two apart"
+        );
     }
 
     /// `cert_grid`'s cut-off: a carrier with `SSI_CERT_SPANS + degree`
@@ -3102,6 +3248,85 @@ mod tests {
             refused.error
         );
         assert!(refused.at.is_none(), "limb 3 was located: {:?}", refused.at);
+    }
+
+    /// **A refused transversality enclosure is no sliver.** A torus has
+    /// no ℝ³ gradient enclosure, so every box of every rung of an
+    /// analytic tube against one is refused: the ladder answers nothing
+    /// (`TubeProbeSilent`, every rung offered), where reading each
+    /// refusal as a zero margin reported a straddle at the narrowest
+    /// rung.
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn a_tube_whose_enclosures_are_refused_answers_no_rung() {
+        use super::{Lane, Limbs, Refused, certify_branch, tube_ladder};
+        use crate::ssi::{SsiError, SsiOperand};
+        use geom::{NurbsCurve3, Surface};
+        use geom_core::spline::KnotVector;
+        use geom_core::{Band, Point3, Vec3};
+        let plane = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let torus = Surface::Torus {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            major_radius: 1.25,
+            minor_radius: 0.25,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let carrier = NurbsCurve3::new(
+            KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+            vec![Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.1, 0.0)],
+            vec![1.0; 2],
+        )
+        .unwrap();
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let got = certify_branch(
+            &carrier,
+            Lane::AtRest {
+                a: &SsiOperand::Analytic(&plane),
+                b: &SsiOperand::Analytic(&torus),
+                pcurve_a: None,
+                pcurve_b: None,
+            },
+            0.1,
+            band,
+            Limbs::Tube,
+            &mut Refused::default(),
+        )
+        .map(|_| ());
+        #[allow(clippy::cast_possible_truncation)]
+        let rungs = tube_ladder(0.1, band).count() as u32;
+        assert!(rungs > 0, "the ladder offers rungs");
+        assert!(
+            matches!(
+                got,
+                Err(SsiError::TubeProbeSilent { rungs: r, refused }) if r == rungs && refused == rungs
+            ),
+            "{got:?}"
+        );
+    }
+
+    /// **A tube reads a refused enclosure as no reading**, a straddling
+    /// one as zero, and a clear one as its distance from zero.
+    #[test]
+    fn the_tube_margin_tells_a_refusal_from_a_straddle() {
+        use super::tube_margin;
+        use geom_core::Interval;
+        use geom_core::interval::certification::Certification;
+        assert_eq!(tube_margin(Interval::refused()), None, "refused");
+        assert_eq!(
+            tube_margin(Interval::from_bounds(-1.0, 2.0)),
+            Some(0.0),
+            "straddle"
+        );
+        assert_eq!(
+            tube_margin(Interval::from_bounds(-3.0, -0.5)),
+            Some(0.5),
+            "clear"
+        );
     }
 
     /// **Limb 2's bound escalates at `Interval` with its margin as an

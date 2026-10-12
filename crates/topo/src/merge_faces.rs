@@ -39,7 +39,7 @@ use std::collections::BTreeMap;
 use geom::SurfaceKind;
 use geom::{NetState, Surface};
 use geom_brep::recourse::{Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite, Unsized};
-use geom_core::{Band, BandError, Decide, Decided, Indeterminate, Real, Tol};
+use geom_core::{Band, BandError, Decide, Decided, Indeterminate, Tol};
 use slotmap::SecondaryMap;
 
 use crate::body::Body;
@@ -163,27 +163,35 @@ pub struct MergeCoplanarOutcome {
 
 impl MergeCoplanarOutcome {
     /// `records`, the body's before the merge, carried onto `result`, the
-    /// body after it: each cell a group killed is the face it kept
-    /// ([`MergedGroup::substitutions`]), a joined-away cell is the edge
-    /// its join made, and every other cell is itself
-    /// ([`crate::ContactRecords::carried_through`]).
+    /// body after it, through [`Self::lineage`]
+    /// ([`crate::ContactRecords::carried_through`], at `band` through `region`).
     ///
     /// # Errors
     ///
     /// As [`crate::ContactRecords::carried_through`].
-    pub fn carry_contacts<T: Real>(
+    pub fn carry_contacts<T: geom_core::Decide>(
         &self,
         records: &crate::boolean::ContactRecords,
         result: &Body<T>,
+        band: geom_core::Band,
+        region: Option<crate::RegionLane<T>>,
     ) -> Result<crate::boolean::ContactRecords, crate::boolean::CarryRefusal> {
-        records.carried_through(0, result, |c| {
-            let merged = self
-                .groups
-                .iter()
-                .flat_map(MergedGroup::substitutions)
-                .find_map(|(dead, by)| (dead == c).then_some(by));
-            Some(merged.unwrap_or_else(|| crate::boolean::joined_cell(&self.joins, c)))
-        })
+        records.carried_through(0, &self.lineage(), result, band, region)
+    }
+
+    /// **What the merge made of each cell** (D1): each cell a group
+    /// killed is substituted by the face it kept
+    /// ([`MergedGroup::substitutions`]), every image read through the
+    /// joins; every other cell is kept.
+    #[must_use]
+    pub fn lineage(&self) -> crate::Lineage {
+        let mut lineage = crate::Lineage::new().through_joins(&self.joins);
+        for (dead, by) in self.groups.iter().flat_map(MergedGroup::substitutions) {
+            lineage = lineage
+                .with(dead, crate::Fate::Substituted(by))
+                .unwrap_or_else(|e| unreachable!("a cell dies in one group: {e:?}"));
+        }
+        lineage
     }
 }
 
@@ -619,39 +627,7 @@ impl EdgeDescribeFailure {
     }
 }
 
-/// The reading of the two faces at an edge that could not decide
-/// ([`MergeCoplanarError::KeptBoundaryUndecided`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum DihedralReading {
-    /// The first-order dihedral: the angle between the faces, metered
-    /// over the edge, at the rung that could not decide.
-    Lever(geom_brep::LeverRung),
-    /// The second-order bend of two faces that meet smoothly.
-    Bend,
-}
-
-impl DihedralReading {
-    /// A first-order dihedral escalation ([`geom_brep::classify_dihedral`])
-    /// as the rung that raised it, with its diagnostics.
-    #[must_use]
-    pub const fn of_lever(escalation: geom_brep::LeverEscalation) -> (Self, Indeterminate) {
-        (Self::Lever(escalation.rung()), escalation.diag())
-    }
-
-    /// A must-carry station's escalation
-    /// ([`geom_brep::MustCarryEscalation`]) as the reading that raised
-    /// it — the first-order dihedral by rung, or the second-order bend —
-    /// with its diagnostics.
-    #[must_use]
-    pub const fn of_must_carry(
-        escalation: geom_brep::MustCarryEscalation,
-    ) -> (Self, Indeterminate) {
-        match escalation {
-            geom_brep::MustCarryEscalation::FirstOrder(lever) => Self::of_lever(lever),
-            geom_brep::MustCarryEscalation::SecondOrder(diag) => (Self::Bend, diag),
-        }
-    }
-}
+pub use geom_brep::DihedralReading;
 
 /// Why the edge describer refused one edge, before a door words it:
 /// the merge door as [`MergeCoplanarError::KeptBoundaryUndescribed`] /
@@ -1661,6 +1637,9 @@ impl OpPlacement {
             | E::NullScaffoldCurve { .. }
             | E::SplitParamNotInterior { .. }
             | E::SplitParamEscalated { .. }
+            | E::SplitTangentEscalated { .. }
+            | E::SplitTangentBendEscalated { .. }
+            | E::SplitTangentRefuted { .. }
             | E::KillTurnUndecided { .. }
             | E::SplitJointUndecided { .. }
             | E::PcurveSplit { .. }

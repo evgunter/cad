@@ -54,3 +54,37 @@ values are one node). The counted decisions move, so the goldens that
 count decisions re-cut. Nothing reaches these sites with a variable
 weight or knot today: the skinned arc wall (`the-skin-computes-its-values-in-t`)
 is the first that will.
+
+## More sites, and the NURBS speed meter (NURBS, PR 4834's review, 2026-10-12)
+
+PR 4834's FULL review found two more sites of this class:
+
+- `geom-brep/src/props/loop_area.rs` `nurbs_vector_area`: `*w != 1.0`
+  on the channel sends a carrier down the polynomial lane;
+- `geom-brep/src/nurbs_iso.rs` `interior_iso_u`: `along_u_constant`,
+  decided on the channel, gives `omega = 1`.
+
+The NURBS speed meter's arm choice (`NurbsCurve3::speed_lower_bound`,
+`crates/geom/src/curves/nurbs.rs`) now reads
+`SpanLocate::plain_constant` (PR 4834): the integral arm only when every
+weight is the same plain constant (an `f64`, a point `Interval`, a
+`Dual` with zero derivative, a `Sym` literal), the rational arm
+otherwise. That is sound and stricter than a `T`-margin, so it should
+move to this class's primitive when that lands, or the primitive should
+subsume it.
+
+
+## What the speed meter's plain-constant arm costs at `Sym` (NURBS, 2026-10-12)
+
+Measured while making the meter's memo invisible to a symbolic session
+(`work/nurbs/the-speed-meter-memo-is-visible-to-a-sym-session.md`). In
+the sweep thread-count digest, `validate_geometric` on the two `Sym`
+lofts reads `frozen` 1060 / 1177 when the meter is computed inside the
+session, on every merge measured up to PR 4849. From PR 4834's merge
+on, it reads 1914 / 2094. The meter's only change there is the arm
+choice above, so carriers whose equal weights are not `Sym` literals
+now take the rational arm. Its forms overflow the session's budget,
+almost all of them in the contradiction checks of signs the numeric
+channel decided. No decision moves, and the digest's wall time does
+not either. A primitive that discharged the weights' equality in `T`
+would put those carriers back on the integral arm.

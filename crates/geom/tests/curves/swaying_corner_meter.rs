@@ -3,7 +3,7 @@
 //! side has derivative coefficients pointing back along every control
 //! chord, so the global and per-span chord assemblies go negative on a
 //! curve that never stalls; the piece assembly reads the derivative's
-//! Bernstein coefficients on sixteen pieces per span, which converge on
+//! Bernstein coefficients on thirty-two pieces per span, which converge on
 //! `C′` itself.
 //!
 //! The reference every row compares against is [`min_speed_ceiling`]:
@@ -87,8 +87,8 @@ fn swaying(a: f64, degree: usize) -> NurbsCurve3<f64> {
 
 /// The swaying corners answer positive at both scalars, and below the
 /// reference. The floor is under the measured tightness on this family
-/// (`m / ceiling` from 0.99 at `a = 0.75` to 0.57 at degree 3,
-/// `a = 2`): a schedule change that gives most of it back is visible
+/// (`m / ceiling` from 0.998 at `a = 0.75` to 0.55 at degree 3,
+/// `a = 4`): a schedule change that gives most of it back is visible
 /// here.
 #[test]
 fn a_swaying_corner_meters_positive_and_below_its_speed() {
@@ -101,6 +101,7 @@ fn a_swaying_corner_meters_positive_and_below_its_speed() {
         (3, 0.5),
         (3, 1.0),
         (3, 2.0),
+        (3, 4.0),
     ] {
         let c = swaying(a, degree);
         let reference = min_speed_ceiling(&c, 4000);
@@ -170,6 +171,33 @@ fn a_swaying_rational_corner_meters_positive_and_below_its_speed() {
             "{at}: meter {m} gives away most of {reference}"
         );
     }
+}
+
+/// **The arm choice is monotone in reach.** An equal-weight curve takes
+/// the integral arm and the same net with one weight one ulp off takes
+/// the rational arm; at the shared piece count the two read the same
+/// bound (measured: the last ulp at `f64`, about `1e-12` relative at
+/// `Interval`), so being exactly polynomial never meters worse than
+/// `1e-9` relative below the rational reading.
+#[test]
+fn an_equal_weight_curve_meters_no_worse_than_one_ulp_off() {
+    for (degree, a) in [(2, 2.0), (2, 4.0), (3, 2.0), (3, 4.0)] {
+        let c = swaying(a, degree);
+        let at = format!("degree {degree}, a = {a}");
+        arms_agree(&c, &at);
+    }
+}
+
+/// The integral arm on `c` reads no lower than `1e-9` relative below
+/// the rational arm on `c` with one weight one ulp off, at both scalars.
+fn arms_agree(c: &NurbsCurve3<f64>, at: &str) {
+    let off = reweighted(c, |j| if j == 1 { 1.0 + f64::EPSILON } else { 1.0 });
+    let (m, mi) = meters(c);
+    let (r, ri) = meters(&off);
+    assert!(
+        m >= r - 1e-9 * r.abs() && mi >= ri - 1e-9 * ri.abs(),
+        "{at}: equal weights meter {m} / {mi}, one ulp off {r} / {ri}"
+    );
 }
 
 /// A random integral net, degree 1–5, on a random clamped vector with
@@ -370,7 +398,8 @@ fn a_degree_one_rational_net_meters_its_exact_minimum() {
 /// value: reading it leaves `Debug` unchanged, a clone reads the same
 /// bits, and a curve built from a metered one by a door that moves the
 /// net (here a uniform scale by 2, which doubles the speed) meters its
-/// own net rather than inheriting the first answer.
+/// own net rather than inheriting the first answer. A symbolic session
+/// is not served it either (the row below).
 #[test]
 fn the_meter_memo_is_invisible_and_never_inherited() {
     let c = swaying(2.0, 3);
@@ -387,5 +416,43 @@ fn the_meter_memo_is_invisible_and_never_inherited() {
     assert!(
         (ms - 2.0 * m).abs() <= 1e-12 * m,
         "scaled net metered {ms}, twice the source's {m} expected"
+    );
+}
+
+/// At `Sym` the memo is invisible to a session too: a curve whose meter
+/// was first read before the session decides over its meter with the same
+/// freezes as one whose meter is first read inside it. A memo served
+/// across that boundary hands the session a node it never recorded,
+/// which freezes to an unknown of its own.
+#[test]
+fn a_meter_read_before_a_session_is_not_served_inside_it() {
+    use geom_core::k_stats::decide;
+    use geom_core::predicate::{Band, Margin};
+    use geom_core::sym::with_session;
+    use geom_core::{Sym, SymBudget, Tol};
+    type S = Sym<f64>;
+    let budget = SymBudget {
+        max_terms: 4096,
+        max_degree: 128,
+    };
+    let in_session = |c: &NurbsCurve3<S>| {
+        with_session(budget, || {
+            let m = c.speed_lower_bound().get();
+            let band = Band::linear(Tol::witness()).expect("linear band");
+            decide("meter_memo", Margin::of(m - m), band)
+        })
+    };
+    let read_before = swaying(2.0, 3).map_scalar(S::from_f64);
+    let _ = read_before.speed_lower_bound();
+    let fresh = swaying(2.0, 3).map_scalar(S::from_f64);
+    // `m − m` cancels by id whichever node `m` is, so the decision is the
+    // same either way; what a served pre-session meter changes is how
+    // much of it the session could expand, which `frozen` counts.
+    let (_, before_counts) = in_session(&read_before);
+    let (_, inside_counts) = in_session(&fresh);
+    assert_eq!(
+        before_counts.frozen, inside_counts.frozen,
+        "a meter first read before the session froze differently: {before_counts:?} against \
+         {inside_counts:?}"
     );
 }

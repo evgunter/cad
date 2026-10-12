@@ -268,8 +268,8 @@ fn f2_projection_fuzz_no_silent_wrong_answers() {
                 );
                 let (lo, hi) = curve.domain();
                 let at_end = proj.t == lo || proj.t == hi;
-                let speed = curve.deriv(proj.t).norm();
-                let cosine = proj.orthogonality / (speed * proj.distance).max(1e-300);
+                let (_, d1, _) = curve.ders(proj.t);
+                let cosine = d1.dot(proj.foot - p).abs() / (d1.norm() * proj.distance).max(1e-300);
                 let near_global = proj.distance <= dmin + sample_slack + 1e-6 * dmin.max(1.0);
                 if !near_global {
                     // A non-global foot: stationary-point contract says
@@ -313,12 +313,12 @@ fn f2_poisoned_control_point_refuses() {
             // If it accepted it must NOT be through a NaN-laundered path:
             // the accepted foot must carry finite honest residuals.
             assert!(
-                pr.distance.is_finite() && pr.orthogonality.is_finite(),
-                "accepted a poisoned foot with non-finite residuals"
+                pr.distance.is_finite(),
+                "accepted a poisoned foot with a non-finite distance"
             );
             println!(
-                "[F2 poison] accepted at t={} (NaN support avoided): d={:e} orth={:e}",
-                pr.t, pr.distance, pr.orthogonality
+                "[F2 poison] accepted at t={} (NaN support avoided): d={:e}",
+                pr.t, pr.distance
             );
         }
     }
@@ -358,8 +358,8 @@ fn f2_stagnation_plateau_probe() {
                 dmin = dmin.min(curve.eval(t).distance(p));
             }
             println!(
-                "[F2 plateau] accepted t={} d={:e} (dense min {dmin:e}) orth={:e} speed={:e} iters={}",
-                pr.t, pr.distance, pr.orthogonality, speed, pr.iterations
+                "[F2 plateau] accepted t={} d={:e} (dense min {dmin:e}) speed={:e} iters={}",
+                pr.t, pr.distance, speed, pr.iterations
             );
             assert!(
                 pr.distance >= dmin - 1e-7,
@@ -882,8 +882,8 @@ fn f9_e2e_cylinder_fit_project_certify_decide() {
     for (px, py, pz) in [(1.5, 0.2, 0.0), (0.0, 1.4, 0.15), (0.9, 0.9, 0.05)] {
         let p = Point3::new(px, py, pz);
         let proj = fit.curve.project(p).unwrap();
-        let speed = fit.curve.deriv(proj.t).norm();
-        let cosine = proj.orthogonality / (speed * proj.distance).max(1e-300);
+        let (_, d1, _) = fit.curve.ders(proj.t);
+        let cosine = d1.dot(proj.foot - p).abs() / (d1.norm() * proj.distance).max(1e-300);
         let (lo, hi) = fit.curve.domain();
         let interior = proj.t > lo && proj.t < hi;
         println!(

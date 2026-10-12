@@ -159,25 +159,18 @@ fn cylinder(v: V3, m: V3, psi: f64) -> AtRestBody<f64> {
     )
 }
 
-/// The poses whose boolean escalates at ε 1e-6, each on a margin of
-/// its own in band, and the predicate it escalates on.
+/// The poses whose boolean escalates at ε 1e-6, on a margin of its own
+/// in band, and the predicate it escalates on.
 ///
-/// - The notch: the join's order between two matched pairs that share
-///   no germ, whose chords differ by 5.2 µm. Whether that order can
-///   change the matching is open
-///   (`work/flush/two-pinch-poses-escalate-at-eps-1e-6.md`).
-/// - The L on the cylinder: a pierce sector's bound clears the curved
-///   wall it leaves by at most about 8 µm within its reach (the sagitta
-///   charge reads a lower bound of 4.2 µm), inside the band's
-///   escalation threshold of 10 µm. The side it lies on is not certain
-///   at that ε, so the escalation is the geometry's.
-const REFUSES_AT_1E6: &[(&str, &str)] = &[
-    ("notch307 fib117 edge psi=1.9 cp S", "bool_join_nearest"),
-    (
-        "Lbot cyl fib4 psi=0.9 seam cp S",
-        "bool_pierce_sector_side_curved",
-    ),
-];
+/// The L on the cylinder: a pierce sector's bound clears the curved
+/// wall it leaves by at most about 8 µm within its reach (the sagitta
+/// charge reads a lower bound of 4.2 µm), inside the band's escalation
+/// threshold of 10 µm. The side it lies on is not certain at that ε, so
+/// the escalation is the geometry's.
+const REFUSES_AT_1E6: &[(&str, &str)] = &[(
+    "Lbot cyl fib4 psi=0.9 seam cp S",
+    "bool_pierce_sector_side_curved",
+)];
 
 /// The faces of `body` whose loops pass two distinct vertices at one
 /// point.

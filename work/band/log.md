@@ -702,6 +702,15 @@ before its spec) is now its own row,
 `a-non-isosceles-turn-overruns-past-the-mitre` (P2, H, design). The
 whole-face planar path step 5 was to delete went at step 2.
 
+## 2026-10-07 — step 5's design to Ev (the non-isosceles overrun)
+
+PR 4239's probe measured the overrun on 2250 corners and the three witnesses
+(the bracket, the sheared box, the leaning prism). Two designers (A/B,
+fork-log row 121, renumbered from 85 at merge) agreed on the final state from their first reports. After
+two reconciliation rounds they also agreed on the verdict's two readings,
+the three-leg recourse, and what a later blend of L meets (a chamfer of L
+builds at 0 of 980 corners at an equal setback). Design reports, closed
+forms and measurements: the `[ev]` PR and the item's probe findings.
 ## 2026-10-07 — the reach meters an end face away from its vertex (PR #4254)
 
 A link's reach now skips only its chain's supports and the faces its own
@@ -817,3 +826,62 @@ ways. A consumption lint over the blend and the Boolean as one rule, which
 needs lints to store their own resolution first, is filed on INTENT
 (`a-feature-an-operation-consumes-has-a-lint`). Fork-log row 119 (renumbered
 from 86 at merge). The build goes in the ruling's four steps.
+
+## 2026-10-12 — a requested ring edge meters as a strip (PR 4286)
+
+A planar support's ring that carries a plane–plane link's requested edge
+is metered at the strip (arm (d)), not refused at the ring meter.
+`a-requested-ring-edge-refuses-at-the-ring-meter` closes. Three full
+reviews (tier M, sequential: each of the first two raised a MAJOR):
+- review 1 (`fcd3d374a6`): `reach::screened` read a two-sided region where
+  arm (d) is one-sided, so clear far-side geometry reached
+  `SurgeryInvariant` (also on main for the outer cycle). Fix pass 1 made
+  the region one-sided, and `screened` refuses a vertex inside it typed.
+- review 2 (`7781e428ee`): the one-sided bound's `slab` setback disabled
+  the cross-chain excuse at oblique poses (the sealed void + island
+  refused at three of five poses that built on the base). Fix pass 2
+  split the readers: `screened` keeps the one-sided bound, the excuse
+  reads the two-sided region where `screened` finds it vacant of other
+  vertices; a row builds the island at every pose.
+- review 3 (`6754d3515c`): APPROVE-WITH-FIXES, no MAJOR; it reached the
+  vertex-only premise with a curved far-side edge and found no reader.
+  A finisher took its minors (the spike row now pins arm (d) with an arc
+  no vertex screen sees; the docs state the vacancy as a vertex reading).
+
+Filed: `the-cross-chain-excuse-misses-an-oblique-cell-past-a-windows-end`
+(the 1.1 rad pose, red on the base too),
+`the-strip-screen-reads-a-supports-vertices-not-its-edges` (with its
+witness row), and evidence added to
+`the-support-screen-refuses-a-feature-across-the-edges-line`. Main's
+1e-6 red of `r1_lane0_e2e` is noted on its ssiedge item.
+
+## 2026-10-12 — the bore ruling's step 1: predicate 2 reads three ways (PR 4797)
+
+Predicate 2's reach and the cap meter (arm (c)) read each face and cycle
+clear, wholly inside, or crossing, and feed one verdict for the request
+(`reach::Unclear`): a crossing anywhere refuses as a crossing, then a
+bound, and `BlendError::WhollyInside` only when every non-clear reading is
+inside. "Wholly inside" still refuses; the consuming carve is step 3.
+Because a wall that meets a window's end plane reads as a bound, every
+through-bore inside a sliver refuses as a bound at its wall today; the
+step-3 prerequisite (a non-strict cap-plane reading, a prism reading for
+the ruled crease) is in the unit's Findings. The README states today's
+refusal beside the ruling's end state (Ev on PR 4285: rephrase where
+misleading).
+
+Cost H, a concurrent dual (DR row `PR-4797`). Both reviews found the same
+MAJOR: the first version's verdict was whichever face or cycle was read
+first, so a crossing feature could be refused `WhollyInside` by order.
+Tally 0. A union fix pass fixed it, and a confirming full review on
+`0f5d13362d` approved, with notes for steps 2–4 recorded on the unit.
+`blend-support-ring-meters-read-two-ways` triaged P3/M.
+
+## 2026-10-12 — Ev ratified the non-isosceles turn's overrun (PR 4245)
+
+Ev's conditions (2026-10-08) were checked numerically on the PR, with
+figures in `crates/sweep/doc/turn-overrun/`. PR 4844's dual review then
+showed the box-corner limit was stated wrong: the chamfer's chord is the
+gap times a corner-fixed ratio, so both readings are quadratic there. The
+README sentence and a comment were corrected before Ev answered "this
+design sounds good!". Fork-log row 121 (renumbered from 85 at merge) gets
+its second half. The build goes in three steps; step 1 is PR 4844.
