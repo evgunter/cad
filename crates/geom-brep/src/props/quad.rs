@@ -1098,7 +1098,12 @@ fn loop_windings<T: Decide>(
     radius: Interval,
     band: Band,
 ) -> Result<Vec<bool>, PropsError> {
-    let tau = <Interval as geom_core::Real>::tau();
+    // τ lies between the `f64` nearest it, which rounds below, and that
+    // value's successor.
+    let tau = Interval::hull(
+        pt(core::f64::consts::TAU),
+        pt(core::f64::consts::TAU.next_up()),
+    );
     let mut total = 0i64;
     let mut winds = Vec::with_capacity(loops.len());
     for edges in loops {
