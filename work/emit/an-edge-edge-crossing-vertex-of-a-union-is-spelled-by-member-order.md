@@ -50,6 +50,23 @@ counts went from four absences per case to six: every piece of a divided
 edge is now named by its ends, a lone one included, so the lone piece of
 `b`'s lateral edge that ends at the vertex carries the order's spelling too.
 
+## Re-measured under the killed-lineage chase (EMIT, 2026-10-12, PR 4794)
+
+Rim pieces whose lineage ran through a killed stretch used to be
+chords. They now resolve as the pieces they are, so more crossings
+between two members' edges are spelled edge to edge, as the README
+says. Measured with the chase on and off:
+- **`cross`.** Over its 14 fused orders, crossings spelled face to edge
+  where two members' edges cross there fell from 50 to 28. Those
+  spelled edge to edge rose from 34 to 56. Its absences in
+  `emit_union_rim_piece_ranks`'s `KNOWN_ABSENT` rose from 266 to 308,
+  because an edge-to-edge spelling still names its two edges by member
+  order. That is this row's split, reached at more vertices.
+- **`r5poke`.** Three of the eight corner spellings (four corners, two
+  orders) were face to edge, and one is now. The order-dependent
+  corner moved from `(1.5, 0, 1)` to `(0.5, 1, 1)`, and the count held
+  at 6.
+
 ## Closed by the touch ruling's build (branch `emit/touch-crossing`)
 
 A union names a vertex where two member edges meet from the finished

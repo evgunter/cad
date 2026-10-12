@@ -5,8 +5,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::approx::{band, nurbs_walls, twisted_loft};
-use geom_brep::OffsetFitError;
 use geom_brep::offset_fit::{OFFSET_FIT_SAMPLE_CAP, fit_offset, fit_offset_at};
+use geom_brep::{OffsetFitError, OffsetFitWall};
 use geom_core::Tol;
 
 /// **The sample cap is a total, not a per-direction count.** At
@@ -60,7 +60,12 @@ fn a_saddle_wall_fits_at_the_runs_eps_or_stops_at_the_cap() {
                 "eps {eps:e}, d = {d}: certified at {:e}",
                 cert.hull_sup
             ),
-            Err(OffsetFitError::SampleCapReached { grid, achieved, .. }) => assert!(
+            Err(OffsetFitError::WallReached {
+                wall: OffsetFitWall::SampleCap { .. },
+                grid,
+                achieved,
+                ..
+            }) => assert!(
                 eps < reach && grid == (62, 35) && (achieved - reach).abs() < reach * 1e-3,
                 "eps {eps:e}, d = {d}: the cap stopped {grid:?} at {achieved:e}"
             ),
