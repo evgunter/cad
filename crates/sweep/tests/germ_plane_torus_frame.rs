@@ -620,22 +620,40 @@ fn a_band_pose_under_the_tubes_top_reaches_the_donuts_door() {
     }
 }
 
-/// **A bar across the hole whose section pairs tie in a run's band
-/// reaches the dispatch, as it does elsewhere.** The bar
+/// **A bar across the hole whose sections' ends tie for nearest within a
+/// run's band escalates the ranking, by name.** The bar
 /// `[x − w, x + w] × [−w, w] × [−2, 2]`, `x = 0.0053`, `w = 0.277`,
-/// passes the frame on every face. Two of the pairs the matcher joins
-/// stand `3.2e-6 m` apart in the order it joins them, inside the band at
-/// `ε = 1e-6`. Every germ's nearest partner there has it as its own
-/// nearest, so that order cannot change the matching
-/// (`boolean::join`'s `first_pair`) and every op reaches the dispatch at
-/// every ε.
+/// passes the frame on every face, and where the matcher ranks a germ's
+/// candidates, two stand `3.2e-6 m` apart in the ranking's measure. Where
+/// that lies in the run's band (`ε = 1e-6`) every op escalates
+/// `bool_join_nearest` as a join coincidence; elsewhere every op reaches
+/// the dispatch. The ranking is the one every curved pair's germs take;
+/// this pose reaches it through the torus frame.
 #[test]
-fn a_pair_order_tie_in_band_on_a_bar_across_the_hole_reaches_the_dispatch() {
+fn a_nearest_tie_in_band_on_a_bar_across_the_hole_escalates_by_name() {
     let d = donut();
     let (x, w) = (0.0053, 0.277);
     let p = bar((x - w, x + w), (-w, w), (-2.0, 2.0));
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let tie = 3.2e-6;
+    let in_band = band.zero() < tie && tie < band.escalate();
     for &(label, op, swap) in &SIX {
         let (a, b) = if swap { (&p, &d) } else { (&d, &p) };
-        assert_eq!(torus_door(op, a, b), Ok(TorusDoor::Dispatch), "{label}");
+        if in_band {
+            let got = run(op, a, b);
+            assert!(
+                matches!(
+                    &got,
+                    Err(BooleanError::Escalated {
+                        decision: topo::BooleanDecision::Coincidence(topo::Coincide::Join, _),
+                        diag,
+                    }) if diag.predicate == Some("bool_join_nearest")
+                ),
+                "{label}: the tie escalates the ranking: {:?}",
+                got.err()
+            );
+        } else {
+            assert_eq!(torus_door(op, a, b), Ok(TorusDoor::Dispatch), "{label}");
+        }
     }
 }
