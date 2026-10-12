@@ -470,9 +470,10 @@ establishes the smooth precondition; the census is otherwise
 sense-invariant.
 
 **Grandfathered rungs.** `vv_face_backed`, `vf_face_backed`,
-`ve_face_backed`, and the face-pair arms of `ee_bound_backed` confine by
-structural incidence only, so they can back an event outside the pair's
-overlap region. Each migrates to the unified strength one at a time,
+`ve_face_backed`, `ee_face_backed` (which stands in for a collinear
+overlap's edge–edge record), and the face-pair arms of `ee_bound_backed`
+confine by structural incidence only, so they can back an event outside
+the pair's overlap region. Each migrates to the unified strength one at a time,
 measured. `ef_bound_backed`'s face-pair arms hold the unified strength
 (`Declared::vf_face_backed_confined`): a declared pair incident to the
 bound backs it only where the pair passes Door 1 and Door 2 reaches

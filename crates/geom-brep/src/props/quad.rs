@@ -152,8 +152,8 @@
 //! documented slack there, unchanged).
 
 use geom_core::Bounds;
-use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
+use geom_core::interval::{Interval, certified_hi, cross, dot};
 use geom_core::spline::algebra;
 use geom_core::spline::derivative_knot_slice;
 use geom_core::spline::net::TensorNet;
@@ -618,11 +618,6 @@ pub(super) fn lo_or_refuse(x: Interval) -> f64 {
     if !x.is_certified() { f64::NAN } else { x.lo() }
 }
 
-/// [`lo_or_refuse`] for the upper end.
-fn hi_or_refuse(x: Interval) -> f64 {
-    if !x.is_certified() { f64::NAN } else { x.hi() }
-}
-
 /// Midpoint of a bracket (structure selection for integration limits;
 /// the bracket's width is repaid by the endpoint pad). A refused
 /// bracket has no midpoint, and says so.
@@ -974,7 +969,7 @@ fn require_no_period_jump<T: Decide>(
             let gap = radius * (u1 - u0).abs_enclosure() + (v1 - v0).abs_enclosure();
             if classify_len::<T>(
                 "props_quad_junction_period",
-                Margin::of(hi_or_refuse(gap - pt(core::f64::consts::PI) * radius)),
+                Margin::of(certified_hi(gap - pt(core::f64::consts::PI) * radius)),
                 band,
                 PropsCheck::Inventory,
             )? != Sign::Negative
@@ -1380,18 +1375,6 @@ const QUAD2_REFINE_SPANS: usize = 16;
 
 /// A ring-bracketed 3-vector (a control point, an enclosure).
 pub type RVec3 = [Interval; 3];
-
-pub(super) fn rv_cross(a: RVec3, b: RVec3) -> RVec3 {
-    [
-        a[1] * b[2] - a[2] * b[1],
-        a[2] * b[0] - a[0] * b[2],
-        a[0] * b[1] - a[1] * b[0],
-    ]
-}
-
-pub(super) fn rv_dot(a: RVec3, b: RVec3) -> Interval {
-    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
-}
 
 /// Widens both ends by a nonnegative pad (the honesty-pad fold).
 fn widen(x: Interval, pad: f64) -> Interval {
@@ -1998,9 +1981,9 @@ fn patch_flux_exact(
                         mid: mid_v,
                         t: nv_j,
                     };
-                    let fm = rv_dot(
-                        s.vec(cu, cv),
-                        rv_cross(grid_vec(su, cu, cv), grid_vec(sv, cu, cv)),
+                    let fm = dot(
+                        &s.vec(cu, cv),
+                        &cross(&grid_vec(su, cu, cv), &grid_vec(sv, cu, cv)),
                     );
                     row = row + *wv_j * fm;
                 }
@@ -2065,11 +2048,11 @@ impl Ladder {
     /// ([`rational_patch_face`] docs derive why the quotient's other
     /// triple products vanish).
     fn num(&self, u: Collapse<'_>, v: Collapse<'_>) -> Interval {
-        rv_dot(
-            self.a.vec(u, v),
-            rv_cross(
-                grid_vec(self.au.as_ref(), u, v),
-                grid_vec(self.av.as_ref(), u, v),
+        dot(
+            &self.a.vec(u, v),
+            &cross(
+                &grid_vec(self.au.as_ref(), u, v),
+                &grid_vec(self.av.as_ref(), u, v),
             ),
         )
     }
@@ -2083,10 +2066,10 @@ impl Ladder {
         let av = grid_vec(self.av.as_ref(), u, v);
         let auu = grid_vec(self.auu.as_ref(), u, v);
         let auv = grid_vec(self.auv.as_ref(), u, v);
-        rv_dot(au, rv_cross(auu, av))
-            + rv_dot(a, rv_cross(grid_vec(self.auuu.as_ref(), u, v), av))
-            + pt(2.0) * rv_dot(a, rv_cross(auu, auv))
-            + rv_dot(a, rv_cross(au, grid_vec(self.auuv.as_ref(), u, v)))
+        dot(&au, &cross(&auu, &av))
+            + dot(&a, &cross(&grid_vec(self.auuu.as_ref(), u, v), &av))
+            + pt(2.0) * dot(&a, &cross(&auu, &auv))
+            + dot(&a, &cross(&au, &grid_vec(self.auuv.as_ref(), u, v)))
     }
 
     /// `N_vv = A_v·(A_u×A_vv) + A·(A_uvv×A_v) + 2·A·(A_uv×A_vv) +
@@ -2097,27 +2080,27 @@ impl Ladder {
         let av = grid_vec(self.av.as_ref(), u, v);
         let auv = grid_vec(self.auv.as_ref(), u, v);
         let avv = grid_vec(self.avv.as_ref(), u, v);
-        rv_dot(av, rv_cross(au, avv))
-            + rv_dot(a, rv_cross(grid_vec(self.auvv.as_ref(), u, v), av))
-            + pt(2.0) * rv_dot(a, rv_cross(auv, avv))
-            + rv_dot(a, rv_cross(au, grid_vec(self.avvv.as_ref(), u, v)))
+        dot(&av, &cross(&au, &avv))
+            + dot(&a, &cross(&grid_vec(self.auvv.as_ref(), u, v), &av))
+            + pt(2.0) * dot(&a, &cross(&auv, &avv))
+            + dot(&a, &cross(&au, &grid_vec(self.avvv.as_ref(), u, v)))
     }
 
     /// `N_u = A·(A_uu×A_v) + A·(A_u×A_uv)` (the `A_u·(A_u×A_v)` term
     /// vanishes identically).
     fn num_u(&self, u: Collapse<'_>, v: Collapse<'_>) -> Interval {
         let a = self.a.vec(u, v);
-        rv_dot(
-            a,
-            rv_cross(
-                grid_vec(self.auu.as_ref(), u, v),
-                grid_vec(self.av.as_ref(), u, v),
+        dot(
+            &a,
+            &cross(
+                &grid_vec(self.auu.as_ref(), u, v),
+                &grid_vec(self.av.as_ref(), u, v),
             ),
-        ) + rv_dot(
-            a,
-            rv_cross(
-                grid_vec(self.au.as_ref(), u, v),
-                grid_vec(self.auv.as_ref(), u, v),
+        ) + dot(
+            &a,
+            &cross(
+                &grid_vec(self.au.as_ref(), u, v),
+                &grid_vec(self.auv.as_ref(), u, v),
             ),
         )
     }
@@ -2125,17 +2108,17 @@ impl Ladder {
     /// `N_v = A·(A_uv×A_v) + A·(A_u×A_vv)`.
     fn num_v(&self, u: Collapse<'_>, v: Collapse<'_>) -> Interval {
         let a = self.a.vec(u, v);
-        rv_dot(
-            a,
-            rv_cross(
-                grid_vec(self.auv.as_ref(), u, v),
-                grid_vec(self.av.as_ref(), u, v),
+        dot(
+            &a,
+            &cross(
+                &grid_vec(self.auv.as_ref(), u, v),
+                &grid_vec(self.av.as_ref(), u, v),
             ),
-        ) + rv_dot(
-            a,
-            rv_cross(
-                grid_vec(self.au.as_ref(), u, v),
-                grid_vec(self.avv.as_ref(), u, v),
+        ) + dot(
+            &a,
+            &cross(
+                &grid_vec(self.au.as_ref(), u, v),
+                &grid_vec(self.avv.as_ref(), u, v),
             ),
         )
     }
@@ -2148,9 +2131,9 @@ impl Ladder {
         let au = grid_vec(self.au.as_ref(), u, v);
         let av = grid_vec(self.av.as_ref(), u, v);
         let (w0, wu, wv) = (w.chan(u, v), w.chan_u(u, v), w.chan_v(u, v));
-        let base = rv_cross(au, av);
-        let ta = rv_cross(au, a);
-        let tb = rv_cross(a, av);
+        let base = cross(&au, &av);
+        let ta = cross(&au, &a);
+        let tb = cross(&a, &av);
         [
             w0 * base[0] - wv * ta[0] - wu * tb[0],
             w0 * base[1] - wv * ta[1] - wu * tb[1],
@@ -2198,12 +2181,12 @@ impl Ladder {
         let auu = grid_vec(self.auu.as_ref(), u, v);
         let auv = grid_vec(self.auv.as_ref(), u, v);
         let terms = [
-            (w.chan(u, v), rv_cross(auu, av)),
-            (w.chan(u, v), rv_cross(au, auv)),
-            (-w.chan_uv(u, v), rv_cross(au, a)),
-            (-w.chan_v(u, v), rv_cross(auu, a)),
-            (-w.chan_uu(u, v), rv_cross(a, av)),
-            (-w.chan_u(u, v), rv_cross(a, auv)),
+            (w.chan(u, v), cross(&auu, &av)),
+            (w.chan(u, v), cross(&au, &auv)),
+            (-w.chan_uv(u, v), cross(&au, &a)),
+            (-w.chan_v(u, v), cross(&auu, &a)),
+            (-w.chan_uu(u, v), cross(&a, &av)),
+            (-w.chan_u(u, v), cross(&a, &auv)),
         ];
         fold_terms(&terms)
     }
@@ -2218,12 +2201,12 @@ impl Ladder {
         let auv = grid_vec(self.auv.as_ref(), u, v);
         let avv = grid_vec(self.avv.as_ref(), u, v);
         let terms = [
-            (w.chan(u, v), rv_cross(auv, av)),
-            (w.chan(u, v), rv_cross(au, avv)),
-            (-w.chan_vv(u, v), rv_cross(au, a)),
-            (-w.chan_v(u, v), rv_cross(auv, a)),
-            (-w.chan_uv(u, v), rv_cross(a, av)),
-            (-w.chan_u(u, v), rv_cross(a, avv)),
+            (w.chan(u, v), cross(&auv, &av)),
+            (w.chan(u, v), cross(&au, &avv)),
+            (-w.chan_vv(u, v), cross(&au, &a)),
+            (-w.chan_v(u, v), cross(&auv, &a)),
+            (-w.chan_uv(u, v), cross(&a, &av)),
+            (-w.chan_u(u, v), cross(&a, &avv)),
         ];
         fold_terms(&terms)
     }
@@ -2264,7 +2247,7 @@ impl Ladder {
             (Some(g), Some(s)) => g.at_v(s, v),
             _ => zero,
         };
-        rv_dot(a, rv_cross(au, av)) / w.a.at_v(&sl.w, v)[0].powi(3)
+        dot(&a, &cross(&au, &av)) / w.a.at_v(&sl.w, v)[0].powi(3)
     }
 
     /// `A·(A_u×A_v)` from a slice, at one v collapse — the flux
@@ -2281,7 +2264,7 @@ impl Ladder {
             (Some(g), Some(s)) => g.at_v(s, v),
             _ => zero,
         };
-        rv_dot(a, rv_cross(au, av))
+        dot(&a, &cross(&au, &av))
     }
 
     /// **The EXACT v integral** `∫ N dv` over one v-cell, from a
@@ -2340,7 +2323,7 @@ fn fold_terms(terms: &[(Interval, RVec3)]) -> RVec3 {
 
 /// An upper bound on `|v|` (2-norm) of a bracketed 3-vector.
 fn norm_hi(v: RVec3) -> f64 {
-    hi_or_refuse((v[0].sqr() + v[1].sqr() + v[2].sqr()).sqrt())
+    certified_hi((v[0].sqr() + v[1].sqr() + v[2].sqr()).sqrt())
 }
 
 /// Componentwise sum of two bracketed 3-vectors.
@@ -2834,7 +2817,7 @@ fn area_midpoint_taylor<E>(
             // keeps the arithmetic over that tiling enclosing too.
             let cell_area = (pt(c_uhi) - pt(c_ulo)) * (pt(c_vhi) - pt(c_vlo));
             let mean = widen(c.g_mid, 0.5 * hu * c.g_u + 0.5 * hv * c.g_v)
-                .clamped_to(lo_or_refuse(c.g_hull), hi_or_refuse(c.g_hull));
+                .clamped_to(lo_or_refuse(c.g_hull), certified_hi(c.g_hull));
             acc = acc + cell_area * mean;
         }
     }
@@ -3929,25 +3912,25 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
     let g_suu = grid_vec(suu.as_ref(), over_all.0, over_all.1);
     let g_suv = grid_vec(suv.as_ref(), over_all.0, over_all.1);
     let g_svv = grid_vec(svv.as_ref(), over_all.0, over_all.1);
-    let g_f_uu = rv_dot(g_su, rv_cross(g_suu, g_sv))
-        + rv_dot(
-            g_s,
-            rv_cross(grid_vec(suuu.as_ref(), over_all.0, over_all.1), g_sv),
+    let g_f_uu = dot(&g_su, &cross(&g_suu, &g_sv))
+        + dot(
+            &g_s,
+            &cross(&grid_vec(suuu.as_ref(), over_all.0, over_all.1), &g_sv),
         )
-        + pt(2.0) * rv_dot(g_s, rv_cross(g_suu, g_suv))
-        + rv_dot(
-            g_s,
-            rv_cross(g_su, grid_vec(suuv.as_ref(), over_all.0, over_all.1)),
+        + pt(2.0) * dot(&g_s, &cross(&g_suu, &g_suv))
+        + dot(
+            &g_s,
+            &cross(&g_su, &grid_vec(suuv.as_ref(), over_all.0, over_all.1)),
         );
-    let g_f_vv = rv_dot(g_sv, rv_cross(g_su, g_svv))
-        + rv_dot(
-            g_s,
-            rv_cross(grid_vec(suvv.as_ref(), over_all.0, over_all.1), g_sv),
+    let g_f_vv = dot(&g_sv, &cross(&g_su, &g_svv))
+        + dot(
+            &g_s,
+            &cross(&grid_vec(suvv.as_ref(), over_all.0, over_all.1), &g_sv),
         )
-        + pt(2.0) * rv_dot(g_s, rv_cross(g_suv, g_svv))
-        + rv_dot(
-            g_s,
-            rv_cross(g_su, grid_vec(svvv.as_ref(), over_all.0, over_all.1)),
+        + pt(2.0) * dot(&g_s, &cross(&g_suv, &g_svv))
+        + dot(
+            &g_s,
+            &cross(&g_su, &grid_vec(svvv.as_ref(), over_all.0, over_all.1)),
         );
 
     // AREA: the shared [`area_midpoint_taylor`] rule (#313's integral
@@ -3965,9 +3948,9 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
         |b| -> Result<AreaCell, PropsError> {
             let over = (Collapse::Over(b.u), Collapse::Over(b.v));
             let m = (Collapse::At(b.umid), Collapse::At(b.vmid));
-            let cm = rv_cross(
-                grid_vec(su.as_ref(), m.0, m.1),
-                grid_vec(sv.as_ref(), m.0, m.1),
+            let cm = cross(
+                &grid_vec(su.as_ref(), m.0, m.1),
+                &grid_vec(sv.as_ref(), m.0, m.1),
             );
             let (h_su, h_sv) = (
                 grid_vec(su.as_ref(), over.0, over.1),
@@ -3975,19 +3958,19 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
             );
             // ∂_u (S_u×S_v) = S_uu×S_v + S_u×S_uv, and likewise in v.
             let d_u = rv_add(
-                rv_cross(grid_vec(suu.as_ref(), over.0, over.1), h_sv),
-                rv_cross(h_su, grid_vec(suv.as_ref(), over.0, over.1)),
+                cross(&grid_vec(suu.as_ref(), over.0, over.1), &h_sv),
+                cross(&h_su, &grid_vec(suv.as_ref(), over.0, over.1)),
             );
             let d_v = rv_add(
-                rv_cross(grid_vec(suv.as_ref(), over.0, over.1), h_sv),
-                rv_cross(h_su, grid_vec(svv.as_ref(), over.0, over.1)),
+                cross(&grid_vec(suv.as_ref(), over.0, over.1), &h_sv),
+                cross(&h_su, &grid_vec(svv.as_ref(), over.0, over.1)),
             );
             Ok(AreaCell {
                 g_mid: (cm[0].sqr() + cm[1].sqr() + cm[2].sqr()).sqrt(),
                 g_u: norm_hi(d_u),
                 g_v: norm_hi(d_v),
                 g_hull: {
-                    let c = rv_cross(h_su, h_sv);
+                    let c = cross(&h_su, &h_sv);
                     (c[0].sqr() + c[1].sqr() + c[2].sqr()).sqrt()
                 },
             })
@@ -4081,11 +4064,11 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
                     Collapse::At(c_ulo.midpoint(c_uhi)),
                     Collapse::At(c_vlo.midpoint(c_vhi)),
                 );
-                let fm = rv_dot(
-                    s.vec(m.0, m.1),
-                    rv_cross(
-                        grid_vec(su.as_ref(), m.0, m.1),
-                        grid_vec(sv.as_ref(), m.0, m.1),
+                let fm = dot(
+                    &s.vec(m.0, m.1),
+                    &cross(
+                        &grid_vec(su.as_ref(), m.0, m.1),
+                        &grid_vec(sv.as_ref(), m.0, m.1),
                     ),
                 );
                 flux = flux
@@ -4687,9 +4670,9 @@ fn flux_at(
     cu: Collapse<'_>,
     cv: Collapse<'_>,
 ) -> Interval {
-    rv_dot(
-        s.vec(cu, cv),
-        rv_cross(grid_vec(su, cu, cv), grid_vec(sv, cu, cv)),
+    dot(
+        &s.vec(cu, cv),
+        &cross(&grid_vec(su, cu, cv), &grid_vec(sv, cu, cv)),
     )
 }
 
@@ -4700,7 +4683,7 @@ fn area_at(
     cu: Collapse<'_>,
     cv: Collapse<'_>,
 ) -> Interval {
-    let c = rv_cross(grid_vec(su, cu, cv), grid_vec(sv, cu, cv));
+    let c = cross(&grid_vec(su, cu, cv), &grid_vec(sv, cu, cv));
     (c[0].sqr() + c[1].sqr() + c[2].sqr()).sqrt()
 }
 
@@ -4727,15 +4710,15 @@ fn area_cell(
 ) -> (Interval, f64, f64) {
     let h_su = grid_vec(su, u, v);
     let h_sv = grid_vec(sv, u, v);
-    let c = rv_cross(h_su, h_sv);
+    let c = cross(&h_su, &h_sv);
     // ∂_u (S_u×S_v) = S_uu×S_v + S_u×S_uv, and likewise in v.
     let d_u = rv_add(
-        rv_cross(grid_vec(suu, u, v), h_sv),
-        rv_cross(h_su, grid_vec(suv, u, v)),
+        cross(&grid_vec(suu, u, v), &h_sv),
+        cross(&h_su, &grid_vec(suv, u, v)),
     );
     let d_v = rv_add(
-        rv_cross(grid_vec(suv, u, v), h_sv),
-        rv_cross(h_su, grid_vec(svv, u, v)),
+        cross(&grid_vec(suv, u, v), &h_sv),
+        cross(&h_su, &grid_vec(svv, u, v)),
     );
     (
         (c[0].sqr() + c[1].sqr() + c[2].sqr()).sqrt(),
@@ -5014,7 +4997,7 @@ fn chord_polygon_area(
                     area_at(su, sv, Collapse::At(um), Collapse::At(vm)),
                     0.5 * hu * cell_gu + 0.5 * hv * cell_gv,
                 )
-                .clamped_to(lo_or_refuse(cell_g), hi_or_refuse(cell_g));
+                .clamped_to(lo_or_refuse(cell_g), certified_hi(cell_g));
                 col = col + (pt(c1) - pt(c0)) * mean;
             }
             if top < v0 {
@@ -5187,15 +5170,15 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
         None => (refused_vec(), refused_vec(), refused_vec()),
     };
     let p_bound = s_hull[0].mag() + s_hull[1].mag() + s_hull[2].mag();
-    let cross = rv_cross(h_su, h_sv);
-    let sup_f = rv_dot(s_hull, cross).mag();
+    let normal = cross(&h_su, &h_sv);
+    let sup_f = dot(&s_hull, &normal).mag();
     // Whole-box `sup|f|` and `sup g` are the PADS' levers only — the
     // gap, the vertex connectors, the sliver. The area RULE reads its
     // own per-cell hulls ([`area_cell`]): a whole-box hull inside a
     // fixed-resolution midpoint rule is a pad that does not shrink with
     // the cell, which is how an ordinary curved chart came out
     // `DegenerateFace`.
-    let sup_g = (cross[0].sqr() + cross[1].sqr() + cross[2].sqr()).sqrt();
+    let sup_g = (normal[0].sqr() + normal[1].sqr() + normal[2].sqr()).sqrt();
     // The chart's own metric RATE, bounded above over the trim box:
     // the door crosses each cell's chart variation to metres with it
     // rather than taking a caller's length (`TrimChord`'s docs, and
@@ -5277,14 +5260,14 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
             let (hs, hc) = match certified_box(bu, bv) {
                 Some(ov) => (
                     s.vec(ov.0, ov.1),
-                    rv_cross(
-                        grid_vec(su.as_ref(), ov.0, ov.1),
-                        grid_vec(sv.as_ref(), ov.0, ov.1),
+                    cross(
+                        &grid_vec(su.as_ref(), ov.0, ov.1),
+                        &grid_vec(sv.as_ref(), ov.0, ov.1),
                     ),
                 ),
                 None => (refused_vec(), refused_vec()),
             };
-            lune_f += a * rv_dot(hs, hc).mag();
+            lune_f += a * dot(&hs, &hc).mag();
             lune_g += a * (hc[0].sqr() + hc[1].sqr() + hc[2].sqr()).sqrt().mag();
         }
         let winding = polygon_winding(&cells);
