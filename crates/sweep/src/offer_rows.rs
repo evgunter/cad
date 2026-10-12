@@ -342,11 +342,12 @@ fn every_sphere_offer_passes_just_below_it() {
 /// cylinder whose gap is in band, a tangency the witness lane reads and
 /// cannot decide, so the operation refuses on that reading, offering
 /// the move rather than a tolerance, before any later stage meets the
-/// pair unglued.
+/// pair unglued. The gap is the middle of the band the process runs at.
 #[test]
 fn a_brick_grazing_a_tube_in_band_escalates_at_the_glue_door() {
+    let gap = 5.5 * Band::linear(Tol::witness()).unwrap().zero();
     for k in 0..3 {
-        let err = brick_below_a_tube(k, D).expect_err("the graze refuses");
+        let err = brick_below_a_tube(k, gap).expect_err("the graze refuses");
         let topo::BooleanError::Escalated { diag, .. } = &err else {
             panic!("op {k}: escalates: {err:?}");
         };
