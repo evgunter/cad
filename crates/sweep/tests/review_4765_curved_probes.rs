@@ -1,6 +1,11 @@
 //! Review probes for PR 4765: curved operands at a pinch, the partial
 //! revolve's axis vertices, the split's curved graze. Printing probes.
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::print_stdout)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::print_stdout
+)]
 
 use crate::revolve_common::{axis_y, validated};
 use geom_core::{Point2, Point3, Tol, Vec3};
@@ -36,8 +41,17 @@ fn shape(r: &topo::BooleanBody<f64>) -> (usize, usize, usize, bool) {
             d.len() < k.len()
         })
         .count();
-    let vf = r.coincidences.iter().filter(|c| c.site == DecisionSite::VertexFusion).count();
-    (same, r.contacts.rows().len(), vf, topo::validate_pseudomanifold(&r.body, &r.contacts, tol()).is_ok())
+    let vf = r
+        .coincidences
+        .iter()
+        .filter(|c| c.site == DecisionSite::VertexFusion)
+        .count();
+    (
+        same,
+        r.contacts.rows().len(),
+        vf,
+        topo::validate_pseudomanifold(&r.body, &r.contacts, tol()).is_ok(),
+    )
 }
 
 /// A radius-`rad` cylinder of length 8 whose side passes through `v`
@@ -45,7 +59,11 @@ fn shape(r: &topo::BooleanBody<f64>) -> (usize, usize, usize, bool) {
 fn cylinder_beyond(v: [f64; 3], m: [f64; 3], rad: f64) -> AtRestBody<f64> {
     let m = unit(m);
     let u = unit([m[1], -m[0], 0.0]);
-    let w = [m[1] * u[2] - m[2] * u[1], m[2] * u[0] - m[0] * u[2], m[0] * u[1] - m[1] * u[0]];
+    let w = [
+        m[1] * u[2] - m[2] * u[1],
+        m[2] * u[0] - m[0] * u[2],
+        m[0] * u[1] - m[1] * u[0],
+    ];
     let c = [0, 1, 2].map(|i| v[i] + rad * m[i] - 4.0 * u[i]);
     let plane = sketch_from_axes(
         Point3::new(c[0], c[1], c[2]),
@@ -60,7 +78,14 @@ fn cylinder_beyond(v: [f64; 3], m: [f64; 3], rad: f64) -> AtRestBody<f64> {
 #[test]
 fn probe_curved_pinch() {
     let ell = topo::test_support::prism::<f64>(
-        &[(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0), (1.0, 2.0), (0.0, 2.0)],
+        &[
+            (0.0, 0.0),
+            (2.0, 0.0),
+            (2.0, 1.0),
+            (1.0, 1.0),
+            (1.0, 2.0),
+            (0.0, 2.0),
+        ],
         1.0,
         tol(),
     );
@@ -77,10 +102,24 @@ fn probe_curved_pinch() {
                     match run(p, q, tol()) {
                         Ok(BooleanResult::Body(r)) => {
                             let s = shape(&r);
-                            println!("CURVED {m:?} r{rad} {order} {op}: same-key {} contacts {} vf {} t3 {}", s.0, s.1, s.2, s.3);
+                            println!(
+                                "CURVED {m:?} r{rad} {order} {op}: same-key {} contacts {} vf {} t3 {}",
+                                s.0, s.1, s.2, s.3
+                            );
                             if !s.3 {
-                                println!("    t3 err {:?}", topo::validate_pseudomanifold(&r.body, &r.contacts, tol()).err().map(|e| e.into_iter().take(2).collect::<Vec<_>>()));
-                                println!("    rows {:?}", r.coincidences.iter().map(|c| (c.site, c.cells)).collect::<Vec<_>>());
+                                println!(
+                                    "    t3 err {:?}",
+                                    topo::validate_pseudomanifold(&r.body, &r.contacts, tol())
+                                        .err()
+                                        .map(|e| e.into_iter().take(2).collect::<Vec<_>>())
+                                );
+                                println!(
+                                    "    rows {:?}",
+                                    r.coincidences
+                                        .iter()
+                                        .map(|c| (c.site, c.cells))
+                                        .collect::<Vec<_>>()
+                                );
                             }
                         }
                         other => println!("CURVED {m:?} r{rad} {order} {op}: {other:?}"),
@@ -106,7 +145,10 @@ fn probe_partial_revolve_axis() {
         Point2::new(0.5, 0.5),
     ]);
     let vp = validated(vec![lp]);
-    println!("REVOLVE full: {:?}", revolve(&vp, axis_y(), Revolution::Full, tol()).err());
+    println!(
+        "REVOLVE full: {:?}",
+        revolve(&vp, axis_y(), Revolution::Full, tol()).err()
+    );
     for a in [1.0, 3.0, 6.0] {
         match revolve(&vp, axis_y(), Revolution::Partial(a), tol()) {
             Ok(t) => {
@@ -135,10 +177,19 @@ fn probe_partial_revolve_axis() {
 #[test]
 fn probe_split_curved_graze() {
     let rad = 1.0;
-    let plane = sketch_from_axes(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0), tol());
+    let plane = sketch_from_axes(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        tol(),
+    );
     let disc = vec![(Point2::new(rad, 0.0), 1.0), (Point2::new(-rad, 0.0), 1.0)];
     let rod = finished("rod", prism_on(plane, disc.clone(), 2.0, tol()), tol());
-    let block = finished("block", brick((-2.0, 2.0), (-2.0, 2.0), (0.0, 2.0), tol()), tol());
+    let block = finished(
+        "block",
+        brick((-2.0, 2.0), (-2.0, 2.0), (0.0, 2.0), tol()),
+        tol(),
+    );
     let bored = match topo::subtract(&block, &rod, tol()) {
         Ok(BooleanResult::Body(r)) => r.body,
         other => panic!("{other:?}"),
@@ -150,13 +201,20 @@ fn probe_split_curved_graze() {
             let n = unit(n);
             let r = topo::split(
                 body,
-                &topo::test_support::split_plane(Point3::new(1.0, 0.0, 0.0), Vec3::new(n[0], n[1], n[2]), tol()),
+                &topo::test_support::split_plane(
+                    Point3::new(1.0, 0.0, 0.0),
+                    Vec3::new(n[0], n[1], n[2]),
+                    tol(),
+                ),
                 tol(),
             );
             match r {
                 Ok(s) => println!(
                     "SPLIT {name} {n:?}: coincidences {:?}",
-                    s.coincidences.iter().map(|c| (c.site, c.relation)).collect::<Vec<_>>()
+                    s.coincidences
+                        .iter()
+                        .map(|c| (c.site, c.relation))
+                        .collect::<Vec<_>>()
                 ),
                 Err(e) => println!("SPLIT {name} {n:?}: {e:?}"),
             }

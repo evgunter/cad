@@ -227,12 +227,12 @@ mod r1_mate8_probes;
 mod r2_probes;
 #[path = "readback_sense_kind.rs"]
 mod readback_sense_kind;
-#[path = "review_4765_pinch_probes.rs"]
-mod review_4765_pinch_probes;
 #[path = "records_cite_their_decision.rs"]
 mod records_cite_their_decision;
 #[path = "result_gate_sites.rs"]
 mod result_gate_sites;
+#[path = "review_4765_pinch_probes.rs"]
+mod review_4765_pinch_probes;
 #[path = "review_cleave_farplane.rs"]
 mod review_cleave_farplane;
 #[path = "review_cleave_nurbs_lane.rs"]
