@@ -469,3 +469,182 @@ fn the_derived_route_certifies_a_line_and_refuses_a_circle_at_the_hull() {
         "a curved foot path's degree-1 image refuses at the hull: {got:?}"
     );
 }
+
+// ---- R2 review probes (PR 4900), not for merge ----
+
+/// Feet of `carrier` over `[t0, t1]` at 257 stations, each passed
+/// through `foot(p, frac)`, interpolated at degree 5.
+fn r2_image(
+    carrier: &Curve3<f64>,
+    (t0, t1): (f64, f64),
+    foot: impl Fn(Point3<f64>, f64) -> Point2<f64>,
+) -> Arc<NurbsCurve2<f64>> {
+    let n = 256;
+    let fracs: Vec<f64> = (0..=n).map(|i| f64::from(i) / f64::from(n)).collect();
+    let feet: Vec<Point2<f64>> = fracs
+        .iter()
+        .map(|f| foot(carrier.eval(t0 + (t1 - t0) * f), *f))
+        .collect();
+    let fit = NurbsCurve2::<f64>::interpolate_with_params(&feet, 5, &fracs).expect("the fit");
+    Arc::new(fit.on_domain(t0, t1).expect("domain"))
+}
+
+/// A bump that is zero at every certificate sample `i/8`.
+fn r2_bump(frac: f64, amp: f64) -> f64 {
+    let s = (8.0 * core::f64::consts::PI * frac).sin();
+    amp * s * s
+}
+
+fn r2_cyl_foot(bump: f64) -> impl Fn(Point3<f64>, f64) -> Point2<f64> {
+    move |p, f| Point2::new(wall_u(p.y.atan2(p.x)), p.z + r2_bump(f, bump))
+}
+
+#[test]
+fn r2_circle_bowed_between_samples_refuses_f64_and_interval() {
+    use geom_core::{Interval, Real};
+    let span = (0.1, 1.4);
+    let c = circle(0.5);
+    for amp in [0.0, 1e-4, 1e-6] {
+        let image = r2_image(&c, span, r2_cyl_foot(amp));
+        let got = PcurveCache::certify_general(
+            Arc::clone(&image),
+            span.0,
+            span.1,
+            &c,
+            &quarter_cylinder_wall(),
+            band(),
+            Some(FittedLane::certified()),
+        );
+        let lift = Interval::from_f64;
+        let goti = PcurveCache::certify_general(
+            Arc::new(image.map_scalar(lift)),
+            lift(span.0),
+            lift(span.1),
+            &c.map_scalar(lift),
+            &quarter_cylinder_wall().map_scalar(lift),
+            band(),
+            Some(FittedLane::<Interval>::certified()),
+        );
+        eprintln!(
+            "R2 circle amp={amp:e}: f64 {:?} | interval {:?}",
+            got.as_ref().map(|g| g.certificate().envelope),
+            goti.as_ref().map(|g| g.certificate().envelope)
+        );
+        if amp == 0.0 {
+            assert!(got.is_ok() && goti.is_ok(), "exact image certifies");
+        } else {
+            assert!(
+                matches!(got, Err(PcurveCertifyError::FittedCertificate { .. })),
+                "bow refuses at hull f64: {got:?}"
+            );
+            assert!(
+                matches!(goti, Err(PcurveCertifyError::FittedCertificate { .. })),
+                "bow refuses at hull interval: {goti:?}"
+            );
+        }
+    }
+}
+
+/// The plane z = d as a bilinear spline wall over x ∈ [-3,3], y ∈ [-1,1].
+fn r2_flat(d: f64) -> NurbsSurface<f64> {
+    let k = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).expect("knots");
+    let control = [(-3.0, -1.0), (-3.0, 1.0), (3.0, -1.0), (3.0, 1.0)]
+        .into_iter()
+        .map(|(x, y)| Point3::new(x, y, d))
+        .collect();
+    NurbsSurface::new(k.clone(), k, control, vec![1.0; 4]).expect("wall")
+}
+
+/// A spiric in the plane z = d: `(f(t), r sin t, d)`.
+fn r2_spiric(d: f64) -> Curve3<f64> {
+    Curve3::Spiric {
+        center: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::new(0.0, 1.0, 0.0),
+        u_ref: Vec3::new(0.0, 0.0, 1.0),
+        major_radius: 2.0,
+        minor_radius: 0.5,
+        offset: d,
+    }
+}
+
+#[test]
+fn r2_spiric_near_cusp_on_a_flat_spline_chart() {
+    let span = (2.5, 3.8);
+    for (d, amp) in [(1.2, 0.0), (1.2, 1e-5), (1.49, 0.0), (1.49, 1e-5), (1.4999, 0.0), (1.5, 0.0)] {
+        let c = r2_spiric(d);
+        let wall = Surface::Nurbs(Arc::new(r2_flat(d)));
+        let p0 = c.eval(span.0);
+        let ok_eval = p0.x.is_finite() && c.eval(core::f64::consts::PI).x.is_finite();
+        let image = r2_image(&c, span, |p, f| {
+            Point2::new((p.x + 3.0) / 6.0, (p.y + 1.0) / 2.0 + r2_bump(f, amp))
+        });
+        let got = std::panic::catch_unwind(|| {
+            PcurveCache::certify_general(
+                Arc::clone(&image),
+                span.0,
+                span.1,
+                &c,
+                &wall,
+                band(),
+                Some(FittedLane::certified()),
+            )
+        });
+        eprintln!(
+            "R2 spiric d={d} amp={amp:e} eval_ok={ok_eval}: {:?}",
+            got.as_ref()
+                .map(|g| g.as_ref().map(|c| c.certificate().envelope))
+        );
+        let got = got.expect("no panic");
+        if amp > 0.0 {
+            assert!(
+                matches!(got, Err(PcurveCertifyError::FittedCertificate { .. })),
+                "bow refuses: {got:?}"
+            );
+        }
+    }
+}
+
+/// A wall with its u = 0 edge collapsed to a point: (u, v) ↦ (u, u·v, 0).
+#[test]
+fn r2_line_on_a_degenerate_patch() {
+    let k = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).expect("knots");
+    let control = vec![
+        Point3::new(0.0, 0.0, 0.0),
+        Point3::new(0.0, 0.0, 0.0),
+        Point3::new(1.0, 0.0, 0.0),
+        Point3::new(1.0, 1.0, 0.0),
+    ];
+    let wall = Surface::Nurbs(Arc::new(
+        NurbsSurface::new(k.clone(), k, control, vec![1.0; 4]).expect("wall"),
+    ));
+    for (x0, amp) in [(0.2, 0.0), (0.2, 1e-4), (1e-7, 0.0), (1e-7, 1e-3)] {
+        let line = Curve3::Line {
+            origin: Point3::new(x0, 0.5 * x0, 0.0),
+            dir: Vec3::new(0.6, 0.3, 0.0),
+        };
+        let span = (0.0, 1.0);
+        let image = r2_image(&line, span, |p, f| {
+            Point2::new(p.x, 0.5 + r2_bump(f, amp))
+        });
+        let got = PcurveCache::certify_general(
+            image,
+            span.0,
+            span.1,
+            &line,
+            &wall,
+            band(),
+            Some(FittedLane::certified()),
+        );
+        eprintln!(
+            "R2 degenerate x0={x0:e} amp={amp:e}: {:?}",
+            got.as_ref().map(|c| c.certificate().envelope)
+        );
+        if amp > 0.0 {
+            // The bow's 3-D displacement is x·amp; at x0=1e-7 it is
+            // still ≥ 0.6·amp·(something) away from the collapsed corner.
+            assert!(got.is_err(), "bow refuses: {got:?}");
+        } else {
+            assert!(got.is_ok(), "exact certifies: {got:?}");
+        }
+    }
+}

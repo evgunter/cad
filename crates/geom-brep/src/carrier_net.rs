@@ -227,7 +227,7 @@ fn span_bernstein(h: &Harmonic, a: f64, b: f64) -> [Vec<Interval>; 3] {
     // `(t − m)^{n+1}` over the span.
     let reach = am
         .enclosure_hull(bm)
-        .powi(i32::try_from(n + 1).unwrap_or(i32::MAX));
+        .powi(i32::try_from(if std::env::var("R2_MUT").as_deref() == Ok("low_pow") { n } else { n + 1 }).unwrap_or(i32::MAX));
     // `t − m = (a − m) + (b − a)·s`, so `(t − m)^j`'s coefficients in
     // `s` are the binomial expansion.
     let w = ib - ia;
@@ -237,7 +237,8 @@ fn span_bernstein(h: &Harmonic, a: f64, b: f64) -> [Vec<Interval>; 3] {
     let coords = |p0: Interval, u: Interval, v: Interval| -> Vec<Interval> {
         let node = channel(p0, u, v, &at_node.0, &at_node.1);
         let span = channel(p0, u, v, &over_span.0, &over_span.1);
-        let rest = span[n + 1] * reach;
+        let mm = std::env::var("R2_MUT").unwrap_or_default();
+        let rest = if mm == "node_rem" { node[n + 1] * reach } else if mm == "no_rem" { Interval::zero() } else { span[n + 1] * reach };
         // The polynomial's coefficients in `s`.
         let mut mono = vec![Interval::zero(); n + 1];
         for (j, cj) in node.iter().take(n + 1).enumerate() {
@@ -276,7 +277,25 @@ pub(crate) fn enclosing_net<T: CertifiedBounds>(
     if breaks.len() < 2 {
         return None;
     }
-    let net = if let Curve3::Line { origin, dir } = carrier {
+    let chord = std::env::var("R2_MUT").as_deref() == Ok("chord") && !matches!(carrier, Curve3::Line { .. } | Curve3::Nurbs(_));
+    let net = if chord {
+        let h = harmonic(carrier)?;
+        let mut knots = vec![first];
+        knots.extend_from_slice(breaks);
+        knots.push(last);
+        let at = |t: f64| {
+            let (a, b) = alpha_beta(&h.alpha, Interval::from_f64(t));
+            h.p0 + h.u * a[0] + h.v * b[0]
+        };
+        EnclosingNet {
+            knots: KnotVector::clamped(knots, 1).ok()?,
+            coords: vec![
+                breaks.iter().map(|&t| at(t).x).collect(),
+                breaks.iter().map(|&t| at(t).y).collect(),
+                breaks.iter().map(|&t| at(t).z).collect(),
+            ],
+        }
+    } else if let Curve3::Line { origin, dir } = carrier {
         let (o, d) = (lift_p(*origin), lift_v(*dir));
         let mut knots = vec![first];
         knots.extend_from_slice(breaks);
@@ -302,7 +321,9 @@ pub(crate) fn enclosing_net<T: CertifiedBounds>(
             let span = span_bernstein(&h, pair[0], pair[1]);
             for (channel, mut row) in coords.iter_mut().zip(span) {
                 if let Some(joint) = channel.pop() {
-                    row[0] = joint.enclosure_hull(row[0]);
+                    if std::env::var("R2_MUT").as_deref() != Ok("no_joint") {
+                        row[0] = joint.enclosure_hull(row[0]);
+                    }
                 }
                 channel.extend(row);
             }
@@ -459,6 +480,19 @@ mod tests {
             enclosing_net(&carrier, &grid(3.0, 3.3, 2)).is_none(),
             "a span holding t = π has (R − r)² − d² = 0 under its root"
         );
+    }
+
+    #[test]
+    fn r2_uneven_spans_need_the_joint_hull() {
+        let carrier = Curve3::Circle {
+            center: Point3::new(0.3, -0.2, 0.5),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 0.8,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        for breaks in [vec![-0.4, 1.6, 1.601], vec![-0.4, 0.0, 2.0, 2.0001, 4.0]] {
+            assert_eq!(encloses(&carrier, &breaks, None), Ok(()), "{breaks:?}");
+        }
     }
 
     #[test]

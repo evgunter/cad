@@ -2656,7 +2656,10 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
             unreachable!("fitted_lane: `run_fitted_checks` admits only a spline chart at check 1")
         }
     };
-    if !matches!(carrier, Curve3::Nurbs(_)) {
+    if !matches!(carrier, Curve3::Nurbs(_)) && std::env::var("R2_MUT").as_deref() == Ok("hull_zero") {
+        return Ok(T::zero());
+    }
+    if !matches!(carrier, Curve3::Nurbs(_)) && std::env::var("R2_MUT").as_deref() != Ok("no_cover") {
         let (d0, d1) = image.knots().domain();
         if !(d0 <= t0.lo().min(t1.lo()) && t0.hi().max(t1.hi()) <= d1) {
             return Err(PcurveCertifyError::FittedCertificate {
