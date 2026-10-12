@@ -133,3 +133,27 @@ pub(crate) fn islands(f: Frame) -> Vec<(&'static str, Island)> {
         ("wide, inside", rectangle(f, (-1.6, 1.7), (2.3, 2.9))),
     ]
 }
+
+/// The islands bounded by the tube's top or bottom circle (the parallels
+/// `v = ±π/2`, of radius `R`, whose planes touch the torus along them),
+/// each named: up to the top from the outer side, down to the bottom,
+/// from the top over to the inner side, and the whole outer side between
+/// the two, as a donut's outer face is.
+pub(crate) fn crest_islands(f: Frame) -> Vec<(&'static str, Island)> {
+    use core::f64::consts::FRAC_PI_2;
+    vec![
+        ("up to the top", rectangle(f, (-0.5, 0.6), (0.2, FRAC_PI_2))),
+        (
+            "down to the bottom",
+            rectangle(f, (-0.5, 0.6), (-FRAC_PI_2, -0.2)),
+        ),
+        (
+            "from the top inward",
+            rectangle(f, (-0.3, 0.8), (FRAC_PI_2, 2.5)),
+        ),
+        (
+            "the outer side",
+            rectangle(f, (-1.0, 0.7), (-FRAC_PI_2, FRAC_PI_2)),
+        ),
+    ]
+}

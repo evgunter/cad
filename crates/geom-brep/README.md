@@ -28,7 +28,7 @@ escalated typed refusal, never a raw comparison.
 | C4 pcurves | `crates/geom-brep/src/pcurve_cache.rs` (value, certificate), `pcurve.rs` (conic constructors), `crates/topo/src/pcurves.rs` (storage, minting, branch walk); description form in `description.rs` |
 | C5 dispatch table | `crates/geom-brep/src/intersect.rs` (`route`, the section functions) |
 | C6 f64 structure, values in the scalar, generic certification | `crates/geom-core/src/spline/`, `crates/geom/src/curves/fit.rs` |
-| C7 tangency | `crates/geom-brep/src/tangent.rs`, `enters.rs`, `locus.rs` (the closed-form tangent locus, the `Tangent` witness lane); marks in `crates/topo/src/validate.rs` (`ContactMark`) |
+| C7 tangency | `crates/geom-brep/src/tangent.rs`, `enters.rs`, `conic_bend.rs` (a conic edge's side of a plane one order down), `locus.rs` (the closed-form tangent locus, the `Tangent` witness lane); marks in `crates/topo/src/validate.rs` (`ContactMark`) |
 | C8 fillets | `crates/sweep/src/blend/` (see `crates/sweep/README.md`) |
 | C9 certification arithmetic | `crates/geom-core/src/interval/certification.rs` (the certification doors), `interval.rs`, `spline/hull.rs`, `spline/compose/{tensor,patch}.rs`; the importers in `scripts/gates/certification-doors.sh` |
 | C10 BVH | `crates/bvh` |
@@ -114,7 +114,10 @@ and the tube over the same interval, or over the whole carrier where
 the carrier is rational with unequal weights (no piece of it has `f64`
 weights at an enclosure scalar). A door that holds no lane certifies
 no such edge: it refuses `CertifyError::NurbsLaneNotSupplied`, as it
-refuses a plane × NURBS one. Each box, cut to the wall's knot rectangle (and to the
+refuses a plane × NURBS one. An edge with an operand outside the
+tube's enclosure roster (`ssi::enclose::has_implicit_enclosure`) refuses
+the tube by naming that operand (`AnalyticRung3Refusal::NoTubeEnclosure`)
+once limb 2 holds. Each box, cut to the wall's knot rectangle (and to the
 ℝ³ slab where a search clips to one), holds exactly one piece: two
 simple solutions on its boundary, or a stretch of its boundary on a
 side of the wall's domain that the boundary pass reads within ε of the
@@ -640,9 +643,12 @@ transverse normal curvature
 `κ_rel = κ₁ − κ₂` bounded away from zero (the IFT denominator of the jet
 system), with C2's hull bounds and tube between samples. Where
 first-order sector ranking ties exactly, classification descends one
-order (`enters_material_order2`, consumed by
-`topo::splitting::neighborhood` and `topo::boolean::sectors`); an in-band
-second-order tie escalates. Readings of different equations are never
+order: a surface pair through `enters_material_order2` (consumed by
+`topo::boolean::sectors`), a conic edge against a plane through
+`conic_bend_side`, its lift certified from the carrier's curvature
+bounds less the first-order residue (consumed by
+`topo::splitting::neighborhood` and `topo::boolean::sectors` alike); an
+in-band second-order tie escalates. Readings of different equations are never
 summed: the witness's offset along the shared normal and across the
 locus are perpendicular, and a residual is a defect of its equation, not
 a distance to the locus (as for `Intersection`). Two terms are summed

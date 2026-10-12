@@ -245,6 +245,7 @@ impl<T: Real> SplitResult<T> {
         let fragments: Vec<(FaceKey, FaceKey)> = self
             .naming
             .face_fragments
+            .rows()
             .iter()
             .copied()
             .filter(|&(new, from)| !section(new) && !section(from))
@@ -298,7 +299,7 @@ pub struct SplitNaming {
     /// mint order, call-time keys ([`crate::chord_join`]'s `ChordJoiner`
     /// log). Section faces appear here too (they are minted by the
     /// same mefs); consumers exclude the keys listed in `sections`.
-    pub face_fragments: Vec<(FaceKey, FaceKey)>,
+    pub face_fragments: crate::lineage::FaceDivisions,
     /// Crossing-split piece rows: `(new edge, divided-from edge)` in
     /// mint order, call-time keys ([`crate::Body::split_edge`] keeps the
     /// divided edge's key on the piece from its start).
@@ -621,7 +622,7 @@ impl std::error::Error for SplitFinishError {}
 pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
     red: SplitReduction<T>,
     completed: &[CompletedSection],
-    face_fragments: Vec<(FaceKey, FaceKey)>,
+    face_fragments: crate::lineage::FaceDivisions,
     tol: Tol,
 ) -> Result<SplitResult<T>, SplitFinishError> {
     // **The phase boundary, asserted.** The reduce and join phases
