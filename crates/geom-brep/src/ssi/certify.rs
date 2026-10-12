@@ -843,12 +843,18 @@ impl Halved {
 /// on the first hull, 15 refused on a break's value there): every call
 /// that decided by subdividing spent at most 826 spans. The adversarial
 /// wall of `m` C0 spans under each composite span (`ssi_limb3_one_arc`)
-/// clears at 826 (1964 at its steepest P/N) for m = 64, 3511 (8058) for
-/// m = 256 and 14 188 (32 684) for m = 1024. This budget is twice the
-/// m = 64 rows' and five times the corpus's. A carrier whose first
-/// composite has more spans than this is read on that hull alone; the
-/// one such carrier measured, a dome arc at ε 1e-14 over 4242 to 14 814
-/// spans, reads its lowest bound there.
+/// clears at 268 (414 at its steepest P/N) for m = 64, 1273 (2018) for
+/// m = 256 and 5908 (11 374) for m = 1024 at the default ε, where the
+/// pcurve's values at the breaks fall on the wall's knots but for a few,
+/// and at 628 (1314), 2740 (5538) and 11 188 (22 434) at ε 1e-6, where
+/// the foot points' offset carries every one of them off its knot. These
+/// figures were measured on 2026-10-12 with an uncommitted probe under an
+/// unbounded budget; from outside, only that file's m = 64, m = 1024 and
+/// m = 2048 rows guard them. This budget is three times the m = 64 rows'
+/// steepest figure (1314) and five times the corpus's (826). A carrier
+/// whose first composite has more spans than this is read on that hull
+/// alone; the one such carrier measured, a dome arc at ε 1e-14 over
+/// 4242 to 14 814 spans, reads its lowest bound there.
 ///
 /// The analytic rung-3 limb counts every part of its lane's composite,
 /// which covers the carrier's whole net whatever the edge's interval
@@ -857,17 +863,18 @@ impl Halved {
 /// on 2026-10-11, with a temporary probe in `net_offset_sup` over the
 /// same four ci profiles: 94 calls, all deciding on their first hull (89
 /// cleared, 5 on a break's value), the largest costing 4080 parts.
-pub(crate) const SSI_HULL_WORK: usize = 4096;
+pub const SSI_HULL_WORK: usize = 4096;
 
 /// The most breaks limb 2's rounds add to its composite in all. A
 /// round that would pass it halves its worst spans up to it. Under the
 /// unbounded budget of [`SSI_HULL_WORK`]'s measurement the corpus's
 /// calls that decided by subdividing took at most 348 cuts, and the
-/// adversarial wall clears at 348 (600) cuts for m = 64, 1498 (2520)
-/// for m = 256 and 6056 (10 200) for m = 1024: this cap clears every
-/// m = 64 row and spends itself on m ≥ 256, where the work budget alone
-/// would let a few more rounds run.
-pub(crate) const SSI_HULL_CUTS: usize = 1024;
+/// adversarial wall clears at 38 (42) cuts for m = 64, 254 (324) for
+/// m = 256 and 1432 (2444) for m = 1024 at the default ε, and at 218
+/// (342), 986 (1494) and 4058 (6102) at ε 1e-6 (the same probe as
+/// [`SSI_HULL_WORK`]'s figures): this cap clears every m = 64 row and
+/// spends itself on m = 1024, and on the steepest m = 256 rows at 1e-6.
+pub const SSI_HULL_CUTS: usize = 1024;
 
 /// Where a hull limb's subdivision stopped.
 pub(crate) enum Subdivided<P = ()> {
@@ -3024,5 +3031,67 @@ mod tests {
             refused.error
         );
         assert!(refused.at.is_none(), "limb 3 was located: {:?}", refused.at);
+    }
+
+    /// **Limb 2's bound escalates at `Interval` with its margin as an
+    /// enclosure** (4553's second review, MINOR-B): in band, the
+    /// escalation names the arm's bound predicate and carries the bound
+    /// as an `Interval`, both ends the bound's own bits, and the error
+    /// text renders an enclosure. Red if the margin is flattened to one
+    /// `f64` (`Margin::of(hull.sup)`), which reads and renders as a
+    /// value. Driven at `hull_limb` itself: on the analytic pair the
+    /// SSI door reaches, limb 2 reads under limb 1 under the monotone
+    /// step (`review_ssiflat_r2_probes`' probe 5), so no band there
+    /// lets limb 2 escalate first.
+    #[test]
+    #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+    fn the_hull_bound_escalates_with_an_enclosure_at_interval() {
+        use super::{ANALYTIC_HULL, CHART_HULL, Hull, SsiError, Subdivided, hull_limb};
+        use geom_core::{Band, ErrorTextReading, Interval, MarginDiag};
+        let band = Band::new(4.0e-15, 6.0e-15).unwrap();
+        let sup = 5.0e-15;
+        for arm in [&ANALYTIC_HULL, &CHART_HULL] {
+            let hull = Hull {
+                sup,
+                breaks: vec![0.0, 1.0],
+                spans: vec![sup],
+                floors: vec![0.0; 2],
+                work: 1,
+                data: (),
+            };
+            let mut at = super::Refused::default();
+            let err = hull_limb::<Interval>(arm, Subdivided::Bound(hull), band, &mut at)
+                .expect_err("a bound in the band escalates");
+            let SsiError::CertificateEscalated { ref cause, .. } = err else {
+                panic!("{}: not the escalation: {err:?}", arm.sup);
+            };
+            assert_eq!(cause.predicate, Some(arm.sup));
+            let ErrorTextReading::Enclosure { lo, hi } =
+                MarginDiag::diagnostic_f64_for_error_text(cause.margin)
+            else {
+                panic!(
+                    "{}: limb 2's margin at Interval must read as an enclosure: {:?}",
+                    arm.sup, cause.margin
+                );
+            };
+            assert_eq!(
+                (lo.to_bits(), hi.to_bits()),
+                (sup.to_bits(), sup.to_bits()),
+                "{}: the escalation must carry the bound's own ends",
+                arm.sup
+            );
+            let shown = err.to_string();
+            assert!(
+                shown.contains("enclosure [") && !shown.contains("NaN"),
+                "{}: the text must render the enclosure: {shown}",
+                arm.sup
+            );
+            assert_eq!(
+                at.spans.len(),
+                1,
+                "{}: the uncleared span is located",
+                arm.sup
+            );
+        }
     }
 }

@@ -781,9 +781,39 @@ Claim 1 (a bore wholly inside the sliver dying with it) is NOT built. The
 unit row stays open, re-titled to that question: may a blend delete an
 authored feature wholly inside the material it removes? It goes to Ev
 after the designer protocol (both designers recommend building it).
+
+## 2026-10-08 — the rocker's crease carves at the blend radius (PR #4287)
+
+`demos/tour/src/rocker.rs`: `R_CREASE` rises from `R_EYE` (1/4) to
+`R_BLEND` (1/2), as sided headroom (PR 4092) allows. Tier 3 holds, ΔV matches
+`−2·crease_cut(r)·depth` to 1e-12, and the census stays 38/57/21 at genus 2.
+The sweep still asserts the old radius at its closed form. The kernel and
+FreeCAD frames are re-rendered: only the keyhole's two creases are rounder.
+`TestRocker`'s mirror and the README row follow. Filed on CIW (P1):
+`ciw/render-gui-sorts-ordinal-digest-node-ids-as-ints`; the GUI render
+lane crashes on PR 4244's `ordinal:digest` ids, so the viewer cells are
+unrendered until it lands.
+## 2026-10-07 — the bore-in-the-sliver question to Ev
+
+PR 4271 left the unit's claim 1 open as a design fork: may a blend delete an
+authored feature wholly inside the material it removes? Two designers (A/B,
+fork-log row 86) both recommend building it, silently, as a Boolean does.
+They split on whether the blend's naming records the consumed faces, and
+on one C8 sentence. The implementing lane had recommended keeping the
+refusal; that is the stated alternative. The `[ev]` PR carries the question.
 - 2026-10-09 — Seam note from ENCL (PR 4411, merged): `geom_brep::must_carry_over_edge` now reads the second-order sagitta on every pair (tier 3's walk), so an in-band sagitta escalates `InBand(SecondOrder)` out of lane too; `UnderDetermined` out of lane means every station read Positive (or a station read Zero/Negative). An out-of-lane all-Positive pair now costs `CERT_SAMPLES−2` `tangent_second_order` samples. (ENCL orchestrator)
 - 2026-10-09 — Seam note from ENCL (PR 4416, merged): `geom_core::lever_recourse(lever, note)` is the one spelling of a lever-alone ending, and `Indeterminate::undecided(subject, ending)` the one "{subject} is undecided: {payload}. {ending}"; compose them, do not re-spell. In `topo::boolean::refusal_routes`, `Ending::Lever` is now `Lever(&str)` (`LeverPass` is gone). Rendered texts are unchanged. (ENCL orchestrator)
 - 2026-10-09 — Seam note from ENCL (PR 4422, merged): `geom_brep::recourse::RefusedArm::SignCertain` now takes `Option<MarginDiag>`; construct with `SignCertain(None)` unless the decision is a residual miss, and match with `SignCertain(_)`. `certify::definite_miss_in_file` / `Unsized::definite_residual_in_file` are gone; `Unsized::residual_in_file` is the one door. (ENCL orchestrator)
 - 2026-10-09 — Seam note from ENCL: dispatching `encl/sweep-must-carry-escalation`. `sweep::blend::surgery`'s contact-edge, `sweep::extrude` (strut, cap rim) and `sweep::revolve::upgrade` will map `MustCarryEscalation` exhaustively instead of `.diag()`. The blend's second-order reading gets its `AnySign` tolerance ending back, and a first-order station stops reading as `ContactSecondOrder`. Texts may move on in-band must-carry refusals. (ENCL orchestrator)
 - 2026-10-09 — Seam note from ENCL (PR 4450, merged at `59cdb05871`). `topo::DihedralReading::of_lever` / `of_must_carry` are the one map from a dihedral escalation to a reading; use them, not `(Lever(e.rung()), e.diag())` by hand. `sweep::blend` has two new closed decisions, `ContactArm` and `ContactWedge`, and `ContactSecondOrder` now offers the tolerance (`AnySign`). `ExtrudeError`/`RevolveError` `SliverJoin`/`SliverRim` now carry `reading: DihedralReading`, and their second-order text reads through `Indeterminate::undecided`. The editor-core fault line for `Escalated(contact)` is exactly at the 75-word budget. (ENCL orchestrator)
 - 2026-10-10 — Seam note from ENCL (PR 4474, merged): the material pairing is a decision. `geom_brep::MATERIAL_PAIRING` and `MATERIAL_PAIRING_CLAUSE` end it at tier 3 (`WedgeCheck::MaterialPairing`) and split finish (`SplitFinishError::DescribeSideEscalated`), with a true tolerance offer. Where the wedge would re-decide below m/K, `pairing_at_wedge` quotes the wedge and offers w/K, as `at_wedge` does. `MaterialStations`' `Break` is `MaterialStop { check, cause }`. The cusp-side Zero reads via `decide_nonzero`. New k_stats predicates appear on the refusal path only: "material_pairing_offer_wedge" and "material_pairing_wedge". (ENCL orchestrator)
+
+## 2026-10-12 — Ev ruled on the bore in the sliver (PR 4285)
+
+Build it: a feature wholly inside the material a band removes or fills goes
+with it, as under a Boolean; a crossing feature still refuses. No `Consumed`
+record until something needs one. C8 now says face clearance reads three
+ways. A consumption lint over the blend and the Boolean as one rule, which
+needs lints to store their own resolution first, is filed on INTENT
+(`a-feature-an-operation-consumes-has-a-lint`). Fork-log row 119 (renumbered
+from 86 at merge). The build goes in the ruling's four steps.

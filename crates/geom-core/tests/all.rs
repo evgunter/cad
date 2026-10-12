@@ -51,6 +51,7 @@
 //
 // There is no `#![allow(clippy::duplicate_mod)]` here because no file is
 // loaded twice any more; if one ever is, the lint is meant to fire.
+mod exact_q;
 mod refusal;
 mod span_fixtures;
 
@@ -58,6 +59,8 @@ mod span_fixtures;
 mod ambiguity_k_env;
 #[path = "band_tolerance.rs"]
 mod band_tolerance;
+#[path = "between_exact_fuzz.rs"]
+mod between_exact_fuzz;
 #[path = "bounds_census.rs"]
 mod bounds_census;
 #[path = "cert3r1_poison_detail.rs"]

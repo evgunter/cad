@@ -347,6 +347,44 @@ pub enum SplitJoinError {
         /// Its surface kind.
         kind: geom::SurfaceKind,
     },
+    /// Whether a split plane is tangent to a curved face along the
+    /// ruling it cuts the face on is in band, at a station of the
+    /// must-carry rule over the ruling
+    /// ([`geom_brep::MustCarryEscalation::FirstOrder`]).
+    ///
+    /// No shipped pose reaches it: a cut turned off tangent by an
+    /// angle the rule's first order would leave in band refuses at the
+    /// reduction first (`wedge_end_doors.rs`,
+    /// `a_cut_turned_about_the_ruling_refuses_before_the_chord`).
+    TangentChordEscalated {
+        /// The curved face the ruling divides.
+        face: FaceKey,
+        /// The deciding station's diagnostic.
+        diag: Indeterminate,
+    },
+    /// Whether a curved face curves away from a split plane tangent to
+    /// it along a ruling, or shares its curvature there, is in band
+    /// (`"tangent_second_order"`,
+    /// [`geom_brep::MustCarryEscalation::SecondOrder`]): the ruling is
+    /// certifiable as neither the intrinsic tangency nor a conventional
+    /// image (D4 ¶3).
+    TangentChordBendEscalated {
+        /// The curved face the ruling divides.
+        face: FaceKey,
+        /// The sagitta's diagnostic.
+        diag: Indeterminate,
+    },
+    /// A station of the must-carry rule read the tangent ruling a
+    /// corner ([`geom_brep::MustCarryRefusal::Refuted`]), against the
+    /// section table's tangent verdict: the two readings disagree, so
+    /// the split refuses rather than choose a description.
+    ///
+    /// Unreached like [`Self::TangentChordEscalated`], for the same
+    /// reason.
+    TangentChordRefuted {
+        /// The curved face the ruling divides.
+        face: FaceKey,
+    },
     /// A curved face crossed more than twice could not have its
     /// crossings paired along its section conic, or along each ruling
     /// of a two-ruling section, which is the only pairing that keeps
@@ -539,6 +577,29 @@ impl core::fmt::Display for SplitJoinError {
                 "a cut passes through a {kind:?} face without reaching its boundary, leaving \
                  a ring whose island the join does not read there. Recourse: move the cut so \
                  it crosses the face's edge, or divide the face there first"
+            ),
+            Self::TangentChordEscalated { diag, .. } => write!(
+                f,
+                "{}",
+                diag.undecided(
+                    "whether a cut is tangent to a curved face along a ruling",
+                    diag.ending(JOIN_RECOURSE)
+                )
+            ),
+            Self::TangentChordBendEscalated { diag, .. } => write!(
+                f,
+                "{}",
+                diag.undecided(
+                    "whether a curved face the cut touches along a ruling curves away from the \
+                     cut there or shares its curvature",
+                    diag.ending(JOIN_RECOURSE)
+                )
+            ),
+            Self::TangentChordRefuted { .. } => write!(
+                f,
+                "a cut reads tangent to a curved face along a ruling but at a corner \
+                 elsewhere along it, so what that ruling is cannot be said. Recourse: \
+                 {JOIN_RECOURSE}"
             ),
             Self::SectionCrossings { case, band, .. } => write!(
                 f,
@@ -1323,8 +1384,10 @@ fn arc_leaving<T: Decide>(
 ///
 /// 1. Classify (plane × wall surface) through THE table
 ///    ([`section_case`]) — trileans before any rung; a conic proceeds,
-///    a ruling falls back to the straight chord, a tangent ruling is
-///    described as such (C7), escalations pass through whole.
+///    a ruling falls back to the straight chord, a tangent ruling
+///    stores what the must-carry rule over it demands
+///    ([`geom_brep::must_carry_over_edge`]: the intrinsic tangency, or
+///    an image in the section chart), escalations pass through whole.
 /// 2. Orient: of the conic's two arcs from `u1` to `u2`, take the one
 ///    leaving `u1` along `leave`, the section's direction of departure
 ///    there as the lane that paired the chord's ends decided it
@@ -1400,10 +1463,10 @@ fn chord_spec<T: Decide>(
     let conic = match case {
         // A two-ruling section: the straight chord is the honest carrier.
         SectionCase::Straight(_) => return Ok(None),
-        // C7 (M5 PR 9): the tangent ruling is described
-        // `TangentIntersection { wall, aux plane }` and pushed through
-        // the ordinary certification gate by the mef/mekr caller. No
-        // arc-side rule applies: a line has no complementary candidate.
+        // The tangent ruling stores what the must-carry rule over it
+        // demands, and is pushed through the ordinary certification
+        // gate by the mef/mekr caller. No arc-side rule applies: a line
+        // has no complementary candidate.
         SectionCase::Tangent(line) => {
             let (geom::Curve3::Line { origin, dir }, Some(back)) = (line.clone(), line.reversed())
             else {
@@ -1452,11 +1515,37 @@ fn chord_spec<T: Decide>(
                 }
             };
             let witness = carrier.mid_point(s1, s2);
+            // Jet-determinate ⇒ the intrinsic tangency; under-determined
+            // (a sagitta decided Zero over a short ruling, or a carrier
+            // outside the tangent certificate's lane) ⇒ an image in the
+            // section chart, the one `describe_section_boundary` restates
+            // a smooth section-boundary edge into.
+            let plane = body.get_surface(plane_key).unwrap_or_else(|| {
+                unreachable!(
+                    "{plane_key:?} is the section plane this split minted into the body it is \
+                     dividing, and no operator removes a surface a later chord still names"
+                )
+            });
+            let extent = geom_brep::edge_extent(&carrier, s1, s2, p1.distance(p2));
+            let (pair, [sa, sb]) =
+                geom_brep::SurfacePair::sorted(wall_key, &wall, plane_key, plane);
+            let description =
+                match geom_brep::must_carry_over_edge(sa, sb, &carrier, s1, s2, extent, band)
+                    .description(pair, witness)
+                    .map_err(|refusal| {
+                        refusal.route(
+                            |diag| SplitJoinError::TangentChordEscalated { face, diag },
+                            |diag| SplitJoinError::TangentChordBendEscalated { face, diag },
+                            || SplitJoinError::TangentChordRefuted { face },
+                        )
+                    })? {
+                    geom_brep::MustCarryDescription::Intrinsic(description) => description,
+                    geom_brep::MustCarryDescription::Conventional => {
+                        geom_brep::EdgeDescriptionSpec::chart(plane_key)
+                    }
+                };
             return Ok(Some(EdgeCurveSpec {
-                description: geom_brep::EdgeDescriptionSpec::TangentIntersection {
-                    pair: geom_brep::SurfacePair::new(wall_key, plane_key),
-                    witness,
-                },
+                description,
                 carrier,
                 param_start: s1,
                 param_end: s2,
@@ -1807,19 +1896,24 @@ impl<T: Decide> SegmentCurve<T> {
             "a segment curve on a spline carrier (no chord lane mints one)",
         ))?;
         let (t0, t1) = (T::zero() - spec.param_end, T::zero() - spec.param_start);
-        // A surface-pair description names the locus, not its sense; a
-        // scaffold names its start point's trajectory, so it is
-        // re-stated from the other end.
+        // A surface-pair description names the locus, not its sense,
+        // and a chart image the door derives from the carrier follows
+        // the carrier; a scaffold names its start point's trajectory,
+        // so it is re-stated from the other end.
         match &spec.description {
             geom_brep::EdgeDescriptionSpec::Intersection { .. }
-            | geom_brep::EdgeDescriptionSpec::TangentIntersection { .. } => {
-                Ok(Some(EdgeCurveSpec {
-                    description: spec.description.clone(),
-                    carrier,
-                    param_start: t0,
-                    param_end: t1,
-                }))
-            }
+            | geom_brep::EdgeDescriptionSpec::TangentIntersection { .. }
+            | geom_brep::EdgeDescriptionSpec::Chart {
+                image: None,
+                wrap: false,
+                declared: None,
+                ..
+            } => Ok(Some(EdgeCurveSpec {
+                description: spec.description.clone(),
+                carrier,
+                param_start: t0,
+                param_end: t1,
+            })),
             geom_brep::EdgeDescriptionSpec::Scaffold(_) => match carrier {
                 geom::Curve3::Line { .. } => Ok(EdgeCurveSpec::segment_of_line(carrier, t0, t1)),
                 back => EdgeCurveSpec::arc_of_circle(back, t0, t1)
@@ -1828,8 +1922,10 @@ impl<T: Decide> SegmentCurve<T> {
                         "a scaffold segment curve that is neither a line nor a circle",
                     )),
             },
+            // A chord bounds two faces, so it is never a wrap edge (D1).
             geom_brep::EdgeDescriptionSpec::Chart { .. } => Err(invariant(
-                "a segment curve described in a chart (no chord lane describes one so)",
+                "a segment curve stating a chart image, a declaration or a wrap (no chord lane \
+                 states one)",
             )),
         }
     }
@@ -5785,5 +5881,111 @@ mod torn_hop_rows {
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
             |b| spec(b),
         );
+    }
+}
+
+/// A segment curve run back from its other half.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod segment_curve_tests {
+    use super::*;
+    use slotmap::KeyData;
+
+    /// **A tangent chord the must-carry rule describes conventionally
+    /// runs back like an intrinsic one**: its chart image is derived
+    /// from the carrier, so the reversed carrier carries it. A stated
+    /// image and a declaration do not follow it, and a chord is never a
+    /// wrap edge, so each of those refuses.
+    #[test]
+    fn a_derived_chart_chord_runs_back_and_a_stated_image_refuses() {
+        let he = |n: u64| HalfEdgeKey::from(KeyData::from_ffi(n));
+        let face = FaceKey::from(KeyData::from_ffi(3));
+        let surface = SurfaceKey::default();
+        let line = geom::Curve3::Line {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            dir: Vec3::new(0.0, 0.0, 1.0),
+        };
+        let spec = |description| EdgeCurveSpec {
+            description,
+            carrier: line.clone(),
+            param_start: 0.25,
+            param_end: 1.0,
+        };
+        let derived = SegmentCurve::of(
+            (he(1), he(2)),
+            Some(spec(geom_brep::EdgeDescriptionSpec::chart(surface))),
+        );
+        let back = derived
+            .running_from(he(2), face)
+            .expect("a derived chart image runs back")
+            .expect("a curved chord");
+        assert!(
+            matches!(
+                back.description,
+                geom_brep::EdgeDescriptionSpec::Chart {
+                    surface: s,
+                    image: None,
+                    declared: None,
+                    ..
+                } if s == surface
+            ),
+            "the description travels: {:?}",
+            back.description
+        );
+        assert_eq!(
+            (back.param_start, back.param_end),
+            (-1.0, -0.25),
+            "the interval runs back"
+        );
+        assert!(
+            back.carrier.eval(-1.0).distance(line.eval(1.0)) == 0.0,
+            "from the far end"
+        );
+        let stated = SegmentCurve::of(
+            (he(1), he(2)),
+            Some(spec(geom_brep::EdgeDescriptionSpec::chart_image(
+                surface,
+                geom_brep::Pcurve::IsoLine {
+                    p0: geom_core::Point2::new(0.0, 0.0),
+                    pl: geom_core::Vec2::new(0.0, 1.0),
+                },
+            ))),
+        );
+        let declared = SegmentCurve::of(
+            (he(1), he(2)),
+            Some(spec(
+                geom_brep::EdgeDescriptionSpec::chart(surface).declared_by(
+                    geom_brep::MappedCurve {
+                        source: geom_brep::MappedSource::ExtrudedPoint {
+                            point: geom_core::Point2::new(0.0, 0.0),
+                            place: geom_core::Affine3::identity(),
+                            vec: Vec3::new(0.0, 0.0, 1.0),
+                        },
+                        range: geom_brep::SubRange::whole(),
+                    },
+                ),
+            )),
+        );
+        let wrap = SegmentCurve::of(
+            (he(1), he(2)),
+            Some(spec(geom_brep::EdgeDescriptionSpec::wrap(surface))),
+        );
+        for (label, curve) in [
+            ("a stated image", &stated),
+            ("a declaration", &declared),
+            ("a wrap", &wrap),
+        ] {
+            assert!(
+                matches!(
+                    curve.running_from(he(2), face),
+                    Err(SplitJoinError::SectionInvariant { .. })
+                ),
+                "{label} does not run back"
+            );
+            assert!(
+                curve.running_from(he(1), face).is_ok(),
+                "{label} runs forward as computed"
+            );
+        }
     }
 }

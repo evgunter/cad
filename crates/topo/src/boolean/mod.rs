@@ -1730,8 +1730,9 @@ pub struct BooleanReduction<T: Real> {
     pub coincidences: Vec<crate::Coincidence>,
     /// The vertex identities the sweep decided, in decision order: the
     /// rows [`Self::contacts`] cite ([`crate::Backing::Decided`] names
-    /// an index here), emitted into the result's coincidences only
-    /// where a record citing them survives ([`reduce::PendingRow`]).
+    /// an index here), emitted into the result's coincidences where a
+    /// record citing them survives or at a pinch the op made
+    /// ([`reduce::PendingRow`]).
     pub(crate) pending: Vec<reduce::PendingRow>,
     /// Each pair of pierces one ring serves, decided one point
     /// ([`RingTie`]).
@@ -2817,8 +2818,8 @@ pub enum BooleanError {
     /// attachment gate refused its description on a reading no move of
     /// the parts reaches. It ends in the defect ending (a kernel bug,
     /// loudly), or, on a fitted carrier, in the certification's own
-    /// last resort. An exact carrier read in band of one of its faces
-    /// is an [`BooleanError::Escalated`] of
+    /// last resort. A line chord read in band of one of its faces is an
+    /// [`BooleanError::Escalated`] of
     /// [`BooleanDecision::EdgeOnFaces`].
     EdgeUndescribed {
         /// The edge, diagnostic only: the result is never returned.
