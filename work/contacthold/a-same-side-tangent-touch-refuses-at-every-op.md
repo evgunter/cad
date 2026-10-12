@@ -2,7 +2,7 @@
 id: a-same-side-tangent-touch-refuses-at-every-op
 kind: issue
 title: A tangent pair that leaves its shared edge on one side and touches only along it refuses every op: the declared-Tangent short-circuit marks a germ whatever the op
-status: review
+status: closed
 opened: 2026-10-11
 priority: P1
 cost: M
@@ -10,6 +10,7 @@ design: true
 refs: [a-flush-quarter-round-refuses-an-odd-crossing-count-at-its-rim-vertex, two-discs-kissing-externally-refuse-classification-invariant]
 branch: contacthold/same-side-tangent-touch
 pr: 4781
+closed: 2026-10-12
 ---
 
 
