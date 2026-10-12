@@ -2,11 +2,13 @@
 id: a-missed-ray-reads-the-solids-volume-sign-for-its-side
 kind: issue
 title: A containment ray that misses the body takes its side from the solid's volume sign (margin V/A), so a definite thin body refuses as a disjoint operand
-status: dispatched
+status: closed
 opened: 2026-10-11
 priority: P1
 cost: M
 branch: cleave/missed-ray-side
+closed: 2026-10-12
+pr: 4725
 ---
 
 
@@ -126,3 +128,7 @@ Pinned at every ε:
   rows, where it does not build.
 
 The evidence is on RESTFRONT's row, now P1.
+
+## Closed (PR 4725, 2026-10-12)
+
+A missed ray whose volume reading is in band now aims at a point certified inside a planar face and reads the closest crossing. An operand the caller handed in that reads infinity inside refuses `InsideOutOperand`, wherever the reading is made and for every scalar. Three reviews found no wrong side at any ε, and no operation that built on main now refuses except genuinely inside-out operands. The fix also builds strictly more valid operations than main, which itself answered reverted slivers wrongly.
