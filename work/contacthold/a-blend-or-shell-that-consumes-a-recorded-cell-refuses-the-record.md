@@ -8,7 +8,6 @@ priority: P2
 cost: M
 design: true
 refs: [topo-surgery-verbs-drop-a-bodys-contact-records, surgery-carry-keeps-a-divided-cells-record-on-the-piece-that-kept-its-key]
-needs_ev: true
 ---
 
 ## What

@@ -8,7 +8,6 @@ priority: P1
 cost: M
 design: true
 refs: [surgery-carry-keeps-a-divided-cells-record-on-the-piece-that-kept-its-key]
-needs_ev: true
 ---
 
 ## What
