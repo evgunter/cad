@@ -1,0 +1,4 @@
+fork: the-read-at-its-node-relabels-a-cancellation-above-it (decide)
+dispatched: 2026-10-12
+byte: 237
+mapping: A=fable B=opus
