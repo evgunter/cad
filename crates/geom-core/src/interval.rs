@@ -316,6 +316,22 @@ pub fn norm_sq(v: &[Interval; 3]) -> Interval {
     v[0].powi(2) + v[1].powi(2) + v[2].powi(2)
 }
 
+/// Interval dot product of two triples, fixed ascending order (D9).
+#[must_use]
+pub fn dot(a: &[Interval; 3], b: &[Interval; 3]) -> Interval {
+    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+}
+
+/// Interval cross product of two triples, fixed component order (D9).
+#[must_use]
+pub fn cross(a: &[Interval; 3], b: &[Interval; 3]) -> [Interval; 3] {
+    [
+        a[1] * b[2] - a[2] * b[1],
+        a[2] * b[0] - a[0] * b[2],
+        a[0] * b[1] - a[1] * b[0],
+    ]
+}
+
 /// A certified upper bound on `‖v‖` for a componentwise enclosure: the
 /// upper end of [`norm_sq`]'s root, which is
 /// [`Certification::sqrt`](certification::Certification::sqrt)'s
@@ -336,11 +352,7 @@ pub fn norm_sq(v: &[Interval; 3]) -> Interval {
 pub fn norm_sup(v: &[Interval; 3]) -> f64 {
     // The backend's root, which is `Certification::sqrt`'s: naming the door
     // here would list this file as an importer, and it holds `Real`.
-    let root = Interval(norm_sq(v).0.sqrt());
-    if !root.is_certified() {
-        return f64::NAN;
-    }
-    root.0.hi()
+    certified_hi(Interval(norm_sq(v).0.sqrt()))
 }
 
 /// `num / den` rounded DOWN — a lower bound on the real quotient,
@@ -372,6 +384,14 @@ pub fn max_bound(a: f64, b: f64) -> f64 {
 #[must_use]
 pub fn min_bound(a: f64, b: f64) -> f64 {
     -max_bound(-a, -b)
+}
+
+/// The upper end of an enclosure, `NaN` when it is refused: an upper
+/// bound on the value, or no bound at all. Asked by name because a
+/// refused enclosure carries ordinary endpoints.
+#[must_use]
+pub fn certified_hi(x: Interval) -> f64 {
+    if x.is_certified() { x.hi() } else { f64::NAN }
 }
 
 /// `num / den` rounded UP — an upper bound on the real quotient, which
@@ -850,6 +870,10 @@ impl crate::spline::SpanLocate for Interval {
     fn point_value(self) -> Option<f64> {
         let (lo, hi) = (Bounds::lo(self), Bounds::hi(self));
         (lo == hi && !lo.is_nan()).then_some(lo)
+    }
+
+    fn split_projective<A: crate::spline::ProjectiveSplit<Self>>(arm: A) -> A::Out {
+        arm.enclosure()
     }
 }
 

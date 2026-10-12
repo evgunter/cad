@@ -545,3 +545,34 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - Re-ruled: option 1, the unconditional meet, unless its suite-level cost (m5 fast set, `props::quad` rows) exceeds 1b's by more than about 10%.
     - If it does, 1b stays, with the trade stated at the claim site and a P3 revisit row.
   - Either way, a static thin-ratio row guards the meet. (NURBS orchestrator)
+- **2026-10-11 20:15Z.** Resumed after a ~9.5 h usage pause; check-in 50 fired at 10:40Z and was delivered at 20:09Z.
+  - **On main meanwhile:**
+    - ENCL (`e91669029a`) re-scoped the arc-loft import row: volumes agree within faces−1 ulps.
+    - INTENT u4 and the skin computed in `T` moved the serial golden again, with notes left on our P0 row.
+    - CLEAVE PR 4707 fixed the support-plates red. The NURBS-filed GERM duplicate is closed against it.
+  - **PR 4684 now conflicts in all four files it touches.** Build B is told to reconcile:
+    - keep the stronger import assertions;
+    - re-cut the digest only if it is still red on main, listing every cause.
+  - **PR 4551.** Build A's cost run kept option 1 within the 10% bar. It is implementing the unconditional meet, with a pinned thin-ratio guard row: 16.7% narrower at Λ two ulps wide. (NURBS orchestrator)
+- 2026-10-11 20:55Z — **Check-in 51.** Items 3 and 4 had already landed in PR 4742. INTENT landed a NURBS row on main, `the-arc-loft-thread-count-digest-is-red-on-main` (P1):
+  - besides the `arc_loft_1e9eps` line, the two `sym_*` digest rows lost about 20 symbolic zeros (likely mover: INTENT's PR 4703);
+  - the same rows read differently on main at 9baeb0056e and on PR 4732's CI at 090278cdb (sz 28/24 against 40/36), so the Sym split may be nondeterministic.
+
+  Build B (PR 4684) is told to root-cause both before any re-cut, to report before pushing, and to close INTENT's row with every cause listed. PR 4551 (build A) is still running mutation rows for option 1; it has not pushed. — (NURBS orchestrator)
+- 2026-10-11 22:50Z — **PR 4684 merges (e7bc2b7286). Orchestrator's read.**
+  - It re-cuts the thread-count digest, which was red on main. Each cause is bisected and logged at `expected()`:
+    - 4553 moved the volume, area and pads; the new enclosures nest inside the old;
+    - 4708 moved the Sym split;
+    - `8054ec236f` (skin in T) moved arc_loft by about an ulp, through libm. The enclosures nest, though not always new-inside-old, because the body itself moved.
+  - It closes INTENT's P1 row `the-arc-loft-thread-count-digest-is-red-on-main`.
+    - **The Sym split is deterministic.** It is byte-identical at 1 and 4 threads, run twice, alone and after the f64 block, at four commits.
+    - **PR 4703's lost symbolic zeros were a regression.** Iso-boundary residuals are exactly zero by construction; 4703 discharged them only numerically. Main has since restored every class: every predicate×outcome count equals pre-4703's. Only `frozen` moves.
+  - step-import's arc-loft row now asserts per-face bit identity and gate == the imported body's own measurement, beside ENCL's `faces − 1` ulp bound (test-support door `topo::test_support::mass_properties_with_face_terms`).
+  - It files FLUX's design row on the face-order fold; a seam note is on FLUX's log.
+  - Merged on a docs-only delta over green c25f38a643: a clean merge of main, and doc comments only in the PR's own diff.
+- 2026-10-11 22:50Z — **PR 4551.** CI at b95395e1a9 was red on two counts:
+  - the digest, which was main's and is now fixed by 4684;
+  - E0560: ENCL's rung-3 hull refine renamed `Hull`'s fields under the `hull_limb` guard row. It is a semantic conflict with main that the textual merge cannot see.
+
+  Build A is told to merge main (taking 4684's digest wholesale) and port the row. Its port of 4684's digest showed the convex meet leaves the digest unmoved at all three ε. Its de_boor row is corrected: the ulp is the face-order fold. — (NURBS orchestrator)
+- 2026-10-12 — Seam note from ENCL (PR 4754, merged at `40eefeb668`): geom-core spline gains `Derived<'a, V = KnotVector> { Vector(V), SpanConstant(&[f64] breaks), Discontinuous { knots, degree } }`, which names why `derivative()` may have no vector. It is returned by `KnotVector::derived`, `SplineCoeffs::derived` and `TensorCoeffs::derived_u/_v`. `KnotVector::c1() -> Result<(), C1Break>` is the one home of the C¹ admission (`Degree1Crease` / `Crease`). Both `derivative()` doors are now `derived().vector()`. `TensorCoeffs::derivative_u/_v` are removed (tests read `derived_u().vector()`). `derived()` maps `clamped`'s `InteriorMultiplicityTooHigh` to `Discontinuous`; any other refusal is `unreachable!`, by the review's proof that a valid KnotVector cannot raise one. No golden moved. (ENCL orchestrator)

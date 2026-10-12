@@ -533,8 +533,8 @@ mod tests {
         assert_eq!(
             head,
             "whether a shell of the body bounds material or a cavity could not be decided, so \
-             the piece it belongs to is unknown: the sign of a shell's volume is too close to \
-             call: margin is invalid (NaN or a refused enclosure)"
+             the piece it belongs to is unknown: the sign of a shell's volume is undecided: \
+             margin is invalid (NaN or a refused enclosure)"
         );
         assert!(
             tail.ends_with(

@@ -162,3 +162,15 @@ prism ∩ cube, `a14 d1e-8` cube ∩ prism and cube ∖ prism) now build
 their closed form and ship no tier-3′ finding. `SHIPS_A_FINDING` drops
 them, and their poses stay in the pin's `POSES`, held to a clean tier
 3′.
+
+## Evidence: main red on that pin at ε 1e-6 (2026-10-11, FLUX cone-vector-area lane)
+
+At main `436bfb2a4`, `CAD_TOLERANCE_EPS=1e-6 cargo nextest run -p sweep
+--test all -E 'test(/near_tangent_pierce_poses_build/)'` fails:
+`w345 nt e1 a3.8 d1e-7, prism ∪ cube: the pinned findings moved: [the
+EdgeEdgeCross above, witness (2.0, 1.018657088811564e-5, 1.0), margin
+2.19e-15]`. It is red on main alone and on PR 4696's merge with it, and
+green at ε default and 1e-12. The pose has no cone face. Not bisected.
+The last change to the pin is `e15cbbb1b` ("the pin drops the four
+findings main no longer ships"). Main's push CI does not run sweep's
+1e-6 row, so only a PR that touches an eps-sensitive crate sees it.

@@ -285,25 +285,27 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/patch_bound.rs",
+        3,
         2,
-        2,
-        "both are in `rational_cells`, and only one of them is guarded by the \
-         `is_certified()` this counts — blind spot 2. That one is the refined weight \
-         licence, which asks by name before reading `lo`. The other is the cell \
-         CENTROID, safe because a centre is a translation choice and no enclosure \
-         rests on it: the site takes each refined control point's midpoint and \
-         contributes `0` for a non-finite one, so a refused point still yields a \
-         finite centre and the widened hulls report the trouble",
+        "two are in `rational_cells`, guarded by the `is_certified()` this counts: \
+         the refined weight licence, which asks by name before reading `lo`, and the \
+         cell's weight hull `w_cell.lo()`, read only after `w_cell` and both \
+         weight-partial hulls have asked. The remainder is `centre`, safe because a \
+         centre is a translation choice and no enclosure rests on it: it takes \
+         midpoints, contributes `0` for a non-finite one and answers `0` for a \
+         non-finite mean, so a refused input still yields a finite centre and the \
+         reach about it reports the trouble",
     ),
     ("crates/geom-brep/src/pcurve_cache.rs", 2, 2, ""),
+    ("crates/geom-brep/src/pcurve_cache/projected.rs", 2, 2, ""),
     (
         "crates/geom-brep/src/props/quad.rs",
-        12,
-        7,
+        11,
+        6,
         "the remaining 5 are safe by construction: `cos_step`/`sin_step` and the two \
          half-angle clamps build from `pt` of a finite f64 with nonzero exact divisors, \
          so no operand can leave a domain (argued at each). Every other read goes \
-         through `lo_or_refuse`/`hi_or_refuse`/`mid`, which are the guarded ones",
+         through `lo_or_refuse`/`certified_hi`/`mid`, which are the guarded ones",
     ),
     (
         "crates/geom-brep/src/props/spiric.rs",

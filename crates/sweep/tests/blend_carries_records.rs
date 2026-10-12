@@ -52,7 +52,13 @@ fn edge_between(body: &topo::Body<f64>, p: Point3<f64>, q: Point3<f64>) -> topo:
 
 /// The kiss's record carried onto `out`, citing the operand's record 0.
 fn carried_kiss(what: &str, base: &BooleanBody<f64>, out: &Blended<f64>) -> ContactRecords {
-    let carried = out.carry_contacts(&base.contacts).unwrap();
+    let carried = out
+        .carry_contacts(
+            &base.contacts,
+            geom_core::Band::linear(tol()).unwrap(),
+            Some(topo::RegionLane::certified()),
+        )
+        .unwrap();
     assert_eq!(carried.vertex_vertex().count(), 1, "{what}: {carried:?}");
     assert_eq!(carried.len(), 1, "{what}: {carried:?}");
     let cites: Vec<Backing> = carried.rows()[0].cites.iter().collect();
@@ -143,12 +149,88 @@ fn a_record_on_the_blended_edge_is_refused() {
         ),
     ] {
         assert_eq!(
-            out.carry_contacts(&records),
+            out.carry_contacts(
+                &records,
+                geom_core::Band::linear(tol()).unwrap(),
+                Some(topo::RegionLane::certified())
+            ),
             Err(topo::CarryRefusal::Unmapped {
                 record: 1,
                 cell: topo::Cell::Edge(edge)
             }),
             "{what}: the consumed edge's record is refused"
+        );
+    }
+}
+
+/// **A turn's third edge lands a resting corner's record on the piece
+/// the blend left.** In `a ∪ c` (bricks touching along an edge), `c`'s
+/// corner (0.5, 0, 0) rests on `a`'s rim x ∈ (0, 1). Blending `a`'s two
+/// edges at the origin along y and z turns there, and the band splits
+/// the third edge, `a`'s rim, at the turn's foot: the piece at the turn is
+/// carved away under the rim's key, and the surviving piece is a fresh
+/// key (`BlendNaming::meridian_remnants`). The record lands on that
+/// piece, and the result passes at rest. Red on the carry that reads the
+/// rim by its key: the key is dead, and the record is refused
+/// `Unmapped`.
+#[test]
+fn a_turns_third_edge_lands_a_resting_corners_record_on_the_surviving_piece() {
+    let a = finished(
+        "a",
+        brick(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 1.0, 1.0)),
+        tol(),
+    );
+    let c = finished(
+        "c",
+        brick(Point3::new(0.5, -1.0, -1.0), Point3::new(1.5, 0.0, 0.0)),
+        tol(),
+    );
+    let base = match union(&a, &c, tol()) {
+        Ok(BooleanResult::Body(r)) => r,
+        other => panic!("the union builds: {other:?}"),
+    };
+    assert_eq!(
+        base.contacts.vertex_edge().count(),
+        2,
+        "{:?}",
+        base.contacts
+    );
+    let corner = Point3::new(0.0, 0.0, 0.0);
+    let y = edge_between(&base.body, corner, Point3::new(0.0, 1.0, 0.0));
+    let z = edge_between(&base.body, corner, Point3::new(0.0, 0.0, 1.0));
+    let band = geom_core::Band::linear(tol()).unwrap();
+    for (what, out) in [
+        (
+            "fillet",
+            fillet_edges(&base.body, &[y, z], R, tol()).expect("the fillet builds"),
+        ),
+        (
+            "chamfer",
+            chamfer_edges(&base.body, &[y, z], R, tol()).expect("the chamfer builds"),
+        ),
+    ] {
+        let remnants = &out
+            .naming
+            .as_ref()
+            .expect("birth records")
+            .meridian_remnants;
+        let carried = out
+            .carry_contacts(&base.contacts, band, Some(topo::RegionLane::certified()))
+            .unwrap_or_else(|refusal| panic!("{what}: the records land: {refusal:?}"));
+        let before: Vec<_> = base.contacts.vertex_edge().collect();
+        let after: Vec<_> = carried.vertex_edge().collect();
+        assert_eq!(after.len(), 2, "{what}: {carried:?}");
+        let moved: Vec<_> = after.iter().filter(|r| !before.contains(r)).collect();
+        assert!(
+            matches!(moved[..], [&(_, piece)] if remnants
+                .iter()
+                .any(|&(p, source)| p == piece && p != source)),
+            "{what}: one record moves onto a fresh surviving piece: {after:?} {remnants:?}"
+        );
+        assert_eq!(
+            validate_pseudomanifold(&out.body, &carried, tol()),
+            Ok(()),
+            "{what}: the carried records pass at rest"
         );
     }
 }

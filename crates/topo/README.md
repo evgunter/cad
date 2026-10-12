@@ -384,12 +384,19 @@ ladder certifies, and its finish fuses the two solids along the seam
 once, so at full engagement union volume is the operands' sum.
 
 A rim with a determinate G1 jet carries `TangentIntersection`. Rim
-routing by material wedge is `docs/MATE-7-TANGENCY-DESIGN.md`: π ⇒
-smooth seam (a glued `Seam` pair or structural); 0/2π ⇒ the declared cusp
-family, defined but unbuilt (`BooleanError::RimCuspArmUnbuilt`). A
-verified `Tangent` union whose ruling runs through a plane face's
-interior is #131's doubled cusp, unbuilt, and refuses
-(`BooleanError::TangentSlitArmUnbuilt`).
+routing reads the material wedge of a junction, an edge of the result
+that both tangent faces bound (`docs/MATE-7-TANGENCY-DESIGN.md`): π ⇒
+smooth seam (a glued `Seam` pair or structural); 0/2π ⇒ the cusp
+family, defined but unbuilt (`BooleanError::RimCuspArmUnbuilt`). Two
+operands that touch only along a tangent line leave no junction: each
+keeps its own edge on the line, the membership decides every op, ∖
+returns the operand, ∩ is empty, and ∪ is two solids (D1's pieces) whose
+touch is recorded as any pair whose interiors meet — an edge–edge record
+of the two edges on the line, citing the glue's tangency decision and
+confirmed by reconstruction from its bounding vertex records. Where the
+line runs through a face's interior the touch is a face–face curve
+touch; the reduction mints no face–face row, so that union refuses
+(`BooleanError::TangentSlitArmUnbuilt`) until it does.
 
 The same substrate is the at-rest door: `validate_pseudomanifold` with
 mate declarations landed in `ContactRecords`, no boolean, no zip.
@@ -427,10 +434,12 @@ cylinder arm is built (C3); sphere, cone and torus keep the typed
 divergence, with that shape recorded at the refusal site.
 
 **Attribution at the assembly layer.** Each live `Rest` mate is minted as
-a face–face record (a patch). Findings attribute to mates as Declined, Unattributed
-or Refuted (`StaleContactDeclaration`); all-Declined is the `Uncertified`
-frontier, and any Unattributed is a hard `AtRest` error
-(`crates/editor-core/ASSEMBLY.md`).
+a face–face record (a patch). Findings attribute to mates as Declined
+or Refuted (`StaleContactDeclaration`), or to no mate; all-Declined is
+the `Uncertified` frontier, and any other is a hard `AtRest` error
+(`crates/editor-core/ASSEMBLY.md`). A touch between two copies that no
+mate relates is no finding there: the gather's census records it
+(`record_at_rest`).
 
 ## Crossing backability (MATE-4B-CROSSING)
 
@@ -468,9 +477,10 @@ establishes the smooth precondition; the census is otherwise
 sense-invariant.
 
 **Grandfathered rungs.** `vv_face_backed`, `vf_face_backed`,
-`ve_face_backed`, and the face-pair arms of `ee_bound_backed` confine by
-structural incidence only, so they can back an event outside the pair's
-overlap region. Each migrates to the unified strength one at a time,
+`ve_face_backed`, `ee_face_backed` (which stands in for a collinear
+overlap's edge–edge record), and the face-pair arms of `ee_bound_backed`
+confine by structural incidence only, so they can back an event outside
+the pair's overlap region. Each migrates to the unified strength one at a time,
 measured. `ef_bound_backed`'s face-pair arms hold the unified strength
 (`Declared::vf_face_backed_confined`): a declared pair incident to the
 bound backs it only where the pair passes Door 1 and Door 2 reaches

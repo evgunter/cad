@@ -20,8 +20,11 @@
 //! Two classes no row here owns are pinned as known, by row: a box
 //! less a tube, which leaves a rod in the bore, fails tier 3′
 //! (`work/restread/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`),
-//! and a result under a tilted plane is no legal operand
-//! (`work/restread/at-infinity-probe-measures-in-closed-form-only.md`);
+//! and a piece of the wall under a tilted plane is no legal operand: a
+//! ray from the far brick that meets nothing finds the wall's volume
+//! unmeasurable, and every ray aimed at a planar face crosses the
+//! one-face wall's carrier, where the wall's period guard cannot read it
+//! (`work/inside/revolved-tube-wall-refuses-bool-wall-trim-period.md`);
 //! a two-arc wall fails both the same way.
 //!
 //! The one-site loops the join does not build keep
@@ -36,7 +39,7 @@ use geom_core::{Affine3, Arc2, Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, Segment, SketchPlane};
 use sweep::test_support::{brick, revolved_about_y};
 use sweep::{ExtrudeSide, Extrusion, Revolution, extrude};
-use topo::{Body, BooleanError, SplitJoinError};
+use topo::{Body, BooleanError, PointInSolidError, SplitJoinError};
 
 use crate::common::differential::{every_op_both_orders, outcome};
 
@@ -135,8 +138,45 @@ fn every_op(what: &str, a: Body<f64>, b: Body<f64>, v: (f64, f64, f64), known: &
             m.volume,
             m.volume_pad
         );
-        let line = outcome(r, m.volume, tol());
         let k = known.iter().find(|(o, _)| *o == op).map(|&(_, k)| k);
+        // `operand=` reads only whether the union builds. A legal
+        // operand's union with the far brick also holds the brick's
+        // volume, and a wall piece's refusal is the period guard's.
+        let far = fin(
+            "the far brick",
+            brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol()),
+        );
+        let joined = topo::union(body, &far, tol());
+        if matches!(k, Some(Known::Operand)) {
+            // The volume's refusal: the aimed rays' only reading is the
+            // wall's period guard, a structural invalid margin that no
+            // tolerance moves, so it does not stand in for the volume.
+            let text = joined
+                .as_ref()
+                .err()
+                .map(ToString::to_string)
+                .unwrap_or_default();
+            assert!(
+                matches!(
+                    joined,
+                    Err(BooleanError::Containment(
+                        PointInSolidError::VolumeUncertified
+                    ))
+                ) && text.contains("unmeasurable for a curved face")
+                    && !text.contains("tolerance"),
+                "{row}: ∪ a far brick refuses on the volume: {text}"
+            );
+        } else {
+            let joined = joined.unwrap_or_else(|e| panic!("{row}: ∪ a far brick: {e:?}"));
+            let j = topo::mass_properties(&joined.body().expect("not empty").body, tol()).unwrap();
+            assert!(
+                (j.volume - (m.volume + 1.0)).abs() <= j.volume_pad + m.volume_pad + 1e-9,
+                "{row}: ∪ a far brick: volume {} vs {}",
+                j.volume,
+                m.volume + 1.0
+            );
+        }
+        let line = outcome(r, m.volume, tol());
         let flags = ["t2=", "t3p=", "cert=", "operand="].map(|f| {
             let named = matches!(
                 (f, k),
@@ -217,12 +257,13 @@ fn a_tilted_plane_across_a_one_segment_cylinder() {
         seam_cylinder(0.0),
         cutter,
         (TAU, 512.0, PI),
-        &ALL_OPS.map(|op| (op, Known::Operand)),
+        &WALL_PIECES.map(|op| (op, Known::Operand)),
     );
 }
 
-/// The six runs' names, as `every_op_both_orders` gives them.
-const ALL_OPS: [&str; 6] = ["A ∪ B", "B ∪ A", "A ∩ B", "B ∩ A", "A ∖ B", "B ∖ A"];
+/// The runs whose result is a piece of the wall cut by the plane: the
+/// wall below it, in both orders, and the wall above it.
+const WALL_PIECES: [&str; 3] = ["A ∩ B", "B ∩ A", "A ∖ B"];
 
 /// **A plane close by the wrap edge's end**: `z = c + m(1 − x)`, turned
 /// about `y`, meets the seam at `z = c`, just above the bottom cap's
@@ -239,7 +280,7 @@ fn a_plane_close_by_the_wrap_edges_end() {
             seam_cylinder(0.0),
             below(Point3::new(1.0, 0.0, c), turn),
             (TAU, 512.0, PI * (c + m)),
-            &ALL_OPS.map(|op| (op, Known::Operand)),
+            &WALL_PIECES.map(|op| (op, Known::Operand)),
         );
     }
 }

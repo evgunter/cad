@@ -169,17 +169,11 @@ pub(crate) struct LaneEnv<'a, T> {
     /// no seed, built once per evaluation beside `params`. Every
     /// f64-pinned decision the evaluation makes reads it — the nominal
     /// slots an authored frame's placement is minted from
-    /// ([`mint_frame_placement`]), a profile or section's program
-    /// resolution ([`section_of`]), the placement the pinned lift
-    /// embeds — so it is what a content key owes
+    /// ([`mint_frame_placement`]), a profile's program resolution,
+    /// the placement the pinned lift embeds — so it is what a content key owes
     /// ([`super::tag::slot`]). Nothing under evaluation builds a second
     /// one.
     pub nominal: &'a crate::expr::VarEnv<f64>,
-    /// The E4 seed this evaluation carries, by its variable (`None` on
-    /// the build path). Consulted by the one place the lift cannot
-    /// reach: a C6/D9-pinned section refuses a seed it would otherwise
-    /// embed as a constant ([`section_of`]).
-    pub seed: Option<crate::var::VarId>,
 }
 
 impl<T> Clone for LaneEnv<'_, T> {
@@ -235,7 +229,6 @@ where
         + crate::analysis::AxisScalar
         + crate::analysis::SeedScalar
         + crate::measure::MinClearanceLane
-        + super::SectionScalar
         + crate::mate::SolveScalar,
 {
     use crate::OperandSlot as O;
@@ -298,18 +291,12 @@ where
         Node::Revolve { profile, .. } => {
             wire_revolve(id, at(O::Profile, *profile)?, results, vals, tol)
         }
-        Node::Loft { profiles, .. } => wire_loft(
-            id,
-            &all(O::Section, profiles)?,
-            doc,
-            results,
-            vals,
-            env.lane,
-            tol,
-        ),
+        Node::Loft { profiles, .. } => {
+            wire_loft(id, &all(O::Section, profiles)?, results, vals, tol)
+        }
         Node::Sweep { profile, path, .. } => {
             let (profile, path) = (at(O::Profile, *profile)?, at(O::Path, *path)?);
-            wire_sweep(profile, path, doc, results, vals, env.lane, tol)
+            wire_sweep(profile, path, results, vals)
         }
         Node::Tube { frame, window, .. } => {
             let frame = frame_pose(doc, unprojected, *frame, env.lane.params, tol)?;
@@ -540,7 +527,6 @@ where
         + crate::analysis::AxisScalar
         + crate::analysis::SeedScalar
         + crate::measure::MinClearanceLane
-        + super::SectionScalar
         + crate::mate::SolveScalar,
 {
     let part = env
@@ -736,48 +722,6 @@ fn operand<'v, T: Decide, R>(
 ) -> Result<R, NodeErrorKind> {
     let v = value_of(results, input)?;
     read(v).ok_or_else(|| wrong_operand(v, input, expected))
-}
-
-/// **The same question asked of a NODE** — the recipe-side door, for
-/// the roads that never hold a value. `found:` comes from
-/// [`super::node_value_kind`], which answers over node kinds in the
-/// same words as [`operand`] does over payloads.
-///
-/// # The two halves answer about the same node, except across a placer
-///
-/// `read` tests the node the reference NAMES; `found` walks a
-/// [`Node::Transform`] chain to its source. A `Transform` over a
-/// `Profile` would therefore refuse with `found: "profile"`, a refusal
-/// that states nothing. That is unreachable: `wire_transform` reads
-/// through [`placeable_operand`], which refuses a profile and poisons
-/// every dependent, so this door never sees such an id. A placer that
-/// became shape-preserving over profiles would break this.
-///
-/// # Errors
-///
-/// [`NodeErrorKind::MissingInput`] for a reference that names no live
-/// node; otherwise [`NodeErrorKind::WrongOperand`] naming the family
-/// the node lands in. [`super::node_value_kind`]'s own refusal seat is
-/// dropped because none can arrive: the reference is one of the
-/// consumer's INPUT edges, already evaluated `Ok`, and a transform
-/// there that could refuse would have poisoned the consumer first.
-fn node_operand<'d, P, R>(
-    doc: &'d crate::doc::Doc<P>,
-    input: RecipeNodeId,
-    expected: &'static str,
-    read: impl FnOnce(&'d Node<P>) -> Option<R>,
-) -> Result<R, NodeErrorKind> {
-    let node = doc
-        .node(input)
-        .ok_or(NodeErrorKind::MissingInput { input })?;
-    match read(node) {
-        Some(r) => Ok(r),
-        None => Err(operand_refusal(
-            input,
-            expected,
-            super::node_value_kind(doc, input).map_err(|seated| seated.1)?,
-        )),
-    }
 }
 
 /// [`operand`]'s refusal alone, for callers that already hold the
@@ -1212,8 +1156,7 @@ pub(crate) fn mint_frame_placement(
 /// [`NodeErrorKind::WrongOperand`] when the reference does not name a
 /// frame; [`NodeErrorKind::FrameDirection`] where the frame carried a
 /// direction refusal ([`FramePlacement::Unreadable`]), naming BOTH
-/// `profile` and the frame because the section seam raises it on the
-/// loft; and [`NodeErrorKind::MissingInput`] for a reference with no
+/// `profile` and the frame; and [`NodeErrorKind::MissingInput`] for a reference with no
 /// value.
 pub(crate) fn profile_plane_f64<T: Decide>(
     doc: &crate::doc::Doc<ProfileProgram>,
@@ -1291,16 +1234,6 @@ fn frame_pose<T: Decide>(
             other.kind()
         ),
     }
-}
-
-/// A lane-scalar placement carried across to `f64`, exactly, where the
-/// scalar is the `f64` lane — every component through
-/// [`super::SectionScalar::pinned_f64`] — and `None` on any analysis
-/// scalar. No component is inspected: the answer is the type's.
-pub(crate) fn pinned_plane<T: super::SectionScalar>(
-    plane: &profile::SketchPlane<T>,
-) -> Option<profile::SketchPlane<f64>> {
-    plane.try_map(|x| x.pinned_f64().ok_or(())).ok()
 }
 
 /// **A frame's authored pair, made orthonormal** — the one spelling of
@@ -1460,8 +1393,7 @@ pub(crate) fn prepare_profile(
     let (validated_f64, canonical) = replayed
         .validate_recording(tol)
         .map_err(NodeErrorKind::Profile)?;
-    let profile_f64 = replayed;
-    let naming = anchor::derive_naming(&validated_f64, profile_f64.loops()).ok_or({
+    let naming = anchor::derive_naming(&validated_f64, replayed.loops()).ok_or({
         // A canonical loop matched no program loop: an internal break.
         // The loop coordinate is not recoverable; 0 names the walk.
         NodeErrorKind::ProfileAnchor { loop_: 0 }
@@ -1471,7 +1403,6 @@ pub(crate) fn prepare_profile(
     let pieces = super::ProfilePieces::publish(&naming, &replay_records, ids)
         .map_err(|fault| NodeErrorKind::ProfilePieces { fault })?;
     Ok(ProfilePre {
-        profile_f64,
         validated_f64,
         placement_f64: placement,
         naming,
@@ -3890,82 +3821,20 @@ pub(crate) const SWEEP_FRONTIER: &str = "a swept solid: the recipe's path operan
      joined-path composition lane; the swept BODY machinery itself is \
      live — sweep::sweep_body at the library API";
 
-/// A loft section of loops the path lattice constructed (the replay's).
-type ConstructedSection = sweep::Section<profile::ConstructedLoop<f64>>;
-
-/// One section of a loft, taken from the RECIPE's own `f64`
-/// description rather than from the evaluated `T` payload.
-///
-/// Structure selection is `f64` (C6/D9): the skinned surface's knots,
-/// degrees and control bits must be identical in every scalar lane, so
-/// taking the `f64` description is the only way the Interval lane
-/// encloses the SAME surface the `f64` lane defines.
-fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
-    doc: &crate::doc::Doc<ProfileProgram>,
+/// **A loft section: the section operand's Profile value at `T`**, as
+/// an extrude reads its profile ([`wire_swept`]): the canonical form
+/// the profile node validated at this scalar, on its own sketch plane
+/// (the section's placement), and the pass-1 pieces its walls and
+/// seams are named by. Nothing is re-resolved; the profile node's
+/// errors are the operand's own.
+fn section_value<T: Decide>(
     results: &Results<T>,
     id: RecipeNodeId,
-    lane: LaneEnv<'_, T>,
-    tol: Tol,
-) -> Result<(ConstructedSection, Affine3<f64>, super::ProfilePieces), NodeErrorKind> {
-    let program = node_operand(doc, id, super::family::PROFILE, |n| match n {
-        Node::Profile(program) => Some(program),
+) -> Result<Arc<ProfileValue<T>>, NodeErrorKind> {
+    operand(results, id, super::family::PROFILE, |v| match &v.payload {
+        ValuePayload::Profile(vp) => Some(Arc::clone(vp)),
         _ => None,
-    })?;
-    // THE SEED STOPS HERE, TYPED. The section stays `f64`, so a seed on
-    // a parameter this program reads would arrive at the skinned
-    // surface as a constant — a finite, wrong zero tangent.
-    // Keyed by the variable, which is what the program's readers read.
-    if let Some(param) = lane.seed
-        && program.reads(param)
-    {
-        return Err(NodeErrorKind::SeedPinnedSection { section: id, param });
-    }
-    // LIB-SWITCH §4b: the section is the node's program RESOLVED at
-    // `LaneEnv::nominal` and REPLAYED through `prepare_profile`, the
-    // profile node's own pipeline, so a bad section reads as a profile
-    // error at the NODE (the §2 compatibility contract).
-    let resolved = program
-        .resolve(lane.nominal)
-        .map_err(|(slot, source)| NodeErrorKind::Expr { slot, source })?;
-    // DM1c: a section on a DERIVED frame takes the by-value placement,
-    // which crosses to `f64` only where the scalar IS `f64`
-    // (`SectionScalar`); anywhere else it refuses typed rather than
-    // placing on a fabricated point of the frame's bracket.
-    let frame = program.frame;
-    let plane = match profile_plane_f64(doc, results, id, frame)? {
-        Some(authored) => authored,
-        None => {
-            let lane_plane = frame_plane_lane(doc, results, frame, lane.params, tol)?;
-            pinned_plane(&lane_plane).ok_or(NodeErrorKind::DerivedFrameSection {
-                profile: id,
-                frame: doc.operation_of(frame),
-            })?
-        }
-    };
-    let pre = prepare_profile(Some(plane), &resolved, &program.ids, tol)?;
-    // The lift's second pass runs here too, as a GATE only: the
-    // section stays f64, but the certify-or-abort answer must not
-    // depend on which node consumes the profile.
-    if lane.lift == super::ProfileLift::Guided {
-        lane_profile::<T>(
-            program,
-            frame_plane_lane(doc, results, frame, lane.params, tol)?,
-            lane,
-            &pre,
-            tol,
-        )?;
-    }
-    // `Some` by construction: both arms above passed a placement.
-    let place = pre
-        .placement_f64
-        .ok_or(NodeErrorKind::DerivedFrameSection {
-            profile: id,
-            frame: doc.operation_of(frame),
-        })?
-        .placement;
-    // The REPLAYED loops in program order (LIB-U3), and the canonical
-    // positions' names the skin's walls and seams are named by.
-    Ok((pre.profile_f64.into_parts().1, place, pre.pieces))
+    })
 }
 
 /// A structural (Count) slot, refused typed when absent or unusable.
@@ -3974,29 +3843,30 @@ fn need_count(vals: &SlotValues<impl Decide>, slot: SlotId) -> Result<usize, Nod
     usize::try_from(n).map_err(|_| NodeErrorKind::NonPositiveCount { count: n })
 }
 
-/// The Loft node: the §10.3 walls and their solid assembly.
-fn wire_loft<T: Decide + topo::AtRestPolicy + geom_core::Bounds + super::SectionScalar>(
+/// The Loft node: the §10.3 walls and their solid assembly, over its
+/// sections' Profile values at `T` ([`section_value`]): a section that
+/// is a function of the document's variables lofts into walls that are
+/// functions of them, and the structure is selected on the sections'
+/// value channel (`sweep::loft_profiles`). A section wider than a point
+/// refuses typed (`LoftError::SectionNotAPoint`).
+fn wire_loft<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
     profiles: &[RecipeNodeId],
-    doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     vals: &SlotValues<T>,
-    lane: LaneEnv<'_, T>,
     tol: Tol,
 ) -> OpResult<T> {
     let v_degree = need_count(vals, SlotId::VDegree)?;
-    let mut sections = Vec::with_capacity(profiles.len());
-    let mut places = Vec::with_capacity(profiles.len());
-    let mut pieces = Vec::with_capacity(profiles.len());
-    for pid in profiles {
-        let (chain, place, named) = section_of::<T>(doc, results, *pid, lane, tol)?;
-        sections.push(chain);
-        places.push(place);
-        pieces.push(named);
-    }
+    let values = profiles
+        .iter()
+        .map(|pid| section_value(results, *pid))
+        .collect::<Result<Vec<_>, _>>()?;
+    let sections: Vec<profile::ValidatedProfile<T>> =
+        values.iter().map(|v| v.validated.clone()).collect();
+    let pieces: Vec<super::ProfilePieces> = values.iter().map(|v| v.pieces.clone()).collect();
     // Skin refusals keep their own node-error shape (the §2
     // compatibility contract); assembly refusals arrive as `Loft`.
-    let built = sweep::loft_body::<T>(&sections, &places, v_degree, tol).map_err(|e| match e {
+    let built = sweep::loft_profiles::<T>(&sections, v_degree, tol).map_err(|e| match e {
         sweep::LoftError::Skin(s) => NodeErrorKind::Skin(s),
         other => NodeErrorKind::Loft(other),
     })?;
@@ -4013,88 +3883,24 @@ fn wire_loft<T: Decide + topo::AtRestPolicy + geom_core::Bounds + super::Section
 /// The Sweep node: ONE honest arm.
 ///
 /// Every RECIPE door still runs first — the structural slots, and both
-/// operands through [`section_of`] — because a Sweep on a datum, or
-/// with a bad Count, is a recipe error and must read as one. The
-/// geometry is out of reach: see [`SWEEP_FRONTIER`].
-fn wire_sweep<T: Decide + geom_core::Bounds + super::SectionScalar>(
+/// operands read as profiles ([`section_value`]) — because a Sweep on a
+/// datum, or with a bad Count, is a recipe error and must read as one.
+/// The geometry is out of reach: see [`SWEEP_FRONTIER`].
+fn wire_sweep<T: Decide>(
     profile: RecipeNodeId,
     path: RecipeNodeId,
-    doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     vals: &SlotValues<T>,
-    lane: LaneEnv<'_, T>,
-    tol: Tol,
 ) -> OpResult<T> {
     // Each door runs for its refusal alone; what it answers has no
     // reader, because the geometry that would read it does not exist.
     need_count(vals, SlotId::Stations)?;
     need_count(vals, SlotId::VDegree)?;
-    section_of::<T>(doc, results, profile, lane, tol)?;
-    section_of::<T>(doc, results, path, lane, tol)?;
+    section_value(results, profile)?;
+    section_value(results, path)?;
     Err(NodeErrorKind::CurvedSolidFrontier {
         what: SWEEP_FRONTIER,
     })
-}
-
-/// **The lane → `f64` crossing, read directly.** What
-/// [`pinned_plane`] carries across where the lane IS `f64`, and what
-/// it refuses everywhere else. An evaluation shows only the typed
-/// refusal a consumer eventually reports; the crossing's own answer —
-/// which twelve components came back, in which places — is readable
-/// only here.
-#[cfg(test)]
-mod pinned_plane_tests {
-    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-
-    use super::pinned_plane;
-    use geom_core::{Affine3, Dual64, Mat3, Real, Vec3};
-    use profile::SketchPlane;
-
-    /// Twelve distinct components and no symmetry, so a crossing that
-    /// transposed a column or dropped the translation could not hide
-    /// behind an axis coincidence.
-    fn distinct() -> SketchPlane<f64> {
-        SketchPlane::new(Affine3::from_parts(
-            Mat3::from_cols(
-                Vec3::new(1.0, 2.0, 3.0),
-                Vec3::new(4.0, 5.5, -6.0),
-                Vec3::new(-7.25, 0.5, 8.0),
-            ),
-            Vec3::new(10.0, 11.0, 12.0),
-        ))
-    }
-
-    /// Where the lane IS `f64`, the crossing is exact and structural:
-    /// all twelve components come back in their places, bit for bit.
-    ///
-    /// The comparison is [`SketchPlane::bit_eq`], which IS that
-    /// twelve-component reading — by bits, in their places, off an
-    /// irrefutable destructuring of the placement rather than through
-    /// any walk. A readout spelled again here would be a second copy of
-    /// it, and the transposed-column mutation reds this row through
-    /// `bit_eq` exactly as it would through one.
-    #[test]
-    fn a_f64_lane_placement_crosses_bit_for_bit_in_its_places() {
-        let plane = distinct();
-        let crossed = pinned_plane(&plane).expect("f64 is the pinned lane");
-        assert!(
-            plane.bit_eq(&crossed),
-            "the crossing keeps the columns and the translation in place"
-        );
-    }
-
-    /// An analysis scalar refuses, and the refusal is the TYPE's, not
-    /// a number's: the placement here is the very one the row above
-    /// crossed successfully, lifted component for component, so every
-    /// value that pinned at `f64` is present and still unpinnable. No
-    /// number is inspected anywhere on the path, and the first
-    /// component refuses, so nothing downstream sees a partly-crossed
-    /// placement.
-    #[test]
-    fn an_analysis_scalar_refuses_the_very_placement_f64_crossed() {
-        let lane: SketchPlane<Dual64> = distinct().map(Dual64::from_f64);
-        assert!(pinned_plane(&lane).is_none());
-    }
 }
 
 #[cfg(test)]

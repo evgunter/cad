@@ -2285,6 +2285,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::PairingMismatch
         | BooleanErrorKind::SharedVertexCrossings
         | BooleanErrorKind::PinchConesOnSeparateKeys
+        | BooleanErrorKind::PinchRaysInAFace
         | BooleanErrorKind::VertexReadTwice
         | BooleanErrorKind::ClassificationInvariant
         | BooleanErrorKind::CurvedPairUnsupported
@@ -2559,27 +2560,16 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::ArcSphereRoots",
         1,
     ),
-    ("finish.rs", "corner_holds", "Coincide::Sectors", 1),
-    (
-        "finish.rs",
-        "weld_pinches",
-        "BooleanDecision::VertexOnVertex",
-        1,
-    ),
     ("insert.rs", "germ_dir", "BooleanDecision::SelfCheck", 1),
     ("insert.rs", "germ_dir", "SelfCheck::GermLine", 1),
     ("insert.rs", "record_germ_dir", "Coincide::TangentLocus", 2),
     ("insert.rs", "strut_order", "Coincide::Sectors", 1),
     ("insert.rs", "walks_after", "Coincide::Sectors", 1),
-    ("join.rs", "at", "Coincide::Join", 1),
     ("join.rs", "bool_connect", "Coincide::Section", 1),
     ("join.rs", "frame_refusal", "BooleanDecision::Radius", 1),
     ("join.rs", "frame_refusal", "Coincide::Section", 1),
-    ("join.rs", "germs_face_each_other", "Coincide::Join", 1),
-    ("join.rs", "nearer", "Coincide::Join", 1),
-    ("join.rs", "nearer_along", "Coincide::Join", 1),
+    ("join.rs", "join_escalate", "Coincide::Join", 1),
     ("join.rs", "parallel_radical_plane", "Coincide::Section", 1),
-    ("join.rs", "partners", "Coincide::Join", 1),
     (
         "join.rs",
         "ring_winding_order",
@@ -2594,7 +2584,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("join.rs", "rotational_sense", "SelfCheck::ArcFacing", 1),
-    ("join.rs", "travel", "Coincide::Join", 1),
     ("mod.rs", "coincidence", "BooleanDecision::Coincidence", 1),
     ("mod.rs", "undecided_coincidence", "Coincide::Carriers", 1),
     ("mod.rs", "unglued_coincidence", "Coincide::Carriers", 1),
@@ -2869,6 +2858,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("vtxfac.rs", "germ_order", "Coincide::Sectors", 1),
     ("vtxfac.rs", "pierce_germ_dir", "Coincide::Sectors", 1),
+    (
+        "vtxfac.rs",
+        "ring_groups",
+        "BooleanDecision::VertexOnVertex",
+        1,
+    ),
     (
         "zip.rs",
         "one_vertex_sense",

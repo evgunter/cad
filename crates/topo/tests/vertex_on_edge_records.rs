@@ -91,6 +91,21 @@ fn records(body: &Body<f64>, rows: &[VeContact]) -> ContactRecords {
     )
 }
 
+/// The `(vertex, edge)` rows `rows`, and the edge-edge record of
+/// `edge_touch`'s overlap, as records of `body`: the overlap is a pair
+/// whose interiors meet, owed its own record (D1), which its two
+/// bounds' records confirm.
+fn with_overlap(body: &Body<f64>, rows: &[VeContact]) -> ContactRecords {
+    let a_edge = edge_between(body, [0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
+    let c_edge = edge_between(body, [0.5, 0.0, 0.0], [1.5, 0.0, 0.0]);
+    common::records(
+        body,
+        rows.iter()
+            .map(|r| (Cell::Vertex(r.vertex), Cell::Edge(r.edge)))
+            .chain([(Cell::Edge(a_edge), Cell::Edge(c_edge))]),
+    )
+}
+
 /// The two records `edge_touch` needs, in the order its bounds come.
 fn edge_touch_records(body: &Body<f64>) -> [VeContact; 2] {
     let a_edge = edge_between(body, [0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
@@ -102,9 +117,10 @@ fn edge_touch_records(body: &Body<f64>) -> [VeContact; 2] {
 }
 
 /// **Unrecorded direction.** With no records, both resting vertices
-/// and the overlap between them refuse; with both records the body
-/// certifies; with one, its own event and the overlap it bounds refuse
-/// and the other event does not. Red when pass 2, or the overlap's
+/// and the overlap between them refuse; with both records and the
+/// overlap's own the body certifies, and without the overlap's the
+/// overlap refuses; with one, its own event and the overlap it bounds
+/// refuse and the other event does not. Red when pass 2, or the overlap's
 /// one-vertex bound, reads only the face rung and never the record.
 #[test]
 fn a_vertex_on_edge_record_backs_its_event_and_the_overlap_it_bounds() {
@@ -150,15 +166,21 @@ fn a_vertex_on_edge_record_backs_its_event_and_the_overlap_it_bounds() {
         "no records: the overlap refuses: {none:?}"
     );
 
-    let both = records(&body, &[at_a, at_c]);
+    let both = with_overlap(&body, &[at_a, at_c]);
     assert_eq!(
         errors(&body, &both),
         vec![],
         "both records: the body certifies"
     );
+    let bounds_alone = errors(&body, &records(&body, &[at_a, at_c]));
+    assert_eq!(
+        (overlaps(&bounds_alone), bounds_alone.len()),
+        (1, 1),
+        "both bounds but no edge-edge record: the overlap refuses: {bounds_alone:?}"
+    );
 
     for (kept, dropped) in [(at_a, at_c), (at_c, at_a)] {
-        let one = records(&body, &[kept]);
+        let one = with_overlap(&body, &[kept]);
         let es = errors(&body, &one);
         assert_eq!(
             on_edge(&es),
@@ -201,7 +223,7 @@ fn a_vertex_on_edge_record_without_its_event_is_stale() {
             ve(vertex_at(&body, [0.5, -1.0, -1.0]), a_edge),
         ),
     ] {
-        let set = self::records(body, &[records.as_slice(), &[bad]].concat());
+        let set = with_overlap(body, &[records.as_slice(), &[bad]].concat());
         let es = errors(body, &set);
         assert_eq!(
             es,
@@ -331,7 +353,6 @@ fn a_vertex_on_edge_record_follows_its_vertex_onto_a_piece_of_a_split_edge() {
     let y = joined_edge_touch(tol);
     let carried = topo::OperandRecords {
         vf: Vec::new(),
-        ee: Vec::new(),
         ..y.contacts.carried()
     };
     for (at, rim, slab, piece) in [
@@ -432,7 +453,6 @@ fn a_vertex_on_edge_record_stays_before_a_split_moves_past_it_and_meets_it() {
     );
     let carried = topo::OperandRecords {
         vf: Vec::new(),
-        ee: Vec::new(),
         ..y.contacts.carried()
     };
     let near = |p: [[f64; 3]; 2], q: [[f64; 3]; 2]| {

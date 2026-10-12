@@ -2,11 +2,10 @@
 id: a-placement-is-the-bundle-of-mates
 kind: issue
 title: D10 stage 3 PR B: Place { shapes, constraints } owns today's mates, the world is a node, an instance is a placement, spaces are kinds; gauges, offsets, PlaceInWorld, the spanning tree and roots retire
-status: parked
+status: open
 opened: 2026-10-08
 priority: P0
 cost: H
-blocked_on: [an-unattributed-contact-at-rest-is-a-finding]
 refs: [intent-stage3-is-built, mate-offset-verified-against-the-solve-is-a-constraint-falling-back-to-an-assertion]
 ---
 
@@ -29,6 +28,6 @@ Migration check: every corpus copy's pose and the product digests are bit-equal.
 
 Closes `a-declaring-mates-alignment-is-never-read`, `gauge-of-recomputes-the-clusters-per-placement-lookup`, `a-placer-row-states-what-a-poisoned-row-cannot` and the offset half of `mate-offset-verified-against-the-solve-is-a-constraint-falling-back-to-an-assertion`.
 
-Waits on stage 2 F (`a-mate-reads-face-variables`: mate sides read `Face` variables). It also waits on stage 4 J (`an-unattributed-contact-at-rest-is-a-finding`). B drops declaring mates, so their contacts are unattributed, and A5's hard error would refuse those products; J turns that error into a finding first.
+Builds on stage 2 F (`a-mate-reads-face-variables`: mate sides read `Face` variables) and stage 4 J (`an-unattributed-contact-at-rest-is-a-finding`). B drops declaring mates, so the contacts they declared become rows of the two copies the gather records, reported by the `unproven-coincidence` check, and refuse nothing.
 
 **A host construction never reads a part's world** (from the second review of INTENT stage 2 C, PR #4359, NOTE-F). In stage 2 an instance's one `body` output is its part's whole product, every copy at its pose (`eval/parts.rs`), so a host boolean reading an instance depends on the part's placement poses: the pose is read "by the gather" only in the letter. Stage 2 C refuses the visible edges of this (`Uncarried::Posed` and `SplitError::RemainderReadUncarried` where split or inline would carry such a read across the seam), but the read itself stands. This unit's instance ports must close it: no port a host construction reads carries a part's world placements.

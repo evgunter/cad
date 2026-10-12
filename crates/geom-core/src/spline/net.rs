@@ -74,6 +74,7 @@ use core::ops::RangeInclusive;
 use std::borrow::Cow;
 
 use super::algebra::{KnotAlgebraError, RingRefinement};
+use super::hull::Derived;
 use super::knots::KnotVector;
 use crate::interval::Interval;
 use crate::interval::certification::Certification;
@@ -497,30 +498,30 @@ impl TensorCoeffs<'_> {
     /// **The mixed partial's net**: [`TensorCoeffs::diff_u`], then each
     /// of its `v`-lines differenced as `knots_v`'s — `(nu − 1) × (nv − 1)`.
     /// The `u` derivative keeps the `v` structure, so this is defined
-    /// whether or not [`TensorCoeffs::derivative_u`] is.
+    /// whether or not [`TensorCoeffs::derived_u`] has a vector.
     #[must_use]
     pub fn diff_uv(&self) -> TensorNet {
         self.diff_u().diff_v(|line| self.kv.difference_coeffs(line))
     }
 
-    /// The `u` partial as a pair: [`TensorCoeffs::diff_u`] against
-    /// [`KnotVector::derivative`] of `knots_u`, `None` exactly when that
-    /// vector is not a clamped one.
+    /// The `u` partial by cause ([`KnotVector::derived`] of `knots_u`),
+    /// the [`Derived::Vector`] arm carrying [`TensorCoeffs::diff_u`]
+    /// against the derived vector.
     #[must_use]
-    pub fn derivative_u(&self) -> Option<TensorCoeffs<'_>> {
-        Some(TensorCoeffs {
-            ku: Cow::Owned(self.ku.derivative()?),
+    pub fn derived_u(&self) -> Derived<'_, TensorCoeffs<'_>> {
+        self.ku.derived().map(|ku| TensorCoeffs {
+            ku: Cow::Owned(ku),
             kv: Cow::Borrowed(&self.kv),
             net: Cow::Owned(self.diff_u()),
         })
     }
 
-    /// The `v` partial as a pair, per [`TensorCoeffs::derivative_u`].
+    /// The `v` partial by cause, per [`TensorCoeffs::derived_u`].
     #[must_use]
-    pub fn derivative_v(&self) -> Option<TensorCoeffs<'_>> {
-        Some(TensorCoeffs {
+    pub fn derived_v(&self) -> Derived<'_, TensorCoeffs<'_>> {
+        self.kv.derived().map(|kv| TensorCoeffs {
             ku: Cow::Borrowed(&self.ku),
-            kv: Cow::Owned(self.kv.derivative()?),
+            kv: Cow::Owned(kv),
             net: Cow::Owned(self.diff_v()),
         })
     }
@@ -761,7 +762,7 @@ mod tests {
         // Mixed: `d^2/dudv = 2`.
         assert!(holds(n.diff_uv().get(0, 0), 2.0));
         // Degree 1 has no clamped derivative vector, so no derivative pair.
-        assert!(n.derivative_u().is_none() && n.derivative_v().is_none());
+        assert!(n.derived_u().vector().is_none() && n.derived_v().vector().is_none());
     }
 
     /// **Refinement builds its chains from the pair's own vectors**: the
@@ -808,13 +809,13 @@ mod tests {
         let k1 = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
         let line = [0.0, 0.0, 4.0];
         let n = TensorCoeffs::from_fn(&k2, &k1, |i, _| pt(line[i]));
-        let d1 = n.derivative_u().unwrap();
+        let d1 = n.derived_u().vector().unwrap();
         assert_eq!(d1.knots_u().degree(), 1);
         assert_eq!((d1.net().nu(), d1.net().nv()), (2, 2));
         let d2 = d1.diff_u();
         assert!(d2.get(0, 0).lo() <= 8.0 && 8.0 <= d2.get(0, 0).hi());
         assert!(d2.get(0, 1).lo() <= 8.0 && 8.0 <= d2.get(0, 1).hi());
-        assert!(n.derivative_v().is_none());
+        assert!(n.derived_v().vector().is_none());
     }
 
     /// A step that does not answer the direction's new extent refuses

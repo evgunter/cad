@@ -127,7 +127,7 @@ fn census_post_through_slab() {
         // Structural probe of one pierce ring: the ring vertex must live
         // on a RING loop of the pierced face, and the outer loop must
         // NOT contain it (kemr put the lone vertex on the ring side).
-        let ring = red.pierce_rings[0];
+        let ring = &red.pierce_rings[0];
         let face = red.a.get_face(ring.face).unwrap();
         let on_loop = |lk, vk| -> bool {
             let l = red.a.get_loop(lk).unwrap();
