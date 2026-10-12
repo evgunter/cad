@@ -2,7 +2,8 @@
 id: quadrature-convergence-test-escalates-instead-of-refining
 kind: issue
 title: the quadrature lanes escalate an in-band convergence test instead of refining another round, so a face measures in one boolean operand order and not the other
-status: open
+status: review
+pr: 4839
 opened: 2026-10-01
 ---
 
@@ -302,8 +303,30 @@ which faces land in band:
   `a_boss_at_half_a_radian_measures_in_either_operand_order`).
   `band_planar_oblique_fillet::a_brick_through_a_steep_elliptic_end_builds_in_every_op`
   builds and is consistent at 1e-12.
-- **Newly escalating, pinned at exactly that ε.**
+- **Newly in band, and measured once the fix below landed.**
   `reach_volume_backstop::a_tilted_boss_unions_onto_a_box`'s 1 rad
   penetrating union at 1e-12 (margin −2.88e-12 in (1e-12, 1e-11)), and
   `far_thin_disc_sign`'s `h 1e-5, tilt 0.3, 5e3 m, turned 0.7` at 1e-12,
   upright and inside out (margin −4.14e-12). Both measure on main.
+
+## Fixed by FLUX PR 4839
+
+The cylinder lane's new form reshuffled which faces land in band, and the
+tour's cutaway scene was one at 1e-12 (margin +7.5e-12 on the
+`demo-tour` eps row). The fix is the one stated above, landed once:
+`quad::converged` reads `props_quad_converged` and treats an escalation
+— which on that finite margin can only be the band — as not converged.
+All six convergence sites (the five lanes in `quad.rs` and the spiric
+lane's) go through it, so an in-band round refines, and only the
+schedule's last round refuses, `QuadratureBudget`.
+
+What it re-pinned: `tcost_k1_budget_exit::an_in_band_bound_leaves_the_schedule_to_the_rounds`
+now tells the early exit from the schedule by the refusal's round count,
+not by its class. The two escalation pins `flux/cylinder-band-quad` had
+added are gone with it.
+
+Left as they were, because they tolerate the escalation and do not
+require it, so they could now be tightened by their owners:
+`band_annulus_host_boundary` (the `y = 3` cut it steers around),
+`a_split_through_a_wrap_edges_vertex`, `reach_split_gate_azimuth`,
+`review_cleave_wrongarc`.

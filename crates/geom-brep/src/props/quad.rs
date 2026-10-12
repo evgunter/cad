@@ -678,6 +678,29 @@ pub(super) fn classify_len<T: Decide>(
         .map_err(|cause| PropsError::Escalated { cause, check })
 }
 
+/// **Whether a round met the reporting target** (`props_quad_converged`).
+/// A margin in the band is not converged: the next round's enclosure,
+/// about 8× narrower, decides it, and at the schedule's last round the
+/// budget refusal is the answer, as for a face definitely short of the
+/// target. The margin is finite by [`mean_boundary_displacement`]'s
+/// invariant, so the band is the only escalation the funnel returns here.
+pub(super) fn converged<T: Decide>(
+    width_len: f64,
+    target_len: f64,
+    band: Band,
+) -> Result<bool, PropsError> {
+    match classify_len::<T>(
+        "props_quad_converged",
+        Margin::of(target_len - width_len),
+        band,
+        PropsCheck::Converged,
+    ) {
+        Ok(sign) => Ok(sign == Sign::Positive),
+        Err(PropsError::Escalated { .. }) => Ok(false),
+        Err(other) => Err(other),
+    }
+}
+
 /// The convergence meter: the flux enclosure's width expressed as the
 /// **mean boundary displacement** it corresponds to,
 /// `width(flux)/(3·area)` (module docs), with the area enclosure's
@@ -894,13 +917,7 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
         // zero-UV-area trim loop makes `area` exactly `[0, 0]` here,
         // which is a degenerate face and not a tolerance question.
         let width_len = mean_boundary_displacement(flux, area)?;
-        if classify_len::<T>(
-            "props_quad_converged",
-            Margin::of(target_len - width_len),
-            band,
-            PropsCheck::Converged,
-        )? == Sign::Positive
-        {
+        if converged::<T>(width_len, target_len, band)? {
             // Face-extent gate on the CONVERGED enclosure: the area
             // must be definitely positive, metered as the face's mean
             // width area/perimeter — a length (the closed-form lanes'
@@ -3748,13 +3765,7 @@ fn rational_patch_face<T: Decide>(
             });
         }
         let width_len = mean_boundary_displacement(flux, area)?;
-        if classify_len::<T>(
-            "props_quad_converged",
-            Margin::of(target_len - width_len),
-            band,
-            PropsCheck::Converged,
-        )? == Sign::Positive
-        {
+        if converged::<T>(width_len, target_len, band)? {
             match classify_len::<T>(
                 "props_quad_face_extent",
                 Margin::over_lever(lo_or_refuse(area), perimeter),
@@ -4071,13 +4082,7 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
     {
         let flux = widen(exact, boundary_defect * p_bound);
         let width_len = mean_boundary_displacement(flux, area)?;
-        if classify_len::<T>(
-            "props_quad_converged",
-            Margin::of(target_len - width_len),
-            band,
-            PropsCheck::Converged,
-        )? == Sign::Positive
-        {
+        if converged::<T>(width_len, target_len, band)? {
             match classify_len::<T>(
                 "props_quad_face_extent",
                 Margin::over_lever(lo_or_refuse(area), perimeter),
@@ -4156,13 +4161,7 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
         let flux = widen(flux, boundary_defect * p_bound);
         // Convergence: the shared mean-boundary-displacement meter.
         let width_len = mean_boundary_displacement(flux, area)?;
-        if classify_len::<T>(
-            "props_quad_converged",
-            Margin::of(target_len - width_len),
-            band,
-            PropsCheck::Converged,
-        )? == Sign::Positive
-        {
+        if converged::<T>(width_len, target_len, band)? {
             match classify_len::<T>(
                 "props_quad_face_extent",
                 Margin::over_lever(lo_or_refuse(area), perimeter),
@@ -5397,13 +5396,7 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
             )
         });
         let width_len = mean_boundary_displacement(flux, area)?;
-        if classify_len::<T>(
-            "props_quad_converged",
-            Margin::of(target_len - width_len),
-            band,
-            PropsCheck::Converged,
-        )? == Sign::Positive
-        {
+        if converged::<T>(width_len, target_len, band)? {
             // The perimeter this gate levers by is the DOOR's, derived
             // from the cells above — not a caller's field. A lane that
             // takes the caller's is

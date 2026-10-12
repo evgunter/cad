@@ -142,45 +142,12 @@ fn a_tilted_boss_unions_onto_a_box() {
         );
     }
     for theta in [definite_tilt(), 0.2, 0.8, 1.0] {
-        let what = format!("boss tilted {theta} rad, penetrating");
-        let result = topo::union(&base(), &boss(theta, 0.5), tol());
-        if theta == 1.0 && tol().eps() == QUAD_ESCALATES_AT {
-            assert_quad_escalates(&result, &what);
-            continue;
-        }
-        assert_sound(result, penetrating_union(theta, BOSS_R), &what);
-    }
-}
-
-/// The one ε at which the 1 rad penetrating boss's union was measured
-/// not to measure: one wall face's convergence margin lands in the band
-/// (`work/quad/quadrature-convergence-test-escalates-instead-of-refining`).
-const QUAD_ESCALATES_AT: f64 = 1e-12;
-
-/// The union refuses with exactly that escalation and nothing else. The
-/// pin goes red when QUAD's fix lands, and the pose's volume is then
-/// asserted at this ε too.
-fn assert_quad_escalates(r: &Result<topo::BooleanResult<f64>, BooleanError>, what: &str) {
-    let Err(BooleanError::VolumeUnmeasured {
-        operand: None,
-        source:
-            topo::MassPropsError::Face {
-                source: geom_brep::props::PropsError::Escalated { cause, .. },
-                ..
-            },
-    }) = r
-    else {
-        panic!(
-            "{what} at eps = {QUAD_ESCALATES_AT:e}: want the convergence escalation, got {:?}",
-            r.as_ref().map(|_| "a body")
+        assert_sound(
+            topo::union(&base(), &boss(theta, 0.5), tol()),
+            penetrating_union(theta, BOSS_R),
+            &format!("boss tilted {theta} rad, penetrating"),
         );
-    };
-    assert_eq!(cause.predicate, Some("props_quad_converged"), "{what}");
-    test_utils::vacuity::stood_down(
-        &format!("{what} at eps = {QUAD_ESCALATES_AT:e}"),
-        "a wall face's quadrature convergence margin lands in the band, so the union's \
-         volume is not asserted",
-    );
+    }
 }
 
 /// **A boss at half a radian measures in either operand order.** The
