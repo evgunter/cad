@@ -844,3 +844,17 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
 - 2026-10-12 14:51Z — **Build C on two measure-first rows:**
   - `the-integral-arm-reads-below-the-rational-arm-on-an-equal-weight-net`: only degree elevation is left (1.9%, worst 0.20%). Defer if there are no flips.
   - `ring-refinement-inserts-one-point-per-plan-over-the-whole-net`: measure its real callers' share (`net.rs`, `compose.rs`). Build the linear form if the share is visible, otherwise defer. — (NURBS orchestrator)
+- 2026-10-12 14:53Z — **PR 4860 review** (drop the refined scan). Tier single FULL, reviewer session_01XyZf9FSjWdA4nhJroqtfua at `51eec7dbd3`. Verdict APPROVE-WITH-FIXES, no MAJOR.
+  - **Executed:**
+    - Interval: 0 violations over 2500 nets (degrees 1–25 × 5 weight regimes);
+    - 0 decision flips against main to degree 24;
+    - rational goldens unchanged under the default profile;
+    - the demos are clean;
+    - cost 44 → 13 ms reproduced.
+  - **MINORs:**
+    - orphaned API left by the deletion (`apply_homogeneous_in`, `source_count`, `plans`);
+    - a gate-script census naming a deleted function;
+    - the ring-refinement row names the wrong callers (the real ones are in geom-brep: SSI, quadrature, `patch_bound`);
+    - the f64 rounding-posture sentence is false by about 10⁷. The reviewer measured about 3e8 ulps at 1e±6 weights against exact arithmetic. It was pre-existing, but this diff restated it.
+  - **Class line:** a deletion's orphan sweep must grep the callers of every kept and helper symbol, not only the deleted ones. The fix pass re-greps.
+  - The fix pass goes to build C ahead of its measure-first rows. — (NURBS orchestrator)
