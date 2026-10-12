@@ -680,6 +680,35 @@ impl Real for Interval {
         }
     }
 
+    /// The lower ends summed exactly and rounded down, the upper ends
+    /// summed exactly and rounded up; the decoration is the terms'
+    /// least, and an unbounded result caps it at `Dac`, as addition
+    /// does. Poison propagates as in addition: any NaI gives NaI, else
+    /// any empty term gives empty.
+    fn sum_rounded_once(terms: &[Self]) -> Self {
+        use crate::exact::{Rounding, sum_rounded};
+        if terms.iter().any(|t| t.0.is_nai()) {
+            return Self(DInterval::nai());
+        }
+        if terms.iter().any(|t| t.0.is_empty()) {
+            return Self(DInterval::empty());
+        }
+        let los: Vec<f64> = terms.iter().map(|t| t.0.lo()).collect();
+        let his: Vec<f64> = terms.iter().map(|t| t.0.hi()).collect();
+        let dec = terms
+            .iter()
+            .map(|t| t.0.decoration())
+            .min()
+            .unwrap_or(Decoration::Com);
+        Self(
+            DInterval::from_bounds(
+                sum_rounded(&los, Rounding::Down),
+                sum_rounded(&his, Rounding::Up),
+            )
+            .with_dec_capped(dec),
+        )
+    }
+
     /// **Overrides** the defaulted squaring algorithm with the backend's
     /// dedicated integer power, per the override clause in
     /// [`Real::powi`]'s docs: the interval contract is a **tight

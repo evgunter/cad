@@ -230,6 +230,16 @@ impl<T: Real> Vec3<T> {
         [x, y, z]
     }
 
+    /// The rounded-once sum of a sequence of vectors
+    /// ([`Real::sum_rounded_once`] per component), so it does not read
+    /// the order the vectors come in.
+    #[must_use]
+    pub fn sum_rounded_once(terms: &[Self]) -> Self {
+        let component =
+            |f: fn(&Self) -> T| T::sum_rounded_once(&terms.iter().map(f).collect::<Vec<T>>());
+        Self::new(component(|v| v.x), component(|v| v.y), component(|v| v.z))
+    }
+
     /// The same vector read at another scalar: `f` applied to each
     /// component, in `x, y, z` order (see [`Vec2::map`]).
     ///

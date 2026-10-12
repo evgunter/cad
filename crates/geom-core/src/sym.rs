@@ -5264,6 +5264,26 @@ impl<T: Real> Real for Sym<T> {
             SymOp::Select,
         )
     }
+
+    /// The value channel is `T`'s rounded-once sum, bit-identical to
+    /// the plain lane's; the node chains the additions in the order
+    /// given.
+    fn sum_rounded_once(terms: &[Self]) -> Self {
+        let values: Vec<T> = terms.iter().map(|t| t.value).collect();
+        let value = T::sum_rounded_once(&values);
+        match terms.split_first() {
+            None => Self::zero(),
+            Some((&first, rest)) => {
+                let chain = rest
+                    .iter()
+                    .fold(first, |acc, &t| acc.binary(t, value, SymOp::Add));
+                Sym {
+                    value,
+                    node: chain.node,
+                }
+            }
+        }
+    }
 }
 
 /// The bracket is the value channel's, verbatim: the DAG carries no

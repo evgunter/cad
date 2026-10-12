@@ -469,9 +469,9 @@ fn wall_chart(
     pieces: usize,
 ) -> Result<[Interval; 4], PropsError> {
     let (big, r) = (chart.major, chart.minor);
-    let mut acc = [Interval::zero(); 4];
+    let mut terms: [Vec<Interval>; 4] = Default::default();
     // Σ (chart length · envelope), for the map-residual pad.
-    let mut defect = Interval::zero();
+    let mut defect = Vec::new();
     for e in &face.spirics {
         let Some(w) = e.wall.as_ref() else {
             return Err(PropsError::QuadratureUnsupported {
@@ -480,7 +480,7 @@ fn wall_chart(
         };
         let t = spiric_wall_terms(e, w, chart, pieces);
         for k in 0..4 {
-            acc[k] = acc[k] + t[k];
+            terms[k].push(t[k]);
         }
         // The chart length: `|u′|` over the span, and `|v′| = 1`.
         let Some((_, du_max)) = span_rates(e) else {
@@ -490,19 +490,21 @@ fn wall_chart(
             });
         };
         let len = (du_max + Interval::one()) * (e.t1 - e.t0);
-        defect = defect + len * w.env;
+        defect.push(len * w.env);
     }
     for rim in &chart.rims {
         let (f, g) = rim_fg(big, r, rim.v);
-        acc[0] = acc[0] - f * rim.du;
-        acc[1] = acc[1] - g * rim.du;
-        acc[2] = acc[2] + rim.du;
-        defect = defect + pt(rim.du.mag()) * rim.env;
+        terms[0].push(-(f * rim.du));
+        terms[1].push(-(g * rim.du));
+        terms[2].push(rim.du);
+        defect.push(pt(rim.du.mag()) * rim.env);
     }
     for mer in &chart.meridians {
-        acc[3] = acc[3] + mer.dv;
-        defect = defect + pt(mer.dv.mag()) * mer.env;
+        terms[3].push(mer.dv);
+        defect.push(pt(mer.dv.mag()) * mer.env);
     }
+    let mut acc = terms.map(|t| geom_core::Real::sum_rounded_once(&t));
+    let defect = geom_core::Real::sum_rounded_once(&defect);
     // The chart's smallest metric scale, `min(R − r, r)`, from below — a
     // refused radius has ordinary endpoints, so it is asked by name.
     let floor = (big - r).lo().min(r.lo());
@@ -526,11 +528,12 @@ fn face_bounds(
     face: &SpiricFaceQ,
     pieces: usize,
 ) -> Result<(FaceCutBounds, [Interval; 2]), PropsError> {
-    let mut va = face.closed_va;
-    for e in &face.spirics {
-        let t = spiric_vector_area(e, pieces);
-        va = [0, 1, 2].map(|k| va[k] + t[k]);
-    }
+    let parts: Vec<[Interval; 3]> = core::iter::once(face.closed_va)
+        .chain(face.spirics.iter().map(|e| spiric_vector_area(e, pieces)))
+        .collect();
+    let va = [0, 1, 2].map(|k| {
+        geom_core::Real::sum_rounded_once(&parts.iter().map(|t| t[k]).collect::<Vec<_>>())
+    });
     let position = dot(&face.lever, &va);
     Ok(match &face.wall {
         None => (

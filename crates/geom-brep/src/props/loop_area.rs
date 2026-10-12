@@ -45,7 +45,7 @@ pub fn loop_vector_area<T: SpanLocate>(
     ref_point: Point3<T>,
 ) -> Result<Vec3<T>, PropsError> {
     let half = T::from_f64(0.5);
-    let mut acc = Vec3::zero();
+    let mut terms = Vec::with_capacity(edges.len());
     for e in edges {
         let contrib = match e.carrier {
             Curve3::Line { .. } => {
@@ -82,13 +82,9 @@ pub fn loop_vector_area<T: SpanLocate>(
             Curve3::Spiric { .. } => return Err(PropsError::Unimplemented),
         };
         // Reversed traversal flips the line integral's sign.
-        acc = if e.forward {
-            acc + contrib
-        } else {
-            acc - contrib
-        };
+        terms.push(if e.forward { contrib } else { -contrib });
     }
-    Ok(acc)
+    Ok(Vec3::sum_rounded_once(&terms))
 }
 
 /// The fixed Gauss–Legendre rules on `[−1, 1]`, by node count `n`

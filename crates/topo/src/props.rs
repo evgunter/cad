@@ -42,6 +42,7 @@ use geom_brep::props::{
 use geom_brep::recourse::{
     Classified, Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
 };
+use geom_core::exact::{Rounding, sum_rounded};
 use geom_core::interval::Interval;
 use geom_core::k_stats::Detached;
 use geom_core::{Band, BandError, Decide, Decided, Indeterminate, Margin, Point3, Real, Sign, Tol};
@@ -98,9 +99,11 @@ impl<T: Real> MassProperties<T> {
     /// toward admitting, which is the direction that matters and the
     /// direction that did not exist before that exit did.
     ///
-    /// **The band absorbs it, with the numbers.** The reconstruction
-    /// error is at most a few ulps of the midpoint's magnitude, so at
-    /// most `|volume|·2⁻⁵²`. The passing exit requires
+    /// **The band absorbs it, with the numbers.** The fold sums the
+    /// face midpoints exactly and rounds once, and sums the pads
+    /// exactly and rounds up (`fold_runs`), so the reconstruction error
+    /// is at most a few ulps of the midpoint's magnitude, so at most
+    /// `|volume|·2⁻⁵²`, however large the face terms that cancel in it. The passing exit requires
     /// `volume_lo / surface_area ≥ K·ε` (the band's escalation
     /// threshold), and `volume ≤ volume_lo + 2·volume_pad`, so the
     /// error can only reach that threshold on a body whose bracket
@@ -1171,7 +1174,10 @@ fn rederive_about<T: Decide>(
     centre: Option<Point3<Interval>>,
     tight: bool,
 ) -> Result<Option<Rederived>, MassPropsError> {
-    let (mut flux, mut area) = (Interval::zero(), Interval::zero());
+    let (mut flux, mut area) = (
+        Vec::with_capacity(runs.len()),
+        Vec::with_capacity(runs.len()),
+    );
     let mut recentred = centre.is_some();
     for run in runs {
         let (face, surface) = resolve_face(body, run.face);
@@ -1226,12 +1232,12 @@ fn rederive_about<T: Decide>(
                 (c.flux, c.area)
             }
         };
-        flux = flux + f;
-        area = area + a;
+        flux.push(f);
+        area.push(a);
     }
     Ok(Some(Rederived {
-        volume: flux / Interval::from_f64(3.0),
-        area,
+        volume: Interval::sum_rounded_once(&flux) / Interval::from_f64(3.0),
+        area: Interval::sum_rounded_once(&area),
         recentred,
     }))
 }
@@ -1277,7 +1283,10 @@ fn rederive_polygons<T: Decide>(
     centre: Point3<Interval>,
     runs: &[FaceRun<T>],
 ) -> Result<Rederived, MassPropsError> {
-    let (mut flux, mut area) = (Interval::zero(), Interval::zero());
+    let (mut flux, mut area) = (
+        Vec::with_capacity(runs.len()),
+        Vec::with_capacity(runs.len()),
+    );
     for (rings, run) in polygons.iter().zip(runs) {
         let c = quad_lane::polygon_face_about(rings, centre).map_err(|source| {
             MassPropsError::Face {
@@ -1285,12 +1294,12 @@ fn rederive_polygons<T: Decide>(
                 source,
             }
         })?;
-        flux = flux + c.flux;
-        area = area + c.area;
+        flux.push(c.flux);
+        area.push(c.area);
     }
     Ok(Rederived {
-        volume: flux / Interval::from_f64(3.0),
-        area,
+        volume: Interval::sum_rounded_once(&flux) / Interval::from_f64(3.0),
+        area: Interval::sum_rounded_once(&area),
         recentred: true,
     })
 }
@@ -2443,37 +2452,41 @@ fn mass_properties_runs<T: Decide>(
 
 /// The face walk's sum, and the refusal the REPORTING level owes.
 ///
-/// **The order is the RUNS' order**, and the sum accumulates in it
-/// (D9's idiom 2): this fold never re-orders, so whichever walk built
-/// the slice decides the vocabulary — face-arena order for the
-/// whole-body walks and the continuation, the shell's own face list
-/// for [`classify_shells_of`]. The enclosure exists whenever every
+/// **The sums do not read the runs' order**: each is the rounded-once
+/// sum of the face terms ([`Real::sum_rounded_once`]), and each pad is
+/// their exact sum rounded up, so a body measures the same bits however
+/// its faces are stored. **The refusal is positional**: it names the
+/// first face in the runs' order — face-arena order for the whole-body
+/// walks and the continuation, the shell's own face list for
+/// [`classify_shells_of`]. The enclosure exists whenever every
 /// face produced bounds at all, which a face carrying an outstanding
 /// budget refusal still does. The second half names the FIRST face in
 /// that same order whose lane has such a refusal outstanding: the face
 /// a caller wanting a NUMBER is refused on, and the one a caller
 /// deciding a SIGN may still finish without.
 fn fold_runs<T: Decide>(runs: &[FaceRun<T>]) -> (MassProperties<T>, Option<(FaceKey, PropsError)>) {
-    let mut flux = T::zero();
-    let mut area = T::zero();
-    let mut flux_pad = 0.0f64;
-    let mut area_pad = 0.0f64;
-    let mut refused = None;
-    for run in runs {
-        if let (None, Some(refusal)) = (&refused, &run.refusal) {
-            refused = Some((run.face, refusal.clone()));
-        }
-        flux = flux + run.contribution.flux;
-        area = area + run.contribution.area;
-        flux_pad += run.contribution.flux_pad;
-        area_pad += run.contribution.area_pad;
-    }
+    let refused = runs.iter().find_map(|run| {
+        run.refusal
+            .as_ref()
+            .map(|refusal| (run.face, refusal.clone()))
+    });
+    let read = |f: fn(&FaceFlux<T>) -> T| {
+        T::sum_rounded_once(&runs.iter().map(|r| f(&r.contribution)).collect::<Vec<_>>())
+    };
+    let pad = |f: fn(&FaceFlux<T>) -> f64| {
+        sum_rounded(
+            &runs.iter().map(|r| f(&r.contribution)).collect::<Vec<_>>(),
+            Rounding::Up,
+        )
+    };
     (
         MassProperties {
-            volume: flux / T::from_f64(3.0),
-            surface_area: area,
-            volume_pad: flux_pad / 3.0,
-            area_pad,
+            volume: read(|c| c.flux) / T::from_f64(3.0),
+            surface_area: read(|c| c.area),
+            volume_pad: geom_core::Bounds::hi(
+                Interval::from_f64(pad(|c| c.flux_pad)) / Interval::from_f64(3.0),
+            ),
+            area_pad: pad(|c| c.area_pad),
         },
         refused,
     )

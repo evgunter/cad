@@ -771,10 +771,11 @@ pub fn planar_face<T: SpanLocate>(
     origin: Point3<T>,
     loops: &[Vec<LoopEdge<T>>],
 ) -> Result<FaceContribution<T>, PropsError> {
-    let mut va = Vec3::zero();
-    for lp in loops {
-        va = va + loop_vector_area(lp, origin)?;
-    }
+    let per_loop = loops
+        .iter()
+        .map(|lp| loop_vector_area(lp, origin))
+        .collect::<Result<Vec<_>, _>>()?;
+    let va = Vec3::sum_rounded_once(&per_loop);
     let flux = (origin - Point3::origin()).dot(va);
     Ok(FaceContribution {
         flux,
