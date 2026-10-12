@@ -4,6 +4,8 @@ kind: issue
 title: the quadrature loops stop on a round count, not on the crate's stop rule (crate::descent)
 status: open
 opened: 2026-10-12
+priority: P4
+cost: M
 ---
 
 
