@@ -29,7 +29,7 @@ ending table for a sized decision.
   `geom_brep::offset_meters::MeterError::Escalated` now carries a
   `Meter`.
 
-- **A second name-keyed table** (ENCL, PR NNNN):
+- **A second name-keyed table** (ENCL, PR 4780):
   `validate::LEVER_ONLY_DECISIONS` picks the ending both
   `PathError::Escalated` and `ProfileError::Escalated` give a name
   (`validate::escalation_ending`). The closed type below retires it with

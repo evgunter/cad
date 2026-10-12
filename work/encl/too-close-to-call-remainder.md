@@ -92,7 +92,7 @@ caller's, per `Reading`. Three render the whole escalation
   `UndecidedRefusal`, which needs an `Indeterminate`: two of
   `SectorReading`'s arms are decided disagreements carrying margins.
 
-**Done: the profile slice, in PR NNNN** (four sentences: `path.rs`'s
+**Done: the profile slice, in PR 4780** (four sentences: `path.rs`'s
 junction arm and both fall-through arms, `validate.rs`'s
 `ProfileError::Escalated`, now "{site}, {subject} is undecided: …").
 Both doors end through one `validate::escalation_ending`: the names in
