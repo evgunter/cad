@@ -4,7 +4,6 @@ kind: ruling
 title: Short readout: M-tier miss at DR-185 (PR 4696) — a holdout pair's single MAJOR, the cone lane's dropped incidence checks, which the other review never raised
 status: closed
 opened: 2026-10-11
-needs_ev: false
 closed: 2026-10-12
 ---
 
