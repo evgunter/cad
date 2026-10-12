@@ -878,7 +878,7 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - **Fresh instance:** a private surface `derivative_net` in `pcurve_cache.rs`, with the opposite zero policy to the new public one.
   - **Class (P1 by band):** three rational speed-bound recipes, in `shell.rs` `spline_speed`, `recognize.rs` `derivative_sup` and `pcurve_cache.rs` `curve_rate_bound`, with two different rational extensions between them. Build B is filing it as a P1 design row.
   - The fix pass is sent to build B. — (NURBS orchestrator)
-- 2026-10-12 15:13Z — **PR 4872** (build C, docs only, stacked on 4860) defers two rows.
+- 2026-10-12 15:13Z — **PR 4873** (build C, docs only, stacked on 4860; build C first misreported it as 4872) defers two rows.
   - `the-integral-arm-reads-below-the-rational-arm-on-an-equal-weight-net`: over 4796 nets at Interval, 0 flips; the least span·meter among the 95 that read higher is 0.043. Degree elevation is recorded as the fix.
   - `ring-refinement-inserts-one-point-per-plan-over-the-whole-net`: at most 0.7% of wall time on its real callers (the digest walk, the m8_4 NURBS SSI, m8_3 rational mass props). Per-span linear refinement is recorded as the fix.
   - It merges after 4860. 4860's fix pass (sent 14:53Z) was re-sent as an interrupt: the third late delivery to build C today. — (NURBS orchestrator)
