@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-11
 priority: P2
 design: true
+needs_ev: true
 ---
 
 
@@ -88,8 +89,30 @@ Its cost:
   whose sum is not already exact) and any row pinning a volume's bits;
   the census is part of the design.
 
-## The question
+## The question for Ev
 
-Should the whole-body fold be order-independent ((b)), or is
-order-dependence the contract, with cross-representation claims stated
-as bounds (the status quo PRs 4682 and 4684 adopt on the round-trip row)?
+Is a body's measured volume a function of the body as stored, or should
+it be invariant under the storage choices the data model declares free?
+Those choices are face and loop order, ring order, and each loop's anchor
+half-edge.
+
+Two designers weighed it. A reconciliation round settled the fact they
+disagreed on. A probe shows that rotating a loop's anchor moves per-face
+terms by ulps: 1 to 5 of 8 to 14 faces, and up to 21 ulps of the volume
+far from the origin. So an exact sum at the body fold alone, option (b)
+above, makes nothing storage-invariant. Both designers withdrew or
+rejected it.
+
+Two coherent final states remain:
+- **(A) storage-dependent and stated.** D9 names storage as part of the
+  input. Cross-storage tests compare structure, or carry a bound computed
+  from the face terms.
+- **(S) storage-invariant all the way down.** Every reduction over a set
+  or cycle (the edges of a loop, the loops of a face, the faces of a
+  body, and the pads) is the rounded-once sum of its terms, through one
+  summation on `geom_core::Real`.
+
+The designers split: one recommends (A) (likely), the other leans to (S)
+(unsure). Either way, the current `faces − 1` ulp bound is the wrong
+shape for signed terms. D9 idiom 2's "arena order" wording also changes,
+in a different direction under each answer.
