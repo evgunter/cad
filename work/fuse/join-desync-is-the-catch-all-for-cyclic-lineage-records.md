@@ -47,12 +47,41 @@ that could cycle where it is added, with a typed refusal,
 - `Fusions::push`'s two `JoinDesync` arms, now `LineageRow`;
 - editor-core's `NamingError::FragmentLineage`, retired whole.
 
-Still open, and what this row now holds: the two edge split-lineage
-sites that map `SplitLineageCycle` into `JoinDesync`, `discard.rs`
-("a discarded edge's split lineage is cyclic") and `join.rs` ("an
-OnEdge germ's edge has a cyclic split lineage"). Their records live on
-the body (`Provenance::SplitEdge`), are remapped by transforms and read
-back from files, so the reader check stays; what is owed is the typed
-refusal for them. The null-edge copy chase (`uncopied`) is filed
-apart: `null-edge-copy-rows-are-checked-for-a-cycle-by-their-reader`.
+Still open, and what this row now holds: the lineage walks that chase
+split hops, and their refusals.
 
+- **`SplitEdge` provenance alone cannot cycle.** `Body::split_edge` is
+  the one door that writes a `SplitEdge` record, and it records the
+  parent on the child it has just minted, so each record points at an
+  older key; a graft forwards records injectively, and provenance is
+  never persisted or read back. So `Body::split_root`'s
+  `SplitLineageCycle` is unreachable from provenance alone, and the two
+  boolean sites that map it into `JoinDesync` (`discard.rs`, "a
+  discarded edge's split lineage is cyclic"; `join.rs`, "an OnEdge
+  germ's edge has a cyclic split lineage") guard an invariant the
+  writer already holds.
+- **What a split walk can still meet unchecked are the naming tables it
+  steps through beside the provenance**, each a plain kernel-minted
+  table that nothing checks where it is written:
+  - `SplitNaming::joined_lineage` (`crates/topo/src/splitting/finish.rs`,
+    written in `splitting/mod.rs` from the `SplitEdge` records taken
+    before the kills), chased with a budget in editor-core's
+    `emit_topo::chase_split_lineage`, which refuses
+    `SplitLineageCycle`;
+  - the kills' split hops, `DiscardRow::boundary_chains`, read as
+    `KilledSplits` by `emit_topo::chase_edge_to_table` (bounded by the
+    hop count, refusing `SplitLineageCycle`) and as `dead_split` by
+    `names/borders.rs`'s `obstacle`, an inline bounded walk that ends in
+    `bug("a piece edge's split lineage is cyclic")`.
+
+  Each writes a split's minted piece onto the edge it was split from,
+  so the fresh-key check `crate::lineage::FaceDivisions` holds for
+  faces would hold for these edge rows where they are written, and the
+  walks' refusals would go.
+
+What is owed: the typed refusal for whatever of these stays
+reader-checked, or, better, an edge division list in the
+`FaceDivisions` shape for `joined_lineage` and the boundary chains, so
+the walks are total; and a ruling on the two provenance-only sites
+above. The null-edge copy chase (`uncopied`) is filed apart:
+`null-edge-copy-rows-are-checked-for-a-cycle-by-their-reader`.

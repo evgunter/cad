@@ -3956,10 +3956,13 @@ impl core::fmt::Display for BooleanError {
             ),
             Self::LineageRow { rows, defect, key } => write!(
                 f,
-                "the Boolean's record of what replaced what ({}) gained a row that {} \
-                 ({key:?}), so no body is returned. {KERNEL_DEFECT_ENDING}",
-                rows.word(),
-                defect.word()
+                "the Boolean's lineage records refused {}, so no body is returned. \
+                 {KERNEL_DEFECT_ENDING}",
+                crate::lineage::RowRefusal {
+                    rows: *rows,
+                    defect: *defect,
+                    key: *key,
+                }
             ),
             Self::EdgeUndescribed {
                 failure,
@@ -6319,6 +6322,20 @@ fn validate_declarations<T: Decide>(
     carried(a, &decls.records_a, Operand::A)?;
     carried(b, &decls.records_b, Operand::B)?;
     Ok(())
+}
+
+impl BooleanError {
+    /// The chord join's refusal as the Boolean's: nested whole
+    /// ([`Self::Join`]), except a lineage row the join's division list
+    /// refused, which is the Boolean's own [`Self::LineageRow`], so one
+    /// lineage refusal reaches a caller one way.
+    #[must_use]
+    pub fn of_join(error: SplitJoinError) -> Self {
+        match error {
+            SplitJoinError::LineageRow(refusal) => refusal.into(),
+            other => Self::Join(other),
+        }
+    }
 }
 
 impl From<crate::lineage::RowRefusal> for BooleanError {

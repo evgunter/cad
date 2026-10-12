@@ -560,7 +560,7 @@ impl core::fmt::Display for SplitJoinError {
             }
             Self::LineageRow(refusal) => write!(
                 f,
-                "the join's record of the faces it divided gained {refusal}. {}",
+                "the join's lineage records refused {refusal}. {}",
                 geom_core::KERNEL_DEFECT_ENDING
             ),
             Self::Band(e) => write!(f, "{e}"),

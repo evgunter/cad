@@ -82,12 +82,14 @@ impl Divisions {
 
 /// Which lineage list refused a row.
 ///
-/// **Not carried by the façade.** Every refusal it rides
+/// **Not carried by the façade.** Where the kernel raises it
 /// ([`crate::BooleanError::LineageRow`],
-/// [`crate::chord_join::SplitJoinError::LineageRow`]) is a kernel defect
-/// and ends in the defect ending: no move of the model reaches it, so
-/// nothing branches on the arm. Falsifier: a row a caller's input can
-/// make a list refuse, which would owe its own decision and lever.
+/// [`crate::chord_join::SplitJoinError::LineageRow`]) it is a kernel
+/// defect and ends in the defect ending; where [`FaceDivisions::from_rows`]
+/// raises it, it refuses rows its caller wrote, and goes back to the one
+/// who holds them. Neither is reached by a move of a model, so nothing
+/// branches on the arm. Falsifier: a row a model's geometry can make a
+/// list refuse, which would owe its own decision and lever.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LineageRows {
     /// A vertex fusion list ([`crate::Fusions`]).
@@ -103,9 +105,9 @@ impl LineageRows {
     #[must_use]
     pub fn word(self) -> &'static str {
         match self {
-            Self::Fusions => "vertex fusions",
-            Self::Substitutions => "substitutions",
-            Self::FaceDivisions => "face divisions",
+            Self::Fusions => "vertex fusion",
+            Self::Substitutions => "substitution",
+            Self::FaceDivisions => "face division",
         }
     }
 }
@@ -113,12 +115,14 @@ impl LineageRows {
 /// What is wrong with a lineage row a list refused at append
 /// ([`Substitutions::push`], [`FaceDivisions::push`], `Fusions::push`).
 ///
-/// **Not carried by the façade.** Every refusal it rides
+/// **Not carried by the façade.** Where the kernel raises it
 /// ([`crate::BooleanError::LineageRow`],
-/// [`crate::chord_join::SplitJoinError::LineageRow`]) is a kernel defect
-/// and ends in the defect ending: no move of the model reaches it, so
-/// nothing branches on the arm. Falsifier: a row a caller's input can
-/// make a list refuse, which would owe its own decision and lever.
+/// [`crate::chord_join::SplitJoinError::LineageRow`]) it is a kernel
+/// defect and ends in the defect ending; where [`FaceDivisions::from_rows`]
+/// raises it, it refuses rows its caller wrote, and goes back to the one
+/// who holds them. Neither is reached by a move of a model, so nothing
+/// branches on the arm. Falsifier: a row a model's geometry can make a
+/// list refuse, which would owe its own decision and lever.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RowDefect {
     /// The row maps a cell to itself.
@@ -159,7 +163,7 @@ impl core::fmt::Display for RowRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(
             f,
-            "a row of its {} {} ({:?})",
+            "a {} row that {} ({:?})",
             self.rows.word(),
             self.defect.word(),
             self.key
@@ -534,17 +538,35 @@ mod tests {
         assert_eq!(list.from(f[0]), None);
     }
 
+    /// **The checked constructor outside the kernel checks.** A caller
+    /// building a list from rows it wrote gets the same refusal a push
+    /// would give, at the first row that has it. Red if `from_rows`
+    /// collects without pushing.
+    #[test]
+    fn a_list_built_from_rows_refuses_the_row_that_closes_a_cycle() {
+        let f = faces(2);
+        assert_eq!(
+            FaceDivisions::from_rows([(f[1], f[0]), (f[0], f[1])]),
+            Err(RowRefusal {
+                rows: LineageRows::FaceDivisions,
+                defect: RowDefect::NotFresh,
+                key: Cell::Face(f[0]),
+            })
+        );
+        let list = FaceDivisions::from_rows([(f[1], f[0])]).unwrap();
+        assert_eq!(list.rows(), [(f[1], f[0])]);
+    }
+
     /// **The invariant the face division list stands on: an arena never
     /// hands a key out twice.** A face removed and a face minted into
     /// its slot get keys that differ, so the division that mints the
     /// second is fresh to a list that names the first, and the list
-    /// takes it. If the arena reused the bare key, the new face would
-    /// equal one the list names; the second half spells that key out
-    /// and shows the list refuses it instead of cycling. Red if slot
-    /// reuse stops versioning keys (the first push refuses), or if the
-    /// fresh check is dropped (the second pushes).
+    /// takes it. Red if slot reuse stops versioning keys: the reused
+    /// key would equal the removed one, which the list names, and the
+    /// push would refuse it ([`RowDefect::NotFresh`], pinned by the row
+    /// above).
     #[test]
-    fn a_face_minted_into_a_reused_slot_is_fresh_and_a_bare_reused_key_is_not() {
+    fn a_face_minted_into_a_reused_slot_is_fresh_to_the_list() {
         let mut arena: SlotMap<FaceKey, ()> = SlotMap::with_key();
         let parent = arena.insert(());
         let piece = arena.insert(());
@@ -555,16 +577,47 @@ mod tests {
         assert_ne!(reused, parent, "the reused slot carries a new version");
         list.push((reused, piece))
             .expect("a key minted into a reused slot is new to the list");
+    }
 
-        let bare: FaceKey = slotmap::KeyData::from_ffi(slotmap::Key::data(&parent).as_ffi()).into();
+    /// **A refused row reads the same in every lane that carries it.**
+    /// One sentence for the row ([`RowRefusal`]'s `Display`), inside
+    /// the Boolean's refusal, the chord join's, and the join's lifted
+    /// into the Boolean's ([`crate::BooleanError::of_join`], which hands
+    /// it over as the Boolean's own [`crate::BooleanError::LineageRow`]).
+    /// Red if a lane spells the row again, or the lift nests it.
+    #[test]
+    fn a_refused_row_reads_alike_in_every_lane_that_carries_it() {
+        use crate::boolean::BooleanError;
+        use crate::chord_join::SplitJoinError;
+        let f = faces(1);
+        let refusal = RowRefusal {
+            rows: LineageRows::FaceDivisions,
+            defect: RowDefect::NotFresh,
+            key: Cell::Face(f[0]),
+        };
+        let row = refusal.to_string();
         assert_eq!(
-            list.push((bare, piece)),
-            Err(RowRefusal {
-                rows: LineageRows::FaceDivisions,
-                defect: RowDefect::NotFresh,
-                key: Cell::Face(parent),
-            }),
-            "a key the list names, handed out again, is refused"
+            row,
+            format!(
+                "a face division row that mints a cell an earlier row already names ({:?})",
+                Cell::Face(f[0])
+            )
         );
+        let lifted = BooleanError::of_join(SplitJoinError::LineageRow(refusal));
+        assert!(
+            matches!(
+                lifted,
+                BooleanError::LineageRow { rows: LineageRows::FaceDivisions, defect: RowDefect::NotFresh, key }
+                    if key == Cell::Face(f[0])
+            ),
+            "the lift is the Boolean's own: {lifted:?}"
+        );
+        for shown in [
+            lifted.to_string(),
+            SplitJoinError::LineageRow(refusal).to_string(),
+        ] {
+            assert!(shown.contains(&row), "{shown}");
+            assert!(shown.ends_with(geom_core::KERNEL_DEFECT_ENDING), "{shown}");
+        }
     }
 }

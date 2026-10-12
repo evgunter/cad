@@ -370,7 +370,7 @@ impl SolidJoin {
     ) -> Result<JoinPlan, BooleanError> {
         self.joiner
             .plan(body, halves, SegmentEdge::Locus(segment))
-            .map_err(BooleanError::Join)
+            .map_err(BooleanError::of_join)
     }
 
     /// The segment's curve in `lane`, from the site of the plan's first
@@ -387,7 +387,7 @@ impl SolidJoin {
         let curve = self
             .joiner
             .segment_curve(body, plan, lane, leave)
-            .map_err(BooleanError::Join)?;
+            .map_err(BooleanError::of_join)?;
         curve.ok_or(BooleanError::Join(SplitJoinError::SectionInvariant {
             face: plan.face(),
             what: "both chords of a matched segment are its own edge (a loop holding both \
@@ -473,7 +473,7 @@ impl SolidJoin {
         let minted = self
             .joiner
             .join(body, plan, curve, tol)
-            .map_err(BooleanError::Join)?;
+            .map_err(BooleanError::of_join)?;
         if let Some(edge) = segment {
             self.along
                 .extend(minted.into_iter().map(|chord| (edge, chord)));
@@ -1032,7 +1032,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
             };
             let face = match crate::chord_join::he_face(body, he) {
                 Ok(face) => face,
-                Err(e) => return BooleanError::Join(e),
+                Err(e) => return BooleanError::of_join(e),
             };
             match body
                 .get_face(face)
@@ -1167,10 +1167,10 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         );
         sa.joiner
             .place_pending(&mut red.a, (ea, ra))
-            .map_err(BooleanError::Join)?;
+            .map_err(BooleanError::of_join)?;
         sb.joiner
             .place_pending(&mut red.b, (eb, rb))
-            .map_err(BooleanError::Join)?;
+            .map_err(BooleanError::of_join)?;
         let a_lane = choose_roles(&red.a, (ea, ra), &a_loose, seg_a, a_closure, band)
             .map_err(|e| pinch_ray_refusal(e, red, Operand::A, (ea, ra)))?;
         let b_lane = choose_roles(&red.b, (eb, rb), &b_loose, seg_b, b_closure, band)
@@ -1402,8 +1402,8 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
     }
     // A pierce ring deferred at a pinch is placed by the join that
     // reaches it; one still pending after every join has run never was.
-    sa.joiner.finish(&red.a).map_err(BooleanError::Join)?;
-    sb.joiner.finish(&red.b).map_err(BooleanError::Join)?;
+    sa.joiner.finish(&red.a).map_err(BooleanError::of_join)?;
+    sb.joiner.finish(&red.b).map_err(BooleanError::of_join)?;
     Ok(Connected {
         completed,
         a_fragments: sa.joiner.take_fragments(),
@@ -3674,7 +3674,7 @@ fn choose_roles<T: Decide>(
         let sites = |order| {
             JoinPlan::of(body, order, SegmentEdge::Locus(segment), band)
                 .map(|plan| plan.sites())
-                .map_err(BooleanError::Join)
+                .map_err(BooleanError::of_join)
         };
         let across = match (sites((x, y))?, sites((y, x))?) {
             ((Some(a), None), (None, Some(b))) if a == b => true,
@@ -3817,11 +3817,11 @@ fn ring_run_ccw<T: Decide>(
         IslandClosing::Wall(section) => {
             let wound =
                 crate::chord_join::chart_island_winding(body, face, (h1, h2), section, band)
-                    .map_err(BooleanError::Join)?;
+                    .map_err(BooleanError::of_join)?;
             return ring_winding_order(wound);
         }
         IslandClosing::Quadric(curve) => {
-            let closing = curve.run_closing(h1, face).map_err(BooleanError::Join)?;
+            let closing = curve.run_closing(h1, face).map_err(BooleanError::of_join)?;
             let wound = crate::chord_join::path_island_winding(
                 body,
                 face,
@@ -3829,12 +3829,12 @@ fn ring_run_ccw<T: Decide>(
                 closing.as_ref(),
                 band,
             )
-            .map_err(BooleanError::Join)?;
+            .map_err(BooleanError::of_join)?;
             return ring_winding_order(wound);
         }
         IslandClosing::Planar(normal, curve) => (normal, curve),
     };
-    let closing = curve.run_closing(h1, face).map_err(BooleanError::Join)?;
+    let closing = curve.run_closing(h1, face).map_err(BooleanError::of_join)?;
     let wound = body
         .planar_run_winding_decided((h1, h2), RunClosing::of(closing.as_ref()), normal, band)
         .map_err(|RunMissesEnd| desync("ring-run arc did not close"))?
@@ -4035,11 +4035,11 @@ fn cut_pair<T: Decide>(
     let a_out = sa
         .joiner
         .cut_core(&mut red.a, a_edge, tol)
-        .map_err(BooleanError::Join)?;
+        .map_err(BooleanError::of_join)?;
     let b_out = sb
         .joiner
         .cut_core(&mut red.b, b_edge, tol)
-        .map_err(BooleanError::Join)?;
+        .map_err(BooleanError::of_join)?;
     match (a_out, b_out) {
         (CutOutcome::Merged, CutOutcome::Merged) => Ok(()),
         (

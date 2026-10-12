@@ -39,14 +39,6 @@ struct Side<'a, T: Decide> {
     half: SplitHalf,
 }
 
-/// Chases a face key through fragment rows to its root (the key that
-/// is not itself a minted fragment). Total: the rows are a
-/// [`topo::FaceDivisions`], which refuses a row that could close a
-/// cycle where the join adds it.
-fn chase(rows: &topo::FaceDivisions, f: FaceKey) -> FaceKey {
-    rows.root(f)
-}
-
 /// Chases an edge through `SplitEdge` birth records
 /// (`Body::split_root`), STOPPING at the first key the operand's table
 /// names: the table is the identity boundary — records deeper than the
@@ -59,19 +51,24 @@ fn chase(rows: &topo::FaceDivisions, f: FaceKey) -> FaceKey {
 /// — [`NamingError::SplitLineage`], carrying the cycling edge, which
 /// is the only locator this failure has.
 ///
-/// **Unguardable from this crate, and the reason is WRITER ACCESS,
-/// not a survey of call sites.** This walk advances only on
-/// `Body::edge_provenance`, which is `pub(crate)` to `topo`; the one
-/// door that writes a `SplitEdge` record is `Body::split_edge`, and it
-/// records the parent on the child it has just minted, so every record
-/// points at a key that already existed and a chain is strictly
-/// decreasing in age in the arena that wrote it. A graft does not keep
-/// that order — a dead-on-arrival key is minted after the grafted
-/// edges whose records name it — but it forwards injectively (each
-/// source key to its own result key), and an injective image of an
-/// acyclic chain is acyclic. Nothing outside `topo` can close it. `chase_b` below walks the same records and reads the
-/// caller's graft rows only to decide where to stop, so the argument
-/// covers it too.
+/// **The `SplitEdge` records alone cannot cycle, and the reason is
+/// WRITER ACCESS, not a survey of call sites.** `Body::edge_provenance`
+/// is `pub(crate)` to `topo`; the one door that writes a `SplitEdge`
+/// record is `Body::split_edge`, and it records the parent on the child
+/// it has just minted, so every record points at a key that already
+/// existed and a chain is strictly decreasing in age in the arena that
+/// wrote it. A graft does not keep that order — a dead-on-arrival key
+/// is minted after the grafted edges whose records name it — but it
+/// forwards injectively (each source key to its own result key), and an
+/// injective image of an acyclic chain is acyclic. `chase_b` below walks
+/// the same records and reads the caller's graft rows only to decide
+/// where to stop, so the argument covers it too.
+///
+/// **The kills' hops are not covered by it.** `killed` comes from
+/// `BooleanNaming::discards`' boundary chains ([`KilledSplits`]), a
+/// public naming table nothing checks where the kernel writes it, so a
+/// cycle through those hops is writable and this walk's bound is what
+/// refuses it (`work/fuse/join-desync-is-the-catch-all-for-cyclic-lineage-records.md`).
 ///
 /// Where the lineage stops at a key the table does not name and a kill
 /// took ([`KilledSplits`]), the walk steps to that key's parent and goes
@@ -514,7 +511,7 @@ fn name_split_edges_vertices<T: Decide>(
                 // decide the reading whatever `chord_faces` holds.
                 continue;
             }
-            let root = chase(frag_rows, other);
+            let root = frag_rows.root(other);
             if section_keys.contains(&root) {
                 return Err(bug("section chord adjacent to a section face"));
             }
@@ -948,20 +945,16 @@ impl<'n> FaceDescent<'n> {
     /// [`FaceDescent::merged`].
     pub(crate) fn result_face(&self, f: FaceKey) -> Result<(topo::Operand, FaceKey), NamingError> {
         let (operand, k) = operand_key(self.naming, &self.inv_faces, f)?.0.of_operand();
-        Ok((operand, self.clone_face(operand, k)?))
+        Ok((operand, self.clone_face(operand, k)))
     }
 
     /// The operand face a face in `operand`'s CLONE keys is a fragment
     /// of (a discarded face's key is one).
-    pub(super) fn clone_face(
-        &self,
-        operand: topo::Operand,
-        f: FaceKey,
-    ) -> Result<FaceKey, NamingError> {
-        Ok(match operand {
-            topo::Operand::A => chase(self.a_rows, f),
-            topo::Operand::B => chase(self.b_rows, f),
-        })
+    pub(super) fn clone_face(&self, operand: topo::Operand, f: FaceKey) -> FaceKey {
+        match operand {
+            topo::Operand::A => self.a_rows.root(f),
+            topo::Operand::B => self.b_rows.root(f),
+        }
     }
 
     /// Merged result face → every face it holds, itself first, in
@@ -1027,8 +1020,8 @@ pub(crate) fn name_boolean<T: Decide>(
     // the result body will not find it.
     let descend_face = |f: FaceKey| -> Result<OpSide<FaceKey>, NamingError> {
         Ok(match operand_key(naming, &inv_faces, f)?.0 {
-            OpSide::A(fa) => OpSide::A(chase(a_rows, fa)),
-            OpSide::B(fb) => OpSide::B(chase(b_rows, fb)),
+            OpSide::A(fa) => OpSide::A(a_rows.root(fa)),
+            OpSide::B(fb) => OpSide::B(b_rows.root(fb)),
         })
     };
     let operand_face_name = |d: OpSide<FaceKey>| -> Result<Upstream, NamingError> {
@@ -1131,8 +1124,8 @@ pub(crate) fn name_boolean<T: Decide>(
     let mut obstacles = Obstacles::new();
     obstacles.record(naming, body, |operand, f| {
         Ok(BTreeSet::from([match operand {
-            topo::Operand::A => OpSide::A(chase(a_rows, f)),
-            topo::Operand::B => OpSide::B(chase(b_rows, f)),
+            topo::Operand::A => OpSide::A(a_rows.root(f)),
+            topo::Operand::B => OpSide::B(b_rows.root(f)),
         }]))
     })?;
     // A wall is cited by its parent's name: a merged face's, or the
@@ -3590,7 +3583,7 @@ fn name_split_faces<T: Decide>(
     let divided: BTreeSet<FaceKey> = frag_rows
         .rows()
         .iter()
-        .map(|&(_, p)| chase(frag_rows, p))
+        .map(|&(_, p)| frag_rows.root(p))
         .collect();
     // (root, side-slot) → members.
     type Members = Vec<(u32, SplitHalf, FaceKey)>;
@@ -3600,7 +3593,7 @@ fn name_split_faces<T: Decide>(
             if section_keys.contains(&f) {
                 continue;
             }
-            let root = chase(frag_rows, f);
+            let root = frag_rows.root(f);
             if root == f && !divided.contains(&root) {
                 // Uncut operand face: pass-through (N1: the split
                 // contributes no segment to survivors). It is still
