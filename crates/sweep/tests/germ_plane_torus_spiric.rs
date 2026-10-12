@@ -536,3 +536,33 @@ fn the_fat_corner_bars_lens_is_the_true_body_or_a_typed_refusal() {
         }
     }
 }
+
+/// **A plane parallel to the axis just short of the inner equator keeps
+/// a typed refusal where its ovals' islands cannot be wound**: the
+/// half-space `x ≥ 1.5 − 1e-3` against the donut cuts two ovals pinched
+/// near the inner equator, each an island in the plane face. The winding
+/// sum's quadrature cannot bound its error under that run's area there,
+/// so the ring lane refuses the island typed rather than read a sign it
+/// cannot decide
+/// (`work/germ/a-planar-island-on-a-pinched-oval-refuses-its-winding.md`).
+#[test]
+fn a_plane_near_the_inner_equator_refuses_its_islands_typed() {
+    let t = torus(2.0, 0.5);
+    let p = crate::germ_plane_torus_frame::half_space(
+        Point3::new(1.5 - 1e-3, 0.0, 0.0),
+        Vec3::unit_x(),
+    );
+    for (label, r) in six(&t, &p) {
+        assert!(
+            matches!(
+                r,
+                Err(BooleanError::Join(topo::SplitJoinError::RingIslandUnread {
+                    kind: geom::SurfaceKind::Plane,
+                    ..
+                }))
+            ),
+            "{label}: {:?}",
+            r.map(|r| r.body().map(|b| b.kind))
+        );
+    }
+}

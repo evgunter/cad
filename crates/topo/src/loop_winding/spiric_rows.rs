@@ -132,3 +132,107 @@ fn an_oval_near_the_inner_equator_bounds_its_error_by_its_bulge() {
         );
     }
 }
+
+/// A planar face bounded by the whole oval `x = d` cuts on the `+z`
+/// side of the donut `(2, 0.5)` about `y`, in two edges, and the face
+/// the closing edge mints beside it: the two loops of one curve, run
+/// opposite ways.
+fn oval_faces(d: f64) -> (Body<f64>, [LoopKey; 2]) {
+    use crate::euler::{FaceSurface, MefSite};
+    let tol = geom_core::Tol::witness();
+    let carrier = oval(
+        Point3::origin(),
+        Vec3::unit_y(),
+        Vec3::unit_x(),
+        (2.0, 0.5),
+        d,
+    );
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(carrier.eval(0.0), true).unwrap();
+    let plane = body
+        .set_face_surface(
+            seed.face,
+            FaceSurface::New {
+                surface: geom::Surface::Plane {
+                    origin: Point3::new(d, 0.0, 0.0),
+                    normal: Vec3::unit_x(),
+                    u_ref: Vec3::unit_y(),
+                },
+                sense: true,
+            },
+        )
+        .unwrap();
+    let torus = body.add_surface(geom::Surface::Torus {
+        center: Point3::origin(),
+        axis: Vec3::unit_y(),
+        major_radius: 2.0,
+        minor_radius: 0.5,
+        u_ref: Vec3::unit_x(),
+    });
+    let spec = |(t0, t1): (f64, f64)| geom_brep::EdgeCurveSpec {
+        description: geom_brep::EdgeDescriptionSpec::Intersection {
+            pair: geom_brep::SurfacePair::new(plane, torus),
+            witness: carrier.mid_point(t0, t1),
+        },
+        carrier: carrier.clone(),
+        param_start: t0,
+        param_end: t1,
+    };
+    let first = body
+        .mev(
+            crate::MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            carrier.eval(PI),
+            spec((0.0, PI)),
+            tol,
+        )
+        .unwrap();
+    let made = body
+        .mef(
+            MefSite::Chords {
+                he1: first.he_minus,
+                he2: first.he_plus,
+            },
+            spec((PI, TAU)),
+            FaceSurface::Shared {
+                key: plane,
+                sense: true,
+            },
+            tol,
+        )
+        .unwrap();
+    let outer = |f| body.get_face(f).unwrap().outer;
+    let loops = [outer(seed.face), outer(made.face)];
+    (body, loops)
+}
+
+/// **A loop on a whole oval winds, one way round and the other; one
+/// whose rule cannot bound its error under its area has no winding**:
+/// the oval of `x = 0.3` on the donut bounds two faces, whose loops wind
+/// opposite ways about the plane's normal. The oval of a plane `1e-3`
+/// short of the inner equator leaves the rule's error bound over its
+/// area ([`an_oval_near_the_inner_equator_bounds_its_error_by_its_bulge`]),
+/// and the sum reports no winding rather than a sign.
+#[test]
+fn a_loop_on_an_oval_winds_and_one_near_the_inner_equator_has_none() {
+    let band = geom_core::Band::linear(geom_core::Tol::witness()).unwrap();
+    let (body, loops) = oval_faces(0.3);
+    let wound = loops.map(|l| body.planar_loop_winding(l, Vec3::unit_x(), band));
+    assert!(
+        matches!(
+            wound,
+            [Some(Ok(Sign::Positive)), Some(Ok(Sign::Negative))]
+                | [Some(Ok(Sign::Negative)), Some(Ok(Sign::Positive))]
+        ),
+        "the two loops of one oval: {wound:?}"
+    );
+    let (body, loops) = oval_faces(1.5 - 1e-3);
+    for l in loops {
+        assert_eq!(
+            body.planar_loop_winding(l, Vec3::unit_x(), band),
+            None,
+            "a loop whose rule cannot bound its error"
+        );
+    }
+}

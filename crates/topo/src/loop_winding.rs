@@ -30,13 +30,17 @@
 //!
 //! # The carriers this answers about
 //!
-//! Line, Circle and Ellipse, and a null-edge scaffold, which is its
-//! zero-length chord. A boundary carrying a NURBS or spiric edge has no
+//! Line, Circle, Ellipse and Spiric, and a null-edge scaffold, which is
+//! its zero-length chord. A boundary carrying a NURBS edge has no
 //! winding here — the remainder this home has not built: a chord
 //! winding says nothing about a fitted carrier's region. A closed form
 //! exists for a NON-rational B-spline (`geom_brep`'s
 //! `props::loop_vector_area` integrates it exactly per knot span); a
-//! rational spline and the spiric have none.
+//! rational spline has none, and neither has the spiric, whose bulge is
+//! an elliptic integral taken by a quadrature with a bounded error
+//! ([`spiric_segment_term`]): the error moves the area toward zero, and
+//! a boundary whose area does not clear it
+//! (**`bool_ring_run_winding_spiric_rule`**) has no winding here either.
 //!
 //! For the conic carriers the enclosed vector area decomposes EXACTLY,
 //! per edge — a substitution, not an approximation:
@@ -105,8 +109,9 @@ pub(crate) struct RunMissesEnd;
 pub(crate) enum LoopWinding<W> {
     /// An empty loop: a lone vertex, which bounds no area.
     Empty,
-    /// A cycle carrying a NURBS or spiric edge, which the kernel does
-    /// not wind (module docs).
+    /// A cycle carrying a NURBS edge, or spiric edges whose quadrature
+    /// cannot bound its error under the area, which the kernel does not
+    /// wind (module docs).
     Unsupported,
     /// The winding of a cycle the kernel reads.
     Wound(W),
@@ -381,8 +386,9 @@ impl<T: Decide> Body<T> {
     /// `Err` an in-band margin.
     ///
     /// `None` — no predicate is asked — for an empty loop (a
-    /// lone-vertex ring bounds no area) and for a cycle carrying a
-    /// NURBS or spiric edge (the honest remainder). There is no
+    /// lone-vertex ring bounds no area) and for a cycle the sum does not
+    /// wind (a NURBS edge, or spiric edges whose quadrature cannot bound
+    /// its error under the area: the honest remainder). There is no
     /// narrower reach to ask for: the assigner, the checker and the
     /// join's ring lane answer on the one carrier set, which is what
     /// keeps them from disagreeing about which loops have a winding.
@@ -436,8 +442,8 @@ impl<T: Decide> Body<T> {
     /// join's ring lane walls off as an island's new face
     /// (`boolean::join::ring_run_ccw`). The sum, the carrier set and the
     /// claim are [`Body::planar_loop_winding_decided`]'s; the closing
-    /// curve is the one thing a run adds. `Ok(None)` for a run or a
-    /// closing curve carrying a NURBS or spiric carrier; [`RunMissesEnd`]
+    /// curve is the one thing a run adds. `Ok(None)` for a run the sum
+    /// does not wind, as for a cycle; [`RunMissesEnd`]
     /// when `next` comes back to `h1` without reaching `h2`.
     ///
     /// # Panics
@@ -505,7 +511,8 @@ impl<T: Decide> Body<T> {
 
     /// **The winding sum** (module docs) over `halves` in order, closed
     /// as `closing` says — the one statement of it. `None` when a
-    /// half carries a NURBS or spiric edge.
+    /// half carries a NURBS edge, or the spiric edges' quadrature cannot
+    /// bound its error under the area.
     ///
     /// A null-edge scaffold is wound as its chord: it states no carrier,
     /// and `Body::mev_null` mints its far vertex on a copy of its near

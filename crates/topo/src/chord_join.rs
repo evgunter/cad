@@ -344,9 +344,8 @@ pub enum SplitJoinError {
     /// refused typed. The chord is minted in the curved face itself
     /// (`divided` is `wall`), or in a plane face against it (`divided`
     /// is [`geom::SurfaceKind::Plane`]). The chord layer serves a plane
-    /// against a cylinder, a sphere or a cone, and a torus where the
-    /// plane cuts it in two meridian or two concentric circles: a torus
-    /// here is a plane cutting it in two spiric ovals.
+    /// against a cylinder, a sphere, a cone or a torus; every other curved
+    /// kind is unarmed.
     SectionUnarmed {
         /// The face being divided.
         face: FaceKey,
@@ -355,11 +354,12 @@ pub enum SplitJoinError {
         /// The curved kind whose section has no arm.
         wall: geom::SurfaceKind,
     },
-    /// A ring on a curved face whose island the ring lane does not read:
+    /// A ring whose island the ring lane does not read: on a curved face
     /// it winds an island, and re-homes a ring, on a cylinder wall's
-    /// chart, and on a sphere whose ring run lies in one cap of its
-    /// section plane and is bounded by circles. Valid input whose lane is
-    /// not yet built (D2 addendum row 2), refused typed.
+    /// chart and on a sphere, a cone or a torus by a path's parity; on a
+    /// plane, a run on spiric ovals whose quadrature cannot bound its
+    /// error under the run's area (`crate::loop_winding`). Valid input
+    /// whose lane is not yet built (D2 addendum row 2), refused typed.
     RingIslandUnread {
         /// The face carrying the ring.
         face: FaceKey,

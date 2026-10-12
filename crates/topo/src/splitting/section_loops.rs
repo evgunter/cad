@@ -104,7 +104,8 @@ fn one_whole_conic<T: Real>(body: &Body<T>, first: crate::entity::HalfEdgeKey) -
 #[derive(Debug)]
 pub(super) enum SenseFault {
     /// The winding has no sign: in the band (`Some`), or (`None`) zero,
-    /// or unread because the loop carries a NURBS or spiric edge.
+    /// or unread because the loop carries an edge the winding does not
+    /// read (`crate::loop_winding`).
     Undecided(Option<Indeterminate>),
 }
 

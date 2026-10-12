@@ -409,8 +409,8 @@ pub enum SplitFinishError {
     },
     /// A section loop's winding about its chart normal has no sign, so
     /// the section face's material side cannot be read: in the band
-    /// (`diag`), or (`None`) zero, or unread because the loop carries a
-    /// spiric or NURBS edge. The split's carrier gate admits only line,
+    /// (`diag`), or (`None`) zero, or unread because the loop carries an
+    /// edge the winding does not read. The split's carrier gate admits only line,
     /// circle and ellipse edges, so every section edge is one the
     /// winding reads.
     SectionWindingUndecided {
@@ -575,8 +575,9 @@ impl core::fmt::Display for SplitFinishError {
             Self::SectionWindingUndecided { diag: None, .. } => write!(
                 f,
                 "which side of a cut face is material cannot be read: its outline \
-                 encloses no area, or has a spiric or NURBS edge, whose winding the \
-                 kernel does not read. Recourse: {}",
+                 encloses no area, or has an edge whose winding the kernel does not \
+                 read (a NURBS edge, or spiric edges pinched near a torus's inner \
+                 equator). Recourse: {}",
                 super::SPLIT_COINCIDENCE_RECOURSE
             ),
             Self::NestingContradiction { hole } => write!(

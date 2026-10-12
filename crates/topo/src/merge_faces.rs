@@ -1183,10 +1183,10 @@ impl core::fmt::Display for MergeCoplanarError {
                 OutlineVerdict::UnsupportedWinding { r#loop } => write!(
                     f,
                     "no loop of the merged face {face:?} winds counterclockwise about its \
-                     outward normal, and loop {loop:?} rides a NURBS or spiric edge, whose \
-                     winding the kernel does not read, so which loop is the outline is not \
-                     known. Recourse: bound the merged faces with line, \
-                     circle or ellipse edges, whose winding the kernel reads"
+                     outward normal, and the kernel does not read loop {loop:?}'s winding (a \
+                     NURBS edge, or spiric edges pinched near a torus's inner equator), so \
+                     which loop is the outline is not known. Recourse: bound the merged faces \
+                     with line, circle, ellipse or spiric edges, whose winding the kernel reads"
                 ),
                 OutlineVerdict::AllNegative => write!(
                     f,

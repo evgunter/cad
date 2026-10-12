@@ -173,7 +173,8 @@ pub enum SectionError<T: Real> {
     KnifeEdge(KnifeEdge),
     /// Whether a section polygon is an outline or a hole cannot be
     /// read: its winding is in the band (`diag`), or (`None`) zero, or
-    /// unread because the polygon carries a spiric or NURBS edge.
+    /// unread because the polygon carries an edge the winding does not
+    /// read (`crate::loop_winding`).
     WindingUndecided {
         /// A corner of the polygon.
         corner: Point3<T>,
@@ -235,8 +236,9 @@ impl<T: Real> core::fmt::Display for SectionError<T> {
             Self::WindingUndecided { diag: None, .. } => write!(
                 f,
                 "whether a polygon of the section is an outline or a hole cannot be read: it \
-                 encloses no area, or has a spiric or NURBS edge, whose winding the kernel \
-                 does not read. Recourse: {SECTION_PLANE_RECOURSE}"
+                 encloses no area, or has an edge whose winding the kernel does not read (a \
+                 NURBS edge, or spiric edges pinched near a torus's inner equator). Recourse: \
+                 {SECTION_PLANE_RECOURSE}"
             ),
             Self::UnplacedHole { .. } => write!(
                 f,
@@ -357,8 +359,8 @@ pub fn plane_section<T: geom_core::Decide + crate::props::AtRestPolicy>(
                         end,
                     }
                 }
-                // `loop_sense` has refused such a loop already: it does not
-                // wind a spiric or NURBS edge.
+                // The split's carrier gate admits no spiric or NURBS edge,
+                // and its nesting reads none.
                 HalfCarrier::Unread => {
                     return Err(SectionError::WindingUndecided { corner, diag: None });
                 }
