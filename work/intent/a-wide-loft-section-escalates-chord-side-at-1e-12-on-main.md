@@ -2,7 +2,8 @@
 id: a-wide-loft-section-escalates-chord-side-at-1e-12-on-main
 kind: issue
 title: A wide loft section escalates chord_side at the 1e-12 row on main
-status: dispatched
+status: review
+pr: 4785
 opened: 2026-10-12
 priority: P0
 cost: E
