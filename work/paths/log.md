@@ -681,10 +681,13 @@ Signed: (CARVE orchestrator)
 - 2026-10-07 — `arc-arc-shallow-corner-legs-escalate-arc-span` (P0, H) is dispatched on `claude/clever-bardeen-4itqb3`. Step one is re-measuring on main, since #4264 and #4276 changed the simplicity pass it escalates in.
   - D10 check: it is the simplicity pass on leg arcs, not declared joints, so it may start under the hold.
   - Review tier: dual (H), if code lands.
-- 2026-10-07 — `arc-arc-shallow-corner-legs-escalate-arc-span` (P0) closed on `claude/clever-bardeen-4itqb3`. It still escalated on main after #4264/#4276, and not honestly: the legs stood 1.01–2.02 Kε apart (the fillet's chord), while each span read the carriers' crossing in band.
+- 2026-10-07 — `arc-arc-shallow-corner-legs-escalate-arc-span` (P0) closed on `claude/clever-bardeen-4itqb3`. It still escalated on main after #4264/#4276, and not honestly: the legs stood 1.114–2.108 Kε apart (the fillet's chord, r × its sweep), while each span read the carriers' crossing in band.
   - A candidate read in band now settles on the segments' ends when the in-band segment's nearer end (`nearer_end`, new) lies on the other carrier. Otherwise it still escalates.
   - Side effect: the sym11 past-the-ceiling row reaches the extrude on the bracket and the pad again, which closes SYM's `the-past-the-ceiling-row-replays-only-validation-on-the-bracket-and-pad`. The row moves to the slow set.
   - D10's hold did not bind.
 - 2026-10-12 — `claude/clever-bardeen-4itqb3` (the shallow arc×arc corner P0) merged `main` `8192224a78`. Main's D10 stage 4 PR G (tangent joints derived) left the pair pass untouched, and the change re-applies as it was. On main alone the witness still escalates; on the merged head the leg-pair escalations read 0.
   - Re-derived on the merged tree: the sym11 bracket and pad receipts (main's #4304, #4189 and #4640 moved the stages past validation, attributed on SYM's drift row) and `fillet_stored_tangency`'s 1e-6 golden (one verdict).
   - `review_m2_pr5`'s near-tangent join now validates and the revolve refuses at `axis_arc_clearance` (`SliverAxisClearance`); `UndeclaredTangency` retired on main.
+- 2026-10-12 — Fix pass on #4290 after its dual review. The first guard let an end beside the carriers' OTHER crossing settle a crossing that `arc_span`'s compressed zone read in band, so a figure-eight validated at every ε. The settle now also needs the end definitely nearer its candidate than the rival (`own_candidate`, new); the leg pairs stay fixed (0 of 15).
+  - `review_m2_pr5`'s join row moves 3 off the axis and reaches `SliverJoin`; the on-axis `SliverAxisClearance` is its own row.
+  - Filed `arc-arc-secant-arm-misses-crossings-at-unequal-radii` (P0): `f64`'s secant arm misplaces crossings at radius ratios past about 10³, a silent wrong validity on main.
