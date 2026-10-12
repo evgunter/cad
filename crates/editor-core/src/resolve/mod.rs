@@ -1522,7 +1522,7 @@ fn cited_lines(name: &StableName, is_line: bool) -> Vec<&StableName> {
                 | RoleSeg::BandCross { edge, .. } => {
                     lines.push(edge);
                 }
-                RoleSeg::EdgeCrossing { a, b, .. } => lines.extend([&**a, &**b]),
+                RoleSeg::EdgeCrossing(run) => lines.extend(run.iter().map(|l| &*l.line)),
                 RoleSeg::Seam { a, b } if n.kind == EntityKind::Vertex => {
                     lines.extend([&**a, &**b]);
                 }
@@ -1968,7 +1968,7 @@ impl<'a> SeamParent<'a> {
             if row.node != base.node || row.kind != seam_kind {
                 continue;
             }
-            let on_parent = row.path.iter().any(|seg| self.cut_by(base, seg).is_some());
+            let on_parent = row.path.iter().any(|seg| !self.cut_by(base, seg).is_empty());
             if !on_parent {
                 continue;
             }
@@ -1976,20 +1976,37 @@ impl<'a> SeamParent<'a> {
             if fragment_tail_start(tail) != 0 {
                 return None;
             }
-            out.insert(self.normalized(self.cut_by(base, head)?));
+            let cut = self.cut_by(base, head);
+            if cut.is_empty() {
+                return None;
+            }
+            out.extend(cut.into_iter().map(|c| self.normalized(c)));
         }
         Some(out)
     }
 
-    /// The cutter across seam segment `seg` from the parent: across a
-    /// `Seam`'s or an `EdgeCrossing`'s sides ([`SeamParent::across`]),
-    /// and a `Crossing`'s face where its edge is on the parent; `None`
-    /// for a segment of any other shape, or one not on the parent.
-    fn cut_by<'n>(&self, base: &StableName, seg: &'n RoleSeg) -> Option<&'n StableName> {
+    /// The cutters across seam segment `seg` from the parent: across a
+    /// `Seam`'s sides ([`SeamParent::across`]), every other line of an
+    /// `EdgeCrossing` run one of whose lines is on the parent, and a
+    /// `Crossing`'s face where its edge is on the parent; none for a
+    /// segment of any other shape, or one not on the parent.
+    fn cut_by<'n>(&self, base: &StableName, seg: &'n RoleSeg) -> Vec<&'n StableName> {
         match seg {
-            RoleSeg::Seam { a, b } | RoleSeg::EdgeCrossing { a, b, .. } => self.across(base, a, b),
-            RoleSeg::Crossing { edge, face, .. } => self.holds(base, edge).then_some(&**face),
-            _ => None,
+            RoleSeg::Seam { a, b } => self.across(base, a, b).into_iter().collect(),
+            RoleSeg::EdgeCrossing(run) => {
+                let Some(on) = run.iter().position(|l| self.holds(base, &l.line)) else {
+                    return Vec::new();
+                };
+                run.iter()
+                    .enumerate()
+                    .filter(|&(i, _)| i != on)
+                    .map(|(_, l)| &*l.line)
+                    .collect()
+            }
+            RoleSeg::Crossing { edge, face, .. } => {
+                self.holds(base, edge).then_some(&**face).into_iter().collect()
+            }
+            _ => Vec::new(),
         }
     }
 }
@@ -2446,10 +2463,14 @@ fn embedded<'a>(name: &'a StableName, partners: Partners, f: &mut Vec<&'a Stable
             RoleSeg::Seam { a, b }
             | RoleSeg::Crossing {
                 edge: a, face: b, ..
-            }
-            | RoleSeg::EdgeCrossing { a, b, .. } => {
+            } => {
                 visit(a, partners, f);
                 visit(b, partners, f);
+            }
+            RoleSeg::EdgeCrossing(run) => {
+                for l in run {
+                    visit(&l.line, partners, f);
+                }
             }
             RoleSeg::Merged(names) => {
                 for n in names {

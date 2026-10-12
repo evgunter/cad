@@ -71,17 +71,7 @@ fn two_crossing_edges_carry_each_ones_sense_against_the_other_block() {
     let body = body_of(&ev, u);
     let mut seen = 0;
     for (name, entry) in table(&ev, u).iter() {
-        let (
-            Entry::Unique(r),
-            [
-                RoleSeg::EdgeCrossing {
-                    a: ea,
-                    a_sense,
-                    b: eb,
-                    b_sense,
-                },
-            ],
-        ) = (entry, name.path.as_slice())
+        let (Entry::Unique(r), [RoleSeg::EdgeCrossing(run)]) = (entry, name.path.as_slice())
         else {
             continue;
         };
@@ -98,12 +88,13 @@ fn two_crossing_edges_carry_each_ones_sense_against_the_other_block() {
             [RoleSeg::From { read, of }] if *read == br => (b, (**of).clone(), plan_a),
             _ => panic!("a crossing's side is a member's edge: {edge:?}"),
         };
-        for (edge, sense) in [(ea, a_sense), (eb, b_sense)] {
-            let (node, of, other) = member(edge);
+        assert_eq!(run.len(), 2, "two blocks' walls: {name:?}");
+        for l in run {
+            let (node, of, other) = member(&l.line);
             assert_eq!(
-                *sense,
+                l.sense.expect("an edge carries its sense"),
                 sense_against(&ev, node, &of, at, other),
-                "{edge:?} against the other block at {p:?}: {name:?}"
+                "{l:?} against the other block at {p:?}: {name:?}"
             );
         }
         seen += 1;
@@ -171,12 +162,9 @@ fn a_rim_on_the_other_cavitys_floor_touches_its_wall_from_inside() {
             [RoleSeg::Crossing { sense, .. }] if !sense.crosses() => {
                 touches.push((name.clone(), *sense, point(body, v)));
             }
-            [
-                RoleSeg::EdgeCrossing {
-                    a_sense, b_sense, ..
-                },
-            ] => {
-                crossings.push((*a_sense, *b_sense, point(body, v)));
+            [RoleSeg::EdgeCrossing(run)] => {
+                let senses: Vec<Sense> = run.iter().filter_map(|l| l.sense).collect();
+                crossings.push((senses, point(body, v)));
             }
             _ => {}
         }
@@ -195,10 +183,12 @@ fn a_rim_on_the_other_cavitys_floor_touches_its_wall_from_inside() {
         "{said}"
     );
     assert_eq!(crossings.len(), 3, "{crossings:?}");
-    for (a_sense, b_sense, p) in &crossings {
+    for (senses, p) in &crossings {
         assert!(
-            a_sense.crosses() && *b_sense == Sense::Inside && (p.z - 0.5).abs() < 1e-12,
-            "{a_sense:?} {b_sense:?} at {p:?}"
+            matches!(senses.as_slice(), [x, y] if (x.crosses() && *y == Sense::Inside)
+                || (y.crosses() && *x == Sense::Inside))
+                && (p.z - 0.5).abs() < 1e-12,
+            "{senses:?} at {p:?}"
         );
     }
 }
@@ -267,8 +257,9 @@ fn an_edge_crossing_of_two_members_is_named_alike_in_either_order() {
                     names.as_slice(),
                     [StableName { path, .. }] if matches!(
                         path.as_slice(),
-                        [RoleSeg::EdgeCrossing { a_sense, b_sense, .. }]
-                            if a_sense.crosses() && b_sense.crosses()
+                        [RoleSeg::EdgeCrossing(run)]
+                            if run.len() == 2
+                                && run.iter().all(|l| l.sense.is_some_and(|s| s.crosses()))
                     )
                 ),
                 "{label}: the crossing at {at:?}: {names:?}"

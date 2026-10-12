@@ -6599,16 +6599,12 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
             h.name(face);
             h.write_tag(sense_tag(*sense));
         }
-        RoleSeg::EdgeCrossing {
-            a,
-            a_sense,
-            b,
-            b_sense,
-        } => {
-            h.name(a);
-            h.write_tag(sense_tag(*a_sense));
-            h.name(b);
-            h.write_tag(sense_tag(*b_sense));
+        RoleSeg::EdgeCrossing(run) => {
+            h.write_u64(run.len() as u64);
+            for l in run {
+                h.name(&l.line);
+                h.write_tag(l.sense.map_or(0, sense_tag));
+            }
         }
         RoleSeg::Merged(names) => {
             h.write_u64(names.len() as u64);

@@ -828,15 +828,15 @@ fn a_vertex_cites_a_member_edge_whole_and_lies_on_it() {
                     };
                     let p = point(body, v);
                     for seg in &name.path {
-                        let (RoleSeg::Seam { a, b }
-                        | RoleSeg::EdgeCrossing { a, b, .. }
-                        | RoleSeg::Crossing {
-                            edge: a, face: b, ..
-                        }) = seg
-                        else {
-                            continue;
+                        let sides: Vec<&StableName> = match seg {
+                            RoleSeg::Seam { a, b }
+                            | RoleSeg::Crossing {
+                                edge: a, face: b, ..
+                            } => vec![a.name(), b.name()],
+                            RoleSeg::EdgeCrossing(run) => run.iter().map(|l| l.line.name()).collect(),
+                            _ => continue,
                         };
-                        for side in [a.name(), b.name()] {
+                        for side in sides {
                             if side.kind != EntityKind::Edge || side.node != union {
                                 continue;
                             }
