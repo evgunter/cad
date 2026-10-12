@@ -342,8 +342,15 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      either**: a census finding with no backing record is never
      silently blessed ((iii) below); a record with no geometric witness
      is stale and refuses typed. Structural sharing (same surface or
-     point key) needs no record: an op that cuts one vertex into copies hands each copy the
-     original's point, as it hands a cut face's fragments one surface.
+     point key) needs no record. Vertices an op knows or decides to be
+     one point share one point key, whether they stay in one solid or
+     lie in two: an op that cuts one vertex into copies hands each copy
+     the original's point, as it hands a cut face's fragments one
+     surface; vertices whose gap an op decided Zero share the key it
+     keeps, and the op records that decision (a `VertexFusion` row,
+     cited by the pair's vertex-vertex record) for the lint, not for
+     the census. A Zero-gap vertex pair on two point keys in a finished
+     body is its producer's defect.
    - A contact record is a pair of cells, one from each touching
      shell (or each side of a shell's pinch, whose two sides touch
      within one shell), whose interiors meet, plus its backing: a
