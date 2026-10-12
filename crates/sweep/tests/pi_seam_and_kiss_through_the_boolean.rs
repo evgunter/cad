@@ -671,8 +671,11 @@ fn a_rim_inside_the_partners_face_passes_the_crossing_layer() {
         assert!(
             matches!(
                 &r,
-                Err(BooleanError::Join(topo::SplitJoinError::SectionInvariant { what, .. }))
-                    if what.contains("plane×torus")
+                Err(BooleanError::Join(topo::SplitJoinError::SectionUnarmed {
+                    divided: geom::SurfaceKind::Torus,
+                    wall: geom::SurfaceKind::Torus,
+                    ..
+                }))
             ),
             "order {order}: past the crossing layer, the join's refusal: {:?}",
             r.err()

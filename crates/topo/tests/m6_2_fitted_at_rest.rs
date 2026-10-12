@@ -185,31 +185,28 @@ fn a_split_restricts_the_projected_row_to_each_child() {
     assert!(findings.is_empty(), "AT-REST after the split: {findings:?}");
 }
 
-/// **The `Dual` lane leaves the face rowless, and the refusal says
-/// why.** A net's projected row reads its hull terms through the fitted
-/// door, which a dual does not hold (D1, 2026-08-19: certification
-/// arithmetic, C9, is not reachable from it), so the dual's mint excuses
-/// the face and tier 3 reports nothing about it. At `f64`, the same row
+/// **The `Dual` lane holds neither door, and each refusal says why.**
+/// The edge's own certificate states C2's limbs through the NURBS lane
+/// and a net's projected row reads its hull terms through the fitted
+/// door, and a dual holds neither (D1, 2026-08-19: certification
+/// arithmetic, C9, is not reachable from it), so the dual's mev refuses
+/// the edge naming the dual, before any row is in question. At `f64`, the same row
 /// offered with the door withheld refuses at check 4 naming `f64`, and
 /// its text does not deny `f64` the right it has; the dual's own refusal
 /// names every scalar whose fitted door answers `Some`.
 #[test]
-fn the_dual_leaves_the_face_rowless_and_says_why() {
+fn the_dual_holds_neither_lane_and_each_refusal_names_its_scalar() {
     use geom_brep::{PcurveCache, PcurveCertifyError};
     use geom_core::{Dual64, Real};
     use topo::AtRestPolicy;
-    let dual = fixture::build::<Dual64>();
     let band = Band::linear(Tol::witness()).unwrap();
-    for he in [dual.he_plus, dual.he_minus] {
-        assert!(
-            dual.body.pcurve(he).is_none(),
-            "DUAL: a dual mints no row whose certificate needs certification arithmetic"
-        );
-    }
-    let findings = topo::pcurves::validate_pcurves(&dual.body, band);
+    let dual = fixture::try_build::<Dual64>().map(|_| ());
     assert!(
-        findings.is_empty(),
-        "DUAL: the face is not owed rows: {findings:?}"
+        matches!(
+            dual,
+            Err(topo::EulerOpError::NurbsLaneUnsupported { scalar: "dual", .. })
+        ),
+        "DUAL: the mev refuses the rung-3 edge, naming the scalar: {dual:?}"
     );
 
     let built = fixture::build::<f64>();

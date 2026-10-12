@@ -18,7 +18,7 @@
 //! to lie between, and they record none.
 
 use crate::body::Body;
-use crate::entity::{EdgeKey, FaceKey, LoopBoundary, VertexKey};
+use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, VertexKey};
 use crate::provenance::Provenance;
 
 use super::{BooleanError, Operand};
@@ -34,10 +34,13 @@ pub struct DiscardRow {
     pub face: FaceKey,
     /// Each stretch along which it bordered a face the result KEPT:
     /// the kept side's two end vertices, in result keys before the
-    /// zip's fusions (settle them through `vertex_merges`). The result
-    /// edge between the two settled ends is where the kept face meets
-    /// the region this face held; a stretch whose ends fuse, or that no
-    /// live edge joins, merged away with the faces beside it.
+    /// zip's fusions and the output stage's join and merge (settle them
+    /// through `BooleanNaming::settler`). The result edge between the
+    /// two settled ends, or the joined edge holding one of them
+    /// (`BooleanNaming::stretch_through_joins`), is where the kept face
+    /// meets the region this face held; a stretch whose ends fuse, or
+    /// lie inside a merged face, or that no live edge joins, merged away
+    /// with the faces beside it.
     pub bordered: Vec<(VertexKey, VertexKey)>,
     /// Each other boundary edge with its split ancestry (the edge,
     /// then each edge it was split from), in the same clone keys as
@@ -167,7 +170,7 @@ impl<T: geom_core::Real> HeldInto<'_, T> {
 /// `kept_across(mate)` says whether the face across an edge is one the
 /// result keeps beside it (the stretch is then `bordered`); `kept_ends`
 /// maps that stretch's two ends, in `body`'s keys, to the kept side's
-/// ends in result keys, given the face across it. `held` gives the row
+/// ends in result keys, given the half-edge across it. `held` gives the row
 /// its held stretches; a path that holds no covered pair passes `None`.
 pub(super) fn discard_row<T: geom_core::Real>(
     body: &Body<T>,
@@ -175,7 +178,7 @@ pub(super) fn discard_row<T: geom_core::Real>(
     operand: Operand,
     kept_across: &dyn Fn(FaceKey) -> bool,
     kept_ends: &dyn Fn(
-        FaceKey,
+        HalfEdgeKey,
         VertexKey,
         VertexKey,
     ) -> Result<(VertexKey, VertexKey), BooleanError>,
@@ -209,15 +212,14 @@ pub(super) fn discard_row<T: geom_core::Real>(
                 .get_half_edge(he)
                 .ok_or_else(|| desync("a discarded face's half-edge no longer resolves"))?;
             boundary.insert(h.start);
-            let mate_face = body
-                .mate(he)
-                .and_then(|m| body.face_of_half_edge(m))
-                .ok_or_else(|| desync("a discarded face's edge has no face across it"))?;
+            let across = || desync("a discarded face's edge has no face across it");
+            let mate = body.mate(he).ok_or_else(across)?;
+            let mate_face = body.face_of_half_edge(mate).ok_or_else(across)?;
             if kept_across(mate_face) {
                 let end = body
                     .half_edge_end(he)
                     .ok_or_else(|| desync("a discarded face's half-edge has no end"))?;
-                row.bordered.push(kept_ends(mate_face, h.start, end)?);
+                row.bordered.push(kept_ends(mate, h.start, end)?);
             } else {
                 let mut chain = vec![h.edge];
                 let mut at = h.edge;

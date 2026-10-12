@@ -277,3 +277,14 @@ probe `review_4765_curved_probes::probe_curved_pinch` (sweep), which
 was dropped once it had been read. The pairs meet at the pinch, so no
 separation clears them: the arm needs a contact read at a recorded
 pinch, not a sharper separation test.
+
+## 2026-10-12 — five more at the curved pinch (FLUSH)
+
+FLUSH's pinch-residue lane (branch `flush/pinch-residue`) made 15
+`curved_notch_pinch` lines build that refused `JoinDesync` on main.
+Five of the new bodies fail tier 3′ with `CensusUndecidable` alone,
+the signature above (the oracle's volume, tier 2, the certificate, no
+definite finding): `0 3 2 ba S`, `1 6 0 ba S`, `3 1 0 ba S`,
+`6 1 0 ab I`, `6 1 0 ba S`. Replay with `CURVED_POSE="i j k order op"
+cargo test -p sweep --release --test all curved_notch_pinch_one --
+--ignored --nocapture`.
