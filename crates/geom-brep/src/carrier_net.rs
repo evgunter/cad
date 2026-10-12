@@ -328,8 +328,9 @@ mod tests {
 
     /// The net encloses the carrier at a dense sample of every span,
     /// for each closed-form kind: the Bernstein sum at `s` is enclosed
-    /// by its interval evaluation, which must contain `C(t)` at `f64`.
-    fn encloses(carrier: &Curve3<f64>, breaks: &[f64]) -> Result<(), String> {
+    /// by its interval evaluation, which must contain `C(t)` at `f64`,
+    /// and no wider than `width` where one is asked.
+    fn encloses(carrier: &Curve3<f64>, breaks: &[f64], width: Option<f64>) -> Result<(), String> {
         let net = enclosing_net(carrier, breaks).ok_or("no net")?;
         let p = net.knots.degree();
         for (k, pair) in breaks.windows(2).enumerate() {
@@ -362,7 +363,7 @@ mod tests {
                             val.hi()
                         ));
                     }
-                    if val.hi() - val.lo() > 1e-9 {
+                    if width.is_some_and(|w| val.hi() - val.lo() > w) {
                         return Err(format!(
                             "span {k} channel {d}: width {}",
                             val.hi() - val.lo()
@@ -426,9 +427,17 @@ mod tests {
         ];
         for (name, carrier) in kinds {
             assert_eq!(
-                encloses(&carrier, &grid(-0.4, 2.9, 32)),
+                encloses(&carrier, &grid(-0.4, 2.9, 32), Some(1e-9)),
                 Ok(()),
-                "the {name} carrier's net encloses it"
+                "the {name} carrier's net encloses it tightly on fine spans"
+            );
+            // Spans two radians wide, where the polynomial alone misses
+            // the carrier by far more than the slack: the remainder
+            // carries the enclosure.
+            assert_eq!(
+                encloses(&carrier, &grid(-0.4, 3.6, 2), None),
+                Ok(()),
+                "the {name} carrier's net encloses it on coarse spans"
             );
         }
     }

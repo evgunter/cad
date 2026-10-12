@@ -73,8 +73,8 @@
 //!   docs): exact, not a fit.
 //! - **On a NURBS chart, where no closed form exists**, a fitted image's
 //!   certificate is the displacement at the shared schedule plus a
-//!   between-samples envelope over the same displacement, the C2
-//!   certificate's composite hull
+//!   between-samples envelope over the same displacement, C2's limb-2
+//!   composite hull against the chart alone
 //!   ([`EnvelopeStatement::MapResidualComposite`]).
 //!
 //! **No UV-space tolerance appears in any certified statement or in any
@@ -270,9 +270,8 @@ pub enum Pcurve<T: Real> {
     /// `Intersection` loci, and any chart image a future lane fits
     /// directly).
     ///
-    /// It certifies at exactly the Fitted GRADE — the same four checks
-    /// over the same carrier kind (over a rung-3 carrier, the C2
-    /// certificate: hull sup-norm and uniqueness tube), through
+    /// It certifies at exactly the Fitted GRADE — the same four checks,
+    /// check 4 the hull bound against its chart, through
     /// [`PcurveCache::certify_general`] — because the grade is a
     /// statement about what was MEASURED, and the two arms measure
     /// the same thing. What differs is what may be assumed without
@@ -886,12 +885,9 @@ impl<T: Real> Pcurve<T> {
     /// [`crate::EdgeCurve::with_chart_v_mirrored`]) point back rather
     /// than restate. A certificate is a record of metred NORMS —
     /// sampled residuals `|S(P(tᵢ)) − C(tᵢ)|`, an envelope over the
-    /// span, and on the fitted lane over a rung-3 carrier a hull
-    /// sup-norm and a uniqueness tube —
-    /// and stores nothing in a plane chart's coordinates: the one chart
-    /// quantity it can hold, the chart tube's pad
-    /// ([`crate::ssi::SsiTube::Chart`]), is a NURBS chart's, and the one
-    /// caller (`topo::revert`) reflects plane charts only. On the mirrored chart
+    /// span, on the fitted lane a hull sup-norm — and stores nothing in
+    /// a chart's coordinates, so the one caller (`topo::revert`, which
+    /// reflects plane charts only) carries it across unchanged. On the mirrored chart
     /// the mirrored image evaluates to the same 3-D point at every
     /// parameter: `S'(u, −v) = origin + u_ref·u + (−v_ref)·(−v)`, and
     /// `(−a)·(−b)` is `a·b` exactly in IEEE arithmetic, so every
@@ -1577,7 +1573,7 @@ pub enum PcurveCertifyError {
     },
     /// A [`Pcurve::Fitted`] or [`Pcurve::General`] image needed the
     /// fitted door with **none in hand** — at check 4 of the fitted
-    /// lane, where [`crate::FittedLane`] derives its C2 certificate, or
+    /// lane, where [`crate::FittedLane`] derives its hull bound, or
     /// in the mint, before any check, where it derives a general image.
     /// The door is absent either because the scalar may not certify (a
     /// dual, D1 2026-08-19: certification arithmetic, C9, is not

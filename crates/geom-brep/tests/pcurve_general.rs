@@ -13,7 +13,7 @@ use std::sync::Arc;
 use crate::shared::fixture;
 use crate::shared::surf;
 use crate::shared::tol::band;
-use geom::{Curve3, NurbsCurve2, NurbsCurve3, Surface};
+use geom::{Curve3, NurbsCurve2, NurbsCurve3, NurbsSurface, Surface};
 use geom_brep::{FittedLane, Pcurve, PcurveCache, PcurveCertifyError};
 use geom_core::spline::KnotVector;
 use geom_core::{Point2, Point3, Vec3};
@@ -323,8 +323,9 @@ fn a_circle_and_an_ellipse_certify_on_a_spline_chart() {
     }
 }
 
-/// **A stated image wrong only between samples refuses at the hull.**
-/// The ruling's column, bent a millimetre off the wall's `u = 0` edge
+/// **A stated image wrong only between samples refuses at the hull**,
+/// over the ruling as a spline carrier and as a line alike. The
+/// ruling's column, bent a millimetre off the wall's `u = 0` edge
 /// midway between each pair of the certificate's samples and exact at
 /// every sample: check 3 passes and check 4's hull refuses.
 #[test]
@@ -349,25 +350,103 @@ fn a_general_image_wrong_between_samples_refuses_at_the_hull() {
         vec![1.0; count],
     )
     .expect("the bent image builds");
+    let bent = Arc::new(bent);
+    let line = Curve3::Line {
+        origin: Point3::new(1.0, 0.0, 0.0),
+        dir: Vec3::new(0.0, 0.0, 1.0),
+    };
+    for (name, carrier) in [("spline", ruling()), ("line", line)] {
+        let got = PcurveCache::certify_general(
+            Arc::clone(&bent),
+            0.0,
+            1.0,
+            &carrier,
+            &quarter_cylinder_wall(),
+            band(),
+            Some(FittedLane::certified()),
+        );
+        let Err(PcurveCertifyError::FittedCertificate { limb, .. }) = got else {
+            panic!("{name}: the bend between samples refuses at the hull: {got:?}");
+        };
+        // The bend sits on a break of the composite, so the hull reads
+        // its value there past the band, or its bound over a span
+        // holding it.
+        assert!(
+            matches!(
+                limb,
+                Some(geom_brep::SsiLimb::HullSup | geom_brep::SsiLimb::HullValueChart)
+            ),
+            "{name}: check 4's hull is what refuses: {limb:?}"
+        );
+    }
+}
+
+/// The bilinear wall `z = 0` over `[0, 1]²`, its chart the identity.
+fn flat_wall() -> NurbsSurface<f64> {
+    let k = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).expect("knots");
+    let control = [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0), (1.0, 1.0)]
+        .into_iter()
+        .map(|(x, y)| Point3::new(x, y, 0.0))
+        .collect();
+    NurbsSurface::new(k.clone(), k, control, vec![1.0; 4]).expect("the wall builds")
+}
+
+/// **The derived route for a closed-form carrier**: the mint's two
+/// doors in its order, `general_image` over the edge's interval and
+/// then `certify_general`. An off-iso line on a flat wall has a
+/// straight foot path, so the degree-1 image certifies. A circle on the
+/// curved wall does not: the image's chord error is measured at the
+/// hull and refused typed, never excused.
+#[test]
+fn the_derived_route_certifies_a_line_and_refuses_a_circle_at_the_hull() {
+    let lane = FittedLane::<f64>::certified();
+    let r = core::f64::consts::FRAC_1_SQRT_2;
+    let diagonal = Curve3::Line {
+        origin: Point3::new(0.1, 0.2, 0.0),
+        dir: Vec3::new(r, r, 0.0),
+    };
+    let (t0, t1) = (0.0, 0.9);
+    let wall = flat_wall();
+    let image = lane
+        .general_image(&diagonal, (t0, t1), &wall)
+        .expect("the diagonal's image derives");
     let got = PcurveCache::certify_general(
-        Arc::new(bent),
-        0.0,
-        1.0,
-        &ruling(),
+        Arc::new(image),
+        t0,
+        t1,
+        &diagonal,
+        &Surface::Nurbs(Arc::new(wall)),
+        band(),
+        Some(lane),
+    )
+    .expect("an off-iso line's derived image certifies on a spline chart");
+    assert!(
+        matches!(got.pcurve(), Pcurve::General(_)) && got.certificate().envelope <= band().zero(),
+        "a General row within ε: {:?}",
+        got.certificate()
+    );
+
+    let (t0, t1) = (0.1, 1.4);
+    let image = lane
+        .general_image(&circle(0.5), (t0, t1), &fixture::quarter_cylinder_wall())
+        .expect("the circle's image derives");
+    let got = PcurveCache::certify_general(
+        Arc::new(image),
+        t0,
+        t1,
+        &circle(0.5),
         &quarter_cylinder_wall(),
         band(),
-        Some(FittedLane::certified()),
+        Some(lane),
     );
-    let Err(PcurveCertifyError::FittedCertificate { limb, .. }) = got else {
-        panic!("the bend between samples refuses at the hull: {got:?}");
-    };
-    // The bend sits on a break of the composite, so the hull reads its
-    // value there past the band, or its bound over a span holding it.
     assert!(
         matches!(
-            limb,
-            Some(geom_brep::SsiLimb::HullSup | geom_brep::SsiLimb::HullValueChart)
+            got,
+            Err(PcurveCertifyError::FittedCertificate {
+                limb: Some(geom_brep::SsiLimb::HullSup | geom_brep::SsiLimb::HullValueChart),
+                ..
+            })
         ),
-        "check 4's hull is what refuses: {limb:?}"
+        "a curved foot path's degree-1 image refuses at the hull: {got:?}"
     );
 }

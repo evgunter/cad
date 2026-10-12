@@ -44,12 +44,15 @@ uncached, and passes tier 3 clean:
   (`envelope_lemma_fuzz::projected::an_off_chart_spline_refuses_by_incidence`),
   and one that is not certifies or refuses through its envelope's
   incidence term.
-- **`UncoveredClass::NoFittedClass`** (`run_fitted_checks` check 1): a
-  line, ellipse or spiric offered a `Fitted`/`General` image, on any
-  chart — `stated_general_image_mint` reaches it at four scalars with a
-  line on a spline chart. Nothing checks the line lies on the chart; the
-  test would be the same foot schedule `general_image` runs, against the
-  carrier.
+- ~~**`UncoveredClass::NoFittedClass`**~~ — resolved on
+  `pcert/fitted-row-reads-carrier-and-chart` (2026-10-12): the class is
+  deleted. The fitted-grade row's check 1 reads only the chart, and its
+  check 4 bounds `|S(P(t)) − C(t)|` against the chart for a carrier of
+  any kind, so a line, ellipse or spiric off its spline chart refuses
+  at the hull (`FittedCertificate`), loud at the mint
+  (`fitted_lane_tests::a_line_carrier_is_bounded_against_its_chart_alone`,
+  `pcurve_general::a_circle_and_an_ellipse_certify_on_a_spline_chart`).
+  On an analytic chart the row refuses by kind.
 
 Each would move its off-chart members to `CarrierOffChart` and make
 the mint loud on them, as D36 did for the sphere and the cone.

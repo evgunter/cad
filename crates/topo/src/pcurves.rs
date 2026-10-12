@@ -1600,8 +1600,8 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
             // So the fixed schedule above IS the exact class's whole
             // reach — a boundary column traversed end to end, in either
             // direction — and everything it does not claim goes to
-            // `General`, which certifies against the operand pair and
-            // has no boundary-row hypothesis to violate. `General` is
+            // `General`, which certifies against the chart and has no
+            // boundary-row hypothesis to violate. `General` is
             // not a downgrade for these loci; it is the only grade that
             // can state anything true about them.
             match deferred {
@@ -2412,9 +2412,9 @@ pub(crate) enum SplitRefusal {
 /// anything.
 ///
 /// **A fitted-grade row's check 4 reads the WHOLE carrier**, not the
-/// child's span: `ssi::certify_rung3` bounds the carrier's whole knot
-/// domain against the operand pair. Its inputs (carrier, image,
-/// surface, mate, band) are the parent's, so at the band the parent's
+/// child's span: its hull bounds the image's whole domain against the
+/// chart. Its inputs (carrier, image, surface, band) are the parent's,
+/// so at the band the parent's
 /// row was certified at, each child's certificate IS the parent's. The
 /// statement is conservative for a child, and such a split never
 /// refuses a child at check 4 unless the parent's own row already

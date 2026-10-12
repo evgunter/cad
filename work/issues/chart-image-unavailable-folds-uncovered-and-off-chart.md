@@ -55,5 +55,8 @@ its sphere is no longer uncovered at this door either. `chart_pcurve`
 images it as `Pcurve::Projected` and certifies it at every `Decide`
 scalar, because a circle's incidence is the closed-form
 `off_sphere_sup` and its envelope needs no fitted door. Of the
-uncovered classes the fold can still meet, only `NoFittedClass`,
-`MirrorTorusSpiric` and `FittedLaneUnsupported` remain.
+uncovered classes the fold can still meet, only `MirrorTorusSpiric`
+and `FittedLaneUnsupported` remain (`NoFittedClass` was deleted on
+`pcert/fitted-row-reads-carrier-and-chart`, 2026-10-12: the fitted row
+reads its carrier and chart alone, so no carrier kind is uncovered
+there).

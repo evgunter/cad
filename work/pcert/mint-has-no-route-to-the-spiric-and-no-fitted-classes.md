@@ -20,3 +20,13 @@ This row is the schedule for `UncoveredClass::MirrorTorusSpiric, NoFittedClass`:
 When the route lands, the class leaves `not_owed`'s first arm in the
 same change, so a face of that class is minted or refused at the
 producer.
+
+## The NoFittedClass half (closed 2026-10-12)
+
+`UncoveredClass::NoFittedClass` is deleted on
+`pcert/fitted-row-reads-carrier-and-chart`. The fitted-grade row reads
+its carrier and chart alone, so a line, ellipse or spiric on a spline
+chart certifies its `General` image at the hull, or refuses there
+typed. The mint's `Intersection` arm gives such a carrier its General
+image after the exact candidates. What this row still schedules is the
+spiric half.

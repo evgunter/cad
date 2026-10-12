@@ -26,8 +26,9 @@ on an analytic chart:
   (`geom_brep::certify`, the `Curve3::Nurbs` gate before the resolver),
   and an `Intersection` description takes the fitted lane, which `f64`
   holds.
-- `NoFittedClass`, `MirrorTorusSpiric`: a strut's own door cannot state
-  them, and neither can the `mvfs` → `set_face_surface` → `mef` route
+- `MirrorTorusSpiric` (and `NoFittedClass`, deleted on
+  `pcert/fitted-row-reads-carrier-and-chart`): a strut's own door
+  cannot state them, and neither can the `mvfs` → `set_face_surface` → `mef` route
   that builds a whole Villarceau loop
   (`crates/topo/tests/a_whole_villarceau_circle_bounds_a_torus_face.rs`).
   Tried on PR 4227 with a whole spiric oval on its mirror torus:
@@ -53,8 +54,8 @@ Correction (spline-carrier designers, PR 4261): an `Intersection` spline strut o
 The correction above no longer holds. `UncoveredClass::SplineCarrier`
 is deleted: the m6_2 face mints its projected rows through public `mev`
 plus the closing mint, so it is not a fixture for the excusal.
-`not_owed` still excuses `NoFittedClass`, `MirrorTorusSpiric` and
-`FittedLaneUnsupported`. Only the last is reachable on an analytic
+`not_owed` still excuses `MirrorTorusSpiric` and
+`FittedLaneUnsupported` (`NoFittedClass` has since been deleted). Only the last is reachable on an analytic
 chart: the m6_2 face at the `Dual` scalar, which holds no fitted door,
 leaves the face rowless (`the_dual_leaves_the_face_rowless_and_says_why`).
 A face-whole masking fixture could stand on that: a dual body with a
