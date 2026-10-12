@@ -1622,21 +1622,28 @@ pub struct OffsetOutcome {
 
 impl OffsetOutcome {
     /// `records`, the moved body's before the door, carried onto
-    /// `result`, the body after it: the door keeps every key and kills
-    /// only what its joins name, so each cell is itself or the edge a
-    /// join made of it ([`crate::ContactRecords::carried_through`]).
+    /// `result`, the body after it, through [`Self::lineage`]
+    /// ([`crate::ContactRecords::carried_through`], at `band` through `region`).
     ///
     /// # Errors
     ///
     /// As [`crate::ContactRecords::carried_through`].
-    pub fn carry_contacts<T: Real>(
+    pub fn carry_contacts<T: Decide>(
         &self,
         records: &crate::boolean::ContactRecords,
         result: &Body<T>,
+        band: Band,
+        region: Option<crate::RegionLane<T>>,
     ) -> Result<crate::boolean::ContactRecords, crate::boolean::CarryRefusal> {
-        records.carried_through(0, result, |c| {
-            Some(crate::boolean::joined_cell(&self.joins, c))
-        })
+        records.carried_through(0, &self.lineage(), result, band, region)
+    }
+
+    /// **What the door made of each cell** (D1): it keeps every key and
+    /// kills only what its joins name, so each cell is itself or the
+    /// edge a join made of it.
+    #[must_use]
+    pub fn lineage(&self) -> crate::Lineage {
+        crate::Lineage::new().through_joins(&self.joins)
     }
 }
 

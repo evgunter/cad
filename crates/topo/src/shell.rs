@@ -908,47 +908,132 @@ pub struct Shelled<T: Real> {
 }
 
 impl<T: Decide> Shelled<T> {
-    /// `records`, the operand's, carried onto the thin solid: the outer
-    /// walls keep their operand keys, so each cell is itself or the edge
-    /// the closing join made of it, and a cell the construction retired
-    /// ([`ShellNaming::dead`]) is refused. The rim surgery divides cells
-    /// of a designated chart on the outer shell: a seam into its pieces
-    /// ([`RimNaming::seam_pieces`]), and the rim face into itself and
-    /// the region at each further boundary ([`RimNaming::holes`]); a
-    /// record on one lands on the pieces whose interiors still meet
-    /// ([`crate::ContactRecords::carried_through_pieces`], at `band`
-    /// through `region`). The cavity twins are new cells and no operand
-    /// record names one.
+    /// `records`, the operand's, carried onto the thin solid through
+    /// [`Self::lineage`] ([`crate::ContactRecords::carried_through`], at `band`
+    /// through `region`).
     ///
     /// # Errors
     ///
-    /// As [`crate::ContactRecords::carried_through_pieces`].
+    /// As [`crate::ContactRecords::carried_through`].
     pub fn carry_contacts(
         &self,
         records: &crate::boolean::ContactRecords,
         band: Band,
         region: Option<crate::RegionLane<T>>,
     ) -> Result<crate::boolean::ContactRecords, crate::boolean::CarryRefusal> {
-        let rims = &self.naming.rims;
-        let divisions = crate::Divisions {
-            edges: rims
-                .iter()
-                .flat_map(|rim| rim.seam_pieces.iter().copied())
-                .collect(),
-            faces: rims
-                .iter()
-                .filter(|rim| rim.side == RimShell::Outer)
-                .flat_map(|rim| rim.holes.iter().map(|h| (h.face, rim.rim)))
-                .collect(),
+        records.carried_through(0, &self.lineage(), &self.body, band, region)
+    }
+}
+
+impl<T: Real> Shelled<T> {
+    /// **What the shell made of each operand cell** (D1), read through
+    /// the closing join. The outer walls keep their operand keys and
+    /// their places. The rim surgery opens each designated chart: on the
+    /// outer shell, every designated face is divided into the rim, the
+    /// region at each further boundary ([`RimNaming::holes`]) and the
+    /// face itself where it is a branch of a seamed band, with the
+    /// opening removed, the rings' edges and vertices minted in it; a
+    /// divided seam ([`RimNaming::seam_pieces`]) into its pieces and the
+    /// ring corners its pieces end on, its span across the opening
+    /// removed; and a seam, slit or apex the chart reduction retired
+    /// ([`ShellNaming::dead`]) into the rims, the rest removed. On a
+    /// void, the designated faces are removed, the rim being their
+    /// cavity twin's. The cavity twins are new cells and no operand
+    /// record names one.
+    #[must_use]
+    pub fn lineage(&self) -> crate::Lineage {
+        use crate::boolean::Cell;
+        use crate::lineage::{Descent, Division, Fate, Remainder, roots};
+        let naming = &self.naming;
+        let outer: Vec<&RimNaming> = naming
+            .rims
+            .iter()
+            .filter(|rim| rim.side == RimShell::Outer)
+            .collect();
+        let rims = |rim: &RimNaming| -> Vec<Cell> {
+            core::iter::once(rim.rim)
+                .chain(rim.holes.iter().map(|h| h.face))
+                .map(Cell::Face)
+                .collect()
         };
-        records.carried_through_pieces(
-            0,
-            &self.body,
-            |c| Some(crate::boolean::joined_cell(&self.naming.edge_joins, c)),
-            &divisions,
-            band,
-            region,
-        )
+        let ring_vertices = |rim: &RimNaming| -> Vec<VertexKey> {
+            rim.ring_vertices
+                .iter()
+                .chain(rim.holes.iter().flat_map(|h| &h.ring_vertices))
+                .map(|&(v, _)| v)
+                .collect()
+        };
+        let rings = |rim: &RimNaming| -> Vec<Cell> {
+            rim.ring_edges
+                .iter()
+                .chain(rim.holes.iter().flat_map(|h| &h.ring_edges))
+                .map(|&(e, _)| Cell::Edge(e))
+                .chain(ring_vertices(rim).into_iter().map(Cell::Vertex))
+                .collect()
+        };
+        let every_rim: Vec<Cell> = outer.iter().flat_map(|rim| rims(rim)).collect();
+        let opened = |pieces: Vec<Cell>, minted: Vec<Cell>| {
+            Fate::Divided(Division {
+                pieces,
+                minted,
+                remainder: Remainder::Removed,
+            })
+        };
+        // Every statement is a removal, and removals of one cell merge.
+        let remove = |lineage: crate::Lineage, cell: Cell, fate: Fate| {
+            lineage
+                .with_removal(cell, fate)
+                .unwrap_or_else(|e| unreachable!("the shell states only removals: {e:?}"))
+        };
+        let mut lineage = crate::Lineage::new().through_joins(&naming.edge_joins);
+        for &e in &naming.dead.edges {
+            lineage = remove(
+                lineage,
+                Cell::Edge(e),
+                opened(every_rim.clone(), Vec::new()),
+            );
+        }
+        for &v in &naming.dead.vertices {
+            lineage = remove(
+                lineage,
+                Cell::Vertex(v),
+                opened(every_rim.clone(), Vec::new()),
+            );
+        }
+        for rim in &naming.rims {
+            for &f in &rim.sources {
+                let fate = match rim.side {
+                    RimShell::Outer => {
+                        let mut pieces = rims(rim);
+                        if !pieces.contains(&Cell::Face(f)) {
+                            pieces.push(Cell::Face(f));
+                        }
+                        opened(pieces, rings(rim))
+                    }
+                    RimShell::Void => Fate::Removed,
+                };
+                lineage = remove(lineage, Cell::Face(f), fate);
+            }
+            let corners = ring_vertices(rim);
+            for root in roots(&rim.seam_pieces) {
+                let pieces: Vec<EdgeKey> = Descent::of(root, &rim.seam_pieces).cells().collect();
+                let mut minted: Vec<Cell> = Vec::new();
+                for &e in &pieces {
+                    let ends = self.body.edge_vertices(e).map(|(a, b)| [a, b]);
+                    for v in ends.into_iter().flatten() {
+                        if corners.contains(&v) && !minted.contains(&Cell::Vertex(v)) {
+                            minted.push(Cell::Vertex(v));
+                        }
+                    }
+                }
+                lineage = remove(
+                    lineage,
+                    Cell::Edge(root),
+                    opened(pieces.into_iter().map(Cell::Edge).collect(), minted),
+                );
+            }
+        }
+        lineage
     }
 }
 
