@@ -466,7 +466,7 @@ pub struct BatteryVerdict<T: Real> {
     /// links' edges, in walk order.
     pub joints: Vec<topo::Coincidence>,
     /// The open-chain ends predicate 6 classified
-    /// [`CornerConfig::Turn`], each decided isosceles once though two
+    /// [`CornerConfig::Turn`], each decided a mitre once though two
     /// chains end there, sorted by vertex. The planar band's plan reads
     /// each turn off this list rather than re-reading the trihedron.
     pub turns: Vec<Turn<T>>,
@@ -476,7 +476,7 @@ impl<T: Real> BatteryVerdict<T> {
     /// The coincidences the battery decided from values
     /// ([`topo::coincidence`]), predicate by predicate: each link's
     /// support coaxiality in walk order, each tangent junction, then
-    /// each isosceles turn in vertex order.
+    /// each mitred turn in vertex order.
     pub fn coincidences(&self) -> impl Iterator<Item = &topo::Coincidence> {
         self.chains
             .iter()
@@ -2066,20 +2066,19 @@ pub enum EndSection<T: Real> {
     Ellipse(Curve3<T>),
 }
 
-/// The refusal for a turn whose trihedron is definitely not isosceles
-/// about its unrequested edge. It names what the verdict read, the two
-/// face angles beside that edge, and claims nothing about where the
-/// bands would meet: at supplementary face angles a chamfer's two feet
-/// on the edge coincide, and that turn refuses here too.
-pub const TURN_NOT_ISOSCELES: &str = "two requested edges turn at a vertex where they make \
-     different angles with its third edge; a mitre is built only where the two are equal";
+/// The refusal for a turn whose two bands' feet on its third edge stand
+/// definitely apart: the band reaching further, whose requested edge the
+/// refusal's `at` names, runs on past the mitre onto the other band's
+/// face of that edge, and that overrun is not built.
+pub const TURN_OVERRUN: &str = "at a turn, one band's foot lies further down the third edge, so \
+     that band would run past the mitre onto the other band's face of it, an overrun not built";
 
 /// **A turn predicate 6 admitted**: two of a trivalent vertex's three
-/// edges requested, the third, `edge`, not, and the trihedron decided
-/// isosceles about it ([`turn_at`]). The two bands meet along their
+/// edges requested, the third, `edge`, not, and the two bands' feet on
+/// it decided one point ([`turn_at`]). The two bands meet along their
 /// intersection, from `crossing` on the face they share down to
-/// `foot`, where `edge` ends. The battery's reading of the trihedron is
-/// the only one: the planar band's plan carves from these fields.
+/// `foot`, where `edge` ends. The battery's reading of the turn is the
+/// only one: the planar band's plan carves from these fields.
 #[derive(Clone, Debug)]
 pub struct Turn<T: Real> {
     /// The vertex the two bands end at.
@@ -2100,41 +2099,44 @@ pub struct Turn<T: Real> {
     /// Where `edge` ends: the midpoint of the two bands' feet on it,
     /// which the verdict put within its zero band of each other.
     pub foot: Point3<T>,
-    /// The coincidence the verdict decided: the two requested edges
-    /// make equal angles with `edge`, so the mitre lands on it and four
-    /// edges meet there ([`topo::Relation::EqualAngles`], the margin
-    /// `fillet3_turn_isosceles` decided Zero).
+    /// The coincidence the verdict decided: the two bands' feet on
+    /// `edge` are one point, so the mitre lands on it and four edges
+    /// meet there ([`topo::Relation::CommonFoot`], the gap and the chord
+    /// both decided Zero).
     pub coincidence: topo::Coincidence,
 }
 
-/// **`fillet3_turn_isosceles`** — at a turn, is the trihedron isosceles
-/// about the unrequested edge `third`?
+/// **A turn's two readings** — do the two bands' feet on the
+/// unrequested edge `third` coincide, or stand clearly apart?
 ///
-/// Margin, in meters, the larger of two displacements:
-/// - the difference of the cosines of the two face angles at the
-///   vertex, each between a requested edge and `third` (their unit
-///   directions out of the vertex, dotted), levered at the longer
-///   link's extent;
-/// - the distance between the two bands' feet on `third`, each where
-///   its trimline on its own face of `third` crosses it.
+/// Each band's foot is where its trimline on its own face of `third`
+/// crosses it. Two readings, both lengths and both signed positive
+/// where the first requested edge's foot is further from the vertex:
+/// - `fillet3_turn_feet_gap`, the distance between the feet;
+/// - `fillet3_turn_overrun_chord`, the chord of the overrun the band
+///   reaching further, `k`, would build: from the mitre's end on the
+///   other band's trimline on its face of `third` to `k`'s foot. The
+///   mitre lies in band `k`'s plane for a chamfer, and for a fillet in
+///   the plane through the two axes' crossing whose normal is the
+///   difference of the requested edges' directions. Where the gap
+///   reads Zero no band is `k`, and the chord is the larger of the two
+///   bands' readings.
 ///
-/// Equal face angles are equal dihedrals at the requested edges, and
-/// then the two feet are one point for either verb, each band's
-/// setback being one function of its dihedral. The cosines alone do
-/// not bound the feet: the feet move as `cos φ / sin³φ` in the face
-/// angle `φ`, so at an acute angle a reading inside the band can leave
-/// them further apart than it. The second term is what puts the
-/// mitre's end, their midpoint, within half the band of each
-/// trimline. Zero builds the mitre and records the coincidence; a
-/// definite reading refuses ([`TURN_NOT_ISOSCELES`]); in band
-/// escalates.
+/// A chamfer's chord is the gap times `sin φ_j / sin θ`, `φ_j` the near
+/// band's face angle and `θ` the angle on its face of `third` between
+/// its edge and band `k`'s plane: at least `sin φ_j`, unbounded toward
+/// a T, so neither reading alone decides (the turn clause in
+/// `crates/sweep/README.md`). Both Zero builds the mitre and records
+/// the coincidence; both definite is the overrun on the side the sign
+/// picks, which refuses ([`TURN_OVERRUN`]); anything else escalates.
 ///
 /// # Errors
 ///
-/// [`BlendError::UnsupportedRunOut`] for a definite reading;
-/// [`BlendError::Escalated`] in band; [`BlendError::BodyNotIntact`]
-/// when the two links share no support or a vertex does not read;
-/// [`BlendError::UnsupportedGeometry`] when a trimline is not a line.
+/// [`BlendError::UnsupportedRunOut`] at the far band's requested edge
+/// for an overrun; [`BlendError::Escalated`] in band;
+/// [`BlendError::BodyNotIntact`] when the two links share no support or
+/// a vertex does not read; [`BlendError::UnsupportedGeometry`] when a
+/// trimline is not a line or a band is neither a plane nor a cylinder.
 fn turn_at<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
@@ -2142,6 +2144,132 @@ fn turn_at<T: Decide>(
     third: EdgeKey,
     band: Band,
 ) -> Result<Turn<T>, BlendError> {
+    let [l1, l2] = links;
+    let TurnReading {
+        shared,
+        others,
+        out,
+        crossing,
+        feet: [y1, y2],
+        gap,
+        chords,
+    } = turn_reading(body, vertex, links, third)?;
+    let margin = match turn_verdict(vertex, gap, chords, band)? {
+        TurnVerdict::Mitre(margin) => margin,
+        TurnVerdict::Overrun { far } => {
+            return Err(super::surgery::unbuilt_run_out(
+                EntityId::Edge(links[far].edge),
+                TURN_OVERRUN,
+            ));
+        }
+    };
+    let requested = [l1.edge, l2.edge];
+    Ok(Turn {
+        vertex,
+        requested,
+        edge: third,
+        shared,
+        others,
+        out,
+        crossing,
+        foot: y1 + (y2 - y1) * T::from_f64(0.5),
+        coincidence: row(
+            requested.map(|e| topo::RowCell::edge(topo::Operand::A, e)),
+            topo::Relation::CommonFoot,
+            topo::DecisionSite::BatteryTurn,
+            margin,
+        ),
+    })
+}
+
+/// What a turn's two readings decide ([`turn_verdict`]).
+#[derive(Debug, PartialEq)]
+pub(crate) enum TurnVerdict {
+    /// Both Zero: the feet are one point, and the coincidence records
+    /// this margin.
+    Mitre(MarginDiag),
+    /// Both definite on one side: band `far`'s foot is further.
+    Overrun { far: usize },
+}
+
+/// **The turn's verdict on its two readings** ([`turn_at`]), escalating
+/// where they do not decide one outcome.
+///
+/// # Errors
+///
+/// [`BlendError::Escalated`] on a reading in band, or on two readings
+/// decided on different sides of it (`fillet3_turn_feet`).
+pub(crate) fn turn_verdict<T: Decide>(
+    vertex: VertexKey,
+    gap: T,
+    chords: [T; 2],
+    band: Band,
+) -> Result<TurnVerdict, BlendError> {
+    let site = BlendSite::Joint { vertex };
+    let feet = classify_reported(site, BlendDecision::TurnFeetGap, Margin::of(gap), band)?;
+    let reach = match feet.sign {
+        Sign::Positive => chords[0],
+        Sign::Negative => -chords[1],
+        Sign::Zero => chords[0].max(chords[1]),
+    };
+    let overrun = classify_reported(
+        site,
+        BlendDecision::TurnOverrunChord,
+        Margin::of(reach),
+        band,
+    )?;
+    // Two lengths on one scale, read for one fact (the feet one point or
+    // apart): the straddle hulls their margins under the pair's name.
+    if feet.sign != overrun.sign {
+        let (lower, upper) = if feet.sign < overrun.sign {
+            (feet, overrun)
+        } else {
+            (overrun, feet)
+        };
+        return Err(super::straddle(
+            site,
+            BlendDecision::TurnFeet,
+            lower,
+            upper,
+            band,
+        ));
+    }
+    Ok(match feet.sign {
+        Sign::Zero => TurnVerdict::Mitre(feet.margin.jointly(overrun.margin)),
+        Sign::Positive => TurnVerdict::Overrun { far: 0 },
+        Sign::Negative => TurnVerdict::Overrun { far: 1 },
+    })
+}
+
+/// A turn's geometry and its two readings ([`turn_reading`]).
+pub(crate) struct TurnReading<T: Real> {
+    pub(crate) shared: FaceKey,
+    pub(crate) others: [FaceKey; 2],
+    pub(crate) out: [Vec3<T>; 2],
+    pub(crate) crossing: Point3<T>,
+    pub(crate) feet: [Point3<T>; 2],
+    /// `fillet3_turn_feet_gap`'s reading.
+    pub(crate) gap: T,
+    /// `fillet3_turn_overrun_chord`'s reading with band `k` the further.
+    pub(crate) chords: [T; 2],
+}
+
+/// **What a turn's verdict reads**, from the two links alone: the face
+/// they share and each one's other support, each requested edge's unit
+/// direction out of `vertex`, the trimlines' crossing on the shared
+/// face, each band's foot on `third`, the gap between the feet (signed
+/// positive where the first link's is further from `vertex`), and each
+/// band's overrun chord were it the further ([`turn_at`]).
+///
+/// # Errors
+///
+/// As [`turn_at`]'s, less its verdicts.
+pub(crate) fn turn_reading<T: Decide>(
+    body: &Body<T>,
+    vertex: VertexKey,
+    links: [&Link<T>; 2],
+    third: EdgeKey,
+) -> Result<TurnReading<T>, BlendError> {
     let [l1, l2] = links;
     let shared = [l1.face_a, l1.face_b]
         .into_iter()
@@ -2193,43 +2321,49 @@ fn turn_at<T: Decide>(
     let (y1, y2) = (foot_of(l1, others[0])?, foot_of(l2, others[1])?);
     let ((o1, d1), (o2, d2)) = (trimline(l1, shared)?, trimline(l2, shared)?);
     let crossing = line_meet(o1, d1, o2, d2, d1.cross(d2));
-    let angles = Margin::levered(
-        dirs[0].dot(along) - dirs[1].dot(along),
-        l1.arm_len.max(l2.arm_len),
-    )
-    .value();
-    let margin = Margin::of(angles.abs().max((y2 - y1).norm()));
-    let decided = classify_reported(
-        BlendSite::Joint { vertex },
-        BlendDecision::TurnIsosceles,
-        margin,
-        band,
-    )?;
-    match decided.sign {
-        Sign::Zero => {}
-        Sign::Positive | Sign::Negative => {
-            return Err(super::surgery::unbuilt_run_out(
-                EntityId::Vertex(vertex),
-                TURN_NOT_ISOSCELES,
-            ));
-        }
-    }
-    let requested = [l1.edge, l2.edge];
-    Ok(Turn {
-        vertex,
-        requested,
-        edge: third,
+    // The plane the mitre lies in, for the far band `k`: a chamfer's
+    // is that band's plane; a fillet's is one for both, through the
+    // axes' crossing, normal to `e₁ − e₂`.
+    let mitre_plane = |k: usize| match (&links[k].blend.surface, &links[1 - k].blend.surface) {
+        (Surface::Plane { origin, normal, .. }, _) => Ok((*origin, *normal)),
+        (
+            Surface::Cylinder {
+                origin: c1,
+                axis: a1,
+                ..
+            },
+            Surface::Cylinder {
+                origin: c2,
+                axis: a2,
+                ..
+            },
+        ) => Ok((
+            line_meet(*c1, *a1, *c2, *a2, a1.cross(*a2)),
+            dirs[0] - dirs[1],
+        )),
+        _ => Err(unbuilt_geometry(
+            EntityId::Edge(links[k].edge),
+            "a turning band is neither a plane nor a cylinder",
+        )),
+    };
+    // The overrun's chord with band `k` the further: from the mitre's
+    // end on band `j`'s trimline on its face of `third`, to `k`'s foot.
+    let feet = [y1, y2];
+    let chord = |k: usize| -> Result<T, BlendError> {
+        let j = 1 - k;
+        let (o, d) = trimline(links[j], others[j])?;
+        let (at, n) = mitre_plane(k)?;
+        let end = o + d * ((at - o).dot(n) / d.dot(n));
+        Ok((feet[k] - end).norm())
+    };
+    Ok(TurnReading {
         shared,
         others,
         out: dirs,
         crossing,
-        foot: y1 + (y2 - y1) * T::from_f64(0.5),
-        coincidence: row(
-            requested.map(|e| topo::RowCell::edge(topo::Operand::A, e)),
-            topo::Relation::EqualAngles,
-            topo::DecisionSite::BatteryTurn,
-            decided.margin,
-        ),
+        feet,
+        gap: (y1 - y2).dot(along),
+        chords: [chord(0)?, chord(1)?],
     })
 }
 
@@ -2401,8 +2535,8 @@ fn point_at<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Result<Point3<T>, B
 /// ([`corner_independence`]). Any other link's end is classified as a
 /// trivalent vertex of one convexity with independent support normals,
 /// and then by how many of its three edges the request names: all
-/// three, the corner patch; two, the [`CornerConfig::Turn`], whose
-/// trihedron [`turn_at`] decides isosceles about the third edge;
+/// three, the corner patch; two, the [`CornerConfig::Turn`], whose two
+/// bands' feet on the third edge [`turn_at`] decides one point or apart;
 /// one, [`CornerConfig::EndFace`] — its end face a plane, cutting a
 /// chord from a chamfer and from a fillet the section
 /// [`cap_transverse`] picks. The uniform trihedron returns
@@ -2949,4 +3083,50 @@ fn touches_any<T: Decide>(
         }
     }
     Ok(false)
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod turn_verdict_rows {
+    use super::*;
+
+    /// **Both readings decide, or the turn escalates.** On readings
+    /// written down: both Zero is the mitre; both definite the overrun,
+    /// its far band the sign's; a reading in band escalates as itself;
+    /// the two decided on different sides of the band escalate as their
+    /// straddle — the gap Zero under a definite chord (the needle the gap
+    /// alone would build as a mitre), and the gap definite over a Zero
+    /// chord (an overrun edge inside the band).
+    #[test]
+    fn a_turn_builds_only_where_its_gap_and_chord_agree() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let v = VertexKey::default();
+        let (z, d) = (1e-10, 1e-6);
+        assert!(matches!(
+            turn_verdict(v, z, [z, 0.0], band),
+            Ok(TurnVerdict::Mitre(_))
+        ));
+        assert_eq!(
+            turn_verdict(v, d, [d, 1.0], band).unwrap(),
+            TurnVerdict::Overrun { far: 0 }
+        );
+        assert_eq!(
+            turn_verdict(v, -d, [1.0, d], band).unwrap(),
+            TurnVerdict::Overrun { far: 1 }
+        );
+        for (gap, chords, decision) in [
+            (5e-9, [d, d], BlendDecision::TurnFeetGap),
+            (d, [5e-9, d], BlendDecision::TurnOverrunChord),
+            (z, [d, z], BlendDecision::TurnFeet),
+            (z, [z, d], BlendDecision::TurnFeet),
+            (-d, [d, z], BlendDecision::TurnFeet),
+        ] {
+            match turn_verdict(v, gap, chords, band) {
+                Err(BlendError::Escalated { decision: got, .. }) => {
+                    assert_eq!(got, decision, "gap {gap:e}, chords {chords:?}");
+                }
+                other => panic!("gap {gap:e}, chords {chords:?}: escalates, got {other:?}"),
+            }
+        }
+    }
 }
