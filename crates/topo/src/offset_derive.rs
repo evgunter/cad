@@ -556,18 +556,22 @@ pub(crate) fn section_closed<T: Decide>(
             }));
         }
     };
+    // The old edge's span, which the plane×cylinder and plane×cone arms
+    // read the pose over, as `route_pose` did. A line pair through a
+    // cone's apex is read again over the new edge's span once its ends
+    // are known (`replace_face`'s `pair_over_its_span`).
+    let span_reach = || geom_brep::Reach::Span {
+        carrier: old.clone(),
+        t0: span.0,
+        t1: span.1,
+    };
     let candidates: Vec<Curve3<T>> = match other {
         Surface::Plane { .. } => match plane_plane(plane, other, old, span, extent, band)? {
             Ok(line) => vec![line],
             Err(v) => return Ok(Err(v)),
         },
         Surface::Cylinder { .. } => {
-            let reach = geom_brep::Reach::Span {
-                carrier: old.clone(),
-                t0: span.0,
-                t1: span.1,
-            };
-            match c5::plane_cylinder_section(plane, other, &reach, band) {
+            match c5::plane_cylinder_section(plane, other, &span_reach(), band) {
                 Ok(
                     c5::PlaneCylinderSection::TiltedEllipse(c) | c5::PlaneCylinderSection::Rim(c),
                 ) => {
@@ -581,7 +585,7 @@ pub(crate) fn section_closed<T: Decide>(
                 Err(e) => return closed(e),
             }
         }
-        Surface::Cone { .. } => match c5::plane_cone_section(plane, other, extent, band) {
+        Surface::Cone { .. } => match c5::plane_cone_section(plane, other, &span_reach(), band) {
             Ok(c5::PlaneConeSection::ApexLinePair { l1, l2 }) => vec![l1, l2],
             Ok(
                 c5::PlaneConeSection::AxisNormalCircle(c) | c5::PlaneConeSection::TiltedEllipse(c),
