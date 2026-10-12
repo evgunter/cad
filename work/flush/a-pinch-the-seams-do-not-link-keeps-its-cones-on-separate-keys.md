@@ -202,7 +202,13 @@ changes what the census reads off keys across solids. The final states:
 
 ## Measured (2026-10-12, branch `flush/touch-key`, main `360cf55e`)
 
-Release, base against head. A plain point-touch union of two cubes
+Release, base against head. Re-run after merging main `34097ca6`
+(PRs 4777 and 4398): base `34097ca6` against the merged head, the same
+`four_pairs` lines move and the other four batteries are
+byte-identical (`dbl_battery` is 2 159 `SOUND` on both: PR 4777 built
+its 36 `ZipCorrespondence` lines).
+
+A plain point-touch union of two cubes
 returns an assembly whose two vertices at `v` sit on two keys, with one
 `VertexVertex` record citing a `VertexFusion` row of margin 0. On main:
 `four_pairs_battery` holds 287 `PinchConesOnSeparateKeys`, 24 `OK BAD`
@@ -227,9 +233,13 @@ single-operand fallback; `ops.rs` `share_recorded_points`, after
 point keys (`zip::record_classes`) and moves each class onto one key
 (`zip::share_points`, `Body::share_point`). No position is read; the
 records and their `VertexFusion` rows stay. The seam correspondence's
-own classes (`zip::point_classes`, rebound before the join) are folded
-in: with the record rule in place, removing them moves no line of the
-five batteries. `zip::refuse_split_hung_points`,
+own classes (`zip::point_classes`, rebound before the join) stay a
+second source: removing them moves no line of the five batteries, but
+main's `records_cite_their_decision::copies_an_operand_already_held_on_one_key_record_no_pinch_row`
+(PR 4398) splits an operand's two structural copies onto two keys
+without them (`[1, 1, 0] half-lobes intersect`). Those copies carry
+no vertex-vertex record, so the record rule cannot reach them, and the
+seam tie is not a special case of it. `zip::refuse_split_hung_points`,
 `BooleanError::PinchConesOnSeparateKeys` and the insertion's hang
 bookkeeping it read (`HungPoint`, `hung_points`, `Hang`) are retired.
 

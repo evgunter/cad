@@ -39,9 +39,11 @@
 //! The split and the zip read one alignment ([`align`]); where the
 //! two operands' splits leave their section faces paired several to one
 //! (or several), the faces holding paired edges zip as one split seam
-//! ([`zip_split`]). The output stage then puts the vertices that still
-//! sit on several keys at one point onto one: the keys the result's
-//! vertex-vertex records tie ([`record_classes`], [`share_points`]).
+//! ([`zip_split`]). After the zips, [`share_points`] puts the cones of a
+//! pinch that still sit on several keys onto one: the keys the
+//! correspondence ties ([`point_classes`]), read before the split. The
+//! output stage then does the same for the keys the result's
+//! vertex-vertex records tie ([`record_classes`]).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -241,12 +243,49 @@ impl<K: Ord + Copy> Roots<K> {
     }
 }
 
+/// **The point keys the seams tie are one point**: a pinch is several
+/// vertices on one point key (Ev, PR 4057).
+///
+/// Each seam pair's two vertices are one point, which the zips need
+/// (their scaffolding certifies only coincident pairs), and an op's
+/// copies of one vertex share its key (`Body::mev_null`). So every key
+/// the correspondence `vmap` reaches, through its pairs and through the
+/// keys its vertices share, names one point. Returns those classes of
+/// two or more keys, read before any zip; [`share_points`] reads them
+/// after. Decided by the records alone: no position is read. Copies an
+/// operand held on one key, which the zips may fuse onto the other
+/// operand's key one by one, carry no vertex-vertex record, so
+/// [`record_classes`] does not reach them.
+///
+/// # Errors
+///
+/// [`BooleanError::ZipCorrespondence`] where a correspondent no longer
+/// resolves.
+pub(super) fn point_classes<T: geom_core::Real>(
+    body: &Body<T>,
+    vmap: &SeamCorrespondence,
+) -> Result<Vec<PointClass>, BooleanError> {
+    let corr = || BooleanError::ZipCorrespondence {
+        what: "a seam correspondent no longer resolves",
+    };
+    let key = |v: VertexKey| body.get_vertex(v).map(|d| d.point).ok_or_else(corr);
+    let mut roots = Roots::new();
+    for (&a, bs) in vmap {
+        let ka = key(a)?;
+        for &b in bs {
+            roots.union(ka, key(b)?);
+        }
+    }
+    Ok(roots.classes().into_values().collect())
+}
+
 /// **The vertices of each class sit on one point key**: where a
 /// class's live vertices sit on several of its keys, they move onto its
 /// smallest live key ([`Body::share_point`]); elsewhere nothing moves.
-/// The classes come from the result's vertex-vertex records
-/// ([`record_classes`]). The census's same-point rung, and the next
-/// op's join, then read the point from its keys.
+/// The classes come from the seams, after the zips ([`point_classes`]),
+/// and from the result's vertex-vertex records, at the output stage
+/// ([`record_classes`]). The census's same-point rung and the join
+/// then read the point from its keys.
 ///
 /// # Errors
 ///
@@ -256,7 +295,7 @@ pub(super) fn share_points<T: geom_core::Real>(
     body: &mut Body<T>,
     classes: &[PointClass],
 ) -> Result<(), BooleanError> {
-    // The classes are disjoint (`record_classes` builds them as a
+    // The classes are disjoint (each caller builds them as a
     // partition), so one index serves them all.
     let mut on_key: BTreeMap<PointKey, Vec<VertexKey>> = BTreeMap::new();
     for (v, d) in body.vertices() {
@@ -294,7 +333,8 @@ pub(super) fn share_points<T: geom_core::Real>(
 
 /// The point keys one rebind of [`share_points`] puts on one key, with
 /// the margin of each decision the records tying them cite
-/// ([`record_classes`]).
+/// ([`record_classes`]); none where the seams tie them
+/// ([`point_classes`]), whose pairs are bitwise coincident.
 pub(super) struct PointClass {
     keys: BTreeSet<PointKey>,
     #[cfg(feature = "sweep-testing")]
@@ -334,19 +374,8 @@ pub(super) fn record_classes<T: geom_core::Real>(
     for (a, b) in contacts.vertex_vertex() {
         roots.union(key(a)?, key(b)?);
     }
-    let mut classes: BTreeMap<PointKey, PointClass> = BTreeMap::new();
-    for &k in roots.0.keys() {
-        let r = roots.find(k);
-        classes
-            .entry(r)
-            .or_insert_with(|| PointClass {
-                keys: BTreeSet::from([r]),
-                #[cfg(feature = "sweep-testing")]
-                margins: Vec::new(),
-            })
-            .keys
-            .insert(k);
-    }
+    #[cfg_attr(not(feature = "sweep-testing"), allow(unused_mut))]
+    let mut classes = roots.classes();
     // The margins each class's records cite, for the test witness
     // (`take_shared_points`).
     #[cfg(feature = "sweep-testing")]
@@ -368,6 +397,26 @@ pub(super) fn record_classes<T: geom_core::Real>(
     #[cfg(not(feature = "sweep-testing"))]
     let _ = coincidences;
     Ok(classes.into_values().collect())
+}
+
+impl Roots<PointKey> {
+    /// Each class of two or more keys, by its root.
+    fn classes(&self) -> BTreeMap<PointKey, PointClass> {
+        let mut classes: BTreeMap<PointKey, PointClass> = BTreeMap::new();
+        for &k in self.0.keys() {
+            let r = self.find(k);
+            classes
+                .entry(r)
+                .or_insert_with(|| PointClass {
+                    keys: BTreeSet::from([r]),
+                    #[cfg(feature = "sweep-testing")]
+                    margins: Vec::new(),
+                })
+                .keys
+                .insert(k);
+        }
+        classes
+    }
 }
 
 #[cfg(feature = "sweep-testing")]
@@ -397,7 +446,8 @@ thread_local! {
 
 /// One class [`share_points`] rebound: each key's point before the
 /// rebind, each coordinate as its `{:?}` rendering, and each margin its
-/// records cite ([`record_classes`]), as its `{:e}` rendering.
+/// records cite ([`record_classes`]), as its `{:e}` rendering; none for
+/// a class the seams tie, which holds one point bit for bit.
 #[cfg(feature = "sweep-testing")]
 pub type SharedClass = (Vec<[String; 3]>, Vec<String>);
 
@@ -405,7 +455,7 @@ pub type SharedClass = (Vec<[String; 3]>, Vec<String>);
 /// last drain ([`SharedClass`]). `share_points` reads no position, so
 /// its premise is pinned here, in test builds: a row parses the
 /// coordinates back and asserts each class lies within the margins its
-/// records' decisions read. At `f64` the rendering is the shortest
+/// records' decisions read (a seam class within none: one point). At `f64` the rendering is the shortest
 /// string that parses back to the same value, so the parse is exact.
 /// Rendered, not typed, because `T` reaches its bits only through the
 /// fenced bit-identity seam (`geom_core::bit_identity`), which a test

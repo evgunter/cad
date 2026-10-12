@@ -210,9 +210,22 @@ fn assert_union(
             }
         )
     };
-    let rest: Vec<ValidationError> = errs.iter().filter(|e| !overlap(e)).cloned().collect();
+    for (x, y) in r.contacts.vertex_vertex() {
+        let key = |v| {
+            r.body
+                .get_vertex(v)
+                .expect("a recorded vertex is live")
+                .point
+        };
+        assert_eq!(
+            key(x),
+            key(y),
+            "{what}: a recorded vertex pair shares one key"
+        );
+    }
     assert!(
-        errs.iter().any(overlap) && only_curved_within_reach(&r.body, &rest),
-        "{what}: without its edge–edge record the census names the overlap: {errs:?}"
+        !errs.iter().any(overlap) && only_curved_within_reach(&r.body, &errs),
+        "{what}: without its edge–edge record the overlap between the two shared \
+         keys reads as structure: {errs:?}"
     );
 }
