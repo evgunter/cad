@@ -2,8 +2,11 @@
 id: split-tangent-chord-mints-tangency-without-the-must-carry-rule
 kind: issue
 title: the split's tangent section chord mints TangentIntersection unconditionally, so an under-determined tangency refuses instead of describing conventionally
-status: open
+status: closed
 opened: 2026-10-06
+closed: 2026-10-09
+pr: 4394
+branch: tang/split-tangent-chord-must-carry
 priority: P2
 cost: E
 ---
@@ -67,3 +70,26 @@ so the rule demands no intrinsic description. Certification of the
 second refusal that the rule would describe conventionally, with a
 different cause from the thin-cylinder zero side above. The fix above
 covers both.
+
+## Closed (2026-10-09, TANG, PR 4394)
+
+The tangent-ruling arm asks `must_carry_over_edge` over the chord and
+stores its description: `TangentIntersection` where jet-determinate,
+`EdgeDescriptionSpec::chart(plane_key)` where under-determined, and
+`SplitJoinError::TangentChordEscalated` / `TangentChordBendEscalated`
+/ `TangentChordRefuted` where it refuses. On the shoulder the zero-side
+rows (h ≤ 4e-5 at ε 1e-9) now cut tier-3 valid at the closed-form
+volume, the in-band rows refuse by the rule (`tangent_second_order`),
+and h ≥ 2e-4 is unchanged; `wedge_end_doors.rs`'s
+`a_split_tangent_to_a_thin_shoulder_describes_its_ruling_by_the_rule`
+pins all three at every ε row.
+
+The cone premise is covered by construction (the rule answers
+`UnderDetermined` out of lane), and measured unreachable: no suite or
+probe reaches the arm with a cone wall, because no constructor makes
+the reflex cone-ruling edge the arm needs.
+
+The sweep's two siblings are filed:
+`split-edge-keeps-a-tangent-description-on-a-short-piece-without-the-must-carry-rule`
+(here) and `exch/step-import-adopts-a-smooth-join-without-the-must-carry-rule`.
+
