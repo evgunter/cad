@@ -13,18 +13,24 @@
 //! traversed with the interior on its left about the outward normal):
 //!
 //! ```text
-//! A_s   = Σ_loops ∮ u dv   (signed UV area; A_s = s_f·|Ω|)
+//! A_s   = −Σ_loops ∮ (v − v_a) du   (signed UV area; A_s = s_f·|Ω|)
 //! area  = r·|A_s|
 //! flux  = ∮ p·n dA = r²·A_s + o·A⃗    (A⃗ the exact vector area, summed over the loops)
 //! ```
 //!
-//! — the loops' own traversal signs carry `s_f`, a ring's opposite to
-//! its face's, so no separate orientation classification is needed;
-//! what is decided is that the stored loops say so (no junction a period
-//! off on the chart, every ring wound against its face). The boundary is the face's
-//! **pcurves** (PR 6 caches; C4's first hot consumer): per edge the
-//! contribution is `σ·∫ u(t)·v'(t) dt` over the stored carrier
-//! interval.
+//! — `v du` because it is a global 1-form on the cylinder (the azimuth
+//! is periodic, its differential is not), so the form reads a loop
+//! that winds the cylinder — a seamless band's rim — and a loop whose
+//! images sit in different branches of the chart alike; `u dv` reads
+//! neither. The loops' own traversal signs carry `s_f`, a ring's
+//! opposite to its face's, so no separate orientation classification
+//! is needed; what is decided is that the stored loops say so (each
+//! loop winds a whole number of turns and the face's loops none
+//! together, which makes the form independent of the anchor level
+//! `v_a`; every ring that does not wind is wound against its face).
+//! The boundary is the face's **pcurves** (PR 6 caches; C4's first hot
+//! consumer): per edge the contribution is
+//! `σ·∫ (v_a − v(t))·u'(t) dt` over the stored carrier interval.
 //!
 //! # The integrand substrate is certification arithmetic
 //!
@@ -529,21 +535,28 @@ impl HarmChan {
 // The composite rule (module docs: h·f(m) + F₂·h³/24 per piece)
 // ---------------------------------------------------------------------
 
-/// `σ·∫_{a}^{b} u(t)·v'(t) dt` for one harmonic edge at `pieces`
-/// resolution, plus the edge's two honesty pads (endpoint-bracket and
-/// map-residual — the latter needs `radius` for the metric length).
-fn harmonic_edge_integral(e: &TrimEdgeQ, pieces: usize, radius: Interval) -> Interval {
+/// `σ·∫_{a}^{b} (anchor − v(t))·u'(t) dt` for one harmonic edge at
+/// `pieces` resolution — its share of `−∮ (v − anchor) du` — plus the
+/// edge's two honesty pads (endpoint-bracket and map-residual — the
+/// latter needs `radius` for the metric length).
+fn harmonic_edge_integral(e: &TrimEdgeQ, anchor: f64, pieces: usize, radius: Interval) -> Interval {
     let (a, b) = e.limits();
     let span = b - a;
     if !(span.is_finite() && span >= 0.0) || pieces == 0 {
         return Interval::refused();
     }
-    let du = e.u.deriv();
-    let dv = e.v.deriv();
-    // f = u·v'; f'' = u''·v' + 2·u'·v'' + u·v'''.
-    let ddu = du.deriv();
-    let ddv = dv.deriv();
-    let dddv = ddv.deriv();
+    let p = HarmChan {
+        c0: pt(anchor) - e.v.c0,
+        ca: -e.v.ca,
+        cb: -e.v.cb,
+        cl: -e.v.cl,
+    };
+    let dp = p.deriv();
+    let dq = e.u.deriv();
+    // f = p·q'; f'' = p''·q' + 2·p'·q'' + p·q'''.
+    let ddp = dp.deriv();
+    let ddq = dq.deriv();
+    let dddq = ddq.deriv();
     let mut total = Interval::zero();
     #[allow(clippy::cast_precision_loss)]
     let h = span / pieces as f64;
@@ -561,24 +574,24 @@ fn harmonic_edge_integral(e: &TrimEdgeQ, pieces: usize, radius: Interval) -> Int
     let (spread_c, spread_s) = (spread_cos(h2), spread_sin(h2));
     for i in 0..pieces {
         #[allow(clippy::cast_precision_loss)]
-        let p = a + span * (i as f64 / pieces as f64);
-        let m = p + h * 0.5;
+        let lo = a + span * (i as f64 / pieces as f64);
+        let m = lo + h * 0.5;
         // Thin midpoint value.
         let (cm, sm) = trig_at(e.trig0, m - a);
-        let fm = e.u.eval(cm, sm, pt(m)) * dv.eval(cm, sm, pt(m));
+        let fm = p.eval(cm, sm, pt(m)) * dq.eval(cm, sm, pt(m));
         // f'' hull over the piece (midpoint spread by ± h/2).
         let (cr, sr) = rotate(cm, sm, spread_c, spread_s);
-        let tr = Interval::from_bounds(p, p + h);
-        let f2 = ddu.eval(cr, sr, tr) * dv.eval(cr, sr, tr)
-            + pt(2.0) * du.eval(cr, sr, tr) * ddv.eval(cr, sr, tr)
-            + e.u.eval(cr, sr, tr) * dddv.eval(cr, sr, tr);
+        let tr = Interval::from_bounds(lo, lo + h);
+        let f2 = ddp.eval(cr, sr, tr) * dq.eval(cr, sr, tr)
+            + pt(2.0) * dp.eval(cr, sr, tr) * ddq.eval(cr, sr, tr)
+            + p.eval(cr, sr, tr) * dddq.eval(cr, sr, tr);
         total = total + pt(h) * fm + f2 * h3_24;
     }
     // Endpoint-bracket pad: |f| near the ends times the t-bracket
     // widths (module docs).
     let (c_all, s_all) = trig_over(e.trig0, 0.0, span);
     let t_all = Interval::from_bounds(a, b);
-    let f_mag = (e.u.eval(c_all, s_all, t_all) * dv.eval(c_all, s_all, t_all)).mag();
+    let f_mag = (p.eval(c_all, s_all, t_all) * dq.eval(c_all, s_all, t_all)).mag();
     let wt = e.t0.width() + e.t1.width();
     let pad = f_mag * wt;
     let total = total + Interval::from_bounds(-pad, pad);
@@ -804,7 +817,7 @@ pub(super) fn round_exit(
 /// trim (module docs: the Green form, the composite rule, the
 /// refinement funnel, the honesty pads), over every loop of the face,
 /// the outer first: the Green form is a sum over edges, so a ring
-/// contributes its own `∮ u dv` with its own winding.
+/// contributes its own `−∮ v du` with its own winding.
 ///
 /// `o_dot_va` is the caller's closed-form `o·A⃗` term bracketed, `A⃗`
 /// summed over the same loops; `eps` is the run's ε (the convergence
@@ -813,7 +826,8 @@ pub(super) fn round_exit(
 /// # Errors
 ///
 /// [`PropsError`] — an escalated funnel decision, a degenerate face,
-/// a loop a period off on the chart ([`PropsError::ChartPeriodJump`]),
+/// a loop that winds the cylinder by no whole number of turns, or loops
+/// that wind it together ([`PropsError::LoopsWindChart`]),
 /// a ring wound with its face at any round it returns
 /// ([`PropsError::RingWoundWithFace`]), or
 /// the typed [`PropsError::QuadratureBudget`] refusal when the
@@ -856,17 +870,19 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
         "a window resuming at round {} is past this lane's last round {QUAD_MAX_ROUNDS}",
         window.first
     );
-    require_no_period_jump::<T>(loops, radius, band)?;
+    let winds = loop_windings::<T>(loops, radius, band)?;
+    let anchor = level_anchor(loops);
     let target_len = QUAD_TARGET_LEN_FACTOR * eps;
     let first = window.first.min(QUAD_MAX_ROUNDS);
     let mut pieces = QUAD_INIT_PIECES << first;
     for round in first..=QUAD_MAX_ROUNDS {
-        // Signed UV area at this resolution, per loop: A_s = Σ ∮ u dv.
+        // Signed UV area at this resolution, per loop:
+        // A_s = −Σ ∮ (v − anchor) du.
         let per_loop: Vec<Interval> = loops
             .iter()
             .map(|edges| {
                 edges.iter().fold(Interval::zero(), |a, e| {
-                    a + harmonic_edge_integral(e, pieces, radius)
+                    a + harmonic_edge_integral(e, anchor, pieces, radius)
                 })
             })
             .collect();
@@ -903,7 +919,7 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(PropsError::DegenerateFace),
             }
-            require_holes_wound_against(loops, &per_loop, a_s, radius, band)?;
+            require_holes_wound_against(loops, &per_loop, &winds, a_s, radius, band)?;
             return Ok(RoundOutcome::Converged(FaceCutBounds { flux, area }));
         }
         if let Some(out) = round_exit(
@@ -916,7 +932,7 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
             // An open enclosure is read too (a sign walk settles on
             // one), and it encloses the face's flux only if its rings
             // are holes.
-            require_holes_wound_against(loops, &per_loop, a_s, radius, band)?;
+            require_holes_wound_against(loops, &per_loop, &winds, a_s, radius, band)?;
             return Ok(out);
         }
         pieces *= 2;
@@ -939,59 +955,106 @@ fn chart_end(e: &TrimEdgeQ, end: bool) -> (Interval, Interval) {
     )
 }
 
-/// **No junction of a loop is a period off on the chart**
-/// (`props_quad_junction_period`, [`PropsError::ChartPeriodJump`]).
+/// **Each loop winds the cylinder a whole number of times, and the
+/// face's loops together zero times** (`props_quad_loop_winding`,
+/// `props_quad_loops_closed`, [`PropsError::LoopsWindChart`]).
 ///
-/// `∮ u dv` is Green's form for a closed curve of the chart, and the
-/// azimuth is periodic: an image stored a period off its neighbour, or
-/// a loop that winds the cylinder, closes in space and not on the
-/// chart, and its `∮ u dv` is not the region's area. Each edge's chart
-/// image ends where the next one's starts to within the stored
-/// geometry's tolerance, or a whole period away, `2πR` in the metric
-/// `R·|Δu| + |Δv|`; the gap is decided against half a period, so a jump
-/// is definite and a tolerance-scale gap is never near the margin. This
-/// is NOT a decision that the loop closes to tolerance: the closed
-/// forms decide that in space (`props_loop_closed`), on carriers whose
-/// ends meet at shared vertices, and the residue a tolerance-scale gap
-/// leaves in this lane's integral is
-/// `work/quad/cylinder-quadrature-integrates-loops-that-close-only-to-the-vertex-tolerance`.
-/// A loop with no period jump winds the cylinder zero times, so the
-/// face's loops do too.
-fn require_no_period_jump<T: Decide>(
+/// `du` is a global 1-form on the cylinder — the azimuth is periodic,
+/// its differential is not — so a loop's `∮ du` is the sum of its
+/// edges' own azimuth runs, whichever branch of the chart each image
+/// was minted in: `2π` times the turns the loop winds. Each loop's is
+/// decided against half a turn, `R·|∮ du|` against `πR` in metres, so
+/// a whole number of turns is never near the margin: under it the
+/// loop winds zero times, over it the loop winds (a band's rim), and
+/// within the band of it the loop is no closed curve. The face's sum
+/// is decided the same way and must be under it: a face's boundary
+/// bounds it, and that is what makes `−Σ∮ (v − anchor) du` the same
+/// for every anchor.
+///
+/// Returns, per loop, whether it winds.
+fn loop_windings<T: Decide>(
     loops: &[&[TrimEdgeQ]],
     radius: Interval,
     band: Band,
-) -> Result<(), PropsError> {
+) -> Result<Vec<bool>, PropsError> {
+    let half_turn = pt(core::f64::consts::PI) * radius;
+    let mut total = Interval::zero();
+    let mut winds = Vec::with_capacity(loops.len());
     for edges in loops {
-        for (e, next) in edges.iter().zip(edges.iter().cycle().skip(1)) {
-            let (u1, v1) = chart_end(e, true);
-            let (u0, v0) = chart_end(next, false);
-            let gap = radius * (u1 - u0).abs_enclosure() + (v1 - v0).abs_enclosure();
-            if classify_len::<T>(
-                "props_quad_junction_period",
-                Margin::of(certified_hi(gap - pt(core::f64::consts::PI) * radius)),
-                band,
-                PropsCheck::Inventory,
-            )? != Sign::Negative
-            {
-                return Err(PropsError::ChartPeriodJump);
-            }
+        let turn = edges.iter().fold(Interval::zero(), |acc, e| {
+            acc + (chart_end(e, true).0 - chart_end(e, false).0)
+        });
+        total = total + turn;
+        match classify_len::<T>(
+            "props_quad_loop_winding",
+            Margin::of(nearest_zero(radius * turn.abs_enclosure() - half_turn)),
+            band,
+            PropsCheck::Inventory,
+        )? {
+            Sign::Negative => winds.push(false),
+            Sign::Positive => winds.push(true),
+            Sign::Zero => return Err(PropsError::LoopsWindChart),
         }
     }
-    Ok(())
+    if classify_len::<T>(
+        "props_quad_loops_closed",
+        Margin::of(certified_hi(radius * total.abs_enclosure() - half_turn)),
+        band,
+        PropsCheck::Inventory,
+    )? != Sign::Negative
+    {
+        return Err(PropsError::LoopsWindChart);
+    }
+    Ok(winds)
 }
 
-/// **Every ring winds against its face**, through the closed forms' own
-/// decision ([`super::curved::require_holes_wound_against`], the mean
-/// width `2·A/P` of the face's whole and of each ring, in m² over m) at
+/// The point of `x` nearest zero: its sign is the enclosure's wherever
+/// the enclosure has one, and a straddling enclosure reads `0`. A
+/// refused one reads `NaN`.
+fn nearest_zero(x: Interval) -> f64 {
+    if !x.is_certified() {
+        f64::NAN
+    } else if x.lo() > 0.0 {
+        x.lo()
+    } else if x.hi() < 0.0 {
+        x.hi()
+    } else {
+        0.0
+    }
+}
+
+/// The level the Green form is taken about: the middle of the levels
+/// the face's edges start at. Any level gives the same form once the
+/// loops wind zero times together ([`loop_windings`]); one inside the
+/// face keeps a short face far along the axis at the conditioning of
+/// its own height rather than of its distance from the chart origin.
+fn level_anchor(loops: &[&[TrimEdgeQ]]) -> f64 {
+    let (lo, hi) = loops
+        .iter()
+        .flat_map(|edges| edges.iter())
+        .map(|e| mid(chart_end(e, false).1))
+        .filter(|v| v.is_finite())
+        .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), v| {
+            (lo.min(v), hi.max(v))
+        });
+    if lo <= hi { lo + (hi - lo) * 0.5 } else { 0.0 }
+}
+
+/// **Every ring that does not wind the cylinder winds against its
+/// face**, through the closed forms' own decision
+/// ([`super::curved::require_holes_wound_against`], the mean width
+/// `2·A/P` of the face's whole and of each such ring, in m² over m) at
 /// the interval scalar: a ring definitely opposite to the whole passes,
 /// one definitely the same way refuses
 /// ([`PropsError::RingWoundWithFace`]), and an enclosure that straddles
-/// the band escalates rather than takes a side. A face with no ring
-/// decides nothing here.
+/// the band escalates rather than takes a side. A ring that winds is a
+/// band's second rim, whose own `∮` depends on the anchor, so it is no
+/// hole and is passed over, as the closed form passes over it
+/// (`curved::cylinder_holes`). A face with no ring decides nothing here.
 fn require_holes_wound_against(
     loops: &[&[TrimEdgeQ]],
     per_loop: &[Interval],
+    winds: &[bool],
     a_s: Interval,
     radius: Interval,
     band: Band,
@@ -1014,8 +1077,10 @@ fn require_holes_wound_against(
     let holes: Vec<(Interval, Interval)> = loops
         .iter()
         .zip(per_loop)
+        .zip(winds)
         .skip(1)
-        .map(|(edges, &ring)| (radius * ring, length(edges)))
+        .filter(|&(_, &winds)| !winds)
+        .map(|((edges, &ring), _)| (radius * ring, length(edges)))
         .collect();
     super::curved::require_holes_wound_against("props_chart_area_side", whole, &holes, band)
 }
@@ -5620,7 +5685,9 @@ mod tests {
             "area {:?} must bracket {exact}",
             out.area
         );
-        // Independent dense oracle: midpoint sum of Σ σ·∫u·v' dt.
+        // Independent dense oracle: midpoint sum of Σ σ·∫u·v' dt, the
+        // other Green form, equal to the lane's on a loop closed on the
+        // chart.
         let mut acc = 0.0;
         let n = 200_000;
         for e in &edges {
@@ -5716,7 +5783,7 @@ mod tests {
     }
 
     /// **A ring is a loop of its own.** The rectangle less the circle
-    /// measures `2 − 0.09π`, the ring's `∮ u dv` entering with its own
+    /// measures `2 − 0.09π`, the ring's `−∮ v du` entering with its own
     /// clockwise winding.
     #[test]
     fn a_ring_subtracts_its_own_area() {
@@ -5770,19 +5837,104 @@ mod tests {
         );
     }
 
-    /// **A loop stored a period off on the chart refuses**
-    /// (`props_quad_junction_period`): the ring's second arc carried
-    /// `2π` along the azimuth closes in space, not on the chart.
+    /// **A loop stored a period off on the chart measures as the loop
+    /// it stores**: the ring's second arc carried `2π` along the
+    /// azimuth closes in space and not on the chart, and `−∮ v du` reads
+    /// only each edge's own `du`, so the ringed rectangle measures
+    /// `2 − 0.09π` exactly as the unshifted one does. A jump at a
+    /// junction of a loop that does not wind is no defect.
     #[test]
-    fn a_loop_a_period_off_on_the_chart_refuses() {
+    fn a_loop_a_period_off_on_the_chart_measures_as_stored() {
         let band = geom_core::Band::linear(Tol::witness()).unwrap();
         let eps = Tol::witness().get().eps;
         let [outer, ring] = ringed_rectangle(true, core::f64::consts::TAU);
-        let got = cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &[&outer, &ring], eps, band);
+        let out = cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &[&outer, &ring], eps, band)
+            .expect("the shifted ring converges");
+        let exact = 2.0 - 0.09 * core::f64::consts::PI;
         assert!(
-            matches!(got, Err(PropsError::ChartPeriodJump)),
-            "got {got:?}"
+            out.area.lo() <= exact && exact <= out.area.hi(),
+            "area {:?} must bracket {exact}",
+            out.area
         );
+    }
+
+    /// A seamless band of the unit cylinder: a rim circle at `v = lift`
+    /// traversed `+u`, and an ellipse rim `v = lift + 2 + k·cos u` (the
+    /// wall cut by an oblique plane) traversed `−u` — two loops of one
+    /// edge each, each winding the cylinder once.
+    fn ellipse_band(k: f64, lift: f64) -> [TrimEdgeQ; 2] {
+        let tau = core::f64::consts::TAU;
+        let rim = |v: HarmChan, forward| TrimEdgeQ {
+            u: chan(0.0, 0.0, 0.0, 1.0),
+            v,
+            t0: pt(0.0),
+            t1: pt(tau),
+            forward,
+            trig0: (pt(1.0), pt(0.0)),
+            env: pt(0.0),
+        };
+        [
+            rim(chan(lift, 0.0, 0.0, 0.0), true),
+            rim(chan(lift + 2.0, k, 0.0, 0.0), false),
+        ]
+    }
+
+    /// **A seamless band with an ellipse rim measures**: its loops each
+    /// wind the cylinder once, against each other, and the band's area
+    /// is `2π·2` whatever the cut's tilt `k` and wherever along the axis
+    /// it sits (`lift`) — the oblique cut's mean height is its height on
+    /// the axis. `∮ u dv` reads the ellipse rim as `−2πk` and the
+    /// circle rim as nothing.
+    #[test]
+    fn a_seamless_band_with_an_ellipse_rim_measures() {
+        let band = geom_core::Band::linear(Tol::witness()).unwrap();
+        let eps = Tol::witness().get().eps;
+        let exact = 2.0 * core::f64::consts::TAU;
+        for (k, lift) in [(0.0, 0.0), (0.4, 0.0), (-0.7, 0.0), (0.4, 1000.0)] {
+            let [bottom, top] = ellipse_band(k, lift);
+            let out = cylinder_cut_face::<f64>(
+                pt(1.0),
+                Interval::zero(),
+                &[&[bottom], &[top]],
+                eps,
+                band,
+            )
+            .unwrap_or_else(|e| panic!("k {k}, lift {lift}: the band refuses: {e:?}"));
+            for (what, x) in [("flux", out.flux), ("area", out.area)] {
+                assert!(
+                    x.lo() <= exact && exact <= x.hi(),
+                    "k {k}, lift {lift}: {what} {x:?} must bracket {exact}"
+                );
+            }
+        }
+    }
+
+    /// **Loops that wind the cylinder together refuse**
+    /// (`props_quad_loops_closed`, [`PropsError::LoopsWindChart`]): a
+    /// band's ellipse rim alone, and both rims run the same way, bound
+    /// nothing, and `−∮ (v − anchor) du` over them is a number that
+    /// moves with the anchor. A loop that runs half a turn and stops
+    /// is no closed curve (`props_quad_loop_winding`).
+    #[test]
+    fn loops_that_wind_the_cylinder_together_refuse() {
+        let band = geom_core::Band::linear(Tol::witness()).unwrap();
+        let eps = Tol::witness().get().eps;
+        let [bottom, top] = ellipse_band(0.4, 0.0);
+        let mut same_way = top;
+        same_way.forward = true;
+        let mut half = bottom;
+        half.t1 = pt(core::f64::consts::PI);
+        for (what, loops) in [
+            ("the ellipse rim alone", vec![&[top][..]]),
+            ("both rims run +u", vec![&[bottom][..], &[same_way][..]]),
+            ("half a turn", vec![&[half][..]]),
+        ] {
+            let got = cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &loops, eps, band);
+            assert!(
+                matches!(got, Err(PropsError::LoopsWindChart)),
+                "{what}: {got:?}"
+            );
+        }
     }
 
     /// Endpoint ignorance that no refinement narrows cannot converge:
@@ -6286,9 +6438,11 @@ mod tests {
                 trig0: (pt(t0_true.cos()), pt(t0_true.sin())),
                 env: pt(0.0),
             };
-            let enclosure = harmonic_edge_integral(&e, 65_536, pt(1.0));
-            // Dense Kahan-summed midpoint oracle of the TRUE integral.
-            let truth = kahan_dense_oracle(&u, &v, t0_true, t1_true, 400_000);
+            let enclosure = harmonic_edge_integral(&e, 0.0, 65_536, pt(1.0));
+            // Dense Kahan-summed midpoint oracle of the TRUE integral,
+            // `∫ −v·u' dt`.
+            let minus_v = chan(-2.0, -0.7, -0.4, -0.3);
+            let truth = kahan_dense_oracle(&minus_v, &u, t0_true, t1_true, 400_000);
             assert!(
                 enclosure.lo() <= truth && truth <= enclosure.hi(),
                 "placement ({d0}, {d1}): truth {truth} escapes {enclosure:?} — the \
@@ -6297,8 +6451,8 @@ mod tests {
         }
     }
 
-    /// Dense midpoint oracle with Kahan (compensated) summation — the
-    /// reviewer's independent-integration shape.
+    /// Dense midpoint oracle of `∫ u·v' dt` with Kahan (compensated)
+    /// summation — the reviewer's independent-integration shape.
     fn kahan_dense_oracle(u: &HarmChan, v: &HarmChan, a: f64, b: f64, n: u32) -> f64 {
         let (mut sum, mut c) = (0.0f64, 0.0f64);
         let h = (b - a) / f64::from(n);
@@ -6416,7 +6570,9 @@ mod tests {
             seam_c(0.0, 3.4, false),
         ];
         for (label, edges) in [("pinch", face_a), ("sliver", face_b), ("skew", face_c)] {
-            // Independent truth: Σ σ·∫ u·v' dt, Kahan-summed.
+            // Independent truth: Σ σ·∫ u·v' dt, Kahan-summed — the
+            // other Green form, equal to the lane's on a loop closed on
+            // the chart.
             let mut truth = 0.0;
             for e in &edges {
                 let s = kahan_dense_oracle(&e.u, &e.v, e.t0.lo(), e.t1.hi(), 400_000);

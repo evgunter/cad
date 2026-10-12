@@ -553,6 +553,18 @@ fn digest() -> String {
 ///
 /// Verdicts, refusals, the other rows and the sym-session counts are
 /// unchanged.
+///
+/// **Re-cut at all three ε when the cylinder quadrature began reading
+/// `−∮ (v − v_a) du`** in place of `∮ u dv`, deciding each loop's
+/// winding and the face's (`props_quad_loop_winding`,
+/// `props_quad_loops_closed`) in place of one decision per junction.
+/// Only `tilted_cut_upper` moves, and every new enclosure lies inside
+/// the old one: its volume pad falls from 7.8e-5 to 8.5e-6, 1.5e-7 to
+/// 1.3e-7 and 2.9e-10 to 2.5e-10 at ε = 1e-6 / 1e-9 / 1e-12 (the area
+/// pad by the same factors), its volume lands on exactly `π/8` at 1e-6
+/// and within 1 and 17 ulps of it at 1e-9 and 1e-12, and its verdict
+/// count goes 12 → 8, 18 → 12 and 24 → 18 with its hash. Every other
+/// line is unchanged.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),

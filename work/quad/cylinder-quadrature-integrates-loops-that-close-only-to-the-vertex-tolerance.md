@@ -49,3 +49,15 @@ A line's endpoint read off its vertex point rather than off the
 whole-circle trig bracket, so a junction's chart points are thin; then
 the connector term and its sliver pad cost the enclosure what the gap
 is, not what the bracket is.
+
+## Since `flux/cylinder-band-quad`
+
+The lane now reads `−∮ (v − v_a) du` (`v_a` the middle of the face's
+edge-start levels, `quad::level_anchor`), and the per-junction
+`require_no_period_jump` is gone: each loop's and the face's winding are
+decided instead (`quad::loop_windings`). The residue is unchanged in
+kind: an open chain's integral now differs from the closed region's by
+`≈ −(½(v₁ + v₀) − v_a)·Δu` at each junction gap, which no pad covers.
+The anchor keeps the lever at the face's own height rather than its
+distance from the chart origin, so the term is no larger than the old
+`½(u₁ + u₀)·Δv` lever on a face of comparable extent.

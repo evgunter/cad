@@ -382,13 +382,14 @@ pub enum PropsError {
     /// wrong, whichever lane reads it: the closed forms' and the
     /// cylinder quadrature's one decision (`curved::require_holes_wound_against`).
     RingWoundWithFace,
-    /// **A loop's stored chart images are a period apart at a junction**
-    /// (`props_quad_junction_period`): one edge's image starts a whole
-    /// turn of the azimuth from where the edge before it ends, so the
-    /// loop closes in space but not on the chart, and no Green form over
-    /// the chart reads it. Stored data that is wrong: a boundary's images
-    /// on one face are minted in one branch of its chart.
-    ChartPeriodJump,
+    /// **A face's loops wind its cylinder** (`props_quad_loop_winding`,
+    /// `props_quad_loops_closed`): one loop's stored chart images run
+    /// round the azimuth by no whole number of turns, so it is no
+    /// closed curve, or the face's loops together wind the cylinder,
+    /// so they bound no region of it. Stored data that is wrong: a
+    /// face's boundary bounds it. A band's two rims each wind once,
+    /// against each other, and are not this.
+    LoopsWindChart,
     /// A boundary edge's traversed **arc** leaves one branch of the
     /// chart, though its CARRIER is a certified iso curve: the arc's
     /// stored parameter span contains a chart singularity in its
@@ -686,11 +687,11 @@ impl core::fmt::Display for PropsError {
                  its area would be added to the face's rather than taken from it. \
                  {KERNEL_OR_FILE_DEFECT_ENDING}"
             ),
-            Self::ChartPeriodJump => write!(
+            Self::LoopsWindChart => write!(
                 f,
-                "a face's stored boundary images on its surface's chart do not meet: one \
-                 edge's image starts a whole turn around the surface from where the edge \
-                 before it ends. {KERNEL_OR_FILE_DEFECT_ENDING}"
+                "a face's stored boundary loops wind around its surface: one runs round it \
+                 by no whole number of turns, or together they wind it, so they bound no \
+                 region of the face. {KERNEL_OR_FILE_DEFECT_ENDING}"
             ),
             Self::NappeSpanning => write!(
                 f,
@@ -996,7 +997,7 @@ mod tests {
             PropsError::SenseContradicted,
             PropsError::SenseInverted,
             PropsError::RingWoundWithFace,
-            PropsError::ChartPeriodJump,
+            PropsError::LoopsWindChart,
             PropsError::NappeSpanning,
             PropsError::NotOneChartBranch {
                 edge: 0,

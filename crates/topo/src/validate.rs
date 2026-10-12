@@ -3128,8 +3128,8 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
                 DEFECT.into(),
                 true,
             ),
-            P::ChartPeriodJump => reading(
-                "a face's stored boundary images do not meet on its chart",
+            P::LoopsWindChart => reading(
+                "a face's stored boundary loops wind around its surface",
                 DEFECT.into(),
                 true,
             ),
