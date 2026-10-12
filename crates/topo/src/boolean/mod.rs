@@ -166,7 +166,7 @@ pub use contain::{
 pub(crate) use contain::{
     CurvedPlacement, PlacementError, driver_face_stale, face_placement, loop_circle,
 };
-pub use discard::{DiscardRow, HeldEdge, lineage_root};
+pub use discard::{DiscardRow, HeldEdge};
 // Crate-internal: tier 3's check 11 reads every vertex through the
 // join's own predicate.
 pub(crate) use edge_join::joinable_at_rest;
@@ -284,7 +284,9 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_carrier_cross_circles_apart"
         | "bool_carrier_cross_circles_nested"
         | "bool_carrier_cross_plane_offset"
-        | "bool_carrier_cross_concentric" => CrossingDecision::OnEdge.subject(),
+        | "bool_carrier_cross_concentric"
+        | "bool_carrier_cross_line_meets_ellipse"
+        | "bool_carrier_cross_ellipses_one_curve" => CrossingDecision::OnEdge.subject(),
         "bool_face_disc_carrier"
         | "bool_contact_arc_end_vertex"
         | "bool_curved_contain_carrier"
@@ -2052,13 +2054,13 @@ pub enum BooleanError {
         /// The face of the other operand it met.
         face: FaceKey,
     },
-    /// The both-edges-split point lane needs a carrier with an exact
-    /// point parameter and got one without. `Line` and `Circle` have
-    /// one; `Ellipse` reaches here, because the operand gate admits it,
-    /// so this is a **narrower** condition than the gate's, at a later
-    /// stage — which is exactly why it is its own variant rather than a
-    /// second reach of [`Self::CurvedEdgeUnsupported`]. One doc and one
-    /// message covering both could name neither.
+    /// The both-edges-split point lane needs a carrier with a point
+    /// parameter ([`geom::Curve3::param_near`]) and got a spline, which
+    /// has none. The operand gate refuses a spline edge first, as
+    /// [`Self::CurvedEdgeUnsupported`], so no public door raises this
+    /// while the gate stands; it is the split lane's own precondition,
+    /// which is why it is its own variant. One doc and one message
+    /// covering both could name neither.
     PointSplitCarrierUnsupported {
         /// The offending operand and edge.
         operand: Operand,
@@ -2850,6 +2852,20 @@ pub enum BooleanError {
         /// Which lockstep invariant broke.
         what: &'static str,
     },
+    /// A lineage list refused a row where a stage added it: a vertex
+    /// fusion, a substitution or a face division that maps a cell to
+    /// itself, names a cell an earlier row retired, or mints a cell an
+    /// earlier row already names. Each list checks its rows there, so
+    /// none of its readers meets a corrupt one; reaching this is a
+    /// kernel defect.
+    LineageRow {
+        /// The list that refused the row.
+        rows: crate::lineage::LineageRows,
+        /// What is wrong with the row.
+        defect: crate::lineage::RowDefect,
+        /// The cell the defect is about.
+        key: Cell,
+    },
     /// An edge the Boolean minted, or a boundary edge of a face its
     /// merge left in place, could not be described against the two
     /// faces it lies between: its halves did not walk, or the
@@ -3167,6 +3183,8 @@ pub enum BooleanErrorKind {
     RestPieceUnread,
     /// [`BooleanError::JoinDesync`].
     JoinDesync,
+    /// [`BooleanError::LineageRow`].
+    LineageRow,
     /// [`BooleanError::EdgeUndescribed`].
     EdgeUndescribed,
     /// [`BooleanError::TornComponent`].
@@ -3389,6 +3407,7 @@ impl BooleanError {
             Self::JoinCarrierUnsupported { .. } => BooleanErrorKind::JoinCarrierUnsupported,
             Self::RestPieceUnread { .. } => BooleanErrorKind::RestPieceUnread,
             Self::JoinDesync { .. } => BooleanErrorKind::JoinDesync,
+            Self::LineageRow { .. } => BooleanErrorKind::LineageRow,
             Self::EdgeUndescribed { .. } => BooleanErrorKind::EdgeUndescribed,
             Self::TornComponent { .. } => BooleanErrorKind::TornComponent,
             Self::ShellWitnessExhausted { .. } => BooleanErrorKind::ShellWitnessExhausted,
@@ -3459,16 +3478,17 @@ pub(crate) fn kind_word(kind: geom::SurfaceKind) -> &'static str {
 /// **This is the one statement of the pairs the Boolean can join**: the
 /// germ-pair join (`join::bool_connect`, and the chord layer it mints
 /// sections through) joins a plane face against a plane, cylinder,
-/// sphere or cone face, mirrors included,
-/// and two spheres or two parallel cylinders along their radical plane.
+/// sphere or cone face, mirrors included, and against a torus face where
+/// the plane holds the torus's axis or stands square to it, and two
+/// spheres or two parallel cylinders along their radical plane.
 /// The rustdoc that needs the set points here. The operand gate's box
 /// test is conservative (a box overlap is a MAY),
 /// so moving the face clear of the other solid is a real recourse even
 /// where the faces never touch in exact geometry.
 pub(crate) fn meeting_recourse(kind: &str) -> String {
     format!(
-        "Recourse: reshape the parts so they meet only where a plane face meets \
-         a plane, cylinder, sphere or cone face, or move them so the {kind} face stays \
+        "Recourse: reshape the parts so every meeting is a plane against a plane, cylinder, \
+         sphere, cone, or torus whose axis it holds or is square to, or move the {kind} face \
          clear of the other solid"
     )
 }
@@ -3558,9 +3578,10 @@ impl core::fmt::Display for BooleanError {
             ),
             Self::PointSplitCarrierUnsupported { operand, .. } => write!(
                 f,
-                "an ellipse edge of the {} operand has to be split where the solids \
-                 meet, and the Boolean can split only lines and circles there. \
-                 Recourse: move the parts so that edge does not meet the other solid",
+                "a spline (NURBS) edge of the {} operand has to be split where the \
+                 solids meet, and the Boolean cannot find a point's parameter on a \
+                 spline. Recourse: move the parts so that edge does not meet the other \
+                 solid",
                 operand_word(*operand),
             ),
             Self::GermEdgeCarrierUnsupported { operand, .. } => write!(
@@ -3985,6 +4006,16 @@ impl core::fmt::Display for BooleanError {
                 f,
                 "A/B lockstep invariant violated: {what} (kernel bug or corrupt \
                  reduction)"
+            ),
+            Self::LineageRow { rows, defect, key } => write!(
+                f,
+                "the Boolean's lineage records refused {}, so no body is returned. \
+                 {KERNEL_DEFECT_ENDING}",
+                crate::lineage::RowRefusal {
+                    rows: *rows,
+                    defect: *defect,
+                    key: *key,
+                }
             ),
             Self::EdgeUndescribed {
                 failure,
@@ -6375,6 +6406,30 @@ fn validate_declarations<T: Decide>(
     Ok(())
 }
 
+impl BooleanError {
+    /// The chord join's refusal as the Boolean's: nested whole
+    /// ([`Self::Join`]), except a lineage row the join's division list
+    /// refused, which is the Boolean's own [`Self::LineageRow`], so one
+    /// lineage refusal reaches a caller one way.
+    #[must_use]
+    pub fn of_join(error: SplitJoinError) -> Self {
+        match error {
+            SplitJoinError::LineageRow(refusal) => refusal.into(),
+            other => Self::Join(other),
+        }
+    }
+}
+
+impl From<crate::lineage::RowRefusal> for BooleanError {
+    fn from(refusal: crate::lineage::RowRefusal) -> Self {
+        Self::LineageRow {
+            rows: refusal.rows,
+            defect: refusal.defect,
+            key: refusal.key,
+        }
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
@@ -7211,6 +7266,11 @@ mod tests {
                 source: crate::pcurves::PcurveMintError::Unminted { face },
             },
             BooleanError::JoinDesync { what: "a lockstep" },
+            BooleanError::LineageRow {
+                rows: crate::lineage::LineageRows::Substitutions,
+                defect: crate::lineage::RowDefect::NamesRetired,
+                key: Cell::Face(face),
+            },
             BooleanError::EdgeUndescribed {
                 edge: EdgeKey::default(),
                 failure: crate::merge_faces::EdgeDescribeFailure::NotWalkable,
@@ -7349,6 +7409,7 @@ mod tests {
                 BooleanErrorKind::JoinCarrierUnsupported => "JoinCarrierUnsupported",
                 BooleanErrorKind::RestPieceUnread => "RestPieceUnread",
                 BooleanErrorKind::JoinDesync => "JoinDesync",
+                BooleanErrorKind::LineageRow => "LineageRow",
                 BooleanErrorKind::EdgeUndescribed => "EdgeUndescribed",
                 BooleanErrorKind::TornComponent => "TornComponent",
                 BooleanErrorKind::ShellWitnessExhausted => "ShellWitnessExhausted",

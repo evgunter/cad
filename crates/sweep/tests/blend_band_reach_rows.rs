@@ -391,10 +391,11 @@ fn a_spine_with_a_tangent_end_face_refuses_typed_not_with_an_unbounded_window() 
 /// has no ends, so nothing caps it at the boss's flat and the flat, the
 /// face the arc runs into, is metered and refuses — a D-boss's flat
 /// `x = 0.5` and a 120° segment boss's flat `y = −0.5`, wherever a post
-/// stands. A post across the segment's circle, clear of the band itself,
-/// refuses ahead of the flat. Each refusal flips when an open arc's
-/// reach is bounded by its ends, whose caps are what would excuse the
-/// flat.
+/// stands. The request's verdict names the least of its bounds, and the
+/// flat's is below a post's, so a post across the segment's circle,
+/// clear of the band itself but not certified so, is not what is named.
+/// Each refusal flips when an open arc's reach is bounded by its ends,
+/// whose caps are what would excuse the flat.
 #[test]
 fn an_open_arc_link_s_reach_is_its_whole_turn() {
     let plate = || brick(Point3::new(-3.0, -3.0, 0.0), Point3::new(3.0, 3.0, 1.0));
@@ -425,34 +426,30 @@ fn an_open_arc_link_s_reach_is_its_whole_turn() {
     );
     // The flat of each boss, as `(axis, offset)` of its plane.
     let (d_flat, segment_flat) = ((0, 0.5), (1, -0.5));
-    for (what, boss, flat, post, names_flat) in [
+    for (what, boss, flat, post) in [
         (
             "D boss, post on the circle",
             &d_boss,
             d_flat,
             ((0.85, -0.1), (1.15, 0.1)),
-            true,
         ),
         (
             "D boss, post off the circle",
             &d_boss,
             d_flat,
             ((1.3, -0.1), (1.6, 0.1)),
-            true,
         ),
         (
             "segment, post across the circle",
             &segment,
             segment_flat,
             ((-0.1, 0.85), (0.1, 1.15)),
-            false,
         ),
         (
             "segment, post off the circle",
             &segment,
             segment_flat,
             ((-0.1, 1.5), (0.1, 1.8)),
-            true,
         ),
     ] {
         let ((x0, y0), (x1, y1)) = post;
@@ -484,9 +481,9 @@ fn an_open_arc_link_s_reach_is_its_whole_turn() {
         let along = |v: [f64; 3]| v[k];
         let on_flat = (along([n.x, n.y, n.z]).abs() - 1.0).abs() < 1e-12
             && (along([origin.x, origin.y, origin.z]) - offset).abs() < 1e-12;
-        assert_eq!(
-            on_flat, names_flat,
-            "{what}: the face named is the flat ({names_flat}), got {surface:?}"
+        assert!(
+            on_flat,
+            "{what}: the face named is the flat, got {surface:?}"
         );
     }
 }
