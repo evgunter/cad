@@ -11,7 +11,9 @@
 //! derivatives at a generic scalar — is ring-ops-only generic code in
 //! [`basis`], with the span index passed in as structure. The
 //! [`locate`] seam is the one bridge: per-scalar span selection,
-//! sealed, with each instantiation's semantics documented there. No
+//! sealed, with each instantiation's semantics documented there. The
+//! derivative's coefficient factor and net, at a generic scalar, have
+//! their one home in [`derivative`]. No
 //! topology decision exists anywhere in this module (nothing routes
 //! through `k_stats`).
 //!

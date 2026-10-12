@@ -59,8 +59,27 @@ before, so no bit moves.
 | `geom-brep` `pcurve_cache.rs` `curve_rate_bound` (the row's `chart_stretch_inf` spline arm reads its twin net) | routed; skip stays |
 | `geom-brep` `ssi/enclose.rs` `pair_scales` | routed at `Interval`: `Interval::point` is `Real::from_f64`, so `deg / (point(hi) − point(lo))` is the helper's own spelling; no check, as before |
 | `geom-brep` `ssi/enclose.rs` `bezier_scales` (**seventh site**, `degree / (b − a)` over a Bézier block) | routed, likewise |
+| `step-import` `recognize.rs` `derivative_sup`, both directions (found in review) | routed at `f64`: `pu as f64 / denom` is the helper's own spelling at `f64`; the `denom <= 0.0` skip stays |
 | `geom-core` `spline/hull.rs` `deriv_coeff` | **left**: its fixed association `(c_{i+1} − c_i)·p / Δu` (D9, stated at the site) is not `Δc·(p/Δu)`, and the two round differently at `Interval` |
 | `topo` `offset_derive.rs` `polynomial_speed` | **left**: `‖ΔP‖·p / dt` at `f64` associates the same way as `deriv_coeff`, so it is not the helper's product either |
+| `geom-brep` `props/quad.rs` `raw_deriv` (found in review; pass 2 had mis-filed it as a de Boor ratio) | **left**: `p·Δc / (a − b)` at `Interval` is its own association, and its `a == b` slot is a zero filler |
+| test-only copies: `geom/tests/curves/lt_r1_probes.rs`, `m8_14_long_turn_meter.rs`, `piece_coverage_meter.rs` | **not routed**: each is an independent oracle, and routing it through the helper would make it check the helper against itself |
+
+`geom-brep` `pcurve_cache.rs`'s private surface net is renamed
+`skipping_surface_derivative_net`, and its doc says how it differs
+from `geom_core::spline::derivative_net` (a curve's, which refuses a
+degenerate support). Unifying the two would reorder the surface net's
+row-major output under its sup/inf folds, so the rename is the bit-safe
+fix.
+
+A unit row, `spline::derivative::tests::the_scale_is_the_sites_spelling_at_every_scalar`,
+pins the helper bitwise to the sites' literal spelling at `f64`,
+`Interval` and `Dual` over edge inputs. The downstream goldens did not
+see a `p·(1/Δu)` mutant, and this row does.
+
+The two rational speed-bound recipes these sites carry are filed as
+`work/nurbs/rational-speed-bounds-have-two-recipes-across-four-sites.md`
+(P1, design).
 
 **Sweeps:**
 - **Pass 1, the scale's shape:** `from_f64(p as f64) / (`,
