@@ -19,7 +19,7 @@ The fold's extremes over the de-duplicated corners are the same bits
 (`min` and `max` are idempotent, and the `lower_of`/`upper_of`
 signed-zero rule only asks whether a zero occurs). This is the same
 argument as `Mul`'s point paths, which `routed-de-boor-costs-the-sweep-digest-row-1-7x`
-(PR TBD) added, pinned by `arith.rs`'s
+(PR 4841) added, pinned by `arith.rs`'s
 `a_point_product_is_the_four_corner_fold`.
 
 Where it costs: a knot-ratio division per de Boor entry
