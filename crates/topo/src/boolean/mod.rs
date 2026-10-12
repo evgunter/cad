@@ -284,7 +284,9 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_carrier_cross_circles_apart"
         | "bool_carrier_cross_circles_nested"
         | "bool_carrier_cross_plane_offset"
-        | "bool_carrier_cross_concentric" => CrossingDecision::OnEdge.subject(),
+        | "bool_carrier_cross_concentric"
+        | "bool_carrier_cross_line_meets_ellipse"
+        | "bool_carrier_cross_ellipses_one_curve" => CrossingDecision::OnEdge.subject(),
         "bool_face_disc_carrier"
         | "bool_contact_arc_end_vertex"
         | "bool_curved_contain_carrier"
@@ -2035,13 +2037,13 @@ pub enum BooleanError {
         /// The face of the other operand it met.
         face: FaceKey,
     },
-    /// The both-edges-split point lane needs a carrier with an exact
-    /// point parameter and got one without. `Line` and `Circle` have
-    /// one; `Ellipse` reaches here, because the operand gate admits it,
-    /// so this is a **narrower** condition than the gate's, at a later
-    /// stage — which is exactly why it is its own variant rather than a
-    /// second reach of [`Self::CurvedEdgeUnsupported`]. One doc and one
-    /// message covering both could name neither.
+    /// The both-edges-split point lane needs a carrier with a point
+    /// parameter ([`geom::Curve3::param_near`]) and got a spline, which
+    /// has none. The operand gate refuses a spline edge first, as
+    /// [`Self::CurvedEdgeUnsupported`], so no public door raises this
+    /// while the gate stands; it is the split lane's own precondition,
+    /// which is why it is its own variant. One doc and one message
+    /// covering both could name neither.
     PointSplitCarrierUnsupported {
         /// The offending operand and edge.
         operand: Operand,
@@ -3520,9 +3522,10 @@ impl core::fmt::Display for BooleanError {
             ),
             Self::PointSplitCarrierUnsupported { operand, .. } => write!(
                 f,
-                "an ellipse edge of the {} operand has to be split where the solids \
-                 meet, and the Boolean can split only lines and circles there. \
-                 Recourse: move the parts so that edge does not meet the other solid",
+                "a spline (NURBS) edge of the {} operand has to be split where the \
+                 solids meet, and the Boolean cannot find a point's parameter on a \
+                 spline. Recourse: move the parts so that edge does not meet the other \
+                 solid",
                 operand_word(*operand),
             ),
             Self::GermEdgeCarrierUnsupported { operand, .. } => write!(
