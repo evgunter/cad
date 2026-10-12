@@ -426,8 +426,12 @@ fn curved_notch_pinch_one() {
 /// (`editor_core`'s `by_ends`) then credits to every edge on the pair.
 fn stretches_on_shared_ends(bb: &topo::BooleanBody<f64>) -> usize {
     let body: &Body<f64> = &bb.body;
-    let fused = bb.naming.fused_into();
-    let settle = |v| fused.get(&v).copied().unwrap_or(v);
+    // An end settled inside an edge or a face is no edge's end.
+    let settler = bb.naming.settler(body);
+    let settle = |v| match settler.settle(v).unwrap() {
+        topo::Cell::Vertex(k) => Some(k),
+        topo::Cell::Edge(_) | topo::Cell::Face(_) => None,
+    };
     let mut joining: std::collections::BTreeMap<_, usize> = std::collections::BTreeMap::new();
     for (_, e) in body.edges() {
         let s = body.get_half_edge(e.he_plus).unwrap().start;
@@ -439,7 +443,9 @@ fn stretches_on_shared_ends(bb: &topo::BooleanBody<f64>) -> usize {
         .iter()
         .flat_map(|d| &d.bordered)
         .filter(|&&(u, w)| {
-            let (u, w) = (settle(u), settle(w));
+            let (Some(u), Some(w)) = (settle(u), settle(w)) else {
+                return false;
+            };
             joining.get(&(u.min(w), u.max(w))).is_some_and(|&n| n > 1)
         })
         .count()
