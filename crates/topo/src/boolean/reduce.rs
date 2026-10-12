@@ -748,6 +748,30 @@ pub(super) fn face_plane<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Pla
     }
 }
 
+/// A vertex of the swept solid `x` against the planar `face` of the
+/// other, `y`, at `offset` from the face's plane: the split's rule
+/// ([`crate::vertex_section::decide_vertex_on_plane`]), the face's
+/// normal read into the section table as a unit direction over the
+/// face's reach ([`super::separating::planar_axis`]).
+fn vertex_face_side<T: Decide>(
+    (x, (vertex, at)): (&Body<T>, (VertexKey, Point3<T>)),
+    (y, face, plane): (&Body<T>, FaceKey, &PlaneDesc<T>),
+    offset: T,
+    band: Band,
+) -> Result<geom_core::Decided, geom_core::Indeterminate> {
+    let unit = || {
+        super::separating::planar_axis(y, face, || crate::census::face_reach(y, face, band), band)
+    };
+    crate::vertex_section::decide_vertex_on_plane(
+        "bool_vertex_face_side",
+        x,
+        (vertex, at),
+        (plane.origin, unit),
+        offset,
+        band,
+    )
+}
+
 /// F7: the maximal-faces precondition through the coincidence ladder —
 /// same surface key, or Same±-oriented planes its margins decide one
 /// ([`super::oriented_plane_eq`]), across any edge ⇒
@@ -1164,17 +1188,18 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         .ok_or(BooleanError::ClassificationInvariant {
                             what: "planar lane: the face's plane resolved above",
                         })?;
-                    let side = |p: Point3<T>| {
-                        geom_core::k_stats::decide_reported(
-                            "bool_vertex_face_side",
-                            Margin::of(geom_brep::implicit_residual(carrier, p)),
+                    let side = |w: VertexKey, p: Point3<T>| {
+                        vertex_face_side(
+                            (x, (w, p)),
+                            (y, face, &plane),
+                            geom_brep::implicit_residual(carrier, p),
                             band,
                         )
                         .map_err(|diag| {
                             BooleanError::coincidence(Coincide::VertexOnFace, read, diag)
                         })
                     };
-                    let (d1, d2) = (side(pu)?, side(pv)?);
+                    let (d1, d2) = (side(u, pu)?, side(v, pv)?);
                     let (s1, s2) = (d1.sign, d2.sign);
                     // The off end must lie where a parent's cover puts it.
                     let off_end_admitted = || {
@@ -1321,10 +1346,11 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         }
                         // No interior root lands in the face:
                         // endpoint processing only.
-                        let side = |p: Point3<T>| {
-                            geom_core::k_stats::decide_reported(
-                                "bool_vertex_face_side",
-                                Margin::of((p - plane.origin).dot(plane.normal)),
+                        let side = |w: VertexKey, p: Point3<T>| {
+                            vertex_face_side(
+                                (x, (w, p)),
+                                (y, face, &plane),
+                                (p - plane.origin).dot(plane.normal),
                                 band,
                             )
                         };
@@ -1332,8 +1358,8 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             edge_face_read(x, x_is, &edge, face, declared, Coincide::VertexOnFace);
                         let on_face =
                             |diag| BooleanError::coincidence(Coincide::VertexOnFace, read, diag);
-                        let s1 = side(pu).map_err(on_face)?;
-                        let s2 = side(pv).map_err(on_face)?;
+                        let s1 = side(u, pu).map_err(on_face)?;
+                        let s2 = side(v, pv).map_err(on_face)?;
                         let mut hit = false;
                         if s1.sign == Sign::Zero {
                             hit |= vertex_on_face(
@@ -1352,17 +1378,14 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     }
                 }
             }
-            let side = |p: Point3<T>| {
-                geom_core::k_stats::decide_reported(
-                    "bool_vertex_face_side",
-                    Margin::of((p - plane.origin).dot(plane.normal)),
-                    band,
-                )
+            let side = |w: VertexKey, p: Point3<T>| {
+                let offset = (p - plane.origin).dot(plane.normal);
+                vertex_face_side((x, (w, p)), (y, face, &plane), offset, band)
             };
             let read = edge_face_read(x, x_is, &edge, face, declared, Coincide::VertexOnFace);
             let on_face = |diag| BooleanError::coincidence(Coincide::VertexOnFace, read, diag);
-            let d1 = side(pu).map_err(on_face)?;
-            let d2 = side(pv).map_err(on_face)?;
+            let d1 = side(u, pu).map_err(on_face)?;
+            let d2 = side(v, pv).map_err(on_face)?;
             match (d1.sign, d2.sign) {
                 (Sign::Positive, Sign::Negative) | (Sign::Negative, Sign::Positive) => {
                     // Proper plane crossing: locate p on the carrier and

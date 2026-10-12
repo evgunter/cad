@@ -235,9 +235,11 @@ fn reach_clears<T: Decide>(
 
 /// F6: classify every vertex against the plane through the
 /// `split_vertex_side` trilean (margin = signed distance in meters,
-/// linear band), caching the verdict per vertex — one predicate site,
-/// one evaluation per vertex (the book recomputes per incident edge).
-/// In-band ⇒ typed [`SplitReduceError::SliverVertex`], never a snap.
+/// linear band), and a vertex that reads ON against the sections the
+/// plane ends at it ([`crate::vertex_section`]), caching the verdict
+/// per vertex — one evaluation per vertex (the book recomputes per
+/// incident edge). In-band ⇒ typed [`SplitReduceError::SliverVertex`],
+/// never a snap.
 pub(super) fn classify_vertices<T: Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,
@@ -265,12 +267,15 @@ pub(super) fn classify_vertices_margined<T: Decide>(
     let mut on_vertices = Vec::new();
     let mut on_margins = SecondaryMap::new();
     for (vertex_key, p) in body.vertex_points() {
-        let margin = Margin::of(crate::sector_shape::plane_offset(
-            plane.origin,
-            plane.normal.get(),
-            p,
-        ));
-        let side = match crate::validate::decide_reported("split_vertex_side", margin, band) {
+        let offset = crate::sector_shape::plane_offset(plane.origin, plane.normal.get(), p);
+        let side = match crate::vertex_section::decide_vertex_on_plane(
+            "split_vertex_side",
+            body,
+            (vertex_key, p),
+            (plane.origin, || Some(plane.normal)),
+            offset,
+            band,
+        ) {
             Ok(geom_core::Decided {
                 sign: Sign::Negative,
                 ..

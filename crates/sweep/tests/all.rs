@@ -96,6 +96,8 @@ mod a_tangent_arc_at_other_boolean_vertices;
 mod a_thin_cap_keeps_its_digits;
 #[path = "a_tube_ending_on_a_ball.rs"]
 mod a_tube_ending_on_a_ball;
+#[path = "a_vertex_on_a_grazing_plane.rs"]
+mod a_vertex_on_a_grazing_plane;
 #[path = "an_annular_tube_through_a_plate.rs"]
 mod an_annular_tube_through_a_plate;
 #[path = "an_arc_tangent_at_a_boolean_vertex.rs"]

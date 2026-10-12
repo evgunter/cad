@@ -833,6 +833,7 @@ mod r2_probes;
 mod tier3_tests;
 pub mod transform;
 pub mod validate;
+pub(crate) mod vertex_section;
 
 pub use body::Body;
 pub use boolean::{
