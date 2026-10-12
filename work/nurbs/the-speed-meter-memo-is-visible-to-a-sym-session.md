@@ -8,6 +8,7 @@ priority: P3
 cost: E
 branch: nurbs/memo-sym-invisible
 closed: 2026-10-12
+pr: 4869
 ---
 
 Found by CLEAVE's main-red lane while it traced the sym `frozen` digest
