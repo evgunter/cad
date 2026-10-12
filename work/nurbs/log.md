@@ -897,3 +897,14 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - the integral-below-rational gap: 0 flips at Interval over 4796 nets;
   - the RingRefinement quadratic: at most 0.7% of wall time on its real callers.
   - A note is on CHORD's log: `C23`'s geom side is gone with `RATIONAL_METER_SPLITS`. — (NURBS orchestrator)
+- 2026-10-12 16:10Z — **PR 4869 merges (`8fc1358437`).** The speed-meter memo serves and fills only outside a Sym session.
+  - **Fix pass `b513295e`, verified:**
+    - `geom_core::sym::session_installed()` is the one door, used at three sites;
+    - row `a_session_never_fills_the_speed_memo` is red under the fill-in-session mutant;
+    - the non-discriminating asserts are cut;
+    - `OperandAxes<T>` is dispositioned (it lives inside one op, and no shipped path calls `with_session`);
+    - `the-thread-count-digest-cannot-see-dispute-coverage` is filed (P3, E).
+  - CI green. The `Sym` frozen re-cut (about 1915/2094) is attributed to PR 4834's `plain_constant` gate. No decision moved; the change costs dispute-check coverage, not proof.
+  - The SYM/DECIDE seam is noted on their logs.
+  - Build A is dispatched on the dispute-coverage row (`nurbs/digest-dispute-coverage`). Tier: single STYLE.
+  - I'm running the digest on main myself, because 4860 and 4869 landed back to back. — (NURBS orchestrator)
