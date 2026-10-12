@@ -203,7 +203,7 @@ changes what the census reads off keys across solids. The final states:
 ## Measured (2026-10-12, branch `flush/touch-key`, main `360cf55e`)
 
 Release, base against head. Re-run after merging main `34097ca6`
-(PRs 4777 and 4398): base `34097ca6` against the merged head, the same
+(PRs 4777, 4765 and 4398): base `34097ca6` against the merged head, the same
 `four_pairs` lines move and the other four batteries are
 byte-identical (`dbl_battery` is 2 159 `SOUND` on both: PR 4777 built
 its 36 `ZipCorrespondence` lines).
@@ -236,7 +236,7 @@ records and their `VertexFusion` rows stay. The seam correspondence's
 own classes (`zip::point_classes`, rebound before the join) stay a
 second source: removing them moves no line of the five batteries, but
 main's `records_cite_their_decision::copies_an_operand_already_held_on_one_key_record_no_pinch_row`
-(PR 4398) splits an operand's two structural copies onto two keys
+(PR 4765, `cdafc97b`) splits an operand's two structural copies onto two keys
 without them (`[1, 1, 0] half-lobes intersect`). Those copies carry
 no vertex-vertex record, so the record rule cannot reach them, and the
 seam tie is not a special case of it. `zip::refuse_split_hung_points`,
