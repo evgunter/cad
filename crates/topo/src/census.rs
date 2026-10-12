@@ -1342,7 +1342,19 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
 impl<T: Real> Geo<T> {
     /// Whether `a` and `b` are one vertex or sit on one point — the
     /// structural rung of D1 tier 3′ ("same surface or point key"): an
-    /// op's copies of one vertex share its point.
+    /// op's copies of one vertex share its point, and so do the cones of
+    /// a pinch (Ev, PR 4057), whose vertices may be copies of several
+    /// operand vertices the op glued there by a value decision (one
+    /// pierce ring serving several pierces, `boolean::vtxfac::mint_ring`,
+    /// whose seams tie their keys, `boolean::zip::share_points`). The op
+    /// records that decision (`DecisionSite::VertexFusion`) for the
+    /// `unproven-coincidence` lint where a record of its result cites it
+    /// (`boolean::reduce::PendingRow`): where the cones stay distinct
+    /// vertices, the record of the cones. Where the decision glues them
+    /// into one vertex, that record is gone, and the row is emitted only
+    /// where another touch at the point cites it through its chain (a
+    /// vertex on a face there). The census reads keys, not lineage, so
+    /// it cannot tell the cases apart and does not ask for the record.
     fn same_point(&self, a: VertexKey, b: VertexKey) -> bool {
         a == b
             || matches!(
@@ -3170,6 +3182,21 @@ pub(crate) fn face_reach<T: Decide>(
     face_reach_in(body, f, band, &crate::boolean::boxes::BoxFrame::World)
 }
 
+/// **The axis-aligned hull of `points`**: its low and high corners, each
+/// coordinate the least and the greatest. `None` for no points.
+pub(crate) fn point_hull<T: Decide>(
+    points: impl IntoIterator<Item = Point3<T>>,
+) -> Option<(Point3<T>, Point3<T>)> {
+    let mut it = points.into_iter();
+    let first = it.next()?;
+    Some(it.fold((first, first), |(lo, hi), p| {
+        (
+            Point3::new(lo.x.min(p.x), lo.y.min(p.y), lo.z.min(p.z)),
+            Point3::new(hi.x.max(p.x), hi.y.max(p.y), hi.z.max(p.z)),
+        )
+    }))
+}
+
 /// [`face_reach`] read in `frame` ([`crate::boolean::boxes::BoxFrame`]):
 /// every point and direction the rule reads enters through the frame,
 /// and every extent is the same one.
@@ -3201,14 +3228,7 @@ pub(crate) fn face_reach_in<T: Decide>(
             // the container, where dropping it would under-claim.
             geom::NetState::Placeholder | geom::NetState::Poisoned => None,
             geom::NetState::Described => {
-                let mut it = patch.control().iter().map(|p| frame.point(*p));
-                let first = it.next()?;
-                let (mut lo, mut hi) = (first, first);
-                for p in it {
-                    lo = Point3::new(lo.x.min(p.x), lo.y.min(p.y), lo.z.min(p.z));
-                    hi = Point3::new(hi.x.max(p.x), hi.y.max(p.y), hi.z.max(p.z));
-                }
-                Some((lo, hi))
+                point_hull(patch.control().iter().map(|p| frame.point(*p)))
             }
         },
         crate::boolean::boxes::FaceBoxRule::SphereWindow => {
@@ -3849,6 +3869,10 @@ impl Undecided {
                 Self::CorruptInstance
             }
             E::Loop(L::OffPlane(_)) => Self::OffPlane,
+            E::InsideOut => unreachable!(
+                "the census reads its instances' own selections, never one read as given, \
+                 and only that refuses InsideOut"
+            ),
         }
     }
 }
@@ -5570,16 +5594,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
         }
         true
     };
-    let hull = |pts: &[Point3<T>]| -> Option<(Point3<T>, Point3<T>)> {
-        let mut it = pts.iter();
-        let first = *it.next()?;
-        let (mut lo, mut hi) = (first, first);
-        for p in it {
-            lo = Point3::new(lo.x.min(p.x), lo.y.min(p.y), lo.z.min(p.z));
-            hi = Point3::new(hi.x.max(p.x), hi.y.max(p.y), hi.z.max(p.z));
-        }
-        Some((lo, hi))
-    };
+    let hull = |pts: &[Point3<T>]| point_hull(pts.iter().copied());
     let reach_box = |f: FK| face_reach(body, f, band);
 
     // Arm 1: cross-solid proximity — curved × curved, (F5) curved ×
