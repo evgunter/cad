@@ -579,6 +579,18 @@ fn digest() -> String {
 /// the numeric channel decided (54 → 1848 sites); the decisions' own
 /// discharges go 2055 → 1993. It is the rational meter's forms
 /// overflowing the session's budget.
+///
+/// **Re-cut at all three ε when the rational speed meter's refined scan
+/// was dropped** (PR 4860), which this digest first sees through the
+/// memo's session bypass above: PR 4869's re-cut was measured on a base
+/// without 4860, and 4860's own digest run was served the meter's memo
+/// inside the session, which hid the change. Only the two `validate_geometric` rows'
+/// `frozen` column moves, and down: `sym_arc_loft` 1916 → 1542 / 1914 →
+/// 1540 / 1915 → 1541 and `sym_thin_strip` 2095 → 1657 / 2094 → 1656 /
+/// 2094 → 1656 at ε = 1e-6 / 1e-9 / 1e-12. The in-session rational arm
+/// builds fewer forms, so fewer overflow the session's budget.
+/// Decisions, `sz`, `num`, shapes, verdicts and every f64 row are
+/// unchanged.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),
