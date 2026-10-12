@@ -2,11 +2,12 @@
 id: certify-and-refine-loops-spell-one-stop-rule-two-ways
 kind: issue
 title: the offset fit's refinement loop and the SSI hull subdivision spell one stop rule two ways: improvement against the previous round with a per-grid cap, against the lowest bound with an idle-rounds count and a cumulative work budget
-status: dispatched
+status: review
 opened: 2026-10-11
 priority: P3
 cost: M
 branch: encl/one-stop-rule
+pr: 4800
 ---
 
 
