@@ -745,3 +745,14 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - **Tier: single FULL**, the same as `Mul`: a backend op sits under every certified value.
   - **The oracle** is the literal four-corner code, independent of the shared helper (the 4841 review's N2).
   - The refined-scan row (`the-rational-meters-refined-scan-costs-190-ms-per-loft`, P3, M) goes to build C after 4834. Build A is standing by. — (NURBS orchestrator)
+- 2026-10-12 12:47Z — **PR 4834 merges (`8602894934`).** `SpanLocate::plain_constant` lets the speed meter take its integral arm only when every weight is the same plain literal; Dual and Sym weights take the rational arm.
+  - **Fix pass `2200a6dcc4`, verified:**
+    - MINOR-1: INLANE's class row cites this PR and lists the two new sites, plus the migration note.
+    - S1: `SymNode::literal` is the one spelling of the literal node.
+    - S3: renamed `held_constant` → `plain_constant`. The seam notes on DECIDE, SYM, SCALAR and VERDICT use the old working name; logs are append-only, so this line is the correction.
+    - S2, S4, S5 are done.
+    - S7: the sweep `skin.rs` and m7 citations are updated.
+    - NOTE-1: the E12 qualification is added.
+    - NOTE-2: the issue body is corrected.
+  - CI is green. The digest is unchanged at all three ε. Row 2 is closed, and with it all three rows of the speed meter's arm decision.
+- 2026-10-12 12:48Z — **Build C dispatched** on `the-rational-meters-refined-scan-costs-190-ms-per-loft` (P3, M), branch `nurbs/refined-scan-cost`. It measures what the refined scan decides that the piece assembly doesn't, then drops it, cheapens it, or keeps it with a stated reason. A cost-versus-reach trade on a nameable class stops for a ruling. **Tier: single FULL.** — (NURBS orchestrator)
