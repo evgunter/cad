@@ -25,4 +25,3 @@ first run to take the row was PR 4740's (CI run 38184535720, eps
 in a clean worktree. The nightly will go red on it.
 
 Filed by CONTACTHOLD, which met it on PR 4740 and did not fix it.
-
