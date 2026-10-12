@@ -1732,6 +1732,17 @@ pub enum NodeErrorKind {
         /// The escalation, unaltered.
         source: Indeterminate,
     },
+    /// **A pose's or datum's direction escalated** (D10's pose ground):
+    /// a datum's axis, normal or frame axis, or a pose construction's
+    /// direction, in the sentence [`Self::FrameDirection`] also carries,
+    /// which [`Self::Escalated`]'s does not speak for. Its class is
+    /// [`NodeErrorClass::Escalated`].
+    PoseDirectionEscalated {
+        /// The named predicate.
+        predicate: &'static str,
+        /// The escalation, unaltered.
+        source: Indeterminate,
+    },
     /// **A pose read off geometry found none of its kind** (D10): a
     /// face read as a plane on a curved carrier (DM1b), an axis read
     /// off a carrier that has no axis (a plane, a sphere), a point read
@@ -2346,7 +2357,8 @@ impl crate::spoken::Say for NodeErrorKind {
                 )
             }
             Self::MeasureEscalated { predicate, source }
-            | Self::PlacementAxisEscalated { predicate, source } => {
+            | Self::PlacementAxisEscalated { predicate, source }
+            | Self::PoseDirectionEscalated { predicate, source } => {
                 let what = crate::decision::words(predicate).unwrap_or(geom_core::UNNAMED_DECISION);
                 write!(f, "{what} is too close to call: {source}")
             }
@@ -2500,7 +2512,8 @@ impl crate::spoken::Say for NodeErrorKind {
                 refusal,
             } => write!(
                 f,
-                "{} is drawn on {}: {}",
+                "{} is drawn on {}, and the frame refused \
+                 its own direction: {}",
                 by.node_as(*profile, "profile node"),
                 by.node_as(*frame, "datum frame node"),
                 refusal.node_error()

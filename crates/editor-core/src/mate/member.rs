@@ -816,7 +816,8 @@ fn refuse(
     match kind {
         NodeErrorKind::Escalated { source, .. }
         | NodeErrorKind::MeasureEscalated { source, .. }
-        | NodeErrorKind::PlacementAxisEscalated { source, .. } => {
+        | NodeErrorKind::PlacementAxisEscalated { source, .. }
+        | NodeErrorKind::PoseDirectionEscalated { source, .. } => {
             Box::new(MateFault::Indeterminate {
                 mate,
                 diag: Box::new(source),

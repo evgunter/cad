@@ -911,32 +911,48 @@ pub(crate) fn unit<T: Decide>(
     band: Band,
 ) -> Result<UnitVec3<T>, NodeErrorKind> {
     let decision = Decision::DirectionNorm;
-    UnitVec3::new(v, decision.name(), band).map_err(|e| refusal(e, role, decision))
+    UnitVec3::new(v, decision.name(), band).map_err(|e| {
+        refusal(e, role, |source| {
+            if role == crate::placement::PLACEMENT_AXIS_ROLE {
+                NodeErrorKind::PlacementAxisEscalated {
+                    predicate: decision.name(),
+                    source,
+                }
+            } else {
+                escalated(decision)(source)
+            }
+        })
+    })
 }
 
 /// **The kernel refusal in this layer's vocabulary** — the ONE map for
-/// both funnel names, which is its parameter.
+/// every direction door.
 ///
 /// `role` names the vector the CALLER passed, which is what a user
-/// reads; `decision` names the funnel site the length was decided
-/// under, which is what an escalation is comparable by. A placement
-/// frame's rotation axis escalates into its own arm,
-/// [`NodeErrorKind::PlacementAxisEscalated`].
-fn refusal(e: UnitVec3Error, role: &'static str, decision: Decision) -> NodeErrorKind {
+/// reads; `escalated` is the arm the door puts an escalation in: the
+/// evaluation's ([`NodeErrorKind::Escalated`]), a placement frame's
+/// rotation axis ([`NodeErrorKind::PlacementAxisEscalated`]), or a pose's
+/// or datum's direction ([`pose_direction_escalated`]).
+fn refusal(
+    e: UnitVec3Error,
+    role: &'static str,
+    escalated: impl FnOnce(geom_core::Indeterminate) -> NodeErrorKind,
+) -> NodeErrorKind {
     match e {
         UnitVec3Error::NonFiniteLength => NodeErrorKind::NonFiniteDirection { role },
         UnitVec3Error::UnderflowedLength => NodeErrorKind::UnderflowedDirection { role },
         UnitVec3Error::Degenerate => NodeErrorKind::DegenerateDirection { role },
-        UnitVec3Error::Escalated(source) if role == crate::placement::PLACEMENT_AXIS_ROLE => {
-            NodeErrorKind::PlacementAxisEscalated {
-                predicate: decision.name(),
-                source,
-            }
-        }
-        UnitVec3Error::Escalated(source) => NodeErrorKind::Escalated {
-            predicate: decision.name(),
-            source,
-        },
+        UnitVec3Error::Escalated(source) => escalated(source),
+    }
+}
+
+/// A pose's or datum's direction length that could not be called,
+/// decided under [`DATUM_UNIT_NORM`]: the arm D10's pose ground keeps,
+/// [`NodeErrorKind::PoseDirectionEscalated`].
+fn pose_direction_escalated(source: geom_core::Indeterminate) -> NodeErrorKind {
+    NodeErrorKind::PoseDirectionEscalated {
+        predicate: DATUM_UNIT_NORM,
+        source,
     }
 }
 
@@ -1015,7 +1031,7 @@ impl DirectionRefusal {
     /// is. `pub` because the carried refusal is: a consumer holding one
     /// asks for the raise here rather than re-spelling it.
     pub fn node_error(self) -> NodeErrorKind {
-        refusal(self.error, self.role, Decision::DatumUnitNorm)
+        refusal(self.error, self.role, pose_direction_escalated)
     }
 }
 

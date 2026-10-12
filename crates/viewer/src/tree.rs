@@ -1255,6 +1255,7 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::Escalated { .. }
         | NodeErrorKind::MeasureEscalated { .. }
         | NodeErrorKind::PlacementAxisEscalated { .. }
+        | NodeErrorKind::PoseDirectionEscalated { .. }
         | NodeErrorKind::NonPositiveCount { .. }
         | NodeErrorKind::NegativeSpacing { .. }
         | NodeErrorKind::DegenerateSpacing

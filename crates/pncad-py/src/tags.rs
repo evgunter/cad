@@ -1172,7 +1172,8 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         // the message carries.
         NodeErrorKind::Escalated { .. }
         | NodeErrorKind::MeasureEscalated { .. }
-        | NodeErrorKind::PlacementAxisEscalated { .. } => None,
+        | NodeErrorKind::PlacementAxisEscalated { .. }
+        | NodeErrorKind::PoseDirectionEscalated { .. } => None,
         NodeErrorKind::PoseRead { fault, .. } => Some(pose_read_fault_tag(fault)),
         NodeErrorKind::PoseDegenerate { construction } => Some(match construction {
             pncad::document::pose::PoseConstruction::Through => "through",

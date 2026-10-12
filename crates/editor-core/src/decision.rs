@@ -86,8 +86,6 @@ macro_rules! decisions {
 decisions! {
     /// A direction vector's length, decided at the evaluation's door: a gauge.
     DirectionNorm => crate::eval::EVAL_DIRECTION_NORM, Lever;
-    /// A datum direction's length, decided inside its kernel type: a gauge.
-    DatumUnitNorm => topo::DATUM_UNIT_NORM, Lever;
     /// Whether a revolve makes a full turn: an angle.
     RevolveFullTurn => "revolve_full_vs_partial", Lever;
     /// Whether a linear pattern's spacing is positive: a length the user wrote.
@@ -255,35 +253,17 @@ mod undecided_text {
         );
     }
 
-    /// **A datum direction's length is a gauge, as the evaluation's own
-    /// direction length is**: both end in the lever alone.
+    /// **The evaluation's direction length is a gauge**, and ends in
+    /// the lever alone. A datum's and a pose's direction length, the
+    /// same arithmetic under `datum_unit_norm`, keep their held sentence
+    /// (`NodeErrorKind::PoseDirectionEscalated`), so the two end two ways
+    /// while D10's pose ground is held.
     #[test]
-    fn a_datum_directions_undecided_length_ends_in_the_lever() {
-        for name in [topo::DATUM_UNIT_NORM, crate::eval::EVAL_DIRECTION_NORM] {
-            assert_eq!(
-                node(name, MarginDiag::value(5e-9)),
-                "whether a direction has any length is undecided: margin 5e-9 lies inside the \
-                 ambiguity band (1e-9, 1e-8). Recourse: move the geometry",
-                "{name}"
-            );
-        }
-    }
-
-    /// **The measure door's escalation keeps its own sentence** (D10's
-    /// Measure ground is held): the verdict "too close to call" and the
-    /// bare escalation's tail, unchanged.
-    #[test]
-    fn the_measure_doors_escalation_keeps_its_sentence() {
-        let got = NodeErrorKind::MeasureEscalated {
-            predicate: "bool_plane_parallel",
-            source: at("bool_plane_parallel", MarginDiag::value(5e-9)),
-        }
-        .to_string();
+    fn the_evaluations_undecided_direction_length_ends_in_the_lever() {
         assert_eq!(
-            got,
-            "whether the two planes are parallel is too close to call: margin 5e-9 lies inside \
-             the ambiguity band (1e-9, 1e-8) — a near-coincidence; Recourse: move the geometry, \
-             or, if this size is intended, tighten the tolerance below 5e-10 m"
+            node(crate::eval::EVAL_DIRECTION_NORM, MarginDiag::value(5e-9)),
+            "whether a direction has any length is undecided: margin 5e-9 lies inside the \
+             ambiguity band (1e-9, 1e-8). Recourse: move the geometry"
         );
     }
 

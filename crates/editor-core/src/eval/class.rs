@@ -319,7 +319,8 @@ impl NodeErrorKind {
             Self::VerbArity { .. } => C::VerbArity,
             Self::Escalated { .. }
             | Self::MeasureEscalated { .. }
-            | Self::PlacementAxisEscalated { .. } => C::Escalated,
+            | Self::PlacementAxisEscalated { .. }
+            | Self::PoseDirectionEscalated { .. } => C::Escalated,
             Self::PoseRead { .. } => C::PoseRead,
             Self::PoseDegenerate { .. } => C::PoseDegenerate,
             Self::PoseScalar { .. } => C::PoseScalar,
