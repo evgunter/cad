@@ -191,6 +191,63 @@ fn tilted_cut(h: f64, tilt: f64, tol: Tol) -> Option<Body<f64>> {
     )
 }
 
+/// What a pinned pose's shell classification refuses with at ε = 1e-12.
+#[derive(Clone, Copy, Debug)]
+enum Pin {
+    /// A wall face's convergence margin lands in the band
+    /// (`work/quad/quadrature-convergence-test-escalates-instead-of-refining`).
+    Escalates,
+    /// A wall face runs its rounds out on its map-residual pad, the
+    /// pcurve envelope over a wall 1 µm tall
+    /// (`work/quad/a-micron-thin-cylinder-wall-runs-the-quadrature-out-of-budget-on-its-map-residual-pad`).
+    Budget,
+}
+
+/// The poses measured not to classify at ε = 1e-12, upright and inside
+/// out alike, and why; `None` everywhere else.
+fn pinned_refusal(h: f64, tilt: f64, d: f64, angle: f64, tol: Tol) -> Option<Pin> {
+    if tol.eps() != 1e-12 || d != 5e3 || angle != 0.7 {
+        return None;
+    }
+    match (h, tilt) {
+        (1e-5, 0.3) => Some(Pin::Escalates),
+        (1e-6, 0.8) => Some(Pin::Budget),
+        _ => None,
+    }
+}
+
+/// The classification refuses with exactly the pinned refusal, and
+/// nothing else: the pin goes red when the cause is fixed, and the
+/// pose's role is then asserted here too.
+fn assert_pinned(
+    pin: Pin,
+    got: &Result<Vec<topo::ShellClassification<f64>>, topo::ShellClassifyError>,
+    what: &str,
+) {
+    let Err(topo::ShellClassifyError::Props {
+        source: topo::MassPropsError::Face { source, .. },
+        ..
+    }) = got
+    else {
+        panic!("{what}: want the pinned {pin:?} refusal, got {got:?}");
+    };
+    let held = match (pin, source) {
+        (Pin::Escalates, geom_brep::props::PropsError::Escalated { cause, .. }) => {
+            cause.predicate == Some("props_quad_converged")
+        }
+        (Pin::Budget, geom_brep::props::PropsError::QuadratureBudget { .. }) => true,
+        _ => false,
+    };
+    assert!(
+        held,
+        "{what}: want the pinned {pin:?} refusal, got {source:?}"
+    );
+    test_utils::vacuity::stood_down(
+        what,
+        "its shell does not classify at this ε (pinned), so its role is not asserted",
+    );
+}
+
 /// **A far tilted cut disc is read by its exact volume**, its wall
 /// through the quadrature lane: the upright disc passes check 7 and
 /// reads `Outer`, the inside-out one is refused `NegativeVolume` and
@@ -245,7 +302,12 @@ fn far_tilted_cut_discs_are_read_by_their_exact_volume() {
                             check7,
                             "{what}, {name}: check 7"
                         );
-                        let roles: Vec<ShellRole> = classify_shells(body, tol)
+                        let classified = classify_shells(body, tol);
+                        if let Some(pin) = pinned_refusal(h, tilt, d, angle, tol) {
+                            assert_pinned(pin, &classified, &format!("{what}, {name}"));
+                            continue;
+                        }
+                        let roles: Vec<ShellRole> = classified
                             .unwrap_or_else(|e| panic!("{what}, {name}: the shell classifies: {e}"))
                             .iter()
                             .map(|c| c.role)

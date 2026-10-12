@@ -280,3 +280,30 @@ On the one-segment form every other op of those poses builds at its
 closed-form volume. A ∩ B and B − A keep the same wall face, in
 opposite senses, and it measures in one of them and not the other.
 The test accepts this refusal by name and cites this row.
+
+## 2026-10-12 — the CLEAVE witness no longer escalates (FLUX)
+
+Once the cylinder quadrature read `−∮ (v − v_a) du`
+(`flux/cylinder-band-quad`), `rehome_rings_lune`'s lower piece finishes at
+`CAD_TOLERANCE_EPS=1e-6` for all three bore poses, and the second split
+is asserted there again. The pin `QUAD_ESCALATES_AT` is gone with it.
+This is not a fix of the defect: the enclosure is narrower, so this
+face's convergence margin no longer lands in the band. The convergence
+test still escalates rather than refines on whichever face's margin does.
+
+## 2026-10-12 — witnesses moved by the cylinder lane's new form (FLUX)
+
+`flux/cylinder-band-quad` narrowed the cylinder lane's enclosures, so
+the round at which each face first meets the target moved, and with it
+which faces land in band:
+
+- **No longer escalating.** `reach_volume_backstop`'s half-radian boss
+  measures in both operand orders at every ε (the row is now
+  `a_boss_at_half_a_radian_measures_in_either_operand_order`).
+  `band_planar_oblique_fillet::a_brick_through_a_steep_elliptic_end_builds_in_every_op`
+  builds and is consistent at 1e-12.
+- **Newly escalating, pinned at exactly that ε.**
+  `reach_volume_backstop::a_tilted_boss_unions_onto_a_box`'s 1 rad
+  penetrating union at 1e-12 (margin −2.88e-12 in (1e-12, 1e-11)), and
+  `far_thin_disc_sign`'s `h 1e-5, tilt 0.3, 5e3 m, turned 0.7` at 1e-12,
+  upright and inside out (margin −4.14e-12). Both measure on main.
