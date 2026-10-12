@@ -54,7 +54,8 @@ definite, at ε 1e-9 for every `t ∈ {10, 12, 15, 19}ε`:
   a shell out only on a decided `Outer`, and the slab's role reads off
   its in-band `V/A`. So the slab stays in the brick's solid, and check 10
   refuses it there. `topo/tests/missed_ray_side.rs`
-  `a_thin_slab_is_a_legal_operand_against_a_brick_far_away` pins it.
+  `a_thin_slab_is_a_legal_operand_against_a_brick_far_away_and_its_union_with_it_refuses`
+  pins it.
 
 At 21ε all three build. A role read off a crossing ray would let both
 build.

@@ -242,18 +242,19 @@ fn census(
     body.body.validate_pseudomanifold(&body.contacts, tol)
 }
 
-/// **A result that is only a needle is judged by its pairs**: the
-/// `notch307` piece beyond its notch, ∩ the census witness cube
-/// (`nt e0 a3`), leaves one lump, a wedge whose certified `V/A` lies in
-/// band (3.29e-9 at d = 1e-8, 9.87e-9 at d = 3e-8), alone in its solid.
-/// Its `V/A` judges nothing (D10, Booleans), so every order builds. At
-/// d = 3e-8, cube first, every pair the census reads is definite. The
-/// others hold an edge pair whose span the census reads in band
-/// (`pm_census_ee_span`), and the door, which runs no census, ships them
+/// **A needle ships with an in-band edge pair until the door runs the
+/// census**: the `notch307` piece beyond its notch, ∩ the census witness
+/// cube (`nt e0 a3`), leaves one lump, a wedge whose certified `V/A`
+/// lies in band (3.29e-9 at d = 1e-8, 9.87e-9 at d = 3e-8), alone in its
+/// solid. Its `V/A` judges nothing (D10, Booleans), so every order
+/// builds. At d = 3e-8, cube first, every pair the census reads is
+/// definite. The others hold an edge pair whose span the census reads
+/// in band (`pm_census_ee_span`), which the door, running no census,
+/// does not read: these rows turn red when it does
 /// (`work/reachhold/boolean-door-runs-the-census-over-its-result.md`).
 /// At d = −1e-8 the cube misses the piece and the ∩ is empty.
 #[test]
-fn a_result_that_is_only_a_needle_is_judged_by_its_pairs() {
+fn a_needle_ships_an_in_band_edge_pair_until_the_door_runs_the_census() {
     let tol = Tol::witness();
     if stood_down_off_1e9(tol) {
         return;
@@ -378,15 +379,15 @@ fn fin(t: f64, tol: Tol) -> Result<topo::BooleanResult<f64>, BooleanError> {
 type Wall = fn(f64, Tol) -> Result<topo::BooleanResult<f64>, BooleanError>;
 
 /// The thicknesses in ε below the band's top `Kε` (= 10ε) that each wall
-/// refuses at, and the ones in `[Kε, 2Kε)` that it builds at, where
-/// its `V/A` is still in band.
+/// refuses at, and the ones in `(Kε, 2Kε)` that it builds at, where its
+/// `V/A` is still in band.
 const BELOW_K: [f64; 3] = [3.0, 6.0, 9.9];
-const ABOVE_K: [f64; 3] = [12.0, 15.0, 19.0];
+const ABOVE_K: [f64; 6] = [10.5, 11.0, 11.5, 12.0, 15.0, 19.0];
 
 /// `refusal` is the near-coincidence of a pair of cells `t` apart: a
 /// vertex and a face, or a vertex and a loop's boundary, whichever
 /// question the op asks of the wall first.
-fn assert_refuses_on_a_pair(what: &str, t: f64, refusal: Result<(), BooleanError>) {
+fn assert_refuses_on_a_pair(what: &str, t: f64, refusal: Result<(), BooleanError>) -> f64 {
     let Err(BooleanError::Escalated { decision, diag }) = &refusal else {
         panic!("{what}: refuses Escalated, got {refusal:?}");
     };
@@ -406,19 +407,54 @@ fn assert_refuses_on_a_pair(what: &str, t: f64, refusal: Result<(), BooleanError
         gap.is_some_and(|g| (g.abs() - t).abs() < 1e-3 * t),
         "{what}: the pair is the wall's two sides, {t:e} apart: {diag:?}"
     );
+    gap.map_or(t, f64::abs)
+}
+
+/// A wall built `t` thick: `shells` shells in one solid, and every pair
+/// the census reads definite.
+fn assert_builds(
+    what: &str,
+    shells: usize,
+    built: Result<topo::BooleanResult<f64>, BooleanError>,
+    tol: Tol,
+) {
+    let meet = built.unwrap_or_else(|e| panic!("{what}: builds, got {e:?}"));
+    assert_eq!(
+        shells_per_solid(meet.body().expect("the wall is not empty")),
+        [shells],
+        "{what}: shells per solid"
+    );
+    assert_eq!(
+        census(what, Ok(meet), tol),
+        Ok(()),
+        "{what}: every pair is definite"
+    );
 }
 
 /// **Every thin wall refuses on a pair below `Kε` and builds above it**
 /// (D10, Booleans): a slab alone in its solid, the wall of a hollow (a
 /// solid of two shells), and a fin on a brick. Below `Kε` the op refuses
-/// the pair of cells across the wall; in `[Kε, 2Kε)` each builds, its
-/// `V/A` in band and every pair the census reads definite.
+/// the pair of cells across the wall; in `(Kε, 2Kε)` each builds, its
+/// `V/A` in band and every pair the census reads definite. At `Kε`
+/// itself the pair's margin rounds either way (it builds at ε = 1e-9,
+/// and refuses at 1e-6 on a margin a hair under `Kε`). The poses scale
+/// with ε, and run at 1e-9 and 1e-6.
 #[test]
 fn a_thin_wall_refuses_on_a_pair_below_k_eps_and_builds_above_it() {
     let tol = Tol::witness();
-    if stood_down_off_1e9(tol) {
+    if ![1e-9, 1e-6]
+        .iter()
+        .any(|e| (tol.eps() - e).abs() < 1e-3 * e)
+    {
+        test_utils::vacuity::stood_down(
+            "eps other than 1e-9 or 1e-6",
+            "the wall rows were measured at 1e-9 and 1e-6",
+        );
         return;
     }
+    let k_eps = geom_core::Band::linear(tol)
+        .expect("the band forms")
+        .escalate();
     let walls: [(&str, Wall, usize); 3] =
         [("slab", slab, 1), ("hollow", hollow, 2), ("fin", fin, 1)];
     for (wall, build, shells) in walls {
@@ -426,20 +462,20 @@ fn a_thin_wall_refuses_on_a_pair_below_k_eps_and_builds_above_it() {
             let t = m * tol.eps();
             assert_refuses_on_a_pair(&format!("{wall} {m}ε"), t, build(t, tol).map(|_| ()));
         }
+        let what = format!("{wall} at Kε");
+        match build(k_eps, tol) {
+            Err(refusal) => {
+                let gap = assert_refuses_on_a_pair(&what, k_eps, Err(refusal));
+                assert!(
+                    gap < k_eps,
+                    "{what}: refuses only on a margin under Kε: {gap:e}"
+                );
+            }
+            built => assert_builds(&what, shells, built, tol),
+        }
         for m in ABOVE_K {
-            let what = format!("{wall} {m}ε");
             let t = m * tol.eps();
-            let meet = build(t, tol).unwrap_or_else(|e| panic!("{what}: builds, got {e:?}"));
-            assert_eq!(
-                shells_per_solid(meet.body().expect("the wall is not empty")),
-                [shells],
-                "{what}: shells per solid"
-            );
-            assert_eq!(
-                census(&what, Ok(meet), tol),
-                Ok(()),
-                "{what}: every pair is definite"
-            );
+            assert_builds(&format!("{wall} {m}ε"), shells, build(t, tol), tol);
         }
     }
 }

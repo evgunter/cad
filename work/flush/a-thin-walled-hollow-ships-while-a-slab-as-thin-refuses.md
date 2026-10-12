@@ -125,8 +125,8 @@ are in ε; the band is (ε, Kε) with K = 10.
 ## Fix
 
 - `boolean/ops.rs` `gate` no longer refuses on `AtRestBody::slivers`.
-  `escalated` is folded back into `finished_body_refusal`, its one
-  remaining caller.
+  `escalated` stays, serving `finished_body_refusal` (check 10's
+  in-band shells) alone.
 - `AtRestBody::slivers` stays, narrowed to the solids it lists
   (`Vec<SolidKey>`). CLEAVE's operand orientation probe
   (`boolean/reduce.rs` `gate_sliver_orientation`, PR 4725) reads it, and
@@ -134,44 +134,81 @@ are in ε; the band is (ε, Kε) with K = 10.
   drops its certificate, which only the retired refusal's diagnostic
   read. `InBandShell` is check 10's alone again, the in-band shell D10
   now defines.
+- Docs that called `V/A` a thickness say what it is, a length: the
+  volume backstop (`ops.rs`), the missed-ray side read
+  (`solid_contain.rs`) and `BooleanDecision::ShellRole`
+  (`refusal_routes.rs`). The census probe example
+  (`sweep/examples/near_tangent_census_probe.rs`) names check 10 where
+  it named the gate.
 
-On this branch, at ε 1e-9:
-- **Below Kε.** The slab, the hollow and the fin refuse on the pair
-  above.
-- **10ε.** The slab and the hollow build. The fin refuses
-  `SelfCheck(RingWinding)` at margin 9.99999985e-9, which rounds just
-  inside the band.
-- **12 to 21ε.** All three build, and `validate_pseudomanifold` over
-  each result's own contacts passes.
+On this branch, ε 1e-9 and 1e-6:
+- **Below Kε** (3, 6, 9.9ε) the slab, the hollow and the fin refuse on
+  the pair above, at both ε.
+- **At Kε itself** the pair's margin rounds either way: at 1e-9 all
+  three build, census clean; at 1e-6 all three refuse on the pair, at
+  margin 9.99999999995e-6, a hair under Kε.
+- **10.5 to 21ε**: all three build at both ε, and `validate_pseudomanifold`
+  over each result's own contacts passes. (A fin *placed* as a 10ε brick
+  refuses `SelfCheck(RingWinding)` at margin 9.99999985e-9; the cut fin
+  the tests use builds clean at 10ε, as both reviewers found.)
 - **The 1 mm cube ∪ plate** builds in both orders, census clean.
-- **The sliver-only rows** now build, judged by their pairs:
-  - d = 3e-8 cube ∩ piece and d = 3.05e-8: every pair is definite, so
-    each is a legal needle.
-  - d = 1e-8, both orders, and d = 3e-8 piece ∩ cube: the at-rest census
-    escalates `pm_census_ee_span` (margins 1.4e-9 to 2.8e-9), an edge
-    pair in band. The door runs no census, so they ship. The missing
-    read is the census at the door. That is REACHHOLD's
-    `boolean-door-runs-the-census-over-its-result`, and the evidence is
-    on that row.
+
+**What now ships with an in-band pair.** The door judges pairs, but it
+reads only the pairs its own build decides; a pair only the census reads
+(an edge-edge span) is not read at the door. With the V/A gate gone,
+results the gate refused for the wrong reason now ship, and some of them
+hold such a pair:
+- This lane's probe: the `notch307 nt e0 a3` piece ∩ cube at d = 1e-8
+  (both orders) and 3e-8 (piece first): the at-rest census escalates
+  `pm_census_ee_span` at margins 1.4e-9 to 2.8e-9.
+- R2's review probe (`crates/topo/tests/review_4783_r2_probes.rs` on
+  `flush/thinness-by-pairs-review-r2` @ ef12bed5), across a 512-op
+  notch307 family (a0–a15, d from 5e-9 to 4e-8, both orders): 14 ops
+  change. **11** now ship with `pm_census_ee_span` in band (a3 d1e-8,
+  1.5e-8, 2e-8 and 2.5e-8 in both orders, a3 d3e-8 piece first, a2
+  d3.05e-8 in both orders) and 3 ship clean. The same family already
+  ships **44** such results on base.
+- R1's review probe (the `review-sliver-probe` feature on
+  `flush/thinness-by-pairs-review` @ a79ba445), at ε 1e-6:
+  `rc_wide_battery` moves **34** lines from `ShellRole` to built
+  (`OK BAD … operand=false`, census clean). 25 are the check-10 /
+  pieces-sort class; 9 refuse `Containment` in the operand orientation
+  probe.
+
+No stop-gap: a census run only on results that `slivers()` flags would
+refuse a needle and ship a fat body with the same in-band pair, which is
+the V/A ruler retired. The gap is the door census,
+`work/reachhold/boolean-door-runs-the-census-over-its-result.md`, which
+holds this evidence; the gate half of
+`a-result-that-is-only-a-sliver-shell-passes-the-door` is parked on it.
 
 Tests (`topo/tests/sliver_shell_role.rs`):
-- `a_thin_wall_refuses_on_a_pair_below_k_eps_and_builds_above_it`. It
-  replaces the slab test and the hollow test, which shared its fixtures.
-  It covers the slab, the hollow and the fin, with each pair refusal's
-  subject and margin asserted.
+- `a_thin_wall_refuses_on_a_pair_below_k_eps_and_builds_above_it`, at
+  ε 1e-9 and 1e-6. It replaces the slab test and the hollow test, which
+  shared its fixtures, and covers the slab, the hollow and the fin: each
+  pair refusal's subject and margin below Kε; Kε itself (builds clean,
+  or refuses on a pair under Kε); 10.5 to 19ε building census-clean.
 - `a_millimetre_cube_on_a_thin_plate_builds`.
-- `a_result_that_is_only_a_needle_is_judged_by_its_pairs`. It replaces
-  `a_result_that_is_only_a_sliver_refuses_in_band`, and pins the census
-  verdicts above.
+- `a_needle_ships_an_in_band_edge_pair_until_the_door_runs_the_census`.
+  It replaces `a_result_that_is_only_a_sliver_refuses_in_band` and pins
+  the census verdicts above; a door census turns its in-band rows red.
 
-`missed_ray_side.rs`
-`a_thin_slab_is_a_legal_operand_against_a_brick_far_away` keeps its
-assertion. Its doc now names check 10 as the refusal's source.
+`missed_ray_side.rs`'s slab ∪ far brick test is renamed
+`a_thin_slab_is_a_legal_operand_against_a_brick_far_away_and_its_union_with_it_refuses`,
+since it asserts a refusal. Its doc names check 10 as the source.
+
+Filed: `work/cleave/a-sliver-operands-orientation-falls-back-to-its-volume-where-it-has-no-planar-face.md`
+and `work/flush/an-inside-out-sliver-result-passes-its-own-door.md`.
 
 ## Closed
 
 Built to Ev's ruling on PR 4690: the door judges thinness by pairs
-alone. What is left lives on two rows. The in-band edge pairs that only
-the census reads are on `boolean-door-runs-the-census-over-its-result`
-(REACHHOLD). A thin operand that check 10 still refuses (`slab ∪ far`,
-`brick ∖ slab`) is on `check-10-reads-a-cavitys-role-from-its-volume-sign`.
+alone. What is left lives on other rows:
+- the in-band pairs only the census reads:
+  `boolean-door-runs-the-census-over-its-result` (REACHHOLD), with
+  `a-result-that-is-only-a-sliver-shell-passes-the-door` parked on it;
+- a thin operand check 10 still refuses (`slab ∪ far`, `brick ∖ slab`):
+  `check-10-reads-a-cavitys-role-from-its-volume-sign`;
+- the operand orientation probe's planar-face dependence and silent
+  skip: CLEAVE's row above;
+- an inverted sliver result passing its own door: FLUSH's row above.

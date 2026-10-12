@@ -106,24 +106,36 @@ turns that pin red, to be re-pinned at the refusal. The findings are
 FUSE's (`work/fuse/a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms.md`,
 where the full list is).
 
-## Evidence: sliver-only results the door ships since thinness is judged by pairs (FLUSH, branch `flush/thinness-by-pairs`, 2026-10-12)
+## Evidence: needles the door ships with an in-band pair since thinness is judged by pairs (FLUSH, PR 4783, 2026-10-12)
 
 Ev's ruling on PR 4690 retires the door's sole-shell `V/A` gate (PR
-4636), so a result is too thin only when a pair of its cells is in
-band. The door's own build decides the pairs it makes (a slab, a
-hollow's wall or a fin below `Kε` refuses `VertexOnFace` or a loop's
-`Boundary` at margin `t`). It reads no pair the census alone reads.
-At ε = 1e-9, `topo/tests/sliver_shell_role.rs`
-`a_result_that_is_only_a_needle_is_judged_by_its_pairs`: the `notch307`
-piece beyond its notch ∩ the census witness cube (`nt e0 a3`) builds
-one lump alone in its solid, and `validate_pseudomanifold` over the
-result's own contacts escalates `pm_census_ee_span`:
-- d = 1e-8, piece ∩ cube: margin 2.31e-9;
-- d = 1e-8, cube ∩ piece: margins 2.76e-9 and 1.45e-9;
-- d = 3e-8, piece ∩ cube: margin 1.59e-9.
-
-d = 3e-8 cube ∩ piece and d = 3.05e-8 pass the census. Before the
-ruling, all four d = 1e-8 and 3e-8 rows refused
-`Escalated { ShellRole }` through the retired gate, including the one
-whose pairs are all definite. A door census turns the test's in-band
-rows red, to be re-pinned at the refusal.
+4636): a result is too thin only when a pair of its cells is in band.
+The door's own build decides the pairs it makes (a slab, a hollow's
+wall or a fin below `Kε` refuses `VertexOnFace` or a loop's `Boundary`
+at margin `t`). It reads no pair the census alone reads, so results the
+retired gate refused for the wrong reason now ship, some holding such a
+pair. The FLUSH orchestrator ruled against a stop-gap (a census over
+`slivers()`-flagged results only would refuse a needle and ship a fat
+body with the same pair): this row is the fix.
+- **PR 4783's own probe**, ε 1e-9, `topo/tests/sliver_shell_role.rs`
+  `a_needle_ships_an_in_band_edge_pair_until_the_door_runs_the_census`:
+  the `notch307` piece ∩ the census witness cube (`nt e0 a3`) builds one
+  lump alone in its solid, and `validate_pseudomanifold` over its own
+  contacts escalates `pm_census_ee_span` at d = 1e-8, piece ∩ cube
+  (margin 2.31e-9), d = 1e-8, cube ∩ piece (2.76e-9 and 1.45e-9) and
+  d = 3e-8, piece ∩ cube (1.59e-9). A door census turns those rows red,
+  to be re-pinned at the refusal.
+- **R2's review**, ε 1e-9 (`crates/topo/tests/review_4783_r2_probes.rs`
+  on `flush/thinness-by-pairs-review-r2` @ ef12bed5): of a 512-op
+  notch307 family (a0–a15, d from 5e-9 to 4e-8, both orders), 14 ops
+  change; **11** now ship with `pm_census_ee_span` in band (a3 d1e-8,
+  1.5e-8, 2e-8, 2.5e-8 both orders; a3 d3e-8 piece first; a2 d3.05e-8
+  both orders), 3 ship clean. The same family already ships **44** such
+  results on base, so the class predates PR 4783.
+- **R1's review**, ε 1e-6 (the topo `review-sliver-probe` feature on
+  `flush/thinness-by-pairs-review` @ a79ba445): `rc_wide_battery` moves
+  **34** lines from `ShellRole` to built (`OK BAD … operand=false`),
+  census clean; 25 are check 10's pieces-sort class
+  (`work/flush/check-10-reads-a-cavitys-role-from-its-volume-sign.md`)
+  and 9 refuse `Containment` in the operand orientation probe
+  (`work/cleave/a-sliver-operands-orientation-falls-back-to-its-volume-where-it-has-no-planar-face.md`).

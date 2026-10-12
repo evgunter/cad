@@ -1993,11 +1993,10 @@ pub(crate) fn volume_backstop<T: Decide>(
     // A bound applies only against a certified-bounded operand
     // (positive flux volume, at its enclosure's lower end); complement
     // operands (certified negative) make it vacuous. Poison refuses.
-    // Metered `V/A` — the operand's MEAN THICKNESS (fn docs). Surface
+    // Metered `V/A`, the volume's margin as a length (fn docs). Surface
     // area is unsigned (props.rs), so the quotient keeps V's sign and
-    // the complement arm is unchanged. An in-band quotient is an
-    // operand thinner than the model's own resolution — no bound is
-    // certifiable from it, skip.
+    // the complement arm is unchanged. An in-band quotient certifies no
+    // bound: skip.
     // The backstops live on the INVARIANT LANE (Ev's #213 layering
     // ruling): consistency inequalities between integral results are
     // outside the length seam by design — no door, bare T — and a
@@ -4633,34 +4632,34 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
 /// every finding. Each finding's arm is [`finding_arm`]'s.
 fn finished_body_refusal(errors: Vec<ValidationError>) -> BooleanError {
     let in_band: Option<Vec<InBandShell>> = errors.iter().map(finding_arm).collect();
-    let binding = in_band.as_deref().and_then(|shells| {
-        shells
-            .iter()
-            .copied()
-            .reduce(|a, b| {
-                if a.sliver
-                    .reading()
-                    .margin
-                    .binds_before(b.sliver.reading().margin)
-                {
-                    a
-                } else {
-                    b
-                }
-            })
-            .map(|binding| (binding, shells.len() - 1))
-    });
-    match binding {
-        Some((binding, others)) => BooleanError::Escalated {
-            decision: BooleanDecision::ShellRole {
-                solid: binding.solid,
-                shell: binding.shell,
-                others,
-            },
-            diag: *binding.sliver.reading(),
+    in_band
+        .and_then(|shells| escalated(&shells))
+        .unwrap_or(BooleanError::ResultInvalid { errors })
+}
+
+/// The refusal for `shells`, the result's in-band shells: on the one
+/// whose enclosure binds the offer, naming how many more there are.
+/// `None` where there are none.
+fn escalated(shells: &[InBandShell]) -> Option<BooleanError> {
+    let binding = shells.iter().copied().reduce(|a, b| {
+        if a.sliver
+            .reading()
+            .margin
+            .binds_before(b.sliver.reading().margin)
+        {
+            a
+        } else {
+            b
+        }
+    })?;
+    Some(BooleanError::Escalated {
+        decision: BooleanDecision::ShellRole {
+            solid: binding.solid,
+            shell: binding.shell,
+            others: shells.len() - 1,
         },
-        None => BooleanError::ResultInvalid { errors },
-    }
+        diag: *binding.sliver.reading(),
+    })
 }
 
 /// **Which of Q1's arms one finding of the finished-body gate is**: the
