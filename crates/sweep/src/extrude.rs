@@ -520,7 +520,11 @@ impl fmt::Display for ExtrudeError {
             ),
             Self::ExtrusionEscalated { source } => write!(
                 f,
-                "whether the extrusion leaves the sketch plane is too close to call: {source}"
+                "{}",
+                source.undecided(
+                    "whether the extrusion leaves the sketch plane",
+                    source.ending(geom_core::COINCIDENCE_RECOURSE),
+                )
             ),
             Self::CosurfaceEscalated {
                 loop_index,
@@ -528,8 +532,14 @@ impl fmt::Display for ExtrudeError {
                 source,
             } => write!(
                 f,
-                "whether the walls meeting at loop {loop_index} vertex {vertex_index} share \
-                 one surface is too close to call: {source}"
+                "{}",
+                source.undecided(
+                    format_args!(
+                        "whether the walls meeting at loop {loop_index} vertex {vertex_index} \
+                         share one surface"
+                    ),
+                    source.ending(geom_core::COINCIDENCE_RECOURSE),
+                )
             ),
             Self::SliverJoin {
                 loop_index,
@@ -1693,6 +1703,35 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
+
+    /// **An extrude escalation offers the tolerance a value in the band
+    /// gives**: the extrusion's components and the cosurface distance
+    /// are lengths.
+    #[test]
+    fn an_extrude_escalation_ends_in_its_lengths_tolerance() {
+        use crate::swept::undecided_fixtures::readings;
+        let tail = "is undecided: margin 5e-9 lies inside the ambiguity band (1e-9, 1e-8). \
+                    Recourse: move the geometry, or, if this size is intended, tighten the \
+                    tolerance below 5e-10 m";
+        for (err, text) in [
+            (
+                ExtrudeError::ExtrusionEscalated {
+                    source: readings("extrusion_obliquity")[0],
+                },
+                format!("whether the extrusion leaves the sketch plane {tail}"),
+            ),
+            (
+                ExtrudeError::CosurfaceEscalated {
+                    loop_index: 0,
+                    vertex_index: 4,
+                    source: readings("side_planes_cosurface")[0],
+                },
+                format!("whether the walls meeting at loop 0 vertex 4 share one surface {tail}"),
+            ),
+        ] {
+            assert_eq!(err.to_string(), text);
+        }
+    }
 
     /// **A smooth strut or cap rim's must-carry escalation says which question
     /// escalated**: a first-order station is the sliver, neither corner

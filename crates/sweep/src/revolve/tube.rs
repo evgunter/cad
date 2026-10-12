@@ -154,10 +154,22 @@ pub enum TubeError {
     Revolve(RevolveError),
 }
 
+/// The wall thickness's decision: a length the caller chose.
+pub(crate) const TUBE_WALL: &str = "tube_wall";
+/// The bore's decision, the minor radius less the wall: a length.
+pub(crate) const TUBE_WALL_BORE: &str = "tube_wall_bore";
+/// The decision that the two stored radii stay distinct: a length.
+pub(crate) const TUBE_WALL_GAP: &str = "tube_wall_gap";
+/// The arc window's span, an angle metered at the outer equator.
+pub(crate) const TUBE_WINDOW_SPAN: &str = "tube_window_span";
+/// The arc window's headroom short of a full turn, an angle metered at
+/// the outer equator.
+pub(crate) const TUBE_WINDOW_HEADROOM: &str = "tube_window_headroom";
+
 /// The `k_stats` names only [`tube_along_arc_hollow`] can reach. An
 /// escalation carrying one of these came from the hollow door, and
 /// its message must say so — the solid door cannot produce it.
-const HOLLOW_PREDICATES: [&str; 3] = ["tube_wall", "tube_wall_bore", "tube_wall_gap"];
+const HOLLOW_PREDICATES: [&str; 3] = [TUBE_WALL, TUBE_WALL_BORE, TUBE_WALL_GAP];
 
 /// Which door a refusal belongs to, as far as the refusal itself can
 /// honestly say.
@@ -215,24 +227,38 @@ impl core::fmt::Display for TubeError {
                  radius (threshold {eps} m). Recourse: supply a thicker wall, \
                  or a smaller outer radius"
             ),
+            // The wall's three decisions are lengths and take the
+            // escalation's whole ending; the window's two are angles, no
+            // size the caller chose, and end in the lever alone.
             Self::Escalated { source } => {
-                let what = match source.predicate {
-                    Some("tube_wall") => "wall is thicker than the run's threshold",
-                    Some("tube_wall_bore") => "wall leaves a bore",
-                    Some("tube_wall_gap") => "inner and outer radii stay distinct",
-                    Some("tube_window_span") => "arc window ends after it starts",
-                    Some("tube_window_headroom") => "arc window stays short of a full turn",
+                let sized = || source.ending(geom_core::COINCIDENCE_RECOURSE);
+                let (what, ending) = match source.predicate {
+                    Some(TUBE_WALL) => ("wall is thicker than the run's threshold", sized()),
+                    Some(TUBE_WALL_BORE) => ("wall leaves a bore", sized()),
+                    Some(TUBE_WALL_GAP) => ("inner and outer radii stay distinct", sized()),
+                    Some(TUBE_WINDOW_SPAN) => (
+                        "arc window ends after it starts",
+                        crate::swept::lever_ending(source),
+                    ),
+                    Some(TUBE_WINDOW_HEADROOM) => (
+                        "arc window stays short of a full turn",
+                        crate::swept::lever_ending(source),
+                    ),
                     // Only the five names above are decided here; any
                     // other is a decision this door has no words for.
                     _ => {
                         return write!(
                             f,
-                            "{} is too close to call: {source}",
-                            geom_core::UNNAMED_DECISION
+                            "{}",
+                            source.undecided(geom_core::UNNAMED_DECISION, sized())
                         );
                     }
                 };
-                write!(f, "whether {door}'s {what} is too close to call: {source}")
+                write!(
+                    f,
+                    "{}",
+                    source.undecided(format_args!("whether {door}'s {what}"), ending)
+                )
             }
             Self::Revolve(e) => write!(f, "{e}"),
         }
@@ -354,14 +380,14 @@ fn build<T: Decide + topo::AtRestPolicy>(
     let inner_radius = match wall {
         None => None,
         Some(wall) => {
-            match decide("tube_wall", Margin::of(wall), band).map_err(esc)? {
+            match decide(TUBE_WALL, Margin::of(wall), band).map_err(esc)? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => {
                     return Err(TubeError::NonpositiveWall { eps });
                 }
             }
             let inner = minor_radius - wall;
-            match decide("tube_wall_bore", Margin::of(inner), band).map_err(esc)? {
+            match decide(TUBE_WALL_BORE, Margin::of(inner), band).map_err(esc)? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => {
                     return Err(TubeError::WallExceedsRadius { eps });
@@ -370,7 +396,7 @@ fn build<T: Decide + topo::AtRestPolicy>(
             // The REALIZED gap: `minor_radius - inner`, the difference
             // of the two numbers the walls will store, not of the two
             // the caller wrote.
-            match decide("tube_wall_gap", Margin::of(minor_radius - inner), band).map_err(esc)? {
+            match decide(TUBE_WALL_GAP, Margin::of(minor_radius - inner), band).map_err(esc)? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => {
                     return Err(TubeError::WallGapCollapsed { eps });
@@ -385,12 +411,12 @@ fn build<T: Decide + topo::AtRestPolicy>(
         TubeWindow::Full => (T::tau(), true),
         TubeWindow::Arc { t0, t1 } => {
             let span = t1 - t0;
-            match decide("tube_window_span", Margin::levered(span, arm), band).map_err(esc)? {
+            match decide(TUBE_WINDOW_SPAN, Margin::levered(span, arm), band).map_err(esc)? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(TubeError::DegenerateWindow),
             }
             let headroom = Margin::levered(T::tau() - span, arm);
-            match decide("tube_window_headroom", headroom, band).map_err(esc)? {
+            match decide(TUBE_WINDOW_HEADROOM, headroom, band).map_err(esc)? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(TubeError::FullRangeWindow),
             }
@@ -531,6 +557,58 @@ mod tests {
     use super::*;
     use crate::swept::arc_span;
     use profile::SegmentKind;
+
+    /// **A tube escalation ends by its decision's kind.** The wall's
+    /// thickness is a length the caller chose, so its refusal offers the
+    /// tolerance a value in the band gives; the window's span is an
+    /// angle, so its refusal is the lever alone on every reading, with
+    /// the unreadable-margin note on poison.
+    #[test]
+    fn a_tube_escalation_ends_by_its_decisions_kind() {
+        let wall = "whether the hollow tube's wall is thicker than the run's threshold is \
+                    undecided: ";
+        let window = "whether the tube's arc window ends after it starts is undecided: ";
+        let value = "margin 5e-9 lies inside the ambiguity band (1e-9, 1e-8). ";
+        let straddle = "enclosure [5e-10, 3e-8] cannot be classified against the ambiguity band (1e-9, 1e-8). ";
+        let poison = "margin is invalid (NaN or a refused enclosure) against the ambiguity band (1e-9, 1e-8). ";
+        let note = "an unreadable margin may indicate a kernel bug worth reporting";
+        let expected = [
+            (
+                TUBE_WALL,
+                [
+                    format!(
+                        "{wall}{value}Recourse: move the geometry, or, if this size is intended, \
+                         tighten the tolerance below 5e-10 m"
+                    ),
+                    format!(
+                        "{wall}{straddle}Recourse: subdivide the parameter box for a tighter \
+                         enclosure, or move the geometry, or, if this size is intended, tighten \
+                         the tolerance below 5e-11 m"
+                    ),
+                    format!(
+                        "{wall}{poison}Recourse: check the operation's inputs upstream, then move \
+                         the geometry; {note}"
+                    ),
+                ],
+            ),
+            (
+                TUBE_WINDOW_SPAN,
+                [
+                    format!("{window}{value}Recourse: move the geometry"),
+                    format!("{window}{straddle}Recourse: move the geometry"),
+                    format!("{window}{poison}Recourse: move the geometry; {note}"),
+                ],
+            ),
+        ];
+        for (name, texts) in expected {
+            for (source, text) in crate::swept::undecided_fixtures::readings(name)
+                .into_iter()
+                .zip(texts)
+            {
+                assert_eq!(TubeError::Escalated { source }.to_string(), text, "{name}");
+            }
+        }
+    }
 
     /// **The traversal's sweep agrees with the crate's reading of its
     /// turn**, at every turn `Sign` has, `Zero` included: each half-turn

@@ -46,6 +46,15 @@ const CARRIERS: &[NameCarrier] = &[
     // table supplies, so the extrude's side walls and the revolve's
     // walls are separate rows of the K inventory.
     NameCarrier::Call("CosurfaceNames"),
+    // The names a door's own Display matches on to pick a decision's
+    // ending are constants, one spelling shared by the decide call and
+    // the match.
+    NameCarrier::Const("AXIS_ARC_SPAN"),
+    NameCarrier::Const("TUBE_WALL"),
+    NameCarrier::Const("TUBE_WALL_BORE"),
+    NameCarrier::Const("TUBE_WALL_GAP"),
+    NameCarrier::Const("TUBE_WINDOW_SPAN"),
+    NameCarrier::Const("TUBE_WINDOW_HEADROOM"),
 ];
 
 /// The `decide*` calls whose name the reader cannot read at the site,
@@ -67,6 +76,30 @@ const INDIRECT: &[(&str, &str)] = &[
     (
         "swept.rs: names.arcs",
         "a `CosurfaceNames` field — the arc half of the same table",
+    ),
+    (
+        "revolve/axis.rs: AXIS_ARC_SPAN",
+        "a `const` the door's Display matches on to pick the decision's ending",
+    ),
+    (
+        "revolve/tube.rs: TUBE_WALL",
+        "a `const` the door's Display matches on to pick the decision's ending",
+    ),
+    (
+        "revolve/tube.rs: TUBE_WALL_BORE",
+        "a `const` the door's Display matches on to pick the decision's ending",
+    ),
+    (
+        "revolve/tube.rs: TUBE_WALL_GAP",
+        "a `const` the door's Display matches on to pick the decision's ending",
+    ),
+    (
+        "revolve/tube.rs: TUBE_WINDOW_HEADROOM",
+        "a `const` the door's Display matches on to pick the decision's ending",
+    ),
+    (
+        "revolve/tube.rs: TUBE_WINDOW_SPAN",
+        "a `const` the door's Display matches on to pick the decision's ending",
     ),
 ];
 

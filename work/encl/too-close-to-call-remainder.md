@@ -92,6 +92,21 @@ caller's, per `Reading`. Three render the whole escalation
   `UndecidedRefusal`, which needs an `Indeterminate`: two of
   `SectorReading`'s arms are decided disagreements carrying margins.
 
+**Done: the sweep slice, in PR N** (ten sentences, all whole renders
+through `Indeterminate::undecided`, lever unchanged at
+`COINCIDENCE_RECOURSE`). Lengths take `ending(..)`: extrude's two,
+loft's two, revolve's axis length and cosurface, the clearance's
+lengths, the tube's wall. Angles end through `LeverOnly`
+(`swept::lever_ending`): `AngleEscalated`, the clearance's
+`axis_arc_span`, the tube's window. The matched names are
+`pub(crate)` constants, read by `recourse_roster`'s census.
+
+- Skipped: `swept::sliver_text`'s `Lever` arm, which is carvetail's
+  (`carve-refusals-short-of-the-shape-guard`).
+- Left: a sized straddle still reads as a subdividable enclosure
+  through `ending(..)` (the cleave row's open item); which lever each
+  door offers stays carvetail's.
+
 ## Repair shape
 
 One crate per PR, re-baselining the texts each moves; drop

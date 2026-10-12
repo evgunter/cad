@@ -411,6 +411,21 @@ pub(super) fn classify_loop<T: Decide>(
 /// Unreachable `Zero` signs on the LINE arms (a degenerate segment
 /// survives to here only as a kernel bug) keep the convex/outward arm,
 /// `sense: true` — the `turn_axis` totality posture.
+/// The name of the sphere-class arc's span decision, `π − span` at the
+/// arc's radius: the one angle among the clearance decisions.
+pub(crate) const AXIS_ARC_SPAN: &str = "axis_arc_span";
+
+/// The ending of a [`RevolveError::SliverAxisClearance`]. The span is an
+/// angle, no size the user chose, so it ends in the lever alone; every
+/// other clearance decision is a length in the profile's plane, and
+/// takes the escalation's whole ending.
+pub(crate) fn clearance_ending(diag: &geom_core::Indeterminate) -> String {
+    match diag.predicate {
+        Some(AXIS_ARC_SPAN) => crate::swept::lever_ending(diag),
+        _ => diag.ending(geom_core::COINCIDENCE_RECOURSE),
+    }
+}
+
 #[allow(clippy::too_many_arguments)] // one internal call site (classify_loop).
 fn classify_segment<T: Decide>(
     s: &SweptSeg<T>,
@@ -484,7 +499,7 @@ fn classify_segment<T: Decide>(
                     // does, before its zero chord is read; the apex pins
                     // which half-circle branch the arc occupies.
                     let span_margin = Margin::levered(T::pi() - arc_span(turn, arc), radius);
-                    match decide("axis_arc_span", span_margin, band).map_err(escalated)? {
+                    match decide(AXIS_ARC_SPAN, span_margin, band).map_err(escalated)? {
                         Sign::Positive | Sign::Zero => {}
                         Sign::Negative => {
                             return Err(RevolveError::ArcCrossesAxis {

@@ -27,9 +27,9 @@ another name:
   Recourse: keep the arc's circle clear of the axis"
   (`crates/sweep/src/revolve/mod.rs`);
 - in band: `RevolveError::SliverAxisClearance`, rendered "whether the
-  arc at loop {i} segment {j} clears the revolve axis is too close to
-  call: {source}", the whole `Indeterminate`, so it ends in
-  `COINCIDENCE_RECOURSE` (a declaration no revolve takes).
+  arc at loop {i} segment {j} clears the revolve axis is undecided:
+  {payload}. {ending}", ending in `COINCIDENCE_RECOURSE` ("move the
+  geometry") with the length's tolerance arm.
 
 Two stories for one decision, and neither is the convention's: PR 3506
 gave the convention its closed type, `geom_brep::TorusConvention`

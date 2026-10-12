@@ -334,14 +334,23 @@ impl fmt::Display for LoftError {
             ),
             Self::FarStackingEscalated { slab, source } => write!(
                 f,
-                "whether loft section {far}'s plane faces along the stack from section \
-                 {slab} is too close to call: {source}",
-                far = SlabPair(*slab).far()
+                "{}",
+                source.undecided(
+                    format_args!(
+                        "whether loft section {far}'s plane faces along the stack from \
+                         section {slab}",
+                        far = SlabPair(*slab).far()
+                    ),
+                    source.ending(geom_core::COINCIDENCE_RECOURSE),
+                )
             ),
             Self::StackingEscalated { slab, source } => write!(
                 f,
-                "whether loft {} stack forward is too close to call: {source}",
-                SlabPair(*slab)
+                "{}",
+                source.undecided(
+                    format_args!("whether loft {} stack forward", SlabPair(*slab)),
+                    source.ending(geom_core::COINCIDENCE_RECOURSE),
+                )
             ),
         }
     }
@@ -1210,4 +1219,29 @@ pub fn sweep_body<T: Decide + topo::AtRestPolicy>(
     let places = sweep_places(place, path, stations).map_err(LoftError::Skin)?;
     let sections: Vec<Section<_>> = core::iter::repeat_n(profile.to_vec(), places.len()).collect();
     build(&sections, &places, &channel, v_degree, tol)
+}
+
+#[cfg(test)]
+mod undecided_tests {
+    use super::*;
+
+    /// **A loft's stacking escalation offers the tolerance a value in the
+    /// band gives**: the decision is the sections' mean spacing along a
+    /// normal, a length.
+    #[test]
+    fn a_stacking_escalation_ends_in_its_lengths_tolerance() {
+        use crate::swept::undecided_fixtures::readings;
+        let tail = "is undecided: margin 5e-9 lies inside the ambiguity band (1e-9, 1e-8). \
+                    Recourse: move the geometry, or, if this size is intended, tighten the \
+                    tolerance below 5e-10 m";
+        let [source, ..] = readings("loft_stacking");
+        assert_eq!(
+            LoftError::StackingEscalated { slab: 1, source }.to_string(),
+            format!("whether loft sections 1 and 2 stack forward {tail}")
+        );
+        assert_eq!(
+            LoftError::FarStackingEscalated { slab: 1, source }.to_string(),
+            format!("whether loft section 2's plane faces along the stack from section 1 {tail}")
+        );
+    }
 }

@@ -144,8 +144,9 @@ fn the_validator_door_appends_a_site_note_and_routes_nothing() {
 /// The three wall names read "the hollow tube" and the two window names
 /// "the tube" — the honest answer for a predicate both tube doors can
 /// reach; a name the tube does not decide, and a nameless escalation,
-/// read as unnamed. Every one renders the shared recourse whole, with no
-/// gap sentence.
+/// read as unnamed. Every one ends in the shared coincidence lever, with
+/// no gap sentence; which ending carries it is the decision's kind
+/// (`revolve::tube`'s `a_tube_escalation_ends_by_its_decisions_kind`).
 #[test]
 fn the_tube_door_routes_a_door_name_and_never_a_recourse() {
     for (name, subject) in [
@@ -176,7 +177,7 @@ fn the_tube_door_routes_a_door_name_and_never_a_recourse() {
     }
     .to_string();
     assert!(
-        text.starts_with("an unnamed decision is too close to call: margin "),
+        text.starts_with("an unnamed decision is undecided: margin "),
         "{text}"
     );
 }

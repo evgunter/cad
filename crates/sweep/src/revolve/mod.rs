@@ -668,7 +668,11 @@ impl fmt::Display for RevolveError {
             ),
             Self::AxisEscalated { source } => write!(
                 f,
-                "whether the revolve axis has a length is too close to call: {source}"
+                "{}",
+                source.undecided(
+                    "whether the revolve axis has a length",
+                    source.ending(geom_core::COINCIDENCE_RECOURSE),
+                )
             ),
             Self::DegenerateAngle => write!(
                 f,
@@ -680,9 +684,11 @@ impl fmt::Display for RevolveError {
                 "the partial revolve angle reaches a full turn at tolerance; an exactly \
                  full revolve uses Revolution::Full",
             ),
-            Self::AngleEscalated { source } => {
-                write!(f, "the revolve angle is too close to call: {source}")
-            }
+            Self::AngleEscalated { source } => write!(
+                f,
+                "{}",
+                source.undecided("the revolve angle", crate::swept::lever_ending(source))
+            ),
             // Definite at ANY magnitude (r = -0.5 fires this same arm),
             // so the coincidence levers are offered conditionally — the
             // unconditional fix is to move the profile off the negative
@@ -721,8 +727,14 @@ impl fmt::Display for RevolveError {
                 source,
             } => write!(
                 f,
-                "whether the arc at loop {loop_index} segment {segment_index} clears the \
-                 revolve axis is too close to call: {source}"
+                "{}",
+                source.undecided(
+                    format_args!(
+                        "whether the arc at loop {loop_index} segment {segment_index} clears \
+                         the revolve axis"
+                    ),
+                    axis::clearance_ending(source),
+                )
             ),
             Self::UnsupportedToroid {
                 loop_index,
@@ -765,8 +777,14 @@ impl fmt::Display for RevolveError {
                 source,
             } => write!(
                 f,
-                "whether the walls meeting at loop {loop_index} vertex {vertex_index} share \
-                 one surface is too close to call: {source}"
+                "{}",
+                source.undecided(
+                    format_args!(
+                        "whether the walls meeting at loop {loop_index} vertex {vertex_index} \
+                         share one surface"
+                    ),
+                    source.ending(geom_core::COINCIDENCE_RECOURSE),
+                )
             ),
             Self::SliverJoin {
                 loop_index,
@@ -912,6 +930,76 @@ pub fn revolve<T: Decide + topo::AtRestPolicy>(
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
+
+    /// **A revolve escalation ends by its decision's kind.** The angle,
+    /// and the clearance's arc span, are angles: the lever alone on
+    /// every reading. The axis direction's length, the clearance's
+    /// lengths and the cosurface distance offer the tolerance a value in
+    /// the band gives.
+    #[test]
+    fn a_revolve_escalation_ends_by_its_decisions_kind() {
+        use crate::swept::undecided_fixtures::readings;
+        let value = "margin 5e-9 lies inside the ambiguity band (1e-9, 1e-8). ";
+        let sized = "Recourse: move the geometry, or, if this size is intended, tighten the \
+                     tolerance below 5e-10 m";
+        let angle = "the revolve angle is undecided: ";
+        let [read, straddle, poison] = readings("revolve_angle");
+        for (source, text) in [
+            (read, format!("{angle}{value}Recourse: move the geometry")),
+            (
+                straddle,
+                format!(
+                    "{angle}enclosure [5e-10, 3e-8] cannot be classified against the ambiguity \
+                     band (1e-9, 1e-8). Recourse: move the geometry"
+                ),
+            ),
+            (
+                poison,
+                format!(
+                    "{angle}margin is invalid (NaN or a refused enclosure) against the ambiguity \
+                     band (1e-9, 1e-8). Recourse: move the geometry; an unreadable margin may \
+                     indicate a kernel bug worth reporting"
+                ),
+            ),
+        ] {
+            assert_eq!(RevolveError::AngleEscalated { source }.to_string(), text);
+        }
+        let clearance = |name| RevolveError::SliverAxisClearance {
+            loop_index: 0,
+            segment_index: 2,
+            source: readings(name)[0],
+        };
+        let arc = "whether the arc at loop 0 segment 2 clears the revolve axis is undecided: ";
+        for (err, text) in [
+            (
+                clearance(axis::AXIS_ARC_SPAN),
+                format!("{arc}{value}Recourse: move the geometry"),
+            ),
+            (
+                clearance("axis_line_radial"),
+                format!("{arc}{value}{sized}"),
+            ),
+            (
+                RevolveError::AxisEscalated {
+                    source: readings("revolve_axis_direction")[0],
+                },
+                format!("whether the revolve axis has a length is undecided: {value}{sized}"),
+            ),
+            (
+                RevolveError::CosurfaceEscalated {
+                    loop_index: 1,
+                    vertex_index: 3,
+                    source: readings("wall_lines_cosurface")[0],
+                },
+                format!(
+                    "whether the walls meeting at loop 1 vertex 3 share one surface is \
+                     undecided: {value}{sized}"
+                ),
+            ),
+        ] {
+            assert_eq!(err.to_string(), text);
+        }
+    }
 
     /// **A smooth latitude join or cap rim's must-carry escalation says which question
     /// escalated**: a first-order station is the sliver, neither corner
