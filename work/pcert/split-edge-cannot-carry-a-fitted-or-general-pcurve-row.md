@@ -132,3 +132,10 @@ operand pair, which covers each child's span. No bound moved.
 `crates/sweep/tests/split_edge_fitted_rows.rs` pins a minted `General`
 row and an attached `Fitted` row on a spline chart, both carried, with
 tier 3 clean after the split, at `f64` and `Interval`.
+
+Check 4 reads the whole carrier against the pair, and a split keeps
+every input it reads, so each child's certificate is the parent's,
+bit for bit. The rows pin that. A split child is refused at check 4
+only if its parent's own row already fails it. So the whole-domain
+read cannot cause a false refusal on a split of an at-rest body,
+and there is no residue to file.

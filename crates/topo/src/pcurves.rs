@@ -2394,6 +2394,14 @@ pub(crate) enum SplitRefusal {
 /// projected row's hull terms and a fitted-grade row's check 4), rather
 /// than deriving anything.
 ///
+/// **A fitted-grade row's check 4 reads the WHOLE carrier**, not the
+/// child's span: `ssi::certify_rung3` bounds the carrier's whole knot
+/// domain against the operand pair. Its inputs (carrier, image,
+/// surface, mate, band) are the parent's, so each child's certificate
+/// IS the parent's. The statement is conservative for a child, and a
+/// split never refuses a child at check 4 unless the parent's own row
+/// already fails it.
+///
 /// **`t₀` and `t₁` are the EDGE's certified interval**, read from the
 /// carrier through [`half_edge_carrier`] — the same interval
 /// `EdgeCurve::split_specs` cuts the children's curves from — and not
@@ -2500,9 +2508,7 @@ pub(crate) fn split_cache<T: Decide>(
         };
         // Every image is a function of the carrier's parameter, and the
         // children keep the parent's carrier, so each child's image is
-        // the parent's restricted to its sub-interval. A fitted-grade
-        // image's check 4 bounds the whole carrier, a superset of the
-        // child's span.
+        // the parent's restricted to its sub-interval.
         let (first, second) = (image.clone(), image);
         // The children meet at the first's point at `t`, so the joint is
         // decided there as every joint is, which reads whether the split

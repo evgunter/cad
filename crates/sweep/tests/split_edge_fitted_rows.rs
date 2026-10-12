@@ -224,6 +224,10 @@ fn split_carries<T: AtRestPolicy>(
         (variant, format!("{:?}", p.pcurve()))
     };
     let image = row(parent);
+    // Check 4 reads the whole carrier against the pair, and a split
+    // keeps every input it reads, so each child's certificate is the
+    // parent's: a child is refused there only if its parent is.
+    let parent_ssi = format!("{:?}", parent.certificate().ssi());
     let (t0, t1) = parent.params();
     let t = (t0 + t1) * T::from_f64(0.5);
     let created = body
@@ -248,6 +252,12 @@ fn split_carries<T: AtRestPolicy>(
             assert!(
                 cache.certificate().ssi().is_some(),
                 "{kind} @ {}: {h:?} is re-certified at the fitted grade",
+                T::NAME
+            );
+            assert_eq!(
+                format!("{:?}", cache.certificate().ssi()),
+                parent_ssi,
+                "{kind} @ {}: {h:?}'s check 4 is the parent's, bit for bit",
                 T::NAME
             );
             spans.push(format!("{:?}", cache.params()));
