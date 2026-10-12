@@ -5628,8 +5628,8 @@ mod track_cover {
 /// body's own contact holds, beside pyramids standing there, voids
 /// hanging from it, islands in the voids and voids in the pyramids, or
 /// two pyramids united at their apexes there, in every op and both
-/// orders at every pose, name through [`name_boolean`] with no emission
-/// refusal. Two shapes have no emitter rule, as on main (`no_rule`). `crates/topo/tests/a_vertex_read_again_classes_every_edge.rs`
+/// orders at every pose, name through [`name_boolean`] with no
+/// refusal. `crates/topo/tests/a_vertex_read_again_classes_every_edge.rs`
 /// reads the same scenes' rows against their germs.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

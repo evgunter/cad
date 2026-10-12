@@ -809,14 +809,14 @@ fn head<'n, 's>(
     items
 }
 
-/// A crossing's sense as the words its edge takes: the verb before
-/// the body it is read against, and what follows the body.
-fn sense_words(sense: super::role::Sense) -> (&'static str, &'static str) {
+/// A crossing's sense as the verb its edge takes before the body it is
+/// read against.
+fn sense_verb(sense: super::role::Sense) -> &'static str {
     match sense {
-        super::role::Sense::Enters => ("enters", ""),
-        super::role::Sense::Leaves => ("leaves", ""),
-        super::role::Sense::Outside => ("meets", " from outside"),
-        super::role::Sense::Inside => ("meets", " from inside"),
+        super::role::Sense::Enters => "enters",
+        super::role::Sense::Leaves => "leaves",
+        super::role::Sense::Outside => "meets from outside",
+        super::role::Sense::Inside => "meets from inside",
     }
 }
 
@@ -884,32 +884,24 @@ fn role<'n, 's>(
             text(" and "),
             cites.one(b),
         ],
-        RoleSeg::Crossing { edge, face, sense } => {
-            let (verb, after) = sense_words(*sense);
-            vec![
-                text(meeting(&[*sense])),
-                cites.one(edge),
-                text(format!(" {verb} the body of ")),
-                cites.one(face),
-                text(after),
-            ]
-        }
+        RoleSeg::Crossing { edge, face, sense } => vec![
+            text(meeting(&[*sense])),
+            cites.one(edge),
+            text(format!(" {} the body of ", sense_verb(*sense))),
+            cites.one(face),
+        ],
         RoleSeg::EdgeCrossing {
             a,
             a_sense,
             b,
             b_sense,
-        } => {
-            let ((a_verb, a_after), (b_verb, b_after)) =
-                (sense_words(*a_sense), sense_words(*b_sense));
-            vec![
-                text(meeting(&[*a_sense, *b_sense])),
-                cites.one(a),
-                text(format!(" {a_verb} the other body{a_after} and ")),
-                cites.one(b),
-                text(format!(" {b_verb} the first{b_after}")),
-            ]
-        }
+        } => vec![
+            text(meeting(&[*a_sense, *b_sense])),
+            cites.one(a),
+            text(format!(" {} the other body and ", sense_verb(*a_sense))),
+            cites.one(b),
+            text(format!(" {} the first", sense_verb(*b_sense))),
+        ],
         RoleSeg::Merged(set) => {
             // A set on an edge is the edge a join made of its members.
             let what = if leaf.kind == EntityKind::Edge {
@@ -933,10 +925,7 @@ fn role<'n, 's>(
         RoleSeg::CrossingVertex { side, edge, sense } => vec![
             text("the split's crossing where "),
             cites.one(edge),
-            {
-                let (verb, after) = sense_words(*sense);
-                text(format!(" {verb} the half {}{after}", half(*side)))
-            },
+            text(format!(" {} the half {}", sense_verb(*sense), half(*side))),
         ],
         RoleSeg::BlendFace(edge) => vec![text("the blend face over "), cites.one(edge)],
         RoleSeg::CornerFace(v) => vec![text("the corner face at "), cites.one(v)],

@@ -2,11 +2,12 @@
 id: an-edge-edge-crossing-vertex-of-a-union-is-spelled-by-member-order
 kind: issue
 title: A union vertex where a member edge crosses another member's edge is spelled by member order (Flush::crossing falls through to the fold's spelling)
-status: open
+status: review
 opened: 2026-10-01
 priority: P2
 cost: M
 refs: [a-member-the-fold-discards-whole-is-cited-nowhere-though-it-lies-flush]
+branch: emit/touch-crossing
 ---
 
 
@@ -47,3 +48,16 @@ RimEdge(End), · }` and `Crossing { b's LateralEdge, a's Cap(End), sense }`.
 counts went from four absences per case to six: every piece of a divided
 edge is now named by its ends, a lone one included, so the lone piece of
 `b`'s lateral edge that ends at the vertex carries the order's spelling too.
+
+## Closed by the touch ruling's build (branch `emit/touch-crossing`)
+
+A union names a vertex where two member edges meet from the finished
+body, `EdgeCrossing` of the two in name order with the senses the fold
+step that minted it read (`emit_union::Flush::edge_crossing`).
+`r5poke` and `r5pokehi` publish one table in both orders
+(`KNOWN_ABSENT` holds neither), and `cross` drops from 266 absences to
+140: every one that went was an edge crossing, its face-crossing
+spelling in the other order, or a member-edge piece ending at it. What
+`cross` and `r1three` keep is a crossing of a union seam, filed as
+`work/emit/a-crossing-of-a-union-seam-is-spelled-by-member-order.md`.
+Row: `emit_crossing_sense::an_edge_crossing_of_two_members_is_named_alike_in_either_order`.
