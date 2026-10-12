@@ -2,11 +2,12 @@
 id: a-loose-hull-side-spends-limb-2s-budget-at-eps-1e-6
 kind: issue
 title: ssi_limb3_one_arc's loose-hull grid row spends limb 2's subdivision budget at eps 1e-6 on main
-status: open
+status: dispatched
 opened: 2026-10-11
 priority: P1
 cost: E
 refs: [hull-sup-limb-reads-its-bound-as-the-miss-at-the-import-door]
+branch: encl/loose-hull-budget
 ---
 
 
