@@ -3190,10 +3190,9 @@ pub fn sphere_region_material_sign<T: Decide>(
             what: "a seam region read on a surface that is not a sphere",
         });
     };
-    if std::env::var("M4746B").as_deref() == Ok("unenc") { return Ok(MaterialSign::Unencoded); }
     let gauss = sphere_loops(center, radius, boundary, band)?;
     let [one] = gauss.as_slice() else {
-        return if gauss.is_empty() || std::env::var("M4746B").as_deref() == Ok("area") {
+        return if gauss.is_empty() {
             Ok(MaterialSign::Unencoded)
         } else {
             side_of_sphere_loops(center, radius, axis, &gauss, band)
@@ -3203,11 +3202,10 @@ pub fn sphere_region_material_sign<T: Decide>(
     agreed_side(axis, |pole| {
         let p = center + pole * radius;
         for arc in members.iter().flat_map(|m| &m.arcs) {
-            if pole_against_arc(arc, p, band)?.1 || std::env::var("M4746B").as_deref() == Ok("held") {
-                return Ok(pole_side(center, radius, pole, one, band)?.map(|s| if std::env::var("M4746B").as_deref() == Ok("pole_int") { s } else { s.flip() }));
+            if pole_against_arc(arc, p, band)?.1 {
+                return Ok(pole_side(center, radius, pole, one, band)?.map(Sign::flip));
             }
         }
-        if std::env::var("M4746B").as_deref() == Ok("pole_out") { return pole_side(center, radius, pole, one, band); }
         Ok(None)
     })
 }
