@@ -2532,14 +2532,30 @@ pub(crate) fn split_cache<T: Decide>(
         // Every image is a function of the carrier's parameter, and the
         // children keep the parent's carrier, so each child's image is
         // the parent's restricted to its sub-interval.
+        let mutant = std::env::var("R1_MUTANT").unwrap_or_default();
+        if mutant == "skip_fitted" && matches!(image, Pcurve::Fitted(_) | Pcurve::General(_)) {
+            continue;
+        }
         let (first, second) = (image.clone(), image);
         // The children meet at the first's point at `t`, so the joint is
         // decided there as every joint is, which reads whether the split
         // point is on the chart's singular set.
-        let joint = pin(&second, t, first.eval(t))?;
+        let joint = if mutant == "skip_joint" {
+            crate::joint::JointElement::IDENTITY
+        } else {
+            pin(&second, t, first.eval(t))?
+        };
+        let (pa, pb) = if mutant == "parent_interval" { ((t0, t1), (t0, t1)) } else { ((t0, t), (t, t1)) };
+        let fit_mut = |a: T, b: T, image: Pcurve<T>| {
+            if mutant == "no_lane" {
+                restate(&image, (a, b), &carrier, &surface, mate.as_ref(), band, None).map_err(refused)
+            } else {
+                certify(a, b, image)
+            }
+        };
         rows[slot] = Some(CarriedRows {
-            parent_half: certify(t0, t, first)?,
-            new_half: certify(t, t1, second)?,
+            parent_half: fit_mut(pa.0, pa.1, first)?,
+            new_half: fit_mut(pb.0, pb.1, second)?,
             joint,
         });
     }

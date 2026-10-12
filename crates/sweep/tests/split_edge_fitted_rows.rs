@@ -356,3 +356,66 @@ fn a_split_carries_the_general_row_to_each_child_at_the_interval_scalar() {
 fn a_split_carries_an_attached_fitted_row_to_each_child_at_the_interval_scalar() {
     fitted_row::<geom_core::Interval>();
 }
+
+// ---- R1 review probes (review/4410-r1; not for merge) ----
+
+fn r1_split_mid<T: AtRestPolicy>(body: &mut Body<T>, edge: EdgeKey, frac: f64) -> EdgeKey {
+    let (_, t0, t1) = seam_carrier(body, edge);
+    let t = t0 + (t1 - t0) * T::from_f64(frac);
+    body.split_edge(edge, t, Tol::witness())
+        .unwrap_or_else(|e| panic!("split at {frac} refused: {e:?}"))
+        .new_edge
+}
+
+#[test]
+fn r1_probe_full_tier3_and_volume_before_and_after_split() {
+    let (mut body, _he, edge, _chart) = general_seam_at_rest::<f64>();
+    let before = topo::validate_geometric(&body, Tol::witness());
+    println!("R1 tier3 BEFORE split: {before:?}");
+    let vb = topo::mass_properties(&body, Tol::witness()).map(|m| format!("{:?}", m.volume));
+    println!("R1 volume BEFORE split: {vb:?}");
+    r1_split_mid(&mut body, edge, 0.5);
+    let after = topo::validate_geometric(&body, Tol::witness());
+    println!("R1 tier3 AFTER split: {after:?}");
+    let va = topo::mass_properties(&body, Tol::witness()).map(|m| format!("{:?}", m.volume));
+    println!("R1 volume AFTER split: {va:?}");
+}
+
+#[test]
+fn r1_probe_split_a_child_again_and_near_ends() {
+    for fracs in [vec![0.5, 0.5], vec![1e-9], vec![1.0 - 1e-9], vec![0.25, 0.75]] {
+        let (mut body, _he, edge, _chart) = general_seam_at_rest::<f64>();
+        let mut e = edge;
+        let mut ok = true;
+        for &f in &fracs {
+            let (_, t0, t1) = seam_carrier(&body, e);
+            let t = t0 + (t1 - t0) * f;
+            match body.split_edge(e, t, Tol::witness()) {
+                Ok(c) => e = c.new_edge,
+                Err(err) => {
+                    println!("R1 fracs {fracs:?}: split refused at {f}: {err:?}");
+                    ok = false;
+                    break;
+                }
+            }
+        }
+        if ok {
+            let findings = topo::pcurves::validate_pcurves(&body, band());
+            let rowless = body
+                .edges()
+                .flat_map(|(_, ed)| [ed.he_plus, ed.he_minus])
+                .filter(|h| matches!(body.get_surface(he_surface(&body, *h)), Some(Surface::Nurbs(_))))
+                .filter(|h| body.pcurve(*h).is_none())
+                .count();
+            println!("R1 fracs {fracs:?}: tier-3 pcurve findings {findings:?}, rowless NURBS halves {rowless}");
+            assert!(findings.is_empty());
+        }
+    }
+}
+
+#[test]
+fn r1_probe_interval_full_tier3_after_split() {
+    let (mut body, _he, edge, _chart) = general_seam_at_rest::<geom_core::Interval>();
+    r1_split_mid(&mut body, edge, 0.5);
+    println!("R1 Interval tier3 AFTER split: {:?}", topo::validate_geometric(&body, Tol::witness()));
+}
