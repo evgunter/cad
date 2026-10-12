@@ -5295,7 +5295,9 @@ impl<T: SpanLocate> SpanLocate for Sym<T> {
     /// value ([`SymNode::literal`], recomputed by its content hash, so
     /// nothing is interned and no session is read): any other node, a
     /// constant expression included, may carry a symbol, and `None` is
-    /// the conservative answer.
+    /// the conservative answer. Not read through the node's form
+    /// (`constant_value`): expanding a form runs the session's work and
+    /// moves the `SymCounts` a digest records, from inside a meter.
     fn plain_constant(self) -> Option<f64> {
         let v = self.value.plain_constant()?;
         (self.node == SymNode::literal(v).id()).then_some(v)

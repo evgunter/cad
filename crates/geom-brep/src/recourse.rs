@@ -404,8 +404,10 @@ impl SizedDecision {
     ///   tolerance below which a smaller one decides the margin passing,
     ///   where one does. A zero verdict that leaves no size to tighten
     ///   below adds [`SizedDecision::at_zero`] where the decision has
-    ///   one. A poisoned margin keeps the lever and takes the note its
-    ///   reading gives ([`unreadable_margin_note`]) instead.
+    ///   one, on a gate's rejected Zero ([`MarginDiag::rejected_sign`])
+    ///   too, whichever arm its reader routed it on. A poisoned margin
+    ///   keeps the lever and takes the note its reading gives
+    ///   ([`unreadable_margin_note`]) instead.
     /// - The sign-certain arm names the lever alone at a build. Read
     ///   over stored geometry it ends as [`SizedDecision::stored`] says.
     /// - The import door ([`ReadAt::File`]) reads as at rest, except that
@@ -430,35 +432,32 @@ impl SizedDecision {
             ReadAt::Run(_) => None,
             ReadAt::File(file) => Some(file),
         };
-        match arm {
-            RefusedArm::Zero(_) if passes.passes_zero() => lever_recourse(lever, None),
-            RefusedArm::Zero(Classified { margin, band }) => {
-                let words = self.words(at_zero.map(|note| note.at(reading)), reading);
-                match file {
-                    None => margin.sized_recourse(band, words),
-                    Some(file) => margin.sized_recourse_in_file(band, words, file),
-                }
-            }
+        let at_zero = at_zero.map(|note| note.at(reading));
+        let (margin, band, otherwise) = match arm {
+            RefusedArm::Zero(_) if passes.passes_zero() => return lever_recourse(lever, None),
+            RefusedArm::Zero(Classified { margin, band }) => (margin, band, at_zero),
+            RefusedArm::Undecided(cause) => (
+                cause.margin,
+                cause.band,
+                at_zero.filter(|_| cause.margin.rejected_sign() == Some(Sign::Zero)),
+            ),
             // No single margin is carried, so none sizes a tolerance.
-            RefusedArm::Straddle => lever_recourse(lever, None),
-            RefusedArm::SignCertain(_) => match (reading, stored) {
-                (Reading::Build, _) | (Reading::AtRest, StoredDefinite::Lever) => {
-                    lever_recourse(lever, None)
-                }
-                (Reading::AtRest, StoredDefinite::Contradiction) => {
-                    KERNEL_OR_FILE_DEFECT_ENDING.to_owned()
-                }
-            },
-            RefusedArm::Undecided(cause) => match file {
-                None => cause
-                    .margin
-                    .sized_recourse(cause.band, self.words(None, reading)),
-                Some(file) => {
-                    cause
-                        .margin
-                        .sized_recourse_in_file(cause.band, self.words(None, reading), file)
-                }
-            },
+            RefusedArm::Straddle => return lever_recourse(lever, None),
+            RefusedArm::SignCertain(_) => {
+                return match (reading, stored) {
+                    (Reading::Build, _) | (Reading::AtRest, StoredDefinite::Lever) => {
+                        lever_recourse(lever, None)
+                    }
+                    (Reading::AtRest, StoredDefinite::Contradiction) => {
+                        KERNEL_OR_FILE_DEFECT_ENDING.to_owned()
+                    }
+                };
+            }
+        };
+        let words = self.words(otherwise, reading);
+        match file {
+            None => margin.sized_recourse(band, words),
+            Some(file) => margin.sized_recourse_in_file(band, words, file),
         }
     }
 
