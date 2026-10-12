@@ -214,19 +214,38 @@ fn the_general_and_fitted_doors_certify_alike() {
     );
 }
 
-/// The image of `carrier` over `[t0, t1]` a construction would state:
-/// the carrier's certified chart feet at 65 stations, interpolated at
-/// degree 5 on its own parameter.
+/// The quarter-cylinder wall's chart `u` at azimuth `theta`: its
+/// rational-quadratic arc's angle, inverted by bisection to roundoff.
+fn wall_u(theta: f64) -> f64 {
+    let w = core::f64::consts::FRAC_1_SQRT_2;
+    let angle = |u: f64| {
+        let (a, b, c) = ((1.0 - u) * (1.0 - u), 2.0 * u * (1.0 - u) * w, u * u);
+        (b + c).atan2(a + b)
+    };
+    let (mut lo, mut hi) = (0.0_f64, 1.0_f64);
+    for _ in 0..200 {
+        let mid = 0.5 * (lo + hi);
+        if angle(mid) < theta {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+    0.5 * (lo + hi)
+}
+
+/// The image of a carrier on the quarter-cylinder wall over `[t0, t1]`
+/// a construction would state: its exact chart feet at 257 stations
+/// (`u` from the azimuth, `v` the height), interpolated at degree 5 on
+/// its own parameter.
 fn stated_image(carrier: &Curve3<f64>, (t0, t1): (f64, f64)) -> Arc<NurbsCurve2<f64>> {
-    let wall = fixture::quarter_cylinder_wall();
-    let lane = FittedLane::<f64>::certified();
-    let n = 64;
+    let n = 256;
     let fracs: Vec<f64> = (0..=n).map(|i| f64::from(i) / f64::from(n)).collect();
     let feet: Vec<Point2<f64>> = fracs
         .iter()
         .map(|f| {
-            lane.chart_foot(carrier.eval(t0 + (t1 - t0) * f), &wall)
-                .expect("a foot")
+            let p = carrier.eval(t0 + (t1 - t0) * f);
+            Point2::new(wall_u(p.y.atan2(p.x)), p.z)
         })
         .collect();
     let fit = NurbsCurve2::<f64>::interpolate_with_params(&feet, 5, &fracs).expect("the fit");
