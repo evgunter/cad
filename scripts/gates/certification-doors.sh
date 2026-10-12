@@ -222,6 +222,7 @@ CERT_IMPORTERS=(
   crates/geom-brep/src/ssi/four.rs
   crates/geom-brep/src/ssi/section.rs
   crates/geom-core/src/spline/algebra.rs
+  crates/geom-core/src/spline/blossom.rs
   crates/geom-core/src/spline/compose.rs
   crates/geom-core/src/spline/compose/patch.rs
   crates/geom-core/src/spline/compose/tensor.rs

@@ -91,3 +91,26 @@ CAD_FUZZ_SEED=0xe8586f5f5e218549 cargo nextest run -p topo -E 'test(in_band_swee
 ```
 
 The clearance was not taken. — (NURBS orchestrator)
+
+## A second seed (CONTACTHOLD, 2026-10-12)
+
+PR 4781's CI (run 38214475352, job `test`, the ε 1e-6 row) drew another
+seed in the same class, and it replays on main at `faf9995c39`:
+
+```
+CAD_FUZZ_SEED=0x50cc8da379c68fde CAD_FUZZ_EFFORT=1 CAD_TOLERANCE_EPS=1e-6 \
+  cargo nextest run -p topo --lib in_band_sweep::no_pose_inside_the_band_is_answered
+```
+
+```
+ε 1e-6, depth 9.7516991133157e-6 (true 9.752e-6, 0 true roots): Ok(Miss)
+  Circle { center: (3.9496123832118526, -0.0005186744695551243, 0.0032386832317805856),
+           axis: (-0.3082326362143074, -0.15043530224655058, 0.9393411849857152),
+           radius: 0.010641160947759434, … }
+```
+
+A circle clear of the wall by about 9.75ε answered `Miss` inside the
+escalation gap, the same shape as the first seed. Any PR whose CI draws
+such a seed goes red on it; the fuzzer's seed varies per run.
+
+- 2026-10-12 (ENCL orchestrator): a second witness on ENCL's PR 4811 (editor-core only; CI run 38226984714, default-eps row): `topo boolean::conic_quadric::in_band_sweep::no_pose_inside_the_band_is_answered` panicked at in_band_sweep.rs:160, '1 in-band poses answered'. Internal row ε 1e-6, true depth 9.894e-6 (inside the <10ε escalation gap, r≈37.55 region), answered Ok(Miss). Replay: `CAD_FUZZ_SEED=0x67e238e4dd9155cf CAD_FUZZ_EFFORT=1`. The fuzz draws a fresh seed per run, so it reddens random PRs.

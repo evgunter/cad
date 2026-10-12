@@ -237,6 +237,7 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     "Implicated": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
     "JoinReading": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
     "OperandKeys": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
+    "Cell": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
     "Origin": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
     "Placed": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
     "RowCell": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),

@@ -429,7 +429,8 @@ fn a_path_escalating_by_a_corner_hands_the_winding_to_the_next() {
         let spec = edge_spec(&mut body, key, &closing);
         let cycle = body.loop_cycle(run.0).unwrap();
         let end = cycle.iter().position(|&he| he == run.1).unwrap();
-        let mut arcs = run_loop_arcs(&body, face, (&surface, &quadric), &cycle[..=end]).unwrap();
+        let mut arcs =
+            run_loop_arcs(&body, face, (&surface, &quadric), &cycle[..=end], band()).unwrap();
         arcs.push(LoopArc::of(&spec.carrier, (spec.param_start, spec.param_end)).unwrap());
         let q = spec.carrier.mid_point(spec.param_start, spec.param_end);
         let w = outer_references(&body, face, &[]).unwrap()[0];
@@ -503,7 +504,7 @@ fn a_path_escalating_by_a_corner_hands_re_homing_to_the_next() {
         let (run, closing) = run_from(&mut body, (face, key), island, 0);
         let (newf, remainder) = wall_off(&mut body, key, run, closing);
         let cycle = outer_cycle(&body, newf).unwrap().unwrap();
-        let arcs = run_loop_arcs(&body, newf, (&surface, &quadric), &cycle).unwrap();
+        let arcs = run_loop_arcs(&body, newf, (&surface, &quadric), &cycle, band()).unwrap();
         let skip: Vec<_> = cycle
             .iter()
             .map(|&he| body.get_half_edge(he).unwrap().edge)
@@ -579,7 +580,8 @@ fn the_arrival_arc_reads_its_second_meeting_with_the_closing_chord() {
         let quadric = Quadric::of(&surface).unwrap();
         let cycle = body.loop_cycle(run.0).unwrap();
         let end = cycle.iter().position(|&he| he == run.1).unwrap();
-        let mut arcs = run_loop_arcs(&body, face, (&surface, &quadric), &cycle[..=end]).unwrap();
+        let mut arcs =
+            run_loop_arcs(&body, face, (&surface, &quadric), &cycle[..=end], band()).unwrap();
         arcs.push(LoopArc::of(&spec.carrier, (spec.param_start, spec.param_end)).unwrap());
         let q = spec.carrier.mid_point(spec.param_start, spec.param_end);
         let w = outer_references(&body, face, &[]).unwrap()[0];
