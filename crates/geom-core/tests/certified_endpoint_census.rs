@@ -285,16 +285,20 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/patch_bound.rs",
-        3,
-        2,
+        9,
+        4,
         "two are in `rational_cells`, guarded by the `is_certified()` this counts: \
          the refined weight licence, which asks by name before reading `lo`, and the \
          cell's weight hull `w_cell.lo()`, read only after `w_cell` and both \
-         weight-partial hulls have asked. The remainder is `centre`, safe because a \
-         centre is a translation choice and no enclosure rests on it: it takes \
-         midpoints, contributes `0` for a non-finite one and answers `0` for a \
-         non-finite mean, so a refused input still yields a finite centre and the \
-         reach about it reports the trouble",
+         weight-partial hulls have asked. `QuotientForm::floor` asks the weight hull \
+         by name before reading its lower end, and `pair_norm_sup` refuses every term \
+         and offset by name before its flat test reads a `g`'s ends. The remainder: \
+         `centre`, safe because a centre is a translation choice and no enclosure \
+         rests on it (it takes midpoints, contributes `0` for a non-finite one and \
+         answers `0` for a non-finite mean, so a refused input still yields a finite \
+         centre and the reach about it reports the trouble); and `Centred::of` and \
+         `Centred::of_scalar`'s centres and radii (4), whose one caller, \
+         `pair_norm_sup`, refuses every term and offset by name before any is centred",
     ),
     ("crates/geom-brep/src/pcurve_cache.rs", 2, 2, ""),
     ("crates/geom-brep/src/pcurve_cache/projected.rs", 2, 2, ""),
@@ -343,15 +347,12 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/ssi/enclose.rs",
-        17,
-        15,
+        13,
+        13,
         "`Box3`'s disjointness, containment, centre, split, reach meet and intersection all refuse \
          by name, and \
-         so does the mignitude (`zero_free_lower_bound`, 4). `weight_floor` refuses the weight \
-         hull by name before reading its lower end, `s_offsets` asks it of each weight step it \
-         reads, and `transverse_readings` of the `φ` range whose ends it reads. The 2 that do \
-         not ask are `Centred::of`'s centre and radius, whose one caller, `pair_norm_sup`, \
-         refuses every term and offset by name before any is centred",
+         so does the mignitude (`zero_free_lower_bound`, 4), and `transverse_readings` asks it of \
+         the `φ` range whose ends it reads",
     ),
     ("crates/geom-brep/src/ssi/exhaust.rs", 1, 1, ""),
     (
