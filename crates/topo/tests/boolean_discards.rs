@@ -77,13 +77,7 @@ fn a_through_slot_records_the_strip_it_discards_between_two_kept_pieces() {
     let BooleanResult::Body(out) = subtract(&plate, &slot, tol).expect("the slot subtracts") else {
         panic!("a slotted plate is not empty");
     };
-    let rows: BTreeMap<FaceKey, FaceKey> = out.naming.face_fragments_a.iter().copied().collect();
-    let root = |mut f: FaceKey| {
-        while let Some(&p) = rows.get(&f).filter(|p| **p != f) {
-            f = p;
-        }
-        f
-    };
+    let root = |f: FaceKey| out.naming.face_fragments_a.root(f);
     // Operand face → the result faces descending from it (A keys are
     // the result's on this path).
     let mut pieces: BTreeMap<FaceKey, BTreeSet<FaceKey>> = BTreeMap::new();

@@ -2,10 +2,11 @@
 id: an-edge-or-face-record-follows-its-faces-key-through-a-division
 kind: issue
 title: An edge-face or face-face record follows its face's key through the section's division, not the piece the contact lies on
-status: open
+status: dispatched
 opened: 2026-10-11
 priority: P1
 cost: M
+branch: fuse/records-read-the-piece
 ---
 
 
