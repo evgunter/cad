@@ -269,7 +269,6 @@ stored kinds (plane, cylinder, line, circle, ellipse).
   band is cut off by the other band's support, the two regions overlap,
   and the bands meet along their intersection — a line for a chamfer, a
   planar ellipse for a fillet (two cylinders of one radius tangent to
-<<<<<<< HEAD
   the shared support, whose axes therefore meet). When the two bands'
   feet on the unrequested edge L coincide, the mitre runs from the
   trimlines' crossing on the shared face down to L, and L ends there.
@@ -290,33 +289,17 @@ stored kinds (plane, cylinder, line, circle, ellipse).
   chamfer: near a coincidence its chord is not proportional to the gap,
   their ratio moving with the corner and growing without bound as the
   turn flattens toward a T, and at a box corner the gap closes
-  quadratically in the skew while the chord closes linearly. Both Zero builds the mitre on L; both definite builds the
-  overrun on the side the sign picks; anything else escalates, with a
+  quadratically in the skew while the chord closes linearly. Both Zero
+  builds the mitre on L; both definite builds the overrun on the side the sign picks; anything else escalates, with a
   recourse that makes the feet meet (equal, or for a chamfer
   supplementary, face angles), moves them clearly apart (a larger
   setback, a more asymmetric corner), or requests L too for the patch.
   A Zero verdict is a coincidence decided from values, the two feet
   being one point, so the verdict records it
-  (`BatteryVerdict::coincidences`, D10). No ball rests at a turn, so the
-  mitre is G0 between the bands; it never competes with the patch,
+  (`BatteryVerdict::coincidences`, D10), and `Blended::coincidences`
+  carries the rows to the document's coincidence door. No ball rests
+  at a turn, so the mitre is G0 between the bands; it never competes with the patch,
   because the request count decides.
-=======
-  the shared support, whose axes therefore meet). When the trihedron is
-  isosceles about the unrequested edge L — equal dihedrals at the two
-  requested edges, the same fact as equal face angles at the vertex —
-  the mitre runs from the trimlines' crossing on the shared face down to
-  L, and L ends there. Otherwise the band that reaches further is cut off
-  past the mitre by the other band's far support, one more short curve
-  down to L. Which holds is a margined verdict (`fillet3_turn_isosceles`,
-  the two face angles at the vertex compared, and the two bands' feet on
-  L): Zero builds
-  the first, definite the second, the sliver band refuses. A Zero
-  verdict is a coincidence decided from values, so the verdict records
-  it (`BatteryVerdict::coincidences`, D10), and `Blended::coincidences`
-  carries the rows to the document's coincidence door. No ball rests at a turn,
-  so the mitre is G0 between the bands; it never competes with the
-  patch, because the request count decides.
->>>>>>> origin/main
 
 Chain G1 (predicate 4) is a classifier at a junction of two plane–plane
 links: Zero, one band through a joint; definite, two chain ends at a
