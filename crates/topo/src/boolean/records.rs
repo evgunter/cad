@@ -97,6 +97,40 @@ pub enum CarryRefusal {
     },
 }
 
+impl core::fmt::Display for CarryRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Unmapped { record, cell } => write!(
+                f,
+                "record {record}'s cell {cell:?} has no image the result holds, and the op \
+                 states no removal of it"
+            ),
+            Self::Pair { record, error } => write!(
+                f,
+                "every pair of record {record}'s images is structure, not a touch ({error:?})"
+            ),
+            Self::Parted { record } => write!(
+                f,
+                "the op parted record {record}'s two cells into different bodies"
+            ),
+            Self::Unread { record, cells } => write!(
+                f,
+                "whether record {record}'s touch is on {cells:?} could not be read"
+            ),
+            Self::Stale { record } => write!(
+                f,
+                "record {record} lands on no pair of its cells' images, and the op removed \
+                 neither cell"
+            ),
+            Self::MintedMeeting { record, cells } => write!(
+                f,
+                "two cells the op minted on record {record}'s cells meet at a point, \
+                 {cells:?}, and the op cannot back the meeting"
+            ),
+        }
+    }
+}
+
 /// **A record's kind, read from its cells' dimensions**: the six pairs
 /// a body's cells can make, each in canonical order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

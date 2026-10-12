@@ -3947,7 +3947,7 @@ impl core::fmt::Display for BooleanError {
             Self::CarryRefused { operand, refusal } => write!(
                 f,
                 "the Boolean could not carry a contact record of the {} operand onto its \
-                 result: {refusal:?}",
+                 result: {refusal}",
                 operand_word(*operand)
             ),
             Self::JoinDesync { what } => write!(
