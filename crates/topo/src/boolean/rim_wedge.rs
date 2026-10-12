@@ -16,7 +16,7 @@
 //!   cusp the normals alone cannot tell from the seam. The material
 //!   table answers [`RimRouting::Seam`] for it, since it reads only the
 //!   two sheets' normals and jets; [`departures`] is what tells the two
-//!   apart, and both callers ask it after the table.
+//!   apart, and the glue door (`route_rim`) asks it after the table.
 //! - **wedge 0 or 2π** — the normals oppose across the rim. A pair
 //!   reaching this routing has no tangent-locus arm for its two
 //!   surface kinds, which is what its refusal names.
@@ -242,7 +242,9 @@ pub(crate) enum Departure {
 /// `entity`'s convention), so at a locus point the direction a face
 /// leaves along is `n × t`, with `t` its boundary's direction there.
 /// For two faces whose outward normals are ALIGNED along the locus,
-/// which is what both callers have already verified, those departures
+/// which the caller has verified (the rim routing, [`super::route_rim`];
+/// a line is read only by the unit rows here, since a line tangency
+/// routes no junction), those departures
 /// are opposite exactly when the two boundaries run the locus in
 /// opposite directions: the sign of each riding half-edge's direction
 /// against the locus's own tangent (`axis × (p − centre)` on a rim,
@@ -1576,7 +1578,7 @@ mod arc_end_rows {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod boundary_midpoint_rows {
     use super::*;
-    use crate::test_support_fixtures::{CylFrame, Prism, arc_cap, cyl_wall_sheet, prism_z};
+    use crate::test_support_fixtures::{Prism, arc_cap, prism_z};
     use geom_core::{Tol, Vec3};
 
     /// A block in the plane `z = 0` (its top face there) over the polygon
@@ -1647,8 +1649,7 @@ mod boundary_midpoint_rows {
     ///   there, `s·δ/2` from the midpoint. Clear of the band the pair
     ///   meets only along the ride, on opposite banks: `Opposite`.
     ///
-    /// Neither is the face's interior: `NoEdge` there would be the
-    /// declaration door's decided `SeamFaceRunsOn`.
+    /// Neither is the face's interior, where the read is `NoEdge`.
     #[test]
     fn a_boundary_midpoint_on_a_line_is_not_placed() {
         let tol = Tol::witness();
@@ -1822,62 +1823,5 @@ mod boundary_midpoint_rows {
                 &format!("tangent circle, alpha {alpha}"),
             );
         }
-    }
-
-    /// **Through the declaration door**: a seam claim between the
-    /// shallow-cornered block's top and a cylinder wall tangent to its
-    /// plane along the ride's line, the wall's meridian running `δ` past
-    /// the corner. On the boundary the claim is refused as outside the
-    /// envelope, never contradicted; clear of the band the door verifies
-    /// the seam.
-    #[test]
-    fn the_seam_door_refuses_a_boundary_midpoint_typed() {
-        let tol = Tol::witness();
-        let band = Band::linear(tol).unwrap();
-        let zero = band.zero();
-        let s = 4.0 * tol.k() * zero;
-        let corner = prism_z::<f64>(
-            &[
-                (-1.0, 0.0),
-                (1.0, 0.0),
-                (1.0, 1.0 - s),
-                (0.0, 1.0),
-                (-1.0, 1.0),
-            ],
-            -1.0,
-            0.0,
-            tol,
-        );
-        let wall_frame = CylFrame {
-            origin: Point3::new(0.0, 1.0, -1.0),
-            axis: Vec3::unit_x(),
-            radius: 1.0,
-            u_ref: Vec3::unit_z(),
-        };
-        let claim = |gap: f64| {
-            let delta = 2.0 * gap * zero / s;
-            let mut body = Body::<f64>::new();
-            let wall = cyl_wall_sheet(&mut body, wall_frame, (0.0, 1.0), (-1.0, delta), tol);
-            crate::boolean::verify_tangency_declaration(
-                &corner.body,
-                corner.top_face,
-                &body,
-                wall,
-                crate::boolean::Tangency::Seam,
-                band,
-            )
-            .map(|_| ())
-        };
-        assert!(
-            matches!(
-                claim(0.5),
-                Err(crate::boolean::BooleanError::UnsupportedDeclarationClass {
-                    class: crate::contact::GlueClass::Seam
-                })
-            ),
-            "on the boundary: refused typed, got {:?}",
-            claim(0.5)
-        );
-        assert!(claim(20.0).is_ok(), "clear of the band: the seam verifies");
     }
 }

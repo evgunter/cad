@@ -92,13 +92,10 @@ pub enum Relation {
         /// reversing it.
         aligned: bool,
     },
-    /// Two surfaces touch tangentially along a locus: their outward
-    /// sides opposed (a tangent contact) or, `seam`, one surface carried
-    /// on into the other.
-    TangentContact {
-        /// The outward sides agree: a seam.
-        seam: bool,
-    },
+    /// Two surfaces on distinct carriers tangent along a locus. It says
+    /// nothing of the materials: whether the outward sides agree is a
+    /// fact of the two faces' senses, read off them where it matters.
+    SurfaceTangent,
     /// The two cells' carriers' axes of revolution are one line.
     Coaxial,
     /// The two cells' carriers are ruled along one direction, so one
@@ -110,16 +107,15 @@ pub enum Relation {
 impl Relation {
     /// The class a face pair glued under this relation glues as: one
     /// carrier opposed a `Rest` contact, aligned a continuation, a
-    /// tangency a `Tangent` contact or a seam. `None` for a relation
-    /// that glues no face pair.
+    /// tangency `Tangent`. `None` for a relation that glues no face
+    /// pair.
     #[must_use]
     pub const fn glued_class(self) -> Option<crate::contact::GlueClass> {
         use crate::contact::GlueClass as C;
         match self {
-            Self::SameOpposite => Some(C::REST),
+            Self::SameOpposite => Some(C::Rest),
             Self::SameOriented => Some(C::Continuation),
-            Self::TangentContact { seam: false } => Some(C::TANGENT),
-            Self::TangentContact { seam: true } => Some(C::Seam),
+            Self::SurfaceTangent => Some(C::Tangent),
             Self::Tangent { .. }
             | Self::OnCarrier
             | Self::CommonFoot

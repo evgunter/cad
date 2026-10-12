@@ -364,8 +364,7 @@ pub(crate) const fn relation_words(relation: topo::Relation) -> &'static str {
         topo::Relation::CommonFoot => "ends on its turn's third edge at one point with",
         topo::Relation::Tangent { aligned: true } => "continues tangent into",
         topo::Relation::Tangent { aligned: false } => "turns back tangent into",
-        topo::Relation::TangentContact { seam: false } => "touches tangentially against",
-        topo::Relation::TangentContact { seam: true } => "continues tangentially into",
+        topo::Relation::SurfaceTangent => "is tangent along a locus to",
         topo::Relation::Coaxial => "shares an axis with",
         topo::Relation::CoRuled => "is ruled along one direction with",
     }

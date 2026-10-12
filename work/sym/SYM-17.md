@@ -5,7 +5,7 @@ title: "a widened rotation angle refuses on the plain interval lane: read the co
 status: dispatched
 opened: 2026-10-06
 priority: P1
-cost: M
+cost: H
 branch: sym/17-rotation-readout
 refs: [a-widened-rotation-angle-refuses-on-the-plain-interval-lane, SYM-14]
 ---
@@ -25,5 +25,12 @@ rotation angle is a symbolic-tier construction. Stop rules send a
 change to another program's checks, or a scope statement for the plain
 lane, to the owner or Ev.
 
-Spec: `docs/SYM-17-SPEC.md`. Opus implementer. Review tier: single FULL
-review (`work/sym/log.md`, 2026-10-06).
+Phase 1 stopped on both stop rules. Ev answered the `[ev]` question
+on 2026-10-12, so Phase 2 builds the rigid-motion witness:
+`RigidMotion<T>`, merged with `OrthoFrame` and closed under the rigid
+group's action (the item's "Question, and Ev's answer").
+
+Spec: `docs/SYM-17-SPEC.md`. Opus implementer.
+- **Phase 1:** single FULL review (`work/sym/log.md`, 2026-10-06).
+- **Phase 2:** dual review, concurrent arm, difficulty H
+  (`work/sym/log.md`, 2026-10-12).
