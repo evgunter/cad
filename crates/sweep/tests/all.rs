@@ -637,6 +637,8 @@ mod split_along_a_face_plane;
 mod split_cylindrical_feature_box;
 #[path = "split_edge_loft_charts.rs"]
 mod split_edge_loft_charts;
+#[path = "split_edge_on_faces_poses.rs"]
+mod split_edge_on_faces_poses;
 #[path = "split_section_rings.rs"]
 mod split_section_rings;
 #[path = "split_tangent_edge_curved.rs"]
@@ -1080,9 +1082,14 @@ mod rest_nested_strut;
 #[path = "rest_zip_admission.rs"]
 mod rest_zip_admission;
 
+#[path = "a_grazed_rim_never_pinches.rs"]
+mod a_grazed_rim_never_pinches;
 #[path = "letterform_intersects_in_every_order.rs"]
 mod letterform_intersects_in_every_order;
 #[path = "pole_ball_shells.rs"]
 mod pole_ball_shells;
 #[path = "shell_curved_mouth.rs"]
 mod shell_curved_mouth;
+
+#[path = "review_4737_span_probes.rs"]
+mod review_4737_span_probes;
