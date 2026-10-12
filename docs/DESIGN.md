@@ -373,14 +373,13 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      its remainder removed; or removed. One carry, for the boolean and
      every surgery verb alike, puts each pair drawn from a record's two
      cells' images to the census's record confirm, and the record lands
-     on every pair whose interiors meet, each landing citing it. The
-     lineage names the cutter that minted each cell (a tool face, the
-     split's plane, a requested edge). Two cells one cutter minted on a
-     record's two cells meet where the record puts them, and the
-     landing cites the record alone; two cells minted by different
-     cutters that meet at a point meet by value, a coincidence of its
-     own, which the op decides at its door (D10) and the landing cites
-     beside the record, and an op that keeps no decisions refuses it. A record
+     on every pair whose interiors meet, each landing citing it. Two
+     cells an op minted on a record's two cells and that meet at a point
+     meet where the record puts them when one cut made both, as the
+     split's one plane does, and the landing cites the record alone; an
+     op that cuts with many surfaces (the boolean's tool) decides every
+     such meeting at its door (D10), and the landing cites the decision
+     beside the record; any other op refuses one. A record
      that lands on no pair, every pair read definitely, is consumed
      where one of its cells was removed or divided with its remainder
      removed, and is stale otherwise; a cell the lineage does not cover
@@ -399,7 +398,7 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    and a sliver-band one is an escalated typed error, never contact;
    (ii) result-side touching arises only from those coincidences
    propagated through the op's lineage, from the op's own decision
-   where two cells it minted by different cutters meet at a point, or from an op's
+   where two cells it minted on one meet at a point, or from an op's
    copies of one vertex at such a coincidence, which share its point; the result carries
    machine-checkable contact records (the ON-set survivors, carried
    across seam-zip/merge mints by a descendant map, never re-derived),
