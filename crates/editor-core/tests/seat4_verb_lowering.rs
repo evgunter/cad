@@ -392,11 +392,18 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// value's `Debug`, and the records' `Debug` shape moved from seven
 /// per-kind lists to one list of canonical pairs. No outcome, count or
 /// point moved: every other row of these suites held.
+///
+/// RE-BLESSED, `crossing_slots` only, for the killed-lineage chase
+/// (`emit_topo`'s `KilledSplits`): its second slot's bottom-rim pieces,
+/// split off around stretches the subtract killed, are named as pieces
+/// of that rim rather than as chords, and two floor corners' vertex
+/// names moved with them. The digest feeds the name table. No body
+/// moved.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0x2454_2319_8a2e_6027u64),
+        ("crossing_slots", 0x1483_76a9_0dca_25c1u64),
         ("heat_sink", 0x077d_7601_580e_739f),
         ("kiss_carry", 0xb6cf_9a24_aba9_b50b),
     ] {
