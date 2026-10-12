@@ -217,26 +217,28 @@ fn a_granted_crossing_union_with_a_torus_band_completes_in_containment() {
 /// ≈ [0.97, 1.53]). The torus is on the union's KIND roster, so the
 /// gate admits the pair; the crossing layer records the brick's plane
 /// against the torus band, and the union passes the JOIN's germ frame
-/// and stops at its germ-pair dispatch, which has no torus arm. That is the join-side door the torus gate admission was
-/// told to expect, measured.
+/// and its germ-pair dispatch and stops at the torus side's section,
+/// which has no plane × torus arm.
 #[test]
-fn the_same_union_posed_into_the_torus_band_stops_at_the_germ_dispatch() {
+fn the_same_union_posed_into_the_torus_band_stops_at_the_chord() {
     let a = finished("the vase", vase(), Tol::witness());
     let b = finished(
         "the brick",
         brick((-1.0, 1.0), (1.05, 1.45), (-1.0, 1.0), Tol::witness()),
         Tol::witness(),
     );
-    let err =
-        topo::union(&a, &b, Tol::witness()).expect_err("a torus × plane germ has no join arm");
-    let BooleanError::CurvedBooleanUnsupported {
-        operand: topo::Operand::A,
-        kind: geom::SurfaceKind::Torus,
-        ..
-    } = err
-    else {
-        panic!("expected the germ-pair dispatch's torus refusal, got {err:?}");
-    };
+    let err = topo::union(&a, &b, Tol::witness()).expect_err("a torus × plane germ has no chord");
+    assert!(
+        matches!(
+            &err,
+            BooleanError::Join(topo::SplitJoinError::SectionUnarmed {
+                divided: geom::SurfaceKind::Torus,
+                wall: geom::SurfaceKind::Torus,
+                ..
+            })
+        ),
+        "expected the torus side's section refusal, got {err:?}"
+    );
 }
 
 /// **Row 3 — what the ruling's own blind spot answered, and what it
