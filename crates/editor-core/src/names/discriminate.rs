@@ -75,6 +75,10 @@ pub(crate) const DECISION_WORDS: &[(&str, &str)] = &[
     (ON_MEMBER_EDGE, "a point's place along an edge"),
     (ON_SEAM_LINE, "whether a point lies on a seam's line"),
     (CHORD_ON_RIM, "whether a chord lies on its rim"),
+    (
+        crate::pose::SEL_DATUM_DISTANCE,
+        "which side of a selection's stated distance from a datum a point lies on",
+    ),
 ];
 
 /// One candidate's extent along an oriented carrier: the certified

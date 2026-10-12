@@ -514,8 +514,8 @@ fn select_refusal_display_names_its_content_not_its_struct() {
             vec![
                 "the end cap",
                 "node 000000000007",
-                "select: whether the face (",
-                "is in or out is undecided",
+                "whether the face (",
+                "is in or out of the selection is undecided",
                 "ambiguity band",
             ],
         ),

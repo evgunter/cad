@@ -93,19 +93,28 @@ caller's, per `Reading`. Three render the whole escalation
   `SectorReading`'s arms are decided disagreements carrying margins.
 
 **Done: the editor-core slice, in PR 4811.** `NodeErrorKind::Escalated`,
-`NamingError::Escalated` and `SelectRefusal::InBand` (whose "the query
-cannot decide whether …" went through `under`) render through
-`Indeterminate::undecided`. The two `Escalated` doors take their ending
-from `decision::ENDINGS`, one table with a kind column whose census holds
-it equal to the decisions those doors are fed: angles, the direction's
-gauge and the measure door's two parallelism sines end in the lever
-alone, the pattern spacing and naming's four distances sized.
+`NamingError::Escalated` and `SelectRefusal::InBand` render through
+`Indeterminate::undecided`. Their ending comes from `decision::Decision`,
+a closed enum declared from one table of name and kind. The evaluation's
+escalations are built from a `Decision`, and a name with no row ends
+sized plus `geom_core::MissingRecourse`. Lever: the direction gauges
+(`eval_direction_norm`, `datum_unit_norm`), the angles, and
+`name_frag_order_along` (a curve parameter). Sized: the pattern spacing,
+naming's three distances and `sel_datum_distance`. The lever ending is
+composed through `geom_brep::recourse::LeverOnly`; it moves to
+`Indeterminate::lever_ending` once PR 4766 lands.
 
-- Skipped, held under D10: `mate.rs` (`MateError::Indeterminate`, and
-  `MateCheck`'s "the check could not be decided — {payload}"), and
-  `measure.rs`'s assertion verdict ("not separated at this tolerance").
+- Skipped, held under D10. Each keeps its old sentence through its own
+  arm:
+  - measure: `NodeErrorKind::MeasureEscalated`, for distance and gap on
+    `bool_plane_parallel` and `carrier_cyl_axis_parallel`; also
+    `measure.rs`'s assertion verdict;
+  - placement: `NodeErrorKind::PlacementAxisEscalated`, which
+    `EditError::PlacementAxis` carries;
+  - `mate.rs`: `MateError::Indeterminate`, and `MateCheck`'s "could not
+    be decided".
 - Left: `checks.rs` `CheckEvidence::Escalated` ("the component count is
-  unknowable: {shell payload}"), a consequence ahead of the question;
+  unknowable: {shell payload}"), a consequence ahead of the question.
   `DECISION_PHRASES` keeps "too close to call" for the held sites.
 
 ## Repair shape

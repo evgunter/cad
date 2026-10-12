@@ -1713,6 +1713,25 @@ pub enum NodeErrorKind {
         /// The escalation, unaltered.
         source: Indeterminate,
     },
+    /// **A measurement's parallelism read escalated** (D10's Measure
+    /// ground): the measure door's own sentence, which [`Self::Escalated`]'s
+    /// does not speak for. Its class is [`NodeErrorClass::Escalated`].
+    MeasureEscalated {
+        /// The named predicate.
+        predicate: &'static str,
+        /// The escalation, unaltered.
+        source: Indeterminate,
+    },
+    /// **A placement frame's rotation axis escalated** (D10's placement
+    /// ground): the sentence `EditError::PlacementAxis` carries, which
+    /// [`Self::Escalated`]'s does not speak for. Its class is
+    /// [`NodeErrorClass::Escalated`].
+    PlacementAxisEscalated {
+        /// The named predicate.
+        predicate: &'static str,
+        /// The escalation, unaltered.
+        source: Indeterminate,
+    },
     /// **A pose read off geometry found none of its kind** (D10): a
     /// face read as a plane on a curved carrier (DM1b), an axis read
     /// off a carrier that has no axis (a plane, a sphere), a point read
@@ -2326,6 +2345,11 @@ impl crate::spoken::Say for NodeErrorKind {
                     source.undecided(what, crate::decision::ending(predicate, source))
                 )
             }
+            Self::MeasureEscalated { predicate, source }
+            | Self::PlacementAxisEscalated { predicate, source } => {
+                let what = crate::decision::words(predicate).unwrap_or(geom_core::UNNAMED_DECISION);
+                write!(f, "{what} is too close to call: {source}")
+            }
             Self::PoseRead { pose, fault } => write!(
                 f,
                 "{} {pose} read off geometry found none: {fault}. Recourse: read it off \
@@ -2476,8 +2500,7 @@ impl crate::spoken::Say for NodeErrorKind {
                 refusal,
             } => write!(
                 f,
-                "{} is drawn on {}, and the frame refused \
-                 its own direction: {}",
+                "{} is drawn on {}: {}",
                 by.node_as(*profile, "profile node"),
                 by.node_as(*frame, "datum frame node"),
                 refusal.node_error()

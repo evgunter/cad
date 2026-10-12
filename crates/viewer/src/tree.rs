@@ -1253,6 +1253,8 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::MissingSlot { .. }
         | NodeErrorKind::VerbArity { .. }
         | NodeErrorKind::Escalated { .. }
+        | NodeErrorKind::MeasureEscalated { .. }
+        | NodeErrorKind::PlacementAxisEscalated { .. }
         | NodeErrorKind::NonPositiveCount { .. }
         | NodeErrorKind::NegativeSpacing { .. }
         | NodeErrorKind::DegenerateSpacing

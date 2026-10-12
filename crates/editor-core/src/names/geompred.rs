@@ -293,16 +293,20 @@ impl crate::spoken::Say for SelectRefusal {
             // The name rides in its bracket, so a name whose words run on
             // (a join, a qualifier's list) never reads as more of the
             // question.
-            Self::InBand { name, source, .. } => write!(
+            Self::InBand {
+                name,
+                predicate,
+                source,
+            } => write!(
                 f,
                 "{}",
                 source.undecided(
                     format_args!(
-                        "select: whether the {} ({}) is in or out",
+                        "whether the {} ({}) is in or out of the selection",
                         name.kind.noun(),
                         by.name(name)
                     ),
-                    source.ending(geom_core::COINCIDENCE_RECOURSE)
+                    crate::decision::ending(predicate, source)
                 )
             ),
             Self::TiedDisagrees {

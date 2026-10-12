@@ -1801,7 +1801,9 @@ fn classify_replay<T: geom_core::Decide>(
             continue;
         };
         match &err.kind {
-            NodeErrorKind::Escalated { source, .. } => return indeterminate(source),
+            NodeErrorKind::Escalated { source, .. }
+            | NodeErrorKind::MeasureEscalated { source, .. }
+            | NodeErrorKind::PlacementAxisEscalated { source, .. } => return indeterminate(source),
             NodeErrorKind::ProfileLaneReplay {
                 structure: Some(refusal),
                 ..

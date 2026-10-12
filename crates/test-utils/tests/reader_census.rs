@@ -119,10 +119,6 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // mount guard, literal view
     },
     Entry {
-        path: "crates/editor-core/src/decision.rs",
-        disposition: Shared, // the ending table's measure-door names, code + literal views
-    },
-    Entry {
         path: "crates/editor-core/src/eval/mod.rs",
         disposition: Shared, // node-kind vocabulary census, code view
     },

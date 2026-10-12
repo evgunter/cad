@@ -317,7 +317,9 @@ impl NodeErrorKind {
             Self::Band(_) => C::Band,
             Self::MissingSlot { .. } => C::MissingSlot,
             Self::VerbArity { .. } => C::VerbArity,
-            Self::Escalated { .. } => C::Escalated,
+            Self::Escalated { .. }
+            | Self::MeasureEscalated { .. }
+            | Self::PlacementAxisEscalated { .. } => C::Escalated,
             Self::PoseRead { .. } => C::PoseRead,
             Self::PoseDegenerate { .. } => C::PoseDegenerate,
             Self::PoseScalar { .. } => C::PoseScalar,

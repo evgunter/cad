@@ -23,6 +23,7 @@ use super::{
     DATUM_AXIS_ROLE, DirectionRefusal, PLANE_NORMAL_ROLE, Results, band, datum_unit, frame_axes,
     read_body, refusal, select, slots, value_of,
 };
+use crate::decision::Decision;
 use crate::eval::{NodeErrorKind, ValuePayload};
 use crate::expr::{VarEnv, eval_var};
 use crate::mate::PoseSymmetry;
@@ -275,7 +276,7 @@ fn degenerate(error: UnitVec3Error, construction: PoseConstruction) -> NodeError
         UnitVec3Error::Degenerate | UnitVec3Error::UnderflowedLength => {
             NodeErrorKind::PoseDegenerate { construction }
         }
-        other => refusal(other, POSE_DIRECTION_ROLE, DATUM_UNIT_NORM),
+        other => refusal(other, POSE_DIRECTION_ROLE, Decision::DatumUnitNorm),
     }
 }
 

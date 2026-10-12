@@ -48,6 +48,7 @@ use topo::{Body, BooleanInputs, DATUM_UNIT_NORM};
 use super::anchor::{self, ProfilePre, ProfileValue};
 use super::slots::{self, SlotValues};
 use super::{BooleanValue, NodeErrorKind, NodeResult, PoseValue, SplitSide, ValuePayload};
+use crate::decision::Decision;
 use crate::names::{self, NameTable, SplitHalf};
 use crate::node::{Axis3, Datum, Node, PatternKind, RecipeNodeId, SlotId};
 use crate::program::ProfileProgram;
@@ -909,21 +910,33 @@ pub(crate) fn unit<T: Decide>(
     role: &'static str,
     band: Band,
 ) -> Result<UnitVec3<T>, NodeErrorKind> {
-    UnitVec3::new(v, EVAL_DIRECTION_NORM, band).map_err(|e| refusal(e, role, EVAL_DIRECTION_NORM))
+    let decision = Decision::DirectionNorm;
+    UnitVec3::new(v, decision.name(), band).map_err(|e| refusal(e, role, decision))
 }
 
 /// **The kernel refusal in this layer's vocabulary** — the ONE map for
 /// both funnel names, which is its parameter.
 ///
 /// `role` names the vector the CALLER passed, which is what a user
-/// reads; `predicate` names the funnel site the length was decided
-/// under, which is what an escalation is comparable by.
-fn refusal(e: UnitVec3Error, role: &'static str, predicate: &'static str) -> NodeErrorKind {
+/// reads; `decision` names the funnel site the length was decided
+/// under, which is what an escalation is comparable by. A placement
+/// frame's rotation axis escalates into its own arm,
+/// [`NodeErrorKind::PlacementAxisEscalated`].
+fn refusal(e: UnitVec3Error, role: &'static str, decision: Decision) -> NodeErrorKind {
     match e {
         UnitVec3Error::NonFiniteLength => NodeErrorKind::NonFiniteDirection { role },
         UnitVec3Error::UnderflowedLength => NodeErrorKind::UnderflowedDirection { role },
         UnitVec3Error::Degenerate => NodeErrorKind::DegenerateDirection { role },
-        UnitVec3Error::Escalated(source) => NodeErrorKind::Escalated { predicate, source },
+        UnitVec3Error::Escalated(source) if role == crate::placement::PLACEMENT_AXIS_ROLE => {
+            NodeErrorKind::PlacementAxisEscalated {
+                predicate: decision.name(),
+                source,
+            }
+        }
+        UnitVec3Error::Escalated(source) => NodeErrorKind::Escalated {
+            predicate: decision.name(),
+            source,
+        },
     }
 }
 
@@ -1002,7 +1015,7 @@ impl DirectionRefusal {
     /// is. `pub` because the carried refusal is: a consumer holding one
     /// asks for the raise here rather than re-spelling it.
     pub fn node_error(self) -> NodeErrorKind {
-        refusal(self.error, self.role, DATUM_UNIT_NORM)
+        refusal(self.error, self.role, Decision::DatumUnitNorm)
     }
 }
 
@@ -1655,7 +1668,7 @@ fn wire_revolve<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // Kernel contract: exactly-full must SAY Full. Anything else wires
     // Partial and the kernel's own classification rules on it.
     let angle = need_scalar(vals, SlotId::RevolveAngle)?;
-    let revolution = match turns_off("revolve_full_vs_partial", angle, T::tau(), b)? {
+    let revolution = match turns_off(Decision::RevolveFullTurn, angle, T::tau(), b)? {
         Sign::Zero => Revolution::Full,
         _ => Revolution::Partial(angle),
     };
@@ -2253,7 +2266,7 @@ fn wire_measure<'r, T: Decide + crate::measure::MinClearanceLane>(
     let value = measured.map_err(|refusal| match refusal {
         super::measure::PrimitiveRefusal::Unsupported(u) => NodeErrorKind::MeasureUnsupported(u),
         super::measure::PrimitiveRefusal::Escalated { predicate, source } => {
-            NodeErrorKind::Escalated { predicate, source }
+            NodeErrorKind::MeasureEscalated { predicate, source }
         }
         super::measure::PrimitiveRefusal::NonFinite(source) => {
             NodeErrorKind::MeasureNonFinite { source }
@@ -3603,19 +3616,21 @@ pub(crate) use stepped::{
 /// radial extent the angle sweeps at, is the kernel's for the revolve
 /// and not in hand for the pattern's derived offset.
 fn turns_off<T: Decide>(
-    predicate: &'static str,
+    decision: Decision,
     angle: T,
     whole: T,
     band: Band,
 ) -> Result<Sign, NodeErrorKind> {
-    geom_core::k_stats::decide_flagged(predicate, angle.max(-angle) - whole, band, "F14")
-        .map_err(escalated(predicate))
+    geom_core::k_stats::decide_flagged(decision.name(), angle.max(-angle) - whole, band, "F14")
+        .map_err(escalated(decision))
 }
 
-/// A decision under `predicate` that could not be called, as the
-/// node's refusal.
-fn escalated(predicate: &'static str) -> impl FnOnce(geom_core::Indeterminate) -> NodeErrorKind {
-    move |source| NodeErrorKind::Escalated { predicate, source }
+/// `decision`, which could not be called, as the node's refusal.
+fn escalated(decision: Decision) -> impl FnOnce(geom_core::Indeterminate) -> NodeErrorKind {
+    move |source| NodeErrorKind::Escalated {
+        predicate: decision.name(),
+        source,
+    }
 }
 
 /// [`stepped_rule_map`] behind the evaluation's slot reads, which stay

@@ -27,7 +27,7 @@ pub(crate) fn words(predicate: &str) -> Option<&'static str> {
 }
 
 /// The second column of `table`'s row for `predicate`.
-pub(crate) fn lookup<V: Copy>(table: &[(&str, V)], predicate: &str) -> Option<V> {
+fn lookup<V: Copy>(table: &[(&str, V)], predicate: &str) -> Option<V> {
     table
         .iter()
         .find(|(name, _)| *name == predicate)
@@ -41,101 +41,120 @@ pub(crate) enum Ending {
     /// A size the user may have chosen: the levers, with the tolerance
     /// arm a value gives ([`Indeterminate::ending`]).
     Sized,
-    /// No size the user chose — an angle, a sine, a direction's gauge:
-    /// the lever alone, noted where the margin could not be read
-    /// ([`LeverOnly`]).
+    /// No size the user chose — an angle, a direction's gauge, a curve
+    /// parameter: the lever alone, noted where the margin could not be
+    /// read ([`LeverOnly`]).
     Lever,
 }
 
-/// **Every decision whose escalation this crate renders whole**
-/// (`NodeErrorKind::Escalated`, `NamingError::Escalated`), with how it
-/// ends. The census below holds it equal to the decisions those doors
-/// are fed.
-pub(crate) const ENDINGS: &[(&str, Ending)] = &[
-    (crate::eval::EVAL_DIRECTION_NORM, Ending::Lever),
-    ("revolve_full_vs_partial", Ending::Lever),
-    (crate::eval::PATTERN_SPACING, Ending::Sized),
-    (crate::eval::PATTERN_STEP, Ending::Lever),
-    (crate::eval::PATTERN_STEP_TURN, Ending::Lever),
-    ("bool_plane_parallel", Ending::Lever),
-    ("carrier_cyl_axis_parallel", Ending::Lever),
-    (crate::names::ORDER_ALONG, Ending::Sized),
-    (crate::names::ON_MEMBER_EDGE, Ending::Sized),
-    (crate::names::ON_SEAM_LINE, Ending::Sized),
-    (crate::names::CHORD_ON_RIM, Ending::Sized),
-];
+/// Declares [`Decision`] from one table, so each decision's name and
+/// kind are written once, side by side, and [`Decision::ALL`] holds
+/// every variant by construction.
+macro_rules! decisions {
+    ($($(#[$doc:meta])* $variant:ident => $name:expr, $ending:ident;)*) => {
+        /// **Every decision whose escalation this crate renders whole**
+        /// (`NodeErrorKind::Escalated`, `NamingError::Escalated`,
+        /// `SelectRefusal::InBand`), with its funnel name and how its
+        /// refusal ends. The evaluation's escalations are built from a
+        /// `Decision`, so a decision fed to that door has a row.
+        #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+        pub(crate) enum Decision {
+            $($(#[$doc])* $variant,)*
+        }
+
+        impl Decision {
+            /// Every decision, once.
+            pub(crate) const ALL: &[Self] = &[$(Self::$variant),*];
+
+            /// The funnel name the decision is made under.
+            pub(crate) const fn name(self) -> &'static str {
+                match self {
+                    $(Self::$variant => $name,)*
+                }
+            }
+
+            /// How its undecided refusal ends.
+            pub(crate) const fn ending(self) -> Ending {
+                match self {
+                    $(Self::$variant => Ending::$ending,)*
+                }
+            }
+        }
+    };
+}
+
+decisions! {
+    /// A direction vector's length, decided at the evaluation's door: a gauge.
+    DirectionNorm => crate::eval::EVAL_DIRECTION_NORM, Lever;
+    /// A datum direction's length, decided inside its kernel type: a gauge.
+    DatumUnitNorm => topo::DATUM_UNIT_NORM, Lever;
+    /// Whether a revolve makes a full turn: an angle.
+    RevolveFullTurn => "revolve_full_vs_partial", Lever;
+    /// Whether a linear pattern's spacing is positive: a length the user wrote.
+    PatternSpacing => crate::eval::PATTERN_SPACING, Sized;
+    /// Whether a circular pattern's step is zero: an angle.
+    PatternStep => crate::eval::PATTERN_STEP, Lever;
+    /// How many whole turns a circular pattern's step holds: an angle.
+    PatternStepTurn => crate::eval::PATTERN_STEP_TURN, Lever;
+    /// The order of two crossings along an edge: a curve parameter.
+    OrderAlong => crate::names::ORDER_ALONG, Lever;
+    /// A point's place along a member edge: a distance in the result.
+    OnMemberEdge => crate::names::ON_MEMBER_EDGE, Sized;
+    /// Whether a point lies on a seam's line: a distance in the result.
+    OnSeamLine => crate::names::ON_SEAM_LINE, Sized;
+    /// Whether a chord lies on its rim: a distance in the result.
+    ChordOnRim => crate::names::CHORD_ON_RIM, Sized;
+    /// A datum distance against a stated value: a length the user wrote.
+    SelDatumDistance => crate::pose::SEL_DATUM_DISTANCE, Sized;
+}
+
+impl Decision {
+    /// The decision made under `predicate`, if this crate renders it.
+    pub(crate) fn named(predicate: &str) -> Option<Self> {
+        Self::ALL.iter().copied().find(|d| d.name() == predicate)
+    }
+}
 
 /// The one ending of an escalation under `predicate`, read at the build
-/// its door reports: [`ENDINGS`]' kind, and the bare escalation's sized
-/// ending for a name this crate does not decide.
+/// its door reports: its [`Decision`]'s kind. A name with no row ends as
+/// a sized one and says no recourse is recorded for it
+/// ([`geom_core::MissingRecourse`]).
 pub(crate) fn ending(predicate: &str, source: &Indeterminate) -> String {
-    match lookup(ENDINGS, predicate) {
+    match Decision::named(predicate).map(Decision::ending) {
         Some(Ending::Lever) => LeverOnly {
             lever: COINCIDENCE_RECOURSE,
         }
         .recourse(RefusedArm::Undecided(source), Reading::Build),
-        Some(Ending::Sized) | None => source.ending(COINCIDENCE_RECOURSE),
+        Some(Ending::Sized) => source.ending(COINCIDENCE_RECOURSE),
+        None => format!(
+            "{} — {}",
+            source.ending(COINCIDENCE_RECOURSE),
+            geom_core::MissingRecourse(Some(predicate))
+        ),
     }
 }
 
 #[cfg(test)]
-#[allow(clippy::expect_used, clippy::panic)]
 mod census {
     use std::collections::BTreeSet;
 
-    use test_utils::source;
+    use super::{Decision, words};
 
-    use super::{ENDINGS, words};
-
-    /// The names `eval/measure.rs` hands its `parallel` trilean, read
-    /// off its source: the measure door's escalations reach
-    /// `NodeErrorKind::Escalated` under them, worded by `topo`. Every
-    /// call names its decision by a plain literal.
-    fn measure_names() -> BTreeSet<String> {
-        const WHAT: &str = "eval/measure.rs";
-        let text = include_str!("eval/measure.rs");
-        let (code, literals) = (source::code_only(text), source::code_and_literals(text));
-        let mut names = BTreeSet::new();
-        for at in source::required_matches(&code, WHAT, "parallel(") {
-            if !source::boundary_before(&code, at) {
-                continue;
-            }
-            let open = at + "parallel".len();
-            let close = source::balanced_end(&code, open).expect("a call closes");
-            let first = source::top_level_split(&code[open + 1..close], ',')[0].clone();
-            let arg = &literals[open + 1 + first.start..open + 1 + first.end];
-            let name = source::plain_string_literal(arg)
-                .unwrap_or_else(|| panic!("{WHAT}: `parallel({arg}` names no plain literal"));
-            names.insert(name.to_owned());
-        }
-        names
-    }
-
-    /// **The ending table is exactly the decisions this crate's whole
-    /// renders are fed**: the naming layer's and the evaluation's own
-    /// worded decisions, and the measure door's parallelism names. A
-    /// worded decision added without a kind, or a row left behind by a
-    /// renamed one, is red here; each row has words to state.
+    /// **Every decision has one row and words to state**, and every
+    /// decision the naming layer and the evaluation give words to has a
+    /// row: the naming door is fed by name, so a worded naming decision
+    /// with no row would end in the missing-recourse note.
     #[test]
-    fn the_ending_table_is_the_decisions_the_doors_render() {
-        let listed: BTreeSet<&str> = ENDINGS.iter().map(|(n, _)| *n).collect();
-        assert_eq!(listed.len(), ENDINGS.len(), "a name is listed twice");
-        let measured = measure_names();
-        assert!(
-            measured.len() >= 2,
-            "the measure scan found {measured:?}: its pattern no longer matches"
-        );
-        let fed: BTreeSet<&str> = crate::names::DECISION_WORDS
+    fn every_rendered_decision_has_a_row_and_words() {
+        let rows: BTreeSet<&str> = Decision::ALL.iter().map(|d| d.name()).collect();
+        assert_eq!(rows.len(), Decision::ALL.len(), "a name has two rows");
+        for (name, _) in crate::names::DECISION_WORDS
             .iter()
             .chain(crate::eval::DECISION_WORDS)
-            .map(|(n, _)| *n)
-            .chain(measured.iter().map(String::as_str))
-            .collect();
-        assert_eq!(
-            listed, fed,
-            "ENDINGS against the decisions the doors are fed"
-        );
-        for name in listed {
+        {
+            assert!(rows.contains(name), "`{name}` is worded and has no row");
+        }
+        for name in rows {
             assert!(words(name).is_some(), "`{name}` has no words to state");
         }
     }
@@ -232,13 +251,100 @@ mod undecided_text {
             node("roster_unknown_probe", MarginDiag::value(5e-9)),
             "an unnamed decision is undecided: margin 5e-9 lies inside the ambiguity band \
              (1e-9, 1e-8). Recourse: move the geometry, or, if this size is intended, tighten \
-             the tolerance below 5e-10 m"
+             the tolerance below 5e-10 m — no recourse is recorded for this decision"
         );
     }
 
-    /// **Naming's undecided decision says what the name rests on, and
-    /// ends sized**: a point's place along an edge is a distance in the
-    /// result the user's geometry put there.
+    /// **A datum direction's length is a gauge, as the evaluation's own
+    /// direction length is**: both end in the lever alone.
+    #[test]
+    fn a_datum_directions_undecided_length_ends_in_the_lever() {
+        for name in [topo::DATUM_UNIT_NORM, crate::eval::EVAL_DIRECTION_NORM] {
+            assert_eq!(
+                node(name, MarginDiag::value(5e-9)),
+                "whether a direction has any length is undecided: margin 5e-9 lies inside the \
+                 ambiguity band (1e-9, 1e-8). Recourse: move the geometry",
+                "{name}"
+            );
+        }
+    }
+
+    /// **The measure door's escalation keeps its own sentence** (D10's
+    /// Measure ground is held): the verdict "too close to call" and the
+    /// bare escalation's tail, unchanged.
+    #[test]
+    fn the_measure_doors_escalation_keeps_its_sentence() {
+        let got = NodeErrorKind::MeasureEscalated {
+            predicate: "bool_plane_parallel",
+            source: at("bool_plane_parallel", MarginDiag::value(5e-9)),
+        }
+        .to_string();
+        assert_eq!(
+            got,
+            "whether the two planes are parallel is too close to call: margin 5e-9 lies inside \
+             the ambiguity band (1e-9, 1e-8) — a near-coincidence; Recourse: move the geometry, \
+             or, if this size is intended, tighten the tolerance below 5e-10 m"
+        );
+    }
+
+    /// **A placement frame's rotation axis keeps its sentence** (D10's
+    /// placement ground is held): the frame door's refusal, read whole
+    /// through `EditError::PlacementAxis`, unchanged.
+    #[test]
+    fn a_placement_axis_escalation_keeps_its_sentence() {
+        let band = Band::new(1e-9, 1e-8).expect("zero < escalate");
+        let refusal = crate::Frame::rotate_then_translate([5e-9, 0.0, 0.0], 1.0, [0.0; 3], band)
+            .expect_err("an axis inside the band escalates");
+        assert!(
+            matches!(refusal.kind(), NodeErrorKind::PlacementAxisEscalated { .. }),
+            "{:?}",
+            refusal.kind()
+        );
+        let got = crate::EditError::PlacementAxis {
+            error: refusal.carried(),
+        }
+        .to_string();
+        assert_eq!(
+            got,
+            "the placement frame's rotation axis is unusable: whether a direction has any length \
+             is too close to call: margin 5e-9 lies inside the ambiguity band (1e-9, 1e-8) — a \
+             near-coincidence; Recourse: move the geometry, or, if this size is intended, tighten \
+             the tolerance below 5e-10 m. Recourse: give the rotation axis a direction of nonzero \
+             length"
+        );
+    }
+
+    /// **The order of two crossings along an edge ends in the lever**:
+    /// its margin is a curve parameter, no size the user chose.
+    #[test]
+    fn namings_order_along_an_edge_ends_in_the_lever() {
+        check(
+            "naming, order along",
+            |m| {
+                NamingError::Escalated {
+                    predicate: crate::names::ORDER_ALONG,
+                    source: at(crate::names::ORDER_ALONG, m),
+                }
+                .to_string()
+            },
+            [
+                "the order of two crossings along an edge, which a name rests on, is undecided: \
+                 margin 5e-9 lies inside the ambiguity band (1e-9, 1e-8). Recourse: move the \
+                 geometry",
+                "the order of two crossings along an edge, which a name rests on, is undecided: \
+                 enclosure [-2e-9, 5e-9] cannot be classified against the ambiguity band (1e-9, \
+                 1e-8). Recourse: move the geometry",
+                "the order of two crossings along an edge, which a name rests on, is undecided: \
+                 margin is invalid (NaN or a refused enclosure) against the ambiguity band \
+                 (1e-9, 1e-8). Recourse: move the geometry; an unreadable margin may indicate a \
+                 kernel bug worth reporting",
+            ],
+        );
+    }
+
+    /// **Naming's sized decisions say what the name rests on**: a
+    /// point's place along an edge is a distance in the result the
+    /// user's geometry put there.
     #[test]
     fn namings_undecided_decision_ends_sized() {
         check(
@@ -286,16 +392,16 @@ mod undecided_text {
                 .to_string()
             },
             [
-                "select: whether the face (the face of node 000000000000) is in or out is \
-                 undecided: margin 5e-9 lies inside the ambiguity band (1e-9, 1e-8). Recourse: \
+                "whether the face (the face of node 000000000000) is in or out of the selection \
+                 is undecided: margin 5e-9 lies inside the ambiguity band (1e-9, 1e-8). Recourse: \
                  move the geometry, or, if this size is intended, tighten the tolerance below \
                  5e-10 m",
-                "select: whether the face (the face of node 000000000000) is in or out is \
-                 undecided: enclosure [-2e-9, 5e-9] cannot be classified against the ambiguity \
+                "whether the face (the face of node 000000000000) is in or out of the selection \
+                 is undecided: enclosure [-2e-9, 5e-9] cannot be classified against the ambiguity \
                  band (1e-9, 1e-8). Recourse: subdivide the parameter box for a tighter \
                  enclosure, or move the geometry",
-                "select: whether the face (the face of node 000000000000) is in or out is \
-                 undecided: margin is invalid (NaN or a refused enclosure) against the ambiguity \
+                "whether the face (the face of node 000000000000) is in or out of the selection \
+                 is undecided: margin is invalid (NaN or a refused enclosure) against the ambiguity \
                  band (1e-9, 1e-8). Recourse: check the operation's inputs upstream, then move \
                  the geometry; an unreadable margin may indicate a kernel bug worth reporting",
             ],
