@@ -2311,10 +2311,12 @@ pub enum BooleanError {
     ///
     /// The witness lane derived the line and the C4 table verified it,
     /// and the line crosses the interior of a plane face of one operand.
-    /// The union is two solids touching along that line, a face–face
-    /// curve touch, and the reduction mints no face–face row to record
-    /// it, so the union refuses. Subtract and intersect owe no record of
-    /// the touch and are not refused here.
+    /// Along that line the union keeps a face–face curve touch, and the
+    /// reduction mints no face–face row to record it, so a union refuses
+    /// on that declaration, whatever else the operands do: where they
+    /// touch only there the result would be two solids, and where they
+    /// also overlap elsewhere one solid pinched along the line. Subtract
+    /// and intersect owe no record of the touch and are not refused here.
     ///
     /// Kept distinct from [`BooleanError::RimCuspArmUnbuilt`]: that one
     /// is raised where no locus derives and the faces share a rim; here

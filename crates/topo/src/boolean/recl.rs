@@ -766,19 +766,15 @@ pub(super) fn recl_edges<T: Decide>(
                 }
                 EdgeEdge::Dropped => None,
             };
-            germ.map(|germ| match germ {
-                EdgeGerm::Folded(mut germ) => {
-                    if reversed.a.contains(&bound(a_sectors, am.start_holder)) {
-                        (germ.a, germ.sa) = reflank(germ.a, germ.sa, n_a);
-                    }
-                    if reversed.b.contains(&bound(b_sectors, bm.start_holder)) {
-                        (germ.b, germ.sb) = reflank(germ.b, germ.sb, n_b);
-                    }
-                    EdgeGerm::Folded(germ)
+            germ.map(|mut germ| {
+                if reversed.a.contains(&bound(a_sectors, am.start_holder)) {
+                    (germ.a, germ.sa) = reflank(germ.a, germ.sa, n_a);
                 }
-                held => held,
+                if reversed.b.contains(&bound(b_sectors, bm.start_holder)) {
+                    (germ.b, germ.sb) = reflank(germ.b, germ.sb, n_b);
+                }
+                EdgeGerm::Folded(germ).place(records, first_read, &marked)
             })
-            .map(|germ| germ.place(records, first_read, &marked))
             .transpose()
         };
 
@@ -971,8 +967,9 @@ fn reflank(idx: usize, codes: (SideCode, SideCode), n: usize) -> (usize, (SideCo
 /// What an edge-edge event reads ([`resolve_edge_edge`]).
 #[derive(Clone, Copy, Debug)]
 pub(super) enum EdgeEdge {
-    /// The boundaries cross along the common line: its germ.
-    Germ(EdgeGerm),
+    /// The boundaries cross along the common line: its germ, on the
+    /// fold flanker's record with the edge On at its bound.
+    Germ(PairRecord),
     /// No germ, and the op keeps all four flanking faces: both edges
     /// stay on the result's boundary, the result's material there two
     /// wedges touching along them.
@@ -1404,13 +1401,13 @@ pub(super) fn resolve_edge_edge<T: Decide>(
     };
     let (a, sa) = pick(&a_fl, a_in)?;
     let (b, sb) = pick(&b_fl, b_in)?;
-    Ok(EdgeEdge::Germ(EdgeGerm::Folded(PairRecord {
+    Ok(EdgeEdge::Germ(PairRecord {
         a,
         b,
         sa,
         sb,
         intersect: true,
-    })))
+    }))
 }
 
 /// Edge-sector coincidence (module docs): Table II on the on-side

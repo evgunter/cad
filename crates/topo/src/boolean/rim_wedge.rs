@@ -8,8 +8,9 @@
 //! - **wedge π** — the outward normals agree across the rim and the
 //!   two faces leave it on opposite sides ([`departures`]): the
 //!   composed material is smooth through it, and the rim is a SEAM of
-//!   one composite wall. Between two operands it is declared a `Seam`
-//!   and verified (C4); inside one body it is structural.
+//!   one composite wall. Between two operands the boolean glues the
+//!   faces' tangency (C4) and the seam is read on the result; inside
+//!   one body it is structural.
 //! - **normals agree, same departure** — the two faces leave the rim on
 //!   ONE side (a bowl hanging in a tube's mouth): a nested touch, a
 //!   cusp the normals alone cannot tell from the seam. The material

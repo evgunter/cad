@@ -356,6 +356,7 @@ fn two_discs_kissing_externally_touch_at_every_op() {
         &disc("the left disc", 0.0),
         &disc("the right disc", 2.0),
         [Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0)],
+        [Point3::new(0.0, 0.0, 0.5), Point3::new(2.0, 0.0, 0.5)],
     );
 }
 

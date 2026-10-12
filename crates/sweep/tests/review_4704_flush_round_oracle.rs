@@ -396,10 +396,20 @@ fn a_same_side_tangent_touch_answers_every_op() {
     for line in pose(CORNER, 0.0, true, 0.0) {
         assert!(line.contains(": OK "), "sameside-corner | {line}");
     }
+    let inside = [Point3::new(1.0, 2.0, 0.5), Point3::new(3.0, 2.0, 2.5)];
+    assert!(
+        CORNER.has(inside[0]) && !round_has(inside[0], 0.0, true),
+        "the slab's sample point"
+    );
+    assert!(
+        round_has(inside[1], 0.0, true) && !CORNER.has(inside[1]),
+        "the round's sample point"
+    );
     crate::common::touch_union::assert_touch_at_every_op(
         "sameside-corner",
         &CORNER.body(),
         &round(0.0, true),
         [Point3::new(2.0, 0.0, 1.0), Point3::new(2.0, 4.0, 1.0)],
+        inside,
     );
 }

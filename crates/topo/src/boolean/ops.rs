@@ -23,9 +23,8 @@
 //!   vertex and edge contacts (the carried
 //!   [`ContactRecords`] say where; genuinely 3′, certified by PR 6's
 //!   validator). A tangent line contact through a face's interior is
-//!   not one: no edge holds the line for a record to name, and the slit
-//!   that would mint one is unbuilt, so the union refuses it
-//!   ([`BooleanError::TangentSlitArmUnbuilt`]).
+//!   a face–face touch the reduction does not yet record, so the union
+//!   refuses it ([`BooleanError::TangentSlitArmUnbuilt`]).
 //! - [`Voided`](BooleanResultKind::Voided): **legitimate voids** —
 //!   A∖B with B strictly inside A yields the outer shell plus the
 //!   reverted inner shell, a tier-2-legal multi-shell body. The

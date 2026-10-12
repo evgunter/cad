@@ -252,6 +252,9 @@ solid pair). Three fixtures show it:
 - two externally tangent upright cylinders;
 - PR 4704's `sameside-corner` quarter round on a slab.
 
-`crates/sweep/tests/common/touch_union.rs` admits that refusal and no
-other finding, and cites this row. When this lane lands, that check
-can demand `Ok`.
+`crates/sweep/tests/common/touch_union.rs` admits exactly that
+refusal (`CurvedWithinReach` on face pairs across the two solids, and
+the `Unexamined` solid pair it leaves) and no other finding, and cites
+this row. PR 4781's review fixtures add cylinders of unequal radii and
+a box edge on a cylinder's ruling, which read the same. When this lane
+lands, that check can demand `Ok`.
