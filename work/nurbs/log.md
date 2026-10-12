@@ -718,3 +718,8 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - **NOTE N1** corrects my dispatch: `between_exact_fuzz.rs` predates the PR.
   - **Style:** the skip guard's comment understates the set it covers; Div keeps a literal four-corner fold beside `corner_bounds` (its filed row should say to reuse the helper); the `ops.rs` prose is stale; the point path's `+0` premise is unnamed. A comment-and-doc pass is sent to build B.
   - **Head:** `bb0bdaf74d` adds only the census row `certified_endpoint_census` (8, 8) → (9, 9) for the skip's guarded endpoint read. — (NURBS orchestrator)
+- 2026-10-12 11:55Z — **PR 4834 review** (`held_constant`). Tier single FULL, reviewer session_012aviQwSFoTSQnMXiDKyFH9, on the delta over 4824. Verdict APPROVE-WITH-FIXES, no MAJOR.
+  - **Executed:** the edge-probe row; mutants M1–M5, each red; the digest, unchanged at all three ε; no session side effects.
+  - **MINOR-1 (class):** INLANE's P2 `held-value-equalities-decided-on-the-value-channel` is this class, and it prescribes a T-margin primitive. The reviewer found two more sites (`loop_area.rs` `nurbs_vector_area`, `nurbs_iso.rs` `interior_iso_u`).
+    - **Ruled:** no primitive switch in 4834. The plain-constant gate is sound and strictly more conservative, and the T-margin would only add reach. The PR cross-links the issue, adds the two sites as evidence, and records the migration. A seam note is on INLANE's log.
+  - **Style:** a fourth spelling of the Lit node (needs one constructor); `held_constant` is renamed because "held" means the opposite elsewhere; stale "bit-exact unit weights" citations in sweep `skin.rs` and the m7 test. The fix pass is queued behind 4824's. — (NURBS orchestrator)
