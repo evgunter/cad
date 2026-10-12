@@ -125,6 +125,7 @@ use geom_core::{
 
 use crate::certify::CertCheck;
 use crate::certify::{CERT_SAMPLES, sample_param};
+use crate::descent::{Descent, Work, first_stop};
 use crate::dihedral::{decide_positive, decide_reported};
 
 use super::enclose::{
@@ -868,11 +869,6 @@ pub(crate) const SSI_HULL_WORK: usize = 4096;
 /// would let a few more rounds run.
 pub(crate) const SSI_HULL_CUTS: usize = 1024;
 
-/// The subdivision stops on the round that makes this many rounds in a
-/// row that do not lower the lowest bound over the whole carrier: at 2
-/// it stops on the second such round, and one is all it lets pass.
-const SSI_HULL_IDLE_ROUNDS: usize = 2;
-
 /// Where a hull limb's subdivision stopped.
 pub(crate) enum Subdivided<P = ()> {
     /// On the bound over the whole carrier: it cleared the band's zero,
@@ -896,15 +892,15 @@ pub(crate) enum Subdivided<P = ()> {
 /// round's hull with its argument's breaks added. The composite's
 /// uncleared spans are halved, worst bound first, round by round, until
 /// its bound clears the band's zero, or a break's certified value lies
-/// past it, or it stops: the next round would pass [`SSI_HULL_WORK`],
-/// or no span is left to halve under [`SSI_HULL_CUTS`], or the bound
-/// over the whole carrier is refused, or [`SSI_HULL_IDLE_ROUNDS`] rounds
-/// in a row leave its lowest value where it was. Every round's bound is
-/// certified, so the limb is read on the lowest. That is a bound which
-/// stopped falling, not a floor: near the arithmetic's floor the
-/// rounding in a rebuilt composite moves it either way, so one round
-/// that does not lower it says nothing, and a later one may. Every round's
-/// hull is the composite's own, cut from each Bézier segment's row
+/// past it, or it stops on the crate's stop rule ([`crate::descent`]):
+/// its rounds stall against the lowest bound over the whole carrier, or
+/// the next round would pass [`SSI_HULL_WORK`] (the cumulative budget),
+/// or no span is left to halve under [`SSI_HULL_CUTS`] (the cap); or
+/// the bound over the whole carrier is refused. An idle round takes no
+/// action of its own here: the next round halves the worst spans as any
+/// round does. Every round's bound is certified, so the limb is read on
+/// the lowest. That is a bound which stopped falling, not a floor.
+/// Every round's hull is the composite's own, cut from each Bézier segment's row
 /// ([`CurveCertData::with_breaks`], the surface residual's extra
 /// breaks), so each piece's coefficients enclose that piece and no cut
 /// compounds another's width.
@@ -933,8 +929,8 @@ pub(crate) fn subdivide<P, E>(
     band: Band,
 ) -> Result<Subdivided<P>, E> {
     let mut cuts: Vec<f64> = Vec::new();
-    let mut lowest: Option<Hull<P>> = None;
-    let (mut idle, mut work) = (0, 0);
+    let mut descent = Descent::new();
+    let mut work = Work::new(SSI_HULL_WORK);
     loop {
         let h = hull(&cuts)?;
         if clears(h.sup, band) {
@@ -950,31 +946,23 @@ pub(crate) fn subdivide<P, E>(
         }
         let mut next = h.to_halve(band);
         next.truncate(SSI_HULL_CUTS - cuts.len());
-        // On the first hull `work` is 0, so a composite over the budget
-        // stops here unsubdivided.
+        // On the first hull nothing is spent, so a composite over the
+        // budget stops here unsubdivided.
         let cost = h.work + next.len();
+        // A NaN bound never lowers the lowest, so a later round's NaN
+        // keeps the earlier certified hull and stops on it.
         let refused = h.sup.is_nan();
-        // A NaN bound compares as not lower, so a later round's NaN keeps
-        // the earlier certified hull and stops on it (`refused` below);
-        // an equal bound is idle too and keeps the older hull.
-        let low = match lowest.take() {
-            Some(low) if h.sup.partial_cmp(&low.sup) != Some(core::cmp::Ordering::Less) => {
-                idle += 1;
-                low
-            }
-            _ => {
-                idle = 0;
-                h
-            }
-        };
-        if refused || idle == SSI_HULL_IDLE_ROUNDS || next.is_empty() || work + cost > SSI_HULL_WORK
-        {
+        descent.observe(h.sup, h);
+        let wall = (next.is_empty() || !work.admits(cost)).then_some(());
+        if refused || first_stop(descent.stalled(), wall).is_some() {
+            let Some((_, low)) = descent.into_lowest() else {
+                unreachable!("a round was observed above")
+            };
             return Ok(Subdivided::Bound(low));
         }
-        lowest = Some(low);
         cuts.extend(next.iter().map(|s| s.mid()));
         cuts.sort_by(f64::total_cmp);
-        work += cost;
+        work.spend(cost);
     }
 }
 

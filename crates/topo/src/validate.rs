@@ -2971,7 +2971,7 @@ fn classify_offset_fit(e: &geom_brep::OffsetFitError) -> (&'static str, Cow<'sta
             };
             return (why, m.ending(Reading::AtRest).into());
         }
-        O::SampleCapReached { .. } => (DRIFT, "Recourse: split the face"),
+        O::WallReached { .. } => (DRIFT, "Recourse: split the face"),
         O::SeedOverCap { .. } => (
             "its fitted surface has more knot spans than the fit's sample limit can seed",
             "Recourse: split the face",
@@ -16018,14 +16018,27 @@ mod offset_fit_door_rows {
             }
             .to_string()
         };
-        let split = [says(OffsetFitError::SampleCapReached {
-            cap: 64,
-            rounds: 3,
-            grid: (64, 5),
-            achieved: 2e-9,
-            tolerance: 1e-9,
-            best,
-        })];
+        let split = [
+            says(OffsetFitError::WallReached {
+                wall: geom_brep::OffsetFitWall::SampleCap { cap: 64 },
+                rounds: 3,
+                grid: (64, 5),
+                achieved: 2e-9,
+                tolerance: 1e-9,
+                best,
+            }),
+            says(OffsetFitError::WallReached {
+                wall: geom_brep::OffsetFitWall::Work {
+                    budget: 512,
+                    spent: 480,
+                },
+                rounds: 3,
+                grid: (32, 5),
+                achieved: 2e-9,
+                tolerance: 1e-9,
+                best,
+            }),
+        ];
         for msg in split {
             assert!(msg.ends_with("Recourse: split the face"), "{msg}");
             assert!(!msg.contains("loosen"), "{msg}");

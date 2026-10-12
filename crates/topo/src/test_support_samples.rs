@@ -797,8 +797,8 @@ fn offset_fit_errors() -> Vec<OffsetFitError> {
             cap: 4096,
             grid: (65, 64),
         },
-        OffsetFitError::SampleCapReached {
-            cap: 4096,
+        OffsetFitError::WallReached {
+            wall: geom_brep::OffsetFitWall::SampleCap { cap: 4096 },
             rounds: 6,
             grid: (64, 64),
             achieved: 3e-6,
@@ -806,6 +806,20 @@ fn offset_fit_errors() -> Vec<OffsetFitError> {
             best: geom_brep::BestBound {
                 bound: 2e-6,
                 grid: (48, 64),
+            },
+        },
+        OffsetFitError::WallReached {
+            wall: geom_brep::OffsetFitWall::Work {
+                budget: 16_384,
+                spent: 15_000,
+            },
+            rounds: 9,
+            grid: (40, 32),
+            achieved: 3e-6,
+            tolerance: 1e-6,
+            best: geom_brep::BestBound {
+                bound: 2e-6,
+                grid: (36, 32),
             },
         },
         OffsetFitError::BoundNotFinite {

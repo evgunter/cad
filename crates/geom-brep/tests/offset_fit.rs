@@ -30,7 +30,8 @@
 
 use geom::NurbsSurface;
 use geom_brep::offset_fit::{
-    BestBound, OFFSET_FIT_SAMPLE_CAP, OffsetFitError, OffsetLimb, certify_offset_at, fit_offset_at,
+    BestBound, OFFSET_FIT_SAMPLE_CAP, OffsetFitError, OffsetFitWall, OffsetLimb, certify_offset_at,
+    fit_offset_at,
 };
 use geom_brep::offset_meters::{MeterError, OFFSET_METER_LADDER, patch_collapse, patch_regularity};
 use geom_brep::patch_bound::{PatchBoundError, patch_cells_refined};
@@ -674,8 +675,8 @@ fn an_offset_past_the_curvature_reach_refuses_at_the_collapse_meter() {
 fn a_cap_stop_with_a_finite_bound_names_the_cap_not_the_rounds() {
     let base = bumpy_patch();
     match fit_offset_at(&base, 0.05, 1e-15, band()) {
-        Err(OffsetFitError::SampleCapReached {
-            cap,
+        Err(OffsetFitError::WallReached {
+            wall: wall @ OffsetFitWall::SampleCap { cap },
             rounds,
             grid,
             achieved,
@@ -695,8 +696,8 @@ fn a_cap_stop_with_a_finite_bound_names_the_cap_not_the_rounds() {
                 "the best bound {best_bound:e} is not the smallest of a run ending on {achieved:e}"
             );
             assert!(best_grid.0 <= grid.0 && best_grid.1 <= grid.1);
-            let e = OffsetFitError::SampleCapReached {
-                cap,
+            let e = OffsetFitError::WallReached {
+                wall,
                 rounds,
                 grid,
                 achieved,
@@ -884,8 +885,11 @@ fn a_micron_scale_offset_certifies_and_names_its_limit() {
     // it did reach — never a number it cannot support. The stop is
     // the sample cap's: the grid the bound wants exceeds it.
     match fit_offset_at(&base, d, 1e-9, band()) {
-        Err(OffsetFitError::SampleCapReached {
-            achieved, rounds, ..
+        Err(OffsetFitError::WallReached {
+            wall: OffsetFitWall::SampleCap { .. },
+            achieved,
+            rounds,
+            ..
         }) => {
             assert_eq!(rounds, 7);
             assert!(
@@ -1192,7 +1196,8 @@ fn a_round_whose_bound_rose_takes_the_both_directions_step() {
         past.rounds
     );
     match fit_offset_at(&base, d, 1e-15, band()) {
-        Err(OffsetFitError::SampleCapReached {
+        Err(OffsetFitError::WallReached {
+            wall: OffsetFitWall::SampleCap { .. },
             rounds,
             grid,
             achieved,
