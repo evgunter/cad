@@ -283,10 +283,8 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_carrier_cross_circles_nested"
         | "bool_carrier_cross_plane_offset"
         | "bool_carrier_cross_concentric"
-        | "bool_carrier_cross_ellipse_line_tilt"
-        | "bool_carrier_cross_ellipse_circle_tilt"
-        | "bool_carrier_cross_ellipses_tilt"
-        | "bool_carrier_cross_line_meets_ellipse" => CrossingDecision::OnEdge.subject(),
+        | "bool_carrier_cross_line_meets_ellipse"
+        | "bool_carrier_cross_ellipses_one_curve" => CrossingDecision::OnEdge.subject(),
         "bool_face_disc_carrier"
         | "bool_contact_arc_end_vertex"
         | "bool_curved_contain_carrier"

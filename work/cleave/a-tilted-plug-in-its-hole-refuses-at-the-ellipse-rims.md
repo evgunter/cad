@@ -74,16 +74,22 @@ arms, so their reach is ordinary frontier work.
 - `carrier_cross::BoundaryReads` is gone. `boundary_crossing` reads
   lines, circles and ellipses in both roles for both callers
   (`reduce::interior` and `reduce::lying_on`). The swept span is
-  metred by the carrier's speed at the candidate
-  (`carrier_cross::speed_at`, which `reduce::wall_crossing` now reads
-  too), and its reach by the greatest speed.
-- `carrier_cross::meetings` gains the swept-ellipse arms: × line where
-  the line crosses the ellipse's plane, × circle and × ellipse on the
-  planes' common line (`ellipse_meets_plane`), and nothing for two
-  ellipses in parallel planes. Each has its own decision row
-  (`bool_carrier_cross_ellipse_line_tilt`, `…_ellipse_circle_tilt`,
-  `…_ellipses_tilt`, `…_line_meets_ellipse`); the last reads the common
-  line's gap from tangency in metres, `disc / (2a²b²·√qa)`.
+  metred by the carrier's speed at the candidate, read from the
+  neutral `crate::carrier_speed`, which `reduce::wall_crossing` and
+  `carrier_touch::speed_bound` also read. Each side's reach is its own
+  edge's span at the greatest speed.
+- `carrier_cross::meetings` reads each carrier pair in one arm, and a
+  mirror swaps the roles:
+  - line × ellipse meets where the line crosses the ellipse's plane;
+  - circle × ellipse meets on the planes' common line;
+  - ellipse × ellipse meets on the planes' common line
+    (`ellipse_meets_plane`, row `bool_carrier_cross_line_meets_ellipse`,
+    levered as the common line's gap from tangency,
+    `disc / (2a²b²·√qa)`).
+
+  Two ellipses read coplanar are taken as one curve only where they
+  are one within the band (`bool_carrier_cross_ellipses_one_curve`).
+  Otherwise they are unread, or escalate in band.
 
 Measured on main at `aa7af40329`: all five ops refuse
 `CurvedPierceUnsupported` at every pose, θ = 0.3 and π/3, at ε =

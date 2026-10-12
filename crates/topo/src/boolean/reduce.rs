@@ -2365,10 +2365,10 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
         //   lies on the carrier, so the ends decide under the same rule.
         //   Neither end can place on this face against the verdict (the
         //   mixed-sign arm above says why).
-        // - **`LiesOn`: an arc lying on the carrier**, exactly on by the
-        //   circle root door; **`Constant`: a ruling lying on a wall**,
-        //   its residual decided Zero at both ends and its distance from
-        //   the axis constant over the span. Either is an ON event (C4's
+        // - **`LiesOn`: a circle or ellipse arc lying on the carrier**,
+        //   exactly on by the conic root doors; **`Constant`: a ruling
+        //   lying on a wall**, its residual decided Zero at both ends and
+        //   its distance from the axis constant over the span. Either is an ON event (C4's
         //   one-sided cover, narrowed to touches) when every surface of a
         //   face it bounds is decided distinct from `face`'s by the
         //   carrier ladder: the edge is then a curve where two different
@@ -3266,7 +3266,7 @@ fn wall_crossing<T: Decide + Bounds>(
     // a kernel bug, refused — never a zero speed that would read every
     // root as at the span's end.
     let speed_at = |t: T| {
-        super::carrier_cross::speed_at(carrier, t).ok_or(BooleanError::ClassificationInvariant {
+        crate::carrier_speed::speed_at(carrier, t).ok_or(BooleanError::ClassificationInvariant {
             what: "a wall root's carrier is neither a line nor a conic",
         })
     };
