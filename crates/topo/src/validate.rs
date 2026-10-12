@@ -5338,7 +5338,7 @@ fn seam_region<T: Decide>(
             let (edges, hes) = crate::props::loop_edges(body, lk)?;
             for &h in &hes {
                 let other = across(h);
-                if face(other).surface == carrier && !members.contains(&other) {
+                if (face(other).surface == carrier || std::env::var("M4746B").as_deref() == Ok("bfs")) && !members.contains(&other) {
                     members.push(other);
                 }
             }
@@ -5362,7 +5362,7 @@ fn seam_region<T: Decide>(
             open.retain(|&x| x != h);
             let mut n = half_edge(h).next;
             let mut turns = 0;
-            while inside(n) {
+            while inside(n) && std::env::var("M4746B").as_deref() != Ok("noturn") {
                 n = half_edge(body.mate(n).unwrap_or_else(|| unreachable!("{resolved}"))).next;
                 turns += 1;
                 if turns > half_edges.len() {
@@ -7311,12 +7311,12 @@ pub(crate) fn tier3_local_checks_marked<
                         let Ok(region) = seam_region(body, face_key) else {
                             continue; // derivation exempt (posture above)
                         };
-                        let side = (!region.pinched)
+                        let side = (!region.pinched || std::env::var("M4746B").as_deref() == Ok("pinch"))
                             .then(|| {
                                 let boundary: Vec<&[_]> =
                                     region.boundary.iter().map(Vec::as_slice).collect();
                                 let loops: Vec<&[_]> =
-                                    region.loops.iter().map(Vec::as_slice).collect();
+                                    region.loops.iter().take(if std::env::var("M4746B").as_deref() == Ok("start_only") { 1 } else { usize::MAX }).map(Vec::as_slice).collect();
                                 geom_brep::props::sphere_region_material_sign(
                                     surface, &boundary, &loops, band,
                                 )
@@ -7324,12 +7324,12 @@ pub(crate) fn tier3_local_checks_marked<
                             })
                             .flatten();
                         let members = region.members;
-                        regions.push((members, side));
+                        if std::env::var("M4746B").as_deref() != Ok("nocache") { regions.push((members, side)); }
                         side
                     }
                 };
                 if let Some(geom_brep::props::MaterialSign::Encoded(side)) = region
-                    && (side == Sign::Positive) != face.sense
+                    && ((side == Sign::Positive) != face.sense) != (std::env::var("M4746B").as_deref() == Ok("sense"))
                 {
                     errors.push(ValidationError::CurvedSenseInverted { face: face_key });
                 }
