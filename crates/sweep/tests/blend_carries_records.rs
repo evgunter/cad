@@ -108,13 +108,15 @@ fn a_blend_away_from_the_kiss_carries_it() {
     );
 }
 
-/// **A record on the edge a blend consumes is refused, typed, never
-/// dropped or kept on the dead key** (review of PR 4694). The record is
-/// bookkeeping (no touch: the far cube's top face), so only the carry's
-/// lineage is read. Red if the carry drops the record, or keeps it on
-/// the excised edge.
+/// **A record on the edge a blend consumes is consumed with it** (D1).
+/// The blend removes the edge it replaces with a band, and the band face
+/// holds none of the edge's points, so it takes no record from it: the
+/// record (bookkeeping against the far cube's top, no touch) lands on no
+/// pair, and the lineage's stated removal consumes it, while the kiss
+/// carries. Red on the carry that refuses the record `Unmapped`, or keeps
+/// it on the excised edge or the band face.
 #[test]
-fn a_record_on_the_blended_edge_is_refused() {
+fn a_record_on_the_blended_edge_is_consumed() {
     let base = kiss();
     let edge = edge_between(
         &base.body,
@@ -149,16 +151,27 @@ fn a_record_on_the_blended_edge_is_refused() {
         ),
     ] {
         assert_eq!(
-            out.carry_contacts(
+            out.lineage().fate(topo::Cell::Edge(edge)),
+            topo::Fate::Removed,
+            "{what}: the band removes the edge"
+        );
+        let carried = out
+            .carry_contacts(
                 &records,
                 geom_core::Band::linear(tol()).unwrap(),
-                Some(topo::RegionLane::certified())
-            ),
-            Err(topo::CarryRefusal::Unmapped {
-                record: 1,
-                cell: topo::Cell::Edge(edge)
-            }),
-            "{what}: the consumed edge's record is refused"
+                Some(topo::RegionLane::certified()),
+            )
+            .unwrap_or_else(|refusal| panic!("{what}: {refusal:?}"));
+        assert_eq!(
+            carried
+                .cites()
+                .map(|c| c.iter().collect())
+                .collect::<Vec<Vec<_>>>(),
+            [vec![topo::Backing::Carried {
+                input: 0,
+                record: 0
+            }]],
+            "{what}: the kiss alone carries"
         );
     }
 }

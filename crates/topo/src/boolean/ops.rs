@@ -2821,7 +2821,7 @@ impl Descendants {
     ) -> Result<Option<Cell>, BooleanError> {
         let desync = |what| BooleanError::JoinDesync { what };
         let lineage =
-            crate::lineage::Lineage::of(face, &self.fragments[usize::from(side == Operand::B)]);
+            crate::lineage::Descent::of(face, &self.fragments[usize::from(side == Operand::B)]);
         if lineage.cells().nth(1).is_none() {
             return self.live(body, side, view, Cell::Face(face));
         }
