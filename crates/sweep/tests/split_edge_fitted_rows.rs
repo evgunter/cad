@@ -21,7 +21,7 @@
 
 use crate::common::approx::band;
 use geom::{Curve3, NurbsSurface, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, PcurveCache};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, PcurveCache, SurfacePair};
 use geom_core::spline::KnotVector;
 use geom_core::{Affine3, Point2, Point3, Real, Tol, Vec3};
 use profile::test_support::bulge_loop;
@@ -49,9 +49,14 @@ fn prism<T: AtRestPolicy>() -> Body<T> {
         Affine3::translation(Vec3::new(0.5 * SCALE, 0.0, SCALE)),
         Affine3::translation(Vec3::new(0.0, 0.0, 2.0 * SCALE)),
     ];
-    sweep::loft_body::<T>(&[square(), square(), square()], &places, 2, Tol::witness())
-        .expect("the offset square prism builds")
-        .body
+    sweep::loft_body::<T>(
+        &sweep::test_support::lift_sections::<T>(&[square(), square(), square()]),
+        &sweep::test_support::lift_places::<T>(&places),
+        2,
+        Tol::witness(),
+    )
+    .expect("the offset square prism builds")
+    .body
 }
 
 fn he_surface<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> SurfaceKey {
@@ -114,8 +119,7 @@ fn describe<T: AtRestPolicy>(body: &mut Body<T>, edge: EdgeKey, s1: SurfaceKey, 
         edge,
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
-                s1,
-                s2,
+                pair: SurfacePair::new(s1, s2),
                 witness: carrier.eval((t0 + t1) * T::from_f64(0.5)),
             },
             carrier,
@@ -130,10 +134,13 @@ fn describe<T: AtRestPolicy>(body: &mut Body<T>, edge: EdgeKey, s1: SurfaceKey, 
 /// The degree-1 `u` net continued one column each way: the face then
 /// occupies `u ∈ [1, 2]` of a `[0, 3]` chart, and its seams are
 /// interior columns.
-fn widened<T: Real>(n: &NurbsSurface<T>) -> Surface<T> {
+fn widened<T: Real + geom_core::SpanLocate>(n: &NurbsSurface<T>) -> Surface<T> {
     let (nu, nv) = n.control_counts();
     assert_eq!((nu, n.knots_u().degree()), (2, 1), "the loft wall's u span");
-    let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 2.0, 3.0, 3.0], 1).unwrap();
+    let ku = geom_core::spline::Knots::from(
+        KnotVector::clamped(vec![0.0, 0.0, 1.0, 2.0, 3.0, 3.0], 1).unwrap(),
+    )
+    .lift(T::from_f64);
     let (mut control, mut weights) = (Vec::new(), Vec::new());
     for i in 0..4 {
         for j in 0..nv {
@@ -148,7 +155,7 @@ fn widened<T: Real>(n: &NurbsSurface<T>) -> Surface<T> {
         }
     }
     Surface::Nurbs(Arc::new(
-        NurbsSurface::new(ku, n.knots_v().clone(), control, weights).unwrap(),
+        NurbsSurface::new(ku, n.knot_values_v().clone(), control, weights).unwrap(),
     ))
 }
 
@@ -303,12 +310,12 @@ fn fitted_row<T: AtRestPolicy>() {
     else {
         panic!("the seam's carrier is certified")
     };
-    let geom_brep::EdgeDescription::Intersection { s1, s2, .. } = *c.description() else {
+    let geom_brep::EdgeDescription::Intersection { pair, .. } = *c.description() else {
         panic!("the seam is described as an intersection")
     };
-    let mate = body
-        .get_surface(if s1 == chart { s2 } else { s1 })
-        .cloned()
+    let mate = pair
+        .other(chart)
+        .and_then(|k| body.get_surface(k).cloned())
         .expect("the seam names its plane mate");
     let fitted = PcurveCache::certify_fitted(
         image,
