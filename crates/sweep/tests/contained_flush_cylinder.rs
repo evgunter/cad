@@ -77,9 +77,9 @@ fn a_carried_edge_edge_row_on_swallowed_arcs_is_consumed() {
         panic!("the union builds: {got:?}");
     };
     assert!(
-        out.contacts
-            .cites()
-            .all(|c| c.iter().all(|b| !matches!(b, topo::Backing::Carried { .. }))),
+        out.contacts.cites().all(|c| c
+            .iter()
+            .all(|b| !matches!(b, topo::Backing::Carried { .. }))),
         "the row is consumed: {:?}",
         out.contacts
     );
