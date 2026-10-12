@@ -533,3 +533,221 @@ fn p10_a_sliver_thin_disc_nested_on_a_long_one() {
         }
     }
 }
+
+// ---------------------------------------------------------------------
+// Delta review probes (fix pass bed312e377). Print-only where a refusal
+// is acceptable; a body is still checked against its oracle.
+// ---------------------------------------------------------------------
+
+fn print_four(pose: &str, got: &[String]) {
+    for g in got {
+        eprintln!(
+            "DELTA4831\t{pose}\t{}",
+            g.chars().take(200).collect::<String>()
+        );
+    }
+}
+
+/// The p10 sliver family across thicknesses: where does the kernel-bug
+/// refusal live?
+#[test]
+fn q1_the_sliver_family() {
+    let pi = std::f64::consts::PI;
+    for h in [1e-2, 1e-3, 1e-4, 3e-5, 1e-5, 3e-6, 1e-6] {
+        let a = ext("sliver fat", vec![circle(0.0, 0.0, 2.0)], 0.0, h);
+        let b = ext(
+            "thin long",
+            vec![circle(1.0, 0.0, 1.0)],
+            -1.0,
+            1.0 + 2.0 * h,
+        );
+        let (va, vb, meet) = (4.0 * pi * h, pi * (1.0 + 2.0 * h), pi * h);
+        let eps = tol().get().eps;
+        for (name, got, want) in [
+            ("A ∪ B", topo::union(&a, &b, tol()), va + vb - meet),
+            ("A ∖ B", topo::subtract(&a, &b, tol()), va - meet),
+            ("B ∖ A", topo::subtract(&b, &a, tol()), vb - meet),
+            ("A ∩ B", topo::intersect(&a, &b, tol()), meet),
+            ("B ∪ A", topo::union(&b, &a, tol()), va + vb - meet),
+            ("B ∩ A", topo::intersect(&b, &a, tol()), meet),
+        ] {
+            let r = match got {
+                Ok(topo::BooleanResult::Body(r)) => {
+                    let v = topo::mass_properties(&r.body, tol()).unwrap().volume;
+                    let t3 = topo::validate_geometric(&r.body, tol()).is_ok();
+                    assert!(
+                        (v - want).abs() < 1e-9 * want.max(1.0) && t3,
+                        "WRONG BODY q1 h={h} {name} eps {eps}: {v} vs {want}, t3 {t3}"
+                    );
+                    format!("OK {v:.12}")
+                }
+                Ok(other) => format!("{other:?}"),
+                Err(e) => format!(
+                    "REFUSED {:?} {}",
+                    e.kind(),
+                    e.to_string().chars().take(90).collect::<String>()
+                ),
+            };
+            eprintln!("DELTA4831\teps={eps:e}\tq1 h={h:e}\t{name}\t{r}");
+        }
+    }
+}
+
+/// Operand order swapped for p4, p8, p9 (the four ops in B, A order).
+#[test]
+fn q2_the_new_rows_in_the_other_order() {
+    let pi = std::f64::consts::PI;
+    let hole = ext(
+        "holed plate",
+        vec![rect(-3.0, -3.0, 3.0, 3.0), circle(0.0, 0.0, 1.0)],
+        0.0,
+        1.0,
+    );
+    let cut = finished(
+        "cutter",
+        brick::<f64>((1.0, 4.0), (-4.0, 4.0), (0.5, 2.0), tol()),
+        tol(),
+    );
+    let eps = tol().get().eps;
+    let got = four(
+        &format!("q2 p4 swapped eps={eps:e}"),
+        &cut,
+        &hole,
+        |q| margin(boxd(q, (1.0, 4.0), (-4.0, 4.0), (0.5, 2.0))),
+        |q| margin(boxd(q, (-3.0, 3.0), (-3.0, 3.0), (0.0, 1.0)).max(-disc(q, 0.0, 0.0, 1.0))),
+        [Some(66.0 - pi), Some(30.0), Some(30.0 - pi), Some(6.0)],
+        &grid(),
+    );
+    print_four("q2 p4 swapped", &got);
+    let fat = ext("fat", vec![circle(0.0, 0.0, 2.0)], 0.0, 1.0);
+    let thin = ext("thin long", vec![circle(1.0, 0.0, 1.0)], -1.0, 3.0);
+    let got = four(
+        "q2 p8 swapped",
+        &thin,
+        &fat,
+        |q| margin(disc(q, 1.0, 0.0, 1.0).max(slab(q, -1.0, 2.0))),
+        |q| margin(disc(q, 0.0, 0.0, 2.0).max(slab(q, 0.0, 1.0))),
+        [Some(6.0 * pi), Some(2.0 * pi), Some(3.0 * pi), Some(pi)],
+        &grid(),
+    );
+    print_four("q2 p8 swapped", &got);
+    let plate = ext(
+        "bored plate",
+        vec![rect(-3.0, -3.0, 3.0, 3.0), circle(0.0, 0.0, 2.0)],
+        0.0,
+        1.0,
+    );
+    let rod = ext("rod", vec![circle(1.0, 0.0, 1.0)], -1.0, 3.0);
+    let got = four(
+        "q2 p9 swapped",
+        &rod,
+        &plate,
+        |q| margin(disc(q, 1.0, 0.0, 1.0).max(slab(q, -1.0, 2.0))),
+        |q| margin(boxd(q, (-3.0, 3.0), (-3.0, 3.0), (0.0, 1.0)).max(-disc(q, 0.0, 0.0, 2.0))),
+        [Some(36.0 - pi), Some(3.0 * pi), Some(36.0 - 4.0 * pi), None],
+        &grid(),
+    );
+    print_four("q2 p9 swapped", &got);
+}
+
+/// A cutter face covering only the middle of the hole's ruling
+/// (z ∈ [0.25, 0.75]): two edge–sector sites on one ruling.
+#[test]
+fn q3_a_plane_tangent_to_the_middle_of_a_hole() {
+    let pi = std::f64::consts::PI;
+    let a = ext(
+        "holed plate",
+        vec![rect(-3.0, -3.0, 3.0, 3.0), circle(0.0, 0.0, 1.0)],
+        0.0,
+        1.0,
+    );
+    let b = finished(
+        "cutter",
+        brick::<f64>((1.0, 4.0), (-4.0, 4.0), (0.25, 0.75), tol()),
+        tol(),
+    );
+    // cutter 3·8·0.5 = 12; meet 2·6·0.5 = 6
+    let got = four(
+        "q3 middle of a hole",
+        &a,
+        &b,
+        |q| margin(boxd(q, (-3.0, 3.0), (-3.0, 3.0), (0.0, 1.0)).max(-disc(q, 0.0, 0.0, 1.0))),
+        |q| margin(boxd(q, (1.0, 4.0), (-4.0, 4.0), (0.25, 0.75))),
+        [Some(42.0 - pi), Some(30.0 - pi), Some(6.0), Some(6.0)],
+        &grid(),
+    );
+    print_four("q3", &got);
+}
+
+/// Opposite senses, void crescent, cylinder × cylinder outside each
+/// other, one run long: ∪ two solids, ∩ empty, ∖ the operand.
+#[test]
+fn q4_two_discs_touching_outside_one_long() {
+    let pi = std::f64::consts::PI;
+    let a = ext("disc", vec![circle(0.0, 0.0, 1.0)], 0.0, 1.0);
+    let b = ext("long disc", vec![circle(2.0, 0.0, 1.0)], -1.0, 3.0);
+    let got = four(
+        "q4 outside touch, long",
+        &a,
+        &b,
+        |q| margin(disc(q, 0.0, 0.0, 1.0).max(slab(q, 0.0, 1.0))),
+        |q| margin(disc(q, 2.0, 0.0, 1.0).max(slab(q, -1.0, 2.0))),
+        [Some(4.0 * pi), Some(pi), Some(3.0 * pi), None],
+        &grid(),
+    );
+    print_four("q4", &got);
+}
+
+/// Opposite senses, void crescent, plane × cylinder with a staggered
+/// edge: a block's face x = 1 over z ∈ [0.5, 2] against a unit disc
+/// over z ∈ [0, 1]. ∖ and ∩ must answer or refuse; ∪ may refuse the slit.
+#[test]
+fn q5_a_block_resting_on_a_disc_wall_staggered() {
+    let pi = std::f64::consts::PI;
+    let a = ext("disc", vec![circle(0.0, 0.0, 1.0)], 0.0, 1.0);
+    let b = finished(
+        "block",
+        brick::<f64>((1.0, 3.0), (-2.0, 2.0), (0.5, 2.0), tol()),
+        tol(),
+    );
+    let got = four(
+        "q5 block on a disc wall, staggered",
+        &a,
+        &b,
+        |q| margin(disc(q, 0.0, 0.0, 1.0).max(slab(q, 0.0, 1.0))),
+        |q| margin(boxd(q, (1.0, 3.0), (-2.0, 2.0), (0.5, 2.0))),
+        [Some(pi + 12.0), Some(pi), Some(12.0), None],
+        &grid(),
+    );
+    print_four("q5", &got);
+}
+
+/// Opposite senses, SHARED crescent, staggered: a bore (r 1 about (1, 0))
+/// in a plate over z ∈ [0.5, 1.5] against a solid disc r 2 over [0, 1].
+#[test]
+fn q6_a_bore_inside_a_disc_staggered() {
+    let pi = std::f64::consts::PI;
+    let a = ext("disc r2", vec![circle(0.0, 0.0, 2.0)], 0.0, 1.0);
+    let b = ext(
+        "bored plate",
+        vec![rect(-3.0, -3.0, 3.0, 3.0), circle(1.0, 0.0, 1.0)],
+        0.5,
+        1.0,
+    );
+    // A 4π; B 36 − π; A∩B over z∈[0.5,1]: 0.5·(4π − π) = 1.5π
+    let got = four(
+        "q6 bore in disc, staggered",
+        &a,
+        &b,
+        |q| margin(disc(q, 0.0, 0.0, 2.0).max(slab(q, 0.0, 1.0))),
+        |q| margin(boxd(q, (-3.0, 3.0), (-3.0, 3.0), (0.5, 1.5)).max(-disc(q, 1.0, 0.0, 1.0))),
+        [
+            Some(4.0 * pi + 36.0 - pi - 1.5 * pi),
+            Some(4.0 * pi - 1.5 * pi),
+            Some(36.0 - pi - 1.5 * pi),
+            Some(1.5 * pi),
+        ],
+        &grid(),
+    );
+    print_four("q6", &got);
+}
