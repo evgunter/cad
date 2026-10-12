@@ -1,0 +1,7 @@
+M1 exit 100:      Summary [  10.258s] 12 tests run: 9 passed, 3 failed, 2685 skipped
+M2 exit 100:      Summary [   9.555s] 12 tests run: 9 passed, 3 failed, 2685 skipped
+M3 exit 100:      Summary [   8.751s] 12 tests run: 9 passed, 3 failed, 2685 skipped
+M4 exit 100:      Summary [  18.202s] 12 tests run: 11 passed, 1 failed, 2685 skipped
+M5 exit 100:      Summary [  16.717s] 12 tests run: 9 passed, 3 failed, 2685 skipped
+M6 exit 100:      Summary [   2.524s] 12 tests run: 4 passed, 8 failed, 2685 skipped
+MUTDONE
