@@ -983,3 +983,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
     - R assumes an orthonormal cone frame (pre-existing; to file).
   - Report saved at `scratchpad/dr4646/R2.md`.
   - Fix pass 2: cloud session `session_01Dwdr5uZY3pD9V44RfyZkUx`. Then the row (sequential, M, tallied 0, major true, per precedent PR-4359/4553/4702) and merge.
+- 2026-10-12 04:21 — Check-in: nothing ready. 4646 fix pass 2 has merged main and is fixing the probe row. r4743 is running suites (ci-test.log 04:20).
