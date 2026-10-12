@@ -8,7 +8,7 @@ priority: P1
 cost: M
 design: true
 refs: [a-flush-quarter-round-refuses-an-odd-crossing-count-at-its-rim-vertex, two-discs-kissing-externally-refuse-classification-invariant]
-needs_ev: true
+needs_ev: false
 ---
 
 
