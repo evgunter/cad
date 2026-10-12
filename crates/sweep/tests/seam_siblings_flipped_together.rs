@@ -8,12 +8,15 @@
 
 #![allow(clippy::panic, clippy::unwrap_used, clippy::expect_used)]
 
+use crate::seam_region_common::{
+    assert_refused, flipped, seam_siblings, sphere_faces, sphere_of, split_at_meridian, unencoded,
+    v,
+};
 use geom::{Curve3, Surface};
-use geom_brep::EdgeCurveSpec;
 use geom_core::{Point3, Tol, Vec3};
 use std::f64::consts::PI;
 use sweep::test_support::{ball_poled, brick, finished};
-use topo::{Body, FaceKey, FaceSurface, MefSite, ValidationError};
+use topo::{Body, FaceKey, ValidationError};
 
 #[derive(Clone, Copy)]
 enum Op {
@@ -133,10 +136,6 @@ const PAIRS: [Pair; 6] = [
     },
 ];
 
-fn v([x, y, z]: [f64; 3]) -> Vec3<f64> {
-    Vec3::new(x, y, z)
-}
-
 /// The lens two balls of radii `r1`, `r2` at distance `d` share.
 fn lens(r1: f64, r2: f64, d: f64) -> f64 {
     PI * (r1 + r2 - d).powi(2)
@@ -166,45 +165,6 @@ fn build(p: &Pair, tol: Tol) -> (Body<f64>, f64) {
     (body, want)
 }
 
-fn unencoded(body: &Body<f64>, face: FaceKey, tol: Tol) -> bool {
-    let f = body.faces().find(|(k, _)| *k == face).unwrap().1;
-    let (outer, _) = topo::props::loop_edges(body, f.outer).unwrap();
-    let band = geom_core::Band::linear(tol).unwrap();
-    f.rings.is_empty()
-        && geom_brep::props::boundary_material_sign(
-            body.get_surface(f.surface).unwrap(),
-            &outer,
-            band,
-        ) == Ok(geom_brep::props::MaterialSign::Unencoded)
-}
-
-/// The pairs of faces on one sphere surface that share an edge and
-/// each encode no side alone.
-fn seam_siblings(body: &Body<f64>, tol: Tol) -> Vec<[FaceKey; 2]> {
-    let mut pairs = Vec::new();
-    for (k, f) in body.faces() {
-        if !matches!(
-            body.get_surface(f.surface),
-            Some(geom::Surface::Sphere { .. })
-        ) || !unencoded(body, k, tol)
-        {
-            continue;
-        }
-        let (_, hes) = topo::props::loop_edges(body, f.outer).unwrap();
-        for h in hes {
-            let other = body.face_of_half_edge(body.mate(h).unwrap()).unwrap();
-            let of = body.faces().find(|(kk, _)| *kk == other).unwrap().1;
-            if other > k && of.surface == f.surface && unencoded(body, other, tol) {
-                let pair = [k, other];
-                if !pairs.contains(&pair) {
-                    pairs.push(pair);
-                }
-            }
-        }
-    }
-    pairs
-}
-
 #[test]
 fn seam_siblings_flipped_together_are_refused_by_name() {
     let tol = Tol::witness();
@@ -225,61 +185,9 @@ fn seam_siblings_flipped_together_are_refused_by_name() {
             p.label
         );
         for [x, y] in siblings {
-            let flipped = body
-                .flipped_face_sense_for_tests(x)
-                .and_then(|b| b.flipped_face_sense_for_tests(y))
-                .unwrap();
-            let errs = topo::validate_geometric(&flipped, tol)
-                .err()
-                .unwrap_or_else(|| {
-                    panic!(
-                        "{}: flipping both siblings {x:?} {y:?} passes tier 3 (measures {:?})",
-                        p.label,
-                        topo::mass_properties(&flipped, tol).map(|m| m.volume)
-                    )
-                });
-            for face in [x, y] {
-                assert!(
-                    errs.iter().any(
-                        |e| matches!(e, ValidationError::CurvedSenseInverted { face: f } if *f == face)
-                    ),
-                    "{}: flipping both siblings does not name {face:?} CurvedSenseInverted: {errs:?}",
-                    p.label
-                );
-            }
+            assert_refused(p.label, &body, &[x, y], &[x, y], tol);
         }
     }
-}
-
-/// Flips every face of `set` and asserts tier 3 refuses the body,
-/// naming each of `named` `CurvedSenseInverted`.
-fn assert_refused(label: &str, body: &Body<f64>, set: &[FaceKey], named: &[FaceKey], tol: Tol) {
-    let flipped = set.iter().fold(body.clone(), |b, &k| {
-        b.flipped_face_sense_for_tests(k).unwrap()
-    });
-    let errs = topo::validate_geometric(&flipped, tol)
-        .err()
-        .unwrap_or_else(|| {
-            panic!(
-                "{label}: flipping {set:?} passes tier 3 (measures {:?})",
-                topo::mass_properties(&flipped, tol).map(|m| m.volume)
-            )
-        });
-    for &face in named {
-        assert!(
-            errs.iter().any(
-                |e| matches!(e, ValidationError::CurvedSenseInverted { face: f } if *f == face)
-            ),
-            "{label}: flipping {set:?} does not name {face:?} CurvedSenseInverted: {errs:?}"
-        );
-    }
-}
-
-fn sphere_faces(body: &Body<f64>) -> Vec<FaceKey> {
-    body.faces()
-        .filter(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Sphere { .. })))
-        .map(|(k, _)| k)
-        .collect()
 }
 
 #[test]
@@ -346,10 +254,7 @@ fn a_whole_sphere_is_left_to_the_volume_check() {
     );
     let faces = sphere_faces(&ball);
     assert_eq!(faces.len(), 2, "a ball is two lunes");
-    let flipped = faces.iter().fold(Body::clone(&ball), |b, &k| {
-        b.flipped_face_sense_for_tests(k).unwrap()
-    });
-    let errs = topo::validate_geometric(&flipped, tol).unwrap_err();
+    let errs = topo::validate_geometric(&flipped(&ball, &faces), tol).unwrap_err();
     assert!(
         errs.iter()
             .any(|e| matches!(e, ValidationError::NegativeVolume { .. })),
@@ -373,33 +278,9 @@ fn split_along_a_meridian(
     tol: Tol,
 ) {
     let f = body.faces().find(|(k, _)| *k == face).unwrap().1.clone();
-    let Some(&Surface::Sphere {
-        center,
-        radius,
-        axis,
-        ..
-    }) = body.get_surface(f.surface)
-    else {
-        panic!("not a sphere face");
-    };
-    let pole = axis.normalize();
-    let (edges, hes) = topo::props::loop_edges(body, f.outer).unwrap();
-    let points: Vec<_> = body.vertex_points().collect();
-    let at = |h: topo::HalfEdgeKey| {
-        let v = body.get_half_edge(h).unwrap().start;
-        points.iter().find(|(k, _)| *k == v).unwrap().1
-    };
+    let (center, radius, pole) = sphere_of(body, face);
+    let (edges, _) = topo::props::loop_edges(body, f.outer).unwrap();
     let near = |a: Point3<f64>, b: Point3<f64>| (a - b).norm() < 1e-9;
-    let north = center + pole * radius;
-    let south = center - pole * radius;
-    let he1 = *hes
-        .iter()
-        .find(|&&h| near(at(h), north))
-        .expect("a pole vertex");
-    let he2 = *hes
-        .iter()
-        .find(|&&h| near(at(h), south))
-        .expect("a pole vertex");
     let mut seam = None;
     let mut inside = None;
     for e in &edges {
@@ -440,21 +321,7 @@ fn split_along_a_meridian(
         .map(|k| meridian(f64::from(k) * PI / 20.0))
         .find(|&d| clear(d))
         .expect("a meridian across the lune clear of the cut");
-    let circle = Curve3::Circle {
-        center,
-        axis: pole.cross(dir),
-        radius,
-        u_ref: pole,
-    };
-    body.mef(
-        MefSite::Chords { he1, he2 },
-        EdgeCurveSpec::arc_of_circle(circle, 0.0, PI)
-            .unwrap()
-            .at_rest_in_chart(f.surface, false),
-        FaceSurface::Inherit,
-        tol,
-    )
-    .unwrap();
+    split_at_meridian(body, face, dir, tol);
 }
 
 #[test]

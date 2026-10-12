@@ -1,7 +1,8 @@
 //! Every sphere face of a boolean of balls, or of a slab and a ball,
 //! flipped alone and with each other face on its surface: tier 3
 //! refuses every such body, and names each flipped face whose own loop
-//! encodes no side by the side of its seam region.
+//! encodes no side by the side of its seam region, where the region has
+//! a boundary: a whole sphere is the volume checks' to read.
 //!
 //! A counterexample search (the PR 4573 flip review's harness, which
 //! found six of its 568 flips silent at one seed).
@@ -11,9 +12,10 @@ test_utils::gated_to![
     "crates/topo/src/validate.rs",
     "crates/topo/src/props.rs",
     "crates/geom-brep/src/props/curved.rs",
-    "crates/sweep/tests/seam_siblings_flipped_together.rs",
+    "crates/sweep/tests/seam_region_common/",
 ];
 
+use crate::seam_region_common::{flipped, seam_region, unencoded};
 use geom::Surface;
 use geom_core::{Tol, Vec3};
 use sweep::test_support::{ball_poled, brick, finished};
@@ -32,20 +34,6 @@ fn dir(rng: &mut fuzz::Rng) -> Vec3<f64> {
             return v / n;
         }
     }
-}
-
-fn unencoded(body: &Body<f64>, face: FaceKey, tol: Tol) -> bool {
-    let f = body.faces().find(|(k, _)| *k == face).unwrap().1;
-    let Ok((outer, _)) = topo::props::loop_edges(body, f.outer) else {
-        return false;
-    };
-    let band = geom_core::Band::linear(tol).unwrap();
-    f.rings.is_empty()
-        && geom_brep::props::boundary_material_sign(
-            body.get_surface(f.surface).unwrap(),
-            &outer,
-            band,
-        ) == Ok(geom_brep::props::MaterialSign::Unencoded)
 }
 
 /// Flips the sphere faces of `body` alone and in same-surface pairs;
@@ -68,9 +56,7 @@ fn flips(label: &str, body: &Body<f64>, failures: &mut Vec<String>) -> usize {
     }
     let count = sets.len();
     for set in sets {
-        let flipped = set.iter().fold(body.clone(), |b, &k| {
-            b.flipped_face_sense_for_tests(k).unwrap()
-        });
+        let flipped = flipped(body, &set);
         match topo::validate_geometric(&flipped, tol) {
             Ok(()) => failures.push(format!(
                 "{label}: flipping {set:?} passes tier 3 (measures {:?}, unflipped {:?})",
@@ -82,7 +68,9 @@ fn flips(label: &str, body: &Body<f64>, failures: &mut Vec<String>) -> usize {
                     let named = errs.iter().any(|e| {
                         matches!(e, ValidationError::CurvedSenseInverted { face: f } if *f == face)
                     });
-                    if unencoded(body, face, tol) && !named {
+                    // A region with no boundary is a whole sphere,
+                    // whose side the volume checks read.
+                    if unencoded(body, face, tol) && seam_region(body, face).1 && !named {
                         failures.push(format!(
                             "{label}: flipping {set:?} does not name {face:?}: {errs:?}"
                         ));

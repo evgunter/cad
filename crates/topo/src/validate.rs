@@ -1333,15 +1333,20 @@ pub enum ValidationError {
     ///
     /// * a one-loop sphere face with **both chart poles on its loop**
     ///   (a lune, a hemisphere split at its poles), or within the band
-    ///   of it (a near-great carrier passing within the band of one
-    ///   pole passes within it of the other) — its boundary encodes no
-    ///   side, the documented residual. Such a face meets its seam
-    ///   sibling tangentially, where check 4 reads a flip of ONE of
-    ///   the two as a lamina; a flip of BOTH keeps the seam consistent,
-    ///   and where their other edges meet their neighbours
-    ///   transversally nothing in tier 3 sees it, and the volume is
-    ///   measured wrong
-    ///   (`work/flux/a-pair-of-seam-siblings-flipped-together-is-silent.md`);
+    ///   of it, whose own boundary encodes no side, where its SEAM
+    ///   REGION encodes none either. The region is the face and the
+    ///   faces of its surface it reaches across shared edges, and its
+    ///   boundary encodes a side by its Gauss–Bonnet area when it has
+    ///   two loops or more, and by a pole on an edge interior to it
+    ///   (`geom_brep::props::sphere_region_material_sign`). Unread: a
+    ///   whole sphere, whose side is its shell's orientation (checks 7
+    ///   and 10); a one-loop boundary with no pole on an interior edge,
+    ///   among them one carrying both poles; a boundary that touches
+    ///   itself at a vertex. A region of one face unread so is no
+    ///   defect: its flipped bit describes the complement, another
+    ///   valid body. A region of two faces or more, all flipped, has
+    ///   its faces overlap and passes
+    ///   (`work/flux/a-seam-region-whose-boundary-carries-both-poles-is-unread.md`);
     /// * a one-loop sphere face with a chart pole off its loop on EACH
     ///   side — a rim-only cap, a tilted cap or a blend corner patch
     ///   holding a pole. Under either sense it holds a pole, which
@@ -5282,38 +5287,58 @@ fn plus_v_by_sign<'b, T: geom_core::Decide>(
     }
 }
 
-/// **The seam region of a face**: the faces on `start`'s surface entity
-/// that it reaches across shared edges, every loop of each, and the
-/// region's boundary — the members' half-edges whose mates lie outside
-/// it — chained into simple loops. `None` where a record does not
-/// resolve or a chain does not close, which tier 1 rules out.
-#[allow(clippy::type_complexity)]
+/// **A face's seam region**: the faces on its surface entity it reaches
+/// across shared edges, every loop of each, and the region's boundary,
+/// the members' half-edges whose mates lie outside it, chained into
+/// cycles ([`seam_region`]).
+struct SeamRegion<T: Real> {
+    members: Vec<FaceKey>,
+    loops: Vec<Vec<geom_brep::props::LoopEdge<T>>>,
+    boundary: Vec<Vec<geom_brep::props::LoopEdge<T>>>,
+    /// Some boundary cycle passes through one vertex twice: the region
+    /// touches itself there, and its boundary is no set of simple loops
+    /// the side readers take.
+    pinched: bool,
+}
+
+/// [`SeamRegion`] of `start`, on a body tier 1 has passed: every key
+/// resolves, a vertex's half-edges form a finite rotation, and the
+/// boundary half-edges each have one successor, so the chains close.
+/// A miss there is a kernel defect and panics; the flattening's own
+/// refusal (a scaffold edge at rest) is returned, typed, and leaves the
+/// region unread as a face's refused derivation does.
 fn seam_region<T: Decide>(
     body: &Body<T>,
     start: FaceKey,
-) -> Option<(
-    Vec<FaceKey>,
-    Vec<Vec<geom_brep::props::LoopEdge<T>>>,
-    Vec<Vec<geom_brep::props::LoopEdge<T>>>,
-)> {
-    let carrier = body.faces.get(start)?.surface;
-    let cycles =
-        |f: FaceKey| -> Option<Vec<(Vec<geom_brep::props::LoopEdge<T>>, Vec<HalfEdgeKey>)>> {
-            let face = body.faces.get(f)?;
-            core::iter::once(face.outer)
-                .chain(face.rings.iter().copied())
-                .map(|lk| crate::props::loop_edges(body, lk).ok())
-                .collect()
-        };
+) -> Result<SeamRegion<T>, crate::props::LoopEdgesError> {
+    let resolved = "a seam region read on a body tier 1 passed: every key it walks resolves";
+    let face = |f: FaceKey| {
+        body.faces
+            .get(f)
+            .unwrap_or_else(|| unreachable!("{resolved}"))
+    };
+    let half_edge = |h: HalfEdgeKey| {
+        body.half_edges
+            .get(h)
+            .unwrap_or_else(|| unreachable!("{resolved}"))
+    };
+    let across = |h: HalfEdgeKey| {
+        body.mate(h)
+            .and_then(|m| body.face_of_half_edge(m))
+            .unwrap_or_else(|| unreachable!("{resolved}"))
+    };
+    let carrier = face(start).surface;
     let mut members = vec![start];
     let mut loops = Vec::new();
     let mut half_edges = Vec::new();
     let mut i = 0;
     while let Some(&f) = members.get(i) {
-        for (edges, hes) in cycles(f)? {
+        let rec = face(f);
+        for lk in core::iter::once(rec.outer).chain(rec.rings.iter().copied()) {
+            let (edges, hes) = crate::props::loop_edges(body, lk)?;
             for &h in &hes {
-                let other = body.face_of_half_edge(body.mate(h)?)?;
-                if body.faces.get(other)?.surface == carrier && !members.contains(&other) {
+                let other = across(h);
+                if face(other).surface == carrier && !members.contains(&other) {
                     members.push(other);
                 }
             }
@@ -5322,13 +5347,10 @@ fn seam_region<T: Decide>(
         }
         i += 1;
     }
-    let inside = |h: HalfEdgeKey| {
-        body.mate(h)
-            .and_then(|m| body.face_of_half_edge(m))
-            .is_some_and(|f| members.contains(&f))
-    };
+    let inside = |h: HalfEdgeKey| members.contains(&across(h));
     let mut open: Vec<HalfEdgeKey> = half_edges.iter().copied().filter(|&h| !inside(h)).collect();
     let mut boundary = Vec::new();
+    let mut pinched = false;
     while let Some(&first) = open.first() {
         // One boundary cycle: from a boundary half-edge to the next one
         // out of its end vertex, turning through the region's interior
@@ -5338,39 +5360,38 @@ fn seam_region<T: Decide>(
         loop {
             cycle.push(h);
             open.retain(|&x| x != h);
-            let mut n = body.half_edges.get(h)?.next;
+            let mut n = half_edge(h).next;
             let mut turns = 0;
             while inside(n) {
-                n = body.half_edges.get(body.mate(n)?)?.next;
+                n = half_edge(body.mate(n).unwrap_or_else(|| unreachable!("{resolved}"))).next;
                 turns += 1;
                 if turns > half_edges.len() {
-                    return None;
+                    unreachable!(
+                        "a vertex's rotation on a closed body returns to a boundary half-edge"
+                    );
                 }
             }
             if n == first {
                 break;
             }
             if !open.contains(&n) {
-                return None;
+                unreachable!("a seam region's boundary half-edges each have one successor");
             }
             h = n;
         }
-        // A cycle through one vertex twice bounds two regions that touch
-        // there: one simple loop each.
-        let mut run: Vec<HalfEdgeKey> = Vec::new();
-        for h in cycle {
-            let v = body.half_edges.get(h)?.start;
-            if let Some(at) = run
-                .iter()
-                .position(|&r| body.half_edges.get(r).is_some_and(|r| r.start == v))
-            {
-                boundary.push(crate::props::run_edges(body, &run.split_off(at)).ok()?);
-            }
-            run.push(h);
-        }
-        boundary.push(crate::props::run_edges(body, &run).ok()?);
+        let starts: Vec<_> = cycle.iter().map(|&h| half_edge(h).start).collect();
+        pinched |= starts
+            .iter()
+            .enumerate()
+            .any(|(i, v)| starts[..i].contains(v));
+        boundary.push(crate::props::run_edges(body, &cycle)?);
     }
-    Some((members, loops, boundary))
+    Ok(SeamRegion {
+        members,
+        loops,
+        boundary,
+        pinched,
+    })
 }
 
 /// **Where `body` holds material wound negative, read as tier 3 reads
@@ -7237,14 +7258,11 @@ pub(crate) fn tier3_local_checks_marked<
     // face with both poles on its loop encodes no side alone
     // (`Unencoded`), and is read through its SEAM REGION: the faces on
     // its surface entity it reaches across shared edges
-    // ([`seam_region`]), whose boundary encodes a side wherever a pole
-    // lies off it (`sphere_region_material_sign`). Exempt: a region
-    // with no boundary (a whole sphere, its shell's orientation, which
-    // checks 7 and 10 read) and one whose boundary carries both poles.
-    // For a region of one face the latter is no defect: the flipped
-    // bit describes the region's complement, another valid body. So is
-    // a face with a pole off its loop on each side exempt, which holds
-    // a pole under either sense.
+    // ([`seam_region`]), whose boundary encodes a side by its area or
+    // by a pole on an interior edge (`sphere_region_material_sign`).
+    // Exempt: the regions that reader leaves unread, listed on
+    // `CurvedSenseInverted`. So is a face with a pole off its loop on
+    // each side, which holds a pole under either sense.
     // ------------------------------------------------------------------
     // The seam regions read so far, with the side each encodes.
     let mut regions: Vec<(Vec<FaceKey>, Option<geom_brep::props::MaterialSign>)> = Vec::new();
@@ -7290,17 +7308,22 @@ pub(crate) fn tier3_local_checks_marked<
                 {
                     Some((_, side)) => *side,
                     None => {
-                        let read = seam_region(body, face_key).map(|(members, loops, boundary)| {
-                            let boundary: Vec<&[_]> = boundary.iter().map(Vec::as_slice).collect();
-                            let loops: Vec<&[_]> = loops.iter().map(Vec::as_slice).collect();
-                            let side = geom_brep::props::sphere_region_material_sign(
-                                surface, &boundary, &loops, band,
-                            );
-                            (members, side.ok())
-                        });
-                        let Some((members, side)) = read else {
-                            continue; // unreachable on tier-1 input
+                        let Ok(region) = seam_region(body, face_key) else {
+                            continue; // derivation exempt (posture above)
                         };
+                        let side = (!region.pinched)
+                            .then(|| {
+                                let boundary: Vec<&[_]> =
+                                    region.boundary.iter().map(Vec::as_slice).collect();
+                                let loops: Vec<&[_]> =
+                                    region.loops.iter().map(Vec::as_slice).collect();
+                                geom_brep::props::sphere_region_material_sign(
+                                    surface, &boundary, &loops, band,
+                                )
+                                .ok()
+                            })
+                            .flatten();
+                        let members = region.members;
                         regions.push((members, side));
                         side
                     }
