@@ -49,3 +49,11 @@ derivation is the closed-form door and this certification runs at
 the fillet corner's contact circles are `TangentIntersection`s — so the
 wording fix above is what is owed; a route for that description would
 need this door to take the fitted lane.
+
+Moved by `pcert/projected-image` (2026-10-08): the general circle on
+its sphere is no longer uncovered at this door either. `chart_pcurve`
+images it as `Pcurve::Projected` and certifies it at every `Decide`
+scalar, because a circle's incidence is the closed-form
+`off_sphere_sup` and its envelope needs no fitted door. Of the
+uncovered classes the fold can still meet, only `NoFittedClass`,
+`MirrorTorusSpiric` and `FittedLaneUnsupported` remain.

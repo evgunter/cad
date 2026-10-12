@@ -76,12 +76,12 @@
 //!    entities ([`StepImportError::TierInvalid`]) — a statement about
 //!    the FILE's geometry, never the kernel-bug voice.
 //!
-//!    **Scope, named**: the gate is tier 3, and 3′ on an empty contact
-//!    record is strictly stronger (it runs the coincidence census).
-//!    Imports declare no contacts, so an imported assembly whose parts
-//!    TOUCH is checked less than its native twin, whose pipeline
-//!    carries declarations. Import-side declared contacts are banked
-//!    with the M8 contact program (D7 step 4).
+//!    **The aggregate gate is tier 3′** (D7 step 4): the coincidence
+//!    census over the assembled body, each solid its own group, records
+//!    every touch between two solids as a row of its own Zero and a
+//!    record citing it (`topo::record_at_rest`), which ship on
+//!    [`StepImport::Solid`]; a touch inside one solid, or two solids
+//!    that overlap, refuse.
 //!
 //! # Two tolerances (D7)
 //!
@@ -195,8 +195,9 @@
 //!
 //! What the wild states that this reader still refuses is named at
 //! the point of refusal: a curved face carrying a genuine interior
-//! ring — `topo` has no volume construction for one, so the body
-//! would not be tier-3 valid — and edges the D7 ladder cannot
+//! ring, which this reader adopts on no curved chart yet — `topo`
+//! measures one on a cone wall and on a cylinder or torus wall bounded
+//! by rims and rulings, and no other — and edges the D7 ladder cannot
 //! certify, the same refusal it has always been. Open CASCADE's
 //! seamless periodic band NORMALIZES since
 //! M7-5: cylinder and torus bands take the seam re-mint
@@ -339,9 +340,10 @@ pub enum NormalizationKind {
     /// lateral face stated as its two full-period rim bounds with NO
     /// seam generator between them (Open CASCADE never splits a
     /// periodic face on export). The kernel's face model has one outer
-    /// loop plus rings, and a curved face with a ring has no volume
-    /// construction (`RingOnCurvedFace`), so the band cannot adopt as
-    /// stated. Re-minted as the kernel's own shape for the same locus:
+    /// loop plus rings, and a ring that winds the chart's period is a
+    /// loop tier 3's pcurve mint refuses (`topo::PcurveMintError::LoopWraps`),
+    /// so the band cannot adopt as stated. Re-minted as the kernel's
+    /// own shape for the same locus:
     /// ONE single-loop face whose loop walks one rim, the minted seam
     /// generator (the surface's u_ref ruling for a cylinder, its u_ref
     /// meridian arc for a torus), the other rim, and the generator
@@ -374,6 +376,16 @@ pub enum NormalizationKind {
         /// recognizer's dual track).
         residual: f64,
     },
+    /// **Two edges the file states on one carrier, joined** (Ev's PR
+    /// 4251 ruling; `docs/DESIGN.md`, maximal edges): the file stops an
+    /// edge at a vertex where nothing else meets it and the next edge
+    /// runs on along the same curve, so the vertex is no cell of the
+    /// solid, and the import ends with the join every finisher ends
+    /// with. One record per join, keyed by the least `ADVANCED_FACE`
+    /// the joined edge bounds; its census pair is the join's own
+    /// region — two edges and the vertex between them, become one edge
+    /// — so the records' deltas still sum to the body's totals.
+    JoinedEdges,
 }
 
 /// A **reported structure normalization** (D7 stage-3 repair, in its
@@ -470,15 +482,6 @@ pub struct ImportOptions {
     /// the file's declaration. Must be finite and strictly positive
     /// when given ([`StepImportError::InvalidEpsOverride`]).
     pub eps_in: Option<f64>,
-    /// **The import-side declaration channel** (M9-2, D7 step 4's
-    /// residue): contact declarations the adopting CALLER attaches to
-    /// this import, resolved against the assembled body and certified
-    /// by the SAME tier-3′ gate a native declared-contact body runs —
-    /// there is no import-only validity path (the #276/#260 one-gate
-    /// ruling). A file has no arena keys to declare with, so the
-    /// channel is POSITION-anchored; an anchor that does not resolve
-    /// is [`StepImportError::DeclarationUnresolved`], never dropped.
-    pub declared_contacts: Vec<ImportContact>,
     /// **Ask for the chart-coherence examination** of the shipped body
     /// ([`topo::examine_chart_coherence`]), reported at
     /// [`StepImport::Solid::coherence`]. Default `false`.
@@ -500,27 +503,6 @@ pub struct ImportOptions {
     /// disagree; no file imports or refuses differently for this flag,
     /// and the at-rest gate never reads it.
     pub examine_chart_coherence: bool,
-}
-
-/// One position-anchored import declaration (module docs at
-/// [`ImportOptions::declared_contacts`]).
-///
-/// The kernel-side currency these resolve INTO is
-/// [`topo::ContactRecords`] — the boolean 3′ records, same type, no
-/// adapter. The vertex-rest anchor is the shipped arm (the touching-
-/// assembly class the corpus holds); face-granularity anchors extend
-/// here when their first import consumer lands, through the same
-/// resolve-or-refuse posture.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum ImportContact {
-    /// Two vertices of the assembled body coincide at `at` and are
-    /// declared at REST: resolves to the exactly-two vertices within
-    /// ε_in of the anchor — the FILE's tolerance, not the kernel band
-    /// — and mints their `VvContact`.
-    VertexRest {
-        /// The anchor position (model metres).
-        at: [f64; 3],
-    },
 }
 
 /// A successful import: what the file's shape representation supports.
@@ -647,6 +629,20 @@ pub enum StepImport {
         /// finding is a measurement, and reading it as a verdict is
         /// reading intent into a number.
         coherence: Option<topo::CoherenceReport>,
+        /// **The contacts between the body's solids**: one record per
+        /// touch the at-rest census found between two of `body`'s
+        /// solids, each citing its row in `coincidences` and confirmed
+        /// by the census like any other record ([`topo::record_at_rest`]).
+        /// An imported assembly whose parts touch certifies (D7 step 4),
+        /// and these are what a later gate over `body` confirms rather
+        /// than finds again.
+        contacts: topo::ContactRecords,
+        /// **The census's decisions `contacts` cite**, in the order it
+        /// made them ([`topo::DecisionSite::CensusAtRest`]), each a Zero
+        /// of the file's values: no imported cell is a construction of a
+        /// document's variables, so each is an `unproven-coincidence`
+        /// finding where a document reads it (D7, D10).
+        coincidences: Vec<topo::Coincidence>,
     },
     /// The file carried a `GEOMETRIC_CURVE_SET` wireframe and no
     /// solid: the reconstructed carriers, exact. **No body is
@@ -774,9 +770,18 @@ pub fn import_step(
             // below, not a re-derivation of them.
             let mut body = topo::Body::new();
             let mut record = Vec::with_capacity(model.instances.len());
+            // The joins each solid's build ended with, reported once per
+            // solid however many instances place it: every copy is built
+            // from the same spec, so joins the same vertices.
+            let mut normalizations = model.normalizations.clone();
+            let mut joined = std::collections::BTreeSet::new();
             for (index, instance) in model.instances.iter().enumerate() {
                 let spec = &solids[instance.solid];
-                let one = assemble::build_one_solid(spec, tol)?;
+                let (one, joins) =
+                    assemble::build_one_solid(spec, tol, geom_core::FileCoincidence::new(eps_in))?;
+                if joined.insert(instance.solid) {
+                    normalizations.extend(joins);
+                }
                 let one = match instance.placed {
                     Some(entities::Placed {
                         map: Some(map),
@@ -851,28 +856,20 @@ pub fn import_step(
             // mapped geometry, so no tier-3 verdict is a function of
             // the placement — and it costs nothing in honesty.
             //
-            // **The 3′ form, with the import-side declaration
-            // channel resolved** (M9-2, D7 step 4 executed): the
-            // aggregate body is held to `validate_pseudomanifold` —
-            // the SAME gate a native declared-contact body runs,
-            // against exactly the records the adopting caller's
-            // declarations resolve to (empty when none were given).
-            // Consequence, stated plainly: an imported assembly whose
-            // parts TOUCH now refuses UNDECLARED at this gate — the
-            // census discovers the touch and F1 forbids blessing it —
-            // and certifies WITH the declaration. The
-            // per-solid gates above stay tier 3: contact is an
-            // aggregate-body fact, and the aggregate census sweeps
-            // every entity of every instance.
-            //
-            // The origin channel's import arm (`topo::GeomOrigin`, D7):
-            // every description in the shipped body came out of this
-            // file, and this door is the only one in a position to say
-            // so. After the materialization loop, so it covers every
-            // instance's grafted descriptions.
-            body.mark_imported();
-            let records = resolve_declarations(&body, &options.declared_contacts, eps_in)?;
-            let enclosure = gate3(&body, &records, tol)?;
+            // **The 3′ form, recording what it decides** (D7 step 4,
+            // D1 (iii)): the aggregate body is held to
+            // `validate_pseudomanifold` — the SAME gate a native body's
+            // contact records run — through the census's recording
+            // door, each solid its own group: the file's instance
+            // structure is not recoverable from its solids, so a solid
+            // is the unit a touch is between. A touch between two solids
+            // is a row and a record citing it, confirmed on the census's
+            // next pass, so an imported assembly whose parts touch
+            // certifies; a touch inside one solid is its defect, and
+            // two solids that overlap refuse. The per-solid gates above stay
+            // tier 3: contact is an aggregate-body fact, and the
+            // aggregate census sweeps every entity of every instance.
+            let (contacts, coincidences, enclosure) = gate3(&body, tol)?;
             // **The chart-coherence channel** — after the gate, on the
             // body that ships, and consuming nothing. The door is a
             // pure function of (body, ε) that refuses nothing and
@@ -889,10 +886,12 @@ pub fn import_step(
                 body,
                 enclosure,
                 eps_in,
-                normalizations: model.normalizations.clone(),
+                normalizations,
                 curve_promotions: model.curve_promotions.clone(),
                 instances: record,
                 coherence,
+                contacts,
+                coincidences,
             })
         }
         entities::Shape::Wireframe(ref curves) => Ok(StepImport::Wireframe {
@@ -916,10 +915,12 @@ fn gate(body: &topo::Body<f64>, solid: Option<u64>, tol: Tol) -> Result<(), Step
         .map_err(|errors| StepImportError::TierInvalid { solid, errors })
 }
 
-/// The aggregate subject's gate: the tier-3′ form over the resolved
-/// declaration records — the same function a native declared-contact
-/// body's caller runs, with the same no-opinion contract as [`gate`] —
-/// followed by the measurement the reader ships.
+/// The aggregate subject's gate: the tier-3′ form, recording the
+/// contacts it finds between the body's solids
+/// ([`topo::record_at_rest`], each solid its own group) — the same
+/// function a caller runs over a native body's contact records, with the
+/// same no-opinion contract as [`gate`] — followed by the measurement
+/// the reader ships.
 ///
 /// The gate returns the certificate its check 7 decided on: each
 /// solid's SIGN, certified per solid and assembled over the whole face
@@ -937,134 +938,43 @@ fn gate(body: &topo::Body<f64>, solid: Option<u64>, tol: Tol) -> Result<(), Step
 /// read once there and once again here: a two-instance assembly of
 /// certifying solids records twice one measurement's quadrature
 /// verdicts through `import_step`. Where it does not, the import pays
-/// this gate only.
+/// this gate only, once, or twice where its solids touch: the second
+/// pass confirms the records the first one's touches minted.
+#[allow(clippy::type_complexity)] // the gate's three products, read once at its one caller
 fn gate3(
     body: &topo::Body<f64>,
-    records: &topo::ContactRecords,
     tol: Tol,
-) -> Result<Result<topo::MassProperties<f64>, topo::TargetUnreached<f64>>, StepImportError> {
-    topo::validate_pseudomanifold_certificate(body, records, tol)
-        .map(topo::SignCertificate::measure)
-        .map_err(|errors| StepImportError::TierInvalid {
-            solid: None,
-            errors,
-        })
-}
-
-/// Resolves the position-anchored import declarations against the
-/// assembled body into the kernel's contact-record currency
-/// ([`ImportContact`] docs). Resolution compares a rounded-f64 sum of
-/// squared coordinate differences against ε_in² — the import's own
-/// input tolerance, because anchors are FILE-side data and resolve at
-/// the file's tolerance, not the kernel band. An anchor with anything
-/// other than exactly two coincident vertices refuses typed.
-fn resolve_declarations(
-    body: &topo::Body<f64>,
-    contacts: &[ImportContact],
-    eps_in: f64,
-) -> Result<topo::ContactRecords, StepImportError> {
-    let mut records = topo::ContactRecords::default();
-    for c in contacts {
-        match *c {
-            ImportContact::VertexRest { at } => {
-                let candidates = body.vertex_points();
-                records
-                    .vv
-                    .push(vertex_rest_contact(candidates, at, eps_in)?);
+) -> Result<
+    (
+        topo::ContactRecords,
+        Vec<topo::Coincidence>,
+        Result<topo::MassProperties<f64>, topo::TargetUnreached<f64>>,
+    ),
+    StepImportError,
+> {
+    let instance: std::collections::BTreeMap<topo::SolidKey, u32> =
+        body.solids().map(|(solid, _)| solid).zip(0..).collect();
+    let mut certificate = None;
+    let recorded = topo::record_at_rest(
+        body,
+        &topo::ContactRecords::default(),
+        |records| match topo::validate_pseudomanifold_certificate(body, records, tol) {
+            Ok(certified) => {
+                certificate = Some(certified);
+                Vec::new()
             }
+            Err(errors) => errors,
+        },
+        &|solid| instance.get(&solid).copied(),
+        0,
+    );
+    match certificate {
+        Some(certified) if recorded.findings.is_empty() => {
+            Ok((recorded.records, recorded.rows, certified.measure()))
         }
-    }
-    Ok(records)
-}
-
-/// One vertex-rest anchor resolved against the body's vertices, each
-/// paired with its position: the exactly-two coincidences within ε_in
-/// of `at`, as the kernel's `VvContact`.
-fn vertex_rest_contact(
-    candidates: impl Iterator<Item = (topo::VertexKey, geom_core::Point3<f64>)>,
-    at: [f64; 3],
-    eps_in: f64,
-) -> Result<topo::VvContact, StepImportError> {
-    let mut hits = Vec::new();
-    for (vk, p) in candidates {
-        let d2 = (p.x - at[0]).powi(2) + (p.y - at[1]).powi(2) + (p.z - at[2]).powi(2);
-        if d2 <= eps_in.powi(2) {
-            hits.push(vk);
-        }
-    }
-    let [a, b] = hits[..] else {
-        return Err(StepImportError::DeclarationUnresolved {
-            at,
-            found: hits.len(),
-        });
-    };
-    Ok(topo::VvContact { a, b })
-}
-
-#[cfg(test)]
-#[allow(clippy::expect_used, clippy::panic)]
-mod declaration_tests {
-    use super::{ImportContact, resolve_declarations};
-    use geom_core::Point3;
-
-    /// Two lone vertices at one position, in one body: the smallest
-    /// thing a vertex-rest anchor can resolve against. `mvfs` mints a
-    /// solid of its own per call, so two calls put two vertices in one
-    /// arena with no edge between them — the shape a touching assembly
-    /// presents to the resolver.
-    fn two_coincident_vertices(at: Point3<f64>) -> topo::Body<f64> {
-        let mut body = topo::Body::new();
-        body.mvfs(at, true).expect("mvfs mints a lone vertex");
-        body.mvfs(at, true)
-            .expect("mvfs mints a second lone vertex");
-        body
-    }
-
-    /// The resolvable case, end to end through the walk: an anchor on
-    /// two coincident vertices mints their `VvContact`.
-    #[test]
-    fn a_vertex_rest_anchor_resolves_two_coincident_vertices() {
-        let body = two_coincident_vertices(Point3::new(1.0, 1.0, 1.0));
-        let keys: Vec<_> = body.vertices().map(|(vk, _)| vk).collect();
-        let records = resolve_declarations(
-            &body,
-            &[ImportContact::VertexRest {
-                at: [1.0, 1.0, 1.0],
-            }],
-            1e-9,
-        )
-        .expect("two coincident vertices resolve");
-        assert_eq!(records.vv.len(), 1, "one declaration, one record");
-        assert_eq!(
-            [records.vv[0].a, records.vv[0].b],
-            [keys[0], keys[1]],
-            "the record names the two vertices at the anchor"
-        );
-    }
-
-    /// **The premise [`vertex_rest_contact`]'s refusal is argued from**,
-    /// read off the policy's one home rather than restated: at one
-    /// solid the per-part gate is not owed, so a one-instance import
-    /// runs no gate on any of its geometry before its declarations
-    /// resolve. Two solids owe it, which is the other side of the same
-    /// threshold and what makes the lone-solid answer a threshold rather
-    /// than "never".
-    ///
-    /// Red here means `topo::per_part_gate_owed` changed its answer.
-    /// The refusal may well still be right — the per-part gate sees only
-    /// pre-graft copies — but its doc argues from this answer, so
-    /// re-read that argument before re-pinning.
-    #[test]
-    fn the_per_part_policy_still_skips_a_lone_solid() {
-        assert!(
-            !topo::per_part_gate_owed(1),
-            "the per-part gate is now owed by a lone solid: \
-             `vertex_rest_contact`'s premise no longer holds as written"
-        );
-        assert!(
-            topo::per_part_gate_owed(2),
-            "two solids no longer owe the per-part gate: a refusal about one \
-             instance of an assembly would stop naming its MANIFOLD_SOLID_BREP"
-        );
+        _ => Err(StepImportError::TierInvalid {
+            solid: None,
+            errors: recorded.findings,
+        }),
     }
 }

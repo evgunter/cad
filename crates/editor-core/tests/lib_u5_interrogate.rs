@@ -12,9 +12,8 @@
 //! `vertex_position` — the doors `names::interrogate` exports, whose
 //! own return type is this enum. Two other public doors surface an
 //! `InterrogateError` WHOLE inside a refusal of their own and are not
-//! this suite's subject: `select_where` and `find_flush_candidates`
-//! wrap one in `SelectRefusal::Unreadable` (`names::select`,
-//! `names::flush`), and a measurement reference wraps one in
+//! this suite's subject: `select_where` wraps one in
+//! `SelectRefusal::Unreadable` (`names::select`), and a measurement reference wraps one in
 //! `NodeErrorKind::MeasureRefUnreadable` (`eval::wire`). They index
 //! the payload with the name table's own `ent.body`, exactly as
 //! `interrogate::entity_of` does, so the two exclusions the ladder row
@@ -100,7 +99,7 @@ fn box_doc() -> (ProfileDoc, RecipeNodeId) {
     fixture::insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -353,18 +352,15 @@ fn box_with_a_failed_and_a_poisoned_node() -> (ProfileDoc, RecipeNodeId, RecipeN
     let (doc, failed) = fixture::insert(
         doc,
         Node::Extrude {
-            profile: square,
+            profile: square.into(),
             distance: len(0.0),
             side: ExtrudeSide::Along,
         },
     );
     let (doc, poisoned) = fixture::insert(
         doc,
-        Node::Boolean {
-            op: editor_core::BooleanOp::Union,
-            a: failed,
-            b: good,
-            declare: Vec::new(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![failed.into(), good.into()]),
         },
     );
     (doc, good, failed, poisoned)

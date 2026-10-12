@@ -51,7 +51,7 @@
 //! was a straight leg), and `carriers_are_identical` under the
 //! `path_carrier_identity` key in `family::leg_end_arc_open` — the arc
 //! extension's vertex-move choice, a same-carrier question the ruling
-//! that every zero-turn joint is a declared tangent joint retires in
+//! that every zero-turn joint is a tangent joint (D1) retires in
 //! principle and which stands recorded here until its own unit takes
 //! it. The chain keeps no other memory of an emitted arc. The
 //! arc-carrier RESOLUTION machinery (`arc_fillet::resolve`, unchanged

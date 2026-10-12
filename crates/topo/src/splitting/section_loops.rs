@@ -38,10 +38,15 @@ pub(super) fn section_normal<T: Real>(n: Vec3<T>, side: PlaneSide) -> Vec3<T> {
 }
 
 /// The in-plane `u` axis a section loop `l` on a plane of normal `n` is
-/// charted with: its first chord, normalized, or for a loop of one
-/// corner the first axis of `n`'s own basis (`orthonormal_basis`, a
-/// fixed function of `n`'s bits). Deterministic data; which `n` it
-/// reads is the caller's to state.
+/// charted with: its first chord's component in the plane, normalized,
+/// or for a loop of one corner the first axis of `n`'s own basis
+/// (`orthonormal_basis`, a fixed function of `n`'s bits). Deterministic
+/// data; which `n` it reads is the caller's to state.
+///
+/// A corner is a vertex the split read ON, which lies within ε of the
+/// plane but not necessarily in it, so the chord itself can lean out
+/// of the plane; the axis is ⊥ `n` all the same, as a plane's frame
+/// must be.
 ///
 /// # Panics
 ///
@@ -57,7 +62,8 @@ pub(super) fn chord_u_ref<T: Real>(
     n: UnitVec3<T>,
 ) -> Vec3<T> {
     if let [a, b, ..] = points {
-        return (*b - *a).normalize();
+        let (chord, n) = (*b - *a, n.get());
+        return (chord - n * chord.dot(n)).normalize();
     }
     let first = match body.get_loop(l).map(|lp| lp.boundary) {
         Some(LoopBoundary::Cycle { first }) => first,

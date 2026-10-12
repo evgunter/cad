@@ -19,7 +19,7 @@ use sweep::test_support::{ball_poled, cube, finished};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::query::{self, SurfaceKindSet};
 use topo::readback::euler_counts;
-use topo::{AtRestBody, Body, BooleanDeclarations, EdgeKey};
+use topo::{AtRestBody, Body, EdgeKey};
 
 /// The die's side, meters.
 const DIE_L: f64 = 1.0;
@@ -111,7 +111,7 @@ fn pip_tool() -> AtRestBody<f64> {
             BooleanOp::Union,
             &tool,
             &pip(*c, *n),
-            &BooleanDeclarations::none(),
+            &topo::BooleanInputs::default(),
             SweepStrategy::Realized,
             Tol::witness(),
         )
@@ -129,7 +129,7 @@ fn subtract(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> Body<f64> {
         BooleanOp::Subtract,
         a,
         b,
-        &BooleanDeclarations::none(),
+        &topo::BooleanInputs::default(),
         SweepStrategy::Realized,
         Tol::witness(),
     )
@@ -329,9 +329,11 @@ fn the_composed_die_certifies_and_tessellates_watertight() {
     // feet + 2 meridian split vertices; 2 ta + 2 tb arcs + 1 slit
     // meridian (the band is ring-free, donut-style); 2 shrunk
     // half-caps + 1 band; 1 ring (the widened plane hole) —
-    // 5 − 7 + 3 − 1 = 0 keeps χ.
-    assert_eq!(die.vertices().count(), 24 + 21 * 5);
-    assert_eq!(die.edges().count(), 48 + 21 * 7);
+    // 5 − 7 + 3 − 1 = 0 keeps χ. Then the blend's closing join
+    // (`docs/DESIGN.md`, maximal edges) takes the plane-trim foot the
+    // slit does not reach, the two plane trims one: 4 − 6 + 3 − 1 = 0.
+    assert_eq!(die.vertices().count(), 24 + 21 * 4);
+    assert_eq!(die.edges().count(), 48 + 21 * 6);
     assert_eq!(die.faces().count(), 26 + 21 * 3);
     let want = blank_volume() - 21.0 * (cap(PIP_R, PIP_H) + rim_fillet_extra(PIP_R, PIP_H, RIM_R));
     let props = topo::mass_properties(&die, Tol::witness()).unwrap();

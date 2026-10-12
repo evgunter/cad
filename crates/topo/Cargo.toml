@@ -75,6 +75,13 @@ geom = { path = "../geom" }
 slotmap = { workspace = true }
 
 [dev-dependencies]
+# The symbolic tier's re-valuation instrument (`geom_core::sym::revalue`,
+# test-only), for the rows that pin a value kept in `T` rather than
+# re-entered as a constant (`chart_region`'s wrap band).
+geom-core = { path = "../geom-core", features = ["sym-revalue-testing"] }
+# Exact rationals for the polygon-cone reader's oracle
+# (`boolean/sectors/cone_fuzz.rs`).
+num-bigint = { workspace = true }
 # The explicit-width pools the face walks' thread-count rows run under
 # (`props.rs`'s tests). The walks themselves map through
 # `geom_core::k_stats::map_detached`, so production takes no rayon edge
@@ -102,7 +109,7 @@ strum = { version = "0.28", features = ["derive"] }
 topo = { path = ".", features = ["sweep-testing", "test-support"] }
 # Downstream export/tessellation consumers, dev-only (M5 S1): the
 # glued-union acceptance rows pin watertight STL + STEP export of the
-# REST-zip results (dev-dependency cycles are cargo-legal and never
+# declared REST unions (dev-dependency cycles are cargo-legal and never
 # reach production dependents).
 mesh = { path = "../mesh" }
 stl = { path = "../stl" }

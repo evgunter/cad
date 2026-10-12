@@ -27,6 +27,7 @@ use crate::common;
 
 use common::{SOLID_FIXTURES, fixture};
 use geom_core::Tol;
+use geom_core::test_support::upper;
 use geom_core::{Affine3, Point2, Vec3};
 use profile::test_support::bulge_loop;
 use step_import::{
@@ -46,19 +47,7 @@ fn promotions(
 }
 
 fn solid(text: &str, who: &str) -> (topo::Body<f64>, Vec<(u64, PromotedKind, f64)>) {
-    let options = if who.contains("kiss") {
-        // The corner kiss is declared through the M9-2 import channel
-        // (D7 step 4); undeclared it refuses at the shared 3′ gate.
-        ImportOptions {
-            declared_contacts: vec![step_import::ImportContact::VertexRest {
-                at: [1.0, 1.0, 1.0],
-            }],
-            ..ImportOptions::default()
-        }
-    } else {
-        ImportOptions::default()
-    };
-    match import_step(text, &options, Tol::witness()) {
+    match import_step(text, &ImportOptions::default(), Tol::witness()) {
         Ok(StepImport::Solid {
             body,
             normalizations,
@@ -541,7 +530,7 @@ fn a_displaced_seam_carrier_refuses_with_the_measured_residual() {
     );
     assert_ne!(text, doctored, "the falsifier applied");
 
-    let Err(StepImportError::Adoption { id, attempts }) =
+    let Err(StepImportError::Adoption { id, attempts, file }) =
         import_step(&doctored, &ImportOptions::default(), Tol::witness())
     else {
         panic!("a carrier displaced 1e-3 m off the locus is NEVER trusted");
@@ -552,9 +541,9 @@ fn a_displaced_seam_carrier_refuses_with_the_measured_residual() {
         topo::EulerOpError::Certification {
             error:
                 geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
-                    value, ..
+                    margin, ..
                 }),
-        } => Some(value),
+        } => Some(upper(margin)),
         _ => None,
     });
     let Some(measured) = measured else {
@@ -565,7 +554,7 @@ fn a_displaced_seam_carrier_refuses_with_the_measured_residual() {
         "the measured bound is the displacement the falsifier planted \
          (~5e-4 m at mid-parameter): {measured:e}"
     );
-    let text = StepImportError::Adoption { id, attempts }.to_string();
+    let text = StepImportError::Adoption { id, attempts, file }.to_string();
     assert!(
         text.contains("not on both surfaces"),
         "the refusal text states the declare-and-check verdict: {text}"
@@ -597,14 +586,14 @@ fn plane_nurbs_seams(
             let topo::CurveGeom::Certified(curve) = geom else {
                 return None;
             };
-            let (&s1, &s2) = match curve.description() {
-                geom_brep::EdgeDescription::Intersection { s1, s2, .. } => (s1, s2),
-                _ => return None,
+            let geom_brep::EdgeDescription::Intersection { pair, .. } = curve.description() else {
+                return None;
             };
-            let pair = plane(s1)
-                .zip(described(s2))
-                .or_else(|| plane(s2).zip(described(s1)))?;
-            Some((key, pair.0, pair.1))
+            let (plane, wall) = pair
+                .keys()
+                .into_iter()
+                .find_map(|k| plane(k).zip(described(pair.other(k)?)))?;
+            Some((key, plane, wall))
         })
         .collect()
 }

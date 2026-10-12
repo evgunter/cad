@@ -27,8 +27,8 @@ places**, and in one of them the answers already disagree.
    `crates/viewer/src/pane/properties.rs`**
    (`git grep -n 'FieldWriting::of' -- crates/viewer/src`): the two
    PANEL fields it was built for — `ViewerBehavior::slot_value_ui` and
-   the `Selection::Param` arm of `ViewerBehavior::properties_ui` — plus
-   the free-move probe, and `ViewerBehavior::add_param_ui`, which is a
+   the `Selection::Variable` arm of `ViewerBehavior::properties_ui` — plus
+   the free-move probe, and `ViewerBehavior::add_variable_ui`, which is a
    CREATION form and is the one this item's second half has already
    been done at.
 3. **The creation forms, by hand.** The call sites name one of the four
@@ -74,7 +74,7 @@ So the hand-picked population is **38 call sites across three files**
 against the `~30 of 41 in app.rs` this row was filed with. `forms.rs`
 contributes none: all four of its hits are `drag_tick`'s own arms. The
 single `pane/properties.rs` site is the no-dimension placeholder in
-`add_param_ui` (below); that file's other grep line is its `use`.
+`add_variable_ui` (below); that file's other grep line is its `use`.
 
 **What both commands are blind to.** A tick held in a local
 (`let speed = …;` then `named_field(ui, …, speed, …)`) matches neither,
@@ -97,10 +97,10 @@ mention of the type at all. The row was filed before
 throughout; `drag-tick-row-cites-app-rs-for-a-finding-that-lives-in-forms-rs`
 reported that and this pass discharges it.
 
-**The class is partly converted already.** `ViewerBehavior::add_param_ui`
+**The class is partly converted already.** `ViewerBehavior::add_variable_ui`
 and `ViewerBehavior::slot_value_ui` (both `pane/properties.rs`) derive
 their tick from `FieldWriting::of` rather than naming a constant —
-`add_param_ui` through `FieldWriting::of(dimension, None).tick`, with
+`add_variable_ui` through `FieldWriting::of(dimension, None).tick`, with
 `FIELD_DRAG_SPEED` only as the placeholder for "no dimension picked
 yet". So the shape the second half of this item proposes is already
 shipped at two sites, and what is open is the creation forms and the
@@ -138,7 +138,7 @@ the form already knows, not about reaching a row.
 2. Do the creation-form fields derive their tick from their dimension
    (`FieldWriting::of(dimension, Some(unit)).tick`) instead of naming a
    constant? That is a mechanical change over the 38 call sites above
-   — 37, once `add_param_ui`'s placeholder is read as already done —
+   — 37, once `add_variable_ui`'s placeholder is read as already done —
    and would leave `drag_tick` with exactly one caller
    (`FieldWriting::of`).
 
@@ -183,7 +183,7 @@ caught this pass minting fresh errors into a row it was repointing —
 the defect it exists to close:
 
 - The `FieldWriting::of` caller list read as a census and named three
-  of four. It is four; `add_param_ui` is the fourth, and the one that
+  of four. It is four; `add_variable_ui` is the fourth, and the one that
   matters most here, because it is a creation form already doing what
   this item proposes.
 - `git grep -c` was described as "giving 45 lines". It prints four

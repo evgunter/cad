@@ -633,11 +633,12 @@ pub enum SeedError {
         /// The structural variable.
         var: SpokenVar,
     },
-    /// The seed names a defined variable. Its derivative is the
-    /// pushforward of its inputs' (VR3), so it has no axis of its own:
-    /// seed a free variable it reads.
-    SeedOnDefinedVar {
-        /// The defined variable.
+    /// The seed names a variable that is not free: a defined one, whose
+    /// derivative is the pushforward of its inputs' (VR3), or an
+    /// operation's output (D10). Neither has an axis of its own: seed a
+    /// free variable it is a function of.
+    SeedOnNonFreeVar {
+        /// The variable.
         var: SpokenVar,
     },
     /// The evaluation scalar carries no tangent channel — a seeded
@@ -661,11 +662,11 @@ impl core::fmt::Display for SeedError {
                 "the seed names {var}, a Count parameter — structural parameters are fixed \
                  under any error analysis and carry no derivative axis"
             ),
-            Self::SeedOnDefinedVar { var } => write!(
+            Self::SeedOnNonFreeVar { var } => write!(
                 f,
-                "the seed names {var}, a defined variable, whose derivative is its \
-                 inputs' pushforward rather than an axis of its own; seed a free variable \
-                 it reads"
+                "the seed names {var}, which is not a free variable and so is no axis of its \
+                 own: a defined variable's derivative is its inputs' pushforward, and an \
+                 operation's output is a value its operation gives; seed a free variable"
             ),
             Self::TangentUnrepresentable { var } => write!(
                 f,
@@ -704,8 +705,8 @@ pub fn seed_env<T: SeedScalar + geom_core::predicate::Decide, P>(
     seed: VarId,
 ) -> Result<crate::expr::VarEnv<T>, SeedError> {
     let spoken = doc.spoken_var(seed);
-    if doc.var(seed).is_some_and(|v| v.def().defined().is_some()) {
-        return Err(SeedError::SeedOnDefinedVar { var: spoken });
+    if doc.var(seed).is_some_and(|v| v.free().is_none()) {
+        return Err(SeedError::SeedOnNonFreeVar { var: spoken });
     }
     match doc.free(seed) {
         None => Err(SeedError::UnknownVar { var: spoken }),
@@ -829,6 +830,14 @@ pub enum ParamBoxError {
         /// The upper offset asked for.
         hi: f64,
     },
+    /// The evaluation was asked to bind every variable a symbol and to
+    /// widen some over a box: two environments, and a run has one.
+    SymbolsOverABox,
+    /// The evaluation was asked to bind every variable a symbol and
+    /// carries a resolver: a part's variables are keyed by their ids in
+    /// its own document, and two documents mint the same ids, so two
+    /// parts' symbols could cancel. A symbolic run crosses no part seam.
+    SymbolsAcrossAPartSeam,
 }
 
 impl core::fmt::Display for ParamBoxError {
@@ -843,6 +852,14 @@ impl core::fmt::Display for ParamBoxError {
                 f,
                 "parameter {param} spans offsets [{lo}, {hi}] and this evaluation scalar carries \
                  no such value — a widened box needs an enclosing scalar"
+            ),
+            Self::SymbolsOverABox => f.write_str(
+                "the evaluation was asked to bind every variable a symbol and to widen some over \
+                 a box, and a run has one environment",
+            ),
+            Self::SymbolsAcrossAPartSeam => f.write_str(
+                "the evaluation was asked to bind every variable a symbol and to resolve parts, \
+                 and two documents' variables are not told apart as symbols",
             ),
         }
     }
@@ -1106,6 +1123,51 @@ pub fn var_env_over<T: AxisScalar + geom_core::predicate::Decide, P>(
     };
     // A defined variable is no axis: it binds its definition over the
     // widened inputs, so it carries their enclosure.
+    doc.bind_definitions(&mut env);
+    Ok(env)
+}
+
+/// **Every continuous free variable a symbol of its own** (D10; the
+/// `unproven-coincidence` door's environment): each binds `nominal +
+/// offset`, the offset a symbol keyed by the variable's id
+/// ([`AxisScalar::axis_of`] over the zero span), whatever tolerance it
+/// carries or lacks. Two variables typed to one value are two symbols,
+/// so their difference is not zero as a polynomial: the question here
+/// is structure, not number, which is why this is not
+/// [`var_env_over`], where an untoleranced variable binds its nominal
+/// as a constant. `Count` variables bind exactly, as everywhere.
+///
+/// # Errors
+///
+/// [`ParamBoxError::AxisUnrepresentable`] where `T` cannot carry an
+/// axis.
+pub fn var_env_symbolic<T: AxisScalar + geom_core::predicate::Decide, P>(
+    doc: &Doc<P>,
+) -> Result<crate::expr::VarEnv<T>, ParamBoxError> {
+    let mut bindings = BTreeMap::new();
+    for (id, p) in doc.free_vars() {
+        let v = match *p {
+            FreeVar::Continuous { dim, value, .. } => {
+                let offset =
+                    T::axis_of(id, 0.0, 0.0).ok_or_else(|| ParamBoxError::AxisUnrepresentable {
+                        param: doc.spoken_var(id),
+                        lo: 0.0,
+                        hi: 0.0,
+                    })?;
+                crate::expr::ParamValue::Continuous {
+                    dim,
+                    value: T::from_f64(value) + offset,
+                }
+            }
+            FreeVar::Count { value } => crate::expr::ParamValue::Count(value),
+        };
+        bindings.insert(id, v);
+    }
+    let mut env = crate::expr::VarEnv {
+        bindings,
+        refused: BTreeMap::new(),
+        written: std::collections::BTreeSet::new(),
+    };
     doc.bind_definitions(&mut env);
     Ok(env)
 }

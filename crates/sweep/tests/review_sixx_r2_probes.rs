@@ -25,7 +25,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use geom_core::{Point3, Tol};
 use topo::test_support as fixtures;
-use topo::{AtRestBody, Body, BooleanDeclarations, BooleanError, BooleanResult};
+use topo::{AtRestBody, Body, BooleanError, BooleanResult};
 
 use crate::common::differential::outcome;
 use crate::join_pierce_runs_sweep::{convex_volume, frame};
@@ -280,12 +280,7 @@ fn shape(name: &str) -> Shape {
     }
 }
 
-type Op = fn(
-    &AtRestBody<f64>,
-    &AtRestBody<f64>,
-    &BooleanDeclarations,
-    Tol,
-) -> Result<BooleanResult<f64>, BooleanError>;
+type Op = fn(&AtRestBody<f64>, &AtRestBody<f64>, Tol) -> Result<BooleanResult<f64>, BooleanError>;
 
 /// B: a cube placed with its edge midpoint or corner on A's corner, or a
 /// second shape's corner.
@@ -385,20 +380,19 @@ fn pose_lines(a: &Shape, other: &Other, f: [V3; 3], what: &str) -> Vec<String> {
             common += s * t * convex_volume(&all);
         }
     }
-    let d = BooleanDeclarations::default();
     let mut out = Vec::new();
     for (order, x, y, vx) in [("ab", &ab, &bb, va), ("ba", &bb, &ab, vb)] {
         let ops: [(&str, Op, f64); 3] = [
-            ("U", topo::union_with, va + vb - common),
-            ("I", topo::intersect_with, common),
-            ("S", topo::subtract_with, vx - common),
+            ("U", topo::union, va + vb - common),
+            ("I", topo::intersect, common),
+            ("S", topo::subtract, vx - common),
         ];
         for (op, run, want) in ops {
             let tag = format!("{} {bname} {what} n={n} {order} {op}", a.name);
             if std::env::var("SX_THREADS").is_ok_and(|t| t == "1") {
                 eprintln!("SXRUN {tag}");
             }
-            let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run(x, y, &d, tol())));
+            let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run(x, y, tol())));
             let line = match r {
                 Ok(r) => {
                     let why = match &r {
@@ -580,15 +574,8 @@ fn review_sixx_counter_reads_the_pr_pose() {
     assert_eq!(count(&a, &Other::Cube { edge: true }, frame(m, 1.0)).0, 6);
 }
 
-fn rest_rows(records: &topo::ContactRecords) -> Vec<topo::CarriedVv> {
-    records
-        .vv
-        .iter()
-        .map(|&pair| topo::CarriedVv {
-            pair,
-            class: topo::ContactClass::Rest,
-        })
-        .collect()
+fn rest_rows(records: &topo::ContactRecords) -> Vec<topo::CarriedRecord<topo::VvContact>> {
+    records.carried().vv
 }
 
 /// **The nested plan at a shared vertex.** A pinch: a reflex wedge and a
@@ -617,13 +604,15 @@ fn review_sixx_pinch() {
         .collect();
     let v = [0.0, 0.0, 1.0];
     let bodies: Vec<AtRestBody<f64>> = ws.iter().map(|w| w.body(IDENT, v)).collect();
-    let decl = fixtures::flush_declarations(&bodies[0], &bodies[1], tol());
     let BooleanResult::Body(pinch) =
-        topo::union_with(&bodies[0], &bodies[1], &decl, tol()).expect("the pinch builds")
+        topo::union(&bodies[0], &bodies[1], tol()).expect("the pinch builds")
     else {
         panic!("empty pinch");
     };
-    eprintln!("pinch contacts vv {}", pinch.contacts.vv.len());
+    eprintln!(
+        "pinch contacts vv {}",
+        pinch.contacts.vertex_vertex().count()
+    );
     let carried = rest_rows(&pinch.contacts);
     let pp: Vec<Vec<Half>> = ws.iter().flat_map(|w| w.pieces(IDENT, v)).collect();
     let va: f64 = pp.iter().map(|p| convex_volume(p)).sum();
@@ -657,31 +646,46 @@ fn review_sixx_pinch() {
                 convex_volume(&all)
             })
             .sum();
-        let mut ab = fixtures::flush_declarations(&pinch.body, &cube, tol());
-        ab.carried_a.vv.clone_from(&carried);
-        let mut ba = fixtures::flush_declarations(&cube, &pinch.body, tol());
-        ba.carried_b.vv.clone_from(&carried);
+        let rows = topo::OperandRecords {
+            vv: carried.clone(),
+            ..Default::default()
+        };
+        let ab = topo::BooleanInputs {
+            records_a: rows.clone(),
+            ..Default::default()
+        };
+        let ba = topo::BooleanInputs {
+            records_b: rows,
+            ..Default::default()
+        };
         let p = &pinch.body;
+        let (u, i, s) = (
+            topo::BooleanOp::Union,
+            topo::BooleanOp::Intersect,
+            topo::BooleanOp::Subtract,
+        );
         let runs: [(
             &str,
-            Op,
+            topo::BooleanOp,
             &AtRestBody<f64>,
             &AtRestBody<f64>,
-            &BooleanDeclarations,
+            &topo::BooleanInputs,
             f64,
         ); 6] = [
-            ("pc U", topo::union_with, p, &cube, &ab, va + vb - common),
-            ("pc I", topo::intersect_with, p, &cube, &ab, common),
-            ("pc S", topo::subtract_with, p, &cube, &ab, va - common),
-            ("cp U", topo::union_with, &cube, p, &ba, va + vb - common),
-            ("cp I", topo::intersect_with, &cube, p, &ba, common),
-            ("cp S", topo::subtract_with, &cube, p, &ba, vb - common),
+            ("pc U", u, p, &cube, &ab, va + vb - common),
+            ("pc I", i, p, &cube, &ab, common),
+            ("pc S", s, p, &cube, &ab, va - common),
+            ("cp U", u, &cube, p, &ba, va + vb - common),
+            ("cp I", i, &cube, p, &ba, common),
+            ("cp S", s, &cube, p, &ba, vb - common),
         ];
-        for (tag, run, x, y, d, want) in runs {
+        for (tag, op, x, y, d, want) in runs {
+            let run =
+                |x, y, tol| topo::boolean_op_with(op, x, y, d, topo::SweepStrategy::Realized, tol);
             if std::env::var("SX_THREADS").is_ok_and(|t| t == "1") {
                 eprintln!("SXRUN pinch {what} {tag}");
             }
-            let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run(x, y, d, tol())));
+            let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run(x, y, tol())));
             let line = match r {
                 Ok(r) => {
                     let why = match &r {

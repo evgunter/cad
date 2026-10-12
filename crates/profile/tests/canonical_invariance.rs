@@ -41,13 +41,6 @@ fn rotated(lp: &ProfileLoop<f64>, r: usize) -> ProfileLoop<f64> {
         let j = (r + k) % n;
         (lp.vertices()[j], lp.segments()[j])
     }))
-    // Declared joints follow their vertex through the reindexing.
-    .with_tangent_joints(
-        lp.tangent_joints()
-            .iter()
-            .map(|&j| (j + n - r) % n)
-            .collect(),
-    )
 }
 
 /// Translates a loop rigidly (fixture plumbing): every vertex and every
@@ -66,7 +59,6 @@ fn translated(lp: &ProfileLoop<f64>, dx: f64, dy: f64) -> ProfileLoop<f64> {
             (shift(v), segment)
         },
     ))
-    .with_tangent_joints(lp.tangent_joints().to_vec())
 }
 
 /// The named fixture set (every accepting fixture with ≥ 1 loop).
@@ -76,9 +68,9 @@ fn fixtures() -> Vec<(&'static str, Profile<f64>)> {
         ("l_profile", profile(vec![l_profile()])),
         ("rounded_rect", profile(vec![rounded_rect(4.0, 3.0, 0.5)])),
         ("circle", profile(vec![circle_h(0.0, 0.0, 2.0)])),
-        // Mixed declared/undeclared joints (2 tangent of 7): the
-        // partial declaration set discriminates rotation/reversal
-        // remapping bugs the fully-declared fixtures cannot.
+        // Mixed tangent and corner joints (2 tangent of 7): the
+        // partial tangent set discriminates rotation/reversal
+        // remapping bugs the all-tangent fixtures cannot.
         ("bracket", profile(vec![bracket()])),
         ("annulus", annulus()),
         ("lens", profile(vec![lens()])),

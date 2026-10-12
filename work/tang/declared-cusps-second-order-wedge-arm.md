@@ -2,13 +2,12 @@
 id: declared-cusps-second-order-wedge-arm
 kind: issue
 title: Implementation - declared cusps, the second-order wedge arm (#131 ruling)
-status: parked
+status: open
 opened: 2026-08-23
 github: 941
 refs: [131, 1423, 1439]
 priority: P1
 cost: H
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 ## From GitHub issue 941
@@ -85,3 +84,21 @@ nobody declared, so the refusal has to be the op's.
 ## Note from CLEAVE (2026-10-03): the interior-locus case is this arm's, and is live
 
 CLEAVE's designer pair on `work/cleave/tier-3-passes-a-curved-wall-touching-a-plane-face-interior-along-a-line.md` converged that a declared `Tangent` union whose locus is interior to a face (a rod resting on a plate along a ruling) is item 4's doubled form — two coincident distinct wedge-2π slit edges, one shell, no record — and that the two-row answer DEV-1 shipped deviates from it. Reachable today through two public unions (declared rest, then a bridge) to a one-shell body with an edgeless contact that every at-rest gate passes. Measured: the zero-area two-edge ring the doubled form puts on a plane face passes every validator today; the owed consumer arm is `sector_shape` (a ~2π sector between two distinct coincident edges) and split's reduce / the boolean's sectors through it. Restore the C7 sentence `585b3422f` dropped. CLEAVE lands the interim typed refusal (`cleave/tangent-interior-refuse`); the arm stays here.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: its open items route a definite tangency to the declaration ladder (a Tangent declaration, a stored tangent-joint flag); both retire at stage 4. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Re-pointed by stage 4 G (`tangent-joints-are-derived`)
+
+G retired the stored tangent-joint flag: a profile's cusp joint is now
+constructed (`.cusp()`) or decided Zero from its carriers and recorded
+as `Relation::Tangent { aligned: false }`, and a raw-authored cusp
+builds the same strut (`sweep/tests/a_swept_cusp_is_legal_at_rest.rs`,
+`a_raw_authored_cusp_is_legal_like_the_door`). What is left is the
+boolean's half (items 3 and 4: a Tangent declaration routing a definite
+tangency), which waits on stage 4 E (`booleans-glue-on-zero`).
+
+## Released by stage 4 F (2026-10-11)
+
+Stage 4 F (`declared-pairs-retire`) retired every boolean declaration: no author can declare a pair, the glue is what the margins decide, and the declare offer, the flush detector and the carried declarations are gone. What this row waited on has fired; re-read it against that tree.

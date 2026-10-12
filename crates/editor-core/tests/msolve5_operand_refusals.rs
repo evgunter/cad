@@ -1,36 +1,21 @@
-//! **The at-rest gate refuses a mate read below a placer in the
-//! operand's voice.**
+//! **The at-rest gate on a mate read below a placer.**
 //!
-//! `P(T(top))` with the mate read AT `T`: the solve places it, the
-//! product gathers, and the gate reads the name in the OPERAND's own
-//! table and carries it up. The pattern above `T` places it again
-//! before the product holds it, so the reference refuses
-//! `RefusedRef::MovedAbove { at: T, by: P }`, naming both, rather than
-//! calling the name vanished. `Vanished` is a name that names nothing
-//! where the mate reads it, or one a consumer merged, cut or dropped
-//! on its way up — naming that consumer.
+//! `P(T(top))` with the mate read AT `T`: the solve places it and the
+//! product gathers. A mate side is a selection of the body it is read
+//! in, and the gate mints on the world copy of that body; no placement
+//! reads `T` — the pattern's copies are the world — so the mate is no
+//! statement about the product, and the seat it would have declared is
+//! an unattributed contact. A side whose selection resolves nothing, or
+//! a tie, is the selection's own refusal at evaluation.
 //!
-//! Nothing is admitted here that was refused: every row that refused
-//! before refuses still, and the control (the same document read AT
-//! the pattern, with the instance spelling) holds as it did.
+//! The control (the same document read AT the pattern, with the
+//! instance spelling) mints as it did.
 //!
-//! **The kind question is not asked here any more, and no row for it
-//! belongs here.** A mate head is a `SitedFace` over a `FaceName`, so
-//! "what does this name denote" is decided by the head's TYPE: the
-//! three rows this file used to carry — a root's body, the same body
-//! read below a root, a tied edge at the pattern and below it — each
-//! built a document that cannot be written now, and a row measuring a
-//! state nothing can reach measures nothing. What replaced them is
-//! `SitedFace`'s own `compile_fail` row (a `Node::Mate` will not take
-//! a bare `StableName`), `edit_one_predicate`'s load-door row (a file
-//! whose head is retyped on the wire refuses at the constructor the
-//! wire calls), and `test_assembly_author.py`'s (the binding calls the
-//! same constructor where a Python caller builds the mate).
-//!
-//! The ladder's remaining rungs are the ones that need a PRODUCT, and
-//! they are what this file measures: which entity a head resolves to
-//! (`Vanished`), how many (`Ambiguous`), and whether a placer moves it
-//! before the product holds it (`MovedAbove`).
+//! **The kind question is not asked here, and no row for it belongs
+//! here.** A mate side is authored as a `SitedFace` over a `FaceName`,
+//! so "what does this name denote" is decided by the type: `SitedFace`'s
+//! own `compile_fail` row, `edit_one_predicate`'s load-door row and
+//! `test_assembly_author.py`'s measure it.
 
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used)]
@@ -41,11 +26,10 @@ use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    Alignment, AssemblyError, AxisSense, BooleanOp, CapEnd, ContactClass, DocEdit, DocumentId,
-    EntityKind, Entry, EvalOptions, Evaluation, Formula, LeverRefusal, MateFault, MateFrame,
-    MatePrimitive, MateRole, MateSide, MintRefusal, Node, NodeErrorKind, NodeResult, NodeStanding,
-    PartSelect, PatternKind, ProductError, ProfileDoc, RecipeNodeId, RefusedRef, RoleSeg,
-    SitedFace, StableName, product,
+    Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EntityKind,
+    Entry, EvalOptions, Evaluation, Formula, LeverRefusal, MateFault, MateFrame, MatePrimitive,
+    MateRole, MintRefusal, Node, NodeErrorKind, NodeResult, NodeStanding, PartSelect, PatternKind,
+    ProductError, ProfileDoc, RecipeNodeId, RoleSeg, SitedFace, StableName, product,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{gate, in_copy, insert, len, on_frame, run, scl, solve, step, xform};
@@ -66,7 +50,7 @@ fn box_part(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(h),
             side: ExtrudeSide::Along,
         },
@@ -100,7 +84,7 @@ const U_OUTLINE: [(f64, f64); 8] = [
 /// middle (`z` from 1 to 3, clear of both caps): the cutter's tongue
 /// leaves a side face in two fragments under ONE name, so the part's
 /// product — and every table above it — holds a TIED face row. The
-/// box is the body its caps are named on.
+/// subtract is the body the part places in its world.
 fn slotted_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
     let (doc, body) = box_part(label, 4.0, 4.0);
     let (doc, p) = on_frame(
@@ -113,26 +97,42 @@ fn slotted_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
     let (doc, b) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(2.0),
             side: ExtrudeSide::Along,
         },
     );
-    let (doc, _) = insert(
+    insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: body,
-            b,
-            declare: Vec::new(),
+        Node::Subtract {
+            from: body.into(),
+            tool: b.into(),
         },
-    );
-    (doc, body)
+    )
 }
 
 /// `base` (the slab) and `top` (the block), then `T(top)` lifted well
 /// clear of the slab and `P(T(top))`, a two-copy linear pattern of it;
 /// with each instance's part body.
+/// **The world the product is** (A10): each of `bodies` placed, then
+/// each `(pattern, count)`'s copies placed through a `Part` per copy —
+/// what the old product roots were, the sinks of each row's chains.
+fn world(doc: ProfileDoc, bodies: &[RecipeNodeId], patterns: &[(RecipeNodeId, i64)]) -> ProfileDoc {
+    let doc = fixture::place_all(doc, bodies);
+    patterns.iter().fold(doc, |doc, &(pattern, count)| {
+        (0..count).fold(doc, |doc, i| {
+            let (doc, copy) = insert(
+                doc,
+                Node::Part {
+                    of: pattern.into(),
+                    select: editor_core::PartSelect::Instance(Formula::count(i)),
+                },
+            );
+            fixture::place(doc, copy).0
+        })
+    })
+}
+
 struct Scene {
     doc: ProfileDoc,
     opts: EvalOptions,
@@ -174,7 +174,7 @@ fn patterned(s: Scene) -> Scene {
     let (doc, pattern) = insert(
         s.doc,
         Node::Pattern {
-            input: s.xf,
+            input: s.xf.into(),
             count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -216,8 +216,8 @@ fn tied_row(ev: &Evaluation<f64>, node: RecipeNodeId, kind: EntityKind) -> (Stab
 /// and both axes outward, so the block stands ON the slab.
 fn seat(a: SitedFace, b: SitedFace) -> AuthoredNode {
     Node::Mate {
-        a,
-        b,
+        a: a.into(),
+        b: b.into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: MateFrame::authored(
@@ -253,35 +253,19 @@ fn mated(doc: ProfileDoc, mate: AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
     (doc, id.expect("the mate mints"))
 }
 
-/// The `Reference` refusal's three fields, or a panic naming what the
-/// gate said instead.
-fn reference_refusal(err: &AssemblyError) -> (RecipeNodeId, MateSide, &RefusedRef) {
-    let AssemblyError::Mint { refusals } = err else {
-        panic!("expected the reference refusal, got {err:?}");
-    };
-    let [
-        MintRefusal::Reference {
-            mate, side, why, ..
-        },
-    ] = refusals.as_slice()
-    else {
-        panic!("expected one reference refusal, got {refusals:?}");
-    };
-    (*mate, *side, why)
-}
-
 // ---- A1: the issue's document ----
 
 /// **The issue's own document.** The mate is read at `T`, below the
-/// pattern that consumes it. The solve places it (`Determining`), the
-/// product gathers, and the gate refuses — in the operand's voice:
-/// `MovedAbove { at: T, by: P }`.
+/// pattern that places it again. The solve places it (`Determining`),
+/// the product gathers, and no placement reads `T`, so the mate has no
+/// world copy and mints nothing.
 #[test]
-fn the_issues_document_refuses_moved_above_naming_the_transform_and_the_pattern() {
+fn the_issues_document_mints_nothing_for_a_side_read_below_the_pattern() {
     let s = scene("msolve5-a1");
     let a = crate::fixture::head(in_part(s.base, s.base_body, CapEnd::End));
     let b = crate::fixture::head_at(s.xf, in_part(s.top, s.top_body, CapEnd::Start));
-    let (doc, mate) = mated(s.doc, seat(a, b));
+    let doc = world(s.doc, &[s.base], &[(s.pattern, 2)]);
+    let (doc, mate) = mated(doc, seat(a, b));
 
     let poses = solve(&doc, &s.opts, Tol::witness());
     assert!(
@@ -296,19 +280,7 @@ fn the_issues_document_refuses_moved_above_naming_the_transform_and_the_pattern(
         "the product gathers"
     );
 
-    let err = gate(&doc, &ev).expect_err("the gate refuses a mate read below a placer");
-    let (named, side, why) = reference_refusal(&err);
-    assert_eq!((named, side), (mate, MateSide::B));
-    // The words are pinned once, in `display_contract`; the value is
-    // what says the gate named the operand and the placer.
-    assert_eq!(
-        *why,
-        RefusedRef::MovedAbove {
-            at: s.xf,
-            by: s.pattern,
-            copies: true,
-        }
-    );
+    crate::fixture::assert_mints_nothing(&doc, &ev, mate);
 }
 
 // ---- the control: read AT the pattern ----
@@ -324,7 +296,8 @@ fn read_at_the_pattern_with_the_instance_spelling_the_gate_holds() {
         s.pattern,
         in_copy(s.pattern, 0, in_part(s.top, s.top_body, CapEnd::Start)),
     );
-    let (doc, mate) = mated(s.doc, seat(a, b));
+    let doc = world(s.doc, &[s.base], &[(s.pattern, 2)]);
+    let (doc, mate) = mated(doc, seat(a, b));
     let poses = solve(&doc, &s.opts, Tol::witness());
     assert!(poses.fault(mate).is_none(), "{:?}", poses.fault(mate));
     let ev = run(&doc, &s.opts);
@@ -347,15 +320,11 @@ fn a_mate_read_at_a_part_root_over_the_pattern_holds() {
     let (doc, part) = insert(
         s.doc,
         Node::Part {
-            of: s.pattern,
+            of: s.pattern.into(),
             select: PartSelect::Instance(Formula::count(0)),
         },
     );
-    assert!(
-        doc.roots().contains(&part) && !doc.roots().contains(&s.pattern),
-        "the Part consumed the pattern's root: {:?}",
-        doc.roots()
-    );
+    let doc = world(doc, &[s.base, part], &[]);
     let a = crate::fixture::head(in_part(s.base, s.base_body, CapEnd::End));
     let b = crate::fixture::head_at(
         part,
@@ -374,11 +343,9 @@ fn a_mate_read_at_a_part_root_over_the_pattern_holds() {
 
 // ---- A2: the order of the two questions ----
 
-/// A mate read at `T` naming a face `top` does not have refuses
-/// `Vanished`: the operand's own table is silent on the name, so the
-/// first question answers and the second is never reached. This is
-/// what keeps "vanished" honest — the name names nothing where the
-/// mate reads it.
+/// A mate read at `T` naming a face `top` does not have refuses: the
+/// side's selection resolves nothing in the body it reads, so the mate
+/// refuses with it.
 #[test]
 fn a_name_the_operand_does_not_spell_stays_vanished() {
     let s = scene("msolve5-vanished");
@@ -401,67 +368,97 @@ fn a_name_the_operand_does_not_spell_stays_vanished() {
     };
     let a = crate::fixture::head(in_part(s.base, s.base_body, CapEnd::End));
     let b = crate::fixture::head_at(s.xf, nowhere);
-    let (doc, mate) = mated(s.doc, seat(a, b));
+    let doc = world(s.doc, &[s.base], &[(s.pattern, 2)]);
+    let (doc, mate) = mated(doc, seat(a, b));
     let ev = run(&doc, &s.opts);
-    let err = gate(&doc, &ev).expect_err("a name nothing answers to refuses");
-    let (named, side, why) = reference_refusal(&err);
-    assert_eq!((named, side), (mate, MateSide::B));
-    assert_eq!(*why, RefusedRef::Vanished { by: None });
+    assert!(
+        matches!(
+            ev.node_error(mate).map(|e| &e.kind),
+            Some(editor_core::NodeErrorKind::SelectResolve { .. })
+        ),
+        "the side's selection refuses: {:?}",
+        ev.node_error(mate)
+    );
+    // `T` is read by no placement — the pattern's copies are the world —
+    // so the mate is no statement about the product, live or not: the
+    // gate asks it nothing, and the seat it would have declared is rows
+    // of the two copies.
+    assert_unmated(&doc, &ev);
+}
+
+/// No mate speaks for the product: the gate passes, and the seat is
+/// rows of the two copies, none of them a mate's.
+fn assert_unmated(doc: &ProfileDoc, ev: &editor_core::Evaluation<f64>) {
+    assert!(gate(doc, ev).is_ok(), "{:?}", gate(doc, ev));
+    crate::fixture::assert_copies_rows_alone(doc, ev);
 }
 
 // ---- ties: the product decides its own ----
 
-/// A TIED face read at `T` below the pattern refuses `MovedAbove { at:
-/// T, by: P }` — a tie below a placer is still moved by it. The same
-/// tie read AT the pattern with the instance spelling is the product's
-/// own row, and the product decides its own ties: `Ambiguous { width:
-/// 2 }`.
+/// A TIED face is the side's selection's to refuse, wherever it is
+/// read: at `T` below the pattern, and AT the pattern with the instance
+/// spelling. The mate refuses with it. Read at the pattern, whose
+/// copies are placed, the gate names the mate; read at `T`, which
+/// nothing places, the mate is no statement about the product.
 #[test]
-fn a_tied_face_below_a_placer_refuses_moved_above_and_at_the_root_ambiguous() {
+fn a_tied_face_refuses_at_the_side_wherever_it_is_read() {
     let s = scene_with("msolve5-tied-face", slotted_part("msolve5-tied-face-top"));
     let ev0 = run(&s.doc, &s.opts);
     let (tied, width) = tied_row(&ev0, s.xf, EntityKind::Face);
     assert_eq!(tied.node, s.top, "the tie is worn by the instance");
     assert_eq!(width, 2);
     let a = crate::fixture::head(in_part(s.base, s.base_body, CapEnd::End));
+    let placed = world(s.doc, &[s.base], &[(s.pattern, 2)]);
 
     let b = crate::fixture::head_at(s.xf, tied.clone());
-    let (doc, mate) = mated(s.doc.clone(), seat(a.clone(), b));
+    let (doc, mate) = mated(placed.clone(), seat(a.clone(), b));
     let ev = run(&doc, &s.opts);
     assert!(
         product(&doc, &ev, Tol::witness()).is_ok(),
         "the product gathers"
     );
-    let err = gate(&doc, &ev).expect_err("read below a placer");
-    let (named, side, why) = reference_refusal(&err);
-    assert_eq!((named, side), (mate, MateSide::B));
-    assert_eq!(
-        *why,
-        RefusedRef::MovedAbove {
-            at: s.xf,
-            by: s.pattern,
-            copies: true,
-        }
+    let tied_refusal = |doc: &ProfileDoc, ev: &editor_core::Evaluation<f64>, mate| {
+        assert!(
+            matches!(
+                ev.node_error(mate).map(|e| &e.kind),
+                Some(editor_core::NodeErrorKind::SelectResolve { .. })
+            ),
+            "a tie is never broken by picking: {:?}",
+            ev.node_error(mate)
+        );
+        let err = gate(doc, ev).expect_err("a tied side refuses");
+        assert!(
+            matches!(&err, AssemblyError::Mint { refusals }
+                if matches!(refusals.as_slice(), [MintRefusal::Unevaluated { mate: m, .. }] if *m == mate)),
+            "{err:?}"
+        );
+    };
+    // Read at `T`, which nothing places: the side's own refusal is the
+    // evaluation's, and the gate asks the mate nothing.
+    assert!(
+        matches!(
+            ev.node_error(mate).map(|e| &e.kind),
+            Some(editor_core::NodeErrorKind::SelectResolve { .. })
+        ),
+        "a tie is never broken by picking: {:?}",
+        ev.node_error(mate)
     );
+    assert_unmated(&doc, &ev);
+    let _ = width;
 
     let b = crate::fixture::head_at(s.pattern, in_copy(s.pattern, 0, tied));
-    let (doc, mate) = mated(s.doc, seat(a, b));
+    let (doc, mate) = mated(placed, seat(a, b));
     let ev = run(&doc, &s.opts);
-    let err = gate(&doc, &ev).expect_err("a tie is never broken by picking");
-    let (named, side, why) = reference_refusal(&err);
-    assert_eq!((named, side), (mate, MateSide::B));
-    assert_eq!(*why, RefusedRef::Ambiguous { width });
+    tied_refusal(&doc, &ev, mate);
 }
 
 // ---- a consumer that drops the face names itself ----
 
 /// `Intersect(T(top), far)` — a boolean whose result is EMPTY — is
-/// the root over `T`. The boolean would carry `top`'s face as
-/// `FromA`, and its table holds no such row: the face does not reach
-/// the product, and the gate refuses `Vanished { by: the boolean }`,
-/// naming the node that consumed it.
+/// placed over `T`. No placement reads `T`, so the mate read there has
+/// no world copy and mints nothing.
 #[test]
-fn an_operand_under_an_empty_boolean_root_refuses_vanished_naming_the_boolean() {
+fn an_operand_under_an_empty_boolean_placement_mints_nothing() {
     let s = scene_no_pattern("msolve5-empty-root");
     let (doc, far_profile) = on_frame(
         s.doc,
@@ -473,25 +470,18 @@ fn an_operand_under_an_empty_boolean_root_refuses_vanished_naming_the_boolean() 
     let (doc, far) = insert(
         doc,
         Node::Extrude {
-            profile: far_profile,
+            profile: far_profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
     );
     let (doc, empty) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Intersect,
-            a: s.xf,
-            b: far,
-            declare: Vec::new(),
+        Node::Intersect {
+            members: editor_core::Bodies::Spelled(vec![s.xf.into(), far.into()]),
         },
     );
-    assert!(
-        doc.roots().contains(&empty) && !doc.roots().contains(&s.xf),
-        "the boolean consumed the transform's root: {:?}",
-        doc.roots()
-    );
+    let doc = world(doc, &[s.base, empty], &[]);
     let a = crate::fixture::head(in_part(s.base, s.base_body, CapEnd::End));
     let b = crate::fixture::head_at(s.xf, in_part(s.top, s.top_body, CapEnd::Start));
     let (doc, mate) = mated(doc, seat(a, b));
@@ -500,10 +490,8 @@ fn an_operand_under_an_empty_boolean_root_refuses_vanished_naming_the_boolean() 
         product(&doc, &ev, Tol::witness()).is_ok(),
         "an empty root contributes nothing and the product gathers"
     );
-    let err = gate(&doc, &ev).expect_err("the boolean consumes the face");
-    let (named, side, why) = reference_refusal(&err);
-    assert_eq!((named, side), (mate, MateSide::B));
-    assert_eq!(*why, RefusedRef::Vanished { by: Some(empty) });
+    crate::fixture::assert_mints_nothing(&doc, &ev, mate);
+    let _ = empty;
 }
 
 // ---- an operand that is not live never reaches the gate ----
@@ -533,10 +521,10 @@ fn a_poisoned_operand_never_reaches_the_gate() {
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
     let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
     let (doc, xf) = insert(doc, xform(top, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0));
-    let (doc, _) = insert(
+    let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: xf,
+            input: xf.into(),
             count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -544,6 +532,7 @@ fn a_poisoned_operand_never_reaches_the_gate() {
             },
         },
     );
+    let doc = world(doc, &[base], &[(pattern, 2)]);
     let a = crate::fixture::head(in_part(base, base_body, CapEnd::End));
     let b = crate::fixture::head_at(xf, in_part(top, top_body, CapEnd::Start));
     let (doc, mate) = mated(doc, seat(a, b));
@@ -586,15 +575,18 @@ fn a_poisoned_operand_never_reaches_the_gate() {
         ev.result(mate)
     );
     // The mate fault reached the base instance — the group's other
-    // member, and the document's first root — so the gather refuses
-    // at THAT failed root, before the poisoned pattern root and before
-    // any reference is read.
+    // member, which the document's first placement reads — so the
+    // gather refuses at THAT placement, poisoned through the failed
+    // instance, before the poisoned pattern copies and before any
+    // reference is read.
     let err = gate(&doc, &ev).expect_err("the gather refuses");
+    let first = doc.placements()[0];
     assert!(
         matches!(
             &err,
             AssemblyError::Product(e)
-                if matches!(**e, ProductError::Root(NodeStanding::Failed { node }) if node == base)
+                if matches!(**e, ProductError::Root(NodeStanding::Poisoned { node, through })
+                    if (node, through) == (first, base))
         ),
         "the gather refuses at the failed root before any reference is read: {err:?}"
     );

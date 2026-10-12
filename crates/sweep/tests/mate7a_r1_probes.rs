@@ -15,9 +15,7 @@ use geom_core::{Point3, Tol, Vec3};
 use sweep::test_support::{finished, tube_frame};
 use sweep::{TubeWindow, tube_along_arc};
 use topo::query::{self, SurfaceKindSet};
-use topo::{
-    AtRestBody, Body, BooleanDeclarations, BooleanError, ContactClass, FaceKey, FacePairDeclaration,
-};
+use topo::{AtRestBody, Body, BooleanError, FaceKey};
 
 const STEM_TUBE: f64 = 0.060;
 const ARCH_TUBE: f64 = 0.052;
@@ -127,33 +125,20 @@ fn torus_faces(body: &Body<f64>) -> Vec<FaceKey> {
         .collect()
 }
 
-/// The scene's flush plane declaration, reproduced: the ONE coplanar
-/// cross pair (stem end cap against arch start cap), declared `Rest` —
-/// the weld's whole declared contact, the pair
-/// `topo::flush::find_flush_candidates` reports there (which is what
-/// the scene's own helper now runs).
-///
-/// The selection here is by POSITION, not by flushness: it picks the
-/// caps at the fork and lets the op verify them, which is why it is
-/// not a second spelling of the detector's decisions.
-pub(crate) fn weld_declarations(
-    stem: &Body<f64>,
-    arch: &Body<f64>,
-) -> (BooleanDeclarations, usize) {
+/// The coplanar cross cap pairs at the fork (stem end cap against
+/// arch start cap), counted by POSITION: the weld's whole flush
+/// contact.
+pub(crate) fn weld_cap_pairs(stem: &Body<f64>, arch: &Body<f64>) -> usize {
     let fork = arch_frame().fork;
-    let mut decls = BooleanDeclarations::none();
     let mut pairs = 0;
-    for &(fa, oa, _) in &plane_faces(stem) {
-        for &(fb, ob, _) in &plane_faces(arch) {
+    for &(_, oa, _) in &plane_faces(stem) {
+        for &(_, ob, _) in &plane_faces(arch) {
             if (oa - fork).norm() < 1e-9 && (ob - fork).norm() < 1e-9 {
-                decls
-                    .coincident_faces
-                    .push(FacePairDeclaration::rest(fa, fb));
                 pairs += 1;
             }
         }
     }
-    (decls, pairs)
+    pairs
 }
 
 /// Exact distance from a point to the stem's 22-degree tube-centre
@@ -186,45 +171,39 @@ fn dist_to_stem_center_arc(p: Point3<f64>) -> f64 {
 /// layer, and stops at the join on the plane × torus germ frame; (b)
 /// the far cap stands ~2 m clear of the stem wall's exact locus; (c) it
 /// is no longer inside the wall's box either; (d) the weld still has no
-/// torus×torus contact to declare (tube 0.060 vs 0.052 — the walls
+/// torus×torus contact (tube 0.060 vs 0.052 — the walls
 /// share only the weld plane). No `if let` skip-hazard: the far cap
 /// MUST exist.
 #[test]
 fn p1_wall1_passes_the_gate_and_the_crossing_layer_and_stops_at_the_join() {
     let (s, a) = (stem(), arch());
-    let (decls, pairs) = weld_declarations(&s, &a);
-    assert_eq!(pairs, 1, "exactly one coplanar cross cap pair at the fork");
+    assert_eq!(
+        weld_cap_pairs(&s, &a),
+        1,
+        "exactly one coplanar cross cap pair at the fork"
+    );
 
-    let err = topo::union_with(&s, &a, &decls, Tol::witness())
+    let err = topo::union(&s, &a, Tol::witness())
         .expect_err("the stem glue still refuses, two doors further on");
     // **Wall 1 is no longer the crossing layer's.** The circle × torus
     // root lane (`topo::boolean::circle_torus`) certifies that each
     // seam crosses the other tube's carrier only outside that face's
-    // window, so neither pair is an event; the op reaches the join, whose
-    // germ pair of the stem's weld cap against the arch's wall has no
-    // section frame arm. The far-cap claims below are geometry and
-    // stand on their own.
-    let BooleanError::GermFrameUnsupported {
-        a_face,
-        a_kind: SurfaceKind::Plane,
-        b_face,
-        b_kind: SurfaceKind::Torus,
+    // window, so neither pair is an event; the op reaches the join,
+    // whose germ pair of the stem's weld cap against the arch's wall
+    // reads its frame off the arch's rim lying in the cap and has no
+    // join arm: it refuses on the arch's wall. The far-cap claims below
+    // are geometry and stand on their own.
+    let BooleanError::CurvedBooleanUnsupported {
+        operand: topo::Operand::B,
+        face,
+        kind: SurfaceKind::Torus,
     } = err
     else {
-        panic!("wall 1 stops at the join's plane × torus germ frame: {err:?}");
+        panic!("wall 1 stops at the join's plane × torus arm: {err:?}");
     };
-    // The stem's face in the pair is its weld cap (the plane at the
-    // fork); the arch's is one of its tube walls.
-    let fork = arch_frame().fork;
     assert!(
-        plane_faces(&s)
-            .iter()
-            .any(|&(k, o, _)| k == a_face && (o - fork).norm() < 1e-9),
-        "the stem's face is its weld cap at the fork: {a_face:?}"
-    );
-    assert!(
-        torus_faces(&a).contains(&b_face),
-        "the arch's face is its tube wall: {b_face:?}"
+        torus_faces(&a).contains(&face),
+        "the arch's face is its tube wall: {face:?}"
     );
     let frame = arch_frame();
     let far_cap = plane_faces(&a)
@@ -351,233 +330,5 @@ fn p1_wall1_passes_the_gate_and_the_crossing_layer_and_stops_at_the_join() {
         (0.006..0.010).contains(&min_wall),
         "the two tube walls share only the weld plane: nearest approach must be the \
          8 mm annular gap, measured {min_wall:.4} m"
-    );
-}
-
-/// P2 — the π-arm PRICE claim, re-measured through the verdict log on
-/// the PR's own G1 chain fixture, counting definite verdicts per
-/// predicate.
-///
-/// The first-order screen costs one `classify_dihedral` per station,
-/// two rows each (`dihedral_arm`, `dihedral_wedge`). The departure read
-/// that tells a seam from a nested touch costs the rim comparison of
-/// each face's boundary arcs and one traversal reading per face.
-///
-/// The whole current price:
-///
-/// - **18 first-order screen** — 9 × (`dihedral_arm`, `dihedral_wedge`);
-/// - **27 material arm** — 9 × (`material_wedge_side`,
-///   `tangent_second_order`, `material_cusp_side`);
-/// - **6 rim identification** — `rim_circle_radius` ×3,
-///   `rim_circle_center` ×2, `rim_circle_axis_parallel` ×1 (the two
-///   LENGTH data lead, so radius short-circuits most pairs);
-/// - **16 departure read** — the rim comparison of each face's boundary
-///   arcs (`rim_circle_radius` ×8, `rim_circle_center` ×4,
-///   `rim_circle_axis_parallel` ×2) and `seam_rim_traversal` ×2;
-/// - **2 conformal screen** — `carrier_torus_axis_parallel`,
-///   `carrier_torus_center`.
-///
-/// **The counts are FIXTURE-SPECIFIC, and the split is the point.** The
-/// per-station blocks are structural — `CERT_SAMPLES` times the
-/// predicate set, true of any rim this door classifies — and are
-/// asserted against `CERT_SAMPLES` itself rather than against the
-/// literal 9, so they state the invariant instead of a coincidence. The
-/// rim-identification counts are not structural: they depend on how
-/// many boundary circles each face carries and on the order the scan
-/// meets them, so the same claim on the kissing fixture counts
-/// differently. That is why the PR body reports the price per fixture.
-#[test]
-fn p2_the_g1_chain_price_is_the_measured_69_rows() {
-    // The PR's fixtures, verbatim from `mate7a_torus_rest.rs`.
-    let seg_a = stem();
-    let seg_b = {
-        let turn = deg(22.0);
-        let end = Point3::new(
-            -STEM_RING + STEM_RING * turn.cos(),
-            0.0,
-            STEM_RING * turn.sin(),
-        );
-        let tangent = Vec3::new(-turn.sin(), 0.0, turn.cos());
-        let inward = Vec3::new(-tangent.z, 0.0, tangent.x);
-        let center = end + inward * 1.1;
-        let seg_b = tube_along_arc(
-            tube_frame(
-                center,
-                Vec3::new(0.0, -1.0, 0.0),
-                (end - center).normalize(),
-                Tol::witness(),
-            ),
-            1.1,
-            TubeWindow::Arc {
-                t0: 0.0,
-                t1: deg(170.0),
-            },
-            STEM_TUBE,
-            Tol::witness(),
-        )
-        .expect("segment B builds")
-        .body;
-        finished("segment B", seg_b, Tol::witness())
-    };
-    let mut decls = BooleanDeclarations::none();
-    for &fa in &torus_faces(&seg_a) {
-        for &fb in &torus_faces(&seg_b) {
-            decls
-                .coincident_faces
-                .push(FacePairDeclaration::new(fa, fb, ContactClass::Tangent));
-        }
-    }
-    let bracket = geom_core::k_stats::Bracket::open();
-    let err = topo::union_with(&seg_a, &seg_b, &decls, Tol::witness())
-        .expect_err("the chain refuses at the routing");
-    let log = bracket.finish().verdicts;
-    // A `Tangent` claim on the seam is contradicted by the rim routing.
-    assert!(
-        matches!(
-            &err,
-            BooleanError::ContactContradicted { margin, .. }
-                if margin.predicate == Some("contact_tangent_rim_seam")
-        ),
-        "the chain's rim is the wedge-π seam: {err:?}"
-    );
-    let count = |name: &str| log.iter().filter(|v| v.predicate == name).count();
-    let mut histogram: std::collections::BTreeMap<&'static str, usize> = Default::default();
-    for v in &log {
-        *histogram.entry(v.predicate).or_default() += 1;
-    }
-    println!("verdict histogram for the G1 chain fixture: {histogram:#?}");
-    let n = usize::try_from(geom_brep::CERT_SAMPLES).expect("the sample schedule fits usize");
-    for (name, want) in [
-        // Structural: the per-station predicate set, once per station.
-        ("dihedral_arm", n),
-        ("dihedral_wedge", n),
-        ("material_wedge_side", n),
-        ("tangent_second_order", n),
-        ("material_cusp_side", n),
-        // Fixture-specific: how many boundary circles this face pair
-        // carries, and the order the scan meets them — the rim scan
-        // (3, 2, 1), then the departure read, which compares each
-        // face's boundary arcs with the rim (8, 4, 2).
-        ("rim_circle_radius", 11),
-        ("rim_circle_center", 6),
-        ("rim_circle_axis_parallel", 3),
-        // One traversal reading per face: the wedge-π rim's two faces
-        // leave it on opposite sides, so the steer names the seam.
-        ("seam_rim_traversal", 2),
-        ("carrier_torus_axis_parallel", 1),
-        ("carrier_torus_center", 1),
-    ] {
-        assert_eq!(
-            count(name),
-            want,
-            "PR #1477's price table says {want} definite {name} rows; the log says \
-             {} — full histogram above",
-            count(name)
-        );
-    }
-    // The other two torus-rung margins must NOT have fired on this
-    // fixture (the PR's table stops at the two-screen), and no other
-    // mate7a-new predicate name exists to fire.
-    assert_eq!(count("carrier_torus_major_radius"), 0);
-    assert_eq!(count("carrier_torus_minor_radius"), 0);
-}
-
-/// P3 — attack on the covered-pair rung: the wall-1 pair CANNOT be
-/// bought. If an author declares the stem's tube wall against the
-/// arch's far cap `Rest` (the exact pair the gate names), the
-/// verification runs BEFORE the gate and contradicts the cross-kind
-/// carrier claim structurally — the declaration never becomes
-/// coverage. This is the "kind-generic, not kind-blind" claim
-/// exercised at its sharpest point: both kinds ARE in the widened
-/// inventory (plane and torus), and the pair is still refused, on the
-/// carrier-kind rung.
-#[test]
-fn p3_a_false_cross_kind_declaration_cannot_cover_the_wall1_pair() {
-    let (s, a) = (stem(), arch());
-    let (mut decls, _) = weld_declarations(&s, &a);
-    let frame = arch_frame();
-    let far_cap = plane_faces(&a)
-        .into_iter()
-        .find(|&(_, o, _)| (o - frame.far).norm() < 1e-9)
-        .expect("far cap");
-    for &wall in &torus_faces(&s) {
-        decls
-            .coincident_faces
-            .push(FacePairDeclaration::rest(wall, far_cap.0));
-    }
-    let err = topo::union_with(&s, &a, &decls, Tol::witness())
-        .expect_err("a torus-against-plane Rest declaration is a false statement");
-    match err {
-        BooleanError::ContactContradicted { margin, .. } => {
-            assert_eq!(
-                margin.predicate,
-                Some("carrier_kind"),
-                "the refusal is the structural kind rung's: {margin:?}"
-            );
-        }
-        other => panic!(
-            "the false declaration must be contradicted before it can cover anything, \
-             got {other:?}"
-        ),
-    }
-}
-
-/// P4 — the routing's rim identification is decided at the run's band
-/// on the carrier's own data: two near-miss circles (radius off by a
-/// definite margin) yield NO shared rim, so the bare class refusal
-/// stands. Guards the `shared_rim` margins against a
-/// value-equality-only reading (the claim that the identification is
-/// METERED, not bit-compared).
-#[test]
-fn p4_a_definitely_different_rim_radius_keeps_the_class_refusal() {
-    let seg_a = stem();
-    // Same frame as the chain's segment B, but tube 0.055: its
-    // terminal circle rides a different-radius carrier, so no rim is
-    // shared and the routing must stay silent.
-    let turn = deg(22.0);
-    let end = Point3::new(
-        -STEM_RING + STEM_RING * turn.cos(),
-        0.0,
-        STEM_RING * turn.sin(),
-    );
-    let tangent = Vec3::new(-turn.sin(), 0.0, turn.cos());
-    let inward = Vec3::new(-tangent.z, 0.0, tangent.x);
-    let center = end + inward * 1.1;
-    let seg_b = tube_along_arc(
-        tube_frame(
-            center,
-            Vec3::new(0.0, -1.0, 0.0),
-            (end - center).normalize(),
-            Tol::witness(),
-        ),
-        1.1,
-        TubeWindow::Arc {
-            t0: 0.0,
-            t1: deg(170.0),
-        },
-        0.055,
-        Tol::witness(),
-    )
-    .expect("segment B' builds")
-    .body;
-    let seg_b = finished("segment B'", seg_b, Tol::witness());
-    let mut decls = BooleanDeclarations::none();
-    for &fa in &torus_faces(&seg_a) {
-        for &fb in &torus_faces(&seg_b) {
-            decls
-                .coincident_faces
-                .push(FacePairDeclaration::new(fa, fb, ContactClass::Tangent));
-        }
-    }
-    let err = topo::union_with(&seg_a, &seg_b, &decls, Tol::witness())
-        .expect_err("no shared rim, no routing");
-    assert!(
-        matches!(
-            err,
-            BooleanError::UnsupportedDeclarationClass {
-                class: topo::BooleanCoincidence::TANGENT
-            }
-        ),
-        "different-radius terminal circles are not one rim: {err:?}"
     );
 }

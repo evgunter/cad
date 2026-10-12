@@ -4,6 +4,8 @@ kind: issue
 title: The curved join's Chart arm reads iso families off the analytic mint only: two pieces of one iso line on a spline chart, or of a fitted image, are left unjoined
 status: open
 opened: 2026-10-07
+priority: P1
+cost: H
 ---
 
 ## The finding

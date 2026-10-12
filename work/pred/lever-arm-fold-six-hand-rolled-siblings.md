@@ -46,8 +46,11 @@ hand-rolled sibling of the SECOND-ORDER rule but already levered against
   walk it already runs, like the tier-3 validator's.
 
 The tier-3 validator (`topo/validate.rs`) was never on this list — it already
-levers against `folded_lever_arm` — but it does hand-roll the second-order
-DECIDE, and it and `boolean/ops.rs` are now the only two that do.
+levers against `folded_lever_arm`. It used to hand-roll the second-order
+DECIDE too; since ENCL PR 4423 it reads that decide through
+`geom_brep::second_order_walk`, the walk `must_carry_over_edge` also uses, and
+`boolean/ops.rs` asks `must_carry_over_edge` (FUSE, below), so neither spells
+the decide any more.
 
 ## Home
 

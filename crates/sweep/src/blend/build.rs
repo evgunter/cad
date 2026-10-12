@@ -26,7 +26,8 @@
 //! passed has neither; one that carries no verdict (a dual's scalar
 //! runs no at-rest gate) is read at the door
 //! ([`AtRestBody::gate_unverdicted`]) before anything else, refusing
-//! [`BlendError::ScaffoldingOperand`] or [`BlendError::InsideOutOperand`].
+//! [`BlendError::ScaffoldingOperand`], [`BlendError::InsideOutOperand`] or
+//! [`BlendError::UnjoinedOperand`].
 //!
 //! # The assembly front door
 //!
@@ -117,6 +118,54 @@ pub struct Blended<T: Real> {
     /// back to unnamed geometry; an empty struct would be refused by
     /// nothing.
     pub naming: Option<super::naming::BlendNaming>,
+    /// The coincidences the battery decided from values, in its order
+    /// ([`super::BatteryVerdict::coincidences`]) and the source body's
+    /// keys ([`topo::coincidence`]).
+    pub coincidences: Vec<topo::Coincidence>,
+}
+
+impl<T: Decide> Blended<T> {
+    /// `records`, the operand's, carried onto the blended body: the blend
+    /// keeps every key it does not carve away, so each cell is itself or
+    /// the edge the closing join made of it ([`topo::joined_cell`]), and
+    /// a cell the blend consumed — a requested edge, a corner it rounds,
+    /// a vertex it retracts — is refused. A source edge the band's carve
+    /// split survives as its pieces
+    /// ([`super::naming::BlendNaming::meridian_remnants`]), and a record
+    /// on it lands on the piece whose interior still meets the other
+    /// cell ([`topo::ContactRecords::carried_through_pieces`], at `band`
+    /// through `region`). What the
+    /// blend's new faces would inherit from a record on a consumed cell
+    /// is not decided, so no record lands on one. A body with no birth
+    /// records names no join, so a cell a join took is refused with the
+    /// rest.
+    ///
+    /// # Errors
+    ///
+    /// As [`topo::ContactRecords::carried_through_pieces`].
+    pub fn carry_contacts(
+        &self,
+        records: &topo::ContactRecords,
+        band: geom_core::Band,
+        region: Option<topo::RegionLane<T>>,
+    ) -> Result<topo::ContactRecords, topo::CarryRefusal> {
+        let joins = self.naming.as_ref().map_or(&[][..], |n| &n.edge_joins[..]);
+        let divisions = topo::Divisions {
+            edges: self
+                .naming
+                .as_ref()
+                .map_or_else(Vec::new, |n| n.meridian_remnants.clone()),
+            faces: Vec::new(),
+        };
+        records.carried_through_pieces(
+            0,
+            &self.body,
+            |c| Some(topo::joined_cell(joins, c)),
+            &divisions,
+            band,
+            region,
+        )
+    }
 }
 
 /// **Fillet a set of a body's edges** at constant radius `radius`.
@@ -133,8 +182,8 @@ pub struct Blended<T: Real> {
 /// crosses HERE, once, and the inner [`BlendError`] stays
 /// verb-neutral — around: [`BlendError::Band`] when the committed
 /// tolerance admits no ambiguity band;
-/// [`BlendError::ScaffoldingOperand`] or
-/// [`BlendError::InsideOutOperand`] when the operand carries no
+/// [`BlendError::ScaffoldingOperand`], [`BlendError::InsideOutOperand`] or
+/// [`BlendError::UnjoinedOperand`] when the operand carries no
 /// verdict and is not finished (module docs);
 /// [`BlendError::NonpositiveSize`] when `radius` is not definitely
 /// positive; any refusal the battery produces;
@@ -416,8 +465,8 @@ pub type Chamfered<T> = Blended<T>;
 /// crosses HERE, once, and the inner [`BlendError`] stays
 /// verb-neutral — around: [`BlendError::Band`] when the committed
 /// tolerance admits no ambiguity band;
-/// [`BlendError::ScaffoldingOperand`] or
-/// [`BlendError::InsideOutOperand`] when the operand carries no
+/// [`BlendError::ScaffoldingOperand`], [`BlendError::InsideOutOperand`] or
+/// [`BlendError::UnjoinedOperand`] when the operand carries no
 /// verdict and is not finished (module docs);
 /// [`BlendError::NonpositiveSize`] when `distance` is not definitely
 /// positive; [`BlendError::RepeatedEdge`] when the request names one

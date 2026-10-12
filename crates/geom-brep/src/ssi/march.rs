@@ -20,7 +20,8 @@
 //!    transversality signal (p. 217), reported as diagnostic.
 //! 2. **`ssi_transversality`**: the *decision* uses the dimensionally
 //!    honest form `sin θ · arm` in meters — θ the angle between the two
-//!    surface normals, `arm` the folded curvature/extent lever arm —
+//!    surface normals, `arm` the shorter of the surfaces' curvature
+//!    radius at the state and the extent —
 //!    exactly `dihedral_wedge`'s shape (D4 ¶1). `Sign::Zero` is the
 //!    **sliver band**: refuse toward C7 (`TangentIntersection`, PR 9).
 //!    We never desingularize; Hoffmann §6.5's quadratic-transformation
@@ -135,7 +136,7 @@
 //!   lies on a branch the boundary pass already traced from its
 //!   crossings.
 //!   The slab is the caller's box, not geometry
-//!   (`work/ssi/ssi-r3-slab-is-not-geometry.md`).
+//!   (`work/ssiedge/ssi-r3-slab-is-not-geometry.md`).
 
 use geom_core::linalg::svd::Svd;
 use geom_core::{Band, Margin, Point3, Real, Sign, SupSpeed, Vec3};
@@ -661,9 +662,15 @@ pub(crate) trait Exit<const M: usize, const N: usize, S: LocalSystem<M, N>> {
     ) -> Option<Self::End>;
 }
 
-/// The plane × NURBS lane's exit: the wall's knot rectangle, the
-/// state's coordinates 2 and 3, left by a structure test (module docs).
-pub(crate) struct RectExit;
+/// The ℝ⁴ lane's exit: the knot rectangles of the state's chart
+/// coordinates from `first` on, left by a structure test (module docs).
+/// The plane × NURBS lane bounds the wall's two ([`RectExit::WALL`]),
+/// the NURBS × NURBS lane all four ([`RectExit::PAIR`]).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct RectExit {
+    /// The first bounded coordinate.
+    pub(crate) first: usize,
+}
 
 /// How a plane × NURBS march ended.
 #[derive(Clone, Copy, Debug)]
@@ -681,10 +688,16 @@ pub(crate) enum RectEnd {
 }
 
 impl RectExit {
-    /// Whether a state's chart coordinates lie in the wall's rectangle
+    /// The plane × NURBS lane's: the wall's rectangle, coordinates 2
+    /// and 3.
+    pub(crate) const WALL: Self = Self { first: 2 };
+    /// The NURBS × NURBS lane's: both rectangles.
+    pub(crate) const PAIR: Self = Self { first: 0 };
+
+    /// Whether a state's bounded coordinates lie in their rectangles
     /// (a structure test on the raw coordinates, C6's lane).
-    pub(crate) fn inside(x: &[f64; 4], ctx: &MarchContext<4>) -> bool {
-        (2..4).all(|i| x[i] >= ctx.domain[i][0] && x[i] <= ctx.domain[i][1])
+    pub(crate) fn inside(self, x: &[f64; 4], ctx: &MarchContext<4>) -> bool {
+        (self.first..4).all(|i| x[i] >= ctx.domain[i][0] && x[i] <= ctx.domain[i][1])
     }
 }
 
@@ -704,7 +717,7 @@ impl<S: LocalSystem<3, 4>> Exit<3, 4, S> for RectExit {
         mode: StepperMode,
         _band: Band,
     ) -> Result<(), SsiError> {
-        if Self::inside(x, ctx) {
+        if self.inside(x, ctx) {
             Ok(())
         } else {
             Err(SsiError::SeedOffDomain {
@@ -723,14 +736,14 @@ impl<S: LocalSystem<3, 4>> Exit<3, 4, S> for RectExit {
         ctx: &MarchContext<4>,
         _band: Band,
     ) -> Result<Option<RectEnd>, SsiError> {
-        Ok((!Self::inside(&next, ctx)).then_some(RectEnd::Left {
+        Ok((!self.inside(&next, ctx)).then_some(RectEnd::Left {
             inside,
             outside: next,
         }))
     }
 
     fn holds(&self, x: &[f64; 4], ctx: &MarchContext<4>) -> bool {
-        Self::inside(x, ctx)
+        self.inside(x, ctx)
     }
 
     fn unsettled(
@@ -739,7 +752,7 @@ impl<S: LocalSystem<3, 4>> Exit<3, 4, S> for RectExit {
         predicted: [f64; 4],
         ctx: &MarchContext<4>,
     ) -> Option<RectEnd> {
-        (!Self::inside(&predicted, ctx)).then_some(RectEnd::Left {
+        (!self.inside(&predicted, ctx)).then_some(RectEnd::Left {
             inside,
             outside: predicted,
         })
@@ -891,23 +904,23 @@ impl<const N: usize> MarchContext<N> {
 pub(crate) type NormalPair = (Vec3<f64>, Vec3<f64>);
 
 /// A system that can also report the two surface normals and the
-/// curvature lever arm at a state — everything the *decisions* need,
+/// surfaces' curvature at a state — everything the *decisions* need,
 /// separated from the algebra the stepper needs so the trilean's
 /// margin stays dimensionally honest (meters) at both trace shapes.
 pub(crate) trait TransversalityData<const N: usize> {
     /// Unit normals of the two operands at the state.
     fn normals(&self, x: &[f64; N]) -> NormalPair;
-    /// The folded curvature lever arm at the state, in meters
-    /// (`f64::MAX` where no curvature bounds it — the plane identity;
-    /// the march clamps it to the run's extent). A poisoned operand
-    /// makes the arm poison, so the arm guard escalates rather than
-    /// levering against the sibling's.
-    fn lever_arm(&self, x: &[f64; N]) -> f64;
+    /// The larger principal curvature of either operand at the state,
+    /// in reciprocal meters, read from each surface's shape operator:
+    /// zero where both are flat there. A poisoned operand makes it
+    /// poison, so the arm guard escalates rather than levering against
+    /// the sibling's.
+    fn max_curvature(&self, x: &[f64; N]) -> f64;
 }
 
 /// **`ssi_transversality`** at the state `x`: the surfaces cross at a
-/// clear angle there, `sin θ · arm` in metres with the arm clamped to
-/// `extent`, `sigma` the state's σ_min reported beside it.
+/// clear angle there, `sin θ · arm` in metres with the arm
+/// [`super::point_arm`]'s, `sigma` the state's σ_min reported beside it.
 ///
 /// # Errors
 ///
@@ -923,7 +936,7 @@ pub(crate) fn decide_transversality<const N: usize>(
 ) -> Result<(), SsiError> {
     let (n1, n2) = sys.normals(x);
     let sin_theta = n1.cross(n2).norm() / (n1.norm() * n2.norm());
-    let arm = Real::min(sys.lever_arm(x), extent);
+    let (arm, reach) = super::point_arm(sys.max_curvature(x), extent);
     decide_positive("ssi_transversality_arm", Margin::of(arm), band)
         .map_err(|cause| TraceDecision::TransversalityArm.escalated(cause))?;
     let transversality = Margin::levered(sin_theta, arm);
@@ -935,6 +948,7 @@ pub(crate) fn decide_transversality<const N: usize>(
         Some(BandVerdict::Refused(verdict)) => Err(SsiError::TransversalityBand {
             sin_theta,
             arm,
+            lever: super::PointLever::of(reach),
             sigma_min: sigma,
             verdict,
         }),
@@ -1416,7 +1430,7 @@ where
 
 /// The signed distance from the state to the domain box, in meters
 /// (positive inside), through the coordinate scales.
-fn domain_margin<const M: usize, const N: usize, S>(
+pub(crate) fn domain_margin<const M: usize, const N: usize, S>(
     x: &[f64; N],
     ctx: &MarchContext<N>,
     sys: &S,
@@ -1619,7 +1633,7 @@ pub(crate) mod tests {
 
     /// A two-plane system in ℝ³ whose locus is the `x` axis, with the
     /// chart speed, the order-2 and order-3 right-hand sides, the `x`
-    /// coordinate scale and the lever arm dictated by the row. The
+    /// coordinate scale and the curvature dictated by the row. The
     /// residual is exact at the seed, the Jacobian is constant, and the
     /// two normals meet at a right angle — so the only thing a march
     /// over this system can refuse on is the one value the row spoils,
@@ -1633,8 +1647,8 @@ pub(crate) mod tests {
         rhs3: f64,
         /// Meters per unit of the `x` coordinate.
         x_scale: f64,
-        /// The lever arm the system reports, before the march's clamp.
-        arm: f64,
+        /// The curvature the system reports.
+        kappa: f64,
     }
 
     impl FixedSpeedR3 {
@@ -1644,7 +1658,7 @@ pub(crate) mod tests {
                 rhs2: 0.0,
                 rhs3: 0.0,
                 x_scale: 1.0,
-                arm: f64::MAX,
+                kappa: 0.0,
             }
         }
     }
@@ -1694,8 +1708,8 @@ pub(crate) mod tests {
             (Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 1.0))
         }
 
-        fn lever_arm(&self, _x: &[f64; 3]) -> f64 {
-            self.arm
+        fn max_curvature(&self, _x: &[f64; 3]) -> f64 {
+            self.kappa
         }
     }
 
@@ -1752,7 +1766,7 @@ pub(crate) mod tests {
             )
         }
 
-        fn lever_arm(&self, _x: &[f64; 3]) -> f64 {
+        fn max_curvature(&self, _x: &[f64; 3]) -> f64 {
             1.0
         }
     }
@@ -2075,8 +2089,8 @@ pub(crate) mod tests {
     /// **A poisoned value reaches the guard that decides it**, rather
     /// than being folded away by a `min` that keeps the other operand.
     /// Each row poisons one input of one guarded fold and pins the
-    /// escalation by that guard's name: the lever arm through the
-    /// extent clamp to `ssi_transversality_arm`; the order-3 right-hand
+    /// escalation by that guard's name: the surfaces' curvature through
+    /// the point arm to `ssi_transversality_arm`; the order-3 right-hand
     /// side (with a finite, zero κ) through the cubic rung of the step
     /// fold to `ssi_step_progress`; the order-2 right-hand side (κ
     /// itself) to the same guard, through both `h_quad` and the κ²
@@ -2089,7 +2103,7 @@ pub(crate) mod tests {
         let rows = [
             (
                 FixedSpeedR3 {
-                    arm: f64::NAN,
+                    kappa: f64::NAN,
                     ..FixedSpeedR3::at_speed(1.0)
                 },
                 StepperMode::Idealized,
@@ -2436,7 +2450,16 @@ pub(crate) mod tests {
         // On the loop at t = ½: s(1 − s) = ⅛.
         let s = 0.5 * (1.0 - std::f64::consts::FRAC_1_SQRT_2);
         let seed = [s - 0.5, 0.0, s, 0.5];
-        let trace = march(&sys, &RectExit, seed, ctx, StepperMode::Realized, 1.0, band).unwrap();
+        let trace = march(
+            &sys,
+            &RectExit::WALL,
+            seed,
+            ctx,
+            StepperMode::Realized,
+            1.0,
+            band,
+        )
+        .unwrap();
         assert!(
             matches!(trace.end, RectEnd::Closed),
             "the level cut is a loop"

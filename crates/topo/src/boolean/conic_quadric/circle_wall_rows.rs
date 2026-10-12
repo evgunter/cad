@@ -144,21 +144,24 @@ fn assert_matches_oracle(label: &str, pose: Pose, t0: f64, t1: f64, w: [f64; 3],
 /// moved `depth` along `x`, it crosses the wall by `|depth|` on one
 /// side. At the default band: a depth inside the zero band is no
 /// certified answer either way, and a definite depth is two certified
-/// crossings, each on the wall. The half-angle ladder alone certified
-/// a `Miss` at depth 1e-9 m on a 50 m wall and at 1e-8 m on a 500 m
-/// wall, answered `CountDisagrees` at −1e-8 m, and declined the
-/// 5e-6 m crossing of the 500 m wall.
+/// crossings, each on the wall — or, on the 50 m and 500 m walls,
+/// `Uncertain`: there the `f64` residual's rounding places the shallow
+/// roots 2e-10 to 4.6e-10 m from the true ones (the exact oracle), and
+/// the root slack, which must read inside the zero band, refuses them.
+/// The half-angle ladder alone certified a `Miss` at depth 1e-9 m on a
+/// 50 m wall and at 1e-8 m on a 500 m wall, and answered
+/// `CountDisagrees` at −1e-8 m.
 #[test]
 fn a_graze_is_read_by_its_depth() {
     let band = Band::new(1e-9, 1e-8).unwrap();
     let tilt = 0.3_f64;
-    for (r, depth) in [
-        (50.0, 1e-9),
-        (500.0, 1e-8),
-        (500.0, -1e-8),
-        (500.0, 5e-6),
-        (50.0, 2e-8),
-        (5.0, -2e-8),
+    for (r, depth, placed) in [
+        (50.0, 1e-9, false),
+        (500.0, 1e-8, false),
+        (500.0, -1e-8, false),
+        (500.0, 5e-6, false),
+        (50.0, 2e-8, false),
+        (5.0, -2e-8, true),
     ] {
         let label = format!("wall r {r}, depth {depth}");
         let pose = Pose {
@@ -172,6 +175,13 @@ fn a_graze_is_read_by_its_depth() {
             assert!(
                 matches!(got, Ok(CircleRoots::Uncertain) | Err(_)),
                 "{label}: a graze in the band, got {got:?}"
+            );
+            continue;
+        }
+        if !placed {
+            assert!(
+                matches!(got, Ok(CircleRoots::Uncertain)),
+                "{label}: roots the band cannot place refuse on their slack, got {got:?}"
             );
             continue;
         }
@@ -382,9 +392,9 @@ fn a_coaxial_circle_is_on_the_wall_or_a_miss_off_it() {
 
 /// **The first-harmonic arm escalates a tangency** — a circle square to the
 /// axis touching the wall from outside puts an extreme in the zero
-/// band, and that is not a crossing at any order this lane sees. (The
-/// ladder carries no such guarantee: it can read a tangency as a
-/// miss, `work/germ/the-half-angle-ladder-certifies-in-band-configurations.md`.)
+/// band, and that is not a crossing at any order this lane sees. A tilted
+/// tangency is the subdivision's
+/// (`in_band_sweep::an_exact_tangency_is_escalated_at_every_tilt`).
 #[test]
 fn a_tangent_circle_square_to_the_axis_is_uncertain() {
     assert!(matches!(

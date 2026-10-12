@@ -13,19 +13,21 @@
 //! on its oval, and a spline edge, which has no crossing row, refuses
 //! typed wherever it could matter.
 
-use geom_core::k_stats::Magnitude;
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
+use geom_brep::recourse::{LeverOnly, Reading, RefusedArm, SizedPass};
+use geom_core::k_stats::{Magnitude, decide_magnitude_reported};
+use geom_core::{Band, Decide, Indeterminate, Margin, MarginDiag, Point3, Sign, Vec3};
 
 use super::sphere_region::RegionRefusal;
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, LoopKey, VertexKey};
 use crate::live::{linked, proven};
 use crate::ray_walk::ParityRows;
+use crate::splitting::containment::placement_sized;
 use crate::splitting::containment::{
-    BoundaryRows, CarrierLoop, ConicRows, EdgeContact, carrier_loop, carrier_loop_side,
+    BoundaryRows, ConicRows, OffLoop, OnEdge, OnLoop, carrier_loop, carrier_loop_side,
 };
 use crate::splitting::spiric_arc::SpiricRows;
-use crate::splitting::{PointInLoopError, Uncrossable};
+use crate::splitting::{Escalation, LoopDecision, PointInLoopError, Uncrossable};
 use crate::validate::decide;
 
 /// The typed `contfp` verdict.
@@ -39,6 +41,176 @@ pub enum FaceContainment {
     OnEdge(EdgeKey),
     /// Coincident with a boundary vertex.
     OnVertex(VertexKey),
+}
+
+/// **The question a placement escalated on** (D4 ¶1 (i)): the closed
+/// type an escalation of [`contfp`] and the curved doors beside it
+/// carries, so its ending is an exhaustive match over the decision rather
+/// than a lookup by predicate name ([`Self::ending`]). The planar loop
+/// walk's own questions are [`LoopDecision`]'s, and `contfp`'s boundary
+/// pre-pass asks the walk's [`LoopDecision::Boundary`] on the same
+/// readings.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ContainDecision {
+    /// A question of the planar loop walk.
+    Loop(LoopDecision),
+    /// Whether an arc's carrier ends sit on its stored vertices, asked
+    /// where the point lies within the band of an arc's end but clear of
+    /// both vertices. Its margin is the end's offset from its vertex, not
+    /// the point's distance, so no tolerance it gives places the point.
+    ArcEnd,
+    /// Whether a loop's arcs are arcs of one circle: the gap between
+    /// circles, folding centres, radii and axes. One circle and clearly
+    /// different circles are both read.
+    OneCircle,
+    /// Whether the point lies on a curved face's surface. Its pass set is
+    /// the caller's: off the surface is a definite `Out` where the caller
+    /// asks whether the face holds the point, and a contradiction where
+    /// the caller placed the point on the surface (a certified root at
+    /// `reduce::wall_crossing`, a residual there). No one sign set is the
+    /// decision's, so no margin gives a tolerance to tighten below.
+    Carrier,
+    /// Whether a cylinder face's azimuth window sweeps clearly less than
+    /// a full turn: its gap to one, at the radius. Only a positive gap
+    /// gives the trim a window to read.
+    WindowPeriod,
+}
+
+impl From<LoopDecision> for ContainDecision {
+    fn from(decision: LoopDecision) -> Self {
+        Self::Loop(decision)
+    }
+}
+
+/// What a placement refusal's decision decides, as a clause: `decision`'s
+/// own, or, where the refusal names none, the placement question itself.
+#[must_use]
+pub const fn placement_subject(decision: Option<ContainDecision>) -> &'static str {
+    match decision {
+        Some(ContainDecision::Loop(d)) => d.subject(),
+        Some(ContainDecision::ArcEnd) => {
+            "whether an arc's end lies where its boundary's corner is stored"
+        }
+        Some(ContainDecision::OneCircle) => "whether a loop's arcs are arcs of one circle",
+        Some(ContainDecision::Carrier) => "whether a point lies on the face's surface",
+        Some(ContainDecision::WindowPeriod) => {
+            "whether a cylinder face sweeps less than a full turn"
+        }
+        None => "whether a point lies inside a face, on its boundary, or outside it",
+    }
+}
+
+/// The geometry lever of a placement refusal, after "Recourse: " — the one
+/// source every rendering of it reads: `decision`'s own, or, where the
+/// refusal names none (the point-in-solid door's escalation, the sphere
+/// region's, a cone face's nappe read at the Boolean), the placement
+/// question's own lever.
+#[must_use]
+pub const fn placement_lever(decision: Option<ContainDecision>) -> &'static str {
+    match decision {
+        Some(ContainDecision::Loop(d)) => d.lever(),
+        Some(ContainDecision::ArcEnd) => "move the point clear of the arc's end",
+        Some(ContainDecision::OneCircle) => {
+            "put the loop's arcs on one circle or on clearly different ones"
+        }
+        Some(ContainDecision::Carrier) => {
+            "move the point exactly onto the face's surface or clearly off it"
+        }
+        Some(ContainDecision::WindowPeriod) => "keep the wall clearly short of a full turn",
+        None => "move the point clearly inside or outside the face",
+    }
+}
+
+/// **The escalations each site raises**: every decision paired with each
+/// way its sites' readings can stand, and `None` for a refusal that names
+/// no decision. A pair not here is raised nowhere.
+pub const CONTAINMENT_RAISED: [(Option<ContainDecision>, Escalation); 11] = {
+    use ContainDecision as C;
+    use Escalation::{Margin, Straddle};
+    use LoopDecision as L;
+    [
+        (None, Margin),
+        (Some(C::Loop(L::Boundary)), Margin),
+        (Some(C::Loop(L::Boundary)), Straddle),
+        (Some(C::Loop(L::Ray)), Margin),
+        (Some(C::Loop(L::ArcSpan)), Margin),
+        (Some(C::Loop(L::ArcSpan)), Straddle),
+        (Some(C::Loop(L::Plane)), Margin),
+        (Some(C::ArcEnd), Margin),
+        (Some(C::OneCircle), Margin),
+        (Some(C::Carrier), Margin),
+        (Some(C::WindowPeriod), Margin),
+    ]
+};
+
+impl ContainDecision {
+    /// Every decision, for the rows that sample them.
+    pub const ALL: [Self; 8] = [
+        Self::Loop(LoopDecision::Boundary),
+        Self::Loop(LoopDecision::Ray),
+        Self::Loop(LoopDecision::ArcSpan),
+        Self::Loop(LoopDecision::Plane),
+        Self::ArcEnd,
+        Self::OneCircle,
+        Self::Carrier,
+        Self::WindowPeriod,
+    ];
+
+    /// The one ending an escalation of this decision carries, read at
+    /// `reading` (D4 ¶1 (i)), from the shared table.
+    #[must_use]
+    pub fn ending(self, escalation: Escalation, diag: &Indeterminate, reading: Reading) -> String {
+        let arm = escalation.arm(diag);
+        let lever = placement_lever(Some(self));
+        match self {
+            Self::Loop(d) => d.ending(escalation, diag, reading),
+            Self::ArcEnd | Self::Carrier => LeverOnly { lever }.recourse(arm, reading),
+            Self::OneCircle => placement_sized(lever, "gap between circles", SizedPass::AnySign)
+                .recourse(arm, reading),
+            Self::WindowPeriod => {
+                placement_sized(lever, "gap", SizedPass::Positive).recourse(arm, reading)
+            }
+        }
+    }
+
+    /// The decision's lever alone on `escalation`'s arm, with the
+    /// unreadable-margin note on a poisoned margin: its ending at a door
+    /// that offers no tolerance for it (the Boolean's, `refusal_routes`),
+    /// read at the build.
+    #[must_use]
+    pub fn lever_ending(self, escalation: Escalation, diag: &Indeterminate) -> String {
+        LeverOnly {
+            lever: placement_lever(Some(self)),
+        }
+        .recourse(escalation.arm(diag), Reading::Build)
+    }
+}
+
+/// The one ending of an escalation that names `decision` or, `None`, no
+/// decision (the unnamed lever alone), read at `reading`.
+#[must_use]
+pub fn placement_ending(
+    decision: Option<ContainDecision>,
+    escalation: Escalation,
+    diag: &Indeterminate,
+    reading: Reading,
+) -> String {
+    match decision {
+        Some(decision) => decision.ending(escalation, diag, reading),
+        None => unnamed_placement_ending(escalation.arm(diag), reading),
+    }
+}
+
+/// The unnamed placement's ending on `arm`, read at `reading`: its lever
+/// alone, with the unreadable-margin note on a poisoned margin — the
+/// `None` arm of [`placement_ending`], for a refusal that holds its
+/// readings in a shape of its own rather than as one escalation.
+#[must_use]
+pub fn unnamed_placement_ending(arm: RefusedArm<'_>, reading: Reading) -> String {
+    LeverOnly {
+        lever: placement_lever(None),
+    }
+    .recourse(arm, reading)
 }
 
 /// Typed refusal of [`contfp`].
@@ -58,7 +230,15 @@ pub enum FaceContainment {
 pub enum ContainError {
     /// A margin landed in the sliver band — the pair is
     /// ill-conditioned at this ε.
-    Escalated(Indeterminate),
+    Escalated {
+        /// The question it escalated on; `None` where the point-in-solid
+        /// door or the sphere region raised it, which name none.
+        decision: Option<ContainDecision>,
+        /// How its refused reading stands.
+        escalation: Escalation,
+        /// The escalation diagnostics (named predicate inside).
+        diag: Indeterminate,
+    },
     /// No ray of the walk's schedule settled — each grazed or gave
     /// nothing to read ([`crate::ray_walk::NoRaySettled`]) — a planar
     /// loop's, or a sphere face's region ([`super::sphere_region`]).
@@ -77,12 +257,91 @@ pub enum ContainError {
     /// A curved face's chart read refused. The reads are the solid
     /// door's own, so the refusal is its, carried whole.
     Curved(super::solid_contain::PointInSolidError),
+    /// The point lies in the band of an arc's end, and the vertex pass
+    /// placed it definitely clear of both of the edge's stored corners
+    /// ([`ContainDecision::ArcEnd`]'s definite arm, D4 ¶1 (iv)). Two
+    /// definite readings that disagree, carried with the arc's ends
+    /// read against those corners.
+    ArcEndClearOfCorners(Box<ArcEndGaps>),
+}
+
+/// **An arc's two carrier ends read against its edge's two stored
+/// corners** (`bool_contact_arc_end_vertex`), every one decided: what
+/// [`ContainError::ArcEndClearOfCorners`] carries. The two passes of
+/// [`boundary_pre_pass`] part only by as much as an end sits off its
+/// corner, plus the point's own slack at the end (two zero bands at
+/// most). So where every end lies at a corner the parting is the band's,
+/// reachable only at `K ≤ 3`. Certification pins each end within the
+/// run's zero band of its corner (`geom_brep`'s
+/// `carrier_endpoint_{start,end}`), and the ends here are read through
+/// the same `Curve3::eval`, so an end off both corners is read where a
+/// caller's band is finer than the run's, or where the certifier's
+/// distance and this reading's part by rounding across a band whose
+/// width `(K − 1)·zero` is narrower than that rounding: the kernel's two
+/// readings of one end disagreeing.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ArcEndGaps {
+    /// `gaps[i][j]`: the carrier's start (`i = 0`) or end (`i = 1`)
+    /// against the edge's start (`j = 0`) or end (`j = 1`) corner, in
+    /// the loop's order, with the margin each was decided on.
+    pub(crate) gaps: [[(Magnitude, MarginDiag); 2]; 2],
+    /// The band they were decided against.
+    pub(crate) band: Band,
+}
+
+impl ArcEndGaps {
+    /// The end of the arc that lies definitely off both corners, as its
+    /// gap to its own corner and then to the other: its own is the one
+    /// the other end does not lie at, or the one of its own index where
+    /// that end lies at neither. `None` where every end lies at a corner.
+    fn off_end(&self) -> Option<(MarginDiag, MarginDiag)> {
+        let off =
+            |end: &[(Magnitude, MarginDiag); 2]| end.iter().all(|(m, _)| *m == Magnitude::Positive);
+        let i = self.gaps.iter().position(off)?;
+        let other = self.gaps[1 - i];
+        let own = other
+            .iter()
+            .position(|(m, _)| *m == Magnitude::Zero)
+            .map_or(i, |j| 1 - j);
+        Some((self.gaps[i][own].1, self.gaps[i][1 - own].1))
+    }
+
+    /// Whether an end of the arc lies definitely off both corners.
+    #[must_use]
+    pub fn off_corner(&self) -> bool {
+        self.off_end().is_some()
+    }
+}
+
+impl core::fmt::Display for ArcEndGaps {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let zero = self.band.zero();
+        match self.off_end() {
+            Some((own, far)) => write!(
+                f,
+                "the end lies {own:e} m from its own corner, {far:e} m from the other"
+            ),
+            None => write!(
+                f,
+                "each end lies within ±{zero:e} of one corner, a parting this K cannot resolve"
+            ),
+        }
+    }
 }
 
 impl From<PointInLoopError> for ContainError {
     fn from(e: PointInLoopError) -> Self {
         match e {
-            PointInLoopError::Escalated { diag, .. } => Self::Escalated(diag),
+            PointInLoopError::Escalated {
+                decision,
+                escalation,
+                diag,
+                ..
+            } => Self::Escalated {
+                decision: Some(decision.into()),
+                escalation,
+                diag,
+            },
             PointInLoopError::RayExhausted { .. } => Self::RayExhausted,
             PointInLoopError::CorruptLoop { r#loop } => Self::LoopUnreadable(r#loop),
             PointInLoopError::Uncrossable(u) => Self::Uncrossable(u),
@@ -99,15 +358,24 @@ impl From<PointInLoopError> for ContainError {
 // different repairs — move the geometry, re-model the loop — so
 // one shared tail would name the wrong one.
 //
-// `Escalated` and `Curved` delegate to the carried value's own
-// `Display`; for `Escalated` that is [`Indeterminate`]'s, which
-// already composes the named predicate, the margin it metred and the
-// shared two-tolerance recourse; restating any of that here would
-// double it.
+// `Escalated` renders its margin's payload and its decision's one ending
+// at a build ([`placement_ending`]); `Curved` delegates to the carried
+// refusal's own `Display`.
 impl core::fmt::Display for ContainError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Escalated(diag) => write!(f, "contfp: {diag}"),
+            Self::Escalated {
+                decision,
+                escalation,
+                diag,
+            } => write!(
+                f,
+                "contfp: {}",
+                diag.undecided(
+                    placement_subject(*decision),
+                    placement_ending(*decision, *escalation, diag, Reading::Build),
+                )
+            ),
             Self::RayExhausted => write!(f, "contfp: {}", crate::ray_walk::NoRaySettled),
             Self::StaleFace(face) => {
                 write!(f, "contfp: face {face:?} does not resolve in this body")
@@ -126,11 +394,28 @@ impl core::fmt::Display for ContainError {
                 f,
                 "contfp: {u}. Recourse: model the outline with lines, circles or ellipses"
             ),
+            Self::ArcEndClearOfCorners(gaps) => write!(
+                f,
+                "contfp: the point lies at an arc's end clear of its corners: {gaps}. Recourse: {}",
+                placement_lever(Some(ContainDecision::ArcEnd))
+            ),
         }
     }
 }
 
 impl std::error::Error for ContainError {}
+
+impl ContainError {
+    /// An escalation of `decision` on its own in-band or unreadable
+    /// margin.
+    fn on(decision: impl Into<ContainDecision>, diag: Indeterminate) -> Self {
+        Self::Escalated {
+            decision: Some(decision.into()),
+            escalation: Escalation::Margin,
+            diag,
+        }
+    }
+}
 
 /// The panic for a kernel driver whose own face key a containment door
 /// answered [`ContainError::StaleFace`]: a driver reads its faces out of
@@ -168,10 +453,26 @@ pub fn contfp<T: Decide>(
     q: Point3<T>,
     band: Band,
 ) -> Result<FaceContainment, ContainError> {
+    contfp_decided(body, face, normal, q, band).map(|(at, _)| at)
+}
+
+/// [`contfp`], with the margin that decided an `OnEdge` or `OnVertex`
+/// verdict (`None` for `In` and `Out`, which decide no coincidence).
+///
+/// # Errors
+///
+/// As [`contfp`].
+pub(crate) fn contfp_decided<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    normal: Vec3<T>,
+    q: Point3<T>,
+    band: Band,
+) -> Result<(FaceContainment, Option<MarginDiag>), ContainError> {
     let loops = face_loops(body, face)?;
 
     let read = match boundary_pre_pass(body, &loops, q, band)? {
-        PrePass::On(on) => return Ok(on),
+        PrePass::On(on, margin) => return Ok((on, Some(margin))),
         PrePass::Off(read) => read,
     };
 
@@ -179,21 +480,21 @@ pub fn contfp<T: Decide>(
     // each read on its edges' own carriers by a walk that trusts the
     // pre-pass above — `q` is definitely off every edge — so it answers
     // inside or outside.
-    let inside = |(lk, lp): &(LoopKey, CarrierLoop<T>)| -> Result<bool, ContainError> {
-        Ok(carrier_loop_side(*lk, lp, normal, q, band)?)
+    let inside = |(lk, read): &ReadLoop<T>| -> Result<bool, ContainError> {
+        Ok(carrier_loop_side(*lk, read, normal, q, band)?)
     };
     let Some((outer, rings)) = read.split_first() else {
         unreachable!("the pre-pass reads every loop of the face, and a face has its outer loop")
     };
     if !inside(outer)? {
-        return Ok(FaceContainment::Out);
+        return Ok((FaceContainment::Out, None));
     }
     for ring in rings {
         if inside(ring)? {
-            return Ok(FaceContainment::Out);
+            return Ok((FaceContainment::Out, None));
         }
     }
-    Ok(FaceContainment::In)
+    Ok((FaceContainment::In, None))
 }
 
 /// The circle a disc-class loop bounds — its own type, because three
@@ -279,7 +580,9 @@ pub(crate) fn loop_circle<T: Decide>(
                     match decide("bool_face_disc_carrier", Margin::of(d), band) {
                         Ok(Sign::Zero) => {}
                         Ok(Sign::Positive | Sign::Negative) => one_circle = false,
-                        Err(diag) => return Err(ContainError::Escalated(diag)),
+                        Err(diag) => {
+                            return Err(ContainError::on(ContainDecision::OneCircle, diag));
+                        }
                     }
                 }
             },
@@ -312,10 +615,10 @@ pub(super) fn curved_boundary_containment<T: Decide>(
     face: FaceKey,
     q: Point3<T>,
     band: Band,
-) -> Result<Option<FaceContainment>, ContainError> {
+) -> Result<Option<(FaceContainment, MarginDiag)>, ContainError> {
     let loops = face_loops(body, face)?;
     Ok(match boundary_pre_pass(body, &loops, q, band)? {
-        PrePass::On(on) => Some(on),
+        PrePass::On(on, margin) => Some((on, margin)),
         PrePass::Off(_) => None,
     })
 }
@@ -348,65 +651,78 @@ fn boundary_pre_pass<T: Decide>(
     for &lk in loops {
         let cycle = loop_cycle_points(body, lk)?;
         for (v, _, p) in &cycle {
-            if super::one_vertex(q, *p, band).map_err(ContainError::Escalated)? {
-                return Ok(PrePass::On(FaceContainment::OnVertex(*v)));
+            if let Some(margin) = super::one_vertex_at(q, *p, band)
+                .map_err(|diag| ContainError::on(LoopDecision::Boundary, diag))?
+            {
+                return Ok(PrePass::On(FaceContainment::OnVertex(*v), margin));
             }
         }
     }
     let mut read = Vec::with_capacity(loops.len());
     for &lk in loops {
-        let lp = carrier_loop(body, lk, ROWS, band)?;
-        let n = lp.verts.len();
-        for (i, edge) in lp.edges.iter().enumerate() {
-            let ends = (lp.verts[i], lp.verts[(i + 1) % n]);
-            match edge
-                .contact(ends, q, ROWS, band)
-                .map_err(ContainError::Escalated)?
-            {
-                EdgeContact::On => return Ok(PrePass::On(FaceContainment::OnEdge(lp.keys[i]))),
-                EdgeContact::Off | EdgeContact::Carrier | EdgeContact::Unread => {}
-                // Within the band of a curved edge's END, which the vertex
-                // pass above placed definitely clear of both of this edge's
-                // vertices. The end is read exactly (a circle through its
-                // radius, an ellipse or a spiric as a distance from `q`), so the two
-                // passes disagree only by as much as the carrier's ends
-                // sit off the stored vertices, on its own row
-                // (`bool_contact_arc_end_vertex`). Certification pins each
-                // carrier end to its vertex within the zero band of the
-                // band the body was CERTIFIED at (`geom_brep`'s
-                // `carrier_endpoint_{start,end}` rows); a body certified
-                // at a coarser band than this query's carries up to that
-                // band's `ε`, which is no defect, so the answer is always
-                // an escalation — on that margin where it is in band, and
-                // otherwise on the row itself.
-                EdgeContact::End => {
-                    let Some(carrier_ends) = edge.carrier_ends() else {
-                        unreachable!("only a conic or spiric arc reads End")
-                    };
-                    for c in carrier_ends {
-                        for v in [ends.0, ends.1] {
-                            if let Err(diag) = decide(END_VERTEX, Margin::norm3(v - c), band) {
-                                return Err(ContainError::Escalated(diag));
-                            }
-                        }
-                    }
-                    return Err(ContainError::Escalated(crate::invalid_margin::invalid(
-                        band, END_VERTEX,
-                    )));
-                }
+        let OnLoop { lp, edge: i, on } = match carrier_loop(body, lk, ROWS, band)?
+            .place_off(q, ROWS, band)
+            .map_err(|e| ContainError::Escalated {
+                decision: Some(LoopDecision::Boundary.into()),
+                escalation: e.escalation,
+                diag: e.diag,
+            })? {
+            Ok(off) => {
+                read.push((lk, off));
+                continue;
+            }
+            Err(on) => on,
+        };
+        match on {
+            OnEdge::On(margin) => {
+                return Ok(PrePass::On(FaceContainment::OnEdge(lp.keys[i]), margin));
+            }
+            // Within the band of a curved edge's END, which the vertex
+            // pass above placed definitely clear of both of this edge's
+            // vertices. The end is read exactly (a circle through its
+            // radius, an ellipse or a spiric as a distance from `q`), so the two
+            // passes disagree only by as much as the carrier's ends
+            // sit off the stored vertices, on its own row
+            // (`bool_contact_arc_end_vertex`). Certification pins each
+            // carrier end within the run's zero band of its vertex
+            // (`geom_brep`'s `carrier_endpoint_{start,end}` rows), and the
+            // ends are read through the same `Curve3::eval`; [`ArcEndGaps`]
+            // says where each of its arms is read. An end in band of a
+            // corner escalates on that margin; with every one decided,
+            // the finding carries them.
+            OnEdge::End => {
+                let Some(carrier_ends) = lp.edges[i].carrier_ends() else {
+                    unreachable!("only a conic or spiric arc reads End")
+                };
+                let ([c0, c1], v0, v1) = (
+                    carrier_ends,
+                    lp.verts[i],
+                    lp.verts[(i + 1) % lp.verts.len()],
+                );
+                let gap = |c: Point3<T>, v: Point3<T>| {
+                    decide_magnitude_reported(END_VERTEX, Margin::norm3(v - c), band)
+                        .map_err(|diag| ContainError::on(ContainDecision::ArcEnd, diag))
+                };
+                let gaps = [[gap(c0, v0)?, gap(c0, v1)?], [gap(c1, v0)?, gap(c1, v1)?]];
+                return Err(ContainError::ArcEndClearOfCorners(Box::new(ArcEndGaps {
+                    gaps,
+                    band,
+                })));
             }
         }
-        read.push((lk, lp));
     }
     Ok(PrePass::Off(read))
 }
+
+/// A loop the boundary pass read `q` off every edge of.
+type ReadLoop<T> = (LoopKey, OffLoop<T>);
 
 /// What [`boundary_pre_pass`] found: a boundary verdict, or every loop
 /// read on its carriers — with `q` definitely off each of their edges —
 /// for the walk that follows.
 enum PrePass<T: geom_core::Real> {
-    On(FaceContainment),
-    Off(Vec<(LoopKey, CarrierLoop<T>)>),
+    On(FaceContainment, MarginDiag),
+    Off(Vec<ReadLoop<T>>),
 }
 
 /// The distance from a conic or spiric edge's carrier end to one of the
@@ -538,6 +854,50 @@ pub(crate) enum CurvedPlacement {
     Trim(Option<FaceContainment>),
 }
 
+/// **Where a point lies against a face of any kind**: the one read
+/// that places a vertex-on-face record, at rest by the census's confirm
+/// and in a boolean's carry onto the pieces of a divided face, and a
+/// section witness in its face. On a plane, `q` is first decided on the
+/// plane by `on_plane` (the caller's predicate) and `OffCarrier` is that
+/// decision's nonzero, then [`contfp`] places it; on a curved face the
+/// chart trim places it ([`curved_face_placement`]). `Trim(None)` is the
+/// curved trim's remainder, a face it does not read.
+///
+/// # Errors
+///
+/// [`PlacementError::OnPlane`] where the on-plane margin is in band, and
+/// [`PlacementError::Door`] carrying the containment door's own refusal.
+pub(crate) fn face_placement<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    q: Point3<T>,
+    band: Band,
+    on_plane: &'static str,
+) -> Result<CurvedPlacement, PlacementError> {
+    let f = proven(&body.faces, face, EntityId::Face);
+    match *body.face_surface_linked(face, f) {
+        geom::Surface::Plane { origin, normal, .. } => {
+            match decide(on_plane, Margin::of((q - origin).dot(normal)), band) {
+                Ok(Sign::Zero) => contfp(body, face, normal, q, band)
+                    .map(|at| CurvedPlacement::Trim(Some(at)))
+                    .map_err(PlacementError::Door),
+                Ok(Sign::Positive | Sign::Negative) => Ok(CurvedPlacement::OffCarrier),
+                Err(diag) => Err(PlacementError::OnPlane(diag)),
+            }
+        }
+        _ => curved_face_placement(body, face, q, band).map_err(PlacementError::Door),
+    }
+}
+
+/// Why [`face_placement`] placed nothing.
+#[derive(Clone, Debug)]
+pub(crate) enum PlacementError {
+    /// The point's margin from the face's plane is in band.
+    OnPlane(Indeterminate),
+    /// The containment door refused, its refusal carried whole.
+    Door(ContainError),
+}
+
 /// The placement behind [`curved_face_containment`] (see
 /// [`CurvedPlacement`]); the public door is its projection.
 ///
@@ -550,9 +910,34 @@ pub(crate) fn curved_face_placement<T: Decide>(
     q: Point3<T>,
     band: Band,
 ) -> Result<CurvedPlacement, ContainError> {
-    if let Some(v) = curved_boundary_containment(body, face, q, band)? {
-        return Ok(CurvedPlacement::Trim(Some(v)));
+    curved_face_placement_decided(body, face, q, band).map(|(at, _)| at)
+}
+
+/// [`curved_face_placement`], with the margin that decided a boundary
+/// verdict (`OnEdge`, `OnVertex`), as [`contfp_decided`] keeps it.
+///
+/// # Errors
+///
+/// As [`curved_face_containment`].
+pub(crate) fn curved_face_placement_decided<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    q: Point3<T>,
+    band: Band,
+) -> Result<(CurvedPlacement, Option<MarginDiag>), ContainError> {
+    if let Some((v, margin)) = curved_boundary_containment(body, face, q, band)? {
+        return Ok((CurvedPlacement::Trim(Some(v)), Some(margin)));
     }
+    curved_interior_placement(body, face, q, band).map(|at| (at, None))
+}
+
+/// [`curved_face_placement`] past the boundary pre-pass.
+fn curved_interior_placement<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    q: Point3<T>,
+    band: Band,
+) -> Result<CurvedPlacement, ContainError> {
     let face_data = proven(&body.faces, face, EntityId::Face);
     let surface = body.face_surface_linked(face, face_data);
     // The sphere's region reading takes rings in its stride; the chart
@@ -629,7 +1014,7 @@ pub(crate) fn curved_face_placement<T: Decide>(
     ) {
         Ok(Sign::Zero) => {}
         Ok(Sign::Positive | Sign::Negative) => return Ok(CurvedPlacement::OffCarrier),
-        Err(diag) => return Err(ContainError::Escalated(diag)),
+        Err(diag) => return Err(ContainError::on(ContainDecision::Carrier, diag)),
     }
     let (az, h) = match super::solid_contain::cylinder_chart_trim(body, face, origin, axis, band) {
         Ok(t) => t,
@@ -666,7 +1051,7 @@ pub(crate) fn curved_face_placement<T: Decide>(
                 ) {
                     Ok(Sign::Positive) => {}
                     Ok(Sign::Zero | Sign::Negative) => return Ok(CurvedPlacement::Trim(None)),
-                    Err(diag) => return Err(ContainError::Escalated(diag)),
+                    Err(diag) => return Err(ContainError::on(ContainDecision::WindowPeriod, diag)),
                 }
                 let outline = super::solid_contain::wall_outline(
                     body, face, origin, axis, radius, az, h, band,
@@ -721,7 +1106,7 @@ fn sphere_face_containment<T: Decide>(
     ) {
         Ok(Sign::Zero) => {}
         Ok(Sign::Positive | Sign::Negative) => return Ok(CurvedPlacement::OffCarrier),
-        Err(diag) => return Err(ContainError::Escalated(diag)),
+        Err(diag) => return Err(ContainError::on(ContainDecision::Carrier, diag)),
     }
     let region = match super::sphere_region::sphere_face_region(body, face, center, radius) {
         Ok(Some(region)) => region,
@@ -732,7 +1117,11 @@ fn sphere_face_containment<T: Decide>(
         Ok(Some(true)) => Ok(CurvedPlacement::Trim(Some(FaceContainment::In))),
         Ok(Some(false)) => Ok(CurvedPlacement::Trim(Some(FaceContainment::Out))),
         Ok(None) => Ok(CurvedPlacement::Trim(None)),
-        Err(RegionRefusal::Escalated(diag)) => Err(ContainError::Escalated(diag)),
+        Err(RegionRefusal::Escalated(diag)) => Err(ContainError::Escalated {
+            decision: None,
+            escalation: Escalation::Margin,
+            diag,
+        }),
         Err(RegionRefusal::RayExhausted { .. }) => Err(ContainError::RayExhausted),
         Err(e @ RegionRefusal::WoundPastPeriod) => Err(solid_err(e.of_face(face))),
     }
@@ -799,7 +1188,7 @@ fn torus_face_containment<T: Decide>(
     match decide("bool_curved_contain_carrier", Margin::of(elevation), band) {
         Ok(Sign::Zero) => {}
         Ok(Sign::Positive | Sign::Negative) => return Ok(CurvedPlacement::OffCarrier),
-        Err(diag) => return Err(ContainError::Escalated(diag)),
+        Err(diag) => return Err(ContainError::on(ContainDecision::Carrier, diag)),
     }
     let (u_win, v_win) = match super::solid_contain::torus_face_windows(
         body,
@@ -892,7 +1281,7 @@ fn cone_face_containment<T: Decide>(
     match decide("bool_curved_contain_carrier", Margin::of(elevation), band) {
         Ok(Sign::Zero) => {}
         Ok(Sign::Positive | Sign::Negative) => return Ok(CurvedPlacement::OffCarrier),
-        Err(diag) => return Err(ContainError::Escalated(diag)),
+        Err(diag) => return Err(ContainError::on(ContainDecision::Carrier, diag)),
     }
     let (az, v, nappe) =
         match super::solid_contain::cone_face_trim(body, face, apex, axis, half_angle, band) {
@@ -913,10 +1302,14 @@ fn cone_face_containment<T: Decide>(
     }
 }
 
-fn solid_err(e: super::solid_contain::PointInSolidError) -> ContainError {
+pub(super) fn solid_err(e: super::solid_contain::PointInSolidError) -> ContainError {
     match e {
         super::solid_contain::PointInSolidError::Escalated { diag, .. } => {
-            ContainError::Escalated(diag)
+            ContainError::Escalated {
+                decision: None,
+                escalation: Escalation::Margin,
+                diag,
+            }
         }
         e => ContainError::Curved(e),
     }
@@ -994,6 +1387,244 @@ mod tests {
     use crate::entity::LoopBoundary;
     use geom_core::Tol;
 
+    /// Each escalation ends as its decision and its reading give it (D4
+    /// ¶1 (i)), pinned by literal text over the arms each site can raise:
+    /// a sized decision's lever with the tolerance its in-band margin
+    /// gives on a side it passes, its lever alone on a side it refuses or
+    /// on a straddle of two bounds, a lever-only decision's lever on every
+    /// arm, and the unreadable-margin note on a poisoned margin alone. A
+    /// build and a read at rest end alike on every one of these arms.
+    #[test]
+    fn an_escalation_ends_as_its_decision_gives_it() {
+        use geom_brep::recourse::Reading;
+        use geom_core::MarginDiag;
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let diag = |margin| Indeterminate {
+            margin,
+            band,
+            predicate: Some("a_margin"),
+            terminal_sliver: false,
+        };
+        let above = diag(MarginDiag::value(5e-9));
+        let below = diag(MarginDiag::value(-5e-9));
+        let poisoned = diag(MarginDiag::INVALID);
+        const NOTE: &str = "an unreadable margin may indicate a kernel bug worth reporting";
+        const NOTE_AT_REST: &str =
+            "an unreadable margin may indicate a kernel or file defect worth reporting";
+        const BOUNDARY: &str =
+            "Recourse: move the point exactly onto the boundary or clearly off it";
+        const RAY: &str = "Recourse: nudge the point so no boundary corner lines up with it";
+        const ARC: &str =
+            "Recourse: move the geometry so this arc stays clearly short of a full turn";
+        const PLANE: &str =
+            "Recourse: move the geometry so the face is flat and the point lies on it";
+        const END: &str = "Recourse: move the point clear of the arc's end";
+        const CARRIER: &str =
+            "Recourse: move the point exactly onto the face's surface or clearly off it";
+        const WALL: &str = "Recourse: keep the wall clearly short of a full turn";
+        const UNNAMED: &str = "Recourse: move the point clearly inside or outside the face";
+        let loop_ = |d| Some(ContainDecision::Loop(d));
+        let tighten = |lever: &str, size: &str| {
+            format!("{lever}, or, if this {size} is intended, tighten the tolerance below 5e-10 m")
+        };
+        use Escalation::{Margin, Straddle};
+        let rows = [
+            (
+                loop_(LoopDecision::Boundary),
+                Margin,
+                above,
+                tighten(BOUNDARY, "distance"),
+            ),
+            (
+                loop_(LoopDecision::Boundary),
+                Margin,
+                below,
+                tighten(BOUNDARY, "distance"),
+            ),
+            (
+                loop_(LoopDecision::Boundary),
+                Margin,
+                poisoned,
+                format!("{BOUNDARY}; {NOTE}"),
+            ),
+            (
+                loop_(LoopDecision::Boundary),
+                Straddle,
+                poisoned,
+                BOUNDARY.to_owned(),
+            ),
+            (loop_(LoopDecision::Ray), Margin, above, RAY.to_owned()),
+            (
+                loop_(LoopDecision::Ray),
+                Margin,
+                poisoned,
+                format!("{RAY}; {NOTE}"),
+            ),
+            (loop_(LoopDecision::ArcSpan), Margin, below, ARC.to_owned()),
+            (
+                loop_(LoopDecision::ArcSpan),
+                Straddle,
+                poisoned,
+                ARC.to_owned(),
+            ),
+            (loop_(LoopDecision::Plane), Margin, above, PLANE.to_owned()),
+            (Some(ContainDecision::ArcEnd), Margin, above, END.to_owned()),
+            (
+                Some(ContainDecision::ArcEnd),
+                Margin,
+                poisoned,
+                format!("{END}; {NOTE}"),
+            ),
+            (
+                Some(ContainDecision::OneCircle),
+                Margin,
+                above,
+                tighten(
+                    "Recourse: put the loop's arcs on one circle or on clearly different ones",
+                    "gap between circles",
+                ),
+            ),
+            (
+                Some(ContainDecision::Carrier),
+                Margin,
+                above,
+                CARRIER.to_owned(),
+            ),
+            (
+                Some(ContainDecision::Carrier),
+                Margin,
+                below,
+                CARRIER.to_owned(),
+            ),
+            (
+                Some(ContainDecision::WindowPeriod),
+                Margin,
+                above,
+                tighten(WALL, "gap"),
+            ),
+            (
+                Some(ContainDecision::WindowPeriod),
+                Margin,
+                below,
+                WALL.to_owned(),
+            ),
+            (None, Margin, above, UNNAMED.to_owned()),
+            (None, Margin, poisoned, format!("{UNNAMED}; {NOTE}")),
+        ];
+        for decision in ContainDecision::ALL {
+            assert!(
+                rows.iter().any(|(d, ..)| *d == Some(decision)),
+                "{decision:?} has no pinned ending"
+            );
+        }
+        for (decision, escalation, cause, ending) in rows {
+            let row = format!("{decision:?} {escalation:?} {}", cause.margin);
+            // A poisoned margin's note names the file at rest.
+            let stored = match ending.strip_suffix(NOTE) {
+                Some(lever) => format!("{lever}{NOTE_AT_REST}"),
+                None => ending.clone(),
+            };
+            for reading in [Reading::Build, Reading::AtRest] {
+                let ending = match reading {
+                    Reading::Build => &ending,
+                    Reading::AtRest => &stored,
+                };
+                assert_eq!(
+                    &placement_ending(decision, escalation, &cause, reading),
+                    ending,
+                    "{row} ({reading:?})"
+                );
+            }
+            // One lever source: the ending opens with the decision's lever.
+            assert!(
+                ending.starts_with(&format!("Recourse: {}", placement_lever(decision))),
+                "{row}"
+            );
+            let refusal = ContainError::Escalated {
+                decision,
+                escalation,
+                diag: cause,
+            };
+            assert_eq!(
+                refusal.to_string(),
+                format!(
+                    "contfp: {} is undecided: {}. {ending}",
+                    placement_subject(decision),
+                    cause.payload()
+                ),
+                "{row}: the refusal renders its payload and the one ending"
+            );
+            if let Some(ContainDecision::Loop(decision)) = decision {
+                let walk = PointInLoopError::Escalated {
+                    r#loop: LoopKey::default(),
+                    decision,
+                    escalation,
+                    diag: cause,
+                }
+                .to_string();
+                assert!(walk.ends_with(&format!(". {ending}")), "{row}: {walk}");
+            }
+            let at_rest = crate::ValidationError::RingNestingUndecided {
+                face: FaceKey::default(),
+                ring: LoopKey::default(),
+                source: refusal,
+            }
+            .to_string();
+            assert!(
+                at_rest.ends_with(&format!(
+                    "{} is undecided at this tolerance. {stored}",
+                    placement_subject(decision)
+                )),
+                "{row}: {at_rest}"
+            );
+        }
+    }
+
+    /// **The pre-pass tags the boundary question**: a point at the band's
+    /// midpoint off a straight outer edge of the holed box's top face,
+    /// clear of its corners, escalates on the loop walk's `Boundary`
+    /// decision with its margin, and ends in the valued tighten.
+    #[test]
+    fn contfp_tags_a_point_in_band_of_an_edge_as_the_boundary_question() {
+        use geom_brep::recourse::Reading;
+        let body = crate::fixtures::ops_holed_box(Tol::witness()).body;
+        let band = Band::linear(Tol::witness()).unwrap();
+        let m = 0.5 * (band.zero() + band.escalate());
+        let got = body
+            .faces
+            .iter()
+            .filter(|(_, f)| !f.rings.is_empty())
+            .map(|(k, _)| {
+                contfp(
+                    &body,
+                    k,
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Point3::new(0.5, m, 1.0),
+                    band,
+                )
+            })
+            .find(|got| matches!(got, Err(ContainError::Escalated { .. })))
+            .expect("the top face escalates at its edge");
+        let Err(ContainError::Escalated {
+            decision,
+            escalation,
+            diag,
+        }) = got
+        else {
+            unreachable!("found as an escalation")
+        };
+        assert_eq!(
+            decision,
+            Some(ContainDecision::Loop(LoopDecision::Boundary))
+        );
+        assert_eq!(escalation, Escalation::Margin);
+        let ending = placement_ending(decision, escalation, &diag, Reading::AtRest);
+        assert!(
+            ending.contains("if this distance is intended, tighten the tolerance below"),
+            "{ending}"
+        );
+    }
+
     /// The cross-loop shadowing row (red-then-green, M9-3 fix pass):
     /// `contfp`'s stated invariant — an edge-interior verdict never
     /// shadows a vertex coincidence — must hold ACROSS loops, not
@@ -1068,5 +1699,106 @@ mod tests {
             }
         }
         assert!(loops > 0, "the fixture must have loops to check");
+    }
+
+    /// The point a band of `K < sqrt(2)` reads at the half-disc's arc end
+    /// and clear of its corner: `0.95·zero` off the circle and `0.95·zero`
+    /// along it from the end, so `≈ 1.34·zero` from the corner at the end.
+    fn beside_the_arc_end(end: Point3<f64>, zero: f64) -> Point3<f64> {
+        end + Vec3::new(-0.95 * zero, 0.95 * zero, 0.0)
+    }
+
+    /// **A point at an arc's end the vertex pass placed clear of its
+    /// corners is a finding, not an escalation** (D4 ¶1 (iv)), in both of
+    /// the two ways it is reached, through the public door on bodies the
+    /// public operators built.
+    ///
+    /// - **An end off both corners**, here at a band finer than the
+    ///   run's: the cap's corner stands `off = zero/2` from its arc's
+    ///   end, certified at the run's band, and `contfp` reads it at a band
+    ///   of zero `off/50`. The finding leads with the gap to the end's own
+    ///   corner, `off`.
+    /// - **The band's own parting** (`K ≤ 3`): on a cap whose corner is
+    ///   its arc's end, a point `≈ 1.34·zero` from the corner reads clear
+    ///   of it at `K = 1.25` and at the end. At the run's `K` the same
+    ///   point is the vertex reading's escalation, not the finding.
+    ///
+    /// Both arms log no escalation, and each end is decided once against
+    /// each corner. They end in the arc end's lever at a build and
+    /// through the Boolean.
+    #[test]
+    fn a_point_at_an_arc_end_clear_of_its_corners_is_a_finding() {
+        use crate::boolean::{BooleanError, Operand};
+        use crate::test_support_fixtures::half_disc_cap;
+        use geom_core::{ErrorTextReading, k_stats::Bracket};
+        let tol = Tol::witness();
+        let run = Band::linear(tol).unwrap();
+        let zero = run.zero();
+        let lever = "Recourse: move the point clear of the arc's end";
+        let read = |m: MarginDiag| match m.diagnostic_f64_for_error_text() {
+            ErrorTextReading::Value(v) => v,
+            other => panic!("a point reading: {other:?}"),
+        };
+        let finding = |what: &str, body: &Body<f64>, face, q, band| {
+            let bracket = Bracket::open();
+            let got = contfp(body, face, Vec3::unit_z(), q, band);
+            let log = bracket.finish();
+            let Err(ContainError::ArcEndClearOfCorners(gaps)) = &got else {
+                panic!("{what}: the finding: {got:?}");
+            };
+            assert!(log.escalations.is_empty(), "{what}: no escalation: {log:?}");
+            assert_eq!(
+                log.verdicts
+                    .iter()
+                    .filter(|v| v.predicate == END_VERTEX)
+                    .count(),
+                4,
+                "{what}: each end decided once against each corner"
+            );
+            let built = got.as_ref().unwrap_err().to_string();
+            assert!(built.ends_with(lever), "{what}: {built}");
+            let boolean = BooleanError::PointInFaceRefused {
+                operand: Operand::A,
+                face,
+                refusal: got.as_ref().unwrap_err().clone(),
+            }
+            .to_string();
+            assert!(boolean.ends_with(lever), "{what}: {boolean}");
+            **gaps
+        };
+        let off = zero / 2.0;
+        let fine = Band::new(off / 50.0, off / 5.0).unwrap();
+        let (body, cap, end) = half_disc_cap(off, tol);
+        let gaps = finding("off its corner", &body, cap, end, fine);
+        let Some((own, far)) = gaps.off_end() else {
+            panic!("an end lies off both corners at the finer band: {gaps:?}");
+        };
+        assert!(
+            (read(own) - off).abs() <= 4.0 * f64::EPSILON && (read(far) - 2.0).abs() < 1e-9,
+            "the finding leads with the end's own corner, `off` away: {own:e}, {far:e}"
+        );
+        let (body, cap, end) = half_disc_cap(0.0, tol);
+        let q = beside_the_arc_end(end, zero);
+        let narrow = Band::new(zero, 1.25 * zero).unwrap();
+        let gaps = finding("the band's own parting", &body, cap, q, narrow);
+        assert!(!gaps.off_corner(), "every end lies at a corner: {gaps:?}");
+        if run.escalate() / zero <= 1.4 {
+            test_utils::vacuity::stood_down(
+                "a_point_at_an_arc_end_clear_of_its_corners_is_a_finding",
+                "the run's K is too narrow to read the corner gap in band",
+            );
+        } else {
+            assert!(
+                matches!(
+                    contfp(&body, cap, Vec3::unit_z(), q, run),
+                    Err(ContainError::Escalated {
+                        decision: Some(ContainDecision::Loop(LoopDecision::Boundary)),
+                        escalation: Escalation::Margin,
+                        diag,
+                    }) if diag.predicate == Some("bool_contact_vertex")
+                ),
+                "at the run's K the corner gap is in band, and escalates"
+            );
+        }
     }
 }

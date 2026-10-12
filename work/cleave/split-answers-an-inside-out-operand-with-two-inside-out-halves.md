@@ -45,7 +45,7 @@ Refuse an inside-out operand at the split's gate, typed (tier 3's check
 as the Boolean does. Folding
 it with `split-gates-its-operand-on-null-edges-not-on-tier-2` into one
 operand gate is the natural shape; the finished-body adoption
-(`work/reach/boolean-door-adopts-the-finished-body-type.md`, "the other
+(`boolean-door-adopts-the-finished-body-type` (REACH, closed by PR 3987), "the other
 verb doors … adopt the type each in its own unit") subsumes both.
 
 ## Built (branch cleave/split-operand-gate)

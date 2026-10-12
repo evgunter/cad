@@ -103,7 +103,7 @@ Found on the way and filed:
 - `work/flux/a-band-decided-order-of-off-curve-feet-needs-k-above-two.md`.
 
 The end-to-end row this case owes is noted on
-`work/reach/delete-the-boolean-operand-edge-gate.md`.
+`work/orbit/delete-the-boolean-operand-edge-gate.md`.
 
 ## Closed (PR 4278, 2026-10-07)
 

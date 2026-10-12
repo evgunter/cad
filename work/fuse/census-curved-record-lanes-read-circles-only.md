@@ -4,6 +4,8 @@ kind: issue
 title: The census confirms vertex-on-edge and edge-edge records on line and circle edges only; an ellipse, spiric or spline edge refuses CensusUnsupported
 status: open
 opened: 2026-10-07
+priority: P1
+cost: H
 ---
 
 ## The finding

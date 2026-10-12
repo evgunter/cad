@@ -10,8 +10,6 @@
 //! across one another ([`leaned`], [`arch`]) they may cross above it.
 //! The poses ([`Pose`], [`poses`]) move the whole scene rigidly.
 
-use std::collections::BTreeMap;
-
 use crate::AtRestBody;
 use crate::body::Body;
 use crate::entity::{Face, HalfEdgeKey, LoopBoundary};
@@ -179,13 +177,165 @@ pub fn ell_and_wedges() -> Vec<Hole> {
 
 /// Three wedges leant across one another ([`leaned`]): the first two
 /// turned 60° and 240° off their bisectors. Their prisms' union meets
-/// the top at [`MEET`] with three Out runs that nest about its normal.
+/// the top at [`MEET`] with three Out runs, one with the others on
+/// either side of it about the top's normal.
 pub fn arch() -> Vec<Hole> {
     vec![
         leaned(0.0, 30.0, 0, 75.0),
         leaned(120.0, 150.0, 1, 375.0),
         wedge(240.0, 270.0, 2),
     ]
+}
+
+/// A pyramid's base corners in the plane half a unit along +x from
+/// [`MEET`], from `(y, z)` on a grid of unit steps, `y` from 0 to its
+/// largest: `y` centred and scaled to span 0.75, `z` scaled by 0.2.
+/// Each crossing of `z = 0` is a germ of [`apex_pyramid`]'s apex on the
+/// plate's top, in order along `y`.
+fn meander(path: &[(f64, f64)]) -> Vec<[f64; 3]> {
+    let top = path.iter().map(|&(y, _)| y).fold(0.0, f64::max);
+    path.iter()
+        .map(|&(y, z)| [0.5, (y - top / 2.0) * (0.75 / top), z * 0.2])
+        .collect()
+}
+
+/// [`apex_pyramid`]'s base for one run above the top: a triangle with
+/// one corner above it.
+#[must_use]
+pub fn single_arch() -> Vec<[f64; 3]> {
+    meander(&[(0.0, -1.0), (2.0, -1.0), (1.0, 1.0)])
+}
+
+/// [`apex_pyramid`]'s base for two runs above the top, apart: a zigzag
+/// of two arches up, each run's germs neighbours along the top.
+#[must_use]
+pub fn zigzag() -> Vec<[f64; 3]> {
+    meander(&[
+        (0.0, -1.0),
+        (4.0, -1.0),
+        (3.0, 1.0),
+        (2.0, -0.5),
+        (1.0, 1.0),
+    ])
+}
+
+/// [`apex_pyramid`]'s base for three runs above the top, apart: a crown
+/// of three arches up.
+#[must_use]
+pub fn crown() -> Vec<[f64; 3]> {
+    meander(&[
+        (0.0, -1.0),
+        (6.0, -1.0),
+        (5.0, 1.0),
+        (4.0, -0.5),
+        (3.0, 1.0),
+        (2.0, -0.5),
+        (1.0, 1.0),
+    ])
+}
+
+/// The volume of [`apex_pyramid`] over `base`, and of its part below the
+/// top, in closed form: the base lies in the plane half a unit from the
+/// apex, so each is a sixth of the area its polygon bounds there, the
+/// part below the top over the polygon clipped to `z < 0`.
+#[must_use]
+pub fn pyramid_volumes(base: &[[f64; 3]]) -> (f64, f64) {
+    let area = |poly: &[(f64, f64)]| {
+        (0..poly.len())
+            .map(|i| {
+                let ((y0, z0), (y1, z1)) = (poly[i], poly[(i + 1) % poly.len()]);
+                y0 * z1 - y1 * z0
+            })
+            .sum::<f64>()
+            .abs()
+            / 2.0
+    };
+    let poly: Vec<(f64, f64)> = base.iter().map(|q| (q[1], q[2])).collect();
+    let mut below = Vec::new();
+    for i in 0..poly.len() {
+        let ((y0, z0), (y1, z1)) = (poly[i], poly[(i + 1) % poly.len()]);
+        if z0 < 0.0 {
+            below.push((y0, z0));
+        }
+        if (z0 < 0.0) != (z1 < 0.0) {
+            below.push((y0 + (y1 - y0) * z0 / (z0 - z1), 0.0));
+        }
+    }
+    (area(&poly) / 6.0, area(&below) / 6.0)
+}
+
+/// [`apex_pyramid`]'s base for three runs nested under one: above the
+/// top one wide arch over two narrow ones, which cut notches into it,
+/// and three legs below. Each run's two germs are neighbours along the
+/// top, the wide arch's across the ends. The pyramid holds 0.055, 0.015
+/// of it below the top.
+#[must_use]
+pub fn comb() -> Vec<[f64; 3]> {
+    meander(&[
+        (0.0, 2.0),
+        (5.0, 2.0),
+        (5.0, -1.0),
+        (4.0, -1.0),
+        (4.0, 1.0),
+        (3.0, 1.0),
+        (3.0, -1.0),
+        (2.0, -1.0),
+        (2.0, 1.0),
+        (1.0, 1.0),
+        (1.0, -1.0),
+        (0.0, -1.0),
+    ])
+}
+
+/// [`apex_pyramid`]'s base for three runs one inside another above the
+/// top, the arch cone: the middle run has the outer on one side and the
+/// inner on the other, so its two germs are not neighbours along the
+/// top, and the ring's struts form a path.
+#[must_use]
+pub fn arch_cone() -> Vec<[f64; 3]> {
+    meander(&[
+        (0.0, 3.0),
+        (5.0, 3.0),
+        (5.0, -2.0),
+        (2.0, -2.0),
+        (2.0, 1.0),
+        (3.0, 1.0),
+        (3.0, -1.0),
+        (4.0, -1.0),
+        (4.0, 2.0),
+        (1.0, 2.0),
+        (1.0, -1.0),
+        (0.0, -1.0),
+    ])
+}
+
+/// [`apex_pyramid`]'s base for five runs above the top: one over two,
+/// each over one more. The ring's struts form a tree with a node of
+/// three struts and two of two, deeper than a path.
+#[must_use]
+pub fn branching_cone() -> Vec<[f64; 3]> {
+    meander(&[
+        (0.0, 3.0),
+        (9.0, 3.0),
+        (9.0, -2.0),
+        (6.0, -2.0),
+        (6.0, 1.0),
+        (7.0, 1.0),
+        (7.0, -1.0),
+        (8.0, -1.0),
+        (8.0, 2.0),
+        (5.0, 2.0),
+        (5.0, -2.0),
+        (2.0, -2.0),
+        (2.0, 1.0),
+        (3.0, 1.0),
+        (3.0, -1.0),
+        (4.0, -1.0),
+        (4.0, 2.0),
+        (1.0, 2.0),
+        (1.0, -1.0),
+        (0.0, -1.0),
+    ])
 }
 
 /// The holes inside the top, labelled: [`two_wedges`] and the four
@@ -262,14 +412,18 @@ pub fn notch_rows() -> Vec<(&'static str, Vec<Hole>)> {
 /// or two loops through one vertex, pass their corners there without
 /// crossing. A corner sweeps counterclockwise from its leaving edge to
 /// its arriving one, the face on the left. Corners are grouped by
-/// point, rounded to a micron ([`at`]), so the corners of several
-/// vertices on one point (a pinch split per cone) are compared too.
+/// point, two corners lying on one point where they are no further
+/// apart than `tol`'s escalation distance `K·ε`, so the corners of
+/// several vertices on one point (a pinch split per cone) are compared
+/// too, and distinct vertices any further apart are not.
 ///
-/// It reads planar faces with straight edges of positive length, an
-/// outer loop that is a cycle and corners whose two edges leave along
-/// different directions, and refuses any other face rather than
+/// A corner whose two edges leave along one direction is read by
+/// [`corner_sweep`]: a slit's tip, a full turn, or a spur's, refused.
+///
+/// It reads planar faces with straight edges of positive length and an
+/// outer loop that is a cycle, and refuses any other face rather than
 /// measure it.
-pub fn corners_disjoint(body: &Body<f64>) -> Result<(), String> {
+pub fn corners_disjoint(body: &Body<f64>, tol: Tol) -> Result<(), String> {
     use std::f64::consts::TAU;
     for (fk, f) in body.faces() {
         if !matches!(
@@ -327,44 +481,92 @@ pub fn corners_disjoint(body: &Body<f64>) -> Result<(), String> {
         };
         let u = n.cross(seed).normalize();
         let v = n.cross(u);
-        let angle = |d: geom_core::Vec3<f64>| d.dot(v).atan2(d.dot(u)).rem_euclid(TAU);
-        let mut corners: BTreeMap<Point, Vec<(f64, f64)>> = BTreeMap::new();
-        for cycle in &cycles {
-            let m = cycle.len();
-            for i in 0..m {
-                let (prev, here, next) = (
-                    pt(cycle[(i + m - 1) % m])?,
-                    pt(cycle[i])?,
-                    pt(cycle[(i + 1) % m])?,
-                );
-                let (out, back) = (next - here, prev - here);
-                if out.norm() < 1e-12 || back.norm() < 1e-12 {
-                    return Err(format!("{fk:?}: a zero-length edge at {:?}", cycle[i]));
-                }
-                let from = angle(out);
-                let sweep = (angle(back) - from).rem_euclid(TAU);
-                // Both edges along one direction: a corner of 0 or of 2π,
-                // which the angles cannot tell apart.
-                if !(1e-9..=TAU - 1e-9).contains(&sweep) {
-                    return Err(format!(
-                        "{fk:?}: a corner at {:?} whose edges leave along one direction",
-                        cycle[i]
-                    ));
-                }
-                corners.entry(at(here)).or_default().push((from, sweep));
+        let mut corners: Vec<(Point3<f64>, f64, f64)> = Vec::new();
+        for (c, cycle) in cycles.iter().enumerate() {
+            let points = cycle
+                .iter()
+                .map(|&he| pt(he))
+                .collect::<Result<Vec<_>, _>>()?;
+            for i in 0..cycle.len() {
+                let (from, sweep) = corner_sweep(&points, i, [u, v], c > 0)
+                    .map_err(|what| format!("{fk:?}: {what} at {:?}", cycle[i]))?;
+                corners.push((points[i], from, sweep));
             }
         }
-        for (pk, cs) in corners {
-            for (i, &(a, sa)) in cs.iter().enumerate() {
-                for &(b, sb) in &cs[i + 1..] {
-                    if (b - a).rem_euclid(TAU) < sa - 1e-9 || (a - b).rem_euclid(TAU) < sb - 1e-9 {
-                        return Err(format!("{fk:?}: two corners at {pk:?} overlap"));
-                    }
+        // One point: corners chained within `K·ε` of one another.
+        let near = tol.eps() * tol.k();
+        let mut group: Vec<usize> = (0..corners.len()).collect();
+        let root = |g: &[usize], mut i: usize| {
+            while g[i] != i {
+                i = g[i];
+            }
+            i
+        };
+        for i in 0..corners.len() {
+            for j in i + 1..corners.len() {
+                if corners[i].0.distance(corners[j].0) <= near {
+                    let (a, b) = (root(&group, i), root(&group, j));
+                    group[a.max(b)] = a.min(b);
+                }
+            }
+        }
+        for i in 0..corners.len() {
+            for j in i + 1..corners.len() {
+                if root(&group, i) != root(&group, j) {
+                    continue;
+                }
+                let ((p, a, sa), (_, b, sb)) = (corners[i], corners[j]);
+                if (b - a).rem_euclid(TAU) < sa - 1e-9 || (a - b).rem_euclid(TAU) < sb - 1e-9 {
+                    return Err(format!("{fk:?}: two corners at {:?} overlap", at(p)));
                 }
             }
         }
     }
     Ok(())
+}
+
+/// The corner of a cycle `points` at its `i`th corner, in the plane
+/// frame `[u, v]`: the angle its leaving edge points at, and how far it
+/// sweeps counterclockwise to its arriving edge, the face on the left.
+/// `ring` says the cycle is a ring of its face, which lies outside it.
+///
+/// A corner whose two edges leave along one direction is the tip of a
+/// slit, a full turn, where the face lies round it (the rest of the
+/// cycle winds round the tip, or for a ring does not), and of a spur out
+/// of the face where it does not, which is refused.
+fn corner_sweep(
+    points: &[Point3<f64>],
+    i: usize,
+    [u, v]: [geom_core::Vec3<f64>; 2],
+    ring: bool,
+) -> Result<(f64, f64), &'static str> {
+    use std::f64::consts::TAU;
+    let m = points.len();
+    let angle = |d: geom_core::Vec3<f64>| d.dot(v).atan2(d.dot(u)).rem_euclid(TAU);
+    let (prev, here, next) = (points[(i + m - 1) % m], points[i], points[(i + 1) % m]);
+    let (out, back) = (next - here, prev - here);
+    if out.norm() < 1e-12 || back.norm() < 1e-12 {
+        return Err("a zero-length edge");
+    }
+    let from = angle(out);
+    let sweep = (angle(back) - from).rem_euclid(TAU);
+    if (1e-9..=TAU - 1e-9).contains(&sweep) {
+        return Ok((from, sweep));
+    }
+    let rest: Vec<_> = (1..m).map(|k| points[(i + k) % m] - here).collect();
+    let crossings = (0..rest.len())
+        .filter(|&k| {
+            let (a, b) = (rest[k], rest[(k + 1) % rest.len()]);
+            let (au, av, bu, bv) = (a.dot(u), a.dot(v), b.dot(u), b.dot(v));
+            (av > 0.0) != (bv > 0.0) && au + (bu - au) * (0.0 - av) / (bv - av) > 0.0
+        })
+        .count();
+    if (crossings % 2 == 1) == ring {
+        return Err(
+            "a corner whose edges leave along one direction, the tip of a spur out of the face",
+        );
+    }
+    Ok((from, TAU))
 }
 
 /// The half-edge cycles of a face's loops, outer first.
@@ -667,6 +869,17 @@ pub fn bearing(deg: f64, r: f64, z: f64) -> [f64; 3] {
     [r * c, r * s, z]
 }
 
+/// A quadrilateral below [`MEET`] whose third corner lies `dent` off the
+/// line between its neighbours (inwards where negative), so its cone's
+/// edge there is reflex where `dent` is negative.
+#[must_use]
+pub fn near_flat(dent: f64) -> [[f64; 3]; 4] {
+    let (c1, c3) = (bearing(100.0, 0.45, -0.5), bearing(140.0, 0.45, -0.5));
+    let out = bearing(120.0, 1.0, 0.0);
+    let c2 = [0, 1, 2].map(|k| 0.5 * (c1[k] + c3[k]) + dent * out[k]);
+    [bearing(120.0, 0.15, -0.5), c1, c2, c3]
+}
+
 /// [`nest`] for any number of corners: each weighs its own 0.6 and the
 /// rest 0.4 between them, scaled by `s`.
 #[must_use]
@@ -712,6 +925,131 @@ pub fn apex_pyramid(base: &[[f64; 3]], pose: &Pose, tol: Tol) -> AtRestBody<f64>
     posed_pyramid(&at, MEET, pose, tol)
 }
 
+/// The ring of a [`posed_crown`] with a thin fin: two faces folded at
+/// a short edge 1 mm long, risen 2° between corners 1e-4° apart, so a
+/// reference halfway along one fin face lies on the other's plane
+/// within the band and inside its sector. With a bottom at
+/// `(0, 0.2, −0.6)` it lies inside the block `[1, 2] × [0.5, 1.5] ×
+/// [0.3, 1.5]`.
+#[must_use]
+pub fn fin() -> Vec<[f64; 3]> {
+    let sph = |az: f64, el: f64, l: f64| {
+        let (sa, ca) = az.to_radians().sin_cos();
+        let (se, ce) = el.to_radians().sin_cos();
+        [l * ca * ce, l * sa * ce, l * se]
+    };
+    vec![
+        sph(0.0, 0.0, 0.4),
+        sph(5e-5, 2.0, 1e-3),
+        sph(1e-4, 0.0, 0.4),
+        sph(120.0, -15.0, 0.4),
+        sph(240.0, 10.0, 0.4),
+    ]
+}
+
+/// **A crown on [`MEET`]**: the solid between a fan of triangles from
+/// `MEET` to the closed `ring` and a fan from `bottom` to it (both
+/// relative to `MEET`), placed by `pose`. The ring runs counterclockwise
+/// seen from above, and where it rises and falls about `MEET`, the
+/// vertex there is a saddle: its edges to the risen corners are ridges,
+/// and to the fallen ones valleys.
+///
+/// # Panics
+///
+/// Where an Euler operator refuses, or the crown is not a finished body.
+#[allow(clippy::unwrap_used)]
+pub fn posed_crown(ring: &[[f64; 3]], bottom: [f64; 3], pose: &Pose, tol: Tol) -> AtRestBody<f64> {
+    let n = ring.len();
+    assert!(n >= 3, "a crown needs at least three ring corners");
+    let off = |q: [f64; 3]| pose.at([0, 1, 2].map(|k| MEET[k] + q[k]));
+    let c: Vec<_> = ring.iter().map(|&q| off(q)).collect();
+    let (top, low) = (pose.at(MEET), off(bottom));
+    let face = |corners: &[Point3<f64>]| FaceSurface::New {
+        surface: plane(corners, tol),
+        sense: true,
+    };
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(c[0], true).unwrap();
+    let mut v = vec![seed.vertex];
+    let first = body
+        .mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            c[1],
+            line(c[0], c[1]),
+            tol,
+        )
+        .unwrap();
+    v.push(first.vertex);
+    let mut last = first;
+    for i in 2..n {
+        let at = last.he_minus;
+        last = body
+            .mev(
+                MevSite::Fan { he1: at, he2: at },
+                c[i],
+                line(c[i - 1], c[i]),
+                tol,
+            )
+            .unwrap();
+        v.push(last.vertex);
+    }
+    // The ring closed: the seed face runs it counterclockwise from above
+    // and takes the fan from `MEET`; the new face runs it back and takes
+    // the fan from `bottom`. Each takes its surface once it is a triangle.
+    let he = |body: &Body<f64>, f, a: usize, b: usize| body.find_half_edge(f, v[a], v[b]).unwrap();
+    let closing = MefSite::Chords {
+        he1: he(&body, seed.face, n - 1, n - 2),
+        he2: he(&body, seed.face, 0, 1),
+    };
+    let under = body
+        .mef(closing, line(c[n - 1], c[0]), face(&[low, c[1], c[0]]), tol)
+        .unwrap()
+        .face;
+    for (f, apex, order) in [
+        (seed.face, top, (1..n).collect::<Vec<_>>()),
+        (under, low, (1..n).rev().collect()),
+    ] {
+        let (from, to) = if f == seed.face { (0, 1) } else { (0, n - 1) };
+        let at = he(&body, f, from, to);
+        let strut = body
+            .mev(
+                MevSite::Fan { he1: at, he2: at },
+                apex,
+                line(c[0], apex),
+                tol,
+            )
+            .unwrap();
+        let mut he1 = strut.he_minus;
+        for k in order {
+            let (next, prev) = if f == seed.face {
+                ((k + 1) % n, k - 1)
+            } else {
+                (k - 1, (k + 1) % n)
+            };
+            let he2 = he(&body, f, k, next);
+            let side = body
+                .mef(
+                    MefSite::Chords { he1, he2 },
+                    line(apex, c[k]),
+                    face(&[c[prev], c[k], apex]),
+                    tol,
+                )
+                .unwrap();
+            he1 = side.he_plus;
+        }
+        let rest = if f == seed.face {
+            [c[n - 1], c[0], apex]
+        } else {
+            [c[1], c[0], apex]
+        };
+        body.set_face_surface(f, face(&rest)).unwrap();
+    }
+    describe_as_intersections(&mut body, tol);
+    finished("a crown", body, tol)
+}
+
 /// Boxes `[x, y, z]` placed by `pose`, as the solids of one body, built
 /// under the caller's `tol`: where two touch, the body holds its own
 /// contact there.
@@ -734,4 +1072,58 @@ pub fn posed_boxes(
     }
     describe_as_intersections(&mut body, tol);
     finished(what, body, tol)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::corner_sweep;
+    use geom_core::{Point3, Vec3};
+    use std::f64::consts::TAU;
+
+    /// **A corner whose edges leave along one direction is a slit's tip,
+    /// a full turn, inside the face, and refused as a spur's outside
+    /// it.** The square `[0, 2]²` runs out along `y = 1` from its side
+    /// `x = 0`: to `(1, 1)` inside it, a slit, and to `(−1, 1)` outside
+    /// it, a spur. Read as a ring the two swap. An ordinary corner of the
+    /// square sweeps a quarter turn.
+    #[test]
+    fn a_tip_inside_the_face_is_a_full_turn_and_one_outside_it_refuses() {
+        let p = |x: f64, y: f64| Point3::new(x, y, 0.0);
+        let frame = [Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0)];
+        let cycle = |tip: f64| {
+            vec![
+                p(0.0, 0.0),
+                p(2.0, 0.0),
+                p(2.0, 2.0),
+                p(0.0, 2.0),
+                p(0.0, 1.0),
+                p(tip, 1.0),
+                p(0.0, 1.0),
+            ]
+        };
+        let (slit, spur) = (cycle(1.0), cycle(-1.0));
+        assert_eq!(
+            corner_sweep(&slit, 5, frame, false).map(|c| c.1),
+            Ok(TAU),
+            "the slit's tip"
+        );
+        assert!(
+            corner_sweep(&spur, 5, frame, false).is_err(),
+            "the spur's tip"
+        );
+        assert!(
+            corner_sweep(&slit, 5, frame, true).is_err(),
+            "the slit's tip, read as a ring"
+        );
+        assert_eq!(
+            corner_sweep(&spur, 5, frame, true).map(|c| c.1),
+            Ok(TAU),
+            "the spur's tip, read as a ring"
+        );
+        let quarter = corner_sweep(&slit, 1, frame, false).map(|c| c.1);
+        assert!(
+            quarter.is_ok_and(|q| (q - TAU / 4.0).abs() < 1e-12),
+            "a corner of the square: {quarter:?}"
+        );
+    }
 }

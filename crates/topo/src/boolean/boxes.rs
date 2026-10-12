@@ -57,16 +57,10 @@
 //!   operation whose faces never meet, unless the narrow phase behind
 //!   the overlap (`boolean::separating`, reaches along directions that
 //!   turn with the operands) parts the pair.
-//! - `boolean::reduce`'s undeclared-continuation scan
-//!   (`refuse_undeclared_continuations`, its boxes built by the
-//!   driver in `boolean/mod.rs` and passed in) mostly PRUNES: a face pair
-//!   or an edge pair whose boxes clear is never asked, and whether two
-//!   faces meet is decided point-on-edge through `Decide`, so a bigger
-//!   box costs exact work there. Its one box-decided answer is the
-//!   fallback for an edge whose carrier has no point parameter
-//!   (ellipse, spline), which reads a long enough overlap as a shared
-//!   curve. There a bigger box can refuse, as an undeclared
-//!   continuation, a pair that only touches.
+//! - the glue door (`boolean::glue`) only PRUNES: a face pair whose
+//!   boxes clear is never asked, and whether two faces lie on one
+//!   carrier is decided by the carrier ladder through `Decide`, so a
+//!   bigger box costs exact work there and decides nothing.
 //! - `separation` GRANTS on non-overlap — `Ok(())` IS the
 //!   disjointness certificate — so a bigger box refuses a placement
 //!   pair that is genuinely separated.
@@ -486,8 +480,7 @@ fn poison_value<T: Real>() -> T {
 ///   between the images.
 /// - **ConicAmplitude** — the conic's axial image, restricted to the
 ///   certified ARC by the same subdivision [`arc_extent`] runs one
-///   dimension up (a carrier with no certified span keeps the full
-///   turn). Over a full turn that image is
+///   dimension up. Over a full turn that image is
 ///   `(centre − origin)·axis ± √((a·(û·axis))² + (b·(v̂·axis))²)`, the
 ///   same full-turn amplitude [`conic_extent`] takes per coordinate,
 ///   taken along the axis instead. A rim PERPENDICULAR to the axis
@@ -500,9 +493,9 @@ pub(crate) enum AxialCarrier<T> {
     Unclaimable,
     /// The locus IS the chord between the two ends.
     Chord,
-    /// A full conic: its centre, the two in-plane reference
-    /// directions and the matching semi-axes, in the reading lane's
-    /// own spans.
+    /// A conic arc: its centre, the two in-plane reference
+    /// directions, the matching semi-axes and the certified span, in
+    /// the reading lane's own spans.
     Conic {
         /// The conic's centre.
         center: SpanBox<T>,
@@ -514,9 +507,9 @@ pub(crate) enum AxialCarrier<T> {
         semi_u: T,
         /// The semi-axis along `v_ref`.
         semi_v: T,
-        /// The certified parameter span, when the carrier has one —
-        /// the arc this edge actually occupies.
-        params: Option<(T, T)>,
+        /// The certified parameter span — the arc this edge actually
+        /// occupies.
+        params: (T, T),
     },
 }
 
@@ -554,10 +547,7 @@ pub(crate) fn edge_axial_span<T: Real>(
             let dv = along(v_ref, &zero).abs_max();
             let amp = ((du * *semi_u).powi(2) + (dv * *semi_v).powi(2)).sqrt();
             let c = along(center, origin);
-            let Some((t0, t1)) = *params else {
-                // No certified span: the full turn, as before.
-                return c.widen(amp).hull(chord);
-            };
+            let (t0, t1) = *params;
             // The ARC's own axial image, by the same subdivision
             // [`arc_extent`] runs one dimension up — this projection is
             // that construction restricted to the axis, so the two
@@ -1634,10 +1624,11 @@ const SPHERE_REACH_ULPS: f64 = 16.0;
 ///
 /// The trim reads the window off the boundary, and the boundary of a
 /// rectangle is also the boundary of its complement. The rectangle is
-/// therefore taken only when the side the boundary traversal encodes
-/// (`boundary_material_sign`, the iso-rectangle reading tier 3's curved
-/// sense check runs) agrees with the face's `sense`, which places the
-/// face on the rectangle's side of its boundary. The trim's class then
+/// therefore taken only when the side the outer loop encodes
+/// (`boundary_material_sign`: the side of the loop that holds no chart
+/// pole, the reading tier 3's curved sense check runs) agrees with the
+/// face's `sense`, which places the face on the rectangle's side of its
+/// boundary. The trim's class then
 /// holds no pole inside the face, so the face lies in the rectangle its
 /// boundary spans. A face whose side is unencoded, refused, or in
 /// disagreement, one whose outer loop is a lone vertex or carries null
@@ -1872,13 +1863,13 @@ pub(crate) fn face_box<T: Decide + Bounds>(
                 }
                 BoundaryMember::Edge { ek, edge: e, .. } => {
                     let end = |h, field| bracket_point(edge_end_point(body, ek, h, field));
-                    let certified = body.edge_curve_linked(ek, e).certified();
-                    let carrier = certified.map(geom_brep::EdgeCurve::carrier);
-                    let axial = match edge_box_rule(carrier) {
+                    let axial = match edge_box_rule(body.edge_curve_linked(ek, e).certified()) {
                         // No axial-span closed form is written
                         // for the spiric; a box that cannot
                         // claim is the honest answer.
-                        EdgeBoxRule::NoSoundBox | EdgeBoxRule::Spiric => AxialCarrier::Unclaimable,
+                        EdgeBoxRule::NoSoundBox | EdgeBoxRule::Spiric { .. } => {
+                            AxialCarrier::Unclaimable
+                        }
                         EdgeBoxRule::Chord => AxialCarrier::Chord,
                         EdgeBoxRule::ConicAmplitude {
                             center,
@@ -1886,15 +1877,15 @@ pub(crate) fn face_box<T: Decide + Bounds>(
                             semi_u,
                             semi_v,
                             u_ref,
+                            params: (t0, t1),
+                            ..
                         } => AxialCarrier::Conic {
                             center: bracket_point(center),
                             u_ref: bracket_vector(u_ref),
                             v_ref: bracket_vector(c_axis.cross(u_ref)),
                             semi_u: semi_u.hi(),
                             semi_v: semi_v.hi(),
-                            params: certified
-                                .map(geom_brep::EdgeCurve::params)
-                                .map(|(a, b)| (a.lo(), b.hi())),
+                            params: (t0.lo(), t1.hi()),
                         },
                     };
                     grow(edge_axial_span(
@@ -2234,14 +2225,18 @@ fn boundary_hull<T: Decide + Bounds>(
 ///   Claiming nothing is already the conservative answer, so nothing
 ///   is unsound while it waits. (It also carries the same trim ⊆ knot
 ///   domain premise the surface arm states.)
-pub(crate) enum EdgeBoxRule<T: Real> {
+pub(crate) enum EdgeBoxRule<'c, T: Real> {
     /// The chord between the endpoints — see the type docs.
     Chord,
-    /// The full conic's amplitude box, hulled with the chord — see the
-    /// type docs. The payload is read by the census lane and by the
-    /// axial projection ([`AxialCarrier::Conic`]); [`edge_box`] matches
-    /// the arm and re-reads the certified carrier for `geom`'s door.
+    /// The conic ARC's box over its certified span, hulled with the
+    /// chord — see the type docs. [`edge_box`] hands `carrier` and
+    /// `params` to `geom`'s exact door; the census lane and the axial
+    /// projection ([`AxialCarrier::Conic`]) read the decomposed fields.
     ConicAmplitude {
+        /// The certified carrier the fields below were read from — a
+        /// `Circle` or an `Ellipse`, which `geom`'s exact arc door
+        /// takes whole.
+        carrier: &'c geom::Curve3<T>,
         /// The conic's centre.
         center: Point3<T>,
         /// The plane normal of the conic.
@@ -2252,6 +2247,10 @@ pub(crate) enum EdgeBoxRule<T: Real> {
         semi_v: T,
         /// The in-plane reference direction.
         u_ref: Vec3<T>,
+        /// The certified parameter span — read from the same
+        /// [`geom_brep::EdgeCurve`] as the carrier, so a conic rule
+        /// always has its arc.
+        params: (T, T),
     },
     /// No cheap superset exists — see the type docs.
     NoSoundBox,
@@ -2262,44 +2261,88 @@ pub(crate) enum EdgeBoxRule<T: Real> {
     /// because the operand gate refuses the kind. Past the gate, the
     /// sweep's soundness on a spiric edge rests on this box: a face it
     /// prunes is one the arc cannot reach, and a face it meets sends the
-    /// edge to a crossing arm that refuses it typed.
-    Spiric,
+    /// edge to a crossing arm that refuses it typed. [`edge_box`] hands
+    /// `carrier` to that door; the census lane reads the decomposed
+    /// fields.
+    Spiric {
+        /// The certified `Spiric` carrier the fields below were read
+        /// from.
+        carrier: &'c geom::Curve3<T>,
+        /// The spiric's centre.
+        center: Point3<T>,
+        /// The axis of the torus it lies on.
+        axis: Vec3<T>,
+        /// The cutting plane's in-plane reference direction.
+        u_ref: Vec3<T>,
+        /// The torus's major radius.
+        major_radius: T,
+        /// The torus's minor radius.
+        minor_radius: T,
+        /// The cutting plane's offset along `u_ref`.
+        offset: T,
+    },
 }
 
-/// The [`EdgeBoxRule`] for a carrier — the single kind→rule mapping,
-/// with `None` standing for the null-scaffolding state (no carrier by
-/// type). A kind added to [`geom::Curve3`] lands on
-/// [`EdgeBoxRule::NoSoundBox`] only by being written here.
-pub(crate) fn edge_box_rule<T: Real>(carrier: Option<&geom::Curve3<T>>) -> EdgeBoxRule<T> {
+/// The [`EdgeBoxRule`] for an edge's certified curve — the single
+/// kind→rule mapping, with `None` standing for the null-scaffolding
+/// state (no carrier by type). A kind added to [`geom::Curve3`] lands
+/// on [`EdgeBoxRule::NoSoundBox`] only by being written here.
+pub(crate) fn edge_box_rule<T: Real>(
+    certified: Option<&geom_brep::EdgeCurve<T>>,
+) -> EdgeBoxRule<'_, T> {
+    let Some(curve) = certified else {
+        return EdgeBoxRule::NoSoundBox;
+    };
+    let params = curve.params();
+    let carrier = curve.carrier();
     match carrier {
-        Some(geom::Curve3::Line { .. }) => EdgeBoxRule::Chord,
-        Some(geom::Curve3::Circle {
+        geom::Curve3::Line { .. } => EdgeBoxRule::Chord,
+        geom::Curve3::Circle {
             center,
             axis,
             radius,
             u_ref,
-        }) => EdgeBoxRule::ConicAmplitude {
+        } => EdgeBoxRule::ConicAmplitude {
+            carrier,
             center: *center,
             axis: *axis,
             semi_u: *radius,
             semi_v: *radius,
             u_ref: *u_ref,
+            params,
         },
-        Some(geom::Curve3::Ellipse {
+        geom::Curve3::Ellipse {
             center,
             axis,
             major,
             minor,
             u_ref,
-        }) => EdgeBoxRule::ConicAmplitude {
+        } => EdgeBoxRule::ConicAmplitude {
+            carrier,
             center: *center,
             axis: *axis,
             semi_u: *major,
             semi_v: *minor,
             u_ref: *u_ref,
+            params,
         },
-        Some(geom::Curve3::Spiric { .. }) => EdgeBoxRule::Spiric,
-        Some(geom::Curve3::Nurbs(_)) | None => EdgeBoxRule::NoSoundBox,
+        geom::Curve3::Spiric {
+            center,
+            axis,
+            u_ref,
+            major_radius,
+            minor_radius,
+            offset,
+        } => EdgeBoxRule::Spiric {
+            carrier,
+            center: *center,
+            axis: *axis,
+            u_ref: *u_ref,
+            major_radius: *major_radius,
+            minor_radius: *minor_radius,
+            offset: *offset,
+        },
+        geom::Curve3::Nurbs(_) => EdgeBoxRule::NoSoundBox,
     }
 }
 
@@ -2337,46 +2380,28 @@ pub(crate) fn edge_box<T: Decide + Bounds>(body: &Body<T>, edge: EdgeKey, pad: f
     );
     let chord = Aabb::from_points([a, b]).unwrap_or_else(Aabb::poison);
     let certified = body.edge_curve_linked(edge, e).certified();
-    let carrier = certified.map(geom_brep::EdgeCurve::carrier);
-    let boxed = match edge_box_rule(carrier) {
+    let boxed = match edge_box_rule(certified) {
         EdgeBoxRule::NoSoundBox => return Aabb::poison(),
         EdgeBoxRule::Chord => chord,
-        EdgeBoxRule::Spiric => certified
-            .and_then(|curve| {
-                let (t0, t1) = curve.params();
-                geom::curves::boxes::conic_arc_aabb(curve.carrier(), t0, t1, a, b)
-            })
-            .unwrap_or_else(|| {
-                unreachable!(
-                    "edge box: the spiric rule is minted only from a certified Spiric \
-                     carrier, and the exact arc door answers for it"
-                )
-            }),
-        EdgeBoxRule::ConicAmplitude { .. } => {
-            // The exact arc box, read from its one home one crate down:
-            // per coordinate the extremum `c_i ± √((a·û_i)² + (b·v̂_i)²)`
-            // enters exactly when its angle lies in the certified span,
-            // and the endpoint hull bounds the monotone pieces between.
-            // A bracketed radius or frame (the `Interval` scalar) enters
-            // that door as its whole bracket, so the box dominates every
-            // realization; poison flows to the poison box.
-            //
-            // `certified` is `Some` here — the rule names this arm only
-            // for a certified conic carrier — and the door answers for
-            // every conic kind, so the remaining arm is a kernel bug
-            // that says so (D2 addendum row 4).
-            certified
-                .and_then(|curve| {
-                    let (t0, t1) = curve.params();
-                    geom::curves::boxes::conic_arc_aabb(curve.carrier(), t0, t1, a, b)
-                })
-                .unwrap_or_else(|| {
-                    unreachable!(
-                        "edge box: the conic rule is minted only from a certified Circle \
-                         or Ellipse carrier, and the exact arc door answers for both"
-                    )
-                })
-        }
+        // `geom`'s exact doors answer for every kind these two rules
+        // are minted from, so a `None` is a kernel bug that says so
+        // (D2 addendum row 4).
+        EdgeBoxRule::Spiric { carrier, .. } => geom::curves::boxes::spiric_arc_aabb(carrier, a, b)
+            .unwrap_or_else(|| unreachable!("edge box: the spiric rule carries a Spiric carrier")),
+        // The exact arc box, read from its one home one crate down:
+        // per coordinate the extremum `c_i ± √((a·û_i)² + (b·v̂_i)²)`
+        // enters exactly when its angle lies in the certified span,
+        // and the endpoint hull bounds the monotone pieces between.
+        // A bracketed radius or frame (the `Interval` scalar) enters
+        // that door as its whole bracket, so the box dominates every
+        // realization; poison flows to the poison box.
+        EdgeBoxRule::ConicAmplitude {
+            carrier,
+            params: (t0, t1),
+            ..
+        } => geom::curves::boxes::conic_arc_aabb(carrier, t0, t1, a, b).unwrap_or_else(|| {
+            unreachable!("edge box: the conic rule carries a Circle or Ellipse carrier")
+        }),
     };
     boxed.padded(pad)
 }
@@ -2542,7 +2567,7 @@ pub(crate) mod tests {
     use crate::euler::{FaceSurface, MefSite, MevSite};
     use geom::Curve3;
     use geom::Surface;
-    use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+    use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
     use geom_core::Tol;
     use geom_core::{Point3, Vec3};
 
@@ -2682,8 +2707,7 @@ pub(crate) mod tests {
         let cyl = body.add_surface(cyl_surface);
         let arc = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
-                s1: plane,
-                s2: cyl,
+                pair: SurfacePair::new(plane, cyl),
                 witness,
             },
             carrier,
@@ -2870,8 +2894,7 @@ pub(crate) mod tests {
             (
                 EdgeCurveSpec {
                     description: EdgeDescriptionSpec::Intersection {
-                        s1: wall,
-                        s2: plane,
+                        pair: SurfacePair::new(wall, plane),
                         witness: on((u0 + u1) * 0.5, z),
                     },
                     carrier,
@@ -3450,7 +3473,13 @@ pub(crate) mod tests {
     ///
     /// - `boolean/reduce.rs` — the C10 candidate tree, face and edge.
     ///   **Prunes**: loose is slower work, never a different answer.
-    ///   The only door for which that is true.
+    /// - `boolean/glue.rs` — the glue door's box sweep
+    ///   (`overlapping_pairs`), face boxes of both operands, which its
+    ///   pair scan and its coaxial scan both read. **Prunes**: a loose box
+    ///   only adds pairs the carrier ladder reads and leaves apart,
+    ///   which is slower work and the same answer. A box TIGHTER than
+    ///   its face would miss a pair, which then reaches its site
+    ///   unglued and refuses there — loud, never a different body.
     /// - `boolean/ops.rs` — the curved-extent fallback, face and
     ///   edge: the cylinder-face arm clears a [`face_box`] against
     ///   the ball's extent, the scan's near-boundary test walks the
@@ -3532,20 +3561,16 @@ pub(crate) mod tests {
         // `census.rs` counts SEVEN: the pre-filter's `face_box` and
         // `edge_box` reads (`census::Trees::build`, the pruning door),
         // three rule reads of its own, and two that are not doors —
-        // the adopted CERT-N2 reviewer probes in its test module call
-        // `face_box` to execute what a partially poisoned control net
-        // answers there. The number is stated with that content rather
+        // two rows in its test module call `face_box` to pin what a
+        // described net carrying poison answers there. The number is stated with that content rather
         // than filtered, because this pin's protection is that an
         // occurrence cannot arrive, leave or move unnoticed — which it
         // still gives — while the module docs' DOOR list above stays a
         // list of doors and gains nothing from the two.
         //
-        // `boolean/mod.rs`'s two and three of `boolean/reduce.rs`'s
-        // eight are ONE door, the undeclared-continuation scan: the
-        // driver builds its padded boxes (`boxes::face_box`/`edge_box`
-        // at `pad`) and hands them in as closures, and the scan's own
-        // calls through those closure parameters match the same text.
-        // So are one of `boolean/ops.rs`'s four and `pieces.rs`'s one:
+        // `boolean/glue.rs`'s two are one door, the sweep its pair scan
+        // and its coaxial scan share, boxing both operands' faces. One of
+        // `boolean/ops.rs`'s four and `pieces.rs`'s one are one door:
         // the boolean's exit builds the face-box closure the piece
         // sort's screen calls. Another of `ops.rs`'s four is not a door:
         // `the_approx_arm_asks_whether_the_ball_reaches_the_face` boxes
@@ -3555,9 +3580,9 @@ pub(crate) mod tests {
         // `edge_box` to show a torn link panics.
         const PINNED: [(&str, usize); 10] = [
             ("boolean/carrier_touch.rs", 1),
-            ("boolean/mod.rs", 2),
+            ("boolean/glue.rs", 2),
             ("boolean/ops.rs", 4),
-            ("boolean/reduce.rs", 8),
+            ("boolean/reduce.rs", 5),
             ("boolean/torn_hop_rows.rs", 4),
             ("census.rs", 7),
             ("face_boxes.rs", 1),
@@ -3789,8 +3814,7 @@ pub(crate) mod tests {
             };
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
-                    s1: torus,
-                    s2: plane,
+                    pair: SurfacePair::new(torus, plane),
                     witness: on((u0 + u1) * 0.5, v),
                 },
                 carrier,
@@ -3808,12 +3832,14 @@ pub(crate) mod tests {
             let spine = center + e(u) * major;
             let description = if up {
                 EdgeDescriptionSpec::Intersection {
-                    s1: torus,
-                    s2: body.add_surface(Surface::Plane {
-                        origin: center,
-                        normal: axis.cross(e(u)),
-                        u_ref: e(u),
-                    }),
+                    pair: SurfacePair::new(
+                        torus,
+                        body.add_surface(Surface::Plane {
+                            origin: center,
+                            normal: axis.cross(e(u)),
+                            u_ref: e(u),
+                        }),
+                    ),
                     witness: on(u, (v0 + v1) * 0.5),
                 }
             } else {
@@ -4149,8 +4175,7 @@ pub(crate) mod tests {
                 (
                     EdgeCurveSpec {
                         description: EdgeDescriptionSpec::Intersection {
-                            s1: torus,
-                            s2: pk,
+                            pair: SurfacePair::new(torus, pk),
                             witness: on(u, core::f64::consts::PI),
                         },
                         carrier: Curve3::Circle {
@@ -4186,8 +4211,7 @@ pub(crate) mod tests {
         });
         let strut_spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
-                s1: torus,
-                s2: eq_plane,
+                pair: SurfacePair::new(torus, eq_plane),
                 witness: on((u0 + u1) * 0.5, 0.0),
             },
             carrier: Curve3::Circle {
@@ -5981,8 +6005,7 @@ mod sphere_rect_rows {
             let witness = carrier.mid_point(t0, t1);
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
-                    s1: sphere,
-                    s2: plane,
+                    pair: geom_brep::SurfacePair::new(sphere, plane),
                     witness,
                 },
                 carrier,
@@ -6186,6 +6209,7 @@ mod sphere_rect_rows {
             world,
             (h0, hc),
             senses,
+            false,
             Tol::witness(),
         )
     }
@@ -6195,12 +6219,17 @@ mod sphere_rect_rows {
     /// `ẑ`, the seam `x̂`, and the heights `(h0, hc)` are latitude
     /// sines. The seed face carries the strut; which side of the rim it
     /// is, is `senses`' and the boundary's to say.
+    ///
+    /// `zone` closes the strut's tip with a second rim at `hc`: the
+    /// seed face is then the zone `[h0, hc]` on its seam, sensed from its
+    /// base rim's stored traversal, and a third face caps the tip's rim.
     fn strut_cap(
         c: Point3<f64>,
         r: f64,
         (x, y, z): (Vec3<f64>, Vec3<f64>, Vec3<f64>),
         (h0, hc): (f64, f64),
         senses: (bool, bool),
+        zone: bool,
         tol: Tol,
     ) -> (Body<f64>, FaceKey, FaceKey) {
         let at = |h: f64| c + x * (r * (1.0 - h * h).sqrt()) + z * (r * h);
@@ -6235,8 +6264,7 @@ mod sphere_rect_rows {
                 let witness = carrier.mid_point(t0, t1);
                 EdgeCurveSpec {
                     description: EdgeDescriptionSpec::Intersection {
-                        s1: sphere,
-                        s2: plane,
+                        pair: geom_brep::SurfacePair::new(sphere, plane),
                         witness,
                     },
                     carrier,
@@ -6294,6 +6322,41 @@ mod sphere_rect_rows {
         let (north, south) = (seed.face, made.face);
         body.set_face_sense(north, senses.0).unwrap();
         body.set_face_sense(south, senses.1).unwrap();
+        if zone {
+            // Against the base rim's direction, so the seed's loop runs
+            // round the zone once.
+            let tip = Curve3::Circle {
+                center: c + z * (r * hc),
+                axis: -z,
+                radius: r * (1.0 - hc * hc).sqrt(),
+                u_ref: x,
+            };
+            let tip = arc(&mut body, tip, x, (0.0, core::f64::consts::TAU));
+            let cap = |sense| FaceSurface::Shared { key: sphere, sense };
+            let site = MefSite::Chords {
+                he1: e_s.he_minus,
+                he2: e_s.he_minus,
+            };
+            match body.mef(site, tip.clone(), cap(true), tol) {
+                Ok(_) => {}
+                Err(crate::EulerOpError::SenseContradictsChart { derived, .. }) => {
+                    body.mef(site, tip, cap(derived), tol).unwrap();
+                }
+                Err(e) => panic!("the tip's rim: {e:?}"),
+            }
+            // The zone lies on the side of the base rim toward the tip,
+            // which is left of the rim's traversal under the chart normal
+            // exactly when the rim runs about `+ẑ` and the tip is above
+            // it, or about `−ẑ` and below: set from the stored traversal,
+            // not from the side reader these rows test.
+            let (outer, _) = crate::props::loop_edges(&body, body.faces[north].outer).unwrap();
+            let base = outer
+                .iter()
+                .find(|e| matches!(e.carrier, Curve3::Circle { axis, .. } if axis.dot(z) > 0.5))
+                .expect("the base rim runs about +ẑ");
+            body.set_face_sense(north, base.forward == (hc > h0))
+                .unwrap();
+        }
         crate::pcurves::mint_pcurves(&mut body, tol).unwrap();
         (body, north, south)
     }
@@ -6304,40 +6367,43 @@ mod sphere_rect_rows {
     /// not a bound on it, and the face reaches the pole `z = 1`. Read
     /// as a level, the strut's tip would end the latitude window at
     /// `z = 0.3`. Every lane's box reaches the pole, under every sense.
-    /// The strut run on to the pole is a point of the face AT the pole,
-    /// which pins the window `[rim, pole]`: the box keeps its floor at
-    /// the rim wherever the rectangle is read, rather than the ball's.
+    /// A strut's tip is a cusp of the face's loop, which the sphere's
+    /// side reader refuses (`props_sphere_loop_cusp`), so no lane reads
+    /// a latitude window off this face at all: every box is the ball's.
     #[test]
     fn a_caps_strut_does_not_bound_its_latitude_window() {
         let band = Band::linear(Tol::witness()).unwrap();
-        let mut floors = Vec::new();
         for hc in [0.3, 1.0] {
             for senses in [(true, true), (true, false), (false, true), (false, false)] {
                 let (body, north, _) = strut_cap_ball(-0.5, hc, senses);
-                let (_, reach) = sphere_reach(&body, north, band, &BoxFrame::World);
+                let (lo, hi) = sphere_reach(&body, north, band, &BoxFrame::World);
                 let boxed = face_box(&body, north, 0.0, band).unwrap();
-                let (_, census) = crate::census::face_reach(&body, north, band).unwrap();
-                for (lane, top) in [
-                    ("sphere_reach", reach.z),
-                    ("face_box", boxed.max_z),
-                    ("census::face_reach", census.z),
+                let (clo, chi) = crate::census::face_reach(&body, north, band).unwrap();
+                // Every extreme is the ball's: a window read off either
+                // side of the rim `z = −0.5` stops short of one pole,
+                // and a seam's azimuth window short of `x = −1` or of
+                // `y = ±1`.
+                for (lane, lo, hi) in [
+                    ("sphere_reach", [lo.x, lo.y, lo.z], [hi.x, hi.y, hi.z]),
+                    (
+                        "face_box",
+                        [boxed.min_x, boxed.min_y, boxed.min_z],
+                        [boxed.max_x, boxed.max_y, boxed.max_z],
+                    ),
+                    (
+                        "census::face_reach",
+                        [clo.x, clo.y, clo.z],
+                        [chi.x, chi.y, chi.z],
+                    ),
                 ] {
                     assert!(
-                        top >= 1.0,
-                        "strut tip z = {hc}, senses {senses:?}: {lane}'s top {top} stops \
-                         short of the pole the cap reaches"
+                        lo.iter().all(|&l| l <= -1.0) && hi.iter().all(|&h| h >= 1.0),
+                        "strut tip z = {hc}, senses {senses:?}: {lane}'s box {lo:?}..{hi:?} \
+                         is not the ball's"
                     );
-                }
-                if hc == 1.0 {
-                    floors.push(boxed.min_z);
                 }
             }
         }
-        assert!(
-            floors.iter().any(|&z| (z + 0.5).abs() < 1e-9),
-            "a cap whose strut reaches the pole reads its window [rim, pole] under its own \
-             sense; the floors were {floors:?}"
-        );
     }
 
     /// The right-handed orthonormal frame whose `ẑ` is `axis`: `x̂` is
@@ -6386,8 +6452,8 @@ mod sphere_rect_rows {
     }
 
     /// **A zone whose axis nears a box row keeps its radial share**
-    /// (the verifier's repro). The cap below the rim `h0 = −0.3` of a
-    /// sphere of radius `1e3`, strutted to its south pole, wraps the
+    /// (the verifier's repro). The zone below the rim `h0 = −0.3` of a
+    /// sphere of radius `1e3`, down to `−0.9` on its seam, wraps the
     /// azimuth alone, so the reach reads its latitude zone. Its axis is
     /// `t` off `ẑ`, and its top along `z` is on the rim,
     /// `c_z + r·(sin v₀·cos t + cos v₀·sin t)`. The share `√(1 − a_z²)`
@@ -6404,7 +6470,15 @@ mod sphere_rect_rows {
         let c = Point3::new(120.0, -40.0, 75.0);
         for t in [1e-9f64, 1e-8, 1e-7, 1e-4, 1e-3] {
             let axis = Vec3::new(t.sin(), 0.0, t.cos());
-            let (body, cap, _) = strut_cap(c, r, frame_about(axis), (h0, -1.0), (false, true), tol);
+            let (body, cap, _) = strut_cap(
+                c,
+                r,
+                frame_about(axis),
+                (h0, -0.9),
+                (false, true),
+                true,
+                tol,
+            );
             let boxed = face_box(&body, cap, super::sweep_pad(band), band).unwrap();
             let top = c.z + r * (h0 * t.cos() + (1.0 - h0 * h0).sqrt() * t.sin());
             assert!(
@@ -6423,7 +6497,7 @@ mod sphere_rect_rows {
     }
 
     /// **The reach's outward charge covers its rounding, measured.**
-    /// Random caps strutted onto a pole (the zone arm), with axes within
+    /// Random zones on a seam (the zone arm), with axes within
     /// `10⁻¹⁰` to `10⁻¹` of a random box row, at scales `1e-3`, `1` and
     /// `1e3` (those the run's ε resolves), read at pad 0 by all three lanes along every row against
     /// the exact support ([`zone_support`]). Each lane must enclose the
@@ -6465,17 +6539,16 @@ mod sphere_rect_rows {
             let axis = row * (sign * t.cos()) + side * t.sin();
             let h0 = rng.range(-0.9, 0.9);
             let pole = if rng.below(2) == 0 { -1.0 } else { 1.0 };
-            let window = if pole < 0.0 { (-1.0, h0) } else { (h0, 1.0) };
+            let hc = h0 + (pole - h0) * rng.range(0.2, 0.9);
+            let window = if hc < h0 { (hc, h0) } else { (h0, hc) };
             let frame = frame_about(axis);
-            // The seed face is the cap the strut stands in under the
-            // sense that puts it on the strut's side of the rim.
-            let (body, cap, _) = strut_cap(c, r, frame, (h0, pole), (pole > 0.0, true), tol);
+            let (body, cap, _) = strut_cap(c, r, frame, (h0, hc), (true, true), true, tol);
             let (lo, hi) = sphere_reach(&body, cap, band, &BoxFrame::World);
             let boxed = face_box(&body, cap, 0.0, band).unwrap();
             let (clo, chi) = crate::census::face_reach(&body, cap, band).unwrap();
             assert!(
                 hi.x - lo.x < 2.0 * r || hi.y - lo.y < 2.0 * r || hi.z - lo.z < 2.0 * r,
-                "a cap strutted onto its pole reads its zone, not the ball"
+                "a zone on its seam reads its zone, not the ball"
             );
             for k in 0..3 {
                 let (slo, shi) = zone_support(c, r, frame.2, window, k);

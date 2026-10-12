@@ -141,8 +141,12 @@ fn plane_chart_at(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
 fn offset_refusal(e: &ShellError<f64>) -> String {
     match e {
         ShellError::Face { error, .. } => match &**error {
-            ReplaceFaceError::ReanchorOffCarrier { gap, .. } => {
-                format!("ReanchorOffCarrier(gap={gap})")
+            ReplaceFaceError::VertexDisagreement { gap, .. } => {
+                format!("VertexDisagreement(gap={gap})")
+            }
+            ReplaceFaceError::EdgeSection { verdict, .. } => format!("EdgeSection({verdict})"),
+            ReplaceFaceError::CornerSection { verdict, .. } => {
+                format!("CornerSection({verdict})")
             }
             ReplaceFaceError::CarrierLaneUnsupported { what, .. } => {
                 format!("CarrierLaneUnsupported({what})")
@@ -524,8 +528,10 @@ fn r2_box_control_is_right() {
 /// (120° dihedrals, all planes, CONVEX, and its inward offset is a
 /// trivially correct smaller hexagon), a box with ONE bevelled edge
 /// (135°), and a 4-sided kite prism. Their class rule predicts all
-/// three refuse `ReanchorOffCarrier`; a success on any of them would
-/// mean the class is narrower than "oblique".
+/// three refuse at the per-chart door's transported corner (the
+/// since-retired `ReanchorOffCarrier`; the door now derives that corner
+/// by root); a success on any of them would mean the class is narrower
+/// than "oblique".
 #[test]
 fn r2_oblique_plane_prisms_outside_their_table() {
     let tol = Tol::witness();
@@ -631,7 +637,8 @@ fn r2_tangent_bullet_which_door() {
     // The SAME curved pair (sphere against cylinder) reached by the
     // ORDINARY `Center` arc instead of the tangent door: the centre is
     // lifted off the wall's top so the junction is definitely NOT
-    // tangent. If this refuses `ReanchorOffCarrier`, the bullet's
+    // tangent. If this refuses at a corner (`VertexDisagreement` or
+    // `CornerSection`), the bullet's
     // different door tracks the AUTHORING ROUTE rather than the pair.
     let d = 0.02;
     let rr = (r * r + d * d).sqrt();

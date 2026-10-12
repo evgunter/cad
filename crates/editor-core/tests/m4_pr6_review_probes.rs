@@ -11,10 +11,10 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    Attr, AttrKind, BooleanOp, BranchCertification, CancelToken, Dimension, DocEdit, EntityKind,
-    EvalOptions, ExprPath, Formula, FreeVar, MetaValue, Node, PersistError, ProfileDoc,
-    ProfileProgram, RecipeNodeId, Rgba8, RoleSeg, SlotId, StableName, VarName, WitnessDatum, apply,
-    evaluate, load, save,
+    Attr, AttrKind, BranchCertification, CancelToken, Dimension, DocEdit, EntityKind, EvalOptions,
+    ExprPath, Formula, FreeVar, MetaValue, Node, PersistError, ProfileDoc, ProfileProgram,
+    RecipeNodeId, Rgba8, RoleSeg, SlotId, StableName, VarName, WitnessDatum, apply, evaluate, load,
+    save,
 };
 use fixture::{desc, insert, len, on_frame, scl};
 use geom_core::Tol;
@@ -31,7 +31,7 @@ fn small() -> (ProfileDoc, String) {
     let (doc, _) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -300,7 +300,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         &mut doc,
         DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
-                profile: p0,
+                profile: p0.into(),
                 distance: Formula::named(VarName::from_static("d"), Dimension::Length),
                 side: ExtrudeSide::Along,
             }),
@@ -328,7 +328,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         &mut doc,
         DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
-                profile: p1,
+                profile: p1.into(),
                 distance: len(1.5),
                 side: ExtrudeSide::Along,
             }),
@@ -339,11 +339,8 @@ fn attack_all_fourteen_edit_variants_round_trip() {
     let boole = push(
         &mut doc,
         DocEdit::InsertNode {
-            node: Box::new(Node::Boolean {
-                op: BooleanOp::Union,
-                a: e0,
-                b: e1,
-                declare: Vec::new(),
+            node: Box::new(Node::Union {
+                members: editor_core::Bodies::Spelled(vec![e0.into(), e1.into()]),
             }),
             fresh: Vec::new(),
         },
@@ -374,7 +371,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         DocEdit::SetParam {
             node: e1,
             slot: SlotId::Distance,
-            expr: len(2.0),
+            value: len(2.0).into(),
             fresh: Vec::new(),
         },
     );
@@ -395,7 +392,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         &mut doc,
         DocEdit::InsertNode {
             node: Box::new(Node::Pattern {
-                input: boole,
+                input: boole.into(),
                 count: Formula::count(2),
                 kind: editor_core::PatternKind::Linear {
                     direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -501,6 +498,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
     push(
         &mut doc,
         DocEdit::Rebind {
+            body: None,
             from: body,
             to: to.clone(),
         },

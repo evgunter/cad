@@ -49,9 +49,9 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    DatumValue, Dimension, DimensionError, Doc, EvalError, Evaluation, Expr, Formula, LoopProgram,
-    Node, ProfileProgram, RecipeNodeId, RecordedNotation, RecordedProgramError, SlotId, SpokenNode,
-    StepId, ValuePayload, WrittenLoopFault, resolve_loops, resolve_written_loops,
+    Dimension, DimensionError, Doc, EvalError, Evaluation, Expr, Formula, LoopProgram, Node,
+    PoseValue, ProfileProgram, RecipeNodeId, RecordedNotation, RecordedProgramError, SlotId,
+    SpokenNode, StepId, ValuePayload, WrittenLoopFault, resolve_loops, resolve_written_loops,
 };
 use pncad::geom_core::{Arc2, Point2, Tol};
 use pncad::profile::{
@@ -420,7 +420,7 @@ pub fn held_program(
             Some(&var) if doc.is_typed_value(var) => None,
             Some(&var) => Some((
                 slot,
-                doc.unparse(&doc.written(&Expr::var(var, slot.dimension()))),
+                doc.unparse(&doc.written(&Expr::var(var, slot.expr_dimension()))),
             )),
             None => Some((slot, String::new())),
         })
@@ -468,7 +468,7 @@ pub fn is_committed(
         && base.loops.len() == loops.len()
         && *base
             == ProfileProgram {
-                plane: base.plane,
+                frame: base.frame.clone(),
                 loops: loops.to_vec(),
                 ids: base.ids.clone(),
             }
@@ -561,10 +561,10 @@ pub fn frame_placement(
     evaluation: &Evaluation<f64>,
     frame: RecipeNodeId,
 ) -> Option<SketchPlane<f64>> {
-    if !admits(doc.node(frame), NodeKindWanted::Frame) {
+    if !admits(doc, frame, NodeKindWanted::Frame) {
         return None;
     }
-    let ValuePayload::Datum(DatumValue::Frame(f)) = &evaluation.value(frame)?.payload else {
+    let ValuePayload::Datum(PoseValue::Frame(f)) = &evaluation.value(frame)?.payload else {
         return None;
     };
     Some(SketchPlane::from_frame(*f))
@@ -582,7 +582,7 @@ pub fn frames(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
     doc.ids()
         .iter()
         .copied()
-        .filter(|id| admits(doc.node(*id), NodeKindWanted::Frame))
+        .filter(|id| admits(doc, *id, NodeKindWanted::Frame))
         .collect()
 }
 
@@ -1471,7 +1471,7 @@ pub fn committed(
 ) -> CommittedProfiles {
     let mut out = CommittedProfiles::default();
     for node in doc.ids() {
-        if Some(node) == except || !admits(doc.node(node), NodeKindWanted::Profile) {
+        if Some(node) == except || !admits(doc, node, NodeKindWanted::Profile) {
             continue;
         }
         let Some(value) = evaluation.value(node) else {

@@ -123,3 +123,9 @@ the face-replacement door's lanes. Filed on SHELL as
 `shell-refuses-every-lofted-body-at-a-wall-seam-carrier`; the
 public-API body and both of its boundaries are pinned in
 `crates/sweep/tests/encl_curved_loft_shell.rs`.
+
+## 2026-10-11 — the round budget is retired, and the cap is a total (SHELL, PR 4672)
+
+`OFFSET_FIT_BUDGET` and `BudgetExhausted` are gone: a loop whose bound still falls refines until it certifies, stalls, or meets `OFFSET_FIT_SAMPLE_CAP`. That cap is now `us.len() · vs.len() ≤ 48² = 2304`.
+- The saddle wall's `d = ±0.05` case above certifies at the default ε on 49×26, round 9.
+- `bowed()` at 1e-12 needed 49×49 = 2401 samples on the schedule measured above, which is still over the total cap. It is not re-measured on this branch.

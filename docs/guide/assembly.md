@@ -79,7 +79,7 @@ def prism(seed, width, depth, height):
     doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
     profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
-    doc.insert(Node.extrude(profile, Formula.length_in(height, m)))
+    doc.place(doc.insert(Node.extrude(profile, Formula.length_in(height, m))))
     return doc
 
 
@@ -157,13 +157,14 @@ the solve folds, and the contact declaration the gate mints.
 Each side is TWO things. `a` and `b` are instance-qualified entity
 names — the text `Evaluation.select` answers with when you query it on
 an instantiate node, so no name is ever composed by hand. `a_at` and
-`b_at` are the **operands**: the nodes those names are read at, which
-is to say the geometry the mate is talking about. They are the
+`b_at` are the nodes those names are read at, which is to say the
+geometry the mate is talking about: each side is a read of a face of
+that body, exactly as any other node reads a variable. They are the
 instances themselves in the plain case. They diverge the moment
 something PLACES an instance — a `Node.transform` moves a body and
 mints no name of its own, so the name alone cannot tell a mate on the
-instance from a mate on the transformed instance, and the operand is
-what does. The solve walks from the operand down to the minting
+instance from a mate on the transformed instance, and the body read
+is what does. The solve walks from the body read down to the minting
 instance and composes the map of everything it passes.
 
 ```python
@@ -177,7 +178,6 @@ from pncad import (
     Doc,
     DocEdit,
     DocRef,
-    EditError,
     EntityKind,
     Formula,
     Frame,
@@ -186,16 +186,18 @@ from pncad import (
     NamePat,
     Node,
     Placement,
+    ProductError,
     SegPat,
     SegTag,
     Selector,
     Workspace,
     groups,
+    product,
     content_pin,
     evaluate,
     root_of,
     m,
-    reading_edges,
+    relative_freedom_components,
 )
 
 POST_SECTION, POST_HEIGHT = 0.12, 0.5
@@ -207,19 +209,21 @@ def prism(seed, width, depth, height):
     doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
     profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
-    doc.insert(Node.extrude(profile, Formula.length_in(height, m)))
+    doc.place(doc.insert(Node.extrude(profile, Formula.length_in(height, m))))
     return doc
 
 
 def instance_cap(ev, instance, side):
     """One instance's cap face, in the ASSEMBLY's names.
 
-    The part's own cap name, seen one wrapper deeper: `InPart` is the
-    segment the instantiate seam adds. Nothing reads inside a name —
-    this is the same query, nested.
+    The part's own cap name, seen two wrappers deeper: `Placed` is the
+    segment the part's world placement puts round its body's names,
+    and `InPart` the one the instantiate seam adds. Nothing reads
+    inside a name — this is the same query, nested.
     """
     cap = NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.Cap).side(side))
-    through = NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.InPart).of([cap]))
+    copy = NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.Placed).of([cap]))
+    through = NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.InPart).of([copy]))
     found = ev.select(instance, Selector.of(through))
     assert len(found) == 1, f"expected one face, got {found}"
     return found[0]
@@ -311,34 +315,31 @@ assert all(root_of(stand, n) == post_a for n in (post_a, shelf_i, post_b))
 assert stand.offset(shelf_i) is None and stand.offset(post_b) is None
 assert stand.offset(post_a) is not None
 
-# A mate's references are NOT recipe edges — inserting one transfers
-# no root. What couples the graph is the reading edges, recomputed
-# every time by walking from each reference's OPERAND down to the
-# instance that minted its name, and never stored.
-assert set(reading_edges(stand)) == {
-    (mate_a, post_a), (mate_a, shelf_i), (mate_b, shelf_i), (mate_b, post_b),
-}
+# A mate's sides are reads, like any other node's, and inserting one
+# places nothing. Its reads are what couple the graph: both mates and
+# all three instances are one relatively-free component.
+(component,) = [c for c in relative_freedom_components(stand) if mate_a in c]
+assert {post_a, shelf_i, post_b, mate_a, mate_b} <= set(component)
 
-# The roots say what this document IS, in gather order. A root is a
-# live node nothing else consumes — so the two MATES are roots too,
-# consumed as they are by nothing. `product` gathers the
-# body-denoting ones.
-assert stand.roots == [post_a, shelf_i, post_b, mate_a, mate_b]
-
-# `set_roots` is the designate door and it is TOTAL: one edit states
-# the whole list, so the product's solid order is never inferred from
-# an edit sequence. Reordering the bodies means carrying the mates
-# along — leave a live node reaching no root and the edit refuses,
-# because a silently dead subgraph is not a thing you meant.
+# The world says what this document IS: its product is every copy a
+# world placement defines, in the placements' document order. No insert
+# places anything — not an instance, not a mate — so this world is
+# empty, and the gather refuses naming every body nothing places, each
+# as the output variable `place` takes.
 try:
-    stand.apply(DocEdit.set_roots([shelf_i, post_a, post_b]))
+    product(stand, evaluate(stand, resolver=store))
     raise AssertionError("expected a typed refusal")
-except EditError as refusal:
-    assert refusal.variant == "root_uncovered"
-assert stand.roots == [post_a, shelf_i, post_b, mate_a, mate_b], "refused, so untouched"
+except ProductError as refusal:
+    assert refusal.variant == "empty_product"
+    assert refusal.unplaced_bodies == [stand.output(n) for n in (post_a, shelf_i, post_b)]
 
-stand.apply(DocEdit.set_roots([shelf_i, post_a, post_b, mate_a, mate_b]))
-assert stand.roots[:3] == [shelf_i, post_a, post_b]
+# `place` is the one door that puts a body in the world: one copy, at
+# the identity unless a pose is given. The order the copies are placed
+# in is the product's solid order. The mates are not bodies; nothing
+# places them, so they are never in the product.
+placed = [stand.place(n) for n in (shelf_i, post_a, post_b)]
+assert stand.placements() == placed
+assert [stand.node_kind(n) for n in placed] == ["place_in_world"] * 3
 ```
 
 Two things in that block are worth pausing on.
@@ -433,8 +434,9 @@ instantiate node **refuses typed** rather than pretending the part is
 empty. Evaluation stays total, as everywhere else in this kernel: the
 refusal is read off the node, not raised by the call.
 
-`product(doc, evaluation)` is then what an assembly *is*: every
-body-denoting root's solids, gathered in root order into one body. It
+`product(doc, evaluation)` is then what an assembly *is*: its world,
+every copy a placement defines, gathered in the placements' document
+order into one body. It
 is the only useful reading of an assembly document, because an
 assembly's nodes are instances and mates and no single node's value is
 the assembly.
@@ -467,7 +469,7 @@ def prism(seed, width, depth, height):
     doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
     profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
-    doc.insert(Node.extrude(profile, Formula.length_in(height, m)))
+    doc.place(doc.insert(Node.extrude(profile, Formula.length_in(height, m))))
     return doc
 
 
@@ -488,6 +490,9 @@ layout.apply(
         shelf_i, Placement.literal(Frame.translation((0 * m, 0.5 * m, 0 * m)))
     )
 )
+# Both are placed in the world: that is what makes them the product.
+layout.place(post_i)
+layout.place(shelf_i)
 
 # With no resolver there is nowhere to look, and the node says so.
 # Evaluation is TOTAL — it did not raise; reading the value does.
@@ -561,7 +566,7 @@ def prism(seed, width, depth, height):
     doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
     profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
-    doc.insert(Node.extrude(profile, Formula.length_in(height, m)))
+    doc.place(doc.insert(Node.extrude(profile, Formula.length_in(height, m))))
     return doc
 
 
@@ -678,7 +683,7 @@ def prism(seed, width, depth, height):
     doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
     profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
-    doc.insert(Node.extrude(profile, Formula.length_in(height, m)))
+    doc.place(doc.insert(Node.extrude(profile, Formula.length_in(height, m))))
     return doc
 
 
@@ -689,7 +694,8 @@ def frame_at(x, y, z):
 
 def instance_cap(ev, instance, side):
     cap = NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.Cap).side(side))
-    through = NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.InPart).of([cap]))
+    copy = NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.Placed).of([cap]))
+    through = NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.InPart).of([copy]))
     (found,) = ev.select(instance, Selector.of(through))
     return found
 
@@ -717,6 +723,8 @@ def bench(primitive=None, class_=ContactClass.Rest):
     )
     s = doc.insert(Node.instantiate_part(shelf_ref))
     b = doc.insert(Node.instantiate_part(post_ref))
+    for instance in (a, s, b):
+        doc.place(instance)
     ev = evaluate(doc, resolver=store)
     post_seat = frame_at(POST_SECTION / 2, POST_SECTION / 2, POST_HEIGHT)
     seat_a = frame_at(POST_SECTION / 2, SHELF_DEPTH / 2, 0.0)
@@ -833,7 +841,7 @@ def prism(seed, width, depth, height):
     doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
     profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
-    doc.insert(Node.extrude(profile, Formula.length_in(height, m)))
+    doc.place(doc.insert(Node.extrude(profile, Formula.length_in(height, m))))
     return doc
 
 
@@ -844,7 +852,8 @@ def frame_at(x, y, z):
 
 def instance_cap(ev, instance, side):
     cap = NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.Cap).side(side))
-    through = NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.InPart).of([cap]))
+    copy = NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.Placed).of([cap]))
+    through = NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.InPart).of([copy]))
     (found,) = ev.select(instance, Selector.of(through))
     return found
 
@@ -866,8 +875,10 @@ def two_instances():
     a = doc.insert(Node.instantiate_part(post_ref))
     s = doc.insert(Node.instantiate_part(shelf_ref))
     # The shelf sits where its mates put it, so the post roots the
-    # pair however the mates below read.
+    # pair however the mates below read. Both are placed in the world.
     doc.apply(DocEdit.set_offset(s, None))
+    doc.place(a)
+    doc.place(s)
     return doc, a, s
 
 
@@ -944,37 +955,39 @@ except EditError as refusal:
     assert "edge" in str(refusal)
 
 # 4. NOTHING TO GATHER. Evaluated with no resolver, the instance
-#    produced no body, so the GATHER refuses before the gate runs —
-#    and it refuses under the gather's own tag, not a wrapper's,
-#    because which invariant broke is what you branch on.
-doc, _, _ = two_instances()
+#    produced no body and its placement none either, so the GATHER
+#    refuses before the gate runs — and it refuses under the gather's
+#    own tag, not a wrapper's, because which invariant broke is what
+#    you branch on. `node` is the placement, `through` the instance.
+doc, post_i, _ = two_instances()
 try:
     assemble(doc, evaluate(doc))
     raise AssertionError("expected a typed refusal")
 except AssemblyError as refusal:
-    assert refusal.variant == "root_failed"
-    assert refusal.node is not None and refusal.refusals is None
+    assert refusal.variant == "root_poisoned"
+    assert refusal.through == post_i and refusal.refusals is None
 try:
     product(doc, evaluate(doc))
     raise AssertionError("expected a typed refusal")
 except ProductError as refusal:
-    assert refusal.variant == "root_failed"
+    assert refusal.variant == "root_poisoned"
 ```
 
 Read an `AssemblyError`'s `variant` first, and read it as three
 groups. `at_rest` is a verdict **against** the document, and it
-carries the findings: each `AtRestFinding`'s `attribution.relation`
-says which of the three things happened — `refuted` (the faces do not
-meet as the declaration claims), `declined` (no certifier lane for a
-face the declaration names, so nothing was decided either way), or
-`unattributed` (no declaration answers at all — an **undeclared
-contact**, which is the hard error by definition, and the same refusal
-the fail-loud tour meets on a single-document boolean). Where a
-finding is `refuted` or `unattributed`, `attribution.declaration`
-names the minted declaration it is about, by the two stable names the
-mate was authored in — the recourse is in the error. `uncertified` is the declared
-direction's **frontier**: nothing refuted, nothing undeclared, the
-census simply declined to certify, so nothing was decided either way.
+carries the findings: each `AtRestFinding`'s `attribution` is the
+declaration it names, `None` where it names none, and
+`attribution.relation` says which of two things happened — `refuted`
+(the faces do not meet as the declaration claims) or `declined` (no
+certifier lane for a face the declaration names, so nothing was
+decided either way). `attribution.declaration` names the minted
+declaration, by the two stable names the mate was authored in — the
+recourse is in the error. Two copies that touch where no mate relates
+them refuse nothing: the touch is a row of the product, and
+`run_checks` reports it as an `unproven_coincidence` finding whose
+`copies` are the two. `uncertified` is the declared direction's
+**frontier**: nothing refuted, the census simply declined to certify,
+so nothing was decided either way.
 Everything else refuses before any verdict exists:
 `unminted_mates` (this document's own mates that did not mint),
 `carried_mint_refusal` (the same for mates of documents below it), and
@@ -1035,7 +1048,7 @@ def prism(seed, width, depth, height):
     doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
     profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
-    doc.insert(Node.extrude(profile, Formula.length_in(height, m)))
+    doc.place(doc.insert(Node.extrude(profile, Formula.length_in(height, m))))
     return doc
 
 
@@ -1053,6 +1066,7 @@ layout.apply(
         shelf_i, Placement.literal(Frame.translation((0 * m, 0.5 * m, 0 * m)))
     )
 )
+_, on_shelf = layout.place(post_i), layout.place(shelf_i)
 
 
 def volume(doc):
@@ -1061,14 +1075,18 @@ def volume(doc):
 
 before = volume(layout)
 
-# Split the shelf out into a part of its own. Identity is never
-# defaulted: the new document's id is supplied by the caller, and a
-# fresh one is what lets both documents live in one store.
-outcome = split(layout, [shelf_i], random_document_id())
+# Split the shelf out into a part of its own, with its world placement:
+# a part delivers only its world, so a cut of a body takes the
+# placement that puts it there. Identity is never defaulted: the new
+# document's id is supplied by the caller, and a fresh one is what
+# lets both documents live in one store.
+outcome = split(layout, [shelf_i, on_shelf], random_document_id())
 assert volume(layout) == before, "pure: the original is untouched"
-assert outcome.instance in outcome.remainder.roots
+# The remainder places the instance once, where the cut placement
+# stood beside the post's.
+assert len(outcome.remainder.placements()) == 2
 assert outcome.remainder.reference(outcome.instance) is not None
-assert len(outcome.node_map) == 1
+assert len(outcome.node_map) == 2
 # No mate spanned the cut, so nothing crossed the new seam. An
 # instance you authored by hand crosses nothing either — a non-empty
 # interface record is mintable only by a split that OBSERVED
@@ -1155,7 +1173,7 @@ def prism(seed, width, depth, height):
     doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
     profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
-    doc.insert(Node.extrude(profile, Formula.length_in(height, m)))
+    doc.place(doc.insert(Node.extrude(profile, Formula.length_in(height, m))))
     return doc
 
 
@@ -1210,8 +1228,8 @@ except UpdateError as refusal:
 
 ## Where the edges still are
 
-Three honest limits, so you do not spend an afternoon looking for a
-door that is not there.
+Two honest limits, so you do not spend an afternoon looking for a
+door that is not there, and one rule worth stating outright.
 
 **Mates and patterns do not compose** (issue #945). A patterned family
 is one node whose placements are a rule; a mate names an instance. The
@@ -1224,14 +1242,13 @@ mate that certifies. A face base's in-plane axes are the witness
 ladder's: the carrier's reference is local +Y, not +X, so an offset
 along the face's reference is written along y.
 
-**A mate is a product root.** Roots are the live nodes nothing else
-consumes, and a mate is consumed by nothing, so `Doc.roots` on the
-bench stand is three instances *and* two mates. `product` gathers only
-the body-denoting ones, so this costs nothing until you call
-`set_roots` — which is total, and therefore wants the mates listed
-alongside the bodies just to reorder the solids. It is coherent (the
-alternative is a live node reaching no root, which is a silently dead
-subgraph) and it is still a surprise the first time.
+**A mate places nothing.** The product is what the world's
+placements place: a body is in it exactly when `Doc.place` has put a
+copy of it there, and the placements' document order is the solid
+order. A mate is no body, so it is never in the product — and neither
+inserting it nor inserting anything else places a body as a side
+effect. A boolean of two placed bodies is a new body nobody placed
+until you place it.
 
 For the wider picture of what the Python surface can and cannot author
 today, `docs/guide/north-star-audit.md` keeps the row-by-row account.

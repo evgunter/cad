@@ -119,10 +119,23 @@ impl core::fmt::Display for ChartCorner {
     }
 }
 
-/// Where a branch meets the wall's knot rectangle: a side and the
-/// parameter along it (`v` on a `u` side, `u` on a `v` side).
+/// Which operand's knot rectangle a [`BoundaryPoint`] lies on: the
+/// plane × NURBS lane's wall is the second operand.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BoundaryChart {
+    /// The first operand's.
+    First,
+    /// The second operand's.
+    Second,
+}
+
+/// Where a branch meets a NURBS operand's knot rectangle: the operand,
+/// a side and the parameter along it (`v` on a `u` side, `u` on a `v`
+/// side).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BoundaryPoint {
+    /// Whose rectangle.
+    pub chart: BoundaryChart,
     /// The side.
     pub side: ChartSide,
     /// The parameter along the side.
@@ -298,7 +311,8 @@ pub(crate) struct Pass<'a> {
     pub tol: MarchTol,
     /// The section floor, in metres.
     pub floor: f64,
-    /// The lever arm and the tube ladder's scale, in metres.
+    /// The feature extent, in metres: the lever arm of the pass's
+    /// decisions and the tube ladder's scale.
     pub extent: f64,
     /// The run band.
     pub band: Band,
@@ -370,9 +384,12 @@ impl Pass<'_> {
         ]
         .map(Interval::point);
         let dot = |b: super::enclose::Box3| n[0] * b.x + n[1] * b.y + n[2] * b.z;
+        let Some(w) = r.window() else {
+            return (Interval::refused(), Interval::refused());
+        };
         (
-            dot(boxes.deriv_box(r.u.0, r.u.1, r.v.0, r.v.1, true)),
-            dot(boxes.deriv_box(r.u.0, r.u.1, r.v.0, r.v.1, false)),
+            dot(boxes.deriv_box(w, true)),
+            dot(boxes.deriv_box(w, false)),
         )
     }
 
@@ -494,9 +511,9 @@ impl Pass<'_> {
                 if clears(side, side_of_plane, across) {
                     return Ok(Some(SideClass::Clear { strip }));
                 }
-                // The sine of the angle between the wall and the plane
-                // across the side, levered as the march's transversality
-                // is.
+                // The least sine of the angle between the wall and the
+                // plane across the side over the strip, levered by the
+                // extent alone, as every region decision is.
                 let sine = div_down(inf, speed.get());
                 let margin = Margin::levered(sine, self.extent);
                 if let Some(verdict) = band_verdict("ssi_boundary_strip", margin, self.band) {
@@ -602,8 +619,10 @@ impl Pass<'_> {
             }
             // The wall's speeds over the cell, which bound the path from
             // the corner to a zero in it.
-            let speed =
-                |along_u: bool| boxes.speed_sup(cell.u.0, cell.u.1, cell.v.0, cell.v.1, along_u);
+            let speed = |along_u: bool| {
+                cell.window()
+                    .map_or(f64::NAN, |w| boxes.speed_sup(w, along_u))
+            };
             let (s_u, s_v) = (speed(true), speed(false));
             let inf_u = super::enclose::zero_free_lower_bound(pu);
             let inf_v = super::enclose::zero_free_lower_bound(pv);
@@ -659,7 +678,11 @@ impl Pass<'_> {
             return Err(refuse());
         }
         Ok(Crossing {
-            at: BoundaryPoint { side, t },
+            at: BoundaryPoint {
+                chart: BoundaryChart::Second,
+                side,
+                t,
+            },
             state,
         })
     }
@@ -841,7 +864,7 @@ impl Pass<'_> {
                 let in_start = starts.contains(&corner);
                 // Inside a region's cell the root is the region's; in a
                 // cell the plane is certified clear of, it is none.
-                if regions.iter().chain(&clear).any(|c| holds(*c, point)) {
+                if regions.iter().chain(&clear).any(|c| c.holds(point)) {
                     continue;
                 }
                 if !in_start {
@@ -860,7 +883,7 @@ impl Pass<'_> {
                 // A region's cell holds its zero set only within the
                 // cover, so a root in the cell is the region's, wherever
                 // its settling put it.
-                if regions.iter().any(|r| holds(*r, point)) {
+                if regions.iter().any(|r| r.holds(point)) {
                     continue;
                 }
                 // One crossing per corner a branch starts at: its two
@@ -886,15 +909,46 @@ impl Pass<'_> {
 /// The curve along `side` of `wall`'s domain: a row of a clamped wall's
 /// net, verbatim. Every `KnotVector` is clamped by construction, so no
 /// extraction beyond the copy is needed.
-pub(crate) fn side_row<T: CertifiedBounds>(
-    wall: &geom::NurbsSurface<T>,
+pub(crate) fn side_row(
+    wall: &geom::NurbsSurface<f64>,
     side: ChartSide,
-) -> Result<geom::NurbsCurve3<T>, geom_core::spline::SplineError> {
+) -> Result<geom::NurbsCurve3<f64>, geom_core::spline::SplineError> {
     let high = side.end == ChartEnd::High;
     match side.fixed {
         ChartAxis::U => boundary_iso_u(wall, high),
         ChartAxis::V => boundary_iso_v(wall, high),
     }
+}
+
+/// [`side_row`]'s row as its parts, for a reader that takes the net and
+/// the structure rather than a curve: the knot vector along the side,
+/// the row's control points, and its weights' value channel.
+pub(crate) fn side_row_parts<T: CertifiedBounds>(
+    wall: &geom::NurbsSurface<T>,
+    side: ChartSide,
+) -> (
+    geom_core::spline::KnotVector,
+    Vec<geom_core::Point3<T>>,
+    Vec<f64>,
+) {
+    let (nu, nv) = wall.control_counts();
+    let high = side.end == ChartEnd::High;
+    let (knots, indices): (_, Vec<usize>) = match side.fixed {
+        ChartAxis::U => {
+            let base = if high { (nu - 1) * nv } else { 0 };
+            (wall.knots_v().clone(), (base..base + nv).collect())
+        }
+        ChartAxis::V => {
+            let offset = if high { nv - 1 } else { 0 };
+            (
+                wall.knots_u().clone(),
+                (0..nu).map(|iu| iu * nv + offset).collect(),
+            )
+        }
+    };
+    let control = indices.iter().map(|&i| wall.control()[i]).collect();
+    let channel = indices.iter().map(|&i| wall.weight_channel()[i]).collect();
+    (knots, control, channel)
 }
 
 /// **Whether a side is clear of the plane** (the exact empty answer, Ev's
@@ -1009,7 +1063,9 @@ pub(super) fn stretch_within<T: CertifiedBounds>(
         };
         if side_of_plane.is_some() {
             let q = cut_along(side, r, piece);
-            let d = boxes.deriv_box(q.u.0, q.u.1, q.v.0, q.v.1, across_u);
+            let d = q.window().map_or_else(super::enclose::refused_box, |w| {
+                boxes.deriv_box(w, across_u)
+            });
             let across = normal[0] * d.x + normal[1] * d.y + normal[2] * d.z;
             if clears(side, side_of_plane, across) {
                 return Reading::Clear;
@@ -1034,7 +1090,10 @@ fn beyond_reach<T: CertifiedBounds>(
     (side, r): (ChartSide, UvRect),
     eps: f64,
 ) -> bool {
-    let d = boxes.deriv_box(r.u.0, r.u.1, r.v.0, r.v.1, side.fixed == ChartAxis::U);
+    let Some(w) = r.window() else {
+        return false;
+    };
+    let d = boxes.deriv_box(w, side.fixed == ChartAxis::U);
     if ![d.x, d.y, d.z].iter().all(|i| i.is_certified()) {
         return false;
     }
@@ -1171,14 +1230,18 @@ fn strip_reach<T: CertifiedBounds>(
                     v: strip.v,
                 }
             };
-            let d = boxes.deriv_box(piece.u.0, piece.u.1, piece.v.0, piece.v.1, along_u);
+            let Some(w) = piece.window() else {
+                bound = (f64::INFINITY, f64::INFINITY);
+                break;
+            };
+            let d = boxes.deriv_box(w, along_u);
             let across = n[0] * d.x + n[1] * d.y + n[2] * d.z;
             let inf = if one_signed(across) {
                 super::enclose::zero_free_lower_bound(across)
             } else {
                 0.0
             };
-            let speed = boxes.speed_sup(piece.u.0, piece.u.1, piece.v.0, piece.v.1, along_u);
+            let speed = boxes.speed_sup(w, along_u);
             if !(inf > 0.0 && speed.is_finite()) {
                 bound = (f64::INFINITY, f64::INFINITY);
                 break;
@@ -1196,11 +1259,6 @@ fn strip_reach<T: CertifiedBounds>(
         }
     }
     best
-}
-
-/// Whether a chart point lies in a rectangle.
-fn holds(r: UvRect, (u, v): (f64, f64)) -> bool {
-    u >= r.u.0 && u <= r.u.1 && v >= r.v.0 && v <= r.v.1
 }
 
 /// The graze refusal at `side` where the slope along it is not

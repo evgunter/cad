@@ -305,13 +305,13 @@ impl core::error::Error for DimensionError {}
 pub enum Unlowered {
     /// No variable holds the name.
     Unheld,
-    /// The variable holding the name reads at `declared`, not at the
-    /// dimension the leaf reads it at.
+    /// The variable holding the name is of kind `declared`, which does
+    /// not read at the dimension the leaf reads it at.
     Kind {
         /// The variable holding the name.
         var: VarId,
-        /// The dimension its kind reads at.
-        declared: Dimension,
+        /// Its kind.
+        declared: crate::VarKind,
     },
 }
 
@@ -367,6 +367,12 @@ mod sealed {
 pub trait LeafSet: Clone + core::fmt::Debug + PartialEq + sealed::Sealed {
     /// The form's type name, as `Debug` writes it.
     const FORM: &'static str;
+    /// What an operand field holds in this form ([`Slot::Read`]).
+    type Read: Clone
+        + core::fmt::Debug
+        + PartialEq
+        + serde::Serialize
+        + for<'de> serde::Deserialize<'de>;
     /// The text of one such leaf, read at `dim` ([`unparse`]).
     fn write(&self, dim: Dimension, out: &mut String);
     /// Pushes the bits of every float the leaf holds
@@ -410,6 +416,13 @@ pub trait Slot:
     + for<'de> serde::Deserialize<'de>
     + sealed::Sealed
 {
+    /// What an operand field holds in this form: the stored read
+    /// ([`VarId`]) or the authored [`crate::Operand`].
+    type Read: Clone
+        + core::fmt::Debug
+        + PartialEq
+        + serde::Serialize
+        + for<'de> serde::Deserialize<'de>;
     /// The variables it reads by id, in pre-order.
     fn var_ids(&self, out: &mut Vec<VarId>);
     /// How many levels the value nests, itself included: a stored
@@ -426,6 +439,7 @@ impl<L: LeafSet> Slot for ExprTree<L>
 where
     Self: serde::Serialize + for<'de> serde::Deserialize<'de>,
 {
+    type Read = L::Read;
     fn var_ids(&self, out: &mut Vec<VarId>) {
         let mut reads = Vec::new();
         ExprTree::var_reads(self, &mut reads);
@@ -442,6 +456,7 @@ where
 impl sealed::Sealed for VarId {}
 
 impl Slot for VarId {
+    type Read = VarId;
     fn var_ids(&self, out: &mut Vec<VarId>) {
         out.push(*self);
     }
@@ -462,6 +477,7 @@ impl sealed::Sealed for StoredLeaf {}
 
 impl LeafSet for StoredLeaf {
     const FORM: &'static str = "Expr";
+    type Read = VarId;
     fn write(&self, _dim: Dimension, _out: &mut String) {
         match *self {}
     }
@@ -564,6 +580,7 @@ impl sealed::Sealed for AuthoredLeaf {}
 
 impl LeafSet for AuthoredLeaf {
     const FORM: &'static str = "Formula";
+    type Read = crate::Operand;
     fn write(&self, dim: Dimension, out: &mut String) {
         match self {
             Self::Name(name) => out.push_str(name.as_str()),
@@ -632,7 +649,7 @@ pub(crate) enum Terminal<'a, L> {
 
 /// **How deep an expression may nest**: the longest chain of nodes
 /// from the root to a leaf, both ends included. The one bound on an
-/// [`Expr`] and on a [`crate::MeasureExpr`], read by every door that
+/// [`Expr`], read by every door that
 /// mints one: the smart constructors refuse past it
 /// ([`DimensionError::NestedTooDeep`]), the text parser builds through
 /// them, and the load door refuses a file nested deeper than the bound
@@ -1578,9 +1595,9 @@ impl<L: LeafSet> ExprTree<L> {
     }
 }
 
-/// The address of an expression subtree inside a document (spec D5,
-/// F7's "GeomSource's missing type"): a node, a NAMED slot (never an
-/// index), and a chain of AST-child indices. Stable under edits to
+/// The address of an expression subtree inside a document (spec D5):
+/// a node, a NAMED slot (never an index), and a chain of AST-child
+/// indices. Stable under edits to
 /// other expressions and to unrelated subtrees by construction.
 ///
 /// **Staleness caveat (M4 PR 1 review, non-blocker)**: within its OWN
@@ -1588,9 +1605,7 @@ impl<L: LeafSet> ExprTree<L> {
 /// ANCESTOR of the referent (or the whole slot) with a same-shape
 /// expression silently re-points an old path at a different
 /// subexpression; v1 has no slot generation/version to detect this.
-/// Consumers must re-derive their paths after any same-slot edit;
-/// PR 5's GeomSource must NOT assume same-slot staleness is
-/// detectable.
+/// Consumers must re-derive their paths after any same-slot edit.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ExprPath {
@@ -1635,7 +1650,8 @@ impl<T> ParamValue<T> {
 pub struct VarEnv<T> {
     /// The bindings, by variable.
     pub bindings: std::collections::BTreeMap<VarId, ParamValue<T>>,
-    /// The defined variables whose definition refused, by variable: a
+    /// The defined variables whose definition refused, and the outputs,
+    /// by variable: a
     /// reader of one refuses [`EvalError::DefinitionRefused`] with
     /// this refusal as its source — or, for one in [`Self::written`],
     /// with the refusal itself.
@@ -1643,7 +1659,8 @@ pub struct VarEnv<T> {
     /// The defined variables a document holds with no name: each is a
     /// formula as it was written at the slot that reads it, so a
     /// refusal of its definition is the slot's own refusal, not a
-    /// variable's the person never named.
+    /// variable's the person never named. An operation's output is here
+    /// too: its refusal ([`EvalError::OutputRead`]) is its reader's.
     pub written: std::collections::BTreeSet<VarId>,
 }
 
@@ -1687,6 +1704,14 @@ pub enum EvalError {
     /// or one a hand-built environment left out.
     UnresolvedVar {
         /// The variable read.
+        var: VarId,
+    },
+    /// A reader of an operation's output (D10): a value the built
+    /// geometry gives, where a construction reads only what was
+    /// written. The edit door does not refuse it yet, so evaluation
+    /// does.
+    OutputRead {
+        /// The output read.
         var: VarId,
     },
     /// A reader of a defined variable whose definition refused: the
@@ -1764,6 +1789,11 @@ impl core::fmt::Display for EvalError {
                 f,
                 "variable {var} has no binding in the evaluation environment — it was \
                  deleted, or never declared here; point the reader at a live variable"
+            ),
+            Self::OutputRead { var } => write!(
+                f,
+                "variable {var} is an operation's output, a value the built geometry gives, and \
+                 a construction reads only what was written; read a written variable here"
             ),
             Self::DefinitionRefused { var, source } => {
                 write!(f, "the definition of variable {var} refused: {source}")
