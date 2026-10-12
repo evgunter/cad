@@ -42,7 +42,10 @@ OWN-torus wall image, which the residual refuses at sample 0. No producer
 reaches the class: torus×torus is unimplemented in C5, and mirror is
 unbuilt. A side effect: `Pcurve::mirror_v` is total.
 
-**`NoFittedClass` has no local route.** Its measured reason and the
-fork it needs are on `no-fitted-class-misuse-is-excused-by-not-owed`,
-which now carries the class. The spiric-wall quadrature lane's refusal
+**`NoFittedClass` is the fitted-row lane's.** The orchestrator ruled
+that the fitted-grade row becomes mate-free, certifying any carrier on a
+spline chart against carrier and chart alone, and deletes the class;
+that lane's PR closes `no-fitted-class-misuse-is-excused-by-not-owed`.
+This branch's reach measurement for it is in its PR body.
+The spiric-wall quadrature lane's refusal
 of a mirror wall is `the-spiric-wall-quadrature-lane-reads-only-the-own-torus`.
