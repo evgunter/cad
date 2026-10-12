@@ -6,7 +6,7 @@ status: closed
 opened: 2026-10-12
 priority: P2
 cost: E
-refs: [lane-free-doors-skip-the-analytic-rung3-limbs]
+refs: [lane-free-doors-skip-the-analytic-rung3-limbs, tests-red-under-all-features-never-run-by-ci]
 closed: 2026-10-12
 branch: pcert/probe-rows-hold-the-lane
 ---
@@ -20,7 +20,8 @@ sweep -p step-import --all-features`, failure lists diffed: identical).
 ## What
 
 Seven `geom-brep` rows behind `#![cfg(feature = "probe")]` fail. Per-PR
-CI never builds that feature. The nightly's `dev-probe` row runs both
+CI compiles that feature (`clippy --all-features`) but runs none of its
+rows. The nightly's `dev-probe` row runs both
 modules: `scripts/gates/probe-suite-census.sh --executed` lists them
 `plain`, and `scripts/k_probe_sweep.sh`'s `run_plain` runs them.
 
@@ -76,3 +77,7 @@ row at a lane-free door on this class; a drive-by moved
 `sweep/tests/common/latitude_seam.rs`'s `graft_recertify_failures`, a
 mirror of the graft's re-certification, onto the lane the graft
 itself uses.
+
+The gap they went through, the PR gate running no probe suite, is
+`work/ciw/tests-red-under-all-features-never-run-by-ci.md`'s; this
+instance is recorded there.
