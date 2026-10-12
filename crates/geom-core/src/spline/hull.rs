@@ -95,12 +95,14 @@
 //!   B-spline coefficient form is the fitting side's work (M5 PR 4/7);
 //!   building it now would guess its shape. These primitives consume
 //!   whatever coefficient brackets that work produces.
-//! - **No rational derivative coefficients.** The knot-difference
-//!   formula in [`SplineCoeffs::derivative_coeffs`] is the nonrational
-//!   one; a rational derivative needs the homogeneous curve plus a
-//!   quotient rule, whose enclosure belongs with the consumer that owns
-//!   the homogeneous form. That is why [`RationalCoeffs`] has no
-//!   derivative door at all rather than one that ignores its weights.
+//! - **No rational derivative door on [`RationalCoeffs`].** The
+//!   knot-difference formula in [`SplineCoeffs::derivative_coeffs`] is
+//!   the nonrational one, and a door here that ignored the weights
+//!   would be wrong. The rational derivative's bound is stated once in
+//!   [`super::derivative`] ([`super::derivative::rational_span_speed_sup`],
+//!   the pair-term bound), over a span of held values at any `Real`:
+//!   this module's pair holds its weights as `f64` structure and cannot
+//!   carry a weight that moves with a parameter.
 //! - **No comparisons on a generic scalar.** The coefficient type is
 //!   read only through the certified door, and only by handing it to
 //!   [`Interval::from_certified`] — so nothing here can accidentally

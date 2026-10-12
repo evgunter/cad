@@ -958,11 +958,7 @@ fn level_row(
             Ok(c) => c,
             Err(_) => continue,
         };
-        let Some(speed) = polynomial_speed(&column) else {
-            return Ok(Some(Err(SectionVerdict::Unsupported {
-                what: "a rational wall column's speed has no bound the section is read at",
-            })));
-        };
+        let speed = certified_speed(&column);
         let roots = match geom_brep::boundary_section(
             &column,
             origin,
@@ -1042,23 +1038,15 @@ fn bisect(
     if phi(a).abs() <= phi(b).abs() { a } else { b }
 }
 
-/// A certified sup of a polynomial spline's speed: its derivative's
-/// control net, through the knot differences, each rounded outward.
-/// `None` for a rational carrier.
-fn polynomial_speed(c: &NurbsCurve3<f64>) -> Option<f64> {
-    if c.weights().iter().any(|w| *w != 1.0) {
-        return None;
-    }
-    let (p, k, ctl) = (c.degree(), c.knots().knots(), c.control());
-    let mut sup = 0.0f64;
-    #[allow(clippy::cast_precision_loss)]
-    for i in 0..ctl.len().saturating_sub(1) {
-        let dt = k[i + p + 1] - k[i + 1];
-        if dt > 0.0 {
-            sup = sup.max((ctl[i + 1] - ctl[i]).norm() * (p as f64) / dt);
-        }
-    }
-    Some((sup * (1.0 + 1e-12)).next_up())
+/// A certified sup of a spline's speed, polynomial or rational: the
+/// curve's [`NurbsCurve3::speed_upper_bound`] read at `Interval`, whose
+/// upper end bounds the exact pair-term bound from above.
+fn certified_speed(c: &NurbsCurve3<f64>) -> f64 {
+    geom_core::Bounds::hi(
+        c.map_scalar(<geom_core::Interval as geom_core::Real>::from_f64)
+            .speed_upper_bound()
+            .get(),
+    )
 }
 
 /// **The plane's root along a spline carrier** nearest `seed`: the
@@ -1077,11 +1065,7 @@ fn plane_spline_root(
             what: "a moved surface's root along a spline edge is solved for a plane only",
         });
     };
-    let Some(speed) = polynomial_speed(carrier) else {
-        return Err(CornerVerdict::Unsupported {
-            what: "a rational spline edge's speed has no bound the corner is read at",
-        });
-    };
+    let speed = certified_speed(carrier);
     let section = geom_brep::boundary_section(
         carrier,
         origin,

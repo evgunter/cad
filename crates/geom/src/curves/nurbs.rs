@@ -457,13 +457,16 @@ macro_rules! nurbs_curve {
             /// new curve with an empty memo, and a clone carries the
             /// memo of the same value.
             speed: OnceLock<geom_core::InfSpeed<T>>,
+            /// [`Self::speed_upper_bound`], filled on first read, on the
+            /// same terms as `speed`.
+            speed_sup: OnceLock<geom_core::SupSpeed<T>>,
         }
 
         /// The curve's value, without the speed memo: whether it has
         /// been read yet is not part of what the curve is.
         impl<T: Real> core::fmt::Debug for $Curve<T> {
             fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-                let Self { knots, control, weights, weight_channel, speed: _ } = self;
+                let Self { knots, control, weights, weight_channel, speed: _, speed_sup: _ } = self;
                 f.debug_struct(stringify!($Curve))
                     .field("knots", knots)
                     .field("control", control)
@@ -618,7 +621,7 @@ macro_rules! nurbs_curve {
                 let knots = knots.into();
                 let weight_channel = net::weight_channel(&weights)?;
                 net::validate_counts(knots.structure().control_count(), control.len(), &weight_channel)?;
-                Ok(Self { knots, control, weights, weight_channel, speed: OnceLock::new() })
+                Ok(Self { knots, control, weights, weight_channel, speed: OnceLock::new(), speed_sup: OnceLock::new() })
             }
 
             /// The same curve on another parameter domain: the knots
@@ -727,7 +730,7 @@ macro_rules! nurbs_curve {
                     weights.len(),
                     weight_channel.len()
                 );
-                Self { knots, control, weights, weight_channel, speed: OnceLock::new() }
+                Self { knots, control, weights, weight_channel, speed: OnceLock::new(), speed_sup: OnceLock::new() }
             }
 
             /// The same curve read at another scalar: `f` applied to
@@ -1223,6 +1226,56 @@ macro_rules! nurbs_curve {
                     return self.speed_lower_bound_uncached();
                 }
                 *self.speed.get_or_init(|| self.speed_lower_bound_uncached())
+            }
+
+            /// A certified **upper** bound on `‖C′(t)‖` over the whole
+            /// domain, in m/param: the pair-term bound of
+            /// [`geom_core::spline::rational_span_speed_sup`] (its module
+            /// docs hold the derivation), the max over the nonempty
+            /// spans. At unit weights it is the polynomial control
+            /// difference bound exactly. At `Interval` it is certified;
+            /// at `f64` it is the same expression in round-to-nearest.
+            /// It poisons (NaN) on a weight that is not strictly positive
+            /// and finite, and never refuses.
+            ///
+            /// Memoised on the same terms as [`Self::speed_lower_bound`]:
+            /// outside a symbolic session only.
+            pub fn speed_upper_bound(&self) -> geom_core::SupSpeed<T> {
+                if geom_core::sym::session_installed() {
+                    return self.speed_upper_bound_over(self.knots().first_span()..=self.knots().last_span());
+                }
+                *self.speed_sup.get_or_init(|| {
+                    self.speed_upper_bound_over(self.knots().first_span()..=self.knots().last_span())
+                })
+            }
+
+            /// [`Self::speed_upper_bound`] over the parameter window
+            /// `[t0, t1]`: the max over the spans the window meets
+            /// (located as [`KnotVector::span_at`] locates them, so an
+            /// end outside the domain clamps), poison at a NaN end.
+            pub fn speed_upper_bound_on(&self, t0: f64, t1: f64) -> geom_core::SupSpeed<T> {
+                let kv = self.knots();
+                match (kv.span_at(t0.min(t1)), kv.span_at(t0.max(t1))) {
+                    (Some(a), Some(b)) => self.speed_upper_bound_over(a.index()..=b.index()),
+                    _ => geom_core::SupSpeed::new(T::from_f64(f64::NAN)),
+                }
+            }
+
+            /// The pair-term bound over the span indices `spans`.
+            fn speed_upper_bound_over(
+                &self,
+                spans: core::ops::RangeInclusive<usize>,
+            ) -> geom_core::SupSpeed<T> {
+                if self.weight_channel.iter().any(|w| !(*w > 0.0 && w.is_finite())) {
+                    return geom_core::SupSpeed::new(T::from_f64(f64::NAN));
+                }
+                let points: Vec<[T; $dim]> = self.control.iter().map(|p| [$(p.$c),+]).collect();
+                geom_core::SupSpeed::new(geom_core::spline::rational_speed_sup(
+                    &self.knots,
+                    &points,
+                    &self.weights,
+                    spans,
+                ))
             }
 
             /// [`Self::speed_lower_bound`]'s computation: once per curve
@@ -1955,6 +2008,7 @@ impl<T: Real> NurbsCurve3<T> {
             weights: vec![T::one(), T::one()],
             weight_channel: vec![1.0, 1.0],
             speed: OnceLock::new(),
+            speed_sup: OnceLock::new(),
         }
     }
 
