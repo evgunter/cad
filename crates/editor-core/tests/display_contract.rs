@@ -2568,6 +2568,7 @@ test_utils::f6_variants! {
         MissingUpstream,
         Emission,
         SplitLineage,
+        Settle,
         FragmentLineage,
         SeamVertexParentage,
         SeamVertexPartners,
@@ -2722,6 +2723,12 @@ fn naming_error_display_names_its_content_not_its_struct() {
                 carrier: geom::CurveKind::Nurbs,
             },
             vec!["closed on its", "no period"],
+        ),
+        (
+            NamingError::Settle(topo::SettleError::Cyclic {
+                vertex: topo::VertexKey::default(),
+            }),
+            vec!["a vertex of a Boolean's result is settled through rows that cycle"],
         ),
         (
             NamingError::ConventionalVertex {
