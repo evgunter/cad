@@ -1140,7 +1140,7 @@ macro_rules! nurbs_curve {
             /// honestly, so the margin collapses and the caller's
             /// trilean escalates rather than guessing.
             ///
-            /// **Rational carriers** — weights not all equal — take the
+            /// **Rational carriers** — weights not all one plain constant — take the
             /// second arm, [`Self::rational_speed_lower_bound`]. Equal
             /// weights cancel out of every evaluation, so such a curve
             /// is the polynomial one on the same net and this arm's
@@ -1181,9 +1181,16 @@ macro_rules! nurbs_curve {
             /// bounds on `‖C′‖`; neither is a claim about the curve's
             /// shape beyond its speed.
             ///
-            /// The arm is chosen on the weights' **value channel**
-            /// (every `w_j` equal, exactly), never on an evaluation
-            /// scalar.
+            /// The arm is chosen on the weights' **plain constants**
+            /// ([`SpanLocate::plain_constant`]: every `w_j` the same plain
+            /// constant, exactly), never on an evaluation scalar and
+            /// never on the value channel alone, which would read a
+            /// `Dual` or `Sym` weight that moves with a parameter or a
+            /// symbol as the constant its value is. That is the
+            /// conservative member of the class
+            /// `work/inlane/held-value-equalities-decided-on-the-value-channel.md`
+            /// names; a `T`-valued equality that `Sym` discharges would
+            /// add reach, never soundness.
             ///
             /// # Rounding posture
             ///
@@ -1246,12 +1253,16 @@ macro_rules! nurbs_curve {
             /// curve by its memo.
             fn speed_lower_bound_uncached(&self) -> geom_core::InfSpeed<T> {
                 let poison = T::from_f64(f64::NAN);
-                // Weights not all equal ⇒ rational: the convexity
-                // argument does not hold directly, and the quotient-rule
-                // arm takes over. Equal weights cancel out of every
-                // evaluation, leaving the polynomial curve on the same
-                // net, which this arm's argument covers.
-                if self.weight_channel.windows(2).any(|w| w[0] != w[1]) {
+                // Weights not all one plain constant ⇒ rational: the
+                // convexity argument does not hold directly, and the
+                // quotient-rule arm takes over. Equal plain constants
+                // cancel out of every evaluation, leaving the polynomial
+                // curve on the same net, which this arm's argument
+                // covers; a weight that carries a derivative or a symbol
+                // is no plain constant, whatever its value.
+                let constants: Option<Vec<f64>> =
+                    self.weights.iter().map(|w| w.plain_constant()).collect();
+                if !constants.is_some_and(|c| c.windows(2).all(|w| w[0] == w[1])) {
                     return geom_core::InfSpeed::new(self.rational_speed_lower_bound());
                 }
                 let p = self.knots.degree();
@@ -2255,9 +2266,99 @@ impl<T: Real> NurbsCurve3<T> {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::{NurbsCurve3, binomial, derivative_net, pieces_exact};
-    use geom_core::Point3;
-    use geom_core::spline::KnotVector;
+    use geom_core::spline::{KnotVector, Knots};
+    use geom_core::{Dual, Point3, Real, Sym};
     use test_utils::fuzz;
+
+    /// A cubic whose net sways `±2` across its axis, at `f64`.
+    fn swaying() -> NurbsCurve3<f64> {
+        let control = [-2.0, 2.0, -2.0, 2.0, -2.0]
+            .into_iter()
+            .zip(0..)
+            .map(|(x, z)| Point3::new(x, 0.0, f64::from(z)))
+            .collect();
+        let knots =
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 2.0, 2.0, 2.0, 2.0], 3).unwrap();
+        NurbsCurve3::new(knots, control, vec![1.0; 5]).unwrap()
+    }
+
+    /// `c` read at the scalar `U`, every value lifted by `lift` except
+    /// the weights, which are `weights(j)`.
+    fn at<U: geom_core::spline::SpanLocate>(
+        c: &NurbsCurve3<f64>,
+        lift: impl Fn(f64) -> U,
+        weights: impl Fn(usize) -> U,
+    ) -> NurbsCurve3<U> {
+        NurbsCurve3::new(
+            Knots::lift(c.knot_values(), &lift),
+            c.control().iter().map(|p| p.map(&lift)).collect(),
+            (0..c.control().len()).map(weights).collect(),
+        )
+        .unwrap()
+    }
+
+    /// **A weight that moves with the parameter makes the curve
+    /// rational**, though every weight's value is `1`: at `Dual` the
+    /// meter is the rational arm's (its value channel bit for bit the
+    /// `f64` rational arm on the same values), and its derivative
+    /// channel reads the weight's tangent rather than the constant net.
+    #[test]
+    fn a_dual_weight_with_a_tangent_takes_the_rational_arm() {
+        let c = swaying();
+        let cd = at(&c, Dual::constant, |j| {
+            Dual::new(1.0, if j == 1 { 0.5 } else { 0.0 })
+        });
+        let m = cd.speed_lower_bound().get();
+        let rational = c.rational_speed_lower_bound();
+        let integral = c.speed_lower_bound().get();
+        assert!(
+            rational.to_bits() != integral.to_bits(),
+            "the fixture must tell the arms apart: {rational} / {integral}"
+        );
+        assert!(
+            m.value.to_bits() == rational.to_bits(),
+            "Dual meter {} against the rational arm {rational} (integral {integral})",
+            m.value
+        );
+        assert!(
+            m.deriv != 0.0,
+            "the weight's tangent never reached the meter"
+        );
+        let constant = at(&c, Dual::constant, |_| Dual::constant(1.0));
+        assert!(
+            constant.speed_lower_bound().get().value.to_bits() == integral.to_bits(),
+            "constant Dual weights keep the integral arm"
+        );
+    }
+
+    /// **A weight that is not a literal makes the curve rational** at
+    /// `Sym`, though its value is `1`: a computed weight may carry a
+    /// symbol, so the meter is the rational arm's; literal weights keep
+    /// the integral arm. Both bit for bit the `f64` arm on the same
+    /// values.
+    #[test]
+    fn a_computed_sym_weight_takes_the_rational_arm() {
+        let c = swaying();
+        let lit = <Sym<f64> as Real>::from_f64;
+        let computed = at(&c, lit, |j| {
+            if j == 1 {
+                lit(0.5) + lit(0.5)
+            } else {
+                lit(1.0)
+            }
+        });
+        let literal = at(&c, lit, |_| lit(1.0));
+        let rational = c.rational_speed_lower_bound();
+        let integral = c.speed_lower_bound().get();
+        let (mc, ml) = (
+            computed.speed_lower_bound().get().value,
+            literal.speed_lower_bound().get().value,
+        );
+        assert!(
+            mc.to_bits() == rational.to_bits() && ml.to_bits() == integral.to_bits(),
+            "computed weight {mc} (rational {rational}), literal weights {ml} (integral {integral})"
+        );
+    }
 
     /// **On a polynomial net the rational piece reading is the integral
     /// one degree-elevated** (counterexample search). With `w ≡ 1` the
