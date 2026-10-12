@@ -674,8 +674,7 @@ fn window_terms(
 /// refused.
 ///
 /// Each vector is screened in `f64` first ([`Centred::of`],
-/// [`screen_bound`]); the best-screened one is read in certification
-/// arithmetic, then each whose screen is above the maximum read so far.
+/// [`screen_bound`]) and the winners read through [`screened_max`].
 fn vectors_sup(vectors: &[[Interval; 3]]) -> f64 {
     if !vectors.iter().flatten().all(|x| x.is_certified()) {
         return f64::NAN;
@@ -684,19 +683,37 @@ fn vectors_sup(vectors: &[[Interval; 3]]) -> f64 {
         mid: [0.0; 3],
         rad: 0.0,
     };
-    let screens: Vec<f64> = vectors
+    let screens: Vec<(f64, usize)> = vectors
         .iter()
-        .map(|v| screen_bound(&Centred::of(v), &none))
+        .enumerate()
+        .map(|(i, v)| (screen_bound(&Centred::of(v), &none), i))
         .collect();
-    let Some(best) = (0..vectors.len()).max_by(|&a, &b| screens[a].total_cmp(&screens[b])) else {
+    screened_max(&screens, |i| norm_sup(&vectors[i]), |sup| sup)
+}
+
+/// The largest certified reading over the candidates `screens`, each an
+/// `f64` screen (an upper bound on its candidate's real value, `+∞` or
+/// `NaN` where it cannot bound it) beside the candidate: the
+/// best-screened one is read, then each whose screen is above
+/// `scale(maximum read so far)`, so a skipped candidate's real value is
+/// at most that. `scale` maps a reading to the screens' units and must
+/// not round up. `NaN` for no candidates.
+fn screened_max<P: Copy + PartialEq>(
+    screens: &[(f64, P)],
+    read: impl Fn(P) -> f64,
+    scale: impl Fn(f64) -> f64,
+) -> f64 {
+    let Some(&(_, best)) = screens.iter().max_by(|a, b| a.0.total_cmp(&b.0)) else {
         return f64::NAN;
     };
-    let mut sup = norm_sup(&vectors[best]);
-    for (i, v) in vectors.iter().enumerate() {
+    let mut sup = read(best);
+    let mut over = scale(sup);
+    for &(bound, candidate) in screens {
         // A `NaN` screen or maximum rules nothing out.
-        let ruled_out = screens[i] <= sup;
-        if i != best && !ruled_out {
-            sup = max_bound(sup, norm_sup(v));
+        let ruled_out = bound <= over;
+        if !ruled_out && candidate != best {
+            sup = max_bound(sup, read(candidate));
+            over = scale(sup);
         }
     }
     sup
@@ -922,11 +939,9 @@ impl Affine {
 /// `max ‖x(q)‖ / floor`.
 ///
 /// Every pair is screened in `f64` first ([`Centred::centre`], one
-/// [`Centred::radius`] per list, [`screen_bound`]). The best-screened
-/// pair is read in certification arithmetic, then each pair whose screen
-/// is above the maximum read so far; a skipped pair's real norm is at
-/// most that maximum. A read divides its terms by `floor` before the
-/// norm squares them. The screens are of the undivided terms carried by
+/// [`Centred::radius`] per list, [`screen_bound`]) and the winners read
+/// through [`screened_max`]. A read divides its terms by `floor` before
+/// the norm squares them. The screens are of the undivided terms carried by
 /// the power of two that brings `floor` into `[1, 2)`, so a net of
 /// subnormal or huge weights is screened at unit scale, and each screen
 /// is held against the maximum times the carried floor, rounded down.
@@ -1032,9 +1047,6 @@ pub(crate) fn pair_norm_sup(qs: &[[Interval; 3]], xs: &[Affine], ys: &[Affine], 
             None => norm_sup(&x),
         }
     };
-    let Some(&(_, best)) = screens.iter().max_by(|a, b| a.0.total_cmp(&b.0)) else {
-        return f64::NAN;
-    };
     let undivided = |sup: f64| {
         if carried == 1.0 {
             sup
@@ -1042,17 +1054,7 @@ pub(crate) fn pair_norm_sup(qs: &[[Interval; 3]], xs: &[Affine], ys: &[Affine], 
             (sup * carried).next_down()
         }
     };
-    let mut sup = norm(best);
-    let mut over = undivided(sup);
-    for &(bound, pair) in &screens {
-        // A `NaN` screen or maximum rules nothing out.
-        let ruled_out = bound <= over;
-        if !ruled_out && pair != best {
-            sup = max_bound(sup, norm(pair));
-            over = undivided(sup);
-        }
-    }
-    sup
+    screened_max(&screens, norm, undivided)
 }
 
 /// An enclosure as an `f64` centre and a radius rounded up: every
@@ -1903,6 +1905,126 @@ pub(crate) mod tests {
                 "case {case}: a refused coordinate must refuse the read — {}",
                 fuzz::replay()
             );
+        }
+    }
+
+    /// **The screened vector norm is the full enumeration's**, for the
+    /// unit form's speed ([`vectors_sup`]) over the same loop
+    /// ([`screened_max`]). Random vectors at unit, moderate, tiny (no
+    /// screen) and huge scales, some a tenth wide, some near-tied: the
+    /// screened maximum is never above the enumeration's `norm_sup` and
+    /// never below it by more than rounding. A refused coordinate
+    /// refuses it.
+    #[test]
+    fn the_screened_vector_norm_is_the_full_enumerations() {
+        use test_utils::fuzz;
+        let mut rng = fuzz::start("patch_bound::screened_vector_norm");
+        for case in 0..fuzz::scaled(400) {
+            let wide = case % 2 == 0;
+            let scale = match case % 4 {
+                0 => 1.0,
+                1 => rng.range(1e-3, 1e3),
+                2 => 1e-160,
+                _ => 1e200,
+            };
+            let n = 1 + rng.below(24);
+            let vectors: Vec<[Interval; 3]> = (0..n)
+                .map(|_| {
+                    // Near-tied: every vector close to one length.
+                    let tie = case % 3 == 0;
+                    core::array::from_fn(|_| {
+                        let c = scale
+                            * if tie {
+                                1.0 + rng.range(-1e-12, 1e-12)
+                            } else {
+                                rng.range(-3.0, 3.0)
+                            };
+                        let r = if wide {
+                            rng.range(0.0, 0.1) * c.abs()
+                        } else {
+                            0.0
+                        };
+                        Interval::from_bounds(c - r, c + r)
+                    })
+                })
+                .collect();
+            let got = vectors_sup(&vectors);
+            let all = vectors
+                .iter()
+                .map(norm_sup)
+                .fold(f64::NEG_INFINITY, f64::max);
+            assert!(
+                got <= all && got >= all * (1.0 - 64.0 * f64::EPSILON),
+                "case {case} (wide {wide}, scale {scale:e}, {n} vectors): screened {got} \
+                 against the enumeration's {all} — {}",
+                fuzz::replay()
+            );
+            let mut refused = vectors.clone();
+            refused[0][2] = Interval::refused();
+            assert!(
+                vectors_sup(&refused).is_nan(),
+                "case {case}: a refused coordinate must refuse the read — {}",
+                fuzz::replay()
+            );
+        }
+    }
+
+    /// **A part carried below the normal range is still screened
+    /// soundly.** Written down, not searched: a floor of `2^1000` with
+    /// terms `−g·q` whose `g` is a few subnormal ulps once carried
+    /// (`m·2^-1074` for `m` from 1 to 4 in tenths, so the carry rounds
+    /// each by up to half an ulp, a quarter of its size) and offsets near
+    /// `1e308` that carry that rounding into the term's whole norm. Every
+    /// ordered pair of such terms, read alone and beside a second list,
+    /// must give the enumeration's reading up to rounding.
+    #[test]
+    fn a_part_carried_below_the_normal_range_screens_soundly() {
+        let floor = 2f64.powi(1000);
+        let term = |m: f64| Affine {
+            k: [Interval::point(0.0); 3],
+            g: Interval::point(m * 2f64.powi(-74)),
+        };
+        let qs = [
+            [
+                Interval::point(1e308),
+                Interval::point(0.0),
+                Interval::point(0.0),
+            ],
+            [
+                Interval::point(-6e307),
+                Interval::point(5e307),
+                Interval::point(1e300),
+            ],
+        ];
+        let per = Interval::point(floor);
+        let ms: Vec<f64> = (10..=40).map(|t| f64::from(t) / 10.0).collect();
+        for &a in &ms {
+            for &b in &ms {
+                let xs = [term(a), term(b)];
+                for ys in [&[][..], &[term(1.5)][..]] {
+                    let got = pair_norm_sup(&qs, &xs, ys, floor);
+                    let mut all = f64::NEG_INFINITY;
+                    for q in &qs {
+                        for x in &xs {
+                            let x = x.per(per).at(*q);
+                            let v = match ys.first() {
+                                Some(y) => {
+                                    let y = y.per(per).at(*q);
+                                    norm_sup(&core::array::from_fn(|k| x[k] + y[k]))
+                                }
+                                None => norm_sup(&x),
+                            };
+                            all = all.max(v);
+                        }
+                    }
+                    assert!(
+                        got <= all && got >= all * (1.0 - 64.0 * f64::EPSILON),
+                        "m = ({a}, {b}), {} second terms: screened {got} against the \
+                         enumeration's {all}",
+                        ys.len()
+                    );
+                }
+            }
         }
     }
 

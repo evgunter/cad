@@ -1187,18 +1187,13 @@ impl CellNet {
     /// The quotient rule's numerator `A_d − S·w_d` and the weight hull
     /// over the block, `(numerator hull, w hull)`, with `S` ranging over
     /// `sbox`, which is in the block's frame ([`CellNet::point_box`]):
-    /// the block's [`RationalForm::numerator_box`] about its first point
-    /// `c`, at `sbox − c`.
+    /// the block's [`RationalForm::numerator_box`] about `sbox` itself,
+    /// at a zero offset, so each term reads `P₀ − sbox` in one step.
     fn quotient_numerator(&self, along_u: bool, sbox: Box3) -> (Box3, Interval) {
-        let Some((c, form)) = self
-            .pts
-            .first()
-            .and_then(|&c| Some((c, self.form(along_u, c, &[])?)))
-        else {
+        let Some(form) = self.form(along_u, [sbox.x, sbox.y, sbox.z], &[]) else {
             return (refused_box(), Interval::refused());
         };
-        let s = [sbox.x, sbox.y, sbox.z];
-        let [x, y, z] = form.numerator_box(core::array::from_fn(|k| s[k] - c[k]));
+        let [x, y, z] = form.numerator_box([Interval::point(0.0); 3]);
         (Box3 { x, y, z }, form.weight)
     }
 
