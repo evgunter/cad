@@ -52,3 +52,30 @@ and definite endpoint misses at 1e-12. It is also, likely, FLUX's
 
 The seam crosses CURVED's (`geom/src/curves.rs`), GERM's (`intersect.rs`)
 and PCERT's (`pcurve_cache.rs` / `chart_pcurve`) ground; the PR announces it.
+
+## Built (branch cleave/section-ellipse-re-pose)
+
+- `chord_join::SectionConic::seamed_near` seams each section chord's
+  ellipse at the principal vertex nearest the arc's middle (the
+  dominant of its eccentric anomaly's cosine and sine; a tie keeps the
+  seam's axis, a zero points forward), through `chord_arc` at both chord
+  lanes; `oriented_arc` reads each span forward from its own start.
+  Circles keep their seam.
+- `Curve3::Ellipse { semi_u, semi_v }`, `u_ref` a principal direction,
+  either order; `AxesSwapped` retired, `ellipse_minor_positive` reads
+  the smaller semi-axis. `Curve3::major_frame` is the one reading of
+  which semi-axis is the major one: the cone focal section reads it
+  through `FocalImage::t0`, `solid_contain`'s wall seat through it.
+  Readers that levered or bounded by `major` alone now take the larger
+  magnitude: `arc_leaving`, `carrier_cross` (merged from main as
+  `speed_hi`), `quad_lane::length_bound`, `surgery::piece_distance`,
+  `end_face`'s depth.
+- Measured at all three ε (CLEAVE's census probe, on PR 4810's branch):
+  the coin-flip family builds 66/66 at 1e-12 and 1e-6 and 54/66 at
+  1e-9, where the `θ = 1e-4` planes refuse `SliverSector` at reduce as
+  on main; through-axis planes `θ = 1e-6…3e-4` build 96/96 at 1e-12 and
+  1e-9; the cone family is unchanged; FLUX's tilted-slab ∩ cylinder
+  (`walltilt t1e-2`) builds 12/12 at every ε.
+- Pins: `sweep` `section_ellipse_seam_poses`, `topo`
+  `chord_join::seam_rows`, `geom` `the_major_frame_is_read_from_the_semi_axes`,
+  `geom-brep` `pcurve_cone_section` at every principal seam.
