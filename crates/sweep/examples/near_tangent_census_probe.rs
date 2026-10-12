@@ -17,10 +17,13 @@
 //! refuses as in band its certified `V/A`. `scripts/near_tangent_census_classify.py`
 //! re-reads every `PAIR` at 60 digits and classifies it.
 //!
-//! `NT_D` (comma list) sets the tilts, `NT_A` (comma list) the
-//! sixteenths, off the integer grid too, `NT_ONLY` one prism, `NT_POSE`
-//! a substring of the pose tag, `NT_DUMP=1` turns on the dump, and
-//! `NT_FULL=1` prints each refusal whole.
+//! `NT_D` (comma list) sets the tilts, `NT_EDGE=1` replaces them with
+//! `±ε` in steps of one rounding (the far vertex of a unit edge at the
+//! zero band's edge), `NT_A` (comma list) the sixteenths, off the integer
+//! grid too, `NT_ONLY` one prism, `NT_POSE` a substring of the pose tag,
+//! `NT_DUMP=1` turns on the dump, and `NT_FULL=1` prints each refusal
+//! whole: a refusal of the describe pass's certification reads
+//! `EdgeUndescribed` or `EdgeOnFaces` there.
 //!
 //! `cargo run -p sweep --release --example near_tangent_census_probe`
 
@@ -291,14 +294,26 @@ fn run_all(
 }
 
 fn main() {
-    let ds: Vec<f64> = std::env::var("NT_D").map_or_else(
-        |_| {
-            vec![
-                1e-5, -1e-5, 1e-6, -1e-6, 1e-7, -1e-7, 1e-8, -1e-8, 1e-9, -1e-9,
-            ]
-        },
-        |s| s.split(',').map(|x| x.parse().unwrap()).collect(),
-    );
+    let ds: Vec<f64> = if std::env::var("NT_EDGE").is_ok() {
+        // `±ε` in steps of one rounding at the model's extent, so a unit
+        // edge's far vertex is read within a few roundings of `|r| = ε`.
+        let eps = tol().eps();
+        [1.0, -1.0]
+            .into_iter()
+            .flat_map(|s| {
+                (-6..=6).map(move |k| s * eps * (1.0 + f64::from(k) * f64::EPSILON / eps))
+            })
+            .collect()
+    } else {
+        std::env::var("NT_D").map_or_else(
+            |_| {
+                vec![
+                    1e-5, -1e-5, 1e-6, -1e-6, 1e-7, -1e-7, 1e-8, -1e-8, 1e-9, -1e-9,
+                ]
+            },
+            |s| s.split(',').map(|x| x.parse().unwrap()).collect(),
+        )
+    };
     let sixteenths: Vec<f64> = std::env::var("NT_A").map_or_else(
         |_| (0..16).map(f64::from).collect(),
         |s| s.split(',').map(|x| x.parse().unwrap()).collect(),

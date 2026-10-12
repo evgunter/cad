@@ -188,7 +188,7 @@ pub use reduce::{SweepStrategy, SweepTrace};
 pub use shell_witness::ShellOrientation;
 pub use zip::Fusions;
 #[cfg(feature = "sweep-testing")]
-pub use zip::take_shared_points;
+pub use zip::{swap_split_roles, take_shared_points};
 // LIB-SEL2 (SELECT-DESIGN §3b; #304 review MINOR-1): THE flush-pair
 // verify door — descriptions, oriented sources and the verification
 // arm in one function, shared by verify-at-use and the detector's
@@ -1730,8 +1730,9 @@ pub struct BooleanReduction<T: Real> {
     pub coincidences: Vec<crate::Coincidence>,
     /// The vertex identities the sweep decided, in decision order: the
     /// rows [`Self::contacts`] cite ([`crate::Backing::Decided`] names
-    /// an index here), emitted into the result's coincidences only
-    /// where a record citing them survives ([`reduce::PendingRow`]).
+    /// an index here), emitted into the result's coincidences where a
+    /// record citing them survives or at a pinch the op made
+    /// ([`reduce::PendingRow`]).
     pub(crate) pending: Vec<reduce::PendingRow>,
     /// Each pair of pierces one ring serves, decided one point
     /// ([`RingTie`]).
@@ -2290,36 +2291,33 @@ pub enum BooleanError {
         /// The margin that decided, and its predicate.
         margin: Indeterminate,
     },
-    /// **A declared shared rim routed to the cusp family, which is
-    /// DEFINED but not BUILT** (the same ruling).
+    /// **A declared shared rim whose carrier pair has no tangent-locus
+    /// arm.**
     ///
-    /// Wedge 0 or 2π: the material pinches to a knife edge or opens to
-    /// a circular slit. This is the declared-cusp family, and it is the
-    /// arm the ruling deliberately left unbuilt. Two pieces are missing
-    /// for every pair that reaches it: a tangent-locus arm for the
-    /// pair's surface kinds (it is raised only where
-    /// [`geom_brep::tangent_locus`] answers `Unsupported`), and the
-    /// consumer that builds the cusp or slit edge from a locus, which is
-    /// unbuilt for every locus shape. The A11-rider shape: the design is
-    /// settled and the refusal points at the ruling that settles it.
+    /// The rim routing reads the two faces' outward normals opposed
+    /// across the rim (wedge 0 or 2π). Verifying the declaration there
+    /// needs the tangent locus of the pair's two surface kinds, and this
+    /// is raised only where [`geom_brep::tangent_locus`] answers
+    /// `Unsupported`.
     RimCuspArmUnbuilt {
         /// The declaration whose face pair carries the rim.
         declaration: crate::contact::DeclaredContact,
-        /// Which end of the wedge range the rim's material subtends —
-        /// the routing's own verdict, taken on the geometry.
+        /// Which end of the wedge range the two faces' material
+        /// subtends at the rim — the routing's own verdict, taken on the
+        /// geometry.
         wedge: geom_brep::MaterialWedge,
     },
     /// **A verified `Tangent` union whose locus runs through a face's
-    /// interior** (`docs/DESIGN.md` D1 tier 3, the #131 ruling).
+    /// interior** (`crates/topo/README.md` C7).
     ///
-    /// The witness lane derived the ruling and the C4 table verified it,
-    /// and the locus crosses the interior of a plane face of one operand.
-    /// The union then has material on both sides of the ruling: the
-    /// doubled cusp, two coincident distinct edges on the locus, each a
-    /// wedge-2π slit. That arm is unbuilt, and two vertex-on-face records
-    /// would certify two points of a line contact, so the union refuses.
-    /// Subtract and intersect leave material on at most one side of the
-    /// ruling and are not refused here.
+    /// The witness lane derived the line and the C4 table verified it,
+    /// and the line crosses the interior of a plane face of one operand.
+    /// Along that line the union keeps a face–face curve touch, and the
+    /// reduction mints no face–face row to record it, so a union refuses
+    /// on that declaration, whatever else the operands do: where they
+    /// touch only there the result would be two solids, and where they
+    /// also overlap elsewhere one solid pinched along the line. Subtract
+    /// and intersect owe no record of the touch and are not refused here.
     ///
     /// Kept distinct from [`BooleanError::RimCuspArmUnbuilt`]: that one
     /// is raised where no locus derives and the faces share a rim; here
@@ -2817,8 +2815,8 @@ pub enum BooleanError {
     /// attachment gate refused its description on a reading no move of
     /// the parts reaches. It ends in the defect ending (a kernel bug,
     /// loudly), or, on a fitted carrier, in the certification's own
-    /// last resort. An exact carrier read in band of one of its faces
-    /// is an [`BooleanError::Escalated`] of
+    /// last resort. A line chord read in band of one of its faces is an
+    /// [`BooleanError::Escalated`] of
     /// [`BooleanDecision::EdgeOnFaces`].
     EdgeUndescribed {
         /// The edge, diagnostic only: the result is never returned.
@@ -3788,20 +3786,12 @@ impl core::fmt::Display for BooleanError {
                 fact.map_or(crate::contact::CONTRADICTION_REASON, Contradiction::fact),
                 crate::contact::CONTRADICTION_RECOURSE,
             ),
-            Self::RimCuspArmUnbuilt { declaration, wedge } => write!(
+            Self::RimCuspArmUnbuilt { declaration, .. } => write!(
                 f,
-                "the declared faces meet along a rim circle where the material {}, and \
-                 the Boolean cannot yet verify a {} declaration there: it has no tangent \
-                 locus for these two surfaces, and cannot yet build the edge where they \
-                 touch. The declaration is the right one; there is no way through this \
-                 in the kernel yet",
-                match wedge {
-                    geom_brep::MaterialWedge::Cusp => "pinches to a knife edge",
-                    geom_brep::MaterialWedge::Slit => "opens to a thin slit",
-                    geom_brep::MaterialWedge::Seam | geom_brep::MaterialWedge::Transverse => {
-                        wedge.name()
-                    }
-                },
+                "the declared faces meet along a rim circle with their outward normals \
+                 opposed, and the Boolean cannot yet verify a {} declaration there: it has \
+                 no tangent locus for these two surfaces. The declaration is the right \
+                 one; there is no way through this in the kernel yet",
                 declaration.class.name()
             ),
             Self::TangentSlitArmUnbuilt {
@@ -3810,10 +3800,9 @@ impl core::fmt::Display for BooleanError {
             } => write!(
                 f,
                 "the declared faces touch along a line that runs through the interior of \
-                 the {} operand's face, so their union has material on both sides of \
-                 that line, and the Boolean cannot yet build the pair of edges such a \
-                 {} contact needs. The declaration is the right one; there is no way \
-                 through this in the kernel yet",
+                 the {} operand's face, and the Boolean cannot yet record a {} touch \
+                 along a face's interior in a union's contact records. The declaration \
+                 is the right one; there is no way through this in the kernel yet",
                 operand_word(*interior),
                 declaration.class.name()
             ),
@@ -5955,7 +5944,7 @@ fn verify_tangency_declaration<T: Decide>(
         }
     }
     // A verified `Tangent` whose line locus runs through a plane face is
-    // the doubled cusp a union refuses (CLEAVE); the read's own refusal
+    // a face–face touch a union cannot yet record; the read's own refusal
     // is the inner one, consumed only by a union. A seam never reaches
     // this: a locus through a face's interior is `seam_locus_no_edge`
     // at step 4.
