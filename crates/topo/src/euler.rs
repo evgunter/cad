@@ -1236,9 +1236,12 @@ pub enum EulerOpError {
     /// **pcurve row** across the split: the parent's chart image,
     /// restricted to a child's sub-interval, failed the certification
     /// the whole image passed. Raised before any mutation, so the body
-    /// is untouched — a covered chart lane that refuses here is a
-    /// defect, never a licence to leave the face half-minted
-    /// (`crate::pcurves::split_cache`).
+    /// is untouched, never a licence to leave the face half-minted
+    /// (`crate::pcurves::split_cache`). At the band the parent's row
+    /// was certified at, a covered chart lane that refuses here is a
+    /// defect. At a tighter band it need not be: a fitted-grade row's
+    /// check 4 reads the whole carrier, so it can refuse a child
+    /// typed.
     PcurveSplit {
         /// The edge being split.
         edge: EdgeKey,

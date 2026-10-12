@@ -1189,13 +1189,17 @@ fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
                 // structure, like every other read on this path.
                 let (d0, d1) = image.domain();
                 let (r0, r1) = (ring(t0), ring(t1));
-                // A producer at rest: an offset fitted face cut by
-                // planes (`replace_face`'s derived plane × fit
-                // sections, each spanning the fit's window while its
-                // edge spans part of it) stores a sub-range, pinned by
-                // `encl_curved_loft_shell::a_moved_fitted_cap_stands_its_corners_on_the_held_sides`
-                // and filed as
-                // `work/quad/a-fitted-cap-cut-by-planes-has-a-sub-range-trim-image.md`.
+                // Two producers at rest store a sub-range, both filed
+                // as
+                // `work/quad/a-fitted-cap-cut-by-planes-has-a-sub-range-trim-image.md`:
+                // an offset fitted face cut by planes (`replace_face`'s
+                // derived plane × fit sections, each spanning the fit's
+                // window while its edge spans part of it), pinned by
+                // `encl_curved_loft_shell::a_moved_fitted_cap_stands_its_corners_on_the_held_sides`;
+                // and `split_edge` on a seam holding a `General` row,
+                // which carries the parent's image to each child over
+                // the child's part of it, pinned by `sweep`'s
+                // `split_edge_fitted_rows::the_mint_rederives_the_carried_rows_and_the_trimmed_lane_refuses_their_sub_range`.
                 // The trimmed lane subdivides the STORED image whole,
                 // so a sub-range would get a certified number for
                 // chart the face does not bound; it refuses instead.

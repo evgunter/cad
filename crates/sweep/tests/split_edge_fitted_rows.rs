@@ -6,8 +6,8 @@
 //! and a split keeps the parent's carrier and cuts only its interval
 //! (`EdgeCurve::split_specs`). So each child's row is the parent's
 //! image over the child's sub-interval, re-certified through the door
-//! that stated it, and tier 3 reads the split body clean with no
-//! caller mint.
+//! that stated it, and the pcurve phase of tier 3 reads the split body
+//! clean with no caller mint.
 //!
 //! The fixture is `m8_4_intersection_iso`'s interior-column body: the
 //! offset square prism with its flat wall restated as the plane it is,
@@ -198,7 +198,7 @@ fn general_seam_at_rest<T: AtRestPolicy>() -> (Body<T>, HalfEdgeKey, EdgeKey, Su
     assert_eq!(
         he_surface(&body, he),
         chart,
-        "the f64 build's keys are the T build's"
+        "the f64 build's seam half lies on the T build's widened chart"
     );
     (body, he, edge, chart)
 }
@@ -206,8 +206,8 @@ fn general_seam_at_rest<T: AtRestPolicy>() -> (Body<T>, HalfEdgeKey, EdgeKey, Su
 /// Splits `edge` at its midpoint and asserts what the split owes the
 /// fitted-grade row `parent_half` holds on `chart`: both halves on the
 /// chart keep the parent's image, of the same variant, over their own
-/// sub-intervals, re-certified at the fitted grade, and tier 3 reads the
-/// split body clean.
+/// sub-intervals, with the parent's check-4 certificate, and the pcurve
+/// phase of tier 3 reads the split body clean.
 fn split_carries<T: AtRestPolicy>(
     mut body: Body<T>,
     parent_half: HalfEdgeKey,
@@ -233,7 +233,15 @@ fn split_carries<T: AtRestPolicy>(
     let image = row(parent);
     // Check 4 reads the whole carrier against the pair, and a split
     // keeps every input it reads, so each child's certificate is the
-    // parent's: a child is refused there only if its parent is.
+    // parent's: at the band the parent was certified at, a child is
+    // refused there only if its parent is. The parent's own check 4
+    // stands, so the equality below compares two certificates, not two
+    // absences.
+    assert!(
+        parent.certificate().ssi().is_some(),
+        "{kind} @ {}: the parent's row holds a check-4 certificate",
+        T::NAME
+    );
     let parent_ssi = format!("{:?}", parent.certificate().ssi());
     let (t0, t1) = parent.params();
     let t = (t0 + t1) * T::from_f64(0.5);
@@ -254,11 +262,6 @@ fn split_carries<T: AtRestPolicy>(
                 row(cache),
                 image,
                 "{kind} @ {}: {h:?} keeps the parent's image",
-                T::NAME
-            );
-            assert!(
-                cache.certificate().ssi().is_some(),
-                "{kind} @ {}: {h:?} is re-certified at the fitted grade",
                 T::NAME
             );
             assert_eq!(
@@ -282,7 +285,7 @@ fn split_carries<T: AtRestPolicy>(
     let findings = topo::pcurves::validate_pcurves(&body, band());
     assert!(
         findings.is_empty(),
-        "{kind} @ {}: tier 3 after the split: {findings:?}",
+        "{kind} @ {}: tier 3's pcurve phase after the split: {findings:?}",
         T::NAME
     );
 }
@@ -355,4 +358,60 @@ fn a_split_carries_the_general_row_to_each_child_at_the_interval_scalar() {
 #[test]
 fn a_split_carries_an_attached_fitted_row_to_each_child_at_the_interval_scalar() {
     fitted_row::<geom_core::Interval>();
+}
+
+/// Every stored row of `body`, keyed, in full: image, interval and
+/// certificate.
+fn rows<T: Real>(body: &Body<T>) -> Vec<String> {
+    let mut rows: Vec<String> = body
+        .edges()
+        .flat_map(|(_, e)| [e.he_plus, e.he_minus])
+        .filter_map(|h| {
+            body.pcurve(h).map(|c| {
+                format!(
+                    "{h:?} {:?} {:?} {:?}",
+                    c.pcurve(),
+                    c.params(),
+                    c.certificate()
+                )
+            })
+        })
+        .collect();
+    rows.sort();
+    rows
+}
+
+/// What else reads a carried `General` row on the split body. The
+/// minting pass, run again, derives exactly the rows the split
+/// carried, so on this chart the carry is the pass's own answer. The
+/// trimmed quadrature lane subdivides a `General` image over its whole
+/// knot domain, so it refuses the children's sub-ranges typed
+/// (`work/quad/a-fitted-cap-cut-by-planes-has-a-sub-range-trim-image.md`)
+/// where it measured the unsplit body.
+#[test]
+fn the_mint_rederives_the_carried_rows_and_the_trimmed_lane_refuses_their_sub_range() {
+    let (mut body, he, edge, chart) = general_seam_at_rest::<f64>();
+    assert!(
+        topo::mass_properties(&body, Tol::witness()).is_ok(),
+        "the trimmed lane measures the unsplit body"
+    );
+    let (t0, t1) = body.pcurve(he).unwrap().params();
+    body.split_edge(edge, (t0 + t1) * 0.5, Tol::witness())
+        .expect("the split carries the General row");
+    let carried = rows(&body);
+    let mut reminted = body.clone();
+    topo::mint_pcurves(&mut reminted, Tol::witness()).expect("the split body mints");
+    assert_eq!(
+        rows(&reminted),
+        carried,
+        "the mint derives the rows the split carried, bit for bit"
+    );
+    let wall = face_on(&body, chart);
+    match topo::mass_properties(&body, Tol::witness()) {
+        Err(topo::MassPropsError::Face {
+            face,
+            source: geom_brep::PropsError::QuadratureUnsupported { .. },
+        }) if face == wall => {}
+        other => panic!("the trimmed lane refuses the wall's sub-range typed: {other:?}"),
+    }
 }
