@@ -1097,9 +1097,10 @@ pub(crate) fn through_the_join<T: geom_core::Decide + crate::props::AtRestPolicy
 ///
 /// [`SplitError`], each stage's typed refusals passed through whole (no
 /// degenerate body is ever emitted). The sides are gated at tier 2
-/// ([`SplitFinishError::ResultInvalid`]). Tier 3 is deliberately not run
-/// on the sides: a pinch side's touching pieces carry contacts split
-/// declares nowhere.
+/// ([`SplitFinishError::ResultInvalid`]); tier 3 is not run on them. A
+/// pinch side's touching pieces need no contact record, since their
+/// copies of the pinched vertex share its point key, and the ON verdict
+/// that pinched them is in [`SplitResult::coincidences`].
 pub fn split<T: geom_core::Decide + crate::props::AtRestPolicy>(
     operand: &AtRestBody<T>,
     plane: &SplitPlane<T>,

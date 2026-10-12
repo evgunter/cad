@@ -3480,11 +3480,13 @@ fn tagged(d: &ReductionContacts) -> Vec<Tagged<'_>> {
 /// over another; a pair of two copies of one vertex cites the records
 /// that put the vertex in its group. Each decision a surviving record
 /// cites is emitted, in decision order, after the op's own
-/// coincidences, and the records are renumbered onto those rows: a
-/// decision no surviving record cites placed topology and is not a
-/// coincidence (D1). A surviving record whose decisions all decided no
-/// margin (a transverse pierce) is a touch without a decision, which
-/// the op refuses rather than ship.
+/// coincidences, and the records are renumbered onto those rows. So is
+/// each decision of a vertex at a pinch of the result ([`pinch_rows`]):
+/// the op's copies there touch on one point key, which no record
+/// states. Any other decision placed topology and is not a coincidence
+/// (D1). A surviving record whose decisions all decided no margin (a
+/// transverse pierce) is a touch without a decision, which the op
+/// refuses rather than ship.
 ///
 /// # Errors
 ///
@@ -3509,15 +3511,62 @@ pub(super) fn carry<T: Decide>(
         false,
         band,
     )?;
-    cite_rows(records, ledger)
+    let pinched = pinch_rows(body, ledger, views, desc)?;
+    cite_rows(records, ledger, &pinched)
 }
 
-/// The records `carry_rows` left, their decisions emitted after the
-/// op's own coincidences and their citations renumbered onto them
-/// ([`carry`]).
+/// **The decisions at the result's pinches**, as indices into the
+/// ledger's pending rows, ascending: each decided row with a vertex end
+/// whose live descendant shares its point key with another live vertex.
+/// Two vertices on one point key are an op's copies of one vertex, split
+/// per cone (`zip::split_cones`), so pieces of the result touch there
+/// with no record between them (D1's structural sharing), and the row
+/// that put the vertex on the other operand's cell is the coincidence
+/// that made them touch (DESIGN, the reduction's coincidence
+/// discipline).
+fn pinch_rows<T: Real>(
+    body: &Body<T>,
+    ledger: &Ledger,
+    views: [&KeyView<'_>; 2],
+    desc: &Descendants,
+) -> Result<Vec<u32>, BooleanError> {
+    let mut held: BTreeMap<crate::geometry::PointKey, usize> = BTreeMap::new();
+    for (_, v) in body.vertices() {
+        *held.entry(v.point).or_default() += 1;
+    }
+    let pinch = |w: VertexKey| {
+        body.get_vertex(w)
+            .is_some_and(|v| held.get(&v.point).is_some_and(|&n| n >= 2))
+    };
+    let mut out = Vec::new();
+    for (k, row) in ledger.pending.iter().enumerate() {
+        if row.margin.is_none() {
+            continue;
+        }
+        let mut at_pinch = false;
+        for &(side, cell) in &row.cells {
+            let Cell::Vertex(v) = cell else { continue };
+            let view = views[usize::from(side == Operand::B)];
+            for copy in desc.copies_of(side, v) {
+                if let Some(Cell::Vertex(w)) = desc.live(body, side, view, Cell::Vertex(copy))? {
+                    at_pinch |= pinch(w);
+                }
+            }
+        }
+        if at_pinch {
+            out.push(super::reduce::index(k));
+        }
+    }
+    Ok(out)
+}
+
+/// The records `carry_rows` left, their decisions and `pinched`'s
+/// emitted after the op's own coincidences and the records' citations
+/// renumbered onto them ([`carry`]).
 fn cite_rows(
     records: ContactRecords,
     ledger: &Ledger,
+    pinched: &[u32],
 ) -> Result<(ContactRecords, Vec<crate::Coincidence>), BooleanError> {
     let decided = records.decided();
     if decided
@@ -3530,10 +3579,13 @@ fn cite_rows(
     }
     // A decision with no margin (a transverse pierce's landing) is not
     // a coincidence, and a record citing only such is refused below.
-    let used: Vec<u32> = decided
+    let mut used: Vec<u32> = decided
         .into_iter()
         .filter(|&k| ledger.pending[k as usize].margin.is_some())
+        .chain(pinched.iter().copied())
         .collect();
+    used.sort_unstable();
+    used.dedup();
     let mut coincidences = ledger.recorded.clone();
     let base = coincidences.len();
     for &k in &used {
