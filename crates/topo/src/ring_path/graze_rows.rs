@@ -360,12 +360,11 @@ fn steep_section(
         / (core::f64::consts::FRAC_PI_2 - alpha - theta)
             .sin()
             .max(1e-300);
-    match geom_brep::plane_cone_section(
-        &super::cone_islands::plane(o, n),
-        &cone,
-        reach.min(1e12),
-        band,
-    ) {
+    let reach = geom_brep::Reach::Measured {
+        at: apex,
+        lever: reach.min(1e12),
+    };
+    match geom_brep::plane_cone_section(&super::cone_islands::plane(o, n), &cone, &reach, band) {
         Ok(geom_brep::PlaneConeSection::TiltedEllipse(c)) => Some(c),
         _ => None,
     }

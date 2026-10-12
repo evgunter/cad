@@ -24,6 +24,7 @@ test_utils::gated_to![
     "crates/geom-brep/tests/shared/"
 ];
 
+use crate::shared::surf::at_apex;
 use crate::shared::tol::{band, eps};
 use geom::{Curve3, Surface};
 use geom_brep::intersect::{OutsideConic, PlaneConeSection, SectionError, plane_cone_section};
@@ -75,7 +76,12 @@ impl Pose {
     }
 
     fn served(&self, extent: f64, band: Band) -> Result<PlaneConeSection<f64>, SectionError> {
-        plane_cone_section(&self.plane(), &self.cone(), extent, band)
+        plane_cone_section(
+            &self.plane(),
+            &self.cone(),
+            &at_apex(&self.cone(), extent),
+            band,
+        )
     }
 
     /// The unit generator at azimuth `u`.
