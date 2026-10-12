@@ -212,6 +212,10 @@ mod r2_mate3_probes;
 mod r2_mesh1_donut_probes;
 #[path = "rehome_rings_lune.rs"]
 mod rehome_rings_lune;
+#[path = "review_4286_r2_probes.rs"]
+mod review_4286_r2_probes;
+#[path = "review_4286_r3_probes.rs"]
+mod review_4286_r3_probes;
 #[path = "review_4704_flush_round_oracle.rs"]
 mod review_4704_flush_round_oracle;
 #[path = "review_r2_vv_probes.rs"]
