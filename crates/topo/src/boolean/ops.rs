@@ -2995,19 +2995,14 @@ impl Descendants {
     /// piece, which need not be the one the rest is on, so each live
     /// piece of a divided face (its lineage through [`Self::fragments`],
     /// each through [`Self::live`]) is placed ([`piece_holds`]): the
-    /// piece a live vertex bounds (the record is then structure), else
-    /// the one whose interior holds the point. `None` where every piece
-    /// is read and none holds it: the part of the face it rested on left
-    /// the result, or the point is on a piece's boundary.
-    ///
-    /// The point is the vertex's own, in the result for a live vertex and
-    /// in its operand for one a later stage took ([`rests`]): no stage
-    /// moves a vertex, so the two are one point bit for bit. A zip's
-    /// fusion is the one stage that leaves a vertex at another's point,
-    /// within ε, and a fused vertex's rows never reach this read
-    /// ([`carry_rows`]). So the point is placed with the census's own
-    /// band: a point within it of a piece's carrier or boundary escalates
-    /// rather than pick a side.
+    /// piece a kept vertex bounds (the record is then structure), else
+    /// the one whose interior holds the rest's point ([`rests`], one
+    /// point bit for bit with a kept vertex's in the result, which
+    /// [`carry_rows`] checks). `None` where every piece is read and none
+    /// holds it: the part of the face it rested on left the result, or
+    /// the point is on a piece's boundary. The point is placed with the
+    /// census's own band: a point within it of a piece's carrier or
+    /// boundary escalates rather than pick a side.
     ///
     /// # Errors
     ///
@@ -3015,7 +3010,7 @@ impl Descendants {
     /// margin is in band; [`BooleanError::RestPieceUnread`] where no
     /// piece holds the rest and a piece could not be read, so the rest
     /// may be on it; [`BooleanError::JoinDesync`] where two pieces of one
-    /// face both hold the rest, or a dead vertex's rest has no point.
+    /// face both hold the rest.
     fn holder<T: Decide>(
         &self,
         body: &Body<T>,
@@ -3042,20 +3037,15 @@ impl Descendants {
             }
         }
         let q = match at {
-            Rest::Live(vertex) => {
+            Rest::Kept { vertex, at } => {
                 if let Some(&p) = pieces.iter().find(|&&p| {
                     super::records::incident(body, [Cell::Vertex(vertex), Cell::Face(p)])
                 }) {
                     return Ok(Some(Cell::Face(p)));
                 }
-                body.get_vertex(vertex)
-                    .and_then(|d| body.get_point(d.point))
-                    .copied()
-                    .ok_or_else(|| desync("a recorded vertex has no point"))?
+                at
             }
-            Rest::Dead(point) => {
-                point.ok_or_else(|| desync("a record's dead vertex has no rest point"))?
-            }
+            Rest::Taken(at) => at,
         };
         let (mut held, mut unread) = (None, None);
         for p in pieces {
@@ -3094,14 +3084,37 @@ impl Descendants {
 }
 
 /// Where a vertex-on-face record's vertex rests, as
-/// [`Descendants::holder`] reads it.
+/// [`Descendants::holder`] reads it: its point in its operand
+/// ([`rests`]).
 #[derive(Debug)]
 enum Rest<T: Real> {
-    /// The vertex is live in the result, at this key.
-    Live(VertexKey),
-    /// A later stage took the vertex (the join, the merge); its point in
-    /// its operand ([`rests`]), `None` where none was logged.
-    Dead(Option<Point3<T>>),
+    /// The vertex is in the result, at key `vertex`, and at `at` there.
+    Kept { vertex: VertexKey, at: Point3<T> },
+    /// A later stage took the vertex (the join, the merge), which rested
+    /// at this point.
+    Taken(Point3<T>),
+}
+
+/// Whether result vertex `vertex` is at `at`, bit for bit: every
+/// coordinate's bracket, both ends.
+///
+/// # Errors
+///
+/// [`BooleanError::JoinDesync`] where the vertex does not resolve.
+fn is_at<T: Bounds>(
+    body: &Body<T>,
+    vertex: VertexKey,
+    at: Point3<T>,
+) -> Result<bool, BooleanError> {
+    let p = body
+        .get_vertex(vertex)
+        .and_then(|d| body.get_point(d.point))
+        .copied()
+        .ok_or(BooleanError::JoinDesync {
+            what: "a recorded vertex has no point",
+        })?;
+    let bits = |q: Point3<T>| [q.x, q.y, q.z].map(|c| (c.lo().to_bits(), c.hi().to_bits()));
+    Ok(bits(p) == bits(at))
 }
 
 /// What [`piece_holds`] read of one piece.
@@ -3339,7 +3352,7 @@ pub(super) fn ledger<T: Decide>(
 fn rests<T: Real>(
     red: &BooleanReduction<T>,
     carried: &[Rows; 2],
-) -> Result<BTreeMap<(Operand, VertexKey), Point3<T>>, BooleanError> {
+) -> Result<Rests<T>, BooleanError> {
     let mut at = BTreeMap::new();
     let discovered = tagged(&red.contacts)
         .into_iter()
@@ -3407,7 +3420,7 @@ pub(super) struct Ledger<T: Real> {
     /// The coincidences the op recorded before its records were carried.
     recorded: Vec<crate::Coincidence>,
     /// Where each vertex-on-face row's vertex rests ([`rests`]).
-    rests: BTreeMap<(Operand, VertexKey), Point3<T>>,
+    rests: Rests<T>,
 }
 
 /// One piece of a split edge: its key and its two end vertices.
@@ -3721,7 +3734,7 @@ fn tagged(d: &ReductionContacts) -> Vec<Tagged<'_>> {
 /// hold its interior ([`Descendants::live`]);
 /// [`BooleanError::ClassificationInvariant`] on a surviving record no
 /// decision backs.
-pub(super) fn carry<T: Decide>(
+pub(super) fn carry<T: Decide + Bounds>(
     body: &Body<T>,
     ledger: &Ledger<T>,
     views: [&KeyView<'_>; 2],
@@ -3905,6 +3918,21 @@ pub(super) fn input_cell((input, cell): End, splits: &[super::EdgeSplit]) -> cra
     crate::RowCell::Input { input, cell }
 }
 
+/// Where vertex-on-face rows' vertices rest, by `(operand, vertex)` in
+/// the operands' keys ([`rests`]).
+type Rests<T> = BTreeMap<(Operand, VertexKey), Point3<T>>;
+
+/// Every vertex `body` holds resting at its own point, under either
+/// operand: the rests of records keyed in one arena whose vertices no
+/// stage took.
+#[cfg(test)]
+pub(super) fn standing<T: Real>(body: &Body<T>) -> Rests<T> {
+    body.vertices()
+        .filter_map(|(v, d)| body.get_point(d.point).map(|&p| (v, p)))
+        .flat_map(|(v, p)| [((Operand::A, v), p), ((Operand::B, v), p)])
+        .collect()
+}
+
 /// [`carry`] for records already keyed in the body's own arena, through
 /// an op that replaced cells in place (the join): one arena, so two
 /// records naming one vertex on either side are one group. Citations
@@ -3915,11 +3943,11 @@ pub(super) fn input_cell((input, cell): End, splits: &[super::EdgeSplit]) -> cra
 ///
 /// As [`carry`].
 #[cfg(test)]
-pub(super) fn carry_in_place<T: Decide>(
+pub(super) fn carry_in_place<T: Decide + Bounds>(
     body: &Body<T>,
     records: &ContactRecords,
     desc: &Descendants,
-    rests: &BTreeMap<(Operand, VertexKey), Point3<T>>,
+    rests: &Rests<T>,
     band: Band,
 ) -> Result<ContactRecords, BooleanError> {
     let none = Rows::default();
@@ -4087,13 +4115,13 @@ mod chain_rows {
 /// The door's one body, over records in two arenas (`one_arena`
 /// false, the operands') or one.
 #[allow(clippy::too_many_arguments)]
-fn carry_rows<T: Decide>(
+fn carry_rows<T: Decide + Bounds>(
     body: &Body<T>,
     discovered: &[Tagged<'_>],
     carried: [&Rows; 2],
     views: [&KeyView<'_>; 2],
     desc: &Descendants,
-    rests: &BTreeMap<(Operand, VertexKey), Point3<T>>,
+    rests: &Rests<T>,
     one_arena: bool,
     band: Band,
 ) -> Result<ContactRecords, BooleanError> {
@@ -4244,13 +4272,25 @@ fn carry_rows<T: Decide>(
         let Cell::Face(f) = fc else {
             unreachable!("a vertex-on-face row's second end is its face")
         };
+        let at = rests
+            .get(&(arena((vs, vc)).0, v))
+            .copied()
+            .ok_or(BooleanError::JoinDesync {
+                what: "a vertex-on-face row's vertex has no rest point",
+            })?;
         let rest = match x {
-            Cell::Vertex(k) => Rest::Live(k),
+            // No stage moves a vertex: a zip's fusion is the one that
+            // leaves a vertex at another's point, and a fused vertex's
+            // rows were skipped above. So a kept vertex is at its rest.
+            Cell::Vertex(k) if is_at(body, k, at)? => Rest::Kept { vertex: k, at },
+            Cell::Vertex(_) => {
+                return Err(BooleanError::JoinDesync {
+                    what: "a vertex-on-face row's vertex is not at its operand point",
+                });
+            }
             // A vertex a later stage took (joined into an edge, pruned
             // by the merge) is read where it rested in its operand.
-            Cell::Edge(_) | Cell::Face(_) => {
-                Rest::Dead(rests.get(&(arena((vs, vc)).0, v)).copied())
-            }
+            Cell::Edge(_) | Cell::Face(_) => Rest::Taken(at),
         };
         if let Some(y) = desc.holder(body, fs, view(fs), f, rest, band)? {
             record(body, &mut out, (vs, x), (fs, y), cites.clone());
@@ -6482,12 +6522,24 @@ mod tests {
             "the other sheet's edges are recorded and the wall's own are not"
         );
     }
-    /// The door over discovered records alone.
-    fn found<T: geom_core::Decide>(
+    /// The door over discovered records alone, each vertex resting
+    /// where `body` holds it ([`super::standing`]).
+    fn found<T: geom_core::Decide + geom_core::Bounds>(
         body: &crate::Body<T>,
         contacts: &crate::boolean::ReductionContacts,
         views: [&super::KeyView<'_>; 2],
         desc: &super::Descendants,
+    ) -> Result<crate::boolean::ContactRecords, crate::boolean::BooleanError> {
+        found_at(body, contacts, views, desc, &super::standing(body))
+    }
+
+    /// [`found`] with the rests `rests`.
+    fn found_at<T: geom_core::Decide + geom_core::Bounds>(
+        body: &crate::Body<T>,
+        contacts: &crate::boolean::ReductionContacts,
+        views: [&super::KeyView<'_>; 2],
+        desc: &super::Descendants,
+        rests: &super::Rests<T>,
     ) -> Result<crate::boolean::ContactRecords, crate::boolean::BooleanError> {
         let none = super::Rows::default();
         let rows = super::tagged(contacts);
@@ -6497,14 +6549,15 @@ mod tests {
             [&none, &none],
             views,
             desc,
-            &std::collections::BTreeMap::new(),
+            rests,
             false,
             band(),
         )
     }
 
-    /// The door over carried records alone.
-    fn carried_in<T: geom_core::Decide>(
+    /// The door over carried records alone, each vertex resting where
+    /// `body` holds it ([`super::standing`]).
+    fn carried_in<T: geom_core::Decide + geom_core::Bounds>(
         body: &crate::Body<T>,
         decls: &crate::boolean::Glue,
         views: [&super::KeyView<'_>; 2],
@@ -6519,7 +6572,7 @@ mod tests {
             ],
             views,
             desc,
-            &std::collections::BTreeMap::new(),
+            &super::standing(body),
             false,
             band(),
         )
@@ -7817,8 +7870,14 @@ mod tests {
             )],
             ee: vec![],
         };
+        // The fused-in key rested at the bend's point, which the merge
+        // deleted.
+        let mut rests = super::standing(&body);
+        for side in [Operand::A, Operand::B] {
+            rests.insert((side, fused_in), Point3::new(0.9, 0.6, 1.0));
+        }
         let remap = |c: &ReductionContacts| {
-            found(&body, c, [&KeyView::Direct; 2], &desc)
+            found_at(&body, c, [&KeyView::Direct; 2], &desc, &rests)
                 .unwrap()
                 .kinds()
                 .collect::<Vec<_>>()
@@ -9057,14 +9116,8 @@ mod holder_rows {
         top: FaceKey,
         rows: Vec<(FaceKey, FaceKey)>,
     ) -> Result<Vec<ContactKind>, BooleanError> {
-        carried_from(
-            body,
-            vertex,
-            top,
-            rows,
-            Descendants::default(),
-            &BTreeMap::new(),
-        )
+        let rests = super::standing(body);
+        carried_from(body, vertex, top, rows, Descendants::default(), &rests)
     }
 
     /// [`carried`] through `desc`'s rows, with the rests `rests`.
@@ -9074,7 +9127,7 @@ mod holder_rows {
         top: FaceKey,
         rows: Vec<(FaceKey, FaceKey)>,
         desc: Descendants,
-        rests: &BTreeMap<(Operand, VertexKey), Point3<f64>>,
+        rests: &super::Rests<f64>,
     ) -> Result<Vec<ContactKind>, BooleanError> {
         let records: ContactRecords = [crate::Cited::new(
             Contact::of(Cell::Vertex(vertex), Cell::Face(top)).unwrap(),
@@ -9134,6 +9187,30 @@ mod holder_rows {
         );
     }
 
+    /// A dead vertex whose rest is in band of the top's plane escalates
+    /// as the carry's lineage check, as a live one's does. Red when the
+    /// dead arm reads an in-band rest as off the plane, or as on it.
+    #[test]
+    fn a_dead_vertexs_rest_in_band_of_the_plane_escalates() {
+        let (mut body, top, other) = divided();
+        let (v, _, desc) = dead(&mut body);
+        let rests = BTreeMap::from([(
+            (Operand::A, v),
+            Point3::new(1.5, 0.5, 1.0 + 3.0 * band().zero()),
+        )]);
+        let got = carried_from(&body, v, top, vec![(other, top)], desc, &rests);
+        assert!(
+            matches!(
+                got,
+                Err(BooleanError::Escalated {
+                    decision: BooleanDecision::SelfCheck(SelfCheck::CarriedLineage),
+                    ..
+                })
+            ),
+            "{got:?}"
+        );
+    }
+
     /// A dead vertex resting on the chord meets no piece's interior: the
     /// record drops, as a live one's does. Red when the dead arm falls
     /// back to the key.
@@ -9148,8 +9225,8 @@ mod holder_rows {
         );
     }
 
-    /// A dead vertex with no logged rest point refuses: the face cannot
-    /// be read without it. Red when it is read by key instead.
+    /// A vertex with no logged rest point refuses: its face cannot be
+    /// read without it. Red when it is read by key instead.
     #[test]
     fn a_dead_vertex_without_a_rest_refuses() {
         let (mut body, top, other) = divided();
@@ -9159,7 +9236,7 @@ mod holder_rows {
             matches!(
                 got,
                 Err(BooleanError::JoinDesync {
-                    what: "a record's dead vertex has no rest point"
+                    what: "a vertex-on-face row's vertex has no rest point"
                 })
             ),
             "{got:?}"
