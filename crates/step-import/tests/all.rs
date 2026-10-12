@@ -63,6 +63,7 @@ mod corpus_fold;
 mod curve_promotion_report;
 #[path = "cusp_round_trip.rs"]
 mod cusp_round_trip;
+
 #[path = "freecad.rs"]
 mod freecad;
 #[path = "halfcap_pole.rs"]
@@ -143,6 +144,8 @@ mod shell_reads_a_chart_worn_both_ways;
 mod spiric_roundtrip;
 #[path = "split_iso_side.rs"]
 mod split_iso_side;
+#[path = "tang_split_review_step.rs"]
+mod tang_split_review_step;
 #[path = "tcost_k3_import_certificate.rs"]
 mod tcost_k3_import_certificate;
 #[path = "tier_gate.rs"]

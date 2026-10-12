@@ -260,6 +260,14 @@ fn run_case(case: &Case, cs: &[f64], downstream: bool, fails: &mut Vec<String>, 
                             fails.push(format!("{tag}: not derived"));
                         }
                         let surface = piece.get_surface(chart.surface).unwrap();
+                        if c == 0.25 && up > 0.0 {
+                            let u0 = chart.pcurve.eval(t0);
+                            let u1 = chart.pcurve.eval(t1);
+                            eprintln!(
+                                "  uv {tag}: {kind:?} image ({:.17},{:.6e}) .. ({:.17},{:.6e}) wrap={}",
+                                u0.x, u0.y, u1.x, u1.y, chart.wrap
+                            );
+                        }
                         for i in 0..=16 {
                             let t = t0 + (t1 - t0) * f64::from(i) / 16.0;
                             let uv = chart.pcurve.eval(t);
@@ -484,4 +492,149 @@ fn probe_profile_turns() {
         run_case(&case, &[0.25, 0.99, 4.0], true, &mut fails, &mut tally);
     }
     report("profile_turns", &fails, &tally);
+}
+
+/// Both faces curved: a profile whose quarter arcs of radius 1 and 2 meet
+/// tangent at `(4, 1)` (`κ_rel = 1/2`), with plane–cylinder joints at
+/// `(3, 0)` (`κ_rel = 1`) and `(2, 3)` (`κ_rel = 1/2`), extruded by 1 and
+/// cut by `z = d` (both normals) and `z = 1 − d`.
+#[test]
+fn probe_both_faces_curved() {
+    let eps = tol().eps();
+    let k = tol().k();
+    let q = (std::f64::consts::PI / 8.0).tan();
+    let outline = bulge_loop(vec![
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(3.0, 0.0), q),
+        (Point2::new(4.0, 1.0), q),
+        (Point2::new(2.0, 3.0), 0.0),
+        (Point2::new(0.0, 3.0), 0.0),
+    ]);
+    let profile = Profile::new(sketch_at(0.0), vec![outline])
+        .validate(tol())
+        .expect("profile validates");
+    let body = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .expect("extrudes")
+    .body;
+    let body = finished("the two-arc prism", body, tol());
+    let full = topo::mass_properties(&body, tol()).unwrap().volume;
+    // The three rulings: (x, y, κ_rel).
+    let rulings = [(3.0, 0.0, 1.0), (4.0, 1.0, 0.5), (2.0, 3.0, 0.5)];
+    let describe = |b: &topo::Body<f64>| -> Vec<String> {
+        b.edges()
+            .filter_map(|(_, e)| {
+                let c = b.get_curve_geom(e.curve)?.certified()?;
+                let kp = kind_of(b, e.he_plus);
+                let km = kind_of(b, e.he_minus);
+                (kp.0 != km.0
+                    && (kp.1 != geom::SurfaceKind::Plane || km.1 != geom::SurfaceKind::Plane))
+                    .then(|| {
+                        format!(
+                            "{:?}|{:?}: {:?}",
+                            kp.1,
+                            km.1,
+                            match c.description() {
+                                geom_brep::EdgeDescription::Chart(ch) => format!(
+                                    "Chart on {:?}",
+                                    b.get_surface(ch.surface).unwrap().kind()
+                                ),
+                                geom_brep::EdgeDescription::TangentIntersection { .. } =>
+                                    "Tangent".into(),
+                                geom_brep::EdgeDescription::Intersection { .. } =>
+                                    "Intersection".into(),
+                                _ => "other".into(),
+                            }
+                        )
+                    })
+            })
+            .collect()
+    };
+    eprintln!("parent seams: {:?}", describe(&body));
+    let mut fails = Vec::new();
+    for c in [0.25, 0.99, 1.01, 1.5, 4.0] {
+        // In units of the κ = 1/2 seams' threshold 2√ε.
+        let d = c * 2.0 * eps.sqrt();
+        for (zc, up) in [(d, 1.0), (d, -1.0), (1.0 - d, 1.0)] {
+            let tag = format!("c={c} d={d:e} z={zc:e} up={up}");
+            let plane = topo::test_support::split_plane(
+                Point3::new(0.0, 0.0, zc),
+                Vec3::new(0.0, 0.0, up),
+                tol(),
+            );
+            let halves = match topo::split(&body, &plane, tol()) {
+                Ok(h) => h,
+                Err(e) => {
+                    eprintln!("  {tag}: refused {e:?}");
+                    continue;
+                }
+            };
+            let heights = if up > 0.0 {
+                [1.0 - zc, zc]
+            } else {
+                [zc, 1.0 - zc]
+            };
+            for (height, part) in heights.into_iter().zip([&halves.above, &halves.below]) {
+                let piece = part.body().unwrap();
+                if let Err(e) = topo::validate_geometric(piece, tol()) {
+                    fails.push(format!("{tag}: piece {height:e} tier3 {e:?}"));
+                }
+                let v = topo::mass_properties(piece, tol()).map_or(f64::NAN, |p| p.volume);
+                if (v - full * height).abs() > (1e-9 * full * height).max(full * eps) {
+                    fails.push(format!(
+                        "{tag}: piece {height:e} volume {v:e} want {:e}",
+                        full * height
+                    ));
+                }
+                for (_, e) in piece.edges() {
+                    let Some(curve) = piece.get_curve_geom(e.curve).and_then(|g| g.certified())
+                    else {
+                        continue;
+                    };
+                    let geom_brep::EdgeDescription::Chart(chart) = curve.description() else {
+                        continue;
+                    };
+                    let kp = kind_of(piece, e.he_plus);
+                    let km = kind_of(piece, e.he_minus);
+                    if kp.0 == km.0 {
+                        continue;
+                    }
+                    let surface = piece.get_surface(chart.surface).unwrap();
+                    let (t0, t1) = curve.params();
+                    let mid = curve.carrier().eval(0.5 * (t0 + t1));
+                    let Some(&(rx, ry, kappa)) = rulings
+                        .iter()
+                        .find(|(x, y, _)| (mid.x - x).abs() < 1e-6 && (mid.y - y).abs() < 1e-6)
+                    else {
+                        continue;
+                    };
+                    let sag = kappa * height * height / 2.0;
+                    if sag > eps * (1.0 + 1e-9) {
+                        fails.push(format!("{tag}: ruling ({rx},{ry}) piece {height:e} sag {sag:e} > eps stores a chart"));
+                    }
+                    for i in 0..=16 {
+                        let t = t0 + (t1 - t0) * f64::from(i) / 16.0;
+                        let uv = chart.pcurve.eval(t);
+                        let p = surface.eval(uv.x, uv.y);
+                        let off = ((p.x - rx).powi(2) + (p.y - ry).powi(2)).sqrt();
+                        if off > eps {
+                            fails.push(format!("{tag}: ruling ({rx},{ry}) image off {off:e}"));
+                        }
+                    }
+                    let _ = k;
+                }
+                eprintln!("  {tag} piece {height:e}: {:?}", describe(piece));
+            }
+        }
+    }
+    for f in &fails {
+        eprintln!("  FAIL {f}");
+    }
+    assert!(fails.is_empty());
 }
