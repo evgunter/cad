@@ -2,11 +2,13 @@
 id: an-in-band-certification-of-a-minted-edge-other-than-its-face-residual-reads-as-a-defect
 kind: issue
 title: An in-band certification of a minted edge other than its face residual reads as a kernel defect (describe pass) or as the fit's last resort (section describer)
-status: dispatched
+status: closed
 opened: 2026-10-11
 priority: P2
 cost: M
 branch: cleave/minted-edge-inband-cert
+closed: 2026-10-12
+pr: 4773
 ---
 
 
@@ -143,3 +145,9 @@ the attachment refusals of both describers logged.
   `a-section-curves-end-read-in-band-of-its-vertex-refuses-as-a-kernel-defect-at-the-join`.
   Its definite neighbour, an elongated ellipse at ε = 1e-12, is added to
   GERM's `conic-section-just-past-its-band-fails-certification-downstream`.
+
+## Closed (PR 4773, 2026-10-12)
+
+- **(a) The describe pass's other in-band checks.** Measured unreached by the planar census and a curved seam census (912 runs per ε), and structurally unreachable for a plane pair.
+- **(b) The split's section describer.** Reached at three sites. Those are now typed `EdgeOnFacesEscalated` with a lever that asks for angular clearance.
+- **The rule.** An in-band `SurfaceResidual`/`ChartResidual` reads as the input's only on a Line chord. It has one home, `merge_faces::edge_on_faces_reading`, which both the split and the Boolean read. Conics keep the gate's refusal, because amplified ellipse rounding sits in band at 1e-12.
