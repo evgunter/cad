@@ -274,8 +274,18 @@ membership test (4).
   the edges they share (`consume::plan`). A feature the carve takes is a
   through-feature between the band's two caps: every edge of its faces
   joins another face of it, or a cap cycle read inside, and it is
-  bounded by exactly one such cycle on each of two caps. Anything else
-  refuses `WhollyInside` before any mutation. Grouping is sound because
+  bounded by exactly one such cycle on each of two caps. Its faces are
+  each bounded by one cycle and together form an annulus
+  (`V − E + F = 0`), so with the plug they merge to a disk whose inner
+  edges are a tree. Anything else refuses `WhollyInside` before any
+  mutation. That includes a seamless wall (one face, two cycles), which
+  `kef` could not merge. No door builds such a wall today: an extrude or
+  a Boolean imprints a seam. A one-edge bore (one full-turn arc per ring,
+  one seam line) is an annulus of one face, and it goes at any seam
+  azimuth
+  (`band_ruled_cap_ring::a_one_edge_bore_inside_the_sliver_goes_with_it_at_any_seam_azimuth`).
+  A blind bore refuses as a bound
+  (`band_ruled_cap_ring::a_blind_bore_inside_the_sliver_refuses_as_a_bound`). Grouping is sound because
   the verdict is inside only when every reading not clear is inside, so
   an inside face shares no edge with a clear one. Only inside readings
   from a convex ruled cap (`reach::CapRing`) or the prism reading are
@@ -286,8 +296,10 @@ membership test (4).
   and the feature's faces `kef` into one; its spurs `kev` leaf first;
   that face `kef`s into the other cap, whose cycle's edges `kev` down to
   a lone vertex; a strut `mekr`s it to the cap's outer cycle and `kev`
-  retires both. The face-destroying door `SourceFaces::kef_minted` now
-  admits the consumed faces, and `Retired` gains a `faces` channel. The
+  retires both. The face-destroying door `SourceFaces::kef_minted`
+  admits the consumed faces while the features are carved, and no
+  source face after that (`SourceFaces::after_consuming`). `Retired`
+  gains a `faces` channel. The
   surgery postcondition, `assert_naming_totality`, and editor-core's
   emitter guard all read it.
 - **Step 2's remainder.** `reach::Unclear` breaks an equal-`hi` tie by
@@ -299,9 +311,50 @@ membership test (4).
   through. The edit to `ROD_FILLET` puts the bore wholly inside the
   sliver, and the wall's name resolves `Vanished { PredicateFlip {
   fillet3_face_clearance, Positive → Negative } }`.
-- **Still open, for step 4:** the planar band (its exact core reads the
-  wall at the cap as a bound), the concave fill, the chamfer, and
-  inside-the-union-of-bands at mitres and corners. The prism reading
-  takes the least depth over all of a crease's inside cycles, not just
-  the face's own. That is conservative, and a tight face beside a
-  shallow ring of another bore reads a bound.
+- **The prism reading's soundness terms are pinned.** The line slack and
+  the `diagonal·|a × τ|` term are held by two tilted bores, inside the
+  sliver at both caps but through the kept ball between them:
+  `band_ruled_cap_ring::a_tilted_bore_inside_at_both_caps_through_the_ball_mid_length_refuses`
+  and `…::a_thin_steep_bore_inside_at_both_caps_through_the_ball_between_refuses`.
+  With both terms deleted, each of them builds, and every other blend row
+  stays green. For a plane, `|a × τ|` is `|n·τ|`, which is defined for a
+  plane normal to `τ` too.
+- **Still open, for step 4:**
+  - The planar band (its exact core reads the wall at the cap as a
+    bound), the concave fill, the chamfer, and inside-the-union-of-bands
+    at mitres and corners. C8's sentence on where the carve takes a
+    feature (`crates/geom-brep/README.md`) names only the convex ruled
+    cut-off, and is widened as each of these lands.
+  - The prism reading takes the least depth over all of a crease's
+    inside cycles, not just the face's own. That is conservative: a
+    tight face beside a shallow ring of another bore reads a bound.
+  - **Any tilted bore refuses as a bound, however small the tilt.** The
+    line slack `L·sinθ` dominates depths near `1e-3`: a lateral run of
+    `0.0098` over `L` (about 0.56°) already refuses. This is sound but
+    coarse. A per-station reading along the line would take it.
+  - **Tilted caps are mostly refused.** On a rod cut by a tilted plane
+    (`|n·τ| < 1`), 0.5 rad about `(1, 1, 0)` is consumed at the unbored
+    rod's carved volume. 0.3 rad about `x` refuses as a bound at the
+    wall, and −0.35 rad about `y` refuses `RingClearance` at the elliptic
+    ring.
+  - **The oblique-cap factor and the off-spine plane term have no row of
+    their own.** Every committed fixture has caps normal to `τ` and
+    planar walls along `τ`. The plane normals are now normalised where
+    they are read, so a non-unit stored normal no longer scales the
+    depth.
+  - **In the escalate zone the refusal reports the cell walk's margin.**
+    A bore within `1e-9` of the arc refuses `FaceClearance { bounded:
+    true }` at its wall, with `margin ≈ −4.7e-3`. That margin comes from
+    the reach's cell walk. The prism excess that failed to be sure is
+    about `1e-9`. Reporting the deciding depth means choosing which of
+    the two readings a bound names.
+  - **The tie-break is canonical only across entities.** `displaces`
+    keeps the first reading when two readings have equal `hi` and name
+    the same entity (one face against two reaches, for example), so the
+    refusal's `chain` and `margin.lo` can depend on read order. `at` does
+    not. `entity_order` hand-rolls an order on `topo::EntityId`, which
+    topo could derive.
+  - **The prism reading reads the cap cycles found so far**
+    (`Unclear::cap_rings`). That depends on `ring_clearance_pass`
+    running before `band_reach` in `blend_surgery`, and nothing but call
+    order holds it.

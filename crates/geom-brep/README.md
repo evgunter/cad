@@ -675,9 +675,9 @@ does not blend), which needs the plan's feet: it runs in the surgery
 after predicate 6 and before any mutation. Face clearance reads each face
 three ways, not two: clear of the band's material, wholly inside it (the
 face goes with that material, as a face wholly inside a Boolean's tool
-does), or crossing it (refused). The carve that takes a feature wholly
-inside is built at a convex ruled band's cut-off; elsewhere an inside
-reading refuses. Every constant-radius arm
+does), or crossing it (refused). At a convex ruled band's cut-off the
+carve takes a through-feature wholly inside the material, between the
+band's two caps. Every constant-radius arm
 mints a torus or a cylinder (the envelope of equal spheres over a circle
 or a line spine); a cone belongs to the variable-radius family.
 Trimlines are stored as `TangentIntersection`. Scope: a straight band

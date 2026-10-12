@@ -203,7 +203,8 @@ fn a_bore_inside_the_d_rods_removed_sliver_goes_with_it_at_the_closed_form() {
 }
 
 /// **The same bore at the certified scalar** goes with the sliver too:
-/// the body it builds has the faces of the unbored rod's carve.
+/// tiers 3 and 3′, both half-walls retired, no cap keeping a ring, and
+/// the faces of the unbored rod's carve.
 #[test]
 fn a_bore_inside_the_d_rods_removed_sliver_goes_with_it_at_interval() {
     let tol = tol();
@@ -219,6 +220,34 @@ fn a_bore_inside_the_d_rods_removed_sliver_goes_with_it_at_interval() {
     );
     let out = fillet_edges(&body, &rod_creases(&body), iv(ROD_FILLET), tol)
         .unwrap_or_else(|e| panic!("the bore goes with the sliver at Interval, got {e}"));
+    validate_geometric(&out.body, tol).unwrap_or_else(|e| panic!("Interval: tier 3, {e:?}"));
+    validate_pseudomanifold(&out.body, &ContactRecords::default(), tol)
+        .unwrap_or_else(|e| panic!("Interval: tier 3′, {e:?}"));
+    let rec = out.naming.as_ref().expect("the surgery records its births");
+    let walls: Vec<topo::FaceKey> = body
+        .faces()
+        .filter(|(_, f)| {
+            matches!(
+                body.get_surface(f.surface),
+                Some(geom::Surface::Cylinder { .. })
+            )
+        })
+        .map(|(k, _)| k)
+        .filter(|k| out.body.get_face(*k).is_none())
+        .collect();
+    assert_eq!(
+        (walls.len(), rec.dead.faces.len()),
+        (2, 2),
+        "Interval: the bore's two half-walls go, and two faces are retired"
+    );
+    assert!(
+        walls.iter().all(|w| rec.dead.faces.contains(w)),
+        "Interval: the retired faces are the bore's walls"
+    );
+    assert!(
+        out.body.faces().all(|(_, f)| f.rings.is_empty()),
+        "Interval: no cap keeps a ring"
+    );
     let unbored = sweep::test_support::finished(
         "unbored",
         extruded(
@@ -236,6 +265,131 @@ fn a_bore_inside_the_d_rods_removed_sliver_goes_with_it_at_interval() {
         census(&out.body),
         census(&plain.body),
         "at Interval the bored rod's carve is the unbored rod's"
+    );
+}
+
+/// A circle of radius `a` about `(x, y)` as ONE full-turn arc, its
+/// vertex at azimuth `az`: a bore whose rings are one edge each and
+/// whose wall is one face, closed by one seam line.
+fn one_edge_circle(x: f64, y: f64, a: f64, az: f64) -> ProfileLoop<f64> {
+    profile::RawLoop::new([(
+        Point2::new(x + a * az.cos(), y + a * az.sin()),
+        profile::Segment::Arc(geom_core::Arc2 {
+            centre: Point2::new(x, y),
+            radius: a,
+            sweep: core::f64::consts::TAU,
+        }),
+    )])
+}
+
+/// **A one-edge bore goes with the sliver** ([`assert_consumed`]) at any
+/// seam azimuth: its wall is one face whose one cycle runs both rings
+/// and its seam twice, so the feature is an annulus of one face and the
+/// carve takes it as it takes the two-arc bore.
+#[test]
+fn a_one_edge_bore_inside_the_sliver_goes_with_it_at_any_seam_azimuth() {
+    let c = rod_chord_at(ROD_FLAT);
+    let d = bulge_loop(vec![
+        (Point2::new(ROD_FLAT, c.half), c.wall_bulge),
+        (Point2::new(ROD_FLAT, -c.half), 0.0),
+    ]);
+    let plain = extruded(SketchPlane::xy(), vec![d.clone()], ROD_L, tol());
+    for az in [0.0, 1.3, 3.0, 4.9] {
+        let what = format!("one-edge bore, seam at {az}");
+        let body = extruded(
+            SketchPlane::xy(),
+            vec![d.clone(), one_edge_circle(0.297, 0.395, 0.002, az)],
+            ROD_L,
+            tol(),
+        );
+        assert_eq!(
+            (
+                body.faces().count() - plain.faces().count(),
+                body.edges().count() - plain.edges().count()
+            ),
+            (1, 3),
+            "{what}: one wall face; two one-edge rings and a seam"
+        );
+        assert_consumed(&body, 0.002, &what);
+    }
+}
+
+/// The D-rod less a round rod of radius `a` whose axis runs from `p` in
+/// the cap at `z = 0` to `q` in the cap at `z = L`, past both.
+fn tilted_bored_d_rod(p: (f64, f64), q: (f64, f64), a: f64) -> Body<f64> {
+    let d = geom_core::Vec3::new(q.0 - p.0, q.1 - p.1, ROD_L);
+    let dh = d.normalize();
+    let over = 0.05 / dh.z;
+    let o = geom_core::Point3::new(p.0, p.1, 0.0) - dh * over;
+    let u = (geom_core::Vec3::new(1.0, 0.0, 0.0) - dh * dh.x).normalize();
+    let plane = sweep::test_support::sketch_from_axes(o, u, dh.cross(u), tol());
+    let rod = extruded(plane, vec![bore(0.0, 0.0, a)], d.norm() + 2.0 * over, tol());
+    crate::common::cavity::cut(
+        "tilted bore",
+        &extruded(SketchPlane::xy(), vec![d_loop()], ROD_L, tol()),
+        &rod,
+    )
+}
+
+/// **A tilted bore inside the sliver at both caps that runs through
+/// kept material between them refuses**, as a bound at its wall. Both
+/// rings read inside, but the fillet arc bulges into the sliver, so the
+/// prism over them is not the band's material. These rows hold
+/// `prism_inside`'s line slack and its `diagonal·|a × τ|` term: without
+/// them each bore is consumed.
+fn assert_tilted_bore_refuses(what: &str, p: (f64, f64), q: (f64, f64), a: f64) {
+    let body = sweep::test_support::finished(what, tilted_bored_d_rod(p, q, a), tol());
+    let got = fillet_edges(&body, &rod_creases(&body), ROD_FILLET, tol()).map(|_| ());
+    assert!(
+        matches!(
+            got,
+            Err(ref e) if matches!(e.error, BlendError::FaceClearance { bounded: true, .. })
+        ),
+        "{what}: refuses as a bound at the wall, got {:?}",
+        got.map_err(|e| e.error)
+    );
+}
+
+/// [`assert_tilted_bore_refuses`]: each ring `≈ 8e-4` inside the sliver,
+/// the axis's midpoint `≈ 4.2e-3` inside the kept ball.
+#[test]
+fn a_tilted_bore_inside_at_both_caps_through_the_ball_mid_length_refuses() {
+    assert_tilted_bore_refuses(
+        "through the ball mid-length",
+        (0.29918, 0.36551),
+        (0.26784, 0.42123),
+        5e-4,
+    );
+}
+
+/// [`assert_tilted_bore_refuses`]: a thinner, steeper bore whose middle
+/// runs `≈ 5.8e-3` into the kept ball.
+#[test]
+fn a_thin_steep_bore_inside_at_both_caps_through_the_ball_between_refuses() {
+    assert_tilted_bore_refuses("thin and steep", (0.2993, 0.3620), (0.2647, 0.4234), 3e-4);
+}
+
+/// **A blind bore wholly inside the sliver refuses**, as a bound at its
+/// wall: its floor bounds the wall by an edge that is neither a cap
+/// cycle's nor a line between two, so the prism reading does not take
+/// it, and the carve takes only a through-feature between the caps.
+#[test]
+fn a_blind_bore_inside_the_sliver_refuses_as_a_bound() {
+    let tool = crate::common::cavity::rod(Point2::new(0.297, 0.395), 0.002, -0.5, 0.5);
+    let body = crate::common::cavity::cut(
+        "blind bore",
+        &extruded(SketchPlane::xy(), vec![d_loop()], ROD_L, tol()),
+        &tool,
+    );
+    let body = sweep::test_support::finished("blind bore", body, tol());
+    let got = fillet_edges(&body, &rod_creases(&body), ROD_FILLET, tol()).map(|_| ());
+    assert!(
+        matches!(
+            got,
+            Err(ref e) if matches!(e.error, BlendError::FaceClearance { bounded: true, .. })
+        ),
+        "a blind bore refuses as a bound, got {:?}",
+        got.map_err(|e| e.error)
     );
 }
 

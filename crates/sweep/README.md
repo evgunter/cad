@@ -86,13 +86,12 @@ its extent (`reach::prism_inside`). The prism's slice in a cap's plane
 is the sliver the cap meter reads, so the two readings agree on what
 dies by construction. A request whose verdict is then inside groups the
 faces read inside into features, joined by the edges they share, and
-the carve takes each whole — a through-feature between the band's two
-caps, bounded only by one cycle read inside on each — or refuses
-`WhollyInside` (`blend/consume.rs`): the plug `mfkrh`, the faces' `kef`
-into one, the spurs' `kev`, its `kef` into the other cap and that
-cycle's `kev`s down to a lone vertex, retired by a strut's `mekr` and
-`kev`. The faces, edges and vertices it takes are recorded as retired
-(`BlendNaming::dead`).
+the carve takes each whole or refuses `WhollyInside`
+(`blend/consume.rs`). What it takes is a through-feature between the
+band's two caps: an annulus of faces, each bounded by one cycle, whose
+edges join each other or one cycle read inside on each cap. A blind
+feature, whose floor is neither, refuses as a bound. The faces, edges
+and vertices it takes are recorded as retired (`BlendNaming::dead`).
 
 Each reach is an intersection of 1-Lipschitz bounds: per link, the
 cross-section between the supports, the sector the ball's arc subtends
@@ -408,9 +407,10 @@ the band's tangent contact with a curved support, the arcs as its
 transverse intersection with the cap, on either material side. On
 either side the cap loses the sliver between the arc and the old
 vertex, cut away on the convex side and covered by the fill on the
-concave side; on the convex side a feature wholly inside the sliver
-goes with it, its cycles leaving the cap and its faces the body
-(predicate 2, above), and every other edge of the cap stays where it
+concave side; on the convex side a through-feature between the two
+caps, wholly inside the material the band removes, goes with it, its
+cycles leaving the caps and its faces the body (predicate 2, above; a
+blind bore refuses), and every other edge of the cap stays where it
 was — the edges of its other cycles (a bore's ring, or the outer cycle
 where the cut runs in a ring) and those of the cut cycle other than
 the two rims it shortens (a notch in the outline). Each is metered

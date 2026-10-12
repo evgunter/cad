@@ -2007,7 +2007,9 @@ fn boundary_reading<T: Decide>(
 /// between the two cap planes; its slice in a cap's plane is the sliver
 /// `S` the cap's meter reads, bounded by the end curve and the two rim
 /// pieces. A face is read on a surface ruled along a direction `a` (a
-/// cylinder's axis, or a plane's direction nearest `τ`), and only when
+/// cylinder's axis, or a plane's direction nearest `τ`, for which
+/// `|a × τ| = |n·τ|` with `n` the plane's unit normal, any direction of
+/// a plane normal to `τ` included), and only when
 /// every edge of its boundary is an edge of one of `rings` or a line
 /// between two of their vertices. Then each point `x` of the face lies on
 /// an `a`-line between two points of its boundary (the ends of that
@@ -2031,9 +2033,9 @@ fn prism_inside<T: Decide>(
     if rings.is_empty() || flo.iter().chain(&fhi).any(|x| !x.is_finite()) {
         return Ok(None);
     }
-    let a = match surface {
-        Surface::Cylinder { axis, .. } => axis.normalize(),
-        Surface::Plane { normal, .. } => (tau - *normal * normal.dot(tau)).normalize(),
+    let tilt = match surface {
+        Surface::Cylinder { axis, .. } => axis.normalize().cross(tau).norm(),
+        Surface::Plane { normal, .. } => normal.normalize().dot(tau).abs(),
         _ => return Ok(None),
     };
     let mut ring_edges: Vec<EdgeKey> = Vec::new();
@@ -2043,7 +2045,7 @@ fn prism_inside<T: Decide>(
         let Surface::Plane { normal, .. } = surface_of(body, r.cap)? else {
             return Ok(None);
         };
-        let deep = (T::zero() - r.depth) * normal.dot(tau).abs();
+        let deep = (T::zero() - r.depth) * normal.normalize().dot(tau).abs();
         least = Some(least.map_or(deep, |l| l.min(deep)));
         let Some(walk) = loop_walk(body, r.ring) else {
             return Ok(None);
@@ -2086,7 +2088,7 @@ fn prism_inside<T: Decide>(
         Point3::new(x, y, z)
     };
     let diagonal = (corner(fhi) - corner(flo)).norm();
-    Ok(Some(least - slack - diagonal * a.cross(tau).norm()))
+    Ok(Some(least - slack - diagonal * tilt))
 }
 
 /// **The request's three-way verdict**, over every face and end-face
@@ -2106,7 +2108,8 @@ fn prism_inside<T: Decide>(
 pub(crate) struct Unclear<T> {
     bound: Option<(T, BlendError)>,
     inside: Option<(T, BlendError)>,
-    consumed: Consumed<T>,
+    rings: Vec<CapRing<T>>,
+    faces: Vec<FaceKey>,
     unconsumed: bool,
 }
 
@@ -2129,14 +2132,7 @@ pub(crate) struct CapRing<T> {
 pub(crate) struct Consumed<T> {
     pub(crate) rings: Vec<CapRing<T>>,
     pub(crate) faces: Vec<FaceKey>,
-    pub(crate) refusal: Option<BlendError>,
-}
-
-impl<T> Consumed<T> {
-    /// Whether the request consumes nothing.
-    pub(crate) fn is_empty(&self) -> bool {
-        self.rings.is_empty() && self.faces.is_empty()
-    }
+    pub(crate) refusal: BlendError,
 }
 
 /// A total order on the entities refusals name: by kind, then by key.
@@ -2198,11 +2194,8 @@ impl<T: Bounds> Unclear<T> {
         Self {
             bound: None,
             inside: None,
-            consumed: Consumed {
-                rings: Vec::new(),
-                faces: Vec::new(),
-                refusal: None,
-            },
+            rings: Vec::new(),
+            faces: Vec::new(),
             unconsumed: false,
         }
     }
@@ -2222,7 +2215,7 @@ impl<T: Bounds> Unclear<T> {
 
     /// A reading certified wholly inside, `margin` its (negative) depth,
     /// that the carve does not consume.
-    pub(crate) fn inside(&mut self, margin: T, refusal: BlendError) {
+    pub(crate) fn unconsumed_inside(&mut self, margin: T, refusal: BlendError) {
         self.unconsumed = true;
         self.deepen(margin, refusal);
     }
@@ -2230,22 +2223,22 @@ impl<T: Bounds> Unclear<T> {
     /// A cap cycle certified wholly inside a convex ruled band's sliver,
     /// which the carve consumes with the feature it bounds.
     pub(crate) fn cap_ring(&mut self, ring: CapRing<T>, refusal: BlendError) {
-        self.consumed.rings.push(ring);
+        self.rings.push(ring);
         self.deepen(ring.depth, refusal);
     }
 
     /// A face certified wholly inside the prism a convex ruled band
     /// removes ([`prism_inside`]), which the carve consumes.
     fn prism_face(&mut self, face: FaceKey, depth: T, refusal: BlendError) {
-        if !self.consumed.faces.contains(&face) {
-            self.consumed.faces.push(face);
+        if !self.faces.contains(&face) {
+            self.faces.push(face);
         }
         self.deepen(depth, refusal);
     }
 
     /// The cycles read inside a convex ruled band's caps so far.
     fn cap_rings(&self) -> &[CapRing<T>] {
-        &self.consumed.rings
+        &self.rings
     }
 
     fn deepen(&mut self, margin: T, refusal: BlendError) {
@@ -2261,22 +2254,27 @@ impl<T: Bounds> Unclear<T> {
 
     /// The request's refusal — a bound if any, else wholly inside where
     /// an inside reading is one the carve does not consume — or what it
-    /// consumes (nothing, where no reading was inside).
+    /// consumes (`None` where no reading was inside: every consumed
+    /// reading is an inside one).
     ///
     /// # Errors
     ///
     /// That refusal.
-    pub(crate) fn verdict(self) -> Result<Consumed<T>, BlendError> {
+    pub(crate) fn verdict(self) -> Result<Option<Consumed<T>>, BlendError> {
         if let Some((_, refusal)) = self.bound {
             return Err(refusal);
         }
         match self.inside {
+            None => Ok(None),
             Some((_, refusal)) if self.unconsumed => Err(refusal),
-            inside => {
-                let mut consumed = self.consumed;
-                consumed.faces.sort_unstable();
-                consumed.refusal = inside.map(|(_, r)| r);
-                Ok(consumed)
+            Some((_, refusal)) => {
+                let mut faces = self.faces;
+                faces.sort_unstable();
+                Ok(Some(Consumed {
+                    rings: self.rings,
+                    faces,
+                    refusal,
+                }))
             }
         }
     }
@@ -2301,7 +2299,7 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
     kind: BlendKind,
     band: Band,
     mut unclear: Unclear<T>,
-) -> Result<Consumed<T>, BlendError> {
+) -> Result<Option<Consumed<T>>, BlendError> {
     let all: Vec<(usize, &Link<T>)> = chains
         .iter()
         .enumerate()
@@ -2474,7 +2472,7 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
             });
             if let Some((exact, deep)) = inside {
                 let sign = classify_bound(deep)?;
-                unclear.inside(
+                unclear.unconsumed_inside(
                     deep,
                     BlendError::WhollyInside {
                         at: EntityId::Face(face),
@@ -2734,7 +2732,7 @@ mod tests {
         for order in [[lo, hi], [hi, lo]] {
             let mut u = Unclear::<f64>::new();
             for f in order {
-                u.inside(-0.25, inside(f));
+                u.unconsumed_inside(-0.25, inside(f));
             }
             let Err(e) = u.verdict() else {
                 panic!("two inside readings the carve does not take refuse")

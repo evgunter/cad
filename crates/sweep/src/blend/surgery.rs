@@ -260,7 +260,7 @@ pub(super) fn not_intact(at: EntityId, detail: &'static str) -> BlendError {
 /// the surgery contradicted itself. Row 4's other sites panic because
 /// they are inside a walk with nothing to return; a DOOR returns
 /// `Result` already and is on the caller's path, so it announces.
-fn invariant_broken(at: EntityId, detail: &'static str) -> BlendError {
+pub(super) fn invariant_broken(at: EntityId, detail: &'static str) -> BlendError {
     BlendError::SurgeryInvariant { at, detail }
 }
 
@@ -771,7 +771,10 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     // ---- A request whose verdict is inside takes each feature wholly
     // inside a convex ruled band's material, whole, or refuses
     // (`consume::plan`). ----
-    let features = super::consume::plan(source, &consumed)?;
+    let features = match &consumed {
+        Some(consumed) => super::consume::plan(source, consumed)?,
+        None => Vec::new(),
+    };
 
     // ---- Mutation, on a clone. From here on every step is an Euler
     // operator or a certified setter; refusals map to Op/Certify. ----
@@ -780,7 +783,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     // before the clone — not re-assembled per phase from whatever that
     // phase happens to hold. It is the door's own argument, which is
     // what makes a narrower set unspellable.
-    let sources = SourceFaces::of(source, verdict, Feature::faces(&features))?;
+    let consuming = SourceFaces::of(source, verdict, Feature::faces(&features))?;
     // One surgery scope for the whole blend (`topo::surgery`): tier 1
     // is this door's postcondition, and the tier-2 debug assertion
     // below subsumes it, so the close adds no second sweep. The guard
@@ -790,8 +793,9 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     let mut body = blended.begin_surgery();
     let mut rec = BlendNaming::default();
     for feature in &features {
-        super::consume::consume(&mut body, feature, &sources, &mut rec, tol)?;
+        super::consume::consume(&mut body, feature, &consuming, &mut rec, tol)?;
     }
+    let sources = consuming.after_consuming();
     let blank = BlankPlan {
         bands: &planar_bands,
         opens: &planar,
@@ -2861,7 +2865,7 @@ fn ring_clearance_pass<T: Decide + Bounds>(
                             },
                             refusal,
                         ),
-                        None => unclear.inside(deep, refusal),
+                        None => unclear.unconsumed_inside(deep, refusal),
                     }
                 }
                 CycleReading::Bound => unclear.bound(
@@ -5158,6 +5162,15 @@ impl SourceFaces {
         }
         faces.sort_unstable();
         Ok(Self { faces, consumed })
+    }
+
+    /// The door once the features are carved: it admits no source face
+    /// at all, so only the consuming carve can kill one.
+    fn after_consuming(self) -> Self {
+        Self {
+            faces: self.faces,
+            consumed: Vec::new(),
+        }
     }
 
     /// **Kill the face of `dying`, unless it is a face of the source

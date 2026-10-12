@@ -748,40 +748,32 @@ fn the_closest_pair_a_row_must_tell_apart_is_a_foot_and_its_source_vertex() {
     );
 }
 
-/// **A bore that a radius edit puts wholly inside the sliver goes with
-/// it, and its name vanishes on the blend's verdict.** The D-rod with a
-/// bore of radius `0.002` at `(0.297, 0.395)`, near the upper crease's
-/// old vertex: at a fillet radius of `0.01` the bore lies inside the
-/// band's ball, clear of the material the band removes, and the fillet
-/// carries its wall through; at [`ROD_FILLET`] it lies wholly inside
-/// that material and the carve takes it, at `ΔV = −2·A·L + π·a²·L`.
-/// The wall's name at the fillet
-/// node, which resolved before the edit, resolves `Vanished` after it,
-/// its cause the face-clearance verdict that flipped at the fillet:
-/// `PredicateFlip { fillet3_face_clearance, Positive → Negative }`.
-#[test]
-fn a_bore_a_radius_edit_puts_inside_the_sliver_vanishes_on_the_blends_verdict() {
+/// The D-rod document filleted at both creases at `r`, with or without
+/// the bore of radius `0.002` at `(0.297, 0.395)`: the document, its rod
+/// node and its fillet node.
+fn d_rod_doc(bored: bool, r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let c = rod_chord_at(ROD_FLAT);
-    let d = LoopProgram::Chain(vec![
+    let mut loops = vec![LoopProgram::Chain(vec![
         ProgramStep::At([len(ROD_FLAT), len(c.half)]),
         ProgramStep::ArcTo(ProgramArcData::Bulge {
             target: ProgramTarget::Point([len(ROD_FLAT), len(-c.half)]),
             b: scl(c.wall_bulge),
         }),
         ProgramStep::LineTo(ProgramTarget::Start),
-    ]);
-    let (x, y, a) = (0.297, 0.395, 0.002);
-    let bore = LoopProgram::Circle {
-        centre: [len(x), len(y)],
-        radius: len(a),
-    };
-    let doc = ProfileDoc::empty_derived("bored d_rod", tol());
+    ])];
+    if bored {
+        loops.push(LoopProgram::Circle {
+            centre: [len(0.297), len(0.395)],
+            radius: len(0.002),
+        });
+    }
+    let doc = ProfileDoc::empty_derived("d_rod", tol());
     let (doc, plane) = fixture::insert(doc, fixture::xy_frame());
     let (doc, profile) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
             frame: plane.into(),
-            loops: vec![d, bore],
+            loops,
             ids: Vec::new(),
         }),
     );
@@ -798,10 +790,28 @@ fn a_bore_a_radius_edit_puts_inside_the_sliver_vanishes_on_the_blends_verdict() 
     let (doc, fillet) = fixture::insert(
         doc,
         Node::Fillet {
-            radius: len(0.01),
+            radius: len(r),
             selection: editor_core::Operand::select(rod, selection),
         },
     );
+    (doc, rod, fillet)
+}
+
+/// **A bore that a radius edit puts wholly inside the sliver goes with
+/// it, and its name vanishes on the blend's verdict.** The D-rod with a
+/// bore of radius `0.002` at `(0.297, 0.395)`, near the upper crease's
+/// old vertex: at a fillet radius of `0.01` the bore lies inside the
+/// band's ball, clear of the material the band removes, and the fillet
+/// carries its wall through; at [`ROD_FILLET`] it lies wholly inside
+/// that material and the carve takes it, at `ΔV = −2·A·L + π·a²·L`.
+/// The wall's name at the fillet
+/// node, which resolved before the edit, resolves `Vanished` after it,
+/// its cause the face-clearance verdict that flipped at the fillet:
+/// `PredicateFlip { fillet3_face_clearance, Positive → Negative }`.
+#[test]
+fn a_bore_a_radius_edit_puts_inside_the_sliver_vanishes_on_the_blends_verdict() {
+    let a = 0.002;
+    let (doc, rod, fillet) = d_rod_doc(true, 0.01);
     let wall = fixture::fname(
         rod,
         RoleSeg::Lateral(crate::fixture::piece(&doc, rod, 1, 0).into()),
@@ -833,9 +843,10 @@ fn a_bore_a_radius_edit_puts_inside_the_sliver_vanishes_on_the_blends_verdict() 
         table(&ev2, fillet).lookup(&carried).is_none(),
         "at ROD_FILLET the carve takes the bore's wall"
     );
-    // The one-edge bore (a seamless circle) goes at the closed form.
     let out = corpus::body_of(&ev2, fillet);
     topo::validate_geometric(out, tol()).unwrap_or_else(|e| panic!("tier 3, {e:?}"));
+    topo::validate_pseudomanifold(out, &topo::ContactRecords::default(), tol())
+        .unwrap_or_else(|e| panic!("tier 3′, {e:?}"));
     let dv = volume(out) - volume(corpus::body_of(&ev2, rod));
     let want = -2.0 * sweep::test_support::rod_section_cut(ROD_R, ROD_FLAT, ROD_FILLET) * ROD_L
         + core::f64::consts::PI * a * a * ROD_L;
@@ -865,5 +876,47 @@ fn a_bore_a_radius_edit_puts_inside_the_sliver_vanishes_on_the_blends_verdict() 
             to: geom_core::Sign::Negative,
         },
         "the wall vanishes on the blend's face-clearance verdict"
+    );
+}
+
+/// **The consumed bore leaves no trace in the fillet's names**: the
+/// bored rod's fillet at [`ROD_FILLET`] carries exactly the names the
+/// unbored rod's does, ids erased (the two documents' profiles differ),
+/// each with the same unique-or-tied shape. A name the carve added,
+/// dropped or re-derived would differ.
+#[test]
+fn the_consuming_carve_names_exactly_what_the_unbored_carve_does() {
+    let erase = |s: String| -> String {
+        let mut out = String::new();
+        let mut rest = s.as_str();
+        while let Some(i) = rest.find("MintId {") {
+            out.push_str(&rest[..i]);
+            let j = rest[i..].find('}').expect("a MintId's closing brace");
+            out.push('_');
+            rest = &rest[i + j + 1..];
+        }
+        out.push_str(rest);
+        out
+    };
+    let names = |bored: bool| -> Vec<String> {
+        let (doc, _, fillet) = d_rod_doc(bored, ROD_FILLET);
+        let ev = fixture::run(&doc, &EvalOptions::default());
+        let mut all: Vec<String> = table(&ev, fillet)
+            .iter()
+            .map(|(n, e)| {
+                let shape = match e {
+                    editor_core::Entry::Unique(_) => "unique".to_string(),
+                    editor_core::Entry::Tied(v) => format!("tied {}", v.len()),
+                };
+                erase(format!("{n:?} -> {shape}"))
+            })
+            .collect();
+        all.sort();
+        all
+    };
+    assert_eq!(
+        names(true),
+        names(false),
+        "the bored rod's fillet names what the unbored rod's does"
     );
 }
