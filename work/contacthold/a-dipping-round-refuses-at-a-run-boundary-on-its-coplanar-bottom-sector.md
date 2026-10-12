@@ -1,12 +1,14 @@
 ---
 id: a-dipping-round-refuses-at-a-run-boundary-on-its-coplanar-bottom-sector
 kind: issue
-title: A quarter round dipping into a slab refuses its differences and intersection at sectors::along, a run boundary on its coplanar bottom sector
-status: open
+title: A quarter round dipping into a slab (an overlapping tangency) refuses every op: the glue door has no class for a tangency that claims no material sides, so C8 refuses the undeclared curved sector
+status: parked
 opened: 2026-10-10
 priority: P2
 cost: M
 refs: [boolean-conic-side-code-zero-is-first-order, an-arc-tangent-to-a-face-at-its-end-is-split-at-the-edge-of-the-band]
+design: true
+blocked_on: [4723]
 ---
 
 
@@ -84,3 +86,13 @@ witness locus, which infers a coincidence outside the one door. Only
 once one of them lands does the run boundary this row names become
 reachable again, and the intersection would then meet MATE-7's unbuilt
 wedge-0 cusp along the rim (`RimCuspArmUnbuilt` family).
+
+## Parked (CONTACTHOLD orchestrator, 2026-10-12)
+
+The re-measure turns the row into a design question: how an
+*overlapping* (internal) tangency between operands is decided, at the
+glue door as a new class (A) or read off the witness locus in `vtxfac`
+(B), and what its intersection's wedge-0 rim becomes. It lands on C7's
+tangency paragraph, which `[ev]` PR 4723 is rewriting for the external
+touch, so it waits on that ruling and then goes to a designer pair with
+the re-measure above as its evidence.
