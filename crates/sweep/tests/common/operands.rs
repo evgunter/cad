@@ -36,7 +36,7 @@
 //! - [`super::shell_operands`]' vessel, tube and hollow boxes, which
 //!   stay beside the role readers the shell rows run over them.
 
-use geom_core::{Decide, Point2, Point3, Tol};
+use geom_core::{Bounds, Decide, Point2, Point3, Tol};
 use profile::test_support::bulge_loop;
 use profile::{ProfileLoop, RawLoop};
 use sweep::ExtrudeSide;
@@ -277,9 +277,7 @@ pub fn leaning_turn(s: f64) -> (Body<f64>, [EdgeKey; 2]) {
 }
 
 /// [`leaning_turn`] at the scalar `T`: its corners read from `f64`.
-pub fn leaning_turn_at<T: geom_core::Decide + geom_core::Bounds + topo::AtRestPolicy>(
-    s: f64,
-) -> (Body<T>, [EdgeKey; 2]) {
+pub fn leaning_turn_at<T: Decide + Bounds + topo::AtRestPolicy>(s: f64) -> (Body<T>, [EdgeKey; 2]) {
     let plane = sweep::test_support::sketch_from_axes(
         Point3::new(0.0, 0.0, 0.0).map(T::from_f64),
         geom_core::Vec3::new(1.0, 0.0, 0.0).map(T::from_f64),
@@ -292,6 +290,21 @@ pub fn leaning_turn_at<T: geom_core::Decide + geom_core::Bounds + topo::AtRestPo
         T::from_f64(1.5),
         Tol::witness(),
     );
+    let corner = [s, 0.0, 1.0];
+    let edges = [
+        edge_between(&body, corner, [2.0, 0.0, 1.0]),
+        edge_between(&body, corner, [s, -1.5, 1.0]),
+    ];
+    (body, edges)
+}
+
+/// The edge of `body` between the points `a` and `b`, at any scalar:
+/// each end's enclosure holds its point.
+///
+/// # Panics
+///
+/// If no edge runs between them.
+pub fn edge_between<T: Bounds>(body: &Body<T>, a: [f64; 3], b: [f64; 3]) -> EdgeKey {
     let at = |v, w: [f64; 3]| {
         let p: Point3<T> = *body
             .get_point(body.get_vertex(v).expect("a vertex").point)
@@ -301,25 +314,17 @@ pub fn leaning_turn_at<T: geom_core::Decide + geom_core::Bounds + topo::AtRestPo
             .zip(w)
             .all(|(c, w)| c.lo() <= w + 1e-12 && w - 1e-12 <= c.hi())
     };
-    let between = |a: [f64; 3], b: [f64; 3]| {
-        topo::query::all_edges(&body)
-            .into_iter()
-            .find(|&e| {
-                let he = body.get_edge(e).expect("an edge").he_plus;
-                let (p, q) = (
-                    body.get_half_edge(he).expect("a half").start,
-                    body.half_edge_end(he).expect("an end"),
-                );
-                (at(p, a) && at(q, b)) || (at(p, b) && at(q, a))
-            })
-            .unwrap_or_else(|| panic!("an edge between {a:?} and {b:?}"))
-    };
-    let corner = [s, 0.0, 1.0];
-    let edges = [
-        between(corner, [2.0, 0.0, 1.0]),
-        between(corner, [s, -1.5, 1.0]),
-    ];
-    (body, edges)
+    topo::query::all_edges(body)
+        .into_iter()
+        .find(|&e| {
+            let he = body.get_edge(e).expect("an edge").he_plus;
+            let (p, q) = (
+                body.get_half_edge(he).expect("a half").start,
+                body.half_edge_end(he).expect("an end"),
+            );
+            (at(p, a) && at(q, b)) || (at(p, b) && at(q, a))
+        })
+        .unwrap_or_else(|| panic!("an edge between {a:?} and {b:?}"))
 }
 
 /// **A box sheared along its diagonal**: the parallelepiped
@@ -330,42 +335,57 @@ pub fn leaning_turn_at<T: geom_core::Decide + geom_core::Bounds + topo::AtRestPo
 /// `(s, 1.5 + s, 1)` the two top edges make supplementary angles with
 /// it.
 pub fn parallelepiped(s: f64) -> Body<f64> {
-    let z = geom_core::Vec3::new(0.0, 0.0, 1.0);
+    parallelepiped_at(s)
+}
+
+/// [`parallelepiped`] at the scalar `T`: its corners read from `f64`.
+pub fn parallelepiped_at<T: Decide + Bounds + topo::AtRestPolicy>(s: f64) -> Body<T> {
+    let t = T::from_f64;
+    let z = geom_core::Vec3::new(t(0.0), t(0.0), t(1.0));
     let tol = Tol::witness();
     let along_y = sweep::test_support::prism_on(
         sweep::test_support::sketch_from_axes(
-            Point3::new(0.0, 3.5, 0.0),
-            geom_core::Vec3::new(1.0, 0.0, 0.0),
+            Point3::new(t(0.0), t(3.5), t(0.0)),
+            geom_core::Vec3::new(t(1.0), t(0.0), t(0.0)),
             z,
             tol,
         ),
-        vec![
-            (Point2::new(0.0, 0.0), 0.0),
-            (Point2::new(2.0, 0.0), 0.0),
-            (Point2::new(2.0 + s, 1.0), 0.0),
-            (Point2::new(s, 1.0), 0.0),
-        ],
-        5.0,
+        sweep::test_support::corners(&[(0.0, 0.0), (2.0, 0.0), (2.0 + s, 1.0), (s, 1.0)]),
+        t(5.0),
         tol,
     );
     let (z0, z1) = (-0.5, 1.5);
     let along_x = sweep::test_support::prism_on(
         sweep::test_support::sketch_from_axes(
-            Point3::new(3.5, 0.0, 0.0),
-            geom_core::Vec3::new(0.0, -1.0, 0.0),
+            Point3::new(t(3.5), t(0.0), t(0.0)),
+            geom_core::Vec3::new(t(0.0), t(-1.0), t(0.0)),
             z,
             tol,
         ),
-        vec![
-            (Point2::new(-1.5 - s * z0, z0), 0.0),
-            (Point2::new(-s * z0, z0), 0.0),
-            (Point2::new(-s * z1, z1), 0.0),
-            (Point2::new(-1.5 - s * z1, z1), 0.0),
-        ],
-        5.0,
+        sweep::test_support::corners(&[
+            (-1.5 - s * z0, z0),
+            (-s * z0, z0),
+            (-s * z1, z1),
+            (-1.5 - s * z1, z1),
+        ]),
+        t(5.0),
         tol,
     );
-    sweep::test_support::realized(topo::boolean::BooleanOp::Intersect, &along_y, &along_x, tol)
+    let finished = |what, b| sweep::test_support::finished(what, b, tol);
+    topo::boolean::boolean_op_with(
+        topo::boolean::BooleanOp::Intersect,
+        &finished("the parallelepiped's y prism", along_y),
+        &finished("the parallelepiped's x prism", along_x),
+        &topo::boolean::BooleanInputs::default(),
+        topo::boolean::SweepStrategy::Realized,
+        tol,
+    )
+    .unwrap_or_else(|e| panic!("the parallelepiped builds, got {e}"))
+    .body()
+    .expect("the parallelepiped is a body")
+    .body
+    .clone()
+    .into_body()
 }
 
 /// The axis-aligned block `x × y × z` ([`brick`]), at rest.

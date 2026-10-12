@@ -292,33 +292,38 @@ TURN_OVERRUN }` (renamed from `TURN_NOT_ISOSCELES`), naming the far band;
 the side is the other band's face of `L`. A reading in band escalates as
 itself; two readings decided on different sides of the band escalate
 through the funnel's straddle door as `fillet3_turn_feet`. All three share
-the three-leg `FILLET3_TURN_RECOURSE`.
+`FILLET3_TURN_RECOURSE`, which offers the two ends that build today (the
+feet meeting, or `L` requested too for the patch); its middle leg, feet
+clearly apart, joins it when step 2 builds the overrun.
 
 **What moved.** The sheared box's supplementary chamfer now builds (tier
 3, naming total, ΔV the two chamfer half-spaces' to 1e-9, its
 `CommonFoot` row recorded). Its fillet overruns and refuses. Nothing
 that built before refuses: every mitre row in `band_planar_mitre` passes
-unchanged. At the door the supplementary row is unproven like every
-`BatteryTurn` row (`a_filleted_box_records_one_unproven_turn_per_corner`):
+unchanged. The concave supplementary corner (the sheared box cut up
+into a block) reads the convex one's readings and builds its chamfer too.
+At the door the supplementary row is unproven, as the box's
+(`coincidence_door::a_supplementary_chamfer_turn_is_recorded_unproven`):
 neither reading reduces at Sym.
 
 **Measured** (`crates/sweep/tests/band_turn_overrun_verdict.rs`,
 `d = r = 0.1`, band `(1e-9, 1e-8)`):
-- The readings equal the probe's closed forms to `1e-10` on all 294
+- The readings equal closed forms to `1e-10` on all 294
   corners of `φ₁, φ₂ ∈ 30°…150°` (20° steps) at `γ ∈ {60°, 90°, 120°}`,
   both verbs. Every corner lies clear of the band: the chamfer mitres on
   both lines (39), the fillet on the isosceles line (21), and every other
-  corner overruns, naming the band whose foot is further.
+  corner overruns, naming the band whose foot is further. A chamfer's
+  chord is held to the identity `chord = gap · sin φⱼ / sin θ` (the
+  triangle on the near face), which shares no construction with the
+  battery's.
 - Escalate band (skew from the coincidence, sampled from `1e-6°` at
   six per decade): the fillet at the box corner and both verbs at
   `(60°, 60° + skew)` already escalate at `1e-6°` and overrun from
-  `5e-6°…1e-5°`; the box-corner chamfer mitres to `0.007°` and
-  escalates to `0.02°`.
-  At the leaning box corner the chamfer's gap AND chord are quadratic in
-  the lean (chord/gap ≈ 1.41), so the analysis comment's "chord linear
-  at a box corner" does not hold on this family; the 0.26° upper end it
-  quoted is not reached either (√K ≈ 3.2 above the Zero edge, as a
-  quadratic reading gives).
+  `5e-6°…1e-5°`. At the box corner the chamfer's gap is `d·s²/2` in
+  the lean and its chord `√2` times it, so it mitres to `≈0.0068°` (the
+  chord's Zero edge), escalates, and overruns from `≈0.0256°` (the
+  gap's definite edge); the row brackets both edges within one step of
+  a 24-per-decade grid.
 - The needle: `e₁ = x̂`, `e₂` at `180° − ε` in the shared face, `L`
   along `(0, 0.5, 1)`. The chamfer's gap closes as `ε²` and its chord as
   `ε`: overrun at `1°` and `0.1°`, the gap in band at `0.03°`, and at
@@ -326,9 +331,10 @@ neither reading reduces at Sym.
   as the straddle. The gap alone would build a mitre there. No ε builds
   for either verb. Below about `0.003°` the fixture's own Boolean
   escalates.
-- `Interval` replays (the leaning box corner at four leans, both
-  verbs): every reading's enclosure holds the `f64` reading, under
-  `1e-9` wide, and the verdict at `Interval` is the `f64` one.
+- `Interval` replays (the leaning box corner at four leans and the
+  sheared box's supplementary corner, both verbs): every reading's
+  enclosure holds the `f64` reading, under `1e-12` wide (measured
+  under `1e-13`), and the verdict at `Interval` is the `f64` one.
 
 **Unsure.** The straddle door's row (`fillet3_turn_feet`) is charged to
 neither reading's predicate, so the k-lint sees it as its own name. The

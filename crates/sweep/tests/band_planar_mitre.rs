@@ -3,7 +3,7 @@
 //! edges turn at a trivalent vertex whose third edge is unrequested,
 //! each band is cut off by the other's support and the two meet along
 //! their intersection — a line for a chamfer, a planar ellipse for a
-//! fillet. Where the trihedron is isosceles about the third edge the
+//! fillet. Where the two bands' feet on the third edge coincide the
 //! mitre runs from the trimlines' crossing on the shared face down to
 //! that edge, which ends there at a valence-4 vertex.
 //!
@@ -34,6 +34,8 @@ use topo::{AtRestBody, Body, EdgeKey, mass_properties, validate_geometric};
 use crate::band_planar_cut_off::{
     D, Verb, carve, edge, midpoint_tol, pad_ceiling, the_box, tol, volume, volume_enclosure,
 };
+use crate::band_turn_overrun_probe as probe;
+use crate::band_turn_overrun_verdict::far_band;
 use crate::common::cavity::{brick, cavity_corner, cut, edges_with_corners, rod, vented_cavity};
 use crate::common::operands::{leaning_turn, parallelepiped};
 
@@ -212,6 +214,15 @@ fn a_turn_whose_feet_stand_apart_refuses_naming_its_far_band() {
     for (s, far) in [(0.5, [0, 0]), (-0.5, [0, 1])] {
         let (body, turn) = leaning_turn(s);
         for (verb, far) in [Verb::Chamfer, Verb::Fillet].into_iter().zip(far) {
+            let closed = match verb {
+                Verb::Chamfer => probe::Verb::Chamfer,
+                Verb::Fillet => probe::Verb::Fillet,
+            };
+            assert_eq!(
+                far_band(&body, turn, closed),
+                far,
+                "{verb:?} at {s}: the closed forms' far band"
+            );
             match verb.run(&body, &turn) {
                 Err(BlendError::UnsupportedRunOut { at, detail }) => {
                     assert_eq!(detail, TURN_OVERRUN, "{verb:?} at {s}");

@@ -2211,7 +2211,7 @@ pub fn walked_links(links: Vec<Link<f64>>) -> Vec<Chain<f64>> {
 ///
 /// # Panics
 ///
-/// If the two edges share no vertex, the vertex has no third edge, an
+/// If the two edges share no vertex, the vertex is not trivalent, an
 /// edge does not resolve, or the readings do not.
 #[must_use]
 pub fn turn_readings(
@@ -2250,7 +2250,7 @@ pub fn turn_readings_interval(
     )
 }
 
-/// [`turn_readings`] on links already resolved.
+/// [`turn_readings`] on links already resolved, at a trivalent vertex.
 fn turn_readings_of<T: Decide>(
     body: &Body<T>,
     edges: [EdgeKey; 2],
@@ -2267,10 +2267,16 @@ fn turn_readings_of<T: Decide>(
         .into_iter()
         .find(|v| ends(edges[1]).contains(v))
         .expect("the two edges share a vertex");
-    let third = topo::query::all_edges(body)
+    let thirds: Vec<EdgeKey> = topo::query::all_edges(body)
         .into_iter()
-        .find(|e| !edges.contains(e) && ends(*e).contains(&vertex))
-        .expect("the vertex's third edge");
+        .filter(|e| !edges.contains(e) && ends(*e).contains(&vertex))
+        .collect();
+    let [third] = thirds[..] else {
+        panic!(
+            "a turn is a trivalent vertex: {} edges besides the two requested",
+            thirds.len()
+        )
+    };
     let links = links.map(|l| l.unwrap_or_else(|err| panic!("a turning edge resolves, got {err}")));
     let reading = crate::blend::battery::turn_reading(body, vertex, [&links[0], &links[1]], third)
         .unwrap_or_else(|err| panic!("the turn reads, got {err}"));

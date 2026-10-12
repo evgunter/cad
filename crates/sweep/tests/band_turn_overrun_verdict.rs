@@ -13,7 +13,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Band, Bounds, Interval, Point2, Point3, Vec3};
+use geom_core::{Band, Bounds, Decide, Interval, Point2, Point3, Vec3};
 use sweep::blend::battery::{BlendRequest, TURN_OVERRUN, run_battery_for};
 use sweep::blend::{BlendDecision, BlendError, BlendKind};
 use sweep::test_support::{
@@ -22,11 +22,13 @@ use sweep::test_support::{
 use topo::boolean::BooleanOp;
 use topo::{Body, EdgeKey, EntityId};
 
-use crate::band_planar_cut_off::{D, edge, tol};
+use crate::band_planar_cut_off::{D, edge, tol, volume};
 use crate::band_turn_overrun_probe::{
-    Cone, V, Verb, across, add, cross, dot, measure, mul, norm, sub,
+    Cone, V, Verb, across, add, cross, dot, measure, mul, norm, sub, unit,
 };
-use crate::common::operands::{leaning_turn, leaning_turn_at, parallelepiped};
+use crate::common::operands::{
+    edge_between, leaning_turn, leaning_turn_at, parallelepiped, parallelepiped_at,
+};
 
 fn point(v: V) -> Point3<f64> {
     Point3::new(v[0], v[1], v[2])
@@ -109,12 +111,67 @@ fn corner(c: &Cone) -> (Body<f64>, [EdgeKey; 2]) {
     (body, edges)
 }
 
-/// The probe's closed forms on `c`: the gap (positive where `e₁`'s foot
-/// is further) and each band's chord were it the further.
+/// The closed forms on `c`: the probe's gap (positive where `e₁`'s foot
+/// is further) and each band's chord were it the further. A chamfer's
+/// chord is the gap times `sin φⱼ / sin θ`, the triangle on the near
+/// face `Fⱼ` whose angle at the near foot is `φⱼ` and at the mitre's
+/// end `θ`, between `eⱼ` and band `k`'s plane's trace on `Fⱼ` — that
+/// plane's normal `n_S + n_k`, the bisector of its two supports'. A
+/// fillet's is the probe's mitre end against the far foot.
 fn closed(c: &Cone, verb: Verb) -> (f64, [f64; 2]) {
     let t = measure(c, verb, D, 2);
-    let chord = |k: usize| norm(sub(t.q[1 - k], mul(c.l, t.feet[k])));
-    (t.feet[0] - t.feet[1], [chord(0), chord(1)])
+    let gap = t.feet[0] - t.feet[1];
+    let chord = |k: usize| {
+        let j = 1 - k;
+        match verb {
+            Verb::Chamfer => {
+                let trace = unit(cross(add(c.n_s, c.n[k]), c.n[j]));
+                gap.abs() * norm(cross(c.e[j], c.l)) / norm(cross(trace, c.e[j]))
+            }
+            Verb::Fillet => norm(sub(t.q[j], mul(c.l, t.feet[k]))),
+        }
+    };
+    (gap, [chord(0), chord(1)])
+}
+
+/// The corner of `body` the two requested edges turn at, read off its
+/// points alone, `e₁` then `e₂` in `edges`' order and `L` its third
+/// edge — so the closed forms on it share nothing with the battery.
+pub(crate) fn cone_of(body: &Body<f64>, edges: [EdgeKey; 2]) -> Cone {
+    let ends = |e: EdgeKey| {
+        let he = body.get_edge(e).expect("an edge").he_plus;
+        [
+            body.get_half_edge(he).expect("a half-edge").start,
+            body.half_edge_end(he).expect("an end"),
+        ]
+    };
+    let at = |v| {
+        let p = body
+            .get_point(body.get_vertex(v).expect("a vertex").point)
+            .expect("a point");
+        [p.x, p.y, p.z]
+    };
+    let vertex = ends(edges[0])
+        .into_iter()
+        .find(|v| ends(edges[1]).contains(v))
+        .expect("the two edges share a vertex");
+    let out = |e: EdgeKey| {
+        let [a, b] = ends(e);
+        sub(at(if a == vertex { b } else { a }), at(vertex))
+    };
+    let thirds: Vec<EdgeKey> = topo::query::all_edges(body)
+        .into_iter()
+        .filter(|e| !edges.contains(e) && ends(*e).contains(&vertex))
+        .collect();
+    let [third] = thirds[..] else {
+        panic!("a trivalent corner: {} other edges", thirds.len())
+    };
+    Cone::of(out(third), out(edges[0]), out(edges[1]))
+}
+
+/// The band whose foot on `L` the closed forms put further.
+pub(crate) fn far_band(body: &Body<f64>, edges: [EdgeKey; 2], verb: Verb) -> usize {
+    usize::from(closed(&cone_of(body, edges), verb).0 < 0.0)
 }
 
 fn kind(verb: Verb) -> BlendKind {
@@ -135,12 +192,12 @@ enum Outcome {
     Refused(String),
 }
 
-fn outcome(body: &Body<f64>, edges: [EdgeKey; 2], verb: Verb) -> Outcome {
+fn outcome<T: Decide + Bounds>(body: &Body<T>, edges: [EdgeKey; 2], verb: Verb) -> Outcome {
     let band = Band::linear(tol()).expect("the run's band");
     let request = BlendRequest {
         body,
         edges: edges.to_vec(),
-        size: D,
+        size: T::from_f64(D),
     };
     match run_battery_for(&request, band, kind(verb)) {
         Ok(verdict) => {
@@ -294,21 +351,22 @@ fn window(what: &str, skews: &[f64], at: impl Fn(f64) -> Outcome) -> Window {
 /// back. The band is narrow: the readings move linearly in the skew,
 /// so they leave it within a decade, about `1e-6°…1e-5°` at `D = 0.1`
 /// and the default band. The box corner's chamfer is the exception:
-/// both its readings move quadratically there (the gap as `d·s²/2` in
-/// the lean `s`), so it mitres up to about `0.007°` and escalates to
-/// about `0.02°`. Each window scales with the run's band.
+/// both its readings move quadratically there, the gap as `d·s²/2` in
+/// the lean `s` and the chord `√2` times it, so it mitres until the
+/// chord leaves the zero band (`≈0.0068°` at the default band) and
+/// overruns once the gap is definite (`≈0.0256°`); its row brackets
+/// both edges, computed from the run's band.
 #[test]
 fn the_verdict_escalates_only_in_a_narrow_band_around_a_coincidence() {
-    // The skews scale with the run's band: as its zero over the default
-    // run's where the readings are linear in the skew, as its square
-    // root at the box corner's chamfer, where they are quadratic.
+    // Where the readings are linear in the skew, the skews scale with
+    // the run's band as its zero over the default run's.
     let z = Band::linear(tol()).expect("the run's band").zero() / 1e-9;
     let skews = |from: f64| -> Vec<f64> {
         (0..=24)
             .map(|i| from * 10f64.powf(f64::from(i) / 6.0))
             .collect()
     };
-    let (linear, quadratic) = (skews(1e-6 * z), skews(1e-4 * z.sqrt()));
+    let linear = skews(1e-6 * z);
     let at_box = |verb: Verb| {
         move |skew: f64| {
             let (body, edges) = leaning_turn(skew.to_radians().tan());
@@ -334,12 +392,29 @@ fn the_verdict_escalates_only_in_a_narrow_band_around_a_coincidence() {
             "{what}: escalates within {lo:e}°…{hi:e}°, then overruns: {w:?}"
         );
     };
-    let r = z.sqrt();
-    let chamfer_box = window("box chamfer", &quadratic, at_box(Verb::Chamfer));
-    inside(&chamfer_box, (3e-3 * r, 3e-2 * r), "box chamfer");
+    // The box chamfer's edges: the mitre holds while the chord
+    // `√2·d·s²/2` is Zero, and the overrun starts where the gap `d·s²/2`
+    // is definite; sampled at 24 per decade, each edge within a step.
+    let band = Band::linear(tol()).expect("the run's band");
+    let (mitre_end, overrun_from) = (
+        (2f64.sqrt() * band.zero() / D).sqrt().to_degrees(),
+        (2.0 * band.escalate() / D).sqrt().to_degrees(),
+    );
+    let fine: Vec<f64> = (0..=48)
+        .map(|i| mitre_end / 10.0 * 10f64.powf(f64::from(i) / 24.0))
+        .collect();
+    let chamfer_box = window("box chamfer", &fine, at_box(Verb::Chamfer));
+    let step = 10f64.powf(1.0 / 24.0) * 1.01;
     assert!(
-        chamfer_box.mitre.is_some_and(|m| m > 3e-3 * r),
-        "the box chamfer mitres to a few thousandths of a degree: {chamfer_box:?}"
+        chamfer_box
+            .mitre
+            .is_some_and(|m| mitre_end / step <= m && m <= mitre_end * 1.01)
+            && chamfer_box
+                .overrun
+                .is_some_and(|o| overrun_from / 1.01 <= o && o <= overrun_from * step)
+            && chamfer_box.escalated.is_some(),
+        "the box chamfer mitres to {mitre_end:e}° and overruns from {overrun_from:e}°: \
+         {chamfer_box:?}"
     );
     let fillet_box = window("box fillet", &linear, at_box(Verb::Fillet));
     inside(&fillet_box, (1e-6 * z, 1e-5 * z), "box fillet");
@@ -450,10 +525,10 @@ fn the_witnesses_read_the_probes_table() {
     for (what, body, edges, want) in rows {
         for (verb, want) in [Verb::Chamfer, Verb::Fillet].into_iter().zip(want) {
             let (gap, chords) = turn_readings(&body, edges, D, kind(verb), tol());
+            let (closed_gap, _) = closed(&cone_of(&body, edges), verb);
             assert!(
-                (gap.abs() / D - want).abs() < 5e-4,
-                "{what} ({verb:?}): gap/size {} against the table's {want}",
-                gap.abs() / D
+                (closed_gap.abs() / D - want).abs() < 5e-4 && (gap - closed_gap).abs() < 1e-9 * D,
+                "{what} ({verb:?}): gap {gap:e}, the closed form {closed_gap:e}, the table's {want}·size"
             );
             let got = outcome(&body, edges, verb);
             if want == 0.0 {
@@ -463,70 +538,147 @@ fn the_witnesses_read_the_probes_table() {
                     "{what}: chords {chords:?}"
                 );
             } else {
-                let far = usize::from(gap < 0.0);
+                let far = far_band(&body, edges, verb);
                 assert_eq!(got, Outcome::Overrun(far), "{what} ({verb:?})");
             }
         }
     }
 }
 
+/// A replayed corner: its name, then its body and requested edges at
+/// `f64` and at `Interval`.
+type Replay = (
+    String,
+    Body<f64>,
+    [EdgeKey; 2],
+    Body<Interval>,
+    [EdgeKey; 2],
+);
+
 /// **The `Interval` replay brackets `f64` on both sides**: the box
 /// corner at leans that mitre, escalate and overrun for the chamfer
-/// (`skew` `1e-3°`, `0.015°`, `atan 0.5`) and at `−0.5`, both verbs —
-/// every reading's enclosure holds the `f64` reading, the enclosures
-/// are claims (narrow), and the verdict at `Interval` is the `f64` one
-/// wherever `f64` decided.
+/// (`skew` `1e-3°`, `0.015°`, `atan 0.5`) and at `−0.5`, and the sheared
+/// box's supplementary corner, both verbs — every reading's enclosure
+/// holds the `f64` reading and is narrow (rounding's width, far inside
+/// the zero band), and the verdict at `Interval` is the `f64` one: the
+/// supplementary chamfer mitres there too.
 #[test]
 fn the_interval_readings_bracket_the_f64_readings() {
     use crate::common::interval::iv;
-    let leans = [
+    let mut cases: Vec<Replay> = [
         1e-3f64.to_radians().tan(),
         0.015f64.to_radians().tan(),
         0.5,
         -0.5,
-    ];
-    for s in leans {
+    ]
+    .into_iter()
+    .map(|s| {
         let (body, edges) = leaning_turn(s);
         let (ibody, iedges) = leaning_turn_at::<Interval>(s);
+        (format!("lean {s:e}"), body, edges, ibody, iedges)
+    })
+    .collect();
+    let s = 0.3;
+    let (body, ibody) = (parallelepiped(s), parallelepiped_at::<Interval>(s));
+    let (w, ends) = ([2.0 + s, s, 1.0], [[s, s, 1.0], [2.0 + s, 1.5 + s, 1.0]]);
+    let (edges, iedges) = (
+        ends.map(|e| edge_between(&body, w, e)),
+        ends.map(|e| edge_between(&ibody, w, e)),
+    );
+    cases.push((
+        "sheared box, supplementary".into(),
+        body,
+        edges,
+        ibody,
+        iedges,
+    ));
+    for (what, body, edges, ibody, iedges) in &cases {
         for verb in [Verb::Chamfer, Verb::Fillet] {
-            let what = format!("lean {s:e} ({verb:?})");
-            let (g, ch) = turn_readings(&body, edges, D, kind(verb), tol());
-            let (ig, ich) = turn_readings_interval(&ibody, iedges, iv(D), kind(verb), tol());
+            let what = format!("{what} ({verb:?})");
+            let (g, ch) = turn_readings(body, *edges, D, kind(verb), tol());
+            let (ig, ich) = turn_readings_interval(ibody, *iedges, iv(D), kind(verb), tol());
             for (x, ix, name) in [
                 (g, ig, "gap"),
                 (ch[0], ich[0], "chord 1"),
                 (ch[1], ich[1], "chord 2"),
             ] {
                 assert!(
-                    ix.lo() <= x && x <= ix.hi() && ix.hi() - ix.lo() < 1e-9,
+                    ix.lo() <= x && x <= ix.hi() && ix.hi() - ix.lo() < 1e-12,
                     "{what}: the {name}'s enclosure {ix:?} brackets {x:e}"
                 );
             }
-            let f = outcome(&body, edges, verb);
-            let band = Band::linear(tol()).expect("the run's band");
-            let i = match run_battery_for(
-                &BlendRequest {
-                    body: &ibody,
-                    edges: iedges.to_vec(),
-                    size: iv(D),
-                },
-                band,
-                kind(verb),
-            ) {
-                Ok(_) => Outcome::Mitre,
-                Err(BlendError::UnsupportedRunOut {
-                    at: EntityId::Edge(e),
-                    detail,
-                }) if detail == TURN_OVERRUN => Outcome::Overrun(
-                    iedges
-                        .iter()
-                        .position(|x| *x == e)
-                        .expect("a requested edge"),
-                ),
-                Err(BlendError::Escalated { decision, .. }) => Outcome::Escalated(decision),
-                Err(e) => Outcome::Refused(e.to_string()),
-            };
-            assert_eq!(i, f, "{what}: the verdict at Interval");
+            let f = outcome(body, *edges, verb);
+            if let Outcome::Overrun(far) = f {
+                assert_eq!(far, far_band(body, *edges, verb), "{what}: the far band");
+            }
+            assert_eq!(
+                outcome(ibody, *iedges, verb),
+                f,
+                "{what}: the verdict at Interval"
+            );
         }
     }
+    let (_, body, edges, ..) = &cases[4];
+    assert_eq!(
+        outcome(body, *edges, Verb::Chamfer),
+        Outcome::Mitre,
+        "the supplementary chamfer mitres"
+    );
+}
+
+/// **The supplementary corner, concave**: the sheared box cut up into a
+/// block from below, its top corner `(2 + s, s, 1)` now the pocket's
+/// ceiling corner. Its readings are the convex corner's — they read the
+/// cone alone — and the chamfer mitres there too, tier-3 valid with its
+/// row recorded; the fillet overruns.
+#[test]
+fn the_concave_supplementary_corner_reads_and_decides_as_the_convex_one() {
+    let s = 0.3;
+    let (w, ends) = ([2.0 + s, s, 1.0], [[s, s, 1.0], [2.0 + s, 1.5 + s, 1.0]]);
+    let convex = parallelepiped(s);
+    let block =
+        crate::common::cavity::brick(Point3::new(-1.0, -1.0, 0.5), Point3::new(4.0, 3.0, 2.0));
+    let concave = realized(BooleanOp::Subtract, &block, &convex, tol());
+    let vex = ends.map(|e| edge_between(&convex, w, e));
+    let cav = ends.map(|e| edge_between(&concave, w, e));
+    for verb in [Verb::Chamfer, Verb::Fillet] {
+        let (g, ch) = turn_readings(&convex, vex, D, kind(verb), tol());
+        let (cg, cch) = turn_readings(&concave, cav, D, kind(verb), tol());
+        assert!(
+            (g - cg).abs() < 1e-12
+                && (ch[0] - cch[0]).abs() < 1e-12
+                && (ch[1] - cch[1]).abs() < 1e-12,
+            "{verb:?}: convex gap {g:e} chords {ch:?}, concave gap {cg:e} chords {cch:?}"
+        );
+        let want = match verb {
+            Verb::Chamfer => Outcome::Mitre,
+            Verb::Fillet => Outcome::Overrun(far_band(&concave, cav, verb)),
+        };
+        assert_eq!(outcome(&concave, cav, verb), want, "{verb:?}, concave");
+    }
+    let out = sweep::blend::build::chamfer_edges(
+        &sweep::test_support::at_rest(&concave, tol()),
+        &cav,
+        D,
+        tol(),
+    )
+    .unwrap_or_else(|r| panic!("the concave supplementary chamfer builds, got {}", r.error));
+    topo::validate_geometric(&out.body, tol())
+        .unwrap_or_else(|e| panic!("the concave supplementary chamfer is tier-3 valid: {e:?}"));
+    assert!(
+        out.coincidences
+            .iter()
+            .any(|r| r.relation == topo::Relation::CommonFoot),
+        "the concave supplementary chamfer records its common foot"
+    );
+    // The two band prisms `½d² sin β · len` (`sin β = 1/k`, lengths 2
+    // and 1.5) less their overlap, the pyramid on the `d × d` square
+    // whose apex is the common foot, `d/k` off the ceiling.
+    let k = (1.0 + s * s).sqrt();
+    let want = (0.5 * D * D * 3.5 - D * D * D / 3.0) / k;
+    let added = volume(&out.body) - volume(&concave);
+    assert!(
+        (added - want).abs() < 1e-10,
+        "the concave supplementary chamfer adds {added}, the closed form {want}"
+    );
 }

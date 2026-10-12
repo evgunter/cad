@@ -311,7 +311,7 @@ fn corner_config_is_matchable(corner: CornerConfig) -> &'static str {
         // whose policy is the cut-off the tag's map assigns.
         CornerConfig::EndFace => "end_face",
         // Two of three edges requested: the mitre, built where the
-        // faces are symmetric about the third.
+        // two bands' feet on the third edge meet.
         CornerConfig::Turn => "turn",
         CornerConfig::Indeterminate => "indeterminate",
     }

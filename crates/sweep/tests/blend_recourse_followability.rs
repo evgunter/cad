@@ -68,6 +68,7 @@ use sweep::blend::{
     FILLET3_CONVEXITY_RECOURSE, FILLET3_CORNER_INDEPENDENCE_RECOURSE, FILLET3_CORNER_RECOURSE,
     FILLET3_GEOMETRY_RECOURSE, FILLET3_RADIUS_RECOURSE, FILLET3_RING_RECOURSE,
     FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE, FILLET3_TANGENTIAL_RECOURSE,
+    FILLET3_TURN_RECOURSE,
 };
 use sweep::test_support::{
     ROD_FILLET, cube, dome, one_edge_rim_at, prism, realized, rim_arcs_at, rod_creases,
@@ -443,6 +444,56 @@ fn the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds() {
     );
     carries(&later, FILLET3_CORNER_RECOURSE, "turn foot");
     builds(&body, &corner, 0.1, "the third edge in the same call");
+}
+
+/// **`FILLET3_TURN_RECOURSE` — "make the two bands' feet meet, or
+/// request that edge too".** The leaning wall's chamfer at a lean the
+/// turn reads in band (`band_turn_overrun_verdict`'s window, scaled
+/// with the run's band) escalates and carries the sentence. Each end it
+/// names builds: the feet meeting at equal face angles (no lean) and at
+/// supplementary ones (the sheared box's corner), and the third edge
+/// requested in the same call, the corner patch.
+#[test]
+fn the_turn_recourse_builds_at_each_end_it_names() {
+    use crate::band_planar_cut_off::edge;
+    use crate::common::operands::{leaning_turn, parallelepiped};
+    let r = (Band::linear(tol()).expect("the run's band").zero() / 1e-9).sqrt();
+    let s = (0.015 * r).to_radians().tan();
+    let (leaning, bands) = leaning_turn(s);
+    let err = refusal(&leaning, &bands, 0.1, "a turn in band", true);
+    assert!(
+        matches!(
+            err,
+            BlendError::Escalated {
+                decision: BlendDecision::TurnFeetGap
+                    | BlendDecision::TurnOverrunChord
+                    | BlendDecision::TurnFeet,
+                ..
+            }
+        ),
+        "a turn in band escalates on its readings, got {err:?}"
+    );
+    carries(&err, FILLET3_TURN_RECOURSE, "a turn in band");
+    let (square, turn) = leaning_turn(0.0);
+    chamfers(&square, &turn, 0.1, "equal face angles");
+    let sheared = parallelepiped(0.3);
+    let w = [2.3, 0.3, 1.0];
+    chamfers(
+        &sheared,
+        &[
+            edge(&sheared, w, [0.3, 0.3, 1.0]),
+            edge(&sheared, w, [2.3, 1.8, 1.0]),
+        ],
+        0.1,
+        "supplementary face angles",
+    );
+    let third = edge(&leaning, [s, 0.0, 1.0], [0.0, 0.0, 0.0]);
+    chamfers(
+        &leaning,
+        &[bands[0], bands[1], third],
+        0.1,
+        "the third edge in the same call",
+    );
 }
 
 /// **`FILLET3_CORNER_INDEPENDENCE_RECOURSE` — followed by each of its

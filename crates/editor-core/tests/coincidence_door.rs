@@ -423,6 +423,7 @@ fn a_patterns_instances_are_two_constructions_of_one_minted_face() {
 fn edge_named(ev: &Evaluation<f64>, node: RecipeNodeId, a: [f64; 3], b: [f64; 3]) -> StableName {
     let body = match &ev.value(node).expect("the node evaluated").payload {
         ValuePayload::Body(b) => b.clone(),
+        ValuePayload::Boolean(editor_core::BooleanValue::Body { body, .. }) => body.clone(),
         other => panic!("expected a body, got {other:?}"),
     };
     let point = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
@@ -502,6 +503,75 @@ fn a_filleted_box_records_one_unproven_turn_per_corner() {
          from the variables: no special recourse"
     );
     assert_eq!(unproven(&doc, &ev).len(), 8);
+}
+
+/// **A supplementary chamfer's turn reaches the door unproven.** The
+/// sheared box `{0 ≤ z ≤ 1, s z ≤ x ≤ 2 + s z, s z ≤ y ≤ 1.5 + s z}`,
+/// two sheared prisms intersected, has a top corner `(2 + s, s, 1)`
+/// whose two top edges make supplementary angles with its lateral edge:
+/// the chamfer's feet on that edge are one point, so its two top edges
+/// chamfered mitre and record one `CommonFoot` row, which the door takes
+/// and does not prove — the same freeze as the box's
+/// (`work/sym/the-mitres-feet-distance-freezes-at-sym.md`).
+#[test]
+fn a_supplementary_chamfer_turn_is_recorded_unproven() {
+    let s = 0.3;
+    let (z0, z1) = (-0.5, 1.5);
+    let doc = ProfileDoc::empty_derived("coincide-supplementary", Tol::witness());
+    let (doc, along_y) = on_frame(
+        doc,
+        [0.0, 3.5, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0],
+        vec![vec![(0.0, 0.0), (2.0, 0.0), (2.0 + s, 1.0), (s, 1.0)]],
+    );
+    let (doc, along_x) = on_frame(
+        doc,
+        [3.5, 0.0, 0.0],
+        [0.0, -1.0, 0.0],
+        [0.0, 0.0, 1.0],
+        vec![vec![
+            (-1.5 - s * z0, z0),
+            (-s * z0, z0),
+            (-s * z1, z1),
+            (-1.5 - s * z1, z1),
+        ]],
+    );
+    let extrude = |profile: RecipeNodeId| Node::Extrude {
+        profile: profile.into(),
+        distance: len(5.0),
+        side: editor_core::ExtrudeSide::Along,
+    };
+    let (doc, y) = insert(doc, extrude(along_y));
+    let (doc, x) = insert(doc, extrude(along_x));
+    let (doc, sheared) = insert(
+        doc,
+        Node::Intersect {
+            members: editor_core::Bodies::Spelled(vec![y.into(), x.into()]),
+        },
+    );
+    let ev = run(&doc);
+    let w = [2.0 + s, s, 1.0];
+    let edges = vec![
+        edge_named(&ev, sheared, w, [s, s, 1.0]),
+        edge_named(&ev, sheared, w, [2.0 + s, 1.5 + s, 1.0]),
+    ];
+    let (doc, chamfer) = insert(doc, Node::chamfer(sheared, len(0.1), edges));
+    let ev = run(&doc);
+    let got = rows(&ev, chamfer);
+    let [row] = &got[..] else {
+        panic!("one turn, one row: {got:?}")
+    };
+    assert_eq!(
+        (row.relation, row.site),
+        (Relation::CommonFoot, DecisionSite::BatteryTurn)
+    );
+    let proved = proofs(&doc, chamfer, &got);
+    assert!(
+        matches!(proved[..], [Proof::Unproven { .. }]),
+        "the door takes the supplementary turn and does not prove it: {proved:?}"
+    );
+    assert_eq!(unproven(&doc, &ev).len(), 1);
 }
 
 /// `profile` extruded one unit and split by the plane `y = at`.

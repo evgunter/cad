@@ -971,7 +971,7 @@ impl fmt::Display for CornerConfig {
             Self::Turn => write!(
                 f,
                 "a turn: two of the vertex's three edges are requested, which the mitre \
-                 joins (built where the faces are symmetric about the third)"
+                 joins (built where the two bands' feet on the third edge meet)"
             ),
             Self::Indeterminate => write!(f, "a vertex whose configuration did not classify"),
         }
@@ -1114,14 +1114,16 @@ pub const FILLET3_CORNER_RECOURSE: &str = "end chains at trivalent vertices of o
 /// The lever of a turn's two readings (`fillet3_turn_feet_gap`,
 /// `fillet3_turn_overrun_chord`, and their straddle
 /// `fillet3_turn_feet`): in band, the two bands' feet on the third
-/// edge are neither one point nor clearly apart, so the way out is
-/// either, or the corner patch, which the third edge requested
-/// alongside builds. A chamfer's foot stands `d / sin φ` down the
-/// third edge, so its feet also meet at supplementary face angles.
+/// edge are neither one point nor clearly apart, so the way out is one
+/// point, or the corner patch, which the third edge requested alongside
+/// builds. A chamfer's foot stands `d / sin φ` down the third edge, so
+/// its feet also meet at supplementary face angles. Feet clearly apart
+/// are no way out: the overrun refuses ([`battery::TURN_OVERRUN`]).
+/// Held to it by
+/// `blend_recourse_followability::the_turn_recourse_builds_at_each_end_it_names`.
 pub const FILLET3_TURN_RECOURSE: &str = "make the two bands' feet on the vertex's third edge meet \
-     (equal face angles beside that edge, or for a chamfer supplementary ones), move them clearly \
-     apart (a larger setback, or a more asymmetric corner), or request that edge too, which builds \
-     the corner patch";
+     (equal face angles beside that edge, or for a chamfer supplementary ones), or request that \
+     edge too, which builds the corner patch";
 /// The lever of `fillet3_cap_transverse`: its in-band arm is the one
 /// refusal, between the two kinds it builds, so the way out is either
 /// kind, plainly.

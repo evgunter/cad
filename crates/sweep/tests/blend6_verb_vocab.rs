@@ -111,7 +111,7 @@ fn a_chamfer_caller_reads_the_chamfer_verb_over_a_shared_run_out() {
 }
 
 /// The shared BATTERY refusal under the chamfer's verb: a turn whose
-/// faces are not symmetric about its third edge, the overrun past the
+/// bands' feet on its third edge stand apart, the overrun past the
 /// mitre that no band builds.
 #[test]
 fn a_chamfer_caller_reads_the_chamfer_verb_over_a_shared_turn() {

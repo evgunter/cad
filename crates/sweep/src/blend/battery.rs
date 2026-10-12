@@ -2122,16 +2122,13 @@ pub struct Turn<T: Real> {
 ///   reads Zero no band is `k`, and the chord is the larger of the two
 ///   bands' readings.
 ///
-/// Near a coincidence a chamfer's chord is not proportional to its
-/// gap: their ratio moves with the corner, and at a box corner the gap
-/// closes quadratically in the skew while the chord closes linearly.
-/// So neither reading alone decides. Both Zero builds the mitre and
-/// records the coincidence: the feet are one point, which for a fillet
-/// is the isosceles trihedron and for a chamfer also the
-/// supplementary one. Both definite is the overrun on the side the
-/// sign picks, which refuses ([`TURN_OVERRUN`]). Anything else
-/// escalates: one reading in band, or the two decided on different
-/// sides of it (`fillet3_turn_feet`).
+/// A chamfer's chord is the gap times `sin φ_j / sin θ`, `φ_j` the near
+/// band's face angle and `θ` the angle on its face of `third` between
+/// its edge and band `k`'s plane: at least `sin φ_j`, unbounded toward
+/// a T, so neither reading alone decides (the turn clause in
+/// `crates/sweep/README.md`). Both Zero builds the mitre and records
+/// the coincidence; both definite is the overrun on the side the sign
+/// picks, which refuses ([`TURN_OVERRUN`]); anything else escalates.
 ///
 /// # Errors
 ///
@@ -2158,8 +2155,8 @@ fn turn_at<T: Decide>(
         chords,
     } = turn_reading(body, vertex, links, third)?;
     let margin = match turn_verdict(vertex, gap, chords, band)? {
-        Ok(margin) => margin,
-        Err(far) => {
+        TurnVerdict::Mitre(margin) => margin,
+        TurnVerdict::Overrun { far } => {
             return Err(super::surgery::unbuilt_run_out(
                 EntityId::Edge(links[far].edge),
                 TURN_OVERRUN,
@@ -2185,10 +2182,18 @@ fn turn_at<T: Decide>(
     })
 }
 
-/// **The turn's verdict on its two readings** ([`turn_at`]): `Ok` with
-/// the margin the coincidence records where both read Zero, `Err` with
-/// the far band's index where both read definite on one side, and an
-/// escalation otherwise.
+/// What a turn's two readings decide ([`turn_verdict`]).
+#[derive(Debug, PartialEq)]
+pub(crate) enum TurnVerdict {
+    /// Both Zero: the feet are one point, and the coincidence records
+    /// this margin.
+    Mitre(MarginDiag),
+    /// Both definite on one side: band `far`'s foot is further.
+    Overrun { far: usize },
+}
+
+/// **The turn's verdict on its two readings** ([`turn_at`]), escalating
+/// where they do not decide one outcome.
 ///
 /// # Errors
 ///
@@ -2199,7 +2204,7 @@ pub(crate) fn turn_verdict<T: Decide>(
     gap: T,
     chords: [T; 2],
     band: Band,
-) -> Result<Result<MarginDiag, usize>, BlendError> {
+) -> Result<TurnVerdict, BlendError> {
     let site = BlendSite::Joint { vertex };
     let feet = classify_reported(site, BlendDecision::TurnFeetGap, Margin::of(gap), band)?;
     let reach = match feet.sign {
@@ -2213,6 +2218,8 @@ pub(crate) fn turn_verdict<T: Decide>(
         Margin::of(reach),
         band,
     )?;
+    // Two lengths on one scale, read for one fact (the feet one point or
+    // apart): the straddle hulls their margins under the pair's name.
     if feet.sign != overrun.sign {
         let (lower, upper) = if feet.sign < overrun.sign {
             (feet, overrun)
@@ -2228,9 +2235,9 @@ pub(crate) fn turn_verdict<T: Decide>(
         ));
     }
     Ok(match feet.sign {
-        Sign::Zero => Ok(feet.margin.jointly(overrun.margin)),
-        Sign::Positive => Err(0),
-        Sign::Negative => Err(1),
+        Sign::Zero => TurnVerdict::Mitre(feet.margin.jointly(overrun.margin)),
+        Sign::Positive => TurnVerdict::Overrun { far: 0 },
+        Sign::Negative => TurnVerdict::Overrun { far: 1 },
     })
 }
 
@@ -3095,9 +3102,18 @@ mod turn_verdict_rows {
         let band = Band::new(1e-9, 1e-8).unwrap();
         let v = VertexKey::default();
         let (z, d) = (1e-10, 1e-6);
-        assert!(matches!(turn_verdict(v, z, [z, 0.0], band), Ok(Ok(_))));
-        assert_eq!(turn_verdict(v, d, [d, 1.0], band).unwrap(), Err(0));
-        assert_eq!(turn_verdict(v, -d, [1.0, d], band).unwrap(), Err(1));
+        assert!(matches!(
+            turn_verdict(v, z, [z, 0.0], band),
+            Ok(TurnVerdict::Mitre(_))
+        ));
+        assert_eq!(
+            turn_verdict(v, d, [d, 1.0], band).unwrap(),
+            TurnVerdict::Overrun { far: 0 }
+        );
+        assert_eq!(
+            turn_verdict(v, -d, [1.0, d], band).unwrap(),
+            TurnVerdict::Overrun { far: 1 }
+        );
         for (gap, chords, decision) in [
             (5e-9, [d, d], BlendDecision::TurnFeetGap),
             (d, [5e-9, d], BlendDecision::TurnOverrunChord),
