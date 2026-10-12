@@ -1,0 +1,4 @@
+fork: five-conventions-pick-a-conventional-smooth-edges-chart
+dispatched: 2026-10-12
+byte: 32
+mapping: A=opus B=fable
