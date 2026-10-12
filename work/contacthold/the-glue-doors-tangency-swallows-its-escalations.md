@@ -2,10 +2,12 @@
 id: the-glue-doors-tangency-swallows-its-escalations
 kind: issue
 title: The glue door's tangency read swallows every refusal, escalations included, so an in-band tangency surfaces later as CurvedBooleanUnsupported
-status: open
+status: review
 opened: 2026-10-12
 priority: P3
 cost: E
+branch: contacthold/glue-door-escalates
+pr: 4918
 ---
 
 
@@ -44,3 +46,16 @@ stadium, the kiss with overlap, a plane covering part of a hole's ruling)
 answer since `resolve_edge_sector` lumps them; this row's escalation is
 the last route by which a pair the lane has a locus for reaches the
 frontier refusal.
+
+## Fixed (PR 4918)
+
+The door now propagates `TangencyFailure::Refused` and an undecidable
+rim identity; counter-evidence, a pair outside the lane and a rim
+junction the routing places outside what the zip builds
+(`TangencyFailure::Unrouted`) stay no tangency. Of the refusals the
+door used to swallow, two were not in-band tangencies and are fixed
+where they start: `contact_verify::on_surface` and the touch's span
+line refuse `NotCertifiable` where every reading is definite and only
+the sag stands past the band (the G1 tube chain), and
+`geom_brep::tangent_locus` answers `NotTangent` on a definite gap
+before an in-band axis tilt (the leaned ruling).
