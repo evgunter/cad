@@ -57,3 +57,31 @@ the carry drops the face span, and the cut's new ends on the apex edge
 have nothing to inherit. Carrying an edge–face record through the cut's
 lineage (onto the pieces whose interiors still meet the face, as D1
 rules for an edge–edge one) is this row's owed step for that kind.
+
+## 2026-10-12 — the carried kinds exist; two witnesses still owed (CONTACTHOLD)
+
+`contacthold/face-face-touch-row` builds the carried kinds:
+`OperandRecords::ef` and `::ff` (`EfContact`, `FfContact`), filed by
+`ContactRecords::carried`, validated at the op door
+(`validate_declarations`), carried through the one carry
+(`ops::carried_rows`, `records::landings`) and filed back by
+`ops::Rows::push`, which no longer refuses an edge–face or face–face
+landing. A record whose census confirm has no lane now refuses the op
+(`CarryRefused { Unread }`) instead of vanishing.
+
+Measured on that branch:
+
+- A face–face record lands through a later op: `sweep`
+  `face_face_touch::a_rod_on_a_plate_records_its_touch_and_a_bridge_lands_it`
+  (rod on a plate, then a bridging union carrying the record).
+- `review_4737_span_battery`'s `plate I x` lines: the apex edge's span
+  record now lands (`records=[0, 0, 0, 0, 1, 0]` where it was all
+  zeros), but the same 18 lines still refuse 3′, on the cut's new ends
+  on the apex edge (`UnrecordedContact VertexOnEdge`) and on one piece's
+  span (`UnrecordedContact EdgeFaceOverlap` at `(0.0, 0.5, 0.9615)`).
+  That is the carry implying the records at a cut's new ends from a
+  landed span, which this row still owes.
+
+Still owed: that, and the three-member fold witness, which waits on a
+fold step minting the face–face row at all
+(`work/contacthold/a-union-fold-step-mints-no-face-face-row-for-a-given-tangency.md`).

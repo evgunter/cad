@@ -540,6 +540,29 @@ pub struct EeContact {
     pub b: crate::entity::EdgeKey,
 }
 
+/// An edge whose interior meets a face's, within one operand carried
+/// back into an op ([`OperandRecords`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EfContact {
+    /// The edge.
+    pub edge: crate::entity::EdgeKey,
+    /// The face.
+    pub face: FaceKey,
+}
+
+/// Two faces whose interiors meet along a tangent line: within one
+/// operand carried back into an op, both that operand's
+/// ([`OperandRecords`]); in the reduction's working set, `a` a face of A
+/// and `b` one of B, each in its operand clone's keys
+/// ([`ReductionContacts`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FfContact {
+    /// One face.
+    pub a: FaceKey,
+    /// The other.
+    pub b: FaceKey,
+}
+
 /// One edge split a boolean's reduction made in an operand clone:
 /// `parent` keeps its key and its leading span, from its start to the
 /// new `vertex`, and `child` runs from `vertex` to the parent's old
@@ -599,13 +622,19 @@ pub struct ReductionContacts {
     /// citing the vertex records at its two ends (`touch_rows`). Written
     /// by the classification, so empty at the sweep.
     pub ee: Vec<Cited<EeContact>>,
+    /// Faces of A and B tangent along a line through both interiors,
+    /// each citing the glue door's tangency decision
+    /// ([`verify_tangency`]). Written at the door, whatever the op: the
+    /// carry keeps a row where both faces survive.
+    pub ff: Vec<Cited<FfContact>>,
 }
 
 impl ReductionContacts {
     /// Every row as its two operand-tagged cells and its citations, in
     /// one fixed order: the vertex pairs (A's vertex, B's), then A's
     /// vertices on B's faces, then B's on A's, each vertex first, then
-    /// the edge pairs (A's edge, B's).
+    /// the edge pairs (A's edge, B's), then the face pairs (A's face,
+    /// B's).
     pub fn rows(&self) -> impl Iterator<Item = ([(Operand, Cell); 2], &Cites)> + '_ {
         let vv = self.vv.iter().map(|c| {
             (
@@ -634,9 +663,16 @@ impl ReductionContacts {
                 &c.cites,
             )
         });
+        let ff = self.ff.iter().map(|c| {
+            (
+                [(Operand::A, Cell::Face(c.a)), (Operand::B, Cell::Face(c.b))],
+                &c.cites,
+            )
+        });
         vv.chain(vf(Operand::A, Operand::B, &self.a_on_b))
             .chain(vf(Operand::B, Operand::A, &self.b_on_a))
             .chain(ee)
+            .chain(ff)
     }
 }
 
@@ -655,6 +691,10 @@ pub struct OperandRecords {
     pub ve: Vec<CarriedRecord<VeContact>>,
     /// Edge-edge records within the operand.
     pub ee: Vec<CarriedRecord<EeContact>>,
+    /// Edge-face records within the operand.
+    pub ef: Vec<CarriedRecord<EfContact>>,
+    /// Face-face records within the operand.
+    pub ff: Vec<CarriedRecord<FfContact>>,
 }
 
 /// A record of the operand's own list carried back in, and its index
@@ -671,8 +711,20 @@ pub struct CarriedRecord<R> {
 impl OperandRecords {
     /// True iff nothing is carried.
     pub fn is_empty(&self) -> bool {
-        let Self { vv, vf, ve, ee } = self;
-        vv.is_empty() && vf.is_empty() && ve.is_empty() && ee.is_empty()
+        let Self {
+            vv,
+            vf,
+            ve,
+            ee,
+            ef,
+            ff,
+        } = self;
+        vv.is_empty()
+            && vf.is_empty()
+            && ve.is_empty()
+            && ee.is_empty()
+            && ef.is_empty()
+            && ff.is_empty()
     }
 }
 
@@ -1128,12 +1180,10 @@ pub(crate) struct VerifiedGlue {
     /// Tangencies the witness lane verified, with what the cover reads
     /// of each.
     pub(crate) tangent: std::collections::BTreeMap<(FaceKey, FaceKey), TangentCert>,
-    /// The first verified tangency whose line locus runs through a plane
-    /// face with the two materials touching from outside, and that
-    /// face's operand; or the first refusal of that read. Only a union
-    /// consumes it.
-    pub(crate) through_a_face:
-        Option<Result<(crate::contact::DeclaredContact, Operand), BooleanError>>,
+    /// The verified tangencies whose line locus runs through both faces'
+    /// interiors, each with the margin that decided it: the reduction's
+    /// face–face rows ([`ReductionContacts::ff`]).
+    pub(crate) touches: Vec<(FaceKey, FaceKey, MarginDiag)>,
     /// The one-carrier pairs a margin decided, one row each in
     /// declaration order: a declaration's verification is a value
     /// decision, so its glue is recorded like any other
@@ -2313,30 +2363,6 @@ pub enum BooleanError {
         /// geometry.
         wedge: geom_brep::MaterialWedge,
     },
-    /// **A verified `Tangent` union whose locus runs through a face's
-    /// interior** (`crates/topo/README.md` C7).
-    ///
-    /// The witness lane derived the line and the tangency table verified
-    /// it, the two materials touching from outside (opposed outward
-    /// normals, the crescent between the sheets void), and the line
-    /// crosses the interior of a plane face of one operand. Along that
-    /// line the union keeps a face–face curve touch, and the reduction
-    /// mints no face–face row to record it, so a union refuses on that
-    /// pair, whatever else the operands do: where they
-    /// touch only there the result would be two solids, and where they
-    /// also overlap elsewhere one solid pinched along the line. Subtract
-    /// and intersect owe no record of the touch and are not refused here.
-    ///
-    /// Kept distinct from [`BooleanError::RimCuspArmUnbuilt`]: that one
-    /// is raised where no locus derives and the faces share a rim; here
-    /// the locus derived and runs through a face.
-    TangentSlitArmUnbuilt {
-        /// The glued face pair whose verified locus runs through a
-        /// face, as a `Tangent` contact.
-        pair: crate::contact::DeclaredContact,
-        /// The operand whose declared face the locus runs through.
-        interior: Operand,
-    },
     /// A boolean's input ([`BooleanInputs`]) references an entity that
     /// does not resolve in its operand (stale/foreign key, or a
     /// non-planar given face), or gives a pair a relation that does not
@@ -3106,8 +3132,6 @@ pub enum BooleanErrorKind {
     UnsupportedDeclarationClass,
     /// [`BooleanError::RimCuspArmUnbuilt`].
     RimCuspArmUnbuilt,
-    /// [`BooleanError::TangentSlitArmUnbuilt`].
-    TangentSlitArmUnbuilt,
     /// [`BooleanError::InvalidInput`].
     InvalidInput,
     /// [`BooleanError::PairingMismatch`].
@@ -3353,7 +3377,6 @@ impl BooleanError {
                 BooleanErrorKind::UnsupportedDeclarationClass
             }
             Self::RimCuspArmUnbuilt { .. } => BooleanErrorKind::RimCuspArmUnbuilt,
-            Self::TangentSlitArmUnbuilt { .. } => BooleanErrorKind::TangentSlitArmUnbuilt,
             Self::InvalidInput { .. } => BooleanErrorKind::InvalidInput,
             Self::PairingMismatch { .. } => BooleanErrorKind::PairingMismatch,
             Self::SharedVertexCrossings { .. } => BooleanErrorKind::SharedVertexCrossings,
@@ -3843,15 +3866,6 @@ impl core::fmt::Display for BooleanError {
                  opposed, and the Boolean cannot yet build that junction: it has no \
                  tangent locus for these two surfaces. There is no way through this in \
                  the kernel yet",
-                pair.class.name()
-            ),
-            Self::TangentSlitArmUnbuilt { pair, interior } => write!(
-                f,
-                "two of the operands' faces touch from outside along a line that runs \
-                 through the interior of the {} operand's face, and the Boolean cannot yet \
-                 record a {} touch along a face's interior in a union's contact records. \
-                 There is no way through this in the kernel yet",
-                operand_word(*interior),
                 pair.class.name()
             ),
             Self::InvalidInput { operand, what } => write!(
@@ -4553,10 +4567,6 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     verified
         .coincidences
         .extend(glue::coaxial_rows(a_operand, b_operand, decls, band)?);
-    if let (BooleanOp::Union, Some(through)) = (op, verified.through_a_face.take()) {
-        let (pair, interior) = through?;
-        return Err(BooleanError::TangentSlitArmUnbuilt { pair, interior });
-    }
     let declared = GluedPairs::build(decls, verified, a_operand, b_operand, band)?;
     reduce::gate_operand_pairs(
         a_operand,
@@ -4597,7 +4607,14 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         tol,
     )?;
     let edge_splits = core::mem::take(&mut acc.splits);
-    let (contacts, pending) = acc.finish();
+    let (mut contacts, mut pending) = acc.finish();
+    for &(fa, fb, margin) in &declared.verified.touches {
+        let k = reduce::pend(&mut pending, reduce::PendingRow::tangent(fa, fb, margin));
+        contacts.ff.push(Cited::new(
+            FfContact { a: fa, b: fb },
+            Cites::decided(reduce::index(k)),
+        ));
+    }
 
     let mut null_edges = Vec::new();
     let mut null_pairs = Vec::new();
@@ -5231,16 +5248,8 @@ fn verify_declared_contacts<T: Decide>(
                 verified
                     .coincidences
                     .push(tangent_row(fa, fb, tangency.margin));
-                if verified.through_a_face.is_none() {
-                    let declaration = crate::contact::DeclaredContact {
-                        a: fa,
-                        b: fb,
-                        class: ContactClass::Tangent,
-                    };
-                    verified.through_a_face = tangency
-                        .through
-                        .transpose()
-                        .map(|through| through.map(|operand| (declaration, operand)));
+                if tangency.interiors? {
+                    verified.touches.push((fa, fb, tangency.margin));
                 }
                 verified.tangent.insert(
                     (fa, fb),
@@ -5553,12 +5562,11 @@ pub(crate) struct Tangency<T: Real> {
     pub(crate) kinds: (geom::SurfaceKind, geom::SurfaceKind),
     /// The locus the pair was verified along.
     pub(crate) locus: rim_wedge::Locus<T>,
-    /// For a line locus through a plane face's interior with the two
-    /// materials touching from outside ([`contact_verify::Posture::void`]),
-    /// that face's operand, which a union refuses
-    /// ([`BooleanError::TangentSlitArmUnbuilt`]); that read's own refusal
-    /// is the inner one, consumed only by a union.
-    pub(crate) through: Result<Option<Operand>, BooleanError>,
+    /// Whether the locus is a line some point of which lies inside both
+    /// faces ([`locus_through_both_faces`]), so the two faces' interiors
+    /// meet; that read's own refusal is the inner one, consumed only by
+    /// the op.
+    pub(crate) interiors: Result<bool, BooleanError>,
     /// The margin that decided the touch (the pair's separation along
     /// the witness, `contact_verify`'s `contact_tangent_touch`),
     /// standing jointly for the locus it was read along (the line's gap,
@@ -5926,12 +5934,12 @@ fn verify_tangency<T: Decide>(
             }
         };
     // 3. The tangency table along the witness.
-    let (margin, posture) = match contact_verify::tangency_reading(
+    let margin = match contact_verify::tangency_reading(
         &sa, sense_a, &sb, sense_b, &carrier, t0, t1, band,
     ) {
         // The reading is the touch's; it is a theorem only where the
         // locus it was read along is one too.
-        Ok((touch, posture)) => (touch.jointly(located), posture),
+        Ok(touch) => touch.jointly(located),
         Err(crate::contact::ContactRefusal::Contradicted { diag, .. }) => {
             return Err(Contradicted {
                 fact: None,
@@ -5950,29 +5958,20 @@ fn verify_tangency<T: Decide>(
         }
         Err(crate::contact::ContactRefusal::NotCertifiable { .. }) => return Err(Unsupported),
     };
-    // Two materials touching from outside along a line through a plane
-    // face's interior keep a face–face touch a union cannot yet record;
-    // the read's own refusal is the inner one, consumed only by a union.
-    let through = match overlap {
-        Some(both) if !posture.aligned => locus_through_plane_face(
-            [(a, fa, Operand::A), (b, fb, Operand::B)],
+    let interiors = match overlap {
+        Some(both) => locus_through_both_faces(
+            [(a, fa, Operand::A, kinds.0), (b, fb, Operand::B, kinds.1)],
             &carrier,
             both,
+            read,
             band,
-        )
-        .and_then(|face| match face {
-            Some(operand) => match posture.void(band) {
-                Ok(void) => Ok(void.then_some(operand)),
-                Err(diag) => Err(BooleanError::coincidence(Coincide::Contact, read, diag)),
-            },
-            None => Ok(None),
-        }),
-        _ => Ok(None),
+        ),
+        None => Ok(false),
     };
     Ok(Tangency {
         kinds,
         locus,
-        through,
+        interiors,
         margin,
     })
 }
@@ -6043,7 +6042,7 @@ fn route_rim<T: Decide>(
 /// The parameter spans of the line `origin + t·dir` the two declared
 /// faces' boundary vertices project onto: their union, the extent a
 /// witness along it is metered over, and their overlap, where both
-/// faces' extents meet ([`locus_through_plane_face`]'s schedule).
+/// faces' extents meet ([`locus_through_both_faces`]'s schedule).
 #[allow(clippy::type_complexity)]
 fn witness_span<T: Decide>(
     a: &Body<T>,
@@ -6070,38 +6069,64 @@ fn witness_span<T: Decide>(
     ))
 }
 
-/// The operand whose declared PLANE face a verified tangent locus runs
-/// through: some point of the locus, sampled on the certificate
-/// schedule over `overlap` (where both faces' extents along it meet),
-/// lies strictly inside the face. `None` when every sample is outside
-/// a plane face or on its boundary, or the pair has no plane face.
-fn locus_through_plane_face<T: Decide>(
-    faces: [(&Body<T>, FaceKey, Operand); 2],
+/// Whether a verified tangent line runs through both faces' interiors:
+/// some point of it, sampled on the certificate schedule over `overlap`
+/// (where both faces' extents along it meet, along a length), lies
+/// strictly inside each face ([`contain::face_placement`]). A line along a face's boundary is
+/// the edge form of the touch, which the edge records carry.
+///
+/// # Errors
+///
+/// The placement's refusal: a margin in band, the containment door's own
+/// refusal, or a curved trim the chart door gives no verdict for
+/// ([`BooleanError::CurvedBooleanUnsupported`]).
+fn locus_through_both_faces<T: Decide>(
+    faces: [(&Body<T>, FaceKey, Operand, geom::SurfaceKind); 2],
     locus: &geom::Curve3<T>,
     overlap: (T, T),
+    read: DeclarationRead,
     band: Band,
-) -> Result<Option<Operand>, BooleanError> {
-    for (body, face, operand) in faces {
-        let planar = body
-            .get_face(face)
-            .and_then(|f| body.get_surface(f.surface))
-            .is_some_and(|s| matches!(s, geom::Surface::Plane { .. }));
-        if !planar {
-            continue;
-        }
-        let (_, normal) =
-            solid_contain::face_plane(body, face).map_err(BooleanError::Containment)?;
-        for i in 0..geom_brep::CERT_SAMPLES {
-            let p = locus.eval(geom_brep::sample_param(overlap.0, overlap.1, i));
-            if solid_contain::point_in_face(body, face, normal, p, band)
-                .map_err(BooleanError::Containment)?
-                == Some(true)
-            {
-                return Ok(Some(operand));
-            }
+) -> Result<bool, BooleanError> {
+    match crate::validate::decide(
+        "bool_tangent_line_overlap",
+        Margin::of(overlap.1 - overlap.0),
+        band,
+    ) {
+        Ok(Sign::Positive) => {}
+        Ok(Sign::Negative | Sign::Zero) => return Ok(false),
+        Err(diag) => {
+            return Err(BooleanError::coincidence(
+                Coincide::TangentLocus,
+                read,
+                diag,
+            ));
         }
     }
-    Ok(None)
+    let inside = |(body, face, operand, kind): (&Body<T>, FaceKey, Operand, _), p| {
+        use contain::{CurvedPlacement, PlacementError};
+        match contain::face_placement(body, face, p, band, "bool_tangent_line_in_face") {
+            Ok(CurvedPlacement::Trim(Some(at))) => Ok(at == FaceContainment::In),
+            Ok(CurvedPlacement::OffCarrier) => Ok(false),
+            Ok(CurvedPlacement::Trim(None)) => Err(BooleanError::CurvedBooleanUnsupported {
+                operand,
+                face,
+                kind,
+            }),
+            Err(PlacementError::OnPlane(diag)) => Err(BooleanError::coincidence(
+                Coincide::TangentLocus,
+                read,
+                diag,
+            )),
+            Err(PlacementError::Door(e)) => Err(reduce::esc(e, operand, face)),
+        }
+    };
+    for i in 0..geom_brep::CERT_SAMPLES {
+        let p = locus.eval(geom_brep::sample_param(overlap.0, overlap.1, i));
+        if inside(faces[0], p)? && inside(faces[1], p)? {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 /// The face's boundary vertex positions (outer loop then rings, cycle
@@ -6235,6 +6260,24 @@ fn validate_declarations<T: Decide>(
             for e in [touch.a, touch.b] {
                 if body.get_edge(e).is_none() {
                     return Err(bad(operand, "carried e-e edge key does not resolve"));
+                }
+            }
+        }
+        for CarriedRecord { contact: touch, .. } in &c.ef {
+            if body.get_edge(touch.edge).is_none() {
+                return Err(bad(operand, "carried e-f edge key does not resolve"));
+            }
+            if body.get_face(touch.face).is_none() {
+                return Err(bad(operand, "carried e-f face key does not resolve"));
+            }
+        }
+        for CarriedRecord { contact: touch, .. } in &c.ff {
+            if touch.a == touch.b {
+                return Err(bad(operand, "carried f-f pair names one face twice"));
+            }
+            for f in [touch.a, touch.b] {
+                if body.get_face(f).is_none() {
+                    return Err(bad(operand, "carried f-f face key does not resolve"));
                 }
             }
         }
@@ -7216,7 +7259,6 @@ mod tests {
                 BooleanErrorKind::ContinuationContradicted => "ContinuationContradicted",
                 BooleanErrorKind::UnsupportedDeclarationClass => "UnsupportedDeclarationClass",
                 BooleanErrorKind::RimCuspArmUnbuilt => "RimCuspArmUnbuilt",
-                BooleanErrorKind::TangentSlitArmUnbuilt => "TangentSlitArmUnbuilt",
                 BooleanErrorKind::InvalidInput => "InvalidInput",
                 BooleanErrorKind::PairingMismatch => "PairingMismatch",
                 BooleanErrorKind::SharedVertexCrossings => "SharedVertexCrossings",

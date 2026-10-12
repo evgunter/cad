@@ -1,8 +1,8 @@
 //! **A carried citation at an index past 0 still names its record.** A
 //! one-record list agrees with any indexing scheme, so here the
-//! list carried into the op holds a face–face record first (the kind a
-//! mate mints, which `carried` skips) and then two vertex pairs, one
-//! carried from an earlier union and one decided by its own; each
+//! list carried into the op holds a face–face record first, which the op
+//! consumes (the far box swallows one of its faces), and then two vertex
+//! pairs, one carried from an earlier union and one decided by its own; each
 //! citation of the result is followed back through every list to the
 //! decision at its end, and checked against the geometry at each hop.
 #![allow(clippy::panic, clippy::expect_used, clippy::unwrap_used)]
@@ -108,7 +108,8 @@ fn a_carried_citation_past_index_zero_names_its_record_and_its_decision() {
     let a = box_of((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), "a");
     let b = box_of((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), "b");
     let c = box_of((-1.0, 0.0), (-1.0, 0.0), (-1.0, 0.0), "c");
-    let far = box_of((5.0, 6.0), (5.0, 6.0), (5.0, 6.0), "far");
+    // Swallows b's face x = 2 whole, clear of the corners a and c touch.
+    let far = box_of((1.5, 3.0), (0.5, 2.5), (0.5, 2.5), "far");
     let kiss = union(&a, &b, &BooleanInputs::default());
     assert_eq!(kiss.contacts.len(), 1, "{:?}", kiss.contacts);
     let r2 = union(
@@ -120,8 +121,8 @@ fn a_carried_citation_past_index_zero_names_its_record_and_its_decision() {
         },
     );
     assert_eq!(r2.contacts.len(), 2, "{:?}", r2.contacts);
-    // A face-face record ahead of the two vertex pairs, as a mate would
-    // leave one: two faces of the body far apart.
+    // A face-face record ahead of the two vertex pairs, on b's face
+    // x = 2, which the union with `far` removes.
     let ff = Contact::new(
         &r2.body,
         Cell::Face(face_at(&r2.body, 0, 2.0)),
