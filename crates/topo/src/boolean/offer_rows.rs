@@ -2253,6 +2253,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::ArcLoopContainmentUnsupported
         | BooleanErrorKind::PointInFaceRefused
         | BooleanErrorKind::RestPieceUnread
+        | BooleanErrorKind::CarryRefused
         | BooleanErrorKind::ScaffoldingOperand
         | BooleanErrorKind::InsideOutOperand
         | BooleanErrorKind::UnjoinedOperand
@@ -2662,14 +2663,9 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("ops.rs", "sphere_extent_scan", "SphereQuestion::Nested", 1),
-    ("ops.rs", "ee_lineage", "BooleanDecision::SelfCheck", 1),
-    ("ops.rs", "ee_lineage", "BooleanDecision::VertexOnVertex", 1),
-    ("ops.rs", "ee_lineage", "SelfCheck::CarriedLineage", 1),
+    ("ops.rs", "carried", "BooleanDecision::VertexOnVertex", 1),
     ("ops.rs", "piece_holds", "BooleanDecision::SelfCheck", 1),
     ("ops.rs", "piece_holds", "SelfCheck::CarriedLineage", 1),
-    ("ops.rs", "ledger", "BooleanDecision::SelfCheck", 1),
-    ("ops.rs", "ledger", "BooleanDecision::VertexOnVertex", 1),
-    ("ops.rs", "ledger", "SelfCheck::CarriedLineage", 1),
     ("ops.rs", "span_in_band", "BooleanDecision::SelfCheck", 1),
     ("ops.rs", "span_in_band", "SelfCheck::CarriedLineage", 1),
     (
