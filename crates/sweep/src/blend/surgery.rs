@@ -748,6 +748,10 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
         .iter()
         .flat_map(|p| p.slivers().map(|s| (s, p.link().convexity())))
         .chain(cut_offs.iter().map(|c| (&c.end.sliver, c.link.convexity())))
+        .chain(turns.iter().filter_map(|t| {
+            let far = t.turn.overrun()?.far;
+            Some((t.sliver.as_ref()?, t.links[far].convexity()))
+        }))
         .collect();
     let unclear = ring_clearance_pass(source, &opens, &rims, &slivers, &supports, band)?;
     // ---- Predicate 2's reach: every band against every face of the
@@ -2898,7 +2902,11 @@ fn ring_clearance_pass<T: Decide + Bounds>(
 /// turn's third edge, between two planar supports — so it is a line
 /// through the station and its foot: the line of the strip's side
 /// there, which meets the strip on that side alone, on whichever cycle
-/// carries it. A line or circle edge is read exactly ([`piece_along`]);
+/// carries it. On the near band's face at an overrun the foot is the
+/// mitre's end, off the third edge, and the strip runs on along that
+/// edge to the far band's foot: the third edge still bounds it there,
+/// and the overrun beyond the trimline is arm (c)'s, the far band's
+/// sliver. A line or circle edge is read exactly ([`piece_along`]);
 /// any other carrier through [`boxed_reach`], a certified bound.
 fn strip_clearance<T: Decide + Bounds>(
     body: &Body<T>,

@@ -31,7 +31,10 @@
 //!   the plane of the face it runs into, and the window widens by the
 //!   cross-section's run along it; at a corner patch it ends at the
 //!   patch's anchors. A cut-off, a cap or a mitre ends the band within
-//!   that plane — at a mitre, the other band's support.
+//!   that plane — at a mitre, the other band's support. At an overrun
+//!   the far band runs on past the mitre's end and is cut off by that
+//!   same plane down to the third edge, so its material still ends
+//!   there and the cap holds.
 //! - A circular link is taken over the whole turn, every bound a
 //!   function of its meridian sheet; a support off the band's axis is
 //!   read about it with its departure as slack.
@@ -50,7 +53,11 @@
 //! is one the band runs into, judged by predicate 6 and the surgery:
 //! a plane the reach is capped by, so it lies on the reach's boundary
 //! (a curved one is the battery's refusal, and the reach fails loud on
-//! it), or a support of a corner patch's links. A face at another
+//! it), or a support of a corner patch's links. What the band takes of
+//! such a face is the cut-off's sliver, metered by the surgery's ring
+//! pass (arm (c)): at an overrun, the far band's whole sliver on the
+//! near band's support, the overrun's footprint and the part of it the
+//! near band's own strip covers. A face at another
 //! link's end bounds nothing here and is metered like any other; a
 //! circular link's window has no ends. A support of
 //! another chain of the request is metered by what survives that

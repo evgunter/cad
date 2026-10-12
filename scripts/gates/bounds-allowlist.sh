@@ -661,7 +661,11 @@ BOUNDS_ALLOWLIST=(
   # `seam_split_param`'s window test as before — and the planar band's
   # `cut_off_plan` calls the shared plan. The same seam, and the same
   # reads, moved and shared; no new decision reads a bracket.
-  'crates/sweep/src/blend/open/planar.rs 4 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # planar.rs 4 -> 5: `turn_plan` plans a chamfer overrun's far band as
+  # that band's cut-off at the near band's face, through the same shared
+  # `EndCut::plan` `cut_off_plan` calls, for its sliver; it reads no
+  # bracket of its own.
+  'crates/sweep/src/blend/open/planar.rs 5 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   'crates/sweep/src/blend/open/ruled.rs 2 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # end_face.rs 5 -> 7: `foot_param` is the one read of where a foot
   # lands on its rim (`split_param_in_span`'s window test, worded as the

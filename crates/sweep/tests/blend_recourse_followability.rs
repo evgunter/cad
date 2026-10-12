@@ -446,20 +446,20 @@ fn the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds() {
     builds(&body, &corner, 0.1, "the third edge in the same call");
 }
 
-/// **`FILLET3_TURN_RECOURSE` — "make the two bands' feet meet, or
-/// request that edge too".** The leaning wall's chamfer at a lean the
-/// turn reads in band (`band_turn_overrun_verdict`'s window, scaled
-/// with the run's band) escalates and carries the sentence. Each end it
-/// names builds: the feet meeting at equal face angles (no lean) and at
-/// supplementary ones (the sheared box's corner), and the third edge
-/// requested in the same call, the corner patch.
+/// **`FILLET3_TURN_RECOURSE` — "make the two bands' feet meet, for a
+/// chamfer move them clearly apart, or request that edge too".** The
+/// leaning wall's chamfer at a lean the turn reads in band
+/// (`band_turn_overrun_verdict`'s window, scaled with the run's band)
+/// escalates and carries the sentence. Each end it names builds: the
+/// feet meeting at equal face angles (no lean) and at supplementary ones
+/// (the sheared box's corner), the feet clearly apart (a lean of `0.5`,
+/// the overrun), and the third edge requested in the same call, the
+/// corner patch.
 #[test]
 fn the_turn_recourse_builds_at_each_end_it_names() {
     use crate::band_planar_cut_off::edge;
-    use crate::common::operands::{leaning_turn, parallelepiped};
-    let r = (Band::linear(tol()).expect("the run's band").zero() / 1e-9).sqrt();
-    let s = (0.015 * r).to_radians().tan();
-    let (leaning, bands) = leaning_turn(s);
+    use crate::common::operands::{leaning_turn, leaning_turn_in_band, parallelepiped};
+    let (leaning, bands) = leaning_turn_in_band(tol());
     let err = refusal(&leaning, &bands, 0.1, "a turn in band", true);
     assert!(
         matches!(
@@ -487,6 +487,11 @@ fn the_turn_recourse_builds_at_each_end_it_names() {
         0.1,
         "supplementary face angles",
     );
+    let (apart, turn) = leaning_turn(0.5);
+    chamfers(&apart, &turn, 0.1, "the feet clearly apart");
+    let s = (0.015 * (Band::linear(tol()).expect("the run's band").zero() / 1e-9).sqrt())
+        .to_radians()
+        .tan();
     let third = edge(&leaning, [s, 0.0, 1.0], [0.0, 0.0, 0.0]);
     chamfers(
         &leaning,

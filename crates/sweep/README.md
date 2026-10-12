@@ -305,11 +305,12 @@ stored kinds (plane, cylinder, line, circle, ellipse).
   chamfer: its chord is the gap times a ratio the corner fixes, at least
   sin φ of the near band's face angle but unbounded as the turn flattens
   toward a T, where a gap in band can carry a definite chord. Both Zero
-  builds the mitre on L; both definite builds the overrun on the side
-  the sign picks; anything else escalates, with a recourse that makes
-  the feet meet (equal, or for a chamfer supplementary, face angles),
-  moves them clearly apart (a larger setback, a more asymmetric corner),
-  or requests L too for the patch. A Zero verdict is a coincidence
+  builds the mitre on L; both definite builds a chamfer's overrun on the
+  side the sign picks, and refuses a fillet's (`TURN_OVERRUN`, naming
+  the far band); anything else escalates, with a recourse that makes the
+  feet meet (equal, or for a chamfer supplementary, face angles), for a
+  chamfer moves them clearly apart (a larger setback, a more asymmetric
+  corner), or requests L too for the patch. A Zero verdict is a coincidence
   decided from values, the two feet being one point, so the verdict
   records it (`BatteryVerdict::coincidences`, D10), and
   `Blended::coincidences` carries the rows to the document's coincidence
@@ -325,7 +326,11 @@ link. The planar band carves locally, as the ruled band does: the end
 face's rim edges split at the feet, the end curve `mef`'d across it, one
 trimline per support; at a turn, L split at its foot, a strut out to the
 trimlines' crossing on the shared face, and the mitre `mef`'d across one
-band, the triangle it cuts off folded into the other.
+band, the triangle it cuts off folded into the other. At an overrun L is
+split at the far band's foot, the far band's cut-off `mev`'d from there
+out to the mitre's end on the near band's face, and the mitre `mef`'d
+across the near band, the quadrilateral it cuts off (the triangle and
+the overrun) folded into the far one.
 
 The battery's other Zero verdicts are coincidences decided from values
 too, and record the same way: a junction chain G1 reads tangent is a
@@ -342,9 +347,9 @@ rather than on a rim edge (a band running into a wall or a step, and the
 inner corner of an L-shaped rim, where the shared face's sector is
 reflex); two cut-offs at the two ends of one rim whose feet on it cross
 or coincide, metered before any mutation by `fillet3_cut_off_feet`
-(feet apart only within the band escalate); an overrun's far foot past
-L's far end, or inside a face, as for any cut-off; an end vertex
-of valence other than three. A vertex whose three edges do not round
+(feet apart only within the band escalate); a fillet's overrun at a
+turn; an overrun's far foot past L's far end, or inside a face, as for
+any cut-off; an end vertex of valence other than three. A vertex whose three edges do not round
 one way refuses `UnsupportedCorner { MixedConvexity }` whatever the
 request names there: an edge cut off where its unrequested edges round
 the other way, a turn whose two edges round opposite ways, or one whose

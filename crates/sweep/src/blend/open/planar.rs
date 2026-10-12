@@ -9,7 +9,9 @@
 //!
 //! The carve: per cut-off, its first step — both rims split at their
 //! feet and the end curve `mef`'d across the end face; per turn, the
-//! third edge split at its foot. Per support face,
+//! third edge split at its foot, and at an overrun the far band's
+//! cut-off `mev`'d from there out to the mitre's end on the near band's
+//! face ([`overrun_cut`]). Per support face,
 //! one strut `mev` at each corner, joint or turn station of its requested
 //! edges, and one trimline `mef` per requested edge between the feet at
 //! its two stations, carving the face into the SHRUNK face — every edge
@@ -43,7 +45,7 @@ use topo::{
     VertexKey,
 };
 
-use super::end_face::{CutRims, EndCut, cut_off, fold_sliver};
+use super::end_face::{CapSliver, CutRims, EndCut, cut_off, fold_sliver};
 use crate::blend::admit::{
     AdmittedOpen, CornerFaces, CornerLinks, Joint, OpenBand, RequestedBoundary,
 };
@@ -362,6 +364,11 @@ pub(in crate::blend) struct TurnPlan<'a, T: Real> {
     /// The mitre's carrier: the chord where two plane bands cross, or
     /// the ellipse where two cylinder bands do.
     mitre: ContactCarrier<T>,
+    /// At an overrun, the region the far band's cut-off at the near
+    /// band's face of the third edge takes from that face: the far
+    /// band's whole cut-off sliver there, which arm (c) meters
+    /// ([`EndCut::plan`]).
+    pub(in crate::blend) sliver: Option<CapSliver<T>>,
 }
 
 /// The refusal for a fillet turn whose two cylinders the section door
@@ -383,14 +390,21 @@ const MITRE_NOT_AN_ELLIPSE: &str = "a turn's two cylinder bands do not meet in a
 /// axis along that direction, and its `a₁ − a₂` ellipse is the mitre.
 /// `at` is the foot's parameter on the third edge, read by the caller.
 ///
+/// At an overrun the far band is planned cut off at the near band's
+/// face of the third edge, as any cut-off is ([`EndCut::plan`]): its
+/// feet are the far foot on the third edge and its trimline on the
+/// shared face met with the near band's requested edge, and the sliver
+/// between them and the vertex is what the ring pass meters.
+///
 /// # Errors
 ///
 /// [`BlendError::BodyNotIntact`] when the links are not the turn's two
 /// requested edges or the vertex does not read;
 /// [`BlendError::UnsupportedGeometry`] when a band is not the verb's
 /// surface or the section door refuses the pair definitely;
-/// [`BlendError::Escalated`] when it cannot decide the pair.
-pub(in crate::blend) fn turn_plan<'a, T: Decide>(
+/// [`BlendError::Escalated`] when it cannot decide the pair;
+/// [`EndCut::plan`]'s for an overrun's cut-off.
+pub(in crate::blend) fn turn_plan<'a, T: Decide + Bounds>(
     body: &Body<T>,
     turn: &'a Turn<T>,
     links: [AdmittedOpen<'a, T>; 2],
@@ -455,11 +469,31 @@ pub(in crate::blend) fn turn_plan<'a, T: Decide>(
             ContactCarrier::Transverse(e1)
         }
     };
+    let sliver = match turn.overrun() {
+        None => None,
+        Some(o) => {
+            let l = links[o.far].link();
+            let (q_a, along) = open_trimline(l, l.face_a)?;
+            let (q_b, _) = open_trimline(l, l.face_b)?;
+            let end = EndCut::plan(
+                body,
+                vertex,
+                l.edge,
+                (l.face_a, l.face_b),
+                (q_a, q_b),
+                along,
+                EndSection::Chord,
+                None,
+            )?;
+            Some(end.sliver)
+        }
+    };
     Ok(TurnPlan {
         turn,
         links,
         at,
         mitre,
+        sliver,
     })
 }
 
@@ -556,17 +590,25 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds + topo::AtRestPolicy>(
     }
 
     // ---- Per turn: the third edge split at the foot, which both its
-    // faces' trimlines reach there. ----
+    // faces' trimlines reach there — or, at an overrun, the far band's;
+    // the near band's starts at the mitre's end, out on its face at the
+    // end of the far band's cut-off ([`overrun_cut`]). ----
+    let mut turn_feet: Vec<VertexKey> = Vec::with_capacity(turns.len());
     for t in turns {
         let foot = turn_split(body, t, rec, tol)?;
-        for f in t.turn.others {
+        let mut feet = [foot; 2];
+        if let Some(o) = t.turn.overrun() {
+            feet[1 - o.far] = overrun_cut(body, t, foot, &mut described, rec, tol)?;
+        }
+        for (f, x) in t.turn.others.into_iter().zip(feet) {
             once(
                 &mut foot_of,
                 (t.turn.vertex, f),
-                foot,
+                x,
                 EntityId::Vertex(t.turn.vertex),
             )?;
         }
+        turn_feet.push(foot);
     }
 
     // ---- Per support face: a strut at every corner and joint station,
@@ -845,7 +887,7 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds + topo::AtRestPolicy>(
 
     // ---- Per turn: the mitre across one band, then the strut and the
     // third edge's piece at the vertex retired ([`turn_fusion`]). ----
-    for t in turns {
+    for (t, &foot) in turns.iter().zip(&turn_feet) {
         let [b1, b2] = t.links.map(|o| hex_face(body, o.edge()));
         let (Some(b1), Some(b2)) = (b1, b2) else {
             return Err(not_intact(
@@ -868,7 +910,13 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds + topo::AtRestPolicy>(
                 ));
             }
         };
-        turn_fusion(body, t, b1, strut, sources, &mut described, rec, tol)?;
+        // At an overrun the mitre is cut across the near band, whose
+        // strip holds the overrun, and folded into the far one.
+        let cut = match t.turn.overrun() {
+            Some(o) if o.far == 0 => b2,
+            _ => b1,
+        };
+        turn_fusion(body, t, cut, strut, foot, sources, &mut described, rec, tol)?;
     }
 
     // ---- Per cut-off: fold the sliver into the band ([`fold_sliver`]),
@@ -999,14 +1047,61 @@ fn turn_split<T: Decide + topo::AtRestPolicy>(
     Ok(frag.vertex)
 }
 
+/// **An overrun's cut, between the split and the trimlines**: `mev` the
+/// far band's cut-off at the near band's face of the third edge, from
+/// the turn foot `foot` on that edge out into the face to the mitre's
+/// end, which is where the near band's trimline there starts. The edge
+/// is the far band's end curve (a chamfer's chord) and its end that
+/// band's foot on the face, as at any cut-off. Returns the mitre's end.
+///
+/// # Errors
+///
+/// [`BlendError::Op`] when the `mev` refuses;
+/// [`BlendError::BodyNotIntact`] where a cycle read disagrees with the
+/// plan.
+fn overrun_cut<T: Decide + topo::AtRestPolicy>(
+    body: &mut Body<T>,
+    t: &TurnPlan<'_, T>,
+    foot: VertexKey,
+    described: &mut Described<T>,
+    rec: &mut BlendNaming,
+    tol: Tol,
+) -> Result<VertexKey, BlendError> {
+    let Some(o) = t.turn.overrun() else {
+        return Err(not_intact(
+            EntityId::Vertex(t.turn.vertex),
+            "an overrun's cut at a turn the verdict mitred",
+        ));
+    };
+    let near = t.turn.others[1 - o.far];
+    let he = half_from(body, near, foot)?;
+    let p =
+        point_of(body, foot).ok_or_else(|| not_intact(EntityId::Vertex(foot), "a turn foot"))?;
+    let created = body
+        .mev(
+            MevSite::Fan { he1: he, he2: he },
+            o.end,
+            EdgeCurveSpec::line_between(p, o.end),
+            tol,
+        )
+        .map_err(|e| op("overrun mev", e))?;
+    let crease = t.links[o.far].edge();
+    described.push((created.edge, ContactCarrier::Chord, crease));
+    rec.arcs.push((created.edge, t.turn.vertex, crease));
+    rec.feet.push((created.vertex, t.turn.vertex, near));
+    Ok(created.vertex)
+}
+
 /// **A turn's last carve step.** After the link `kef`s the vertex
 /// carries two edges, the strut on the shared face and the third edge's
 /// piece down to the foot, and both part the two band faces. The mitre
-/// is `mef`'d across the first band from the trimlines' crossing to the
-/// foot, which moves the triangle of the two and the vertex onto a new
-/// face; a `kef` across the strut folds that triangle into the second
-/// band, and the third edge's piece, now a spur, is `kev`'d with the
-/// vertex.
+/// is `mef`'d across `band` from the trimlines' crossing to the foot,
+/// which moves the triangle of the two and the vertex onto a new face; a
+/// `kef` across the strut folds that triangle into the other band, and
+/// the third edge's piece, now a spur, is `kev`'d with the vertex. At an
+/// overrun `band` is the near band, the mitre runs to its end on that
+/// band's trimline, and what it cuts off is a quadrilateral: the
+/// triangle and the overrun beyond the turn foot.
 ///
 /// # Errors
 ///
@@ -1019,14 +1114,30 @@ fn turn_fusion<T: Decide + topo::AtRestPolicy>(
     t: &TurnPlan<'_, T>,
     band: FaceKey,
     strut: EdgeKey,
+    foot: VertexKey,
     sources: &SourceFaces,
     described: &mut Described<T>,
     rec: &mut BlendNaming,
     tol: Tol,
 ) -> Result<(), BlendError> {
     let v = t.turn.vertex;
-    let (he1, he2, x, y) =
-        chord_site(body, band, |row| body.half_edge_end(row.0) == Some(v), 0, 2)?;
+    let ends_at_v = |row: &(HalfEdgeKey, VertexKey, EdgeKey)| body.half_edge_end(row.0) == Some(v);
+    let mut site = chord_site(body, band, ends_at_v, 0, 2)?;
+    // At an overrun the band's cycle runs crossing, vertex, foot,
+    // mitre's end, one way or the other: the mitre spans one more.
+    if t.turn.overrun().is_some() {
+        site = if site.3 == foot {
+            chord_site(body, band, ends_at_v, 0, 3)?
+        } else if site.2 == foot {
+            chord_site(body, band, ends_at_v, 1, 2)?
+        } else {
+            return Err(not_intact(
+                EntityId::Vertex(v),
+                "an overrun's near band does not run from the vertex to the turn foot",
+            ));
+        };
+    }
+    let (he1, he2, x, y) = site;
     let (px, py) = (
         point_of(body, x).ok_or_else(|| not_intact(EntityId::Vertex(x), "a mitre's end"))?,
         point_of(body, y).ok_or_else(|| not_intact(EntityId::Vertex(y), "a mitre's end"))?,
