@@ -1301,6 +1301,12 @@ pub const FILLET3_GEOMETRY_RECOURSE: &str = "the blend reads only planes (and, f
 /// door (PR 1753).
 pub const FILLET3_RING_RECOURSE: &str =
     "reduce the blend size, or move the feature clear of the part of the face the blend replaces";
+/// The recourse for a feature wholly inside the material a band
+/// removes or fills ([`BlendError::WhollyInside`]): the ruled outcome is
+/// that the feature goes with that material, which the author can reach
+/// today by deleting it; or the band can be made to clear it.
+pub const FILLET3_INSIDE_RECOURSE: &str = "delete the feature, which the band's material wholly \
+     contains, or reduce the blend size so the band clears it";
 /// The recourse for a support pair outside the analytic-arm table —
 /// it names the banked unit. Only a fillet caller reads it: the
 /// chamfer's arm table is its own early return
@@ -1433,9 +1439,10 @@ pub enum BlendError {
         cross_chain: bool,
     },
     /// **Predicate 2's reach**: a face that is not a support of the
-    /// chain lies in the band's material — what a convex band removes,
-    /// what a concave one adds — or could not be certified clear of it
-    /// (`blend::reach`).
+    /// chain crosses the band's material — what a convex band removes,
+    /// what a concave one adds — or could be certified neither clear of
+    /// it, nor wholly inside it ([`BlendError::WhollyInside`]), nor
+    /// crossing it (`blend::reach`).
     FaceClearance {
         /// The face the band reaches; or, where what it reaches is the
         /// band of another chain of the request (which has no face yet),
@@ -1449,9 +1456,10 @@ pub enum BlendError {
         /// inside the band's material, or a lower bound on the face's
         /// clearance from a region enclosing it, as `bounded` says.
         margin: ClassifiedMargin,
-        /// Whether `margin` is a BOUND: the face could not be certified
-        /// clear, which says only that — not that it reaches the band's
-        /// material.
+        /// Whether `margin` is a BOUND: the face could be certified
+        /// neither clear, nor crossing, nor wholly inside, which says
+        /// only that. A measurement (`false`) is a crossing: one point
+        /// of the face's boundary inside the material, another outside.
         bounded: bool,
     },
     /// **Predicate 5, the undecided wedge**: the dihedral's signed
@@ -1748,13 +1756,15 @@ pub enum BlendError {
     /// (`fillet3_ring_clearance`): a ring of a support face sits
     /// within (or in band of) a blend trimline, so splitting the face
     /// along that trimline would consume the ring's feature instead
-    /// of carrying it through — or an edge of an end face that a
-    /// cut-off leaves on it (an edge of a ring, or of the
-    /// cycle the cut runs in other than the two rims it shortens) is
-    /// not definitely clear of a region enclosing the sliver the cut
-    /// removes, so the cut would cross it or leave it outside the
-    /// region it bounds. Exact closed form over the stored carriers and
-    /// windows, never sampled.
+    /// of carrying it through — or a cycle of an end face that a
+    /// cut-off leaves on it (a ring, or the cycle the cut runs in, less
+    /// the two rims it shortens) has an edge not definitely clear of a
+    /// region enclosing the sliver the cut removes, and is not wholly
+    /// inside the sliver ([`BlendError::WhollyInside`]): the cut would
+    /// cross it. Clearance is read in exact closed form over the stored
+    /// carriers and windows; at a cap, telling a crossing from a bound
+    /// rests on sampled witnesses, a point of the cycle certainly inside
+    /// the sliver and another certainly outside, each decided exactly.
     ///
     /// The ring or edge lies in the part of the face the blend
     /// replaces, and what happens to that part is the chain's
@@ -1774,15 +1784,44 @@ pub enum BlendError {
         /// classified it — of the ring from the trimline on a support,
         /// of the edge from the region enclosing the sliver on a cap:
         /// definitely negative, or decided Zero — which is the ring or
-        /// edge touching it, unless `bounded` says otherwise.
+        /// edge touching it, unless `bounded` says otherwise. A crossing
+        /// at a cap reports its inside witness's depth in the sliver.
         margin: ClassifiedMargin,
-        /// Whether `margin` is a BOUND rather than a measurement: the
-        /// edge is an ellipse, a spiric oval or a NURBS curve, whose
-        /// reach the surgery reads off a certified bound rather than
-        /// its own window, so a refusal says only that the edge could
-        /// not be certified clear — not that it reaches the part the
-        /// blend replaces.
+        /// Whether `margin` is a BOUND rather than a measurement: on a
+        /// support, the edge is an ellipse, a spiric oval or a NURBS
+        /// curve, whose reach the surgery reads off a certified bound
+        /// rather than its own window; at a cap, the cycle was certified
+        /// neither inside the sliver nor crossing it. Either way a
+        /// refusal says only that the edge could not be certified clear
+        /// — not that it reaches the part the blend replaces.
         bounded: bool,
+    },
+    /// **A feature wholly inside the material a band removes or fills.**
+    /// Predicate 2 reads each face three ways — clear of the band's
+    /// material, wholly inside it, or crossing it — and a cut-off's end
+    /// face meter reads each of its cycles the same three ways against
+    /// the sliver the cut removes. This is the request's verdict when
+    /// every face and cycle not clear is certified wholly inside, on a
+    /// region that is the band's material (or the sliver) exactly: a
+    /// crossing anywhere refuses as a crossing, and a face or cycle
+    /// certified none of the three refuses as a bound. The feature goes
+    /// with that material, as a feature wholly inside a Boolean's tool
+    /// goes with the tool (C8). That carve is not built, so the request
+    /// refuses.
+    WhollyInside {
+        /// The face wholly inside a band's reach, or the cycle of a
+        /// cut-off's end face (a ring) wholly inside the sliver, that is
+        /// the shallowest of those read.
+        at: EntityId,
+        /// The convexity of the chain whose band holds it: whether the
+        /// band removes that material or fills it.
+        chain: Convexity,
+        /// How deep inside, as `fillet3_face_clearance` (a face in a
+        /// reach) or `fillet3_ring_clearance` (a ring in a sliver)
+        /// classified it: definitely negative, its size a lower bound on
+        /// the depth of every face and cycle read inside, each from its
+        /// own region's boundary.
+        margin: ClassifiedMargin,
     },
     /// **The result's pcurve caches could not be re-minted** after the
     /// surgery — a chart image outside a derivation route, a loop that
@@ -2029,7 +2068,7 @@ impl fmt::Display for BlendError {
                     "a ring or edge lies in"
                 };
                 let how = if *bounded {
-                    " — a bound over the edge, whose carrier has no exact clearance here"
+                    " — a bound over the edge, not a measurement of it"
                 } else {
                     ""
                 };
@@ -2037,6 +2076,22 @@ impl fmt::Display for BlendError {
                     f,
                     "{what} the part of a face the blend {fate} ({margin}{how}). {}",
                     BlendDecision::RingClearance.recourse(margin.arm())
+                )
+            }
+            Self::WhollyInside { at, chain, margin } => {
+                let what = match chain {
+                    Convexity::Convex => "removes",
+                    Convexity::Concave => "adds",
+                };
+                let whom = match at {
+                    EntityId::Loop(_) => "a ring of an end face",
+                    _ => "a face the blend does not round",
+                };
+                write!(
+                    f,
+                    "{whom} lies wholly inside the material its band {what} ({margin}); it \
+                     goes with that material, and consuming it is not built yet. Recourse: \
+                     {FILLET3_INSIDE_RECOURSE}"
                 )
             }
             Self::Certify { site, source } => {
@@ -2059,7 +2114,7 @@ impl core::error::Error for BlendError {}
 /// `test-support` for the same reason `test_support` is — a `tests/`
 /// file cannot name a `#[cfg(test)]` item.
 #[cfg(any(test, feature = "test-support"))]
-pub const ALL_RECOURSES: [(&str, &str); 21] = [
+pub const ALL_RECOURSES: [(&str, &str); 22] = [
     ("radius", FILLET3_RADIUS_RECOURSE),
     ("contact", FILLET3_CONTACT_RECOURSE),
     ("contact-arm", FILLET3_CONTACT_ARM_RECOURSE),
@@ -2079,6 +2134,7 @@ pub const ALL_RECOURSES: [(&str, &str); 21] = [
     ("assembly", FILLET3_ASSEMBLY_RECOURSE),
     ("geometry", FILLET3_GEOMETRY_RECOURSE),
     ("ring", FILLET3_RING_RECOURSE),
+    ("inside", FILLET3_INSIDE_RECOURSE),
     ("spine-kind", FILLET3_SPINE_KIND_RECOURSE),
     ("chamfer-arm", CHAMFER_ARM_RECOURSE),
 ];
@@ -2094,9 +2150,9 @@ mod recourse_tests {
         BlendDecision, BlendError, BlendSite, CHAMFER_ARM_RECOURSE, ClassifiedMargin, Convexity,
         CornerConfig, FILLET3_ASSEMBLY_RECOURSE, FILLET3_CHAIN_RECOURSE,
         FILLET3_CLEARANCE_RECOURSE, FILLET3_CLEARANCE_SPLIT_RECOURSE, FILLET3_CONVEXITY_RECOURSE,
-        FILLET3_CORNER_RECOURSE, FILLET3_GEOMETRY_RECOURSE, FILLET3_RADIUS_RECOURSE,
-        FILLET3_RING_RECOURSE, FILLET3_SEAM_VERTEX_RECOURSE, FILLET3_SPINE_KIND_RECOURSE,
-        FILLET3_SPINE_RECOURSE, FILLET3_TANGENTIAL_RECOURSE,
+        FILLET3_CORNER_RECOURSE, FILLET3_GEOMETRY_RECOURSE, FILLET3_INSIDE_RECOURSE,
+        FILLET3_RADIUS_RECOURSE, FILLET3_RING_RECOURSE, FILLET3_SEAM_VERTEX_RECOURSE,
+        FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE, FILLET3_TANGENTIAL_RECOURSE,
     };
 
     /// **A contact edge's must-carry escalation ends as the decision its
@@ -2218,6 +2274,7 @@ mod recourse_tests {
             BlendError::UnsupportedRunOut { .. } => Recourse::Exactly(FILLET3_CORNER_RECOURSE),
             BlendError::UnsupportedGeometry { .. } => Recourse::Exactly(FILLET3_GEOMETRY_RECOURSE),
             BlendError::RingClearance { .. } => Recourse::Exactly(FILLET3_RING_RECOURSE),
+            BlendError::WhollyInside { .. } => Recourse::Exactly(FILLET3_INSIDE_RECOURSE),
             // Invalid input (row 1), and the two forwarding variants.
             BlendError::RepeatedEdge { .. } => Recourse::None,
             BlendError::NonpositiveSize { .. } => Recourse::None,
@@ -2374,6 +2431,11 @@ mod recourse_tests {
                 chain: Convexity::Concave,
                 margin: decided("fillet3_ring_clearance", -1e-3, Sign::Negative),
                 bounded: false,
+            },
+            BlendError::WhollyInside {
+                at: EntityId::Face(FaceKey::default()),
+                chain: Convexity::Convex,
+                margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
             },
             BlendError::Certify {
                 site: "blend face pcurves",

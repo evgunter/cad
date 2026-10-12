@@ -76,3 +76,8 @@ transversality lands in band is told to loosen the tolerance, where the
 edge certifier tells the same verdict to move the geometry. The subject
 clause this row asks for is the limb (`SsiLimb::name`), and the ending
 is its check's (`SsiLimb::check`, through `geom_brep::certify::recourse`).
+
+**Done for the ending and the limb (ENCL, PR 4874, 2026-10-12).**
+- `FittedEscalated { decision: SsiDecision, cause }` keeps the limb or trace decision, and ends by it at every door (`SsiDecision::ending`, shared with `SsiError::ending`). Its subject clause names the decision ("whether the fitted carrier passes limb 3 (uniqueness tube) is undecided").
+- Both escalation arms' `Display` now render `cause.payload()` plus one labelled ending read at a build (`Reading::Build`), and no longer offer the coincidence menu.
+- Still open here: the `{check:?}` `Debug` rendering, and the `pcurve certification:` stage prefix.

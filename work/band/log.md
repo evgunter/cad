@@ -854,3 +854,24 @@ Filed: `the-cross-chain-excuse-misses-an-oblique-cell-past-a-windows-end`
 witness row), and evidence added to
 `the-support-screen-refuses-a-feature-across-the-edges-line`. Main's
 1e-6 red of `r1_lane0_e2e` is noted on its ssiedge item.
+
+## 2026-10-12 — the bore ruling's step 1: predicate 2 reads three ways (PR 4797)
+
+Predicate 2's reach and the cap meter (arm (c)) read each face and cycle
+clear, wholly inside, or crossing, and feed one verdict for the request
+(`reach::Unclear`): a crossing anywhere refuses as a crossing, then a
+bound, and `BlendError::WhollyInside` only when every non-clear reading is
+inside. "Wholly inside" still refuses; the consuming carve is step 3.
+Because a wall that meets a window's end plane reads as a bound, every
+through-bore inside a sliver refuses as a bound at its wall today; the
+step-3 prerequisite (a non-strict cap-plane reading, a prism reading for
+the ruled crease) is in the unit's Findings. The README states today's
+refusal beside the ruling's end state (Ev on PR 4285: rephrase where
+misleading).
+
+Cost H, a concurrent dual (DR row `PR-4797`). Both reviews found the same
+MAJOR: the first version's verdict was whichever face or cycle was read
+first, so a crossing feature could be refused `WhollyInside` by order.
+Tally 0. A union fix pass fixed it, and a confirming full review on
+`0f5d13362d` approved, with notes for steps 2–4 recorded on the unit.
+`blend-support-ring-meters-read-two-ways` triaged P3/M.
