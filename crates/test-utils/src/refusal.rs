@@ -75,18 +75,13 @@ const SENTENCE_WORDS: &[&str] = &[
 ];
 
 /// The recourse phrases the kernel's shared vocabulary states WITHOUT a
-/// `Recourse:` label (`geom_core::COINCIDENCE_RECOURSE`,
-/// `SPLIT_PLANE_RECOURSE` and `NO_DECLARATION_RECOURSE`, longest
-/// first, since the last is a suffix of the first). This crate is a
+/// `Recourse:` label (`geom_core::SPLIT_PLANE_RECOURSE` and
+/// `COINCIDENCE_RECOURSE`, longest first). This crate is a
 /// dependency-free leaf, so the text is restated here;
 /// `editor-core/tests/refusal_concision_chains.rs`
 /// `the_bare_recourses_are_geom_cores_constants` holds the copy equal
 /// to the constants.
-pub const BARE_RECOURSES: &[&str] = &[
-    "declare the coincidence, or move the geometry",
-    "move the split plane or the geometry",
-    "move the geometry",
-];
+pub const BARE_RECOURSES: &[&str] = &["move the split plane or the geometry", "move the geometry"];
 
 /// The verbs a wrapper states a refusal with. A clause that opens with
 /// one has no subject (`escalated at the path door:`), and one whose
@@ -695,7 +690,7 @@ mod tests {
             "whether the tube's wall leaves a bore is too close to call",
             "at an edge, whether the edge is convex or concave is too close to call",
             "the transversality margin at sample 4 escalated",
-            "the residual against surface 1 at sample 4 escalated",
+            "the residual against one of the edge's surfaces at sample 4 escalated",
             "the stored interval's span (not a sampled check) escalated",
             "the fillet at this corner is undecided",
             "an authored leg extent could not be told from zero",

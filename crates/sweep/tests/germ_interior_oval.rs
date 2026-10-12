@@ -560,8 +560,10 @@ fn the_oval_lens_is_well_above_the_rows_tolerance() {
 /// W4; the side faces cut `(0,1)` and `(1,0)` pairs, W2): the lens arcs
 /// are evidenced, and tracing them is the crossing layer's business.
 /// What keeps the result from being a body is downstream of the guard —
-/// the join's germ frame, which has no torus × plane arm and is where
-/// every op refuses today — and that is what this row pins.
+/// the join's germ frame, where every op refuses: the end squares stand
+/// past the inner equator, so each cuts one null oval, a general spiric
+/// quartic the frame refuses by name. That is what this row pins, so it
+/// reds the day anything serves that section.
 #[test]
 fn the_corner_bar_never_comes_back_a_body() {
     let d = donut();
@@ -579,11 +581,21 @@ fn the_corner_bar_never_comes_back_a_body() {
         ("∖", topo::subtract(&d, &b, Tol::witness())),
         ("∖ reversed", topo::subtract(&b, &d, Tol::witness())),
     ] {
-        if let Ok(r) = r {
-            panic!(
+        match r {
+            Ok(r) => panic!(
                 "{what}: the corner bar came back {:?}",
                 r.body().map(|x| (x.kind, volume(&x.body)))
-            );
+            ),
+            Err(e) => assert!(
+                matches!(
+                    e,
+                    topo::BooleanError::GermSectionSpiric {
+                        loops: topo::SpiricLoops::Null,
+                        ..
+                    }
+                ),
+                "{what}: the end square's null oval refuses at the frame: {e:?}"
+            ),
         }
     }
 }

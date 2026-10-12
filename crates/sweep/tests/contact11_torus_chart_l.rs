@@ -2,8 +2,8 @@
 //! so. A half donut less a bar over one quarter of its upper tube would
 //! leave both torus walls L-shaped in the chart (a parallel cut by the
 //! bar's floor, a meridian by its side); the pipeline refuses the torus
-//! × plane pair (the germ frame has no arm for it) before any
-//! containment is asked. The chart-box check
+//! × plane germ pair (the germ-pair dispatch has no torus arm) before
+//! any containment is asked. The chart-box check
 //! that refuses such a face at the containment doors is pinned in
 //! `topo`'s `an_l_shaped_torus_face_refuses_rather_than_trim_by_its_hull`;
 //! what this row asserts once the pair is admitted is scheduled by
@@ -39,12 +39,12 @@ fn a_notched_half_donut_refuses_at_the_torus_plane_pair() {
     assert!(
         matches!(
             err,
-            BooleanError::GermFrameUnsupported {
-                a_kind: SurfaceKind::Torus,
-                b_kind: SurfaceKind::Plane,
+            BooleanError::CurvedBooleanUnsupported {
+                operand: topo::Operand::A,
+                kind: SurfaceKind::Torus,
                 ..
             }
         ),
-        "refused where the germ frame has no torus × plane arm: {err:?}"
+        "refused where the germ-pair dispatch has no torus arm: {err:?}"
     );
 }

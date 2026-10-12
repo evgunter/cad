@@ -14,24 +14,21 @@
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    BooleanOp, Dimension, DimensionError, Doc, Formula, HeldNodes, Label, LabelFault, LoopProgram,
+    Dimension, DimensionError, Doc, Formula, HeldNodes, Label, LabelFault, LoopProgram,
     Maintenance, Node, ProfileProgram, RecipeNodeId, RecordedProgramError, SlotId, StepId, VarId,
     VarName,
 };
 use pncad::geom_core::Point2;
 use pncad::prelude::StableName;
 use pncad::profile::{Step, Target};
-use pncad::select::SplitHalf;
 
 use crate::blend::BlendKindChoice;
 use crate::combine::PatternOutputChoice;
-use crate::forms::{DatumKindChoice, PartSelectChoice, PatternKindChoice, ShapeKind};
+use crate::forms::{DatumKindChoice, PatternKindChoice, ShapeKind};
 use crate::history::HistoryId;
 use crate::props::Notation;
 use crate::seats::SeatError;
-use crate::session::{
-    DatumSpec, DeclareOffer, FaceSelection, ProfilePlane, ProfileShape, SessionOp,
-};
+use crate::session::{DatumSpec, FaceSelection, ProfilePlane, ProfileShape, SessionOp};
 use crate::sketch::{self, HeldRefusal};
 
 /// Transient text a panel is mid-edit on.
@@ -115,21 +112,6 @@ pub(crate) struct Drafts {
     pub(crate) datum_u: [f64; 3],
     /// The frame form's sketch +y axis.
     pub(crate) datum_v: [f64; 3],
-    /// **The frame an axis-in-sketch is written in** — `None` until
-    /// one is picked, for [`Self::profile_plane`]'s reason: the frame
-    /// is a document node, so the form names one that exists.
-    ///
-    /// Its own pick rather than the profile form's, because the two
-    /// forms are filled in separately. A revolve does need both nodes
-    /// written against the SAME frame, which the form says beside the
-    /// picker.
-    pub(crate) datum_frame: Option<RecipeNodeId>,
-    /// The axis-in-sketch form's point on the axis, metres, in the
-    /// picked frame's 2-D coordinates.
-    pub(crate) datum_in_frame_origin: Point2<f64>,
-    /// Its direction in the same coordinates (unitless). Opens as the
-    /// frame's +y, the axis a profile drawn beside it turns about.
-    pub(crate) datum_in_frame_direction: [f64; 2],
     /// **The face a frame-on-face is read off** — `None` until one is
     /// picked in the viewport.
     ///
@@ -210,12 +192,13 @@ pub(crate) struct Drafts {
     pub(crate) extrude_distance: f64,
     /// The revolve tool's angle, radians.
     pub(crate) revolve_angle: f64,
-    /// The boolean tool's operation choice.
-    pub(crate) boolean_op: BooleanOp,
-    /// The offer an undeclared-contact refusal made
-    /// ([`crate::frame::declare_offer`]); shown in the boolean tool
-    /// while it stands ([`DeclareOffer::is_for`]).
-    pub(crate) declare_offer: Option<DeclareOffer>,
+    /// The revolve tool's point on its axis, metres, in the profile's
+    /// own 2-D coordinates.
+    pub(crate) revolve_axis_origin: Point2<f64>,
+    /// The revolve tool's axis direction in the same coordinates
+    /// (unitless). Opens as the profile's +y, the axis a profile drawn
+    /// beside it turns about.
+    pub(crate) revolve_axis_direction: [f64; 2],
     /// The transform tool's translation, metres.
     pub(crate) transform_translation: [f64; 3],
     /// Its rotation axis (unitless).
@@ -238,11 +221,6 @@ pub(crate) struct Drafts {
     pub(crate) pattern_spacing: f64,
     /// The circular rule's angular step, radians.
     pub(crate) pattern_step: f64,
-    /// The part form's selector choice — which of the two commit
-    /// doors the button calls, and so which seat it reads.
-    pub(crate) part_select: PartSelectChoice,
-    /// Which half of a split the part form projects.
-    pub(crate) part_half: SplitHalf,
     /// Which instance of a pattern it projects — an INTEGER all the
     /// way from the field, for [`Drafts::pattern_count`]'s reason: the
     /// slot it lands in is Count-typed and a number rounded on the way
@@ -366,6 +344,9 @@ pub(crate) struct ProfileEdit {
     /// The committed program the loops were loaded from, as written
     /// ([`sketch::written_program`]).
     base: ProfileProgram<Formula>,
+    /// The frame node the profile's plane reads, `None` for a plane
+    /// read a delete stranded.
+    frame: Option<RecipeNodeId>,
     /// The loops as the editor holds them, in description order.
     loops: Vec<Vec<Step<f64>>>,
     /// Per held loop, per held step: the committed step it was loaded
@@ -395,6 +376,7 @@ impl ProfileEdit {
     /// of it), every step loaded as itself.
     fn load(
         node: RecipeNodeId,
+        frame: Option<RecipeNodeId>,
         program: ProfileProgram<Formula>,
         loops: Vec<Vec<Step<f64>>>,
     ) -> Self {
@@ -420,6 +402,7 @@ impl ProfileEdit {
             .collect();
         Self {
             node,
+            frame,
             base: program,
             loops,
             loaded_as,
@@ -428,10 +411,10 @@ impl ProfileEdit {
         }
     }
 
-    /// The frame the profile is drawn on — a reference the edit door
-    /// does not rewrite.
-    pub(crate) fn plane(&self) -> RecipeNodeId {
-        self.base.plane
+    /// The frame the profile is drawn on — a read the edit door does
+    /// not rewrite — or `None` where a delete stranded it.
+    pub(crate) fn plane(&self) -> Option<RecipeNodeId> {
+        self.frame
     }
 
     /// The committed program the loops were loaded from — what
@@ -549,7 +532,7 @@ impl ProfileEdit {
     /// rather than assumed: [`sketch::held_loops`]'s refusal.
     pub(crate) fn revert(&mut self, doc: &Doc<ProfileProgram>) -> Result<(), HeldRefusal> {
         let loops = sketch::held_loops(doc, self.node)?;
-        *self = Self::load(self.node, self.base.clone(), loops);
+        *self = Self::load(self.node, self.frame, self.base.clone(), loops);
         Ok(())
     }
 }
@@ -617,10 +600,11 @@ impl RowEdit {
 /// only when the person commits it (VR2).
 ///
 /// **It names the variable it was opened for, never the slot's reader
-/// at commit.** The field stands only while the slot still reads that
-/// variable and it is still unnamed; an accepted offer, a retype or an
-/// undo closes it, so a name typed for one variable can never land on
-/// another.
+/// at commit.** The field stands only while that variable is still
+/// unnamed and still the one it was opened for: the slot's own, or the
+/// unnamed variable on offer there (`share`). An accepted offer, a
+/// retype or an undo closes it, so a name typed for one variable can
+/// never land on another.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct NameDraft {
     /// The node whose row the field is drawn under.
@@ -629,6 +613,11 @@ pub(crate) struct NameDraft {
     pub(crate) slot: SlotId,
     /// The variable the field was opened for, and the one it names.
     pub(crate) var: VarId,
+    /// Whether the field was opened by accepting an offer of an unnamed
+    /// variable: its commit names the variable and makes the slot read
+    /// it, as one step, since a variable two slots share has a name
+    /// (VR2).
+    pub(crate) share: bool,
     /// The text in the field.
     pub(crate) text: String,
 }
@@ -664,9 +653,6 @@ impl Default for Drafts {
             // cannot drift apart.
             datum_u: xy_u,
             datum_v: xy_v,
-            datum_frame: None,
-            datum_in_frame_origin: Point2::origin(),
-            datum_in_frame_direction: [0.0, 1.0],
             datum_face: None,
             datum_face_said: HeldNodes::default(),
             datum_spin: 0.0,
@@ -685,8 +671,8 @@ impl Default for Drafts {
             profile_extent: [0.01, 0.01],
             extrude_distance: 0.01,
             revolve_angle: core::f64::consts::TAU,
-            boolean_op: BooleanOp::Union,
-            declare_offer: None,
+            revolve_axis_origin: Point2::origin(),
+            revolve_axis_direction: [0.0, 1.0],
             transform_translation: [0.0; 3],
             transform_axis: [0.0, 0.0, 1.0],
             transform_angle: 0.0,
@@ -697,8 +683,6 @@ impl Default for Drafts {
             pattern_direction: crate::combine::STEP_DIRECTION,
             pattern_spacing: 0.02,
             pattern_step: core::f64::consts::FRAC_PI_2,
-            part_select: PartSelectChoice::Half,
-            part_half: SplitHalf::Above,
             // The FIRST instance, which is the copy rather than the
             // original: a projection of instance 0 is the master where
             // it already stands, so the index a person opening this
@@ -823,13 +807,14 @@ impl Drafts {
 
     /// **A creation landed**: the label its form held is spent, so the
     /// next creation of that kind proposes afresh. The form is found by
-    /// the kind noun of the last node the action minted — the noun a
+    /// the kind noun of the node the action made
+    /// ([`crate::world::made`]) — the noun a
     /// form's label field is keyed by, which is that node's kind
     /// (`each_datum_choices_noun_is_the_kind_of_the_node_it_commits`,
     /// `creation_nouns`). Called only for an op that committed, so a
     /// refused creation keeps what was typed.
     pub(crate) fn creation_landed(&mut self, doc: &Doc<ProfileProgram>, minted: &[RecipeNodeId]) {
-        if let Some(node) = minted.last().and_then(|id| doc.node(*id)) {
+        if let Some(node) = crate::world::made(doc, minted).and_then(|id| doc.node(id)) {
             self.creation_labels
                 .remove(pncad::document::node_kind_noun(node));
         }
@@ -870,7 +855,13 @@ impl Drafts {
             let Some(base) = current else {
                 unreachable!("`held_loops` loaded node {} as a profile", node)
             };
-            self.profile_edit = Some(ProfileEdit::load(node, base, loops));
+            let frame = match doc.node(node) {
+                Some(Node::Profile(program)) => {
+                    doc.defined_by(program.frame).map(|(frame, _)| frame)
+                }
+                _ => None,
+            };
+            self.profile_edit = Some(ProfileEdit::load(node, frame, base, loops));
         }
         let Some(held) = self.profile_edit.as_mut() else {
             unreachable!("the edit draft was kept or loaded just above")
@@ -909,7 +900,7 @@ impl Drafts {
                 loops: self.profile_loops(),
             }),
             edit: self.profile_edit.as_ref().map(|edit| DoorLoops {
-                plane: Some(ProfilePlane::Existing(edit.plane())),
+                plane: edit.plane().map(ProfilePlane::Existing),
                 loops: edit.shapes(),
             }),
         }
@@ -1043,16 +1034,6 @@ impl Drafts {
                 origin: notation.length_literals(self.datum_origin)?,
                 direction: scalars(self.datum_direction)?,
             },
-            DatumKindChoice::AxisInPlane => {
-                let Some(plane) = self.datum_frame else {
-                    return Ok(None);
-                };
-                DatumSpec::AxisInPlane {
-                    plane,
-                    origin: notation.point_literals(self.datum_in_frame_origin.to_array())?,
-                    direction: scalars2(self.datum_in_frame_direction)?,
-                }
-            }
             DatumKindChoice::FaceFrame => {
                 // Carried, not re-derived: which node the face is read
                 // out of is the gate's answer, decided where the
@@ -1157,10 +1138,10 @@ mod tests {
     use crate::forms::{DatumKindChoice, ShapeKind};
     use crate::props::Notation;
     use crate::seats::Seat;
+    use crate::session::NodeKindWanted;
     use crate::session::SessionOp;
     use crate::session::author::datum_node;
     use crate::session::{DatumSpec, FaceSelection, ProfilePlane};
-    use crate::session::{NodeKindWanted, admits};
     use crate::sketch;
     use crate::test_support::{inserted, try_edited, try_inserted, xy_frame};
 
@@ -1332,7 +1313,6 @@ mod tests {
     fn picked(datum_kind: DatumKindChoice) -> Drafts {
         Drafts {
             datum_kind,
-            datum_frame: Some(RecipeNodeId::new(0, 0)),
             datum_face: Some(FaceSelection {
                 name: StableName {
                     kind: EntityKind::Face,
@@ -1433,24 +1413,24 @@ mod tests {
                 // Made by the add-profile form and by the ops that
                 // produce bodies, not by this one.
                 //
-                // The two part selectors read a split and a pattern,
-                // which no datum form authors either.
-                NodeKindWanted::Profile
-                | NodeKindWanted::Body
-                | NodeKindWanted::Split
-                | NodeKindWanted::Instances => continue,
-                NodeKindWanted::Axis
-                | NodeKindWanted::SketchAxis
-                | NodeKindWanted::Plane
-                | NodeKindWanted::Frame => {}
+                // The part selector reads a pattern, which no datum
+                // form authors either.
+                NodeKindWanted::Profile | NodeKindWanted::Body | NodeKindWanted::Instances => {
+                    continue;
+                }
+                NodeKindWanted::Axis | NodeKindWanted::Plane | NodeKindWanted::Frame => {}
             }
             assert!(
+                // These seats are classified by the node's kind alone
+                // ([`crate::session::refuse::seat_kind`]), so the node's
+                // shape answers, its operands read as given.
                 authorable.iter().any(|node| {
                     let mut doc = Doc::empty_derived("seat", Tol::witness());
-                    admits(
-                        Some(&editor_core::test_support::stored(&mut doc, node)),
-                        wanted,
-                    )
+                    let stored =
+                        editor_core::test_support::stored_reading(&mut doc, node, |id, _| {
+                            editor_core::VarId(id.0)
+                        });
+                    crate::session::refuse::seat_kind(&stored) == Some(wanted)
                 }),
                 "the {} seat wants {} and no add-datum choice authors one",
                 seat.name(),
@@ -1493,7 +1473,7 @@ mod tests {
         let (doc, profile) = inserted(
             &doc,
             Node::Profile(ProfileProgram {
-                plane,
+                frame: plane.into(),
                 loops: loops.clone(),
                 ids: Vec::new(),
             }),
@@ -1652,7 +1632,7 @@ mod tests {
             .profile_programs(Notation::DEFAULT)
             .expect("the default path lowers");
         let node = Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops,
             ids: Vec::new(),
         });
@@ -1769,7 +1749,7 @@ mod tests {
             .expect("finite"),
         ];
         let node = Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops,
             ids: Vec::new(),
         });

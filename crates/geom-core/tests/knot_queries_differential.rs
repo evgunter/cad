@@ -12,22 +12,23 @@
 //!    answers" is measured rather than argued.
 //!
 //! 2. The **search** the raw knot-algebra path now calls, reached here
-//!    through [`KnotVector::find_span`], against the linear
+//!    through [`KnotVector::span_at`], against the linear
 //!    "last index `i` with `knots[i] ≤ u`" scan it replaced. Those two
 //!    **are not the same function**: they agree on `t ∈ [lo, hi)` and
 //!    disagree everywhere else, so the sweep asserts agreement inside
 //!    the half-open domain and asserts the *disagreement* outside it.
-//!    A future edit that "fixed" `find_span` to match a linear scan at
+//!    A future edit that "fixed" `span_at` to match a linear scan at
 //!    the domain end would fail here, which is the point.
 //!
 //!    **What this file does NOT cover, and which gate does.** The raw
 //!    path calls `find_span_in`, which is `pub(crate)` and therefore
 //!    unreachable from an integration test: everything below enters
-//!    through `find_span`, so a fault in `find_span_in`'s own body — its
+//!    through `span_at`, so a fault in `find_span_in`'s own body — its
 //!    `+ degree` — would not be seen here. Two in-crate gates own that
-//!    claim: `knots.rs`'s `find_span_in_is_find_span_on_the_same_knots`,
-//!    which pins the two doors equal at every probe including all three
-//!    totality exits, and `compose.rs`'s
+//!    claim: `knots.rs`'s
+//!    `the_span_search_matches_its_definitional_oracle_at_every_exit`,
+//!    which pins the two doors equal at every interior probe, and
+//!    `compose.rs`'s
 //!    `the_raw_span_search_tracks_the_linear_scan_through_every_insertion`,
 //!    which does it on the list mid-mutation.
 //!
@@ -329,12 +330,16 @@ fn check_span(name: &str, kv: &KnotVector) {
     let (first, last) = (kv.first_span(), kv.last_span());
 
     for t in probes(kv) {
-        let binary = kv.find_span(t);
+        let Some(binary) = kv.span_at(t).map(|s| s.index()) else {
+            assert!(t.is_nan(), "{name}: span_at({t}) refused a number");
+            continue;
+        };
+        assert!(!t.is_nan(), "{name}: span_at(NaN) located span {binary}");
         let linear = retired_linear_span(knots, t);
         if t >= lo && t < hi {
             assert_eq!(
                 binary, linear,
-                "{name}: find_span({t}) = {binary} but the retired linear scan says {linear} \
+                "{name}: span_at({t}) = {binary} but the retired linear scan says {linear} \
                  — inside [lo, hi) they must agree, which is what makes the substitution sound"
             );
         } else if t >= hi {
@@ -342,7 +347,7 @@ fn check_span(name: &str, kv: &KnotVector) {
             // linear scan walks into the trailing clamp.
             assert_eq!(
                 binary, last,
-                "{name}: find_span({t}) at/above the domain end must be the last span"
+                "{name}: span_at({t}) at/above the domain end must be the last span"
             );
             assert_eq!(
                 linear,
@@ -355,15 +360,15 @@ fn check_span(name: &str, kv: &KnotVector) {
             // `assert_ne!` could not fail on its own. The disagreement
             // is the point of the branch, not an extra check.
         } else {
-            // Below the domain, and NaN: the linear scan returns its
+            // Below the domain: the linear scan returns its
             // initialiser, not a located span.
             assert_eq!(
                 binary, first,
-                "{name}: find_span({t}) below the domain (or NaN) must be the first span"
+                "{name}: span_at({t}) below the domain must be the first span"
             );
             assert_eq!(
                 linear, 0,
-                "{name}: the retired scan below the domain (or NaN) returns its initialiser"
+                "{name}: the retired scan below the domain returns its initialiser"
             );
         }
     }

@@ -3,7 +3,7 @@ id: the-plate-document-never-cuts-its-holes
 kind: issue
 title: the two-hole plate's document never cuts its holes, so the gallery's plate opens as a blank slab
 status: parked
-blocked_on: [a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound, a-measured-part-is-not-a-product-root]
+blocked_on: [a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound]
 priority: P3
 cost: M
 opened: 2026-10-02

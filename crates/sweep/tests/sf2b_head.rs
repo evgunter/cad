@@ -15,7 +15,7 @@ use crate::common::charts::hollow_moves;
 use geom::SurfaceKind;
 use geom_brep::intersect::route;
 use geom_core::{Point2, Tol, Vec2};
-use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
+use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::finished;
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::Body;
@@ -87,15 +87,12 @@ fn bellied_pot() -> Body<f64> {
 /// **The tangent bullet**: a hemisphere tangent to its cylinder.
 fn bullet() -> Body<f64> {
     let (r, h) = (3.0 / 64.0, 8.0 / 64.0);
-    revolved(
-        bulge_loop(vec![
-            (Point2::new(0.0, 0.0), 0.0),
-            (Point2::new(r, 0.0), 0.0),
-            (Point2::new(r, h), (std::f64::consts::FRAC_PI_2 / 4.0).tan()),
-            (Point2::new(0.0, h + r), 0.0),
-        ])
-        .with_tangent_joints(vec![2]),
-    )
+    revolved(bulge_loop(vec![
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(r, 0.0), 0.0),
+        (Point2::new(r, h), (std::f64::consts::FRAC_PI_2 / 4.0).tan()),
+        (Point2::new(0.0, h + r), 0.0),
+    ]))
 }
 
 /// A cylinder between two caps normal to its axis — the drum, which

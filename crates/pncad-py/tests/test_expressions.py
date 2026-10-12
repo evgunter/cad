@@ -470,7 +470,7 @@ NESTING_BOUND = 128
 _NESTED = """
 import json, sys, threading
 
-from pncad import Doc, Formula, LiteralError, MeasureExpr, Node, ParseError, evaluate, load, m
+from pncad import Doc, Formula, LiteralError, Node, ParseError, evaluate, load, m
 
 bound, far = int(sys.argv[1]), int(sys.argv[2])
 said = {}
@@ -506,13 +506,6 @@ def run():
         except ParseError as refusal:
             refusals[label] = [refusal.variant, refusal.kind, str(refusal)]
     said["parse"] = refusals
-    measure = MeasureExpr.value(doc.parse_formula("1 m"))
-    try:
-        for _ in range(far):
-            measure = MeasureExpr.neg(measure)
-        said["measure"] = None
-    except LiteralError as refusal:
-        said["measure"] = refusal.kind
 
 
 thread = threading.Thread(target=run)
@@ -525,7 +518,7 @@ print(json.dumps(said))
 class TestNestingBound(unittest.TestCase):
     """An expression nested to the bound passes every door from a
     `threading.Thread`, its text included when its deepest leaf is a
-    negative literal, and text or a measurement nested past it refuses
+    negative literal, and text nested past it refuses
     typed there rather than killing the interpreter. Brackets nest no
     expression, so a literal in a hundred thousand of them reads.
 
@@ -565,7 +558,6 @@ class TestNestingBound(unittest.TestCase):
                 variant, kind, message = refusal
                 self.assertEqual((variant, kind), ("dimension", "nested_too_deep"))
                 self.assertIn(f"deeper than {NESTING_BOUND} levels", message)
-        self.assertEqual(said["measure"], "nested_too_deep")
 
 
 if __name__ == "__main__":

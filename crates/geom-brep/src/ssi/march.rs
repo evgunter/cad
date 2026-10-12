@@ -662,9 +662,15 @@ pub(crate) trait Exit<const M: usize, const N: usize, S: LocalSystem<M, N>> {
     ) -> Option<Self::End>;
 }
 
-/// The plane × NURBS lane's exit: the wall's knot rectangle, the
-/// state's coordinates 2 and 3, left by a structure test (module docs).
-pub(crate) struct RectExit;
+/// The ℝ⁴ lane's exit: the knot rectangles of the state's chart
+/// coordinates from `first` on, left by a structure test (module docs).
+/// The plane × NURBS lane bounds the wall's two ([`RectExit::WALL`]),
+/// the NURBS × NURBS lane all four ([`RectExit::PAIR`]).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct RectExit {
+    /// The first bounded coordinate.
+    pub(crate) first: usize,
+}
 
 /// How a plane × NURBS march ended.
 #[derive(Clone, Copy, Debug)]
@@ -682,10 +688,16 @@ pub(crate) enum RectEnd {
 }
 
 impl RectExit {
-    /// Whether a state's chart coordinates lie in the wall's rectangle
+    /// The plane × NURBS lane's: the wall's rectangle, coordinates 2
+    /// and 3.
+    pub(crate) const WALL: Self = Self { first: 2 };
+    /// The NURBS × NURBS lane's: both rectangles.
+    pub(crate) const PAIR: Self = Self { first: 0 };
+
+    /// Whether a state's bounded coordinates lie in their rectangles
     /// (a structure test on the raw coordinates, C6's lane).
-    pub(crate) fn inside(x: &[f64; 4], ctx: &MarchContext<4>) -> bool {
-        (2..4).all(|i| x[i] >= ctx.domain[i][0] && x[i] <= ctx.domain[i][1])
+    pub(crate) fn inside(self, x: &[f64; 4], ctx: &MarchContext<4>) -> bool {
+        (self.first..4).all(|i| x[i] >= ctx.domain[i][0] && x[i] <= ctx.domain[i][1])
     }
 }
 
@@ -705,7 +717,7 @@ impl<S: LocalSystem<3, 4>> Exit<3, 4, S> for RectExit {
         mode: StepperMode,
         _band: Band,
     ) -> Result<(), SsiError> {
-        if Self::inside(x, ctx) {
+        if self.inside(x, ctx) {
             Ok(())
         } else {
             Err(SsiError::SeedOffDomain {
@@ -724,14 +736,14 @@ impl<S: LocalSystem<3, 4>> Exit<3, 4, S> for RectExit {
         ctx: &MarchContext<4>,
         _band: Band,
     ) -> Result<Option<RectEnd>, SsiError> {
-        Ok((!Self::inside(&next, ctx)).then_some(RectEnd::Left {
+        Ok((!self.inside(&next, ctx)).then_some(RectEnd::Left {
             inside,
             outside: next,
         }))
     }
 
     fn holds(&self, x: &[f64; 4], ctx: &MarchContext<4>) -> bool {
-        Self::inside(x, ctx)
+        self.inside(x, ctx)
     }
 
     fn unsettled(
@@ -740,7 +752,7 @@ impl<S: LocalSystem<3, 4>> Exit<3, 4, S> for RectExit {
         predicted: [f64; 4],
         ctx: &MarchContext<4>,
     ) -> Option<RectEnd> {
-        (!Self::inside(&predicted, ctx)).then_some(RectEnd::Left {
+        (!self.inside(&predicted, ctx)).then_some(RectEnd::Left {
             inside,
             outside: predicted,
         })
@@ -1418,7 +1430,7 @@ where
 
 /// The signed distance from the state to the domain box, in meters
 /// (positive inside), through the coordinate scales.
-fn domain_margin<const M: usize, const N: usize, S>(
+pub(crate) fn domain_margin<const M: usize, const N: usize, S>(
     x: &[f64; N],
     ctx: &MarchContext<N>,
     sys: &S,
@@ -2438,7 +2450,16 @@ pub(crate) mod tests {
         // On the loop at t = ½: s(1 − s) = ⅛.
         let s = 0.5 * (1.0 - std::f64::consts::FRAC_1_SQRT_2);
         let seed = [s - 0.5, 0.0, s, 0.5];
-        let trace = march(&sys, &RectExit, seed, ctx, StepperMode::Realized, 1.0, band).unwrap();
+        let trace = march(
+            &sys,
+            &RectExit::WALL,
+            seed,
+            ctx,
+            StepperMode::Realized,
+            1.0,
+            band,
+        )
+        .unwrap();
         assert!(
             matches!(trace.end, RectEnd::Closed),
             "the level cut is a loop"

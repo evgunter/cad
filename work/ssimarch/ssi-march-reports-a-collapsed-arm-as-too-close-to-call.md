@@ -17,9 +17,9 @@ whose ending half landed there.)
 `decide_positive("ssi_transversality_arm", ..)` and maps every refusal
 to `TraceDecision::TransversalityArm.escalated(cause)`, so an arm the
 gate DECIDED zero or negative (a point arm of no length) is an
-`SsiError::Escalated`. Its `Display` (`crates/geom-brep/src/ssi.rs:1133-1138`)
+`SsiError::Escalated`. Its `Display` (`crates/geom-brep/src/ssi.rs:1147-1152`)
 reads "ssi: whether the crossing angle's lever arm … is a positive
-length is too close to call", which is false for a decided arm: the
+length is undecided", which is false for a decided arm: the
 question was answered, and the answer is that there is no arm.
 
 PR 3431 routed the ENDING: `TraceDecision::ending` now ends
@@ -37,14 +37,16 @@ verdict) and give a decided arm a definite `SsiError` variant that ends
 through `CertCheck::TransversalityArm` on `verdict.arm()`, as
 certification's `CertifyError::ArmCollapsed` does. A reader that
 re-quotes the arm's margin first must keep the gate's verdict instead,
-as `geom_brep::LeverEscalation::with_diag` does.
+through `geom_brep::LeverEscalation::quoting_reading`, the one re-quote
+door, which keeps the verdict and quotes only a reading it pairs with.
 
 
 ## The question's shape (ENCL, PR 4366)
 
 Every other door of the dihedral's arm decision asks it in one clause,
-"whether the edge is long enough, for how its faces curve, to measure
-their angle", or answers it definitely in the same words (D4 ¶1 (iv)):
+`geom_brep::DIHEDRAL_ARM_CLAUSE` ("long enough, for how its faces
+curve, to measure their angle", spelled once and composed by each
+door), or answers it definitely in the same words (D4 ¶1 (iv)):
 `topo::validate`'s `certify_undecided`, `classify_certify` (for
 `CertifyError::ArmCollapsed`) and `WedgeCheck::Arm`'s lead;
 `ValidationError::NoDihedralArm`; `CertifyError::ArmCollapsed`'s

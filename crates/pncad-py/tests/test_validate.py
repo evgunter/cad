@@ -38,15 +38,15 @@ construction (`bench_scene.py` is the one definition of it).
 
 ONE THING MEASURED AND NOT PINNED
 ---------------------------------
-A DECLARED glue — two slabs resting face to face, unioned through
-`Node.boolean(declare=...)` — comes out with an EMPTY record set: the
-union welds the declared faces, so no coincidence survives into the
+A glue — two slabs resting face to face, unioned through
+`Node.union` — comes out with an EMPTY record set: the union welds
+the coincident faces, so no coincidence survives into the
 result for a record to back. Its 3′ pass is therefore the empty-record
 case, not the certified-seam case, and this file does not pretend
 otherwise. The certified-seam case is the assembly's, below. There is
 no Python door that reads a body's record count, so the distinction
 cannot be asserted from here; it is stated because a reader would
-otherwise take `test_a_declared_glue_passes_the_fourth_rung` for
+otherwise take `test_a_glued_rest_passes_the_fourth_rung` for
 evidence it is not.
 """
 
@@ -55,9 +55,7 @@ import unittest
 
 import pncad
 from pncad import (
-    BooleanOp,
     Doc,
-    DocEdit,
     Formula,
     Node,
     Open,
@@ -107,8 +105,7 @@ def two_slabs_resting():
 
     The upper slab's four bottom corners land strictly inside the
     lower's top face, so the coincidence is real and its class is a
-    REST — the shape `find_flush_candidates` reports and a boolean's
-    `declare=` records.
+    REST, which a union glues.
     """
     doc = Doc()
     lower = slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
@@ -134,13 +131,14 @@ class TestTheFourthRungIsTheStrictest(unittest.TestCase):
         redundant: ONE body, tier 3 clean, tier 3′ refusing.
 
         Two solids that touch, gathered as the document's product.
-        `product` declares nothing — it is the root list side by side,
-        with no gate — so the seat between them is a coincidence no
+        `product` declares nothing — it is the placed copies side by
+        side, with no gate — so the seat between them is a coincidence no
         record backs. Tier 3's battery is per-entity and never looks
         across the pair, which is exactly the deferral 3′ closes.
         """
         doc, lower, upper = two_slabs_resting()
-        doc.apply(DocEdit.set_roots([lower, upper]))
+        doc.place(lower)
+        doc.place(upper)
         gathered = product(doc, evaluate(doc))
 
         gathered.validate()
@@ -158,33 +156,30 @@ class TestTheFourthRungIsTheStrictest(unittest.TestCase):
         doc = Doc()
         a = slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
         b = slab(doc, (3 * m, 4 * m), (0 * m, 1 * m), (0 * m, 1 * m))
-        doc.apply(DocEdit.set_roots([a, b]))
+        doc.place(a)
+        doc.place(b)
         product(doc, evaluate(doc)).validate_pseudomanifold()
 
-    def test_an_interpenetrating_union_has_no_coincidence_to_declare(self):
-        """A union whose operands genuinely overlap needs no
-        declaration and leaves no seam — so the strictest rung passes
+    def test_an_interpenetrating_union_has_no_coincidence_to_record(self):
+        """A union whose operands genuinely overlap meets on no
+        surface and leaves no seam — so the strictest rung passes
         a boolean result on the ordinary path."""
         doc = Doc()
         base = slab(doc, (0 * m, 3 * m), (0 * m, 2 * m), (0 * m, 1 * m))
         post = slab(doc, (0.5 * m, 1.5 * m), (0.5 * m, 1.5 * m), (0.5 * m, 2 * m))
-        fused = doc.insert(Node.boolean(BooleanOp.Union, base, post))
+        fused = doc.insert(Node.union([base, post]))
         evaluate(doc).value(fused).body().validate_pseudomanifold()
 
-    def test_a_declared_glue_passes_the_fourth_rung(self):
-        """The declare protocol's result, through the fourth rung.
+    def test_a_glued_rest_passes_the_fourth_rung(self):
+        """A glued rest, through the fourth rung.
 
-        See the module header: the union WELDS the declared faces, so
+        See the module header: the union WELDS the coincident faces, so
         this is the empty-record case. It is here because the door a
         caller reaches a glued body through must answer, not because
         it demonstrates the capture.
         """
         doc, lower, upper = two_slabs_resting()
-        findings = evaluate(doc).find_flush_candidates(lower, upper)
-        self.assertEqual(len(findings), 1)
-        glued = doc.insert(
-            Node.boolean(BooleanOp.Union, lower, upper, declare=findings)
-        )
+        glued = doc.insert(Node.union([lower, upper]))
         body = evaluate(doc).value(glued).body()
         body.validate_pseudomanifold()
         # The glue is a glue: the exact dyadic volume of the two parts.
@@ -228,7 +223,7 @@ class TestTheRecordsRideWithTheBody(unittest.TestCase):
 
         # The fourth rung is where they part. The at-rest body's
         # declarations back its seats; the gathered body has none, so
-        # every seat is an undeclared contact.
+        # every seat is an unrecorded contact.
         assembly.body.validate_pseudomanifold()
         with self.assertRaises(ValidationError) as caught:
             gathered.validate_pseudomanifold()
@@ -267,7 +262,8 @@ class TestTheRefusalsShape(unittest.TestCase):
 
     def refusal(self):
         doc, lower, upper = two_slabs_resting()
-        doc.apply(DocEdit.set_roots([lower, upper]))
+        doc.place(lower)
+        doc.place(upper)
         gathered = product(doc, evaluate(doc))
         with self.assertRaises(ValidationError) as caught:
             gathered.validate_pseudomanifold()
@@ -296,7 +292,7 @@ class TestTheRefusalsShape(unittest.TestCase):
 
     def test_the_message_is_the_kernel_s_own_diagnosis(self):
         message = str(self.refusal())
-        self.assertIn("is an undeclared contact", message)
+        self.assertIn("is an unrecorded contact", message)
         self.assertIn(
             "Recourse: declare the named contact class, or move the geometry", message
         )
@@ -306,7 +302,7 @@ class TestTheRefusalsShape(unittest.TestCase):
         KERNEL rendering rather than a binding one, and they read as
         prose like every other typed refusal in this library.
 
-        They did not always. `UndeclaredContact` rendered its census
+        They did not always. `UnrecordedContact` rendered its census
         contact through `Debug`, `StaleContactDeclaration` its stale
         declaration, and the witness position was a `Point3`'s derived
         rendering — so the first honest call of this door tripped the
@@ -345,7 +341,7 @@ class TestTheRefusalsShape(unittest.TestCase):
         self.assertFalse(hasattr(refusal, "variant"))
         self.assertIsInstance(refusal, pncad.PncadError)
         self.assertTrue(
-            all(f.variant == "undeclared_contact" for f in refusal.findings)
+            all(f.variant == "unrecorded_contact" for f in refusal.findings)
         )
         self.assertEqual(
             {f.contact_kind for f in refusal.findings},
@@ -392,7 +388,7 @@ class TestTheRefusalsShape(unittest.TestCase):
             first.findings[0].variant = "something_else"
 
     def test_every_finding_carries_every_attribute(self):
-        """No `getattr` trap. Six attributes on every finding, `None`
+        """No `getattr` trap. Seven attributes on every finding, `None`
         where the arm carries nothing to fill them — so a caller reads
         `subject_kind` without first branching on `variant`."""
         for finding in self.refusal().findings:
@@ -401,6 +397,7 @@ class TestTheRefusalsShape(unittest.TestCase):
                 "subject_kind",
                 "entity_kind",
                 "contact_kind",
+                "crossing_side",
                 "stale_kind",
                 "ring_contact_kind",
             ):
@@ -423,7 +420,7 @@ class TestTheRefusalsShape(unittest.TestCase):
 
         A cylinder resting on a slab, gathered by `product`, is the
         smallest scene that reaches two: the flat seat under the
-        cylinder is an undeclared contact, and the curved face within
+        cylinder is an unrecorded contact, and the curved face within
         reach of the slab's is a candidate the census can neither
         examine nor definitely clear, refused as undecidable rather
         than silently not looked at. Before this the two differed only
@@ -432,7 +429,8 @@ class TestTheRefusalsShape(unittest.TestCase):
         doc = Doc()
         seat = slab(doc, (0 * m, 2 * m), (0 * m, 2 * m), (0 * m, 1 * m))
         post = cylinder(doc, (1 * m, 1 * m), 0.4 * m, 1 * m, 0.5 * m)
-        doc.apply(DocEdit.set_roots([seat, post]))
+        doc.place(seat)
+        doc.place(post)
         gathered = product(doc, evaluate(doc))
         with self.assertRaises(ValidationError) as caught:
             gathered.validate_pseudomanifold()
@@ -440,12 +438,12 @@ class TestTheRefusalsShape(unittest.TestCase):
         self.assertEqual(len(refusal.findings), refusal.failure_count)
         self.assertEqual(
             {f.variant for f in refusal.findings},
-            {"undeclared_contact", "census_undecidable"},
+            {"unrecorded_contact", "census_undecidable"},
         )
         # The payload rides only where the arm carries one.
         for finding in refusal.findings:
             with self.subTest(variant=finding.variant):
-                if finding.variant == "undeclared_contact":
+                if finding.variant == "unrecorded_contact":
                     self.assertEqual(finding.contact_kind, "vertex_on_face")
                 else:
                     self.assertIsNone(finding.contact_kind)
@@ -503,7 +501,8 @@ class TestTheRefusalsShape(unittest.TestCase):
         doc = Doc()
         seat = slab(doc, (0 * m, 2 * m), (0 * m, 2 * m), (0 * m, 1 * m))
         post = cylinder(doc, (1 * m, 1 * m), 0.4 * m, 1 * m, 0.5 * m)
-        doc.apply(DocEdit.set_roots([seat, post]))
+        doc.place(seat)
+        doc.place(post)
         with self.assertRaises(ValidationError) as caught:
             product(doc, evaluate(doc)).validate_pseudomanifold()
         reached = {f.variant for f in caught.exception.findings}
@@ -511,27 +510,6 @@ class TestTheRefusalsShape(unittest.TestCase):
         self.assertNotIn("census_lane_unsupported", reached)
         self.assertNotIn("stale_contact_declaration", reached)
         self.assertNotIn("ring_meets_outer", reached)
-
-    def test_a_declared_glue_leaves_no_record_for_the_census_to_miss(self):
-        """The nearest a Python scene gets to a stale declaration, and
-        why it is not one.
-
-        A declared rest between two slabs, wired into the union that
-        welds it: the seam the declaration names is consumed by the
-        boolean, so the result carries no record that could lose its
-        witness, and the fourth rung passes. This is the row behind
-        the reason `stale_kind` is pinned in Rust rather than driven
-        from here — the scene reaches the declare/boolean pair, which
-        is the only door that hands Python a body carrying records it
-        did not gate, and it still cannot mint an unwitnessed one.
-        """
-        doc, lower, upper = two_slabs_resting()
-        findings = evaluate(doc).find_flush_candidates(lower, upper)
-        self.assertEqual(len(findings), 1)
-        glued = doc.insert(Node.boolean(BooleanOp.Union, lower, upper))
-        doc.declare(glued, findings[0])
-        body = evaluate(doc).value(glued).body()
-        body.validate_pseudomanifold()  # raises if a record went stale
 
 
 def stacked_loft(doc, sections, length, radius):
@@ -667,7 +645,8 @@ class TestGateAndMeasureInOneQuadrature(unittest.TestCase):
         could separate.
         """
         doc, lower, upper = two_slabs_resting()
-        doc.apply(DocEdit.set_roots([lower, upper]))
+        doc.place(lower)
+        doc.place(upper)
         gathered = product(doc, evaluate(doc))
         with self.assertRaises(ValidationError):
             gathered.validate_pseudomanifold()

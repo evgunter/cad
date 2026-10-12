@@ -2,11 +2,10 @@
 id: a-carried-vertex-on-face-row-at-a-pinch-is-unprobed
 kind: issue
 title: No fixture carries a vertex-on-face row whose vertex sits at a pinch, where the remap's strict rule drops a fused vertex's rest
-status: parked
+status: open
 opened: 2026-10-03
 priority: P3
 cost: M
-blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -31,9 +30,20 @@ that point unrecorded is unmeasured.
 
 Measured on that branch by making the two loops panic when non-empty,
 over `--profile ci` for topo, editor-core, sweep, viewer and pncad
-(7488 tests). Two tests reach them:
+(7488 tests). Two tests reached them:
 - `editor-core` `docm7_union_declare::a_same_member_declared_pair_is_a_carried_record_at_its_step`;
 - `topo` `boolean::ops::tests::a_cycling_absorption_row_refuses_where_a_dead_end_drops`.
+
+Since stage 4 B2 (`intent/contact-records-cite-their-decision`) the
+first no longer reaches them: its declared pair names a contact the
+operand records nothing for, so the node refuses
+`DeclaredContactUnbacked`, and the test is
+`a_same_member_declared_pair_with_no_record_refuses_at_every_door`.
+The carried v-on-f loops are reached instead by `topo`
+`records_cite_their_decision::a_carried_vertex_on_face_record_cites_its_operands_record`
+(a cube on its corner, carried into a union with a far box). No
+document-level fixture declares a backed v-on-f pair: `kiss_carry`
+carries a v-v pair only.
 
 Neither puts the row's vertex at a pinch. The pinch fixtures in
 `crates/topo/tests/union_flush_onto_edge_contact.rs` carry v-v rows
@@ -50,3 +60,7 @@ lands where the v-v group rule did.
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: asks whether carried declared Rest v-on-f rows survive remap_carried; those declared-contact rows retire at stage 4. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Released by stage 4 F (2026-10-11)
+
+Stage 4 F (`declared-pairs-retire`) retired every boolean declaration: no author can declare a pair, the glue is what the margins decide, and the declare offer, the flush detector and the carried declarations are gone. What this row waited on has fired; re-read it against that tree.

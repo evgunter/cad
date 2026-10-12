@@ -402,19 +402,23 @@ const SPLIT_FINS: i64 = 160;
 /// its own subject and the gather was inside the figure. The subject
 /// door separated them, and this is what re-takes them:
 ///
-/// - `gather_ms` — [`product_recorded`] alone, from nothing.
+/// - `gather_ms` — [`product_recorded`] alone, from nothing. It
+///   includes the tier-3' census since the gather runs it
+///   (`an-unattributed-contact-at-rest-is-a-finding`), so the series
+///   steps up there by the census's passes.
 /// - `checks_ms` — the registry over a subject already in hand.
 /// - `whole_ms` — the wrapper, which is the two together and is what
 ///   the old single figure measured.
-/// - `census_ms` — the tier-3' census over the SAME aggregate, the
-///   term this resident exists instead of: the assembly gate
-///   (`gate_at_rest_declared`) over the product's kept tier-3 verdict,
-///   which is the census alone. Entries before the change that kept
-///   the verdict (`gather/assemble-single-local-battery`) timed the
-///   local battery plus the census, so the series steps down there by
-///   the battery's share. Fewer reps than the others ([`CENSUS_REPS`])
-///   because it is the slowest term, and it REFUSES on this document
-///   (the fins meet the base), so it is the cost of a refusing run.
+/// - `census_ms` — one pass of the tier-3' census over the SAME
+///   aggregate and its records (`gate_at_rest_declared` over the
+///   product's kept tier-3 verdict, which is the census alone): the
+///   term this resident exists instead of, and the unit of what the
+///   gather now pays. Entries before the change that kept the verdict
+///   (`gather/assemble-single-local-battery`) timed the local battery
+///   plus the census, so the series steps down there by the battery's
+///   share. Fewer reps than the others ([`CENSUS_REPS`]) because it is
+///   the slowest term, and it returns findings on this document (the
+///   fins overlap the base), so it is the cost of a finding run.
 struct Split {
     solids: usize,
     faces: usize,
@@ -435,14 +439,15 @@ const _: () = assert!(
     "CENSUS_REPS must be odd for the midpoint median"
 );
 
-/// The corpus heat sink with its fin count driven to `fins`.
+/// The corpus heat sink with its fin count driven to `fins`, and each
+/// fin placed.
 fn heatsink_at(fins: i64) -> ProfileDoc {
     let tol = Tol::witness();
     let entry = documents()
         .into_iter()
         .find(|d| d.name == "heat_sink")
         .expect("the corpus carries the heat sink");
-    apply(
+    let driven = apply(
         &entry.doc,
         &DocEdit::DeclareVar {
             name: VarName::from_static("fins"),
@@ -452,7 +457,8 @@ fn heatsink_at(fins: i64) -> ProfileDoc {
         &editor_core::RefusingReach,
     )
     .expect("the fin count is a document parameter")
-    .doc
+    .doc;
+    crate::corpus::place_pattern_to(driven, fins)
 }
 
 /// Takes the split (module docs on [`Split`]).

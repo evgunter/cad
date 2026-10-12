@@ -53,3 +53,13 @@ implies); `contfp` waits on the carrier rule, as
 ## Re-homed at S-BOOL's exit (2026-09-16)
 
 Moved from `work/bool/` to CURVED (its charter names S-BOOL's ceded ground and inherits at S-BOOL's exit) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## 2026-10-09 — a fourth reader of `HalfGerm::dir` (JOIN, PR 4396)
+
+`join.rs` `turned_past` and `off_conic_slack` read a partner germ's
+`dir` as the conic's unit tangent at its site (`Turn::tangent`).
+`turned_past`'s divisor is `|turn_of(t̂)|`, and the slack's `cot ψ` is
+`|t̂·(site − c)|` over the same. A non-unit `dir` cancels in the
+slack's ratio but scales the travel margin (`bool_join_arc_travel`,
+`bool_join_arc_ahead`) by `1/|dir|`, silently. A `UnitVec3<T>` on
+`HalfGerm::dir` would cover this reader too.

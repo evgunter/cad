@@ -20,9 +20,12 @@
 //! - **Clamped-v1**: end-knot multiplicity exactly `degree + 1`;
 //!   interior multiplicity ≤ `degree`. Periodic and unclamped forms
 //!   are a **designed absence** until a consumer exists.
-//! - **Structure vs payload**: knots, weights, degrees, and every
-//!   combination coefficient are `f64` (C6: cache shape is an f64-lane
-//!   artifact); control points are the only generically-typed data.
+//! - **Structure vs values**: degrees, multiplicities, spans and every
+//!   decision a plan takes are `f64` structure, read off the values'
+//!   value channel; a carrier's knots ([`Knots`]), weights and control
+//!   points are values, held in the scalar (C6). A plan's combination
+//!   coefficients are formed at the applier's scalar from the values
+//!   ([`CurvePlan::apply_rational`]).
 //! - **Positive weights**: `w > 0`, enforced at construction — the
 //!   convex-hull property every C9 hull bound stands on.
 //! - **The span contract**: a [`Span`] borrows the [`KnotVector`] it is
@@ -43,15 +46,27 @@ pub mod algebra;
 pub mod basis;
 pub mod compose;
 pub mod hull;
+pub mod knot_values;
 pub mod knots;
 pub mod locate;
 pub mod net;
+pub mod projective;
+pub mod range;
 
-pub use algebra::{CurvePlan, KnotAlgebraError, RemovalStep};
+pub use algebra::{CurvePlan, KnotAlgebraError, RemovalStep, RingRefinement};
 pub use compose::{
     BernsteinSpans, CanonicalSurface, ComposeError, CompositeForm, CurveCertData, ImplicitSurface,
+    sub_segment,
 };
-pub use hull::{CoeffWindow, RationalCoeffs, RationalWindow, SplineCoeffs};
-pub use knots::{KnotVector, KnotVectorIssue, Span, SplineError, derivative_knot_slice};
-pub use locate::{SpanLocate, SpanSet};
-pub use net::TensorNet;
+pub use hull::{
+    C1Break, CoeffWindow, Derived, RationalCoeffs, RationalWindow, SplineCoeffs, SplineCoeffsBuf,
+};
+pub use knot_values::{KnotSpan, Knots};
+pub use knots::{
+    KnotMirrorError, KnotVector, KnotVectorIssue, Span, SplineError, derivative_knot_slice,
+    knot_difference,
+};
+pub use locate::{SpanLocate, SpanSet, poison_from};
+pub use net::{TensorChannels, TensorCoeffs, TensorNet};
+pub use projective::{ProjectivePoint, ProjectiveScalar, ProjectiveSplit};
+pub use range::{Param, ParamRange, last_at_or_below};

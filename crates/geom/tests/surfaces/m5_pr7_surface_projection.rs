@@ -2,14 +2,13 @@
 //! §6.1's surface half) — the certified foot points C2.1 requires for
 //! the limb-1 residual of a rung-3 cache whose operand is a NURBS
 //! surface (no implicit form, so "distance to the surface" has to be
-//! *exhibited*, with the orthogonality residuals that stop a bad
-//! projection laundering a bad cache).
+//! *exhibited*, as the distance from a point of the surface).
 //!
 //! Rows: convergence + residual honesty on an interior foot; a planted
-//! **wrong-sheet** seed whose orthogonality residuals are tiny and
+//! **wrong-sheet** seed that converges to a genuine stationary point
 //! whose distance is large (the laundering attempt that must be
-//! visible); a **domain-edge** foot whose distance is small and whose
-//! orthogonality residual is honestly large; poison totality.
+//! visible); a **domain-edge** foot clamped to the edge with its honest
+//! distance; poison totality.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -84,9 +83,11 @@ fn interior_foot_converges_with_honest_residuals() {
     // The nearest point is the crown itself.
     assert!((pr.u - 0.5).abs() < 1e-6, "u = {}", pr.u);
     assert!((pr.v - 0.5).abs() < 1e-6, "v = {}", pr.v);
-    // Both orthogonality residuals converged to (near) zero …
-    assert!(pr.orthogonality_u < 1e-9, "{pr:?}");
-    assert!(pr.orthogonality_v < 1e-9, "{pr:?}");
+    // Both orthogonality conditions converged to (near) zero …
+    let j = s.ders(pr.u, pr.v);
+    let r = j.point - p;
+    assert!(j.du.dot(r).abs() < 1e-9, "{pr:?}");
+    assert!(j.dv.dot(r).abs() < 1e-9, "{pr:?}");
     // … and the distance is the honest one, not zero.
     let expect = (p - pr.foot).norm();
     assert!((pr.distance - expect).abs() < 1e-12, "{pr:?}");
@@ -95,10 +96,10 @@ fn interior_foot_converges_with_honest_residuals() {
 
 #[test]
 fn projection_residual_matches_a_recomputation_from_the_reported_foot() {
-    // The foot, the distance, and the orthogonality residuals must be
-    // mutually consistent — a consumer bands the carried numbers, so a
-    // struct whose fields disagreed with its own `(u, v)` would be a
-    // laundering channel all by itself.
+    // The foot and the distance must agree with the reported `(u, v)`:
+    // a consumer bands the carried distance, so a struct whose fields
+    // disagreed with its own `(u, v)` would be a laundering channel all
+    // by itself.
     let s = bump_patch();
     for &(px, py, pz) in &[(0.2, 0.7, 1.0), (0.9, 0.1, -0.5), (0.45, 0.55, 0.2)] {
         let p = Point3::new(px, py, pz);
@@ -107,20 +108,13 @@ fn projection_residual_matches_a_recomputation_from_the_reported_foot() {
         let r = j.point - p;
         assert!((pr.foot - j.point).norm() < 1e-15, "{pr:?}");
         assert!((pr.distance - r.norm()).abs() < 1e-15, "{pr:?}");
-        assert!(
-            (pr.orthogonality_u - j.du.dot(r).abs()).abs() < 1e-15,
-            "{pr:?}"
-        );
-        assert!(
-            (pr.orthogonality_v - j.dv.dot(r).abs()).abs() < 1e-15,
-            "{pr:?}"
-        );
     }
 }
 
 #[test]
 fn a_wrong_sheet_seed_is_visible_in_the_distance_not_the_orthogonality() {
-    // THE C2.1 row: "a bad projection cannot launder a bad cache".
+    // C2 limb 1: the distance is the residual, and any surface point
+    // bounds it from above, so a far-sheet foot reads too far, never too near.
     let s = cylinder_patch();
     // Off-axis inside the cylinder: near wall at 0.8, far wall at 1.2.
     let p = Point3::new(0.2, 0.0, 0.5);
@@ -133,33 +127,30 @@ fn a_wrong_sheet_seed_is_visible_in_the_distance_not_the_orthogonality() {
         "the planted seed did not stay on the far wall: {bad:?}"
     );
     // The far foot is a genuine stationary point: both orthogonality
-    // residuals vanish, so orthogonality ALONE would accept it as a
-    // certified foot — and a cache lying 0.4 m off the surface would
+    // conditions hold there, so orthogonality ALONE would accept it as
+    // a certified foot — and a cache lying 0.4 m off the surface would
     // then certify. Only the distance exposes it.
+    let j = s.ders(bad.u, bad.v);
+    let r = j.point - p;
     assert!(
-        bad.orthogonality_u < 1e-9 && bad.orthogonality_v < 1e-9,
+        j.du.dot(r).abs() < 1e-9 && j.dv.dot(r).abs() < 1e-9,
         "expected a converged far stationary point, got {bad:?}"
     );
     assert!(bad.distance > good.distance + 0.39, "{bad:?} vs {good:?}");
 }
 
 #[test]
-fn a_domain_edge_foot_reports_an_honestly_large_orthogonality_residual() {
+fn a_domain_edge_foot_clamps_to_the_edge_with_its_honest_distance() {
     let s = bump_patch();
     // Far off the u = 0 edge: the true nearest point is on the
     // boundary, where the gradient does not vanish.
     let p = Point3::new(-4.0, 0.5, 0.0);
     let pr = s.project(p).unwrap();
     assert!(pr.u <= PROJECT_EPS_POINT, "clamped to u = 0: {pr:?}");
-    // Distance is the honest boundary distance …
-    assert!(pr.distance > 3.9, "{pr:?}");
-    // … and the u-orthogonality residual is large, which is exactly
-    // what tells a consumer "this is a clamped edge foot, not an
-    // interior stationary point".
-    assert!(
-        pr.orthogonality_u > 1.0,
-        "an edge foot must report its residual honestly, got {pr:?}"
-    );
+    // The bump vanishes on the boundary ring, so the u = 0 edge is the
+    // segment x = z = 0 with y = v, and the exact foot is (0, 0.5, 0).
+    assert!((pr.distance - 4.0).abs() < 1e-9, "{pr:?}");
+    assert!((pr.v - 0.5).abs() < 1e-6, "{pr:?}");
 }
 
 #[test]
@@ -246,5 +237,115 @@ fn an_overflowing_residual_refuses_rather_than_reporting_an_infinite_foot() {
             );
         }
         Ok(pr) => panic!("an overflowed residual was reported as a foot point: {pr:?}"),
+    }
+}
+
+/// The foot is a function of the query point only through the selected
+/// parameters, which a numerical search produced: at `Sym<f64>`, with
+/// the query point's `z` a parameter, the foot and its distance carry
+/// them as unknowns and so re-value to no claim at all, never to the
+/// foot of the stale parameters. The crown query takes the cosine exit
+/// and the one off the `u = 0` edge the stagnation exit.
+///
+/// The carrier is built inside the session: `revalue` answers `None`
+/// for a node the session never interned, so a carrier built outside it
+/// would pass this row on any code. The control (a point of the same
+/// carrier at constant parameters re-values to a number) holds that.
+#[test]
+fn selected_parameters_enter_the_foot_as_unknowns() {
+    use geom_core::sym::revalue::revalue;
+    use geom_core::sym::with_session;
+    use geom_core::{ParamSymbol, Real, Sym, SymBudget};
+    type S = Sym<f64>;
+    let lift = ParamSymbol::new(1);
+    let budget = SymBudget {
+        max_terms: 64,
+        max_degree: 8,
+    };
+    for (label, (x, y, z)) in [
+        ("crown foot", (0.5, 0.5, 2.0)),
+        ("clamped edge", (-4.0, 0.5, 0.0)),
+    ] {
+        let ((control, revalued), _) = with_session(budget, || {
+            let s = bump_patch().map_scalar(S::from_f64);
+            let p = Point3::new(
+                S::from_f64(x),
+                S::from_f64(y),
+                S::from_f64(z) + S::param(lift, 0.0),
+            );
+            let pr = s.project(p).unwrap();
+            let at = |_: ParamSymbol| Some(0.25);
+            (
+                revalue(s.eval(S::from_f64(0.5), S::from_f64(0.5)).z.node(), &at),
+                (
+                    revalue(pr.foot.z.node(), &at),
+                    revalue(pr.distance.node(), &at),
+                ),
+            )
+        });
+        assert!(
+            control.is_some(),
+            "{label}: the carrier's own nodes re-value, so a None below is the parameters'"
+        );
+        assert_eq!(
+            revalued,
+            (None, None),
+            "{label}: the foot and its distance re-value through unknowns, not constant parameters"
+        );
+    }
+}
+
+/// The `Opaque` unknowns the profiled sessions minted.
+fn opaques(profile: &geom_core::sym::profile::SymProfile) -> u64 {
+    profile.opaque_ids.iter().map(|s| s.len() as u64).sum()
+}
+
+/// The seeding sweep's samples and Newton's stagnation step feed only
+/// `mid` comparisons, so no payload carries them; each still enters `T`
+/// as its own unknown, which the session profile counts at the
+/// session's end. The sweep
+/// mints one per `u` row and one per sample; each Newton pass mints two
+/// for its jet and two for its step, and an accepted foot two more.
+#[test]
+fn the_sweep_and_the_stagnation_step_mint_their_unknowns() {
+    use geom::PROJECT_SEEDS_PER_SPAN;
+    use geom_core::sym::profile::{start_profile, take_profile};
+    use geom_core::sym::with_session;
+    use geom_core::{Real, Sym, SymBudget};
+    type S = Sym<f64>;
+    let budget = SymBudget {
+        max_terms: 64,
+        max_degree: 8,
+    };
+    let point =
+        |(x, y, z): (f64, f64, f64)| Point3::new(S::from_f64(x), S::from_f64(y), S::from_f64(z));
+    start_profile();
+    let _ = with_session(budget, || {
+        bump_patch()
+            .map_scalar(S::from_f64)
+            .project_seed(point((0.5, 0.5, 2.0)))
+    });
+    let n = PROJECT_SEEDS_PER_SPAN as u64;
+    assert_eq!(
+        opaques(&take_profile()),
+        n + n * n,
+        "the bump is one window: one unknown per u row and one per sample"
+    );
+    for (label, q) in [
+        ("crown foot", (0.5, 0.5, 2.0)),
+        ("clamped edge", (-4.0, 0.5, 0.0)),
+    ] {
+        start_profile();
+        let (iterations, _) = with_session(budget, || {
+            let s = bump_patch().map_scalar(S::from_f64);
+            s.project(point(q)).unwrap().iterations
+        });
+        let atoms = opaques(&take_profile());
+        assert!(iterations > 0, "{label}: the fixture takes a Newton step");
+        assert_eq!(
+            atoms,
+            n + n * n + 4 * iterations as u64 + 2,
+            "{label}: the sweep's samples, every pass's jet and step, and the accepted foot are unknowns"
+        );
     }
 }

@@ -25,7 +25,7 @@
 //! Interval-multiplying those three-component enclosures gives an
 //! enclosure `M ⊇ { S_u(u,v) × S_v(u,v) : (u,v) ∈ cell }`. THREE
 //! sound lower bounds on `‖m‖` are assembled and the largest wins —
-//! the speed meter's two-assembly join, lifted and extended:
+//! the speed meter's chord join, lifted and extended:
 //!
 //! - **Componentwise mignitude**: `‖m‖ = √(Σ_c m_c²) ≥ √(Σ_c mig(M_c)²)`,
 //!   where `mig(I)` is the smallest `|x|` for `x ∈ I` (zero when `I`
@@ -43,8 +43,11 @@
 //!   form's own enclosures. `E` and `G` are DEPENDENT squares — no
 //!   cancellation to lose — so on a near-orthogonal chart (`F ≈ 0`)
 //!   this is far tighter than either cross-product assembly, whose
-//!   three components each carry the full width of two factors. It is
-//!   also the only assembly that tightens the SUP side.
+//!   three components each carry the full width of two factors.
+//!
+//! The SUP side is none of these: it is [`PatchCell::m_sup`], read from
+//! the norms of coefficient vectors (D4 ¶2), so a rigid map moves it
+//! only by rounding.
 //!
 //! ## Conservatism direction, stated
 //!
@@ -144,7 +147,7 @@
 use geom_core::Bounds;
 use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
-use geom_core::interval::{div_down, max_bound, min_bound, norm_sq, norm_sup};
+use geom_core::interval::{cross, div_down, dot, max_bound, min_bound, norm_sq, norm_sup};
 use geom_core::{Band, Indeterminate, Margin, SupSpeed};
 
 use crate::dihedral::decide_reported;
@@ -334,7 +337,10 @@ impl core::fmt::Display for MeterError {
             ),
             Self::Escalated { source, .. } => write!(
                 f,
-                "the face's offset is too close to call: {}",
+                concat!(
+                    geom_core::undecided!("whether this face can be offset"),
+                    ": {}"
+                ),
                 source.payload()
             ),
         }
@@ -425,29 +431,9 @@ pub fn mig(i: Interval) -> f64 {
     }
 }
 
-/// Interval dot product, fixed ascending order (D9).
-fn dot(a: &[Interval; 3], b: &[Interval; 3]) -> Interval {
-    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
-}
-
-/// Interval cross product, fixed component order (D9).
-///
-/// Component-for-component `ssi::enclose::cross3`, which is private
-/// to that module and takes its operands by value. [`dot`] and this
-/// are the borrow-shaped pair; if a third consumer ever wants them,
-/// the pair collapses into one `geom_core` home beside
-/// [`norm_sq`], which already has — noted at both sites so the
-/// duplication is a decision rather than an accident.
-fn cross(a: &[Interval; 3], b: &[Interval; 3]) -> [Interval; 3] {
-    [
-        a[1] * b[2] - a[2] * b[1],
-        a[2] * b[0] - a[0] * b[2],
-        a[0] * b[1] - a[1] * b[0],
-    ]
-}
-
-/// One cell's chart-normal facts: the enclosure of `S_u × S_v` and
-/// certified bounds on its magnitude (module docs, meter 1).
+/// One cell's chart-normal facts: the enclosure of `S_u × S_v` and a
+/// certified lower bound on its magnitude (module docs, meter 1); the
+/// upper bound is the cell's own [`PatchCell::m_sup`].
 #[derive(Clone, Copy, Debug)]
 pub struct CellNormal {
     /// Componentwise enclosure of `m = S_u × S_v` on the cell.
@@ -457,9 +443,6 @@ pub struct CellNormal {
     /// area) — the regularity floor. Exactly `0.0` when neither
     /// assembly could separate the cell's normal from zero.
     pub floor: f64,
-    /// Certified UPPER bound on `‖m‖` over the cell, same units; NaN
-    /// when the cell's enclosures refused.
-    pub sup: f64,
 }
 
 /// Meter 1, per cell: the three-assembly join (module docs).
@@ -518,7 +501,7 @@ pub fn cell_normal(cell: &PatchCell) -> CellNormal {
         0.0
     };
     // Assembly C: the Gram determinant, `‖m‖² = EG − F²` (Lagrange's
-    // identity). It bounds BOTH ends, and on a chart whose parameter
+    // identity). On a chart whose parameter
     // directions are near-orthogonal it is dramatically tighter than
     // either cross-product assembly — `E` and `G` are DEPENDENT
     // squares with no cancellation to lose, while the cross product's
@@ -531,18 +514,15 @@ pub fn cell_normal(cell: &PatchCell) -> CellNormal {
     // outside fact that clamps it.
     let gram = norm_sq(&cell.s_u) * norm_sq(&cell.s_v) - dot(&cell.s_u, &cell.s_v).sqr();
     let root_c = gram.clamped_to(0.0, f64::INFINITY).sqrt();
-    let (c, gram_sup) = if !root_c.is_certified() {
-        (0.0, f64::NAN)
+    let c = if !root_c.is_certified() {
+        0.0
     } else {
-        (root_c.lo(), root_c.hi())
+        root_c.lo()
     };
     let floor = if a > b { a } else { b };
     CellNormal {
         m,
         floor: if floor > c { floor } else { c },
-        // Each side is a sound sup or NaN (refused): the join keeps
-        // whichever answered, and is NaN only when neither did.
-        sup: norm_sup(&m).min(gram_sup),
     }
 }
 
@@ -555,7 +535,7 @@ pub struct PatchRegularity {
     /// unit and the module docs' one spelling of it.
     pub floor: f64,
     /// `sup ‖S_u × S_v‖` from above, in [`PatchRegularity::floor`]'s
-    /// units; NaN when any cell's [`CellNormal::sup`] is.
+    /// units; NaN when any cell's [`PatchCell::m_sup`] is.
     pub sup: f64,
     /// `sup ‖S_u‖` (m per unit parameter) — a [`SupSpeed`] by
     /// signature: every consumer of it meters an overshoot (the
@@ -626,7 +606,7 @@ pub fn patch_regularity(cells: &[PatchCell]) -> PatchRegularity {
         if n.floor < floor {
             floor = n.floor;
         }
-        sup = max_bound(sup, n.sup);
+        sup = max_bound(sup, cell.m_sup);
         speed_u = speed_u.max(SupSpeed::new(cell.s_u_sup));
         speed_v = speed_v.max(SupSpeed::new(cell.s_v_sup));
     }
@@ -741,13 +721,13 @@ pub struct PatchCollapse {
 fn cell_curvature(cell: &PatchCell) -> Option<(f64, f64)> {
     let n = cell_normal(cell);
     #[allow(clippy::neg_cmp_op_on_partial_ord)]
-    if !(n.floor > 0.0) || !n.sup.is_finite() {
+    if !(n.floor > 0.0) || !cell.m_sup.is_finite() {
         return None;
     }
     // The normalized normal, componentwise: `n_c = m_c / ‖m‖` with
     // `‖m‖ ∈ [floor, sup]` — meter 1's floor is exactly what makes
     // this division legal (interval arithmetic refuses a zero-touching divisor).
-    let mag = Interval::from_bounds(n.floor, n.sup);
+    let mag = Interval::from_bounds(n.floor, cell.m_sup);
     let unit = [n.m[0] / mag, n.m[1] / mag, n.m[2] / mag];
     let (l, m, nn) = (
         dot(&unit, &cell.s_uu),
@@ -761,7 +741,7 @@ fn cell_curvature(cell: &PatchCell) -> Option<(f64, f64)> {
         l,
         m,
         n: nn,
-        a: Interval::from_bounds(n.floor, n.sup).sqr(),
+        a: Interval::from_bounds(n.floor, cell.m_sup).sqr(),
     };
     // Assembly A — the closed form `κ± = H ± √(H² − K)`.
     let (h, k) = (forms.mean(), forms.gauss());
@@ -936,8 +916,9 @@ mod tests {
     const DISTANCE: &str =
         "Recourse: use an offset distance of smaller magnitude, or offset to the other side";
     const REPORT: &str = "; if it has none, this may indicate a kernel bug worth reporting";
-    const UNREAD: &str = "; an unreadable or collapsed margin may indicate a kernel bug worth \
-                          reporting";
+    const UNREAD: &str = "; an unreadable margin may indicate a kernel bug worth reporting";
+    const UNREAD_AT_REST: &str =
+        "; an unreadable margin may indicate a kernel or file defect worth reporting";
 
     /// `K = 10`: a margin `m` passes at every tolerance below `m/10`.
     fn band() -> Band {
@@ -1070,6 +1051,18 @@ mod tests {
         ];
         for (error, want) in rows {
             for reading in [Reading::Build, Reading::AtRest] {
+                // A poisoned margin's note names the file at rest.
+                let want = match (reading, &error) {
+                    (Reading::AtRest, MeterError::Escalated { meter, source })
+                        if source.margin.is_invalid() =>
+                    {
+                        match meter {
+                            Meter::NormalFloor => format!("{SPLIT}{UNREAD_AT_REST}"),
+                            Meter::CurvatureHeadroom => format!("{DISTANCE}{UNREAD_AT_REST}"),
+                        }
+                    }
+                    _ => want.clone(),
+                };
                 assert_eq!(error.ending(reading), want, "{error:?} at {reading:?}");
                 let text = error.render(reading);
                 assert_eq!(text, format!("{error}. {want}"), "{reading:?}");
@@ -1282,6 +1275,7 @@ mod tests {
             s_vv: p(0.0, 0.0, 0.0),
             s_u_sup: 1.0,
             s_v_sup: 1.0,
+            m_sup: 1.0,
         };
         let refused = PatchCell {
             u: (1.0, 2.0),
@@ -1291,6 +1285,7 @@ mod tests {
                 Interval::point(0.0),
             ],
             s_u_sup: f64::NAN,
+            m_sup: f64::NAN,
             ..healthy
         };
         for (order, cells) in [

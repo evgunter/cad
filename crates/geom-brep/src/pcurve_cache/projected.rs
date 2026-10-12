@@ -71,16 +71,20 @@
 //! metres per part of the twin net's knot spans, each cut into
 //! `INCIDENCE_CUTS` parts in the composite's own ring
 //! (`CurveCertData::with_breaks`; the net itself is never refined
-//! through an `f64` plan, which would re-round it). The conversion divides `|f|` by a lower bound on
-//! `|∇f|` along the segment from the point to its nearest point on the
-//! chart, so each is tight to first order: `|f|` on the plane;
+//! through an `f64` plan, which would re-round it), and further halved
+//! by the edge certificate's limb 2 (`net_offset_sup`). The conversion
+//! divides `|f|` by a lower bound on `|∇f|` along the segment from the
+//! point to its nearest point on the chart, so each is tight to first
+//! order: `|f|` on the plane;
 //! `D = |f| / (R + max(ρ_min, R − |f|/R))` on the cylinder and the same
 //! with `r` on the sphere; `|f| / lever` on the cone, with
 //! `lever = ρ_min·cos α + (σz)_min·sin α` (the twin's `half_angle`),
 //! which must decide positive or the span refuses
 //! (`SectorRefused { channel: Lever }`); and on the torus
 //! `|f| / ((r + max(0, r − D₁))·((ρ_min + R)² − r²))` with
-//! `D₁ = |f| / (r·((ρ_min + R)² − r²))`. `ρ_min` and `(σz)_min` are
+//! `D₁ = |f| / (r·((ρ_min + R)² − r²))`, whose lever `(ρ_min + R)² − r²`
+//! must decide positive the same way (a spindle torus's inner sheet
+//! drives it negative). `ρ_min` and `(σz)_min` are
 //! read off each part's own controls (`piece_controls`, ratios in the
 //! scalar; `part_floors`: the box's nearest point maxed with the
 //! chord-support bound where its divisor certifies). The composite
@@ -93,6 +97,16 @@
 //! the distance to the tube's core), each with its lower bound read off
 //! the incidence term (`|ξ̂| ≥ r − incidence`, and so on) less the
 //! fidelity itself.
+//!
+//! **The distance floor** is the lower bound the other way, read at a
+//! part's break (`distance_floor`), where the composite's value `f(p)`
+//! is enclosed and `p` is the part's end control: `|f(p)|`'s lower end
+//! over an upper bound on `Meters::divisor` at `p`, a factor with
+//! `|f| = distance · divisor` exactly on the plane, cylinder, sphere and
+//! every torus, and `|f| ≥ distance · divisor` on the cone. Every
+//! surface lies in its form's zero set, so the floor is a certified
+//! lower bound on the carrier's distance from it there. Limb 2 reads it
+//! as a measured miss.
 //!
 //! **The sector condition**, decided per piece: the piece's radial hull
 //! (its Bézier controls rotated by `−θ_k`, or a circle's harmonic box)
@@ -119,7 +133,7 @@ use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve3, Surface};
 use geom_core::predicate::Band;
-use geom_core::spline::{KnotVector, SpanLocate};
+use geom_core::spline::{KnotVector, ParamRange, SpanLocate, poison_from};
 use geom_core::{Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec2, Vec3};
 
 use crate::offset::Nappe;
@@ -222,10 +236,13 @@ impl<T: SpanLocate> FramedCarrier<T> {
 }
 
 impl<T: Real> FramedCarrier<T> {
-    /// The carrier parameters of the piece parameters `a`, `b`.
+    /// The carrier parameters of the piece parameters `a`, `b`. On a
+    /// net a piece end that is one of its breakpoints is that
+    /// breakpoint's held value; any other is a break the partition
+    /// chose (a schedule point), entered as the constant it is.
     fn piece_span(&self, a: f64, b: f64) -> (T, T) {
         match self {
-            Self::Net(_) => (T::from_f64(a), T::from_f64(b)),
+            Self::Net(net) => (net_param(net, a), net_param(net, b)),
             Self::Circle { origin, span, .. } => (
                 *origin + *span * T::from_f64(a),
                 *origin + *span * T::from_f64(b),
@@ -433,23 +450,45 @@ fn rotate_box<T: Real>(m: i32, x: (T, T), y: (T, T)) -> ((T, T), (T, T)) {
     }
 }
 
-/// The control points and weights of a net's restriction to `[a, b]`,
-/// a sub-interval of one of its knot spans: the blossom
+/// The net parameter `v` in the scalar: one of the net's breakpoints is
+/// that breakpoint's held value; any other is a point the caller
+/// chose (a partition or halving break, or the `f64` end of an edge's
+/// certified parameter enclosure), entered as the constant it is.
+fn net_param<T: Real>(net: &NurbsCurve3<T>, v: f64) -> T {
+    net.knot_values()
+        .value_at(v)
+        .unwrap_or_else(|| T::from_f64(v))
+}
+
+/// The control points and weights of a net's restriction to `piece`
+/// `= [a, b]`, a sub-interval of one of its knot spans: the blossom
 /// `B(a^{p−m}, b^m)`, `m = 0…p`, in homogeneous coordinates
 /// (de Boor's recursion with the arguments taken in turn). Each control
 /// is a convex combination of the span's, so the weights stay positive.
-/// The recursion's ratios are formed in the scalar, so at an enclosure
-/// scalar the controls enclose the true restriction's.
-pub(crate) fn piece_controls<T: Real>(net: &NurbsCurve3<T>, a: f64, b: f64) -> Vec<(Vec3<T>, T)> {
+/// The recursion's ratios are formed in the scalar over the net's held
+/// knots, so at an enclosure scalar the controls enclose the true
+/// restriction's; a piece end that is one of the net's breakpoints is
+/// that breakpoint's held value, and any other end is entered as the
+/// caller's `f64` parameter.
+///
+/// The span is the one `a` locates in. Inside one knot span's closure
+/// with `a < b` that is the span holding the piece; at `a == b` on a
+/// knot it is the span starting there, whose closure holds the point.
+pub(crate) fn piece_controls<T: Real>(
+    net: &NurbsCurve3<T>,
+    piece: ParamRange,
+) -> Vec<(Vec3<T>, T)> {
+    let (a, b) = (piece.start(), piece.end());
     let kv = net.knots();
     let p = kv.degree();
-    let span = kv.span_at(0.5 * (a + b));
+    let (span, _) = kv.span_range(piece);
     let j = span.index();
-    let knots = kv.knots();
+    let knots = net.knot_values().values();
+    let (a, b) = (net_param(net, a), net_param(net, b));
     let base: Vec<(Vec3<T>, T)> = span
         .window()
         .map(|i| {
-            let w = T::from_f64(net.weights()[i]);
+            let w = net.weights()[i];
             ((net.control()[i] - Point3::origin()) * w, w)
         })
         .collect();
@@ -457,10 +496,9 @@ pub(crate) fn piece_controls<T: Real>(net: &NurbsCurve3<T>, a: f64, b: f64) -> V
         .map(|m| {
             let mut d = base.clone();
             for r in 1..=p {
-                let u = T::from_f64(if r <= p - m { a } else { b });
+                let u = if r <= p - m { a } else { b };
                 for i in (r..=p).rev() {
-                    let lo = T::from_f64(knots[j - p + i]);
-                    let hi = T::from_f64(knots[j + 1 + i - r]);
+                    let (lo, hi) = (knots[j - p + i], knots[j + 1 + i - r]);
                     let alpha = (u - lo) / (hi - lo);
                     let beta = T::one() - alpha;
                     d[i] = (
@@ -479,25 +517,28 @@ impl<T: SpanLocate> ProjectedImage<T> {
     /// [`Pcurve::eval`]'s arm.
     pub(super) fn eval(&self, t: T) -> Point2<T> {
         let p = self.carrier.eval(t);
-        let set = self.carrier.piece_param(t).locate_spans(&self.breaks);
-        let mut acc: Option<Point2<T>> = None;
-        for span in set.first.index()..=set.last.index() {
+        let s = self.carrier.piece_param(t);
+        // A poison parameter locates no piece: the point is poison in
+        // every channel `s` carries.
+        let Some(set) = s.locate_spans(&self.breaks) else {
+            return Point2::<T>::origin().map(|_| poison_from(s));
+        };
+        let mut acc = self.raw(p, set.first.index() - 1);
+        for span in set.first.index() + 1..=set.last.index() {
             let raw = self.raw(p, span - 1);
-            acc = Some(match acc {
-                None => raw,
-                Some(q) => Point2::new(q.x.enclosure_hull(raw.x), q.y.enclosure_hull(raw.y)),
-            });
+            acc = Point2::new(acc.x.enclosure_hull(raw.x), acc.y.enclosure_hull(raw.y));
         }
-        self.place(acc.unwrap_or_else(|| self.raw(p, 0)))
+        self.place(acc)
     }
 
-    /// The pieces `[t0, t1]` overlaps.
-    pub(crate) fn overlapped(&self, t0: T, t1: T) -> core::ops::RangeInclusive<usize> {
-        let a = self.carrier.piece_param(t0).locate_spans(&self.breaks);
-        let b = self.carrier.piece_param(t1).locate_spans(&self.breaks);
+    /// The pieces `[t0, t1]` overlaps, `lo ≤ hi`, or `None` when an
+    /// end is poison and so locates no piece.
+    pub(crate) fn overlapped(&self, t0: T, t1: T) -> Option<(usize, usize)> {
+        let a = self.carrier.piece_param(t0).locate_spans(&self.breaks)?;
+        let b = self.carrier.piece_param(t1).locate_spans(&self.breaks)?;
         let lo = a.first.index().min(b.first.index()) - 1;
         let hi = a.last.index().max(b.last.index()) - 1;
-        lo..=hi
+        Some((lo, hi))
     }
 
     /// Piece `k`'s chart-frame box, its end pieces stretched to `t0`
@@ -505,20 +546,32 @@ impl<T: SpanLocate> ProjectedImage<T> {
     /// the piece.
     pub(crate) fn frame_box(&self, k: usize, t0: T, t1: T) -> FrameBox<T> {
         let knots = self.breaks.knots();
-        self.frame_box_on(k, knots[k + 1], knots[k + 2], t0, t1)
+        // The breaks are a knot vector's, so a piece's ends are ordered
+        // numbers; a pair that is not names no piece, and its box is
+        // poison.
+        let Some(piece) = ParamRange::new(knots[k + 1], knots[k + 2]) else {
+            let poison = poison_from(t0 + t1);
+            return FrameBox {
+                x: (poison, poison),
+                y: (poison, poison),
+                z: (poison, poison),
+            };
+        };
+        self.frame_box_on(k, piece, t0, t1)
     }
 
     /// The chart-frame box of `[s0, s1]`, a sub-interval of piece `k`
     /// on the piece parameter, read on that piece's branch. A circle's
     /// sub-interval at the partition's first or last break is stretched
     /// to `t0` or `t1`, as [`Self::frame_box`] stretches an end piece.
-    fn frame_box_on(&self, k: usize, s0: f64, s1: f64, t0: T, t1: T) -> FrameBox<T> {
+    fn frame_box_on(&self, k: usize, part: ParamRange, t0: T, t1: T) -> FrameBox<T> {
+        let (s0, s1) = (part.start(), part.end());
         let theta = self.azimuth.get(k).copied().unwrap_or(0);
         let sigma = self.chart.sigma();
         let knots = self.breaks.knots();
         match &self.carrier {
             FramedCarrier::Net(net) => {
-                let controls = piece_controls(net, s0, s1);
+                let controls = piece_controls(net, part);
                 let first = controls[0].0;
                 let mut x = (first.x, first.x);
                 let mut y = (first.y, first.y);
@@ -642,34 +695,44 @@ impl<T: SpanLocate> ProjectedImage<T> {
         }
     }
 
-    /// The hull of `windows`, placed by the deck map; an empty list
-    /// answers an inverted window.
-    fn placed_hull(&self, windows: impl Iterator<Item = ChartWindow<T>>) -> ChartWindow<T> {
-        let w = windows
-            .reduce(|o, w| ChartWindow {
-                u_min: o.u_min.min(w.u_min),
-                u_max: o.u_max.max(w.u_max),
-                v_min: o.v_min.min(w.v_min),
-                v_max: o.v_max.max(w.v_max),
-            })
-            .unwrap_or(ChartWindow {
-                u_min: T::one(),
-                u_max: -T::one(),
-                v_min: T::one(),
-                v_max: -T::one(),
-            });
+    /// The hull of `first` and `rest`, placed by the deck map.
+    fn placed_hull(
+        &self,
+        first: ChartWindow<T>,
+        rest: impl Iterator<Item = ChartWindow<T>>,
+    ) -> ChartWindow<T> {
+        let w = rest.fold(first, |o, w| ChartWindow {
+            u_min: o.u_min.min(w.u_min),
+            u_max: o.u_max.max(w.u_max),
+            v_min: o.v_min.min(w.v_min),
+            v_max: o.v_max.max(w.v_max),
+        });
         self.place_box(w)
+    }
+
+    /// The window a poison read answers: [`poison_from`] of `seed` in
+    /// every bound.
+    fn poison_window(seed: T) -> ChartWindow<T> {
+        let poison = poison_from(seed);
+        ChartWindow {
+            u_min: poison,
+            u_max: poison,
+            v_min: poison,
+            v_max: poison,
+        }
     }
 
     /// [`Pcurve::chart_box`]'s arm: per overlapped piece, the channel
     /// ranges over that piece's box, hulled. Restriction-monotone: a
     /// sub-span overlaps a subset of the pieces, and an end piece is
-    /// stretched only to an end it does not already contain.
+    /// stretched only to an end it does not already contain. A poison
+    /// end locates no piece, and the box is poison.
     pub(super) fn chart_box(&self, t0: T, t1: T) -> ChartWindow<T> {
-        self.placed_hull(
-            self.overlapped(t0, t1)
-                .map(|k| self.window(k, &self.frame_box(k, t0, t1))),
-        )
+        let Some((lo, hi)) = self.overlapped(t0, t1) else {
+            return Self::poison_window(t0 + t1);
+        };
+        let piece = |k| self.window(k, &self.frame_box(k, t0, t1));
+        self.placed_hull(piece(lo), (lo + 1..=hi).map(piece))
     }
 
     /// The channel ranges over `[t0, t1]` read on a cover finer than the
@@ -709,18 +772,29 @@ impl<T: SpanLocate> ProjectedImage<T> {
         }
         fine.dedup();
         let fine = breaks_vector(&fine);
-        let (lo, hi) = (
+        let (Some(lo), Some(hi)) = (
             self.carrier.piece_param(t0).locate_spans(&fine),
             self.carrier.piece_param(t1).locate_spans(&fine),
-        );
+        ) else {
+            return Self::poison_window(t0 + t1);
+        };
         let first = lo.first.index().min(hi.first.index()) - 1;
         let last = lo.last.index().max(hi.last.index()) - 1;
         let cuts = fine.knots();
-        self.placed_hull((first..=last).map(|j| {
-            let (a, b) = (cuts[j + 1], cuts[j + 2]);
-            let k = self.breaks.span_at(0.5 * (a + b)).index() - 1;
-            self.window(k, &self.frame_box_on(k, a, b, t0, t1))
-        }))
+        let part = |j: usize| {
+            // The cuts are a knot vector's, so a part's ends are ordered
+            // numbers; a pair that is not names no part, and reads as
+            // poison.
+            let Some(part) = ParamRange::new(cuts[j + 1], cuts[j + 2]) else {
+                return Self::poison_window(t0 + t1);
+            };
+            // The piece holding the part is the one its start locates
+            // in: the start is inside it and the part does not cross a
+            // break.
+            let k = self.breaks.span_range(part).0.index() - 1;
+            self.window(k, &self.frame_box_on(k, part, t0, t1))
+        };
+        self.placed_hull(part(first), (first + 1..=last).map(part))
     }
 }
 
@@ -811,8 +885,10 @@ pub enum SectorChannel {
     Tube,
     /// Two consecutive branch centres half a period apart or more.
     Branch,
-    /// A cone's metre lever `ρ·cos α + σz·sin α`: the piece reaches the
-    /// apex or the other nappe.
+    /// The metre lever a carrier span's incidence divides by
+    /// ([`Meters::over`]) is not positive: a cone's `ρ·cos α + σz·sin α`
+    /// (the span reaches the apex or the other nappe), or a torus's
+    /// `(ρ + R)² − r²` (the span reaches a spindle torus's inner sheet).
     Lever,
 }
 
@@ -827,7 +903,10 @@ impl SectorChannel {
             }
             Self::Tube => "its hull reaches the torus's tube core",
             Self::Branch => "two consecutive branch centres are half a period apart or more",
-            Self::Lever => "its cone lever is not positive: it reaches the apex or the other nappe",
+            Self::Lever => {
+                "its metre lever is not positive: it reaches the cone's apex or other nappe, \
+                 or a spindle torus's inner sheet"
+            }
         }
     }
 }
@@ -929,8 +1008,8 @@ fn chart_of<T: Decide>(
             let (sin, cos) = half_angle.sin_cos();
             let mid = match framed {
                 FramedCarrier::Net(net) => {
-                    let (d0, d1) = net.domain();
-                    net.eval(T::from_f64(0.5 * (d0 + d1))).z
+                    let (d0, d1) = net.knot_values().domain();
+                    net.eval(T::from_f64(0.5) * (d0 + d1)).z
                 }
                 FramedCarrier::Circle { origin, span, .. } => {
                     framed.eval(*origin + *span * T::from_f64(0.5)).z
@@ -1067,10 +1146,12 @@ enum Refine {
     Escalated(Indeterminate),
 }
 
-/// Whether the piece `[a, b]` lies wholly outside the edge interval
-/// `edge`, by more than the band: a SELECTION of the partition, read
-/// with nothing recorded, an undecided answer reading as inside.
-fn outside<T: Decide>(a: f64, b: f64, edge: Option<(T, T)>, band: Band) -> bool {
+/// Whether the piece `[a, b]` (on the carrier parameter,
+/// [`FramedCarrier::piece_span`]'s) lies wholly outside the edge
+/// interval `edge`, by more than the band: a SELECTION of the
+/// partition, read with nothing recorded, an undecided answer reading
+/// as inside.
+fn outside<T: Decide>((a, b): (T, T), edge: Option<(T, T)>, band: Band) -> bool {
     let Some((t0, t1)) = edge else {
         return false;
     };
@@ -1079,7 +1160,7 @@ fn outside<T: Decide>(a: f64, b: f64, edge: Option<(T, T)>, band: Band) -> bool 
             .0
             .unwrap_or(false)
     };
-    clear(t0 - T::from_f64(b)) || clear(T::from_f64(a) - t1)
+    clear(t0 - b) || clear(a - t1)
 }
 
 /// Halves `[a, b]` (on the piece parameter) until its piece holds its
@@ -1105,7 +1186,7 @@ fn refine<T: Decide>(
     };
     let (ta, tb) = image.carrier.piece_span(a, b);
     choose_quarters(image, 0, ta, tb, band);
-    let verdict = if outside(a, b, edge, band) {
+    let verdict = if outside((ta, tb), edge, band) {
         Ok(None)
     } else {
         piece_sector(image, 0, ta, tb, band)
@@ -1156,8 +1237,9 @@ pub(crate) struct ProjectedHull {
     /// `x′`, and of the tube's `X′` (`+∞` off a torus).
     pub(crate) pieces: Vec<PieceHull>,
     /// Per part of the re-derived twin net (each knot span cut into
-    /// [`INCIDENCE_CUTS`]): its parameter range, the bound of `|f|`, and
-    /// the floors its metre conversion reads.
+    /// [`INCIDENCE_CUTS`], and at the caller's cuts): its parameter
+    /// range, the bound of `|f|`, the floors its metre conversion reads,
+    /// and its metre readings.
     pub(crate) spans: Vec<SpanHull>,
 }
 
@@ -1179,6 +1261,14 @@ pub(crate) struct SpanHull {
     pub(crate) rho_lo: f64,
     /// The range of `z` over the part's points.
     pub(crate) z: (f64, f64),
+    /// A certified upper bound in metres on the part's distance from
+    /// the chart ([`Meters::over`] in certification arithmetic): `+∞`
+    /// where the cone's lever is not certified positive, NaN where a
+    /// bound above is not certified.
+    pub(crate) meters: f64,
+    /// Certified lower bounds in metres on the distance from the chart
+    /// at the part's two ends ([`Meters::divisor`]), `0` where none is.
+    pub(crate) floors: (f64, f64),
 }
 
 /// The floors of a Bézier part's points, read off its controls `q`:
@@ -1267,16 +1357,228 @@ pub(super) fn hull_sector<T: Decide>(
     chart: &ProjectedChart<T>,
     band: Band,
 ) -> Result<(), PcurveCertifyError> {
-    holds(T::from_f64(piece.x_lo), band, k, SectorChannel::Azimuth)?;
+    let x_lo = T::from_computed(piece.x_lo);
+    holds(x_lo, band, k, SectorChannel::Azimuth)?;
     if matches!(chart, ProjectedChart::Torus { .. }) {
-        holds(T::from_f64(piece.tube_lo), band, k, SectorChannel::Tube)?;
+        let tube_lo = T::from_computed(piece.tube_lo);
+        holds(tube_lo, band, k, SectorChannel::Tube)?;
     }
     Ok(())
+}
+
+/// `(σz)_min` over a part whose `z` ranges over `z`, on `nappe`: a
+/// bound the hull walk computed, so at `Sym` an unknown.
+fn axial_floor<T: Real>(z: (f64, f64), nappe: Nappe) -> T {
+    if nappe == Nappe::Opening {
+        T::from_computed(z.0)
+    } else {
+        T::zero() - T::from_computed(z.1)
+    }
 }
 
 /// The distance of an angle from the nearest point of `shift + τℤ`.
 fn off_period<T: Real>(angle: T, shift: T) -> T {
     (angle - shift).reduce_periodic_centred(T::tau()).abs()
+}
+
+/// A chart's conversion between its canonical form's magnitude `|f|`
+/// and the distance from it in metres ([`net_incidence`]'s list), at
+/// scalar `S`: the twin's own scalars, and on a cone the stored nappe.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Meters<S> {
+    Plane,
+    Cylinder { radius: S },
+    Sphere { radius: S },
+    Cone { sin: S, cos: S, nappe: Nappe },
+    Torus { major: S, minor: S },
+}
+
+impl<S: Real> Meters<S> {
+    /// The conversion for `twin`, its scalars crossed into `S` by
+    /// `cross`, the nappe `chart`'s; `None` off an analytic chart.
+    pub(crate) fn of<U: Real>(
+        twin: &Surface<U>,
+        chart: &ProjectedChart<U>,
+        cross: impl Fn(U) -> S,
+    ) -> Option<Self> {
+        Some(match *twin {
+            Surface::Plane { .. } => Self::Plane,
+            Surface::Cylinder { radius, .. } => Self::Cylinder {
+                radius: cross(radius),
+            },
+            Surface::Sphere { radius, .. } => Self::Sphere {
+                radius: cross(radius),
+            },
+            Surface::Cone { half_angle, .. } => {
+                let ProjectedChart::Cone { nappe, .. } = *chart else {
+                    unreachable!("the chart kinds match")
+                };
+                let (sin, cos) = half_angle.sin_cos();
+                Self::Cone {
+                    sin: cross(sin),
+                    cos: cross(cos),
+                    nappe,
+                }
+            }
+            Surface::Torus {
+                major_radius,
+                minor_radius,
+                ..
+            } => Self::Torus {
+                major: cross(major_radius),
+                minor: cross(minor_radius),
+            },
+            Surface::Nurbs(_) | Surface::Approx(_) => return None,
+        })
+    }
+
+    /// An upper bound in metres on the distance of a part whose `|f|` is
+    /// at most `f`, whose `ρ` is at least `rho` and whose `z` ranges over
+    /// `z`. The lever it divides by is `positive`'s answer on it first,
+    /// since the division needs it positive: on a cone
+    /// `ρ cos α + (σz) sin α`, on a torus `(ρ + R)² − r²`, which a
+    /// spindle torus (`R < r`) drives negative near its axis.
+    pub(crate) fn over<E>(
+        self,
+        f: S,
+        rho: S,
+        z: (f64, f64),
+        positive: impl FnOnce(S) -> Result<S, E>,
+    ) -> Result<S, E> {
+        Ok(match self {
+            Self::Plane => f,
+            Self::Cylinder { radius } | Self::Sphere { radius } => {
+                f / (radius + rho.max(radius - f / radius))
+            }
+            Self::Cone { sin, cos, nappe } => {
+                let z: S = axial_floor(z, nappe);
+                f / positive(rho * cos + z * sin)?
+            }
+            Self::Torus { major, minor } => {
+                let outer = positive((rho + major).powi(2) - minor.powi(2))?;
+                let first = f / (minor * outer);
+                f / ((minor + (minor - first).max(S::zero())) * outer)
+            }
+        })
+    }
+
+    /// At a point `p` of the chart's frame, a factor whose magnitude
+    /// times the point's distance from the chart is at most `|f(p)|`, so
+    /// that `|f(p)|` over an upper bound on it bounds the distance from
+    /// below. On the cylinder, sphere and torus the distance is
+    /// `|f| / divisor` exactly: `|ρ − R|·(ρ + R)`, `||p| − r|·(|p| + r)`,
+    /// and on the torus `f = (m² − r²)(M² − r²)` with
+    /// `m = √((ρ − R)² + z²)` and `M = √((ρ + R)² + z²)` the distances
+    /// from the meridian plane's two tube circles, so the distance
+    /// `min(|m − r|, |M − r|)` is `|f|` over
+    /// `max((m + r)·|M² − r²|, (M + r)·|m² − r²|)` at every `R` and `r`
+    /// (on a ring torus the first term is the larger). On the cone `|f|`
+    /// is `|ρ cos α − z sin α|·|ρ cos α + z sin α|`, the distances from
+    /// the two generator lines of the meridian plane, the nearer of which
+    /// is the double cone's distance, and each factor is at most
+    /// `ρ cos α + |z| sin α`. Each surface lies in its form's zero set,
+    /// so it is no nearer than that set.
+    pub(crate) fn divisor(self, p: Vec3<S>) -> S {
+        let rho = (p.x.powi(2) + p.y.powi(2)).sqrt();
+        match self {
+            Self::Plane => S::one(),
+            Self::Cylinder { radius } => rho + radius,
+            Self::Sphere { radius } => (p.x.powi(2) + p.y.powi(2) + p.z.powi(2)).sqrt() + radius,
+            Self::Cone { sin, cos, .. } => rho * cos + p.z.abs() * sin,
+            Self::Torus { major, minor } => {
+                let (near, far) = (
+                    (rho - major).powi(2) + p.z.powi(2),
+                    (rho + major).powi(2) + p.z.powi(2),
+                );
+                let by_far = (near.sqrt() + minor) * (far - minor.powi(2)).abs();
+                let by_near = (far.sqrt() + minor) * (near - minor.powi(2)).abs();
+                by_far.max(by_near)
+            }
+        }
+    }
+}
+
+/// A certified lower bound in metres on the distance from the chart at
+/// a point `at` of its frame where the form's value is enclosed by
+/// `value`: `|f|`'s lower end over the upper end of
+/// [`Meters::divisor`] there, rounded down; `0` where either end is not
+/// certified or not positive.
+pub(crate) fn distance_floor(
+    meters: Meters<geom_core::Interval>,
+    value: geom_core::Interval,
+    at: Vec3<geom_core::Interval>,
+) -> f64 {
+    use geom_core::{Bounds, Interval};
+    let f = crate::ssi::enclose::zero_free_lower_bound(value);
+    let divisor = meters.divisor(at).abs();
+    if !divisor.is_certified() {
+        return 0.0;
+    }
+    let divisor = divisor.hi();
+    if f > 0.0 && divisor.is_finite() && divisor > 0.0 {
+        let floor = Interval::from_bounds(f, f) / Interval::from_bounds(divisor, divisor);
+        if floor.is_certified() {
+            floor.lo().max(0.0)
+        } else {
+            0.0
+        }
+    } else {
+        0.0
+    }
+}
+
+/// The parts of a hull a window `[t0, t1]` reads, and the breaks
+/// certainly inside it.
+pub(crate) struct Window {
+    /// The parts it overlaps, located on the parts' own breaks: the
+    /// lower end as a point locates (a break it sits on reads as the
+    /// part starting there), the upper end on the mirrored breaks (a
+    /// break it sits on reads as the part ending there), so a part that
+    /// meets the interval at one end point alone is not read.
+    pub(crate) parts: core::ops::RangeInclusive<usize>,
+    /// The breaks, by index, past every part the lower end may lie in
+    /// and before every part the upper end may: each lies in `[t0, t1]`
+    /// at every value the window's brackets stand for.
+    pub(crate) inside: core::ops::RangeInclusive<usize>,
+}
+
+/// The [`Window`] of `[t0, t1]` on `hull`'s parts.
+///
+/// # Errors
+///
+/// [`PcurveCertifyError::ImageMismatch`] for a hull with no part or a
+/// poison end.
+pub(crate) fn window_of<T: Decide>(
+    hull: &ProjectedHull,
+    (t0, t1): (T, T),
+) -> Result<Window, PcurveCertifyError> {
+    let refuse = |why| PcurveCertifyError::ImageMismatch {
+        image: PcurveKind::Projected,
+        why,
+    };
+    let Some(last) = hull.spans.last() else {
+        return Err(refuse("the net has no knot span"));
+    };
+    let bounds: Vec<f64> = hull
+        .spans
+        .iter()
+        .map(|s| s.range.0)
+        .chain([last.range.1])
+        .collect();
+    let mirrored: Vec<f64> = bounds.iter().rev().map(|&x| -x).collect();
+    let n = hull.spans.len();
+    let (parts, mirrored) = (breaks_vector(&bounds), breaks_vector(&mirrored));
+    let (Some(lower), Some(upper)) = (
+        t0.locate_spans(&parts),
+        (T::zero() - t1).locate_spans(&mirrored),
+    ) else {
+        return Err(refuse("an end of the window is poison and meets no part"));
+    };
+    Ok(Window {
+        parts: (lower.first.index() - 1).min(n - upper.last.index())
+            ..=(lower.last.index() - 1).max(n - upper.first.index()),
+        inside: lower.last.index()..=n - upper.last.index(),
+    })
 }
 
 /// The incidence of a net's re-derived twin over the parts of it the
@@ -1300,13 +1602,16 @@ fn off_period<T: Real>(angle: T, shift: T) -> T {
 ///   nappe) decided positive;
 /// - torus: `|m − r| = |f| / ((m + r)·((ρ + R)² + z² − r²))`, `m` the
 ///   distance to the tube's core, with `m ≥ max(0, r − D)` and the
-///   second factor `≥ (ρ_min + R)² − r²`, `D = |f| / (r·((ρ_min + R)² − r²))`.
+///   second factor `≥ (ρ_min + R)² − r²`, `D = |f| / (r·((ρ_min + R)² − r²))`,
+///   that lever decided positive (`|m − r|` bounds the distance on every
+///   torus, ring, horn or spindle).
 ///
 /// # Errors
 ///
 /// [`PcurveCertifyError::ImageMismatch`] when no part meets the window,
-/// or one that does has no certified composite bound or floor; the
-/// cone's lever refuses [`SectorChannel::Lever`] at the part.
+/// or one that does has no certified composite bound or floor; a cone's
+/// or a torus's lever that does not decide positive refuses
+/// [`SectorChannel::Lever`] at the part.
 pub(super) fn net_incidence<T: Decide>(
     hull: &ProjectedHull,
     (t0, t1): (T, T),
@@ -1321,27 +1626,10 @@ pub(super) fn net_incidence<T: Decide>(
     };
     let mut incidence = T::zero();
     let mut rho_floor: Option<T> = None;
-    let Some(last) = hull.spans.last() else {
-        return Err(refuse("the net has no knot span"));
+    let window = window_of(hull, (t0, t1))?.parts;
+    let Some(meters) = Meters::of(twin, chart, |x| x) else {
+        unreachable!("a projected chart is analytic")
     };
-    // The parts `[t0, t1]` overlaps, located on the parts' own breaks:
-    // the lower end as a point locates (a break it sits on reads as the
-    // part starting there), the upper end on the mirrored breaks (a
-    // break it sits on reads as the part ending there), so a part that
-    // meets the interval at one end point alone is not read.
-    let bounds: Vec<f64> = hull
-        .spans
-        .iter()
-        .map(|s| s.range.0)
-        .chain([last.range.1])
-        .collect();
-    let mirrored: Vec<f64> = bounds.iter().rev().map(|&x| -x).collect();
-    let n = hull.spans.len();
-    let (parts, mirrored) = (breaks_vector(&bounds), breaks_vector(&mirrored));
-    let lower = t0.locate_spans(&parts);
-    let upper = (T::zero() - t1).locate_spans(&mirrored);
-    let window = (lower.first.index() - 1).min(n - upper.last.index())
-        ..=(lower.last.index() - 1).max(n - upper.first.index());
     for (j, span) in hull.spans.iter().enumerate() {
         if !window.contains(&j) {
             continue;
@@ -1356,47 +1644,20 @@ pub(super) fn net_incidence<T: Decide>(
                 "a knot span's radial or axial floor is not certified",
             ));
         }
-        let rho = T::from_f64(span.rho_lo);
+        let rho = T::from_computed(span.rho_lo);
         let floor = (rho - d).max(T::zero());
         rho_floor = Some(rho_floor.map_or(floor, |m| m.min(floor)));
-        let f = T::from_f64(span.f_sup);
-        let disp = match *twin {
-            Surface::Plane { .. } => f,
-            Surface::Cylinder { radius, .. } => f / (radius + rho.max(radius - f / radius)),
-            Surface::Sphere { radius, .. } => f / (radius + rho.max(radius - f / radius)),
-            Surface::Cone { half_angle, .. } => {
-                let ProjectedChart::Cone { nappe, .. } = *chart else {
-                    unreachable!("the chart kinds match")
-                };
-                let z = if nappe == Nappe::Opening {
-                    T::from_f64(span.z.0)
-                } else {
-                    T::zero() - T::from_f64(span.z.1)
-                };
-                let (sin, cos) = half_angle.sin_cos();
-                let lever = require_positive(
-                    "pcurve_projected_lever",
-                    rho * cos + z * sin,
-                    band,
-                    PcurveCheck::Sector,
-                    j,
-                    sector_refused(j, SectorChannel::Lever),
-                )?;
-                f / lever
-            }
-            Surface::Torus {
-                major_radius,
-                minor_radius,
-                ..
-            } => {
-                let outer = (rho + major_radius).powi(2) - minor_radius.powi(2);
-                let first = f / (minor_radius * outer);
-                f / ((minor_radius + (minor_radius - first).max(T::zero())) * outer)
-            }
-            Surface::Nurbs(_) | Surface::Approx(_) => {
-                unreachable!("a projected chart is analytic")
-            }
-        };
+        let f = T::from_computed(span.f_sup);
+        let disp = meters.over(f, rho, span.z, |lever| {
+            require_positive(
+                "pcurve_projected_lever",
+                lever,
+                band,
+                PcurveCheck::Sector,
+                j,
+                sector_refused(j, SectorChannel::Lever),
+            )
+        })?;
         incidence = incidence.max(disp);
     }
     let Some(rho_floor) = rho_floor else {
@@ -1415,6 +1676,19 @@ fn net_fidelity<T: Real>(net: &NurbsCurve3<T>, twin_net: &NurbsCurve3<T>) -> T {
         .fold(T::zero(), |m, (q, p)| m.max(q.distance(*p)))
 }
 
+/// What [`net_offset_sup`] read of a carrier's distance from a surface.
+pub(crate) enum Offset<T> {
+    /// A certified upper bound on it over the edge's interval.
+    Bound(T),
+    /// A certified lower bound on it at a break of the composite inside
+    /// the edge's interval, past the band's zero, and the upper bound
+    /// over the interval read on the same parts.
+    Miss {
+        floor: T,
+        bound: Result<T, PcurveCertifyError>,
+    },
+}
+
 /// **A spline carrier's distance from an analytic surface**, certified
 /// over the parts of its net the edge's `window` overlaps (a part the
 /// window ends inside is read whole, the conservative side): limb 2 of
@@ -1423,8 +1697,18 @@ fn net_fidelity<T: Real>(net: &NurbsCurve3<T>, twin_net: &NurbsCurve3<T>) -> T {
 /// refined through an `f64` plan. The net is written in the
 /// frame of the surface's orthonormal twin, which is the same point set
 /// (orthonormalising a frame moves no point of the implicit surface),
-/// and its incidence is [`net_incidence`] over one piece per knot span;
-/// no branch is chosen, because a distance reads no angle.
+/// and its incidence is [`net_incidence`] over its parts; no branch is
+/// chosen, because a distance reads no angle.
+///
+/// The parts are limb 2's subdivision's
+/// ([`crate::ssi::certify::subdivide`]): the overlapped parts whose
+/// certified metre bound ([`SpanHull::meters`]) does not clear the
+/// band's zero are halved under its budget, in the composite's own
+/// ring, and the rounds stop on a break inside the interval whose
+/// certified distance floor ([`SpanHull::floors`]) lies past the band's
+/// zero, a measured miss. Those bounds route the rounds and decide
+/// nothing: the bound is decided on [`net_incidence`] over the parts
+/// the rounds stopped on, and the floor at the caller's scalar.
 ///
 /// # Errors
 ///
@@ -1436,7 +1720,8 @@ pub(crate) fn net_offset_sup<T: Decide>(
     surface: &Surface<T>,
     band: Band,
     lane: crate::FittedLane<T>,
-) -> Result<T, PcurveCertifyError> {
+) -> Result<Offset<T>, PcurveCertifyError> {
+    use crate::ssi::certify::{Hull, Subdivided, subdivide};
     let Some((origin, e)) = chart_frame(surface) else {
         return Err(PcurveCertifyError::UnsupportedChart {
             chart: surface.kind(),
@@ -1469,8 +1754,53 @@ pub(crate) fn net_offset_sup<T: Decide>(
         unreachable!("built from the net above")
     };
     let d = net_fidelity(stored, &twin_net);
-    let hull = lane.projected_hull(&image, &twin_net, &twin)?;
-    net_incidence(&hull, window, &image.chart, &twin, d, band).map(|(incidence, _)| incidence)
+    let round = |cuts: &[f64]| -> Result<Hull<ProjectedHull>, PcurveCertifyError> {
+        let hull = lane.projected_hull(&image, &twin_net, &twin, cuts)?;
+        let Window { parts, inside } = window_of(&hull, window)?;
+        let read = &hull.spans[parts.clone()];
+        let spans: Vec<f64> = read.iter().map(|s| s.meters).collect();
+        let floor = |k: usize| {
+            if !inside.contains(&k) {
+                return 0.0;
+            }
+            let before = k.checked_sub(1).and_then(|i| hull.spans.get(i));
+            let after = hull.spans.get(k);
+            before
+                .map_or(0.0, |s| s.floors.1)
+                .max(after.map_or(0.0, |s| s.floors.0))
+        };
+        Ok(Hull {
+            // A refused part refuses the bound (`f64::max` would pass
+            // over its NaN).
+            sup: spans.iter().fold(0.0, |m: f64, &b| {
+                if m.is_nan() || b.is_nan() {
+                    f64::NAN
+                } else {
+                    m.max(b)
+                }
+            }),
+            breaks: read
+                .iter()
+                .map(|s| s.range.0)
+                .chain(read.last().map(|s| s.range.1))
+                .collect(),
+            floors: (*parts.start()..=*parts.end() + 1).map(floor).collect(),
+            spans,
+            // The lane composes the whole net, whatever the window reads.
+            work: hull.spans.len(),
+            data: hull,
+        })
+    };
+    let bound = |hull: &ProjectedHull| {
+        net_incidence(hull, window, &image.chart, &twin, d, band).map(|(incidence, _)| incidence)
+    };
+    Ok(match subdivide(round, band)? {
+        Subdivided::Bound(hull) => Offset::Bound(bound(&hull.data)?),
+        Subdivided::Value { hull, floor, .. } => Offset::Miss {
+            floor: T::from_computed(floor),
+            bound: bound(&hull.data),
+        },
+    })
 }
 
 /// Check 4 of a projected row (module docs): the envelope's terms, with
@@ -1542,14 +1872,19 @@ pub(super) fn projected_envelope<T: Decide>(
             },
         )
     };
-    let met: Vec<usize> = image.overlapped(t0, t1).collect();
+    let Some((lo, hi)) = image.overlapped(t0, t1) else {
+        return Err(refuse(
+            "an end of the interval is poison and meets no piece",
+        ));
+    };
+    let met: Vec<usize> = (lo..=hi).collect();
     // ---- Incidence, raw fidelity and the radial floor. ----
     let (incidence, d, rho_floor) = match (&image.carrier, carrier) {
         (FramedCarrier::Net(net), Curve3::Nurbs(c)) => {
             let twin_net = framed_net(c, o, &e);
             let d = net_fidelity(net, &twin_net);
             let lane = lane.ok_or(PcurveCertifyError::FittedLaneUnsupported { scalar: T::NAME })?;
-            let hull = lane.projected_hull(image, &twin_net, &twin)?;
+            let hull = lane.projected_hull(image, &twin_net, &twin, &[])?;
             for &k in &met {
                 hull_sector::<T>(&hull.pieces[k], k, &image.chart, band)?;
             }
@@ -1749,7 +2084,7 @@ pub(super) fn run_projected_checks<T: Decide>(
             // The structure is the carrier's, exactly (C6): one knot
             // vector and one weight vector, so the stored net and the
             // carrier's differ control point for control point.
-            if net.knots() != c.knots() || net.weights() != c.weights() {
+            if net.knots() != c.knots() || net.weight_channel() != c.weight_channel() {
                 return Err(refuse(
                     "the stored net's knots or weights are not the carrier's",
                 ));
@@ -1765,7 +2100,10 @@ pub(super) fn run_projected_checks<T: Decide>(
                 let kv = net.knots();
                 for k in 0..pieces {
                     let (a, z) = (b[k + 1], b[k + 2]);
-                    let j = kv.span_at(0.5 * (a + z)).index();
+                    let Some(span) = kv.span_at(0.5 * (a + z)) else {
+                        return Err(refuse("a piece of the image has a NaN break"));
+                    };
+                    let j = span.index();
                     if a < kv.knots()[j] || z > kv.knots()[j + 1] {
                         return Err(refuse("a piece of the image straddles a knot of the net"));
                     }
@@ -1880,4 +2218,90 @@ pub(super) fn run_projected_checks<T: Decide>(
         envelope,
         EnvelopeStatement::MapResidualProjected,
     ))
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use geom_core::sym::revalue::{record, revalue};
+    use geom_core::sym::with_session;
+    use geom_core::{Sym, SymBudget};
+
+    use super::*;
+
+    type S = Sym<f64>;
+
+    /// The hull's bounds are the `f64` hull walk's, so at `Sym` each
+    /// enters as an unknown and what reads it re-values to nothing; a
+    /// constant would re-value to its own bits. Per site: the sector's
+    /// azimuth and tube channels (`x_lo`, `tube_lo`, decided in that
+    /// order), the plane's incidence (`f_sup`) and Lipschitz floor
+    /// (`rho_lo`), and the cone's axial floor on each nappe (`z`).
+    #[test]
+    fn the_hulls_bounds_enter_as_computed_values() {
+        let budget = SymBudget {
+            max_terms: 64,
+            max_degree: 8,
+        };
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let hull = ProjectedHull {
+            pieces: vec![PieceHull {
+                x_lo: 1.0,
+                tube_lo: 2.0,
+            }],
+            spans: vec![SpanHull {
+                range: (0.0, 1.0),
+                f_sup: 1e-3,
+                rho_lo: 1.0,
+                z: (0.5, 2.0),
+                meters: f64::NAN,
+                floors: (0.0, 0.0),
+            }],
+        };
+        let none = |_| None;
+        let ((sector, incidence, floor, z), _) = with_session(budget, || {
+            let torus = ProjectedChart::Torus {
+                major: S::from_f64(1.2),
+            };
+            let ((), decisions) = record(|| {
+                hull_sector::<S>(&hull.pieces[0], 0, &torus, band).expect("both channels hold")
+            });
+            let sector: Vec<_> = decisions
+                .iter()
+                .filter(|d| d.predicate == "pcurve_projected_sector")
+                .map(|d| revalue(d.node, &none))
+                .collect();
+            let plane = Surface::Plane {
+                origin: Point3::new(0.0, 0.0, 0.0),
+                normal: Vec3::new(0.0, 0.0, 1.0),
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            }
+            .map_scalar(S::from_f64);
+            let (incidence, floor) = net_incidence(
+                &hull,
+                (S::zero(), S::one()),
+                &ProjectedChart::Plane,
+                &plane,
+                S::from_f64(0.25),
+                band,
+            )
+            .expect("the plane's part is certified");
+            let z = [Nappe::Opening, Nappe::Mirror]
+                .map(|nappe| revalue(axial_floor::<S>((0.5, 2.0), nappe).node(), &none));
+            (
+                sector,
+                revalue(incidence.node(), &none),
+                revalue(floor.node(), &none),
+                z,
+            )
+        });
+        assert_eq!(
+            sector,
+            [None, None],
+            "x_lo (1.0), tube_lo (2.0): the sector's channels"
+        );
+        assert_eq!(incidence, None, "f_sup: the plane's incidence");
+        assert_eq!(floor, None, "rho_lo: the Lipschitz floor");
+        assert_eq!(z, [None, None], "z.0, z.1: the axial floor on each nappe");
+    }
 }

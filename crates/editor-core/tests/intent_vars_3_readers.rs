@@ -17,7 +17,7 @@
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
-use crate::corpus::{body_of, failures};
+use crate::corpus::failures;
 use crate::fixture::resolver::PartStore;
 use crate::fixture::round_trip::{composed, identity, same_up_to_ids};
 use crate::fixture::{desc, insert, len, on_frame, prism_edges, square};
@@ -29,10 +29,8 @@ use editor_core::{
     NodeResult, PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, SplitError,
     VarDecl, VarId, VarName, apply, evaluate, inline, load, save, split,
 };
-use geom_brep::RadiusEvidence;
 use geom_core::predicate::{Band, Margin, Sign};
 use geom_core::{ParamSymbol, Real, Sym, SymBudget, SymRules, Tol};
-use topo::{Body, FaceKey, SurfaceField};
 
 /// The blend radius, metres (dyadic).
 const R: f64 = 0.125;
@@ -84,7 +82,7 @@ fn filleted(doc: ProfileDoc, cx: f64, radius: Formula) -> (ProfileDoc, RecipeNod
     let (doc, cube) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -111,35 +109,10 @@ fn eval_after(doc: &ProfileDoc, prev: Option<&Evaluation<f64>>) -> Evaluation<f6
     )
 }
 
-/// One cylindrical blend carrier of `body`, in deterministic arena order.
-fn a_cylinder_face(body: &Body<f64>) -> FaceKey {
-    topo::query::all_faces(body)
-        .into_iter()
-        .find(|&f| {
-            body.get_face(f)
-                .and_then(|fd| body.get_surface(fd.surface))
-                .is_some_and(|s| matches!(s, geom::Surface::Cylinder { .. }))
-        })
-        .expect("a blended cube carries quarter-cylinder blends")
-}
-
-/// The radius token a blend's cylinder carries.
-fn radius_token(body: &Body<f64>) -> topo::ParamSource {
-    let face = a_cylinder_face(body);
-    let surface = body.get_face(face).expect("a live face").surface;
-    body.surface_field_source(surface, SurfaceField::CylinderRadius)
-        .expect("a document-built blend declares its radius")
-        .clone()
-}
-
-fn evidence(a: &Body<f64>, b: &Body<f64>) -> RadiusEvidence {
-    topo::field_source_evidence(
-        a,
-        a_cylinder_face(a),
-        b,
-        a_cylinder_face(b),
-        SurfaceField::CylinderRadius,
-    )
+/// The spelling the content key writes for a blend's radius.
+fn radius_spelling(doc: &ProfileDoc, blend: RecipeNodeId) -> Vec<u8> {
+    editor_core::test_support::slot_spelling(doc, blend, editor_core::SlotId::Radius)
+        .expect("a blend has a radius slot")
 }
 
 /// What `node`'s `slot` reads, as written (`Doc::slot_expansion`).
@@ -163,7 +136,7 @@ fn session<R>(f: impl FnOnce() -> R) -> (R, geom_core::SymCounts) {
 // --------------------------------------------------------------- row 1
 
 /// Row 1: a rename writes the name and nothing else. The blend's radius
-/// token is the same bytes, every node is a memo hit, the diff is
+/// spells the same bytes, every node is a memo hit, the diff is
 /// empty, the edit is not structural, and the slot reads back under the
 /// new name.
 #[test]
@@ -172,7 +145,7 @@ fn a_rename_moves_nothing_that_identifies() {
     let w = id(&doc, "w");
     let ev = eval_after(&doc, None);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
-    let before = radius_token(body_of(&ev, blend));
+    let before = radius_spelling(&doc, blend);
 
     let renamed = step(
         &doc,
@@ -190,9 +163,9 @@ fn a_rename_moves_nothing_that_identifies() {
     let ev2 = eval_after(&renamed.doc, Some(&ev));
     assert_eq!(ev2.recomputed, 0, "every node is a memo hit");
     assert_eq!(
-        radius_token(body_of(&ev2, blend)),
+        radius_spelling(&renamed.doc, blend),
         before,
-        "the token moved"
+        "the spelling moved"
     );
     assert_eq!(
         renamed
@@ -324,8 +297,7 @@ fn the_mint_never_reuses_a_deleted_id() {
 // --------------------------------------------------------------- row 5
 
 /// Row 5: `w` and `v` at the same value are two variables. Blends
-/// reading the two lower to distinct tokens and are not `Declared`;
-/// two blends reading `w` are.
+/// reading the two spell distinct; two blends reading `w` spell one.
 #[test]
 fn equal_values_are_not_one_variable() {
     let doc = ProfileDoc::empty(DocumentId::derive("intent-vars-3-twins"), Tol::witness());
@@ -337,14 +309,12 @@ fn equal_values_are_not_one_variable() {
     let ev = eval_after(&doc, None);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     let (a, b, c) = (
-        body_of(&ev, by_w),
-        body_of(&ev, by_v),
-        body_of(&ev, by_w_again),
+        radius_spelling(&doc, by_w),
+        radius_spelling(&doc, by_v),
+        radius_spelling(&doc, by_w_again),
     );
-    assert_ne!(radius_token(a), radius_token(b));
-    assert_ne!(evidence(a, b), RadiusEvidence::Declared);
-    assert_eq!(radius_token(a), radius_token(c));
-    assert_eq!(evidence(a, c), RadiusEvidence::Declared);
+    assert_ne!(a, b);
+    assert_eq!(a, c);
 }
 
 // --------------------------------------------------------------- row 6
@@ -413,12 +383,11 @@ fn the_symbol_survives_a_rename() {
 fn the_door_lowers_names_before_it_mints() {
     let (doc, _, blend) = blended_by_w();
     let w = id(&doc, "w");
-    let Some(Node::Fillet {
-        target, selection, ..
-    }) = doc.node(blend).cloned()
-    else {
+    let Some(Node::Fillet { selection, .. }) = doc.node(blend).cloned() else {
         panic!("a fillet");
     };
+    let picked = doc.selection(selection).cloned().expect("a selection");
+    let (target, selection) = (picked.body, picked.names);
     let by_name = Node::fillet(target, named("w"), selection.clone());
     let by_id = Node::fillet(
         target,
@@ -449,7 +418,7 @@ fn the_door_lowers_names_before_it_mints() {
         DocEdit::SetParam {
             node: blend,
             slot: SlotId::Radius,
-            expr: named("nowhere"),
+            value: named("nowhere").into(),
             fresh: Vec::new(),
         },
     ) {
@@ -475,7 +444,7 @@ fn the_door_lowers_names_before_it_mints() {
         DocEdit::SetParam {
             node: blend,
             slot: SlotId::Radius,
-            expr: named("a"),
+            value: named("a").into(),
             fresh: Vec::new(),
         },
     ) {
@@ -483,14 +452,14 @@ fn the_door_lowers_names_before_it_mints() {
             var,
             node,
             slot,
-            declared,
-            referenced,
+            found: declared,
+            expected: editor_core::SlotKind::Is(referenced),
         }) => {
             assert_eq!(var.id(), id(&with_angle, "a"));
             assert_eq!((node.id(), slot), (blend, SlotId::Radius));
             assert_eq!(
                 (declared, referenced),
-                (editor_core::VarKind::Angle, Dimension::Length)
+                (editor_core::VarKind::Angle, editor_core::VarKind::Length)
             );
         }
         other => panic!("a name of the wrong kind refuses at the slot, got {other:?}"),
@@ -499,7 +468,7 @@ fn the_door_lowers_names_before_it_mints() {
     // A log holding authored names replays to the same ids.
     let mut log = vec![DocEdit::DeclareVar {
         name: n("w"),
-        def: VarDecl::Free(FreeVar::continuous(Dimension::Length, R)),
+        def: VarDecl::Free(FreeVar::continuous(editor_core::Dimension::Length, R)),
     }];
     let mut recorded = ProfileDoc::empty(DocumentId::derive("intent-vars-3-log"), Tol::witness());
     recorded = step(&recorded, log[0].clone()).doc;
@@ -523,7 +492,7 @@ fn the_door_lowers_names_before_it_mints() {
         fresh: Vec::new(),
     });
     let extrude = Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: named("w"),
         side: ExtrudeSide::Along,
     };
@@ -599,7 +568,7 @@ fn an_anonymous_variable_lives_as_long_as_its_readers() {
         DocEdit::SetParam {
             node: blend,
             slot: SlotId::Radius,
-            expr: len(R),
+            value: len(R).into(),
             fresh: Vec::new(),
         },
     );
@@ -718,9 +687,9 @@ fn analysis_keeps_its_ids_across_a_rename() {
 
 // -------------------------------------------------------------- row 12
 
-/// A frame, a square and an extrude of depth `depth`, at `cx`: the
-/// three ids.
-fn block(doc: ProfileDoc, cx: f64, depth: Formula) -> (ProfileDoc, [RecipeNodeId; 3]) {
+/// A frame, a square and an extrude of depth `depth`, at `cx`, the
+/// extrude placed in the world: the four ids.
+fn block(doc: ProfileDoc, cx: f64, depth: Formula) -> (ProfileDoc, [RecipeNodeId; 4]) {
     let (doc, profile) = on_frame(
         doc,
         [0.0; 3],
@@ -732,12 +701,21 @@ fn block(doc: ProfileDoc, cx: f64, depth: Formula) -> (ProfileDoc, [RecipeNodeId
     let (doc, extrude) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: depth,
             side: ExtrudeSide::Along,
         },
     );
-    (doc, [frame, profile, extrude])
+    let (doc, placed) = crate::fixture::place(doc, extrude);
+    (doc, [frame, profile, extrude, placed])
+}
+
+/// The one extrude a part carried.
+fn carried_extrude(part: &ProfileDoc) -> RecipeNodeId {
+    part.ids()
+        .into_iter()
+        .rfind(|&id| matches!(part.node(id), Some(Node::Extrude { .. })))
+        .expect("the carried extrude")
 }
 
 /// Row 12: a split declares each variable the cut reads in the part and
@@ -762,7 +740,7 @@ fn split_and_inline_carry_readers_by_id() {
     .expect("the cut alone reads h");
     let part_h = id(&out.part, "h");
     assert_ne!(part_h, id(&doc, "h"), "the part mints its own id");
-    let extrude = *out.part.ids().last().expect("the carried extrude");
+    let extrude = carried_extrude(&out.part);
     assert_eq!(
         slot(&out.part, extrude, SlotId::Distance),
         Formula::var(part_h, Dimension::Length),
@@ -796,10 +774,7 @@ fn split_and_inline_carry_readers_by_id() {
     .expect("an anonymous variable crosses a split");
     let carried = out
         .part
-        .slot(
-            *out.part.ids().last().expect("the carried extrude"),
-            SlotId::Distance,
-        )
+        .slot(carried_extrude(&out.part), SlotId::Distance)
         .expect("the carried extrude's depth");
     assert!(out.part.var_name(carried).is_none(), "it stays anonymous");
     assert!(
@@ -869,7 +844,7 @@ fn declare_as(doc: &ProfileDoc, name: &'static str, def: VarDecl) -> ProfileDoc 
 /// `doc` split at `cut` into a part, the part published to a store.
 fn split_into_store(
     doc: &ProfileDoc,
-    cut: [RecipeNodeId; 3],
+    cut: [RecipeNodeId; 4],
     seed: &str,
 ) -> (
     editor_core::SplitOutcome,
@@ -1085,24 +1060,37 @@ fn a_definition_reading_a_deleted_variable_says_it_is_gone() {
     assert!(!said.contains("which stays"), "{said:?}");
 }
 
-/// A named definition reading the cut extrude's anonymous depth moves
-/// with it, and the round trip is exact: the comparator reads the
-/// anonymous id as its image, through the slot that holds it.
+/// A named definition reading the cut extrude's depth moves with it,
+/// and the round trip is exact. The depth is anonymous, so the
+/// definition's read refuses until the depth is named (VR2): a variable
+/// two readers share has a name.
 #[test]
-fn a_named_definition_reading_an_anonymous_variable_comes_back() {
+fn a_named_definition_reading_the_depth_comes_back() {
     let doc = ProfileDoc::empty(DocumentId::derive("fork6-anon-read"), Tol::witness());
     let (doc, cut) = block(doc, 0.0, len(0.5));
     let depth = doc
         .slot(cut[2], SlotId::Distance)
         .expect("the extrude reads its depth");
     assert_eq!(doc.var_name(depth), None, "the depth is anonymous");
-    let doc = declare_as(
-        &doc,
-        "k",
-        VarDecl::defined(
+    let k = DocEdit::DeclareVar {
+        name: n("k"),
+        def: VarDecl::defined(
             Formula::add(Formula::var(depth, Dimension::Length), len(0.001)).expect("lengths add"),
         ),
-    );
+    };
+    match try_step(&doc, k.clone()) {
+        Err(EditError::SharedVarNeedsName { var }) => assert_eq!(var.id(), depth),
+        other => panic!("a definition sharing the depth refuses until it is named, got {other:?}"),
+    }
+    let doc = step(
+        &doc,
+        DocEdit::RenameVar {
+            var: depth.into(),
+            name: Some(n("depth")),
+        },
+    )
+    .doc;
+    let doc = step(&doc, k).doc;
     let (doc, _) = block(doc, 10.0, len(1.0));
     let (out, store) = split_into_store(&doc, cut, "fork6-anon-read-part");
     assert_eq!(out.remainder.var_named("k"), None, "k left");
@@ -1327,7 +1315,7 @@ fn inline_carries_an_anonymous_variable_whole() {
         Tol::witness(),
     );
     let part = declare(&part, "d", 1.0);
-    let (part, [_, _, toleranced]) = block(part, 0.0, len(0.75));
+    let (part, [_, _, toleranced, _]) = block(part, 0.0, len(0.75));
     let Some(Node::Extrude { distance, .. }) = part.node(toleranced) else {
         unreachable!("block's third node is its extrude")
     };
@@ -1340,7 +1328,7 @@ fn inline_carries_an_anonymous_variable_whole() {
         },
     )
     .doc;
-    let (part, [_, _, offset]) = block(
+    let (part, [_, _, offset, _]) = block(
         part,
         4.0,
         Formula::add(named("d"), len(0.25)).expect("lengths add"),
@@ -1557,7 +1545,7 @@ fn recording_insert_lowers_as_apply_does() {
         vec![square(0.0, 0.0, 0.5)],
     );
     let node = Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: named("w"),
         side: ExtrudeSide::Along,
     };
@@ -1589,7 +1577,7 @@ fn the_door_refuses_a_reader_of_a_dead_or_unminted_variable() {
         Tol::witness(),
     );
     let doc = declare(&doc, "w", 1.0);
-    let (doc, [_, _, extrude]) = block(doc, 0.0, len(1.0));
+    let (doc, [_, _, extrude, _]) = block(doc, 0.0, len(1.0));
     let w = id(&doc, "w");
     let gone = step(&doc, DocEdit::DeleteVar { var: w.into() }).doc;
     for var in [w, VarId::new(0, 12_345)] {
@@ -1598,7 +1586,7 @@ fn the_door_refuses_a_reader_of_a_dead_or_unminted_variable() {
             DocEdit::SetParam {
                 node: extrude,
                 slot: SlotId::Distance,
-                expr: Formula::var(var, Dimension::Length),
+                value: Formula::var(var, Dimension::Length).into(),
                 fresh: Vec::new(),
             },
         ) {
@@ -1617,9 +1605,10 @@ fn the_door_refuses_a_reader_of_a_dead_or_unminted_variable() {
         match try_step(
             &gone,
             DocEdit::InsertNode {
-                node: Box::new(Node::Measure {
-                    expr: editor_core::MeasureExpr::value(Formula::var(var, Dimension::Length)),
-                    refs: Vec::new(),
+                node: Box::new(Node::Assertion {
+                    value: Formula::var(var, Dimension::Length),
+                    bound: len(0.0),
+                    relation: editor_core::AssertionRelation::AtLeast,
                 }),
                 fresh: Vec::new(),
             },
@@ -1630,31 +1619,48 @@ fn the_door_refuses_a_reader_of_a_dead_or_unminted_variable() {
     }
 }
 
-/// A measure's content key reads which variable a value leaf reads, not
-/// only what it evaluates to: two measures over two variables of one
-/// value are two keys, so a seed or a box on one serves no memo of the
-/// other.
+/// An assertion's content key reads its value as a slot's does, by its
+/// bits at the run's scalar: two assertions over two variables of one
+/// value share a key at `f64`, and a seed on one moves that one's key
+/// alone, so a seeded pass serves no memo of the other.
 #[test]
-fn the_measure_key_reads_the_variable_not_its_value() {
+fn the_assertion_key_reads_the_value_at_the_runs_scalar() {
     let doc = ProfileDoc::empty(
         DocumentId::derive("intent-vars-3-measure-key"),
         Tol::witness(),
     );
     let doc = declare(&declare(&doc, "a", 0.25), "b", 0.25);
-    let measure = |name| Node::Measure {
-        expr: editor_core::MeasureExpr::value(named(name)),
-        refs: Vec::new(),
+    let assertion = |name| Node::Assertion {
+        value: named(name),
+        bound: len(0.0),
+        relation: editor_core::AssertionRelation::AtLeast,
     };
-    let (doc, on_a) = insert(doc, measure("a"));
-    let (doc, on_b) = insert(doc, measure("b"));
+    let (doc, on_a) = insert(doc, assertion("a"));
+    let (doc, on_b) = insert(doc, assertion("b"));
     let evaluation = eval_after(&doc, None);
     let key = |node| {
         evaluation
             .value(node)
-            .unwrap_or_else(|| panic!("the measure evaluates: {:?}", evaluation.result(node)))
+            .unwrap_or_else(|| panic!("the assertion evaluates: {:?}", evaluation.result(node)))
             .content_key
     };
-    assert_ne!(key(on_a), key(on_b));
+    assert_eq!(key(on_a), key(on_b), "equal values, equal content");
+    let seeded = editor_core::evaluate::<geom_core::Dual64>(
+        &doc,
+        None,
+        &editor_core::CancelToken::new(),
+        &editor_core::EvalOptions {
+            seed: doc.var_named("a"),
+            ..editor_core::EvalOptions::default()
+        },
+        Tol::witness(),
+    );
+    let seeded_key = |node| seeded.value(node).expect("evaluates").content_key;
+    assert_ne!(
+        seeded_key(on_a),
+        seeded_key(on_b),
+        "a seed on `a` moves its reader's key alone"
+    );
 }
 
 /// A refusal naming a variable, spoken again from a later version of
@@ -1677,7 +1683,7 @@ fn a_respoken_refusal_says_the_variables_new_name() {
         DocEdit::SetParam {
             node: blend,
             slot: SlotId::Radius,
-            expr: Formula::var(id(&doc, "ang_old"), Dimension::Length),
+            value: Formula::var(id(&doc, "ang_old"), Dimension::Length).into(),
             fresh: Vec::new(),
         },
     )

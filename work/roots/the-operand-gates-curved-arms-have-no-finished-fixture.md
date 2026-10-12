@@ -93,3 +93,14 @@ cone wall's box reaching a turned cube and a tilted rod, and pins
 cone face whose box clears the other operand), the tilted cone, the
 torus and `curved_face_arm`'s NURBS refusal are untouched by it.
 
+
+## 2026-10-09, the cone half's gate row is gone (VERBS-CONE U7)
+
+`Cone` is on the operand roster, so no finished cone fixture reaches
+the pair gate any more. The row above is replaced by
+`reach_cone_root_lane.rs::every_op_on_a_cone_wall_answers_its_truth_or_refuses_typed`:
+the turned cube now builds under every op (each body held to the
+overlap's closed form, tier 3 and `point_in_solid`), and the tilted rod
+refuses `GermFrameUnsupported` at the cone × cylinder frame. What the
+gate still refuses on kinds is `Approx` (every op) and `Nurbs` (∖ and
+∩), so this item's remaining question is theirs and the torus's.

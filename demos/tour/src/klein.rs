@@ -114,8 +114,8 @@
 //!    longitudinal edges are NURBS carriers, and rung-3 edges are what
 //!    the curved zip MINTS, not what it consumes. `subtract` answers
 //!    first at the revert roster with `{ op: Some(Subtract), kind:
-//!    Cone, other_kind: Plane }` — the flare against a planar cap of
-//!    the loop, a pair whose boxes MAY meet (box overlap
+//!    Nurbs, other_kind: Plane }` — a NURBS wall of the loop against a
+//!    planar face of the bulb, a pair whose boxes MAY meet (box overlap
 //!    over-approximates; the kernel cannot rule the meeting out, a
 //!    weaker claim than that they do). So the bottle cannot be one
 //!    body, and the self-intersection — the neck piercing the bulb,
@@ -598,8 +598,9 @@ fn annulus<S: Scalar>(m: &Meridian, cx: f64, lofted: bool, tol: Tol) -> Vec<Cons
 /// `section` swept along `spine` as ONE body (the loft's stacking
 /// statement is per-slab, issue 368), drawn in the plane normal to the
 /// spine's start tangent, which the kernel hands out
-/// (`path_start_frame`). The section and the spine are `f64` because
-/// `sweep_body` takes them so; the body comes out at `S`.
+/// (`path_start_frame`). The section and the frame are built in `f64`,
+/// so they enter `S` as the computed values they are; the spine is
+/// `f64` because `sweep_body` takes it so; the body comes out at `S`.
 ///
 /// GAP (library finding,
 /// `work/carvetail/a-half-turn-spine-sweeps-only-off-its-exact-tangents`):
@@ -622,7 +623,16 @@ fn sweep_loop<S: Scalar>(
     let (start, tangent) = spine.ders1(t0);
     let place =
         path_start_frame(start, tangent, tol).expect("the spine's start tangent fixes a frame");
-    sweep_body::<S>(section, place, spine, STATIONS, V_DEGREE, tol).map(|l| l.body)
+    let section: Vec<ConstructedLoop<S>> = section.iter().map(|lp| lp.lift_computed()).collect();
+    sweep_body::<S>(
+        &section,
+        place.map(S::from_computed),
+        spine,
+        STATIONS,
+        V_DEGREE,
+        tol,
+    )
+    .map(|l| l.body)
 }
 
 /// The bottle: the bulb and the loop, each finished, and the spine the
@@ -662,17 +672,19 @@ fn wall3_pinned(e: &BooleanError) -> bool {
     )
 }
 
-/// Wall 4's pinned refusal: the flare's cone against a planar cap of
-/// the loop, at the ∖/∩ revert roster. Both kinds and the op are
-/// pinned, so a pair that changed kind reds. The cone has no arm under
-/// any op, and the roster has no covered rung whatever the pair; it
-/// answers before the edge gate that stops wall 3.
+/// Wall 4's pinned refusal: one of the loop's rational NURBS walls
+/// against a planar face of the bulb, at the ∖/∩ revert roster. Both
+/// kinds and the op are pinned, so a pair that changed kind reds. A
+/// NURBS face has no seam lane under ∖ and ∩, and the roster has no
+/// covered rung whatever the pair; it answers before the edge gate
+/// that stops wall 3.
 fn wall4_pinned(e: &BooleanError) -> bool {
     matches!(
         e,
         BooleanError::CurvedPairUnsupported {
             op: Some(BooleanOp::Subtract),
-            kind: SurfaceKind::Cone,
+            operand: Operand::B,
+            kind: SurfaceKind::Nurbs,
             other_kind: SurfaceKind::Plane,
             ..
         }
@@ -969,8 +981,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                  of the annulus along its whole U-turn spine. The two MEET on annular \
                  faces, each cap tilted off the bulb's rim by its spine's end tangent, \
                  and they cannot be joined: union refuses the loop's NURBS edges at the \
-                 operand gate, and subtract refuses the bulb's cone flare against a \
-                 planar cap at the revert roster. The neck passes through the flare \
+                 operand gate, and subtract refuses the loop's NURBS walls against a \
+                 planar face at the revert roster. The neck passes through the flare \
                  uncut for that second reason";
     vec![Stop {
         name: "klein",
@@ -1428,21 +1440,11 @@ mod verbs_gate_r1_probes {
     //! `wall3_pinned` and `wall4_pinned`, so the two cannot drift.
     //!
     //! **Why the operand gate's covered-pair rung cannot reach wall 4.**
-    //! The gate does not refuse a pair the caller's declarations speak
-    //! for — but "the caller's declarations" is the
-    //! `BooleanDeclarations` value handed to the op, and both walls
-    //! below go through `pncad::topo::union` and `pncad::topo::subtract`,
-    //! the doors that take none. (Wall 3 refuses earlier still, on the
-    //! loop's NURBS edges, which no declaration speaks for.)
-    //!
-    //! Wall 4 is doubly out of reach and the second reason is the more
-    //! durable one: it is a SUBTRACT, and the revert roster it refuses
-    //! at, on the flare's cone, has no covered rung at all. A
-    //! declaration supplies the verdict a germ arm would have; it
-    //! cannot supply a seam lane to revert through, so declaring the
-    //! cone's pairs would not move wall 4. (The torus is on that roster:
-    //! a declared torus pair passes it, and `mate7a_torus_rest` pins
-    //! where it stops.)
+    //! It is a SUBTRACT, and the revert roster it refuses at, on the
+    //! loop's NURBS wall, has no covered rung at all: a decided
+    //! coincidence supplies the verdict a germ arm would have, and it
+    //! cannot supply a seam lane to revert through. (Wall 3 refuses
+    //! earlier still, on the loop's NURBS edges.)
 
     use super::*;
 
@@ -1468,7 +1470,8 @@ mod verbs_gate_r1_probes {
         println!("klein wall 4: {trimmed:?}");
         assert!(
             wall4_pinned(&trimmed),
-            "wall 4 must name the flare against a planar cap of the loop: {trimmed:?}"
+            "wall 4 must name a NURBS wall of the loop against a planar face of the bulb: \
+             {trimmed:?}"
         );
     }
 }

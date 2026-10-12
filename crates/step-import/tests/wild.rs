@@ -546,9 +546,10 @@ fn wild_refusals_are_typed_and_name_their_class() {
 /// **The band re-mint, pinned as data.** Open CASCADE never splits a
 /// periodic face: a cylinder's or torus's lateral band arrives as its
 /// two full-period rim circles with no seam generator between them,
-/// and the kernel's face model (one outer loop plus rings) has no
-/// volume construction for the ring adoption would make of the second
-/// rim (`RingOnCurvedFace`). Until M7-5 that was a NAMED refusal on
+/// and in the kernel's face model (one outer loop plus rings) the ring
+/// adoption would make of the second rim winds the chart's period, a
+/// loop tier 3's pcurve mint refuses (`topo::PcurveMintError::LoopWraps`).
+/// Until M7-5 that was a NAMED refusal on
 /// both fixtures here; the band seam re-mint (`normalize::band_seam`)
 /// retired it by minting the seam generator at the surface's own
 /// u_ref azimuth and re-writing each band as one single-loop face.

@@ -2,11 +2,11 @@
 id: the-rest-lane-reads-a-nested-struts-site-at-its-holders-tip
 kind: issue
 title: The REST lane reads a nested dangling null edge's site at its holder's tip, where no real edge leaves
-status: parked
+status: closed
 opened: 2026-10-03
 priority: P2
 cost: E
-blocked_on: [intent-stage4-is-built]
+closed: 2026-10-08
 ---
 
 
@@ -36,3 +36,7 @@ null edges hangs from.
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: rest::enumerate_segments is the declared-REST zip, which stage 4 deletes (the-declared-rest-zip-retires-at-stage-4-and-the-join-needs-three-arms); a witness needs a declared Rest contact. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Closed (2026-10-08, INTENT stage 4 A (`intent/s4-a-join`))
+
+`boolean/rest.rs` is deleted, and the join builds every union it built (125 of the door's 185 openings across the topo, sweep and editor-core suites; the other 60 were its declines and refusals, which the join now builds sound or refuses with its own answer). The nested-strut scene builds there: `rest_nested_strut.rs`'s `a_pinch_apex_meeting_one_vertex_builds_in_either_order` (both orders, additive volume, tiers 2, 3 and 3′).

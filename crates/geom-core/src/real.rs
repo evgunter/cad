@@ -311,7 +311,23 @@ pub trait Real:
     const NAME: &'static str;
 
     /// Embeds an `f64` exactly (a point interval, a constant dual number).
+    ///
+    /// **For a constant only**: a literal, a count, a tolerance, data
+    /// that is a constant of the model. At [`crate::Sym`] it is an exact
+    /// rational, so a value the kernel COMPUTED and re-entered here is a
+    /// different function of the parameters than the one it came from,
+    /// and a symbolic `Zero` over it is a theorem about the wrong
+    /// function (ERROR-DESIGN E12). A computed value stays in `Self`, or
+    /// enters through [`Real::from_computed`].
     fn from_f64(x: f64) -> Self;
+
+    /// Embeds an `f64` that a NUMERICAL routine computed (a root, a
+    /// march point, a bound read off an enclosure): the value is
+    /// [`Real::from_f64`]'s, and at [`crate::Sym`] each call is its own
+    /// unknown ([`crate::Sym::opaque`]), so no identity is proved over
+    /// it. Declared, never defaulted: a scalar that defaulted it to
+    /// `from_f64` would re-enter every computed value as a constant.
+    fn from_computed(x: f64) -> Self;
 
     /// The additive identity.
     fn zero() -> Self;
@@ -951,6 +967,25 @@ pub fn is_underflowed_length<T: Real>(len: T, witness: T) -> bool {
 ///   the zero vector, not whether it is short.
 pub fn is_zero_length<T: Real>(len: T, witness: T) -> bool {
     !is_finite_length(len / witness)
+}
+
+/// Whether `x` is EXACTLY zero, of either sign: at the point scalars
+/// `x == 0.0` on the value, at the interval scalar only the degenerate
+/// hull `[−0, 0]`. An enclosure that merely contains zero, and poison,
+/// are not zero.
+///
+/// [`Real`] compares nothing, so the read is arithmetic: `x · 0` is
+/// poison exactly when `x` is not finite, and for a finite `x`,
+/// `x · (1/x)` is poison exactly when `x` is zero (0 · ∞; at `Interval`
+/// the reciprocal of `[0, 0]` is empty). It is structure read as
+/// structure, not a tolerance decision, so a caller that takes the
+/// `false` branch for a nearly-zero value must be the one that refuses
+/// or routes more.
+///
+/// Its callers are what `grep -rn is_exact_zero crates` finds; each
+/// says at the call what an exact zero means there.
+pub fn is_exact_zero<T: Real>(x: T) -> bool {
+    !(x * T::zero()).is_poison() && (x * (T::one() / x)).is_poison()
 }
 
 /// Bracket extraction off a scalar — deliberately a separate trait, never
@@ -1750,6 +1785,10 @@ impl Real for f64 {
 
     /// The identity — every `f64` embeds as itself, exactly.
     fn from_f64(x: f64) -> Self {
+        x
+    }
+
+    fn from_computed(x: f64) -> Self {
         x
     }
 

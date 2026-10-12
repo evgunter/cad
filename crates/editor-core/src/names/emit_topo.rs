@@ -1,7 +1,7 @@
 //! Split/boolean name emission (spec D2/D3): descent-driven — every
 //! result entity is chased to its operand parent through the kernels'
 //! mint-time rows (`SplitNaming`, `BooleanNaming`, D5 `SplitEdge`
-//! provenance), then named as pass-through, `FromA`/`FromB`,
+//! provenance), then named as pass-through, `From` (keyed by the seat's read),
 //! fragment (with N2 qualifiers), seam, section, or merged. Nothing
 //! is matched; unresolvable descent is a typed error.
 
@@ -327,7 +327,7 @@ fn split_joined_readings<T: Decide>(
     // over both sides' rows is each side's.
     let joins: Vec<topo::EdgeJoin> = naming.edge_joins.iter().map(|&(_, j)| j).collect();
     // Each record states the half it was made on: the edge it leaves
-    // lives there (the mirrored run's records are flipped to say so).
+    // lives there.
     for &(side, j) in &naming.edge_joins {
         let half = match side {
             PlaneSide::Above => SplitHalf::Above,
@@ -731,6 +731,9 @@ const UNORIENTED: &str = "a crossed seam edge has no first side to orient its cr
 pub(crate) struct OperandCtx<'a, T: Decide> {
     /// The operand's node (error context).
     pub node: RecipeNodeId,
+    /// The read its entities are carried in through ([`RoleSeg::From`]):
+    /// a subtract's seat, or a union fold step's side.
+    pub read: crate::VarId,
     /// Its name table (total over its body).
     pub table: &'a NameTable,
     /// Its body (the carriers its crossed edges are ranked along).
@@ -793,11 +796,18 @@ impl<K: Copy> OpSide<K> {
         }
     }
 
-    /// The `FromA` / `FromB` segment wrapping a name read on this side.
-    fn wrap(self, inner: NameRef) -> RoleSeg {
-        match self {
-            OpSide::A(_) => RoleSeg::FromA(inner),
-            OpSide::B(_) => RoleSeg::FromB(inner),
+    /// The [`RoleSeg::From`] segment wrapping a name read on this side,
+    /// keyed by that side's read.
+    fn wrap<T: Decide>(
+        self,
+        a: &OperandCtx<'_, T>,
+        b: &OperandCtx<'_, T>,
+        inner: NameRef,
+    ) -> RoleSeg {
+        let (op, _) = self.of(a, b);
+        RoleSeg::From {
+            read: op.read,
+            of: inner,
         }
     }
 }
@@ -858,7 +868,7 @@ fn operand_key<K: Copy + Ord>(
 /// read through the graft rows and the fragment rows. A union's fold
 /// reads it step by step to follow each face to the member faces it
 /// descends from.
-pub(super) struct FaceDescent<'n> {
+pub(crate) struct FaceDescent<'n> {
     naming: &'n topo::BooleanNaming,
     inv_faces: BTreeMap<FaceKey, FaceKey>,
     a_rows: BTreeMap<FaceKey, FaceKey>,
@@ -866,7 +876,7 @@ pub(super) struct FaceDescent<'n> {
 }
 
 impl<'n> FaceDescent<'n> {
-    pub(super) fn of(naming: &'n topo::BooleanNaming) -> Self {
+    pub(crate) fn of(naming: &'n topo::BooleanNaming) -> Self {
         Self {
             naming,
             inv_faces: naming.graft_faces.iter().map(|&(s, d)| (d, s)).collect(),
@@ -878,7 +888,7 @@ impl<'n> FaceDescent<'n> {
     /// The operand face result face `f` descends from. A merged face
     /// descends from each face it absorbed as well: see
     /// [`FaceDescent::merged`].
-    pub(super) fn result_face(&self, f: FaceKey) -> Result<(topo::Operand, FaceKey), NamingError> {
+    pub(crate) fn result_face(&self, f: FaceKey) -> Result<(topo::Operand, FaceKey), NamingError> {
         let (operand, k) = operand_key(self.naming, &self.inv_faces, f)?.0.of_operand();
         Ok((operand, self.clone_face(operand, k)?))
     }
@@ -898,7 +908,7 @@ impl<'n> FaceDescent<'n> {
 
     /// Merged result face → every face it holds, itself first, in
     /// result keys before the merge.
-    pub(super) fn merged(&self) -> BTreeMap<FaceKey, Vec<FaceKey>> {
+    pub(crate) fn merged(&self) -> BTreeMap<FaceKey, Vec<FaceKey>> {
         self.naming
             .merge_groups
             .iter()
@@ -1005,11 +1015,12 @@ pub(crate) fn name_boolean<T: Decide>(
             // (re-wrapped by that chain, then by this side) and never
             // its `Merged` name.
             match merged::constituents_through_wrappers(&up.name) {
-                Some(cs) => constituents.extend(
-                    cs.into_iter()
-                        .map(|inner| name1(EntityKind::Face, node, d.wrap(NameRef::new(inner)))),
-                ),
-                None => constituents.push(name1(EntityKind::Face, node, d.wrap(up.name))),
+                Some(cs) => {
+                    constituents.extend(cs.into_iter().map(|inner| {
+                        name1(EntityKind::Face, node, d.wrap(a, b, NameRef::new(inner)))
+                    }))
+                }
+                None => constituents.push(name1(EntityKind::Face, node, d.wrap(a, b, up.name))),
             }
         }
         // The kernel's guarantee that the set is flat, held here for
@@ -1130,7 +1141,7 @@ pub(crate) fn name_boolean<T: Decide>(
     for (d, members) in &groups {
         let root_name = operand_face_name(*d)?;
         let from_tie = root_name.tied;
-        let base = name1(EntityKind::Face, node, d.wrap(root_name.name));
+        let base = name1(EntityKind::Face, node, d.wrap(a, b, root_name.name));
         let in_merged = merged_into.get(d).map_or(&[][..], Vec::as_slice);
         rec.record(
             &base,
@@ -1253,7 +1264,7 @@ pub(super) fn name_parent_faces<T: geom_core::Real, K: Ord + Clone>(
 }
 
 /// Boolean edges, grouped by parent: `Seam` for zip-minted edges,
-/// `FromA`/`FromB` for operand-descended ones, and `Merged` for an edge
+/// `From` for operand-descended ones, and `Merged` for an edge
 /// the output stage joined across several operand edges
 /// ([`joined_cover`]). A group's pieces are qualified once the vertices
 /// are named ([`EdgeGroup`]).
@@ -1580,6 +1591,7 @@ fn name_boolean_edges<T: Decide>(
             from_tie,
             edges,
             set,
+            side: None,
             lone: Lone::Whole,
         });
     }
@@ -1595,13 +1607,14 @@ fn name_boolean_edges<T: Decide>(
             from_tie,
             edges,
             set: Vec::new(),
+            side: None,
             lone: Lone::Whole,
         });
     }
     for (root, edges) in groups {
         let (op, root_key) = root.of(a, b);
         let inner = upstream_name(op.table, op.node, ent(0, EntityKey::Edge(root_key)))?;
-        let base = name1(EntityKind::Edge, node, root.wrap(inner.name));
+        let base = name1(EntityKind::Edge, node, root.wrap(a, b, inner.name));
         // Undivided: the one edge runs between the operand edge's own two
         // ends, as the operand's keys read the result's vertices there.
         let whole = match edges.as_slice() {
@@ -1638,6 +1651,7 @@ fn name_boolean_edges<T: Decide>(
             from_tie: inner.tied,
             edges,
             set: Vec::new(),
+            side: Some(root.operand()),
             lone,
         });
     }
@@ -1775,7 +1789,10 @@ fn set_name<T: Decide>(
     for &r in set {
         let (op, k) = r.of(a, b);
         let up = upstream_name(op.table, op.node, ent(0, EntityKey::Edge(k)))?;
-        names.push((name1(EntityKind::Edge, node, r.wrap(up.name)), up.tied));
+        names.push((
+            name1(EntityKind::Edge, node, r.wrap(a, b, up.name)),
+            up.tied,
+        ));
     }
     Ok(super::join_names::joined_name(node, names))
 }
@@ -1790,11 +1807,16 @@ struct EdgeGroup {
     edges: Vec<EdgeKey>,
     /// The operand edges a joined edge's set name lists, or empty.
     set: Vec<OpSide<EdgeKey>>,
+    /// The operand a carried edge descends from, or `None` for a seam
+    /// or a joined set. Its name's read is no side: both seats may read
+    /// one family (`xs[1] − xs[0]`), and the read keys the name either
+    /// way (REFERENCES DM4).
+    side: Option<topo::Operand>,
     /// What a lone piece of the parent is named for.
     lone: Lone,
 }
 
-/// Boolean vertices: operand pass-downs (`FromA`/`FromB`), and seam
+/// Boolean vertices: operand pass-downs (`From`), and seam
 /// (crossing/fused) vertices named by the operand entities whose
 /// crossing minted them — derived from the already-named incident edges
 /// (combinatorial wiring facts) — and, where an edge crosses, by its
@@ -1819,12 +1841,18 @@ fn name_boolean_vertices<T: Decide>(
     let bug = |what| NamingError::Emission { what };
     // Each edge's parent, the head a vertex cites it by, and whether
     // that descends from a tie.
-    let edge_base: BTreeMap<EdgeKey, (&StableName, bool, &[OpSide<EdgeKey>])> = edge_groups
+    type EdgeBase<'g> = (
+        &'g StableName,
+        bool,
+        &'g [OpSide<EdgeKey>],
+        Option<topo::Operand>,
+    );
+    let edge_base: BTreeMap<EdgeKey, EdgeBase<'_>> = edge_groups
         .iter()
         .flat_map(|g| {
             g.edges
                 .iter()
-                .map(move |&e| (e, (&g.base, g.from_tie, g.set.as_slice())))
+                .map(move |&e| (e, (&g.base, g.from_tie, g.set.as_slice(), g.side)))
         })
         .collect();
     // The operand edges of a joined edge's set that hold vertex `v`:
@@ -1846,9 +1874,8 @@ fn name_boolean_vertices<T: Decide>(
             }
             Ok(held)
         };
-    // A-side weld and zip fusions (`vertex_merges`; a B-side weld kills
-    // a minted pierce vertex before the graft, which has no name to
-    // owe): kept key → dead partners (a fused vertex may owe
+    // The zips' fusions (`vertex_merges`): kept key → dead partners
+    // (a fused vertex may owe
     // its operand identity to a DEAD partner's key — e.g. a B corner
     // vertex fused into an A-side crossing key on a shared plane).
     let fused = Fused::of(naming);
@@ -1871,7 +1898,7 @@ fn name_boolean_vertices<T: Decide>(
             Ok(named_in(side)?.map(|u| {
                 let parent = side.map(EntityKey::Vertex).parent();
                 (
-                    name1(EntityKind::Vertex, node, side.wrap(u.name)),
+                    name1(EntityKind::Vertex, node, side.wrap(a, b, u.name)),
                     u.tied,
                     parent,
                 )
@@ -1940,7 +1967,7 @@ fn name_boolean_vertices<T: Decide>(
         // name tie-descended too.
         let mut from_tie = false;
         for &e in edges {
-            let Some(&(ename, tied, set)) = edge_base.get(&e) else {
+            let Some(&(ename, tied, set, side)) = edge_base.get(&e) else {
                 return Err(bug("seam vertex incident to an unnamed edge"));
             };
             from_tie |= tied;
@@ -1957,8 +1984,11 @@ fn name_boolean_vertices<T: Decide>(
                         }
                     }
                 }
-                Some(RoleSeg::FromA(x)) => a_edges.push(x.clone()),
-                Some(RoleSeg::FromB(x)) => b_edges.push(x.clone()),
+                Some(RoleSeg::From { of: x, .. }) => match side {
+                    Some(topo::Operand::A) => a_edges.push(x.clone()),
+                    Some(topo::Operand::B) => b_edges.push(x.clone()),
+                    None => return Err(bug("a carried edge's group names no operand")),
+                },
                 // Zip-listed AND derived seams both qualify (M4 PR 5:
                 // declared merges reroute channel-cut chords into the
                 // derived-seam lane, so a seam vertex may lean on a
@@ -2242,8 +2272,8 @@ enum Along {
 
 /// What a boolean fused, read once per boolean: each result vertex's
 /// fusion partners ([`fused_partners`]) and every pair of operand keys
-/// a B-side weld (`BooleanNaming::weld_merges_b`) or a null edge
-/// (`BooleanNaming::null_copies`) leaves at one point, both ways round.
+/// a null edge (`BooleanNaming::null_copies`) leaves at one point, both
+/// ways round.
 struct Fused {
     partners: BTreeMap<VertexKey, Vec<VertexKey>>,
     one_point: Vec<((topo::Operand, VertexKey), (topo::Operand, VertexKey))>,
@@ -2251,24 +2281,18 @@ struct Fused {
 
 impl Fused {
     fn of(naming: &topo::BooleanNaming) -> Self {
-        Self::from_rows(
-            naming.vertex_merges.rows(),
-            naming.weld_merges_b.rows(),
-            &naming.null_copies,
-        )
+        Self::from_rows(naming.vertex_merges.rows(), &naming.null_copies)
     }
 
-    /// From the zips' and A-side welds' fusions `(dead, kept)`, the
-    /// B-side welds' and the null copies, each in the order made.
+    /// From the zips' fusions `(dead, kept)` and the null copies, each
+    /// in the order made.
     fn from_rows(
         merges: &[(VertexKey, VertexKey)],
-        welds_b: &[(VertexKey, VertexKey)],
         null_copies: &[(topo::Operand, VertexKey, VertexKey)],
     ) -> Self {
-        let one_point = welds_b
+        let one_point = null_copies
             .iter()
-            .map(|&(dead, kept)| (topo::Operand::B, dead, kept))
-            .chain(null_copies.iter().copied())
+            .copied()
             .flat_map(|(side, x, y)| [((side, x), (side, y)), ((side, y), (side, x))])
             .collect();
         Self {
@@ -2311,9 +2335,8 @@ fn fused_partners(merges: &[(VertexKey, VertexKey)]) -> BTreeMap<VertexKey, Vec<
 /// **Every operand vertex result vertex `v` is**, `(operand, key)` in
 /// that operand's clone keys: its own key read through the layout
 /// ([`operand_key`]), each key fused into it, and, transitively, every
-/// key a B-side weld (`BooleanNaming::weld_merges_b`) or a null edge
-/// (`BooleanNaming::null_copies`) joins to any of those: either leaves
-/// two keys of one point.
+/// key a null edge (`BooleanNaming::null_copies`) joins to any of
+/// those: it leaves two keys of one point.
 fn operand_vertex_keys(
     naming: &topo::BooleanNaming,
     inv_vertices: &BTreeMap<VertexKey, VertexKey>,
@@ -2523,26 +2546,16 @@ mod fused_tests {
             .collect()
     }
 
-    /// **A vertex is every B key a chain of B-side welds fused into its
-    /// own**: `w0` welded into `w1`, then `w1` into the grafted `kb`.
+    /// **A copy of a null copy of the vertex is the vertex too**: one
+    /// null edge leaves `kb` a copy `kc`, and another leaves `kc` a
+    /// copy `w`, as a ring's struts hang from one another.
     #[test]
-    fn a_chain_of_b_welds_reaches_the_grafted_key() {
-        let (r, w0, w1, kb) = (vk(10), vk(1), vk(2), vk(3));
-        let fused = Fused::from_rows(&[], &[(w0, w1), (w1, kb)], &[]);
-        let mut want = vec![w0, w1, kb];
-        want.sort_unstable();
-        assert_eq!(b_keys_of(&fused, r, kb), want, "the welded keys");
-    }
-
-    /// **A weld into a null copy of the vertex is the vertex too**: the
-    /// null edge leaves `kb` a copy `kc`, and `w` was welded into `kc`.
-    #[test]
-    fn a_weld_into_a_null_copy_is_the_vertex() {
+    fn a_chain_of_null_copies_is_the_vertex() {
         let (r, kb, kc, w) = (vk(10), vk(1), vk(2), vk(3));
-        let fused = Fused::from_rows(&[], &[(w, kc)], &[(B, kb, kc)]);
+        let fused = Fused::from_rows(&[], &[(B, kb, kc), (B, kc, w)]);
         let mut want = vec![kb, kc, w];
         want.sort_unstable();
-        assert_eq!(b_keys_of(&fused, r, kb), want, "the copy and its weld");
+        assert_eq!(b_keys_of(&fused, r, kb), want, "the copies");
     }
 }
 
@@ -3452,7 +3465,9 @@ fn nurbs_chord<T: Decide>(
         return Ok(None);
     }
     let knots = nurbs.knots();
-    let (s0, s1) = (t0.locate_spans(knots), t1.locate_spans(knots));
+    let (Some(s0), Some(s1)) = (t0.locate_spans(knots), t1.locate_spans(knots)) else {
+        return Ok(None);
+    };
     let first = s0.first.first_control().min(s1.first.first_control());
     let last = s0.last.index().max(s1.last.index());
     let control = nurbs
@@ -3852,11 +3867,13 @@ mod tests {
         let bool_node = RecipeNodeId::new(0, 9);
         let a = OperandCtx {
             node: ext_node,
+            read: crate::names::FOLD_A,
             table: &a_table,
             body: &built.body,
         };
         let b = OperandCtx {
             node: RecipeNodeId::new(0, 2),
+            read: crate::names::FOLD_B,
             table: &empty,
             body: &built.body,
         };
@@ -3923,11 +3940,13 @@ mod tests {
         let empty = NameTable::new();
         let a = OperandCtx {
             node: ext_node,
+            read: crate::names::FOLD_A,
             table: &a_table,
             body: &built.body,
         };
         let b = OperandCtx {
             node: RecipeNodeId::new(0, 2),
+            read: crate::names::FOLD_B,
             table: &empty,
             body: &built.body,
         };
@@ -3963,8 +3982,8 @@ mod tests {
     /// removed, `name_boolean` returns `Ok` with a TOTAL table of 27
     /// rows in which the two caps carry each other's operand names —
     /// measured, not argued: `built.top` comes out
-    /// `FromA(Cap(Start))` and `built.bottom` comes out
-    /// `FromA(Cap(End))`, each the other's. Nothing is missing and
+    /// `From { of: Cap(Start) }` and `built.bottom` comes out
+    /// `From { of: Cap(End) }`, each the other's. Nothing is missing and
     /// nothing refuses; the document is simply wrong about which face
     /// is which.
     ///
@@ -3993,11 +4012,13 @@ mod tests {
         let empty = NameTable::new();
         let a = OperandCtx {
             node: ext_node,
+            read: crate::names::FOLD_A,
             table: &a_table,
             body: &built.body,
         };
         let b = OperandCtx {
             node: RecipeNodeId::new(0, 2),
+            read: crate::names::FOLD_B,
             table: &empty,
             body: &built.body,
         };
@@ -4074,11 +4095,13 @@ mod tests {
         };
         let a = OperandCtx {
             node: RecipeNodeId::new(0, 2),
+            read: crate::names::FOLD_A,
             table: &b_table,
             body: &body,
         };
         let b = OperandCtx {
             node: ext_node,
+            read: crate::names::FOLD_B,
             table: &b_table,
             body: &body,
         };
@@ -4133,7 +4156,7 @@ mod tests {
         // Synthetic descent: `top` reads as a fragment of `bottom`,
         // `laterals[1]` as a fragment of `laterals[0]` — the two
         // groups then share the constituent set
-        // {FromA(bottom), FromA(laterals[0])}.
+        // {From(bottom), From(laterals[0])}.
         let naming = topo::BooleanNaming {
             a_keys: topo::OperandKeys::Direct,
             b_keys: topo::OperandKeys::Absent,
@@ -4147,11 +4170,13 @@ mod tests {
         let empty = NameTable::new();
         let a = OperandCtx {
             node: ext_node,
+            read: crate::names::FOLD_A,
             table: &a_table,
             body: &built.body,
         };
         let b = OperandCtx {
             node: RecipeNodeId::new(0, 2),
+            read: crate::names::FOLD_B,
             table: &empty,
             body: &built.body,
         };
@@ -4181,7 +4206,7 @@ mod tests {
     /// different entities, so each is a parent held as one face and the
     /// row is the tie of both, candidates in merge order.
     #[test]
-    fn two_merges_of_tied_faces_publish_one_tied_merged_row() {
+    fn two_merges_of_tied_faces_publish_one_tied_row() {
         let built = unit_cube();
         let ext_node = RecipeNodeId::new(0, 1);
         let own = name_extrude(
@@ -4221,11 +4246,13 @@ mod tests {
         let empty = NameTable::new();
         let a = OperandCtx {
             node: ext_node,
+            read: crate::names::FOLD_A,
             table: &a_table,
             body: &built.body,
         };
         let b = OperandCtx {
             node: RecipeNodeId::new(0, 2),
+            read: crate::names::FOLD_B,
             table: &empty,
             body: &built.body,
         };
@@ -4238,14 +4265,19 @@ mod tests {
             Tol::witness(),
         )
         .expect("two tied single-face merges name as one tied row");
+        // A single-face merge is a `Merged` of one, which is that face
+        // (N3), so the row is the tied face's own name.
         let merged: Vec<_> = out
             .table
             .iter()
-            .filter(|(n, _)| matches!(n.path.first(), Some(RoleSeg::Merged(_))))
+            .filter(|(_, e)| matches!(e, Entry::Tied(_)))
             .collect();
-        assert_eq!(merged.len(), 1, "one merged row: {merged:?}");
+        assert_eq!(merged.len(), 1, "one tied row: {merged:?}");
         let (name, entry) = merged[0];
-        assert_eq!(name.path.len(), 1, "the row carries no qualifier: {name:?}");
+        assert!(
+            matches!(name.path.as_slice(), [RoleSeg::From { .. }]),
+            "the row is the face carried in, with no qualifier: {name:?}"
+        );
         let Entry::Tied(es) = entry else {
             panic!("the merged row is not the tie: {entry:?}");
         };
@@ -4317,11 +4349,13 @@ mod tests {
         let bool_node = RecipeNodeId::new(0, 9);
         let a = OperandCtx {
             node: ext_node,
+            read: crate::names::FOLD_A,
             table: &a_table,
             body: &built.body,
         };
         let b = OperandCtx {
             node: RecipeNodeId::new(0, 2),
+            read: crate::names::FOLD_B,
             table: &empty,
             body: &built.body,
         };
@@ -4332,7 +4366,10 @@ mod tests {
             name1(
                 EntityKind::Face,
                 bool_node,
-                RoleSeg::FromA(inner.clone().into()),
+                RoleSeg::From {
+                    read: crate::names::FOLD_A,
+                    of: inner.clone().into(),
+                },
             )
         };
         let mut want = vec![
@@ -4350,7 +4387,10 @@ mod tests {
         let nested = t.iter().any(|(n, _)| {
             n.path.iter().any(|seg| match seg {
                 RoleSeg::Merged(cs) => cs.iter().any(|c| match c.path.first() {
-                    Some(RoleSeg::FromA(inner)) => {
+                    Some(RoleSeg::From {
+                        read: crate::names::FOLD_A,
+                        of: inner,
+                    }) => {
                         matches!(inner.path.first(), Some(RoleSeg::Merged(_)))
                     }
                     _ => false,
@@ -4421,11 +4461,13 @@ mod tests {
         let empty = NameTable::new();
         let a = OperandCtx {
             node: ext_node,
+            read: crate::names::FOLD_A,
             table: &a_table,
             body: &built.body,
         };
         let b = OperandCtx {
             node: RecipeNodeId::new(0, 2),
+            read: crate::names::FOLD_B,
             table: &empty,
             body: &built.body,
         };
@@ -4463,7 +4505,7 @@ mod split_carries_candidates {
     use crate::eval::{CancelToken, EvalOptions, Evaluation, evaluate};
     use crate::ident::DocumentId;
     use crate::names::table::{EntityRef, Entry, NameTable};
-    use crate::node::{BooleanOp, Datum, Node, RecipeNodeId};
+    use crate::node::{Datum, Node, RecipeNodeId};
     use crate::program::{LoopProgram, ProfileProgram};
     use crate::test_support::{frame, len, scl};
     use crate::{ProfileDoc, RefusingReach};
@@ -4488,7 +4530,7 @@ mod split_carries_candidates {
         let (doc, profile) = ins(
             doc,
             Node::Profile(ProfileProgram {
-                plane,
+                frame: plane.into(),
                 loops: vec![LoopProgram::polygon(pts.iter().copied()).expect("finite")],
                 ids: Vec::new(),
             }),
@@ -4496,7 +4538,7 @@ mod split_carries_candidates {
         ins(
             doc,
             Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: len(dz),
                 side: crate::ExtrudeSide::Along,
             },
@@ -4533,11 +4575,9 @@ mod split_carries_candidates {
         );
         let (doc, sub) = ins(
             doc,
-            Node::Boolean {
-                op: BooleanOp::Subtract,
-                a,
-                b,
-                declare: Vec::new(),
+            Node::Subtract {
+                from: a.into(),
+                tool: b.into(),
             },
         );
         let (doc, tool) = ins(
@@ -4547,7 +4587,13 @@ mod split_carries_candidates {
                 normal: [scl(0.0), scl(ny), scl(0.0)],
             }),
         );
-        let (doc, split) = ins(doc, Node::Split { target: sub, tool });
+        let (doc, split) = ins(
+            doc,
+            Node::Split {
+                target: sub.into(),
+                tool: tool.into(),
+            },
+        );
         let ev = evaluate::<f64>(
             &doc,
             None,
@@ -4629,7 +4675,7 @@ mod split_edge_lineage {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::{Side, chase_edge_to_table, chase_split_edge_to_table};
-    use crate::eval::{CancelToken, DatumValue, EvalOptions, ValuePayload, evaluate};
+    use crate::eval::{CancelToken, EvalOptions, PoseValue, ValuePayload, evaluate};
     use crate::names::role::SplitHalf;
     use crate::names::table::{EntityKey, EntityRef};
     use crate::test_support::clipped_cylinder;
@@ -4651,7 +4697,7 @@ mod split_edge_lineage {
             panic!("the extrude is one body");
         };
         // The plane the split verb reads off the same datum.
-        let Some(ValuePayload::Datum(DatumValue::Plane { origin, normal })) =
+        let Some(ValuePayload::Datum(PoseValue::Plane { origin, normal })) =
             ev.value(tool).map(|v| &v.payload)
         else {
             panic!("the tool is a plane datum");
@@ -4743,7 +4789,7 @@ mod crossings_rank_along_the_line {
     use crate::names::defer::TieRows;
     use crate::names::role::{EntityKind, Qualifier, RoleSeg, StableName};
     use crate::names::table::{EntityKey, EntityRef, Entry, NameTable};
-    use crate::node::{BooleanOp, Node, RecipeNodeId};
+    use crate::node::{Node, RecipeNodeId};
     use crate::program::{LoopProgram, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget};
     use crate::test_support::{frame, len, scl};
     use crate::{ProfileDoc, RefusingReach};
@@ -4773,7 +4819,7 @@ mod crossings_rank_along_the_line {
         let (doc, profile) = ins(
             doc,
             Node::Profile(ProfileProgram {
-                plane,
+                frame: plane.into(),
                 loops: vec![loop_],
                 ids: Vec::new(),
             }),
@@ -4781,7 +4827,7 @@ mod crossings_rank_along_the_line {
         ins(
             doc,
             Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: len(dz),
                 side: crate::ExtrudeSide::Along,
             },
@@ -4824,11 +4870,9 @@ mod crossings_rank_along_the_line {
         );
         let (doc, notched) = ins(
             doc,
-            Node::Boolean {
-                op: BooleanOp::Subtract,
-                a: disc,
-                b: notch,
-                declare: Vec::new(),
+            Node::Subtract {
+                from: disc.into(),
+                tool: notch.into(),
             },
         );
         let ev = evaluate::<f64>(
@@ -4988,7 +5032,7 @@ mod nurbs_crossings_rank_by_parameter {
             let (d, profile) = ins(
                 d,
                 Node::Profile(ProfileProgram {
-                    plane,
+                    frame: plane.into(),
                     loops: vec![LoopProgram::polygon(square).expect("finite")],
                     ids: Vec::new(),
                 }),
@@ -4999,7 +5043,7 @@ mod nurbs_crossings_rank_by_parameter {
         let (doc, loft) = ins(
             doc,
             Node::Loft {
-                profiles,
+                profiles: profiles.into_iter().map(Into::into).collect(),
                 v_degree: Formula::count(2),
             },
         );
@@ -5215,12 +5259,11 @@ mod nurbs_crossings_rank_by_parameter {
             .certified()
             .unwrap()
             .restated_spec();
-        let geom_brep::EdgeDescriptionSpec::Intersection { s1, s2, .. } = spec.description else {
+        let geom_brep::EdgeDescriptionSpec::Intersection { pair, .. } = spec.description else {
             panic!("the cube's edges are described as intersections");
         };
         spec.description = geom_brep::EdgeDescriptionSpec::Intersection {
-            s1,
-            s2,
+            pair,
             witness: nurbs.eval(0.5),
         };
         spec.carrier = geom::Curve3::Nurbs(std::sync::Arc::new(nurbs));
@@ -5317,7 +5360,7 @@ mod edge_pieces_of_one_line_tie {
     use crate::names::defer::TieRows;
     use crate::names::role::{EntityKind, NameRef, Qualifier, RoleSeg, StableName};
     use crate::names::table::{Entry, NameTable};
-    use crate::node::{BooleanOp, Node, RecipeNodeId};
+    use crate::node::{Node, RecipeNodeId};
     use crate::program::{LoopProgram, ProfileProgram};
     use crate::test_support::{frame, len};
     use crate::{ProfileDoc, RefusingReach};
@@ -5347,7 +5390,7 @@ mod edge_pieces_of_one_line_tie {
         let (doc, profile) = ins(
             doc,
             Node::Profile(ProfileProgram {
-                plane,
+                frame: plane.into(),
                 loops: vec![loop_],
                 ids: Vec::new(),
             }),
@@ -5355,7 +5398,7 @@ mod edge_pieces_of_one_line_tie {
         ins(
             doc,
             Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: len(dz),
                 side: crate::ExtrudeSide::Along,
             },
@@ -5380,11 +5423,9 @@ mod edge_pieces_of_one_line_tie {
         );
         let (doc, cut) = ins(
             doc,
-            Node::Boolean {
-                op: BooleanOp::Subtract,
-                a: rod,
-                b: top,
-                declare: Vec::new(),
+            Node::Subtract {
+                from: rod.into(),
+                tool: top.into(),
             },
         );
         let ev = evaluate::<f64>(
@@ -5441,7 +5482,10 @@ mod edge_pieces_of_one_line_tie {
             StableName {
                 kind: EntityKind::Edge,
                 node: cut,
-                path: vec![RoleSeg::FromA(NameRef::new(p))],
+                path: vec![RoleSeg::From {
+                    read: crate::names::FOLD_A,
+                    of: NameRef::new(p),
+                }],
             }
         };
         let (p1, p2) = (
@@ -5733,11 +5777,13 @@ mod touch_reread_rows {
             };
             let a = OperandCtx {
                 node: an,
+                read: crate::names::FOLD_A,
                 table: at,
                 body: a,
             };
             let b = OperandCtx {
                 node: bn,
+                read: crate::names::FOLD_B,
                 table: bt,
                 body: b,
             };

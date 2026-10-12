@@ -57,7 +57,7 @@ use geom_core::{Band, Decide, Margin, Sign, Vec3};
 use slotmap::SecondaryMap;
 
 use super::rules;
-use super::{PlaneSide, SectorEntry, SectorEntryKind, SplitPlane, SplitReduceError};
+use super::{PlaneSide, SectorEntry, SectorEntryKind, SectorReading, SplitPlane, SplitReduceError};
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::live::{Proven, linked, proven};
@@ -207,6 +207,27 @@ pub fn classify_neighborhood<T: Decide>(
     vertex: VertexKey,
     band: Band,
 ) -> Result<Vec<SectorEntry>, SplitReduceError> {
+    classify_neighborhood_rays(body, plane, sides, vertex, band).map(|(entries, _)| entries)
+}
+
+/// One entry's ray out of the vertex: its direction scaled to its
+/// reach (an edge entry's [`chord`], a duplicate's bisector at its
+/// sector's arm), and whether the plane holds it (its side read On,
+/// before rules (a) and (b) send it to one).
+#[derive(Clone, Copy, Debug)]
+pub(super) struct EntryRay<T: geom_core::Real> {
+    pub dir: Vec3<T>,
+    pub in_plane: bool,
+}
+
+/// [`classify_neighborhood`], with each entry's [`EntryRay`] beside it.
+pub(super) fn classify_neighborhood_rays<T: Decide>(
+    body: &Body<T>,
+    plane: &SplitPlane<T>,
+    sides: &SecondaryMap<VertexKey, PlaneSide>,
+    vertex: VertexKey,
+    band: Band,
+) -> Result<(Vec<SectorEntry>, Vec<EntryRay<T>>), SplitReduceError> {
     if body.get_vertex(vertex).is_none() {
         return Err(SplitReduceError::StaleVertex { vertex });
     }
@@ -216,6 +237,7 @@ pub fn classify_neighborhood<T: Decide>(
     }
 
     let mut entries = Vec::with_capacity(orbit.len());
+    let mut dirs = Vec::with_capacity(orbit.len());
     for (i, &he) in orbit.iter().enumerate() {
         let (final_vertex, dir_a, conic_jet) = chord(body, vertex, he)?;
         // Entry class — "which side does this edge lead to":
@@ -266,14 +288,18 @@ pub fn classify_neighborhood<T: Decide>(
                             return Err(SplitReduceError::SliverSector {
                                 vertex,
                                 face,
-                                diag: escalation.diag(),
+                                reading: SectorReading::Escalated(escalation.diag()),
                             });
                         }
                     }
                 }
                 Err(diag) => {
                     let (face, _, _) = sector_face(body, vertex, he)?;
-                    return Err(SplitReduceError::SliverSector { vertex, face, diag });
+                    return Err(SplitReduceError::SliverSector {
+                        vertex,
+                        face,
+                        reading: SectorReading::Escalated(diag),
+                    });
                 }
             }
         } else {
@@ -288,6 +314,7 @@ pub fn classify_neighborhood<T: Decide>(
             kind: SectorEntryKind::Edge,
             class,
         });
+        dirs.push(dir_a);
 
         // Wideness of the sector CW-after `he` (bounded by `he` and the
         // next orbit edge), and the subdivision direction it implies:
@@ -301,7 +328,11 @@ pub fn classify_neighborhood<T: Decide>(
         let next_he = orbit[(i + 1) % orbit.len()];
         let (_, dir_b, _) = chord(body, vertex, next_he)?;
         let (face, n_face, _) = sector_face(body, vertex, he)?;
-        let sliver = |diag| SplitReduceError::SliverSector { vertex, face, diag };
+        let sliver = |diag| SplitReduceError::SliverSector {
+            vertex,
+            face,
+            reading: SectorReading::Escalated(diag),
+        };
         let SectorShape {
             arm,
             bisector: wide,
@@ -330,12 +361,21 @@ pub fn classify_neighborhood<T: Decide>(
                 kind: SectorEntryKind::WideBisector,
                 class,
             });
+            dirs.push(bisector * arm);
         }
     }
 
-    let grazes = rules::apply_rule_a(body, plane, vertex, &mut entries, band)?;
-    rules::apply_rule_b(body, plane, vertex, &mut entries, &grazes, band)?;
-    Ok(entries)
+    let rays = dirs
+        .into_iter()
+        .zip(&entries)
+        .map(|(dir, e)| EntryRay {
+            dir,
+            in_plane: e.class == PlaneSide::On,
+        })
+        .collect();
+    let readings = rules::apply_rule_a(body, plane, vertex, &mut entries, band)?;
+    rules::apply_rule_b(body, vertex, &mut entries, &readings, band)?;
+    Ok((entries, rays))
 }
 
 #[cfg(test)]

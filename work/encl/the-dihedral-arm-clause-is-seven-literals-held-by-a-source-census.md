@@ -2,7 +2,10 @@
 id: the-dihedral-arm-clause-is-seven-literals-held-by-a-source-census
 kind: issue
 title: The dihedral arm's shared clause is seven literals held together by a source census that false-positives on other arm decisions
-status: open
+status: closed
+closed: 2026-10-09
+branch: encl/dihedral-arm-one-clause
+pr: 4401
 opened: 2026-10-09
 priority: P3
 cost: E
@@ -24,3 +27,10 @@ These come from the delta re-review of PR 4366 (merged at `5e0ed71933`), which a
 - **`with_diag` is public (NOTE A).** `enters.rs` `LeverEscalation::with_diag` lets any crate re-quote a gate-refused arm with an arbitrary margin. Both live callers are sound only by data (`dihedral.rs` re-quotes on purpose; `sectors.rs` sits behind `offers_tolerance()`). Options: `pub(crate)` for dihedral, plus a public re-quote for topo that is a no-op once `refused.is_some()`.
 - **Two idioms in the at-rest list (S2).** In `validate.rs` `certify_undecided`, the arm now ends "is undecided" (to fit the word budget), while its sibling arms end "is too close to call at this tolerance".
 - **The row's parenthetical is stale (NOTE D).** `work/cleave/split-dihedral-readers-drop-the-arm-rung.md` says `BooleanError::of_lever` "already takes the whole escalation", but it delegates to `of_lever_rung` and drops `collapsed_arm` too, at `sectors.rs`'s two `enters_material` callers. Correct that row.
+
+## Closed
+
+2026-10-09. PR 4401 merged at `c3be784594` after a review and a fix pass; hosted CI was green.
+- `geom_brep::DIHEDRAL_ARM_CLAUSE` (via `dihedral_arm_clause!`) is the one spelling, and seven doors compose it.
+- The pin asserts the const in each rendered door; the source census is gone.
+- `with_diag` is retired. `LeverEscalation::quoting_reading` is the one re-quote door, guarded by `re_quotes()`. A decided arm's verdict re-quotes only onto a reading of the same rejected sign, which fixes a band-edge Zero/in-band pairing that `OutwardNormal`'s non-unit length allowed.

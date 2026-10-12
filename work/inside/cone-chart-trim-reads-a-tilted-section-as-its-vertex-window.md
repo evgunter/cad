@@ -113,3 +113,17 @@ refuses the whole query at the first such hit (`wall_hit`). Both are
 sound; the cone's answers strictly more queries. One policy for both —
 likely the cone's, with the refusal named after the face that set the
 last ray aside — belongs with this item's fix.
+
+## 2026-10-09, the boolean returns such faces (VERBS-CONE U7)
+
+With `Cone` on the operand roster, ∩ and box ∖ cone of TANG's pose
+(`sweep/tests/a_ring_on_a_cone_face.rs`: the π/6 cone against the box
+turned −50°) return bodies whose cone face is bounded by ellipse arcs.
+Both are right: their volume matches the overlap computed outside the
+kernel (`0.057153` at scale 0.6), they pass tier 3, and
+`point_in_solid` agrees with closed-form membership at every point it
+answers. On the as-built pose it refuses `PartialConeFace` at 33 of
+510 grid points per body (0 of 510 on the turned poses). The row
+tolerates exactly that refusal at grid points
+(`common/solid_truth.rs`), so this item's fix shows as more answered
+points, not as a red row.

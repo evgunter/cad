@@ -4,6 +4,8 @@ kind: issue
 title: geom-brep: SectionError::WrongLane ends in '(a kernel bug)', not the shared kernel-defect ending
 status: open
 opened: 2026-09-28
+priority: P4
+cost: E
 ---
 
 

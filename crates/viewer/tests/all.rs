@@ -90,6 +90,8 @@ mod doc_io;
 mod docm1_face_frame;
 #[path = "docm9_range_vs_probe.rs"]
 mod docm9_range_vs_probe;
+#[path = "door_at_rest.rs"]
+mod door_at_rest;
 #[path = "edge_pick.rs"]
 mod edge_pick;
 #[path = "edit_maintenance.rs"]
@@ -125,8 +127,8 @@ mod mate_tool_flow;
 mod msolve3_placer_refused;
 #[path = "msolve4_blame_rows.rs"]
 mod msolve4_blame_rows;
-#[path = "msolve5_moved_above_badge.rs"]
-mod msolve5_moved_above_badge;
+#[path = "msolve5_unplaced_read_badge.rs"]
+mod msolve5_unplaced_read_badge;
 #[path = "node_labels.rs"]
 mod node_labels;
 #[path = "panel_display.rs"]

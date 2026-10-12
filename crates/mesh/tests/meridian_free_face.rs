@@ -267,7 +267,7 @@ fn the_seamed_twins_of_the_refused_caps_mesh_watertight() {
         topo::BooleanOp::Intersect,
         &ball,
         &slab_below_y(0.5),
-        &topo::BooleanDeclarations::default(),
+        &topo::BooleanInputs::default(),
         topo::SweepStrategy::Realized,
         tol,
     )

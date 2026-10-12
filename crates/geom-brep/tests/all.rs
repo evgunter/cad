@@ -81,6 +81,8 @@ mod chart_box_span;
 
 #[path = "axis_rows_read_as_one_sum.rs"]
 mod axis_rows_read_as_one_sum;
+#[path = "computed_values_enter_as_unknowns.rs"]
+mod computed_values_enter_as_unknowns;
 #[path = "curved_torus_arc_residual.rs"]
 mod curved_torus_arc_residual;
 #[path = "cylinder_green_conditioning.rs"]
@@ -91,6 +93,8 @@ mod d290_r2_e2e;
 mod decoration_plane_mint;
 #[path = "ellipse_signed_semi_axis_gate.rs"]
 mod ellipse_signed_semi_axis_gate;
+#[path = "end_samples_read_the_carrier.rs"]
+mod end_samples_read_the_carrier;
 #[path = "exhaust_lane_meters.rs"]
 mod exhaust_lane_meters;
 #[path = "germ_pose_gate.rs"]
@@ -125,8 +129,14 @@ mod offb_r1_probes;
 mod onb_wall_frame_interval;
 #[path = "pcurve_frame_premise_rows.rs"]
 mod pcurve_frame_premise_rows;
+#[path = "pn_apex_reach.rs"]
+mod pn_apex_reach;
 #[path = "props_cone_apex_cap.rs"]
 mod props_cone_apex_cap;
+#[path = "props_cone_ring.rs"]
+mod props_cone_ring;
+#[path = "props_cone_vector_area.rs"]
+mod props_cone_vector_area;
 #[path = "props_sphere_circle_loop.rs"]
 mod props_sphere_circle_loop;
 #[path = "props_sphere_pole_side.rs"]
@@ -184,6 +194,8 @@ mod pcurve_villarceau;
 mod r1_pxn_probes;
 #[path = "r2_cert3_e2e.rs"]
 mod r2_cert3_e2e;
+#[path = "review_4553_pxn_probes.rs"]
+mod review_4553_pxn_probes;
 #[path = "review_arceval_r1_probes.rs"]
 mod review_arceval_r1_probes;
 #[path = "review_flux_probes_r1.rs"]
@@ -220,10 +232,14 @@ mod rim_dim_scale_twins;
 mod s58_iso_rectangle;
 #[path = "s81_one_rim_level_rule.rs"]
 mod s81_one_rim_level_rule;
+#[path = "sketch_segment_restriction.rs"]
+mod sketch_segment_restriction;
 #[path = "span_meter_dim_twins.rs"]
 mod span_meter_dim_twins;
 #[path = "ssi_limb3_one_arc.rs"]
 mod ssi_limb3_one_arc;
+#[path = "stored_span_winding_bound.rs"]
+mod stored_span_winding_bound;
 
 test_utils::every_suite_file_is_aggregated!();
 
@@ -268,6 +284,8 @@ mod mesh11r2_base_probes;
 mod mesh11r2_probes;
 #[path = "mesh12_saturated_span.rs"]
 mod mesh12_saturated_span;
+#[path = "nurbs_nurbs_section.rs"]
+mod nurbs_nurbs_section;
 #[path = "pcurve_mirror_v.rs"]
 mod pcurve_mirror_v;
 
@@ -281,6 +299,8 @@ mod r2_mesh7_door_probes;
 mod span_reach_differential;
 #[path = "span_reach_hunt.rs"]
 mod span_reach_hunt;
+#[path = "tangent_gap_hull_charges_both_sags.rs"]
+mod tangent_gap_hull_charges_both_sags;
 #[path = "tcost_k1_budget_exit.rs"]
 mod tcost_k1_budget_exit;
 #[path = "torus_chart_guards.rs"]

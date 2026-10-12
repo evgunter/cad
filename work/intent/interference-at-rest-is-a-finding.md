@@ -2,11 +2,13 @@
 id: interference-at-rest-is-a-finding
 kind: issue
 title: D10 stage 5 PR B: interference between copies is its own finding, quiet only under a one-sided Gap assertion whose own faces bound the overlap
-status: parked
+status: closed
 opened: 2026-10-08
 priority: P0
 cost: H
-blocked_on: [the-product-is-an-explicit-list, measure-is-an-operation, select-defines-face-and-edge-variables]
+branch: intent/s5-b-interference
+pr: 4560
+closed: 2026-10-10
 ---
 
 INTENT stage 5, PR B. Ev approved the design in PR 4319 (fork log row
@@ -49,3 +51,21 @@ The contact half of the rule (stage 5 C's) needs stage 4 to record a
 face-on-face planar contact as the face pair: the census records planar
 contact at vertex and edge level, and no `Vertex` selection exists, so
 without that lift a planar contact could never be quieted.
+
+Ev, 2026-10-08, on a pattern's outputs: "we should have a map higher
+order function to allow declaring over all the outputs of the
+pattern." A `map` over a pattern's `Bodies` covers member against
+another copy: one assertion written once, one per member, each reading
+the one bound variable, as many as the pattern's `Count`. Overlap
+between members (neighbours in a ring) needs a map over pairs of
+members, adjacent or all. D10's Assertions paragraph states it; the
+maps are `a-map-over-a-patterns-bodies-asserts-once-per-member`. This
+unit's quieting rule is per finding, so a mapped assertion quiets
+exactly as the one it expands to would.
+
+Closed by PR 4560 (dual review DR-152). The owed work is on its rows:
+- `the-at-rest-containment-check-has-no-sphere-lane`;
+- `a-pierce-only-overlap-can-never-be-quieted`;
+- `the-probe-gated-assembly-battery-gathers-an-unplaced-fixture`;
+- the flush press fit's coplanar-cap contact, and the at-rest census as
+  a check, on `the-at-rest-census-is-a-check` (stage 5 C).

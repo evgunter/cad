@@ -2,11 +2,12 @@
 id: contact-tangent-relation-decides-offsets-and-tilt-per-sample
 kind: issue
 title: check whether contact_verify's tangent relation decides the offsets and the tilt one at a time
-status: parked
+status: closed
 opened: 2026-10-07
 priority: P3
 cost: M
-blocked_on: [booleans-glue-on-zero]
+pr: 4558
+closed: 2026-10-10
 ---
 
 ## What
@@ -28,3 +29,20 @@ the band reaches a served tangency; if it does, decide their sum
 ## Parked on the D10 hold (2026-10-08)
 
 The declared-tangency verifier (`tangent_locus_relation`) is rewired to run on verdicts when booleans glue on Zero. (CONTACT close-out triage; CONTACT's log (`docs/doc-ledger/contact-leaves-the-tracker.md` names the SHA it is read at).)
+
+## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-10)
+
+The glue door runs the tangency witness lane (`verify_tangency_declaration`, and through it `tangent_locus_relation`) on every undeclared ruled or rim-sharing pair, so this relation now decides undeclared pairs as well as declared ones. The question this row asks still holds.
+
+## Closed (PR 4558): no change needed
+
+A sample whose offset and tilt each read just inside ε does reach a
+served tangency, and that is the ratified definition. C7
+(`crates/geom-brep/README.md`) certifies surface coincidence within ε
+and normal parallelism within the derived angle as separate facts. C4's
+`Tangent` must-verify list (`crates/topo/README.md`) lists them
+separately, and the edge certifier decides the same split. Each Zero claims
+its own fact's upper bound, and each definite reading alone is a sound
+contradiction. `decide_across` is for one quantity read as
+`datum ± swing` (C4 `Rest`), and offset and tilt are not one quantity.
+Summing them would revise C4/C7, which is a design question for Ev.

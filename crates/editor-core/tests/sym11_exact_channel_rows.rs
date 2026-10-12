@@ -47,12 +47,22 @@ use crate::m10_9_pins_interval::measured_studies;
 /// non-finite door: plate +1, annulus +2, link +2, bracket +3, the pad
 /// unmoved; `registered`, `numeric` and `frozen` hold. The same deltas
 /// move `m10_9_pins_interval`'s and `sym_9_retry_interval`'s rows.
+///
+/// An intrinsic edge description's surfaces becoming a set
+/// (`geom_brep::SurfacePair`) moves only `frozen`, measured on the tree
+/// holding every change above: 612 → 641, 804 → 828, 486 → 498,
+/// 806 → 830, 302 → 314, and no decision column. The cause is the
+/// transversality wedge (`geom_brep::dihedral::wedge_decided`'s
+/// `n1.cross(n2)`), which the certificate takes in key order and the
+/// extrude's dihedral in builder order: symmetric in value up to sign
+/// but not in form, so a document that reads one edge's wedge in both
+/// orientations builds two hash-consed forms where it built one.
 const PAST_THE_CEILING: [(&str, [u64; 4]); 5] = [
-    ("two_hole_plate", [1048, 0, 654, 612]),
-    ("r1_annulus", [566, 0, 399, 804]),
-    ("r2_link", [347, 9, 259, 486]),
-    ("r2_filleted_bracket", [623, 0, 464, 806]),
-    ("r2_rounded_pad", [340, 0, 277, 302]),
+    ("two_hole_plate", [1048, 0, 654, 641]),
+    ("r1_annulus", [566, 0, 399, 828]),
+    ("r2_link", [347, 9, 259, 498]),
+    ("r2_filleted_bracket", [623, 0, 464, 830]),
+    ("r2_rounded_pad", [340, 0, 277, 314]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal

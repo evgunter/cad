@@ -8,10 +8,12 @@ the guide's own executed blocks.
 
 from pncad import (
     Var,
+    IndexedRead,
     MeasurePrimitive,
     Placement,
-    MeasureExpr,
-    AssertionDir,
+    Measured,
+    Measurement,
+    AssertionRelation,
     Advisory,
     AnalysisPolicy,
     AnalyzedBox,
@@ -31,8 +33,6 @@ from pncad import (
     AxisSense,
     Bulge,
     ClosedLoop,
-    BooleanCoincidence,
-    BooleanOp,
     CancelToken,
     CapEnd,
     Center,
@@ -65,8 +65,6 @@ from pncad import (
     EntityKind,
     Evaluation,
     EvaluationError,
-    FlushFinding,
-    FlushRung,
     Frame,
     FrameError,
     GeomPred,
@@ -87,6 +85,7 @@ from pncad import (
     NamePat,
     MeridianEnd,
     Node,
+    PoseDef,
     NodeId,
     NodePick,
     NodePickError,
@@ -101,14 +100,12 @@ from pncad import (
     SplitOutcome,
     Via,
     Open,
-    PlaneRelation,
     SegPat,
     SegTag,
     Ray,
     Selector,
     Severity,
     SketchPlane,
-    SplitHalf,
     Start,
     AuthoredStep,
     Piece,
@@ -146,7 +143,6 @@ from pncad import (
     product,
     product_named,
     random_document_id,
-    reading_edges,
     relative_freedom_components,
     run_checks,
     solve_document,
@@ -196,7 +192,7 @@ disc = circle((0 * mm, 0 * mm), 10 * mm)
 doc = Doc()
 plate = doc.insert(Node.extrude(doc.insert(Node.profile(rounded, plane=doc.sketch_frame())), Formula.length_in(8, mm)))
 hole = doc.insert(Node.extrude(doc.insert(Node.profile(disc, plane=doc.sketch_frame(elevation=Formula.length_in(-1, mm)))), Formula.length_in(10, mm)))
-lightened = doc.insert(Node.boolean(BooleanOp.Subtract, plate, hole))
+lightened = doc.insert(Node.subtract(plate, hole))
 volume: float = evaluate(doc).value(lightened).body().mass_properties().volume
 
 # The plane vocabulary: a named cyclic frame, and the general rigid
@@ -226,18 +222,14 @@ offset_node: NodeId = doc.sketch_frame(plane=offset_frame)
 sideways: NodeId = doc.insert(Node.extrude(doc.insert(Node.profile(circle((0 * m, 0 * m), 1 * m), plane=offset_node)), Formula.length_in(4, m)))
 
 # A revolve's axis is written IN the frame it turns, in that frame's
-# own two coordinates — so `datum_axis_in_plane`, never `datum_axis`.
+# own two coordinates: an origin pair of lengths and a bare direction
+# pair, on the node itself.
 turned_frame: NodeId = doc.sketch_frame()
 turned: NodeId = doc.insert(
     Node.revolve(
         doc.insert(Node.profile(circle((3 * m, 0 * m), 1 * m), plane=turned_frame)),
-        doc.insert(Node.datum_axis_in_plane(turned_frame, (
-            Formula.length_in(0, m),
-            Formula.length_in(0, m),
-        ), (
-            Formula.literal(0.0),
-            Formula.literal(1.0),
-        ))),
+        (Formula.length_in(0, m), Formula.length_in(0, m)),
+        (Formula.literal(0.0), Formula.literal(1.0)),
         Formula.angle_in(360, deg),
     )
 )
@@ -275,27 +267,23 @@ leaning: NodeId = doc.insert(
 )
 
 # A datum read back. `origin` is a POSITION and carries `Length`s;
-# `direction` and `axes` are dimensionless and are bare. `in_plane` is
-# the one that is BOTH — its first pair is a position and carries
-# `Length`s like every other position on this class, its second is a
-# direction and is bare.
+# `direction` and `axes` are dimensionless and are bare.
 # Exercised here because the name-for-name check in `test_stubs.py`
 # compares NAMES and hands SIGNATURES to `ty`: a property this file
 # never mentions is a property neither of them reads.
 turned_axis: Datum = evaluate(doc).value(
-    doc.insert(Node.datum_axis_in_plane(turned_frame, (
+    doc.insert(Node.datum_axis((
+        Formula.length_in(0, m),
         Formula.length_in(0, m),
         Formula.length_in(0, m),
     ), (
         Formula.literal(0.0),
         Formula.literal(1.0),
+        Formula.literal(0.0),
     )))
 ).datum()
 axis_kind: str = turned_axis.kind
 axis_at: tuple[Length, Length, Length] = turned_axis.origin
-axis_written_in_plane: tuple[tuple[Length, Length], tuple[float, float]] | None = (
-    turned_axis.in_plane
-)
 
 # A three-section loft: the sections are NodeIds in skin order, the
 # v-degree a plain int (a Count, structurally), and each section's
@@ -344,22 +332,28 @@ sealed: NodeId = doc.insert(Node.shell(upright, Formula.length_in(0.01, m), []))
 # The tube pair. The window is a VALUE with two spellings, and the
 # hollow kind's wall is a required Length — there is no `wall=None`
 # that quietly makes it the solid door.
-spine: NodeId = doc.insert(Node.datum_axis((
+tube_frame: NodeId = doc.insert(Node.datum_frame((
     Formula.length_in(0, m),
     Formula.length_in(0, m),
     Formula.length_in(0, m),
 ), (
+    Formula.literal(1.0),
     Formula.literal(0.0),
+    Formula.literal(0.0),
+), (
     Formula.literal(0.0),
     Formula.literal(1.0),
+    Formula.literal(0.0),
 )))
 donut: NodeId = doc.insert(
-    Node.tube(spine, (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)), Formula.length_in(0.2, m), TubeWindow.full(), Formula.length_in(0.05, m))
+    Node.tube(tube_frame, Formula.length_in(0.2, m), TubeWindow.full(), Formula.length_in(0.05, m))
 )
+# An operand reads a variable as well as a node: the frame's output.
+frame_out: Var | None = doc.output(tube_frame, 0)
+assert frame_out is not None
 elbow: NodeId = doc.insert(
     Node.hollow_tube(
-        spine,
-        (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)),
+        frame_out,
         Formula.length_in(0.2, m),
         TubeWindow.arc(Formula.angle_in(0, rad), Formula.angle_in(1.5, rad)),
         Formula.length_in(0.05, m),
@@ -379,6 +373,27 @@ cutter: NodeId = doc.insert(Node.datum_plane((
     Formula.literal(1.0),
 )))
 halves = evaluate(doc).value(doc.insert(Node.split(plate_with_holes, cutter))).split()
+
+# A pose defined at the seat that reads it (D10): a face read as its
+# plane, moved along its outward normal, and a frame projected to its
+# plane. Every constructor answers a `PoseDef`, and an operand takes one.
+_plate_face: str = evaluate(doc).all_faces(plate)[0]
+face_plane: PoseDef = PoseDef.plane(plate, _plate_face)
+inset: PoseDef = PoseDef.standoff(face_plane, Formula.length_in(-0.01, m))
+flipped: PoseDef = PoseDef.flip(inset)
+framed: PoseDef = PoseDef.in_frame(
+    authored_frame,
+    origin=(0 * m, 0 * m, 0.5 * m),
+    u=(1.0, 0.0, 0.0),
+    v=(0.0, 1.0, 0.0),
+)
+projected: PoseDef = PoseDef.project(framed, "plane")
+crossing: PoseDef = PoseDef.meet(face_plane, projected)
+through_edge: PoseDef = PoseDef.through(
+    PoseDef.axis(plate, evaluate(doc).all_edges(plate)[0]),
+    PoseDef.point(plate, evaluate(doc).all_vertices(plate)[0]),
+)
+pose_cut: NodeId = doc.insert(Node.split(plate, inset))
 
 # A rigid placement: rotate about an axis through the world origin,
 # then translate.
@@ -481,24 +496,6 @@ declared_stadium: ClosedLoop = (
     .tangent_arc_to(Start.arrives_tangent())
 )
 
-# LIB-PYG5: the detect/declare protocol, typed end to end. Findings
-# are values; the declare doors consume THEM, not name text: the
-# boolean's declare= list, and the doors that set it on a live node.
-findings: list[FlushFinding] = ev.find_flush_candidates(plate, lightened)
-first_relation: PlaneRelation = findings[0].relation
-first_class: BooleanCoincidence = findings[0].class_
-first_rung: FlushRung = findings[0].rung
-opaque_a: str = findings[0].a
-opaque_b: str = findings[0].b
-glued: NodeId = doc.insert(
-    Node.boolean(BooleanOp.Union, plate, lightened, declare=findings)
-)
-fused_declared: Node = Node.union([plate, lightened], declare=findings)
-declared_one: None = doc.declare(glued, findings[0])
-declared_many: None = doc.declare_all(glued, findings)
-redeclared: DocEdit = DocEdit.set_declare(glued, findings)
-cleared: DocEdit = DocEdit.set_declare(glued, [])
-
 # LIB-PYPU: the group boolean and its placement vocabulary. Lengths
 # and angles are typed; the count is a plain int (the structural-slot
 # exception); a frame reads back as the dimensioned triple it took.
@@ -532,16 +529,26 @@ listed_group: NodeId = doc.insert(Node.placed_union_at(plate, [here, turned]))
 count_bound: DocEdit = DocEdit.bind_count_param(fin_group, VarName("fins"))
 
 # LIB-B-PART: the same rule vocabulary over an UNFUSED family, and the
-# projection that takes one body back out of it. The selector is one
-# type with two constructors, and each takes what its arm holds — a
-# `SplitHalf` for the half, a plain `int` for the index (the
-# structural-slot exception `placed_union`'s count already rides).
+# projection that takes one body back out of it, by a count index (the
+# structural-slot exception `placed_union`'s count already rides). A
+# split's half is its output, read by port.
 family: NodeId = doc.insert(Node.pattern(plate, Formula.count(5), stepped))
 by_index: PartSelect = PartSelect.instance(Formula.count(2))
 one_copy: NodeId = doc.insert(Node.part(family, by_index))
+# A union or an intersect takes a list of operands or ONE family read
+# whole; a subtract names its two operands, `from_` (`from` is a
+# keyword) and `tool`.
+whole_family: Node = Node.union(family)
+common: Node = Node.intersect([plate, one_copy])
+named_cut: Node = Node.subtract(from_=plate, tool=hole)
+# One member of a family is `family[i]`, taken at every body seat: in a
+# spelled list, at a subtract's seats, at a split's target.
+members: IndexedRead = family[2]
+spelled_family: Node = Node.union([family[0], family[1], family[2]])
+member_cut: Node = Node.subtract(from_=family[1], tool=hole)
+member_split: Node = Node.split(family[1], cutter)
 cut: NodeId = doc.insert(Node.split(plate, spin_axis))
-by_half: PartSelect = PartSelect.split_half(SplitHalf.Above)
-upper_half: NodeId = doc.insert(Node.part(cut, by_half))
+upper_half: Var | None = doc.output(cut, 0)
 # The index is a STRUCTURAL slot of its own, so it has a door of its
 # own beside the count's.
 index_bound: DocEdit = DocEdit.bind_instance_param(one_copy, VarName("which"))
@@ -591,9 +598,10 @@ on_gauge: DocEdit = DocEdit.set_gauge(instance, stand_on)
 to_world: DocEdit = DocEdit.set_gauge(instance, None)
 promoted: DocEdit = DocEdit.promote(instance)
 folded: DocEdit = DocEdit.fold(stand_on)
-designated: DocEdit = DocEdit.set_roots([instance])
 repinned: DocEdit = DocEdit.update_reference(instance, pin)
-product_roots: list[NodeId] = doc.roots
+placed: NodeId = doc.place(instance, Placement.identity(), label="the post")
+world: list[NodeId] = doc.placements()
+placer: Node = Node.place_in_world(instance)
 offset_read: Placement | None = doc.offset(instance)
 gauge_read: NodeId | None = doc.gauge(instance)
 carried_reference: DocRef | None = doc.reference(instance)
@@ -635,7 +643,6 @@ why_unplaced: str | None = poses.unplaced(instance)
 in_space: tuple[NodeId, str] | None = evaluate(doc).unplaced(instance)
 placed_groups: list[list[NodeId]] = groups(doc)
 keyed_by: NodeId = root_of(doc, instance)
-edges: list[tuple[NodeId, NodeId]] = reading_edges(doc)
 partition: list[list[NodeId]] = relative_freedom_components(doc)
 admission: ClassAdmission = class_admission(ContactClass.Rest)
 mintable: bool = admission.mints
@@ -854,27 +861,30 @@ spun: FreeVar = FreeVar.written_angle(turned)
 symbol: str | None = declared.unit
 table: dict[VarName, FreeVar] = doc.params
 
-# Authoring a measurement. The verb vocabulary is a value class, the
-# expression is checked as it is built, and the node takes the
-# reference list its primitives index — each entry a node and a name,
-# the pair `Node.mate` already takes each of its two sides as.
-reach: MeasurePrimitive = MeasurePrimitive.distance(0, 1)
+# Authoring a measurement. The verb vocabulary is a value class over
+# its two references — each a node and a name, the pair `Node.mate`
+# already takes each of its two sides as — and its arithmetic is an
+# ordinary formula over the measures' outputs.
+reach: MeasurePrimitive = MeasurePrimitive.distance((upright, cap_name), (upright, cap_name))
 which_verb: str = reach.verb
-which_pair: tuple[int, int] = reach.refs
-span: MeasureExpr = MeasureExpr.primitive(reach)
-pad: MeasureExpr = MeasureExpr.value(doc.parse_formula("bore_r"))
-web: MeasureExpr = MeasureExpr.sub(span, MeasureExpr.add(pad, pad))
-measured_kind: str = web.dimension
-leaves: list[MeasurePrimitive] = web.primitives
-sink: NodeId = doc.insert(
-    Node.measure(web, [(upright, cap_name), (upright, cap_name)])
-)
-# The bound is an EXPRESSION, because its dimension is the measure's
-# and a slot address cannot fix it.
+which_pair: tuple[tuple[NodeId, str], tuple[NodeId, str]] = reach.refs
+measured_kind: str = reach.dimension
+recorded: Measured = doc.measure([reach])
+spans: list[NodeId] = recorded.measures
+spanned: list[Var] = recorded.outputs
+lone: NodeId = doc.insert(Node.measure(reach))
+# The bound is an EXPRESSION, because its dimension is the value's and
+# a slot address cannot fix it.
 requirement: NodeId = doc.insert(
-    Node.assertion(sink, AssertionDir.AtLeast, doc.parse_formula("0.5 mm"))
+    Node.assertion(recorded.outputs[0], AssertionRelation.AtLeast, doc.parse_formula("0.5 mm"))
 )
-which_way: str = AssertionDir.AtMost.symbol
+read_back: Measurement = evaluate(doc).reading(recorded.outputs[0])
+which_way: str = AssertionRelation.AtMost.symbol
+equality: NodeId = doc.insert(
+    Node.assertion(
+        recorded.outputs[0], relation=AssertionRelation.Equal, bound=doc.parse_formula("0.5 mm")
+    )
+)
 
 # The two words a refusal carries, typed. Both are OPTIONAL strings and
 # the stub says so: `kind` is which door refused, `inner_kind` the arm
@@ -893,11 +903,9 @@ except EditError as edit_refusal:
     which_edit: str = edit_refusal.variant
     which_edit_arm: str | None = edit_refusal.inner_variant
     # ...and the arm's PAYLOAD beside them, every attribute present and
-    # each typed. A delete that would dangle carries the two node
-    # roles; the rest are `None` here, which is a value the stub types
-    # and not a missing attribute.
+    # each typed. An attribute the arm does not carry is `None`, which
+    # is a value the stub types and not a missing attribute.
     dangling: NodeId | None = edit_refusal.node
-    consumer: NodeId | None = edit_refusal.referenced_by
     operand: NodeId | None = edit_refusal.input
     which_slot: str | None = edit_refusal.slot
     which_param: str | None = edit_refusal.param
@@ -1050,15 +1058,8 @@ _names_profile: NodeId = _names_doc.insert(
 _revolved: NodeId = _names_doc.insert(
     Node.revolve(
         _names_profile,
-        _names_doc.insert(
-            Node.datum_axis_in_plane(_names_frame, (
-                Formula.length_in(0, m),
-                Formula.length_in(0, m),
-            ), (
-                Formula.literal(0.0),
-                Formula.literal(1.0),
-            ))
-        ),
+        (Formula.length_in(0, m), Formula.length_in(0, m)),
+        (Formula.literal(0.0), Formula.literal(1.0)),
         Formula.angle_in(360, deg),
     )
 )
@@ -1074,7 +1075,9 @@ minted_half: str = band_pi(_revolved, _pieces[0][0])
 minted_rim: str = band_rim(_revolved, _second)
 minted_rim_half: str = band_rim_pi(_revolved, _second)
 minted_vertex: str = meridian_vertex(MeridianEnd.Seam, _revolved, _second)
-minted_survivor: str = carried(_revolved, minted_band)
+_revolved_read = _names_doc.output(_revolved, 0)
+assert _revolved_read is not None
+minted_survivor: str = carried(_revolved, _revolved_read, minted_band)
 _blended: NodeId = _names_doc.insert(
     Node.fillet(_revolved, Formula.length_in(0.1, m), [minted_rim])
 )
@@ -1086,7 +1089,7 @@ _hollowed: NodeId = _names_doc.insert(
 # the slot's own dimension — written, or bare in its canonical unit.
 q9_solid: NodeId = plate
 Node.extrude(q9_solid, 1 * m)
-Node.revolve(q9_solid, q9_solid, 90 * deg)
+Node.revolve(q9_solid, (0 * m, 0 * m), (0.0, 1), 90 * deg)
 Node.fillet(q9_solid, 1 * mm, [])
 Node.loft([], 2)
 DocEdit.set_param(q9_solid, "distance", 1 * m)

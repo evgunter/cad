@@ -312,7 +312,7 @@ const KNOWN_HAND_LISTED: [(&str, &str, &str, &str); 1] = [(
 /// **A new line is the arrival this row exists to detect.** Adding one
 /// is a deliberate act and the message below says which acts are
 /// honest.
-const IMPL_FILES_TODAY: [&str; 30] = [
+const IMPL_FILES_TODAY: [&str; 32] = [
     "crates/editor-core/src/analysis.rs",
     "crates/editor-core/src/clearance.rs",
     "crates/editor-core/src/expr.rs",
@@ -323,10 +323,14 @@ const IMPL_FILES_TODAY: [&str; 30] = [
     "crates/editor-core/src/names/role.rs",
     "crates/editor-core/src/names/select.rs",
     "crates/editor-core/src/names/table.rs",
+    "crates/editor-core/src/operand.rs",
     "crates/editor-core/src/program.rs",
     "crates/editor-core/src/refusal.rs",
     "crates/editor-core/src/report.rs",
     "crates/editor-core/src/resolve/pick.rs",
+    "crates/geom-brep/src/keys.rs",
+    "crates/geom-brep/src/ssi/pair.rs",
+    "crates/geom-brep/src/ssi/plane.rs",
     "crates/geom-core/src/spline/hull.rs",
     "crates/geom-core/src/spline/knots.rs",
     "crates/geom-core/src/sym/memo.rs",
@@ -335,9 +339,7 @@ const IMPL_FILES_TODAY: [&str; 30] = [
     "crates/mesh/src/memo.rs",
     "crates/profile/src/lib.rs",
     "crates/topo/src/offset_derive.rs",
-    "crates/topo/src/param_source.rs",
     "crates/topo/src/props.rs",
-    "crates/topo/src/source.rs",
     "crates/topo/src/validate.rs",
     "crates/viewer/src/camera.rs",
     "crates/viewer/src/pickcache.rs",

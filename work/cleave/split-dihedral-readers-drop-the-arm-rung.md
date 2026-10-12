@@ -8,10 +8,11 @@ opened: 2026-09-29
 
 ## What
 
-`topo::splitting::finish` (near line 874,
-`SplitFinishError::DescribeEscalated`), `splitting::neighborhood`
-(near line 264) and `splitting::rules` (near lines 247, 325, 440, 454
-and 494, `SplitReduceError::SliverSector`) read only
+`topo::splitting::finish::describe_section_boundary` (both
+`SplitFinishError::DescribeEscalated` arms),
+`splitting::neighborhood::classify_neighborhood` and
+`splitting::rules`'s `apply_rule_a`, `edge_wedge` and `wall_graze`
+(`SplitReduceError::SliverSector`) read only
 `geom_brep::LeverEscalation::diag()`, so the dihedral's arm —
 undecided, or decided collapsed (`LeverEscalation::collapsed_arm`) —
 refuses as a sliver of the wedge rather than as the arm's decision
@@ -51,5 +52,9 @@ signature cannot carry the gate's verdict either. The design point for
 the repair: carry the escalation whole, as
 `DihedralReading::Lever(geom_brep::LeverEscalation)`, so
 `LeverEscalation::collapsed_arm` stays reachable at every door that ends
-the reading, and route a collapsed arm as the definite refusal it is
-(`BooleanError::of_lever` already takes the whole escalation).
+the reading, and route a collapsed arm as the definite refusal it is.
+`BooleanError::of_lever` takes the whole escalation but delegates to
+`of_lever_rung` with its rung and diag, so it drops `collapsed_arm` too:
+`boolean::sectors`'s two lever-arm readers, `side_code` (`enters_material`) and
+`tangent_relative_side` (`enters_material_order2`), route a collapsed arm
+as an undecided one.

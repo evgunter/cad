@@ -7400,6 +7400,234 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
   - `transform.rs` is left alone (offset/shelf/shell territory).
   - No open PR touches `revert.rs` or `review_d18.rs`.
 - Nothing new on PR 3970.
+
+## 12:36 (2026-10-06) check-in
+
+- Sync PR 4142 merged at `4e06930c`.
+- **PR 4154** `topo: revert's torn reads panic; RevertError::Corrupt retires` is open. The impl lane is archived (about $8.9). Its FULL reviewer is `session_01NumM4b6icuXu24j6znB6r6`; the key claims are the void-insert cavity's argument-vs-record answer and write-before-check. Subscribed.
+- The set_edge_curve lane is running its 84-shard batteries; no PR yet.
+- Main carried one new TOPO-dir row from CLEAVE: `...lone-site-placeholder-has-no-type-of-its-own`, filed by PR 4120's lane. Not triaged yet.
+- Nothing new on PR 3970.
+
+## 13:41 (2026-10-06) check-in
+
+- **Triage of** `a-lone-site-placeholder-has-no-type-of-its-own` (P2, M; filed into topo by PR 4120's CLEAVE review).
+  - Owner: TOPO. It concerns the `mef`/`mev`/ring placeholder `self_loop_circle_at` (`geom-brep/src/certify.rs`, `euler.rs`) and its readers in `splitting/` and `chord_join` (CLEAVE ground).
+  - Not under HOLD.
+  - Its direction gives the placeholder a kind of its own, possibly a new `CurveGeom` variant reaching about 25 exhaustive matches. That is a representation change, so design forks go to the designers before dispatch.
+  - Queued behind the two TOPO lanes in flight and PCERT's `pcurves.rs`/`pcurve_cache.rs` re-port.
+- PR 4154's reviewer and the set_edge_curve lane are still running. Nothing new on PR 3970.
+
+## 14:41 (2026-10-06) check-in
+
+- **PR 4165** `topo: set_edge_curve re-mints a re-parameterized certified edge's faces` is open. Subscribed. FULL reviewer `session_01KSzFXmPnPwhBovUepd9U7n`.
+  - The lane chose a **measured** predicate, `description_moves` (decision `description_moves_carrier`, five sample points), over "every certified description re-mints". The simpler rule refused `carved_sphere_operand`'s union (`Unminted`).
+  - It also drops stale rows in `replace_faces_offset` mid-surgery so the new assert holds.
+  - Reviewer focus: whether the sampling predicate can miss a move between samples; K rows and audit entries for the new decision; reuse of an existing curve-identity reader; offset-door probes.
+- PR 4154's reviewer is waiting on its checks; no verdict yet.
+- Lane sessions report a **seven-day usage warning**. I will hold new implementer dispatches (the placeholder row) until the two PRs in review land.
+- Nothing new on PR 3970.
+
+## 15:24 (2026-10-06)
+
+- **PR 4165 CI red** at `fbba8863`. The failing test is `editor-core::all m10_9_pins_interval::m10_9_no_registrant_lies_on_any_measured_document`: two_hole_plate at eps 1e-9 has symbolic_zero 1223 against the pinned 1103, so +120.
+  - This looks like the PR's own new `description_moves_carrier` decisions, each settling symbolically at zero. Re-baselining is due, and it must say what moved and why (implementer discipline: a moved golden is re-baselined, not weighed).
+  - Check that `registered`/`numeric` did not trade against it. The pin's message warns that a theorem weakened to an axiom would look like this.
+  - The impl lane is still polling CI on this PR, so it should see the failure. If it does not fix it, the fix goes into the review fix lane.
+
+## 15:50 (2026-10-06)
+
+- **PR 4154 review** (`session_01NumM4b6icuXu24j6znB6r6`, about $5.3, archived). Verdict merge, nothing BLOCKING.
+  - Every former raise site is a record hop.
+  - Tier 1 covers every link `revert` follows.
+  - The void-insert cavity can be built only through public doors. Probed: no torn body is reachable.
+  - Every mutation goes red; batteries are identical.
+  - **Adjudication: merge as is.** The MINORs and NITs are cosmetic or test-only:
+    - the vacuous "unchanged" assert beside a `&self` door;
+    - the counter names `refused`;
+    - the `require_halves` row through `revert`;
+    - the PR body's premise overclaim;
+    - the caller-table omission;
+    - the branch name in the family row's cell;
+    - the hone row's stale `RevertError` bullet.
+  - They are filed as one follow-up below rather than another lane cycle, given the usage warning.
+  - **Semantic collision:** PR 4108 (fuse) calls `.revert().expect(..)`. Whichever lands second must drop the `.expect`.
+- PR 4154's CI was red at `db438f67`: five split and tessellate tests. They pass locally on head merged with current main (6 of 6). The red was main's state at 12:28.
+  - I pushed a real main merge to the branch at `bb5ae216` to re-run CI.
+- PR 4165: the impl lane re-baselined the m10_9 pin at `b71c2459`; CI is re-running. The reviewer is still running.
+
+## 15:59 (2026-10-06)
+
+- **PR 4165 review** (`session_01KSzFXmPnPwhBovUepd9U7n`, about $9.3, archived). Verdict **fix first**:
+  - **B1:** the five-sample `description_moves` lets a 1.7 cm spline reparameterization on the same locus through. The probe kept the stale row, `Ok`; tier 3 reads `ImageMismatch`.
+  - **B2:** merge conflicts with main in the editor-core pins.
+  - **B3:** the simple rule's regression is really the **missing closing mint in both boolean fallback finishes** (`ops.rs:4440`, `:4499`). The closing mint re-images the sphere circle, 4 of 4 rows.
+  - **B4:** the ends reading and two of the three interior samples have no witness.
+  - Confirmed: the offset drop changes nothing (1348 cases, 0 diffs); one minting path; batteries 0 moved; no `pcurves.rs` conflict with PCERT. `loop_reparenting_pcurve_rows.rs` will conflict with PCERT's re-pin.
+- **Adjudication → fix lane** `session_01W3FjPHqXUikfdBZ3anM1sj`:
+  - merge main;
+  - fix B3 first (closing mint in the fallback finishes, in cleave/hone ground, minimal);
+  - then measure the simple rule (`Every`, `description_moves` deleted) and take it unless it costs a refusal or material time. Otherwise make the predicate sound for NURBS, route the ends reading through `row_interval`'s home, and add witnesses for every sample;
+  - the B1 probe committed as a witness either way;
+  - the text corrections.
+- The PR 4165 impl lane was archived while it was still editing the PR body (about 15:58); the fix lane supersedes it.
+
+## 16:25 (2026-10-06)
+
+- PR 4154's CI at `bb5ae216` was red again. The same five sweep rows failed in the **eps 1e-6** step:
+  - `split_across_a_revolve_seam` ×3, `m5_pr6_pcurves` seam tube and `pinch_faces_tessellate`;
+  - plus `ellipse_torus::certified_torus_answers_hold_against_the_true_distance` in the slow set.
+- They are red on main at 1e-6 too: I reproduced them on `ef8479f2`. CLEAVE and JOIN had filed them, and PR 4083, merged just now, fixes them.
+- I pushed a real main merge to the branch at `bb1b5a92`. The five rows pass at 1e-6 locally, and the revert/review_d18/void filter passes 127/127. Awaiting CI.
+
+## 16:40 (2026-10-06): PR 3970 was waiting on us
+
+Ev asked about PR 3970. The thread's last word was my 2026-10-04 06:42 promise to post the round-4 reports. That post was blocked, and my check-ins since then logged "nothing new" as if the PR were waiting on Ev.
+
+- With Ev's OK, I posted the round-4 summary from this log as `#issuecomment-6020810537`. The verbatim reports were scratch files on an earlier container and are lost.
+- Subscribed to PR 3970.
+- Open for Ev:
+  - choice 2: tier 1, which both designers favour;
+  - choice 3: the twin derives (A) or the caller states with `Carry` (B);
+  - whether PR 2527's "no default" ruling reaches derivable key swaps.
+- New-comment check: page 12, perPage 1.
+
+## 16:40 (2026-10-06): PR 3970, choice 2 ruled; round 5 dispatched
+
+- **Ev: choice 2 = tier 1** ("i agree with the recommendation on choice 2").
+- On choice 3, Ev asked for the arguments and leans A. B's case is that forgetting is a typed refusal. It fails at the risky case: a derived restatement that certifies but has the wrong kind (round-3 residual (c)) is exposed identically under A and B.
+- At Ev's request, two designers are weighing **how to make A structural**. The brief states the problem only, and Ev's expensive `debug_assert`, skipped in production, is an explicit option to weigh. The orchestrator's suggestion (a kind check inside restatement or certification) is withheld for at least round 1.
+  - Designers: A `session_01VKoofj8TXfjP4YKX5pzzXK`, B `session_01TsEEZBc38YHfFWL4RD6N4i`, using the fork's existing labels (record on `analysis/design-fork/topo-kef-kfmrh-across-keys`).
+  - Reports go to `analysis/design-fork/topo-kef-kfmrh-r5-{A,B}`.
+- **PR 4154 merged** at `c890f7b8` (head `bb1b5a92`, all CI green). Unsubscribed. I left a heads-up on PR 4108 (fuse) to drop its `.revert().expect(..)` calls.
+
+## 17:40 (2026-10-06): PR 3970 round 5 in
+
+- Both designers had pushed by 16:55. I missed it because branch pushes send no event. Both are archived (A about $8.6, B about $2.7).
+- **They agree:**
+  - The brief's premise was wrong: certification already refuses a wrong intrinsic kind.
+  - The real gap is a chart image left where an intrinsic kind is owed, which tier 3 lets through for derived authority.
+  - Final state: the restatement derives kind through one shared predicate (tier 3 check 4's reading), certification stays the guard, there is no debug assert, and callers list only what cannot be derived.
+  - They differ only on a jet-determinate tangent edge stored as a chart: A derives `TangentIntersection`, B keeps the chart.
+- My withheld suggestion was reached by both independently, so it was not offered.
+- Posted both `For Ev` sections, A/B only: `#issuecomment-6021916233`.
+- **New question for Ev, from D2's prefer-intrinsic provenance:**
+  - Ev ratified on 2026-07-19 that every definitely-transverse edge carries `Intersection`, with no authority exemption.
+  - The "declared … exempt by its own declaration" clause is agent-written, from the `99cc678bfd` editing pass of 2026-09-04.
+  - The code exempts *derived* descriptions instead.
+  - Open: whether a declared conventional description on a transverse edge is refused or exempt.
+- Filed `offset-held-neighbour-image-keeps-a-declared-chart-on-a-transverse-section` (P3; it depends on that ruling; PR 4080 pinned the tier-3 finding as expected).
+
+## 17:50 (2026-10-06): PR 3970 answered
+
+- Ev: "the overall idea of the final state sounds good, but the details here (incliding the ones the designers differ on) seem like they'll be changed by the `intent` refactor".
+- Recorded at `89c51b94`: 1 = B direct, 2 = tier 1, 3 = A in outline. Choice 3's details and D2's prefer-intrinsic authority question are filed as `restatement-derives-each-moved-edges-kind`, blocked on D10.
+- Fork-log row 75 is filled, with the mapping (byte 119: A = Fable, B = Opus).
+- The PR body is updated in place. Merge on green.
+- Buildable now: field privacy plus the vouch, and the tier-1 naming check. To dispatch once the usage warning clears.
+- `offset-held-neighbour-image-…` is now `blocked_on` D10.
+
+## 17:55 (2026-10-06)
+
+- **PR 3970 merged** at `edc12bbd`, head `faa32028`. It had a doc-only conflict: main took fork-log row 75, so ours is now **row 76**. Unsubscribed.
+- **Ev's standing rule:** when a conflict is doc-only and CI already went green on an earlier head, merge after resolving it without waiting for CI again. That includes renumbering a fork-log row or taking main's side of a `status:` line.
+
+## 18:05 (2026-10-06): close-out plan (agreed with Ev)
+
+1. Land PR 4165 (fix lane in flight).
+2. Then dispatch PR 3970's choices 1 and 2 as **one unit**: field privacy plus `vouch_move` ownership, `kef`/`kfmrh` keys-only refusals with describing twins, and the tier-1 naming check. Full review, fix lane if needed. It waits for 4165 because both touch `attach.rs`.
+3. The placeholder row's designers are held until D10 settles (Ev, weakly).
+4. Hand back:
+   - the handoff entry in this log;
+   - sync `work/`;
+   - `program.md` → `status: ready`;
+   - delete the check-in trigger;
+   - unsubscribe, archive, clean worktrees.
+   The P3s, P4s and design rows stay on the board for the next orchestrator.
+- 18:46 check-in:
+  - The PR 4165 fix lane has pushed `db8b742e` and is running the release battery against main. It has not yet reported its review fixes.
+  - PR 3702 ("the coplanar merge returns no stranded description") is **merged**, so agreed part 1 of PR 3970 is already done. The build unit covers privacy plus the vouch, the kill refusals and twins, tier 1, chartless transients and the scope-close assertion.
+
+## 19:50 (2026-10-06): PR 4165 fixes adjudicated
+
+- The fix lane (about $7.5, archived) took the **simple rule**: every certified description re-mints. `description_moves` and `Remints` are deleted.
+  - B3: the boolean's two fallback finishes now close with `mint_pcurves`. M7 and M8 each red their own witness.
+  - Cost is not material: sweep CI runs 228–233 s against main's 225–231 s; about 21k extra face plans per run.
+  - B1's spline probe is committed (`a_spline_rim_moved_between_its_quarters_keeps_no_row`), red under the measured rule.
+  - Editor-core pins are back to main's.
+  - Batteries: 0 moved lines.
+  - Filed `work/shell/replace-faces-offset-drops-rows-at-a-vertex-the-move-leaves-in-place`.
+- The branch had code conflicts with main: FUSE's `join_stage` landed at the same spot in both fallback finishes, and `replace_faces_offset`'s loop gained `unwound`.
+  - Resolved at `09dfd0f6`, with the mint after `join_stage`, matching the main output stage's order.
+  - `-p topo -p sweep --profile ci`: 4675/4675. Clippy and fmt clean.
+  - Merge once CI is green.
+- **For PCERT:** PR 4165 changes `crates/topo/src/pcurves.rs` only in docs and one assert:
+  - the module doc's "Completes the map" paragraph;
+  - the `debug_assert!` in `site_rows`' kept-image arm;
+  - `staleness_posture::Completes` and the `DECLARED` notes (`set_edge_curve`, `set_face_surfaces_describing`, `describe_at_rest`).
+  - Nothing in `joint.rs` or `pcurve_cache.rs`. `topo/tests/loop_reparenting_pcurve_rows.rs` will conflict with PCERT's re-pin of `a_carrier_swap_on_a_half_minted_face_is_refused_on_both_sides`.
+
+## 20:12 (2026-10-06)
+
+- **PR 4165 merged** at `e96be3c0` (head `09dfd0f6`, CI green). Unsubscribed. Fix lane archived.
+- **Dispatched the PR 3970 build unit** → `session_01KvmfitreFfbxkDUEQMZ5Aw`, branch `topo/kef-kfmrh-…`. It covers:
+  - privacy for `Loop.face`, `HalfEdge.parent_loop`, `Face.surface` and `Edge.curve` behind the vouch module (about 330 `parent_loop` reads alone);
+  - keys-only `kef`/`kfmrh` with describing twins;
+  - the tier-1 naming check, with the D1 edit Ev ruled;
+  - chartless transients;
+  - the scope-close assertion, or why tier 1 makes it moot.
+  - Choice 3's kind derivation stays held on D10.
+  - The lane may split the work into an ordered PR series and must stop on any design fork.
+- The row is marked `dispatched`.
+
+## 21:42 (2026-10-06)
+
+- **PR 4204** (1 of a series) is open from the PR 3970 build lane: `kef`/`kfmrh` keys-only refusals through `vouch_move`, `kef_describing`/`kfmrh_describing`, the chartless arm in the vouch, and the shell's rim glue moved onto `kfmrh_describing`. Subscribed. FULL reviewer `session_01V9yzzwvZbauNWoCwpFVSdv`.
+- **The lane stopped on a fork.** Absorbing `kef_minting`/`kfmrh_minting` into the twins needs a re-description of four seam-edge kills (`boolean/zip.rs` `zip_seam`, `boolean/rest.rs` `zip_folded`) that today's restaters cannot state. Only choice 3's kind derivation can, and that is HELD on D10.
+  - The lane re-ordered the series:
+    1. this PR;
+    2. chartless transients plus the movable `_minting` callers (buildable now);
+    3. `_minting` absorption (waits on choice 3);
+    4. field privacy plus tier 1 plus D1 (waits, because tier 1 and privacy need every move vouched).
+  - Orchestrator lean: option (b), keep `_minting` until the restater exists, per Ev's hold. The reviewer is asked whether privacy and tier 1 could land with `_minting` behind a named unvouched constructor, as the whole-body maps have.
+- This changes the close-out plan. Item 1 lands only in part (series 1–2) unless that route holds. Told Ev.
+
+## 23:26 (2026-10-06)
+
+- **PR 4204 review: fix first.** The code is sound:
+  - no production keys-only kill across keys refuses (12198-test instrumented run);
+  - the rim glue is arena-identical in 202 of 202 calls;
+  - the batteries are line-identical to `origin/main` (13 `rc_wide` shards plus every `join*`).
+- **Blocking: witness coverage.** Seven refusal paths have no row that reds when removed: the twin's stale, duplicate, null-edge, adjacency, `RechartFalsifies` and curved-unvouched refusals, plus `slot_chartless`'s `Kept` arm.
+- Fix lane `session_01RGiTJvpVQBcg2onoBUEQqs` will:
+  - lift the reviewer's probes;
+  - fix the `unreachable!` render on the public `RechartDoor` variants (a panic on public input);
+  - add `CrossSolid` to `kfmrh_carried_redescriptions`, and share one plan function between each door and its restater;
+  - move the band build after the per-entry checks;
+  - use `kef_minting` in the `emit_topo` fixture;
+  - correct the PR body: the rim glue now *records* the reaped guest surface in `ShellRetired.surfaces`.
+- Not folded in:
+  - the two-restaters consolidation (choice 3, held on D10);
+  - the quadratic `contains` (matters at step 3);
+  - the off-plane error rebuild (unsure).
+- **The reviewer's fork measurements change the series' premise:**
+  - `merge_faces.rs:2603` (9,910/9,910) and `rest.rs:2081` (73/73) certify under the twin with the carried restatement. They are absorbable now.
+  - The blocked residue is three seam kills (`zip.rs:568/571`, `rest.rs:2123`), and within them a minority of calls.
+  - Privacy is not forced to wait, if `_minting` gets a named unvouched token (Ev's call).
+  - Tier 1 is forced to wait: the per-op scalpel reds on `_minting`'s mid-op strands.
+- Collisions: PR 4191 (shell, calls the deleted `rename_loop_surface`) and PR 3945 (pcert test file) will conflict after this merges.
+
+## 00:35 (2026-10-07)
+
+- **PR 4204 merged** (`b4f55e49`), on green CI at `b3ef2812`.
+- The fix pass:
+  - added the seven witnesses (each mutation reds exactly its row);
+  - gave real text to the `RechartDoor::strands` renders;
+  - made each door share one plan function with its restater (`kef_plan`, `kfmrh_move`, `KillMove::of`). I read the extraction: it is a verbatim move of the precondition blocks, and the chart decision stays in the plan phase. As a result, `kfmrh_carried_redescriptions` now refuses `CrossSolid` as its door does;
+  - fixed the band order and moved the `emit_topo` fixture onto `kef_minting`.
+- Fix lane archived; unsubscribed.
+- Heads-ups left on PR 4191 (shell: `rename_loop_surface` is gone; its curved-host rows are the first to reach `kfmrh_describing` on a curved host) and PR 3945 (pcert: test-file conflict).
+- The kef/kfmrh row stays `dispatched`. Series step 2 (chartless transients, plus moving `merge_group` and `rest.rs:2081` onto the describing doors) waits on Ev's answer: do step 2, or hand back now.
 - 2026-10-08 — Seam note from ENCL (PR 4331, `encl/adoption-at-rest-eps-in`, merged): `Reading::Adopt` is gone, and adoption certification reads as at rest. At the import door, the file's ε_in picks the words, for error text only (`geom_core::FileCoincidence`; `MarginDiag::sized_recourse_in_file`; `FileCoincidence::miss_recourse_in_file`; `geom_brep::certify::recourse_in_file`; `SizedDecision::recourse_in_file`).
   - A size at or below ε_in reads "This {size} is below the file's declared coincidence distance ε_in = X m, so the file does not state it", or "may lie below … may not state it" where only the nearer end is. It ends in the lever plus "re-export … declared below {near} m and tighten below {near/K} m" where a value exists.
   - A miss within ε_in names re-exporting, plus the set-ε-to-ε_in stopgap.
@@ -7407,3 +7635,83 @@ Fix lane `session_01ALs4DTX7Jdx2dfCtP7z83K` dispatched: merge main, reuse the on
   - The `reporting-margin-door.sh` gate pins the two new sentence functions; recourse.rs is at 5 sites.
   - DESIGN.md D4 commitment 3 is reworded (the magnitude carrier moved). (ENCL orchestrator)
 - 2026-10-09 — Seam note from ENCL (PR 4366, merged): `geom_brep::enters::LeverEscalation`'s `rung` and `diag` are private; read them with `rung()`/`diag()`, re-quote only through `with_diag`, which keeps the gate's verdict. `BooleanError::of_lever_rung(gate, read, rung, diag)` is the one boolean spelling. The dihedral lever-arm decision is told in one shape ("long enough, for how its faces curve, to measure their angle"), with the lever "clearly longer and no face curves tightly there"; pin `validate::tests::the_dihedral_arm_is_told_in_one_shape` (it reads source literals: a natural "long enough … angle … face" wording elsewhere trips it). (ENCL orchestrator)
+- 2026-10-09 — Seam note from ENCL (PR 4401, merged): `LeverEscalation::with_diag` is gone. The one re-quote door is `quoting_reading`; ask `re_quotes()` first. A decided arm keeps its verdict only onto a reading of the same rejected sign, and otherwise is returned unchanged. The dihedral arm clause is `geom_brep::DIHEDRAL_ARM_CLAUSE` / `dihedral_arm_clause!()`; compose it, never re-spell it. (ENCL orchestrator)
+- 2026-10-09 — Seam note from ENCL (PR 4416, merged): `geom_core::lever_recourse(lever, note)` is the one spelling of a lever-alone ending, and `Indeterminate::undecided(subject, ending)` the one "{subject} is undecided: {payload}. {ending}"; compose them, do not re-spell. In `topo::boolean::refusal_routes`, `Ending::Lever` is now `Lever(&str)` (`LeverPass` is gone). Rendered texts are unchanged. (ENCL orchestrator)
+- 2026-10-09 — Seam note from ENCL (PR 4422, merged): `geom_brep::recourse::RefusedArm::SignCertain` now takes `Option<MarginDiag>`; construct with `SignCertain(None)` unless the decision is a residual miss, and match with `SignCertain(_)`. `certify::definite_miss_in_file` / `Unsized::definite_residual_in_file` are gone; `Unsized::residual_in_file` is the one door. (ENCL orchestrator)
+- 2026-10-09 — Seam note from ENCL: filed `mfkrh-leaves-an-orphan-surface-under-the-per-op-scalpel` (P2) on your slate. Ten sweep rows panic in `mfkrh`'s per-op postcondition (orphan surface) whenever topo's scalpel is unified on. It is pre-existing on main and found in PR 4433's review. (ENCL orchestrator)
+- 2026-10-09 — Seam note from ENCL (PR 4457, merged at `dcff36e784`): the import-door twins `ending_in_file`, `render_in_file` and `recourse_in_file` are removed. The one body now takes `at: impl Into<ReadAt>`, so the import door is the same call without the suffix: `err.render(file)`, `err.ending(file)`, `decision.recourse(arm, file)`. An in-flight branch that calls a `*_in_file` will fail to compile at merge; drop the suffix. `Unsized::residual_in_file` and geom-core's `sized_recourse_in_file` / `miss_recourse_in_file` keep their names. (ENCL orchestrator)
+- 2026-10-10 — Seam note from PIPE S350 (PR 4482): `census-face-walks-skip-torn-hops-silently`'s reviewer-probe bullet is discharged — `n2r2_class7_face_reach_partial_box_and_census_decision` is replaced by the gating row `a_net_poisoned_in_one_channel_has_no_reach_and_clears_no_pair`, and the `CERT-N2 R2 reviewer probes (not for merge)` banner now reads `A described net carrying poison: the reach and box lanes`. The torn-hop half of that row is untouched. Also on your ground: `crates/topo/src/fixtures.rs` gains `poisoned_net(poisoned)`, a described bilinear net with `x` NaN at the chosen points — the one in-crate mint of that net, used by `census` and `n2r1_probes`. (PIPE S350 lane)
+- 2026-10-10 — Seam note from ENCL (PR 4504, merged): `geom_brep::recourse::Unsized::LastResort` is renamed `Unsized::Fit`, with the same behaviour, and a new `Unsized::Bound` ends a refusal on a certified upper bound in the kernel-limit last resort at every reading. At the import door, `MissReading::Bound` names the bound. `CertCheck::bounds_a_miss()` answers whether a check is a bound. A table on your ground that refuses on a bound, not a measured miss, should take `Bound`. (ENCL orchestrator)
+
+## 15:50 (2026-10-10)
+
+- Usage back after three days. Merged `origin/main` into the orchestration branch; no conflicts.
+- **What moved on main:**
+  - D10 (PR 3990) merged. INTENT re-pointed the held rows at the stage that releases each (`72f8c906`).
+  - Stage 4 E (`intent/s4-e-glue-on-zero`) released `restatement-derives-each-moved-edges-kind`: "the outline stands for a designer pass". It also released `torn-hops-read-as-absent-across-the-boolean`; the coincidence sites can be converted now.
+  - Stage 4 A deleted `boolean/rest.rs` `zip_folded`, so its two `_minting` kills are gone.
+  - New row filed on topo by PR 4433's review: `mfkrh-leaves-an-orphan-surface-under-the-per-op-scalpel`.
+- `offset-held-neighbour-image-…` was orchestration-branch-only, so INTENT's re-homing missed it. It is now `blocked_on: [restatement-derives-each-moved-edges-kind]`, where D2's authority question lives.
+- **Ev: "you could do step 2!"** Impl lane `session_01NgLQscEH8hE65YznxiEYwd`, branch `topo/kef-kfmrh-minting-callers`. It moves:
+  - `merge_group` onto `kef_describing` with the carried restatement (the reviewer measured 9,910/9,910 certifying; to re-measure at the eps rows; stop if any refuse);
+  - the zip's fuse and `slit_zip`'s kill onto chartless transients;
+  - the chord join's null face to the placeholder;
+  - the blend's carve strips chartless.
+- `zip_seam`'s retiring kills stay on `_minting` until choice 3. Privacy and tier 1 (step 4) are not in this unit.
+- The old impl lane `session_01KvmfitreFfbxkDUEQMZ5Aw` is archived.
+
+## 18:30 (2026-10-10): hand-back, `status: ready`
+
+**Step 2 stopped on a fork (PR 4562, merged `c0e756b1`, row only).** As briefed, none of the moves could be built without new refusals on sound inputs in the suite. Measured over the whole ci profile at the default eps, 1e-6 and 1e-12:
+- `merge_group` through the twin refuses 115 calls, all onto curved survivors. The PR 4204 review's 9,910/9,910 held for planar survivors only.
+- Chartless transients strand `Intersection(transient key, neighbour)` edges, because `vouch_move` asks the strand first:
+  - the chord join's null face: 8,684 of 43,830 calls;
+  - the blend strips: 7 of 9 `mef`s on nearly every call.
+- `cut_core`'s kill precedes completion, so re-charting at completion cannot cover it.
+
+The fork is F1 (merge on curved survivors) and F2 (chartless transients against the strand rule). It is recorded on the kef/kfmrh row, with every caller at option (c), staying on `_minting`. Every other option needs the restatement row's kind derivation, or narrows ruling 1. I added one correction to the row: the restatement row was released from the D10 hold, not held.
+
+**Landed this stint** (from 2026-10-06):
+- PRs 4091, 4080, 4105, 4099, 4154, 4165;
+- PR 3970: the kef/kfmrh rulings (1 = B, 2 = tier 1, 3 = A in outline; fork-log row 76);
+- PR 4204: series step 1, keys-only refusals plus describing twins, with the shared door/restater plan;
+- PR 4562: step 2's measurements and the fork.
+
+**For the next orchestrator, in order:**
+1. **The restatement fork.** `restatement-derives-each-moved-edges-kind` (choice 3's details and D2's prefer-intrinsic authority question) was released by INTENT stage 4 E "for a designer pass". F1 and F2 on the kef/kfmrh row are the same question: how an edge a kill moves gets described. Weigh all three together in one designer round.
+   - Ev weakly held designers on 2026-10-06 while D10 changes things, so ask Ev before running them.
+   - `offset-held-neighbour-image-…` waits on the same answer.
+2. **Series steps 3–4** (absorbing `_minting`, then field privacy, the tier-1 naming check and D1's text) follow that ruling. Two small moves are measured and buildable now (on the row): `split_side` through the twin, 24 of 24; `fuse_by_joint`'s hole arm as a same-key `kfmrh_describing`.
+3. **P2 rows, open:**
+   - `mfkrh-leaves-an-orphan-surface-under-the-per-op-scalpel` (filed by PR 4433's review);
+   - `movefac-torn-bodies-fuzz-seed-panics-at-the-door-postcondition`;
+   - `a-lone-site-placeholder-has-no-type-of-its-own` (needs designers; held with the rest, as above).
+4. **`torn-hops-read-as-absent-across-the-boolean`**: released by INTENT stage 4 E for its coincidence sites (`recl` ladder, `edge_covers`, `parents_distinct_from`, `edge_face_read`). The declared-pair-only sites may leave with `declared-pairs-retire` (F).
+5. **The P3 queue**, open:
+   - `a-listed-spec-cannot-name-a-fresh-chart-…`;
+   - `a-moving-door-carries-minted-rows-onto-an-unminted-face-…`;
+   - `a-moving-door-leaves-a-complete-spline-destination-half-minted`;
+   - `boolean-unreadable-norm-ends-as-a-kernel-defect`;
+   - `face-boundary-walks-spell-the-linked-prelude-by-hand` (back to `open`; its PR landed, and `pcurves.rs` plus the now-deleted `rest.rs` `patch_faces` remain);
+   - `kef-minting-clears-a-complete-face-…`;
+   - `minting-doors-take-a-callers-description-unasked-…`;
+   - `set-face-surfaces-describing-keeps-a-moved-edges-rows-…`;
+   - `the-site-mints-plan-reads-the-rewired-loop-whole-…`;
+   - `torn-body-refusal-families-beyond-the-six-doors`.
+6. **Parked** on INTENT stages 3 and 4: six rows (see `blocked_on`).
+
+Collisions left open by others: PR 4191 (shell, curved mouth, after `rename_loop_surface` went) and PR 3945 (pcert, test file). Both have heads-up comments.
+
+No lanes running; trigger deleted; subscriptions cleared.
+- 2026-10-11 — Seam note from ENCL (PR 4538, merged): C2 limb 2 (`ssi_hull_sup`, `ssi_hull_sup_chart`) now subdivides its Bernstein composite before refusing. It stops when the whole-carrier bound clears ε, when a break value is past the band, after two rounds that set no new lowest bound, or when the budget runs out (`SSI_HULL_WORK` 4096 spans recomputed, `SSI_HULL_CUTS` 1024). It reads the limb on the lowest round's hull. Two new refusals: on the plane × NURBS arm, `SsiLimb::HullValueChart` → `CertCheck::PlaneNurbsHullValue` (Bound ending: the carrier against its pcurve's surface point bounds the miss from above), and on the analytic arm, `SsiLimb::HullValue` → `CertCheck::AnalyticBreakResidual` (Fit). Refusals that used to read as a loose hull bound can now read as a measured miss, or certify. (ENCL orchestrator) For topo: `AnalyticRung3Refusal` now carries `Rung3Limb { HullSup, Tube }` with a total `check()`, and `AnalyticRung3Refusal::check` is gone. `validate.rs` already reads `limb.check()`.
+- 2026-10-11 — Seam note from ENCL (PR 4612, merged): seven geom-brep Displays now say "is undecided" where they said "is too close to call": edge_nurbs, newell, nurbs_iso, offset, offset_meters (now "whether this face can be offset is undecided"), and ssi's `Escalated` and `CertificateEscalated`. Tests that assert those sentences must use the new words. (ENCL orchestrator)
+
+## 2026-10-11 — P2, and the second priority-seam cut (Ev, in chat)
+
+No P0 or P1 row was left: the arena corruptions that kept the track at P0 closed with #3160 and #3161. TOPO measured 74.5 budget points against 30. It drops to P2 and keeps the Euler surgery doors: 12 rows, 30 points. The four P2 rows are its spine. `set-face-surfaces-describing-keeps-a-moved-edges-rows-on-a-kept-chart` was priced M at the cut. Moved, with ids unchanged and a dated section on each row:
+- to the new TOPOTAIL (P3, `work/topotail/`): 26 rows (20 open, 6 parked), covering torn records, refusal recourse, cost and hygiene; its log lists the ten rows priced at the move;
+- to PROBE: `merge-faces-should-panic-rows-on-a-debug-assert-fail-in-release`, `kef-and-kfmrh-fuse-roundtrip-skips-are-admitted-per-kind`, `revert-review-residue-test-shape-and-row-text` and `census-face-walks-skip-torn-hops-silently`;
+- to WALKS: `face-boundary-walks-spell-the-linked-prelude-by-hand`.
+- 2026-10-11 — Seam note from ENCL (PR 4616, merged): `geom_brep::OffsetFitError::Elevation` is removed. offset_fit no longer raises degree-1 directions at f64; it raises them in the interval ring with `PatchSpans::elevated`, from the exact degree-1 partial. Its Display arm, its recourse row, the topo sample, `validate`'s arm and its editor-core concision-roster row are gone. A multi-span degree-1 direction refuses `PatchBound(Degree1Crease)`, as the C¹ gate already did. (ENCL orchestrator)
+- 2026-10-11 — Seam note from ENCL (PR 4629, merged): `geom_core::Indeterminate::ending` now carries its margin kind's lever. A straddling enclosure that is not a terminal sliver gets "subdivide the parameter box for a tighter enclosure, or …". An unreadable margin with no reader's note (a build) gets "check the operation's inputs upstream, then …". `ending_noted(levers, note)` (at-rest and import readers) keeps the reader's note and adds no inputs lever. `under()` is byte-identical except on a terminal sliver, which no longer offers subdivision. Whole-escalation renders take the one undecided shape: `cause.undecided(subject, cause.ending(recourse))`. (ENCL orchestrator)
+- 2026-10-11 — Seam note from ENCL (PR 4675, merged at `e423573ba9`): a new `Rung3Limb::HullValue` (a break's measured miss) joins `HullSup`/`Tube`; `test_support_samples` and `analytic_rung3_at_rest` carry it. mfkrh evidence was added to `mfkrh-leaves-an-orphan-surface-under-the-per-op-scalpel` (14 sweep rows hit `OrphanGeometry`, plus `rim_dim_review_probes::silent_fixed_predicates_scale_linearly`). (ENCL orchestrator)

@@ -15,8 +15,9 @@
 //! paired with the ring half-edge leaving a correspondent of `a`, which
 //! runs to a correspondent of `a⁻`; the zip joins the two at `a`. So a
 //! vertex with several correspondents is told apart by the ring run's
-//! other end: a pinch weld's vertex (`finish::weld_pinches`), with one
-//! per pierce it fused, and after a split ([`split_cones`]) a vertex
+//! other end: a ring vertex, with one per run it holds of the pierces
+//! of its face at its point (`vtxfac::mint_ring`), and after a split
+//! ([`split_cones`]) a vertex
 //! holding several corners of one cone, with one per corner. A ring that
 //! leaves the right vertex but runs the same sense is refused before
 //! any surgery
@@ -59,8 +60,8 @@ use geom_core::Tol;
 
 /// The seam vertex correspondence: each A-side vertex → its B-side
 /// correspondents. One each, except where the seams meet a vertex at
-/// several corners: a pinch weld's vertex holds one per pierce it fused,
-/// and once [`split_cones`] rebuilds the map from the edges the zips
+/// several corners: a ring vertex holds one per run of the pierces it
+/// rings, and once [`split_cones`] rebuilds the map from the edges the zips
 /// join, a vertex holds one per corner.
 pub(super) type SeamCorrespondence = BTreeMap<VertexKey, BTreeSet<VertexKey>>;
 
@@ -147,14 +148,6 @@ pub(super) enum Joint {
     },
     /// Across one loop (`mef`, which divides the face).
     Chord { he1: HalfEdgeKey, he2: HalfEdgeKey },
-    /// Across one ring of `face`: the `mef` divides the hole, and the
-    /// face it divides off is a hole too, so `kfmrh` returns it to
-    /// `face` as a ring: two holes meeting at the vertex.
-    Hole {
-        face: FaceKey,
-        he1: HalfEdgeKey,
-        he2: HalfEdgeKey,
-    },
 }
 
 /// **Fuses two coincident vertices**: a zero-length edge between them at
@@ -162,8 +155,7 @@ pub(super) enum Joint {
 /// the pair bitwise coincident), collapsed by a `kev` that keeps the
 /// merged fan's carriers, each re-certified at the kept vertex under the
 /// run's band. Returns the fusion `(dead, kept)` and, for a chord, the
-/// face it divided off (a hole's goes back to its face as a ring);
-/// `desync` names a joint that no longer resolves.
+/// face it divided off; `desync` names a joint that no longer resolves.
 pub(super) fn fuse_by_joint<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     joint: Joint,
@@ -172,17 +164,13 @@ pub(super) fn fuse_by_joint<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<((VertexKey, VertexKey), Option<FaceKey>), BooleanError> {
     let carrier = EdgeCurveSpec::self_loop_circle_at(p);
-    let hole_face = match joint {
-        Joint::Hole { face, .. } => Some(face),
-        _ => None,
-    };
     let (he, made) = match joint {
         Joint::Loops { target, ring } => (
             body.mekr(MekrSite::Cycles { target, ring }, carrier, tol)?
                 .he_plus,
             None,
         ),
-        Joint::Chord { he1, he2 } | Joint::Hole { he1, he2, .. } => {
+        Joint::Chord { he1, he2 } => {
             let made = body.mef(
                 MefSite::Chords { he1, he2 },
                 carrier,
@@ -192,7 +180,6 @@ pub(super) fn fuse_by_joint<T: Decide + crate::props::AtRestPolicy>(
             (made.he_plus, Some(made.face))
         }
     };
-    let hole = hole_face.zip(made);
     let kept = body
         .get_half_edge(he)
         .ok_or_else(|| desync("a joint half-edge no longer resolves"))?
@@ -201,10 +188,6 @@ pub(super) fn fuse_by_joint<T: Decide + crate::props::AtRestPolicy>(
         .half_edge_end(he)
         .ok_or_else(|| desync("a joint half-edge has no end"))?;
     body.kev_describing(he, &[], tol)?;
-    if let Some((face, divided)) = hole {
-        body.kfmrh_minting(face, divided, tol)?;
-        return Ok(((dead, kept), None));
-    }
     Ok(((dead, kept), made))
 }
 
@@ -220,12 +203,6 @@ pub(super) struct ZipReport {
     /// The seam edges surviving the zip (the outer cycle's edges), in
     /// cycle order.
     pub seam_edges: Vec<crate::entity::EdgeKey>,
-    /// Seam edges KILLED by this zip as R-interior structure (the
-    /// already-fused runs a slit zip consumes — e.g. the meridian
-    /// seams of a closed cosurface band, which are segments AND
-    /// interior to the contact region). Empty for a plain
-    /// [`zip_seam`].
-    pub interior_edges: Vec<crate::entity::EdgeKey>,
     /// Edge fusions, `(dead, kept)`: each ring edge the zip kills and
     /// the seam edge it lay on, which keeps its key.
     pub edge_merges: Vec<(crate::entity::EdgeKey, crate::entity::EdgeKey)>,
@@ -274,6 +251,10 @@ impl<K: Ord + Copy> Roots<K> {
 /// keys its vertices share, names one point. Returns those classes of
 /// two or more keys, read before any zip; [`share_points`] reads them
 /// after. Decided by the records alone: no position is read.
+///
+/// A ring serving several pierces ties their keys too: the ring joined
+/// those pierces by a value decision, which the ledger records beside
+/// the result's records (`ops::ledger`).
 ///
 /// # Errors
 ///
@@ -939,8 +920,7 @@ mod cone_rows {
     //! two in one cone: the shape where reading the cycles the other way
     //! round, or a B run with its own corner's A run, splits the vertex
     //! wrongly. No prism pose the batteries build reaches it (a pierce
-    //! leaves a copy per run, and a weld nests a pierce in one kept
-    //! corner), so it is pinned here.
+    //! leaves a copy per run), so it is pinned here.
     //!
     //! The union of a cube and two reflex corners `P`, `Q` touching only
     //! at `v`, the cube's face through `v`: `P` crosses the face in two

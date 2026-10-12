@@ -26,10 +26,9 @@ use editor_core::ExtrudeSide;
 use test_utils::refusal::tagged;
 
 use editor_core::{
-    BooleanOp, CancelToken, Cmp, CurveKind, CurveKindSet, Datum, EntityKind, Entry, EvalOptions,
-    Evaluation, GeomPred, NamePat, NameTable, NamingError, Node, NodeErrorKind, ProfileDoc,
-    RecipeNodeId, RoleSeg, SegPat, SegTag, Selector, StableName, VarEnv, evaluate, select,
-    select_where,
+    CancelToken, Cmp, CurveKind, CurveKindSet, Datum, EntityKind, Entry, EvalOptions, Evaluation,
+    GeomPred, NamePat, NameTable, NamingError, Node, NodeErrorKind, ProfileDoc, RecipeNodeId,
+    RoleSeg, SegPat, SegTag, Selector, StableName, VarEnv, evaluate, select, select_where,
 };
 
 // `table` panics on a node with no value rather than answering `None`,
@@ -80,7 +79,7 @@ fn prism(doc: ProfileDoc, pts: Vec<(f64, f64)>, z0: f64, dz: f64) -> (ProfileDoc
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -120,11 +119,9 @@ fn u_cutter_tie(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     );
     let (doc, sub) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a,
-            b,
-            declare: Vec::new(),
+        Node::Subtract {
+            from: a.into(),
+            tool: b.into(),
         },
     );
     (doc, a, sub)
@@ -140,7 +137,13 @@ fn u_cutter_tie(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 fn split_over_a_tied_operand_names_and_keeps_the_tie() {
     let (doc, _, sub) = u_cutter_tie(ProfileDoc::empty_derived("lib_g14", Tol::witness()));
     let (doc, tool) = plane(doc, [0.0, 0.0, 3.5], [0.0, 0.0, 1.0]);
-    let (doc, split) = insert(doc, Node::Split { target: sub, tool });
+    let (doc, split) = insert(
+        doc,
+        Node::Split {
+            target: sub.into(),
+            tool: tool.into(),
+        },
+    );
     let ev = run(&doc);
     let up = table(&ev, sub);
     assert!(!ties(up).is_empty(), "fixture lost its operand tie");
@@ -161,7 +164,7 @@ fn split_over_a_tied_operand_names_and_keeps_the_tie() {
     assert!(
         after.iter().any(|(n, _)| matches!(
             n.path.first(),
-            Some(RoleSeg::SplitFragment { .. } | RoleSeg::FromB(_))
+            Some(RoleSeg::SplitFragment { .. } | RoleSeg::From { .. })
         )),
         "no propagated tie carries a split or operand role: {:?}",
         after.iter().map(|(n, _)| *n).collect::<Vec<_>>()
@@ -179,11 +182,9 @@ fn boolean_over_a_tied_operand_names_and_keeps_the_tie() {
     let (doc, c) = block(doc, (1.0, 3.0), (1.0, 3.0), 3.5, 2.0);
     let (doc, sub2) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: sub,
-            b: c,
-            declare: Vec::new(),
+        Node::Subtract {
+            from: sub.into(),
+            tool: c.into(),
         },
     );
     let ev = run(&doc);
@@ -216,22 +217,21 @@ fn a_tie_with_one_surviving_candidate_narrows_back_to_unique() {
     let (doc, c) = block(doc, (1.5, 4.5), (2.25, 3.25), 0.5, 3.0);
     let (doc, sub2) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: sub,
-            b: c,
-            declare: Vec::new(),
+        Node::Subtract {
+            from: sub.into(),
+            tool: c.into(),
         },
     );
     let ev = run(&doc);
     let up_ties = ties(table(&ev, sub));
     assert!(!up_ties.is_empty(), "fixture lost its upstream tie");
     let t = table(&ev, sub2);
+    let sub_read = crate::fixture::out(&doc, sub);
     for (tn, _) in &up_ties {
         let descendants: Vec<(&StableName, &Entry)> = t
             .iter()
             .filter(|(n, _)| match n.path.first() {
-                Some(RoleSeg::FromA(inner)) => &**inner == *tn,
+                Some(RoleSeg::From { read, of: inner }) => *read == sub_read && &**inner == *tn,
                 _ => false,
             })
             .collect();
@@ -265,7 +265,13 @@ fn tied_and_end_qualified_name_tables_are_identical_across_evaluations() {
         || {
             let (doc, _, sub) = u_cutter_tie(ProfileDoc::empty_derived("lib_g14", Tol::witness()));
             let (doc, tool) = plane(doc, [0.0, 0.0, 3.5], [0.0, 0.0, 1.0]);
-            let (doc, split) = insert(doc, Node::Split { target: sub, tool });
+            let (doc, split) = insert(
+                doc,
+                Node::Split {
+                    target: sub.into(),
+                    tool: tool.into(),
+                },
+            );
             (doc, split)
         },
     ];
@@ -302,7 +308,13 @@ fn l_split(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     // x + y = 2.5: two DISJOINT chords per cap — one across the
     // horizontal leg, one across the vertical leg.
     let (doc, tool) = plane(doc, [2.5, 0.0, 0.0], [1.0, 1.0, 0.0]);
-    let (doc, split) = insert(doc, Node::Split { target: ext, tool });
+    let (doc, split) = insert(
+        doc,
+        Node::Split {
+            target: ext.into(),
+            tool: tool.into(),
+        },
+    );
     (doc, ext, split)
 }
 
