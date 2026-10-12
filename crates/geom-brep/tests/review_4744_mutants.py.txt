@@ -1,0 +1,32 @@
+import subprocess,sys,os
+F='/home/user/wt4744/crates/geom-brep/src/props/curved.rs'
+orig=open(F).read()
+M={
+'tilt_first_order':('r_c * (n_c.cross(axis).norm() * sin_a + (T::one() - cos_t) * cos_a)','r_c * (n_c.cross(axis).norm() * sin_a)'),
+'tilt_old_rim_parallel':('r_c * (n_c.cross(axis).norm() * sin_a + (T::one() - cos_t) * cos_a)','r_c * n_c.cross(axis).norm()'),
+'offaxis_no_cos':('Margin::of((w - axis * w.dot(axis)).norm() * cos_a)','Margin::of((w - axis * w.dot(axis)).norm())'),
+'generator_by_span':('(e.p0() - apex).norm().max((e.p1() - apex).norm()),','e.t1 - e.t0,'),
+'generator_by_near_end':('(e.p0() - apex).norm().max((e.p1() - apex).norm()),','(e.p0() - apex).norm().min((e.p1() - apex).norm()),'),
+'drop_ellipse_span':('''            Curve3::Ellipse { major, minor, .. } => require_span_within_period(''','''            Curve3::Ellipse { major, minor, .. } if false => require_span_within_period('''),
+'drop_ellipse_incidence':('''        Curve3::Ellipse { .. } => {
+            let fifth''','''        Curve3::Ellipse { .. } if false => {
+            let fifth'''),
+'ellipse_one_point':('for _ in 0..5 {','for _ in 0..1 {'),
+'ellipse_three_points':('for _ in 0..5 {','for _ in 0..3 {'),
+'ellipse_span_meter_major':('major.abs().min(minor),','major.abs().max(minor),'),
+}
+names=sys.argv[1:] or list(M)
+env=dict(os.environ,CARGO_TARGET_DIR='/home/user/tgt4744')
+for n in names:
+    a,b=M[n]; assert orig.count(a)==1,(n,orig.count(a))
+    open(F,'w').write(orig.replace(a,b))
+    if n=='drop_ellipse_incidence':
+        open(F,'w').write(orig.replace(a,b).replace('        Curve3::Nurbs(_) | Curve3::Spiric { .. } => Err(PropsError::Unimplemented),','        Curve3::Ellipse { .. } => Ok(()),\n        Curve3::Nurbs(_) | Curve3::Spiric { .. } => Err(PropsError::Unimplemented),',1))
+    try:
+        r=subprocess.run(['cargo','test','-q','-p','geom-brep','--test','all','--','props_cone','stored_span_winding_bound','review_4696','incidence'],cwd='/home/user/wt4744',env=env,capture_output=True,text=True,timeout=900)
+        out=r.stdout+r.stderr
+        fails=[l.strip() for l in out.splitlines() if l.strip().endswith('FAILED') or l.startswith('error')]
+        res=[l for l in out.splitlines() if 'test result' in l]
+        print(n, '|', res, '|', fails[:8], flush=True)
+    finally:
+        open(F,'w').write(orig)

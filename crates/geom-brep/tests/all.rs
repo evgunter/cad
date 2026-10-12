@@ -145,6 +145,10 @@ mod props_sphere_circle_loop;
 mod props_sphere_pole_side;
 #[path = "r2_probe_sphere_polar.rs"]
 mod r2_probe_sphere_polar;
+#[path = "review_4696_r2.rs"]
+mod review_4696_r2;
+#[path = "review_4744_probes.rs"]
+mod review_4744_probes;
 #[path = "section_reads_at_the_reach.rs"]
 mod section_reads_at_the_reach;
 
