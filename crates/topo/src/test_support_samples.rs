@@ -619,7 +619,10 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
             }),
         },
         PcurveCertifyError::CarrierDomain(carrier_domain_collapsed()),
-        PcurveCertifyError::FittedEscalated { cause: diag() },
+        PcurveCertifyError::FittedEscalated {
+            decision: geom_brep::SsiDecision::Limb(geom_brep::SsiLimb::Tube),
+            cause: diag(),
+        },
         PcurveCertifyError::IntervalNotForward,
         PcurveCertifyError::ChartWindingUnsupported,
         PcurveCertifyError::PlaceholderChart,

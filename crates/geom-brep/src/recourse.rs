@@ -107,6 +107,7 @@ pub fn not_yet(arm: RefusedArm<'_>, reading: Reading) -> String {
 /// A decision with no size the user chose: a residual (it passes only at
 /// zero, so a refused margin is a miss) or a form selection (it passes on
 /// any definite sign). No smaller tolerance is its recourse (D4 ¶1 (i)).
+/// No unsized decision is a gate, so its arms are its verdicts.
 ///
 /// Its endings take no unreadable-margin note on a margin that could not
 /// be read: each already asks for the report the note would.
@@ -140,6 +141,10 @@ impl Unsized {
     /// readable.
     #[must_use]
     pub fn recourse(self, arm: RefusedArm<'_>, reading: Reading) -> String {
+        debug_assert!(
+            arm.margin().is_none_or(|m| m.rejected_sign().is_none()),
+            "an unsized decision's arm carries a gate's rejection tag: {arm:?}"
+        );
         let defect = defect_ending(reading);
         match self {
             Self::Defect => defect.to_owned(),
@@ -291,6 +296,14 @@ impl RefusedArm<'_> {
             Self::Undecided(cause) => Some(cause.margin),
             Self::Zero(Classified { margin, .. }) => Some(margin),
             Self::Straddle | Self::SignCertain(_) => None,
+        }
+    }
+
+    /// The margin the arm carries, where it kept one.
+    fn margin(self) -> Option<MarginDiag> {
+        match self {
+            Self::SignCertain(margin) => margin,
+            _ => self.banded(),
         }
     }
 

@@ -180,7 +180,7 @@ use geom_core::{
 
 use crate::certify::{CERT_SAMPLES, CertCheck, sample_param};
 use crate::recourse::{Reading, RefusedArm, Unsized};
-use crate::ssi::{SsiCertificate, SsiLimb, SsiOperand};
+use crate::ssi::{SsiCertificate, SsiDecision, SsiLimb, SsiOperand};
 
 /// A pcurve: the 2-D chart image of an edge's carrier, parameterized by
 /// **the carrier's own parameter** (module docs).
@@ -1681,17 +1681,15 @@ pub enum PcurveCertifyError {
     CarrierDomain(crate::edge_nurbs::CarrierDomainRefusal),
     /// A fitted-lane classification ESCALATED — D4 ¶3's
     /// escalate-never-guess, at the SSI door rather than at one of this
-    /// module's own schedule checks.
+    /// module's own schedule checks. It ends by the SSI decision it
+    /// names, as it does at the SSI door ([`SsiDecision::ending`]).
     ///
     /// The classifier's [`Indeterminate`] is carried WHOLE, so the
     /// margin, the band it was judged against and the predicate's name
-    /// travel together. They are not separable without lying: a margin
-    /// without its band cannot be read (is 1.8e-12 inside the band or
-    /// three decades clear of it?), and the projection this error used
-    /// to perform — margin onto one `f64` — reported `NaN` for every
-    /// interval-lane escalation, which is also what genuine poison
-    /// reports.
+    /// travel together: a margin without its band cannot be read.
     FittedEscalated {
+        /// The SSI decision that escalated.
+        decision: SsiDecision,
         /// The classifier's diagnostic, whole.
         cause: Indeterminate,
     },
@@ -1859,14 +1857,15 @@ impl core::fmt::Display for PcurveCertifyError {
                 }
             ),
             Self::CarrierDomain(refusal) => write!(f, "pcurve certification: {refusal}"),
-            // The classifier's own payload renderer, plus this module's
-            // site context and the shared recourse tail — the
-            // composition `IndeterminatePayload` exists for.
-            Self::FittedEscalated { cause } => write!(
+            Self::FittedEscalated { decision, cause } => write!(
                 f,
-                "pcurve certification: the fitted lane's certificate escalated — {} ({})",
-                cause.payload(),
-                geom_core::predicate::COINCIDENCE_RECOURSE
+                concat!(
+                    "pcurve certification: the fitted lane's certificate escalated — {}",
+                    geom_core::undecided!(),
+                    ": {}"
+                ),
+                decision,
+                cause.payload()
             ),
             Self::IntervalNotForward => write!(
                 f,
@@ -1945,11 +1944,8 @@ impl PcurveCertifyError {
                 (PcurveCheck::AzimuthPeriod, RefusedArm::SignCertain(None))
             }
             Self::TubePeriodExceeded => (PcurveCheck::TubePeriod, RefusedArm::SignCertain(None)),
-            // The fitted lane's SSI certificate is an approximation's, as
-            // the plane × NURBS lane's on-locus limb is
-            // (`CertCheck::PlaneNurbsOnLocus`).
-            Self::FittedEscalated { cause } => {
-                return Some(Unsized::Fit.recourse(RefusedArm::Undecided(cause), reading));
+            Self::FittedEscalated { decision, cause } => {
+                return Some(decision.ending(cause, reading));
             }
             Self::UnsupportedChart { .. }
             | Self::UnsupportedCarrier { .. }
@@ -2820,8 +2816,8 @@ pub(crate) fn carrier_diameter<T: Real>(carrier: &NurbsCurve3<T>) -> T {
 ///
 /// **Escalations leave by a different door.** They are the only
 /// refusals carrying a margin the classifier judged, and that margin is
-/// unreadable without the band it was judged against, so the whole
-/// `Indeterminate` travels together in
+/// unreadable without the band it was judged against, so the
+/// escalation travels whole, its decision with its `Indeterminate`, in
 /// [`PcurveCertifyError::FittedEscalated`]. What remains here is
 /// definite and structural refusals, whose numbers are each named for
 /// what they are ([`FittedMagnitude`]) and are `None` when the refusal
@@ -2829,11 +2825,17 @@ pub(crate) fn carrier_diameter<T: Real>(carrier: &NurbsCurve3<T>) -> T {
 fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
     use crate::ssi::SsiError as E;
     let (limb, what, magnitude) = match e {
-        // An escalation is the ONE refusal that carries a classified
-        // margin, and it leaves through its own door with the
-        // classifier's diagnostic whole.
-        E::Escalated { cause, .. } | E::CertificateEscalated { cause, .. } => {
-            return PcurveCertifyError::FittedEscalated { cause };
+        E::Escalated { decision, cause } => {
+            return PcurveCertifyError::FittedEscalated {
+                decision: SsiDecision::Trace(decision),
+                cause,
+            };
+        }
+        E::CertificateEscalated { limb, cause } => {
+            return PcurveCertifyError::FittedEscalated {
+                decision: SsiDecision::Limb(limb),
+                cause,
+            };
         }
         E::ChartRow { source } => return PcurveCertifyError::ChartRow { source },
         // Only a marching door refines; the refusal it could not answer
@@ -9827,6 +9829,33 @@ mod tests {
         assert!(
             matches!(&got, PcurveCertifyError::ChartRow { source: s } if *s == source),
             "{got:?}"
+        );
+    }
+
+    /// A limb-3 escalation ends by the tube's own decision at the
+    /// pcurve door, as at the SSI door, at rest: the transversality's
+    /// lever and its tighten offer in band, never the fitted lane's last
+    /// resort.
+    #[test]
+    fn a_tube_escalation_ends_the_same_at_the_ssi_and_pcurve_doors() {
+        let cause = Indeterminate {
+            margin: geom_core::MarginDiag::value(5e-9),
+            band: Band::new(1e-9, 1e-8).unwrap(),
+            predicate: Some("ssi_tube_transversality"),
+            terminal_sliver: false,
+        };
+        let ssi = crate::ssi::SsiError::CertificateEscalated {
+            limb: SsiLimb::Tube,
+            cause,
+        };
+        let want = "Recourse: move the geometry so the surfaces cross at a clearer angle, or, \
+                    if this angle is intended, tighten the tolerance below 5e-10 m";
+        assert_eq!(ssi.ending(Reading::AtRest), want, "the SSI door");
+        let pcurve = ssi_refusal(ssi);
+        assert_eq!(
+            pcurve.ending(Reading::AtRest).as_deref(),
+            Some(want),
+            "the pcurve door: {pcurve}"
         );
     }
 
