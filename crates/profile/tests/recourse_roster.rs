@@ -534,9 +534,14 @@ fn the_undecided_endings_follow_the_decisions_kind() {
             ),
             "at loop 0 segment 1, whether the path carries straight on at this junction or \
              doubles back into a cusp is undecided: margin 5e-9 lies inside the ambiguity band \
-             (1e-9, 1e-8). Recourse: for tangency onto a new carrier use .tangent() (or the tangent-arc or seam-fillet close at \
-             the seam); for a straight continuation spell it line(len) off the directed point; \
-             otherwise move the geometry",
+             (1e-9, 1e-8). Recourse: move the geometry",
+        ),
+        (
+            "the junction's side at the path door, value",
+            path("path_junction_side", value),
+            "whether the path carries straight on at this junction or doubles back into a cusp \
+             is undecided: margin 5e-9 lies inside the ambiguity band (1e-9, 1e-8). Recourse: \
+             move the geometry",
         ),
         (
             "validation, an unknown name, value",

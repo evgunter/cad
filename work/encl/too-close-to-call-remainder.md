@@ -98,6 +98,8 @@ junction arm and both fall-through arms, `validate.rs`'s
 Both doors end a name by its row in `validate::DECISION_ENDINGS`
 (`EndingKind::Sized` or `Lever(lever)`), one row per decided name, held
 both ways against `src`; a name with no row names its hole at both.
+`validate::lever_ending` switches to geom-core's
+`Indeterminate::lever_ending` once PR 4766 lands.
 
 - Skipped: nothing on D10 ground in the slice.
 - Left: the hand-spelled decision-specific verdicts in `path.rs`'s

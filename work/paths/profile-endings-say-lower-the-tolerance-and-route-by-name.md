@@ -33,10 +33,10 @@ ending table for a sized decision.
   `validate::DECISION_ENDINGS` gives each decided name an `EndingKind`,
   read by both `PathError::Escalated` and `ProfileError::Escalated`. The
   closed type below retires the name key with the routing.
-- **`JunctionTangent` contradicts its decision's kind.** The junction
-  rows are `Lever(JUNCTION_TANGENT_LEVER)`: an undecided turn offers the
-  lever alone, while the definite `JunctionTangent` still ends "(or
-  lower the tolerance)".
+- **`JunctionTangent` contradicts its decision's kind.** The
+  `path_junction_turn` row is `Lever(JUNCTION_TANGENT_LEVER)`: an
+  undecided turn offers the lever alone, while the definite
+  `JunctionTangent` still ends "(or lower the tolerance)".
 
 ## Repair shape
 

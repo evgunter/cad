@@ -181,8 +181,8 @@ pub const ARC_SCENE_RESOLUTION_RECOURSE: &str = "move the profile nearer the ori
      validating its loop with that provenance (a `ConstructedProfile`, `pncad::validated`) does \
      not re-read it";
 
-/// The lever at a junction whose turn or side is undecided, and at one
-/// that is definitely tangent ([`crate::PathError::JunctionTangent`]):
+/// The lever at a junction whose turn is undecided, and at one that is
+/// definitely tangent ([`crate::PathError::JunctionTangent`]):
 /// declare the tangency, or spell the continuation, or move the
 /// geometry.
 pub(crate) const JUNCTION_TANGENT_LEVER: &str = "for tangency onto a new carrier use .tangent() \
@@ -963,12 +963,14 @@ pub const DECISION_ENDINGS: &[DecisionEnding] = &[
         name: "path_fillet_radius",
         kind: EndingKind::Sized,
     },
-    // the cosine of a junction's turn, levered by the arriving arm
+    // the cosine of a junction's turn, levered by the arriving arm; one question at both
+    // doors (`seg::junction_reverses`), asked of a junction already tangent, so neither
+    // outcome is something `.tangent()` would change, and a raw-authored loop has no path verbs
     DecisionEnding {
         name: "path_junction_side",
-        kind: EndingKind::Lever(JUNCTION_TANGENT_LEVER),
+        kind: EndingKind::Lever(COINCIDENCE_RECOURSE),
     },
-    // the sine of a junction's turn, levered by the arriving arm
+    // the sine of a junction's turn, levered by the arriving arm; decided only by the path door
     DecisionEnding {
         name: "path_junction_turn",
         kind: EndingKind::Lever(JUNCTION_TANGENT_LEVER),
@@ -990,7 +992,9 @@ pub const DECISION_ENDINGS: &[DecisionEnding] = &[
         name: "path_seam_arrival_lever",
         kind: EndingKind::Sized,
     },
-    // the cosine of the seam arrival's turn, levered by its arm
+    // the cosine of the seam arrival's turn, levered by its arm; this row and the next are
+    // rendered through no door's table: the path door answers both with its own seam-arrival
+    // sentence, and validation never decides them
     DecisionEnding {
         name: "path_seam_arrival_side",
         kind: EndingKind::Lever(COINCIDENCE_RECOURSE),
