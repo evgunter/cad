@@ -21,11 +21,15 @@ use crate::entity::FaceKey;
 /// **What an op made of one input cell.**
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Fate {
-    /// The cell holds itself in the result, under its key and under
-    /// each copy of it the op cut (a vertex a split copied onto both of
-    /// its sides, every copy on the vertex's point).
+    /// The cell holds itself in the result, as `at` (its own key where
+    /// the op keeps keys, its key across a graft) and as each copy of it
+    /// the op cut (a vertex a split copied onto both of its sides, every
+    /// copy on the vertex's point). A kept cell has a result cell, so a
+    /// kept cell with none is not a fate.
     Kept {
-        /// The copies, the key excluded.
+        /// The cell as the result holds it.
+        at: Cell,
+        /// The copies, `at` excluded.
         copies: Vec<Cell>,
     },
     /// A cell that holds its interior now: a merge's kept face, a
@@ -98,6 +102,7 @@ pub struct Lineage {
     rows: BTreeMap<Cell, Fate>,
     joins: Vec<EdgeJoin>,
     meeting: MintedBacking,
+    glues: bool,
 }
 
 impl Default for Lineage {
@@ -106,6 +111,7 @@ impl Default for Lineage {
             rows: BTreeMap::new(),
             joins: Vec::new(),
             meeting: MintedBacking::Refused,
+            glues: false,
         }
     }
 }
@@ -200,22 +206,39 @@ impl Lineage {
         self.meeting
     }
 
+    /// The lineage of an op that glues a record's cells into one cell,
+    /// or into a cell and its boundary (the boolean's zip fusions and
+    /// joins): a record whose every pair of images is one cell or
+    /// incident is consumed, a third way beside a removal and two
+    /// vertices made one. D1: "Structural sharing (same surface or point
+    /// key) needs no record"; a glued pair shares its cell, or bounds
+    /// it, and so is structure.
+    #[must_use]
+    pub(crate) fn glued(mut self) -> Self {
+        self.glues = true;
+        self
+    }
+
+    pub(crate) fn glues(&self) -> bool {
+        self.glues
+    }
+
     /// `cell`'s fate: its row, else kept under its key.
     #[must_use]
     pub fn fate(&self, cell: Cell) -> Fate {
-        self.rows
-            .get(&cell)
-            .cloned()
-            .unwrap_or(Fate::Kept { copies: Vec::new() })
+        self.rows.get(&cell).cloned().unwrap_or_else(|| Fate::Kept {
+            at: cell,
+            copies: Vec::new(),
+        })
     }
 
     /// Every cell of the result `cell`'s fate names, read through the
-    /// joins: the key and its copies, the substitute, or the pieces and
-    /// minted cells; none for a removed cell.
+    /// joins: the cell as kept, the substitute, or the pieces and minted
+    /// cells; none for a removed cell.
     #[must_use]
     pub fn images(&self, cell: Cell) -> Vec<Cell> {
         let mut out: Vec<Cell> = Vec::new();
-        for c in self.fate(cell).images(cell) {
+        for c in self.fate(cell).images() {
             let c = self.joined(c);
             if !out.contains(&c) {
                 out.push(c);
@@ -232,14 +255,21 @@ impl Lineage {
 
 impl Fate {
     /// Every cell of the result this fate names, before the joins: the
-    /// key and its copies, the substitute, or the pieces and minted
-    /// cells.
-    pub(crate) fn images(&self, cell: Cell) -> Vec<Cell> {
+    /// cell as kept, the substitute, or the pieces and minted cells.
+    pub(crate) fn images(&self) -> Vec<Cell> {
         match self {
-            Self::Kept { copies } => core::iter::once(cell).chain(copies.clone()).collect(),
+            Self::Kept { at, copies } => core::iter::once(*at).chain(copies.clone()).collect(),
             Self::Substituted(by) => vec![*by],
             Self::Divided(d) => d.pieces.iter().chain(&d.minted).copied().collect(),
             Self::Removed => Vec::new(),
+        }
+    }
+
+    /// Every image but the minted cells, before the joins.
+    pub(crate) fn pieces(&self) -> Vec<Cell> {
+        match self {
+            Self::Divided(d) => d.pieces.clone(),
+            _ => self.images(),
         }
     }
 
@@ -412,6 +442,13 @@ impl LineageKey for Cell {
     const ROWS: LineageRows = LineageRows::Substitutions;
     fn cell(self) -> Cell {
         self
+    }
+}
+
+impl LineageKey for FaceKey {
+    const ROWS: LineageRows = LineageRows::Substitutions;
+    fn cell(self) -> Cell {
+        Cell::Face(self)
     }
 }
 

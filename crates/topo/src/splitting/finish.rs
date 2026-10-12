@@ -204,7 +204,8 @@ impl<T: Real> SplitResult<T> {
             }
         }
         for (original, copies) in copies {
-            lineage = stated(lineage, Cell::Vertex(original), Fate::Kept { copies });
+            let at = Cell::Vertex(original);
+            lineage = stated(lineage, at, Fate::Kept { at, copies });
         }
         for root in roots(&self.naming.edge_pieces) {
             let pieces: Vec<EdgeKey> = Descent::of(root, &self.naming.edge_pieces)
