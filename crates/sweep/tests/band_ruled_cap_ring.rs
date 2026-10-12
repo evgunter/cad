@@ -8,7 +8,15 @@
 //! metered, over its own window, against a region enclosing the sliver
 //! before any carve: `r ≤ ‖p − c‖ ≤ ρ` (`ρ` the farthest the sliver
 //! reaches from `c`, which on this rod is `‖V − c‖`), cut down to the
-//! half-plane `(p − c)·(V − c) ≥ floor` the sliver lies in.
+//! half-plane `(p − c)·(V − c) ≥ floor` the sliver lies in. A cycle
+//! not clear of that region is read against the sliver itself: crossing
+//! it (`RingClearance`, a measurement), wholly inside it, or neither
+//! certified. The last two join predicate 2's verdict, which outranks
+//! an inside ring with a bound wherever the reach cannot certify the
+//! bore's wall: the ruled crease's reach has no exact core, so a bore in
+//! the sliver refuses `FaceClearance` as a bound at its wall. The cap's
+//! inside reading and its depth are pinned at unit level
+//! (`blend::open::end_face`).
 //!
 //! The fixture is the D-rod (`test_support::rod_d_profile_at`'s D at
 //! [`ROD_FLAT`]) with a second profile loop through it, or a channel in
@@ -28,7 +36,7 @@ use sweep::blend::{BlendError, Convexity, fillet_edges};
 use sweep::test_support::{
     ROD_FILLET, ROD_FLAT, ROD_L, ROD_R, extruded, rod_chord_at, rod_creases, rod_section_cut,
 };
-use topo::{AtRestPolicy, Body, mass_properties, validate_geometric};
+use topo::{AtRestPolicy, Body, EntityId, mass_properties, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -45,6 +53,15 @@ fn bore(x: f64, y: f64, a: f64) -> ProfileLoop<f64> {
     bulge_loop(vec![
         (Point2::new(x + a, y), 1.0),
         (Point2::new(x - a, y), 1.0),
+    ])
+}
+
+/// [`bore`] at any scalar.
+fn round_loop<T: Real>(x: f64, y: f64, a: f64) -> ProfileLoop<T> {
+    let f = T::from_f64;
+    bulge_loop(vec![
+        (Point2::new(f(x + a), f(y)), f(1.0)),
+        (Point2::new(f(x - a), f(y)), f(1.0)),
     ])
 }
 
@@ -124,14 +141,135 @@ fn assert_cap_ring_refusal(body: &Body<f64>, what: &str) {
     }
 }
 
-/// **A bore wholly inside the removed sliver refuses** rather than
-/// being left on the cap outside the region it bounds. The bore at
-/// `(0.297, 0.395)` is `0.003` from the flat, `0.0033` from the wall
-/// and `≈ 0.1085` from `c`: every point of it is in the material the
-/// band removes.
+/// The refusal a bore inside the sliver owes today: its rings read
+/// inside at the caps, but the reach reads its wall, which runs between
+/// the caps through the band's material, as a bound (the ruled crease's
+/// reach has no exact core), and a bound outranks an inside reading.
+/// `FaceClearance` with `bounded: true`, naming the bore's wall.
+fn assert_bound_at_the_wall(body: &Body<f64>, a: f64, what: &str) {
+    validate_geometric(body, tol()).unwrap_or_else(|e| panic!("{what}: source tier 3, {e:?}"));
+    let got = fillet_edges(
+        &sweep::test_support::at_rest(body, tol()),
+        &rod_creases(body),
+        ROD_FILLET,
+        tol(),
+    )
+    .map(|out| out.body.faces().count())
+    .map_err(|e| e.error);
+    let Err(BlendError::FaceClearance {
+        at: EntityId::Face(wall),
+        chain: Convexity::Convex,
+        bounded: true,
+        ..
+    }) = got
+    else {
+        panic!("{what}: expected a bound at the bore's wall, got {got:?}")
+    };
+    let radius = body
+        .get_face(wall)
+        .and_then(|f| body.get_surface(f.surface))
+        .and_then(|s| match s {
+            geom::Surface::Cylinder { radius, .. } => Some(*radius),
+            _ => None,
+        });
+    assert!(
+        radius.is_some_and(|r| (r - a).abs() < 1e-12),
+        "{what}: the face named is the bore's wall, of radius {a}: {radius:?}"
+    );
+}
+
+/// **A bore wholly inside the removed sliver refuses as a bound at its
+/// wall** ([`assert_bound_at_the_wall`]). The bore at `(0.297, 0.395)`
+/// is `0.003` from the flat, `0.0033` from the wall and `≈ 0.1085` from
+/// `c`.
 #[test]
-fn a_bore_inside_the_d_rods_removed_sliver_refuses_ring_clearance() {
-    assert_cap_ring_refusal(&bored_d_rod(0.297, 0.395, 0.002), "bore in the sliver");
+fn a_bore_inside_the_d_rods_removed_sliver_refuses_as_a_bound_at_its_wall() {
+    assert_bound_at_the_wall(
+        &bored_d_rod(0.297, 0.395, 0.002),
+        0.002,
+        "bore in the sliver",
+    );
+}
+
+/// **The same bore at the certified scalar**: a bound at its wall, as
+/// at `f64`.
+#[test]
+fn a_bore_inside_the_d_rods_removed_sliver_refuses_as_a_bound_at_interval() {
+    let tol = tol();
+    let body = sweep::test_support::finished(
+        "bored",
+        extruded(
+            SketchPlane::xy(),
+            vec![d_loop(), round_loop(0.297, 0.395, 0.002)],
+            Interval::from_f64(ROD_L),
+            tol,
+        ),
+        tol,
+    );
+    let got = fillet_edges(&body, &rod_creases(&body), iv(ROD_FILLET), tol).map(|_| ());
+    let Err(e) = got else {
+        panic!("the bore refuses at Interval")
+    };
+    assert!(
+        matches!(
+            e.error,
+            BlendError::FaceClearance {
+                at: EntityId::Face(_),
+                bounded: true,
+                ..
+            }
+        ),
+        "a bound at the wall at Interval, got {:?}",
+        e.error
+    );
+}
+
+/// **A hair either side of the arc and a hair off the flat.** On the
+/// ray from `c` towards `V`, a bore of radius `0.004` whose near side is
+/// `1e-4` short of the arc crosses it, and refuses as a measurement at
+/// the cap, ahead of the bound its wall reads; one `1e-4` past it, and
+/// one `1e-4` off the flat inside the sliver, lie wholly inside and
+/// refuse as the bound at their walls.
+#[test]
+fn a_bore_a_hair_across_the_slivers_boundary_crosses_and_one_inside_it_is_a_bound() {
+    let (c, v) = upper_corner(ROD_FILLET);
+    let (dx, dy) = (v.0 - c.0, v.1 - c.1);
+    let n = dx.hypot(dy);
+    let (a, hair) = (0.004, 1e-4);
+    let on_ray = |d: f64| (c.0 + d * dx / n, c.1 + d * dy / n);
+    let (x, y) = on_ray(ROD_FILLET + a - hair);
+    assert_cap_ring_refusal(&bored_d_rod(x, y, a), "a hair short of the arc");
+    let (x, y) = on_ray(ROD_FILLET + a + hair);
+    assert_bound_at_the_wall(&bored_d_rod(x, y, a), a, "a hair past the arc");
+    assert_bound_at_the_wall(
+        &bored_d_rod(ROD_FLAT - 0.002 - hair, 0.395, 0.002),
+        0.002,
+        "a hair off the flat",
+    );
+}
+
+/// **A cap carrying a bore inside the sliver and a bore across its arc
+/// refuses as the crossing, in either order** the profile lists them:
+/// a crossing anywhere outranks the inside ring and its wall's bound.
+#[test]
+fn a_cap_with_an_inside_bore_and_a_crossing_bore_crosses_in_either_order() {
+    let (c, v) = upper_corner(ROD_FILLET);
+    let (dx, dy) = (v.0 - c.0, v.1 - c.1);
+    let n = dx.hypot(dy);
+    let across = (c.0 + ROD_FILLET * dx / n, c.1 + ROD_FILLET * dy / n, 0.003);
+    let inside = (0.297, 0.395, 0.002);
+    for (what, [p, q]) in [
+        ("inside first", [inside, across]),
+        ("across first", [across, inside]),
+    ] {
+        let body = extruded(
+            SketchPlane::xy(),
+            vec![d_loop(), bore(p.0, p.1, p.2), bore(q.0, q.1, q.2)],
+            ROD_L,
+            tol(),
+        );
+        assert_cap_ring_refusal(&body, what);
+    }
 }
 
 /// **A bore straddling the cut-off arc refuses**: centred ON the arc,

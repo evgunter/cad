@@ -128,7 +128,6 @@
 # calls no door — reads `is_certified()` and `lo()`/`hi()` on an
 # `Interval` it was handed, with `Real` in scope — never names the
 # module, so it is outside the key by construction. Today:
-# `geom/src/curves/nurbs.rs`'s `rational_span_bound`;
 # `geom-brep/src/ssi.rs`'s `pcurve_windows` and its twin in
 # `geom-brep/src/ssi/certify.rs`'s `probe_tube_chart`, each refusing a
 # span-window hull by `!is_certified()` with `Real` in scope, where an

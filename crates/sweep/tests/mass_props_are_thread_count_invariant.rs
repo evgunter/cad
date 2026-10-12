@@ -534,9 +534,12 @@ fn digest() -> String {
 /// at ε = 1e-9 equals the pre-4803 head's. The split is deterministic:
 /// 1 and 4 threads, each run twice, read alike. A memoised meter's
 /// value is built by the first call on a carrier and shared by every
-/// later read, where each read used to build its own. That changes
-/// which nodes the early walk meets and freezes; which freeze cause
-/// each added count is, is not measured.
+/// later read, where each read used to build its own. The added counts
+/// are the memo crossing the session boundary: these bodies are built
+/// before their session, so the meter the session was served had been
+/// minted outside it and froze there as one unrecorded node, where a
+/// read inside the session expanded it. On the 4803 merge, computing
+/// the meter afresh inside a session alone restores 1060 / 1177.
 ///
 /// **Re-cut at all three ε when `props::quad`'s `de_boor` began
 /// evaluating a node inside its span as the window's blossom** (every
@@ -552,6 +555,40 @@ fn digest() -> String {
 ///   and `a` by 4, the pads by at most 1.2e-9 of themselves.
 ///
 /// Verdicts, refusals, the other rows and the sym-session counts are
+/// unchanged.
+///
+/// **Re-cut at all three ε when the speed meter's memo stopped serving
+/// a session** (`NurbsCurve3::speed_lower_bound` computes afresh while
+/// a symbolic session is installed, so a session never reads a meter
+/// minted before it). Only the two `validate_geometric` rows' `frozen`
+/// column moves, and up: `sym_arc_loft` 1067 → 1916 / 1065 → 1914 /
+/// 1066 → 1915 and `sym_thin_strip` 1182 → 2095 / 1181 → 2094 / 1181 →
+/// 2094 at ε = 1e-6 / 1e-9 / 1e-12. Decisions, `sz`, `num`, shapes,
+/// verdicts and every f64 row are unchanged. The column did not return
+/// to the pre-memo 1060 / 1177 because the meter itself changed while
+/// the memo hid it: computing it inside the session reads 1060 / 1177
+/// at ε = 1e-9 on the merges of PRs 4803, 4804, 4824 and 4849, and 1914
+/// / 2094 from the merge of PR 4834 on, whose one change to the meter
+/// chooses its arm on the weights' plain constants, so a carrier whose
+/// equal weights are not `Sym` literals takes the rational arm. By
+/// freeze cause at ε = 1e-9 on `sym_arc_loft` (freeze sites, so a node
+/// frozen twice counts twice), against the memo: term budget 1396 →
+/// 2465, degree budget 279 → 798, coefficient bound 0 → 154, unrecorded
+/// 434 → 424. All of the rise is in the contradiction checks of signs
+/// the numeric channel decided (54 → 1848 sites); the decisions' own
+/// discharges go 2055 → 1993. It is the rational meter's forms
+/// overflowing the session's budget.
+///
+/// **Re-cut at all three ε when the rational speed meter's refined scan
+/// was dropped** (PR 4860), which this digest first sees through the
+/// memo's session bypass above: PR 4869's re-cut was measured on a base
+/// without 4860, and 4860's own digest run was served the meter's memo
+/// inside the session, which hid the change. Only the two `validate_geometric` rows'
+/// `frozen` column moves, and down: `sym_arc_loft` 1916 → 1542 / 1914 →
+/// 1540 / 1915 → 1541 and `sym_thin_strip` 2095 → 1657 / 2094 → 1656 /
+/// 2094 → 1656 at ε = 1e-6 / 1e-9 / 1e-12. The in-session rational arm
+/// builds fewer forms, so fewer overflow the session's budget.
+/// Decisions, `sz`, `num`, shapes, verdicts and every f64 row are
 /// unchanged.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
