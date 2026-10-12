@@ -469,3 +469,132 @@ fn the_derived_route_certifies_a_line_and_refuses_a_circle_at_the_hull() {
         "a curved foot path's degree-1 image refuses at the hull: {got:?}"
     );
 }
+
+/// R1 review probes (PR 4900).
+mod r1_probes {
+    use super::*;
+    use geom_core::interval::Interval;
+    use geom_core::Real;
+
+    /// The circle's image with exact feet at every certificate sample
+    /// and a foot pushed `bow` in chart `u` midway between each pair,
+    /// interpolated at degree 3 through all of them on the carrier's
+    /// parameter.
+    fn bowed_image(carrier: &Curve3<f64>, (t0, t1): (f64, f64), bow: f64) -> Arc<NurbsCurve2<f64>> {
+        let n = geom_brep::CERT_SAMPLES;
+        let mut fracs = Vec::new();
+        let mut feet = Vec::new();
+        let foot = |t: f64| {
+            let p = carrier.eval(t);
+            Point2::new(wall_u(p.y.atan2(p.x)), p.z)
+        };
+        for i in 0..n {
+            let f = f64::from(i) / f64::from(n - 1);
+            let t = geom_brep::certify::sample_param(t0, t1, i);
+            fracs.push(f);
+            feet.push(foot(t));
+            if i + 1 < n {
+                let fm = (f64::from(i) + 0.5) / f64::from(n - 1);
+                let mut q = foot(t0 + (t1 - t0) * fm);
+                q.x += bow;
+                fracs.push(fm);
+                feet.push(q);
+            }
+        }
+        let fit = NurbsCurve2::<f64>::interpolate_with_params(&feet, 3, &fracs).expect("fit");
+        Arc::new(fit.on_domain(t0, t1).expect("domain"))
+    }
+
+    fn certify_at_interval(
+        image: &NurbsCurve2<f64>,
+        span: (f64, f64),
+        carrier: &Curve3<f64>,
+        wall: &Surface<f64>,
+    ) -> Result<geom_brep::PcurveCache<Interval>, PcurveCertifyError> {
+        let lift = Interval::from_f64;
+        PcurveCache::certify_general(
+            Arc::new(image.map_scalar(lift)),
+            lift(span.0),
+            lift(span.1),
+            &carrier.map_scalar(lift),
+            &wall.map_scalar(lift),
+            band(),
+            Some(FittedLane::<Interval>::certified()),
+        )
+    }
+
+    /// Correct images certify at Interval too; a bow between samples
+    /// (exact at every sample) refuses at the hull at f64 and Interval,
+    /// for a circle and an ellipse.
+    #[test]
+    fn closed_form_carriers_bowed_between_samples_refuse_at_every_scalar() {
+        let wall = quarter_cylinder_wall();
+        let span = (0.1, 1.4);
+        for (name, carrier) in [("circle", circle(0.5)), ("ellipse", ellipse())] {
+            let good = stated_image(&carrier, span);
+            let iv = certify_at_interval(&good, span, &carrier, &wall);
+            assert!(iv.is_ok(), "{name}: the exact image certifies at Interval: {iv:?}");
+            for bow in [1e-3, 1e-5, 1e-7] {
+                let bent = bowed_image(&carrier, span, bow);
+                let f = PcurveCache::certify_general(
+                    Arc::clone(&bent),
+                    span.0,
+                    span.1,
+                    &carrier,
+                    &wall,
+                    band(),
+                    Some(FittedLane::certified()),
+                );
+                assert!(
+                    matches!(f, Err(PcurveCertifyError::FittedCertificate { .. })),
+                    "{name} bow {bow}: f64 refuses at the hull (check 4), not earlier: {f:?}"
+                );
+                let i = certify_at_interval(&bent, span, &carrier, &wall);
+                assert!(
+                    matches!(i, Err(PcurveCertifyError::FittedCertificate { .. })),
+                    "{name} bow {bow}: Interval refuses at the hull: {i:?}"
+                );
+            }
+        }
+    }
+
+    /// The edge interval past the stated image's domain refuses (closed
+    /// form), and a reversed edge interval behaves.
+    #[test]
+    fn an_edge_past_the_image_refuses() {
+        let wall = quarter_cylinder_wall();
+        let c = circle(0.5);
+        let image = stated_image(&c, (0.1, 1.4));
+        let got = PcurveCache::certify_general(
+            image,
+            0.1,
+            1.45,
+            &c,
+            &wall,
+            band(),
+            Some(FittedLane::certified()),
+        );
+        assert!(got.is_err(), "{got:?}");
+    }
+}
+
+mod r1_probes_domain {
+    use super::*;
+    /// A spline carrier and its image on [0, 1], certified over an edge
+    /// interval reaching past both: does any check refuse?
+    #[test]
+    fn a_spline_edge_past_its_carrier_and_image() {
+        for (a, b) in [(0.0, 1.5), (-0.5, 1.0), (0.2, 0.8)] {
+            let got = PcurveCache::certify_general(
+                image(0.0),
+                a,
+                b,
+                &ruling(),
+                &quarter_cylinder_wall(),
+                band(),
+                Some(FittedLane::certified()),
+            );
+            println!("R1PROBE spline edge [{a}, {b}]: {:?}", got.as_ref().map(|c| c.certificate().envelope));
+        }
+    }
+}

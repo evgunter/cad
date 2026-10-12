@@ -466,3 +466,220 @@ mod tests {
         assert!(enclosing_net(&Curve3::<f64>::nurbs_placeholder(), &[0.0, 1.0]).is_none());
     }
 }
+
+/// R1 review probes (PR 4900): adversarial enclosures.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod r1_probes {
+    use super::enclosing_net;
+    use geom::Curve3;
+    use geom_core::interval::Interval;
+    use geom_core::{Bounds, Point3, Real, Vec3};
+
+    /// Checks that `net` (built for `carrier_i`) contains `carrier_f`
+    /// at a dense sample of every span; `Ok(false)` when there is no net.
+    fn check<T: geom_core::CertifiedBounds + geom_core::spline::SpanLocate>(
+        carrier_i: &Curve3<T>,
+        carriers_f: &[Curve3<f64>],
+        breaks: &[f64],
+    ) -> Result<bool, String> {
+        let Some(net) = enclosing_net(carrier_i, breaks) else {
+            return Ok(false);
+        };
+        let p = net.knots.degree();
+        for (k, pair) in breaks.windows(2).enumerate() {
+            for j in 0..=200 {
+                let s = f64::from(j) / 200.0;
+                let t = pair[0] + (pair[1] - pair[0]) * s;
+                for cf in carriers_f {
+                    let c = cf.eval(t);
+                    for (d, want) in [c.x, c.y, c.z].into_iter().enumerate() {
+                        let ctl = &net.coords[d][k * p..=k * p + p];
+                        let si = Interval::from_f64(s);
+                        let one = Interval::one();
+                        let binom = |i: usize| {
+                            (0..i).fold(1.0, |acc, q| acc * (p - q) as f64 / (q + 1) as f64)
+                        };
+                        let val = ctl.iter().enumerate().fold(Interval::zero(), |acc, (i, b)| {
+                            acc + *b
+                                * Interval::from_f64(binom(i))
+                                * si.powi(i32::try_from(i).unwrap())
+                                * (one - si).powi(i32::try_from(p - i).unwrap())
+                        });
+                        let slack = 1e-13 * (1.0 + want.abs());
+                        if !(val.lo() - slack <= want && want <= val.hi() + slack) {
+                            return Err(format!(
+                                "span {k} [{}, {}] s={s} ch {d}: {want} outside [{}, {}]",
+                                pair[0],
+                                pair[1],
+                                val.lo(),
+                                val.hi()
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+        Ok(true)
+    }
+
+    fn grid(a: f64, b: f64, n: u32) -> Vec<f64> {
+        (0..=n).map(|i| a + (b - a) * f64::from(i) / f64::from(n)).collect()
+    }
+
+    struct Lcg(u64);
+    impl Lcg {
+        fn next(&mut self) -> f64 {
+            self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            ((self.0 >> 11) as f64) / ((1u64 << 53) as f64)
+        }
+        fn range(&mut self, a: f64, b: f64) -> f64 {
+            a + (b - a) * self.next()
+        }
+    }
+
+    fn spiric(r_major: f64, r_minor: f64, d: f64) -> Curve3<f64> {
+        Curve3::Spiric {
+            center: Point3::new(0.1, -0.3, 0.2),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            major_radius: r_major,
+            minor_radius: r_minor,
+            offset: d,
+        }
+    }
+
+    /// A narrow-neck spiric (sqrt argument ~3e-3 at t = π), spans
+    /// straddling the neck at several widths, both offset signs.
+    #[test]
+    fn narrow_neck_spiric_is_enclosed_or_refused() {
+        let mut nets = 0;
+        for d in [1.499, -1.499, 1.4999, 1.3, -0.2] {
+            let c = spiric(2.0, 0.5, d);
+            for n in [1u32, 2, 3, 5, 8, 17, 64, 257] {
+                for (a, b) in [(0.0, std::f64::consts::TAU), (2.9, 3.4), (-3.0, 3.0), (3.1, 3.2)] {
+                    match check(&c, std::slice::from_ref(&c), &grid(a, b, n)) {
+                        Ok(true) => nets += 1,
+                        Ok(false) => {}
+                        Err(e) => panic!("spiric d={d} n={n} [{a},{b}]: {e}"),
+                    }
+                }
+            }
+        }
+        assert!(nets > 20, "most configurations produce a net: {nets}");
+    }
+
+    /// Random carriers of every curved kind over random break lists,
+    /// including far-from-origin parameters and non-unit frames.
+    #[test]
+    fn random_closed_form_carriers_are_enclosed() {
+        let mut r = Lcg(0x4900);
+        let mut nets = 0;
+        for _ in 0..300 {
+            let center = Point3::new(r.range(-5.0, 5.0), r.range(-5.0, 5.0), r.range(-5.0, 5.0));
+            let axis = Vec3::new(r.range(-1.0, 1.0), r.range(-1.0, 1.0), r.range(-1.0, 1.0));
+            let u_ref = Vec3::new(r.range(-1.0, 1.0), r.range(-1.0, 1.0), r.range(-1.0, 1.0));
+            let kind = (r.next() * 3.0) as u32;
+            let c = match kind {
+                0 => Curve3::Circle { center, axis, radius: r.range(0.01, 10.0), u_ref },
+                1 => Curve3::Ellipse {
+                    center,
+                    axis,
+                    major: r.range(0.01, 10.0),
+                    minor: r.range(0.01, 10.0),
+                    u_ref,
+                },
+                _ => {
+                    let rmaj = r.range(0.5, 5.0);
+                    let rmin = r.range(0.05, rmaj * 0.95);
+                    let d = r.range(-(rmaj - rmin), rmaj - rmin) * 0.999;
+                    Curve3::Spiric {
+                        center,
+                        axis,
+                        u_ref,
+                        major_radius: rmaj,
+                        minor_radius: rmin,
+                        offset: d,
+                    }
+                }
+            };
+            let a = r.range(-50.0, 50.0);
+            let b = a + r.range(1e-6, 8.0);
+            let n = 1 + (r.next() * 12.0) as u32;
+            let mut breaks = grid(a, b, n);
+            // jitter interior breaks
+            for x in breaks.iter_mut().skip(1).take(n.saturating_sub(1) as usize) {
+                *x += (r.next() - 0.5) * (b - a) / f64::from(n) * 0.5;
+            }
+            match check(&c, std::slice::from_ref(&c), &breaks) {
+                Ok(true) => nets += 1,
+                Ok(false) => {}
+                Err(e) => panic!("{c:?} breaks {breaks:?}: {e}"),
+            }
+        }
+        assert!(nets > 200, "nets {nets}");
+    }
+
+    /// An Interval carrier with fat fields: the net encloses every
+    /// corner carrier.
+    #[test]
+    fn a_fat_interval_carrier_encloses_its_members() {
+        let iv = |a: f64, b: f64| Interval::from_bounds(a, b);
+        let ci = Curve3::<Interval>::Circle {
+            center: Point3::new(iv(0.1, 0.1001), iv(0.2, 0.2), iv(0.0, 1e-4)),
+            axis: Vec3::new(iv(0.0, 0.0), iv(0.0, 0.0), iv(1.0, 1.0)),
+            radius: iv(0.8, 0.8003),
+            u_ref: Vec3::new(iv(1.0, 1.0), iv(0.0, 1e-4), iv(0.0, 0.0)),
+        };
+        let mut members = Vec::new();
+        for cx in [0.1, 0.1001] {
+            for cz in [0.0, 1e-4] {
+                for rad in [0.8, 0.8003] {
+                    for uy in [0.0, 1e-4] {
+                        members.push(Curve3::Circle {
+                            center: Point3::new(cx, 0.2, cz),
+                            axis: Vec3::new(0.0, 0.0, 1.0),
+                            radius: rad,
+                            u_ref: Vec3::new(1.0, uy, 0.0),
+                        });
+                    }
+                }
+            }
+        }
+        assert_eq!(check(&ci, &members, &grid(-1.0, 5.5, 7)), Ok(true));
+        let si = Curve3::<Interval>::Spiric {
+            center: Point3::new(iv(0.0, 0.0), iv(0.0, 0.0), iv(0.0, 0.0)),
+            axis: Vec3::new(iv(0.0, 0.0), iv(0.0, 0.0), iv(1.0, 1.0)),
+            u_ref: Vec3::new(iv(1.0, 1.0), iv(0.0, 0.0), iv(0.0, 0.0)),
+            major_radius: iv(2.0, 2.001),
+            minor_radius: iv(0.5, 0.5005),
+            offset: iv(1.2, 1.2004),
+        };
+        let mut sm = Vec::new();
+        for a in [2.0, 2.001] {
+            for b in [0.5, 0.5005] {
+                for d in [1.2, 1.2004] {
+                    sm.push(spiric(a, b, d));
+                }
+            }
+        }
+        // shift: probe spiric() has a non-zero centre; rebuild members at origin
+        let sm: Vec<_> = sm
+            .into_iter()
+            .map(|c| match c {
+                Curve3::Spiric { axis, u_ref, major_radius, minor_radius, offset, .. } => {
+                    Curve3::Spiric {
+                        center: Point3::new(0.0, 0.0, 0.0),
+                        axis,
+                        u_ref,
+                        major_radius,
+                        minor_radius,
+                        offset,
+                    }
+                }
+                other => other,
+            })
+            .collect();
+        assert_eq!(check(&si, &sm, &grid(-3.0, 3.0, 9)), Ok(true));
+    }
+}
