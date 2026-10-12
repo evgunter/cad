@@ -1,14 +1,26 @@
 ---
 id: a-non-isosceles-turn-overruns-past-the-mitre
 kind: issue
-title: blend: two requested edges at a non-isosceles trivalent corner refuse TURN_NOT_ISOSCELES, where Ev's ruling builds the mitre plus one short overrun curve
+title: blend: two requested edges at a non-isosceles trivalent corner refuse TURN_OVERRUN, where Ev's ruling builds the mitre plus one short overrun curve
 status: open
 opened: 2026-10-07
 priority: P2
 cost: H
-design: true
 ---
 
+
+## Ruled (Ev, PR 4245, 2026-10-12)
+
+"this design sounds good!" — after a conditional yes (2026-10-08) on the
+limits near isosceles and at the T-joint, consistency with other CAD and
+with the design principles, which the orchestrator checked numerically on
+the PR (with the box-corner limit corrected after PR 4844's reviews: the
+chamfer's chord is the gap times a corner-fixed ratio, both quadratic at a
+box corner). The design is `crates/sweep/README.md`'s run-out paragraph:
+the far band `k` is cut off past the mitre by the other band's face of L,
+decided on the gap and the chord. Fork-log row 121. Build order: (1) the
+verdict and its coincidence record (PR 4844); (2) the chamfer's overrun;
+(3) the fillet's overrun.
 
 Split from `a-plane-plane-blend-cannot-end-at-an-unrequested-corner` at its
 step 4 (PR 4209), as Ev's PR 4085 ruling directs ("step 5: the non-isosceles
@@ -20,18 +32,17 @@ so nothing is left to delete.
 ## What refuses today
 
 Two requested edges at a trivalent plane–plane vertex whose third edge L is
-unrequested build the mitre only where `fillet3_turn_isosceles` reads the
-trihedron isosceles (`crates/sweep/src/blend/battery.rs` `turn_at`). The
-margin is the larger of the levered face-angle cosine difference and the
-gap between the two bands' feet on L. A definite verdict refuses
-`UnsupportedRunOut { TURN_NOT_ISOSCELES }`.
+unrequested build the mitre only where the two bands' feet on L are one
+point (`crates/sweep/src/blend/battery.rs` `turn_at`, the gap and the
+overrun chord both Zero; step 1 below). Feet definitely apart refuse
+`UnsupportedRunOut { TURN_OVERRUN }` at the far band's edge.
 
 Users meet this at:
 - the bracket's section-face rims (tour wall 3, `demos/tour/src/bracket.rs`):
   90° at the cap chord against 45° or 135° at the section edge;
 - the sheared box's supplementary corner (φ, π−φ), where a chamfer's two
-  feet coincide on L but the face angles differ (pinned in
-  `band_planar_mitre.rs`);
+  feet coincide on L, so the chamfer mitres (step 1) and the fillet
+  overruns (pinned in `band_planar_mitre.rs`);
 - the leaning trapezoid prism (`common::operands::leaning_turn`).
 
 ## The ruling
@@ -270,3 +281,81 @@ Unsure: the bracket's corners are read from its closed form, not built
 (the tour is outside `sweep`'s tests). Which requested edge counts as
 "1" at a body's corner is the order of `topo::query::all_edges`; the
 tables name the faces as well, so the rows read without it.
+
+## Step 1 — the verdict and its record (PR on `band/turn-overrun-verdict`)
+
+`fillet3_turn_isosceles` (the levered face-angle cosines against the
+feet's distance) is gone. `turn_at` reads two lengths from the links
+alone (`turn_reading`), both signed positive where the first link's foot
+on `L` is further:
+- `fillet3_turn_feet_gap`: `(y₁ − y₂)·L̂`, each foot its trimline on its
+  face of `L` met with `L`;
+- `fillet3_turn_overrun_chord`: `|p_k − q_j|`, where `q_j` is band `j`'s
+  trimline on `Fⱼ` met with the mitre's plane (band `k`'s plane for a
+  chamfer; for a fillet the plane through the axes' crossing, normal
+  `e₁ − e₂`). A Zero gap reads the larger of the two bands' chords.
+
+`turn_verdict` classifies the gap, then the chord on the side the gap's
+sign picks. Both Zero: the mitre, recorded as
+`Relation::CommonFoot` (renamed from `EqualAngles`; the margin the gap's
+`jointly` the chord's). Both definite: `UnsupportedRunOut { at: Edge(far),
+TURN_OVERRUN }` (renamed from `TURN_NOT_ISOSCELES`), naming the far band;
+the side is the other band's face of `L`. A reading in band escalates as
+itself; two readings decided on different sides of the band escalate
+through the funnel's straddle door as `fillet3_turn_feet`. All three share
+`FILLET3_TURN_RECOURSE`, which offers the two ends that build today (the
+feet meeting, or `L` requested too for the patch); its middle leg, feet
+clearly apart, joins it when step 2 builds the overrun.
+
+**What moved.** The sheared box's supplementary chamfer now builds (tier
+3, naming total, ΔV the two chamfer half-spaces' to 1e-9, its
+`CommonFoot` row recorded). Its fillet overruns and refuses. Nothing
+that built before refuses: every mitre row in `band_planar_mitre` passes
+unchanged. The concave supplementary corner (the sheared box cut up
+into a block) reads the convex one's readings and builds its chamfer too.
+At the door the supplementary row is unproven, as the box's
+(`coincidence_door::a_supplementary_chamfer_turn_is_recorded_unproven`):
+neither reading reduces at Sym.
+
+**Measured** (`crates/sweep/tests/band_turn_overrun_verdict.rs`,
+`d = r = 0.1`, band `(1e-9, 1e-8)`):
+- The readings equal closed forms to `1e-10` on all 294
+  corners of `φ₁, φ₂ ∈ 30°…150°` (20° steps) at `γ ∈ {60°, 90°, 120°}`,
+  both verbs. Every corner lies clear of the band: the chamfer mitres on
+  both lines (39), the fillet on the isosceles line (21), and every other
+  corner overruns, naming the band whose foot is further. A chamfer's
+  chord is held to the identity `chord = gap · sin φⱼ / sin θ` (the
+  triangle on the near face), which shares no construction with the
+  battery's.
+- Escalate band (skew from the coincidence, sampled from `1e-6°` at
+  six per decade): the fillet at the box corner and both verbs at
+  `(60°, 60° + skew)` already escalate at `1e-6°` and overrun from
+  `5e-6°…1e-5°`. At the box corner the chamfer's gap is `d·s²/2` in
+  the lean and its chord `√2` times it, so it mitres to `≈0.0068°` (the
+  chord's Zero edge), escalates, and overruns from `≈0.0256°` (the
+  gap's definite edge); the row brackets both edges within one step of
+  a 24-per-decade grid.
+- The needle: `e₁ = x̂`, `e₂` at `180° − ε` in the shared face, `L`
+  along `(0, 0.5, 1)`. The chamfer's gap closes as `ε²` and its chord as
+  `ε`: overrun at `1°` and `0.1°`, the gap in band at `0.03°`, and at
+  `0.01°` the gap Zero (3e-10) under a chord of 1.7e-6, which escalates
+  as the straddle. The gap alone would build a mitre there. No ε builds
+  for either verb. Below about `0.003°` the fixture's own Boolean
+  escalates.
+- `Interval` replays (the leaning box corner at four leans and the
+  sheared box's supplementary corner, both verbs): every reading's
+  enclosure holds the `f64` reading, under `1e-12` wide (measured
+  under `1e-13`), and the verdict at `Interval` is the `f64` one.
+
+**Unsure.** The straddle door's row (`fillet3_turn_feet`) is charged to
+neither reading's predicate, so the k-lint sees it as its own name. The
+bracket's corners are read from its closed form in `sweep`; the tour's
+wall 3 now pins `TURN_OVERRUN`.
+
+## Owed by step 2 (orchestrator, 2026-10-12)
+
+`FILLET3_TURN_RECOURSE` dropped its "move them clearly apart" leg in step
+1 because the overrun refuses today; the README's three-leg recourse is
+the ratified end state. When the chamfer's overrun builds, restore the leg
+for the chamfer (and its followability row), and make the README's
+"both definite builds the overrun" true per verb as each verb lands.

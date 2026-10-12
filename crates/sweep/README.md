@@ -117,7 +117,7 @@ the other chain is metered by what survives that chain's band, the other
 band's new surface is metered as a face (but a concave band's surface
 against a convex band's reach, whose removed material the concave region
 overlapped), and two chains that meet at a vertex are left to the corner
-predicate, or at a turn to the isosceles verdict and the mitre, where the
+predicate, or at a turn to the turn's verdict and the mitre, where the
 bands meet by construction.
 
 Consumers: an island standing in a filleted cavity, on one shell and as
@@ -307,21 +307,36 @@ stored kinds (plane, cylinder, line, circle, ellipse).
   band is cut off by the other band's support, the two regions overlap,
   and the bands meet along their intersection — a line for a chamfer, a
   planar ellipse for a fillet (two cylinders of one radius tangent to
-  the shared support, whose axes therefore meet). When the trihedron is
-  isosceles about the unrequested edge L — equal dihedrals at the two
-  requested edges, the same fact as equal face angles at the vertex —
-  the mitre runs from the trimlines' crossing on the shared face down to
-  L, and L ends there. Otherwise the band that reaches further is cut off
-  past the mitre by the other band's far support, one more short curve
-  down to L. Which holds is a margined verdict (`fillet3_turn_isosceles`,
-  the two face angles at the vertex compared, and the two bands' feet on
-  L): Zero builds
-  the first, definite the second, the sliver band refuses. A Zero
-  verdict is a coincidence decided from values, so the verdict records
-  it (`BatteryVerdict::coincidences`, D10), and `Blended::coincidences`
-  carries the rows to the document's coincidence door. No ball rests at a turn,
-  so the mitre is G0 between the bands; it never competes with the
-  patch, because the request count decides.
+  the shared support, whose axes therefore meet). When the two bands'
+  feet on the unrequested edge L coincide, the mitre runs from the
+  trimlines' crossing on the shared face down to L, and L ends there.
+  For a fillet that is the isosceles trihedron: equal dihedrals at the
+  two requested edges, the same fact as equal face angles at the vertex.
+  A chamfer's foot lies `d / sin φ` along L, so its feet also coincide at
+  supplementary face angles. Otherwise the band whose foot is further,
+  `k`, is cut off past the mitre by the other band's face of L. This is
+  the OVERRUN: band `k`'s own cut-off at that face (same carrier, line or
+  circle or ellipse picked as for any cut-off, and same sliver), running
+  from the mitre's end on the other band's trimline down to `k`'s foot on
+  L. Every vertex there is trivalent, and the region that face loses
+  beyond the other band's strip is metered as band `k`'s cut-off sliver
+  (arm (c)). Which holds is decided on two closed-form readings, both
+  per verb and both signed by which foot is further: the gap between
+  the feet on L, and the overrun's chord from the mitre's end to the far
+  foot, which is the one new short edge. Neither alone suffices for a
+  chamfer: its chord is the gap times a ratio the corner fixes, at least
+  sin φ of the near band's face angle but unbounded as the turn flattens
+  toward a T, where a gap in band can carry a definite chord. Both Zero
+  builds the mitre on L; both definite builds the overrun on the side
+  the sign picks; anything else escalates, with a recourse that makes
+  the feet meet (equal, or for a chamfer supplementary, face angles),
+  moves them clearly apart (a larger setback, a more asymmetric corner),
+  or requests L too for the patch. A Zero verdict is a coincidence
+  decided from values, the two feet being one point, so the verdict
+  records it (`BatteryVerdict::coincidences`, D10), and
+  `Blended::coincidences` carries the rows to the document's coincidence
+  door. No ball rests at a turn, so the mitre is G0 between the bands;
+  it never competes with the patch, because the request count decides.
 
 Chain G1 (predicate 4) is a classifier at a junction of two plane–plane
 links: Zero, one band through a joint; definite, two chain ends at a
@@ -349,10 +364,8 @@ rather than on a rim edge (a band running into a wall or a step, and the
 inner corner of an L-shaped rim, where the shared face's sector is
 reflex); two cut-offs at the two ends of one rim whose feet on it cross
 or coincide, metered before any mutation by `fillet3_cut_off_feet`
-(feet apart only within the band escalate); a turn whose trihedron
-`fillet3_turn_isosceles` decides definitely not isosceles
-(`TURN_NOT_ISOSCELES`), which includes a chamfer at supplementary face
-angles, whose two feet on L coincide; an end vertex
+(feet apart only within the band escalate); an overrun's far foot past
+L's far end, or inside a face, as for any cut-off; an end vertex
 of valence other than three. A vertex whose three edges do not round
 one way refuses `UnsupportedCorner { MixedConvexity }` whatever the
 request names there: an edge cut off where its unrequested edges round
@@ -366,11 +379,17 @@ A turn adds two roles, keyed by the vertex the bands end at — a
 trivalent vertex has at most one turn, and the request fixes its edges:
 `Mitre { vertex }` for the edge where the bands meet, and
 `TurnFoot { vertex }` for the point where L ends, one name whether the
-trihedron is isosceles or not. In the non-isosceles case the extra
-curve is that band's `EndArc` and its end `FootVertex`; both resolve
-`Vanished` at equality. In the isosceles case the turn foot has four
-edges, so blending L in a later call refuses, and the recourse is to
-request it in the same call, which builds the patch.
+feet coincide or not. Where they stand apart the extra curve is that
+band's `EndArc` and its end `FootVertex`; both resolve
+`Vanished` when the feet coincide, and an edit that carries the corner
+across a coincidence moves them to the other band. Where the feet
+coincide the turn foot has four edges, so blending L in a later call
+refuses. At an overrun the turn foot is trivalent and L's later band
+ends in band `k`'s face: after a fillet that face is curved and refuses
+as one; after a chamfer it builds only where L's foot lands on the
+overrun edge, which takes a much smaller second setback. Every such
+refusal's recourse is to request L in the same call, which builds the
+patch.
 
 **What IS built beside it is a different termination — the ruled
 band's TRANSVERSE CUT-OFF (FILLET-H7, Ev's ruling on PR 1736).** A

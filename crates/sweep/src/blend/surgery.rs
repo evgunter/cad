@@ -208,8 +208,7 @@ use geom::Curve3;
 use geom::Surface;
 use geom::curves::boxes;
 use geom_brep::{
-    EdgeCurveSpec, EdgeDescriptionSpec, MustCarryDescription, MustCarryRefusal, SurfacePair,
-    edge_extent, must_carry_over_edge,
+    EdgeCurveSpec, EdgeDescriptionSpec, SmoothJoin, SurfacePair, must_carry_description,
 };
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Vec3};
 use topo::{
@@ -5355,16 +5354,11 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
         // side — and a transverse station refutes this branch's
         // smooth premise, refused as the invariant it breaks.
         let witness = curve.mid_point(t0, t1);
-        let verdict = {
-            let (Some(surf1), Some(surf2)) = (body.get_surface(s1), body.get_surface(s2)) else {
-                return Err(not_intact(
-                    EntityId::Edge(edge),
-                    "a described edge's two surfaces",
-                ));
-            };
-            let extent = edge_extent(&curve, t0, t1, p0.distance(p1));
-            let (_, [sa, sb]) = SurfacePair::sorted(s1, surf1, s2, surf2);
-            must_carry_over_edge(sa, sb, &curve, t0, t1, extent, band)
+        let (Some(surf1), Some(surf2)) = (body.get_surface(s1), body.get_surface(s2)) else {
+            return Err(not_intact(
+                EntityId::Edge(edge),
+                "a described edge's two surfaces",
+            ));
         };
         // In-band: a station certifiable as neither — a band a few K·ε
         // in radius, or a corner arc whose extent is the lever —
@@ -5379,26 +5373,20 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
         // contradicting its own routing, announced rather than
         // repaired by storing a description the routing did not
         // choose.
-        let refused = |refusal| match refusal {
-            MustCarryRefusal::InBand(escalation) => {
-                let (reading, source) = topo::DihedralReading::of_must_carry(escalation);
-                BlendError::Escalated {
-                    site: BlendSite::Link { edge: link },
-                    decision: BlendDecision::of_contact(reading),
-                    source,
-                }
-            }
-            MustCarryRefusal::Refuted => BlendError::SurgeryInvariant {
-                at: EntityId::Edge(edge),
-                detail: "a contact edge routed as a smooth join reads definitely \
-                         transverse at a certification station",
-            },
+        let escalated = |reading, source| BlendError::Escalated {
+            site: BlendSite::Link { edge: link },
+            decision: BlendDecision::of_contact(reading),
+            source,
         };
-        match verdict
-            .description(SurfacePair::new(s1, s2), witness)
-            .map_err(refused)?
-        {
-            MustCarryDescription::Intrinsic(description) => description,
+        must_carry_description(
+            SmoothJoin {
+                surfaces: [(s1, surf1), (s2, surf2)],
+                carrier: &curve,
+                interval: (t0, t1),
+                chord: p0.distance(p1),
+                witness,
+            },
+            band,
             // No intrinsic tangency is demanded (a zero-side
             // station, or an all-positive pair outside the
             // certificate's lane), so the description stays
@@ -5426,8 +5414,17 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
             // the door derives it — `geom_brep::chart_pcurve` images a
             // ruling `Line` in a `Cone`'s chart as readily as in a
             // plane's. No arm the battery admits mints such a pair.
-            MustCarryDescription::Conventional => EdgeDescriptionSpec::chart(s1),
-        }
+            || s1,
+            escalated,
+            escalated,
+            || BlendError::SurgeryInvariant {
+                at: EntityId::Edge(edge),
+                detail: "a contact edge routed as a smooth join reads definitely transverse at \
+                         a certification station",
+            },
+            |chart| unreachable!("{chart:?} is `he_plus`'s surface, one of the edge's pair"),
+        )?
+        .spec()
     };
     body.set_edge_curve(
         edge,
