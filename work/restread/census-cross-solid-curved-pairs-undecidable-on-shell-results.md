@@ -240,6 +240,25 @@ touch are complete since FLUSH's `an-apex-edge-…` (PR on
 `flush/apex-edge-in-face-plane`): the bound records plus the apex
 edge's span against the face (or the collinear edge, `quarter`).
 
+## 2026-10-12: a tangent touch's union reaches it (`contacthold/same-side-tangent-touch`)
+
+Ev's ruling on `[ev]` PR 4723 makes the union of two operands that
+touch only along a tangent line a two-solid `Assembly`, and that union
+now builds. Its 3′ pass on its own records refuses only with
+`CensusUndecidable` (`CurvedWithinReach` on the face pairs, then the
+solid pair). Three fixtures show it:
+
+- two discs kissing externally;
+- two externally tangent upright cylinders;
+- PR 4704's `sameside-corner` quarter round on a slab.
+
+`crates/sweep/tests/common/touch_union.rs` admits exactly that
+refusal (`CurvedWithinReach` on face pairs across the two solids, and
+the `Unexamined` solid pair it leaves) and no other finding, and cites
+this row. PR 4781's review fixtures add cylinders of unequal radii and
+a box edge on a cylinder's ruling, which read the same. When this lane
+lands, that check can demand `Ok`.
+
 ## 2026-10-12 — lobes touching at a pinch (CONTACTHOLD)
 
 Pieces that touch at one point, where the touch is recorded, land here
@@ -258,3 +277,14 @@ probe `review_4765_curved_probes::probe_curved_pinch` (sweep), which
 was dropped once it had been read. The pairs meet at the pinch, so no
 separation clears them: the arm needs a contact read at a recorded
 pinch, not a sharper separation test.
+
+## 2026-10-12 — five more at the curved pinch (FLUSH)
+
+FLUSH's pinch-residue lane (branch `flush/pinch-residue`) made 15
+`curved_notch_pinch` lines build that refused `JoinDesync` on main.
+Five of the new bodies fail tier 3′ with `CensusUndecidable` alone,
+the signature above (the oracle's volume, tier 2, the certificate, no
+definite finding): `0 3 2 ba S`, `1 6 0 ba S`, `3 1 0 ba S`,
+`6 1 0 ab I`, `6 1 0 ba S`. Replay with `CURVED_POSE="i j k order op"
+cargo test -p sweep --release --test all curved_notch_pinch_one --
+--ignored --nocapture`.

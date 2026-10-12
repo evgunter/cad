@@ -2,10 +2,12 @@
 id: cone-incidence-decides-over-lever-toward-the-needle-and-the-flat
 kind: issue
 title: The cone's rim-incidence decides over-lever (1/sin α, 1/cos α) and the generator fix has no pinning row
-status: open
+status: closed
+pr: 4744
 opened: 2026-10-11
 priority: P3
 cost: E
+closed: 2026-10-12
 ---
 
 
