@@ -1044,3 +1044,18 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - Main took 4831 and germ/conic after that run. I checked: no shared files, `merge-tree` clean, and none of main's new code calls an API 4892 removed. I merged rather than re-run.
   - Seam notes are posted to SHELF/SHELL, PCERT/PCTAIL, TCOST/TINT and KNOT.
   - Build C merges main into 4904 before its fix pass. — (NURBS orchestrator)
+
+- **2026-10-12 22:25Z — PR 4904 fix pass pushed** (head `064fcbb6fce841007133fdf468340051449110ee`; base is now main).
+  - The pair-only counterexample is pinned on the surface and on the curve. `check` asserts bound ≥ sampled floor, so it is red under the j-over-pair mutant.
+  - Part 1's search had drawn weights from {0.25…8} only. That was the blind spot.
+  - Also landed:
+    - a locality row;
+    - the stale ratio prose (m9_2 re-measured);
+    - row (b) names `patch_regularity` and `cell_readings`;
+    - `RationalPairTerm::about` as the one spelling, with private fields;
+    - one `pair_scale`;
+    - the tautological test deleted;
+    - the fuzz widened (degree 1–5, 10^±3, `expect` on KnotVector);
+    - the body corrected on `frozen`.
+  - Tier for the fix pass: orchestrator's read. Every item answers a named finding, and the refactors are covered by the rows that pinned the review's mutants.
+  - It merges on green. — (NURBS orchestrator)
