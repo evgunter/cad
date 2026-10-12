@@ -497,16 +497,25 @@ impl ContactRecords {
             for (s, ((&body, list), confirm)) in
                 sides.iter().zip(&mut out).zip(&mut confirms).enumerate()
             {
+                // Each held image as the cell a record lands on, whether
+                // the op minted it, and whether it is a point: read before
+                // a conventional vertex becomes its closed edge.
                 let held = |i: usize| {
-                    let mut images: Vec<Cell> = Vec::new();
+                    let mut images: Vec<(Cell, bool, bool)> = Vec::new();
                     for c in lineage
                         .images(cells[i])
                         .into_iter()
                         .filter(|&c| holds(body, c))
                     {
+                        let is_minted = minted[i].contains(&c);
+                        let point = matches!(c, Cell::Vertex(_));
                         let c = conventional_edge(body, c);
-                        if !images.contains(&c) {
-                            images.push(c);
+                        match images.iter_mut().find(|(at, ..)| *at == c) {
+                            Some((_, m, p)) => {
+                                *m |= is_minted;
+                                *p |= point;
+                            }
+                            None => images.push((c, is_minted, point)),
                         }
                     }
                     images
@@ -517,8 +526,8 @@ impl ContactRecords {
                         held_by[i].push(s);
                     }
                 }
-                for &a in &images[0] {
-                    for &b in &images[1] {
+                for &(a, a_minted, a_point) in &images[0] {
+                    for &(b, b_minted, b_point) in &images[1] {
                         let pair = match Contact::new(body, a, b) {
                             Ok(pair) => pair,
                             Err(error) => {
@@ -536,12 +545,10 @@ impl ContactRecords {
                         })? {
                             continue;
                         }
-                        let at_a_point =
-                            matches!(a, Cell::Vertex(_)) || matches!(b, Cell::Vertex(_));
-                        if at_a_point
-                            && minted[0].contains(&a)
-                            && minted[1].contains(&b)
-                            && lineage.meeting() == crate::lineage::MintedMeeting::Refused
+                        if (a_point || b_point)
+                            && a_minted
+                            && b_minted
+                            && lineage.meeting() == crate::lineage::MintedBacking::Refused
                         {
                             return Err(CarryRefusal::MintedMeeting {
                                 record,
@@ -574,21 +581,15 @@ impl ContactRecords {
                 }
                 return Err(CarryRefusal::Pair { record, error });
             }
-            match held_by {
-                [ref x, ref y] if !x.is_empty() && !y.is_empty() => {
-                    return Err(CarryRefusal::Parted { record });
-                }
-                _ if removed => {}
-                [ref x, _] if x.is_empty() => {
+            if !held_by[0].is_empty() && !held_by[1].is_empty() {
+                return Err(CarryRefusal::Parted { record });
+            }
+            // A cell no side holds is covered only by its own removal.
+            for i in 0..2 {
+                if held_by[i].is_empty() && !fates[i].removes() {
                     return Err(CarryRefusal::Unmapped {
                         record,
-                        cell: cells[0],
-                    });
-                }
-                _ => {
-                    return Err(CarryRefusal::Unmapped {
-                        record,
-                        cell: cells[1],
+                        cell: cells[i],
                     });
                 }
             }

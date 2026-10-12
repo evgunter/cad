@@ -258,7 +258,7 @@ fn a_minted_pair_an_op_cannot_back_refuses() {
     let cut = split.lineage();
     let mut restated = topo::Lineage::new();
     for c in base.contacts.cell_pairs().flat_map(|(x, y)| [x, y]) {
-        restated = restated.with(c, cut.fate(c));
+        restated = restated.with(c, cut.fate(c)).expect("one fate per cell");
     }
     let one: ContactRecords = [base.contacts.rows()[ee as usize].clone()]
         .into_iter()
@@ -279,5 +279,46 @@ fn a_minted_pair_an_op_cannot_back_refuses() {
             })
         ),
         "{refused:?}"
+    );
+}
+
+/// **A lineage gap on one cell refuses, whatever the other cell lost.**
+/// The edge kiss's edge–edge record through a hand lineage: one edge
+/// divided with its remainder removed (its one piece itself), the other
+/// substituted by a cell the result does not hold, so the lineage does
+/// not cover it. D1: "a cell the lineage does not cover refuses". Red
+/// where the first cell's removal consumes the record.
+#[test]
+fn a_lineage_gap_beside_a_removal_refuses_unmapped() {
+    let a = box_of((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), "a");
+    let b = box_of((1.0, 2.0), (1.0, 2.0), (0.0, 1.0), "b");
+    let base = union_of(&a, &b);
+    let ee = record_of(&base.contacts, |k| matches!(k, ContactKind::EdgeEdge(..)));
+    let [x, y] = base.contacts.rows()[ee as usize].cells();
+    let one: ContactRecords = [base.contacts.rows()[ee as usize].clone()]
+        .into_iter()
+        .collect();
+    let gap = Cell::Edge(topo::EdgeKey::default());
+    let lineage = topo::Lineage::new()
+        .with(
+            x,
+            topo::Fate::Divided(topo::Division {
+                pieces: vec![x],
+                minted: vec![],
+                remainder: topo::Remainder::Removed,
+            }),
+        )
+        .and_then(|l| l.with(y, topo::Fate::Substituted(gap)))
+        .unwrap();
+    assert_eq!(
+        one.carried_through(
+            0,
+            &lineage,
+            &base.body,
+            band(),
+            Some(topo::RegionLane::certified()),
+        ),
+        Err(topo::CarryRefusal::Unmapped { record: 0, cell: y }),
+        "the uncovered cell refuses"
     );
 }

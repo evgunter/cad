@@ -321,46 +321,13 @@ fn a_touch_the_verb_creates_is_refused_at_rest() {
 /// keeps the record on the face's key, which the census refuses stale.
 #[test]
 fn a_rim_that_opens_under_a_resting_corner_consumes_its_record() {
-    let slab = box_of((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), "slab");
-    let tilted = common::mapped_cube(
-        |x, y, z| {
-            let (e1, e2, e3) = (
-                Vec3::new(0.9, 0.1, 0.3),
-                Vec3::new(-0.2, 0.8, 0.45),
-                Vec3::new(-0.3, -0.4, 0.85),
-            );
-            Point3::new(
-                2.0 + x * e1.x + y * e2.x + z * e3.x,
-                2.0 + x * e1.y + y * e2.y + z * e3.y,
-                1.0 + x * e1.z + y * e2.z + z * e3.z,
-            )
-        },
-        tol(),
-    );
-    let tilted = finished("the tilted cube", tilted, tol());
-    let base = match union(&tilted, &slab, tol()) {
-        Ok(BooleanResult::Body(r)) => r,
-        other => panic!("the union builds: {other:?}"),
-    };
+    let (base, top) = a_corner_resting_on_a_slab(2.0, 2.0);
     assert_eq!(
         base.contacts.vertex_face().count(),
         1,
         "{:?}",
         base.contacts
     );
-    assert_eq!(base.contacts.len(), 1, "{:?}", base.contacts);
-    let top = base
-        .body
-        .faces()
-        .find(|(_, f)| {
-            matches!(
-                base.body.get_surface(f.surface),
-                Some(Surface::Plane { origin, normal, .. })
-                    if normal.z.abs() == 1.0 && origin.z == 1.0
-            )
-        })
-        .map(|(k, _)| k)
-        .unwrap();
     let opened = topo::shell_open(&base.body, 0.1, &[top], tol()).expect("the slab opens");
     let carried = opened
         .carry_contacts(&base.contacts, band(), region())
@@ -370,6 +337,71 @@ fn a_rim_that_opens_under_a_resting_corner_consumes_its_record() {
         validate_pseudomanifold(&opened.body, &carried, tol()),
         Ok(()),
         "the corner touches nothing now"
+    );
+}
+
+/// A cube balanced on one corner at `(x, y, 1)` on the slab
+/// `[0, 4]² × [0, 1]`, and the slab's top face.
+fn a_corner_resting_on_a_slab(x: f64, y: f64) -> (BooleanBody<f64>, FaceKey) {
+    let slab = box_of((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), "slab");
+    let (e1, e2, e3) = (
+        Vec3::new(0.9, 0.1, 0.3),
+        Vec3::new(-0.2, 0.8, 0.45),
+        Vec3::new(-0.3, -0.4, 0.85),
+    );
+    let tilted = common::mapped_cube(
+        |u, v, w| {
+            Point3::new(
+                x + u * e1.x + v * e2.x + w * e3.x,
+                y + u * e1.y + v * e2.y + w * e3.y,
+                1.0 + u * e1.z + v * e2.z + w * e3.z,
+            )
+        },
+        tol(),
+    );
+    let tilted = finished("the tilted cube", tilted, tol());
+    let base = match union(&tilted, &slab, tol()) {
+        Ok(BooleanResult::Body(r)) => r,
+        other => panic!("the union builds: {other:?}"),
+    };
+    assert_eq!(base.contacts.len(), 1, "one rest: {:?}", base.contacts);
+    let top = face_at_z(&base.body, 1.0);
+    (base, top)
+}
+
+/// **A rest on the opening's boundary lands on the ring the rim minted.**
+/// The corner rests at `(0.1, 2, 1)`; opening the slab's top at
+/// thickness 0.1 puts the rim's inner edge, the ring, through that
+/// point. The ring is minted in the top's interior, so the vertex–face
+/// record lands on (corner, ring edge) and the result passes at rest.
+/// Red when the shell's division names no minted cell: the record then
+/// lands on no pair, is consumed under the removed opening, and the
+/// census finds the corner on the ring unrecorded.
+#[test]
+fn a_rest_on_the_openings_boundary_lands_on_the_ring() {
+    let (base, top) = a_corner_resting_on_a_slab(0.1, 2.0);
+    let opened = topo::shell_open(&base.body, 0.1, &[top], tol()).expect("the slab opens");
+    let carried = opened
+        .carry_contacts(&base.contacts, band(), region())
+        .unwrap();
+    let on_ring: Vec<_> = carried
+        .rows()
+        .iter()
+        .filter(|r| matches!(r.cells(), [Cell::Vertex(_), Cell::Edge(_)]))
+        .collect();
+    assert_eq!(on_ring.len(), 1, "the rest lands on the ring: {carried:?}");
+    assert_eq!(
+        on_ring[0].cites.iter().collect::<Vec<_>>(),
+        vec![Backing::Carried {
+            input: 0,
+            record: 0
+        }],
+        "citing the rest"
+    );
+    assert_eq!(
+        validate_pseudomanifold(&opened.body, &carried, tol()),
+        Ok(()),
+        "the corner on the ring is recorded"
     );
 }
 
@@ -466,7 +498,9 @@ fn a_record_whose_cells_map_to_one_cell_is_consumed() {
         .contacts
         .carried_through(
             0,
-            &topo::Lineage::new().with(b, topo::Fate::Substituted(a)),
+            &topo::Lineage::new()
+                .with(b, topo::Fate::Substituted(a))
+                .unwrap(),
             &base.body,
             band(),
             region(),
@@ -480,7 +514,9 @@ fn a_record_whose_cells_map_to_one_cell_is_consumed() {
     assert_eq!(
         faces.carried_through(
             0,
-            &topo::Lineage::new().with(Cell::Face(fb), topo::Fate::Substituted(Cell::Face(fa))),
+            &topo::Lineage::new()
+                .with(Cell::Face(fb), topo::Fate::Substituted(Cell::Face(fa)))
+                .unwrap(),
             &base.body,
             band(),
             region(),
