@@ -74,11 +74,11 @@ passes tier 3′ in all six ops with the pin flipped (`drops` removed).
 The row does not need INTENT stage 4: the records are discovered, not
 declared. Left for FUSE's orchestrator to close on the merge.
 
-## 2026-10-12, closed (FUSE, `fuse/records-read-the-piece`)
+## 2026-10-12, closed (FUSE, PR 4893)
 
 Fixed by FLUSH's PR 4650 (`boolean::ops::Descendants::holder`), now on
 main. At ea1088c5, `a_dangling_null_edge_holding_another_pairs_cut_builds_in_every_op`
 (`crates/topo/tests/union_flush_onto_edge_contact.rs`) passes 3′ in all
-six ops with no pin left. The door is the one `holder(face, rest)`
-read since `fuse/records-read-the-piece`, which also covers a vertex a
-later stage took.
+six ops with no pin left. Since PR 4893 the door is the one
+`holder(face, rest)` read, which also covers a vertex a later stage
+took.

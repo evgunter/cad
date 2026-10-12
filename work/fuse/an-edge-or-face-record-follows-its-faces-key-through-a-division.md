@@ -42,13 +42,13 @@ measured on main; then the same lineage read with this record kind's
 question: the live piece whose interior the edge's interior meets
 (for a face-face record, the pieces that still overlap).
 
-## 2026-10-12, closed as no path (FUSE, `fuse/records-read-the-piece`)
+## 2026-10-12, closed as no path (FUSE, PR 4893)
 
 No edge-face or face-face record reaches a divided face by key. The
 argument is structural:
 
 - **No carried kind.** `ContactRecords::carried`
-  (`crates/topo/src/boolean/mod.rs`) gives an edge-face or face-face
+  (`crates/topo/src/boolean/records.rs`) gives an edge-face or face-face
   record no carried kind; `OperandRecords` holds `vv`, the
   vertex-on-face rows, `ve` and `ee`. So `carry_rows`' `cell_rows`
   (`crates/topo/src/boolean/ops.rs`) holds edge-edge rows only: the
@@ -56,9 +56,10 @@ argument is structural:
   vertex-vertex, vertex-on-face and edge-edge), and the carried ones
   are `ee`. The loop never chases a face cell.
 - **Vertex-group pairs.** An edge-face pair a vertex group implies has
-  its face end from a vertex end the merge pruned. The merge's
-  substitution row names the group's kept face, which is live and
-  undivided after the merge, by construction.
+  its face end from a vertex end the merge pruned, or from the edge end
+  of a vertex-edge row whose edge the merge swallowed. Either way the
+  merge's substitution row names the group's kept face, which is live
+  and undivided after the merge, by construction.
 - **Spans.** `record_spans` mints edge-face records from the result's
   geometry, after the carry, so it reads no key.
 
@@ -73,4 +74,5 @@ star-prism scenes under four ops, it recorded 0 hits.
 The obligation moves to where the trigger is: WIRE's
 `a-boolean-drops-its-operands-curve-and-patch-records`, the row that
 would give an edge-face or face-face record a carried kind, now carries
-the line that its face read must go through the piece door.
+the line that its face read must land on the divided face's pieces, as
+`ContactRecords::carried_onto` / `landed_on_pieces` do (PR 4893).
