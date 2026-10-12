@@ -69,13 +69,15 @@ crates/geom-core/src/sym.rs	1	constant	x	the Real impl's own door: Sym::from_f64
 crates/geom/src/convention.rs	1	constant	band.zero()	the band's zero width, a tolerance
 crates/geom/src/curves/banded.rs	1	constant	l	a dropped term's structural zero, signed as its pivot
 crates/geom/src/curves/fit.rs	1	constant	degree as f64	the fit degree, a count
-crates/geom/src/curves/nurbs.rs	1	constant	active.len() as f64	a count of active basis functions
 crates/geom/src/curves/nurbs.rs	1	constant	binom	a binomial coefficient
-crates/geom/src/curves/nurbs.rs	1	constant	*wj	a piece-restriction weight sum (piece_weights: exact de Casteljau ratios of the meter's piece schedule)
+crates/geom/src/curves/nurbs.rs	2	constant	*wj	a piece-restriction weight sum (piece_weights: exact de Casteljau ratios of the meter's piece schedule)
 crates/geom/src/curves/nurbs.rs	1	constant	v	a value a knot operation brings in at the caller's f64 parameter (inserted)
 crates/geom/src/curves/nurbs.rs	1	constant	wj	a piece-restriction weight sum (piece_weights: exact de Casteljau ratios of the meter's piece schedule)
-crates/geom/src/curves/nurbs.rs	2	constant	p as f64	the degree
+crates/geom/src/curves/nurbs.rs	1	constant	p as f64	the degree
 crates/geom/src/curves/nurbs.rs	2	constant	<fn>	the placeholder's unit knots (Knots::lift), and a meter schedule point the refinement inserts (Knots::restructure)
+crates/geom/src/curves/nurbs.rs	1	constant	binomial(m, k)	a binomial coefficient (the rational piece assembly's product denominator)
+crates/geom/src/curves/nurbs.rs	1	constant	binomial(q, a) * binomial(p, b)	a product of binomial coefficients, an exact integer (the rational piece assembly's product weights)
+crates/geom/src/curves/nurbs.rs	1	constant	pts.len() as f64	a count of a span's active control points (span_centroid)
 crates/geom/src/surfaces/nurbs.rs	1	constant	v	a removal's reinsertion of a knot the surface does not hold: the caller's f64 parameter (unreachable: the removal took it from the surface)
 crates/geom/src/surfaces/nurbs.rs	3	constant	<fn>	the placeholder's unit knots, and a knot a column's plan inserts at the caller's f64 parameter (Column::through's fresh entry, twice)
 crates/geom/src/test_support/held_arc.rs	1	constant	m as f64	a sub-arc count

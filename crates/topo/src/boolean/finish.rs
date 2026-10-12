@@ -453,11 +453,13 @@ fn section_boundary<T: Decide>(
 /// picks its survivor. A vertex that several crossing pairs cut keeps
 /// a copy per pair, and the stretch's is the one on the section face's
 /// twin (`in_out`); where the twin passes several copies of an end,
-/// the stretch's ends are the two copies one edge of the twin joins.
-/// A vertex several runs of one pierce cut is that case; so are some
-/// near-tangent poses of a single run (a convex corner tilted 1e-6
-/// off an edge, in PR 4026's review), where the twin also passes
-/// several copies of an end. `held` is this operand's chord-split rows
+/// the stretch's ends are those of its own copy on the twin
+/// ([`twin_copy`]). A vertex several runs of one pierce cut is that
+/// case; so are some near-tangent poses of a single run (a convex
+/// corner tilted 1e-6 off an edge, in PR 4026's review), and a section
+/// face that passes one vertex twice (a curved wall's arc and a line
+/// between the same two points), where the twin also passes several
+/// copies of an end. `held` is this operand's chord-split rows
 /// and the other operand's vertices in result keys, for the held
 /// stretches (`DiscardRow::held`).
 #[allow(clippy::type_complexity)]
@@ -482,17 +484,6 @@ fn discarded<T: Decide>(
         Ok(section_boundary(body, face)?
             .into_iter()
             .map(|he| proven(&body.half_edges, he, EntityId::HalfEdge).start)
-            .collect())
-    };
-    let edges_of = |face: FaceKey| -> Result<BTreeSet<(VertexKey, VertexKey)>, BooleanError> {
-        Ok(section_boundary(body, face)?
-            .into_iter()
-            .map(|he| {
-                (
-                    proven(&body.half_edges, he, EntityId::HalfEdge).start,
-                    body.proven_half_edge_end(he),
-                )
-            })
             .collect())
     };
     let twin_of = |across: FaceKey| {
@@ -527,28 +518,31 @@ fn discarded<T: Decide>(
                 &twin_of(across).map_or_else(|| Ok(BTreeSet::new()), on_face)?,
             )))
         };
-    let kept_ends = |across: FaceKey, u, w| {
+    let kept_ends = |mate: HalfEdgeKey, u, w| {
+        let across = body
+            .face_of_half_edge(mate)
+            .ok_or_else(|| desync("a section half-edge has no face"))?;
         let (us, ws) = (kept_copies(u, across)?, kept_copies(w, across)?);
         if let (Some(ku), Some(kw)) = (one_kept(&us), one_kept(&ws)) {
             return Ok((ku, kw));
         }
-        // Several copies survive on the twin: a vertex several runs of
-        // one pierce cut, which the twin passes once per run. The
-        // stretch's kept ends are the two copies one edge of the twin
-        // joins.
-        let joined = twin_of(across).map_or_else(|| Ok(BTreeSet::new()), edges_of)?;
-        let ends: BTreeSet<(VertexKey, VertexKey)> = us
-            .iter()
-            .flat_map(|&(bu, ru)| ws.iter().map(move |&(bw, rw)| ((bu, bw), (ru, rw))))
-            .filter(|&((bu, bw), _)| joined.contains(&(bu, bw)) || joined.contains(&(bw, bu)))
-            .map(|(_, r)| r)
-            .collect();
-        match ends.first() {
-            Some(&e) if ends.len() == 1 => Ok(e),
-            _ => Err(desync(
-                "a section vertex's null-edge copies have not exactly one kept end",
-            )),
-        }
+        // Several copies survive on the twin, which passes an end more
+        // than once: the stretch's kept ends are its own copy's.
+        let refuse = || desync("a section vertex's null-edge copies have not exactly one kept end");
+        let twin = twin_of(across).ok_or_else(refuse)?;
+        let at = twin_copy(
+            (&section_loops(body, across)?, &section_loops(body, twin)?),
+            mate,
+            |he| proven(&body.half_edges, he, EntityId::HalfEdge).start,
+            |x, y| copy.of(x).contains(&y),
+        )
+        .ok_or_else(refuse)?;
+        let start = proven(&body.half_edges, at, EntityId::HalfEdge).start;
+        let end = body.proven_half_edge_end(at);
+        let kept = |b: VertexKey, of: &[(VertexKey, VertexKey)]| {
+            of.iter().find(|&&(k, _)| k == b).map(|&(_, r)| r)
+        };
+        kept(start, &us).zip(kept(end, &ws)).ok_or_else(refuse)
     };
     let kept_across = |f: FaceKey| sides.contains_key(f);
     let held = HeldInto {
@@ -587,6 +581,71 @@ fn discarded<T: Decide>(
     Ok(out)
 }
 
+/// The half-edge cycle of each loop of `face`, outer first: as
+/// [`section_boundary`], one list per loop.
+///
+/// # Panics
+///
+/// As [`section_boundary`].
+fn section_loops<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+) -> Result<Vec<Vec<HalfEdgeKey>>, BooleanError> {
+    let f = body.get_face(face).ok_or(BooleanError::JoinDesync {
+        what: "a section face no longer resolves",
+    })?;
+    Ok(body
+        .face_boundary_by_loop(face, f)
+        .map(|(_, members)| {
+            members
+                .into_iter()
+                .filter_map(|member| match member {
+                    BoundaryMember::Edge { he, .. } => Some(he),
+                    BoundaryMember::Isolated { .. } => None,
+                })
+                .collect::<Vec<_>>()
+        })
+        .filter(|cycle| !cycle.is_empty())
+        .collect())
+}
+
+/// **A section half-edge's copy on its twin**: `face` is the cycles of a
+/// section face's loops and `twin` its twin's, a null face's two role
+/// loops, which run one polygon antiparallel, each vertex of one a
+/// null-edge copy of the other's at the mirrored place (`copies`).
+/// Returns the twin half-edge at `he`'s mirrored place on the one twin
+/// loop that mirrors `he`'s loop, which runs between copies of `he`'s
+/// ends the other way; `None` where no twin loop mirrors it, or more
+/// than one mirror does.
+///
+/// The place, not the ends, says which copy it is: a face may pass one
+/// vertex twice (an arc and a line between the same two points), and
+/// then two twin half-edges join copies of the same two ends.
+fn twin_copy(
+    (face, twin): (&[Vec<HalfEdgeKey>], &[Vec<HalfEdgeKey>]),
+    he: HalfEdgeKey,
+    start: impl Fn(HalfEdgeKey) -> VertexKey,
+    copies: impl Fn(VertexKey, VertexKey) -> bool,
+) -> Option<HalfEdgeKey> {
+    let own = face.iter().find(|l| l.contains(&he))?;
+    let m = own.len();
+    let i = own.iter().position(|&h| h == he)?;
+    // A mirror `(t, s)`: the twin loop `t`'s vertex `j` copies `own`'s
+    // `s − j`.
+    let mut mirrors = twin.iter().filter(|t| t.len() == m).flat_map(|t| {
+        (0..m)
+            .filter(|&s| (0..m).all(|j| copies(start(own[(s + m - j) % m]), start(t[j]))))
+            .map(move |s| (t, s))
+    });
+    let (t, s) = mirrors.next()?;
+    if mirrors.next().is_some() {
+        return None;
+    }
+    // `he` runs `x_i → x_{i+1}`; its copy runs from `x_{i+1}`'s copy, at
+    // `j = s − i − 1`.
+    Some(t[(s + 2 * m - i - 1) % m])
+}
+
 /// **`section_boundary`: a stale section face refuses typed; a broken
 /// walk past one that resolves panics**, where it refused `JoinDesync`
 /// ("not walkable").
@@ -621,5 +680,118 @@ mod torn_hop_rows {
             &["the loop walk from", ROW_FOUR, OPERATORS_KEEP_LINKS],
             |b| section_boundary(b, face).map(|m| m.len()),
         );
+    }
+}
+
+/// **`twin_copy` reads a half-edge's copy off its place, not its ends.**
+/// Each twin is built by running each loop of the face backwards on fresh
+/// copies of its vertices (one per visit), each twin half-edge made as
+/// the copy of one face half-edge; the twin's cycles are then turned and
+/// their order changed, so the expected copy is known from the build.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod twin_copy_rows {
+    use super::twin_copy;
+    use crate::entity::{HalfEdgeKey, VertexKey};
+    use std::collections::BTreeMap;
+
+    /// A face's loops and its twin's, each half-edge's start, each copy
+    /// pair, and each face half-edge's copy.
+    #[derive(Default)]
+    struct Pair {
+        face: Vec<Vec<HalfEdgeKey>>,
+        twin: Vec<Vec<HalfEdgeKey>>,
+        start: BTreeMap<HalfEdgeKey, VertexKey>,
+        copies: Vec<(VertexKey, VertexKey)>,
+        copy_of: BTreeMap<HalfEdgeKey, HalfEdgeKey>,
+    }
+
+    /// `loops[l]` lists loop `l`'s vertices (equal labels are one vertex,
+    /// across loops too); twin loop `l` is turned by `turn[l]` places,
+    /// and the twin's loops come in reverse order.
+    fn pair(loops: &[&[usize]], turn: &[usize]) -> Pair {
+        let mut hk = slotmap::SlotMap::<HalfEdgeKey, ()>::with_key();
+        let mut vk = slotmap::SlotMap::<VertexKey, ()>::with_key();
+        let mut vertex: BTreeMap<usize, VertexKey> = BTreeMap::new();
+        let mut out = Pair::default();
+        for (l, labels) in loops.iter().enumerate() {
+            let m = labels.len();
+            let xs: Vec<VertexKey> = labels
+                .iter()
+                .map(|&x| *vertex.entry(x).or_insert_with(|| vk.insert(())))
+                .collect();
+            let face: Vec<HalfEdgeKey> = (0..m).map(|_| hk.insert(())).collect();
+            // One copy per visit, of the vertex the face visits there.
+            let ys: Vec<VertexKey> = (0..m).map(|_| vk.insert(())).collect();
+            for i in 0..m {
+                out.start.insert(face[i], xs[i]);
+                out.copies.push((xs[i], ys[i]));
+            }
+            // The face's `x_i → x_{i+1}`, backwards on copies: from the
+            // copy of visit `i + 1` to that of visit `i`.
+            let mut twin: Vec<HalfEdgeKey> = (0..m)
+                .rev()
+                .map(|i| {
+                    let t = hk.insert(());
+                    out.start.insert(t, ys[(i + 1) % m]);
+                    out.copy_of.insert(face[i], t);
+                    t
+                })
+                .collect();
+            twin.rotate_left(turn[l] % m);
+            out.face.push(face);
+            out.twin.push(twin);
+        }
+        out.twin.reverse();
+        out
+    }
+
+    impl Pair {
+        fn read(&self, he: HalfEdgeKey) -> Option<HalfEdgeKey> {
+            twin_copy(
+                (&self.face, &self.twin),
+                he,
+                |h| self.start[&h],
+                |x, y| self.copies.contains(&(x, y)),
+            )
+        }
+    }
+
+    /// A face `a b c d e d` passes `d` twice (a line `d → e` and an arc
+    /// `e → d` between the same points): each maps to its own copy, at
+    /// every turn of the twin, though both join a copy of `d` to the copy
+    /// of `e`. So does every other half-edge.
+    #[test]
+    fn a_face_passing_a_vertex_twice_maps_each_half_edge_to_its_own_copy() {
+        for turn in 0..6 {
+            let p = pair(&[&[0, 1, 2, 3, 4, 3]], &[turn]);
+            for &he in &p.face[0] {
+                assert_eq!(p.read(he), Some(p.copy_of[&he]), "turn {turn}");
+            }
+        }
+    }
+
+    /// A face with a ring: each half-edge, outer or ring, maps to its copy
+    /// on the twin loop that mirrors its own, the twin's loops in the
+    /// other order. Flattening the loops into one cycle misreads these.
+    #[test]
+    fn a_face_with_a_ring_maps_each_loop_onto_its_own_twin_loop() {
+        for (t0, t1) in [(0, 0), (2, 1), (5, 3)] {
+            let p = pair(&[&[0, 1, 2, 3, 4, 5], &[6, 7, 8, 9]], &[t0, t1]);
+            for he in p.face.iter().flatten() {
+                assert_eq!(p.read(*he), Some(p.copy_of[he]), "turns {t0} {t1}");
+            }
+        }
+    }
+
+    /// No single mirror: a loop `a b a b` aligns two ways, and a loop
+    /// whose twin loops are all of other lengths aligns none.
+    #[test]
+    fn a_loop_no_single_mirror_aligns_reads_none() {
+        let p = pair(&[&[0, 1, 0, 1]], &[0]);
+        assert_eq!(p.read(p.face[0][0]), None, "a symmetric loop");
+        let mut q = pair(&[&[0, 1, 2]], &[0]);
+        q.twin[0].pop();
+        assert_eq!(q.read(q.face[0][0]), None, "loops of two lengths");
     }
 }

@@ -795,6 +795,15 @@ where
         self.value.point_value()
     }
 
+    /// A constant only with a derivative of exactly zero: a value that
+    /// moves with the parameter is no constant, whatever its value.
+    fn plain_constant(self) -> Option<f64> {
+        if self.deriv.plain_constant()? != 0.0 {
+            return None;
+        }
+        self.value.plain_constant()
+    }
+
     fn split_projective<A: crate::spline::ProjectiveSplit<Self>>(arm: A) -> A::Out {
         T::split_projective(crate::spline::projective::DualArm(arm))
     }
