@@ -211,8 +211,9 @@ becomes that face's new outer boundary, so a ring carries through
 exactly when the trim CONTAINS it, metered before any mutation under
 `fillet3_ring_clearance` (`blend/surgery.rs`'s ring carry-through
 pass, which meters every ring of every touched support face against
-every blend trimline in closed form (a ring carrying a planar band's
-requested edge excepted), every other outer-boundary edge
+every blend trimline in closed form (but a plane–plane link's
+trimline, against which a ring carrying a requested edge is metered
+at the strip instead), every other outer-boundary edge
 of a closed rim's supports — one requested in the same call at its own
 trim — against that support's trim, and every edge a cut-off leaves
 on its end face, on either side, against the sliver it removes; every

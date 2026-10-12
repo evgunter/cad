@@ -69,7 +69,9 @@ use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Vec3};
 use topo::{Body, EdgeKey, EntityId, FaceBoxes, FaceKey, SurfaceKey, VertexKey};
 
 use super::arms::{chamfer_corner_patch, corner_ball, line_meet};
-use super::battery::{Chain, Convexity, Link, carrier_of, classified, outward};
+use super::battery::{
+    Chain, Convexity, Link, carrier_of, classified, face_clearance_margin, outward,
+};
 use super::surgery::not_intact;
 use super::{BlendDecision, BlendError, BlendKind, BlendSite, classify};
 
@@ -679,11 +681,13 @@ struct Reach<T: Real> {
     /// the torus, the strip, the corner ball, the patch plane).
     surface: Surface<T>,
     /// Per support, the region whose points of that support the band
-    /// replaces: for a link, within the chord from the edge to the
-    /// support's trimline of the edge itself, over the edge's own extent —
-    /// that is the support's strip, since the battery's support screen
-    /// refuses any other boundary feature of the face within the
-    /// setbacks; for a corner patch, its bounds but the supports' sides.
+    /// replaces: for a straight link, within the chord from the edge to
+    /// the support's trimline of the edge itself, on the trimline's side
+    /// of it, over the edge's own extent — that is the support's strip,
+    /// since nothing else of the face lies there ([`screened`]); for a
+    /// circular link, the disk of that chord about the edge in the
+    /// meridian sheet; for a corner patch, its bounds but the supports'
+    /// sides.
     replaces: Vec<(FaceKey, Vec<Bound<T>>)>,
     /// The bounds that confine `surface` to the patch the band mints,
     /// where they are not simply the reach's own but the band's
@@ -803,18 +807,27 @@ fn half_space<T: Decide + Bounds>(o: Point3<T>, n: Vec3<T>, inside: Point3<T>) -
     }
 }
 
-/// **The premise [`Reach::replaces`] stands on**: the battery's support
-/// screen, and behind it the surgery's closed-form strip meter for a
-/// feature between the screen's samples, refuse any boundary feature of
-/// a support within the band's setbacks, so the strip of `face` a
-/// link's band replaces holds no vertex of `face` but the request's own
-/// (`ends`). A vertex strictly inside it is those meters' broken
-/// promise, and nothing could be excused there.
+/// **The premise [`Reach::replaces`] stands on, metered**: the strip
+/// of `face` a link's band replaces holds no vertex of `face` but the
+/// request's own (`ends`). A vertex definitely inside it is a boundary
+/// feature of the support within the band's setback, and refuses as
+/// predicate 2 does ([`face_clearance_margin`]), its margin the
+/// vertex's depth inside the region: `gap − setback` where the side
+/// nearest it is the setback's. Most such features refuse before this: the
+/// battery's support screen reads one within the setbacks of a sample,
+/// on either side of the edge, and the surgery's closed-form strip
+/// meter one of a plane–plane link's planar support between the
+/// screen's samples. A ruled link's planar support has no strip meter,
+/// so a vertex there between the samples refuses here. A straight
+/// link's region lies on the trimline's side of the edge alone, so a
+/// feature across the edge's line, which the band never reaches, is
+/// clear.
 fn screened<T: Decide + Bounds>(
     body: &Body<T>,
     ends: &[VertexKey],
     face: FaceKey,
     strip: &[Bound<T>],
+    setback: T,
     band: Band,
 ) -> Result<(), BlendError> {
     let f = body
@@ -836,13 +849,9 @@ fn screened<T: Decide + Bounds>(
                 continue;
             }
             let p = point_of(body, v)?;
-            let inside = strip.iter().map(|b| b.at(p)).reduce(|m, g| m.max(g));
-            if inside.is_some_and(|g| g.hi() < -band.escalate()) {
-                return Err(BlendError::SurgeryInvariant {
-                    at: EntityId::Vertex(v),
-                    detail: "a support's vertex inside the strip its band replaces, which the \
-                             support screen refuses",
-                });
+            let depth = strip.iter().map(|b| b.at(p)).reduce(|m, g| m.max(g));
+            if let Some(g) = depth.filter(|g| g.hi() < -band.escalate()) {
+                face_clearance_margin(face, g, g + setback, false, band)?;
             }
         }
     }
@@ -1075,10 +1084,14 @@ fn straight_reach<T: Decide + Bounds>(
             .into_iter()
             .map(|(f, foot)| {
                 // Over the edge's own extent: past an end the face may go
-                // on (beyond a reflex end) where no band replaces it. The
-                // slab of twice the boxes' pad past each end holds the
-                // cells of the face's box that straddle its end and no
-                // more of the face than a sliver below the meter's reach.
+                // on (beyond a reflex end) where no band replaces it. And
+                // on the foot's side of the edge alone: across the edge's
+                // line the face may come back (a peninsula of its own
+                // cycle) where no band replaces it either. The slab of
+                // twice the boxes' pad past each end and back across the
+                // line holds the cells of the face's box that straddle
+                // them and no more of the face than a sliver below the
+                // meter's reach.
                 let chord = (foot - st.p).norm();
                 let slab = T::from_f64(2.0 * FaceBoxes::pad(band));
                 let (lo, hi) = (ends[0].0.min(ends[1].0), ends[0].0.max(ends[1].0));
@@ -1092,6 +1105,9 @@ fn straight_reach<T: Decide + Bounds>(
                     r: chord,
                     inside: true,
                 });
+                let off = foot - st.p;
+                let n = (off - tau * off.dot(tau)).normalize();
+                b.push(half_space(st.p - n * slab, n, foot));
                 (f, b)
             })
             .collect(),
@@ -1920,7 +1936,8 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
         r.skip.sort_unstable();
         r.skip.dedup();
         for (f, strip) in &r.replaces {
-            screened(body, &ends_all, *f, strip, band)?;
+            let foot = if *f == link.face_a { st.fa } else { st.fb };
+            screened(body, &ends_all, *f, strip, (foot - st.p).norm(), band)?;
         }
         reaches.push(r);
     }

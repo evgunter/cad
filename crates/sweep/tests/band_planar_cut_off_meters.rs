@@ -9,16 +9,20 @@
 //! - a support's STRIP (arm (d)): a spike of the outline whose tip
 //!   reaches into the strip between the sampled screen's points, on
 //!   the outer cycle or on a ring that carries the requested edge (which
-//!   is metered against the strip, so a clear one builds);
+//!   is metered against the strip, so a clear one builds); a feature
+//!   across the edge's line, which the strip never reaches, is clear;
+//!   and on a ruled link's planar support, which arm (d) does not
+//!   meter, a ring's feature refuses at the trimline and an outer
+//!   cycle's vertex at the reach;
 //! - a RIM two cut-offs split from its two ends: their feet must stand
 //!   in order on it, definitely apart.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point2, Point3, Vec3};
+use geom_core::{ErrorTextReading, Point2, Point3, Vec3};
 use sweep::blend::{BlendDecision, BlendError, BlendSite};
 use sweep::test_support::{block, pocket_die, prism, prism_on, realized, sketch_from_axes};
-use topo::{Body, EntityId, validate_geometric};
+use topo::{Body, ContactRecords, EntityId, validate_geometric, validate_pseudomanifold};
 
 use crate::band_planar_cut_off::{D, Verb, carve, edge, tol};
 
@@ -284,12 +288,20 @@ fn a_ring_edge_in_a_requested_ring_edges_strip_refuses_at_the_strip_meter() {
             .map(|h| body.get_loop(h.parent_loop).expect("its loop").face);
         match verb.run(&body, &[e]) {
             Err(BlendError::FaceClearanceUncertified {
-                face, cross_chain, ..
+                face,
+                cross_chain,
+                gap,
+                ..
             }) => {
                 assert!(!cross_chain, "{verb:?}: one band's strip");
                 assert!(
                     Some(face) == top || Some(face) == other,
                     "{verb:?}: the refusal names a support of the band"
+                );
+                assert!(
+                    matches!(gap.diagnostic_f64_for_error_text(), ErrorTextReading::Value(g) if (g - 0.09).abs() < 1e-9),
+                    "{verb:?}: the strip meter reports the tip's own gap, 0.09, where the \
+                     screen reads at least 0.1096 off its samples: {gap:?}"
                 );
             }
             other => panic!("{verb:?}: the spike refuses at the strip, got {other:?}"),
@@ -318,4 +330,213 @@ fn a_ring_edge_in_a_requested_ring_edges_strip_refuses_at_the_strip_meter() {
             "a spike clear of the strip",
         );
     }
+}
+
+/// The tabbed pocket's concave mirror: a `6 × 5 × 1` block united with
+/// the prism over `outline` from `z = 0.5` to `z = 2`, so the block's
+/// top face carries the outline, and the tab's tip is the concave base
+/// edge from `(3.5, 2.5)` to `(2.5, 2.5)` at `z = 1`.
+fn tabbed_boss(outline: &[(f64, f64)]) -> Body<f64> {
+    let outline = outline
+        .iter()
+        .map(|&(x, y)| (Point2::new(x, y), 0.0))
+        .collect();
+    let body = realized(
+        topo::boolean::BooleanOp::Union,
+        &block(6.0, 5.0, 1.0, tol()),
+        &sweep::test_support::prism_at(outline, 0.5, 1.5, tol()),
+        tol(),
+    );
+    validate_geometric(&body, tol()).expect("the tabbed boss is tier-3 valid");
+    body
+}
+
+/// The tab's outline with a peninsula of the support rising from the
+/// pocket's far wall, its tip `gap` across the tip edge's line, at
+/// `x = 3.0625`, midway between two of the screen's samples on the
+/// tip. `open` runs the outline out through the block's left side, so
+/// the tip lies on the support's outer cycle rather than a ring.
+fn far_side(gap: f64, open: bool) -> Vec<(f64, f64)> {
+    let x0 = if open { -1.0 } else { 1.0 };
+    vec![
+        (x0, 1.0),
+        (3.025, 1.0),
+        (3.0625, 2.5 - gap),
+        (3.1, 1.0),
+        (5.0, 1.0),
+        (5.0, 4.0),
+        (3.5, 4.0),
+        TAB[0],
+        TAB[1],
+        (2.5, 4.0),
+        (x0, 4.0),
+    ]
+}
+
+/// **A feature across a requested edge's line is clear of its strip.**
+/// A peninsula of the support rises from the pocket's far wall to `0.09`
+/// short of the tab's tip, on the side of the tip's line the band never
+/// reaches: on the ring and on the outer cycle, pocket and boss, both
+/// verbs, the band builds at the prism closed form, tier 3 and 3′. At
+/// `0.05` the sampled screen reads `√(0.0625² + 0.05²)` between its two
+/// samples, less than `D` on either side of the edge, and refuses.
+#[test]
+fn a_feature_across_a_requested_edges_line_is_clear_of_its_strip() {
+    for open in [false, true] {
+        for (convex, z) in [(true, 2.0), (false, 1.0)] {
+            let at = |gap: f64| {
+                let outline = far_side(gap, open);
+                let body = if convex {
+                    tabbed_pocket(&outline)
+                } else {
+                    tabbed_boss(&outline)
+                };
+                let e = edge(&body, [3.5, 2.5, z], [2.5, 2.5, z]);
+                (body, e)
+            };
+            let what = format!("open {open}, convex {convex}");
+            for verb in [Verb::Chamfer, Verb::Fillet] {
+                let (body, e) = at(0.09);
+                let removed = if convex {
+                    verb.section()
+                } else {
+                    -verb.section()
+                };
+                let out = carve(&body, &[e], verb, removed, &what);
+                validate_pseudomanifold(&out.body, &ContactRecords::default(), tol())
+                    .unwrap_or_else(|err| panic!("{what} ({verb:?}): tier 3′, got {err:?}"));
+                let (body, e) = at(0.05);
+                match verb.run(&body, &[e]) {
+                    Err(BlendError::FaceClearanceUncertified { gap, .. }) => assert!(
+                        matches!(gap.diagnostic_f64_for_error_text(), ErrorTextReading::Value(g) if (g - 0.0625_f64.hypot(0.05)).abs() < 1e-9),
+                        "{what} ({verb:?}): the screen refuses off its two samples: {gap:?}"
+                    ),
+                    other => panic!(
+                        "{what} ({verb:?}): 0.05 across refuses at the screen, got {other:?}"
+                    ),
+                }
+            }
+        }
+    }
+}
+
+/// The tabbed pocket beside a through half-cylinder groove along `x`,
+/// its axis at `y = 4.6` on the top face, so the face carrying the
+/// tab's ring also carries the groove's mouth line `y = 4.4`, a
+/// cylinder–plane (ruled) link's edge. `wall` is spliced into the
+/// pocket's `y = 4` wall, each vertex with the bulge of the edge it
+/// starts: a feature reaching toward the mouth about `x = 1.875`, midway
+/// between two of the mouth's screen samples. `open` runs the pocket out
+/// through the block's left side, so the feature lies on the top face's
+/// outer cycle rather than its ring.
+fn grooved(wall: &[((f64, f64), f64)], open: bool) -> Body<f64> {
+    let x0 = if open { -1.0 } else { 1.0 };
+    let outline: Vec<(Point2<f64>, f64)> = [
+        (x0, 1.0),
+        (5.0, 1.0),
+        (5.0, 4.0),
+        (3.5, 4.0),
+        TAB[0],
+        TAB[1],
+        (2.5, 4.0),
+    ]
+    .into_iter()
+    .map(|p| (p, 0.0))
+    .chain(wall.iter().copied())
+    .chain([((x0, 4.0), 0.0)])
+    .map(|((x, y), bulge)| (Point2::new(x, y), bulge))
+    .collect();
+    let pocket = realized(
+        topo::boolean::BooleanOp::Subtract,
+        &block(6.0, 5.0, 2.0, tol()),
+        &sweep::test_support::prism_at(outline, 1.0, 2.0, tol()),
+        tol(),
+    );
+    let rod = prism_on(
+        sketch_from_axes(
+            Point3::new(-0.1, 4.6, 2.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            tol(),
+        ),
+        vec![(Point2::new(-0.2, 0.0), 1.0), (Point2::new(0.2, 0.0), 1.0)],
+        6.2,
+        tol(),
+    );
+    let body = realized(topo::boolean::BooleanOp::Subtract, &pocket, &rod, tol());
+    validate_geometric(&body, tol()).expect("the grooved pocket is tier-3 valid");
+    body
+}
+
+/// **A ruled link's trimline still meters a ring carrying a planar
+/// requested edge, and a ruled link's planar support refuses a vertex in
+/// its strip typed.** The groove's mouth filleted (a chamfer of it is
+/// no plane–plane arm) takes a strip of setback `√0.08 − 0.2` off the
+/// top face. A narrow spike, or an arc bulging from two vertices on the
+/// wall, reaches `0.05` short of the mouth: inside the strip, between
+/// the screen's samples. On the ring that also carries the tab's
+/// requested tip, the mouth's trimline refuses either exactly
+/// (`RingClearance`), since no strip meter covers a ruled link; on the
+/// outer cycle, the reach refuses the spike's vertex in the strip
+/// (`FaceClearanceUncertified`, gap `0.05`). Without them the mouth and
+/// tip build together, and a spike `0.1` short of the mouth, clear of
+/// the strip, builds.
+#[test]
+fn a_ruled_links_strip_on_a_planar_support_refuses_a_feature_inside_it() {
+    let setback = 0.08_f64.sqrt() - 0.2;
+    let near = |r: geom_core::MarginDiag, want: f64| matches!(r.diagnostic_f64_for_error_text(), ErrorTextReading::Value(v) if (v - want).abs() < 1e-9);
+    let both = |body: &Body<f64>| {
+        let mouth = edge(body, [0.0, 4.4, 2.0], [6.0, 4.4, 2.0]);
+        let tip = edge(body, [3.5, 2.5, 2.0], [2.5, 2.5, 2.0]);
+        Verb::Fillet.run(body, &[mouth, tip])
+    };
+    let built = |what: &str, out: Result<sweep::blend::build::Blended<f64>, BlendError>| {
+        let out = out.unwrap_or_else(|e| panic!("{what}: builds, got {e}"));
+        validate_geometric(&out.body, tol())
+            .unwrap_or_else(|e| panic!("{what}: tier 3, got {e:?}"));
+        validate_pseudomanifold(&out.body, &ContactRecords::default(), tol())
+            .unwrap_or_else(|e| panic!("{what}: tier 3′, got {e:?}"));
+    };
+    let spike = |tip: f64| [((1.9, 4.0), 0.0), ((1.875, tip), 0.0), ((1.85, 4.0), 0.0)];
+    // Sagitta 0.35 over a half-chord of 0.125: the arc's apex at 4.35.
+    let arc = [((2.0, 4.0), 2.8), ((1.75, 4.0), 0.0)];
+    built("the mouth and the tip", both(&grooved(&[], false)));
+    for (what, wall) in [("spike", &spike(4.35)[..]), ("arc", &arc[..])] {
+        match both(&grooved(wall, false)) {
+            Err(BlendError::RingClearance { margin, .. }) => assert!(
+                near(margin.reading, 0.05 - setback),
+                "{what}: the mouth's trimline reads its reach toward the mouth: {margin:?}"
+            ),
+            other => {
+                panic!("{what}: in the mouth's strip it refuses at the trimline, got {other:?}")
+            }
+        }
+    }
+    let mouth = |body: &Body<f64>| {
+        let e = edge(body, [0.0, 4.4, 2.0], [6.0, 4.4, 2.0]);
+        Verb::Fillet.run(body, &[e])
+    };
+    match mouth(&grooved(&spike(4.35), true)) {
+        Err(BlendError::FaceClearanceUncertified {
+            margin,
+            gap,
+            cross_chain,
+            ..
+        }) => {
+            assert!(!cross_chain, "one band's strip");
+            assert!(
+                near(gap, 0.05),
+                "the reach reports the tip's gap to the mouth: {gap:?}"
+            );
+            assert!(
+                near(margin.reading, 0.05 - setback),
+                "its depth inside the strip: {margin:?}"
+            );
+        }
+        other => panic!("an outer spike in the mouth's strip refuses at the reach, got {other:?}"),
+    }
+    built(
+        "a spike clear of the mouth's strip",
+        mouth(&grooved(&spike(4.3), true)),
+    );
 }
