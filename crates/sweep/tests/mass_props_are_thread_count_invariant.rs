@@ -579,17 +579,28 @@ fn digest() -> String {
 /// discharges go 2055 → 1993. It is the rational meter's forms
 /// overflowing the session's budget.
 ///
+/// **Re-cut at all three ε when the rational speed meter's refined scan
+/// was dropped** (PR 4860), which this digest first sees through the
+/// memo's session bypass above: PR 4869's re-cut was measured on a base
+/// without 4860, and 4860's own digest run was served the meter's memo
+/// inside the session, which hid the change. Only the two `validate_geometric` rows'
+/// `frozen` column moves, and down: `sym_arc_loft` 1916 → 1542 / 1914 →
+/// 1540 / 1915 → 1541 and `sym_thin_strip` 2095 → 1657 / 2094 → 1656 /
+/// 2094 → 1656 at ε = 1e-6 / 1e-9 / 1e-12. The in-session rational arm
+/// builds fewer forms, so fewer overflow the session's budget.
+/// Decisions, `sz`, `num`, shapes, verdicts and every f64 row are
+/// unchanged.
+///
 /// **Re-cut at all three ε when the cylinder quadrature began reading
-/// `−∮ (v − v_a) du`** in place of `∮ u dv`, deciding each loop's
-/// winding and the face's (`props_quad_loop_winding`,
-/// `props_quad_loops_closed`) in place of one decision per junction.
-/// Only `tilted_cut_upper` moves, and every new enclosure lies inside
-/// the old one: its volume pad falls from 7.8e-5 to 8.5e-6, 1.5e-7 to
-/// 1.3e-7 and 2.9e-10 to 2.5e-10 at ε = 1e-6 / 1e-9 / 1e-12 (the area
-/// pad by the same factors), its volume lands on exactly `π/8` at 1e-6
-/// and within 1 and 17 ulps of it at 1e-9 and 1e-12, and its verdict
-/// count goes 12 → 8, 18 → 12 and 24 → 18 with its hash. Every other
-/// line is unchanged.
+/// `−∮ (v − v_a) du`** in place of `∮ u dv`, deciding
+/// each junction closed (`props_quad_junction_closed`, one decision per
+/// junction, the loop's turns then an integer). Only `tilted_cut_upper`
+/// moves, and every new enclosure lies inside the old one: its volume
+/// pad falls from 7.8e-5 to 8.5e-6, 1.5e-7 to 1.3e-7 and 2.9e-10 to
+/// 2.5e-10 at ε = 1e-6 / 1e-9 / 1e-12 (the area pad by the same
+/// factors), its volume lands on exactly `π/8` at 1e-6 and within 1 and
+/// 17 ulps of it at 1e-9 and 1e-12, and its verdict count goes 12 → 12,
+/// 18 → 16 and 24 → 22 with its hash. Every other line is unchanged.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),

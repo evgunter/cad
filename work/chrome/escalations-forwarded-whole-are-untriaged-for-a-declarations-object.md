@@ -178,6 +178,7 @@ geom-brep
 - `offset_meters.rs:294` `MeterError::Escalated`: d (PR 3347)
 - `pcurve_cache.rs:871` `PcurveCertifyError::FittedEscalated`: d (`work/pcert/pcurve-certify-escalation-renders-the-coincidence-menu-unlabelled.md`)
 - `pcurve_cache.rs:906` `PcurveCertifyError::Escalated`: d (same row)
+  - 2026-10-12 (ENCL, PR 4874): both arms render their payload plus one labelled ending read at a build. `FittedEscalated` carries its `SsiDecision` and ends by it, and `Escalated` ends by its `PcurveCheck`. Neither offers the coincidence menu.
 - `props/mod.rs:490` `PropsError::Escalated`: d (`work/props/props-escalation-renders-the-coincidence-menu-unlabelled.md`)
 - `ssi.rs:394` `SsiError::Escalated`: c (`edge_nurbs.rs` near :685, `pcurve_cache.rs` near :1450)
 

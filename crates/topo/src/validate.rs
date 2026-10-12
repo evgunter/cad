@@ -2756,6 +2756,10 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             "its curve's distance from a face has no certified bound (it reaches a cone's \
              apex height or the other nappe)"
         }
+        CertifyError::AnalyticRung3(A::NoTubeEnclosure { .. }) => {
+            "its curve lies within the tolerance of both faces, but the check cannot yet \
+             enclose one face's gradient, so it cannot prove the curve is their one crossing"
+        }
         CertifyError::IntervalNotForward {
             verdict: Refused::Zero(_),
         } => "its length is within the tolerance of zero",
@@ -2825,9 +2829,9 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             CertifyError::Unimplemented
             | CertifyError::TangentCertificateUnsupported
             | CertifyError::PlaneNurbs(P::FootPointInconclusive { .. } | P::Unsupported { .. })
-            | CertifyError::AnalyticRung3(A::NoOffsetBound { .. } | A::Unsupported { .. }) => {
-                NOT_YET_ENDING
-            }
+            | CertifyError::AnalyticRung3(
+                A::NoOffsetBound { .. } | A::NoTubeEnclosure { .. } | A::Unsupported { .. },
+            ) => NOT_YET_ENDING,
             CertifyError::Band(_) => TOLERANCE,
             CertifyError::NurbsLaneNotSupplied => {
                 "Recourse: check the body through a door that holds the NURBS lane, \
@@ -11845,9 +11849,14 @@ mod tests {
                 ),
             ),
             (
-                "pcurve fitted certificate, in band",
-                pcurve(PcurveCertifyError::FittedEscalated { cause: in_band }),
-                KERNEL_LIMIT_RECOURSE.to_owned(),
+                "pcurve fitted certificate's tube, in band",
+                pcurve(PcurveCertifyError::FittedEscalated {
+                    decision: geom_brep::SsiDecision::Limb(geom_brep::SsiLimb::Tube),
+                    cause: in_band,
+                }),
+                "Recourse: move the geometry so the surfaces cross at a clearer angle, or, if \
+                 this angle is intended, tighten the tolerance below 5e-10 m"
+                    .to_owned(),
             ),
         ];
         for (row, error, ending) in rows {

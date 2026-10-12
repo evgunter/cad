@@ -1663,8 +1663,8 @@ impl Links {
         }
         for &(fa, fb) in &naming.covered {
             self.0.push((
-                (a, descent.clone_face(topo::Operand::A, fa)?),
-                (b, descent.clone_face(topo::Operand::B, fb)?),
+                (a, descent.clone_face(topo::Operand::A, fa)),
+                (b, descent.clone_face(topo::Operand::B, fb)),
             ));
         }
         Ok(())
@@ -1777,7 +1777,7 @@ impl Fold {
             }
         };
         self.obstacles.record(naming, result, |operand, f| {
-            from(&self.lineage, (operand, descent.clone_face(operand, f)?))
+            from(&self.lineage, (operand, descent.clone_face(operand, f)))
         })?;
         let merged = descent.merged();
         let mut next = BTreeMap::new();
