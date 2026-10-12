@@ -89,8 +89,9 @@
 //! where its resolution (the largest of the harmonics' noise and the
 //! clearance's running bound round the turn, in metres)
 //! is not inside the band's zero, or where the same reading with its
-//! rounding uncharged (no harmonic noise, the residual's value, no slack
-//! meter or slacks) answers. Otherwise it refuses under the row that
+//! rounding uncharged (no harmonic noise, no slack meter or slacks, and
+//! the residual's value, read on the surface within its own running
+//! bound of zero) answers. Otherwise it refuses under the row that
 //! refused.
 //!
 //! `p₂`'s roots (cone against cone) are decided on `p₂` times the
@@ -461,7 +462,8 @@ struct Walk<'a, T: Real> {
 /// The walk's certified roots, in increasing order on `[−π, π]`, each
 /// within the band's zero of the true one (the [`RootSlack`] meter);
 /// `charged` false, the walk with its rounding uncharged (no harmonic
-/// noise, the residual's value, no slack meter).
+/// noise, no slack meter, and the residual's value, read on the surface
+/// where it is within its own running bound of zero).
 fn roots<T: Decide>(
     walk: &Walk<'_, T>,
     speed: T,
@@ -484,7 +486,13 @@ fn roots<T: Decide>(
         residual: walk.residual,
         f_per_metre_hi: walk.per_metre,
     };
-    let residual = |theta: T| shrunk((walk.residual)(theta), charged);
+    let residual = |theta: T| {
+        let at = (walk.residual)(theta);
+        if charged {
+            return shrunk(at, true);
+        }
+        (at.value.abs() - at.error).select_le_zero(T::zero(), at.value)
+    };
     let found = match certified_subdivision(
         &walk.f,
         &residual,

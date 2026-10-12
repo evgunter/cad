@@ -1278,3 +1278,90 @@ fn a_wall_near_the_aperture_refuses_no_fold_past_the_floor() {
         },
     );
 }
+
+/// A wall 4.6e-4 rad off a generator's direction, 0.044 m off the
+/// aperture degeneracy at scale 6.2: the clearance's own rounding near
+/// that generator reaches 1e-11 m, past the zero band at ε 1e-12, so the
+/// reading refuses on its representation. Seed `0xebb7bc665258ed68` at
+/// effort 1, ε 1e-12.
+#[test]
+fn a_wall_nearer_the_aperture_refuses_its_representation_not_a_fold() {
+    let k = frame(
+        Point3::new(0.9220795969198994, -3.8241686060474565, 4.924470233870227),
+        Vec3::new(0.5665416119527679, -0.49198096939102726, 0.6610486575759947),
+        0.8782954678083735,
+        6.214184894696136,
+    );
+    let partner = cylinder(
+        Point3::new(-2.525613531758197, 2.975569315614362, 5.319708258446635),
+        Vec3::new(0.3666679340327699, 0.3048335465225907, 0.8789943885296425),
+        2.48957242104901,
+        k.scale,
+    );
+    agrees(
+        &k,
+        &Pose {
+            what: "cylinder near the aperture".to_owned(),
+            partner,
+            margin: Some(-0.04405854296521363),
+        },
+    );
+}
+
+/// A wide cone (α 1.20) 1.6e-4 rad off the aperture against a wall of
+/// radius 7.2, 0.056 m off the degeneracy at scale 19. Seed
+/// `0x014b7a7e9ecc7c78` at effort 1, ε 1e-12.
+#[test]
+fn a_wide_cone_near_the_aperture_refuses_its_representation_not_a_fold() {
+    let k = frame(
+        Point3::new(-12.75796991721193, -6.266245911750467, -7.955083979702845),
+        Vec3::new(
+            -0.028382438080592175,
+            -0.3147809720688025,
+            -0.9487398889221541,
+        ),
+        1.1995092385461592,
+        18.981826263359,
+    );
+    let partner = cylinder(
+        Point3::new(-6.170523193628332, 5.7846579606421376, -5.25767955574565),
+        Vec3::new(0.844445016148365, -0.4732990453473404, -0.2507999768251258),
+        7.165849073817154,
+        k.scale,
+    );
+    agrees(
+        &k,
+        &Pose {
+            what: "cylinder near the aperture".to_owned(),
+            partner,
+            margin: Some(-0.0557884143286041),
+        },
+    );
+}
+
+/// A near-plane cone (α 1.30) leaning 2.3e-4 rad past the aperture
+/// against a wall of radius 3.5, 0.029 m off the degeneracy at scale
+/// 6.4. Seed `0xd9a828f83a67bee5` at effort 1, ε 1e-12.
+#[test]
+fn a_flat_cone_past_the_aperture_refuses_its_representation_not_a_fold() {
+    let k = frame(
+        Point3::new(-5.404455156173022, 6.3323224617304055, -0.7173140731405656),
+        Vec3::new(0.7861875149531873, -0.3410594955141161, -0.515351930093784),
+        1.3018342060975998,
+        6.406465737516798,
+    );
+    let partner = cylinder(
+        Point3::new(-2.344038495307002, 6.592652057059705, 3.3840830781823925),
+        Vec3::new(0.31136961674256686, 0.7734749503390725, -0.5520737839886588),
+        3.4535812614058807,
+        k.scale,
+    );
+    agrees(
+        &k,
+        &Pose {
+            what: "cylinder near the aperture".to_owned(),
+            partner,
+            margin: Some(0.028802076426786484),
+        },
+    );
+}
