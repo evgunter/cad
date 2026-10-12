@@ -777,3 +777,19 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - **Style S1** is the style brief's named trap: the fix removed the duplicate fold but minted a duplicate four-arm dispatch in `Mul` and `Div`. It is sent back with S5 (the corner pair becomes structural) and S2. — (NURBS orchestrator)
 - 2026-10-12 13:29Z — **PR 4853 merges (`557ce59178`).** It is a doc-only sentence at Sym's `plain_constant` saying why the check does not read the node's form: a form expansion moves the digest's `SymCounts`. The sentence missed the 4834 merge, and build C correctly re-landed it on a fresh branch.
   - **Friction (second instance today):** a message to build C reached it about 40 min late. The refined-scan dispatch was sent at 12:48Z and had not arrived by 13:27Z. Re-sent as an interrupt, with a request to acknowledge. — (NURBS orchestrator)
+- 2026-10-12 13:33Z — **Ruled: drop the rational meter's refined scan (option A).** Build C measured before building, on main `f581d1ae29`.
+  - **What the refined scan decides:**
+    - On every m5_pr7 fixture the piece assembly is at least as high as the refined scan, frontier rows included.
+    - Across 12,000 random rational nets (degrees 1–6, four weight regimes) it changes **no decision**.
+    - It wins by more than 1% only on degree 2: about 1% of those nets, usually by 1–3%, at worst 2.07×.
+  - **Cost:** the refined scan is about 74% of the rational meter on a long carrier (36.8 of 49.9 ms on a 37-span cubic). About 90% of that is quadratic refinement plumbing (`equal_split` plans, `refine_homogeneous` per channel).
+  - **Options weighed:**
+    - (B): make it local and linear. A real rewrite in geom-core spline, done only to keep reach that decides nothing measured.
+    - (C): keep it and document.
+  - **Why (A):**
+    - it is the simpler final state;
+    - it is reversible, since a degree-2 consumer that needs the reach would get it in the piece assembly;
+    - above degree 24 the meter refuses typed.
+  - This is the orchestrator's call: an internal meter trade with a dominant measurement, touching no ratified text.
+  - Build C builds it with pin rows for degree 2 and degree 25, and re-cuts any golden that moves. Any other caller of the refinement plumbing gets its own cost row.
+  - **Tier: single FULL.** — (NURBS orchestrator)
