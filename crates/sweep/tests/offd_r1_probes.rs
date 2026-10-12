@@ -434,30 +434,16 @@ fn a_side_wall_replacement_re_anchors_the_rim_arcs() {
 /// on the loft the top rim, which leaves the fit's window and is
 /// reported first where the seams' refusals are deferred alike.
 ///
-/// **The curved fixture's outcome depends on ε, and on every ε row CI
-/// gates it is the structural arm.** The offset door's fit target is
-/// the run's ε_precision — the door takes the tolerance WITNESS and
-/// derives no number of its own — and a genuinely curved base cannot
-/// always reach it: below [`CURVED_FIT_REACH`] the twisted loft's
-/// saddle wall stalls, so the door refuses at the FIT and the boundary
-/// re-description is never attempted. That is D4's blessed
-/// ε-tightening consequence, not a defect. [`CURVED_FIT_REACH`] sits
-/// below every CI row, so the `Fit` arm below is reached only by a run
-/// configured tighter than CI's (`CAD_TOLERANCE_EPS=1e-14` reaches
-/// it), and on CI the arm's job is to red if the fit starts refusing
-/// where it reaches today. What the row does NOT allow is the fit
-/// refusing on the PLANAR fixture: a planar spline's offset is a planar
-/// spline, which the interpolation reproduces exactly at any ε, so a
-/// fit refusal there would be a real defect and reds.
-/// The tightest ε at which the twisted loft's saddle wall still
-/// certifies its offset fit at this row's `d = 5e-10`, measured on this
-/// fixture: it certifies at 1e-12 (1 refinement round, sup bound
-/// 1.13e-13) and at 1e-13 (2 rounds, 5.4e-14), and stalls at 1e-14 with
-/// an achieved bound of 1.29e-11. Every ε row CI gates is therefore on
-/// the structural arm. The constant is what turns the `Fit` arm below
-/// from an or-pin into a claim — at any ε this loose, a fit refusal is
-/// a regression rather than ε-tightening, and reds.
-const CURVED_FIT_REACH: f64 = 1e-13;
+/// **The curved fit reaches every ε a run admits.** The offset door's
+/// fit target is the run's ε_precision — the door takes the tolerance
+/// WITNESS and derives no number of its own — and the twisted loft's
+/// saddle wall certifies its offset fit at this row's `d = 5e-10` down
+/// to 1e-13 (2 refinement rounds, sup bound 5.4e-14), below the floor
+/// `geom_core::tolerance::EPS_MIN` (it stalls at 1e-14, which no run
+/// admits). So a fit refusal on either fixture is a regression and
+/// reds; on the planar one it would be a defect at any ε, since a
+/// planar spline's offset is a planar spline, which the interpolation
+/// reproduces exactly.
 
 #[test]
 fn the_fitted_obstruction_holds_on_a_curved_fit() {
@@ -487,26 +473,6 @@ fn the_fitted_obstruction_holds_on_a_curved_fit() {
                 ref verdict,
                 ..
             } => assert_refused_rim_verdict(name, verdict),
-            // The fit could not reach this run's ε, so the structural
-            // door was never reached. Legitimate only where the base is
-            // genuinely curved AND the run's ε is tighter than what the
-            // engine reaches on it — both, so this arm cannot absorb a
-            // fit-engine regression at the epsilons where the fit does
-            // reach today.
-            ReplaceFaceError::Fit { error, .. } => {
-                assert!(
-                    curved,
-                    "{name}: a PLANAR spline's offset is exactly fittable at every ε, so a fit \
-                     refusal here is a defect rather than ε-tightening: {error}"
-                );
-                assert!(
-                    Tol::witness().eps() < CURVED_FIT_REACH,
-                    "{name}: the curved fit refused at ε = {:e}, where it reaches today \
-                     (measured: it certifies at ε ≥ {CURVED_FIT_REACH:e} and stalls at 1e-14). \
-                     That is a fit-engine regression, not ε-tightening: {error}",
-                    Tol::witness().eps()
-                );
-            }
             other => panic!("{name}: expected a refused section or the fit's refusal, got {other}"),
         }
     }
@@ -523,10 +489,7 @@ fn the_fitted_obstruction_holds_on_a_curved_fit() {
 /// reported; the seams' own verdicts are not read here.
 #[test]
 fn moved_together_outward_every_edge_leaves_the_fits_windows() {
-    for (name, body, curved) in [
-        ("planar prism", prism(), false),
-        ("twisted loft", twisted_loft(0.3), true),
-    ] {
+    for (name, body) in [("planar prism", prism()), ("twisted loft", twisted_loft(0.3))] {
         let moves: Vec<topo::ChartMove<f64>> = body
             .faces()
             .map(|(k, _)| topo::ChartMove {
@@ -542,15 +505,6 @@ fn moved_together_outward_every_edge_leaves_the_fits_windows() {
             Tol::witness(),
         )
         .expect_err("a moved cap leaves the fits' windows");
-        if curved && Tol::witness().eps() < CURVED_FIT_REACH {
-            // The twisted wall's fit stops short of ε, and every surface
-            // is minted before any edge is planned.
-            assert!(
-                matches!(e, ReplaceFaceError::Fit { .. }),
-                "{name}: expected the fit to refuse short of ε, got {e}"
-            );
-            continue;
-        }
         let ReplaceFaceError::EdgeSection {
             edge,
             verdict: topo::SectionVerdict::NoBranch,
@@ -755,11 +709,6 @@ fn a_fitted_walls_rims_answer_for_themselves_behind_its_seams() {
             })
             .map(|(k, _)| k)
             .unwrap_or_else(|| panic!("{name}: no spline wall"));
-        if curved && eps < CURVED_FIT_REACH {
-            // The fit stops short of ε (the row above's `Fit` arm), and
-            // no edge is planned.
-            continue;
-        }
         let (mut rims, mut seams) = (Vec::new(), Vec::new());
         for (edge, verdict) in topo::offset_edge_plans_for_tests(&body, wall, 5e-10, Tol::witness())
         {

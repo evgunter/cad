@@ -1,14 +1,15 @@
 //! **The band refusals name the cause they caught, not the fact that
 //! they caught one** — pinned through the real doors.
 //!
-//! `Band::linear` has two reachable failures over a tolerance that
-//! passed its own validation, and they sit at opposite ends of one
-//! axis: K·ε overflowing to infinity at an ε within a factor K of
-//! `f64::MAX`, and K·ε rounding back down onto ε at a subnormal one.
-//! The repairs are opposite, so a refusal that says only "the band
-//! could not be built" sends the reader the wrong way half the time,
-//! and `SelectRefusal::Band` / `NamingError::Band` carry the
-//! constructor's own diagnostic instead.
+//! A band has two failures, at opposite ends of one axis: K·ε
+//! overflowing to infinity at an ε within a factor K of `f64::MAX`,
+//! and K·ε rounding back down onto ε at a subnormal one. A run reaches
+//! the first through `Band::linear`; the second needs an ε below the
+//! floor `EPS_MIN`, which the run's validator refuses (the collapse
+//! row pins that). The repairs are opposite, so a refusal that says
+//! only "the band could not be built" sends the reader the wrong way
+//! half the time, and `SelectRefusal::Band` / `NamingError::Band` carry
+//! the constructor's own diagnostic instead.
 //!
 //! THE DOORS, not a re-derivation of them. Both facts this suite
 //! asserts — that the pathological pair is a VALID tolerance, and that
@@ -36,15 +37,14 @@ use editor_core::{
     ProfileDoc, RecipeNodeId, SelectRefusal, Selector, evaluate, select_where,
 };
 use fixture::{desc, insert, xy_frame};
-use geom_core::tolerance::{DEFAULT_K, Tolerance};
+use geom_core::tolerance::{DEFAULT_K, Tolerance, ToleranceError};
 use geom_core::{Band, BandError, BandField, Tol};
 
 /// The env var naming which row a child runs.
 const PROBE_ROW: &str = "WIRE_BAND_CAUSE_ROW";
 
 /// **The collapse row's ε**: the smallest positive `f64`, i.e.
-/// 1·2⁻¹⁰⁷⁴. Finite and strictly positive, so `Tolerance::validate`
-/// admits it.
+/// 1·2⁻¹⁰⁷⁴, below the floor, so `Tolerance::validate` refuses it.
 const COLLAPSE_EPS: f64 = 5e-324;
 
 /// **The collapse row's K.** Writing ε = n·2⁻¹⁰⁷⁴, the band collapses
@@ -65,62 +65,53 @@ fn child_band_row() {
     let Ok(row) = std::env::var(PROBE_ROW) else {
         return;
     };
-    let (tol, expect_overflow) = match row.as_str() {
-        "collapse" => (
-            Tolerance {
-                eps: COLLAPSE_EPS,
-                k: COLLAPSE_K,
-            },
-            false,
-        ),
-        "overflow" => (
-            Tolerance {
-                eps: OVERFLOW_EPS,
-                k: DEFAULT_K,
-            },
-            true,
-        ),
+    match row.as_str() {
+        // The collapse arm needs a subnormal ε, below the floor: the
+        // run's own validator refuses it, so no run reaches the arm
+        // through `Band::linear`. Admitting such an ε reddens here.
+        "collapse" => {
+            assert_eq!(
+                Tolerance::init(Tolerance {
+                    eps: COLLAPSE_EPS,
+                    k: COLLAPSE_K,
+                }),
+                Err(ToleranceError::BelowFloor {
+                    value: COLLAPSE_EPS
+                }),
+            );
+            return;
+        }
+        "overflow" => {}
         other => panic!("unknown row {other:?}"),
-    };
+    }
 
     // DOOR 1 — the premise. `init` validates before it commits, so a
     // pair this call accepts is a pair the run's own validator
-    // accepts. Tightening `validate` against subnormals reddens here.
-    Tolerance::init(tol).expect("the pathological pair is a VALID tolerance");
+    // accepts. Tightening `validate` against huge ε reddens here.
+    Tolerance::init(Tolerance {
+        eps: OVERFLOW_EPS,
+        k: DEFAULT_K,
+    })
+    .expect("the pathological pair is a VALID tolerance");
 
     // DOOR 2 — the failure. `Band::linear`, not the arithmetic it
     // performs: widening `from_thresholds` so a collapsed band never
     // surfaces reddens here.
     let caught = Band::linear(Tol::witness())
         .expect_err("Band::linear must refuse a tolerance that admits no band");
-    if expect_overflow {
-        assert!(
-            matches!(caught, BandError::InvalidValue { field: BandField::Escalate, value }
-                if value.is_infinite()),
-            "expected the overflow arm at eps = {OVERFLOW_EPS:e}, got {caught:?}"
-        );
-    } else {
-        assert!(
-            matches!(caught, BandError::Empty { zero, escalate }
-                if zero == COLLAPSE_EPS && escalate == COLLAPSE_EPS),
-            "expected the collapse arm at eps = {COLLAPSE_EPS:e}, K = {COLLAPSE_K}, \
-             got {caught:?}"
-        );
-    }
+    assert!(
+        matches!(caught, BandError::InvalidValue { field: BandField::Escalate, value }
+            if value.is_infinite()),
+        "expected the overflow arm at eps = {OVERFLOW_EPS:e}, got {caught:?}"
+    );
 
     // The two causes must be distinguishable BEFORE a refusal can
-    // distinguish them. The sibling row proves the other arm is
-    // reachable; here it is only rendered.
-    let other = if expect_overflow {
-        BandError::Empty {
-            zero: COLLAPSE_EPS,
-            escalate: COLLAPSE_EPS,
-        }
-    } else {
-        BandError::InvalidValue {
-            field: BandField::Escalate,
-            value: f64::INFINITY,
-        }
+    // distinguish them. The collapse arm is reached through
+    // `Band::linear_at` and `Band::angular_at` (geom-core's
+    // `band_tolerance.rs`); here it is only rendered.
+    let other = BandError::Empty {
+        zero: COLLAPSE_EPS,
+        escalate: COLLAPSE_EPS,
     };
     assert_ne!(caught.to_string(), other.to_string());
 

@@ -1391,7 +1391,8 @@ pub enum SnapshotError {
         /// The higher id holding it.
         b: VarId,
     },
-    /// The recorded ε is not finite and strictly positive.
+    /// The recorded ε is not admissible: not finite, or below
+    /// `geom_core::tolerance::EPS_MIN`.
     EpsilonInvalid {
         /// The recorded value.
         value: f64,
@@ -1841,7 +1842,9 @@ impl core::fmt::Display for SnapshotError {
             ),
             Self::EpsilonInvalid { value } => write!(
                 f,
-                "the recorded ε {value:e} is not finite and strictly positive"
+                "the recorded ε {value:e} is not an admissible ε: one is a finite length of at \
+                 least {:e} m",
+                geom_core::tolerance::EPS_MIN
             ),
             Self::NotAGauge { node, gauge } => write!(
                 f,

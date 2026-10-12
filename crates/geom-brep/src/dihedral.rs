@@ -1416,10 +1416,11 @@ mod tests {
     /// undecided arm** (`SizedDecision::recourse`): a reader that routes
     /// the arm gate's rejection as `RefusedArm::Undecided` ends it as the
     /// Zero arm does, at a build, at rest and at the import door. A zero
-    /// with no size to tighten below, read or proved, takes the note; a
-    /// rejected zero a smaller tolerance decides passing is offered that
-    /// tolerance and no note; and neither an untagged in-band margin nor
-    /// a rejected Negative takes it.
+    /// with no size to tighten below — read, proved, or rounding whose
+    /// tolerance lies below `EPS_MIN` — takes the note; a rejected zero a
+    /// smaller tolerance decides passing is offered that tolerance and no
+    /// note; and neither an untagged in-band margin nor a rejected
+    /// Negative takes it.
     #[test]
     fn a_gates_rejected_zero_ends_in_the_arms_zero_note() {
         use geom_core::sym::with_session;
@@ -1430,8 +1431,10 @@ mod tests {
         let b = Band::new(1e-9, 1e-8).unwrap();
         let reject = |margin| decide_positive("dihedral_arm", margin, b).unwrap_err();
         let read = reject(Margin::of(0.0));
-        // `0.1·3/3 − 0.1` rounds to a positive reading in the zero band.
+        // `0.1·3/3 − 0.1` rounds to a positive reading in the zero band,
+        // 1.39e-17 m, whose `|m|/K` lies below `EPS_MIN`.
         let rounded = reject(Margin::of(0.1_f64 * 3.0 / 3.0 - 0.1));
+        let small = reject(Margin::of(5e-10));
         let budget = SymBudget {
             max_terms: 64,
             max_degree: 8,
@@ -1470,10 +1473,10 @@ mod tests {
                         coincidence distance ε_in = 1e-8 m, so the file does not state it. ";
         let offer = format!(
             "{lever}, or, if this length or the gap its faces open is intended, tighten the \
-             tolerance below 1.3877787807814458e-18 m"
+             tolerance below 5e-11 m"
         );
         let file = FileCoincidence::new(1e-8);
-        let rows: [(&str, &Indeterminate, [String; 3]); 5] = [
+        let rows: [(&str, &Indeterminate, [String; 3]); 6] = [
             (
                 "a read zero",
                 &read,
@@ -1487,14 +1490,18 @@ mod tests {
             (
                 "a rounded zero",
                 &rounded,
+                [noted.clone(), noted.clone(), format!("{unstated}{noted}")],
+            ),
+            (
+                "a small size",
+                &small,
                 [
                     offer.clone(),
                     offer,
                     format!(
                         "{unstated}{lever}, or, if this length or the gap its faces open is \
                          intended, re-export the file with its uncertainty declared below \
-                         1.3877787807814457e-17 m and tighten the tolerance below \
-                         1.3877787807814458e-18 m"
+                         5e-10 m and tighten the tolerance below 5e-11 m"
                     ),
                 ],
             ),

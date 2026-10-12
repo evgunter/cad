@@ -2601,7 +2601,8 @@ pub enum EditError {
         /// The kind that was not set on it.
         kind: AttrKind,
     },
-    /// A `SetTolerance` whose ε is not finite and strictly positive.
+    /// A `SetTolerance` whose ε is not admissible: not finite, or below
+    /// `geom_core::tolerance::EPS_MIN`.
     InvalidTolerance {
         /// The refused value.
         value: f64,
@@ -4064,12 +4065,18 @@ impl EditError {
                 tail.recourse(f, format_args!("clear only an attribute the name carries"))
             }
             Self::InvalidTolerance { value } => {
-                write!(f, "tolerance {value:e} is not finite and strictly positive")?;
+                use geom_core::tolerance::{EPS_MIN, SESSION_BOX_EXTENT};
+                write!(
+                    f,
+                    "tolerance {value:e} is not an admissible ε: one is a finite length of at \
+                     least {EPS_MIN:e} m, the length f64 resolves at the edge of the \
+                     {SESSION_BOX_EXTENT:e} m session box"
+                )?;
                 tail.recourse(
                     f,
                     format_args!(
-                        "keep the tolerance the document records, or offer a positive length \
-                         in metres"
+                        "keep the tolerance the document records, or offer a length in metres of \
+                         at least {EPS_MIN:e}"
                     ),
                 )
             }

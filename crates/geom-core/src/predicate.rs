@@ -140,7 +140,7 @@
 use core::fmt;
 
 use crate::spline::SpanLocate;
-use crate::tolerance::Tol;
+use crate::tolerance::{EPS_MIN, Tol};
 
 /// The **default** ambiguity multiplier K = 10, re-exported from the
 /// tolerance module: a band's `escalate` threshold is K times its
@@ -404,31 +404,30 @@ impl Band {
     ///
     /// # Errors
     ///
-    /// Two arms are reachable, at opposite ends of the range
-    /// [`Tolerance`](crate::tolerance::Tolerance) admits (any finite
-    /// ε > 0, any finite K > 1), and they want **opposite** repairs —
-    /// which is why the returned [`BandError`] names which one it is:
+    /// Two arms exist, and they want **opposite** repairs — which is why
+    /// the returned [`BandError`] names which one it is:
     ///
     /// - [`BandError::InvalidValue`] on `escalate` when K·ε overflows to
-    ///   infinity: the run's ε is within a factor K of `f64::MAX`.
-    ///   Unreachable for any physically meaningful tolerance (D4 ¶4's
-    ///   session box is meters, ε ≈ 1e-9). The repair is a smaller ε.
+    ///   infinity: the run's ε is within a factor K of `f64::MAX`. The
+    ///   one arm a run's tolerance reaches, at the top of the range
+    ///   [`Tolerance`](crate::tolerance::Tolerance) admits (any finite
+    ///   ε ≥ [`EPS_MIN`], any finite K > 1), and unreachable for any
+    ///   physically meaningful tolerance (D4 ¶4's session box is 1 km,
+    ///   ε ≈ 1e-9). The repair is a smaller ε.
     /// - [`BandError::Empty`] when K·ε rounds back onto ε, so `zero` ==
     ///   `escalate` and the open interval between them is empty. Writing
     ///   a subnormal ε as n·2⁻¹⁰⁷⁴, this is exactly fl(K·n) == n — the
     ///   product is rounded onto the subnormal grid, so the increment
-    ///   can round away entirely. It needs **both** knobs turned: a
-    ///   subnormal ε (and in fact ε ≤ 2⁻¹⁰²³, since above that even the
-    ///   least admissible K = 1 + 2⁻⁵² clears the half-ulp) **and** a K
-    ///   near 1 — at the smallest ε (n = 1) every K below 1.5 collapses
-    ///   the band, and the admitted K-region narrows as ε grows. **No
-    ///   normal ε collapses at any admitted K**, and at the ratified
-    ///   default K = 10 (`docs/K-REPORT.md`) no ε at all does. The
-    ///   repair is to raise ε, or K, or both.
+    ///   can round away entirely. It needs a subnormal ε (in fact
+    ///   ε ≤ 2⁻¹⁰²³, since above that even the least admissible
+    ///   K = 1 + 2⁻⁵² clears the half-ulp) and a K near 1. **No normal ε
+    ///   collapses at any admitted K**, so no run's ε does (the floor
+    ///   [`EPS_MIN`] is normal): this arm is reached only through
+    ///   [`Band::linear_at`] and [`Band::angular_at`], at a scale the
+    ///   caller names. The repair is to raise that scale, or K.
     ///
     /// Neither is a panic and neither is a silently invalid band: D9
-    /// makes the residue a typed error. The arms are disjoint — no
-    /// tolerance reaches both.
+    /// makes the residue a typed error.
     ///
     /// **This is the one home of that derivation.** The refusals that
     /// carry a [`BandError`] outward cite it rather than restating it;
@@ -520,15 +519,11 @@ impl Band {
     ///   is a **caller argument** supplied per predicate, not a
     ///   once-per-run configuration, so all three are reachable at an
     ///   ordinary run ε by naming an extreme arm:
-    ///   - [`BandError::InvalidValue`] on `zero` if θ is not itself a
-    ///     valid coincidence threshold. The rule is about the **pair**:
-    ///     θ rounds to 0 exactly when `lever_arm` ≥ ε·2¹⁰⁷⁵ (equivalently
-    ///     ε ≤ 2⁻¹⁰⁷⁵·`lever_arm`) — at ε = 1e-16, for instance, the
-    ///     boundary arm is 4.0480450661462123e307, one ulp under which θ
-    ///     is still a nonzero subnormal. It overflows to infinity at the
-    ///     other extreme, a `lever_arm` below ε/`f64::MAX`, which is
-    ///     reachable only for ε above about 8.9e-16. Either way the
-    ///     repair is the arm, not ε.
+    ///   - [`BandError::InvalidValue`] on `zero` if θ overflows to
+    ///     infinity, at a `lever_arm` below ε/`f64::MAX`. The repair is
+    ///     the arm, not ε. θ never rounds to 0 at a run's ε: that needs
+    ///     `lever_arm` ≥ ε·2¹⁰⁷⁵, past `f64::MAX` for every ε ≥
+    ///     [`EPS_MIN`].
     ///   - [`BandError::InvalidValue`] on `escalate` if θ is finite but
     ///     K·θ overflows — the same overflow residue [`Band::linear`]
     ///     documents, reached here through a tiny arm rather than a huge ε.
@@ -1312,8 +1307,9 @@ pub struct SizedWords<'a> {
     pub size: &'a str,
     /// What the decision passes on.
     pub passes: SizedPass,
-    /// Appended to the lever as "; {note}" where no smaller tolerance
-    /// decides the margin passing.
+    /// Appended to the lever as "; {note}" where no smaller tolerance a
+    /// run admits (none lies below [`EPS_MIN`]) decides the margin
+    /// passing.
     pub otherwise: Option<&'a str>,
     /// Appended to the lever as "; {note}" instead where the margin is
     /// poisoned: the unreadable-margin note of the door reading it
@@ -1648,20 +1644,23 @@ impl MarginDiag {
     /// passing `passes`, or `None` where none does: a poisoned reading,
     /// one past the band (decided at this tolerance already), one whose
     /// sign no tolerance moves onto a side `passes` accepts, or one the
-    /// symbolic tier proved identically zero ([`MarginDiag::theorem`]).
+    /// symbolic tier proved identically zero ([`MarginDiag::theorem`]),
+    /// or one whose tolerance is no larger than [`EPS_MIN`].
     /// D4 ¶1 (i) offers a tolerance only for a size the user may intend,
     /// and a proved zero is none: its numeric reading is the rounding of
     /// an exact identity, and a tolerance that decided that reading would
-    /// pass the decision on the rounding.
+    /// pass the decision on the rounding. Below [`EPS_MIN`] no admissible
+    /// tolerance lies (D4 ¶4), so no offer quotes one.
     fn tightens_below(self, band: Band, passes: SizedPass) -> Option<f64> {
         if self.placement(band) == Placement::Past || self.theorem().is_some() {
             return None;
         }
-        match self.0 {
+        let below = match self.0 {
             Reading::Value(m, ..) => passes.tightens(m).then(|| band.tolerance_deciding(m)),
             Reading::Enclosure { lo, hi, .. } => passes.below(lo, hi, band),
             Reading::Invalid => None,
-        }
+        };
+        below.filter(|&v| v > EPS_MIN)
     }
 
     /// **Whether this reading binds a shared offer before `other`**: a
@@ -1715,7 +1714,8 @@ impl MarginDiag {
     /// accepts; an enclosure where both ends do, below its nearer end;
     /// neither where it lies past the band, decided at this tolerance
     /// already, nor where the symbolic tier proved it zero, which is no
-    /// size the user may intend. Otherwise
+    /// size the user may intend, nor where `|m|/K` is no larger than
+    /// [`EPS_MIN`], below which no run's tolerance lies. Otherwise
     /// the lever alone, with [`SizedWords::otherwise`] where given; a
     /// poisoned margin takes [`SizedWords::unreadable`] instead
     /// ([`MarginDiag::unreadable_note`]).
@@ -2805,6 +2805,73 @@ mod tests {
         for (margin, words, want) in rows {
             assert_eq!(margin.sized_recourse(band, words), want, "{margin}");
         }
+    }
+
+    /// **No offer quotes a tolerance at or below ε_min** (D4 ¶4): a
+    /// margin whose `|m|/K` is no larger than [`EPS_MIN`] ends in the
+    /// lever and its note — at rest, at the import door, as an enclosure
+    /// and in a gate's escalation — and one whose `|m|/K` lies just above
+    /// it is offered. Red if the floor moves or an offer below it is
+    /// quoted.
+    #[test]
+    fn no_offer_quotes_a_tolerance_at_or_below_the_floor() {
+        let words = SizedWords {
+            lever: "L",
+            size: "length",
+            passes: SizedPass::Positive,
+            otherwise: Some("n"),
+            unreadable: "u",
+        };
+        let band = band_1e9();
+        let k = band.escalate() / band.zero();
+        let mut at_floor = EPS_MIN * k;
+        while band.tolerance_deciding(at_floor) < EPS_MIN {
+            at_floor = at_floor.next_up();
+        }
+        while band.tolerance_deciding(at_floor) > EPS_MIN {
+            at_floor = at_floor.next_down();
+        }
+        assert_eq!(band.tolerance_deciding(at_floor), EPS_MIN, "{at_floor:e}");
+        let above = at_floor.next_up();
+        let file = FileCoincidence::new(1e-8);
+        let head = "This length is below the file's declared coincidence distance ε_in = 1e-8 m, \
+                    so the file does not state it. Recourse: L";
+        for margin in [
+            MarginDiag::value(2.71e-27),
+            MarginDiag::value(0.5 * at_floor),
+            MarginDiag::value(at_floor),
+            MarginDiag::enclosure(at_floor, 2.0 * at_floor),
+        ] {
+            assert_eq!(margin.sized_recourse(band, words), "Recourse: L; n", "{margin}");
+            assert_eq!(
+                margin.sized_recourse_in_file(band, words, file),
+                format!("{head}; n"),
+                "{margin}: at the import door"
+            );
+        }
+        let offered = band.tolerance_deciding(above);
+        assert!(offered > EPS_MIN);
+        for margin in [MarginDiag::value(above), MarginDiag::enclosure(above, 1e-10)] {
+            assert_eq!(
+                margin.sized_recourse(band, words),
+                format!(
+                    "Recourse: L, or, if this length is intended, tighten the tolerance below \
+                     {offered:e} m"
+                ),
+                "{margin}"
+            );
+        }
+        // In band at a run near the floor, a gate's escalation offers
+        // nothing below it either.
+        let near = Band::new(2.0 * EPS_MIN, 2.0 * k * EPS_MIN).unwrap();
+        let escalated = |m: f64| Indeterminate {
+            margin: MarginDiag::value(m).rejected_by(Sign::Zero, SizedPass::Positive),
+            band: near,
+            predicate: None,
+            terminal_sliver: false,
+        };
+        assert!(!escalated(3.0 * EPS_MIN).offers_tolerance(), "|m|/K < ε_min");
+        assert!(escalated(1.5 * k * EPS_MIN).offers_tolerance(), "|m|/K > ε_min");
     }
 
     /// **A margin the symbolic tier proved zero is offered no

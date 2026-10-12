@@ -2679,8 +2679,9 @@ pub(crate) fn witness_site_fault<P>(doc: &Doc<P>, node: RecipeNodeId) -> Option<
     }
 }
 
-/// **The recorded ε's admission rule, stated once**: finite and
-/// strictly positive.
+/// **The recorded ε's admission rule, stated once**: the run's own,
+/// [`geom_core::tolerance::eps_admissible`] — finite and no smaller than
+/// `EPS_MIN`.
 ///
 /// One predicate with one home, asked by the edit door that records an
 /// ε ([`crate::DocEdit::SetTolerance`]) and by the save/load
@@ -2693,7 +2694,7 @@ pub(crate) fn witness_site_fault<P>(doc: &Doc<P>, node: RecipeNodeId) -> Option<
 /// edit door decides the value BEFORE it is a document's ε, and a
 /// method would have nothing to be called on there.
 pub(crate) fn epsilon_admissible(eps: f64) -> bool {
-    eps.is_finite() && eps > 0.0
+    geom_core::tolerance::eps_admissible(eps)
 }
 
 /// The strict ancestors of `from` in ONE document, visited depth-first
