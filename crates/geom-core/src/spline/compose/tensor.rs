@@ -137,7 +137,7 @@
 
 use super::super::knots::{KnotVector, SplineError};
 use super::super::net::TensorCoeffs;
-use super::super::range::{ParamRange, last_at_or_below};
+use super::super::range::ParamRange;
 use super::{
     BernsteinSpans, ComposeError, CurveCertData, bern_mul_row, binom_row, to_bezier_spans_extra,
 };
@@ -554,30 +554,36 @@ pub fn coefficient_norm_sup(num: [&[Interval]; 3]) -> f64 {
 /// polynomial extension (module docs, domain posture). Returns the
 /// inclusive index range. A [`ParamRange`] has no NaN or inverted
 /// spelling, so no window lands on a cell it does not name.
+///
+/// A cell the window meets only on its edge is left out, which is sound
+/// only for a quantity continuous across the breaks: there the value on
+/// the edge is the neighbour's own, and the neighbour is read. The
+/// surface is, its interior knot multiplicity being at most its degree
+/// ([`KnotVector::clamped`]).
 fn cells_touched(breaks: &[f64], window: ParamRange) -> (usize, usize) {
     let last = breaks.len() - 2;
-    let (lo, hi) = window.ends();
-    // The first cell whose upper break is above `lo`, and the last whose
-    // lower break is below `hi`.
-    let first_open = breaks[1..=last + 1].partition_point(|b| *b <= lo.get());
-    let last_open = breaks[..=last]
-        .partition_point(|b| *b < hi.get())
-        .checked_sub(1);
-    if let Some(end) = last_open
-        && first_open <= end
+    let (lo, hi) = (window.ends().0.get(), window.ends().1.get());
+    // The first cell whose upper break is above `lo` and the last whose
+    // lower break is below `hi`, or with `open` false, at or above and
+    // at or below.
+    let meets = |open: bool| {
+        let first = breaks[1..=last + 1].partition_point(|&b| b < lo || (open && b == lo));
+        let end = breaks[..=last]
+            .partition_point(|&b| b < hi || (!open && b == hi))
+            .checked_sub(1);
+        (first, end)
+    };
+    if let (first, Some(end)) = meets(true)
+        && first <= end
     {
-        return (first_open, end);
+        return (first, end);
     }
-    // The closed overlap: the first cell whose upper break is at or
-    // above `lo`, and the last whose lower break is at or below `hi`.
-    let first_cell = breaks[1..=last + 1].partition_point(|b| *b < lo.get());
-    let last_cell = last_at_or_below(&breaks[..=last], hi);
-    match last_cell {
+    match meets(false) {
         // The window misses the domain below: the first cell.
-        None => (0, 0),
+        (_, None) => (0, 0),
         // Or above: the last cell.
-        Some(_) if first_cell > last => (last, last),
-        Some(last_cell) => (first_cell, last_cell),
+        (first, Some(_)) if first > last => (last, last),
+        (first, Some(end)) => (first, end),
     }
 }
 
@@ -764,7 +770,7 @@ pub fn surface_curve_residual(
 mod tests {
     use super::*;
 
-    /// The cell locator against the closed-overlap scan it replaced,
+    /// The cell locator against a cell-by-cell scan of the same rule,
     /// over windows inside, on, straddling and outside the breaks.
     #[test]
     fn cells_touched_is_the_open_overlap_else_the_closed_one_clamped() {

@@ -851,22 +851,35 @@ fn loose_side_rows(grid: &[((f64, f64), f64, usize)], controls: &[usize]) {
                 ..
             })
         );
-        match m {
-            ..=64 => assert!(
+        // Limb 2 clears only on spans one wall span wide or less, so from
+        // the composite's `SSI_CERT_SPANS` first spans (the pcurve's knots
+        // lie on that grid) clearing takes at least `m − SSI_CERT_SPANS`
+        // cuts. Measured beside that floor: off the wall's knots no row
+        // took more than 6 cuts or 22 spans of work per wall span (342 and
+        // 1314 at m = 64, 6102 and 22 434 at m = 1024, the steepest P/N at
+        // ε 1e-6), and at m = 1024 none took fewer than 1.12 cuts per wall
+        // span (1148, P 0.6ε, k 100, the default ε).
+        let floor = m - ssi::SSI_CERT_SPANS;
+        let fits = 6 * m <= ssi::SSI_HULL_CUTS && 22 * m <= ssi::SSI_HULL_WORK;
+        let spent = floor > ssi::SSI_HULL_CUTS || (m >= 1024 && m * 112 / 100 > ssi::SSI_HULL_CUTS);
+        if fits {
+            assert!(
                 tube,
                 "{at}: the carrier along the side passes limbs 1 and 2, and its tube holds \
                  no solution: {got:?}"
-            ),
-            2048.. => assert!(
+            );
+        } else if spent {
+            assert!(
                 bound,
                 "{at}: limb 2's subdivision budget is spent, and it refuses on its bound: \
                  {got:?}"
-            ),
-            _ => assert!(
+            );
+        } else {
+            assert!(
                 tube || bound,
                 "{at}: the carrier refuses, by its tube holding no solution or on limb 2's \
                  bound: {got:?}"
-            ),
+            );
         }
     }
     for &m in controls {
@@ -894,15 +907,19 @@ fn loose_side_rows(grid: &[((f64, f64), f64, usize)], controls: &[usize]) {
 /// does not clear: the wall span holding its start, extended to its end,
 /// reads `h(s) = 2(P + N)·s(s − 1) + P ≥ 5P + 4N > ε` there (`s ≥ 2` in
 /// that span's units), and the composite's end coefficient is that
-/// value. So limb 2 passes only on spans one wall span wide or less. Over
-/// 64 spans that is well inside its budget, and its tube refuses with no
-/// solution in a box. Over 2048 it takes 2016 cuts, past the 1024 its
-/// budget holds, and it refuses on its bound. Between, which of the two
-/// refusals comes depends on where the pcurve's breaks fall against the
-/// wall's knots: on them, a span holding one wall span reads that span's
-/// polynomial alone, while a break carried off a knot by the foot points'
-/// offset (as at ε 1e-6) leaves the span reading its neighbour's
-/// polynomial extended across it, and that span takes more halving.
+/// value. So limb 2 passes only on spans one wall span wide or less,
+/// which takes at least `m − 32` cuts. Over 64 spans that is well inside
+/// its budget, and its tube refuses with no solution in a box. Over 2048
+/// it takes 2016 cuts, past the 1024 its budget holds, and it refuses on
+/// its bound. Over 1024 the floor, 992, fits the cap, but no row measured
+/// (default ε and 1e-6) cleared under 1148 cuts, and every row refuses on
+/// its bound at the default ε, 1e-6 and 1e-12. Over 256, which of the two refusals comes depends on where
+/// the pcurve's values at the breaks fall against the wall's knots: the
+/// breaks in `t` are fixed, but the foot points' offset (about 6e-13 at
+/// ε 1e-6, rounded away at the default ε) carries their images in `v`
+/// off the knots. On a knot, a span holding one wall span reads that
+/// span's polynomial alone; off it, the span also reads its neighbour's
+/// polynomial extended across it, and takes more halving.
 ///
 /// The control, `(0.3ε, −0.5ε, 0.3ε)` on each span, holds two zeros of
 /// `φ` on every span: its hulls straddle because `φ` does, and the side

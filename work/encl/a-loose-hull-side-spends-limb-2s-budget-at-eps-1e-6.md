@@ -6,7 +6,7 @@ status: review
 opened: 2026-10-11
 priority: P1
 cost: E
-refs: [hull-sup-limb-reads-its-bound-as-the-miss-at-the-import-door]
+refs: [hull-sup-limb-reads-its-bound-as-the-miss-at-the-import-door, a-composite-span-straddling-a-wall-knot-reads-the-neighbours-extension]
 branch: encl/loose-hull-budget
 pr: 4784
 ---
@@ -39,11 +39,12 @@ eps rows meets it as red CI that is not its own.
 
 ## Root cause
 
-The m = 256 row's expectation held only where limb 2's composite breaks
-land on the wall's knots. The pcurve is the projected foot points, and
-at ε 1e-6 the feet sit about 6e-13 off the identity (an O(h·h′) offset
-that rounds away at the default ε and at 1e-12), so every break is
-carried off its knot. `tensor::cells_touched` read a cell by closed
+The m = 256 row's expectation held only where the pcurve's values at
+limb 2's composite breaks land on the wall's knots. The breaks in `t`
+are fixed; the pcurve is the projected foot points, and at ε 1e-6 the
+feet sit about 6e-13 off the identity (an O(h·h′) offset that rounds
+away at the default ε and at 1e-12), so every break's image in `v`
+leaves its knot. `tensor::cells_touched` read a cell by closed
 overlap, so on the knots each span ending on a knot was bounded on its
 neighbour's polynomial extended across the whole span too, and needed
 about twice the halving; off them, the spans inside one wall span
@@ -56,6 +57,7 @@ floor sits above the band (every row clears at 0.825ε or 0.990ε at every
 Fixed: `cells_touched` reads a cell only where the window meets its
 interior (the surface is continuous across a knot), and the rows assert
 what holds at every ε: m = 64 passes limb 2 and refuses by its tube;
-m = 2048 needs 2016 cuts at any alignment and refuses on limb 2's bound;
-between, either refusal. Filed the straddle cost off the knots as
-`nurbs/a-composite-span-straddling-a-wall-knot-reads-the-neighbours-extension`.
+m = 2048 needs 2016 cuts at any alignment and m = 1024 measured at least
+1148, both past the cap, so they refuse on limb 2's bound; m = 256 takes
+either refusal. Filed the straddle cost off the knots as
+`ssiarith/a-composite-span-straddling-a-wall-knot-reads-the-neighbours-extension`.
