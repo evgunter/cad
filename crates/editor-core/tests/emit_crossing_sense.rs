@@ -115,7 +115,11 @@ fn two_crossing_edges_carry_each_ones_sense_against_the_other_block() {
 }
 
 /// The names `node`'s table binds to a vertex at `at`, to 1e-9.
-fn names_at(ev: &editor_core::Evaluation<f64>, node: RecipeNodeId, at: [f64; 3]) -> Vec<StableName> {
+fn names_at(
+    ev: &editor_core::Evaluation<f64>,
+    node: RecipeNodeId,
+    at: [f64; 3],
+) -> Vec<StableName> {
     let body = body_of(ev, node);
     table(ev, node)
         .iter()
@@ -167,7 +171,11 @@ fn a_rim_on_the_other_cavitys_floor_touches_its_wall_from_inside() {
             [RoleSeg::Crossing { sense, .. }] if !sense.crosses() => {
                 touches.push((name.clone(), *sense, point(body, v)));
             }
-            [RoleSeg::EdgeCrossing { a_sense, b_sense, .. }] => {
+            [
+                RoleSeg::EdgeCrossing {
+                    a_sense, b_sense, ..
+                },
+            ] => {
                 crossings.push((*a_sense, *b_sense, point(body, v)));
             }
             _ => {}
@@ -177,7 +185,10 @@ fn a_rim_on_the_other_cavitys_floor_touches_its_wall_from_inside() {
         panic!("one touch: {touches:?}");
     };
     assert_eq!(*sense, Sense::Inside, "{name:?}");
-    assert!((p.z - 0.5).abs() < 1e-12, "the touch is on the floor: {p:?}");
+    assert!(
+        (p.z - 0.5).abs() < 1e-12,
+        "the touch is on the floor: {p:?}"
+    );
     let said = Speaker::TAG.within(&ev).name(name).to_string();
     assert!(
         said.starts_with("the touch where ") && said.contains(" meets from inside the body of "),
@@ -208,7 +219,11 @@ fn a_corner_resting_on_a_face_is_the_corner_in_either_order() {
     for members in [[a, b], [b, a], [a_off, b]] {
         let (doc, u) = crate::fixture::union_over(doc.clone(), &members);
         let ev = run(&doc);
-        assert!(failure(&ev, u).is_none(), "{members:?}: {:?}", failure(&ev, u));
+        assert!(
+            failure(&ev, u).is_none(),
+            "{members:?}: {:?}",
+            failure(&ev, u)
+        );
         let names = names_at(&ev, u, [0.5, 0.25, 1.0]);
         let [name] = names.as_slice() else {
             panic!("{members:?}: one name at the corner: {names:?}");
@@ -240,7 +255,12 @@ fn an_edge_crossing_of_two_members_is_named_alike_in_either_order() {
         let (doc, u) = crate::fixture::union_over(doc.clone(), &members);
         let ev = run(&doc);
         assert!(failure(&ev, u).is_none(), "{label}: {:?}", failure(&ev, u));
-        for at in [[1.5, 0.0, 1.0], [1.5, 1.0, 1.0], [0.5, 0.0, 1.0], [0.5, 1.0, 1.0]] {
+        for at in [
+            [1.5, 0.0, 1.0],
+            [1.5, 1.0, 1.0],
+            [0.5, 0.0, 1.0],
+            [0.5, 1.0, 1.0],
+        ] {
             let names = names_at(&ev, u, at);
             assert!(
                 matches!(
@@ -254,10 +274,15 @@ fn an_edge_crossing_of_two_members_is_named_alike_in_either_order() {
                 "{label}: the crossing at {at:?}: {names:?}"
             );
         }
-        let names: Vec<StableName> = [[1.5, 0.0, 1.0], [1.5, 1.0, 1.0], [0.5, 0.0, 1.0], [0.5, 1.0, 1.0]]
-            .into_iter()
-            .flat_map(|at| names_at(&ev, u, at))
-            .collect();
+        let names: Vec<StableName> = [
+            [1.5, 0.0, 1.0],
+            [1.5, 1.0, 1.0],
+            [0.5, 0.0, 1.0],
+            [0.5, 1.0, 1.0],
+        ]
+        .into_iter()
+        .flat_map(|at| names_at(&ev, u, at))
+        .collect();
         match &first {
             None => first = Some((label, names)),
             Some((was, want)) => assert_eq!(&names, want, "{label} against {was}"),

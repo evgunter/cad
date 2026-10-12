@@ -1915,7 +1915,8 @@ fn name_boolean_vertices<T: Decide>(
     // Operand vertices → the result vertices that are each of them:
     // several where the boolean leaves several at one corner (null
     // copies), a tie, as nothing tells them apart.
-    let mut corners: BTreeMap<StableName, (bool, Parent, Vec<super::table::EntityRef>)> = BTreeMap::new();
+    let mut corners: BTreeMap<StableName, (bool, Parent, Vec<super::table::EntityRef>)> =
+        BTreeMap::new();
     for (v, _) in body.vertices() {
         // A vertex that is one of an operand's own vertices is that
         // vertex (N2), read at every operand key the boolean leaves at
@@ -1946,7 +1947,9 @@ fn name_boolean_vertices<T: Decide>(
             identity = Some(identity_of(side, u));
         }
         if let Some((name, from_tie, parent)) = identity {
-            let at = corners.entry(name).or_insert((from_tie, parent, Vec::new()));
+            let at = corners
+                .entry(name)
+                .or_insert((from_tie, parent, Vec::new()));
             at.0 |= from_tie;
             at.2.push(ent(0, EntityKey::Vertex(v)));
             continue;
@@ -3678,9 +3681,13 @@ mod tests {
     #[test]
     fn one_partner_refuses_two_distinct_partners() {
         let v = VertexKey::default();
-        let Err(NamingError::SeamVertexPartners { vertex, candidates }) =
-            one_partner(v, vec![(OpSide::B(()), upstream(3, false)), (OpSide::B(()), upstream(4, false))])
-        else {
+        let Err(NamingError::SeamVertexPartners { vertex, candidates }) = one_partner(
+            v,
+            vec![
+                (OpSide::B(()), upstream(3, false)),
+                (OpSide::B(()), upstream(4, false)),
+            ],
+        ) else {
             panic!("two distinct partners must refuse as SeamVertexPartners")
         };
         assert_eq!(vertex, v);

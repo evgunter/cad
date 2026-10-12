@@ -1114,4 +1114,3 @@ fn solids_touching_along_one_line_build_one_body_in_every_member_order() {
         false,
     );
 }
-

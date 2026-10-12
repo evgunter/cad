@@ -1018,7 +1018,11 @@ fn a_covered_contact_decides_alike_in_every_order() {
     let g = ((0.3, 0.4), (-1.0, 2.0), (0.5, 3.0));
     for (label, creation) in [("row", [0, 1, 2, 3]), ("rowids", [3, 2, 1, 0])] {
         let classes = tables_by_order(label, &[A, B, g, H], &creation);
-        assert_eq!(classes.len(), 1, "{label}: one table in every order: {classes:?}");
+        assert_eq!(
+            classes.len(),
+            1,
+            "{label}: one table in every order: {classes:?}"
+        );
     }
 }
 
@@ -1038,4 +1042,3 @@ fn a_contact_b_covers_decides_in_every_order() {
         ]
     );
 }
-
