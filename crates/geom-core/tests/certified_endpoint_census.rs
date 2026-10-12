@@ -290,7 +290,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
         "two are in `rational_cells`, guarded by the `is_certified()` this counts: \
          the refined weight licence, which asks by name before reading `lo`, and the \
          cell's weight hull `w_cell.lo()`, read only after `w_cell` and both \
-         weight-partial hulls have asked. `QuotientForm::floor` asks the weight hull \
+         weight-partial hulls have asked. `RationalForm::floor` asks the weight hull \
          by name before reading its lower end, and `pair_norm_sup` refuses every term \
          and offset by name before its flat test reads a `g`'s ends. The remainder: \
          `centre`, safe because a centre is a translation choice and no enclosure \

@@ -99,10 +99,10 @@ use std::ops::RangeInclusive;
 
 use geom::surfaces::NurbsSurface;
 use geom_core::interval::certification::Certification;
-use geom_core::interval::{Interval, certified_hi, cross, max_bound, norm_sup};
+use geom_core::interval::{Interval, certified_hi, cross, dot, max_bound, norm_sup};
 use geom_core::spline::algebra::equal_split_points;
 use geom_core::spline::net::{TensorChannels, TensorCoeffs, TensorNet};
-use geom_core::spline::weight_scale::unit_scale_exact;
+use geom_core::spline::weight_scale::{pow2_scaled, unit_scale_exact};
 use geom_core::spline::{C1Break, Derived, KnotVector};
 
 /// The fixed refinement schedule of the RATIONAL arm: every nonempty
@@ -667,20 +667,39 @@ fn window_terms(
 }
 
 /// A certified upper bound on `‖x‖` over every `x` in the convex hull of
-/// `vectors`: the largest norm of one of them, the norm being convex, read
-/// through [`pair_norm_sup`] as terms that do not read the offset. On one
-/// knot span a VECTOR B-spline is a convex combination of its active
-/// control vectors, so this bounds the form's norm over the cell. `NaN`
-/// for no vectors, or when one is refused.
-fn vectors_norm_sup(vectors: &[[Interval; 3]]) -> f64 {
-    let terms: Vec<Affine> = vectors
+/// `vectors`: the largest norm of one of them, the norm being convex. On
+/// one knot span a VECTOR B-spline is a convex combination of its active
+/// control vectors, so this bounds the form's norm over the cell; it is
+/// [`QuotientForm::Unit`]'s speed. `NaN` for no vectors, or when one is
+/// refused.
+///
+/// Each vector is screened in `f64` first ([`Centred::of`],
+/// [`screen_bound`]); the best-screened one is read in certification
+/// arithmetic, then each whose screen is above the maximum read so far.
+fn vectors_sup(vectors: &[[Interval; 3]]) -> f64 {
+    if !vectors.iter().flatten().all(|x| x.is_certified()) {
+        return f64::NAN;
+    }
+    let none = Centred {
+        mid: [0.0; 3],
+        rad: 0.0,
+    };
+    let screens: Vec<f64> = vectors
         .iter()
-        .map(|&k| Affine {
-            k,
-            g: Interval::zero(),
-        })
+        .map(|v| screen_bound(&Centred::of(v), &none))
         .collect();
-    pair_norm_sup(&[[Interval::zero(); 3]], &terms, &[], 1.0)
+    let Some(best) = (0..vectors.len()).max_by(|&a, &b| screens[a].total_cmp(&screens[b])) else {
+        return f64::NAN;
+    };
+    let mut sup = norm_sup(&vectors[best]);
+    for (i, v) in vectors.iter().enumerate() {
+        // A `NaN` screen or maximum rules nothing out.
+        let ruled_out = screens[i] <= sup;
+        if i != best && !ruled_out {
+            sup = max_bound(sup, norm_sup(v));
+        }
+    }
+    sup
 }
 
 /// A certified upper bound on `‖x × y‖` over every `x` in the convex
@@ -704,7 +723,7 @@ fn cross_norm_sup(a: &[[Interval; 3]], b: &[[Interval; 3]]) -> f64 {
             .iter()
             .map(|v| [v[0] - c[0], v[1] - c[1], v[2] - c[2]])
             .collect();
-        vectors_norm_sup(&about)
+        vectors_sup(&about)
     };
     let (ca, cb) = (centre(a), centre(b));
     let terms = [
@@ -759,9 +778,42 @@ fn coordinate_hull(vectors: &[[Interval; 3]], c: usize) -> Interval {
 /// offsets `q_j = P_j − c` of the cell's active control points hold
 /// `S − c` in their hull (positive weights make the rational basis a
 /// nonnegative partition of unity over them), and the weight hull
-/// holds `w`. An integral cell is the same form with every `g_i`
-/// exactly zero over unit weight.
-pub(crate) struct QuotientForm<'q> {
+/// holds `w`.
+pub(crate) enum QuotientForm<'q> {
+    /// Every `g_i` exactly zero over unit weight, as on an integral
+    /// cell: the terms are the vectors `k_i` themselves, and no offset
+    /// is read.
+    Unit(&'q [[Interval; 3]]),
+    /// The general form.
+    Rational(RationalForm<'q>),
+}
+
+impl QuotientForm<'_> {
+    /// A certified upper bound on `‖S_d‖` over the cell; `NaN` when
+    /// refused ([`RationalForm::speed_sup`], or for a unit form the
+    /// largest `‖k_i‖`, read through [`vectors_sup`]).
+    pub(crate) fn speed_sup(&self) -> f64 {
+        match self {
+            Self::Unit(ks) => vectors_sup(ks),
+            Self::Rational(form) => form.speed_sup(),
+        }
+    }
+
+    /// The signed componentwise enclosure of `S_d` over the cell with
+    /// `S − c` ranging over the box `q` ([`RationalForm::derivative_box`];
+    /// for a unit form each coordinate's hull of the `k_i`). Refused for
+    /// no terms.
+    pub(crate) fn derivative_box(&self, q: [Interval; 3]) -> [Interval; 3] {
+        match self {
+            Self::Unit(ks) => core::array::from_fn(|c| coordinate_hull(ks, c)),
+            Self::Rational(form) => form.derivative_box(q),
+        }
+    }
+}
+
+/// [`QuotientForm::Rational`]: the terms, the offsets and the weight
+/// hull.
+pub(crate) struct RationalForm<'q> {
     /// The terms `k_i − g_i·q`, one per active derived coefficient.
     pub(crate) terms: Vec<Affine>,
     /// The offsets `q_j = P_j − c`.
@@ -770,11 +822,20 @@ pub(crate) struct QuotientForm<'q> {
     pub(crate) weight: Interval,
 }
 
-impl QuotientForm<'_> {
+impl<'q> RationalForm<'q> {
     /// The weight hull's lower end, the divisor every norm reads; `None`
     /// unless the hull is certified positive.
     pub(crate) fn floor(&self) -> Option<f64> {
         (self.weight.is_certified() && self.weight.lo() > 0.0).then(|| self.weight.lo())
+    }
+
+    /// The same form with every term scaled by `e`.
+    pub(crate) fn times(&self, e: Interval) -> Self {
+        Self {
+            terms: self.terms.iter().map(|t| t.times(e)).collect(),
+            offsets: self.offsets,
+            weight: self.weight,
+        }
     }
 
     /// A certified upper bound on `‖S_d‖` over the cell,
@@ -792,15 +853,39 @@ impl QuotientForm<'_> {
         })
     }
 
+    /// `max ‖x(q_j) + y(q_j)‖ / inf w` over the terms `x` of this form
+    /// and `y` of `other` (the same offsets) and the offsets, through
+    /// [`pair_norm_sup`]; `NaN` when refused.
+    pub(crate) fn sum_sup(&self, other: &Self) -> f64 {
+        self.floor().map_or(f64::NAN, |floor| {
+            pair_norm_sup(self.offsets, &self.terms, &other.terms, floor)
+        })
+    }
+
     /// The signed componentwise enclosure of `S_d` over the cell with
-    /// `S − c` ranging over the box `q`: the hull of every term at `q`,
-    /// over the weight hull. Refused for no terms.
+    /// `S − c` ranging over the box `q`: [`RationalForm::numerator_box`]
+    /// over the weight hull.
     pub(crate) fn derivative_box(&self, q: [Interval; 3]) -> [Interval; 3] {
+        self.numerator_box(q).map(|x| x / self.weight)
+    }
+
+    /// The hull of every term at the box `q`, per coordinate; refused
+    /// for no terms.
+    pub(crate) fn numerator_box(&self, q: [Interval; 3]) -> [Interval; 3] {
         self.terms
             .iter()
             .map(|t| t.at(q))
             .reduce(|a, b| core::array::from_fn(|k| Interval::hull(a[k], b[k])))
-            .map_or([Interval::refused(); 3], |n| n.map(|x| x / self.weight))
+            .unwrap_or([Interval::refused(); 3])
+    }
+
+    /// The hull over the terms of `n·k_i − g_i·d`: `n·` of every term
+    /// at an offset whose `n·q` is `d`.
+    pub(crate) fn along_hull(&self, n: &[Interval; 3], d: Interval) -> Option<Interval> {
+        self.terms
+            .iter()
+            .map(|t| dot(n, &t.k) - t.g * d)
+            .reduce(Interval::hull)
     }
 }
 
@@ -833,28 +918,20 @@ impl Affine {
 
 /// `max ‖x(q) + y(q)‖ / floor` over the terms `x` of `xs`, `y` of `ys`
 /// and the offsets `q`, rounded outward; `NaN` when a read refuses or
-/// `floor` is not positive and finite.
+/// `floor` is not positive and finite. An empty `ys` reads
+/// `max ‖x(q)‖ / floor`.
 ///
-/// A pair is read in certification arithmetic with its terms divided
-/// by `floor` first, so the norm squares the quotients and a
-/// subnormal weight's products are not squared away.
-///
-/// Every pair is screened in `f64` first ([`Centred::centre`] with one
-/// [`Centred::radius`] per list, then [`screen_bound`]: an upper bound
-/// on the sum's norm from centres and radii), and only the best-screened pair, and then each pair whose
-/// screen is above the maximum read so far, is read in certification
-/// arithmetic. A pair skipped has a real norm at most that maximum, so
-/// the result is at most the full enumeration's and below it only by
-/// rounding. A screen that is `+∞` or `NaN` (an unbounded or
-/// unformable radius or centre) rules nothing out, so such a pair is
-/// read. Every input is asked for its refusal first, as the full
-/// enumeration's `norm_sup` would ask every pair. The screens are of
-/// the undivided terms, held against the maximum times `floor` rounded
-/// down.
-///
-/// An empty `ys` reads `max ‖x(q)‖`. When no term reads the offset
-/// (every `g` an exact zero, as on a polynomial net) every offset reads
-/// alike, and only the first is read.
+/// Every pair is screened in `f64` first ([`Centred::centre`], one
+/// [`Centred::radius`] per list, [`screen_bound`]). The best-screened
+/// pair is read in certification arithmetic, then each pair whose screen
+/// is above the maximum read so far; a skipped pair's real norm is at
+/// most that maximum. A read divides its terms by `floor` before the
+/// norm squares them. The screens are of the undivided terms carried by
+/// the power of two that brings a floor below one into `[1, 2)`, so a
+/// net of subnormal weights is screened at unit scale, and each screen
+/// is held against the maximum times the carried floor, rounded down.
+/// Every input is asked for its refusal first. When no term reads the
+/// offset (every `g` an exact zero) only the first offset is read.
 pub(crate) fn pair_norm_sup(qs: &[[Interval; 3]], xs: &[Affine], ys: &[Affine], floor: f64) -> f64 {
     let certified = |a: &Affine| a.g.is_certified() && a.k.iter().all(|c| c.is_certified());
     if !(floor > 0.0 && floor.is_finite())
@@ -880,6 +957,28 @@ pub(crate) fn pair_norm_sup(qs: &[[Interval; 3]], xs: &[Affine], ys: &[Affine], 
                 let g = if flat { none } else { Centred::of_scalar(t.g) };
                 (Centred::of(&t.k), g)
             })
+            .collect()
+    };
+    // `2^shift` carries a floor below one into `[1, 2)`, exactly; the
+    // terms carried with it are larger, so the carry is exact too.
+    let (shift, carried) = match unit_scale_exact(&[floor]) {
+        Some((shift, f)) if shift > 0 => (shift, f[0]),
+        _ => (0, floor),
+    };
+    let carry = |c: Centred| {
+        if shift == 0 {
+            c
+        } else {
+            Centred {
+                mid: c.mid.map(|m| pow2_scaled(m, shift)),
+                rad: pow2_scaled(c.rad, shift),
+            }
+        }
+    };
+    let parts = |ts: &[Affine]| -> Vec<(Centred, Centred)> {
+        parts(ts)
+            .into_iter()
+            .map(|(k, g)| (carry(k), carry(g)))
             .collect()
     };
     let (xa, ya) = (parts(xs), parts(ys));
@@ -937,13 +1036,11 @@ pub(crate) fn pair_norm_sup(qs: &[[Interval; 3]], xs: &[Affine], ys: &[Affine], 
     let Some(&(_, best)) = screens.iter().max_by(|a, b| a.0.total_cmp(&b.0)) else {
         return f64::NAN;
     };
-    // The screens are of the undivided terms, so each is held against
-    // the maximum times the floor, rounded down.
     let undivided = |sup: f64| {
-        if floor == 1.0 {
+        if carried == 1.0 {
             sup
         } else {
-            (sup * floor).next_down()
+            (sup * carried).next_down()
         }
     };
     let mut sup = norm(best);
@@ -1114,7 +1211,6 @@ fn integral_cells_on(base_nets: &TensorChannels<'_, 3>) -> Result<Vec<PatchCell>
         .map(DNets::build)
         .collect::<Result<Vec<_>, _>>()?;
     let zero = Interval::zero();
-    let origin = [[zero; 3]];
     let mut cells = Vec::new();
     for su in kv_u.first_span()..=kv_u.last_span() {
         let Some(span_u) = kv_u.span(su) else {
@@ -1146,20 +1242,12 @@ fn integral_cells_on(base_nets: &TensorChannels<'_, 3>) -> Result<Vec<PatchCell>
             }
             let ku = window_vectors(&w.u_d1, &w.v_val, |c, i, j| nets[c].d10.get(i, j));
             let kv = window_vectors(&w.u_val, &w.v_d1, |c, i, j| nets[c].d01.get(i, j));
-            // The quotient form with `g ≡ 0` over unit weight: its box is
-            // the coefficient hull and its speed the largest coefficient
-            // norm.
-            let form = |ks: &[[Interval; 3]]| QuotientForm {
-                terms: ks.iter().map(|&k| Affine { k, g: zero }).collect(),
-                offsets: &origin,
-                weight: Interval::point(1.0),
-            };
-            let (fu, fv) = (form(&ku), form(&kv));
+            let (fu, fv) = (QuotientForm::Unit(&ku), QuotientForm::Unit(&kv));
             cells.push(cell_from(
                 (span_extent(kv_u, su), span_extent(kv_v, sv)),
                 [
-                    fu.derivative_box(origin[0]),
-                    fv.derivative_box(origin[0]),
+                    fu.derivative_box([zero; 3]),
+                    fv.derivative_box([zero; 3]),
                     s_uu,
                     s_uv,
                     s_vv,
@@ -1292,16 +1380,16 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
             });
             // The cell's weight hull — the divisor (module docs).
             let w_cell = window_hull(w_grid, &w.u_val, &w.v_val);
-            let fu = QuotientForm {
+            let fu = QuotientForm::Rational(RationalForm {
                 terms: window_terms(&au, &w_nets.d10, &w.u_d1, &w.v_val),
                 offsets: &about,
                 weight: w_cell,
-            };
-            let fv = QuotientForm {
+            });
+            let fv = QuotientForm::Rational(RationalForm {
                 terms: window_terms(&av, &w_nets.d01, &w.u_val, &w.v_d1),
                 offsets: &about,
                 weight: w_cell,
-            };
+            });
             let q: [Interval; 3] = core::array::from_fn(|k| coordinate_hull(&about, k));
             let (s_u, s_v) = (fu.derivative_box(q), fv.derivative_box(q));
             // Weight-net hulls on the cell.
@@ -1355,9 +1443,9 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
             // docs): the cross term with the two `w_d·Ã_d × (S − c)` terms
             // over `inf w²`.
             let vectors = [
-                vectors_norm_sup(&au),
-                vectors_norm_sup(&av),
-                vectors_norm_sup(&about),
+                vectors_sup(&au),
+                vectors_sup(&av),
+                vectors_sup(&about),
                 cross_norm_sup(&au, &av),
             ];
             let weights = [w_cell, w10s, w01s];
@@ -1741,10 +1829,10 @@ pub(crate) mod tests {
     }
 
     /// **The screened pair norm is the full enumeration's.** Random
-    /// affine terms, offsets and floors, some with enclosures a tenth wide
-    /// so the screen's radius terms carry weight, some with near-tied
-    /// terms: the
-    /// screened maximum is never above the enumeration's `norm_sup` over
+    /// affine terms, offsets and floors (subnormal and huge among them),
+    /// some with enclosures a tenth wide so the screen's radius terms
+    /// carry weight, some with near-tied terms: the screened maximum is
+    /// never above the enumeration's `norm_sup` over
     /// every pair (it reads a subset) and never below it by more than
     /// rounding (what it skips is bounded by what it read). One refused
     /// coordinate anywhere refuses the read, as the enumeration does.
@@ -1769,16 +1857,26 @@ pub(crate) mod tests {
                 g: iv(rng, if tie { 1e-3 } else { 2.0 }, wide),
             };
             let (nx, ny, nq) = (1 + rng.below(12), 1 + rng.below(12), 1 + rng.below(16));
-            let xs: Vec<Affine> = (0..nx).map(|_| affine(&mut rng)).collect();
-            let ys: Vec<Affine> = (0..ny).map(|_| affine(&mut rng)).collect();
+            // A subnormal or huge floor comes with terms at its own scale,
+            // as a net's weights bring them, so the quotients stay near one.
+            let (floor, extreme) = match case % 5 {
+                0 => (1.0, false),
+                1 | 2 => (rng.range(0.1, 4.0), false),
+                3 => (f64::MIN_POSITIVE * rng.range(1e-12, 0.5), true),
+                _ => (rng.range(1e300, 1e306), true),
+            };
+            let at_scale = |a: Affine| {
+                if extreme {
+                    a.times(Interval::point(floor))
+                } else {
+                    a
+                }
+            };
+            let xs: Vec<Affine> = (0..nx).map(|_| at_scale(affine(&mut rng))).collect();
+            let ys: Vec<Affine> = (0..ny).map(|_| at_scale(affine(&mut rng))).collect();
             let qs: Vec<[Interval; 3]> = (0..nq)
                 .map(|_| core::array::from_fn(|_| iv(&mut rng, 0.5, wide)))
                 .collect();
-            let floor = if case % 4 == 0 {
-                1.0
-            } else {
-                rng.range(0.1, 4.0)
-            };
             let got = pair_norm_sup(&qs, &xs, &ys, floor);
             let per = Interval::point(floor);
             let mut all = f64::NEG_INFINITY;
@@ -1947,7 +2045,7 @@ pub(crate) mod tests {
     fn the_screen_holds_against_exact_arithmetic() {
         use core::cmp::Ordering::Less;
         use test_utils::fuzz;
-        let mut rng = fuzz::start("enclose::screen_exact");
+        let mut rng = fuzz::start("patch_bound::screen_exact");
         let mag = |rng: &mut fuzz::Rng| {
             let m = 10f64.powf(rng.range(-100.0, 100.0));
             if rng.below(2) == 0 { m } else { -m }

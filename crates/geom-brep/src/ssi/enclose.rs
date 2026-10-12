@@ -82,7 +82,7 @@ use geom_core::spline::{
 use geom_core::{CertifiedBounds, CertifiedEnclosure, Interval, Point3, SupSpeed, Vec3};
 
 use super::{ChartAxis, ChartSpeedRefusal, SsiError, TubeDegeneracy};
-use crate::patch_bound::{Affine, QuotientForm, pair_norm_sup};
+use crate::patch_bound::{Affine, RationalForm};
 
 /// An axis-aligned enclosure box in ℝ³.
 #[derive(Clone, Copy, Debug)]
@@ -1187,22 +1187,19 @@ impl CellNet {
     /// The quotient rule's numerator `A_d − S·w_d` and the weight hull
     /// over the block, `(numerator hull, w hull)`, with `S` ranging over
     /// `sbox`, which is in the block's frame ([`CellNet::point_box`]):
-    /// the hull of every [`PairTerm`] at `sbox`.
+    /// the block's [`RationalForm::numerator_box`] about its first point
+    /// `c`, at `sbox − c`.
     fn quotient_numerator(&self, along_u: bool, sbox: Box3) -> (Box3, Interval) {
-        let Some(terms) = self.pair_terms(along_u) else {
+        let Some((c, form)) = self
+            .pts
+            .first()
+            .and_then(|&c| Some((c, self.form(along_u, c, &[])?)))
+        else {
             return (refused_box(), Interval::refused());
         };
-        let num = terms
-            .iter()
-            .map(|t| {
-                let [x, y, z] = t.at([sbox.x, sbox.y, sbox.z]);
-                Box3 { x, y, z }
-            })
-            .reduce(Box3::hull);
-        (
-            num.unwrap_or_else(refused_box),
-            self.weight_hull().unwrap_or_else(Interval::refused),
-        )
+        let s = [sbox.x, sbox.y, sbox.z];
+        let [x, y, z] = form.numerator_box(core::array::from_fn(|k| s[k] - c[k]));
+        (Box3 { x, y, z }, form.weight)
     }
 
     /// The numerator's terms, one per adjacent pair of the net in
@@ -1274,8 +1271,8 @@ impl CellNet {
         along_u: bool,
         c: [Interval; 3],
         offsets: &'q [[Interval; 3]],
-    ) -> Option<QuotientForm<'q>> {
-        Some(QuotientForm {
+    ) -> Option<RationalForm<'q>> {
+        Some(RationalForm {
             terms: self
                 .pair_terms(along_u)?
                 .iter()
@@ -1287,7 +1284,7 @@ impl CellNet {
     }
 
     /// An upper bound on `‖S_d‖` over the block's region, rounded
-    /// outward: the block's [`QuotientForm::speed_sup`], whose
+    /// outward: the block's [`RationalForm::speed_sup`], whose
     /// [`PairTerm`]s are the numerator's terms and whose offsets are the
     /// block's points. In real arithmetic it is never above the norm of
     /// the box [`CellNet::derivative_box`] reads, which holds every term
@@ -1310,11 +1307,11 @@ impl CellNet {
     /// `S_u·ex + S_v·ey` is `(ex·N_u + ey·N_v)/w`, and since each
     /// numerator's basis sums to one, `ex·N_u + ey·N_v` is a convex
     /// combination of `ex·a(S) + ey·b(S)` over every `u` term `a` and
-    /// `v` term `b` of the two [`QuotientForm`]s. Each is affine in `S`,
+    /// `v` term `b` of the two [`RationalForm`]s. Each is affine in `S`,
     /// so `n·` of it is extreme, and its norm largest, at one of the
     /// block's points: both readings are read from the vectors
     /// `ex·a(P_j) + ey·b(P_j)` alone, the norm through
-    /// [`pair_norm_sup`] over the weight's floor, and a rigid
+    /// [`RationalForm::sum_sup`] over the weight's floor, and a rigid
     /// map that carries `n` with the wall moves them by their rounding
     /// width.
     fn transverse_readings(&self, n: [Interval; 3], ex: Interval, ey: Interval) -> (Interval, f64) {
@@ -1324,23 +1321,16 @@ impl CellNet {
         let (Some(fu), Some(fv)) = (self.form(true, c, &qs), self.form(false, c, &qs)) else {
             return (Interval::refused(), f64::NAN);
         };
-        let Some(floor) = fu.floor() else {
+        if fu.floor().is_none() {
             return (Interval::refused(), f64::NAN);
-        };
-        let side = |f: &QuotientForm<'_>, e: Interval| -> Vec<Affine> {
-            f.terms.iter().map(|t| t.times(e)).collect()
-        };
-        let (au, bv) = (side(&fu, ex), side(&fv, ey));
+        }
+        let (su, sv) = (fu.times(ex), fv.times(ey));
         // Each term's `n·` is affine in the scalar `d = n·(S − c)`:
         // `n·k − g·d`. At one `S` the pairs' range is the sum of each
         // side's, so its top, `maxᵢ(n·aᵢ) + maxⱼ(n·bⱼ)`, is convex in `d`
         // and its bottom concave: over the block's points both are
         // extreme at the ends of the hull of their `d`, where they are
-        // read.
-        let dots = |a: &[Affine]| -> Vec<(Interval, Interval)> {
-            a.iter().map(|t| (dot(&n, &t.k), t.g)).collect()
-        };
-        let (du, dv) = (dots(&au), dots(&bv));
+        // read ([`RationalForm::along_hull`]).
         let along = qs
             .iter()
             .map(|q| dot(&n, q))
@@ -1351,14 +1341,13 @@ impl CellNet {
                     .into_iter()
                     .filter_map(|end| {
                         let d = Interval::point(end);
-                        let range = |ts: &[(Interval, Interval)]| {
-                            ts.iter().map(|&(k, g)| k - g * d).reduce(Interval::hull)
-                        };
-                        range(&du).zip(range(&dv)).map(|(a, b)| a + b)
+                        su.along_hull(&n, d)
+                            .zip(sv.along_hull(&n, d))
+                            .map(|(a, b)| a + b)
                     })
                     .reduce(Interval::hull)
             });
-        let sup = pair_norm_sup(&qs, &au, &bv, floor);
+        let sup = su.sum_sup(&sv);
         (along.map_or_else(Interval::refused, |a| a / fu.weight), sup)
     }
 }
@@ -1386,11 +1375,6 @@ impl PairTerm {
             }),
             g: self.dw * self.scale,
         }
-    }
-
-    /// The term at `S = s`: [`PairTerm::about`] `s` itself.
-    fn at(&self, s: [Interval; 3]) -> [Interval; 3] {
-        self.about(s).k
     }
 }
 

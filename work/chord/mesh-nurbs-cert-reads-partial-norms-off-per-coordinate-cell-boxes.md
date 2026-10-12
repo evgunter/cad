@@ -23,9 +23,8 @@ shape DESIGN.md D4 ¶2 now rules out for certified vector upper bounds
 per-coordinate box folded into a norm").
 
 `PatchCell` now carries `s_u_sup`/`s_v_sup`, read from the derived
-control vectors' norms on the integral arm (`window_norm_sup` in
-`crates/geom-brep/src/patch_bound.rs`, through
-`geom_core::spline::compose::tensor::coefficient_norm_sup`). The same
+control vectors' norms on the integral arm (`QuotientForm::Unit`'s
+speed, `vectors_sup` in `crates/geom-brep/src/patch_bound.rs`). The same
 reading applies to the second-derivative nets on the integral arm
 (`integral_cells_on` holds them as `DNets`); `nurbs_cert`'s
 `NurbsFaceBound` documents itself as non-rational, so the integral arm
