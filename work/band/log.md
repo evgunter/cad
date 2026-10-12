@@ -804,5 +804,5 @@ with it, as under a Boolean; a crossing feature still refuses. No `Consumed`
 record until something needs one. C8 now says face clearance reads three
 ways. A consumption lint over the blend and the Boolean as one rule, which
 needs lints to store their own resolution first, is filed on INTENT
-(`a-feature-an-operation-consumes-has-a-lint`). Fork-log row 117 (renumbered
+(`a-feature-an-operation-consumes-has-a-lint`). Fork-log row 119 (renumbered
 from 86 at merge). The build goes in the ruling's four steps.
