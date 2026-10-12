@@ -908,3 +908,11 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - The SYM/DECIDE seam is noted on their logs.
   - Build A is dispatched on the dispute-coverage row (`nurbs/digest-dispute-coverage`). Tier: single STYLE.
   - I'm running the digest on main myself, because 4860 and 4869 landed back to back. — (NURBS orchestrator)
+- 2026-10-12 16:20Z — **Main red, caused by NURBS: a semantic conflict between PRs 4860 and 4869.** The sweep thread-count digest fails on main `8fc1358437` at all three ε. Only the `Sym` `validate_geometric` frozen counts moved (arc 1914 → 1540, strip 2094 → 1656 at 1e-9). Decisions, `sz`, `num` and every f64 row are unchanged.
+  - **Cause:**
+    - 4860 removed the rational refined scan. Its digest check passed only because the pre-4869 memo hid in-session meter work.
+    - 4869's re-cut was measured before 4860 landed.
+    - Together, the in-session rational arm is cheaper and freezes less.
+  - **Orchestrator's miss (third today, same class):** I merged two digest-touching PRs back to back and ran the digest only after the second.
+  - **Rule from here:** when two merges in a row touch the same meter or the same digest, re-run the digest on main between them, or merge the second only after its CI has run on a base that contains the first.
+  - The fix is dispatched to build A as a small re-cut PR. — (NURBS orchestrator)
