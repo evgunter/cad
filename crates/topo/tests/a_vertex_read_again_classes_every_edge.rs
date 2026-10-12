@@ -163,7 +163,8 @@ impl G {
             let (s, c) = (2.399_963 * f64::from(k)).sin_cos();
             let r = z.mul_add(-z, 1.0).sqrt();
             let u = [r * c, r * s, z];
-            let q = [0, 1, 2].map(|j| d[j] + 1e-7 * u[j]);
+            let ball = f64::from_bits(GERM_BALL.load(std::sync::atomic::Ordering::Relaxed));
+            let q = [0, 1, 2].map(|j| d[j] + ball * u[j]);
             if self.has(q) {
                 i += 1;
             } else {
@@ -269,8 +270,8 @@ fn check(
                         if here != v {
                             continue;
                         }
-                        let want =
-                            other.side(local(pose, readback::vertex_point(own, far).unwrap() - p));
+                        let dir = local(pose, readback::vertex_point(own, far).unwrap() - p);
+                        let want = other.side(dir);
                         let got: Vec<SideCode> = r
                             .naming
                             .edge_classes
@@ -301,7 +302,7 @@ fn check(
                         };
                         if bad && tally.first.is_none() {
                             tally.first = Some(format!(
-                                "{what}: {op:?}'s edge {e:?} at MEET reads {got:?}, the germ {want:?}"
+                                "{what}: {op:?}'s edge {e:?} at MEET reads {got:?}, the germ {want:?}, dir {dir:?}"
                             ));
                         }
                     }
@@ -948,4 +949,411 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
     }
     assert!(failures.is_empty(), "{failures:#?}");
     assert!(rows > 0, "rows were read");
+}
+
+// ---------------------------------------------------------------------
+// REVIEW PROBES (PR 4413 review, scratch branch; not for merge).
+// ---------------------------------------------------------------------
+
+/// The germ's sampling ball (radians); 1e-7 unless a probe sets it.
+static GERM_BALL: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0x3E7A_D7F2_9ABC_AF48);
+
+/// One probe cell's oracle beside [`check`]: tier 3, material at points
+/// near `MEET` against the analytic germ, and volumes that add up.
+#[derive(Default, Debug)]
+struct ProbeTally {
+    cells: usize,
+    built: usize,
+    empty: usize,
+    refused: BTreeMap<String, usize>,
+    bad: Vec<String>,
+}
+
+fn probe_material(
+    label: &str,
+    x: (&AtRestBody<f64>, &G),
+    y: (&AtRestBody<f64>, &G),
+    pose: &Pose,
+    radius: f64,
+    tally: &mut ProbeTally,
+) {
+    use topo::{SolidContainment, mass_properties, point_in_solid};
+    let band = Band::linear(t()).unwrap();
+    let meet = pose.at(MEET);
+    let o = pose.at([0.0; 3]);
+    let dirs: Vec<[f64; 3]> = (0..240)
+        .map(|k| {
+            let z = 1.0 - (2.0 * f64::from(k) + 1.0) / 240.0;
+            let (s, c) = (2.399_963 * f64::from(k)).sin_cos();
+            let r = z.mul_add(-z, 1.0).sqrt();
+            [r * c, r * s, z]
+        })
+        .collect();
+    let vol = |b: &AtRestBody<f64>| mass_properties(b, t()).map(|m| m.volume);
+    let (vx, vy) = match (vol(x.0), vol(y.0)) {
+        (Ok(a), Ok(b)) => (a, b),
+        e => {
+            tally.bad.push(format!("{label}: operand volume {e:?}"));
+            return;
+        }
+    };
+    type Keep = fn(bool, bool) -> bool;
+    let x_less: Keep = |a, b| a && !b;
+    let y_less: Keep = |a, b| b && !a;
+    let or: Keep = |a, b| a || b;
+    let and: Keep = |a, b| a && b;
+    let mut v = [None; 6];
+    for (k, (what, keep, r)) in [
+        ("x − y", x_less, subtract(x.0, y.0, t())),
+        ("y − x", y_less, subtract(y.0, x.0, t())),
+        ("x ∪ y", or, union(x.0, y.0, t())),
+        ("y ∪ x", or, union(y.0, x.0, t())),
+        ("x ∩ y", and, intersect(x.0, y.0, t())),
+        ("y ∩ x", and, intersect(y.0, x.0, t())),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        tally.cells += 1;
+        let what = format!("{label}, {}, {what}", pose.label);
+        let body = match r {
+            Ok(BooleanResult::Body(r)) => r.body,
+            Ok(BooleanResult::Empty) => {
+                tally.empty += 1;
+                v[k] = Some(0.0);
+                // An empty result holds no germ material.
+                for d in &dirs {
+                    let (sx, sy) = (x.1.side(*d), y.1.side(*d));
+                    if sx != SideCode::On && sy != SideCode::On
+                        && keep(sx == SideCode::In, sy == SideCode::In)
+                    {
+                        tally.bad.push(format!("{what}: Empty, but the germ holds {d:?}"));
+                        break;
+                    }
+                }
+                continue;
+            }
+            Err(e) => {
+                let kind = format!("{e:?}");
+                let kind: String = kind.chars().take(90).collect();
+                *tally.refused.entry(kind).or_default() += 1;
+                continue;
+            }
+        };
+        tally.built += 1;
+        if let Err(e) = validate_geometric(&body, t()) {
+            tally.bad.push(format!("{what}: tier 3 {e:?}"));
+            continue;
+        }
+        v[k] = vol(&body).ok();
+        let mut wrong = 0;
+        let mut first = None;
+        for d in &dirs {
+            let (sx, sy) = (x.1.side(*d), y.1.side(*d));
+            if sx == SideCode::On || sy == SideCode::On {
+                continue;
+            }
+            let want = keep(sx == SideCode::In, sy == SideCode::In);
+            // `d` is in the scene's unposed frame: pose it.
+            let w = pose.at(d.map(|c| c * radius)) - o;
+            let q = meet + w;
+            let got = match point_in_solid(&body, q, band, t()) {
+                Ok(SolidContainment::In) => true,
+                Ok(SolidContainment::Out) => false,
+                Ok(SolidContainment::OnBoundary) => continue,
+                Err(_) => continue,
+            };
+            if got != want {
+                wrong += 1;
+                first.get_or_insert(format!("{d:?} got {got} want {want}"));
+            }
+        }
+        if wrong > 0 {
+            tally
+                .bad
+                .push(format!("{what}: {wrong} germ probes wrong, first {first:?}"));
+        }
+    }
+    if let [Some(xl), Some(yl), Some(u1), Some(u2), Some(i1), Some(i2)] = v {
+        let tol = 1e-9 * (vx + vy).max(1.0);
+        for (name, lhs, rhs) in [
+            ("|x∪y|+|x∩y| = |x|+|y|", u1 + i1, vx + vy),
+            ("|y∪x|+|y∩x| = |x|+|y|", u2 + i2, vx + vy),
+            ("|x−y|+|x∩y| = |x|", xl + i1, vx),
+            ("|y−x|+|x∩y| = |y|", yl + i1, vy),
+        ] {
+            if (lhs - rhs).abs() > tol {
+                tally
+                    .bad
+                    .push(format!("{label}, {}: {name}: {lhs} vs {rhs}", pose.label));
+            }
+        }
+    }
+}
+
+/// The apex's distance from the plane through `b`'s corners (relative
+/// to the apex): the radius within which the pyramid is its cone.
+fn apex_reach(b: [[f64; 3]; 3]) -> f64 {
+    let u = [0, 1, 2].map(|k| b[1][k] - b[0][k]);
+    let v = [0, 1, 2].map(|k| b[2][k] - b[0][k]);
+    let n = [
+        u[1] * v[2] - u[2] * v[1],
+        u[2] * v[0] - u[0] * v[2],
+        u[0] * v[1] - u[1] * v[0],
+    ];
+    let l = (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).sqrt();
+    ((0..3).map(|k| n[k] * b[0][k]).sum::<f64>() / l).abs()
+}
+
+fn scaled(b: [[f64; 3]; 3], s: f64) -> [[f64; 3]; 3] {
+    b.map(|c| c.map(|x| x * s))
+}
+
+/// Partners along the face at many poses and scales, with many
+/// touching pyramids; and lifts of the on-face corner through the band.
+#[test]
+fn review_probe_partners_along_the_face() {
+    let eps = t().eps();
+    let mut germ_tally = Tally::default();
+    let mut probe = ProbeTally::default();
+    let only = std::env::var("PROBE_ONLY").ok();
+    for pose in poses() {
+        for &scale in &[0.03, 1.0, 1.7] {
+            let p = |b: [[f64; 3]; 3]| {
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    tet(scaled(b, scale), &pose)
+                }))
+                .ok()
+            };
+            GERM_BALL.store(
+                (100.0 * eps / scale).to_bits(),
+                std::sync::atomic::Ordering::Relaxed,
+            );
+            let plate_b = posed_box("the plate", PLATE, &pose, t());
+            // Partner families: (label, base corners rel MEET (unscaled),
+            // above-the-plate union vs below-the-plate void).
+            let mut partners: Vec<(String, [[f64; 3]; 3], bool)> = Vec::new();
+            for phi in [0.0, 60.0, 137.0, 250.0] {
+                for (h, spread) in [(0.5, 20.0), (0.05, 20.0), (0.5, 85.0), (0.01, 89.0)] {
+                    partners.push((
+                        format!("lying phi {phi} h {h} spread {spread}"),
+                        [
+                            bearing(phi + spread, 0.4, h),
+                            bearing(phi - spread, 0.4, h),
+                            bearing(phi, 0.5, 0.0),
+                        ],
+                        true,
+                    ));
+                    partners.push((
+                        format!("void under phi {phi} h {h} spread {spread}"),
+                        [
+                            bearing(phi + spread, 0.4, -h),
+                            bearing(phi - spread, 0.4, -h),
+                            bearing(phi, 0.5, 0.0),
+                        ],
+                        false,
+                    ));
+                }
+                // Near-half-turn sector with an On bound: the face from
+                // the ray at phi to a corner nearly opposite, just above.
+                for (delta, h) in [(1.0, 1e-3), (1e-3, 1e-3), (1e-4, 1e-6), (2.0, 0.0)] {
+                    partners.push((
+                        format!("half-turn phi {phi} delta {delta} h {h}"),
+                        [
+                            bearing(phi, 0.5, 0.0),
+                            bearing(phi + 90.0, 0.4, 0.4),
+                            bearing(phi + 180.0 - delta, 0.5, h),
+                        ],
+                        true,
+                    ));
+                    // reflex the other way: just past the half-turn.
+                    partners.push((
+                        format!("past half-turn phi {phi} delta {delta} h {h}"),
+                        [
+                            bearing(phi, 0.5, 0.0),
+                            bearing(phi + 90.0, 0.4, 0.4),
+                            bearing(phi + 180.0 + delta, 0.5, h),
+                        ],
+                        true,
+                    ));
+                }
+                // Lifts through the band (scaled-relative: lift in
+                // metres is k·ε, so divide by scale).
+                for k in [-100.0, -5.0, -1.5, -0.5, 0.5, 1.5, 5.0, 100.0] {
+                    let lift = k * eps / scale;
+                    partners.push((
+                        format!("lifted phi {phi} k {k}"),
+                        [
+                            bearing(phi + 20.0, 0.4, 0.5),
+                            bearing(phi - 20.0, 0.4, 0.5),
+                            bearing(phi, 0.5, lift),
+                        ],
+                        true,
+                    ));
+                }
+            }
+            for (plabel, base, above) in &partners {
+                let ylabel = format!("{plabel} s {scale}");
+                if let Some(o) = &only
+                    && !ylabel.contains(o.as_str())
+                {
+                    continue;
+                }
+                let Some(yp) = p(*base) else {
+                    *probe.refused.entry("FIXTURE PANIC (partner)".into()).or_default() += 1;
+                    continue;
+                };
+                let (y_b, y_g) = if *above {
+                    match union(&plate_b, &yp, t()) {
+                        Ok(BooleanResult::Body(r)) => (r.body, u(G::Half, c(*base))),
+                        other => {
+                            let k = format!("{:?}", other.map(|_| ()));
+                            *probe
+                                .refused
+                                .entry(format!("PARTNER BUILD: {}", &k[..k.len().min(80)]))
+                                .or_default() += 1;
+                            continue;
+                        }
+                    }
+                } else {
+                    match subtract(&plate_b, &yp, t()) {
+                        Ok(BooleanResult::Body(r)) => (r.body, dd(G::Half, c(*base))),
+                        other => {
+                            let k = format!("{:?}", other.map(|_| ()));
+                            *probe
+                                .refused
+                                .entry(format!("PARTNER BUILD: {}", &k[..k.len().min(80)]))
+                                .or_default() += 1;
+                            continue;
+                        }
+                    }
+                };
+                // The ray on the face, unscaled.
+                let ray = *base.iter().find(|c| c[2] == 0.0).unwrap_or(&base[2]);
+                let phi = ray[1].atan2(ray[0]).to_degrees();
+                let xs: Vec<(String, [[f64; 3]; 3])> = vec![
+                    ("standing 240".into(), corners(240.0, 0.5, 0.4)),
+                    ("standing across".into(), corners(phi + 180.0, 0.5, 0.4)),
+                    ("over".into(), corners(phi, 0.7, 0.5)),
+                    ("hanging".into(), corners(phi, -0.5, 0.4)),
+                    ("hanging 200".into(), corners(phi + 200.0, -0.5, 0.4)),
+                    (
+                        "under ray".into(),
+                        [
+                            bearing(phi, 0.3, 0.0),
+                            bearing(phi + 40.0, 0.4, -0.3),
+                            bearing(phi - 40.0, 0.4, -0.3),
+                        ],
+                    ),
+                    (
+                        "on ray beside".into(),
+                        [
+                            bearing(phi, 0.3, 0.0),
+                            bearing(phi + 50.0, 0.4, 0.2),
+                            bearing(phi + 90.0, 0.4, 0.4),
+                        ],
+                    ),
+                    (
+                        "on ray other side".into(),
+                        [
+                            bearing(phi, 0.3, 0.0),
+                            bearing(phi - 90.0, 0.4, 0.4),
+                            bearing(phi - 50.0, 0.4, 0.2),
+                        ],
+                    ),
+                    (
+                        "on ray, near flat above".into(),
+                        [
+                            bearing(phi, 0.3, 0.0),
+                            bearing(phi + 120.0, 0.4, 0.01),
+                            bearing(phi - 120.0, 0.4, 0.01),
+                        ],
+                    ),
+                    (
+                        "on ray, near flat below".into(),
+                        [
+                            bearing(phi, 0.3, 0.0),
+                            bearing(phi + 120.0, 0.4, -0.01),
+                            bearing(phi - 120.0, 0.4, -0.01),
+                        ],
+                    ),
+                    (
+                        "edge inside the along face".into(),
+                        [
+                            [0, 1, 2].map(|k| 0.6 * (0.5 * base[0][k] + 0.5 * base[2][k])),
+                            bearing(phi + 180.0, 0.4, 0.3),
+                            bearing(phi + 120.0, 0.4, 0.6),
+                        ],
+                    ),
+                    (
+                        "edge inside the other along face".into(),
+                        [
+                            [0, 1, 2].map(|k| 0.6 * (0.5 * base[1][k] + 0.5 * base[2][k])),
+                            bearing(phi - 120.0, 0.4, 0.6),
+                            bearing(phi + 180.0, 0.4, 0.3),
+                        ],
+                    ),
+                    (
+                        "ray tilted 2 eps up".into(),
+                        [
+                            bearing(phi, 0.3, 2.0 * eps / scale),
+                            bearing(phi + 50.0, 0.4, 0.2),
+                            bearing(phi + 90.0, 0.4, 0.4),
+                        ],
+                    ),
+                    (
+                        "ray tilted 2 eps down".into(),
+                        [
+                            bearing(phi, 0.3, -2.0 * eps / scale),
+                            bearing(phi + 40.0, 0.4, -0.3),
+                            bearing(phi - 40.0, 0.4, -0.3),
+                        ],
+                    ),
+                ];
+                for (xl, xb) in &xs {
+                    let label = format!("{ylabel} | x {xl}");
+                    let Some(x_b) = p(*xb) else {
+                        *probe.refused.entry(format!("FIXTURE PANIC (x {xl})")).or_default() += 1;
+                        continue;
+                    };
+                    let x_g = c(*xb);
+                    let before = (germ_tally.wrong, germ_tally.missing, germ_tally.doubled);
+                    germ_tally.first = None;
+                    check(&label, (&x_b, &x_g), (&y_b, &y_g), &pose, &mut germ_tally);
+                    if (germ_tally.wrong, germ_tally.missing, germ_tally.doubled) != before {
+                        probe.bad.push(format!(
+                            "{label}: germ classes {:?} first {:?}",
+                            (germ_tally.wrong, germ_tally.missing, germ_tally.doubled),
+                            germ_tally.first
+                        ));
+                    }
+                    probe_material(
+                        &label,
+                        (&x_b, &x_g),
+                        (&y_b, &y_g),
+                        &pose,
+                        (0.25 * apex_reach(*base).min(apex_reach(*xb))).min(1e-3) * scale,
+                        &mut probe,
+                    );
+                }
+            }
+        }
+    }
+    eprintln!(
+        "PROBE cells {} built {} empty {} germ rows {} wrong {} missing {} doubled {}",
+        probe.cells,
+        probe.built,
+        probe.empty,
+        germ_tally.rows,
+        germ_tally.wrong,
+        germ_tally.missing,
+        germ_tally.doubled
+    );
+    for (k, n) in &probe.refused {
+        eprintln!("PROBE refused {n} × {k}");
+    }
+    for b in &probe.bad {
+        eprintln!("PROBE BAD {b}");
+    }
+    assert!(probe.bad.is_empty(), "{} bad cells", probe.bad.len());
 }
