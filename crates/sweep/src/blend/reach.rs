@@ -682,9 +682,10 @@ struct Reach<T: Real> {
     surface: Surface<T>,
     /// Per support, the region whose points of that support the band
     /// replaces: for a straight link, within the chord from the edge to
-    /// the support's trimline of the edge itself, on the trimline's side
-    /// of it, over the edge's own extent — that is the support's strip,
-    /// since nothing else of the face lies there ([`screened`]); for a
+    /// the support's trimline of the edge itself, over the edge's own
+    /// extent, and on the trimline's side of it where the face comes back
+    /// across — that is the support's strip, since nothing else of the
+    /// face lies there ([`screened`]); for a
     /// circular link, the disk of that chord about the edge in the
     /// meridian sheet; for a corner patch, its bounds but the supports'
     /// sides.
@@ -809,30 +810,38 @@ fn half_space<T: Decide + Bounds>(o: Point3<T>, n: Vec3<T>, inside: Point3<T>) -
 
 /// **The premise [`Reach::replaces`] stands on, metered**: the strip
 /// of `face` a link's band replaces holds no vertex of `face` but the
-/// request's own (`ends`). A vertex definitely inside it is a boundary
-/// feature of the support within the band's setback, and refuses as
-/// predicate 2 does ([`face_clearance_margin`]), its margin the
-/// vertex's depth inside the region: `gap − setback` where the side
-/// nearest it is the setback's. Most such features refuse before this: the
-/// battery's support screen reads one within the setbacks of a sample,
-/// on either side of the edge, and the surgery's closed-form strip
-/// meter one of a plane–plane link's planar support between the
-/// screen's samples. A ruled link's planar support has no strip meter,
-/// so a vertex there between the samples refuses here. A straight
-/// link's region lies on the trimline's side of the edge alone, so a
-/// feature across the edge's line, which the band never reaches, is
-/// clear.
+/// request's own (`ends`). `region` over-covers the strip on both sides
+/// of the edge; `across`, where the link has one, is the side of the
+/// edge's line the strip lies on, set back by a sliver. A vertex
+/// definitely inside both is a boundary feature of the support within
+/// the band's setback, and refuses as predicate 2 does
+/// ([`face_clearance_margin`]): its margin the vertex's depth inside
+/// them, its gap `gap(p)`, its distance from the edge. Most such
+/// features refuse before this: the battery's support screen reads one
+/// within the setbacks of a sample, on either side of the edge, and the
+/// surgery's closed-form strip meter one of a plane–plane link's planar
+/// support between the screen's samples. A ruled link's planar support
+/// has no strip meter, so a vertex there between the samples refuses
+/// here. A feature across the edge's line, which the band never
+/// reaches, is clear.
+///
+/// Returns whether `region` alone is vacant: no vertex of `face` but
+/// the request's possibly inside it. Then nothing of the face comes
+/// back across the edge's line within the band's setback, and the whole
+/// of `region` is the strip's, or no part of the face at all.
 fn screened<T: Decide + Bounds>(
     body: &Body<T>,
     ends: &[VertexKey],
     face: FaceKey,
-    strip: &[Bound<T>],
-    setback: T,
+    region: &[Bound<T>],
+    across: Option<&Bound<T>>,
+    gap: impl Fn(Point3<T>) -> T,
     band: Band,
-) -> Result<(), BlendError> {
+) -> Result<bool, BlendError> {
     let f = body
         .get_face(face)
         .ok_or_else(|| not_intact(EntityId::Face(face), "a support the band replaces"))?;
+    let mut vacant = true;
     for lp in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
         let vertices: Vec<VertexKey> = match body.get_loop(lp).map(|l| l.boundary) {
             Some(topo::LoopBoundary::Cycle { first }) => body
@@ -849,13 +858,17 @@ fn screened<T: Decide + Bounds>(
                 continue;
             }
             let p = point_of(body, v)?;
-            let depth = strip.iter().map(|b| b.at(p)).reduce(|m, g| m.max(g));
-            if let Some(g) = depth.filter(|g| g.hi() < -band.escalate()) {
-                face_clearance_margin(face, g, g + setback, false, band)?;
+            let Some(depth) = region.iter().map(|b| b.at(p)).reduce(|m, g| m.max(g)) else {
+                continue;
+            };
+            vacant &= depth.lo() >= 0.0;
+            let depth = across.map_or(depth, |b| depth.max(b.at(p)));
+            if depth.hi() < -band.escalate() {
+                face_clearance_margin(face, depth, gap(p), false, band)?;
             }
         }
     }
-    Ok(())
+    Ok(vacant)
 }
 
 /// The geometry of one link at its middle station: the edge point, the
@@ -917,6 +930,7 @@ fn straight_reach<T: Decide + Bounds>(
     link: &Link<T>,
     st: &Station<T>,
     corners: &[(VertexKey, Vec<Point3<T>>)],
+    request: &[VertexKey],
     chain: usize,
     band: Band,
 ) -> Result<Reach<T>, BlendError> {
@@ -1058,6 +1072,42 @@ fn straight_reach<T: Decide + Bounds>(
     let mut bounds = cross;
     bounds.extend(caps);
     bounds.extend(window(w_lo, w_hi));
+    // Per support, the strip over the edge's own extent: past an end
+    // the face may go on (beyond a reflex end) where no band replaces
+    // it. The slab of twice the boxes' pad past each end takes no more
+    // of the face than a sliver below the meter's reach, and holds a
+    // cell straddling an end only where the edge runs along an axis.
+    // Across the edge's line the face may come back (a peninsula of
+    // its own cycle) where no band replaces it either: where `screened`
+    // finds a vertex there, the strip is the trimline's side of the line
+    // alone, set back by the same slab; where it finds none, the strip
+    // keeps both sides, which hold a cell straddling the line at any
+    // orientation.
+    let mut replaces = Vec::new();
+    for (f, foot) in [(link.face_a, st.fa), (link.face_b, st.fb)] {
+        let chord = (foot - st.p).norm();
+        let slab = T::from_f64(2.0 * FaceBoxes::pad(band));
+        let (lo, hi) = (ends[0].0.min(ends[1].0), ends[0].0.max(ends[1].0));
+        let tube = Bound::Tube {
+            o: st.p,
+            a: tau,
+            r: chord,
+            inside: true,
+        };
+        let mut b: Vec<Bound<T>> = window(lo - slab, hi + slab)
+            .into_iter()
+            .map(|(_, b)| b)
+            .collect();
+        b.push(tube.clone());
+        let off = foot - st.p;
+        let n = (off - tau * off.dot(tau)).normalize();
+        let across = half_space(st.p - n * slab, n, foot);
+        let gap = |p: Point3<T>| tube.at(p) + chord;
+        if !screened(body, request, f, &b, Some(&across), gap, band)? {
+            b.push(across);
+        }
+        replaces.push((f, b));
+    }
     // The box: the spine's window, widened by the cross-section's reach
     // from its spine point (the edge point's for a chamfer).
     let axis_pt = st.c.map_or(st.p, |(c, _)| c);
@@ -1080,37 +1130,7 @@ fn straight_reach<T: Decide + Bounds>(
         sheet: None,
         sides,
         surface: link.blend.surface.clone(),
-        replaces: [(link.face_a, st.fa), (link.face_b, st.fb)]
-            .into_iter()
-            .map(|(f, foot)| {
-                // Over the edge's own extent: past an end the face may go
-                // on (beyond a reflex end) where no band replaces it. And
-                // on the foot's side of the edge alone: across the edge's
-                // line the face may come back (a peninsula of its own
-                // cycle) where no band replaces it either. The slab of
-                // twice the boxes' pad past each end and back across the
-                // line holds the cells of the face's box that straddle
-                // them and no more of the face than a sliver below the
-                // meter's reach.
-                let chord = (foot - st.p).norm();
-                let slab = T::from_f64(2.0 * FaceBoxes::pad(band));
-                let (lo, hi) = (ends[0].0.min(ends[1].0), ends[0].0.max(ends[1].0));
-                let mut b: Vec<Bound<T>> = window(lo - slab, hi + slab)
-                    .into_iter()
-                    .map(|(_, b)| b)
-                    .collect();
-                b.push(Bound::Tube {
-                    o: st.p,
-                    a: tau,
-                    r: chord,
-                    inside: true,
-                });
-                let off = foot - st.p;
-                let n = (off - tau * off.dot(tau)).normalize();
-                b.push(half_space(st.p - n * slab, n, foot));
-                (f, b)
-            })
-            .collect(),
+        replaces,
         confine: None,
         chains: vec![chain],
         skip,
@@ -1124,7 +1144,9 @@ fn circular_reach<T: Decide + Bounds>(
     body: &Body<T>,
     link: &Link<T>,
     st: &Station<T>,
+    request: &[VertexKey],
     chain: usize,
+    band: Band,
 ) -> Result<Reach<T>, BlendError> {
     let Surface::Torus {
         center,
@@ -1195,6 +1217,33 @@ fn circular_reach<T: Decide + Bounds>(
         };
         bounds.push((role, in_sheet(circle, T::zero())));
     }
+    // Per support, the disk of the chord about the rim in the meridian
+    // sheet: a closed rim bounds its planar support, so the face lies on
+    // one side of the rim alone.
+    let mut replaces = Vec::new();
+    for (f, foot) in [(link.face_a, st.fa), (link.face_b, st.fb)] {
+        let chord = (foot - st.p).norm();
+        let ring = in_sheet(
+            SheetFn::Circle {
+                p: ps.0,
+                q: ps.1,
+                r: chord,
+                sigma: T::one(),
+            },
+            T::zero(),
+        );
+        let gap = |p: Point3<T>| ring.at(p) + chord;
+        screened(
+            body,
+            request,
+            f,
+            core::slice::from_ref(&ring),
+            None,
+            gap,
+            band,
+        )?;
+        replaces.push((f, vec![ring]));
+    }
     // Over line traces (a plane, a cylinder) a whole closed rim's bounds
     // are its band's own cross-section revolved, and `at_strict` takes
     // the slack the other way; a cone is read on both nappes and a
@@ -1212,18 +1261,7 @@ fn circular_reach<T: Decide + Bounds>(
         sheet: Some((o, a)),
         sides,
         surface: link.blend.surface.clone(),
-        replaces: [(link.face_a, st.fa), (link.face_b, st.fb)]
-            .into_iter()
-            .map(|(f, foot)| {
-                let ring = SheetFn::Circle {
-                    p: ps.0,
-                    q: ps.1,
-                    r: (foot - st.p).norm(),
-                    sigma: T::one(),
-                };
-                (f, vec![in_sheet(ring, T::zero())])
-            })
-            .collect(),
+        replaces,
         confine: None,
         chains: vec![chain],
         skip: Vec::new(),
@@ -1928,17 +1966,13 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
     for (ci, link) in &all {
         let st = station(body, link)?;
         let mut r = if link.arm.is_coaxial_torus() {
-            circular_reach(body, link, &st, *ci)?
+            circular_reach(body, link, &st, &ends_all, *ci, band)?
         } else {
-            straight_reach(body, link, &st, &corners, *ci, band)?
+            straight_reach(body, link, &st, &corners, &ends_all, *ci, band)?
         };
         r.skip.extend(&supports[*ci]);
         r.skip.sort_unstable();
         r.skip.dedup();
-        for (f, strip) in &r.replaces {
-            let foot = if *f == link.face_a { st.fa } else { st.fb };
-            screened(body, &ends_all, *f, strip, (foot - st.p).norm(), band)?;
-        }
         reaches.push(r);
     }
     let boxes = FaceBoxes::of(body, band)

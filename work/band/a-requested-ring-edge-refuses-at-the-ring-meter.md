@@ -25,8 +25,9 @@ behind its own trimline (its own edge, read at the trim through
 `co_requested_trim`, sits at margin zero, and the ring's far side lies
 behind the edge), so the request refuses however small the band.
 
-Witness: `band_planar_cut_off_meters::a_requested_ring_edge_refuses_at_the_ring_meter`
-(margin −1.6 on the tabbed pocket, both verbs).
+Witness: the tabbed pocket's tip edge, requested alone, refused
+`RingClearance` at margin −1.6, both verbs; the row is now
+`band_planar_cut_off_meters::a_requested_ring_edge_builds_at_its_strip`.
 
 Conservative, not unsound: nothing is built. But the strip such a band
 removes lies inside the tab, between the two rims, and arm (d)
@@ -53,10 +54,10 @@ naming totality, both verbs
 
 The reach meter (`blend/reach.rs`) agrees: it passes the clear tab
 and the clear spike. With arm (d)'s ring walk switched off, the
-crossed spike reaches the reach meter's `screened` premise check and
-fails loud there (`SurgeryInvariant`, "a support's vertex inside the
-strip its band replaces"), so arm (d) is what keeps that premise for
-a ring between the screen's samples; its doc now says so.
+crossed spike reaches the reach meter instead (its in-band tip
+refuses there `FaceClearance`, not escalated), and
+`a_ring_edge_in_a_requested_ring_edges_strip_refuses_at_the_strip_meter`,
+which pins arm (d)'s gap, goes red.
 
 Sibling filed: `a-requested-ruled-ring-edge-refuses-at-the-ring-meter`
 (a RULED link keeps arm (a) on every ring, since arm (d) meters planar
