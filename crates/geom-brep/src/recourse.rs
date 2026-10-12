@@ -326,6 +326,14 @@ impl LeverOnly {
     pub fn recourse(self, arm: RefusedArm<'_>, reading: Reading) -> String {
         lever_recourse(self.lever, arm.unreadable_note(reading))
     }
+
+    /// The ending of an escalation of this decision at the operation
+    /// that built the geometry: `lever` alone, with the build's
+    /// unreadable-margin note on poison.
+    #[must_use]
+    pub fn at_build(lever: &'static str, diag: &Indeterminate) -> String {
+        Self { lever }.recourse(RefusedArm::Undecided(diag), Reading::Build)
+    }
 }
 
 /// What a zero verdict that leaves no size to tighten below may mean

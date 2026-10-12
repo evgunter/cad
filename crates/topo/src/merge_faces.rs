@@ -1197,10 +1197,7 @@ impl core::fmt::Display for MergeCoplanarError {
                  {}",
                 diag.undecided(
                     "whether the edge lies on both faces it bounds",
-                    geom_brep::recourse::LeverOnly {
-                        lever: EDGE_ON_FACES_LEVER,
-                    }
-                    .recourse(RefusedArm::Undecided(diag), Reading::Build)
+                    geom_brep::recourse::LeverOnly::at_build(EDGE_ON_FACES_LEVER, diag)
                 )
             ),
             Self::KeptBoundaryUndecided {

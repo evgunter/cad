@@ -28,8 +28,10 @@ another name:
   (`crates/sweep/src/revolve/mod.rs`);
 - in band: `RevolveError::SliverAxisClearance`, rendered "whether the
   arc at loop {i} segment {j} clears the revolve axis is undecided:
-  {payload}. {ending}", ending in `COINCIDENCE_RECOURSE` ("move the
-  geometry") with the length's tolerance arm.
+  {payload}. {ending}". For `axis_arc_clearance` the ending is
+  `COINCIDENCE_RECOURSE` ("move the geometry") with the length's
+  tolerance arm (`ClearanceDecision::ArcClearance`); the sphere-class
+  span (`axis_arc_span`) is lever-only.
 
 Two stories for one decision, and neither is the convention's: PR 3506
 gave the convention its closed type, `geom_brep::TorusConvention`

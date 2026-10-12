@@ -538,7 +538,10 @@ impl fmt::Display for ExtrudeError {
                         "whether the walls meeting at loop {loop_index} vertex {vertex_index} \
                          share one surface"
                     ),
-                    source.ending(geom_core::COINCIDENCE_RECOURSE),
+                    geom_brep::recourse::LeverOnly::at_build(
+                        geom_core::COINCIDENCE_RECOURSE,
+                        source
+                    ),
                 )
             ),
             Self::SliverJoin {
@@ -1704,31 +1707,33 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
 mod tests {
     use super::*;
 
-    /// **An extrude escalation offers the tolerance a value in the band
-    /// gives**: the extrusion's components and the cosurface distance
-    /// are lengths.
+    /// **An extrude escalation ends by its decision's kind.** The
+    /// extrusion's components are lengths, and offer the tolerance a
+    /// value gives; the cosurface distance selects whether two walls
+    /// merge, and ends in the lever alone.
     #[test]
-    fn an_extrude_escalation_ends_in_its_lengths_tolerance() {
-        use crate::swept::undecided_fixtures::readings;
-        let tail = "is undecided: margin 5e-9 lies inside the ambiguity band (1e-9, 1e-8). \
-                    Recourse: move the geometry, or, if this size is intended, tighten the \
-                    tolerance below 5e-10 m";
-        for (err, text) in [
-            (
-                ExtrudeError::ExtrusionEscalated {
-                    source: readings("extrusion_obliquity")[0],
-                },
-                format!("whether the extrusion leaves the sketch plane {tail}"),
-            ),
-            (
-                ExtrudeError::CosurfaceEscalated {
-                    loop_index: 0,
-                    vertex_index: 4,
-                    source: readings("side_planes_cosurface")[0],
-                },
-                format!("whether the walls meeting at loop 0 vertex 4 share one surface {tail}"),
-            ),
-        ] {
+    fn an_extrude_escalation_ends_by_its_decisions_kind() {
+        use crate::swept::undecided_fixtures::{LEVER, SIZED, expected, readings};
+        for name in ["extrusion_normal_component", "extrusion_obliquity"] {
+            for (source, text) in readings(name).into_iter().zip(expected(
+                "whether the extrusion leaves the sketch plane",
+                SIZED,
+            )) {
+                assert_eq!(
+                    ExtrudeError::ExtrusionEscalated { source }.to_string(),
+                    text
+                );
+            }
+        }
+        for (source, text) in readings("side_planes_cosurface").into_iter().zip(expected(
+            "whether the walls meeting at loop 0 vertex 4 share one surface",
+            LEVER,
+        )) {
+            let err = ExtrudeError::CosurfaceEscalated {
+                loop_index: 0,
+                vertex_index: 4,
+                source,
+            };
             assert_eq!(err.to_string(), text);
         }
     }

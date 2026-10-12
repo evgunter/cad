@@ -92,20 +92,25 @@ caller's, per `Reading`. Three render the whole escalation
   `UndecidedRefusal`, which needs an `Indeterminate`: two of
   `SectorReading`'s arms are decided disagreements carrying margins.
 
-**Done: the sweep slice, in PR 4766** (eleven sentences, the ten above and `CapPlaneError::Orientation`, all whole renders
-through `Indeterminate::undecided`, lever unchanged at
-`COINCIDENCE_RECOURSE`, the cap's defect ending kept). Lengths take `ending(..)`: extrude's two,
-loft's two, revolve's axis length and cosurface, the clearance's
-lengths, the tube's wall. Angles end through `LeverOnly`
-(`swept::lever_ending`): `AngleEscalated`, the clearance's
-`axis_arc_span`, the tube's window. The matched names are
-`pub(crate)` constants, read by `recourse_roster`'s census.
+**Done: the sweep slice, in PR 4766** (eleven sentences: the ten
+above and `CapPlaneError::Orientation`, which keeps its defect
+ending). Each renders through `Indeterminate::undecided`, with the
+lever `COINCIDENCE_RECOURSE`.
 
-- Skipped: `swept::sliver_text`'s `Lever` arm, which is carvetail's
-  (`carve-refusals-short-of-the-shape-guard`).
-- Left: a sized straddle still reads as a subdividable enclosure
-  through `ending(..)` (the cleave row's open item); which lever each
-  door offers stays carvetail's.
+- `ending(..)`: extrude's normal and obliquity, loft's stacking, the
+  clearance's arc apex and arc clearance, the tube's wall, bore and gap.
+- `LeverOnly::at_build`: the revolve angle and headroom, the axis
+  direction's length (a gauge), both cosurface decisions, and the
+  clearance's line runs, arc centre and arc span.
+- `RevolveError::SliverAxisClearance` and `TubeError::Escalated` carry
+  closed decisions (`ClearanceDecision`, `TubeDecision`) that name
+  their predicate and their kind.
+- Skipped, carvetail's (`carve-refusals-short-of-the-shape-guard`):
+  `swept::sliver_text`'s `Lever` arm, and `RevolveError::SliverRadius`,
+  an escalation rendered as "sits a sliver away from the revolve axis:
+  {source}".
+- Left: a sized straddle reads as a subdividable enclosure through
+  `ending(..)`, as on the cleave row.
 
 ## Repair shape
 

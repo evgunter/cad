@@ -1389,6 +1389,7 @@ fn revolve_arms() -> Vec<(&'static str, sweep::RevolveError)> {
             E::SliverAxisClearance {
                 loop_index: 0,
                 segment_index: 3,
+                decision: sweep::ClearanceDecision::ArcApex,
                 source: diag(),
             },
         ),
@@ -1508,12 +1509,14 @@ fn tube() -> Vec<(String, NodeErrorKind)> {
         (
             "Escalated",
             E::Escalated {
+                decision: sweep::TubeDecision::WindowSpan,
                 source: named("tube_window_span"),
             },
         ),
         (
             "Escalated(hollow)",
             E::Escalated {
+                decision: sweep::TubeDecision::WallGap,
                 source: hollow("tube_wall_gap"),
             },
         ),

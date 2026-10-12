@@ -447,9 +447,13 @@ fn a_nested_source_under_a_payload_arm_survives_into_the_message() {
                 slab: 1,
                 source: escalation,
             }),
-            // An undecided refusal carries its escalation's payload and
-            // composes its own ending.
-            escalation.payload().to_string(),
+            // An undecided refusal carries its escalation's payload, then
+            // the sized ending the stacking decision takes.
+            format!(
+                "{}. {}",
+                escalation.payload(),
+                escalation.ending(geom_core::COINCIDENCE_RECOURSE)
+            ),
         ),
         (
             K::Split(topo::SplitError::Finish(topo::SplitFinishError::Band(band))),

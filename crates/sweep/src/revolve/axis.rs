@@ -15,7 +15,7 @@ use geom_core::{
 };
 use profile::ValidatedProfile;
 
-use super::{RevolveAxis, RevolveError, SweptSeg};
+use super::{ClearanceDecision, RevolveAxis, RevolveError, SweptSeg};
 use crate::swept::{arc_span, decide};
 use profile::SegmentKind;
 
@@ -411,21 +411,6 @@ pub(super) fn classify_loop<T: Decide>(
 /// Unreachable `Zero` signs on the LINE arms (a degenerate segment
 /// survives to here only as a kernel bug) keep the convex/outward arm,
 /// `sense: true` — the `turn_axis` totality posture.
-/// The name of the sphere-class arc's span decision, `π − span` at the
-/// arc's radius: the one angle among the clearance decisions.
-pub(crate) const AXIS_ARC_SPAN: &str = "axis_arc_span";
-
-/// The ending of a [`RevolveError::SliverAxisClearance`]. The span is an
-/// angle, no size the user chose, so it ends in the lever alone; every
-/// other clearance decision is a length in the profile's plane, and
-/// takes the escalation's whole ending.
-pub(crate) fn clearance_ending(diag: &geom_core::Indeterminate) -> String {
-    match diag.predicate {
-        Some(AXIS_ARC_SPAN) => crate::swept::lever_ending(diag),
-        _ => diag.ending(geom_core::COINCIDENCE_RECOURSE),
-    }
-}
-
 #[allow(clippy::too_many_arguments)] // one internal call site (classify_loop).
 fn classify_segment<T: Decide>(
     s: &SweptSeg<T>,
@@ -436,10 +421,14 @@ fn classify_segment<T: Decide>(
     reverse: bool,
     band: Band,
 ) -> Result<WallClass<T>, RevolveError> {
-    let escalated = |source| RevolveError::SliverAxisClearance {
-        loop_index,
-        segment_index: s.canonical_segment,
-        source,
+    let classify = |decision: ClearanceDecision, margin: Margin<T>| {
+        let name = decision.predicate();
+        decide(name, margin, band).map_err(|source| RevolveError::SliverAxisClearance {
+            loop_index,
+            segment_index: s.canonical_segment,
+            decision,
+            source,
+        })
     };
     // A stored sign in the CANONICAL basis: the swept reversal negated
     // chord deltas and flipped turns, so `reverse` undoes it exactly.
@@ -452,8 +441,8 @@ fn classify_segment<T: Decide>(
             // Radial and axial deltas of the chord (meters).
             let dr = vb.r - va.r;
             let dz = frame.axial(s.b) - frame.axial(s.a);
-            let sr = decide("axis_line_radial", Margin::of(dr), band).map_err(escalated)?;
-            let sz = decide("axis_line_axial", Margin::of(dz), band).map_err(escalated)?;
+            let sr = classify(ClearanceDecision::LineRadial, Margin::of(dr))?;
+            let sz = classify(ClearanceDecision::LineAxial, Margin::of(dz))?;
             // Line walls' sense (doc above): cylinder and cone read
             // the canonical axial direction, the plane annulus the
             // canonical radial one.
@@ -490,7 +479,7 @@ fn classify_segment<T: Decide>(
             // the same body extrude's cylinder walls read.
             let sense = crate::swept::centre_on_material_side(canonical(turn));
             let rc = frame.r(centre);
-            match decide("axis_arc_center", Margin::of(rc), band).map_err(escalated)? {
+            match classify(ClearanceDecision::ArcCenter, Margin::of(rc))? {
                 Sign::Zero => {
                     // Sphere class. Arc-interior half-plane checks: the
                     // r ≥ 0 half of an on-axis-centered carrier is
@@ -499,7 +488,7 @@ fn classify_segment<T: Decide>(
                     // does, before its zero chord is read; the apex pins
                     // which half-circle branch the arc occupies.
                     let span_margin = Margin::levered(T::pi() - arc_span(turn, arc), radius);
-                    match decide(AXIS_ARC_SPAN, span_margin, band).map_err(escalated)? {
+                    match classify(ClearanceDecision::ArcSpan, span_margin)? {
                         Sign::Positive | Sign::Zero => {}
                         Sign::Negative => {
                             return Err(RevolveError::ArcCrossesAxis {
@@ -509,7 +498,7 @@ fn classify_segment<T: Decide>(
                         }
                     }
                     let r_apex = frame.r(arc.apex(s.a, s.b));
-                    match decide("axis_arc_apex", Margin::of(r_apex), band).map_err(escalated)? {
+                    match classify(ClearanceDecision::ArcApex, Margin::of(r_apex))? {
                         Sign::Positive => {}
                         // On or below the axis: tangential/crossing
                         // interior contact.
@@ -531,9 +520,7 @@ fn classify_segment<T: Decide>(
                 Sign::Positive => {
                     // Ring-torus clearance: the tube must stay
                     // definitely clear of the axis (D3 convention).
-                    match decide("axis_arc_clearance", Margin::of(rc - radius), band)
-                        .map_err(escalated)?
-                    {
+                    match classify(ClearanceDecision::ArcClearance, Margin::of(rc - radius))? {
                         Sign::Positive => Ok(WallClass::Wall {
                             kind: WallKind::Torus {
                                 center_sk: centre,

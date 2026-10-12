@@ -1230,18 +1230,21 @@ mod undecided_tests {
     /// normal, a length.
     #[test]
     fn a_stacking_escalation_ends_in_its_lengths_tolerance() {
-        use crate::swept::undecided_fixtures::readings;
-        let tail = "is undecided: margin 5e-9 lies inside the ambiguity band (1e-9, 1e-8). \
-                    Recourse: move the geometry, or, if this size is intended, tighten the \
-                    tolerance below 5e-10 m";
-        let [source, ..] = readings("loft_stacking");
-        assert_eq!(
-            LoftError::StackingEscalated { slab: 1, source }.to_string(),
-            format!("whether loft sections 1 and 2 stack forward {tail}")
+        use crate::swept::undecided_fixtures::{SIZED, expected, readings};
+        let near = expected("whether loft sections 1 and 2 stack forward", SIZED);
+        let far = expected(
+            "whether loft section 2's plane faces along the stack from section 1",
+            SIZED,
         );
-        assert_eq!(
-            LoftError::FarStackingEscalated { slab: 1, source }.to_string(),
-            format!("whether loft section 2's plane faces along the stack from section 1 {tail}")
-        );
+        for ((source, near), far) in readings("loft_stacking").into_iter().zip(near).zip(far) {
+            assert_eq!(
+                LoftError::StackingEscalated { slab: 1, source }.to_string(),
+                near
+            );
+            assert_eq!(
+                LoftError::FarStackingEscalated { slab: 1, source }.to_string(),
+                far
+            );
+        }
     }
 }

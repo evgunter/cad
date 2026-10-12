@@ -132,6 +132,7 @@ mod upgrade;
 use core::fmt;
 
 use crate::swept::CapPlaneError;
+use geom_brep::recourse::LeverOnly;
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Point2, Real, Sign, Tol, Vec2};
 use profile::ValidatedProfile;
 use topo::readback::{Pose, ReadbackError, face_pose};
@@ -490,14 +491,15 @@ pub enum RevolveError {
         /// Canonical index of the segment.
         segment_index: usize,
     },
-    /// A segment's axis-clearance classification escalated (a line's
-    /// radial/axial delta, or an arc's span/apex/center-radius margin,
-    /// in the sliver band or poisoned).
+    /// A segment's axis-clearance classification escalated: its margin
+    /// landed in the sliver band or was poisoned.
     SliverAxisClearance {
         /// Canonical index of the loop.
         loop_index: usize,
         /// Canonical index of the segment.
         segment_index: usize,
+        /// The classification that escalated.
+        decision: ClearanceDecision,
         /// The predicate-layer escalation.
         source: Indeterminate,
     },
@@ -644,6 +646,71 @@ pub enum RevolveError {
     Pcurve(topo::PcurveMintError),
 }
 
+/// The classifications that place a profile segment against the revolve
+/// axis, each a [`RevolveError::SliverAxisClearance`] when it escalates.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ClearanceDecision {
+    /// A line's radial run: zero makes its wall a cylinder.
+    LineRadial,
+    /// A line's axial run: zero makes its wall a plane annulus.
+    LineAxial,
+    /// An arc centre's distance from the axis: zero makes a sphere, a
+    /// positive distance a torus.
+    ArcCenter,
+    /// A sphere-class arc's span short of a half turn, at its radius.
+    ArcSpan,
+    /// A sphere-class arc's apex distance from the axis.
+    ArcApex,
+    /// A torus-class arc's clearance of the axis: its centre's distance
+    /// less its radius.
+    ArcClearance,
+}
+
+impl ClearanceDecision {
+    /// Every clearance decision.
+    pub const ALL: [Self; 6] = [
+        Self::LineRadial,
+        Self::LineAxial,
+        Self::ArcCenter,
+        Self::ArcSpan,
+        Self::ArcApex,
+        Self::ArcClearance,
+    ];
+
+    /// The `k_stats` name the decision is metered under.
+    #[must_use]
+    pub const fn predicate(self) -> &'static str {
+        match self {
+            Self::LineRadial => "axis_line_radial",
+            Self::LineAxial => "axis_line_axial",
+            Self::ArcCenter => "axis_arc_center",
+            Self::ArcSpan => "axis_arc_span",
+            Self::ArcApex => "axis_arc_apex",
+            Self::ArcClearance => "axis_arc_clearance",
+        }
+    }
+
+    /// Whether the margin is a size the user chose. The span is an
+    /// angle, and the line runs and the centre's distance select the
+    /// wall's form, passing on any definite sign; the apex and the
+    /// clearance are distances the profile must keep from the axis.
+    #[must_use]
+    pub const fn sized(self) -> bool {
+        matches!(self, Self::ArcApex | Self::ArcClearance)
+    }
+
+    /// The ending of this decision's escalation: a size's tolerance
+    /// where [`Self::sized`], the lever alone otherwise (D4 ¶1 (i)).
+    #[must_use]
+    pub fn ending(self, diag: &Indeterminate) -> String {
+        if self.sized() {
+            diag.ending(geom_core::COINCIDENCE_RECOURSE)
+        } else {
+            LeverOnly::at_build(geom_core::COINCIDENCE_RECOURSE, diag)
+        }
+    }
+}
+
 impl fmt::Display for RevolveError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -671,7 +738,7 @@ impl fmt::Display for RevolveError {
                 "{}",
                 source.undecided(
                     "whether the revolve axis has a length",
-                    source.ending(geom_core::COINCIDENCE_RECOURSE),
+                    LeverOnly::at_build(geom_core::COINCIDENCE_RECOURSE, source),
                 )
             ),
             Self::DegenerateAngle => write!(
@@ -687,7 +754,10 @@ impl fmt::Display for RevolveError {
             Self::AngleEscalated { source } => write!(
                 f,
                 "{}",
-                source.undecided("the revolve angle", crate::swept::lever_ending(source))
+                source.undecided(
+                    "the revolve angle",
+                    LeverOnly::at_build(geom_core::COINCIDENCE_RECOURSE, source)
+                )
             ),
             // Definite at ANY magnitude (r = -0.5 fires this same arm),
             // so the coincidence levers are offered conditionally — the
@@ -724,6 +794,7 @@ impl fmt::Display for RevolveError {
             Self::SliverAxisClearance {
                 loop_index,
                 segment_index,
+                decision,
                 source,
             } => write!(
                 f,
@@ -733,7 +804,7 @@ impl fmt::Display for RevolveError {
                         "whether the arc at loop {loop_index} segment {segment_index} clears \
                          the revolve axis"
                     ),
-                    axis::clearance_ending(source),
+                    decision.ending(source),
                 )
             ),
             Self::UnsupportedToroid {
@@ -783,7 +854,7 @@ impl fmt::Display for RevolveError {
                         "whether the walls meeting at loop {loop_index} vertex {vertex_index} \
                          share one surface"
                     ),
-                    source.ending(geom_core::COINCIDENCE_RECOURSE),
+                    LeverOnly::at_build(geom_core::COINCIDENCE_RECOURSE, source),
                 )
             ),
             Self::SliverJoin {
@@ -931,73 +1002,77 @@ pub fn revolve<T: Decide + topo::AtRestPolicy>(
 mod tests {
     use super::*;
 
-    /// **A revolve escalation ends by its decision's kind.** The angle,
-    /// and the clearance's arc span, are angles: the lever alone on
-    /// every reading. The axis direction's length, the clearance's
-    /// lengths and the cosurface distance offer the tolerance a value in
-    /// the band gives.
+    /// **A revolve escalation ends by its decision's kind.** The angle
+    /// and the arc span are angles, the axis direction's length is a
+    /// gauge, and the line runs, the arc centre and the cosurface
+    /// distance select a form: each ends in the lever alone on every
+    /// reading. The arc's apex and clearance are distances the profile
+    /// keeps from the axis, and offer the tolerance a value gives.
     #[test]
     fn a_revolve_escalation_ends_by_its_decisions_kind() {
-        use crate::swept::undecided_fixtures::readings;
-        let value = "margin 5e-9 lies inside the ambiguity band (1e-9, 1e-8). ";
-        let sized = "Recourse: move the geometry, or, if this size is intended, tighten the \
-                     tolerance below 5e-10 m";
-        let angle = "the revolve angle is undecided: ";
-        let [read, straddle, poison] = readings("revolve_angle");
-        for (source, text) in [
-            (read, format!("{angle}{value}Recourse: move the geometry")),
+        use crate::swept::undecided_fixtures::{LEVER, SIZED, expected, readings};
+        let clearances = [
+            (ClearanceDecision::LineRadial, LEVER),
+            (ClearanceDecision::LineAxial, LEVER),
+            (ClearanceDecision::ArcCenter, LEVER),
+            (ClearanceDecision::ArcSpan, LEVER),
+            (ClearanceDecision::ArcApex, SIZED),
+            (ClearanceDecision::ArcClearance, SIZED),
+        ];
+        assert_eq!(clearances.map(|(d, _)| d), ClearanceDecision::ALL);
+        type Build = fn(Indeterminate) -> RevolveError;
+        let cases: [(&'static str, &str, [&str; 3], Build); 4] = [
+            ("revolve_angle", "the revolve angle", LEVER, |source| {
+                RevolveError::AngleEscalated { source }
+            }),
             (
-                straddle,
-                format!(
-                    "{angle}enclosure [5e-10, 3e-8] cannot be classified against the ambiguity \
-                     band (1e-9, 1e-8). Recourse: move the geometry"
-                ),
+                "revolve_angle_headroom",
+                "the revolve angle",
+                LEVER,
+                |source| RevolveError::AngleEscalated { source },
             ),
             (
-                poison,
-                format!(
-                    "{angle}margin is invalid (NaN or a refused enclosure) against the ambiguity \
-                     band (1e-9, 1e-8). Recourse: move the geometry; an unreadable margin may \
-                     indicate a kernel bug worth reporting"
-                ),
-            ),
-        ] {
-            assert_eq!(RevolveError::AngleEscalated { source }.to_string(), text);
-        }
-        let clearance = |name| RevolveError::SliverAxisClearance {
-            loop_index: 0,
-            segment_index: 2,
-            source: readings(name)[0],
-        };
-        let arc = "whether the arc at loop 0 segment 2 clears the revolve axis is undecided: ";
-        for (err, text) in [
-            (
-                clearance(axis::AXIS_ARC_SPAN),
-                format!("{arc}{value}Recourse: move the geometry"),
+                "revolve_axis_direction",
+                "whether the revolve axis has a length",
+                LEVER,
+                |source| RevolveError::AxisEscalated { source },
             ),
             (
-                clearance("axis_line_radial"),
-                format!("{arc}{value}{sized}"),
-            ),
-            (
-                RevolveError::AxisEscalated {
-                    source: readings("revolve_axis_direction")[0],
-                },
-                format!("whether the revolve axis has a length is undecided: {value}{sized}"),
-            ),
-            (
-                RevolveError::CosurfaceEscalated {
+                "wall_lines_cosurface",
+                "whether the walls meeting at loop 1 vertex 3 share one surface",
+                LEVER,
+                |source| RevolveError::CosurfaceEscalated {
                     loop_index: 1,
                     vertex_index: 3,
-                    source: readings("wall_lines_cosurface")[0],
+                    source,
                 },
-                format!(
-                    "whether the walls meeting at loop 1 vertex 3 share one surface is \
-                     undecided: {value}{sized}"
-                ),
             ),
-        ] {
-            assert_eq!(err.to_string(), text);
+        ];
+        let mut built: Vec<(String, RevolveError)> = Vec::new();
+        for (name, subject, endings, build) in cases {
+            for (source, text) in readings(name).into_iter().zip(expected(subject, endings)) {
+                built.push((text, build(source)));
+            }
+        }
+        for (decision, endings) in clearances {
+            let subject = "whether the arc at loop 0 segment 2 clears the revolve axis";
+            for (source, text) in readings(decision.predicate())
+                .into_iter()
+                .zip(expected(subject, endings))
+            {
+                built.push((
+                    text,
+                    RevolveError::SliverAxisClearance {
+                        loop_index: 0,
+                        segment_index: 2,
+                        decision,
+                        source,
+                    },
+                ));
+            }
+        }
+        for (text, err) in built {
+            assert_eq!(err.to_string(), text, "{err:?}");
         }
     }
 

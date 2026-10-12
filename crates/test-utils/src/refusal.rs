@@ -687,7 +687,7 @@ mod tests {
             assert_eq!(subjectless_escalations(&text).len(), 1, "{text}");
         }
         for subject in [
-            "whether the tube's wall leaves a bore is too close to call",
+            "whether the hollow tube's wall leaves a bore is undecided",
             "at an edge, whether the edge is convex or concave is too close to call",
             "the transversality margin at sample 4 escalated",
             "the residual against one of the edge's surfaces at sample 4 escalated",
