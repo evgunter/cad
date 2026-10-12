@@ -95,3 +95,31 @@ membership test (4).
 - A D-rod bore and five straight-edged holes clear of `S` still refuse
   the reach meter's `FaceClearance`:
   `blend-reach-refuses-a-bore-clear-of-a-ruled-cut-offs-sliver`.
+
+## Findings (step 1: the three-way classifier)
+
+- Built: predicate 2's reach (`band_reach`) and the cap meter
+  (`ring_clearance_pass` arm (c)) read three ways; "wholly inside"
+  refuses the new `BlendError::WhollyInside`. The cap's enclosure `Ω`
+  answers only "clear"; inside and crossing are read against the
+  sliver's own boundary (`CapSliver`'s `SliverBoundary`, round ends
+  only — a chord end answers clear or a bound).
+- The two witness rows are renamed for what they now pin:
+  `band_ruled_cap_ring::a_bore_inside_the_d_rods_removed_sliver_refuses_wholly_inside`
+  and
+  `review_band_ruled_ring_probes::a_bore_in_a_keyhole_creases_removed_sliver_refuses_wholly_inside`.
+  Step 3 flips these two.
+- A wall that reaches a window's end plane (a through-bore's wall)
+  touches the reach's boundary there, so the reach reads it
+  uncertified, never inside; its rings on the caps are read first, by
+  the cap meter. Step 3's deletion has to exempt the consumed walls
+  from the reach.
+- The chamfer refuses ruled creases (`ChamferArmUnsupported`), so the
+  ruled cap is fillet-only; the second verb is pinned on the planar
+  band's square wall (inside under the fillet, a bound under the
+  chamfer's chord end).
+- `band_planar_oblique_fillet`'s "cusp at the top foot" hole was
+  listed as in the sliver; it crosses the elliptic arc and now reads
+  as a measured crossing.
+- Sibling meters still two-valued:
+  `blend-support-ring-meters-read-two-ways`.
