@@ -9,6 +9,7 @@ cost: M
 refs: [split-tangent-chord-mints-tangency-without-the-must-carry-rule]
 closed: 2026-10-12
 branch: tang/split-edge-must-carry
+pr: 4815
 ---
 
 ## Finding
