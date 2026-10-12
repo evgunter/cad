@@ -3037,4 +3037,66 @@ mod tests {
         );
         assert!(refused.at.is_none(), "limb 3 was located: {:?}", refused.at);
     }
+
+    /// **Limb 2's bound escalates at `Interval` with its margin as an
+    /// enclosure** (4553's second review, MINOR-B): in band, the
+    /// escalation names the arm's bound predicate and carries the bound
+    /// as an `Interval`, both ends the bound's own bits, and the error
+    /// text renders an enclosure. Red if the margin is flattened to one
+    /// `f64` (`Margin::of(hull.sup)`), which reads and renders as a
+    /// value. Driven at `hull_limb` itself: on the analytic pair the
+    /// SSI door reaches, limb 2 reads under limb 1 under the monotone
+    /// step (`review_ssiflat_r2_probes`' probe 5), so no band there
+    /// lets limb 2 escalate first.
+    #[test]
+    #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+    fn the_hull_bound_escalates_with_an_enclosure_at_interval() {
+        use super::{ANALYTIC_HULL, CHART_HULL, Hull, SsiError, Subdivided, hull_limb};
+        use geom_core::{Band, ErrorTextReading, Interval, MarginDiag};
+        let band = Band::new(4.0e-15, 6.0e-15).unwrap();
+        let sup = 5.0e-15;
+        for arm in [&ANALYTIC_HULL, &CHART_HULL] {
+            let hull = Hull {
+                sup,
+                breaks: vec![0.0, 1.0],
+                spans: vec![sup],
+                floors: vec![0.0; 2],
+                work: 1,
+                data: (),
+            };
+            let mut at = super::Refused::default();
+            let err = hull_limb::<Interval>(arm, Subdivided::Bound(hull), band, &mut at)
+                .expect_err("a bound in the band escalates");
+            let SsiError::CertificateEscalated { ref cause, .. } = err else {
+                panic!("{}: not the escalation: {err:?}", arm.sup);
+            };
+            assert_eq!(cause.predicate, Some(arm.sup));
+            let ErrorTextReading::Enclosure { lo, hi } =
+                MarginDiag::diagnostic_f64_for_error_text(cause.margin)
+            else {
+                panic!(
+                    "{}: limb 2's margin at Interval must read as an enclosure: {:?}",
+                    arm.sup, cause.margin
+                );
+            };
+            assert_eq!(
+                (lo.to_bits(), hi.to_bits()),
+                (sup.to_bits(), sup.to_bits()),
+                "{}: the escalation must carry the bound's own ends",
+                arm.sup
+            );
+            let shown = err.to_string();
+            assert!(
+                shown.contains("enclosure [") && !shown.contains("NaN"),
+                "{}: the text must render the enclosure: {shown}",
+                arm.sup
+            );
+            assert_eq!(
+                at.spans.len(),
+                1,
+                "{}: the uncleared span is located",
+                arm.sup
+            );
+        }
+    }
 }
