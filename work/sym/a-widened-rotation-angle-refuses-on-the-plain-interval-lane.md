@@ -7,7 +7,6 @@ opened: 2026-09-22
 priority: P1
 cost: D
 refs: [SYM-14]
-needs_ev: true
 ---
 
 
@@ -71,7 +70,7 @@ plain lane's refusal is the designed answer.
 
 SYM — the tier's reach on a construction Ev asked for.
 
-## Question
+## Question, and Ev's answer
 
 What the plain interval lane owes a rigid placement whose angle is an
 interval, and where rigidity is known.
@@ -105,4 +104,39 @@ cause written from theory. The witness lands on its own; SHELF's
 `transform-rigid-recertifies-images-enclosed-apart`, carrying edge
 certificates across the map, is its own question. No ratified decision
 changes.
+
+**Ev's answer (2026-10-12): the witness, merged with `OrthoFrame`, and
+closed under the rigid group's action.** Ev asked two follow-ups first:
+whether the idea generalises (mates especially), and why the two
+designers' unifications could not be combined. The answer is the
+combination:
+- **One type.** `OrthoFrame` merged with the rigid-motion witness. It
+  keeps the frame's accessors (`origin`, `u`/`v`/`w` as `UnitVec3`)
+  and its decided mints. It gains the motion's mints by construction:
+  rotation about a `UnitVec3`, rotation about an axis through a point,
+  translation, exact half-turns, compose, and the inverse as the
+  transpose. Each mint decides only finiteness. One decided door,
+  today's `check_rigid`, admits a raw `Affine3`, and returns an
+  undecided margin as undecided.
+- **The action.** The type acts on `UnitVec3` and on itself, so
+  revolves (`revolve/partial.rs`), sweeps (`swept.rs`) and patterns
+  (`eval/wire/stepped.rs`) mint rigid motions too.
+- **Callers.** `topo::transform_rigid` takes the type and asks nothing
+  about rigidity. Placements (`Step::Rigid`, `chain_motion`) and the
+  mate solve's representatives and inverses mint it. A literal `Frame`
+  goes through the decided door. `editor-core`'s persisted `Frame`
+  stays a general linear part, so an improper map stays representable
+  and can be refused.
+- **Products of admitted frames** are not decided again.
+- **No general structure-group mechanism.** The kernel acts with one
+  group. Mirror is built inside its own door (MIRROR-DESIGN P2), and
+  nothing scales.
+
+The remaining identity losses are a relation between two separately
+enclosed objects, and one parameter reaching a result by two paths.
+Both are the symbolic tier's (E12), and SHELF's
+`transform-rigid-recertifies-images-enclosed-apart` is its own
+question. The mates' re-measurement is retired by INTENT stage 3
+("a mate places and never checks"). The type should land before
+stage 3 rewrites `coset.rs`.
 
