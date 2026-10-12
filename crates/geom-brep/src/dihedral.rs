@@ -1310,6 +1310,127 @@ mod tests {
         );
     }
 
+    /// **A gate's rejected Zero ends in the arm's zero note on the
+    /// undecided arm** (`SizedDecision::recourse`): a reader that routes
+    /// the arm gate's rejection as `RefusedArm::Undecided` ends it as the
+    /// Zero arm does, at a build, at rest and at the import door. A zero
+    /// with no size to tighten below, read or proved, takes the note; a
+    /// rejected zero a smaller tolerance decides passing is offered that
+    /// tolerance and no note; and neither an untagged in-band margin nor
+    /// a rejected Negative takes it.
+    #[test]
+    fn a_gates_rejected_zero_ends_in_the_arms_zero_note() {
+        use geom_core::sym::with_session;
+        use geom_core::{FileCoincidence, ParamSymbol, Sym, SymBudget, Theorem};
+
+        use crate::recourse::{ReadAt, Reading, Refused, RefusedArm};
+
+        let b = Band::new(1e-9, 1e-8).unwrap();
+        let reject = |margin| decide_positive("dihedral_arm", margin, b).unwrap_err();
+        let read = reject(Margin::of(0.0));
+        // `0.1·3/3 − 0.1` rounds to a positive reading in the zero band.
+        let rounded = reject(Margin::of(0.1_f64 * 3.0 / 3.0 - 0.1));
+        let budget = SymBudget {
+            max_terms: 64,
+            max_degree: 8,
+        };
+        let (proved, _) = with_session(budget, || {
+            let x = Sym::param(ParamSymbol::new(0xa7), 0.1_f64);
+            let three = Sym::from_f64(3.0);
+            decide_positive("dihedral_arm", Margin::of(x * three / three - x), b).unwrap_err()
+        });
+        assert_eq!(
+            (proved.margin.rejected_sign(), proved.margin.theorem()),
+            (Some(Sign::Zero), Some(Theorem::SymbolicZero)),
+            "the proved zero is a gate's rejection: {proved:?}"
+        );
+        assert_eq!(
+            proved.margin.diagnostic_f64_for_error_text(),
+            rounded.margin.diagnostic_f64_for_error_text(),
+            "the proof is the only difference from the rounded reading"
+        );
+        let in_band = Indeterminate {
+            margin: MarginDiag::value(-5e-9),
+            band: b,
+            predicate: Some("dihedral_arm"),
+            terminal_sliver: false,
+        };
+        let negative = reject(Margin::of(-1e-3));
+        assert_eq!(negative.margin.rejected_sign(), Some(Sign::Negative));
+
+        let lever = "Recourse: move the geometry so that edge is clearly longer and no face \
+                     curves tightly there";
+        let noted = format!(
+            "{lever}; an edge of no length, or a face curving to a point as a cone does, \
+             leaves no angle to measure"
+        );
+        let unstated = "This length or the gap its faces open is below the file's declared \
+                        coincidence distance ε_in = 1e-8 m, so the file does not state it. ";
+        let offer = format!(
+            "{lever}, or, if this length or the gap its faces open is intended, tighten the \
+             tolerance below 1.3877787807814458e-18 m"
+        );
+        let file = FileCoincidence::new(1e-8);
+        let rows: [(&str, &Indeterminate, [String; 3]); 5] = [
+            (
+                "a read zero",
+                &read,
+                [noted.clone(), noted.clone(), format!("{unstated}{noted}")],
+            ),
+            (
+                "a proved zero",
+                &proved,
+                [noted.clone(), noted.clone(), format!("{unstated}{noted}")],
+            ),
+            (
+                "a rounded zero",
+                &rounded,
+                [
+                    offer.clone(),
+                    offer,
+                    format!(
+                        "{unstated}{lever}, or, if this length or the gap its faces open is \
+                         intended, re-export the file with its uncertainty declared below \
+                         1.3877787807814457e-17 m and tighten the tolerance below \
+                         1.3877787807814458e-18 m"
+                    ),
+                ],
+            ),
+            (
+                "an untagged in-band margin",
+                &in_band,
+                [
+                    lever.to_owned(),
+                    lever.to_owned(),
+                    format!("{unstated}{lever}"),
+                ],
+            ),
+            (
+                "a rejected Negative",
+                &negative,
+                [lever.to_owned(), lever.to_owned(), lever.to_owned()],
+            ),
+        ];
+        for (what, cause, want) in rows {
+            let doors = [
+                ReadAt::Run(Reading::Build),
+                ReadAt::Run(Reading::AtRest),
+                ReadAt::File(file),
+            ];
+            for (at, want) in doors.into_iter().zip(want) {
+                let got = DIHEDRAL_ARM.recourse(RefusedArm::Undecided(cause), at);
+                assert_eq!(got, want, "{what}, undecided arm, {at:?}");
+                if let Some(zero @ Refused::Zero(_)) = Refused::rejected(cause) {
+                    assert_eq!(
+                        DIHEDRAL_ARM.recourse(zero.arm(), at),
+                        got,
+                        "{what}: the Zero arm and the undecided arm agree at {at:?}"
+                    );
+                }
+            }
+        }
+    }
+
     /// **The arm's escalation quotes the wedge it meters** (`at_wedge`):
     /// two planes at an angle θ over an in-band extent escalate the arm
     /// with the margin `sin θ · extent`, the value whose tolerance decides
