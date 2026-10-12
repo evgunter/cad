@@ -3410,17 +3410,18 @@ pub(crate) fn kind_word(kind: geom::SurfaceKind) -> &'static str {
 /// **This is the one statement of the pairs the Boolean can join**: the
 /// germ-pair join (`join::bool_connect`, and the chord layer it mints
 /// sections through) joins a plane face against a plane, cylinder,
-/// sphere or cone face, mirrors included,
-/// and two spheres or two parallel cylinders along their radical plane.
+/// sphere or cone face, mirrors included, and against a torus face where
+/// the plane holds the torus's axis or stands square to it, and two
+/// spheres or two parallel cylinders along their radical plane.
 /// The rustdoc that needs the set points here. The operand gate's box
 /// test is conservative (a box overlap is a MAY),
 /// so moving the face clear of the other solid is a real recourse even
 /// where the faces never touch in exact geometry.
 pub(crate) fn meeting_recourse(kind: &str) -> String {
     format!(
-        "Recourse: reshape the parts so they meet only where a plane face meets \
-         a plane, cylinder, sphere or cone face, or move them so the {kind} face stays \
-         clear of the other solid"
+        "Recourse: reshape the parts so faces meet only where a plane meets a plane, \
+         cylinder, sphere, cone, or a torus through or square to its axis, or move the \
+         {kind} face clear"
     )
 }
 

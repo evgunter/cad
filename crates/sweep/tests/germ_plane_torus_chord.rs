@@ -239,7 +239,9 @@ fn about_the_tube(big_r: f64, r: f64) -> (Point3<f64>, Point3<f64>) {
 /// one 30° round the axis (M2), each half the torus (`π²Rr²`); the
 /// half-spaces `y ≥ 0.2` (P1), `y ≥ 0` (P2) and `y ≥ −0.3`, each the
 /// torus above its plane; and the box `[−3, 3] × [0.2, 1] × [−3, 3]`,
-/// whose face `y = 0.2` holds both circles.
+/// whose face `y = 0.2` holds both circles, and the one whose face
+/// `1e-3` under the tube's top cuts two circles `2√(r·1e-3)` apart
+/// across it.
 fn planar_poses() -> Vec<(&'static str, Solid, f64)> {
     let (big_r, r) = (2.0, 0.5);
     let m2 = Vec3::new(degrees(30.0).cos(), 0.0, degrees(30.0).sin());
@@ -255,24 +257,20 @@ fn planar_poses() -> Vec<(&'static str, Solid, f64)> {
             boxed((-3.0, 3.0), (0.2, 1.0), (-3.0, 3.0)),
             cap(big_r, r, 0.2),
         ),
+        (
+            "a box face under the tube's top",
+            boxed((-3.0, 3.0), (r - 1e-3, 1.0), (-3.0, 3.0)),
+            cap(big_r, r, r - 1e-3),
+        ),
     ]
 }
 
 /// **The donut's meridian and concentric poses build their true
-/// bodies**, in all six ops: M1's ∩ is half the donut, `π²Rr²`. A box
-/// face `1e-3` under the tube's top cuts two circles `2√(r·1e-3)` apart
-/// across it, and builds too.
+/// bodies**, in all six ops: M1's ∩ is half the donut, `π²Rr²`.
 #[test]
 fn the_donuts_meridian_and_concentric_poses_build_their_true_bodies() {
     let (big_r, r) = (2.0, 0.5);
-    let mut poses = planar_poses();
-    let h = r - 1e-3;
-    poses.push((
-        "a box face under the tube's top",
-        boxed((-3.0, 3.0), (h, 1.0), (-3.0, 3.0)),
-        cap(big_r, r, h),
-    ));
-    for (pose, p, meet) in poses {
+    for (pose, p, meet) in planar_poses() {
         let t = ring(torus(big_r, r), (big_r, r));
         holds_to_the_truth(pose, &t, &p, meet, about_the_tube(big_r, r));
     }

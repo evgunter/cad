@@ -203,6 +203,9 @@ pub(crate) enum TorusDoor {
     WallSection,
     /// Past every door: the op returned a result.
     Built,
+    /// A decision in the run's escalation band, past the chord: a body
+    /// too thin for the run's band to read.
+    Escalated,
 }
 
 /// The chord door a pose past the dispatch meets first: the planar
@@ -241,6 +244,7 @@ pub(crate) fn torus_door(
 ) -> Result<TorusDoor, String> {
     match run(op, x, y) {
         Ok(_) => return Ok(TorusDoor::Built),
+        Err(BooleanError::Escalated { .. }) => return Ok(TorusDoor::Escalated),
         Err(e) if names_the_torus(&e) => {}
         Err(BooleanError::Join(topo::SplitJoinError::SectionUnarmed {
             divided: geom::SurfaceKind::Plane,
@@ -650,10 +654,11 @@ fn two_one_site_loops_on_one_face_pair_pass_the_dispatch() {
 }
 
 /// **A plane square to the axis just under the tube's top reaches the
-/// door the donut does**, at `y = 0.5 − δ`: past the frame and the
-/// dispatch to the chord where the run's band reads the two circles
-/// apart, at the on-carrier sector where it reads them one tangent
-/// circle. The
+/// door the donut does**, at `y = 0.5 − δ`: past the frame, the
+/// dispatch and the chord where the run's band reads the two circles
+/// apart, to a body or, where the cap is too thin for the run's band to
+/// read its shell, an escalation; at the on-carrier sector where the
+/// band reads them one tangent circle. The
 /// one-face torus and the torus seamed on `y = 0` carry both circles on
 /// one face pair, each crossing a wrap edge once; the donut carries
 /// them on its outer and inner faces.

@@ -477,6 +477,7 @@ which is what actually moves the number.
 | boolean/join.rs:743/744 | bool_join_facing | unit germ dir · chord (cos × separation) | m | FIXED (was bare cosine, `/dist`) |
 | boolean/join.rs (`rotational_sense`) | bool_join_arc_facing | axis·((p−c)×dir) — radius-metered sine | m | OK |
 | boolean/join.rs (`SectionLoops::at`) | bool_join_section_loop | which loop of a two-loop section a germ site lies on: `(p − o)·d̂` (the side of a plane between the loops, `d̂` unit) or `‖(p − o) × â‖ − R` (the distance from an axis against a radius, `â` unit) | m | OK |
+| chord_join.rs (`section_loop`) | chord_section_loop | which loop of a two-loop section a chord's site lies on, by the boolean join's split for the section: `(p − o)·d̂` or `‖(p − o) × â‖ − R` | m | OK |
 | boolean/join.rs (`pair_section_frame`, cylinder pair) | cc_axes_parallel (retired `bool_germ_frame_axes_parallel`) | the section table's own row, asked through `geom_brep::cylinder_axes_parallel`: `‖a₁ × a₂‖` levered at the larger radius or the germ walls' span, whichever is longer, as the frame levered it before (`Reach::Measured`) | m | FIXED (TANG; one name for one fact) |
 | boolean/join.rs (`pair_section_frame`, cylinder pair) | cc_axes_coplanar (retired `bool_germ_frame_axes_coplanar`) | the section table's own row, asked through `geom_brep::cylinder_axes_coplanar`: the signed axis-to-axis gap along the common perpendicular, `w·(a₁ × a₂) / ‖a₁ × a₂‖`, `w` between the axes' feet at the reach | m | FIXED (TANG; was read between the stored origins, `o₂ − o₁`, under a second name) |
 | boolean/join.rs (`cs_transverse_frame`) | bool_germ_frame_cs_offset | the sphere centre's distance from the cylinder's axis, `‖(c − o) − a·((c − o)·a)‖` with `a` unit; only a definite offset names a frame | m | OK |
@@ -614,6 +615,9 @@ which is what actually moves the number.
 | ring_path.rs (`Quadric::torus_circle_arc`) | split_ring_torus_parallel | `‖n̂ × â‖` (the sine between a loop circle's axis and the torus's), levered at the circle's radius | m | OK (GERM) |
 | ring_path.rs (`Quadric::torus_circle_arc`) | split_ring_torus_parallel_side | a parallel's radius less the torus's major radius | m | OK (GERM) |
 | ring_path.rs (`path_parity`) | split_ring_path_torus_loop | a crossing's side of the split between its plane's two loops on a torus: `(p − c)·ê` for a meridian, `ρ − R` (signed outward) for a parallel | m | OK (GERM) |
+| ring_path.rs (`Quadric::torus_circle_arc`) | split_ring_torus_crest | the height along the axis of the centre of the tube's top or bottom circle (a parallel of radius `R`), `±r` on the torus | m | OK (GERM) |
+| ring_path.rs (`path_parity`) | split_ring_path_crest_graze | a parallel piece's radius less `R`: whether it runs along the cylinder `ρ = R` the top and bottom circles are read across | m | OK (GERM) |
+| ring_path.rs (`path_parity`) | split_ring_path_crest_side | `ρ − R` at a segment piece's end: its side of the cylinder `ρ = R` | m | OK (GERM) |
 | ring_path.rs (`path_parity`) | split_ring_path_meets_plane | the gap `r·√(A² + B²) − \|D\|`: a circle piece's reach across a loop conic's plane less its centre's offset from it, the plane's displacement that flips the meeting | m | OK (TANG) |
 | ring_path.rs (`path_parity`) | split_ring_path_segment_side | a ruling segment's end's offset from a loop conic's plane, `n̂·(p − c)` | m | OK (TANG) |
 | ring_path.rs (`path_parity`) | split_ring_path_line_across | `m̂·d̂` (the cosine between a circle piece's plane normal and a loop ruling), levered at the piece's radius | m | OK (TANG) |
