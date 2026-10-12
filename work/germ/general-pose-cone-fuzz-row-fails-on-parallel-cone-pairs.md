@@ -3,6 +3,7 @@ id: general-pose-cone-fuzz-row-fails-on-parallel-cone-pairs
 kind: issue
 title: topo: the_general_pose_cone_rows_agree_with_the_traced_section fails at seed 0x924171afe325def2 on two parallel-cone pairs (traced [Null], classified [Null, Null])
 status: closed
+pr: 4886
 branch: germ/cone-pair-fuzz-mismatches
 opened: 2026-10-10
 closed: 2026-10-12
