@@ -8,6 +8,7 @@ priority: P3
 cost: E
 closed: 2026-10-12
 branch: nurbs/tilted-lune-margin
+pr: 4802
 ---
 
 Both designers of the 2026-10-10 eval-spelling fork found this independently.
