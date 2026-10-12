@@ -16,11 +16,9 @@
 //!   table answers [`RimRouting::Seam`] for it, since it reads only the
 //!   two sheets' normals and jets; [`departures`] is what tells the two
 //!   apart, and both callers ask it after the table.
-//! - **wedge 0 or 2π** — the normals oppose, the material pinches to a
-//!   knife edge or opens to a circular slit. That is the declared-cusp
-//!   family, DEFINED AND UNBUILT: the pair reaching this routing has no
-//!   tangent-locus arm, and no consumer yet builds the cusp or slit
-//!   edge from a locus of any shape. Its refusal names both.
+//! - **wedge 0 or 2π** — the normals oppose across the rim. A pair
+//!   reaching this routing has no tangent-locus arm for its two
+//!   surface kinds, which is what its refusal names.
 //! - **anything the samples cannot settle** — escalates, naming the
 //!   predicate that failed to decide. Never a silent verdict.
 //!
@@ -67,8 +65,8 @@ pub(crate) enum RimRouting {
     /// leave it on opposite sides (the smooth seam, the built arm), a
     /// nested touch if on one side. [`departures`] decides which.
     Seam,
-    /// Wedge 0 or 2π: the declared-`Tangent` cusp family, defined and
-    /// unbuilt.
+    /// Wedge 0 or 2π: outward normals opposed along the rim
+    /// ([`super::BooleanError::RimCuspArmUnbuilt`]).
     Cusp(MaterialWedge),
     /// Opposed sides whose jets osculate — conformal contact along the
     /// locus, which is a `Rest` claim wearing a rim's clothes.

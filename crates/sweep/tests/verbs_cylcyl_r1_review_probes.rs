@@ -108,12 +108,6 @@ fn every_reachable_crossing_pose_refuses_typed_or_answers_correctly() {
             parallel_shared((0.0, 1.5, (0.0, 4.0)), (2.9, 1.5, (1.0, 5.0))),
         ),
         (
-            "externally tangent walls",
-            cyl(0.0, 0.0, 1.0, 0.0, 2.0),
-            cyl(2.0, 0.0, 1.0, 0.0, 2.0),
-            parallel_shared((0.0, 1.0, (0.0, 2.0)), (2.0, 1.0, (0.0, 2.0))),
-        ),
-        (
             "tall thin through short fat",
             cyl(0.0, 0.0, 0.2, -8.0, 8.0),
             moved(
@@ -171,6 +165,21 @@ fn every_reachable_crossing_pose_refuses_typed_or_answers_correctly() {
             }
         }
     }
+}
+
+/// **Externally tangent walls touch at every op**: two upright unit
+/// cylinders a diameter apart share the ruling `x = 1, y = 0` and no
+/// volume, so ∪ is the two solids with the edge–edge record of their
+/// edges on the ruling, ∖ returns each, and ∩ is empty.
+#[test]
+fn externally_tangent_walls_touch_at_every_op() {
+    let tol = Tol::witness();
+    crate::common::touch_union::assert_touch_at_every_op(
+        "externally tangent walls",
+        &finished("the left cylinder", cyl(0.0, 0.0, 1.0, 0.0, 2.0), tol),
+        &finished("the right cylinder", cyl(2.0, 0.0, 1.0, 0.0, 2.0), tol),
+        [Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 2.0)],
+    );
 }
 
 /// A pose: its name, its two operands, and the volume they share where

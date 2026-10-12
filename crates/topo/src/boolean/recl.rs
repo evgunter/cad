@@ -1376,8 +1376,8 @@ pub(super) fn resolve_edge_edge<T: Decide>(
             let side = if inside { SideCode::In } else { SideCode::Out };
             side == super::finish::kept_side(op, operand)
         };
-        let both = a_in.iter().all(|&i| kept(i, Operand::A))
-            && b_in.iter().all(|&i| kept(i, Operand::B));
+        let both =
+            a_in.iter().all(|&i| kept(i, Operand::A)) && b_in.iter().all(|&i| kept(i, Operand::B));
         return Ok(if both {
             EdgeEdge::Touch
         } else {

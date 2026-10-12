@@ -23,7 +23,7 @@
 //!   vertex and edge contacts (the carried
 //!   [`ContactRecords`] say where; genuinely 3′, certified by PR 6's
 //!   validator). A declared line contact through a face's interior is
-//!   not one: its records would name points of the line, so the union
+//!   a face–face touch the reduction does not yet record, so the union
 //!   refuses it ([`BooleanError::TangentSlitArmUnbuilt`]).
 //! - [`Voided`](BooleanResultKind::Voided): **legitimate voids** —
 //!   A∖B with B strictly inside A yields the outer shell plus the

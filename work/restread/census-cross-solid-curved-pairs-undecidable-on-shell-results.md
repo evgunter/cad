@@ -219,3 +219,19 @@ curved face of one is within reach of the other") between the cutter's
 or the corner's curved wall and the other solid's faces. The tags are
 `pocket D-0.45 phi=4.000 off=(0.75, 0.75) {top,bottom,through,flushtop,flushbot} U {AB,BA}`
 and `pocket {D0,D0.3,lens} phi={0.700,4.000} off=(0.75, 0.75) through S AB`.
+
+## 2026-10-12: a tangent touch's union reaches it (`contacthold/same-side-tangent-touch`)
+
+Ev's ruling on `[ev]` PR 4723 makes the union of two operands that
+touch only along a tangent line a two-solid `Assembly`, and that union
+now builds. Its 3′ pass on its own records refuses only with
+`CensusUndecidable` (`CurvedWithinReach` on the face pairs, then the
+solid pair). Three fixtures show it:
+
+- two discs kissing externally;
+- two externally tangent upright cylinders;
+- PR 4704's `sameside-corner` quarter round on a slab.
+
+`crates/sweep/tests/common/touch_union.rs` admits that refusal and no
+other finding, and cites this row. When this lane lands, that check
+can demand `Ok`.

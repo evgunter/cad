@@ -341,12 +341,8 @@ fn poses() -> Vec<(String, Slab, f64, bool, f64)> {
 }
 
 /// **Every pose, every op, printed against the oracle** (R2 of PR 4704).
-/// Measured at f445aadb1b: the `sameside-*` poses (a same-side tangent
-/// pair, the round touching the slab along the rim line only) refuse
-/// every op, `sameside-corner` with `ClassificationInvariant` (odd
-/// crossing count) and `sameside-flush` with `CurvedBooleanUnsupported`;
-/// with `resolve_edge_edge`'s tangent short-circuit disabled,
-/// `sameside-corner` answers all four ops right. Run:
+/// `sameside-flush` (the slab's `y` running past the round) refuses
+/// every op `CurvedBooleanUnsupported`. Run:
 /// `cargo test -p sweep --test all review_4704_every_pose -- --ignored --nocapture`
 #[test]
 #[ignore = "measurement: prints each pose's outcome; run with --ignored --nocapture"]
@@ -387,4 +383,23 @@ fn the_rims_half_turn_postures_answer_against_the_oracle() {
         }
     }
     assert!(bad.is_empty(), "{}", bad.join("\n"));
+}
+
+/// **A same-side tangent touch answers every op** (`sameside-corner`:
+/// the mirrored round's wall rides back over the slab's top, its bottom
+/// overhanging the slab's edge, the two touching along the rim line
+/// `x = 2, z = 1`, `y ∈ [0, 4]` only). Each op agrees with the oracle;
+/// ∖ returns each operand, ∩ is empty, and ∪ is the two solids with the
+/// edge–edge record of the slab's top edge and the round's rim edge.
+#[test]
+fn a_same_side_tangent_touch_answers_every_op() {
+    for line in pose(CORNER, 0.0, true, 0.0) {
+        assert!(line.contains(": OK "), "sameside-corner | {line}");
+    }
+    crate::common::touch_union::assert_touch_at_every_op(
+        "sameside-corner",
+        &CORNER.body(),
+        &round(0.0, true),
+        [Point3::new(2.0, 0.0, 1.0), Point3::new(2.0, 4.0, 1.0)],
+    );
 }
