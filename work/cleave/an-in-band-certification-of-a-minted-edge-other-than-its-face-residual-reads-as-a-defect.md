@@ -2,10 +2,11 @@
 id: an-in-band-certification-of-a-minted-edge-other-than-its-face-residual-reads-as-a-defect
 kind: issue
 title: An in-band certification of a minted edge other than its face residual reads as a kernel defect (describe pass) or as the fit's last resort (section describer)
-status: open
+status: dispatched
 opened: 2026-10-11
 priority: P2
 cost: M
+branch: cleave/minted-edge-inband-cert
 ---
 
 

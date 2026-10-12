@@ -291,3 +291,28 @@ None waits on an INTENT stage. A row that turns out to need one moves back. — 
 - **Merged over:** main's `mass_props` red (NURBS's row).
 - **An ε 1e-6 `near_tangent` red** the lane saw on main is CLEAVE's pin. Main fixed it in `5753a24` after the lane's base.
 — (FLUSH orchestrator)
+
+## 2026-10-12 — the pre-zip weld retires (PR 4728)
+
+- **The dual review.** H, concurrent pair, blinding byte 186; row `docs/dual-review-log/rows/PR-4728.md`. Both reviewers raised one MAJOR: the ring's shared point key came from a value decision that nothing recorded, and the census read it as structural. Because both raised it, the tally is 0.
+- **The lane stopped with three final states.** I ruled B:
+  - **A (not taken):** distinct keys plus a record. It would revise PR 4057.
+  - **B (taken):** one key per pinch (PR 4057), with the value decision recorded at the door as a `VertexFusion` row and reported by the lint. This is what D10's coincidence paragraph asks for.
+  - **C (not taken):** structural grouping only. It contradicts "glues it all the same" and refuses about 2120 lines.
+
+  No ratified text changes, so this was not an `[ev]` fork.
+- **Confirmation round.** Both reviewers confirmed the fix pass, with nits; the nits were taken.
+- **Rows.** Closed: the pre-zip weld, and the hole weld (dissolved with `Joint::Hole`). The seams row is reopened: its vertex-vertex pinches have no pierce. New P2: the 36 `ZipCorrespondence` lines.
+- **Filed on INTENT** (no fix here): a value glue into one vertex records no row (761 of 791 ties). That rule predates this PR.
+- **Class.** The carry fixes in `boolean/ops.rs` keep minting copies of the census's own reads:
+  - PR 4650: a second lineage walker and a third containment ask;
+  - PR 4737: third copies of the edge-edge parallel, crossing and span-end reads.
+
+  Each fix pass removed its copies. A carry lane is now briefed: the census's read is the one home; call it.
+— (FLUSH orchestrator)
+
+## 2026-10-12 — wave 5 dispatched
+
+- **The pinch residue** (`flush/pinch-residue`) has three P2 rows on one ground: the 36 cube-less `ZipCorrespondence` lines, the curved-notch `JoinDesync`, and the vertex-vertex pinches whose cones stay on separate keys. The two refusals are to be root-caused before anything changes. The seams row is weighed against ruling B (PR 4728). If it needs a choice that D10, PR 4057 and ruling B leave open, the lane stops and reports. Three M rows together are reviewed as H: a concurrent dual pair.
+- **The two-pinch pose 1 proof** (`flush/two-pinch-pose-proof`) asks one question: can a cross-germ tie in `join::find_match` change the greedy matching? If it cannot, the escalation is spurious and the pose builds. If it can, a pose that shows it makes the escalation honest.
+— (FLUSH orchestrator)
