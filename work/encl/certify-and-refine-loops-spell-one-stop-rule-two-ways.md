@@ -2,10 +2,11 @@
 id: certify-and-refine-loops-spell-one-stop-rule-two-ways
 kind: issue
 title: the offset fit's refinement loop and the SSI hull subdivision spell one stop rule two ways: improvement against the previous round with a per-grid cap, against the lowest bound with an idle-rounds count and a cumulative work budget
-status: open
+status: dispatched
 opened: 2026-10-11
 priority: P3
 cost: M
+branch: encl/one-stop-rule
 ---
 
 
@@ -29,3 +30,28 @@ Owed: one stop rule with one home, which both loops read. The rule has to settle
 - whether work is bounded per round or cumulatively.
 
 Then each loop's rows re-baseline on it.
+
+## Design (2026-10-12, one designer, ENCL orchestrator adopting)
+
+The rule texts in play (C2 limb 2, f562bd87e1; the offset-fit section, 1d242b4917) are agent-written, so this is ENCL's call, not an `[ev]` fork.
+
+Owed, restated: one stop rule shared by the loops, not one loop (`refined-sign-and-limb-two-subdivide-halve-by-two-loops` measured why the loop bodies stay apart). The rule has one home in geom-brep (working name `crate::descent`):
+
+- **Comparison:** improvement is measured against the lowest certified bound so far. No round counts as idle before the first finite bound, since falling from +∞ is convergence.
+- **Patience:** stop on the second idle round in a row. This one constant replaces `SSI_HULL_IDLE_ROUNDS` and the offset fit's two-step guard, and its doc says why one idle round is let pass. Each loop chooses its own action on idle 1: the offset fit marks both directions; `subdivide` does nothing.
+- **Work:** every loop gets both bounds. A per-object cap (`OFFSET_FIT_SAMPLE_CAP`, `SSI_HULL_CUTS`) bounds what is built; a cumulative budget (`SSI_HULL_WORK`, plus a new offset-fit budget set from measured per-round traces with headroom) bounds the wait.
+- **Precedence:** when several stops fire on one round, the stall wins.
+
+Refusal faces:
+- The offset fit keeps `RefinementStalled`, now admitted on two idle rounds against the lowest bound.
+- `SampleCapReached` and the new cumulative stop become one wall face, naming which wall, with the recourse "split the face".
+- `subdivide` may carry why it stopped (optional).
+
+Expected moves:
+- Some offset-fit `SampleCapReached` refusals become an earlier `RefinementStalled` (a rise, then a recovery that stays above the lowest).
+- The monotone saddle rows do not move.
+- `subdivide` almost unchanged.
+
+Measure the per-round bound traces first, across `tests/offset_fit.rs` and the sweep saddle rows.
+
+Out of this unit: `ssi::refine::refine_by_certificate` is a third instance. It compares against the previous round and is bounded only by `SSI_MAX_STEPS`. It belongs to SSIMARCH's `ssi-refinement-can-spend-hours-on-one-branch-before-the-step-wall`, whose envelope is Ev's; a note is posted there.

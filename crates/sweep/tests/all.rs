@@ -100,6 +100,8 @@ mod a_tube_ending_on_a_ball;
 mod an_annular_tube_through_a_plate;
 #[path = "an_arc_tangent_at_a_boolean_vertex.rs"]
 mod an_arc_tangent_at_a_boolean_vertex;
+#[path = "an_inside_out_thin_tube_operand.rs"]
+mod an_inside_out_thin_tube_operand;
 #[path = "at_rest_pcurve_faces.rs"]
 mod at_rest_pcurve_faces;
 #[path = "band_apart_partners_on_a_steep_ellipse.rs"]
@@ -640,6 +642,8 @@ mod split_along_a_face_plane;
 mod split_cylindrical_feature_box;
 #[path = "split_edge_loft_charts.rs"]
 mod split_edge_loft_charts;
+#[path = "split_edge_on_faces_poses.rs"]
+mod split_edge_on_faces_poses;
 #[path = "split_section_rings.rs"]
 mod split_section_rings;
 #[path = "split_tangent_edge_curved.rs"]
@@ -1093,3 +1097,6 @@ mod seam_siblings_flipped_together;
 mod shell_curved_mouth;
 #[path = "sphere_face_flips_are_refused.rs"]
 mod sphere_face_flips_are_refused;
+
+#[path = "review_4737_span_probes.rs"]
+mod review_4737_span_probes;
