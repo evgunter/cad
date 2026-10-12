@@ -310,3 +310,9 @@ None waits on an INTENT stage. A row that turns out to need one moves back. — 
 
   Each fix pass removed its copies. A carry lane is now briefed: the census's read is the one home; call it.
 — (FLUSH orchestrator)
+
+## 2026-10-12 — wave 5 dispatched
+
+- **The pinch residue** (`flush/pinch-residue`) has three P2 rows on one ground: the 36 cube-less `ZipCorrespondence` lines, the curved-notch `JoinDesync`, and the vertex-vertex pinches whose cones stay on separate keys. The two refusals are to be root-caused before anything changes. The seams row is weighed against ruling B (PR 4728). If it needs a choice that D10, PR 4057 and ruling B leave open, the lane stops and reports. Three M rows together are reviewed as H: a concurrent dual pair.
+- **The two-pinch pose 1 proof** (`flush/two-pinch-pose-proof`) asks one question: can a cross-germ tie in `join::find_match` change the greedy matching? If it cannot, the escalation is spurious and the pose builds. If it can, a pose that shows it makes the escalation honest.
+— (FLUSH orchestrator)

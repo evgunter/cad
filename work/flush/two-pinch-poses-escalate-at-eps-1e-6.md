@@ -5,9 +5,9 @@ title: Two of pinch_faces_tessellate's poses escalate at eps 1e-6 (the join's pa
 status: review
 opened: 2026-10-06
 priority: P3
+cost: M
 branch: flush/two-pinch-pose-proof
 pr: 4769
-cost: M
 ---
 
 Found by CLEAVE's ray-walk PR 4083. Its diff seeds `topo`, so it ran
