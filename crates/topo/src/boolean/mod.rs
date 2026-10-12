@@ -3835,11 +3835,7 @@ impl core::fmt::Display for BooleanError {
                 operand_word(*operand)
             ),
             Self::Euler(e) => write!(f, "euler operation refused: {e}"),
-            Self::Join(e) => write!(
-                f,
-                "the operands' sections could not be joined: {}",
-                crate::chord_join::UnderBoolean(e)
-            ),
+            Self::Join(e) => write!(f, "the operands' sections could not be joined: {e}"),
             Self::JoinUndecided(e) => write!(f, "{e}"),
             Self::RestPieceUnread { face, refusal } => {
                 let preamble = format_args!(

@@ -58,14 +58,11 @@ these sources (at `origin/main` 9409cb5e43; doc comments omitted):
 
 Most `"{what} is too close to call: {source}"` sites render an
 `Indeterminate` whole. That render is `IndeterminateUnder`'s,
-`{payload} — {advice}; {ending}` (the bare `Indeterminate` Display is
-`under(COINCIDENCE_RECOURSE)`, or `under(NO_DECLARATION_RECOURSE)` on a
-margin decided past the band), and not the `Indeterminate::undecided`
-shape, `{payload}. {ending}`. The two differ in more than the joint:
-on an enclosure that straddles the band `under` puts "subdivide the
-parameter box for a tighter enclosure" in front of the door's levers,
-and on an unreadable margin "check the operation's inputs upstream";
-`Indeterminate::ending` carries neither.
+`{payload} — {reading}; {ending}` (the bare `Indeterminate` Display is
+`under(COINCIDENCE_RECOURSE)`), and not the `Indeterminate::undecided`
+shape, `{payload}. {ending}`. Both end in `Indeterminate::ending`,
+per-kind levers included, so they differ only in the joint and the
+reading clause.
 
 **Done: the geom-brep slice, in PR 4612.** Its seven sentences spell the
 verdict through `geom_core::undecided!`. Four Displays carry the payload
@@ -76,6 +73,24 @@ caller's, per `Reading`. Three render the whole escalation
 `IsoRowError::Escalated` and `OffsetError::Escalated` through
 `under(NO_DECLARATION_RECOURSE)`), so their tail is `IndeterminateUnder`'s
 ` — {advice}; {ending}`, per-kind levers included.
+
+**Done: the topo slice, in PR 4745** (fourteen sentences).
+
+- Skipped, contact ground under D10: `chart_region.rs` `Escalated`,
+  `validate.rs` `ContactRefusal::Escalated`.
+- Left: hand-spelled `is undecided` in `boolean/edge_join.rs`
+  (`JoinUndecided`, `JoinRefusal`), `validate.rs`
+  (`JoinUndecidedAtRest`) and `chord_join.rs` (`Section`'s carrier
+  arm); the decision-specific verdicts in `splitting/mod.rs`
+  `SectionGermsEscalated` ("too nearly in the split plane", "too close
+  to order"); `splitting/section.rs` `UnplacedHole`'s "a contact too
+  close to call", a cause in a list that still trips
+  `DECISION_PHRASES`; the payload joint spelled by hand in geom-brep
+  (`edge_nurbs.rs`, `offset_meters.rs`, `ssi.rs` ×2), which
+  `geom_core::undecided!(subject, payload)` now spells.
+- `SliverSector` shares the joint through that macro but not
+  `UndecidedRefusal`, which needs an `Indeterminate`: two of
+  `SectorReading`'s arms are decided disagreements carrying margins.
 
 ## Repair shape
 
@@ -88,10 +103,11 @@ rule for each site:
   `geom_core::undecided!`.
 - **A whole-escalation render** goes through `Indeterminate::undecided`
   with `ending(<recourse>)`, the recourse picked from the door's
-  callers (`NO_DECLARATION_RECOURSE` where none takes a declaration).
-  Where the site renders through `under(..)` today, `ending(..)` drops
-  the per-kind levers above, so it moves only with an ending that
-  carries them.
+  callers — or with the ending its decision's kind warrants: a
+  margin that is no size the user chose ends through `LeverOnly`, and
+  an escalation that carries its decision ends as that decision does
+  at that door. A sized decision another crate also renders keeps
+  `ending(..)`, so it has one ending (D4 ¶1).
 
 ## Also in this family (from the review of PR 4443)
 
