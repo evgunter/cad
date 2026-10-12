@@ -374,6 +374,9 @@ fn fin(t: f64, tol: Tol) -> Result<topo::BooleanResult<f64>, BooleanError> {
     topo::subtract(both, &cutter, tol)
 }
 
+/// A wall `t` thick, built by a boolean.
+type Wall = fn(f64, Tol) -> Result<topo::BooleanResult<f64>, BooleanError>;
+
 /// The thicknesses in ε below the band's top `Kε` (= 10ε) that each wall
 /// refuses at, and the ones in `[Kε, 2Kε)` that it builds at, where
 /// its `V/A` is still in band.
@@ -416,7 +419,7 @@ fn a_thin_wall_refuses_on_a_pair_below_k_eps_and_builds_above_it() {
     if stood_down_off_1e9(tol) {
         return;
     }
-    let walls: [(&str, fn(f64, Tol) -> _, usize); 3] =
+    let walls: [(&str, Wall, usize); 3] =
         [("slab", slab, 1), ("hollow", hollow, 2), ("fin", fin, 1)];
     for (wall, build, shells) in walls {
         for m in BELOW_K {
