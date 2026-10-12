@@ -672,14 +672,24 @@ mod between_samples {
 
     /// The distance from the cone at the origin about `z`.
     fn elevation(p: V) -> f64 {
-        let (s, c) = ALPHA.sin_cos();
+        elevation_at(ALPHA, p)
+    }
+
+    /// The distance from the cone of half-angle `alpha` at the origin
+    /// about `z`.
+    fn elevation_at(alpha: f64, p: V) -> f64 {
+        let (s, c) = alpha.sin_cos();
         (p[0] * p[0] + p[1] * p[1]).sqrt() * c - p[2].abs() * s
     }
 
     /// The section by the plane through `(0, 0, 1)` tilted toward `y` by
     /// `tilt`: the near vertex at `t = 0`, the far at `t = π`.
     fn section(tilt: f64) -> El {
-        let (s, co) = ALPHA.sin_cos();
+        section_at(ALPHA, tilt)
+    }
+
+    fn section_at(alpha: f64, tilt: f64) -> El {
+        let (s, co) = alpha.sin_cos();
         let normal = [0.0, tilt.sin(), tilt.cos()];
         let vertex = |u: f64| {
             let g = [s * u.cos(), s * u.sin(), co];
@@ -690,7 +700,7 @@ mod between_samples {
             vertex(core::f64::consts::FRAC_PI_2),
         );
         let center = add(add([0.0; 3], p, 0.5), q, 0.5);
-        let radius = center[2] * ALPHA.tan();
+        let radius = center[2] * alpha.tan();
         let half = add(p, q, -1.0);
         El {
             c: center,
@@ -763,31 +773,47 @@ mod between_samples {
     }
 
     fn verdict<T: Decide>(e: &El, t0: f64, t1: f64) -> Result<(), PropsError> {
+        verdict_at::<T>(ALPHA, e, t0, t1)
+    }
+
+    fn verdict_at<T: Decide>(alpha: f64, e: &El, t0: f64, t1: f64) -> Result<(), PropsError> {
         let edges: Vec<LoopEdge<T>> = vec![topo::edge(e.curve::<T>(), t0, t1, 0, 0)];
         let s: Surface<T> = Surface::Cone {
             apex: p3(0.0, 0.0, 0.0),
             axis: v3(0.0, 0.0, 1.0),
-            half_angle: T::from_f64(ALPHA),
+            half_angle: T::from_f64(alpha),
             u_ref: v3(1.0, 0.0, 0.0),
         };
         curved_face_loops(&s, &[&edges], true, band()).map(|_| ())
+    }
+
+    /// The tilt whose far vertex is `ratio` times as high as the near.
+    fn tilt_for(alpha: f64, ratio: f64) -> f64 {
+        let (mut lo, mut hi) = (0.0, core::f64::consts::FRAC_PI_2 - alpha);
+        for _ in 0..200 {
+            let m = 0.5 * (lo + hi);
+            if (m - alpha).cos() / (m + alpha).cos() > ratio {
+                hi = m;
+            } else {
+                lo = m;
+            }
+        }
+        0.5 * (lo + hi)
+    }
+
+    /// Whether `r` passed the ellipse's incidence: anything but a
+    /// refusal or escalation naming the nappe or the on-cone bound.
+    fn incidence_passed(r: &Result<(), PropsError>) -> bool {
+        let named = format!("{r:?}");
+        !(named.contains("props_cone_ellipse_on_cone")
+            || named.contains("props_cone_ellipse_nappe"))
     }
 
     #[test]
     fn an_ellipse_off_the_cone_between_samples_refuses() {
         let b = band();
         for ratio in [100.0, 1000.0] {
-            // The tilt whose far vertex is `ratio` times as high.
-            let (mut lo, mut hi) = (0.0, core::f64::consts::FRAC_PI_2 - ALPHA);
-            for _ in 0..200 {
-                let m = 0.5 * (lo + hi);
-                if (m - ALPHA).cos() / (m + ALPHA).cos() > ratio {
-                    hi = m;
-                } else {
-                    lo = m;
-                }
-            }
-            let e = section(0.5 * (lo + hi));
+            let e = section(tilt_for(ALPHA, ratio));
             for t0 in [0.0, PI, PI + 0.3, PI - 0.3, 0.5] {
                 let t1 = t0 + TAU;
                 let p = worst(&e, t0, t1, 0.9 * b.zero());
@@ -812,6 +838,99 @@ mod between_samples {
                     "ratio {ratio} from {t0}, interval"
                 );
             }
+        }
+    }
+
+    /// Every term of the bound is needed. Each fixture is a genuine
+    /// section, which answers, moved along one of eight directions until
+    /// it lies just past `zero` off the cone (`1.002·zero` aimed, past
+    /// `zero` as sampled), where incidence must not answer at Interval.
+    /// Dropping the `k_y·Y` term, or taking `ρ` or `|h|` at the piece's
+    /// midpoint rather than its least, lets Interval answer up to a few
+    /// percent past `zero` on these arcs.
+    #[test]
+    fn no_ellipse_answering_incidence_lies_past_zero() {
+        let b = band();
+        let fine = |alpha: f64, e: &El, t0: f64, t1: f64| {
+            let n = 40_000;
+            (0..=n)
+                .map(|i| {
+                    elevation_at(alpha, e.eval(t0 + (t1 - t0) * f64::from(i) / f64::from(n))).abs()
+                })
+                .fold(0.0, f64::max)
+        };
+        let mut over = Vec::new();
+        for alpha in [1e-3, ALPHA, core::f64::consts::FRAC_PI_2 - 1e-3] {
+            for ratio in [1.5, 10.0, 100.0] {
+                let e = section_at(alpha, tilt_for(alpha, ratio));
+                // Short arcs, about the near vertex's flank and about
+                // the far vertex: where the dropped terms' share of the
+                // bound is largest (a whole ring is over-read enough to
+                // absorb them).
+                for (t0, t1) in [(0.4, 1.9), (PI - 0.3, PI + 0.3)] {
+                    for k in 0..8 {
+                        let dir: [f64; 8] = core::array::from_fn(|j| {
+                            if j == k {
+                                1.0
+                            } else if j == (k + 3) % 8 {
+                                0.37
+                            } else {
+                                0.0
+                            }
+                        });
+                        let moved = |s: f64| e.moved(&dir.map(|x| x * s));
+                        let passes = |s: f64| {
+                            incidence_passed(&verdict_at::<Interval>(alpha, &moved(s), t0, t1))
+                        };
+                        let case =
+                            format!("alpha {alpha} ratio {ratio} [{t0}, {t1}] direction {k}");
+                        assert!(passes(0.0), "{case}: the genuine section does not answer");
+                        // The scale per metre of true distance, corrected
+                        // at the target: at a fine ε the section's own
+                        // rounding is a visible share of `zero`.
+                        let want = 1.002 * b.zero();
+                        let mut s = want * 1e-6 / fine(alpha, &moved(1e-6), t0, t1);
+                        for _ in 0..4 {
+                            s *= want / fine(alpha, &moved(s), t0, t1);
+                        }
+                        let off = fine(alpha, &moved(s), t0, t1) / b.zero();
+                        assert!(off > 1.0, "{case}: the fixture is only {off} zero off");
+                        if passes(s) {
+                            over.push(format!("{case}: answers {off:.6} zero off"));
+                        }
+                    }
+                }
+            }
+        }
+        assert!(over.is_empty(), "{over:#?}");
+    }
+
+    /// An ellipse that reaches the apex's plane is on neither nappe, and
+    /// is refused by the nappe decide's own name before the bound reads
+    /// it.
+    #[test]
+    fn an_ellipse_through_the_apex_plane_refuses_as_off_its_nappe() {
+        let want = Err(PropsError::OffSurface {
+            what: "props_cone_ellipse_nappe",
+        });
+        for e in [
+            El {
+                c: [0.0, 0.0, 0.0],
+                n: [0.0, 0.0, 1.0],
+                a: 2.0,
+                b: 1.0,
+                u: [1.0, 0.0, 0.0],
+            },
+            El {
+                c: [0.0, 0.0, 0.3],
+                n: unit([0.0, 1.0, 0.2]),
+                a: 2.0,
+                b: 1.0,
+                u: unit([0.0, -0.2, 1.0]),
+            },
+        ] {
+            assert_eq!(verdict::<f64>(&e, 0.0, TAU), want, "{e:?}, f64");
+            assert_eq!(verdict::<Interval>(&e, 0.0, TAU), want, "{e:?}, interval");
         }
     }
 }
