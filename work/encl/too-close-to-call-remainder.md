@@ -94,7 +94,7 @@ caller's, per `Reading`. Three render the whole escalation
 
 **Done: the sweep slice, in PR 4766** (eleven sentences, the ten above and `CapPlaneError::Orientation`, all whole renders
 through `Indeterminate::undecided`, lever unchanged at
-`COINCIDENCE_RECOURSE`). Lengths take `ending(..)`: extrude's two,
+`COINCIDENCE_RECOURSE`, the cap's defect ending kept). Lengths take `ending(..)`: extrude's two,
 loft's two, revolve's axis length and cosurface, the clearance's
 lengths, the tube's wall. Angles end through `LeverOnly`
 (`swept::lever_ending`): `AngleEscalated`, the clearance's

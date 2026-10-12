@@ -447,7 +447,9 @@ fn a_nested_source_under_a_payload_arm_survives_into_the_message() {
                 slab: 1,
                 source: escalation,
             }),
-            escalation.to_string(),
+            // An undecided refusal carries its escalation's payload and
+            // composes its own ending.
+            escalation.payload().to_string(),
         ),
         (
             K::Split(topo::SplitError::Finish(topo::SplitFinishError::Band(band))),
