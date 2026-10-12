@@ -1307,7 +1307,8 @@ pub enum ValidationError {
     },
     /// Tier 3 (check 6, curved arm — M6-6): a curved face's stored
     /// [`crate::Face::sense`] bit **definitely disagrees** with the
-    /// material side its own boundary encodes — the
+    /// material side its own boundary encodes, or, for a sphere face
+    /// whose own boundary encodes none, its seam region's — the
     /// [`Self::LoopRoleInverted`] sibling for the analytic curved kinds
     /// (cylinder, cone, sphere, torus). The face's two orientation
     /// encodings are the S10 `sense` bit and the stored loop traversal
@@ -1339,8 +1340,10 @@ pub enum ValidationError {
     ///   boundary encodes a side by its Gauss–Bonnet area when it has
     ///   two loops or more, and by a pole on an edge interior to it
     ///   (`geom_brep::props::sphere_region_material_sign`). Unread: a
-    ///   whole sphere, whose side is its shell's orientation (checks 7
-    ///   and 10); a one-loop boundary with no pole on an interior edge,
+    ///   region with no boundary, whose members close the sphere (once,
+    ///   a shell whose orientation checks 7 and 10 read; more than once,
+    ///   overlapping faces nothing reads,
+    ///   `work/flux/a-seam-region-covering-the-sphere-twice-is-unread.md`); a one-loop boundary with no pole on an interior edge,
     ///   among them one carrying both poles; a boundary that touches
     ///   itself at a vertex. A region of one face unread so is no
     ///   defect: its flipped bit describes the complement, another
@@ -5297,20 +5300,21 @@ struct SeamRegion<T: Real> {
     boundary: Vec<Vec<geom_brep::props::LoopEdge<T>>>,
     /// Some boundary cycle passes through one vertex twice: the region
     /// touches itself there, and its boundary is no set of simple loops
-    /// the side readers take.
+    /// the side readers take. No body reaches this today: the face that
+    /// meets the region at the vertex alone would lie on a second sphere
+    /// entity coincident with the first, which `mef` refuses
+    /// (`RechartUnvouched`) and STEP import merges into one entity
+    /// (`work/flux/a-pinched-seam-region-has-no-witness.md`).
     pinched: bool,
 }
 
 /// [`SeamRegion`] of `start`, on a body tier 1 has passed: every key
 /// resolves, a vertex's half-edges form a finite rotation, and the
 /// boundary half-edges each have one successor, so the chains close.
-/// A miss there is a kernel defect and panics; the flattening's own
-/// refusal (a scaffold edge at rest) is returned, typed, and leaves the
-/// region unread as a face's refused derivation does.
-fn seam_region<T: Decide>(
-    body: &Body<T>,
-    start: FaceKey,
-) -> Result<SeamRegion<T>, crate::props::LoopEdgesError> {
+/// A miss there is a kernel defect and panics. `None` where the
+/// flattening refuses (a scaffold edge at rest), which leaves the region
+/// unread as a face's refused derivation does.
+fn seam_region<T: Decide>(body: &Body<T>, start: FaceKey) -> Option<SeamRegion<T>> {
     let resolved = "a seam region read on a body tier 1 passed: every key it walks resolves";
     let face = |f: FaceKey| {
         body.faces
@@ -5335,7 +5339,7 @@ fn seam_region<T: Decide>(
     while let Some(&f) = members.get(i) {
         let rec = face(f);
         for lk in core::iter::once(rec.outer).chain(rec.rings.iter().copied()) {
-            let (edges, hes) = crate::props::loop_edges(body, lk)?;
+            let (edges, hes) = crate::props::loop_edges(body, lk).ok()?;
             for &h in &hes {
                 let other = across(h);
                 if face(other).surface == carrier && !members.contains(&other) {
@@ -5384,9 +5388,9 @@ fn seam_region<T: Decide>(
             .iter()
             .enumerate()
             .any(|(i, v)| starts[..i].contains(v));
-        boundary.push(crate::props::run_edges(body, &cycle)?);
+        boundary.push(crate::props::run_edges(body, &cycle).ok()?);
     }
-    Ok(SeamRegion {
+    Some(SeamRegion {
         members,
         loops,
         boundary,
@@ -7308,7 +7312,7 @@ pub(crate) fn tier3_local_checks_marked<
                 {
                     Some((_, side)) => *side,
                     None => {
-                        let Ok(region) = seam_region(body, face_key) else {
+                        let Some(region) = seam_region(body, face_key) else {
                             continue; // derivation exempt (posture above)
                         };
                         let side = (!region.pinched)

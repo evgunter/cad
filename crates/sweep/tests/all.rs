@@ -82,6 +82,8 @@ mod a_ruling_lying_on_a_wall;
 mod a_ruling_through_a_box_corner_edge;
 #[path = "a_seam_region_carrying_both_poles.rs"]
 mod a_seam_region_carrying_both_poles;
+#[path = "a_seam_region_covering_the_sphere_twice.rs"]
+mod a_seam_region_covering_the_sphere_twice;
 #[path = "a_split_through_a_wrap_edges_vertex.rs"]
 mod a_split_through_a_wrap_edges_vertex;
 #[path = "a_swaying_loft_corner_meters.rs"]

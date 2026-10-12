@@ -3152,9 +3152,10 @@ fn agreed_side<T: Decide>(
 /// region's boundary (the members' edges no other member shares,
 /// chained into loops); `members` is every loop of every member.
 ///
-/// * **No boundary**: the region is the whole sphere, and its side is
-///   the orientation of the shell it closes, which tier 3's volume
-///   checks read. `Unencoded`.
+/// * **No boundary**: the members close the sphere. `Unencoded`. Once
+///   over, they are a shell whose orientation tier 3's volume checks
+///   read; more than once, their faces overlap and no reading here
+///   tells.
 /// * **Two or more boundary loops**: the sign of the region's
 ///   Gauss–Bonnet area, as for a face with holes.
 /// * **One boundary loop**: read at each pole on an edge interior to
