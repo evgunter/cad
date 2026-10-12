@@ -6301,3 +6301,36 @@ mod nearest_branch_rows {
         );
     }
 }
+
+/// review/4875 probes (not for merge).
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod review_4875_probes {
+    use super::*;
+    use geom_core::{Point3, Real, Vec3};
+
+    /// A cone joint whose vertex is decided off the apex but whose lever
+    /// is under K·ε/π: the floor's k is 0, the structural pin misses.
+    #[test]
+    fn r4875_cone_joint_small_lever() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let cone = geom::Surface::Cone {
+            apex: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            half_angle: 0.01,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        for d in [1e-8, 5e-8, 1e-7, 1e-6, 1e-5] {
+            // a vertex on the generator at distance d from the apex
+            let a = 0.01f64;
+            let vertex = Point3::new(d * a.sin(), 0.0, d * a.cos());
+            let apex_visit = decide("probe_apex", Margin::of(d), band);
+            let got = nearest_branch(&cone, FaceKey::default(), vertex, 0.0f64, band);
+            println!(
+                "d={d:e} arm={:e}: apex visit {apex_visit:?}; floor k = {}; nearest_branch -> {got:?}",
+                d * a.sin(),
+                0.0f64.periodic_branch(core::f64::consts::TAU)
+            );
+        }
+    }
+}

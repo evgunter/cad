@@ -1587,6 +1587,9 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
 /// band.
 fn period_fold<T: Decide>(gap: T, radius: T, band: Band) -> Result<T, ChartRegionError> {
     let tau = T::tau();
+    if std::env::var("R4875_MUTANT").is_ok() {
+        return Ok(geom_core::Real::periodic_branch(gap, tau) * tau);
+    }
     match geom_brep::whole_periods(
         "chart_region_period_fold",
         gap,
@@ -5833,5 +5836,47 @@ mod period_fold_rows {
             counts.symbolic_zero, 1,
             "the shift less τ is the zero polynomial"
         );
+    }
+}
+
+/// review/4875 probes (not for merge).
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::float_cmp)]
+mod review_4875_probes {
+    use super::*;
+    use geom_core::Real;
+
+    fn floor_k(gap: f64) -> f64 {
+        gap.periodic_branch(core::f64::consts::TAU)
+    }
+
+    /// Claim 3: at f64, wherever `whole_periods` decides, is its k the
+    /// floor's? One ulp under π, at a large lever.
+    #[test]
+    fn r4875_f64_one_ulp_under_pi_at_a_large_lever() {
+        let band = Band::linear(geom_core::Tol::witness()).unwrap();
+        let g = f64::from_bits(core::f64::consts::PI.to_bits() - 1);
+        for radius in [1.0, 1e4, 1e6, 1e7, 1e8] {
+            let got = period_fold(g, radius, band);
+            println!(
+                "radius {radius:e}: floor k = {} ; whole_periods -> {:?}",
+                floor_k(g),
+                got.map(|s| s / core::f64::consts::TAU)
+            );
+        }
+    }
+
+    /// Where the floor answered at f64 and the structural fold refuses.
+    #[test]
+    fn r4875_f64_near_half_period_answer_becomes_refusal() {
+        let band = Band::linear(geom_core::Tol::witness()).unwrap();
+        for d in [0.0, 1e-12, 1e-10, 5e-9, 2e-8] {
+            let g = core::f64::consts::PI - d;
+            println!(
+                "gap π−{d:e}: floor k = {} ; period_fold -> {:?}",
+                floor_k(g),
+                period_fold(g, 1.0, band)
+            );
+        }
     }
 }

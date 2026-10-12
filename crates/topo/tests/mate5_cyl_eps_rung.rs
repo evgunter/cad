@@ -581,3 +581,27 @@ mod interval_lane {
         }
     }
 }
+
+/// review/4875 probe: the interval tie row's fixture at f64.
+#[test]
+fn review_4875_half_period_tie_at_f64() {
+    use geom_core::Tol;
+    use topo::{Body, declared_pair_overlap};
+    let pi = core::f64::consts::PI;
+    for (lo, hi) in [(pi, pi + 0.4), (pi + 1e-12, pi + 0.4 + 1e-12), (pi + 1e-6, pi + 0.4 + 1e-6), (pi - 0.3, pi + 0.1)] {
+        let _ = 0;
+        let mut a = Body::<f64>::new();
+        let wa = if lo == pi { (0.0, pi) } else { (0.0, 0.4) };
+        let (lo, hi) = if lo == pi { (pi, 2.0 * pi) } else { (lo, hi) };
+        let fa = cyl_wall_sheet(&mut a, CylFrame::canonical(1.0), wa, (0.0, 1.0), Tol::witness());
+        let mut b = Body::<f64>::new();
+        let fb = cyl_wall_sheet(
+            &mut b,
+            CylFrame { origin: geom_core::Point3::new(0.0, 0.0, 0.5), ..CylFrame::canonical(1.0) },
+            (lo, hi),
+            (-0.3, 0.3),
+            Tol::witness(),
+        );
+        println!("B window ({lo}, {hi}): {:?}", declared_pair_overlap(&a, fa, &b, fb, ContactVerdict::Definite, band()));
+    }
+}
