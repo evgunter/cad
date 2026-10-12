@@ -72,7 +72,6 @@ const KERNEL_KEYED: &[&str] = &[
     "Blend/SurgeryInvariant",
     "Blend/Certify",
     "Naming/SplitLineage",
-    "Naming/FragmentLineage",
     "Naming/SeamVertexParentage",
     "Naming/SharedRim",
     "FaceFrameReadback/Dangling",
@@ -151,10 +150,6 @@ pub(crate) const FILED: &[(&str, &str)] = &[
     (
         "Naming/SplitLineage",
         "split lineage of edge EdgeKey  cycles",
-    ),
-    (
-        "Naming/FragmentLineage",
-        "fragment lineage of face FaceKey  cycles",
     ),
 ];
 
@@ -242,7 +237,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "MissingSlot",
     "Naming/Duplicate",
     "Naming/Emission",
-    "Naming/FragmentLineage",
     "Naming/MissingUpstream",
     "Naming/SeamVertexParentage",
     "Naming/SharedRim",
@@ -2732,6 +2726,14 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
+            "WhollyInside",
+            E::WhollyInside {
+                at: topo::EntityId::Face(face),
+                chain: sweep::blend::Convexity::Convex,
+                margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
+            },
+        ),
+        (
             "ScaffoldingOperand",
             E::ScaffoldingOperand {
                 errors: vec![topo::ValidationError::ScaffoldingStrutVertex { vertex }],
@@ -3404,12 +3406,6 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             NamingError::SplitLineage(topo::SplitLineageCycle {
                 edge: topo::EdgeKey::default(),
             }),
-        ),
-        (
-            "FragmentLineage",
-            NamingError::FragmentLineage {
-                face: topo::FaceKey::default(),
-            },
         ),
         (
             "SeamVertexParentage",

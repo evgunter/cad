@@ -612,6 +612,7 @@ pub(super) struct RequestedBoundary<T: Real> {
     face: FaceKey,
     stations: Vec<BoundaryStation<T>>,
     chords: Vec<BoundaryChord<T>>,
+    rings: Vec<topo::LoopKey>,
 }
 
 // `Decide` alone: admission walks a cycle and folds a stored plane
@@ -725,6 +726,7 @@ impl<T: Decide> RequestedBoundary<T> {
         };
         let mut stations: Vec<BoundaryStation<T>> = Vec::new();
         let mut chords = Vec::new();
+        let mut rings = Vec::new();
         for lp in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
             let walk = loop_cycle_of(body, lp).ok_or_else(|| {
                 not_intact(
@@ -759,12 +761,16 @@ impl<T: Decide> RequestedBoundary<T> {
                     to: next.start,
                     feet,
                 });
+                if lp != fd.outer && rings.last() != Some(&lp) {
+                    rings.push(lp);
+                }
             }
         }
         Ok(Self {
             face,
             stations,
             chords,
+            rings,
         })
     }
 
@@ -781,6 +787,12 @@ impl<T: Decide> RequestedBoundary<T> {
     /// Its requested edges, in cycle order.
     pub(super) fn chords(&self) -> &[BoundaryChord<T>] {
         &self.chords
+    }
+
+    /// The face's rings that carry one of its requested edges, each
+    /// once.
+    pub(super) fn rings(&self) -> &[topo::LoopKey] {
+        &self.rings
     }
 }
 

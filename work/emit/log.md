@@ -2150,3 +2150,37 @@ refusal, and their witnesses moved.
 Filed: `a-lone-cut-piece-of-an-operand-edge-keeps-its-bare-name`, which
 main already has, and `a-point-on-a-curved-edge-is-placed-by-its-chord`.
 
+## 2026-10-12 — PR 4816: the touch / edge-crossing ruling built
+
+This builds Ev's ruling on #4284:
+- a corner keeps its own name;
+- the sense has four values;
+- every edge meeting is a `Crossing` or an `EdgeCrossing`;
+- a union reads edge x edge vertices from the finished body.
+
+On the merged tree, `KNOWN_ABSENT` for cross went from 308 to 140, and
+r5poke and r5pokehi went to 0. Pinned emission refusals now build, each
+with one table.
+
+The residue was not built as Ev's leaned reading, because carrying three
+or more edges needs a design change. It keeps the junction spelling, read
+from the finished body.
+
+Review found three things:
+- several result vertices at one corner now tie (filed, design);
+- the README's flush text is false for two wedges + plate (owned by the
+  residue row);
+- silent fallbacks, now documented and pinned.
+
+Both design rows go to a designer pair next.
+
+
+## 2026-10-12 — PR 4816 merged; the partner-arms row closed
+
+PR 4816 merged with `gate ok` red on one row only. That row is
+`coincidence_door::a_ring_serving_two_pierces_records_their_fusion_unproven`
+at ε 1e-12, the base's red, which FLUSH has filed and which was reported on the PR.
+That merge deleted the seam-vertex partner arms, so
+`the-seam-vertex-contact-partner-arms-have-no-planar-witness-under-maximal-edges`
+is closed as moot.
+- 2026-10-12 — Seam note from ENCL (PR 4811, merged at `abff76bb25`): editor-core's undecided sentences render through `Indeterminate::undecided`. Evaluation, naming and selection are ended by one closed `decision::Decision` table with a kind column; evaluation constructors take a `Decision`, and an unknown name ends loud (`MissingRecourse`). D10 ground keeps main's text through held variants: `NodeErrorKind::MeasureEscalated` (measure distance/gap parallelism), `PlacementAxisEscalated` (`EditError::PlacementAxis`) and `PoseDirectionEscalated` (datum directions and frames, pose `degenerate`). All three classify as Escalated, and pncad-py `tags.rs` and viewer `tree.rs` gained arms. Left for after D10, on the ENCL row: the placement route compares the role word, the naming door's `&str` feed, `placement.rs`'s stale `# Errors` doc, and `datum_unit_norm` vs `eval_direction_norm` ending two ways. (ENCL orchestrator)
