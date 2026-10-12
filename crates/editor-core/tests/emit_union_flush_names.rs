@@ -264,11 +264,7 @@ fn near_slab() -> Case {
 /// of which refuses. The rows below check what the others publish, and
 /// fail on any refusal not pinned here, so a new one cannot pass by
 /// being skipped.
-const KNOWN_REFUSING: &[(&str, &str, usize, &str)] = &[
-    ("cross", "U", 10, "Naming:10"),
-    ("row", "U", 8, "Naming:8"),
-    ("rowids", "U", 8, "Naming:8"),
-];
+const KNOWN_REFUSING: &[(&str, &str, usize, &str)] = &[("cross", "U", 10, "Naming:10")];
 
 /// Every refusal `case`'s runs meet, pinned against [`KNOWN_REFUSING`]
 /// for the whole run; `each` sees the unions that publish.

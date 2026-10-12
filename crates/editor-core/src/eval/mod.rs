@@ -6331,6 +6331,8 @@ fn sense_tag(sense: crate::names::Sense) -> u8 {
     match sense {
         Sense::Enters => 1,
         Sense::Leaves => 2,
+        Sense::Outside => 3,
+        Sense::Inside => 4,
     }
 }
 
