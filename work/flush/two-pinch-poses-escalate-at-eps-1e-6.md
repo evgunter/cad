@@ -2,10 +2,11 @@
 id: two-pinch-poses-escalate-at-eps-1e-6
 kind: issue
 title: Two of pinch_faces_tessellate's poses escalate at eps 1e-6 (the join's partner order, a pierce sector's curvature side)
-status: open
+status: review
 opened: 2026-10-06
 priority: P3
 branch: flush/two-pinch-pose-proof
+pr: 4769
 cost: M
 ---
 
