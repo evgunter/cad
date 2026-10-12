@@ -53,11 +53,15 @@ naming totality, both verbs
 (`band_planar_cut_off_meters::a_requested_ring_edge_builds_at_its_strip`).
 
 The reach meter (`blend/reach.rs`) agrees: it passes the clear tab
-and the clear spike. With arm (d)'s ring walk switched off, the
-crossed spike reaches the reach meter instead (its in-band tip
-refuses there `FaceClearance`, not escalated), and
-`a_ring_edge_in_a_requested_ring_edges_strip_refuses_at_the_strip_meter`,
-which pins arm (d)'s gap, goes red.
+and the clear spike. The spike's tip is a semicircle whose vertices
+stand outside the reach meter's tube, so `reach::screened`, which
+reads vertices, cannot see it, and arm (d), which reads edges, is the
+one meter that refuses it at its gap.
+`a_ring_arc_with_no_vertex_in_a_requested_edges_strip_refuses_at_the_strip_meter`
+pins that: measured with arm (d)'s ring walk switched off
+(`strip_clearance` walking `once(outer)`), its first request (0.09,
+chamfer) refuses `FaceClearance` at the cell meter instead, margin
+−0.0043, and the row goes red.
 
 Sibling filed: `a-requested-ruled-ring-edge-refuses-at-the-ring-meter`
 (a RULED link keeps arm (a) on every ring, since arm (d) meters planar

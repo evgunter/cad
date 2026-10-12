@@ -684,8 +684,9 @@ struct Reach<T: Real> {
     /// replaces: for a straight link, within the chord from the edge to
     /// the support's trimline of the edge itself, over the edge's own
     /// extent, and on the trimline's side of it where the face comes back
-    /// across — that is the support's strip, since nothing else of the
-    /// face lies there ([`screened`]); for a
+    /// across — that is the support's strip where [`screened`] reads
+    /// no other vertex of the face there, a reading of vertices and not
+    /// edges (`work/band/the-strip-screen-reads-a-supports-vertices-not-its-edges.md`); for a
     /// circular link, the disk of that chord about the edge in the
     /// meridian sheet; for a corner patch, its bounds but the supports'
     /// sides.
@@ -816,7 +817,7 @@ fn half_space<T: Decide + Bounds>(o: Point3<T>, n: Vec3<T>, inside: Point3<T>) -
 /// definitely inside both is a boundary feature of the support within
 /// the band's setback, and refuses as predicate 2 does
 /// ([`face_clearance_margin`]): its margin the vertex's depth inside
-/// them, its gap `gap(p)`, its distance from the edge. Most such
+/// them, its gap `gap(p)`, its distance from the edge's line. Most such
 /// features refuse before this: the battery's support screen reads one
 /// within the setbacks of a sample, on either side of the edge, and the
 /// surgery's closed-form strip meter one of a plane–plane link's planar
@@ -826,9 +827,11 @@ fn half_space<T: Decide + Bounds>(o: Point3<T>, n: Vec3<T>, inside: Point3<T>) -
 /// reaches, is clear.
 ///
 /// Returns whether `region` alone is vacant: no vertex of `face` but
-/// the request's possibly inside it. Then nothing of the face comes
-/// back across the edge's line within the band's setback, and the whole
-/// of `region` is the strip's, or no part of the face at all.
+/// the request's possibly inside it. That is a reading of the face's
+/// vertices, not its edges: a curved edge can cross `region` with both
+/// its ends outside
+/// (`work/band/the-strip-screen-reads-a-supports-vertices-not-its-edges.md`).
+#[must_use = "the vacancy decides whether a straight strip keeps both sides"]
 fn screened<T: Decide + Bounds>(
     body: &Body<T>,
     ends: &[VertexKey],
@@ -1082,7 +1085,7 @@ fn straight_reach<T: Decide + Bounds>(
     // finds a vertex there, the strip is the trimline's side of the line
     // alone, set back by the same slab; where it finds none, the strip
     // keeps both sides, which hold a cell straddling the line at any
-    // orientation.
+    // orientation. That reads vertices alone (`screened`).
     let mut replaces = Vec::new();
     for (f, foot) in [(link.face_a, st.fa), (link.face_b, st.fb)] {
         let chord = (foot - st.p).norm();
@@ -1233,7 +1236,9 @@ fn circular_reach<T: Decide + Bounds>(
             T::zero(),
         );
         let gap = |p: Point3<T>| ring.at(p) + chord;
-        screened(
+        // The disk has no one-sided form to narrow to: `screened`
+        // refuses a vertex in it, and its vacancy changes nothing here.
+        let _vacant = screened(
             body,
             request,
             f,

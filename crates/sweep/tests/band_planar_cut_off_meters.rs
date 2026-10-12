@@ -204,9 +204,15 @@ fn two_cut_offs_on_one_rim_build_apart_and_refuse_crossing() {
 /// over `outline` from `z = 1` to `z = 2`. The tab's tip is the mouth
 /// edge from `(3.5, 2.5)` to `(2.5, 2.5)` on the top face.
 fn tabbed_pocket(outline: &[(f64, f64)]) -> Body<f64> {
+    arced_pocket(&outline.iter().map(|&p| (p, 0.0)).collect::<Vec<_>>())
+}
+
+/// [`tabbed_pocket`] over an outline whose vertices each carry the
+/// bulge of the edge leaving them.
+fn arced_pocket(outline: &[((f64, f64), f64)]) -> Body<f64> {
     let outline = outline
         .iter()
-        .map(|&(x, y)| (Point2::new(x, y), 0.0))
+        .map(|&((x, y), bulge)| (Point2::new(x, y), bulge))
         .collect();
     let body = realized(
         topo::boolean::BooleanOp::Subtract,
@@ -247,35 +253,44 @@ fn a_requested_ring_edge_builds_at_its_strip() {
 }
 
 /// The tabbed pocket with a narrow spike of the pocket cut into the
-/// tab's side wall, its tip `depth` from the tip edge at `x = 3.0625`:
-/// midway between two of the screen's samples on that edge, which then
-/// reads a gap of at least `√(0.0625² + depth²)`, more than `D` for a
-/// depth above `0.078`. The spike's own samples stand a length's eighth
-/// up its sides, far from the strip.
+/// tab's side wall, its tip a semicircle of radius `0.03` whose apex
+/// stands `depth` from the tip edge at `x = 3.0625`: midway between two
+/// of the screen's samples on that edge, which then reads a gap of
+/// `√(0.0625² + (depth + 0.03)²) − 0.03`, more than `D` for a depth
+/// above `0.084`. The semicircle's two vertices stand `depth + 0.03`
+/// from the tip's line, outside the reach meter's tube of radius `D`
+/// for a depth above `0.07`, so only a meter reading the ring's EDGES
+/// sees the tip.
 fn spiked_pocket(depth: f64) -> Body<f64> {
-    tabbed_pocket(&[
-        (1.0, 1.0),
-        (5.0, 1.0),
-        (5.0, 4.0),
-        (3.5, 4.0),
-        (3.5, 3.95),
-        (3.0625, 2.5 + depth),
-        (3.5, 3.9),
-        TAB[0],
-        TAB[1],
-        (2.5, 4.0),
-        (1.0, 4.0),
+    let y = 2.5 + depth + 0.03;
+    arced_pocket(&[
+        ((1.0, 1.0), 0.0),
+        ((5.0, 1.0), 0.0),
+        ((5.0, 4.0), 0.0),
+        ((3.5, 4.0), 0.0),
+        ((3.5, 3.95), 0.0),
+        ((3.0325, y), 1.0),
+        ((3.0925, y), 0.0),
+        ((3.5, 3.9), 0.0),
+        (TAB[0], 0.0),
+        (TAB[1], 0.0),
+        ((2.5, 4.0), 0.0),
+        ((1.0, 4.0), 0.0),
     ])
 }
 
 /// **A ring edge reaching into a requested ring edge's strip refuses
-/// there, as predicate 2 does.** The spike's tip stands `0.09` from the
-/// tab's tip, inside the strip of depth `D` and past the sampled
-/// screen, so the strip meter reading the ring is what refuses, at the
-/// top face; `3ε` either side of `D` it escalates there; a spike
-/// clear of the strip builds at the prism closed form.
+/// there, at arm (d), as predicate 2 does.** The spike's arc tip
+/// dips to `0.09` from the tab's tip, inside the strip of depth `D`,
+/// with both its vertices outside the reach meter's tube and past the
+/// sampled screen, so arm (d), the one meter reading the ring's edges,
+/// is what refuses, at the top face, at the arc's own gap; `3ε` either
+/// side of `D` it escalates there; a spike clear of the strip builds
+/// at the prism closed form. With arm (d)'s ring walk off, the cell
+/// meter refuses the arc instead (`FaceClearance`, off its cells), and
+/// the row goes red at its first request.
 #[test]
-fn a_ring_edge_in_a_requested_ring_edges_strip_refuses_at_the_strip_meter() {
+fn a_ring_arc_with_no_vertex_in_a_requested_edges_strip_refuses_at_the_strip_meter() {
     let eps = tol().eps();
     for verb in [Verb::Chamfer, Verb::Fillet] {
         let body = spiked_pocket(0.09);
@@ -300,8 +315,8 @@ fn a_ring_edge_in_a_requested_ring_edges_strip_refuses_at_the_strip_meter() {
                 );
                 assert!(
                     matches!(gap.diagnostic_f64_for_error_text(), ErrorTextReading::Value(g) if (g - 0.09).abs() < 1e-9),
-                    "{verb:?}: the strip meter reports the tip's own gap, 0.09, where the \
-                     screen reads at least 0.1096 off its samples: {gap:?}"
+                    "{verb:?}: arm (d) reports the arc's own gap, 0.09, where the screen \
+                     reads 0.1053 off its samples and the reach meter sees no vertex: {gap:?}"
                 );
             }
             other => panic!("{verb:?}: the spike refuses at the strip, got {other:?}"),
@@ -337,9 +352,15 @@ fn a_ring_edge_in_a_requested_ring_edges_strip_refuses_at_the_strip_meter() {
 /// top face carries the outline, and the tab's tip is the concave base
 /// edge from `(3.5, 2.5)` to `(2.5, 2.5)` at `z = 1`.
 fn tabbed_boss(outline: &[(f64, f64)]) -> Body<f64> {
+    arced_boss(&outline.iter().map(|&p| (p, 0.0)).collect::<Vec<_>>())
+}
+
+/// [`tabbed_boss`] over an outline whose vertices each carry the bulge
+/// of the edge leaving them.
+fn arced_boss(outline: &[((f64, f64), f64)]) -> Body<f64> {
     let outline = outline
         .iter()
-        .map(|&(x, y)| (Point2::new(x, y), 0.0))
+        .map(|&((x, y), bulge)| (Point2::new(x, y), bulge))
         .collect();
     let body = realized(
         topo::boolean::BooleanOp::Union,
@@ -414,6 +435,146 @@ fn a_feature_across_a_requested_edges_line_is_clear_of_its_strip() {
                     other => panic!(
                         "{what} ({verb:?}): 0.05 across refuses at the screen, got {other:?}"
                     ),
+                }
+            }
+        }
+    }
+}
+
+/// The tab's outline with `far` spliced into the pocket's far wall
+/// (each vertex with the bulge of the edge it starts), and, when
+/// `tab2`, a second tab `[1.3, 1.8] × [3, 4]` whose tip, from
+/// `(1.8, 3)` to `(1.3, 3)`, is a chain apart from the first tab's.
+fn far_walled(far: &[((f64, f64), f64)], tab2: bool) -> Vec<((f64, f64), f64)> {
+    let mut o = vec![((1.0, 1.0), 0.0)];
+    o.extend_from_slice(far);
+    o.extend([
+        ((5.0, 1.0), 0.0),
+        ((5.0, 4.0), 0.0),
+        ((3.5, 4.0), 0.0),
+        (TAB[0], 0.0),
+        (TAB[1], 0.0),
+        ((2.5, 4.0), 0.0),
+    ]);
+    if tab2 {
+        o.extend([
+            ((1.8, 4.0), 0.0),
+            ((1.8, 3.0), 0.0),
+            ((1.3, 3.0), 0.0),
+            ((1.3, 4.0), 0.0),
+        ]);
+    }
+    o.push(((1.0, 4.0), 0.0));
+    o
+}
+
+/// The tab's tip, and the second tab's when `tab2`, on the pocket
+/// (`convex`) or the boss over `outline`; with the requested length.
+fn far_walled_request(
+    outline: &[((f64, f64), f64)],
+    convex: bool,
+    tab2: bool,
+) -> (Body<f64>, Vec<topo::EdgeKey>, f64) {
+    let (body, z) = if convex {
+        (arced_pocket(outline), 2.0)
+    } else {
+        (arced_boss(outline), 1.0)
+    };
+    let mut edges = vec![edge(&body, [3.5, 2.5, z], [2.5, 2.5, z])];
+    if tab2 {
+        edges.push(edge(&body, [1.8, 3.0, z], [1.3, 3.0, z]));
+    }
+    (body, edges, if tab2 { 1.5 } else { 1.0 })
+}
+
+/// **A far-side arc with no vertex in the tube is clear of the strip.**
+/// A plateau of the support rises from the pocket's far wall to
+/// `y = 2.5 − base`, with a semicircular bump of radius `0.03` under
+/// `x = 3.0625`, midway between two of the tip's screen samples: its
+/// apex stands `apex = base − 0.03` from the tip's line, inside the
+/// reach meter's tube of radius `D`, its two vertices `base` from it,
+/// outside the tube. So `reach::screened`, which reads vertices, finds
+/// the far side vacant although an edge of the face lies across the
+/// line within the tube: the witness of
+/// `work/band/the-strip-screen-reads-a-supports-vertices-not-its-edges.md`'s
+/// premise. Alone and with a second tab's tip a chain apart, pocket and
+/// boss, both verbs, the band builds at the prism closed form at apex
+/// `0.09`; at `0.08` the sampled screen reads the bump off its two
+/// samples, less than `D`, and refuses.
+#[test]
+fn a_far_side_arc_with_no_vertex_in_the_tube_is_clear_of_the_strip() {
+    for convex in [true, false] {
+        for tab2 in [false, true] {
+            for apex in [0.09, 0.08] {
+                let y = 2.5 - apex - 0.03;
+                let far = [
+                    ((2.2, 1.0), 0.0),
+                    ((2.2, y), 0.0),
+                    ((3.0325, y), -1.0),
+                    ((3.0925, y), 0.0),
+                    ((3.8, y), 0.0),
+                    ((3.8, 1.0), 0.0),
+                ];
+                let (body, edges, len) = far_walled_request(&far_walled(&far, tab2), convex, tab2);
+                for verb in [Verb::Chamfer, Verb::Fillet] {
+                    let what = format!("convex {convex}, tab2 {tab2}, apex {apex} ({verb:?})");
+                    if apex > 0.085 {
+                        let removed = len * verb.section();
+                        let removed = if convex { removed } else { -removed };
+                        let out = carve(&body, &edges, verb, removed, &what);
+                        validate_pseudomanifold(&out.body, &ContactRecords::default(), tol())
+                            .unwrap_or_else(|err| panic!("{what}: tier 3′, got {err:?}"));
+                        continue;
+                    }
+                    let want = 0.0625_f64.hypot(apex + 0.03) - 0.03;
+                    match verb.run(&body, &edges) {
+                        Err(BlendError::FaceClearanceUncertified { gap, .. }) => assert!(
+                            matches!(gap.diagnostic_f64_for_error_text(), ErrorTextReading::Value(g) if (g - want).abs() < 1e-3),
+                            "{what}: the screen refuses off its two samples, near {want}: {gap:?}"
+                        ),
+                        other => panic!("{what}: the bump refuses at the screen, got {other:?}"),
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// **A far-side peninsula on a cross-chain request.** The peninsula of
+/// [`far_side`], its tip a vertex `gap` across the tip's line, so
+/// `reach::screened` finds the far side occupied and the cross-chain
+/// excuse reads the strip on the trimline's side alone, with a second
+/// tab's tip requested a chain apart. Pocket and boss, both verbs:
+/// `0.2` and `0.09` build at the prism closed form; at `0.05` the
+/// sampled screen refuses. This pins the build; it cannot go red with
+/// the excuse read two-sided, which is the excuse's looser reading of
+/// a region nothing else of the face reaches here.
+#[test]
+fn a_far_side_peninsula_on_a_cross_chain_request_builds() {
+    for convex in [true, false] {
+        for gap in [0.2, 0.09, 0.05] {
+            let far = [
+                ((3.025, 1.0), 0.0),
+                ((3.0625, 2.5 - gap), 0.0),
+                ((3.1, 1.0), 0.0),
+            ];
+            let (body, edges, len) = far_walled_request(&far_walled(&far, true), convex, true);
+            for verb in [Verb::Chamfer, Verb::Fillet] {
+                let what = format!("convex {convex}, gap {gap} ({verb:?})");
+                if gap > 0.085 {
+                    let removed = len * verb.section();
+                    let removed = if convex { removed } else { -removed };
+                    let out = carve(&body, &edges, verb, removed, &what);
+                    validate_pseudomanifold(&out.body, &ContactRecords::default(), tol())
+                        .unwrap_or_else(|err| panic!("{what}: tier 3′, got {err:?}"));
+                    continue;
+                }
+                match verb.run(&body, &edges) {
+                    Err(BlendError::FaceClearanceUncertified { gap: g, .. }) => assert!(
+                        matches!(g.diagnostic_f64_for_error_text(), ErrorTextReading::Value(g) if (g - 0.0625_f64.hypot(gap)).abs() < 1e-9),
+                        "{what}: the screen refuses off its two samples: {g:?}"
+                    ),
+                    other => panic!("{what}: the peninsula refuses at the screen, got {other:?}"),
                 }
             }
         }
