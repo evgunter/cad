@@ -7,6 +7,7 @@ opened: 2026-10-01
 priority: P2
 cost: M
 design: true
+needs_ev: true
 branch: germ/conic-past-band
 pr: 4812
 refs: [focal-section-vertex-azimuth-is-read-off-a-cancelling-sum, focal-section-envelope-bounds-the-whole-ellipse-not-the-span, focal-section-image-on-a-flat-cone-misses-by-a-cos-squared-factor]
@@ -154,3 +155,13 @@ then the carrier criterion, or the late refusal re-worded. The
 frustum counterexample above (`A ≈ 3.4` against an extent of 2.0,
 tilt `0.9·(π/2 − α)`) certifies at every ε, and no criterion that
 reads `A` against the extent survives the sweep.
+
+## The question for Ev (PR 4812)
+
+**Where, and on what quantity, should a plane × quadric conic section that cannot be certified at this ε be handled?**
+
+The measurement (PR 4812) found that the failing inputs are well-conditioned; the representation is not. The cylinder's minted ellipse lies on both surfaces to rounding at every size, but `Curve3::Ellipse`'s centre-and-angle form places an endpoint only to about `u·A` (`A = r/|c|`, the semi-major axis), which is the only door that refuses. On the cone, most refusals are the chart image's, through a cancellation in `chart_pcurve` that PCERT owns, filed in this row's refs.
+
+Two designers weighed it. Both recommend adding no refusal at the arm, both recommend re-posing the conic carrier anchored on the consumed arc (centre derived, never stored), and both want PCERT's three chart fixes landed now. They differ on one point: whether the attachment certificate also gains a per-kind parameter-resolution check that refuses, with a geometry lever, what a representation still cannot hold at this ε (B), or uses that bound only to relabel today's refusals as a kernel limitation, refusing nothing new (A).
+
+The decision to make: the end state for the conic carrier, and whether a carrier the kernel cannot resolve at ε refuses as a geometry problem ("move the geometry") or as a kernel limitation ("loosening ε is a last resort; possibly a bug").
