@@ -78,10 +78,6 @@ fn budget() -> SymBudget {
 /// offers exactly it — the spec's two, plus amendment A1's two, plus
 /// the rule-by-rule kept-atom shapes.
 ///
-/// `signed_root` is absent on purpose and is a DEVIATION disclosed in
-/// the unit's PR: the spec's "re-run with rule C off" is the shipped
-/// tier, because `SymRules::shipped` has `signed_root: false` already,
-/// so that shape is inert by construction rather than by measurement.
 fn shapes() -> Vec<(&'static str, SymRetry)> {
     let all = SymRules::all();
     let without = |f: fn(&mut SymRules)| {
@@ -237,18 +233,18 @@ fn reported() -> bool {
     std::env::var("CAD_SYM_9_NO_REPORT").is_err()
 }
 
-/// The receipt's four decision columns, in the split's order — the
+/// The receipt's two decision columns, in the split's order — the
 /// same totals [`totals`] sums out of the shape report, from the
 /// session's own counts, so a replay with the report off still prints
 /// them.
-fn receipt(c: &SymCounts) -> [u64; 4] {
-    [c.symbolic_zero, c.sign_gated, c.registered, c.numeric]
+fn receipt(c: &SymCounts) -> [u64; 2] {
+    [c.symbolic, c.numeric]
 }
 
 /// The document's whole per-predicate split, as one printable line per
 /// predicate, and its totals.
-fn totals(shapes: &[DecisionShape]) -> [u64; 4] {
-    let mut out = [0; 4];
+fn totals(shapes: &[DecisionShape]) -> [u64; 2] {
+    let mut out = [0; 2];
     for row in split(shapes).values() {
         for (a, b) in out.iter_mut().zip(row) {
             *a += b;
@@ -300,7 +296,7 @@ fn sym_9_where_the_refusals_are() {
     let (shapes, counts) = replay(&doc, &box_, SymRetry::none(), reported(), tol);
     println!("== {name} at the nominal, the shipped tier, no ladder");
     println!(
-        "   totals (theorem/gated/registered/numeric) {:?} (report {:?})",
+        "   totals (symbolic/numeric) {:?} (report {:?})",
         receipt(&counts),
         totals(&shapes)
     );
@@ -367,10 +363,10 @@ fn sym_9_what_each_retry_recovers() {
         let held = geom_core::sym::profile::take_profile().retry_forms;
         let dt = t0.elapsed();
         let table = split(&shapes);
-        let moved: BTreeMap<&str, ([u64; 4], [u64; 4])> = table
+        let moved: BTreeMap<&str, ([u64; 2], [u64; 2])> = table
             .iter()
             .filter(|(p, row)| base.get(*p).is_none_or(|b| b != *row))
-            .map(|(p, row)| (*p, (*base.get(p).unwrap_or(&[0; 4]), *row)))
+            .map(|(p, row)| (*p, (*base.get(p).unwrap_or(&[0; 2]), *row)))
             .collect();
         println!(
             "   {label:<18} totals {:?}  retried {}  {:?} ({:.2}x)  retry memos {held:?} (DAG {dag})",
@@ -540,8 +536,7 @@ fn sym_9_what_each_retry_recovers() {
 /// 451 → 455, the boss's 414 → 418, the bracket's 1050 → 1056 and the
 /// link's 679 → 683, with the ladder and without it alike.
 ///
-/// The `numeric` column can only FALL and the other three can only
-/// rise: a retry is asked only into the first attempt's silence
+/// `numeric` can only FALL and `symbolic` can only rise: a retry is asked only into the first attempt's silence
 /// (`geom_core::SymRetry`). A row here that moved the other way is a
 /// defect in the ladder, not a re-baseline.
 #[test]
@@ -549,17 +544,12 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     let tol = Tol::witness();
     let ladder = SymRetry::kept_atom();
     // `(document, the receipt without the ladder, with it, retried)`.
-    let expected: [(&str, [u64; 4], [u64; 4], u64); 5] = [
-        ("two_hole_plate", [1048, 0, 0, 654], [1048, 0, 0, 654], 0),
-        ("r1_annulus", [566, 0, 0, 399], [566, 0, 0, 399], 0),
-        ("r1_segment_boss", [521, 2, 26, 376], [521, 2, 26, 376], 0),
-        (
-            "r2_filleted_bracket",
-            [1386, 5, 57, 1004],
-            [1386, 5, 57, 1004],
-            0,
-        ),
-        ("r2_link", [814, 0, 48, 663], [814, 0, 48, 663], 0),
+    let expected: [(&str, [u64; 2], [u64; 2], u64); 5] = [
+        ("two_hole_plate", [1048, 654], [1048, 654], 0),
+        ("r1_annulus", [566, 399], [566, 399], 0),
+        ("r1_segment_boss", [549, 376], [549, 376], 0),
+        ("r2_filleted_bracket", [1448, 1004], [1448, 1004], 0),
+        ("r2_link", [862, 663], [862, 663], 0),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -579,10 +569,10 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
             // named second, so rule G's trade lands half on each slot:
             // `[76, 0, 16, 16]` became `[92, 0, 8, 8]` here.
             for (pred, want) in [
-                ("carrier_on_surface_2", [92, 0, 8, 8]),
-                ("witness_on_surface_2", [16, 0, 0, 0]),
+                ("carrier_on_surface_2", [100, 8]),
+                ("witness_on_surface_2", [16, 0]),
             ] {
-                let got = t.get(pred).copied().unwrap_or([0; 4]);
+                let got = t.get(pred).copied().unwrap_or([0; 2]);
                 if got != want {
                     moved.push(format!("{name}/{pred} with the ladder {want:?} -> {got:?}"));
                 }
@@ -616,7 +606,7 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     }
     assert!(
         moved.is_empty(),
-        "the ladder's measured recovery moved (theorem/gated/registered/numeric). A row that \
+        "the ladder's measured recovery moved (symbolic/numeric). A row that \
          moved UP is re-baselined and said; one that moved DOWN is a retry taking a decision \
          away, which `SymRetry` says cannot happen: {moved:?}"
     );
@@ -632,12 +622,7 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
 /// `retried=4` after the discharge columns, and the human form names
 /// the four as discharges a second attempt reached. Without the ladder
 /// neither appears and the line is the one a drive wrote before the
-/// ladder existed. The four are theorems (`symbolic_zero` 1306 → 1310;
-/// 1256 → 1260 before the tangent certificate read each tangency's gap,
-/// and 1340 → 1344 before PCERT's chart-angle unit retired the loop's angle
-/// comparisons and check 5, which took 84 theorems and 84 numeric
-/// decisions out of both receipts and left the ladder's four as they
-/// were).
+/// ladder existed. The four move `symbolic` 1372 → 1376.
 ///
 /// The row read the filleted bracket, then the link. Since the
 /// constructions store the carriers they build, the first attempt
@@ -678,18 +663,12 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     );
     let d = shipped.decisions();
     assert_eq!(
-        [
-            d.symbolic_zero,
-            d.sign_gated,
-            d.registered,
-            d.numeric,
-            d.retried
-        ],
-        [1310, 2, 64, 1280, 4],
+        [d.symbolic, d.numeric, d.retried],
+        [1376, 1280, 4],
         "the shipped ladder's leaf receipt"
     );
     assert!(
-        line.contains("registered=64 retried=4\n"),
+        line.contains(" retried=4\n"),
         "the goldening line carries `retried=` after the discharge columns: {line}"
     );
     assert!(
@@ -697,16 +676,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
         "the human form names the four as the ladder's: {human}"
     );
     let b = bare.decisions();
-    assert_eq!(
-        [
-            b.symbolic_zero,
-            b.sign_gated,
-            b.registered,
-            b.numeric,
-            b.retried
-        ],
-        [1306, 2, 64, 1284, 0]
-    );
+    assert_eq!([b.symbolic, b.numeric, b.retried], [1372, 1284, 0]);
     assert!(
         !bare.serialize().contains("retried="),
         "no ladder, no column"

@@ -661,7 +661,7 @@ fn a_macroscopic_box_certifies_at_the_shipped_depth_budget() {
     // symbolically, everything else numerically.
     let d = v.decisions();
     assert!(
-        d.symbolic_zero > 0 && d.numeric > 0,
+        d.symbolic > 0 && d.numeric > 0,
         "both tiers are live on this drive: {d:?}"
     );
 }

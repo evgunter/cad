@@ -107,9 +107,7 @@ pub(crate) fn label(
     counts: SymCounts,
 ) -> String {
     match out {
-        Ok(Sign::Zero) if counts.symbolic_zero > 0 => "theorem".to_owned(),
-        Ok(Sign::Zero) if counts.registered > 0 => "registered".to_owned(),
-        Ok(Sign::Zero) if counts.sign_gated > 0 => "sign_gated".to_owned(),
+        Ok(Sign::Zero) if counts.symbolic > 0 => "proven".to_owned(),
         Ok(s) => format!("numeric {s:?}"),
         Err(e) => format!("refused {:?}", e.margin),
     }
@@ -284,66 +282,43 @@ fn sym11_the_adversary_is_a_counted_dispute_at_sym_probe() {
     }
 }
 
-/// **THE GATED KIND IS IN THE SAME COLUMN, AND HERE IT IS.** The charge
-/// matches `Theorem | SignGated`, and
-/// [`SymCounts::theorems_disputed`](geom_core::SymCounts::theorems_disputed)
-/// counts both: at an inexact witness rule C's sign read came from the
-/// SAME point channel the margin did, so a gated fold's premise is
-/// exactly as suspect as a plain theorem's, and splitting the column
-/// would report one suspicion as two kinds of fact.
-///
-/// The residual: `sqrt(((r + d) − d)²) − r` with `r` bracketed strictly
-/// positive and `d = 1e9`. As a FORM `(r + d) − d` is `r`, so rule C
-/// folds `sqrt(r²) → r` over the bracket and the residual is zero —
-/// GATED, because the fold rests on the sign read. At `f64` the value
-/// `r + d` rounds at an ulp of `1e9` (~1.2e-7), so what comes back out
-/// of the subtraction is `r` plus that residue and the margin is the
-/// residue itself: ~1e-7, a DEFINITE positive an order of magnitude
-/// past this file's escalate threshold of `1e-8` — mechanism 1 at a
-/// form mechanism 2 could not reach.
-///
-/// **Rule C is dial-OFF in the shipped set** (`SymRules::shipped`), so
-/// no gated dispute can arise in a shipped run at all; this row drives
-/// `SymRules::all()` to produce one, and asserts the shipped set's
-/// silence beside it so that the dial is what the difference rests on.
+/// **A REGISTERED zero under a definite sign is the door's event, not
+/// a disputed theorem.** `y` is registered as `x` at values that differ
+/// by half the witness's slack, so the inexact witness records it; the
+/// band is drawn tight enough that the same difference is a DEFINITE
+/// positive margin. The door counts the contradicted axiom
+/// ([`SymCounts::registrations_contradicted`](geom_core::SymCounts::registrations_contradicted)),
+/// and the dispute column, which asks the tier's own algebra with the
+/// door shut, stays at zero: `y − x` is no identity of the forms.
 #[test]
-fn sym11_a_gated_theorem_disputes_into_the_same_column() {
-    let resid = || {
-        let r = Sym::<f64>::param_over(
-            ParamSymbol::new(test_utils::symbol_id("r")),
-            1.25e-3,
-            1.0e-3,
-            2.0e-3,
-        );
-        let d = Sym::<f64>::param(ParamSymbol::new(test_utils::symbol_id("d")), 1.0e9);
-        (((r + d) - d) * ((r + d) - d)).sqrt() - r
-    };
-    let (l, c, n) = decide_under(SymRules::all(), resid)
-        .expect("an inexact witness never panics on a contradiction");
-    println!("  rule C on: {l} | numeric sign {n} | {c:?}");
+fn sym11_a_contradicted_registration_is_not_a_disputed_theorem() {
+    let tol = Tol::witness();
+    let x0 = 1.0e3;
+    let d = 0.5 * tol.eps() * x0;
+    let band = Band::new(1.0e-2 * d, 1.0e-1 * d).unwrap();
+    let ((reg, out), c) = with_session_rules(budget(), SymRules::shipped(), || {
+        let x = Sym::<f64>::param(ParamSymbol::new(test_utils::symbol_id("x")), x0);
+        let y = Sym::<f64>::param(ParamSymbol::new(test_utils::symbol_id("y")), x0 + d);
+        let reg = y.register_equal(x, tol);
+        let out = geom_core::k_stats::decide("sym11_registered", Margin::of(y - x), band);
+        (reg, out)
+    });
+    println!("  {reg:?} {out:?} | {c:?}");
     assert_eq!(
-        l, "numeric Positive",
-        "the margin at the point is the far placement's rounding residue, which the band \
-         cannot absorb"
+        reg,
+        SymRegistration::Recorded,
+        "within the inexact witness's slack"
     );
+    assert_eq!(out.ok(), Some(Sign::Positive), "the numeric answer stands");
     assert_eq!(
-        c.theorems_disputed, 1,
-        "a GATED zero under a definite numeric sign is the same contradiction the plain \
-         kind is, and the same column says so: {c:?}"
-    );
-    assert_eq!(
-        c.sign_gated, 0,
-        "and it is not a discharge — the fold did not answer, the numeric channel did: {c:?}"
-    );
-
-    let (l, c, _) = decide_under(SymRules::shipped(), resid)
-        .expect("an inexact witness never panics on a contradiction");
-    println!("  shipped (rule C off): {l} | {c:?}");
-    assert_eq!(
-        c.theorems_disputed, 0,
-        "with rule C off the `sqrt` atom stays opaque, the form is not zero, and there is \
-         nothing to contradict — which is why no SHIPPED run can produce a gated \
-         dispute: {c:?}"
+        (
+            c.registrations_contradicted,
+            c.theorems_disputed,
+            c.symbolic,
+            c.numeric
+        ),
+        (1, 0, 0, 1),
+        "the door counts its contradicted axiom, and no theorem is disputed: {c:?}"
     );
 }
 
@@ -367,7 +342,7 @@ fn sym11_the_pole_at_sym_f64_answers_the_form_and_disputes_nothing() {
         let (l, c, n) = decide_on_a_thread(move || pole::<f64>(t0))
             .expect("the pole does not panic at an inexact witness");
         println!("  [{what}] t = {t0}: {l} | numeric sign {n} | {c:?}");
-        assert_eq!(l, "theorem", "[{what}] t = {t0}");
+        assert_eq!(l, "proven", "[{what}] t = {t0}");
         assert_eq!(
             c.theorems_disputed, 0,
             "[{what}] t = {t0}: the numeric channel answered no definite sign, so there is \

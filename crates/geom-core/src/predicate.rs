@@ -1020,9 +1020,10 @@ impl<T: crate::real::Real> InfSpeed<T> {
 /// ```
 ///
 /// **Beside the reading, the symbolic tier's verdict on a Zero**
-/// ([`MarginDiag::theorem`]): where `Sym` decided the margin identically
-/// zero (ERROR-DESIGN E12), the kind of theorem that decided it. It
-/// carries no number, and every other lane leaves it `None`.
+/// ([`MarginDiag::proven`]): whether `Sym` decided the margin
+/// identically zero (ERROR-DESIGN E12). One bit and not a kind: a
+/// symbolic discharge answers that the margin is zero, and no type a
+/// decision travels in says how. Every other lane leaves it unset.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MarginDiag(Reading);
 
@@ -1030,13 +1031,13 @@ pub struct MarginDiag(Reading);
 /// deferring session's list ([`crate::sym::deferred`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Zero {
-    Proven(Theorem),
+    Proven,
     Deferred(u32),
 }
 
 /// [`Zero`] in one word, so it rides in the reading's padding and the
-/// reading stays the size of its numbers: `0` none, `1..=3` a theorem,
-/// `4 + i` the deferred entry `i`.
+/// reading stays the size of its numbers: `0` none, `1` proven, `2 + i`
+/// the deferred entry `i`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct ZeroWord(u32);
 
@@ -1046,39 +1047,18 @@ impl ZeroWord {
     const fn of(zero: Option<Zero>) -> Self {
         Self(match zero {
             None => 0,
-            Some(Zero::Proven(Theorem::SymbolicZero)) => 1,
-            Some(Zero::Proven(Theorem::SignGated)) => 2,
-            Some(Zero::Proven(Theorem::Registered)) => 3,
-            Some(Zero::Deferred(i)) => 4 + i,
+            Some(Zero::Proven) => 1,
+            Some(Zero::Deferred(i)) => 2 + i,
         })
     }
 
     const fn zero(self) -> Option<Zero> {
         match self.0 {
             0 => None,
-            1 => Some(Zero::Proven(Theorem::SymbolicZero)),
-            2 => Some(Zero::Proven(Theorem::SignGated)),
-            3 => Some(Zero::Proven(Theorem::Registered)),
-            i => Some(Zero::Deferred(i - 4)),
+            1 => Some(Zero::Proven),
+            i => Some(Zero::Deferred(i - 2)),
         }
     }
-}
-
-/// **How the symbolic tier proved a margin zero** (ERROR-DESIGN E12):
-/// a theorem about the expression the `Sym` lane saw, true at every
-/// value of its symbols where the construction takes the decisions it
-/// took. Ordered strongest first, so a decision several Zeros back
-/// discharges as the weakest of them ([`MarginDiag::jointly`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Theorem {
-    /// The margin's form is the zero polynomial, no value read.
-    SymbolicZero,
-    /// The form is zero through a sign read over the leaf's box (rule
-    /// C's fold): conditional on that sign.
-    SignGated,
-    /// The form is zero because a constructor registered two of its
-    /// nodes as one real, verified at its witness when registered.
-    Registered,
 }
 
 /// The private reading of a [`MarginDiag`].
@@ -1542,9 +1522,9 @@ impl MarginDiag {
         })
     }
 
-    /// This reading, decided Zero by the symbolic tier as `how`.
-    pub(crate) const fn proven(self, how: Theorem) -> Self {
-        self.with_zero(Some(Zero::Proven(how)))
+    /// This reading, decided Zero by the symbolic tier.
+    pub(crate) const fn as_proven(self) -> Self {
+        self.with_zero(Some(Zero::Proven))
     }
 
     /// This reading, a Zero left at `index` on a deferring session's
@@ -1553,36 +1533,32 @@ impl MarginDiag {
         self.with_zero(Some(Zero::Deferred(index)))
     }
 
-    /// **The theorem that decided this margin Zero**, where the symbolic
-    /// tier proved it identically zero as the decision was taken; `None`
-    /// where it was decided numerically, was not decided Zero, or was
-    /// left for a reader to discharge ([`crate::sym::deferred::discharge`]).
+    /// **Whether the symbolic tier proved this margin Zero** as the
+    /// decision was taken; `false` where it was decided numerically, was
+    /// not decided Zero, or was left for a reader to discharge
+    /// ([`crate::sym::deferred::discharge`]).
     #[must_use]
-    pub const fn theorem(self) -> Option<Theorem> {
-        match self.zero() {
-            Some(Zero::Proven(how)) => Some(how),
-            Some(Zero::Deferred(_)) | None => None,
-        }
+    pub const fn proven(self) -> bool {
+        matches!(self.zero(), Some(Zero::Proven))
     }
 
     /// The deferring session's entry this reading stands for.
     pub(crate) fn pending(self) -> Option<crate::sym::deferred::Pending> {
         use crate::sym::deferred::{Pending, entry};
         match self.zero()? {
-            Zero::Proven(how) => Some(Pending::Proven(how)),
+            Zero::Proven => Some(Pending::Proven),
             Zero::Deferred(index) => entry(index),
         }
     }
 
     /// **This reading, standing for a decision `other` was a Zero of
-    /// too**: the reading is this one's, and it is a theorem only where
-    /// both are, of the weaker kind. A decision several Zeros back (two
-    /// carriers one when each of their data is) is proved only when
-    /// every one of them is.
+    /// too**: the reading is this one's, and it is proven only where
+    /// both are. A decision several Zeros back (two carriers one when
+    /// each of their data is) is proved only when every one of them is.
     #[must_use]
     pub fn jointly(self, other: Self) -> Self {
         let zero = match (self.zero(), other.zero()) {
-            (Some(Zero::Proven(a)), Some(Zero::Proven(b))) => Some(Zero::Proven(a.max(b))),
+            (Some(Zero::Proven), Some(Zero::Proven)) => Some(Zero::Proven),
             (Some(_), Some(_)) => self
                 .pending()
                 .zip(other.pending())
@@ -1610,7 +1586,7 @@ impl MarginDiag {
     /// reading against `band`: a definite sign on a reading past the band
     /// on that side, and `Zero` on one not past it — within the zero band;
     /// in band, where the symbolic tier proved the margin zero
-    /// ([`MarginDiag::theorem`]); or, under the test-only staged-ceiling
+    /// ([`MarginDiag::proven`]); or, under the test-only staged-ceiling
     /// dial, the in-band reading it passes as `Zero` (`k_stats`'
     /// `IDENTITY_PASS`). Never a poisoned reading.
     pub(crate) fn admits_verdict(self, sign: Sign, band: Band) -> bool {
@@ -1648,13 +1624,13 @@ impl MarginDiag {
     /// passing `passes`, or `None` where none does: a poisoned reading,
     /// one past the band (decided at this tolerance already), one whose
     /// sign no tolerance moves onto a side `passes` accepts, or one the
-    /// symbolic tier proved identically zero ([`MarginDiag::theorem`]).
+    /// symbolic tier proved identically zero ([`MarginDiag::proven`]).
     /// D4 ¶1 (i) offers a tolerance only for a size the user may intend,
     /// and a proved zero is none: its numeric reading is the rounding of
     /// an exact identity, and a tolerance that decided that reading would
     /// pass the decision on the rounding.
     fn tightens_below(self, band: Band, passes: SizedPass) -> Option<f64> {
-        if self.placement(band) == Placement::Past || self.theorem().is_some() {
+        if self.placement(band) == Placement::Past || self.proven() {
             return None;
         }
         match self.0 {
@@ -2210,7 +2186,7 @@ impl fmt::Display for IndeterminatePayload<'_> {
             ),
             // A proof decided it, so the enclosure is only where the
             // numbers stand.
-            Placement::Undecided if margin.theorem().is_some() => write!(
+            Placement::Undecided if margin.proven() => write!(
                 f,
                 "enclosure {margin:e} reaches into the ambiguity band ({zero:e}, {escalate:e})"
             ),
@@ -2355,7 +2331,7 @@ impl Indeterminate {
                 Some("a decided sign this decision cannot use"),
                 KindLever::Door,
             ),
-            (Placement::ZeroBand | Placement::Undecided, _) if margin.theorem().is_some() => (
+            (Placement::ZeroBand | Placement::Undecided, _) if margin.proven() => (
                 Some("a zero the symbolic tier proved, which no tolerance makes a size"),
                 KindLever::Door,
             ),
@@ -2854,7 +2830,7 @@ mod tests {
             ),
         ];
         for (unproven, below, payload) in rows {
-            let proven = unproven.proven(Theorem::SymbolicZero);
+            let proven = unproven.as_proven();
             assert_eq!(
                 unproven.sized_recourse(band, words),
                 format!(
@@ -2896,7 +2872,7 @@ mod tests {
                 "{unproven}: unproven, a gate's rejection: {ending}"
             );
             assert_eq!(
-                rejected(unproven.proven(Theorem::SymbolicZero)).ending("L"),
+                rejected(unproven.as_proven()).ending("L"),
                 "Recourse: L",
                 "{unproven}: proven, a gate's rejection"
             );

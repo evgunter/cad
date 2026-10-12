@@ -30,9 +30,7 @@ fn p(name: &str, v: f64) -> Sym<f64> {
 
 fn label(out: Result<Sign, geom_core::predicate::Indeterminate>, c: &SymCounts) -> String {
     match out {
-        Ok(Sign::Zero) if c.symbolic_zero == 1 => "theorem".to_owned(),
-        Ok(Sign::Zero) if c.registered == 1 => "registered".to_owned(),
-        Ok(Sign::Zero) if c.sign_gated == 1 => "sign_gated".to_owned(),
+        Ok(Sign::Zero) if c.symbolic == 1 => "proven".to_owned(),
         Ok(s) => format!("numeric {s:?}"),
         Err(e) => format!("refused {:?}", e.margin),
     }
@@ -74,8 +72,8 @@ fn a_product_past_256_that_fits_at_512_is_closed_by_the_ring_retry() {
     };
     let (l512, c512) = through(r512, || two_spellings(5, 2));
     println!("ring 512       : {l512} {c512:?}");
-    assert_eq!(l512, "theorem", "512 bits builds both products");
-    assert_eq!(c512.symbolic_zero, 1);
+    assert_eq!(l512, "proven", "512 bits builds both products");
+    assert_eq!(c512.symbolic, 1);
     assert_eq!(c512.retried, 1, "`retried` says the ladder carried it");
     assert_eq!(c512.numeric, 0);
 
@@ -99,7 +97,7 @@ fn a_product_past_512_stays_numeric_under_a_512_bit_ladder() {
     let (l, c) = through(r512, || two_spellings(11, 5));
     println!("ring 512 + kept atom on 577 bits: {l} {c:?}");
     assert_eq!(c.numeric, 1, "577 bits is past 512 too");
-    assert_eq!(c.symbolic_zero, 0);
+    assert_eq!(c.symbolic, 0);
     assert_eq!(c.retried, 0, "a refused ladder carries nothing");
 
     let r1024 = SymRetry {
@@ -108,7 +106,7 @@ fn a_product_past_512_stays_numeric_under_a_512_bit_ladder() {
     };
     let (l, c) = through(r1024, || two_spellings(11, 5));
     println!("ring 1024 on 577 bits          : {l} {c:?}");
-    assert_eq!(l, "theorem", "1024 bits reaches it");
+    assert_eq!(l, "proven", "1024 bits reaches it");
     assert_eq!(c.retried, 1);
 }
 
@@ -129,7 +127,7 @@ fn a_retrys_wider_ring_does_not_leak_into_the_next_decision() {
         (a, b)
     });
     println!("two decisions under a 512 ladder: {counts:?}");
-    assert_eq!(counts.symbolic_zero, 2, "both close on their retry");
+    assert_eq!(counts.symbolic, 2, "both close on their retry");
     assert_eq!(
         counts.retried, 2,
         "each paid its own retry — a bound left wide would have closed the second \
@@ -147,7 +145,7 @@ fn a_retrys_wider_ring_does_not_leak_into_the_next_session() {
         ..SymRetry::none()
     };
     let (_, wide) = through(r1024, || two_spellings(11, 5));
-    assert_eq!(wide.symbolic_zero, 1);
+    assert_eq!(wide.symbolic, 1);
     let (after, c) = through(SymRetry::none(), || two_spellings(11, 5));
     println!("after a 1024 session, with no ladder: {after} {c:?}");
     assert_eq!(c.numeric, 1, "the session's ring is COEFF_BITS again");
@@ -172,7 +170,7 @@ fn a_retrys_form_never_serves_the_first_attempt() {
         (a, b)
     });
     println!("the same margin twice under a 512 ladder: {counts:?}");
-    assert_eq!(counts.symbolic_zero, 2, "both close");
+    assert_eq!(counts.symbolic, 2, "both close");
     assert_eq!(
         counts.retried, 2,
         "each closed on its OWN retry — a retry form served to the first attempt would \
@@ -205,10 +203,7 @@ fn rule_e_residual() -> Sym<f64> {
 fn a_fewer_rules_retry_closes_the_rule_e_loss() {
     let (base, c0) = through(SymRetry::none(), rule_e_residual);
     println!("no ladder          : {base} {c0:?}");
-    assert_ne!(
-        base, "theorem",
-        "rule E costs this theorem (SYM-5 R2's row)"
-    );
+    assert_ne!(base, "proven", "rule E costs this theorem (SYM-5 R2's row)");
 
     let mask = SymRules {
         common_factor: false,
@@ -220,8 +215,8 @@ fn a_fewer_rules_retry_closes_the_rule_e_loss() {
     };
     let (l, c) = through(retry, rule_e_residual);
     println!("rule E shut, retry : {l} {c:?}");
-    assert_eq!(l, "theorem", "the fewer-rules attempt reaches it");
-    assert_eq!(c.symbolic_zero, 1);
+    assert_eq!(l, "proven", "the fewer-rules attempt reaches it");
+    assert_eq!(c.symbolic, 1);
     assert_eq!(c.retried, 1);
 
     // **The measured ladder does not reach it.** `SymRetry::kept_atom`
@@ -229,7 +224,7 @@ fn a_fewer_rules_retry_closes_the_rule_e_loss() {
     // scalar and not paid by any measured document stays numeric.
     let (l, c) = through(SymRetry::kept_atom(), rule_e_residual);
     println!("kept_atom          : {l} {c:?}");
-    assert_ne!(l, "theorem");
+    assert_ne!(l, "proven");
     assert_eq!(c.retried, 0);
 }
 
@@ -259,15 +254,10 @@ fn a_plain_theorem_is_the_same_receipt_at_every_shape() {
     ] {
         let (l, c) = through(retry, margin);
         println!("{name:<10}: {l} {c:?}");
-        assert_eq!(l, "theorem");
+        assert_eq!(l, "proven");
         assert_eq!(
-            (c.symbolic_zero, c.sign_gated, c.registered, c.numeric),
-            (
-                base.symbolic_zero,
-                base.sign_gated,
-                base.registered,
-                base.numeric
-            ),
+            (c.symbolic, c.numeric),
+            (base.symbolic, base.numeric),
             "{name}: the ladder moved the first attempt's receipt"
         );
         assert_eq!(c.retried, 0, "{name}: the ladder was never entered");

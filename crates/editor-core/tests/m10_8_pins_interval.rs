@@ -33,10 +33,6 @@ fn m10_8_the_a0_set_is_a0_alone() {
         s.const_fold && s.early,
         "A0, in the early walk alongside the plain form"
     );
-    assert!(
-        !s.signed_root,
-        "rule C is built and dial-selectable, and does not ship (inert)"
-    );
     // BY CONSTRUCTION, not by a list: a dial this row forgot to name
     // would be one A0-alone silently carried. `SymRules::none()` is
     // every dial off, so A0 alone IS `none()` with the two A0 needs
@@ -137,14 +133,14 @@ fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
     };
     assert_eq!(
         line(&plain),
-        "decisions symbolic_zero=482 numeric=265 frozen=0",
+        "decisions symbolic=482 numeric=265 frozen=0",
         "the plain tier on straight geometry"
     );
     assert_eq!(
         line(&shipped),
-        "decisions symbolic_zero=490 numeric=257 frozen=0",
+        "decisions symbolic=490 numeric=257 frozen=0",
         "eight of the 265 numeric refusals are comparisons of two rational CONSTANTS, which \
-         A0 decides exactly — THEOREMS, and nothing here is gated"
+         A0 decides exactly"
     );
     assert_eq!(
         shipped,

@@ -155,21 +155,21 @@ fn m10_9_per_predicate_split_at_the_nominal() {
         let doc = at(1.0);
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
         let box_ = nominal_box(&analyzed);
-        let mut table: BTreeMap<&'static str, [[u64; 4]; 2]> = BTreeMap::new();
-        let mut totals = [[0u64; 4]; 2];
+        let mut table: BTreeMap<&'static str, [[u64; 2]; 2]> = BTreeMap::new();
+        let mut totals = [[0u64; 2]; 2];
         for (col, (_, rules)) in door_rows().into_iter().enumerate() {
             let (shapes, _, counts) = replay(&doc, &box_, rules, tol);
             println!("== {name} {:?}", counts);
             for (pred, row) in crate::m10_8_harness::split(&shapes) {
                 table.entry(pred).or_default()[col] = row;
-                for k in 0..4 {
+                for k in 0..2 {
                     totals[col][k] += row[k];
                 }
             }
         }
         for (pred, cols) in &table {
             println!(
-                "   {pred:<34} off: {:?}  on: {:?}   (theorem/gated/registered/numeric)",
+                "   {pred:<34} off: {:?}  on: {:?}   (symbolic/numeric)",
                 cols[0], cols[1]
             );
         }

@@ -24,10 +24,9 @@
 //!    `c = s²·f` with `s` taken out exactly and `sqrt(f)` a constant
 //!    atom — so `sqrt(p) = s · sqrt(f) · sqrt(p')`;
 //! 3. `sqrt(R²) = |R|` where the primitive part is a perfect square
-//!    ([`signed::poly_sqrt`]), read by rule F ([`manifest::fold_abs`]),
-//!    by rule C ([`signed::fold`], gated, under its own dial) or as the
-//!    `Abs` ATOM — which is the same indeterminate an `abs` node over
-//!    the same form mints.
+//!    ([`signed::poly_sqrt`]), read by rule F ([`manifest::fold_abs`])
+//!    or as the `Abs` ATOM — which is the same indeterminate an `abs`
+//!    node over the same form mints.
 //!
 //! Step 2 is what makes the key a function of the value class: two
 //! spellings of one real polynomial differ by a positive rational
@@ -40,7 +39,7 @@
 //!
 //! `sqrt(N/D) = sqrt(N)/sqrt(D)` needs `D > 0` where it is used, not
 //! merely `N/D ≥ 0`: at `N ≤ 0, D < 0` the left side is real and
-//! neither root on the right is. `D ≠ 0` is rule E's five-source
+//! neither root on the right is. `D ≠ 0` is rule E's four-source
 //! denominator argument ([`quotient`]) — a denominator the form carries
 //! has a value, so it is non-zero wherever the expression has one.
 //! What is left is a SIGN for `D`, and it is PROVED from the form,
@@ -60,11 +59,10 @@
 //!    pair, so `sqrt(x/(−1−y²))` and `sqrt(−x/(1+y²))` key ONE atom
 //!    instead of two. Value-free like source 2, because it IS source 2
 //!    on the negated denominator.
-//! 4. **A certified read** — [`signed`]'s bracket over the leaf's box
-//!    says `D > 0`. This reads a VALUE, so it is rule C's shape and
-//!    rides rule C's dial ([`super::SymRules::signed_root`]); the form
-//!    it returns is `gated` and the discharge it reaches is counted
-//!    `sign_gated`, not a theorem.
+//!
+//! No source reads a value: a sign of the box is not a decision the
+//! construction took, so a zero reached through one would not be
+//! E12's claim.
 //!
 //! `N ≥ 0` then follows from `N/D ≥ 0` and `D > 0` and is never tested
 //! on its own; a numerator that is a NEGATIVE constant declines
@@ -125,7 +123,7 @@
 //! point where `D ≠ 0` the two denote one real; `sqrt(N/D) = sqrt(Q)`
 //! there, on both sides of zero and at a zero of `Q` (both roots are
 //! `0`). `D ≠ 0` at every point clause 1 admits is [`quotient`]'s
-//! five-source argument, which this step inherits whole and extends by
+//! four-source argument, which this step inherits whole and extends by
 //! nothing: it mints no denominator (its output has none). Nothing
 //! here consults the box, the atom table or a bracket, so a zero
 //! reached through it is a THEOREM.
@@ -195,7 +193,6 @@ use std::sync::Arc;
 use super::form::{Form, Poly};
 use super::rational::Rat;
 use super::{AtomInfo, Session, SymOp, indet_atom, manifest, mint_atom, signed};
-use crate::real::Bounds;
 
 /// Names the branch the running `canonical` call takes
 /// (`profile::RootProfile`); nothing without the profile's feature.
@@ -268,8 +265,8 @@ fn last_stored_is_negative(p: &Poly) -> Option<bool> {
 /// round `poly_sqrt` happened to return its root.
 ///
 /// **The normalisation is a KEY convention and touches no rule's
-/// predicate.** Every fold at an `abs` node — A0's, rule F's manifest
-/// sign, rule C's certified read — has already been asked by `combine`
+/// predicate.** Every fold at an `abs` node — A0's and rule F's
+/// manifest sign — has already been asked by `combine`
 /// on the argument AS WRITTEN and declined by the time this runs, so
 /// rule F's arms see what SYM-8 pinned whether the argument is
 /// manifestly signed or not, and whether `|X|` folds for a manifestly
@@ -278,9 +275,7 @@ fn last_stored_is_negative(p: &Poly) -> Option<bool> {
 /// is called.
 fn sign_normalised(f: &Form) -> Option<Form> {
     if last_stored_is_negative(&f.num)? {
-        let mut out = f.neg()?;
-        out.gated = f.gated;
-        return Some(out);
+        return f.neg();
     }
     Some(f.clone())
 }
@@ -305,18 +300,16 @@ fn magnitude_key(f: &Form) -> Option<(Rat, Form)> {
         d = d.neg()?;
     }
     let k = cn.mul(&cd.recip()?)?;
-    let mut out = Form::quotient(n, d);
-    out.gated = f.gated;
-    Some((k, out))
+    Some((k, Form::quotient(n, d)))
 }
 
 /// **The `Abs` atom's door**: the indeterminate an `abs` NODE mints
 /// once every fold before it has declined, keyed by [`magnitude_key`]
 /// so `|Y|`, `|−Y|`, `|c·Y|` and `c·|Y|` are ONE atom.
 ///
-/// It folds NOTHING. Every fold at an `abs` node — A0's constant, rule
-/// F's manifest sign, rule C's certified one — has already been asked
-/// by `combine` and declined; what is left for this door is the key,
+/// It folds NOTHING. Every fold at an `abs` node — A0's constant and
+/// rule F's manifest sign — has already been asked by `combine` and
+/// declined; what is left for this door is the key,
 /// and the key alone. That is the seam with rule F: this module
 /// decides how a magnitude is NAMED, and rule F decides when one may
 /// be folded away.
@@ -345,9 +338,7 @@ fn magnitude_atom_in(arg: &Form, sess: &mut Session) -> Option<Form> {
 /// admits, the zero included. Rule F's `abs` arm asks a different
 /// question — whether to fold an `abs` NODE the document wrote — and
 /// answers it on a STRICT predicate for the reason `manifest`'s header
-/// gives; nothing here moves that. Rule C's certified fold is asked
-/// only after the value-free step, which is `combine`'s documented
-/// order.
+/// gives; nothing here moves that.
 fn magnitude_of_root(r: Poly, sess: &mut Session) -> Option<Form> {
     let f = sign_normalised(&Form::poly(r))?;
     #[cfg(feature = "sym-profile-testing")]
@@ -361,11 +352,6 @@ fn magnitude_of_root(r: Poly, sess: &mut Session) -> Option<Form> {
     );
     if let Some(m) = m {
         return Some(m);
-    }
-    if sess.rules.signed_root
-        && let Some(g) = signed::fold(SymOp::Abs, &f, &sess.params, sess.budget)
-    {
-        return Some(g);
     }
     magnitude_atom_in(&f, sess)
 }
@@ -421,11 +407,10 @@ fn sqrt_poly(p: &Poly, sess: &mut Session) -> Option<Form> {
 }
 
 /// What a denominator's proved sign lets the split do: take the pair
-/// as it stands, take it NEGATED (the module header's source 3, which
-/// is source 2 on `−D`), and whether saying so READ a value.
+/// as it stands, or take it NEGATED (the module header's source 3,
+/// which is source 2 on `−D`).
 struct Sign {
     negate: bool,
-    read: bool,
 }
 
 /// The proof that `D > 0` where the root has a value, by the module
@@ -446,52 +431,15 @@ fn denominator_sign_in(d: &Poly, sess: &Session) -> Option<Sign> {
         note!("split: D constant");
         return (!c.is_zero()).then_some(Sign {
             negate: c.is_negative(),
-            read: false,
         });
     }
     if manifest::nonneg(&Form::poly(d.clone()), sess) {
         note!("split: D manifestly >= 0");
-        return Some(Sign {
-            negate: false,
-            read: false,
-        });
+        return Some(Sign { negate: false });
     }
     if manifest::nonneg(&Form::poly(d.neg()?), sess) {
         note!("split: D manifestly <= 0");
-        return Some(Sign {
-            negate: true,
-            read: false,
-        });
-    }
-    #[cfg(feature = "sym-profile-testing")]
-    let t0 = super::profile::clock();
-    let read = if sess.rules.signed_root {
-        signed::enclose_poly(d, sess)
-    } else {
-        None
-    };
-    #[cfg(feature = "sym-profile-testing")]
-    if sess.rules.signed_root {
-        super::profile::root_part(
-            "side condition: certified read",
-            t0,
-            read.as_ref().is_some_and(|r| r.lo() > 0.0 || r.hi() < 0.0),
-        );
-    }
-    if let Some(r) = read {
-        note!("split: D read");
-        if r.lo() > 0.0 {
-            return Some(Sign {
-                negate: false,
-                read: true,
-            });
-        }
-        if r.hi() < 0.0 {
-            return Some(Sign {
-                negate: true,
-                read: true,
-            });
-        }
+        return Some(Sign { negate: true });
     }
     note!("declined: no sign for D");
     None
@@ -531,12 +479,8 @@ fn exact_quotient_root(arg: &Form, sess: &mut Session) -> Option<Form> {
     let q = arg.num.div_exact(&arg.den, sess.budget);
     #[cfg(feature = "sym-profile-testing")]
     super::profile::root_part("div_exact", t0, q.is_some());
-    let mut out = sqrt_poly(&q?, sess)?;
+    let out = sqrt_poly(&q?, sess)?;
     note!("exact quotient");
-    // Redundant under `combine`'s `gate()`, and kept: it matches the
-    // split's own branch and holds the label wherever else `canonical`
-    // is reached from.
-    out.gated |= arg.gated;
     Some(out)
 }
 
@@ -545,9 +489,8 @@ fn exact_quotient_root(arg: &Form, sess: &mut Session) -> Option<Form> {
 fn split(arg: &Form, sess: &mut Session) -> Option<Form> {
     if arg.den.as_constant().is_some_and(|c| c == Rat::one()) {
         note!("declined: den = 1, the root");
-        let mut out = sqrt_poly(&arg.num, sess)?;
+        let out = sqrt_poly(&arg.num, sess)?;
         note!("den = 1");
-        out.gated |= arg.gated;
         return Some(out);
     }
     let sign = denominator_sign(&arg.den, sess)?;
@@ -561,10 +504,9 @@ fn split(arg: &Form, sess: &mut Session) -> Option<Form> {
     note!("declined: a half's root");
     let num = sqrt_poly(&n, sess)?;
     let den = sqrt_poly(&d, sess)?;
-    let mut out = num.mul(&den.recip()?, sess.budget)?;
+    let out = num.mul(&den.recip()?, sess.budget)?;
     #[cfg(feature = "sym-profile-testing")]
     super::profile::root_renote(branch);
-    out.gated |= arg.gated || sign.read;
     Some(out)
 }
 
@@ -578,8 +520,5 @@ pub(super) fn mint(arg: Form, sess: &mut Session) -> Form {
     {
         return f;
     }
-    let gated = arg.gated;
-    let mut out = atom(SymOp::Sqrt, arg, sess);
-    out.gated |= gated;
-    out
+    atom(SymOp::Sqrt, arg, sess)
 }

@@ -1052,7 +1052,7 @@ fn a_filleted_disc_records_its_coaxial_supports_and_tangent_joints() {
     let proved = proofs(&doc, fillet, &got);
     assert_eq!(
         proved[..2],
-        [const { Proof::Structural(Rung::MarginIdentity(geom_core::Theorem::SymbolicZero)) }; 2],
+        [const { Proof::Structural(Rung::MarginIdentity) }; 2],
         "each support's departure from the shared axis is the zero polynomial"
     );
     for proof in &proved[2..] {
@@ -1182,7 +1182,7 @@ fn measure_rows(doc: &ProfileDoc, node: RecipeNodeId) {
                     t.elapsed(),
                     deferred::dag_size(r.margin)
                 );
-                if d.is_none() {
+                if !d {
                     for f in deferred::render(r.margin) {
                         eprintln!("  FORM {f}");
                     }
@@ -1275,7 +1275,7 @@ fn two_variables_typed_equal_are_one_constant_to_the_analysis_lane_and_two_symbo
         let decided = (value(&metres[0]) - value(&metres[1]))
             .sign_within(band)
             .expect("a difference of nothing decides");
-        (decided.sign, decided.margin.theorem())
+        (decided.sign, decided.margin.proven())
     };
     let budget = SymBudget {
         max_terms: editor_core::drive::DEFAULT_SYM_MAX_TERMS,
@@ -1289,16 +1289,13 @@ fn two_variables_typed_equal_are_one_constant_to_the_analysis_lane_and_two_symbo
     });
     assert_eq!(
         analysis,
-        (
-            geom_core::Sign::Zero,
-            Some(geom_core::Theorem::SymbolicZero)
-        ),
+        (geom_core::Sign::Zero, true),
         "the analysis lane reads two constants 1 and their difference is the zero polynomial"
     );
     assert_eq!(
         door,
-        (geom_core::Sign::Zero, None),
-        "the door reads two symbols: Zero at the values, no theorem"
+        (geom_core::Sign::Zero, false),
+        "the door reads two symbols: Zero at the values, no proof"
     );
 }
 
@@ -1324,10 +1321,10 @@ fn a_ratio_evaluates_exactly_at_sym() {
                     .expect("in range")
                     .eval::<Sym<f64>>()
                 - whole.eval::<Sym<f64>>();
-            back.sign_within(band).expect("decides").margin.theorem()
+            back.sign_within(band).expect("decides").margin.proven()
         })
     });
-    assert_eq!(theorems, [Some(geom_core::Theorem::SymbolicZero); 3]);
+    assert_eq!(theorems, [true; 3]);
 }
 
 /// **What the door proves on the corpus**: every document's rows, by
@@ -1466,12 +1463,7 @@ fn the_door_proves_half_the_composed_dies_joints() {
         .collect();
         let theorems = all
             .iter()
-            .filter(|p| {
-                matches!(
-                    p,
-                    Proof::Structural(Rung::MarginIdentity(geom_core::Theorem::SymbolicZero))
-                )
-            })
+            .filter(|p| matches!(p, Proof::Structural(Rung::MarginIdentity)))
             .count();
         let replayed = replays(&all);
         assert_eq!((theorems, replayed.len()), (proved, rows), "{name}");

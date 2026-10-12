@@ -204,12 +204,10 @@ fn sym_bodies() -> Vec<(String, Body<Sym<f64>>)> {
 /// which installs no retry ladder, so it would read zero by construction.
 fn counts_line(name: &str, door: &str, refused: bool, c: &SymCounts, shapes: usize) -> String {
     format!(
-        "{name} {door} {} decisions={} sz={} sg={} reg={} rref={} rcon={} num={} disp={} frozen={} shapes={}",
+        "{name} {door} {} decisions={} sym={} rref={} rcon={} num={} disp={} frozen={} shapes={}",
         if refused { "REFUSED" } else { "OK" },
         c.decisions(),
-        c.symbolic_zero,
-        c.sign_gated,
-        c.registered,
+        c.symbolic,
         c.registrations_refused,
         c.registrations_contradicted,
         c.numeric,

@@ -1423,7 +1423,7 @@ mod tests {
     #[test]
     fn a_gates_rejected_zero_ends_in_the_arms_zero_note() {
         use geom_core::sym::with_session;
-        use geom_core::{FileCoincidence, ParamSymbol, Sym, SymBudget, Theorem};
+        use geom_core::{FileCoincidence, ParamSymbol, Sym, SymBudget};
 
         use crate::recourse::{ReadAt, Reading, Refused, RefusedArm};
 
@@ -1442,8 +1442,8 @@ mod tests {
             decide_positive("dihedral_arm", Margin::of(x * three / three - x), b).unwrap_err()
         });
         assert_eq!(
-            (proved.margin.rejected_sign(), proved.margin.theorem()),
-            (Some(Sign::Zero), Some(Theorem::SymbolicZero)),
+            (proved.margin.rejected_sign(), proved.margin.proven()),
+            (Some(Sign::Zero), true),
             "the proved zero is a gate's rejection: {proved:?}"
         );
         assert_eq!(

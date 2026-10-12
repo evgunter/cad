@@ -13,9 +13,8 @@
 //! - **the point replay** at the nominal, per rule set — every decide
 //!   site decides (no node refuses at a point), and the identity test
 //!   asks the same question there it asks over a box, so this is the
-//!   complete per-site table: theorem / sign-gated / registered /
-//!   numeric under
-//!   none, A, B, A+B;
+//!   complete per-site table: symbolic / numeric under none, A, B,
+//!   A+B;
 //! - **the whole-box replay** at the real study, every rule on — what
 //!   actually BOUNDS the box: the outcome per predicate up to the first
 //!   refusal in each node, and the rendered normal form of every
@@ -159,11 +158,7 @@ pub(crate) fn replay_retried(
 
 #[derive(Default, Clone, Copy)]
 struct Split {
-    theorem: u64,
-    gated: u64,
-    /// M10-9's column: a `Zero` through a registered identity — an
-    /// axiom a constructor stated, not a theorem the tier proved.
-    registered: u64,
+    symbolic: u64,
     definite: u64,
     numeric_zero: u64,
     indeterminate: u64,
@@ -173,20 +168,12 @@ struct Split {
 impl Split {
     fn add(&mut self, o: ShapeOutcome) {
         match o {
-            ShapeOutcome::Theorem => self.theorem += 1,
-            ShapeOutcome::SignGated => self.gated += 1,
-            ShapeOutcome::Registered => self.registered += 1,
+            ShapeOutcome::Symbolic => self.symbolic += 1,
             ShapeOutcome::Definite(_) => self.definite += 1,
             ShapeOutcome::NumericZero => self.numeric_zero += 1,
             ShapeOutcome::Indeterminate => self.indeterminate += 1,
             ShapeOutcome::Invalid => self.invalid += 1,
         }
-    }
-
-    /// Decisions the symbolic tier answered at all — theorems,
-    /// clause-3 folds and registered identities together.
-    fn discharged(self) -> u64 {
-        self.theorem + self.gated + self.registered
     }
 
     /// Decisions the symbolic tier did NOT answer.
@@ -203,8 +190,8 @@ fn split_by_predicate(shapes: &[DecisionShape]) -> BTreeMap<&'static str, Split>
     out
 }
 
-/// **§1's table.** Per document, per predicate: the theorem /
-/// sign-gated / numeric split at the nominal under each rule set, then
+/// **§1's table.** Per document, per predicate: the symbolic / numeric
+/// split at the nominal under each rule set, then
 /// the whole-box outcome split with every rule on and the residual
 /// shapes of what the numeric channel could not decide there.
 #[test]
@@ -218,7 +205,7 @@ fn m10_8_table_per_predicate_under_each_rule_set() {
 
         println!(
             "== {name}: POINT replay at the nominal, per rule set \
-             (theorem/gated/registered/numeric)"
+             (symbolic/numeric)"
         );
         let mut table: BTreeMap<&'static str, Vec<Split>> = BTreeMap::new();
         for (_, rules) in rule_sets() {
@@ -232,7 +219,7 @@ fn m10_8_table_per_predicate_under_each_rule_set() {
             }
         }
         let labels: Vec<&str> = rule_sets().iter().map(|(l, _)| *l).collect();
-        print!("   {:<34}", "predicate (theorem/gated/reg/numeric)");
+        print!("   {:<34}", "predicate (symbolic/numeric)");
         for l in &labels {
             print!(" {l:>12}");
         }
@@ -240,31 +227,22 @@ fn m10_8_table_per_predicate_under_each_rule_set() {
         for (pred, cols) in &table {
             print!("   {pred:<34}");
             for s in cols {
-                print!(
-                    " {:>12}",
-                    format!("{}/{}/{}/{}", s.theorem, s.gated, s.registered, s.numeric())
-                );
+                print!(" {:>12}", format!("{}/{}", s.symbolic, s.numeric()));
             }
             println!();
         }
-        // Per rung, which predicates it moved relative to `none` — the
-        // WHOLE split compared (theorem, gated, numeric), so a theorem
-        // re-labelled as gated, or a numeric decision that became a
-        // theorem, both show. `helped` is more discharged; `HURT` is a
-        // theorem lost (fewer theorems, or fewer discharged in all).
+        // Per rung, which predicates it moved relative to `none`:
+        // `helped` is more discharged, `HURT` fewer.
         for (i, (label, _)) in rule_sets().iter().enumerate().skip(1) {
-            let cell =
-                |s: &Split| format!("{}/{}/{}/{}", s.theorem, s.gated, s.registered, s.numeric());
+            let cell = |s: &Split| format!("{}/{}", s.symbolic, s.numeric());
             let helped: Vec<String> = table
                 .iter()
-                .filter(|(_, c)| c[i].discharged() > c[0].discharged())
+                .filter(|(_, c)| c[i].symbolic > c[0].symbolic)
                 .map(|(p, c)| format!("{p}:{}->{}", cell(&c[0]), cell(&c[i])))
                 .collect();
             let hurt: Vec<String> = table
                 .iter()
-                .filter(|(_, c)| {
-                    c[i].theorem < c[0].theorem || c[i].discharged() < c[0].discharged()
-                })
+                .filter(|(_, c)| c[i].symbolic < c[0].symbolic)
                 .map(|(p, c)| format!("{p}:{}->{}", cell(&c[0]), cell(&c[i])))
                 .collect();
             println!("   rung {label:<12} helped {helped:?}\n        HURT   {hurt:?}");
@@ -274,26 +252,19 @@ fn m10_8_table_per_predicate_under_each_rule_set() {
         let (shapes, refusal, counts) = replay(&doc, &real, SymRules::shipped(), tol);
         println!("   counts {counts:?}; first refusal: {refusal:?}");
         println!(
-            "   {:<34} {:>8} {:>8} {:>8} {:>8} {:>8} {:>8} {:>8}",
-            "predicate", "theorem", "gated", "registered", "definite", "num0", "indet", "invalid"
+            "   {:<34} {:>8} {:>8} {:>8} {:>8} {:>8}",
+            "predicate", "symbolic", "definite", "num0", "indet", "invalid"
         );
         for (pred, s) in split_by_predicate(&shapes) {
             println!(
-                "   {pred:<34} {:>8} {:>8} {:>8} {:>8} {:>8} {:>8} {:>8}",
-                s.theorem,
-                s.gated,
-                s.registered,
-                s.definite,
-                s.numeric_zero,
-                s.indeterminate,
-                s.invalid
+                "   {pred:<34} {:>8} {:>8} {:>8} {:>8} {:>8}",
+                s.symbolic, s.definite, s.numeric_zero, s.indeterminate, s.invalid
             );
         }
         println!("   BLOCKING RESIDUALS (numeric, not definite), first two shapes per predicate:");
         let mut seen: BTreeMap<&'static str, usize> = BTreeMap::new();
         for s in &shapes {
-            if matches!(s.outcome, ShapeOutcome::Definite(_))
-                || matches!(s.outcome, ShapeOutcome::Theorem | ShapeOutcome::SignGated)
+            if matches!(s.outcome, ShapeOutcome::Definite(_)) || s.outcome == ShapeOutcome::Symbolic
             {
                 continue;
             }

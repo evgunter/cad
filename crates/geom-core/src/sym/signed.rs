@@ -1,14 +1,10 @@
-//! **The value reads, and the one door the value comes through.**
-//! Rule C — the clause-3 fold behind [`SymRules::signed_root`]:
-//! `sqrt(X) → R` where `X = R²` as forms and `R` has a CERTIFIED sign
-//! over the leaf's box, and `abs(R) → ±R` likewise. Beside it, behind
-//! its own dial ([`SymRules::decision_read`]), the DECISION READ: the
-//! arm a `Select` takes where its decision's sign is certified over
-//! the box, and the arm `min`/`max` takes, which is the same read
-//! (`max(A, B)` IS `select(B − A, A, B)`). Rule G's side condition
-//! asks for a third (`enclose_poly`), under rule C's dial. Three
-//! reads; ONE enclosure, and this module is the whole of how a value
-//! is read.
+//! **The decision read, and the one door a value comes through**
+//! ([`SymRules::decision_read`]): the arm a `Select` takes where its
+//! decision's sign is certified over the leaf's box, and the arm
+//! `min`/`max` takes, which is the same read (`max(A, B)` IS
+//! `select(B − A, A, B)`). One read, one enclosure, and this module is
+//! the whole of how a value is read. It also holds the exact
+//! polynomial square root (`poly_sqrt`), which reads no value.
 //!
 //! # What is read, and through which door
 //!
@@ -16,42 +12,33 @@
 //! parameter, the `f64` BRACKET the analysis box handed it
 //! ([`Sym::param_over`](super::Sym::param_over) — the caller that mints
 //! a parameter axis already holds `(lo, hi)` as two `f64`s), and the
-//! candidate `R` is enclosed over those brackets in the always-compiled,
-//! outward-rounded [`Interval`](crate::interval::Interval). No type is punned, no feature is
-//! gated, no bound is added. What a form may carry and still be
-//! enclosed depends on the read:
+//! decision is enclosed over those brackets in the always-compiled,
+//! outward-rounded [`Interval`](crate::interval::Interval). No type is
+//! punned, no feature is gated, no bound is added. The enclosure goes
+//! through the session's atoms (`enclose_deep`): a `sqrt`, `abs`, `min`
+//! or `max` atom is entered and its argument enclosed in turn, to
+//! `ENCLOSE_DEPTH` levels. An opaque real, a frozen node, any other
+//! atom, or an atom past that depth is not enclosable, and the read
+//! declines.
 //!
-//! - rule C's fold encloses a polynomial in the parameters and `π`
-//!   alone (`enclose`); any other indeterminate (an opaque real, an
-//!   atom, a frozen node) is not enclosable there and the fold
-//!   declines;
-//! - the decision read and rule G's side condition enclose through the
-//!   session's atoms as well (`enclose_deep`): a `sqrt`, `abs`, `min`
-//!   or `max` atom is entered and its argument enclosed in turn, to
-//!   `ENCLOSE_DEPTH` levels. An opaque real, a frozen node, any other
-//!   atom, or an atom past that depth is not enclosable, and the read
-//!   declines.
+//! # Why a zero through it is E12's claim
 //!
-//! # Why it is sound (clause 3 of the theorem)
-//!
-//! For every point `p` of the box, `sqrt(R(p)²) = |R(p)|`, and a
-//! bracket of `R` that is strictly positive (negative) over the box
-//! makes `|R(p)| = R(p)` (`−R(p)`) on all of it. So the folded form is
-//! equal to the atom AT EVERY POINT OF THE BOX — not identically in the
-//! parameters. A zero reached through it is therefore a theorem
-//! CONDITIONAL on the sign read, which is why such a discharge is
-//! counted `sign_gated` and never `symbolic_zero`: the two claims differ
-//! in kind, and the receipt keeps them apart. A bracket that straddles
-//! zero, or a refused one, folds nothing; the atom stays opaque and the
-//! numeric channel answers, which is the conservative direction.
+//! E12's claim is a zero at every value where the construction takes
+//! the decisions it took. A certified read answers which arm the
+//! construction takes at every point of the box, so the form with the
+//! node replaced by that arm is equal to the node wherever the
+//! construction takes that decision, and a zero reached through it is
+//! a zero there. A bracket that straddles zero, or a refused one, takes
+//! no arm; the node stays an atom and the numeric channel answers,
+//! which is the conservative direction.
 //!
 //! # Where it runs
 //!
-//! Per node, in the EARLY memo only (`super::early_form`) — never in
-//! the plain form — so a plain theorem is never re-labelled as gated,
-//! and the fold reaches atoms nested inside other atoms' arguments,
-//! which is where the arc family's `sqrt` of a perfect square sits
-//! (`‖q − c‖ = r` has `(a + 2r)²` under its root on the plate).
+//! Per node, in the EARLY memo only (`super::early_form`), never in the
+//! plain form, and behind every value-free fold at its node. It answers
+//! at the node: a parent that would have cancelled two equal nodes as
+//! one atom sees the arms instead, and the cancellation is reached
+//! through them.
 
 use crate::real::Bounds;
 use core::f64::consts::PI;
@@ -201,84 +188,9 @@ fn rat_enclosure(c: &Rat) -> Interval {
     }
 }
 
-/// The enclosure of `p` over the parameter brackets alone — no atom
-/// entered, which is rule C's own reach ([`fold`] declines an argument
-/// carrying anything else). ONE walker with the others: the depth cap
-/// is what distinguishes the two reaches, so a shallow read is the
-/// deep one asked at its floor.
-fn enclose(p: &Poly, params: &IndetMap<(f64, f64)>) -> Option<Interval> {
-    enclose_deep(p, params, &IndetMap::default(), ENCLOSE_DEPTH)
-}
-
-/// The certified sign of the quotient `num / den` over the brackets:
-/// `Some(true)` for strictly positive, `Some(false)` for strictly
-/// negative, `None` otherwise (straddling, refused, or not
-/// enclosable).
-fn certified_sign(num: &Poly, den: &Poly, params: &IndetMap<(f64, f64)>) -> Option<bool> {
-    let n = enclose(num, params)?;
-    let d = enclose(den, params)?;
-    let sign = |r: Interval| -> Option<bool> {
-        if !r.is_certified() {
-            None
-        } else if r.lo() > 0.0 {
-            Some(true)
-        } else if r.hi() < 0.0 {
-            Some(false)
-        } else {
-            None
-        }
-    };
-    Some(sign(n)? == sign(d)?)
-}
-
-/// **The fold**: for `op` applied to the argument form `a`, the form
-/// the atom is equal to over the box, GATED — or `None` where the rule
-/// does not apply (not a perfect square, no certified sign, not
-/// enclosable). Only `Sqrt` and `Abs` are reached.
-pub(super) fn fold(
-    op: SymOp,
-    a: &Form,
-    params: &IndetMap<(f64, f64)>,
-    budget: SymBudget,
-) -> Option<Form> {
-    if a.poisoned || params.is_empty() {
-        return None;
-    }
-    // Enclosability first, and cheaply: the root's indeterminates are
-    // the argument's, so an argument carrying any id that is not a
-    // parameter or π (an atom, an opaque real, a frozen node) can never
-    // be signed, whatever else is true of it. This is the test nearly
-    // every argument of a real document fails, and it costs one pass
-    // over the ids where the polynomial root would cost the recurrence.
-    let enclosable = |p: &Poly| {
-        p.monos().all(|m| {
-            m.iter()
-                .all(|&(id, _)| id == INDET_PI || params.contains_key(&id))
-        })
-    };
-    if !(enclosable(&a.num) && enclosable(&a.den)) {
-        return None;
-    }
-    let (num, den) = match op {
-        SymOp::Sqrt => (poly_sqrt(&a.num, budget)?, poly_sqrt(&a.den, budget)?),
-        SymOp::Abs => (a.num.clone(), a.den.clone()),
-        _ => return None,
-    };
-    if den.is_zero() {
-        return None;
-    }
-    let positive = certified_sign(&num, &den, params)?;
-    let mut out = Form::quotient(num, den);
-    if !positive {
-        out = out.neg()?;
-    }
-    out.gated = true;
-    Some(out)
-}
-
 // ------------------------------------------------------------------
-// The DECISION READ (DECIDE-3): rule C's certified read, extended from
-// `sqrt`/`abs` to the decision door and to `min`/`max`.
+// The DECISION READ (DECIDE-3): the arm the decision door and
+// `min`/`max` take where the comparison is certified over the box.
 // ------------------------------------------------------------------
 
 /// π to the ring's own rounding — the one spelling, read by every
@@ -427,15 +339,6 @@ fn enclose_form_deep(
     q.is_certified().then_some(q)
 }
 
-/// The deep enclosure of one polynomial over the session's brackets —
-/// the door rule G's side-condition source 4 reads (`super::root`).
-pub(super) fn enclose_poly(p: &Poly, sess: &Session) -> Option<Interval> {
-    if sess.params.is_empty() {
-        return None;
-    }
-    enclose_deep(p, &sess.params, &sess.atoms, 0)
-}
-
 /// `p` with every manifestly POSITIVE indeterminate of its content
 /// divided out. A factor that is `> 0` wherever it has a value moves
 /// neither the sign of the product nor its zero set, and dividing it
@@ -471,11 +374,6 @@ fn strip_positive_content(p: &Poly, sess: &Session) -> Poly {
 /// instrument. Manifestly positive factors are
 /// stripped from both halves first: the sign of `P/Q` with `Q > 0` is
 /// the sign of `P`, and so is its zero set.
-///
-/// A fold through this is equal to the atom AT EVERY POINT OF THE BOX
-/// and not identically in the parameters, exactly as rule C's is, so
-/// the caller marks the form `gated` and the discharge is counted
-/// `sign_gated`.
 pub(super) fn decision(d: &Form, sess: &Session) -> Option<bool> {
     #[cfg(feature = "sym-profile-testing")]
     let (t0, mark) = (super::profile::clock(), super::profile::read_enclose_mark());
@@ -549,13 +447,11 @@ pub(super) fn order(
     let le = decision(&diff, sess);
     #[cfg(feature = "sym-profile-testing")]
     super::profile::read_in_order(false);
-    let mut out = match (op, le?) {
-        (SymOp::Max, true) | (SymOp::Min, false) => b.clone(),
-        (SymOp::Max, false) | (SymOp::Min, true) => a.clone(),
-        _ => return None,
-    };
-    out.gated = true;
-    Some(out)
+    match (op, le?) {
+        (SymOp::Max, true) | (SymOp::Min, false) => Some(b.clone()),
+        (SymOp::Max, false) | (SymOp::Min, true) => Some(a.clone()),
+        _ => None,
+    }
 }
 
 /// The read's INSTRUMENT (`sym-profile-testing` only): why one call of
@@ -844,52 +740,6 @@ mod tests {
         let mut two_a2 = Poly::zero();
         two_a2.insert(vec![(1, 2)], rat(2, 1)).unwrap();
         assert!(poly_sqrt(&two_a2, budget()).is_none());
-    }
-
-    fn params(r: (f64, f64)) -> IndetMap<(f64, f64)> {
-        let mut m = IndetMap::default();
-        m.insert(1, (0.5, 0.5));
-        m.insert(2, r);
-        m
-    }
-
-    #[test]
-    fn the_fold_takes_a_certified_positive_root_and_negates_a_negative_one() {
-        let (root, sq) = square_of_linear();
-        let a = Form::poly(sq);
-        // r in [1, 2]: a + 2r > 0 → sqrt folds to the root itself.
-        let f = fold(SymOp::Sqrt, &a, &params((1.0, 2.0)), budget()).unwrap();
-        assert!(f.gated);
-        assert_eq!(f.num, root);
-        // r in [-2, -1]: a + 2r < 0 → the fold is the NEGATED root.
-        let g = fold(SymOp::Sqrt, &a, &params((-2.0, -1.0)), budget()).unwrap();
-        assert!(g.gated);
-        assert_eq!(g.num, root.neg().unwrap());
-        // abs of the root itself folds the same way.
-        let h = fold(
-            SymOp::Abs,
-            &Form::poly(root.clone()),
-            &params((1.0, 2.0)),
-            budget(),
-        )
-        .unwrap();
-        assert_eq!(h.num, root);
-    }
-
-    #[test]
-    fn a_straddling_or_unknown_sign_never_folds() {
-        let (root, sq) = square_of_linear();
-        let a = Form::poly(sq);
-        // r in [-1, 1]: a + 2r straddles zero.
-        assert!(fold(SymOp::Sqrt, &a, &params((-1.0, 1.0)), budget()).is_none());
-        // An exact zero endpoint is not strictly signed either.
-        assert!(fold(SymOp::Sqrt, &a, &params((-0.25, 5.0)), budget()).is_none());
-        // No bracket for `r` at all: not enclosable.
-        let mut only_a = IndetMap::default();
-        only_a.insert(1u128, (0.5, 0.5));
-        assert!(fold(SymOp::Abs, &Form::poly(root), &only_a, budget()).is_none());
-        // An empty parameter table folds nothing.
-        assert!(fold(SymOp::Sqrt, &a, &IndetMap::default(), budget()).is_none());
     }
 
     #[test]

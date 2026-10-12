@@ -32,7 +32,7 @@ fn r1_a_symbolic_zero_at_sym_interval_retags_an_unrelated_probe_sample() {
         },
     );
     assert_eq!(out, Ok(Sign::Zero));
-    assert_eq!(counts.symbolic_zero, 1);
+    assert_eq!(counts.symbolic, 1);
     let samples = take_samples();
     assert_eq!(samples.len(), 1, "Interval records nothing: {samples:?}");
     println!("the unrelated sample now reads: {:?}", samples[0]);

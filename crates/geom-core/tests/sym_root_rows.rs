@@ -51,14 +51,12 @@ fn over(name: &str, lo: f64, hi: f64) -> Sym<Interval> {
     )
 }
 
-/// How the tier answered, as one word: the discharge kind where it
-/// discharged, the sign where the numeric channel answered, and the
-/// refusal otherwise.
+/// How the tier answered, as one word: `proven` where it discharged,
+/// the sign where the numeric channel answered, and the refusal
+/// otherwise.
 fn label(out: Result<Sign, geom_core::predicate::Indeterminate>, c: SymCounts) -> String {
     match out {
-        Ok(Sign::Zero) if c.symbolic_zero > 0 => "theorem".to_owned(),
-        Ok(Sign::Zero) if c.registered > 0 => "registered".to_owned(),
-        Ok(Sign::Zero) if c.sign_gated > 0 => "sign_gated".to_owned(),
+        Ok(Sign::Zero) if c.symbolic > 0 => "proven".to_owned(),
         Ok(s) => format!("numeric {s:?}"),
         Err(e) => format!("refused {:?}", e.margin),
     }
@@ -82,7 +80,7 @@ fn how(rules: SymRules, build: impl FnOnce() -> Sym<Interval>) -> (String, Optio
 /// says otherwise is the tier lying, whatever else the row is about.
 fn row(what: &str, (l, v): (String, Option<(f64, f64)>)) -> String {
     println!("  {what}: {l} enclosure {v:?}");
-    if l == "theorem" || l == "sign_gated" || l == "registered" {
+    if l == "proven" {
         let (lo, hi) = v.expect("a certified enclosure");
         assert!(
             lo <= 1e-9 && hi >= -1e-9,
@@ -145,7 +143,7 @@ fn a_dead_arm_root_licenses_no_split() {
         straddle(true),
     );
     assert_ne!(
-        planted, "theorem",
+        planted, "proven",
         "a root on the arm the door never takes may not license a split: {planted}"
     );
     assert_eq!(
@@ -214,14 +212,14 @@ fn the_content_is_canonical_over_its_odd_part() {
                 (x / lit(k)).sqrt() - (lit(k) * x).sqrt() / lit(k)
             }),
         );
-        assert_eq!(l, "theorem", "k = {k}");
+        assert_eq!(l, "proven", "k = {k}");
         let l = row(
             &format!("sqrt(1/{k}) * sqrt({k}) - 1"),
             how(SymRules::shipped(), || {
                 (lit(1.0) / lit(k)).sqrt() * lit(k).sqrt() - lit(1.0)
             }),
         );
-        assert_eq!(l, "theorem", "k = {k}");
+        assert_eq!(l, "proven", "k = {k}");
     }
 }
 
@@ -239,7 +237,7 @@ fn a_negative_denominator_keys_the_same_atom() {
             (x / (lit(-1.0) - y.powi(2))).sqrt() - ((-x) / (lit(1.0) + y.powi(2))).sqrt()
         }),
     );
-    assert_eq!(l, "theorem");
+    assert_eq!(l, "proven");
 }
 
 /// **The root's sign.** `sqrt(R²) = |R|` is minted on a SIGN-NORMALISED
@@ -261,7 +259,7 @@ fn the_root_of_a_square_is_sign_normalised() {
                 }
             }),
         );
-        assert_eq!(l, "theorem", "{name}");
+        assert_eq!(l, "proven", "{name}");
     }
 }
 
@@ -282,8 +280,8 @@ fn a_square_factor_under_a_non_square_root_is_not_split() {
         }),
     );
     assert_ne!(
-        l, "theorem",
-        "if this reads `theorem` the limitation is gone — delete the row"
+        l, "proven",
+        "if this reads `proven` the limitation is gone — delete the row"
     );
 }
 
@@ -304,7 +302,7 @@ fn the_walk_and_rule_ds_roots_are_one_atom() {
             x.atan().cos() * (lit(1.0) + x * x).sqrt() - lit(1.0)
         }),
     );
-    assert_eq!(l, "theorem");
+    assert_eq!(l, "proven");
     let l = row(
         "sin(atan x)·sqrt(1 + x·x) - x, x in [0.2, 0.8]",
         how(SymRules::shipped(), || {
@@ -312,7 +310,7 @@ fn the_walk_and_rule_ds_roots_are_one_atom() {
             x.atan().sin() * (lit(1.0) + x * x).sqrt() - x
         }),
     );
-    assert_eq!(l, "theorem");
+    assert_eq!(l, "proven");
 }
 
 /// **The registry's forms and the walk's are one atom.** A registrant
@@ -339,10 +337,20 @@ fn the_registrys_forms_and_the_walks_are_one_atom() {
         value.enclosure_probe()
     );
     assert_eq!(
-        l, "theorem",
+        l, "proven",
         "the two spellings meet in the WALK; the registration is not needed"
     );
-    assert_eq!(counts.registered, 0, "and the door is not what closed it");
+    let (shut, _) = how(
+        SymRules {
+            registered: false,
+            ..SymRules::shipped()
+        },
+        || {
+            let x = over("x", 1.0, 2.0);
+            (lit(4.0) * x).sqrt() - lit(2.0) * x.sqrt()
+        },
+    );
+    assert_eq!(shut, "proven", "and with the door shut it still meets");
 }
 
 /// **The identity the tilted document's candidate norms rest on**: a
@@ -365,7 +373,7 @@ fn a_root_over_a_quotient_meets_the_root_of_its_denominator() {
             }),
         );
         assert_eq!(
-            l, "theorem",
+            l, "proven",
             "the key is a function of the argument, not of the order (order {order})"
         );
         let l = row(
@@ -379,7 +387,7 @@ fn a_root_over_a_quotient_meets_the_root_of_its_denominator() {
                 (if order == 0 { q * r } else { r * q }) - p.abs()
             }),
         );
-        assert_eq!(l, "theorem", "order {order}");
+        assert_eq!(l, "proven", "order {order}");
     }
     // The candidate norm's shape on the tilted frame: a denominator
     // that is neither term-wise non-negative (the odd power of `t`)
@@ -394,16 +402,15 @@ fn a_root_over_a_quotient_meets_the_root_of_its_denominator() {
         }),
     );
     assert_eq!(
-        l, "theorem",
+        l, "proven",
         "the definite-quadratic source is what carries a candidate norm's denominator"
     );
 }
 
 /// **A denominator whose sign no FORM settles is not split**, and that
 /// is the whole of what dropping the atom-table source cost: `1/x` over
-/// a box where `x > 0` is true but not manifest. The honest answers
-/// are "refused" under the shipped set and a GATED read under rule C's
-/// dial, which is where a value read belongs.
+/// a box where `x > 0` is true but not manifest. A sign of the box is
+/// not a decision the construction took, so no dial reaches it.
 #[test]
 fn a_denominator_the_form_does_not_sign_is_not_split() {
     let shipped = row(
@@ -414,31 +421,28 @@ fn a_denominator_the_form_does_not_sign_is_not_split() {
         }),
     );
     assert_ne!(
-        shipped, "theorem",
+        shipped, "proven",
         "`x > 0` is a fact about the BOX here, and a theorem may not rest on one"
     );
-    let read = row(
-        "[rule C on] sqrt(1/x) * sqrt(x) - 1, x in [1,2]",
+    let all = row(
+        "[every rule on] sqrt(1/x) * sqrt(x) - 1, x in [1,2]",
         how(SymRules::all(), || {
             let x = over("x", 1.0, 2.0);
             (lit(1.0) / x).sqrt() * x.sqrt() - lit(1.0)
         }),
     );
-    assert_eq!(
-        read, "sign_gated",
-        "source 4 reads the box, so what it reaches is gated and never a theorem"
-    );
+    assert_ne!(all, "proven", "nor under every rule the tier has");
 }
 
 // ------------------------------------------------------------------
-// 4. The reads: what they answer and how they are counted
+// 4. The reads: what they answer
 // ------------------------------------------------------------------
 
-/// A certified decision is `sign_gated`, never a theorem; a decision
-/// the FORM settles stays a theorem; with the dial shut neither is
-/// reached.
+/// A certified decision is proven through the arm it takes; a decision
+/// the FORM settles is proven without the read; with the dial shut the
+/// certified one is not reached.
 #[test]
-fn a_certified_decision_is_gated_and_a_form_settled_one_is_not() {
+fn a_certified_decision_is_proven_and_the_read_is_its_dial() {
     let s = SymRules::shipped();
     for (what, l) in [
         (
@@ -476,16 +480,16 @@ fn a_certified_decision_is_gated_and_a_form_settled_one_is_not() {
             ),
         ),
     ] {
-        assert_eq!(l, "sign_gated", "{what}");
+        assert_eq!(l, "proven", "{what}");
     }
     let l = row(
-        "select(-1, a, b) - a — A0 settles it, so it stays a THEOREM",
+        "select(-1, a, b) - a — A0 settles it",
         how(s, || {
             let a = over("a", 3.0, 4.0);
             lit(-1.0).select_le_zero(a, a + lit(1.0)) - a
         }),
     );
-    assert_eq!(l, "theorem");
+    assert_eq!(l, "proven");
     let l = row(
         "[reads off] max(x, 3) - 3, x in [1,2]",
         how(SymRules::without_the_reads(), || {
@@ -494,8 +498,8 @@ fn a_certified_decision_is_gated_and_a_form_settled_one_is_not() {
         }),
     );
     assert_ne!(
-        l, "sign_gated",
-        "the read has a dial and it is the only gate"
+        l, "proven",
+        "the read has a dial, and shut it reaches nothing"
     );
 }
 
@@ -525,7 +529,7 @@ fn the_order_read_signs_a_minus_b_and_a_refused_difference_picks_no_arm() {
             x.max(y) - y
         }),
     ] {
-        assert_eq!(row(what, how(s, build)), "sign_gated", "{what}");
+        assert_eq!(row(what, how(s, build)), "proven", "{what}");
     }
     let tiny = SymBudget {
         max_terms: 4,
@@ -565,14 +569,12 @@ fn the_order_read_signs_a_minus_b_and_a_refused_difference_picks_no_arm() {
     }
 }
 
-/// **A comparison of two CONSTANTS is A0's, and it is a THEOREM.**
-/// `max(1, 1/4)` is arithmetic on the coefficient ring: the tier's
-/// ability to answer it may not depend on the leaf's box, and
-/// answering it as a gated READ would report a fact of the form as
-/// one conditional on a bracket. A0 folds it, so the discharge is
-/// `symbolic_zero`; with A0 shut nothing claims it.
+/// **A comparison of two CONSTANTS is A0's.** `max(1, 1/4)` is
+/// arithmetic on the coefficient ring: the tier's ability to answer it
+/// may not depend on the leaf's box. A0 folds it; with A0 and the read
+/// both shut nothing claims it.
 #[test]
-fn a_comparison_of_two_constants_is_a_theorem() {
+fn a_comparison_of_two_constants_is_a0s() {
     let l = row(
         "max(1, 1/4)·y - y, y in [3,4]",
         how(SymRules::shipped(), || {
@@ -580,20 +582,18 @@ fn a_comparison_of_two_constants_is_a_theorem() {
             lit(1.0).max(lit(0.25)) * y - y
         }),
     );
-    assert_eq!(
-        l, "theorem",
-        "an exact rational comparison reads no value, so what it reaches is a theorem"
-    );
+    assert_eq!(l, "proven", "an exact rational comparison");
     let l = row(
         "min(1, 1/4) - 1/4",
         how(SymRules::shipped(), || lit(1.0).min(lit(0.25)) - lit(0.25)),
     );
-    assert_eq!(l, "theorem");
+    assert_eq!(l, "proven");
     let l = row(
-        "[A0 off] max(1, 1/4)·y - y, y in [3,4]",
+        "[A0 and the read off] max(1, 1/4)·y - y, y in [3,4]",
         how(
             SymRules {
                 const_fold: false,
+                decision_read: false,
                 ..SymRules::shipped()
             },
             || {
@@ -602,30 +602,24 @@ fn a_comparison_of_two_constants_is_a_theorem() {
             },
         ),
     );
-    assert_ne!(l, "theorem", "A0 is the dial that decides it");
+    assert_ne!(l, "proven", "A0 and the read are the dials that decide it");
 }
 
-/// **A zero that does not depend on the read's arm is a theorem.**
-/// `dihedral_wedge`'s margin is `sin θ · arm`; at a tangent join `sin θ`
-/// is the zero form under the early walk's rules, and the lever arm is
-/// a `min` the read settles. `Z = sqrt(x)² − x` is zero the same way
-/// (rule A, early walk only — the plain form keeps the root), and
-/// `min(x, 3)` over `x ∈ [1, 2]` is the read's. A product with an
-/// ungated zero factor, and a `copysign` of one, rest on that zero
-/// alone; a zero the read itself reached stays `sign_gated`, through a
-/// product and through a `copysign` too.
+/// `Z = sqrt(x)² − x`: zero under rule A in the early walk, and only
+/// there — the plain form keeps the root.
+fn z(x: Sym<Interval>) -> Sym<Interval> {
+    x.sqrt().powi(2) - x
+}
+
+/// **A zero through the read's arm is a zero**, in a product and under
+/// a `copysign` as at the node itself. `dihedral_wedge`'s margin is
+/// `sin θ · arm`; at a tangent join `sin θ` is the zero form under the
+/// early walk's rules, and the lever arm is a `min` the read settles.
+/// With the read shut a zero that rests on the arm is not reached.
 #[test]
 fn a_zero_factor_times_a_read_factor() {
-    fn z(x: Sym<Interval>) -> Sym<Interval> {
-        x.sqrt().powi(2) - x
-    }
-    /// `(shape, its build, shipped, read shut)`.
-    type Shape = (
-        &'static str,
-        fn() -> Sym<Interval>,
-        &'static str,
-        &'static str,
-    );
+    /// `(shape, its build, proven with the read on, with it shut)`.
+    type Shape = (&'static str, fn() -> Sym<Interval>, bool, bool);
     let shapes: [Shape; 6] = [
         (
             "Z · min(x, 3)",
@@ -633,8 +627,8 @@ fn a_zero_factor_times_a_read_factor() {
                 let x = over("x", 1.0, 2.0);
                 z(x) * x.min(lit(3.0))
             },
-            "theorem",
-            "theorem",
+            true,
+            true,
         ),
         (
             "copysign(Z, min(x, 3) - 3/2)",
@@ -642,8 +636,8 @@ fn a_zero_factor_times_a_read_factor() {
                 let x = over("x", 1.0, 2.0);
                 z(x).copysign(x.min(lit(3.0)) - lit(1.5))
             },
-            "theorem",
-            "theorem",
+            true,
+            true,
         ),
         (
             "Z · (min(x, 3) - x)",
@@ -651,8 +645,8 @@ fn a_zero_factor_times_a_read_factor() {
                 let x = over("x", 1.0, 2.0);
                 z(x) * (x.min(lit(3.0)) - x)
             },
-            "theorem",
-            "theorem",
+            true,
+            true,
         ),
         (
             "(min(x, 3) - x) · y",
@@ -661,8 +655,8 @@ fn a_zero_factor_times_a_read_factor() {
                 let y = over("y", 3.0, 4.0);
                 (x.min(lit(3.0)) - x) * y
             },
-            "sign_gated",
-            "refused",
+            true,
+            false,
         ),
         (
             "min(x, 3) - x",
@@ -670,8 +664,8 @@ fn a_zero_factor_times_a_read_factor() {
                 let x = over("x", 1.0, 2.0);
                 x.min(lit(3.0)) - x
             },
-            "sign_gated",
-            "refused",
+            true,
+            false,
         ),
         (
             "copysign(min(x, 3) - x, y)",
@@ -680,17 +674,16 @@ fn a_zero_factor_times_a_read_factor() {
                 let y = over("y", 3.0, 4.0);
                 (x.min(lit(3.0)) - x).copysign(y)
             },
-            "sign_gated",
-            "refused",
+            true,
+            false,
         ),
     ];
-    for (what, build, shipped, shut) in shapes {
-        let on = row(what, how(SymRules::shipped(), build));
-        let off = row(what, how(SymRules::without_the_reads(), build));
-        assert!(
-            on.starts_with(shipped) && off.starts_with(shut),
-            "{what}: shipped {on} (want {shipped}), read shut {off} (want {shut})"
+    for (what, build, on, off) in shapes {
+        let got = (
+            row(what, how(SymRules::shipped(), build)) == "proven",
+            row(what, how(SymRules::without_the_reads(), build)) == "proven",
         );
+        assert_eq!(got, (on, off), "{what}: (read on, read shut) proven");
     }
 }
 
@@ -703,63 +696,219 @@ fn the_drive_memo_key_carries_both_new_dials() {
     assert!(!m.accepts(budget(), SymRules::without_canonical_root()));
 }
 
-/// **The pin of a filed defect**
-/// (`work/decide/the-read-at-its-node-relabels-a-cancellation-above-it`):
-/// the read answers a `max` at its own node, ahead of a cancellation its
-/// parent would make. `x + Z` and `x` are two nodes whose early forms are
-/// equal (`Z = sqrt(x)² − x` is zero under rule A), so with the read shut
-/// their `max` atoms are one indeterminate and the difference is a
-/// theorem; with it on each `max` is read first and the zero is
-/// `sign_gated`. This row holds today's behaviour; the unit that fixes
-/// the defect flips its first label to `theorem`.
-#[test]
-fn the_read_relabels_a_cancellation_above_its_node_filed_defect() {
-    let build = || {
-        let x = over("x", 1.0, 2.0);
-        let z = x.sqrt().powi(2) - x;
-        (x + z).max(lit(3.0)) - x.max(lit(3.0))
-    };
-    let on = row("max(x + Z, 3) - max(x, 3)", how(SymRules::shipped(), build));
-    let off = row(
-        "[read shut] max(x + Z, 3) - max(x, 3)",
-        how(SymRules::without_the_reads(), build),
-    );
-    assert!(
-        on == "sign_gated" && off == "theorem",
-        "the filed defect's shape: shipped {on} (pinned sign_gated), read shut {off} (theorem)"
-    );
+// ------------------------------------------------------------------
+// 5. The read at its node, under a cancellation above it
+// ------------------------------------------------------------------
+
+/// `(read on, read shut)`: whether the tier proves the shape zero with
+/// the decision read on and with it shut.
+fn proven_both(what: &str, build: fn() -> Sym<Interval>) -> (bool, bool) {
+    (
+        row(what, how(SymRules::shipped(), build)) == "proven",
+        row(
+            &format!("[read shut] {what}"),
+            how(SymRules::without_the_reads(), build),
+        ) == "proven",
+    )
 }
 
-/// **A registered zero times a read factor discharges through the
-/// door.** `x·x` registered equal to `x` over `[0.9, 1.1]` makes
-/// `x·x − x` the zero form in the door walk alone, and ungated: the
-/// product with `min(x, 3)`, which the read settles, rests on that zero
-/// and is `registered` with the read on as with it shut. A door form
-/// that is gated does not discharge (`rungs`), so with the product
-/// carrying the read's gate this decision fell to the numeric channel.
+/// **The read answers at its node, and a zero is a zero.** `x + Z` and
+/// `x` are two nodes with one early form. With the read shut a `min`,
+/// `max` or `Select` over each is ONE atom and their difference
+/// cancels; with it on each node is read at itself and the same zero
+/// arrives through the two arms. Either way the decision is proven. One
+/// shape per placement of the cancellation (S1–S8, S10, S11 of
+/// `work/decide/the-read-at-its-node-relabels-a-cancellation-above-it`):
+/// at the node's parent, through a `Select`, one level up, under an
+/// atom, nested, and through a product. S8 is the atom whose argument
+/// the read moved: an atom is keyed by its argument's polynomial, so
+/// `atan` of the read-on `x` is `atan(x)`.
 #[test]
-fn a_registered_zero_times_a_read_factor_is_registered() {
+fn a_cancellation_above_the_read_is_proven_with_the_read_on_and_shut() {
+    type Shape = (&'static str, fn() -> Sym<Interval>);
+    let shapes: [Shape; 10] = [
+        ("S1 max(x + Z, 3) - max(x, 3)", || {
+            let x = over("x", 1.0, 2.0);
+            (x + z(x)).max(lit(3.0)) - x.max(lit(3.0))
+        }),
+        ("S2 min(x + Z, 3) - min(x, 3)", || {
+            let x = over("x", 1.0, 2.0);
+            (x + z(x)).min(lit(3.0)) - x.min(lit(3.0))
+        }),
+        ("S3 max(x + Z, y) - max(x, y)", || {
+            let (x, y) = (over("x", 1.0, 2.0), over("y", 3.0, 4.0));
+            (x + z(x)).max(y) - x.max(y)
+        }),
+        (
+            "S4 select(x - 3 + Z, y, y + 1) - select(x - 3, y, y + 1)",
+            || {
+                let (x, y) = (over("x", 1.0, 2.0), over("y", 3.0, 4.0));
+                (x - lit(3.0) + z(x)).select_le_zero(y, y + lit(1.0))
+                    - (x - lit(3.0)).select_le_zero(y, y + lit(1.0))
+            },
+        ),
+        ("S5 (max(x + Z, 3) + 1) - (max(x, 3) + 1)", || {
+            let x = over("x", 1.0, 2.0);
+            ((x + z(x)).max(lit(3.0)) + lit(1.0)) - (x.max(lit(3.0)) + lit(1.0))
+        }),
+        ("S6 atan(max(x + Z, 3)) - atan(max(x, 3))", || {
+            let x = over("x", 1.0, 2.0);
+            (x + z(x)).max(lit(3.0)).atan() - x.max(lit(3.0)).atan()
+        }),
+        ("S7 max(max(x + Z, 3), y) - max(max(x, 3), y)", || {
+            let (x, y) = (over("x", 1.0, 2.0), over("y", 3.0, 4.0));
+            (x + z(x)).max(lit(3.0)).max(y) - x.max(lit(3.0)).max(y)
+        }),
+        ("S8 atan(max(x + Z, 3) - max(x, 3) + x) - atan(x)", || {
+            let x = over("x", 1.0, 2.0);
+            ((x + z(x)).max(lit(3.0)) - x.max(lit(3.0)) + x).atan() - x.atan()
+        }),
+        (
+            "S10 atan(select(x - 3 + Z, y, y + 1)) - atan(select(x - 3, y, y + 1))",
+            || {
+                let (x, y) = (over("x", 1.0, 2.0), over("y", 3.0, 4.0));
+                (x - lit(3.0) + z(x)).select_le_zero(y, y + lit(1.0)).atan()
+                    - (x - lit(3.0)).select_le_zero(y, y + lit(1.0)).atan()
+            },
+        ),
+        ("S11 (max(x + Z, 3) - max(x, 3)) · y", || {
+            let (x, y) = (over("x", 1.0, 2.0), over("y", 3.0, 4.0));
+            ((x + z(x)).max(lit(3.0)) - x.max(lit(3.0))) * y
+        }),
+    ];
+    for (what, build) in shapes {
+        assert_eq!(
+            proven_both(what, build),
+            (true, true),
+            "{what}: (read on, read shut) proven"
+        );
+    }
+}
+
+/// **What only the read answers** (C1–C7): comparisons no form settles.
+/// Each is proven with the read on and not with it shut, which is what
+/// the read buys. C6 is the atom over an argument the read settled: its
+/// key is the argument's polynomial, the constant `3`, so it is the
+/// atom `atan(3)` the other side mints.
+#[test]
+fn what_only_the_read_answers() {
+    type Shape = (&'static str, fn() -> Sym<Interval>);
+    let shapes: [Shape; 7] = [
+        ("C1 max(x, 3) - 3", || {
+            let x = over("x", 1.0, 2.0);
+            x.max(lit(3.0)) - lit(3.0)
+        }),
+        ("C2 max(x + Z, 3) - 3", || {
+            let x = over("x", 1.0, 2.0);
+            (x + z(x)).max(lit(3.0)) - lit(3.0)
+        }),
+        ("C3 max(x + Z, 3) - max(x, 3) + max(x, 3) - 3", || {
+            let x = over("x", 1.0, 2.0);
+            (x + z(x)).max(lit(3.0)) - x.max(lit(3.0)) + x.max(lit(3.0)) - lit(3.0)
+        }),
+        ("C4 min(x, y) - x", || {
+            let (x, y) = (over("x", 1.0, 2.0), over("y", 3.0, 4.0));
+            x.min(y) - x
+        }),
+        ("C5 max(select(x - 3, y, y + 1), 5) - 5", || {
+            let (x, y) = (over("x", 1.0, 2.0), over("y", 3.0, 4.0));
+            (x - lit(3.0)).select_le_zero(y, y + lit(1.0)).max(lit(5.0)) - lit(5.0)
+        }),
+        ("C6 atan(max(x, 3)) - atan(3)", || {
+            let x = over("x", 1.0, 2.0);
+            x.max(lit(3.0)).atan() - lit(3.0).atan()
+        }),
+        ("C7 max(x, 3)·y - 3·y", || {
+            let (x, y) = (over("x", 1.0, 2.0), over("y", 3.0, 4.0));
+            x.max(lit(3.0)) * y - lit(3.0) * y
+        }),
+    ];
+    for (what, build) in shapes {
+        assert_eq!(
+            proven_both(what, build),
+            (true, false),
+            "{what}: (read on, read shut) proven"
+        );
+    }
+}
+
+/// **A freeze keyed by its node (S13).** At a four-term budget the
+/// read's arm `P = x + y + w` makes `P · Q` six terms, so both products
+/// freeze, each to its own node's indeterminate, and the difference is
+/// not the zero form. With the read shut both products are `M · Q` over
+/// one atom `M` and cancel. The read-on refusal is filed
+/// (`work/decide/a-freeze-keyed-by-its-node-hides-a-cancellation-above-the-read`).
+#[test]
+fn a_cancellation_above_a_frozen_read_is_refused_with_the_read_on() {
+    let tiny = SymBudget {
+        max_terms: 4,
+        max_degree: 128,
+    };
+    let mut got = Vec::new();
     for (dial, rules) in [
         ("shipped", SymRules::shipped()),
         ("read shut", SymRules::without_the_reads()),
     ] {
-        let (out, counts) = with_session_rules(budget(), rules, || {
-            let x = over("x", 0.9, 1.1);
-            let sq = x * x;
-            let reg = sq.register_equal(x, Tol::witness());
-            assert!(
-                matches!(reg, geom_core::sym::SymRegistration::Recorded),
-                "the registration is recorded: {reg:?}"
-            );
-            let m = (sq - x) * x.min(lit(3.0));
-            geom_core::k_stats::decide("sym_root_rows", Margin::of(m), band())
+        let ((out, value), counts) = with_session_rules(tiny, rules, || {
+            let x = over("x", 1.0, 2.0);
+            let p = x + over("y", 3.0, 4.0) + over("w", 3.0, 4.0);
+            let q = over("u", 1.0, 2.0) + over("v", 1.0, 2.0);
+            let m = (x + z(x)).max(p) * q - x.max(p) * q;
+            (
+                geom_core::k_stats::decide("sym_root_rows", Margin::of(m), band()),
+                m.value,
+            )
         });
-        let l = label(out, counts);
-        println!("  (x·x registered = x) · min(x, 3), {dial}: {l} {counts:?}");
-        assert_eq!(
-            (l.as_str(), counts.registered),
-            ("registered", 1),
-            "{dial}: the door's zero is ungated, so the product with a read factor is registered"
-        );
+        let what = format!("S13 [4 terms, {dial}] max(x + Z, P)·Q - max(x, P)·Q");
+        got.push(row(&what, (label(out, counts), value.enclosure_probe())) == "proven");
+    }
+    assert_eq!(got, [false, true], "(read on, read shut) proven");
+}
+
+/// **The door's instances** (S9, S12): `x·x` registered equal to `x`
+/// over `[0.9, 1.1]`.
+/// - S9 `max(x·x, 3) − max(x, 3)`: the read settles it at the early
+///   rung (`3 − 3` over the box); with the read shut the door does.
+/// - S12 `(max(x·x, 3) − max(x, 3)) + (x·x − x)`: zero in the door walk
+///   alone, with the read on as with it shut.
+/// - `(x·x − x) · min(x, 3)`: the door's zero times a factor the read
+///   settles.
+#[test]
+fn the_doors_zero_beside_the_read_is_proven() {
+    type Build = fn(Sym<Interval>, Sym<Interval>) -> Sym<Interval>;
+    let cases: [(&str, Build); 3] = [
+        ("S9 max(x·x, 3) - max(x, 3)", |sq, x| {
+            sq.max(lit(3.0)) - x.max(lit(3.0))
+        }),
+        ("S12 (max(x·x, 3) - max(x, 3)) + (x·x - x)", |sq, x| {
+            (sq.max(lit(3.0)) - x.max(lit(3.0))) + (sq - x)
+        }),
+        ("(x·x - x) · min(x, 3)", |sq, x| {
+            (sq - x) * x.min(lit(3.0))
+        }),
+    ];
+    for (what, build) in cases {
+        for (dial, rules) in [
+            ("shipped", SymRules::shipped()),
+            ("read shut", SymRules::without_the_reads()),
+        ] {
+            let ((out, value), counts) = with_session_rules(budget(), rules, || {
+                let x = over("x", 0.9, 1.1);
+                let sq = x * x;
+                let reg = sq.register_equal(x, Tol::witness());
+                assert!(
+                    matches!(reg, geom_core::sym::SymRegistration::Recorded),
+                    "the registration is recorded: {reg:?}"
+                );
+                let m = build(sq, x);
+                (
+                    geom_core::k_stats::decide("sym_root_rows", Margin::of(m), band()),
+                    m.value,
+                )
+            });
+            let what = format!("[x·x = x, {dial}] {what}");
+            let l = row(&what, (label(out, counts), value.enclosure_probe()));
+            assert_eq!(l, "proven", "{what}: {counts:?}");
+        }
     }
 }

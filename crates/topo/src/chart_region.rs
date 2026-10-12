@@ -3795,7 +3795,7 @@ mod tests {
             "the band's ends are the corners' expressions, re-valued at the moved parameters"
         );
         assert_eq!(
-            counts.symbolic_zero, 1,
+            counts.symbolic, 1,
             "the span (u0 + τ) − u0 − τ is the zero polynomial in the seam parameter"
         );
     }

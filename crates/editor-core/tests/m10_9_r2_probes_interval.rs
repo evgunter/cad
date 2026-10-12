@@ -532,9 +532,15 @@ fn r2_link_end_to_end_with_and_without_the_door() {
         tol,
     );
     assert!(refusal.is_none(), "{refusal:?}");
+    let (_, _, shut_counts) = replay(
+        &certifying,
+        &ParamBox::of(&analyzed),
+        SymRules::shipped_without_the_door(),
+        tol,
+    );
     assert!(
-        counts.registered > 0,
-        "the door registers on the link: {counts:?}"
+        counts.symbolic > shut_counts.symbolic,
+        "the door discharges on the link: {counts:?} against {shut_counts:?}"
     );
     println!("   link at 0.5x its ceiling, door on: {counts:?}");
 }
@@ -566,10 +572,7 @@ fn envelopes(shapes: &[geom_core::sym::report::DecisionShape]) -> BTreeMap<&'sta
             numeric: 0,
         });
         e.n += 1;
-        if matches!(
-            s.outcome,
-            ShapeOutcome::Theorem | ShapeOutcome::SignGated | ShapeOutcome::Registered
-        ) {
+        if s.outcome == ShapeOutcome::Symbolic {
             continue;
         }
         e.numeric += 1;
@@ -874,13 +877,6 @@ fn r2_evidence_r1_bracket_frozen_moves_with_the_door() {
             *split.entry(format!("{:?}", s.outcome)).or_default() += 1;
         }
         println!("== r1 bracket 0.5mm {label}: {counts:?}\n   refusal {refusal:?}\n   {split:?}");
-        for s in shapes
-            .iter()
-            .filter(|s| matches!(s.outcome, ShapeOutcome::Registered))
-            .take(3)
-        {
-            println!("   registered: {}", s.predicate);
-        }
         let last: Vec<String> = shapes
             .iter()
             .rev()

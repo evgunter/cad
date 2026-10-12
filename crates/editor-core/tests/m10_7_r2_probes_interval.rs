@@ -385,7 +385,7 @@ fn r2_a_zero_term_budget_reproduces_the_tier_off_verdict() {
     // tier-off run installs no session and counts nothing.
     let strip = |s: &str| {
         s.lines()
-            .filter(|l| !l.starts_with("decisions symbolic_zero"))
+            .filter(|l| !l.starts_with("decisions symbolic="))
             .collect::<Vec<_>>()
             .join("\n")
     };

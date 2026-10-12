@@ -304,7 +304,7 @@ pub struct SymbolicDials {
     ///
     /// It can only ADD: a retry is asked only where every rung of the
     /// first attempt declined, so no dial value here moves a decision
-    /// out of `symbolic_zero`, `sign_gated` or `registered`.
+    /// the first attempt answered.
     pub retry: geom_core::SymRetry,
 }
 
@@ -856,7 +856,7 @@ impl ParamBoxVerdict {
     }
 
     /// **The E12 receipt**: how this drive's predicate decisions were
-    /// answered, summed over every leaf — `symbolic_zero` against
+    /// answered, summed over every leaf — `symbolic` against
     /// `numeric`, with `frozen` beside them.
     ///
     /// **`frozen` is the odd one out**: the decision columns are sums
@@ -952,24 +952,11 @@ impl ParamBoxVerdict {
         if self.decisions != SymCounts::default() {
             let _ = write!(
                 s,
-                "decisions symbolic_zero={} numeric={} frozen={}",
-                self.decisions.symbolic_zero, self.decisions.numeric, self.decisions.frozen
+                "decisions symbolic={} numeric={} frozen={}",
+                self.decisions.symbolic, self.decisions.numeric, self.decisions.frozen
             );
-            // The clause-3 count by the same rule as the line itself:
-            // present only when there is one, so a drive with that rule
-            // off serializes the pre-algebra line byte for byte.
-            if self.decisions.sign_gated != 0 {
-                let _ = write!(s, " sign_gated={}", self.decisions.sign_gated);
-            }
-            // And the registered-identity count (M10-9) by the same
-            // rule again, so a drive over straight geometry — where no
-            // constructor registers anything — serializes M10-8's line
-            // byte for byte.
-            if self.decisions.registered != 0 {
-                let _ = write!(s, " registered={}", self.decisions.registered);
-            }
-            // The door's two REFUSAL columns, by the same
-            // present-only-when-nonzero rule: a registration the witness
+            // The door's two REFUSAL columns, present only when non-zero:
+            // a registration the witness
             // separated, and a registered zero the enclosure
             // contradicted. Zero on every document that behaves, so a
             // clean drive serializes what it serialized before.
@@ -995,9 +982,9 @@ impl ParamBoxVerdict {
             // existed. At the nominal it closes something on two of the
             // five documents SYM-9 measured (R2's link and bracket).
             //
-            // It is not a fourth discharge column: those three are
-            // where a retry's answer lands, and this says how many of
-            // them the second attempt is holding up.
+            // It is not a second discharge column: a retry's answer
+            // lands in `symbolic`, and this says how many of those the
+            // second attempt is holding up.
             if self.decisions.retried != 0 {
                 let _ = write!(s, " retried={}", self.decisions.retried);
             }
@@ -1060,33 +1047,15 @@ impl ParamBoxVerdict {
             let share = if total == 0 {
                 0.0
             } else {
-                100.0 * (d.symbolic_zero as f64) / (total as f64)
+                100.0 * (d.symbolic as f64) / (total as f64)
             };
             let _ = write!(
                 s,
-                "  {} of {total} decisions were symbolic identities ({share:.1}%)",
-                d.symbolic_zero
+                "  {} of {total} decisions were proven zero by the symbolic tier ({share:.1}%)",
+                d.symbolic
             );
-            // The clause-3 count only where there is one (rule C off, or
-            // nothing folded, prints the pre-algebra line).
-            if d.sign_gated != 0 {
-                let _ = write!(s, ", {} more by a certified sign", d.sign_gated);
-            }
-            // The registered identities (M10-9), by the same rule and
-            // named for what they are: not identities the tier PROVED
-            // but identities a constructor STATED and the leaf's
-            // witness checked.
-            if d.registered != 0 {
-                let _ = write!(
-                    s,
-                    ", {} more by a constructor's registered identity",
-                    d.registered
-                );
-            }
-            // How many of the discharges named above a retry carried —
-            // a clause of its own and not a parenthesis on the last
-            // column, because a retry's zero lands in whichever column
-            // its rung writes (`geom_core::SymCounts::retried`).
+            // How many of those a retry carried
+            // (`geom_core::SymCounts::retried`).
             if d.retried != 0 {
                 let _ = write!(
                     s,
