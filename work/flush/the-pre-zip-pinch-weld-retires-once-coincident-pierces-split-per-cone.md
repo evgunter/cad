@@ -2,13 +2,14 @@
 id: the-pre-zip-pinch-weld-retires-once-coincident-pierces-split-per-cone
 kind: issue
 title: The pre-zip pinch weld (finish::weld_pinches) stays as the repair of an operand's coincident pierces; it retires once those split per cone (D10 ground)
-status: review
+status: closed
 opened: 2026-10-06
 priority: P1
 cost: H
 refs: [4139, a-hole-weld-cannot-tell-a-figure-eight-hole-from-an-island-face]
 branch: flush/pinch-cluster
 pr: 4728
+closed: 2026-10-12
 ---
 
 
@@ -216,3 +217,7 @@ Not taken:
 `yx S` to `ZipCorrespondence` (23 `asym asym` `OK BAD`, 13 `Ltop asym`
 `ResultInvalid`). No line leaves `SOUND`. The other eight batteries
 are byte-identical.
+
+## Closed (2026-10-12, PR 4728)
+
+The pre-zip weld is retired, together with `weld_pinches`, `pinch_site`, `corners_nest`, `Joint::Hole` and the weld rows. The pierces of one face at one point now mint one ring (`vtxfac::ring_groups`, a union-find over `one_vertex_at`). The pinch keeps one point key (PR 4057). Every value-decided grouping that leaves the cones distinct is recorded at the door as a `VertexFusion` row, with its margin and a citing vertex-vertex record, and the `unproven-coincidence` lint reports it (D10, ruling B). Of the `dbl` battery's 2160 lines, 1152 move to SOUND and none leave SOUND. 36 lines that were wrong bodies or `ResultInvalid` now refuse `ZipCorrespondence`; that is the P2 `a-cube-less-a-pinched-operand-piercing-its-face-refuses-the-split-cones-re-pair`. Review: a dual concurrent pair (`docs/dual-review-log/rows/PR-4728.md`); both reviewers raised the same MAJOR, then confirmed the fix pass. A value glue into one vertex records no row; whether it owes one is filed at `work/intent/a-boolean-value-glue-into-one-vertex-records-no-coincidence.md`.

@@ -2,12 +2,13 @@
 id: a-hole-weld-cannot-tell-a-figure-eight-hole-from-an-island-face
 kind: issue
 title: Joint::Hole reads only 'one ring holds both copies': it cannot tell a figure-8 hole from an island face pinched inside the hole, and weld_pinches now takes it on an unreached path
-status: review
+status: closed
 opened: 2026-10-04
 priority: P2
 cost: M
 branch: flush/pinch-cluster
 pr: 4728
+closed: 2026-10-12
 ---
 
 
@@ -89,3 +90,7 @@ order), and sweep
 `join_pierce_runs_sweep::an_island_face_pinched_to_its_holes_ring_stays_its_own_face`
 and `…an_island_pinched_twice_to_its_holes_ring_stays_its_own_face`,
 pass unchanged.
+
+## Closed (2026-10-12, PR 4728)
+
+Dissolved: PR 4728 retires `Joint::Hole` together with the pre-zip weld, so the shape it could not tell apart is no longer welded.

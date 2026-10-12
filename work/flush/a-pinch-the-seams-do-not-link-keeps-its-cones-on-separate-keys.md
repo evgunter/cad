@@ -2,7 +2,7 @@
 id: a-pinch-the-seams-do-not-link-keeps-its-cones-on-separate-keys
 kind: issue
 title: A pinch whose keys no seam ties keeps its cones on separate point keys
-status: dispatched
+status: open
 priority: P2
 cost: M
 refs: [4207]
