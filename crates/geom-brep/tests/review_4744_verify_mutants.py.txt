@@ -1,0 +1,42 @@
+import subprocess,sys,os
+W='/home/user/wt4744v'
+F=W+'/crates/geom-brep/src/props/curved.rs'
+orig=open(F).read()
+L='+ m(w, bm).abs() * T::from_f64(2.0) * y_max\n'
+M={
+'tilt_first_order':('n_c.cross(axis).norm() * sin_a + (T::one() - cos_t) * cos_a,','n_c.cross(axis).norm() * sin_a,'),
+'tilt_old_rim_parallel':('n_c.cross(axis).norm() * sin_a + (T::one() - cos_t) * cos_a,','n_c.cross(axis).norm(),'),
+'offaxis_no_cos':('Margin::levered(cos_a, (w - axis * w.dot(axis)).norm())','Margin::levered(T::one(), (w - axis * w.dot(axis)).norm())'),
+'generator_by_span':('(e.p0() - apex).norm().max((e.p1() - apex).norm()),','e.t1 - e.t0,'),
+'generator_by_near_end':('(e.p0() - apex).norm().max((e.p1() - apex).norm()),','(e.p0() - apex).norm().min((e.p1() - apex).norm()),'),
+'drop_ellipse_span':('Curve3::Ellipse { major, minor, .. } => require_span_within_period(','Curve3::Ellipse { major, minor, .. } if false => require_span_within_period('),
+'drop_ellipse_incidence':('Curve3::Ellipse { .. } => require_cone_ellipse(apex, axis, sin_a, cos_a, e, band),','Curve3::Ellipse { .. } => Ok(()),'),
+'ellipse_span_meter_major':('major.abs().min(minor),','major.abs().max(minor),'),
+'one_piece':[('T::from_f64(128.0)','T::from_f64(1.0)'),('for k in 0..128 {','for k in 0..1 {')],
+'pieces_16':[('T::from_f64(128.0)','T::from_f64(16.0)'),('for k in 0..128 {','for k in 0..16 {')],
+'drop_ky':('            '+L,''),
+'ky_halved':(L,'+ m(w, bm).abs() * y_max\n'),
+'drop_kx':('+ (m(w, am) - mbb).abs() * T::from_f64(2.0) * x_max\n            ',''),
+'drop_kxx':('+ (m(am, am) - mbb).abs() * x_max.powi(2)\n            ',''),
+'drop_kxy':('\n            + m(am, bm).abs() * T::from_f64(2.0) * x_max * y_max;',';'),
+'rho_low_is_mid':('let rho_low = (rho - perp(am).norm() * x_max - perp(bm).norm() * y_max).max(T::zero());','let rho_low = rho;'),
+'h_low_is_mid':('let h = (hm.abs() - ha.abs() * x_max - hb.abs() * y_max)\n            .max((hm - ha).abs() - (ha.powi(2) + hb.powi(2)).sqrt());','let h = hm.abs();'),
+'h_only_global':('let h = (hm.abs() - ha.abs() * x_max - hb.abs() * y_max)\n            .max((hm - ha).abs() - (ha.powi(2) + hb.powi(2)).sqrt());','let h = (hm - ha).abs() - (ha.powi(2) + hb.powi(2)).sqrt();'),
+'drop_nappe':('!= Sign::Positive\n','== Sign::Zero && false\n'),
+}
+names=sys.argv[1:] or list(M)
+env=dict(os.environ,CARGO_TARGET_DIR='/home/user/tgt4744m',CAD_TOLERANCE_EPS='1e-6')
+for n in names:
+    reps=M[n] if isinstance(M[n],list) else [M[n]]
+    s=orig
+    for a,b in reps:
+        assert s.count(a)==1,(n,a,s.count(a)); s=s.replace(a,b)
+    open(F,'w').write(s)
+    try:
+        r=subprocess.run(['cargo','test','-q','-p','geom-brep','--test','all','--','props_cone','stored_span_winding_bound','incidence','review_4744_verify::verify_threshold','review_4744_verify::verify_soundness'],cwd=W,env=env,capture_output=True,text=True,timeout=3000)
+        out=r.stdout+r.stderr
+        fails=sorted(set(l.split()[1] for l in out.splitlines() if l.startswith('test ') and l.strip().endswith('FAILED')))
+        res=[l for l in out.splitlines() if 'test result' in l or l.startswith('error') or 'THRESH b' in l or 'SOUND' in l]
+        print(n,'|',res,'|',fails,flush=True)
+    finally:
+        open(F,'w').write(orig)

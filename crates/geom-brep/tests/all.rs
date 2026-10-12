@@ -135,6 +135,12 @@ mod pn_apex_reach;
 mod props_cone_apex_cap;
 #[path = "props_cone_incidence.rs"]
 mod props_cone_incidence;
+#[path = "review_4696_r2.rs"]
+mod review_4696_r2;
+#[path = "review_4744_probes.rs"]
+mod review_4744_probes;
+#[path = "review_4744_verify.rs"]
+mod review_4744_verify;
 #[path = "props_cone_ring.rs"]
 mod props_cone_ring;
 #[path = "props_cone_vector_area.rs"]
