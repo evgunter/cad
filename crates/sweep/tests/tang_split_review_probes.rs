@@ -422,7 +422,7 @@ fn report(name: &str, fails: &[String], tally: &Tally) {
         tally.max_image_off,
         fails.len()
     );
-    for f in fails.iter().take(40) {
+    for f in fails {
         eprintln!("  FAIL {f}");
     }
     assert!(fails.is_empty(), "{name}: {} failures", fails.len());
@@ -637,4 +637,33 @@ fn probe_both_faces_curved() {
         eprintln!("  FAIL {f}");
     }
     assert!(fails.is_empty());
+}
+
+/// How the new refusals render to a user (D4: one message, one recourse).
+#[test]
+fn probe_refusal_rendering() {
+    let eps = tol().eps();
+    let unit = (2.0 * eps).sqrt();
+    let wall = match topo::split(
+        &shoulder(1.0, 0.0),
+        &topo::test_support::split_plane(Point3::new(0.0, 1.0, 0.0), Vec3::new(0.0, -1.0, 0.0), tol()),
+        tol(),
+    )
+    .unwrap()
+    .above
+    {
+        topo::SplitPart::Body(b) => finished("wall", b, tol()),
+        topo::SplitPart::Empty => panic!(),
+    };
+    for c in [1.01, 1.5, 3.0] {
+        let plane = topo::test_support::split_plane(
+            Point3::new(0.0, 0.0, c * unit),
+            Vec3::new(0.0, 0.0, 1.0),
+            tol(),
+        );
+        match topo::split(&wall, &plane, tol()) {
+            Err(e) => eprintln!("RENDER c={c}: {e}"),
+            Ok(_) => eprintln!("RENDER c={c}: cut"),
+        }
+    }
 }
