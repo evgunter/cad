@@ -7,6 +7,7 @@ opened: 2026-09-22
 priority: P1
 cost: D
 refs: [SYM-14]
+needs_ev: true
 ---
 
 
@@ -69,3 +70,39 @@ plain lane's refusal is the designed answer.
 ## Home
 
 SYM — the tier's reach on a construction Ev asked for.
+
+## Question
+
+What the plain interval lane owes a rigid placement whose angle is an
+interval, and where rigidity is known.
+
+SYM-17's Phase 1 measured the cause; it is on branch
+`sym/17-rotation-readout`, with the probe on `sym/17-probe`.
+`topo::transform_rigid` re-derives rigidity from the matrix entries.
+`cos` and `sin` are independent brackets, so column orthogonality
+misses by about ±6σ. The plain lane therefore carries only an angle
+box narrower than about ε/2 rad. On main the symbolic lane certifies
+the one-link chain over the whole study at σ = 0.01.
+
+Phase 1's own pick was (c): state that a widened angle is
+symbolic-tier-only, and have the refusal name that cause.
+
+Two designers weighed the question independently and converged after
+one round. Both recommend a rigid-motion witness type `Rigid3<T>` in
+`geom-core`'s linalg, which `transform_rigid` takes:
+- It is rigid by construction from rotations about a decided axis,
+  translations, products and transposed inverses. Each of those
+  constructors decides only finiteness.
+- Today's `check_rigid` becomes its one decided constructor, used for
+  a map that arrives as twelve numbers (a literal frame, a STEP
+  placement).
+- An undecided margin there stays undecided.
+- A product of admitted frames is not decided again.
+
+Both reject (c). E12 already states the plain lane's scope for every
+identity in one parameter, and a refusal naming the angle would be a
+cause written from theory. The witness lands on its own; SHELF's
+`transform-rigid-recertifies-images-enclosed-apart`, carrying edge
+certificates across the map, is its own question. No ratified decision
+changes.
+
