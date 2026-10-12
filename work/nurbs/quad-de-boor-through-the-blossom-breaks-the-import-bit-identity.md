@@ -6,6 +6,7 @@ status: closed
 opened: 2026-10-10
 closed: 2026-10-12
 branch: nurbs/quad-de-boor-through-the-blossom
+pr: 4807
 ---
 
 
@@ -94,7 +95,7 @@ old red was the whole-body fold's face order, as corrected above.
 What the routing moves, every new enclosure inside the old one:
 - the step-export sidecars: the volume pads of `loft_prism`,
   `nonuniform_loft` and `swept_elbow` fall 1.93x, 1.73x and 3.95x, and
-  the last two midpoints move one ulp;
+  the midpoints of the last two move two ulps and one;
 - the sweep thread-count digest at all three ε: `loft_prism`'s volume
   pad by 48%, `arc_loft_1e9eps` by a few ulps, and `quintic_prism` at
   ε = 1e-6 and 1e-9;

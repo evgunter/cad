@@ -159,7 +159,7 @@ use geom_core::spline::derivative_knot_slice;
 use geom_core::spline::net::TensorNet;
 use geom_core::spline::{
     CoeffWindow, Derived, KnotVector, Param, ParamRange, RingRefinement, SplineCoeffs,
-    SplineCoeffsBuf, TensorChannels, last_at_or_below, restrict_bernstein,
+    SplineCoeffsBuf, TensorChannels, diagonal_in_span, last_at_or_below, restrict_bernstein,
 };
 use geom_core::{Band, Decide, InfSpeed, Margin, Sign};
 
@@ -1031,18 +1031,11 @@ fn require_holes_wound_against(
 /// polynomial extension, which the composite rule reads where a vertex
 /// pad puts a node past the domain.
 ///
-/// A `t` inside the span's closure is the window's blossom on the
-/// diagonal ([`CoeffWindow::blossom`]); any other `t` is
-/// [`de_boor_on`]'s extension.
+/// A `t` inside the span's closure is the piece's blossom on the
+/// diagonal; any other `t` is the extension ([`de_boor_on`]).
 fn de_boor(win: CoeffWindow<'_, Interval>, t: Interval) -> Interval {
     let span = win.span();
     let kv = span.knots();
-    let (lo, hi) = (kv.knots()[span.index()], kv.knots()[span.index() + 1]);
-    if within(t, lo, hi) {
-        return win
-            .blossom(&vec![t; span.degree()])
-            .unwrap_or_else(|_| Interval::refused());
-    }
     de_boor_on(
         kv.knots(),
         kv.degree(),
@@ -1052,40 +1045,34 @@ fn de_boor(win: CoeffWindow<'_, Interval>, t: Interval) -> Interval {
     )
 }
 
-/// The recurrence [`de_boor`] and the [`Loose::Raw`] evaluators share:
+/// The evaluation [`de_boor`] and the [`Loose::Raw`] evaluators share:
 /// `active` the `p + 1` coefficients of the span whose first control is
 /// `first`, over the knot list `u` they are a span of — a
 /// [`CoeffWindow`]'s, or a raw direction's line windowed by
 /// [`raw_span`]. Both callers form `active` from the span that `first`
 /// names, so every index here is in range.
 ///
-/// A `t` inside the span's closure keeps every ratio in `[0, 1]`, and
-/// each step is [`Certification::between`]. Past the closure a ratio
-/// leaves `[0, 1]` — the extension is no combination between its
-/// sources — and the step is the affine `(1 − α)·x + α·y`, sound for
-/// any `α`. A raw list spells no clamped vector, so it has no
-/// [`CoeffWindow`] whose blossom this could call instead.
+/// A `t` lying whole in the span's closure is the piece's blossom on
+/// the diagonal ([`diagonal_in_span`], every level
+/// [`Certification::between`]). Any other `t` — a vertex pad's node past
+/// the domain, or one straddling a span end — is the polynomial
+/// extension: de Boor's recurrence with the affine step
+/// `(1 − α)·x + α·y`, sound for any `α`, since a ratio past `[0, 1]` is
+/// no combination between its sources.
 fn de_boor_on(u: &[f64], p: usize, first: usize, active: &[Interval], t: Interval) -> Interval {
-    let inside = within(t, u[first + p], u[first + p + 1]);
+    if let Some(value) = diagonal_in_span(u, p, first, active, t) {
+        return value;
+    }
     let mut d = active.to_vec();
     for r in 1..=p {
         for j in (r..=p).rev() {
             let i = first + j;
             let denom = pt(u[i + p + 1 - r]) - pt(u[i]);
             let alpha = (t - pt(u[i])) / denom;
-            d[j] = if inside {
-                Interval::between(d[j - 1], d[j], alpha)
-            } else {
-                (pt(1.0) - alpha) * d[j - 1] + alpha * d[j]
-            };
+            d[j] = (pt(1.0) - alpha) * d[j - 1] + alpha * d[j];
         }
     }
     d[p]
-}
-
-/// Whether a certified `t` lies in `[lo, hi]` whole.
-fn within(t: Interval, lo: f64, hi: f64) -> bool {
-    t.is_certified() && t.lo() >= lo && t.hi() <= hi
 }
 
 /// The pair's value at an exact parameter: [`de_boor`] in the span
@@ -5404,6 +5391,28 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
 mod tests {
     use super::*;
     use geom_core::Tol;
+
+    /// **A node straddling its span's end, whose true value lies past
+    /// it, is enclosed by the extension.** On `t − 1` over `[0, 1]` (the
+    /// degree-1 piece with coefficients `−1, 0`), the node
+    /// `[1⁻, 1⁺]` may be `1 + 2⁻⁵²`, where the piece reads `2⁻⁵²`. A node
+    /// not whole in the span's closure takes the affine extension, which
+    /// encloses it; the blossom would meet it with the sources' hull
+    /// `[−1, 0]` and lose it. Red when the closure test is loosened to
+    /// an overlap.
+    #[test]
+    fn a_node_straddling_its_span_end_is_enclosed_by_the_extension() {
+        let past = 1.0f64.next_up();
+        let t = Interval::from_bounds(1.0f64.next_down(), past);
+        let got = de_boor_on(&[0.0, 0.0, 1.0, 1.0], 1, 0, &[pt(-1.0), pt(0.0)], t);
+        assert!(
+            got.contains(past - 1.0),
+            "{got:?} misses the extension's value {:e} at {past}",
+            past - 1.0
+        );
+        let inside = de_boor_on(&[0.0, 0.0, 1.0, 1.0], 1, 0, &[pt(-1.0), pt(0.0)], pt(0.5));
+        assert!(inside.contains(-0.5), "{inside:?}");
+    }
 
     /// The corpus's declared ambient uncertainty — the ε the fixed
     /// quadrature schedule (D9) is dimensioned for, and the boundary

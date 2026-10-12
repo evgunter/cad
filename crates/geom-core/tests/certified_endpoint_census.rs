@@ -300,13 +300,12 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/geom-brep/src/pcurve_cache/projected.rs", 2, 2, ""),
     (
         "crates/geom-brep/src/props/quad.rs",
-        12,
-        7,
+        11,
+        6,
         "the remaining 5 are safe by construction: `cos_step`/`sin_step` and the two \
          half-angle clamps build from `pt` of a finite f64 with nonzero exact divisors, \
          so no operand can leave a domain (argued at each). Every other read goes \
-         through `lo_or_refuse`/`certified_hi`/`mid`/`within` (which reads a node's \
-         ends only once it certifies), which are the guarded ones",
+         through `lo_or_refuse`/`certified_hi`/`mid`, which are the guarded ones",
     ),
     (
         "crates/geom-brep/src/props/spiric.rs",

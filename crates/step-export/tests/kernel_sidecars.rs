@@ -68,8 +68,8 @@
 //! `Certification::between`, the monotone corner met with its convex
 //! form and its sources' hull, where the affine step had carried each
 //! level's width forward). The pads fall by 1.93x, 1.73x and 3.95x;
-//! `nonuniform_loft`'s and `swept_elbow`'s midpoints move by one ulp,
-//! and each new enclosure is a subset of the one it replaced.
+//! `nonuniform_loft`'s midpoint moves by two ulps and `swept_elbow`'s by
+//! one, and each new enclosure is a subset of the one it replaced.
 //! `loft_prism`'s midpoint stays on the exact 9e9. The censuses and the
 //! closed-form fixtures' volumes are unchanged.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

@@ -44,6 +44,11 @@
 # only where the operation is inexact, so the pad fell by 5x
 # (1.07e-4 -> 2.01e-5 mm^3) and the midpoint, which used to sit 8e-6
 # mm^3 off the exact 9e9 inside that pad, now lands ON it.
+#
+# RE-PINNED when props::quad's de_boor began evaluating a node inside
+# its span as the blossom (every level the certified two-point step):
+# the pad fell by 1.93x (2.01e-5 -> 1.04e-5 mm^3) and the midpoint
+# stays ON the exact 9e9.
 KERNEL_SOLIDS=1
 KERNEL_SHELLS=1
 KERNEL_FACES=6
