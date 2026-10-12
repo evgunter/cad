@@ -2,10 +2,12 @@
 id: knot-insertion-can-round-a-weight-to-zero
 kind: issue
 title: Knot insertion (and degree elevation) can round a weight to zero; the plan checks its input weights but not the ones it writes
-status: open
+status: closed
 opened: 2026-10-12
 priority: P3
 cost: E
+branch: nurbs/insert-weight-collapse
+closed: 2026-10-12
 ---
 
 
@@ -46,3 +48,30 @@ the type's invariant says cannot exist.
 Refuse a written weight that is not strictly positive and finite, as
 removal does, in `insert_knot_plan` and `elevate_bezier_stage`. Then
 retarget the pin to the refusal.
+
+## Closed (2026-10-12)
+
+Every plan writer now admits what it writes through one check,
+`written_weight` in `spline/algebra.rs` (strictly positive and finite,
+or `WeightCollapse` at the slot):
+- `insert_once`, which serves insertion, refinement and elevation's
+  Bézier decomposition, and the surface twins per column;
+- `elevate_bezier_stage`;
+- removal's two chains, whose inline guards it replaces.
+
+The error's message now covers every writer, not only removal.
+
+Rows:
+- `a_blend_that_rounds_a_weight_to_zero_is_refused` (the plans, in
+  `algebra.rs`);
+- `a_knot_operation_that_would_write_a_zero_weight_is_refused` (the
+  curve doors);
+- `a_surface_knot_operation_that_would_write_a_zero_weight_is_refused`
+  (insertion, refinement and elevation in `u` and `v`).
+
+Each goes red with the insertion guard removed, and again with the
+elevation guard removed. The pin
+`a_weight_collapsed_by_refinement_reads_no_finite_bound` is deleted:
+the insertion it read is now refused, so its speed-bound half has no
+curve to read.
+

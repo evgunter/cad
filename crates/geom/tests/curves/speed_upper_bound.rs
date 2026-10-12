@@ -240,32 +240,6 @@ fn the_bound_reads_each_pair_against_its_own_spans_points() {
     check("a far point active on the last span only", &c);
 }
 
-/// **A refinement that rounds a weight to zero reads no finite low
-/// bound.** On a net of the least subnormal weight, a midpoint
-/// insertion forms `½·w + ½·w`, and each half rounds to zero: the
-/// refined curve holds a zero weight the constructor would refuse.
-/// The bound divides by that zero least weight, so it reads `+∞` or
-/// NaN, never a number below the true speed.
-/// The insertion side: `work/nurbs/knot-insertion-can-round-a-weight-to-zero.md`.
-#[test]
-fn a_weight_collapsed_by_refinement_reads_no_finite_bound() {
-    let w = f64::from_bits(1);
-    let c = curve(
-        vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0],
-        2,
-        &[(0.0, 0.0), (1.0, 1.0), (2.0, 0.0)],
-        vec![w, w, w],
-    );
-    let refined = c.insert_knot(0.5, 1).expect("the insertion is admitted");
-    assert!(
-        refined.weight_channel().contains(&0.0),
-        "the midpoint insertion kept every weight positive: {:?}",
-        refined.weight_channel()
-    );
-    let m = refined.speed_upper_bound().get();
-    assert!(!m.is_finite(), "a collapsed weight read a finite bound {m}");
-}
-
 /// **The pair's own points do not suffice.** On this quadratic
 /// (`P₀ = P₁`, weights over six decades) the speed peaks near
 /// `658.6` while every pair term read at the pair's own two points
