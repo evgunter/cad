@@ -1,15 +1,30 @@
 ---
 id: ruled-cut-off-builds-a-bore-wholly-inside-the-removed-sliver
 kind: issue
-title: blend: a bore wholly inside a ruled cut-off's sliver refuses RingClearance; may a blend delete an authored through-feature?
+title: blend: a feature wholly inside the material a band removes or fills goes with it (Ev, PR 4285); today a bore inside a ruled cut-off's sliver refuses RingClearance
 status: open
 opened: 2026-09-25
 priority: P2
 cost: H
-needs_ev: true
-design: true
 ---
 
+
+## Ruled (Ev, PR 4285, 2026-10-08)
+
+Build it. A feature wholly inside the material a fillet or chamfer band
+removes (convex) or fills (concave) goes with that material, as a feature
+wholly inside a Boolean's tool goes with the tool; a feature crossing it
+still refuses. Predicate 2 reads each face three ways on one exact region
+(clear / wholly inside / crossing), and the verdict is logged so a later
+reader of a consumed name resolves `Vanished` with the blend's verdict as
+the cause. No `Consumed` record in the blend's naming "at least until
+something needs it". C8 says face clearance reads three ways. Silent at
+the verb; a consumption lint over the blend and the Boolean as one rule is
+INTENT's (`work/intent/a-feature-an-operation-consumes-has-a-lint.md`).
+
+Build order: (1) the three-way classifier, "inside" still refusing; (2)
+the verdict log; (3) the deletion, from the ruled cap (flips the two bore
+rows); (4) the planar band, the concave fill, the chamfer.
 
 ## The question
 
