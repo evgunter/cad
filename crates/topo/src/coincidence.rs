@@ -18,8 +18,10 @@
 //! recorded, and an ON verdict that only places topology is not a
 //! coincidence (D1): a vertex identity is recorded only where a record
 //! citing it survives or the op's copies of the vertex touch in the
-//! result (a pinch), and a boolean's face-pair decision only where the
-//! two faces meet, at a point, an edge or an area.
+//! result (a pinch the op made: copies an operand already held on one
+//! key are its structure, and record nothing), and a boolean's
+//! face-pair decision only where the two faces meet, at a point, an
+//! edge or an area.
 
 use geom_core::MarginDiag;
 

@@ -55,16 +55,21 @@ Each door that turns a Zero into cells on one point:
 
 - **Split** (`splitting/mod.rs::reduce`): a pinch keeps one vertex per
   piece on the vertex's point key, and records `SplitOn` per ON vertex
-  with two or more runs. A grazed curved edge never pinches (convex
-  lands whole, concave refuses `KnifeEdge`). Recorded.
+  with two or more runs. A grazed curved edge never pinches: convex
+  lands whole; concave refuses, `KnifeEdge` where the plane is tangent
+  to the bore's wall along its ruling, and `SectionGermsUnordered
+  { Coincident }` where it is tilted `+z` through the rim (a bored
+  block, the plane through the rim point with normal `(1, 0, 0.3)`);
+  tilted `−z`, it lands with no row. Recorded.
 - **Boolean pinch** (`zip::split_cones`): a vertex decided on the other
   operand's cell whose result keeps one vertex per cone. Recorded
   NOTHING: `carry` emitted a decision only where a surviving record
   cites it, and copies on one point key need no record. Measured on the
   L-prism and tilted cube (`join_pierce_strut_facing.rs`'s poses): 30
   pinched results, 0 rows. Fixed here: `carry` emits the row of each
-  decided vertex at a pinch (`pinch_rows`). A document union of three or
-  more members still drops it (`work/wire/a-union-fold-publishes-no-pinch-row.md`).
+  decided vertex at a pinch (`pinch_rows`). A document union or
+  intersect of three or more members still drops it
+  (`work/wire/a-union-fold-publishes-no-pinch-row.md`).
 - **Census at rest** (`record_at_rest`: placed copies, instances,
   STEP imports): records `CensusAtRest` and a record citing it between
   groups; a touch inside one group is a finding. Recorded.

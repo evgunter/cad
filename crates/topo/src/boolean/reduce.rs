@@ -159,8 +159,10 @@ pub(super) struct ContactAcc {
 /// whether pieces of the result touch there: only one that a surviving
 /// record cites, or whose vertex the result keeps as copies on one point
 /// key (a pinch), is a coincidence (D1: an ON verdict that only places
-/// topology is not).
-/// The result's carry emits it as a [`crate::Coincidence`] then
+/// topology is not). Copies an operand already held on one key are its
+/// own structure: where every vertex on the key descends from one, the
+/// op made no pinch there and the row is not emitted. The result's carry
+/// emits a coincidence as a [`crate::Coincidence`]
 /// ([`super::ops::carry`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct PendingRow {

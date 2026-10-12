@@ -1,10 +1,10 @@
 ---
 id: a-union-fold-publishes-no-pinch-row
 kind: issue
-title: A union of three or more members publishes no pinch row: the pairwise judgement drops its vertex identities and a fold step publishes only the rows a record cites
+title: An n-ary union or intersect publishes no pinch row: the pairwise judgement drops its vertex identities and a fold step publishes only the rows a record cites
 status: open
 opened: 2026-10-12
-priority: P3
+priority: P2
 cost: M
 ---
 
@@ -22,10 +22,11 @@ contact record cites it. DESIGN's coincidence discipline asks for it:
 an ON verdict that makes pieces of one result touch is a coincidence,
 recorded.
 
-A two-member union, a subtract and an intersect publish the op's
-coincidences whole, so the row reaches the document. A union of three
-or more members does not (`crates/editor-core/src/eval/wire.rs`, the
-pairwise branch of the union's lowering):
+A subtract, and a union or intersect of two members, publish the op's
+coincidences whole, so the row reaches the document. A union or an
+intersect of three or more members does not: both lower through
+`crates/editor-core/src/eval/wire.rs::wire_combine` (`Node::Union` and
+`Node::Intersect` share the arm), and its pairwise branch is shared:
 
 - the pairwise judgement filters every `VertexFusion` row out
   (`.filter(|row| row.site != topo::DecisionSite::VertexFusion)`),
@@ -36,16 +37,21 @@ pairwise branch of the union's lowering):
   final records cite.
 
 A pinch row is cited by no record, so neither path publishes it, and
-the `unproven-coincidence` lint never sees the coincidence.
+the `unproven-coincidence` lint never sees the coincidence. That is
+P2: the lint is the only reader that proves a coincidence holds
+across the family, and a dropped row is a coincidence it cannot
+fail.
 
 ## Witness
 
 The L-prism and tilted cube of
 `crates/topo/tests/records_cite_their_decision.rs::a_pinch_records_the_vertex_identity_that_made_it`
 (the poses of `crates/sweep/tests/join_pierce_strut_facing.rs`'s
-`TWO_RUNS`): their union pinches at the prism's reflex corner. Read,
-not run: as a document union of the prism, the cube and a far third
-member, the node's coincidences would hold no row naming the corner.
+`TWO_RUNS`): their union and their intersection each pinch at the
+prism's reflex corner. Read, not run: as a document union of the
+prism, the cube and a far third member, or an intersect of the two
+with a third member holding the corner inside, the node's
+coincidences would hold no row naming the corner.
 
 ## What it needs
 

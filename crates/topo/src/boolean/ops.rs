@@ -284,8 +284,10 @@ pub struct BooleanNaming {
     /// (`BooleanBody::contacts` drops such rows by design). Its cells
     /// are the reading: each record's [`crate::Backing::Decided`]
     /// names a decision of the reduction's own, which the result
-    /// records as a row only where a record citing it survives, so its
-    /// citations index no list a reader holds.
+    /// records as a row where a record citing it survives or where it
+    /// put a vertex the op left as copies on one point key (a pinch the
+    /// op made, [`carry`]), so its citations index no list a reader
+    /// holds.
     pub reduction_contacts: ReductionContacts,
     /// Every face an operand lost to the result, with the kept faces it
     /// bordered (`boolean::discard`, which says which paths record
@@ -630,7 +632,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     // reads the correspondence through the fusions made.
     let mut vertex_map = fin.vertex_map.clone();
     let points = super::zip::point_classes(&body, &vertex_map)?;
-    let seams = super::zip::split_cones(&mut body, &fin.seams, &mut vertex_map, tol)?;
+    let (seams, cones) = super::zip::split_cones(&mut body, &fin.seams, &mut vertex_map, tol)?;
     for &(a_face, b_face) in &seams {
         let rep = zip_seam(&mut body, a_face, b_face, &vertex_map, tol)?;
         desc.absorb_zip(&rep)?;
@@ -659,8 +661,11 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         tol,
     )?;
     let views = [&KeyView::Direct, &KeyView::Graft(&fin.graft)];
-    let pinched = pinch_rows(&body, [a, b], &ledger, views, &desc)?;
-    let (contacts, coincidences) = carry(&body, &ledger, views, &desc, &pinched, band)?;
+    let zipped = Zipped {
+        operands: [a, b],
+        _cones: cones,
+    };
+    let (contacts, coincidences) = carry(&body, &ledger, views, &desc, Some(zipped), band)?;
     // Curved results carry certified per-half-edge pcurves at rest
     // (M5 PR 9, the PR 6 contract): re-derive the whole cache set on
     // the finished body — the same pass the split lane runs. A planar
@@ -3465,12 +3470,13 @@ fn tagged(d: &ReductionContacts) -> Vec<Tagged<'_>> {
 /// that put the vertex in its group. Each decision a surviving record
 /// cites is emitted, in decision order, after the op's own
 /// coincidences, and the records are renumbered onto those rows. So is
-/// each of `pinched`, the decisions at the pinches the op made
-/// ([`pinch_rows`]): the op's copies there touch on one point key, which
-/// no record states. Any other decision placed topology and is not a coincidence
-/// (D1). A surviving record whose decisions all decided no margin (a
-/// transverse pierce) is a touch without a decision, which the op
-/// refuses rather than ship.
+/// each decision at a pinch the op made ([`pinch_rows`]), read only
+/// for a result the seams were zipped into (`zipped`): the op's copies
+/// there touch on one point key, which no record states. Any other
+/// decision placed topology and is not a coincidence (D1). A surviving
+/// record whose decisions all decided no margin (a transverse pierce)
+/// is a touch without a decision, which the op refuses rather than
+/// ship.
 ///
 /// # Errors
 ///
@@ -3483,7 +3489,7 @@ pub(super) fn carry<T: Decide>(
     ledger: &Ledger,
     views: [&KeyView<'_>; 2],
     desc: &Descendants,
-    pinched: &[u32],
+    zipped: Option<Zipped<'_, T>>,
     band: Band,
 ) -> Result<(ContactRecords, Vec<crate::Coincidence>), BooleanError> {
     let [a, b] = &ledger.carried;
@@ -3497,7 +3503,21 @@ pub(super) fn carry<T: Decide>(
         band,
     )?;
     record_spans(body, &mut records, band)?;
-    cite_rows(records, ledger, pinched)
+    let pinched = match zipped {
+        Some(z) => pinch_rows(body, z.operands, ledger, views, desc)?,
+        None => Vec::new(),
+    };
+    cite_rows(records, ledger, &pinched)
+}
+
+/// **A result the seams were zipped into**, with its two operands: the
+/// only path that leaves an op's copies of one vertex on one point key
+/// (the join's null-edge copies, the zip's split per cone), so the only
+/// one [`carry`] reads pinches for. It holds the zip's
+/// [`super::zip::ConesSplit`], which only `zip::split_cones` builds.
+pub(super) struct Zipped<'a, T: Real> {
+    operands: [&'a Body<T>; 2],
+    _cones: super::zip::ConesSplit,
 }
 
 /// **The decisions at the pinches the op made**, as indices into the
@@ -3505,7 +3525,8 @@ pub(super) fn carry<T: Decide>(
 /// whose live descendant shares its point key with another live vertex,
 /// where not every vertex on that key descends from an operand vertex
 /// that already shared its key. Two vertices on one point key are an
-/// op's copies of one vertex: the zip's split per cone
+/// op's copies of one vertex: the join's null-edge copies
+/// ([`Descendants::copies_of`]) or the zip's split per cone
 /// (`zip::split_cones`), so pieces of the result touch there with no
 /// record between them (D1's structural sharing), and the row that put
 /// the vertex on the other operand's cell is the coincidence that made
@@ -6037,7 +6058,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 &ledger,
                 [&KeyView::Direct, &KeyView::Graft(&graft)],
                 &desc,
-                &[],
+                None,
                 band,
             )?;
             let body = gate(body, band, tol)?;
@@ -6100,7 +6121,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         _ => (KeyView::Absent, KeyView::Direct),
     };
     let ledger = ledger(red, decls, band)?;
-    let (contacts, coincidences) = carry(&body, &ledger, [&a_view, &b_view], &desc, &[], band)?;
+    let (contacts, coincidences) = carry(&body, &ledger, [&a_view, &b_view], &desc, None, band)?;
     let body = gate(body, band, tol)?;
     let naming = match kind {
         BooleanResultKind::OperandA => BooleanNaming {
