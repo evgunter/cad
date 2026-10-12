@@ -325,12 +325,14 @@ fn last_round_decides(s: f64) -> bool {
 
 /// **Wrong results planted on quadrature-measured bodies.** `A` is the
 /// oblique rod; a subtraction's "result" that is the same rod fattened
-/// by a relative `δ` is too big by `≈ 5.5·δ` m³, a boundary displacement
-/// of `δ·r`, so `δ` is spelled in ε. A fattening refuses — by refinement
+/// by a relative `δ` is too big by `≈ 5.5·δ` m³, over the pair's
+/// `≈ 25` m² of boundary a displacement of `≈ 0.22·δ`, so `δ` is spelled
+/// in ε. A fattening refuses — by refinement
 /// past the reporting target where the reporting enclosures alone
 /// cannot decide — down to the open range the last round every lane
 /// runs leaves ([`last_round_open`]): `100·ε` clears it at every ε, and
-/// `ε` does where `ε·r` exceeds it (ε = 1e-9 and 1e-6). A fattening
+/// `ε` does where `0.22·ε` exceeds it (ε = 1e-9 and 1e-6; at 1e-12 the
+/// flip sits near `13·ε`). A fattening
 /// below it, and the right answer with it, is below the model's
 /// resolution and is accepted where the range meters inside the band
 /// ([`last_round_decides`]; at ε = 1e-12 the `ε` plant is such a
@@ -368,7 +370,7 @@ fn planted_subtraction_results_refuse_down_to_the_stated_resolution() {
             Ok(AtRestOutcome::Validated),
             "the right answer passes"
         );
-        if 0.5 * eps > last_round_open(1.0) {
+        if 0.22 * eps > last_round_open(1.0) {
             assert_eq!(
                 eps_fat,
                 Err(BooleanErrorKind::ResultVolumeImplausible),

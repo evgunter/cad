@@ -351,6 +351,13 @@ pub struct TrimEdgeQ {
     /// Enclosure of `(cos t₀, sin t₀)` (module docs: algebraic, from
     /// the carrier frame and the endpoint vertex point, ε-padded).
     pub trig0: (Interval, Interval),
+    /// Enclosure of `(cos t₁, sin t₁)` at the interval's end, recovered
+    /// from the END vertex as `trig0` is from the start's. Where the
+    /// loop's junctions are read ([`chart_end`]), the end is this
+    /// vertex's own bracket rather than the start's carried through the
+    /// span, which on a steep conic widens it by the conic's tilt.
+    /// `None` reads the end through the span.
+    pub trig1: Option<(Interval, Interval)>,
     /// The pcurve certificate envelope (metres through the map) — the
     /// map-residual honesty pad's per-edge input.
     pub env: Interval,
@@ -706,6 +713,12 @@ impl Schedule {
 
     /// The round a window enters the schedule at.
     pub(super) fn first(self, window: RoundWindow) -> usize {
+        debug_assert!(
+            window.first <= self.last,
+            "a window resuming at round {} is past this lane's last round {}",
+            window.first,
+            self.last
+        );
         window.first.min(self.last)
     }
 
@@ -941,11 +954,6 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
     band: Band,
     window: RoundWindow,
 ) -> Result<RoundOutcome, PropsError> {
-    debug_assert!(
-        window.first <= QUAD_MAX_ROUNDS,
-        "a window resuming at round {} is past this lane's last round {QUAD_MAX_ROUNDS}",
-        window.first
-    );
     let winds = loop_windings::<T>(loops, radius, band)?;
     let anchor = level_anchor(loops)?;
     let target_len = QUAD_TARGET_LEN_FACTOR * eps;
@@ -1026,7 +1034,7 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
 fn chart_end(e: &TrimEdgeQ, end: bool) -> (Interval, Interval) {
     let (a, b) = e.limits();
     let (trig, t) = if end == e.forward {
-        (trig_at(e.trig0, b - a), b)
+        (e.trig1.unwrap_or_else(|| trig_at(e.trig0, b - a)), b)
     } else {
         (e.trig0, a)
     };
@@ -1119,12 +1127,26 @@ fn loop_windings<T: Decide>(
                 + VERTEX_SLACK * band.zero();
             if classify_len::<T>(
                 "props_quad_junction_closed",
-                Margin::of(excess(lo_or_refuse(gap), slack)),
+                Margin::of(excess(certified_hi(gap), slack)),
                 band,
                 PropsCheck::Inventory,
-            )? == Sign::Positive
+            )? != Sign::Zero
             {
-                return Err(PropsError::ChartLoopOpen);
+                // The gap may exceed the slack: open only where it
+                // definitely does, and no answer otherwise.
+                return Err(
+                    match geom_core::k_stats::decide_positive(
+                        "props_quad_junction_open",
+                        Margin::of(excess(lo_or_refuse(gap), slack)).lift::<T>(),
+                        band,
+                    ) {
+                        Ok(()) => PropsError::ChartLoopOpen,
+                        Err(cause) => PropsError::Escalated {
+                            cause,
+                            check: PropsCheck::Inventory,
+                        },
+                    },
+                );
             }
             // `m` is finite here: a refused enclosure reads `NaN` in the
             // gap and escalates above. The cast saturates.
@@ -3598,12 +3620,6 @@ fn rational_patch_face<T: Decide>(
     band: Band,
     window: RoundWindow,
 ) -> Result<RoundOutcome, PropsError> {
-    debug_assert!(
-        window.first <= QUAD2_RATIONAL_MAX_ROUNDS,
-        "a window resuming at round {} is past this lane's last round \
-         {QUAD2_RATIONAL_MAX_ROUNDS}",
-        window.first
-    );
     let (u0, u1, v0, v1) = rect.corners();
     if weights.len() != control.len() {
         return Err(PropsError::QuadratureUnsupported {
@@ -5349,11 +5365,6 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
     band: Band,
     window: RoundWindow,
 ) -> Result<RoundOutcome, PropsError> {
-    debug_assert!(
-        window.first <= TRIM_MAX_ROUNDS,
-        "a window resuming at round {} is past this lane's last round {TRIM_MAX_ROUNDS}",
-        window.first
-    );
     if chords.len() < 3 {
         return Err(PropsError::QuadratureUnsupported {
             what: "a trim loop of fewer than three chart images — a region with no \
@@ -5797,6 +5808,7 @@ mod tests {
             t1: pt(tau),
             forward: true,
             trig0: (pt(1.0), pt(0.0)),
+            trig1: None,
             env: pt(0.0),
         };
         let seam_up = TrimEdgeQ {
@@ -5806,6 +5818,7 @@ mod tests {
             t1: pt(2.0),
             forward: true,
             trig0: (pt(1.0), pt(0.0)),
+            trig1: None,
             env: pt(0.0),
         };
         // Top: parameterized by t = u, v = 2 + 0.5 sin t, traversed
@@ -5817,6 +5830,7 @@ mod tests {
             t1: pt(tau),
             forward: false,
             trig0: (pt(1.0), pt(0.0)),
+            trig1: None,
             env: pt(0.0),
         };
         let seam_down = TrimEdgeQ {
@@ -5826,6 +5840,7 @@ mod tests {
             t1: pt(2.0),
             forward: false,
             trig0: (pt(1.0), pt(0.0)),
+            trig1: None,
             env: pt(0.0),
         };
         let edges = [rim, seam_up, top, seam_down];
@@ -5893,6 +5908,7 @@ mod tests {
             t1: pt(span),
             forward,
             trig0: (pt(1.0), pt(0.0)),
+            trig1: None,
             env: pt(0.0),
         };
         let outer = vec![
@@ -5929,6 +5945,7 @@ mod tests {
             t1: pt(from + pi),
             forward: !hole,
             trig0,
+            trig1: None,
             env: pt(0.0),
         };
         let mut ring = vec![
@@ -6030,6 +6047,7 @@ mod tests {
             t1: pt(tau),
             forward,
             trig0: (pt(1.0), pt(0.0)),
+            trig1: Some((pt(1.0), pt(0.0))),
             env: pt(0.0),
         };
         [
@@ -6097,6 +6115,7 @@ mod tests {
             t1: pt(core::f64::consts::TAU),
             forward,
             trig0: (pt(1.0), pt(0.0)),
+            trig1: None,
             env: pt(0.0),
         }
     }
@@ -6180,6 +6199,7 @@ mod tests {
             t1: pt(span),
             forward,
             trig0: (pt(1.0), pt(0.0)),
+            trig1: None,
             env: pt(0.0),
         };
         let outer = [
@@ -6216,6 +6236,105 @@ mod tests {
         }
     }
 
+    /// The rectangle `[0, 2] × [0, 1]` whose sides end where `v` reads
+    /// through `side_v` and whose top is stored at `1 + top_off`.
+    fn rectangle_with(
+        side_v: HarmChan,
+        side_trig0: (Interval, Interval),
+        top_off: f64,
+    ) -> [TrimEdgeQ; 4] {
+        let line = |u: HarmChan, v: HarmChan, span: f64, forward: bool| TrimEdgeQ {
+            u,
+            v,
+            t0: pt(0.0),
+            t1: pt(span),
+            forward,
+            trig0: (pt(1.0), pt(0.0)),
+            trig1: None,
+            env: pt(0.0),
+        };
+        let side = |u0: f64, forward: bool| TrimEdgeQ {
+            u: chan(u0, 0.0, 0.0, 0.0),
+            v: side_v,
+            t0: pt(0.0),
+            t1: pt(1.0),
+            forward,
+            trig0: side_trig0,
+            trig1: None,
+            env: pt(0.0),
+        };
+        [
+            line(
+                chan(0.0, 0.0, 0.0, 1.0),
+                chan(0.0, 0.0, 0.0, 0.0),
+                2.0,
+                true,
+            ),
+            side(2.0, true),
+            line(
+                chan(0.0, 0.0, 0.0, 1.0),
+                chan(1.0 + top_off, 0.0, 0.0, 0.0),
+                2.0,
+                false,
+            ),
+            side(0.0, false),
+        ]
+    }
+
+    /// **A junction its brackets cannot decide is never measured**
+    /// (review of PR 4839, the verifier's probe). Each side's level is
+    /// read through a whole-circle trig bracket, `v = −a + a·cos t + c·t`
+    /// with `v(1) = 1` exactly, so its end is known only to about `2a`;
+    /// the top is stored `0.45·a` above it. Read off the gap's lower
+    /// bound the junction looked closed and the face measured `2 + 2g`.
+    /// The gap's upper bound is beyond the slack and its lower bound is
+    /// not, so it escalates — at `a = 10³·ε` (the verifier's `450ε`
+    /// opening) and `a = 1e-3`, at `f64` and at `Interval`.
+    #[test]
+    fn a_junction_its_brackets_cannot_decide_is_never_measured() {
+        let whole = (
+            Interval::from_bounds(-1.0, 1.0),
+            Interval::from_bounds(-1.0, 1.0),
+        );
+        let eps = Tol::witness().get().eps;
+        for a in [1e3 * eps, 1e-3] {
+            let c = 1.0 - a * (1.0_f64.cos() - 1.0);
+            let outer = rectangle_with(chan(-a, a, 0.0, c), whole, 0.45 * a);
+            for (scalar, got) in at_both_scalars(&[&outer]) {
+                assert!(
+                    matches!(
+                        got,
+                        Err(PropsError::Escalated {
+                            check: PropsCheck::Inventory,
+                            ..
+                        })
+                    ),
+                    "a {a:e} at {scalar}: an undecidable junction escalates: {got:?}"
+                );
+            }
+        }
+    }
+
+    /// **A junction open by the vertex tolerance closes** ([`VERTEX_SLACK`]).
+    /// The rectangle with its top stored `2ε` above its sides' ends, every
+    /// bracket thin: the gap is the two carriers' ends about their
+    /// vertex, which the vertex term allows, so the face measures. Without
+    /// that term the excess is `2ε`, in the band, and it escalates.
+    #[test]
+    fn a_junction_open_by_the_vertex_tolerance_closes() {
+        let eps = Tol::witness().get().eps;
+        let outer = rectangle_with(chan(0.0, 0.0, 0.0, 1.0), (pt(1.0), pt(0.0)), 2.0 * eps);
+        for (scalar, got) in at_both_scalars(&[&outer]) {
+            let out = got.unwrap_or_else(|e| panic!("at {scalar}: the face refuses: {e:?}"));
+            let exact = 2.0 * 2.0_f64.mul_add(eps, 1.0);
+            assert!(
+                out.area.lo() <= exact && exact <= out.area.hi(),
+                "at {scalar}: area {:?} must bracket {exact}",
+                out.area
+            );
+        }
+    }
+
     /// **A band reads its holes by winding, in any loop order.** The band
     /// between the rim `v = 0` and the cut `v = 3 + 0.5·cos u`, with a
     /// circular hole of radius 0.4: wound against the face it measures
@@ -6233,6 +6352,7 @@ mod tests {
             t1: pt(tau),
             forward,
             trig0: (pt(1.0), pt(0.0)),
+            trig1: None,
             env: pt(0.0),
         };
         let hole = |forward| TrimEdgeQ {
@@ -6242,6 +6362,7 @@ mod tests {
             t1: pt(tau),
             forward,
             trig0: (pt(1.0), pt(0.0)),
+            trig1: None,
             env: pt(0.0),
         };
         let bottom = [rim(chan(0.0, 0.0, 0.0, 0.0), true)];
@@ -6275,11 +6396,12 @@ mod tests {
 
     /// The ellipse band's convergence width at `round` alone, metered as
     /// [`mean_boundary_displacement`]: read off an open round, the
-    /// target and the band set so far below the width that the round
-    /// definitely misses.
+    /// target vanishing and the band far below the width, so the round
+    /// definitely misses, and above the junctions' own rounding, so they
+    /// close.
     fn band_width_at(round: usize) -> f64 {
         let [bottom, top] = ellipse_band(0.4, 0.0);
-        let band = geom_core::Band::new(1e-300, 1e-299).unwrap();
+        let band = geom_core::Band::new(1e-13, 2e-13).unwrap();
         match cylinder_cut_face_rounds::<f64>(
             pt(1.0),
             Interval::zero(),
@@ -6371,6 +6493,7 @@ mod tests {
                 t1: pt(core::f64::consts::TAU),
                 forward: true,
                 trig0: (pt(1.0), pt(0.0)),
+                trig1: None,
                 env: pt(0.0),
             };
             match cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &[&[e]], eps, band) {
@@ -6396,6 +6519,7 @@ mod tests {
             t1: pt(core::f64::consts::TAU),
             forward: true,
             trig0: (pt(1.0), pt(0.0)),
+            trig1: None,
             env: pt(0.0),
         };
         let band = geom_core::Band::linear(Tol::witness()).unwrap();
@@ -6881,6 +7005,7 @@ mod tests {
                 t1: Interval::from_bounds(mid1 - w * 0.5, mid1 + w * 0.5),
                 forward: true,
                 trig0: (pt(t0_true.cos()), pt(t0_true.sin())),
+                trig1: None,
                 env: pt(0.0),
             };
             let enclosure = harmonic_edge_integral(&e, 0.0, 65_536, pt(1.0));
@@ -6929,6 +7054,7 @@ mod tests {
             t1: pt(v_hi),
             forward,
             trig0: (pt(1.0), pt(0.0)),
+            trig1: None,
             env: pt(0.0),
         };
         let rim = |forward: bool| TrimEdgeQ {
@@ -6938,6 +7064,7 @@ mod tests {
             t1: pt(tau),
             forward,
             trig0: (pt(1.0), pt(0.0)),
+            trig1: None,
             env: pt(0.0),
         };
         // (a) near-pinching band: v(u) = 1 + 0.999·sin u (dips to 1e-3).
@@ -6948,6 +7075,7 @@ mod tests {
             t1: pt(tau),
             forward: false,
             trig0: (pt(1.0), pt(0.0)),
+            trig1: None,
             env: pt(0.0),
         };
         let face_a = vec![
@@ -6964,6 +7092,7 @@ mod tests {
             t1: pt(tau),
             forward: true,
             trig0: (pt(1.0), pt(0.0)),
+            trig1: None,
             env: pt(0.0),
         };
         let sliver_top = TrimEdgeQ {
@@ -6980,6 +7109,7 @@ mod tests {
             t1: pt(1.0),
             forward,
             trig0: (pt(1.0), pt(0.0)),
+            trig1: None,
             env: pt(0.0),
         };
         let face_b = vec![
@@ -6997,6 +7127,7 @@ mod tests {
             t1: pt(tau),
             forward: false,
             trig0: (pt(1.0), pt(0.0)),
+            trig1: None,
             env: pt(0.0),
         };
         let seam_c = |u_at: f64, v_hi: f64, forward: bool| TrimEdgeQ {
@@ -7006,6 +7137,7 @@ mod tests {
             t1: pt(v_hi),
             forward,
             trig0: (pt(1.0), pt(0.0)),
+            trig1: None,
             env: pt(0.0),
         };
         let face_c = vec![
