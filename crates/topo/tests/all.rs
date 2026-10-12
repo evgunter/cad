@@ -390,6 +390,8 @@ mod pierce_strut_at_a_pinch;
 mod review_4694_carry_probes;
 #[path = "review_4730_divided_carry_probes.rs"]
 mod review_4730_divided_carry_probes;
+#[path = "review_4740_r1_probes.rs"]
+mod review_4740_r1_probes;
 #[path = "review_cleave_mint_doors.rs"]
 mod review_cleave_mint_doors;
 #[path = "spline_reanchor_rows.rs"]

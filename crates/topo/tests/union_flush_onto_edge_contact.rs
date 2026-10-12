@@ -11,7 +11,7 @@ use common::{brick, finished};
 use geom_core::Tol;
 use topo::{
     AtRestBody, Body, BooleanBody, BooleanError, BooleanInputs, BooleanOp, BooleanResult,
-    CarriedRecord, VvContact, mass_properties, subtract, union, validate_pseudomanifold,
+    mass_properties, subtract, union, validate_pseudomanifold,
 };
 
 /// `op` on `a` and `b`, carrying `inputs`' records.
@@ -235,19 +235,19 @@ fn joined_folds_certify_and_build_one_body_in_every_order() {
 }
 
 /// Two bricks touching along the z-axis over z ∈ (0.5, 1.5), and
-/// their record carried as `Rest` rows: two vertices at each end of
-/// the touch.
-fn pinch(tol: Tol) -> (BooleanBody<f64>, Vec<CarriedRecord<VvContact>>) {
+/// their records as carried rows: a v-v row at each end of the touch
+/// and the edge-edge row along it.
+fn pinch(tol: Tol) -> (BooleanBody<f64>, topo::OperandRecords) {
     quarter_pinch([(0.0, 0.0), (-1.0, -1.0)], (0.5, 1.5), tol)
 }
 
 /// Two unit bricks over `z` whose low corners in x and y are `lows`,
-/// touching along the z-axis, and their record carried as `Rest` rows.
+/// touching along the z-axis, and their records as carried rows.
 fn quarter_pinch(
     lows: [(f64, f64); 2],
     z: (f64, f64),
     tol: Tol,
-) -> (BooleanBody<f64>, Vec<CarriedRecord<VvContact>>) {
+) -> (BooleanBody<f64>, topo::OperandRecords) {
     let [p, q] = lows.map(|(x, y)| {
         finished(
             "a quarter brick",
@@ -258,17 +258,65 @@ fn quarter_pinch(
     let BooleanResult::Body(pinch) = union(&p, &q, tol).expect("an edge contact builds") else {
         panic!("a union of two bricks came back empty");
     };
-    assert_eq!(
-        pinch.contacts.vertex_vertex().count(),
-        2,
-        "the edge contact records a v-v row at each end"
-    );
-    let carried = rest_rows(&pinch.contacts);
+    assert_pinch_records(&pinch.contacts);
+    let carried = carried_rows(&pinch.contacts);
     (pinch, carried)
 }
 
-fn rest_rows(records: &topo::ContactRecords) -> Vec<CarriedRecord<VvContact>> {
-    records.carried().vv
+/// A pinch's records: a v-v row at each end of the touch, and the
+/// edge-edge row along it citing exactly the two ends' decisions (C3's
+/// shortest chain for a pair two vertex identities imply). Red if the
+/// reduction writes no edge-edge row for the touch, or cites one end
+/// alone.
+fn assert_pinch_records(records: &topo::ContactRecords) {
+    let rows = records.rows();
+    let of = |want: fn(&topo::ContactKind) -> bool| -> Vec<&topo::Cited<topo::Contact>> {
+        rows.iter().filter(|c| want(&c.record.kind())).collect()
+    };
+    let vv = of(|k| matches!(k, topo::ContactKind::VertexVertex(..)));
+    let ee = of(|k| matches!(k, topo::ContactKind::EdgeEdge(..)));
+    assert_eq!(
+        (vv.len(), ee.len(), rows.len()),
+        (2, 1, 3),
+        "the edge contact records a v-v row at each end and the edge-edge row along it: {rows:?}"
+    );
+    assert_eq!(
+        ee[0].cites,
+        vv[0].cites.union(&vv[1].cites),
+        "the edge-edge row cites both ends' decisions: {rows:?}"
+    );
+}
+
+/// **A pinch owes its edge-edge row.** Two bricks touching along an
+/// edge pass 3′ with their own records, and without the edge-edge row
+/// the overlap along the touch refuses unrecorded though both its ends
+/// keep their v-v rows: the bounds confirm the row, never stand in for
+/// it (D1). Red if the census backs the overlap on its bounds alone.
+#[test]
+fn a_pinch_without_its_edge_edge_row_refuses_the_overlap() {
+    let tol = Tol::witness();
+    let (pinch, _) = pinch(tol);
+    let verdict = validate_pseudomanifold(&pinch.body, &pinch.contacts, tol);
+    assert!(verdict.is_ok(), "with its records: {verdict:?}");
+    let bounds: topo::ContactRecords = pinch
+        .contacts
+        .rows()
+        .iter()
+        .filter(|c| !matches!(c.record.kind(), topo::ContactKind::EdgeEdge(..)))
+        .cloned()
+        .collect();
+    let errors =
+        validate_pseudomanifold(&pinch.body, &bounds, tol).expect_err("the overlap refuses");
+    assert!(
+        matches!(
+            errors[..],
+            [topo::ValidationError::UnrecordedContact {
+                contact: topo::CensusContact::EdgeEdgeOverlap { .. },
+                ..
+            }]
+        ),
+        "the overlap alone refuses: {errors:?}"
+    );
 }
 
 /// The unit-radius wedge from `d0` to `d1` degrees (counterclockwise,
@@ -322,15 +370,19 @@ fn keys_at(body: &Body<f64>, p: (f64, f64, f64)) -> Vec<topo::VertexKey> {
 /// `cutter ∖ pinch`.
 fn every_op_builds(
     pinch: &AtRestBody<f64>,
-    carried: &[CarriedRecord<VvContact>],
+    carried: &topo::OperandRecords,
     cutter: &AtRestBody<f64>,
     [union, pinch_less, common, cutter_less]: [f64; 4],
     tol: Tol,
 ) {
-    let mut ab = BooleanInputs::default();
-    ab.records_a.vv = carried.to_vec();
-    let mut ba = BooleanInputs::default();
-    ba.records_b.vv = carried.to_vec();
+    let ab = BooleanInputs {
+        records_a: carried.clone(),
+        ..BooleanInputs::default()
+    };
+    let ba = BooleanInputs {
+        records_b: carried.clone(),
+        ..BooleanInputs::default()
+    };
     for (op, got, want) in topo::test_support::ops_under_test(|| {
         [
             ("pinch ∪ cutter", union_in(pinch, cutter, &ab, tol), union),
@@ -486,6 +538,11 @@ fn crossings_at_one_corner(spans: &[(f64, f64)], cutter: (f64, f64), shear: (f64
         n * (n - 1),
         "{n} vertices at each end of the pinch line, a row per two"
     );
+    assert_eq!(
+        pinch.contacts.edge_edge().count(),
+        n * (n - 1) / 2,
+        "{n} edges along the pinch line, an edge-edge row per two"
+    );
     let cut = triangle(cutter.0, cutter.1);
     let pinch_volume: f64 = spans.iter().map(|&(d0, d1)| area(&triangle(d0, d1))).sum();
     let cutter_volume = area(&cut) * 0.5;
@@ -500,7 +557,7 @@ fn crossings_at_one_corner(spans: &[(f64, f64)], cutter: (f64, f64), shear: (f64
     };
     every_op_builds(
         &pinch.body,
-        &rest_rows(&pinch.contacts),
+        &carried_rows(&pinch.contacts),
         &cutter_body,
         [
             pinch_volume + cutter_volume - common,
@@ -575,9 +632,11 @@ fn two_pinches_crossing_on_one_line_refuse_their_union_typed() {
         ("a, b", &pinch_a, &pinch_b, &carried_a, &carried_b),
         ("b, a", &pinch_b, &pinch_a, &carried_b, &carried_a),
     ] {
-        let mut decls = BooleanInputs::default();
-        decls.records_a.vv.clone_from(ca);
-        decls.records_b.vv.clone_from(cb);
+        let decls = BooleanInputs {
+            records_a: ca.clone(),
+            records_b: cb.clone(),
+            ..BooleanInputs::default()
+        };
         // At (0,0,1) the lower pinch's two vertices are its split edges'
         // and the upper pinch's are its corners; every pair crosses.
         // The refusal names A's vertex there and the two B vertices it
@@ -646,9 +705,11 @@ fn two_pinches_meeting_end_to_end_build_in_every_op() {
         ("low, high", &low, &high, &low_rows, &high_rows, low_volume),
         ("high, low", &high, &low, &high_rows, &low_rows, high_volume),
     ] {
-        let mut decls = BooleanInputs::default();
-        decls.records_a.vv.clone_from(ca);
-        decls.records_b.vv.clone_from(cb);
+        let decls = BooleanInputs {
+            records_a: ca.clone(),
+            records_b: cb.clone(),
+            ..BooleanInputs::default()
+        };
         let built = |op: &str, got: Result<BooleanResult<f64>, BooleanError>, want: f64| {
             let BooleanResult::Body(out) =
                 got.unwrap_or_else(|e| panic!("{name} {op} refused: {e:?}"))
@@ -791,17 +852,18 @@ fn three_pieces_two_of_whose_cuts_tie_build_in_every_op() {
     );
 }
 
-/// **A pinch line crossing a face's interior drops the pinch's records
-/// at the new pinch end** (`work/fuse/a-pinch-line-crossing-a-face-interior-drops-the-pinchs-records.md`):
-/// pinned as it stands. The 80°–190° wedge sheared off the axis, so the
-/// pinch line runs inside its corner and leaves through its top face,
-/// and a brick holding the axis, which its top face crosses. Each op
-/// builds, the sheared one's volumes agreeing with each other; the
-/// results that keep the pinch's two pieces at the top face's crossing
-/// fail 3′ there with an undeclared `VertexVertex` at (0,0,1), and the
-/// rest pass. Red when that end gets its record.
+/// **A pinch line crossing a face's interior keeps the pinch's records
+/// at the new pinch end.** The 80°–190° wedge sheared off the axis, so
+/// the pinch line runs inside its corner and leaves through its top
+/// face, and a brick holding the axis, which its top face crosses. Each
+/// op builds, the sheared one's volumes agreeing with each other, and
+/// passes 3′: where a result keeps the pinch's two pieces at the top
+/// face's crossing, the carried edge-edge row's split lineage records
+/// the two split vertices there. Red if the pinch records no edge-edge
+/// row, or the row is not carried: 3′ refuses `VertexVertex` at
+/// (0,0,1) in `pinch ∖ cutter`, both intersections and `block ∩ pinch`.
 #[test]
-fn a_pinch_line_through_a_face_drops_its_records_at_the_new_end() {
+fn a_pinch_line_through_a_face_keeps_its_records_at_the_new_end() {
     let tol = Tol::witness();
     let (pinch, carried) = pinch(tol);
     let cutter = sheared_wedge((0.3, -0.3), tol);
@@ -810,58 +872,43 @@ fn a_pinch_line_through_a_face_drops_its_records_at_the_new_end() {
         brick::<f64>((-0.5, 0.5), (-0.5, 0.5), (0.0, 1.0), tol),
         tol,
     );
-    let mut ab = BooleanInputs::default();
-    ab.records_a.vv.clone_from(&carried);
-    let mut ba = BooleanInputs::default();
-    ba.records_b.vv.clone_from(&carried);
-    let mut block_first = BooleanInputs::default();
-    block_first.records_b.vv = carried;
-    let volume_of = |op: &str, got: Result<BooleanResult<f64>, BooleanError>, drops: bool| {
+    let ab = BooleanInputs {
+        records_a: carried.clone(),
+        ..BooleanInputs::default()
+    };
+    let ba = BooleanInputs {
+        records_b: carried.clone(),
+        ..BooleanInputs::default()
+    };
+    let block_first = BooleanInputs {
+        records_b: carried,
+        ..BooleanInputs::default()
+    };
+    let volume_of = |op: &str, got: Result<BooleanResult<f64>, BooleanError>| {
         let BooleanResult::Body(out) = got.unwrap_or_else(|e| panic!("{op} refused: {e:?}")) else {
             panic!("{op} came back empty");
         };
-        match validate_pseudomanifold(&out.body, &out.contacts, tol) {
-            Ok(_) => assert!(!drops, "{op}: passes 3′; the row's pin flips"),
-            Err(errors) => {
-                assert!(drops, "{op}: 3′ refused {errors:?}");
-                assert!(
-                    format!("{errors:?}").contains("VertexVertex")
-                        && format!("{errors:?}").contains("(0.0, 0.0, 1.0)"),
-                    "{op}: the undeclared pair at the pinch's new end: {errors:?}"
-                );
-            }
-        }
+        let verdict = validate_pseudomanifold(&out.body, &out.contacts, tol);
+        assert!(verdict.is_ok(), "{op}: 3′ refused {:?}", verdict.err());
         mass_properties(&out.body, tol).expect("mass").volume
     };
-    let union = volume_of(
-        "pinch ∪ cutter",
-        union_in(&pinch.body, &cutter, &ab, tol),
-        false,
-    );
+    let union = volume_of("pinch ∪ cutter", union_in(&pinch.body, &cutter, &ab, tol));
     let pinch_less = volume_of(
         "pinch ∖ cutter",
         subtract_in(&pinch.body, &cutter, &ab, tol),
-        true,
     );
     let common = volume_of(
         "pinch ∩ cutter",
         intersect_in(&pinch.body, &cutter, &ab, tol),
-        true,
     );
-    let swapped = volume_of(
-        "cutter ∪ pinch",
-        union_in(&cutter, &pinch.body, &ba, tol),
-        false,
-    );
+    let swapped = volume_of("cutter ∪ pinch", union_in(&cutter, &pinch.body, &ba, tol));
     let cutter_less = volume_of(
         "cutter ∖ pinch",
         subtract_in(&cutter, &pinch.body, &ba, tol),
-        false,
     );
     let common_swapped = volume_of(
         "cutter ∩ pinch",
         intersect_in(&cutter, &pinch.body, &ba, tol),
-        true,
     );
     // Shearing keeps the cutter's volume: its triangle × the height.
     let cutter_volume = area(&triangle(80.0, 190.0)) * 0.5;
@@ -877,7 +924,6 @@ fn a_pinch_line_through_a_face_drops_its_records_at_the_new_end() {
     let block_common = volume_of(
         "block ∩ pinch",
         intersect_in(&block, &pinch.body, &block_first, tol),
-        true,
     );
     assert!(
         (block_common - 0.25).abs() < 1e-9,
@@ -906,10 +952,14 @@ fn a_face_through_a_pinch_line_builds_in_every_op() {
         common::prism_z(&[(-1.0, 1.0), (1.0, -1.0), (1.0, 1.0)], 0.0, 1.0, tol).body,
         tol,
     );
-    let mut ab = BooleanInputs::default();
-    ab.records_a.vv.clone_from(&carried);
-    let mut ba = BooleanInputs::default();
-    ba.records_b.vv.clone_from(&carried);
+    let ab = BooleanInputs {
+        records_a: carried.clone(),
+        ..BooleanInputs::default()
+    };
+    let ba = BooleanInputs {
+        records_b: carried.clone(),
+        ..BooleanInputs::default()
+    };
     // The same wall over z ∈ (0.75, 1.25) cuts the brick on its side
     // in two and leaves the other whole: the pinch survives below 0.75
     // with a new pair of vertices at its cut.
@@ -918,8 +968,10 @@ fn a_face_through_a_pinch_line_builds_in_every_op() {
         common::prism_z(&[(-1.0, 1.0), (1.0, -1.0), (1.0, 1.0)], 0.75, 1.25, tol).body,
         tol,
     );
-    let mut cut = BooleanInputs::default();
-    cut.records_a.vv = carried;
+    let cut = BooleanInputs {
+        records_a: carried,
+        ..BooleanInputs::default()
+    };
     // The prism holds the half x + y > 0 of the square, so it meets
     // the pinch in the brick on that side, z ∈ (0.5, 1): 0.5, and the
     // upper one over z ∈ (0.75, 1.25), 0.5 again.
@@ -981,9 +1033,11 @@ fn a_four_row_remap_group_certifies_a_subtract_of_two_pinches() {
     let BooleanResult::Body(pinch_b) = union(&q2, &q4, tol).expect("a pinch builds") else {
         panic!("a union of two bricks came back empty");
     };
-    let mut decls = BooleanInputs::default();
-    decls.records_a.vv = carried_a;
-    decls.records_b = carried_rows(&pinch_b.contacts);
+    let decls = BooleanInputs {
+        records_a: carried_a,
+        records_b: carried_rows(&pinch_b.contacts),
+        ..BooleanInputs::default()
+    };
     let BooleanResult::Body(out) =
         subtract_in(&pinch_a.body, &pinch_b.body, &decls, tol).expect("the subtract builds")
     else {
@@ -1118,10 +1172,14 @@ fn dangling_null_edges_meeting_on_the_pinch_line(notch: (f64, f64), tol: Tol) {
     ];
     let common: f64 = squares.iter().map(|q| area(&clip(&rect, q))).sum();
     let prism_volume = area(&profile);
-    let mut ab = BooleanInputs::default();
-    ab.records_a.vv.clone_from(&carried);
-    let mut ba = BooleanInputs::default();
-    ba.records_b.vv = carried;
+    let ab = BooleanInputs {
+        records_a: carried.clone(),
+        ..BooleanInputs::default()
+    };
+    let ba = BooleanInputs {
+        records_b: carried,
+        ..BooleanInputs::default()
+    };
     for (op, got, want) in topo::test_support::ops_under_test(|| {
         [
             (

@@ -1086,15 +1086,30 @@ pub(crate) fn validate_loft<L: SectionLoop>(
     v_degree: usize,
     tol: Tol,
 ) -> Result<(Vec<ValidatedProfile<f64>>, Vec<CanonicalStructure>), SkinError> {
-    let k = sections.len();
+    check_counts(sections.len(), places.len(), v_degree)?;
+    let (validated, structures): (Vec<_>, Vec<_>) = validate_sections(sections, places, tol)?
+        .into_iter()
+        .unzip();
+    check_shapes(&validated)?;
+    Ok((validated, structures))
+}
+
+/// The counts a loft needs before any section is read: at least two
+/// sections, one placement each, and a v-degree in `1..k`.
+///
+/// # Errors
+///
+/// [`SkinError::TooFewSections`], [`SkinError::SectionShapeMismatch`]
+/// (placements) and [`SkinError::BadDegree`].
+pub(crate) fn check_counts(k: usize, places: usize, v_degree: usize) -> Result<(), SkinError> {
     if k < 2 {
         return Err(SkinError::TooFewSections { have: k, need: 2 });
     }
-    if places.len() != k {
+    if places != k {
         return Err(SkinError::SectionShapeMismatch {
-            section: places.len().min(k),
+            section: places.min(k),
             expected: k,
-            found: places.len(),
+            found: places,
             what: "placements",
         });
     }
@@ -1104,9 +1119,17 @@ pub(crate) fn validate_loft<L: SectionLoop>(
             sections: k,
         });
     }
-    let (validated, structures): (Vec<_>, Vec<_>) = validate_sections(sections, places, tol)?
-        .into_iter()
-        .unzip();
+    Ok(())
+}
+
+/// Every canonical section has section 0's loop count and, loop by
+/// loop, its vertex count: the shape a by-index pairing needs.
+///
+/// # Errors
+///
+/// [`SkinError::SectionShapeMismatch`] naming the disagreeing section
+/// and count.
+pub(crate) fn check_shapes(validated: &[ValidatedProfile<f64>]) -> Result<(), SkinError> {
     let loops = validated[0].loops().len();
     for (i, s) in validated.iter().enumerate().skip(1) {
         if s.loops().len() != loops {
@@ -1128,7 +1151,7 @@ pub(crate) fn validate_loft<L: SectionLoop>(
             }
         }
     }
-    Ok((validated, structures))
+    Ok(())
 }
 
 /// The compatible section curves of every strip, `[loop][segment]`,

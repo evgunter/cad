@@ -1656,6 +1656,51 @@ impl<T: Real> ValidatedProfile<T> {
     }
 }
 
+impl<T: geom_core::spline::SpanLocate> ValidatedProfile<T> {
+    /// **This canonical form's value channel**: every stored scalar —
+    /// the plane, each vertex, each segment's endpoints, each arc's
+    /// carrier and sweep — read through
+    /// [`SpanLocate::value_channel`](geom_core::spline::SpanLocate::value_channel)
+    /// (its one `f64`, NaN where it has none), and everything else —
+    /// roles, the segment classifications and turns, the joint sets —
+    /// carried. The decisions were made along this channel (C6), so
+    /// they hold of it as they hold of the form; a value with no point
+    /// comes back NaN, for the reader to refuse.
+    #[must_use]
+    pub fn value_channel(&self) -> ValidatedProfile<f64> {
+        let v = geom_core::spline::SpanLocate::value_channel;
+        ValidatedProfile {
+            plane: self.plane.map(v),
+            loops: self
+                .loops
+                .iter()
+                .map(|lp| ValidatedLoop {
+                    vertices: lp.vertices.iter().map(|p| p.map(v)).collect(),
+                    segments: lp
+                        .segments
+                        .iter()
+                        .map(|s| ValidatedSegment {
+                            start: s.start.map(v),
+                            end: s.end.map(v),
+                            kind: match s.kind {
+                                SegmentKind::Line => SegmentKind::Line,
+                                SegmentKind::Arc { arc, turn } => SegmentKind::Arc {
+                                    arc: arc.map(v),
+                                    turn,
+                                },
+                            },
+                        })
+                        .collect(),
+                    tangent_joints: lp.tangent_joints.clone(),
+                    cusp_joints: lp.cusp_joints.clone(),
+                    decided_joints: lp.decided_joints.clone(),
+                    role: lp.role,
+                })
+                .collect(),
+        }
+    }
+}
+
 impl ValidatedProfile<f64> {
     /// The `f64` canonical form embedded at `U`, on `plane`: every
     /// stored scalar — each vertex's position, each segment's endpoints,
@@ -1665,8 +1710,9 @@ impl ValidatedProfile<f64> {
     /// predicate runs and no verdict is logged. A `ValidatedProfile` is
     /// minted by [`Profile::validate`] and [`Profile::validate_recording`]
     /// from a raw profile, by [`ConstructedProfile`]'s three validations
-    /// from a replayed one, and by this
-    /// from an `f64` one; nothing else mints one.
+    /// from a replayed one, by this
+    /// from an `f64` one, and by [`ValidatedProfile::value_channel`]
+    /// from one at another scalar; nothing else mints one.
     ///
     /// # What is carried, and on whose authority
     ///

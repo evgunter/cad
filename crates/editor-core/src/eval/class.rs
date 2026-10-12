@@ -93,8 +93,6 @@ pub enum NodeErrorClass {
     ParamBox,
     /// [`NodeErrorKind::Seed`].
     Seed,
-    /// [`NodeErrorKind::SeedPinnedSection`].
-    SeedPinnedSection,
     /// [`NodeErrorKind::WrongOperand`].
     WrongOperand,
     /// [`NodeErrorKind::EmptyOperand`].
@@ -172,8 +170,6 @@ pub enum NodeErrorClass {
     FaceFrameNotPlanar,
     /// [`NodeErrorKind::FaceFrameReadback`].
     FaceFrameReadback,
-    /// [`NodeErrorKind::DerivedFrameSection`].
-    DerivedFrameSection,
     /// [`NodeErrorKind::FrameDirection`] carrying
     /// [`geom_core::UnitVec3Error::Degenerate`].
     FrameDirectionDegenerate,
@@ -309,7 +305,6 @@ impl NodeErrorKind {
             Self::ToleranceConflict { .. } => C::ToleranceConflict,
             Self::ParamBox { .. } => C::ParamBox,
             Self::Seed { .. } => C::Seed,
-            Self::SeedPinnedSection { .. } => C::SeedPinnedSection,
             Self::WrongOperand { .. } => C::WrongOperand,
             Self::EmptyOperand { .. } => C::EmptyOperand,
             Self::ProductOperand { .. } => C::ProductOperand,
@@ -343,7 +338,6 @@ impl NodeErrorKind {
             Self::ShellLaneUnsupported { .. } => C::ShellLaneUnsupported,
             Self::FaceFrameNotPlanar { .. } => C::FaceFrameNotPlanar,
             Self::FaceFrameReadback { .. } => C::FaceFrameReadback,
-            Self::DerivedFrameSection { .. } => C::DerivedFrameSection,
             Self::FrameDirection { refusal, .. } => {
                 let raised = refusal.node_error().class();
                 FRAME_DIRECTION
@@ -521,7 +515,6 @@ mod tests {
         ToleranceConflict,
         ParamBox,
         Seed,
-        SeedPinnedSection,
         WrongOperand,
         EmptyOperand,
         ProductOperand,
@@ -558,7 +551,6 @@ mod tests {
         ShellLaneUnsupported,
         FaceFrameNotPlanar,
         FaceFrameReadback,
-        DerivedFrameSection,
         FrameDirectionDegenerate,
         FrameDirectionNonFiniteLength,
         FrameDirectionUnderflowedLength,
@@ -771,10 +763,6 @@ mod tests {
                     var: crate::SpokenVar::new(crate::VarId::new(0, 1), None),
                 },
             },
-            C::SeedPinnedSection => K::SeedPinnedSection {
-                section: n(3),
-                param: crate::VarId::new(0, 1),
-            },
             C::WrongOperand => K::WrongOperand {
                 input: n(3),
                 expected: "body",
@@ -895,10 +883,6 @@ mod tests {
             },
             C::FaceFrameReadback => K::FaceFrameReadback {
                 error: topo::readback::ReadbackError::NoCarrier,
-            },
-            C::DerivedFrameSection => K::DerivedFrameSection {
-                profile: n(3),
-                frame: Some(n(2)),
             },
             C::FrameDirectionDegenerate => frame_direction(UnitVec3Error::Degenerate),
             C::FrameDirectionNonFiniteLength => frame_direction(UnitVec3Error::NonFiniteLength),
