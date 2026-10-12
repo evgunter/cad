@@ -657,13 +657,9 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         band,
         tol,
     )?;
-    let (contacts, coincidences) = carry(
-        &body,
-        &ledger,
-        [&KeyView::Direct, &KeyView::Graft(&fin.graft)],
-        &desc,
-        band,
-    )?;
+    let views = [&KeyView::Direct, &KeyView::Graft(&fin.graft)];
+    let pinched = pinch_rows(&body, [a, b], &ledger, views, &desc)?;
+    let (contacts, coincidences) = carry(&body, &ledger, views, &desc, &pinched, band)?;
     // Curved results carry certified per-half-edge pcurves at rest
     // (M5 PR 9, the PR 6 contract): re-derive the whole cache set on
     // the finished body — the same pass the split lane runs. A planar
@@ -3468,9 +3464,9 @@ fn tagged(d: &ReductionContacts) -> Vec<Tagged<'_>> {
 /// that put the vertex in its group. Each decision a surviving record
 /// cites is emitted, in decision order, after the op's own
 /// coincidences, and the records are renumbered onto those rows. So is
-/// each decision of a vertex at a pinch of the result ([`pinch_rows`]):
-/// the op's copies there touch on one point key, which no record
-/// states. Any other decision placed topology and is not a coincidence
+/// each of `pinched`, the decisions at the pinches the op made
+/// ([`pinch_rows`]): the op's copies there touch on one point key, which
+/// no record states. Any other decision placed topology and is not a coincidence
 /// (D1). A surviving record whose decisions all decided no margin (a
 /// transverse pierce) is a touch without a decision, which the op
 /// refuses rather than ship.
@@ -3486,6 +3482,7 @@ pub(super) fn carry<T: Decide>(
     ledger: &Ledger,
     views: [&KeyView<'_>; 2],
     desc: &Descendants,
+    pinched: &[u32],
     band: Band,
 ) -> Result<(ContactRecords, Vec<crate::Coincidence>), BooleanError> {
     let [a, b] = &ledger.carried;
@@ -3498,32 +3495,52 @@ pub(super) fn carry<T: Decide>(
         false,
         band,
     )?;
-    let pinched = pinch_rows(body, ledger, views, desc)?;
-    cite_rows(records, ledger, &pinched)
+    cite_rows(records, ledger, pinched)
 }
 
-/// **The decisions at the result's pinches**, as indices into the
+/// **The decisions at the pinches the op made**, as indices into the
 /// ledger's pending rows, ascending: each decided row with a vertex end
-/// whose live descendant shares its point key with another live vertex.
-/// Two vertices on one point key are an op's copies of one vertex, split
-/// per cone (`zip::split_cones`), so pieces of the result touch there
-/// with no record between them (D1's structural sharing), and the row
-/// that put the vertex on the other operand's cell is the coincidence
-/// that made them touch (DESIGN, the reduction's coincidence
-/// discipline).
+/// whose live descendant shares its point key with another live vertex,
+/// where not every vertex on that key descends from an operand vertex
+/// that already shared its key. Two vertices on one point key are an
+/// op's copies of one vertex: the zip's split per cone
+/// (`zip::split_cones`), so pieces of the result touch there with no
+/// record between them (D1's structural sharing), and the row that put
+/// the vertex on the other operand's cell is the coincidence that made
+/// them touch (DESIGN, the reduction's coincidence discipline). Copies
+/// an operand already held are its own structure, which no decision of
+/// this op made.
 fn pinch_rows<T: Real>(
     body: &Body<T>,
+    operands: [&Body<T>; 2],
     ledger: &Ledger,
     views: [&KeyView<'_>; 2],
     desc: &Descendants,
 ) -> Result<Vec<u32>, BooleanError> {
-    let mut held: BTreeMap<crate::geometry::PointKey, usize> = BTreeMap::new();
-    for (_, v) in body.vertices() {
-        *held.entry(v.point).or_default() += 1;
+    let mut inherited: BTreeSet<VertexKey> = BTreeSet::new();
+    for (side, operand) in [Operand::A, Operand::B].into_iter().zip(operands) {
+        let mut shared: BTreeMap<crate::geometry::PointKey, usize> = BTreeMap::new();
+        for (_, v) in operand.vertices() {
+            *shared.entry(v.point).or_default() += 1;
+        }
+        let view = views[usize::from(side == Operand::B)];
+        for (u, v) in operand.vertices() {
+            if shared[&v.point] >= 2
+                && let Some(Cell::Vertex(w)) = desc.live(body, side, view, Cell::Vertex(u))?
+            {
+                inherited.insert(w);
+            }
+        }
+    }
+    let mut held: BTreeMap<crate::geometry::PointKey, (usize, bool)> = BTreeMap::new();
+    for (w, v) in body.vertices() {
+        let at = held.entry(v.point).or_default();
+        at.0 += 1;
+        at.1 |= !inherited.contains(&w);
     }
     let pinch = |w: VertexKey| {
         body.get_vertex(w)
-            .is_some_and(|v| held.get(&v.point).is_some_and(|&n| n >= 2))
+            .is_some_and(|v| held.get(&v.point).is_some_and(|&(n, made)| n >= 2 && made))
     };
     let mut out = Vec::new();
     for (k, row) in ledger.pending.iter().enumerate() {
@@ -5722,6 +5739,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 &ledger,
                 [&KeyView::Direct, &KeyView::Graft(&graft)],
                 &desc,
+                &[],
                 band,
             )?;
             let body = gate(body, band, tol)?;
@@ -5784,7 +5802,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         _ => (KeyView::Absent, KeyView::Direct),
     };
     let ledger = ledger(red, decls, band)?;
-    let (contacts, coincidences) = carry(&body, &ledger, [&a_view, &b_view], &desc, band)?;
+    let (contacts, coincidences) = carry(&body, &ledger, [&a_view, &b_view], &desc, &[], band)?;
     let body = gate(body, band, tol)?;
     let naming = match kind {
         BooleanResultKind::OperandA => BooleanNaming {
