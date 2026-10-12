@@ -101,7 +101,7 @@ use geom_core::interval::certification::Certification;
 use geom_core::interval::{Interval, certified_hi, cross, max_bound, norm_sup};
 use geom_core::spline::algebra::equal_split_points;
 use geom_core::spline::net::{TensorChannels, TensorCoeffs, TensorNet};
-use geom_core::spline::{Derived, KnotVector};
+use geom_core::spline::{C1Break, Derived, KnotVector};
 
 /// The fixed refinement schedule of the RATIONAL arm: every nonempty
 /// span of every direction splits into this many equal pieces before
@@ -388,12 +388,10 @@ pub fn check_direction(kv: &KnotVector) -> Result<(), PatchBoundError> {
     if kv.degree() == 0 {
         return Err(PatchBoundError::DegreeZero);
     }
-    match kv.derived() {
-        Derived::Vector(_) => Ok(()),
-        Derived::SpanConstant(breaks) if breaks.len() == 2 => Ok(()),
-        Derived::SpanConstant(_) => Err(PatchBoundError::Degree1Crease),
-        Derived::Discontinuous(_) => Err(PatchBoundError::Crease),
-    }
+    kv.c1().map_err(|b| match b {
+        C1Break::Degree1Crease => PatchBoundError::Degree1Crease,
+        C1Break::Crease => PatchBoundError::Crease,
+    })
 }
 
 /// The interior split points of the fixed rational refinement
@@ -521,9 +519,9 @@ enum Second {
 }
 
 impl Second {
-    /// The second partial along a direction whose derivative is
-    /// `derived`, `diff` differencing the first partial's net along that
-    /// derivative's vector.
+    /// The second partial along a direction whose first partial is
+    /// `derived`, `diff` differencing that partial again along the same
+    /// direction.
     ///
     /// # Errors
     ///
@@ -532,13 +530,13 @@ impl Second {
     /// refinement can raise when its split points collide on a span a
     /// few ulps wide.
     fn of(
-        derived: Derived<'_>,
-        diff: impl FnOnce(&KnotVector) -> Net,
+        derived: Derived<'_, TensorCoeffs<'_>>,
+        diff: impl FnOnce(&TensorCoeffs<'_>) -> Net,
     ) -> Result<Self, PatchBoundError> {
         match derived {
-            Derived::Vector(kv) => Ok(Self::Net(diff(&kv))),
+            Derived::Vector(t) => Ok(Self::Net(diff(&t))),
             Derived::SpanConstant(_) => Ok(Self::Zero),
-            Derived::Discontinuous(_) => Err(PatchBoundError::DerivedKnots),
+            Derived::Discontinuous { .. } => Err(PatchBoundError::DerivedKnots),
         }
     }
 
@@ -571,19 +569,12 @@ impl DNets {
     ///
     /// As [`Second::of`].
     fn build(base: &TensorCoeffs<'_>) -> Result<Self, PatchBoundError> {
-        let (d10, d01) = (base.diff_u(), base.diff_v());
-        let d20 = Second::of(base.knots_u().derived(), |k| {
-            d10.diff_u(|line| k.difference_coeffs(line))
-        })?;
-        let d02 = Second::of(base.knots_v().derived(), |k| {
-            d01.diff_v(|line| k.difference_coeffs(line))
-        })?;
         Ok(Self {
-            d10,
-            d01,
+            d10: base.diff_u(),
+            d01: base.diff_v(),
             d11: base.diff_uv(),
-            d20,
-            d02,
+            d20: Second::of(base.derived_u(), |t| t.diff_u())?,
+            d02: Second::of(base.derived_v(), |t| t.diff_v())?,
         })
     }
 }

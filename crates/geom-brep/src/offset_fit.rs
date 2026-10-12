@@ -2243,33 +2243,32 @@ impl Composite {
         // 1.228e-5 against 1.229e-5, with the same cells and rounds.
         check_direction(ku)?;
         check_direction(kv)?;
-        let (der_u, der_v) = (ku.derived(), kv.derived());
-        let lift = |d: &Derived<'_>| usize::from(matches!(d, Derived::SpanConstant(_)));
-        let (lift_u, lift_v) = (lift(&der_u), lift(&der_v));
+        let lift = |k: &KnotVector| usize::from(matches!(k.derived(), Derived::SpanConstant(_)));
+        let (lift_u, lift_v) = (lift(ku), lift(kv));
         let raise = |p: PatchSpans, lu: usize, lv: usize| {
             let (pu, pv) = p.degree();
             p.elevated(pu + lu, pv + lv)
         };
         let val = |g: &TensorCoeffs<'_>| raise(dec(g), lift_u, lift_v);
         let du = |g: &TensorCoeffs<'_>| {
-            let diff = g.diff_u();
-            let p = match &der_u {
-                Derived::Vector(dk) => dec(&TensorCoeffs::from_fn(dk, kv, |i, j| diff.get(i, j))),
+            let p = match g.derived_u() {
+                Derived::Vector(t) => dec(&t),
                 Derived::SpanConstant(_) => {
+                    let diff = g.diff_u();
                     dec(&TensorCoeffs::from_fn(ku, kv, |_, j| diff.get(0, j)))
                 }
-                Derived::Discontinuous(_) => return Err(PatchBoundError::DerivedKnots),
+                Derived::Discontinuous { .. } => return Err(PatchBoundError::DerivedKnots),
             };
             Ok::<_, PatchBoundError>(raise(p, 0, lift_v))
         };
         let dv = |g: &TensorCoeffs<'_>| {
-            let diff = g.diff_v();
-            let p = match &der_v {
-                Derived::Vector(dk) => dec(&TensorCoeffs::from_fn(ku, dk, |i, j| diff.get(i, j))),
+            let p = match g.derived_v() {
+                Derived::Vector(t) => dec(&t),
                 Derived::SpanConstant(_) => {
+                    let diff = g.diff_v();
                     dec(&TensorCoeffs::from_fn(ku, kv, |i, _| diff.get(i, 0)))
                 }
-                Derived::Discontinuous(_) => return Err(PatchBoundError::DerivedKnots),
+                Derived::Discontinuous { .. } => return Err(PatchBoundError::DerivedKnots),
             };
             Ok::<_, PatchBoundError>(raise(p, lift_u, 0))
         };

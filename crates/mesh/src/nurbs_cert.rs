@@ -3645,7 +3645,7 @@ pub(crate) mod tests {
     /// different surface's bound. The rational arm never had a
     /// whole-net counterpart — it has always been a fold.
     pub(crate) fn whole_net_bound(s: &NurbsSurface<f64>) -> Option<NurbsFaceBound> {
-        use geom_core::spline::{Derived, KnotVector, TensorCoeffs, TensorNet};
+        use geom_core::spline::{Derived, TensorCoeffs, TensorNet};
         assert!(
             !patch_bound::is_rational(s),
             "the whole-net spelling is the integral arm's; a rational face has no such arm"
@@ -3656,17 +3656,21 @@ pub(crate) mod tests {
         let nv = kv_v.control_count();
         let zero = Interval::zero();
         let mut sq = [zero; 5];
-        // Past `check_direction`, a derivative is a vector or one
+        // Past `check_direction`, a first partial is a spline or one
         // span's constant, whose second partial is zero; a
         // discontinuous one is a broken premise, said loudly.
-        let (der_u, der_v) = (kv_u.derived(), kv_v.derived());
-        let second = |d: &Derived<'_>, diff: &dyn Fn(&KnotVector) -> TensorNet| match d {
-            Derived::Vector(k) => diff(k).hull(),
-            Derived::SpanConstant(_) => zero,
-            Derived::Discontinuous(_) => {
-                panic!("a discontinuous derivative past check_direction")
+        fn second(
+            derived: Derived<'_, TensorCoeffs<'_>>,
+            diff: impl FnOnce(&TensorCoeffs<'_>) -> TensorNet,
+        ) -> Interval {
+            match derived {
+                Derived::Vector(t) => diff(&t).hull(),
+                Derived::SpanConstant(_) => Interval::zero(),
+                Derived::Discontinuous { .. } => {
+                    panic!("a discontinuous derivative past check_direction")
+                }
             }
-        };
+        }
         for c in 0..3 {
             let base = TensorCoeffs::from_fn(kv_u, kv_v, |i, j| {
                 let p = s.control()[i * nv + j];
@@ -3677,8 +3681,8 @@ pub(crate) mod tests {
                 })
             });
             let (d10, d01, d11) = (base.diff_u(), base.diff_v(), base.diff_uv());
-            let g20 = second(&der_u, &|k| d10.diff_u(|l| k.difference_coeffs(l)));
-            let g02 = second(&der_v, &|k| d01.diff_v(|l| k.difference_coeffs(l)));
+            let g20 = second(base.derived_u(), |t| t.diff_u());
+            let g02 = second(base.derived_v(), |t| t.diff_v());
             for (slot, h) in sq
                 .iter_mut()
                 .zip([g20, d11.hull(), g02, d10.hull(), d01.hull()])

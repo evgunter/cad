@@ -1106,17 +1106,10 @@ enum Level {
 impl Level {
     /// The derivative of `pair`, as a level.
     fn of(pair: SplineCoeffs<'_, Interval>) -> Self {
-        let loose = match pair.derived() {
-            Derived::Vector(buf) => return Self::Spline(buf),
-            Derived::SpanConstant(breaks) => Loose::Const {
-                knots: breaks.to_vec(),
-            },
-            Derived::Discontinuous(raw) => Loose::Raw {
-                knots: raw.to_vec(),
-                degree: pair.knots().degree() - 1,
-            },
-        };
-        Self::Loose(loose, pair.derivative_coeffs())
+        match Loose::from_derived(pair.derived()) {
+            Ok(buf) => Self::Spline(buf),
+            Err(loose) => Self::Loose(loose, pair.derivative_coeffs()),
+        }
     }
 
     /// The level below, where this one is not per-span constant.
@@ -1437,6 +1430,21 @@ enum Loose {
 }
 
 impl Loose {
+    /// A [`Derived`]'s clamped payload, or the structure no clamped
+    /// vector spells.
+    fn from_derived<V>(derived: Derived<'_, V>) -> Result<V, Self> {
+        match derived {
+            Derived::Vector(v) => Ok(v),
+            Derived::SpanConstant(breaks) => Err(Self::Const {
+                knots: breaks.to_vec(),
+            }),
+            Derived::Discontinuous { knots, degree } => Err(Self::Raw {
+                knots: knots.to_vec(),
+                degree,
+            }),
+        }
+    }
+
     /// The structure of a [`Loose::Raw`] level's derivative, of degree
     /// `degree` on the raw knot list `knots`: [`Loose::Raw`] at degree
     /// ≥ 1, [`Loose::Const`] at 0. A [`KnotVector`]'s own derivative is
@@ -1664,16 +1672,7 @@ impl PatchGrid {
     fn step(dir: &Dir) -> Option<(Dir, DerivTake)> {
         match dir {
             Dir::Kv(kv) => {
-                let below = match kv.derived() {
-                    Derived::Vector(k) => Dir::Kv(k),
-                    Derived::SpanConstant(breaks) => Dir::Loose(Loose::Const {
-                        knots: breaks.to_vec(),
-                    }),
-                    Derived::Discontinuous(raw) => Dir::Loose(Loose::Raw {
-                        knots: raw.to_vec(),
-                        degree: kv.degree() - 1,
-                    }),
-                };
+                let below = Loose::from_derived(kv.derived()).map_or_else(Dir::Loose, Dir::Kv);
                 let kv = kv.clone();
                 // The one knot-vector step (`TensorCoeffs`'s too).
                 Some((

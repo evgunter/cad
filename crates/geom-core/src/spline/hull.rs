@@ -128,7 +128,7 @@
 //! refusal route: it is refused at the mint, before there is a door to
 //! answer.
 
-use super::knots::{KnotVector, Span, knot_difference};
+use super::knots::{KnotVector, KnotVectorIssue, Span, SplineError, knot_difference};
 use crate::interval::Interval;
 use crate::interval::certification::Certification;
 use crate::real::CertifiedBounds;
@@ -550,9 +550,32 @@ impl KnotVector {
         if self.degree() == 1 {
             return Derived::SpanConstant(slice);
         }
-        match KnotVector::clamped(slice.to_vec(), self.degree() - 1) {
+        let degree = self.degree() - 1;
+        match KnotVector::clamped(slice.to_vec(), degree) {
             Ok(kv) => Derived::Vector(kv),
-            Err(_) => Derived::Discontinuous(slice),
+            Err(SplineError::KnotVectorInvalid {
+                reason: KnotVectorIssue::InteriorMultiplicityTooHigh { .. },
+            }) => Derived::Discontinuous {
+                knots: slice,
+                degree,
+            },
+            Err(e) => unreachable!("a clamped vector's derived knots refused as {e:?}"),
+        }
+    }
+
+    /// Whether this vector's spline is C¹ for every control net: the
+    /// break that refuses it otherwise.
+    ///
+    /// # Errors
+    ///
+    /// [`C1Break::Degree1Crease`] at degree 1 with an interior knot,
+    /// [`C1Break::Crease`] at a full-multiplicity interior knot.
+    pub fn c1(&self) -> Result<(), C1Break> {
+        match self.derived() {
+            Derived::Vector(_) => Ok(()),
+            Derived::SpanConstant(breaks) if breaks.len() == 2 => Ok(()),
+            Derived::SpanConstant(_) => Err(C1Break::Degree1Crease),
+            Derived::Discontinuous { .. } => Err(C1Break::Crease),
         }
     }
 
@@ -576,9 +599,13 @@ pub enum Derived<'a, V = KnotVector> {
     /// `breaks` strictly ascending.
     SpanConstant(&'a [f64]),
     /// Degree ≥ 2 with an interior knot of multiplicity equal to the
-    /// degree: a degree `p − 1` spline on this raw knot list,
-    /// discontinuous at that knot.
-    Discontinuous(&'a [f64]),
+    /// degree: a spline discontinuous at that knot.
+    Discontinuous {
+        /// The derivative's raw knot list.
+        knots: &'a [f64],
+        /// The derivative's degree, one less than the vector's.
+        degree: usize,
+    },
 }
 
 impl<'a, V> Derived<'a, V> {
@@ -586,7 +613,7 @@ impl<'a, V> Derived<'a, V> {
     pub fn vector(self) -> Option<V> {
         match self {
             Self::Vector(v) => Some(v),
-            Self::SpanConstant(_) | Self::Discontinuous(_) => None,
+            Self::SpanConstant(_) | Self::Discontinuous { .. } => None,
         }
     }
 
@@ -596,9 +623,19 @@ impl<'a, V> Derived<'a, V> {
         match self {
             Self::Vector(v) => Derived::Vector(f(v)),
             Self::SpanConstant(b) => Derived::SpanConstant(b),
-            Self::Discontinuous(k) => Derived::Discontinuous(k),
+            Self::Discontinuous { knots, degree } => Derived::Discontinuous { knots, degree },
         }
     }
+}
+
+/// What keeps a knot vector's spline from being C¹
+/// ([`KnotVector::c1`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum C1Break {
+    /// Degree 1 with an interior knot: the derivative jumps there.
+    Degree1Crease,
+    /// An interior knot of multiplicity equal to the degree.
+    Crease,
 }
 
 /// A [`SplineCoeffs`] that owns both halves: the coefficient array and
@@ -972,7 +1009,7 @@ impl<E: CertifiedBounds> RationalWindow<'_, E> {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use super::{Derived, KnotVector};
+    use super::{C1Break, Derived, KnotVector};
     use crate::interval::certification::Certification;
 
     fn kv(knots: &[f64], p: usize) -> KnotVector {
@@ -1013,10 +1050,27 @@ mod tests {
         );
 
         let kinked = kv(&[0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2);
-        let Derived::Discontinuous(raw) = kinked.derived() else {
+        let Derived::Discontinuous { knots, degree } = kinked.derived() else {
             panic!("a double knot at degree 2 read as {:?}", kinked.derived());
         };
-        assert_eq!(raw, [0.0, 0.0, 0.5, 0.5, 1.0, 1.0], "the raw list");
+        assert_eq!(
+            (knots, degree),
+            (&[0.0, 0.0, 0.5, 0.5, 1.0, 1.0][..], 1),
+            "the raw list"
+        );
         assert!(kinked.derivative().is_none(), "no clamped vector");
+
+        let creased = kv(&[0.0, 0.0, 0.5, 1.0, 1.0], 1);
+        let single = kv(&[0.0, 0.0, 1.0, 1.0], 1);
+        assert_eq!(
+            [single.c1(), smooth.c1(), creased.c1(), kinked.c1()],
+            [
+                Ok(()),
+                Ok(()),
+                Err(C1Break::Degree1Crease),
+                Err(C1Break::Crease)
+            ],
+            "the C¹ admission names each break"
+        );
     }
 }
