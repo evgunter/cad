@@ -1,7 +1,7 @@
 ---
 id: periodic-branch-floor-remains-at-the-raw-picks
 kind: issue
-title: a whole-period branch is still picked by floor at six sites the structural sweep did not name
+title: a whole-period branch is still picked by floor at fourteen sites the structural sweep did not name, and reduce_periodic carries the same atom
 status: open
 opened: 2026-10-12
 priority: P2
@@ -14,10 +14,16 @@ Found by `pcert/periodic-branch-structural`'s sweep for the shape (a
 `floor` of a periodic gap, through `Real::periodic_branch` or open-coded).
 That PR moves the three sites
 `periodic-branch-floor-remains-at-three-sites` named onto
-`geom_brep::whole_periods`. Six more still pick a branch by `floor`,
-four through `periodic_branch` and two open-coded as `⌊x/p + ½⌋`. At
-`Sym` each one carries an opaque `floor` atom into whatever decision
-reads the result:
+`geom_brep::whole_periods`. Fourteen more still pick a branch by
+`floor`: four through `periodic_branch`, two open-coded as `⌊x/p + ½⌋`,
+and eight through `Real::reduce_periodic_centred`
+(`self − p·self.periodic_branch(p)`, the same floor behind a wrapper,
+which the first sweep's pattern could not match; PR 4875's review,
+MINOR-4). At `Sym` each one carries an opaque `floor` atom into whatever
+decision reads the result.
+
+Through `periodic_branch` or open-coded:
+
 
 - `topo::ring_path::branch` (`t + (mid − t).periodic_branch(τ)·τ`). Its
   doc argues the pick is sound whichever way it falls, because the
@@ -44,8 +50,34 @@ reads the result:
   ⌊(gauss − fan)/4π + ½⌋`), a nearest branch at period 4π, open-coded.
   FLUX's ground.
 
-Not in this class: `topo::boolean::rim_wedge`'s `x − τ·⌊x/τ⌋` is a
-reduction into `[0, τ)`, not a branch pick.
+Through `reduce_periodic_centred` (each a nearest branch about a
+reference, `ref + (x − ref).reduce_periodic_centred(τ)`, or the centred
+residue itself):
+
+- `topo::splitting::classify`, two candidate re-centrings (the
+  `centred` reads beside each `anchored` one).
+- `topo::offset_axial`'s re-read (`old + (read − old)…`).
+- `topo::boolean::circle_torus`'s root re-centring (`thetas[count]`).
+- `topo::boolean::circle_roots`, the bracket root (`root = mid + …`) and
+  the `near_mid` closure.
+- `geom_brep::pcurve_cache::projected`'s centred angle residue
+  (`(angle − shift).reduce_periodic_centred(τ).abs()`).
+- `profile::sugar`'s signed turn (`((to − from)·turn)…`).
+
+**`reduce_periodic`, the `[0, τ)` reduction, carries the same atom.** It
+is `x − p·⌊x/p⌋` (`geom_core::Real::reduce_periodic`), and at `Sym` a
+`floor` is opaque unless its argument's form is the zero polynomial
+(`geom_core::sym`, `unary_at_zero` / `SymOp::Floor => atom1`). So every
+decision reading a `reduce_periodic` result is numeric at `Sym`, never a
+theorem. Stated from the tier's construction, not measured. It is a
+reduction, not a branch pick, so whether a structural form is owed is
+the open question here. Its sites:
+- `chord_join`'s arc extent (`(th2 − th1).reduce_periodic(τ)`);
+- `splitting::classify`'s two `anchored` reads;
+- `shell`'s split and half reads;
+- `boolean::boxes`' crest read;
+- `profile::sugar`'s `ccw` and extent;
+- `topo::boolean::rim_wedge`'s open-coded `x − τ·⌊x/τ⌋` (×4).
 
 None of them has been measured over a parameter box. The fix, where one is
 owed, is the one the three named sites took: decide the branch as

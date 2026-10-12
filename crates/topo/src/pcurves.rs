@@ -4417,6 +4417,54 @@ fn near_pole_gap_closes<T: Decide>(
     })
 }
 
+/// **A joint's whole periods by the marks, with the near-pole read**:
+/// [`geom_brep::whole_period_count`] metered at the vertex's lever `arm`.
+/// Where a mark misses (undecided, or the gap on it), the unshifted gap
+/// decided within ε at that lever takes the image itself
+/// ([`near_pole_gap_closes`]): a band-sized lever (a vertex near a
+/// narrow cone's apex, whose incidence can decide it off the apex while
+/// its lever `d·sin α` is under the band) reads every mark as Zero, and
+/// the two chart points then agree in metres at the vertex.
+///
+/// # Errors
+///
+/// The marks' [`BranchMiss`] where the near-pole read does not close.
+pub(crate) fn lever_periods<T: Decide>(
+    name: &'static str,
+    arm: ChartArm<T>,
+    gap: T,
+    period: T,
+    band: Band,
+) -> Result<i32, BranchMiss> {
+    match whole_period_count(name, gap, period, |g| arm.meter(g), band) {
+        Err(miss @ (BranchMiss::Undecided(_) | BranchMiss::OnMark)) => {
+            near_pole_gap_closes(arm, gap, period, false, band).ok_or(miss)
+        }
+        decided => decided,
+    }
+}
+
+/// **The two branches astride a half-period mark**: where `gap` sits on
+/// or near the mark between `j` and `j + 1` periods, `[j, j + 1]`, with
+/// `j` decided by the marks of `gap` less half a period, which then sits
+/// near `j` periods, half a period from either of its own marks. A caller
+/// whose marks missed asks its question on both and keeps an answer only
+/// where the two agree.
+///
+/// # Errors
+///
+/// [`BranchMiss`] where `j`'s own marks miss.
+pub(crate) fn branches_astride<T: Decide>(
+    name: &'static str,
+    gap: T,
+    period: T,
+    meter: impl Fn(T) -> Margin<T>,
+    band: Band,
+) -> Result<[i32; 2], BranchMiss> {
+    let j = whole_period_count(name, gap - period * T::from_f64(0.5), period, meter, band)?;
+    Ok([j, j + 1])
+}
+
 /// **A spline chart's joint gap**: the entry `entry` and the
 /// predecessor's exit `prev` agree within ε through the chart's sup
 /// stretch on each channel ([`chart_u_arm`], [`v_meter`]). A net can

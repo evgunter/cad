@@ -40,8 +40,10 @@
 //!   the descriptions with the radius-pricing `hyp` lever, then
 //!   MEASURED at the trims), and folds the angular coordinate by ONE
 //!   whole number of periods decided per pair as structure
-//!   ([`geom_brep::whole_periods`]; the [`ChartRegionError::PeriodFold`]
-//!   decline is a gap on a half-period mark).
+//!   ([`geom_brep::whole_periods`]). A gap astride a half-period mark
+//!   is answered on both branches and kept where they agree; the
+//!   [`ChartRegionError::PeriodFold`] decline is two branches that
+//!   disagree, or a gap past the branch reach.
 //!
 //! For both arms the claim earned is *certified everywhere within ε*,
 //! never *exact*: `decide`'s `Ok(Zero)` means `|m| ≤ zero`, not
@@ -262,8 +264,8 @@ pub enum ChartRegionError {
     SeamBranch,
     /// The whole-period fold that carries one cylinder description's
     /// chart window onto the other's names no branch: the two windows'
-    /// midpoints sit ON a half-period mark (a genuine tie, half a
-    /// period from two branches) or more than
+    /// midpoints sit ON a half-period mark and the pair's answers on the
+    /// two branches astride it disagree, or they sit more than
     /// [`geom_brep::MAX_BRANCH_PERIODS`] periods apart. The tie
     /// declines, never certifying a false overlap.
     PeriodFold,
@@ -394,8 +396,9 @@ impl core::fmt::Display for ChartRegionError {
                 f,
                 "chart-region: the cross-description angular fold could not be \
                  pinned to one whole period — the two windows sit a genuine \
-                 half-period tie apart, or more periods apart than the branch \
-                 reach; the tie declines, it never certifies. Move one \
+                 half-period tie apart and the pair reads differently on the two \
+                 branches, or they sit more periods apart than the branch reach; \
+                 the tie declines, it never certifies. Move one \
                  description's window off the half-period tie, or re-describe the \
                  pair on one cylinder rather than two"
             ),
@@ -1308,9 +1311,13 @@ fn cyl_frame<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<CylFrame<T>, Ch
 /// applied to every transferred vertex. It is decided as structure
 /// ([`geom_brep::whole_periods`], `chart_region_period_fold`): sign
 /// decisions at the half-period marks, levered by the radius, so the
-/// shift is `k·τ` with `k` a literal at every scalar. A gap on a mark
-/// (the windows a half-period tie apart) or past the branch reach
-/// declines [`ChartRegionError::PeriodFold`]; a mark in band escalates.
+/// shift is `k·τ` with `k` a literal at every scalar. A gap on or in
+/// the band of a mark (the windows a half-period tie apart) is a tie
+/// between the two branches astride it, each of which sees the mirror
+/// image of the other's overlap: the pair is answered on both and the
+/// answer kept where they agree. Two that disagree decline
+/// [`ChartRegionError::PeriodFold`] on a mark and escalate in band; a
+/// gap past the branch reach declines [`ChartRegionError::PeriodFold`].
 ///
 /// # Decline posture (issue 1435's disclosure obligation)
 ///
@@ -1521,7 +1528,7 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
     let uv_a = extract_face_uv(body_a, face_a, &surface_a, ChartRead::Minted, band)?;
     let uv_b_own = extract_face_uv(body_b, face_b, &surface_b, ChartRead::Minted, band)?;
     let map = |p: &Point2<T>| Point2::new(delta + sigma * p.x, c + sigma * p.y);
-    let mut uv_b = FaceUv {
+    let uv_b = FaceUv {
         outer: uv_b_own.outer.iter().map(map).collect(),
         rings: uv_b_own
             .rings
@@ -1556,51 +1563,76 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
     }
 
     // --- The fold: one whole period, pinned per pair as structure
-    //     (doc above).
-    let shift = period_fold(window_mid(&uv_a) - window_mid(&uv_b), a.radius, band)?;
-    let fold = |p: &Point2<T>| Point2::new(p.x + shift, p.y);
-    uv_b = FaceUv {
-        outer: uv_b.outer.iter().map(fold).collect(),
-        rings: uv_b
-            .rings
-            .iter()
-            .map(|r| r.iter().map(fold).collect())
-            .collect(),
+    //     (doc above); a gap astride a half-period mark is answered on
+    //     both branches and kept only where the two agree.
+    let overlap_at = |shift: T| {
+        let fold = |p: &Point2<T>| Point2::new(p.x + shift, p.y);
+        let folded = FaceUv {
+            outer: uv_b.outer.iter().map(fold).collect(),
+            rings: uv_b
+                .rings
+                .iter()
+                .map(|r| r.iter().map(fold).collect())
+                .collect(),
+        };
+        // The shared pipeline, in A's chart (arms (r_a, 1); the seam
+        // gate is the window-fit decline the doc names).
+        overlap_of_uv(
+            body_a, face_a, body_b, face_b, &surface_a, &uv_a, &folded, band,
+        )
     };
-
-    // --- The shared pipeline, in A's chart (arms (r_a, 1); the seam
-    //     gate is the window-fit decline the doc names).
-    overlap_of_uv(
-        body_a, face_a, body_b, face_b, &surface_a, &uv_a, &uv_b, band,
-    )
+    match period_fold(window_mid(&uv_a) - window_mid(&uv_b), a.radius, band)? {
+        Fold::One(shift) => overlap_at(shift),
+        Fold::Astride([lo, hi], decline) => {
+            let (below, above) = (overlap_at(lo), overlap_at(hi));
+            let agree = match (&below, &above) {
+                (Ok(x), Ok(y)) => x == y,
+                (Err(x), Err(y)) => core::mem::discriminant(x) == core::mem::discriminant(y),
+                _ => false,
+            };
+            if agree { below } else { Err(decline) }
+        }
+    }
 }
 
-/// The fold's shift `k·τ` for windows whose azimuth midpoints are `gap`
-/// apart, on a cylinder of `radius`: `k` decided by the half-period marks
-/// ([`geom_brep::whole_periods`]) metered at the radius, so it is a
-/// literal at every scalar.
+/// The fold [`period_fold`] decides.
+enum Fold<T> {
+    /// The one shift `k·τ`.
+    One(T),
+    /// The gap sits on or near a half-period mark: the shifts of the two
+    /// branches astride it, and the refusal owed where the pair's answer
+    /// on them differs.
+    Astride([T; 2], ChartRegionError),
+}
+
+/// The fold for windows whose azimuth midpoints are `gap` apart, on a
+/// cylinder of `radius`: the shift `k·τ`, with `k` decided by the
+/// half-period marks ([`geom_brep::whole_periods`]) levered at the
+/// radius, so it is a literal at every scalar. Where a mark misses, the
+/// two branches astride it (`pcurves::branches_astride`), each a literal.
 ///
 /// # Errors
 ///
-/// [`ChartRegionError::PeriodFold`] where the gap sits on a mark or past
-/// the branch reach; [`ChartRegionError::Escalated`] where a mark is in
-/// band.
-fn period_fold<T: Decide>(gap: T, radius: T, band: Band) -> Result<T, ChartRegionError> {
+/// [`ChartRegionError::PeriodFold`] past the branch reach, or on a mark
+/// whose astride branches are not decided;
+/// [`ChartRegionError::Escalated`] in band, likewise.
+fn period_fold<T: Decide>(gap: T, radius: T, band: Band) -> Result<Fold<T>, ChartRegionError> {
     let tau = T::tau();
-    if std::env::var("R4875_MUTANT").is_ok() {
-        return Ok(geom_core::Real::periodic_branch(gap, tau) * tau);
-    }
-    match geom_brep::whole_periods(
-        "chart_region_period_fold",
-        gap,
-        tau,
-        |g| Margin::levered(g, radius),
-        band,
-    ) {
-        Ok(k) => Ok(k * tau),
-        Err(geom_brep::BranchMiss::Undecided(diag)) => Err(ChartRegionError::Escalated(diag)),
-        Err(geom_brep::BranchMiss::OnMark | geom_brep::BranchMiss::OutOfReach) => {
-            Err(ChartRegionError::PeriodFold)
+    let name = "chart_region_period_fold";
+    let meter = |g| Margin::levered(g, radius);
+    let shift = |k: i32| T::from_f64(f64::from(k)) * tau;
+    match geom_brep::whole_period_count(name, gap, tau, meter, band) {
+        Ok(k) => Ok(Fold::One(shift(k))),
+        Err(geom_brep::BranchMiss::OutOfReach) => Err(ChartRegionError::PeriodFold),
+        Err(miss) => {
+            let decline = match miss {
+                geom_brep::BranchMiss::Undecided(diag) => ChartRegionError::Escalated(diag),
+                _ => ChartRegionError::PeriodFold,
+            };
+            match crate::pcurves::branches_astride(name, gap, tau, meter, band) {
+                Ok([lo, hi]) => Ok(Fold::Astride([shift(lo), shift(hi)], decline)),
+                Err(_) => Err(decline),
+            }
         }
     }
 }
@@ -5812,70 +5844,38 @@ mod from_computed_rows {
 }
 
 /// **The cross-description fold is a literal number of periods.** Over
-/// a box, windows a period apart as polynomials that are not constants:
-/// the fold's shift less one period is the zero polynomial.
+/// a box, windows `k` periods apart as polynomials that are not
+/// constants, at `k` either side of zero: the fold's shift less `k`
+/// periods is the zero polynomial.
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
+#[allow(clippy::unwrap_used, clippy::panic)]
 mod period_fold_rows {
     use super::*;
     use geom_core::{Real, Sym};
 
     #[test]
-    fn the_fold_is_a_whole_period_as_a_theorem_over_a_box() {
+    fn the_fold_is_its_whole_periods_as_a_theorem_over_a_box() {
         let band = Band::linear(geom_core::Tol::witness()).unwrap();
-        let (out, counts) =
-            crate::test_support_fixtures::whole_period_gap_over_a_box(1.0, |a, b| {
-                let shift = period_fold(a - b, Sym::from_f64(2.0), band).unwrap();
-                crate::validate::decide("period_fold_row", Margin::of(shift - Sym::tau()), band)
-            });
-        assert!(
-            matches!(out, Ok(Sign::Zero)),
-            "the fold is one period: {out:?}"
-        );
-        assert_eq!(
-            counts.symbolic_zero, 1,
-            "the shift less τ is the zero polynomial"
-        );
-    }
-}
-
-/// review/4875 probes (not for merge).
-#[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::float_cmp)]
-mod review_4875_probes {
-    use super::*;
-    use geom_core::Real;
-
-    fn floor_k(gap: f64) -> f64 {
-        gap.periodic_branch(core::f64::consts::TAU)
-    }
-
-    /// Claim 3: at f64, wherever `whole_periods` decides, is its k the
-    /// floor's? One ulp under π, at a large lever.
-    #[test]
-    fn r4875_f64_one_ulp_under_pi_at_a_large_lever() {
-        let band = Band::linear(geom_core::Tol::witness()).unwrap();
-        let g = f64::from_bits(core::f64::consts::PI.to_bits() - 1);
-        for radius in [1.0, 1e4, 1e6, 1e7, 1e8] {
-            let got = period_fold(g, radius, band);
-            println!(
-                "radius {radius:e}: floor k = {} ; whole_periods -> {:?}",
-                floor_k(g),
-                got.map(|s| s / core::f64::consts::TAU)
+        for k in [-1.0, 0.0, 1.0, 2.0] {
+            let (out, counts) =
+                crate::test_support_fixtures::whole_period_gap_over_a_box(k, |a, b| {
+                    let Fold::One(shift) = period_fold(a - b, Sym::from_f64(2.0), band).unwrap()
+                    else {
+                        panic!("k = {k}: a gap of whole periods sits on no mark");
+                    };
+                    crate::validate::decide(
+                        "period_fold_row",
+                        Margin::of(shift - Sym::from_f64(k) * Sym::tau()),
+                        band,
+                    )
+                });
+            assert!(
+                matches!(out, Ok(Sign::Zero)),
+                "k = {k}: the fold is {k} periods: {out:?}"
             );
-        }
-    }
-
-    /// Where the floor answered at f64 and the structural fold refuses.
-    #[test]
-    fn r4875_f64_near_half_period_answer_becomes_refusal() {
-        let band = Band::linear(geom_core::Tol::witness()).unwrap();
-        for d in [0.0, 1e-12, 1e-10, 5e-9, 2e-8] {
-            let g = core::f64::consts::PI - d;
-            println!(
-                "gap π−{d:e}: floor k = {} ; period_fold -> {:?}",
-                floor_k(g),
-                period_fold(g, 1.0, band)
+            assert_eq!(
+                counts.symbolic_zero, 1,
+                "k = {k}: the shift less kτ is the zero polynomial"
             );
         }
     }

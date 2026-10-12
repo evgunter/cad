@@ -1136,7 +1136,8 @@ fn face_geo<T: Decide>(
 /// # Errors
 ///
 /// [`PointInSolidError::CorruptFace`] for a face whose window or
-/// boundary cannot be resolved.
+/// boundary cannot be resolved, [`PointInSolidError::Escalated`] where
+/// the window's walk escalates.
 #[allow(clippy::type_complexity)] // (azimuth window, height range) — one chart trim
 pub(super) fn cylinder_chart_trim<T: Decide>(
     body: &Body<T>,
@@ -1152,10 +1153,13 @@ pub(super) fn cylinder_chart_trim<T: Decide>(
         .get_surface(f.surface)
         .cloned()
         .ok_or(PointInSolidError::CorruptFace { face })?;
-    let az = crate::chord_join::face_azimuth_window(body, &surf, face, band)
-        .ok()
-        .flatten()
-        .ok_or(PointInSolidError::CorruptFace { face })?;
+    let az = match crate::chord_join::face_azimuth_window(body, &surf, face, band) {
+        Ok(Some(az)) => az,
+        Err(crate::chord_join::SplitJoinError::Escalated { diag, .. }) => {
+            return Err(PointInSolidError::Escalated { face, diag });
+        }
+        Ok(None) | Err(_) => return Err(PointInSolidError::CorruptFace { face }),
+    };
     let mut h_range: Option<(T, T)> = None;
     let LoopBoundary::Cycle { first } = body
         .get_loop(f.outer)
@@ -1879,10 +1883,20 @@ fn cone_trimmed_window<T: Decide>(
         .cloned()
         .ok_or(PointInSolidError::CorruptFace { face })?;
     let images = match crate::chord_join::cone_apex_closure(body, &surf, face, band) {
-        Ok(ApexClosure::Clear) => crate::chord_join::face_azimuth_images(body, &surf, face, band)
-            .ok()
-            .flatten()
-            .ok_or(PointInSolidError::CorruptFace { face })?,
+        Ok(ApexClosure::Clear) => {
+            match crate::chord_join::face_azimuth_images(body, &surf, face, band) {
+                Ok(Some(images)) => images,
+                Err(SplitJoinError::Escalated { diag, .. }) => return Err(esc(diag)),
+                // A key the walk could not resolve, or a boundary that does
+                // not close, keeps the corruption's own door.
+                Ok(None)
+                | Err(SplitJoinError::Corrupt { .. } | SplitJoinError::UnpairedLooseEnds { .. }) => {
+                    return Err(PointInSolidError::CorruptFace { face });
+                }
+                // A walk this face cannot take: no single lift.
+                Err(_) => return Err(partial),
+            }
+        }
         Ok(ApexClosure::Closed { images, .. }) => images,
         Ok(ApexClosure::Open) => return Err(partial),
         Err(SplitJoinError::Escalated { diag, .. }) => return Err(esc(diag)),
@@ -2491,15 +2505,18 @@ fn torus_chart_windows<T: Decide>(
 /// there. The branch is decided as structure, per channel
 /// ([`geom_brep::whole_periods`]): sign decisions at the half-period
 /// marks, metered through the channel's rate as the closure is, so the
-/// shift is a whole number of periods `k·τ` with `k` a literal. `None`
-/// where the walk does not meet: the gap sits on a mark (half a period
-/// from either branch), is out of the branch reach, or the shifted entry
-/// is not the exit.
+/// shift is a whole number of periods `k·τ` with `k` a literal. Where a
+/// mark is undecided, the closure is asked on both branches astride it
+/// (`pcurves::branches_astride`): on neither, the walk does not meet.
+/// `None` where the walk does not meet: the gap sits on a mark (half a
+/// period from either branch), is out of the branch reach, meets on
+/// neither branch astride an undecided mark, or the shifted entry is not
+/// the exit.
 ///
 /// # Errors
 ///
-/// [`PointInSolidError::Escalated`] where a mark or the closure is
-/// in band.
+/// [`PointInSolidError::Escalated`] where a mark is in band and a branch
+/// astride it may meet, or the closure is in band.
 #[allow(clippy::type_complexity)] // a side's two chart points
 fn torus_chart_joint<T: Decide>(
     face: FaceKey,
@@ -2508,19 +2525,30 @@ fn torus_chart_joint<T: Decide>(
     arms: (SupSpeed<T>, SupSpeed<T>),
     band: Band,
 ) -> Result<Option<((T, T), (T, T))>, PointInSolidError> {
+    use geom_brep::BranchMiss;
     let tau = T::tau();
-    let shift = |gap: T, arm: SupSpeed<T>| match geom_brep::whole_periods(
-        "bool_torus_chart_branch",
-        gap,
-        tau,
-        |g| Margin::metered_sup(g, arm),
-        band,
-    ) {
-        Ok(k) => Ok(Some(k * tau)),
-        Err(geom_brep::BranchMiss::Undecided(diag)) => {
-            Err(PointInSolidError::Escalated { face, diag })
+    let name = "bool_torus_chart_branch";
+    let whole = |k: i32| T::from_f64(f64::from(k)) * tau;
+    let shift = |gap: T, arm: SupSpeed<T>| {
+        let meter = |g| Margin::metered_sup(g, arm);
+        match geom_brep::whole_period_count(name, gap, tau, meter, band) {
+            Ok(k) => Ok(Some(whole(k))),
+            Err(BranchMiss::Undecided(diag)) => {
+                let meets_on = |k: i32| {
+                    decide("bool_torus_chart_closure", meter(gap - whole(k)), band)
+                        .map(|sign| sign == Sign::Zero)
+                };
+                match crate::pcurves::branches_astride(name, gap, tau, meter, band) {
+                    Ok([lo, hi])
+                        if matches!((meets_on(lo), meets_on(hi)), (Ok(false), Ok(false))) =>
+                    {
+                        Ok(None)
+                    }
+                    _ => Err(PointInSolidError::Escalated { face, diag }),
+                }
+            }
+            Err(BranchMiss::OnMark | BranchMiss::OutOfReach) => Ok(None),
         }
-        Err(geom_brep::BranchMiss::OnMark | geom_brep::BranchMiss::OutOfReach) => Ok(None),
     };
     let (Some(ku), Some(kv)) = (
         shift(prev.0 - entry.0, arms.0)?,
@@ -6422,11 +6450,14 @@ mod escalated_ending_rows {
 }
 
 /// **A torus walk's joint lands on a literal branch.** Over a box, a
-/// joint whose entry sits one period from the previous exit in both
-/// channels, as polynomials that are not constants: the branch is
-/// decided by its marks, so the shifted entry meets the exit as the
-/// zero polynomial in each channel, and the walk closes as a theorem
-/// where the value channel alone is about 0.64 rad wide.
+/// joint whose entry sits `k` periods from the previous exit in both
+/// channels, as polynomials that are not constants, at `k` either side
+/// of zero: the branch is decided by its marks, so the shifted entry
+/// meets the exit as the zero polynomial in each channel, and the walk
+/// closes as a theorem where the value channel alone is about 0.64 rad
+/// wide. And at `f64`, a gap in the band of a half-period mark meets on
+/// neither branch astride it, so the walk does not meet there: the face
+/// is out of the class, never an escalation.
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod joint_branch_rows {
@@ -6434,24 +6465,46 @@ mod joint_branch_rows {
     use geom_core::{Real, Sym};
 
     #[test]
-    fn a_joint_a_period_out_meets_as_a_theorem_over_a_box() {
+    fn a_joint_whole_periods_out_meets_as_a_theorem_over_a_box() {
         let band = Band::linear(Tol::witness()).unwrap();
-        let (out, counts) =
-            crate::test_support_fixtures::whole_period_gap_over_a_box(1.0, |a, b| {
-                let arms = (
-                    SupSpeed::new(Sym::from_f64(2.5)),
-                    SupSpeed::new(Sym::from_f64(0.5)),
-                );
-                torus_chart_joint(FaceKey::default(), (a, a), ((b, b), (b, b)), arms, band)
-                    .map(|joint| joint.is_some())
-            });
-        assert!(
-            matches!(out, Ok(true)),
-            "the walk meets across the joint: {out:?}"
+        for k in [-1.0, 0.0, 1.0, 2.0] {
+            let (out, counts) =
+                crate::test_support_fixtures::whole_period_gap_over_a_box(k, |a, b| {
+                    let arms = (
+                        SupSpeed::new(Sym::from_f64(2.5)),
+                        SupSpeed::new(Sym::from_f64(0.5)),
+                    );
+                    torus_chart_joint(FaceKey::default(), (a, a), ((b, b), (b, b)), arms, band)
+                        .map(|joint| joint.is_some())
+                });
+            assert!(
+                matches!(out, Ok(true)),
+                "k = {k}: the walk meets across the joint: {out:?}"
+            );
+            assert_eq!(
+                counts.symbolic_zero, 2,
+                "k = {k}: each channel's closure is the zero polynomial"
+            );
+        }
+    }
+
+    #[test]
+    fn a_gap_in_band_of_a_half_period_mark_meets_on_neither_branch() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let arms = (SupSpeed::new(2.5), SupSpeed::new(0.5));
+        // `2.5·2e-9 = 5e-9` from the mark at π: inside the band, so the
+        // mark is undecided, and a half period from either branch.
+        let gap = core::f64::consts::PI + 2e-9;
+        let joint = torus_chart_joint(
+            FaceKey::default(),
+            (0.3 + gap, 0.2),
+            ((0.3, 0.2), (0.5, 0.2)),
+            arms,
+            band,
         );
-        assert_eq!(
-            counts.symbolic_zero, 2,
-            "each channel's closure is the zero polynomial"
+        assert!(
+            matches!(joint, Ok(None)),
+            "the walk does not meet on either branch: {joint:?}"
         );
     }
 }
