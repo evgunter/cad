@@ -590,7 +590,9 @@ impl<T: SpanLocate> NurbsSurface<T> {
             stretch: OnceLock::new(),
         })
     }
+}
 
+impl<T: Real> NurbsSurface<T> {
     /// Certified **upper** bounds on `‖S_u‖` and `‖S_v‖` over the whole
     /// domain, in m/param: the pair-term bound of
     /// [`geom_core::spline::rational_cell_stretch_sup`], per direction,
@@ -640,9 +642,7 @@ impl<T: SpanLocate> NurbsSurface<T> {
         };
         (side(true), side(false))
     }
-}
 
-impl<T: Real> NurbsSurface<T> {
     /// The "no description yet" placeholder payload for
     /// [`crate::surfaces::Surface::Nurbs`]: structurally valid (bilinear on
     /// `[0,1]²`, unit weights) with all-poison control points, so
