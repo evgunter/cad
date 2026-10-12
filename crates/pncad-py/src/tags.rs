@@ -1567,6 +1567,7 @@ pub fn blend_error_tag(err: &BlendError) -> &'static str {
         BlendError::UnjoinedOperand { .. } => "unjoined_operand",
         BlendError::SurgeryInvariant { .. } => "surgery_invariant",
         BlendError::RingClearance { .. } => "ring_clearance",
+        BlendError::WhollyInside { .. } => "wholly_inside",
         BlendError::Certify { .. } => "certify",
         BlendError::Op { .. } => "op",
         BlendError::Join { refusal } => join_refusal_tag(refusal),
