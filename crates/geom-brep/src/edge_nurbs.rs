@@ -781,7 +781,10 @@ pub fn is_analytic<T: Real>(surface: &Surface<T>) -> bool {
 ///   distance at the schedule's samples, is implied by it;
 /// - **limb 3**: over a chain of boxes around the carrier the
 ///   enclosure of `(∇f₁ × ∇f₂)·e` excludes zero, so the solution set in
-///   the chain is one arc and it spans the carrier over `params`.
+///   the chain is one arc and it spans the carrier over `params`. An
+///   operand outside the tube's enclosure roster
+///   (`ssi::enclose::has_implicit_enclosure`) refuses here, by name,
+///   before any box is probed.
 ///
 /// Both read the carrier cut to `params` (its bracket's outer ends, so
 /// the piece covers the interval at every scalar): the net past the
@@ -792,7 +795,7 @@ pub fn is_analytic<T: Real>(surface: &Surface<T>) -> bool {
 ///
 /// [`AnalyticRung3Refusal`]: a limb's measured refusal or escalation,
 /// the tube's verdict, an operand whose distance bound has no
-/// certificate, a spline operand, or an interval the carrier cannot be
+/// certificate, an operand the tube has no enclosure of, a spline operand, or an interval the carrier cannot be
 /// cut to.
 pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     carrier: &NurbsCurve3<T>,
@@ -821,6 +824,12 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
             }
         };
         rung3_limb(kind, Limb2::Bound, offset, band)?;
+    }
+    if let Some(operand) = [s1.kind(), s2.kind()]
+        .into_iter()
+        .find(|&k| !crate::ssi::enclose::has_implicit_enclosure(k))
+    {
+        return Err(AnalyticRung3Refusal::NoTubeEnclosure { operand });
     }
     crate::ssi::certify::certify_branch(
         &piece,
@@ -1042,6 +1051,13 @@ pub enum AnalyticRung3Refusal {
         /// Why, in a clause.
         why: &'static str,
     },
+    /// The uniqueness tube has no enclosure of this operand's implicit
+    /// gradient, so no box of any rung certifies, whatever the carrier's
+    /// accuracy: raised once limb 2 holds against both operands.
+    NoTubeEnclosure {
+        /// The operand.
+        operand: geom::SurfaceKind,
+    },
     /// The uniqueness tube's transversality is not certified clear of
     /// the zero band — a sliver of the pair along the carrier at this
     /// tolerance ([`PlaneNurbsRefusal::TubeStraddles`] reads the same
@@ -1107,6 +1123,13 @@ impl AnalyticRung3Refusal {
                 limb.name()
             ),
             SsiError::UnsupportedCertificate { what } => Self::Unsupported { what },
+            SsiError::TubeProbeSilent { refused, .. } if refused > 0 => Self::Unsupported {
+                what: "no rung of the uniqueness tube measured a margin, and a transversality \
+                       enclosure was refused",
+            },
+            SsiError::TubeProbeSilent { .. } => Self::Unsupported {
+                what: "no rung of the uniqueness tube built a chain around the carrier",
+            },
             _ => Self::Unsupported {
                 what: "the uniqueness tube refused for a reason outside this certificate's \
                        vocabulary",
@@ -1136,7 +1159,10 @@ impl AnalyticRung3Refusal {
             Self::TubeStraddles { verdict, .. } => (CertCheck::Transversality, verdict.arm()),
             // The one-arc proof is the SSI door's own decision, and
             // `ending` reads it there.
-            Self::NoOffsetBound { .. } | Self::TubeNotOneArc { .. } | Self::Unsupported { .. } => {
+            Self::NoOffsetBound { .. }
+            | Self::NoTubeEnclosure { .. }
+            | Self::TubeNotOneArc { .. }
+            | Self::Unsupported { .. } => {
                 return None;
             }
         })
@@ -1185,12 +1211,20 @@ impl core::fmt::Display for AnalyticRung3Refusal {
                 "the carrier's distance from the {} has no certified bound: {why}",
                 operand.name()
             ),
+            Self::NoTubeEnclosure { operand } => write!(
+                f,
+                "the carrier lies within the tolerance of both surfaces, but the uniqueness tube \
+                 has no enclosure of the {}'s gradient, so it cannot prove the carrier is their \
+                 one crossing",
+                operand.name()
+            ),
             Self::TubeStraddles { verdict, boxes } => write!(
                 f,
                 "the uniqueness tube's transversality is not certified clear of the zero band \
-                 over {boxes} boxes of the chain — the two surfaces meet in a sliver along the \
-                 carrier at this tolerance; the certificate's proven clearance from zero is {:e} \
-                 m, which is the bound it could prove and not the sliver's own extent",
+                 over {boxes} boxes of the chain — it straddles zero, from a near-tangency of \
+                 the two surfaces along the carrier or from the enclosure's slack; the \
+                 certificate's proven clearance from zero is {:e} m, which is the bound it could \
+                 prove",
                 verdict.margin()
             ),
             Self::TubeNotOneArc { rungs, cause } => write!(
@@ -1523,6 +1557,34 @@ mod tests {
     use crate::recourse::Reading;
 
     use super::*;
+
+    /// **A silent tube says why it is silent.** Where a transversality
+    /// enclosure was refused at some rung the edge says so; where no rung
+    /// built a chain it says that. Neither reads as the generic
+    /// out-of-vocabulary refusal.
+    #[test]
+    fn a_silent_tube_names_its_silence() {
+        use crate::ssi::SsiError;
+        let words =
+            |rungs, refused| match AnalyticRung3Refusal::of_tube(SsiError::TubeProbeSilent {
+                rungs,
+                refused,
+            }) {
+                AnalyticRung3Refusal::Unsupported { what } => what,
+                other => panic!("not the silent tube's refusal: {other:?}"),
+            };
+        assert!(
+            words(20, 20).contains("enclosure was refused"),
+            "{}",
+            words(20, 20)
+        );
+        assert!(
+            words(20, 3).contains("enclosure was refused"),
+            "{}",
+            words(20, 3)
+        );
+        assert!(words(20, 0).contains("built a chain"), "{}", words(20, 0));
+    }
 
     /// A unit-domain image with the structure a lift must carry
     /// verbatim: degree 2, a double interior knot, non-unit weights.

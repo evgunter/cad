@@ -400,6 +400,15 @@ pub(crate) fn implicit_gradient_enclosure<T: CertifiedBounds>(
     }
 }
 
+/// Whether [`implicit_enclosure`] and [`implicit_gradient_enclosure`]
+/// have an arm for `kind`. Off it both refuse every box, so a tube over
+/// such an operand reads a refused margin in every box at every rung:
+/// no verdict on the pair, whatever the carrier.
+pub(crate) const fn has_implicit_enclosure(kind: geom::SurfaceKind) -> bool {
+    use geom::SurfaceKind as K;
+    matches!(kind, K::Plane | K::Sphere | K::Cylinder)
+}
+
 /// `(∇f₁ × ∇f₂)·e` over `b` — **the uniqueness-tube quantity** (module
 /// docs). An enclosure excluding zero proves the solution set inside
 /// `b` is a graph over the `e` axis: at most one solution on each
@@ -425,7 +434,8 @@ pub(crate) fn graph_margin<T: CertifiedBounds>(
 /// readings come from the derivative numerators' vector terms
 /// ([`CellNet::transverse_readings`]), so a rigid map that carries `n`
 /// with the wall moves the margin by its rounding width. `Ok(None)`
-/// when the stretch has no finite bound.
+/// when the stretch has no finite bound; `NaN` where `∇φ`'s enclosure
+/// is refused ([`tube_margin`]), which measured nothing.
 ///
 /// # Errors
 ///
@@ -466,12 +476,23 @@ pub(super) fn chart_transverse_margin<T: CertifiedBounds>(
         ));
     }
     // A lower bound over an upper bound stays one only rounded down.
-    Ok(Some(div_down(zero_free_lower_bound(phi), stretch)))
+    Ok(Some(
+        tube_margin(phi).map_or(f64::NAN, |m| div_down(m, stretch)),
+    ))
+}
+
+/// A uniqueness tube's reading of one transversality enclosure: its
+/// certified distance from zero ([`zero_free_lower_bound`]), or `None`
+/// where the enclosure is refused. A refused enclosure measured
+/// nothing, so its rung is not probed; read as `0` it would be a
+/// sliver's margin.
+pub(crate) fn tube_margin(i: Interval) -> Option<f64> {
+    i.is_certified().then(|| zero_free_lower_bound(i))
 }
 
 /// The certified distance of an enclosure from zero: `0` when it
-/// straddles (or is refused), which is exactly what makes the trilean
-/// land in the sliver band.
+/// straddles or is refused, the vacuous lower bound. A reading that
+/// must tell a refusal from a straddle asks [`tube_margin`].
 /// (The mignitude. `offset_meters::mig` is the same arithmetic read
 /// as a coefficient-hull assembly term rather than a decision; noted
 /// at both sites.)
@@ -2685,6 +2706,37 @@ mod tests {
         }
     }
 
+    /// **A refused plane normal measures no chart margin.** Over the
+    /// dome, a window's transverse margin against a plane is a finite
+    /// distance from zero. With the normal refused, `∇φ` is refused while
+    /// the chart's stretch stays finite, and the margin reads `NaN`
+    /// (measured nothing), never the `0` of a straddle.
+    #[test]
+    fn a_refused_normal_measures_no_chart_margin() {
+        let k = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2)
+            .expect("clamped quadratic");
+        let mut control = Vec::with_capacity(9);
+        for i in 0..3u8 {
+            for j in 0..3u8 {
+                let y = if i == 1 && j == 1 { -1.5 } else { 0.0 };
+                control.push(Point3::new(f64::from(i) / 2.0, y, f64::from(j) / 2.0));
+            }
+        }
+        let dome = NurbsSurface::new(k.clone(), k, control, vec![1.0; 9]).expect("the dome");
+        let boxes = NurbsBoxes::new(&dome);
+        let (tx, ty) = (1.0_f64, 0.3_f64);
+        let tangent = (tx, ty, tx.hypot(ty));
+        let read = |n| {
+            chart_transverse_margin(&boxes, n, win(INSIDE_ONE_CELL), tangent)
+                .expect("the window is not degenerate")
+                .expect("the stretch is finite")
+        };
+        let measured = read([0.0, 1.0, 0.0].map(Interval::point));
+        assert!(measured.is_finite() && measured > 0.0, "{measured}");
+        let refused = read([Interval::refused(); 3]);
+        assert!(refused.is_nan(), "a refused normal read {refused}");
+    }
+
     /// **The derivative box shrinks with its window below a span cell.**
     /// The dome `x = s, z = t, y = −4d·s(1−s)·t(1−t)` is one quadratic
     /// Bézier patch, so every window touches the same single cell, whose
@@ -2894,6 +2946,50 @@ mod tests {
         assert!(!implicit_enclosure(&torus, b).is_certified());
         assert!(!implicit_gradient_enclosure(&torus, b)[0].is_certified());
         assert!(!graph_margin(&torus, &sphere(), b, Vec3::new(1.0, 0.0, 0.0)).is_certified());
+    }
+
+    /// **[`super::has_implicit_enclosure`] answers what the enclosures
+    /// do**, kind by kind, on a box clear of every operand's degenerate
+    /// set. It asks both: the tube's one-arc proof (`one_arc_r3`)
+    /// reads the residual enclosure as well as the gradient, so an arm
+    /// that encloses the gradient alone does not admit a kind.
+    #[test]
+    fn the_enclosure_roster_is_the_enclosures_own() {
+        let plane = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let cone = Surface::Cone {
+            apex: Point3::new(0.0, 0.0, -2.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            half_angle: 0.4,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let torus = Surface::Torus {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            major_radius: 1.0,
+            minor_radius: 0.2,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let b = Box3::around(Point3::new(0.8, 0.2, 0.1), 0.05);
+        let mut seen = Vec::new();
+        for s in [plane, cylinder(), cone, sphere(), torus] {
+            let kind = s.kind();
+            seen.push(kind);
+            let encloses = implicit_enclosure(&s, b).is_certified()
+                && implicit_gradient_enclosure(&s, b)
+                    .iter()
+                    .all(|g| g.is_certified());
+            assert_eq!(super::has_implicit_enclosure(kind), encloses, "{kind:?}");
+        }
+        for kind in geom::SurfaceKind::ALL {
+            assert!(
+                seen.contains(&kind) || !super::has_implicit_enclosure(kind),
+                "{kind:?} is claimed and not measured here"
+            );
+        }
     }
 
     #[test]
