@@ -56,3 +56,38 @@ CAD_FUZZ_SEED=0x9433bbf2eb0a13c0 CAD_FUZZ_EFFORT=1 \
 A clearance of 9.679ε, further inside the `< 10ε` gap than the first
 seed's 9.991ε, so frame rounding at the gap's edge is a less likely
 explanation for this one.
+
+## 2026-10-11 — a second seed (FLUSH, local release run)
+
+On FLUSH's `flush/apex-edge-in-face-plane`, whose diff touches none of
+the row's gated paths:
+
+```
+CAD_FUZZ_SEED=0xedc36ace8b877740 CAD_FUZZ_EFFORT=1
+ε 1e-6, depth 9.999757644744384e-6 (true 1.000e-5, 0 true roots): Ok(Miss)
+  Circle { center: (-0.24244944920625458, 0.08343253614355985, -1.0225101464360302),
+           axis: (-0.949015772808044, -0.02563613020061992, 0.3141844232133222),
+           radius: 1.0810235207384276,
+           u_ref: (0.3152285884267972, -0.07717920520967814, 0.9458722468291643) }
+  wall r 0.0983100695346417
+```
+
+The clearance here is 9.99976ε against a true 1.000e-5: the same
+boundary of the gap, at a unit-scale pose rather than `r ≈ 70.87`, so the
+far-frame rounding reading above does not explain this one.
+
+## Another seed (NURBS, 2026-10-12)
+
+Seed `0xe8586f5f5e218549` reddens `topo` `conic_quadric::in_band_sweep` in one default run.
+
+NURBS build A replayed it on two trees, each on its own isolated target dir:
+- on PR 4551's branch: red;
+- on main at `5160aff448`: red.
+
+It is not PR 4551's change, and it is a witness for this row. Replay:
+
+```
+CAD_FUZZ_SEED=0xe8586f5f5e218549 cargo nextest run -p topo -E 'test(in_band_sweep)'
+```
+
+The clearance was not taken. — (NURBS orchestrator)

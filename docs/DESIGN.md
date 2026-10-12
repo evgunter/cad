@@ -276,10 +276,8 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    a pole or apex), **prefer-intrinsic enforcement** (D2) and the
    **positive-volume orientation invariant** (exact-B-rep signed volume
    definitely-negative ⇒ invalid; margin V/A_total, a length; zero and
-   escalated exempt — at rest an orientation probe, not a thinness
-   gate, so ε-tightening never flips valid→invalid; a boolean's door
-   reads a solid's only shell certified in band as the in-band shell
-   it is, D10's Booleans clause). Laminae live here, not at
+   escalated exempt — an orientation probe, not a thinness gate, at
+   every door, so ε-tightening never flips valid→invalid). Laminae live here, not at
    tier 2: two faces glued along their whole shared boundary is a
    two-hemisphere ball's incidence structure, so a zero-volume lamina
    is a geometric defect, not a topological one. Global
@@ -367,11 +365,26 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      (between two backed bounds, two lines sharing two points are one
      line; a missing bounding record is an unbacked contact, never
      inferred), a curved one as a curve touch; a crossing of two edge
-     interiors has no bound, and its edge-edge record backs it. An op that replaces a cell rewrites
-     every record naming it onto the replacement, by substitution; an
-     edge split moves a `(vertex, edge)` record onto the piece the
-     vertex rests on, and an `(edge, edge)` record onto every pair of
-     pieces whose interiors still meet, by the split's own lineage.
+     interiors has no bound, and its edge-edge record backs it. Every op carries the records through
+     one lineage, which states for each cell what the op made of it:
+     kept; substituted by a cell that holds its interior (a merge's
+     face, a join's edge, a seam); divided, into its pieces and the
+     cells the op minted between them, the division exhaustive or with
+     its remainder removed; or removed. One carry, for the boolean and
+     every surgery verb alike, puts each pair drawn from a record's two
+     cells' images to the census's record confirm, and the record lands
+     on every pair whose interiors meet, each landing citing it. Two
+     cells an op minted on a record's two cells and that meet at a point
+     meet where the record puts them when one cut made both, as the
+     split's one plane does, and the landing cites the record alone; an
+     op that cuts with many surfaces (the boolean's tool) decides every
+     such meeting at its door (D10), and the landing cites the decision
+     beside the record; any other op refuses one. A record
+     that lands on no pair, every pair read definitely, is consumed
+     where one of its cells was removed or divided with its remainder
+     removed, and is stale otherwise; a cell the lineage does not cover
+     refuses. A cell that replaces another without holding its interior
+     (a blend face for the edge it rounds) takes no record from it.
    - **Certification strength equals its skeleton**: a curve touch is
      certified at its jet samples plus hull bounds, a patch by
      definitely-positive region overlap in the shared chart, a
@@ -384,8 +397,9 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    decided by margined verdicts (D10) — a Zero margin is a coincidence,
    and a sliver-band one is an escalated typed error, never contact;
    (ii) result-side touching arises only from those coincidences
-   propagated through the op, or from an op's copies of one vertex at
-   such a coincidence, which share its point; the result carries
+   propagated through the op's lineage, from the op's own decision
+   where two cells it minted on one meet at a point, or from an op's
+   copies of one vertex at such a coincidence, which share its point; the result carries
    machine-checkable contact records (the ON-set survivors, carried
    across seam-zip/merge mints by a descendant map, never re-derived),
    each citing the coincidence (D10) that backs it, which the
@@ -1495,7 +1509,11 @@ against it, never written by hand.
 otherwise it refuses. It glues what its verdicts decide Zero where an
 arm exists for the carrier pair (D1's frontier), keeping one fixed
 operand's description for a merged face, and refuses what falls in the
-sliver band. Its result holds no in-band pair or shell: the door's
+sliver band. Its result holds no in-band pair, a pair of result cells
+whose one census number lies in band, and no in-band shell, a shell of
+a solid of several shells whose role is certified in band; a solid's
+only shell is its outer shell and poses no role question, and how thin
+a result is gets judged by its pairs alone. The door's
 finished-body gate decides this on the result alone and refuses it as
 the operands' ill-conditioning (`Escalated`, recourse: tighten ε or move
 the geometry), never silently; a definite finding there is a kernel
