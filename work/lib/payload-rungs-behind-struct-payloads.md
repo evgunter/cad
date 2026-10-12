@@ -30,6 +30,7 @@ Uncurated:
 - `Discharge` (`topo/src/coincidence.rs`), under `BooleanBody` via `Coincidence`;
 - `RowCell` (`topo/src/coincidence.rs`), under `BooleanBody` via `Coincidence`;
 - `OperandKeys` (`topo/src/boolean/ops.rs`), under `BooleanBody` via `BooleanNaming`;
+- `Cell` (`topo/src/boolean/mod.rs`), under `BooleanBody` via `BooleanNaming` (its `merge_substitutions`, added by `fuse/fused-into-is-live`, PR 4398, after the descent's count above);
 - `EntityKey` (`editor-core/src/names/table.rs`), under `UnnamedEntity` via `EntityRef`;
 - `JoinReading` (`topo/src/boolean/edge_join.rs`), under `BooleanError` and `ValidationError`, via `JoinUndecided`;
 - `UncrossableCarrier` (`topo/src/splitting/containment.rs`), under `BooleanError` via `Uncrossable`;
