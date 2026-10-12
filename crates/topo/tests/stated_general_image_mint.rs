@@ -344,3 +344,83 @@ fn the_fitted_replay_list_is_the_policys_holders() {
          the door"
     );
 }
+
+/// R1 review probe (PR 4900): the triangle of
+/// `an-off-iso-straight-edge-on-a-spline-face-mints-a-wrong-row`.
+mod r1_triangle {
+    use super::*;
+    #[test]
+    fn r1_triangle_diagonal() {
+        let tol = Tol::witness();
+        let band = geom_core::Band::linear(tol).unwrap();
+        let (mut body, faces) = lamina::<f64>(Carrier::Line);
+        // Re-describe one edge (the chord edge mef_chord made) back to a
+        // scaffold-like Line with no chart image? Not available; instead
+        // report what the square does, then build the triangle.
+        let _ = (&mut body, faces);
+        let pt = |(x, y): (f64, f64)| Point3::new(x, y, 0.0);
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(pt((0.0, 0.0)), true).unwrap();
+        let unit = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let net = NurbsSurface::new(
+            Knots::from(unit()).lift(geom_core::Real::from_f64),
+            Knots::from(unit()).lift(geom_core::Real::from_f64),
+            [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0), (1.0, 1.0)].into_iter().map(pt).collect(),
+            vec![1.0; 4],
+        )
+        .unwrap();
+        let chart = body
+            .set_face_surface(
+                seed.face,
+                FaceSurface::New { surface: Surface::Nurbs(Arc::new(net)), sense: true },
+            )
+            .unwrap();
+        let ab = body.mev_line(MevSite::Lone { r#loop: seed.r#loop }, pt((1.0, 0.0)), tol).unwrap();
+        let bc = body
+            .mev_line(MevSite::Fan { he1: ab.he_minus, he2: ab.he_minus }, pt((1.0, 1.0)), tol)
+            .unwrap();
+        let he_cb = body.find_half_edge(seed.face, bc.vertex, ab.vertex).unwrap();
+        let closed = body
+            .mef_chord(MefSite::Chords { he1: he_cb, he2: ab.he_plus }, tol)
+            .unwrap();
+        let diag_edge = closed.edge;
+        let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.he_plus)).collect();
+        for (edge, he_plus) in edges {
+            if edge == diag_edge {
+                continue;
+            }
+            let start = body.get_half_edge(he_plus).unwrap().start;
+            let end = body.get_half_edge(body.get_half_edge(he_plus).unwrap().next).unwrap().start;
+            let at = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+            let (p, q) = (at(start), at(end));
+            let image = NurbsCurve2::new(
+                Knots::from(unit()).lift(geom_core::Real::from_f64),
+                vec![Point2::new(p.x, p.y), Point2::new(q.x, q.y)],
+                vec![1.0; 2],
+            )
+            .unwrap();
+            let line = EdgeCurveSpec::line_between(p, q);
+            body.set_edge_curve(
+                edge,
+                EdgeCurveSpec {
+                    description: EdgeDescriptionSpec::chart_image(chart, Pcurve::General(Arc::new(image))),
+                    carrier: line.carrier,
+                    param_start: line.param_start,
+                    param_end: line.param_end,
+                },
+                tol,
+            )
+            .unwrap();
+        }
+        let faces = [seed.face, closed.face];
+        for (he, h) in body.half_edges() {
+            let _ = h;
+            let got = topo::pcurves::pcurve_of(&body, he, band);
+            println!("R1TRI pcurve_of {he:?}: {got:?}");
+        }
+        let mut b2 = body.clone();
+        println!("R1TRI mint_pcurves_of: {:?}", topo::mint_pcurves_of(&mut b2, &faces, tol));
+        println!("R1TRI rows stored: {}", b2.half_edges().filter(|(he, _)| b2.pcurve(*he).is_some()).count());
+        println!("R1TRI validate_pcurves: {:?}", topo::pcurves::validate_pcurves(&b2, band));
+    }
+}
