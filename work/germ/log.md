@@ -1072,3 +1072,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - Measured, it is not a real choice.
   - Proposed merging it as an ordinary spec correction.
   - Going forward, when both designers say a 'fork' is none and only unratified text moves, I decide and log it rather than asking. Waiting on his answer.
+- 2026-10-12 20:50 — Check-in. No new Ev comments since my replies on 4812 (import rule) and 4895 (why a question). r4886a and r4886b are both active (writes within 15 min; draft reports at 20:31 and 20:36). The two one-face torus lanes have pushed no branches yet. A's `WallOutlineUnsupported` is in INSIDE's `point-in-solid-refuses-a-ringed-cylinder-wall` family, but A's wall has its loop round the seam rather than a ring, so it may be a separate class. Kept on triage: add as evidence to INSIDE's item with the next GERM PR that touches `work/`. Re-armed for 21:49.
