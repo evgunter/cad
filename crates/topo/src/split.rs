@@ -15,16 +15,18 @@
 //! description is the parent's restricted to its sub-interval
 //! ([`geom_brep::EdgeCurve::split_specs`]), and **both children pass
 //! the full certification gate before any mutation** (D4 ¶2; the
-//! restriction arithmetic is verified, never trusted). The parent's
-//! description-adjacency obligations transfer unchanged: children keep
-//! the parent's description kind and surface keys, and the adjacent
-//! faces are untouched by the surgery.
+//! restriction arithmetic is verified, never trusted). A tangent
+//! child stores what the must-carry rule over the child demands, which
+//! over a short child can be an image in an adjacent chart rather than
+//! the parent's tangency; every other child keeps the parent's
+//! description kind and surface keys, and the adjacent faces are
+//! untouched by the surgery.
 //!
 //! Serves ch. 14 `splitgenerate` edge splitting and ch. 15's edge×face
 //! reduction sweep (M3 PRs 2 and 4).
 
-use geom_brep::CertifyError;
 use geom_brep::recourse::{Reading, Refused, RefusedArm, SizedDecision, SizedPass, StoredDefinite};
+use geom_brep::{CertifyError, EdgeCurveSpec};
 use geom_core::{Band, Decide, InfSpeed, Margin, Point3, Tol};
 
 use crate::body::Body;
@@ -45,6 +47,11 @@ pub(crate) const CROSSING_INTERIOR: &str = "whether a crossing lands strictly in
 /// split, the blend, the Boolean): the geometry.
 pub(crate) const CROSSING_LEVER: &str =
     "move the geometry so the crossing lands clearly away from the edge's ends";
+
+/// The lever a split of a tangent edge has where the must-carry rule
+/// over a piece is in band: the piece's length decides its sagitta.
+pub(crate) const TANGENT_PIECE_LEVER: &str =
+    "move the geometry so the crossing cuts a longer or a shorter piece off the tangent edge";
 
 /// What a crossing's interiority margin measures.
 pub(crate) const CROSSING_SIZE: &str = "distance from the edge's end";
@@ -151,7 +158,10 @@ impl<T: Decide> Body<T> {
     /// `edge` resolves ([`crate::BadArgument::Stale`]); its curve entry
     /// is certified ([`EulerOpError::NullScaffoldCurve`] — null
     /// scaffolding has nothing to split); the interiority trilean
-    /// (above); both child specs certify
+    /// (above); a tangent child's description by the must-carry rule
+    /// over the child ([`EulerOpError::SplitTangentEscalated`],
+    /// [`EulerOpError::SplitTangentBendEscalated`],
+    /// [`EulerOpError::SplitTangentRefuted`]); both child specs certify
     /// ([`EulerOpError::Certification`] — endpoints
     /// `start(hp) → carrier(t)` and `carrier(t) → end(hp)`, he_plus
     /// forward order on each child; the plane × NURBS lane is the
@@ -204,8 +214,9 @@ impl<T: Decide> Body<T> {
     ///
     /// # Errors
     ///
-    /// The first failing precondition above; the body is untouched on
-    /// `Err`.
+    /// The first failing precondition above, a tangent child the
+    /// must-carry rule leaves in band or reads at a corner among them;
+    /// the body is untouched on `Err`.
     pub fn split_edge(
         &mut self,
         edge: EdgeKey,
@@ -234,6 +245,71 @@ impl<T: Decide> Body<T> {
         T: crate::props::AtRestPolicy,
     {
         self.split_edge_minting(edge, t, Some(at), tol)
+    }
+
+    /// What a child of a split edge describes. The restriction
+    /// ([`geom_brep::EdgeCurve::split_specs`]) verbatim, except that a
+    /// tangent child stores what the must-carry rule over the CHILD
+    /// demands ([`geom_brep::must_carry_over_edge`]): the rule meters
+    /// the sagitta over the edge's own extent, so a short child can be
+    /// under-determined, or in band, where its parent was
+    /// jet-determinate.
+    ///
+    /// Under-determined stores an image the door derives from the
+    /// carrier, in the chart of the face `he_plus` bounds. The locus
+    /// lies exactly in both adjacent charts, so either certifies; the
+    /// edge's own orientation names one, as it does for a blend's
+    /// contact edge, and both children's plus halves lie in that face.
+    ///
+    /// The pair's keys are links of the parent's certified description,
+    /// so a key that does not resolve is a torn body, not a refusal.
+    fn tangent_piece(
+        &self,
+        edge: EdgeKey,
+        he_plus: HalfEdgeKey,
+        spec: EdgeCurveSpec<T>,
+        [p0, p1]: [Point3<T>; 2],
+        band: Band,
+    ) -> Result<EdgeCurveSpec<T>, EulerOpError> {
+        let geom_brep::EdgeDescriptionSpec::TangentIntersection { pair, witness } =
+            spec.description
+        else {
+            return Ok(spec);
+        };
+        let surface = |k| {
+            self.get_surface(k).unwrap_or_else(|| {
+                dangling_link(
+                    EntityId::Edge(edge),
+                    "curve's description",
+                    GeomRef::Surface(k),
+                )
+            })
+        };
+        let [ka, kb] = pair.keys();
+        let (pair, [sa, sb]) = geom_brep::SurfacePair::sorted(ka, surface(ka), kb, surface(kb));
+        let (s0, s1) = (spec.param_start, spec.param_end);
+        let extent = geom_brep::edge_extent(&spec.carrier, s0, s1, p0.distance(p1));
+        let description =
+            match geom_brep::must_carry_over_edge(sa, sb, &spec.carrier, s0, s1, extent, band)
+                .description(pair, witness)
+                .map_err(|refusal| {
+                    refusal.route(
+                        |diag| EulerOpError::SplitTangentEscalated { edge, diag },
+                        |diag| EulerOpError::SplitTangentBendEscalated { edge, diag },
+                        || EulerOpError::SplitTangentRefuted { edge },
+                    )
+                })? {
+                geom_brep::MustCarryDescription::Intrinsic(description) => description,
+                geom_brep::MustCarryDescription::Conventional => {
+                    geom_brep::EdgeDescriptionSpec::chart(
+                        crate::pcurves::half_edge_face(self, he_plus).1.surface,
+                    )
+                }
+            };
+        Ok(EdgeCurveSpec {
+            description,
+            ..spec
+        })
     }
 
     fn split_edge_minting(
@@ -333,6 +409,8 @@ impl<T: Decide> Body<T> {
         // ---- Geometry gate (still no mutation): both children must
         // certify against their own endpoints.
         let (spec1, spec2) = curve.split_specs(t);
+        let spec1 = self.tangent_piece(edge, hp.key(), spec1, [p_u, p_new], band)?;
+        let spec2 = self.tangent_piece(edge, hp.key(), spec2, [p_new, p_v], band)?;
         let cert1 = self.certify_edge_spec(Some(edge), spec1, p_u, p_new, tol)?;
         let cert2 = self.certify_edge_spec(Some(edge), spec2, p_new, p_v, tol)?;
         // ---- Pcurve gate (still no mutation): each parent half-edge's
