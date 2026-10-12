@@ -250,9 +250,9 @@ area `api`; prefix `emit/`; tag `(EMIT orchestrator)`; ab_band `8300-8399`.
 | pri | item | kind | cost | status | title | blocked on | PR |
 |---|---|---|---|---|---|---|---|
 | P1 | `a-second-crossing-by-one-face-renames-the-first-and-its-pieces` | issue | M | open | The crossing ordinal is not local: a second crossing of an edge by a face that already crosses it renames the first crossing and every piece whose Ends cite it |  | #4203 |
-| P2 | `a-corner-held-as-several-result-vertices-ties` | issue | M +design | open | A corner the result holds as several vertices is named as one tied name over them, losing the per-vertex address main gave each |  |  |
+| P2 | `a-corner-held-as-several-result-vertices-ties` | issue | M | open | A corner the result holds as several vertices is named as one tied name over them, losing the per-vertex address main gave each |  |  |
 | P2 | `a-crossing-of-a-union-seam-is-spelled-by-member-order` | issue | M | open | A union vertex where a member's face crosses a seam of two others, and the seam pieces it ends, are spelled by member order |  |  |
-| P2 | `a-meeting-of-three-members-at-one-point-has-no-order-free-sense` | issue | M +design | open | Where two members' edges meet on a third member's face, or three members' edges meet, the senses an EdgeCrossing would carry depend on member order |  |  |
+| P2 | `a-meeting-of-three-members-at-one-point-has-no-order-free-sense` | issue | M | open | Where two members' edges meet on a third member's face, or three members' edges meet, the senses an EdgeCrossing would carry depend on member order |  |  |
 | P2 | `a-pair-boolean-names-a-declared-covered-pair-by-operand-order` | issue | M +design | open | A pair boolean names a declared covered pair by operand order: emit_topo reads merge_groups, not covered |  |  |
 | P2 | `a-prism-bridging-two-wedges-about-a-contact-line-refuses-shared-rim` | issue | M | open | A prism bridging two wedges about a contact line refuses Naming(SharedRim NotAdjacent) on a body topo builds sound |  |  |
 | P2 | `a-whole-member-rim-is-published-as-a-piece-of-itself-in-some-member-orders` | issue | M | open | A member rim the finished body holds whole is published as a piece of itself (Ends of its own corners) in the member orders that fold a covering member last |  |  |
