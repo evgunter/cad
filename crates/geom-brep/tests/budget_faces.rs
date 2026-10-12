@@ -30,7 +30,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::NurbsSurface;
-use geom_brep::offset_fit::{BestBound, OFFSET_FIT_SAMPLE_CAP, OffsetFitError, fit_offset_at};
+use geom_brep::offset_fit::{
+    BestBound, OFFSET_FIT_SAMPLE_CAP, OffsetFitError, OffsetFitWall, fit_offset_at,
+};
 use geom_core::KERNEL_LIMIT_LAST_RESORT;
 
 use crate::shared::fixture::quarter_cylinder;
@@ -107,8 +109,8 @@ fn column(name: &str, base: &NurbsSurface<f64>, d: f64, want: [(&str, f64); 5]) 
         let mut got_best: Option<f64> = None;
         let got: (&str, f64) = match fit_offset_at(base, d, t, band()) {
             Ok((_, c)) => ("certified", c.hull_sup),
-            Err(OffsetFitError::SampleCapReached {
-                cap,
+            Err(OffsetFitError::WallReached {
+                wall,
                 rounds: _,
                 grid,
                 achieved,
@@ -118,10 +120,16 @@ fn column(name: &str, base: &NurbsSurface<f64>, d: f64, want: [(&str, f64); 5]) 
                 seen.cap += 1;
                 let at = format!("{name} d={d} t={t}");
                 got_best = Some(best_is_the_smallest(&at, achieved, grid, tolerance, best));
-                assert_eq!(cap, OFFSET_FIT_SAMPLE_CAP, "{name} d={d} t={t}");
+                assert_eq!(
+                    wall,
+                    OffsetFitWall::SampleCap {
+                        cap: OFFSET_FIT_SAMPLE_CAP
+                    },
+                    "{name} d={d} t={t}"
+                );
                 assert!(
                     achieved.is_finite(),
-                    "{name} d={d} t={t}: SampleCapReached carries a non-finite bound"
+                    "{name} d={d} t={t}: WallReached carries a non-finite bound"
                 );
                 assert!(achieved > tolerance, "{name} d={d} t={t}");
                 assert!(
@@ -281,8 +289,10 @@ fn each_faces_message_names_its_lever() {
     // The recourse is compared WHOLE, from its marker to the end, so no
     // rewording of the clause before it can hide a loosening creeping in.
     let recourse = |m: &str| m.split_once("Recourse: ").map(|(_, r)| r.to_owned());
-    let c = OffsetFitError::SampleCapReached {
-        cap: OFFSET_FIT_SAMPLE_CAP,
+    let c = OffsetFitError::WallReached {
+        wall: OffsetFitWall::SampleCap {
+            cap: OFFSET_FIT_SAMPLE_CAP,
+        },
         rounds: 5,
         grid: (41, 40),
         achieved: 2e-3,
