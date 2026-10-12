@@ -1,0 +1,4 @@
+fork: a-widened-rotation-angle-refuses-on-the-plain-interval-lane (sym)
+dispatched: 2026-10-12
+byte: 162
+mapping: A=opus B=fable
