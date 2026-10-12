@@ -2569,7 +2569,6 @@ test_utils::f6_variants! {
         Emission,
         SplitLineage,
         Settle,
-        FragmentLineage,
         SeamVertexParentage,
         SeamVertexPartners,
         SharedRim,
@@ -2651,10 +2650,6 @@ fn naming_error_display_names_its_content_not_its_struct() {
         (
             NamingError::SplitLineage(topo::SplitLineageCycle { edge }),
             vec!["split lineage of edge"],
-        ),
-        (
-            NamingError::FragmentLineage { face },
-            vec!["fragment lineage of face"],
         ),
         (
             NamingError::SeamVertexParentage { vertex },

@@ -29,7 +29,7 @@ use crate::node::RecipeNodeId;
 /// 1. An emission BUG — a mint-time fact inconsistent with the result
 ///    body. [`Self::Duplicate`], [`Self::Unnamed`],
 ///    [`Self::MissingUpstream`], [`Self::Emission`],
-///    [`Self::SplitLineage`], [`Self::FragmentLineage`].
+///    [`Self::SplitLineage`], [`Self::Settle`].
 /// 2. An honest in-band escalation: [`Self::Escalated`].
 /// 3. An ambient tolerance no discriminator can be built from:
 ///    [`Self::Band`], whose own doc draws the line the category below
@@ -121,26 +121,6 @@ pub enum NamingError {
     /// bug as [`Self::Emission`], carrying the vertex the chase was asked
     /// about and how it failed.
     Settle(SettleError),
-    /// A face's FRAGMENT lineage cycles, caught where an emitter
-    /// chased it to its root through a split's or a boolean's
-    /// `face_fragments` rows — the same category of kernel bug as
-    /// [`Self::Emission`] and the same category as
-    /// [`Self::SplitLineage`], carrying the one thing the repair needs
-    /// that a sentence cannot supply: WHICH face.
-    ///
-    /// A sibling word rather than one generalised over
-    /// [`super::table::EntityKey`]: the two cycles are corrupt records
-    /// of DIFFERENT families — a mint-time `face_fragments` row here,
-    /// a `SplitEdge` birth record for [`Self::SplitLineage`] — so one
-    /// word for the class would name the key's kind while hiding which
-    /// map to go and read.
-    ///
-    /// Guarded by `emit_topo`'s `a_cycling_fragment_map_refuses`.
-    FragmentLineage {
-        /// The face whose fragment chain cycles — the key the chase
-        /// was ASKED about, which is the one a repair starts from.
-        face: FaceKey,
-    },
     /// A boolean's seam VERTEX left half-decided by the edges around
     /// it: one operand-descended edge on one side, none on the other,
     /// and nothing else naming the missing parent.
@@ -205,8 +185,7 @@ pub enum NamingError {
     /// it removes is inheriting one by saying nothing.
     ///
     /// A sibling word of [`Self::SeamVertexParentage`] rather than one
-    /// generalised over [`super::table::EntityKey`], by
-    /// [`Self::FragmentLineage`]'s test: the two name DIFFERENT
+    /// generalised over [`super::table::EntityKey`]: the two name DIFFERENT
     /// structures to go and read — face adjacency in an operand body
     /// here, a vertex's incident edge ROLES there — and their subjects
     /// differ in arity as well as kind, so one word for the class would
@@ -359,7 +338,7 @@ pub enum NamingError {
 /// [`NamingError::Unnamed`] the entity left uncovered,
 /// [`NamingError::MissingUpstream`] the upstream table that missed,
 /// [`NamingError::Emission`] a fact, [`NamingError::SplitLineage`] the
-/// record it caught, [`NamingError::FragmentLineage`] the face — and a
+/// record it caught, [`NamingError::Settle`] the vertex — and a
 /// reworded copy would let refusals of one category read as several.
 const EMISSION_FRAMING: &str =
     "name emission found a kernel bug — an invariant it relies on does not hold";
@@ -443,15 +422,6 @@ impl crate::spoken::Say for NamingError {
             // is the same one; what the caught record adds is the locator.
             Self::SplitLineage(cycle) => write!(f, "{EMISSION_FRAMING}: {cycle}"),
             Self::Settle(e) => write!(f, "{EMISSION_FRAMING}: {e}"),
-            // The record family is in the sentence, not only the key:
-            // `fragment lineage` and `split lineage` are two different
-            // things to go and read, and a reader who gets the wrong
-            // one searches the wrong map.
-            Self::FragmentLineage { face } => write!(
-                f,
-                "{EMISSION_FRAMING}: fragment lineage of face {face:?} cycles: its \
-                 face-fragment rows never reach a root"
-            ),
             // The framing is the missing-rule one, not the emission
             // one: what this refusal reports is the absence of a rule,
             // and the vertex is where a rule would be applied.
@@ -1606,63 +1576,6 @@ mod display_tests {
         }
     }
 
-    /// **The cycling FACE survives to the node-level prose — and it is
-    /// THIS face.** The sibling of the row above, for the third
-    /// bounded lineage walk: `emit_topo`'s `chase` used to fall out of
-    /// its budget and return the cursor it was holding, which became a
-    /// group key and named faces after a stranger. It refuses now, and
-    /// what makes the refusal worth having rather than a sentence is
-    /// that the key reaches the human: two different faces must give
-    /// two different sentences.
-    #[test]
-    fn the_cycling_face_reaches_the_node_level_prose() {
-        let (a, b) = two_faces();
-        let carried =
-            |face| NodeErrorKind::Naming(NamingError::FragmentLineage { face }).to_string();
-
-        let sa = carried(a);
-        assert!(
-            sa.contains(&format!("{a:?}")),
-            "the cycling face is the only locator this failure has: {sa}"
-        );
-        let sb = carried(b);
-        assert!(sb.contains(&format!("{b:?}")), "{sb}");
-        assert_ne!(
-            sa, sb,
-            "a refusal that reads the same for two faces has no locator"
-        );
-        assert!(
-            !sa.contains(&format!("{b:?}")),
-            "the refusal names the face it caught, not another: {sa}"
-        );
-
-        // The category is the same as the edge cycle's — a corrupt
-        // mint-time record — and the record FAMILY is what separates
-        // the two sentences, which is the whole argument for a second
-        // word rather than one generalised over the key's kind.
-        assert!(sa.contains(EMISSION_FRAMING), "category kept: {sa}");
-        assert!(
-            sa.contains("name emission failed"),
-            "node category kept: {sa}"
-        );
-        assert!(
-            sa.contains("fragment lineage") && !sa.contains("split lineage"),
-            "the face cycle names the record family it caught, not the edge \
-             walk's: {sa}"
-        );
-
-        // `crate::py::typed_err` (pncad-py) asserts `reads_as_prose` on
-        // every raise, live under release, and its fingerprint is the
-        // field brace.
-        for s in [&sa, &sb] {
-            assert!(
-                !s.contains(" { "),
-                "a braced payload panics the Python binding at the arm \
-                 meant to refuse gracefully: {s}"
-            );
-        }
-    }
-
     /// Every variant names WHICH entity/node/fact it refused on.
     ///
     /// **The enumeration is the compiler's claim, not prose**: the
@@ -1741,12 +1654,6 @@ mod display_tests {
                     edge: two_edges().0,
                 }),
                 vec!["split lineage of edge"],
-            ),
-            (
-                NamingError::FragmentLineage {
-                    face: two_faces().0,
-                },
-                vec!["fragment lineage of face"],
             ),
             (
                 NamingError::SeamVertexParentage { vertex: vtx },
@@ -1879,8 +1786,7 @@ mod display_tests {
                 | NamingError::MissingUpstream { .. }
                 | NamingError::Emission { .. }
                 | NamingError::SplitLineage(_)
-                | NamingError::Settle(_)
-                | NamingError::FragmentLineage { .. } => Some(EMISSION_FRAMING),
+                | NamingError::Settle(_) => Some(EMISSION_FRAMING),
                 NamingError::SeamVertexParentage { .. }
                 | NamingError::SeamVertexPartners { .. }
                 | NamingError::SharedRim { .. }
@@ -1901,18 +1807,17 @@ mod display_tests {
                 NamingError::Emission { .. } => 3,
                 NamingError::Escalated { .. } => 4,
                 NamingError::SplitLineage(_) => 5,
-                NamingError::FragmentLineage { .. } => 6,
-                NamingError::SeamVertexParentage { .. } => 7,
-                NamingError::SharedRim { .. } => 8,
-                NamingError::SeamVertexPartners { .. } => 9,
-                NamingError::MergedChord { .. } => 10,
-                NamingError::MergedChordOffRim { .. } => 11,
-                NamingError::Band(_) => 12,
-                NamingError::MemberEdgeTied { .. } => 13,
-                NamingError::MergedChordConstituents { .. } => 14,
-                NamingError::ConventionalVertex { .. } => 15,
-                NamingError::ClosedCarrierUnread { .. } => 16,
-                NamingError::Settle(_) => 17,
+                NamingError::SeamVertexParentage { .. } => 6,
+                NamingError::SharedRim { .. } => 7,
+                NamingError::SeamVertexPartners { .. } => 8,
+                NamingError::MergedChord { .. } => 9,
+                NamingError::MergedChordOffRim { .. } => 10,
+                NamingError::Band(_) => 11,
+                NamingError::MemberEdgeTied { .. } => 12,
+                NamingError::MergedChordConstituents { .. } => 13,
+                NamingError::ConventionalVertex { .. } => 14,
+                NamingError::ClosedCarrierUnread { .. } => 15,
+                NamingError::Settle(_) => 16,
             }
         };
         let covered: std::collections::BTreeSet<usize> =

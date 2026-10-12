@@ -241,6 +241,9 @@ impl Substitutions {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct FaceDivisions {
     rows: Vec<(FaceKey, FaceKey)>,
+    /// Each new face → the face it was divided from.
+    from: std::collections::BTreeMap<FaceKey, FaceKey>,
+    /// Every face a row names, new or divided-from.
     named: BTreeSet<FaceKey>,
 }
 
@@ -267,6 +270,7 @@ impl FaceDivisions {
             return refuse(RowDefect::NotFresh);
         }
         self.named.extend([new, from]);
+        self.from.insert(new, from);
         self.rows.push((new, from));
         Ok(())
     }
@@ -280,10 +284,7 @@ impl FaceDivisions {
     /// The face `face` was divided from, where a row divided it off one.
     #[must_use]
     pub fn from(&self, face: FaceKey) -> Option<FaceKey> {
-        self.rows
-            .iter()
-            .find(|&&(new, _)| new == face)
-            .map(|&(_, from)| from)
+        self.from.get(&face).copied()
     }
 
     /// The face `face` descends from through every division: itself
@@ -327,6 +328,141 @@ mod tests {
             lineage.pieces().collect::<Vec<_>>().len(),
             2,
             "f0 itself is no piece"
+        );
+    }
+
+    /// **A substitution list refuses each row that could close a cycle,
+    /// where it is added, and is left as it was.** One row per check:
+    /// a row onto itself, a row whose dead cell an earlier row retired,
+    /// a row onto a cell an earlier row retired. Red if any of the three
+    /// checks is dropped: that row would push, and the chase from `a`
+    /// would walk it.
+    #[test]
+    fn a_substitution_list_refuses_a_self_row_and_a_row_naming_a_retired_cell() {
+        let f = faces(3);
+        let [a, b, c] = [f[0], f[1], f[2]].map(Cell::Face);
+        let mut list = Substitutions::default();
+        list.push((a, b)).unwrap();
+        let refused = |defect, cell| {
+            Err(RowRefusal {
+                rows: LineageRows::Substitutions,
+                defect,
+                cell,
+            })
+        };
+        for (row, want, case) in [
+            ((c, c), refused(RowDefect::SelfRow, c), "a row onto itself"),
+            (
+                (a, c),
+                refused(RowDefect::NamesRetired, a),
+                "a retired cell retired again",
+            ),
+            (
+                (c, a),
+                refused(RowDefect::NamesRetired, a),
+                "a row onto a retired cell",
+            ),
+            (
+                (b, a),
+                refused(RowDefect::NamesRetired, a),
+                "the row back that closes a cycle",
+            ),
+        ] {
+            assert_eq!(list.push(row), want, "{case}");
+            assert_eq!(list.rows(), [(a, b)], "{case}: the list is as it was");
+        }
+        list.push((b, c)).unwrap();
+        assert_eq!(
+            list.chase(a, |x| x == c),
+            Ok(c),
+            "a chain is walked to its end"
+        );
+        assert_eq!(
+            list.chase(a, |_| false),
+            Err(c),
+            "and ends where no row goes on"
+        );
+    }
+
+    /// **A face division list refuses a row onto itself, and a row whose
+    /// new face an earlier row names, as divided-from or as new.** The
+    /// last is the row that would close a cycle: `f1` was divided off
+    /// `f0`, and `(f0, f1)` would make `f0` a piece of its own piece.
+    /// Red if either check is dropped.
+    #[test]
+    fn a_face_division_list_refuses_a_self_row_and_a_new_face_it_already_names() {
+        let f = faces(4);
+        let mut list = FaceDivisions::default();
+        list.push((f[1], f[0])).unwrap();
+        let refused = |defect, face| {
+            Err(RowRefusal {
+                rows: LineageRows::FaceDivisions,
+                defect,
+                cell: Cell::Face(face),
+            })
+        };
+        for (row, want, case) in [
+            (
+                (f[2], f[2]),
+                refused(RowDefect::SelfRow, f[2]),
+                "a row onto itself",
+            ),
+            (
+                (f[1], f[3]),
+                refused(RowDefect::NotFresh, f[1]),
+                "a new face minted twice",
+            ),
+            (
+                (f[0], f[1]),
+                refused(RowDefect::NotFresh, f[0]),
+                "the row that closes a cycle",
+            ),
+        ] {
+            assert_eq!(list.push(row), want, "{case}");
+            assert_eq!(list.rows(), [(f[1], f[0])], "{case}: the list is as it was");
+        }
+        list.push((f[2], f[1])).unwrap();
+        list.push((f[3], f[1])).unwrap();
+        assert_eq!(
+            [f[0], f[1], f[2], f[3]].map(|g| list.root(g)),
+            [f[0]; 4],
+            "every piece descends from f0, through every division"
+        );
+        assert_eq!(list.from(f[2]), Some(f[1]));
+        assert_eq!(list.from(f[0]), None);
+    }
+
+    /// **The invariant the face division list stands on: an arena never
+    /// hands a key out twice.** A face removed and a face minted into
+    /// its slot get keys that differ, so the division that mints the
+    /// second is fresh to a list that names the first, and the list
+    /// takes it. If the arena reused the bare key, the new face would
+    /// equal one the list names; the second half spells that key out
+    /// and shows the list refuses it instead of cycling. Red if slot
+    /// reuse stops versioning keys (the first push refuses), or if the
+    /// fresh check is dropped (the second pushes).
+    #[test]
+    fn a_face_minted_into_a_reused_slot_is_fresh_and_a_bare_reused_key_is_not() {
+        let mut arena: SlotMap<FaceKey, ()> = SlotMap::with_key();
+        let parent = arena.insert(());
+        let piece = arena.insert(());
+        let mut list = FaceDivisions::default();
+        list.push((piece, parent)).unwrap();
+        arena.remove(parent);
+        let reused = arena.insert(());
+        assert_ne!(reused, parent, "the reused slot carries a new version");
+        list.push((reused, piece))
+            .expect("a key minted into a reused slot is new to the list");
+
+        let bare: FaceKey = slotmap::KeyData::from_ffi(slotmap::Key::data(&parent).as_ffi()).into();
+        assert_eq!(
+            list.push((bare, piece)),
+            Err(RowRefusal {
+                rows: LineageRows::FaceDivisions,
+                defect: RowDefect::NotFresh,
+                cell: Cell::Face(parent),
+            }),
+            "a key the list names, handed out again, is refused"
         );
     }
 }

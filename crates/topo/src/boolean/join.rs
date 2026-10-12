@@ -892,8 +892,8 @@ pub(super) fn segment_sites(
 /// arena, B rows in the B-clone arena pre-graft).
 pub(super) struct Connected {
     pub completed: Vec<CompletedPolygonPair>,
-    pub a_fragments: Vec<(FaceKey, FaceKey)>,
-    pub b_fragments: Vec<(FaceKey, FaceKey)>,
+    pub a_fragments: crate::lineage::FaceDivisions,
+    pub b_fragments: crate::lineage::FaceDivisions,
     /// Each operand's chords along its own edges, `(edge, chord)` in
     /// that operand's clone keys, A's then B's: every chord a segment
     /// whose locus on that operand is an edge minted runs along that

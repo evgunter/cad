@@ -1755,7 +1755,6 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         NamingError::Emission { .. } => "emission",
         NamingError::SplitLineage(_) => "split_lineage_cycle",
         NamingError::Settle(_) => "unsettled_vertex",
-        NamingError::FragmentLineage { .. } => "fragment_lineage_cycle",
         // The MISSING-RULE arms, tagged apart from "emission": a caller
         // branching on this word is deciding whether to report a kernel
         // bug, and these are not one.

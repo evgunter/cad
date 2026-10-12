@@ -166,7 +166,7 @@ pub use contain::{
 pub(crate) use contain::{
     CurvedPlacement, PlacementError, driver_face_stale, face_placement, loop_circle,
 };
-pub use discard::{DiscardRow, HeldEdge, lineage_root};
+pub use discard::{DiscardRow, HeldEdge};
 // Crate-internal: tier 3's check 11 reads every vertex through the
 // join's own predicate.
 pub(crate) use edge_join::joinable_at_rest;

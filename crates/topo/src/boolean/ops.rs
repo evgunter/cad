@@ -274,10 +274,10 @@ pub struct BooleanNaming {
     /// A-side chord-mef fragment rows `(new face, divided-from face)`
     /// in mint order — A-clone keys, which ARE result keys when
     /// `a_keys` is `Direct`.
-    pub face_fragments_a: Vec<(FaceKey, FaceKey)>,
+    pub face_fragments_a: crate::lineage::FaceDivisions,
     /// B-side chord-mef fragment rows, in B-CLONE keys (translate the
     /// new-face column through `graft_faces` for result keys).
-    pub face_fragments_b: Vec<(FaceKey, FaceKey)>,
+    pub face_fragments_b: crate::lineage::FaceDivisions,
     /// The reduction's working contact set BEFORE result
     /// remapping ([`ReductionContacts`]): each row's A column in A-CLONE keys and its B column
     /// in B-CLONE keys — the result's keys on whichever side is
@@ -2823,7 +2823,7 @@ pub(super) struct Descendants {
     /// face's key on one piece, whichever piece that is, so a record
     /// naming the face is read through all of its pieces
     /// ([`Self::holder`]).
-    fragments: [Vec<(FaceKey, FaceKey)>; 2],
+    fragments: [crate::lineage::FaceDivisions; 2],
     /// Every substitution, dead cell → the cell that holds its interior
     /// now, result keys: a zipped ring edge → its seam edge, a cell the
     /// merge swallowed (an absorbed face among them) → the kept face, a
@@ -2858,7 +2858,7 @@ impl Descendants {
 
     /// The map that also reads each operand's face divisions
     /// ([`Self::fragments`]).
-    pub(super) fn with_fragments(self, fragments: [Vec<(FaceKey, FaceKey)>; 2]) -> Self {
+    pub(super) fn with_fragments(self, fragments: [crate::lineage::FaceDivisions; 2]) -> Self {
         Self { fragments, ..self }
     }
 
@@ -2910,7 +2910,7 @@ impl Descendants {
     ///
     /// # Errors
     ///
-    /// [`BooleanError::JoinDesync`] where `merges` names a key the
+    /// [`BooleanError::LineageRow`] where `merges` names a key the
     /// fusions before it killed ([`Fusions::extend`]).
     fn absorb_fusions(&mut self, merges: &Fusions) -> Result<(), BooleanError> {
         self.vertices.extend(merges)?;
@@ -2962,11 +2962,10 @@ impl Descendants {
     ///
     /// # Errors
     ///
-    /// [`BooleanError::JoinDesync`] on rows that cycle: a walk that
-    /// outlasts the row count has revisited a cell, a corrupt record,
-    /// and reading it as gone would drop a recorded contact. So too where
-    /// two chords along one edge both reach a live cell, and they are
-    /// not one: two edges cannot both hold one edge's interior.
+    /// [`BooleanError::JoinDesync`] where two chords along one edge both
+    /// reach a live cell, and they are not one: two edges cannot both
+    /// hold one edge's interior. The rows themselves cannot cycle: each
+    /// was checked where it was added ([`crate::lineage::Substitutions`]).
     pub(super) fn live<T: Real>(
         &self,
         body: &Body<T>,
@@ -3028,8 +3027,10 @@ impl Descendants {
         band: Band,
     ) -> Result<Option<Cell>, BooleanError> {
         let desync = |what| BooleanError::JoinDesync { what };
-        let lineage =
-            crate::lineage::Lineage::of(face, &self.fragments[usize::from(side == Operand::B)]);
+        let lineage = crate::lineage::Lineage::of(
+            face,
+            self.fragments[usize::from(side == Operand::B)].rows(),
+        );
         if lineage.cells().nth(1).is_none() {
             return self.live(body, side, view, Cell::Face(face));
         }
@@ -8904,7 +8905,11 @@ mod holder_rows {
         )]
         .into_iter()
         .collect();
-        let desc = Descendants::default().with_fragments([rows.clone(), rows]);
+        let mut divisions = crate::lineage::FaceDivisions::default();
+        for row in rows {
+            divisions.push(row).unwrap();
+        }
+        let desc = Descendants::default().with_fragments([divisions.clone(), divisions]);
         carry_in_place(body, &records, &desc, band()).map(|r| r.kinds().collect())
     }
 

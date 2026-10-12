@@ -40,19 +40,11 @@ struct Side<'a, T: Decide> {
 }
 
 /// Chases a face key through fragment rows to its root (the key that
-/// is not itself a minted fragment). Bounded by the row count.
-///
-/// # Errors
-///
-/// A spent budget means the walk revisited a key, which is a corrupt
-/// mint-time record — [`NamingError::FragmentLineage`], carrying the
-/// face this chase was asked about. The root becomes a GROUP key and
-/// is handed to [`upstream_name`], so falling out of the loop with the
-/// cursor would name faces after a stranger instead of refusing.
-/// Guarded by `a_cycling_fragment_map_refuses` below.
-fn chase(rows: &BTreeMap<FaceKey, FaceKey>, f: FaceKey) -> Result<FaceKey, NamingError> {
-    topo::lineage_root(f, rows.len(), |k| rows.get(&k).copied())
-        .ok_or(NamingError::FragmentLineage { face: f })
+/// is not itself a minted fragment). Total: the rows are a
+/// [`topo::FaceDivisions`], which refuses a row that could close a
+/// cycle where the join adds it.
+fn chase(rows: &topo::FaceDivisions, f: FaceKey) -> FaceKey {
+    rows.root(f)
 }
 
 /// Chases an edge through `SplitEdge` birth records
@@ -154,7 +146,7 @@ pub(crate) fn name_split<T: Decide>(
     let b = band(tol)?;
     let mut t = NameTable::new();
     let mut rec = GroupRecord::new();
-    let frag_rows: BTreeMap<FaceKey, FaceKey> = naming.face_fragments.iter().copied().collect();
+    let frag_rows = &naming.face_fragments;
     let section_keys: BTreeSet<FaceKey> = naming.sections.iter().map(|&(f, _)| f).collect();
     let mut sides: Vec<Side<'_, T>> = Vec::new();
     for (half, body) in [(SplitHalf::Above, above), (SplitHalf::Below, below)] {
@@ -221,7 +213,7 @@ pub(crate) fn name_split<T: Decide>(
         &mut tie,
         &mut rec,
         &sides,
-        &frag_rows,
+        frag_rows,
         &section_keys,
         target_node,
         target_table,
@@ -233,7 +225,7 @@ pub(crate) fn name_split<T: Decide>(
         &mut t,
         &mut tie,
         &sides,
-        &frag_rows,
+        frag_rows,
         &section_keys,
         naming,
         target_node,
@@ -406,7 +398,7 @@ fn name_split_edges_vertices<T: Decide>(
     t: &mut NameTable,
     tie: &mut TieRows,
     sides: &[Side<'_, T>],
-    frag_rows: &BTreeMap<FaceKey, FaceKey>,
+    frag_rows: &topo::FaceDivisions,
     section_keys: &BTreeSet<FaceKey>,
     naming: &SplitNaming,
     target_node: RecipeNodeId,
@@ -464,7 +456,7 @@ fn name_split_edges_vertices<T: Decide>(
                 // decide the reading whatever `chord_faces` holds.
                 continue;
             }
-            let root = chase(frag_rows, other)?;
+            let root = chase(frag_rows, other);
             if section_keys.contains(&root) {
                 return Err(bug("section chord adjacent to a section face"));
             }
@@ -871,8 +863,8 @@ fn operand_key<K: Copy + Ord>(
 pub(crate) struct FaceDescent<'n> {
     naming: &'n topo::BooleanNaming,
     inv_faces: BTreeMap<FaceKey, FaceKey>,
-    a_rows: BTreeMap<FaceKey, FaceKey>,
-    b_rows: BTreeMap<FaceKey, FaceKey>,
+    a_rows: &'n topo::FaceDivisions,
+    b_rows: &'n topo::FaceDivisions,
 }
 
 impl<'n> FaceDescent<'n> {
@@ -880,8 +872,8 @@ impl<'n> FaceDescent<'n> {
         Self {
             naming,
             inv_faces: naming.graft_faces.iter().map(|&(s, d)| (d, s)).collect(),
-            a_rows: naming.face_fragments_a.iter().copied().collect(),
-            b_rows: naming.face_fragments_b.iter().copied().collect(),
+            a_rows: &naming.face_fragments_a,
+            b_rows: &naming.face_fragments_b,
         }
     }
 
@@ -900,10 +892,10 @@ impl<'n> FaceDescent<'n> {
         operand: topo::Operand,
         f: FaceKey,
     ) -> Result<FaceKey, NamingError> {
-        match operand {
-            topo::Operand::A => chase(&self.a_rows, f),
-            topo::Operand::B => chase(&self.b_rows, f),
-        }
+        Ok(match operand {
+            topo::Operand::A => chase(self.a_rows, f),
+            topo::Operand::B => chase(self.b_rows, f),
+        })
     }
 
     /// Merged result face → every face it holds, itself first, in
@@ -957,8 +949,7 @@ pub(crate) fn name_boolean<T: Decide>(
         .collect();
     let inv_vertices: BTreeMap<VertexKey, VertexKey> =
         naming.graft_vertices.iter().map(|&(s, d)| (d, s)).collect();
-    let a_rows: BTreeMap<FaceKey, FaceKey> = naming.face_fragments_a.iter().copied().collect();
-    let b_rows: BTreeMap<FaceKey, FaceKey> = naming.face_fragments_b.iter().copied().collect();
+    let (a_rows, b_rows) = (&naming.face_fragments_a, &naming.face_fragments_b);
     let seam_set: BTreeSet<EdgeKey> = naming.seam_edges.iter().copied().collect();
     let inc = Incidence::of(body)?;
 
@@ -970,8 +961,8 @@ pub(crate) fn name_boolean<T: Decide>(
     // the result body will not find it.
     let descend_face = |f: FaceKey| -> Result<OpSide<FaceKey>, NamingError> {
         Ok(match operand_key(naming, &inv_faces, f)?.0 {
-            OpSide::A(fa) => OpSide::A(chase(&a_rows, fa)?),
-            OpSide::B(fb) => OpSide::B(chase(&b_rows, fb)?),
+            OpSide::A(fa) => OpSide::A(chase(a_rows, fa)),
+            OpSide::B(fb) => OpSide::B(chase(b_rows, fb)),
         })
     };
     let operand_face_name = |d: OpSide<FaceKey>| -> Result<Upstream, NamingError> {
@@ -1074,8 +1065,8 @@ pub(crate) fn name_boolean<T: Decide>(
     let mut obstacles = Obstacles::new();
     obstacles.record(naming, body, |operand, f| {
         Ok(BTreeSet::from([match operand {
-            topo::Operand::A => OpSide::A(chase(&a_rows, f)?),
-            topo::Operand::B => OpSide::B(chase(&b_rows, f)?),
+            topo::Operand::A => OpSide::A(chase(a_rows, f)),
+            topo::Operand::B => OpSide::B(chase(b_rows, f)),
         }]))
     })?;
     // A wall is cited by its parent's name: a merged face's, or the
@@ -3530,7 +3521,7 @@ fn name_split_faces<T: Decide>(
     tie: &mut TieRows,
     rec: &mut GroupRecord,
     sides: &[Side<'_, T>],
-    frag_rows: &BTreeMap<FaceKey, FaceKey>,
+    frag_rows: &topo::FaceDivisions,
     section_keys: &BTreeSet<FaceKey>,
     target_node: RecipeNodeId,
     target_table: &NameTable,
@@ -3538,9 +3529,10 @@ fn name_split_faces<T: Decide>(
 ) -> Result<(), NamingError> {
     // Every root that was ever divided: fragments cover it.
     let divided: BTreeSet<FaceKey> = frag_rows
-        .values()
-        .map(|&p| chase(frag_rows, p))
-        .collect::<Result<_, NamingError>>()?;
+        .rows()
+        .iter()
+        .map(|&(_, p)| chase(frag_rows, p))
+        .collect();
     // (root, side-slot) → members.
     type Members = Vec<(u32, SplitHalf, FaceKey)>;
     let mut groups: BTreeMap<(FaceKey, u32), Members> = BTreeMap::new();
@@ -3549,7 +3541,7 @@ fn name_split_faces<T: Decide>(
             if section_keys.contains(&f) {
                 continue;
             }
-            let root = chase(frag_rows, f)?;
+            let root = chase(frag_rows, f);
             if root == f && !divided.contains(&root) {
                 // Uncut operand face: pass-through (N1: the split
                 // contributes no segment to survivors). It is still
@@ -3970,81 +3962,6 @@ mod tests {
         );
     }
 
-    /// **A cycling fragment map refuses, and the refusal is what
-    /// stands between the kernel and a face named after a stranger.**
-    ///
-    /// `BooleanNaming` is a public struct with public fields and the
-    /// emitter takes it as data, so the corrupt mint `chase` exists to
-    /// catch is writable at this door — which is why this raise is
-    /// guarded rather than argued about.
-    ///
-    /// The row is worth more than its pass. With `chase`'s refusal
-    /// removed, `name_boolean` returns `Ok` with a TOTAL table of 27
-    /// rows in which the two caps carry each other's operand names —
-    /// measured, not argued: `built.top` comes out
-    /// `From { of: Cap(Start) }` and `built.bottom` comes out
-    /// `From { of: Cap(End) }`, each the other's. Nothing is missing and
-    /// nothing refuses; the document is simply wrong about which face
-    /// is which.
-    ///
-    /// Written by the review lane of 2026-09-13; adopted with its
-    /// argument.
-    #[test]
-    fn a_cycling_fragment_map_refuses() {
-        let built = unit_cube();
-        let ext_node = RecipeNodeId::new(0, 1);
-        let a_table = name_extrude(
-            ext_node,
-            &built,
-            &crate::eval::ProfilePieces::numbered(
-                &built.side_faces().iter().map(Vec::len).collect::<Vec<_>>(),
-            ),
-        )
-        .unwrap();
-        let naming = topo::BooleanNaming {
-            a_keys: topo::OperandKeys::Direct,
-            b_keys: topo::OperandKeys::Absent,
-            // The corrupt mint, spelled: top is a fragment of bottom
-            // and bottom a fragment of top.
-            face_fragments_a: vec![(built.top, built.bottom), (built.bottom, built.top)],
-            ..topo::BooleanNaming::default()
-        };
-        let empty = NameTable::new();
-        let a = OperandCtx {
-            node: ext_node,
-            read: crate::names::FOLD_A,
-            table: &a_table,
-            body: &built.body,
-        };
-        let b = OperandCtx {
-            node: RecipeNodeId::new(0, 2),
-            read: crate::names::FOLD_B,
-            table: &empty,
-            body: &built.body,
-        };
-        let err = name_boolean(
-            RecipeNodeId::new(0, 9),
-            &built.body,
-            &naming,
-            &a,
-            &b,
-            Tol::witness(),
-        )
-        .expect_err("a cycling fragment map must refuse");
-        assert!(
-            matches!(
-                err,
-                NamingError::FragmentLineage { face }
-                    if face == built.top || face == built.bottom
-            ),
-            "the refusal names one of the two faces in the cycle: {err:?}"
-        );
-        assert!(
-            err.to_string().contains("fragment lineage of face"),
-            "and says which record family it caught: {err}"
-        );
-    }
-
     /// **A B-lane lineage that leaves the graft rows refuses.** A
     /// grafted edge's records are forwarded into result keys, each
     /// with a graft row back to B (a live edge's, or a dead ancestor's
@@ -4160,7 +4077,12 @@ mod tests {
         let naming = topo::BooleanNaming {
             a_keys: topo::OperandKeys::Direct,
             b_keys: topo::OperandKeys::Absent,
-            face_fragments_a: vec![(built.top, built.bottom), (laterals[1], laterals[0])],
+            face_fragments_a: {
+                let mut rows = topo::FaceDivisions::default();
+                rows.push((built.top, built.bottom)).unwrap();
+                rows.push((laterals[1], laterals[0])).unwrap();
+                rows
+            },
             merge_groups: vec![
                 (built.top, vec![laterals[0]]),
                 (built.bottom, vec![laterals[1]]),

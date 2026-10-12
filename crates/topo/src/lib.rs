@@ -851,7 +851,7 @@ pub use boolean::{
     VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung,
     boolean_op_with, boolean_reduce, carrier_eq, contfp, curved_face_containment, decision_words,
     face_carrier, flush_pair_relation, insert_void, insert_voids, intersect,
-    is_conventional_vertex, join_covers, joinable_vertices, joined_cell, joined_edge, lineage_root,
+    is_conventional_vertex, join_covers, joinable_vertices, joined_cell, joined_edge,
     oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of, subtract,
     tangent_pair_relation, union,
 };

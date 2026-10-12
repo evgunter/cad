@@ -32,3 +32,27 @@ naming which lineage cycled. Every `JoinDesync { what: "...cyclic" }`
 site moves to it, and `crates/pncad-py`'s `boolean_error_tag` and stubs
 follow. Sweep every `JoinDesync` site for others that are not lockstep
 breaks.
+
+## Narrowed by `fuse/face-lineage-at-append` (2026-10-12)
+
+That PR moved the boolean's face lineage onto lists that refuse a row
+that could cycle where it is added, with a typed refusal,
+`BooleanError::LineageRow { rows, defect, key }`. Retired here:
+
+- `discard.rs`'s "a face's fragment lineage is cyclic" (the face
+  division rows are a `FaceDivisions`, so the chase is total);
+- `Descendants::chained`'s "a cell's substitution rows are cyclic" (the
+  `Descendants::live_face` site above, since folded into it; the rows
+  are a `Substitutions`);
+- `Fusions::push`'s two `JoinDesync` arms, now `LineageRow`;
+- editor-core's `NamingError::FragmentLineage`, retired whole.
+
+Still open, and what this row now holds: the two edge split-lineage
+sites that map `SplitLineageCycle` into `JoinDesync`, `discard.rs`
+("a discarded edge's split lineage is cyclic") and `join.rs` ("an
+OnEdge germ's edge has a cyclic split lineage"). Their records live on
+the body (`Provenance::SplitEdge`), are remapped by transforms and read
+back from files, so the reader check stays; what is owed is the typed
+refusal for them. The null-edge copy chase (`uncopied`) is filed
+apart: `null-edge-copy-rows-are-checked-for-a-cycle-by-their-reader`.
+
