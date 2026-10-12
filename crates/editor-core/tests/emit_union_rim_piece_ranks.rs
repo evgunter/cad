@@ -403,11 +403,26 @@ const KNOWN_MIXED: &[(&str, &str, usize, &str)] = &[
 /// counts, and which absences they are, did not. They moved again when
 /// an id became its mint ordinal and digest, with the counts PR 4228
 /// left (six: `Ends` on every piece) held.
+///
+/// The killed-lineage chase (`emit_topo`'s `KilledSplits`) moved
+/// `cross`, `r5poke` and `r5pokehi`.
+/// - A rim piece whose lineage ran through a killed stretch was a
+///   chord. It is now the piece it is, and the vertices where it meets
+///   another member's edge are spelled edge-to-edge more often.
+/// - Over `cross`'s 14 fused orders, crossings spelled face-to-edge
+///   where two members' edges cross there fell from 50 to 28, and those
+///   spelled edge-to-edge rose from 34 to 56.
+/// - In `r5poke`, three of the eight corner spellings were face-to-edge
+///   and one is now. The one order-dependent corner moved from
+///   `(1.5, 0, 1)` to `(0.5, 1, 1)`.
+/// - `cross` reads 42 more absences because an edge-to-edge spelling
+///   names its two edges by member order. That is this row's split,
+///   reached at more vertices.
 const KNOWN_ABSENT: &[(&str, &str, usize, u64)] = &[
-    ("cross", "U", 266, 4963523226727653737),
+    ("cross", "U", 308, 13307890568018120861),
     ("r1three", "U", 480, 7402196657749732725),
-    ("r5poke", "U", 6, 12580799565770351611),
-    ("r5pokehi", "U", 6, 14713691768203790935),
+    ("r5poke", "U", 6, 6476464589975798419),
+    ("r5pokehi", "U", 6, 2777339505769824061),
 ];
 
 /// One fused order and every entity it publishes, as sorted geometry.

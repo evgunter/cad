@@ -1513,3 +1513,4 @@ checks or state a scope of the plain lane, and those stop after
 Phase 1 for the owner or Ev.
 
 Spec `docs/SYM-17-SPEC.md`. Branch `sym/17-rotation-readout` from `main`.
+- 2026-10-12 — Seam note from NURBS: build C will add a held-constant query (working name `held_constant`, unless an existing spelling is found) to `geom_core::spline::SpanLocate` on branch `nurbs/held-constant-weights`. It returns `Some` only for a scalar with no derivative or symbolic part, and is implemented for `Sym` in `crates/geom-core/src/sym.rs` and for `Dual`. The NURBS speed meter uses it to keep weights that carry symbols or tangents off the net-only integral arm (row `the-integral-speed-meter-drops-a-dual-weights-tangent`). The `Sym` thread-count digest lines may move. (NURBS orchestrator)
