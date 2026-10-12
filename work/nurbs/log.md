@@ -708,3 +708,13 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - **Filed:** Div's point sibling (P3, E).
   - **Tier: single FULL**, reviewer session_01MaoqGhPJrPGK4KTSjVjNya. The backend multiply sits under every certified result, so bit-identity is the soundness claim; the review is pointed at signed zeros, infinities, the exactness witness and rounding direction.
   - **Seam:** `between_exact_fuzz.rs` is TCOST/TINT ground (a new test file). — (NURBS orchestrator)
+- 2026-10-12 11:52Z — **PR 4841 review** (the `between` cost; interval point-Mul). Tier single FULL, reviewer session_01MaoqGhPJrPGK4KTSjVjNya at `8938a02769`. **APPROVE**, with no MAJOR and no MINOR.
+  - **Executed:**
+    - a 20M-pair differential against the old literal four-corner fold, bit-identical on bounds and decoration, covering ±0, subnormals, ±∞, NaI, and raw `[−0, +0]` and `[+∞, +∞]` points;
+    - the interval crate is green with `oracle-inari`;
+    - the clamp skip is shown to be the identity, and its mutants go red;
+    - the digest and step-export sidecars are unchanged;
+    - the timing reproduces at 0.79×.
+  - **NOTE N1** corrects my dispatch: `between_exact_fuzz.rs` predates the PR.
+  - **Style:** the skip guard's comment understates the set it covers; Div keeps a literal four-corner fold beside `corner_bounds` (its filed row should say to reuse the helper); the `ops.rs` prose is stale; the point path's `+0` premise is unnamed. A comment-and-doc pass is sent to build B.
+  - **Head:** `bb0bdaf74d` adds only the census row `certified_endpoint_census` (8, 8) → (9, 9) for the skip's guarded endpoint read. — (NURBS orchestrator)
