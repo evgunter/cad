@@ -146,7 +146,8 @@ pub use boundary::{
     BoundaryChart, BoundaryPoint, ChartCorner, ChartEnd, ChartSide, SsiBoundaryContact,
 };
 pub use certify::{
-    OneArcRefusal, SSI_CERT_SPANS, SSI_TUBE_RADIUS, SsiCertificate, SsiLimb, SsiTube,
+    OneArcRefusal, SSI_CERT_SPANS, SSI_HULL_CUTS, SSI_HULL_WORK, SSI_TUBE_RADIUS, SsiCertificate,
+    SsiLimb, SsiTube,
 };
 pub use exhaust::{
     ExhaustLane, Exhaustiveness, ExhaustivenessRefusal, FloorFault, FloorKind, FloorRefusal,

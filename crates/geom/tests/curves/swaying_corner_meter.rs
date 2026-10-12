@@ -117,6 +117,61 @@ fn a_swaying_corner_meters_positive_and_below_its_speed() {
     }
 }
 
+/// [`swaying`] with its weights replaced by `weights(j)` (same knots,
+/// same net).
+fn reweighted(c: &NurbsCurve3<f64>, weights: impl Fn(usize) -> f64) -> NurbsCurve3<f64> {
+    let w = (0..c.control().len()).map(weights).collect();
+    NurbsCurve3::<f64>::new(c.knots().clone(), c.control().to_vec(), w).unwrap()
+}
+
+/// The swaying family the rational meter is pinned on: the integral
+/// rows' far end, where the chord assemblies are long gone.
+const RATIONAL_FAMILY: [(usize, f64); 4] = [(2, 4.0), (3, 0.5), (3, 2.0), (3, 4.0)];
+
+/// **Equal weights are polynomial.** A curve whose weights are all one
+/// value `w ≠ 1` is the polynomial curve on the same net, and meters
+/// exactly as it does, bit for bit at both scalars.
+#[test]
+fn a_uniform_weight_curve_meters_as_its_polynomial() {
+    for (degree, a) in RATIONAL_FAMILY {
+        let c = swaying(a, degree);
+        let (m, mi) = meters(&c);
+        for w in [0.7, 3.0] {
+            let (mw, mwi) = meters(&reweighted(&c, |_| w));
+            assert!(
+                mw.to_bits() == m.to_bits() && mwi.to_bits() == mi.to_bits(),
+                "degree {degree}, a = {a}, weights all {w}: metered {mw} / {mwi}, \
+                 its polynomial {m} / {mi}"
+            );
+        }
+    }
+}
+
+/// **A swaying rational corner meters.** With one interior weight
+/// raised 1.3× — a genuinely rational curve — the swaying family
+/// answers positive at both scalars and below the enclosure reference.
+/// The floor is under the measured tightness (`m / ceiling` from 0.99
+/// at degree 3, `a = 0.5` to 0.50 at degree 3, `a = 4`), so a schedule
+/// change that gives most of it back shows.
+#[test]
+fn a_swaying_rational_corner_meters_positive_and_below_its_speed() {
+    for (degree, a) in RATIONAL_FAMILY {
+        let c = reweighted(&swaying(a, degree), |j| if j == 1 { 1.3 } else { 1.0 });
+        let reference = min_speed_ceiling(&c, 4000);
+        let (m, mi) = meters(&c);
+        let at = format!("degree {degree}, a = {a}, w₁ = 1.3");
+        assert!(m > 0.0 && mi > 0.0, "{at}: {m}, {mi}");
+        assert!(
+            m <= reference && mi <= reference,
+            "{at}: meter {m} / {mi} above the speed {reference}"
+        );
+        assert!(
+            m >= 0.25 * reference,
+            "{at}: meter {m} gives away most of {reference}"
+        );
+    }
+}
+
 /// A random integral net, degree 1–5, on a random clamped vector with
 /// some interior knots raised. With `stall`, a random interior knot is
 /// raised to multiplicity `p − 1` (at least 1) and the two control
@@ -213,5 +268,124 @@ fn the_meter_stays_below_the_speed_and_refuses_a_stall() {
         built * 2 >= cases && stalls * 8 >= cases,
         "fuzz rot: {built} nets, {stalls} stalls of {cases} — {}",
         fuzz::replay()
+    );
+}
+
+/// **Rational soundness fuzz** (counterexample search): the integral
+/// fuzz's nets with random positive weights (`0.2..5`), every third an
+/// exact stall (equal control points at a knot of multiplicity
+/// `p − 1`, where `A′w − Aw′` vanishes for any weights). Neither
+/// scalar's meter exceeds the enclosure reference, and a stall never
+/// meters positive. Every tenth net instead carries the swaying
+/// table's two weight shapes, all `0.7` and one weight raised `1.3×`.
+#[test]
+fn the_rational_meter_stays_below_the_speed_and_refuses_a_stall() {
+    let mut rng = fuzz::start("swaying_corner_meter::rational_sound");
+    let cases = fuzz::scaled(60);
+    let (mut built, mut stalls) = (0_usize, 0_usize);
+    for case in 0..cases {
+        let deg = 1 + case % 5;
+        let npts = deg + 2 + rng.below(9);
+        let stall = case % 3 == 0;
+        let Some(c) = random_curve(&mut rng, deg, npts, stall) else {
+            continue;
+        };
+        let raised = rng.below(npts);
+        let c = match case % 10 {
+            0 => reweighted(&c, |_| 0.7),
+            5 => reweighted(&c, |j| if j == raised { 1.3 } else { 1.0 }),
+            _ => {
+                let w: Vec<f64> = (0..npts).map(|_| rng.range(0.2, 5.0)).collect();
+                reweighted(&c, |j| w[j])
+            }
+        };
+        built += 1;
+        let reference = min_speed_ceiling(&c, fuzz::scaled(200));
+        let (m, mi) = meters(&c);
+        // The `f64` reading is a bound up to its stated rounding (a few
+        // tens of relative ulps); the interval floor is held strictly.
+        assert!(
+            !(m > reference * (1.0 + 64.0 * f64::EPSILON)) && !(mi > reference),
+            "case {case} (deg {deg}, {npts} pts, stall {stall}): meter {m} / {mi} \
+             above the speed ceiling {reference} — {}",
+            fuzz::replay()
+        );
+        if stall {
+            stalls += 1;
+            assert!(
+                !(mi > 0.0) && !(m > 1e-12),
+                "case {case} (deg {deg}, {npts} pts): a stalling net metered {m} / {mi} — {}",
+                fuzz::replay()
+            );
+        }
+    }
+    assert!(
+        built * 2 >= cases && stalls * 8 >= cases,
+        "fuzz rot: {built} nets, {stalls} stalls of {cases} — {}",
+        fuzz::replay()
+    );
+}
+
+/// **The rational meter is tight where the truth is reachable.** On a
+/// degree-1 rational net every span is a straight segment, `A′w − Aw′`
+/// is constant on it, and each piece's `w` row ends on `w`'s value at
+/// the piece's end, so the piece assembly's bound IS the true minimum
+/// speed in ℝ (`w₀w₁‖ΔP‖/(Δu·w_max²)` on the slowest span). The
+/// interval floor must therefore sit between the enclosure ceiling and
+/// `1e-9` below it: an inflation of the bound by `1e-4` fails the upper
+/// assertion, a loss of tightness the lower.
+#[test]
+fn a_degree_one_rational_net_meters_its_exact_minimum() {
+    let segment = NurbsCurve3::<f64>::new(
+        KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+        vec![Point3::new(0.0, 0.0, 0.0), Point3::new(2.0, 1.0, 0.0)],
+        vec![1.0, 3.0],
+    )
+    .unwrap();
+    // A zigzag that doubles back at each corner, weights spanning 0.5–3.
+    let zigzag = NurbsCurve3::<f64>::new(
+        KnotVector::clamped(vec![0.0, 0.0, 1.0, 2.5, 3.0, 3.0], 1).unwrap(),
+        vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 2.0, 0.0),
+            Point3::new(0.5, -1.0, 1.0),
+            Point3::new(2.0, 0.0, 0.0),
+        ],
+        vec![1.0, 3.0, 0.5, 2.0],
+    )
+    .unwrap();
+    for (name, c) in [("segment", &segment), ("zigzag", &zigzag)] {
+        let reference = min_speed_ceiling(c, 400);
+        let (_, mi) = meters(c);
+        assert!(
+            mi <= reference && mi >= reference * (1.0 - 1e-9),
+            "{name}: interval meter {mi} against the exact minimum's ceiling {reference} \
+             (ratio {})",
+            mi / reference
+        );
+    }
+}
+
+/// The meter is memoised on the curve, and the memo is not part of its
+/// value: reading it leaves `Debug` unchanged, a clone reads the same
+/// bits, and a curve built from a metered one by a door that moves the
+/// net (here a uniform scale by 2, which doubles the speed) meters its
+/// own net rather than inheriting the first answer.
+#[test]
+fn the_meter_memo_is_invisible_and_never_inherited() {
+    let c = swaying(2.0, 3);
+    let before = format!("{c:?}");
+    let m = c.speed_lower_bound().get();
+    assert_eq!(format!("{c:?}"), before, "reading the meter changed Debug");
+    assert_eq!(
+        c.clone().speed_lower_bound().get().to_bits(),
+        m.to_bits(),
+        "clone"
+    );
+    let scaled = c.map_points(|p| Point3::new(p.x * 2.0, p.y * 2.0, p.z * 2.0));
+    let ms = scaled.speed_lower_bound().get();
+    assert!(
+        (ms - 2.0 * m).abs() <= 1e-12 * m,
+        "scaled net metered {ms}, twice the source's {m} expected"
     );
 }

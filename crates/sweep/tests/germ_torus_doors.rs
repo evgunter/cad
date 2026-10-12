@@ -32,9 +32,10 @@
 //! this fixture never reaches it (no line edge of one half meets a
 //! torus face of the other), so its rows run on a donut and a bar. The
 //! donut's pierces go on to the pierce lane's outward normal, which
-//! has a torus arm too, then through the join's germ frame to its
-//! germ-pair dispatch, which has no torus arm; the sweep traces, which
-//! stop before that, are what those rows read.
+//! has a torus arm too, then through the join's germ frame and its
+//! germ-pair dispatch to the chord layer's section, which has no
+//! plane × torus arm; the sweep traces, which stop before that, are what
+//! those rows read.
 //!
 //! Past every torus door the union builds, as the same dumbbell with a
 //! CYLINDER handle does — the control row says so: the joint's seam
@@ -45,7 +46,7 @@
 
 use crate::common::operands::{bar, framed_bar};
 use crate::common::revert_ops::subtract_both_orders_and_intersect;
-use crate::germ_plane_torus_frame::{TorusDoor, torus_door};
+use crate::germ_plane_torus_frame::{TorusDoor, chord_door, torus_door};
 use crate::revolve_common;
 use sweep::ExtrudeSide;
 
@@ -418,8 +419,9 @@ fn a_segment_through_the_tube_is_pierced_at_both_quartic_roots() {
 /// event there. Nothing lands on the outer face — a chord recorded
 /// against it would be an incidence that does not exist.
 ///
-/// What the union meets next, past the join's germ frame, is the
-/// germ-pair dispatch, which has no torus arm.
+/// What the union meets next, past the join's germ frame and the
+/// germ-pair dispatch, is the torus side's section, which has no
+/// plane × torus arm.
 #[test]
 fn a_chord_across_the_hole_is_pierced_not_passed() {
     let d = donut();
@@ -459,8 +461,8 @@ fn a_chord_across_the_hole_is_pierced_not_passed() {
     );
     assert_eq!(
         torus_door(topo::BooleanOp::Union, &d, &b),
-        Ok(TorusDoor::Dispatch),
-        "past the chord and the germ frame, the union stops at the dispatch"
+        Ok(TorusDoor::WallSection),
+        "past the germ frame and the dispatch, the union stops at the torus side's section"
     );
 }
 
@@ -1126,7 +1128,8 @@ fn a_cube_in_the_donuts_hole_answers_subtract_and_intersect() {
 ///   quartics, refused at the join's germ frame, or it stops at the
 ///   crossing layer's pierce door where the run's band puts its root
 ///   there; the belly bar and the chord across the hole pass the frame
-///   and stop at the germ-pair dispatch, which has no torus arm;
+///   and the germ-pair dispatch and stop at the chord layer's
+///   plane × torus section, on the side the member order meets first;
 /// - the slab's face-interior oval is a certified interior loop
 ///   (R-loop), and so is the bite a cylinder grazing the outer equator
 ///   takes out of the tube (its axis square to the torus's, its trace
@@ -1156,9 +1159,9 @@ fn subtract_and_intersect_refuse_where_union_does() {
         1e-3,
     );
     let near = finished("the near-perpendicular bar", near, Tol::witness());
-    // Whether the bar passes the germ frame: then it stops at the
-    // germ-pair dispatch; otherwise its faces cut general spiric
-    // quartics, or its root falls to the pierce door.
+    // Whether the bar passes the germ frame: then it stops at the chord
+    // layer's section; otherwise its faces cut general spiric quartics,
+    // or its root falls to the pierce door.
     for (name, b, passes) in [
         ("near-perpendicular bar", near, false),
         (
@@ -1174,12 +1177,12 @@ fn subtract_and_intersect_refuse_where_union_does() {
     ] {
         if passes {
             use topo::BooleanOp::{Intersect, Subtract};
-            for (op, door) in [
-                ("A ∖ B", torus_door(Subtract, &d, &b)),
-                ("B ∖ A", torus_door(Subtract, &b, &d)),
-                ("A ∩ B", torus_door(Intersect, &d, &b)),
+            for (op, door, plane_first) in [
+                ("A ∖ B", torus_door(Subtract, &d, &b), false),
+                ("B ∖ A", torus_door(Subtract, &b, &d), true),
+                ("A ∩ B", torus_door(Intersect, &d, &b), false),
             ] {
-                assert_eq!(door, Ok(TorusDoor::Dispatch), "{name}, {op}");
+                assert_eq!(door, Ok(chord_door(plane_first)), "{name}, {op}");
             }
             continue;
         }

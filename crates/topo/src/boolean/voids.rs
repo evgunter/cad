@@ -80,7 +80,7 @@
 
 use geom_core::{Decide, Sign};
 
-use super::combine::{Bridge, GraftMap, graft_solids_with};
+use super::combine::{GraftMap, graft_solids_disjoint};
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, VertexKey};
 use crate::entity::{ShellKey, SolidKey};
@@ -305,7 +305,7 @@ pub fn insert_void<T: Decide>(
 
 /// [`insert_void`] for a cavity body holding N solids: `dst_solids`
 /// names one destination solid per cavity solid, **positionally in the
-/// cavity's solid order** ([`super::combine::graft_solids_with`]'s own
+/// cavity's solid order** ([`super::combine::graft_solids_disjoint`]'s own
 /// contract), and the arity must match exactly.
 ///
 /// The evidence discipline is [`insert_void`]'s, unchanged and
@@ -418,14 +418,13 @@ pub(crate) fn insert_hollow_voids<T: Decide>(
         (dst.arena_counts(), transplant)
     };
     let reversed = cavity.revert();
-    let graft =
-        graft_solids_with(dst, dst_solids, &reversed, Bridge::RemapKeys).unwrap_or_else(|e| {
-            unreachable!(
-                "the void graft refused ({e:?}): its every argument refusal was checked above \
+    let graft = graft_solids_disjoint(dst, dst_solids, &reversed).unwrap_or_else(|e| {
+        unreachable!(
+            "the void graft refused ({e:?}): its every argument refusal was checked above \
                  (destinations live and one per cavity solid), and a handle-remapping graft \
                  re-certifies nothing"
-            )
-        });
+        )
+    });
     #[cfg(debug_assertions)]
     dst.assert_euler_postcondition(before, transplant, "insert_voids");
     Ok(VoidInserted { graft })

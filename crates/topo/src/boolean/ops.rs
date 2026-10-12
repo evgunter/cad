@@ -23,9 +23,8 @@
 //!   vertex and edge contacts (the carried
 //!   [`ContactRecords`] say where; genuinely 3′, certified by PR 6's
 //!   validator). A tangent line contact through a face's interior is
-//!   not one: no edge holds the line for a record to name, and the slit
-//!   that would mint one is unbuilt, so the union refuses it
-//!   ([`BooleanError::TangentSlitArmUnbuilt`]).
+//!   a face–face touch the reduction does not yet record, so the union
+//!   refuses it ([`BooleanError::TangentSlitArmUnbuilt`]).
 //! - [`Voided`](BooleanResultKind::Voided): **legitimate voids** —
 //!   A∖B with B strictly inside A yields the outer shell plus the
 //!   reverted inner shell, a tier-2-legal multi-shell body. The
@@ -117,7 +116,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use super::BooleanDecision;
 use super::SphereQuestion;
 use super::boxes;
-use super::combine::{Bridge, GraftMap, graft_solids_with};
+use super::combine::{GraftMap, graft_solids_disjoint};
 use super::contain::{ContainError, FaceContainment, contfp};
 use super::edge_join::join_stage;
 use super::finish::setopfinish;
@@ -129,7 +128,7 @@ use super::shell_witness::{
 };
 use super::solid_contain::{SolidContainment, closed_sphere_group};
 use super::voids;
-use super::zip::{Fusions, SeamCorrespondence, zip_seam};
+use super::zip::{Fusions, Seam, SeamCorrespondence, zip_seam, zip_split};
 use super::{
     BooleanError, BooleanInputs, BooleanOp, BooleanReduction, Cell, Contact, ContactRecords,
     EeContact, Glue, GluedPair, Operand, OperandRecords, ReductionContacts, SelfCheck,
@@ -253,6 +252,11 @@ pub struct BooleanNaming {
     /// Face absorption groups `(kept, absorbed…)`, result keys:
     /// `merge_coplanar_faces`'.
     pub merge_groups: Vec<(FaceKey, Vec<FaceKey>)>,
+    /// The merge's lineage, `(dead, kept)` in group order, result keys:
+    /// each cell a group killed (an absorbed face, a killed shared edge,
+    /// a pruned vertex) with the kept face holding its interior
+    /// ([`MergedGroup::substitutions`](crate::merge_faces::MergedGroup::substitutions)).
+    pub merge_substitutions: Vec<(Cell, Cell)>,
     /// Curved merge groups the output stage did NOT glue, as outside
     /// the merge's Euler inventory (M4 PR 5), and declared surface pairs
     /// the door has no rung for (a non-planar carrier) — the record's
@@ -284,8 +288,10 @@ pub struct BooleanNaming {
     /// (`BooleanBody::contacts` drops such rows by design). Its cells
     /// are the reading: each record's [`crate::Backing::Decided`]
     /// names a decision of the reduction's own, which the result
-    /// records as a row only where a record citing it survives, so its
-    /// citations index no list a reader holds.
+    /// records as a row where a record citing it survives or where it
+    /// put a vertex the op left as copies on one point key (a pinch the
+    /// op made, [`carry`]), so its citations index no list a reader
+    /// holds.
     pub reduction_contacts: ReductionContacts,
     /// Every face an operand lost to the result, with the kept faces it
     /// bordered (`boolean::discard`, which says which paths record
@@ -321,16 +327,42 @@ pub struct BooleanNaming {
 }
 
 impl BooleanNaming {
-    /// Each result vertex a zip fused away → the vertex it finally
-    /// fused into, following `vertex_merges` through every hop (a
-    /// discard's `bordered` ends are read through it).
-    #[must_use]
-    pub fn fused_into(&self) -> BTreeMap<VertexKey, VertexKey> {
+    /// Each result vertex a zip fused away → the live cell of `body`
+    /// its point lies in ([`Self::settler`]).
+    ///
+    /// # Errors
+    ///
+    /// [`SettleError`], as [`Settler::settle`].
+    pub fn fused_into<T: Real>(
+        &self,
+        body: &Body<T>,
+    ) -> Result<BTreeMap<VertexKey, Cell>, SettleError> {
+        let settler = self.settler(body);
         self.vertex_merges
             .rows()
             .iter()
-            .map(|&(dead, _)| (dead, self.vertex_merges.survivor(dead)))
+            .map(|&(dead, _)| Ok((dead, settler.settle(dead)?)))
             .collect()
+    }
+
+    /// Settles result vertices on the live cells of `body` their points
+    /// lie in, read off this naming's rows ([`Settler::settle`]).
+    #[must_use]
+    pub fn settler<'a, T: Real>(&'a self, body: &'a Body<T>) -> Settler<'a, T> {
+        Settler {
+            body,
+            fusions: &self.vertex_merges,
+            joins: &self.edge_joins,
+            merged: self.merge_substitutions.iter().fold(
+                BTreeMap::new(),
+                |mut rows, &(dead, by)| {
+                    rows.entry(dead)
+                        .and_modify(|row| *row = None)
+                        .or_insert(Some(by));
+                    rows
+                },
+            ),
+        }
     }
 
     /// The live edge `edge` is part of after the output stage's joins:
@@ -341,42 +373,162 @@ impl BooleanNaming {
         super::edge_join::joined_edge(&self.edge_joins, edge)
     }
 
-    /// Each vertex the output stage's joins removed → the live edge
-    /// whose interior holds it ([`Self::joined_edge`]).
-    #[must_use]
-    pub fn joined_into(&self) -> BTreeMap<VertexKey, EdgeKey> {
-        self.edge_joins
-            .iter()
-            .map(|j| (j.vertex, self.joined_edge(j.kept)))
-            .collect()
-    }
-
-    /// The live edge a stretch between result vertices `u` and `w`
-    /// (fusions settled) lies along when a join removed either end: the
-    /// edge holding that end, where the other end is one of its ends or
-    /// is held by it too. `None` where neither end was joined away, or
-    /// the two do not lie along one edge.
+    /// The live edge a stretch lies along when a join removed either
+    /// end, its ends settled ([`Settler::settle`]): the edge holding the
+    /// joined-away end ([`Cell::Edge`]), where the other end is one of its
+    /// ends or is held by it too. An end inside a face lies on no edge.
+    /// `None` where neither end was joined away, or the two do not lie
+    /// along one edge.
     #[must_use]
     pub fn stretch_through_joins<T: Real>(
         &self,
         body: &Body<T>,
-        (u, w): (VertexKey, VertexKey),
+        (u, w): (Cell, Cell),
     ) -> Option<EdgeKey> {
-        let joined = self.joined_into();
-        let on = |v: VertexKey, e: EdgeKey| {
-            joined.get(&v) == Some(&e)
-                || body.get_edge(e).is_some_and(|d| {
-                    [d.he_plus, d.he_minus]
-                        .into_iter()
-                        .any(|h| body.get_half_edge(h).is_some_and(|h| h.start == v))
-                })
+        let on = |c: Cell, e: EdgeKey| match c {
+            Cell::Vertex(v) => body.get_edge(e).is_some_and(|d| {
+                [d.he_plus, d.he_minus]
+                    .into_iter()
+                    .any(|h| body.get_half_edge(h).is_some_and(|h| h.start == v))
+            }),
+            Cell::Edge(x) => x == e,
+            Cell::Face(_) => false,
         };
-        [joined.get(&u), joined.get(&w)]
+        [u, w]
             .into_iter()
-            .flatten()
-            .copied()
+            .filter_map(|c| match c {
+                Cell::Edge(e) => Some(e),
+                Cell::Vertex(_) | Cell::Face(_) => None,
+            })
             .find(|&e| on(u, e) && on(w, e))
     }
+}
+
+/// [`BooleanNaming::settler`]: result vertices settled on live cells.
+#[derive(Debug)]
+pub struct Settler<'a, T: Real> {
+    body: &'a Body<T>,
+    fusions: &'a Fusions,
+    /// The output stage's joins, read by [`super::edge_join::joined_cell`].
+    joins: &'a [super::EdgeJoin],
+    /// The merge's lineage, each dead cell → its group's kept face;
+    /// `None` where two rows name the cell, which the chase refuses
+    /// ([`SettleError::DuplicateRow`]).
+    merged: BTreeMap<Cell, Option<Cell>>,
+}
+
+impl<T: Real> Settler<'_, T> {
+    /// The live cell `vertex`'s point lies in: the vertex it finally
+    /// fused into, following the zips' fusions through every hop, while
+    /// that lives. A later stage can delete it without moving its point,
+    /// and both such stages record the kill: the merge's pruning leaves
+    /// the point inside its group's kept face ([`Cell::Face`], the
+    /// merge's own lineage), and the output stage's join inside the
+    /// joined edge ([`Cell::Edge`], [`super::edge_join::joined_cell`]).
+    ///
+    /// # Errors
+    ///
+    /// [`SettleError::Dead`] where the chase ends on a cell `body` does
+    /// not hold (a stage deleted it without its row), and
+    /// [`SettleError::Cyclic`] where the rows cycle.
+    pub fn settle(&self, vertex: VertexKey) -> Result<Cell, SettleError> {
+        let start = Cell::Vertex(self.fusions.survivor(vertex));
+        let twice = core::cell::Cell::new(None);
+        let step = |c: Cell| match self.merged.get(&c) {
+            Some(&Some(by)) => Some(by),
+            Some(None) => {
+                twice.set(Some(c));
+                None
+            }
+            None => {
+                let joined = super::edge_join::joined_cell(self.joins, c);
+                (joined != c).then_some(joined)
+            }
+        };
+        let chased = chase_live(self.body, start, self.merged.len() + self.joins.len(), step);
+        if let Some(dead) = twice.get() {
+            return Err(SettleError::DuplicateRow { vertex, dead });
+        }
+        match chased {
+            Ok(Ok(cell)) => Ok(cell),
+            Ok(Err(reached)) => Err(SettleError::Dead { vertex, reached }),
+            Err(RowsCycle) => Err(SettleError::Cyclic { vertex }),
+        }
+    }
+}
+
+/// A result vertex the naming's rows cannot settle on a live cell
+/// ([`Settler::settle`]): a corrupt record, which a reader must not
+/// take for a stale key.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SettleError {
+    /// The chase ended on a cell the result does not hold: a stage
+    /// deleted it without appending its row.
+    Dead {
+        /// The vertex asked about.
+        vertex: VertexKey,
+        /// The dead cell the chase reached.
+        reached: Cell,
+    },
+    /// The rows cycle.
+    Cyclic {
+        /// The vertex asked about.
+        vertex: VertexKey,
+    },
+    /// The chase reached a cell two of the merge's rows name: which
+    /// holds it is not recorded.
+    DuplicateRow {
+        /// The vertex asked about.
+        vertex: VertexKey,
+        /// The cell named twice.
+        dead: Cell,
+    },
+}
+
+impl core::fmt::Display for SettleError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let what = match self {
+            Self::Dead { .. } => "settles on a cell the result does not hold",
+            Self::Cyclic { .. } => "is settled through rows that cycle",
+            Self::DuplicateRow { .. } => "is settled through a cell two rows name",
+        };
+        write!(f, "a vertex of a Boolean's result {what}")
+    }
+}
+
+impl std::error::Error for SettleError {}
+
+/// Whether `body` holds `cell`.
+pub(super) fn holds<T: Real>(body: &Body<T>, cell: Cell) -> bool {
+    match cell {
+        Cell::Vertex(v) => body.get_vertex(v).is_some(),
+        Cell::Edge(e) => body.get_edge(e).is_some(),
+        Cell::Face(f) => body.get_face(f).is_some(),
+    }
+}
+
+/// The rows a chase walked revisit a cell.
+pub(super) struct RowsCycle;
+
+/// The first cell `body` holds along `step` from `at`: `Ok(live)`, or
+/// `Err(dead)` where `step` stops at a dead cell. A walk longer than
+/// `rows` steps has revisited a cell, and refuses.
+pub(super) fn chase_live<T: Real>(
+    body: &Body<T>,
+    mut at: Cell,
+    rows: usize,
+    step: impl Fn(Cell) -> Option<Cell>,
+) -> Result<Result<Cell, Cell>, RowsCycle> {
+    for _ in 0..=rows {
+        if holds(body, at) {
+            return Ok(Ok(at));
+        }
+        match step(at) {
+            Some(next) => at = next,
+            None => return Ok(Err(at)),
+        }
+    }
+    Err(RowsCycle)
 }
 
 /// The typed result of a boolean op: a body, or the typed empty
@@ -616,9 +768,16 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     // A vertex several seams meet is fused by the first: each later zip
     // reads the correspondence through the fusions made.
     let mut vertex_map = fin.vertex_map.clone();
-    let seams = super::zip::split_cones(&mut body, &fin.seams, &mut vertex_map, tol)?;
-    for &(a_face, b_face) in &seams {
-        let rep = zip_seam(&mut body, a_face, b_face, &vertex_map, tol)?;
+    let (seams, cones) = super::zip::split_cones(&mut body, &fin.seams, &mut vertex_map, tol)?;
+    for seam in &seams {
+        let rep = match seam {
+            Seam::Faces(a_face, b_face) => zip_seam(&mut body, *a_face, *b_face, &vertex_map, tol)?,
+            Seam::Split {
+                a_faces,
+                b_faces,
+                edges,
+            } => zip_split(&mut body, (a_faces, b_faces), edges, tol)?,
+        };
         desc.absorb_zip(&rep)?;
         seam_edges.extend(rep.seam_edges);
         vertex_map = fused_through(&vertex_map, &rep.vertex_merges);
@@ -645,7 +804,11 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         band,
         tol,
     )?;
-    let (contacts, coincidences) = carry(&body, &ledger, views, &desc, band)?;
+    let zipped = Zipped {
+        operands: [a, b],
+        _cones: cones,
+    };
+    let (contacts, coincidences) = carry(&body, &ledger, views, &desc, Some(zipped), band)?;
     share_recorded_points(&mut body, &contacts, &coincidences)?;
     // Curved results carry certified per-half-edge pcurves at rest
     // (M5 PR 9, the PR 6 contract): re-derive the whole cache set on
@@ -670,6 +833,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         seam_edges,
         vertex_merges,
         merge_groups: merge_rows(&merged),
+        merge_substitutions: merge_substitution_rows(&merged),
         merge_skipped: merged.skipped.clone(),
         face_fragments_a,
         face_fragments_b,
@@ -1615,6 +1779,16 @@ pub(super) fn merge_rows(
         .collect()
 }
 
+/// The merge's lineage as naming rows ([`MergedGroup::substitutions`](crate::merge_faces::MergedGroup::substitutions)).
+pub(super) fn merge_substitution_rows(
+    m: &crate::merge_faces::MergeCoplanarOutcome,
+) -> Vec<(Cell, Cell)> {
+    m.groups
+        .iter()
+        .flat_map(crate::merge_faces::MergedGroup::substitutions)
+        .collect()
+}
+
 /// The volume-inequality backstop at the op gate (PR 5 review): every
 /// `Seamed` result must satisfy the set-theoretic bounds
 /// vol(∩) ≤ min(vol A, vol B), max(vol A, vol B) ≤ vol(∪) ≤ vol A + vol B,
@@ -2116,6 +2290,19 @@ pub(super) fn finish_output<T: Decide + crate::props::AtRestPolicy>(
     ),
     BooleanError,
 > {
+    #[cfg(feature = "sweep-testing")]
+    OUTPUT_STAGE_POINTS.with(|s| {
+        if let Some(stages) = s.borrow_mut().as_mut() {
+            stages.push(
+                body.vertices()
+                    .map(|(v, data)| {
+                        let p = body.point_of(v, data);
+                        (v, [p.x, p.y, p.z].map(|c| format!("{c:?}")))
+                    })
+                    .collect(),
+            );
+        }
+    });
     let merged = body
         .merge_coplanar_faces_unjoined(declared, tol)
         .map_err(of_merge)?;
@@ -2123,6 +2310,43 @@ pub(super) fn finish_output<T: Decide + crate::props::AtRestPolicy>(
     describe_minted_edges(body, seam_edges, &merged, band, tol)?;
     let edge_joins = join_stage(body, desc, recorded, band, tol)?;
     Ok((merged, edge_joins))
+}
+
+/// One output stage's vertices, each with its point rendered
+/// ([`take_output_stage_points`]).
+#[cfg(feature = "sweep-testing")]
+pub type StagePoints = Vec<(VertexKey, [String; 3])>;
+
+#[cfg(feature = "sweep-testing")]
+thread_local! {
+    /// Each vertex's point as the output stage found it, one list per
+    /// [`finish_output`] call, while this thread is armed
+    /// ([`arm_output_stage_points`]); `None` unarmed, and nothing is
+    /// recorded.
+    static OUTPUT_STAGE_POINTS: core::cell::RefCell<Option<Vec<StagePoints>>> =
+        const { core::cell::RefCell::new(None) };
+}
+
+/// Arms this thread to record, at the start of every output stage, each
+/// vertex's key and point before the stage's merge and join delete any
+/// ([`take_output_stage_points`]), dropping anything recorded before.
+/// Unarmed, the stage records nothing: only the row that asks pays for
+/// it. `sweep-testing` only.
+#[cfg(feature = "sweep-testing")]
+pub fn arm_output_stage_points() {
+    OUTPUT_STAGE_POINTS.with(|s| *s.borrow_mut() = Some(Vec::new()));
+}
+
+/// Drains what the output stages recorded on this armed thread since
+/// the last drain or arming, one list per stage, and stays armed: what
+/// a row needs to check that the cell a deleted vertex settles on
+/// ([`Settler::settle`]) holds its point, which the result no longer
+/// stores. Each coordinate is its `{:?}` rendering, as
+/// [`super::zip::take_shared_points`] gives it and for its reason.
+/// `None` on an unarmed thread, where nothing could have been recorded.
+#[cfg(feature = "sweep-testing")]
+pub fn take_output_stage_points() -> Option<Vec<StagePoints>> {
+    OUTPUT_STAGE_POINTS.with(|s| s.borrow_mut().as_mut().map(core::mem::take))
 }
 
 /// D6 (M3 PR 6a): honest descriptions on boolean-minted edges AT MINT
@@ -2709,6 +2933,7 @@ impl Descendants {
             merged.joins.is_empty(),
             "absorb_merge: the boolean's merge is the unjoined one, so it reports no join"
         );
+        let mut seen = BTreeSet::new();
         for group in &merged.groups {
             for (dead, by) in group.substitutions() {
                 match dead {
@@ -2717,6 +2942,10 @@ impl Descendants {
                     }
                     _ => self.substitute(dead, by),
                 }
+                debug_assert!(
+                    seen.insert(dead),
+                    "absorb_merge: two merge rows name {dead:?}"
+                );
             }
         }
     }
@@ -2863,31 +3092,22 @@ impl Descendants {
             Cell::Edge(e) => view.edge(e).map(Cell::Edge),
             Cell::Face(f) => view.face(f).map(Cell::Face),
         };
-        let Some(mut at) = start else {
+        let Some(at) = start else {
             return Ok(None);
         };
-        let is_live = |c: Cell| match c {
-            Cell::Vertex(v) => body.get_vertex(v).is_some(),
-            Cell::Edge(e) => body.get_edge(e).is_some(),
-            Cell::Face(f) => body.get_face(f).is_some(),
-        };
-        for _ in 0..=self.faces.len() + self.cells.len() {
-            if is_live(at) {
-                return Ok(Some(at));
-            }
-            let next = match at {
+        let step = |at: Cell| {
+            match at {
                 Cell::Face(f) => self.faces.get(&f).map(|&k| Cell::Face(k)),
                 _ => None,
             }
-            .or_else(|| self.cells.get(&at).copied());
-            match next {
-                Some(n) => at = n,
-                None => return Ok(None),
-            }
+            .or_else(|| self.cells.get(&at).copied())
+        };
+        match chase_live(body, at, self.faces.len() + self.cells.len(), step) {
+            Ok(reached) => Ok(reached.ok()),
+            Err(RowsCycle) => Err(BooleanError::JoinDesync {
+                what: "a cell's substitution rows are cyclic",
+            }),
         }
-        Err(BooleanError::JoinDesync {
-            what: "a cell's substitution rows are cyclic",
-        })
     }
 }
 
@@ -3443,11 +3663,14 @@ fn tagged(d: &ReductionContacts) -> Vec<Tagged<'_>> {
 /// over another; a pair of two copies of one vertex cites the records
 /// that put the vertex in its group. Each decision a surviving record
 /// cites is emitted, in decision order, after the op's own
-/// coincidences, and the records are renumbered onto those rows: a
-/// decision no surviving record cites placed topology and is not a
-/// coincidence (D1). A surviving record whose decisions all decided no
-/// margin (a transverse pierce) is a touch without a decision, which
-/// the op refuses rather than ship.
+/// coincidences, and the records are renumbered onto those rows. So is
+/// each decision at a pinch the op made ([`pinch_rows`]), read only
+/// for a result the seams were zipped into (`zipped`): the op's copies
+/// there touch on one point key, which no record states. Any other
+/// decision placed topology and is not a coincidence (D1). A surviving
+/// record whose decisions all decided no margin (a transverse pierce)
+/// is a touch without a decision, which the op refuses rather than
+/// ship.
 ///
 /// # Errors
 ///
@@ -3460,6 +3683,7 @@ pub(super) fn carry<T: Decide>(
     ledger: &Ledger,
     views: [&KeyView<'_>; 2],
     desc: &Descendants,
+    zipped: Option<Zipped<'_, T>>,
     band: Band,
 ) -> Result<(ContactRecords, Vec<crate::Coincidence>), BooleanError> {
     let [a, b] = &ledger.carried;
@@ -3473,7 +3697,11 @@ pub(super) fn carry<T: Decide>(
         band,
     )?;
     record_spans(body, &mut records, band)?;
-    cite_rows(records, ledger)
+    let pinched = match zipped {
+        Some(z) => pinch_rows(body, z.operands, ledger, views, desc)?,
+        None => Vec::new(),
+    };
+    cite_rows(records, ledger, &pinched)
 }
 
 /// The result's vertices an operand's carried vertex-vertex records
@@ -3510,6 +3738,83 @@ fn carried_vertices<T: Real>(
     Ok(out)
 }
 
+/// **A result the seams were zipped into**, with its two operands: the
+/// only path that leaves an op's copies of one vertex on one point key
+/// (the join's null-edge copies, the zip's split per cone), so the only
+/// one [`carry`] reads pinches for. It holds the zip's
+/// [`super::zip::ConesSplit`], which only `zip::split_cones` builds.
+pub(super) struct Zipped<'a, T: Real> {
+    operands: [&'a Body<T>; 2],
+    _cones: super::zip::ConesSplit,
+}
+
+/// **The decisions at the pinches the op made**, as indices into the
+/// ledger's pending rows, ascending: each decided row with a vertex end
+/// whose live descendant shares its point key with another live vertex,
+/// where not every vertex on that key descends from an operand vertex
+/// that already shared its key. Two vertices on one point key are an
+/// op's copies of one vertex: the join's null-edge copies
+/// ([`Descendants::copies_of`]) or the zip's split per cone
+/// (`zip::split_cones`), so pieces of the result touch there with no
+/// record between them (D1's structural sharing), and the row that put
+/// the vertex on the other operand's cell is the coincidence that made
+/// them touch (DESIGN, the reduction's coincidence discipline). Copies
+/// an operand already held are its own structure, which no decision of
+/// this op made.
+fn pinch_rows<T: Real>(
+    body: &Body<T>,
+    operands: [&Body<T>; 2],
+    ledger: &Ledger,
+    views: [&KeyView<'_>; 2],
+    desc: &Descendants,
+) -> Result<Vec<u32>, BooleanError> {
+    let mut inherited: BTreeSet<VertexKey> = BTreeSet::new();
+    for (side, operand) in [Operand::A, Operand::B].into_iter().zip(operands) {
+        let mut shared: BTreeMap<crate::geometry::PointKey, usize> = BTreeMap::new();
+        for (_, v) in operand.vertices() {
+            *shared.entry(v.point).or_default() += 1;
+        }
+        let view = views[usize::from(side == Operand::B)];
+        for (u, v) in operand.vertices() {
+            if shared[&v.point] >= 2
+                && let Some(Cell::Vertex(w)) = desc.live(body, side, view, Cell::Vertex(u))?
+            {
+                inherited.insert(w);
+            }
+        }
+    }
+    let mut held: BTreeMap<crate::geometry::PointKey, (usize, bool)> = BTreeMap::new();
+    for (w, v) in body.vertices() {
+        let at = held.entry(v.point).or_default();
+        at.0 += 1;
+        at.1 |= !inherited.contains(&w);
+    }
+    let pinch = |w: VertexKey| {
+        body.get_vertex(w)
+            .is_some_and(|v| held.get(&v.point).is_some_and(|&(n, made)| n >= 2 && made))
+    };
+    let mut out = Vec::new();
+    for (k, row) in ledger.pending.iter().enumerate() {
+        if row.margin.is_none() {
+            continue;
+        }
+        let mut at_pinch = false;
+        for &(side, cell) in &row.cells {
+            let Cell::Vertex(v) = cell else { continue };
+            let view = views[usize::from(side == Operand::B)];
+            for copy in desc.copies_of(side, v) {
+                if let Some(Cell::Vertex(w)) = desc.live(body, side, view, Cell::Vertex(copy))? {
+                    at_pinch |= pinch(w);
+                }
+            }
+        }
+        if at_pinch {
+            out.push(super::reduce::index(k));
+        }
+    }
+    Ok(out)
+}
+
 /// **The output stage's one key rule**: the vertices of every
 /// vertex-vertex record of the result move onto one point key
 /// (`zip::record_classes`), on every path a boolean builds by. Run
@@ -3527,12 +3832,13 @@ fn share_recorded_points<T: Decide>(
     super::zip::share_points(body, &classes)
 }
 
-/// The records `carry_rows` left, their decisions emitted after the
-/// op's own coincidences and their citations renumbered onto them
-/// ([`carry`]).
+/// The records `carry_rows` left, their decisions and `pinched`'s
+/// emitted after the op's own coincidences and the records' citations
+/// renumbered onto them ([`carry`]).
 fn cite_rows(
     records: ContactRecords,
     ledger: &Ledger,
+    pinched: &[u32],
 ) -> Result<(ContactRecords, Vec<crate::Coincidence>), BooleanError> {
     let decided = records.decided();
     if decided
@@ -3545,10 +3851,13 @@ fn cite_rows(
     }
     // A decision with no margin (a transverse pierce's landing) is not
     // a coincidence, and a record citing only such is refused below.
-    let used: Vec<u32> = decided
+    let mut used: Vec<u32> = decided
         .into_iter()
         .filter(|&k| ledger.pending[k as usize].margin.is_some())
+        .chain(pinched.iter().copied())
         .collect();
+    used.sort_unstable();
+    used.dedup();
     let mut coincidences = ledger.recorded.clone();
     let base = coincidences.len();
     for &k in &used {
@@ -5397,7 +5706,7 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 Some(base) => {
                     let base_solid =
                         single_solid(base).map_err(|_| corrupt("re-cut base is not one solid"))?;
-                    graft_solids_with(base, &[base_solid], &turned, Bridge::RemapKeys)?;
+                    graft_solids_disjoint(base, &[base_solid], &turned)?;
                 }
             }
         }
@@ -5975,7 +6284,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 // there through the policy's lane, and nothing touches
                 // them since, so they keep their certificates, as at the
                 // void door above.
-                graft_solids_with(&mut body, &[solid], &b_body, Bridge::RemapKeys)?
+                graft_solids_disjoint(&mut body, &[solid], &b_body)?
             };
             let kind = match op {
                 BooleanOp::Subtract => BooleanResultKind::Voided,
@@ -5998,7 +6307,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
             )?;
             crate::pcurves::mint_pcurves(&mut body, tol)
                 .map_err(|source| BooleanError::Pcurves { source })?;
-            let (contacts, coincidences) = carry(&body, &ledger, views, &desc, band)?;
+            let (contacts, coincidences) = carry(&body, &ledger, views, &desc, None, band)?;
             share_recorded_points(&mut body, &contacts, &coincidences)?;
             let body = gate(body, band, tol)?;
             let (graft_vertices, graft_edges, graft_dead_edges, graft_faces) = graft_rows(&graft);
@@ -6010,6 +6319,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 graft_dead_edges,
                 graft_faces,
                 merge_groups: merge_rows(&merged),
+                merge_substitutions: merge_substitution_rows(&merged),
                 merge_skipped: merged.skipped.clone(),
                 reduction_contacts: red.contacts.clone(),
                 covered: red.covered.clone(),
@@ -6061,7 +6371,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
     let (merged, edge_joins) = finish_output(&mut body, &mut desc, &[], &[], &recorded, band, tol)?;
     crate::pcurves::mint_pcurves(&mut body, tol)
         .map_err(|source| BooleanError::Pcurves { source })?;
-    let (contacts, coincidences) = carry(&body, &ledger, [&a_view, &b_view], &desc, band)?;
+    let (contacts, coincidences) = carry(&body, &ledger, [&a_view, &b_view], &desc, None, band)?;
     share_recorded_points(&mut body, &contacts, &coincidences)?;
     let body = gate(body, band, tol)?;
     let naming = match kind {
@@ -6069,6 +6379,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
             a_keys: OperandKeys::Direct,
             b_keys: OperandKeys::Absent,
             merge_groups: merge_rows(&merged),
+            merge_substitutions: merge_substitution_rows(&merged),
             merge_skipped: merged.skipped.clone(),
             reduction_contacts: reduction_contacts.clone(),
             covered: covered.to_vec(),
@@ -6082,6 +6393,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
             a_keys: OperandKeys::Absent,
             b_keys: OperandKeys::Direct,
             merge_groups: merge_rows(&merged),
+            merge_substitutions: merge_substitution_rows(&merged),
             merge_skipped: merged.skipped.clone(),
             reduction_contacts: reduction_contacts.clone(),
             covered: covered.to_vec(),
@@ -6210,6 +6522,69 @@ mod tests {
     use geom_core::{Band, Point3, Tol, Vec3};
 
     use super::{gate, seam_class, seam_must_carry, volume_backstop};
+
+    /// **A cycle in the rows refuses, and a cell with no row ends
+    /// dead**, for both readers of the shared chase (`chase_live`): the
+    /// naming's settler and the descendant map. Against an empty body
+    /// nothing is live, so a two-row cycle between faces `a` and `b` can
+    /// only be walked round, and a vertex no row names stops where it
+    /// starts. The settler also refuses a cell two merge rows name.
+    #[test]
+    fn the_chase_refuses_a_cycle_and_a_twice_named_cell_and_ends_dead_at_a_cell_with_no_row() {
+        use super::{BooleanNaming, Descendants, KeyView, SettleError};
+        use crate::boolean::Cell;
+        use crate::entity::{FaceKey, VertexKey};
+        let key = |n: u64| slotmap::KeyData::from_ffi((1u64 << 32) | n);
+        let (v, w): (VertexKey, VertexKey) = (key(1).into(), key(2).into());
+        let (a, b): (FaceKey, FaceKey) = (key(3).into(), key(4).into());
+        let body = crate::Body::<f64>::new();
+
+        let naming = BooleanNaming {
+            merge_substitutions: vec![
+                (Cell::Vertex(v), Cell::Face(a)),
+                (Cell::Face(a), Cell::Face(b)),
+                (Cell::Face(b), Cell::Face(a)),
+            ],
+            ..BooleanNaming::default()
+        };
+        let settler = naming.settler(&body);
+        assert_eq!(settler.settle(v), Err(SettleError::Cyclic { vertex: v }));
+
+        // Two rows naming one cell refuse, whichever kept face is last.
+        let twice = BooleanNaming {
+            merge_substitutions: vec![
+                (Cell::Vertex(w), Cell::Face(a)),
+                (Cell::Vertex(w), Cell::Face(b)),
+            ],
+            ..BooleanNaming::default()
+        };
+        assert_eq!(
+            twice.settler(&body).settle(w),
+            Err(SettleError::DuplicateRow {
+                vertex: w,
+                dead: Cell::Vertex(w),
+            })
+        );
+        assert_eq!(
+            settler.settle(w),
+            Err(SettleError::Dead {
+                vertex: w,
+                reached: Cell::Vertex(w),
+            })
+        );
+
+        let mut desc = Descendants::default();
+        desc.substitute(Cell::Face(a), Cell::Face(b));
+        desc.substitute(Cell::Face(b), Cell::Face(a));
+        assert!(matches!(
+            desc.chained(&body, &KeyView::Direct, Cell::Face(a)),
+            Err(BooleanError::JoinDesync { .. })
+        ));
+        assert!(matches!(
+            desc.chained(&body, &KeyView::Direct, Cell::Vertex(w)),
+            Ok(None)
+        ));
+    }
     use crate::boolean::{BooleanDecision, BooleanError, BooleanOp, LeverArm};
     use crate::props::QuadLane;
     use crate::splitting::reassembly::quad_prism;
@@ -7384,6 +7759,72 @@ mod tests {
                 ContactKind::VertexFace(other, face),
             ]
         );
+    }
+
+    /// **A face pair's zip is the reassembly oracle's sequence**: the
+    /// seams of brick pairs (a pierce, a corner overlap, a slot through)
+    /// under every op, each zipped by `zip_seam` and, on a copy, by the
+    /// splitting oracle's `reglue_pair`, which aligns the cycles by
+    /// bit-equal points and runs the loopglue sequence itself. The two
+    /// bodies' topology (faces, loops, half-edges, vertices) is the
+    /// same, key for key. Red if `glue`'s joints or kills drift from that
+    /// sequence.
+    #[test]
+    fn a_face_pair_zip_is_the_reassembly_oracles_sequence() {
+        use super::{Joined, SweepStrategy, fused_through, through_the_join, zip_seam};
+        use crate::boolean::BooleanOp;
+        use crate::test_support_fixtures::brick;
+        let tol = Tol::witness();
+        let topology = |body: &crate::Body<f64>| {
+            format!(
+                "{:?}{:?}{:?}{:?}",
+                body.faces, body.loops, body.half_edges, body.vertices
+            )
+        };
+        let mut seams = 0;
+        for (label, a, b) in [
+            (
+                "pierce",
+                brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+                brick::<f64>((0.5, 1.5), (0.2, 0.8), (0.2, 0.8), tol),
+            ),
+            (
+                "corner",
+                brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+                brick::<f64>((0.5, 1.5), (0.5, 1.5), (0.5, 1.5), tol),
+            ),
+            (
+                "slot",
+                brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+                brick::<f64>((-0.5, 1.5), (0.3, 0.6), (0.4, 1.5), tol),
+            ),
+        ] {
+            for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
+                let decls = super::Glue::none();
+                let Joined::Connected { red, connected, .. } =
+                    through_the_join(op, &a, &b, &decls, SweepStrategy::Realized, true, tol)
+                        .unwrap()
+                else {
+                    panic!("{label} {op:?}: the op joins");
+                };
+                let fin = super::setopfinish(op, *red, &connected, &a, &b, band(), tol).unwrap();
+                let mut body = fin.body;
+                let mut vertex_map = fin.vertex_map.clone();
+                for &(a_face, b_face) in &fin.seams {
+                    let mut oracle = body.clone();
+                    crate::splitting::reassembly::reglue_pair(&mut oracle, a_face, b_face, tol);
+                    let rep = zip_seam(&mut body, a_face, b_face, &vertex_map, tol).unwrap();
+                    assert_eq!(
+                        topology(&body),
+                        topology(&oracle),
+                        "{label} {op:?}: seam ({a_face:?}, {b_face:?}) zips as the oracle does"
+                    );
+                    vertex_map = fused_through(&vertex_map, &rep.vertex_merges);
+                    seams += 1;
+                }
+            }
+        }
+        assert!(seams >= 9, "a seam per op at least: {seams}");
     }
 
     /// **Each zip edge row pairs a ring edge with the seam edge it lies
@@ -8587,13 +9028,8 @@ mod holder_rows {
             Tol::witness(),
         );
         let solid = body.solids().next().unwrap().0;
-        let graft = crate::boolean::combine::graft_solids_with(
-            &mut body,
-            &[solid],
-            &copy.body,
-            crate::boolean::combine::Bridge::RemapKeys,
-        )
-        .unwrap();
+        let graft = crate::boolean::combine::graft_solids_disjoint(&mut body, &[solid], &copy.body)
+            .unwrap();
         let twin = *graft.faces.get(copy.top_face).unwrap();
         let (x, y) = if holds(&body, top, 0.5, 1.5) {
             (0.5, 1.5)

@@ -1345,20 +1345,23 @@ impl<T: Real> Geo<T> {
     /// op's copies of one vertex share its point, and so do the cones of
     /// a pinch (Ev, PR 4057), whose vertices may be copies of several
     /// operand vertices the op glued there by a value decision (one
-    /// pierce ring serving several pierces, `boolean::vtxfac::mint_ring`,
-    /// whose seams tie their keys, `boolean::zip::share_points`). So do
+    /// pierce ring serving several pierces, `boolean::vtxfac::mint_ring`).
+    /// So do
     /// two vertices a boolean decided one point from values, across
     /// solids too: the touching corners of an assembly's parts share
     /// the key their vertex-vertex record ties
     /// (`boolean::zip::record_classes`). The op records each such
     /// decision (`DecisionSite::VertexFusion`) for the
     /// `unproven-coincidence` lint where a record of its result cites it
-    /// (`boolean::reduce::PendingRow`): where the vertices stay distinct,
-    /// the record between them. Where the decision glues them into one
-    /// vertex, that record is gone, and the row is emitted only where
-    /// another touch at the point cites it through its chain (a vertex
-    /// on a face there). The census reads keys, not lineage, so it
-    /// cannot tell the cases apart and does not ask for the record.
+    /// (the record between vertices that stay distinct), or where the
+    /// op left the decided vertex as copies on one point key, a pinch it
+    /// made (`boolean::reduce::PendingRow`); copies an operand already
+    /// held on one key are its own structure and emit no row. Where the
+    /// decision glues the cones into one vertex, no copies remain, and
+    /// the row is emitted only where another touch at the point cites
+    /// it through its chain (a vertex on a face there). The census reads
+    /// keys, not lineage, so it cannot tell the cases apart and does not
+    /// ask for the record.
     fn same_point(&self, a: VertexKey, b: VertexKey) -> bool {
         a == b
             || matches!(
