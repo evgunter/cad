@@ -8,6 +8,7 @@ priority: P3
 cost: E
 closed: 2026-10-12
 branch: nurbs/div-point-paths
+pr: 4851
 ---
 
 `interval-transcendentals/src/arith.rs`'s `Div for DInterval`, in its
