@@ -92,6 +92,22 @@ caller's, per `Reading`. Three render the whole escalation
   `UndecidedRefusal`, which needs an `Indeterminate`: two of
   `SectorReading`'s arms are decided disagreements carrying margins.
 
+**Done: the editor-core slice, in PR NNNN.** `NodeErrorKind::Escalated`,
+`NamingError::Escalated` and `SelectRefusal::InBand` (whose "the query
+cannot decide whether …" went through `under`) render through
+`Indeterminate::undecided`. The two `Escalated` doors take their ending
+from `decision::ENDINGS`, one table with a kind column whose census holds
+it equal to the decisions those doors are fed: angles, the direction's
+gauge and the measure door's two parallelism sines end in the lever
+alone, the pattern spacing and naming's four distances sized.
+
+- Skipped, held under D10: `mate.rs` (`MateError::Indeterminate`, and
+  `MateCheck`'s "the check could not be decided — {payload}"), and
+  `measure.rs`'s assertion verdict ("not separated at this tolerance").
+- Left: `checks.rs` `CheckEvidence::Escalated` ("the component count is
+  unknowable: {shell payload}"), a consequence ahead of the question;
+  `DECISION_PHRASES` keeps "too close to call" for the held sites.
+
 ## Repair shape
 
 One crate per PR, re-baselining the texts each moves; drop

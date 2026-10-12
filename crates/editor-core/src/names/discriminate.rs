@@ -59,18 +59,21 @@ pub(crate) const ON_SEAM_LINE: &str = "name_frag_on_seam_line";
 /// than as the name's own.
 pub(crate) const CHORD_ON_RIM: &str = "name_chord_on_rim";
 
-/// What one of the naming layer's decisions decides, in the words a
+/// What each of the naming layer's decisions decides, in the words a
 /// refusal or a diagnosis states in place of the predicate's name
 /// (which is routing, kept to `Debug`): a clause with no colon or dash
-/// of its own. `None` for a predicate this layer does not own.
+/// of its own.
+pub(crate) const DECISION_WORDS: &[(&str, &str)] = &[
+    (ORDER_ALONG, "the order of two crossings along an edge"),
+    (ON_MEMBER_EDGE, "a point's place along an edge"),
+    (ON_SEAM_LINE, "whether a point lies on a seam's line"),
+    (CHORD_ON_RIM, "whether a chord lies on its rim"),
+];
+
+/// [`DECISION_WORDS`]' words for `predicate`; `None` for a predicate
+/// this layer does not own.
 pub(crate) fn decision_words(predicate: &str) -> Option<&'static str> {
-    match predicate {
-        ORDER_ALONG => Some("the order of two crossings along an edge"),
-        ON_MEMBER_EDGE => Some("a point's place along an edge"),
-        ON_SEAM_LINE => Some("whether a point lies on a seam's line"),
-        CHORD_ON_RIM => Some("whether a chord lies on its rim"),
-        _ => None,
-    }
+    crate::decision::lookup(DECISION_WORDS, predicate)
 }
 
 /// One candidate's extent along an oriented carrier: the certified

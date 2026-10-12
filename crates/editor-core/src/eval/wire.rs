@@ -870,18 +870,26 @@ fn band(tol: Tol) -> Result<Band, NodeErrorKind> {
 /// constant, so the telemetry and an escalation report the same name.
 pub(crate) const EVAL_DIRECTION_NORM: &str = "eval_direction_norm";
 
-/// What one of this layer's decisions decides, in words
-/// (`crate::decision::words` reads them). `None` for a predicate this
-/// layer does not own.
+/// What each of this layer's decisions decides, in words
+/// (`crate::decision::words` reads them).
+pub(crate) const DECISION_WORDS: &[(&str, &str)] = &[
+    (EVAL_DIRECTION_NORM, geom_core::DIRECTION_LENGTH_SUBJECT),
+    (
+        "revolve_full_vs_partial",
+        "whether the revolve makes a full turn",
+    ),
+    (PATTERN_SPACING, "whether the pattern spacing is positive"),
+    (PATTERN_STEP, "whether the pattern step is zero"),
+    (
+        PATTERN_STEP_TURN,
+        "how many whole turns the pattern step holds",
+    ),
+];
+
+/// [`DECISION_WORDS`]' words for `predicate`; `None` for a predicate
+/// this layer does not own.
 pub(crate) fn decision_words(predicate: &str) -> Option<&'static str> {
-    Some(match predicate {
-        EVAL_DIRECTION_NORM => geom_core::DIRECTION_LENGTH_SUBJECT,
-        "revolve_full_vs_partial" => "whether the revolve makes a full turn",
-        PATTERN_SPACING => "whether the pattern spacing is positive",
-        PATTERN_STEP => "whether the pattern step is zero",
-        PATTERN_STEP_TURN => "how many whole turns the pattern step holds",
-        _ => return None,
-    })
+    crate::decision::lookup(DECISION_WORDS, predicate)
 }
 
 /// Normalizes a direction-valued vector; a non-finite length refuses,

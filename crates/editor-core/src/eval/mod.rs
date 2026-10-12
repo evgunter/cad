@@ -29,7 +29,11 @@ pub use parts::PartFault;
 pub(crate) mod schedule;
 pub(crate) mod slots;
 mod wire;
-pub(crate) use wire::decision_words;
+#[cfg(test)]
+pub(crate) use wire::DECISION_WORDS;
+pub(crate) use wire::{
+    EVAL_DIRECTION_NORM, PATTERN_SPACING, PATTERN_STEP, PATTERN_STEP_TURN, decision_words,
+};
 
 pub(crate) use wire::{
     DATUM_AXIS_ROLE, SteppedOperands, TRANSFORM_AXIS_ROLE, need_scalar, need_vec3,
@@ -2318,7 +2322,11 @@ impl crate::spoken::Say for NodeErrorKind {
                 // What the decision was deciding, in words; the name is
                 // routing and rides `Debug`.
                 let what = crate::decision::words(predicate).unwrap_or(geom_core::UNNAMED_DECISION);
-                write!(f, "{what} is too close to call: {source}")
+                write!(
+                    f,
+                    "{}",
+                    source.undecided(what, crate::decision::ending(predicate, source))
+                )
             }
             Self::PoseRead { pose, fault } => write!(
                 f,
