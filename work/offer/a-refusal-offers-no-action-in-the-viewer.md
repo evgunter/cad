@@ -43,12 +43,12 @@ unknown-parameter offer. What an OFFER unit inherits from it:
   the declaration, all in `crates/viewer/src/session/refuse.rs`. The
   reader the frame loop calls is `frame::creation_offer` and
   `frame::declare_offer`, side by side in `crates/viewer/src/frame.rs`.
-  The held value is `drafts.new_param_offer` and `drafts.declare_offer`.
+  The held value is `drafts.new_variable_offer` and `drafts.declare_offer`.
   There is no general framework yet, so neither instance goes through
   one. They share homes instead.
 - **Staleness is split, and deliberately.** The parameter offer stands
   while the add-parameter form's name field still says the offered name
-  (`pane/properties.rs`, `add_param_ui`). That is honest because a name
+  (`pane/properties.rs`, `add_variable_ui`). That is honest because a name
   to create does not depend on the document state. A declaration is
   sited in one document, so `DeclareOffer::is_for` holds it to the
   session generation it was refused at, plus the tool's op and picks.
@@ -117,7 +117,7 @@ review, as evidence rather than a fix). There are now three offers in
 three shapes:
 
 - a bare `ParamName` (`frame::creation_offer`, held in
-  `drafts.new_param_offer`);
+  `drafts.new_variable_offer`);
 - `DeclareOffer { accept(), is_for(..) }`;
 - `VersionOffer { accept() }`.
 

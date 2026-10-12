@@ -2,8 +2,9 @@
 id: a-member-set-after-its-union-points-forward-so-save-and-cascade-delete-break
 kind: issue
 title: A member SetMembers adds after its union points forward, so save and cascade delete break
-status: open
+status: closed
 opened: 2026-10-07
+closed: 2026-10-08
 priority: P2
 cost: M
 refs: [a-union-that-becomes-flush-later-can-only-be-deleted-and-re-added, 4244]
@@ -46,3 +47,16 @@ on id order and walk the edges. This row's sibling
 `a-union-that-becomes-flush-later-can-only-be-deleted-and-re-added` is
 about the same door's recourse. A refusal here narrows that recourse
 further, so the two should be decided together.
+
+## Closed
+
+Dissolved by INTENT stage 2 unit B (`operands-are-reads`, PR 4342),
+which reads the dependency relation instead of id order everywhere this
+row names. The load door's `ForwardInput` retired (a cycle over reads
+refuses `SnapshotError::ReadCycle`); `cascade_delete_order` closes over
+readers in schedule order, and a delete no longer refuses
+`DeleteWouldDangle` (its readers strand, typed); `split`'s closure
+reads `Doc::upstream_of`. The row is
+`crates/editor-core/tests/intent_s2_b_reads.rs::a_forward_member_saves_loads_and_cascades`,
+the same as the closed
+`recipe/set-members-admits-a-forward-member-the-save-validator-refuses`.

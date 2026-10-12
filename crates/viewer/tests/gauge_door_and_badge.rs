@@ -94,12 +94,12 @@ fn the_at_rest_badge_checks_an_unplaced_groups_own_space() {
         applied.record.minted
     };
     let seat = |post, alignment: Alignment<Formula>| Node::Mate {
-        a: common::head(asm::in_part(post, &bench.post_top)),
-        b: common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
+        a: common::head(asm::in_part(post, &bench.post_top)).into(),
+        b: common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)).into(),
         class: ContactClass::Rest,
         alignment,
     };
-    // The world-side lone instance, far off.
+    // The world-side lone instance, far off, and placed.
     let lone = step(
         &mut doc,
         DocEdit::InsertNode {
@@ -116,6 +116,7 @@ fn the_at_rest_badge_checks_an_unplaced_groups_own_space() {
             fresh: Vec::new(),
         },
     );
+    step(&mut doc, DocEdit::place(lone, None));
     // Both posts at ONE spot under the shelf: undeclared interference.
     step(
         &mut doc,

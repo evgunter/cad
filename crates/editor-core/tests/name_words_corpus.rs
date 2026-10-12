@@ -37,16 +37,32 @@ use std::time::Instant;
 use crate::corpus::{self, Recorder};
 use crate::fixture::{self, len, scl};
 use editor_core::{
-    BooleanOp, Diagnosis, EntityKind, EvalOptions, Evaluation, ExtrudeSide, FaceName, Formula,
-    HitTestError, InterrogateError, NameTable, NameTables, Node, NodeError, NodeErrorKind,
-    PatternKind, PickHit, ProfileDoc, RecipeEditRef, RecipeNodeId, ResolveError, RoleSeg,
-    SelectRefusal, Speaker, StableName,
+    Diagnosis, EntityKind, EvalOptions, Evaluation, ExtrudeSide, FaceName, Formula, HitTestError,
+    InterrogateError, NameTable, NameTables, Node, NodeError, NodeErrorKind, PatternKind, PickHit,
+    ProfileDoc, RecipeEditRef, RecipeNodeId, ResolveError, RoleSeg, SelectRefusal, Speaker,
+    StableName,
 };
+use topo::BooleanOp;
 
 /// **The rows admitted over the word budget at the 90th-percentile
 /// name, and the most words each may render**: a ratchet, so a row
 /// that grows fails and a row that shrinks lowers its number.
-const OVER_BUDGET: &[(&str, usize)] = &[];
+///
+/// Two rows, one word over, since INTENT stage 2 PR C: every placed
+/// body's names are held twice, by the body and by its world copy, so
+/// the 90th-percentile name is a longer one of the same corpus (37
+/// words in full). No name a document held before grew.
+///
+/// Both rows forward two names, and the corpus's 90th-percentile name
+/// is a die pip's band face joined into the cutting tool and cut into
+/// the die: every member of a union says its join (FORK-DM4), so that
+/// name says two joins where a pair boolean's `a` operand said none.
+/// The crossing row says its claimed name by tag, which says each read
+/// a carry came through.
+const OVER_BUDGET: &[(&str, usize)] = &[
+    ("SelectRefusal::PairInBand", 82),
+    ("NodeErrorKind::CrossingUnverified", 80),
+];
 
 /// **The rows whose own prose states its recourse in words the standard
 /// does not read as one** ("aim away from the shared edge" is marked;
@@ -64,9 +80,37 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// full. A ratchet: a number that grows fails, one that shrinks lowers
 /// it. The total moves with a word said once more by every name of a
 /// kind, which the quantiles of a long tail need not.
+///
+/// Raised by INTENT stage 2 PR C (the product is the world): each
+/// corpus document places its bodies, and a copy's names are its
+/// body's under the placement, said "the world copy of …", four words
+/// over the body's own. The p99s rise by those four words and the
+/// totals by the copies' names; the p50s and the maxima held.
+///
+/// Merged with main's blend change (`d5a518b1b2`, the die's blend ends
+/// with the join), which on main moved the full p99 97 → 98 and the
+/// total down: the die's names are said once more each as their copy's,
+/// so its longer names weigh twice in the tail and the full p99 reads
+/// 106. The total fell by twice main's drop; the p50s, the scoped row
+/// and the maxima held.
+///
+/// Every number rose with the three boolean nodes (FORK-DM4): a union's
+/// or an intersect's every member says its join and the read it came in
+/// through ("…, joined at Union d1aa from Extrude e548"), where a pair
+/// boolean's `a` operand was silent and its `b` said the join alone. A
+/// list has no primary member, so the longer names are the reading, not
+/// a regression. Merged over INTENT stage 2 C and D, both effects add:
+/// a world copy says its body's name, joins and all, under "the world
+/// copy of".
+///
+/// The totals rose again (12 and 68 words) when `part_select`'s union
+/// came to read the split's ports where it read a `Part` of each half:
+/// a member said as a port says the split and the half ("from Split
+/// …'s above"), where a `Part` was said by its one tag. The percentiles
+/// and maxima held.
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
-    ("scoped faces", [16, 34, 38, 38_230]),
-    ("full", [19, 97, 181, 274_184]),
+    ("scoped faces", [16, 43, 57, 55_705]),
+    ("full", [19, 123, 196, 411_418]),
 ];
 
 /// **A digest of every word the corpus's names say** — each name a
@@ -87,7 +131,44 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// it. On that tree the ids reorder an `Ends` list the same way they
 /// reorder a `Borders` one (mint order, not digest order), and move no
 /// other word.
-const SAID_DIGEST: u64 = 0x6c96_a427_22a6_71ce;
+///
+/// INTENT stage 2 PR C: the words that moved are the copies' names, new
+/// with the placements ("the world copy of …"), and the node tags of
+/// the placements; no name a document held before says another word.
+/// Re-taken merged with main's blend change, whose die names it says.
+///
+/// INTENT stage 2 PR D, merged over C: three words moved, all in
+/// `measured_web` — its placement's tag (`PlaceInWorld 57cd328e4061` is
+/// now `… 1d7dbb564bd2`), said three times. The placement is minted
+/// after the measure, whose preimage D changed. No other word moved.
+///
+/// INTENT stage 5 PR A: the same tag again (`… 1d7dbb564bd2` is now
+/// `… cd9c076ade6a`). The placement is minted after the assertion,
+/// whose stored field `dir` became `relation`.
+///
+/// INTENT stage 2 PR E, merged over stage 5 A: 6558 of 46614 words
+/// moved, every one a node tag — with each tag masked the two word
+/// lists are equal. A blend, shell, face frame or measure now reads a
+/// selection its insert mints, so its id and every id minted after it
+/// in the seven documents that hold one moved.
+///
+/// The three boolean nodes moved it with [`NAME_WORDS`]: every member
+/// says its join, and a carry said by tag says the read it came through.
+///
+/// `part_select`'s union reading the split's ports moved it with
+/// [`NAME_WORDS`]: its members are said as the ports, and the nodes
+/// minted after the two `Part`s it no longer holds took new tags.
+///
+/// INTENT stage 3 PR A: 5760 of 46614 words moved, every one a node
+/// tag — with each tag masked the two word lists are equal. A revolve
+/// writes its axis on itself rather than reading an in-plane axis
+/// datum, so every id minted after that datum in the revolving
+/// documents moved. (Counted on its own tree; re-taken merged over
+/// FORK-DM4 unit 1, PR 4527, and the split-half retirement, PR 4618.)
+///
+/// INTENT stage 4 PR F: a boolean node lost its `declare` field, so the
+/// nodes minted after the first boolean took new tags.
+const SAID_DIGEST: u64 = 0x4078_ef92_e7f0_953e;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a
@@ -358,26 +439,34 @@ fn every_corpus_name_reads_apart_and_forwards_within_the_refusal_budget() {
 /// **A node's resolve failure says which slot**: a corpus fillet's
 /// last selected edge of several, stranded, as the tree row says it.
 fn slot_rows(docs: &[corpus::CorpusDoc], evals: &[Evaluation<f64>]) -> Vec<(&'static str, String)> {
-    let (doc, ev, fillet, at, edge) = docs
+    let (doc, ev, fillet, var, at, edge) = docs
         .iter()
         .zip(evals)
         .find_map(|(d, ev)| {
             d.doc.ids().iter().find_map(|&id| match d.doc.node(id) {
-                Some(Node::Fillet { selection, .. }) if selection.len() > 1 => Some((
-                    &d.doc,
-                    ev,
-                    id,
-                    selection.len() - 1,
-                    selection.last()?.clone(),
-                )),
+                Some(Node::Fillet { selection, .. }) => {
+                    let names = &d.doc.selection(*selection)?.names;
+                    (names.len() > 1).then(|| {
+                        (
+                            &d.doc,
+                            ev,
+                            id,
+                            *selection,
+                            names.len() - 1,
+                            names.last().cloned(),
+                        )
+                    })
+                }
                 _ => None,
             })
         })
         .expect("the corpus fillets more than one edge");
+    let edge = edge.expect("a last edge");
     let stranded = NodeError {
         node: fillet,
-        kind: NodeErrorKind::BlendSelectionResolve {
-            verb: sweep::blend::BlendKind::Fillet,
+        kind: NodeErrorKind::SelectResolve {
+            slot: editor_core::OperandSlot::Selection,
+            var,
             error: Box::new(ResolveError::NodeGone {
                 name: edge.clone(),
                 edit: RecipeEditRef::NodeDeleted { node: edge.node },
@@ -391,7 +480,7 @@ fn slot_rows(docs: &[corpus::CorpusDoc], evals: &[Evaluation<f64>]) -> Vec<(&'st
         stranded.contains(&format!("this fillet's edge {at} is stranded: ")),
         "the row says the slot: {stranded}"
     );
-    vec![("NodeErrorKind::BlendSelectionResolve", stranded)]
+    vec![("NodeErrorKind::SelectResolve", stranded)]
 }
 
 /// Every refusal production says that forwards a name, naming `a` (and
@@ -477,16 +566,6 @@ fn refusals(
             .spoken(doc, tables),
         ),
         (
-            "SelectRefusal::PairInBand",
-            SelectRefusal::PairInBand {
-                pair: Box::new((a.clone(), b.clone())),
-                at: (a.node, b.node),
-                predicate: "bool_plane_offset",
-                source: band(),
-            }
-            .spoken(doc, tables),
-        ),
-        (
             "NodeErrorKind::CrossingUnverified",
             NodeError {
                 node: instance,
@@ -511,7 +590,7 @@ fn refusals(
 
 fn extrude(r: &mut Recorder, profile: RecipeNodeId, distance: f64) -> RecipeNodeId {
     r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(distance),
         side: ExtrudeSide::Along,
     })
@@ -522,11 +601,17 @@ fn moved(r: &mut Recorder, input: RecipeNodeId, by: [f64; 3]) -> RecipeNodeId {
 }
 
 fn boolean(r: &mut Recorder, op: BooleanOp, a: RecipeNodeId, b: RecipeNodeId) -> RecipeNodeId {
-    r.insert(Node::Boolean {
-        op,
-        a,
-        b,
-        declare: Vec::new(),
+    r.insert(match op {
+        BooleanOp::Subtract => Node::Subtract {
+            from: a.into(),
+            tool: b.into(),
+        },
+        BooleanOp::Union => Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+        },
+        BooleanOp::Intersect => Node::Intersect {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+        },
     })
 }
 
@@ -566,7 +651,7 @@ fn documents_outside_the_corpus_read_apart_too() {
     let copies = [0.0, 0.75, 1.5, 2.25].map(|x| moved(&mut r, pin, [x, 0.0, 0.0]));
     let first = boolean(&mut r, BooleanOp::Subtract, block, copies[0]);
     let second = boolean(&mut r, BooleanOp::Subtract, first, copies[1]);
-    let (doc, union) = fixture::union_over(r.doc.clone(), &copies[2..], Vec::new());
+    let (doc, union) = fixture::union_over(r.doc.clone(), &copies[2..]);
     r.doc = doc;
     let cut = boolean(&mut r, BooleanOp::Subtract, second, union);
     docs.push(("copies".to_owned(), r.doc.clone()));
@@ -604,7 +689,10 @@ fn documents_outside_the_corpus_read_apart_too() {
         origin: [len(0.0), len(0.5), len(0.0)],
         normal: [scl(0.0), scl(1.0), scl(0.0)],
     }));
-    r.insert(Node::Split { target: cut, tool });
+    r.insert(Node::Split {
+        target: cut.into(),
+        tool: tool.into(),
+    });
     docs.push(("pattern and split".to_owned(), r.doc.clone()));
 
     let mut r = Recorder::new();
@@ -622,7 +710,7 @@ fn documents_outside_the_corpus_read_apart_too() {
     let upper = extrude(&mut r, upper, 0.5);
     boolean(&mut r, BooleanOp::Union, lower, upper);
     let apart = [lower, upper].map(|at| moved(&mut r, at, [6.0, 0.0, 0.0]));
-    let (doc, _) = fixture::union_over(r.doc.clone(), &[apart[0], apart[1], lower], Vec::new());
+    let (doc, _) = fixture::union_over(r.doc.clone(), &[apart[0], apart[1], lower]);
     docs.push(("loops and two profiles".to_owned(), doc));
 
     for op in [BooleanOp::Subtract, BooleanOp::Union] {
@@ -631,7 +719,7 @@ fn documents_outside_the_corpus_read_apart_too() {
         let block = extrude(&mut r, block, 1.0);
         let plane = r.insert(fixture::frame([0.0, 0.0, 0.75], XY.0, XY.1));
         let pin = r.insert(Node::Profile(editor_core::ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![editor_core::LoopProgram::circle(0.5, 0.5, 0.2).expect("a circle")],
             ids: Vec::new(),
         }));
@@ -660,7 +748,7 @@ fn documents_outside_the_corpus_read_apart_too() {
         );
         let fillet = r.insert(Node::fillet(third, len(0.05), rim));
         let twice = [[0.0; 3], [0.0, 5.5, 0.0]].map(|at| moved(&mut r, fillet, at));
-        let (doc, _) = fixture::union_over(r.doc.clone(), &twice, Vec::new());
+        let (doc, _) = fixture::union_over(r.doc.clone(), &twice);
         docs.push((format!("round pins, {op:?}"), doc));
     }
 
@@ -695,7 +783,7 @@ fn respoken_after_a_dropped_step() {
     let (doc, profile) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![rod_loop(false)],
             ids: Vec::new(),
         }),
@@ -703,7 +791,7 @@ fn respoken_after_a_dropped_step() {
     let (doc, rod) = fixture::insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: fixture::len(2.0),
             side: editor_core::ExtrudeSide::Along,
         },
@@ -786,14 +874,28 @@ fn each_boolean_join_says_its_operation() {
             .unwrap_or_else(|| panic!("{op:?} evaluates: {:?}", corpus::failures(&ev)))
             .name_table;
         let by = Speaker::of(&r.doc);
+        let pin_read = fixture::out(&r.doc, pin);
+        // A member's join also says the read it came in through; a
+        // subtract's tool is its one cut-in read, said by the verb alone.
+        let from = match op {
+            BooleanOp::Subtract => String::new(),
+            BooleanOp::Union | BooleanOp::Intersect => {
+                format!(" from Extrude {}", test_utils::refusal::tag(pin.0.digest()))
+            }
+        };
         let join = format!(
-            ", {verb} at {noun} {}",
+            ", {verb} at {noun} {}{from}",
             test_utils::refusal::tag(at.0.digest())
         );
         let through_b: Vec<String> = table
             .iter()
             .map(|(name, _)| name)
-            .filter(|name| matches!(name.path.as_slice(), [RoleSeg::FromB(_)]))
+            .filter(|name| {
+                matches!(
+                    name.path.as_slice(),
+                    [RoleSeg::From { read, .. }] if *read == pin_read
+                )
+            })
             .map(|name| by.name(name).to_string())
             .collect();
         assert!(
@@ -808,8 +910,8 @@ fn each_boolean_join_says_its_operation() {
 
 /// **Two copies of one body read apart where a sentence names a face of
 /// each**: the copies' faces carry names alike, since a name says the
-/// node that made it and not the node holding it, so the flush query's
-/// in-band pair and the pick's tie say each face's node.
+/// node that made it and not the node holding it, so the pick's tie
+/// says each face's node.
 #[test]
 fn two_copies_of_one_body_read_apart_where_a_sentence_names_both() {
     let mut r = Recorder::new();
@@ -819,28 +921,10 @@ fn two_copies_of_one_body_read_apart_where_a_sentence_names_both() {
     let two = moved(&mut r, block, [0.5, 0.0, 0.0]);
     let doc = r.doc;
     let ev = fixture::run(&doc, &EvalOptions::default());
-    let findings = editor_core::find_flush_candidates(&ev, one, two, fixture::tol())
-        .expect("the copies' flush faces are decided");
-    let alike = findings
-        .iter()
-        .find(|finding| finding.pair.0.name == finding.pair.1.name)
-        .expect("the copies' end caps lie flush, and carry one name");
-    let face = alike.pair.0.name.clone();
+    // The copies' end caps carry one name: the extrude's.
+    let face = fixture::fname(block, editor_core::RoleSeg::Cap(editor_core::CapEnd::End));
     let by = Speaker::of(&doc).within(&ev);
     let (at_one, at_two) = (doc.spoken(one).to_string(), doc.spoken(two).to_string());
-    let band = geom_core::Indeterminate {
-        margin: geom_core::MarginDiag::value(3e-11),
-        band: geom_core::Band::new(1e-12, 1e-9).expect("zero < escalate"),
-        predicate: Some("bool_plane_offset"),
-        terminal_sliver: false,
-    };
-    let pair = SelectRefusal::PairInBand {
-        pair: Box::new((face.clone(), face.clone())),
-        at: (one, two),
-        predicate: "bool_plane_offset",
-        source: band,
-    }
-    .spoken(&doc, &ev);
     let hit = |node| PickHit {
         name: face.clone(),
         node,
@@ -855,13 +939,11 @@ fn two_copies_of_one_body_read_apart_where_a_sentence_names_both() {
     }
     .spoken(&doc, &ev);
     let said = by.name(&face).to_string();
-    for text in [&pair, &tie] {
-        assert!(
-            text.contains(&format!("{said} on {at_one}"))
-                && text.contains(&format!("{said} on {at_two}")),
-            "each face is said with the copy holding it: {text}"
-        );
-    }
+    assert!(
+        tie.contains(&format!("{said} on {at_one}"))
+            && tie.contains(&format!("{said} on {at_two}")),
+        "each face is said with the copy holding it: {tie}"
+    );
 }
 
 /// **A failed row said within the largest corpus table costs no search

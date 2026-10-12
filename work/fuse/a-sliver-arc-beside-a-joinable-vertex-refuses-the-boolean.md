@@ -4,6 +4,9 @@ kind: issue
 title: A curved arc a few ε long beside a joinable vertex refuses the whole boolean JoinUndecided, where main built the body
 status: open
 opened: 2026-10-07
+priority: P1
+cost: M
+design: true
 ---
 
 ## The finding

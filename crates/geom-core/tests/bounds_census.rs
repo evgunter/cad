@@ -114,19 +114,6 @@ const ROSTER: &[Site] = &[
     },
     Site {
         path: "crates/editor-core/src/eval/wire.rs",
-        subject: "refusal_menu",
-        why: Payload(
-            "the boolean's coincidence menu over a kernel refusal: its only bracket reads \
-             are the shell fold's below, reached through `verb_refused`",
-        ),
-    },
-    Site {
-        path: "crates/editor-core/src/eval/wire.rs",
-        subject: "union_refusal",
-        why: Payload("the union's refusal lowering, delegating to `refusal_menu` above"),
-    },
-    Site {
-        path: "crates/editor-core/src/eval/wire.rs",
         subject: "verb_refused",
         why: Payload(
             "lowers a verb's refusal into the scalar-free document vocabulary; its only \
@@ -141,25 +128,6 @@ const ROSTER: &[Site] = &[
              bracket end it declares and becomes an error field, displayed and tagged, \
              never compared",
         ),
-    },
-    Site {
-        path: "crates/geom-brep/src/pcurve_cache.rs",
-        subject: "circle_image_envelope",
-        why: Selection(
-            "a general circle's fitted-certificate door on the sphere chart. Its reads are \
-             two refusal gates: the image's knot domain must lie inside the brackets of the \
-             edge's ends (`lo() <= k <= hi()`), and every span's Cauchy radius must clear \
-             zero (`radius.lo() > 0`, else `ArcNearPole`). Each decides whether the \
-             certificate exists at all, and is value-channel-decided (a dual's bracket is \
-             its value channel's, so the door answers what the f64 lane answers) and \
-             locally constant on either side of its boundary; what proceeds is the sum of \
-             bounds in the scalar itself",
-        ),
-    },
-    Site {
-        path: "crates/geom-brep/src/ssi.rs",
-        subject: "impl<T: geom_core::Bounds> TubeScale<T>",
-        why: HandedOff("Track Q's ssi ground; enumerated by S88 and not taken there"),
     },
     Site {
         path: "crates/geom-brep/src/ssi/certify.rs",

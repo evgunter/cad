@@ -68,21 +68,10 @@ fn curve(k: KnotVector, rational: bool) -> NurbsCurve3<f64> {
     NurbsCurve3::new(k, control, weights).unwrap()
 }
 fn lift<T: Real>(c: &NurbsCurve3<f64>) -> NurbsCurve3<T> {
-    NurbsCurve3::new(
-        c.knots().clone(),
-        c.control().iter().map(|p| p.map(T::from_f64)).collect(),
-        c.weights().to_vec(),
-    )
-    .unwrap()
+    c.map_scalar(T::from_f64)
 }
 fn lift_s<T: Real>(s: &NurbsSurface<f64>) -> NurbsSurface<T> {
-    NurbsSurface::new(
-        s.knots_u().clone(),
-        s.knots_v().clone(),
-        s.control().iter().map(|p| p.map(T::from_f64)).collect(),
-        s.weights().to_vec(),
-    )
-    .unwrap()
+    s.map_scalar(T::from_f64)
 }
 fn pf(o: &mut Rows, t: &str, p: Point3<f64>) {
     o.push((format!("{t}.x"), p.x.to_bits()));
@@ -362,7 +351,7 @@ fn rows() -> Rows {
                 vi(&mut o, &format!("{tag}.iv.ders.dvv"), ji.dvv);
                 let j3i = si.ders3(iu, iv);
                 vi(&mut o, &format!("{tag}.iv.ders3.duvv"), j3i.duvv);
-                let win = s.window_at(u, v);
+                let win = s.window_at(u, v).expect("numeric parameters");
                 pf(&mut o, &format!("{tag}.win.eval"), win.eval_in_span(u, v));
                 let jw = win.ders_in_span(u, v);
                 pf(&mut o, &format!("{tag}.win.ders.p"), jw.point);
@@ -370,13 +359,13 @@ fn rows() -> Rows {
                 let j3w = win.ders3_in_span(u, v);
                 vf(&mut o, &format!("{tag}.win.ders3.duuv"), j3w.duuv);
                 vf(&mut o, &format!("{tag}.win.ders3.dvvv"), j3w.dvvv);
-                let wind = sd.window_at(u, v);
+                let wind = sd.window_at(u, v).expect("numeric parameters");
                 pd(
                     &mut o,
                     &format!("{tag}.win.dual.eval"),
                     wind.eval_in_span(Dual64::variable(u), Dual64::new(v, 0.5)),
                 );
-                let wini = si.window_at(u, v);
+                let wini = si.window_at(u, v).expect("numeric parameters");
                 pi(
                     &mut o,
                     &format!("{tag}.win.iv.eval"),
@@ -429,16 +418,12 @@ const ROW_COUNT: usize = 11_151;
 
 /// FNV-1a 64 over `"{label} {bits:#018x}\n"` for every row in order.
 ///
-/// **Re-captured when certification arithmetic became a newtype over the backend**
-/// (`0x606f_ae2d_7244_63e4` before): interval arithmetic padded one representable
-/// step outward on every operation and the backend pads only where the
-/// operation was inexact. Exactly 28 of these 11 151 rows moved, all of
-/// them a `derivative_span_hull` or `derivative_domain_hull` endpoint
-/// and all of them TIGHTER — a derivative hull is a fold of exact
-/// differences, which is where the retired pad had nothing to cover, so
-/// each one lands on the exact value the reals give (`-6`, `4.5`, `1.5`,
-/// `12`). None moved looser.
-const DIGEST: u64 = 0xd572_6f5c_cd9a_ef62;
+/// At `Interval` the basis takes every knot difference and every
+/// derivative coefficient in interval arithmetic over the lifted knots,
+/// so each enclosure contains the real basis value, not the value over
+/// `f64`-rounded knot gaps (`basis.rs`'s
+/// `an_interval_coefficient_encloses_the_unrounded_knot_gap`).
+const DIGEST: u64 = 0x1836_e357_1f82_1ae6;
 
 #[test]
 fn the_extended_corpus_is_bit_identical_to_the_retired_spellings() {
@@ -511,14 +496,14 @@ fn jet2<T: SpanLocate>(c: &NurbsCurve2<T>, t: T, bits: fn(T) -> Vec<u64>, what: 
         );
     }
 }
-fn lift2<T: Real>(c: &NurbsCurve3<f64>) -> NurbsCurve2<T> {
+fn lift2<T: SpanLocate>(c: &NurbsCurve3<f64>) -> NurbsCurve2<T> {
     NurbsCurve2::new(
-        c.knots().clone(),
+        c.knot_values().lift(T::from_f64),
         c.control()
             .iter()
             .map(|p| Point2::new(T::from_f64(p.x), T::from_f64(p.y)))
             .collect(),
-        c.weights().to_vec(),
+        c.weights().iter().map(|w| T::from_f64(*w)).collect(),
     )
     .unwrap()
 }

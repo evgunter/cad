@@ -11,12 +11,10 @@
 //!
 //! # Who consumes it
 //!
-//! `editor-core`'s lowering, at mint time — one door per source kind
-//! (`param_source::attach_blend` for a verb's own scalar,
-//! `param_source::attach_swept` for a scalar the operand profile
-//! carries per edge). The document layer knows the expression, reads
-//! this flow for the source that expression is, and attaches the
-//! lowered token to exactly the fields the flow says it reached. The
+//! `editor-core`'s content key (`param_source::flow_bearing` for a
+//! verb's own scalar, `param_source::operand_flow_bearing` for a scalar
+//! the operand profile carries per edge): an expression whose flow
+//! reaches a stored field feeds its spelling into the key. The
 //! declaration itself stays plain data in this crate — no consumer
 //! here — and its own acceptance is that it is exhaustive over the
 //! vocabulary's sources and names only role families the birth record
@@ -318,8 +316,8 @@ const REVOLVE_FLOW: &[ParamFlow] = &[
 
 /// **The boolean has NO scalar parameters, so its flow has no rows —
 /// and the empty slice is the declaration, not an omission.** The
-/// payload is an operation selector and declared coincidence intents,
-/// which are REFERENCES (arena keys), not scalars: nothing a document
+/// payload is an operation selector and its inputs, which are
+/// REFERENCES (arena keys), not scalars: nothing a document
 /// slot evaluates ever lands in a field the boolean mints (its seam
 /// geometry is derived from the operands, not parameterized). The
 /// chamfer's row is empty at the `fields` level because its one scalar

@@ -18,9 +18,11 @@ ORACLE_VOLUME_MM3=5129.38613642268
 # vertices already sit there (0 splits), each torus splits both its rims
 # there (4 splits, propagated into the sharing bands' loops), and each
 # band gains one seam generator — 6 + 4 splits + 4 seams = 14 edges,
-# 6 + 4 = 10 vertices. OCC heals the same bands to different counts
-# (12 edges / 8 vertices) by re-charting seams onto existing vertices
-# where it can; the KERNEL_* lines are what a faithful D1 import must
-# produce.
-KERNEL_EDGES=14
-KERNEL_VERTICES=10
+# 6 + 4 = 10 vertices. Two of the file's own rim vertices are then left
+# at valence 2, two arcs of one circle meeting there, and the import
+# ends with the join (docs/DESIGN.md, maximal edges): 12 edges, 8
+# vertices. OCC reaches the same counts by re-charting seams onto
+# existing vertices where it can; the KERNEL_* lines are what a
+# faithful D1 import must produce.
+KERNEL_EDGES=12
+KERNEL_VERTICES=8

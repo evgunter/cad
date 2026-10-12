@@ -16,8 +16,7 @@
 //!    Asked BEFORE the walk, on rim structure, through the predicate's
 //!    own door `geom_brep::props::require_iso_rectangle` (the S58
 //!    single home of `props_rim_level`, which also requires every rim
-//!    to encode the SAME material side — the sense-free half of the
-//!    flux lane's interior-side premise, `props_rim_side`), refusing
+//!    to encode the SAME material side, `props_rim_side`), refusing
 //!    [`TessellateError::UnsupportedCurvedShape`] — this lane cites
 //!    the predicate itself rather than leaning on the boolean's or
 //!    tier 3's inability to answer ([`require_iso_rectangle_face`]).
@@ -506,10 +505,9 @@ pub(crate) fn tessellate_curved(
 /// comparand and no margin of `mesh`'s.
 ///
 /// **A rimless sphere band passes**: it is a chart rectangle, and the
-/// door says so at its definition — which lunes the flux lane measures
-/// (`Δu = π` for one great circle, the meridian pair's azimuth for two)
-/// is that lane's premise, not the shape's, so a partial sphere wedge
-/// meshes here on the door's answer alone.
+/// door says so at its definition, so a partial sphere wedge meshes
+/// here on the door's answer alone (the flux lane measures it by
+/// Gauss–Bonnet, as it does any circle-bounded sphere face).
 ///
 /// An empty loop is reported by this lane's own name for that state
 /// ([`TessellateError::EmptyLoop`]) before the flatten runs, which
@@ -741,8 +739,10 @@ fn entries_off_bbox(
 /// general rigid placement with a multiply-carried iso side). The
 /// notched domains that used to be kept out of this lane only by other
 /// modules' limits — the boolean's `CurvedPierceUnsupported`, tier 3's
-/// `VolumeUncomputable { NotIsoRectangle }` — now refuse at the shape
-/// door in this crate; when either of those limits moves, the line
+/// `VolumeUncomputable { NotIsoRectangle }`, which tier 3 no longer
+/// raises on a cylinder, cone or sphere, whose closed forms read any
+/// boundary of their kind — now refuse at the shape door in this
+/// crate; when either of those limits moves, the line
 /// that has to change is [`require_iso_rectangle_face`]'s call in
 /// [`tessellate_curved`], and it is in `mesh`.
 ///
@@ -1408,7 +1408,7 @@ mod tests {
         let b = core::f64::consts::FRAC_PI_8.tan();
         let r = 0.5;
         let v = |pos: Point2<f64>, bulge: f64| (pos, bulge);
-        let mut lp = bulge_loop(vec![
+        let lp = bulge_loop(vec![
             v(Point2::new(r, 0.0), 0.0),
             v(Point2::new(2.0 - r, 0.0), b),
             v(Point2::new(2.0, r), 0.0),
@@ -1418,8 +1418,6 @@ mod tests {
             v(Point2::new(0.0, 2.0 - r), 0.0),
             v(Point2::new(0.0, r), b),
         ]);
-        let n = lp.vertices().len();
-        lp = lp.with_tangent_joints((0..n).collect());
         extrude(
             &validated(vec![lp]),
             Extrusion::Distance {

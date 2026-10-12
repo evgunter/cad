@@ -35,9 +35,10 @@ answer. The two options and their costs are argued in
 (`props_rim_only_closed`, `props_rim_only_extent`) in
 `crates/geom-brep/src/props/curved.rs`, with its rows in
 `crates/topo/tests/props_sphere_cap_door.rs` — correct, exact work
-that (E) would want back. **It is whole at `6a1f6d60d`** (main,
-2026-09-18). When the retiring commit lands, this line is repointed at
-that commit's parent. The mesh-side measurements (the zero-height
+that (E) would want back. **It is whole at `effba4bf2`** (main,
+2026-10-10), the parent of the commit that retired its sphere half on
+`flux/sphere-arm` (the sphere arm's one Gauss–Bonnet form; the cone's
+`require_rim_only_closed` and `props_rim_only_extent` stay). The mesh-side measurements (the zero-height
 polygon, the fixtures, the STEP statements) are on branch
 `tess/rim-only-cap-diag` at `83833e586`.
 

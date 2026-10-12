@@ -76,7 +76,7 @@ fn placed_twice(loop_: &LoopProgram<Formula>) -> (ProfileDoc, RecipeNodeId, Reci
         insert(
             doc,
             Node::Profile(ProfileProgram {
-                plane,
+                frame: plane.into(),
                 loops: vec![loop_.clone()],
                 ids: Vec::new(),
             }),
@@ -209,7 +209,7 @@ fn a_piece_door_refuses_a_role_its_verb_never_draws() {
     assert!(p.piece(0, &a.fillet, PieceRole::RunIn).is_ok());
     // Unminted: the program before it entered the document.
     let free = ProfileProgram {
-        plane: p.plane,
+        frame: p.frame,
         loops: p.loops.clone(),
         ids: Vec::new(),
     };

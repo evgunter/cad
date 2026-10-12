@@ -585,18 +585,14 @@ fn every_end_the_cut_off_does_not_build_refuses_typed() {
 /// the open-chain door, which carves no chain whose links mix arms.
 #[test]
 fn a_closed_rim_with_one_turn_breaks_there_and_refuses_its_mixed_chain() {
-    use profile::RawLoop;
     let s3 = 3f64.sqrt();
     let body = sweep::test_support::extruded(
         profile::SketchPlane::xy(),
-        vec![
-            profile::test_support::bulge_loop(vec![
-                (Point2::new(0.0, 0.0), 0.0),
-                (Point2::new(1.5, -s3 / 2.0), s3),
-                (Point2::new(1.5, s3 / 2.0), 0.0),
-            ])
-            .with_tangent_joints(vec![1, 2]),
-        ],
+        vec![profile::test_support::bulge_loop(vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(1.5, -s3 / 2.0), s3),
+            (Point2::new(1.5, s3 / 2.0), 0.0),
+        ])],
         1.0,
         tol(),
     );

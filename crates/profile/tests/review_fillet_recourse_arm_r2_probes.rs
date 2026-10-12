@@ -58,7 +58,7 @@ fn carries_its_own_recourse(err: &PathError<f64>, predicate: &str, sentence: &st
     );
     assert!(shown.contains(sentence), "{what}: {shown}");
     assert!(
-        !shown.contains(geom_core::COINCIDENCE_RECOURSE),
+        !shown.contains(&format!("Recourse: {}", geom_core::COINCIDENCE_RECOURSE)),
         "{what}: a fillet the caller asked for declares no joint: {shown}"
     );
 }

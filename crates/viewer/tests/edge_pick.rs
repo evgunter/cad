@@ -44,12 +44,16 @@ fn pane() -> ViewportSize {
     }
 }
 
-/// A session over the spike plate, evaluated and landed.
+/// A session over the spike plate, evaluated and landed, and the
+/// plate's world placement: the node its drawn copy is picked on.
 fn plate_session(tol: Tol) -> (DocSession, RecipeNodeId) {
-    let (doc, extrude) = scene::plate_with_hole(tol).expect("the plate authors");
+    let (doc, _) = scene::plate_with_hole(tol).expect("the plate authors");
+    let [copy] = doc.placements()[..] else {
+        panic!("the plate is placed once")
+    };
     let mut session = DocSession::inline(doc, tol);
     session.pump();
-    (session, extrude)
+    (session, copy)
 }
 
 /// The landed evaluation, for the doors that take one.
@@ -173,10 +177,10 @@ fn plate_centre_px(camera: &Camera) -> [f64; 2] {
 #[test]
 fn every_drawn_edge_names_an_edge_that_resolves() {
     let tol = Tol::witness();
-    let (session, extrude) = plate_session(tol);
+    let (session, copy) = plate_session(tol);
     let index = plate_index(&session);
     let (doc, eval) = session.landed_pair().expect("a landed pair");
-    let edges = drawn_edges(&index, extrude);
+    let edges = drawn_edges(&index, copy);
     assert!(
         edges.len() >= 12,
         "a plate with a hole draws at least a box's worth of edges, got {}",
@@ -200,16 +204,16 @@ fn every_drawn_edge_names_an_edge_that_resolves() {
 #[test]
 fn an_edge_selection_narrows_to_the_copy_it_was_picked_from() {
     let tol = Tol::witness();
-    let (session, extrude) = plate_session(tol);
+    let (session, copy) = plate_session(tol);
     let index = plate_index(&session);
-    let (id, _) = hole_rim(&index, extrude);
+    let (id, _) = hole_rim(&index, copy);
     let name = index
         .edge_name_of(id)
         .expect("a drawn edge has a name")
         .clone();
     let picked = EdgeSelection {
         name: name.clone(),
-        node: extrude,
+        node: copy,
         body: 0,
     };
     assert_eq!(index.edges_of_target(&picked), vec![id]);
@@ -217,7 +221,7 @@ fn an_edge_selection_narrows_to_the_copy_it_was_picked_from() {
     // which is how a stale or foreign selection lights nothing.
     let elsewhere = EdgeSelection {
         name,
-        node: extrude,
+        node: copy,
         body: 7,
     };
     assert!(index.edges_of_target(&elsewhere).is_empty());
@@ -228,11 +232,11 @@ fn an_edge_selection_narrows_to_the_copy_it_was_picked_from() {
 #[test]
 fn a_cursor_on_a_drawn_edge_picks_that_edge() {
     let tol = Tol::witness();
-    let (session, extrude) = plate_session(tol);
+    let (session, copy) = plate_session(tol);
     let index = plate_index(&session);
     let aspect = pane().aspect().expect("a positive aspect");
     let camera = common::framed(aspect);
-    let (id, points) = hole_rim(&index, extrude);
+    let (id, points) = hole_rim(&index, copy);
     let (a, b) = middle_segment(&camera, &points);
     let cursor = [(a[0] + b[0]) * 0.5, (a[1] + b[1]) * 0.5];
 
@@ -241,7 +245,7 @@ fn a_cursor_on_a_drawn_edge_picks_that_edge() {
         .expect("the cursor un-projects")
         .expect("a cursor on a drawn edge picks it");
     assert_eq!(pick.id(), id, "the edge under the cursor is the one picked");
-    assert_eq!(pick.node, extrude);
+    assert_eq!(pick.node, copy);
     assert!(
         pick.distance_px <= EDGE_PICK_RADIUS_PX,
         "a pick is inside the radius by construction, got {}",
@@ -257,11 +261,11 @@ fn a_cursor_on_a_drawn_edge_picks_that_edge() {
 #[test]
 fn hover_and_click_answer_one_cursor_the_same_way() {
     let tol = Tol::witness();
-    let (mut session, extrude) = plate_session(tol);
+    let (mut session, copy) = plate_session(tol);
     let index = plate_index(&session);
     let aspect = pane().aspect().expect("a positive aspect");
     let camera = common::framed(aspect);
-    let (id, points) = hole_rim(&index, extrude);
+    let (id, points) = hole_rim(&index, copy);
     let (a, b) = middle_segment(&camera, &points);
     let cursor = [(a[0] + b[0]) * 0.5, (a[1] + b[1]) * 0.5];
 
@@ -299,7 +303,7 @@ fn hover_and_click_answer_one_cursor_the_same_way() {
     );
     assert_eq!(
         session.selection().node(),
-        Some(extrude),
+        Some(viewer::world::seat_of(session.committed_doc(), copy)),
         "an edge selection reaches the feature that made it, as a face does"
     );
     assert!(
@@ -319,11 +323,11 @@ fn hover_and_click_answer_one_cursor_the_same_way() {
 #[test]
 fn the_edge_beats_the_face_exactly_inside_the_radius() {
     let tol = Tol::witness();
-    let (session, extrude) = plate_session(tol);
+    let (session, copy) = plate_session(tol);
     let index = plate_index(&session);
     let aspect = pane().aspect().expect("a positive aspect");
     let camera = common::framed(aspect);
-    let (id, points) = hole_rim(&index, extrude);
+    let (id, points) = hole_rim(&index, copy);
     let (a, b) = middle_segment(&camera, &points);
     let into = plate_centre_px(&camera);
 
@@ -364,7 +368,7 @@ fn the_edge_beats_the_face_exactly_inside_the_radius() {
             }
             SessionOp::Select(Selection::Face(face)) => {
                 assert!(!wants_edge, "the face won inside the radius");
-                assert_eq!(face.node, extrude, "the cursor is still over the plate");
+                assert_eq!(face.node, copy, "the cursor is still over the plate");
             }
             other => panic!("a cursor over the plate selects something: {other:?}"),
         }
@@ -412,14 +416,14 @@ fn a_cursor_over_the_background_picks_nothing_at_all() {
 #[test]
 fn an_edge_behind_the_solid_does_not_win_at_its_own_pixel() {
     let tol = Tol::witness();
-    let (session, extrude) = plate_session(tol);
+    let (session, copy) = plate_session(tol);
     let index = plate_index(&session);
     let aspect = pane().aspect().expect("a positive aspect");
     let camera = common::framed(aspect);
     let eval = eval_of(&session);
 
     let mut checked = 0usize;
-    for (id, points) in drawn_edges(&index, extrude) {
+    for (id, points) in drawn_edges(&index, copy) {
         if points.len() < 2 {
             continue;
         }
@@ -472,11 +476,11 @@ fn an_edge_behind_the_solid_does_not_win_at_its_own_pixel() {
 #[test]
 fn one_cursor_answers_the_same_edge_twice() {
     let tol = Tol::witness();
-    let (session, extrude) = plate_session(tol);
+    let (session, copy) = plate_session(tol);
     let index = plate_index(&session);
     let aspect = pane().aspect().expect("a positive aspect");
     let camera = common::framed(aspect);
-    let (_, points) = hole_rim(&index, extrude);
+    let (_, points) = hole_rim(&index, copy);
     let (a, b) = middle_segment(&camera, &points);
     let cursor = offset_from(a, b, plate_centre_px(&camera), 1.5);
     let once = index
@@ -500,18 +504,18 @@ fn one_cursor_answers_the_same_edge_twice() {
 #[test]
 fn the_overlay_marks_the_selected_and_hovered_edges_and_nothing_else() {
     let tol = Tol::witness();
-    let (mut session, extrude) = plate_session(tol);
+    let (mut session, copy) = plate_session(tol);
     let index = plate_index(&session);
-    let (rim, points) = hole_rim(&index, extrude);
+    let (rim, points) = hole_rim(&index, copy);
     let selection = EdgeSelection {
         name: index
             .edge_name_of(rim)
             .expect("a drawn edge has a name")
             .clone(),
-        node: extrude,
+        node: copy,
         body: 0,
     };
-    let other = drawn_edges(&index, extrude)
+    let other = drawn_edges(&index, copy)
         .into_iter()
         .find(|(id, run)| *id != rim && run.len() >= 2)
         .expect("the plate draws more than one edge");
@@ -520,7 +524,7 @@ fn the_overlay_marks_the_selected_and_hovered_edges_and_nothing_else() {
             .edge_name_of(other.0)
             .expect("a drawn edge has a name")
             .clone(),
-        node: extrude,
+        node: copy,
         body: 0,
     };
 
@@ -575,15 +579,15 @@ fn the_overlay_marks_the_selected_and_hovered_edges_and_nothing_else() {
 #[test]
 fn a_preview_is_carried_beside_the_marks_and_derived_from_no_pick() {
     let tol = Tol::witness();
-    let (session, extrude) = plate_session(tol);
+    let (session, copy) = plate_session(tol);
     let index = plate_index(&session);
-    let (rim, _) = hole_rim(&index, extrude);
+    let (rim, _) = hole_rim(&index, copy);
     let selection = EdgeSelection {
         name: index
             .edge_name_of(rim)
             .expect("a drawn edge has a name")
             .clone(),
-        node: extrude,
+        node: copy,
         body: 0,
     };
     let marked = marks::edge_overlay(
@@ -607,15 +611,15 @@ fn a_preview_is_carried_beside_the_marks_and_derived_from_no_pick() {
 #[test]
 fn a_face_selection_marks_no_edge_and_an_edge_selection_marks_no_patch() {
     let tol = Tol::witness();
-    let (session, extrude) = plate_session(tol);
+    let (session, copy) = plate_session(tol);
     let index = plate_index(&session);
-    let (rim, _) = hole_rim(&index, extrude);
+    let (rim, _) = hole_rim(&index, copy);
     let edge = Selection::Edge(EdgeSelection {
         name: index
             .edge_name_of(rim)
             .expect("a drawn edge has a name")
             .clone(),
-        node: extrude,
+        node: copy,
         body: 0,
     });
     let lit = marks::highlight(&index, &edge, None);
@@ -660,7 +664,7 @@ fn a_face_selection_marks_no_edge_and_an_edge_selection_marks_no_patch() {
 #[test]
 fn a_hover_on_the_selection_is_kept_by_the_face_mark_and_dropped_by_the_edge_mark() {
     let tol = Tol::witness();
-    let (mut session, extrude) = plate_session(tol);
+    let (mut session, copy) = plate_session(tol);
     let index = plate_index(&session);
 
     // The face half: both lanes carry the picked patch.
@@ -682,16 +686,16 @@ fn a_hover_on_the_selection_is_kept_by_the_face_mark_and_dropped_by_the_edge_mar
     );
 
     // The edge half: the hovered lane is dropped.
-    let (rim, _) = hole_rim(&index, extrude);
+    let (rim, _) = hole_rim(&index, copy);
     let selection = EdgeSelection {
         name: index
             .edge_name_of(rim)
             .expect("a drawn edge has a name")
             .clone(),
-        node: extrude,
+        node: copy,
         body: 0,
     };
-    let other = drawn_edges(&index, extrude)
+    let other = drawn_edges(&index, copy)
         .into_iter()
         .find(|(id, run)| *id != rim && run.len() >= 2)
         .expect("the plate draws more than one edge");
@@ -702,7 +706,7 @@ fn a_hover_on_the_selection_is_kept_by_the_face_mark_and_dropped_by_the_edge_mar
             .edge_name_of(other.0)
             .expect("a drawn edge has a name")
             .clone(),
-        node: extrude,
+        node: copy,
         body: 0,
     }))));
     let elsewhere = marks::edge_overlay(
@@ -745,20 +749,21 @@ fn a_hover_on_the_selection_is_kept_by_the_face_mark_and_dropped_by_the_edge_mar
 #[test]
 fn deleting_the_feature_leaves_the_edge_selection_unresolved() {
     let tol = Tol::witness();
-    let (mut session, extrude) = plate_session(tol);
+    let (mut session, copy) = plate_session(tol);
     let index = plate_index(&session);
-    let (rim, _) = hole_rim(&index, extrude);
+    let (rim, _) = hole_rim(&index, copy);
     let selection = EdgeSelection {
         name: index
             .edge_name_of(rim)
             .expect("a drawn edge has a name")
             .clone(),
-        node: extrude,
+        node: copy,
         body: 0,
     };
     session.perform(SessionOp::Select(Selection::Edge(selection.clone())));
     assert!(session.standing().live());
 
+    let extrude = viewer::world::seat_of(session.doc(), copy);
     let outcome = session.perform(SessionOp::DeleteNode { node: extrude });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
@@ -827,12 +832,12 @@ fn deleting_the_feature_leaves_the_edge_selection_unresolved() {
 #[test]
 fn a_viewport_no_pixel_distance_can_be_measured_in_picks_no_edge() {
     let tol = Tol::witness();
-    let (session, extrude) = plate_session(tol);
+    let (session, copy) = plate_session(tol);
     let index = plate_index(&session);
     let eval = eval_of(&session);
     let aspect = pane().aspect().expect("a positive aspect");
     let camera = common::framed(aspect);
-    let (rim, points) = hole_rim(&index, extrude);
+    let (rim, points) = hole_rim(&index, copy);
     let at = (points.len() - 1) / 2;
     let wide = |scale: f64| ViewportSize {
         width_px: 1.28 * scale,
@@ -910,20 +915,20 @@ fn a_viewport_no_pixel_distance_can_be_measured_in_picks_no_edge() {
 
 // --- the display view ------------------------------------------------
 
-/// **The pick obeys the picture.** A hidden root is out of the pick
+/// **The pick obeys the picture.** A hidden copy is out of the pick
 /// exactly as it is out of the scene, and a free-moved instance is
 /// picked WHERE IT IS DRAWN — both statements about the same
 /// `DisplayView` the viewport draws under, and neither reachable
 /// through the display-view-less wrappers the rows above use.
 #[test]
-fn a_hidden_root_offers_no_edge_and_a_probed_one_picks_where_it_is_drawn() {
+fn a_hidden_copy_offers_no_edge_and_a_probed_one_picks_where_it_is_drawn() {
     let tol = Tol::witness();
-    let (session, extrude) = plate_session(tol);
+    let (session, copy) = plate_session(tol);
     let index = plate_index(&session);
     let aspect = pane().aspect().expect("a positive aspect");
     let camera = common::framed(aspect);
     let eval = eval_of(&session);
-    let (id, points) = hole_rim(&index, extrude);
+    let (id, points) = hole_rim(&index, copy);
     let at = (points.len() - 1) / 2;
     let midpoint = Point3::new(
         (points[at].x + points[at + 1].x) * 0.5,
@@ -933,7 +938,7 @@ fn a_hidden_root_offers_no_edge_and_a_probed_one_picks_where_it_is_drawn() {
 
     // Hidden: nothing is drawn there, so nothing is picked there.
     let hidden = DisplayView {
-        hidden_roots: std::collections::BTreeSet::from([extrude]),
+        hidden_placements: std::collections::BTreeSet::from([copy]),
         ..DisplayView::none()
     };
     assert!(
@@ -941,7 +946,7 @@ fn a_hidden_root_offers_no_edge_and_a_probed_one_picks_where_it_is_drawn() {
             .edge_at_for(eval, &camera, pane(), pixel_of(&camera, midpoint), &hidden)
             .expect("un-projects")
             .is_none(),
-        "a hidden root is out of the pick as it is out of the picture"
+        "a hidden copy is out of the pick as it is out of the picture"
     );
     assert!(
         index.edge_polyline_for(id, &hidden).is_empty(),
@@ -952,7 +957,7 @@ fn a_hidden_root_offers_no_edge_and_a_probed_one_picks_where_it_is_drawn() {
     // not at the tessellated one.
     let shift = [0.0, 0.0, 0.05];
     let probed = DisplayView {
-        moved_roots: std::collections::BTreeMap::from([(extrude, Frame::translation(shift))]),
+        moved_placements: std::collections::BTreeMap::from([(copy, Frame::translation(shift))]),
         ..DisplayView::none()
     };
     let moved = Point3::new(
@@ -993,12 +998,12 @@ fn a_hidden_root_offers_no_edge_and_a_probed_one_picks_where_it_is_drawn() {
 #[test]
 fn a_faces_only_pick_answers_the_face_where_an_unfiltered_one_answers_the_edge() {
     let tol = Tol::witness();
-    let (session, extrude) = plate_session(tol);
+    let (session, copy) = plate_session(tol);
     let index = plate_index(&session);
     let aspect = pane().aspect().expect("a positive aspect");
     let camera = common::framed(aspect);
     let eval = eval_of(&session);
-    let (_, points) = hole_rim(&index, extrude);
+    let (_, points) = hole_rim(&index, copy);
     let (a, b) = middle_segment(&camera, &points);
     let cursor = offset_from(a, b, plate_centre_px(&camera), 1.0);
 
@@ -1030,7 +1035,7 @@ fn a_faces_only_pick_answers_the_face_where_an_unfiltered_one_answers_the_edge()
     let SessionOp::Select(Selection::Face(face)) = &faces_only else {
         panic!("a faces-only pick answers a face or nothing, got {faces_only:?}");
     };
-    assert_eq!(face.node, extrude, "and it is the face the ray hit");
+    assert_eq!(face.node, copy, "and it is the face the ray hit");
     // The mate tool's feed matches exactly this shape, which is what
     // the filter exists to keep reachable.
     assert_eq!(
@@ -1071,12 +1076,12 @@ fn a_faces_only_pick_answers_the_face_where_an_unfiltered_one_answers_the_edge()
 #[test]
 fn an_edges_only_pick_answers_nothing_where_an_unfiltered_one_answers_the_face() {
     let tol = Tol::witness();
-    let (session, extrude) = plate_session(tol);
+    let (session, copy) = plate_session(tol);
     let index = plate_index(&session);
     let aspect = pane().aspect().expect("a positive aspect");
     let camera = common::framed(aspect);
     let eval = eval_of(&session);
-    let (_, points) = hole_rim(&index, extrude);
+    let (_, points) = hole_rim(&index, copy);
     let (a, b) = middle_segment(&camera, &points);
     let inward = plate_centre_px(&camera);
 
@@ -1154,7 +1159,7 @@ fn an_edges_only_pick_answers_nothing_where_an_unfiltered_one_answers_the_face()
 #[test]
 fn a_cursor_the_face_pick_ties_on_still_picks_the_edge() {
     let tol = Tol::witness();
-    let (session, extrude) = plate_session(tol);
+    let (session, copy) = plate_session(tol);
     let index = plate_index(&session);
     let aspect = pane().aspect().expect("a positive aspect");
     let camera = common::framed(aspect);
@@ -1166,7 +1171,7 @@ fn a_cursor_the_face_pick_ties_on_still_picks_the_edge() {
     let mut edges_hit = std::collections::BTreeSet::new();
     let mut edges_all = 0usize;
     let mut example = String::new();
-    for (id, points) in drawn_edges(&index, extrude) {
+    for (id, points) in drawn_edges(&index, copy) {
         edges_all += 1;
         for pair in points.windows(2) {
             let mid = Point3::new(

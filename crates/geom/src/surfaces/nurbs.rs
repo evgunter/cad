@@ -39,9 +39,12 @@
 //! both directions, deterministic.
 
 use core::num::NonZeroUsize;
-use geom_core::exact::two_sum;
-use geom_core::spline::{self, KnotAlgebraError, KnotVector, Span, SpanLocate, SplineError};
-use geom_core::{Point3, Readable, Real, Vec3};
+use geom_core::spline::ProjectiveScalar;
+use geom_core::spline::{
+    self, KnotAlgebraError, KnotMirrorError, KnotSpan, KnotVector, Knots, Span, SpanLocate,
+    SplineError,
+};
+use geom_core::{Point3, Real, Vec3};
 
 use crate::net;
 
@@ -149,16 +152,17 @@ pub struct SurfaceJet3<T: Real> {
 #[derive(Clone, Copy)]
 pub struct SurfaceWindow<'a, T: Real> {
     surface: &'a NurbsSurface<T>,
-    span_u: Span<'a>,
-    span_v: Span<'a>,
+    span_u: KnotSpan<'a, T>,
+    span_v: KnotSpan<'a, T>,
     base: usize,
     stride: usize,
 }
 
 /// Equality is address equality on the surface, plus the two spans
 /// (themselves address-equal on their vectors): a window is a proof
-/// about *that* net, and `NurbsSurface` is not [`Eq`] — its knots and
-/// weights are `f64` — so a by-value derive is not available either.
+/// about *that* net, and `NurbsSurface` is not [`Eq`] — its data is
+/// held in a scalar that has no equality — so a by-value derive is not
+/// available either.
 /// The borrow is printed as an ADDRESS, never followed. A derived
 /// `Debug` would dump the whole control net, both knot vectors and the
 /// weights through the reference at every `{:?}`.
@@ -181,8 +185,8 @@ impl<T: Real> core::fmt::Debug for SurfaceWindow<'_, T> {
         } = self;
         f.debug_struct("SurfaceWindow")
             .field("surface", &core::ptr::from_ref(*surface))
-            .field("span_u", span_u)
-            .field("span_v", span_v)
+            .field("span_u", &span_u.span())
+            .field("span_v", &span_v.span())
             .field("base", base)
             .field("stride", stride)
             .finish()
@@ -206,8 +210,8 @@ impl<T: Real> PartialEq for SurfaceWindow<'_, T> {
             stride: other_stride,
         } = other;
         core::ptr::eq(*surface, *other_surface)
-            && span_u == other_span_u
-            && span_v == other_span_v
+            && span_u.span() == other_span_u.span()
+            && span_v.span() == other_span_v.span()
             && base == other_base
             && stride == other_stride
     }
@@ -224,12 +228,12 @@ impl<'a, T: Real> SurfaceWindow<'a, T> {
 
     /// The u-direction span.
     pub fn span_u(self) -> Span<'a> {
-        self.span_u
+        self.span_u.span()
     }
 
     /// The v-direction span.
     pub fn span_v(self) -> Span<'a> {
-        self.span_v
+        self.span_v.span()
     }
 
     /// The row-major stride — the v control count of this window's
@@ -255,7 +259,7 @@ impl<'a, T: Real> SurfaceWindow<'a, T> {
     /// Whether control point `(iu, iv)` (grid coordinates) is one of
     /// the `(pu + 1)·(pv + 1)` the window names.
     pub fn contains(self, iu: usize, iv: usize) -> bool {
-        self.span_u.window().contains(&iu) && self.span_v.window().contains(&iv)
+        self.span_u().window().contains(&iu) && self.span_v().window().contains(&iv)
     }
 }
 
@@ -272,8 +276,8 @@ impl<T: Real> SurfaceWindow<'_, T> {
     /// the PARAMETERS still gives garbage-out (the polynomial
     /// extension of the window's patch), unchanged.
     pub fn eval_in_span(self, u: T, v: T) -> Point3<T> {
-        let bu = spline::basis::basis_funs(self.span_u, u);
-        let bv = spline::basis::basis_funs(self.span_v, v);
+        let bu = spline::basis::basis_funs_in(self.span_u, u);
+        let bv = spline::basis::basis_funs_in(self.span_v, v);
         let (mut x, mut y, mut z, mut w) = (T::zero(), T::zero(), T::zero(), T::zero());
         for (i, bui) in bu.iter().enumerate() {
             // Indexed off the window base, deliberately: the basis row
@@ -286,7 +290,7 @@ impl<T: Real> SurfaceWindow<'_, T> {
             let row = self.row(i);
             for (j, bvj) in bv.iter().enumerate() {
                 let idx = row + j;
-                let cw = (*bui * *bvj) * T::from_f64(self.surface.weights[idx]);
+                let cw = (*bui * *bvj) * self.surface.weights[idx];
                 let pt = self.surface.control[idx];
                 x = x + cw * pt.x;
                 y = y + cw * pt.y;
@@ -307,8 +311,8 @@ impl<T: Real> SurfaceWindow<'_, T> {
     /// Same totality contract as [`Self::eval_in_span`]: no refusal,
     /// garbage-out on the parameters only.
     pub fn ders_in_span(self, u: T, v: T) -> SurfaceJet<T> {
-        let du = spline::basis::ders_basis_funs(self.span_u, u, 2);
-        let dv = spline::basis::ders_basis_funs(self.span_v, v, 2);
+        let du = spline::basis::ders_basis_funs_in(self.span_u, u, 2);
+        let dv = spline::basis::ders_basis_funs_in(self.span_v, v, 2);
         // Homogeneous partials A_kl for the six (k, l) with k + l ≤ 2,
         // indexed [k][l]; each lane accumulated in the double
         // ascending pass.
@@ -322,7 +326,7 @@ impl<T: Real> SurfaceWindow<'_, T> {
             let row = self.row(i);
             for (j, _) in dv[0].iter().enumerate() {
                 let idx = row + j;
-                let wf = T::from_f64(self.surface.weights[idx]);
+                let wf = self.surface.weights[idx];
                 let pt = self.surface.control[idx];
                 for k in 0..3usize {
                     for l in 0..3usize {
@@ -383,8 +387,8 @@ impl<T: Real> SurfaceWindow<'_, T> {
     /// S03 = (A03 − 3·w01·S02 − 3·w02·S01 −   w03·S00) / w00
     /// ```
     pub fn ders3_in_span(self, u: T, v: T) -> SurfaceJet3<T> {
-        let du = spline::basis::ders_basis_funs(self.span_u, u, 3);
-        let dv = spline::basis::ders_basis_funs(self.span_v, v, 3);
+        let du = spline::basis::ders_basis_funs_in(self.span_u, u, 3);
+        let dv = spline::basis::ders_basis_funs_in(self.span_v, v, 3);
         // Homogeneous partials A_kl for the ten (k, l) with k + l ≤ 3,
         // indexed [k][l]; each lane accumulated in the double
         // ascending pass (the second-order pass's shape, one order up).
@@ -398,7 +402,7 @@ impl<T: Real> SurfaceWindow<'_, T> {
             let row = self.row(i);
             for (j, _) in dv[0].iter().enumerate() {
                 let idx = row + j;
-                let wf = T::from_f64(self.surface.weights[idx]);
+                let wf = self.surface.weights[idx];
                 let pt = self.surface.control[idx];
                 for k in 0..4usize {
                     for l in 0..4usize {
@@ -521,191 +525,47 @@ pub enum NetState {
 /// surface).
 #[derive(Clone, Debug)]
 pub struct NurbsSurface<T: Real> {
-    knots_u: KnotVector,
-    knots_v: KnotVector,
+    knots_u: Knots<T>,
+    knots_v: Knots<T>,
     control: Vec<Point3<T>>,
-    weights: Vec<f64>,
+    weights: Vec<T>,
+    /// The weights' value channel, read off `weights` at construction
+    /// (the curve's field of the same name says what reads it).
+    weight_channel: Vec<f64>,
 }
 
-/// Why [`NurbsSurface::reversed_v`] and [`NurbsSurface::reversed_u`]
-/// refuse: the reversed direction's knot vector is not its own
-/// reflection, so reversing the net while carrying the knots verbatim
-/// would build a DIFFERENT surface rather than this one traversed the
-/// other way. [`NurbsSurface::reversed_v`] carries the argument, the
-/// exactness of the test, and why the clamp runs never trip it.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum KnotMirrorError {
-    /// The reflection `lo + hi` overflows to an infinity, so the domain
-    /// names no reflection at all and this door is not defined on it.
-    ///
-    /// Without the guard the arithmetic would not go WRONG: an
-    /// overflowing head carries a NaN residual, a NaN compares equal to
-    /// nothing, and the scan would refuse at index 0 with an
-    /// [`Self::AsymmetricPair`] naming the clamp pair — a true verdict
-    /// with a misleading reason, since that pair is the one pair the
-    /// scan is guaranteed to hold. The guard exists to name the
-    /// DOMAIN's defect instead of an innocent pair. It also refuses a
-    /// vector that IS its own reflection in ℝ but whose `lo + hi`
-    /// overflows: that is deliberate, since the test that would admit
-    /// it cannot be run.
-    ///
-    /// The same NaN residual settles the per-pair case the guard does
-    /// not cover. A pair whose own head overflows while `lo + hi` stays
-    /// finite is necessarily asymmetric — its real sum exceeds the
-    /// finite `lo + hi` — and its NaN residual refuses it, which is the
-    /// right answer for the right reason.
-    ReflectionNotFinite {
-        /// The domain's start.
-        lo: f64,
-        /// The domain's end.
-        hi: f64,
-    },
-    /// Knots `index` and `mirror_index` do not sum to `lo + hi`, so the
-    /// vector is not its own reflection.
-    AsymmetricPair {
-        /// The lower index of the offending pair.
-        index: usize,
-        /// Its partner, `m − index`, where `m` is the last knot index.
-        mirror_index: usize,
-        /// The knot at `index`.
-        knot: f64,
-        /// The knot at `mirror_index`.
-        mirror_knot: f64,
-        /// The domain's start.
-        lo: f64,
-        /// The domain's end.
-        hi: f64,
-    },
-}
-
-impl core::fmt::Display for KnotMirrorError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            KnotMirrorError::ReflectionNotFinite { lo, hi } => write!(
-                f,
-                "knot mirror: the domain [{}, {}] has no finite reflection sum",
-                Readable(*lo),
-                Readable(*hi)
-            ),
-            KnotMirrorError::AsymmetricPair {
-                index,
-                mirror_index,
-                knot,
-                mirror_knot: _,
-                lo,
-                hi,
-            } if index == mirror_index => write!(
-                f,
-                "knot mirror: the middle knot {index} ({}) is not the midpoint \
-                 of [{}, {}]",
-                Readable(*knot),
-                Readable(*lo),
-                Readable(*hi)
-            ),
-            KnotMirrorError::AsymmetricPair {
-                index,
-                mirror_index,
-                knot,
-                mirror_knot,
-                lo,
-                hi,
-            } => write!(
-                f,
-                "knot mirror: knots {index} and {mirror_index} ({}, {}) \
-                 do not sum to {} exactly",
-                Readable(*knot),
-                Readable(*mirror_knot),
-                Readable(lo + hi)
-            ),
-        }
-    }
-}
-
-impl core::error::Error for KnotMirrorError {}
-
-/// Refuses unless `knots` is its own reflection about its domain —
-/// `k_i + k_{m−i} = lo + hi` in ℝ for every `i`, decided by comparing
-/// [`two_sum`] pairs under IEEE equality (so `-0.0` matches `0.0`, and
-/// a pair with a NaN residual matches nothing). The argument is
-/// [`NurbsSurface::reversed_v`]'s.
-///
-/// [`two_sum`]: geom_core::exact::two_sum
-fn mirror_symmetric(knots: &KnotVector) -> Result<(), KnotMirrorError> {
-    let (lo, hi) = knots.domain();
-    let reflection = two_sum(lo, hi);
-    if !reflection.0.is_finite() {
-        return Err(KnotMirrorError::ReflectionNotFinite { lo, hi });
-    }
-    let k = knots.knots();
-    let m = k.len() - 1;
-    for index in 0..=m / 2 {
-        let mirror_index = m - index;
-        // Indexing justified: index ≤ m/2 ≤ m and mirror_index ≤ m,
-        // over a knot vector construction leaves nonempty.
-        let (knot, mirror_knot) = (k[index], k[mirror_index]);
-        if two_sum(knot, mirror_knot) != reflection {
-            return Err(KnotMirrorError::AsymmetricPair {
-                index,
-                mirror_index,
-                knot,
-                mirror_knot,
-                lo,
-                hi,
-            });
-        }
-    }
-    Ok(())
-}
-
-impl<T: Real> NurbsSurface<T> {
+impl<T: SpanLocate> NurbsSurface<T> {
     /// Validated construction: `control.len()` must equal
     /// `knots_u.control_count() · knots_v.control_count()` (row-major
-    /// layout, module docs), weights match and are strictly positive
-    /// and finite.
+    /// layout, module docs), weights match, each is one point, and they
+    /// are strictly positive and finite on their value channel. Knots
+    /// and weights are held in `T` (at `f64` a [`KnotVector`]
+    /// converts), as [`crate::curves::NurbsCurve3::new`] holds them.
     ///
     /// # Errors
     ///
     /// [`SplineError`] naming the exact violation.
     pub fn new(
-        knots_u: KnotVector,
-        knots_v: KnotVector,
+        knots_u: impl Into<Knots<T>>,
+        knots_v: impl Into<Knots<T>>,
         control: Vec<Point3<T>>,
-        weights: Vec<f64>,
+        weights: Vec<T>,
     ) -> Result<Self, SplineError> {
-        let expected = knots_u.control_count() * knots_v.control_count();
-        net::validate_counts(expected, control.len(), &weights)?;
+        let (knots_u, knots_v) = (knots_u.into(), knots_v.into());
+        let weight_channel = net::weight_channel(&weights)?;
+        let expected = knots_u.structure().control_count() * knots_v.structure().control_count();
+        net::validate_counts(expected, control.len(), &weight_channel)?;
         Ok(Self {
             knots_u,
             knots_v,
             control,
             weights,
+            weight_channel,
         })
     }
+}
 
-    /// The count rule [`Self::new`] holds a net to, without a net: a
-    /// row-major net over `knots_u × knots_v` has
-    /// `knots_u.control_count() · knots_v.control_count()` control
-    /// points and as many weights. For a reader that indexes a net by
-    /// counts taken from its knots and must refuse, not panic, on a
-    /// net that breaks them.
-    ///
-    /// # Errors
-    ///
-    /// [`SplineError::ControlCountMismatch`] for `control`, then
-    /// [`SplineError::WeightCountMismatch`] for `weights`.
-    pub fn check_net_counts(
-        knots_u: &KnotVector,
-        knots_v: &KnotVector,
-        control: usize,
-        weights: usize,
-    ) -> Result<(), SplineError> {
-        net::check_counts(
-            knots_u.control_count() * knots_v.control_count(),
-            control,
-            weights,
-        )
-    }
-
+impl<T: Real> NurbsSurface<T> {
     /// The "no description yet" placeholder payload for
     /// [`crate::surfaces::Surface::Nurbs`]: structurally valid (bilinear on
     /// `[0,1]²`, unit weights) with all-poison control points, so
@@ -714,11 +574,13 @@ impl<T: Real> NurbsSurface<T> {
     /// certification loudly).
     pub fn placeholder() -> Self {
         let p = net::poison_point::<T, Point3<T>>();
+        let unit = || Knots::from(KnotVector::unit_segment(NonZeroUsize::MIN)).lift(T::from_f64);
         Self {
-            knots_u: KnotVector::unit_segment(NonZeroUsize::MIN),
-            knots_v: KnotVector::unit_segment(NonZeroUsize::MIN),
+            knots_u: unit(),
+            knots_v: unit(),
             control: vec![p; 4],
-            weights: vec![1.0; 4],
+            weights: vec![T::one(); 4],
+            weight_channel: vec![1.0; 4],
         }
     }
 
@@ -754,13 +616,23 @@ impl<T: Real> NurbsSurface<T> {
         }
     }
 
-    /// The u-direction knot vector.
+    /// The u-direction knot vector: the held knots' value channel.
     pub fn knots_u(&self) -> &KnotVector {
+        self.knots_u.structure()
+    }
+
+    /// The v-direction knot vector: the held knots' value channel.
+    pub fn knots_v(&self) -> &KnotVector {
+        self.knots_v.structure()
+    }
+
+    /// The u-direction knots held in `T`.
+    pub fn knot_values_u(&self) -> &Knots<T> {
         &self.knots_u
     }
 
-    /// The v-direction knot vector.
-    pub fn knots_v(&self) -> &KnotVector {
+    /// The v-direction knots held in `T`.
+    pub fn knot_values_v(&self) -> &Knots<T> {
         &self.knots_v
     }
 
@@ -769,14 +641,25 @@ impl<T: Real> NurbsSurface<T> {
         &self.control
     }
 
-    /// The weights, same layout as [`NurbsSurface::control`].
-    pub fn weights(&self) -> &[f64] {
+    /// The weights held in `T`, same layout as
+    /// [`NurbsSurface::control`].
+    pub fn weights(&self) -> &[T] {
         &self.weights
+    }
+
+    /// The weights' value channel, same layout: the `f64` every
+    /// structure decision on them reads. Arithmetic reads
+    /// [`Self::weights`].
+    pub fn weight_channel(&self) -> &[f64] {
+        &self.weight_channel
     }
 
     /// `(nu, nv)` — control counts per direction.
     pub fn control_counts(&self) -> (usize, usize) {
-        (self.knots_u.control_count(), self.knots_v.control_count())
+        (
+            self.knots_u().control_count(),
+            self.knots_v().control_count(),
+        )
     }
 
     /// Construction from parts whose invariants are ALREADY
@@ -791,45 +674,53 @@ impl<T: Real> NurbsSurface<T> {
     /// `debug_assert` below cannot check — has ONE home for the whole
     /// crate: `crate::scalar_lift`'s module docs.
     fn from_validated_parts(
-        knots_u: KnotVector,
-        knots_v: KnotVector,
+        knots_u: Knots<T>,
+        knots_v: Knots<T>,
         control: Vec<Point3<T>>,
-        weights: Vec<f64>,
+        weights: Vec<T>,
+        weight_channel: Vec<f64>,
     ) -> Self {
+        let expected = knots_u.structure().control_count() * knots_v.structure().control_count();
         debug_assert!(
-            control.len() == knots_u.control_count() * knots_v.control_count()
-                && weights.len() == control.len(),
+            control.len() == expected
+                && weights.len() == control.len()
+                && weight_channel.len() == control.len(),
             "from_validated_parts: a structural map changed a count \
-             (control {}, knots want {}, weights {})",
+             (control {}, knots want {}, weights {}, channel {})",
             control.len(),
-            knots_u.control_count() * knots_v.control_count(),
-            weights.len()
+            expected,
+            weights.len(),
+            weight_channel.len()
         );
         Self {
             knots_u,
             knots_v,
             control,
             weights,
+            weight_channel,
         }
     }
 
     /// The same surface read at another scalar: `f` applied to every
-    /// control coordinate, both knot vectors and the weights carried
-    /// over verbatim — `f64` structure at every scalar. Construction
-    /// goes through [`Self::from_validated_parts`], which states why no
+    /// control coordinate, every weight and once per knot breakpoint
+    /// in each direction, both knot structures and the weights' value
+    /// channel carried over. Construction goes through
+    /// [`Self::from_validated_parts`], which states why no
     /// re-validation is run. The contract is
-    /// [`NurbsCurve3::map_scalar`]'s one dimension up: exact whenever
-    /// `f` is; what the placeholder and a poisoned net lift to is
-    /// argued once, in `crate::scalar_lift`'s module docs.
+    /// [`NurbsCurve3::map_scalar`]'s one dimension up: `f` is a lift
+    /// that keeps every value's point; what the placeholder and a
+    /// poisoned net lift to is argued once, in `crate::scalar_lift`'s
+    /// module docs.
     ///
     /// [`NurbsCurve3::map_scalar`]: crate::curves::NurbsCurve3::map_scalar
     #[must_use]
     pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> NurbsSurface<U> {
         NurbsSurface::from_validated_parts(
-            self.knots_u.clone(),
-            self.knots_v.clone(),
+            self.knots_u.lift(&f),
+            self.knots_v.lift(&f),
             self.control.iter().map(|p| p.map(&f)).collect(),
-            self.weights.clone(),
+            net::map_weights(&self.weights, &f),
+            self.weight_channel.clone(),
         )
     }
 
@@ -864,6 +755,7 @@ impl<T: Real> NurbsSurface<T> {
             self.knots_v.clone(),
             self.control.iter().map(|p| f(*p)).collect(),
             self.weights.clone(),
+            self.weight_channel.clone(),
         )
     }
 
@@ -884,13 +776,17 @@ impl<T: Real> NurbsSurface<T> {
     /// caller can be handed, which is why this is private: it is
     /// discharged here, at each mint, against the vector each span was
     /// drawn from.
-    fn window_of<'a>(&'a self, span_u: Span<'a>, span_v: Span<'a>) -> SurfaceWindow<'a, T> {
-        let stride = self.knots_v.control_count();
+    fn window_of<'a>(
+        &'a self,
+        span_u: KnotSpan<'a, T>,
+        span_v: KnotSpan<'a, T>,
+    ) -> SurfaceWindow<'a, T> {
+        let stride = self.knots_v().control_count();
         SurfaceWindow {
             surface: self,
             span_u,
             span_v,
-            base: span_u.first_control() * stride + span_v.first_control(),
+            base: span_u.span().first_control() * stride + span_v.span().first_control(),
             stride,
         }
     }
@@ -904,11 +800,14 @@ impl<T: Real> NurbsSurface<T> {
         Some(self.window_of(self.knots_u.span(span_u)?, self.knots_v.span(span_v)?))
     }
 
-    /// The window containing parameters `(u, v)` — total on all of
-    /// `f64`² for exactly the reasons [`KnotVector::span_at`] is
-    /// (out-of-domain clamps to an end span, NaN lands on the first).
-    pub fn window_at(&self, u: f64, v: f64) -> SurfaceWindow<'_, T> {
-        self.window_of(self.knots_u.span_at(u), self.knots_v.span_at(v))
+    /// The window containing parameters `(u, v)`, or `None` when either
+    /// is NaN, exactly as [`KnotVector::span_at`] locates each
+    /// (out-of-domain clamps to an end span).
+    pub fn window_at(&self, u: f64, v: f64) -> Option<SurfaceWindow<'_, T>> {
+        self.window(
+            self.knots_u().span_at(u)?.index(),
+            self.knots_v().span_at(v)?.index(),
+        )
     }
 
     /// The transposed surface: `u` and `v` swapped (knot vectors
@@ -924,14 +823,22 @@ impl<T: Real> NurbsSurface<T> {
         let (nu, nv) = self.control_counts();
         let mut control = Vec::with_capacity(self.control.len());
         let mut weights = Vec::with_capacity(self.weights.len());
+        let mut channel = Vec::with_capacity(self.weights.len());
         for iv in 0..nv {
             for iu in 0..nu {
                 // Indexing justified: iu < nu, iv < nv (construction).
                 control.push(self.control[iu * nv + iv]);
                 weights.push(self.weights[iu * nv + iv]);
+                channel.push(self.weight_channel[iu * nv + iv]);
             }
         }
-        Self::from_validated_parts(self.knots_v.clone(), self.knots_u.clone(), control, weights)
+        Self::from_validated_parts(
+            self.knots_v.clone(),
+            self.knots_u.clone(),
+            control,
+            weights,
+            channel,
+        )
     }
 
     /// The same surface with its `u` orientation reversed —
@@ -947,10 +854,10 @@ impl<T: Real> NurbsSurface<T> {
     /// This is the direction the reversal is IMPLEMENTED in, per the
     /// module docs' conjugation rule; [`Self::reversed_v`] is this door
     /// between two transposes. The argument for when the reversed net
-    /// is the same point set, the exactness of the symmetry test, the
-    /// acceptance set it decides and what this door does not do are all
-    /// [`Self::reversed_v`]'s — read against `knots_u`, which is the
-    /// vector tested here and the one the refusal indexes.
+    /// is the same point set and what this door does not do are
+    /// [`Self::reversed_v`]'s, and the symmetry test is
+    /// [`KnotVector::mirror_symmetric`] — read against `knots_u`, which
+    /// is the vector tested here and the one the refusal indexes.
     ///
     /// # Errors
     ///
@@ -958,15 +865,17 @@ impl<T: Real> NurbsSurface<T> {
     /// symmetry: this door is DEFINED only on a `knots_u` that is its
     /// own reflection.
     pub fn reversed_u(&self) -> Result<Self, KnotMirrorError> {
-        mirror_symmetric(&self.knots_u)?;
+        self.knots_u().mirror_symmetric()?;
         let (nu, nv) = self.control_counts();
         let mut control = Vec::with_capacity(self.control.len());
         let mut weights = Vec::with_capacity(self.weights.len());
+        let mut channel = Vec::with_capacity(self.weights.len());
         for iu in (0..nu).rev() {
             for iv in 0..nv {
                 // Indexing justified: iu < nu, iv < nv (construction).
                 control.push(self.control[iu * nv + iv]);
                 weights.push(self.weights[iu * nv + iv]);
+                channel.push(self.weight_channel[iu * nv + iv]);
             }
         }
         Ok(Self::from_validated_parts(
@@ -974,6 +883,7 @@ impl<T: Real> NurbsSurface<T> {
             self.knots_v.clone(),
             control,
             weights,
+            channel,
         ))
     }
 
@@ -1001,70 +911,26 @@ impl<T: Real> NurbsSurface<T> {
     ///
     /// Reversing the net while keeping `knots_v` gives
     /// `S(u, lo + hi − v)` exactly when `knots_v` is its own
-    /// reflection — `k_i + k_{m−i} = lo + hi` for every `i`, with `m`
-    /// the last knot index. Reflecting a knot vector (`k ↦ lo + hi − k`
-    /// with the order reversed) carries each v-basis function to its
-    /// mirror partner, `N^{K*}_{j,p}(v) = N^{K}_{nv−1−j,p}(lo + hi − v)`;
-    /// so when `K* = K` the reversed net reads the ORIGINAL's basis
-    /// backwards, and the two evaluations are the same rational
-    /// combination of the same points. On an asymmetric `knots_v` the
-    /// recipe is a different surface rather than a reparameterization
-    /// of this one, and that is what the refusal protects.
+    /// reflection ([`KnotVector::mirror_symmetric`]): reflection
+    /// carries each v-basis function to its mirror partner,
+    /// `N^{K*}_{j,p}(v) = N^{K}_{nv−1−j,p}(lo + hi − v)`, so when
+    /// `K* = K` the reversed net reads the ORIGINAL's basis backwards,
+    /// and the two evaluations are the same rational combination of the
+    /// same points. On an asymmetric `knots_v` the recipe is a
+    /// different surface rather than a reparameterization of this one,
+    /// and that is what the refusal protects.
     ///
     /// Reflecting the knots instead would make every vector
     /// reversible, and is deliberately not offered: `lo + hi − k` is
     /// not exact in `f64`, so such a door would mint structure an ulp
     /// away from a surface whose structure is exact.
     ///
-    /// # What the symmetric vectors actually are
-    ///
-    /// "Symmetric" means symmetric AFTER decimal-to-binary rounding,
-    /// which is narrower than it reads: an interior pair a user types
-    /// as mirrored — thirds, `0.1/0.9`, `0.2/0.8`, `0.3/0.7`,
-    /// `0.45/0.55` — has a real sum that misses `lo + hi` by one 2Sum
-    /// residual (±5.55e−17, or half that for `0.1/0.9`) and REFUSES,
-    /// while `0.4/0.6` and every dyadic pair accept. On the kernel's
-    /// own loft producer the same
-    /// cut falls by section count: equally spaced sections give a
-    /// mirror-symmetric `knots_v` for `k ≤ 6` sections and a refusing
-    /// one at `k = 7` and `k = 8`.
-    ///
-    /// # Why the test is exact, and why the clamp runs never trip it
-    ///
-    /// The condition is an identity between REAL numbers, and
-    /// `fl(k_i + k_{m−i}) == fl(lo + hi)` does not decide it: on
-    /// `lo = 0`, `hi = 1` the pair `(½, ½ + 2⁻⁵³)` rounds to `1.0` and
-    /// would pass while reflecting an ulp away from its partner. So the
-    /// two sums are compared AS EXACT SUMS — each held as a rounded
-    /// head plus its exact residual ([`two_sum`]) and both components
-    /// compared under IEEE equality, which is equality of the real sums
-    /// and nothing weaker. (IEEE equality, not bit equality: `-0.0`
-    /// equals `0.0`, so a knot vector carrying a `-0.0` where its
-    /// partner carries `0.0` is accepted as the symmetric vector it
-    /// really is, and the `-0.0` is then carried through verbatim.)
-    /// Every step is one correctly-rounded binary64 operation, so the
-    /// verdict is a function of the knots' bits alone: the same answer
-    /// on every target and at every optimization level. The one case
-    /// the arithmetic cannot decide is a `lo + hi` that overflows, and
-    /// that is refused rather than answered.
-    ///
-    /// A non-finite knot cannot reach the test from
-    /// [`KnotVector::clamped`], which refuses one; the other two mints,
-    /// `KnotVector::unit_segment` and the crate-internal
-    /// `from_algebra`, produce `{0, 1}` runs and knot-algebra outputs
-    /// respectively. Nothing here rests on that: a NaN or infinite knot
-    /// would give a residual that compares equal to nothing, so the
-    /// door would refuse it — fail-safe, in the direction a structural
-    /// door should fail.
-    ///
-    /// The clamped ends never trip it. `domain()` reads `lo` and `hi`
-    /// off `knots[p]` and `knots[m − p]`, and a clamped vector's end
-    /// runs are equal under `==` — `k_0 = … = k_p` and
-    /// `k_{m−p} = … = k_m`, which is the comparison `clamped` itself
-    /// ran — so for every `i ≤ p` the pair `(k_i, k_{m−i})` equals the
-    /// pair `(lo, hi)` in VALUE (bit for bit too, except where a `-0.0`
-    /// shares a run with a `0.0`), and the test compares a value
-    /// against itself. Only the interior can refuse.
+    /// The symmetric vectors are fewer than they read (the predicate's
+    /// own docs). On the kernel's own loft producer the cut falls by
+    /// section count: equally spaced sections give a mirror-symmetric
+    /// `knots_v` for `k ≤ 6` sections and a refusing one at `k = 7`
+    /// and `k = 8`. A `-0.0` in a symmetric vector is accepted and
+    /// carried through verbatim.
     ///
     /// # What this does not do
     ///
@@ -1083,52 +949,119 @@ impl<T: Real> NurbsSurface<T> {
     /// anyway looks like at rest — structural validation green, the
     /// geometric-structural tier reporting every such edge — is pinned
     /// by `crates/sweep/tests/vrev_reversed_chart_hazard.rs`.
-    ///
-    /// [`two_sum`]: geom_core::exact::two_sum
     pub fn reversed_v(&self) -> Result<Self, KnotMirrorError> {
         Ok(self.transposed().reversed_u()?.transposed())
     }
 
-    /// Extracts v-column `iv` as a (points, weights) pair — a curve in
-    /// the u direction.
-    fn u_column(&self, iv: usize) -> (Vec<Point3<T>>, Vec<f64>) {
+    /// Extracts v-column `iv` — a curve in the u direction — as its
+    /// points, weights and weights' value channel.
+    fn u_column(&self, iv: usize) -> Column<T> {
         let (nu, nv) = self.control_counts();
-        let mut pts = Vec::with_capacity(nu);
-        let mut w = Vec::with_capacity(nu);
+        let mut col = Column {
+            points: Vec::with_capacity(nu),
+            weights: Vec::with_capacity(nu),
+            channel: Vec::with_capacity(nu),
+        };
         for iu in 0..nu {
-            pts.push(self.control[iu * nv + iv]);
-            w.push(self.weights[iu * nv + iv]);
+            col.points.push(self.control[iu * nv + iv]);
+            col.weights.push(self.weights[iu * nv + iv]);
+            col.channel.push(self.weight_channel[iu * nv + iv]);
         }
-        (pts, w)
+        col
     }
 
-    /// Rebuilds a surface from per-column (points, weights) with a new
-    /// u knot vector (columns share it by construction).
-    fn from_u_columns(
-        knots_u: KnotVector,
-        knots_v: KnotVector,
-        cols: Vec<(Vec<Point3<T>>, Vec<f64>)>,
-    ) -> Self {
-        let nu = knots_u.control_count();
-        let nv = knots_v.control_count();
+    /// Rebuilds a surface from per-column nets with a new u knot vector
+    /// (columns share it by construction).
+    fn from_u_columns(knots_u: Knots<T>, knots_v: Knots<T>, cols: Vec<Column<T>>) -> Self {
+        let nu = knots_u.structure().control_count();
+        let nv = knots_v.structure().control_count();
         let mut control = Vec::with_capacity(nu * nv);
         let mut weights = Vec::with_capacity(nu * nv);
+        let mut channel = Vec::with_capacity(nu * nv);
         for iu in 0..nu {
-            for (pts, w) in &cols {
+            for col in &cols {
                 // Indexing justified: every column has nu entries (the
                 // shared plan chain fixes the length).
-                control.push(pts[iu]);
-                weights.push(w[iu]);
+                control.push(col.points[iu]);
+                weights.push(col.weights[iu]);
+                channel.push(col.channel[iu]);
             }
         }
-        Self {
-            knots_u,
-            knots_v,
-            control,
-            weights,
-        }
+        Self::from_validated_parts(knots_u, knots_v, control, weights, channel)
     }
+}
 
+/// One v-column of a surface's net: a curve in the u direction, held as
+/// the surface holds it.
+struct Column<T: Real> {
+    points: Vec<Point3<T>>,
+    weights: Vec<T>,
+    channel: Vec<f64>,
+}
+
+impl<T: ProjectiveScalar> Column<T> {
+    /// This column through a plan chain made on its value channel
+    /// ([`spline::CurvePlan::apply_rational`], over the u knots held in
+    /// `T` and carried plan to plan), with the knots the chain ends on.
+    /// A value a plan brings in is `fresh(v)` (the curve's
+    /// `apply_plans` says which entry each caller makes).
+    fn through(
+        self,
+        knots: &Knots<T>,
+        plans: &[spline::CurvePlan],
+        fresh: &dyn Fn(f64) -> T,
+    ) -> (Self, Knots<T>) {
+        let Some(last) = plans.last() else {
+            return (self, knots.clone());
+        };
+        let mut held = knots.clone();
+        let (mut points, mut weights) = (self.points, self.weights);
+        for plan in plans {
+            (points, weights) = plan.apply_rational(
+                held.values(),
+                &points,
+                &weights,
+                (net::poison_point::<T, Point3<T>>(), fresh),
+                |x, y, l: T| x.lerp(y, l),
+            );
+            held = held.restructure(plan.knots().clone(), fresh);
+        }
+        let channel = last.weights().to_vec();
+        (
+            Self {
+                points,
+                weights,
+                channel,
+            },
+            held,
+        )
+    }
+}
+
+/// The knot algebra: at the evaluation scalars only
+/// ([`ProjectiveScalar`]'s docs say why not at `Interval`), on curves
+/// and surfaces alike. At the certification scalar a refinement does
+/// not typecheck:
+///
+/// ```compile_fail,E0599
+/// use geom::{NurbsCurve3, NurbsSurface};
+/// use geom_core::Interval;
+/// fn refine(s: &NurbsSurface<Interval>, c: &NurbsCurve3<Interval>) {
+///     let _ = s.refine_knots_u(&[0.5]);
+///     let _ = c.refine_knots(&[0.5]);
+/// }
+/// ```
+///
+/// Its twin differs in the scalar alone:
+///
+/// ```
+/// use geom::{NurbsCurve3, NurbsSurface};
+/// fn refine(s: &NurbsSurface<f64>, c: &NurbsCurve3<f64>) {
+///     let _ = s.refine_knots_u(&[0.5]);
+///     let _ = c.refine_knots(&[0.5]);
+/// }
+/// ```
+impl<T: ProjectiveScalar> NurbsSurface<T> {
     /// Applies one shared-schedule plan chain builder per v-column
     /// (module docs: per-column weights ⇒ per-column λs, shared knot
     /// schedule) and reassembles the grid.
@@ -1140,19 +1073,11 @@ impl<T: Real> NurbsSurface<T> {
         let mut cols = Vec::with_capacity(nv);
         let mut new_knots_u = self.knots_u.clone();
         for iv in 0..nv {
-            let (mut pts, col_w) = self.u_column(iv);
-            let plans = build(&self.knots_u, &col_w)?;
-            let mut w = col_w;
-            for plan in &plans {
-                pts = plan.apply_points(&pts, net::poison_point::<T, Point3<T>>(), |x, y, l| {
-                    x.lerp(y, T::from_f64(l))
-                });
-                w = plan.weights().to_vec();
-            }
-            if let Some(last) = plans.last() {
-                new_knots_u = last.knots().clone();
-            }
-            cols.push((pts, w));
+            let col = self.u_column(iv);
+            let plans = build(self.knots_u(), &col.channel)?;
+            let (col, knots) = col.through(&self.knots_u, &plans, &T::from_f64);
+            new_knots_u = knots;
+            cols.push(col);
         }
         Ok(Self::from_u_columns(
             new_knots_u,
@@ -1244,8 +1169,8 @@ impl<T: Real> NurbsSurface<T> {
             let mut reinserted_cols = Vec::with_capacity(nv);
             let mut new_knots_u = cur.knots_u.clone();
             for iv in 0..nv {
-                let (pts, col_w) = cur.u_column(iv);
-                let steps = spline::algebra::remove_knot_plan(&cur.knots_u, &col_w, u, 1)?;
+                let col = cur.u_column(iv);
+                let steps = spline::algebra::remove_knot_plan(cur.knots_u(), &col.channel, u, 1)?;
                 // remove_knot_plan(times = 1) yields exactly one step;
                 // the refusal arm is unreachable but keeps this total
                 // without an unwrap (D9: no panic path).
@@ -1253,16 +1178,23 @@ impl<T: Real> NurbsSurface<T> {
                     .into_iter()
                     .next()
                     .ok_or(KnotAlgebraError::KnotNotPresent { u })?;
-                let lerp = |x: Point3<T>, y: Point3<T>, l: f64| x.lerp(y, T::from_f64(l));
-                let rem_pts =
-                    step.plan
-                        .apply_points(&pts, net::poison_point::<T, Point3<T>>(), lerp);
-                let re_pts =
-                    step.reinsert
-                        .apply_points(&rem_pts, net::poison_point::<T, Point3<T>>(), lerp);
-                new_knots_u = step.plan.knots().clone();
-                removed_cols.push((rem_pts, step.plan.weights().to_vec()));
-                reinserted_cols.push((re_pts, step.reinsert.weights().to_vec()));
+                let (removed, knots) = col.through(
+                    &cur.knots_u,
+                    core::slice::from_ref(&step.plan),
+                    &T::from_f64,
+                );
+                // The reinsertion puts back the knot the removal took out:
+                // its held value (the curve's `remove_knot` says why).
+                let held = |v: f64| cur.knots_u.value_at(v).unwrap_or_else(|| T::from_f64(v));
+                let (reinserted, _) = Column {
+                    points: removed.points.clone(),
+                    weights: removed.weights.clone(),
+                    channel: removed.channel.clone(),
+                }
+                .through(&knots, core::slice::from_ref(&step.reinsert), &held);
+                new_knots_u = knots;
+                removed_cols.push(removed);
+                reinserted_cols.push(reinserted);
             }
             let reinserted =
                 Self::from_u_columns(cur.knots_u.clone(), cur.knots_v.clone(), reinserted_cols);
@@ -1292,15 +1224,17 @@ impl<T: SpanLocate> NurbsSurface<T> {
     /// the sealed [`SpanLocate`] seam, the core per overlapped span
     /// cell, channel-independent hulls across cells for
     /// interval-natured scalars (rectangle iteration: ascending u
-    /// spans outer, v spans inner).
+    /// spans outer, v spans inner). A poison parameter locates no span,
+    /// and its jet is poison in every channel.
     pub fn ders(&self, u: T, v: T) -> SurfaceJet<T> {
-        let su = u.locate_spans(&self.knots_u);
-        let sv = v.locate_spans(&self.knots_v);
+        let (Some(su), Some(sv)) = (self.knots_u.locate(u), self.knots_v.locate(v)) else {
+            return poison_jet(u + v);
+        };
         // The seed cell's window comes straight from the located
         // spans, which ARE proofs — no re-validation.
-        let (su_first, su_last) = (su.first.index(), su.last.index());
-        let (sv_first, sv_last) = (sv.first.index(), sv.last.index());
-        let mut acc = self.window_of(su.first, sv.first).ders_in_span(u, v);
+        let (su_first, su_last) = (su.0.span().index(), su.1.span().index());
+        let (sv_first, sv_last) = (sv.0.span().index(), sv.1.span().index());
+        let mut acc = self.window_of(su.0, sv.0).ders_in_span(u, v);
         for cu in su_first..=su_last {
             for cv in sv_first..=sv_last {
                 if cu == su_first && cv == sv_first {
@@ -1308,7 +1242,7 @@ impl<T: SpanLocate> NurbsSurface<T> {
                 }
                 // Empty spans (interior multiplicity) have no window,
                 // so the skip and the validation are one operation:
-                // find_span assigns every parameter — a repeated knot
+                // span_at assigns every parameter — a repeated knot
                 // value included — to the nonempty span starting at
                 // it, which the rectangle always covers, so nothing
                 // is discarded (containment preserved); an empty span
@@ -1334,12 +1268,13 @@ impl<T: SpanLocate> NurbsSurface<T> {
     /// selection and channel-independent cell hulling, one order up
     /// (M5 PR 7's ℝ⁴ trace).
     pub fn ders3(&self, u: T, v: T) -> SurfaceJet3<T> {
-        let su = u.locate_spans(&self.knots_u);
-        let sv = v.locate_spans(&self.knots_v);
+        let (Some(su), Some(sv)) = (self.knots_u.locate(u), self.knots_v.locate(v)) else {
+            return poison_jet3(u + v);
+        };
         // Seed window and empty-span skip: see [`NurbsSurface::ders`].
-        let (su_first, su_last) = (su.first.index(), su.last.index());
-        let (sv_first, sv_last) = (sv.first.index(), sv.last.index());
-        let mut acc = self.window_of(su.first, sv.first).ders3_in_span(u, v);
+        let (su_first, su_last) = (su.0.span().index(), su.1.span().index());
+        let (sv_first, sv_last) = (sv.0.span().index(), sv.1.span().index());
+        let mut acc = self.window_of(su.0, sv.0).ders3_in_span(u, v);
         for cu in su_first..=su_last {
             for cv in sv_first..=sv_last {
                 if cu == su_first && cv == sv_first {
@@ -1371,12 +1306,13 @@ impl<T: SpanLocate> NurbsSurface<T> {
     /// The point at `(u, v)` (span selection as [`NurbsSurface::ders`];
     /// point-only pass).
     pub fn eval(&self, u: T, v: T) -> Point3<T> {
-        let su = u.locate_spans(&self.knots_u);
-        let sv = v.locate_spans(&self.knots_v);
+        let (Some(su), Some(sv)) = (self.knots_u.locate(u), self.knots_v.locate(v)) else {
+            return poison_point(u + v);
+        };
         // Seed window and empty-span skip: see [`NurbsSurface::ders`].
-        let (su_first, su_last) = (su.first.index(), su.last.index());
-        let (sv_first, sv_last) = (sv.first.index(), sv.last.index());
-        let mut acc = self.window_of(su.first, sv.first).eval_in_span(u, v);
+        let (su_first, su_last) = (su.0.span().index(), su.1.span().index());
+        let (sv_first, sv_last) = (sv.0.span().index(), sv.1.span().index());
+        let mut acc = self.window_of(su.0, sv.0).eval_in_span(u, v);
         for cu in su_first..=su_last {
             for cv in sv_first..=sv_last {
                 if cu == su_first && cv == sv_first {
@@ -1403,6 +1339,41 @@ impl<T: geom_core::CertifiedBounds> NurbsSurface<T> {
     /// (`net::certified_coords`).
     pub fn certified_coords(&self) -> Vec<Vec<geom_core::Interval>> {
         net::certified_coords(&self.control)
+    }
+}
+
+/// The point a poison parameter pair evaluates to:
+/// [`spline::poison_from`] of `seed = u + v`, which carries both
+/// parameters' channels, in every coordinate.
+fn poison_point<T: Real>(seed: T) -> Point3<T> {
+    Point3::<T>::origin().map(|_| spline::poison_from(seed))
+}
+
+/// A vector of poison.
+fn poison_vec<T: Real>(seed: T) -> Vec3<T> {
+    Vec3::<T>::zero().map(|_| spline::poison_from(seed))
+}
+
+/// The jet a poison parameter pair evaluates to.
+fn poison_jet<T: Real>(seed: T) -> SurfaceJet<T> {
+    SurfaceJet {
+        point: poison_point(seed),
+        du: poison_vec(seed),
+        dv: poison_vec(seed),
+        duu: poison_vec(seed),
+        duv: poison_vec(seed),
+        dvv: poison_vec(seed),
+    }
+}
+
+/// The third-order jet a poison parameter pair evaluates to.
+fn poison_jet3<T: Real>(seed: T) -> SurfaceJet3<T> {
+    SurfaceJet3 {
+        jet: poison_jet(seed),
+        duuu: poison_vec(seed),
+        duuv: poison_vec(seed),
+        duvv: poison_vec(seed),
+        dvvv: poison_vec(seed),
     }
 }
 
@@ -1655,12 +1626,12 @@ mod reversal_tests {
     }
 
     /// A vector with an ODD interior count has a self-paired middle
-    /// knot, which the scan compares against itself and which the
-    /// refusal has to describe as a midpoint rather than as a pair.
-    /// Both halves of that are here, on a degree-3 vector; the u door's
-    /// refusal is also shown indexing `knots_u`, not `knots_v`.
+    /// knot, which the scan compares against itself: on a degree-3
+    /// vector whose middle knot is the midpoint, the reversal is the
+    /// same point set. Off the midline the u door refuses, indexing
+    /// `knots_u`, not `knots_v`.
     #[test]
-    fn an_odd_interior_reverses_and_a_self_paired_knot_refuses_as_a_midpoint() {
+    fn an_odd_interior_reverses_and_an_off_midline_middle_knot_refuses() {
         let ku = KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap();
         let kv = KnotVector::clamped(
             vec![0.0, 0.0, 0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.0, 1.0, 1.0],
@@ -1684,7 +1655,7 @@ mod reversal_tests {
         same_point_set(&r, &s, "odd interior");
 
         // The same shape in `u`, off the midline: the refusal indexes
-        // `knots_u` and reads as a midpoint claim, not as a pair.
+        // `knots_u`.
         let s = NurbsSurface::new(
             KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.25, 1.0, 1.0, 1.0], 2).unwrap(),
             KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
@@ -1706,12 +1677,6 @@ mod reversal_tests {
                 hi: 1.0,
             },
             "the u door tests knots_u and indexes into it"
-        );
-        assert_eq!(
-            e.to_string(),
-            "knot mirror: the middle knot 3 (0.25) is not the midpoint of [0, 1]",
-            "a knot that is its own partner is described as a midpoint, not as a pair \
-             that does not sum to itself"
         );
     }
 
@@ -1759,46 +1724,6 @@ mod reversal_tests {
         );
     }
 
-    /// The test decides the REAL identity, not the rounded one. This
-    /// vector's interior pair sums to `1 + 2⁻⁵³`, which rounds to
-    /// exactly `lo + hi` — a comparison of rounded sums would admit it
-    /// and mint a surface reflecting an ulp away from its partner.
-    #[test]
-    fn a_pair_whose_rounded_sum_hits_the_midline_still_refuses() {
-        let half_up = f64::from_bits(0.5f64.to_bits() + 1);
-        assert_eq!(
-            0.5 + half_up,
-            0.0 + 1.0,
-            "the rounded sums agree, so only an exact test can tell these apart"
-        );
-        assert_ne!(half_up, 0.5, "the partner really is an ulp off the midline");
-
-        let s = NurbsSurface::new(
-            KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap(),
-            KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, half_up, 1.0, 1.0, 1.0], 2).unwrap(),
-            net(),
-            WEIGHTS.to_vec(),
-        )
-        .unwrap();
-        let e = s.reversed_v().unwrap_err();
-        assert_eq!(
-            e,
-            KnotMirrorError::AsymmetricPair {
-                index: 3,
-                mirror_index: 4,
-                knot: 0.5,
-                mirror_knot: half_up,
-                lo: 0.0,
-                hi: 1.0,
-            },
-            "an exact-sum test refuses what a rounded-sum test would admit"
-        );
-        assert!(
-            e.to_string().ends_with("do not sum to 1 exactly"),
-            "the message states the reflection it wanted, evaluated: {e}"
-        );
-    }
-
     /// The symmetry test is IEEE equality, not bit equality: a `-0.0`
     /// in an end run is real zero, so the vector IS symmetric, is
     /// accepted, and the `-0.0` is carried through with its sign bit.
@@ -1826,53 +1751,6 @@ mod reversal_tests {
             r.knots_v().knots()[0].to_bits(),
             (-0.0f64).to_bits(),
             "the −0.0 is carried verbatim, sign bit and all"
-        );
-    }
-
-    /// A domain whose reflection overflows is refused rather than
-    /// answered. Without the guard the scan would not pass vacuously —
-    /// the overflowing head's residual is a NaN and compares equal to
-    /// nothing — it would refuse at index 0 and blame the clamp pair;
-    /// the guard names the domain's defect instead.
-    #[test]
-    fn a_domain_with_no_finite_reflection_refuses() {
-        let (lo, hi): (f64, f64) = (1e308, 1.5e308);
-        assert!(!(lo + hi).is_finite(), "the fixture's reflection overflows");
-        assert!(
-            geom_core::exact::two_sum(lo, hi).1.is_nan(),
-            "so the residual is a NaN, and an unguarded scan would refuse at index 0"
-        );
-        let s = NurbsSurface::new(
-            KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap(),
-            KnotVector::clamped(vec![lo, lo, lo, hi, hi, hi], 2).unwrap(),
-            net()[..9].to_vec(),
-            WEIGHTS[..9].to_vec(),
-        )
-        .unwrap();
-        assert_eq!(
-            s.reversed_v().unwrap_err(),
-            KnotMirrorError::ReflectionNotFinite { lo, hi },
-            "the door refuses a reflection it cannot compute"
-        );
-        assert_eq!(
-            s.reversed_v().unwrap_err().to_string(),
-            "knot mirror: the domain [1e308, 1.5e308] has no finite reflection sum",
-            "the refusal names a domain at the ceiling of the range readably"
-        );
-        // And it refuses a vector that IS its own reflection in ℝ, for
-        // the same reason: the test that would admit it cannot be run.
-        let mid = 1.25e308;
-        let s = NurbsSurface::new(
-            KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap(),
-            KnotVector::clamped(vec![lo, lo, lo, mid, hi, hi, hi], 2).unwrap(),
-            net()[..12].to_vec(),
-            WEIGHTS[..12].to_vec(),
-        )
-        .unwrap();
-        assert_eq!(
-            s.reversed_v().unwrap_err(),
-            KnotMirrorError::ReflectionNotFinite { lo, hi },
-            "a genuinely symmetric vector whose lo + hi overflows is refused too"
         );
     }
 }

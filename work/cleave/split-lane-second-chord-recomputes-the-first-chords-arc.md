@@ -6,7 +6,7 @@ status: closed
 opened: 2026-10-02
 priority: P1
 cost: M
-refs: [JOIN-3, pierce-ring-has-no-join-arm]
+refs: [3895, pierce-ring-has-no-join-arm]
 branch: cleave/split-segment-curve
 closed: 2026-10-06
 pr: 4081

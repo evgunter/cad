@@ -41,7 +41,7 @@ fn exemplar(
     let (doc, extrude) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(0.5),
             side: ExtrudeSide::Along,
         },
@@ -204,7 +204,7 @@ fn row4_node_edit_moves_pin() {
         DocEdit::SetParam {
             node: extrude,
             slot: editor_core::SlotId::Distance,
-            expr: len(0.625),
+            value: len(0.625).into(),
             fresh: Vec::new(),
         },
     );

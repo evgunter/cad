@@ -46,7 +46,7 @@
 use crate::common;
 
 use geom_core::Tol;
-use topo::{Body, CensusContact, ContactRecords, FaceKey, PatchContact, ValidationError};
+use topo::{Body, CensusContact, ContactRecords, FaceKey, ValidationError};
 
 /// The overhang seat (issue 973's section (a), the review probe's
 /// fixture): the cap crosses the shelf's `y = 0.30` side edge at the
@@ -93,14 +93,11 @@ fn straddle_seat() -> (Body<f64>, FaceKey, FaceKey) {
     (seat.body, seat.post_top, seat.shelf_bottom)
 }
 
-fn declared(a: FaceKey, b: FaceKey) -> ContactRecords {
-    ContactRecords {
-        patches: vec![PatchContact {
-            face_a: a,
-            face_b: b,
-        }],
-        ..ContactRecords::default()
-    }
+fn declared(body: &Body<f64>, a: FaceKey, b: FaceKey) -> ContactRecords {
+    topo::ContactRecords::from_iter(vec![topo::Cited::new(
+        topo::Contact::new(body, topo::Cell::Face(a), topo::Cell::Face(b)).unwrap(),
+        topo::Cites::decided(0),
+    )])
 }
 
 fn errors(body: &Body<f64>, records: &ContactRecords) -> Vec<ValidationError> {
@@ -114,7 +111,7 @@ fn undeclared(errors: &[ValidationError]) -> Vec<CensusContact> {
     errors
         .iter()
         .filter_map(|e| match e {
-            ValidationError::UndeclaredContact { contact, .. } => Some(*contact),
+            ValidationError::UnrecordedContact { contact, .. } => Some(*contact),
             _ => None,
         })
         .collect()
@@ -125,7 +122,7 @@ fn count(cs: &[CensusContact], f: impl Fn(&CensusContact) -> bool) -> usize {
 }
 
 /// The unit's claim: nothing in the declared overhang seat is a hard
-/// `UndeclaredContact` any more. The edge-on-face overlap's two bounds
+/// `UnrecordedContact` any more. The edge-on-face overlap's two bounds
 /// (H and B, on the shelf edge's interior) are vertex-on-edge events
 /// the declared pair holds, so the overlap is backed like any other.
 ///
@@ -141,7 +138,7 @@ fn count(cs: &[CensusContact], f: impl Fn(&CensusContact) -> bool) -> usize {
 #[test]
 fn the_declared_overhang_seat_keeps_no_hard_finding() {
     let (body, post_top, shelf_bottom, _) = overhang_seat();
-    let found = errors(&body, &declared(post_top, shelf_bottom));
+    let found = errors(&body, &declared(&body, post_top, shelf_bottom));
     assert!(
         undeclared(&found).is_empty(),
         "every finding of the declared overhang seat is answered: {found:?}"
@@ -179,24 +176,17 @@ fn the_bare_overhang_seat_still_refuses() {
 /// overlap stays a hard finding, and the census is exactly as loud as
 /// with no declaration at all.
 ///
-/// What this row does and does NOT say. It says the rung reads the
-/// declared pair's own incidence, so a pair incident to NEITHER the
-/// vertex's faces nor a face of the edge backs nothing. It does not say
-/// that only the resting pair backs this bound: `ve_face_backed` asks
-/// for a pair holding some face incident to the vertex against some
-/// face the edge bounds, and never names the face whose overlap is
-/// being certified — so pairs with no relation to the resting interface
-/// back the arm too, a declaration the confirm pass itself refutes
-/// included. That reach is the ratified region-unconfined strength
-/// working as ruled, not a leak, and
-/// `review_mate4a_r2_probes::r2_an_unrelated_declared_pair_backs_the_ef_bound`
-/// is where it is demonstrated rather than left to be inferred from
-/// this row's silence.
+/// The rung is region-confined: a declared pair backs a bound only
+/// where the bound lies in both faces' closed regions on their carriers
+/// and the pair's own overlap verifies, so a pair with no relation to
+/// the resting interface backs nothing —
+/// `review_mate4a_r2_probes::r2_an_unrelated_declared_pair_backs_no_ef_bound`
+/// is that row for a pair incident to the bound's entities.
 #[test]
 fn a_wrong_pair_backs_no_ef_bound() {
     let (body, post_top, _, shelf_top) = overhang_seat();
     let bare = undeclared(&errors(&body, &ContactRecords::default()));
-    let wrong = undeclared(&errors(&body, &declared(post_top, shelf_top)));
+    let wrong = undeclared(&errors(&body, &declared(&body, post_top, shelf_top)));
     assert_eq!(
         count(&wrong, |c| matches!(
             c,
@@ -219,15 +209,16 @@ fn a_wrong_pair_backs_no_ef_bound() {
 /// point lies in the declared pair's verified overlap region (a
 /// corner of the `[0.30,0.60] × [0.20,0.30]` interface) and the
 /// material lies on opposite sides of the shared `z = 0.5` carrier
-/// (cap below, shelf above: the legal overhang) — and the shelf
-/// edge's dive through the cap's face certifies through the
-/// (grandfathered) ef-bound rung as before, so NOTHING of the
+/// (cap below, shelf above: the legal overhang). The shelf edge's dive
+/// through the cap's face is cut at those two crossings, so each bound
+/// of its one cell is a crossing the same rung backs; the cap's side
+/// edges resting under the shelf are cut there too. NOTHING of the
 /// declared seat is left: the seat a user draws by dragging a part
 /// until it overhangs certifies outright.
 #[test]
 fn the_declared_straddle_seat_certifies() {
     let (body, post_top, shelf_bottom) = straddle_seat();
-    let found = errors(&body, &declared(post_top, shelf_bottom));
+    let found = errors(&body, &declared(&body, post_top, shelf_bottom));
     assert!(
         found.is_empty(),
         "the declared straddle seat's crossings are backed at the \
@@ -235,31 +226,44 @@ fn the_declared_straddle_seat_certifies() {
     );
 }
 
-/// The crossing rung reads DECLARATIONS only: bare, the straddle
-/// seat's WHOLE error list is pinned character for character —
-/// witnesses included (the fence's discipline: the crossing rung reads
-/// declarations, so on an undeclared document it gains no finding,
-/// loses none, and moves no witness). The two `EdgeEdgeCross` witnesses are PLAIN — no
-/// verdict is named where no declared pair answered.
+/// The rungs read DECLARATIONS only: bare, the straddle seat's WHOLE
+/// error list is pinned character for character, witnesses included.
+/// The two `EdgeEdgeCross` witnesses are PLAIN — no verdict is named
+/// where no declared pair answered. Each cap side edge rests under the
+/// shelf from its lower corner up to where it crosses the shelf's
+/// `y = 0.30` edge, and that stretch is its own edge-on-face overlap
+/// (witness `y = 0.25`, the cell's midpoint); the shelf edge's overlap
+/// with the cap is the cell between the two crossings.
 #[test]
 fn the_bare_straddle_seat_is_untouched() {
     let (body, _, _) = straddle_seat();
     let found = errors(&body, &ContactRecords::default());
     assert_eq!(
         format!("{found:?}"),
-        "[UndeclaredContact { contact: VertexOnFace { vertex: VertexKey(5v1), \
-         face: FaceKey(8v1) }, witness: \"(0.3, 0.2, 0.5)\" }, \
-         UndeclaredContact { contact: VertexOnFace { vertex: VertexKey(6v1), \
-         face: FaceKey(8v1) }, witness: \"(0.6, 0.2, 0.5)\" }, \
-         UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(9v1), \
-         face: FaceKey(8v1) }, witness: \"(0.44999999999999996, 0.2, 0.5)\" }, \
-         UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(15v1), \
-         face: FaceKey(1v1) }, witness: \"(0.45, 0.3, 0.5)\" }, \
-         UndeclaredContact { contact: EdgeEdgeCross { a: EdgeKey(10v1), \
-         b: EdgeKey(15v1) }, witness: \"(0.6, 0.3, 0.5)\" }, \
-         UndeclaredContact { contact: EdgeEdgeCross { a: EdgeKey(12v1), \
-         b: EdgeKey(15v1) }, witness: \"(0.3, 0.3, 0.5)\" }]",
-        "the bare straddle seat's whole census: not a finding gained, \
-         not a finding lost, not a witness moved"
+        "[UnrecordedContact { contact: VertexOnFace { vertex: VertexKey(5v1), \
+         face: FaceKey(8v1) }, witness: \"(0.3, 0.2, 0.5)\", \
+         margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }, \
+         UnrecordedContact { contact: VertexOnFace { vertex: VertexKey(6v1), \
+         face: FaceKey(8v1) }, witness: \"(0.6, 0.2, 0.5)\", \
+         margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }, \
+         UnrecordedContact { contact: EdgeFaceOverlap { edge: EdgeKey(9v1), \
+         face: FaceKey(8v1) }, witness: \"(0.44999999999999996, 0.2, 0.5)\", \
+         margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }, \
+         UnrecordedContact { contact: EdgeFaceOverlap { edge: EdgeKey(10v1), \
+         face: FaceKey(8v1) }, witness: \"(0.6, 0.25, 0.5)\", \
+         margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }, \
+         UnrecordedContact { contact: EdgeFaceOverlap { edge: EdgeKey(12v1), \
+         face: FaceKey(8v1) }, witness: \"(0.3, 0.25, 0.5)\", \
+         margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }, \
+         UnrecordedContact { contact: EdgeFaceOverlap { edge: EdgeKey(15v1), \
+         face: FaceKey(1v1) }, witness: \"(0.44999999999999996, 0.3, 0.5)\", \
+         margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }, \
+         UnrecordedContact { contact: EdgeEdgeCross { a: EdgeKey(10v1), \
+         b: EdgeKey(15v1), side: None }, witness: \"(0.6, 0.3, 0.5)\", \
+         margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }, \
+         UnrecordedContact { contact: EdgeEdgeCross { a: EdgeKey(12v1), \
+         b: EdgeKey(15v1), side: None }, witness: \"(0.3, 0.3, 0.5)\", \
+         margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }]",
+        "the bare straddle seat's whole census"
     );
 }

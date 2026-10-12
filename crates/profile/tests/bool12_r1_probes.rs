@@ -169,15 +169,15 @@ fn r1_the_d_shape_rotations_cannot_swap_verbs() {
 /// consult the following carrier, so the first half is DELIBERATE: the
 /// lattice cannot see that the entry's first side is an arc, the
 /// declared-straight close therefore lands, and the DATA gate — the
-/// layer that owns materialized carriers — is what refuses it. This row
-/// pins that division of labour, then runs the recourse and requires it
-/// to close and validate.
+/// layer that owns materialized carriers — is what reads it. This row
+/// runs the recourse and requires it to close and validate with the
+/// seam constructed.
 ///
 /// Fixture: a quarter-circle fan. Entry (0,0); first side the CCW
 /// quarter arc about (0,1) to (1,1) — departing EAST; then west to
 /// (-1,1), south to (-1,0), and the closing line east into (0,0).
 #[test]
-fn r1_a_straight_arrival_into_an_arc_first_side_is_an_undeclared_tangency_at_the_gate() {
+fn r1_a_straight_arrival_into_an_arc_first_side_closes_constructed_and_validates() {
     let t = Tol::witness();
     let fan = |declared: bool| {
         let p = Open
@@ -206,7 +206,7 @@ fn r1_a_straight_arrival_into_an_arc_first_side_is_an_undeclared_tangency_at_the
         "{:?}",
         fan(false)
     );
-    // DECLARED: the algebra closes and joint 0 is declared tangent.
+    // DECLARED: the algebra closes and joint 0 is constructed tangent.
     // (An intermediate reading had a second token, `arrives_straight`,
     // that declared a SUBDIVISION joint here and declared nothing;
     // both it and that distinction are retired — Q1 sixth round.)
@@ -214,10 +214,10 @@ fn r1_a_straight_arrival_into_an_arc_first_side_is_an_undeclared_tangency_at_the
     // RULED AGAIN (2026-09-02, addendum 3): there is ONE arrival token
     // and it declares the seam's joint TANGENT, so a straight leg
     // arriving G1 into an arc first side declares exactly the joint
-    // that is there. Joint 0 is declared and the DATA gate accepts —
+    // that is there. Joint 0 is constructed and the DATA gate accepts —
     // the finding's whole subject, an undeclared tangency reaching the
     // gate, is gone because the declaration reaches it first.
-    assert_eq!(closed.loop_.tangent_joints(), &[0]);
+    assert_eq!(closed.loop_.constructed_joints(), &[0]);
     let verdict = validate(&closed);
     println!("R1: straight arrival into an arc first side -> {verdict:?}");
     verdict.expect("the declared seam joint is what the data says it is");
@@ -240,7 +240,7 @@ fn r1_a_straight_arrival_into_an_arc_first_side_is_an_undeclared_tangency_at_the
         .unwrap()
         .line_to(Start.arrives_tangent(), t)
         .expect("a straight leg may declare a TANGENT seam joint");
-    assert_eq!(g1.loop_.tangent_joints(), &[0]);
+    assert_eq!(g1.loop_.constructed_joints(), &[0]);
     validate(&g1).expect("the declared G1 seam validates");
 }
 
@@ -252,7 +252,7 @@ fn r1_a_straight_arrival_into_an_arc_first_side_is_an_undeclared_tangency_at_the
 /// lattice may not ask whether the carriers are the same, and identity
 /// is not a reason to refuse a declaration — identity is a fact about
 /// the CARRIERS, tangency a fact about the DIRECTIONS, and the
-/// directions agree here. Every zero-turn joint is a declared tangent
+/// directions agree here. Every zero-turn joint is a constructed tangent
 /// joint. The loop closes, joint 0 is declared, `validate` is green.
 ///
 /// Fixture: entry (1,0) heading north; a 3/4 unit circle to (0,-1);
@@ -277,10 +277,10 @@ fn r1_a_cocircular_declared_tangent_arrival_is_carrier_identity_the_algebra_miss
         .angle(FRAC_PI_4, t)
         .unwrap()
         .tangent_arc_to(Start.arrives_tangent(), t);
-    let closed = closed.expect("a declared tangent joint onto one carrier is a tangent joint");
-    assert!(closed.loop_.tangent_joints().contains(&0));
+    let closed = closed.expect("a constructed tangent joint onto one carrier is a tangent joint");
+    assert!(closed.loop_.constructed_joints().contains(&0));
     let verdict = validate(&closed);
-    println!("R1: cocircular declared tangent seam -> {verdict:?}");
+    println!("R1: cocircular constructed tangent seam -> {verdict:?}");
     verdict.expect("the data gate accepts it too: the directions agree");
 }
 
@@ -353,7 +353,7 @@ fn r1_the_sharp_arc_seam_is_told_to_use_a_target_it_cannot_take() {
         .expect("the message's own recourse closes the loop");
     // The seam is a declared G1 joint, so joint 0 carries the flag and
     // the gate re-checks it.
-    assert!(closed.loop_.tangent_joints().contains(&0));
+    assert!(closed.loop_.constructed_joints().contains(&0));
     validate(&closed).expect("the declared sharp-arc seam validates");
 }
 

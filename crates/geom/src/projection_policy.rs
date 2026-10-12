@@ -36,6 +36,10 @@
 //!   interval lane, which is what makes a rung-3 certificate against a
 //!   NURBS operand exist there at all.
 //!
+//! Every parameter the search hands `T` (a sweep sample, an iterate, a
+//! step) enters through `Real::from_computed`: at `Sym` it is an
+//! unknown, never the constant its bits spell.
+//!
 //! The bound is the sole-bound `T: Bounds` the discipline reserves for
 //! certification/driver code (`geom_core::real`'s scope rule): reading
 //! a bracket to *select* a parameter is the driver half of that rule,
@@ -47,19 +51,20 @@
 //! is a search for structure; the honesty is entirely in the residuals
 //! it reports, which are reported at the consumer's scalar.
 //!
-//! # Honesty (C2.1): a bad projection cannot launder a bad cache
+//! # Honesty (C2 limb 1): the distance is the residual
 //!
 //! Newton converges to *stationary points* of the distance, so a
 //! deliberately bad seed can converge to a far branch or sheet with a
 //! tiny orthogonality residual and a large distance; and at a
 //! degenerate parameterization point (a vanishing partial — a cusp, a
 //! collapsed row of control points) the cosine condition is met with a
-//! trivially-zero orthogonality residual. **Every residual rides the
-//! result**, so a consumer must band them *together*: wrong
-//! branch/sheet ⇒ the distance fails the band; a boundary clamp ⇒ an
-//! orthogonality residual fails it. Neither half decides anything;
-//! both report. Each half's docs name its own residual set and its
-//! planted-fixture rows.
+//! trivially-zero orthogonality residual. **The distance rides the
+//! result**, and it is the residual a consumer bands: a foot is a point
+//! of the curve or surface at every exit, boundary clamps included, so
+//! its distance bounds the query point's true distance above. A wrong
+//! branch or sheet fails the band; nothing reads smaller than the
+//! truth. Neither half decides anything; both report. Each half's docs
+//! name its own residual set and its planted-fixture rows.
 //!
 //! # Non-convergence
 //!

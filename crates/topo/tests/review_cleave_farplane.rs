@@ -253,9 +253,14 @@ fn booleans_beside_a_far_carrier_never_answer_wrong() {
                 .into_iter()
                 .zip(want)
             {
-                let decls = topo::BooleanDeclarations::none();
-                let got =
-                    topo::boolean_op_with(op, &l, &c, &decls, topo::SweepStrategy::Realized, tol);
+                let got = topo::boolean_op_with(
+                    op,
+                    &l,
+                    &c,
+                    &topo::BooleanInputs::default(),
+                    topo::SweepStrategy::Realized,
+                    tol,
+                );
                 match got {
                     Ok(r) => {
                         let v = r
@@ -297,7 +302,7 @@ fn booleans_beside_a_far_carrier_never_answer_wrong() {
     // from its far carrier, inside the escalate band, and the door's
     // tier-3 result gate cannot certify the ring's containment: ∪ and ∖
     // refuse it there, at every k and every ε, and nothing else refuses
-    // (`work/reach/a-nested-brick-k-eps-from-a-far-carrier-escalates-at-the-result-gate.md`).
+    // (`work/tally/a-nested-brick-k-eps-from-a-far-carrier-escalates-at-the-result-gate.md`).
     let want: Vec<(String, bool)> = [2.0, 5.0, 9.0]
         .iter()
         .flat_map(|k| ["Union", "Subtract"].map(|op| (format!("k={k} through the top {op}"), true)))

@@ -92,7 +92,7 @@ fn probe(q: Point3<f64>, d_raw: Vec3<f64>, band: Band) -> (Option<(usize, Vec<f6
         }
         // Rung 5 (constructed ≠ certified) is a broken premise; an
         // in-band escalation is the honest decline.
-        Ok(TorusRoots::CountDisagrees) => (None, true),
+        Ok(TorusRoots::CountDisagrees { .. }) => (None, true),
         Err(e) => (None, e.margin.is_invalid()),
     }
 }

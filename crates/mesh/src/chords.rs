@@ -593,6 +593,15 @@ fn nurbs_tighten(
                            one",
                 });
             }
+            // As the focal section: a projected image is an analytic
+            // chart's inverse of its carrier.
+            Pcurve::Projected(_) => {
+                return Err(TessellateError::UnsupportedCurve {
+                    edge: ek,
+                    note: "NURBS-face half-edge carries a PROJECTED pcurve — that image \
+                           lives on an analytic chart, so no spline chart mints one",
+                });
+            }
         };
         n = n
             .max(ceil_count(su * span, hu)?)

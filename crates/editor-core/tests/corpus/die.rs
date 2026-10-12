@@ -3,8 +3,8 @@
 //! authoring so the corpus and the PR 2/5/6 acceptance rows can never
 //! drift apart.
 //!
-//! Vocabulary: Profile, Extrude, Transform, Boolean (Subtract,
-//! declared), `DeclareVar`, `InsertNode`.
+//! Vocabulary: Profile, Extrude, Transform, Boolean (Subtract),
+//! `DeclareVar`, `InsertNode`.
 //!
 //! Exact oracles (dyadic throughout — cube `[0,2]³`, 21 pips of
 //! 0.25 × 0.25 × 0.125):
@@ -26,11 +26,16 @@ use crate::fixture::{die, len};
 /// The die corpus document.
 pub fn document() -> CorpusDoc {
     let d = die();
+    let mut r = crate::fixture::Recorder {
+        doc: d.doc,
+        edits: d.edits,
+    };
+    r.place(d.final_node);
     CorpusDoc {
         name: "die",
-        about: "M3 exact-oracle die: 21 declared pip subtracts (63 nodes)",
-        edits: d.edits,
-        doc: d.doc,
+        about: "M3 exact-oracle die: 21 declared pip subtracts (63 nodes), placed",
+        edits: r.edits,
+        doc: r.doc,
         result: Some(d.final_node),
         pin: Some(MassPin {
             volume: 7.8359375,
@@ -41,7 +46,7 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: d.pz_extrude,
             slot: SlotId::Distance,
-            expr: len(0.1875),
+            value: len(0.1875).into(),
             fresh: Vec::new(),
         },
         bump_root: d.pz_extrude,

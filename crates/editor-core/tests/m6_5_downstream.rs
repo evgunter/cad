@@ -42,7 +42,7 @@ use editor_core::ExtrudeSide;
 use std::collections::BTreeSet;
 
 use editor_core::{
-    BooleanOp, CancelToken, CapEnd, DocEdit, EntityKind, EvalOptions, Node, NodeResult, ProfileDoc,
+    CancelToken, CapEnd, DocEdit, EntityKind, EvalOptions, Node, NodeResult, ProfileDoc,
     RecipeNodeId, RoleSeg, StableName, ValuePayload, apply, evaluate,
 };
 use fixture::{len, prism_edges};
@@ -92,7 +92,7 @@ fn block(
     insert(
         &doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -126,7 +126,8 @@ fn filleted_blank() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 /// named, none by matching.
 #[test]
 fn an_every_edge_fillet_emits_a_full_name_table() {
-    let (doc, _, blank) = filleted_blank();
+    let (doc, cube, blank) = filleted_blank();
+    let target_read = fixture::out(&doc, cube);
     let ev = eval(&doc);
     let table = table_of(&ev, blank);
     let NodeResult::Ok(v) = ev.nodes.get(&blank).expect("the fillet") else {
@@ -157,7 +158,7 @@ fn an_every_edge_fillet_emits_a_full_name_table() {
             | RoleSeg::TrimEdge { .. }
             | RoleSeg::FootVertex { .. }
             | RoleSeg::EndArc { .. } => {}
-            RoleSeg::FromTarget(_) => supports += 1,
+            RoleSeg::From { read, .. } if *read == target_read => supports += 1,
             other => panic!("a non-fillet role in a fillet table: {other:?}"),
         }
     }
@@ -236,14 +237,15 @@ fn an_appearance_record_on_a_fillet_minted_face_resolves() {
 #[test]
 fn every_fillet_minted_role_resolves_through_the_ladder() {
     use editor_core::resolve::{Resolution, RunCtx, resolve};
-    let (doc, _, blank) = filleted_blank();
+    let (doc, cube, blank) = filleted_blank();
+    let target_read = fixture::out(&doc, cube);
     let ev = eval(&doc);
     let table = table_of(&ev, blank);
     let mut seen: BTreeSet<&str> = BTreeSet::new();
     for (name, _) in table.iter() {
         let role = match name.path.first().expect("a role path") {
             RoleSeg::OutputBody => "body",
-            RoleSeg::FromTarget(_) => "support",
+            RoleSeg::From { read, .. } if *read == target_read => "support",
             RoleSeg::BlendFace(_) => "blend",
             RoleSeg::CornerFace(_) => "octant",
             RoleSeg::TrimEdge { .. } => "trim",
@@ -298,11 +300,8 @@ fn a_boolean_over_a_filleted_body_composes_downstream_of_the_fillet() {
     let (doc, far) = block(&doc, (4.0, 5.0), (2.0, 3.0), 2.0, 3.0);
     let (doc, union) = insert(
         &doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: blank,
-            b: far,
-            declare: Vec::new(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![blank.into(), far.into()]),
         },
     );
     let ev = eval(&doc);
@@ -330,6 +329,7 @@ fn the_downstream_reference_survives_an_upstream_bump() {
     let (doc, cube, blank) = filleted_blank();
     let blank_top = editor_core::carried(
         blank,
+        fixture::out(&doc, cube),
         StableName {
             kind: EntityKind::Face,
             node: cube,
@@ -342,7 +342,7 @@ fn the_downstream_reference_survives_an_upstream_bump() {
         &DocEdit::SetParam {
             node: cube,
             slot: editor_core::SlotId::Distance,
-            expr: len(1.25),
+            value: len(1.25).into(),
             fresh: Vec::new(),
         },
         Tol::witness(),
@@ -407,7 +407,7 @@ fn all_edges_materializes_exactly_the_authored_every_edge_set() {
         &DocEdit::SetParam {
             node: cube,
             slot: editor_core::SlotId::Distance,
-            expr: len(1.25),
+            value: len(1.25).into(),
             fresh: Vec::new(),
         },
         Tol::witness(),
@@ -416,7 +416,7 @@ fn all_edges_materializes_exactly_the_authored_every_edge_set() {
     .expect("the bump applies")
     .doc;
     let stored = match bumped.node(blank) {
-        Some(Node::Fillet { selection, .. }) => selection.clone(),
+        Some(Node::Fillet { selection, .. }) => crate::fixture::selected(&bumped, *selection),
         other => panic!("expected a fillet, got {other:?}"),
     };
     assert_eq!(stored, materialized, "the materialized set froze");

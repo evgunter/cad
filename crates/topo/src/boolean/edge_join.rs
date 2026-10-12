@@ -1,9 +1,24 @@
 //! **The join**: a vertex of valence 2 whose two edges lie on one
 //! structural carrier between the same two faces is no corner, so the
 //! two edges are one edge cut for no reason (`docs/DESIGN.md`, maximal
-//! edges). The join kills the vertex and makes the two edges one. Every
-//! boolean output stage runs it after the merge ([`join_stage`]) and
-//! writes, per join, the substitution rows that carry every contact
+//! edges). The join kills the vertex and makes the two edges one.
+//!
+//! **The join door** ([`Body::join_edges`]) is the one public spelling:
+//! every door that finishes a body ends with it (`docs/DESIGN.md`, the
+//! merge stage), and it returns each join it made ([`EdgeJoin`]) for a
+//! door that carries records or names keyed by the body's cells. The
+//! door is whole: the kills run on a staged clone, so on any refusal
+//! the body is as found (a reading in the band refuses before any kill,
+//! and a reading or kill that refuses later refuses on the clone), and
+//! a body that carried pcurve rows has them re-derived, so no row is
+//! left keyed by a dead cell. A door that is not the boolean carries
+//! its refusal typed ([`JoinRefusal`]). The offset doors, the split,
+//! the shell and the blend join on their own staging
+//! (`Body::join_edges_within`), the offset doors and the blend over
+//! their own scope alone.
+//!
+//! The boolean's output stages run it after the merge ([`join_stage`])
+//! and write, per join, the substitution rows that carry every contact
 //! record naming the cells it replaces onto the edge it makes, through
 //! the op's one substitution door ([`super::ops::carry`]).
 //!
@@ -69,6 +84,52 @@ struct Join {
     planar: bool,
 }
 
+/// **What each edge a run of joins made covers**, read off the joins'
+/// records alone, in the order made: each live `kept` edge → every
+/// edge it holds, itself first, then each `gone` in the order the joins
+/// took them, a later join's `gone` that was an earlier one's `kept`
+/// bringing its own cover with it. The one chase every door that
+/// carries records or names over a join reads (the boolean's
+/// [`crate::BooleanNaming::joined_edge`], and the split's, the shell's
+/// and the blend's emitters); an edge no join touched has no row.
+#[must_use]
+pub fn join_covers(joins: &[EdgeJoin]) -> BTreeMap<EdgeKey, Vec<EdgeKey>> {
+    let mut covers: BTreeMap<EdgeKey, Vec<EdgeKey>> = BTreeMap::new();
+    for j in joins {
+        let gone = covers.remove(&j.gone).unwrap_or_else(|| vec![j.gone]);
+        covers
+            .entry(j.kept)
+            .or_insert_with(|| vec![j.kept])
+            .extend(gone);
+    }
+    covers
+}
+
+/// The live edge `edge` is part of after `joins`: itself, or the edge a
+/// join killed it into, followed through every later join.
+#[must_use]
+pub fn joined_edge(joins: &[EdgeJoin], edge: EdgeKey) -> EdgeKey {
+    joins
+        .iter()
+        .fold(edge, |at, j| if j.gone == at { j.kept } else { at })
+}
+
+/// The live cell `cell` is after `joins`: a joined-away vertex or edge is
+/// the edge that holds its interior now ([`joined_edge`]), and every
+/// other cell is itself.
+#[must_use]
+pub fn joined_cell(joins: &[EdgeJoin], cell: super::Cell) -> super::Cell {
+    use super::Cell;
+    match cell {
+        Cell::Vertex(v) => joins
+            .iter()
+            .find(|j| j.vertex == v)
+            .map_or(cell, |j| Cell::Edge(joined_edge(joins, j.kept))),
+        Cell::Edge(e) => Cell::Edge(joined_edge(joins, e)),
+        Cell::Face(_) => cell,
+    }
+}
+
 /// One join an output stage made ([`join_stage`]): `vertex` and `gone`
 /// are dead, and `kept` holds both their interiors and its own.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -87,7 +148,11 @@ pub struct EdgeJoin {
 /// **A joinable reading the band cannot decide**: whether `vertex` is
 /// a regular point of the carrier its two edges lie on, or which iso
 /// family an edge's chart image is on, read inside the margin band, so
-/// the vertex is neither joined nor left (D4 ¶3).
+/// the vertex is neither joined nor left (D4 ¶3). Its own Display is
+/// the Boolean's refusal ([`BooleanError::JoinUndecided`]); the join
+/// door ([`JoinRefusal`]) and the at-rest check
+/// (`ValidationError::JoinUndecidedAtRest`) render it from
+/// [`JoinUndecided::diag`] themselves.
 #[derive(Clone, Debug, PartialEq)]
 pub struct JoinUndecided {
     /// The valence-2 vertex.
@@ -95,6 +160,26 @@ pub struct JoinUndecided {
     /// The reading that escalated.
     pub reading: JoinReading,
 }
+
+impl JoinUndecided {
+    /// The escalation this refusal carries, where its reading is a
+    /// margin the band could not decide: what a reader over stored
+    /// geometry ends at rest itself ([`JOIN_SUBJECT`], [`JOIN_LEVER`]).
+    #[must_use]
+    pub fn diag(&self) -> Option<&Indeterminate> {
+        match &self.reading {
+            JoinReading::Regularity(diag)
+            | JoinReading::ChartClass(geom_brep::IsoFamilyRefusal::Undecided(diag)) => Some(diag),
+            JoinReading::ChartClass(geom_brep::IsoFamilyRefusal::Image(_)) => None,
+        }
+    }
+}
+
+/// The question an undecided join asks ([`JoinRefusal::Undecided`]).
+pub const JOIN_SUBJECT: &str = "whether two edges meeting at a vertex on one curve are one edge";
+
+/// The undecided join's geometry lever.
+pub const JOIN_LEVER: &str = "move the vertex clear of the pole, apex or tangency it sits near";
 
 /// Which reading of [`JoinUndecided`] escalated.
 #[derive(Clone, Debug, PartialEq)]
@@ -107,16 +192,42 @@ pub enum JoinReading {
     ChartClass(geom_brep::IsoFamilyRefusal),
 }
 
+/// The whole refusal: a regularity reading asks [`JOIN_SUBJECT`], a
+/// sized margin, and ends in [`Indeterminate::ending`] under
+/// [`geom_core::COINCIDENCE_RECOURSE`]; a chart-class reading asks its
+/// own question ([`geom_brep::ISO_FAMILY_CLAUSE`]), a form selection on
+/// no size the user chose, and ends in that lever alone
+/// ([`geom_brep::recourse::LeverOnly`]).
 impl core::fmt::Display for JoinUndecided {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "whether valence-2 vertex {:?} joins its two edges is undecided: ",
-            self.vertex
-        )?;
         match &self.reading {
-            JoinReading::Regularity(diag) => write!(f, "{diag}"),
-            JoinReading::ChartClass(e) => write!(f, "{e}"),
+            JoinReading::Regularity(diag) => write!(
+                f,
+                "{}",
+                diag.undecided(JOIN_SUBJECT, diag.ending(geom_core::COINCIDENCE_RECOURSE))
+            ),
+            JoinReading::ChartClass(geom_brep::IsoFamilyRefusal::Undecided(diag)) => write!(
+                f,
+                "{}",
+                diag.undecided(
+                    format_args!(
+                        "whether an edge meeting another at a vertex on one curve {}",
+                        geom_brep::ISO_FAMILY_CLAUSE
+                    ),
+                    geom_brep::recourse::LeverOnly {
+                        lever: geom_core::COINCIDENCE_RECOURSE,
+                    }
+                    .recourse(
+                        geom_brep::recourse::RefusedArm::Undecided(diag),
+                        geom_brep::recourse::Reading::Build
+                    )
+                )
+            ),
+            JoinReading::ChartClass(e @ geom_brep::IsoFamilyRefusal::Image(_)) => write!(
+                f,
+                concat!("{}", geom_core::undecided!(), ": {}"),
+                JOIN_SUBJECT, e
+            ),
         }
     }
 }
@@ -302,8 +413,8 @@ fn joinable<T: Decide>(
             certified_line(body, e, d).is_some_and(|c| {
                 matches!(
                     c.description(),
-                    geom_brep::EdgeDescription::Intersection { s1, s2, .. }
-                        if Body::<T>::cites_pair((*s1, *s2), sf, sg)
+                    geom_brep::EdgeDescription::Intersection { pair, .. }
+                        if *pair == geom_brep::SurfacePair::new(sf, sg)
                 )
             })
         };
@@ -316,13 +427,13 @@ fn joinable<T: Decide>(
             return Ok(None);
         };
         Ok(match c.description() {
-            geom_brep::EdgeDescription::Intersection { s1, s2, .. }
-                if sf != sg && Body::<T>::cites_pair((*s1, *s2), sf, sg) =>
+            geom_brep::EdgeDescription::Intersection { pair, .. }
+                if sf != sg && *pair == geom_brep::SurfacePair::new(sf, sg) =>
             {
                 Some(Locus::Transverse)
             }
-            geom_brep::EdgeDescription::TangentIntersection { s1, s2, .. }
-                if sf != sg && Body::<T>::cites_pair((*s1, *s2), sf, sg) =>
+            geom_brep::EdgeDescription::TangentIntersection { pair, .. }
+                if sf != sg && *pair == geom_brep::SurfacePair::new(sf, sg) =>
             {
                 Some(Locus::Tangent)
             }
@@ -365,7 +476,7 @@ fn joinable<T: Decide>(
         return Ok(None);
     };
     let class = geom_brep::classify_dihedral(surf_f, surf_g, p, extent, band)
-        .map_err(|e| regularity(e.diag))?;
+        .map_err(|e| regularity(e.diag()))?;
     let regular = match (locus, class) {
         (Locus::Transverse, geom_brep::DihedralClass::Transverse) => true,
         (Locus::Tangent, geom_brep::DihedralClass::Smooth) => {
@@ -416,51 +527,270 @@ pub fn joinable_vertices<T: Decide>(
     Ok(out)
 }
 
-/// **The output stage's join**: joins every joinable vertex
-/// ([`joinable_vertices`]) of `body`, one at a time in vertex-arena
-/// order until none is left, and writes each join's substitution rows
-/// into `desc` (`w → kept`, `gone → kept`, and where the join leaves a
-/// conventional vertex, that vertex `→ kept`), so the op's one
-/// [`super::ops::carry`] takes every record through its zips, its merge
-/// and its joins together. Runs after the merge and its re-description,
-/// before the records are carried. Returns the joins in the order made,
-/// a later one's `gone` or `kept` possibly an earlier one's `kept`.
+/// **Tier 3's check 11, read** (`docs/DESIGN.md`, maximal edges; Ev's
+/// PR 4251 ruling): every vertex of `body`, in vertex-arena order, that
+/// the join's own predicate takes (`Ok`) or cannot decide in `band`
+/// (`Err`). A finished body holds neither: every finisher ends with the
+/// join, and a reading in the band is a size the run's tolerance cannot
+/// tell from a regular point, which a tighter tolerance can.
+pub(crate) fn joinable_at_rest<T: Decide>(
+    body: &Body<T>,
+    band: Band,
+) -> Vec<Result<VertexKey, JoinUndecided>> {
+    let pass = Pass::of(body);
+    body.vertices()
+        .filter_map(|(w, _)| match joinable(body, w, &pass, band) {
+            Ok(Some(_)) => Some(Ok(w)),
+            Ok(None) => None,
+            Err(undecided) => Some(Err(undecided)),
+        })
+        .collect()
+}
+
+/// Joins every joinable vertex of `body` ([`Body::join_edges`]) and
+/// writes each join's substitution rows into `desc` (`w → kept`,
+/// `gone → kept`, and where the join leaves a conventional vertex, that
+/// vertex `→ kept`), so the op's one [`super::ops::carry`] takes every
+/// record through its zips, its merge and its joins together. Runs
+/// after the merge and its re-description, before the records are
+/// carried.
 ///
 /// # Errors
 ///
-/// [`BooleanError::JoinUndecided`], the kill's own refusal
-/// ([`BooleanError::Euler`]), a carrier the joined edge cannot be
-/// restated on ([`BooleanError::JoinCarrierUnsupported`]), or the
-/// description's.
+/// As [`Body::join_edges`].
 pub(super) fn join_stage<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     desc: &mut Descendants,
     band: Band,
     tol: Tol,
 ) -> Result<Vec<EdgeJoin>, BooleanError> {
+    let joined = body.join_edges(band, tol)?;
+    for j in &joined {
+        desc.substitute(Cell::Vertex(j.vertex), Cell::Edge(j.kept));
+        desc.substitute(Cell::Edge(j.gone), Cell::Edge(j.kept));
+        if let Some(v) = j.conventional {
+            desc.substitute(Cell::Vertex(v), Cell::Edge(j.kept));
+        }
+    }
+    Ok(joined)
+}
+
+/// **Why the join refused**, as a door that is not the boolean carries
+/// it ([`crate::MergeCoplanarError::Join`],
+/// [`crate::ReplaceFaceError::Join`]): typed, keyless, and worded with
+/// one recourse.
+#[derive(Clone, Debug, PartialEq)]
+pub enum JoinRefusal {
+    /// A regularity or chart-class reading at a vertex landed in the
+    /// band ([`BooleanError::JoinUndecided`]).
+    Undecided(JoinUndecided),
+    /// The joined edge's carrier has no period (a closed join) or no
+    /// parameter inverse (a spline) to run it on
+    /// ([`BooleanError::JoinCarrierUnsupported`]).
+    CarrierUnsupported {
+        /// The carrier's kind.
+        carrier: geom::CurveKind,
+        /// Whether the join closes.
+        closed: bool,
+    },
+    /// The kill, the re-description or the re-mint refused on a body
+    /// that passed tier 2: a kernel or file defect, by the refusal's
+    /// kind.
+    Kernel {
+        /// The boolean refusal's kind.
+        kind: super::BooleanErrorKind,
+    },
+}
+
+/// A refusal kind as its variant's name.
+fn kind_word(kind: super::BooleanErrorKind) -> String {
+    format!("{kind:?}")
+}
+
+impl JoinRefusal {
+    /// The join door's refusal, typed for a door that is not the
+    /// boolean.
+    #[must_use]
+    pub fn of(refusal: &BooleanError) -> Self {
+        match refusal {
+            BooleanError::JoinUndecided(e) => Self::Undecided(e.clone()),
+            BooleanError::JoinCarrierUnsupported {
+                carrier, closed, ..
+            } => Self::CarrierUnsupported {
+                carrier: *carrier,
+                closed: *closed,
+            },
+            other => Self::Kernel { kind: other.kind() },
+        }
+    }
+}
+
+impl core::fmt::Display for JoinRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let undecided = |f: &mut core::fmt::Formatter<'_>, diag: &Indeterminate| {
+            write!(
+                f,
+                "{JOIN_SUBJECT} is undecided ({}). {}",
+                diag.payload(),
+                diag.ending(JOIN_LEVER)
+            )
+        };
+        match self {
+            Self::Undecided(JoinUndecided {
+                reading: JoinReading::Regularity(diag),
+                ..
+            })
+            | Self::Undecided(JoinUndecided {
+                reading: JoinReading::ChartClass(geom_brep::IsoFamilyRefusal::Undecided(diag)),
+                ..
+            }) => undecided(f, diag),
+            Self::Undecided(JoinUndecided {
+                reading: JoinReading::ChartClass(geom_brep::IsoFamilyRefusal::Image(e)),
+                ..
+            }) => write!(
+                f,
+                "two edges meeting at a vertex on one surface have no chart image to read \
+                 their family off ({e}). {}",
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+            ),
+            Self::CarrierUnsupported { carrier, closed } => write!(
+                f,
+                "two edges meet at a vertex on one {} carrier, which the join cannot run an \
+                 edge on {} yet (work/fuse/joining-a-spline-carrier-is-unbuilt); there is no \
+                 way through this yet",
+                carrier.name(),
+                if *closed {
+                    "over a whole period"
+                } else {
+                    "through the vertex"
+                }
+            ),
+            Self::Kernel { kind } => write!(
+                f,
+                "the join of two edges meeting at a vertex on one curve refused ({}). {}",
+                kind_word(*kind),
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+            ),
+        }
+    }
+}
+
+impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
+    /// **The join** (`docs/DESIGN.md`, maximal edges): every joinable
+    /// vertex ([`joinable_vertices`]) of the body, one at a time in
+    /// vertex-arena order until none is left, killed and its two edges
+    /// made one. The door every finisher ends with, so no body reaches
+    /// rest holding a vertex the predicate would join
+    /// (`ValidationError::JoinableVertexAtRest`). Returns the joins in
+    /// the order made, a later one's `gone` or `kept` possibly an
+    /// earlier one's `kept`: a door carrying records or names keyed by
+    /// the body's cells reads each join as `vertex → kept`,
+    /// `gone → kept`, and `conventional → kept` where it is set.
+    ///
+    /// Atomic: the joins run on a clone, which is adopted only once every
+    /// join is made and, where the body carried pcurve rows, they are
+    /// re-derived whole, so no row is left keyed by a killed half-edge.
+    /// On any refusal the body is as found.
+    ///
+    /// # Errors
+    ///
+    /// [`BooleanError::JoinUndecided`], the kill's own refusal
+    /// ([`BooleanError::Euler`]), a carrier the joined edge cannot be
+    /// restated on ([`BooleanError::JoinCarrierUnsupported`]), the
+    /// description's, or the re-mint's ([`BooleanError::Pcurves`]).
+    pub fn join_edges(&mut self, band: Band, tol: Tol) -> Result<Vec<EdgeJoin>, BooleanError> {
+        // Nothing to join: no clone. Every reading in the band refuses
+        // here, before any kill.
+        if joinable_vertices(self, band)
+            .map_err(BooleanError::JoinUndecided)?
+            .is_empty()
+        {
+            return Ok(Vec::new());
+        }
+        // Staged: a refusal past the first kill leaves `self` as found.
+        let mut work = self.clone();
+        let (joined, _) = join_all(&mut work, band, tol, &|_| true)?;
+        // A kill leaves the rows keyed by its half-edges; a body that
+        // carried rows has them re-derived whole (`pcurves::mint_pcurves`
+        // clears the map first), so none is left keyed by a dead cell.
+        if !work.pcurves.is_empty() || !work.joints.is_empty() {
+            crate::pcurves::mint_pcurves(&mut work, tol)
+                .map_err(|source| BooleanError::Pcurves { source })?;
+        }
+        self.adopt(work);
+        Ok(joined)
+    }
+
+    /// [`Body::join_edges`] over the vertices `within` holds, on a body
+    /// the caller has staged: the join of a door that owes no write
+    /// outside the entities its call writes (the offset doors, and the
+    /// blend over the shells it carved), or of one that joins its own
+    /// fresh output in place (the split's halves, the shell). Not staged itself —
+    /// a refusal past the first kill leaves `self` part-joined, for the
+    /// caller to discard with its staging — and no reading outside
+    /// `within` is taken, so a vertex the call does not hold can neither
+    /// be joined nor refuse it. The rows the kills moved are re-derived
+    /// over the joined edges' faces alone: the killed edges' rows are
+    /// dropped and [`crate::pcurves::mint_pcurves_of`] runs on the faces
+    /// each kept edge bounds, where the body carries rows at all.
+    ///
+    /// # Errors
+    ///
+    /// As [`Body::join_edges`], for the vertices `within` holds.
+    pub fn join_edges_within(
+        &mut self,
+        band: Band,
+        tol: Tol,
+        within: &dyn Fn(VertexKey) -> bool,
+    ) -> Result<Vec<EdgeJoin>, BooleanError> {
+        let (joined, dead) = join_all(self, band, tol, within)?;
+        if joined.is_empty() || (self.pcurves.is_empty() && self.joints.is_empty()) {
+            return Ok(joined);
+        }
+        self.drop_rows(dead);
+        let mut faces = BTreeSet::new();
+        for j in &joined {
+            if let Some(e) = self.get_edge(j.kept) {
+                faces.extend(self.face_of_half_edge(e.he_plus));
+                faces.extend(self.face_of_half_edge(e.he_minus));
+            }
+        }
+        let faces: Vec<_> = faces.into_iter().collect();
+        crate::pcurves::mint_pcurves_of(self, &faces, tol)
+            .map_err(|source| BooleanError::Pcurves { source })?;
+        Ok(joined)
+    }
+}
+
+/// [`Body::join_edges`]' loop, on the staged body.
+fn join_all<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    band: Band,
+    tol: Tol,
+    within: &dyn Fn(VertexKey) -> bool,
+) -> Result<(Vec<EdgeJoin>, Vec<HalfEdgeKey>), BooleanError> {
     let mut joined = Vec::new();
+    let mut dead = Vec::new();
     loop {
         let pass = Pass::of(body);
         let mut next = None;
-        for (w, _) in body.vertices() {
+        for (w, _) in body.vertices().filter(|&(w, _)| within(w)) {
             if let Some(j) = joinable(body, w, &pass, band).map_err(BooleanError::JoinUndecided)? {
                 next = Some((w, j));
                 break;
             }
         }
         let Some((w, join)) = next else {
-            return Ok(joined);
+            return Ok((joined, dead));
         };
+        if let Some(gone) = body.get_edge(join.gone) {
+            dead.extend([gone.he_plus, gone.he_minus]);
+        }
         join_one(body, w, &join, band, tol)?;
-        desc.substitute(Cell::Vertex(w), Cell::Edge(join.kept));
-        desc.substitute(Cell::Edge(join.gone), Cell::Edge(join.kept));
         // A closed join's survivor is conventional unless another edge
         // still ends there (a seam strut on the rim it closed).
         let conventional =
             (join.closed && is_conventional_vertex(body, join.far)).then_some(join.far);
-        if let Some(v) = conventional {
-            desc.substitute(Cell::Vertex(v), Cell::Edge(join.kept));
-        }
         joined.push(EdgeJoin {
             vertex: w,
             gone: join.gone,
@@ -527,17 +857,15 @@ fn joined_spec<T: Decide>(
     };
     let (a, b) = if backward { (tx, t1) } else { (t0, tx) };
     let description = match kept.description() {
-        geom_brep::EdgeDescription::Intersection { s1, s2, .. } => {
+        geom_brep::EdgeDescription::Intersection { pair, .. } => {
             geom_brep::EdgeDescriptionSpec::Intersection {
-                s1: *s1,
-                s2: *s2,
+                pair: *pair,
                 witness: carrier.mid_point(a, b),
             }
         }
-        geom_brep::EdgeDescription::TangentIntersection { s1, s2, .. } => {
+        geom_brep::EdgeDescription::TangentIntersection { pair, .. } => {
             geom_brep::EdgeDescriptionSpec::TangentIntersection {
-                s1: *s1,
-                s2: *s2,
+                pair: *pair,
                 witness: carrier.mid_point(a, b),
             }
         }
@@ -667,5 +995,246 @@ mod conventional {
             .half_edge_end(body.get_edge(strut.edge).unwrap().he_plus)
             .unwrap();
         assert!(!is_conventional_vertex(&body, far), "an open edge's end");
+    }
+}
+
+#[cfg(test)]
+mod join_door {
+    //! **The join door and the doors that end with it**: a brick whose
+    //! edge was split at its middle holds one joinable vertex; the join
+    //! door takes it back to the brick, and the public merge door and
+    //! an offset door, ending with the join, leave none either.
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use geom_core::{Band, Tol};
+
+    use super::joinable_vertices;
+    use crate::body::Body;
+    use crate::split::SplitEdgeCreated;
+    use crate::test_support_fixtures::brick;
+
+    /// A unit brick with one edge split at its middle, the split's
+    /// record, and the brick's own arena counts.
+    fn split_brick() -> (
+        Body<f64>,
+        SplitEdgeCreated,
+        crate::test_support::ArenaCounts,
+    ) {
+        let tol = Tol::witness();
+        let mut body = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let whole = body.arena_counts();
+        let (e, d) = body.edges().next().unwrap();
+        let (t0, t1) = body
+            .get_curve_geom(d.curve)
+            .and_then(crate::CurveGeom::certified)
+            .unwrap()
+            .params();
+        let made = body.split_edge(e, 0.5 * (t0 + t1), tol).unwrap();
+        (body, made, whole)
+    }
+
+    #[test]
+    fn the_join_door_takes_a_split_edge_back() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let (mut body, made, whole) = split_brick();
+        assert_eq!(joinable_vertices(&body, band).unwrap(), vec![made.vertex]);
+        let joins = body.join_edges(band, tol).unwrap();
+        assert_eq!(joins.len(), 1);
+        assert_eq!(joins[0].vertex, made.vertex);
+        assert_eq!(joins[0].conventional, None);
+        assert_eq!(body.arena_counts(), whole, "the brick again");
+        assert!(joinable_vertices(&body, band).unwrap().is_empty());
+        crate::validate_geometric(&body, tol).unwrap();
+        assert!(body.join_edges(band, tol).unwrap().is_empty(), "idempotent");
+    }
+
+    #[test]
+    fn the_merge_door_ends_with_the_join_and_reports_it() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let (mut body, made, whole) = split_brick();
+        let outcome = body.merge_coplanar_faces(tol).unwrap();
+        assert!(
+            outcome.groups.is_empty(),
+            "nothing to merge, and still joined"
+        );
+        assert_eq!(outcome.joins.len(), 1);
+        assert_eq!(outcome.joins[0].vertex, made.vertex);
+        assert_eq!(body.arena_counts(), whole);
+        assert!(joinable_vertices(&body, band).unwrap().is_empty());
+    }
+
+    /// **An offset door joins only over what it writes.** The split
+    /// vertex lies on no edge the offset of a face it does not bound
+    /// rewrites, so the door's join (`replace_face::staged_join`) does
+    /// not reach it: the door reports no join and the vertex stands, as
+    /// the operand stated it.
+    #[test]
+    fn an_offset_door_joins_only_over_what_it_writes() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let (mut body, made, whole) = split_brick();
+        // A face the split edge does not bound.
+        let far = body
+            .faces()
+            .map(|(f, _)| f)
+            .find(|&f| {
+                body.face_loops_linked(f, body.get_face(f).unwrap())
+                    .all(|(_, l)| match l.boundary {
+                        crate::LoopBoundary::Cycle { first } => body
+                            .loop_cycle(first)
+                            .unwrap()
+                            .iter()
+                            .all(|&h| body.get_half_edge(h).unwrap().start != made.vertex),
+                        crate::LoopBoundary::Empty { .. } => true,
+                    })
+            })
+            .unwrap();
+        let out = crate::replace_face_offset(&mut body, far, 0.25, tol).unwrap();
+        assert!(out.joins.is_empty(), "{:?}", out.joins);
+        assert_eq!(joinable_vertices(&body, band).unwrap(), vec![made.vertex]);
+        assert_ne!(body.arena_counts(), whole, "the split stands");
+    }
+}
+
+#[cfg(test)]
+mod undecided_text {
+    //! **The join door ends an undecided join with the reading's own
+    //! lever in front of its own**: an enclosure the band leaves
+    //! undecided offers subdivision first.
+    #![allow(clippy::unwrap_used)]
+
+    use geom_core::{Band, Indeterminate, MarginDiag};
+
+    use super::{JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided};
+
+    #[test]
+    fn a_straddling_join_offers_subdivision_before_its_lever() {
+        let diag = Indeterminate {
+            margin: MarginDiag::enclosure(-2e-9, 5e-9),
+            band: Band::new(1e-9, 1e-8).unwrap(),
+            predicate: Some("dihedral_arm"),
+            terminal_sliver: false,
+        };
+        let refusal = JoinRefusal::Undecided(JoinUndecided {
+            vertex: crate::VertexKey::default(),
+            reading: JoinReading::Regularity(diag),
+        });
+        assert_eq!(
+            refusal.to_string(),
+            format!(
+                "{JOIN_SUBJECT} is undecided ({}). Recourse: subdivide the parameter box for \
+                 a tighter enclosure, or {JOIN_LEVER}",
+                diag.payload()
+            )
+        );
+    }
+
+    /// The undecided escalation at `margin`, read by `predicate`.
+    fn diag(predicate: &'static str, margin: MarginDiag) -> Indeterminate {
+        Indeterminate {
+            margin,
+            band: Band::new(1e-9, 1e-8).unwrap(),
+            predicate: Some(predicate),
+            terminal_sliver: false,
+        }
+    }
+
+    /// The Boolean's render of an undecided join at `reading`.
+    fn boolean_text(reading: JoinReading) -> String {
+        JoinUndecided {
+            vertex: crate::VertexKey::default(),
+            reading,
+        }
+        .to_string()
+    }
+
+    /// **The Boolean's join refusal asks the question its reading answers
+    /// and ends once**: a regularity reading is sized (a value offers the
+    /// tolerance, a straddle subdivision, an unreadable margin the
+    /// inputs); a chart-class reading is a form selection and ends in the
+    /// lever alone, with the unreadable note where its margin is poison.
+    #[test]
+    fn the_booleans_undecided_join_ends_once() {
+        let regularity =
+            |margin| boolean_text(JoinReading::Regularity(diag("dihedral_arm", margin)));
+        let chart_class = |margin| {
+            boolean_text(JoinReading::ChartClass(
+                geom_brep::IsoFamilyRefusal::Undecided(diag("pcurve_chart_radial_moving", margin)),
+            ))
+        };
+        let cases = [
+            (
+                "a chart-class value",
+                chart_class(MarginDiag::value(5e-9)),
+                "whether an edge meeting another at a vertex on one curve runs along a \
+                 cylinder's ruling or around it is undecided: margin 5e-9 lies inside the \
+                 ambiguity band (1e-9, 1e-8). Recourse: move the geometry",
+            ),
+            (
+                "a chart-class straddle",
+                chart_class(MarginDiag::enclosure(-2e-9, 5e-9)),
+                "whether an edge meeting another at a vertex on one curve runs along a \
+                 cylinder's ruling or around it is undecided: enclosure [-2e-9, 5e-9] cannot be \
+                 classified against the ambiguity band (1e-9, 1e-8). Recourse: move the \
+                 geometry",
+            ),
+            (
+                "an unreadable chart-class margin",
+                chart_class(MarginDiag::INVALID),
+                "whether an edge meeting another at a vertex on one curve runs along a \
+                 cylinder's ruling or around it is undecided: margin is invalid (NaN or a \
+                 refused enclosure) against the ambiguity band (1e-9, 1e-8). Recourse: move the \
+                 geometry; an unreadable margin may indicate a kernel bug worth reporting",
+            ),
+            (
+                "a regularity value",
+                regularity(MarginDiag::value(5e-9)),
+                "whether two edges meeting at a vertex on one curve are one edge is undecided: \
+                 margin 5e-9 lies inside the ambiguity band (1e-9, 1e-8). Recourse: move the \
+                 geometry, or, if this size is intended, tighten the tolerance below 5e-10 m",
+            ),
+            (
+                "a regularity straddle",
+                regularity(MarginDiag::enclosure(-2e-9, 5e-9)),
+                "whether two edges meeting at a vertex on one curve are one edge is undecided: \
+                 enclosure [-2e-9, 5e-9] cannot be classified against the ambiguity band (1e-9, \
+                 1e-8). Recourse: subdivide the parameter box for a tighter enclosure, or move \
+                 the geometry",
+            ),
+            (
+                "an unreadable regularity margin",
+                regularity(MarginDiag::INVALID),
+                "whether two edges meeting at a vertex on one curve are one edge is undecided: \
+                 margin is invalid (NaN or a refused enclosure) against the ambiguity band \
+                 (1e-9, 1e-8). Recourse: check the operation's inputs upstream, then move the \
+                 geometry; an unreadable margin may indicate a kernel bug worth reporting",
+            ),
+        ];
+        for (what, got, want) in cases {
+            assert_eq!(got, want, "{what}");
+        }
+    }
+
+    /// A chart image that did not derive is classed undecided at the
+    /// Boolean and ends in whatever its derivation refusal carries, here
+    /// none: `work/hone/the-join-lever-names-a-pole-for-a-chart-class-reading.md`
+    /// owns giving it one verdict, and re-baselines this text.
+    #[test]
+    fn a_chart_image_that_did_not_derive_ends_without_a_recourse_today() {
+        let got = boolean_text(JoinReading::ChartClass(geom_brep::IsoFamilyRefusal::Image(
+            geom_brep::PcurveCertifyError::UnsupportedChart {
+                chart: geom::SurfaceKind::Sphere,
+            },
+        )));
+        assert_eq!(
+            got,
+            "whether two edges meeting at a vertex on one curve are one edge is undecided: \
+             pcurve certification: no sphere-chart lane covers this pcurve — every analytic \
+             chart certifies its closed-form (Harmonic) classes, a NURBS chart routes through \
+             its description-driven iso/fitted lanes instead of this door, and an image outside \
+             the chart's harmonic family belongs to the fitted lane where one exists"
+        );
     }
 }

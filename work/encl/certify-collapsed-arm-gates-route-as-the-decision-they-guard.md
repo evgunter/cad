@@ -2,7 +2,10 @@
 id: certify-collapsed-arm-gates-route-as-the-decision-they-guard
 kind: issue
 title: geom-brep: dihedral_arm and nurbs_span_meter refuse under the decision they guard, with the poisoned-margin note, because the funnel folds the gate's verdict into MarginDiag::Invalid
-status: dispatched
+status: closed
+closed: 2026-10-08
+branch: encl/collapsed-arm-gates
+pr: 3431
 opened: 2026-09-28
 priority: P3
 cost: M
@@ -56,6 +59,17 @@ length: the size noun is the wedge's. Once the gate hands its verdict
 back, give the arm its own `WedgeCheck` (or route it with this row's
 `CertCheck`) and its own size noun.
 
+## The span meter's domain question is NURBS's
+
+This row routes `nurbs_span_meter` as a decision of its own
+(`CertCheck::ParamSpanMeter`, `CertifyError::SpanMeterCollapsed`) and
+leaves what a negative verdict MEANS to
+`work/nurbs/nurbs-span-meter-cannot-tell-a-reversed-domain-from-a-collapsed-one.md`:
+a floor that turns negative (a spline turning back on itself) and a
+knot domain stored reversed both read `Refused::Negative` here, and
+both end in the meter's lever. Checking the domain's orientation
+before the meter, with its own arm, is that row's; once it lands the
+meter sees only the floor.
 
 ## The SSI march reads the same gate (PR 3707)
 
@@ -68,3 +82,31 @@ arm therefore reads "if this angle is intended, tighten the tolerance
 below m/K" with `m` the arm, a length. When this row's gate gets its own
 `CertCheck` and size noun, route `TraceDecision::TransversalityArm` the
 same way.
+That routing is done on this row's branch: `TraceDecision::ending`
+ends `TransversalityArm` by `CertCheck::TransversalityArm`. The
+march still reports an arm the gate decided collapsed as an
+`SsiError::Escalated`, "too close to call"; that half is SSIMARCH's,
+`work/ssimarch/ssi-march-reports-a-collapsed-arm-as-too-close-to-call.md`.
+
+## What main already carried, and what this row adds
+
+Two units landed the gate's verdict while this row's PR waited.
+CLEAVE's gate rejections keep the decided margin, tagged with the sign
+the gate refused (`geom_core::MarginDiag::rejected_sign`), so a
+collapse no longer reads as a poisoned margin. PR 3513 routed the
+dihedral arm as its own decision at every reader
+(`CertCheck::TransversalityArm`, `WedgeCheck::Arm`,
+`geom_brep::DIHEDRAL_ARM`). What stays on this row is the definite arm:
+a collapsed arm is a verdict, not "too close to call", so
+`LeverEscalation::collapsed_arm` hands it back (the gate's verdict,
+minted from the gate's own escalation and kept by
+`LeverEscalation::with_diag` when the arm's margin is re-quoted at the
+reading it meters), and certification and the
+validator report it as `CertifyError::ArmCollapsed` and
+`ValidationError::NoDihedralArm`; and the spline meter's own decision,
+`CertCheck::ParamSpanMeter` / `CertifyError::SpanMeterCollapsed`.
+
+
+## Closed
+
+2026-10-08. PR 3431 merged at `cd9214980a`, after a full review, a fix pass and an approving delta re-review. The SSI march's half went to `work/ssimarch/ssi-march-reports-a-collapsed-arm-as-too-close-to-call.md`; the seam and split readers went to `work/cleave/split-dihedral-readers-drop-the-arm-rung.md`. Follow-ups from the re-review are in `work/encl/lever-escalation-rung-is-public-and-its-arm-is-told-three-ways.md`.

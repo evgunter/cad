@@ -2,11 +2,14 @@
 id: shell-of-a-cone-tip-refuses-at-the-nappe-decision
 kind: issue
 title: shell of a body with a cone tip refuses NappeStraddles: a cone face reaching its apex has no nappe to turn the offset by
-status: open
+status: closed
 opened: 2026-10-06
 priority: P2
 cost: M
 refs: [shell-open-refuses-a-curved-designated-face]
+pr: 4356
+closed: 2026-10-08
+branch: shell/apex-and-tangent-corner
 ---
 
 
@@ -51,3 +54,32 @@ The day this item lands, the cone tip's opened row is the first body
 through the cone arm. It owes an assertion that the lifted cone lands
 on the designated one, on a mirror-nappe face as well as an opening
 one.
+
+## Closed
+
+`topo::offset_nappe::face_nappe` reads a corner whose station decides
+Zero as the apex, which is on both nappes and decides neither: a face
+that reaches its apex lies on the nappe its other corners stand on
+(`(Zero, Positive)` is `Opening`, `(Negative, Zero)` is `Mirror`), and
+only a face with corners strictly on both sides, or every corner at the
+apex, refuses `NappeStraddles`. The axial door takes the apex vertex
+with no arm of its own: it is an axis pole, and the pole arm puts it on
+the moved apex. Measured on the cone tip (mirror nappe) and on its
+mirror image, `common::shell_operands::funnel_vessel` (opening nappe):
+both shell sealed, opened through the cone, and opened through the flat
+cap, tier 3, at the closed-form volume.
+
+- **The lift's cone arm is reached.** Opening the cone lifts the
+  cavity's counterpart cone through `shell::lift_to`'s nappe turn; the
+  band wears the designated cone (apex unmoved), and the cavity wall's
+  corner lands on it at radius `r − t`, on both nappes.
+- **The seamed band takes a cone pole.** Both half-faces survive under
+  their keys, ring-free, genus 0, the apex dies, and the band meshes.
+- **The per-chart door's apex-window gate does not take it**: it reads
+  a window whose near end is the apex as not cleared and refuses
+  `ApexWindow`. No `shell` path reaches that door on a cone; filed as
+  `per-chart-door-refuses-a-cone-window-reaching-its-apex`.
+- Step-import's apex cone of two half-faces was not measured here.
+
+Pinned in `sweep`'s
+`shell_curved_mouth::a_cone_tip_shells_through_its_apex_on_either_nappe`.

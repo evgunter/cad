@@ -57,7 +57,7 @@
 //! that boundary, so the ladder cannot name it; the coincidence ladder
 //! can. This answer reads reduction records — the face pairs the
 //! reduction SETTLED one carrier (`BooleanReduction`'s `coincident`:
-//! shared recipe source, or a verified declaration) — and never values,
+//! the verified declarations) — and never values,
 //! nor how many witnesses read `OnBoundary`. The shell is `On` a shell
 //! of the other operand when every face of each is in a settled pair
 //! with a face of the other, the pairs agree on orientation
@@ -76,9 +76,9 @@
 use geom_core::{Band, Decide, Tol};
 use std::collections::BTreeSet;
 
-use super::solid_contain::{SolidContainment, point_in_solid};
+use super::solid_contain::{PointInSolidError, SolidContainment, point_in_operand, point_in_solid};
 use super::{
-    BooleanError, BooleanOp, CarrierRelation, ContactRecords, Operand, SettledPair, SideCode,
+    BooleanError, BooleanOp, CarrierRelation, Operand, ReductionContacts, SettledPair, SideCode,
 };
 use crate::body::Body;
 use crate::entity::{FaceKey, ShellKey, VertexKey};
@@ -100,23 +100,31 @@ impl From<LadderRefusal> for BooleanError {
 
 /// The side of `other` the cell complex `faces` of `body` lies on,
 /// read off its first decisive witness ([`crate::stands::ladder`]).
+/// `other` is the operand `other_operand` as its caller handed it in,
+/// read as given ([`super::solid_contain::point_in_operand`]).
 ///
 /// # Errors
 ///
-/// [`BooleanError::Containment`] when a probe refuses about the other
-/// operand; [`BooleanError::JoinDesync`] when the complex does not walk.
+/// [`BooleanError::InsideOutOperand`] when a witness reads `other`'s
+/// side at infinity inside its material ([`inside_out_operand`]);
+/// [`BooleanError::Containment`] when a probe refuses otherwise about
+/// the other operand; [`BooleanError::JoinDesync`] when the complex
+/// does not walk.
 pub(super) fn complex_side<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     faces: &[FaceKey],
-    other: &Body<T>,
+    (other, other_operand): (&Body<T>, Operand),
     band: Band,
     tol: Tol,
 ) -> Result<Reading, BooleanError> {
     ladder(body, faces, band, |q| {
         Ok(
-            match Witness::of(point_in_solid(other, q, band, tol))
-                .map_err(BooleanError::Containment)?
-            {
+            match Witness::of(point_in_operand(other, q, band, tol)).map_err(|e| match e {
+                PointInSolidError::InsideOut => {
+                    inside_out_operand(other, other_operand, q, band, tol)
+                }
+                e => BooleanError::Containment(e),
+            })? {
                 Witness::Side(Strict::In) => Witness::Side(SideCode::In),
                 Witness::Side(Strict::Out) => Witness::Side(SideCode::Out),
                 Witness::On => Witness::On,
@@ -125,6 +133,39 @@ pub(super) fn complex_side<T: Decide + crate::props::AtRestPolicy>(
             },
         )
     })
+}
+
+/// **The refusal for an operand read inside-out at `q`**:
+/// [`BooleanError::InsideOutOperand`], naming each solid of `operand`
+/// whose own selection, read as given, holds `q`'s side at infinity
+/// ([`crate::ValidationError::SliverInsideOut`]: the at-rest gate passes
+/// an inside-out solid only where its `V/A` is in band).
+pub(super) fn inside_out_operand<T: Decide + crate::props::AtRestPolicy>(
+    body: &Body<T>,
+    operand: Operand,
+    q: geom_core::Point3<T>,
+    band: Band,
+    tol: Tol,
+) -> BooleanError {
+    let errors = body
+        .solids()
+        .filter(|&(solid, _)| {
+            super::solid_contain::SolidFaces::of(body, solid).is_ok_and(|sel| {
+                matches!(
+                    super::solid_contain::point_in_solid_faces(
+                        body,
+                        &sel.read_as_given(),
+                        q,
+                        band,
+                        tol
+                    ),
+                    Err(PointInSolidError::InsideOut)
+                )
+            })
+        })
+        .map(|(solid, _)| crate::ValidationError::SliverInsideOut { solid })
+        .collect();
+    BooleanError::InsideOutOperand { operand, errors }
 }
 
 /// What an uncut shell of one operand is to the other operand: on one
@@ -191,7 +232,7 @@ pub(super) fn shell_verdict<T: Decide + crate::props::AtRestPolicy>(
             what: "uncut shell no longer resolves",
         })?
         .faces;
-    let t = match complex_side(body, faces, other, band, tol)? {
+    let t = match complex_side(body, faces, (other, operand.other()), band, tol)? {
         Reading::Side(s) => return Ok(ShellVerdict::Side(s)),
         Reading::Undecided(t) => t,
     };
@@ -372,12 +413,12 @@ pub(super) fn check_mutual<T: Decide>(
 }
 
 /// Every vertex the reduction recorded ON the other operand
-/// (`ContactRecords::vv`, `a_on_b`, `b_on_a`) reads `OnBoundary` or
+/// (`ReductionContacts::vv`, `a_on_b`, `b_on_a`) reads `OnBoundary` or
 /// in-band against it, never `In` or `Out` (module docs: the reason the
 /// ladder reads no contact record). Debug builds only; a refusal of the
 /// probe is not this check's question and is passed over.
 pub(super) fn debug_assert_contacts_undecisive<T: Decide + crate::props::AtRestPolicy>(
-    contacts: &ContactRecords,
+    contacts: &ReductionContacts,
     a: (&Body<T>, &Body<T>),
     b: (&Body<T>, &Body<T>),
     band: Band,

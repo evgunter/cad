@@ -2,11 +2,10 @@
 id: a-declared-seam-subtract-and-intersect-stop-at-the-fallback-extent
 kind: issue
 title: The sphere-capped tube declared a Seam builds its union, and its subtract and intersect stop at the fallback extent
-status: parked
+status: open
 opened: 2026-10-02
 priority: P1
 cost: M
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
@@ -45,3 +44,11 @@ plane face's boundary"), operand the ball. Before
 cup's rim plane, on the boundary of the rim annulus, so the plane arm
 meets exactly this item's circle-on-a-boundary read; a ball filling a
 spherical cavity has no plane face and builds every op.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: the no-crossings fallback (ops.rs face_boundary_meets) is reached only because the declared Rest/Seam cover takes the rim events away; stage 4's Zero glue replaces that cover. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-09)
+
+E glues the discs and the seam walls undeclared as the declared scene does (`crates/topo/src/boolean/glue.rs:40`). The tube's union is now the declared union bit for bit (`crates/sweep/tests/pi_seam_and_kiss_through_the_boolean.rs`, `a_dome_abutting_on_the_rim_undeclared_is_the_declared_union`). The no-crossings path is unchanged. `tube ∖ cap`, `cap ∖ tube` and `tube ∩ cap` still refuse `FallbackExtentUnsupported`, which the row pins (`pi_seam_and_kiss_through_the_boolean.rs:338`–`:349`). The defect stands: the fallback's containment read of the sphere's section lands on the disc's rim.

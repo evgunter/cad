@@ -15,10 +15,10 @@ use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    BooleanOp, CancelToken, EntityKind, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId,
-    RoleSeg, evaluate,
+    CancelToken, EntityKind, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId, RoleSeg,
+    evaluate,
 };
-use fixture::{declare_x_offset_flush, insert, len, on_frame, table};
+use fixture::{insert, len, on_frame, table};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
@@ -43,7 +43,7 @@ fn block(doc: ProfileDoc, (x0, x1): (f64, f64)) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -55,14 +55,10 @@ fn a_band_along_a_joined_flush_edge_is_named_by_that_edge() {
     let doc = ProfileDoc::empty_derived("band_joined_rim_names", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0));
     let (doc, b) = block(doc, (0.5, 2.0));
-    let decl = declare_x_offset_flush(&doc, a, b);
     let (doc, u) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a,
-            b,
-            declare: decl,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
         },
     );
     let ev = run(&doc);
@@ -81,11 +77,12 @@ fn a_band_along_a_joined_flush_edge_is_named_by_that_edge() {
         .collect();
     assert_eq!(long.len(), 4, "the four long edges are joined: {edges:?}");
     for set in &long {
+        let (a_read, b_read) = (fixture::out(&doc, a), fixture::out(&doc, b));
         let sides: Vec<_> = set
             .iter()
             .map(|c| match c.path.as_slice() {
-                [RoleSeg::FromA(_)] => 'a',
-                [RoleSeg::FromB(_)] => 'b',
+                [RoleSeg::From { read, of: _ }] if *read == a_read => 'a',
+                [RoleSeg::From { read, of: _ }] if *read == b_read => 'b',
                 _ => panic!("a set constituent is an operand edge: {c:?}"),
             })
             .collect();

@@ -24,7 +24,7 @@ chamfers) is registered in `docs/KERNEL-VERBS.md`; the canal blend is
 |---|---|
 | Extrude: translational sweep along the sketch normal; caps, walls, hole rings, rim upgrades | `crates/sweep/src/extrude.rs` |
 | Revolve: axis and angle conventions, partial wedge and full ring, seam meridians, the `tube_along_arc` torus door | `crates/sweep/src/revolve/` (`mod.rs`, `axis.rs`, `partial.rs`, `full.rs`, `chain.rs`, `surfaces.rs`, `upgrade.rs`, `tube.rs`) |
-| Loft and path sweep bodies: extrude's topology over NURBS walls | `crates/sweep/src/loft.rs` (`loft_body`, `sweep_body`) |
+| Loft and path sweep bodies: extrude's topology over NURBS walls | `crates/sweep/src/loft.rs` (`loft_body`, `loft_profiles`, `sweep_body`) |
 | Skinned and swept NURBS surfaces (the definitional geometry, not an approximation) | `crates/sweep/src/skin.rs` |
 | The lowering every profile sweep shares: traversal order, carriers, cosurface decisions | `crates/sweep/src/swept.rs` |
 | The two blend doors, one per verb; each attaches its `BlendKind` once | `crates/sweep/src/fillet.rs`, `crates/sweep/src/chamfer.rs` |
@@ -227,8 +227,9 @@ minted so the host keeps its key (`lone_host_trim`); both rims of such
 an annulus are annulus rims, and carve in one call. A CURVED single face
 carrying every arc is authorable through `topo`'s `kef_describing` (a
 cylinder wall merged over one seam meridian, the other restated as its
-wrap edge), finishes, and refuses at the half-band gate on both routes
-(`fillet_h5_r2_probes::a_finished_curved_single_face_carrying_both_arcs_refuses_at_the_half_band_gate`).
+wrap edge), but each rim's two arcs then meet at a vertex nothing else
+does, which tier 3 refuses at rest, so no blend door takes it
+(`fillet_h5_r2_probes::a_curved_single_face_carrying_both_arcs_is_construction_state`).
 
 **A3-3 — the genuine mid-curve run-out is named and not implemented.**
 Stopping a band part-way along a smooth rim, at a station with no
@@ -273,7 +274,8 @@ stored kinds (plane, cylinder, line, circle, ellipse).
   L): Zero builds
   the first, definite the second, the sliver band refuses. A Zero
   verdict is a coincidence decided from values, so the verdict records
-  it (`BatteryVerdict::coincidences`, D10). No ball rests at a turn,
+  it (`BatteryVerdict::coincidences`, D10), and `Blended::coincidences`
+  carries the rows to the document's coincidence door. No ball rests at a turn,
   so the mitre is G0 between the bands; it never competes with the
   patch, because the request count decides.
 
@@ -287,6 +289,14 @@ face's rim edges split at the feet, the end curve `mef`'d across it, one
 trimline per support; at a turn, L split at its foot, a strut out to the
 trimlines' crossing on the shared face, and the mitre `mef`'d across one
 band, the triangle it cuts off folded into the other.
+
+The battery's other Zero verdicts are coincidences decided from values
+too, and record the same way: a junction chain G1 reads tangent is a
+`Tangent` row between its two links' edges, arriving then leaving, and
+a curved pair's `fillet3_support_coaxiality` is a row between its two
+supports: `Coaxial` for the axis a torus band is minted on, `CoRuled`
+for the ruling a cylinder band is. A self-closed
+link's own seam is one cell, not two, and records nothing.
 
 What still refuses, typed `UnsupportedRunOut` with a detail naming the
 shape: a curved end face (a fillet against a cylinder meets it in a
@@ -386,7 +396,7 @@ length at the section's centroid
 band an ellipse trims, of either band, measures through the certified
 quadrature, tessellates, and takes a boolean beside or through the
 band; with an operand wholly apart the boolean's containment door
-refuses it (`work/contact/at-infinity-probe-measures-in-closed-form-only.md`,
+refuses it (`work/restread/at-infinity-probe-measures-in-closed-form-only.md`,
 pinned in `crates/sweep/tests/band_planar_oblique_fillet.rs`). The
 CONCAVE ruled band — the material-adding side, the fill covering the region
 under the arc — is pinned through the extrude door too: a rod's section

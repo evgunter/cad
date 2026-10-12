@@ -7,7 +7,7 @@ opened: 2026-10-06
 priority: P1
 cost: M
 closed: 2026-10-07
-refs: [a-corner-is-a-slice-of-its-face-tier-3-check, the-corner-slice-arm-is-silent-on-cones-nurbs-faces-and-first-order-ties]
+refs: [4240, the-corner-slice-arm-is-silent-on-cones-nurbs-faces-and-first-order-ties]
 ---
 
 ## What

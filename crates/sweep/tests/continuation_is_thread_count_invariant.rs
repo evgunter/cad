@@ -31,8 +31,12 @@ fn budget() -> SymBudget {
 
 fn sym_arc_loft(s: f64) -> Body<Sym<f64>> {
     loft_body::<Sym<f64>>(
-        &[arc_section(s), arc_section(s), arc_section(s)],
-        &stacked(&[0.0, 1.0, 2.0], s),
+        &sweep::test_support::lift_sections::<Sym<f64>>(&[
+            arc_section(s),
+            arc_section(s),
+            arc_section(s),
+        ]),
+        &sweep::test_support::lift_places::<Sym<f64>>(&stacked(&[0.0, 1.0, 2.0], s)),
         2,
         Tol::witness(),
     )
