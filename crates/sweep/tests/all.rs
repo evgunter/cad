@@ -637,6 +637,8 @@ mod split_along_a_face_plane;
 mod split_cylindrical_feature_box;
 #[path = "split_edge_loft_charts.rs"]
 mod split_edge_loft_charts;
+#[path = "split_edge_on_faces_poses.rs"]
+mod split_edge_on_faces_poses;
 #[path = "split_section_rings.rs"]
 mod split_section_rings;
 #[path = "split_tangent_edge_curved.rs"]
