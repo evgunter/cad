@@ -469,6 +469,71 @@ fn legs_stopping_short_either_side_of_a_shallow_crossing_validate() {
         .unwrap_or_else(|e| panic!("Interval: the dome validates, got {e}"));
 }
 
+/// A figure-eight: a near-full arc (2π − 0.011 rad) and a small arc
+/// whose carriers cross twice, both ends of the near-full arc lying
+/// within ε of the small arc's carrier beside the crossing the arcs do
+/// not hold, while the arcs themselves cross at the other, 2.7e-3
+/// inside the large arc and 1.3e-3 inside the small one, where the
+/// large arc's compressed `arc_span` reads it in band. Lines join the
+/// ends: E1₀ → arc1 → E1₁ → E2₁ → arc2 reversed → E2₀ → W → E1₀. The
+/// figure is drawn for ε = 1e-6 and scaled with ε, so every row reads
+/// the same figure.
+fn figure_eight_across_the_other_crossing(scale: f64) -> profile::Profile<f64> {
+    use geom_core::Arc2;
+    use profile::{ProfileLoop, RawLoop, Segment};
+    let pt = |x: f64, y: f64| Point2::new(x * scale, y * scale);
+    let (c1, r1) = (
+        pt(-1.872513274081899, 2.577825301309983),
+        1.6092706295113095,
+    );
+    let (start1, sweep1) = (-1.0062495826666513, -6.272141383775728);
+    let (c2, r2) = (
+        pt(-0.970460427436857, 1.1507809548491568),
+        0.07898190310093273,
+    );
+    let (start2, sweep2) = (2.1355617127241118, 3.9727669712056928);
+    let on = |c: Point2<f64>, r: f64, angle: f64| {
+        Point2::new(c.x + r * scale * angle.cos(), c.y + r * scale * angle.sin())
+    };
+    let arc = |centre, radius: f64, sweep| {
+        Segment::Arc(Arc2 {
+            centre,
+            radius: radius * scale,
+            sweep,
+        })
+    };
+    let (e10, e11) = (on(c1, r1, start1), on(c1, r1, start1 + sweep1));
+    let (e20, e21) = (on(c2, r2, start2), on(c2, r2, start2 + sweep2));
+    let w = Point2::new(0.5 * (e20.x + e10.x) - 1e-3 * scale, 0.5 * (e20.y + e10.y));
+    profile(vec![ProfileLoop::new([
+        (e10, arc(c1, r1, sweep1)),
+        (e11, Segment::Line),
+        (e21, arc(c2, r2, -sweep2)),
+        (e20, Segment::Line),
+        (w, Segment::Line),
+    ])])
+}
+
+/// **A figure-eight whose crossing a near-full arc reads in band does
+/// not validate**, at `f64` and at `Interval`, at every ε. The large
+/// arc's end nearest the crossing lies within ε of the small arc's
+/// carrier, but beside the carriers' other crossing, so it stands in
+/// that crossing's stretch, not this one's, and cannot settle it.
+#[test]
+fn a_crossing_read_in_band_is_not_settled_by_an_end_beside_the_other_crossing() {
+    let p = figure_eight_across_the_other_crossing(tol().eps() / 1e-6);
+    let f64_read = p.validate(tol()).map(|_| ());
+    let interval_read = common::lift::<geom_core::Interval>(&p)
+        .validate(tol())
+        .map(|_| ());
+    println!("f64: {f64_read:?}\nInterval: {interval_read:?}");
+    assert!(f64_read.is_err(), "f64: the figure-eight must not validate");
+    assert!(
+        interval_read.is_err(),
+        "Interval: the figure-eight must not validate"
+    );
+}
+
 #[test]
 fn near_tangent_hole_escalates_on_the_internal_clearance() {
     match err(&near_tangent_hole(tol().eps())) {
