@@ -84,3 +84,13 @@ pub(crate) fn arena2<T: Real>(
     let k2 = map.insert(s2);
     (k1, k2, map)
 }
+
+/// The reach the plane×cone arm reads a whole `cone` over: `lever`
+/// either way along its axis from its apex, levered at `lever`. Its
+/// window holds the apex, so the arm bounds an apex outcome there.
+pub(crate) fn at_apex<T: Real>(cone: &Surface<T>, lever: T) -> geom_brep::Reach<T> {
+    let Surface::Cone { apex, .. } = *cone else {
+        unreachable!("the plane×cone arm's reach is read at a cone's apex")
+    };
+    geom_brep::Reach::Measured { at: apex, lever }
+}
