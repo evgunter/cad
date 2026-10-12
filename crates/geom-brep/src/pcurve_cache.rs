@@ -6024,39 +6024,6 @@ fn nurbs_stretch_inf<T: Real>(s: &geom::NurbsSurface<T>) -> ChartStretchInf<T> {
     }
 }
 
-/// `sup |C′|` bound for a **non-rational** spline curve — the curve
-/// twin of [`nurbs_stretch_bounds`], used by the iso lane's
-/// parameter-map slack. Callers gate rationality. A [`SupSpeed`] by
-/// the same argument as its surface twin: the slack it meters is an
-/// overshoot, so over-stating the rate widens the envelope and can
-/// only refuse.
-fn curve_rate_bound<T: Real>(c: &NurbsCurve3<T>) -> SupSpeed<T> {
-    let ctl = c.control();
-    let (p, k, held) = (
-        c.knots().degree(),
-        c.knots().knots(),
-        c.knot_values().values(),
-    );
-    let mut sup = T::zero();
-    for i in 0..ctl.len().saturating_sub(1) {
-        let denom = k[i + p + 1] - k[i + 1];
-        if denom == 0.0 {
-            continue;
-        }
-        sup = sup.max(
-            (ctl[i + 1] - ctl[i]).norm()
-                * geom_core::spline::span_derivative_scale(p, held[i + 1], held[i + p + 1]),
-        );
-    }
-    // The rational factor (M8-3), the curve-side twin of
-    // `nurbs_stretch_bounds`': the control-difference bound above is a
-    // POLYNOMIAL fact, and the standard rational extension (Floater
-    // 1992) multiplies it by the weight ratio; squaring it is the
-    // conservative reading. Exactly 1 on a unit-weight net, so no
-    // integral-lane number moves.
-    SupSpeed::new(sup * weight_ratio_factor::<T>(c.weight_channel(), c.weights()))
-}
-
 /// `(w_max/w_min)²` — exactly 1 on a unit-weight net — formed in the
 /// scalar over the `held` weights; `channel` is their value channel,
 /// which the admissibility read below decides on.
@@ -7113,8 +7080,9 @@ fn seam_envelope<T: Decide>(
             t
         }
     };
-    let slack_param =
-        curve_rate_bound(c).to_meters((v_at_0 - along(t0)).abs().max((v_at_1 - along(t1)).abs()));
+    let slack_param = c
+        .speed_upper_bound()
+        .to_meters((v_at_0 - along(t0)).abs().max((v_at_1 - along(t1)).abs()));
     // Domain containment: the hull and rate bounds hold on the knot
     // domains only — the image's `v` on the row's, the span on the
     // carrier's (one domain, unless the carrier is reflected).
