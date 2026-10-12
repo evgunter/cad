@@ -328,7 +328,8 @@ pub(super) fn recl_sectors<T: Decide>(
         // ([`super::sectors::tangent_relative_side`]): a bound along
         // the locus honestly stays `On` (the recl edge engine
         // adjudicates it, exactly as a first-order On), other bounds
-        // take the side their carrier curves to. No Eq. 15.3 lump and
+        // take the side their carrier curves to over the bound's own
+        // reach, the first-order code's lever. No Eq. 15.3 lump and
         // no neighbor propagation: nothing here is a coincident-
         // sector identity.
         let read = declared.read(
@@ -352,16 +353,18 @@ pub(super) fn recl_sectors<T: Decide>(
                     what: "v-v site lost its point",
                 },
             )?;
-            let side = |own: &geom::Surface<T>, other: &geom::Surface<T>, n, d| {
-                super::sectors::tangent_relative_side(own, other, n, p, d, arm, read, band)
+            let side = |own: &geom::Surface<T>, other: &geom::Surface<T>, n, (d, reached)| {
+                super::sectors::tangent_relative_side(own, other, n, p, d, reached, read, band)
             };
+            let [a_start, a_end] = sa.reached_bounds();
+            let [b_start, b_end] = sb.reached_bounds();
             let ca = (
-                side(&s_a, &s_b, sb.normal, sa.start)?,
-                side(&s_a, &s_b, sb.normal, sa.end)?,
+                side(&s_a, &s_b, sb.normal, a_start)?,
+                side(&s_a, &s_b, sb.normal, a_end)?,
             );
             let cb = (
-                side(&s_b, &s_a, sa.normal, sb.start)?,
-                side(&s_b, &s_a, sa.normal, sb.end)?,
+                side(&s_b, &s_a, sa.normal, b_start)?,
+                side(&s_b, &s_a, sa.normal, b_end)?,
             );
             // Per-bound propagation, the Rest loop's shape with the
             // SHARED bound's own code (definite codes only — an `On`
@@ -1306,6 +1309,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                                     op,
                                     comparison,
                                     own_sec.face,
+                                    own_sec.reached_bounds(),
                                     arm,
                                     read,
                                     band,
@@ -1502,6 +1506,7 @@ fn resolve_edge_sector<T: Decide>(
                 op,
                 comparison,
                 own_sec.face,
+                own_sec.reached_bounds(),
                 arm,
                 read,
                 band,

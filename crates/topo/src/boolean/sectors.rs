@@ -187,6 +187,15 @@ impl<T: geom_core::Real> BoolSector<T> {
         !matches!(self.end_reach, Reach::Bisector(_))
     }
 
+    /// The two bounds, each with the length it reaches from the base
+    /// vertex: what a per-bound reading levers at.
+    pub(super) fn reached_bounds(&self) -> [(Vec3<T>, T); 2] {
+        [
+            (self.start, self.start_reach.length()),
+            (self.end, self.end_reach.length()),
+        ]
+    }
+
     /// The farther of the sector's two bounds' reaches, in metres: how
     /// far from the base vertex the sector's own geometry is known.
     pub(super) fn span(&self) -> T {
@@ -863,32 +872,32 @@ fn at_departure<T: Decide>(
 /// side does the sector's face CURVE to, relative to the other face's
 /// material?
 ///
-/// The margin is the existing second-order sector trilean's
-/// (`tangent_sector_order2{,_arm}`,
-/// [`geom_brep::enters_material_order2`]): the
-/// relative transverse curvature of the two carriers — the departing
-/// transverse curve's acceleration on the sector's carrier measured
-/// RELATIVE to the other carrier's own curving, signed against the
-/// other face's outward normal — as the displacement it induces at
-/// the sector's lever arm. Against a plane the partner curvature is
-/// zero and the margin is the departure's own normal curvature (the
-/// trilean's documented planar reading, reached bit-identically).
-/// The transverse direction comes from the DEV-1 closed-form locus
+/// The reading is [`tangent_relative_side`] along each of the
+/// sector's two `bounds`, levered at that bound's own reach — the
+/// length the first-order side code levers the same bound at. The
+/// relative curvature of every pair the DEV-1 closed-form locus
 /// ([`geom_brep::tangent_locus`], the same rows the door's witness
-/// derivation runs): the descent exists exactly where the witness
-/// lane reaches, and nowhere else.
+/// derivation runs) admits is transverse only, one-signed off the
+/// locus, so every bound off the locus reads the same side, and the
+/// one that reaches far enough for its departure to show decides it:
+/// a bound along a short edge, too short for its height off the
+/// tangent plane to show, is outvoted by any bound that does show it,
+/// and a bound riding the locus reads an exact `On`. The locus gates
+/// the descent: it exists exactly where the witness lane reaches, and
+/// nowhere else.
 ///
 /// The lump opens for every tangency the glue door decides, whichever
 /// side the two materials lie on (C7): an internal tangency reads `In`
 /// where an external one reads `Out`.
 ///
-/// Verdicts: definitely curving into the other body's material ⇒
-/// `In`; definitely away ⇒ `Out`; an EXACT second-order zero is an
-/// isolated osculating point, locally conformal to every order the
-/// kernel measures, so it lumps as a one-carrier pair does under the
-/// pair's sense bit (`sector_outward` against `other_outward`: opposed
-/// the Eq. 15.3 ⁻ lump, aligned the ⁺); an in-band margin escalates (an
-/// osculating pair is a sliver at this ε — F6).
+/// Verdicts: a bound definitely curving into the other body's
+/// material ⇒ `In`; definitely away ⇒ `Out`; otherwise an in-band
+/// bound escalates (an osculating pair is a sliver at this ε — F6),
+/// and both bounds at an EXACT second-order zero are an osculating
+/// sector, locally conformal to every order the kernel measures over
+/// its reach, so it lumps as a one-carrier pair does under the pair's
+/// sense bit (`sector_outward` against `other_outward`, levered at
+/// `arm`: opposed the Eq. 15.3 ⁻ lump, aligned the ⁺).
 #[allow(clippy::too_many_arguments)]
 pub(super) fn tangent_lump<T: Decide>(
     sector_surface: &geom::Surface<T>,
@@ -900,13 +909,14 @@ pub(super) fn tangent_lump<T: Decide>(
     op: super::BooleanOp,
     on_side: Operand,
     sector_face: FaceKey,
+    bounds: [(Vec3<T>, T); 2],
     arm: T,
     read: DeclarationRead,
     band: Band,
 ) -> Result<SideCode, BooleanError> {
     use geom_brep::{TangentLocus, TangentLocusError, tangent_locus};
-    let locus_dir = match tangent_locus(sector_surface, other_surface, reach, band) {
-        Ok(TangentLocus::Line { dir, .. }) => dir,
+    match tangent_locus(sector_surface, other_surface, reach, band) {
+        Ok(TangentLocus::Line { .. }) => {}
         Err(TangentLocusError::Escalated(diag)) => {
             return Err(BooleanError::coincidence(
                 Coincide::TangentLocus,
@@ -934,24 +944,39 @@ pub(super) fn tangent_lump<T: Decide>(
         }
     };
     let n_ref = other_outward.vec();
-    // Transverse in-tangent-plane direction (the jet family's d̂ =
-    // n̂ × τ̂; quadratic consumption, so τ̂'s sign is immaterial).
-    let d_hat = n_ref.cross(locus_dir).normalize();
-    match tangent_relative_side(
-        sector_surface,
-        other_surface,
-        other_outward,
-        p,
-        d_hat,
-        arm,
-        read,
-        band,
-    )? {
-        SideCode::In => Ok(SideCode::In),
-        SideCode::Out => Ok(SideCode::Out),
+    let mut shown: Option<SideCode> = None;
+    let mut in_band = None;
+    for (dir, reached) in bounds {
+        match tangent_relative_side(
+            sector_surface,
+            other_surface,
+            other_outward,
+            p,
+            dir,
+            reached,
+            read,
+            band,
+        ) {
+            Ok(SideCode::On) => {}
+            Ok(code) => match shown {
+                Some(seen) if seen != code => {
+                    return Err(BooleanError::ClassificationInvariant {
+                        what: "a tangent sector's two bounds curve to opposite sides",
+                    });
+                }
+                _ => shown = Some(code),
+            },
+            Err(escalation) => {
+                in_band.get_or_insert(escalation);
+            }
+        }
+    }
+    match (shown, in_band) {
+        (Some(code), _) => Ok(code),
+        (None, Some(escalation)) => Err(escalation),
         // The exact-zero osculating residue (doc above): locally
         // conformal, so the pair's sense bit picks the Eq. 15.3 posture.
-        SideCode::On => {
+        (None, None) => {
             let relation = match crate::validate::decide(
                 "tangent_lump_senses",
                 Margin::levered(sector_outward.vec().dot(n_ref), arm),
@@ -6182,6 +6207,15 @@ mod tests {
         geom_brep::ExtentBall::new(geom_core::Point3::new(2.0, 0.5, 1.0), 4.0)
     }
 
+    /// A sector's two bounds at the fixtures' touch, both reaching
+    /// `reach`: one along the shared ruling (y), one across it (x).
+    fn fixture_bounds(reach: f64) -> [(Vec3<f64>, f64); 2] {
+        [
+            (Vec3::new(0.0, 1.0, 0.0), reach),
+            (Vec3::new(1.0, 0.0, 0.0), reach),
+        ]
+    }
+
     /// A y-axis cylinder at height `zc`, radius `r`.
     fn y_cyl(zc: f64, r: f64) -> geom::Surface<f64> {
         geom::Surface::Cylinder {
@@ -6212,6 +6246,7 @@ mod tests {
             super::super::BooleanOp::Union,
             Operand::B,
             FaceKey::default(),
+            fixture_bounds(0.5),
             0.5,
             DeclarationRead::Spent(GlueClass::Tangent),
             b,
@@ -6231,6 +6266,7 @@ mod tests {
             super::super::BooleanOp::Union,
             Operand::A,
             FaceKey::default(),
+            fixture_bounds(0.5),
             0.5,
             DeclarationRead::Spent(GlueClass::Tangent),
             b,
@@ -6260,6 +6296,7 @@ mod tests {
             super::super::BooleanOp::Union,
             Operand::A,
             FaceKey::default(),
+            fixture_bounds(0.25),
             0.25,
             DeclarationRead::Spent(GlueClass::Tangent),
             b,
@@ -6280,6 +6317,7 @@ mod tests {
             super::super::BooleanOp::Union,
             Operand::A,
             FaceKey::default(),
+            fixture_bounds(zero_arm),
             zero_arm,
             DeclarationRead::Spent(GlueClass::Tangent),
             b,
@@ -6315,7 +6353,7 @@ mod tests {
         let b = band();
         let p = geom_core::Point3::new(2.0, 0.5, 1.0);
         let plate_out = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
-        let run = |arm: f64| {
+        let lump = |bounds: [(Vec3<f64>, f64); 2], arm: f64| {
             tangent_lump(
                 &y_cyl(1.5, 0.5),
                 &plate_top(),
@@ -6326,11 +6364,13 @@ mod tests {
                 super::super::BooleanOp::Union,
                 Operand::A,
                 FaceKey::default(),
+                bounds,
                 arm,
                 DeclarationRead::Spent(GlueClass::Tangent),
                 b,
             )
         };
+        let run = |arm: f64| lump(fixture_bounds(arm), arm);
         // sagitta = kappa_rel * arm^2 / 2 = arm^2 (kappa_rel = 2
         // here), so the arms are derived from the run's band and the
         // three rows hold at every sampled ε.
@@ -6344,6 +6384,23 @@ mod tests {
         }
         let zero_arm = (b.zero() * 0.5).sqrt();
         assert_eq!(run(zero_arm).unwrap(), SideCode::In);
+        // A sector whose ruling bound is too short for any departure to
+        // show still reads the side its long cross bound shows, not the
+        // senses' lump: each bound is read over its own reach.
+        let short_ruling = [
+            (Vec3::new(0.0, 1.0, 0.0), zero_arm),
+            (Vec3::new(1.0, 0.0, 0.0), 0.5),
+        ];
+        assert_eq!(lump(short_ruling, zero_arm).unwrap(), SideCode::Out);
+        // A short cross bound in band beside a ruling escalates.
+        let short_cross = [
+            (Vec3::new(0.0, 1.0, 0.0), 0.5),
+            (Vec3::new(1.0, 0.0, 0.0), inband_arm),
+        ];
+        assert!(
+            matches!(lump(short_cross, 0.5), Err(BooleanError::Escalated { .. })),
+            "an in-band cross bound beside a ruling escalates"
+        );
     }
 
     /// The self-contradiction and out-of-lane arms stay typed: a
@@ -6365,6 +6422,7 @@ mod tests {
             super::super::BooleanOp::Union,
             Operand::A,
             FaceKey::default(),
+            fixture_bounds(0.5),
             0.5,
             DeclarationRead::Spent(GlueClass::Tangent),
             b,
@@ -6388,6 +6446,7 @@ mod tests {
             super::super::BooleanOp::Union,
             Operand::A,
             FaceKey::default(),
+            fixture_bounds(0.5),
             0.5,
             DeclarationRead::Spent(GlueClass::Tangent),
             b,
