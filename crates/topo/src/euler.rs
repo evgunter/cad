@@ -862,9 +862,9 @@ pub enum EulerOpError {
         /// The typed re-certification failure.
         error: CertifyError,
     },
-    /// The spec is an `Intersection` of a plane and a described NURBS
-    /// wall (M7-8), whose certificate only the plane × NURBS lane
-    /// derives, and this scalar's policy holds no lane
+    /// The spec's certificate needs the NURBS lane (the classes are
+    /// listed on [`CertifyError::NurbsLaneNotSupplied`]), and this
+    /// scalar's policy holds no lane
     /// ([`crate::AtRestPolicy::nurbs_lane`] answers `None`: a dual,
     /// DL1). Every Euler door takes its lane from that policy, so a lane
     /// missing there is the scalar's. The body is untouched.
@@ -1267,9 +1267,12 @@ pub enum EulerOpError {
     /// **pcurve row** across the split: the parent's chart image,
     /// restricted to a child's sub-interval, failed the certification
     /// the whole image passed. Raised before any mutation, so the body
-    /// is untouched — a covered chart lane that refuses here is a
-    /// defect, never a licence to leave the face half-minted
-    /// (`crate::pcurves::split_cache`).
+    /// is untouched, never a licence to leave the face half-minted
+    /// (`crate::pcurves::split_cache`). At the band the parent's row
+    /// was certified at, a covered chart lane that refuses here is a
+    /// defect. At a tighter band it need not be: a fitted-grade row's
+    /// check 4 reads the whole carrier, so it can refuse a child
+    /// typed.
     PcurveSplit {
         /// The edge being split.
         edge: EdgeKey,
@@ -1402,10 +1405,9 @@ impl EulerOpError {
                 error.render(at)
             ),
             Self::NurbsLaneUnsupported { edge, scalar } => format!(
-                "{} lies between a plane and a spline face, and its certificate is derived \
-                 through the plane x NURBS lane, which only a scalar with certification \
-                 rights holds; the {scalar} scalar does not. Recourse: run the operation at \
-                 a certifying scalar",
+                "{}'s certificate needs the NURBS lane, which only a scalar with \
+                 certification rights holds; the {scalar} scalar does not. Recourse: run the \
+                 operation at a certifying scalar",
                 edge.map_or_else(|| "the new edge".to_owned(), |e| format!("edge {e:?}"))
             ),
             Self::RebasedNullEdge { edge } => format!(

@@ -176,9 +176,11 @@ pub use edge_join::{
 };
 pub use join::CompletedPolygonPair;
 pub use ops::{
-    BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, boolean_op_with,
-    intersect, subtract, union,
+    BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, SettleError,
+    Settler, boolean_op_with, intersect, subtract, union,
 };
+#[cfg(feature = "sweep-testing")]
+pub use ops::{StagePoints, arm_output_stage_points, take_output_stage_points};
 pub use plane_eq::{PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, oriented_plane_eq};
 pub(crate) use records::incident;
 pub use records::{CarryRefusal, Contact, ContactKind, ContactPairError, ContactRecords};
@@ -559,6 +561,10 @@ pub(crate) struct EdgeSplit {
 /// The order is vertex < edge < face, then key: a record's canonical
 /// order, so its kind reads off its two cells' dimensions
 /// ([`ContactKind`]).
+///
+/// It is also the live cell a point lies inside: where a Boolean's
+/// result settles a vertex a later stage deleted without moving its
+/// point ([`crate::boolean::Settler::settle`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Cell {
     /// A vertex.
@@ -2971,9 +2977,14 @@ pub enum BooleanError {
     /// boundary representation exists for it.
     UnrepresentableResult,
     /// Re-certifying a grafted edge description against the combined
-    /// body's surfaces refused (the combine door's remap lane —
-    /// bitwise-identical inputs make this unreachable for well-formed
-    /// grafts; loud, never a dangling reference).
+    /// body's surfaces, through the scalar's NURBS lane, refused (the
+    /// combine door's `graft_solid`). The inputs are bitwise the
+    /// source's, so a certifying scalar re-derives what the source
+    /// already holds; what reaches here is a carrier whose certificate
+    /// needs the lane at a scalar that holds none
+    /// ([`geom_brep::CertifyError::NurbsLaneNotSupplied`]), or a
+    /// certificate the source should not have held. Loud, never a
+    /// dangling reference.
     GraftRecertify(geom_brep::CertifyError),
     /// The result sort could not read which piece of material a shell
     /// of the result belongs to ([`crate::pieces`]): a solid is one
@@ -3408,14 +3419,15 @@ pub(crate) fn kind_word(kind: geom::SurfaceKind) -> &'static str {
 /// The recourse every "these faces cannot meet yet" refusal ends on.
 ///
 /// **This is the one statement of the pairs the Boolean can join**: the
-/// germ-pair JOIN dispatch (`join::bool_connect`) wires a plane face
-/// against a plane, cylinder, sphere or cone face, mirrors included,
+/// germ-pair join (`join::bool_connect`, and the chord layer it mints
+/// sections through) joins a plane face against a plane, cylinder,
+/// sphere or cone face, mirrors included,
 /// and two spheres or two parallel cylinders along their radical plane.
 /// The rustdoc that needs the set points here. The operand gate's box
 /// test is conservative (a box overlap is a MAY),
 /// so moving the face clear of the other solid is a real recourse even
 /// where the faces never touch in exact geometry.
-fn meeting_recourse(kind: &str) -> String {
+pub(crate) fn meeting_recourse(kind: &str) -> String {
     format!(
         "Recourse: reshape the parts so they meet only where a plane face meets \
          a plane, cylinder, sphere or cone face, or move them so the {kind} face stays \

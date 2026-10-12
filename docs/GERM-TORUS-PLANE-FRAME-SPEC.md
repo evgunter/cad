@@ -90,9 +90,9 @@ arms before it.
 | F0 | an on-carrier torus sector (touching poses) | `vtxfac::classify_vertex_on_face`, the C8 rule "a CURVED on-carrier sector is opened by a VERIFIED declaration and by nothing else" (`vtxfac.rs` :721) | `CurvedBooleanUnsupported { kind: Torus }` |
 | F1 | the germ pair's section frame | `join::pair_section_frame_at`'s `_ => NoArm` (`join.rs` :2499), mapped by `frame_refusal` (:2231) | `GermFrameUnsupported { Plane, Torus }`, either order |
 | F2 | the germ-pair dispatch | `bool_connect`'s `no_arm` closure (`join.rs` :998, the measured print). `kind_arm` (:268) gives `KindArm::None`, so `edge_lane` runs. Which `return` calls the closure is read off the germ, not printed: :1025 for a germ along no edge, :1037 for the lily, whose edge lies in its planar holder | `CurvedBooleanUnsupported { kind: Torus }` |
-| F3a | the planar side's chord | `chord_join::bool_planar_chord_spec`'s guard (:1610) | `Join(SectionInvariant { "boolean planar-side germ partner is not a cylinder, a sphere or a cone (arm not wired)" })` |
+| F3a | the planar side's chord | `chord_join::bool_planar_chord_spec`'s guard (:1610) | `Join(SectionUnarmed { divided: Plane, wall: Torus })` |
 | F3a′ | the same side, past that guard | `section_case`'s fall-through to `plane_cylinder_section` (:1062) | `Join(Section { WrongLane { "plane×cylinder" } })` |
-| F3b | the wall side's section | `chord_join::wall_section` (:1505) | `Join(SectionInvariant { "a section through a face kind no section arm reads (C5 has no plane×torus or plane×spline section)" })` |
+| F3b | the wall side's section | `chord_join::wall_section` (:1505) | `Join(SectionUnarmed { divided: Torus, wall: Torus })` |
 
 F3a and F3b are one door, the chord layer's plane × torus section, met
 from either side. **The member order decides which side meets it
@@ -138,12 +138,11 @@ No pose returned a body, on main or with any combination of switches,
 because F3 stands behind every served frame. Several doors stand behind
 F3, and none was reached, so none was measured:
 
-- the ring closure of a torus face's island (`choose_roles`'
-  `RingFace`, `join.rs` :3011);
 - the interior-loop guard;
 - the result door's volume for a ring on a torus face.
 
-Their measurement is the chord units' first step (§3).
+Their measurement is the chord units' first step (§3). The ring
+closure of a torus face's island was measured in U-T2 (§1.3).
 
 **The section certificate on the corner bars** (`section_report`, on
 main):
@@ -317,10 +316,33 @@ bodies, measured in §0.1:
   `KindArm::PlaneWall` and `(Torus, Plane)` `KindArm::WallPlane`, beside
   the sphere, cylinder and cone. The lily's germ then takes the planar
   lane rather than `edge_lane`, because a kind arm comes first.
-  `ring_closures` hands the torus face `RingClosure::Wall`. Whether
-  `choose_roles` can wind a torus face's island along the section plane
-  on the torus chart (`RingFace::Wall`; the torus is not a
-  `ring_path::Quadric`) was not reached, so it is not measured.
+- **The torus face's ring closure.** Measured in U-T2 with the kind arm
+  in, over every pose of §0 in all six ops, the one-face and seamed
+  tori's two-loop poses and the lily both ways: 266 runs, each stopping
+  at F3a or F3b. No torus face reaches `choose_roles`' ring lane: the
+  lane needs a segment whose two germs lie on one ring of the face,
+  which only an island's closing segment has, and every op stops at its
+  first segment's chord. Read in-crate, the lane would refuse: the
+  torus face took `RingFace::Wall`, and `chart_island_winding` reads
+  only a cylinder's chart (`RingIslandUnread { Torus }`). A chart
+  winding on the torus would need closed-form chart integrals of every
+  edge image, spiric ones included. The closure built instead is the
+  sphere's and the cone's: the torus is a `ring_path::Quadric`, its
+  island read by a path's parity across the run closed by the segment's
+  curve (`RingFace::Quadric`). The paths run on meridians and parallels.
+  A crossing of a loop arc's plane counts only on that arc's own loop
+  of the plane (`ArcLoop`, on the join's own `LoopSplit`), because a
+  plane cuts a torus in two. The
+  parity does not depend on the path, because tier 3 lifts every face
+  to a chart disc, so the island's curve bounds on the torus. Loop arcs
+  read are meridians and parallels, but for two parallels: the tube's
+  top and bottom circles (radius `R`), whose plane touches the torus
+  along them, so a path meets that plane only where it meets the
+  circle and never crosses it, and plane crossings cannot count them.
+  They refuse as `RingIslandUnread`, and since they are the donut's
+  face splits, re-homing a ring on any donut face refuses with them;
+  reading them is U-T3's (a crossing counted by tube angle, not by the
+  plane). A spiric oval refuses as `RingIslandUnread` until U-T4.
 - **The chord for the circles (F3, meridian and concentric).**
   `section_case` (`chord_join.rs` :957) and `wall_section` (:1487) gain
   the torus arm. **Both sections have two loops**, and `SectionCase` has
@@ -407,8 +429,8 @@ the item header's `cost:` as H→H, M→M, L→E. Cost is the size of the lane.
 | order | unit | scope | depends on | difficulty | cost | review |
 |---|---|---|---|---|---|---|
 | 1 | U-T1 `plane-torus-germ-frame` | F1: the frame per §1.1 (loops and their identity through `germ_section_frame`, `germs_face_each_other`, `nearer_along` and `one_site`); `FrameExtent::Reach` for the torus face; the general-pose refusal `GermSectionSpiric` (§1.2); re-pins B4 | — | M | one lane, about 14 rows | single |
-| 2 | U-T2 `plane-torus-join-dispatch` | F2: `kind_arm`'s torus arms; measure, then make, the torus face's ring closure (§1.3) | U-T1 (the lily alone needs only this unit) | M | one lane; the ring closure is the unknown | single |
-| 3 | U-T3 `plane-torus-chord-circles` | F3 for the meridian and concentric sections: the torus arm of `section_case` and `wall_section`, with the two-loop pick at the chord's sites; then measure the doors behind F3 (§0.2) for T1, the lily, M1–M3 and P1–P4 | U-T2 | H | one lane; dual review | dual |
+| 2 | U-T2 `plane-torus-join-dispatch` | F2: `kind_arm`'s torus arms; measure, then make, the torus face's ring closure (§1.3: path parity, as the sphere's and the cone's) | U-T1 (the lily alone needs only this unit) | M | one lane; the ring closure is the unknown | single |
+| 3 | U-T3 `plane-torus-chord-circles` | F3 for the meridian and concentric sections: the torus arm of `section_case` and `wall_section`, with the two-loop pick at the chord's sites; the ring lane's reading of the tube's top and bottom circles (§1.3); then measure the doors behind F3 (§0.2) for T1, the lily, M1–M3 and P1–P4 | U-T2 | H | one lane; dual review | dual |
 | 4 | U-T4 `plane-torus-chord-spiric` | F3 for the spiric ovals: a spiric arm in `SectionCase`, an arc chosen on the oval's own parameter; **owns the corner bar's lens on a fat torus** (§1.4, Q1) | U-T3 | H | one lane; dual review | dual |
 | — | U-H1 `torus-on-carrier-sector` | **HELD by D10**: the touching poses at F0 (a torus sector on the plane, the tangent circle, the Villarceau pair) | `d10-one-way-to-say-intent-is-unbuilt` | H | — | dual |
 
@@ -468,9 +490,10 @@ Rows run in-crate, against `pair_section_frame_at` and
 ### U-T2 — plane-torus-join-dispatch
 
 1. **Measure first:** whether a torus face's ring island winds along the
-   section plane on the torus chart (`RingFace::Wall`). Build the
-   closure the measurement asks for, held to an oracle on a torus sheet
-   as `chord_join::cone_ring_rows` holds the cone's.
+   section plane on the torus chart (`RingFace::Wall`). Measured: it
+   does not (§1.3). The closure is path parity, held to an oracle on a
+   torus sheet (`chord_join::torus_ring_rows`), as
+   `chord_join::cone_ring_rows` holds the cone's.
 2. **The lily, undeclared, both orders:** past F2, then meeting F3a
    (stem first) or F3b (arch first), as measured. Red on main: F2 at
    :1037.
@@ -489,7 +512,12 @@ Rows run in-crate, against `pair_section_frame_at` and
    the analytic operands, with a closed form where one exists (M1's ∩ is
    half the donut, `π²Rr²`); tier 3; and `point_in_solid` at sampled
    points.
-5. **The minted circles' planarity** at the face reach (the table's
+5. **The tube's top and bottom circles in the ring lane** (§1.3): a
+   run or a closing chord on either reads its island and re-homes its
+   rings, held to the torus islands' oracle.
+   `torus_ring_rows`' `a_run_on_the_tubes_top_or_bottom_circle_is_a_ring_the_lane_does_not_read`
+   goes red, and is rewritten as the reading.
+6. **The minted circles' planarity** at the face reach (the table's
    `r·ε/extent` comment, §1.1): measured on the thinnest face reach
    among the rows.
 

@@ -319,13 +319,15 @@ fn l_corner_caps_merge_at_the_recipe_door_tier3_green() {
     );
 }
 
-/// Review F6 (second seam-JUNCTION instance): the crossing slots with
-/// the SECOND slot subtracted first — same junction class (a vertex
-/// where three seam lines meet on the shared floor plane), different
-/// evaluation order; the multi-Seam-segment junction names must
-/// appear and the document must certify.
+/// The crossing slots with the SECOND slot subtracted first. Where the
+/// first slot's floor edge (y = 1, z = 0.5) meets the second slot's
+/// bottom rim (x = 1, z = 0.5), the vertex lies on both operand edges,
+/// so it is the seam vertex of those two edges — not a junction of seam
+/// lines, which is a vertex no operand edge passes through. The second
+/// slot's rim reaches the result in pieces split off around a stretch
+/// the subtract killed, and is named a piece of that rim.
 #[test]
-fn crossing_slots_swapped_order_hits_the_junction_arm() {
+fn crossing_slots_swapped_order_names_the_floor_corner_for_both_edges() {
     let doc = ProfileDoc::empty_derived("m4_pr5_declare", Tol::witness());
     let (doc, slab) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
     let (doc, b2) = block(doc, (-1.0, 4.0), (1.0, 2.0), 0.5, 1.0);
@@ -356,21 +358,31 @@ fn crossing_slots_swapped_order_hits_the_junction_arm() {
         topo::validate_pseudomanifold(body, contacts, Tol::witness()),
         Ok(())
     );
-    // The junction arm's product: a vertex named by ≥ 2 Seam
-    // segments (the sorted line set).
-    let junctions = ev
-        .value(s2)
-        .unwrap()
-        .name_table
+    let t = &ev.value(s2).unwrap().name_table;
+    let corner = t
         .iter()
-        .filter(|(n, _)| {
-            n.kind == EntityKind::Vertex
-                && n.path
-                    .iter()
-                    .filter(|seg| matches!(seg, RoleSeg::Seam { .. }))
-                    .count()
-                    >= 2
+        .filter_map(|(n, e)| match (n.kind, e) {
+            (EntityKind::Vertex, editor_core::Entry::Unique(r)) => match r.key {
+                editor_core::EntityKey::Vertex(v) => {
+                    let p = body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+                    ((p.x - 1.0).abs() < 1e-12
+                        && (p.y - 1.0).abs() < 1e-12
+                        && (p.z - 0.5).abs() < 1e-12)
+                        .then(|| n.clone())
+                }
+                _ => None,
+            },
+            _ => None,
         })
-        .count();
-    assert!(junctions >= 1, "expected junction-named vertices");
+        .collect::<Vec<_>>();
+    let [corner] = corner.as_slice() else {
+        panic!("one vertex at the floor corner (1, 1, 0.5), got {corner:?}");
+    };
+    assert!(
+        matches!(
+            corner.path.as_slice(),
+            [RoleSeg::Seam { a, b }] if a.kind == EntityKind::Edge && b.kind == EntityKind::Edge
+        ),
+        "the floor corner is the seam vertex of two operand edges: {corner}"
+    );
 }
