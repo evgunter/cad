@@ -7,7 +7,7 @@ priority: P2
 cost: M
 refs: [4207]
 opened: 2026-10-07
-branch: flush/pinch-residue
+branch: flush/touch-key
 design: true
 ---
 
