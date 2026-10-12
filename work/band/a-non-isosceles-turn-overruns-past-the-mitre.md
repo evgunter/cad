@@ -351,3 +351,11 @@ neither reading reduces at Sym.
 neither reading's predicate, so the k-lint sees it as its own name. The
 bracket's corners are read from its closed form in `sweep`; the tour's
 wall 3 now pins `TURN_OVERRUN`.
+
+## Owed by step 2 (orchestrator, 2026-10-12)
+
+`FILLET3_TURN_RECOURSE` dropped its "move them clearly apart" leg in step
+1 because the overrun refuses today; the README's three-leg recourse is
+the ratified end state. When the chamfer's overrun builds, restore the leg
+for the chamfer (and its followability row), and make the README's
+"both definite builds the overrun" true per verb as each verb lands.
