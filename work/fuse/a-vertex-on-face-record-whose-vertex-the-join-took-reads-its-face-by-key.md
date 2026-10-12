@@ -60,14 +60,30 @@ This rules out the owed line above ("the killed vertex's point kept
 with its substitution row"): no geometry is added to lineage rows, and
 the point is read from the operand instead.
 
-**Premise, guarded.** No stage moves a kernel vertex. A zip's fusion is
-the one stage that leaves a vertex at another's point, within ε, and
-`carry_rows` skips a fused vertex's rows before it reads the face. So
+**Premise, guarded.** No stage moves a kernel vertex. A zip's fusion and
+`zip::share_points` are the two stages that leave a vertex at another's
+point, within ε, and `carry_rows` skips the rows of both kinds before it
+reads the face. So
 the operand point is the point the vertex has in the result.
 `carry_rows` checks that on every kept vertex, bit for bit, and refuses
 `JoinDesync` where they differ. `piece_holds` places the point with the
 census's own band: a margin within the band of a piece's carrier or
 boundary escalates as `SelfCheck(CarriedLineage)`, kept or taken alike.
+
+**Why nothing reaches the taken arm today.**
+
+- The join takes only a valence-2 vertex between two edges on one
+  carrier.
+- The merge kills only seam and strut vertices.
+- In a boolean, every such vertex is a section or seam vertex. A zip
+  fuses each of those, or `zip::share_points` moves it onto its class's
+  key, and `carry_rows` skips the rows of both kinds before any face
+  read.
+
+So `carry` cannot reach the taken arm today, and lane B's three tried
+poses agree. The door and its rows stay anyway: they cost little, and
+an operand carrying a valence-2 collinear vertex with its own
+vertex-on-face row would reach the arm.
 
 **Witness.** No suite reaches the taken arm. On ea1088c5,
 instrumentation (reverted) counted a vertex-on-face row whose vertex
