@@ -148,7 +148,11 @@ pub struct EdgeJoin {
 /// **A joinable reading the band cannot decide**: whether `vertex` is
 /// a regular point of the carrier its two edges lie on, or which iso
 /// family an edge's chart image is on, read inside the margin band, so
-/// the vertex is neither joined nor left (D4 ¶3).
+/// the vertex is neither joined nor left (D4 ¶3). Its own Display is
+/// the Boolean's refusal ([`BooleanError::JoinUndecided`]); the join
+/// door ([`JoinRefusal`]) and the at-rest check
+/// (`ValidationError::JoinUndecidedAtRest`) render it from
+/// [`JoinUndecided::diag`] themselves.
 #[derive(Clone, Debug, PartialEq)]
 pub struct JoinUndecided {
     /// The valence-2 vertex.
@@ -188,16 +192,42 @@ pub enum JoinReading {
     ChartClass(geom_brep::IsoFamilyRefusal),
 }
 
+/// The whole refusal: a regularity reading asks [`JOIN_SUBJECT`], a
+/// sized margin, and ends in [`Indeterminate::ending`] under
+/// [`geom_core::COINCIDENCE_RECOURSE`]; a chart-class reading asks its
+/// own question ([`geom_brep::ISO_FAMILY_CLAUSE`]), a form selection on
+/// no size the user chose, and ends in that lever alone
+/// ([`geom_brep::recourse::LeverOnly`]).
 impl core::fmt::Display for JoinUndecided {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "whether valence-2 vertex {:?} joins its two edges is undecided: ",
-            self.vertex
-        )?;
         match &self.reading {
-            JoinReading::Regularity(diag) => write!(f, "{diag}"),
-            JoinReading::ChartClass(e) => write!(f, "{e}"),
+            JoinReading::Regularity(diag) => write!(
+                f,
+                "{}",
+                diag.undecided(JOIN_SUBJECT, diag.ending(geom_core::COINCIDENCE_RECOURSE))
+            ),
+            JoinReading::ChartClass(geom_brep::IsoFamilyRefusal::Undecided(diag)) => write!(
+                f,
+                "{}",
+                diag.undecided(
+                    format_args!(
+                        "whether an edge meeting another at a vertex on one curve {}",
+                        geom_brep::ISO_FAMILY_CLAUSE
+                    ),
+                    geom_brep::recourse::LeverOnly {
+                        lever: geom_core::COINCIDENCE_RECOURSE,
+                    }
+                    .recourse(
+                        geom_brep::recourse::RefusedArm::Undecided(diag),
+                        geom_brep::recourse::Reading::Build
+                    )
+                )
+            ),
+            JoinReading::ChartClass(e @ geom_brep::IsoFamilyRefusal::Image(_)) => write!(
+                f,
+                concat!("{}", geom_core::undecided!(), ": {}"),
+                JOIN_SUBJECT, e
+            ),
         }
     }
 }
@@ -1098,6 +1128,113 @@ mod undecided_text {
                  a tighter enclosure, or {JOIN_LEVER}",
                 diag.payload()
             )
+        );
+    }
+
+    /// The undecided escalation at `margin`, read by `predicate`.
+    fn diag(predicate: &'static str, margin: MarginDiag) -> Indeterminate {
+        Indeterminate {
+            margin,
+            band: Band::new(1e-9, 1e-8).unwrap(),
+            predicate: Some(predicate),
+            terminal_sliver: false,
+        }
+    }
+
+    /// The Boolean's render of an undecided join at `reading`.
+    fn boolean_text(reading: JoinReading) -> String {
+        JoinUndecided {
+            vertex: crate::VertexKey::default(),
+            reading,
+        }
+        .to_string()
+    }
+
+    /// **The Boolean's join refusal asks the question its reading answers
+    /// and ends once**: a regularity reading is sized (a value offers the
+    /// tolerance, a straddle subdivision, an unreadable margin the
+    /// inputs); a chart-class reading is a form selection and ends in the
+    /// lever alone, with the unreadable note where its margin is poison.
+    #[test]
+    fn the_booleans_undecided_join_ends_once() {
+        let regularity =
+            |margin| boolean_text(JoinReading::Regularity(diag("dihedral_arm", margin)));
+        let chart_class = |margin| {
+            boolean_text(JoinReading::ChartClass(
+                geom_brep::IsoFamilyRefusal::Undecided(diag("pcurve_chart_radial_moving", margin)),
+            ))
+        };
+        let cases = [
+            (
+                "a chart-class value",
+                chart_class(MarginDiag::value(5e-9)),
+                "whether an edge meeting another at a vertex on one curve runs along a \
+                 cylinder's ruling or around it is undecided: margin 5e-9 lies inside the \
+                 ambiguity band (1e-9, 1e-8). Recourse: move the geometry",
+            ),
+            (
+                "a chart-class straddle",
+                chart_class(MarginDiag::enclosure(-2e-9, 5e-9)),
+                "whether an edge meeting another at a vertex on one curve runs along a \
+                 cylinder's ruling or around it is undecided: enclosure [-2e-9, 5e-9] cannot be \
+                 classified against the ambiguity band (1e-9, 1e-8). Recourse: move the \
+                 geometry",
+            ),
+            (
+                "an unreadable chart-class margin",
+                chart_class(MarginDiag::INVALID),
+                "whether an edge meeting another at a vertex on one curve runs along a \
+                 cylinder's ruling or around it is undecided: margin is invalid (NaN or a \
+                 refused enclosure) against the ambiguity band (1e-9, 1e-8). Recourse: move the \
+                 geometry; an unreadable margin may indicate a kernel bug worth reporting",
+            ),
+            (
+                "a regularity value",
+                regularity(MarginDiag::value(5e-9)),
+                "whether two edges meeting at a vertex on one curve are one edge is undecided: \
+                 margin 5e-9 lies inside the ambiguity band (1e-9, 1e-8). Recourse: move the \
+                 geometry, or, if this size is intended, tighten the tolerance below 5e-10 m",
+            ),
+            (
+                "a regularity straddle",
+                regularity(MarginDiag::enclosure(-2e-9, 5e-9)),
+                "whether two edges meeting at a vertex on one curve are one edge is undecided: \
+                 enclosure [-2e-9, 5e-9] cannot be classified against the ambiguity band (1e-9, \
+                 1e-8). Recourse: subdivide the parameter box for a tighter enclosure, or move \
+                 the geometry",
+            ),
+            (
+                "an unreadable regularity margin",
+                regularity(MarginDiag::INVALID),
+                "whether two edges meeting at a vertex on one curve are one edge is undecided: \
+                 margin is invalid (NaN or a refused enclosure) against the ambiguity band \
+                 (1e-9, 1e-8). Recourse: check the operation's inputs upstream, then move the \
+                 geometry; an unreadable margin may indicate a kernel bug worth reporting",
+            ),
+        ];
+        for (what, got, want) in cases {
+            assert_eq!(got, want, "{what}");
+        }
+    }
+
+    /// A chart image that did not derive is classed undecided at the
+    /// Boolean and ends in whatever its derivation refusal carries, here
+    /// none: `work/hone/the-join-lever-names-a-pole-for-a-chart-class-reading.md`
+    /// owns giving it one verdict, and re-baselines this text.
+    #[test]
+    fn a_chart_image_that_did_not_derive_ends_without_a_recourse_today() {
+        let got = boolean_text(JoinReading::ChartClass(geom_brep::IsoFamilyRefusal::Image(
+            geom_brep::PcurveCertifyError::UnsupportedChart {
+                chart: geom::SurfaceKind::Sphere,
+            },
+        )));
+        assert_eq!(
+            got,
+            "whether two edges meeting at a vertex on one curve are one edge is undecided: \
+             pcurve certification: no sphere-chart lane covers this pcurve — every analytic \
+             chart certifies its closed-form (Harmonic) classes, a NURBS chart routes through \
+             its description-driven iso/fitted lanes instead of this door, and an image outside \
+             the chart's harmonic family belongs to the fitted lane where one exists"
         );
     }
 }

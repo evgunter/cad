@@ -99,9 +99,9 @@ use std::ops::RangeInclusive;
 use geom::surfaces::NurbsSurface;
 use geom_core::interval::certification::Certification;
 use geom_core::interval::{Interval, certified_hi, cross, max_bound, norm_sup};
-use geom_core::spline::KnotVector;
 use geom_core::spline::algebra::equal_split_points;
 use geom_core::spline::net::{TensorChannels, TensorCoeffs, TensorNet};
+use geom_core::spline::{C1Break, Derived, KnotVector};
 
 /// The fixed refinement schedule of the RATIONAL arm: every nonempty
 /// span of every direction splits into this many equal pieces before
@@ -385,21 +385,13 @@ fn refine_split<'s, const C: usize>(
 /// [`PatchBoundError::DegreeZero`], [`PatchBoundError::Degree1Crease`],
 /// [`PatchBoundError::Crease`].
 pub fn check_direction(kv: &KnotVector) -> Result<(), PatchBoundError> {
-    let p = kv.degree();
-    if p == 0 {
+    if kv.degree() == 0 {
         return Err(PatchBoundError::DegreeZero);
     }
-    if p == 1 {
-        return if kv.interior_knots().next().is_none() {
-            Ok(())
-        } else {
-            Err(PatchBoundError::Degree1Crease)
-        };
-    }
-    if kv.interior_knots().any(|(_, m)| m > p - 1) {
-        return Err(PatchBoundError::Crease);
-    }
-    Ok(())
+    kv.c1().map_err(|b| match b {
+        C1Break::Degree1Crease => PatchBoundError::Degree1Crease,
+        C1Break::Crease => PatchBoundError::Crease,
+    })
 }
 
 /// The interior split points of the fixed rational refinement
@@ -527,21 +519,24 @@ enum Second {
 }
 
 impl Second {
-    /// The second partial along a direction of degree `degree`, from
-    /// its derivative pair's differenced net (`None` where that pair
-    /// does not exist).
+    /// The second partial along a direction whose first partial is
+    /// `derived`, `diff` differencing that partial again along the same
+    /// direction.
     ///
     /// # Errors
     ///
-    /// [`PatchBoundError::DerivedKnots`] when `degree ≥ 2` and the
-    /// derived vector is not clamped — a multiplicity the C¹ gate never
-    /// saw, which equal-split refinement can raise when its split points
-    /// collide on a span a few ulps wide.
-    fn of(degree: usize, derived: Option<Net>) -> Result<Self, PatchBoundError> {
+    /// [`PatchBoundError::DerivedKnots`] at [`Derived::Discontinuous`]
+    /// — a multiplicity the C¹ gate never saw, which equal-split
+    /// refinement can raise when its split points collide on a span a
+    /// few ulps wide.
+    fn of(
+        derived: Derived<'_, TensorCoeffs<'_>>,
+        diff: impl FnOnce(&TensorCoeffs<'_>) -> Net,
+    ) -> Result<Self, PatchBoundError> {
         match derived {
-            Some(net) => Ok(Self::Net(net)),
-            None if degree == 1 => Ok(Self::Zero),
-            None => Err(PatchBoundError::DerivedKnots),
+            Derived::Vector(t) => Ok(Self::Net(diff(&t))),
+            Derived::SpanConstant(_) => Ok(Self::Zero),
+            Derived::Discontinuous { .. } => Err(PatchBoundError::DerivedKnots),
         }
     }
 
@@ -578,14 +573,8 @@ impl DNets {
             d10: base.diff_u(),
             d01: base.diff_v(),
             d11: base.diff_uv(),
-            d20: Second::of(
-                base.knots_u().degree(),
-                base.derivative_u().map(|t| t.diff_u()),
-            )?,
-            d02: Second::of(
-                base.knots_v().degree(),
-                base.derivative_v().map(|t| t.diff_v()),
-            )?,
+            d20: Second::of(base.derived_u(), |t| t.diff_u())?,
+            d02: Second::of(base.derived_v(), |t| t.diff_v())?,
         })
     }
 }
