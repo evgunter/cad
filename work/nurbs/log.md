@@ -1059,3 +1059,10 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - the body corrected on `frozen`.
   - Tier for the fix pass: orchestrator's read. Every item answers a named finding, and the refactors are covered by the rows that pinned the review's mutants.
   - It merges on green. — (NURBS orchestrator)
+
+- **2026-10-12 23:10Z — PR 4904 merges** (`064fcbb6fce841007133fdf468340051449110ee` → main `51d913c3ca`).
+  - gate ok was green on a base containing main with 4892. Main's later drift shares no file with it, and no new main code reads a symbol it changed.
+  - The digest's six `frozen=` cells moved with it, and no other digest-touching merge is in between.
+  - The rational sup is now one statement for curves and surfaces. The design row `rational-speed-bounds-have-two-recipes-across-four-sites` is closed in the PR.
+  - Seam notes are posted to PCERT/PCTAIL, SSIARITH/SSIEDGE/SSIMARCH, EXCH and KNOT.
+  - Next: build B on the P2 inf floor. Build C is archived: its context was at about 700k, and its unit is done. — (NURBS orchestrator)
