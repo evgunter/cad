@@ -23,9 +23,8 @@
 //!   vertex and edge contacts (the carried
 //!   [`ContactRecords`] say where; genuinely 3′, certified by PR 6's
 //!   validator). A tangent line contact through a face's interior is
-//!   not one: no edge holds the line for a record to name, and the slit
-//!   that would mint one is unbuilt, so the union refuses it
-//!   ([`BooleanError::TangentSlitArmUnbuilt`]).
+//!   a face–face touch the reduction does not yet record, so the union
+//!   refuses it ([`BooleanError::TangentSlitArmUnbuilt`]).
 //! - [`Voided`](BooleanResultKind::Voided): **legitimate voids** —
 //!   A∖B with B strictly inside A yields the outer shell plus the
 //!   reverted inner shell, a tier-2-legal multi-shell body. The
@@ -129,7 +128,7 @@ use super::shell_witness::{
 };
 use super::solid_contain::{SolidContainment, closed_sphere_group};
 use super::voids;
-use super::zip::{Fusions, SeamCorrespondence, zip_seam};
+use super::zip::{Fusions, Seam, SeamCorrespondence, zip_seam, zip_split};
 use super::{
     BooleanError, BooleanInputs, BooleanOp, BooleanReduction, Cell, Contact, ContactRecords,
     EeContact, Glue, GluedPair, Operand, OperandRecords, ReductionContacts, SelfCheck,
@@ -633,8 +632,15 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let mut vertex_map = fin.vertex_map.clone();
     let points = super::zip::point_classes(&body, &vertex_map)?;
     let (seams, cones) = super::zip::split_cones(&mut body, &fin.seams, &mut vertex_map, tol)?;
-    for &(a_face, b_face) in &seams {
-        let rep = zip_seam(&mut body, a_face, b_face, &vertex_map, tol)?;
+    for seam in &seams {
+        let rep = match seam {
+            Seam::Faces(a_face, b_face) => zip_seam(&mut body, *a_face, *b_face, &vertex_map, tol)?,
+            Seam::Split {
+                a_faces,
+                b_faces,
+                edges,
+            } => zip_split(&mut body, (a_faces, b_faces), edges, tol)?,
+        };
         desc.absorb_zip(&rep)?;
         seam_edges.extend(rep.seam_edges);
         vertex_map = fused_through(&vertex_map, &rep.vertex_merges);
@@ -7435,6 +7441,72 @@ mod tests {
                 ContactKind::VertexFace(other, face),
             ]
         );
+    }
+
+    /// **A face pair's zip is the reassembly oracle's sequence**: the
+    /// seams of brick pairs (a pierce, a corner overlap, a slot through)
+    /// under every op, each zipped by `zip_seam` and, on a copy, by the
+    /// splitting oracle's `reglue_pair`, which aligns the cycles by
+    /// bit-equal points and runs the loopglue sequence itself. The two
+    /// bodies' topology (faces, loops, half-edges, vertices) is the
+    /// same, key for key. Red if `glue`'s joints or kills drift from that
+    /// sequence.
+    #[test]
+    fn a_face_pair_zip_is_the_reassembly_oracles_sequence() {
+        use super::{Joined, SweepStrategy, fused_through, through_the_join, zip_seam};
+        use crate::boolean::BooleanOp;
+        use crate::test_support_fixtures::brick;
+        let tol = Tol::witness();
+        let topology = |body: &crate::Body<f64>| {
+            format!(
+                "{:?}{:?}{:?}{:?}",
+                body.faces, body.loops, body.half_edges, body.vertices
+            )
+        };
+        let mut seams = 0;
+        for (label, a, b) in [
+            (
+                "pierce",
+                brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+                brick::<f64>((0.5, 1.5), (0.2, 0.8), (0.2, 0.8), tol),
+            ),
+            (
+                "corner",
+                brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+                brick::<f64>((0.5, 1.5), (0.5, 1.5), (0.5, 1.5), tol),
+            ),
+            (
+                "slot",
+                brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+                brick::<f64>((-0.5, 1.5), (0.3, 0.6), (0.4, 1.5), tol),
+            ),
+        ] {
+            for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
+                let decls = super::Glue::none();
+                let Joined::Connected { red, connected, .. } =
+                    through_the_join(op, &a, &b, &decls, SweepStrategy::Realized, true, tol)
+                        .unwrap()
+                else {
+                    panic!("{label} {op:?}: the op joins");
+                };
+                let fin = super::setopfinish(op, *red, &connected, &a, &b, band(), tol).unwrap();
+                let mut body = fin.body;
+                let mut vertex_map = fin.vertex_map.clone();
+                for &(a_face, b_face) in &fin.seams {
+                    let mut oracle = body.clone();
+                    crate::splitting::reassembly::reglue_pair(&mut oracle, a_face, b_face, tol);
+                    let rep = zip_seam(&mut body, a_face, b_face, &vertex_map, tol).unwrap();
+                    assert_eq!(
+                        topology(&body),
+                        topology(&oracle),
+                        "{label} {op:?}: seam ({a_face:?}, {b_face:?}) zips as the oracle does"
+                    );
+                    vertex_map = fused_through(&vertex_map, &rep.vertex_merges);
+                    seams += 1;
+                }
+            }
+        }
+        assert!(seams >= 9, "a seam per op at least: {seams}");
     }
 
     /// **Each zip edge row pairs a ring edge with the seam edge it lies
