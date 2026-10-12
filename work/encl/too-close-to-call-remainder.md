@@ -99,7 +99,7 @@ lever `COINCIDENCE_RECOURSE`.
 
 - `ending(..)`: extrude's normal and obliquity, loft's stacking, the
   clearance's arc apex and arc clearance, the tube's wall, bore and gap.
-- `LeverOnly::at_build`: the revolve angle and headroom, the axis
+- `Indeterminate::lever_ending`: the revolve angle and headroom, the axis
   direction's length (a gauge), both cosurface decisions, and the
   clearance's line runs, arc centre and arc span.
 - `RevolveError::SliverAxisClearance` and `TubeError::Escalated` carry

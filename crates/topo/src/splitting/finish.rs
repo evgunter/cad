@@ -438,10 +438,7 @@ impl core::fmt::Display for SplitFinishError {
             Self::DescribeEscalated { diag, .. } => diag
                 .undecided(
                     "the angle between two faces along the cut",
-                    geom_brep::recourse::LeverOnly::at_build(
-                        super::SPLIT_COINCIDENCE_RECOURSE,
-                        diag,
-                    ),
+                    diag.lever_ending(super::SPLIT_COINCIDENCE_RECOURSE),
                 )
                 .fmt(f),
             Self::DescribeSideEscalated { diag, .. } => diag
@@ -457,10 +454,7 @@ impl core::fmt::Display for SplitFinishError {
                 .undecided(
                     "whether two faces touching along the cut curve apart there or share their \
                      curvature",
-                    geom_brep::recourse::LeverOnly::at_build(
-                        super::SPLIT_COINCIDENCE_RECOURSE,
-                        diag,
-                    ),
+                    diag.lever_ending(super::SPLIT_COINCIDENCE_RECOURSE),
                 )
                 .fmt(f),
             Self::SmoothJoinRefuted { .. } => write!(
@@ -475,10 +469,7 @@ impl core::fmt::Display for SplitFinishError {
             } => diag
                 .undecided(
                     "which side of a cut face is material",
-                    geom_brep::recourse::LeverOnly::at_build(
-                        super::SPLIT_COINCIDENCE_RECOURSE,
-                        diag,
-                    ),
+                    diag.lever_ending(super::SPLIT_COINCIDENCE_RECOURSE),
                 )
                 .fmt(f),
             Self::SectionWindingUndecided { diag: None, .. } => write!(

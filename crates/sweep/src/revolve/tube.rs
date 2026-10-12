@@ -229,7 +229,7 @@ impl TubeDecision {
         if self.sized() {
             diag.ending(geom_core::COINCIDENCE_RECOURSE)
         } else {
-            geom_brep::recourse::LeverOnly::at_build(geom_core::COINCIDENCE_RECOURSE, diag)
+            diag.lever_ending(geom_core::COINCIDENCE_RECOURSE)
         }
     }
 }

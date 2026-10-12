@@ -29,7 +29,6 @@ use crate::body::Body;
 use crate::entity::{HalfEdgeKey, LoopBoundary, LoopKey};
 use crate::loop_winding::{ConicFrame, chord_bulge};
 use crate::validate::AtRestBody;
-use geom_brep::recourse::LeverOnly;
 use geom_core::Tol;
 
 /// The lever every section refusal names: a section takes no
@@ -226,7 +225,7 @@ impl<T: Real> core::fmt::Display for SectionError<T> {
                 "{}",
                 diag.undecided(
                     "whether a polygon of the section is an outline or a hole",
-                    LeverOnly::at_build(SECTION_PLANE_RECOURSE, diag),
+                    diag.lever_ending(SECTION_PLANE_RECOURSE),
                 )
             ),
             Self::WindingUndecided { diag: None, .. } => write!(

@@ -2288,6 +2288,16 @@ impl Indeterminate {
         self.ending_with(levers, KindLever::Door, unreadable)
     }
 
+    /// **The ending of a decision on no size the user chose**, read at
+    /// the build (D4 ¶1 (i)): `levers` alone, labelled `Recourse:`, since
+    /// no smaller tolerance is its recourse, and
+    /// [`UNREADABLE_MARGIN_NOTE`] after them on a margin nobody could
+    /// read.
+    #[must_use]
+    pub fn lever_ending(&self, levers: &str) -> String {
+        lever_recourse(levers, self.margin.unreadable_note(UNREADABLE_MARGIN_NOTE))
+    }
+
     /// The ending, with `poisoned` the lever an unreadable margin puts
     /// in front of the door's.
     fn ending_with(&self, levers: &str, poisoned: KindLever, unreadable: &str) -> String {

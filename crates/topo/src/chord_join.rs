@@ -106,7 +106,6 @@
 //! tangent ruling has no self-loop: its two ends coincide along the
 //! ruling, which refuses.
 
-use geom_brep::recourse::LeverOnly;
 use geom_brep::{EdgeCurveSpec, Pcurve, chart_pcurve};
 use geom_core::{
     Band, BandError, Decide, Indeterminate, InfSpeed, Margin, Point3, Real, Sign, UnitVec3, Vec3,
@@ -395,7 +394,7 @@ fn order_decision(predicate: Option<&str>) -> &'static str {
 /// the escalation's whole ending.
 fn order_ending(diag: &Indeterminate) -> String {
     match diag.predicate {
-        Some(FRAME_AXIS | FRAME_ARM) => LeverOnly::at_build(JOIN_RECOURSE, diag),
+        Some(FRAME_AXIS | FRAME_ARM) => diag.lever_ending(JOIN_RECOURSE),
         _ => diag.ending(JOIN_RECOURSE),
     }
 }

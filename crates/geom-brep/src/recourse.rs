@@ -326,14 +326,6 @@ impl LeverOnly {
     pub fn recourse(self, arm: RefusedArm<'_>, reading: Reading) -> String {
         lever_recourse(self.lever, arm.unreadable_note(reading))
     }
-
-    /// The ending of an escalation of this decision at the operation
-    /// that built the geometry: `lever` alone, with the build's
-    /// unreadable-margin note on poison.
-    #[must_use]
-    pub fn at_build(lever: &'static str, diag: &Indeterminate) -> String {
-        Self { lever }.recourse(RefusedArm::Undecided(diag), Reading::Build)
-    }
 }
 
 /// What a zero verdict that leaves no size to tighten below may mean
@@ -791,6 +783,11 @@ mod tests {
             for margin in margins() {
                 let want = if margin.is_invalid() { &noted } else { &plain };
                 let undecided = cause(margin);
+                // geom-core's build-reading spelling of the undecided arm
+                // says the same bytes.
+                if reading == Reading::Build {
+                    assert_eq!(&undecided.lever_ending("L"), want, "{margin:?}");
+                }
                 for arm in [RefusedArm::Undecided(&undecided), zero(margin)] {
                     assert_eq!(
                         &lever.recourse(arm, reading),

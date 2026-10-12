@@ -687,7 +687,7 @@ impl core::fmt::Display for SplitReduceError {
             Self::SliverVertex { diag, .. } => diag
                 .undecided(
                     "whether a vertex lies on the split plane",
-                    LeverOnly::at_build(SPLIT_COINCIDENCE_RECOURSE, diag),
+                    diag.lever_ending(SPLIT_COINCIDENCE_RECOURSE),
                 )
                 .fmt(f),
             Self::SliverSector { reading, .. } => write!(

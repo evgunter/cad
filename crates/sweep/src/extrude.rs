@@ -538,10 +538,7 @@ impl fmt::Display for ExtrudeError {
                         "whether the walls meeting at loop {loop_index} vertex {vertex_index} \
                          share one surface"
                     ),
-                    geom_brep::recourse::LeverOnly::at_build(
-                        geom_core::COINCIDENCE_RECOURSE,
-                        source
-                    ),
+                    source.lever_ending(geom_core::COINCIDENCE_RECOURSE),
                 )
             ),
             Self::SliverJoin {

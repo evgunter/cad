@@ -132,7 +132,6 @@ mod upgrade;
 use core::fmt;
 
 use crate::swept::CapPlaneError;
-use geom_brep::recourse::LeverOnly;
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Point2, Real, Sign, Tol, Vec2};
 use profile::ValidatedProfile;
 use topo::readback::{Pose, ReadbackError, face_pose};
@@ -706,7 +705,7 @@ impl ClearanceDecision {
         if self.sized() {
             diag.ending(geom_core::COINCIDENCE_RECOURSE)
         } else {
-            LeverOnly::at_build(geom_core::COINCIDENCE_RECOURSE, diag)
+            diag.lever_ending(geom_core::COINCIDENCE_RECOURSE)
         }
     }
 }
@@ -738,7 +737,7 @@ impl fmt::Display for RevolveError {
                 "{}",
                 source.undecided(
                     "whether the revolve axis has a length",
-                    LeverOnly::at_build(geom_core::COINCIDENCE_RECOURSE, source),
+                    source.lever_ending(geom_core::COINCIDENCE_RECOURSE),
                 )
             ),
             Self::DegenerateAngle => write!(
@@ -756,7 +755,7 @@ impl fmt::Display for RevolveError {
                 "{}",
                 source.undecided(
                     "the revolve angle",
-                    LeverOnly::at_build(geom_core::COINCIDENCE_RECOURSE, source)
+                    source.lever_ending(geom_core::COINCIDENCE_RECOURSE)
                 )
             ),
             // Definite at ANY magnitude (r = -0.5 fires this same arm),
@@ -854,7 +853,7 @@ impl fmt::Display for RevolveError {
                         "whether the walls meeting at loop {loop_index} vertex {vertex_index} \
                          share one surface"
                     ),
-                    LeverOnly::at_build(geom_core::COINCIDENCE_RECOURSE, source),
+                    source.lever_ending(geom_core::COINCIDENCE_RECOURSE),
                 )
             ),
             Self::SliverJoin {
