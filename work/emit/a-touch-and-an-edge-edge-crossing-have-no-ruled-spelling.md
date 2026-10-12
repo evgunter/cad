@@ -6,7 +6,7 @@ status: review
 opened: 2026-10-06
 priority: P2
 cost: M
-pr: 4284
+pr: 4816
 branch: emit/touch-crossing
 refs: [a-second-crossing-by-one-face-renames-the-first-and-its-pieces]
 ---
