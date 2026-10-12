@@ -9,8 +9,8 @@ refs: [VERBS-C5ARMS, 1048]
 priority: P1
 cost: H
 design: true
-branch: germ/plane-torus-germ-frame
-pr: 4614
+branch: germ/plane-torus-chord-circles
+pr: 4847
 ---
 
 ## From GitHub issue 1057
@@ -130,3 +130,33 @@ stops at the germ-pair dispatch (F2, U-T2's door); TANG's tube stops at
 the wall side's section (F3b); the donut's corner bar refuses at its end
 square's null oval. The coaxial cylinder × sphere loop question (Q6)
 measured not live.
+
+## U-T2, the plane × torus join dispatch (GERM, 2026-10-11)
+
+On `germ/plane-torus-join-dispatch` (PR 4743). `kind_arm` takes the torus
+as a wall beside the sphere, cylinder and cone, so every served pose
+and the lily (undeclared, both orders) pass F2 and stop at the chord
+layer's section, now the typed `SplitJoinError::SectionUnarmed`: F3a
+(the plane face divided) with the plane first, F3b (the torus face
+divided) with the torus first. TANG's tube (cylinder × torus) takes the
+edge-plane lane, not the germ dispatch, and stops at F3b in all six ops
+as before; this unit does not move it. The torus face's ring closure
+was measured unreachable through the public ops before F3 (266 runs)
+and, read in-crate, a refusal (`RingIslandUnread { Torus }` on the
+cylinder-only chart); it is now `ring_path`'s path parity, as the
+sphere's and the cone's, reading meridian and parallel loop arcs. It
+refuses a spiric one until U-T4, and the tube's top and bottom circles
+(the parallels of radius `R`, whose plane touches the torus) until
+U-T3.
+
+## U-T3, the plane × torus chord for the circles (GERM, 2026-10-12)
+
+On `germ/plane-torus-chord-circles` (PR 4847). The chord layer's torus arm takes an
+arc of the meridian or concentric circle the chord's two sites lie on,
+picked by the join's own loop split; every pose whose plane holds the
+axis or stands square to it builds its true body in all six ops, on the
+donut, the one-face torus and the seamed torus, and so does TANG's tube.
+Spiric sections keep the typed refusal (U-T4's). The ring lane reads the
+tube's top and bottom circles across the cylinder `ρ = R`. The lily now
+stops past the join, at the interior-loop guard on its two tube walls
+(`work/orbit/the-lilys-stem-and-arch-walls-have-no-certificate-arm.md`).

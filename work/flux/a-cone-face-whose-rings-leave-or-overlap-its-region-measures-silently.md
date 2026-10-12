@@ -7,7 +7,6 @@ priority: P2
 cost: H
 refs: [4696, validate-tier3-curved-boundary-containment]
 opened: 2026-10-11
-needs_ev: true
 ---
 
 
@@ -71,3 +70,24 @@ The work then sits mostly on RESTFRONT's ground
 (`validate-tier3-curved-boundary-containment`). FLUX keeps three
 parts: the lane docs, retiring the cone's region guards once check 9
 covers them, and typing the door.
+
+## Ev's answer (2026-10-12, PR 4822)
+
+Ev approved the recommendation ("i think this sounds good!") and skipped
+the face-level proof type ("cool let's skip A' then"). So:
+- tier 3's check 9 owns "a face's loops bound one region" on every
+  surface kind, through a chart-polygon arm;
+- the closed-form lanes read their loops as such a boundary, and
+  document what they compute otherwise: an integral over what the loops
+  enclose, with multiplicity;
+- the cone's region guards (`HolesExceedFace`, contractibility, the
+  vertex-distinct decide, the once-round bound) retire once the arm
+  covers them, never before;
+- `mass_properties` and `classify_shells` take `&AtRestBody`.
+
+Design-fork log row 122.
+
+The check-9 arm is RESTFRONT's (`validate-tier3-curved-boundary-containment`).
+FLUX's part waits on it, apart from typing the door and the lane docs,
+which can land first.
+

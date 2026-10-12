@@ -141,26 +141,28 @@ fn accepted_against_torus(
 /// 22° window (the certified negative: the root is placed `Out` in the
 /// stem face's own chart, both ends are definitely off the carrier, so
 /// the arc meets that face nowhere). Both pairs now answer, and the op
-/// stops at the join, where the germ pair of the stem's weld cap
-/// (plane) against the arch's wall (torus) reads its frame off the
-/// arch's rim, which lies in the cap, and has no join arm: the join
-/// refuses on the arch's wall, a typed refusal and no body to measure.
+/// reaches the join, where the germ pair of the stem's weld cap (plane)
+/// against the arch's wall (torus) takes the plane × wall arm and its
+/// chord, an arc of the arch's meridian circle. Past the join the
+/// section certificate's interior-loop guard refuses the stem's tube
+/// wall against the arch's, two tori with parallel axes apart, which it
+/// has no arm for; no body to measure.
 #[test]
 fn the_lily_stem_glue_is_past_the_circle_torus_pairs() {
     let (s, a) = (stem(), arch());
-    let err =
-        topo::union(&s, &a, Tol::witness()).expect_err("the stem glue still refuses, in the join");
-    let BooleanError::CurvedBooleanUnsupported {
-        operand: topo::Operand::B,
-        face,
-        kind: geom::SurfaceKind::Torus,
-    } = err
-    else {
-        panic!("the lily's next door is the plane × torus join arm: {err:?}");
-    };
+    let err = topo::union(&s, &a, Tol::witness())
+        .expect_err("the stem glue still refuses, past the join");
     assert!(
-        torus_faces(&a).contains(&face),
-        "the arch's face is its tube wall"
+        matches!(
+            err,
+            BooleanError::CurvedPairUnsupported {
+                site: topo::PairRefusalSite::InteriorLoopGuard,
+                kind: geom::SurfaceKind::Torus,
+                other_kind: geom::SurfaceKind::Torus,
+                ..
+            }
+        ),
+        "the lily's next door is the interior-loop guard on its two tube walls: {err:?}"
     );
 }
 
@@ -542,9 +544,12 @@ fn a_coaxial_seam_on_the_torus_is_placed_by_its_arc() {
 /// **A planar face holding the other solid's rim is no edge-plane
 /// holder.** The arch's rim circle lies in the stem's weld cap, a
 /// plane, and the edge's plane is that face's own plane, which cuts it
-/// in no curve. So the join itself refuses on the torus, the kind with
-/// no arm, in both member orders; it does not cut the cap by its own
-/// plane. Read as the join's own refusal (`boolean_join_refusal`).
+/// in no curve. The germ pair is a plane against a torus wall, which
+/// has a kind arm, so the join takes it as a plane × wall pair and never
+/// asks the edge-plane lane, which would refuse a holder that is the
+/// cap's own plane: the join completes in both member orders, its chord
+/// an arc of the arch's meridian circle. Read as the join's own outcome
+/// (`boolean_join_refusal`).
 #[test]
 fn a_planar_face_holding_the_arch_rim_is_no_edge_plane_holder() {
     let (s, a) = (stem(), arch());
@@ -553,14 +558,8 @@ fn a_planar_face_holding_the_arch_rim_is_no_edge_plane_holder() {
         let refusal = topo::test_support::boolean_join_refusal(topo::BooleanOp::Union, x, y, t)
             .unwrap_or_else(|e| panic!("{label}: the reduction refused {e:?}"));
         assert!(
-            matches!(
-                refusal,
-                Some(BooleanError::CurvedBooleanUnsupported {
-                    kind: geom::SurfaceKind::Torus,
-                    ..
-                })
-            ),
-            "{label}: the join refuses on the torus: {refusal:?}"
+            refusal.is_none(),
+            "{label}: the join completes: {refusal:?}"
         );
     }
 }

@@ -40,25 +40,26 @@ pub enum ContactPairError {
 }
 
 /// Why a carry of a record list refused one of its records
-/// ([`ContactRecords::carried_through`],
-/// [`ContactRecords::carried_through_pieces`], [`ContactRecords::rekeyed`]): a
-/// record the map cannot take is refused, never dropped.
+/// ([`ContactRecords::carried_through`], [`ContactRecords::rekeyed`]): a record
+/// the carry cannot place is refused, never dropped.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CarryRefusal {
-    /// `cell`, which input record `record` names, has no image: the op
-    /// removed it and its lineage names no live cell holding it now, or
-    /// a graft's map has no image of its kind.
+    /// `cell`, which input record `record` names, has no image the
+    /// result holds and the op's lineage states no removal of it: the
+    /// lineage does not cover it, or a graft's map has no image of its
+    /// kind.
     Unmapped {
         /// The record's index in the input's list.
         record: u32,
         /// The input cell.
         cell: Cell,
     },
-    /// Input record `record`'s two images are incident in the result.
+    /// Every pair of input record `record`'s images is one cell or
+    /// incident in the result, and not two vertices made one.
     Pair {
         /// The record's index in the input's list.
         record: u32,
-        /// What the two images are instead.
+        /// What the images are instead.
         error: ContactPairError,
     },
     /// The op parted input record `record`'s two cells into different
@@ -68,14 +69,93 @@ pub enum CarryRefusal {
         record: u32,
     },
     /// Whether input record `record`'s touch is on `cells`, a pair of
-    /// pieces of the cells the op divided, could not be read: the
-    /// census's confirm pass escalated, or has no lane for the pair.
+    /// its two cells' images, could not be read: the census's confirm
+    /// pass escalated, or has no lane for the pair.
     Unread {
         /// The record's index in the input's list.
         record: u32,
-        /// The pair of pieces.
+        /// The pair of images.
         cells: [Cell; 2],
     },
+    /// Input record `record` lands on no pair of its cells' images,
+    /// every pair read definitely, and the op removed neither cell nor
+    /// any part of one: a touch the op's lineage says is still there,
+    /// and the result says is not.
+    Stale {
+        /// The record's index in the input's list.
+        record: u32,
+    },
+    /// Two cells the op minted, one on each of input record `record`'s
+    /// two cells, meet at a point, and the op cannot back the meeting
+    /// (D1): only a cut that made both, or an op that decides the
+    /// meeting at its door, can.
+    MintedMeeting {
+        /// The record's index in the input's list.
+        record: u32,
+        /// The two minted cells.
+        cells: [Cell; 2],
+    },
+}
+
+impl CarryRefusal {
+    /// The refused record's index.
+    pub(crate) fn record(self) -> u32 {
+        match self {
+            Self::Unmapped { record, .. }
+            | Self::Pair { record, .. }
+            | Self::Parted { record }
+            | Self::Unread { record, .. }
+            | Self::Stale { record }
+            | Self::MintedMeeting { record, .. } => record,
+        }
+    }
+
+    /// The refusal with its record index `index`.
+    pub(crate) fn renumbered(mut self, index: u32) -> Self {
+        match &mut self {
+            Self::Unmapped { record, .. }
+            | Self::Pair { record, .. }
+            | Self::Parted { record }
+            | Self::Unread { record, .. }
+            | Self::Stale { record }
+            | Self::MintedMeeting { record, .. } => *record = index,
+        }
+        self
+    }
+}
+
+impl core::fmt::Display for CarryRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Unmapped { record, cell } => write!(
+                f,
+                "record {record}'s cell {cell:?} has no image the result holds, and the op \
+                 states no removal of it"
+            ),
+            Self::Pair { record, error } => write!(
+                f,
+                "every pair of record {record}'s images is structure, not a touch ({error:?})"
+            ),
+            Self::Parted { record } => write!(
+                f,
+                "the op parted record {record}'s two cells into different bodies"
+            ),
+            Self::Unread { record, cells } => write!(
+                f,
+                "whether record {record}'s touch is on {cells:?} could not be read"
+            ),
+            Self::Stale { record } => write!(
+                f,
+                "record {record} lands on no pair of its cells' images, and the op removed \
+                 neither cell"
+            ),
+            Self::MintedMeeting { record, cells } => write!(
+                f,
+                "two cells the op minted on record {record}'s cells meet at a point, \
+                 {cells:?}, and the op cannot back the meeting"
+            ),
+        }
+    }
 }
 
 /// **A record's kind, read from its cells' dimensions**: the six pairs
@@ -396,239 +476,83 @@ impl ContactRecords {
         Self { rows }
     }
 
-    /// These records as an op's that made `result` from its input
-    /// `input`: each cell mapped through `image`, the op's own lineage,
-    /// and each record citing this list's record ([`Backing::Carried`]).
+    /// **The one carry** (D1): these records as an op's that made
+    /// `result` from its input `input`, through `lineage`, what the op
+    /// made of each input cell. Each record citing this list's record
+    /// ([`Backing::Carried`]) lands on every pair drawn from its two
+    /// cells' images whose interiors meet, read by the census's own
+    /// record confirm at `band` through `region` (the chart-region door
+    /// the census's doors take, [`crate::RegionLane`]; without it a
+    /// face–face pair is unread), so what lands is what the census
+    /// confirms. Nothing else of the result is searched.
     ///
-    /// `image` answers what the op made of an input cell: itself where it
-    /// survives under its key, the cell that holds it now where the op
-    /// replaced it (a join's edge, a merge's face), and `None` where the
-    /// op names no replacement. A conventional vertex has no identity of
-    /// its own, so an image landing on one is its closed edge. Two records
-    /// mapped onto one pair are one record citing both, and a record
-    /// whose two vertices map to one vertex is consumed and drops, as the
-    /// boolean's does (D1's strict record-drop rule); any other pair
-    /// mapped to one cell is refused.
+    /// A conventional vertex has no identity of its own, so an image
+    /// landing on one is its closed edge. Two records landing on one
+    /// pair are one record citing both.
     ///
-    /// Whether a carried touch still holds is not read here: the
-    /// census confirms each record against the result's geometry.
-    ///
-    /// # Errors
-    ///
-    /// [`CarryRefusal::Unmapped`] for the first cell whose image is
-    /// `None` or not live in `result`, and [`CarryRefusal::Pair`] for the
-    /// first record whose images are incident there, or one cell that is
-    /// not two vertices fused.
-    pub fn carried_through<T: Real>(
-        &self,
-        input: u32,
-        result: &Body<T>,
-        image: impl Fn(Cell) -> Option<Cell>,
-    ) -> Result<Self, CarryRefusal> {
-        let mut out = Self::default();
-        for k in 0..self.rows.len() {
-            out.extend(self.carried_row(input, k, result, &image)?);
-        }
-        Ok(out)
-    }
-
-    /// These records as an op's that made `result` from its input
-    /// `input` and divided some of its cells: as
-    /// [`Self::carried_through`], except that a record on a cell the op
-    /// divided lands on every pair of pieces whose interiors still meet
-    /// (D1). `divisions` are the op's division rows: what it divided an
-    /// input cell into, each piece read through `image` as the cell
-    /// would be; the touch is placed among them by the
-    /// census's own confirm pass, so what lands is what the census
-    /// confirms. A division only chooses among a record's own pieces:
-    /// nothing else of the result is searched. Where no pair of pieces
-    /// meets, the record is carried as [`Self::carried_through`] carries
-    /// it, so the census reads it stale or the carry refuses it. The
-    /// confirm reads at `band` through `region`, the chart-region door
-    /// the census's own doors take ([`crate::RegionLane`]); without it
-    /// a face–face pair of pieces is unread.
+    /// A record that lands on no pair, every pair read definitely, is
+    /// **consumed** where the op removed one of its cells or divided one
+    /// with its remainder removed; so too a vertex–vertex record whose
+    /// two vertices the op made one (D1's strict record-drop rule). It is
+    /// never dropped because no witness turned up: otherwise it refuses.
     ///
     /// # Errors
     ///
-    /// As [`Self::carried_through`]; [`CarryRefusal::Unread`] for the
-    /// first pair of pieces the confirm pass cannot read.
-    pub fn carried_through_pieces<T: geom_core::Decide>(
+    /// [`CarryRefusal::Unmapped`] for a cell the lineage does not cover;
+    /// [`CarryRefusal::Unread`] for a pair the confirm cannot read;
+    /// [`CarryRefusal::MintedMeeting`] for two cells the op minted on
+    /// the record's two cells meeting at a point it cannot back;
+    /// [`CarryRefusal::Stale`] for a record that lands nowhere with no
+    /// removal to consume it, and [`CarryRefusal::Pair`] for one whose
+    /// every pair of images is one cell or incident.
+    pub fn carried_through<T: geom_core::Decide>(
         &self,
         input: u32,
+        lineage: &crate::Lineage,
         result: &Body<T>,
-        image: impl Fn(Cell) -> Option<Cell>,
-        divisions: &crate::Divisions,
         band: geom_core::Band,
         region: Option<crate::RegionLane<T>>,
     ) -> Result<Self, CarryRefusal> {
-        let side = Side {
-            body: result,
-            image: &image,
-        };
         let [out] =
-            <[Self; 1]>::try_from(self.carried_onto(input, &[side], divisions, band, region)?)
+            <[Self; 1]>::try_from(self.carried_onto(input, lineage, &[result], band, region)?)
                 .unwrap_or_else(|_| unreachable!("one side carries one list"));
         Ok(out)
     }
 
     /// These records carried onto `sides`, the bodies an op made from
-    /// its input `input`, one list per side, as
-    /// [`Self::carried_through_pieces`] carries them onto one: a record
-    /// on a cell `divisions` divides lands on every side's pairs of
-    /// pieces that meet, and one that lands nowhere so is carried by key
-    /// onto each side that holds both its cells.
+    /// its input `input`, one list per side, as [`Self::carried_through`]
+    /// carries them onto one ([`landings`]).
     ///
     /// # Errors
     ///
-    /// [`CarryRefusal::Unread`] for the first pair of pieces the confirm
-    /// cannot read; for a record that lands on no side,
-    /// [`CarryRefusal::Unmapped`] where no side holds one of its cells,
-    /// a side's [`CarryRefusal::Pair`], else [`CarryRefusal::Parted`]
-    /// (its cells are on different sides).
+    /// As [`landings`]; [`CarryRefusal::MintedMeeting`] for a minted
+    /// meeting where the lineage is not one cut's.
     pub(crate) fn carried_onto<T: geom_core::Decide>(
         &self,
         input: u32,
-        sides: &[Side<'_, T>],
-        divisions: &crate::Divisions,
+        lineage: &crate::Lineage,
+        sides: &[&Body<T>],
         band: geom_core::Band,
         region: Option<crate::RegionLane<T>>,
     ) -> Result<Vec<Self>, CarryRefusal> {
+        let rows: Vec<[Cell; 2]> = self.rows.iter().map(|r| r.cells()).collect();
+        let mut confirms = Confirms::new(sides.len());
+        let landed = landings(&rows, lineage, sides, &mut confirms, band, region)?;
         let mut out: Vec<Self> = sides.iter().map(|_| Self::default()).collect();
-        let mut confirms: Vec<Option<crate::census::RecordConfirm<'_, T>>> =
-            sides.iter().map(|_| None).collect();
-        for k in 0..self.rows.len() {
-            let record = super::reduce::index(k);
-            let [x, y] = self.rows[k].cells();
-            if !divisions.pieces(x).is_empty() || !divisions.pieces(y).is_empty() {
-                let mut landed = false;
-                for ((side, list), confirm) in sides.iter().zip(&mut out).zip(&mut confirms) {
-                    let confirm = confirm.get_or_insert_with(|| {
-                        crate::census::RecordConfirm::of(side.body, band, region)
-                    });
-                    let rows = self.landed_on_pieces(input, k, side, divisions, confirm)?;
-                    landed |= !rows.is_empty();
-                    list.extend(rows);
-                }
-                if landed {
-                    continue;
-                }
-            }
-            let mut refusals = Vec::new();
-            let mut landed = false;
-            for (side, list) in sides.iter().zip(&mut out) {
-                match self.carried_row(input, k, side.body, &side.image) {
-                    Ok(row) => {
-                        landed = true;
-                        list.extend(row);
-                    }
-                    Err(refusal) => refusals.push(refusal),
-                }
-            }
-            if !landed {
-                let held = |c: Cell| {
-                    sides
-                        .iter()
-                        .any(|s| (s.image)(c).is_some_and(|i| holds(s.body, i)))
-                };
-                return Err(match (held(x), held(y)) {
-                    (true, true) => refusals
-                        .into_iter()
-                        .find(|r| matches!(r, CarryRefusal::Pair { .. }))
-                        .unwrap_or(CarryRefusal::Parted { record }),
-                    (false, _) => CarryRefusal::Unmapped { record, cell: x },
-                    (true, false) => CarryRefusal::Unmapped { record, cell: y },
+        for landing in landed {
+            let record = super::reduce::index(landing.row);
+            if landing.minted && lineage.meeting() == crate::lineage::MintedBacking::Refused {
+                return Err(CarryRefusal::MintedMeeting {
+                    record,
+                    cells: landing.pair.cells(),
                 });
             }
-        }
-        Ok(out)
-    }
-
-    /// Record `k` on every pair of its cells' pieces on `side` (each
-    /// cell itself and the pieces `divisions` divides it into, each
-    /// through the side's image) whose interiors `confirm` reads
-    /// meeting, each citing the input record: none where no pair meets.
-    /// A pair the confirm cannot read refuses even where another pair
-    /// meets: it may meet too, and a meeting pair left unrecorded is not
-    /// inferred later (D1).
-    ///
-    /// # Errors
-    ///
-    /// [`CarryRefusal::Unread`] for the first pair `confirm` cannot
-    /// read.
-    fn landed_on_pieces<T: geom_core::Decide>(
-        &self,
-        input: u32,
-        k: usize,
-        side: &Side<'_, T>,
-        divisions: &crate::Divisions,
-        confirm: &crate::census::RecordConfirm<'_, T>,
-    ) -> Result<Vec<Cited<Contact>>, CarryRefusal> {
-        let record = super::reduce::index(k);
-        let held = |c: Cell| {
-            let mut out: Vec<Cell> = Vec::new();
-            for i in core::iter::once(c)
-                .chain(divisions.pieces(c))
-                .filter_map(side.image)
-                .filter(|&i| holds(side.body, i))
-                .map(|i| conventional_edge(side.body, i))
-            {
-                if !out.contains(&i) {
-                    out.push(i);
-                }
-            }
-            out
-        };
-        let [x, y] = self.rows[k].cells();
-        let mut out = Vec::new();
-        for &a in &held(x) {
-            for &b in &held(y) {
-                // One cell, or one bounding the other: structure, not a touch.
-                let Ok(pair) = Contact::new(side.body, a, b) else {
-                    continue;
-                };
-                if confirm.meets(pair).map_err(|_| CarryRefusal::Unread {
-                    record,
-                    cells: pair.cells(),
-                })? {
-                    out.push(Cited::new(
-                        pair,
-                        Cites::one(Backing::Carried { input, record }),
-                    ));
-                }
-            }
-        }
-        Ok(out)
-    }
-
-    /// Record `k` carried into `result` as [`Self::carried_through`]
-    /// carries each: `None` where it is consumed.
-    pub(crate) fn carried_row<T: Real>(
-        &self,
-        input: u32,
-        k: usize,
-        result: &Body<T>,
-        image: &impl Fn(Cell) -> Option<Cell>,
-    ) -> Result<Option<Cited<Contact>>, CarryRefusal> {
-        let record = super::reduce::index(k);
-        let cells = self.rows[k].cells();
-        let [x, y] = cells.map(|c| {
-            image(c)
-                .filter(|&i| holds(result, i))
-                .map(|i| conventional_edge(result, i))
-                .ok_or(CarryRefusal::Unmapped { record, cell: c })
-        });
-        match Contact::new(result, x?, y?) {
-            Ok(pair) => Ok(Some(Cited::new(
-                pair,
+            out[landing.side].push(Cited::new(
+                landing.pair,
                 Cites::one(Backing::Carried { input, record }),
-            ))),
-            Err(ContactPairError::OneCell(Cell::Vertex(_)))
-                if matches!(cells, [Cell::Vertex(_), Cell::Vertex(_)]) =>
-            {
-                Ok(None)
-            }
-            Err(error) => Err(CarryRefusal::Pair { record, error }),
+            ));
         }
+        Ok(out)
     }
 
     /// These records with every citation mapped through `f`, each to
@@ -714,12 +638,176 @@ impl ContactRecords {
     }
 }
 
-/// One body an op's records are carried onto
-/// ([`ContactRecords::carried_onto`]), and what the op made of each
-/// input cell there: the cell that holds it, or `None`.
-pub(crate) struct Side<'a, T: Real> {
-    pub(crate) body: &'a Body<T>,
-    pub(crate) image: &'a dyn Fn(Cell) -> Option<Cell>,
+/// **One record's landing** ([`landings`]): the pair of its two cells'
+/// images on side `side` whose interiors meet.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Landing {
+    /// The record's index among the rows carried.
+    pub(crate) row: usize,
+    /// The side it landed on.
+    pub(crate) side: usize,
+    /// The image of each of the record's two cells, in the record's
+    /// order.
+    pub(crate) at: [Cell; 2],
+    /// The pair, in canonical order.
+    pub(crate) pair: Contact,
+    /// Whether the two are cells the op minted, one on each of the
+    /// record's cells, meeting at a point (D1): only a cut that made
+    /// both, or an op that decides the meeting at its door, backs one.
+    pub(crate) minted: bool,
+}
+
+/// Each side's census confirm, read at most once per side.
+pub(crate) struct Confirms<'b, T: geom_core::Decide>(
+    Vec<Option<crate::census::RecordConfirm<'b, T>>>,
+);
+
+impl<T: geom_core::Decide> Confirms<'_, T> {
+    pub(crate) fn new(sides: usize) -> Self {
+        Self((0..sides).map(|_| None).collect())
+    }
+}
+
+/// **The one carry's placement** (D1): each of `rows`, a record's two
+/// input cells, put on every pair drawn from its cells' images under
+/// `lineage` that a side holds and whose interiors meet, read by the
+/// census's own record confirm at `band` through `region`. The sides
+/// hold disjoint keys. A conventional vertex reads as its closed edge.
+///
+/// A row that lands nowhere, every pair read definitely, is consumed
+/// where the lineage removed one of its cells or part of one, where its
+/// two vertices became one vertex (D1's strict record-drop rule), or,
+/// for an op that glues cells ([`crate::Lineage::glued`]), where every
+/// pair of its images is structure.
+///
+/// # Errors
+///
+/// [`CarryRefusal::Unread`] for a pair the confirm cannot read; for a
+/// row that lands nowhere and is not consumed, [`CarryRefusal::Stale`]
+/// where some pair was read, [`CarryRefusal::Pair`] where every pair is
+/// one cell or incident, [`CarryRefusal::Parted`] where its two cells'
+/// images are held by different sides only, and
+/// [`CarryRefusal::Unmapped`] for a cell with no image held anywhere.
+pub(crate) fn landings<'b, T: geom_core::Decide>(
+    rows: &[[Cell; 2]],
+    lineage: &crate::Lineage,
+    sides: &[&'b Body<T>],
+    confirms: &mut Confirms<'b, T>,
+    band: geom_core::Band,
+    region: Option<crate::RegionLane<T>>,
+) -> Result<Vec<Landing>, CarryRefusal> {
+    let mut out = Vec::new();
+    for (k, &cells) in rows.iter().enumerate() {
+        let record = super::reduce::index(k);
+        let fates = cells.map(|c| lineage.fate(c));
+        // A minted cell an image of the cell's pieces also names (a
+        // vertex a join took into the piece's edge) is that piece.
+        let minted: [Vec<Cell>; 2] = [0, 1].map(|i| {
+            let pieces: Vec<Cell> = fates[i]
+                .pieces()
+                .iter()
+                .map(|&p| lineage.joined(p))
+                .collect();
+            fates[i]
+                .minted()
+                .iter()
+                .map(|&m| lineage.joined(m))
+                .filter(|m| !pieces.contains(m))
+                .collect()
+        });
+        let images = cells.map(|c| lineage.images(c));
+        let mut landed = false;
+        let mut read = false;
+        let mut structure: Option<ContactPairError> = None;
+        let mut held_by: [bool; 2] = [false, false];
+        for (s, (&body, confirm)) in sides.iter().zip(&mut confirms.0).enumerate() {
+            // Each held image as the cell a record lands on, whether the
+            // op minted it, and whether it is a point: read before a
+            // conventional vertex becomes its closed edge.
+            let held = |i: usize| {
+                let mut at: Vec<(Cell, bool, bool)> = Vec::new();
+                for &c in images[i].iter().filter(|&&c| holds(body, c)) {
+                    let is_minted = minted[i].contains(&c);
+                    let point = matches!(c, Cell::Vertex(_));
+                    let c = conventional_edge(body, c);
+                    match at.iter_mut().find(|(x, ..)| *x == c) {
+                        Some((_, m, p)) => {
+                            *m |= is_minted;
+                            *p |= point;
+                        }
+                        None => at.push((c, is_minted, point)),
+                    }
+                }
+                at
+            };
+            let held = [held(0), held(1)];
+            for i in 0..2 {
+                held_by[i] |= !held[i].is_empty();
+            }
+            for &(a, a_minted, a_point) in &held[0] {
+                for &(b, b_minted, b_point) in &held[1] {
+                    let pair = match Contact::new(body, a, b) {
+                        Ok(pair) => pair,
+                        Err(error) => {
+                            structure.get_or_insert(error);
+                            continue;
+                        }
+                    };
+                    read = true;
+                    let confirm = confirm.get_or_insert_with(|| {
+                        crate::census::RecordConfirm::of(body, band, region)
+                    });
+                    if !confirm.meets(pair).map_err(|_| CarryRefusal::Unread {
+                        record,
+                        cells: pair.cells(),
+                    })? {
+                        continue;
+                    }
+                    landed = true;
+                    out.push(Landing {
+                        row: k,
+                        side: s,
+                        at: [a, b],
+                        pair,
+                        minted: (a_point || b_point) && a_minted && b_minted,
+                    });
+                }
+            }
+        }
+        if landed {
+            continue;
+        }
+        let removed = fates.iter().any(crate::Fate::removes);
+        if read {
+            if removed {
+                continue;
+            }
+            return Err(CarryRefusal::Stale { record });
+        }
+        if let Some(error) = structure {
+            let fused = matches!(error, ContactPairError::OneCell(Cell::Vertex(_)))
+                && matches!(cells, [Cell::Vertex(_), Cell::Vertex(_)]);
+            // Structure needs no record (D1): two vertices made one, or
+            // cells an op glued ([`crate::Lineage::glued`]).
+            if fused || lineage.glues() {
+                continue;
+            }
+            return Err(CarryRefusal::Pair { record, error });
+        }
+        if held_by == [true, true] {
+            return Err(CarryRefusal::Parted { record });
+        }
+        // A cell no side holds is covered only by its own removal.
+        for i in 0..2 {
+            if !held_by[i] && !fates[i].removes() {
+                return Err(CarryRefusal::Unmapped {
+                    record,
+                    cell: cells[i],
+                });
+            }
+        }
+    }
+    Ok(out)
 }
 
 impl Extend<Cited<Contact>> for ContactRecords {

@@ -726,8 +726,10 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
     /// is the one face at `v` that descends from none of the faces of the
     /// member edges along that line, cited without its `Fragment`s. The
     /// sense is the one the fold step that minted the vertex read,
-    /// carried by its name `fold` ([`Flush::carried_sense`]). Anything
-    /// else is `None`.
+    /// carried by its name `fold` ([`Flush::carried_sense`]). Where the
+    /// finished edges at `v` lie on two lines, the vertex is where two
+    /// member edges meet ([`Flush::edge_crossing`]), and on three or more
+    /// a junction ([`Flush::junction`]). Anything else is `None`.
     fn crossing(
         &self,
         v: topo::VertexKey,
@@ -742,8 +744,11 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
             along.extend(on);
         }
         let mut lines = lines.into_iter();
-        let (Some((member, edge)), None) = (lines.next(), lines.next()) else {
-            return Ok(None);
+        let (member, edge) = match (lines.next(), lines.next(), lines.next()) {
+            (Some(one), None, _) => one,
+            (Some(a), Some(b), None) => return self.edge_crossing(v, fold, [a, b]),
+            (Some(_), Some(_), Some(_)) => return self.junction(v),
+            (None, ..) => return Ok(None),
         };
         let mut sides = BTreeSet::new();
         for (n, name) in &along {
@@ -781,11 +786,14 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         let (Some(face), None) = (others.next(), others.next()) else {
             return Ok(None);
         };
-        let sense = match self.carried_sense(v, fold, &(member, edge.clone()))? {
+        let line = (member, edge);
+        let sense = match self.carried_sense(v, fold, &line)? {
             Some(sense) => sense,
-            None => self.read_sense(v, &(member, edge.clone()))?,
+            None => self.read_sense(v, &line)?.ok_or(NamingError::Emission {
+                what: "a union's crossing has no sense read along its edge at the step that minted it",
+            })?,
         };
-        let edge = entity_name(self.union, &(member, edge));
+        let edge = entity_name(self.union, &line);
         Ok(Some(StableName {
             kind: EntityKind::Vertex,
             node: self.union,
@@ -794,6 +802,107 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
                 face: NameRef::new(face),
                 sense,
             }],
+        }))
+    }
+
+    /// **Finished vertex `v` where two member edges meet**, the lines
+    /// [`Flush::crossing`] reads there: `EdgeCrossing { a, a_sense, b,
+    /// b_sense }`, the two in name order, each with the sense the fold
+    /// step that minted the vertex read along it.
+    ///
+    /// Two fallbacks publish the fold's spelling instead, unsignalled:
+    /// - **The two lines are one member's.** A member that holds two
+    ///   coincident edges (the pinch's joined blocks, their contact)
+    ///   pierces another at one point; no member pair meets there. The
+    ///   fold's junction stands, alike in both orders
+    ///   (`union_pinch_member_order::two_edges_of_one_member_at_the_pinch_keep_the_folds_junction`).
+    /// - **No step read a sense along one line.** Where the vertex was
+    ///   minted by one edge crossing a third member's face, the second
+    ///   edge later reaches it as a vertex of the fold so far, named as
+    ///   the fold's own, and nothing reads its sense. The fold's
+    ///   `Crossing` stands, so the name depends on member order
+    ///   (`union_pinch_member_order::two_legs_on_the_plate_are_spelled_by_member_order`;
+    ///   `work/emit/a-meeting-of-three-members-at-one-point-has-no-order-free-sense.md`).
+    fn edge_crossing(
+        &self,
+        v: topo::VertexKey,
+        fold: &StableName,
+        [l0, l1]: [MemberEntity; 2],
+    ) -> Result<Option<StableName>, NamingError> {
+        if l0.0 == l1.0 {
+            return Ok(None);
+        }
+        let side = |line: MemberEntity| -> Result<Option<(NameRef, Sense)>, NamingError> {
+            let sense = match self.carried_sense(v, fold, &line)? {
+                Some(sense) => Some(sense),
+                None => self.read_sense(v, &line)?,
+            };
+            let name = edge_line(&NameRef::new(entity_name(self.union, &line)));
+            Ok(sense.map(|sense| (name, sense)))
+        };
+        let (Some(s0), Some(s1)) = (side(l0)?, side(l1)?) else {
+            return Ok(None);
+        };
+        let ((a, a_sense), (b, b_sense)) = if s0 <= s1 { (s0, s1) } else { (s1, s0) };
+        Ok(Some(StableName {
+            kind: EntityKind::Vertex,
+            node: self.union,
+            path: vec![RoleSeg::EdgeCrossing {
+                a,
+                a_sense,
+                b,
+                b_sense,
+            }],
+        }))
+    }
+
+    /// **Finished vertex `v` where three or more member edges meet**,
+    /// named as the junction of the seam lines through it in the
+    /// finished body: each finished edge at `v` that lies along no
+    /// member edge and between faces of different members is one line,
+    /// `Seam` of its two faces' names in name order, and the run is
+    /// sorted.
+    ///
+    /// Two fallbacks publish the fold's spelling instead, unsignalled,
+    /// and no fixture reaches either: fewer than two such lines pass
+    /// (member edges meeting with no seam between their members), or a
+    /// face at a seam edge has no parent name.
+    fn junction(&self, v: topo::VertexKey) -> Result<Option<StableName>, NamingError> {
+        let members = |f: &topo::FaceKey| -> BTreeSet<VarId> {
+            self.faces
+                .get(f)
+                .into_iter()
+                .flatten()
+                .map(|(n, _)| *n)
+                .collect()
+        };
+        let mut lines = BTreeSet::new();
+        for k in self.inc.vertex_edges.get(&v).into_iter().flatten() {
+            if self.edges.contains_key(k) || self.spans.contains_key(k) {
+                continue;
+            }
+            let Some([f0, f1]) = self.inc.edge_faces.get(k).map(Vec::as_slice) else {
+                continue;
+            };
+            if !members(f0).is_disjoint(&members(f1)) {
+                continue;
+            }
+            let (Some(n0), Some(n1)) = (self.face_names.get(f0), self.face_names.get(f1)) else {
+                return Ok(None);
+            };
+            let (a, b) = if n0 <= n1 { (n0, n1) } else { (n1, n0) };
+            lines.insert(RoleSeg::Seam {
+                a: NameRef::new(a.clone()),
+                b: NameRef::new(b.clone()),
+            });
+        }
+        if lines.len() < 2 {
+            return Ok(None);
+        }
+        Ok(Some(StableName {
+            kind: EntityKind::Vertex,
+            node: self.union,
+            path: lines.into_iter().collect(),
         }))
     }
 
@@ -889,29 +998,29 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
     /// the fold step that minted the vertex read it** where the vertex's
     /// fold name carries none: the [`Fold`]'s record of the senses read
     /// there, each edge collapsed to the member edge it lies on, and the
-    /// one on `edge`'s line read along `edge` ([`Flush::same_way`]).
+    /// one on `edge`'s line read along `edge` ([`Flush::same_way`]);
+    /// `None` where no edge read there lies on the line.
     ///
     /// # Errors
     ///
-    /// [`NamingError::Emission`] where no edge read there lies on the
-    /// line, or two read it differently.
-    fn read_sense(&self, v: topo::VertexKey, edge: &MemberEntity) -> Result<Sense, NamingError> {
+    /// [`NamingError::Emission`] where two read it differently.
+    fn read_sense(
+        &self,
+        v: topo::VertexKey,
+        edge: &MemberEntity,
+    ) -> Result<Option<Sense>, NamingError> {
         let mut found = BTreeSet::new();
         for (name, sense) in self.senses.get(&v).into_iter().flatten() {
             if let Some(same) = self.way_of(v, &collapse_name(self.union, name)?, edge)? {
                 found.insert(if same { *sense } else { sense.flipped() });
             }
         }
-        let mut found = found.into_iter();
-        match (found.next(), found.next()) {
-            (Some(sense), None) => Ok(sense),
-            (None, _) => Err(NamingError::Emission {
-                what: "a union's crossing has no sense read along its edge at the step that minted it",
-            }),
-            (Some(_), Some(_)) => Err(NamingError::Emission {
+        if found.len() > 1 {
+            return Err(NamingError::Emission {
                 what: "a union's crossing reads two senses along its edge",
-            }),
+            });
         }
+        Ok(found.pop_first())
     }
 
     /// Whether member edge `of` runs the same way as member edge `like`:
@@ -1197,7 +1306,10 @@ fn member_edge_piece(name: &StableName) -> Option<(VarId, NameRef, bool)> {
 /// One that lies along one member edge, crossed there by one face, is
 /// `Crossing { edge, face, sense }` ([`Flush::crossing`]), however the
 /// fold met it — as a crossing of the edge, or as a junction of seam
-/// lines — with the sense the step that minted it read.
+/// lines — with the sense the step that minted it read; one where two
+/// member edges meet is their `EdgeCrossing` ([`Flush::edge_crossing`]),
+/// and one where three or more meet the junction of the seam lines
+/// through it in the finished body ([`Flush::junction`]).
 ///
 /// Any other seam vertex embeds the member edge it lies on as far as the fold
 /// had cut it when it met the vertex — a piece that no published name
@@ -1551,8 +1663,8 @@ impl Links {
         }
         for &(fa, fb) in &naming.covered {
             self.0.push((
-                (a, descent.clone_face(topo::Operand::A, fa)?),
-                (b, descent.clone_face(topo::Operand::B, fb)?),
+                (a, descent.clone_face(topo::Operand::A, fa)),
+                (b, descent.clone_face(topo::Operand::B, fb)),
             ));
         }
         Ok(())
@@ -1619,9 +1731,21 @@ impl Fold {
         // graft rows is a record this fold cannot read.
         match naming.a_keys {
             topo::OperandKeys::Direct => {
-                let fused = naming.fused_into();
+                // Only the fused keys are settled: a sense read at any other
+                // vertex the result no longer holds is dropped below, because
+                // the boolean discards material whose vertices die with no
+                // row, and a sense on discarded material names nothing to
+                // carry. Settling every key would refuse those as unrowed.
+                let fused = naming.fused_into(result)?;
                 for (v, read) in core::mem::take(&mut self.senses) {
-                    let v = fused.get(&v).copied().unwrap_or(v);
+                    let v = match fused.get(&v) {
+                        None => v,
+                        Some(&topo::Cell::Vertex(s)) => s,
+                        // Fused into a vertex the join or the merge then
+                        // deleted: its point lies inside an edge or a face,
+                        // which holds no crossing.
+                        Some(topo::Cell::Edge(_) | topo::Cell::Face(_)) => continue,
+                    };
                     if result.get_vertex(v).is_some() {
                         carried.entry(v).or_default().extend(read);
                     }
@@ -1653,7 +1777,7 @@ impl Fold {
             }
         };
         self.obstacles.record(naming, result, |operand, f| {
-            from(&self.lineage, (operand, descent.clone_face(operand, f)?))
+            from(&self.lineage, (operand, descent.clone_face(operand, f)))
         })?;
         let merged = descent.merged();
         let mut next = BTreeMap::new();
