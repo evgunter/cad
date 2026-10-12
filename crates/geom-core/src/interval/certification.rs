@@ -164,6 +164,77 @@ pub trait Certification: sealed::Sealed + Copy {
     #[must_use]
     fn meet(self, other: Self) -> Self;
 
+    /// The two-point combination `(1 − λ)·x + λ·y` over every `x ∈ x`,
+    /// `y ∈ y` and `λ ∈ lambda` — the one certified step of the spline
+    /// layer (a Boehm insertion, a de Boor or de Casteljau level, a
+    /// blossom).
+    ///
+    /// **Precondition: the true `λ` lies in `[0, 1]`.** The callers'
+    /// ratios are quotients of ordered knots (or of a parameter clamped
+    /// to its span), so the real ratio is in `[0, 1]` even where the
+    /// outward-rounded enclosure pokes past an end. Under it, `lambda`
+    /// is first met with `[0, 1]` (sound, by the precondition; refused
+    /// when that meet is empty, which only a broken precondition makes).
+    /// A `λ` outside `[0, 1]` inside an enclosure that also reaches into
+    /// it is a broken precondition no door can see: the result then
+    /// encloses the clamped combination, not the extrapolation.
+    ///
+    /// **Each corner, two ways.** For a fixed `λ ∈ [0, 1]` the
+    /// combination increases in each of `x` and `y`, so its range over
+    /// the two brackets is spanned by the lower ends combined together and
+    /// the upper ends combined together, and the step is the hull of the
+    /// two corners. Each corner is a combination of two POINTS, enclosed
+    /// twice and met ([`Certification::meet`]): both forms enclose the
+    /// same corner range, and either can be the narrower.
+    ///
+    /// - **The monotone lerp** from the nearer source:
+    ///   `xl + (yl − xl)·Λ` when `Λ`'s midpoint is at most `½`,
+    ///   `yl + (xl − yl)·(1 − Λ)` otherwise, so for a thin `Λ` the lever
+    ///   on the ratio is at most about half the chord (a wide `Λ`,
+    ///   `[0.1, 1]` say, levers up to its far end). The branch reads the
+    ///   midpoint as rounded; either branch is sound, and the choice moves
+    ///   only the rounding. For `Λ ⊆ [½, 1]` the complement `1 − Λ` is
+    ///   exact (Sterbenz). Over drawn ratios it is the narrower form, by
+    ///   1.4–4× on the designers' battery.
+    /// - **The convex form** `xl·(1 − Λ) + yl·Λ`. At an exact dyadic
+    ///   ratio (`½`, an equal split's) both products are exact and it
+    ///   rounds once, at the sum, where the lerp rounds at the difference
+    ///   too; at a thin knot-quotient ratio it is the narrower corner on
+    ///   about a fifth of drawn steps, by up to 62.5% of the width.
+    ///
+    /// Each source bound is read once, so a fold of steps adds rounding
+    /// per step rather than multiplying inherited width; the ratio's
+    /// width is levered by the chord `|y − x|` and never by the
+    /// coordinates' distance from the origin.
+    ///
+    /// **Met with `hull(x, y)`**: a combination with `λ ∈ [0, 1]` lies
+    /// between its sources, an enclosure argued without reading `Λ` at
+    /// all, so the meet is sound. It keeps a constant column its point
+    /// and a combination of positive weights above the smaller of them,
+    /// wherever the corner rounding falls.
+    ///
+    /// Refused for a refused argument, and for a source with an infinite
+    /// end: its corner is not a real number.
+    ///
+    /// **The rows that guard the form**, found by mutation:
+    /// - the convex meet, dropped: `a_dyadic_point_ratio_rounds_once`,
+    ///   `a_thin_interval_ratio_takes_the_narrower_corner` and
+    ///   `geom-brep`'s `ssi::section` row
+    ///   `a_sign_at_the_rows_floor_reads_on_halves_of_halves`; skipped at
+    ///   interval ratios only, the thin-ratio row;
+    /// - the monotone lerp, dropped (the convex form alone):
+    ///   `a_segment_cut_many_times_keeps_its_rows_ulp_wide`,
+    ///   `the_monotone_step_is_no_wider_than_the_convex_step_on_every_battery_row`
+    ///   and `geom-brep`'s
+    ///   `m5_pr7_ssi::refinement_past_the_arithmetics_floor_meets_the_wall_typed`;
+    /// - the hull meet, dropped: `a_refined_weight_stays_between_its_sources`
+    ///   and `between_exact_fuzz` (its hull bound).
+    ///
+    /// The containment rows are soundness rows and stay green under every
+    /// mutant: each is sound.
+    #[must_use]
+    fn between(x: Self, y: Self, lambda: Self) -> Self;
+
     /// Whether `x` lies in the enclosure. False for a refusal (nothing is
     /// known to lie in a bracket that may not certify) and for an `x` that
     /// is not a real number — NaN, or `±inf` even on an unbounded side.
@@ -280,6 +351,47 @@ impl Certification for Interval {
         self.narrowed_to(other.0, weaker)
     }
 
+    fn between(x: Self, y: Self, lambda: Self) -> Self {
+        if !x.is_certified() || !y.is_certified() {
+            return Self::refused();
+        }
+        let lambda = lambda.clamped_to(0.0, 1.0);
+        if !lambda.is_certified() {
+            return Self::refused();
+        }
+        let (from, to, t) = if lambda.0.lo() + lambda.0.hi() <= 1.0 {
+            (x, y, lambda)
+        } else {
+            (y, x, <Self as Certification>::one() - lambda)
+        };
+        // An exact end ratio is the nearer source itself: the corners
+        // and the meet would return it bit for bit, at the weakest
+        // decoration of the three arguments.
+        if t.0.lo() == 0.0 && t.0.hi() == 0.0 {
+            let weakest = [x, y, lambda]
+                .iter()
+                .map(|v| v.0.decoration())
+                .min()
+                .unwrap_or_else(|| from.0.decoration());
+            return Self(from.0.with_dec_capped(weakest));
+        }
+        let rest = <Self as Certification>::one() - t;
+        // Each corner twice, met: the monotone lerp and the convex form
+        // enclose the same corner range, and either can be the narrower.
+        let corner = |a: f64, b: f64| {
+            let (a, b) = (Self::point(a), Self::point(b));
+            (a + (b - a) * t).meet(a * rest + b * t)
+        };
+        let low = corner(from.0.lo(), to.0.lo());
+        // Two point sources have one corner.
+        let corners = if from.0.lo() == from.0.hi() && to.0.lo() == to.0.hi() {
+            low
+        } else {
+            Self::hull(low, corner(from.0.hi(), to.0.hi()))
+        };
+        corners.meet(Self::hull(x, y))
+    }
+
     fn contains(self, x: f64) -> bool {
         self.is_certified() && self.0.contains(x)
     }
@@ -325,6 +437,71 @@ mod certification_door_tests {
 
     fn ri(lo: f64, hi: f64) -> Interval {
         Interval::from_bounds(lo, hi)
+    }
+
+    /// **At an exact dyadic ratio the step rounds once.** With point
+    /// sources and `Λ = ½`, `x·½` and `y·½` are exact, so the convex form
+    /// rounds once, at the sum; the monotone corner `x + (y − x)·½`
+    /// rounds at the difference too. The ratio is a point, so the door
+    /// meets the corner with its convex form and is never wider than
+    /// that one rounding. Asserted over a drawn grid of pairs, and the
+    /// probe's power with it: on some pairs the monotone corner alone is
+    /// wider. Red under the convex meet dropped.
+    #[test]
+    fn a_dyadic_point_ratio_rounds_once() {
+        let half = Interval::point(0.5);
+        let mut s: u64 = 0x9E37_79B9_7F4A_7C15;
+        let mut draw = move || {
+            s ^= s << 13;
+            s ^= s >> 7;
+            s ^= s << 17;
+            #[allow(clippy::cast_precision_loss)]
+            let u = (s >> 11) as f64 / (1u64 << 53) as f64;
+            2.0 * u - 1.0
+        };
+        let mut pairs = vec![(0.489_999_999_999_999_94, -0.21), (0.1, 0.7)];
+        pairs.extend((0..2_000).map(|_| (draw(), draw())));
+        let mut lerp_wider = 0;
+        for (x, y) in pairs {
+            let (xi, yi) = (Interval::point(x), Interval::point(y));
+            let got = Interval::between(xi, yi, half);
+            let convex = xi * half + yi * half;
+            assert!(
+                convex.lo() <= got.lo() && got.hi() <= convex.hi(),
+                "between({x:e}, {y:e}, ½) = {got:?}, wider than its one rounding {convex:?}"
+            );
+            let lerp = xi + (yi - xi) * half;
+            if got.width() < lerp.width() {
+                lerp_wider += 1;
+            }
+        }
+        assert!(lerp_wider > 0, "no pair where the second rounding shows");
+    }
+
+    /// **At a thin interval ratio the convex form can be the narrower
+    /// corner.** A pinned draw of the equivalence probe (point sources,
+    /// a knot-quotient ratio two ulps wide): the monotone corner alone
+    /// reads `[0.008486841064675565, 0.008486841064675898]`, the convex
+    /// form `x·(1 − Λ) + y·Λ` ends 0.008486841064675843, a sixth
+    /// narrower. Red when the convex meet is skipped at an interval ratio.
+    #[test]
+    fn a_thin_interval_ratio_takes_the_narrower_corner() {
+        let (x, y) = (
+            Interval::point(0.569_312_807_232_765_6),
+            Interval::point(-0.684_852_236_318_085_1),
+        );
+        let lambda = ri(0.447_170_784_301_444_97, 0.447_170_784_301_445_1);
+        let got = Interval::between(x, y, lambda);
+        let convex = x * (Interval::point(1.0) - lambda) + y * lambda;
+        let lerp = x + (y - x) * lambda;
+        assert!(
+            convex.lo() <= got.lo() && got.hi() <= convex.hi(),
+            "{got:?} not within the convex corner {convex:?}"
+        );
+        assert!(
+            got.width() < lerp.width(),
+            "{got:?} no narrower than the monotone corner alone {lerp:?}"
+        );
     }
 
     #[test]
