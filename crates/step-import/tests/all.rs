@@ -51,6 +51,11 @@
 // loaded twice any more; if one ever is, the lint is meant to fire.
 mod common;
 
+#[path = "review_4746_import.rs"]
+mod review_4746_import;
+#[path = "review_4746_2_import.rs"]
+mod review_4746_2_import;
+
 #[path = "cert1_r1_import_probes.rs"]
 mod cert1_r1_import_probes;
 #[path = "cert_n2r2_consumer_probes.rs"]
