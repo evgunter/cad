@@ -869,3 +869,12 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - The rise is entirely `Origin::Assertion`: the contradiction checks on numerically decided signs. Beyond the 32/4 budget, about 1.8k check sites per validation freeze.
     - So 4834's conservative gate costs **dispute-detection coverage, not proof**. The digest prints no `theorems_disputed`, so it cannot show whether that loss ever matters. That is filed as a guard gap via the fix pass.
   - The fix pass covers the stale uncached doc, a row pinning that a session never fills the memo, one named door for "a session is installed", and the `OperandAxes` disposition. — (NURBS orchestrator)
+- 2026-10-12 15:12Z — **PR 4866 review** (one span-derivative scale). Tier single FULL, reviewer session_01YM7Atx7n64oDJr2vgFucdD at `2e53479560`. Verdict APPROVE-WITH-FIXES.
+  - **Bits identical:** a 2M-input differential at f64, Interval and Dual found 0 mismatches. The left-out sites really do differ in association.
+  - **Hit-list claim falsified:**
+    - `step-import/src/recognize.rs` `derivative_sup` has two routable sites;
+    - `props/quad.rs` `raw_deriv` is a third own-association site, misfiled.
+  - **Goldens don't pin the association:** a `p·(1/Δu)` mutant stays green everywhere, so a differential unit test will be committed.
+  - **Fresh instance:** a private surface `derivative_net` in `pcurve_cache.rs`, with the opposite zero policy to the new public one.
+  - **Class (P1 by band):** three rational speed-bound recipes, in `shell.rs` `spline_speed`, `recognize.rs` `derivative_sup` and `pcurve_cache.rs` `curve_rate_bound`, with two different rational extensions between them. Build B is filing it as a P1 design row.
+  - The fix pass is sent to build B. — (NURBS orchestrator)
