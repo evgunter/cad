@@ -133,3 +133,20 @@ should BUILD once this unit's certificate retires the fold:
 (volume +227.5 at the old base) and
 `an_embedded_oblique_arc_sweep_is_refused_by_the_far_decide`. The old
 near check has the same hole on the mirror side.
+
+## A closed spine is the exact case (CONTACTHOLD, 2026-10-12)
+
+Measured by CONTACTHOLD's
+`zero-to-distinct-cells-on-one-point-doors-audit` with a scratch test,
+not committed. `sweep_body` of a 0.5 square along a closed path (a
+degree-3 interpolation of 33 points on a radius-3 circle in z = 0, its
+last point set to its first) at 9 stations builds. `sweep_places` puts
+the last station on the first, and `stacking_fold` reads only adjacent
+slabs, so the end cap lies on the start cap. Tiers 1 and 2 pass, and
+`validate_pseudomanifold` with no records refuses two
+`UnrecordedContact { EdgeEdgeCross }`, at (3, 0, ±0.25), margin 0. So a
+document refuses it at rest, loudly, but the door decided nothing: no
+Zero is read about the closure, and the refusal names two edges rather
+than the path. The certificate this row parks on would refuse it at
+the door. A closed spine whose ends should join into a ring (a full
+revolve's analogue) is a separate request.
