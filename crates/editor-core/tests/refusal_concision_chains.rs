@@ -1765,6 +1765,14 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 },
             ),
             (
+                "SectionUnarmed",
+                J::SectionUnarmed {
+                    face,
+                    divided: geom::SurfaceKind::Plane,
+                    wall: geom::SurfaceKind::Torus,
+                },
+            ),
+            (
                 "RingIslandUnread",
                 J::RingIslandUnread {
                     face,
@@ -2238,7 +2246,7 @@ fn wall_endings() -> [(&'static str, String); 2] {
 ///   raises every arm but `WindowUnsupported` (the mint certifies over
 ///   the chart rectangle it fitted), `Limb` (a limb refusing at the
 ///   mint is `MintLimb`) and `Band` (below). The loop's own
-///   terminations — `SeedOverCap`, `SampleCapReached`, `BoundNotFinite`,
+///   terminations — `SeedOverCap`, `WallReached`, `BoundNotFinite`,
 ///   `RefinementStalled` — and the interpolation's `Fit`, `Structure`
 ///   and `NonFiniteSample` reach the user by this route and by the
 ///   transform's re-fit, and so does `MintLimb`, whose re-fit is the
@@ -2284,9 +2292,9 @@ fn offset_fit_routes() -> Vec<(String, NodeErrorKind)> {
         .collect();
     // The roster is borrowed, so its reach is checked on the roster
     // itself: a sample list that stopped carrying an arm would
-    // otherwise shrink these rows silently. `BoundNotFinite`, `Limb`
-    // and `MintLimb` each carry two samples (both `best` cases, both
-    // limbs).
+    // otherwise shrink these rows silently. `WallReached`,
+    // `BoundNotFinite`, `Limb` and `MintLimb` each carry two samples
+    // (both walls, both `best` cases, both limbs).
     for (arm, samples) in [
         ("Meter/NormalFloor", 2),
         ("Meter/CurvatureHeadroom", 2),
@@ -2297,7 +2305,7 @@ fn offset_fit_routes() -> Vec<(String, NodeErrorKind)> {
         ("InvalidRequest", 1),
         ("NonFiniteSample", 1),
         ("SeedOverCap", 1),
-        ("SampleCapReached", 1),
+        ("WallReached", 2),
         ("BoundNotFinite", 2),
         ("RefinementStalled", 1),
         ("WindowUnsupported", 1),
