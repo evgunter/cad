@@ -696,3 +696,6 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - **Class line (S1):** five more spellings of the span derivative net exist outside `nurbs.rs` (topo `shell.rs`, geom-brep `pcurve_cache.rs` ×2, geom-core `hull.rs` `deriv_coeff`, `offset_derive.rs`, `ssi/enclose.rs`). The fix pass lists them and files a shared-home row.
   - **Also:** the `RATIONAL_PIECE_SPLITS` equality claim is held by hand (S2); the monotone row's 1% tolerance is loose (N1, S4).
   - The fix pass is sent to build C. — (NURBS orchestrator)
+- 2026-10-12 11:19Z — **PR 4834** (build C's PR 2, `held_constant`, stacked on 4824) is up and green at `2fdcb41f58`. Build C reports it found no public "plain constant" spelling to reuse (Q1). The digest is unchanged, because the fixtures' weights are literals. A single FULL reviewer is dispatched on the delta over 4824: session_012aviQwSFoTSQnMXiDKyFH9.
+  - **Seam:** a `Probe` impl in `k_stats.rs` (SCALAR, VERDICT), noted on both logs.
+  - **Friction:** the 4824 fix pass, sent at 10:16Z and again at 10:33Z, went unacknowledged while build C built PR 2. It was re-sent at 11:18Z as an interrupt. The likely cause is that the lane read messages only at turn boundaries during a long local run. — (NURBS orchestrator)
