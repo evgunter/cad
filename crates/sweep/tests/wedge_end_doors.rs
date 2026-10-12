@@ -413,6 +413,180 @@ fn a_split_tangent_to_a_thin_shoulder_describes_its_ruling_by_the_rule() {
     }
 }
 
+/// **A cut across a tangent seam describes each piece by the rule over
+/// the piece.** The `y < 1` piece of the shoulder cut at its seam (the
+/// unit cylinder's ruling `x = 0, y = 1`, `κ_rel = 1`, stored as the
+/// intrinsic tangency) is cut again by `z = 1 − d` (both normals) and
+/// `z = d`, so the seam splits into a long piece and one of length `d`,
+/// over which the rule meters the sagitta `d²/2`:
+///
+/// - `d²/2 ≤ ε` — under-determined: the short piece stores an image in
+///   an adjacent chart, derived (no declaration), and lying on the
+///   ruling to within ε; both pieces are tier-3 valid with their
+///   closed-form volumes;
+/// - in band — the split refuses with the rule's own typed sagitta;
+/// - beyond `K·ε` — both pieces keep the intrinsic tangency.
+///
+/// `d` is a multiple of `√(2ε)`, so the rows hold at every tolerance
+/// row the suite runs at, with rows 1% either side of both boundaries.
+#[test]
+fn a_cut_across_a_tangent_seam_describes_each_piece_by_the_rule() {
+    let eps = tol().eps();
+    let k = tol().k();
+    let unit = (2.0 * eps).sqrt();
+    let root_k = k.sqrt();
+    let area = 2.0 + std::f64::consts::FRAC_PI_4;
+    let topo::SplitPart::Body(wall) = topo::split(&shoulder(1.0), &shoulder_cut(), tol())
+        .expect("the shoulder cuts at its seam")
+        .above
+    else {
+        panic!("material on the wall's side of the seam")
+    };
+    let wall = finished("the wall's piece", wall, tol());
+    for c in [
+        0.25,
+        0.5,
+        0.99,
+        1.01,
+        1.5,
+        0.99 * root_k,
+        1.01 * root_k,
+        4.0,
+        8.0,
+    ] {
+        let d = c * unit;
+        for (z, up) in [(1.0 - d, 1.0), (1.0 - d, -1.0), (d, 1.0), (d, -1.0)] {
+            let label = format!("d = {c}·√(2ε) = {d:e}, z = {z}, normal {up}·z");
+            let plane = topo::test_support::split_plane(
+                Point3::new(0.0, 0.0, z),
+                Vec3::new(0.0, 0.0, up),
+                tol(),
+            );
+            let result = topo::split(&wall, &plane, tol());
+            if c * c > 1.0 && c * c < k {
+                match result {
+                    Err(topo::SplitError::Reduce(topo::SplitReduceError::CrossingInsertion {
+                        source,
+                        ..
+                    })) => match *source {
+                        topo::EulerOpError::SplitTangentBendEscalated { diag, .. } => assert_eq!(
+                            diag.predicate,
+                            Some("tangent_second_order"),
+                            "{label}: the rule's sagitta decides"
+                        ),
+                        other => {
+                            panic!("{label}: an in-band piece refuses by the rule, got {other:?}")
+                        }
+                    },
+                    other => {
+                        panic!("{label}: an in-band piece refuses at the crossing, got {other:?}")
+                    }
+                }
+                continue;
+            }
+            let halves = result.unwrap_or_else(|e| panic!("{label}: the seam cuts, got {e:?}"));
+            // The plane's normal side holds `z > cut` for `+z`.
+            let heights = if up > 0.0 { [1.0 - z, z] } else { [z, 1.0 - z] };
+            let mut short = 0;
+            for (height, part) in heights.into_iter().zip([&halves.above, &halves.below]) {
+                let piece = part
+                    .body()
+                    .unwrap_or_else(|| panic!("{label}: both sides hold material"));
+                assert_eq!(
+                    topo::validate_geometric(piece, tol()),
+                    Ok(()),
+                    "{label}: the {height:e} piece is tier-3 valid"
+                );
+                let volume = topo::mass_properties(piece, tol()).unwrap().volume;
+                assert!(
+                    (volume - area * height).abs() <= 1e-9 * area * height,
+                    "{label}: the {height:e} piece holds {volume:e}, want {:e}",
+                    area * height
+                );
+                let point = |v| *piece.get_point(piece.get_vertex(v).unwrap().point).unwrap();
+                let surface_of = |he| {
+                    let face = piece.face_of_half_edge(he).unwrap();
+                    piece.get_face(face).unwrap().surface
+                };
+                let on_the_ruling = |p: Point3<f64>| p.x.abs() <= eps && (p.y - 1.0).abs() <= eps;
+                let seams: Vec<_> = piece
+                    .edges()
+                    .filter(|(_, e)| {
+                        let start = piece.get_half_edge(e.he_plus).unwrap().start;
+                        let end = piece.half_edge_end(e.he_plus).unwrap();
+                        on_the_ruling(point(start))
+                            && on_the_ruling(point(end))
+                            && [e.he_plus, e.he_minus].into_iter().any(|he| {
+                                piece.get_surface(surface_of(he)).unwrap().kind()
+                                    == geom::SurfaceKind::Cylinder
+                            })
+                    })
+                    .map(|(_, e)| e.clone())
+                    .collect();
+                let [seam] = &seams[..] else {
+                    panic!(
+                        "{label}: the {height:e} piece has one seam, got {}",
+                        seams.len()
+                    )
+                };
+                let curve = piece
+                    .get_curve_geom(seam.curve)
+                    .and_then(|g| g.certified())
+                    .expect("the seam is described");
+                let faces = [surface_of(seam.he_plus), surface_of(seam.he_minus)];
+                match curve.description() {
+                    geom_brep::EdgeDescription::TangentIntersection { pair, .. } => {
+                        assert!(
+                            height > 0.5 || c * c >= k,
+                            "{label}: a piece the rule leaves under-determined stores the tangency"
+                        );
+                        assert_eq!(
+                            *pair,
+                            geom_brep::SurfacePair::new(faces[0], faces[1]),
+                            "{label}: the tangency names the seam's faces"
+                        );
+                    }
+                    geom_brep::EdgeDescription::Chart(chart) => {
+                        assert!(
+                            height < 0.5 && c * c <= 1.0,
+                            "{label}: the {height:e} piece stores {chart:?}"
+                        );
+                        assert!(
+                            faces.contains(&chart.surface),
+                            "{label}: the image rests in an adjacent chart"
+                        );
+                        assert!(
+                            matches!(curve.authority(), geom_brep::EdgeAuthority::Derived),
+                            "{label}: the image is derived, never declared"
+                        );
+                        // The oracle: the image mapped through its chart
+                        // lies on the true ruling, inside the piece.
+                        let surface = piece.get_surface(chart.surface).unwrap();
+                        let (t0, t1) = curve.params();
+                        let (lo, hi) = if height == z { (0.0, z) } else { (z, 1.0) };
+                        for i in 0..=8 {
+                            let t = t0 + (t1 - t0) * f64::from(i) / 8.0;
+                            let uv = chart.pcurve.eval(t);
+                            let p = surface.eval(uv.x, uv.y);
+                            assert!(
+                                on_the_ruling(p) && p.z >= lo - eps && p.z <= hi + eps,
+                                "{label}: the image at t = {t} maps to {p:?}, off the ruling"
+                            );
+                        }
+                        short += 1;
+                    }
+                    other => panic!("{label}: the seam stores {other:?}"),
+                }
+            }
+            assert_eq!(
+                short,
+                usize::from(c * c <= 1.0),
+                "{label}: only an under-determined piece stores an image"
+            );
+        }
+    }
+}
+
 /// **A cut turned about the tangent ruling refuses before the chord's
 /// first-order reading.** The section table reads the turned plane
 /// tangent while the wall's sag off it stays in the zero band, and the
