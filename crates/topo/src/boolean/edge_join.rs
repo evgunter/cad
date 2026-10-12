@@ -194,7 +194,9 @@ pub enum JoinReading {
 /// the Boolean's lever.
 impl core::fmt::Display for JoinUndecided {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let subject = JoinSubject(self.vertex);
+        let subject = JoinSubject {
+            vertex: self.vertex,
+        };
         match &self.reading {
             JoinReading::Regularity(diag) => write!(
                 f,
@@ -220,14 +222,16 @@ impl core::fmt::Display for JoinUndecided {
 }
 
 /// [`JoinUndecided`]'s question, at its vertex.
-struct JoinSubject(VertexKey);
+struct JoinSubject {
+    vertex: VertexKey,
+}
 
 impl core::fmt::Display for JoinSubject {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(
             f,
             "whether valence-2 vertex {:?} joins its two edges",
-            self.0
+            self.vertex
         )
     }
 }
