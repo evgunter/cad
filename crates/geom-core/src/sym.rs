@@ -2997,7 +2997,7 @@ fn with_session_in<R>(
     memo: Option<Arc<DriveMemo>>,
     f: impl FnOnce() -> R,
 ) -> (R, SymCounts) {
-    let nested = SESSION.with(|s| s.borrow().is_some());
+    let nested = session_installed();
     // The opaque sequence is per-replay state, restored on the way out
     // so a nested or sequential call cannot inherit a partial count
     // (`OPAQUE_SEQ`'s docs carry the D9 argument).
@@ -3192,7 +3192,19 @@ pub fn session_counts() -> Option<SymCounts> {
 /// `f64`, and the test reads the thread's state rather than the type.
 #[must_use]
 pub fn decisions_are_thread_portable() -> bool {
-    session_counts().is_none() && !report::active()
+    !session_installed() && !report::active()
+}
+
+/// **Whether a symbolic session is installed on this thread** — the one
+/// home of that test. A value minted outside the installed session is
+/// not in its table and freezes there (module docs: no session, no
+/// tier), so whatever keeps a `Sym` value across calls reads this
+/// before it serves one: [`decisions_are_thread_portable`] does, and so
+/// does the NURBS speed meter's memo, which serves and fills only while
+/// it is false.
+#[must_use]
+pub fn session_installed() -> bool {
+    SESSION.with(|s| s.borrow().is_some())
 }
 
 /// Records `node` in the installed session and answers its id. Outside a

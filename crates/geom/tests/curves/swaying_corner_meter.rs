@@ -427,7 +427,7 @@ fn the_meter_memo_is_invisible_and_never_inherited() {
 #[test]
 fn a_meter_read_before_a_session_is_not_served_inside_it() {
     use geom_core::k_stats::decide;
-    use geom_core::predicate::{Band, Margin, Sign};
+    use geom_core::predicate::{Band, Margin};
     use geom_core::sym::with_session;
     use geom_core::{Sym, SymBudget, Tol};
     type S = Sym<f64>;
@@ -445,10 +445,11 @@ fn a_meter_read_before_a_session_is_not_served_inside_it() {
     let read_before = swaying(2.0, 3).map_scalar(S::from_f64);
     let _ = read_before.speed_lower_bound();
     let fresh = swaying(2.0, 3).map_scalar(S::from_f64);
-    let (before, before_counts) = in_session(&read_before);
-    let (inside, inside_counts) = in_session(&fresh);
-    assert_eq!(before, Ok(Sign::Zero), "{before_counts:?}");
-    assert_eq!(inside, Ok(Sign::Zero), "{inside_counts:?}");
+    // `m − m` cancels by id whichever node `m` is, so the decision is the
+    // same either way; what a served pre-session meter changes is how
+    // much of it the session could expand, which `frozen` counts.
+    let (_, before_counts) = in_session(&read_before);
+    let (_, inside_counts) = in_session(&fresh);
     assert_eq!(
         before_counts.frozen, inside_counts.frozen,
         "a meter first read before the session froze differently: {before_counts:?} against \
