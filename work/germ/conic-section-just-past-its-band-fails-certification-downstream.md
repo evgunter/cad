@@ -111,3 +111,20 @@ margins 1.0e-11 to 1.16e-10 (80 runs; 6 more refuse `EndpointEnd`, 5
 neighbours of this door, where the miss is the input's rather than the
 carrier's rounding, are filed as CLEAVE's
 `a-section-curves-end-read-in-band-of-its-vertex-refuses-as-a-kernel-defect-at-the-join`.
+
+## Note from CLEAVE (2026-10-12)
+
+CLEAVE's section-end design fork, with two designers converging, splits
+this row's "what closes it" in two:
+
+- **The carrier half** is CLEAVE's. Re-posing the ellipse at its
+  nearest principal vertex
+  (`work/cleave/a-section-ellipse-is-re-posed-at-its-nearest-principal-vertex.md`)
+  removes the parameter term ulp(π/2)·A. The section table then admits
+  only on ρ ≤ ε/K and refuses the far-centre term (about
+  5·u·|centre − face|) as a kernel limit with no lever
+  (`work/cleave/the-section-table-admits-a-curve-on-its-resolution.md`).
+  Your 1.82e-12 at about 1e4 and 1.16e-10 at 1e6 are that far-centre
+  term, to the digit.
+- **The chart-image half** stays yours: the α = 1.55 `MapResidual`
+  table, where the carrier is accurate and the pcurve image is not.
