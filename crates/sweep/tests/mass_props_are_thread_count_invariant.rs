@@ -200,6 +200,8 @@ fn sym_bodies() -> Vec<(String, Body<Sym<f64>>)> {
     ]
 }
 
+/// `retried` is not a column: the session block opens `with_session`,
+/// which installs no retry ladder, so it would read zero by construction.
 fn counts_line(name: &str, door: &str, refused: bool, c: &SymCounts, shapes: usize) -> String {
     format!(
         "{name} {door} {} decisions={} sz={} sg={} reg={} rref={} rcon={} num={} disp={} frozen={} shapes={}",
@@ -596,13 +598,7 @@ fn digest() -> String {
 /// (`SymCounts::theorems_disputed`: a sign the numeric channel decided
 /// whose form the contradiction check proved otherwise). Every `Sym`
 /// line gains the column, and it reads 0 on all twelve; nothing else
-/// moves. The freezes PR 4834's rational arm adds in these sessions
-/// (the re-cuts above) cost no dispute: with the meter's arm chosen on
-/// the weights' value channel instead, as before 4834, `frozen` reads
-/// 1062 / 1060 / 1061 and 1178 / 1177 / 1177 and `disp` still 0 at
-/// every ε. `retried` is not printed: the session block opens
-/// `with_session`, which installs no retry ladder, so it is zero by
-/// construction.
+/// moves.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),
