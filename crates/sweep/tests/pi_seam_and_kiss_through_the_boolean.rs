@@ -641,12 +641,13 @@ fn a_lens_of_two_domes_builds() {
     }
 }
 
-/// **A rim lying inside the partner's face** passes the crossing layer:
-/// a tube standing on a torus's 45° latitude stops in the join, past the
-/// torus × plane germ frame, at the wall side's section, which has no
-/// plane × torus arm (`work/germ/c5-plane-torus-cone-cylinder-arms.md`),
-/// a frontier that is not the crossing layer's. A tube ending on a ball
-/// builds (`a_tube_ending_on_a_ball.rs`).
+/// **A rim lying inside the partner's face** passes the crossing layer
+/// and builds: a tube standing on a torus's 45° latitude (`R = 2`,
+/// `r = 1`, the tube's radius `2 + 1/√2` from `z = 1/√2`) unions in both
+/// member orders to the torus and the tube less the torus's cap above
+/// the tube's floor, which the tube holds whole (`2πR·(π/4 − 1/2)`),
+/// valid at tier 3 and 3′. A tube ending on a ball builds
+/// (`a_tube_ending_on_a_ball.rs`).
 #[test]
 fn a_rim_inside_the_partners_face_passes_the_crossing_layer() {
     let tol = Tol::witness();
@@ -661,6 +662,8 @@ fn a_rim_inside_the_partners_face_passes_the_crossing_layer() {
     let torus = finished("the torus", torus, tol);
     let s = core::f64::consts::FRAC_1_SQRT_2;
     let tube = rod_z(2.0 + s, s, 2.0);
+    let cap = 2.0 * PI * 2.0 * (PI / 4.0 - 0.5);
+    let want = 4.0 * PI * PI + PI * (2.0 + s).powi(2) * 2.0 - cap;
     for (order, r) in [
         topo::union(&tube, &torus, tol),
         topo::union(&torus, &tube, tol),
@@ -668,17 +671,10 @@ fn a_rim_inside_the_partners_face_passes_the_crossing_layer() {
     .into_iter()
     .enumerate()
     {
+        let (v, ..) = built(&format!("order {order}"), r);
         assert!(
-            matches!(
-                &r,
-                Err(BooleanError::Join(topo::SplitJoinError::SectionUnarmed {
-                    divided: geom::SurfaceKind::Torus,
-                    wall: geom::SurfaceKind::Torus,
-                    ..
-                }))
-            ),
-            "order {order}: past the crossing layer, the join's refusal: {:?}",
-            r.err()
+            (v - want).abs() <= want * 1e-9_f64.max(1e3 * tol.eps()),
+            "order {order}: the union's volume {v} against {want}"
         );
     }
 }

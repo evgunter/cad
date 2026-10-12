@@ -30,6 +30,7 @@ fn the_four_margin_shapes_render_pairwise_distinguishably() {
     let band = Band::new(1e-12, 1e-11).unwrap();
     let escalated = |margin: MarginDiag| {
         PcurveCertifyError::FittedEscalated {
+            decision: geom_brep::SsiDecision::Limb(geom_brep::SsiLimb::Tube),
             cause: Indeterminate {
                 margin,
                 band,

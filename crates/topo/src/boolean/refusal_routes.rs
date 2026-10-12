@@ -1059,13 +1059,11 @@ pub enum SelfCheck {
     /// The carrier ladder's contradiction arm, which its detector
     /// posture (nothing declared) cannot reach.
     CarrierLadder,
-    /// Where a contact record lands on the pieces of an edge the op
-    /// split (`ops::ledger`) or a face it divided
-    /// (`ops::Descendants::holder`): whether a point lies on a piece's
-    /// interior, or two pieces' interiors meet, asked as the census
-    /// confirms the record. The record certified at rest, so an
-    /// undecided answer is a contact the census could not confirm
-    /// either.
+    /// Where a record's span along a line edge lies (`ops::record_spans`):
+    /// the order of its bounds along the edge, or whether a face holds
+    /// its midpoint, asked as the census confirms a record. The records
+    /// bounding it certified at rest, so an undecided answer is one the
+    /// census could not decide either.
     CarriedLineage,
     /// Which way a one-vertex seam edge runs against its partner
     /// (`bool_zip_one_vertex_sense`, `zip::one_vertex_sense`): the two

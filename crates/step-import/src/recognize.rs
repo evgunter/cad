@@ -79,6 +79,7 @@
 //! refuted one.
 
 use geom::{NurbsSurface, Surface};
+use geom_core::spline::span_derivative_scale;
 use geom_core::{Point3, Vec3};
 
 use crate::signed_zero::{plus_zero, plus_zero_point};
@@ -474,7 +475,7 @@ fn derivative_sup(patch: &NurbsSurface<f64>) -> Option<(f64, f64)> {
         if denom <= 0.0 {
             continue; // empty support — the coefficient never acts.
         }
-        let factor = pu as f64 / denom;
+        let factor = span_derivative_scale(pu, tu[iu + 1], tu[iu + pu + 1]);
         for iv in 0..nv {
             let (p1, w1) = at(iu + 1, iv);
             let (p0, w0) = at(iu, iv);
@@ -492,7 +493,7 @@ fn derivative_sup(patch: &NurbsSurface<f64>) -> Option<(f64, f64)> {
         if denom <= 0.0 {
             continue;
         }
-        let factor = pv as f64 / denom;
+        let factor = span_derivative_scale(pv, tv[iv + 1], tv[iv + pv + 1]);
         for iu in 0..nu {
             let (p1, w1) = at(iu, iv + 1);
             let (p0, w0) = at(iu, iv);

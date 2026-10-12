@@ -1645,7 +1645,9 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::JoinUndecided => "join_undecided",
         BooleanErrorKind::JoinCarrierUnsupported => "join_carrier_unsupported",
         BooleanErrorKind::RestPieceUnread => "rest_piece_unread",
+        BooleanErrorKind::CarryRefused => "carry_refused",
         BooleanErrorKind::JoinDesync => "join_desync",
+        BooleanErrorKind::LineageRow => "lineage_row",
         BooleanErrorKind::EdgeUndescribed => "edge_undescribed",
         BooleanErrorKind::TornComponent => "torn_component",
         BooleanErrorKind::ShellWitnessExhausted => "shell_witness_exhausted",
@@ -1757,7 +1759,6 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         NamingError::Emission { .. } => "emission",
         NamingError::SplitLineage(_) => "split_lineage_cycle",
         NamingError::Settle(_) => "unsettled_vertex",
-        NamingError::FragmentLineage { .. } => "fragment_lineage_cycle",
         // The MISSING-RULE arms, tagged apart from "emission": a caller
         // branching on this word is deciding whether to report a kernel
         // bug, and these are not one.
