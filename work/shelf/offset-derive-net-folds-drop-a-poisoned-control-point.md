@@ -47,7 +47,7 @@ it is filed here.
 
 `nurbs/one-rational-speed-bound` replaces `offset_derive.rs`'s
 `polynomial_speed` with `certified_speed`, an `Interval` read of
-`NurbsCurve3::speed_upper_bound` (`geom_core::spline::rational_span_speed_sup`).
+`NurbsCurve3::speed_upper_bound` (`geom_core::spline::rational_speed_sup`).
 Its fold is `Real::max`, NaN-propagating, so a poisoned control point
 poisons the bound instead of dropping out of it. The `level_row` half
 of this row is untouched.

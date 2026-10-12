@@ -432,6 +432,14 @@ fn cut_and_tipped(
 /// stored.** Pose 0's rod cut from a long one, so its wall's origin is
 /// stored up to 1e5 m off its faces, and tipped a fifth of the zero band:
 /// every op builds SOUND at the closed-form volume, in both orders.
+///
+/// A pose runs only inside D4 ¶4's size range at the run's ε: the long
+/// rod reaches `|z| = far`, where f64 spaces coordinates
+/// `ulp(far) ≈ far·2⁻⁵²`, so a residual between two points evaluated
+/// there can read a whole ulp of rounding. Past `far ≈ 2⁵²·ε` no stored
+/// datum certifies within ε. At `far = 1e5` and ε = 1e-12,
+/// `carrier_matches_mapped_source` reads one ulp at `|z| ≈ 6.2e4` on the
+/// long rod's strut and escalates.
 #[test]
 fn a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings() {
     const R: f64 = 0.5;
@@ -440,6 +448,20 @@ fn a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings() {
     let (area, _) = lens((0.0, 0.0), R, c, r);
     let poses: Vec<Pose> = [2.0, 1000.0, 1.0e5]
         .into_iter()
+        .filter(|&far| {
+            let in_range = far * f64::EPSILON <= zero;
+            if !in_range {
+                test_utils::vacuity::stood_down(
+                    &format!("rod cut from ±{far} m"),
+                    &format!(
+                        "f64 spaces coordinates {:e} m apart at |z| = {far}, past the zero band \
+                         {zero:e}: no pose this far certifies at this ε",
+                        far * f64::EPSILON
+                    ),
+                );
+            }
+            in_range
+        })
         .map(|far| Pose {
             label: format!("rod cut from ±{far} m, tipped 0.2·zero"),
             a: rod(R, (0.0, 0.0), (-1.0, 1.0)),
@@ -449,6 +471,10 @@ fn a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings() {
             shared: area * (span.1 - span.0),
         })
         .collect();
+    assert!(
+        !poses.is_empty(),
+        "every pose stood down at zero band {zero:e}"
+    );
     let bad = unsound(&poses);
     assert!(bad.is_empty(), "{}", bad.join("\n"));
 }

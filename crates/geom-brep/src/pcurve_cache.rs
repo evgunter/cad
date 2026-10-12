@@ -5653,8 +5653,8 @@ pub fn chart_stretch_sup<T: Real>(
         // were harmless only because the iso lane's own rational gate
         // refused before any rational chart reached this function.
         // That gate is gone, so the arm has to be real —
-        // `nurbs_stretch_bounds` carries the Floater weight-ratio
-        // factor for exactly this.
+        // `nurbs_stretch_bounds` reads the rational pair-term bound
+        // (`NurbsSurface::stretch_sup`) for exactly this.
         //
         // The catch-all is SPLIT: an approximating surface's arms are
         // its FIT's derivative-net bounds — the same statement about
@@ -5721,45 +5721,15 @@ fn chart_arms_at<T: Real>(
 }
 
 /// `(sup |S_u|, sup |S_v|)` bounds for a NURBS chart — **rational
-/// nets included** — from the derivative control net (the B-spline
-/// derivative formula `Qᵢ = p·(Pᵢ₊₁ − Pᵢ)/(kᵢ₊ₚ₊₁ − kᵢ₊₁)` per
-/// row/column, then the partition-of-unity hull `max |Qᵢⱼ|`), carried
-/// to the rational case by the weight-ratio factor the body applies
-/// (see the note at `ratio`). Knot arithmetic is `f64` structure; a
-/// zero divisor (a fully collapsed support) contributes nothing, per
-/// the standard convention.
-///
-/// The "callers gate rationality" contract this header used to carry
-/// was retired by M8-3, when the factor went in and the iso lane's
-/// rational gate came out; it is spelled out here because
-/// [`chart_stretch_inf`] cites this function three times and a stale
-/// precondition on a cited derivation is a trap for the next reader.
+/// nets included** — read off the chart's own statement,
+/// [`geom::NurbsSurface::stretch_sup`] (the pair-term bound per
+/// nonempty cell; at unit weights the polynomial control-difference
+/// bound). One door for the whole file: [`chart_stretch_inf`]'s sup
+/// components read the same call, so `chart_stretch_sup(s).0` and
+/// `chart_stretch_inf(s).sup_u` are one computation by construction
+/// (`chart_stretch_inf`'s spline arm calls this function).
 fn nurbs_stretch_bounds<T: Real>(s: &geom::NurbsSurface<T>) -> (SupSpeed<T>, SupSpeed<T>) {
-    // **The rational factor** (M8-3). The control-difference bounds
-    // are POLYNOMIAL convexity facts. For a rational patch the
-    // standard extension (Floater 1992, derivatives of rational
-    // Bézier/B-spline forms) multiplies them by the weight ratio;
-    // squaring it is the conservative reading, and conservative is the
-    // SAFE direction for both consumers — a larger arm makes
-    // `side_of`'s boundary snap harder to admit and every slack term
-    // larger, never the reverse. Exactly 1 for a weight-1 net, so no
-    // integral-lane number moves.
-    let ratio = weight_ratio_factor::<T>(s.weight_channel(), s.weights());
-    // ONE spelling of the derivative net for the whole file: this
-    // function's two loops were the same walk as
-    // `skipping_surface_derivative_net`'s, down to the `denom == 0.0`
-    // skip, and a second copy of a
-    // convexity fact is a second place for it to drift. The `inf`
-    // door reads the same nets, so `chart_stretch_sup(s).0` and
-    // `chart_stretch_inf(s).sup_u` are now one computation rather
-    // than two that happen to agree — an equality the `ρ` assembly
-    // ASSUMES, and which is pinned by
-    // `the_two_doors_report_one_sup`.
-    let sup_of = |q: &[Vec3<T>]| q.iter().fold(T::zero(), |m, v| m.max(v.norm()));
-    (
-        SupSpeed::new(sup_of(&skipping_surface_derivative_net(s, false)) * ratio),
-        SupSpeed::new(sup_of(&skipping_surface_derivative_net(s, true)) * ratio),
-    )
+    s.stretch_sup()
 }
 
 /// The INF-side reading of a spline chart's derivative nets — the
@@ -5794,8 +5764,7 @@ pub struct ChartStretchInf<T> {
 ///
 /// # The nets, and the inf read along a direction
 ///
-/// The polynomial derivative nets are the same ones
-/// [`nurbs_stretch_bounds`] takes the max over: per direction,
+/// The polynomial derivative nets, per direction,
 /// `Qᵢⱼ = p·(Pᵢ₊₁ⱼ − Pᵢⱼ)/(kᵢ₊ₚ₊₁ − kᵢ₊₁)`, and `S_u(u, v)` is a
 /// **convex combination** of them (partition of unity over the
 /// degree-reduced basis; a zero divisor is a support the basis
@@ -5820,28 +5789,25 @@ pub struct ChartStretchInf<T> {
 /// though both per-axis infs are healthy — which is exactly the case
 /// the per-axis pair alone cannot see.
 ///
-/// **The rational factor, taken OPPOSITE to the sup side.** The
-/// rational derivative identity (Floater 1992) writes `S_u` as
-/// `Σᵢ γᵢ ΔPᵢ` with non-negative `γ` whose sum lies in
-/// `[1/ratio, ratio]` for `ratio = (w_max/w_min)²` — the same factor
-/// [`weight_ratio_factor`] computes and [`nurbs_stretch_bounds`]
-/// MULTIPLIES by. The two ends of that one bracket are the two sides:
-/// the sup multiplies, the inf **divides**, and the area element — a
-/// product of two such factors — divides by `ratio²`.
+/// **The rational factor, on the inf side only.** The rational
+/// derivative identity (Floater 1992) writes `S_u` as `Σᵢ γᵢ ΔPᵢ`
+/// with non-negative `γ` whose sum lies in `[1/ratio, ratio]` for
+/// `ratio = (w_max/w_min)²` ([`weight_ratio_factor`]); the infs
+/// **divide** by it and the area element — a product of two such
+/// factors — divides by `ratio²`. The sup components do not use the
+/// bracket: they are the pair-term statement
+/// [`geom::NurbsSurface::stretch_sup`], which [`chart_stretch_sup`]
+/// reads too.
 ///
 /// *Provenance, stated because the citation does not cover all of
 /// it.* Floater's result is a CURVE statement, and the tensor-product
-/// reading — apply it per direction with the patch's own weight
-/// bracket — is the same extension `nurbs_stretch_bounds` already
-/// makes on the sup side and has shipped under since M8-3; the
-/// in-tree evidence is that function's consumers, not a citation.
-/// What is quoted from Floater is the two-sidedness of the bracket:
-/// that the same `(w_max/w_min)²` bounds the coefficient sum from
-/// both ends. Sharpening either end is a separate unit. A rational
-/// chart therefore earns a weaker inf reading than a unit-weight one.
-/// That is the conservative direction, and on a unit-weight net every
-/// factor is exactly 1, so nothing here moves for the polynomial
-/// charts.
+/// reading applies it per direction with the patch's own weight
+/// bracket. What is quoted from Floater is the two-sidedness of the
+/// bracket; whether its lower end holds as stated is
+/// `work/nurbs/chart-stretch-inf-rational-floor-is-unproven.md`. A
+/// rational chart earns a weaker inf reading than a unit-weight one;
+/// on a unit-weight net the factor is exactly 1, so nothing here
+/// moves for the polynomial charts.
 ///
 /// # The assembly a caller owes: per-axis infs are not lever arms
 ///
@@ -5997,8 +5963,9 @@ fn skipping_surface_derivative_net<T: Real>(
 /// [`chart_stretch_inf`]'s spline arm — the derivation lives there.
 fn nurbs_stretch_inf<T: Real>(s: &geom::NurbsSurface<T>) -> ChartStretchInf<T> {
     let ratio = weight_ratio_factor::<T>(s.weight_channel(), s.weights());
-    // The same two nets [`nurbs_stretch_bounds`] reads, from the same
-    // door, so `sup_u`/`sup_v` below ARE that function's components.
+    // The polynomial derivative nets the inf side reads; the sup side
+    // is the chart's own statement, so `sup_u`/`sup_v` below ARE
+    // [`nurbs_stretch_bounds`]' components.
     let (q_u, q_v) = (
         skipping_surface_derivative_net(s, false),
         skipping_surface_derivative_net(s, true),
@@ -6012,14 +5979,14 @@ fn nurbs_stretch_inf<T: Real>(s: &geom::NurbsSurface<T>) -> ChartStretchInf<T> {
         }
     }
     let cross_sup = sup_of(&crosses);
-    // Each bracket taken at the end the direction needs: the sups
-    // multiply (as `nurbs_stretch_bounds` does), the infs divide, and
-    // the area element carries one factor per net.
+    // The infs divide by the weight bracket and the area element
+    // carries one factor per net; the sups are the pair-term statement.
+    let (sup_u, sup_v) = nurbs_stretch_bounds(s);
     ChartStretchInf {
         inf_u: net_inf(&q_u, poly_sup_u) / ratio,
         inf_v: net_inf(&q_v, poly_sup_v) / ratio,
-        sup_u: poly_sup_u * ratio,
-        sup_v: poly_sup_v * ratio,
+        sup_u: sup_u.get(),
+        sup_v: sup_v.get(),
         area_inf: net_inf(&crosses, cross_sup) / ratio.powi(2),
     }
 }
@@ -6033,9 +6000,10 @@ fn nurbs_stretch_inf<T: Real>(s: &geom::NurbsSurface<T>) -> ChartStretchInf<T> {
 /// they would refuse: knot insertion on a net of subnormal weights
 /// rounds an inserted weight to `0`. A list that is empty or holds a
 /// weight that is not strictly positive and finite therefore answers
-/// POISON — any number here is a factor on a SUP arm, and one below the
-/// true ratio under-states it in the unsafe direction. A ratio that
-/// overflows answers `+inf`, which over-states (the safe direction).
+/// POISON — any number here divides an INF arm, and one below the
+/// true ratio over-states it in the unsafe direction. A ratio that
+/// overflows answers `+inf`, which drives the inf to zero (the safe
+/// direction).
 fn weight_ratio_factor<T: Real>(channel: &[f64], held: &[T]) -> T {
     if channel.is_empty() || channel.len() != held.len() {
         return T::from_f64(f64::NAN);
@@ -6094,8 +6062,9 @@ fn schedule_residuals<T: Decide>(
 /// question in another shape, `matches!(…, Ok(Sign::Positive))` on the
 /// raw gap. NaN propagates ([`Real::max`]).
 ///
-/// Metered through an infinite sup arm (an overflowing weight ratio), a
-/// contained gap is `0·∞ = NaN` and refuses, fail-loud
+/// Metered through an infinite sup arm (a sup whose quotient
+/// overflows, or a weight a refinement rounded to zero), a contained
+/// gap is `0·∞ = NaN` and refuses, fail-loud
 /// (`escape_tests::a_contained_gap_through_an_infinite_arm_refuses`).
 fn escape<T: Real>(gap: T) -> T {
     gap.max(T::zero())
@@ -10152,79 +10121,6 @@ mod tests {
     }
 }
 
-/// The two stretch doors' agreement — cheap, and load-bearing.
-#[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::panic)]
-mod stretch_door_agreement {
-    use geom::{NurbsSurface, Surface};
-    use geom_core::Point3;
-    use geom_core::spline::KnotVector;
-    use std::sync::Arc;
-
-    /// `chart_stretch_sup(s).0` and `chart_stretch_inf(s).sup_u` are
-    /// the same number, and the `ρ` assembly ASSUMES they are: it
-    /// divides the second by the inf to form the normalized trace
-    /// while the escape lane meters with the first. They now share one
-    /// derivative-net door, so this pin costs nothing and would red
-    /// the moment either grows a factor the other does not.
-    #[test]
-    fn the_two_doors_report_one_sup() {
-        /// `(knots_u, degree_u, knots_v, degree_v, flat xyz, weights)`
-        type Case = (Vec<f64>, usize, Vec<f64>, usize, Vec<f64>, Vec<f64>);
-        let cases: Vec<Case> = vec![
-            // bilinear, unit weights
-            (
-                vec![0.0, 0.0, 1.0, 1.0],
-                1,
-                vec![0.0, 0.0, 1.0, 1.0],
-                1,
-                vec![0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 4.0, 0.0, 0.0, 4.0, 1.0, 0.0],
-                vec![1.0; 4],
-            ),
-            // bilinear, RATIONAL: the factor must land on both doors
-            (
-                vec![0.0, 0.0, 1.0, 1.0],
-                1,
-                vec![0.0, 0.0, 1.0, 1.0],
-                1,
-                vec![0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 4.0, 0.0, 0.0, 4.0, 1.0, 0.0],
-                vec![1.0, 0.5, 2.0, 1.0],
-            ),
-            // degree 2 in u, a varying stretch and a repeated knot
-            (
-                vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0],
-                2,
-                vec![0.0, 0.0, 1.0, 1.0],
-                1,
-                vec![
-                    0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.25, 0.0, 0.0, 0.25, 1.0, 0.0, 4.25, 0.0, 0.0,
-                    4.25, 1.0, 0.0,
-                ],
-                vec![1.0; 6],
-            ),
-        ];
-        for (ku, pu, kv, pv, coords, weights) in cases {
-            let control: Vec<Point3<f64>> = coords
-                .chunks_exact(3)
-                .map(|c| Point3::new(c[0], c[1], c[2]))
-                .collect();
-            let s: Surface<f64> = Surface::Nurbs(Arc::new(
-                NurbsSurface::new(
-                    KnotVector::clamped(ku, pu).unwrap(),
-                    KnotVector::clamped(kv, pv).unwrap(),
-                    control,
-                    weights,
-                )
-                .unwrap(),
-            ));
-            let (sup_u, sup_v) = super::chart_stretch_sup(&s).unwrap();
-            let inf = super::chart_stretch_inf(&s);
-            assert_eq!(sup_u.get(), inf.sup_u, "the u sup must be ONE number");
-            assert_eq!(sup_v.get(), inf.sup_v, "the v sup must be ONE number");
-        }
-    }
-}
-
 /// **A cone has no surface-level azimuth sup, and the door says so.**
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::float_cmp)]
@@ -10478,8 +10374,9 @@ mod escape_tests {
         assert!(escape(f64::NAN).is_nan(), "poison propagates");
     }
 
-    /// `weight_ratio_factor` answers `+inf` for an overflowing ratio.
-    /// Through that arm a contained gap meters as `0·∞ = NaN` and
+    /// A sup arm can read `+inf` (an overflowing quotient, or a zero
+    /// least weight after a refinement rounded one away). Through that
+    /// arm a contained gap meters as `0·∞ = NaN` and
     /// refuses (fail-loud); an escape meters as `+inf` and is definite.
     #[test]
     fn a_contained_gap_through_an_infinite_arm_refuses() {
