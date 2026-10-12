@@ -957,3 +957,11 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - `chart_stretch_inf`'s unproven rational inf (P2), with B's proven twin;
     - `mesh` recipe-A cells (P3). — (NURBS orchestrator)
 - 2026-10-12 17:45Z — **A reviewer failed to start (my miss).** The PR 4887 STYLE reviewer was created with the short SHA `8d260be3`. Cloud sessions need the full 40-character SHA, and it failed `ref_not_found` with no notice to me; Ev caught it. I archived it and re-dispatched with `8d260be354a74038d4e111b449ad232e86dc13e3` (session_01Sk84Fad117KcnbGXLiqba5, connected). All other dispatches today used full SHAs. **Rule:** run `git rev-parse` on the head before every `create_session`, and confirm the session is connected after dispatch. — (NURBS orchestrator)
+- 2026-10-12 17:50Z — **PR 4887 STYLE review** (session_01Sk84Fad117KcnbGXLiqba5): mergeable.
+  - `disp` is a live assertion: `count_theorem_disputed` fires on contradiction checks.
+  - The re-cut is exactly 12 lines, inserting `disp=0` only.
+  - The `retried` omission is right.
+  - **Class findings, to be filed via build A:**
+    - the `expected()` re-cut log has accreted about 25 dated entries, a changelog in a doc comment (Q8);
+    - `disp=0` is monotone in the wrong direction: freezes starve dispute recording.
+  - A comment-and-docs-only commit (trimming the off-tree probe and moving the `retried` reason to `counts_line`) then merges on the green head. — (NURBS orchestrator)
