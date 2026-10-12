@@ -9,10 +9,7 @@ use geom_core::{Point3, Tol};
 use sweep::blend::build::{Blended, fillet_edges};
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::finished;
-use topo::{
-    Backing, BooleanBody, BooleanResult, ContactRecords, ValidationError, union,
-    validate_pseudomanifold,
-};
+use topo::{Backing, BooleanBody, BooleanResult, ContactRecords, union, validate_pseudomanifold};
 
 /// The blend size, meters.
 const R: f64 = 0.1;
@@ -75,8 +72,11 @@ fn carried_kiss(what: &str, base: &BooleanBody<f64>, out: &Blended<f64>) -> Cont
 
 /// **A fillet and a chamfer away from the kiss carry it.** Red if the
 /// blend's carry drops the record or cites anything but the operand's.
-/// The chamfer's result passes at rest with the carried record and
-/// refuses the kiss as undeclared without it. The fillet's is not read
+/// The chamfer's result passes at rest with the carried record, and
+/// without it too: the union put the kissing corners on one point key
+/// (`zip::record_classes`), which the census reads as structure. The
+/// record still carries the coincidence the `unproven-coincidence` lint
+/// reads. The fillet's is not read
 /// at rest: its curved band lies within reach of the other cube, which
 /// the census cannot yet decide
 /// (`work/restread/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`).
@@ -98,13 +98,10 @@ fn a_blend_away_from_the_kiss_carries_it() {
         Ok(()),
         "chamfer: the carried record passes at rest"
     );
-    let withheld = validate_pseudomanifold(&chamfered.body, &ContactRecords::default(), tol())
-        .expect_err("the kiss is a touch");
-    assert!(
-        withheld
-            .iter()
-            .all(|e| matches!(e, ValidationError::UnrecordedContact { .. })),
-        "chamfer: withheld, the kiss is undeclared: {withheld:?}"
+    assert_eq!(
+        validate_pseudomanifold(&chamfered.body, &ContactRecords::default(), tol()),
+        Ok(()),
+        "chamfer: withheld, the kiss reads off its shared key"
     );
 }
 

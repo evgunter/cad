@@ -861,8 +861,8 @@ pub use surgery::Surgery;
 // that can hold it: upward layers RE-EXPORT these, never redefine.
 #[cfg(feature = "sweep-testing")]
 pub use boolean::{
-    PlantedDegradation, sweep_records, sweep_split, sweep_traces, sweep_traces_with_pad,
-    take_shared_points,
+    PlantedDegradation, SharedClass, sweep_records, sweep_split, sweep_traces,
+    sweep_traces_with_pad, take_shared_points,
 };
 #[cfg(feature = "sweep-testing")]
 pub use chord_join::face_azimuth_window_traces;

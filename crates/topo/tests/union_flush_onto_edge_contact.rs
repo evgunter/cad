@@ -287,13 +287,15 @@ fn assert_pinch_records(records: &topo::ContactRecords) {
     );
 }
 
-/// **A pinch owes its edge-edge row.** Two bricks touching along an
-/// edge pass 3′ with their own records, and without the edge-edge row
-/// the overlap along the touch refuses unrecorded though both its ends
-/// keep their v-v rows: the bounds confirm the row, never stand in for
-/// it (D1). Red if the census backs the overlap on its bounds alone.
+/// **A pinch's edge-edge row is read off its shared ends.** Two bricks
+/// touching along an edge pass 3′ with their own records. The union
+/// put each end's two vertices on one point key (the v-v rows it
+/// decided), so the overlap between the two shared keys is structure,
+/// and the census passes it without the edge-edge row; the row stays,
+/// citing both ends' decisions, for the `unproven-coincidence` lint.
+/// Red if an end's two vertices sit on two keys.
 #[test]
-fn a_pinch_without_its_edge_edge_row_refuses_the_overlap() {
+fn a_pinch_without_its_edge_edge_row_reads_its_shared_ends() {
     let tol = Tol::witness();
     let (pinch, _) = pinch(tol);
     let verdict = validate_pseudomanifold(&pinch.body, &pinch.contacts, tol);
@@ -305,17 +307,14 @@ fn a_pinch_without_its_edge_edge_row_refuses_the_overlap() {
         .filter(|c| !matches!(c.record.kind(), topo::ContactKind::EdgeEdge(..)))
         .cloned()
         .collect();
-    let errors =
-        validate_pseudomanifold(&pinch.body, &bounds, tol).expect_err("the overlap refuses");
-    assert!(
-        matches!(
-            errors[..],
-            [topo::ValidationError::UnrecordedContact {
-                contact: topo::CensusContact::EdgeEdgeOverlap { .. },
-                ..
-            }]
-        ),
-        "the overlap alone refuses: {errors:?}"
+    for (x, y) in pinch.contacts.vertex_vertex() {
+        let key = |v| pinch.body.get_vertex(v).unwrap().point;
+        assert_eq!(key(x), key(y), "an end's two vertices share one key");
+    }
+    assert_eq!(
+        validate_pseudomanifold(&pinch.body, &bounds, tol),
+        Ok(()),
+        "the overlap between two shared keys is structure"
     );
 }
 

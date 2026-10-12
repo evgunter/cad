@@ -1751,25 +1751,27 @@ fn four_pairs_battery() {
     }
 }
 
-/// **Three pairs whose hang leaves the point on two keys refuse typed.**
+/// **Three pairs whose operand's pinch the touch unions decided build.**
 /// [`notch343`]'s corner against three cubes whose corners touch only
 /// there, two poses (PR 4249's review probes): `three i=4 j=3 k=1`
 /// (side-2 cubes, diagonals 120° apart in the plane normal to the grid
 /// direction) and `tripod i=0 j=4 t=1 k=0` (side-4 cubes tilted 0.25
 /// toward it). In each union a run turns at the shared corner and its
-/// siblings hang at its copy (`insert::hang_at_shared`), and the pinched
-/// operand's own cones sit on keys no seam links
-/// (`work/flush/a-pinch-the-seams-do-not-link-keeps-its-cones-on-separate-keys.md`):
-/// the notch-first union refuses `PinchConesOnSeparateKeys`, and at
-/// `three` the cubes-first union and difference too; with the notch
-/// first the intersection and difference build `SOUND`, one vertex per
-/// cone on one key, meshing.
-/// Red as `OK BAD` (tier 3′ `CensusUndecidable`, the cones on two keys)
-/// without `zip::refuse_split_hung_points`.
+/// siblings hang at its copy (`insert::hang_at_shared`), and no seam
+/// links the pinched operand's cones. The touch unions that built the
+/// operand decided its corners one point and put them on one key
+/// (`zip::record_classes`), so every op builds at the oracle's volume
+/// with one vertex per cone at `v`, on one key, and meshes. The
+/// intersections and differences are `SOUND`. Tier 3′ refuses both
+/// unions with the census's `MixedTouch` alone, at the point where the
+/// notch's solid and a cube's touch
+/// (`work/restread/a-pinch-point-the-census-reads-as-mixed-touch-where-the-body-holds-no-overlap.md`).
+/// Red, a key finding at `v` or a refusal, where the touch unions leave
+/// their corners on separate keys.
 #[test]
-fn three_pairs_whose_hang_leaves_the_point_on_two_keys_refuse_typed() {
+fn three_pairs_whose_operands_pinch_the_touch_unions_decided_build() {
     let v = notch343().v;
-    let mut poses: Vec<(&str, Vec<Frame>, f64, &[&str])> = Vec::new();
+    let mut poses: Vec<(&str, Vec<Frame>, f64)> = Vec::new();
     // `three`: each cube's corner diagonal along `d`, twisted by `psi`.
     let [p, q, _] = frame(direction(4, 3), 0.3 + 0.9);
     let three = (0..3)
@@ -1790,7 +1792,7 @@ fn three_pairs_whose_hang_leaves_the_point_on_two_keys_refuse_typed() {
             }
         })
         .collect();
-    poses.push(("three i=4 j=3 k=1", three, 2.0, &["ab U", "ba U", "ba S"]));
+    poses.push(("three i=4 j=3 k=1", three, 2.0));
     // `tripod`: each cube's corner diagonal along `d`, its frame turned.
     let n = unit(direction(0, 4));
     let [p, q, _] = frame(n, 0.0);
@@ -1801,8 +1803,8 @@ fn three_pairs_whose_hang_leaves_the_point_on_two_keys_refuse_typed() {
             corner_diagonal_frame(d, 0.3 + f64::from(c))
         })
         .collect();
-    poses.push(("tripod i=0 j=4 t=1 k=0", tripod, SIDE, &["ab U"]));
-    for (pose, frames, side, guarded) in poses {
+    poses.push(("tripod i=0 j=4 t=1 k=0", tripod, SIDE));
+    for (pose, frames, side) in poses {
         let pinch = unite_all(
             frames
                 .iter()
@@ -1816,17 +1818,6 @@ fn three_pairs_whose_hang_leaves_the_point_on_two_keys_refuse_typed() {
             .collect();
         let (runs, notch_pieces) = notch_against(&pinch, &pinch_pieces);
         for (tag, r, want) in runs {
-            if guarded.contains(&tag.as_str()) {
-                assert!(
-                    matches!(r, Err(BooleanError::PinchConesOnSeparateKeys { .. })),
-                    "{pose} {tag}: {}",
-                    outcome(r, want, tol())
-                );
-                continue;
-            }
-            if tag.starts_with("ba") {
-                continue;
-            }
             let finding = r.as_ref().ok().and_then(BooleanResult::body).map(|bb| {
                 pierce_point_finding(
                     &bb.body,
@@ -1834,9 +1825,26 @@ fn three_pairs_whose_hang_leaves_the_point_on_two_keys_refuse_typed() {
                     tag_cones(&tag, "ab", (&notch_pieces, &pinch_pieces)),
                 )
             });
+            let t3p = r
+                .as_ref()
+                .ok()
+                .and_then(BooleanResult::body)
+                .map(|bb| topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()).err());
             let line = outcome(r, want, tol());
-            assert!(line.starts_with("OK SOUND"), "{pose} {tag}: {line}");
-            assert_eq!(finding, Some(None), "{pose} {tag}");
+            assert_eq!(finding, Some(None), "{pose} {tag}: {line}");
+            if tag.ends_with('U') {
+                let mixed = |e: &topo::ValidationError| {
+                    matches!(e, topo::ValidationError::CensusUndecidable { what, .. }
+                        if what.starts_with("one passes into the other"))
+                };
+                let errors = t3p.flatten().unwrap_or_default();
+                assert!(
+                    line.starts_with("OK BAD") && !errors.is_empty() && errors.iter().all(mixed),
+                    "{pose} {tag}: {line} {errors:?}"
+                );
+            } else {
+                assert!(line.starts_with("OK SOUND"), "{pose} {tag}: {line}");
+            }
         }
     }
 }
@@ -2349,25 +2357,20 @@ fn a_pinched_operands_pierces_of_one_point_mint_one_ring() {
     }
 }
 
-/// **A pinch's cones sit on one point key** (`zip::share_points`). Six
-/// of [`dbl`]'s poses whose union with the cube pinches at `v` in two
-/// cones. Both cones' vertices are the pinched operand's own, which the
-/// corners' union left on two keys; the cube's copies of `v` sit on a
-/// third, which the zips fuse away. The seam correspondence pairs each
-/// operand vertex with a cube copy, so it ties all three keys, and after
-/// the zips the two cones' vertices move onto one key.
-/// Both unions build `SOUND` at the clipped volume, with one vertex per
-/// cone at `v`, on one key, and mesh. Red without the move: tier 3′
-/// refuses `UnrecordedContact { VertexVertex }` at `v`, and the output
-/// stage's join, which reads the pinch from its keys, kills a cone's
-/// vertex (one vertex for two cones; the mesher refuses or panics).
-/// The unions rebind at least one class (a union whose zips already
-/// leave its cones on one key rebinds none), and every class rebound
-/// held one point, bit for bit (`topo::take_shared_points`): the
-/// rebind reads no position, so this is its premise's pin.
+/// **A pinch's cones sit on one point key** (`zip::record_classes`).
+/// Six of [`dbl`]'s poses whose union with the cube pinches at `v` in
+/// two cones. Both cones' vertices are the pinched operand's own. The
+/// corners' union that built it decided the two corners one point and
+/// returns them as a vertex-vertex record, so it puts them on one key
+/// (a rebound class, within the margin its record cites); the cube's
+/// unions keep them there. Every union builds `SOUND` at the clipped
+/// volume, with one vertex per cone at `v`, on one key, and meshes.
+/// Red without the rebind: the operand holds `v` on two keys.
+/// Every class rebound held its points within what tied them
+/// (`topo::take_shared_points`): the rebind reads no position, so this
+/// is its premise's pin.
 #[test]
 fn a_pinchs_cones_share_one_point_key() {
-    let mut rebound = 0;
     for (names, (a, b), seed, fib) in [
         ("Ltop asym", (ltop(), asym()), 2296, 21),
         ("Ltop asym", (ltop(), asym()), 2296, 3),
@@ -2378,15 +2381,21 @@ fn a_pinchs_cones_share_one_point_key() {
     ] {
         let pose = format!("{names} seed={seed} fib{fib}");
         let v = a.v;
+        shared_point_spread_finding();
         let d = dbl((&a, &b), seed, fib);
+        let (classes, spread) = shared_point_spread_finding();
+        assert_eq!(classes, 1, "{pose}: the classes the corners' union rebinds");
+        assert_eq!(spread, None, "{pose}: the corners' union");
+        assert_eq!(
+            point_key_finding(&d.pinched, v),
+            None,
+            "{pose}: the operand"
+        );
         let want = d.volume + SIDE.powi(3) - d.common;
         let cube_pieces = vec![d.planes.clone()];
         for (order, x, y) in [("xy", &d.pinched, &d.cube), ("yx", &d.cube, &d.pinched)] {
-            shared_point_spread_finding();
             let r = topo::union(x, y, tol());
-            let (classes, spread) = shared_point_spread_finding();
-            rebound += classes;
-            assert_eq!(spread, None, "{pose} {order} U");
+            assert_eq!(shared_point_spread_finding().1, None, "{pose} {order} U");
             let finding = r.as_ref().ok().and_then(BooleanResult::body).map(|bb| {
                 point_key_finding(&bb.body, v)
                     .or_else(|| cone_finding(&bb.body, v, (&d.pieces, &cube_pieces, Cones::Union)))
@@ -2404,7 +2413,6 @@ fn a_pinchs_cones_share_one_point_key() {
             assert_eq!(finding, Some(None), "{pose} {order} U");
         }
     }
-    assert!(rebound > 0, "no union rebound a class");
 }
 
 /// **A pinch's unions build from every root of the pierce ring**

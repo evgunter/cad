@@ -583,7 +583,9 @@ impl<T: Real> Body<T> {
     /// vertices already sit at `onto`'s point is the caller's, held by
     /// its own records. The boolean's one caller (`zip::share_points`)
     /// passes the keys the seam correspondence ties, whose pairs the
-    /// zips' scaffolding certifies coincident before any rebind.
+    /// zips' scaffolding certifies coincident before any rebind, and the
+    /// keys its result's vertex-vertex records tie, each a pair it
+    /// decided one point.
     pub(crate) fn share_point(&mut self, vertices: &[VertexKey], onto: PointKey) -> Option<()> {
         self.points.get(onto)?;
         let old: Vec<PointKey> = vertices

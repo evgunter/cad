@@ -46,10 +46,14 @@
 //! joinable; a reading in the margin band refuses typed
 //! ([`JoinUndecided`]).
 //!
-//! A vertex that shares its point key with another vertex is not
-//! joinable either: it is one cone of a pinch (Ev, PR 4057), and the
-//! joined edge would run through the other cone's vertex on that point,
-//! a vertex-on-edge contact no record names.
+//! A vertex that shares its point key with another vertex of its shell
+//! is not joinable either: it is one cone of a pinch (Ev, PR 4057), and
+//! the joined edge would run through the other cone's vertex on that
+//! point. A key shared only with other shells' vertices is two lumps
+//! touching where a boolean decided them one point
+//! (`zip::record_classes`); the vertex joins as any other, and the
+//! edge then runs through the other lump's vertex, a vertex-on-edge
+//! contact the op's records carry through the join.
 //!
 //! **The closed join.** Two edges that share both ends join into one
 //! closed edge: the kill leaves the kept edge a self-loop at the far
@@ -66,7 +70,7 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Real, Sign, Tol};
 use super::ops::{Descendants, describe_minted_edges};
 use super::{BooleanError, Cell};
 use crate::body::Body;
-use crate::entity::{EdgeKey, EntityId, HalfEdgeKey, VertexKey};
+use crate::entity::{EdgeKey, EntityId, HalfEdgeKey, ShellKey, VertexKey};
 use crate::geometry::PointKey;
 use crate::live::{linked, proven};
 use crate::readback::edge_sides_of;
@@ -273,10 +277,10 @@ pub fn is_conventional_vertex<T: Real>(body: &Body<T>, v: VertexKey) -> bool {
 
 /// What one pass reads off the body before it asks any vertex: every
 /// half-edge starting at each vertex, and the point keys more than one
-/// vertex sits on (a pinch's cones).
+/// vertex of one shell sits on (a pinch's cones), with that shell.
 struct Pass {
     starts: BTreeMap<VertexKey, Vec<HalfEdgeKey>>,
-    shared: BTreeSet<PointKey>,
+    shared: BTreeSet<(Option<ShellKey>, PointKey)>,
 }
 
 impl Pass {
@@ -285,14 +289,24 @@ impl Pass {
         for (k, h) in body.half_edges() {
             starts.entry(h.start).or_default().push(k);
         }
+        let mut pass = Self {
+            starts,
+            shared: BTreeSet::new(),
+        };
         let mut seen = BTreeSet::new();
-        let mut shared = BTreeSet::new();
-        for (_, v) in body.vertices() {
-            if !seen.insert(v.point) {
-                shared.insert(v.point);
+        for (w, v) in body.vertices() {
+            let at = (pass.shell(body, w), v.point);
+            if !seen.insert(at) {
+                pass.shared.insert(at);
             }
         }
-        Self { starts, shared }
+        pass
+    }
+
+    /// The shell `w`'s first half-edge's face lies in.
+    fn shell<T: Real>(&self, body: &Body<T>, w: VertexKey) -> Option<ShellKey> {
+        let he = *self.starts.get(&w)?.first()?;
+        Some(body.get_face(body.face_of_half_edge(he)?)?.shell)
     }
 }
 
@@ -348,8 +362,8 @@ fn joinable<T: Decide>(
     };
     let w_point = proven(&body.vertices, w, EntityId::Vertex).point;
     // One cone of a pinch: the joined edge would run through another
-    // vertex on this point (module docs).
-    if pass.shared.contains(&w_point) {
+    // vertex of its shell on this point (module docs).
+    if pass.shared.contains(&(pass.shell(body, w), w_point)) {
         return Ok(None);
     }
     let edge = |h: HalfEdgeKey| proven(&body.half_edges, h, EntityId::HalfEdge).edge;

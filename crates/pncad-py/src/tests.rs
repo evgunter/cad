@@ -4860,7 +4860,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "pairing_mismatch",
             "pcurves",
             "pieces",
-            "pinch_cones_on_separate_keys",
             "pinch_rays_in_a_face",
             "point_in_face_refused",
             "point_split_carrier_unsupported",

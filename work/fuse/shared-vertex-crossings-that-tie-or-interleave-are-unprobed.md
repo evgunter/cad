@@ -91,3 +91,18 @@ interleave arm has a witness: cleave's
 the cube's corner. The band's pair crosses that corner four times, and
 the pairing those ops take has no run clear of the other two corners'
 cuts either way round (`work/cleave/three-corners-alternating-round-a-corner-refuse-at-the-join.md`).
+
+## Measured (FLUSH touch-key lane, 2026-10-12): the reconcile arm is reached
+
+`join_pierce_runs_sweep::four_pairs_battery` (release, main `360cf55e`
+and branch `flush/touch-key` alike, byte-identical) holds 982 lines
+`ERR SharedVertexCrossings`. A site tag on each emitter (a lane probe,
+not committed) put all 982 at `insert::reconcile_shared`'s pass, the
+arm that finds no way round clear of another pair's cut
+(`reconcile_pass`, the `chosen.ok_or_else` refusal). None reached the
+cover arm in `hang_at_shared`, whose doc calls it "a backstop no known
+pose reaches". So this row's "Unreached" no longer holds for the
+reconcile arm: four cubes touching at `notch343`'s corner reach it.
+Which of this row's two shapes (one arc, or interleave) each line is
+was not read. Replay: `cargo test -p sweep --release --test all
+four_pairs_battery -- --ignored --nocapture`.

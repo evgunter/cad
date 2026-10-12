@@ -7,7 +7,7 @@ priority: P2
 cost: M
 refs: [4207]
 opened: 2026-10-07
-branch: flush/pinch-residue
+branch: flush/touch-key
 ---
 
 Found by PR 4207's review (the FULL lane, M2). PR 4207 puts a pinch's
@@ -148,3 +148,72 @@ switch that restored the per-pierce rings and the weld):
 refusals included) and `pinch_runs_battery` (3 024). Still nothing in
 the records ties a point-touch union's two keys, so the row stands on
 D10's coincidence read, as its INTENT stage 4 E section says.
+
+## Measured (2026-10-12, branch `flush/touch-key`, main `360cf55e`)
+
+Release, base against head. A plain point-touch union of two cubes
+returns an assembly whose two vertices at `v` sit on two keys, with one
+`VertexVertex` record citing a `VertexFusion` row of margin 0. On main:
+`four_pairs_battery` holds 287 `PinchConesOnSeparateKeys`, 24 `OK BAD`
+whose finding is "the vertices at v do not share one point", 982
+`SharedVertexCrossings` and 3 896 `SOUND`, 477 of those on two keys.
+`dbl_battery` holds 36 `ZipCorrespondence` (PR 4777's) and 2 123
+`SOUND`; `pinch_runs` 3 023 `SOUND`; `corner_pairs` 16 313 `SOUND`;
+`pierce_runs` 4 325 `SOUND`. The ported PR 4207 review probe
+(`touch`, `dbl3`, plain booleans): `touch` 56 `SOUND` and 28 `EMPTY`,
+28 of the `SOUND` on two keys; `dbl3` (216 lines now, its operand on
+three keys) 180 `SOUND` and 36 `OK BAD`, every one tier 3′
+`UnrecordedContact { VertexVertex }` at `v` (the row's 40
+`UndeclaredContact`, renamed and re-counted).
+
+## Fix (branch `flush/touch-key`)
+
+Ruling A (the FLUSH orchestrator's): a boolean that decides from
+values that vertices of its operands coincide puts them on one point
+key in its result. The output stage of every path (seamed, assembly,
+single-operand fallback; `ops.rs` `share_recorded_points`, after
+`carry`) reads the result's vertex-vertex records into classes of
+point keys (`zip::record_classes`) and moves each class onto one key
+(`zip::share_points`, `Body::share_point`). No position is read; the
+records and their `VertexFusion` rows stay. The seam correspondence's
+own classes (`zip::point_classes`, rebound before the join) are folded
+in: with the record rule in place, removing them moves no line of the
+five batteries. `zip::refuse_split_hung_points`,
+`BooleanError::PinchConesOnSeparateKeys` and the insertion's hang
+bookkeeping it read (`HungPoint`, `hung_points`, `Hang`) are retired.
+
+Head against base: `four_pairs` 287 `PinchConesOnSeparateKeys` → 115
+`SOUND` and 172 `OK BAD`; the 24 `OK BAD` keep their tier 3′ refusal
+with the key finding gone; the 477 two-key `SOUND` lines now hold one
+key; `SharedVertexCrossings` (982) is identical. `dbl`, `pinch_runs`,
+`corner_pairs` and `pierce_runs` are byte-identical. `touch`: the 28
+two-key lines hold one key, outcomes unchanged. `dbl3`: its operand
+now holds one key, and all 216 lines are `SOUND`; the 36 refusals went
+because the cube's union reads the operand's corners off one key.
+
+The output stage's join (`edge_join`) refused to join a vertex whose
+point key another vertex shares, reading it as a pinch's cone. Shared
+keys now also mark two lumps touching, so the join reads a pinch as a
+key shared within one shell: two lumps that touch only at a point are
+separate shells. Without that, `topo`
+`union_flush_onto_edge_contact::joined_folds_certify_and_build_one_body_in_every_order`
+kept a joinable vertex in two of its six member orders (17 vertices
+against 16).
+
+Tests restated for the new shape: a vertex pair or an edge overlap
+between two shared keys now passes tier 3′ with its records withheld
+(`m3_pr6_tier3prime`, `surgery_carries_records`,
+`union_flush_onto_edge_contact`, `pierce_strut_at_a_pinch`,
+`sweep` `blend_carries_records`), and `boolean_pinch_copies` allows
+two vertices on one key where a record ties them. Re-baselined, through
+`kiss_carry` alone: the m10-p fences, `intent_s2_c_world::PRE_C` and
+`seat4_verb_lowering`'s digests (its body holds one point fewer; no
+outcome or coordinate moved).
+
+The 196 `four_pairs` `OK BAD` and the `three` / `tripod` unions refuse
+tier 3′ `MixedTouch` at `v` with the oracle's volume, one key and a
+clean mesh: filed as
+`work/restread/a-pinch-point-the-census-reads-as-mixed-touch-where-the-body-holds-no-overlap.md`.
+A result reused without its records now passes a point touch at rest
+on its shared key: filed as
+`work/intent/a-boolean-result-reused-without-its-records-passes-at-rest-on-its-shared-keys.md`.

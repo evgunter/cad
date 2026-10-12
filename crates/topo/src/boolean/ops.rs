@@ -597,20 +597,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let copies = Descendants::null_copies(&red.null_edges);
     let along = connected.along.clone();
     let ledger = ledger(&red, decls, band)?;
-    let hung = red.hung.clone();
     let fin = setopfinish(op, red, &connected, a, b, band, tol)?;
-    // The hung points in result keys: A's clone is the result's own, B's
-    // comes through the graft. The graft maps the points B's kept part
-    // holds, so a key it lacks held only vertices B discarded, and no
-    // vertex of the result sits on it.
-    let hung: Vec<_> = hung
-        .iter()
-        .map(|h| {
-            let [a_keys, b_keys] = &h.keys;
-            let kept_b = b_keys.iter().filter_map(|&k| fin.graft.points.get(k));
-            (h.hang, a_keys.iter().chain(kept_b).copied().collect())
-        })
-        .collect();
     // The zip, the merge, the re-description and the closing mint are
     // one door's surgery (`crate::surgery`): the operators inside them
     // do not each re-derive the whole body, and `gate` below — tier 3
@@ -629,7 +616,6 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     // A vertex several seams meet is fused by the first: each later zip
     // reads the correspondence through the fusions made.
     let mut vertex_map = fin.vertex_map.clone();
-    let points = super::zip::point_classes(&body, &vertex_map)?;
     let seams = super::zip::split_cones(&mut body, &fin.seams, &mut vertex_map, tol)?;
     for &(a_face, b_face) in &seams {
         let rep = zip_seam(&mut body, a_face, b_face, &vertex_map, tol)?;
@@ -637,8 +623,6 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         seam_edges.extend(rep.seam_edges);
         vertex_map = fused_through(&vertex_map, &rep.vertex_merges);
     }
-    super::zip::share_points(&mut body, &points)?;
-    super::zip::refuse_split_hung_points(&body, &hung)?;
     // A pinch keeps one vertex per cone, so lumps that met only there
     // share no edge: each connected piece of a shell becomes a shell.
     let shells: Vec<crate::entity::ShellKey> = body
@@ -665,6 +649,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         &desc,
         band,
     )?;
+    share_recorded_points(&mut body, &contacts, &coincidences)?;
     // Curved results carry certified per-half-edge pcurves at rest
     // (M5 PR 9, the PR 6 contract): re-derive the whole cache set on
     // the finished body — the same pass the split lane runs. A planar
@@ -3493,6 +3478,23 @@ pub(super) fn carry<T: Decide>(
     cite_rows(records, ledger)
 }
 
+/// **The output stage's one key rule**: the vertices of every
+/// vertex-vertex record of the result move onto one point key
+/// (`zip::record_classes`), on every path a boolean builds by. Run
+/// after [`carry`], on the records the result ships.
+///
+/// # Errors
+///
+/// As `zip::record_classes` and `zip::share_points`.
+fn share_recorded_points<T: Decide>(
+    body: &mut Body<T>,
+    contacts: &ContactRecords,
+    coincidences: &[crate::Coincidence],
+) -> Result<(), BooleanError> {
+    let classes = super::zip::record_classes(body, contacts, coincidences)?;
+    super::zip::share_points(body, &classes)
+}
+
 /// The records `carry_rows` left, their decisions emitted after the
 /// op's own coincidences and their citations renumbered onto them
 /// ([`carry`]).
@@ -5962,6 +5964,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 &desc,
                 band,
             )?;
+            share_recorded_points(&mut body, &contacts, &coincidences)?;
             let body = gate(body, band, tol)?;
             let (graft_vertices, graft_edges, graft_dead_edges, graft_faces) = graft_rows(&graft);
             let naming = BooleanNaming {
@@ -6023,6 +6026,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
     };
     let ledger = ledger(red, decls, band)?;
     let (contacts, coincidences) = carry(&body, &ledger, [&a_view, &b_view], &desc, band)?;
+    share_recorded_points(&mut body, &contacts, &coincidences)?;
     let body = gate(body, band, tol)?;
     let naming = match kind {
         BooleanResultKind::OperandA => BooleanNaming {

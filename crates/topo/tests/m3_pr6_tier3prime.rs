@@ -5,8 +5,12 @@
 //! Every promotion scenario tests BOTH directions: the boolean result
 //! is green under its carried contacts AND red (`UnrecordedContact`)
 //! when the declarations are withheld — the census never blesses
-//! (F1/F2). Scenarios are generic over `T` (f64 ε rows via CI; the
-//! explicit Interval lane at the bottom, per suite convention).
+//! (F1/F2). Where every touch is between vertices the boolean decided
+//! one point, it put them on one point key, and the census reads the
+//! key as structure: withheld, the result stays green, and the
+//! scenario pins the shared key instead. Scenarios are generic over
+//! `T` (f64 ε rows via CI; the explicit Interval lane at the bottom,
+//! per suite convention).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -64,6 +68,25 @@ fn assert_promoted<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(
     }
 }
 
+/// The keyed pair: 3′ passes with the carried contacts and without
+/// them, because each vertex-vertex record's two vertices sit on one
+/// point key, which the census reads as structure.
+fn assert_keyed<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(b: &BooleanBody<T>) {
+    assert_eq!(
+        validate_pseudomanifold(&b.body, &b.contacts, Tol::witness()),
+        Ok(())
+    );
+    for (x, y) in b.contacts.vertex_vertex() {
+        let key = |v| b.body.get_vertex(v).unwrap().point;
+        assert_eq!(key(x), key(y), "a recorded vertex pair shares its key");
+    }
+    assert_eq!(
+        validate_pseudomanifold(&b.body, &ContactRecords::default(), Tol::witness()),
+        Ok(()),
+        "withheld, the touch reads off its shared key"
+    );
+}
+
 // ---------------------------------------------------------------
 // PROMOTION (D9): the touching corpus at rest.
 // ---------------------------------------------------------------
@@ -74,7 +97,7 @@ fn corner_kiss_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPol
     let b = finished_brick::<T>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0));
     let body = run_body(union as BoolOp<T>, &a, &b);
     assert_eq!(body.contacts.vertex_vertex().count(), 1);
-    assert_promoted(&body);
+    assert_keyed(&body);
 }
 
 #[test]
@@ -84,15 +107,15 @@ fn corner_kiss_promoted() {
 
 /// Wedge touch / tangent edge (PR 4's diagonal edge-edge tie): two
 /// bricks sharing exactly one edge — the union assembly carries the
-/// two shared-endpoint v-v records, and the census reconstructs the
-/// full-length coincident-edge SEGMENT from them (the D3 rule's
-/// bounded-by-declared-records lane, live end to end).
+/// two shared-endpoint v-v records and puts each pair on one key, and
+/// the census reads the full-length coincident-edge SEGMENT between
+/// the two shared keys as structure.
 fn tangent_edge_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() {
     let a = finished_brick::<T>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
     let b = finished_brick::<T>((1.0, 2.0), (0.0, 1.0), (1.0, 2.0));
     let body = run_body(union as BoolOp<T>, &a, &b);
     assert_eq!(body.contacts.vertex_vertex().count(), 2);
-    assert_promoted(&body);
+    assert_keyed(&body);
 }
 
 #[test]
@@ -312,9 +335,8 @@ fn tier3_equivalence_empty_contacts() {
 // ---------------------------------------------------------------
 
 /// A tampered declaration (wrong vertex key) is a typed
-/// `StaleContactDeclaration` — and the real kiss, now unbacked,
-/// surfaces as `UnrecordedContact`: both certification directions
-/// fire on one body.
+/// `StaleContactDeclaration`. The real kiss, now unbacked, still reads
+/// off the key the union shared between its two vertices.
 #[test]
 fn tampered_declaration_is_stale() {
     let a = finished_brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
@@ -339,7 +361,7 @@ fn tampered_declaration_is_stale() {
         "{errors:?}"
     );
     assert!(
-        errors
+        !errors
             .iter()
             .any(|e| matches!(e, ValidationError::UnrecordedContact { .. })),
         "{errors:?}"
@@ -397,9 +419,11 @@ fn hand_built_self_intersection_is_undeclared() {
 // asserted exactly: a boolean op does not consume its OPERANDS'
 // declared contacts, so an operand-internal coincidence that persists
 // into the result is re-discovered by the census as undeclared — the
-// at-rest 3′ gate refuses it loudly (never silent wrongness). Feeding
-// declarations through op composition is the 6(b)/M4 recipe-layer
-// item; the rows here are the closure table's data.
+// at-rest 3′ gate refuses it loudly (never silent wrongness) — except
+// a vertex pair the op that made it put on one point key, which the
+// census reads as structure. Feeding declarations through op
+// composition is the 6(b)/M4 recipe-layer item; the rows here are the
+// closure table's data.
 // ---------------------------------------------------------------
 
 /// The corner-kiss assembly (1 v-v declaration) as the 3′ base.
@@ -417,33 +441,27 @@ fn closure_kiss_vs_mover() {
 
     // ∪: closes structurally (volume oracle exact); the surviving
     // kiss is operand-internal — undeclared in the new result's
-    // records — and the 3′ gate refuses it LOUDLY (the documented
-    // closure gap; row 1 of the table).
+    // records — and reads off the key the base's union shared, so 3′
+    // passes (row 1 of the table).
     let r = run_body(union as BoolOp<f64>, &base.body, &mover);
     assert_eq!(
         mass_properties(&r.body, Tol::witness()).unwrap().volume,
         2.875
     );
-    let errors = validate_pseudomanifold(&r.body, &r.contacts, Tol::witness()).unwrap_err();
-    assert!(
-        errors
-            .iter()
-            .all(|e| matches!(e, ValidationError::UnrecordedContact { .. })),
-        "{errors:?}"
+    assert_eq!(
+        validate_pseudomanifold(&r.body, &r.contacts, Tol::witness()),
+        Ok(())
     );
 
-    // ∖: same shape — closes, kiss persists, gate refuses loudly.
+    // ∖: same shape — closes, the kiss persists on its shared key.
     let r = run_body(subtract as BoolOp<f64>, &base.body, &mover);
     assert_eq!(
         mass_properties(&r.body, Tol::witness()).unwrap().volume,
         1.875
     );
-    let errors = validate_pseudomanifold(&r.body, &r.contacts, Tol::witness()).unwrap_err();
-    assert!(
-        errors
-            .iter()
-            .all(|e| matches!(e, ValidationError::UnrecordedContact { .. })),
-        "{errors:?}"
+    assert_eq!(
+        validate_pseudomanifold(&r.body, &r.contacts, Tol::witness()),
+        Ok(())
     );
 
     // ∩: the kiss shell drops out of the result — certified 3′ green

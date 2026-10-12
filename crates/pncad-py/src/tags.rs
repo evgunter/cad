@@ -1622,7 +1622,6 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::InvalidInput => "invalid_input",
         BooleanErrorKind::PairingMismatch => "pairing_mismatch",
         BooleanErrorKind::SharedVertexCrossings => "shared_vertex_crossings",
-        BooleanErrorKind::PinchConesOnSeparateKeys => "pinch_cones_on_separate_keys",
         BooleanErrorKind::PinchRaysInAFace => "pinch_rays_in_a_face",
         BooleanErrorKind::VertexReadTwice => "vertex_read_twice",
         BooleanErrorKind::NonManifoldResult => "non_manifold_result",

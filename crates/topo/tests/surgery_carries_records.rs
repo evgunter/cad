@@ -46,9 +46,9 @@ fn face_at_x(body: &Body<f64>, x: f64) -> FaceKey {
 }
 
 /// `carried` is the kiss's one record carried: it cites the operand's
-/// record 0, the at-rest gate passes `body` with it, and withholding it
-/// refuses the touch as undeclared — the refusal every verb's result met
-/// before it could carry.
+/// record 0, and the at-rest gate passes `body` with it and without it,
+/// since the union put the kissing corners on one point key, which the
+/// census reads as structure.
 fn carries_the_kiss(what: &str, body: &Body<f64>, carried: &ContactRecords) {
     assert_eq!(carried.vertex_vertex().count(), 1, "{what}: {carried:?}");
     let cites: Vec<Backing> = carried.rows()[0].cites.iter().collect();
@@ -65,13 +65,10 @@ fn carries_the_kiss(what: &str, body: &Body<f64>, carried: &ContactRecords) {
         Ok(()),
         "{what}: the carried record passes at rest"
     );
-    let withheld = validate_pseudomanifold(body, &ContactRecords::default(), tol())
-        .expect_err("the kiss is a touch");
-    assert!(
-        withheld
-            .iter()
-            .all(|e| matches!(e, ValidationError::UnrecordedContact { .. })),
-        "{what}: withheld, the kiss is undeclared: {withheld:?}"
+    assert_eq!(
+        validate_pseudomanifold(body, &ContactRecords::default(), tol()),
+        Ok(()),
+        "{what}: withheld, the kiss reads off its shared key"
     );
 }
 

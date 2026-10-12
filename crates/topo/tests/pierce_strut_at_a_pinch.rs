@@ -42,7 +42,9 @@ enum Kind {
 ///
 /// A result 3′ refuses is refused by an operand's own contacts along its
 /// pinch line, which a kernel op called without `BooleanInputs` records
-/// does not carry into its result.
+/// does not carry into its result. A pinch line whose ends the union
+/// that made it put on shared point keys reads as structure, and
+/// passes.
 type Row = (&'static str, Kind, bool, [usize; 3], f64, bool);
 
 fn t() -> Tol {
@@ -276,7 +278,7 @@ fn a_pinch_through_a_face_builds_in_every_op() {
             false,
             [19, 48, 31],
             2.0 + 1.0 - both,
-            false,
+            true,
         ),
         (
             "pinch − B",
@@ -284,7 +286,7 @@ fn a_pinch_through_a_face_builds_in_every_op() {
             false,
             [18, 42, 28],
             2.0 - both,
-            false,
+            true,
         ),
         (
             "pinch ∩ B",
@@ -292,7 +294,7 @@ fn a_pinch_through_a_face_builds_in_every_op() {
             false,
             [12, 24, 16],
             both,
-            false,
+            true,
         ),
         (
             "B ∪ pinch",
@@ -300,7 +302,7 @@ fn a_pinch_through_a_face_builds_in_every_op() {
             true,
             [19, 48, 31],
             2.0 + 1.0 - both,
-            false,
+            true,
         ),
         (
             "B − pinch",
@@ -308,16 +310,9 @@ fn a_pinch_through_a_face_builds_in_every_op() {
             true,
             [13, 30, 19],
             1.0 - both,
-            false,
-        ),
-        (
-            "B ∩ pinch",
-            Kind::Intersect,
             true,
-            [12, 24, 16],
-            both,
-            false,
         ),
+        ("B ∩ pinch", Kind::Intersect, true, [12, 24, 16], both, true),
     ];
     every_op("pinch", &pinch, &b, &rows);
 }
@@ -365,7 +360,7 @@ fn a_wedge_in_a_reflex_corner_through_a_face_builds_in_every_op() {
             false,
             [18, 45, 29],
             pinch_volume + 1.0 - both,
-            false,
+            true,
         ),
         (
             "pinch − B",
@@ -373,7 +368,7 @@ fn a_wedge_in_a_reflex_corner_through_a_face_builds_in_every_op() {
             false,
             [18, 42, 28],
             pinch_volume - both,
-            false,
+            true,
         ),
         (
             "pinch ∩ B",
@@ -381,7 +376,7 @@ fn a_wedge_in_a_reflex_corner_through_a_face_builds_in_every_op() {
             false,
             [13, 27, 18],
             both,
-            false,
+            true,
         ),
         (
             "B ∪ pinch",
@@ -389,7 +384,7 @@ fn a_wedge_in_a_reflex_corner_through_a_face_builds_in_every_op() {
             true,
             [18, 45, 29],
             pinch_volume + 1.0 - both,
-            false,
+            true,
         ),
         (
             "B − pinch",
@@ -397,16 +392,9 @@ fn a_wedge_in_a_reflex_corner_through_a_face_builds_in_every_op() {
             true,
             [13, 30, 19],
             1.0 - both,
-            false,
-        ),
-        (
-            "B ∩ pinch",
-            Kind::Intersect,
             true,
-            [13, 27, 18],
-            both,
-            false,
         ),
+        ("B ∩ pinch", Kind::Intersect, true, [13, 27, 18], both, true),
     ];
     every_op("reflex", &pinch, &b, &rows);
 }

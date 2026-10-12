@@ -376,16 +376,28 @@ pub fn shared_point_finding(body: &Body<f64>, at: V3) -> Option<String> {
 }
 
 /// Where a class `zip::share_points` rebound on this thread since the
-/// last drain held keys at different points, the finding, else `None`;
-/// with the number of classes drained. The rebind reads no position, so
-/// this pins its premise: the seams tie only keys holding one point,
-/// bit for bit.
+/// last drain held keys farther apart than the margins its records'
+/// decisions read, the finding, else `None`; with the number of classes
+/// drained. The rebind reads no position, so this pins its premise: the
+/// result's vertex-vertex records tie only keys at one point, within
+/// the margins that decided it (`topo::SharedClass`).
 pub fn shared_point_spread_finding() -> (usize, Option<String>) {
     let classes = topo::take_shared_points();
-    let bits = |p: &[String; 3]| p.clone().map(|c| c.parse::<f64>().unwrap().to_bits());
+    let at = |p: &[String; 3]| p.clone().map(|c| c.parse::<f64>().unwrap());
+    let apart = |(points, margins): &topo::SharedClass| {
+        let o = at(&points[0]);
+        let reach: f64 = margins
+            .iter()
+            .map(|m| m.parse::<f64>().unwrap().abs())
+            .sum();
+        points.iter().map(at).any(|p| {
+            let d = [0, 1, 2].map(|i| p[i] - o[i]);
+            (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt() > reach
+        })
+    };
     let finding = classes
         .iter()
-        .find(|c| c.iter().any(|p| bits(p) != bits(&c[0])))
-        .map(|c| format!("a rebound class holds keys at different points: {c:?}"));
+        .find(|c| apart(c))
+        .map(|c| format!("a rebound class holds keys farther apart than its margins: {c:?}"));
     (classes.len(), finding)
 }
