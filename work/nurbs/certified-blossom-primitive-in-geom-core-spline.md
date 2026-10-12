@@ -69,9 +69,10 @@ are retired; the segment cut ENCL made public as `sub_segment`
 restriction on `KnotVector::bezier(p, (s0, s1))`. Routed through it: `ssi/enclose::bezier_on`,
 `ssi/section`'s piece cuts and sign bisection (`restrict_segment`), `props/quad`'s `bezier_bisect`, and
 `pcurve_cache/projected::piece_controls` through
-`SpanLocate::restrict_window`. `props/quad`'s `de_boor` is not: routed,
-it broke step-import's native/import bit identity by one ulp, filed as
-`quad-de-boor-through-the-blossom-breaks-the-import-bit-identity`. The per-site table, including
+`SpanLocate::restrict_window`. `props/quad`'s `de_boor` was not routed
+in PR 4551 (a one-ulp native/import split later traced to the face-sum
+order, `quad-de-boor-through-the-blossom-breaks-the-import-bit-identity`);
+PR 4807 routes it, through `blossom::diagonal_in_span`. The per-site table, including
 the sites not routed and why, is in PR 4551's body.
 `apply_certified` and `TensorNet::refine_*` keep their Boehm schedules
 and step through the door.
