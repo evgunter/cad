@@ -7,6 +7,7 @@ opened: 2026-10-12
 priority: P1
 cost: M
 design: true
+needs_ev: true
 ---
 
 
@@ -42,11 +43,27 @@ two answers for one locus.
 
 ## The question
 
-Whether the chart should stay each caller's choice or become a function
-the rule computes, and if so which: a function of the pair alone (key
-order, or a kind preference such as "the plane if one is a plane"), or
-of the edge (its orientation). Today `MustCarryDescription::Conventional`
-carries the chart, but only as the caller's `chart` argument to
-`geom_brep::must_carry_description` handed back; a ruling either keeps
-that argument or replaces it with the rule's own pick, after which each
-caller above drops one argument. Weighed with designers first.
+Weighed by a designer pair. What the chart choice is evidence of: a
+recorded value that records nothing. On a derived two-surface seam the
+carrier fixes the locus, each face's pcurve is its own derived cache,
+and the chart key only names one of the two faces, chosen by
+construction history. The readers that act on it are the spline pcurve
+mint (`topo::pcurves::nurbs_iso_derive`, the P0
+`nurbs-iso-derive-line-cap-arm-guesses-wrong-channel`) and
+`boolean::edge_join`, which never re-joins a two-surface conventional
+seam. Naming, tier-3 adjacency and `topo::iso` do not read it. A probe
+(branch `tang/probe-smooth-seam-chart-offset`) found single-face offset
+indifferent to it.
+
+Two decisions go to Ev, stated in D2 by the `[ev]` PR:
+
+1. Such a seam stores `OnPair { pair }`: no chart, an incidence-only
+   certificate, admitted where tier 3's must-carry predicate reads the
+   join under-determined. `Chart` stays for loci one chart defines. The
+   nine doors (eight minting doors and STEP adoption) drop their chart
+   choice.
+2. A mixed edge (some stations definitely transverse, others definitely
+   smooth) brackets an unsampled in-band point and refuses typed. Today
+   tier 3 exempts it (`topo::validate`, `TransverseNotIntrinsic`'s doc,
+   entered 2026-07-19 as "not enforced at M2") and the boolean's
+   stale-seam arm stores it as `Chart(s1)`.
