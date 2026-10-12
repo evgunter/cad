@@ -356,6 +356,26 @@ fn curved_notch_pinch_one() {
     let bb = res.body().expect("a body");
     let body = &bb.body;
     println!("solids {}", body.solids().count());
+    // REVIEW PROBE (r2): each discard's bordered stretches, settled, and
+    // how many result edges join each settled pair.
+    {
+        let fused = bb.naming.fused_into();
+        let settle = |v: topo::VertexKey| fused.get(&v).copied().unwrap_or(v);
+        let mut ends: std::collections::BTreeMap<(topo::VertexKey, topo::VertexKey), usize> =
+            std::collections::BTreeMap::new();
+        for (_, e) in body.edges() {
+            let s = body.get_half_edge(e.he_plus).unwrap().start;
+            let t = body.half_edge_end(e.he_plus).unwrap();
+            *ends.entry((s.min(t), s.max(t))).or_default() += 1;
+        }
+        for (i, d) in bb.naming.discards.iter().enumerate() {
+            for &(u, w) in &d.bordered {
+                let (u, w) = (settle(u), settle(w));
+                let n = ends.get(&(u.min(w), u.max(w))).copied().unwrap_or(0);
+                println!("BORDER row={i} raw=({u:?},{w:?}) edges_joining={n}");
+            }
+        }
+    }
     for row in bb.contacts.rows() {
         println!("record {row:?}");
     }

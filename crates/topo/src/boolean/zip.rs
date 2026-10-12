@@ -760,6 +760,131 @@ pub(super) fn zip_seam<T: Decide + crate::props::AtRestPolicy>(
     vmap: &SeamCorrespondence,
     tol: Tol,
 ) -> Result<ZipReport, BooleanError> {
+    // REVIEW PROBE (r2): GLUE_CMP compares the old loopglue against `glue`.
+    if std::env::var("GLUE_CMP").is_ok() {
+        let mut old_body = body.clone();
+        let old = zip_seam_old(&mut old_body, a_face, b_face, vmap, tol);
+        let new = zip_seam_new(body, a_face, b_face, vmap, tol);
+        match (&old, &new) {
+            (Ok(o), Ok(n)) => {
+                let mut oe = o.edge_merges.clone();
+                let mut ne = n.edge_merges.clone();
+                oe.sort();
+                ne.sort();
+                let strip = |s: String| s.split("surgery:").next().unwrap_or("").to_string();
+                let same = strip(format!("{old_body:?}")) == strip(format!("{body:?}"))
+                    && o.vertex_merges == n.vertex_merges
+                    && o.seam_edges == n.seam_edges
+                    && oe == ne;
+                eprintln!("GLUE_CMP {}", if same { "SAME" } else { "DIFF" });
+                if !same {
+                    if let Ok(d) = std::env::var("GLUE_DUMP") {
+                        if !std::path::Path::new(&format!("{d}.old")).exists() {
+                            let _ = std::fs::write(format!("{d}.old"), format!("{old_body:#?}"));
+                            let _ = std::fs::write(format!("{d}.new"), format!("{body:#?}"));
+                        }
+                    }
+                    eprintln!(
+                        "GLUE_CMP_DETAIL body={} vm={} se={} em={}",
+                        strip(format!("{old_body:?}")) == strip(format!("{body:?}")),
+                        o.vertex_merges == n.vertex_merges,
+                        o.seam_edges == n.seam_edges,
+                        oe == ne
+                    );
+                }
+            }
+            (o, n) => eprintln!(
+                "GLUE_CMP ERRS old={:?} new={:?}",
+                o.as_ref().err(),
+                n.as_ref().err()
+            ),
+        }
+        return new;
+    }
+    zip_seam_new(body, a_face, b_face, vmap, tol)
+}
+
+fn zip_seam_old<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    a_face: FaceKey,
+    b_face: FaceKey,
+    vmap: &SeamCorrespondence,
+    tol: Tol,
+) -> Result<ZipReport, BooleanError> {
+    let corr = |what| BooleanError::ZipCorrespondence { what };
+    let mut report = ZipReport::default();
+    let fused = body.kfmrh_minting(a_face, b_face, tol)?;
+    let ring = fused.ring;
+    let outer = body
+        .get_face(a_face)
+        .ok_or_else(|| corr("A section face no longer resolves"))?
+        .outer;
+    let ob = section_cycle(body, outer)?;
+    let rs = align(
+        body,
+        (a_face, b_face),
+        &ob,
+        &section_cycle(body, ring)?,
+        vmap,
+    )?;
+    let n = ob.len();
+    let ring_edges = rs
+        .iter()
+        .map(|&r| {
+            body.get_half_edge(r)
+                .map(|h| h.edge)
+                .ok_or_else(|| corr("ring half-edge no longer resolves"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let point_of =
+        |body: &Body<T>, he: HalfEdgeKey| -> Result<geom_core::Point3<T>, BooleanError> {
+            let v = start_of(body, he)?;
+            body.get_vertex(v)
+                .and_then(|vd| body.get_point(vd.point).copied())
+                .ok_or_else(|| corr("seam vertex has no point"))
+        };
+    for j in fusion_order(n) {
+        let pj = point_of(body, ob[j])?;
+        let joint = if j == 0 {
+            Joint::Loops {
+                target: ob[0],
+                ring: rs[0],
+            }
+        } else {
+            Joint::Chord {
+                he1: ob[j],
+                he2: rs[j],
+            }
+        };
+        let (merge, _) = fuse_by_joint(body, joint, pj, corr, tol)?;
+        report.vertex_merges.push(merge)?;
+        if j != 0 {
+            body.kef_minting(rs[(j + 1) % n], tol)?;
+        }
+    }
+    body.kef_minting(rs[1 % n], tol)?;
+    for &he in &ob {
+        let edge = body
+            .get_half_edge(he)
+            .ok_or_else(|| corr("surviving seam half-edge no longer resolves"))?
+            .edge;
+        report.seam_edges.push(edge);
+    }
+    report.edge_merges = ring_edges
+        .into_iter()
+        .enumerate()
+        .map(|(j, dead)| (dead, report.seam_edges[(j + n - 1) % n]))
+        .collect();
+    Ok(report)
+}
+
+fn zip_seam_new<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    a_face: FaceKey,
+    b_face: FaceKey,
+    vmap: &SeamCorrespondence,
+    tol: Tol,
+) -> Result<ZipReport, BooleanError> {
     let corr = |what| BooleanError::ZipCorrespondence { what };
     // ---- Fuse: B's section face becomes a ring of A's. ----
     let ring = body.kfmrh_minting(a_face, b_face, tol)?.ring;
@@ -779,7 +904,22 @@ pub(super) fn zip_seam<T: Decide + crate::props::AtRestPolicy>(
     // `ob[j - 1]`'s (`align`), so it lies on `ob[j - 1]`'s segment.
     let n = ob.len();
     let edges: Vec<_> = (0..n).map(|j| (ob[j], rs[(j + 1) % n])).collect();
-    glue(body, &edges, fusion_order(n), tol)
+    // REVIEW PROBE (r2): GLUE_SEAM_ORDER=plain|rev drives face pairs in another order.
+    match std::env::var("GLUE_SEAM_ORDER").as_deref() {
+        Ok("plain") => glue(body, &edges, (0..n).collect::<Vec<_>>().into_iter(), tol),
+        Ok("rev") => glue(
+            body,
+            &edges,
+            (0..n).rev().collect::<Vec<_>>().into_iter(),
+            tol,
+        ),
+        _ => glue(
+            body,
+            &edges,
+            fusion_order(n).collect::<Vec<_>>().into_iter(),
+            tol,
+        ),
+    }
 }
 
 /// Zips a split seam: section faces of both operands whose edges pair
@@ -797,10 +937,43 @@ pub(super) fn zip_split<T: Decide + crate::props::AtRestPolicy>(
             what: "a split seam holds no face",
         });
     };
-    for &f in rest {
-        body.kfmrh_minting(*host, f, tol)?;
+    // REVIEW PROBE (r2): GLUE_HOST=k rotates the host; GLUE_ORDER=rev|rotK permutes the pairs.
+    let mut faces = faces.to_vec();
+    if let Ok(k) = std::env::var("GLUE_HOST") {
+        let k: usize = k.parse().unwrap_or(0) % faces.len();
+        faces.rotate_left(k);
     }
-    glue(body, edges, 0..edges.len(), tol)
+    let mut edges = edges.to_vec();
+    match std::env::var("GLUE_ORDER").as_deref() {
+        Ok("rev") => edges.reverse(),
+        Ok(r) if r.starts_with("rot") => {
+            let k: usize = r[3..].parse().unwrap_or(1);
+            let m = edges.len();
+            edges.rotate_left(k % m);
+        }
+        _ => {}
+    }
+    // REVIEW PROBE (r2): GLUE_SWAP plays the operands' roles the other way round.
+    if std::env::var("GLUE_SWAP").is_ok() {
+        edges = edges.iter().map(|&(ob, r)| (r, ob)).collect();
+    }
+    let _ = (host, rest);
+    let (host, rest) = (faces[0], &faces[1..]);
+    if std::env::var("PROBE_SPLIT").is_ok() {
+        let surf: Vec<String> = faces
+            .iter()
+            .map(|&f| format!("{:?}", body.get_face(f).map(|fd| fd.surface)))
+            .collect();
+        eprintln!(
+            "ZIP_SPLIT faces={} edges={} surfaces={surf:?}",
+            faces.len(),
+            edges.len()
+        );
+    }
+    for &f in rest {
+        body.kfmrh_minting(host, f, tol)?;
+    }
+    glue(body, &edges, 0..edges.len(), tol)
 }
 
 /// **The loopglue zip, driven by records**: glues each A section
