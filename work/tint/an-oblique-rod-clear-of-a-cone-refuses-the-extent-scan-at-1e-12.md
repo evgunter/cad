@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-11
 priority: P2
 cost: E
-refs: [cone-germ-pairs-against-a-curved-face-have-no-section-frame, tipped-rod-join-escalates-at-1e-12]
+refs: [cone-germ-pairs-against-a-curved-face-have-no-section-frame, a-far-origin-rod-cut-escalates-its-mapped-source-at-eps-1e-12]
 ---
 
 
@@ -35,4 +35,4 @@ refuses, and at 1e-6 it refuses the same way, while the default row certifies th
 tangency reading is charging f64 rounding as nearness at this ε (a
 kernel lever, the owner of the extent scan's), or the row is
 eps-sensitive and wants a loud skip at that row — decide which, as for
-`tipped-rod-join-escalates-at-1e-12`.
+`a-far-origin-rod-cut-escalates-its-mapped-source-at-eps-1e-12`.

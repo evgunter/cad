@@ -107,3 +107,53 @@ meets this row's original `sectors::along` refusal, the remainder.
 Build note: the fixture carries a second wedge-0 edge at (x = 3, z = 0)
 lying in the slab's bottom face; a slab spanning z ∈ [−1, 1] isolates
 the rim.
+
+## Built: the claim-free glue (PR 4831); the remainder is `along`
+
+PR 4831 glues the dip's wall `Tangent`. On a slab z ∈ [−1, 1]
+(`the_dip_on_a_deep_slab_unions_into_one_solid`) ∪ answers one solid
+(80), tier 3 clean; slab ∖ round, round ∖ slab and ∩ refuse
+`sectors::along` "a germ sector with both edge bounds on the partner face".
+The original fixture reaches the same refusal for those three, and its ∪
+escalates `Corner(Straight)` at the round's own wedge-0 corner in the
+slab's bottom face.
+
+Traced: at the rim vertex the bottom sector (Rest lump) and the wall
+sector (tangent lump, In) share the rim bound; one lump overwrites the
+other's class there, so the run's transition lands on a lumped sector with
+both bounds On. Taking the germ from the bound the neighbour's lump took
+over (the rim edge as cell, its ray as direction, in `vtxfac`'s `germ_of`)
+reaches `chord_join::bool_planar_chord_spec`'s "tangent plane×wall germ
+pair in the boolean join" frontier; naming the planar neighbour's face
+instead makes the join try to divide the wall ("curved section chord
+outside the split/wall lane"). The remainder needs a tangent-line chord arm
+on the planar side of the boolean join (the split lane has one,
+`chord_join`'s `SectionCase::Tangent`), with the germ attribution above.
+
+## A second fixture: a bore inside a disc, caps coplanar (PR 4831's fix pass)
+
+A 6 × 6 plate with a bore of radius 1 about (1, 0) against a disc of
+radius 2 about the origin, both z ∈ [0, 1]: the walls touch along the
+ruling through (2, 0) with their outward normals opposed and the crescent
+shared, the overlapping tangency C7 says builds. The pair glues `Tangent`,
+and all four ops refuse `Join` ("8 section ends found no partner") at
+ε 1e-6, 1e-9 and 1e-12 (`review_4831_probes::p1_a_bore_inside_a_disc_touching_its_wall`,
+which pins it).
+
+Its vertex shape is this row's: at the ruling's end vertices the disc's
+cap sector (a continuation lump with the plate's cap) and its wall sector
+(a tangent lump, `In`) share the cap's circle edge as a bound. Measured:
+
+- the same pair with the disc run past the plate (z ∈ [−1, 2]), so no
+  cap is coplanar, answers every op at its closed form
+  (`p1_a_bore_inside_a_tall_disc_touching_its_wall`);
+- the aligned postures with coplanar caps answer: the nested touch (`p6`)
+  and the bore in a bigger bore (`p2`);
+- with the disc's or the bore's seam vertex turned off the ruling, the
+  ops that do not refuse `Join` refuse `CurvedPierceUnsupported` at the
+  crossing layer.
+
+The end refusal differs from the dip's (`Join` rather than
+`sectors::along`) and the mechanism is not traced to a line; filed here
+because the vertex shape is the same, a coplanar lump beside a tangent
+lump on one bound.

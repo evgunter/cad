@@ -131,6 +131,7 @@ crates/topo/src/loop_winding.rs	1	constant	f64::from(SPIRIC_PIECES)	the spiric q
 crates/topo/src/loop_winding.rs	1	constant	f64::from(k)	a quadrature piece's index
 crates/topo/src/loop_winding.rs	1	constant	w	a Gauss–Legendre weight, a constant of the rule
 crates/topo/src/loop_winding.rs	1	constant	x	a Gauss–Legendre node, a constant of the rule
+crates/topo/src/offset_derive.rs	1	constant	<fn>	certified_speed: an f64 carrier's stored net lifted to Interval (map_scalar) to read its certified speed bound
 crates/topo/src/pcurves.rs	1	constant	2.0 * band.zero()	the band's zero width, a tolerance
 crates/topo/src/pcurves.rs	1	constant	f64::from(k)	a whole-period count
 crates/topo/src/pcurves.rs	1	constant	f64::from(m)	a decided step count
