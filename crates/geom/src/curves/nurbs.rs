@@ -209,6 +209,20 @@ const RATIONAL_PIECE_SPLITS: usize = INTEGRAL_METER_SPLITS;
 /// of the multiplicative binomial, which lies well above it.
 const RATIONAL_PIECE_MAX_DEGREE: usize = 24;
 
+/// A spline's memoised meter: `compute` afresh inside a symbolic
+/// session, `cell`'s value outside one (filled on first read). A
+/// session's table holds the nodes it saw built, and a node minted
+/// anywhere else freezes in it to an unknown of its own
+/// (`geom_core::sym`, "No session, no tier"), so a memo served across
+/// that boundary would change what the session decides; inside one
+/// nothing the meter mints is kept.
+pub(crate) fn session_memo<V: Copy>(cell: &OnceLock<V>, compute: impl FnOnce() -> V) -> V {
+    if geom_core::sym::session_installed() {
+        return compute();
+    }
+    *cell.get_or_init(compute)
+}
+
 /// The piece count for a degree-`q` Bernstein row under the schedule
 /// `splits`: the largest power of two at most `splits` that
 /// [`pieces_exact`] admits. Never zero: one piece (the span's own row)
@@ -457,13 +471,16 @@ macro_rules! nurbs_curve {
             /// new curve with an empty memo, and a clone carries the
             /// memo of the same value.
             speed: OnceLock<geom_core::InfSpeed<T>>,
+            /// [`Self::speed_upper_bound`], filled on first read, on the
+            /// same terms as `speed`.
+            speed_sup: OnceLock<geom_core::SupSpeed<T>>,
         }
 
         /// The curve's value, without the speed memo: whether it has
         /// been read yet is not part of what the curve is.
         impl<T: Real> core::fmt::Debug for $Curve<T> {
             fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-                let Self { knots, control, weights, weight_channel, speed: _ } = self;
+                let Self { knots, control, weights, weight_channel, speed: _, speed_sup: _ } = self;
                 f.debug_struct(stringify!($Curve))
                     .field("knots", knots)
                     .field("control", control)
@@ -618,7 +635,7 @@ macro_rules! nurbs_curve {
                 let knots = knots.into();
                 let weight_channel = net::weight_channel(&weights)?;
                 net::validate_counts(knots.structure().control_count(), control.len(), &weight_channel)?;
-                Ok(Self { knots, control, weights, weight_channel, speed: OnceLock::new() })
+                Ok(Self { knots, control, weights, weight_channel, speed: OnceLock::new(), speed_sup: OnceLock::new() })
             }
 
             /// The same curve on another parameter domain: the knots
@@ -727,7 +744,7 @@ macro_rules! nurbs_curve {
                     weights.len(),
                     weight_channel.len()
                 );
-                Self { knots, control, weights, weight_channel, speed: OnceLock::new() }
+                Self { knots, control, weights, weight_channel, speed: OnceLock::new(), speed_sup: OnceLock::new() }
             }
 
             /// The same curve read at another scalar: `f` applied to
@@ -1212,17 +1229,34 @@ macro_rules! nurbs_curve {
             /// the caller's trilean.
             ///
             /// **Memoised outside a symbolic session only.** A session's
-            /// table holds the nodes it saw built, and a node minted
-            /// anywhere else freezes in it to an unknown of its own
-            /// (`geom_core::sym`, "No session, no tier"), so a memo
-            /// served across that boundary would change what the
-            /// session decides. Inside one the meter is computed afresh,
-            /// and nothing it mints is kept.
+            /// table holds the nodes it saw built, and a memo served
+            /// across that boundary would change what it decides; inside
+            /// one the meter is computed afresh and nothing it mints is
+            /// kept.
             pub fn speed_lower_bound(&self) -> geom_core::InfSpeed<T> {
-                if geom_core::sym::session_installed() {
-                    return self.speed_lower_bound_uncached();
-                }
-                *self.speed.get_or_init(|| self.speed_lower_bound_uncached())
+                session_memo(&self.speed, || self.speed_lower_bound_uncached())
+            }
+
+            /// A certified **upper** bound on `‖C′(t)‖` over the whole
+            /// domain, in m/param: the pair-term bound of
+            /// [`geom_core::spline::rational_speed_sup`] (the
+            /// `geom_core::spline::derivative` module docs hold the
+            /// derivation), the max over the nonempty spans. At unit
+            /// weights it is the polynomial control difference bound
+            /// exactly. At `Interval` it is certified; at `f64` it is the
+            /// same expression in round-to-nearest. It never refuses.
+            ///
+            /// Memoised on the same terms as [`Self::speed_lower_bound`].
+            pub fn speed_upper_bound(&self) -> geom_core::SupSpeed<T> {
+                session_memo(&self.speed_sup, || {
+                    let points: Vec<[T; $dim]> = self.control.iter().map(|p| [$(p.$c),+]).collect();
+                    geom_core::SupSpeed::new(geom_core::spline::rational_speed_sup(
+                        &self.knots,
+                        &points,
+                        &self.weights,
+                        self.knots().first_span()..=self.knots().last_span(),
+                    ))
+                })
             }
 
             /// [`Self::speed_lower_bound`]'s computation: once per curve
@@ -1955,6 +1989,7 @@ impl<T: Real> NurbsCurve3<T> {
             weights: vec![T::one(), T::one()],
             weight_channel: vec![1.0, 1.0],
             speed: OnceLock::new(),
+            speed_sup: OnceLock::new(),
         }
     }
 
