@@ -6748,17 +6748,28 @@ fn interiors_meet<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<bool> {
-    let ncross = ea.dir.cross(eb.dir);
-    match gap_is_zero(
-        "pm_census_ee_parallel",
-        Margin::levered(ncross.norm(), ea.len.min(eb.len)),
-        band,
-        errors,
-    ) {
-        Some(false) => crossing_reading(ea, eb, ncross, band, errors).map(|cross| cross.is_some()),
+    match parallel(ea, eb, band, errors) {
+        Some(false) => crossing_reading(ea, eb, ea.dir.cross(eb.dir), band, errors)
+            .map(|cross| cross.is_some()),
         Some(true) => Some(collinear_overlap(ea, eb, band, errors).is_some()),
         None => None,
     }
+}
+
+/// Whether two line edges are parallel: the sine between them levered
+/// at the shorter's length. `None` where it escalated (pushed).
+fn parallel<T: Decide>(
+    ea: &EdgeGeo<T>,
+    eb: &EdgeGeo<T>,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<bool> {
+    gap_is_zero(
+        "pm_census_ee_parallel",
+        Margin::levered(ea.dir.cross(eb.dir).norm(), ea.len.min(eb.len)),
+        band,
+        errors,
+    )
 }
 
 /// A segment's census geometry, for the questions an op asks of two
@@ -6892,6 +6903,32 @@ pub(crate) fn segments_apart<T: Decide>(
     let before = |t: T| sign(t) == Ok(Sign::Negative);
     let after = |t: T| sign(t - e.len) == Ok(Sign::Positive);
     (before(t0) && before(t1)) || (after(t0) && after(t1))
+}
+
+/// [`parallel`] over two segments: whether their lines are parallel,
+/// decided as an edge-edge record's confirm pass decides it.
+///
+/// # Errors
+///
+/// The escalated decision.
+pub(crate) fn segments_parallel<T: Decide>(
+    a: (Point3<T>, Point3<T>),
+    b: (Point3<T>, Point3<T>),
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    let mut errors = Vec::new();
+    let parallel = parallel(&segment(a), &segment(b), band, &mut errors);
+    escalation(parallel, errors)
+}
+
+/// The point of `a`'s line nearest `b`'s, for two segments whose lines
+/// are not parallel: where they cross, once they are decided to meet
+/// ([`ee_cross_point`]).
+pub(crate) fn segment_cross_point<T: Real>(
+    a: (Point3<T>, Point3<T>),
+    b: (Point3<T>, Point3<T>),
+) -> Point3<T> {
+    ee_cross_point(&segment(a), &segment(b))
 }
 
 /// A census answer, or the escalation it pushed.

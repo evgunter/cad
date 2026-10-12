@@ -44,6 +44,7 @@
 
 pub mod algebra;
 pub mod basis;
+pub mod blossom;
 pub mod compose;
 pub mod hull;
 pub mod knot_values;
@@ -54,9 +55,9 @@ pub mod projective;
 pub mod range;
 
 pub use algebra::{CurvePlan, KnotAlgebraError, RemovalStep, RingRefinement};
+pub use blossom::{BlossomError, SpanRow, restrict_bernstein, restrict_segment};
 pub use compose::{
     BernsteinSpans, CanonicalSurface, ComposeError, CompositeForm, CurveCertData, ImplicitSurface,
-    sub_segment,
 };
 pub use hull::{
     C1Break, CoeffWindow, Derived, RationalCoeffs, RationalWindow, SplineCoeffs, SplineCoeffsBuf,
