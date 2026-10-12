@@ -6318,6 +6318,16 @@ fn validate_declarations<T: Decide>(
     Ok(())
 }
 
+impl From<crate::lineage::RowRefusal> for BooleanError {
+    fn from(refusal: crate::lineage::RowRefusal) -> Self {
+        Self::LineageRow {
+            rows: refusal.rows,
+            defect: refusal.defect,
+            key: refusal.cell,
+        }
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
@@ -7321,16 +7331,6 @@ mod tests {
                 variant_of(&err),
                 "kind() projects each arm to its own kind, and label names it"
             );
-        }
-    }
-}
-
-impl From<crate::lineage::RowRefusal> for BooleanError {
-    fn from(refusal: crate::lineage::RowRefusal) -> Self {
-        Self::LineageRow {
-            rows: refusal.rows,
-            defect: refusal.defect,
-            key: refusal.cell,
         }
     }
 }

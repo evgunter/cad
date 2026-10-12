@@ -153,6 +153,12 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
                             "declaration in crates/topo/src/merge_faces.rs"),
     # `BooleanError::GermSectionSpiric`'s loops: `WedgeCheck`'s shape,
     # argued beside the declaration.
+    # `BooleanError::LineageRow`'s two closed words: a kernel defect, so
+    # nothing branches on them.
+    "LineageRows": ("argued", "non-carriage with its falsifier, beside the declaration "
+                    "in crates/topo/src/lineage.rs"),
+    "RowDefect": ("argued", "non-carriage with its falsifier, beside the declaration "
+                  "in crates/topo/src/lineage.rs"),
     "SpiricLoops": ("argued", "non-carriage with its falsifier, beside the declaration "
                     "in crates/topo/src/boolean/mod.rs"),
     # `BooleanError::Escalated`'s and `DeclarationContradicted`'s closed

@@ -81,6 +81,13 @@ impl Divisions {
 }
 
 /// Which lineage list refused a row.
+///
+/// **Not carried by the façade.** Every refusal it rides
+/// ([`crate::BooleanError::LineageRow`],
+/// [`crate::chord_join::SplitJoinError::LineageRow`]) is a kernel defect
+/// and ends in the defect ending: no move of the model reaches it, so
+/// nothing branches on the arm. Falsifier: a row a caller's input can
+/// make a list refuse, which would owe its own decision and lever.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LineageRows {
     /// A vertex fusion list ([`crate::Fusions`]).
@@ -105,6 +112,13 @@ impl LineageRows {
 
 /// What is wrong with a lineage row a list refused at append
 /// ([`Substitutions::push`], [`FaceDivisions::push`], `Fusions::push`).
+///
+/// **Not carried by the façade.** Every refusal it rides
+/// ([`crate::BooleanError::LineageRow`],
+/// [`crate::chord_join::SplitJoinError::LineageRow`]) is a kernel defect
+/// and ends in the defect ending: no move of the model reaches it, so
+/// nothing branches on the arm. Falsifier: a row a caller's input can
+/// make a list refuse, which would owe its own decision and lever.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RowDefect {
     /// The row maps a cell to itself.
@@ -301,6 +315,7 @@ impl FaceDivisions {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
     use slotmap::SlotMap;
