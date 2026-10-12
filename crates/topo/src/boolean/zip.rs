@@ -752,8 +752,156 @@ fn repair<T: Decide>(
     Ok(seams)
 }
 
-/// Zips one section-face pair (module docs).
+/// REVIEW PROBE: runs the base zip on a clone and the new one, and
+/// panics where the bodies or reports differ.
 pub(super) fn zip_seam<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    a_face: FaceKey,
+    b_face: FaceKey,
+    vmap: &SeamCorrespondence,
+    tol: Tol,
+) -> Result<ZipReport, BooleanError> {
+    if std::env::var_os("ZIP_EQUIV").is_none() {
+        return zip_seam_new(body, a_face, b_face, vmap, tol);
+    }
+    let mut twin = body.clone();
+    let old = zip_seam_old(&mut twin, a_face, b_face, vmap, tol);
+    let new = zip_seam_new(body, a_face, b_face, vmap, tol);
+    match (&old, &new) {
+        (Ok(o), Ok(n)) => {
+            let mut oe = o.edge_merges.clone();
+            oe.sort();
+            let mut ne = n.edge_merges.clone();
+            ne.sort();
+            let mut what: Vec<&str> = Vec::new();
+            macro_rules! cmp {
+                ($name:literal, $a:expr, $b:expr) => {
+                    if format!("{:?}", $a) != format!("{:?}", $b) {
+                        what.push($name);
+                    }
+                };
+            }
+            cmp!("solids", twin.solids, body.solids);
+            cmp!("shells", twin.shells, body.shells);
+            cmp!("faces", twin.faces, body.faces);
+            cmp!("loops", twin.loops, body.loops);
+            cmp!("half_edges", twin.half_edges, body.half_edges);
+            cmp!("edges", twin.edges, body.edges);
+            cmp!("vertices", twin.vertices, body.vertices);
+            cmp!("points", twin.points, body.points);
+            cmp!("curves", twin.curves, body.curves);
+            cmp!("surfaces", twin.surfaces, body.surfaces);
+            cmp!("pcurves", twin.pcurves, body.pcurves);
+            cmp!("joints", twin.joints, body.joints);
+            cmp!("null_faces", twin.null_faces, body.null_faces);
+            cmp!("face_prov", twin.face_provenance, body.face_provenance);
+            cmp!("edge_prov", twin.edge_provenance, body.edge_provenance);
+            cmp!("vertex_prov", twin.vertex_provenance, body.vertex_provenance);
+            cmp!("he_prov", twin.half_edge_provenance, body.half_edge_provenance);
+            cmp!("loop_prov", twin.loop_provenance, body.loop_provenance);
+            cmp!("vertex_merges", o.vertex_merges, n.vertex_merges);
+            cmp!("seam_edges", o.seam_edges, n.seam_edges);
+            cmp!("edge_merges_set", oe, ne);
+            cmp!("edge_merges_order", o.edge_merges, n.edge_merges);
+            let same = what.is_empty();
+            if !same {
+                eprintln!("ZIPEQ-WHAT {what:?}");
+            }
+            eprintln!("ZIPEQ {} n={}", if same { "SAME" } else { "DIFF" }, n.seam_edges.len());
+        }
+        (Err(a), Err(b)) => eprintln!("ZIPEQ BOTHERR {a:?} / {b:?}"),
+        _ => {
+            eprintln!("ZIPEQ ONEERR old_ok={} new_ok={}", old.is_ok(), new.is_ok());
+        }
+    }
+    new
+}
+
+fn zip_seam_old<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    a_face: FaceKey,
+    b_face: FaceKey,
+    vmap: &SeamCorrespondence,
+    tol: Tol,
+) -> Result<ZipReport, BooleanError> {
+    let corr = |what| BooleanError::ZipCorrespondence { what };
+    let mut report = ZipReport::default();
+
+    // ---- Fuse: B's section face becomes a ring of A's. ----
+    let fused = body.kfmrh_minting(a_face, b_face, tol)?;
+    let ring = fused.ring;
+    let outer = body
+        .get_face(a_face)
+        .ok_or_else(|| corr("A section face no longer resolves"))?
+        .outer;
+
+    let ob = section_cycle(body, outer)?;
+    let rs = align(
+        body,
+        (a_face, b_face),
+        &ob,
+        &section_cycle(body, ring)?,
+        vmap,
+    )?;
+    let n = ob.len();
+    let ring_edges = rs
+        .iter()
+        .map(|&r| {
+            body.get_half_edge(r)
+                .map(|h| h.edge)
+                .ok_or_else(|| corr("ring half-edge no longer resolves"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    // ---- The loopglue zip (the reassembly-oracle sequence, driven by
+    // records): pair 0 via mekr (kills the ring loop) + kev; pairs
+    // n−1 … 1 via mef + kev + kef(rs[j+1 mod n]); final kef(rs[1]). ----
+    let point_of =
+        |body: &Body<T>, he: HalfEdgeKey| -> Result<geom_core::Point3<T>, BooleanError> {
+            let v = start_of(body, he)?;
+            body.get_vertex(v)
+                .and_then(|vd| body.get_point(vd.point).copied())
+                .ok_or_else(|| corr("seam vertex has no point"))
+        };
+    for j in fusion_order(n) {
+        let pj = point_of(body, ob[j])?;
+        let joint = if j == 0 {
+            Joint::Loops {
+                target: ob[0],
+                ring: rs[0],
+            }
+        } else {
+            Joint::Chord {
+                he1: ob[j],
+                he2: rs[j],
+            }
+        };
+        let (merge, _) = fuse_by_joint(body, joint, pj, corr, tol)?;
+        report.vertex_merges.push(merge)?;
+        if j != 0 {
+            body.kef_minting(rs[(j + 1) % n], tol)?;
+        }
+    }
+    body.kef_minting(rs[1 % n], tol)?;
+    for &he in &ob {
+        let edge = body
+            .get_half_edge(he)
+            .ok_or_else(|| corr("surviving seam half-edge no longer resolves"))?
+            .edge;
+        report.seam_edges.push(edge);
+    }
+    // `rs[j]` runs between the correspondents of `ob[j]`'s start and
+    // `ob[j - 1]`'s (`align`), so it lies on `ob[j - 1]`'s segment.
+    report.edge_merges = ring_edges
+        .into_iter()
+        .enumerate()
+        .map(|(j, dead)| (dead, report.seam_edges[(j + n - 1) % n]))
+        .collect();
+    Ok(report)
+}
+
+/// Zips one section-face pair (module docs).
+fn zip_seam_new<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     a_face: FaceKey,
     b_face: FaceKey,
@@ -797,6 +945,17 @@ pub(super) fn zip_split<T: Decide + crate::props::AtRestPolicy>(
             what: "a split seam holds no face",
         });
     };
+    if std::env::var_os("ZIP_EQUIV").is_some() {
+        let kinds: Vec<String> = faces
+            .iter()
+            .map(|&f| {
+                let fd = proven(&body.faces, f, EntityId::Face);
+                let g = format!("{:?}", body.surfaces.get(fd.surface));
+                format!("{:?}:{}", fd.surface, &g[..g.len().min(60)])
+            })
+            .collect();
+        eprintln!("ZIPSPLIT faces={} edges={} surfaces={kinds:?}", faces.len(), edges.len());
+    }
     for &f in rest {
         body.kfmrh_minting(*host, f, tol)?;
     }

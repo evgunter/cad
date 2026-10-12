@@ -411,3 +411,107 @@ fn curved_notch_pinch_one() {
         println!("mesh at {delta}: {:?}", m.map_err(variant));
     }
 }
+
+/// REVIEW PROBE (PR 4777 r1): for each of the 15 lines the PR moves,
+/// the result's seam edges that share their two end vertices with
+/// another seam edge, the discard stretches that settle on such an end
+/// pair (what a reader naming an edge by its ends, as
+/// `editor-core`'s `names::borders` does, cannot tell apart), tier 3′'s
+/// undecidable pairs, and the mesh at four δ.
+#[test]
+#[ignore = "review probe"]
+fn review_r1_curved_probe() {
+    use std::collections::BTreeMap;
+    let x = curved_notch_body(bulge());
+    let lines = [
+        (0, 3, 2, "ab U"), (0, 3, 2, "ab S"), (0, 3, 2, "ba U"), (0, 3, 2, "ba S"),
+        (1, 6, 0, "ab U"), (1, 6, 0, "ab S"), (1, 6, 0, "ba U"), (1, 6, 0, "ba S"),
+        (3, 1, 0, "ab U"), (3, 1, 0, "ab S"), (3, 1, 0, "ba U"), (3, 1, 0, "ba S"),
+        (6, 1, 0, "ab I"), (6, 1, 0, "ba U"), (6, 1, 0, "ba S"),
+    ];
+    for (i, j, k, tag) in lines {
+        let (_, res, _) = runs(&x, (i, j, k))
+            .expect("the pinch")
+            .into_iter()
+            .find(|(t, ..)| *t == tag)
+            .unwrap();
+        let label = format!("{i} {j} {k} {tag}");
+        let res = match res {
+            Ok(r) => r,
+            Err(e) => {
+                println!("R1 {label}: refusal {}", variant(e));
+                continue;
+            }
+        };
+        let Some(bb) = res.body() else {
+            println!("R1 {label}: empty");
+            continue;
+        };
+        let body: &Body<f64> = &bb.body;
+        let naming = &bb.naming;
+        let fused = naming.fused_into();
+        let settle = |v| fused.get(&v).copied().unwrap_or(v);
+        let seams: std::collections::BTreeSet<_> =
+            naming.seam_edges.iter().map(|&e| naming.joined_edge(e)).collect();
+        let mut by_ends: BTreeMap<_, Vec<_>> = BTreeMap::new();
+        for (key, e) in body.edges() {
+            let s = body.get_half_edge(e.he_plus).unwrap().start;
+            let t = body.half_edge_end(e.he_plus).unwrap();
+            if seams.contains(&key) {
+                by_ends.entry((s.min(t), s.max(t))).or_default().push(key);
+            }
+        }
+        let shared: Vec<_> = by_ends.iter().filter(|(_, es)| es.len() > 1).collect();
+        let mut hits = 0;
+        for d in &naming.discards {
+            for &(u, w) in &d.bordered {
+                let (u, w) = (settle(u), settle(w));
+                if by_ends.get(&(u.min(w), u.max(w))).is_some_and(|es| es.len() > 1) {
+                    hits += 1;
+                }
+            }
+        }
+        let und: Vec<String> = match topo::validate_pseudomanifold(body, &bb.contacts, tol()) {
+            Ok(()) => vec![],
+            Err(es) => es
+                .iter()
+                .map(|e| match e {
+                    topo::ValidationError::CensusUndecidable { a, b, what } => {
+                        let kind = |e: &topo::EntityId| match e {
+                            topo::EntityId::Face(fk) => {
+                                let fc = body.get_face(*fk).unwrap();
+                                format!(
+                                    "{}@{:?}",
+                                    variant(body.get_surface(fc.surface).unwrap()),
+                                    body.solid_of_face(*fk)
+                                )
+                            }
+                            e => format!("{e:?}"),
+                        };
+                        format!("U[{}|{}|{what}]", kind(a), kind(b))
+                    }
+                    e => format!("F[{e:?}]"),
+                })
+                .collect(),
+        };
+        let meshes: Vec<String> = [0.05, 0.02, 5e-3, 1e-3]
+            .iter()
+            .map(|&d| {
+                let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    mesh::tessellate(body, d, tol()).map(|m| mesh::validate::check_mesh(&m).is_ok())
+                }));
+                match r {
+                    Ok(Ok(true)) => format!("{d}:ok"),
+                    Ok(Ok(false)) => format!("{d}:CHECK"),
+                    Ok(Err(e)) => format!("{d}:{}", variant(e)),
+                    Err(_) => format!("{d}:PANIC"),
+                }
+            })
+            .collect();
+        println!(
+            "R1 {label}: solids={} shared_end_pairs={} bordered_on_shared={hits} mesh={meshes:?} t3p={und:?}",
+            body.solids().count(),
+            shared.len()
+        );
+    }
+}
