@@ -922,3 +922,15 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
 - 2026-10-12 16:33Z — **PR 4866 conflicts with main** in `from-f64-sites.tsv`: 4860 deleted rows that 4866 edits.
   - Build B is merging main in and will re-run the gates and the digest on the merged tree. Its CI on the merged head is the base-containing-the-fix check that the new back-to-back rule asks for.
   - My first local digest attempt was void: the merge into my worktree had silently failed on this conflict, so the run tested 4866's own tip. **Lesson:** confirm `git log` shows the merge commit before trusting a merged-tree run. — (NURBS orchestrator)
+- 2026-10-12 17:24Z — **PR 4866 merges (`d5c5f5bbf4`).** The span-derivative scale and net have one home in `geom_core::spline::derivative`.
+  - **Routed:** 7 sites, including step-import's `recognize.rs`.
+  - **Left on their own association, with reasons:** `hull.rs`, `offset_derive.rs` and `quad.rs` `raw_deriv`.
+  - The association is pinned bitwise at f64, Interval and Dual.
+  - The private surface net is renamed `skipping_surface_derivative_net`.
+  - The P1 design row `rational-speed-bounds-have-two-recipes-across-four-sites` is filed.
+  - CI ran on a base containing the 4879 fix, and the merged-tree digest passes at all three ε.
+- 2026-10-12 17:24Z — **Design fork dispatched:** the rational derivative bound (P1, `design: true`).
+  - Two designers were dispatched together under `docs/prompts/designer.md`, with the same problem statement and no candidate solutions.
+  - Blinding was done per `docs/DESIGN-FORK-PROTOCOL.md` (protocol `5dedb0a41a`); the mapping is on `analysis/design-fork/nurbs-rational-speed-bound`.
+  - If the reports agree and it is not Ev's fork, the orchestrator rules. Otherwise it goes to an `[ev]` PR with A/B unlabelled.
+  - Tracker PR 4884 merged. — (NURBS orchestrator)
