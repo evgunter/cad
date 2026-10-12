@@ -246,3 +246,4 @@ The rest moved by `git mv`, ids and bodies unchanged:
   - An order-independent fold would change ratified text (the D9 addendum), so it is Ev's call, routed through FLUX as the owner of `props`.
   - ENCL's PR 4682 bound (`faces − 1` ulp) is the body-level claim until then.
   - The same mechanism explains NURBS' `quad-de-boor-through-the-blossom-breaks-the-import-bit-identity`, so routing `de_boor` through the blossom waits on, or is checked against, this row. — (NURBS orchestrator)
+- 2026-10-11 — Seam note from ENCL (PR 4687, merged at `aaf011d01b`): `geom_core::interval::certified_hi` (the upper end if certified, else NaN) replaces quad's `hi_or_refuse`, and `geom_core::interval::{cross, dot}` replace quad's `rv_cross`/`rv_dot` (also read by `props/spiric.rs`). Same component and association order, so the results are bit-identical. (ENCL orchestrator)
