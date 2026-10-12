@@ -5399,6 +5399,11 @@ fn screen_contradiction(diag: Indeterminate) -> BooleanError {
     }
 }
 
+/// REVIEW PROBE (PR 4831): an env-selected mutation is on.
+pub(crate) fn review_mut(n: u8) -> bool {
+    std::env::var("CAD_MUT").ok().and_then(|v| v.parse::<u8>().ok()) == Some(n)
+}
+
 /// **Why the door's tangency check did not certify a pair.**
 pub(crate) enum TangencyFailure {
     /// Definite counter-evidence: the pair is not tangent along a locus
@@ -5788,6 +5793,31 @@ fn verify_tangency<T: Decide>(
                 )
             }
         };
+    // REVIEW PROBE (PR 4831): the old door's verdict on this pair.
+    if read == DeclarationRead::Moot && std::env::var_os("CAD_GLUE_CMP").is_some() {
+        let (contact, seam_table) = contact_verify::old_door_probe(
+            &sa, sense_a, &sb, sense_b, &carrier, t0, t1, band,
+        );
+        let contact = contact && matches!(locus, rim_wedge::Locus::Line { .. });
+        let seam = !contact
+            && seam_table
+            && geom_core::k_stats::detached(|| {
+                matches!(
+                    rim_wedge::departures(a, fa, b, fb, locus, band),
+                    Ok(rim_wedge::Departure::Opposite)
+                )
+            })
+            .0;
+        glue::OLD_VERDICT.with(|c| {
+            c.set(if contact {
+                "Contact"
+            } else if seam {
+                "Seam"
+            } else {
+                "None"
+            })
+        });
+    }
     // 3. The tangency table along the witness.
     let (margin, posture) = match contact_verify::tangency_reading(
         &sa, sense_a, &sb, sense_b, &carrier, t0, t1, band,
@@ -5817,7 +5847,7 @@ fn verify_tangency<T: Decide>(
     // face's interior keep a face–face touch a union cannot yet record;
     // the read's own refusal is the inner one, consumed only by a union.
     let through = match overlap {
-        Some(both) if posture.void => locus_through_plane_face(
+        Some(both) if posture.void || review_mut(4) => locus_through_plane_face(
             [(a, fa, Operand::A), (b, fb, Operand::B)],
             &carrier,
             both,

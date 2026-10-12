@@ -1119,6 +1119,11 @@ pub(super) fn tangent_lump<T: Decide>(
                     return Err(BooleanError::coincidence(Coincide::TangentSide, read, diag));
                 }
             };
+            let relation = if super::review_mut(3) {
+                super::plane_eq::PlaneRelation::SameOpposite
+            } else {
+                relation
+            };
             Ok(super::tables::eq15_3_lump(op, on_side, relation))
         }
     }

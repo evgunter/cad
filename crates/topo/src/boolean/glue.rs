@@ -107,16 +107,49 @@ fn tangency<T: Decide>(
     {
         return Ok(false);
     }
-    Ok(
-        match verify_tangency(a, fa, b, fb, DeclarationRead::Moot, band) {
-            Ok(Tangency {
-                locus: Locus::Rim(rim),
-                ..
-            }) => super::route_rim(a, fa, b, fb, rim, band).is_ok(),
-            Ok(_) => true,
-            Err(_) => false,
-        },
-    )
+    OLD_VERDICT.with(|c| c.set("None"));
+    let mut why = String::new();
+    let verdict = match verify_tangency(a, fa, b, fb, DeclarationRead::Moot, band) {
+        Ok(Tangency {
+            locus: Locus::Rim(rim),
+            ..
+        }) => {
+            let r = super::route_rim(a, fa, b, fb, rim, band);
+            if let Err(e) = &r {
+                why = format!("route_rim:{e:?}");
+            }
+            r.is_ok()
+        }
+        Ok(_) => true,
+        Err(e) => {
+            why = match e {
+                super::TangencyFailure::Contradicted { margin, .. } => {
+                    format!("contradicted:{:?}", margin.predicate)
+                }
+                super::TangencyFailure::Unsupported => "unsupported".into(),
+                super::TangencyFailure::Refused(e) => format!("refused:{e:?}"),
+            };
+            false
+        }
+    };
+    if std::env::var_os("CAD_GLUE_CMP").is_some() {
+        let old = OLD_VERDICT.with(std::cell::Cell::get);
+        let differ = (old != "None") != verdict;
+        eprintln!(
+            "GLUECMP\t{}\t{}\t{:?}/{:?}\told={old}\tnew={verdict}\t{}",
+            if differ { "DIFF" } else { "same" },
+            std::thread::current().name().unwrap_or("?"),
+            kind(a, fa)?,
+            kind(b, fb)?,
+            why.chars().take(300).collect::<String>()
+        );
+    }
+    Ok(verdict)
+}
+
+thread_local! {
+    /// REVIEW PROBE (PR 4831): the old door's verdict on the pair being read.
+    pub(crate) static OLD_VERDICT: std::cell::Cell<&'static str> = const { std::cell::Cell::new("None") };
 }
 
 /// Whether two carriers' kinds are the witness lane's line pairs: a

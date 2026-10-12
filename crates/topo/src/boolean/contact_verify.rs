@@ -393,6 +393,34 @@ pub(crate) fn tangency_reading<T: Decide>(
     .map(|(_, touch, posture)| (touch, posture))
 }
 
+/// REVIEW PROBE (PR 4831): the OLD door's two claims on one locus,
+/// detached from the K log. `(contact, seam_table)`: the declared
+/// `Tangent` contact table, and the seam table (B reversed, aligned).
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn old_door_probe<T: Decide>(
+    s1: &geom::Surface<T>,
+    sense1: bool,
+    s2: &geom::Surface<T>,
+    sense2: bool,
+    carrier: &Curve3<T>,
+    t0: T,
+    t1: T,
+    band: Band,
+) -> (bool, bool) {
+    geom_core::k_stats::detached(|| {
+        let contact = tangent_table(
+            s1, sense1, s2, sense2, carrier, t0, t1, true, Claim::Contact, band,
+        )
+        .is_ok();
+        let seam = matches!(
+            tangent_table(s1, sense1, s2, !sense2, carrier, t0, t1, true, Claim::Tangency, band),
+            Ok((_, _, p)) if !p.aligned
+        );
+        (contact, seam)
+    })
+    .0
+}
+
 /// What a tangency reading saw of the two faces' senses along the locus,
 /// read off every sample.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -484,7 +512,7 @@ fn tangent_table<T: Decide>(
                     return Err(sides_mixed(band));
                 }
             }
-            Ok(Sign::Positive) if claim == Claim::Tangency => {
+            Ok(Sign::Positive) if claim == Claim::Tangency && !super::review_mut(1) => {
                 if aligned.replace(true) == Some(false) {
                     return Err(sides_mixed(band));
                 }
@@ -624,11 +652,22 @@ fn tangent_table<T: Decide>(
             Ok(Sign::Positive) => {
                 let crescent =
                     Margin::sagitta(geom_brep::material_kappa_rel(jet.kappa_rel, sense1), arm);
-                void &= aligned == Some(false)
-                    && matches!(
-                        crate::validate::decide("contact_tangent_overlap", crescent, band),
-                        Ok(Sign::Negative)
-                    );
+                let read_void = matches!(
+                    crate::validate::decide("contact_tangent_overlap", crescent, band),
+                    Ok(Sign::Negative)
+                );
+                if super::review_mut(2) && aligned == Some(false) && !read_void {
+                    return Err(ContactRefusal::Contradicted {
+                        diag: Indeterminate {
+                            margin: geom_core::MarginDiag::INVALID,
+                            band,
+                            predicate: Some("contact_tangent_overlap"),
+                            terminal_sliver: false,
+                        },
+                        steer: None,
+                    });
+                }
+                void &= aligned == Some(false) && read_void;
             }
             residue => {
                 if !declared {
