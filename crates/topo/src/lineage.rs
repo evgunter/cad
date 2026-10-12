@@ -96,15 +96,11 @@ impl Lineage {
         Self::default()
     }
 
-    /// States `cell`'s fate, replacing any stated before.
-    pub fn set(&mut self, cell: Cell, fate: Fate) {
-        self.rows.insert(cell, fate);
-    }
-
-    /// The lineage with `cell`'s fate stated.
+    /// The lineage with `cell`'s fate stated, replacing any stated
+    /// before.
     #[must_use]
     pub fn with(mut self, cell: Cell, fate: Fate) -> Self {
-        self.set(cell, fate);
+        self.rows.insert(cell, fate);
         self
     }
 

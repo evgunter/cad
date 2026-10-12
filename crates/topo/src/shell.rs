@@ -965,10 +965,10 @@ impl<T: Real> Shelled<T> {
             })
         };
         for &e in &naming.dead.edges {
-            lineage.set(Cell::Edge(e), opened(every_rim.clone()));
+            lineage = lineage.with(Cell::Edge(e), opened(every_rim.clone()));
         }
         for &v in &naming.dead.vertices {
-            lineage.set(Cell::Vertex(v), opened(every_rim.clone()));
+            lineage = lineage.with(Cell::Vertex(v), opened(every_rim.clone()));
         }
         for rim in &naming.rims {
             for &f in &rim.sources {
@@ -982,14 +982,14 @@ impl<T: Real> Shelled<T> {
                     }
                     RimShell::Void => Fate::Removed,
                 };
-                lineage.set(Cell::Face(f), fate);
+                lineage = lineage.with(Cell::Face(f), fate);
             }
             for root in roots(&rim.seam_pieces) {
                 let pieces = Descent::of(root, &rim.seam_pieces)
                     .cells()
                     .map(Cell::Edge)
                     .collect();
-                lineage.set(Cell::Edge(root), opened(pieces));
+                lineage = lineage.with(Cell::Edge(root), opened(pieces));
             }
         }
         lineage

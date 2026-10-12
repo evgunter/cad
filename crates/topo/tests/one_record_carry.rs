@@ -258,7 +258,7 @@ fn a_minted_pair_an_op_cannot_back_refuses() {
     let cut = split.lineage();
     let mut restated = topo::Lineage::new();
     for c in base.contacts.cell_pairs().flat_map(|(x, y)| [x, y]) {
-        restated.set(c, cut.fate(c));
+        restated = restated.with(c, cut.fate(c));
     }
     let one: ContactRecords = [base.contacts.rows()[ee as usize].clone()]
         .into_iter()

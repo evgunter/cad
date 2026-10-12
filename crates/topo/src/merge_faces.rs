@@ -187,7 +187,7 @@ impl MergeCoplanarOutcome {
     pub fn lineage(&self) -> crate::Lineage {
         let mut lineage = crate::Lineage::new().through_joins(&self.joins);
         for (dead, by) in self.groups.iter().flat_map(MergedGroup::substitutions) {
-            lineage.set(dead, crate::Fate::Substituted(by));
+            lineage = lineage.with(dead, crate::Fate::Substituted(by));
         }
         lineage
     }

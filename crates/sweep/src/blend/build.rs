@@ -180,7 +180,7 @@ impl<T: Decide> Blended<T> {
             .chain(n.dead.edges.iter().map(|&e| Cell::Edge(e)))
             .chain(n.dead.vertices.iter().map(|&v| Cell::Vertex(v)));
         for cell in removed {
-            lineage.set(cell, Fate::Removed);
+            lineage = lineage.with(cell, Fate::Removed);
         }
         let mut carved: Vec<(topo::EdgeKey, Division)> = Vec::new();
         let mut piece = |source: topo::EdgeKey, cell: Cell, minted: bool| {
@@ -214,7 +214,7 @@ impl<T: Decide> Blended<T> {
             piece(source, Cell::Vertex(v), true);
         }
         for (source, division) in carved {
-            lineage.set(Cell::Edge(source), Fate::Divided(division));
+            lineage = lineage.with(Cell::Edge(source), Fate::Divided(division));
         }
         let mut supports: Vec<(topo::FaceKey, Vec<Cell>)> = Vec::new();
         let minted_in = n
@@ -229,7 +229,7 @@ impl<T: Decide> Blended<T> {
             }
         }
         for (f, minted) in supports {
-            lineage.set(
+            lineage = lineage.with(
                 Cell::Face(f),
                 Fate::Divided(Division {
                     pieces: vec![Cell::Face(f)],

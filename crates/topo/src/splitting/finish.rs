@@ -197,7 +197,7 @@ impl<T: Real> SplitResult<T> {
             }
         }
         for (original, copies) in copies {
-            lineage.set(Cell::Vertex(original), Fate::Kept { copies });
+            lineage = lineage.with(Cell::Vertex(original), Fate::Kept { copies });
         }
         for root in roots(&self.naming.edge_pieces) {
             let pieces: Vec<EdgeKey> = Descent::of(root, &self.naming.edge_pieces)
@@ -225,7 +225,7 @@ impl<T: Real> SplitResult<T> {
                     }
                 }
             }
-            lineage.set(
+            lineage = lineage.with(
                 Cell::Edge(root),
                 Fate::Divided(Division {
                     pieces: pieces.into_iter().map(Cell::Edge).collect(),
@@ -257,7 +257,7 @@ impl<T: Real> SplitResult<T> {
                     }
                 }
             }
-            lineage.set(
+            lineage = lineage.with(
                 Cell::Face(root),
                 Fate::Divided(Division {
                     pieces: pieces.into_iter().map(Cell::Face).collect(),
