@@ -8,6 +8,7 @@ priority: P4
 cost: M
 closed: 2026-10-12
 branch: nurbs/one-derivative-scale
+pr: 4866
 ---
 
 ## What
