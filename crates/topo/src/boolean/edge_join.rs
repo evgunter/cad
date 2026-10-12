@@ -46,14 +46,15 @@
 //! joinable; a reading in the margin band refuses typed
 //! ([`JoinUndecided`]).
 //!
-//! A vertex that shares its point key with another vertex of its shell
-//! is not joinable either: it is one cone of a pinch (Ev, PR 4057), and
-//! the joined edge would run through the other cone's vertex on that
-//! point. A key shared only with other shells' vertices is two lumps
-//! touching where a boolean decided them one point
-//! (`zip::record_classes`); the vertex joins as any other, and the
-//! edge then runs through the other lump's vertex, a vertex-on-edge
-//! contact the op's records carry through the join.
+//! A vertex that shares its point key with another vertex is not
+//! joinable either: it is one cone of a pinch (Ev, PR 4057), or a
+//! corner of one lump touching another where a boolean decided them one
+//! point (`zip::record_classes`), and the joined edge would run through
+//! the other vertex on that point, a vertex-on-edge contact no record
+//! names. The boolean's own join frees a vertex its operands' carried
+//! records name, where no other vertex of its shell sits on its key
+//! ([`free_vertices`]): those records follow the join, so the contact
+//! stays named.
 //!
 //! **The closed join.** Two edges that share both ends join into one
 //! closed edge: the kill leaves the kept edge a self-loop at the far
@@ -70,7 +71,7 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Real, Sign, Tol};
 use super::ops::{Descendants, describe_minted_edges};
 use super::{BooleanError, Cell};
 use crate::body::Body;
-use crate::entity::{EdgeKey, EntityId, HalfEdgeKey, ShellKey, VertexKey};
+use crate::entity::{EdgeKey, EntityId, HalfEdgeKey, VertexKey};
 use crate::geometry::PointKey;
 use crate::live::{linked, proven};
 use crate::readback::edge_sides_of;
@@ -276,38 +277,60 @@ pub fn is_conventional_vertex<T: Real>(body: &Body<T>, v: VertexKey) -> bool {
 }
 
 /// What one pass reads off the body before it asks any vertex: every
-/// half-edge starting at each vertex, and the point keys more than one
-/// vertex of one shell sits on (a pinch's cones), with that shell.
-struct Pass {
+/// half-edge starting at each vertex, the point keys more than one
+/// vertex sits on (a pinch's cones, or touching lumps), and the
+/// vertices the caller frees from that rule ([`free_vertices`]).
+struct Pass<'f> {
     starts: BTreeMap<VertexKey, Vec<HalfEdgeKey>>,
-    shared: BTreeSet<(Option<ShellKey>, PointKey)>,
+    shared: BTreeSet<PointKey>,
+    free: &'f BTreeSet<VertexKey>,
 }
 
-impl Pass {
-    fn of<T: Real>(body: &Body<T>) -> Self {
+impl<'f> Pass<'f> {
+    fn of<T: Real>(body: &Body<T>, free: &'f BTreeSet<VertexKey>) -> Self {
         let mut starts: BTreeMap<VertexKey, Vec<HalfEdgeKey>> = BTreeMap::new();
         for (k, h) in body.half_edges() {
             starts.entry(h.start).or_default().push(k);
         }
-        let mut pass = Self {
-            starts,
-            shared: BTreeSet::new(),
-        };
         let mut seen = BTreeSet::new();
-        for (w, v) in body.vertices() {
-            let at = (pass.shell(body, w), v.point);
-            if !seen.insert(at) {
-                pass.shared.insert(at);
+        let mut shared = BTreeSet::new();
+        for (_, v) in body.vertices() {
+            if !seen.insert(v.point) {
+                shared.insert(v.point);
             }
         }
-        pass
+        Self {
+            starts,
+            shared,
+            free,
+        }
     }
+}
 
-    /// The shell `w`'s first half-edge's face lies in.
-    fn shell<T: Real>(&self, body: &Body<T>, w: VertexKey) -> Option<ShellKey> {
-        let he = *self.starts.get(&w)?.first()?;
+/// Of `recorded`, the vertices no other vertex of their own shell
+/// shares a point key with: corners of a lump touching another lump,
+/// not cones of one shell's pinch. The boolean's join frees them
+/// ([`join_stage`]).
+pub(super) fn free_vertices<T: Real>(
+    body: &Body<T>,
+    recorded: &BTreeSet<VertexKey>,
+) -> BTreeSet<VertexKey> {
+    let shell = |w: VertexKey| {
+        let he = body.get_vertex(w)?.emanating?;
         Some(body.get_face(body.face_of_half_edge(he)?)?.shell)
+    };
+    let mut on: BTreeMap<(Option<crate::entity::ShellKey>, PointKey), usize> = BTreeMap::new();
+    for (w, v) in body.vertices() {
+        *on.entry((shell(w), v.point)).or_default() += 1;
     }
+    recorded
+        .iter()
+        .copied()
+        .filter(|&w| {
+            body.get_vertex(w)
+                .is_some_and(|v| on.get(&(shell(w), v.point)) == Some(&1))
+        })
+        .collect()
 }
 
 /// The structural carrier a curved edge's description names on a face
@@ -354,16 +377,16 @@ pub(super) fn singular_at<T: Decide>(
 fn joinable<T: Decide>(
     body: &Body<T>,
     w: VertexKey,
-    pass: &Pass,
+    pass: &Pass<'_>,
     band: Band,
 ) -> Result<Option<Join>, JoinUndecided> {
     let [h1, h2] = pass.starts.get(&w).map_or(&[][..], Vec::as_slice) else {
         return Ok(None);
     };
     let w_point = proven(&body.vertices, w, EntityId::Vertex).point;
-    // One cone of a pinch: the joined edge would run through another
-    // vertex of its shell on this point (module docs).
-    if pass.shared.contains(&(pass.shell(body, w), w_point)) {
+    // A pinch's cone, or a touching lump's corner: the joined edge would
+    // run through another vertex on this point (module docs).
+    if pass.shared.contains(&w_point) && !pass.free.contains(&w) {
         return Ok(None);
     }
     let edge = |h: HalfEdgeKey| proven(&body.half_edges, h, EntityId::HalfEdge).edge;
@@ -531,7 +554,17 @@ pub fn joinable_vertices<T: Decide>(
     body: &Body<T>,
     band: Band,
 ) -> Result<Vec<VertexKey>, JoinUndecided> {
-    let pass = Pass::of(body);
+    joinable_freeing(body, band, &BTreeSet::new())
+}
+
+/// [`joinable_vertices`], with `free` freed from the shared-key rule
+/// (module docs).
+fn joinable_freeing<T: Decide>(
+    body: &Body<T>,
+    band: Band,
+    free: &BTreeSet<VertexKey>,
+) -> Result<Vec<VertexKey>, JoinUndecided> {
+    let pass = Pass::of(body, free);
     let mut out = Vec::new();
     for (w, _) in body.vertices() {
         if joinable(body, w, &pass, band)?.is_some() {
@@ -551,7 +584,8 @@ pub(crate) fn joinable_at_rest<T: Decide>(
     body: &Body<T>,
     band: Band,
 ) -> Vec<Result<VertexKey, JoinUndecided>> {
-    let pass = Pass::of(body);
+    let none = BTreeSet::new();
+    let pass = Pass::of(body, &none);
     body.vertices()
         .filter_map(|(w, _)| match joinable(body, w, &pass, band) {
             Ok(Some(_)) => Some(Ok(w)),
@@ -575,10 +609,12 @@ pub(crate) fn joinable_at_rest<T: Decide>(
 pub(super) fn join_stage<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     desc: &mut Descendants,
+    recorded: &BTreeSet<VertexKey>,
     band: Band,
     tol: Tol,
 ) -> Result<Vec<EdgeJoin>, BooleanError> {
-    let joined = body.join_edges(band, tol)?;
+    let free = free_vertices(body, recorded);
+    let joined = body.join_edges_freeing(band, tol, &free)?;
     for j in &joined {
         desc.substitute(Cell::Vertex(j.vertex), Cell::Edge(j.kept));
         desc.substitute(Cell::Edge(j.gone), Cell::Edge(j.kept));
@@ -713,17 +749,9 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
     /// restated on ([`BooleanError::JoinCarrierUnsupported`]), the
     /// description's, or the re-mint's ([`BooleanError::Pcurves`]).
     pub fn join_edges(&mut self, band: Band, tol: Tol) -> Result<Vec<EdgeJoin>, BooleanError> {
-        // Nothing to join: no clone. Every reading in the band refuses
-        // here, before any kill.
-        if joinable_vertices(self, band)
-            .map_err(BooleanError::JoinUndecided)?
-            .is_empty()
-        {
+        let Some((mut work, joined)) = self.joined_staged(band, tol, &BTreeSet::new())? else {
             return Ok(Vec::new());
-        }
-        // Staged: a refusal past the first kill leaves `self` as found.
-        let mut work = self.clone();
-        let (joined, _) = join_all(&mut work, band, tol, &|_| true)?;
+        };
         // A kill leaves the rows keyed by its half-edges; a body that
         // carried rows has them re-derived whole (`pcurves::mint_pcurves`
         // clears the map first), so none is left keyed by a dead cell.
@@ -733,6 +761,46 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
         }
         self.adopt(work);
         Ok(joined)
+    }
+
+    /// [`Body::join_edges`], with `free` freed from the shared-key rule
+    /// (the boolean's join, [`join_stage`]).
+    fn join_edges_freeing(
+        &mut self,
+        band: Band,
+        tol: Tol,
+        free: &BTreeSet<VertexKey>,
+    ) -> Result<Vec<EdgeJoin>, BooleanError> {
+        let Some((mut work, joined)) = self.joined_staged(band, tol, free)? else {
+            return Ok(Vec::new());
+        };
+        if !work.pcurves.is_empty() || !work.joints.is_empty() {
+            crate::pcurves::mint_pcurves(&mut work, tol)
+                .map_err(|source| BooleanError::Pcurves { source })?;
+        }
+        self.adopt(work);
+        Ok(joined)
+    }
+
+    /// The joins of [`Body::join_edges`] on a clone, `None` where there
+    /// is nothing to join (no clone). Every reading in the band refuses
+    /// before any kill, and a refusal past the first kill leaves `self`
+    /// as found.
+    fn joined_staged(
+        &self,
+        band: Band,
+        tol: Tol,
+        free: &BTreeSet<VertexKey>,
+    ) -> Result<Option<(Self, Vec<EdgeJoin>)>, BooleanError> {
+        if joinable_freeing(self, band, free)
+            .map_err(BooleanError::JoinUndecided)?
+            .is_empty()
+        {
+            return Ok(None);
+        }
+        let mut work = self.clone();
+        let (joined, _) = join_all(&mut work, band, tol, &|_| true, free)?;
+        Ok(Some((work, joined)))
     }
 
     /// [`Body::join_edges`] over the vertices `within` holds, on a body
@@ -757,7 +825,7 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
         tol: Tol,
         within: &dyn Fn(VertexKey) -> bool,
     ) -> Result<Vec<EdgeJoin>, BooleanError> {
-        let (joined, dead) = join_all(self, band, tol, within)?;
+        let (joined, dead) = join_all(self, band, tol, within, &BTreeSet::new())?;
         if joined.is_empty() || (self.pcurves.is_empty() && self.joints.is_empty()) {
             return Ok(joined);
         }
@@ -782,11 +850,12 @@ fn join_all<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
     within: &dyn Fn(VertexKey) -> bool,
+    free: &BTreeSet<VertexKey>,
 ) -> Result<(Vec<EdgeJoin>, Vec<HalfEdgeKey>), BooleanError> {
     let mut joined = Vec::new();
     let mut dead = Vec::new();
     loop {
-        let pass = Pass::of(body);
+        let pass = Pass::of(body, free);
         let mut next = None;
         for (w, _) in body.vertices().filter(|&(w, _)| within(w)) {
             if let Some(j) = joinable(body, w, &pass, band).map_err(BooleanError::JoinUndecided)? {

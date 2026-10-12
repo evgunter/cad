@@ -192,14 +192,21 @@ two-key lines hold one key, outcomes unchanged. `dbl3`: its operand
 now holds one key, and all 216 lines are `SOUND`; the 36 refusals went
 because the cube's union reads the operand's corners off one key.
 
-The output stage's join (`edge_join`) refused to join a vertex whose
-point key another vertex shares, reading it as a pinch's cone. Shared
-keys now also mark two lumps touching, so the join reads a pinch as a
-key shared within one shell: two lumps that touch only at a point are
-separate shells. Without that, `topo`
+The output stage's join (`edge_join`) refuses to join a vertex whose
+point key another vertex shares: the joined edge would run through the
+other vertex, a vertex-on-edge contact no record names. Shared keys
+now also mark two lumps touching, and an operand carrying its records
+in (`BooleanInputs::records_*`) names that contact. So the boolean's
+join frees a vertex its operands' carried vertex-vertex records name
+(`ops::carried_vertices`, read as `carry` reads them) where no other
+vertex of its shell sits on its key (`edge_join::free_vertices`); a
+pinch's cones lie in one shell and stay. Without it, `topo`
 `union_flush_onto_edge_contact::joined_folds_certify_and_build_one_body_in_every_order`
 kept a joinable vertex in two of its six member orders (17 vertices
-against 16).
+against 16). A first cut that freed every vertex shared only across
+shells, records or not, moved 195 `dbl_battery` lines `SOUND` →
+`OK BAD` (an unrecorded vertex-on-edge at `v`); with the record test
+the five batteries are byte-identical to the measurement above.
 
 Tests restated for the new shape: a vertex pair or an edge overlap
 between two shared keys now passes tier 3′ with its records withheld

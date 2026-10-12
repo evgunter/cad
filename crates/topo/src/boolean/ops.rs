@@ -634,21 +634,18 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     }
     let vertex_merges = desc.vertex_merges();
     let declared_pairs = declared_surface_pairs(&body, a, b, decls, &fin.graft);
+    let views = [&KeyView::Direct, &KeyView::Graft(&fin.graft)];
+    let recorded = carried_vertices(&body, &ledger, views, &desc)?;
     let (merged, edge_joins) = finish_output(
         &mut body,
         &mut desc,
         &declared_pairs,
         &seam_edges,
+        &recorded,
         band,
         tol,
     )?;
-    let (contacts, coincidences) = carry(
-        &body,
-        &ledger,
-        [&KeyView::Direct, &KeyView::Graft(&fin.graft)],
-        &desc,
-        band,
-    )?;
+    let (contacts, coincidences) = carry(&body, &ledger, views, &desc, band)?;
     share_recorded_points(&mut body, &contacts, &coincidences)?;
     // Curved results carry certified per-half-edge pcurves at rest
     // (M5 PR 9, the PR 6 contract): re-derive the whole cache set on
@@ -2109,6 +2106,7 @@ pub(super) fn finish_output<T: Decide + crate::props::AtRestPolicy>(
     desc: &mut Descendants,
     declared: &[(SurfaceKey, SurfaceKey)],
     seam_edges: &[EdgeKey],
+    recorded: &BTreeSet<VertexKey>,
     band: Band,
     tol: Tol,
 ) -> Result<
@@ -2123,7 +2121,7 @@ pub(super) fn finish_output<T: Decide + crate::props::AtRestPolicy>(
         .map_err(of_merge)?;
     desc.absorb_merge(&merged);
     describe_minted_edges(body, seam_edges, &merged, band, tol)?;
-    let edge_joins = join_stage(body, desc, band, tol)?;
+    let edge_joins = join_stage(body, desc, recorded, band, tol)?;
     Ok((merged, edge_joins))
 }
 
@@ -3476,6 +3474,40 @@ pub(super) fn carry<T: Decide>(
     )?;
     record_spans(body, &mut records, band)?;
     cite_rows(records, ledger)
+}
+
+/// The result's vertices an operand's carried vertex-vertex records
+/// name, read as [`carry`] reads them (each vertex's copies, chased
+/// live), before the output stage's join: the vertices whose touch a
+/// record of the result will name though the join runs an edge
+/// through it (`edge_join::free_vertices`).
+///
+/// # Errors
+///
+/// As [`Descendants::live`].
+fn carried_vertices<T: Real>(
+    body: &Body<T>,
+    ledger: &Ledger,
+    views: [&KeyView<'_>; 2],
+    desc: &Descendants,
+) -> Result<BTreeSet<VertexKey>, BooleanError> {
+    let mut out = BTreeSet::new();
+    for ((side, rows), view) in [Operand::A, Operand::B]
+        .into_iter()
+        .zip(&ledger.carried)
+        .zip(views)
+    {
+        for c in &rows.vv {
+            for v in [c.a, c.b] {
+                for k in desc.copies_of(side, v) {
+                    if let Some(Cell::Vertex(x)) = desc.live(body, side, view, Cell::Vertex(k))? {
+                        out.insert(x);
+                    }
+                }
+            }
+        }
+    }
+    Ok(out)
 }
 
 /// **The output stage's one key rule**: the vertices of every
@@ -5952,18 +5984,21 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
             let declared_pairs =
                 declared_surface_pairs(&body, a_pristine, b_pristine, decls, &graft);
             let mut desc = Descendants::default();
-            let (merged, edge_joins) =
-                finish_output(&mut body, &mut desc, &declared_pairs, &[], band, tol)?;
+            let ledger = ledger(red, decls, band)?;
+            let views = [&KeyView::Direct, &KeyView::Graft(&graft)];
+            let recorded = carried_vertices(&body, &ledger, views, &desc)?;
+            let (merged, edge_joins) = finish_output(
+                &mut body,
+                &mut desc,
+                &declared_pairs,
+                &[],
+                &recorded,
+                band,
+                tol,
+            )?;
             crate::pcurves::mint_pcurves(&mut body, tol)
                 .map_err(|source| BooleanError::Pcurves { source })?;
-            let ledger = ledger(red, decls, band)?;
-            let (contacts, coincidences) = carry(
-                &body,
-                &ledger,
-                [&KeyView::Direct, &KeyView::Graft(&graft)],
-                &desc,
-                band,
-            )?;
+            let (contacts, coincidences) = carry(&body, &ledger, views, &desc, band)?;
             share_recorded_points(&mut body, &contacts, &coincidences)?;
             let body = gate(body, band, tol)?;
             let (graft_vertices, graft_edges, graft_dead_edges, graft_faces) = graft_rows(&graft);
@@ -6017,14 +6052,15 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
     // through the kept one is `covered`; the surviving operand's
     // CARRIED records still apply.
     let mut desc = Descendants::default();
-    let (merged, edge_joins) = finish_output(&mut body, &mut desc, &[], &[], band, tol)?;
-    crate::pcurves::mint_pcurves(&mut body, tol)
-        .map_err(|source| BooleanError::Pcurves { source })?;
     let (a_view, b_view) = match kind {
         BooleanResultKind::OperandA => (KeyView::Direct, KeyView::Absent),
         _ => (KeyView::Absent, KeyView::Direct),
     };
     let ledger = ledger(red, decls, band)?;
+    let recorded = carried_vertices(&body, &ledger, [&a_view, &b_view], &desc)?;
+    let (merged, edge_joins) = finish_output(&mut body, &mut desc, &[], &[], &recorded, band, tol)?;
+    crate::pcurves::mint_pcurves(&mut body, tol)
+        .map_err(|source| BooleanError::Pcurves { source })?;
     let (contacts, coincidences) = carry(&body, &ledger, [&a_view, &b_view], &desc, band)?;
     share_recorded_points(&mut body, &contacts, &coincidences)?;
     let body = gate(body, band, tol)?;
