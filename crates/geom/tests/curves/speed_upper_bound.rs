@@ -246,6 +246,7 @@ fn the_bound_reads_each_pair_against_its_own_spans_points() {
 /// refined curve holds a zero weight the constructor would refuse.
 /// The bound divides by that zero least weight, so it reads `+∞` or
 /// NaN, never a number below the true speed.
+/// The insertion side: `work/nurbs/knot-insertion-can-round-a-weight-to-zero.md`.
 #[test]
 fn a_weight_collapsed_by_refinement_reads_no_finite_bound() {
     let w = f64::from_bits(1);
