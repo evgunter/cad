@@ -1116,3 +1116,6 @@ mod sphere_face_flips_are_refused;
 
 #[path = "review_4737_span_probes.rs"]
 mod review_4737_span_probes;
+
+#[path = "probe_smooth_seam_chart_offset.rs"]
+mod probe_smooth_seam_chart_offset;
