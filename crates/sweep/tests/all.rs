@@ -1086,6 +1086,8 @@ mod rest_nested_strut;
 #[path = "rest_zip_admission.rs"]
 mod rest_zip_admission;
 
+#[path = "a_grazed_rim_never_pinches.rs"]
+mod a_grazed_rim_never_pinches;
 #[path = "letterform_intersects_in_every_order.rs"]
 mod letterform_intersects_in_every_order;
 #[path = "pole_ball_shells.rs"]

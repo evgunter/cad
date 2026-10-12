@@ -258,3 +258,22 @@ the `Unexamined` solid pair it leaves) and no other finding, and cites
 this row. PR 4781's review fixtures add cylinders of unequal radii and
 a box edge on a cylinder's ruling, which read the same. When this lane
 lands, that check can demand `Ok`.
+
+## 2026-10-12 — lobes touching at a pinch (CONTACTHOLD)
+
+Pieces that touch at one point, where the touch is recorded, land here
+too. The L-prism (reflex top corner `(1, 1, 1)`) intersected with a
+cylinder of radius 3 or 6 whose side passes through that corner, at
+the normals `(1, 1.3, 0.7)`, `(1, 1.3, 0.4)` and `(1.2, 1.0, 0.3)`,
+builds in either operand order: two lobes on one point key at the
+corner, and the corner's `VertexFusion` row (the prism's corner on
+the cylinder's side). Each of those 12 results then fails
+`validate_pseudomanifold` against its own records with
+`CensusUndecidable` ("a curved face of one is within reach of the
+other") between the cylinder wall of one lobe and a face of the other.
+The unions of the same pairs pass. Measured at
+`contacthold/zero-to-distinct-cells-audit` (PR 4765) by its review
+probe `review_4765_curved_probes::probe_curved_pinch` (sweep), which
+was dropped once it had been read. The pairs meet at the pinch, so no
+separation clears them: the arm needs a contact read at a recorded
+pinch, not a sharper separation test.
