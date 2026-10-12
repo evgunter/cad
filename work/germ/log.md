@@ -1084,3 +1084,9 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - **Merging main surfaced CLEAVE's converged section-end design** (no Ev). Its re-pose unit (dispatched) is consistent as a first step. Its admission unit (parked: refuse at the arm where ρ > ε/K, far-centre term as a kernel limit) conflicts with Ev's "no refusal at the arm" and is superseded. I added a seam note on that unit and named CLEAVE as owner of the carrier half in our row. I told Ev on the PR and offered to have the units weighed if he wants. CLEAVE's session is not reachable via ListAgents.
   - Merged head `790df6245c`, no conflict markers. Merge once CI is green.
 - 2026-10-12 21:50 — **PR 4812 merged** (`4f0afb47b1`). Main took row 125 meanwhile, so the conic fork row is **126**. Conflict resolved without markers, and the item and PR body updated. Unsubscribed. The three PCERT chart items are on main (above). The carrier half is CLEAVE's: its re-pose unit is dispatched, and our seam note supersedes its admission unit.
+- 2026-10-12 21:51 — Check-in: nothing ready to review.
+  - Pierce-ring lane: PR 4910 up (head `f8a836a3`), waiting on CI; not idle.
+  - Slab lane: branch pushed, hosted CI red; it is reading which ε rows fail.
+  - U-T4: no branch yet.
+  - r4886a/b: active (208 files written in 15 min; drafts at 20:31 and 21:12).
+  - Re-armed for 22:50.
