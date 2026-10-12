@@ -82,7 +82,7 @@ mod tests {
     /// Re-carries one plane × plane edge of the unit cube at `T` as a
     /// degree-1 spline between its two planes (an analytic rung-3
     /// edge) through the attach door.
-    fn respec_as_spline<T: AtRestPolicy + geom_core::Bounds>() -> Result<EdgeKey, EulerOpError> {
+    fn respec_as_spline<T: AtRestPolicy>() -> Result<EdgeKey, EulerOpError> {
         let tol = Tol::witness();
         fn cube<S: AtRestPolicy>(tol: Tol) -> crate::Body<S> {
             let mut body = geometric_cube::<S>(tol).body;
