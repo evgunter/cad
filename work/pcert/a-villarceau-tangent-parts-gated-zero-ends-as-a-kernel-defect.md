@@ -18,4 +18,4 @@ cost: E
 
 ## Question
 
-Give the magnitude gate its own decision, sized on the tube and `R − r` with the tolerance offer, and read the tag the way `SizedDecision::recourse` does. Or state why a defect is the right ending for it. Separately, consider whether `Unsized::recourse` should refuse a gate-tagged arm by type rather than by doc.
+Give the magnitude gate its own decision, sized on the tube and `R − r` with the tolerance offer, and read the tag the way `SizedDecision::recourse` does. Or state why a defect is the right ending for it. Whether `Unsized::recourse` should refuse a gate-tagged arm by type is a separate, ENCL question: `work/encl/unsized-recourse-takes-a-gate-tagged-arm-and-renders-no-gate-word.md`.

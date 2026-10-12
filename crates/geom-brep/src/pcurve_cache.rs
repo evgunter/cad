@@ -9840,6 +9840,30 @@ mod tests {
         );
     }
 
+    /// A schedule check's escalation renders its payload and then its
+    /// check's own labelled ending, read at a build: the azimuth headroom
+    /// ends as the edge winding gate does.
+    #[test]
+    fn a_schedule_escalation_renders_its_checks_own_ending() {
+        let escalated = PcurveCertifyError::Escalated {
+            check: PcurveCheck::AzimuthPeriod,
+            sample: 3,
+            cause: Indeterminate {
+                margin: geom_core::MarginDiag::value(5e-9),
+                band: Band::new(1e-9, 1e-8).unwrap(),
+                predicate: Some("pcurve_azimuth_period"),
+                terminal_sliver: false,
+            },
+        };
+        assert_eq!(
+            escalated.to_string(),
+            "pcurve certification: AzimuthPeriod at sample 3 escalated: margin 5e-9 lies inside \
+             the ambiguity band (1e-9, 1e-8). Recourse: move the geometry so this arc stays \
+             clearly short of a full turn, or, if this arc is intended, tighten the tolerance \
+             below 5e-10 m"
+        );
+    }
+
     /// A limb-3 escalation ends by the tube's own decision at the
     /// pcurve door, as at the SSI door, at rest: the transversality's
     /// lever and its tighten offer in band, never the fitted lane's last
