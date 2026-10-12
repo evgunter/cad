@@ -204,7 +204,7 @@ Tests restated for the new shape: a vertex pair or an edge overlap
 between two shared keys now passes tier 3′ with its records withheld
 (`m3_pr6_tier3prime`, `surgery_carries_records`,
 `union_flush_onto_edge_contact`, `pierce_strut_at_a_pinch`,
-`sweep` `blend_carries_records`), and `boolean_pinch_copies` allows
+`sweep` `blend_carries_records`, `stl` `review_m3_pr6_e2e`), and `boolean_pinch_copies` allows
 two vertices on one key where a record ties them. Re-baselined, through
 `kiss_carry` alone: the m10-p fences, `intent_s2_c_world::PRE_C` and
 `seat4_verb_lowering`'s digests (its body holds one point fewer; no
