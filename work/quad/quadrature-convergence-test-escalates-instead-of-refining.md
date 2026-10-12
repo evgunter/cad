@@ -313,17 +313,18 @@ which faces land in band:
 
 The cylinder lane's new form reshuffled which faces land in band, and the
 tour's cutaway scene was one at 1e-12 (margin +7.5e-12 on the
-`demo-tour` eps row). The fix is the one stated above, landed once:
-`quad::converged` reads `props_quad_converged` and treats an escalation
-— which on that finite margin can only be the band — as not converged.
-All six convergence sites (the five lanes in `quad.rs` and the spiric
-lane's) go through it, so an in-band round refines, and only the
-schedule's last round refuses, `QuadratureBudget`.
-
-What it re-pinned: `tcost_k1_budget_exit::an_in_band_bound_leaves_the_schedule_to_the_rounds`
-now tells the early exit from the schedule by the refusal's round count,
-not by its class. The two escalation pins `flux/cylinder-band-quad` had
-added are gone with it.
+`demo-tour` eps row). The fix is the one stated above, landed once, with one correction.
+`quad::converged` reads `props_quad_converged`, and at a round with a
+successor it treats an escalation (on that finite margin it can only be
+the band) as not converged, so the round refines. At the schedule's
+last round, and in the exact per-span lane, which has no rounds, the
+escalation stands. There the width may sit under the target, and a
+`QuadratureBudget` would carry a width that did not miss: the first cut
+of this fix did exactly that, and `cert5_r2_probes`' payload check
+caught it. All six convergence sites (the five lanes in `quad.rs` and
+the spiric lane's) go through the one helper. The two escalation pins
+`flux/cylinder-band-quad` had added are gone with it, and
+`tcost_k1_budget_exit`'s last-round escalation row stands as it was.
 
 Left as they were, because they tolerate the escalation and do not
 require it, so they could now be tightened by their owners:

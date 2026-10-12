@@ -412,10 +412,11 @@ fn the_pad_is_in_the_bound() {
 /// zero and escalation thresholds straddle that shortfall: the bound's
 /// margin is in-band, so the exit must not fire (a definite reading
 /// is the only one that refuses); rounds 0–6 read negative and run;
-/// the last round's margin lands in the band, which is not converged,
-/// so the schedule ends in its own budget refusal after every round —
+/// the last round's margin lands in the band and the convergence
+/// predicate escalates it — `Escalated`, from `props_quad_converged`,
 /// exactly as a loop without the exit would end. An exit that refused
-/// on an in-band reading would return its refusal after ONE round.
+/// on an in-band reading would return `QuadratureBudget` here and
+/// change the refusal's class.
 #[test]
 fn an_in_band_bound_leaves_the_schedule_to_the_rounds() {
     let face = half_cylinder("half cylinder, in-band bound", 0.5, 0.0);
@@ -427,17 +428,25 @@ fn an_in_band_bound_leaves_the_schedule_to_the_rounds() {
     let target = bound * (1.0 - 1e-3);
     let band = Band::new(5e-4 * bound, 2e-3 * bound).unwrap();
     let (out, secs) = face.run(target / TARGET_LEN_FACTOR, band);
-    let (_, _, rounds) = budget(face.name, &out);
-    println!(
-        "K1 {}: refused at the schedule's end in {secs:.3}s after {rounds} rounds",
-        face.name
-    );
-    assert_eq!(
-        rounds, RATIONAL_SCHEDULE_ROUNDS,
-        "{}: an in-band bound must leave the schedule to the rounds, which run out at the last \
-         one; the loop paid {rounds} rounds",
-        face.name
-    );
+    match out {
+        Err(PropsError::Escalated { cause, .. }) => {
+            println!(
+                "K1 {}: escalated at the last round in {secs:.3}s: {cause:?}",
+                face.name
+            );
+            assert_eq!(
+                cause.predicate,
+                Some("props_quad_converged"),
+                "{}: the escalation must be a round's, not the bound's",
+                face.name
+            );
+        }
+        other => panic!(
+            "{}: an in-band bound must leave the schedule to the rounds, which escalate at the \
+             last one; got {other:?}",
+            face.name
+        ),
+    }
 }
 
 /// **The integral lane exits the same way**: the ridge at ε = 1e-9

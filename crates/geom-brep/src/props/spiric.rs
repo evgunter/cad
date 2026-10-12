@@ -582,12 +582,15 @@ pub fn spiric_face_rounds<T: Decide>(
     for round in first..=QUAD_MAX_ROUNDS {
         let (bounds, [du, dv]) = face_bounds(face, pieces)?;
         let width_len = mean_boundary_displacement(bounds.flux, bounds.area)?;
-        let converged = super::quad::converged(classify_len::<T>(
-            "props_quad_converged",
-            Margin::of(target_len - width_len),
-            band,
-            PropsCheck::Converged,
-        ))?;
+        let converged = super::quad::converged(
+            classify_len::<T>(
+                "props_quad_converged",
+                Margin::of(target_len - width_len),
+                band,
+                PropsCheck::Converged,
+            ),
+            round == QUAD_MAX_ROUNDS,
+        )?;
         let out = if converged {
             match classify_len::<T>(
                 "props_quad_face_extent",
