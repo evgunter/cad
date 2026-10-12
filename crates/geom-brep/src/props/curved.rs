@@ -34,7 +34,7 @@ use geom_core::{
 
 use super::{FaceContribution, LoopEdge, PropsCheck, PropsError, loop_vector_area};
 use crate::dihedral::decide;
-use crate::implicit::cone_elevation;
+use crate::implicit::cone_offset;
 
 /// The flux and area of a curved face from its **outer** loop:
 /// [`curved_face_loops`] over that one loop. `band` is the run's
@@ -1811,7 +1811,7 @@ fn cone_loops<T: Decide>(
     let slant = |p: Point3<T>| (p - apex).dot(axis) / cos_a;
     for &edges in loops {
         for e in edges {
-            require_on_cone(apex, axis, half_angle, e, band)?;
+            require_on_cone(apex, axis, sin_a, cos_a, e, band)?;
         }
         require_cone_conic_spans(edges, band)?;
     }
@@ -1878,37 +1878,30 @@ fn cone_loop_refusal(e: PropsError) -> PropsError {
 }
 
 /// **An edge lies on the cone**, each premise decided at the true
-/// distance from the cone of the edge's farthest point:
+/// distance from the cone of the edge's farthest point, every one
+/// through the cone's residual ([`cone_offset`]):
 ///
 /// - a line is a generator ([`require_cone_generator`]), under the iso
 ///   parse's names;
 /// - a circle is coaxial (`props_circle_axis_class`) at the cone's
-///   radius for its height (`props_rim_fit`, `r·cos α − |h|·sin α` with
-///   `h` the centre's axial height), and neither tilted
+///   radius for its height (`props_rim_fit`, the residual at the radius
+///   and the centre's axial height), and neither tilted
 ///   (`props_cone_circle_tilt`) nor off the axis
 ///   (`props_cone_circle_off_axis`) by more than the band. With the
 ///   other two exact, a circle tilted by `θ` is off the cone by at most
 ///   `r·(sin θ·sin α + (1 − cos θ)·cos α)` and one whose centre is `o`
 ///   off the axis by at most `o·cos α`, both attained. The iso parse
 ///   asks instead whether it is the iso rim ([`require_rim_incidence`]);
-/// - an ellipse is the cone's section by its plane
-///   (`props_cone_ellipse_on_cone`): the cone's quadric residual along
-///   a conic carrier is a trigonometric polynomial of degree 2 in its
-///   parameter, so it vanishes at five distinct parameters within a
-///   period only if it vanishes everywhere. The five are the midpoints
-///   of five equal pieces of the edge's span, each decided on the cone
-///   (its elevation, [`cone_elevation`], the exact distance): they make
-///   the carrier the section and bound the arc the lane reads, where
-///   points of the whole carrier can lie far outside the face, at a
-///   reach whose rounding alone exceeds the band.
+/// - an ellipse arc is bounded off the cone over its whole span
+///   ([`require_cone_ellipse`]).
 fn require_on_cone<T: Decide>(
     apex: Point3<T>,
     axis: Vec3<T>,
-    half_angle: T,
+    sin_a: T,
+    cos_a: T,
     e: &LoopEdge<T>,
     band: Band,
 ) -> Result<(), PropsError> {
-    let (sin_a, cos_a) = half_angle.sin_cos();
     match e.carrier {
         Curve3::Line { dir, .. } => require_cone_generator(apex, axis, sin_a, cos_a, dir, e, band),
         Curve3::Circle {
@@ -1928,57 +1921,156 @@ fn require_on_cone<T: Decide>(
                     what: "props_circle_axis_class",
                 });
             }
+            let w = center - apex;
             require_zero(
                 "props_rim_fit",
-                Margin::of(r_c * cos_a - (center - apex).dot(axis).abs() * sin_a),
+                Margin::of(cone_offset(r_c, w.dot(axis).abs(), sin_a, cos_a)),
                 band,
                 Premise::OnSurface,
             )?;
             let cos_t = n_c.dot(axis).abs();
             require_zero(
                 "props_cone_circle_tilt",
-                Margin::of(r_c * (n_c.cross(axis).norm() * sin_a + (T::one() - cos_t) * cos_a)),
+                Margin::levered(
+                    n_c.cross(axis).norm() * sin_a + (T::one() - cos_t) * cos_a,
+                    r_c,
+                ),
                 band,
                 Premise::OnSurface,
             )?;
-            let w = center - apex;
             require_zero(
                 "props_cone_circle_off_axis",
-                Margin::of((w - axis * w.dot(axis)).norm() * cos_a),
+                Margin::levered(cos_a, (w - axis * w.dot(axis)).norm()),
                 band,
                 Premise::OnSurface,
             )
         }
-        Curve3::Ellipse { .. } => {
-            let fifth = (e.t1 - e.t0) / T::from_f64(5.0);
-            let mut t = e.t0 + fifth / T::from_f64(2.0);
-            for _ in 0..5 {
-                require_zero(
-                    "props_cone_ellipse_on_cone",
-                    Margin::of(cone_elevation(
-                        apex,
-                        axis,
-                        half_angle,
-                        None,
-                        e.carrier.eval(t),
-                    )),
-                    band,
-                    Premise::OnSurface,
-                )?;
-                t = t + fifth;
-            }
-            Ok(())
-        }
+        Curve3::Ellipse { .. } => require_cone_ellipse(apex, axis, sin_a, cos_a, e, band),
         Curve3::Nurbs(_) | Curve3::Spiric { .. } => Err(PropsError::Unimplemented),
     }
+}
+
+/// **An ellipse arc lies on the cone over its whole span**, bounded,
+/// not sampled (`props_cone_ellipse_on_cone`).
+///
+/// With `w` a point's offset from the apex, `h = w·axis` and `ρ` its
+/// distance from the axis, the cone's quadric residual
+/// `Q = ρ²·cos²α − h²·sin²α` — formed from the radial and axial parts
+/// apart, which do not cancel against each other toward a needle as
+/// `cos²α·|w|² − h²` does — factors as
+/// `(ρ·cos α − |h|·sin α)·(ρ·cos α + |h|·sin α)`: the elevation times a
+/// second factor. So the elevation is at most `|Q|` over a lower bound
+/// on that factor, metres, and that bound is taken over the
+/// span in 128 equal pieces, each about its midpoint `t_m`, and decided
+/// once at its largest.
+///
+/// On a piece, with `δ = t − t_m`, the carrier is
+/// `W + A·x + B·y`, where `x = cos δ − 1`, `y = sin δ`, `W` the
+/// midpoint's offset, and `A`, `B` the ellipse's axis vectors turned to
+/// `t_m`. Since `x² + 2x + y² = 0`, `Q` is
+/// `k₀ + k_x·x + k_y·y + k_xx·x² + k_xy·x·y`, whose five coefficients are
+/// unique — all zero for an ellipse on the cone — and are read off the
+/// quadratic form at the midpoint, so they carry the rounding of points
+/// near the face, not of a carrier that may reach far past it; `k₀`,
+/// which no small factor scales, is `Q` at the midpoint taken as its
+/// two factors, the first the midpoint's own elevation. Over the
+/// piece `|x| ≤ X = 1 − cos δ_max` and `|y| ≤ Y = sin δ_max`, which
+/// bound `|Q|`. The piece's `|h|` is bounded below by the larger of
+/// `|h_m| − |A·axis|·X − |B·axis|·Y` and the whole carrier's minimum,
+/// `|h_m − A·axis| − ‖(A·axis, B·axis)‖`; its least over the pieces is
+/// decided positive first (`props_cone_ellipse_nappe`), since an
+/// ellipse on the cone lies on one nappe clear of the apex.
+///
+/// The pieces are many because the parameter is slow where a section
+/// is sharp: near the vertex nearest the apex an eccentric section's
+/// `A` is its major semi-axis while `|h|` is small, so a piece must be
+/// short for `|A|·X` — and the rounding the coefficients carry at that
+/// scale — to stay small against `|h|`.
+///
+/// The second factor is bounded below on a piece by
+/// `ρ_low·cos α + |h|_low·sin α`, `ρ_low` the midpoint's distance from
+/// the axis less what `A` and `B` can move it over the piece. The bound
+/// over-reads the elevation by the spread of `ρ` and `|h|` across a
+/// piece and by the triangle inequality over the five terms.
+fn require_cone_ellipse<T: Decide>(
+    apex: Point3<T>,
+    axis: Vec3<T>,
+    sin_a: T,
+    cos_a: T,
+    e: &LoopEdge<T>,
+    band: Band,
+) -> Result<(), PropsError> {
+    let Curve3::Ellipse {
+        center,
+        axis: n,
+        major,
+        minor,
+        u_ref,
+    } = e.carrier
+    else {
+        return Err(PropsError::Unimplemented);
+    };
+    let (a, b) = (u_ref * major, n.cross(u_ref) * minor);
+    let (cos2, sin2) = (cos_a.powi(2), sin_a.powi(2));
+    let perp = |p: Vec3<T>| p - axis * p.dot(axis);
+    let m = |p: Vec3<T>, q: Vec3<T>| perp(p).dot(perp(q)) * cos2 - p.dot(axis) * q.dot(axis) * sin2;
+    let piece = (e.t1 - e.t0) / T::from_f64(128.0);
+    let half = (piece / T::from_f64(2.0)).abs();
+    let x_max = T::one() - half.min(T::pi()).cos();
+    let y_max = half.min(T::pi() / T::from_f64(2.0)).sin();
+    let mut middle = T::from_f64(0.5);
+    let (mut h_low, mut elevation) = (T::zero(), T::zero());
+    for k in 0..128 {
+        let (st, ct) = (e.t0 + piece * middle).sin_cos();
+        let (am, bm) = (a * ct + b * st, b * ct - a * st);
+        let w = (center - apex) + am;
+        let (hm, ha, hb) = (w.dot(axis), am.dot(axis), bm.dot(axis));
+        let h = (hm.abs() - ha.abs() * x_max - hb.abs() * y_max)
+            .max((hm - ha).abs() - (ha.powi(2) + hb.powi(2)).sqrt());
+        let mbb = m(bm, bm);
+        let rho = perp(w).norm();
+        let q_max = (cone_offset(rho, hm.abs(), sin_a, cos_a) * (rho * cos_a + hm.abs() * sin_a))
+            .abs()
+            + (m(w, am) - mbb).abs() * T::from_f64(2.0) * x_max
+            + m(w, bm).abs() * T::from_f64(2.0) * y_max
+            + (m(am, am) - mbb).abs() * x_max.powi(2)
+            + m(am, bm).abs() * T::from_f64(2.0) * x_max * y_max;
+        let rho_low = (rho - perp(am).norm() * x_max - perp(bm).norm() * y_max).max(T::zero());
+        let piece_elevation = q_max / (rho_low * cos_a + h * sin_a);
+        (h_low, elevation) = if k == 0 {
+            (h, piece_elevation)
+        } else {
+            (h_low.min(h), elevation.max(piece_elevation))
+        };
+        middle = middle + T::one();
+    }
+    if classify(
+        "props_cone_ellipse_nappe",
+        Margin::of(h_low),
+        band,
+        PropsCheck::Inventory,
+    )? != Sign::Positive
+    {
+        return Err(PropsError::OffSurface {
+            what: "props_cone_ellipse_nappe",
+        });
+    }
+    require_zero(
+        "props_cone_ellipse_on_cone",
+        Margin::of(elevation),
+        band,
+        Premise::OnSurface,
+    )?;
+    Ok(())
 }
 
 /// **A line on the cone is a generator**: at the generator angle to the
 /// axis (`props_meridian_generator`) and through the apex
 /// (`props_meridian_apex`, the apex's distance from the line, `dir`
 /// unit). A line through the apex at angle `β` to the axis is off the
-/// cone by `s·sin(β − α)` at distance `s` from the apex, with
-/// `sin(β − α) = |dir × axis|·cos α − |dir·axis|·sin α`, so the angle is
+/// cone by `s·sin(β − α)` at distance `s` from the apex, and
+/// `sin(β − α)` is the cone's residual at the unit direction
+/// ([`cone_offset`] of `|dir × axis|` and `|dir·axis|`), so the angle is
 /// levered by the edge's reach from the apex, the farther of its ends.
 fn require_cone_generator<T: Decide>(
     apex: Point3<T>,
@@ -1992,7 +2084,7 @@ fn require_cone_generator<T: Decide>(
     require_zero(
         "props_meridian_generator",
         Margin::levered(
-            dir.cross(axis).norm() * cos_a - dir.dot(axis).abs() * sin_a,
+            cone_offset(dir.cross(axis).norm(), dir.dot(axis).abs(), sin_a, cos_a),
             (e.p0() - apex).norm().max((e.p1() - apex).norm()),
         ),
         band,
@@ -2413,7 +2505,12 @@ fn cone_boundary<T: Decide>(
                 let v = (center - apex).dot(axis) / cos_a;
                 require_zero(
                     "props_rim_fit",
-                    Margin::of(r_c * cos_a - (center - apex).dot(axis).abs() * sin_a),
+                    Margin::of(cone_offset(
+                        r_c,
+                        (center - apex).dot(axis).abs(),
+                        sin_a,
+                        cos_a,
+                    )),
                     band,
                     Premise::OnSurface,
                 )?;

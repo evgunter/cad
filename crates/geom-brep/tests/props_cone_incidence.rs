@@ -309,14 +309,26 @@ fn rim_off_axis(c: &Cone, d: f64) -> Spec {
     )
 }
 
-/// The wall `u ∈ [0, 1]`, `v ∈ [3l/4, l]` at `l` the [`slant`], its
-/// generator at `u = 1` turned about the apex in its meridian plane,
-/// toward the axis, by `δ` with `l·sin δ = d`: its far end is `d` off
-/// the cone, and it is stated first, so its own decides are the first
-/// to read it. Its reach from the apex is four times its span.
+/// The wall `u ∈ [0, 1]`, `v ∈ [l, 8l]` at `l` the [`slant`], its
+/// generator at `u = 1` turned about the apex by `δ` with `8l·sin δ = d`
+/// ([`turned_on`]): its far end is `d` off the cone, eight times its
+/// near end's offset.
 fn generator_turned(c: &Cone, d: f64) -> Spec {
+    turned_on(c, d, slant(c), 8.0 * slant(c))
+}
+
+/// As [`generator_turned`] on the wall `v ∈ [7l, 8l]`, whose generator
+/// reaches eight times its span from the apex.
+fn generator_turned_far(c: &Cone, d: f64) -> Spec {
+    turned_on(c, d, 7.0 * slant(c), 8.0 * slant(c))
+}
+
+/// The wall `u ∈ [0, 1]`, `v ∈ [near, far]`, its generator at `u = 1`
+/// turned about the apex in its meridian plane, toward the axis, until
+/// its far end is `d` off the cone, and stated first, so its own decides
+/// are the first to read it.
+fn turned_on(c: &Cone, d: f64, near: f64, far: f64) -> Spec {
     let (s, co) = c.alpha.sin_cos();
-    let (near, far) = (0.75 * slant(c), slant(c));
     let g = c.g(1.0);
     let radial = unit(add(g, c.a, -co));
     let inward = add(add([0.0; 3], c.a, s), radial, -co);
@@ -346,16 +358,20 @@ fn generator_off_apex(c: &Cone, d: f64) -> Spec {
 }
 
 /// The section of the cone by the plane through its axis at the
-/// [`slant`],
-/// tilted toward `e2` by a fraction of the most it may tilt and still
-/// cut an ellipse, in closed form: the major vertices are the plane's
-/// points on the generators at azimuth `±π/2`, and the minor semi-axis
-/// is the half-chord along `e1` of the cone's circle at the centre's
-/// height.
+/// [`slant`], tilted toward `e2` by a fraction of the most it may tilt
+/// and still cut an ellipse.
 fn section(c: &Cone) -> Curve3<f64> {
-    let tilt = 0.5_f64.min(0.3 * (HALF_PI - c.alpha));
+    section_at(c, 0.5_f64.min(0.3 * (HALF_PI - c.alpha)), slant(c))
+}
+
+/// The section by the plane through the axis at slant `l`, tilted toward
+/// `e2` by `tilt`, in closed form: the major vertices are the plane's
+/// points on the generators at azimuth `±π/2` (the first at `t = 0`),
+/// and the minor semi-axis is the half-chord along `e1` of the cone's
+/// circle at the centre's height.
+fn section_at(c: &Cone, tilt: f64, l: f64) -> Curve3<f64> {
     let normal = add(add([0.0; 3], c.a, tilt.cos()), c.e2, tilt.sin());
-    let h0 = slant(c) * c.alpha.cos();
+    let h0 = l * c.alpha.cos();
     let vertex = |u: f64| {
         let g = c.g(u);
         add(c.apex, g, h0 * tilt.cos() / dot(normal, g))
@@ -402,7 +418,7 @@ fn ellipse_stretched(c: &Cone, d: f64) -> Spec {
     vec![(stretched(k), 0.0, TAU)]
 }
 
-const PERTURBED: [Perturbed; 6] = [
+const PERTURBED: [Perturbed; 7] = [
     Perturbed {
         name: "props_rim_fit",
         build: rim_too_wide,
@@ -418,6 +434,10 @@ const PERTURBED: [Perturbed; 6] = [
     Perturbed {
         name: "props_meridian_generator",
         build: generator_turned,
+    },
+    Perturbed {
+        name: "props_meridian_generator",
+        build: generator_turned_far,
     },
     Perturbed {
         name: "props_meridian_apex",
@@ -545,6 +565,253 @@ fn an_ellipse_arc_past_a_period_refuses_by_name() {
                 }),
                 "{c:?} {lane}"
             );
+        }
+    }
+}
+
+/// **An ellipse arc's span is metered at its smaller semi-axis**, as
+/// certification meters it: a section 25 times longer than wide, closed
+/// on itself over `τ` plus an overrun. An overrun of `0.6·zero` at the
+/// minor semi-axis — the speed at `t = 0`, where the arc closes — is
+/// within the bound, though at the major semi-axis it would be fifteen
+/// times the band past it; one of `2·escalate` at the minor is past it.
+#[test]
+fn an_ellipse_span_is_metered_at_its_smaller_semi_axis() {
+    let b = band();
+    let squash: f64 = 25.0;
+    for c in Cone::all() {
+        let tilt = ((1.0 - 1.0 / (squash * squash)).sqrt() * c.alpha.cos()).asin();
+        let (s, co) = c.alpha.sin_cos();
+        let e = section_at(&c, tilt, (1e3 * b.escalate() / s.min(co)).max(0.05));
+        let Curve3::Ellipse { major, minor, .. } = e else {
+            unreachable!()
+        };
+        assert!(
+            (major / minor - squash).abs() < 0.01 * squash,
+            "{c:?}: the section is {major} by {minor}"
+        );
+        let cap = |over: f64| -> Spec { vec![(e.clone(), 0.0, TAU + over / minor)] };
+        for (lane, got) in verdicts(&c, &cap(0.6 * b.zero())) {
+            assert_eq!(got, Ok(()), "{c:?} {lane}: an overrun within the bound");
+        }
+        for (lane, got) in verdicts(&c, &cap(2.0 * b.escalate())) {
+            assert_eq!(
+                got,
+                Err(PropsError::ConeLoop {
+                    what: "props_cone_ellipse_span_winding"
+                }),
+                "{c:?} {lane}: an overrun past the bound"
+            );
+        }
+    }
+}
+
+/// **An ellipse arc off the cone only between sample points refuses.**
+/// The worst ellipse near a section, to first order, whose elevation is
+/// within `0.9·zero` at the five midpoints of five equal pieces of a
+/// closed ring's span, on sections whose far vertex is a hundred and a
+/// thousand times as high as the near one: off the cone by 14 to 584
+/// times the band between those points, it is refused as off the cone,
+/// where five samples of the span read it as on.
+mod between_samples {
+    use super::{TAU, V, add, cross, dot, unit};
+    use crate::shared::point::{p3, v3};
+    use crate::shared::tol::band;
+    use crate::shared::topo;
+    use geom::{Curve3, Surface};
+    use geom_brep::props::{LoopEdge, PropsError, curved_face_loops};
+    use geom_core::{Decide, Interval, Real};
+
+    const ALPHA: f64 = 0.5;
+    const PI: f64 = core::f64::consts::PI;
+
+    /// An ellipse: centre, normal, semi-axes, major direction.
+    #[derive(Clone, Copy, Debug)]
+    struct El {
+        c: V,
+        n: V,
+        a: f64,
+        b: f64,
+        u: V,
+    }
+
+    impl El {
+        fn eval(&self, t: f64) -> V {
+            add(
+                add(self.c, self.u, self.a * t.cos()),
+                cross(self.n, self.u),
+                self.b * t.sin(),
+            )
+        }
+
+        /// Moved by `d`: the centre by `d[0..3]`, the semi-axes by
+        /// `d[3]`, `d[4]`, the frame turned by `d[5..8]`.
+        fn moved(&self, d: &[f64; 8]) -> El {
+            let w = [d[5], d[6], d[7]];
+            let n = unit(add(self.n, cross(w, self.n), 1.0));
+            let u0 = add(self.u, cross(w, self.u), 1.0);
+            El {
+                c: add(self.c, [d[0], d[1], d[2]], 1.0),
+                n,
+                a: self.a + d[3],
+                b: self.b + d[4],
+                u: unit(add(u0, n, -dot(u0, n))),
+            }
+        }
+
+        fn curve<T: Real>(&self) -> Curve3<T> {
+            Curve3::Ellipse {
+                center: p3(self.c[0], self.c[1], self.c[2]),
+                axis: v3(self.n[0], self.n[1], self.n[2]),
+                major: T::from_f64(self.a),
+                minor: T::from_f64(self.b),
+                u_ref: v3(self.u[0], self.u[1], self.u[2]),
+            }
+        }
+    }
+
+    /// The distance from the cone at the origin about `z`.
+    fn elevation(p: V) -> f64 {
+        let (s, c) = ALPHA.sin_cos();
+        (p[0] * p[0] + p[1] * p[1]).sqrt() * c - p[2].abs() * s
+    }
+
+    /// The section by the plane through `(0, 0, 1)` tilted toward `y` by
+    /// `tilt`: the near vertex at `t = 0`, the far at `t = π`.
+    fn section(tilt: f64) -> El {
+        let (s, co) = ALPHA.sin_cos();
+        let normal = [0.0, tilt.sin(), tilt.cos()];
+        let vertex = |u: f64| {
+            let g = [s * u.cos(), s * u.sin(), co];
+            add([0.0; 3], g, tilt.cos() / dot(normal, g))
+        };
+        let (p, q) = (
+            vertex(-core::f64::consts::FRAC_PI_2),
+            vertex(core::f64::consts::FRAC_PI_2),
+        );
+        let center = add(add([0.0; 3], p, 0.5), q, 0.5);
+        let radius = center[2] * ALPHA.tan();
+        let half = add(p, q, -1.0);
+        El {
+            c: center,
+            n: normal,
+            a: 0.5 * dot(half, half).sqrt(),
+            b: ((radius - center[1]) * (radius + center[1])).sqrt(),
+            u: unit(half),
+        }
+    }
+
+    /// Solves `m x = r` by elimination with partial pivoting.
+    fn solve<const N: usize>(mut m: [[f64; N]; N], mut r: [f64; N]) -> [f64; N] {
+        for i in 0..N {
+            let p = (i..N)
+                .max_by(|&x, &y| m[x][i].abs().total_cmp(&m[y][i].abs()))
+                .unwrap();
+            m.swap(i, p);
+            r.swap(i, p);
+            let (pivot, pr) = (m[i], r[i]);
+            for (row, rk) in m.iter_mut().zip(r.iter_mut()).skip(i + 1) {
+                let f = row[i] / pivot[i];
+                for (x, p) in row.iter_mut().zip(pivot.iter()).skip(i) {
+                    *x -= f * p;
+                }
+                *rk -= f * pr;
+            }
+        }
+        let mut x = [0.0; N];
+        for i in (0..N).rev() {
+            let tail: f64 = (i + 1..N).map(|j| m[i][j] * x[j]).sum();
+            x[i] = (r[i] - tail) / m[i][i];
+        }
+        x
+    }
+
+    /// The elevation's gradient at `t` in the eight moves.
+    fn gradient(e: &El, t: f64) -> [f64; 8] {
+        core::array::from_fn(|k| {
+            let mut d = [0.0; 8];
+            d[k] = 1e-6;
+            let up = elevation(e.moved(&d).eval(t));
+            d[k] = -1e-6;
+            (up - elevation(e.moved(&d).eval(t))) / 2e-6
+        })
+    }
+
+    /// The move that keeps the elevation at the five piece midpoints of
+    /// `[t0, t1]` within `level` while making it largest between them,
+    /// to first order.
+    fn worst(e: &El, t0: f64, t1: f64, level: f64) -> El {
+        let nodes: [f64; 5] = core::array::from_fn(|i| t0 + (t1 - t0) * (i as f64 + 0.5) / 5.0);
+        let jn: [[f64; 8]; 5] = core::array::from_fn(|i| gradient(e, nodes[i]));
+        let gram: [[f64; 5]; 5] = core::array::from_fn(|i| {
+            core::array::from_fn(|j| (0..8).map(|k| jn[i][k] * jn[j][k]).sum())
+        });
+        let mut best = (0.0, [0.0; 5]);
+        for i in 0..=2000 {
+            let jt = gradient(e, t0 + (t1 - t0) * f64::from(i) / 2000.0);
+            let rhs: [f64; 5] = core::array::from_fn(|i| (0..8).map(|k| jn[i][k] * jt[k]).sum());
+            let c = solve(gram, rhs);
+            let amp: f64 = c.iter().map(|x| x.abs()).sum();
+            if amp > best.0 {
+                best = (amp, c);
+            }
+        }
+        let y = solve(gram, core::array::from_fn(|i| level * best.1[i].signum()));
+        e.moved(&core::array::from_fn(|k| {
+            (0..5).map(|i| jn[i][k] * y[i]).sum()
+        }))
+    }
+
+    fn verdict<T: Decide>(e: &El, t0: f64, t1: f64) -> Result<(), PropsError> {
+        let edges: Vec<LoopEdge<T>> = vec![topo::edge(e.curve::<T>(), t0, t1, 0, 0)];
+        let s: Surface<T> = Surface::Cone {
+            apex: p3(0.0, 0.0, 0.0),
+            axis: v3(0.0, 0.0, 1.0),
+            half_angle: T::from_f64(ALPHA),
+            u_ref: v3(1.0, 0.0, 0.0),
+        };
+        curved_face_loops(&s, &[&edges], true, band()).map(|_| ())
+    }
+
+    #[test]
+    fn an_ellipse_off_the_cone_between_samples_refuses() {
+        let b = band();
+        for ratio in [100.0, 1000.0] {
+            // The tilt whose far vertex is `ratio` times as high.
+            let (mut lo, mut hi) = (0.0, core::f64::consts::FRAC_PI_2 - ALPHA);
+            for _ in 0..200 {
+                let m = 0.5 * (lo + hi);
+                if (m - ALPHA).cos() / (m + ALPHA).cos() > ratio {
+                    hi = m;
+                } else {
+                    lo = m;
+                }
+            }
+            let e = section(0.5 * (lo + hi));
+            for t0 in [0.0, PI, PI + 0.3, PI - 0.3, 0.5] {
+                let t1 = t0 + TAU;
+                let p = worst(&e, t0, t1, 0.9 * b.zero());
+                let off = (0..=20000)
+                    .map(|i| elevation(p.eval(t0 + TAU * f64::from(i) / 20000.0)).abs())
+                    .fold(0.0, f64::max);
+                assert!(
+                    off > b.escalate(),
+                    "ratio {ratio} from {t0}: the fixture is only {off:e} off the cone"
+                );
+                let want = Err(PropsError::OffSurface {
+                    what: "props_cone_ellipse_on_cone",
+                });
+                assert_eq!(
+                    verdict::<f64>(&p, t0, t1),
+                    want,
+                    "ratio {ratio} from {t0}, f64"
+                );
+                assert_eq!(
+                    verdict::<Interval>(&p, t0, t1),
+                    want,
+                    "ratio {ratio} from {t0}, interval"
+                );
+            }
         }
     }
 }

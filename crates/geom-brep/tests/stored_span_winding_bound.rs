@@ -408,42 +408,62 @@ fn the_torus_meridian_decide_holds_at_the_interval_scalar() {
 // The cone reads circle spans the parse never mints as rims
 // ---------------------------------------------------------------------
 
-/// A zero-span ellipse edge on the cone's low rim, its carrier the rim
-/// stated as an ellipse: it adds nothing to the loop's vector area, and
-/// its presence alone steered `cone_face_closed_form` onto the
-/// ellipse-cut branch, which read its loops' endpoints and vector areas
-/// and parsed no rim.
-fn null_ellipse<T: Real>() -> LoopEdge<T> {
-    let c = Curve3::Ellipse {
-        center: p(0.0, 0.0, S0 * HALF.cos()),
-        axis: v(0.0, 0.0, 1.0),
-        major: f(S0 * HALF.sin()),
-        minor: f(S0 * HALF.sin()),
-        u_ref: v(1.0, 0.0, 0.0),
+/// A short arc of an ellipse on the cone — its section by a plane
+/// through the low rim's start, tilted off the axis — leaving that
+/// point: a valid edge whose own decides all admit, so whatever else
+/// the cone's reader refuses in a loop holding it is the loop's.
+fn section_arc<T: Real>() -> LoopEdge<T> {
+    let dot = |a: [f64; 3], b: [f64; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    let (s, c) = HALF.sin_cos();
+    let tilt: f64 = 0.3;
+    let n = [tilt.sin(), 0.0, tilt.cos()];
+    let p0 = [S0 * s, 0.0, S0 * c];
+    let far = dot(n, p0) / dot(n, [-s, 0.0, c]);
+    let center = [(p0[0] - far * s) / 2.0, 0.0, (p0[2] + far * c) / 2.0];
+    let half = [p0[0] - center[0], 0.0, p0[2] - center[2]];
+    let major = dot(half, half).sqrt();
+    let across = center[2] * HALF.tan();
+    let carrier = Curve3::Ellipse {
+        center: p(center[0], center[1], center[2]),
+        axis: v(n[0], n[1], n[2]),
+        major: f(major),
+        minor: f(((across - center[0]) * (across + center[0])).sqrt()),
+        u_ref: v(half[0] / major, 0.0, half[2] / major),
     };
-    LoopEdge::hand_built(c, f(0.0), f(0.0), true, 0, 0)
+    LoopEdge::hand_built(carrier, f(0.0), f(0.2), true, 0, 0)
 }
 
 /// **The cone's vector-area reader decides the circle spans it
-/// integrates.** Before the decide the `3π` rectangle plus a null
-/// ellipse answered the `3π` area (`1.4685e-4` m²) — the ellipse-cut
-/// branch never reached the rim parse, and `loop_vector_area` reads
-/// `R²·Δt` — at `f64` and at the interval scalar alike. Every cone face
-/// is now read by the one reader, which decides the spans before
-/// anything integrates them; a null ellipse, an edge of no span, turns
-/// through no decidable azimuth, so the control is the rectangle alone.
+/// integrates, whatever else the loop holds.** Before the decide the
+/// `3π` rectangle plus an ellipse edge answered the `3π` area
+/// (`1.4685e-4` m²) — the ellipse steered `cone_face_closed_form` onto
+/// a branch that never reached the rim parse, and `loop_vector_area`
+/// reads `R²·Δt` — at `f64` and at the interval scalar alike. Every cone
+/// face is now read by the one reader, which decides every span before
+/// anything integrates it: with a valid ellipse arc first or last in
+/// the loop, the rim past the bound is what refuses.
 #[test]
 fn the_cones_ellipse_branch_refuses_a_rim_past_the_winding_bound() {
     use geom_core::Interval;
     let bd = band();
-    let mut edges = rim_rect::<f64>(Kind::Cone, 3.0 * PI);
-    edges.push(null_ellipse());
-    let r = curved_face(&surface::<f64>(Kind::Cone), &edges, true, bd);
-    assert!(refuses_as(&r, RIM_WINDING), "f64: {r:?}");
-    let mut edges = rim_rect::<Interval>(Kind::Cone, 3.0 * PI);
-    edges.push(null_ellipse());
-    let r = curved_face(&surface::<Interval>(Kind::Cone), &edges, true, bd);
-    assert!(refuses_as(&r, RIM_WINDING), "interval: {r:?}");
+    for first in [true, false] {
+        let mut edges = rim_rect::<f64>(Kind::Cone, 3.0 * PI);
+        let mut iv = rim_rect::<Interval>(Kind::Cone, 3.0 * PI);
+        if first {
+            edges.insert(0, section_arc());
+            iv.insert(0, section_arc());
+        } else {
+            edges.push(section_arc());
+            iv.push(section_arc());
+        }
+        let r = curved_face(&surface::<f64>(Kind::Cone), &edges, true, bd);
+        assert!(refuses_as(&r, RIM_WINDING), "f64, arc first {first}: {r:?}");
+        let r = curved_face(&surface::<Interval>(Kind::Cone), &iv, true, bd);
+        assert!(
+            refuses_as(&r, RIM_WINDING),
+            "interval, arc first {first}: {r:?}"
+        );
+    }
     // The control: a full-period rectangle answers the closed form.
     let edges = rim_rect::<f64>(Kind::Cone, TAU);
     let fc = curved_face(&surface::<f64>(Kind::Cone), &edges, true, bd).unwrap();
