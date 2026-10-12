@@ -16,7 +16,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{RigidMotion, Point3, Tol};
+use geom_core::{Point3, RigidMotion, Tol};
 use sweep::test_support::{brick, extruded, finished, sketch_at};
 use topo::{AtRestBody, BooleanError, BooleanResult};
 

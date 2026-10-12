@@ -75,8 +75,13 @@ pub(crate) fn ball(r: f64, c: [f64; 3]) -> AtRestBody<f64> {
         Tol::witness(),
     );
     let to = Affine3::translation(Vec3::new(c[0], c[1], c[2]));
-    let ball =
-        topo::transform_rigid(&at_origin, &to, Tol::witness()).expect("a translation is rigid");
+    let ball = topo::transform_rigid(
+        &at_origin,
+        &geom_core::RigidMotion::check_rigid(&to, geom_core::Band::linear(Tol::witness()).unwrap())
+            .unwrap(),
+        Tol::witness(),
+    )
+    .expect("a translation is rigid");
     finished("the ball", ball, Tol::witness())
 }
 
@@ -85,8 +90,16 @@ pub(crate) fn ball(r: f64, c: [f64; 3]) -> AtRestBody<f64> {
 fn polar_ball(r: f64, c: [f64; 3]) -> AtRestBody<f64> {
     let k = Vec3::new(TILT.cos(), 0.0, -TILT.sin());
     let turn = Affine3::rotation_about_axis(Point3::from_array(c), k, core::f64::consts::FRAC_PI_2);
-    let ball =
-        topo::transform_rigid(&ball(r, c), &turn, Tol::witness()).expect("a rotation is rigid");
+    let ball = topo::transform_rigid(
+        &ball(r, c),
+        &geom_core::RigidMotion::check_rigid(
+            &turn,
+            geom_core::Band::linear(Tol::witness()).unwrap(),
+        )
+        .unwrap(),
+        Tol::witness(),
+    )
+    .expect("a rotation is rigid");
     finished("the polar ball", ball, Tol::witness())
 }
 

@@ -16,7 +16,7 @@
 //! degenerate case ([`PoseConstruction`]).
 
 use geom_brep::OutwardNormal;
-use geom_core::{Decide, RigidMotion, Point3, Tol, UnitVec3, UnitVec3Error, Vec3};
+use geom_core::{Decide, Point3, RigidMotion, Tol, UnitVec3, UnitVec3Error, Vec3};
 use topo::DATUM_UNIT_NORM;
 
 use super::{

@@ -39,7 +39,13 @@ fn keeled(s: f64, turn: f64) -> Body<f64> {
         tol(),
     );
     let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), turn.to_radians());
-    let v = transform_rigid(&v, &turn, tol()).unwrap();
+    let v = transform_rigid(
+        &v,
+        &geom_core::RigidMotion::check_rigid(&turn, geom_core::Band::linear(tol()).unwrap())
+            .unwrap(),
+        tol(),
+    )
+    .unwrap();
     match subtract(
         &finished("the annulus", ring, tol()),
         &finished("the V", v, tol()),

@@ -794,8 +794,10 @@ pub fn import_step(
                                 source: topo::TransformError::Band(source),
                             }
                         })?;
-                        let motion = geom_core::RigidMotion::check_rigid(&map, band)
-                            .map_err(|source| StepImportError::PlacementMap { transform, source })?;
+                        let motion =
+                            geom_core::RigidMotion::check_rigid(&map, band).map_err(|source| {
+                                StepImportError::PlacementMap { transform, source }
+                            })?;
                         topo::transform_rigid(&one, &motion, tol)
                             .map_err(|source| StepImportError::Placement { transform, source })?
                     }

@@ -74,7 +74,12 @@ fn ball_at(r: f64, centre: Vec3<f64>) -> Body<f64> {
     let ball = revolve(&vp, axis, Revolution::Full, Tol::witness())
         .unwrap()
         .body;
-    topo::transform_rigid(&ball, &Affine3::translation(centre), Tol::witness()).unwrap()
+    topo::transform_rigid(
+        &ball,
+        &geom_core::RigidMotion::translation(centre).unwrap(),
+        Tol::witness(),
+    )
+    .unwrap()
 }
 
 /// The re-posed twin's map, off every axis plane.
@@ -87,7 +92,16 @@ fn twin_map() -> Affine3<f64> {
 }
 
 fn posed(b: &Body<f64>) -> Body<f64> {
-    topo::transform_rigid(b, &twin_map(), Tol::witness()).unwrap()
+    topo::transform_rigid(
+        b,
+        &geom_core::RigidMotion::check_rigid(
+            &twin_map(),
+            geom_core::Band::linear(Tol::witness()).unwrap(),
+        )
+        .unwrap(),
+        Tol::witness(),
+    )
+    .unwrap()
 }
 
 /// The coaxial fixture, direct and re-posed: `r = 1`, `R = 1.5`, the
@@ -292,7 +306,11 @@ fn a_ball_scraping_the_wall_refuses_at_the_section_pass() {
         );
     let s = topo::transform_rigid(
         &ball_at(0.5, Vec3::new(0.0, 0.0, 0.0)),
-        &poled_z,
+        &geom_core::RigidMotion::check_rigid(
+            &poled_z,
+            geom_core::Band::linear(Tol::witness()).unwrap(),
+        )
+        .unwrap(),
         Tol::witness(),
     )
     .unwrap();

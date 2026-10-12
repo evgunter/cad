@@ -11,7 +11,7 @@
 use crate::mate2_common;
 
 use crate::common::three_arc;
-use geom_core::{RigidMotion, Point2, Point3, Tol, Vec2};
+use geom_core::{Point2, Point3, RigidMotion, Tol, Vec2};
 use mate2_common::*;
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 use sweep::test_support::{extruded, finished};

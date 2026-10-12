@@ -152,10 +152,14 @@ fn dome_bracket() -> AtRestBody<f64> {
     let e2 = Vec3::new(0.0, 0.75_f64.sqrt(), -0.5);
     let foot = topo::transform_rigid(
         &boxed((-0.55, 0.55), (-0.6, 1.2), (0.95, 1.3)),
-        &Affine3::from_parts(
-            Mat3::from_cols(Vec3::unit_x(), e2, u),
-            Vec3::new(0.0, 0.0, 0.0),
-        ),
+        &geom_core::RigidMotion::check_rigid(
+            &Affine3::from_parts(
+                Mat3::from_cols(Vec3::unit_x(), e2, u),
+                Vec3::new(0.0, 0.0, 0.0),
+            ),
+            geom_core::Band::linear(Tol::witness()).unwrap(),
+        )
+        .unwrap(),
         Tol::witness(),
     )
     .expect("the foot tilts");

@@ -388,7 +388,13 @@ fn the_sealed_island_request_builds_at_every_pose() {
     req.extend(box_edges(&body, 1.05, 2.95));
     let want = 64.0 - rounded_box_volume(1.5, 0.25) + rounded_box_volume(1.4, 0.25);
     for (name, map) in crate::common::poses::poses() {
-        let posed = topo::transform_rigid(&body, &map, tol()).unwrap();
+        let posed = topo::transform_rigid(
+            &body,
+            &geom_core::RigidMotion::check_rigid(&map, geom_core::Band::linear(tol()).unwrap())
+                .unwrap(),
+            tol(),
+        )
+        .unwrap();
         let out = fillet_edges(
             &sweep::test_support::at_rest(&posed, tol()),
             &req,

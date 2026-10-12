@@ -20,7 +20,7 @@ use sweep::ExtrudeSide;
 use geom::Surface;
 use geom_brep::{EdgeDescription, newell_plane};
 use geom_core::Tol;
-use geom_core::{Band, RigidMotion, Point2, Point3, Real, Vec3};
+use geom_core::{Band, Point2, Point3, Real, RigidMotion, Vec3};
 use profile::{
     LoopRole, Profile, ProfileLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop,
 };

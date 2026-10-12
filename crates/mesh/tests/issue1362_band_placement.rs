@@ -23,7 +23,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{RigidMotion, Point2, Point3, Tol, Vec2};
+use geom_core::{Point2, Point3, RigidMotion, Tol, Vec2};
 use mesh::tessellate;
 use mesh::validate::{check_mesh, signed_volume};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};

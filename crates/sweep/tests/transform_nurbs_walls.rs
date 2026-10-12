@@ -151,8 +151,16 @@ fn a_described_nurbs_walled_body_maps_to_its_exact_image() {
     let body = lofted.body;
     let map = quarter_turn_aside();
 
-    let moved = topo::transform_rigid(&body, &map, Tol::witness())
-        .expect("a described-NURBS-walled body is movable");
+    let moved = topo::transform_rigid(
+        &body,
+        &geom_core::RigidMotion::check_rigid(
+            &map,
+            geom_core::Band::linear(Tol::witness()).unwrap(),
+        )
+        .unwrap(),
+        Tol::witness(),
+    )
+    .expect("a described-NURBS-walled body is movable");
 
     // The arenas are key-stable (transform_rigid's contract), so the
     // two nets are compared entry for entry under the same key.
@@ -189,8 +197,16 @@ fn a_rational_walled_body_maps_to_its_exact_image() {
     let body = lofted.body;
     let map = awkward();
 
-    let moved = topo::transform_rigid(&body, &map, Tol::witness())
-        .expect("a rational-walled body is movable");
+    let moved = topo::transform_rigid(
+        &body,
+        &geom_core::RigidMotion::check_rigid(
+            &map,
+            geom_core::Band::linear(Tol::witness()).unwrap(),
+        )
+        .unwrap(),
+        Tol::witness(),
+    )
+    .expect("a rational-walled body is movable");
 
     let (walls, rational) = check_walls(&body, &moved, &map);
     assert!(walls > 0, "the arc loft grew no described NURBS walls");
@@ -208,8 +224,16 @@ fn a_nurbs_carrier_maps_to_its_exact_image() {
     let lofted = loft_body::<f64>(&sections, &places, 2, Tol::witness()).expect("the loft builds");
     let body = lofted.body;
     let map = quarter_turn_aside();
-    let moved = topo::transform_rigid(&body, &map, Tol::witness())
-        .expect("a described-NURBS-walled body is movable");
+    let moved = topo::transform_rigid(
+        &body,
+        &geom_core::RigidMotion::check_rigid(
+            &map,
+            geom_core::Band::linear(Tol::witness()).unwrap(),
+        )
+        .unwrap(),
+        Tol::witness(),
+    )
+    .expect("a described-NURBS-walled body is movable");
 
     let mut carriers = 0usize;
     for (key, before) in body.curves() {

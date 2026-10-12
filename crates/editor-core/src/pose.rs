@@ -13,7 +13,7 @@
 //! [`Subgroup`] the mates fold is the one a pose is known up to, read
 //! here once ([`crate::VarKind::symmetry`] names its family).
 
-use geom_core::linalg::{RigidMotion, Point3, UnitVec3};
+use geom_core::linalg::{Point3, RigidMotion, UnitVec3};
 use geom_core::predicate::{Band, Indeterminate, Margin, Sign};
 use geom_core::{Decide, Real};
 

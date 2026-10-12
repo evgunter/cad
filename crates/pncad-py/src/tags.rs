@@ -1460,6 +1460,7 @@ pub fn revolve_error_tag(err: &RevolveError) -> &'static str {
         RevolveError::UnderflowedAxis => "underflowed_axis",
         RevolveError::DegenerateAxis => "degenerate_axis",
         RevolveError::AxisEscalated { .. } => "axis_escalated",
+        RevolveError::Turn(_) => "turn",
         RevolveError::DegenerateAngle => "degenerate_angle",
         RevolveError::FullRangeAngle => "full_range_angle",
         RevolveError::AngleEscalated { .. } => "angle_escalated",

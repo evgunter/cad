@@ -1465,7 +1465,7 @@ mod tests {
         .body;
         let ball = topo::transform_rigid(
             &ball,
-            &Affine3::translation(Vec3::new(2.0, 2.0, 1.2)),
+            &geom_core::RigidMotion::translation(Vec3::new(2.0, 2.0, 1.2)).unwrap(),
             Tol::witness(),
         )
         .unwrap();
@@ -1551,7 +1551,15 @@ mod tests {
                 skipped.push(why);
                 continue;
             }
-            match topo::transform_rigid(&b, &placement, Tol::witness()) {
+            match topo::transform_rigid(
+                &b,
+                &geom_core::RigidMotion::check_rigid(
+                    &placement,
+                    geom_core::Band::linear(Tol::witness()).unwrap(),
+                )
+                .unwrap(),
+                Tol::witness(),
+            ) {
                 Ok(placed) => out.push((i, placed)),
                 Err(e) => skipped.push(format!("edge {i}: transform_rigid {e:?}")),
             }
@@ -2190,7 +2198,16 @@ mod tests {
             Affine3::rotation_about_axis(Point3::origin(), irr, 1.0 / 3.0).linear,
             Vec3::new(0.117, -0.339_1, 5.001_7),
         );
-        topo::transform_rigid(&body, &placement, Tol::witness()).unwrap()
+        topo::transform_rigid(
+            &body,
+            &geom_core::RigidMotion::check_rigid(
+                &placement,
+                geom_core::Band::linear(Tol::witness()).unwrap(),
+            )
+            .unwrap(),
+            Tol::witness(),
+        )
+        .unwrap()
     }
 
     /// **THE REGRESSION ROW (issue #653).** This body meshed

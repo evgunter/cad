@@ -38,7 +38,7 @@ use std::sync::Mutex;
 
 use geom_core::k_stats::{Detached, detached, splice};
 use geom_core::linalg::frame::{FrameError, FrameInput, FrameVector};
-use geom_core::linalg::{Affine3, Mat3, RigidMotion, Point3, UnitVec3, UnitVec3Error, Vec3};
+use geom_core::linalg::{Affine3, Mat3, Point3, RigidMotion, UnitVec3, UnitVec3Error, Vec3};
 use geom_core::predicate::Band;
 use geom_core::{Decide, Real, Tol};
 

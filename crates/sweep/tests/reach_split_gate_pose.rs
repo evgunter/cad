@@ -281,7 +281,16 @@ fn probe() {
             for (pose, map) in poses(s) {
                 let posed = finished(
                     "the posed body",
-                    transform_rigid(&body, &map, Tol::witness()).unwrap(),
+                    transform_rigid(
+                        &body,
+                        &geom_core::RigidMotion::check_rigid(
+                            &map,
+                            geom_core::Band::linear(Tol::witness()).unwrap(),
+                        )
+                        .unwrap(),
+                        Tol::witness(),
+                    )
+                    .unwrap(),
                     Tol::witness(),
                 );
                 let mut t = Tally::default();
@@ -429,7 +438,15 @@ fn a_cut_clear_of_the_face_splits_in_every_pose() {
             let d = lo - 1e-3 * s - 100.0 * Tol::witness().eps();
             for (pose, map) in &poses(s)[pose_set.clone()] {
                 let tol = Tol::witness();
-                let posed = match transform_rigid(&body, map, tol) {
+                let posed = match transform_rigid(
+                    &body,
+                    &geom_core::RigidMotion::check_rigid(
+                        map,
+                        geom_core::Band::linear(tol).unwrap(),
+                    )
+                    .unwrap(),
+                    tol,
+                ) {
                     Ok(posed) => finished("the posed body", posed, tol),
                     Err(e) if tol.eps() < geom_core::tolerance::DEFAULT_EPS => {
                         test_utils::vacuity::stood_down(
@@ -506,7 +523,16 @@ fn a_cut_into_the_face_refuses_in_every_pose() {
         for (pose, map) in poses(s) {
             let posed = finished(
                 "the posed body",
-                transform_rigid(&body, &map, Tol::witness()).unwrap(),
+                transform_rigid(
+                    &body,
+                    &geom_core::RigidMotion::check_rigid(
+                        &map,
+                        geom_core::Band::linear(Tol::witness()).unwrap(),
+                    )
+                    .unwrap(),
+                    Tol::witness(),
+                )
+                .unwrap(),
                 Tol::witness(),
             );
             for &(cut, plane) in &cuts {

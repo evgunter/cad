@@ -4044,7 +4044,12 @@ mod stepped_operand_tests {
             for i in 1..6 {
                 assert_eq!(
                     bits(mirrored(i).components()),
-                    bits(stepped_rule_map(&followed, i).components()),
+                    bits(
+                        stepped_rule_map(&followed, i)
+                            .unwrap()
+                            .to_affine()
+                            .components()
+                    ),
                     "copy {i} of {reversed:?} lands where the negative spacing put it"
                 );
             }

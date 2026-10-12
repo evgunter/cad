@@ -221,7 +221,9 @@ fn an_authored_frames_value_carries_its_f64_placement() {
 /// by hand: the oracle for a frame whose origin is a PARAMETER, which
 /// `fixture::plane_of` (literals only) cannot read.
 fn shared_frame_plane(lift: f64) -> profile::SketchPlane<f64> {
-    profile::SketchPlane::from_frame(RigidMotion::axes_yz(geom_core::Point3::new(2.0, -3.0, lift)))
+    profile::SketchPlane::from_frame(RigidMotion::axes_yz(geom_core::Point3::new(
+        2.0, -3.0, lift,
+    )))
 }
 
 /// Row 2 — the carry follows the parameter that drives the frame, and

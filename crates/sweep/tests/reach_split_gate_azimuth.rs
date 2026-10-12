@@ -420,12 +420,17 @@ fn posed_bodies(f: &Fixture, s: f64) -> Vec<(&'static str, Affine3<f64>, AtRestB
     poses(s)
         .into_iter()
         .filter_map(|(pose, map)| {
-            let at_rest = transform_rigid(&body, &map, tol)
-                .map_err(|e| format!("posing it refused ({e})"))
-                .and_then(|posed| {
-                    <f64 as topo::AtRestPolicy>::gate_at_rest_kept(posed, tol)
-                        .map_err(|e| format!("the posed body is not finished ({e:?})"))
-                });
+            let at_rest = transform_rigid(
+                &body,
+                &geom_core::RigidMotion::check_rigid(&map, geom_core::Band::linear(tol).unwrap())
+                    .unwrap(),
+                tol,
+            )
+            .map_err(|e| format!("posing it refused ({e})"))
+            .and_then(|posed| {
+                <f64 as topo::AtRestPolicy>::gate_at_rest_kept(posed, tol)
+                    .map_err(|e| format!("the posed body is not finished ({e:?})"))
+            });
             match at_rest {
                 Ok(posed) => Some((pose, map, posed)),
                 Err(e) if tol.eps() < geom_core::tolerance::DEFAULT_EPS => {

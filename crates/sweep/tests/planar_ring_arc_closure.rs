@@ -233,7 +233,13 @@ fn prism(shape: &Shape, pose: &Affine3<f64>, stations: &[Point2<f64>]) -> AtRest
     }
     finished(
         "the prism",
-        topo::transform_rigid(&upright, pose, tol).unwrap(),
+        topo::transform_rigid(
+            &upright,
+            &geom_core::RigidMotion::check_rigid(pose, geom_core::Band::linear(tol).unwrap())
+                .unwrap(),
+            tol,
+        )
+        .unwrap(),
         tol,
     )
 }

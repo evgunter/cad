@@ -29,7 +29,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;
-use geom_core::{Decide, RigidMotion, Point2, Point3};
+use geom_core::{Decide, Point2, Point3, RigidMotion};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
 use sweep::ExtrudeSide;

@@ -13,7 +13,7 @@
     clippy::float_cmp
 )]
 
-use geom_core::{Affine3, Tol, Vec3};
+use geom_core::{Tol, Vec3};
 use sweep::test_support::{block, brick};
 use topo::{Body, FaceKey, ShellKey, SolidKey};
 
@@ -234,7 +234,7 @@ fn r1_a_part_inside_another_solids_void() {
     let mut body = hollow_box();
     let placed = topo::transform_rigid(
         &inner,
-        &Affine3::translation(Vec3::new(0.0, 0.0, 0.0)),
+        &geom_core::RigidMotion::translation(Vec3::new(0.0, 0.0, 0.0)).unwrap(),
         tol(),
     )
     .expect("identity");

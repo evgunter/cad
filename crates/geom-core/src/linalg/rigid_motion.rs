@@ -578,7 +578,10 @@ impl<T: Real> RigidMotion<T> {
             return Err(RigidMotionError::NonFinite(MotionPart::Angle));
         }
         let origin = finite(at(t), MotionPart::Translation)?;
-        Ok(Self::from_linear(Mat3::rotation_about_unit(axis, angle), origin))
+        Ok(Self::from_linear(
+            Mat3::rotation_about_unit(axis, angle),
+            origin,
+        ))
     }
 
     /// **The rotation by `angle` radians about the axis through
@@ -621,10 +624,7 @@ impl<T: Real> RigidMotion<T> {
     /// [`RigidMotionError::NonFinite`] naming [`MotionPart::Product`]
     /// when the composed origin overflows.
     pub fn compose(self, inner: Self) -> Result<Self, RigidMotionError> {
-        let origin = finite(
-            self.transform_point(inner.origin),
-            MotionPart::Product,
-        )?;
+        let origin = finite(self.transform_point(inner.origin), MotionPart::Product)?;
         Ok(Self {
             origin,
             u: self.turn(inner.u),
@@ -1242,7 +1242,11 @@ mod motion_rows {
         for angle in [0.0, 0.3, -1.7, core::f64::consts::PI, 5.0] {
             let p = Point3::new(1.5, -0.25, 3.0);
             assert_eq!(
-                bits12(&RigidMotion::rotation_about_axis(p, z, angle).unwrap().to_affine()),
+                bits12(
+                    &RigidMotion::rotation_about_axis(p, z, angle)
+                        .unwrap()
+                        .to_affine()
+                ),
                 bits12(&Affine3::rotation_about_axis(p, Vec3::unit_z(), angle)),
                 "about an axis through {p:?} at {angle}"
             );
@@ -1316,11 +1320,7 @@ mod motion_rows {
             })
         ));
         let skew = Affine3::from_parts(
-            Mat3::from_cols(
-                Vec3::unit_x(),
-                Vec3::new(0.6, 0.8, 0.0),
-                Vec3::unit_z(),
-            ),
+            Mat3::from_cols(Vec3::unit_x(), Vec3::new(0.6, 0.8, 0.0), Vec3::unit_z()),
             Vec3::zero(),
         );
         assert!(matches!(
@@ -1368,7 +1368,11 @@ mod motion_rows {
             0.9,
         );
         let admitted = RigidMotion::check_rigid(&turn, band()).expect("a rotation is rigid");
-        assert_eq!(bits12(&admitted.to_affine()), bits12(&turn), "carried verbatim");
+        assert_eq!(
+            bits12(&admitted.to_affine()),
+            bits12(&turn),
+            "carried verbatim"
+        );
     }
 
     /// **A rotation by a widened angle is a witness, where the decided

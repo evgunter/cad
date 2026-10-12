@@ -130,7 +130,7 @@ fn a_producers_closing_mint_re_derives_the_projected_row() {
     }
     let moved = topo::transform_rigid(
         &built.body,
-        &geom_core::Affine3::translation(geom_core::Vec3::new(0.25, -0.5, 1.0)),
+        &geom_core::RigidMotion::translation(geom_core::Vec3::new(0.25, -0.5, 1.0)).unwrap(),
         Tol::witness(),
     )
     .unwrap();

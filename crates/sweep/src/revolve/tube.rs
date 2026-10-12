@@ -59,7 +59,7 @@
 use geom_core::k_stats::decide;
 use geom_core::predicate::BandError;
 use geom_core::{
-    Affine3, Band, Decide, Indeterminate, Margin, Mat3, RigidMotion, Point2, Point3, Real, Sign,
+    Affine3, Band, Decide, Indeterminate, Margin, Mat3, Point2, Point3, Real, RigidMotion, Sign,
     Tol, Vec2,
 };
 

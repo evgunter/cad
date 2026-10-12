@@ -2962,16 +2962,19 @@ NOT_BOUND = {
     # one. The refusal crosses as `coincident_shell` plus prose, and the
     # prose names the shortfall.
     "ShellOrientation": INTERIOR,
-    # The frame WITNESS — an origin and a right-handed orthonormal
-    # triple, minted where its axes were decided. Python never holds
-    # one: `SketchPlane.from_frame` takes the two directions a caller
-    # means and mints the frame behind the door, and `Node.tube` /
+    # The rigid-motion WITNESS — a frame's origin and right-handed
+    # orthonormal triple, minted where its axes were decided or by a
+    # construction that keeps it rigid. Python never holds one:
+    # `SketchPlane.from_frame` takes the two directions a caller means
+    # and mints the frame behind the door, `Node.tube` /
     # `Node.hollow_tube` take the spine datum and a reference triple
-    # and mint it at `evaluate`. What crosses is the refusal when the
-    # pair spans no plane (`FrameError.variant`, `ortho_frame_error_tag`
-    # / `degenerate_direction`) and the placement the frame becomes
-    # (`SketchPlane`'s four accessors) — never the witness itself.
-    "OrthoFrame": INTERIOR,
+    # and mint it at `evaluate`, and a placement's steps are minted or
+    # decided at `evaluate`. What crosses is the refusal when the pair
+    # spans no plane (`FrameError.variant`, `ortho_frame_error_tag` /
+    # `degenerate_direction`), a placement's motion refusal (`motion`),
+    # and the placement the frame becomes (`SketchPlane`'s four
+    # accessors) — never the witness itself.
+    "RigidMotion": INTERIOR,
     # The evaluation environment, and the entry that had been on the
     # WRONG side of the line: it was listed as a `G1` gap on the
     # reasoning that "`select_where` takes one, so a caller who cannot

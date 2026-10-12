@@ -37,7 +37,16 @@ fn two_cubes(dx: f64) -> topo::Body<f64> {
     let mut dst = geometric_cube::<f64>(Tol::witness()).body;
     describe_as_intersections(&mut dst, Tol::witness());
     let map = Affine3::translation(Vec3::new(dx, 0.0, 0.0));
-    let placed = topo::transform_rigid(&src, &map, Tol::witness()).expect("a rigid map");
+    let placed = topo::transform_rigid(
+        &src,
+        &geom_core::RigidMotion::check_rigid(
+            &map,
+            geom_core::Band::linear(Tol::witness()).unwrap(),
+        )
+        .unwrap(),
+        Tol::witness(),
+    )
+    .expect("a rigid map");
     topo::graft_disjoint(&mut dst, &placed).expect("a placed graft");
     dst
 }
@@ -49,7 +58,16 @@ fn three_cubes() -> topo::Body<f64> {
     let mut src = geometric_cube::<f64>(Tol::witness()).body;
     describe_as_intersections(&mut src, Tol::witness());
     let map = Affine3::translation(Vec3::new(20.0, 0.0, 0.0));
-    let placed = topo::transform_rigid(&src, &map, Tol::witness()).expect("a rigid map");
+    let placed = topo::transform_rigid(
+        &src,
+        &geom_core::RigidMotion::check_rigid(
+            &map,
+            geom_core::Band::linear(Tol::witness()).unwrap(),
+        )
+        .unwrap(),
+        Tol::witness(),
+    )
+    .expect("a rigid map");
     topo::graft_disjoint(&mut dst, &placed).expect("a placed graft");
     dst
 }

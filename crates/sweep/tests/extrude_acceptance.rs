@@ -14,7 +14,7 @@ use sweep::ExtrudeSide;
 use geom::Surface;
 use geom_brep::{EdgeDescription, newell_plane};
 use geom_core::Tol;
-use geom_core::{Band, RigidMotion, Point2, Point3, Vec3};
+use geom_core::{Band, Point2, Point3, RigidMotion, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop};
 use sweep::{ExtrudeError, Extruded, Extrusion, extrude};
 use topo::readback::{EulerCounts, euler_counts};

@@ -54,7 +54,17 @@ fn widening() -> AtRestBody<f64> {
 
 fn posed(what: &str, raw: Body<f64>, pose: Affine3<f64>) -> AtRestBody<f64> {
     let tol = Tol::witness();
-    finished(what, topo::transform_rigid(&raw, &pose, tol).unwrap(), tol)
+    finished(
+        what,
+        topo::transform_rigid(
+            &raw,
+            &geom_core::RigidMotion::check_rigid(&pose, geom_core::Band::linear(tol).unwrap())
+                .unwrap(),
+            tol,
+        )
+        .unwrap(),
+        tol,
+    )
 }
 
 /// C1's cutting plane: through `(0, 0.5, 0)`, its normal `+y` turned

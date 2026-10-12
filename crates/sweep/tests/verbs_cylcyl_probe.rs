@@ -155,11 +155,15 @@ fn cylinder_unions_glue_their_coincidences_and_steinmetz_refuses_at_the_pierce()
     }
     let turned = topo::transform_rigid(
         &cyl(0.0, 0.0, 1.0, -2.0, 2.0),
-        &Affine3::rotation_about_axis(
-            Point3::new(0.0, 0.0, 0.0),
-            Vec3::new(1.0, 0.0, 0.0),
-            PI / 2.0,
-        ),
+        &geom_core::RigidMotion::check_rigid(
+            &Affine3::rotation_about_axis(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+                PI / 2.0,
+            ),
+            geom_core::Band::linear(tol).unwrap(),
+        )
+        .unwrap(),
         tol,
     )
     .unwrap();
@@ -354,9 +358,18 @@ fn crossing_pair_without_edge_events() -> (Body<f64>, Body<f64>) {
         Vec3::new(0.0, 1.0, 0.0),
         PI / 2.0,
     );
-    let lie = topo::transform_rigid(&rod, &turn, tol).unwrap();
-    let b =
-        topo::transform_rigid(&lie, &Affine3::translation(Vec3::new(0.0, 1.5, 5.0)), tol).unwrap();
+    let lie = topo::transform_rigid(
+        &rod,
+        &geom_core::RigidMotion::check_rigid(&turn, geom_core::Band::linear(tol).unwrap()).unwrap(),
+        tol,
+    )
+    .unwrap();
+    let b = topo::transform_rigid(
+        &lie,
+        &geom_core::RigidMotion::translation(Vec3::new(0.0, 1.5, 5.0)).unwrap(),
+        tol,
+    )
+    .unwrap();
     (a, b)
 }
 

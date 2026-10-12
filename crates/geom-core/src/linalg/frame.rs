@@ -137,7 +137,7 @@
 //! typestate; here the ladder applies). Sharing the words is the whole
 //! win; sharing an abstraction would cost a layer.
 
-use crate::linalg::{Affine3, Mat3, RigidMotion, Point3, UnitVec3, UnitVec3Error, Vec3};
+use crate::linalg::{Affine3, Mat3, Point3, RigidMotion, UnitVec3, UnitVec3Error, Vec3};
 use crate::predicate::{Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate};
 
 use crate::tolerance::Tol;

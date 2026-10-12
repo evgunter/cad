@@ -93,7 +93,13 @@ pub fn onto_y(body: &Body<f64>) -> Body<f64> {
         Vec3::new(1.0, 0.0, 0.0),
         -core::f64::consts::FRAC_PI_2,
     );
-    topo::transform_rigid(body, &up, Tol::witness()).unwrap()
+    topo::transform_rigid(
+        body,
+        &geom_core::RigidMotion::check_rigid(&up, geom_core::Band::linear(Tol::witness()).unwrap())
+            .unwrap(),
+        Tol::witness(),
+    )
+    .unwrap()
 }
 
 pub fn peg(z0: f64, h: f64) -> Body<f64> {

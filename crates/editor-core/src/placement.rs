@@ -265,7 +265,10 @@ impl Frame {
     /// # Errors
     ///
     /// The decided door's refusal.
-    pub(crate) fn rigid_motion<T: Decide>(&self, band: Band) -> Result<Motion<T>, RigidMotionError> {
+    pub(crate) fn rigid_motion<T: Decide>(
+        &self,
+        band: Band,
+    ) -> Result<Motion<T>, RigidMotionError> {
         if self.is_identity_bits() {
             Ok(Motion::Identity)
         } else {
@@ -512,9 +515,10 @@ impl<T: Real> Motion<T> {
     pub(crate) fn compose(self, inner: Self) -> Self {
         match (self, inner) {
             (Self::Identity, other) | (other, Self::Identity) => other,
-            (Self::Rigid(outer), Self::Rigid(inner)) => outer
-                .compose(inner)
-                .map_or_else(|_| Self::Map(outer.to_affine() * inner.to_affine()), Self::Rigid),
+            (Self::Rigid(outer), Self::Rigid(inner)) => outer.compose(inner).map_or_else(
+                |_| Self::Map(outer.to_affine() * inner.to_affine()),
+                Self::Rigid,
+            ),
             (outer, inner) => Self::Map(outer.affine() * inner.affine()),
         }
     }
@@ -1170,7 +1174,9 @@ mod tests {
                 )
                 .expect("a definite axis"),
                 angle,
-            );
+            )
+            .expect("a finite angle and translation")
+            .to_affine();
             assert_eq!(motion_bits(&got), motion_bits(&want), "axis {axis:?}");
         }
     }

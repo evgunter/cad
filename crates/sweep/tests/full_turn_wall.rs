@@ -21,7 +21,7 @@
 
 use crate::common::approx::band;
 use geom::Surface;
-use geom_core::{RigidMotion, Point2, Point3, Tol, Vec2, Vec3};
+use geom_core::{Point2, Point3, RigidMotion, Tol, Vec2, Vec3};
 use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{

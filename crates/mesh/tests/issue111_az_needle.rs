@@ -20,7 +20,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;
-use geom_core::{RigidMotion, Point2, Point3};
+use geom_core::{Point2, Point3, RigidMotion};
 use mesh::tessellate;
 use mesh::validate::{check_mesh, signed_volume};
 use profile::RawLoop;

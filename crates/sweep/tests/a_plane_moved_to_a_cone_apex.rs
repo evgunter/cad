@@ -619,13 +619,23 @@ fn frustum_and_virtual_apex_box(apex_y: f64, pose: &Affine3<f64>) -> [(AtRestBod
         .expect("the meridian revolves")
         .body;
     frustum.merge_coplanar_faces(tol).unwrap();
-    let frustum = topo::transform_rigid(&frustum, pose, tol).unwrap();
+    let frustum = topo::transform_rigid(
+        &frustum,
+        &geom_core::RigidMotion::check_rigid(pose, geom_core::Band::linear(tol).unwrap()).unwrap(),
+        tol,
+    )
+    .unwrap();
     let apex = Point3::new(0.0, apex_y, 0.0);
     let turn = *pose
         * Affine3::rotation_about_axis(apex, Vec3::new(0.0, 0.0, 1.0), 1e-6 - FRAC_PI_6)
         * Affine3::translation(apex - Point3::origin());
     let bx = [(0.0, 2.0), (-2.0, 2.0), (-2.0, 2.0)];
-    let boxed = topo::transform_rigid(&brick(bx[0], bx[1], bx[2], tol), &turn, tol).unwrap();
+    let boxed = topo::transform_rigid(
+        &brick(bx[0], bx[1], bx[2], tol),
+        &geom_core::RigidMotion::check_rigid(&turn, geom_core::Band::linear(tol).unwrap()).unwrap(),
+        tol,
+    )
+    .unwrap();
     [
         (
             finished("the frustum", frustum, tol),

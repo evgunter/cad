@@ -1,8 +1,8 @@
 //! Adversarial review of `topo::transform_rigid` (M4 PR 2, R1):
-//! certificate honesty under rotation composition, the rigidity door's
-//! band behavior (including non-finite translations, which the linear
-//! rigidity checks cannot see), bit-level key/topology stability, and
-//! determinism.
+//! certificate honesty under rotation composition, the decided rigidity
+//! door's band behavior (including non-finite translations, which the
+//! linear rigidity checks cannot see), bit-level key/topology
+//! stability, and determinism.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
@@ -11,7 +11,7 @@ use std::f64::consts::{FRAC_PI_2, FRAC_PI_3};
 
 use common::{brick, describe_as_intersections};
 use geom_core::Tol;
-use geom_core::{Affine3, Mat3, Vec3};
+use geom_core::{Affine3, Band, Mat3, MotionPart, RigidMotion, RigidMotionError, Vec3};
 use topo::{
     Body, TransformError, mass_properties, transform_rigid, validate, validate_closed,
     validate_geometric,
@@ -23,49 +23,48 @@ fn tiers_ok(b: &Body<f64>) {
     assert_eq!(validate_geometric(b, Tol::witness()), Ok(()));
 }
 
-/// R1b: a NaN or infinite TRANSLATION passes the linear rigidity door
-/// untouched (check_rigid reads only `map.linear`); the op must still
-/// refuse typed — never return Ok with poisoned points.
+/// R1b: a NaN or infinite TRANSLATION never reaches the body door: the
+/// translation mint refuses it by name, and so does the decided door
+/// for a raw map carrying it — never a motion with poisoned points.
 #[test]
 fn non_finite_translation_is_refused_not_laundered() {
-    let b = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
-    for t in [
-        Vec3::new(f64::NAN, 0.0, 0.0),
-        Vec3::new(0.0, f64::INFINITY, 0.0),
-        Vec3::new(0.0, 0.0, f64::NEG_INFINITY),
+    let band = Band::linear(Tol::witness()).unwrap();
+    for (t, check) in [
+        (
+            Vec3::new(f64::NAN, 0.0, 0.0),
+            "transform_rigid_trans_finite_x",
+        ),
+        (
+            Vec3::new(0.0, f64::INFINITY, 0.0),
+            "transform_rigid_trans_finite_y",
+        ),
+        (
+            Vec3::new(0.0, 0.0, f64::NEG_INFINITY),
+            "transform_rigid_trans_finite_z",
+        ),
     ] {
-        match transform_rigid(&b, &Affine3::translation(t), Tol::witness()) {
-            Ok(out) => {
-                // If it slipped through, the result MUST still be a
-                // valid body — a NaN point cloud here is a laundering
-                // bug (silent corruption).
-                panic!(
-                    "non-finite translation {t:?} returned Ok; first point {:?}",
-                    out.points().next()
-                );
-            }
-            Err(e) => {
-                // Fix-pass tightening: the door now refuses with the
-                // named finiteness predicate, not the oblique
-                // certification path.
-                assert!(
-                    format!("{e:?}").contains("NonFiniteMap"),
-                    "expected the door-side finiteness refusal, got {e:?}"
-                );
-            }
-        }
+        assert_eq!(
+            RigidMotion::translation(t).map(|_| ()),
+            Err(RigidMotionError::NonFinite(MotionPart::Translation)),
+            "the mint names the translation {t:?}"
+        );
+        assert_eq!(
+            RigidMotion::check_rigid(&Affine3::translation(t), band).map(|_| ()),
+            Err(RigidMotionError::NonFiniteTranslation { check }),
+            "the decided door names the component of {t:?}"
+        );
     }
 }
 
-/// R1b: near-rigid maps around the band edges, with probes derived
-/// from the AMBIENT tolerance (valid on every gate ε row; the first
-/// draft hard-coded the 1e-9 default). Rounding-level defects (≤
-/// zero) are decided Zero and pass; in-band and definite defects
-/// refuse typed.
+/// R1b: near-rigid maps around the band edges at the decided door,
+/// with probes derived from the AMBIENT tolerance (valid on every gate
+/// ε row). Rounding-level defects (≤ zero) are decided Zero and pass;
+/// an in-band defect is UNDECIDED, and a definite one is not rigid.
 #[test]
 fn near_rigid_door_band_behavior() {
     let tol = geom_core::Tol::witness().get();
     let (eps, kesc) = (tol.eps, tol.eps * tol.k);
+    let band = Band::linear(Tol::witness()).unwrap();
     let b = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let with_c0x = |s: f64| {
         Affine3::from_parts(
@@ -79,29 +78,34 @@ fn near_rigid_door_band_behavior() {
     };
     // Rounding-level defect: col0 norm² off well below the zero band
     // — decided Zero, must PASS (a real rotation matrix carries this
-    // much noise). eps*1e-4 stays sub-band on every row while ≫ ulp.
-    assert!(
-        transform_rigid(&b, &with_c0x(1.0 + eps * 1e-4), Tol::witness()).is_ok(),
-        "rounding-level orthonormality noise must not refuse"
-    );
+    // much noise), and the admitted motion moves the body.
+    let admitted = RigidMotion::check_rigid(&with_c0x(1.0 + eps * 1e-4), band)
+        .expect("rounding-level orthonormality noise must not refuse");
+    assert!(transform_rigid(&b, &admitted, Tol::witness()).is_ok());
     // In-band defect (norm² between zero and escalate, geometric
-    // mean of the edges): maybe-rigid is not rigid — typed NotRigid.
+    // mean of the edges): maybe-rigid is not admitted, and the door
+    // says it is undecided rather than that the map is not rigid.
     let in_band = (eps * kesc).sqrt();
-    match transform_rigid(&b, &with_c0x(1.0 + in_band / 2.0), Tol::witness()) {
-        Err(TransformError::NotRigid { .. }) => {}
-        other => panic!("in-band defect: expected NotRigid, got {other:?}"),
+    match RigidMotion::check_rigid(&with_c0x(1.0 + in_band / 2.0), band) {
+        Err(RigidMotionError::Undecided {
+            check: "transform_rigid_col0_unit",
+            ..
+        }) => {}
+        other => panic!("in-band defect: expected Undecided, got {other:?}"),
     }
     // Past escalate: definite, refused.
-    match transform_rigid(&b, &with_c0x(1.0 + kesc * 2.0), Tol::witness()) {
-        Err(TransformError::NotRigid { .. }) => {}
+    match RigidMotion::check_rigid(&with_c0x(1.0 + kesc * 2.0), band) {
+        Err(RigidMotionError::NotRigid {
+            check: "transform_rigid_col0_unit",
+        }) => {}
         other => panic!("definite defect: expected NotRigid, got {other:?}"),
     }
     // Improper rotation built from an honest axis-angle then negated
     // column: det −1 with perfect columns.
     let r = Mat3::rotation_about(Vec3::new(0.0, 0.0, 1.0), FRAC_PI_3);
     let refl = Mat3::from_cols(r.c0, r.c1, Vec3::zero() - r.c2);
-    match transform_rigid(&b, &Affine3::from_parts(refl, Vec3::zero()), Tol::witness()) {
-        Err(TransformError::NotRigid { check }) => {
+    match RigidMotion::check_rigid(&Affine3::from_parts(refl, Vec3::zero()), band) {
+        Err(RigidMotionError::NotRigid { check }) => {
             assert_eq!(check, "transform_rigid_det_plus_one");
         }
         other => panic!("reflection: expected NotRigid(det), got {other:?}"),
@@ -118,8 +122,26 @@ fn transform_is_bit_deterministic() {
         Mat3::rotation_about(Vec3::new(1.0, 2.0, 3.0).normalize(), FRAC_PI_3),
         Vec3::new(0.1, -0.2, 0.3),
     );
-    let t1 = transform_rigid(&b, &map, Tol::witness()).unwrap();
-    let t2 = transform_rigid(&b, &map, Tol::witness()).unwrap();
+    let t1 = transform_rigid(
+        &b,
+        &geom_core::RigidMotion::check_rigid(
+            &map,
+            geom_core::Band::linear(Tol::witness()).unwrap(),
+        )
+        .unwrap(),
+        Tol::witness(),
+    )
+    .unwrap();
+    let t2 = transform_rigid(
+        &b,
+        &geom_core::RigidMotion::check_rigid(
+            &map,
+            geom_core::Band::linear(Tol::witness()).unwrap(),
+        )
+        .unwrap(),
+        Tol::witness(),
+    )
+    .unwrap();
     assert_eq!(
         arena_dump(&t1),
         arena_dump(&t2),
@@ -151,7 +173,15 @@ fn rotation_composition_keeps_witness_residuals_honest() {
             Mat3::rotation_about(axes[i % 4], FRAC_PI_3 + 0.01 * i as f64),
             Vec3::new(0.25, -0.5, 0.125),
         );
-        cur = match transform_rigid(&cur, &map, Tol::witness()) {
+        cur = match transform_rigid(
+            &cur,
+            &geom_core::RigidMotion::check_rigid(
+                &map,
+                geom_core::Band::linear(Tol::witness()).unwrap(),
+            )
+            .unwrap(),
+            Tol::witness(),
+        ) {
             Ok(t) => t,
             Err(e) => panic!("step {i}: typed refusal {e:?} — fail-loud but surprising"),
         };
@@ -180,7 +210,15 @@ fn long_thin_feature_transform_is_honest_either_way() {
         Mat3::rotation_about(Vec3::new(0.0, 0.0, 1.0), FRAC_PI_3),
         Vec3::zero(),
     );
-    match transform_rigid(&b, &map, Tol::witness()) {
+    match transform_rigid(
+        &b,
+        &geom_core::RigidMotion::check_rigid(
+            &map,
+            geom_core::Band::linear(Tol::witness()).unwrap(),
+        )
+        .unwrap(),
+        Tol::witness(),
+    ) {
         Ok(t) => {
             tiers_ok(&t);
             let m0 = mass_properties(&b, Tol::witness()).unwrap();
@@ -213,7 +251,15 @@ fn extreme_scale_fires_the_certify_door_or_stays_valid() {
         Mat3::rotation_about(Vec3::new(0.0, 0.0, 1.0), FRAC_PI_3),
         Vec3::zero(),
     );
-    match transform_rigid(&b, &map, Tol::witness()) {
+    match transform_rigid(
+        &b,
+        &geom_core::RigidMotion::check_rigid(
+            &map,
+            geom_core::Band::linear(Tol::witness()).unwrap(),
+        )
+        .unwrap(),
+        Tol::witness(),
+    ) {
         Ok(t) => {
             eprintln!("1e9 scale took the Ok path");
             tiers_ok(&t);
@@ -259,7 +305,16 @@ fn keys_and_topology_are_bit_stable_under_rotation() {
         Mat3::rotation_about(Vec3::new(0.0, 1.0, 0.0), FRAC_PI_2),
         Vec3::new(-3.0, 7.0, 0.5),
     );
-    let t = transform_rigid(&b, &map, Tol::witness()).unwrap();
+    let t = transform_rigid(
+        &b,
+        &geom_core::RigidMotion::check_rigid(
+            &map,
+            geom_core::Band::linear(Tol::witness()).unwrap(),
+        )
+        .unwrap(),
+        Tol::witness(),
+    )
+    .unwrap();
     let keys = |bb: &Body<f64>| {
         (
             bb.points()

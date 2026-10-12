@@ -7,7 +7,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{RigidMotion, Point2, Point3, Tol};
+use geom_core::{Point2, Point3, RigidMotion, Tol};
 use mesh::Mesh;
 use mesh::tessellate;
 use mesh::validate::{check_mesh, signed_volume};

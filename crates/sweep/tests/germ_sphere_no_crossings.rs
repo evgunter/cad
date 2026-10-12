@@ -56,7 +56,12 @@ fn ball_at(r: f64, c: Vec3<f64>) -> AtRestBody<f64> {
     let ball = revolve(&vp, axis, Revolution::Full, Tol::witness())
         .unwrap()
         .body;
-    let placed = topo::transform_rigid(&ball, &Affine3::translation(c), Tol::witness()).unwrap();
+    let placed = topo::transform_rigid(
+        &ball,
+        &geom_core::RigidMotion::translation(c).unwrap(),
+        Tol::witness(),
+    )
+    .unwrap();
     finished("the ball", placed, Tol::witness())
 }
 
@@ -69,8 +74,22 @@ fn ball_at(r: f64, c: Vec3<f64>) -> AtRestBody<f64> {
 fn ball_poled_z(r: f64, c: Vec3<f64>) -> AtRestBody<f64> {
     let ball = ball_at(r, Vec3::new(0.0, 0.0, 0.0));
     let turn = Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), Vec3::unit_x(), PI / 2.0);
-    let placed = topo::transform_rigid(&ball, &turn, Tol::witness()).unwrap();
-    let placed = topo::transform_rigid(&placed, &Affine3::translation(c), Tol::witness()).unwrap();
+    let placed = topo::transform_rigid(
+        &ball,
+        &geom_core::RigidMotion::check_rigid(
+            &turn,
+            geom_core::Band::linear(Tol::witness()).unwrap(),
+        )
+        .unwrap(),
+        Tol::witness(),
+    )
+    .unwrap();
+    let placed = topo::transform_rigid(
+        &placed,
+        &geom_core::RigidMotion::translation(c).unwrap(),
+        Tol::witness(),
+    )
+    .unwrap();
     finished("the z-poled ball", placed, Tol::witness())
 }
 

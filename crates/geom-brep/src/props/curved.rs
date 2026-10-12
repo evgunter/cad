@@ -28,7 +28,7 @@
 use geom::Curve3;
 use geom::Surface;
 use geom_core::{
-    Band, Decide, LeveredUnitError, Margin, RigidMotion, Point3, Real, Sign, UNIT_DIRECTION_ARM,
+    Band, Decide, LeveredUnitError, Margin, Point3, Real, RigidMotion, Sign, UNIT_DIRECTION_ARM,
     UnitVec3, UnitVec3Error, Vec3,
 };
 

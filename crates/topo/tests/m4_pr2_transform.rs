@@ -27,7 +27,7 @@ fn translation_is_exact_and_key_stable() {
     let keys: Vec<_> = b.points().map(|(k, _)| k).collect();
     let t = transform_rigid(
         &b,
-        &Affine3::translation(Vec3::new(0.25, -1.5, 8.0)),
+        &geom_core::RigidMotion::translation(Vec3::new(0.25, -1.5, 8.0)).unwrap(),
         Tol::witness(),
     )
     .unwrap();
@@ -51,7 +51,16 @@ fn zero_angle_rotation_is_exact_identity() {
     let b = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let map =
         Affine3::rotation_about_axis(Point3::new(0.5, 0.5, 0.0), Vec3::new(0.0, 0.0, 1.0), 0.0);
-    let t = transform_rigid(&b, &map, Tol::witness()).unwrap();
+    let t = transform_rigid(
+        &b,
+        &geom_core::RigidMotion::check_rigid(
+            &map,
+            geom_core::Band::linear(Tol::witness()).unwrap(),
+        )
+        .unwrap(),
+        Tol::witness(),
+    )
+    .unwrap();
     for (k, p0) in b.points() {
         let p1 = t.get_point(k).unwrap();
         assert_eq!(
@@ -69,7 +78,16 @@ fn quarter_turn_recertifies_and_preserves_mass_properties_close() {
         Vec3::new(0.0, 0.0, 1.0),
         FRAC_PI_2,
     );
-    let t = transform_rigid(&b, &map, Tol::witness()).unwrap();
+    let t = transform_rigid(
+        &b,
+        &geom_core::RigidMotion::check_rigid(
+            &map,
+            geom_core::Band::linear(Tol::witness()).unwrap(),
+        )
+        .unwrap(),
+        Tol::witness(),
+    )
+    .unwrap();
     tiers_ok(&t);
     let (m0, m1) = (
         mass_properties(&b, Tol::witness()).unwrap(),
@@ -96,7 +114,16 @@ fn transformed_tool_subtracts_exactly() {
     );
     // Place the tool so it embeds in the top face: pocket at (1, 1).
     let map = Affine3::translation(Vec3::new(1.0, 1.0, 1.75));
-    let placed = transform_rigid(&tool, &map, Tol::witness()).unwrap();
+    let placed = transform_rigid(
+        &tool,
+        &geom_core::RigidMotion::check_rigid(
+            &map,
+            geom_core::Band::linear(Tol::witness()).unwrap(),
+        )
+        .unwrap(),
+        Tol::witness(),
+    )
+    .unwrap();
     tiers_ok(&placed);
     let placed = finished("the placed tool", placed, Tol::witness());
     let out = match topo::subtract(&base, &placed, Tol::witness()).unwrap() {
@@ -110,7 +137,6 @@ fn transformed_tool_subtracts_exactly() {
 
 #[test]
 fn non_rigid_maps_are_refused_at_the_door() {
-    let b = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     // Uniform scale: affinely self-consistent on planar bodies (re-
     // certification alone would PASS it) — the decided rigidity door
     // is what refuses it.
@@ -141,8 +167,11 @@ fn non_rigid_maps_are_refused_at_the_door() {
         Vec3::zero(),
     );
     for (name, m) in [("scale", scale), ("shear", shear), ("mirror", mirror)] {
-        match transform_rigid(&b, &m, Tol::witness()) {
-            Err(topo::TransformError::NotRigid { .. }) => {}
+        match geom_core::RigidMotion::check_rigid(
+            &m,
+            geom_core::Band::linear(Tol::witness()).unwrap(),
+        ) {
+            Err(geom_core::RigidMotionError::NotRigid { .. }) => {}
             other => panic!("{name}: expected NotRigid refusal, got {other:?}"),
         }
     }
@@ -167,8 +196,16 @@ fn the_m7_8_cubes_carriers_certify_at_rest_before_and_after_a_move() {
         "the certified at-rest door re-derives every certificate"
     );
     let map = Affine3::translation(Vec3::new(0.25, -1.5, 8.0));
-    let moved = transform_rigid(&body, &map, Tol::witness())
-        .expect("an M7-8 body moves at a scalar that holds the lane");
+    let moved = transform_rigid(
+        &body,
+        &geom_core::RigidMotion::check_rigid(
+            &map,
+            geom_core::Band::linear(Tol::witness()).unwrap(),
+        )
+        .unwrap(),
+        Tol::witness(),
+    )
+    .expect("an M7-8 body moves at a scalar that holds the lane");
     assert_eq!(m7_8_edges(&moved), 4, "the class survives the map");
     assert_eq!(
         edge_findings(&moved),

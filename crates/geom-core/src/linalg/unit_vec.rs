@@ -32,11 +32,14 @@
 //!   length the caller names, with its own refusals
 //!   ([`LeveredUnitError`]).
 //! - `-u` — negation is exact at every scalar.
-//! - The exact basis axes and the cross product of an orthonormal
-//!   pair, both private to [`linalg`](super) and both exact by
-//!   construction rather than by decision — they exist so
-//!   [`RigidMotion`](super::RigidMotion) can build the world frames and
-//!   its own third axis, and they are documented on their own doors.
+//! - The exact basis axes ([`UnitVec3::exact_x`], [`UnitVec3::exact_y`],
+//!   [`UnitVec3::exact_z`]), exact by construction rather than by
+//!   decision.
+//! - The cross product of an orthonormal pair, and a vector a rigid
+//!   motion produced, both private to [`linalg`](super) and both exact
+//!   in the reals by construction — they exist so
+//!   [`RigidMotion`](super::RigidMotion) can build its axes and act on
+//!   a direction, and they are documented on their own doors.
 //! - `UnitVec3::embed` and `UnitVec3::pin` — the exact crossings
 //!   between `f64` and the other scalars, as
 //!   [`RigidMotion`](super::RigidMotion)'s module docs state them: an
@@ -378,22 +381,25 @@ impl<T: Real> UnitVec3<T> {
     }
 
     /// The exact `x̂`, unit as its literal bits at every scalar that
-    /// represents 0 and 1 — no decision, nothing to decide. Private to
-    /// [`linalg`](super), where [`RigidMotion`](super::RigidMotion)'s
-    /// world frames are its only readers: a public exact-axis mint
-    /// would be a door with no caller, and a caller wanting a
-    /// direction it computed wants [`UnitVec3::new`].
-    pub(in crate::linalg) fn exact_x() -> Self {
+    /// represents 0 and 1 — no decision, nothing to decide: the world
+    /// frames' axes, and the axis a caller turns about when it names a
+    /// coordinate axis ([`RigidMotion::rotation`](super::RigidMotion::rotation)).
+    /// A caller wanting a direction it computed wants
+    /// [`UnitVec3::new`].
+    #[must_use]
+    pub fn exact_x() -> Self {
         Self(Vec3::unit_x())
     }
 
     /// The exact `ŷ`; see [`UnitVec3::exact_x`].
-    pub(in crate::linalg) fn exact_y() -> Self {
+    #[must_use]
+    pub fn exact_y() -> Self {
         Self(Vec3::unit_y())
     }
 
     /// The exact `ẑ`; see [`UnitVec3::exact_x`].
-    pub(in crate::linalg) fn exact_z() -> Self {
+    #[must_use]
+    pub fn exact_z() -> Self {
         Self(Vec3::unit_z())
     }
 }

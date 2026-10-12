@@ -437,7 +437,12 @@ fn capsule() -> AtRestBody<f64> {
     };
     let at0 = sweep::revolve(&pr, axis, Revolution::Full, t).unwrap().body;
     let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_x(), PI / 2.0);
-    let mut c = topo::transform_rigid(&at0, &turn, t).unwrap();
+    let mut c = topo::transform_rigid(
+        &at0,
+        &geom_core::RigidMotion::check_rigid(&turn, geom_core::Band::linear(t).unwrap()).unwrap(),
+        t,
+    )
+    .unwrap();
     c.merge_coplanar_faces(t).unwrap();
     finished("the capsule", c, t)
 }

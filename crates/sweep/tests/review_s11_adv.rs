@@ -19,7 +19,7 @@ use profile::RawLoop;
 use crate::common::approx::band;
 use geom::Surface;
 use geom_core::Tol;
-use geom_core::{RigidMotion, Point2, Point3};
+use geom_core::{Point2, Point3, RigidMotion};
 use profile::{
     ArcSweep, Center, Open, Profile, ProfileLoop, SketchPlane, Start, test_support::bulge_loop,
 };

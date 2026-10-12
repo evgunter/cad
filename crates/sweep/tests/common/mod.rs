@@ -628,10 +628,15 @@ pub fn tilted_bore() -> Body<f64> {
         Vec3::new(1.0, 0.0, 0.0),
         0.4,
     );
-    let bore = topo::transform_rigid(&bore, &tilt, tol).expect("the bore turns");
+    let bore = topo::transform_rigid(
+        &bore,
+        &geom_core::RigidMotion::check_rigid(&tilt, geom_core::Band::linear(tol).unwrap()).unwrap(),
+        tol,
+    )
+    .expect("the bore turns");
     topo::transform_rigid(
         &bore,
-        &geom_core::Affine3::translation(Vec3::new(0.5, 0.5, 0.5)),
+        &geom_core::RigidMotion::translation(Vec3::new(0.5, 0.5, 0.5)).unwrap(),
         tol,
     )
     .expect("the bore moves")

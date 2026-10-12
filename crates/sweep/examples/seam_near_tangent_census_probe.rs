@@ -121,11 +121,15 @@ fn main() {
             let slab = prism_at(rect(1.0 + dd, -2.0, 3.0, 2.0), 0.25, 0.5);
             let tilted = topo::transform_rigid(
                 &slab,
-                &Affine3::rotation_about_axis(
-                    Point3::new(1.0 + dd, 0.0, 0.5),
-                    Vec3::new(0.0, 1.0, 0.0),
-                    t,
-                ),
+                &geom_core::RigidMotion::check_rigid(
+                    &Affine3::rotation_about_axis(
+                        Point3::new(1.0 + dd, 0.0, 0.5),
+                        Vec3::new(0.0, 1.0, 0.0),
+                        t,
+                    ),
+                    geom_core::Band::linear(tol()).unwrap(),
+                )
+                .unwrap(),
                 tol(),
             )
             .unwrap();

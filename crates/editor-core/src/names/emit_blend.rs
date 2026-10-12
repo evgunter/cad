@@ -376,7 +376,7 @@ mod tie_tests {
 
     use std::sync::Arc;
 
-    use geom_core::{RigidMotion, Point2, Tol};
+    use geom_core::{Point2, RigidMotion, Tol};
     use topo::Body;
 
     use super::*;

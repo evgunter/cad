@@ -167,7 +167,13 @@ fn unit_cube() -> AtRestBody<f64> {
 fn shifted_cube(d: Vec3<f64>) -> AtRestBody<f64> {
     let cube = sweep::test_support::cube(1.0, tol());
     let map = Affine3::translation(d);
-    let moved = topo::transform_rigid(&cube, &map, tol()).expect("a translation is rigid");
+    let moved = topo::transform_rigid(
+        &cube,
+        &geom_core::RigidMotion::check_rigid(&map, geom_core::Band::linear(tol()).unwrap())
+            .unwrap(),
+        tol(),
+    )
+    .expect("a translation is rigid");
     sweep::test_support::finished("the shifted cube", moved, tol())
 }
 

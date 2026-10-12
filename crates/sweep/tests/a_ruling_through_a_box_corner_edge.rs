@@ -21,7 +21,7 @@
 
 use core::f64::consts::PI;
 
-use geom_core::{Band, RigidMotion, Point2, Point3, Tol, Vec3};
+use geom_core::{Band, Point2, Point3, RigidMotion, Tol, Vec3};
 use profile::{Profile, SketchPlane};
 use sweep::test_support::{brick, corners, finished, prism_on, revolved_about_y, sketch_from_axes};
 use sweep::{ExtrudeSide, Extrusion, Revolution, extrude};

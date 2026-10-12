@@ -98,7 +98,12 @@ fn ball(r: f64) -> Body<f64> {
 }
 
 fn posed(what: &str, body: &Body<f64>, map: &Affine3<f64>, tol: Tol) -> AtRestBody<f64> {
-    let b = topo::transform_rigid(body, map, tol).unwrap_or_else(|e| panic!("{what}: {e:?}"));
+    let b = topo::transform_rigid(
+        body,
+        &geom_core::RigidMotion::check_rigid(map, geom_core::Band::linear(tol).unwrap()).unwrap(),
+        tol,
+    )
+    .unwrap_or_else(|e| panic!("{what}: {e:?}"));
     topo::test_support::finished(what, b, tol)
 }
 

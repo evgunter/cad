@@ -57,7 +57,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::operands::half_round_end;
-use geom_core::{Affine3, Band, Point2, Sign, Tol, Vec2, Vec3};
+use geom_core::{Band, Point2, Sign, Tol, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::blend::battery::corner_config;
@@ -103,7 +103,7 @@ fn ball_at(c: Vec3<f64>) -> Body<f64> {
         dir: Vec2::new(0.0, 1.0),
     };
     let b = revolve(&vp, axis, Revolution::Full, tol()).unwrap().body;
-    topo::transform_rigid(&b, &Affine3::translation(c), tol()).unwrap()
+    topo::transform_rigid(&b, &geom_core::RigidMotion::translation(c).unwrap(), tol()).unwrap()
 }
 
 /// The edges of `body` on LINE carriers — on a dimpled or pocketed box,

@@ -5989,6 +5989,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "sliver_radius",
             "sliver_rim",
             "smooth_join_refuted",
+            "turn",
             "underflowed_axis",
             "unsupported_toroid",
             "vertex_crosses_axis",
@@ -5998,7 +5999,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "rigid_motion_error_tag",
-        values: &["non_finite", "non_finite_translation", "not_rigid", "undecided"],
+        values: &[
+            "non_finite",
+            "non_finite_translation",
+            "not_rigid",
+            "undecided",
+        ],
         delegates: &[],
     },
     TagEntry {

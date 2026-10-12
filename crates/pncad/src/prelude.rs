@@ -150,8 +150,8 @@ pub use crate::authoring::{p2, p3, polygon, real, v2, v3, validated};
 // margin out of the kernel's prose again: then the type is telemetry
 // with no consumer, which is what a curated list does not publish.
 pub use geom_core::{
-    Affine3, Band, BandError, Indeterminate, MarginDiag, MarginKind, Mat3, RigidMotion, Point2,
-    Point3, Real, Tol, Tolerance, Vec2, Vec3,
+    Affine3, Band, BandError, Indeterminate, MarginDiag, MarginKind, Mat3, Point2, Point3, Real,
+    RigidMotion, Tol, Tolerance, Vec2, Vec3,
 };
 // The D6 quantity layer: value types, unit constants
 // (`25.0 * MM`), and the display formatter. NAME DISCIPLINE: this

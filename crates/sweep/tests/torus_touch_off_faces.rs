@@ -57,7 +57,16 @@ fn brick_volume(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> f64 {
 /// `(x, z, −y)`.
 fn rod_y(r: f64, (x, z): (f64, f64), (y0, y1): (f64, f64)) -> Body<f64> {
     let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_x(), -PI / 2.0);
-    topo::transform_rigid(&rod_z(r, (x, -z), (y0, y1)), &turn, Tol::witness()).unwrap()
+    topo::transform_rigid(
+        &rod_z(r, (x, -z), (y0, y1)),
+        &geom_core::RigidMotion::check_rigid(
+            &turn,
+            geom_core::Band::linear(Tol::witness()).unwrap(),
+        )
+        .unwrap(),
+        Tol::witness(),
+    )
+    .unwrap()
 }
 
 /// A ball of radius `r` about `c` with everything beyond the plane
@@ -316,7 +325,18 @@ fn the_off_face_touches_build_at_every_scale() {
 #[test]
 fn the_off_face_touches_build_in_a_tilted_frame() {
     let turn = Affine3::rotation_about_axis(Point3::origin(), dir(1.0, 2.0, 3.0), 0.7);
-    let tilt = |b: &Body<f64>| topo::transform_rigid(b, &turn, Tol::witness()).unwrap();
+    let tilt = |b: &Body<f64>| {
+        topo::transform_rigid(
+            b,
+            &geom_core::RigidMotion::check_rigid(
+                &turn,
+                geom_core::Band::linear(Tol::witness()).unwrap(),
+            )
+            .unwrap(),
+            Tol::witness(),
+        )
+        .unwrap()
+    };
     let d = tilt(&donut(1.0));
     for (label, (b, vb)) in [
         ("brick", plane_brick(false, 0.0, 1.0)),

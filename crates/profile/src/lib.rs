@@ -155,7 +155,7 @@ mod sugar;
 pub mod test_support;
 mod validate;
 
-use geom_core::{Affine3, Arc2, RigidMotion, Point2, Point3, Real, Tol, Vec3};
+use geom_core::{Affine3, Arc2, Point2, Point3, Real, RigidMotion, Tol, Vec3};
 
 pub use lift::{Fidelity, LiftOutcome, LiftRefusal, lift, lift_checked};
 pub use path::program::{

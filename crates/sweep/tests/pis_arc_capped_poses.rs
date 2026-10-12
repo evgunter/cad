@@ -284,7 +284,13 @@ fn every_arc_capped_kind_reads_its_truth_at_every_pose() {
             case.name
         );
         for (pose, map) in poses() {
-            let posed = transform_rigid(&case.body, &map, tol()).unwrap();
+            let posed = transform_rigid(
+                &case.body,
+                &geom_core::RigidMotion::check_rigid(&map, geom_core::Band::linear(tol()).unwrap())
+                    .unwrap(),
+                tol(),
+            )
+            .unwrap();
             let mut refused = 0;
             for &(p, t) in &probes {
                 let want = if t {
@@ -802,7 +808,13 @@ fn the_cut_cylinders_ellipse_face_takes_nothing_away() {
     for above in [true, false] {
         let half = tilted_cut_cylinder(above);
         for (pose, map) in poses() {
-            let posed = transform_rigid(&half, &map, tol()).unwrap();
+            let posed = transform_rigid(
+                &half,
+                &geom_core::RigidMotion::check_rigid(&map, geom_core::Band::linear(tol()).unwrap())
+                    .unwrap(),
+                tol(),
+            )
+            .unwrap();
             for i in 0..5 {
                 for j in 0..5 {
                     for k in 0..5 {
@@ -839,7 +851,13 @@ fn the_cut_cylinder_reads_its_truth() {
     for above in [true, false] {
         let half = tilted_cut_cylinder(above);
         for (pose, map) in poses() {
-            let posed = transform_rigid(&half, &map, tol()).unwrap();
+            let posed = transform_rigid(
+                &half,
+                &geom_core::RigidMotion::check_rigid(&map, geom_core::Band::linear(tol()).unwrap())
+                    .unwrap(),
+                tol(),
+            )
+            .unwrap();
             for i in 0..5 {
                 for j in 0..5 {
                     for k in 0..5 {
@@ -881,7 +899,13 @@ fn a_wall_point_across_the_section_is_not_on_the_upper_half() {
     let half = tilted_cut_cylinder(true);
     let at = |h: f64| Point3::new(2.8f64.cos(), 2.8f64.sin(), h);
     for (pose, map) in poses() {
-        let posed = transform_rigid(&half, &map, tol()).unwrap();
+        let posed = transform_rigid(
+            &half,
+            &geom_core::RigidMotion::check_rigid(&map, geom_core::Band::linear(tol()).unwrap())
+                .unwrap(),
+            tol(),
+        )
+        .unwrap();
         let below = point_in_solid(&posed, map.transform_point(at(1.2)), band, tol());
         assert!(
             !matches!(
@@ -942,7 +966,13 @@ fn iso_bounded_walls_answer_through_their_rectangle() {
     {
         let mut answered = 0;
         for (pose, map) in poses() {
-            let posed = transform_rigid(&body, &map, tol()).unwrap();
+            let posed = transform_rigid(
+                &body,
+                &geom_core::RigidMotion::check_rigid(&map, geom_core::Band::linear(tol()).unwrap())
+                    .unwrap(),
+                tol(),
+            )
+            .unwrap();
             for i in 0..5 {
                 for j in 0..5 {
                     for k in 0..5 {
@@ -1274,7 +1304,13 @@ fn every_tilted_cut_wall_reads_its_truth() {
     for case in tilted_cut_cases() {
         let (mut answered, mut wrong, mut escalated) = (0, 0, 0);
         for (pose, map) in poses() {
-            let posed = transform_rigid(&case.body, &map, tol()).unwrap();
+            let posed = transform_rigid(
+                &case.body,
+                &geom_core::RigidMotion::check_rigid(&map, geom_core::Band::linear(tol()).unwrap())
+                    .unwrap(),
+                tol(),
+            )
+            .unwrap();
             for i in 0..5 {
                 for j in 0..5 {
                     for k in 0..5 {

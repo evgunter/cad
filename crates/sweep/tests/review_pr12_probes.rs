@@ -49,7 +49,12 @@ fn ball_at(r: f64, c: Vec3<f64>) -> AtRestBody<f64> {
     let ball = revolve(&vp, axis, Revolution::Full, Tol::witness())
         .unwrap()
         .body;
-    let ball = topo::transform_rigid(&ball, &Affine3::translation(c), Tol::witness()).unwrap();
+    let ball = topo::transform_rigid(
+        &ball,
+        &geom_core::RigidMotion::translation(c).unwrap(),
+        Tol::witness(),
+    )
+    .unwrap();
     finished("the ball", ball, Tol::witness())
 }
 
@@ -513,13 +518,22 @@ fn probe_c_oblique_trihedron() {
     );
     let c2 = topo::transform_rigid(
         &c2,
-        &Affine3::translation(Vec3::new(-1.55, -1.55, -2.45)),
+        &geom_core::RigidMotion::translation(Vec3::new(-1.55, -1.55, -2.45)).unwrap(),
         Tol::witness(),
     )
     .unwrap();
     let c2 = finished(
         "the turned slab",
-        topo::transform_rigid(&c2, &rot, Tol::witness()).unwrap(),
+        topo::transform_rigid(
+            &c2,
+            &geom_core::RigidMotion::check_rigid(
+                &rot,
+                geom_core::Band::linear(Tol::witness()).unwrap(),
+            )
+            .unwrap(),
+            Tol::witness(),
+        )
+        .unwrap(),
         Tol::witness(),
     );
     let out = boolean_op_with(

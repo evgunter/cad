@@ -17,7 +17,7 @@
 use core::cell::Cell;
 use core::convert::Infallible;
 
-use geom_core::{Affine3, Mat3, RigidMotion, Point2, Point3, Vec3};
+use geom_core::{Affine3, Mat3, Point2, Point3, RigidMotion, Vec3};
 use profile::SketchPlane;
 
 use crate::common::frame_of;

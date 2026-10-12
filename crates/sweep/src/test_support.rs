@@ -124,7 +124,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::NurbsCurve3;
-use geom_core::{Affine3, Band, Bounds, Decide, RigidMotion, Point2, Point3, Real, Vec2, Vec3};
+use geom_core::{Affine3, Band, Bounds, Decide, Point2, Point3, Real, RigidMotion, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanInputs, EdgeKey, FaceKey, LoopBoundary};
@@ -521,7 +521,12 @@ pub fn domed_cavity(tol: Tol) -> Body<f64> {
 /// translated to `c`. [`ball_poled_z`] is the same ball turned onto
 /// `+z` before it is placed.
 pub fn ball_poled_y<T: Decide + topo::AtRestPolicy>(r: T, c: Vec3<T>, tol: Tol) -> Body<T> {
-    topo::transform_rigid(&ball_about_origin(r, tol), &Affine3::translation(c), tol).unwrap()
+    topo::transform_rigid(
+        &ball_about_origin(r, tol),
+        &geom_core::RigidMotion::translation(c).unwrap(),
+        tol,
+    )
+    .unwrap()
 }
 
 /// The two ball doors' common first step: the lamina revolved about
@@ -553,15 +558,24 @@ pub fn ball_poled_z(r: f64, c: Vec3<f64>, tol: Tol) -> Body<f64> {
 pub fn ball_poled_z_at<T: Decide + topo::AtRestPolicy>(r: T, c: Vec3<T>, tol: Tol) -> Body<T> {
     let poled = topo::transform_rigid(
         &ball_about_origin(r, tol),
-        &Affine3::rotation_about_axis(
-            Point3::new(T::zero(), T::zero(), T::zero()),
-            Vec3::new(T::one(), T::zero(), T::zero()),
-            T::from_f64(core::f64::consts::FRAC_PI_2),
-        ),
+        &geom_core::RigidMotion::check_rigid(
+            &Affine3::rotation_about_axis(
+                Point3::new(T::zero(), T::zero(), T::zero()),
+                Vec3::new(T::one(), T::zero(), T::zero()),
+                T::from_f64(core::f64::consts::FRAC_PI_2),
+            ),
+            geom_core::Band::linear(tol).unwrap(),
+        )
+        .unwrap(),
         tol,
     )
     .unwrap();
-    topo::transform_rigid(&poled, &Affine3::translation(c), tol).unwrap()
+    topo::transform_rigid(
+        &poled,
+        &geom_core::RigidMotion::translation(c).unwrap(),
+        tol,
+    )
+    .unwrap()
 }
 
 /// A radius-`r` ball centred at `c` with its POLAR AXIS along `pole`.
@@ -584,11 +598,15 @@ pub fn ball_poled(r: f64, c: Vec3<f64>, pole: Vec3<f64>, tol: Tol) -> Body<f64> 
         } else {
             topo::transform_rigid(
                 &ball,
-                &Affine3::rotation_about_axis(
-                    Point3::new(0.0, 0.0, 0.0),
-                    Vec3::new(1.0, 0.0, 0.0),
-                    core::f64::consts::PI,
-                ),
+                &geom_core::RigidMotion::check_rigid(
+                    &Affine3::rotation_about_axis(
+                        Point3::new(0.0, 0.0, 0.0),
+                        Vec3::new(1.0, 0.0, 0.0),
+                        core::f64::consts::PI,
+                    ),
+                    geom_core::Band::linear(tol).unwrap(),
+                )
+                .unwrap(),
                 tol,
             )
             .unwrap()
@@ -596,16 +614,25 @@ pub fn ball_poled(r: f64, c: Vec3<f64>, pole: Vec3<f64>, tol: Tol) -> Body<f64> 
     } else {
         topo::transform_rigid(
             &ball,
-            &Affine3::rotation_about_axis(
-                Point3::new(0.0, 0.0, 0.0),
-                axis.normalize(),
-                y.dot(pole).clamp(-1.0, 1.0).acos(),
-            ),
+            &geom_core::RigidMotion::check_rigid(
+                &Affine3::rotation_about_axis(
+                    Point3::new(0.0, 0.0, 0.0),
+                    axis.normalize(),
+                    y.dot(pole).clamp(-1.0, 1.0).acos(),
+                ),
+                geom_core::Band::linear(tol).unwrap(),
+            )
+            .unwrap(),
             tol,
         )
         .unwrap()
     };
-    topo::transform_rigid(&placed, &Affine3::translation(c), tol).unwrap()
+    topo::transform_rigid(
+        &placed,
+        &geom_core::RigidMotion::translation(c).unwrap(),
+        tol,
+    )
+    .unwrap()
 }
 
 /// **The toroidal spool**: an annular meridian whose outer wall is an

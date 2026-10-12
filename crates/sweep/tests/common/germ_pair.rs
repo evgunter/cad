@@ -43,7 +43,11 @@ pub fn cyl(r: f64, h: f64) -> Body<f64> {
 pub fn spin(b: &Body<f64>, axis: Vec3<f64>, angle: f64) -> Body<f64> {
     topo::transform_rigid(
         b,
-        &Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), axis, angle),
+        &geom_core::RigidMotion::check_rigid(
+            &Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), axis, angle),
+            geom_core::Band::linear(Tol::witness()).unwrap(),
+        )
+        .unwrap(),
         Tol::witness(),
     )
     .unwrap()
@@ -61,7 +65,11 @@ pub fn repose(b: &Body<f64>) -> Body<f64> {
     );
     topo::transform_rigid(
         b,
-        &Affine3::from_parts(r.linear, r.translation + Vec3::new(0.3, -0.45, 0.6)),
+        &geom_core::RigidMotion::check_rigid(
+            &Affine3::from_parts(r.linear, r.translation + Vec3::new(0.3, -0.45, 0.6)),
+            geom_core::Band::linear(Tol::witness()).unwrap(),
+        )
+        .unwrap(),
         Tol::witness(),
     )
     .unwrap()

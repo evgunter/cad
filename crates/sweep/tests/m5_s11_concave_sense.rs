@@ -63,7 +63,7 @@ use common::orient::{
 };
 use geom::Surface;
 use geom_core::Tol;
-use geom_core::{Affine3, RigidMotion, Point2, Point3, Vec3};
+use geom_core::{Affine3, Point2, Point3, RigidMotion, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use revolve_common::{assert_all_tiers, axis_y, validated};
 use sweep::test_support::{finished, swept_elbow_lofted};

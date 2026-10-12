@@ -68,13 +68,18 @@ fn cut_below(rod: &AtRestBody<f64>, slope: f64, c: f64) -> AtRestBody<f64> {
     let tilt = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), -slope.atan());
     let under = topo::transform_rigid(
         &brick((-50.0, 50.0), (-50.0, 50.0), (-100.0, 0.0), tol),
-        &tilt,
+        &geom_core::RigidMotion::check_rigid(&tilt, geom_core::Band::linear(tol).unwrap()).unwrap(),
         tol,
     )
     .unwrap();
     let under = finished(
         "the slab under the plane",
-        topo::transform_rigid(&under, &Affine3::translation(Vec3::new(0.0, 0.0, c)), tol).unwrap(),
+        topo::transform_rigid(
+            &under,
+            &geom_core::RigidMotion::translation(Vec3::new(0.0, 0.0, c)).unwrap(),
+            tol,
+        )
+        .unwrap(),
         tol,
     );
     match topo::subtract(rod, &under, tol) {
@@ -279,7 +284,16 @@ fn a_ruling_in_band_of_the_wall_but_not_on_it_is_not_on() {
             ] {
                 let b = finished(
                     "the moved prism",
-                    topo::transform_rigid(&square(turn, z0, h), &xf, tol).unwrap(),
+                    topo::transform_rigid(
+                        &square(turn, z0, h),
+                        &geom_core::RigidMotion::check_rigid(
+                            &xf,
+                            geom_core::Band::linear(tol).unwrap(),
+                        )
+                        .unwrap(),
+                        tol,
+                    )
+                    .unwrap(),
                     tol,
                 );
                 for (op, r) in six(&t, &b) {
@@ -300,7 +314,16 @@ fn a_ruling_in_band_of_the_wall_but_not_on_it_is_not_on() {
         for d in [40.0 * z, -40.0 * z] {
             let b = finished(
                 "the leaned prism",
-                topo::transform_rigid(&square(turn, z0, h), &lean(d), tol).unwrap(),
+                topo::transform_rigid(
+                    &square(turn, z0, h),
+                    &geom_core::RigidMotion::check_rigid(
+                        &lean(d),
+                        geom_core::Band::linear(tol).unwrap(),
+                    )
+                    .unwrap(),
+                    tol,
+                )
+                .unwrap(),
                 tol,
             );
             for (op, r) in six(&t, &b) {
@@ -401,7 +424,13 @@ fn a_continuation_on_a_wall_bounded_by_an_ellipse_builds_every_op() {
     let spin = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), 0.4);
     let r = finished(
         "the rod",
-        topo::transform_rigid(&rod_z(1.0, H), &spin, tol).unwrap(),
+        topo::transform_rigid(
+            &rod_z(1.0, H),
+            &geom_core::RigidMotion::check_rigid(&spin, geom_core::Band::linear(tol).unwrap())
+                .unwrap(),
+            tol,
+        )
+        .unwrap(),
         tol,
     );
     // The union's two wall pairs meet on a four-arc circle; every other
@@ -461,7 +490,13 @@ fn a_rim_across_a_walls_ellipse_builds_every_op_but_one_union_order() {
         let spin = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), turn);
         let r = finished(
             "the rod",
-            topo::transform_rigid(&rod_z(0.5, H), &spin, tol).unwrap(),
+            topo::transform_rigid(
+                &rod_z(0.5, H),
+                &geom_core::RigidMotion::check_rigid(&spin, geom_core::Band::linear(tol).unwrap())
+                    .unwrap(),
+                tol,
+            )
+            .unwrap(),
             tol,
         );
         let label = |op: &str| format!("turn {turn}: {op}");

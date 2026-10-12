@@ -1068,8 +1068,16 @@ fn a_moved_curved_fitted_cap_builds_where_its_fit_certifies() {
             Vec3::new(0.0, 0.0, 1.0),
             0.7,
         );
-        topo::transform_rigid(&body, &rigid, Tol::witness())
-            .unwrap_or_else(|e| panic!("eps {eps:e}, d = {d}: the moved body maps rigidly: {e}"));
+        topo::transform_rigid(
+            &body,
+            &geom_core::RigidMotion::check_rigid(
+                &rigid,
+                geom_core::Band::linear(Tol::witness()).unwrap(),
+            )
+            .unwrap(),
+            Tol::witness(),
+        )
+        .unwrap_or_else(|e| panic!("eps {eps:e}, d = {d}: the moved body maps rigidly: {e}"));
     }
 }
 

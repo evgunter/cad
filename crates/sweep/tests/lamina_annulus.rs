@@ -484,7 +484,12 @@ fn an_interval_washers_rims_fillet_tier_3_valid() {
 // ---------------------------------------------------------------------
 
 fn moved(b: &Body<f64>, m: &Affine3<f64>) -> Body<f64> {
-    topo::transform_rigid(b, m, tol()).expect("a rigid motion")
+    topo::transform_rigid(
+        b,
+        &geom_core::RigidMotion::check_rigid(m, geom_core::Band::linear(tol()).unwrap()).unwrap(),
+        tol(),
+    )
+    .expect("a rigid motion")
 }
 
 fn upright(pts: &[(f64, f64)]) -> Body<f64> {

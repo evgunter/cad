@@ -492,7 +492,16 @@ fn slab(z0: f64, tilt: f64) -> Body<f64> {
         Tol::witness(),
     );
     let turn = geom_core::Affine3::rotation_about_axis(p(0.0, 0.0, z0), Vec3::unit_y(), tilt);
-    crate::transform::transform_rigid(&b, &turn, Tol::witness()).unwrap()
+    crate::transform::transform_rigid(
+        &b,
+        &geom_core::RigidMotion::check_rigid(
+            &turn,
+            geom_core::Band::linear(Tol::witness()).unwrap(),
+        )
+        .unwrap(),
+        Tol::witness(),
+    )
+    .unwrap()
 }
 
 /// The verdict of every pair of `a`'s `face` against `b`'s faces, with

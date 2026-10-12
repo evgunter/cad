@@ -46,7 +46,16 @@ pub(crate) fn cone(pose: Affine3<f64>) -> AtRestBody<f64> {
     let spin = Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 1.0, 0.0), FRAC_PI_2);
     finished(
         "the cone",
-        topo::transform_rigid(&body, &(pose * spin), tol).unwrap(),
+        topo::transform_rigid(
+            &body,
+            &geom_core::RigidMotion::check_rigid(
+                &(pose * spin),
+                geom_core::Band::linear(tol).unwrap(),
+            )
+            .unwrap(),
+            tol,
+        )
+        .unwrap(),
         tol,
     )
 }
@@ -72,7 +81,16 @@ pub(crate) fn wedge(s: f64, pose: Affine3<f64>) -> AtRestBody<f64> {
     let to = Affine3::translation(edge_point(s) - Point3::origin());
     finished(
         "the box",
-        topo::transform_rigid(&raw, &(pose * to * turn), tol).unwrap(),
+        topo::transform_rigid(
+            &raw,
+            &geom_core::RigidMotion::check_rigid(
+                &(pose * to * turn),
+                geom_core::Band::linear(tol).unwrap(),
+            )
+            .unwrap(),
+            tol,
+        )
+        .unwrap(),
         tol,
     )
 }
@@ -351,7 +369,13 @@ fn the_rings_volume_brackets_its_closed_form_at_the_certified_scalar() {
     let spin = Affine3::rotation_about_axis(p3(0.0, 0.0, 0.0), v3(0.0, 1.0, 0.0), iv(FRAC_PI_2));
     let c = finished(
         "the cone",
-        topo::transform_rigid(&raw, &spin, tol).unwrap(),
+        topo::transform_rigid(
+            &raw,
+            &geom_core::RigidMotion::check_rigid(&spin, geom_core::Band::linear(tol).unwrap())
+                .unwrap(),
+            tol,
+        )
+        .unwrap(),
         tol,
     );
     let e = edge_point(0.6);
@@ -364,7 +388,16 @@ fn the_rings_volume_brackets_its_closed_form_at_the_certified_scalar() {
     let raw = brick::<Interval>((0.0, 6.0), (0.0, 6.0), (-3.0, 3.0), tol);
     let x = finished(
         "the box",
-        topo::transform_rigid(&raw, &(to * turn), tol).unwrap(),
+        topo::transform_rigid(
+            &raw,
+            &geom_core::RigidMotion::check_rigid(
+                &(to * turn),
+                geom_core::Band::linear(tol).unwrap(),
+            )
+            .unwrap(),
+            tol,
+        )
+        .unwrap(),
         tol,
     );
     let vc = core::f64::consts::PI * R * R * height() / 3.0;

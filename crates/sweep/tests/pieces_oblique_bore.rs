@@ -33,7 +33,13 @@ fn an_oblique_bore_through_a_two_void_block_stays_one_hollow_solid() {
     let map = Affine3::from_parts(tilt, pivot - tilt * pivot);
     let bore = finished(
         "the tilted cylinder",
-        topo::transform_rigid(&upright, &map, tol).expect("the cylinder tilts"),
+        topo::transform_rigid(
+            &upright,
+            &geom_core::RigidMotion::check_rigid(&map, geom_core::Band::linear(tol).unwrap())
+                .unwrap(),
+            tol,
+        )
+        .expect("the cylinder tilts"),
         tol,
     );
 

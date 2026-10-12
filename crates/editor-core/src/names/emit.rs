@@ -1133,7 +1133,7 @@ mod pattern_tests {
     use std::collections::BTreeSet;
     use std::sync::Arc;
 
-    use geom_core::{Affine3, Vec3};
+    use geom_core::Vec3;
     use topo::Body;
 
     use super::*;
@@ -1258,7 +1258,8 @@ mod pattern_tests {
                 } else {
                     topo::transform_rigid(
                         master,
-                        &Affine3::translation(Vec3::new(0.0, 0.0, step * i as f64)),
+                        &geom_core::RigidMotion::translation(Vec3::new(0.0, 0.0, step * i as f64))
+                            .unwrap(),
                         Tol::witness(),
                     )
                     .unwrap()
@@ -1412,7 +1413,8 @@ mod pattern_tests {
                 } else {
                     topo::transform_rigid(
                         body,
-                        &Affine3::translation(Vec3::new(0.0, 0.0, step * j as f64)),
+                        &geom_core::RigidMotion::translation(Vec3::new(0.0, 0.0, step * j as f64))
+                            .unwrap(),
                         Tol::witness(),
                     )
                     .unwrap()

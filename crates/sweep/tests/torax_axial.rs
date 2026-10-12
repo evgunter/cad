@@ -309,10 +309,20 @@ fn torax_the_torus_corners_survive_a_rigid_re_pose() {
         ("the torus barrel", torus_barrel()),
         ("the teapot's torus belly", torus_belly()),
     ] {
-        let posed_after = transform_rigid(&hollowed(what, &body), &map, tol())
-            .unwrap_or_else(|e| panic!("{what}: the hollow re-poses, got {e}"));
-        let posed_first = transform_rigid(&body, &map, tol())
-            .unwrap_or_else(|e| panic!("{what}: the operand re-poses, got {e}"));
+        let posed_after = transform_rigid(
+            &hollowed(what, &body),
+            &geom_core::RigidMotion::check_rigid(&map, geom_core::Band::linear(tol()).unwrap())
+                .unwrap(),
+            tol(),
+        )
+        .unwrap_or_else(|e| panic!("{what}: the hollow re-poses, got {e}"));
+        let posed_first = transform_rigid(
+            &body,
+            &geom_core::RigidMotion::check_rigid(&map, geom_core::Band::linear(tol()).unwrap())
+                .unwrap(),
+            tol(),
+        )
+        .unwrap_or_else(|e| panic!("{what}: the operand re-poses, got {e}"));
         let hollow_after = topo::shell(
             &finished("the operand", posed_first.clone(), tol()),
             T,
@@ -369,8 +379,20 @@ fn torax_the_re_posed_barrels_cavity_reads_inside_its_outer_wall() {
     let band = Band::linear(tol()).expect("the witness band");
     let barrel = torus_barrel();
     let hollow = hollowed("the torus barrel", &barrel);
-    let operand = transform_rigid(&barrel, &map, tol()).expect("the operand re-poses");
-    let posed = transform_rigid(&hollow, &map, tol()).expect("the hollow re-poses");
+    let operand = transform_rigid(
+        &barrel,
+        &geom_core::RigidMotion::check_rigid(&map, geom_core::Band::linear(tol()).unwrap())
+            .unwrap(),
+        tol(),
+    )
+    .expect("the operand re-poses");
+    let posed = transform_rigid(
+        &hollow,
+        &geom_core::RigidMotion::check_rigid(&map, geom_core::Band::linear(tol()).unwrap())
+            .unwrap(),
+        tol(),
+    )
+    .expect("the hollow re-poses");
     let on_operand: Vec<Point3<f64>> = operand.vertex_points().map(|(_, p)| p).collect();
     let mut cavity = 0;
     for (_, q) in posed.vertex_points() {
@@ -794,10 +816,21 @@ fn torax_the_lune_cavity_survives_a_rigid_re_pose() {
     let mut offset_first = body.clone();
     topo::offset_charts_together(&mut offset_first, &hollow_moves(&body, t), band, tol())
         .expect("the unposed lune offsets");
-    let posed_after =
-        transform_rigid(&offset_first, &map, tol()).expect("the offset lune re-poses");
+    let posed_after = transform_rigid(
+        &offset_first,
+        &geom_core::RigidMotion::check_rigid(&map, geom_core::Band::linear(tol()).unwrap())
+            .unwrap(),
+        tol(),
+    )
+    .expect("the offset lune re-poses");
 
-    let posed_first = transform_rigid(&body, &map, tol()).expect("the operand re-poses");
+    let posed_first = transform_rigid(
+        &body,
+        &geom_core::RigidMotion::check_rigid(&map, geom_core::Band::linear(tol()).unwrap())
+            .unwrap(),
+        tol(),
+    )
+    .expect("the operand re-poses");
     let mut offset_after = posed_first.clone();
     topo::offset_charts_together(
         &mut offset_after,

@@ -161,7 +161,13 @@ fn body_of(s: Shape, map: Option<Affine3<f64>>) -> AtRestBody<f64> {
     let b = s.body();
     let b = match map {
         None => b,
-        Some(map) => topo::transform_rigid(&b, &map, tol()).unwrap(),
+        Some(map) => topo::transform_rigid(
+            &b,
+            &geom_core::RigidMotion::check_rigid(&map, geom_core::Band::linear(tol()).unwrap())
+                .unwrap(),
+            tol(),
+        )
+        .unwrap(),
     };
     finished("r2-4781 operand", b, tol())
 }

@@ -11,7 +11,7 @@
 
 use crate::common::finished;
 use geom_core::Tol;
-use geom_core::{RigidMotion, Point2, Point3};
+use geom_core::{Point2, Point3, RigidMotion};
 use mesh::tessellate;
 use mesh::validate::{check_mesh, triangle_count};
 use profile::RawLoop;

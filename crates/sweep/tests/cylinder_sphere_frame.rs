@@ -257,7 +257,16 @@ impl Pose {
                 Vec3::new(1.0, 2.0, 3.0).normalize(),
                 self.spin,
             );
-            let turned = topo::transform_rigid(&b, &turn, Tol::witness()).unwrap();
+            let turned = topo::transform_rigid(
+                &b,
+                &geom_core::RigidMotion::check_rigid(
+                    &turn,
+                    geom_core::Band::linear(Tol::witness()).unwrap(),
+                )
+                .unwrap(),
+                Tol::witness(),
+            )
+            .unwrap();
             b = finished("the turned ball", turned, Tol::witness());
         }
         (a, b)

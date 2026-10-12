@@ -76,7 +76,16 @@ fn tilt(b: &Body<f64>, deg: f64) -> Body<f64> {
         Vec3::new(1.0, 0.0, 0.0),
         deg.to_radians(),
     );
-    topo::transform_rigid(b, &turn, Tol::witness()).unwrap()
+    topo::transform_rigid(
+        b,
+        &geom_core::RigidMotion::check_rigid(
+            &turn,
+            geom_core::Band::linear(Tol::witness()).unwrap(),
+        )
+        .unwrap(),
+        Tol::witness(),
+    )
+    .unwrap()
 }
 
 /// The area of the unit disc's segment beyond the chord at `x = a`.
@@ -241,10 +250,19 @@ fn a_tilted_rod_through_a_rim_reaches_the_germ_frame() {
         Vec3::new(1.0, 0.0, 0.0),
         PI / 6.0,
     );
-    let rod = topo::transform_rigid(&cyl(0.0, 0.0, 0.3, -1.5, 1.5), &turn, Tol::witness()).unwrap();
+    let rod = topo::transform_rigid(
+        &cyl(0.0, 0.0, 0.3, -1.5, 1.5),
+        &geom_core::RigidMotion::check_rigid(
+            &turn,
+            geom_core::Band::linear(Tol::witness()).unwrap(),
+        )
+        .unwrap(),
+        Tol::witness(),
+    )
+    .unwrap();
     let rod = topo::transform_rigid(
         &rod,
-        &Affine3::translation(Vec3::new(0.95, 0.1, 2.0)),
+        &geom_core::RigidMotion::translation(Vec3::new(0.95, 0.1, 2.0)).unwrap(),
         Tol::witness(),
     )
     .unwrap();

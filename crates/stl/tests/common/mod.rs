@@ -8,7 +8,7 @@
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
 use geom_core::Tol;
-use geom_core::{RigidMotion, Point2, Point3, Vec2, Vec3};
+use geom_core::{Point2, Point3, RigidMotion, Vec2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop};
 use sweep::ExtrudeSide;

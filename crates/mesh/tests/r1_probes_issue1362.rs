@@ -8,7 +8,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{RigidMotion, Point3, Vec3};
+use geom_core::{Point3, RigidMotion, Vec3};
 use profile::test_support::bulge_loop;
 
 const TAU: f64 = core::f64::consts::TAU;
