@@ -540,7 +540,11 @@ impl crate::spoken::Say for NamingError {
                 let what = crate::decision::words(predicate).unwrap_or(geom_core::UNNAMED_DECISION);
                 write!(
                     f,
-                    "no name can be decided because {what} is too close to call: {source}"
+                    "{}",
+                    source.undecided(
+                        format_args!("{what}, which a name rests on,"),
+                        crate::decision::ending(predicate, source)
+                    )
                 )
             }
         }
