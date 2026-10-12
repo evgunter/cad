@@ -49,7 +49,7 @@ use topo::{ContactClass, FaceKey, ValidationError};
 /// attribution header's relation (`mate 7's declared Rest contact,
 /// refuted (…): …`).
 const LABELS: &[(&str, &str)] = &[
-    ("unattributed", "at rest"),
+    ("no declaration", "at rest"),
     ("refuted, carried", "at rest"),
     ("declined, carried", "at rest"),
     ("at rest, product", "at rest"),
@@ -147,7 +147,7 @@ fn carried(relation: Relation) -> Attribution {
 
 /// Every wrapper `error` can arrive in, rendered as the viewer draws it.
 fn renderings(error: &ValidationError) -> Vec<(&'static str, String)> {
-    let at_rest = |attribution: Attribution| {
+    let at_rest = |attribution: Option<Attribution>| {
         let refusal = AssemblyError::AtRest {
             findings: vec![AtRestFinding {
                 attribution,
@@ -164,7 +164,7 @@ fn renderings(error: &ValidationError) -> Vec<(&'static str, String)> {
         }],
     };
     let mut out = vec![
-        ("unattributed", at_rest(Attribution::Unattributed)),
+        ("no declaration", at_rest(None)),
         ("product", product.to_string()),
         (
             "at rest, product",
@@ -178,14 +178,17 @@ fn renderings(error: &ValidationError) -> Vec<(&'static str, String)> {
             | ValidationError::StaleContactDeclaration { .. }
             | ValidationError::CensusUnsupported { .. }
     ) {
-        out.push(("refuted, carried", at_rest(carried(Relation::Refuted))));
+        out.push((
+            "refuted, carried",
+            at_rest(Some(carried(Relation::Refuted))),
+        ));
     }
     // The arm the census declines on a declared pair: the frontier.
     if matches!(error, ValidationError::CensusUnsupported { .. }) {
         let refusal = AssemblyError::Uncertified {
             contacts: Box::default(),
             findings: vec![AtRestFinding {
-                attribution: carried(Relation::Declined),
+                attribution: Some(carried(Relation::Declined)),
                 error: error.clone(),
             }],
         };

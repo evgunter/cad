@@ -174,3 +174,48 @@ bore:
 - the union of the nested tubes `r ∈ [0.75, 1]` and `[0.25, 0.5]`,
   `z ∈ [0.5, 2.5]`, and its `∩` with the plate (both orders) and its
   `∖` the plate.
+
+## 2026-10-11 — 542 boolean results at a curved corner pinch, after CONTACTHOLD (FLUSH)
+
+Same probe as the at-infinity row's 2026-10-11 section
+(`curved_notch_pinch`, main `6e3985cb7`, after CONTACTHOLD's PRs 4598
+and 4604): 542 built bodies fail tier 3′ with `CensusUndecidable`
+alone. Each has the oracle's volume, passes tier 2 and the
+certificate, and has no definite tier-3′ finding. That is the 461 of
+main `875e049a` plus 81 that refused at the boolean there
+(`ClassificationInvariant`, `SharedVertexCrossings`) and build now.
+CONTACTHOLD's rewrite moved none of the 461.
+
+Read on poses `9 4 4 ab S` and `0 0 0 ab I`: the result is two solids
+that meet only at the pinch point, one vertex per cone, and the one
+record is the vertex–vertex contact there. The undecidable pairs are
+the cross-solid backstop's (`census.rs`, `CurvedWithinReach`), between
+the faces through `v`: the bowed wall (`Cylinder`) against the other
+solid's planes, and the notch's arc-bounded caps (planar, not
+line-bounded, so not skipped to the exact sweeps) against them. These
+pairs touch at `v`, so no box gap or `backstop_apart` direction can
+separate them, and the backstop does not read a vertex–vertex record.
+This is the JOIN pinch class above ("the planar pinches pass: the
+census's `same_point` clears the shared point key"). A curved face at
+the pinch, or a planar face carrying an arc edge, does not clear.
+
+Pinned by `a_curved_notch_at_a_corner_pinch_builds_bodies_the_census_cannot_read_yet`
+(poses `0 0 0 ab I` and `9 4 4 ab S` undecidable, `0 0 0 ab U` one
+solid and clean): when this lane lands, flip those two expectations.
+
+## Boolean results meet it too (FLUSH, 2026-10-11)
+
+`crates/sweep/tests/join3_r2_probes.rs` `j3r2_pocket_battery` reads 14
+of its 10 800 runs BAD on tier 3′ alone (tiers 2 and the certificate
+pass, and the body unites with a far brick), on `main` at `121741a2b`
+and on `flush/e-tail` alike. All are at the offset `(0.75, 0.75)`,
+where the cutter reaches past the block's corner, and each result is
+two solids: block ∪ a `D-0.45` turned 4 rad, which the block does not
+meet (2 solids, 10 faces, the volume the block's 4 plus the cutter's,
+in all five entries, both orders), and block ∖ a `D0`, `D0.3` or
+`lens` cutter run through, which severs a corner (2 solids). Each
+fails `validate_pseudomanifold` with 5 to 7 `CensusUndecidable` ("a
+curved face of one is within reach of the other") between the cutter's
+or the corner's curved wall and the other solid's faces. The tags are
+`pocket D-0.45 phi=4.000 off=(0.75, 0.75) {top,bottom,through,flushtop,flushbot} U {AB,BA}`
+and `pocket {D0,D0.3,lens} phi={0.700,4.000} off=(0.75, 0.75) through S AB`.

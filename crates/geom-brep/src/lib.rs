@@ -88,7 +88,7 @@ pub mod torus_convention;
 
 pub use certify::{
     CERT_SAMPLES, CertCheck, Certificate, CertifyError, EdgeCurve, EdgeCurveSpec,
-    IntersectionDraft, NurbsLane, edge_extent, sample_param, schedule_param,
+    IntersectionDraft, NurbsLane, edge_extent, folded_parallelism, sample_param, schedule_param,
 };
 pub use description::{
     ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, authority_of,
@@ -108,7 +108,7 @@ pub use edge_nurbs::{
 pub use enters::{
     EntersMaterial, LeverEscalation, LeverRung, NormalAlignment, OutwardNormal, ParallelNormal,
     ParallelSense, ReferenceNormal, WallBend, WallBendError, bends_into_material, enters_material,
-    enters_material_order2, normal_alignment,
+    enters_material_order2, enters_material_reported, normal_alignment,
 };
 pub use extent::{ExtentBall, Reach};
 pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane};
@@ -146,7 +146,7 @@ pub use offset::{
     ConeOffset, Nappe, OffsetDistanceError, OffsetError, offset_distance, offset_surface,
 };
 pub use offset_fit::{
-    BestBound, LastRound, OffsetCertificate, OffsetFitError, OffsetLimb, approx_offset_surface,
+    BestBound, OffsetCertificate, OffsetFitError, OffsetLimb, approx_offset_surface,
     approx_offset_surface_at, certify_offset, certify_offset_at, certify_offset_over,
     certify_offset_over_at, fit_offset, fit_offset_at, recertify_approx, recertify_approx_at,
 };
@@ -156,11 +156,11 @@ pub use pcurve::{
 };
 pub use pcurve_cache::{
     BranchMiss, ChartStretchInf, ChartWindow, EnvelopeStatement, EnvelopeTerm, FocalImage,
-    FramedCarrier, Grazer, IsoFamily, IsoFamilyRefusal, MAX_BRANCH_PERIODS, NoChartSup, Pcurve,
-    PcurveCache, PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveKind, ProjectedChart,
-    ProjectedImage, SectorChannel, SpiricImage, UncoveredClass, chart_iso_family, chart_pcurve,
-    chart_pcurve_over, chart_stretch_inf, chart_stretch_sup, chart_stretch_sup_v,
-    whole_period_count, whole_periods,
+    FramedCarrier, Grazer, ISO_FAMILY_CLAUSE, IsoFamily, IsoFamilyRefusal, MAX_BRANCH_PERIODS,
+    NoChartSup, Pcurve, PcurveCache, PcurveCertificate, PcurveCertifyError, PcurveCheck,
+    PcurveKind, ProjectedChart, ProjectedImage, SectorChannel, SpiricImage, UncoveredClass,
+    chart_iso_family, chart_pcurve, chart_pcurve_over, chart_stretch_inf, chart_stretch_sup,
+    chart_stretch_sup_v, whole_period_count, whole_periods,
 };
 pub use props::{
     FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,
@@ -169,11 +169,12 @@ pub use props::{
 pub use ssi::{
     BandVerdict, BoundaryChart, BoundaryPoint, BoundarySection, ChartAxis, ChartCorner, ChartEnd,
     ChartSide, ChartSpeedRefusal, ChartedNurbs, DomainField, ExhaustLane, Exhaustiveness,
-    ExhaustivenessRefusal, FloorFault, FloorKind, FloorRefusal, ReachBound, SSI_FIT_DEGREE,
-    SSI_FLOOR, SSI_MAX_STEPS, Section, SectionRoot, SettlingRefusal, SsiBoundaryContact, SsiBranch,
-    SsiCertificate, SsiDomain, SsiError, SsiLimb, SsiOperand, SsiOutcome, SsiTube, StepFault,
-    StepperMode, TraceDecision, TubeDegeneracy, boundary_section, certify_rung3,
-    cylinder_sphere_ssi, idealized_trace_r3, plane_nurbs_ssi, trace_plane_nurbs_uncertified,
+    ExhaustivenessRefusal, FloorFault, FloorKind, FloorRefusal, PlaneSection, ReachBound,
+    SSI_FIT_DEGREE, SSI_FLOOR, SSI_MAX_STEPS, Section, SectionReading, SectionRoot,
+    SettlingRefusal, SsiBoundaryContact, SsiBranch, SsiCertificate, SsiDomain, SsiError, SsiLimb,
+    SsiOperand, SsiOutcome, SsiTube, StepFault, StepperMode, TraceDecision, TubeDegeneracy,
+    boundary_section, certify_rung3, cylinder_sphere_ssi, idealized_trace_r3, plane_nurbs_ssi,
+    trace_plane_nurbs_uncertified,
 };
 pub use tangent::{
     TangentJet, TangentSpanBounds, tangent_certificate_lane, tangent_jet, tangent_span_bounds,

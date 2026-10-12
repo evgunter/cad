@@ -166,7 +166,7 @@ REGISTER=(
   "crates/topo/src/boolean/solid_contain.rs|torus_chart_windows||1|unaudited"
   "crates/topo/src/boolean/sphere_region.rs|sphere_face_region||2|audited: a lone-vertex RING holds no edge, so it has no arc for a ray to cross and bounds no area (point_in_face skips it the same way); a lone-vertex OUTER loop bounds no face and is refused as CorruptFace, never passed over"
   "crates/topo/src/boolean/surface_group.rs|unmated_boundary||1|audited: a non-cycle outline answers None (not closed, not wrapping), which sends every caller to its per-face or windowed class; each of those reads the same outer loop in its own chart trim (cylinder_chart_trim, cone_slant_window, sphere_chart_trim, torus_chart_windows), and that walk is where a non-cycle is answered"
-  "crates/topo/src/boolean/vtxfac.rs|classify_vertex_on_face||1|unaudited"
+  "crates/topo/src/boolean/vtxfac.rs|mint_ring||1|unaudited"
   "crates/topo/src/boolean/zip.rs|section_cycle||1|unaudited"
   # The census's one loop walk: an unwalkable loop is handed back as
   # `Err(loop)` and every caller answers it at its own site — snapshot
@@ -221,6 +221,8 @@ REGISTER=(
   "crates/topo/src/splitting/finish.rs|section_plane_restatements||1|audited: an Empty loop holds no edge, so it has no description to restate; describe_section_boundary, which re-describes the same loops right after, steps over it the same way"
   "crates/topo/src/splitting/section.rs|section_walk||1|audited: the discarded variant is answered — a lone-vertex loop refuses as SectionInvariant, the refusal join::loop_starts gives the same below loop"
   "crates/topo/src/splitting/section_loops.rs|loop_edges|LoopBoundary::Empty { .. } => return|1|audited: the discarded variant is answered by name — a lone-vertex loop is read as an outline edge nothing decides, so outlines_disjoint answers false and the hole is left unplaced"
+  "crates/topo/src/splitting/join.rs|kill_struts||1|audited: an Empty loop holds no edge, so it has no strut to kill; the scan over a Cycle answers the same question by finding none"
+  "crates/topo/src/splitting/join.rs|spur_tips||1|audited: an Empty loop holds no edge, so it has no spur; the scan over a Cycle answers the same question by finding none at a tip"
   "crates/topo/src/splitting/join.rs|certify_section_area||1|unaudited"
   "crates/topo/src/splitting/join.rs|loop_starts||1|unaudited"
   "crates/topo/src/validate.rs|loop_cycle_of||1|unaudited"

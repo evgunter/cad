@@ -20,16 +20,16 @@ document at `Sym` with every variable a symbol in a deferring session:
 
 | budget | retry ladder | joints proved | the disc's four rows |
 |---|---|---|---|
-| 256 terms | `kept_atom` (the door's full pass) | 0/2 | 0.64 s |
+| 256 terms | `kept_atom` (the door's one strength) | 0/2 | 0.64 s |
 | 1024 terms | `kept_atom` | 2/2, `SymbolicZero` | 1.6 s |
 | 4096 terms | `kept_atom` | 2/2 | 5.5 s |
 | 4096 terms | none | 0/2 | 14 s |
 
-The door's full budget is set by the mitre, which costs 172 s per box
+The door's budget is set by the mitre, which costs 172 s per box
 at 1024 terms with the ladder against 0.9 s at 256. A tier that failed
 fast on a form that will not close would let the door raise its budget
 and prove these. So would the parked per-node cache
 (`a-construction-s-identities-are-a-generated-cache`).
 
-Done when the full pass proves both joints within the door's cost
+Done when the door proves both joints within the door's cost
 class, or this row records why it cannot.

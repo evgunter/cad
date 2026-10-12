@@ -16,7 +16,7 @@
 //! - a third prism crossing one wedge about the line, or both;
 //! - one prism tilted about the line within the zero;
 //! - a prism whose side face holds the line;
-//! - the review's hunt seeds whose pierces the weld leaves apart;
+//! - the review's hunt seeds whose pierces meet at one point of the top;
 //! - one prism's corner moved off the line, within the zero, inside the
 //!   band and past it.
 //!
@@ -29,8 +29,8 @@
 //!
 //! Three prisms over 60° sectors put one prism's lateral face in the
 //! plane of another's, an undeclared flush continuation along the line,
-//! and every order refuses it as one. A declaration at the line, or the
-//! steps' own records carried, never serves another body (D10).
+//! and every order refuses it as one. The steps' own records carried
+//! never serve another body (D10).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
@@ -207,9 +207,6 @@ fn three_off(d: f64) -> Vec<Prism> {
     p
 }
 
-/// A fold's contact record is its last step's.
-const DROPPED_RECORDS: &str = "work/wire/a-boolean-drops-its-operands-own-contact-records.md";
-
 /// Whether a census witness `"(x, y, z)…"` stands within a micron of
 /// the line.
 fn on_the_line(witness: &str) -> bool {
@@ -230,7 +227,9 @@ fn none(_: &[usize]) -> Option<&'static str> {
 }
 
 /// The left fold of `members` by union in `order`, or the step that
-/// refused and why.
+/// refused and why. A kernel op called without `BooleanInputs` records
+/// carries none of its operands' records, so the fold's contact record
+/// is its last step's.
 fn fold(
     members: &[AtRestBody<f64>],
     order: &[usize],
@@ -290,10 +289,10 @@ fn probes() -> Vec<[f64; 3]> {
 /// cannot trace the touch at this tolerance, typed, in place of a
 /// verdict.
 ///
-/// The 3′ verdict reads the last step's contact record alone, so it
-/// refuses the contacts between earlier members that the last one's do
-/// not cover, all on the line ([`DROPPED_RECORDS`]): `dropped[i]` of
-/// them when member `i` folds last.
+/// The 3′ verdict reads the last step's contact record alone
+/// ([`fold`]), so it refuses the contacts between earlier members that
+/// the last one's do not cover, all on the line: `dropped[i]` of them
+/// when member `i` folds last.
 fn every_order(
     label: &str,
     prisms: &[Prism],
@@ -358,7 +357,7 @@ fn every_order(
             .flatten()
             .filter(|_| !undecided)
             .map(|e| match e {
-                topo::ValidationError::UndeclaredContact { witness, .. }
+                topo::ValidationError::UnrecordedContact { witness, .. }
                     if on_the_line(witness) =>
                 {
                     witness.clone()
@@ -369,7 +368,7 @@ fn every_order(
         let last = order[order.len() - 1];
         assert!(
             undecided || on_line.len() == dropped[last],
-            "{what}: tier 3′ refused by other than the records {DROPPED_RECORDS} drops: \
+            "{what}: tier 3′ refused by other than the records the uncarried fold drops: \
              {on_line:?}"
         );
         let v = topo::mass_properties(body, t()).unwrap().volume;
@@ -412,8 +411,10 @@ fn every_order(
 fn three_prisms_touching_along_one_line_build_one_body_in_every_member_order() {
     // Folded last, the plate leaves the three prisms' contacts to the
     // operands' records, and the 1.7-high prism the other two's stretch
-    // past its top.
-    let dropped = [6, 0, 2, 0];
+    // past its top; either then drops the edge-edge row of two of its
+    // operand's edges along the line, which no step but the one that
+    // joined them reads.
+    let dropped = [6, 1, 2, 1];
     every_order(
         "three prisms and the plate",
         &three(),
@@ -427,7 +428,7 @@ fn three_prisms_touching_along_one_line_build_one_body_in_every_member_order() {
         &three(),
         false,
         [15, 27, 18],
-        &[2, 2, 0],
+        &[2, 2, 1],
         &none,
     );
 }
@@ -441,7 +442,7 @@ fn four_prisms_touching_along_one_line_build_one_body_in_every_member_order() {
         &four(),
         true,
         [22, 48, 29],
-        &[12, 0, 2, 0, 6],
+        &[12, 2, 4, 2, 6],
         &none,
     );
 }
@@ -509,10 +510,10 @@ fn a_prism_tilted_within_the_zero_builds_as_upright() {
                 &prisms,
                 true,
                 [18, 39, 24],
-                &[6, 0, 2, 0],
+                &[6, 1, 2, 1],
                 &none,
             );
-            every_order(&label, &prisms, false, [15, 27, 18], &[2, 2, 0], &none);
+            every_order(&label, &prisms, false, [15, 27, 18], &[2, 2, 1], &none);
         }
     }
 }
@@ -530,7 +531,10 @@ const ON_A_BISECTOR: &str = "a contact line's ray holds a subdivision bisector (
 /// bisector, and refuses typed (unbuilt). Nine orders refuse at a step
 /// that meets one edge of the line in the third's face,
 /// `ResultInvalid { RingMeetsRing }` or `VertexReadTwice`, as on main
-/// (`work/tang/an-edge-lying-in-a-face-at-a-pierce-refuses-ring-meets-ring.md`). The other twelve build.
+/// (`work/tang/an-edge-lying-in-a-face-at-a-pierce-refuses-ring-meets-ring.md`). The other twelve build,
+/// and pass tier 3′ against the last step's records whichever member
+/// folds last: the step that folds the third last records the others'
+/// corners resting on its face on the piece of it that holds them.
 #[test]
 fn a_prism_whose_face_holds_the_line_builds_or_refuses_typed() {
     let face = Prism {
@@ -557,7 +561,7 @@ fn a_prism_whose_face_holds_the_line_builds_or_refuses_typed() {
         &prisms,
         true,
         [20, 47, 30],
-        &[0, 0, 0, 2],
+        &[0; 4],
         &refuses,
     );
 }
@@ -580,7 +584,7 @@ fn a_prism_moved_off_the_line_builds_or_escalates_typed_in_every_member_order() 
             &three_off(k * eps),
             true,
             [18, 39, 24],
-            &[6, 0, 2, 0],
+            &[6, 1, 2, 1],
             &none,
         );
     }
@@ -651,7 +655,7 @@ fn escalates(e: &BooleanError) -> bool {
 /// **Three prisms over 60° sectors glue their flush continuation in
 /// every member order**: each lateral face lies in the plane of
 /// another's, touching it along the line, and its margins decide it
-/// (D10), undeclared.
+/// (D10).
 #[test]
 fn three_prisms_flush_along_one_line_build_undeclared_in_every_member_order() {
     let prisms = [
@@ -669,120 +673,17 @@ fn three_prisms_flush_along_one_line_build_undeclared_in_every_member_order() {
     }
 }
 
-/// The faces of `body` at a vertex on the line.
-fn faces_on_the_line(body: &AtRestBody<f64>) -> Vec<topo::FaceKey> {
-    let mut out = Vec::new();
-    for (v, _) in body.vertices() {
-        let p = topo::readback::vertex_point(body, v).unwrap();
-        if (p.x - MEET[0]).hypot(p.y - MEET[1]) < 1e-9 {
-            for f in body.faces_of_vertex(v).unwrap() {
-                if !out.contains(&f) {
-                    out.push(f);
-                }
-            }
-        }
-    }
-    out
-}
-
-/// The left fold of `members` in `order` from `body`, already the fold
-/// of its first `from` members, or the step that refused and why.
-fn fold_from(
-    members: &[AtRestBody<f64>],
-    order: &[usize],
-    from: usize,
-    mut body: AtRestBody<f64>,
-) -> Result<AtRestBody<f64>, (usize, Box<BooleanError>)> {
-    for (k, &i) in order.iter().enumerate().skip(from) {
-        match union(&body, &members[i], t()) {
-            Ok(BooleanResult::Body(r)) => body = r.body,
-            Ok(BooleanResult::Empty) => panic!("step {k} of {order:?} is empty"),
-            Err(e) => return Err((k, Box::new(e))),
-        }
-    }
-    Ok(body)
-}
-
-/// **A declaration changes no verdict the contact line's route serves
-/// (D10)**: every step of every member order of the 50° fixture, with
-/// each coincidence class declared on each pair of faces at the line,
-/// one pair at a time and the other steps undeclared, builds the
-/// undeclared fold's body or refuses typed. Every one refuses at the
-/// declaration door: no two faces there share a carrier, and a plane
-/// pair takes neither `Tangent` nor `Seam`.
-#[test]
-fn a_declaration_at_the_contact_line_serves_the_undeclared_body_or_refuses() {
-    use topo::{BooleanCoincidence, BooleanDeclarations, FacePairDeclaration, union_with};
-    let classes = [
-        BooleanCoincidence::REST,
-        BooleanCoincidence::TANGENT,
-        BooleanCoincidence::Continuation,
-        BooleanCoincidence::Seam,
-    ];
-    let p = common::brick(PLATE[0], PLATE[1], PLATE[2], t());
-    let mut members = vec![finished("the plate", p, t())];
-    members.extend(three().iter().map(Prism::body));
-    let (mut served, mut refused) = (0, 0);
-    for order in orders(members.len()) {
-        let undeclared = shape(&fold(&members, &order).unwrap().body);
-        let mut acc = members[order[0]].clone();
-        for k in 1..order.len() {
-            let what = format!("member order {order:?}, step {k}");
-            let b = &members[order[k]];
-            for fa in faces_on_the_line(&acc) {
-                for fb in faces_on_the_line(b) {
-                    for class in classes {
-                        let decls = BooleanDeclarations {
-                            coincident_faces: vec![FacePairDeclaration::new(fa, fb, class)],
-                            ..BooleanDeclarations::none()
-                        };
-                        match union_with(&acc, b, &decls, t()) {
-                            Ok(BooleanResult::Body(r)) => {
-                                let rest = fold_from(&members, &order, k + 1, r.body)
-                                    .unwrap_or_else(|(s, e)| {
-                                        panic!(
-                                            "{what}: {class:?} on {fa:?} × {fb:?}, step {s}: {e:?}"
-                                        )
-                                    });
-                                assert!(
-                                    shape(&rest) == undeclared,
-                                    "{what}: {class:?} on {fa:?} × {fb:?} serves another body"
-                                );
-                                served += 1;
-                            }
-                            Ok(BooleanResult::Empty) => {
-                                panic!("{what}: {class:?} on {fa:?} × {fb:?} serves empty")
-                            }
-                            Err(
-                                BooleanError::ContactContradicted { .. }
-                                | BooleanError::ContinuationContradicted { .. }
-                                | BooleanError::UnsupportedDeclarationClass { .. },
-                            ) => refused += 1,
-                            Err(e) => {
-                                panic!("{what}: {class:?} on {fa:?} × {fb:?} refused {e:?}")
-                            }
-                        }
-                    }
-                }
-            }
-            acc = fold_from(&members, &order[..=k], k, acc)
-                .unwrap_or_else(|(s, e)| panic!("{what}: undeclared step {s}: {e:?}"));
-        }
-    }
-    // Measured: the door refuses all 4320, so no declaration reaches the
-    // contact line's route on this fixture.
-    assert_eq!((served, refused), (0, 4320), "served, refused at the door");
-}
-
-/// **Carrying each step's own contact records serves the same body
+/// **The carried fold serves the uncarried fold's body and passes 3′
 /// (D10)**: every member order of the 50° fixture, of four prisms, and
-/// of the 50° fixture with a corner moved 0.1ε, each step declaring the
-/// records the step before it returned (its vertex pairs and rests as
-/// `Rest`, then as `Tangent`; its vertex-edge and edge-edge contacts),
-/// builds the undeclared fold's body.
+/// of the 50° fixture with a corner moved 0.1ε, each step carrying the
+/// records the step before it returned. Where each step carries the
+/// last one's records nothing on the line is dropped, so the result
+/// passes 3′ with no finding: the `dropped` counts [`every_order`] pins
+/// are the uncarried fold's alone. Red if the carry changes the body,
+/// if a carried edge-edge row's lineage loses a touch, or if the census
+/// asks for a row the carry never brings.
 #[test]
-fn carrying_each_steps_records_serves_the_same_body() {
-    use topo::{BooleanDeclarations, CarriedContacts, ContactClass, union_with};
+fn the_carried_fold_passes_three_prime_in_every_member_order() {
     let eps = t().eps();
     for (label, prisms) in [
         ("three", three()),
@@ -792,27 +693,40 @@ fn carrying_each_steps_records_serves_the_same_body() {
         let p = common::brick(PLATE[0], PLATE[1], PLATE[2], t());
         let mut members = vec![finished("the plate", p, t())];
         members.extend(prisms.iter().map(Prism::body));
-        for class in [ContactClass::Rest, ContactClass::Tangent] {
-            for order in orders(members.len()) {
-                let what = format!("{label}, {class:?}, member order {order:?}");
-                let undeclared = shape(&fold(&members, &order).unwrap().body);
-                let mut body = members[order[0]].clone();
-                let mut carried = CarriedContacts::default();
-                for (k, &i) in order.iter().enumerate().skip(1) {
-                    let decls = BooleanDeclarations {
-                        carried_a: carried.clone(),
-                        ..BooleanDeclarations::none()
-                    };
-                    let r = match union_with(&body, &members[i], &decls, t()) {
-                        Ok(BooleanResult::Body(r)) => r,
-                        other => panic!("{what}: step {k}: {other:?}"),
-                    };
-                    let c = &r.contacts;
-                    carried = c.carried(class);
-                    body = r.body;
-                }
-                assert!(shape(&body) == undeclared, "{what}: another body");
+        for order in orders(members.len()) {
+            let what = format!("{label}, member order {order:?}");
+            let uncarried = shape(&fold(&members, &order).unwrap().body);
+            let mut body = members[order[0]].clone();
+            let mut carried = topo::OperandRecords::default();
+            let mut last = None;
+            for (k, &i) in order.iter().enumerate().skip(1) {
+                let inputs = topo::BooleanInputs {
+                    records_a: carried,
+                    ..topo::BooleanInputs::default()
+                };
+                let r = match topo::boolean_op_with(
+                    topo::BooleanOp::Union,
+                    &body,
+                    &members[i],
+                    &inputs,
+                    topo::SweepStrategy::Realized,
+                    t(),
+                ) {
+                    Ok(BooleanResult::Body(r)) => r,
+                    other => panic!("{what}: step {k}: {other:?}"),
+                };
+                carried = r.contacts.carried();
+                body = r.body.clone();
+                last = Some(r);
             }
+            assert!(shape(&body) == uncarried, "{what}: another body");
+            let r = last.expect("at least two members");
+            assert_eq!(
+                validate_pseudomanifold(&r.body, &r.contacts, t()).err(),
+                None,
+                "{what}: the carried fold at 3′ ({} e-e rows)",
+                r.contacts.edge_edge().count()
+            );
         }
     }
 }
@@ -859,17 +773,16 @@ fn hunt(seed: u64, k: usize) -> Vec<Prism> {
         .collect()
 }
 
-/// **Pierces a weld leaves apart build one body in every member order**:
-/// the review's hunt seeds 506 (three prisms) and 507 (four), overlapping
+/// **Pierces of one point build one body in every member order**: the
+/// review's hunt seeds 506 (three prisms) and 507 (four), overlapping
 /// sectors through the plate's top at [`MEET`], some upright on the line
 /// and some leant about it. Folded first, their edges pierce the top at
-/// [`MEET`], and a pierce the weld has joined meets another copy of a
-/// pierce it already took, whose corners none of the joined vertex's
-/// hold: the pair stays apart. Every order builds sound by tier 3,
+/// [`MEET`], and one ring serves them all (`vtxfac::mint_ring`). Every
+/// order builds sound by tier 3,
 /// corners, a probe oracle about [`MEET`], a Monte Carlo volume, and one
 /// body.
 #[test]
-fn pierces_a_weld_leaves_apart_build_one_body_in_every_member_order() {
+fn pierces_of_one_point_build_one_body_in_every_member_order() {
     for (seed, k) in [(506, 3), (507, 4)] {
         let prisms = hunt(seed, k);
         let mut members = vec![finished(

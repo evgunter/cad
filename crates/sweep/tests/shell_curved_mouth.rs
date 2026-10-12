@@ -531,7 +531,7 @@ fn a_whole_side_wall_disconnects_the_caps() {
 /// `u = 0` into two faces on one chart: a window of two faces that does
 /// not wrap. Built through the public Euler doors, then minted and
 /// finished.
-fn split_d_section(r: f64, h: f64) -> Body<f64> {
+pub(crate) fn split_d_section(r: f64, h: f64) -> Body<f64> {
     let tol = Tol::witness();
     let mut body = d_section(r, h);
     let wall = faces_on(&body, geom::SurfaceKind::Cylinder)[0];

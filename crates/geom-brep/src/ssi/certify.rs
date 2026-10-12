@@ -513,27 +513,35 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
             }
         })?;
         // Every reading crosses to metres by one outward division.
+        let spans: Vec<f64> = composite
+            .span_bounds()
+            .into_iter()
+            .map(|b| mag_in_meters(b, per_meter))
+            .collect();
         Ok(Hull {
             sup: mag_in_meters(composite.bound(), per_meter),
             breaks: composite.num.breaks().to_vec(),
-            spans: composite
-                .span_bounds()
-                .into_iter()
-                .map(|b| mag_in_meters(b, per_meter))
-                .collect(),
-            values: composite
+            work: spans.len(),
+            spans,
+            floors: composite
                 .break_values()
                 .into_iter()
-                .map(|v| in_meters(v, per_meter))
+                .map(|v| zero_free_lower_bound(in_meters(v, per_meter)))
                 .collect(),
+            data: (),
         })
     };
     // ---- limb 1: the fixed schedule ----
+    // The schedule on the carrier's held domain (its ends held, its
+    // interior stations chosen points); the value channel names a
+    // refused sample.
     let (t0, t1) = carrier.domain();
+    let (h0, h1) = carrier.knot_values().domain();
     let mut worst = T::zero();
     for i in 0..CERT_SAMPLES {
         let t = sample_param(t0, t1, i);
-        let r = crate::implicit::implicit_residual(surface, carrier.eval(T::from_f64(t))).abs();
+        let station = crate::certify::held_station((t0, t1), (h0, h1), i, CERT_SAMPLES);
+        let r = crate::implicit::implicit_residual(surface, carrier.eval(station)).abs();
         // `max`, not a `>` branch: the running worst is a scalar-typed
         // quantity now, and generic evaluation code does not compare.
         worst = worst.max(r);
@@ -620,21 +628,32 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
             sup: residual.sup_bound(),
             breaks: residual.breaks().to_vec(),
             spans: residual.span_bounds().to_vec(),
-            values: residual.break_values().to_vec(),
+            floors: residual
+                .break_values()
+                .iter()
+                .map(|&v| zero_free_lower_bound(v))
+                .collect(),
+            work: residual.span_bounds().len(),
+            data: (),
         })
     };
     // ---- limb 1: the fixed schedule, through certified foot points --
+    // The schedule on the carrier's held domain (its ends held, its
+    // interior stations chosen points; the pcurve shares the carrier's
+    // parameter); the value channel names a refused sample.
     let (t0, t1) = carrier.domain();
+    let (h0, h1) = carrier.knot_values().domain();
     let mut worst = T::zero();
     for i in 0..CERT_SAMPLES {
         let t = sample_param(t0, t1, i);
-        let c = carrier.eval(T::from_f64(t));
+        let th = crate::certify::held_station((t0, t1), (h0, h1), i, CERT_SAMPLES);
+        let c = carrier.eval(th);
         // Warm-start from the trace's own pcurve: the projection is a
         // *check*, and starting it where the trace says the foot is
         // makes a disagreement visible rather than hidden by a global
         // seeding sweep landing somewhere else. The seed is a
         // parameter — `f64` structure on both sides of the M6-2 lift.
-        let p = pcurve.eval(T::from_f64(t));
+        let p = pcurve.eval(th);
         let proj = surface
             .project_from_seed(c, p.x.lo(), p.y.lo())
             .map_err(|e| SsiError::FootPointInconclusive {
@@ -714,17 +733,24 @@ fn locatable(decided: &Result<Decided, geom_core::Indeterminate>) -> bool {
     }
 }
 
-/// Limb 2's composite, span by span: a certified upper bound in metres
-/// on the carrier's residual over each span, span `j` covering
-/// `[breaks[j], breaks[j+1]]`, and a certified enclosure of the residual
-/// at each break.
-struct Hull {
+/// A limb's composite, span by span, as a round of [`subdivide`] reads
+/// it: a certified upper bound in metres on the carrier's residual over
+/// each span, span `j` covering `[breaks[j], breaks[j+1]]`, and a
+/// certified lower bound in metres on its magnitude at each break.
+/// `data` is what the limb decides on once the rounds stop.
+pub(crate) struct Hull<P = ()> {
     /// The bound over the whole carrier, the composite's own.
-    sup: f64,
-    breaks: Vec<f64>,
-    spans: Vec<f64>,
-    /// The residual's value at `breaks[j]`, in metres.
-    values: Vec<Interval>,
+    pub(crate) sup: f64,
+    pub(crate) breaks: Vec<f64>,
+    pub(crate) spans: Vec<f64>,
+    /// The residual's magnitude at `breaks[j]` is at least `floors[j]`,
+    /// in metres (`0` where nothing is certified).
+    pub(crate) floors: Vec<f64>,
+    /// How many spans the round's composite recomputed, which
+    /// [`SSI_HULL_WORK`] counts: the spans above, or more where the
+    /// composite runs past the carrier they cover.
+    pub(crate) work: usize,
+    pub(crate) data: P,
 }
 
 /// Whether a certified upper bound clears the band's zero: a selection
@@ -745,7 +771,7 @@ struct Halved {
     bound: f64,
 }
 
-impl Hull {
+impl<P> Hull<P> {
     /// Pushes onto `at` every span whose bound does not clear the band's
     /// zero. A selection of where to look, never a decision: the refusal
     /// it locates is decided by the limb, and a refused (`NaN`) span is
@@ -782,14 +808,14 @@ impl Hull {
         spans
     }
 
-    /// The break whose value's certified lower bound is largest, with
-    /// that bound, where it lies past the band's zero: no bound over a
-    /// span holding the break can clear.
+    /// The break whose certified floor is largest, with that floor,
+    /// where it lies past the band's zero: no bound over a span holding
+    /// the break can clear.
     fn past(&self, band: Band) -> Option<(f64, f64)> {
         self.breaks
             .iter()
-            .zip(&self.values)
-            .map(|(&t, &v)| (t, zero_free_lower_bound(v)))
+            .zip(&self.floors)
+            .map(|(&t, &floor)| (t, floor))
             .filter(|&(_, floor)| !clears(floor, band))
             .max_by(|a, b| a.1.total_cmp(&b.1))
     }
@@ -822,6 +848,14 @@ impl Halved {
 /// composite has more spans than this is read on that hull alone; the
 /// one such carrier measured, a dome arc at ε 1e-14 over 4242 to 14 814
 /// spans, reads its lowest bound there.
+///
+/// The analytic rung-3 limb counts every part of its lane's composite,
+/// which covers the carrier's whole net whatever the edge's interval
+/// reads, so a long carrier shared by many edges spends nearly the whole
+/// budget on its first hull and gets few rounds or none. Measured once,
+/// on 2026-10-11, with a temporary probe in `net_offset_sup` over the
+/// same four ci profiles: 94 calls, all deciding on their first hull (89
+/// cleared, 5 on a break's value), the largest costing 4080 parts.
 pub(crate) const SSI_HULL_WORK: usize = 4096;
 
 /// The most breaks limb 2's rounds add to its composite in all. A
@@ -839,15 +873,15 @@ pub(crate) const SSI_HULL_CUTS: usize = 1024;
 /// it stops on the second such round, and one is all it lets pass.
 const SSI_HULL_IDLE_ROUNDS: usize = 2;
 
-/// Where limb 2's subdivision stopped.
-enum Subdivided {
+/// Where a hull limb's subdivision stopped.
+pub(crate) enum Subdivided<P = ()> {
     /// On the bound over the whole carrier: it cleared the band's zero,
     /// or the budget ran out or the bound stopped falling, first. The
     /// hull is the round's with the lowest bound.
-    Bound(Hull),
+    Bound(Hull<P>),
     /// On a break whose value is certified past the band's zero.
     Value {
-        hull: Hull,
+        hull: Hull<P>,
         /// The break.
         at: f64,
         /// The certified lower bound on the value there, in metres.
@@ -855,7 +889,11 @@ enum Subdivided {
     },
 }
 
-/// **Limb 2, subdivided until it decides** (C2.2): the composite's
+/// **Limb 2, subdivided until it decides** (C2.2), for every door that
+/// states it: the search's two arms here, and the analytic rung-3
+/// certificate's distance bound
+/// ([`crate::pcurve_cache::projected::net_offset_sup`]). `hull` builds a
+/// round's hull with its argument's breaks added. The composite's
 /// uncleared spans are halved, worst bound first, round by round, until
 /// its bound clears the band's zero, or a break's certified value lies
 /// past it, or it stops: the next round would pass [`SSI_HULL_WORK`],
@@ -876,11 +914,12 @@ enum Subdivided {
 /// rows (`compose`'s `ch_*` steps), so a span-restricted round would
 /// thread a span mask through that algebra, and the tensor residual,
 /// whose spans are composed one by one, would need a public door of its
-/// own that only this caller reads.
+/// own that only this caller reads. A round costs its hull's
+/// [`Hull::work`].
 ///
 /// Three outcomes follow from that and are the code's, not accidents:
-/// - a first hull whose composite already has more spans than
-///   [`SSI_HULL_WORK`] (spans plus the round's cuts) gets no round at
+/// - a first hull whose composite already costs more than
+///   [`SSI_HULL_WORK`] (its work plus the round's cuts) gets no round at
 ///   all, so a refusal on its bound is a refusal on an unsubdivided
 ///   carrier;
 /// - a later round whose bound is NaN stops the subdivision on the
@@ -889,12 +928,12 @@ enum Subdivided {
 ///   caller as NaN);
 /// - a round whose bound equals the lowest counts as idle, and the
 ///   older hull is kept.
-fn subdivide(
-    hull: impl Fn(&[f64]) -> Result<Hull, SsiError>,
+pub(crate) fn subdivide<P, E>(
+    hull: impl Fn(&[f64]) -> Result<Hull<P>, E>,
     band: Band,
-) -> Result<Subdivided, SsiError> {
+) -> Result<Subdivided<P>, E> {
     let mut cuts: Vec<f64> = Vec::new();
-    let mut lowest: Option<Hull> = None;
+    let mut lowest: Option<Hull<P>> = None;
     let (mut idle, mut work) = (0, 0);
     loop {
         let h = hull(&cuts)?;
@@ -913,7 +952,7 @@ fn subdivide(
         next.truncate(SSI_HULL_CUTS - cuts.len());
         // On the first hull `work` is 0, so a composite over the budget
         // stops here unsubdivided.
-        let cost = h.spans.len() + next.len();
+        let cost = h.work + next.len();
         let refused = h.sup.is_nan();
         // A NaN bound compares as not lower, so a later round's NaN keeps
         // the earlier certified hull and stops on it (`refused` below);
@@ -1406,8 +1445,8 @@ fn probe_tube_pair<T: Decide + Bounds + CertifiedEnclosure>(
     // bracket's upper end as the chart lane's is: the graph margin is
     // certified for whatever direction it is handed, so the read only
     // steers which determinant is asked.
-    let tangent = |t: f64| -> Option<[f64; 4]> {
-        let (da, db) = (pa.deriv(T::from_f64(t)), pb.deriv(T::from_f64(t)));
+    let tangent = |t: T| -> Option<[f64; 4]> {
+        let (da, db) = (pa.deriv(t), pb.deriv(t));
         let raw = [da.x.hi(), da.y.hi(), db.x.hi(), db.y.hi()];
         let scaled: [f64; 4] = core::array::from_fn(|k| raw[k] * speeds[k]);
         let n = scaled.iter().map(|v| v.powi(2)).sum::<f64>().sqrt();
@@ -1416,20 +1455,22 @@ fn probe_tube_pair<T: Decide + Bounds + CertifiedEnclosure>(
     let mut worst = f64::INFINITY;
     let mut boxes = Vec::with_capacity(chain.len());
     for (x, mid) in chain {
-        let e = tangent(mid)?;
+        // A chain box's midpoint steers which determinant is asked: a
+        // point the chain chose, entered as the constant it is.
+        let e = tangent(T::from_f64(mid))?;
         worst = worst.min(zero_free_lower_bound(graph_margin(&pair, x, e)));
         boxes.push(x);
     }
     // An end's state is a point the one-arc proof looks for inside an
     // end box `ε/8` wide on each axis: on the `f64` lane the bracket is
     // the point, and on a wider one any point of it is as good a read.
-    let state = |t: f64| {
-        let (p, q) = (pa.eval(T::from_f64(t)), pb.eval(T::from_f64(t)));
+    let state = |t: T| {
+        let (p, q) = (pa.eval(t), pb.eval(t));
         [p.x.lo(), p.y.lo(), q.x.lo(), q.y.lo()]
     };
     // Each end's dominant axis is read off its tangent; an unusable one
     // refuses the rung, as one inside the chain does.
-    let (t0, t1) = pa.domain();
+    let (t0, t1) = pa.knot_values().domain();
     let [Some(e0), Some(e1)] = [t0, t1].map(tangent) else {
         return None;
     };
@@ -1888,9 +1929,9 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
     // the f64 lane a point, not an enclosure of the exact end, which the
     // end checks then read within ε of
     // (`work/ssiarith/limb3-carrier-ends-read-at-f64-points.md`).
-    let (t0, t1) = carrier.domain();
+    let (t0, t1) = carrier.knot_values().domain();
     let ends = [t0, t1].map(|t| {
-        let p = carrier.eval(T::from_f64(t));
+        let p = carrier.eval(t);
         Box3 {
             x: Interval::from_certified(p.x),
             y: Interval::from_certified(p.y),

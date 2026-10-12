@@ -257,8 +257,7 @@ pub(crate) const fn placement_sized(
 
 /// **How an escalation's refused reading stands**, as the site that
 /// raised it knows it: the one thing the carried [`Indeterminate`] cannot
-/// say, since a site with no margin to carry still names its row there
-/// (`crate::invalid_margin`).
+/// say.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Escalation {
     /// The carried margin is the reading: in the band, or unreadable.
@@ -267,9 +266,6 @@ pub enum Escalation {
     /// verdict of either states the reading; the carried diagnostic is
     /// their enclosure, under the site's straddle row.
     Straddle,
-    /// The site's own row decided definitely, and the site still cannot
-    /// answer on it; the carried diagnostic names the row.
-    Decided,
 }
 
 impl Escalation {
@@ -279,7 +275,6 @@ impl Escalation {
         match self {
             Self::Margin => RefusedArm::Undecided(diag),
             Self::Straddle => RefusedArm::Straddle,
-            Self::Decided => RefusedArm::SignCertain(None),
         }
     }
 }
@@ -464,13 +459,17 @@ impl core::fmt::Display for PointInLoopError {
                 .fmt(f),
             Self::RayExhausted { .. } => write!(
                 f,
-                "whether a point lies in a loop is undecided: {}",
+                geom_core::undecided!("whether a point lies in a loop", payload),
                 ray_walk::NoRaySettled
             ),
             Self::CorruptLoop { r#loop } => {
                 write!(f, "loop {loop:?} is not walkable")
             }
-            Self::Uncrossable(u) => write!(f, "whether a point lies in a loop is undecided: {u}"),
+            Self::Uncrossable(u) => write!(
+                f,
+                geom_core::undecided!("whether a point lies in a loop", payload),
+                u
+            ),
             Self::OffPlane(o) => write!(f, "{o}"),
         }
     }
@@ -781,8 +780,10 @@ pub(crate) struct ConicArc<T: geom_core::Real> {
     /// reading bounds its distances on both sides ([`Self::hit`]), and
     /// an arc's span needs the larger semi-axis too.
     lever: T,
-    /// The carrier parameters of the arc's two ends.
-    span: (T, T),
+    /// The arc's two end points, evaluated as certification evaluates
+    /// them (`Curve3::eval`), so every reading of an end reads the point
+    /// whose pin to its vertex was certified.
+    ends: [Point3<T>; 2],
     /// The arc's two ends and its apex (the window's mid direction),
     /// on the unit circle — the trim [`arc_trim`] decides by distance.
     trim: [(T, T); 3],
@@ -919,7 +920,7 @@ impl<T: Decide> ConicArc<T> {
             a,
             b,
             lever,
-            span: (t0, t1),
+            ends: [carrier.eval(t0), carrier.eval(t1)],
             trim: [(c0, s0), (c1, s1), (cm, sm)],
             span_turn: low.map(|d| d.sign),
         }))
@@ -930,7 +931,9 @@ impl<T: Decide> ConicArc<T> {
         (w.dot(self.u) / self.a, w.dot(self.v) / self.b)
     }
 
-    /// The carrier's point at parameter `t`.
+    /// The carrier's point at parameter `t`, by the conic's own frame:
+    /// the probes' placement (the ends are [`Self::ends`]).
+    #[cfg(test)]
     fn point(&self, t: T) -> Point3<T> {
         let (s, c) = t.sin_cos();
         self.center + self.u * (self.a * c) + self.v * (self.b * s)
@@ -1111,11 +1114,9 @@ impl<T: Decide> ConicArc<T> {
                 };
             }
         };
-        let (t0, t1) = self.span;
-        let at = [
-            decide_magnitude(rows.end, Margin::norm3(q - self.point(t0)), band),
-            decide_magnitude(rows.end, Margin::norm3(q - self.point(t1)), band),
-        ];
+        let at = self
+            .ends
+            .map(|end| decide_magnitude(rows.end, Margin::norm3(q - end), band));
         if at.contains(&Ok(Magnitude::Zero)) {
             return Ok(ConicHit::End);
         }
@@ -1156,10 +1157,8 @@ impl<T: Decide> ConicArc<T> {
         rows: ConicRows,
         band: Band,
     ) -> bool {
-        let (t0, t1) = self.span;
-        let ends_clear = [t0, t1].into_iter().all(|t| {
-            decide_magnitude(rows.end, Margin::norm3(q - self.point(t)), band)
-                == Ok(Magnitude::Positive)
+        let ends_clear = self.ends.into_iter().all(|end| {
+            decide_magnitude(rows.end, Margin::norm3(q - end), band) == Ok(Magnitude::Positive)
         });
         let (ends, apex, anti) = self.trim_points();
         ends_clear
@@ -1416,10 +1415,7 @@ impl<T: Decide> LoopEdge<T> {
     /// end parameters).
     pub(crate) fn carrier_ends(&self) -> Option<[Point3<T>; 2]> {
         match self {
-            Self::Conic(k) => {
-                let (t0, t1) = k.span;
-                Some([k.point(t0), k.point(t1)])
-            }
+            Self::Conic(k) => Some(k.ends),
             Self::Spiric(k) => Some(k.ends()),
             Self::Chord | Self::Unrowed { .. } => None,
         }

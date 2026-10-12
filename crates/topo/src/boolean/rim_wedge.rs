@@ -225,9 +225,11 @@ pub(crate) enum Departure {
     /// meets no curve of contact.
     Untouched,
     /// A boundary edge of one face is a curve the read does not place
-    /// against the locus (an ellipse, a spline): the touch is not read,
-    /// and the claim is refused as outside the envelope rather than
-    /// answered.
+    /// against the locus (an ellipse, a spline), or a touch piece its
+    /// boundary pass does not place (its midpoint on the face's boundary,
+    /// or at an arc's end its corners disagree with): the touch is not
+    /// read, and the claim is refused as outside the envelope rather
+    /// than answered.
     EdgeKindUnread,
 }
 
@@ -257,10 +259,12 @@ pub(crate) enum Departure {
 /// where one of its other boundary edges crosses the locus. Between two
 /// consecutive cuts each face either contains the locus or does not,
 /// and either rides it or does not; the piece is read at its midpoint
-/// (a riding edge's span, else the face's own containment door). The
-/// TOUCH is the pieces both faces contain. On each touch piece both
-/// faces must ride the locus ([`Departure::NoEdge`] otherwise), and
-/// their traversals there give the piece's departure.
+/// (a riding edge's span, else the face's own containment door, whose
+/// boundary reading there places nothing: [`Departure::EdgeKindUnread`]
+/// where the other face may hold the piece). The TOUCH is the pieces
+/// both faces contain. On each touch piece both faces must ride the
+/// locus ([`Departure::NoEdge`] otherwise), and their traversals there
+/// give the piece's departure.
 ///
 /// **A pair meeting at a point only** is read at that point when both
 /// faces END there, their riding edges abutting: a declaration over
@@ -334,6 +338,7 @@ pub(crate) fn departures<T: Decide>(
         }
         touched = true;
         match (ca, cb) {
+            (Cover::Unread, _) | (_, Cover::Unread) => return Ok(Departure::EdgeKindUnread),
             (Cover::RidesBothWays, _) | (_, Cover::RidesBothWays) => {
                 return Ok(Departure::Mixed);
             }
@@ -412,10 +417,15 @@ enum Cover {
     RidesBothWays,
     /// No riding edge covers it; the face contains the piece or not.
     Contains(bool),
+    /// No riding edge covers it, and the face's read does not place the
+    /// piece (its midpoint on the face's boundary, or at an arc's end
+    /// its corners disagree with).
+    Unread,
 }
 
 impl Cover {
-    /// Whether the face contains the piece.
+    /// Whether the face may hold the piece: every reading but a
+    /// definite `Out`.
     fn contains(self) -> bool {
         !matches!(self, Self::Contains(false))
     }
@@ -469,7 +479,10 @@ impl<T: Decide> Reach<T> {
         }
         Ok(match seen {
             Some(sign) => Cover::Rides(sign),
-            None => Cover::Contains(contains(body, face, locus_point(locus, s), band)?),
+            None => match contains(body, face, locus_point(locus, s), band)? {
+                Some(inside) => Cover::Contains(inside),
+                None => Cover::Unread,
+            },
         })
     }
 }
@@ -498,14 +511,25 @@ fn locus_param<T: Decide>(locus: Locus<T>, p: Point3<T>) -> T {
     }
 }
 
-/// Whether the face contains `p`, a point on its carrier: inside, or on
-/// its boundary.
+/// Whether the face holds `p`, a piece's midpoint on its carrier: `In`
+/// is `true`, `Out` is `false`, and a point the read does not place is
+/// `None`.
+///
+/// **A midpoint on the face's boundary is not placed.** The cut walk
+/// puts every point where the face's boundary meets the locus at a cut,
+/// so between two cuts the face holds the whole piece or none of it, and
+/// a boundary reading at the midpoint is the door and the walk parting:
+/// a boundary edge within the band of the locus without meeting it (an
+/// arc tangent to it at a cut, a corner that barely turns off it), or,
+/// where the run's `K` is under two, a cut within the band of the
+/// midpoint. Neither says the locus runs through the face's interior,
+/// nor that it misses the face.
 fn contains<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     p: Point3<T>,
     band: Band,
-) -> Result<bool, Indeterminate> {
+) -> Result<Option<bool>, Indeterminate> {
     let unread = Indeterminate {
         margin: geom_core::MarginDiag::INVALID,
         band,
@@ -520,14 +544,26 @@ fn contains<T: Decide>(
     let f = body.get_face(face).ok_or(unread)?;
     let read = match body.get_surface(f.surface) {
         Some(geom::Surface::Plane { normal, .. }) => {
-            Some(super::contain::contfp(body, face, *normal, p, band).map_err(lift)?)
+            super::contain::contfp(body, face, *normal, p, band).map(Some)
         }
-        Some(_) => super::contain::curved_face_containment(body, face, p, band).map_err(lift)?,
+        Some(_) => super::contain::curved_face_containment(body, face, p, band),
         None => return Err(unread),
     };
+    // The boundary pass placed the point at an arc's end and clear of
+    // its corners, two definite readings no verdict reconciles at this
+    // band: the read does not place the point, as it does not place a
+    // boundary curve outside its envelope.
+    let read = match read {
+        Err(super::contain::ContainError::ArcEndClearOfCorners(_)) => return Ok(None),
+        read => read.map_err(lift)?,
+    };
     match read {
-        Some(super::contain::FaceContainment::Out) => Ok(false),
-        Some(_) => Ok(true),
+        Some(super::contain::FaceContainment::In) => Ok(Some(true)),
+        Some(super::contain::FaceContainment::Out) => Ok(Some(false)),
+        Some(
+            super::contain::FaceContainment::OnEdge(_)
+            | super::contain::FaceContainment::OnVertex(_),
+        ) => Ok(None),
         None => Err(unread),
     }
 }
@@ -1445,5 +1481,403 @@ mod r2_probes {
             down.expect("the routing answers"),
             "a stored sign cannot change a first-order verdict"
         );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod arc_end_rows {
+    use super::*;
+    use crate::test_support_fixtures::{half_disc_cap, prism_z};
+    use geom_core::{Tol, Vec3};
+
+    /// The point the band `(ε, 1.25ε)` reads at the half-disc cap's arc
+    /// end and clear of its corner: outside the circle and along it, each
+    /// by `0.95ε`, so `≈ 1.34ε` from the corner and as far from the chord.
+    fn beside_the_arc_end(end: Point3<f64>, zero: f64) -> Point3<f64> {
+        end + Vec3::new(-0.95 * zero, 0.95 * zero, 0.0)
+    }
+
+    /// **A touch piece at an arc's end its corners disagree with is not
+    /// read**: the boundary pass places the point at the end and clear of
+    /// the corner, so `contains` has no verdict, and the seam cover
+    /// refuses the claim as outside its envelope
+    /// ([`Departure::EdgeKindUnread`], the claim's `unsupported`) rather
+    /// than reading the piece as the face's interior (`NoEdge`, a decided
+    /// contradiction downstream).
+    ///
+    /// - At `contains`, both arms of the finding, on half-disc caps the
+    ///   public operators built: an end off both corners (read at a band
+    ///   finer than the run's) and the band's own parting (`K = 1.25`).
+    /// - Through `departures`, the band's parting: a line along `x`
+    ///   through the point, which crosses the cap's arc just past it; a
+    ///   second face, a block's top in the cap's plane, whose left edge
+    ///   stands the same distance before it, so the one touch piece's
+    ///   midpoint is the point.
+    #[test]
+    fn a_touch_at_an_arc_end_clear_of_its_corners_is_not_read() {
+        let tol = Tol::witness();
+        let zero = Band::linear(tol).unwrap().zero();
+        let off = zero / 2.0;
+        let (body, cap, end) = half_disc_cap(off, tol);
+        let fine = Band::new(off / 50.0, off / 5.0).unwrap();
+        assert!(
+            matches!(
+                crate::boolean::contfp(&body, cap, Vec3::unit_z(), end, fine),
+                Err(crate::boolean::ContainError::ArcEndClearOfCorners(ref g)) if g.off_corner()
+            ),
+            "the end lies off both corners at the finer band"
+        );
+        assert_eq!(contains(&body, cap, end, fine), Ok(None), "off its corner");
+        let (body, cap, end) = half_disc_cap(0.0, tol);
+        let q = beside_the_arc_end(end, zero);
+        let narrow = Band::new(zero, 1.25 * zero).unwrap();
+        assert!(
+            matches!(
+                crate::boolean::contfp(&body, cap, Vec3::unit_z(), q, narrow),
+                Err(crate::boolean::ContainError::ArcEndClearOfCorners(ref g)) if !g.off_corner()
+            ),
+            "the band's own parting"
+        );
+        assert_eq!(
+            contains(&body, cap, q, narrow),
+            Ok(None),
+            "the band's parting"
+        );
+        // The line crosses the unit circle at `x = -sqrt(1 - y²)`, `delta`
+        // past the point; the block's left edge stands `delta` before it.
+        let delta = -(1.0 - q.y * q.y).sqrt() - q.x;
+        let h = 0.1;
+        let block = prism_z::<f64>(
+            &[
+                (q.x - delta, q.y - h),
+                (q.x + h, q.y - h),
+                (q.x + h, q.y + h),
+                (q.x - delta, q.y + h),
+            ],
+            -1.0,
+            0.0,
+            tol,
+        );
+        let locus = Locus::Line {
+            origin: q,
+            dir: Vec3::unit_x(),
+        };
+        let got = departures(&body, cap, &block.body, block.top_face, locus, narrow);
+        assert_eq!(
+            got,
+            Ok(Departure::EdgeKindUnread),
+            "the touch piece at the arc's end is not read"
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod boundary_midpoint_rows {
+    use super::*;
+    use crate::test_support_fixtures::{CylFrame, Prism, arc_cap, cyl_wall_sheet, prism_z};
+    use geom_core::{Tol, Vec3};
+
+    /// A block in the plane `z = 0` (its top face there) over the polygon
+    /// `corners`, counterclockwise about `+z`.
+    fn block(corners: &[Point3<f64>], tol: Tol) -> Prism<f64> {
+        let profile: Vec<(f64, f64)> = corners.iter().map(|p| (p.x, p.y)).collect();
+        prism_z::<f64>(&profile, -1.0, 0.0, tol)
+    }
+
+    /// A frame in the plane `z = 0`: the point on the unit circle at
+    /// angle `theta`, the circle's tangent `t` there and its outward
+    /// normal `n` (`t × n = +z`), as a map `(u, v) ↦ p + u·t + v·n`.
+    fn frame(theta: f64) -> (Locus<f64>, impl Fn(f64, f64) -> Point3<f64>) {
+        let p = Point3::new(theta.cos(), theta.sin(), 0.0);
+        let n = Vec3::new(theta.cos(), theta.sin(), 0.0);
+        let t = Vec3::new(theta.sin(), -theta.cos(), 0.0);
+        (Locus::Line { origin: p, dir: t }, move |u, v| {
+            p + t * u + n * v
+        })
+    }
+
+    /// The tangent line's poses, as angles on the unit circle.
+    const POSES: [f64; 3] = [core::f64::consts::FRAC_PI_2, 1.0, 2.3];
+
+    /// The gap between a touch piece's midpoint and the face boundary
+    /// that does not meet it, in units of the run's zero: on the
+    /// boundary, in the band, and clear of it.
+    const GAPS: [f64; 3] = [0.25, 3.0, 20.0];
+
+    /// What the seam cover answers at each of [`GAPS`]: the piece not
+    /// placed, the door's own escalation naming `predicate`, and the
+    /// geometry's answer `clear`.
+    fn assert_rows(
+        got: [Result<Departure, Indeterminate>; 3],
+        predicate: &str,
+        clear: Departure,
+        what: &str,
+    ) {
+        assert_eq!(
+            got[0],
+            Ok(Departure::EdgeKindUnread),
+            "{what}: a midpoint on the boundary is not placed, never `NoEdge`"
+        );
+        assert!(
+            matches!(got[1], Err(Indeterminate { predicate: Some(p), .. }) if p == predicate),
+            "{what}: a midpoint in the band escalates on `{predicate}`, got {:?}",
+            got[1]
+        );
+        assert_eq!(
+            got[2],
+            Ok(clear),
+            "{what}: a midpoint clear of the boundary"
+        );
+    }
+
+    /// **A touch piece whose midpoint the face's door reads on its
+    /// boundary is not placed**, along a line. The other face rides the
+    /// piece; the face read there does not meet the line inside it, and
+    /// its door places the midpoint on an edge that comes within the band
+    /// of the line without meeting it:
+    ///
+    /// - an ARC tangent to the line at the piece's start (the unit
+    ///   circle's half-disc cap): `δ²/8` from the midpoint of a piece of
+    ///   length `δ`. The cap touches the line at a point and nowhere
+    ///   else, so clear of the band the pair is `Untouched`.
+    /// - a CORNER that turns off the line by the slope `s = 4K·zero`: a
+    ///   block rides the line up to the piece's start and leaves it
+    ///   there, `s·δ/2` from the midpoint. Clear of the band the pair
+    ///   meets only along the ride, on opposite banks: `Opposite`.
+    ///
+    /// Neither is the face's interior: `NoEdge` there would be the
+    /// declaration door's decided `SeamFaceRunsOn`.
+    #[test]
+    fn a_boundary_midpoint_on_a_line_is_not_placed() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let zero = band.zero();
+        let (cap_body, cap, _) = crate::test_support_fixtures::half_disc_cap(0.0, tol);
+        let s = 4.0 * tol.k() * zero;
+        for theta in POSES {
+            let (locus, at) = frame(theta);
+            let rider = |delta: f64| {
+                block(
+                    &[at(-1.0, 0.0), at(delta, 0.0), at(delta, 0.5), at(-1.0, 0.5)],
+                    tol,
+                )
+            };
+            let arc = GAPS.map(|gap| {
+                let delta = (8.0 * gap * zero).sqrt();
+                if gap < 1.0 {
+                    assert_eq!(
+                        contains(&cap_body, cap, at(delta / 2.0, 0.0), band),
+                        Ok(None),
+                        "theta {theta}: the cap's door reads the midpoint on its arc"
+                    );
+                }
+                let b = rider(delta);
+                departures(&cap_body, cap, &b.body, b.top_face, locus, band)
+            });
+            assert_rows(
+                arc,
+                "bool_contact_arc",
+                Departure::Untouched,
+                &format!("tangent arc, theta {theta}"),
+            );
+            let corner = block(
+                &[
+                    at(-1.0, -1.0),
+                    at(1.0, -1.0),
+                    at(1.0, -s),
+                    at(0.0, 0.0),
+                    at(-1.0, 0.0),
+                ],
+                tol,
+            );
+            let turn = GAPS.map(|gap| {
+                let delta = 2.0 * gap * zero / s;
+                let b = rider(delta);
+                departures(
+                    &corner.body,
+                    corner.top_face,
+                    &b.body,
+                    b.top_face,
+                    locus,
+                    band,
+                )
+            });
+            assert_rows(
+                turn,
+                "bool_contact_edge",
+                Departure::Opposite,
+                &format!("shallow corner, theta {theta}"),
+            );
+        }
+    }
+
+    /// **A midpoint within the band of a cut is not placed either**, at a
+    /// `K` under two (`(zero, 1.25·zero)`): two blocks ride the line on
+    /// opposite banks up to the piece's start, where one leaves it and
+    /// the other runs on `1.5·zero`. The piece decides positive, its
+    /// midpoint `0.75·zero` from each end, so it is inside neither ride
+    /// and both doors read it at a corner. At the run's `K` the piece is
+    /// in the band and the walk escalates on its order.
+    #[test]
+    fn a_midpoint_at_a_corner_is_not_placed() {
+        let tol = Tol::witness();
+        let zero = Band::linear(tol).unwrap().zero();
+        let narrow = Band::new(zero, 1.25 * zero).unwrap();
+        let d = 1.5 * zero;
+        for theta in POSES {
+            let (locus, at) = frame(theta);
+            let a = block(
+                &[at(-1.0, -1.0), at(0.0, -1.0), at(0.0, 0.0), at(-1.0, 0.0)],
+                tol,
+            );
+            let b = block(&[at(-1.0, 0.0), at(d, 0.0), at(d, 0.5), at(-1.0, 0.5)], tol);
+            let mid = at(d / 2.0, 0.0);
+            for (body, face, which) in [(&a.body, a.top_face, "A"), (&b.body, b.top_face, "B")] {
+                assert!(
+                    matches!(
+                        crate::boolean::contfp(body, face, Vec3::unit_z(), mid, narrow),
+                        Ok(crate::boolean::FaceContainment::OnVertex(_))
+                    ),
+                    "theta {theta}: {which}'s door reads the midpoint at its corner"
+                );
+                assert_eq!(
+                    contains(body, face, mid, narrow),
+                    Ok(None),
+                    "theta {theta}: {which}"
+                );
+            }
+            assert_eq!(
+                departures(&a.body, a.top_face, &b.body, b.top_face, locus, narrow),
+                Ok(Departure::EdgeKindUnread),
+                "theta {theta}: the corner piece is not placed, never `NoEdge`"
+            );
+            let run = departures(
+                &a.body,
+                a.top_face,
+                &b.body,
+                b.top_face,
+                locus,
+                Band::linear(tol).unwrap(),
+            );
+            assert!(
+                matches!(
+                    run,
+                    Err(Indeterminate {
+                        predicate: Some("seam_cover_order"),
+                        ..
+                    })
+                ),
+                "theta {theta}: at the run's K the piece escalates, got {run:?}"
+            );
+        }
+    }
+
+    /// **The same along a rim**: a cap on the unit circle rides it from
+    /// `alpha - 1` to `alpha + δ`; a cap on a circle of radius `1/2`
+    /// tangent to it from inside at `alpha` meets it only there, `β²/2`
+    /// from the rim at `β = δ/2` past the tangent point. Clear of the
+    /// band the pair is `Untouched`.
+    #[test]
+    fn a_boundary_midpoint_on_a_rim_is_not_placed() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let zero = band.zero();
+        let rim = Rim {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        for alpha in [0.3, 2.0, 4.0] {
+            let e = Vec3::new(alpha.cos(), alpha.sin(), 0.0);
+            let small = geom::Curve3::Circle {
+                center: Point3::origin() + e * 0.5,
+                axis: Vec3::unit_z(),
+                radius: 0.5,
+                u_ref: e,
+            };
+            let (a, fa) = arc_cap(small, (-1.0, 1.0), Vec3::new(0.0, 0.0, 0.0), tol);
+            let got = GAPS.map(|gap| {
+                let beta = (2.0 * gap * zero).sqrt();
+                let unit = geom::Curve3::Circle {
+                    center: rim.center,
+                    axis: rim.axis,
+                    radius: rim.radius,
+                    u_ref: rim.u_ref,
+                };
+                let (b, fb) = arc_cap(
+                    unit,
+                    (alpha - 1.0, alpha + 2.0 * beta),
+                    Vec3::new(0.0, 0.0, 0.0),
+                    tol,
+                );
+                departures(&a, fa, &b, fb, Locus::Rim(rim), band)
+            });
+            assert_rows(
+                got,
+                "bool_contact_arc",
+                Departure::Untouched,
+                &format!("tangent circle, alpha {alpha}"),
+            );
+        }
+    }
+
+    /// **Through the declaration door**: a seam claim between the
+    /// shallow-cornered block's top and a cylinder wall tangent to its
+    /// plane along the ride's line, the wall's meridian running `δ` past
+    /// the corner. On the boundary the claim is refused as outside the
+    /// envelope, never contradicted; clear of the band the door verifies
+    /// the seam.
+    #[test]
+    fn the_seam_door_refuses_a_boundary_midpoint_typed() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let zero = band.zero();
+        let s = 4.0 * tol.k() * zero;
+        let corner = prism_z::<f64>(
+            &[
+                (-1.0, 0.0),
+                (1.0, 0.0),
+                (1.0, 1.0 - s),
+                (0.0, 1.0),
+                (-1.0, 1.0),
+            ],
+            -1.0,
+            0.0,
+            tol,
+        );
+        let wall_frame = CylFrame {
+            origin: Point3::new(0.0, 1.0, -1.0),
+            axis: Vec3::unit_x(),
+            radius: 1.0,
+            u_ref: Vec3::unit_z(),
+        };
+        let claim = |gap: f64| {
+            let delta = 2.0 * gap * zero / s;
+            let mut body = Body::<f64>::new();
+            let wall = cyl_wall_sheet(&mut body, wall_frame, (0.0, 1.0), (-1.0, delta), tol);
+            crate::boolean::verify_tangency_declaration(
+                &corner.body,
+                corner.top_face,
+                &body,
+                wall,
+                crate::boolean::Tangency::Seam,
+                band,
+            )
+            .map(|_| ())
+        };
+        assert!(
+            matches!(
+                claim(0.5),
+                Err(crate::boolean::BooleanError::UnsupportedDeclarationClass {
+                    class: crate::contact::GlueClass::Seam
+                })
+            ),
+            "on the boundary: refused typed, got {:?}",
+            claim(0.5)
+        );
+        assert!(claim(20.0).is_ok(), "clear of the band: the seam verifies");
     }
 }

@@ -11,7 +11,7 @@
 use super::common::differential::outcome;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use sweep::test_support::{corners, extruded, prism_on, sketch_at, sketch_from_axes};
-use topo::{Body, BooleanDeclarations, BooleanError, BooleanOp};
+use topo::{Body, BooleanError, BooleanOp};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -55,27 +55,12 @@ fn sharp(v: &[(f64, f64)]) -> Vec<((f64, f64), f64)> {
     v.iter().map(|&p| (p, 0.0)).collect()
 }
 
-/// The flush detector's findings, every one declared (Rest and
-/// continuations alike).
-fn declared(a: &Body<f64>, b: &Body<f64>) -> Result<BooleanDeclarations, String> {
-    let found = topo::flush::find_flush_candidates(a, b, tol()).map_err(|e| format!("{e:?}"))?;
-    Ok(topo::flush::declare_all(&found))
-}
-
 /// Every op in both orders, one line each, plus the join's own refusal
 /// for the union.
 fn battery(label: &str, a: &Body<f64>, b: &Body<f64>, va: f64, vb: f64, disjoint: bool) {
     for (order, x, y, vx, vy) in [("ab", a, b, va, vb), ("ba", b, a, vb, va)] {
-        let d = match declared(x, y) {
-            Ok(d) => d,
-            Err(e) => {
-                println!("R2P {label} {order} DECL-ERR {e}");
-                continue;
-            }
-        };
-        let d2 = declared(y, x).unwrap_or_default();
         assert!(disjoint, "only stacked poses here");
-        let join = topo::test_support::boolean_join_refusal(BooleanOp::Union, x, y, &d, tol());
+        let join = topo::test_support::boolean_join_refusal(BooleanOp::Union, x, y, tol());
         let path = match &join {
             Ok(None) => "join".to_string(),
             Ok(Some(e)) => format!("refuse[{}]", short(e)),
@@ -83,27 +68,19 @@ fn battery(label: &str, a: &Body<f64>, b: &Body<f64>, va: f64, vb: f64, disjoint
         };
         println!(
             "R2P {label} {order} union {} | {path}",
-            outcome(
-                topo::union_with(&fin(x), &fin(y), &d, tol()),
-                vx + vy,
-                tol()
-            )
+            outcome(topo::union(&fin(x), &fin(y), tol()), vx + vy, tol())
         );
         println!(
             "R2P {label} {order} sub {}",
-            outcome(topo::subtract_with(&fin(x), &fin(y), &d, tol()), vx, tol())
+            outcome(topo::subtract(&fin(x), &fin(y), tol()), vx, tol())
         );
         println!(
             "R2P {label} {order} rsub {}",
-            outcome(topo::subtract_with(&fin(y), &fin(x), &d2, tol()), vy, tol())
+            outcome(topo::subtract(&fin(y), &fin(x), tol()), vy, tol())
         );
         println!(
             "R2P {label} {order} meet {}",
-            outcome(
-                topo::intersect_with(&fin(x), &fin(y), &d, tol()),
-                0.0,
-                tol()
-            )
+            outcome(topo::intersect(&fin(x), &fin(y), tol()), 0.0, tol())
         );
     }
 }
@@ -403,15 +380,12 @@ fn join2_r2_ring_order_at_a_tangent_site() {
 
 /// One union that must build sound, its join connecting every germ.
 fn builds_paired(label: &str, x: &Body<f64>, y: &Body<f64>, want: f64) {
-    let d = declared(x, y);
-    assert!(d.is_ok(), "{label}: declarations: {d:?}");
-    let d = d.unwrap_or_default();
-    let join = topo::test_support::boolean_join_refusal(BooleanOp::Union, x, y, &d, tol());
+    let join = topo::test_support::boolean_join_refusal(BooleanOp::Union, x, y, tol());
     assert!(
         matches!(join, Ok(None)),
         "{label}: the join connects every germ, got {join:?}"
     );
-    let line = outcome(topo::union_with(&fin(x), &fin(y), &d, tol()), want, tol());
+    let line = outcome(topo::union(&fin(x), &fin(y), tol()), want, tol());
     assert!(line.starts_with("OK SOUND"), "{label}: {line}");
 }
 
@@ -486,15 +460,12 @@ fn a_tangent_site_union_joins_every_joinable_vertex_it_leaves() {
     ]);
     let (a, b) = (plate(&lower, 0.0), plate(&upper, 1.0));
     for (order, x, y) in [("ab", &a, &b), ("ba", &b, &a)] {
-        let d = declared(x, y);
-        assert!(d.is_ok(), "{order}: declarations: {d:?}");
-        let d = d.unwrap_or_default();
-        let join = topo::test_support::boolean_join_refusal(BooleanOp::Union, x, y, &d, tol());
+        let join = topo::test_support::boolean_join_refusal(BooleanOp::Union, x, y, tol());
         assert!(
             matches!(join, Ok(None)),
             "{order}: the join connects the tangent site: {join:?}"
         );
-        let got = topo::union_with(&fin(x), &fin(y), &d, tol());
+        let got = topo::union(&fin(x), &fin(y), tol());
         let Ok(topo::BooleanResult::Body(out)) = got else {
             unreachable!("{order}: the union builds: {got:?}");
         };

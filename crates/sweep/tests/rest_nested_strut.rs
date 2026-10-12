@@ -12,7 +12,7 @@
 use geom_core::{Point2, Tol};
 use profile::test_support::bulge_loop;
 use sweep::test_support::{extruded, sketch_at};
-use topo::{AtRestBody, Body, BooleanBody, BooleanResult, CarriedVv, ContactClass};
+use topo::{AtRestBody, Body, BooleanBody, BooleanResult};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -33,9 +33,9 @@ fn prism(pts: &[(f64, f64, f64)], z0: f64) -> AtRestBody<f64> {
 
 /// The pinch: the block, notched from 60° to 120° up to y = 1.5 with
 /// its top corners filleted at radius 0.1, and the wedge from 75° to
-/// 105° in the notch, folded into one body; and its v-v records as
-/// `Rest` rows.
-fn pinch() -> (BooleanBody<f64>, Vec<CarriedVv>) {
+/// 105° in the notch, folded into one body; and its v-v and edge-edge
+/// records, carried.
+fn pinch() -> (BooleanBody<f64>, topo::OperandRecords) {
     let mx = 1.5 / 60f64.to_radians().tan();
     let block = prism(
         &[
@@ -56,11 +56,14 @@ fn pinch() -> (BooleanBody<f64>, Vec<CarriedVv>) {
         (1.6 * r.cos(), 1.6 * r.sin(), 0.0)
     };
     let wedge = prism(&[(0.0, 0.0, 0.0), at(75.0), at(105.0)], 0.0);
-    let decls = topo::test_support::flush_declarations(&block, &wedge, tol());
-    let Ok(BooleanResult::Body(pinch)) = topo::union_with(&block, &wedge, &decls, tol()) else {
+    let Ok(BooleanResult::Body(pinch)) = topo::union(&block, &wedge, tol()) else {
         panic!("the wedge folds into the notch");
     };
-    let rows = pinch.contacts.carried(ContactClass::Rest).vv;
+    let rows = topo::OperandRecords {
+        vf: Vec::new(),
+        ve: Vec::new(),
+        ..pinch.contacts.carried()
+    };
     (pinch, rows)
 }
 
@@ -99,19 +102,31 @@ fn a_pinch_apex_meeting_one_vertex_builds_in_either_order() {
         } else {
             (&top, &pinch)
         };
-        let mut decls = topo::test_support::flush_declarations(a, b, tol());
-        if pinch_first {
-            decls.carried_a.vv = rows.clone();
+        let carried = rows.clone();
+        let inputs = if pinch_first {
+            topo::BooleanInputs {
+                records_a: carried,
+                ..Default::default()
+            }
         } else {
-            decls.carried_b.vv = rows.clone();
-        }
-        let join =
-            topo::test_support::boolean_join_refusal(topo::BooleanOp::Union, a, b, &decls, tol());
+            topo::BooleanInputs {
+                records_b: carried,
+                ..Default::default()
+            }
+        };
+        let join = topo::test_support::boolean_join_refusal(topo::BooleanOp::Union, a, b, tol());
         assert!(
             matches!(join, Ok(None)),
             "pinch first: {pinch_first}: the join connects: {join:?}"
         );
-        let Ok(BooleanResult::Body(bb)) = topo::union_with(a, b, &decls, tol()) else {
+        let Ok(BooleanResult::Body(bb)) = topo::boolean_op_with(
+            topo::BooleanOp::Union,
+            a,
+            b,
+            &inputs,
+            topo::SweepStrategy::Realized,
+            tol(),
+        ) else {
             panic!("pinch first: {pinch_first}: the union builds");
         };
         let got = vol(&bb.body);

@@ -42,6 +42,7 @@ use geom_brep::offset_fit::{OffsetFitError, OffsetLimb};
 use geom_brep::pcurve_cache::{FittedMagnitude, PcurveCertifyError, PcurveCheck};
 use geom_brep::props::PropsError;
 use geom_brep::recourse::{Classified, Refused};
+use geom_core::k_stats::Magnitude;
 use geom_core::{Band, BandError, BandField, Indeterminate, MarginDiag};
 use strum::IntoEnumIterator as _;
 
@@ -239,6 +240,7 @@ fn point_in_solid_errors() -> Vec<crate::boolean::PointInSolidError> {
             kind: geom::SurfaceKind::Nurbs,
         },
         S::VolumeUncertified,
+        S::InsideOut,
         S::PartialSphereFace { face },
         S::PartialConeFace { face },
         S::PartialTorusFace { face },
@@ -272,6 +274,24 @@ fn point_in_solid_errors() -> Vec<crate::boolean::PointInSolidError> {
     ]
 }
 
+/// [`ContainError::ArcEndClearOfCorners`] at the sample band: an end
+/// decided off both corners (`off_corner`, read only at a band finer
+/// than the run's), or every end at a corner (the band's own parting,
+/// `K ≤ 3`, the one the census reaches).
+#[must_use]
+pub fn arc_end_clear_of_corners(off_corner: bool) -> ContainError {
+    let (zero, off) = (
+        (Magnitude::Zero, MarginDiag::value(5e-10)),
+        (Magnitude::Positive, MarginDiag::value(2e-8)),
+    );
+    let gaps = if off_corner {
+        [[zero, off], [off, off]]
+    } else {
+        [[zero, off], [off, zero]]
+    };
+    ContainError::ArcEndClearOfCorners(Box::new(crate::boolean::ArcEndGaps { gaps, band: band() }))
+}
+
 fn contain_errors() -> Vec<ContainError> {
     use crate::boolean::ContainDecision;
     use crate::splitting::{Escalation, LoopDecision};
@@ -282,9 +302,8 @@ fn contain_errors() -> Vec<ContainError> {
     };
     // Each ending form a site can raise: the valued tighten (or the lever
     // alone where the margin gives none), the lever with the
-    // unreadable-margin note, a straddle of two bounds, and a row decided
-    // and still refused. The span rule escalates only on an over-wound
-    // margin or a straddle.
+    // unreadable-margin note, and a straddle of two bounds. The span rule
+    // escalates only on an over-wound margin or a straddle.
     let arc_span = Some(ContainDecision::Loop(LoopDecision::ArcSpan));
     let escalated = |decision, escalation, diag| ContainError::Escalated {
         decision,
@@ -303,12 +322,14 @@ fn contain_errors() -> Vec<ContainError> {
                 escalated(decision, escalation, value),
                 escalated(decision, escalation, poisoned),
             ],
-            Escalation::Straddle | Escalation::Decided => {
+            Escalation::Straddle => {
                 vec![escalated(decision, escalation, poisoned)]
             }
         })
         .collect();
     v.extend([
+        arc_end_clear_of_corners(true),
+        arc_end_clear_of_corners(false),
         ContainError::RayExhausted,
         ContainError::StaleFace(crate::entity::FaceKey::default()),
         ContainError::EmptyLoop(LoopKey::default()),
@@ -517,6 +538,11 @@ fn analytic_rung3_refusals() -> Vec<geom_brep::AnalyticRung3Refusal> {
             limb: geom_brep::Rung3Limb::HullSup,
             margin: MarginDiag::value(7.5e-5),
         },
+        A::Limb {
+            operand: geom::SurfaceKind::Plane,
+            limb: geom_brep::Rung3Limb::HullValue,
+            margin: MarginDiag::value(7.5e-5),
+        },
         A::Escalated {
             operand: Some(geom::SurfaceKind::Cylinder),
             limb: geom_brep::Rung3Limb::HullSup,
@@ -668,6 +694,10 @@ fn props_errors() -> Vec<PropsError> {
         PropsError::SphereLoop {
             what: "props_loop_closed",
         },
+        PropsError::ConeLoop {
+            what: "props_loop_closed",
+        },
+        PropsError::HolesExceedFace,
         PropsError::SenseContradicted,
         PropsError::SenseInverted,
         PropsError::RingWoundWithFace,
@@ -763,27 +793,9 @@ fn offset_fit_errors() -> Vec<OffsetFitError> {
             tolerance: 0.0,
         },
         OffsetFitError::NonFiniteSample { uv: (0.5, 0.25) },
-        OffsetFitError::BudgetExhausted {
-            budget: 4096,
-            grid: (64, 64),
-            achieved: 3e-6,
-            tolerance: 1e-6,
-            last_round: geom_brep::LastRound::Improved,
-            best: geom_brep::BestBound {
-                bound: 2e-6,
-                grid: (48, 64),
-            },
-        },
-        OffsetFitError::BudgetExhausted {
-            budget: 4096,
-            grid: (64, 64),
-            achieved: 3e-6,
-            tolerance: 1e-6,
-            last_round: geom_brep::LastRound::DidNotImprove,
-            best: geom_brep::BestBound {
-                bound: 2e-6,
-                grid: (48, 64),
-            },
+        OffsetFitError::SeedOverCap {
+            cap: 4096,
+            grid: (65, 64),
         },
         OffsetFitError::SampleCapReached {
             cap: 4096,
@@ -1204,6 +1216,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         },
         ValidationError::CurvedSenseInverted { face },
         ValidationError::NegativeVolume { solid },
+        ValidationError::SliverInsideOut { solid },
         ValidationError::RingOutsideOuter {
             face,
             ring: loop_,
@@ -1443,8 +1456,12 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             _ => "(0.4375, 0.5, 0.25)".to_owned(),
         };
         s.push((
-            label("UndeclaredContact", &contact),
-            ValidationError::UndeclaredContact { contact, witness },
+            label("UnrecordedContact", &contact),
+            ValidationError::UnrecordedContact {
+                contact,
+                witness,
+                margin: Some(geom_core::MarginDiag::value(0.0)),
+            },
         ));
     }
     for declaration in stale_declarations() {
@@ -1541,6 +1558,13 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             },
         ));
     }
+    let ContainError::ArcEndClearOfCorners(gaps) = arc_end_clear_of_corners(true) else {
+        unreachable!("the sample builds the arc-end finding")
+    };
+    s.push((
+        "ArcEndOffCorner".to_owned(),
+        ValidationError::ArcEndOffCorner { face, gaps },
+    ));
     s
 }
 

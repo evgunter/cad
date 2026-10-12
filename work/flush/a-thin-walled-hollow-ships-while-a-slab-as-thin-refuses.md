@@ -6,9 +6,7 @@ status: open
 opened: 2026-10-11
 priority: P2
 cost: M
-design: true
 refs: [a-result-that-is-only-a-sliver-shell-passes-the-door, 4636]
-needs_ev: true
 ---
 
 
@@ -83,3 +81,11 @@ the unit is:
 - rename the hollow row's test;
 - close this row and re-open the gate half of
   `a-result-that-is-only-a-sliver-shell-passes-the-door`.
+
+## Ruling
+
+Ev ratified **pairs only** on PR 4690 (2026-10-12: "sounds good!"). D10
+Booleans now defines an in-band pair and an in-band shell, and tier 3′
+check 7 is an orientation probe, not a thinness gate, at every door.
+This row is now the implementation unit listed above. Fork row 101's
+"the lump refuses `Escalated`" is retracted by fork row 113.

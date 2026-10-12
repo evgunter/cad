@@ -111,7 +111,7 @@ fn undeclared(errors: &[ValidationError]) -> Vec<CensusContact> {
     errors
         .iter()
         .filter_map(|e| match e {
-            ValidationError::UndeclaredContact { contact, .. } => Some(*contact),
+            ValidationError::UnrecordedContact { contact, .. } => Some(*contact),
             _ => None,
         })
         .collect()

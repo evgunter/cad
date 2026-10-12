@@ -999,8 +999,7 @@ pub(crate) type Seated = Box<(RecipeNodeId, NodeErrorKind)>;
 /// [`ValuePayload::kind_name`]'s own words — the RECIPE-side reading
 /// of the same question, for the roads that never hold a value: a
 /// reference read straight out of the document (the mate solve's
-/// derived offset refusing a circular rule's `axis` operand, and the
-/// wire's `node_operand` door).
+/// derived offset refusing a circular rule's `axis` operand).
 ///
 /// It is that match written a second time over node kinds, with a
 /// walk down the placer chain in front of it, which is a
@@ -1214,29 +1213,6 @@ impl NodeRefusal {
 /// node said by `by`, and the failing node named once. The one
 /// spelling [`NodeError`]'s renderings and [`NodeRefusal::line_at`]
 /// share.
-/// **A reference the failed node holds that stopped resolving**: said by
-/// its slot, `this fillet's edge 2 is stranded: …`, where the speaker's
-/// document holds the node ([`crate::Speaker::about`] names it) with
-/// that name at `reference`, its place among
-/// [`crate::Node::payload_names`]; otherwise `lead`, then the refusal
-/// saying the name once, in full.
-fn resolve_failed(
-    f: &mut core::fmt::Formatter<'_>,
-    by: crate::spoken::Speaker<'_>,
-    error: &crate::resolve::ResolveError,
-    reference: usize,
-    lead: impl core::fmt::Display,
-) -> core::fmt::Result {
-    match by.reference(reference, error.name()) {
-        Some(reference) => write!(
-            f,
-            "{}",
-            crate::spoken::Said(&crate::resolve::AboutReference(error, reference), by)
-        ),
-        None => write!(f, "{lead}: {}", crate::spoken::Said(error, by)),
-    }
-}
-
 fn failed_line(node: RecipeNodeId, kind: &NodeErrorKind, by: crate::spoken::Speaker<'_>) -> String {
     format!(
         "{} failed: {}",
@@ -1607,19 +1583,6 @@ pub enum NodeErrorKind {
         /// The door's refusal, unaltered.
         source: crate::analysis::SeedError,
     },
-    /// The evaluation's E4 seed names a parameter a loft's or a sweep's
-    /// SECTION reads, and a section stays `f64` in every lane (C6/D9:
-    /// the skinned surface's structure must be lane-identical) — the
-    /// seed has no channel to ride there and would reach the surface
-    /// as a constant. Refused at the consuming node, naming the
-    /// section, rather than embedded as a finite wrong zero: the
-    /// profile gap, typed.
-    SeedPinnedSection {
-        /// The section profile node the seed reaches and stops at.
-        section: RecipeNodeId,
-        /// The seeded variable the section reads.
-        param: crate::var::VarId,
-    },
     /// An input's value family does not fit this operand (e.g. a
     /// boolean fed a split's two-part value — selecting a part needs
     /// PR 3's naming layer).
@@ -1864,77 +1827,6 @@ pub enum NodeErrorKind {
         /// The step's refusal.
         refusal: Box<NodeErrorKind>,
     },
-    /// A declared pair failed to resolve through the operands' name
-    /// tables (F5) — the N5 typed error: a declaration naming a
-    /// vanished/ambiguous/deleted name refuses loudly; no silent drop,
-    /// no best-effort gluing. The error's shape is N5's; a `Vanished`
-    /// one's diagnosis may be one of the arms [`crate::resolve::Diagnosis`]
-    /// marks as not N5's, such as a union's fold consuming the name
-    /// ([`crate::resolve::Diagnosis::ConsumedByFold`]).
-    DeclareResolve {
-        /// The resolution failure: N5's closed trio of shapes, its
-        /// diagnosis not limited to N5's arms.
-        error: Box<crate::resolve::ResolveError>,
-        /// Which of the node's references failed: its place among
-        /// [`crate::Node::payload_names`].
-        reference: usize,
-    },
-    /// A declared entity is SITED at a node that is not one of the
-    /// consumer's operands — not a member of the union, nor `a` or
-    /// `b` of the pair boolean.
-    ///
-    /// The site IS the side (DM4), so a site the consumer does not
-    /// have is a declaration the consumer cannot read: there is no
-    /// table to resolve the name in. A pair boolean's arm: a union's
-    /// site that is not a member is the N5 strand a later `SetMembers`
-    /// leaves, and refuses as a vanished name ([`Self::DeclareResolve`]).
-    /// Every door that writes a pair refuses a site no operand reads —
-    /// the edit doors ([`crate::EditError::DeclaredSiteNotAnOperand`])
-    /// and, for a Boolean, the load door. A site two operands share (a
-    /// split's two halves) is admitted there and sided here by the
-    /// table that holds the name, so a name neither half holds, or
-    /// both, lands on this arm.
-    DeclareSiteNotAnOperand {
-        /// The read the pair named as its site.
-        at: crate::VarId,
-    },
-    /// A declared pair outside the v1 threading vocabulary, which is
-    /// enumerated once — in `eval::wire`'s `DeclaredStep` — and is
-    /// deliberately not re-listed here, so a fourth pair shape cannot
-    /// be added to the code and left out of this sentence.
-    ///
-    /// Asked and answered BEFORE either name is resolved to one
-    /// entity: a pair the vocabulary has no step for is unsupported
-    /// however many entities answer to either name (`wire`'s
-    /// `resolve_declarations`, and `assembly::resolve_face` for the
-    /// same rule at the mate doors).
-    DeclareUnsupportedPair {
-        /// The pair's entity kinds, declaration order — the AUTHORED
-        /// names' kinds, which is the only source available before
-        /// resolution and which the name table makes every
-        /// candidate's kind (every `NameTable` door that seats a row
-        /// refuses one whose name's kind is not its key's).
-        kinds: (crate::names::EntityKind, crate::names::EntityKind),
-        /// Whether the two names LANDED in different operands — the
-        /// side pick, made before resolution, so a tied name has a
-        /// side here without having a single entity.
-        cross_operand: bool,
-    },
-    /// A declared pair of two entities of ONE operand is a contact that
-    /// operand carries in, and no record this node can cite backs it
-    /// (D1 (ii), D10): the operand records no contact between the two,
-    /// so nothing decided the touch it states, or the pair is declared
-    /// at a union, whose fold steps' records are not cited from the
-    /// union, so every such pair refuses there whatever its member
-    /// records.
-    DeclaredContactUnbacked {
-        /// Which of the node's references is the pair's first side: its
-        /// place among [`crate::Node::payload_names`].
-        reference: usize,
-        /// Whether the pair is declared at a union, where no member's
-        /// record is cited.
-        at_union_step: bool,
-    },
     /// A blend node's selection is EMPTY. A blend of nothing is not
     /// the identity — it is an unfinished recipe, refused rather than
     /// passed through (the fail-loud voice: no op silently returns its
@@ -1993,34 +1885,14 @@ pub enum NodeErrorKind {
         /// The kernel-side refusal, unaltered.
         error: topo::readback::ReadbackError,
     },
-    /// A loft's or a sweep's SECTION is drawn on a derived frame
-    /// ([`crate::Datum::FaceFrame`]) and this evaluation's scalar is
-    /// not `f64` (DM1c). A section's geometry stays `f64` in every lane
-    /// (the skinned surface's structure must be lane-identical), and a
-    /// derived frame has no `f64` elaboration off the `f64` lane — its
-    /// placement is the lane's own value — so the section refuses,
-    /// naming the profile and the frame, rather than placing itself
-    /// on a fabricated point of the frame's bracket.
-    /// [`NodeErrorKind::SeedPinnedSection`]'s shape.
-    DerivedFrameSection {
-        /// The section profile node.
-        profile: RecipeNodeId,
-        /// The derived frame node it is drawn on, `None` for a frame
-        /// pose definition, which no node defines.
-        frame: Option<RecipeNodeId>,
-    },
     /// A profile needed an AUTHORED frame's `f64` placement and the
     /// frame's own direction slots refused, so the refusal is raised
     /// on the reader (`wire::profile_plane_f64`) and names BOTH nodes.
     ///
-    /// **[`NodeErrorKind::DerivedFrameSection`]'s shape, and both of
-    /// its ids, because this refusal reaches the same third node.**
-    /// `profile_plane_f64` is read from the profile node's own
-    /// evaluation, where the error lands on the profile and its id is
-    /// confirmation — and from `wire`'s section seam, where the error
-    /// lands on the LOFT or SWEEP and neither node in the sentence is
-    /// the one it is attached to. One id would leave that road naming
-    /// half of what it refused about.
+    /// **Both ids.** `profile_plane_f64` is read from the profile
+    /// node's own evaluation, where the error lands on the profile and
+    /// its id is confirmation, and the frame's id says which frame
+    /// refused.
     ///
     /// **The carried refusal is the fact, not a second one.** A frame
     /// slot that refuses reaches a human two ways — raised at the
@@ -2349,13 +2221,6 @@ impl crate::spoken::Say for NodeErrorKind {
             ),
             Self::ParamBox { source } => write!(f, "{source}"),
             Self::Seed { source } => write!(f, "{source}"),
-            Self::SeedPinnedSection { section, param } => write!(
-                f,
-                "the seed on variable {param} reaches section {}, which stays f64 \
-                 in every lane (a loft's or a sweep's section is structure) — the tangent \
-                 cannot ride through it, so this node refuses rather than embed a zero",
-                by.node_as(*section, "profile node")
-            ),
             Self::WrongOperand {
                 input,
                 expected,
@@ -2573,46 +2438,6 @@ impl crate::spoken::Say for NodeErrorKind {
                 by.read(*read),
                 Said(refusal.as_ref(), by)
             ),
-            Self::DeclareResolve { error, reference } => resolve_failed(
-                f,
-                by,
-                error,
-                *reference,
-                "a declared name failed to resolve through the operands' tables",
-            ),
-            Self::DeclareSiteNotAnOperand { at } => write!(
-                f,
-                "a declared entity is sited at {}, and no one operand of this node read \
-                 through it holds it — site each side at the read (a member, or the subtract's \
-                 `from` or `tool`) whose table holds it",
-                by.read(*at)
-            ),
-            Self::DeclareUnsupportedPair { kinds, .. } => write!(
-                f,
-                "declare pair ({}, {}) is outside the v1 threading vocabulary",
-                kinds.0.noun(),
-                kinds.1.noun()
-            ),
-            Self::DeclaredContactUnbacked {
-                reference,
-                at_union_step: false,
-            } => write!(
-                f,
-                "the pair declared at reference {reference} names two entities of one operand \
-                 that the operand records no contact between, so nothing decided the touch it \
-                 states — remove the declaration, or build the operand so its own operation \
-                 records the contact"
-            ),
-            Self::DeclaredContactUnbacked {
-                reference,
-                at_union_step: true,
-            } => write!(
-                f,
-                "the pair declared at reference {reference} names two entities of one member of \
-                 a union, and a union cites no member's contact records, so nothing it holds \
-                 backs the touch the pair states — remove the declaration, or declare it on a \
-                 two-operand boolean whose operand records the contact"
-            ),
             Self::BlendSelectionEmpty { verb } => write!(
                 f,
                 "the {verb} selection is empty — an unfinished recipe, not the identity"
@@ -2650,17 +2475,6 @@ impl crate::spoken::Say for NodeErrorKind {
                 by.node_as(*profile, "profile node"),
                 by.node_as(*frame, "datum frame node"),
                 refusal.node_error()
-            ),
-            Self::DerivedFrameSection { profile, frame } => write!(
-                f,
-                "section {} is drawn on {}, and a loft's or a \
-                 sweep's section is placed only in the plain (f64) evaluation, so this \
-                 evaluation refuses rather than guess where the frame lies",
-                by.node_as(*profile, "profile node"),
-                frame.map_or_else(
-                    || "a frame pose definition".to_owned(),
-                    |frame| by.node_as(frame, "derived frame node").to_string()
-                )
             ),
             Self::MeasureRefUnreadable {
                 slot,
@@ -2995,7 +2809,6 @@ pub trait EvalScalar:
     + crate::analysis::AxisScalar
     + crate::analysis::SeedScalar
     + crate::measure::MinClearanceLane
-    + SectionScalar
     + crate::mate::SolveScalar
 {
 }
@@ -3010,7 +2823,6 @@ impl<T> EvalScalar for T where
         + crate::analysis::AxisScalar
         + crate::analysis::SeedScalar
         + crate::measure::MinClearanceLane
-        + SectionScalar
         + crate::mate::SolveScalar
 {
 }
@@ -3323,63 +3135,6 @@ pub enum ProfileLift {
     /// A decision this scalar cannot confirm refuses the node typed
     /// rather than quietly keeping the nominal structure.
     Guided,
-}
-
-/// **Which scalars carry a section's placement** — the lane door DM1c
-/// turns on: a loft's or a sweep's section keeps `f64` geometry, and a
-/// section drawn on a derived frame takes its placement from the
-/// frame's landed value, which is exact `f64` only where the
-/// evaluation scalar IS `f64`.
-///
-/// Per-scalar like [`crate::analysis::AxisScalar`], and for the same
-/// reason: which lane an evaluation runs in is a fact about the type,
-/// so the type answers it. `f64` hands its value across; `Probe` is
-/// `f64` wearing a counter and does the same; every analysis scalar
-/// (`Interval`, `Dual`, `Sym`) answers `None`, because a bracket or a
-/// tangent has no single `f64` that is not a fabricated choice. No
-/// number is inspected: the answer is decided by the impl, never by a
-/// comparison.
-pub trait SectionScalar: geom_core::Real {
-    /// The value as exact `f64` where this scalar is the `f64` lane;
-    /// `None` on every analysis scalar.
-    fn pinned_f64(self) -> Option<f64>;
-}
-
-impl SectionScalar for f64 {
-    fn pinned_f64(self) -> Option<f64> {
-        Some(self)
-    }
-}
-
-#[cfg(feature = "probe")]
-impl SectionScalar for geom_core::Probe {
-    fn pinned_f64(self) -> Option<f64> {
-        Some(self.0)
-    }
-}
-
-impl SectionScalar for geom_core::Interval {
-    fn pinned_f64(self) -> Option<f64> {
-        None
-    }
-}
-
-impl<T: SectionScalar> SectionScalar for geom_core::Sym<T>
-where
-    geom_core::Sym<T>: geom_core::Real,
-{
-    fn pinned_f64(self) -> Option<f64> {
-        None
-    }
-}
-
-impl<T: geom_core::Real> SectionScalar for geom_core::Dual<T>
-where
-    geom_core::Dual<T>: geom_core::Real,
-{
-    fn pinned_f64(self) -> Option<f64> {
-        None
-    }
 }
 
 /// The interval lane's solve: a refusal quotes an enclosure's midpoint,
@@ -3842,7 +3597,6 @@ where
             lift: opts.profile_lift,
             params: &env,
             nominal: &nominal_env,
-            seed: opts.seed,
         },
     };
     let mut nodes: BTreeMap<RecipeNodeId, NodeResult<T>> = BTreeMap::new();
@@ -5637,29 +5391,20 @@ where
                 }
             }
             // The class's word is `ContactClass::content_tag` — the one
-            // spelling the crossing record, the mate and the declaration
-            // all write, so the three cannot key a class inconsistently.
+            // spelling the crossing record and the mate both write, so
+            // the two cannot key a class inconsistently.
             h.write_u64(class.content_tag());
             feed_alignment(&mut h, alignment);
             solve_answer.feed_face_parts(&mut h);
             solve_answer.feed_mate(&mut h);
         }
-        // The declared pairs are payload, not edges, so they feed the
-        // key by hand ([`feed_declared`]).
         // The operands and the members are input edges.
-        Node::Subtract {
-            from: _,
-            tool: _,
-            declare,
-        } => {
-            feed_declared(&mut h, declare);
-        }
-        Node::Union { members, declare } | Node::Intersect { members, declare } => {
+        Node::Subtract { from: _, tool: _ } => {}
+        Node::Union { members } | Node::Intersect { members } => {
             h.write_tag(match members {
                 crate::Bodies::Family(_) => tag::bodies::FAMILY,
                 crate::Bodies::Spelled(_) => tag::bodies::SPELLED,
             });
-            feed_declared(&mut h, declare);
         }
         // LIB-PLACEDUNION: an `Explicit` rule's FRAMES are recipe
         // payload, not slots (the list is the count, D8-structural),
@@ -6470,29 +6215,6 @@ fn feed_scalar_join(
     {
         h.write_tag(tag::scalar_join::FLOW_EXPR);
         crate::param_source::feed_var(h, defs, var);
-    }
-}
-
-/// A Boolean's or Union's declared pairs, into its content key.
-///
-/// BOTH halves of each side: the name says which entity and the SITE
-/// says which operand's table it is read in, so two declarations
-/// differing only in a site declare contacts between different members.
-/// The site is a node id, which content keys otherwise exclude (D8); it
-/// is fed because it is RECIPE PAYLOAD selecting a reading, not a
-/// Merkle link to an input.
-///
-/// The CLASS is part of the node's identity: two declarations of the
-/// same pair under different classes are different nodes, and a memo
-/// keyed without it would serve a `Rest` answer to a `Tangent` question.
-fn feed_declared(h: &mut KeyHasher, pairs: &[crate::DeclaredPair]) {
-    h.write_u64(pairs.len() as u64);
-    for ((a, b), class) in pairs {
-        for r in [a, b] {
-            h.write_id(r.at.0);
-            feed_stable_name(h, &r.name);
-        }
-        h.write_u64(class.content_tag());
     }
 }
 
