@@ -396,11 +396,12 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-core/src/interval/certification.rs",
-        8,
-        8,
+        9,
+        9,
         "the reads that serve a door, each refusing first: `narrowed_to` (the one body of \
-         `clamped_to` and `meet`), `between` (the corner choice, the exact-end and \
-         point-source fast paths, and the four corners), `width` and `mag`",
+         `clamped_to` and `meet`), `between` (the interior-ratio clamp skip, the corner \
+         choice, the exact-end and point-source fast paths, and the four corners), `width` \
+         and `mag`",
     ),
     ("crates/geom-core/src/spline/algebra.rs", 1, 1, ""),
     ("crates/geom-core/src/spline/compose/tensor.rs", 4, 4, ""),
