@@ -92,7 +92,7 @@ caller's, per `Reading`. Three render the whole escalation
   `UndecidedRefusal`, which needs an `Indeterminate`: two of
   `SectorReading`'s arms are decided disagreements carrying margins.
 
-**Done: the editor-core slice, in PR NNNN.** `NodeErrorKind::Escalated`,
+**Done: the editor-core slice, in PR 4811.** `NodeErrorKind::Escalated`,
 `NamingError::Escalated` and `SelectRefusal::InBand` (whose "the query
 cannot decide whether …" went through `under`) render through
 `Indeterminate::undecided`. The two `Escalated` doors take their ending
