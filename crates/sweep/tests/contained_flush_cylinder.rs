@@ -30,13 +30,15 @@ fn a_cylinder_flush_inside_a_block_unions_to_the_block() {
     assert_eq!(topo::validate_geometric(&union.body, tol), Ok(()));
 }
 
-/// **A carried edge-edge row on an arc refuses at the door**: edge-split
-/// lineage reads each edge of the row as the segment between its ends,
-/// which only a line edge is. Two arcs of the cylinder's top cap, carried
-/// as an edge-edge row, refuse typed before any op runs. Red when the
-/// door admits a curved edge-edge row.
+/// **A carried edge-edge row on arcs the union swallows is consumed**
+/// (D1): the door admits a curved row, since the one carry asks the
+/// census, not a segment question; the union discards the cylinder's cap
+/// arcs, which lie in the block's boundary under its kept faces, so the
+/// row (bookkeeping, two arcs of one cap) lands on no pair and the
+/// removal consumes it. Red when the door refuses a curved row, or the
+/// carry keeps the row on a cell the union removed.
 #[test]
-fn a_carried_edge_edge_row_on_an_arc_refuses_at_the_door() {
+fn a_carried_edge_edge_row_on_swallowed_arcs_is_consumed() {
     let tol = Tol::witness();
     let block = topo::test_support::brick((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0), tol);
     let block = finished("the block", block, tol);
@@ -70,16 +72,15 @@ fn a_carried_edge_edge_row_on_an_arc_refuses_at_the_door() {
         &inputs,
         topo::SweepStrategy::Realized,
         tol,
-    )
-    .map(|_| ());
+    );
+    let Ok(BooleanResult::Body(out)) = got else {
+        panic!("the union builds: {got:?}");
+    };
     assert!(
-        matches!(
-            got,
-            Err(topo::BooleanError::InvalidInput {
-                operand: topo::Operand::A,
-                what: "carried e-e edge is not a certified line",
-            })
-        ),
-        "{got:?}"
+        out.contacts
+            .cites()
+            .all(|c| c.iter().all(|b| !matches!(b, topo::Backing::Carried { .. }))),
+        "the row is consumed: {:?}",
+        out.contacts
     );
 }

@@ -2795,16 +2795,28 @@ pub enum BooleanError {
         closed: bool,
     },
     /// **A rest the op carries could not be placed on the pieces of the
-    /// face it divided.** A vertex-on-face record's face was divided by
-    /// the section, and the record lands on the piece whose interior
-    /// holds its vertex (`ops::Descendants::holder`); no piece read
-    /// `In`, and this piece's read failed, so the rest may be on it.
+    /// face it divided.** A record's span along a line edge is placed in
+    /// a face by its midpoint (`ops::span_held`), and this piece's read
+    /// failed, so the span may be on it.
     RestPieceUnread {
         /// The piece, in result keys.
         face: FaceKey,
         /// The containment door's refusal; `None` where the curved
         /// chart trim gives no verdict for this face.
         refusal: Option<ContainError>,
+    },
+    /// **A record the op carries, or found, could not be placed on the
+    /// result** (D1): the one carry refused it
+    /// (`ops::carried`, `records::landings`): a pair of its cells'
+    /// images the census cannot read, or a record that lands on no pair
+    /// with nothing removed to consume it.
+    CarryRefused {
+        /// The operand whose record it is.
+        operand: Operand,
+        /// The carry's refusal; its record index is the operand's
+        /// carried list's, or, for a record the reduction found, its
+        /// working set's.
+        refusal: super::CarryRefusal,
     },
     /// The A/B lockstep invariant failed during joining, finishing, or
     /// the combine door (a kernel bug or corrupt reduction, loudly).
@@ -3120,6 +3132,8 @@ pub enum BooleanErrorKind {
     JoinCarrierUnsupported,
     /// [`BooleanError::RestPieceUnread`].
     RestPieceUnread,
+    /// [`BooleanError::CarryRefused`].
+    CarryRefused,
     /// [`BooleanError::JoinDesync`].
     JoinDesync,
     /// [`BooleanError::EdgeUndescribed`].
@@ -3342,6 +3356,7 @@ impl BooleanError {
             Self::JoinUndecided(_) => BooleanErrorKind::JoinUndecided,
             Self::JoinCarrierUnsupported { .. } => BooleanErrorKind::JoinCarrierUnsupported,
             Self::RestPieceUnread { .. } => BooleanErrorKind::RestPieceUnread,
+            Self::CarryRefused { .. } => BooleanErrorKind::CarryRefused,
             Self::JoinDesync { .. } => BooleanErrorKind::JoinDesync,
             Self::EdgeUndescribed { .. } => BooleanErrorKind::EdgeUndescribed,
             Self::TornComponent { .. } => BooleanErrorKind::TornComponent,
@@ -3928,6 +3943,12 @@ impl core::fmt::Display for BooleanError {
                 } else {
                     "through the other edge's far end"
                 }
+            ),
+            Self::CarryRefused { operand, refusal } => write!(
+                f,
+                "the Boolean could not carry a contact record of the {} operand onto its \
+                 result: {refusal:?}",
+                operand_word(*operand)
             ),
             Self::JoinDesync { what } => write!(
                 f,
@@ -6276,14 +6297,8 @@ fn validate_declarations<T: Decide>(
                 return Err(bad(operand, "carried e-e pair names one edge twice"));
             }
             for e in [touch.a, touch.b] {
-                let Some(d) = body.get_edge(e) else {
+                if body.get_edge(e).is_none() {
                     return Err(bad(operand, "carried e-e edge key does not resolve"));
-                };
-                // Edge-split lineage reads each edge as the segment
-                // between its ends (`ops::ee_lineage`), which only a
-                // line edge is.
-                if edge_join::certified_line(body, e, d).is_none() {
-                    return Err(bad(operand, "carried e-e edge is not a certified line"));
                 }
             }
         }
@@ -7259,6 +7274,7 @@ mod tests {
                 BooleanErrorKind::JoinUndecided => "JoinUndecided",
                 BooleanErrorKind::JoinCarrierUnsupported => "JoinCarrierUnsupported",
                 BooleanErrorKind::RestPieceUnread => "RestPieceUnread",
+                BooleanErrorKind::CarryRefused => "CarryRefused",
                 BooleanErrorKind::JoinDesync => "JoinDesync",
                 BooleanErrorKind::EdgeUndescribed => "EdgeUndescribed",
                 BooleanErrorKind::TornComponent => "TornComponent",

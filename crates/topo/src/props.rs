@@ -3884,6 +3884,14 @@ pub trait AtRestPolicy: Decide {
     /// only.
     fn quad_lane() -> Option<QuadLane<Self>>;
 
+    /// **This scalar's chart-region doors, or `None` where they may not
+    /// certify** — what an op that confirms a record outside the
+    /// census's own doors reads a face–face pair through
+    /// ([`crate::census`]'s record confirm, run by the boolean's carry),
+    /// as `validate_pseudomanifold` hands the census at a certifying
+    /// scalar. `None` leaves a face–face pair unread.
+    fn region_lane() -> Option<crate::RegionLane<Self>>;
+
     /// The at-rest gate over a body ([`crate::validate_geometric`] at
     /// certifying scalars; absent at duals, and the outcome says
     /// which).
@@ -3989,6 +3997,10 @@ impl AtRestPolicy for f64 {
         Some(QuadLane::certified())
     }
 
+    fn region_lane() -> Option<crate::RegionLane<Self>> {
+        Some(crate::RegionLane::certified())
+    }
+
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }
@@ -4061,6 +4073,10 @@ impl AtRestPolicy for geom_core::Probe {
         Some(QuadLane::certified())
     }
 
+    fn region_lane() -> Option<crate::RegionLane<Self>> {
+        Some(crate::RegionLane::certified())
+    }
+
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }
@@ -4127,6 +4143,10 @@ impl AtRestPolicy for geom_core::interval::Interval {
 
     fn quad_lane() -> Option<QuadLane<Self>> {
         Some(QuadLane::certified())
+    }
+
+    fn region_lane() -> Option<crate::RegionLane<Self>> {
+        Some(crate::RegionLane::certified())
     }
 
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
@@ -4208,6 +4228,10 @@ where
 
     fn quad_lane() -> Option<QuadLane<Self>> {
         Some(QuadLane::certified())
+    }
+
+    fn region_lane() -> Option<crate::RegionLane<Self>> {
+        Some(crate::RegionLane::certified())
     }
 
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
@@ -4296,6 +4320,10 @@ where
     }
 
     fn quad_lane() -> Option<QuadLane<Self>> {
+        None
+    }
+
+    fn region_lane() -> Option<crate::RegionLane<Self>> {
         None
     }
 

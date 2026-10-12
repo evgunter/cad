@@ -192,12 +192,12 @@ impl<T: Real> SplitResult<T> {
         let mut copies: Vec<(crate::entity::VertexKey, Vec<Cell>)> = Vec::new();
         for &(copy, original) in &self.naming.vertex_pairs {
             match copies.iter_mut().find(|(o, _)| *o == original) {
-                Some((_, cs)) => cs.push(Cell::Vertex(copy)),
-                None => copies.push((original, vec![Cell::Vertex(copy)])),
+                Some((_, at)) => at.push(Cell::Vertex(copy)),
+                None => copies.push((original, vec![Cell::Vertex(original), Cell::Vertex(copy)])),
             }
         }
-        for (original, copies) in copies {
-            lineage = lineage.with(Cell::Vertex(original), Fate::Kept { copies });
+        for (original, at) in copies {
+            lineage = lineage.with(Cell::Vertex(original), Fate::Kept(at));
         }
         for root in roots(&self.naming.edge_pieces) {
             let pieces: Vec<EdgeKey> = Descent::of(root, &self.naming.edge_pieces)
