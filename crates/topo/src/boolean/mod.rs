@@ -3432,9 +3432,9 @@ pub(crate) fn kind_word(kind: geom::SurfaceKind) -> &'static str {
 /// where the faces never touch in exact geometry.
 pub(crate) fn meeting_recourse(kind: &str) -> String {
     format!(
-        "Recourse: reshape the parts so faces meet only where a plane meets a plane, \
-         cylinder, sphere or cone, or a plane holding a torus's axis or square to it meets \
-         the torus, or move the {kind} face clear of the other solid"
+        "Recourse: reshape the parts so every meeting is a plane against a plane, cylinder, \
+         sphere, cone, or torus whose axis it holds or is square to, or move the {kind} face \
+         clear of the other solid"
     )
 }
 

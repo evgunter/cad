@@ -507,7 +507,8 @@ fn stored_off_axis(tilt: f64, h: f64, s: f64) -> Surface<f64> {
 /// on the axis or 5 m, 50 m or 500 m off it (main read the depth at the
 /// stored origin, and minted circles that far times the tilt off the
 /// cut). A plane crossing the axis `K + 0.9` bands above the tube's
-/// crest, its origin stored 200 m down its slope, where it reads well
+/// crest past its tilt's own `0.9`, its origin stored 200 m down its
+/// slope, where it reads well
 /// inside the tube, cuts nothing (main served it the concentric
 /// circles).
 #[test]
@@ -536,7 +537,7 @@ fn plane_torus_reads_the_cap_where_the_plane_crosses_the_axis() {
             }
         }
     }
-    let plane = stored_off_axis(SPLIT * z, r + past_edge(1.0, FLOOR_OUT), 200.0);
+    let plane = stored_off_axis(SPLIT * z, r + past_edge(1.0, FLOOR_OUT) + SPLIT * z, 200.0);
     let got = plane_torus_section(&plane, &torus(), 2.0, band());
     assert!(
         matches!(got, Ok(PlaneTorusSection::Empty)),
