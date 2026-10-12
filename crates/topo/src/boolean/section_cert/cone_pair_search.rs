@@ -757,10 +757,11 @@ fn must_answer(scale: f64) -> f64 {
 }
 
 /// The pose's distance from every degeneracy the search can measure
-/// apart from a tangency (metres): either apex off the other carrier, a
-/// generator along the cylinder's axis, an asymptotic direction the
-/// cones share doubly, parallel cones of nearly one aperture (one
-/// aperture exactly is the plane conic, not a degeneracy). Angles are
+/// apart from a finite tangency (metres): either apex off the other
+/// carrier, a generator along the cylinder's axis, an asymptotic
+/// direction the cones share doubly, parallel cones of nearly one
+/// aperture (one aperture exactly is the plane conic, not a degeneracy),
+/// and a tangency at infinity ([`off_asymptotic_planes`]). Angles are
 /// levered by four reach radii. Read from the carriers, not the arm.
 fn clear_of(k: &Frame, partner: &Surface<f64>) -> f64 {
     let lever = 4.0 * reach_of(k).radius;
@@ -810,10 +811,50 @@ fn clear_of(k: &Frame, partner: &Surface<f64>) -> f64 {
                     .fold(f64::INFINITY, f64::min)
                     * lever
             };
-            apexes.min(directions)
+            let planes = off_asymptotic_planes((k.apex, k.a, k.alpha), (apex, a2, half_angle)).min(
+                off_asymptotic_planes((apex, a2, half_angle), (k.apex, k.a, k.alpha)),
+            );
+            apexes.min(directions).min(planes)
         }
         _ => f64::INFINITY,
     }
+}
+
+/// **A tangency at infinity**: how far the apex of cone `x` stands off
+/// cone `y`'s tangent plane along each of `y`'s generators parallel to
+/// one of `x`'s (metres). Each such generator direction `v` is an
+/// asymptotic direction of the section; `x`'s line through its apex along
+/// `v` meets `y` once more where `y`'s form along it has its linear term,
+/// `2w·(cos²β·v − (v·b)b)` (`w` from `y`'s apex, `b` its axis, `β` its
+/// half-angle), and that term over `2 cos β sin β` is the apex's distance
+/// from the plane. At zero the branch leaving along `v` meets infinity
+/// doubly. Parallel axes give no such direction but at one aperture, the
+/// plane conic.
+fn off_asymptotic_planes(
+    (ax, a, alpha): (Point3<f64>, Vec3<f64>, f64),
+    (ay, b, beta): (Point3<f64>, Vec3<f64>, f64),
+) -> f64 {
+    let (e1, e2) = a.orthonormal_basis();
+    let (sa, ca) = alpha.sin_cos();
+    let (sb, cb) = beta.sin_cos();
+    // `v(θ)·b = c0 + r·cos(θ − φ)` round `x`'s generators.
+    let c0 = ca * a.dot(b);
+    let (x1, x2) = (sa * e1.dot(b), sa * e2.dot(b));
+    let r = x1.hypot(x2);
+    let phi = x2.atan2(x1);
+    let w = ax - ay;
+    [cb, -cb]
+        .iter()
+        .filter_map(|&target| {
+            let c = (target - c0) / r;
+            (r > 0.0 && c.abs() <= 1.0).then(|| c.acos())
+        })
+        .flat_map(|d| [phi + d, phi - d])
+        .map(|theta| {
+            let v = a * ca + (e1 * theta.cos() + e2 * theta.sin()) * sa;
+            (w.dot(v * (cb * cb) - b * v.dot(b))).abs() / (cb * sb)
+        })
+        .fold(f64::INFINITY, f64::min)
 }
 
 /// A chart's precision floor: the representation, not the band, cannot
@@ -1400,4 +1441,31 @@ fn a_flat_cone_past_the_aperture_refuses_its_representation_not_a_fold() {
             margin: Some(0.028802076426786484),
         },
     );
+}
+
+/// A wide tilted cone (α 1.36) whose apex stands 0.013 m off the
+/// tangent plane of a slender one (α 0.18, scale 68) along a generator
+/// parallel to its own: the branch leaving along that asymptote meets
+/// infinity nearly doubly, and the refusal is the asymptote's. Seed
+/// `0x38f303e137aad750` at effort 1, ε 1e-6.
+#[test]
+fn an_apex_by_a_tangent_plane_at_infinity_refuses_the_asymptote() {
+    let k = frame(
+        Point3::new(-23.1811895614227, 36.55607444236934, 31.611920273293805),
+        Vec3::new(0.3979800335094433, 0.36674621230039406, 0.8408977991950847),
+        0.17576210990764,
+        68.12699269259281,
+    );
+    let partner = cone(frame(
+        Point3::new(-84.12143124448805, -37.638052089923974, 18.760784823979204),
+        Vec3::new(0.7541113454665372, 0.5683166465450292, -0.32913867578645545),
+        1.3624890584925424,
+        k.scale,
+    ));
+    let clear = clear_of(&k, &partner.surface);
+    assert!(
+        (clear - 0.0128114).abs() < 1e-5,
+        "the apex's distance off the tangent plane at infinity: {clear}"
+    );
+    agrees(&k, &generic("tilted cone", partner));
 }
