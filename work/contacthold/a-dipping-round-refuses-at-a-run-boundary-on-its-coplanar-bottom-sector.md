@@ -107,3 +107,25 @@ meets this row's original `sectors::along` refusal, the remainder.
 Build note: the fixture carries a second wedge-0 edge at (x = 3, z = 0)
 lying in the slab's bottom face; a slab spanning z ∈ [−1, 1] isolates
 the rim.
+
+## Built: the claim-free glue (PR 4831); the remainder is `along`
+
+PR 4831 glues the dip's wall `Tangent`. On a slab z ∈ [−1, 1]
+(`the_dip_on_a_deep_slab_unions_into_one_solid`) ∪ answers one solid
+(80), tier 3 clean; slab ∖ round, round ∖ slab and ∩ refuse
+`sectors::along` "a germ sector with both edge bounds on the partner face".
+The original fixture reaches the same refusal for those three, and its ∪
+escalates `Corner(Straight)` at the round's own wedge-0 corner in the
+slab's bottom face.
+
+Traced: at the rim vertex the bottom sector (Rest lump) and the wall
+sector (tangent lump, In) share the rim bound; one lump overwrites the
+other's class there, so the run's transition lands on a lumped sector with
+both bounds On. Taking the germ from the bound the neighbour's lump took
+over (the rim edge as cell, its ray as direction, in `vtxfac`'s `germ_of`)
+reaches `chord_join::bool_planar_chord_spec`'s "tangent plane×wall germ
+pair in the boolean join" frontier; naming the planar neighbour's face
+instead makes the join try to divide the wall ("curved section chord
+outside the split/wall lane"). The remainder needs a tangent-line chord arm
+on the planar side of the boolean join (the split lane has one,
+`chord_join`'s `SectionCase::Tangent`), with the germ attribution above.

@@ -46,3 +46,14 @@ puts an edge–sector event on the line, and that lane hands the
 verified `Tangent` flank pair to the carrier-identity check, which
 refuses a tangent pair, instead of to `sectors::tangent_lump` as
 `resolve_edge_edge`'s membership does.
+
+## More reach, since PR 4831
+
+With the claim-free door, more pairs are glued `Tangent` and meet this arm:
+the stadium (`pi_seam_and_kiss_through_the_boolean::the_stadium_refuses_at_the_edge_sector_tangent_door`,
+a slab whose top and bottom end on a rod's rulings, normals aligned) now
+refuses `CurvedBooleanUnsupported` here in both orders, traced with a probe
+in the arm. A thin disc internally tangent in a fat one but run long
+(z ∈ [−1, 2] against [0, 1]) moved from `CurvedPierceUnsupported` to
+`CurvedBooleanUnsupported` (site not traced); at equal heights it answers
+every op.
