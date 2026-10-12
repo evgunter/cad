@@ -2,12 +2,13 @@
 id: zero-to-distinct-cells-on-one-point-doors-audit
 kind: issue
 title: Audit the doors other than the boolean that turn a Zero into distinct cells on one point (e.g. a revolve whose profile meets its axis twice): does each record the coincidence it decides?
-status: review
+status: closed
 opened: 2026-10-10
 priority: P2
 cost: M
 branch: contacthold/zero-to-distinct-cells-audit
 pr: 4765
+closed: 2026-10-12
 ---
 
 
