@@ -145,8 +145,8 @@ every pose:
   `point_in_solid` (`germ_plane_torus_chord`). So do three older pins
   that stood at F3: the notched half donut (`3π²/8`), the vase's brick
   in its torus band and TANG's tube in `pi_seam_and_kiss`.
-- **M3 and P4** keep F3: their box faces `z = 1.2` cut two spiric ovals,
-  which are U-T4's.
+- **M3 and P4** stood at F3 until U-T4: their box faces `z = 1.2` cut
+  two spiric ovals. They build since (§1.3).
 - **The interior-loop guard** stops the lily (both orders, ∪): past the
   join, the certificate has no arm for the stem's tube wall against
   the arch's, two tori with parallel axes apart (filed on ORBIT,
@@ -390,8 +390,10 @@ bodies, measured in §0.1:
   torus transversally in exactly those two circles, told apart by
   their height along the axis (`ring_path::LoopArc::Crest`, U-T3): a
   meridian piece crosses it at the top and bottom of the tube, a
-  parallel piece never. A spiric oval refuses as `RingIslandUnread`
-  until U-T4.
+  parallel piece never. A spiric oval's arc is read as a meridian's
+  is (U-T4): a crossing of its plane, parallel to the axis, counts on
+  its own oval's side of the axis's trace, inside its span on its own
+  parameter.
 - **The chord for the circles (F3, meridian and concentric).**
   `section_case` (`chord_join.rs` :957) and `wall_section` (:1487) gain
   the torus arm. **Both sections have two loops**, and `SectionCase` has
@@ -403,7 +405,26 @@ bodies, measured in §0.1:
   both sides, and then stops at the interior-loop guard (§0.2).
 - **The chord for the ovals (F3, spiric).** `SectionCase` gains a spiric
   arm: an arc of a `Curve3::Spiric`, chosen by its own parameter, which
-  turns monotonically about `k_σ` (§1.1). B1, B2 and B5 need it.
+  turns monotonically about `k_σ` (§1.1). B1, B2 and B5 need it, and,
+  measured in U-T4, both ring lanes behind it:
+  - **the torus face's**, for the pierce islands of B1, B2 and B5 (their
+    rings stand on the plane of an oval of the face's run, on its other
+    loop, and on a concentric circle's plane out of the run's span: a
+    path's lead of no length from such a ring is read as the point it
+    is, and passed over where it is decided off the arc);
+  - **the plane face's**, for S1's ovals, each an island in the plane
+    face: its winding sum takes a spiric term, an elliptic integral by
+    a quadrature whose error is bounded and moves the area toward zero
+    (`topo`'s `loop_winding`). An oval pinched near the inner equator
+    leaves the bound over the area, and the island refuses typed
+    (`work/germ/a-planar-island-on-a-pinched-oval-refuses-its-winding.md`).
+
+  Past the join, a result's torus face bounded by ovals is no chart
+  rectangle, and two doors behind it stop some ops: `point_in_solid`'s
+  `PartialTorusFace` in the shells' sort
+  (`work/inside/point-in-solid-refuses-an-l-shaped-torus-face.md`), and
+  the volume's `RingOnCurvedFace` on a torus face holding a ring
+  (`work/flux/a-torus-face-with-a-spiric-ring-has-no-volume-lane.md`).
 
 ### 1.4 The corner bar's lens
 
@@ -514,8 +535,9 @@ the item header's `cost:` as H→H, M→M, L→E. Cost is the size of the lane.
 **Order.** U-T1 lands first. U-T2 needs it for every pose but the
 lily's. The lily's glue (`L1`) passes the chord with U-T2 and U-T3 and
 then needs a certificate arm for its two tube walls (§0.2). TANG's pose
-needs U-T1 and U-T3, and builds. `germ_torus_doors`' bars B1 and B2 need all four
-units. B3, and the near-perpendicular bar, are general poses and refuse
+needs U-T1 and U-T3, and builds. `germ_torus_doors`' bars B1 and B2
+pass the join with all four units, and build or stop at the two doors
+behind it (§1.3). B3, and the near-perpendicular bar, are general poses and refuse
 by name once U-T1 lands, until the general rung retires.
 
 ### U-T1 — plane-torus-germ-frame
@@ -610,12 +632,16 @@ Rows run in-crate, against `pair_section_frame_at` and
    foot"**.
 3. **The lens (the obligation):** B5 and B5′, all six ops, each either
    the true body (volume, tier 3 and `point_in_solid` against the truth)
-   or a typed refusal, **never a wrong body**. **Red against the mutant
+   or a typed refusal, **never a wrong body** (`point_in_solid` refuses
+   every body an oval bounds, §1.3, so the lens's arcs on the built
+   bodies witness it at every ε). **Red against the mutant
    that chords the end square along its own edges**, skipping the oval
    arcs between the corners: that body misses the lens. Measure the lens
    volume first and show it well above the rows' tolerance, as
    `the_oval_lens_is_well_above_the_rows_tolerance` does for the oval
-   (measured: `6.6e-5 m³` on B5, `9.3e-3` on B5′). The spiric arc goes
+   (measured: `7.08e-5 m³` on B5, `9.40e-3` on B5′, by a box oracle
+   held to a Monte Carlo; the earlier `6.6e-5` and `9.3e-3` were off).
+   The spiric arc goes
    through `arc_leaving` and `oriented_arc`, not a rule of its own: the
    oval exposes its parameter and tangent, and a lever for the departure
    cosine in place of a conic's semi-major axis (the oval's own extent).

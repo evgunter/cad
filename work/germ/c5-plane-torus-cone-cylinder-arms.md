@@ -9,7 +9,7 @@ refs: [VERBS-C5ARMS, 1048]
 priority: P1
 cost: H
 design: true
-branch: germ/plane-torus-chord-circles
+branch: germ/plane-torus-chord-spiric
 pr: 4847
 ---
 
@@ -170,3 +170,22 @@ matcher already pairs B5's corners on one oval, and the same class
 builds true bodies on the sphere, cylinder and cone; a rule refusing
 vertex-only components would refuse up to 634 six-op runs that build
 today. U-T4 is unblocked.
+
+## U-T4, the plane × torus chord for the spiric ovals (GERM, 2026-10-12)
+
+On `germ/plane-torus-chord-spiric`. The chord layer's torus arm takes an
+arc of the spiric oval the chord's sites lie on, on the oval's own
+parameter, through the arc rule every curved chord uses; the torus
+face's ring lane reads oval arcs as it reads meridians, and the plane
+face's winding sum takes a spiric term (a bounded quadrature). S1, M3
+and P4 build their true bodies in all six ops on the donut, and on the
+one-face and seamed tori where their rings allow. B1, B2, the box
+between two ovals' planes and the fat corner bar's lens (Q1) build or
+stop past the join at two doors filed on their owners
+(`work/inside/point-in-solid-refuses-an-l-shaped-torus-face.md`,
+`work/flux/a-torus-face-with-a-spiric-ring-has-no-volume-lane.md`); no op
+returns a wrong body. An oval pinched near the inner equator refuses its
+island's winding
+(`work/germ/a-planar-island-on-a-pinched-oval-refuses-its-winding.md`).
+What this row still carries is U-H1, held by D10.
+
