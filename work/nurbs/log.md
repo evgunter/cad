@@ -1018,3 +1018,23 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - Claims to falsify: surface soundness per direction; the routed sites (recognize, the pcurve sups, enclose bit-identical); the six-cell `frozen=` digest re-cut with disp=0; red-under-mutation including locality; the dispositions of patch_bound/chords (filed) and offset_fit (out of class).
   - **4892 harness red explained:** `lo + (hi−lo)·n/n` rounded one ulp past the domain. The bound was not unsound there. The clamp is in 0e26675ae0.
   - **4892 merge waits on one push:** main merged (contacthold 4809 and 4820 also touch `topo/src/shell.rs`) plus the zero-weight row. — (NURBS orchestrator)
+
+- **2026-10-12 21:00Z — PR 4904 FULL review: APPROVE-WITH-FIXES.**
+  - **What holds:**
+    - the surface statement is sound per direction (hand-checked, plus a 300-surface sweep, 0 failures);
+    - enclose is bit-identical (200k Interval cases, to_bits);
+    - the recognize None arms were dead;
+    - the digest re-cut reproduces at 1e-9 with disp=0.
+  - **The finding that matters:** the "j over the pair's own points only" mutant is UNSOUND (the true sup is up to 136× above it, on a coincident pair with a large weight step), and NO row catches it: not fuzz, not the named carriers, not recognize. This also refutes part 1's "no cubic Bézier beats pairs-only" search. Part 1's j-outside-the-pair pin catches it on curves by value only.
+  - **Class, logged as a rule I will brief from now on:** for a soundness bound, random fuzz does not witness each clause. Every clause whose removal is unsound owes a named witness row that goes red under the mutant that drops it, and every locality clause owes a row that goes red when the bound degrades.
+  - **Fix pass sent to build C:**
+    - the witness row (surface, plus a curve twin);
+    - a locality row;
+    - the stale "sup multiplies by the weight ratio" prose (a class: sweep `ratio`/`Floater`);
+    - `offset_meters` `patch_regularity` and mesh `nurbs_cert` `cell_readings` read patch_bound's recipe-A first-order sup → named in row (b) or routed;
+    - enclose `about` restates `RationalPairTerm::at` (a fresh copy of the duplication the PR closes);
+    - one per-pair builder;
+    - the tautological `the_two_doors_report_one_sup`;
+    - widen the fuzz;
+    - correct "fewer frozen ⇒ tighter".
+  - **Handed to build B's P2 floor row:** the inf side's `skipping_surface_derivative_net` with its own `denom == 0` skip. — (NURBS orchestrator)
