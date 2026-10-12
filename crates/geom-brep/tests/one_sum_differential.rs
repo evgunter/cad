@@ -19,6 +19,7 @@
 
 #![allow(clippy::panic, clippy::too_many_lines, clippy::cast_precision_loss)]
 
+use crate::shared::surf::at_apex;
 use crate::shared::tol::band;
 use geom::{Curve3, Surface};
 use geom_brep::intersect::{
@@ -277,7 +278,7 @@ fn one_sum_differential() {
                 normal: nrm,
                 u_ref: perp(nrm, &mut rng),
             };
-            let got = plane_cone_section(&plane, &cone, extent, b);
+            let got = plane_cone_section(&plane, &cone, &at_apex(&cone, extent), b);
             let (label, truth) = match &got {
                 Ok(PlaneConeSection::ApexTangentLine(cv)) => {
                     let t = line_pts(cv, apex, extent, 400)

@@ -2120,3 +2120,33 @@ declarations silently) and the untested pair-boolean case, which now has
 a row that is red on main. The wrong cascade diagnosis is filed as
 `a-vanished-merged-name-is-diagnosed-a-cascade-through-its-retired-constituent`.
 
+## 2026-10-12 — PR 4284: a corner keeps its name; every other meeting is a crossing (ruled)
+
+Ev approved fork-log row 120 on 2026-10-08. Both designers recommended
+the same final state in their first reports:
+- an operand's corner keeps its own name;
+- every other place an edge meets the other body is a crossing, with a
+  four-valued sense;
+- `EdgeCrossing` goes into N2;
+- `Seam` retires from vertices.
+
+On three or more members meeting at one point, Ev leans to A's reading
+but is unsure, so the build tries it and keeps it only if the pinch rows
+stay order-free.
+
+## 2026-10-12 — PR 4794: a split piece's lineage is chased through killed stretches
+
+A union over a curved rim cut into pieces refused `SharedRim::Several`.
+Review traced the cause to the lineage chase: a killed stretch deleted
+the parent link, so the piece fell to the derived-chord path. That has
+a P0 precedent fixed in the same place (PR 3114). The chase now reads
+the discard rows' boundary chains, and every one of the 8084 newly
+resolved edges lies within the operand edge it is named for.
+
+The curved `rim_holding` reading stays, with unit witnesses. Only
+`crossing_slots` renames. Two union refusal rows rightly lost their
+refusal, and their witnesses moved.
+
+Filed: `a-lone-cut-piece-of-an-operand-edge-keeps-its-bare-name`, which
+main already has, and `a-point-on-a-curved-edge-is-placed-by-its-chord`.
+

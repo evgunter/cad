@@ -201,16 +201,18 @@
 //! to the child's sub-interval. The op re-certifies both restrictions
 //! before it mutates ([`split_cache`]) and writes them onto the parent
 //! halves and the two new halves, deriving nothing and minting nothing
-//! where there was nothing (a projected row restricts like the rest).
-//! Two frontiers ride with it, both stated at [`split_cache`]: a
-//! `Fitted` or `General` row is left exactly as found, and
-//! on a SPLINE chart the carry is exact but [`mint_pcurves`] — the
-//! recovery step this module's caveats name for a face left rowless —
-//! refuses on the split body, because [`nurbs_iso_derive`]'s rim arms
-//! map an edge's whole carrier interval onto the chart's whole `u`
-//! domain, which a sub-edge no longer spans. So the claim that a
-//! carried row is the row the pass would derive is a claim about the
-//! ANALYTIC charts, where the pass runs.
+//! where there was nothing (projected and fitted-grade rows restrict
+//! like the rest). The carry is exact on every chart; two readers of
+//! the split body are narrower, both stated at [`split_cache`]. On a
+//! described-NURBS wall [`mint_pcurves`] — the recovery step this
+//! module's caveats name for a face left rowless — refuses, because
+//! [`nurbs_iso_derive`]'s rim arms map an edge's whole carrier
+//! interval onto the chart's whole `u` domain, which a sub-edge no
+//! longer spans; so the claim that a carried row is the row the pass
+//! would derive does not reach the iso rows there (it does reach a
+//! carried `General` row, which the pass re-derives bit for bit). And
+//! the trimmed quadrature lane refuses a carried `General` child's
+//! sub-range typed.
 //!
 //! **[`crate::Body::revert`] carries the map, re-stated with the
 //! frames.** Not a fifth posture: the four this section names classify the
@@ -546,8 +548,6 @@ pub enum PcurveMintError {
     ///   [`crate::Body::kev_describing`] that lists it), or the band kill
     ///   of the edge ([`crate::Body::plan_released_rows`]) — mints it
     ///   whole, except on a spline chart;
-    /// - `split_edge`'s `Fitted`/`General` frontier ([`split_cache`]),
-    ///   past the sphere's general circle;
     /// - a caller's own [`crate::Body::detach_pcurve`];
     ///
     /// and a face that arrives half-minted any of these ways, but for a
@@ -2414,9 +2414,28 @@ pub(crate) enum SplitRefusal {
 /// [`geom_brep::EdgeCurve`]'s carrier does: the children of a split at
 /// `t` have the parent's chart image, restricted to `[t₀, t]` and
 /// `[t, t₁]`. So this re-certifies the parent's own image over each
-/// sub-interval, through the image's own door ([`restate`], with
-/// `fitted`, the scalar's [`crate::AtRestPolicy::fitted_lane`], for a
-/// projected row's hull terms), rather than deriving anything.
+/// sub-interval, through the image's own door ([`restate`], with the
+/// scalar's [`crate::AtRestPolicy::fitted_lane`] for a projected row's
+/// hull terms and a fitted-grade row's check 4), rather than deriving
+/// anything.
+///
+/// **A fitted-grade row's check 4 reads the WHOLE carrier**, not the
+/// child's span: `ssi::certify_rung3` bounds the carrier's whole knot
+/// domain against the operand pair. Its inputs (carrier, image,
+/// surface, mate, band) are the parent's, so at the band the parent's
+/// row was certified at, each child's certificate IS the parent's. The
+/// statement is conservative for a child, and such a split never
+/// refuses a child at check 4 unless the parent's own row already
+/// fails it. At a TIGHTER band than the parent's, check 4 can refuse a
+/// child: a typed refusal ([`SplitRefusal::Certify`]), never a false
+/// certificate.
+///
+/// **The joint between the children** is decided at `t`, where both
+/// children's images hold one chart point, so its gap is zero and no
+/// period is crossed. Off the chart's singular set it decides the
+/// identity shift; it writes a reset at a split point on that set, or
+/// on a `u`-closed spline chart whose whole `u` stretch is within the
+/// band ([`decide_joint`]).
 ///
 /// **`t₀` and `t₁` are the EDGE's certified interval**, read from the
 /// carrier through [`half_edge_carrier`] — the same interval
@@ -2430,37 +2449,39 @@ pub(crate) enum SplitRefusal {
 /// Read-only, so a refusal reaches `split_edge` before any mutation
 /// and the op's "untouched on `Err`" contract is unaffected.
 ///
-/// # `None`, and what it does NOT claim
+/// # `None`
 ///
-/// - `half_edge` carries no row (an all-planar body, a face of an
-///   uncovered class, or one a door has left rowless for its
-///   producer's closing mint);
-/// - the row's image is [`Pcurve::General`] or [`Pcurve::Fitted`]:
-///   neither restricts (each certifies over its own knot domain) and no
-///   route derives the child's afresh, so a split leaves that face
-///   exactly as it found it — tracked on PCERT's slate as
-///   `split-edge-cannot-carry-a-fitted-or-general-pcurve-row`.
-///
-/// In both cases the caller writes nothing, so the map is left exactly
+/// `half_edge` carries no row (an all-planar body, a face of an
+/// uncovered class, or one a door has left rowless for its producer's
+/// closing mint). The caller writes nothing, so the map is left exactly
 /// as found. A key that does not resolve is NOT one of them: it
 /// panics (below).
 ///
-/// # The SPLINE-chart frontier
+/// # What still reads a split body short
 ///
-/// The carry is exact on every kind it covers, spline charts included
-/// (a described-NURBS wall's `IsoLine` and `IsoArc` rows restrict like
-/// any other, and tier 3 reads `Ok` after the split). What a spline
-/// chart does not have is the RECOVERY step: [`mint_pcurves`], the
-/// pass a rowless face's caveat names, refuses on the body such a
-/// split produces, because [`nurbs_iso_derive`]'s rim arms map an
-/// edge's WHOLE carrier interval onto the chart's whole `u` domain,
-/// which a sub-edge no longer spans (`IsoUnsupported` on an arc rim, a
-/// loop-continuity finding on a line rim). Pre-existing and untouched
-/// here — the split now leaves nothing for that pass to do — and filed
-/// on TRIM's slate as
-/// `iso-derivation-arms-assume-an-edge-spans-the-charts-whole-domain`.
-/// So "the carried rows are the mint pass's rows" is a claim about the
-/// ANALYTIC charts (cylinder, sphere, torus), where the pass runs.
+/// The carry is exact on every kind it covers, spline charts included.
+/// Two readers downstream of it are narrower:
+///
+/// - **The iso rim arms.** On a described-NURBS wall the carried
+///   `IsoLine` and `IsoArc` rows restrict like any other, and tier 3
+///   reads `Ok` after the split. But [`mint_pcurves`], the pass a
+///   rowless face's caveat names, refuses on that body, because
+///   [`nurbs_iso_derive`]'s rim arms map an edge's WHOLE carrier
+///   interval onto the chart's whole `u` domain, which a sub-edge no
+///   longer spans (`IsoUnsupported` on an arc rim, a loop-continuity
+///   finding on a line rim). That is pre-existing, and filed as
+///   `iso-derivation-arms-assume-an-edge-spans-the-charts-whole-domain`.
+///   A carried fitted-grade row is not in it: the pass re-derives the
+///   split body's `General` rows bit for bit
+///   (`sweep`'s `split_edge_fitted_rows`).
+/// - **The trimmed quadrature lane.** It subdivides a `General` image
+///   over its whole knot domain, so it refuses a carried child's
+///   sub-range typed rather than integrate chart the face does not
+///   bound. A split of a seam that holds a `General` row is a standing
+///   producer of that shape, filed as
+///   `work/quad/a-fitted-cap-cut-by-planes-has-a-sub-range-trim-image.md`.
+///   No regression: before this carry the split left the face
+///   rowless, which the lane refuses too.
 ///
 /// # Errors
 ///
@@ -2477,12 +2498,11 @@ pub(crate) enum SplitRefusal {
 /// scaffolding: `halves` are the live halves of an edge whose curve
 /// [`crate::Body::split_edge`] resolved `Certified`.
 #[track_caller]
-pub(crate) fn split_cache<T: Decide>(
+pub(crate) fn split_cache<T: AtRestPolicy>(
     body: &Body<T>,
     halves: [HalfEdgeKey; 2],
     t: T,
     band: Band,
-    fitted: Option<geom_brep::FittedLane<T>>,
 ) -> Result<[Option<CarriedRows<T>>; 2], SplitRowError> {
     let mut rows = [None, None];
     for (slot, half_edge) in halves.into_iter().enumerate() {
@@ -2507,7 +2527,7 @@ pub(crate) fn split_cache<T: Decide>(
                 &surface,
                 mate.as_ref(),
                 band,
-                fitted,
+                T::fitted_lane(),
             )
             .map_err(refused)
         };
@@ -2529,15 +2549,10 @@ pub(crate) fn split_cache<T: Decide>(
                 }
             })
         };
-        // Every image but a fitted-grade one is a function of the
-        // carrier's parameter, and each child's is the parent's
-        // restricted: the same net or coefficients and pieces, over a
-        // sub-interval. A fitted-grade image certifies over its own knot
-        // domain, so no restriction carries it.
-        let (first, second) = match &image {
-            Pcurve::Fitted(_) | Pcurve::General(_) => continue,
-            _ => (image.clone(), image.clone()),
-        };
+        // Every image is a function of the carrier's parameter, and the
+        // children keep the parent's carrier, so each child's image is
+        // the parent's restricted to its sub-interval.
+        let (first, second) = (image.clone(), image);
         // The children meet at the first's point at `t`, so the joint is
         // decided there as every joint is, which reads whether the split
         // point is on the chart's singular set.

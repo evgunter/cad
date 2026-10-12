@@ -93,6 +93,8 @@ mod perf12_census_goldens;
 mod placed_m7_8_instance;
 #[path = "poleguard.rs"]
 mod poleguard;
+#[path = "poles_inside_a_seam_region.rs"]
+mod poles_inside_a_seam_region;
 #[path = "probe_dup.rs"]
 mod probe_dup;
 #[path = "probe_eps.rs"]

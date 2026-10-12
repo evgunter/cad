@@ -362,8 +362,8 @@ fn a_tangency_in_the_middle_of_an_edge_builds_in_either_operand_order() {
 /// azimuth −45°: the box's wall edges pass that ruling mid-span and the
 /// plate has no edge on it. The boolean verifies the tangency by its
 /// witness, and the verified pair is the cover (C4). The union
-/// would have material on both sides of a ruling through the box wall's
-/// interior, the unbuilt doubled-slit arm, so it refuses. Volumes are
+/// would touch face–face along a ruling through the box wall's
+/// interior, which the reduction mints no row for, so it refuses. Volumes are
 /// closed form (the box 1, the plate [`area`] of four corners, interiors
 /// disjoint); faces: the box 6, the plate 10.
 #[test]
@@ -392,7 +392,7 @@ fn a_tangent_beside_a_fillet_refuses_its_union_and_builds_the_rest_in_either_ord
                 assert_eq!(interior, box_operand, "{order}: A ∪ B, the box wall");
             }
             out => panic!(
-                "{order}: A ∪ B, the slit arm is unbuilt: {:?}",
+                "{order}: A ∪ B, the ruling runs through the box wall: {:?}",
                 out.map(|_| ())
             ),
         }
@@ -486,7 +486,8 @@ fn comb() -> AtRestBody<f64> {
 /// operand's vertex puts under a touch; where nothing does, the
 /// settled pair answers the frontier it was deferred with. The union
 /// refuses first at the door: the tangent ruling runs through the
-/// box wall's interior, the unbuilt doubled-slit arm.
+/// box wall's interior, a face–face touch the reduction mints no row
+/// for.
 ///
 /// - The short box beside the fillet (z 0.25 to 0.75, and 0.25 to 1):
 ///   its wall edges graze the fillet mid-ruling, where the plate has

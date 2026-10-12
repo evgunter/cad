@@ -300,6 +300,15 @@ fn the_rational_meter_survives_adversarial_weights() {
     assert_real_and_sound("degree 3, two spans", &c);
 
     assert_real_and_sound("degree 5", &quintic_net(vec![1.0, 0.5, 2.0, 0.5, 2.0, 1.0]));
+
+    // A high degree with alternating extreme weights: the refined-span
+    // hulls refuse it at every ratio, and the piece assembly meters it.
+    for (lo, hi) in [(0.01, 100.0), (0.001, 1000.0)] {
+        assert_real_and_sound(
+            &format!("degree 5, alternating {lo}/{hi} weights"),
+            &quintic_net(vec![1.0, lo, hi, lo, hi, 1.0]),
+        );
+    }
 }
 
 #[test]
@@ -379,18 +388,18 @@ fn a_rational_carrier_whose_speed_collapses_still_refuses() {
 
 #[test]
 fn the_conservative_frontier_is_stated_not_hidden() {
-    // Where the assembly gives up while the CURVE IS FINE. Both rows
-    // below refuse with a comfortably positive true minimum speed, so
-    // what they pin is the schedule's conservatism, not a property of
+    // Where the assembly gives up while the CURVE IS FINE. The row
+    // below refuses with a comfortably positive true minimum speed, so
+    // what it pins is the schedules' conservatism, not a property of
     // the geometry — stated out loud so the frontier moves visibly if
-    // `RATIONAL_METER_SPLITS` is ever revisited. Refusing is always
-    // sound; it is only ever a usability cost.
+    // `RATIONAL_METER_SPLITS` or `RATIONAL_PIECE_SPLITS` is ever
+    // revisited. Refusing is always sound; it is only ever a usability
+    // cost.
     let sharp_turn = {
         // A near-cusp: a repeated interior control point whose legs are
-        // NOT anti-parallel, so the curve turns hard but never stops.
-        // Opening the corner further moves the meter positive only once
-        // the turn is quite gentle — the conservatism is broad, and this
-        // row is where that is admitted.
+        // NOT anti-parallel, so the curve turns hard but never stops
+        // (true minimum speed about 0.042; the same net with its last
+        // point at y = 0.2, minimum about 0.086, meters).
         let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
         NurbsCurve3::<f64>::new(
             kv,
@@ -398,24 +407,15 @@ fn the_conservative_frontier_is_stated_not_hidden() {
                 Point3::new(0.0, 0.0, 0.0),
                 Point3::new(1.0, 1.0, 0.0),
                 Point3::new(1.0, 1.0, 0.0),
-                Point3::new(0.0, 0.2, 0.0),
+                Point3::new(0.0, 0.1, 0.0),
             ],
             vec![1.0, 0.6, 2.0, 1.0],
         )
         .unwrap()
     };
-    // A high degree AND alternating extreme weights leave the span
-    // hulls too coarse for a positive answer even after refinement.
-    let steep_weights = quintic_net(vec![1.0, 0.01, 100.0, 0.01, 100.0, 1.0]);
 
-    for (name, c, floor) in [
-        ("near-cusp", &sharp_turn, 1e-2),
-        (
-            "degree 5, alternating 0.01/100 weights",
-            &steep_weights,
-            1e-3,
-        ),
-    ] {
+    {
+        let (name, c, floor) = ("near-cusp", &sharp_turn, 1e-2);
         let m = c.speed_lower_bound().get();
         assert!(
             !(m > 0.0),
