@@ -217,15 +217,65 @@ class TestTheContinuousSlotEdit(unittest.TestCase):
                 DocEdit.set_param(box, junk, doc.parse_formula("1 m"))
 
     def test_a_profile_programs_expression_is_not_addressable_by_word(self):
-        """`profile` is a word of the alphabet with no slot to read
+        """`program` is a word of the alphabet with no slot to read
         back: the rest of that address is a loop index, a step index
         and which argument, none of which the word carries. It refuses
-        in its own sentence rather than as a misspelling."""
+        in its own sentence rather than as a misspelling; so do a
+        loft's `section` and a union's `member`, whose position the
+        word does not carry."""
         doc = Doc()
         box = blank(doc)
         with self.assertRaises(ValueError) as caught:
-            DocEdit.set_param(box, "profile", doc.parse_formula("1 m"))
+            DocEdit.set_param(box, "program", doc.parse_formula("1 m"))
         self.assertIn("profile program", str(caught.exception))
+        for word in ["section", "member"]:
+            with self.assertRaises(ValueError) as caught:
+                DocEdit.set_param(box, word, box)
+            self.assertIn("set_members", str(caught.exception))
+
+    def test_an_operand_is_written_at_its_word(self):
+        """One door (D10): at an operand's word the value is a read —
+        a node, read at its output — and the node reads it from then
+        on; a read of the wrong kind refuses `slot_var_kind` naming
+        both kinds, and an expression there refuses
+        `slot_dimension_mismatch`."""
+        doc = Doc(seed="one-door")
+        box = blank(doc)
+        tall = blank(doc, side=2 * L)
+        other = doc.insert(
+            Node.polygon(
+                [
+                    (Formula.length_in(0, m), Formula.length_in(0, m)),
+                    (Formula.length_in(2 * L, m), Formula.length_in(0, m)),
+                    (Formula.length_in(2 * L, m), Formula.length_in(2 * L, m)),
+                    (Formula.length_in(0, m), Formula.length_in(2 * L, m)),
+                ],
+                plane=doc.sketch_frame(),
+            )
+        )
+        doc.apply(DocEdit.set_param(box, "profile", other))
+        self.assertAlmostEqual(volume(doc, box), 4 * L * L * H)
+
+        with self.assertRaises(EditError) as caught:
+            doc.apply(DocEdit.set_param(box, "profile", tall))
+        refusal = caught.exception
+        self.assertEqual(refusal.variant, "slot_var_kind")
+        self.assertEqual(
+            (refusal.slot, refusal.found, refusal.expected), ("profile", "body", "profile")
+        )
+
+        with self.assertRaises(EditError) as caught:
+            doc.apply(DocEdit.set_param(box, "profile", doc.parse_formula("1 m")))
+        refusal = caught.exception
+        self.assertEqual(refusal.variant, "slot_dimension_mismatch")
+        self.assertEqual(
+            (refusal.slot, refusal.expected, refusal.found), ("profile", "profile", "length")
+        )
+
+        with self.assertRaises(EditError) as caught:
+            doc.apply(DocEdit.set_param(box, "target", other))
+        self.assertEqual(caught.exception.variant, "unknown_slot")
+        self.assertEqual(caught.exception.slot, "target")
 
 
 class TestTheNameRepair(unittest.TestCase):
@@ -240,8 +290,8 @@ class TestTheNameRepair(unittest.TestCase):
         return box, top, doc.insert(Node.shell(box, Formula.length_in(T, m), [top]))
 
     def test_the_repair_rewrites_the_site_and_the_body_follows(self):
-        """A shell's open list is a name-carrying payload, so saying
-        what the mouth now denotes moves the mouth. The two closed
+        """A shell's open faces are a selection of the box's body, so
+        saying what the mouth now denotes in that body moves the mouth. The two closed
         forms are the cavity opened at the top and at a wall."""
         doc = Doc()
         _box, top, hollow = self.cup(doc)
@@ -249,7 +299,7 @@ class TestTheNameRepair(unittest.TestCase):
         self.assertEqual(volume(doc, hollow), L * L * H - inner * inner * (H - T))
 
         wall = walls_of(doc, _box)[0]
-        doc.apply(DocEdit.rebind(top, wall))
+        doc.apply(DocEdit.rebind(top, wall, body=doc.output(_box)))
         # The cavity now reaches the opened wall: it is walled on one
         # side in y and on both in x and z.
         self.assertEqual(
@@ -315,7 +365,7 @@ class TestTheNameRepair(unittest.TestCase):
         box, _top, _hollow = self.cup(doc)
         unreferenced, other = walls_of(doc, box)[:2]
         with self.assertRaises(EditError) as caught:
-            doc.apply(DocEdit.rebind(unreferenced, other))
+            doc.apply(DocEdit.rebind(unreferenced, other, body=doc.output(box)))
         self.assertEqual(caught.exception.variant, "rebind_no_references")
         self.assertEqual(caught.exception.name, unreferenced)
 

@@ -68,7 +68,7 @@ pub(crate) fn eval_rows<'e, T: Decide>(
             let val = if slot.is_structural() {
                 SlotVal::Count(eval_var_count(var, env).map_err(|e| (slot, e))?)
             } else {
-                SlotVal::Scalar(eval_var(var, slot.dimension(), env).map_err(|e| (slot, e))?)
+                SlotVal::Scalar(eval_var(var, slot.expr_dimension(), env).map_err(|e| (slot, e))?)
             };
             Ok((slot, val))
         })

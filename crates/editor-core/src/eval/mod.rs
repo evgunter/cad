@@ -26,7 +26,7 @@ mod memo;
 pub(crate) mod parts;
 
 pub use parts::PartFault;
-mod schedule;
+pub(crate) mod schedule;
 pub(crate) mod slots;
 mod wire;
 pub(crate) use wire::decision_words;
@@ -150,6 +150,9 @@ pub struct Evaluation<T: Decide> {
     /// an appearance-only edit re-resolves this field and recomputes
     /// zero nodes.
     pub appearance: AppearanceResolution,
+    /// The lane environment this run read its slots from: what
+    /// [`Self::reading`] reads a variable's free inputs from.
+    pub env: crate::expr::VarEnv<T>,
 }
 
 impl<T: Decide> Evaluation<T> {
@@ -252,6 +255,73 @@ impl<T: Decide> Evaluation<T> {
         self.nodes.get(&id)
     }
 
+    /// **A scalar variable's value in this run** (D10): at this run's
+    /// scalar, each measured value under it the one its measure computed
+    /// here, every other input the lane environment's
+    /// ([`measure::Observed`]). A variable no measure is under is that
+    /// environment's reading of it.
+    ///
+    /// # Errors
+    ///
+    /// [`measure::ObservedRefusal`]: a measure under it with no value in
+    /// this run, or an evaluation that refuses — a variable of no scalar
+    /// kind, or one `doc` does not hold, among them.
+    pub fn reading<P: crate::ProfilePayload>(
+        &self,
+        doc: &Doc<P>,
+        var: crate::VarId,
+    ) -> Result<measure::Observed<T>, measure::ObservedRefusal> {
+        let dim = doc.var(var).and_then(|v| v.kind().dimension()).ok_or(
+            measure::ObservedRefusal::Expr(EvalError::UnresolvedVar { var }),
+        )?;
+        measure::observe(doc, &self.env, &self.nodes, var, dim)
+    }
+
+    /// **`formula` read in this evaluation**, measured values bound:
+    /// [`Self::reading`] for a formula no variable holds, such as a
+    /// recorded measurement's `value` (`Recording::measure`).
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::reading`].
+    pub fn reading_formula<P: crate::ProfilePayload>(
+        &self,
+        doc: &Doc<P>,
+        formula: &crate::Formula,
+    ) -> Result<measure::Observed<T>, measure::ObservedRefusal> {
+        measure::observe_formula(doc, &self.env, &self.nodes, formula)
+    }
+
+    /// [`Self::reading`], its refusal rendered with the node it came
+    /// from: a failed measure's own error spoken from `doc`, a poisoned
+    /// one's failed ancestor's, and otherwise the standing; an
+    /// evaluation's refusal is said at the first measure under `var`,
+    /// or none when no measure is. The one ladder every reader of a
+    /// value outside an assertion takes.
+    pub(crate) fn reading_spoken<P: crate::ProfilePayload>(
+        &self,
+        doc: &Doc<P>,
+        var: crate::VarId,
+    ) -> Result<measure::Observed<T>, (Option<RecipeNodeId>, String)>
+    where
+        T: Copy,
+    {
+        self.reading(doc, var).map_err(|refusal| match refusal {
+            measure::ObservedRefusal::Measure(standing) => {
+                self.node_error(standing.node()).map_or_else(
+                    || (Some(standing.node()), standing.to_string()),
+                    |e| (Some(e.node), e.kind_spoken(doc)),
+                )
+            }
+            measure::ObservedRefusal::Expr(source) => (
+                doc.observed_outputs(var)
+                    .first()
+                    .and_then(|out| doc.operation_of(*out)),
+                source.to_string(),
+            ),
+        })
+    }
+
     /// The typed root cause behind a node that produced no value:
     /// `Failed` answers its own error; `Poisoned` answers the nearest
     /// failed ancestor's (one `through` hop — see
@@ -342,26 +412,26 @@ impl NodeStanding {
     /// The standing of a document ROOT, as a door whose subject is the
     /// document's roots states it under its own stage word: `root`,
     /// then the standing.
-    pub(crate) fn of_root(self) -> RootStanding {
-        RootStanding(self)
+    pub(crate) fn of_placement(self) -> PlacementStanding {
+        PlacementStanding(self)
     }
 }
 
-/// [`NodeStanding::of_root`]'s rendering: the one sentence for a root
-/// with no value.
-pub(crate) struct RootStanding(NodeStanding);
+/// [`NodeStanding::of_placement`]'s rendering: the one sentence for a
+/// placement with no value.
+pub(crate) struct PlacementStanding(NodeStanding);
 
-impl crate::spoken::Say for RootStanding {
+impl crate::spoken::Say for PlacementStanding {
     fn say(
         &self,
         f: &mut core::fmt::Formatter<'_>,
         by: crate::spoken::Speaker<'_>,
     ) -> core::fmt::Result {
-        write!(f, "root {}", crate::spoken::Said(&self.0, by))
+        write!(f, "placement {}", crate::spoken::Said(&self.0, by))
     }
 }
 
-impl core::fmt::Display for RootStanding {
+impl core::fmt::Display for PlacementStanding {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
     }
@@ -443,6 +513,19 @@ pub(crate) fn usable_in<T: Decide>(
         }),
         None => Err(absent()),
     }
+}
+
+/// **An assertion's evaluated payload** ([`crate::node::payload_exprs`]):
+/// its value and its bound, in that order, every expression reading a
+/// measure with no value at this scalar left out and its position kept
+/// in `unavailable`.
+#[derive(Debug)]
+pub(crate) struct Payload<T> {
+    /// The values, in payload order, the unavailable ones left out.
+    pub(crate) values: Vec<T>,
+    /// The first expression with no value at this scalar: its position
+    /// in payload order, and why.
+    pub(crate) unavailable: Option<(usize, crate::measure::MeasureUnavailableAt)>,
 }
 
 /// Whether the evaluation ran to completion (spec D5).
@@ -535,6 +618,19 @@ pub struct NodeValue<T: Decide> {
     /// descendant map. Rides the value, so memo reuse transfers mate
     /// identity with the geometry it is keyed into.
     pub carried: Arc<crate::assembly::CarriedDeclarations>,
+    /// **The coincidences the node's op decided from values**
+    /// ([`crate::coincide`]), in decision order, each cell named in the
+    /// table of the input the decision read, so a row survives a later
+    /// merge or split of its cells. A function of the evaluation, as
+    /// the verdicts are, so no content key reads it; it rides the value
+    /// with the names it is spelled in.
+    pub coincidences: Arc<[crate::coincide::NamedCoincidence]>,
+    /// **What each input its contact records cite is**: a record's
+    /// [`topo::Backing::Carried`] names an input by position, and this
+    /// is that position's input, by read ([`crate::coincide::CitedInput`]).
+    /// A [`topo::Backing::Decided`] names a row of
+    /// [`Self::coincidences`].
+    pub cited_inputs: Arc<[crate::coincide::CitedInput]>,
     /// How many parts each of this value's output bodies is
     /// (`crates/editor-core/ASSEMBLY.md`, A2 and A10): a document's
     /// product is its roots, so an instantiation's bodies are as many
@@ -581,7 +677,7 @@ pub struct NodeValue<T: Decide> {
     /// **What a FRAME node's placement is** ([`FramePlacement`], minted
     /// by `wire::mint_frame_placement`): for an authored frame its nine
     /// slots at the document's nominal, orthonormalized — the frame's
-    /// own `DatumValue::Frame` answers the same question at the LANE
+    /// own `PoseValue::Frame` answers the same question at the LANE
     /// scalar, and the two ride side by side because they have
     /// different readers (`wire::profile_plane_f64` and
     /// `wire::frame_plane_lane`).
@@ -629,7 +725,7 @@ pub struct WitnessSlot {}
 pub enum ValuePayload<T: Decide> {
     /// A datum evaluated to geometry values (D3: frames/axes as
     /// values; directions normalized, degenerate refused).
-    Datum(DatumValue<T>),
+    Datum(PoseValue<T>),
     /// A validated profile (D3: replayed from the node's program
     /// through the driver, then the profile crate's validation door),
     /// its naming anchor, and the radius expression each
@@ -815,10 +911,6 @@ pub(crate) mod family {
 /// - **Wider than a family** ([`phrase::BODY_OR_INSTANCES`]): two families and
 ///   the conjunction between them, and nothing else; both words are
 ///   composed.
-/// - **A whole sentence** ([`phrase::AXIS_IN_SKETCH_FRAME`]): a seat no family
-///   word names, so there is nothing to compose and the const is the
-///   literal. It is here for the rule above — one home per phrase —
-///   rather than for a vocabulary it shares.
 ///
 /// # What this module is NOT, and where the neighbouring words live
 ///
@@ -847,7 +939,7 @@ pub(crate) mod family {
 pub(crate) mod phrase {
     /// A frame datum: [`crate::node::Datum::Frame`] or
     /// [`crate::node::Datum::FaceFrame`], the two nodes that carry a
-    /// [`super::DatumValue::Frame`].
+    /// [`super::PoseValue::Frame`].
     pub(crate) const DATUM_FRAME: &str = concat!(family_word!(datum), " frame");
     /// A 3-D axis datum ([`crate::node::Datum::Axis`]).
     pub(crate) const DATUM_AXIS: &str = concat!(family_word!(datum), " axis");
@@ -856,14 +948,23 @@ pub(crate) mod phrase {
     /// What a placer places: one body, or a list of placed ones.
     pub(crate) const BODY_OR_INSTANCES: &str =
         concat!(family_word!(body), " or ", family_word!(instances));
-    /// A revolve's axis seat. A 3-D [`crate::node::Datum::Axis`] lands
-    /// in this refusal, so the sentence has to say what to author
-    /// instead: the seat is not "an axis", it is an axis written in the
-    /// sketch the profile is drawn on.
-    pub(crate) const AXIS_IN_SKETCH_FRAME: &str = "an axis in a sketch frame (Datum::AxisInPlane)";
 }
 
 impl<T: Decide> ValuePayload<T> {
+    /// **The body at output `index`**: a one-body value's at 0, a
+    /// split's half at its port ([`crate::SplitHalf::output_body`]), a
+    /// family's member at its place. The one answer to "which body does
+    /// a read of this output hold".
+    ///
+    /// # Errors
+    ///
+    /// [`crate::InterrogateError::NoSuchBody`] for an index the value
+    /// has no body at (an empty half among them),
+    /// [`crate::InterrogateError::NoBodies`] for a value that holds none.
+    pub fn output_body(&self, index: u32) -> Result<&Body<T>, crate::InterrogateError> {
+        crate::names::interrogate::output_body(self, index)
+    }
+
     /// The payload family, for typed operand mismatches: the `family`
     /// word the value lands in.
     pub fn kind_name(&self) -> &'static str {
@@ -898,8 +999,7 @@ pub(crate) type Seated = Box<(RecipeNodeId, NodeErrorKind)>;
 /// [`ValuePayload::kind_name`]'s own words — the RECIPE-side reading
 /// of the same question, for the roads that never hold a value: a
 /// reference read straight out of the document (the mate solve's
-/// derived offset refusing a circular rule's `axis` operand, and the
-/// wire's `node_operand` door).
+/// derived offset refusing a circular rule's `axis` operand).
 ///
 /// It is that match written a second time over node kinds, with a
 /// walk down the placer chain in front of it, which is a
@@ -941,9 +1041,10 @@ pub(crate) type Seated = Box<(RecipeNodeId, NodeErrorKind)>;
 ///   through it; a document holding one is admitted by `apply`.
 /// - [`NodeErrorKind::MissingInput`] naming a transform's input that
 ///   is no live node, at that transform — likewise the transform's own
-///   refusal. Unreachable through `apply`, which refuses the delete
-///   that would leave it (`DeleteWouldDangle`), and through `load`,
-///   whose validator holds liveness; refused typed anyway.
+///   refusal. A delete strands the transform's read rather than
+///   leaving it, and the transform's own evaluation refuses that
+///   (`UnresolvedRead`) before this walk reaches it; refused typed
+///   anyway.
 /// - [`NodeErrorKind::MissingInput`] naming `id` itself when it is no
 ///   live node, seated at `id`: the walk has no other node to name.
 pub(crate) fn node_value_kind<P>(doc: &Doc<P>, id: RecipeNodeId) -> Result<&'static str, Seated> {
@@ -961,8 +1062,17 @@ pub(crate) fn node_value_kind<P>(doc: &Doc<P>, id: RecipeNodeId) -> Result<&'sta
         let Node::Transform { input, .. } = node else {
             break node;
         };
+        let Some(source) = doc.operation_of(*input) else {
+            return Err(Box::new((
+                at,
+                NodeErrorKind::UnresolvedRead {
+                    slot: crate::OperandSlot::Input,
+                    var: *input,
+                },
+            )));
+        };
         placer = Some(at);
-        at = *input;
+        at = source;
     };
     // The family, and whether a placer takes it.
     let (found, placeable) = match source {
@@ -971,7 +1081,7 @@ pub(crate) fn node_value_kind<P>(doc: &Doc<P>, id: RecipeNodeId) -> Result<&'sta
         }
         Node::Datum(_) => (family::DATUM, false),
         Node::Profile(_) => (family::PROFILE, false),
-        Node::Boolean { .. } => (family::BOOLEAN, true),
+        Node::Subtract { .. } => (family::BOOLEAN, true),
         Node::Split { .. } => (family::SPLIT, false),
         Node::Pattern { .. } => (family::INSTANCES, true),
         Node::Mate { .. } => (family::MATE, false),
@@ -988,8 +1098,10 @@ pub(crate) fn node_value_kind<P>(doc: &Doc<P>, id: RecipeNodeId) -> Result<&'sta
         | Node::Chamfer { .. }
         | Node::Shell { .. }
         | Node::Union { .. }
+        | Node::Intersect { .. }
         | Node::PlacedUnion { .. }
         | Node::Part { .. }
+        | Node::PlaceInWorld { .. }
         | Node::InstantiatePart { .. } => (family::BODY, true),
     };
     match placer {
@@ -1016,8 +1128,8 @@ pub enum BooleanValue<T: Decide> {
         body: Arc<Body<T>>,
         /// How the kernel produced it.
         kind: BooleanResultKind,
-        /// Declared contacts surviving into the result (the
-        /// `BooleanBody` contract, spec D2).
+        /// Contacts, declared or glued on a decided Zero, surviving into
+        /// the result (the `BooleanBody` contract, spec D2).
         contacts: Arc<ContactRecords>,
     },
 }
@@ -1032,19 +1144,9 @@ pub enum SplitSide<T: Decide> {
     Body(Arc<Body<T>>),
 }
 
-// An evaluated datum (spec D3): geometry VALUES, not kernel entities,
-// which is why the type itself lives at the kernel query seat
-// (`topo::query`) — it is the resolved comparand the decided distance
-// predicate takes, and this layer's evaluation is what mints one. Its
-// normals and axis directions are `UnitVec3`, whose constructor is
-// where a degenerate, decided-zero-length vector becomes a typed
-// refusal; this layer maps that refusal onto its own node error and
-// invents nothing. `DatumValue` is re-exported at its historical home,
-// so no consumer's path to it moved. The type that carries its
-// directions, `geom_core::UnitVec3`, is NOT re-exported here: a
-// consumer that builds a datum, or reads a normal back out of one,
-// names the witness at the crate that mints it.
-pub use topo::query::DatumValue;
+// An evaluated pose lives in the pose module (`crate::pose`), beside
+// its symmetry; it is re-exported here, where a value payload is read.
+pub use crate::pose::PoseValue;
 
 // `NodeErrorKind::VerbArity` carries the kernel's verb name and
 // declared-arity types in a pub payload, so both cross with it — the
@@ -1111,29 +1213,6 @@ impl NodeRefusal {
 /// node said by `by`, and the failing node named once. The one
 /// spelling [`NodeError`]'s renderings and [`NodeRefusal::line_at`]
 /// share.
-/// **A reference the failed node holds that stopped resolving**: said by
-/// its slot, `this fillet's edge 2 is stranded: …`, where the speaker's
-/// document holds the node ([`crate::Speaker::about`] names it) with
-/// that name at `reference`, its place among
-/// [`crate::Node::payload_names`]; otherwise `lead`, then the refusal
-/// saying the name once, in full.
-fn resolve_failed(
-    f: &mut core::fmt::Formatter<'_>,
-    by: crate::spoken::Speaker<'_>,
-    error: &crate::resolve::ResolveError,
-    reference: usize,
-    lead: impl core::fmt::Display,
-) -> core::fmt::Result {
-    match by.reference(reference, error.name()) {
-        Some(reference) => write!(
-            f,
-            "{}",
-            crate::spoken::Said(&crate::resolve::AboutReference(error, reference), by)
-        ),
-        None => write!(f, "{lead}: {}", crate::spoken::Said(error, by)),
-    }
-}
-
 fn failed_line(node: RecipeNodeId, kind: &NodeErrorKind, by: crate::spoken::Speaker<'_>) -> String {
     format!(
         "{} failed: {}",
@@ -1146,12 +1225,14 @@ fn failed_line(node: RecipeNodeId, kind: &NodeErrorKind, by: crate::spoken::Spea
 /// of entity it is, refuse* — and, unlike a door built out of a
 /// convention, one a road cannot go around.
 ///
-/// Four refusals in `eval::wire` ask that question — a shell's open
-/// designation, a blend's selection, a derived frame's face, a
-/// measure's scope. They differ in the entity they admit, in the word
-/// they use for the road, and in what else the refusal carries (a
-/// name, a verb). They do NOT differ in how the answer to *"what was
-/// it instead"* is obtained, and that half is this module's.
+/// One refusal in `eval::wire` asks that question — a selection's
+/// (`SelectKind`), whichever node reads it: a blend's edges, a shell's
+/// open faces, a derived frame's face, a measure's reference. Its
+/// readers differ in the entity they admit and in the words the node
+/// speaks it in. They do NOT differ in how the answer to *"what was it
+/// instead"* is obtained, and that half is this module's. (A measure's
+/// primitive admits its kinds at the edit and load doors, as a seat's
+/// kind, so no evaluation-time kind refusal of its own remains.)
 ///
 /// # Why a token rather than a rule
 ///
@@ -1163,21 +1244,20 @@ fn failed_line(node: RecipeNodeId, kind: &NodeErrorKind, by: crate::spoken::Spea
 /// that: it carries the kind, its field is private to this module, and
 /// [`entity_door::entity`] is the only thing that can mint one.
 ///
-/// The refusals therefore keep their own identities — four variants,
-/// four sentences — while the one fact they share has one source.
+/// The readers therefore keep their own sentences while the one fact
+/// they share has one source.
 ///
 /// # Why the door is in two files
 ///
-/// [`entity_door::entity`] is here and `eval::wire`'s `named_entity` — the
-/// designation road, which resolves an authored name and then comes
+/// [`entity_door::entity`] is here and `eval::wire`'s `select` — the
+/// designation road, which resolves a selection's names and then comes
 /// here — is there. That split is not a preference: [`entity_door::Found`]'s field
 /// must be private to a module that is NOT an ancestor of the roads,
 /// and the roads live in `eval::wire`, so the minting site cannot live
 /// there with them. Putting [`entity_door::Found`] beside
 /// [`crate::names::EntityKind`] instead would need a crate-visible
 /// constructor, which every road could call — the guarantee would be
-/// gone. `named_entity`'s own docs carry the other half of this
-/// sentence.
+/// gone. `select`'s own docs carry the other half of this sentence.
 ///
 /// **What an outside reader gets from this module is [`entity_door::Found`]**, which
 /// a refusal renders and a test reads through [`entity_door::Found::kind`]. The door
@@ -1415,8 +1495,7 @@ pub enum NodeErrorKind {
     /// M6), pinned in `sweep/tests/m5_pr10_frontier.rs`'s flipped
     /// rows' successor and `editor-core`'s node suites.
     ///
-    /// A named sub-frontier, never a laundered catch-all (the
-    /// `RestZipUnsupported` precedent).
+    /// A named sub-frontier, never a laundered catch-all.
     CurvedSolidFrontier {
         /// The precise missing door.
         what: &'static str,
@@ -1426,6 +1505,49 @@ pub enum NodeErrorKind {
     MissingInput {
         /// The dangling id.
         input: RecipeNodeId,
+    },
+    /// **An operand reads a variable no live operation defines** (D10:
+    /// deleting an operation leaves its readers unresolved, typed, never
+    /// re-pointed). The delete reported it
+    /// ([`crate::Maintenance::StrandedRead`]); the repair is an edit
+    /// naming a new read for the slot.
+    UnresolvedRead {
+        /// The operand.
+        slot: crate::OperandSlot,
+        /// The read.
+        var: crate::VarId,
+    },
+    /// **A name of a selection the node reads failed to resolve** (D10:
+    /// the N5 ladder runs in the selection, [`crate::VarDef::Select`]).
+    /// A selection is a commitment, so a name that no longer resolves
+    /// refuses every reader loudly instead of silently shrinking the
+    /// set. The repair is `Rebind`.
+    SelectResolve {
+        /// The operand reading the selection.
+        slot: crate::OperandSlot,
+        /// The selection.
+        var: crate::VarId,
+        /// Which of its names failed, by place.
+        reference: usize,
+        /// The resolution failure (N5's closed trio).
+        error: Box<crate::resolve::ResolveError>,
+    },
+    /// **A name of a selection the node reads denotes another entity
+    /// kind** than the selection's (a face in an edge set): refused
+    /// rather than reinterpreted, so a face is never blended as its
+    /// boundary.
+    SelectKind {
+        /// The operand reading the selection.
+        slot: crate::OperandSlot,
+        /// The selection.
+        var: crate::VarId,
+        /// The offending name.
+        name: Box<crate::names::StableName>,
+        /// The entity kind the selection holds.
+        expected: crate::names::EntityKind,
+        /// What the name denotes — the entity door's own answer
+        /// ([`entity_door::Found`]).
+        found: entity_door::Found,
     },
     /// The document's recorded ε disagrees with the process's
     /// committed ambient ε (M4 PR 6 spec D4: one process = one ε —
@@ -1460,19 +1582,6 @@ pub enum NodeErrorKind {
     Seed {
         /// The door's refusal, unaltered.
         source: crate::analysis::SeedError,
-    },
-    /// The evaluation's E4 seed names a parameter a loft's or a sweep's
-    /// SECTION reads, and a section stays `f64` in every lane (C6/D9:
-    /// the skinned surface's structure must be lane-identical) — the
-    /// seed has no channel to ride there and would reach the surface
-    /// as a constant. Refused at the consuming node, naming the
-    /// section, rather than embedded as a finite wrong zero: the
-    /// profile gap, typed.
-    SeedPinnedSection {
-        /// The section profile node the seed reaches and stops at.
-        section: RecipeNodeId,
-        /// The seeded variable the section reads.
-        param: crate::var::VarId,
     },
     /// An input's value family does not fit this operand (e.g. a
     /// boolean fed a split's two-part value — selecting a part needs
@@ -1520,7 +1629,7 @@ pub enum NodeErrorKind {
         /// The validator's findings, each naming its entity.
         errors: Vec<topo::ValidationError>,
     },
-    /// A [`crate::Node::Part`] selected a split half that holds no
+    /// A read of a split's port found its half holding no
     /// material — the tool plane missed the target on that side. Its
     /// own arm rather than [`NodeErrorKind::EmptyOperand`]: that
     /// one's prose is a boolean's, and what is empty here is a side
@@ -1602,27 +1711,33 @@ pub enum NodeErrorKind {
         /// The escalation, unaltered.
         source: Indeterminate,
     },
-    /// A revolve whose axis and profile are written against DIFFERENT
-    /// sketch frames.
-    ///
-    /// An axis authored IN a frame cannot leave it, so the only
-    /// question is whether it is the frame the profile was drawn on,
-    /// and that is an equality of node ids: exact, and the same answer
-    /// at every model scale — no tolerance verdict on a projection.
-    ///
-    /// Both frames are named so a reader can see which of the axis or
-    /// the profile sits on the frame they meant. They are not repair
-    /// sites: no edit to a frame's pose makes two ids equal. Each is
-    /// optional for one reason: a node that is neither a profile
-    /// nor an in-plane axis is written against no frame at all, and
-    /// `None` says that rather than inventing an id.
-    AxisInDifferentPlane {
-        /// The axis datum node.
-        axis: RecipeNodeId,
-        /// The frame the axis is written in.
-        axis_plane: Option<RecipeNodeId>,
-        /// The frame the profile is drawn on.
-        profile_plane: Option<RecipeNodeId>,
+    /// **A pose read off geometry found none of its kind** (D10): a
+    /// face read as a plane on a curved carrier (DM1b), an axis read
+    /// off a carrier that has no axis (a plane, a sphere), a point read
+    /// off one that has no centre (a cylinder, a straight edge), or an
+    /// entity its body could not read back. A tag read, never a
+    /// predicate.
+    PoseRead {
+        /// The pose kind read.
+        pose: crate::VarKind,
+        /// Why there is none.
+        fault: crate::pose::PoseReadFault,
+    },
+    /// **A pose construction met its degenerate case** (FORK-1b), as
+    /// the decided length that names it found zero: a frame through a
+    /// point on its axis, the meeting line of parallel planes. Refused,
+    /// never joined by an arbitrary choice.
+    PoseDegenerate {
+        /// The construction.
+        construction: crate::pose::PoseConstruction,
+    },
+    /// **A scalar a pose definition reads did not evaluate**: an
+    /// in-frame coordinate or a standoff's length.
+    PoseScalar {
+        /// The scalar variable.
+        var: crate::VarId,
+        /// Why.
+        source: crate::expr::EvalError,
     },
     /// A pattern count that is not at least 1.
     NonPositiveCount {
@@ -1654,7 +1769,7 @@ pub enum NodeErrorKind {
     FullRangeStep {
         /// The step as authored, said as `NegativeSpacing::reversed`
         /// is.
-        step: crate::expr::Expr,
+        step: crate::Formula,
         /// What the step evaluated to, in radians, when it is not a
         /// literal (a literal's text already says), for the sentence
         /// only.
@@ -1697,163 +1812,20 @@ pub enum NodeErrorKind {
     /// emission bug, a kernel-emission gap, or an in-band N2
     /// discriminator escalation — carried unaltered.
     Naming(NamingError),
-    /// The lowered parameter-identity attach refused (VERB-SEAT-DESIGN
-    /// P2): the kernel's per-field door would not take a token on a
-    /// key or a field the attach pass just read off the same body. A
-    /// broken invariant of `param_source::attach_blend` — its doc says
-    /// why neither refusal can fire — surfaced typed rather than
-    /// discarded, so that a channel fed nothing is never mistaken for
-    /// a channel that refused.
-    ParamSourceAttach(topo::ParamAttachError),
-    /// A declared pair failed to resolve through the operands' name
-    /// tables (F5) — the N5 typed error: a declaration naming a
-    /// vanished/ambiguous/deleted name refuses loudly; no silent drop,
-    /// no best-effort gluing. The error's shape is N5's; a `Vanished`
-    /// one's diagnosis may be one of the arms [`crate::resolve::Diagnosis`]
-    /// marks as not N5's, such as a union's fold consuming the name
-    /// ([`crate::resolve::Diagnosis::ConsumedByFold`]).
-    DeclareResolve {
-        /// The resolution failure: N5's closed trio of shapes, its
-        /// diagnosis not limited to N5's arms.
-        error: Box<crate::resolve::ResolveError>,
-        /// Which of the node's references failed: its place among
-        /// [`crate::Node::payload_names`].
-        reference: usize,
-    },
-    /// A declared entity is SITED at a node that is not one of the
-    /// consumer's operands — not a member of the union, nor `a` or
-    /// `b` of the pair boolean.
-    ///
-    /// The site IS the side (DM4), so a site the consumer does not
-    /// have is a declaration the consumer cannot read: there is no
-    /// table to resolve the name in. A pair boolean's arm: a union's
-    /// site that is not a member is the N5 strand a later `SetMembers`
-    /// leaves, and refuses as a vanished name ([`Self::DeclareResolve`]).
-    /// Every door that writes a pair refuses such a site — the edit
-    /// doors ([`crate::EditError::DeclaredSiteNotAnOperand`]) and, for a
-    /// Boolean, the load door — and a Boolean's operands never change,
-    /// so no document those doors admit reaches this arm; it stays the
-    /// evaluation's own answer to a site it cannot read rather than an
-    /// assumption the doors held.
-    DeclareSiteNotAnOperand {
-        /// The site the pair named.
-        at: crate::node::RecipeNodeId,
-    },
-    /// A declared pair outside the v1 threading vocabulary, which is
-    /// enumerated once — in `eval::wire`'s `DeclaredStep` — and is
-    /// deliberately not re-listed here, so a fourth pair shape cannot
-    /// be added to the code and left out of this sentence.
-    ///
-    /// Asked and answered BEFORE either name is resolved to one
-    /// entity: a pair the vocabulary has no step for is unsupported
-    /// however many entities answer to either name (`wire`'s
-    /// `resolve_declarations`, and `assembly::resolve_face` for the
-    /// same rule at the mate doors).
-    DeclareUnsupportedPair {
-        /// The pair's entity kinds, declaration order — the AUTHORED
-        /// names' kinds, which is the only source available before
-        /// resolution and which the name table makes every
-        /// candidate's kind (every `NameTable` door that seats a row
-        /// refuses one whose name's kind is not its key's).
-        kinds: (crate::names::EntityKind, crate::names::EntityKind),
-        /// Whether the two names LANDED in different operands — the
-        /// side pick, made before resolution, so a tied name has a
-        /// side here without having a single entity.
-        cross_operand: bool,
-    },
-    /// The boolean refused an UNDECLARED contact (F6) and the raise
-    /// site identified the face pair — the refusal-menu payload
-    /// (SELECT-DESIGN §3d, register R3, LIB-PYG5). `finding` is the
-    /// SAME value shape the detector answers with: the pair's keys
-    /// resolved to StableNames through the OPERANDS' name tables, the
-    /// relation the coincidence ladder decided before refusing.
-    /// Nothing is re-detected on the error path — the payload is what
-    /// the raise site held. So the recourse is IN the error, and the
-    /// menu has exactly two arms (the #256 ruling applied to contact,
-    /// no absorb arm): declare this finding
-    /// ([`crate::names::declare`] / [`crate::DocEdit::SetDeclare`] on
-    /// the boolean), or move the geometry.
-    ///
-    /// Raised INSTEAD of wrapping the kernel's
-    /// `BooleanError::UndeclaredCoincidence` under
-    /// [`NodeErrorKind::Boolean`]; if either key fails to resolve to
-    /// a name (an emitter-coverage invariant break, not an authoring
-    /// state), the plain `Boolean` wrapping is preserved — the
-    /// boolean's refusal is never masked by its own menu.
-    UndeclaredCoincidence {
-        /// The candidate declaration, in the detector's value shape.
-        finding: Box<crate::names::FlushFinding>,
-        /// **Each side's MERGED constituent set**, when the refusing
-        /// operand row is a face a union's fold merged: the flat set
-        /// (N3) as the member entities it retired, in the union's own
-        /// member order (D9). `finding`'s side for that half is this
-        /// list's FIRST entry, and any other entry declares the SAME
-        /// contact — a declaration resolves to the merged row through
-        /// the fold's look-through — so the choice is deterministic
-        /// rather than meaningful.
-        ///
-        /// Empty on both halves for every other refusal: a pair
-        /// boolean's operands are nodes, so their rows are their own,
-        /// and a union's contact against an unmerged member face is
-        /// that member's.
-        merged: Box<(Vec<crate::node::SitedRef>, Vec<crate::node::SitedRef>)>,
-        /// The refusing predicate's diagnostics, unaltered.
-        diag: Indeterminate,
-    },
-    /// **A union's undeclared contact against a row its own FOLD
-    /// minted** — a fragment of a member's face, the union's body,
-    /// anything the member-keying rule does not collapse to a member's
-    /// entity or to a merge of them.
-    ///
-    /// Such a row does not exist before the union, so no `SitedRef`
-    /// names it (DM4: a declaration names what is live before its
-    /// consumer) and the two-armed menu
-    /// [`NodeErrorKind::UndeclaredCoincidence`] carries has no declare
-    /// arm here. The refusal says so in the type rather than degrading
-    /// to an emission bug, which would blame this crate for a
-    /// document a user wrote.
-    ///
-    /// No evaluation raises it: a union's contacts are judged pairwise
-    /// between member views before the fold, whose rows are all member
-    /// entities, and a fold step's contact refusal is an emission bug
-    /// (DM4: the fold mints no contact verdict).
-    UndeclarableContact {
-        /// The fold-minted row, in the union's PUBLISHED name space —
-        /// the space its other refusals name.
-        row: Box<crate::names::StableName>,
-        /// The refusing predicate's diagnostics, unaltered.
-        diag: Indeterminate,
-    },
-    /// A blend node's selection name failed to resolve through the
-    /// TARGET's name table (M6-5) — the same N5 typed trio as
-    /// [`NodeErrorKind::DeclareResolve`], and for the same reason: a
-    /// selection is a commitment, so a name that no longer resolves
-    /// refuses loudly instead of silently shrinking the set.
-    ///
-    /// The edge-selection ladder is ONE door serving both blend nodes,
-    /// so its refusals carry `verb` rather than being written twice —
-    /// a chamfer's refusal says "chamfer".
-    BlendSelectionResolve {
-        /// Which blend the refusing node is.
-        verb: sweep::blend::BlendKind,
-        /// The resolution failure (N5's closed trio).
-        error: Box<crate::resolve::ResolveError>,
-        /// Which of the node's references failed: its place among
-        /// [`crate::Node::payload_names`].
-        reference: usize,
-    },
-    /// A blend node's selection named something that is not an EDGE
-    /// of the target (a face, a vertex, the body). The op blends
-    /// edges; a mis-kinded selection is a recipe bug, refused rather
-    /// than reinterpreted.
-    BlendSelectionKind {
-        /// Which blend the refusing node is.
-        verb: sweep::blend::BlendKind,
-        /// The offending name.
-        name: Box<crate::names::StableName>,
-        /// What it actually denotes — the entity door's own answer,
-        /// which no road can have written ([`entity_door::Found`]).
-        found: entity_door::Found,
+    /// **A step of a union's fold refused** (DM4): the step folding
+    /// `member` into the accumulation of the members listed before it,
+    /// with the step's own refusal. The pairwise judgement decides every
+    /// pair of members before the fold in every member order; a refusal
+    /// only a fold step raises names the step, so it is never read as a
+    /// pair's.
+    UnionFoldStep {
+        /// The position, in the node's member list, of the member the
+        /// refusing step folds in: members of one family share a read.
+        member: u32,
+        /// That member's read.
+        read: crate::VarId,
+        /// The step's refusal.
+        refusal: Box<NodeErrorKind>,
     },
     /// A blend node's selection is EMPTY. A blend of nothing is not
     /// the identity — it is an unfinished recipe, refused rather than
@@ -1879,29 +1851,6 @@ pub enum NodeErrorKind {
     /// bracket scalar each number is the infimum the kernel's own gates
     /// meter. The node never passes its input body through.
     Shell(Box<topo::ShellError<f64>>),
-    /// A shell node's `open` list named something that stopped
-    /// resolving in the target's name table — the blend selection's
-    /// ladder, through the same N5 rungs, for the same reason: a
-    /// designation is a commitment, so a name that no longer answers
-    /// refuses loudly rather than silently sealing the face it meant.
-    ShellOpenResolve {
-        /// The resolution failure (N5's closed trio).
-        error: Box<crate::resolve::ResolveError>,
-        /// Which of the node's references failed: its place among
-        /// [`crate::Node::payload_names`].
-        reference: usize,
-    },
-    /// A shell node's `open` list named something that is not a FACE
-    /// of the target (an edge, a vertex, the body). The op opens faces
-    /// into rims; a mis-kinded designation is a recipe bug, refused
-    /// rather than reinterpreted.
-    ShellOpenKind {
-        /// The offending name.
-        name: Box<crate::names::StableName>,
-        /// What it actually denotes — the entity door's own answer,
-        /// which no road can have written ([`entity_door::Found`]).
-        found: entity_door::Found,
-    },
     /// **This evaluation scalar cannot form the shell door's call.**
     /// The door validates what it built with a certified claim, so it
     /// is formed only at a scalar with certification rights; a dual
@@ -1920,26 +1869,6 @@ pub enum NodeErrorKind {
         /// The scalar that has no door ([`geom_core::Real::NAME`]).
         scalar: &'static str,
     },
-    /// A derived frame's face name failed to resolve through its
-    /// body's name table — [`NodeErrorKind::BlendSelectionResolve`]'s
-    /// twin, through the same N5 ladder, for the same reason: the
-    /// name is a commitment, so a face that stops answering fails the
-    /// frame typed and poisons the sketch above it rather than
-    /// re-anchoring it silently. The repair is `Rebind`.
-    FaceFrameResolve {
-        /// The resolution failure (N5's closed trio).
-        error: Box<crate::resolve::ResolveError>,
-    },
-    /// A derived frame's name denotes something that is not a FACE
-    /// (an edge, a vertex, the body) — a recipe bug, refused rather
-    /// than reinterpreted.
-    FaceFrameKind {
-        /// The offending name.
-        name: Box<crate::names::StableName>,
-        /// What it actually denotes — the entity door's own answer,
-        /// which no road can have written ([`entity_door::Found`]).
-        found: entity_door::Found,
-    },
     /// A derived frame's face is not planar (DM1b): a sketch frame
     /// needs a plane, and the carrier found is named so a headless
     /// author gets the same answer the chrome pre-empts. A tag read,
@@ -1956,33 +1885,14 @@ pub enum NodeErrorKind {
         /// The kernel-side refusal, unaltered.
         error: topo::readback::ReadbackError,
     },
-    /// A loft's or a sweep's SECTION is drawn on a derived frame
-    /// ([`crate::Datum::FaceFrame`]) and this evaluation's scalar is
-    /// not `f64` (DM1c). A section's geometry stays `f64` in every lane
-    /// (the skinned surface's structure must be lane-identical), and a
-    /// derived frame has no `f64` elaboration off the `f64` lane — its
-    /// placement is the lane's own value — so the section refuses,
-    /// naming the profile and the frame, rather than placing itself
-    /// on a fabricated point of the frame's bracket.
-    /// [`NodeErrorKind::SeedPinnedSection`]'s shape.
-    DerivedFrameSection {
-        /// The section profile node.
-        profile: RecipeNodeId,
-        /// The derived frame it is drawn on.
-        frame: RecipeNodeId,
-    },
     /// A profile needed an AUTHORED frame's `f64` placement and the
     /// frame's own direction slots refused, so the refusal is raised
     /// on the reader (`wire::profile_plane_f64`) and names BOTH nodes.
     ///
-    /// **[`NodeErrorKind::DerivedFrameSection`]'s shape, and both of
-    /// its ids, because this refusal reaches the same third node.**
-    /// `profile_plane_f64` is read from the profile node's own
-    /// evaluation, where the error lands on the profile and its id is
-    /// confirmation — and from `wire`'s section seam, where the error
-    /// lands on the LOFT or SWEEP and neither node in the sentence is
-    /// the one it is attached to. One id would leave that road naming
-    /// half of what it refused about.
+    /// **Both ids.** `profile_plane_f64` is read from the profile
+    /// node's own evaluation, where the error lands on the profile and
+    /// its id is confirmation, and the frame's id says which frame
+    /// refused.
     ///
     /// **The carried refusal is the fact, not a second one.** A frame
     /// slot that refuses reaches a human two ways — raised at the
@@ -2063,26 +1973,15 @@ pub enum NodeErrorKind {
         /// The part-side reference that did not resolve.
         name: Box<crate::names::StableName>,
     },
-    /// A `Node::Measure` reference failed to resolve against the value
-    /// of the node it is read AT (E3) — the same N5 typed trio as
-    /// [`NodeErrorKind::BlendSelectionResolve`], and for the same
-    /// reason: a measurement's references are a commitment, so a name
-    /// that stopped resolving refuses loudly rather than measuring
-    /// whatever is left.
-    MeasureRefResolve {
-        /// The resolution failure (N5's closed trio).
-        error: Box<crate::resolve::ResolveError>,
-        /// Which of the node's references failed: its place among
-        /// [`crate::Node::payload_names`].
-        reference: usize,
-    },
     /// A `Node::Measure` reference resolved into a value that carries
     /// no bodies, or into an output body its value does not have — the
     /// naming emission and the value disagree, or the reference names
     /// a datum. Carries the interrogation layer's own words.
     MeasureRefUnreadable {
         /// The reference.
-        name: Box<crate::names::StableName>,
+        slot: crate::OperandSlot,
+        /// What it reads.
+        var: crate::VarId,
         /// Why it could not be read back.
         error: crate::names::InterrogateError,
     },
@@ -2117,19 +2016,12 @@ pub enum NodeErrorKind {
     /// The measured expression has no closed form for the carrier pair
     /// it was asked about (E3's honest v1 scope).
     MeasureUnsupported(measure::MeasureUnsupported),
-    /// A `Node::Measure` carries an expression whose primitive reads a
-    /// reference the node does not have. Refused at the construction
-    /// and load doors; this is the evaluation backstop, so a corrupt
-    /// node reaches a typed refusal rather than a panic.
-    MeasureMalformed(crate::node::MeasureNodeFault),
-    /// A node's PAYLOAD expression failed to evaluate — a measured
-    /// expression's value leaf, or an assertion's bound.
+    /// A node's PAYLOAD expression failed to evaluate — an assertion's
+    /// value or its bound.
     ///
     /// The address is the expression's position in `payload_exprs`
-    /// order, because neither carrier has a slot vocabulary to name.
-    /// The rendering says WHICH kind it is: calling an assertion's
-    /// failed bound "value leaf 0 of the measured expression" named a
-    /// thing an assertion does not have.
+    /// order, because an assertion has no slot vocabulary to name. The
+    /// rendering says WHICH one it is.
     PayloadExpr {
         /// Which node kind's payload this is, for the message.
         what: &'static str,
@@ -2137,23 +2029,6 @@ pub enum NodeErrorKind {
         index: usize,
         /// The expression evaluator's refusal, unaltered.
         source: EvalError,
-    },
-    /// A `min_clearance` reference names something that is not a
-    /// selection: the primitive's two operands are SCOPES — a whole
-    /// body or one of its faces — and a vertex, an edge or a datum
-    /// names neither.
-    ///
-    /// Its own arm rather than [`NodeErrorKind::MeasureUnsupported`],
-    /// which says "the closed-form table has no row for this carrier
-    /// pair" — false here, because there is no table to have a row in:
-    /// the clearance engine measures FACES, and the fault is in what
-    /// was selected rather than in what the vocabulary covers.
-    MeasureSelectionKind {
-        /// Which primitive.
-        verb: &'static str,
-        /// What it actually denotes — the entity door's own answer,
-        /// which no road can have written ([`entity_door::Found`]).
-        found: entity_door::Found,
     },
     /// The clearance engine refused a `min_clearance` measurement: its
     /// own typed refusal (E7's refusal vocabulary), carried unaltered.
@@ -2169,122 +2044,6 @@ pub enum NodeErrorKind {
     },
 }
 
-/// The undeclared-contact refusal as a document-layer finding
-/// ([`crate::finding`]): the refusing op is the subject, the story
-/// states the relation and forwards the ladder's own diagnostic, and
-/// the recourse is the two-armed menu (SELECT-DESIGN §3d, the #256
-/// ruling applied to contact: declare the finding or move the
-/// geometry — no absorb arm).
-///
-/// The subject is SENTENCE-shaped ("the Boolean refused an undeclared
-/// coincidence") rather than a bare attribution: the phrase is pinned
-/// across the bindings and predates the sink, so this impl preserves
-/// it verbatim rather than bending the pin to the subject style.
-struct UndeclaredCoincidenceFinding<'a> {
-    /// The candidate declaration, in the detector's value shape.
-    finding: &'a crate::names::FlushFinding,
-    /// Each side's merged constituent set, empty where the side is a
-    /// row of one node.
-    merged: &'a (Vec<crate::node::SitedRef>, Vec<crate::node::SitedRef>),
-    /// The refusing predicate's diagnostics.
-    diag: &'a Indeterminate,
-}
-
-impl crate::finding::Finding for UndeclaredCoincidenceFinding<'_> {
-    fn subject(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str("the Boolean refused an undeclared coincidence")
-    }
-
-    fn story(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        // The MARGIN-PAYLOAD view of the diagnostic (name + numbers),
-        // not its full `Display`: the funnel's generic three-arm menu
-        // ends that rendering, and a contact refusal deliberately has
-        // no "lower the tolerance" arm (`topo::CONTACT_RECOURSE`'s doc
-        // comment) — the one menu here is this finding's recourse.
-        write!(
-            f,
-            "two operand faces are {}, with no shared source or declared intent{} ({})",
-            match self.finding.evidence.relation {
-                topo::PlaneRelation::SameOpposite => "coincident and opposed (a resting contact)",
-                topo::PlaneRelation::SameOriented => {
-                    "coincident and co-oriented (a continuation of one surface)"
-                }
-                // `topo::flush::finding` refuses to mint one; rendered
-                // honestly anyway.
-                topo::PlaneRelation::Distinct => "reported coincident",
-            },
-            // A merged side is the one place a caller reading the
-            // pair alone would be misled: the face the contact is
-            // against is a MERGE of member faces, and the pair names
-            // one constituent of it. Which constituent is immaterial
-            // — each declares the same contact — so the prose says
-            // that rather than leaving the pick unexplained.
-            MergedSides(self.merged),
-            self.diag.payload()
-        )
-    }
-
-    fn recourse(&self) -> &str {
-        "Recourse: add the candidate pair this refusal carries to the node's declared pairs \
-         (declare), or move the geometry"
-    }
-}
-
-/// The merged-side clause of an undeclared contact's story: silent
-/// when neither side is a merged row, and otherwise counting the
-/// constituents the fold retired into it (their names ride the
-/// payload, so the sentence stays one length however many there are).
-struct MergedSides<'a>(&'a (Vec<crate::node::SitedRef>, Vec<crate::node::SitedRef>));
-
-impl core::fmt::Display for MergedSides<'_> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        for (side, set) in [("first", &self.0.0), ("second", &self.0.1)] {
-            if set.is_empty() {
-                continue;
-            }
-            write!(
-                f,
-                "; the {side} face merges {} member faces, and any of them declares the same \
-                 contact",
-                set.len()
-            )?;
-        }
-        Ok(())
-    }
-}
-
-/// The finding shape of [`NodeErrorKind::UndeclarableContact`]: the
-/// same refusal, minus the declare arm, because the row it names has
-/// no site to declare it at.
-struct UndeclarableContactFinding<'a> {
-    /// The fold-minted row, in the union's published space.
-    row: &'a crate::names::StableName,
-    /// The refusing predicate's diagnostics.
-    diag: &'a Indeterminate,
-    /// Who says the row's minting node.
-    by: crate::spoken::Speaker<'a>,
-}
-
-impl crate::finding::Finding for UndeclarableContactFinding<'_> {
-    fn subject(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str("the union refused a contact on a face its own fold made")
-    }
-
-    fn story(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "a member's face rests on {}, which no member carries ({})",
-            self.by.name(self.row),
-            self.diag.payload()
-        )
-    }
-
-    fn recourse(&self) -> &str {
-        "no declaration can name that face. Recourse: move the geometry, or union in two \
-         nodes so the face belongs to a member"
-    }
-}
-
 // LIB-DOORS F6 (reopened on review): the human-readable rendering the
 // bindings' exception messages consume. Each arm names the failing op
 // and then FORWARDS its payload's own `Display` — the kernel refusal
@@ -2295,16 +2054,13 @@ impl crate::finding::Finding for UndeclarableContactFinding<'_> {
 // vocabulary for a refusal that already has one.
 //
 // Owning a recourse the payload cannot spell buys an arm PROSE, never
-// the right to drop the payload: `UndeclaredCoincidence` states its
-// two-armed menu (F6) AND renders its diagnostic.
+// the right to drop the payload.
 //
 // Every payload-holding arm forwards its payload's own `Display` —
 // `EvalError`, `resolve::ResolveError`, `WitnessBifurcation` and
 // `PlacementRuleFault` (D54's four) all carry one, and
 // `PlacementRuleFault`'s is that fault set's ONE prose vocabulary (the
-// edit door's rule arms forward the same impl). `UndeclaredCoincidence`
-// composes through the document layer's finding sink
-// ([`crate::finding`]): subject, story, its two-armed recourse.
+// edit door's rule arms forward the same impl).
 //
 // The one exception is a CARRIED refusal: another node's refusal, with
 // its own recourse, held as a `NodeRefusal` (`PartFault::PartRootFailed`
@@ -2413,6 +2169,48 @@ impl crate::spoken::Say for NodeErrorKind {
             Self::MissingInput { input } => {
                 write!(f, "{} names no live node", by.node_as(*input, "input"))
             }
+            Self::UnresolvedRead { slot, var } => write!(
+                f,
+                "its {slot} reads {var}, which no live operation defines: the operation it \
+                 read was deleted"
+            ),
+            Self::SelectResolve {
+                slot,
+                var,
+                reference,
+                error,
+            } => match by.selection_reference(*slot, *var, *reference, error.name()) {
+                Some(at) => write!(
+                    f,
+                    "{}",
+                    crate::spoken::Said(&crate::resolve::AboutReference(error, at), by)
+                ),
+                None => write!(
+                    f,
+                    "a selected name failed to resolve: {}",
+                    crate::spoken::Said(error.as_ref(), by)
+                ),
+            },
+            Self::SelectKind {
+                slot,
+                var,
+                name,
+                expected,
+                found,
+            } => {
+                match by.selection_name(*slot, *var, name) {
+                    Some(at) => write!(f, "{at} names {}", by.name(name))?,
+                    None => write!(f, "a selection names {}", by.name(name))?,
+                }
+                write!(
+                    f,
+                    ", which is {} {}, not {} {}",
+                    found.article(),
+                    found.noun(),
+                    expected.article(),
+                    expected.noun()
+                )
+            }
             Self::ToleranceConflict {
                 document_eps,
                 process_eps,
@@ -2423,13 +2221,6 @@ impl crate::spoken::Say for NodeErrorKind {
             ),
             Self::ParamBox { source } => write!(f, "{source}"),
             Self::Seed { source } => write!(f, "{source}"),
-            Self::SeedPinnedSection { section, param } => write!(
-                f,
-                "the seed on variable {param} reaches section {}, which stays f64 \
-                 in every lane (a loft's or a sweep's section is structure) — the tangent \
-                 cannot ride through it, so this node refuses rather than embed a zero",
-                by.node_as(*section, "profile node")
-            ),
             Self::WrongOperand {
                 input,
                 expected,
@@ -2529,26 +2320,18 @@ impl crate::spoken::Say for NodeErrorKind {
                 let what = crate::decision::words(predicate).unwrap_or(geom_core::UNNAMED_DECISION);
                 write!(f, "{what} is too close to call: {source}")
             }
-            Self::AxisInDifferentPlane {
-                axis,
-                axis_plane,
-                profile_plane,
-            } => {
-                let frame = |f: &Option<RecipeNodeId>| {
-                    f.map_or_else(
-                        || "no frame".to_owned(),
-                        |n| by.node_as(n, "frame").to_string(),
-                    )
-                };
-                write!(
-                    f,
-                    "revolve axis ({}) is written in {}, but the profile is drawn on {} \
-                     — an axis revolves the sketch it lives in",
-                    by.node(*axis),
-                    frame(axis_plane),
-                    frame(profile_plane)
-                )
-            }
+            Self::PoseRead { pose, fault } => write!(
+                f,
+                "{} {pose} read off geometry found none: {fault}. Recourse: read it off \
+                 geometry whose carrier has one",
+                crate::sentence::article(&pose.to_string())
+            ),
+            Self::PoseDegenerate { construction } => write!(f, "{construction}"),
+            Self::PoseScalar { var: _, source } => write!(
+                f,
+                "a scalar the pose reads did not evaluate: {source}. Recourse: define it from \
+                 values the document holds"
+            ),
             Self::NonPositiveCount { count } => {
                 write!(f, "pattern count {count} is not at least 1")
             }
@@ -2645,109 +2428,26 @@ impl crate::spoken::Say for NodeErrorKind {
             // kernel refusal riding the variant — it has no other route
             // to a human, so it is carried through rather than dropped.
             Self::Naming(e) => write!(f, "name emission failed: {}", Said(e, by)),
-            Self::ParamSourceAttach(e) => write!(
+            Self::UnionFoldStep {
+                member,
+                read,
+                refusal,
+            } => write!(
                 f,
-                "the parameter-identity attach refused on a carrier the blend just minted: {e}"
-            ),
-            Self::DeclareResolve { error, reference } => resolve_failed(
-                f,
-                by,
-                error,
-                *reference,
-                "a declared name failed to resolve through the operands' tables",
-            ),
-            Self::DeclareSiteNotAnOperand { at } => write!(
-                f,
-                "a declared entity is sited at {}, which is not an operand of this \
-                 node — site each side at the member (or the boolean operand) whose table \
-                 holds it",
-                by.node(*at)
-            ),
-            Self::DeclareUnsupportedPair { kinds, .. } => write!(
-                f,
-                "declare pair ({}, {}) is outside the v1 threading vocabulary",
-                kinds.0.noun(),
-                kinds.1.noun()
-            ),
-            // The menu is what this arm owns and the payload cannot
-            // spell — stated through the finding sink as the arm's
-            // recourse, an ADDITION to the diagnostic rather than a
-            // replacement for it: the ladder's own account of what it
-            // measured rides the story, exactly as `Escalated` carries
-            // the same type.
-            Self::UndeclaredCoincidence {
-                finding,
-                merged,
-                diag,
-            } => crate::finding::compose(
-                f,
-                &UndeclaredCoincidenceFinding {
-                    finding,
-                    merged,
-                    diag,
-                },
-            ),
-            Self::UndeclarableContact { row, diag } => {
-                crate::finding::compose(f, &UndeclarableContactFinding { row, diag, by })
-            }
-            Self::BlendSelectionResolve {
-                verb,
-                error,
-                reference,
-            } => resolve_failed(
-                f,
-                by,
-                error,
-                *reference,
-                format_args!("a {verb} selection name failed to resolve"),
-            ),
-            Self::BlendSelectionKind { verb, name, found } => write!(
-                f,
-                "the {verb} selection names {}, which is {} {}, not an edge",
-                by.name(name),
-                found.article(),
-                found.noun()
+                "the fold refused at the step that folds in member {member} ({}): {}",
+                by.read(*read),
+                Said(refusal.as_ref(), by)
             ),
             Self::BlendSelectionEmpty { verb } => write!(
                 f,
                 "the {verb} selection is empty — an unfinished recipe, not the identity"
             ),
             Self::Shell(e) => write!(f, "the shell op refused: {e}"),
-            Self::ShellOpenResolve { error, reference } => resolve_failed(
-                f,
-                by,
-                error,
-                *reference,
-                "a shell open-face name failed to resolve",
-            ),
-            Self::ShellOpenKind { name, found } => write!(
-                f,
-                "the shell's open face names {}, which is {} {}, not a face",
-                by.name(name),
-                found.article(),
-                found.noun()
-            ),
             Self::ShellLaneUnsupported { scalar } => write!(
                 f,
                 "the shell door has no lane at the {scalar} scalar: hollowing validates what it \
                  built with a certified claim, and this scalar does not certify — the \
                  base-scalar evaluation beside this one is where the shell is built"
-            ),
-            // A derived frame's payload holds one name, its face, so the
-            // reference that failed is always that one.
-            Self::FaceFrameResolve { error } => resolve_failed(
-                f,
-                by,
-                error,
-                0,
-                "the derived frame's face name failed to resolve",
-            ),
-            Self::FaceFrameKind { name, found } => write!(
-                f,
-                "the derived frame's face names {}, which is {} {}, not a face",
-                by.name(name),
-                found.article(),
-                found.noun()
             ),
             Self::FaceFrameNotPlanar { carrier } => write!(
                 f,
@@ -2776,26 +2476,13 @@ impl crate::spoken::Say for NodeErrorKind {
                 by.node_as(*frame, "datum frame node"),
                 refusal.node_error()
             ),
-            Self::DerivedFrameSection { profile, frame } => write!(
-                f,
-                "section {} is drawn on {}, and a loft's or a \
-                 sweep's section is placed only in the plain (f64) evaluation, so this \
-                 evaluation refuses rather than guess where the frame lies",
-                by.node_as(*profile, "profile node"),
-                by.node_as(*frame, "derived frame node")
-            ),
-            Self::MeasureRefResolve { error, reference } => resolve_failed(
-                f,
-                by,
+            Self::MeasureRefUnreadable {
+                slot,
+                var: _,
                 error,
-                *reference,
-                "a measure reference failed to resolve",
-            ),
-            Self::MeasureRefUnreadable { name, error } => write!(
-                f,
-                "the measure reference to {} could not be read back: {error}",
-                by.name(name)
-            ),
+            } => {
+                write!(f, "the measure's {slot} could not be read back: {error}")
+            }
             Self::MeasureUnsupported(refusal) => write!(f, "{refusal}"),
             Self::MeasureNotParallel {
                 verb,
@@ -2816,14 +2503,6 @@ impl crate::spoken::Say for NodeErrorKind {
                 index,
                 source,
             } => write!(f, "{what} {index} failed to evaluate: {source}"),
-            Self::MeasureMalformed(fault) => write!(f, "{fault}"),
-            Self::MeasureSelectionKind { verb, found } => write!(
-                f,
-                "`{verb}` measures between two selections — a whole body or one of its faces — \
-                 and this reference resolves to {} {}",
-                found.article(),
-                found.noun()
-            ),
             Self::MeasureClearanceRefused(refusal) => {
                 write!(f, "the clearance engine refused `{}`", refusal.name())?;
                 let payload = refusal.said_payload(by);
@@ -3036,12 +2715,15 @@ impl NodeError {
     }
 
     /// **The kind's prose alone, spoken from `doc`**: each node and
-    /// each formula's reader as `doc` holds them now. What a consumer
-    /// that names the node itself quotes as the cause, in place of the
-    /// kind's documentless `Display`, which writes a reader `#<16 hex>`.
+    /// each formula's reader as `doc` holds them now, and the failing
+    /// node as `this <noun>` where the prose names one of its seats.
+    /// What a consumer that names the node itself quotes as the cause,
+    /// in place of the kind's documentless `Display`, which writes a
+    /// reader `#<16 hex>`.
     #[must_use]
     pub fn kind_spoken<P: crate::ProfilePayload>(&self, doc: &Doc<P>) -> String {
-        crate::spoken::Said(&self.kind, crate::spoken::Speaker::of(doc)).to_string()
+        crate::spoken::Said(&self.kind, crate::spoken::Speaker::of(doc).about(self.node))
+            .to_string()
     }
 }
 
@@ -3127,7 +2809,6 @@ pub trait EvalScalar:
     + crate::analysis::AxisScalar
     + crate::analysis::SeedScalar
     + crate::measure::MinClearanceLane
-    + SectionScalar
     + crate::mate::SolveScalar
 {
 }
@@ -3142,7 +2823,6 @@ impl<T> EvalScalar for T where
         + crate::analysis::AxisScalar
         + crate::analysis::SeedScalar
         + crate::measure::MinClearanceLane
-        + SectionScalar
         + crate::mate::SolveScalar
 {
 }
@@ -3227,8 +2907,8 @@ pub(crate) mod leaf {
     pub(crate) struct LeafRequest {
         /// Read the per-node content keys (the content tie's currency).
         pub keys: bool,
-        /// Read this measure node's value.
-        pub measure: Option<crate::node::RecipeNodeId>,
+        /// Read this observed variable's value.
+        pub measure: Option<crate::VarId>,
         /// Read this assertion node's verdict.
         pub assertion: Option<crate::node::RecipeNodeId>,
     }
@@ -3240,7 +2920,8 @@ pub(crate) mod leaf {
     /// A named type because the nesting is three deep and each layer means
     /// something different — a consumer reading it should meet the three
     /// states by name rather than by unwrapping.
-    pub(crate) type MeasureRead = Result<Option<(f64, f64)>, (crate::node::RecipeNodeId, String)>;
+    pub(crate) type MeasureRead =
+        Result<Option<(f64, f64)>, (Option<crate::node::RecipeNodeId>, String)>;
 
     /// What came back.
     #[derive(Debug, Clone, Default)]
@@ -3316,29 +2997,17 @@ pub(crate) mod leaf {
                 .filter_map(|&id| ev.value(id).map(|v| (id, v.content_key)))
                 .collect();
         }
-        if let Some(id) = want.measure {
-            out.measure = Some(match ev.usable(id) {
-                Ok(v) => match &v.payload {
-                    ValuePayload::Measure { value, .. } => {
-                        out.measure_bracket = Some((value.lo(), value.hi()));
-                        Ok(geom_core::CertifiedEnclosure::certified_bracket(*value))
-                    }
-                    ValuePayload::MeasureUnavailable { reason, .. } => {
-                        Err((id, format!("{reason}")))
-                    }
-                    other => Err((
-                        id,
-                        format!(
-                            "node evaluated to {} {} value, not a measure",
-                            crate::sentence::article(other.kind_name()),
-                            other.kind_name()
-                        ),
-                    )),
-                },
-                Err(standing) => Err(ev.node_error(id).map_or_else(
-                    || (id, standing.to_string()),
-                    |e| (e.node, e.kind_spoken(doc)),
+        if let Some(var) = want.measure {
+            out.measure = Some(match ev.reading_spoken(doc, var) {
+                Ok(super::measure::Observed::Value(value)) => {
+                    out.measure_bracket = Some((value.lo(), value.hi()));
+                    Ok(geom_core::CertifiedEnclosure::certified_bracket(value))
+                }
+                Ok(super::measure::Observed::Unavailable(reason)) => Err((
+                    Some(super::measure::unavailable_at(doc, var)),
+                    format!("{reason}"),
                 )),
+                Err(refusal) => Err(refusal),
             });
         }
         if let Some(id) = want.assertion {
@@ -3428,6 +3097,14 @@ pub struct EvalOptions {
     /// `param_box` exactly where both capabilities meet
     /// (`Dual<Interval>`: value channel the box, tangent the seed).
     pub seed: Option<crate::var::VarId>,
+    /// **Every continuous free variable a symbol**
+    /// ([`crate::analysis::var_env_symbolic`]): the environment the
+    /// coincidence door replays a document in. `false` — the default —
+    /// is every other evaluation. Exclusive with `param_box`, which
+    /// widens named variables over a box instead: an evaluation asked
+    /// for both refuses every node. So does one that also carries a
+    /// `resolver` ([`crate::analysis::ParamBoxError::SymbolsAcrossAPartSeam`]).
+    pub symbols: bool,
 }
 
 /// Where profile geometry comes from at a non-`f64` scalar.
@@ -3458,63 +3135,6 @@ pub enum ProfileLift {
     /// A decision this scalar cannot confirm refuses the node typed
     /// rather than quietly keeping the nominal structure.
     Guided,
-}
-
-/// **Which scalars carry a section's placement** — the lane door DM1c
-/// turns on: a loft's or a sweep's section keeps `f64` geometry, and a
-/// section drawn on a derived frame takes its placement from the
-/// frame's landed value, which is exact `f64` only where the
-/// evaluation scalar IS `f64`.
-///
-/// Per-scalar like [`crate::analysis::AxisScalar`], and for the same
-/// reason: which lane an evaluation runs in is a fact about the type,
-/// so the type answers it. `f64` hands its value across; `Probe` is
-/// `f64` wearing a counter and does the same; every analysis scalar
-/// (`Interval`, `Dual`, `Sym`) answers `None`, because a bracket or a
-/// tangent has no single `f64` that is not a fabricated choice. No
-/// number is inspected: the answer is decided by the impl, never by a
-/// comparison.
-pub trait SectionScalar: geom_core::Real {
-    /// The value as exact `f64` where this scalar is the `f64` lane;
-    /// `None` on every analysis scalar.
-    fn pinned_f64(self) -> Option<f64>;
-}
-
-impl SectionScalar for f64 {
-    fn pinned_f64(self) -> Option<f64> {
-        Some(self)
-    }
-}
-
-#[cfg(feature = "probe")]
-impl SectionScalar for geom_core::Probe {
-    fn pinned_f64(self) -> Option<f64> {
-        Some(self.0)
-    }
-}
-
-impl SectionScalar for geom_core::Interval {
-    fn pinned_f64(self) -> Option<f64> {
-        None
-    }
-}
-
-impl<T: SectionScalar> SectionScalar for geom_core::Sym<T>
-where
-    geom_core::Sym<T>: geom_core::Real,
-{
-    fn pinned_f64(self) -> Option<f64> {
-        None
-    }
-}
-
-impl<T: geom_core::Real> SectionScalar for geom_core::Dual<T>
-where
-    geom_core::Dual<T>: geom_core::Real,
-{
-    fn pinned_f64(self) -> Option<f64> {
-        None
-    }
 }
 
 /// The interval lane's solve: a refusal quotes an enclosure's midpoint,
@@ -3626,6 +3246,7 @@ impl Default for EvalOptions {
             profile_lift: ProfileLift::Pinned,
             param_box: None,
             seed: None,
+            symbols: false,
         }
     }
 }
@@ -3797,6 +3418,26 @@ pub fn mate_reach<'a, T: EvalScalar>(opts: &'a EvalOptions, tol: Tol) -> PartRea
     )
 }
 
+/// **A pose variable bound against an evaluation**, as a reader at
+/// `slot` binds it ([`wire::pose`]): a definition at the evaluation's
+/// lane scalar from the results it reads, an operation's output from
+/// that operation's value. Pose values are bound at their readers and
+/// held nowhere, so this is how a test reads one without a reader.
+///
+/// # Errors
+///
+/// The refusal the reader at `slot` would carry.
+#[doc(hidden)]
+pub fn bound_pose<T: EvalScalar>(
+    doc: &crate::ProfileDoc,
+    ev: &Evaluation<T>,
+    slot: crate::OperandSlot,
+    var: crate::VarId,
+    tol: Tol,
+) -> Result<PoseValue<T>, NodeErrorKind> {
+    wire::pose::eval_pose(doc, &ev.nodes, slot, var, &ev.env, tol)
+}
+
 /// Evaluates the document (spec D2–D6): a TOTAL function — every
 /// failure is a per-node typed result, never a top-level error or a
 /// panic.
@@ -3892,12 +3533,18 @@ where
     // ladders): one environment per evaluation is what makes "this run
     // evaluated over that box" a fact about the run rather than about
     // each call site.
-    let env = match opts.param_box.as_deref() {
-        None => doc.var_env::<T>(),
-        Some(b) => match crate::analysis::var_env_over::<T, _>(doc, b) {
-            Ok(env) => env,
-            Err(source) => return refuse_param_box(doc, sched, opts, prior_refused, source),
-        },
+    let env = match (opts.param_box.as_deref(), opts.symbols) {
+        (None, false) => Ok(doc.var_env::<T>()),
+        (None, true) if opts.resolver.is_some() => {
+            Err(crate::analysis::ParamBoxError::SymbolsAcrossAPartSeam)
+        }
+        (None, true) => crate::analysis::var_env_symbolic::<T, _>(doc),
+        (Some(b), false) => crate::analysis::var_env_over::<T, _>(doc, b),
+        (Some(_), true) => Err(crate::analysis::ParamBoxError::SymbolsOverABox),
+    };
+    let env = match env {
+        Ok(env) => env,
+        Err(source) => return refuse_param_box(doc, sched, opts, prior_refused, source),
     };
     // The E4 seed rides the SAME environment (a seed is a separate act
     // on the environment the box door built, never a property of the
@@ -3921,7 +3568,8 @@ where
         opts.boolean_sweep,
         opts.profile_lift,
         tol,
-    );
+    )
+    .with_symbols(opts.symbols);
     // The mate solve is a WHOLE-DOCUMENT computation over recipe data
     // (A11): one spanning tree per group, folded once, read by every
     // instance and every mate below. Running it here rather than per
@@ -3949,7 +3597,6 @@ where
             lift: opts.profile_lift,
             params: &env,
             nominal: &nominal_env,
-            seed: opts.seed,
         },
     };
     let mut nodes: BTreeMap<RecipeNodeId, NodeResult<T>> = BTreeMap::new();
@@ -4045,6 +3692,7 @@ where
         unplaced_below,
         part_evaluations: parts.evaluations(),
         appearance: resolved_appearance,
+        env,
     }
 }
 
@@ -4076,7 +3724,7 @@ fn unplaced_below<P: crate::ProfilePayload, T: Decide>(
             usable_in(nodes, id, || NodeStanding::NotEvaluated { node: id })
                 .map(|value| value.carried.unplaced.clone())
                 .unwrap_or_default();
-        for input in node.inputs() {
+        for input in doc.upstream_of(node) {
             for row in out.get(&input).into_iter().flatten() {
                 if !rows.contains(row) {
                     rows.push(row.clone());
@@ -4088,6 +3736,18 @@ fn unplaced_below<P: crate::ProfilePayload, T: Decide>(
         }
     }
     out
+}
+
+/// **The operation an operand reads** — the node whose output `var`
+/// is — or the reader's refusal: a read no live operation defines is
+/// unresolved (D10), typed at `slot`.
+pub(crate) fn read_at<P>(
+    doc: &Doc<P>,
+    slot: crate::OperandSlot,
+    var: crate::VarId,
+) -> Result<RecipeNodeId, NodeErrorKind> {
+    doc.operation_of(var)
+        .ok_or(NodeErrorKind::UnresolvedRead { slot, var })
 }
 
 /// The all-nodes ToleranceConflict refusal (spec D4 door).
@@ -4196,6 +3856,7 @@ where
         unplaced_below: BTreeMap::new(),
         part_evaluations: 0,
         appearance: resolved_appearance,
+        env: doc.var_env::<T>(),
     }
 }
 
@@ -4306,17 +3967,36 @@ where
     // Poison propagation (spec D2, GQ2): first blocking input in the
     // node's deterministic input order; `through` always names a
     // FAILED node (propagated through poisoned intermediaries).
-    let mut upstream_keys: Vec<ContentKey> = Vec::new();
-    let mut upstream_naming: Vec<(RecipeNodeId, NamingKey)> = Vec::new();
-    for input in node.inputs() {
+    // A read no live operation defines is the reader's own refusal
+    // (D10): a deleted operation leaves its readers unresolved, and a
+    // selection's or a pose definition's readers when it was what they
+    // read.
+    if let Some((slot, var)) = node
+        .operand_rows()
+        .into_iter()
+        .find_map(|(slot, var)| doc.unresolved_read(var).map(|at| (slot, at)))
+    {
+        return fail(bracket, NodeErrorKind::UnresolvedRead { slot, var });
+    }
+    // A mate the solve faulted refuses in its own words even where the
+    // instances it reads failed with it: the solve's fault is about the
+    // mate, and the instances' is the same fault seen from the group,
+    // so poisoning the mate through them would lose the one sentence
+    // that names it.
+    if matches!(node, crate::node::Node::Mate { .. })
+        && let Some(fault) = op_env.poses.fault(id)
+    {
+        return fail(bracket, NodeErrorKind::Mate(Box::new(fault.clone())));
+    }
+    let mut keys: BTreeMap<RecipeNodeId, (ContentKey, NamingKey)> = BTreeMap::new();
+    for input in doc.upstream_of(node) {
         // Every input the document has precedes this node in the
         // order and so has its result: an absent one is not in it.
         match usable_in(results, input, || NodeStanding::NotInDocument {
             node: input,
         }) {
             Ok(v) => {
-                upstream_keys.push(v.content_key);
-                upstream_naming.push((input, v.naming_key));
+                keys.insert(input, (v.content_key, v.naming_key));
             }
             Err(NodeStanding::NotEvaluated { .. } | NodeStanding::NotInDocument { .. }) => {
                 return fail(bracket, NodeErrorKind::MissingInput { input });
@@ -4331,6 +4011,38 @@ where
             }
         }
     }
+    // What the keys read of upstream: one entry per READ, in field
+    // order, as the operation it reads and the port (D10; DR-59's
+    // class: two outputs of one operation are two inputs, and a key
+    // that saw only the operation would serve one half's body for the
+    // other); a selection's read is its body's. Every operation here
+    // has its result (above).
+    let reads: Vec<(RecipeNodeId, u8)> = node
+        .operand_rows()
+        .into_iter()
+        .flat_map(|(_, var)| doc.read_ports(var))
+        .collect();
+    let key_of = |at: &RecipeNodeId| {
+        *keys
+            .get(at)
+            .unwrap_or_else(|| unreachable!("every operation a node reads is in its upstream"))
+    };
+    let upstream_keys: Vec<UpstreamRead<ContentKey>> = reads
+        .iter()
+        .map(|(at, port)| UpstreamRead {
+            at: *at,
+            port: *port,
+            key: key_of(at).0,
+        })
+        .collect();
+    let upstream_naming: Vec<UpstreamRead<NamingKey>> = reads
+        .iter()
+        .map(|(at, port)| UpstreamRead {
+            at: *at,
+            port: *port,
+            key: key_of(at).1,
+        })
+        .collect();
 
     // Slot evaluation — the (node, slot) context door (PR 1's banked
     // NonFiniteResult obligation lands here). TWICE, through the one
@@ -4347,6 +4059,10 @@ where
     let nominal_values = match slots::eval_slots(node, op_env.lane.nominal) {
         Ok(v) => v,
         Err((slot, source)) => return fail(bracket, NodeErrorKind::Expr { slot, source }),
+    };
+    let pose_words = match wire::pose::key_words(doc, node, env, op_env.lane.nominal) {
+        Ok(words) => words,
+        Err(kind) => return fail(bracket, kind),
     };
     // A node whose inputs lie in two spaces compares an unplaced group
     // with something outside it (A9), and refuses before it reads them.
@@ -4395,7 +4111,7 @@ where
             // (`wire::mint_frame_placement`). The frame is a DAG input
             // of this node, so its value is in hand and a failed
             // frame poisoned this node before the read.
-            let placement = match wire::profile_plane_f64(results, id, program.plane) {
+            let placement = match wire::profile_plane_f64(doc, results, id, program.frame) {
                 Ok(placement) => placement,
                 Err(kind) => return fail(bracket, kind),
             };
@@ -4407,39 +4123,58 @@ where
         _ => None,
     };
 
-    // PAYLOAD EXPRESSIONS (E3/E10): the measurement vocabulary carries
-    // `Expr`s that are not slots — a measured expression's value
-    // leaves, and an assertion's bound. They are still ordinary
-    // document expressions and are evaluated exactly once here, under
-    // the discipline `slots` states and for the same reason: these
-    // values feed BOTH the content key and the op, so a parameter edit
-    // under a bound moves the key rather than serving a stale memo.
-    let payload_values = match node.payload_reads(doc) {
+    // PAYLOAD EXPRESSIONS (E10): an assertion's value and bound are
+    // not slots. They are evaluated exactly once here, under the
+    // discipline `slots` states and for the same reason: these values
+    // feed BOTH the content key and the op, so a parameter edit under a
+    // bound moves the key rather than serving a stale memo. The value
+    // reads what the measures under it computed in this run
+    // (`measure::observe`): it is the one read of a measured value, and
+    // the environment every construction reads holds none.
+    let payload = match node.payload_reads(doc) {
         None => None,
         Some(reads) => {
-            let mut values = Vec::with_capacity(reads.len());
-            for (var, dim) in reads {
-                match crate::expr::eval_var(var, dim, env) {
-                    Ok(v) => values.push(v),
-                    Err(source) => {
-                        let what = match node {
-                            crate::node::Node::Assertion { .. } => "the assertion's bound,",
-                            _ => "value leaf of the measured expression,",
+            let mut payload = Payload {
+                values: Vec::with_capacity(reads.len()),
+                unavailable: None,
+            };
+            for (index, (var, dim)) in reads.into_iter().enumerate() {
+                match measure::observe(doc, env, results, var, dim) {
+                    Ok(measure::Observed::Value(v)) => payload.values.push(v),
+                    Ok(measure::Observed::Unavailable(reason)) => {
+                        payload.unavailable.get_or_insert((index, reason));
+                    }
+                    Err(measure::ObservedRefusal::Expr(source)) => {
+                        let what = if index == 0 {
+                            "the assertion's value,"
+                        } else {
+                            "the assertion's bound,"
                         };
                         return fail(
                             bracket,
                             NodeErrorKind::PayloadExpr {
                                 what,
-                                index: values.len(),
+                                index,
                                 source,
+                            },
+                        );
+                    }
+                    // Every measure under the value is upstream of this
+                    // node, and a failed one poisoned it above.
+                    Err(measure::ObservedRefusal::Measure(standing)) => {
+                        return fail(
+                            bracket,
+                            NodeErrorKind::MissingInput {
+                                input: standing.node(),
                             },
                         );
                     }
                 }
             }
-            Some(values)
+            Some(payload)
         }
     };
+    let payload_values = payload.as_ref();
 
     // The lift's second pass resolves the SAME program at the lane
     // scalar (M10-P PP5). It feeds the content key so a seeded or
@@ -4473,9 +4208,11 @@ where
     let content_key = content_key(
         node,
         &crate::param_source::definitions_of(doc),
+        &|var| doc.selection(var),
         &slot_values,
         &nominal_values,
-        payload_values.as_deref(),
+        payload_values,
+        pose_words.as_deref(),
         resolved_program.as_deref(),
         lane_program.as_deref(),
         &upstream_keys,
@@ -4555,7 +4292,7 @@ where
         doc,
         results,
         &slot_values,
-        payload_values.as_deref(),
+        payload.as_ref(),
         profile_pre.as_ref(),
         op_env,
         tol,
@@ -4592,6 +4329,8 @@ where
                 fragment_groups: out.groups,
                 contacts: out.contacts,
                 carried: out.carried,
+                coincidences: out.coincidences,
+                cited_inputs: out.cited_inputs,
                 parts: out.parts,
                 verdicts: Arc::new(recorded.verdicts),
                 escalations,
@@ -4691,7 +4430,7 @@ fn mate_log_is_the_solves(
 /// primitive and sense (`MatePrimitive`, `AxisSense`), a name's entity
 /// kind, a side verdict, a qualifier, a cap end, a meridian end and a
 /// rim support (`names/role.rs`), a tube's window (`node.rs`), an
-/// assertion's direction and a measure primitive (`measure.rs`), a
+/// assertion's relation and a measure primitive (`measure.rs`), a
 /// dimension (`expr.rs`). Each is total by exhaustiveness — a variant
 /// the enum gains breaks the compile at the site — and its two-to-four
 /// arms are read at one position under a word this file does census,
@@ -4746,11 +4485,19 @@ mod tag {
         /// Keys are process-internal and never persisted, so a bump
         /// costs one whole-memo invalidation and no migration.
         format {
-            /// v9: an extrude writes its side — a channel every
-            /// existing extrude writes into. (v8: a mate frame writes
-            /// its arm word before its payload, and a mate writes the
-            /// parts its face frames resolve against.)
-            VERSION = 9,
+            /// v12: a blend, a shell, a face frame and a measure write
+            /// the names of the selections they read, the measure each
+            /// reference's names (none for a whole body) where it wrote
+            /// its sites' places. (v11: a measure writes one primitive
+            /// and the place of each reference's site among its
+            /// upstream keys; an assertion's payload is its value and
+            /// its bound. v10:
+            /// each read feeds the port it reads beside its operation's
+            /// key (D10), one entry per read rather than one per
+            /// operation. v9: an extrude writes its side. v8: a mate
+            /// frame writes its arm word before its payload, and a mate
+            /// writes the parts its face frames resolve against.)
+            VERSION = 12,
         }
         /// The first word of every naming key: the naming-key domain,
         /// which keeps a naming key's stream apart from a content key's.
@@ -4766,6 +4513,57 @@ mod tag {
         presence {
             ABSENT = 0,
             PRESENT = 1,
+        }
+        /// **The words of the pose definitions a node reads** (D10),
+        /// written after its payload expressions and only by a node
+        /// reading one, so no other node's key moves. Per such operand:
+        /// `READ` and the operand's place among the node's reads, then
+        /// the read's tree — `OUTPUT` for an operation's output (whose
+        /// key and port the upstream list carries), `SELECTION` and its
+        /// names, or `DEFINITION`, the arm ([`pose_arm`]), the kind it
+        /// projects to or writes ([`pose_kind`]) where the arm states
+        /// one, each read's tree in field order, then each scalar's
+        /// value and its nominal under [`slot`]'s `NOMINAL`.
+        pose {
+            READ = 1,
+            OUTPUT = 2,
+            SELECTION = 3,
+            DEFINITION = 4,
+        }
+        /// A pose definition's arm ([`crate::pose::PoseDef`]).
+        pose_arm {
+            PLANE = 1,
+            AXIS = 2,
+            POINT = 3,
+            IN_FRAME = 4,
+            THROUGH = 5,
+            MEET = 6,
+            FLIP = 7,
+            STANDOFF = 8,
+            PROJECT = 9,
+        }
+        /// A pose kind, as a projection's target or in-frame
+        /// coordinates' shape.
+        pose_kind {
+            POINT = 1,
+            DIRECTION = 2,
+            AXIS = 3,
+            PLANE = 4,
+            FRAME = 5,
+        }
+        /// A union's or an intersect's argument form, read before its
+        /// declared pairs: a family read whole, or reads spelled.
+        bodies {
+            FAMILY = 1,
+            SPELLED = 2,
+        }
+        /// The word before a node's indexed reads ([`crate::BodyRead`]),
+        /// written only by a node holding one, so a node of plain reads
+        /// keeps its stream; then each indexed read's place among the
+        /// node's body seats and its number of indices. The index
+        /// values are slots, fed with the slot values.
+        index {
+            READS = 1,
         }
         /// The mate's fault flag, read after its role word: whether the
         /// solve recorded a fault against the node.
@@ -4924,18 +4722,6 @@ mod tag {
         scalar_join {
             FLOW_EXPR = 43,
         }
-        /// A measured expression's node kind, one word per AST node.
-        measure_expr {
-            PRIMITIVE = 1,
-            VALUE = 2,
-            NEG = 3,
-            ADD = 4,
-            SUB = 5,
-            MUL = 6,
-            DIV = 7,
-            MIN = 8,
-            MAX = 9,
-        }
     }
 }
 
@@ -5088,10 +4874,11 @@ impl<T: geom_core::Decide + ContentBits> SolveAnswer<T> {
                 // The solve's own derivation of the part a face side
                 // resolves against (`mate::solve::part_of`), so the key
                 // and the solve name one part for one side.
-                let part_of = |reference, frame: &crate::mate::MateFrame| match frame.base {
+                let part_of = |side: &crate::VarId, frame: &crate::mate::MateFrame| match frame.base
+                {
                     crate::mate::FrameBase::Part => None,
                     crate::mate::FrameBase::Face => {
-                        let member = crate::mate::member_of(doc, reference)?;
+                        let member = crate::mate::member::member_of_side(doc, *side)?;
                         crate::mate::solve::part_of(doc, &member).ok()
                     }
                 };
@@ -5218,19 +5005,21 @@ fn feed_placement_shape(h: &mut KeyHasher, placement: &crate::placement::Placeme
 // The arguments past the node are all INPUTS to the key, which is the
 // one thing a content key is allowed to grow: the environment every
 // same slots at the document's nominal, the lift's lane-resolved
-// program, and the measurement vocabulary's payload-expression values
-// — the same input the slot values are, arriving by a second route
-// because a `MeasureExpr` is not a slot.
+// program, and an assertion's payload-expression values — the same
+// input the slot values are, arriving by a second route because an
+// assertion's value and bound are not slots.
 #[allow(clippy::too_many_arguments)]
-fn content_key<T>(
+fn content_key<'d, T>(
     node: &crate::node::Node<ProfileProgram>,
     defs: crate::param_source::Definitions<'_, '_>,
+    selections: &dyn Fn(crate::VarId) -> Option<&'d crate::var::Select>,
     slot_values: &slots::SlotValues<T>,
     nominal_values: &slots::SlotValues<f64>,
-    payload_values: Option<&[T]>,
+    payload_values: Option<&Payload<T>>,
+    pose_words: Option<&[wire::pose::PoseWord<T>]>,
     resolved_program: Option<&[Vec<profile::Step<f64>>]>,
     lane_program: Option<&[Vec<profile::Step<T>>]>,
-    upstream_keys: &[ContentKey],
+    upstream_keys: &[UpstreamRead<ContentKey>],
     witness: Option<&crate::witness::WitnessDatum>,
     solve_answer: SolveAnswer<T>,
     tol: Tol,
@@ -5272,11 +5061,12 @@ where
         Node::Extrude { .. } => document_verb_tag(verbs::VerbKind::Extrude),
         Node::Revolve { .. } => document_verb_tag(verbs::VerbKind::Revolve),
         Node::Split { .. } => document_verb_tag(verbs::VerbKind::Split),
-        // The numbers are not written here: a migrated verb's tag is a
-        // function of the KERNEL's name for it, and the boolean's name
-        // carries its op (`VerbKind::Boolean(op)` — the three
-        // regularized ops are three names in the vocabulary).
-        Node::Boolean { op, .. } => document_verb_tag(verbs::VerbKind::Boolean(*op)),
+        // The number is not written here: a migrated verb's tag is a
+        // function of the KERNEL's name for it, the regularized
+        // difference (`VerbKind::Boolean(Subtract)`).
+        Node::Subtract { .. } => {
+            document_verb_tag(verbs::VerbKind::Boolean(topo::BooleanOp::Subtract))
+        }
         Node::Transform { .. } => 11,
         Node::Pattern { kind, .. } => match kind {
             PatternKind::Linear { .. } => 12,
@@ -5325,35 +5115,24 @@ where
         // one's memo serve the other.
         Node::Tube { .. } => 28,
         Node::HollowTube { .. } => 29,
-        // The in-plane axis does NOT share the 3-D axis's tag 2: the two
-        // carry different numbers (four against six), mean them against
-        // different things (a frame against the world), and evaluate to
-        // different payloads, so a shared key would serve one's geometry
-        // for the other out of the memo.
-        Node::Datum(Datum::AxisInPlane { .. }) => 30,
-        // The n-ary union's tag. It does NOT share the pair union's 8:
-        // both carry declared pairs, but their operands differ (a
-        // member list against two named operands) and they mint
-        // different names, so a shared key would serve one's geometry
-        // and table for the other out of the memo. The member list
-        // itself is not written here — members are input EDGES, and
-        // the inputs' own keys carry them in list order below, which
-        // is the rule `Loft`'s profiles already run on.
+        // 30 was the in-plane axis datum's, which a revolve's own
+        // axis line replaced: a retired tag is never reused.
+        // The union's tag, and the intersect's fresh word. The member
+        // list itself is not written here — members are input EDGES,
+        // and the inputs' own keys carry them in list order below,
+        // which is the rule `Loft`'s profiles already run on; whether
+        // the argument is a family or spelled is payload, fed below.
         Node::Union { .. } => 31,
+        Node::Intersect { .. } => 38,
         // The derived sketch frame. It does NOT share the authored
         // frame's 27 even though it evaluates to the same value kind:
         // the two carry different payloads (a body edge, a face name
         // and one spin slot against nine slots), and a shared tag
         // would let a memo entry for one serve the other's geometry.
         Node::Datum(Datum::FaceFrame { .. }) => 32,
-        // The projection node: two tags, as `Pattern`'s rule kinds are
-        // two. A half and an index are different payloads read off
-        // different value kinds, and a memo entry for one must never
-        // serve the other.
-        Node::Part { select, .. } => match select {
-            PartSelect::SplitHalf(_) => 33,
-            PartSelect::Instance(_) => 34,
-        },
+        // The projection node. 33 is retired with the split-half
+        // selection it tagged, and not reused.
+        Node::Part { .. } => 34,
         // The shell's tag is the seat's, read off the verb vocabulary
         // as the blends' are. A shell and its target of the same slot
         // values are different bodies, so they must not share a key. A
@@ -5364,6 +5143,9 @@ where
         // A fresh word: a gauge denotes no body, and its key is its
         // slots and its chain's shape.
         Node::Gauge { .. } => 36,
+        // A fresh word: a world placement's key is its body's upstream
+        // key, its pose's slots and its chain's shape.
+        Node::PlaceInWorld { .. } => 37,
     };
     // NODE-KIND-VOCABULARY END
     h.write_tag(kind);
@@ -5591,46 +5373,38 @@ where
                 feed_stable_name(&mut h, inner);
             }
         }
-        // A mate's key is its RECIPE PAYLOAD — its references, its
-        // class and its alignment, which is what the mate SAYS — and
-        // the solve's answer for it, which is what the mate's value
-        // IS (`SolveAnswer` carries why the key reads that). A
-        // reference is a NAME AND AN OPERAND, and both are fed: two
-        // mates differing only in the node they are read at say
-        // different things about different geometry.
+        // A mate's key is what the mate SAYS — its two faces, its class
+        // and its alignment — and the solve's answer for it, which is
+        // what the mate's value IS (`SolveAnswer` carries why the key
+        // reads that). Each side is a selection: its body is carried by
+        // the upstream keys, in side order, and its name feeds here, as
+        // a face frame's does.
         Node::Mate {
             a,
             b,
             class,
             alignment,
         } => {
-            h.write_id(a.at.0);
-            feed_stable_name(&mut h, &a.name);
-            h.write_id(b.at.0);
-            feed_stable_name(&mut h, &b.name);
+            for side in [*a, *b] {
+                for name in selected(selections, side) {
+                    feed_stable_name(&mut h, name);
+                }
+            }
             // The class's word is `ContactClass::content_tag` — the one
-            // spelling the crossing record, the mate and the declaration
-            // all write, so the three cannot key a class inconsistently.
+            // spelling the crossing record and the mate both write, so
+            // the two cannot key a class inconsistently.
             h.write_u64(class.content_tag());
             feed_alignment(&mut h, alignment);
             solve_answer.feed_face_parts(&mut h);
             solve_answer.feed_mate(&mut h);
         }
-        // The declared pairs are payload, not edges, so they feed the
-        // key by hand ([`feed_declared`]).
-        // The op is in the tag (`VerbKind::Boolean(op)`); the operands
-        // and the members are input edges.
-        Node::Boolean {
-            op: _,
-            a: _,
-            b: _,
-            declare,
-        }
-        | Node::Union {
-            members: _,
-            declare,
-        } => {
-            feed_declared(&mut h, declare);
+        // The operands and the members are input edges.
+        Node::Subtract { from: _, tool: _ } => {}
+        Node::Union { members } | Node::Intersect { members } => {
+            h.write_tag(match members {
+                crate::Bodies::Family(_) => tag::bodies::FAMILY,
+                crate::Bodies::Spelled(_) => tag::bodies::SPELLED,
+            });
         }
         // LIB-PLACEDUNION: an `Explicit` rule's FRAMES are recipe
         // payload, not slots (the list is the count, D8-structural),
@@ -5673,7 +5447,6 @@ where
         // feeds nothing — the rule is read off the declaration rather
         // than written per verb.
         Node::Fillet {
-            target: _,
             radius: _,
             selection,
         } => {
@@ -5681,12 +5454,11 @@ where
                 &mut h,
                 node,
                 defs,
-                selection,
+                selected(selections, *selection),
                 crate::verbs::blend::FILLET_SLOTS,
             );
         }
         Node::Chamfer {
-            target: _,
             distance: _,
             selection,
         } => {
@@ -5694,7 +5466,7 @@ where
                 &mut h,
                 node,
                 defs,
-                selection,
+                selected(selections, *selection),
                 crate::verbs::blend::CHAMFER_SLOTS,
             );
         }
@@ -5708,50 +5480,53 @@ where
         // which faces share a chart. The thickness slot's expression
         // feeds only if the verb's declared flow lands it in a stored
         // field — read off the declaration, exactly as the blends'.
-        Node::Shell {
-            target: _,
-            thickness: _,
-            open,
-        } => {
-            feed_scalar_join(&mut h, node, defs, open, crate::verbs::shell::SHELL_SLOTS);
+        Node::Shell { thickness: _, open } => {
+            feed_scalar_join(
+                &mut h,
+                node,
+                defs,
+                selected(selections, *open),
+                crate::verbs::shell::SHELL_SLOTS,
+            );
         }
-        // A measure's REFERENCES and its measured EXPRESSION are both
-        // recipe payload rather than slots: two measures with the same
-        // tag differ in exactly those. The references feed in argument
-        // order (the order is meaning here, not a click sequence), and
-        // the expression feeds structurally — its shape, its primitive
-        // indices, and its value leaves' literal BITS, so a `-0.0`
-        // bound inside a measured expression is not the same node as a
-        // `0.0` one.
-        Node::Measure { expr, refs } => {
-            h.write_u64(refs.len() as u64);
-            for r in refs {
-                // BOTH halves: the name says which entity, the reading
-                // site says which value its carrier comes out of, and
-                // two measures differing only in the site are two
-                // different measurements (that is the whole point of
-                // the site — one reads placed geometry, the other
-                // authored). The site is a node ID, which content keys
-                // otherwise exclude (D8); it is fed here because it is
-                // RECIPE PAYLOAD selecting a reading, not a Merkle link
-                // to an input — the input's own key is fed separately
-                // through `upstream_keys`.
-                h.write_id(r.at.0);
-                feed_stable_name(&mut h, &r.name);
+        // A measure's PRIMITIVE is payload; its two references are
+        // reads, whose bodies the upstream keys carry in argument order,
+        // and a reference that is a selection feeds its name, as a
+        // blend's selection does. No body is fed by id (D8): two
+        // measures differing only in which of two equal bodies they read
+        // are one content and two names, which the naming key tells
+        // apart.
+        Node::Measure { primitive } => {
+            use crate::measure::MeasurePrimitive as P;
+            h.write_tag(match primitive {
+                P::Distance { .. } => 1,
+                P::Angle { .. } => 2,
+                P::Gap { .. } => 3,
+                // APPENDED, never reused: a content-key tag is an
+                // identity, so the day a primitive is retired its tag
+                // retires with it.
+                P::MinClearance { .. } => 4,
+            });
+            for &r in primitive.refs() {
+                let names = selected(selections, r);
+                h.write_u64(names.len() as u64);
+                for name in names {
+                    feed_stable_name(&mut h, name);
+                }
             }
-            feed_measure_expr(&mut h, expr);
         }
-        // The DIRECTION is payload. The bound is NOT a slot — it is a
-        // payload expression, and its evaluated value is fed with the
-        // others below; the measure is an input edge, so its own key
-        // carries it.
+        // The RELATION is payload. The value and the bound are payload
+        // expressions, whose evaluated values are fed with the others
+        // below; the measures under the value are upstream, so their
+        // own keys carry them.
         Node::Assertion {
-            measure: _,
+            value: _,
             bound: _,
-            dir,
-        } => h.write_tag(match dir {
-            crate::measure::AssertionDir::AtLeast => 1,
-            crate::measure::AssertionDir::AtMost => 2,
+            relation,
+        } => h.write_tag(match relation {
+            crate::measure::AssertionRelation::AtLeast => 1,
+            crate::measure::AssertionRelation::AtMost => 2,
+            crate::measure::AssertionRelation::Equal => 3,
         }),
         // A tube's WINDOW VARIANT is recipe payload, not a slot: which
         // variant it is decides whether the node has window slots at
@@ -5760,15 +5535,13 @@ where
         // tag for both kinds — the two share this payload exactly as
         // they share the slots it governs.
         Node::Tube {
-            spine: _,
-            u_ref: _,
+            frame: _,
             major_radius: _,
             window,
             minor_radius: _,
         }
         | Node::HollowTube {
-            spine: _,
-            u_ref: _,
+            frame: _,
             major_radius: _,
             window,
             minor_radius: _,
@@ -5779,27 +5552,15 @@ where
                 crate::node::TubeWindow::Arc { t0: _, t1: _ } => 1,
             });
         }
-        // The derived frame's FACE is recipe payload, hashed the way a
-        // blend's selection is: two frames on two faces of one body
-        // share a tag, an upstream key and (possibly) a spin, and
-        // differ in exactly this name. `at` is an input edge and is
-        // carried by the upstream keys.
-        Node::Datum(Datum::FaceFrame {
-            at: _,
-            face,
-            spin: _,
-        }) => feed_stable_name(&mut h, face),
-        // The HALF is recipe payload outside the slots: two Parts of
-        // the two halves of one split share a tag, an upstream key and
-        // no slot at all, and differ in exactly this — so it feeds as
-        // a tag, or a memo hit would serve one half's body for the
-        // other. The INDEX is a slot and rides the resolved-slot
-        // stream below like every slot; `of` is an input edge and is
-        // carried by the upstream keys.
-        Node::Part { of: _, select } => match select {
-            PartSelect::SplitHalf(half) => h.write_tag(split_half_tag(*half)),
-            PartSelect::Instance(_) => {}
-        },
+        // The derived frame's FACE is hashed the way a blend's
+        // selection is: two frames on two faces of one body share a
+        // tag, an upstream key and (possibly) a spin, and differ in
+        // exactly this name. The body is carried by the upstream keys.
+        Node::Datum(Datum::FaceFrame { face, spin: _ }) => {
+            for name in selected(selections, *face) {
+                feed_stable_name(&mut h, name);
+            }
+        }
         // An extrude's SIDE is recipe payload outside its slots: two
         // extrudes of one profile by one depth share a tag, an upstream
         // key and every slot value, and differ in exactly which side of
@@ -5828,16 +5589,12 @@ where
                 origin: _,
                 u: _,
                 v: _,
-            }
-            | Datum::AxisInPlane {
-                plane: _,
-                origin: _,
-                direction: _,
             },
         )
         | Node::Revolve {
             profile: _,
-            axis: _,
+            axis_origin: _,
+            axis_direction: _,
             angle: _,
         }
         | Node::Loft {
@@ -5850,17 +5607,41 @@ where
             stations: _,
             v_degree: _,
         }
-        | Node::Split { target: _, tool: _ } => {}
+        | Node::Split { target: _, tool: _ }
+        // The index is a slot, fed with the resolved slots below.
+        | Node::Part {
+            of: _,
+            select: PartSelect::Instance(_),
+        } => {}
         // The chain's shape (`feed_placement_shape` says why).
         Node::Transform {
             input: _,
             placement,
+        }
+        | Node::PlaceInWorld {
+            body: _,
+            pose: placement,
         }
         | Node::Gauge {
             parent: _,
             placement,
         } => {
             feed_placement_shape(&mut h, placement);
+        }
+    }
+    let indexed: Vec<(usize, usize)> = node
+        .body_reads()
+        .into_iter()
+        .enumerate()
+        .filter(|(_, (_, read))| read.is_indexed())
+        .map(|(place, (_, read))| (place, read.at.len()))
+        .collect();
+    if !indexed.is_empty() {
+        h.write_tag(tag::index::READS);
+        h.write_u64(indexed.len() as u64);
+        for (place, rank) in indexed {
+            h.write_u64(place as u64);
+            h.write_u64(rank as u64);
         }
     }
     // Evaluated slot values, in the node's deterministic slot order,
@@ -5898,17 +5679,44 @@ where
     // extrude's distance does. No nominal rides them, and [`tag::slot`]
     // carries why. Absent (not empty) for every node kind that carries
     // none, so no existing document's key moves by a byte.
-    if let Some(values) = payload_values {
-        h.write_u64(values.len() as u64);
-        for v in values {
+    // An expression with no value at this scalar is left out, and its
+    // position is a word of its own, so a value missing and a bound
+    // missing do not key alike.
+    if let Some(payload) = payload_values {
+        h.write_u64(payload.values.len() as u64);
+        for v in &payload.values {
             v.feed(&mut h);
+        }
+        h.write_u64(
+            payload
+                .unavailable
+                .map_or(u64::MAX, |(index, _)| index as u64),
+        );
+    }
+    // The pose definitions the node reads ([`tag::pose`]): absent for
+    // a node reading none, so no other node's key moves by a byte.
+    if let Some(words) = pose_words {
+        h.write_u64(words.len() as u64);
+        for word in words {
+            match word {
+                wire::pose::PoseWord::Tag(t) => h.write_tag(*t),
+                wire::pose::PoseWord::Count(n) => h.write_u64(*n),
+                wire::pose::PoseWord::Name(name) => feed_stable_name(&mut h, name),
+                wire::pose::PoseWord::Value(v, n) => {
+                    v.feed(&mut h);
+                    h.write_tag(tag::slot::NOMINAL);
+                    h.write_f64_bits(*n);
+                }
+            }
         }
     }
     // Upstream identity, by CONTENT (never by id — ids are stable
-    // labels, content keys are the Merkle links).
+    // labels, content keys are the Merkle links): each read as its
+    // operation's key and the port it reads.
     h.write_u64(upstream_keys.len() as u64);
-    for k in upstream_keys {
-        h.write_key(*k);
+    for read in upstream_keys {
+        h.write_key(read.key);
+        feed_port(&mut h, read.port);
     }
     // The recorded witness datum. Its presence is a word of its own so
     // `None` cannot alias a `Some` with empty bytes; a cleared witness
@@ -5925,19 +5733,37 @@ where
     h.finish()
 }
 
+/// **One read a node's keys feed** (D10): the operation `at` defining
+/// the variable read, the port read, and that operation's key.
+#[derive(Clone, Copy)]
+struct UpstreamRead<K> {
+    at: RecipeNodeId,
+    port: u8,
+    key: K,
+}
+
+/// A read's port, as the keys feed it: a presence tag, then the port.
+/// The tag stays in the byte stream so the keys of every stored
+/// document stay what they are.
+fn feed_port(h: &mut KeyHasher, port: u8) {
+    h.write_tag(tag::presence::PRESENT);
+    h.write_u64(u64::from(port));
+}
+
 /// The recursive naming key (issue #95 disposition 2; see
-/// [`NamingKey`]): the node's own content key plus every input's
-/// (id, naming key) pair, in input order — ids INCLUDED, which is
-/// exactly what the content key omits by design (D8).
-fn naming_key(content: ContentKey, upstream: &[(RecipeNodeId, NamingKey)]) -> NamingKey {
+/// [`NamingKey`]): the node's own content key plus every read's
+/// (operation id, port, naming key), in read order — ids INCLUDED,
+/// which is exactly what the content key omits by design (D8).
+fn naming_key(content: ContentKey, upstream: &[UpstreamRead<NamingKey>]) -> NamingKey {
     let mut h = KeyHasher::new();
     h.write_tag(tag::naming::DOMAIN);
     h.write_key(content);
     h.write_u64(upstream.len() as u64);
-    for (id, nk) in upstream {
-        h.write_id(id.0);
-        h.write_u64(nk.0 as u64);
-        h.write_u64((nk.0 >> 64) as u64);
+    for read in upstream {
+        h.write_id(read.at.0);
+        feed_port(&mut h, read.port);
+        h.write_u64(read.key.0 as u64);
+        h.write_u64((read.key.0 >> 64) as u64);
     }
     NamingKey(h.finish().0)
 }
@@ -6358,71 +6184,19 @@ fn feed_alignment(h: &mut KeyHasher, a: &crate::mate::Alignment) {
     }
 }
 
-/// Feeds a measured expression: one tag per AST node, then each
-/// node's own payload. The vocabulary is `tag::measure_expr` and the
-/// match is EXHAUSTIVE, so a new arithmetic arm cannot default to
-/// hashing like an existing one — the S4 lesson (a step verb's key tag collided
-/// with another's and served the wrong geometry from the memo).
-fn feed_measure_expr(h: &mut KeyHasher, expr: &crate::measure::MeasureExpr) {
-    use crate::measure::{MeasureKind as K, MeasurePrimitive as P};
-    let binary = |h: &mut KeyHasher, tag, a: &crate::measure::MeasureExpr, b: &_| {
-        h.write_tag(tag);
-        feed_measure_expr(h, a);
-        feed_measure_expr(h, b);
-    };
-    match expr.kind() {
-        K::Primitive(p) => {
-            h.write_tag(tag::measure_expr::PRIMITIVE);
-            h.write_tag(match p {
-                P::Distance { .. } => 1,
-                P::Angle { .. } => 2,
-                P::Gap { .. } => 3,
-                // APPENDED, never reused: a content-key tag is an
-                // identity, so the day a primitive is retired its tag
-                // retires with it.
-                P::MinClearance { .. } => 4,
-            });
-            for index in p.refs() {
-                h.write_u64(u64::from(index));
-            }
-        }
-        K::Value(var) => {
-            h.write_tag(tag::measure_expr::VALUE);
-            // The value leaf's literal bits — a stored leaf is one
-            // variable and holds none — and the variable it reads, with
-            // the dimension it is read at.
-            h.write_u64(0);
-            h.write_u64(1);
-            h.write_id(var.0);
-            h.write_tag(dimension_tag(expr.dim()));
-        }
-        K::Neg(a) => {
-            h.write_tag(tag::measure_expr::NEG);
-            feed_measure_expr(h, a);
-        }
-        K::Add(a, b) => binary(h, tag::measure_expr::ADD, a, b),
-        K::Sub(a, b) => binary(h, tag::measure_expr::SUB, a, b),
-        K::Mul(a, b) => binary(h, tag::measure_expr::MUL, a, b),
-        K::Div(a, b) => binary(h, tag::measure_expr::DIV, a, b),
-        K::Min(a, b) => binary(h, tag::measure_expr::MIN, a, b),
-        K::Max(a, b) => binary(h, tag::measure_expr::MAX, a, b),
-    }
+/// The names the selection `var` holds, as a content key feeds them:
+/// none for a read that is no selection.
+fn selected<'d>(
+    selections: &dyn Fn(crate::VarId) -> Option<&'d crate::var::Select>,
+    var: crate::VarId,
+) -> &'d [StableName] {
+    selections(var).map_or(&[], |select| select.names.as_slice())
 }
 
-/// The closed dimension lattice as key tags.
-fn dimension_tag(dim: crate::expr::Dimension) -> u8 {
-    match dim {
-        crate::expr::Dimension::Length => 1,
-        crate::expr::Dimension::Angle => 2,
-        crate::expr::Dimension::Count => 3,
-        crate::expr::Dimension::Scalar => 4,
-    }
-}
-
-/// **A one-scalar verb's name payload and its flow-bearing slot**, fed
+/// **A one-scalar verb's selection and its flow-bearing slot**, fed
 /// as the blends and the shell all feed them: the names in the order
-/// the payload holds them (canonical for a blend, designation order
-/// for a shell), then the slot's EXPRESSION under `FLOW_EXPR` when the
+/// the selection holds them (sorted for edges, designation order for
+/// faces), then the slot's EXPRESSION under `FLOW_EXPR` when the
 /// verb's declared flow lands it in a stored field (`content_key`'s
 /// arms).
 fn feed_scalar_join(
@@ -6441,30 +6215,6 @@ fn feed_scalar_join(
     {
         h.write_tag(tag::scalar_join::FLOW_EXPR);
         crate::param_source::feed_var(h, defs, var);
-    }
-}
-
-/// A Boolean's or Union's declared pairs, into its content key.
-///
-/// BOTH halves of each side, as a measure's reference feeds both: the
-/// name says which entity and the SITE says which operand's table it is
-/// read in, so two declarations differing only in a site declare
-/// contacts between different members. The site is a node id, which
-/// content keys otherwise exclude (D8); it is fed for the measure's
-/// reason — it is RECIPE PAYLOAD selecting a reading, not a Merkle link
-/// to an input.
-///
-/// The CLASS is part of the node's identity: two declarations of the
-/// same pair under different classes are different nodes, and a memo
-/// keyed without it would serve a `Rest` answer to a `Tangent` question.
-fn feed_declared(h: &mut KeyHasher, pairs: &[crate::DeclaredPair]) {
-    h.write_u64(pairs.len() as u64);
-    for ((a, b), class) in pairs {
-        for r in [a, b] {
-            h.write_id(r.at.0);
-            feed_stable_name(h, &r.name);
-        }
-        h.write_u64(class.content_tag());
     }
 }
 
@@ -6534,10 +6284,6 @@ impl<'a> SegFeed<'a> {
     }
 }
 
-/// A split half's key tag — ONE spelling, read by the role-segment
-/// feed (every split segment carries a half) and by the projection
-/// node's payload feed (a `Part` of a half carries the half itself);
-/// `split_half_tags_are_injective` checks it over `SplitHalf::ALL`.
 /// The content-key tag of an extrude's side — the ONE place its key
 /// identity is chosen, checked injective over [`ExtrudeSide::ALL`] by
 /// `extrude_side_tags_are_injective`.
@@ -6559,6 +6305,9 @@ fn sense_tag(sense: crate::names::Sense) -> u8 {
     }
 }
 
+/// A split half's key tag — ONE spelling, read by the role-segment
+/// feed (every split segment carries a half);
+/// `split_half_tags_are_injective` checks it over `SplitHalf::ALL`.
 fn split_half_tag(half: crate::names::SplitHalf) -> u8 {
     use crate::names::SplitHalf;
     match half {
@@ -6594,9 +6343,7 @@ fn seg_content_tag(tag: SegTag) -> u8 {
         S::RevolveCap => 13,
         S::Pole => 14,
         S::AxisEdge => 15,
-        S::FromA => 16,
-        S::FromB => 17,
-        S::FromMember => 41,
+        S::From => 52,
         S::Seam => 18,
         S::Crossing => 47,
         S::EdgeCrossing => 48,
@@ -6608,7 +6355,6 @@ fn seg_content_tag(tag: SegTag) -> u8 {
         S::SplitFragment => 24,
         S::CrossingVertex => 25,
         S::OnToolVertex => 27,
-        S::FromTarget => 28,
         S::BlendFace => 29,
         S::CornerFace => 30,
         S::TrimEdge => 31,
@@ -6627,6 +6373,7 @@ fn seg_content_tag(tag: SegTag) -> u8 {
         S::HoleRim => 44,
         S::Instance => 26,
         S::InPart => 40,
+        S::Placed => 51,
     }
 }
 
@@ -6790,11 +6537,14 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
         RoleSeg::AxisEdge(r) => {
             run(h, r);
         }
-        RoleSeg::FromA(inner) => {
-            h.name(inner);
-        }
-        RoleSeg::FromB(inner) => {
-            h.name(inner);
+        // An entity carried in: BOTH halves feed. Two members of one
+        // union can be placements of ONE body and then carry the same
+        // inner name, so a key without the read would give their
+        // entities one key — the memo hazard the segment vocabulary
+        // exists to prevent.
+        RoleSeg::From { read, of } => {
+            h.write_id(read.0);
+            h.name(of);
         }
         RoleSeg::Seam { a, b } => {
             h.name(a);
@@ -6849,15 +6599,12 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
             h.write_tag(half(*side));
             h.name(of);
         }
-        RoleSeg::InPart { of } => {
+        RoleSeg::InPart { of } | RoleSeg::Placed { of } => {
             h.name(of);
         }
         RoleSeg::Instance { i, of } => {
             h.write_u64(u64::from(*i));
             h.name(of);
-        }
-        RoleSeg::FromTarget(n) => {
-            h.name(n);
         }
         RoleSeg::BlendFace(n) => {
             h.name(n);
@@ -6902,16 +6649,6 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
             for n in band {
                 h.name(n);
             }
-        }
-        // The n-ary union's member key. BOTH halves feed: two members
-        // of one union can be
-        // placements of ONE prototype and then carry the same inner
-        // name, so a key without the member edge would give their
-        // entities one key — the memo hazard the segment vocabulary
-        // exists to prevent.
-        RoleSeg::FromMember { member, of } => {
-            h.write_id(member.0);
-            h.name(of);
         }
         // The shell's three roles. Each wraps one source name; the hole
         // rim carries its pairing index beside it, the way `Instance`
@@ -7259,11 +6996,11 @@ mod tag_vocabulary_tests {
             seen.push((*seg, tag));
         }
         assert_eq!(seen.len(), SegTag::ALL.len());
-        // The newest words, pinned: the union's member key and the
+        // The newest words, pinned: the carried-in read key and the
         // shell's three roles, read off the source the numbers were
         // committed in.
         for (seg, want) in [
-            (SegTag::FromMember, 41),
+            (SegTag::From, 52),
             (SegTag::Inner, 42),
             (SegTag::Rim, 43),
             (SegTag::HoleRim, 44),

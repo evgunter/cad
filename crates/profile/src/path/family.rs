@@ -93,7 +93,7 @@
 //!     .toward(-4.1, 0.3, tol)?
 //!     .line(1.0, tol)?
 //!     .line_to(Start, tol)?;
-//! assert!(boss.loop_.tangent_joints().len() >= 4);
+//! assert!(boss.loop_.constructed_joints().len() >= 4);
 //! # Ok(())
 //! # }
 //! ```
@@ -1120,8 +1120,8 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for Center<T, Point2<T>> {
 /// `Center` here stays the anchored mode (its derived START tangent is
 /// junction-checked against the incoming): restating the tip's own
 /// carrier through an authored centre would land in the junction
-/// check's tangent band and refuse — declared tangency is CONSTRUCTED
-/// (`Radius`), never value-matched (§2c round 6).
+/// check's tangent band and refuse — a tangency the chain means is
+/// CONSTRUCTED (`Radius`), never value-matched (§2c round 6).
 pub trait LegEndIncoming<T: ArcCarrierScalar> {
     #[doc(hidden)]
     fn incoming(&self, dp: DirectedPoint<T>, tol: Tol) -> Result<FusedIncoming<T>, PathError<T>>;
@@ -1503,7 +1503,7 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         let inc = pos.incoming.ok_or(PathError::UnderdeterminedLeg {
             site: "ray extension on a tip without incoming data",
         })?;
-        self.core.declare_last();
+        self.core.construct_last();
         open_ray(&mut self.core, at, inc.ang, radius, true, Some(inc), tol)
     }
 
@@ -1598,7 +1598,7 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
                     // A new tangent carrier CONSTRUCTED at the tip:
                     // both sides share the tip's tangent by
                     // construction, so the joint is a real tangency.
-                    self.core.declare_last();
+                    self.core.construct_last();
                 }
                 open_arc_from_tip(
                     &mut self.core,

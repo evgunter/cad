@@ -97,12 +97,10 @@ Three things to expect, all treated at length in the guide:
   value or has failed; ask with `ev.succeeded(node)`. Reading a failed
   node raises `EvaluationError`, and a node poisoned by an upstream
   failure names the culprit in `through`.
-- **The kernel refuses rather than guesses.** Two faces that merely
-  touch are not silently welded; a boolean over an undeclared
-  coincidence fails loudly — and the refusal carries its own recourse:
-  the candidate declaration rides the exception as a typed `finding`
-  (`Evaluation.find_flush_candidates` → `Node.boolean(..., declare=)`
-  or `Doc.declare_all`). Refusals are
+- **The kernel refuses rather than guesses.** Faces whose margin
+  decides them on one surface glue; a coincidence the margin cannot
+  decide fails loudly, and the refusal carries its own recourse (move
+  the geometry, or the tolerance its margin gives). Refusals are
   exceptions carrying attributes, never prose to parse — all of them
   subclass `PncadError`. A refusal's discriminant is one word on one
   attribute, with a single stated exception: `Body.validate*` is the

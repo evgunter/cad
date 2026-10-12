@@ -127,6 +127,12 @@ fn r1_seams_at_rest_on_both_fixtures() {
 /// torus half, B the inner. Both must import first-class to
 /// DIFFERENT, closed-form-correct volumes. The washer control (one
 /// torus band + two discs) pins the same read on an unshared rim.
+///
+/// Each census holds two fewer edges and vertices than the re-mint
+/// leaves: the re-mint leaves the file's own rim vertices at valence 2,
+/// two arcs of one circle meeting there, and the join the import ends
+/// with (`docs/DESIGN.md`, maximal edges) takes them, each reported as
+/// a `JoinedEdges` normalization.
 #[test]
 fn r1_torus_region_selection_is_real() {
     let pi = std::f64::consts::PI;
@@ -135,21 +141,21 @@ fn r1_torus_region_selection_is_real() {
             band("band_a180.stp"),
             "A/outer",
             (40.0 * pi * pi + 32.0 * pi / 3.0) * 1e-9,
-            (1, 1, 2, 6, 4),
+            (1, 1, 2, 4, 2),
             2,
         ),
         (
             band("band_b180.stp"),
             "B/inner",
             (40.0 * pi * pi - 32.0 * pi / 3.0) * 1e-9,
-            (1, 1, 2, 6, 4),
+            (1, 1, 2, 4, 2),
             2,
         ),
         (
             band("washer180.stp"),
             "washer/control",
             (400.0 * pi + 40.0 * pi * pi + 32.0 * pi / 3.0) * 1e-9,
-            (1, 1, 3, 5, 4),
+            (1, 1, 3, 3, 2),
             1,
         ),
     ];
@@ -249,7 +255,9 @@ fn r1_shared_rim_split_order_does_not_starve_the_second_band() {
             .err()
         );
     };
-    assert_eq!(arena_census(&body), (1, 1, 2, 6, 4), "band_a census");
+    // Two fewer edges and vertices than the re-mint leaves: the join
+    // the import ends with takes the file's valence-2 rim vertices.
+    assert_eq!(arena_census(&body), (1, 1, 2, 4, 2), "band_a census");
     let v = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
     assert!(
         ((v - v_want) / v_want).abs() < 1e-12,
@@ -283,7 +291,8 @@ fn r1_washer90_imports_the_true_region() {
             .err()
         );
     };
-    assert_eq!(arena_census(&body), (1, 1, 3, 5, 4), "washer90 census");
+    // The rim vertices the re-mint leaves at valence 2 are joined.
+    assert_eq!(arena_census(&body), (1, 1, 3, 3, 2), "washer90 census");
     assert_eq!(
         topo::validate_geometric(&body, Tol::witness()),
         Ok(()),

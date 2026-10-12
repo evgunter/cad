@@ -27,7 +27,6 @@ fn cyl_sheet() -> (Body<f64>, FaceKey) {
     let face = cyl_wall_sheet(
         &mut body,
         CylFrame::canonical(1.0),
-        None,
         (0.2, 1.4),
         (0.0, 1.0),
         Tol::witness(),
@@ -132,54 +131,6 @@ fn the_face_box_panics_on_a_torn_boundary_curve() {
         &mut body,
         &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
         |b| face_box(b, face, 0.0, band()).map(|bx| bx.min_x.is_finite()),
-    );
-}
-
-/// `finish.rs` `pinch_site`: a face round the pierce vertex whose loop
-/// walk breaks panics, where it refused `JoinDesync` ("not walkable").
-#[test]
-fn the_pinch_site_panics_on_a_broken_walk_round_its_vertex() {
-    let mut body = cube();
-    let face = first_face(&body);
-    let members = outer_members(&body, face);
-    let start = |he| body.get_half_edge(he).unwrap().start;
-    let (u, w) = (start(members[0]), start(members[2]));
-    assert!(
-        matches!(super::finish::pinch_site(&body, u, w, |_| true), Ok(Some((f, _))) if f == face),
-        "two diagonal corners pinch across their one face"
-    );
-    // `members[1]` runs between the two corners after `u`: no step of
-    // `u`'s orbit reads it, and the face's walk does.
-    body.half_edges.remove(members[1]);
-    assert_torn_op_panics(
-        "pinch_site",
-        &mut body,
-        &["the loop walk from", ROW_FOUR, OPERATORS_KEEP_LINKS],
-        |b| super::finish::pinch_site(b, u, w, |_| true).map(|s| s.map(|(f, _)| f)),
-    );
-}
-
-/// `finish.rs` `pinch_site`: a ring link of a face round the pierce
-/// vertex that does not resolve panics, where it was stepped over. No
-/// step of the vertex's orbit reads a ring, so the face's own loop walk
-/// is the read.
-#[test]
-fn the_pinch_site_panics_on_a_torn_ring_link() {
-    let mut body = cube();
-    let face = first_face(&body);
-    let members = outer_members(&body, face);
-    let start = |he| body.get_half_edge(he).unwrap().start;
-    let (u, w) = (start(members[0]), start(members[2]));
-    assert!(
-        matches!(super::finish::pinch_site(&body, u, w, |_| true), Ok(Some((f, _))) if f == face),
-        "two diagonal corners pinch across their one face"
-    );
-    let named = tear_ring(&mut body, face);
-    assert_torn_op_panics(
-        "pinch_site",
-        &mut body,
-        &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
-        |b| super::finish::pinch_site(b, u, w, |_| true).map(|s| s.map(|(f, _)| f)),
     );
 }
 
@@ -450,7 +401,7 @@ fn the_maximal_faces_gate_panics_on_a_torn_shared_surface() {
 /// one that does panics, where it read as the kind with no arm.
 #[test]
 fn the_vertex_on_face_classification_panics_on_a_torn_pierced_surface() {
-    use super::{BooleanError, BooleanOp, ContactRecords, DeclaredPairs, Operand, VfContact};
+    use super::{BooleanError, BooleanOp, GluedPairs, Operand, ReductionContacts, VfContact};
     // A small cube stood on its corner, the long diagonal up, at the
     // centre of the unit cube's top face: no face of it is coplanar
     // with the face it touches.
@@ -489,11 +440,10 @@ fn the_vertex_on_face_classification_panics_on_a_torn_pierced_surface() {
             Operand::A,
             contact,
             BooleanOp::Union,
-            &DeclaredPairs::default(),
-            &ContactRecords::default(),
+            &GluedPairs::default(),
+            &ReductionContacts::default(),
             None,
             band(),
-            Tol::witness(),
         )
         .map(drop)
     };

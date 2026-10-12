@@ -261,7 +261,7 @@ fn every_verb_the_form_offers_loads_back_as_itself() {
         let program = editor_core::test_support::stored_program(
             &mut doc,
             &ProfileProgram {
-                plane: RecipeNodeId::new(0, 0),
+                frame: RecipeNodeId::new(0, 0).into(),
                 loops: vec![shape(&ProfileShape::Path { steps: vec![step] })],
                 ids: Vec::new(),
             },
@@ -278,7 +278,11 @@ fn every_verb_the_form_offers_loads_back_as_itself() {
 }
 
 /// The committed expression at `slot` of `node`.
-fn committed_expr(session: &DocSession, node: RecipeNodeId, slot: SlotId) -> pncad::document::Expr {
+fn committed_expr(
+    session: &DocSession,
+    node: RecipeNodeId,
+    slot: SlotId,
+) -> pncad::document::Formula {
     session
         .committed_doc()
         .slot_expansion(node, slot)
@@ -473,7 +477,7 @@ fn a_kept_driven_argument_is_not_written_over() {
         .collect();
     let mut moved = committed.clone();
     let mut probe = Node::Profile(ProfileProgram {
-        plane: program(&session, profile).plane,
+        frame: program(&session, profile).frame.into(),
         loops: moved,
         ids: Vec::new(),
     });
@@ -494,7 +498,7 @@ fn a_kept_driven_argument_is_not_written_over() {
     // The same program with another argument moved and the driven one
     // left alone lands, still driven.
     let mut probe = Node::Profile(ProfileProgram {
-        plane: program(&session, profile).plane,
+        frame: program(&session, profile).frame.into(),
         loops: committed,
         ids: Vec::new(),
     });
@@ -619,7 +623,7 @@ fn a_move_whose_first_argument_alone_crosses_still_lands() {
             step: 0,
             arg: StepArg::PointX,
         },
-        expr: common::len(0.02),
+        value: common::len(0.02).into(),
         fresh: Vec::new(),
     };
     assert!(
@@ -665,7 +669,7 @@ fn editing_a_non_profile_refuses_wrong_kind() {
     let out = session.perform(SessionOp::EditProfile {
         node: plane,
         base: ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: Vec::new(),
             ids: Vec::new(),
         },

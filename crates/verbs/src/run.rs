@@ -40,6 +40,9 @@ pub struct VerbOut<T: Real, B = Body<T>> {
     pub body: B,
     /// The operation's own record of the result, per family.
     pub record: VerbRecord<T>,
+    /// The coincidences the operation decided from values, in decision
+    /// order and its operands' keys ([`topo::coincidence`]).
+    pub coincidences: Vec<topo::Coincidence>,
 }
 
 /// **The record channel, one variant per record family** — the
@@ -76,8 +79,9 @@ pub enum VerbRecord<T: Real> {
     Boolean {
         /// How the result body came to be.
         kind: BooleanResultKind,
-        /// Declared contacts surviving into the result, result keys —
-        /// the tier-3′ currency the consuming layer carries onward.
+        /// Contact records surviving into the result, result keys, each
+        /// citing the coincidence that backs it — the tier-3′ currency
+        /// the consuming layer carries onward.
         contacts: ContactRecords,
         /// Mint-time naming facts the naming layer consumes.
         naming: BooleanNaming,
@@ -130,6 +134,9 @@ pub struct SplitOut<T: Real> {
     pub below: SplitPart<T>,
     /// The split's own record of what it minted, in its channel.
     pub record: VerbRecord<T>,
+    /// The coincidences the split decided from values (its pinches), in
+    /// the operand's keys ([`topo::coincidence`]).
+    pub coincidences: Vec<topo::Coincidence>,
 }
 
 /// **What a two-operand verb produced**: the typed empty success, or a
@@ -274,6 +281,7 @@ impl<T: Decide + Bounds + topo::AtRestPolicy> Verb<T> {
         Ok(VerbOut {
             body: blended.body,
             record: VerbRecord::Blend(blended.naming),
+            coincidences: blended.coincidences,
         })
     }
 
@@ -301,8 +309,8 @@ impl<T: Decide + Bounds + topo::AtRestPolicy> Verb<T> {
         tol: Tol,
     ) -> Result<PairOut<T>, VerbError<T>> {
         match self {
-            Self::Boolean { op, declare } => {
-                match boolean_op_with(*op, a, b, declare, sweep, tol).map_err(VerbError::Boolean)? {
+            Self::Boolean { op, inputs } => {
+                match boolean_op_with(*op, a, b, inputs, sweep, tol).map_err(VerbError::Boolean)? {
                     BooleanResult::Empty => Ok(PairOut::Empty),
                     BooleanResult::Body(bb) => {
                         // Exhaustive destructure, deliberately: a field
@@ -314,6 +322,7 @@ impl<T: Decide + Bounds + topo::AtRestPolicy> Verb<T> {
                             kind,
                             contacts,
                             naming,
+                            coincidences,
                         } = bb;
                         Ok(PairOut::Out(VerbOut {
                             body,
@@ -322,6 +331,7 @@ impl<T: Decide + Bounds + topo::AtRestPolicy> Verb<T> {
                                 contacts,
                                 naming,
                             },
+                            coincidences,
                         }))
                     }
                 }
@@ -392,11 +402,9 @@ impl<T: Decide + Bounds + topo::AtRestPolicy> Verb<T> {
     /// comes back. A split hands back TWO sides, each a body or the typed
     /// empty, and the one-body out-type cannot carry them — so this is
     /// the split's own door
-    /// with its own out-type ([`SplitOut`]), and the D7 pinch lane
-    /// inside the kernel door (`topo::split` reruns a one-sided pinch
-    /// mirrored and swaps the sides back) is the door's, reached here
-    /// unchanged: this dispatches and re-wraps, and adds no decision
-    /// of its own.
+    /// with its own out-type ([`SplitOut`]). Every decision, the pinch's
+    /// copies included, is the kernel door's, reached here unchanged:
+    /// this dispatches and re-wraps, and adds no decision of its own.
     ///
     /// # Errors
     ///
@@ -418,11 +426,13 @@ impl<T: Decide + Bounds + topo::AtRestPolicy> Verb<T> {
                     above,
                     below,
                     naming,
+                    coincidences,
                 } = split(operand, plane, tol).map_err(VerbError::Split)?;
                 Ok(SplitOut {
                     above,
                     below,
                     record: VerbRecord::Split(naming),
+                    coincidences,
                 })
             }
             Self::Fillet { .. }
@@ -494,6 +504,8 @@ impl<T: Decide + Bounds + topo::AtRestPolicy> Verb<T> {
                 Ok(VerbOut {
                     body,
                     record: VerbRecord::Shell(naming),
+                    // The shell's offsets glue nothing a margin decided.
+                    coincidences: Vec::new(),
                 })
             }
             Self::Fillet { .. }

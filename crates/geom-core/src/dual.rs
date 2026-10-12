@@ -474,6 +474,15 @@ impl<T: KinkJacobian> Real for Dual<T> {
         Self::constant(T::from_f64(x))
     }
 
+    /// `T`'s computed value with a ZERO tangent. That is not the
+    /// derivative of whatever computed it, which no dual lane holds once
+    /// a value has left it: a dual consumer reading a tangent through a
+    /// computed value reads zero there. The value channel is `T`'s, so a
+    /// `Dual<Sym<_>>` would still carry its unknown.
+    fn from_computed(x: f64) -> Self {
+        Self::constant(T::from_computed(x))
+    }
+
     /// `(0, 0)`.
     fn zero() -> Self {
         Self::constant(T::zero())
@@ -768,7 +777,10 @@ impl<T> crate::spline::SpanLocate for Dual<T>
 where
     T: crate::spline::SpanLocate + KinkJacobian,
 {
-    fn locate_spans<'a>(self, knots: &'a crate::spline::KnotVector) -> crate::spline::SpanSet<'a> {
+    fn locate_spans<'a>(
+        self,
+        knots: &'a crate::spline::KnotVector,
+    ) -> Option<crate::spline::SpanSet<'a>> {
         self.value.locate_spans(knots)
     }
 
@@ -777,6 +789,14 @@ where
             value: self.value.enclosure_hull(other.value),
             deriv: self.deriv.enclosure_hull(other.deriv),
         }
+    }
+
+    fn point_value(self) -> Option<f64> {
+        self.value.point_value()
+    }
+
+    fn split_projective<A: crate::spline::ProjectiveSplit<Self>>(arm: A) -> A::Out {
+        T::split_projective(crate::spline::projective::DualArm(arm))
     }
 }
 

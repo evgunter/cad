@@ -1045,6 +1045,9 @@ fn trim_polygon(
             // carrier's own parameter, read exactly at the chord pass's
             // parameters.
             Pcurve::FocalSection(_) => {}
+            // A projected image is the chart's inverse of the carrier,
+            // read exactly at the chord pass's parameters too.
+            Pcurve::Projected(_) => {}
             Pcurve::IsoLine { .. } if nurbs_chart => {}
             // The arc rim is the NURBS chart's other minted closed
             // form (M8-3) — same boundary line, rational-quadratic

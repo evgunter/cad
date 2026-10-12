@@ -63,10 +63,10 @@ pub mod value_channel;
 use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 use editor_core::{
-    AssemblyError, CancelToken, CapEnd, Datum, Dimension, DocEdit, EntityKey, EntityKind, Entry,
+    AssemblyError, CancelToken, CapEnd, Dimension, DocEdit, EntityKey, EntityKind, Entry,
     EvalOptions, Evaluation, Formula, FreeVar, LoopProgram, MateReach, NameTable, Node, ProfileDoc,
     ProfileEdgeRef, ProfilePieces, ProfileProgram, ProfileVertexRef, RecipeNodeId, RefusingReach,
-    RoleSeg, SitedRef, SolvedPoses, StableName, VarName, assemble, evaluate, mate_reach,
+    RoleSeg, SitedRef, SolvedPoses, StableName, VarId, VarName, assemble, evaluate, mate_reach,
     solve_document,
 };
 use geom_core::{Point3, Tol};
@@ -110,7 +110,8 @@ pub fn run(doc: &editor_core::ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
 /// - `outside` holds nothing;
 /// - every mate's escalation log is the reference's escalations taken
 ///   in order (a subsequence), and the mates' logs together are the
-///   reference's, element for element;
+///   reference's, element for element, unless a mate was poisoned
+///   through a body it reads, which leaves it no log;
 /// - the same of the verdicts, over the mates that evaluate `Ok`, and
 ///   exactly the reference's only when every mate does. A failed node
 ///   carries no verdict log, so for a document with a failing mate the
@@ -139,6 +140,7 @@ pub fn solve_decisions_have_one_home(
     let mut escalations: Vec<(RecipeNodeId, Vec<String>)> = Vec::new();
     let mut verdicts: Vec<(RecipeNodeId, Vec<String>)> = Vec::new();
     let mut every_mate_ok = true;
+    let mut every_mate_ran = true;
     for id in doc.ids() {
         if !matches!(doc.node(id), Some(Node::Mate { .. })) {
             continue;
@@ -150,6 +152,13 @@ pub fn solve_decisions_have_one_home(
             }
             Some(editor_core::NodeResult::Failed(e)) => {
                 escalations.push((id, spell(&e.escalations)));
+                every_mate_ok = false;
+            }
+            // A mate poisoned through a body it reads never ran, so it
+            // has no log to hold the solve's decisions about it: the
+            // logs together are then a part of the solve's, not all.
+            Some(editor_core::NodeResult::Poisoned { .. }) => {
+                every_mate_ran = false;
                 every_mate_ok = false;
             }
             other => panic!("document {label}: mate {} has no log: {other:?}", id.0),
@@ -166,7 +175,7 @@ pub fn solve_decisions_have_one_home(
         "escalation",
         &reference_escalations,
         &escalations,
-        true,
+        every_mate_ran,
     );
     one_home(
         label,
@@ -268,21 +277,115 @@ pub fn gate(doc: &editor_core::ProfileDoc, ev: &Evaluation<f64>) -> Result<(), A
     assemble(doc, ev, Tol::witness()).map(|_| ())
 }
 
-/// A mate head over a name this fixture built as a face, read at its
-/// own mint.
+/// **What the gather minted for `doc`'s own mates**: the declarations,
+/// and the rows it could not mint (`Product::minted`, `unminted`).
+pub fn mate_mints(
+    doc: &ProfileDoc,
+    ev: &Evaluation<f64>,
+) -> (
+    Vec<editor_core::MintedDeclaration>,
+    Vec<editor_core::MintRefusal>,
+) {
+    let p = editor_core::product_recorded(doc, ev, Tol::witness()).expect("the product gathers");
+    (p.minted, p.unminted)
+}
+
+/// **Asserts the gather minted nothing for `mate`** — no declaration and
+/// no refusal: a mate side whose body no world placement reads has no
+/// world copy, so the mate states nothing about the product.
+pub fn assert_mints_nothing(doc: &ProfileDoc, ev: &Evaluation<f64>, mate: RecipeNodeId) {
+    let (minted, unminted) = mate_mints(doc, ev);
+    assert!(
+        minted.iter().all(|d| d.mate != mate) && unminted.iter().all(|r| r.mate() != mate),
+        "a mate whose side's body no placement reads mints nothing: {minted:?} {unminted:?}"
+    );
+}
+
+/// A mate side over a name this fixture built as a face, read at its
+/// own mint (`editor_core::SitedFace`, which lowers to the `Face`
+/// selection of the name in its minting node's body).
 ///
-/// A head is an `editor_core::SitedFace`, so the kind is the type's
-/// and a fixture that names an edge does not compile. The `expect` in
-/// [`face`] is the fixture's own claim that the name it just made is a
-/// face — if it is not, the fixture is wrong and says so where it is
-/// built.
+/// The `expect` in [`face`] is the fixture's own claim that the name it
+/// just made is a face — if it is not, the fixture is wrong and says so
+/// where it is built.
 pub fn head(name: StableName) -> editor_core::SitedFace {
     editor_core::SitedFace::at_mint(face(name))
 }
 
-/// The same head read at `at` rather than at its mint.
+/// The same side read at `at` rather than at its mint.
 pub fn head_at(at: RecipeNodeId, name: StableName) -> editor_core::SitedFace {
     editor_core::SitedFace::new(at, face(name))
+}
+
+/// **`name` as the union `union` carries it from its member `member`**
+/// — the name a read at the union says for that member's entity: one
+/// `From` segment keyed by the member's read in `doc`.
+pub fn member_name(
+    doc: &ProfileDoc,
+    union: RecipeNodeId,
+    member: RecipeNodeId,
+    name: StableName,
+) -> StableName {
+    StableName {
+        kind: name.kind,
+        node: union,
+        path: vec![editor_core::RoleSeg::From {
+            read: out(doc, member),
+            of: name.into(),
+        }],
+    }
+}
+
+/// **The face name a document's mate side selects** — the one name of
+/// the side's `Face` selection.
+pub fn side_name(doc: &ProfileDoc, side: editor_core::VarId) -> StableName {
+    doc.selection(side)
+        .expect("a mate side is a selection")
+        .names[0]
+        .clone()
+}
+
+/// **The head an authored mate side spells** — the node its selection
+/// is read in and its one face name, for a side authored as a
+/// selection at a node (`SitedFace`'s lowering).
+pub fn authored_head(side: &editor_core::Operand) -> editor_core::SitedFace {
+    let editor_core::Operand::Select { body, names } = side else {
+        panic!("an authored side is a selection, got {side:?}")
+    };
+    let editor_core::Operand::Node(at) = **body else {
+        panic!("an authored side is read at a node, got {body:?}")
+    };
+    let [name] = names.as_slice() else {
+        panic!("a side selects one face")
+    };
+    editor_core::SitedFace::new(at, face(name.clone()))
+}
+
+/// **The head a document's mate side reads** — its selection's body
+/// operation and its face name (`editor_core::head_of`).
+pub fn side_head(doc: &ProfileDoc, side: editor_core::VarId) -> editor_core::SitedFace {
+    editor_core::head_of(doc, side).expect("the side reads a face of a live body")
+}
+
+/// **Every mate side that resolves to a member, as `(mate, instance)`**:
+/// each mate in document order, `a` before `b`, landing on the member's
+/// instance. Which instance each side's member walk lands on — the
+/// solve's question, not a dependency: a mate depends on what its sides
+/// read, as every reader does.
+pub fn mate_members(doc: &ProfileDoc) -> Vec<(RecipeNodeId, RecipeNodeId)> {
+    let mut out = Vec::new();
+    for id in doc.ids() {
+        if let Some(Node::Mate { a, b, .. }) = doc.node(id) {
+            for side in [*a, *b] {
+                if let Some(m) = editor_core::head_of(doc, side)
+                    .and_then(|head| editor_core::member_of(doc, &head))
+                {
+                    out.push((id, m.instance));
+                }
+            }
+        }
+    }
+    out
 }
 
 /// A fixture's name as an `editor_core::FaceName`.
@@ -486,6 +589,233 @@ pub fn insert(doc: ProfileDoc, node: AuthoredNode) -> (ProfileDoc, RecipeNodeId)
     (doc, minted.unwrap())
 }
 
+/// **A primitive over indices into `refs`, sited**: the rows' spelling
+/// of a measure over references they list once.
+///
+/// # Panics
+///
+/// When an index is past the end of `refs`.
+pub fn sited<R: Clone>(
+    p: editor_core::MeasurePrimitive<u32>,
+    refs: &[R],
+) -> editor_core::MeasurePrimitive<R> {
+    p.try_map(|&i| refs.get(i as usize).cloned().ok_or(i))
+        .unwrap_or_else(|i| panic!("reference {i} of {}", refs.len()))
+}
+
+/// **Measures, inserted** ([`editor_core::measure`]): one per primitive,
+/// each [`sited`] over `refs`; the document after them, and the
+/// measures with their outputs. A refusal is a loud test failure.
+pub fn measure<R: Clone + Into<editor_core::Operand>>(
+    doc: ProfileDoc,
+    primitives: &[editor_core::MeasurePrimitive<u32>],
+    refs: &[R],
+) -> (ProfileDoc, editor_core::Measured) {
+    let sited: Vec<_> = primitives.iter().map(|&p| sited(p, refs)).collect();
+    let out = editor_core::measure(&doc, &sited, Tol::witness(), &RefusingReach)
+        .expect("the measures insert");
+    (out.doc, out.measured)
+}
+
+/// **One measure inserted**: the document after it, and the measure
+/// node.
+pub fn measure_node<R: Clone + Into<editor_core::Operand>>(
+    doc: &ProfileDoc,
+    primitive: editor_core::MeasurePrimitive<u32>,
+    refs: Vec<R>,
+) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, measured) = measure(doc.clone(), &[primitive], &refs);
+    (doc, measured.measures[0])
+}
+
+/// **A reader of `measure`'s value**, authored: the formula an
+/// assertion's `value` holds to bound one measure's output.
+///
+/// # Panics
+///
+/// When `measure` defines no scalar in `doc`.
+pub fn value_of(doc: &ProfileDoc, measure: RecipeNodeId) -> Formula {
+    let var = doc.output(measure, 0).expect("a measure defines its value");
+    let dim = doc
+        .var(var)
+        .and_then(|v| v.kind().dimension())
+        .expect("a measure's value is a scalar");
+    Formula::var(var, dim)
+}
+
+/// **A reader of `var`**, authored at its kind's dimension: the formula
+/// an assertion's `value` holds to bound a measured value.
+///
+/// # Panics
+///
+/// When `var` is not a scalar of `doc`.
+pub fn read_var(doc: &ProfileDoc, var: editor_core::VarId) -> Formula {
+    let dim = doc
+        .var(var)
+        .and_then(|v| v.kind().dimension())
+        .expect("a scalar variable");
+    Formula::var(var, dim)
+}
+
+/// **`var`'s value in `ev`** ([`editor_core::Evaluation::reading`]):
+/// `None` when it has none at this scalar or refuses.
+pub fn reading<T: geom_core::Decide>(
+    doc: &ProfileDoc,
+    ev: &editor_core::Evaluation<T>,
+    var: editor_core::VarId,
+) -> Option<T> {
+    match ev.reading(doc, var) {
+        Ok(editor_core::Observed::Value(v)) => Some(v),
+        _ => None,
+    }
+}
+
+/// **`measure`'s value**: the variable its one port defines.
+///
+/// # Panics
+///
+/// When `measure` defines nothing in `doc`.
+pub fn output(doc: &ProfileDoc, measure: RecipeNodeId) -> editor_core::VarId {
+    doc.output(measure, 0).expect("a measure defines its value")
+}
+
+/// **The variable an assertion reads**: its measured value, for a row
+/// that asks a stackup or a reading of it.
+///
+/// # Panics
+///
+/// When `assertion` is not a live assertion of `doc`.
+pub fn assertion_value(doc: &ProfileDoc, assertion: RecipeNodeId) -> editor_core::VarId {
+    match doc.node(assertion) {
+        Some(Node::Assertion { value, .. }) => *value,
+        other => panic!("{assertion} is not an assertion: {other:?}"),
+    }
+}
+
+/// **One copy of `body` in the world** (A10), at the identity: the
+/// document's product is the copies its placements define.
+pub fn place(doc: ProfileDoc, body: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
+    let read = body_read(&doc, body.into());
+    let (doc, minted) = step(doc, DocEdit::place(read, None));
+    (doc, minted.unwrap())
+}
+
+/// **The body read a placement of `body` names**: a revolve named
+/// alone reads its `body` port (Q5 refuses a several-output node named
+/// alone, and a revolve's other port is its axis); any other operand as
+/// it is, so a split named alone still refuses.
+pub fn body_read(doc: &ProfileDoc, body: editor_core::Operand) -> editor_core::Operand {
+    match body {
+        editor_core::Operand::Node(id) if matches!(doc.node(id), Some(Node::Revolve { .. })) => {
+            editor_core::Operand::output(id, 0)
+        }
+        other => other,
+    }
+}
+
+/// [`place`] for each of `bodies`, in order: the document keeps only
+/// the placed document.
+pub fn place_all(doc: ProfileDoc, bodies: &[RecipeNodeId]) -> ProfileDoc {
+    bodies.iter().fold(doc, |doc, &body| place(doc, body).0)
+}
+
+/// **`cut` and the world placements of what it moves**: every
+/// placement whose body a cut node defines, added to the cut, as a
+/// split moves a body with its placements (a part delivers only its
+/// world).
+pub fn with_placements(
+    doc: &ProfileDoc,
+    cut: &std::collections::BTreeSet<RecipeNodeId>,
+) -> std::collections::BTreeSet<RecipeNodeId> {
+    let mut out = cut.clone();
+    for placement in doc.placements() {
+        if let Some(Node::PlaceInWorld { body, .. }) = doc.node(placement)
+            && doc
+                .operation_of(body.read)
+                .is_some_and(|at| cut.contains(&at))
+        {
+            out.insert(placement);
+        }
+    }
+    out
+}
+
+/// [`editor_core::split`] of `cut` with the placements of what it
+/// moves ([`with_placements`]).
+///
+/// # Errors
+///
+/// The split's own refusal.
+pub fn split_world(
+    doc: &ProfileDoc,
+    cut: &std::collections::BTreeSet<RecipeNodeId>,
+    part_id: editor_core::DocumentId,
+    tol: Tol,
+    resolver: Option<&std::sync::Arc<dyn editor_core::PartResolver>>,
+) -> Result<editor_core::SplitOutcome, editor_core::SplitError> {
+    editor_core::split(doc, &with_placements(doc, cut), part_id, tol, resolver)
+}
+
+/// **A world the gather refuses while every copy evaluates**: one
+/// instance of a placed block, its group unplaced (no offset), placed
+/// at the identity. Its copy lives in the group's own space, so the
+/// world holds no copy and the gather refuses
+/// [`editor_core::ProductError::Unplaced`], while the placement itself
+/// evaluates. Answers the document and the options that resolve its
+/// part.
+pub fn unplaced_world(id: &str) -> (ProfileDoc, EvalOptions) {
+    let mut store = resolver::PartStore::default();
+    let part = ProfileDoc::empty_derived(&format!("{id}-part"), Tol::witness());
+    let (part, profile) = on_frame(
+        part,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(0.0, 0.0, 0.5)],
+    );
+    let (part, body) = insert(
+        part,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(1.0),
+            side: editor_core::ExtrudeSide::Along,
+        },
+    );
+    let (part_ref, _) = store.insert_part((part, body), Tol::witness());
+    let doc = ProfileDoc::empty_derived(id, Tol::witness());
+    let (doc, instance) = insert(doc, Node::instantiate_part(part_ref));
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetOffset {
+            instance,
+            offset: None,
+            fresh: Vec::new(),
+        },
+    );
+    (place(doc, instance).0, resolver::with_resolver(store))
+}
+
+/// **The refusal inserting `node` into `doc` meets**, for a row about
+/// what the insert door refuses.
+///
+/// # Panics
+///
+/// If the insert is accepted.
+pub fn insert_refused(doc: &ProfileDoc, node: AuthoredNode) -> editor_core::EditError {
+    match editor_core::apply(
+        doc,
+        &DocEdit::InsertNode {
+            node: Box::new(node),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    ) {
+        Ok(_) => panic!("the insert door accepted a node this row expects it to refuse"),
+        Err(refusal) => refusal,
+    }
+}
+
 /// `name` as the node `to` would mint it where `from` did: the same
 /// role path at another minting node. Two inserts that differ only in
 /// what a row varies are two nodes under two ids (N1), and a row that
@@ -505,18 +835,15 @@ pub fn renoded(name: &StableName, from: RecipeNodeId, to: RecipeNodeId) -> Stabl
 /// so one node under one id — an insert mints its id from its node,
 /// the members' order included (N1) — which is what a row comparing
 /// member orders compares.
-pub fn union_over(
-    doc: ProfileDoc,
-    members: &[RecipeNodeId],
-    declare: Vec<editor_core::DeclaredPair>,
-) -> (ProfileDoc, RecipeNodeId) {
+pub fn union_over(doc: ProfileDoc, members: &[RecipeNodeId]) -> (ProfileDoc, RecipeNodeId) {
     let mut inserted = members.to_vec();
     inserted.sort();
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: inserted.clone(),
-            declare,
+            members: editor_core::Bodies::Spelled(
+                inserted.clone().into_iter().map(Into::into).collect(),
+            ),
         },
     );
     if inserted == members {
@@ -526,10 +853,24 @@ pub fn union_over(
         doc,
         DocEdit::SetMembers {
             node: union,
-            members: members.to_vec(),
+            members: editor_core::Bodies::Spelled(
+                members.iter().copied().map(Into::into).collect(),
+            ),
         },
     );
     (doc, union)
+}
+
+/// The `Debug` of the one body `id` built — its bits, for setting two
+/// runs' bodies side by side.
+pub fn built_bits(ev: &Evaluation<f64>, id: RecipeNodeId) -> String {
+    match ev.value(id).map(|v| &v.payload) {
+        Some(editor_core::ValuePayload::Body(b)) => format!("{b:?}"),
+        Some(editor_core::ValuePayload::Boolean(editor_core::BooleanValue::Body {
+            body, ..
+        })) => format!("{body:?}"),
+        other => panic!("{id:?} built no body: {other:?} / {:?}", ev.nodes.get(&id)),
+    }
 }
 
 /// **The insert door's verdict on a mate**, through `reach`: the door
@@ -583,19 +924,16 @@ pub fn door_refusal(doc: &editor_core::ProfileDoc, node: AuthoredNode) -> editor
 /// resolving only through a LATER edit (N5) — a rebind, a shrunk
 /// pattern (`SetStructuralParam` on its count), a re-pointed `Part`,
 /// a deleted operand — and this is the shortest road to a head on
-/// LIVE geometry. The mate enters with that head on copy 1 of a scratch
-/// pattern over `anchor`, the instance its OTHER head stands on — two
+/// LIVE geometry. The mate enters with that side on copy 1 of a scratch
+/// pattern over `anchor`, the instance its OTHER side stands on — two
 /// members over one instance, so it welds nothing and no group
-/// moves — then `DocEdit::Rebind` moves the head onto the name `node`
-/// spells for it (the name-repair door checks that its target is
-/// live, not that a member stands there), and the scratch pattern is
-/// deleted. Nothing solves, so the refusing reach suffices, and the
-/// document differs from one that inserted `node` as spelled only in
-/// the id the scratch pattern consumed.
+/// moves — then the side's slot door (`SetParam` at
+/// `OperandSlot::Side`, which re-points a read and asks no admission)
+/// writes the side `node` spells, and the scratch pattern is deleted.
+/// Nothing solves, so the refusing reach suffices.
 ///
-/// `side` is the head that resolves to nothing, spelled in `node` as
-/// it is meant to read — at its own mint, which is where the rebind
-/// leaves it. `anchor_body` is the body node of `anchor`'s part
+/// `side` is the side that resolves to nothing, spelled in `node` as it
+/// is meant to read. `anchor_body` is the body node of `anchor`'s part
 /// document.
 pub fn insert_mate_with_stranded_head(
     doc: ProfileDoc,
@@ -616,7 +954,7 @@ pub fn insert_mate_with_stranded_head(
     let (doc, scratch) = insert(
         doc,
         Node::Pattern {
-            input: anchor,
+            input: anchor.into(),
             count: Formula::count(2),
             kind: editor_core::PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -624,14 +962,14 @@ pub fn insert_mate_with_stranded_head(
             },
         },
     );
-    let stand_in = in_copy(
+    let stand_in = head(in_copy(
         scratch,
         1,
         resolver::in_part(anchor, anchor_body, CapEnd::End),
-    );
+    ));
     let (stranded, a, b) = match side {
-        editor_core::MateSide::A => (a, head(stand_in.clone()), b),
-        editor_core::MateSide::B => (b, a, head(stand_in.clone())),
+        editor_core::MateSide::A => (a, stand_in.into(), b),
+        editor_core::MateSide::B => (b, a, stand_in.into()),
     };
     let (doc, mate) = insert(
         doc,
@@ -644,24 +982,14 @@ pub fn insert_mate_with_stranded_head(
     );
     let (doc, _) = step(
         doc,
-        DocEdit::Rebind {
-            from: stand_in,
-            to: (*stranded.name).clone(),
+        DocEdit::SetParam {
+            node: mate,
+            slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Side(side)),
+            value: editor_core::SlotValue::Read(stranded),
+            fresh: Vec::new(),
         },
     );
     let (doc, _) = step(doc, DocEdit::DeleteNode { id: scratch });
-    let Some(Node::Mate { a, b, .. }) = doc.node(mate) else {
-        panic!("the mate is live");
-    };
-    let now = match side {
-        editor_core::MateSide::A => a,
-        editor_core::MateSide::B => b,
-    };
-    assert_eq!(
-        (now.at, &now.name),
-        (stranded.at, &stranded.name),
-        "the rebind left the head read where `node` spelled it"
-    );
     (doc, mate)
 }
 
@@ -741,7 +1069,7 @@ pub fn wall_row(id: &str, loops: Vec<LoopProgram<Formula>>) -> Swept {
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops,
             ids: Vec::new(),
         }),
@@ -749,7 +1077,7 @@ pub fn wall_row(id: &str, loops: Vec<LoopProgram<Formula>>) -> Swept {
     let (doc, ext) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -812,7 +1140,7 @@ pub fn desc(plane: RecipeNodeId, loops: Vec<Vec<(f64, f64)>>) -> ProfileProgram<
         .map(|pts| LoopProgram::polygon(pts).expect("finite corners"))
         .collect();
     ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops,
         ids: Vec::new(),
     }
@@ -851,14 +1179,20 @@ pub fn on_frame_keeping(
     (doc, plane, profile)
 }
 
-/// An axis written in `plane`'s own 2-D coordinates — a revolve's axis
-/// of revolution.
-pub fn axis_in_plane(plane: RecipeNodeId, origin: (f64, f64), dir: (f64, f64)) -> AuthoredNode {
-    Node::Datum(Datum::AxisInPlane {
-        plane,
-        origin: [len(origin.0), len(origin.1)],
-        direction: [scl(dir.0), scl(dir.1)],
-    })
+/// A revolve of `profile` by `angle` about the axis line through
+/// `origin` along `dir`, both in the profile's own 2-D coordinates.
+pub fn revolve_about(
+    profile: impl Into<editor_core::Operand>,
+    origin: (f64, f64),
+    dir: (f64, f64),
+    angle: Formula,
+) -> AuthoredNode {
+    Node::Revolve {
+        profile: profile.into(),
+        axis_origin: [len(origin.0), len(origin.1)],
+        axis_direction: [scl(dir.0), scl(dir.1)],
+        angle,
+    }
 }
 
 /// An axis-aligned square of half-width `h` centered at (cx, cy).
@@ -907,6 +1241,90 @@ impl Recorder {
         applied.record.minted
     }
 
+    /// Inserts measures ([`editor_core::measure`]), one per primitive
+    /// [`sited`] over `refs`, recording their edits; returns the measures
+    /// and their outputs.
+    pub fn measure<R: Clone + Into<editor_core::Operand>>(
+        &mut self,
+        primitives: &[editor_core::MeasurePrimitive<u32>],
+        refs: &[R],
+    ) -> editor_core::Measured {
+        let sited: Vec<_> = primitives.iter().map(|&p| sited(p, refs)).collect();
+        let out = editor_core::measure(&self.doc, &sited, Tol::witness(), &RefusingReach)
+            .expect("the measures insert");
+        self.edits.extend(out.edits);
+        self.doc = out.doc;
+        out.measured
+    }
+
+    /// **`formula` declared as the defined variable `name`**, returning
+    /// its id: a measurement's arithmetic over measure outputs, named.
+    pub fn define(&mut self, name: &str, formula: Formula) -> editor_core::VarId {
+        let name = editor_core::VarName::new(name).expect("a valid name");
+        self.push(DocEdit::DeclareVar {
+            name: name.clone(),
+            def: editor_core::VarDecl::Defined(formula),
+        });
+        self.doc.resolve_var(&name.into()).expect("declared")
+    }
+
+    /// The length an output of this recorder's document reads.
+    pub fn len_of(&self, var: editor_core::VarId) -> Formula {
+        read_var(&self.doc, var)
+    }
+
+    /// **A measure whose value is the length variable `param`**: a unit
+    /// cube and its copy translated by `param` along x, measured from the
+    /// cube's vertex at the origin to the copy's, which is `|param − 0|`
+    /// with no geometry standing between the variable and the reading.
+    /// Returns the measure.
+    pub fn measure_of_translation(&mut self, param: &str) -> RecipeNodeId {
+        let name = editor_core::VarName::new(param).expect("a valid name");
+        let profile = self.profile(
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
+        );
+        let cube = self.insert(Node::Extrude {
+            profile: profile.into(),
+            distance: len(1.0),
+            side: ExtrudeSide::Along,
+        });
+        let copy = self.insert(Node::transform(
+            cube,
+            editor_core::Step::Rigid {
+                translation: [
+                    Formula::named(name, editor_core::Dimension::Length),
+                    len(0.0),
+                    len(0.0),
+                ],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ));
+        let ev = editor_core::evaluate::<f64>(
+            &self.doc,
+            None,
+            &editor_core::CancelToken::new(),
+            &editor_core::EvalOptions::default(),
+            Tol::witness(),
+        );
+        let vertex = editor_core::all_vertices(&ev, cube)
+            .into_iter()
+            .find(|v| {
+                let p = editor_core::vertex_position(&ev, cube, v).expect("a vertex");
+                (p.x, p.y, p.z) == (0.0, 0.0, 0.0)
+            })
+            .expect("the cube has a vertex at the origin");
+        self.insert(Node::Measure {
+            primitive: editor_core::MeasurePrimitive::Distance {
+                a: editor_core::SitedRef::new(cube, vertex.clone()).into(),
+                b: editor_core::SitedRef::new(copy, vertex).into(),
+            },
+        })
+    }
+
     /// Inserts a node, returning its minted id.
     pub fn insert(&mut self, node: AuthoredNode) -> RecipeNodeId {
         self.push(DocEdit::InsertNode {
@@ -914,6 +1332,14 @@ impl Recorder {
             fresh: Vec::new(),
         })
         .expect("minted id")
+    }
+
+    /// **One copy of `body` in the world** (A10), at the identity,
+    /// returning the placement.
+    pub fn place(&mut self, body: impl Into<editor_core::Operand>) -> RecipeNodeId {
+        let read = body_read(&self.doc, body.into());
+        self.push(DocEdit::place(read, None))
+            .expect("a placement mints its node")
     }
 
     /// **A frame and a profile drawn on it**, returning the PROFILE's
@@ -1037,7 +1463,7 @@ pub fn die() -> Die {
         vec![vec![(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]],
     );
     let cube = r.insert(Node::Extrude {
-        profile: cube_profile,
+        profile: cube_profile.into(),
         distance: len(2.0),
         side: ExtrudeSide::Along,
     });
@@ -1049,39 +1475,19 @@ pub fn die() -> Die {
     for (o, u, v, pips) in faces() {
         let prof = r.profile(o, u, v, vec![square(0.0, 0.0, 0.125)]);
         let ext = r.insert(Node::Extrude {
-            profile: prof,
+            profile: prof.into(),
             distance: Formula::named(VarName::from_static("pip_depth"), Dimension::Length),
             side: ExtrudeSide::Against,
         });
         masters.push((ext, u, v, pips));
     }
 
-    // Interleaved Transform + declared Subtract pairs (M4 PR 5,
-    // F5): every pip's outer cap lies exactly ON its cube face — a
-    // coincidence the recipe DECLARES per subtract (name pairs
-    // resolved through the operands' tables at evaluation; the
-    // retired bit rung no longer infers it from values). The A-side
-    // face name wraps in `FromA` per boolean, tracked here.
-    let face_name = |node: RecipeNodeId, seg: RoleSeg| StableName {
-        kind: EntityKind::Face,
-        node,
-        path: vec![seg],
-    };
-    // faces() order: -z, +x, -x, +y, -y, +z against the cube extrude's
-    // roles (profile (0,0)->(2,0)->(2,2)->(0,2): wall seg 0 = -y,
-    // 1 = +x, 2 = +y, 3 = -x; caps: Bottom = -z, Top = +z).
-    let wall = |seg: u32| wall(&r.doc, cube, seg);
-    let mut cube_face_names: [StableName; 6] = [
-        face_name(cube, RoleSeg::Cap(CapEnd::Start)),
-        face_name(cube, wall(1)),
-        face_name(cube, wall(3)),
-        face_name(cube, wall(2)),
-        face_name(cube, wall(0)),
-        face_name(cube, RoleSeg::Cap(CapEnd::End)),
-    ];
+    // Interleaved Transform + Subtract pairs: every pip's outer cap
+    // lies exactly ON its cube face, a coincidence the subtract's
+    // margins decide and glue.
     let mut acc = cube;
     let mut pz_transform = acc; // overwritten below
-    for (face_idx, &(ext, u, v, pips)) in masters.iter().enumerate() {
+    for &(ext, u, v, pips) in &masters {
         for &(a, b) in pips {
             let t = [
                 a * u[0] + b * v[0],
@@ -1096,28 +1502,12 @@ pub fn die() -> Die {
                     angle: ang(0.0),
                 },
             ));
-            // The pip master extrudes INWARD (against the normal), so
-            // its OUTER cap — the flush one — is Bottom (on the
-            // sketch plane, which IS the cube face's plane), and it
-            // faces out of the cube as that face does: a continuation.
-            let pip_cap = face_name(ext, RoleSeg::Cap(CapEnd::Start));
-            let decl = editor_core::declare_continuation(vec![(
-                SitedRef::new(acc, cube_face_names[face_idx].clone()),
-                SitedRef::new(tr, pip_cap),
-            )]);
-            let sub = r.insert(Node::Boolean {
-                op: editor_core::BooleanOp::Subtract,
-                a: acc,
-                b: tr,
-                declare: decl,
+            let sub = r.insert(Node::Subtract {
+                from: acc.into(),
+                tool: tr.into(),
             });
             acc = sub;
             pz_transform = tr;
-            // Every A-side face name wraps once per boolean (N1
-            // derivation paths through the new subtract node).
-            for name in &mut cube_face_names {
-                *name = face_name(sub, RoleSeg::FromA(name.clone().into()));
-            }
         }
     }
 
@@ -1155,6 +1545,11 @@ pub fn minted(kind: EntityKind, node: RecipeNodeId, seg: RoleSeg) -> StableName 
 /// One face name at a node (authoring shorthand).
 pub fn fname(node: RecipeNodeId, seg: RoleSeg) -> StableName {
     minted(EntityKind::Face, node, seg)
+}
+
+/// An extrude's cap, read at the extrude (authoring shorthand).
+pub fn cap_ref(node: RecipeNodeId, end: editor_core::CapEnd) -> editor_core::SitedRef {
+    editor_core::SitedRef::new(node, fname(node, editor_core::RoleSeg::Cap(end)))
 }
 
 /// One vertex name at a node (authoring shorthand).
@@ -1201,7 +1596,7 @@ pub fn u_cutter_tie(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
     let (doc, target) = insert(
         doc,
         Node::Extrude {
-            profile: block_profile,
+            profile: block_profile.into(),
             distance: len(4.0),
             side: ExtrudeSide::Along,
         },
@@ -1225,18 +1620,16 @@ pub fn u_cutter_tie(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
     let (doc, cutter) = insert(
         doc,
         Node::Extrude {
-            profile: u_profile,
+            profile: u_profile.into(),
             distance: len(2.0),
             side: ExtrudeSide::Along,
         },
     );
     insert(
         doc,
-        Node::Boolean {
-            op: editor_core::BooleanOp::Subtract,
-            a: target,
-            b: cutter,
-            declare: Vec::new(),
+        Node::Subtract {
+            from: target.into(),
+            tool: cutter.into(),
         },
     )
 }
@@ -1422,11 +1815,13 @@ pub fn pieces(doc: &editor_core::ProfileDoc, profile: RecipeNodeId) -> ProfilePi
 /// inputs.
 pub fn swept(doc: &ProfileDoc, node: RecipeNodeId) -> RecipeNodeId {
     match doc.node(node) {
-        Some(Node::Extrude { profile, .. } | Node::Revolve { profile, .. }) => *profile,
+        Some(Node::Extrude { profile, .. } | Node::Revolve { profile, .. }) => doc
+            .operation_of(*profile)
+            .expect("the profile read is live"),
         Some(Node::Profile(_)) => node,
-        Some(other) => match other.inputs().first() {
+        Some(_) => match doc.upstream(node).first() {
             Some(&input) => swept(doc, input),
-            None => panic!("node {} sweeps no profile: {other:?}", node.0),
+            None => panic!("node {} sweeps no profile", node.0),
         },
         None => panic!("node {} is not live", node.0),
     }
@@ -1535,8 +1930,8 @@ pub fn wall(doc: &editor_core::ProfileDoc, ext: RecipeNodeId, seg: u32) -> RoleS
 
 /// **The four flush families two x-offset blocks share** — the walls
 /// y0/y1 (segments 0/2, the `square`/`desc` corner order) and both
-/// caps — in ONE place, so a suite that names them and a suite that
-/// declares them cannot disagree about which four they are.
+/// caps — in ONE place, so every suite that names them agrees about
+/// which four they are.
 pub fn flush_segs(doc: &editor_core::ProfileDoc, ext: RecipeNodeId) -> [RoleSeg; 4] {
     [
         wall(doc, ext, 0),
@@ -1546,25 +1941,34 @@ pub fn flush_segs(doc: &editor_core::ProfileDoc, ext: RecipeNodeId) -> [RoleSeg;
     ]
 }
 
-/// **Those four families as a declared pair list**, each side SITED:
-/// `at` is the operand (or member) the entity is read at, and the
-/// name is the one the extrude `ext` minted, which a pass-through op
-/// carries verbatim (N1).
+/// **Those four families as name pairs**, each side SITED: `at` is
+/// the operand (or member) the entity is read at, and the name is the
+/// one the extrude `ext` minted, which a pass-through op carries
+/// verbatim (N1).
 pub fn flush_pairs(
     doc: &ProfileDoc,
     (a_at, a_ext): (RecipeNodeId, RecipeNodeId),
     (b_at, b_ext): (RecipeNodeId, RecipeNodeId),
-) -> Vec<(SitedRef, SitedRef)> {
+) -> Vec<(SitedRef<VarId>, SitedRef<VarId>)> {
+    let (a_read, b_read) = (out(doc, a_at), out(doc, b_at));
     flush_segs(doc, a_ext)
         .into_iter()
         .zip(flush_segs(doc, b_ext))
         .map(|(a, b)| {
             (
-                SitedRef::new(a_at, fname(a_ext, a)),
-                SitedRef::new(b_at, fname(b_ext, b)),
+                SitedRef::new(a_read, fname(a_ext, a)),
+                SitedRef::new(b_read, fname(b_ext, b)),
             )
         })
         .collect()
+}
+
+/// **The read of `node`'s one output** — what an operand reading the
+/// node holds, and so what a sited name is read at and a carried name
+/// is keyed by (`RoleSeg::From`).
+pub fn out(doc: &ProfileDoc, node: RecipeNodeId) -> VarId {
+    doc.output(node, 0)
+        .unwrap_or_else(|| panic!("{node} defines an output"))
 }
 
 /// **One ENTITY of one member, in the UNION's own name space** — the
@@ -1576,15 +1980,15 @@ pub fn flush_pairs(
 /// and a suite that writes an expected row spell the rule once.
 pub fn member_entity(
     union: RecipeNodeId,
-    member: RecipeNodeId,
+    member: VarId,
     of: StableName,
     kind: EntityKind,
 ) -> StableName {
     StableName {
         kind,
         node: union,
-        path: vec![RoleSeg::FromMember {
-            member,
+        path: vec![RoleSeg::From {
+            read: member,
             of: of.into(),
         }],
     }
@@ -1592,40 +1996,8 @@ pub fn member_entity(
 
 /// The same, for the FACE case every row but a carried-contact one
 /// wants.
-pub fn member_face(union: RecipeNodeId, member: RecipeNodeId, of: StableName) -> StableName {
+pub fn member_face(union: RecipeNodeId, member: VarId, of: StableName) -> StableName {
     member_entity(union, member, of, EntityKind::Face)
-}
-
-/// The declared pairs joining the flush planes of two axis-aligned
-/// extruded blocks that share their y-range and z-range and differ
-/// along x only (the corpus's standard sliding-overlap shape): walls
-/// y0/y1 (segments 0/2, the `square`/`desc` corner order) plus both
-/// caps (M4 PR 5 — the recipe states the coincidence intent the
-/// retired bit rung used to infer from values).
-pub fn declare_x_offset_flush(
-    doc: &ProfileDoc,
-    a_ext: RecipeNodeId,
-    b_ext: RecipeNodeId,
-) -> Vec<editor_core::DeclaredPair> {
-    declare_x_offset_flush_at(doc, (a_ext, a_ext), (b_ext, b_ext))
-}
-
-/// The same, when the consuming boolean's OPERAND is not the extrude
-/// that minted the names — a transform of it, which contributes no
-/// role segment (N1) and so carries the extrude's names verbatim.
-///
-/// The site is the operand, always: it is what says which side of the
-/// boolean the name is read on.
-pub fn declare_x_offset_flush_at(
-    doc: &ProfileDoc,
-    (a_at, a_ext): (RecipeNodeId, RecipeNodeId),
-    (b_at, b_ext): (RecipeNodeId, RecipeNodeId),
-) -> Vec<editor_core::DeclaredPair> {
-    // Each name is sited at the OPERAND whose table holds it, which
-    // is what says which side of the boolean it is read on.
-    // The four families face the same way on both blocks: one carrier,
-    // aligned senses — continuations.
-    editor_core::declare_continuation(flush_pairs(doc, (a_at, a_ext), (b_at, b_ext)))
 }
 
 /// **What every at-rest finding says about a declaration, in one
@@ -1640,24 +2012,39 @@ pub fn relations(findings: &[editor_core::AtRestFinding]) -> Vec<(RecipeNodeId, 
     findings
         .iter()
         .map(|f| match &f.attribution {
-            editor_core::Attribution::Refuted(m) => (m.mate, "refuted"),
-            editor_core::Attribution::Declined(m) => (m.mate, "declined"),
-            editor_core::Attribution::Carried {
+            Some(editor_core::Attribution::Refuted(m)) => (m.mate, "refuted"),
+            Some(editor_core::Attribution::Declined(m)) => (m.mate, "declined"),
+            Some(editor_core::Attribution::Carried {
                 declaration,
                 relation,
                 ..
-            } => (
+            }) => (
                 declaration.mate,
                 match relation {
                     editor_core::Relation::Refuted => "carried_refuted",
                     editor_core::Relation::Declined => "carried_declined",
                 },
             ),
-            editor_core::Attribution::Unattributed => {
-                (RecipeNodeId::new(0, u64::MAX), "unattributed")
-            }
+            None => (RecipeNodeId::new(0, u64::MAX), "no declaration"),
         })
         .collect()
+}
+
+/// **The product's at-rest rows are all contacts between copies**, and
+/// there is at least one: a seat no mate speaks for is rows of the two
+/// copies it joins (D10), never a mate's.
+pub fn assert_copies_rows_alone(doc: &ProfileDoc, ev: &editor_core::Evaluation<f64>) {
+    let product =
+        editor_core::product_recorded(doc, ev, geom_core::Tol::witness()).expect("it gathers");
+    assert!(
+        !product.coincidences.is_empty()
+            && product
+                .coincidences
+                .iter()
+                .all(|r| matches!(r.by, editor_core::AtRestBy::Copies(..))),
+        "the seats are the copies' rows: {:?}",
+        product.coincidences
+    );
 }
 
 /// **No published merged face has a merged face among its
@@ -1692,7 +2079,7 @@ pub fn assert_no_nested_merged<T: geom_core::Decide>(ev: &editor_core::Evaluatio
     }
 }
 
-/// True iff `name`, read through its `FromA`/`FromB` descent chain,
+/// True iff `name`, read through its `From` descent chain,
 /// is a bare merged face — the shape a flat constituent set never
 /// holds. A FRAGMENT of a merged face (`Merged` head with a
 /// `Fragment` tail at the foot) is a fragment, not a merge, and is a
@@ -1700,7 +2087,7 @@ pub fn assert_no_nested_merged<T: geom_core::Decide>(ev: &editor_core::Evaluatio
 fn is_merged_face(name: &StableName) -> bool {
     match name.path.as_slice() {
         [RoleSeg::Merged(_)] => true,
-        [RoleSeg::FromA(inner) | RoleSeg::FromB(inner)] => is_merged_face(inner),
+        [RoleSeg::From { of: inner, .. }] => is_merged_face(inner),
         _ => false,
     }
 }
@@ -1730,16 +2117,14 @@ fn merged_sets(name: &StableName) -> Vec<&[StableName]> {
 fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
     use editor_core::Qualifier;
     match seg {
-        RoleSeg::FromA(x)
-        | RoleSeg::FromB(x)
-        | RoleSeg::FromMember { of: x, .. }
+        RoleSeg::From { of: x, .. }
         | RoleSeg::SectionEdge { face: x, .. }
         | RoleSeg::SplitFragment { parent: x, .. }
         | RoleSeg::CrossingVertex { edge: x, .. }
         | RoleSeg::OnToolVertex { of: x, .. }
         | RoleSeg::Instance { of: x, .. }
         | RoleSeg::InPart { of: x }
-        | RoleSeg::FromTarget(x)
+        | RoleSeg::Placed { of: x }
         | RoleSeg::BlendFace(x)
         | RoleSeg::CornerFace(x)
         | RoleSeg::Mitre { vertex: x }
@@ -1832,7 +2217,7 @@ pub fn two_blocks_and_their_union(label: &str) -> (ProfileDoc, RecipeNodeId) {
         insert(
             doc,
             Node::Extrude {
-                profile: p,
+                profile: p.into(),
                 distance: len(1.0),
                 side: ExtrudeSide::Along,
             },
@@ -1843,13 +2228,90 @@ pub fn two_blocks_and_their_union(label: &str) -> (ProfileDoc, RecipeNodeId) {
     let (doc, b) = block(doc, [0.5, 0.25, 0.5]);
     insert(
         doc,
-        Node::Boolean {
-            op: editor_core::BooleanOp::Union,
-            a,
-            b,
-            declare: Vec::new(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
         },
     )
+}
+
+/// **The names an authored selection names** ([`editor_core::Operand::Select`]).
+///
+/// # Panics
+///
+/// If `operand` authors no selection.
+pub fn authored_names(operand: &editor_core::Operand) -> Vec<StableName> {
+    match operand {
+        editor_core::Operand::Select { names, .. } => names.clone(),
+        other => panic!("{other} authors no selection"),
+    }
+}
+
+/// **The names the selection `var` holds** in `doc`.
+///
+/// # Panics
+///
+/// If `var` is not a selection `doc` holds.
+pub fn selected(doc: &ProfileDoc, var: editor_core::VarId) -> Vec<StableName> {
+    doc.selection(var)
+        .unwrap_or_else(|| panic!("{var:?} is a selection"))
+        .names
+        .clone()
+}
+
+/// **The body of the one selection of `doc` naming `name`**: what a
+/// `Rebind` of that name is addressed by.
+///
+/// # Panics
+///
+/// If no selection, or more than one, names it.
+pub fn body_selecting(doc: &ProfileDoc, name: &StableName) -> Option<editor_core::VarId> {
+    let bodies: Vec<editor_core::VarId> = doc
+        .vars()
+        .values()
+        .filter_map(|var| var.def().select())
+        .filter(|select| select.names.contains(name))
+        .map(|select| select.body)
+        .collect();
+    let [one] = bodies.as_slice() else {
+        panic!("one selection names {name:?}, not {bodies:?}");
+    };
+    Some(*one)
+}
+
+/// **The one selection `node` reads** in `doc`.
+///
+/// # Panics
+///
+/// If `node` reads no selection, or several.
+pub fn selection_read(doc: &ProfileDoc, node: RecipeNodeId) -> editor_core::VarId {
+    let reads: Vec<editor_core::VarId> = doc
+        .node(node)
+        .map(|n| n.operand_rows())
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(_, var)| var)
+        .filter(|var| doc.selection(*var).is_some())
+        .collect();
+    let [one] = reads.as_slice() else {
+        panic!("node {node:?} reads one selection, not {reads:?}");
+    };
+    *one
+}
+
+/// **A selection's strand row** as the delete or reshaping reports it:
+/// the selection `carrier` reads, said by `carrier`, as `doc` speaks it.
+pub fn selection_strand(
+    doc: &ProfileDoc,
+    carrier: RecipeNodeId,
+    name: editor_core::SpokenName,
+    took: editor_core::Took,
+) -> editor_core::Maintenance {
+    editor_core::Maintenance::StrandedSelection {
+        var: doc.spoken_var(selection_read(doc, carrier)),
+        readers: vec![doc.spoken(carrier)],
+        name,
+        took,
+    }
 }
 
 /// **An edit's maintenance with its anonymous-variable removals left

@@ -110,7 +110,7 @@ fn h1_valence_four_concurring_corners_must_solve() {
     println!("[h1] {} charts, {} vertices", moves.len(), before.len());
     let r = topo::offset_planes_together(&mut body, &moves, band(), Tol::witness());
     match r {
-        Ok(()) => {
+        Ok(_) => {
             let vol = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
             let after = sorted_points(&body);
             // Every vertex must be the λ-scaled original.
@@ -171,7 +171,7 @@ fn h2_valence_four_non_concurring_corners_must_refuse_typed() {
         .collect();
     let r = topo::offset_planes_together(&mut body, &moves, band(), Tol::witness());
     match r {
-        Ok(()) => panic!("[h2] a NON-concurring valence-4 corner BUILT"),
+        Ok(_) => panic!("[h2] a NON-concurring valence-4 corner BUILT"),
         Err(e) => {
             println!("[h2] REFUSES: {e}");
             assert!(
@@ -206,7 +206,7 @@ fn h3_the_conditioning_meter_is_a_function_of_the_offset() {
             })
             .collect();
         match topo::offset_planes_together(&mut body, &moves, band(), Tol::witness()) {
-            Ok(()) => println!("[h3] CUBE, inward {d:e}: solves"),
+            Ok(_) => println!("[h3] CUBE, inward {d:e}: solves"),
             Err(e) => println!("[h3] CUBE, inward {d:e}: REFUSES {e}"),
         }
     }
@@ -239,7 +239,7 @@ fn h4_a_face_named_twice() {
     moves.push(dup);
     let vol0 = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
     match topo::offset_planes_together(&mut body, &moves, band(), Tol::witness()) {
-        Ok(()) => {
+        Ok(_) => {
             let vol = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
             println!(
                 "[h4] a face named TWICE was accepted: V0={vol0:.17e} V={vol:.17e}; \

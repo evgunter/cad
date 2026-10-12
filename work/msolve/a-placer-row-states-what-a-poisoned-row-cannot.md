@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-01
 priority: P2
 cost: E
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [a-placement-is-the-bundle-of-mates]
 ---
 
 
@@ -49,3 +49,11 @@ read `PlacerRow::Silent`. That puts the decision where the standing is
 known, as `MateFault::carried` already reads the row value. It is a
 re-siting of the decision, not a new mechanism. The pinned row flips:
 `Silent`, and the mate carries the refusal.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `a-mate-reads-face-variables`, not on the whole program: the raise site is member.rs check_reference's head walk through Pattern counts and Part indices, replaced by a typed unresolved read once mate sides read Face variables. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Re-parked at F's close (2026-10-10)
+
+F (`a-mate-reads-face-variables`, PR 4566) made a mate's sides selections, but kept the solve's member walk: `mate/member.rs`'s `check_reference` still raises `PlacerRow::States` over a pattern's count and a `Part`'s index, and a mate the solve faults fails with that fault before poison propagation, so the pinned row stands as written. The walk goes with the spanning tree and roots in stage 3 B, so the row waits there.

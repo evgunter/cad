@@ -47,3 +47,15 @@ path would pass.
   both sides end there.
 - `UNCLASSIFIED_SIDE` fires for any vertex `senses_at` reads, not only
   crossings.
+
+## A fifth walker in topo (PR 4740)
+
+`ops::uncopied` (`crates/topo/src/boolean/ops.rs`), which names the
+vertex a null-edge copy was minted at so that `ee_lineage`'s fresh
+`VertexOnVertex` decision cites an input cell, walks the null edges
+back to the original once more, beside `NullCopies::of`, `with_copies`,
+`null_copy_rows`, `Descendants::null_copies` and `BooleanNaming`'s
+`null_copies` field. It refuses `JoinDesync` where its bounded walk
+finds a cycle. One closure, built once per reduction and read by all
+of them, retires the copies.
+

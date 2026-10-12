@@ -2,12 +2,11 @@
 //! moved with it** — the SEAT-4/5/7 method, for the first verb whose
 //! result is two-sided.
 //!
-//! `Node::Split` now builds a `verbs::Verb`, runs it through the split
+//! `Node::Split` builds a `verbs::Verb`, runs it through the split
 //! door, takes its birth record out of the closed record channel and
-//! its two sides out of the door's own out-type, stamps both sides in
-//! one provenance index space, and emits names from the record. That
-//! is a re-plumbing, and a re-plumbing's failure mode is a difference
-//! nobody looks for — so:
+//! its two sides out of the door's own out-type, and emits names from
+//! the record. A re-plumbing's failure mode is a difference nobody
+//! looks for — so:
 //!
 //! - **The wire format**: a registered document carrying a split AND
 //!   two projections off it saves, loads and re-saves byte-identically.
@@ -25,38 +24,33 @@
 //!   where the projection reads it: a half selected by ROLE, an empty
 //!   half refused typed, a present half handed on as the split's own
 //!   body.
-//! - **The one-index-space stamping** across both halves is a guarded
-//!   property here, not a comment in the lowering.
 //!
 //! What already covers this and what these rows add is the same
 //! division SEAT-4 recorded: `m10_p_fence` digests every body point's
 //! bits corpus-wide and `lib_g16_corpus_name_digests` digests every
 //! name table, so either would catch a lowering that changed geometry
-//! or names — and neither says which document did it, neither reaches
-//! the provenance tables, and neither sees an `Empty` side at all
+//! or names — and neither says which document did it, and neither sees
+//! an `Empty` side at all
 //! (there is no body to digest and no name to emit for one).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::ExtrudeSide;
-use std::collections::BTreeSet;
-use std::sync::Arc;
 
 use crate::corpus;
 use crate::fixture;
 
 use corpus::{Recorder, eval, failures};
 use editor_core::{
-    Datum, Node, NodeErrorKind, NodeResult, PartSelect, ProfileDoc, RecipeNodeId, SplitHalf,
-    SplitSide, ValuePayload, persist,
+    Datum, Node, NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, SplitHalf, SplitSide,
+    ValuePayload, persist,
 };
 use fixture::digest::digest;
 use fixture::{len, scl, square, tol};
-use topo::{Body, SourceExpr};
 
 /// The registered split documents, by name: a tilted plane through a
 /// cylinder (curved section edges), a plane through a box with both
-/// halves projected and unioned back (the DM3 payoff), and the kitchen
+/// halves read by port and unioned back (the DM3 payoff), and the kitchen
 /// sink's mid-height cut of a declared union. Every one cuts through
 /// its operand: two bodies out, no empty side anywhere — measured by
 /// `the_corpus_has_no_split_with_an_empty_side`, not read off.
@@ -113,12 +107,12 @@ fn the_corpus_has_no_split_with_an_empty_side() {
 }
 
 /// **The wire format is untouched**: `part_select` — a split with BOTH
-/// halves projected off it by `Node::Part` and unioned — saves, loads
-/// and re-saves byte-identically. The corpus-wide round-trip covers the
+/// halves read by port and unioned — saves, loads and re-saves
+/// byte-identically. The corpus-wide round-trip covers the
 /// same bytes; this is the per-document form beside the digest rows,
 /// so a red here names the split rather than the registry.
 #[test]
-fn a_split_document_with_projections_round_trips_byte_identical() {
+fn a_split_document_read_by_port_round_trips_byte_identical() {
     let doc = corpus::documents()
         .into_iter()
         .find(|d| d.name == "part_select")
@@ -141,8 +135,8 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 // this unit's addition to it.
 
 /// **The registered split documents' evaluations are bit-identical**
-/// through the verb lowering — bodies on both sides, provenance stamps,
-/// name tables — one committed number each.
+/// through the verb lowering — bodies on both sides and name tables —
+/// one committed number each.
 ///
 /// The numbers were taken on this branch and re-taken on the extracted
 /// merge base with this file and the shared feed copied onto it; all
@@ -164,7 +158,7 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 ///
 /// RE-BLESSED, `part_select` ONLY, where JOIN-1's locus matching met
 /// main's shared copy points: each moved it alone — the split halves'
-/// union builds in the chord join rather than the REST zip (JOIN-1), and
+/// union builds in the chord join (JOIN-1), and
 /// an op's copies of one vertex share its point, so the arena order the
 /// digest hashes moved (main) — and the merged tree is neither value.
 ///
@@ -185,13 +179,85 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 /// `wrap` (the wrap edge, D1): the digest feeds each curve's `Debug`,
 /// whose field name moved; with `wrap: ` read back as `seam: ` the feed
 /// reproduces every old constant, so no evaluation moved.
+///
+/// RE-BLESSED for INTENT-LITERALS PR D (`Expr` holds no float):
+/// `kitchen_sink` alone, whose formulas hold written quantities that
+/// now mint variables of their own, so its ids moved. No outcome or
+/// point moved (the id-free fence held).
+///
+/// RE-BLESSED, `cut_cylinder` only, when a swept point's description began
+/// carrying a `geom_brep::SweepRange` (`range`) beside its angle or
+/// vector, and a restricted one kept its placement instead of composing
+/// the split's motion into it: the digest feeds each curve's `Debug`,
+/// and these are the documents whose bodies store a swept-point
+/// description, split or whole.
+///
+/// RE-BLESSED for INTENT stage 2 PR C (the product is the world):
+/// each document now places its bodies, and every placement is a node
+/// with a value and a name table of its own, so the evaluation this
+/// digest walks holds those copies. What each document delivers did
+/// not move: `intent_s2_c_world`'s migration check holds each product
+/// to its pre-C digest.
+///
+/// RE-BLESSED, `cut_cylinder` only, when restriction
+/// moved onto the description as a whole (`MappedCurve { source,
+/// range }`): every curve's `Debug` now nests its source under
+/// `source` beside one `range`, and these are the documents whose
+/// bodies store a sketch pushforward. No point moved (`m10_p_fence`'s
+/// f64 and Interval rows held), and no name table did.
+///
+/// RE-BLESSED, all three, for INTENT stage 4 E (booleans glue on Zero):
+/// a body no longer carries provenance side tables (`GeomSource`
+/// stamps, field and axis sources), and the digest feeds each body's
+/// `Debug`. No outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held.
+///
+/// RE-BLESSED, `kitchen_sink` only, when a revolve's turned vertex came
+/// to turn its offset from the axis: 8 of its points moved by at most 2
+/// ulps (`m10_p_fence`'s header has the dump), and no name table did.
+///
+/// RE-BLESSED when an intrinsic edge description's two surfaces became a
+/// set (`geom_brep::SurfacePair`), re-taken on the tree holding every
+/// change above: the digest feeds each edge's description `Debug`,
+/// which spells `pair: {a, b}` in key order where it spelled `s1`, `s2`
+/// in the builder's order. No body moved: `m4_pr8_corpus`'s exact mass
+/// pins and `m5_pr8_bvh_diff` held.
+///
+/// RE-BLESSED, `cut_cylinder` only, when a split's section face came to
+/// take its chart axis as its first chord projected into the plane: the
+/// tilted section's `u_ref` moved by one ulp in `z`, and nothing else did.
+///
+/// RE-BLESSED, `part_select` only, when its union came to read the
+/// split's two ports where it read a `Part` of each half: the two
+/// projections are gone from the evaluation this digest walks, and the
+/// union keys its members by the ports. `m4_pr8_corpus`'s exact mass
+/// pins held.
+///
+/// RE-BLESSED, `kitchen_sink` only, for INTENT stage 3 A (a revolve's
+/// axis is a line on the node): its in-plane axis datum left, so every
+/// later node id re-mints and the name table with it. No outcome or
+/// point moved: the id-free fence with the pointless datum outcomes
+/// dropped is equal on the base tree and this one. Re-taken merged over
+/// FORK-DM4 unit 1 (PR 4527) and the split-half retirement (PR 4618).
+///
+/// RE-BLESSED, `part_select` only, where the at-rest records' cell-pair
+/// shape met the split's ports: each moved it alone, and the merged
+/// tree is neither value. `m4_pr8_corpus`'s exact mass pins,
+/// `m5_pr8_bvh_diff` and `m10_p_fence`'s id-masked geometry held.
+///
+/// RE-BLESSED, `kitchen_sink`, beside `part_select` above,, merging main's INTENT stage 3 A
+/// re-pin with the at-rest records' cell-pair shape: each moved it
+/// alone, and the merged tree is neither value. `m4_pr8_corpus`'s exact
+/// mass pins, `m5_pr8_bvh_diff` and `m10_p_fence`'s id-masked geometry
+/// held.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x8588_4d29_fcc5_c898u64),
-        ("part_select", 0xe059_8478_66a9_a530),
-        ("kitchen_sink", 0x1774_0781_e388_7ee4),
+        ("cut_cylinder", 0xa6c1_1622_9a6f_5245u64),
+        ("part_select", 0x1613_0d79_3326_39ec),
+        ("kitchen_sink", 0x587e_9ada_00a5_7fb6),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
@@ -227,7 +293,7 @@ fn the_split_documents_evaluate_to_their_committed_digests() {
     }
     assert!(
         moved.is_empty(),
-        "these documents' evaluations moved — a side, its stamps or the name table:\n{}",
+        "these documents' evaluations moved — a side or the name table:\n{}",
         moved.join("\n")
     );
 }
@@ -244,7 +310,7 @@ fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
         vec![square(0.5, 0.5, 0.5)],
     );
     let cube = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
@@ -252,7 +318,10 @@ fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
         origin: [len(0.0), len(0.0), len(z)],
         normal: [scl(0.0), scl(0.0), scl(1.0)],
     }));
-    let split = r.insert(Node::Split { target: cube, tool });
+    let split = r.insert(Node::Split {
+        target: cube.into(),
+        tool: tool.into(),
+    });
     (r, split)
 }
 
@@ -285,6 +354,13 @@ fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
 /// and this digest feeds ids. No outcome or point moved:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held untouched.
+///
+/// RE-BLESSED when an intrinsic edge description's two surfaces became a
+/// set (`geom_brep::SurfacePair`), re-taken on the tree holding every
+/// change above: the digest feeds each edge's description `Debug`,
+/// which spells `pair: {a, b}` in key order where it spelled `s1`, `s2`
+/// in the builder's order. No body moved: `m4_pr8_corpus`'s exact mass
+/// pins and `m5_pr8_bvh_diff` held.
 #[test]
 fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let (r, split) = cube_split_at(5.0);
@@ -305,7 +381,7 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat8 empty_side: {got:#018x}");
     assert_eq!(
-        got, 0x824c_5e6b_e34a_0851,
+        got, 0x80bf_b0ea_1f66_8105,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }
@@ -318,25 +394,29 @@ fn error_of(ev: &editor_core::Evaluation<f64>, id: RecipeNodeId) -> &NodeErrorKi
     }
 }
 
-/// **What the projection needs from the two-sided value, pinned where
-/// it reads it.** `Node::Part` selects a half by ROLE — above or below
-/// the plane's normal, never an index — refuses an empty half typed
-/// (`EmptyHalf`, naming the split and the side), and hands a present
-/// half on as the split's OWN body: the same `Arc`, no clone, no
-/// re-stamp. Those three are the contract the split's out-type carries
-/// two role-tagged `Body | Empty` sides for, and the reason it is not
-/// a list of bodies or a body with a side marker.
+/// **What a read of a half needs from the two-sided value, pinned where
+/// it reads it.** Each port is one half by ROLE — above or below the
+/// plane's normal (`SplitHalf::port`) — a read of an empty half refuses
+/// typed (`EmptyHalf`, naming the split and the side), and a present
+/// half is read as the split's own side. Those three are the contract
+/// the split's out-type carries two role-tagged `Body | Empty` sides
+/// for, and the reason it is not a list of bodies or a body with a side
+/// marker.
 #[test]
-fn the_projection_reads_the_two_sided_value_by_role() {
+fn a_read_of_a_half_reads_the_two_sided_value_by_role() {
     let (mut r, split) = cube_split_at(5.0);
-    let above = r.insert(Node::Part {
-        of: split,
-        select: PartSelect::SplitHalf(SplitHalf::Above),
-    });
-    let below = r.insert(Node::Part {
-        of: split,
-        select: PartSelect::SplitHalf(SplitHalf::Below),
-    });
+    let still = |half: SplitHalf| {
+        Node::transform(
+            editor_core::Operand::output(split, half.port()),
+            editor_core::Step::Rigid {
+                translation: [len(0.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: fixture::ang(0.0),
+            },
+        )
+    };
+    let above = r.insert(still(SplitHalf::Above));
+    let below = r.insert(still(SplitHalf::Below));
     let ev = eval::<f64>(&r.doc);
     assert!(
         matches!(
@@ -353,91 +433,20 @@ fn the_projection_reads_the_two_sided_value_by_role() {
     else {
         panic!("the split's below side is a body");
     };
-    let Some(ValuePayload::Body(projected)) = ev.value(below).map(|v| &v.payload) else {
-        panic!(
-            "the present half projects to a body: {:?}",
-            ev.nodes.get(&below)
-        );
+    let Some(ValuePayload::Body(read)) = ev.value(below).map(|v| &v.payload) else {
+        panic!("the present half is read: {:?}", ev.nodes.get(&below));
     };
-    assert!(
-        Arc::ptr_eq(side, projected),
-        "the projection must hand on the split's own body, not a copy"
-    );
-}
-
-/// Every minted index this node stamped on `body`'s descriptions —
-/// surfaces, curves and points — as one set.
-fn minted_indices(body: &Body<f64>, node: RecipeNodeId) -> Vec<u32> {
-    let mut out = Vec::new();
-    let sources = body
-        .surfaces()
-        .map(|(k, _)| body.surface_source(k))
-        .chain(body.curves().map(|(k, _)| body.curve_source(k)))
-        .chain(body.points().map(|(k, _)| body.point_source(k)));
-    for source in sources.flatten() {
-        if source.node == node.0.digest() {
-            let SourceExpr::Minted { index } = source.expr else {
-                panic!("a split stamps minted sources only, found {source:?}");
-            };
-            out.push(index);
-        }
-    }
-    out
-}
-
-/// **Both halves are stamped in ONE index space** — the property the
-/// lowering's counter carry exists for, guarded rather than commented.
-///
-/// Each half's section plane is its own description with its own
-/// outward normal, and the two are the operands of any boolean that
-/// joins the halves back together (`part_select` does exactly that):
-/// a source shared between them would read as one plane at that
-/// boolean's coincidence rung while the bits say two. So every index
-/// this node minted on the above half and every index on the below
-/// half are distinct, and together they are the contiguous range a
-/// single stamp pass numbers. A lowering that restarted the counter
-/// on the second half — the red-first mutation this row was written
-/// against — gives both section planes index 0 and fails here, and
-/// fails the digest rows above with it.
-#[test]
-fn both_halves_are_stamped_in_one_index_space() {
-    let (r, split) = cube_split_at(0.5);
-    let ev = eval::<f64>(&r.doc);
-    let bad = failures(&ev);
-    assert!(bad.is_empty(), "the fixture evaluates: {bad:?}");
-    let Some(ValuePayload::Split {
-        above: SplitSide::Body(above),
-        below: SplitSide::Body(below),
-    }) = ev.value(split).map(|v| &v.payload)
-    else {
-        panic!("the mid-plane cut yields two bodies");
-    };
-    let (a, b) = (minted_indices(above, split), minted_indices(below, split));
-    assert!(
-        !a.is_empty() && !b.is_empty(),
-        "each half carries something this node minted (its section plane at least): {a:?} / {b:?}"
-    );
-    let a_set: BTreeSet<u32> = a.iter().copied().collect();
-    let b_set: BTreeSet<u32> = b.iter().copied().collect();
     assert_eq!(
-        a_set.len(),
-        a.len(),
-        "the above half repeats an index: {a:?}"
-    );
-    assert_eq!(
-        b_set.len(),
-        b.len(),
-        "the below half repeats an index: {b:?}"
-    );
-    let shared: Vec<u32> = a_set.intersection(&b_set).copied().collect();
-    assert!(
-        shared.is_empty(),
-        "the two halves share minted indices {shared:?} — one source over two geometries"
-    );
-    let all: BTreeSet<u32> = a_set.union(&b_set).copied().collect();
-    let expected: BTreeSet<u32> = (0..u32::try_from(all.len()).unwrap()).collect();
-    assert_eq!(
-        all, expected,
-        "the two halves' indices are not one contiguous space from 0"
+        (
+            read.faces().count(),
+            read.edges().count(),
+            read.vertices().count()
+        ),
+        (
+            side.faces().count(),
+            side.edges().count(),
+            side.vertices().count()
+        ),
+        "the reader holds the split's own side"
     );
 }

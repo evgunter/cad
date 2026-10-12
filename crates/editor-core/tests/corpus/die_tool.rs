@@ -55,9 +55,9 @@
 //! against the pairwise Transform + Union chain it replaces.
 
 use editor_core::ExtrudeSide;
-use editor_core::{BooleanOp, DocEdit, Frame, LoopProgram, Node, ProfileProgram, SlotId};
+use editor_core::{DocEdit, Frame, LoopProgram, Node, ProfileProgram, SlotId};
 
-use crate::fixture::{ang, axis_in_plane, frame, len, xy_frame};
+use crate::fixture::{ang, frame, len, revolve_about, xy_frame};
 
 use super::die_pips::{DIE_L, PIP_H, PIP_R, half_disc_program};
 use super::{CorpusDoc, Recorder};
@@ -108,41 +108,43 @@ pub fn document() -> CorpusDoc {
         .expect("the die's square");
     let cube_plane = r.insert(xy_frame());
     let cube_p = r.insert(Node::Profile(ProfileProgram {
-        plane: cube_plane,
+        frame: cube_plane.into(),
         loops: vec![square],
         ids: Vec::new(),
     }));
     let cube = r.insert(Node::Extrude {
-        profile: cube_p,
+        profile: cube_p.into(),
         distance: len(DIE_L),
         side: ExtrudeSide::Along,
     });
 
     // ---- the master ball, poled along +Z (`die_pips`' construction) ----
     let ball_plane = r.insert(frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]));
-    // The axis, written in the meridian frame it turns: that frame's
-    // v is world +Z, so the pole axis is its own +y through (0, 0).
-    // It is minted AFTER the frame because it names it.
-    let axis = r.insert(axis_in_plane(ball_plane, (0.0, 0.0), (0.0, 1.0)));
     let ball_p = r.insert(Node::Profile(ProfileProgram {
-        plane: ball_plane,
+        frame: ball_plane.into(),
         loops: vec![half_disc_program()],
         ids: Vec::new(),
     }));
-    let ball = r.insert(Node::Revolve {
-        profile: ball_p,
-        axis,
-        angle: ang(std::f64::consts::TAU),
-    });
+    // The pole axis, written in the meridian frame it turns: that
+    // frame's v is world +Z, so the axis is its own +y through (0, 0).
+    let ball = r.insert(revolve_about(
+        ball_p,
+        (0.0, 0.0),
+        (0.0, 1.0),
+        ang(std::f64::consts::TAU),
+    ));
 
     // ---- the whole cutting tool, in ONE node ----
-    let tool = r.insert(Node::placed_union_at(ball, placements()));
-    let pipped = r.insert(Node::Boolean {
-        op: BooleanOp::Subtract,
-        a: cube,
-        b: tool,
-        declare: Vec::new(),
+    let tool = r.insert(Node::placed_union_at(
+        editor_core::Operand::output(ball, 0),
+        placements(),
+    ));
+    let pipped = r.insert(Node::Subtract {
+        from: cube.into(),
+        tool: tool.into(),
     });
+
+    r.place(pipped);
 
     CorpusDoc {
         name: "die_tool",
@@ -162,7 +164,7 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: cube,
             slot: SlotId::Distance,
-            expr: len(1.03125),
+            value: len(1.03125).into(),
             fresh: Vec::new(),
         },
         bump_root: cube,

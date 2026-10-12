@@ -163,9 +163,10 @@
 //!
 //! Depth is the number of BRANCHES a node sits under, not the length
 //! of its input chain. A node continues the line of its PRIMARY input
-//! — the first entry of `Node::inputs()`, which is the operand the
-//! kernel accumulates into: a boolean's `a`, a fillet's `target`, a
-//! transform's `input`. Every other input is a branch that indents:
+//! — the first entry of `Doc::upstream`, which is the operand the
+//! kernel accumulates into: a boolean's `a`, the body a fillet's
+//! selection reads, a transform's `input`. Every other input is a
+//! branch that indents:
 //!
 //! ```text
 //! depth(n) = 0                                     if n has no inputs
@@ -183,10 +184,10 @@
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    AssertionDir, AssertionVerdict, BooleanValue, CarriedIn, Datum, Dimension, Doc, Evaluation,
-    Expr, Label, MateFault, MateRole, MeasureUnavailableAt, Node, NodeError, NodeErrorKind,
-    NodeResult, NodeStanding, ProfileProgram, RecipeNodeId, SplitSide, SpokenNode, ValuePayload,
-    VarId, node_kind_noun,
+    AssertionRelation, AssertionVerdict, BooleanValue, CarriedIn, Datum, Dimension, Doc,
+    Evaluation, Expr, Formula, Label, MateFault, MateRole, MeasureUnavailableAt, Node, NodeError,
+    NodeErrorKind, NodeResult, NodeStanding, ProfileProgram, RecipeNodeId, SplitSide, SpokenNode,
+    ValuePayload, VarId, node_kind_noun,
 };
 use pncad::quantity::UnitDef;
 use pncad::select::{InterrogateError, Resolution, ResolveIndeterminate, SplitHalf};
@@ -339,8 +340,9 @@ pub struct TreeRow {
     pub pose: Option<String>,
     /// How far the node sits below the document's sources.
     pub depth: usize,
-    /// Whether this node is one of the document's product roots.
-    pub root: bool,
+    /// Whether a world placement places a body this node defines — the
+    /// world badge (A10). A placement's own row is an ordinary row.
+    pub placed: bool,
     /// What the evaluation said about it.
     pub status: RowStatus,
     /// A standing caveat about the NODE itself, independent of any
@@ -434,9 +436,10 @@ impl std::fmt::Display for Emptiness {
     }
 }
 
-/// The word for a half of the KERNEL's [`SplitHalf`]: the part form's
-/// radio row draws one button per entry of `SplitHalf::ALL` with it,
-/// and an empty half's readout ([`Emptiness`]) names the half with it.
+/// The word for a half of the KERNEL's [`SplitHalf`]: a body seat
+/// holding a split draws one button per entry of `SplitHalf::ALL` with
+/// it, and an empty half's readout ([`Emptiness`]) names the half with
+/// it.
 ///
 /// **A match, not a table**, for the reason `forms::boolean_op_label`
 /// is: the enum is declared in `topo`, so no list written here can be
@@ -456,16 +459,18 @@ pub(crate) fn split_half_label(half: SplitHalf) -> &'static str {
 /// **An assertion's verdict, as its row says it**: the kernel's
 /// verdict with both numbers carried as the measure's own value is
 /// ([`Computed`], in the measure's dimension, spelled when drawn), the
-/// side of the bound the measure must fall on, and which measure that
-/// is.
+/// relation it states to the bound, and which measure that is.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Asserted {
     /// The landed verdict.
     pub verdict: AssertionVerdict<Computed>,
-    /// Which side of the bound the measure must fall on.
-    pub dir: AssertionDir,
-    /// The measure node the assertion constrains.
-    pub measure: SpokenNode,
+    /// How the value must relate to the bound.
+    pub relation: AssertionRelation,
+    /// The measure under the value the assertion bounds — the
+    /// `min_clearance` one when there is one, since that is the measure
+    /// a point scalar cannot answer — or `None` for a value no measure
+    /// is under.
+    pub measure: Option<SpokenNode>,
 }
 
 // `AssertionVerdict` derives `PartialEq` alone, for its scalar's sake;
@@ -495,7 +500,7 @@ impl Asserted {
             | AssertionVerdict::Violated { measured, bound } => Some(format!(
                 "{} {} {}",
                 measured.spelled(notation),
-                self.dir.symbol(),
+                self.relation.symbol(),
                 bound.spelled(notation)
             )),
             AssertionVerdict::Unevaluated { .. } => None,
@@ -617,13 +622,16 @@ pub fn frame_pose(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>) -> Opt
                 (None, None) => "origin driven".to_owned(),
             })
         }
-        Node::Datum(Datum::FaceFrame { at, .. }) => Some(format!("on {}'s face", doc.spoken(*at))),
-        Node::Datum(
-            Datum::Plane { .. }
-            | Datum::Axis { .. }
-            | Datum::Point { .. }
-            | Datum::AxisInPlane { .. },
-        )
+        Node::Datum(Datum::FaceFrame { face, .. }) => Some(
+            match doc
+                .selection(*face)
+                .and_then(|selection| doc.defined_by(selection.body))
+            {
+                Some((body, _)) => format!("on {}'s face", doc.spoken(body)),
+                None => "on a face of a deleted body".to_owned(),
+            },
+        ),
+        Node::Datum(Datum::Plane { .. } | Datum::Axis { .. } | Datum::Point { .. })
         | Node::Profile(_)
         | Node::Extrude { .. }
         | Node::Revolve { .. }
@@ -635,8 +643,9 @@ pub fn frame_pose(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>) -> Opt
         | Node::Chamfer { .. }
         | Node::Shell { .. }
         | Node::Split { .. }
-        | Node::Boolean { .. }
+        | Node::Subtract { .. }
         | Node::Union { .. }
+        | Node::Intersect { .. }
         | Node::Transform { .. }
         | Node::Pattern { .. }
         | Node::Part { .. }
@@ -645,6 +654,7 @@ pub fn frame_pose(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>) -> Opt
         | Node::Mate { .. }
         | Node::Gauge { .. }
         | Node::Measure { .. }
+        | Node::PlaceInWorld { .. }
         | Node::Assertion { .. } => None,
     }
 }
@@ -657,7 +667,7 @@ pub fn frame_pose(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>) -> Opt
 /// rather than one that says something else: the origin still
 /// separates two frames, and a spelling for the oblique case would be
 /// a matrix, not a name.
-fn plane_name(u: &[Expr; 3], v: &[Expr; 3]) -> Option<&'static str> {
+fn plane_name(u: &[Formula; 3], v: &[Formula; 3]) -> Option<&'static str> {
     let (u, v) = (axis_name(u)?, axis_name(v)?);
     match (u, v) {
         ('x', 'y') => Some("xy"),
@@ -680,7 +690,7 @@ fn plane_name(u: &[Expr; 3], v: &[Expr; 3]) -> Option<&'static str> {
 /// that they typed the axis. A near-miss is a frame a shade off
 /// square, which is the case a person most needs the label not to
 /// paper over; evaluation normalizes it and this does not.
-fn axis_name(v: &[Expr; 3]) -> Option<char> {
+fn axis_name(v: &[Formula; 3]) -> Option<char> {
     let mut components = [0.0_f64; 3];
     for (slot, expr) in components.iter_mut().zip(v) {
         *slot = expr.literal_value()?;
@@ -705,7 +715,7 @@ fn axis_name(v: &[Expr; 3]) -> Option<char> {
 /// and against each number when they do not — a frame whose origin was
 /// typed in three notations is rare, and printing one of its units for
 /// all three would be wrong rather than terse.
-fn written_point(origin: &[Expr; 3]) -> Option<String> {
+fn written_point(origin: &[Formula; 3]) -> Option<String> {
     let mut written: Vec<(f64, UnitDef)> = Vec::with_capacity(origin.len());
     for expr in origin {
         let unit = expr.display_unit()?;
@@ -750,13 +760,12 @@ pub fn rows(
         None => doc.ids().to_vec(),
     };
     let mut depths: BTreeMap<RecipeNodeId, usize> = BTreeMap::new();
-    let roots = doc.roots();
     let mut rows = Vec::with_capacity(order.len());
     for id in order {
         let Some(node) = doc.node(id) else {
             continue;
         };
-        let depth = depth_of(&node.inputs(), &depths);
+        let depth = depth_of(&doc.upstream(id), &depths);
         depths.insert(id, depth);
         let status = status_of(doc, id, evaluation, files);
         let (repair_at, readout, version_offer) = match status {
@@ -779,7 +788,7 @@ pub fn rows(
             spoken: doc.spoken(id),
             pose: frame_pose(doc, node).or_else(|| part_file(node, files)),
             depth,
-            root: roots.contains(&id),
+            placed: crate::world::is_placed(doc, id),
             status,
             note: node_note(node),
             repair_at,
@@ -832,8 +841,9 @@ fn node_note(node: &Node<ProfileProgram>) -> Option<String> {
         | Node::Chamfer { .. }
         | Node::Shell { .. }
         | Node::Split { .. }
-        | Node::Boolean { .. }
+        | Node::Subtract { .. }
         | Node::Union { .. }
+        | Node::Intersect { .. }
         | Node::Transform { .. }
         | Node::Pattern { .. }
         | Node::Part { .. }
@@ -841,6 +851,7 @@ fn node_note(node: &Node<ProfileProgram>) -> Option<String> {
         | Node::InstantiatePart { .. }
         | Node::Gauge { .. }
         | Node::Measure { .. }
+        | Node::PlaceInWorld { .. }
         | Node::Assertion { .. } => None,
     }
 }
@@ -863,9 +874,7 @@ fn readout_of(
             dimension: *dim,
         })),
         ValuePayload::MeasureUnavailable { reason, .. } => Some(Readout::Unavailable(*reason)),
-        ValuePayload::Assertion(verdict) => {
-            Some(Readout::Asserted(asserted(doc, node, verdict, evaluation)))
-        }
+        ValuePayload::Assertion(verdict) => Some(Readout::Asserted(asserted(doc, node, verdict))),
         ValuePayload::Boolean(BooleanValue::Empty) => Some(Readout::Empty(Emptiness::Whole)),
         ValuePayload::Split { above, below } => match (above, below) {
             (SplitSide::Empty, SplitSide::Empty) => Some(Readout::Empty(Emptiness::Whole)),
@@ -887,32 +896,46 @@ fn readout_of(
     }
 }
 
-/// **An assertion's verdict, its numbers carried in its measure's
-/// dimension.** A verdict carries numbers only when its measure
-/// evaluated to a value, so the dimension is that value's.
+/// **An assertion's verdict, its numbers carried in its value's
+/// dimension.** The value is a scalar variable, and its kind's
+/// dimension is the one both numbers are in.
 fn asserted(
     doc: &Doc<ProfileProgram>,
     node: &Node<ProfileProgram>,
     verdict: &AssertionVerdict<f64>,
-    evaluation: &Evaluation<f64>,
 ) -> Asserted {
-    let Node::Assertion { measure, dir, .. } = node else {
+    let Node::Assertion {
+        value, relation, ..
+    } = node
+    else {
         unreachable!("only an assertion node evaluates to a verdict")
     };
-    let dim = || match evaluation.usable(*measure).ok().map(|value| &value.payload) {
-        Some(ValuePayload::Measure { dim, .. }) => *dim,
-        other => unreachable!(
-            "a verdict with numbers compared a measured value, yet its measure holds {:?}",
-            other.map(ValuePayload::kind_name)
-        ),
+    let dim = || match doc.var(*value).and_then(|var| var.kind().dimension()) {
+        Some(dim) => dim,
+        None => unreachable!("an assertion's value is a scalar variable the document holds"),
     };
+    let measures: Vec<RecipeNodeId> = doc
+        .observed_outputs(*value)
+        .into_iter()
+        .filter_map(|output| doc.operation_of(output))
+        .collect();
+    let clearance = measures.iter().copied().find(|&measure| {
+        matches!(
+            doc.node(measure),
+            Some(Node::Measure {
+                primitive: editor_core::MeasurePrimitive::MinClearance { .. }
+            })
+        )
+    });
     Asserted {
         verdict: verdict.clone().map(|number| Computed {
             canonical: number,
             dimension: dim(),
         }),
-        dir: *dir,
-        measure: doc.spoken(*measure),
+        relation: *relation,
+        measure: clearance
+            .or_else(|| measures.first().copied())
+            .map(|measure| doc.spoken(measure)),
     }
 }
 
@@ -1163,27 +1186,20 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         // The named input evaluated to a legal value that the failing
         // node's own choice does not fit — a family the operand does
         // not take, an empty body or split side, an index outside the
-        // pattern's instances, an axis on another frame than the
-        // profile's — and nothing on it refused. The frames
-        // `AxisInDifferentPlane` names are evidence of which frame each
-        // sits on.
+        // pattern's instances — and nothing on it refused.
         NodeErrorKind::WrongOperand { .. }
+        // An operand reads an output its operation no longer defines:
+        // the repair is a re-point at the reading node itself.
+        | NodeErrorKind::UnresolvedRead { .. }
         | NodeErrorKind::EmptyOperand { .. }
         | NodeErrorKind::ProductOperand { .. }
         | NodeErrorKind::EmptyHalf { .. }
-        | NodeErrorKind::InstanceOutOfRange { .. }
-        | NodeErrorKind::AxisInDifferentPlane { .. } => None,
+        | NodeErrorKind::InstanceOutOfRange { .. } => None,
         // Names an id no live node holds, so there is no row to go to.
         NodeErrorKind::MissingInput { .. } => None,
         // The input's door shipped a body that does not finish: a
         // kernel defect, and no author's slot refused.
         NodeErrorKind::UnfinishedOperand { .. } => None,
-        // The lane cannot carry what the named nodes hold; neither
-        // node is wrong, and the f64 lane builds them.
-        NodeErrorKind::SeedPinnedSection { .. } | NodeErrorKind::DerivedFrameSection { .. } => None,
-        // Names the site the declaration chose, and the declaration is
-        // the erring node's own payload: no other row to go to.
-        NodeErrorKind::DeclareSiteNotAnOperand { .. } => None,
         // Names the failing instance itself.
         NodeErrorKind::CrossingUnverified { .. } => None,
         // The kernel's own words: "repair <the node>" — the gauge, or
@@ -1200,20 +1216,18 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         // or a node in ANOTHER document's id space (`PartFault`), which
         // no row of this tree is.
         NodeErrorKind::Part { .. }
-        | NodeErrorKind::DeclareResolve { .. }
-        | NodeErrorKind::UndeclaredCoincidence { .. }
-        | NodeErrorKind::UndeclarableContact { .. }
-        | NodeErrorKind::BlendSelectionResolve { .. }
-        | NodeErrorKind::BlendSelectionKind { .. }
-        | NodeErrorKind::ShellOpenResolve { .. }
-        | NodeErrorKind::ShellOpenKind { .. }
-        | NodeErrorKind::FaceFrameResolve { .. }
-        | NodeErrorKind::FaceFrameKind { .. }
-        | NodeErrorKind::MeasureRefResolve { .. }
+        | NodeErrorKind::SelectResolve { .. }
+        | NodeErrorKind::SelectKind { .. }
         | NodeErrorKind::MeasureRefUnreadable { .. }
         | NodeErrorKind::Naming(_) => None,
+        // The member names the step that refused, not the node to
+        // repair: the refusal is the union's.
+        NodeErrorKind::UnionFoldStep { .. } => None,
         // Name no node beside the failing one.
         NodeErrorKind::Expr { .. }
+        | NodeErrorKind::PoseRead { .. }
+        | NodeErrorKind::PoseDegenerate { .. }
+        | NodeErrorKind::PoseScalar { .. }
         | NodeErrorKind::Profile(_)
         | NodeErrorKind::ProfileReplay { .. }
         | NodeErrorKind::ProfileLaneReplay { .. }
@@ -1247,8 +1261,6 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::PlacementsUncertified { .. }
         | NodeErrorKind::PlacementRule(_)
         | NodeErrorKind::UnschedulableCycle
-        | NodeErrorKind::ParamSourceAttach(_)
-        | NodeErrorKind::DeclareUnsupportedPair { .. }
         | NodeErrorKind::BlendSelectionEmpty { .. }
         | NodeErrorKind::Shell(_)
         | NodeErrorKind::ShellLaneUnsupported { .. }
@@ -1258,9 +1270,7 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::MeasureNonFinite { .. }
         | NodeErrorKind::MeasureNotParallel { .. }
         | NodeErrorKind::MeasureUnsupported(_)
-        | NodeErrorKind::MeasureMalformed(_)
         | NodeErrorKind::PayloadExpr { .. }
-        | NodeErrorKind::MeasureSelectionKind { .. }
         | NodeErrorKind::MeasureClearanceRefused(_)
         | NodeErrorKind::AssertionDimension { .. } => None,
     }
@@ -1278,6 +1288,8 @@ fn repaired_at(fault: &MateFault) -> Option<RecipeNodeId> {
         MateFault::PlacerRefused { placer, .. } => Some(*placer),
         // Named beside the mate, and not the repair (module header).
         MateFault::DanglingHead { .. } | MateFault::PartSelectsAnotherCopy { .. } => None,
+        // The side's read is repaired at the mate itself.
+        MateFault::SideUnresolved { .. } => None,
         // Name no node beside the mate, or name one only as evidence
         // of where the refusal held.
         MateFault::Frame { .. }
@@ -1340,6 +1352,7 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
         | MateFault::TableLacks { mate, .. }
         | MateFault::Indeterminate { mate, .. }
         | MateFault::Under { mate, .. }
+        | MateFault::SideUnresolved { mate, .. }
         | MateFault::DanglingHead { mate, .. }
         | MateFault::PlacerRefused { mate, .. }
         | MateFault::SelfMate { mate, .. }

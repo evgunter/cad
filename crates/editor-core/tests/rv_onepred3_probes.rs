@@ -43,7 +43,7 @@ fn patterned() -> (ProfileDoc, RecipeNodeId) {
     let (doc, extrude) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -51,7 +51,7 @@ fn patterned() -> (ProfileDoc, RecipeNodeId) {
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: extrude,
+            input: extrude.into(),
             count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -84,7 +84,11 @@ fn rv_a_retyped_pattern_count_is_refused_at_both_doors() {
             found,
         }) => assert_eq!(
             (slot, expected, found),
-            (SlotId::Count, Dimension::Count, Dimension::Length)
+            (
+                SlotId::Count,
+                editor_core::SlotKind::Is(editor_core::VarKind::Count),
+                Dimension::Length
+            )
         ),
         other => panic!("the edit door must refuse a length count, got {other:?}"),
     }
@@ -110,12 +114,17 @@ fn rv_a_retyped_pattern_count_is_refused_at_both_doors() {
         Err(PersistError::Snapshot(SnapshotError::SlotVarKind {
             node,
             slot,
-            declared,
-            referenced,
+            found: declared,
+            expected: editor_core::SlotKind::Is(referenced),
             ..
         })) => assert_eq!(
             (node.id(), slot, declared, referenced),
-            (pattern, SlotId::Count, Dimension::Length, Dimension::Count)
+            (
+                pattern,
+                SlotId::Count,
+                editor_core::VarKind::Length,
+                editor_core::VarKind::Count
+            )
         ),
         other => panic!("the load door must refuse a length count, got {other:?}"),
     }
@@ -150,16 +159,16 @@ fn rv_the_slot_walk_shadows_a_structural_refusal_it_did_not_shadow_before() {
         Err(PersistError::Snapshot(SnapshotError::SlotVarKind {
             node,
             slot,
-            declared,
-            referenced,
+            found: declared,
+            expected: editor_core::SlotKind::Is(referenced),
             ..
         })) => assert_eq!(
             (node.id(), slot, declared, referenced),
             (
                 pattern,
                 SlotId::Spacing,
-                Dimension::Angle,
-                Dimension::Length
+                editor_core::VarKind::Angle,
+                editor_core::VarKind::Length
             ),
             "the earlier walk's refusal, at the address it is about"
         ),

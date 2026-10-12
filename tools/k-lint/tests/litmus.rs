@@ -33,7 +33,7 @@
 use geom_core::Point2;
 use geom_core::Tol;
 use geom_core::k_stats::{self, Probe};
-use k_lint::{BASELINE_FLOOR_MARGIN, Reason, is_eps_coupled, lint_sample};
+use k_lint::{BASELINE_FLOOR_MARGIN, Reason, is_eps_coupled, lint_sample, zero_arm_usage};
 use profile::{
     Open, Profile, ProfileLoop, SketchPlane, Start, bulge_from_via, test_support::bulge_loop,
 };
@@ -190,6 +190,11 @@ fn fixed_bracket_stays_clean_at_every_eps_row() {
         assert!(
             reasons.is_empty(),
             "the FIXED bracket must lint clean at eps={zero:e}: {reasons:?}"
+        );
+        assert_eq!(
+            zero_arm_usage(margin, zero, "zero"),
+            None,
+            "the FIXED bracket's rounding must stay out of rule 2's zero arm at eps={zero:e}"
         );
     }
 }

@@ -494,19 +494,16 @@ fn bitdump_extrude_revolve_corpus() {
         ),
         extruded(
             "rounded square (tangent line-arc joins)",
-            vec![
-                bulge_loop(vec![
-                    (Point2::new(0.25, 0.0), 0.0),
-                    (Point2::new(0.75, 0.0), b),
-                    (Point2::new(1.0, 0.25), 0.0),
-                    (Point2::new(1.0, 0.75), b),
-                    (Point2::new(0.75, 1.0), 0.0),
-                    (Point2::new(0.25, 1.0), b),
-                    (Point2::new(0.0, 0.75), 0.0),
-                    (Point2::new(0.0, 0.25), b),
-                ])
-                .with_tangent_joints(vec![0, 1, 2, 3, 4, 5, 6, 7]),
-            ],
+            vec![bulge_loop(vec![
+                (Point2::new(0.25, 0.0), 0.0),
+                (Point2::new(0.75, 0.0), b),
+                (Point2::new(1.0, 0.25), 0.0),
+                (Point2::new(1.0, 0.75), b),
+                (Point2::new(0.75, 1.0), 0.0),
+                (Point2::new(0.25, 1.0), b),
+                (Point2::new(0.0, 0.75), 0.0),
+                (Point2::new(0.0, 0.25), b),
+            ])],
             0.5,
         ),
         extruded(
@@ -538,19 +535,16 @@ fn bitdump_extrude_revolve_corpus() {
     ));
     rows.push(extruded_by(
         "rounded-corner prism, reversed (against the normal)",
-        vec![
-            bulge_loop(vec![
-                (Point2::new(0.25, 0.0), 0.0),
-                (Point2::new(0.75, 0.0), b),
-                (Point2::new(1.0, 0.25), 0.0),
-                (Point2::new(1.0, 0.75), b),
-                (Point2::new(0.75, 1.0), 0.0),
-                (Point2::new(0.25, 1.0), b),
-                (Point2::new(0.0, 0.75), 0.0),
-                (Point2::new(0.0, 0.25), b),
-            ])
-            .with_tangent_joints(vec![0, 1, 2, 3, 4, 5, 6, 7]),
-        ],
+        vec![bulge_loop(vec![
+            (Point2::new(0.25, 0.0), 0.0),
+            (Point2::new(0.75, 0.0), b),
+            (Point2::new(1.0, 0.25), 0.0),
+            (Point2::new(1.0, 0.75), b),
+            (Point2::new(0.75, 1.0), 0.0),
+            (Point2::new(0.25, 1.0), b),
+            (Point2::new(0.0, 0.75), 0.0),
+            (Point2::new(0.0, 0.25), b),
+        ])],
         sweep::Extrusion::Distance {
             depth: 0.5,
             side: ExtrudeSide::Against,

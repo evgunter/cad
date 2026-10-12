@@ -15,8 +15,7 @@
 //! The oracle is the closed form, never the kernel:
 //!
 //! - at `δ ≤ 0` the operands touch or overlap, so an op that builds
-//!   them as disjoint (`∪` an `Assembly`, `∩` empty) is wrong; and the
-//!   frustum's cone wall has no arm, so it builds nothing at `δ ≤ 0`;
+//!   them as disjoint (`∪` an `Assembly`, `∩` empty) is wrong;
 //! - every built result is sampled with `point_in_solid` against the
 //!   analytic membership of the two operands under the op, away from
 //!   either boundary.
@@ -28,11 +27,14 @@
 //! empty: red at ε 10⁻⁹ and 10⁻¹². At ε 10⁻⁶ the pad covers that
 //! shrink, and the row stays green.
 //!
-//! **Excluded**: the 270° torus touched on its cut-cap rim (a direction
-//! whose support falls on a cut) at `δ = 0` or `δ = −ε`, the two gaps
-//! inside the band, may build the point touch it records: `∪` an
-//! `Assembly` whose contacts hold the touch, `∩` empty
-//! (`work/reach/a-plate-touching-a-cut-torus-at-its-cap-rim-builds-an-assembly.md`).
+//! **Excluded**: a support on a RIM circle — the 270° torus's cut-cap
+//! rim (a direction whose support falls on a cut), and every support of
+//! the frustum, which always falls on one of its four rims. At `δ = 0`
+//! or `δ = −ε`, the two gaps inside the band, the touch is a point
+//! contact, which `docs/DESIGN.md` D1 ships as two solids and a record
+//! (pieces that only touch are distinct solids, and every pair of cells
+//! whose interiors meet is recorded): `∪` an `Assembly` whose contacts
+//! hold the touch, `∩` empty (`work/tally/a-plate-touching-a-cut-torus-at-its-cap-rim-builds-an-assembly.md`).
 //! The rim's graze root is its extremum, the support itself, so `−ε`
 //! reads as `0` does. An excluded `∪` that records no contact is still
 //! wrong, and every excluded result is still sampled.
@@ -255,7 +257,7 @@ fn plates_at_the_exact_support_of_a_frustum_and_a_torus_are_right_at_every_op() 
                             .min(0.15 * s - l.y.abs())
                             .min(0.15 * s - l.z.abs())
                     };
-                    let excluded = shape == Shape::Torus && sweep < 2.0 * PI && on_cut;
+                    let excluded = (sweep < 2.0 * PI && on_cut) || shape == Shape::Frustum;
                     for (op, out) in [
                         ("a∪b", topo::union(&a, &b, tol())),
                         ("b∪a", topo::union(&b, &a, tol())),
@@ -278,9 +280,7 @@ fn plates_at_the_exact_support_of_a_frustum_and_a_torus_are_right_at_every_op() 
                                     bb.contacts != topo::ContactRecords::default(),
                                 ),
                             };
-                            if shape == Shape::Frustum {
-                                wrong.push(format!("{label}: the cone wall touches and built"));
-                            } else if disjoint && !(excluded && touch_recorded) {
+                            if disjoint && !(excluded && touch_recorded) {
                                 wrong.push(format!("{label}: touching operands built as disjoint"));
                             }
                         }

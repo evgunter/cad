@@ -208,7 +208,9 @@ fn the_plane_hosted_rim_carves_on_either_material_side() {
         let c1 = census(&out.body);
         assert_eq!(
             (c1.0 - c0.0, c1.1 - c0.1, c1.2 - c0.2),
-            (2, 3, 1),
+            // The two-crossing walk's (2, 3, 1), less the closing join
+            // of the host foot the slit does not reach (maximal edges).
+            (1, 2, 1),
             "{name}: the two-crossing Euler walk's census delta"
         );
         // Euler's formula on the one shell, before and after: the carve

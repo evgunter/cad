@@ -12,14 +12,12 @@
 //!
 //! The poses are the coincfr3 review's C1 sphere probes and the coincfr4
 //! review's own (`zz_fr4_sweep_probe`): its off-axis spheres, its balls
-//! under and beside a slab, its brick below a tube, and its dome on a
-//! tube declared `Tangent`, whose rim offer is withdrawn.
+//! under and beside a slab, and its brick below a tube.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::test_support::{ball_poled, ball_poled_y, brick, dome, finished, revolved_about_y};
+use crate::test_support::{ball_poled, ball_poled_y, brick, finished, revolved_about_y};
 use geom_core::{Band, Point2, Tol, Vec3};
-use test_utils::offer::{DESIGN_EPS, Executed, Outcome, Verdict, execute, report, run};
-use topo::{BooleanDeclarations, ContactClass, FacePairDeclaration};
+use test_utils::offer::{DESIGN_EPS, Executed, Outcome, Verdict, execute, report};
 
 /// A margin in the middle of the band at [`DESIGN_EPS`].
 const D: f64 = 5.5e-9;
@@ -189,38 +187,6 @@ fn brick_below_a_tube(k: u8, gap: f64) -> Result<(), topo::BooleanError> {
     op(k, &tube(1.0, 0.0, 1.0), &b)
 }
 
-/// The coincfr4 review's `dome_on_tube`: a unit dome declared `Tangent`
-/// to a tube whose outer wall has radius `r` and ends at the dome's
-/// equator, through `topo::union_with`: the shared rim read at the
-/// declaration door.
-fn dome_on_a_tube(r: f64) -> Result<(), topo::BooleanError> {
-    let tol = Tol::witness();
-    let a = finished("the dome", dome(1.0, tol), tol);
-    let b = tube(r, -1.0, 0.0);
-    let spheres: Vec<topo::FaceKey> = a
-        .faces()
-        .filter(|(_, f)| matches!(a.get_surface(f.surface), Some(geom::Surface::Sphere { .. })))
-        .map(|(k, _)| k)
-        .collect();
-    let walls: Vec<topo::FaceKey> = b
-        .faces()
-        .filter(|(_, f)| {
-            matches!(b.get_surface(f.surface),
-                Some(geom::Surface::Cylinder { radius, .. }) if *radius > 0.9)
-        })
-        .map(|(k, _)| k)
-        .collect();
-    let mut decls = BooleanDeclarations::none();
-    for &fa in &spheres {
-        for &fb in &walls {
-            decls
-                .coincident_faces
-                .push(FacePairDeclaration::new(fa, fb, ContactClass::Tangent));
-        }
-    }
-    topo::union_with(&a, &b, &decls, tol).map(|_| ())
-}
-
 macro_rules! cases {
     ($($name:ident: $key:literal, $margin:expr => $raise:expr;)*) => {
         $(
@@ -371,67 +337,4 @@ fn every_sphere_offer_passes_just_below_it() {
         "false offers:\n{}",
         false_offers.join("\n\n")
     );
-}
-
-/// The withdrawn rim offer's child rows: the dome on a tube a hair wider
-/// and a hair narrower.
-macro_rules! withdrawn {
-    ($($name:ident: $margin:expr => $raise:expr;)*) => {
-        $(
-            #[test]
-            #[ignore = "a child row: a_declared_tangent_rim_offers_no_tolerance runs it"]
-            fn $name() {
-                report(stringify!($name), &outcome($raise));
-            }
-        )*
-        const WITHDRAWN: &[(&str, f64)] = &[$((stringify!($name), $margin)),*];
-    };
-}
-
-withdrawn! {
-    dome_on_a_tube_a_hair_wider: -D => dome_on_a_tube(1.0 + D);
-    dome_on_a_tube_a_hair_narrower: D => dome_on_a_tube(1.0 - D);
-}
-
-/// **A declared-`Tangent` pair's rim offers no tolerance, since none
-/// passes it** (the coincfr4 review's MAJOR-2, on its pose at the
-/// door): the dome on a tube declared `Tangent`, the tube's wall a hair
-/// wider or narrower than the dome's equator, refuses at the rim's
-/// identity, `Coincidence(Rim)`, quoting its margin with no tolerance
-/// and naming what the Boolean cannot yet do. The offer it withdrew,
-/// executed at 0.9 × `|m|/K`, meets the class refused at the door, and
-/// no tolerance down to the harness's floor passes.
-#[test]
-fn a_declared_tangent_rim_offers_no_tolerance() {
-    let module = module_path!()
-        .split_once("::")
-        .map_or(module_path!(), |(_, m)| m);
-    for &(name, margin) in WITHDRAWN {
-        let row = format!("{module}::{name}");
-        let Outcome::Refused { key, defect, text } = run(&row, DESIGN_EPS) else {
-            panic!("{name}: passes at the design tolerance");
-        };
-        let quoted = text
-            .split_once("margin ")
-            .and_then(|(_, t)| t.split_whitespace().next())
-            .and_then(|m| m.parse::<f64>().ok());
-        assert!(
-            key == "Coincidence(Rim)"
-                && !defect
-                && quoted.is_some_and(|m| near(m, margin))
-                && !text.contains("tighten")
-                && !text.contains("Recourse")
-                && text.ends_with(geom_core::NOT_YET_ENDING),
-            "{name}: {text}"
-        );
-        let mut eps = test_utils::offer::BELOW * design_band().tolerance_deciding(margin);
-        while eps >= test_utils::offer::FLOOR_EPS {
-            let below = run(&row, eps);
-            assert!(
-                matches!(&below, Outcome::Refused { key, .. } if key == "UnsupportedDeclarationClass"),
-                "{name}: at {eps:e} the withdrawn offer meets the class refused: {below:?}"
-            );
-            eps *= 0.01;
-        }
-    }
 }

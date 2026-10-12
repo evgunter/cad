@@ -102,8 +102,13 @@ fn a_face_name_at_an_instance_with_no_part_wrapper_refuses_at_the_pre_check() {
     let bench = asm::bench("rv-matehead-bare", tol);
     let session = asm::open_bench(&bench, tol);
     let (mut a, b) = asm::seat_picks(&session, &bench);
-    assert_eq!(a.name.node, a.node, "pick a is read at its own instance");
-    a.name.path = Vec::new();
+    assert_eq!(a.name.node, a.node, "pick a is on its instance's copy");
+    // The instance's own name under the copy's wrap, its `InPart`
+    // taken off: a bare face name at the instance.
+    let (placement, own) = a.name.copy_of().expect("a pick on a copy is wrapped");
+    let mut bare = own.clone();
+    bare.path = Vec::new();
+    a.name = bare.in_copy(placement);
     let mut tool = MateTool::new();
     tool.pick(session.doc(), a);
     tool.pick(session.doc(), b);

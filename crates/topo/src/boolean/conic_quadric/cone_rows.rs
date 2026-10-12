@@ -528,7 +528,6 @@ fn certified_answers_hold_against_the_quadric_form() {
                 }
                 CircleRoots::AtApex => apex += 1,
                 CircleRoots::Uncertain => uncertain += 1,
-                CircleRoots::CountDisagrees => panic!("{label}: CountDisagrees"),
             }
         }
         println!(
@@ -631,7 +630,6 @@ fn grazes_and_apex_passes_never_certify_what_they_cannot() {
                     );
                 }
                 CircleRoots::OnSurface => panic!("{label}: no such circle lies on a cone"),
-                CircleRoots::CountDisagrees => panic!("{label}: CountDisagrees"),
                 CircleRoots::AtApex | CircleRoots::Uncertain => refused += 1,
             }
         }

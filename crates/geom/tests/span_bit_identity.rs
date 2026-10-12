@@ -241,7 +241,7 @@ fn rows() -> Vec<(String, u64)> {
             push_v(&mut out, &format!("surf.ders3.duuv@{su}{sv}"), j3.duuv);
             push_v(&mut out, &format!("surf.ders3.duvv@{su}{sv}"), j3.duvv);
             push_v(&mut out, &format!("surf.ders3.dvvv@{su}{sv}"), j3.dvvv);
-            let win = s.window_at(u, v);
+            let win = s.window_at(u, v).expect("numeric parameters");
             push_p(
                 &mut out,
                 &format!("surf.eval_in_span@{su}{sv}"),

@@ -681,7 +681,7 @@ fn a_convex_graze_of_a_boss_on_a_step_cuts_only_the_step() {
 }
 
 /// The 6 × 4 rectangle on `[0, 6] × [0, 4]` with its corners rounded
-/// r = 0.5 through the fillet door (declared tangent joints: smooth
+/// r = 0.5 through the fillet door (constructed tangent joints: smooth
 /// edges between each flat and its corner wall). Its NE corner wall is
 /// centred at (5.5, 3.5).
 fn rounded_outline() -> profile::ProfileLoop<f64> {
@@ -716,7 +716,7 @@ fn rounded_outline() -> profile::ProfileLoop<f64> {
 }
 
 /// A 6 × 4 slab whose corners are rounded r = 0.5 through the fillet
-/// door (declared tangent joints, smooth edges between each flat and
+/// door (constructed tangent joints, smooth edges between each flat and
 /// its corner wall), grazed along its NE corner wall at angle φ and
 /// coplanar with the flats the corner continues (φ = 0, π/2): the slab
 /// lands whole on the material side.
@@ -830,7 +830,6 @@ fn a_concave_graze_of_a_filleted_hole_refuses() {
 /// crosses the caps' rims.
 #[test]
 fn a_concave_graze_of_a_cove_refuses() {
-    use profile::RawLoop;
     let q = (std::f64::consts::PI / 8.0).tan();
     let lp = bulge_loop(vec![
         (Point2::new(0.0, 0.0), 0.0),
@@ -840,8 +839,7 @@ fn a_concave_graze_of_a_cove_refuses() {
         (Point2::new(1.0, 1.5), 0.0),
         (Point2::new(1.0, 3.0), 0.0),
         (Point2::new(0.0, 3.0), 0.0),
-    ])
-    .with_tangent_joints(vec![3, 4]);
+    ]);
     let body = extruded_loops(vec![lp]);
     for phi in [3.3, 3.6, 4.0, 4.2, 4.5] {
         let n = unit(phi);
@@ -854,14 +852,13 @@ fn a_concave_graze_of_a_cove_refuses() {
 }
 
 /// An ogee: a convex quarter wall (centre (1, 0)) running into a
-/// concave one (centre (1, 2)) through a declared tangent joint at
+/// concave one (centre (1, 2)) through a constructed tangent joint at
 /// (1, 1), so `y = 1` is tangent to both along their shared edge. The
 /// concave wall's piece meets the cut face in a knife edge, and the
 /// refusal names that wall, under either normal, even though the
 /// convex wall beside it would land with its material.
 #[test]
 fn a_concave_wall_beside_a_convex_one_refuses_its_knife_edge() {
-    use profile::RawLoop;
     let q = (std::f64::consts::PI / 8.0).tan();
     let lp = bulge_loop(vec![
         (Point2::new(-1.0, 0.0), 0.0),
@@ -869,8 +866,7 @@ fn a_concave_wall_beside_a_convex_one_refuses_its_knife_edge() {
         (Point2::new(1.0, 1.0), -q),
         (Point2::new(0.0, 2.0), 0.0),
         (Point2::new(-1.0, 2.0), 0.0),
-    ])
-    .with_tangent_joints(vec![2]);
+    ]);
     let body = extruded_loops(vec![lp]);
     let operand = sweep::test_support::finished("the ogee", body.clone(), Tol::witness());
     for s in [1.0, -1.0] {
@@ -887,5 +883,68 @@ fn a_concave_wall_beside_a_convex_one_refuses_its_knife_edge() {
             (centre.0 - 1.0).abs() < 1e-12 && (centre.1 - 2.0).abs() < 1e-12,
             "{label}: the concave wall is named, not the convex one: {centre:?}"
         );
+    }
+}
+
+/// **A plane tangent to a rounded end and tilted off the long flat
+/// beside it refuses: the two faces' readings disagree.** A bar `20K`
+/// long and 1 wide, its near end a half-round, the flat and the wall
+/// meeting along a smooth edge, cut by a plane through that edge tilted
+/// by `sin θ ∈ {0.1, 0.3, 0.6}·ε` off the flat, at either smooth edge,
+/// under either normal. Over the wall's own extent (√2) the tilt reads
+/// tangent and the wall grazed; over the flat's (past `20K`) it reads
+/// clear. Rule (b) meets the edge between them with both neighbours on
+/// the wall's material side, and the two decided readings disagree
+/// ([`topo::SectorReading::SmoothEdgeDisagrees`]), carrying both sine
+/// margins and ending in the split's lever. At every ε row.
+#[test]
+fn a_plane_tangent_to_a_rounded_end_tilted_off_its_flat_refuses_its_disagreement() {
+    let tol = Tol::witness();
+    let (eps, k) = (tol.eps(), tol.k());
+    let l = 20.0 * k;
+    let bar = extruded(vec![vec![
+        ((0.0, 0.0), 0.0),
+        ((l, 0.0), 0.0),
+        ((l, 1.0), 0.0),
+        ((0.0, 1.0), 1.0),
+    ]]);
+    let bar = sweep::test_support::finished("the bar", bar, tol);
+    for (y, outward) in [(0.0, -1.0), (1.0, 1.0)] {
+        for f in [0.1, 0.3, 0.6] {
+            for s in [1.0, -1.0] {
+                let st = f * eps;
+                let label = format!("y = {y}, sin θ = {f}·ε, s = {s} at ε = {eps:e}");
+                let p = plane((0.0, y), (-s * st, s * outward * (1.0 - st * st).sqrt()));
+                match split(&bar, &p, tol) {
+                    Err(
+                        e @ SplitError::Reduce(SplitReduceError::SliverSector {
+                            reading: topo::SectorReading::SmoothEdgeDisagrees(readings),
+                            ..
+                        }),
+                    ) => {
+                        let value =
+                            |m: geom_core::MarginDiag| match m.diagnostic_f64_for_error_text() {
+                                geom_core::ErrorTextReading::Value(v) => v,
+                                other => panic!("{label}: a point margin: {other:?}"),
+                            };
+                        let (tangent, clear) = (value(readings.tangent), value(readings.clear));
+                        assert!(
+                            tangent.abs() <= eps && clear >= k * eps,
+                            "{label}: tangent {tangent:e} over the wall, clear {clear:e} over \
+                             the flat"
+                        );
+                        let text = e.to_string();
+                        assert!(
+                            text.ends_with(&format!(
+                                ". Recourse: {}",
+                                geom_core::SPLIT_PLANE_RECOURSE
+                            )) && !text.contains("invalid"),
+                            "{label}: the split's lever: {text}"
+                        );
+                    }
+                    other => panic!("{label}: {other:?}"),
+                }
+            }
+        }
     }
 }

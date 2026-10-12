@@ -1,24 +1,20 @@
-//! Blinded-review probes for the VERBS-SSIFLAT unit (the fitted lane's
-//! SSI margin payload, and the `m6_3_chart_completion` interval row's
-//! re-scope). Each probe attacks one claim from the review brief.
+//! Blinded-review probes for the VERBS-SSIFLAT unit (the SSI
+//! certificate's margin payload). Each probe attacks one claim from the
+//! review brief. The fixture is a sphere's general circle as a rung-3
+//! carrier against the (sphere, tilted plane) pair, certified at the SSI
+//! door (`geom_brep::ssi::certify_rung3`); an analytic chart's pcurve
+//! row no longer carries this certificate (its image is the projected
+//! one), so the door is driven directly.
 //!
-//! **ε posture, and why it differs from the row under review**: every
-//! band here is built with [`Band::new`], not from `Tol::witness()`.
-//! `PcurveCache::certify_fitted` and `topo::pcurves::validate_pcurves`
-//! both take the band as an ARGUMENT, so the escalation these probes
-//! pin can be driven at any process ε — they run identically under
-//! `CAD_TOLERANCE_EPS` of 1e-6, 1e-9 or 1e-12. That is the property the
-//! reviewed row does not have: it branches on `Tol::witness().eps()`,
-//! so its escalation arm is live only in a CI configuration the
-//! sampler draws occasionally.
+//! **ε posture**: every band here is built with [`Band::new`], not from
+//! `Tol::witness()`, so what these probes pin can be driven at any
+//! process ε — they run identically under `CAD_TOLERANCE_EPS` of 1e-6,
+//! 1e-9 or 1e-12.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use std::sync::Arc;
-
-use geom::Surface;
-use geom::{Curve3, NurbsCurve2};
-use geom_brep::PcurveCache;
+use geom::{Curve3, NurbsCurve3, Surface};
+use geom_brep::ssi::{SsiCertificate, SsiError, SsiOperand, certify_rung3};
 use geom_core::{Band, Point3, Real, Vec3};
 
 use crate::fixture::arc_chain;
@@ -63,42 +59,41 @@ fn general_circle<T: Real>(radius: f64) -> Curve3<T> {
     }
 }
 
-fn lift2<T: Real>(c: &NurbsCurve2<f64>) -> NurbsCurve2<T> {
-    let control = c.control().iter().map(|p| p.map(T::from_f64)).collect();
-    NurbsCurve2::new(c.knots().clone(), control, c.weights().to_vec()).expect("lifted structure")
+/// The arc as a RUNG-3 carrier at `T` (`fixture::arc_chain`): these
+/// probes are about the SSI certificate's payloads, which only a fitted
+/// carrier runs.
+fn rung3<T: geom_core::spline::SpanLocate>(radius: f64, (f0, f1): (f64, f64)) -> NurbsCurve3<T> {
+    arc_chain::chain(&general_circle::<T>(radius), f0, f1)
 }
 
-/// The arc as a RUNG-3 carrier at `T` (`fixture::arc_chain`), with its
-/// chart image: these probes are about the SSI certificate's payloads,
-/// which only a fitted carrier runs.
-fn rung3<T: Real>(radius: f64, (f0, f1): (f64, f64)) -> (Curve3<T>, Arc<NurbsCurve2<T>>) {
-    let at_f64 = arc_chain::chain(&general_circle::<f64>(radius), f0, f1);
-    let image = Arc::new(lift2::<T>(&arc_chain::image(&at_f64, radius, f0, f1)));
-    let chain = arc_chain::chain(&general_circle::<T>(radius), f0, f1);
-    (Curve3::Nurbs(Arc::new(chain)), image)
+/// The control net's diameter: the tube ladder's arm, as the fitted
+/// lane read it.
+fn diameter<T: Real>(c: &NurbsCurve3<T>) -> T {
+    let ctl = c.control();
+    let mut far = T::zero();
+    for p in ctl {
+        for q in ctl {
+            far = far.max(p.distance(*q));
+        }
+    }
+    far
 }
 
-/// One call at the fitted door, at an explicit band — the whole route,
-/// with the tolerance a parameter.
-fn certify_at<T>(
-    radius: f64,
-    arc: (f64, f64),
-    band: Band,
-) -> Result<PcurveCache<T>, geom_brep::PcurveCertifyError>
+/// One call at the SSI door, at an explicit band — the whole
+/// certificate, with the tolerance a parameter.
+fn certify_at<T>(radius: f64, arc: (f64, f64), band: Band) -> Result<SsiCertificate<T>, SsiError>
 where
-    T: topo::AtRestPolicy,
+    T: geom_core::Decide + geom_core::Bounds + geom_core::CertifiedEnclosure,
 {
-    let (carrier, image) = rung3::<T>(radius, arc);
-    let (t0, t1) = (T::from_f64(arc.0), T::from_f64(arc.1));
-    PcurveCache::<T>::certify_fitted(
-        image,
-        t0,
-        t1,
+    let carrier = rung3::<T>(radius, arc);
+    let (plane, sphere) = (tilted_plane::<T>(), sphere::<T>(radius));
+    certify_rung3(
         &carrier,
-        &sphere::<T>(radius),
-        Some(&tilted_plane::<T>()),
+        None,
+        &SsiOperand::Analytic(&plane),
+        &SsiOperand::Analytic(&sphere),
+        diameter(&carrier),
         band,
-        T::fitted_lane().expect("a certifying scalar holds the fitted door"),
     )
 }
 
@@ -115,32 +110,20 @@ fn the_f64_route_certifies_at_a_1e_12_band_at_any_process_eps() {
 }
 
 /// PROBE 2 (claim C1/C3, the payload): at the interval scalar the same
-/// route escalates at the same band, and the refusal carries a REAL
-/// enclosure — not a poison and not a hole. This is the reviewed row's
-/// content, made unconditional on the run's ε.
+/// route escalates at a band below its own residuals, and the refusal
+/// carries a REAL enclosure — not a poison and not a hole — at any
+/// process ε. The described carrier's residuals sit near `4e-15`, so a
+/// `1e-15` band is inside their enclosures and limb 1 escalates first.
 #[test]
 fn the_interval_route_escalates_with_a_legible_enclosure_at_any_process_eps() {
     use geom_core::interval::Interval;
-    let err = certify_at::<Interval>(1.0, ARC, tight_band())
-        .expect_err("the interval lane escalates at a 1e-12 band");
-    // AMENDED (fix pass): escalations now leave by their own door,
-    // `FittedEscalated`, carrying the classifier's `Indeterminate`
-    // whole — margin, band and predicate together. The probe's claim is
-    // unchanged (a legible enclosure at any process ε); only the door
-    // it reads it from moved.
-    let geom_brep::PcurveCertifyError::FittedEscalated { cause } = err else {
-        panic!("the fitted door must refuse through its escalation arm: {err:?}");
+    let err = certify_at::<Interval>(1.0, ARC, Band::new(1e-15, 1e-14).unwrap())
+        .expect_err("the interval lane escalates at a 1e-15 band");
+    let SsiError::CertificateEscalated { ref cause, .. } = err else {
+        panic!("the door must refuse through its escalation arm: {err:?}");
     };
-    let (limb, what, margin) = (
-        Option::<geom_brep::SsiLimb>::None,
-        cause.predicate.unwrap_or("<unnamed>"),
-        Some(cause.margin),
-    );
-    assert_eq!(
-        limb, None,
-        "an escalation names no limb, only its predicate"
-    );
-    assert_eq!(what, "ssi_hull_sup");
+    let (what, margin) = (cause.predicate.unwrap_or("<unnamed>"), Some(cause.margin));
+    assert_eq!(what, "ssi_on_locus");
     let Some(geom_core::ErrorTextReading::Enclosure { lo, hi }) =
         margin.map(geom_core::MarginDiag::diagnostic_f64_for_error_text)
     else {
@@ -171,129 +154,57 @@ fn the_interval_route_escalates_with_a_legible_enclosure_at_any_process_eps() {
     );
 }
 
-/// PROBE 3 (claim C3, the terminal-sliver argument): the PR and the
-/// re-scoped row both say of this escalation that "there is nothing to
-/// tighten and nothing to subdivide". `ssi_hull_sup` bounds the
-/// CARRIER's incidence with the sphere — a quantity whose true value is
-/// exactly zero, since the circle lies on the sphere — and the bound is
-/// a control-hull bound over `SSI_CERT_SPANS` spans of the arc, whose
-/// own doc (`ssi/certify.rs:164-167`) reads "More spans ⇒ tighter hulls
-/// and a tighter tube".
+/// PROBE 3 (claim C3): `ssi_hull_sup` bounds the carrier's incidence
+/// with the sphere, whose true value is exactly zero since the circle
+/// lies on the sphere. Read off the described carrier, every arc from a
+/// half turn (`div = 0.5`) down to 1/64 of a quarter certifies at the
+/// 1e-12 band at the interval scalar, the quarter turn included.
 ///
-/// This probe MEASURES that, over eight span lengths from a full turn
-/// (`div = 0.25`) down to 1/64 of a quarter (`div = 64`), and asserts
-/// the escalation is a property of THIS SPAN rather than a floor:
-///
-/// - the quarter turn escalates, at about 1.02e-12;
-/// - a SHORTER arc certifies — so there is something to subdivide;
-/// - a LONGER arc certifies too — so the escalation is not a monotone
-///   floor the bound is pressed against, it is where this one span
-///   happens to sit.
-///
-/// Either of the last two alone falsifies "there is nothing to tighten
-/// and nothing to subdivide"; together they say the quarter turn is
-/// singular among its neighbours in both directions, which is a
-/// stronger and more useful statement than a monotone trend would be.
-///
-/// **This row was re-pointed when `insert_once_ring` took the convex
-/// insertion form, because its previous claim went vacuous.** Under the
-/// lerp form the bound was dominated by the width the ring data carried
-/// rather than by the span, so four spans sat within 1.6x of each other
-/// (1.80e-12, 1.30e-12, 1.14e-12, 1.14e-12) and NONE certified; the row
-/// asserted a strict decrease across them. The convex form took that
-/// floor away, every arc but the quarter turn now certifies, and a
-/// "strictly smaller bound" loop over them compares nothing — every
-/// iteration passes on `None`. A row named for span dependence that
-/// measures no span dependence is the defect, not the re-baseline.
+/// A certificate that refined the carrier in the ring in the projective
+/// form `x + (y − x)·λ` put the quarter turn's first hull at about
+/// 1.02e-12, past this band. That number was the form's interval width,
+/// not the refined carrier's geometry: the `f64` lane reads the same
+/// rounded refinement at about 1.5e-15, and the described carrier, cut
+/// in the ring, reads 3.3e-15 to 5.0e-15 on every arc here. Limb 2 now
+/// subdivides its composite before it refuses, which brings even that
+/// form's bound under this band (it levels off near 3.9e-13), so this
+/// row does not single out the form's width any more; it holds that
+/// every arc certifies. What the ring refinement encloses is held by the
+/// exact-net rows in `geom_brep`'s `ssi::certify` and `edge_nurbs`
+/// tests, which also see a refinement made at `f64` and lifted thin.
 ///
 /// The full turn is not in the list: over a rung-3 chain carrier its
 /// map residual at the interval scalar reaches the 1e-12 band (sample
 /// 6, `pcurve_map_residual`) before the hull limb is read, so it
 /// measures that check rather than this one.
 #[test]
-fn the_interval_hull_bound_is_span_dependent() {
-    /// The `ssi_hull_sup` bound this route certifies at the interval
-    /// scalar, for an arc of `1/div` of a quarter turn — `None` when the
-    /// route certifies instead.
-    fn hull_sup_at_interval(div: f64) -> Option<f64> {
-        use geom_core::interval::Interval;
+fn the_interval_route_certifies_every_arc_at_a_1e_12_band() {
+    use geom_core::interval::Interval;
+    for div in [0.5, 0.75, 1.0, 1.5, 2.0, 8.0, 64.0] {
         let arc = (0.3, 0.3 + core::f64::consts::FRAC_PI_2 / div);
-        match certify_at::<Interval>(1.0, arc, tight_band()) {
-            Ok(_) => None,
-            // AMENDED (fix pass): the escalation's own door.
-            Err(geom_brep::PcurveCertifyError::FittedEscalated { cause })
-                if cause.predicate == Some("ssi_hull_sup") =>
-            {
-                match cause.margin.diagnostic_f64_for_error_text() {
-                    geom_core::ErrorTextReading::Enclosure { hi, .. } => Some(hi),
-                    other => panic!("unexpected margin shape at div={div}: {other:?}"),
-                }
-            }
-            Err(e) => panic!("unexpected refusal at div={div}: {e:?}"),
+        if let Err(e) = certify_at::<Interval>(1.0, arc, tight_band()) {
+            panic!("the arc of 1/{div} of a quarter turn refused at a 1e-12 band: {e:?}");
         }
     }
-    let bounds: Vec<(f64, Option<f64>)> = [0.5, 0.75, 1.0, 1.5, 2.0, 8.0, 64.0]
-        .into_iter()
-        .map(|d| (d, hull_sup_at_interval(d)))
-        .collect();
-    println!("ssi_hull_sup vs span divisor: {bounds:?}");
-    let quarter = bounds
-        .iter()
-        .find(|(d, _)| *d == 1.0)
-        .and_then(|(_, b)| *b)
-        .unwrap_or_else(|| panic!("the quarter turn no longer escalates: {bounds:?}"));
-    assert!(
-        bounds.iter().any(|(d, b)| *d > 1.0 && b.is_none()),
-        "no arc SHORTER than the quarter turn certifies, so there is nothing to subdivide \
-         after all — the quarter turn escalates at {quarter:e}: {bounds:?}"
-    );
-    assert!(
-        bounds.iter().any(|(d, b)| *d < 1.0 && b.is_none()),
-        "no arc LONGER than the quarter turn certifies, so the escalation reads as a floor \
-         the bound is pressed against rather than as this span's own — the quarter turn \
-         escalates at {quarter:e}: {bounds:?}"
-    );
 }
 
-/// PROBE 4 (claim C2, the sweep's blind spot): `ssi_refusal` is not the
-/// only site that manufactures a NaN margin. `ssi/certify.rs:844`
-/// raises `SsiError::CertificateLimb { limb: Tube, value: f64::NAN }`
-/// when the tube ladder is EMPTY — a structural refusal with no margin
-/// at all, reachable on a legal body whose feature extent is under
-/// `64·ε`. The PR's rewritten `ssi_refusal` turns that into
-/// `Some(MarginKind::Value(NaN))`, which is exactly the manufactured
-/// poison #925 was filed as, wearing the label the classifier reserves
-/// for a real f64 margin — and the text still says a limb "exceeded ε".
-///
-/// This row goes RED when that site is swept (it should be `None`, or a
-/// distinct structural variant), which is the point: it pins the hole.
+/// PROBE 4 (claim C2): a structural tube refusal carries no margin.
+/// Where the tube ladder is empty, reachable on a legal body whose
+/// feature extent is under `64·ε`, the certificate measured nothing, so
+/// it refuses as `SsiError::TubeLadderEmpty`: it names the ladder,
+/// carries no magnitude, and shows no NaN to a consumer, where a limb
+/// refusal would say a limb exceeded ε on a number nothing measured.
 #[test]
 fn a_structural_tube_refusal_reports_an_honest_typed_shape() {
     // extent ≈ the arc's control-net diameter; the ladder is empty once
     // `extent/8 < 8·ε`, i.e. extent < 64·ε = 6.4e-5 m here. The radius
     // also has to keep the arc's METRE span above ε, or the earlier
     // `pcurve_interval_meter` check answers first — 1e-5 m clears both.
-    //
-    // AMENDED (fix pass): this probe was written RED-by-design, pinning
-    // that the structural empty-ladder case still minted
-    // `CertificateLimb { limb: Tube, value: NaN }` — a structural
-    // refusal wearing a limb-exceeded costume. That is fixed at the
-    // SOURCE (`SsiError::TubeLadderEmpty`), so the probe now pins the
-    // honest shape instead: a refusal that names the ladder, carries NO
-    // magnitude because it measured nothing, and shows no NaN to a
-    // consumer.
     let err = certify_at::<f64>(1.0e-5, ARC, loose_band())
         .expect_err("a 10-micron arc has no certifiable uniqueness tube at a 1e-6 band");
-    let geom_brep::PcurveCertifyError::FittedCertificate {
-        what, magnitude, ..
-    } = err
-    else {
-        panic!("expected the certificate arm: {err:?}");
-    };
     assert!(
-        magnitude.is_none(),
-        "a structural refusal measured nothing and must carry no magnitude: \
-         what={what:?} magnitude={magnitude:?}"
+        matches!(err, SsiError::TubeLadderEmpty { .. }),
+        "a structural refusal is the empty ladder's, measuring nothing: {err:?}"
     );
     let rendered = err.to_string();
     assert!(
@@ -306,134 +217,54 @@ fn a_structural_tube_refusal_reports_an_honest_typed_shape() {
     );
 }
 
-/// PROBE 5 (the E2E exercise): drive the escalation through a PUBLIC
-/// `topo` door on a body of the reviewer's own authoring, and read what
-/// a consumer sees. The cache is minted at a loose band and attached;
-/// `validate_pcurves` then RE-DERIVES the full C2 certificate at a
-/// tighter band, which is the at-rest pass a consumer runs. The
-/// question is whether the margin survives that layer or is
-/// re-flattened.
+/// PROBE 5 (the `ssi_hull_sup` payload): at the interval scalar, limb
+/// 2's hull bound escalates with its margin as an ENCLOSURE, and the
+/// consumer-visible text renders it. The band sits between the two
+/// limbs' readings on the quarter turn: limb 1's worst sample reads
+/// about 4.77e-15 (its upper end; knots held in the scalar since
+/// PR 4608), under the band, and limb 2's first hull
+/// `[5.0e-15, 5.0e-15]`, inside it. Limb 2 subdivides its composite
+/// before it refuses, and its bound stays in the band (about 4.86e-15),
+/// so limb 2 is the one that escalates, carrying the subdivided bound:
+/// inside the band, and no higher than the first hull. Red if the margin
+/// is flattened to one `f64` (a value has one end, and renders as one)
+/// or the escalation moves to another predicate.
 #[test]
-fn the_margin_is_legible_through_the_public_topo_door() {
-    use geom_core::Tol;
+fn the_interval_hull_bound_escalates_with_an_enclosure() {
     use geom_core::interval::Interval;
-    use topo::Body;
-
-    let radius = 1.0;
-    let (carrier, image) = rung3::<Interval>(radius, ARC);
-    let (f0, f1) = ARC;
-    let (t0, t1) = (
-        <Interval as Real>::from_f64(f0),
-        <Interval as Real>::from_f64(f1),
-    );
-    let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
-
-    let mut body = Body::<Interval>::new();
-    let seed = body.mvfs(p0, true).unwrap();
-    let sph_key = body
-        .set_face_surface(
-            seed.face,
-            topo::FaceSurface::New {
-                surface: sphere::<Interval>(radius),
-                sense: true,
-            },
-        )
-        .unwrap();
-    let anchor = body.mvfs(p1, true).unwrap();
-    let pl_key = body
-        .set_face_surface(
-            anchor.face,
-            topo::FaceSurface::New {
-                surface: tilted_plane::<Interval>(),
-                sense: true,
-            },
-        )
-        .unwrap();
-    let mid = <Interval as Real>::from_f64(0.5 * (f0 + f1));
-    let made = body
-        .mev(
-            topo::MevSite::Lone {
-                r#loop: seed.r#loop,
-            },
-            p1,
-            geom_brep::EdgeCurveSpec {
-                description: geom_brep::EdgeDescriptionSpec::Intersection {
-                    s1: sph_key,
-                    s2: pl_key,
-                    witness: carrier.eval(mid),
-                },
-                carrier: carrier.clone(),
-                param_start: t0,
-                param_end: t1,
-            },
-            Tol::witness(),
-        )
-        .expect("the general-circle edge certifies");
-    let edge = body.get_edge(made.edge).expect("edge resolves");
-    for he in [edge.he_plus, edge.he_minus] {
-        let cache = PcurveCache::<Interval>::certify_fitted(
-            Arc::clone(&image),
-            t0,
-            t1,
-            &carrier,
-            &sphere::<Interval>(radius),
-            Some(&tilted_plane::<Interval>()),
-            loose_band(),
-            geom_brep::FittedLane::certified(),
-        )
-        .expect("the cache mints at a loose band");
-        body.attach_pcurve(he, cache);
-    }
-
-    // The public at-rest door, at a band tighter than the cache's.
-    let findings = topo::pcurves::validate_pcurves(&body, tight_band());
+    use geom_core::{Bounds, ErrorTextReading, MarginDiag};
+    let cert = certify_at::<Interval>(1.0, ARC, tight_band())
+        .expect("the quarter turn certifies at a 1e-12 band");
+    let (locus, hull) = (cert.on_locus_max.hi(), cert.hull_sup);
+    let band = Band::new(4.8e-15, 5.5e-15).unwrap();
     assert!(
-        !findings.is_empty(),
-        "re-deriving at a tighter band must refuse"
+        locus < band.zero() && band.zero() < hull.lo() && hull.hi() < band.escalate(),
+        "the band must sit between limb 1 ({locus:e}) and limb 2 ([{:e}, {:e}])",
+        hull.lo(),
+        hull.hi()
     );
-    let shown: Vec<String> = findings.iter().map(ToString::to_string).collect();
-    // AMENDED (fix pass): same rewording, same claim — and the band now
-    // survives the public door too.
+    let err = certify_at::<Interval>(1.0, ARC, band).expect_err("limb 2 escalates in-band");
+    let SsiError::CertificateEscalated { ref cause, .. } = err else {
+        panic!("the door must refuse through its escalation arm: {err:?}");
+    };
+    assert_eq!(cause.predicate, Some("ssi_hull_sup"));
+    let ErrorTextReading::Enclosure { lo, hi } =
+        MarginDiag::diagnostic_f64_for_error_text(cause.margin)
+    else {
+        panic!(
+            "limb 2's margin at Interval must read as an enclosure: {:?}",
+            cause.margin
+        );
+    };
     assert!(
-        shown.iter().any(|s| s.contains("enclosure")),
-        "a consumer reading the public door must see the enclosure, not a flattened \
-         value: {shown:?}"
+        band.zero() < lo && lo <= hi && hi <= hull.hi() && hi < band.escalate(),
+        "the escalation must carry limb 2's subdivided bound, in the band and under the first \
+         hull {:e}: [{lo:e}, {hi:e}]",
+        hull.hi()
     );
+    let shown = err.to_string();
     assert!(
-        shown.iter().any(|s| s.contains("ambiguity band (")),
-        "the band must survive the public door with the margin: {shown:?}"
-    );
-    assert!(
-        !shown.iter().any(|s| s.contains("NaN")),
-        "no layer may re-manufacture the NaN: {shown:?}"
-    );
-}
-
-/// PROBE 6 (claim C3, the re-scope's SCOPE): the row under review gates
-/// its escalation arm on `Tol::witness().eps() < HULL_SUP_AT_INTERVAL`
-/// — one-sided. The escalation is only the outcome while the bound is
-/// INSIDE the band, i.e. `band.zero() < HULL_SUP < band.escalate()`.
-/// Below `HULL_SUP / K` the bound is ABOVE the band and the door
-/// refuses definitely instead, which the row's arm does not admit. This
-/// probe names what the door actually does there, at an explicit band
-/// so it does not depend on the run's ε.
-#[test]
-fn below_the_band_the_route_refuses_definitely_not_by_escalation() {
-    use geom_core::interval::Interval;
-    let below = Band::new(1e-13, 1e-12).unwrap();
-    let err = certify_at::<Interval>(1.0, ARC, below)
-        .expect_err("the route cannot certify at a band under the hull bound");
-    println!("below-band refusal: {err:?} / {err}");
-    assert!(
-        !matches!(
-            err,
-            geom_brep::PcurveCertifyError::FittedCertificate {
-                limb: None,
-                what: "ssi_hull_sup",
-                ..
-            }
-        ),
-        "the reviewed row's escalation arm assumes this shape at every eps below the \
-         constant; it is not what the door produces here: {err:?}"
+        shown.contains("enclosure [") && !shown.contains("NaN"),
+        "the consumer-visible text must render the enclosure: {shown}"
     );
 }

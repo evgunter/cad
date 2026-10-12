@@ -33,7 +33,7 @@
 //! re-derivation under the K-REPORT runbook rather than a free import.
 //! `twopeg` is deliberately out on exactly that ground — its ops are
 //! already sampled through `bossplate` (transverse curved union) and
-//! `crosslap` (the declared-REST zip).
+//! `crosslap` (a declared REST union).
 //!
 //! One process per ε (`Tolerance` is a OnceLock):
 //!
@@ -282,7 +282,7 @@ pub fn run(out: Option<String>, tol: Tol) {
         u,
         "crosslap",
         || {
-            let (a, b, glued, b_lifted, _refusal) = crosslap::build(tol);
+            let (a, b, glued, b_lifted) = crosslap::build(tol);
             vec![
                 seamed("crosslap_a", a),
                 seamed("crosslap_b", b),

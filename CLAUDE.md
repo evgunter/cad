@@ -20,7 +20,8 @@ client over the API), functional style, fail-loud.
   `docs/prompts/reviewer-style-lane.md` and
   `docs/prompts/designer.md` — the standing discipline handed
   to every implementer, reviewer and designer lane by path.
-  **Orchestrators read all three in full**: they are the rules the orchestrator adjudicates
+  **Orchestrators read all three in full, and again after every
+  compaction**: they are the rules the orchestrator adjudicates
   against, and they bind the orchestrator's own judgement too (e.g. a
   golden or stored bit that changes is never a cost to weigh against a
   change that makes the code right — re-baseline and say what moved).
@@ -92,6 +93,12 @@ sets `needs_ev: true` ("Ev's channel" in `work/README.md`).
 Design decisions get discussed in chat, refined through Ev's pushback,
 then ratified into `docs/DESIGN.md` and committed — keep the doc synced.
 Details: `memories/cad-working-style.md`, `memories/ev-profile.md`.
+
+**Ignore 7-day usage warnings.** They currently fire when 20% of the
+weekly usage remains, which is about enough for an entire program, so
+a warning is no reason to stop, shrink or hand back work. If there is
+evidence they no longer fire at 20% remaining, open an `[ev]` PR
+changing this note.
 
 ## Git workflow
 

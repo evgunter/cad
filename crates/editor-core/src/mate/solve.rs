@@ -1,5 +1,5 @@
-//! **The mate solve** — reading edges, partitions, groups, and the
-//! constructive placement (ASM-R2a D-2/D-3/D-4/D-5; A9/A10/A11/A12).
+//! **The mate solve** — partitions, groups, and the constructive
+//! placement (ASM-R2a D-2/D-3/D-4/D-5; A9/A11).
 //!
 //! Everything here is recipe data plus decided predicates over the
 //! sides' RESOLVED frames — the two reads `ASSEMBLY.md` A11 rule 5
@@ -9,10 +9,8 @@
 //! stored beside the DAG. The entry points, in the order the layers
 //! use them:
 //!
-//! - [`reading_edges`] — A12's second sort of edge, RECOMPUTED by
-//!   walking from each reference's OPERAND every time it is wanted.
-//! - [`relative_freedom_components`] — A9's partition, over consuming
-//!   ∪ reading edges (so mates couple components).
+//! - [`relative_freedom_components`] — A9's partition, over reads and
+//!   gauge references (so mates couple components).
 //! - [`groups`] — A11's placement groups, the finer partition over
 //!   instances alone, each with its document-order-first ROOT.
 //! - [`solve_document`] — the per-pair coset fold along a deterministic
@@ -44,7 +42,7 @@ use geom_core::linalg::{Affine3, Mat3, OrthoFrame, Point3, UnitVec3, UnitVec3Err
 use geom_core::predicate::Band;
 use geom_core::{Decide, Real, Tol};
 
-use super::coset::{Arm, Coset, FoldStop, Measured, Subgroup};
+use super::coset::{Arm, Coset, FoldStop, Measured, PoseSymmetry, Subgroup};
 use super::member::{Member, Placing, Walk, check_reference, derived_offset, walk_of};
 use super::reach::MateReach;
 use super::{
@@ -64,8 +62,7 @@ use crate::placement::{Frame, Motion};
 /// scalar through [`Decide`] (a dual on its value channel, so a seed
 /// never decides one; an interval definitely or by escalating).
 ///
-/// What a scalar answers here beyond deciding is per scalar, like
-/// `eval`'s `SectionScalar`. No pose value is derived from
+/// What a scalar answers here beyond deciding is per scalar. No pose value is derived from
 /// [`Self::quoted`] or [`Self::upper`]. `quoted` feeds payloads only.
 /// `upper` forms the arm ([`Arm::of`]), so it feeds the lever's own
 /// refusal branches — `LeverRefusal::OutOfRange` where the arm is
@@ -207,6 +204,14 @@ pub(crate) fn quoted_residual<T: SolveScalar>(g: Subgroup<T>) -> Subgroup {
         Subgroup::Revolute { point, direction } => Subgroup::Revolute {
             point: pt(point),
             direction: dir(direction),
+        },
+        Subgroup::Spherical { point } => Subgroup::Spherical { point: pt(point) },
+        Subgroup::Parallel { direction } => Subgroup::Parallel {
+            direction: dir(direction),
+        },
+        Subgroup::Translation => Subgroup::Translation,
+        Subgroup::PlaneTranslation { normal } => Subgroup::PlaneTranslation {
+            normal: dir(normal),
         },
     }
 }
@@ -687,20 +692,21 @@ pub(crate) fn spaces_of<P: crate::ProfilePayload, T: Real>(
 }
 
 /// [`Spaces`] for `doc`, given each instance's space, in one pass in
-/// document order, which puts every input before its consumer.
+/// the evaluation schedule's order, which puts every input before its
+/// consumer.
 pub(crate) fn spaces_with<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     space_of: impl Fn(RecipeNodeId) -> Space,
 ) -> Spaces {
     let mut out = Spaces::default();
-    for id in doc.ids() {
+    for id in crate::eval::schedule::schedule(doc).order {
         let Some(node) = doc.node(id) else { continue };
         let here = match node {
             Node::Gauge { .. } | Node::Mate { .. } => continue,
             Node::InstantiatePart { .. } => space_of(id),
             _ => {
                 let mut distinct: Vec<Space> = Vec::new();
-                for input in node.inputs() {
+                for input in doc.upstream_of(node) {
                     if let Some(&s) = out.space.get(&input)
                         && !distinct.contains(&s)
                     {
@@ -824,68 +830,41 @@ pub(crate) fn group_frame<P, T: geom_core::Decide>(
     }
 }
 
-// ---- A12: reading edges, recomputed ----
-
-/// **A12's reading edges**, recomputed from the recipe, as
-/// `(reader, read)`: `(mate, instance)` for every mate reference that
-/// resolves to a member of the A11 vocabulary, landing on the MEMBER's
-/// instance — the one the walk from the operand ends on, which is the
-/// vertex the A9/A11 partitions see — and `(instance, gauge)` and
-/// `(gauge, parent)` for every gauge reference that names a live
-/// gauge (A11 (2)).
-///
-/// Never stored — the DAG stays the single structure, and a reference
-/// that resolves to nothing live simply contributes no edge (N5).
-/// Deterministic order: document order of the reader, then a mate's
-/// `a` before its `b`.
-pub fn reading_edges<P>(doc: &Doc<P>) -> Vec<(RecipeNodeId, RecipeNodeId)> {
-    let mut out = Vec::new();
-    let live_gauge = |g: RecipeNodeId| matches!(doc.node(g), Some(Node::Gauge { .. }));
-    for id in doc.ids() {
-        match doc.node(id) {
-            Some(Node::Mate { a, b, .. }) => {
-                for (side, name) in [(MateSide::A, a), (MateSide::B, b)] {
-                    if let Ok(w) = walk_of(doc, id, side, name) {
-                        out.push((id, w.member.instance));
-                    }
-                }
-            }
-            Some(
-                Node::InstantiatePart { gauge: Some(g), .. }
-                | Node::Gauge {
-                    parent: Some(g), ..
-                },
-            ) if live_gauge(*g) => out.push((id, *g)),
-            _ => {}
-        }
-    }
-    out
-}
+// ---- A9: relative freedom ----
 
 /// **A9's relative-freedom partition**: the connected components of the
-/// recipe DAG over CONSUMING ∪ READING edges, each component's nodes in
-/// document order, the components themselves ordered by their first
-/// node.
+/// recipe over its reads ([`Doc::upstream`]) and its gauge references,
+/// each component's nodes in document order, the components themselves
+/// ordered by their first node.
 ///
 /// Two instances are relatively unconstrained exactly when they land in
 /// different components — decidable from recipe structure alone, which
-/// is the whole content of A9. Mates couple components precisely
-/// because their reading edges count here (A12) even though A10's
-/// invariants never see them, and so do gauges: two instances on one
-/// gauge sit at frames the gauge fixes between them, so they are one
-/// component with no mate.
+/// is the whole content of A9. A mate couples its two members because
+/// it reads a face of each, and a read reaches down to the instance it
+/// is read in. Gauges couple too: two instances on one gauge sit at
+/// frames the gauge fixes between them, so they are one component with
+/// no mate. A gauge reference is a placement chain rather than a read
+/// (A11 (2)), so its edges — `(instance, gauge)` and `(gauge, parent)`
+/// for every reference that names a live gauge — are added here.
 pub fn relative_freedom_components<P: crate::ProfilePayload>(
     doc: &Doc<P>,
 ) -> Vec<Vec<RecipeNodeId>> {
     let mut adjacency: BTreeMap<RecipeNodeId, BTreeSet<RecipeNodeId>> = BTreeMap::new();
     let mut edges: Vec<(RecipeNodeId, RecipeNodeId)> = Vec::new();
+    let live_gauge = |g: RecipeNodeId| matches!(doc.node(g), Some(Node::Gauge { .. }));
     for id in doc.ids() {
         adjacency.entry(id).or_default();
-        if let Some(node) = doc.node(id) {
-            edges.extend(node.inputs().into_iter().map(|input| (id, input)));
+        let Some(node) = doc.node(id) else { continue };
+        edges.extend(doc.upstream_of(node).into_iter().map(|input| (id, input)));
+        if let Node::InstantiatePart { gauge: Some(g), .. }
+        | Node::Gauge {
+            parent: Some(g), ..
+        } = node
+            && live_gauge(*g)
+        {
+            edges.push((id, *g));
         }
     }
-    edges.extend(reading_edges(doc));
     for (x, y) in edges {
         adjacency.entry(x).or_default().insert(y);
         adjacency.entry(y).or_default().insert(x);
@@ -976,7 +955,7 @@ pub(crate) fn root_and_cause<P>(
 
 /// One mate's two references as [`read_mates`] read them: both walks,
 /// or the first refusal that stops the mate being an edge at all.
-type ReadMate<'d> = Result<(Walk<'d>, Walk<'d>), MateFault>;
+type ReadMate = Result<(Walk, Walk), MateFault>;
 
 /// **Which mates WELD, read once**: each live mate in document order
 /// with both its references walked, or the first refusal that stops
@@ -992,7 +971,7 @@ type ReadMate<'d> = Result<(Walk<'d>, Walk<'d>), MateFault>;
 /// — such a mate welds its group and contributes no PAIR, so its
 /// instances keep the group's frame and no pose is invented for
 /// them.
-fn read_mates<P>(doc: &Doc<P>) -> Vec<(RecipeNodeId, ReadMate<'_>)> {
+fn read_mates<P>(doc: &Doc<P>) -> Vec<(RecipeNodeId, ReadMate)> {
     let mut out = Vec::new();
     for id in doc.ids() {
         let Some(Node::Mate { a, b, .. }) = doc.node(id) else {
@@ -1000,8 +979,8 @@ fn read_mates<P>(doc: &Doc<P>) -> Vec<(RecipeNodeId, ReadMate<'_>)> {
         };
         out.push((
             id,
-            walk_of(doc, id, MateSide::A, a)
-                .and_then(|wa| Ok((wa, walk_of(doc, id, MateSide::B, b)?))),
+            walk_of(doc, id, MateSide::A, *a)
+                .and_then(|wa| Ok((wa, walk_of(doc, id, MateSide::B, *b)?))),
         ));
     }
     out
@@ -1228,7 +1207,14 @@ fn mate_coset<T: SolveScalar>(
                     }));
                 }
             }
-            (fa, Subgroup::Trivial)
+            (
+                fa,
+                SideFrame {
+                    placement: fa,
+                    axis,
+                }
+                .symmetry(),
+            )
         }
         MatePrimitive::Coaxial => match alignment.clocking {
             // The rider cuts the cylindrical residual to translation
@@ -1238,14 +1224,11 @@ fn mate_coset<T: SolveScalar>(
                 (target, Subgroup::Prismatic { direction: axis })
             }
             None => {
-                let point = Point3::origin() + fa.translation;
-                (
-                    fa,
-                    Subgroup::Cylindrical {
-                        point,
-                        direction: axis,
-                    },
-                )
+                let axis = crate::PoseValue::Axis {
+                    origin: Point3::origin() + fa.translation,
+                    dir: axis,
+                };
+                (fa, axis.symmetry())
             }
         },
         MatePrimitive::PlanarRest { offset } => {
@@ -1256,7 +1239,11 @@ fn mate_coset<T: SolveScalar>(
                 return Err(Box::new(MateFault::TableLacks { mate, what }));
             }
             let target = fa * Affine3::translation(local_z * T::from_f64(offset));
-            (target, Subgroup::Planar { normal: axis })
+            let plane = crate::PoseValue::Plane {
+                origin: Point3::origin() + fa.translation,
+                normal: axis,
+            };
+            (target, plane.symmetry())
         }
         MatePrimitive::Clocking => {
             // The table's other static gap, from the same home
@@ -1315,6 +1302,14 @@ fn invert<T: SolveScalar>(c: Coset<T>, band: Band) -> Result<Coset<T>, FrameErro
         Subgroup::Revolute { point, direction } => Subgroup::Revolute {
             point: pt(point),
             direction: dir(direction)?,
+        },
+        Subgroup::Spherical { point } => Subgroup::Spherical { point: pt(point) },
+        Subgroup::Parallel { direction } => Subgroup::Parallel {
+            direction: dir(direction)?,
+        },
+        Subgroup::Translation => Subgroup::Translation,
+        Subgroup::PlaneTranslation { normal } => Subgroup::PlaneTranslation {
+            normal: dir(normal)?,
         },
     };
     Ok(Coset {
@@ -1387,6 +1382,13 @@ struct SideFrame<T: Real> {
     axis: UnitVec3<T>,
 }
 
+/// A resolved side is a frame: known outright.
+impl<T: Real> PoseSymmetry<T> for SideFrame<T> {
+    fn symmetry(&self) -> Subgroup<T> {
+        Subgroup::Trivial
+    }
+}
+
 impl<T: SolveScalar> SideFrame<T> {
     /// The frame's origin's distance from its part's origin — its term
     /// of the lever ([`Alignment::lever_arm`]) — as an `f64` upper bound
@@ -1419,7 +1421,7 @@ fn resolve_side<P: crate::ProfilePayload, T: SolveScalar>(
     tol: Tol,
     mate: RecipeNodeId,
     side: MateSide,
-    read: &Walk<'_>,
+    read: &Walk,
     frame: &MateFrame,
 ) -> Result<Option<SideFrame<T>>, Box<MateFault>> {
     let base = match (frame.base, reach) {
@@ -1450,7 +1452,7 @@ fn face_base<P: crate::ProfilePayload, T: SolveScalar>(
     reach: &dyn MateReach<T>,
     mate: RecipeNodeId,
     side: MateSide,
-    read: &Walk<'_>,
+    read: &Walk,
     tol: Tol,
 ) -> Result<OrthoFrame<T>, Box<MateFault>> {
     let member = &read.member;
@@ -1675,8 +1677,8 @@ pub(crate) fn admit_mate<P: crate::ProfilePayload>(
         )
     };
     let band = Band::linear(tol).map_err(|error| Box::new(MateFault::Band { error }))?;
-    let wa = walk_of(doc, mate, MateSide::A, a).map_err(Box::new)?;
-    let wb = walk_of(doc, mate, MateSide::B, b).map_err(Box::new)?;
+    let wa = walk_of(doc, mate, MateSide::A, *a).map_err(Box::new)?;
+    let wb = walk_of(doc, mate, MateSide::B, *b).map_err(Box::new)?;
     check_references(doc, env, mate, &wa, &wb).map_err(Box::new)?;
     admit_class(mate, *class)?;
     // The two parts are asked in DOCUMENT order, which is id order (an
@@ -1855,6 +1857,12 @@ fn fold_pair<P: crate::ProfilePayload, T: SolveScalar>(
                         clash,
                     }));
                 }
+                Err(FoldStop::NoRepresentative { held, added }) => unreachable!(
+                    "a mate pins a frame, an axis or a plane, whose closure the representative \
+                     stage covers: {} against {}",
+                    held.name(),
+                    added.name()
+                ),
             };
             if matches!(held.subgroup, Subgroup::Empty) {
                 return Err(Box::new(MateFault::Contradictory {
@@ -2210,13 +2218,13 @@ fn solve<P: crate::ProfilePayload, T: SolveScalar>(
 /// members they resolved to key the pair, and the chains they carry
 /// are what [`pair_left_factor`] folds — so nothing below re-walks a
 /// reference the pair map already resolved.
-struct PairMate<'d> {
+struct PairMate {
     /// The mate node.
     mate: RecipeNodeId,
     /// The `a` side's walk, as authored.
-    a: Walk<'d>,
+    a: Walk,
     /// The `b` side's walk, as authored.
-    b: Walk<'d>,
+    b: Walk,
 }
 
 /// One group's solved poses and mate roles.
@@ -2489,6 +2497,9 @@ fn check_offsets<P: crate::ProfilePayload, T: SolveScalar>(
                     unchecked(instance, OffsetCheck::Unleverable(*refusal))
                 }
                 FoldStop::OutOfRange => unchecked(instance, OffsetCheck::OutOfRange),
+                FoldStop::NoRepresentative { .. } => {
+                    unreachable!("membership of the trivial group constructs no representative")
+                }
             })
         };
         // The check decides where the tree's pair placed the member,

@@ -23,7 +23,7 @@
 use geom::{Curve3, Surface};
 use geom_brep::{MustCarryVerdict, must_carry_over_edge};
 use geom_core::{Band, ErrorTextReading, Point2, Point3, Sign, Tol, Vec2, Vec3};
-use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::{ExtrudeError, Extrusion, Revolution, RevolveAxis, RevolveError, extrude, revolve};
 use topo::Body;
@@ -216,8 +216,7 @@ fn stadium(h: f64) -> Result<Body<f64>, ExtrudeError> {
         (Point2::new(2.0, -r), 1.0),
         (Point2::new(2.0, r), 0.0),
         (Point2::new(0.0, r), 1.0),
-    ])
-    .with_tangent_joints(vec![0, 1, 2, 3]);
+    ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("a valid stadium");
@@ -269,8 +268,7 @@ fn lipped_ring(chord: f64) -> Result<Body<f64>, RevolveError> {
         (Point2::new(1.0, 0.0), bulge),
         (Point2::new(1.0 - r + r * c, r * c), 0.0),
         (Point2::new(0.2, r * c), 0.0),
-    ])
-    .with_tangent_joints(vec![2]);
+    ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("a valid lipped ring");

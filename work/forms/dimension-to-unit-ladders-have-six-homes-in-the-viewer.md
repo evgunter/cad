@@ -25,8 +25,8 @@ Count` ladder:
 
 - `props::unit_options`
 - `props::rendering_unit`
-- `props::doc_param`
-- `properties::new_param_unit`
+- `props::doc_variable`
+- `properties::new_variable_unit`
 - the unit picker's `match` in `pane/properties.rs`
 - `forms::drag_tick`
 
@@ -36,14 +36,14 @@ whenever someone noticed.
 
 ## The sentence that shows the rule has no home
 
-`param_unit_ui`'s doc (added by that unit) says `props::unit_options`
+`variable_unit_ui`'s doc (added by that unit) says `props::unit_options`
 *"is the one place that answers which those are"*. It is not, and the
 same diff added three of the places it is not. A comment asserting a
 single home, written beside code that contradicts it, is
 `docs/prompts/reviewer-style-lane.md` Q2's shape and is usually the
 only evidence the rule wants one.
 
-`properties::new_param_unit`'s *"One answer read by three places"* is
+`properties::new_variable_unit`'s *"One answer read by three places"* is
 the same error one level down: it is two places and a parallel ladder,
 because the picker re-derives the dimension mapping instead of calling
 it. They can disagree, and that sentence is the reason nobody will

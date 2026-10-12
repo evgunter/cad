@@ -56,14 +56,25 @@ fn stored_minor_bits(body: &Body<f64>) -> Vec<u64> {
     bits.sort_unstable();
     bits
 }
+/// A document holding the frame a tube on the spine axis `dir` reads,
+/// its reference `[1, 0, 0]`.
 fn axis_doc(name: &str, dir: [f64; 3]) -> (ProfileDoc, RecipeNodeId) {
+    frame_doc(name, dir, [1.0, 0.0, 0.0])
+}
+
+/// [`axis_doc`] with the reference `u`: the frame's `v` is `dir × u`,
+/// so its normal is `dir`.
+fn frame_doc(name: &str, dir: [f64; 3], u: [f64; 3]) -> (ProfileDoc, RecipeNodeId) {
+    let [a, b, c] = dir;
+    let [x, y, z] = u;
     let mut doc = ProfileDoc::empty_derived(name, Tol::witness());
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Box::new(Node::Datum(Datum::Axis {
+            node: Box::new(Node::Datum(Datum::Frame {
                 origin: [len(0.0), len(0.0), len(0.0)],
-                direction: dir.map(scl),
+                u: u.map(scl),
+                v: [b * z - c * y, c * x - a * z, a * y - b * x].map(scl),
             })),
             fresh: Vec::new(),
         },
@@ -105,8 +116,7 @@ fn r2_the_storage_contract_holds_at_non_dyadic_radii() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::HollowTube {
-                spine,
-                u_ref: [scl(1.0), scl(0.0), scl(0.0)],
+                frame: spine.into(),
                 major_radius: len(2.0),
                 window: TubeWindow::Full,
                 minor_radius: len(outer),
@@ -155,13 +165,11 @@ fn r2_the_storage_contract_holds_at_non_dyadic_radii() {
 #[test]
 fn r2_two_tubes_and_a_revolve_mint_names_that_never_collide() {
     let (mut doc, spine) = axis_doc("r2_crowded", [0.0, 0.0, 1.0]);
-    let u = [scl(1.0), scl(0.0), scl(0.0)];
     doc = push(
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Tube {
-                spine,
-                u_ref: u.clone(),
+                frame: spine.into(),
                 major_radius: len(2.0),
                 window: TubeWindow::Arc {
                     t0: ang(0.0),
@@ -177,8 +185,7 @@ fn r2_two_tubes_and_a_revolve_mint_names_that_never_collide() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::HollowTube {
-                spine,
-                u_ref: u.clone(),
+                frame: spine.into(),
                 major_radius: len(2.0),
                 window: TubeWindow::Arc {
                     t0: ang(0.0),
@@ -198,8 +205,7 @@ fn r2_two_tubes_and_a_revolve_mint_names_that_never_collide() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Tube {
-                spine,
-                u_ref: u,
+                frame: spine.into(),
                 major_radius: len(2.0),
                 window: TubeWindow::Arc {
                     t0: ang(0.0),
@@ -278,8 +284,7 @@ fn r2_a_hollow_rings_cavity_is_named_by_the_revolve_template() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::HollowTube {
-                spine,
-                u_ref: [scl(1.0), scl(0.0), scl(0.0)],
+                frame: spine.into(),
                 major_radius: len(2.0),
                 window: TubeWindow::Full,
                 minor_radius: len(0.5),
@@ -330,8 +335,7 @@ fn r2_a_non_unit_axis_refuses_upstream_and_never_reaches_the_tube_door() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Tube {
-                spine,
-                u_ref: [scl(1.0), scl(0.0), scl(0.0)],
+                frame: spine.into(),
                 major_radius: len(2.0),
                 window: TubeWindow::Full,
                 minor_radius: len(0.5),
@@ -366,25 +370,24 @@ fn r2_a_non_unit_axis_refuses_upstream_and_never_reaches_the_tube_door() {
     println!("r2: non-unit axis -> datum_failed={datum_failed} tube_built={tube_built}");
 }
 
-/// **PROBE 3b — what a `u_ref` does from a document now that the door
-/// takes a frame.** A bare direction passes through no datum, so the
-/// recipe layer is where it is decided: a long one is normalized into
-/// the frame and builds, and one on the spine axis line refuses under
-/// the direction vocabulary with the tube's own role word. Neither is
-/// a tube verdict any more.
+/// **PROBE 3b — what a reference does from a document now that the
+/// tube reads a frame.** The frame datum decides it: a long `u` is
+/// normalized into the frame and builds, and one on the spine axis
+/// leaves the frame no second direction, so the FRAME refuses and the
+/// tube is poisoned through it. Neither is a tube verdict.
 #[test]
-fn r2_the_u_ref_verdicts_stay_reachable_from_a_document() {
-    let (mut long_doc, long_spine) = axis_doc("r2_uref_long", [0.0, 0.0, 1.0]);
+fn r2_the_reference_verdicts_stay_reachable_from_a_document() {
+    let tube = |frame: RecipeNodeId| Node::Tube {
+        frame: frame.into(),
+        major_radius: len(2.0),
+        window: TubeWindow::Full,
+        minor_radius: len(0.5),
+    };
+    let (mut long_doc, long_frame) = frame_doc("r2_uref_long", [0.0, 0.0, 1.0], [2.0, 0.0, 0.0]);
     long_doc = push(
         &long_doc,
         &DocEdit::InsertNode {
-            node: Box::new(Node::Tube {
-                spine: long_spine,
-                u_ref: [2.0, 0.0, 0.0].map(scl),
-                major_radius: len(2.0),
-                window: TubeWindow::Full,
-                minor_radius: len(0.5),
-            }),
+            node: Box::new(tube(long_frame)),
             fresh: Vec::new(),
         },
     );
@@ -392,41 +395,31 @@ fn r2_the_u_ref_verdicts_stay_reachable_from_a_document() {
     let long_ev = eval::<f64>(&long_doc);
     assert!(
         matches!(long_ev.nodes.get(&long_tube), Some(NodeResult::Ok(_))),
-        "a long u_ref names the same radial and must build"
+        "a long reference names the same radial and must build"
     );
 
-    // A `u_ref` ON the spine axis line names no radial at all, and
-    // refuses where the frame is minted rather than at the door.
-    let (mut doc, spine) = axis_doc("r2_uref", [0.0, 0.0, 1.0]);
+    let (mut doc, frame) = frame_doc("r2_uref", [0.0, 0.0, 1.0], [0.0, 0.0, 1.0]);
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Box::new(Node::Tube {
-                spine,
-                u_ref: [0.0, 0.0, 1.0].map(scl),
-                major_radius: len(2.0),
-                window: TubeWindow::Full,
-                minor_radius: len(0.5),
-            }),
+            node: Box::new(tube(frame)),
             fresh: Vec::new(),
         },
     );
-    let tube = *doc.ids().last().expect("the tube");
+    let on_axis = *doc.ids().last().expect("the tube");
     let ev = eval::<f64>(&doc);
-    match ev.nodes.get(&tube) {
-        Some(NodeResult::Failed(e)) => match &e.kind {
-            NodeErrorKind::DegenerateDirection { role } => {
-                assert_eq!(
-                    *role,
-                    "tube reference direction's component perpendicular to the spine axis"
-                );
-            }
-            other => {
-                panic!("a u_ref on the axis line refuses as a direction verdict, got {other:?}")
-            }
-        },
-        other => panic!("a u_ref on the axis line must refuse, got {other:?}"),
+    match ev.nodes.get(&frame) {
+        Some(NodeResult::Failed(e)) => assert!(
+            matches!(e.kind, NodeErrorKind::DegenerateDirection { .. }),
+            "a reference on the axis line refuses at the frame as a direction verdict, got {:?}",
+            e.kind
+        ),
+        other => panic!("a reference on the axis line must refuse at the frame, got {other:?}"),
     }
+    assert!(
+        matches!(ev.nodes.get(&on_axis), Some(NodeResult::Poisoned { through }) if *through == frame),
+        "the tube is poisoned through its frame"
+    );
 }
 
 // ---------------------------------------------------------------
@@ -454,8 +447,7 @@ fn r2_a_tube_bearing_save_refuses_typed_on_a_build_that_lacks_the_vocabulary() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Tube {
-                spine,
-                u_ref: [scl(1.0), scl(0.0), scl(0.0)],
+                frame: spine.into(),
                 major_radius: len(2.0),
                 window: TubeWindow::Full,
                 minor_radius: len(0.5),

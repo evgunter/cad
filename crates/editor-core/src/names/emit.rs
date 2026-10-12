@@ -316,7 +316,7 @@ pub enum NamingError {
     /// wrong, so this is a missing rule and not an [`Self::Emission`].
     MemberEdgeTied {
         /// The member whose edge it is.
-        member: RecipeNodeId,
+        member: crate::VarId,
         /// The edge, as the member's own table names it.
         edge: Box<StableName>,
     },
@@ -522,7 +522,7 @@ impl crate::spoken::Say for NamingError {
                 "{UNRULED_FRAMING}: the crossings of member {}'s edge ({}) cannot \
                  be ranked along it, because a tie stands where one edge is needed (the member \
                  ties that name to several edges, or two of its crossings were tied)",
-                by.node(*member),
+                by.read(*member),
                 by.name(edge)
             ),
             Self::Band(error) => write!(
@@ -841,6 +841,45 @@ pub(crate) fn name_in_part<T: geom_core::Real>(
                 if es.iter().any(|e| e.body != 0) {
                     return Err(misplaced());
                 }
+                t.insert_tied(wrapped, es.iter().map(|e| ent(0, e.key)).collect())?;
+            }
+        }
+    }
+    check_total(&t, placed, 0)?;
+    Ok(Arc::new(t))
+}
+
+/// **A world placement's copy, named** (D10, A10): every row of the
+/// body placed (`body`'s table, already projected to that one body) is
+/// re-minted as `Placed(name)` at the PLACEMENT node, so two placements
+/// of one body name their copies apart, as an instance names its
+/// part's entities ([`name_in_part`]).
+///
+/// Keys hold verbatim, because `transform_rigid` is key-stable. The
+/// body row is the copy's own, minted here.
+pub(crate) fn name_placed<T: geom_core::Real>(
+    node: RecipeNodeId,
+    body: &NameTable,
+    placed: &Body<T>,
+) -> Result<Arc<NameTable>, NamingError> {
+    body.seal_order();
+    let mut t = NameTable::new();
+    t.insert(
+        name1(EntityKind::Body, node, super::role::RoleSeg::OutputBody),
+        ent(0, EntityKey::Body),
+    )?;
+    for (name, entry) in body.iter_refs() {
+        if name.kind == EntityKind::Body {
+            continue;
+        }
+        let wrapped = StableName {
+            kind: name.kind,
+            node,
+            path: vec![super::role::RoleSeg::Placed { of: name.clone() }],
+        };
+        match entry {
+            super::table::Entry::Unique(e) => t.insert(wrapped, ent(0, e.key))?,
+            super::table::Entry::Tied(es) => {
                 t.insert_tied(wrapped, es.iter().map(|e| ent(0, e.key)).collect())?;
             }
         }
@@ -1771,7 +1810,7 @@ mod display_tests {
             ),
             (
                 NamingError::MemberEdgeTied {
-                    member: RecipeNodeId::new(0, test_utils::refusal::tagged(37)),
+                    member: crate::VarId::new(0, test_utils::refusal::tagged(37)),
                     edge: Box::new(StableName {
                         kind: EntityKind::Edge,
                         node: RecipeNodeId::new(0, test_utils::refusal::tagged(37)),
@@ -1784,7 +1823,7 @@ mod display_tests {
                     }),
                 },
                 vec![
-                    "member node 000000000025",
+                    "member read 000000000025",
                     "of node 000000000025)",
                     "a tie stands",
                 ],

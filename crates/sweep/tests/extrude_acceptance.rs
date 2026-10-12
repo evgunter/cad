@@ -297,11 +297,10 @@ fn rounded_square_exercises_tangent_line_arc_joins() {
     // surfaces (plane–cylinder): distinct surface keys, conventional
     // MappedCurve struts.
     let b = FRAC_PI_8.tan();
-    // All eight joints are exact tangencies -- declared (#101), one
-    // declaration per joint including the closing arc's two. Each
+    // All eight joints are exact tangencies. Each
     // vertex carries the bulge of the segment LEAVING it: the four
     // straight legs leave with 0, the four quarter-arcs with b.
-    let mut lp = bulge_loop(vec![
+    let lp = bulge_loop(vec![
         (Point2::new(0.25, 0.0), 0.0),
         (Point2::new(0.75, 0.0), b),
         (Point2::new(1.0, 0.25), 0.0),
@@ -311,7 +310,6 @@ fn rounded_square_exercises_tangent_line_arc_joins() {
         (Point2::new(0.0, 0.75), 0.0),
         (Point2::new(0.0, 0.25), b),
     ]);
-    lp = lp.with_tangent_joints(vec![0, 1, 2, 3, 4, 5, 6, 7]);
     let t = extrude(
         &validated(vec![lp]),
         Extrusion::Distance {
@@ -682,8 +680,14 @@ fn sliver_dihedral_join_is_a_typed_error() {
         ExtrudeError::SliverJoin {
             loop_index,
             vertex_index,
+            reading,
             source,
         } => {
+            assert_eq!(
+                reading,
+                topo::DihedralReading::Lever(geom_brep::LeverRung::Reading),
+                "a sliver corner is the first-order wedge's escalation"
+            );
             assert_eq!(loop_index, 0);
             assert_eq!(source.predicate, Some("dihedral_wedge"));
             // The shallow corner sits at input vertex 1 = (1, 0); the
@@ -857,4 +861,52 @@ fn point_bits(body: &Body<f64>) -> (usize, usize, usize, Vec<[u64; 3]>) {
         body.faces().count(),
         coords,
     )
+}
+
+/// **Two builders of one box describe it identically, edge for edge.**
+/// The Euler-built box (`topo::test_support::brick`, described by
+/// `describe_as_intersections`) and the extruded one
+/// (`sweep::test_support::prism_at` over the same rectangle) are one
+/// topology, and each edge's intrinsic description names one locus, so
+/// the two descriptions are equal — whatever order each builder named
+/// the surfaces in. Before `SurfacePair` the extrude path wrote the
+/// four bottom rims `(cap, wall)` and the describer `(he_plus,
+/// he_minus)`, and 8 of the 12 edges compared equal.
+#[test]
+fn an_extruded_box_and_an_euler_box_describe_every_edge_alike() {
+    let tol = Tol::witness();
+    let (x, y, z) = ((0.0, 2.0), (0.0, 1.0), (0.0, 3.0));
+    let euler: Body<f64> = topo::test_support::brick(x, y, z, tol);
+    let corners = [(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)];
+    let extruded: Body<f64> = sweep::test_support::prism_at(
+        corners.map(|(u, v)| (Point2::new(u, v), 0.0)).to_vec(),
+        z.0,
+        z.1 - z.0,
+        tol,
+    );
+    let edges = |b: &Body<f64>| b.edges().map(|(k, _)| k).collect::<Vec<EdgeKey>>();
+    assert_eq!(
+        edges(&euler),
+        edges(&extruded),
+        "one edge arena, key for key"
+    );
+    let description = |b: &Body<f64>, k: EdgeKey| {
+        b.get_curve_geom(b.get_edge(k).unwrap().curve)
+            .and_then(topo::CurveGeom::certified)
+            .unwrap_or_else(|| panic!("{k:?} is certified"))
+            .description()
+            .clone()
+    };
+    let mut intrinsic = 0;
+    for k in edges(&euler) {
+        let (a, b) = (description(&euler, k), description(&extruded, k));
+        assert!(
+            matches!(a, EdgeDescription::Intersection { .. }),
+            "{k:?}: the box edge is an intersection: {a:?}"
+        );
+        assert_eq!(a.pair(), b.pair(), "{k:?}: one surface pair");
+        assert_eq!(format!("{a:?}"), format!("{b:?}"), "{k:?}: one description");
+        intrinsic += 1;
+    }
+    assert_eq!(intrinsic, 12, "every edge of the box was compared");
 }

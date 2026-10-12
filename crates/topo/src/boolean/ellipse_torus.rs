@@ -363,7 +363,7 @@ mod torus_rows {
     use std::fmt::Write as _;
 
     use super::*;
-    use crate::boolean::conic_oracle::{distance, unit};
+    use crate::boolean::conic_oracle::{distance, exact, unit};
     use geom_core::{Point3, Vec3};
     use test_utils::fuzz;
 
@@ -439,127 +439,42 @@ mod torus_rows {
         (e, s, t0, t1)
     }
 
-    /// The true crossings of `e` with the torus `s` round the turn about
-    /// `mid`, in `f64` on the true distance: every sign change of a dense
-    /// sampling, and every sampled extremum of `|d|` whose refined value
-    /// crosses zero (a graze pair inside one step), each bisected. Also the
-    /// least `|d|` seen, extrema included.
-    fn true_crossings(e: &geom::Curve3<f64>, s: &geom::Surface<f64>, mid: f64) -> (Vec<f64>, f64) {
-        let f = |t: f64| distance(s, e.eval(t));
-        let n = 8_000_u32;
-        let ts: Vec<f64> = (0..=n)
-            .map(|k| mid - PI + TAU * f64::from(k) / f64::from(n))
-            .collect();
-        let fs: Vec<f64> = ts.iter().map(|&t| f(t)).collect();
-        let bisect = |mut lo: f64, mut hi: f64| {
-            let below = f(lo) < 0.0;
-            for _ in 0..80 {
-                let m = 0.5 * (lo + hi);
-                if (f(m) < 0.0) == below {
-                    lo = m;
-                } else {
-                    hi = m;
-                }
-            }
-            0.5 * (lo + hi)
-        };
-        let mut least = fs.iter().fold(f64::INFINITY, |m, d| m.min(d.abs()));
-        let mut roots = Vec::new();
-        for k in 0..fs.len() - 1 {
-            if (fs[k] < 0.0) != (fs[k + 1] < 0.0) {
-                roots.push(bisect(ts[k], ts[k + 1]));
-            }
-        }
-        for k in 1..fs.len() - 1 {
-            let same = (fs[k - 1] < 0.0) == (fs[k] < 0.0) && (fs[k] < 0.0) == (fs[k + 1] < 0.0);
-            if !same || fs[k].abs() > fs[k - 1].abs() || fs[k].abs() > fs[k + 1].abs() {
-                continue;
-            }
-            // Golden-section search for the extremum of the sign `f` has here.
-            let sign = fs[k].signum();
-            let (mut a, mut b) = (ts[k - 1], ts[k + 1]);
-            let g = 0.5 * (5.0_f64.sqrt() - 1.0);
-            for _ in 0..90 {
-                let (c, d) = (b - g * (b - a), a + g * (b - a));
-                if sign * f(c) < sign * f(d) {
-                    b = d;
-                } else {
-                    a = c;
-                }
-            }
-            let t = 0.5 * (a + b);
-            least = least.min(f(t).abs());
-            if (f(t) < 0.0) != (fs[k] < 0.0) {
-                roots.push(bisect(ts[k - 1], t));
-                roots.push(bisect(t, ts[k + 1]));
-            }
-        }
-        roots.sort_by(f64::total_cmp);
-        (roots, least)
-    }
-
-    /// The arc length from `t` to the nearest of `truth` along `e`, and
-    /// the `f64` oracle's own uncertainty there: the distance's rounding
-    /// (`64u` of the pose's scale) over its slope along the arc.
-    fn arc_off(e: &geom::Curve3<f64>, s: &geom::Surface<f64>, t: f64, truth: &[f64]) -> (f64, f64) {
-        let r = truth
+    /// The arc length along `e` from `t` to the nearest of the true
+    /// `roots`, round the turn.
+    fn arc_off(e: &geom::Curve3<f64>, t: f64, roots: &[f64]) -> f64 {
+        roots
             .iter()
-            .copied()
-            .min_by(|a, b| (a - t).abs().total_cmp(&(b - t).abs()))
-            .expect("a true crossing");
-        let speed = e.deriv(r).norm();
-        let geom::Surface::Torus {
-            center,
-            major_radius,
-            minor_radius,
-            ..
-        } = *s
-        else {
-            unreachable!("a torus")
-        };
-        let scale = (e.eval(r) - Point3::new(0.0, 0.0, 0.0)).norm()
-            + (center - Point3::new(0.0, 0.0, 0.0)).norm()
-            + major_radius
-            + minor_radius;
-        let h = 1e-6;
-        let slope =
-            ((distance(s, e.eval(r + h)) - distance(s, e.eval(r - h))) / (2.0 * h * speed)).abs();
-        (
-            (t - r).abs() * speed,
-            64.0 * f64::EPSILON * 0.5 * scale / slope,
-        )
+            .map(|&r| ((t - r + PI).rem_euclid(TAU) - PI).abs() * e.deriv(r).norm())
+            .fold(f64::INFINITY, f64::min)
     }
 
     /// **Every certified answer is exactly true of the geometry**, at
-    /// three bands, over every family:
+    /// three bands, over every family, against the exact oracle
+    /// ([`exact::truth`]), which places every true crossing round the turn,
+    /// a graze pair however close included:
     ///
-    /// - a certified count is the TRUE count ([`true_crossings`], graze
-    ///   pairs inside a sampling step included);
+    /// - a certified count is the TRUE count;
     /// - every certified root lies on the torus (its true distance inside
     ///   the zero band) and, as arc length, within the zero band of a true
-    ///   crossing, wherever the `f64` oracle resolves that crossing to a
-    ///   quarter band (where it cannot, the place is not checked, and the
-    ///   count of such roots is printed);
+    ///   crossing;
     /// - a `Miss` has no true crossing and comes no nearer than the band.
     ///
-    /// The counts per answer are printed. The high-precision check of the
-    /// same families, root places everywhere, is
-    /// [`dump_for_the_mpmath_oracle`]; the slack meter's calibration is
-    /// pinned by [`the_slack_meter_charges_every_term`].
+    /// The counts per answer are printed. The 40-digit check of the same
+    /// families is [`dump_for_the_mpmath_oracle`]; the slack meter's
+    /// calibration is pinned by [`the_slack_meter_charges_every_term`].
     #[test]
     fn certified_torus_answers_hold_against_the_true_distance() {
         let mut rng = fuzz::start("ellipse_torus::certified_torus_answers_hold");
         for eps in [1e-6, 1e-9, 1e-12] {
             let band = Band::new(eps, 10.0 * eps).unwrap();
             for (family, name) in FAMILIES.iter().enumerate() {
-                let (mut certified, mut misses, mut uncertain, mut unplaced) = (0, 0, 0, 0);
+                let (mut certified, mut misses, mut uncertain) = (0, 0, 0);
                 for i in 0..fuzz::scaled(120) {
                     let (e, s, t0, t1) = pose(&mut rng, family, eps);
-                    let mid = (t0 + t1) / 2.0;
                     let found = ellipse_torus_roots(&e, t0, t1, &s, band).unwrap_or_else(|err| {
                         panic!("ε {eps}, {name} {i}: the torus arm escalated {err:?}")
                     });
-                    let (truth, least) = true_crossings(&e, &s, mid);
+                    let truth = exact::truth(&e, &s);
                     let label = format!(
                         "ε {eps}, {name} {i}: {e:?} against {s:?} on [{t0}, {t1}] — {}",
                         fuzz::replay()
@@ -569,28 +484,29 @@ mod torus_rows {
                             certified += 1;
                             assert_eq!(
                                 count,
-                                truth.len(),
-                                "{label}: certified {count} of {truth:?}"
+                                truth.roots.len(),
+                                "{label}: certified {count} of {:?}",
+                                truth.roots
                             );
                             for &t in &thetas[..count] {
                                 let off = distance(&s, e.eval(t)).abs();
                                 assert!(off <= eps, "{label}: root {t} lies {off} off the torus");
-                                let (arc, resolution) = arc_off(&e, &s, t, &truth);
-                                if resolution > eps / 4.0 {
-                                    unplaced += 1;
-                                    continue;
-                                }
+                                let arc = arc_off(&e, t, &truth.roots);
                                 assert!(
-                                    arc <= eps + resolution,
-                                    "{label}: root {t} is {arc:e} m of arc from a true crossing"
+                                    arc <= eps,
+                                    "{label}: root {t} is {arc:e} m of arc from a true crossing \
+                                     ({:?})",
+                                    truth.roots
                                 );
                             }
                         }
                         CircleRoots::Miss => {
                             misses += 1;
                             assert!(
-                                truth.is_empty() && least > eps,
-                                "{label}: a Miss {least} from the torus, crossings {truth:?}"
+                                truth.roots.is_empty() && truth.depth > eps,
+                                "{label}: a Miss {} from the torus, crossings {:?}",
+                                truth.depth,
+                                truth.roots
                             );
                         }
                         CircleRoots::Uncertain => uncertain += 1,
@@ -598,8 +514,7 @@ mod torus_rows {
                     }
                 }
                 println!(
-                    "ε {eps}, {name}: {certified} certified ({unplaced} roots past the oracle's \
-                     resolution), {misses} misses, {uncertain} uncertain"
+                    "ε {eps}, {name}: {certified} certified, {misses} misses, {uncertain} uncertain"
                 );
             }
         }
@@ -782,6 +697,111 @@ mod torus_rows {
                 "case {k}: the unmetered walk's worst root is {off:e} m of arc off — not a pose \
                  the meter decides"
             );
+        }
+    }
+
+    /// **A graze pair at the turn's seam is two crossings.** A graze the
+    /// fuzz drew at ε = 1e-9 crosses the torus six times, two of them
+    /// 5.6e-4 rad apart about a bump 3.5e-8 m high, and its arc (the first
+    /// below) puts the turn's seam 3e-5 rad past that pair. The six true
+    /// roots are the 50-digit ones mpmath finds from the stored values, and
+    /// the exact oracle and the sampled one find the same six. With the arc
+    /// moved so the seam falls before, inside and past the pair, a radian
+    /// off and two away: at ε 1e-9 the door certifies all six, each within
+    /// the band of a true one; at 1e-6, where the bump lies inside the
+    /// band, and at 1e-12 it may refuse, but a certified answer is the six
+    /// and a `Miss` is never one.
+    #[test]
+    fn a_graze_pair_at_the_seam_is_two_crossings() {
+        let truth = [
+            5.069_940_181_296_205,
+            7.565_772_021_816_14,
+            8.086_537_994_185_642,
+            9.791_087_935_253_971,
+            10.389_850_001_893_556,
+            10.390_414_854_663_097,
+        ];
+        let t0 = 4.282_277_677_218_393;
+        let drawn = 10.215_426_389_017_1;
+        let seams = [
+            (t0 + drawn) / 2.0 + PI,
+            truth[4] - 1e-3,
+            truth[4] - 1e-6,
+            (truth[4] + truth[5]) / 2.0,
+            truth[5] + 1e-6,
+            truth[5] + 1e-3,
+            truth[4] - 1.0,
+            truth[5] + 2.0,
+        ];
+        for (k, seam) in seams.into_iter().enumerate() {
+            let t1 = if k == 0 {
+                drawn
+            } else {
+                2.0 * (seam - PI) - t0
+            };
+            let pose = Pose {
+                n: [
+                    -0.906_035_145_130_820_1,
+                    0.419_523_425_518_279_87,
+                    -0.055_681_336_452_911_27,
+                ],
+                u: [
+                    -0.327_005_875_686_901_6,
+                    -0.777_520_351_402_234,
+                    -0.537_149_197_543_465_7,
+                ],
+                semi: [1.593_124_451_262_541_3, 0.143_376_854_313_980_62],
+                hub: [
+                    1.309_119_664_549_826_2,
+                    0.386_252_372_131_654_53,
+                    0.057_250_998_729_955_48,
+                ],
+                t_axis: [
+                    0.005_461_167_552_722_65,
+                    -0.396_058_940_744_004,
+                    0.918_208_849_394_133_6,
+                ],
+                radii: [1.392_996_354_452_136_4, 0.337_805_154_507_221_5],
+                arc: [t0, t1],
+            };
+            let (e, s) = pose.build();
+            let mid = (t0 + t1) / 2.0;
+            let exact = exact::truth(&e, &s);
+            let sampled = crate::boolean::conic_oracle::oracle(&e, &s, mid - PI, mid + PI);
+            // The sampled oracle's `f64` distance places the graze pair only
+            // to its own rounding over the pair's shallow slope.
+            for (name, roots, reach) in
+                [("exact", &exact.roots, 1e-13), ("sampled", &sampled, 1e-9)]
+            {
+                let worst = roots
+                    .iter()
+                    .map(|&t| arc_off(&e, t, &truth))
+                    .fold(0.0, f64::max);
+                assert!(
+                    roots.len() == 6 && worst < reach,
+                    "seam {seam}: the {name} oracle reads {roots:?}"
+                );
+            }
+            for eps in [1e-6, 1e-9, 1e-12] {
+                let band = Band::new(eps, 10.0 * eps).unwrap();
+                let label = format!("seam {seam}, ε {eps}");
+                match pose.answers(band).0 {
+                    CircleRoots::Certified { count, thetas } => {
+                        assert_eq!(count, 6, "{label}: {:?}", &thetas[..count]);
+                        for &t in &thetas[..count] {
+                            let arc = arc_off(&e, t, &truth);
+                            assert!(arc <= eps, "{label}: root {t} is {arc:e} m of arc off");
+                        }
+                    }
+                    CircleRoots::Uncertain => {
+                        assert!(
+                            eps != 1e-9,
+                            "{label}: the door resolves the pose, yet refused"
+                        );
+                    }
+                    other => panic!("{label}: {other:?} for a carrier crossing six times"),
+                }
+            }
         }
     }
 

@@ -165,7 +165,8 @@ pub enum Minted {
     Node(RecipeNodeId),
     /// A profile step's id, minted by `InsertNode` or `SetProgram`.
     Step(StepId),
-    /// A variable's id, minted by `DeclareVar`.
+    /// A variable's id, minted by `DeclareVar`, by an edit's lowering
+    /// for an anonymous one, or by `InsertNode` for its node's outputs.
     Var(VarId),
 }
 
@@ -248,33 +249,43 @@ pub(crate) enum MintingEdit<'a, P, S: crate::Slot = crate::VarId> {
 
 /// **What an anonymous variable holds, as its mint reads it**
 /// ([`MintingEdit::DeclareAnonymous`]): a continuous value's bits, a
-/// count, or a definition with every literal in its canonical unit. A
-/// display unit is never in it (D6): a value's carries none, and a
-/// definition's literals are read canonical, so `w + 125 mm` and
-/// `w + 0.125 m` mint one id.
+/// count, or a definition. A display unit is never in it (D6): a
+/// value's carries none, and a definition holds no float, its written
+/// quantities being variables minted before it.
 #[derive(Serialize)]
 pub(crate) enum Held {
     /// A continuous value, by its bits.
     Value(u64),
     /// A count.
     Count(i64),
-    /// A definition, its display units erased.
+    /// A definition.
     Defined(crate::Expr),
+    /// A selection: the body read and the names, in stored order.
+    Select {
+        /// The body.
+        body: VarId,
+        /// The names.
+        names: Vec<crate::names::StableName>,
+    },
+    /// A pose definition, by its reads and scalars.
+    Pose(crate::pose::PoseDef),
 }
 
 impl Held {
     /// What `def` holds.
-    pub(crate) fn of(def: &crate::var::VarDef) -> Self {
+    pub(crate) fn of(def: &crate::var::WrittenDef) -> Self {
+        use crate::var::WrittenDef;
         match def {
-            crate::var::VarDef::Free(crate::doc::FreeVar::Continuous { value, .. }) => {
+            WrittenDef::Free(crate::doc::FreeVar::Continuous { value, .. }) => {
                 Self::Value(value.to_bits())
             }
-            crate::var::VarDef::Free(crate::doc::FreeVar::Count { value }) => Self::Count(*value),
-            crate::var::VarDef::Defined(expr) => {
-                let mut canonical = expr.clone();
-                canonical.erase_display_units();
-                Self::Defined(canonical)
-            }
+            WrittenDef::Free(crate::doc::FreeVar::Count { value }) => Self::Count(*value),
+            WrittenDef::Defined(expr) => Self::Defined(expr.clone()),
+            WrittenDef::Select(_, select) => Self::Select {
+                body: select.body,
+                names: select.names.clone(),
+            },
+            WrittenDef::Pose(_, def) => Self::Pose(def.clone()),
         }
     }
 }
@@ -325,6 +336,7 @@ const EDIT_TAG: &[u8] = b"mint/edit\0";
 const NODE_TAG: &[u8] = b"mint/node\0";
 const STEP_TAG: &[u8] = b"mint/step\0";
 const VAR_TAG: &[u8] = b"mint/var\0";
+const OUTPUT_TAG: &[u8] = b"mint/output\0";
 
 impl Mint {
     /// A document's mint before anything is inserted: the zero chain
@@ -420,7 +432,7 @@ impl Mint {
     /// **The id an anonymous variable holding `def` draws here**: the
     /// chain extended by its kind and what it holds
     /// ([`MintingEdit::DeclareAnonymous`]), then once for the variable.
-    fn draw_anonymous(&self, def: &crate::var::VarDef) -> ([u8; 32], VarId) {
+    fn draw_anonymous(&self, def: &crate::var::WrittenDef) -> ([u8; 32], VarId) {
         self.draw_var_of(&MintingEdit::DeclareAnonymous {
             kind: def.kind(),
             held: Held::of(def),
@@ -430,13 +442,13 @@ impl Mint {
     /// The id an anonymous variable holding `def` would mint here —
     /// what a refusal of it speaks. Reads; mints nothing.
     #[must_use]
-    pub(crate) fn would_declare_anonymous(&self, def: &crate::var::VarDef) -> VarId {
+    pub(crate) fn would_declare_anonymous(&self, def: &crate::var::WrittenDef) -> VarId {
         self.draw_anonymous(def).1
     }
 
     /// **Mint the id of an anonymous variable holding `def`**
     /// ([`Self::draw_anonymous`]).
-    pub(crate) fn declare_anonymous(&mut self, def: &crate::var::VarDef) -> VarId {
+    pub(crate) fn declare_anonymous(&mut self, def: &crate::var::WrittenDef) -> VarId {
         let (chain, id) = self.draw_anonymous(def);
         self.chain = chain;
         self.log.push(Minted::Var(id));
@@ -547,6 +559,28 @@ impl Mint {
         self.fill(self.chain, shape)
     }
 
+    /// **The ids of the outputs of the node [`Self::insert`] just
+    /// minted** (its steps', if any, minted before them): one per port
+    /// of its signature, `ports` in all, in port order, each extending
+    /// the chain once under the output tag and its port.
+    pub(crate) fn outputs_of_insert(&mut self, ports: u8) -> Vec<VarId> {
+        (0..ports)
+            .map(|port| {
+                let indexed: [u8; 32] = Sha256::new()
+                    .chain_update(OUTPUT_TAG)
+                    .chain_update([port])
+                    .chain_update(self.chain)
+                    .finalize()
+                    .into();
+                let (chain, id) = Self::draw(OUTPUT_TAG, indexed, &self.log);
+                let var = VarId(id);
+                self.chain = chain;
+                self.log.push(Minted::Var(var));
+                var
+            })
+            .collect()
+    }
+
     /// **The ids for a `SetProgram`'s steps**: `shape` is one list per
     /// loop, one entry per authored step, the id a step keeps or `None`
     /// for one to mint. The chain is extended by `edit`'s bytes, and
@@ -640,7 +674,7 @@ mod tests {
 
     fn extrude(profile: u64, distance: f64) -> Node<ProfileProgram> {
         Node::Extrude {
-            profile: RecipeNodeId::new(0, profile),
+            profile: VarId::new(0, profile),
             distance: VarId::new(0, distance.to_bits()),
             side: crate::ExtrudeSide::Along,
         }
@@ -823,7 +857,7 @@ mod tests {
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]).unwrap();
         let steps = square.authored_steps();
         let node = Node::Profile(ProfileProgram {
-            plane: RecipeNodeId::new(0, 0),
+            frame: crate::Operand::Node(RecipeNodeId::new(0, 0)),
             loops: vec![square],
             ids: Vec::new(),
         });
@@ -848,10 +882,10 @@ mod tests {
         );
     }
 
-    const PIN_NODE: &str = "1:5f527b25e64992b7";
-    const PIN_FIRST: &str = "2:bdd0542cd527b351";
-    const PIN_LAST: &str = "6:dacbde8dfb265eb0";
-    const PIN_CHAIN: &str = "dacbde8dfb265eb040ccd11a93a1da65b1e17dd853c9151145633dae36f7b1b7";
+    const PIN_NODE: &str = "1:3891bf6f915959d8";
+    const PIN_FIRST: &str = "2:b44f6e15ece0cab7";
+    const PIN_LAST: &str = "6:8c2dcbfc1bd2df19";
+    const PIN_CHAIN: &str = "8c2dcbfc1bd2df19e446f386e23b0310cb4485596bbc3701844ffcd33b3d94c8";
 
     const LEN: VarKind = VarKind::Length;
 

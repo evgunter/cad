@@ -54,3 +54,13 @@ blind there. Today that matters for boolean pierce rings. Once
 (`work/shell/shell-open-refuses-a-curved-designated-face`), it matters
 for shell too; shell's own clearance gate shields it, but its spec
 will name this row rather than inherit the gap. (SHELL orchestrator)
+
+## Note from TANG (2026-10-07)
+
+The split-join's ring re-homing reads on the same premise
+(`chord_join::first_decided`, PR 4246): a bystander ring is placed by
+its first decided vertex against the run. A ring crossing the run along
+one of these edges has decided vertices on both sides, and the reading
+takes the first, as main's anchor reading did whenever that vertex was
+decided. No public pose is known to reach it; closing this item closes
+it there too. (TANG implementer)

@@ -39,3 +39,14 @@ Host one certified primitive in `geom_core::spline`, covering:
 Then route `bezier_on` through it, and the other two where their
 schedules fit. `TensorNet::refine_u`/`refine_v` are the tensor
 bookkeeping a surface consumer would reuse.
+
+## Evidence (2026-10-11, `encl/one-halving-driver`)
+
+The Bézier-row case of the restriction exists and is public:
+`geom_core::spline::sub_segment` cuts a segment's row on `[s0, s1]` to
+`[a, b]` in the convex form with the hull meet, and `ssi::section`
+reads it in place of its own copy. A span's piece reaches it once the
+span is a Bézier segment (knots at full multiplicity), which is what
+`bezier_on` would otherwise blossom by de Boor. A further copy of the
+cut, `props::quad::bezier_bisect`, is filed on QUAD's slate
+(`trim-monotone-ladder-bisects-with-its-own-lerp-de-casteljau`).

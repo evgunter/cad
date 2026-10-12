@@ -269,6 +269,18 @@ fn eps_row(eps: f64) -> usize {
 /// at every row while every count — calls, forms, frozen — holds, and
 /// `Early/Decision`, which reads no variable, holds its digest.
 ///
+/// Re-captured when an intrinsic edge description's surfaces became a
+/// set (`geom_brep::SurfacePair`): the certificate reads the
+/// transversality wedge (`geom_brep::dihedral::wedge_decided`'s
+/// `n1.cross(n2)`) in key order where the extrude reads it in builder
+/// order, and the cross product is symmetric in value up to sign but not
+/// in form, so mixed orientations build distinct hash-consed forms.
+/// Measured composed with the cap orientation (`cap_plane_orientation`,
+/// [`PLATE_LEDGER`]'s note: +4 `Assertion` calls per walk here): the
+/// `*/Assertion` walks build 188 more forms (998 → 1186, 2041 → 2229)
+/// and the `Plain/*` and `Early/Assertion` digests move at every row;
+/// calls, frozen counts and `Early/Decision` hold.
+///
 /// What moves it is what moves [`PLATE_LEDGER`]; on the slab the
 /// edges' mid-parameter points are the lever — the witness an edge is
 /// minted with, the certificate's midpoint check and its schedule's
@@ -281,20 +293,20 @@ fn eps_row(eps: f64) -> usize {
 /// the anonymous definition a slot's formula lowers to.
 const SLAB_LEDGER: [&str; 3] = [
     "\
-     Plain/Decision calls 981 forms 9426 frozen 0 digest c5a152514b522899526a41668175a0de\n\
-     Plain/Assertion calls 514 forms 998 frozen 0 digest 5206c920343d6282631593785c59fd94\n\
+     Plain/Decision calls 981 forms 9426 frozen 0 digest 509f76009e2fdeda65fed3469e5b4c9a\n\
+     Plain/Assertion calls 514 forms 1186 frozen 0 digest 6cc3925553d39ab11afdd6f49e2e95fc\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 514 forms 2041 frozen 0 digest 3db9ed51fb47a298354b2832b038c78a",
+     Early/Assertion calls 514 forms 2229 frozen 0 digest c1a337dfb3fddea52f0b602dee5ce284",
     "\
-     Plain/Decision calls 981 forms 9426 frozen 0 digest e7826bcc06fc0e40f560d482194172fe\n\
-     Plain/Assertion calls 514 forms 998 frozen 0 digest bcfbe11c2bdeed2409771fd302947d91\n\
+     Plain/Decision calls 981 forms 9426 frozen 0 digest d5fda03dcfd46c23e618d14b01521812\n\
+     Plain/Assertion calls 514 forms 1186 frozen 0 digest e01dd6ba526d880e783c1591e8ec918d\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 514 forms 2041 frozen 0 digest e17861a58d5e7b4a5b43d4001d4bce08",
+     Early/Assertion calls 514 forms 2229 frozen 0 digest 07d7408b59196363c53b96cbc8093e55",
     "\
-     Plain/Decision calls 981 forms 9426 frozen 0 digest bcfbe11bda9c90c6b10f188ca7b67066\n\
-     Plain/Assertion calls 514 forms 998 frozen 0 digest 88893d9f9257c4f96979ed9188e3ff26\n\
+     Plain/Decision calls 981 forms 9426 frozen 0 digest 12eb2d77e98670e393dd86ec271d5c3b\n\
+     Plain/Assertion calls 514 forms 1186 frozen 0 digest ed52a22cbba70cd084174fda0dd6d15c\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 514 forms 2041 frozen 0 digest 4265056406dca4880d3caf74f355b9cb",
+     Early/Assertion calls 514 forms 2229 frozen 0 digest 567124dbedb7c16baa8e3ed1ec024203",
 ];
 
 /// The largest form (numerator plus denominator terms) any op built
@@ -515,12 +527,34 @@ const PLATE_MAX_TERMS: usize = 28;
 ///   `Plain/Decision` call, a theorem, and that line's digest. Every
 ///   other line holds; the untoleranced variables bind as constants
 ///   (VR8), as the literals did.
+/// - **The pcurve envelope sums two more terms (`pcert/projected-image`).**
+///   `EnvelopeTerm` gained `Incidence` and `Fidelity`, the projected
+///   image's, and the closed-form lanes' envelope still folds every slot,
+///   so each `pcurve_envelope` decision adds two zero-valued summands:
+///   `Plain/Decision`'s and `Early/Decision`'s forms rise 24 each
+///   (15710 → 15734, 8633 → 8657, every one an `Add`), their digests
+///   move, and the calls, the freezes and every other line hold.
+/// - **A measure is an operation (INTENT stage 2 unit D).** The web is
+///   the assertion's definition over the distance measure's output, so
+///   the measured value enters the arithmetic as a variable the
+///   definition reads: one more `Plain/Decision` form (15734 → 15735),
+///   and that line's digest. Calls, freezes and every other line hold.
+///
+/// An intrinsic edge description's surfaces becoming a set
+/// (`geom_brep::SurfacePair`), measured on the tree holding every change
+/// above: the certificate reads the transversality wedge's
+/// `n1.cross(n2)` in key order, a form distinct from the extrude's
+/// builder-order one, so `Plain/Assertion` 4173/360 → 4349/389 (+176
+/// forms, +29 frozen), `Early/Assertion` 5136 → 5312 (+176) and
+/// `Door/Decision` 7099 → 7181 (+82); calls, `*/Decision` forms and
+/// every decision tally hold (`m10_10_pins_interval` reads the pair's
+/// sum unchanged).
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1048 forms 15710 frozen 252 digest f546be30341cc967d13ab3e347fb52fe\n\
-     Plain/Assertion calls 654 forms 4173 frozen 360 digest 91787fb61a160072b143278440ea302f\n\
-     Early/Decision calls 352 forms 8633 frozen 0 digest dfd56c276c08ef0be8256716c68484b9\n\
-     Early/Assertion calls 654 forms 5136 frozen 0 digest da78941ae02f7d0e7e82b8880eda52ac\n\
-     Door/Decision calls 396 forms 7099 frozen 0 digest 4b490dcb93367447183d6428998bbfbd\n\
+     Plain/Decision calls 1048 forms 15735 frozen 252 digest bb9b65c26e1986776057380748e8f28c\n\
+     Plain/Assertion calls 654 forms 4349 frozen 389 digest b82ea8fd0878e9410927c81ec1a03b95\n\
+     Early/Decision calls 352 forms 8657 frozen 0 digest 11d22e34e12b763fd880057381499ac5\n\
+     Early/Assertion calls 654 forms 5312 frozen 0 digest ba87a0aca9ba1283a9177f2602626bdd\n\
+     Door/Decision calls 396 forms 7181 frozen 0 digest 188fd982307faf268e6444b8ea1c82bb\n\
      Door/Assertion calls 396 forms 0 frozen 0 digest 00000000000000000000000000000000";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
