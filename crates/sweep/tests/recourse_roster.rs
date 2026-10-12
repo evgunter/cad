@@ -34,6 +34,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::tolerance::EPS_MIN;
 use geom_core::{Band, Indeterminate, MarginDiag, MissingRecourse, Tol};
 use std::collections::BTreeSet;
 use sweep::blend::{BlendDecision, BlendError, BlendSite};
@@ -414,7 +415,8 @@ fn an_in_band_reading_is_offered_the_tolerance_exactly_where_its_sign_passes() {
 /// does — the chain lever and the tolerance its own reading gives — and
 /// neither reads as an unreadable margin. The ending is pinned whole,
 /// and its offer followed: below the offered tolerance the same
-/// tangent junction passes.
+/// tangent junction passes. An offer at or below `EPS_MIN` is withheld
+/// (D4 ¶4), as the decided zero's is at CI's 1e-12 row.
 #[test]
 fn a_decided_zero_chain_arm_ends_as_its_in_band_sibling_does() {
     use sweep::blend::battery::chain_g1;
@@ -439,16 +441,26 @@ fn a_decided_zero_chain_arm_ends_as_its_in_band_sibling_does() {
         let text = err.to_string();
         let offered = arm / k;
         assert!(
+            !text.contains(geom_core::UNREADABLE_MARGIN_NOTE),
+            "{what}: a short link is the caller's geometry: {text}"
+        );
+        if offered <= EPS_MIN {
+            assert!(
+                text.ends_with(&format!(
+                    "Recourse: {}",
+                    sweep::blend::FILLET3_CHAIN_RECOURSE
+                )),
+                "{what}: no offer quotes a tolerance below EPS_MIN: {text}"
+            );
+            continue;
+        }
+        assert!(
             text.ends_with(&format!(
                 "Recourse: {}, or, if this link length is intended, tighten the tolerance \
                  below {offered:e} m",
                 sweep::blend::FILLET3_CHAIN_RECOURSE,
             )),
             "{what}: {text}"
-        );
-        assert!(
-            !text.contains(geom_core::UNREADABLE_MARGIN_NOTE),
-            "{what}: a short link is the caller's geometry: {text}"
         );
         let tighter = Band::new(offered / 2.0, offered / 2.0 * k).expect("a tighter band");
         chain_g1(x, x, arm, v, tighter)

@@ -502,7 +502,14 @@ impl Staged for PersistError {
                  (one process, one ε)"
             ),
             Self::ToleranceInvalid { value } => {
-                write!(f, "recorded ε {value:e} is not a valid tolerance")
+                write!(
+                    f,
+                    "recorded ε {value:e} is not a valid tolerance: one is a finite length of \
+                     at least {:e} m, the length f64 resolves at the edge of the {:e} m session \
+                     box",
+                    geom_core::tolerance::EPS_MIN,
+                    geom_core::tolerance::SESSION_BOX_EXTENT
+                )
             }
         }
     }

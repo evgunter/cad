@@ -4855,7 +4855,7 @@ mod declaration_order_rows {
     /// with the block's top and aligned with it. The sector names the
     /// one-carrier class the senses make the pair (`Rest` opposed, a
     /// continuation aligned), and its recourse is the geometry or the
-    /// tolerance.
+    /// tolerance, where that lies above `EPS_MIN` (D4 ¶4).
     #[test]
     fn a_coplanar_sectors_in_band_parallelism_refuses_on_the_sector() {
         use crate::test_support_fixtures::{brick, mapped_cube};
@@ -4904,15 +4904,22 @@ mod declaration_order_rows {
                 ),
                 "{label}: the sector names {class:?}, as the senses make the pair: {got:?}"
             );
+            let Err(BooleanError::Escalated { diag, .. }) = &got else {
+                panic!("{label}: an escalation: {got:?}");
+            };
+            let m = diag.margin.diagnostic_f64_for_error_text().value().unwrap();
+            let offers = band.tolerance_deciding(m) > geom_core::tolerance::EPS_MIN;
             let text = got.expect_err("it refuses").to_string();
             assert!(
                 text.starts_with("how two corners of the two solids overlap where they meet is ")
                     && text.contains(
                         "Recourse: move the parts so they clearly meet or clearly stand apart \
-                         there, or, if this gap is intended, tighten the tolerance below "
+                         there"
                     )
+                    && text.contains(", or, if this gap is intended, tighten the tolerance below ")
+                        == offers
                     && !text.contains("declare"),
-                "{label}: {text}"
+                "{label}: offered exactly above EPS_MIN ({offers}): {text}"
             );
         }
     }

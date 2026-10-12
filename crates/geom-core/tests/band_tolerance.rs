@@ -273,7 +273,10 @@ fn probe_angular_never_underflows_at_a_runs_eps() {
         "the boundary arm ε·2¹⁰⁷⁵ is past f64::MAX at ε_min"
     );
     let theta = tol.eps() / f64::MAX;
-    assert!(theta > 0.0, "the angle at the largest arm survives: {theta:e}");
+    assert!(
+        theta > 0.0,
+        "the angle at the largest arm survives: {theta:e}"
+    );
     assert!(
         Band::angular_at(tol, f64::MAX).is_ok(),
         "and its band forms"

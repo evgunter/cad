@@ -313,7 +313,11 @@ impl fmt::Display for ToleranceEnvError {
                 self.var, self.raw
             ),
             ToleranceEnvErrorKind::BelowFloor { value } => {
-                write!(f, "tolerance env var {} = {:?} (= {value:e} m) ", self.var, self.raw)?;
+                write!(
+                    f,
+                    "tolerance env var {} = {:?} (= {value:e} m) ",
+                    self.var, self.raw
+                )?;
                 write_below_floor(f)?;
                 write!(f, "; the compiled default was used instead")
             }
@@ -520,7 +524,9 @@ fn resolve_from_env(
 fn refuse_env_eps(value: f64) -> Option<ToleranceEnvErrorKind> {
     match Tolerance::with_eps(value).validate_eps() {
         Ok(()) => None,
-        Err(ToleranceError::BelowFloor { value }) => Some(ToleranceEnvErrorKind::BelowFloor { value }),
+        Err(ToleranceError::BelowFloor { value }) => {
+            Some(ToleranceEnvErrorKind::BelowFloor { value })
+        }
         Err(_) => Some(ToleranceEnvErrorKind::Invalid { value }),
     }
 }
@@ -923,8 +929,16 @@ mod tests {
         let below = EPS_MIN.next_down();
         for eps in [below, 1e-14, f64::MIN_POSITIVE, 5e-324] {
             let want = Err(ToleranceError::BelowFloor { value: eps });
-            assert_eq!(Tolerance::init(Tolerance::with_eps(eps)), want, "init at {eps:e}");
-            assert_eq!(Tolerance::init_document_eps(eps), want, "document at {eps:e}");
+            assert_eq!(
+                Tolerance::init(Tolerance::with_eps(eps)),
+                want,
+                "init at {eps:e}"
+            );
+            assert_eq!(
+                Tolerance::init_document_eps(eps),
+                want,
+                "document at {eps:e}"
+            );
             let raw = format!("{eps:e}");
             let (t, err) = resolve_from_env(table(&[(ENV_EPS, &raw)]));
             assert_eq!(t.eps, DEFAULT_EPS, "env at {eps:e} falls back");
@@ -941,7 +955,10 @@ mod tests {
         );
         let (_, err) = resolve_from_env(table(&[(ENV_EPS, "1e-14")]));
         let said = err[0].to_string();
-        assert!(said.contains(&floor) && said.contains("default was used"), "{said}");
+        assert!(
+            said.contains(&floor) && said.contains("default was used"),
+            "{said}"
+        );
         let (t, err) = resolve_from_env(table(&[(ENV_EPS, &format!("{EPS_MIN:e}"))]));
         assert_eq!((t.eps, err.len()), (EPS_MIN, 0), "ε_min itself is admitted");
     }

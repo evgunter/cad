@@ -401,9 +401,10 @@ pub(crate) fn wedge_decided<T: Decide>(
 /// from there down to its own, so the arm binds and keeps its own margin:
 /// an exactly zero wedge, and one that is only rounding on a tangent
 /// seam, whose own value would offer a tolerance many decades below the
-/// one that already decides the seam. An arm no smaller tolerance
-/// decides positive — poisoned, decided negative, or a zero on the
-/// negative side — keeps its own too: there is no tolerance to quote
+/// one that already decides the seam. An arm no smaller tolerance a run
+/// admits decides positive — poisoned, decided negative, a zero on the
+/// negative side, or one only a tolerance below `EPS_MIN` decides —
+/// keeps its own too: there is no tolerance to quote
 /// ([`LeverEscalation::re_quotes`]).
 fn at_wedge<T: Decide>(
     escalation: LeverEscalation,
@@ -1562,6 +1563,13 @@ mod tests {
                 panic!("a point margin: {err:?}");
             };
             assert_eq!(err.rung(), LeverRung::Arm);
+            if b.tolerance_deciding(extent) <= geom_core::tolerance::EPS_MIN {
+                // The arm offers no tolerance (D4 ¶4), so there is none
+                // to decide the wedge by: the arm keeps its own margin.
+                assert_eq!(err.diag().predicate, Some("dihedral_arm"), "{extent:e}");
+                assert_eq!(m, extent, "{extent:e}");
+                continue;
+            }
             assert_eq!(err.diag().predicate, Some("dihedral_arm_wedge"));
             assert!((m - theta.sin() * extent).abs() <= 1e-6 * m, "{m:e}");
         }

@@ -472,8 +472,21 @@ fn fixed_sub_epsilon_cone_arm_escalates() {
     let err = classify_dihedral(&cone, &plane_through(p), p, 1.0, band()).unwrap_err();
     assert_eq!(
         (err.rung(), err.diag().predicate),
-        (geom_brep::LeverRung::Arm, Some("dihedral_arm_wedge"))
+        (geom_brep::LeverRung::Arm, Some(sub_eps_arm_quotes()))
     );
+}
+
+/// The reading a sub-ε arm's escalation quotes: the wedge it meters,
+/// where the arm offers a tolerance to decide both; its own name where
+/// that tolerance, half ε over K, lies at or below `EPS_MIN` and is
+/// withheld (D4 ¶4), as at CI's 1e-12 row.
+fn sub_eps_arm_quotes() -> &'static str {
+    let b = band();
+    if b.tolerance_deciding(0.5 * eps()) > geom_core::tolerance::EPS_MIN {
+        "dihedral_arm_wedge"
+    } else {
+        "dihedral_arm"
+    }
 }
 
 /// (c) FIXED (was `finding_sub_epsilon_chord_true_corner_reads_smooth`):
@@ -497,11 +510,12 @@ fn fixed_sub_epsilon_extent_true_corner_escalates() {
         u_ref: Vec3::unit_y(),
     };
     // The arm gate escalates, quoting the wedge it meters where that is
-    // nonzero, and its own decided zero where the arm is exactly zero.
+    // nonzero and the arm offers a tolerance, and its own decided zero
+    // where the arm is exactly zero.
     let err = classify_dihedral(&floor, &wall, Point3::origin(), 0.5 * eps(), band()).unwrap_err();
     assert_eq!(
         (err.rung(), err.diag().predicate),
-        (geom_brep::LeverRung::Arm, Some("dihedral_arm_wedge")),
+        (geom_brep::LeverRung::Arm, Some(sub_eps_arm_quotes())),
         "sub-eps extent"
     );
     let err = classify_dihedral(&floor, &wall, Point3::origin(), 0.0, band()).unwrap_err();

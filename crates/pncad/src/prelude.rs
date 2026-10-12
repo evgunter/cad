@@ -54,7 +54,7 @@ pub use crate::authoring::{p2, p3, polygon, real, v2, v3, validated};
 //
 // Every kernel verb derives its band from `Band::linear(tol)` at its
 // own entry (the paragraph above), which is `Band::new(ε, K·ε)`.
-// `Tol`'s invariant is ε finite and strictly positive and K finite
+// `Tol`'s invariant is ε finite and at least `EPS_MIN` and K finite
 // and greater than one, so `Band::new`'s `zero` check cannot fire —
 // the only `InvalidValue` reachable from a prelude door is
 // `field: Escalate`, the K·ε overflow residue that `Band::linear`'s

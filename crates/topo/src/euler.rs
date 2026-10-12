@@ -7265,7 +7265,12 @@ mod tests {
                 text.contains(LEVER) && !text.contains("declare"),
                 "the one lever, and no declaration: {text}"
             );
-            assert_eq!(offered(&text), want, "the tolerance its arm gives: {text}");
+            let want = want.filter(|&v| v > geom_core::tolerance::EPS_MIN);
+            assert_eq!(
+                offered(&text),
+                want,
+                "the tolerance its arm gives, above EPS_MIN: {text}"
+            );
         }
     }
 

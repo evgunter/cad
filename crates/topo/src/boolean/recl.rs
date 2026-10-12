@@ -2132,7 +2132,7 @@ mod tests {
                 let text = err.to_string();
                 let lever = "Recourse: make the edges at the corner where the two faces meet \
                              span clearly more than the tolerance";
-                let ending = if class.is_some() {
+                let ending = if class.is_some() && arm / k > geom_core::tolerance::EPS_MIN {
                     format!(
                         "{lever}, or, if this length of the corner's shorter edge is intended, \
                          tighten the tolerance below {:e} m",

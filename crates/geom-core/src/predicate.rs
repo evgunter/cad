@@ -1641,27 +1641,33 @@ impl MarginDiag {
         }
     }
 
-    /// The tolerance below which a smaller one decides this reading
-    /// passing `passes`, or `None` where none does: a poisoned reading,
-    /// one past the band (decided at this tolerance already), one whose
-    /// sign no tolerance moves onto a side `passes` accepts, or one the
-    /// symbolic tier proved identically zero ([`MarginDiag::theorem`]),
-    /// or one whose tolerance is no larger than [`EPS_MIN`].
-    /// D4 ¶1 (i) offers a tolerance only for a size the user may intend,
-    /// and a proved zero is none: its numeric reading is the rounding of
-    /// an exact identity, and a tolerance that decided that reading would
-    /// pass the decision on the rounding. Below [`EPS_MIN`] no admissible
-    /// tolerance lies (D4 ¶4), so no offer quotes one.
+    /// The tolerance below which a smaller one a run admits decides this
+    /// reading passing `passes` ([`MarginDiag::tightens_toward`]), or
+    /// `None` where none does, including where that tolerance is no
+    /// larger than [`EPS_MIN`]: no run's ε lies below it (D4 ¶4), so no
+    /// offer quotes one.
     fn tightens_below(self, band: Band, passes: SizedPass) -> Option<f64> {
+        self.tightens_toward(band, passes).filter(|&v| v > EPS_MIN)
+    }
+
+    /// The tolerance below which a smaller one decides this reading
+    /// passing `passes`, admissible or not, or `None` where none does: a
+    /// poisoned reading, one past the band (decided at this tolerance
+    /// already), one whose sign no tolerance moves onto a side `passes`
+    /// accepts, or one the symbolic tier proved identically zero
+    /// ([`MarginDiag::theorem`]). D4 ¶1 (i) offers a tolerance only for a
+    /// size the user may intend, and a proved zero is none: its numeric
+    /// reading is the rounding of an exact identity, and a tolerance that
+    /// decided that reading would pass the decision on the rounding.
+    fn tightens_toward(self, band: Band, passes: SizedPass) -> Option<f64> {
         if self.placement(band) == Placement::Past || self.theorem().is_some() {
             return None;
         }
-        let below = match self.0 {
+        match self.0 {
             Reading::Value(m, ..) => passes.tightens(m).then(|| band.tolerance_deciding(m)),
             Reading::Enclosure { lo, hi, .. } => passes.below(lo, hi, band),
             Reading::Invalid => None,
-        };
-        below.filter(|&v| v > EPS_MIN)
+        }
     }
 
     /// **Whether this reading binds a shared offer before `other`**: a
@@ -2345,7 +2351,8 @@ impl Indeterminate {
     /// Subdivision keeps a decided sign, a decided nonzero sign is
     /// sign-certain, and a zero on the side a gate rejects stays there
     /// at every smaller tolerance, so no tolerance arm rides with either
-    /// (D4 ¶1 (i)). A margin the symbolic tier proved zero is no size the
+    /// (D4 ¶1 (i)); nor with a zero only a tolerance below [`EPS_MIN`]
+    /// would move (D4 ¶4). A margin the symbolic tier proved zero is no size the
     /// user may intend, so none rides with it either, and no subdivision
     /// unproves it. An undecided enclosure and an unreadable margin say
     /// theirs in the lever.
@@ -2362,12 +2369,24 @@ impl Indeterminate {
             ),
             (Placement::ZeroBand, _)
                 if margin.tag().is_some()
-                    && margin.tightens_below(band, self.passes()).is_none() =>
+                    && margin.tightens_toward(band, self.passes()).is_none() =>
             {
                 (
                     Some(
                         "a decided zero no smaller tolerance moves onto a side this decision \
                          passes",
+                    ),
+                    KindLever::Door,
+                )
+            }
+            (Placement::ZeroBand, _)
+                if margin.tag().is_some()
+                    && margin.tightens_below(band, self.passes()).is_none() =>
+            {
+                (
+                    Some(
+                        "a decided zero no tolerance a run admits moves onto a side this \
+                         decision passes",
                     ),
                     KindLever::Door,
                 )
@@ -2843,7 +2862,11 @@ mod tests {
             MarginDiag::value(at_floor),
             MarginDiag::enclosure(at_floor, 2.0 * at_floor),
         ] {
-            assert_eq!(margin.sized_recourse(band, words), "Recourse: L; n", "{margin}");
+            assert_eq!(
+                margin.sized_recourse(band, words),
+                "Recourse: L; n",
+                "{margin}"
+            );
             assert_eq!(
                 margin.sized_recourse_in_file(band, words, file),
                 format!("{head}; n"),
@@ -2852,7 +2875,10 @@ mod tests {
         }
         let offered = band.tolerance_deciding(above);
         assert!(offered > EPS_MIN);
-        for margin in [MarginDiag::value(above), MarginDiag::enclosure(above, 1e-10)] {
+        for margin in [
+            MarginDiag::value(above),
+            MarginDiag::enclosure(above, 1e-10),
+        ] {
             assert_eq!(
                 margin.sized_recourse(band, words),
                 format!(
@@ -2871,8 +2897,19 @@ mod tests {
             predicate: None,
             terminal_sliver: false,
         };
-        assert!(!escalated(3.0 * EPS_MIN).offers_tolerance(), "|m|/K < ε_min");
-        assert!(escalated(1.5 * k * EPS_MIN).offers_tolerance(), "|m|/K > ε_min");
+        assert!(
+            !escalated(3.0 * EPS_MIN).offers_tolerance(),
+            "|m|/K < ε_min"
+        );
+        let zero = escalated(EPS_MIN).to_string();
+        assert!(
+            zero.contains("a decided zero no tolerance a run admits moves onto a side"),
+            "a zero only a tolerance below ε_min moves says so: {zero}"
+        );
+        assert!(
+            escalated(1.5 * k * EPS_MIN).offers_tolerance(),
+            "|m|/K > ε_min"
+        );
     }
 
     /// **A margin the symbolic tier proved zero is offered no

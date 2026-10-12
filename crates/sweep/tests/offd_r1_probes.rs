@@ -444,7 +444,6 @@ fn a_side_wall_replacement_re_anchors_the_rim_arcs() {
 /// reds; on the planar one it would be a defect at any ε, since a
 /// planar spline's offset is a planar spline, which the interpolation
 /// reproduces exactly.
-
 #[test]
 fn the_fitted_obstruction_holds_on_a_curved_fit() {
     // One rim is planned before the seam; what each rim does is the
@@ -473,7 +472,7 @@ fn the_fitted_obstruction_holds_on_a_curved_fit() {
                 ref verdict,
                 ..
             } => assert_refused_rim_verdict(name, verdict),
-            other => panic!("{name}: expected a refused section or the fit's refusal, got {other}"),
+            other => panic!("{name}: expected a refused section, got {other}"),
         }
     }
 }
@@ -489,7 +488,10 @@ fn the_fitted_obstruction_holds_on_a_curved_fit() {
 /// reported; the seams' own verdicts are not read here.
 #[test]
 fn moved_together_outward_every_edge_leaves_the_fits_windows() {
-    for (name, body) in [("planar prism", prism()), ("twisted loft", twisted_loft(0.3))] {
+    for (name, body) in [
+        ("planar prism", prism()),
+        ("twisted loft", twisted_loft(0.3)),
+    ] {
         let moves: Vec<topo::ChartMove<f64>> = body
             .faces()
             .map(|(k, _)| topo::ChartMove {

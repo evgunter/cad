@@ -1843,8 +1843,9 @@ impl core::fmt::Display for SnapshotError {
             Self::EpsilonInvalid { value } => write!(
                 f,
                 "the recorded ε {value:e} is not an admissible ε: one is a finite length of at \
-                 least {:e} m",
-                geom_core::tolerance::EPS_MIN
+                 least {:e} m, the length f64 resolves at the edge of the {:e} m session box",
+                geom_core::tolerance::EPS_MIN,
+                geom_core::tolerance::SESSION_BOX_EXTENT
             ),
             Self::NotAGauge { node, gauge } => write!(
                 f,

@@ -1730,6 +1730,13 @@ pub(in crate::boolean) mod tests {
             .expect("a point margin")
     }
 
+    /// What [`offered_below`] reads where the decision gives the
+    /// tolerance `v`: an offer of it where it lies above `EPS_MIN`, and
+    /// none at or below it (D4 ¶4).
+    fn offer_at(v: Option<f64>) -> Option<Option<f64>> {
+        v.filter(|&v| v > geom_core::tolerance::EPS_MIN).map(Some)
+    }
+
     /// The tolerance an ending offers to tighten below, where it offers
     /// one; `Some(None)` for an offer that names no value.
     fn offered_below(text: &str) -> Option<Option<f64>> {
@@ -1840,7 +1847,7 @@ pub(in crate::boolean) mod tests {
             );
             assert_eq!(
                 offered_below(&text),
-                Some(Some(margin / k())),
+                offer_at(Some(margin / k())),
                 "{door} offers the tolerance the margin gives: {text}"
             );
         }
@@ -2552,7 +2559,7 @@ pub(in crate::boolean) mod tests {
                         );
                         assert_eq!(
                             offered_below(&text),
-                            expected_offer(margin, passes).map(Some),
+                            offer_at(expected_offer(margin, passes)),
                             "{label}: {text}"
                         );
                     }
@@ -3204,7 +3211,7 @@ pub(in crate::boolean) mod tests {
             if margin > 0.0 {
                 assert_eq!(
                     offered_below(&text),
-                    Some(Some(margin / k())),
+                    offer_at(Some(margin / k())),
                     "{label}: the tolerance a positive margin gives: {text}"
                 );
             }
@@ -3384,7 +3391,7 @@ pub(in crate::boolean) mod tests {
                     "{label}: {text}"
                 );
                 let offer = (!definite && sign > 0.0).then(|| reach / k());
-                assert_eq!(offered_below(&text), offer.map(Some), "{label}: {text}");
+                assert_eq!(offered_below(&text), offer_at(offer), "{label}: {text}");
                 assert_eq!(
                     BooleanError::Merge(err).to_string(),
                     format!("coplanar-merge output stage refused: {text}"),
@@ -3455,7 +3462,7 @@ pub(in crate::boolean) mod tests {
         );
         assert_eq!(
             offered_below(&text),
-            Some(Some(point_margin(&diag) / k())),
+            offer_at(Some(point_margin(&diag) / k())),
             "{text}"
         );
     }
@@ -3671,7 +3678,11 @@ pub(in crate::boolean) mod tests {
             "{text}"
         );
         let m = point_margin(&refused);
-        assert_eq!(offered_below(&text), Some(Some(m.abs() / k())), "{text}");
+        assert_eq!(
+            offered_below(&text),
+            offer_at(Some(m.abs() / k())),
+            "{text}"
+        );
     }
 
     /// **The two definite arms, and the maximal-faces gate's, pass the
@@ -3732,7 +3743,7 @@ pub(in crate::boolean) mod tests {
             let problems = short_of_the_guard(&text, &[]);
             assert!(problems.is_empty(), "{name}: {problems:?}: {text}");
             assert!(!text.contains("declare"), "{name}: {text}");
-            assert_eq!(offered_below(&text), offer.map(Some), "{name}: {text}");
+            assert_eq!(offered_below(&text), offer_at(offer), "{name}: {text}");
         }
         let pierce = BooleanError::CurvedPierceUnsupported {
             operand: Operand::A,
@@ -3857,7 +3868,7 @@ pub(in crate::boolean) mod tests {
                 "{rung:?}: {text}"
             );
             let offer = (rung == PlaneRung::Parallel).then(|| point_margin(&diag) / k());
-            assert_eq!(offered_below(&text), offer.map(Some), "{rung:?}: {text}");
+            assert_eq!(offered_below(&text), offer_at(offer), "{rung:?}: {text}");
         }
     }
 }

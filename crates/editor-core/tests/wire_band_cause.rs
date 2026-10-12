@@ -55,7 +55,7 @@ const COLLAPSE_EPS: f64 = 5e-324;
 const COLLAPSE_K: f64 = 1.25;
 
 /// **The overflow row's ε**: large enough that K·ε overflows at the
-/// DEFAULT K, still finite and strictly positive.
+/// DEFAULT K, still finite and above `EPS_MIN`.
 const OVERFLOW_EPS: f64 = f64::MAX / 2.0;
 
 /// CHILD MODE. No-op unless [`PROBE_ROW`] is set, so the parent suite

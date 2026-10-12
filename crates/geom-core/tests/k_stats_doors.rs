@@ -44,10 +44,18 @@ use geom_core::k_stats::{
     decide_magnitude, decide_negative, decide_nonzero, decide_positive, decide_reported,
     gate_measured,
 };
+use geom_core::tolerance::EPS_MIN;
 use geom_core::{Band, Decided, ErrorTextReading, Interval, Margin, MarginDiag, Sign};
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
+}
+
+/// Whether a refusal of `margin` in `b` offers a tolerance: one lies
+/// above `EPS_MIN` (D4 ¶4). At CI's 1e-12 row a margin of half the zero
+/// band's gives one below it.
+fn offered(b: Band, margin: f64) -> bool {
+    b.tolerance_deciding(margin) > EPS_MIN
 }
 
 /// The fixture interleaves the doors deliberately — a run that grouped
@@ -244,7 +252,7 @@ fn a_rejected_gate_records_both_channels_under_its_own_name() {
 
 /// **A rejection's text says what was decided.** A decided zero reads
 /// as within the zero band and offers the tolerance its margin gives
-/// (D4 ¶1 (i)); a decided sign on the rejected side reads as past the
+/// (D4 ¶1 (i)) where that lies above `EPS_MIN` (D4 ¶4); a decided sign on the rejected side reads as past the
 /// band, at both scalars, with no tolerance arm and no subdivision arm:
 /// it is sign-certain, and a sub-box keeps its sign.
 #[test]
@@ -255,7 +263,11 @@ fn a_rejection_tells_the_decided_margin_it_carries() {
         .unwrap_err()
         .to_string();
     assert!(zeroed.contains("lies within the zero band"), "{zeroed}");
-    assert!(zeroed.contains("tighten the tolerance below"), "{zeroed}");
+    assert_eq!(
+        zeroed.contains("tighten the tolerance below"),
+        offered(b, small),
+        "an offer exactly where its tolerance lies above EPS_MIN: {zeroed}"
+    );
 
     let negative = decide_positive("gate_negative", Margin::of(-1.0f64), b)
         .unwrap_err()
@@ -500,7 +512,8 @@ fn a_rejection_at_the_escalation_edge_reads_past_the_band() {
 /// tolerance decides such a margin onto the rejected sign, so no
 /// tolerance is offered (D4 ¶1 (i)) and the text says the zero stays
 /// rejected — at both scalars, for both one-sided gates. The same zero
-/// on the passing side keeps its offer.
+/// on the passing side keeps its offer where one lies above `EPS_MIN`,
+/// and says only a tolerance below it moves it where none does.
 #[test]
 fn a_zero_on_the_rejected_side_offers_no_tolerance() {
     let b = band();
@@ -525,7 +538,17 @@ fn a_zero_on_the_rejected_side_offers_no_tolerance() {
     let passing = decide_positive("gate_pos_zero", Margin::of(small), b).unwrap_err();
     assert_eq!(passing.margin.rejected_sign(), Some(Sign::Zero));
     let text = passing.to_string();
-    assert!(text.contains("tighten the tolerance below"), "{text}");
+    assert_eq!(
+        text.contains("tighten the tolerance below"),
+        offered(b, small),
+        "{text}"
+    );
+    if !offered(b, small) {
+        assert!(
+            text.contains("a decided zero no tolerance a run admits moves onto a side"),
+            "a zero only a tolerance below EPS_MIN moves says so: {text}"
+        );
+    }
 }
 
 /// **A sign-certain rejection names the geometry.** A margin decided
