@@ -174,6 +174,28 @@ fn main() {
             }
         }
     }
+    if wants("m1") {
+        // Planes nearly along the axis through a seam vertex, the vertex
+        // `c·ε` off along the normal: the input's offset and the elongated
+        // ellipse's own rounding in one pose.
+        for th in [3e-5, 1e-4, 3e-4] {
+            for (vx, vz) in [(1.0, 0.0), (-1.0, 1.0)] {
+                for c in [
+                    0.0, 0.5, -0.5, 0.8, -0.8, 0.9, -0.9, 0.99, -0.99, 50.0, -50.0,
+                ] {
+                    let phi = core::f64::consts::FRAC_PI_2;
+                    let n = [phi.cos(), phi.sin(), th];
+                    let len = (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).sqrt();
+                    let o = [
+                        vx + n[0] / len * c * e,
+                        n[1] / len * c * e,
+                        vz + n[2] / len * c * e,
+                    ];
+                    run("m1", &format!("v({vx},{vz}) th{th:e} c{c}"), &cyl, o, n);
+                }
+            }
+        }
+    }
     if wants("rim") {
         let tilts = [0.0, 0.5 * e, e, 2.0 * e, 1e-6, 1e-4, 1e-3, 1e-2, 1e-1];
         for &t in &tilts {
