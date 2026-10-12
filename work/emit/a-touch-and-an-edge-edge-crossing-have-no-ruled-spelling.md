@@ -49,7 +49,7 @@ fork, to weigh before anyone changes either.
 
 Ev approved the recommendation ("i think this makes sense"). The names
 README states it (N2 *Vertices*, the flush paragraph, N5's cutters
-bullet), and fork-log row 117 records it.
+bullet), and fork-log row 120 records it.
 
 **What to build:**
 - **Corner identity.** A vertex that is one of an operand's own vertices

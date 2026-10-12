@@ -2122,7 +2122,7 @@ a row that is red on main. The wrong cascade diagnosis is filed as
 
 ## 2026-10-12 — PR 4284: a corner keeps its name; every other meeting is a crossing (ruled)
 
-Ev approved fork-log row 117 on 2026-10-08. Both designers recommended
+Ev approved fork-log row 120 on 2026-10-08. Both designers recommended
 the same final state in their first reports:
 - an operand's corner keeps its own name;
 - every other place an edge meets the other body is a crossing, with a
