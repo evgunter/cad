@@ -3578,7 +3578,9 @@ fn carried<T: Decide + AtRestPolicy>(
                 x,
                 &mut back,
             )?;
-            lineage = lineage.with(x, fate);
+            lineage = lineage
+                .with(x, fate)
+                .unwrap_or_else(|e| unreachable!("each cell is stated once: {e:?}"));
         }
         let pairs: Vec<[Cell; 2]> = rows.iter().map(|&(c, _)| c).collect();
         let landed = super::records::landings(
@@ -3748,16 +3750,17 @@ fn operand_fate<T: Real>(
     } else {
         Remainder::Exhaustive
     };
-    Ok(if pieces.is_empty() && minted.is_empty() {
-        crate::Fate::Removed
-    } else if divided || gone {
-        crate::Fate::Divided(Division {
+    Ok(match pieces.split_first() {
+        None if minted.is_empty() => crate::Fate::Removed,
+        Some((&at, copies)) if !divided && !gone => crate::Fate::Kept {
+            at,
+            copies: copies.to_vec(),
+        },
+        _ => crate::Fate::Divided(Division {
             pieces,
             minted,
             remainder,
-        })
-    } else {
-        crate::Fate::Kept(pieces)
+        }),
     })
 }
 

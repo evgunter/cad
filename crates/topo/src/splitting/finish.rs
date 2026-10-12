@@ -188,16 +188,24 @@ impl<T: Real> SplitResult<T> {
         let section = |f: FaceKey| self.naming.sections.iter().any(|&(s, _)| s == f);
         let joins: Vec<crate::boolean::EdgeJoin> =
             self.naming.edge_joins.iter().map(|&(_, j)| j).collect();
+        // Each copied vertex, and each root of the edge and face rows, is
+        // stated once.
+        let stated = |lineage: crate::Lineage, cell: Cell, fate: Fate| {
+            lineage
+                .with(cell, fate)
+                .unwrap_or_else(|e| unreachable!("the split states each cell once: {e:?}"))
+        };
         let mut lineage = crate::Lineage::new().through_joins(&joins).one_cut();
         let mut copies: Vec<(crate::entity::VertexKey, Vec<Cell>)> = Vec::new();
         for &(copy, original) in &self.naming.vertex_pairs {
             match copies.iter_mut().find(|(o, _)| *o == original) {
-                Some((_, at)) => at.push(Cell::Vertex(copy)),
-                None => copies.push((original, vec![Cell::Vertex(original), Cell::Vertex(copy)])),
+                Some((_, cs)) => cs.push(Cell::Vertex(copy)),
+                None => copies.push((original, vec![Cell::Vertex(copy)])),
             }
         }
-        for (original, at) in copies {
-            lineage = lineage.with(Cell::Vertex(original), Fate::Kept(at));
+        for (original, copies) in copies {
+            let at = Cell::Vertex(original);
+            lineage = stated(lineage, at, Fate::Kept { at, copies });
         }
         for root in roots(&self.naming.edge_pieces) {
             let pieces: Vec<EdgeKey> = Descent::of(root, &self.naming.edge_pieces)
@@ -225,7 +233,8 @@ impl<T: Real> SplitResult<T> {
                     }
                 }
             }
-            lineage = lineage.with(
+            lineage = stated(
+                lineage,
                 Cell::Edge(root),
                 Fate::Divided(Division {
                     pieces: pieces.into_iter().map(Cell::Edge).collect(),
@@ -257,7 +266,8 @@ impl<T: Real> SplitResult<T> {
                     }
                 }
             }
-            lineage = lineage.with(
+            lineage = stated(
+                lineage,
                 Cell::Face(root),
                 Fate::Divided(Division {
                     pieces: pieces.into_iter().map(Cell::Face).collect(),

@@ -24,10 +24,10 @@ fn box_of(x: (f64, f64), y: (f64, f64), z: (f64, f64), what: &str) -> AtRestBody
 /// read the pair, and the carry refuses `Unread` (the only row that
 /// reaches that refusal). At a band where 1e-4 is Zero the corner reads
 /// as at the vertex the cut minted on the rim, and the record lands on
-/// that pair: the minted vertex is the rim's image too (D1), where the
-/// carry that read pieces alone found no pair and refused `Parted`.
+/// that pair: the minted vertex is the rim's image too (D1).
 #[test]
-fn a_corner_just_past_a_cut_lands_refuses_unread_or_parts_by_band() {
+fn a_corner_just_past_a_cut_lands_on_the_piece_refuses_unread_or_lands_on_the_minted_vertex_by_band()
+ {
     let a = box_of((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), "a");
     let c = box_of((0.5, 1.5), (-1.0, 0.0), (-1.0, 0.0), "c");
     let base = match union(&a, &c, tol()) {

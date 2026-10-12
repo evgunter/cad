@@ -857,7 +857,7 @@ pub use boolean::{
     tangent_pair_relation, union,
 };
 pub use joint::{Deck, JointElement};
-pub use lineage::{Division, Fate, Lineage, Remainder};
+pub use lineage::{Division, Fate, Lineage, LineageError, Remainder};
 pub use surgery::Surgery;
 // The contact vocabulary (C3/C4), defined once at the lowest crate
 // that can hold it: upward layers RE-EXPORT these, never redefine.

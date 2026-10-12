@@ -179,8 +179,15 @@ impl<T: Decide> Blended<T> {
             .chain(n.rim_feet.iter().map(|&(_, v)| Cell::Vertex(v)))
             .chain(n.dead.edges.iter().map(|&e| Cell::Edge(e)))
             .chain(n.dead.vertices.iter().map(|&v| Cell::Vertex(v)));
+        // Every statement is a removal, and two removals of one cell
+        // merge: a band edge whose carve also left remnants keeps them.
+        let remove = |lineage: topo::Lineage, cell: Cell, fate: Fate| {
+            lineage
+                .with_removal(cell, fate)
+                .unwrap_or_else(|e| unreachable!("the blend states only removals: {e:?}"))
+        };
         for cell in removed {
-            lineage = lineage.with(cell, Fate::Removed);
+            lineage = remove(lineage, cell, Fate::Removed);
         }
         let mut carved: Vec<(topo::EdgeKey, Division)> = Vec::new();
         let mut piece = |source: topo::EdgeKey, cell: Cell, minted: bool| {
@@ -214,7 +221,7 @@ impl<T: Decide> Blended<T> {
             piece(source, Cell::Vertex(v), true);
         }
         for (source, division) in carved {
-            lineage = lineage.with(Cell::Edge(source), Fate::Divided(division));
+            lineage = remove(lineage, Cell::Edge(source), Fate::Divided(division));
         }
         let mut supports: Vec<(topo::FaceKey, Vec<Cell>)> = Vec::new();
         let minted_in = n
@@ -229,7 +236,8 @@ impl<T: Decide> Blended<T> {
             }
         }
         for (f, minted) in supports {
-            lineage = lineage.with(
+            lineage = remove(
+                lineage,
                 Cell::Face(f),
                 Fate::Divided(Division {
                     pieces: vec![Cell::Face(f)],

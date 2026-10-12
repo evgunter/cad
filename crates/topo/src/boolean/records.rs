@@ -514,7 +514,7 @@ impl ContactRecords {
         let mut out: Vec<Self> = sides.iter().map(|_| Self::default()).collect();
         for landing in landed {
             let record = super::reduce::index(landing.row);
-            if landing.minted && lineage.meeting() == crate::lineage::MintedMeeting::Refused {
+            if landing.minted && lineage.meeting() == crate::lineage::MintedBacking::Refused {
                 return Err(CarryRefusal::MintedMeeting {
                     record,
                     cells: landing.pair.cells(),
@@ -694,12 +694,21 @@ pub(crate) fn landings<'b, T: geom_core::Decide>(
         let mut structure: Option<ContactPairError> = None;
         let mut held_by: [bool; 2] = [false, false];
         for (s, (&body, confirm)) in sides.iter().zip(&mut confirms.0).enumerate() {
+            // Each held image as the cell a record lands on, whether the
+            // op minted it, and whether it is a point: read before a
+            // conventional vertex becomes its closed edge.
             let held = |i: usize| {
-                let mut at: Vec<Cell> = Vec::new();
+                let mut at: Vec<(Cell, bool, bool)> = Vec::new();
                 for &c in images[i].iter().filter(|&&c| holds(body, c)) {
+                    let is_minted = minted[i].contains(&c);
+                    let point = matches!(c, Cell::Vertex(_));
                     let c = conventional_edge(body, c);
-                    if !at.contains(&c) {
-                        at.push(c);
+                    match at.iter_mut().find(|(x, ..)| *x == c) {
+                        Some((_, m, p)) => {
+                            *m |= is_minted;
+                            *p |= point;
+                        }
+                        None => at.push((c, is_minted, point)),
                     }
                 }
                 at
@@ -708,8 +717,8 @@ pub(crate) fn landings<'b, T: geom_core::Decide>(
             for i in 0..2 {
                 held_by[i] |= !held[i].is_empty();
             }
-            for &a in &held[0] {
-                for &b in &held[1] {
+            for &(a, a_minted, a_point) in &held[0] {
+                for &(b, b_minted, b_point) in &held[1] {
                     let pair = match Contact::new(body, a, b) {
                         Ok(pair) => pair,
                         Err(error) => {
@@ -728,13 +737,12 @@ pub(crate) fn landings<'b, T: geom_core::Decide>(
                         continue;
                     }
                     landed = true;
-                    let at_a_point = matches!(a, Cell::Vertex(_)) || matches!(b, Cell::Vertex(_));
                     out.push(Landing {
                         row: k,
                         side: s,
                         at: [a, b],
                         pair,
-                        minted: at_a_point && minted[0].contains(&a) && minted[1].contains(&b),
+                        minted: (a_point || b_point) && a_minted && b_minted,
                     });
                 }
             }
@@ -757,19 +765,15 @@ pub(crate) fn landings<'b, T: geom_core::Decide>(
             }
             return Err(CarryRefusal::Pair { record, error });
         }
-        match held_by {
-            [true, true] => return Err(CarryRefusal::Parted { record }),
-            _ if removed => {}
-            [false, _] => {
+        if held_by == [true, true] {
+            return Err(CarryRefusal::Parted { record });
+        }
+        // A cell no side holds is covered only by its own removal.
+        for i in 0..2 {
+            if !held_by[i] && !fates[i].removes() {
                 return Err(CarryRefusal::Unmapped {
                     record,
-                    cell: cells[0],
-                });
-            }
-            [true, false] => {
-                return Err(CarryRefusal::Unmapped {
-                    record,
-                    cell: cells[1],
+                    cell: cells[i],
                 });
             }
         }

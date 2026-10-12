@@ -15,11 +15,17 @@ use crate::boolean::{Cell, EdgeJoin};
 /// **What an op made of one input cell.**
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Fate {
-    /// The cell holds itself in the result, as each of these cells: its
-    /// own key where the op keeps keys, its key across a graft, and each
-    /// copy of it the op cut (a vertex a split copied onto both of its
-    /// sides, every copy on the vertex's point).
-    Kept(Vec<Cell>),
+    /// The cell holds itself in the result, as `at` (its own key where
+    /// the op keeps keys, its key across a graft) and as each copy of it
+    /// the op cut (a vertex a split copied onto both of its sides, every
+    /// copy on the vertex's point). A kept cell has a result cell, so a
+    /// kept cell with none is not a fate.
+    Kept {
+        /// The cell as the result holds it.
+        at: Cell,
+        /// The copies, `at` excluded.
+        copies: Vec<Cell>,
+    },
     /// A cell that holds its interior now: a merge's kept face, a
     /// join's edge, a seam.
     Substituted(Cell),
@@ -57,12 +63,27 @@ pub enum Remainder {
 /// How a carry backs two cells an op minted, one on each of a record's
 /// two cells, that meet at a point.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum MintedMeeting {
+pub(crate) enum MintedBacking {
     /// One cut made both, so they meet where the record puts them: the
     /// landing cites the record alone. The split's one plane.
     OneCut,
     /// The op cannot back the meeting, and the carry refuses it.
     Refused,
+}
+
+/// Why a [`Lineage`] refuses a statement.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LineageError {
+    /// A different fate of `cell` was stated already.
+    Restated {
+        /// The cell.
+        cell: Cell,
+    },
+    /// A removal stated for `cell` keeps all of it.
+    NotARemoval {
+        /// The cell.
+        cell: Cell,
+    },
 }
 
 /// **One op's lineage** (D1): the [`Fate`] of each input cell it
@@ -74,7 +95,7 @@ pub(crate) enum MintedMeeting {
 pub struct Lineage {
     rows: BTreeMap<Cell, Fate>,
     joins: Vec<EdgeJoin>,
-    meeting: MintedMeeting,
+    meeting: MintedBacking,
     glues: bool,
 }
 
@@ -83,7 +104,7 @@ impl Default for Lineage {
         Self {
             rows: BTreeMap::new(),
             joins: Vec::new(),
-            meeting: MintedMeeting::Refused,
+            meeting: MintedBacking::Refused,
             glues: false,
         }
     }
@@ -96,12 +117,67 @@ impl Lineage {
         Self::default()
     }
 
-    /// The lineage with `cell`'s fate stated, replacing any stated
-    /// before.
-    #[must_use]
-    pub fn with(mut self, cell: Cell, fate: Fate) -> Self {
-        self.rows.insert(cell, fate);
-        self
+    /// The lineage with `cell`'s fate stated.
+    ///
+    /// # Errors
+    ///
+    /// [`LineageError::Restated`] where a different fate of `cell` was
+    /// stated before: one cell has one fate, and an op that reaches a
+    /// cell by two routes says which fate it is
+    /// ([`Self::with_removal`] merges two removals).
+    pub fn with(mut self, cell: Cell, fate: Fate) -> Result<Self, LineageError> {
+        match self.rows.entry(cell) {
+            std::collections::btree_map::Entry::Occupied(before) => {
+                if *before.get() == fate {
+                    Ok(self)
+                } else {
+                    Err(LineageError::Restated { cell })
+                }
+            }
+            std::collections::btree_map::Entry::Vacant(slot) => {
+                slot.insert(fate);
+                Ok(self)
+            }
+        }
+    }
+
+    /// The lineage with `cell` removed, whole ([`Fate::Removed`]) or in
+    /// part ([`Fate::Divided`] with its remainder removed), merged with
+    /// a removal of it stated before: an op that removes part of a cell
+    /// by two routes removes the union, its pieces and minted cells
+    /// those of both, and a cell removed whole by one route and in part
+    /// by another keeps the part's pieces.
+    ///
+    /// # Errors
+    ///
+    /// [`LineageError::NotARemoval`] where `fate` keeps all of `cell`,
+    /// and [`LineageError::Restated`] where `cell`'s fate was stated
+    /// before as one that keeps all of it.
+    pub fn with_removal(mut self, cell: Cell, fate: Fate) -> Result<Self, LineageError> {
+        if !fate.removes() {
+            return Err(LineageError::NotARemoval { cell });
+        }
+        let merged = match self.rows.remove(&cell) {
+            None | Some(Fate::Removed) => fate,
+            Some(Fate::Divided(mut d)) if d.remainder == Remainder::Removed => {
+                if let Fate::Divided(more) = fate {
+                    for p in more.pieces {
+                        if !d.pieces.contains(&p) {
+                            d.pieces.push(p);
+                        }
+                    }
+                    for m in more.minted {
+                        if !d.minted.contains(&m) {
+                            d.minted.push(m);
+                        }
+                    }
+                }
+                Fate::Divided(d)
+            }
+            Some(_) => return Err(LineageError::Restated { cell }),
+        };
+        self.rows.insert(cell, merged);
+        Ok(self)
     }
 
     /// The lineage read through `joins`, the joins the op ended with:
@@ -113,14 +189,14 @@ impl Lineage {
     }
 
     /// The lineage of an op whose one cut made every pair of cells it
-    /// minted on a record's two cells ([`MintedMeeting::OneCut`]).
+    /// minted on a record's two cells ([`MintedBacking::OneCut`]).
     #[must_use]
     pub(crate) fn one_cut(mut self) -> Self {
-        self.meeting = MintedMeeting::OneCut;
+        self.meeting = MintedBacking::OneCut;
         self
     }
 
-    pub(crate) fn meeting(&self) -> MintedMeeting {
+    pub(crate) fn meeting(&self) -> MintedBacking {
         self.meeting
     }
 
@@ -145,7 +221,10 @@ impl Lineage {
         self.rows
             .get(&cell)
             .cloned()
-            .unwrap_or_else(|| Fate::Kept(vec![cell]))
+            .unwrap_or_else(|| Fate::Kept {
+                at: cell,
+                copies: Vec::new(),
+            })
     }
 
     /// Every cell of the result `cell`'s fate names, read through the
@@ -174,7 +253,7 @@ impl Fate {
     /// cell as kept, the substitute, or the pieces and minted cells.
     pub(crate) fn images(&self) -> Vec<Cell> {
         match self {
-            Self::Kept(at) => at.clone(),
+            Self::Kept { at, copies } => core::iter::once(*at).chain(copies.clone()).collect(),
             Self::Substituted(by) => vec![*by],
             Self::Divided(d) => d.pieces.iter().chain(&d.minted).copied().collect(),
             Self::Removed => Vec::new(),
@@ -255,6 +334,7 @@ pub(crate) fn roots<K: Ord + Copy>(rows: &[(K, K)]) -> Vec<K> {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use crate::entity::FaceKey;
@@ -263,6 +343,79 @@ mod tests {
     fn faces(n: usize) -> Vec<FaceKey> {
         let mut arena: SlotMap<FaceKey, ()> = SlotMap::with_key();
         (0..n).map(|_| arena.insert(())).collect()
+    }
+
+    fn removed_part(pieces: &[FaceKey]) -> Fate {
+        Fate::Divided(Division {
+            pieces: pieces.iter().map(|&f| Cell::Face(f)).collect(),
+            minted: Vec::new(),
+            remainder: Remainder::Removed,
+        })
+    }
+
+    /// One cell has one fate: a different second statement refuses, the
+    /// same one is the same statement. Red where the second replaces the
+    /// first.
+    #[test]
+    fn a_second_fate_for_a_cell_refuses() {
+        let f = faces(2);
+        let cell = Cell::Face(f[0]);
+        let stated = Lineage::new().with(cell, Fate::Removed).unwrap();
+        assert_eq!(
+            stated.clone().with(cell, removed_part(&[f[1]])),
+            Err(LineageError::Restated { cell }),
+            "a different fate refuses"
+        );
+        assert_eq!(
+            stated.clone().with(cell, Fate::Removed),
+            Ok(stated),
+            "the same fate restated is one statement"
+        );
+    }
+
+    /// Two removals of one cell merge to the same fate in either order:
+    /// a part removal keeps its pieces over a whole removal, and two part
+    /// removals keep both's pieces. A removal over a fate that keeps the
+    /// cell refuses, as does a "removal" that keeps it. Red where the
+    /// later statement wins.
+    #[test]
+    fn removals_of_one_cell_merge_in_either_order() {
+        let f = faces(3);
+        let cell = Cell::Face(f[0]);
+        let merged = |first: Fate, second: Fate| {
+            Lineage::new()
+                .with_removal(cell, first)
+                .and_then(|l| l.with_removal(cell, second))
+                .map(|l| l.fate(cell))
+        };
+        for (first, second) in [
+            (Fate::Removed, removed_part(&[f[1]])),
+            (removed_part(&[f[1]]), Fate::Removed),
+        ] {
+            assert_eq!(
+                merged(first, second),
+                Ok(removed_part(&[f[1]])),
+                "whole and part"
+            );
+        }
+        assert_eq!(
+            merged(removed_part(&[f[1]]), removed_part(&[f[2]])),
+            Ok(removed_part(&[f[1], f[2]])),
+            "two parts"
+        );
+        let kept = Fate::Substituted(Cell::Face(f[1]));
+        assert_eq!(
+            Lineage::new()
+                .with(cell, kept.clone())
+                .and_then(|l| l.with_removal(cell, Fate::Removed)),
+            Err(LineageError::Restated { cell }),
+            "a removal over a kept cell"
+        );
+        assert_eq!(
+            Lineage::new().with_removal(cell, kept),
+            Err(LineageError::NotARemoval { cell }),
+            "a removal that keeps the cell"
+        );
     }
 
     #[test]
