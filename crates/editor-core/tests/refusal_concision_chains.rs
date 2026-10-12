@@ -1735,6 +1735,22 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             ),
             ("Band", J::Band(band_error())),
             ("Euler", J::Euler(euler())),
+            (
+                "SectionEnd(OnPlane)",
+                J::SectionEndEscalated {
+                    face,
+                    reading: topo::SectionEndReading::OnPlane,
+                    diag: diag(),
+                },
+            ),
+            (
+                "SectionEnd(SquareToAxis)",
+                J::SectionEndEscalated {
+                    face,
+                    reading: topo::SectionEndReading::SquareToAxis,
+                    diag: diag(),
+                },
+            ),
             // The two section refusals a plane-inclusive pair can reach
             // (the join reads no other): a lane bug, and the conic
             // carrier's own refusal at a near-circular tilt.

@@ -466,15 +466,30 @@ impl SolidJoin {
             reordered = self.plan(body, roles, segment)?;
             &reordered
         };
-        let minted = self
-            .joiner
-            .join(body, plan, curve, tol)
-            .map_err(BooleanError::Join)?;
+        let minted = self.joiner.join(body, plan, curve, tol).map_err(of_join)?;
         if let Some(edge) = segment {
             self.along
                 .extend(minted.into_iter().map(|chord| (edge, chord)));
         }
         Ok(())
+    }
+}
+
+/// The Boolean's refusal for a chord its join refused: a chord's end
+/// whose vertex reads at the zero band's edge of the plane is an edge of
+/// the result on its faces, the Boolean's own decision; every other
+/// refusal is the join's.
+fn of_join(refusal: SplitJoinError) -> BooleanError {
+    match refusal {
+        SplitJoinError::SectionEndEscalated {
+            reading: crate::chord_join::SectionEndReading::OnPlane,
+            diag,
+            ..
+        } => BooleanError::Escalated {
+            decision: BooleanDecision::EdgeOnFaces,
+            diag,
+        },
+        other => BooleanError::Join(other),
     }
 }
 

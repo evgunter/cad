@@ -2569,6 +2569,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("join.rs", "frame_refusal", "BooleanDecision::Radius", 1),
     ("join.rs", "frame_refusal", "Coincide::Section", 1),
     ("join.rs", "join_escalate", "Coincide::Join", 1),
+    ("join.rs", "of_join", "BooleanDecision::EdgeOnFaces", 1),
     ("join.rs", "parallel_radical_plane", "Coincide::Section", 1),
     (
         "join.rs",

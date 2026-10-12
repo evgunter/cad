@@ -100,7 +100,7 @@ use crate::validate::{AtRestBody, Unfinished, ValidationError};
 use geom_core::Tol;
 use slotmap::SecondaryMap;
 
-pub use crate::chord_join::{ConicCrossingsCase, SplitJoinError};
+pub use crate::chord_join::{ConicCrossingsCase, SectionEndReading, SplitJoinError};
 pub use containment::{
     Escalation, LoopContainment, LoopDecision, OffPlane, OffPlaneCause, PointInLoopError,
     Uncrossable, UncrossableCarrier, point_in_loop,

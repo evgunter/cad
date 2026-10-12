@@ -167,6 +167,31 @@ impl core::fmt::Display for ConicCrossingsCase {
     }
 }
 
+/// Which reading of the input puts a section chord's end within the
+/// band of the vertex it meets ([`SplitJoinError::SectionEndEscalated`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SectionEndReading {
+    /// The vertex, read on the plane, lies at the zero band's edge: an
+    /// edge on its faces. The Boolean refuses it as its own
+    /// `EdgeOnFaces` decision, so this arm's words are the split's.
+    OnPlane,
+    /// The plane was read square to a curved face's axis, and the vertex
+    /// lies at the zero band's edge of the section as read: the section
+    /// table stood the axis-normal circle in for the plane's own section,
+    /// so the plane's tilt off square and the vertex's offset off the
+    /// plane, each read in its zero band, add there.
+    SquareToAxis,
+}
+
+/// The lever of a section read square to a curved face's axis that
+/// misses its vertex in band, at both doors that join sections: either
+/// reading of the input it adds clears it.
+const SQUARE_TO_AXIS_LEVER: &str = concat!(
+    geom_core::coincidence_move_arm!(),
+    " so each plane that cuts a curved face runs clearly square to its axis or clearly off \
+     square, and each vertex that meets it lies clearly on it or clearly off it"
+);
+
 /// Typed failure of the joining step.
 #[derive(Debug)]
 pub enum SplitJoinError {
@@ -297,6 +322,18 @@ pub enum SplitJoinError {
     Band(BandError),
     /// An underlying Euler operation refused.
     Euler(EulerOpError),
+    /// A section chord's end reads within the band of the vertex it
+    /// meets, and the miss is a reading of the input's
+    /// ([`SectionEndReading`]). A miss that is the section conic's own
+    /// stays the Euler operation's refusal.
+    SectionEndEscalated {
+        /// The face the chord divides.
+        face: FaceKey,
+        /// The reading that puts the end in band.
+        reading: SectionEndReading,
+        /// The endpoint pin's diagnostics.
+        diag: Indeterminate,
+    },
     /// The C5 section classification refused while minting a curved
     /// face's section chord (M5 PR 5) — the typed table verdict nested
     /// whole (escalations carry the shared recourse through it).
@@ -506,6 +543,24 @@ impl core::fmt::Display for SplitJoinError {
             }
             Self::Band(e) => write!(f, "{e}"),
             Self::Euler(e) => write!(f, "an Euler operation refused: {e}"),
+            Self::SectionEndEscalated {
+                reading: SectionEndReading::OnPlane,
+                diag,
+                ..
+            } => crate::merge_faces::edge_on_plane_refusal(diag).fmt(f),
+            Self::SectionEndEscalated {
+                reading: SectionEndReading::SquareToAxis,
+                diag,
+                ..
+            } => diag
+                .undecided(
+                    "whether a section read square to a curved face's axis ends at its vertex",
+                    LeverOnly {
+                        lever: SQUARE_TO_AXIS_LEVER,
+                    }
+                    .recourse(RefusedArm::Undecided(diag), Reading::Build),
+                )
+                .fmt(f),
             // The carrier's constructor states its escalation for a
             // caller that could build the circle instead; no reader of
             // a join can, so the join keeps the constructor's subject
@@ -855,6 +910,12 @@ pub(crate) struct SectionConic<T: Real> {
     sb: T,
     /// The carrier itself.
     carrier: geom::Curve3<T>,
+    /// Whether the table stood this circle in for the plane's own
+    /// section, square to the wall's axis by a Zero of its trilean
+    /// (`pc_rim_alignment`, `pn_axis_normal`): the circle lies in the
+    /// plane through `center` square to `normal`, which is the section
+    /// plane only to within that Zero.
+    square: bool,
 }
 
 impl<T: Real> SectionConic<T> {
@@ -1062,22 +1123,26 @@ fn section_case<T: Decide>(
             sa: radius,
             sb: radius,
             carrier: circle,
+            square: false,
         }));
     }
-    let conic =
-        |carrier: geom::Curve3<T>| {
-            section_conic(carrier).map(SectionCase::Conic).ok_or_else(|| {
-            invariant("a conic classification carried a carrier that is neither ellipse nor circle")
-        })
-        };
+    let conic = |carrier: geom::Curve3<T>, square: bool| {
+        section_conic(carrier, square)
+            .map(SectionCase::Conic)
+            .ok_or_else(|| {
+                invariant(
+                    "a conic classification carried a carrier that is neither ellipse nor circle",
+                )
+            })
+    };
     // The cone (C5's plane×cone arm): the tilted ellipse and the
     // axis-normal circle are conics to select an arc of; the apex lane's
     // generator pair is the ruling case, its tangent generator the
     // tangent one — the cylinder's parallel-axis lane, one kind over.
     if let geom::Surface::Cone { .. } = wall {
         return match geom_brep::plane_cone_section(plane_s, wall, extent, band).map_err(table)? {
-            geom_brep::PlaneConeSection::TiltedEllipse(c)
-            | geom_brep::PlaneConeSection::AxisNormalCircle(c) => conic(c),
+            geom_brep::PlaneConeSection::TiltedEllipse(c) => conic(c, false),
+            geom_brep::PlaneConeSection::AxisNormalCircle(c) => conic(c, true),
             geom_brep::PlaneConeSection::ApexLinePair { l1, l2 } => {
                 Ok(SectionCase::Straight([l1, l2]))
             }
@@ -1093,8 +1158,8 @@ fn section_case<T: Decide>(
     };
     let sec = agreed_section(plane_s, wall, reach, band).map_err(table)?;
     match sec {
-        geom_brep::PlaneCylinderSection::TiltedEllipse(c)
-        | geom_brep::PlaneCylinderSection::Rim(c) => conic(c),
+        geom_brep::PlaneCylinderSection::TiltedEllipse(c) => conic(c, false),
+        geom_brep::PlaneCylinderSection::Rim(c) => conic(c, true),
         geom_brep::PlaneCylinderSection::ParallelLines { l1, l2 } => {
             Ok(SectionCase::Straight([l1, l2]))
         }
@@ -1110,7 +1175,7 @@ fn section_case<T: Decide>(
 
 /// The frame of a section carrier: an ellipse's own axes, a circle's
 /// radius twice. `None` for any other kind.
-fn section_conic<T: Real>(carrier: geom::Curve3<T>) -> Option<SectionConic<T>> {
+fn section_conic<T: Real>(carrier: geom::Curve3<T>, square: bool) -> Option<SectionConic<T>> {
     let (center, normal, major, sa, sb) = match carrier {
         geom::Curve3::Ellipse {
             center,
@@ -1134,6 +1199,7 @@ fn section_conic<T: Real>(carrier: geom::Curve3<T>) -> Option<SectionConic<T>> {
         sa,
         sb,
         carrier,
+        square,
     })
 }
 
@@ -1313,6 +1379,91 @@ fn arc_leaving<T: Decide>(
     }
 }
 
+/// A chord's curve as [`chord_spec`] mints it, with the plane its ends
+/// are read on where it is a section conic.
+pub(crate) struct SectionChord<T: Real> {
+    spec: EdgeCurveSpec<T>,
+    ends: Option<SectionEnds<T>>,
+}
+
+impl<T: Real> SectionChord<T> {
+    /// A chord that is no section conic: a ruling, or an edge's copy.
+    const fn bare(spec: EdgeCurveSpec<T>) -> Self {
+        Self { spec, ends: None }
+    }
+}
+
+/// **The plane a section conic's ends are read on**: the plane the
+/// conic lies in as the section table read it. That is the section plane,
+/// which the split reads its vertices on (`split_vertex_side`) and the
+/// Boolean's germ plane is, except where the table stood an axis-normal
+/// circle in for the plane's own section ([`SectionConic::square`]):
+/// then it is that circle's plane, glued to the section plane by the
+/// Zero. A model-scale point and a unit normal, never an ellipse's
+/// centre, which an elongated ellipse puts far off the face.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct SectionEnds<T: Real> {
+    origin: Point3<T>,
+    normal: Vec3<T>,
+    square: bool,
+}
+
+impl<T: Decide> SectionEnds<T> {
+    fn of(conic: &SectionConic<T>, origin: Point3<T>, normal: Vec3<T>) -> Self {
+        let (origin, normal) = if conic.square {
+            (conic.center, conic.normal)
+        } else {
+            (origin, normal)
+        };
+        Self {
+            origin,
+            normal,
+            square: conic.square,
+        }
+    }
+
+    /// **Which reading of the input puts a chord's end in band of the
+    /// vertex it meets**, where the attachment gate escalates the chord's
+    /// endpoint pin: the pin re-read with the vertex moved onto the plane
+    /// the conic lies in, by its own offset off it. A re-read that
+    /// decides Zero says the miss was that offset, the input's at the
+    /// zero band's edge: an edge on its faces
+    /// ([`crate::merge_faces::edge_on_faces_reading`]), on a stood-in
+    /// circle's plane also the plane's tilt off square
+    /// ([`SectionEndReading::SquareToAxis`]). A re-read in band or past it
+    /// is the carrier's own miss, which no move of the input reaches: the
+    /// conic's construction carries an error grown past the band
+    /// (DESIGN.md Q1), and the gate's refusal stands.
+    fn reading(
+        &self,
+        spec: &EdgeCurveSpec<T>,
+        at: (Point3<T>, Point3<T>),
+        refusal: &EulerOpError,
+        band: Band,
+    ) -> Option<(SectionEndReading, Indeterminate)> {
+        let on_plane = |check| {
+            let (t, vertex, name) = match check {
+                geom_brep::CertCheck::EndpointStart => {
+                    (spec.param_start, at.0, "section_end_start")
+                }
+                geom_brep::CertCheck::EndpointEnd => (spec.param_end, at.1, "section_end_end"),
+                _ => return false,
+            };
+            let offset = crate::sector_shape::plane_offset(self.origin, self.normal, vertex);
+            let miss = spec.carrier.eval(t).distance(vertex - self.normal * offset);
+            matches!(decide(name, Margin::of(miss), band), Ok(Sign::Zero))
+        };
+        let diag =
+            crate::merge_faces::edge_on_faces_reading(spec.carrier.kind(), refusal, on_plane)?;
+        let reading = if self.square {
+            SectionEndReading::SquareToAxis
+        } else {
+            SectionEndReading::OnPlane
+        };
+        Some((reading, diag))
+    }
+}
+
 /// The chord spec for dividing `face` between vertices `u1 → u2`
 /// (the mef/mekr `he_plus` direction): `None` for planar faces and
 /// for ruling sections (the straight chord IS the honest carrier —
@@ -1346,7 +1497,7 @@ fn chord_spec<T: Decide>(
     u1: VertexKey,
     u2: VertexKey,
     leave: Departure<T>,
-) -> Result<Option<EdgeCurveSpec<T>>, SplitJoinError> {
+) -> Result<Option<SectionChord<T>>, SplitJoinError> {
     // A self-loop chord is a lone site (module docs) in the lanes that
     // section no conic.
     if u1 == u2 && matches!(lane, JoinLane::Planar | JoinLane::AlongEdge) {
@@ -1452,7 +1603,7 @@ fn chord_spec<T: Decide>(
                 }
             };
             let witness = carrier.mid_point(s1, s2);
-            return Ok(Some(EdgeCurveSpec {
+            return Ok(Some(SectionChord::bare(EdgeCurveSpec {
                 description: geom_brep::EdgeDescriptionSpec::TangentIntersection {
                     pair: geom_brep::SurfacePair::new(wall_key, plane_key),
                     witness,
@@ -1460,7 +1611,7 @@ fn chord_spec<T: Decide>(
                 carrier,
                 param_start: s1,
                 param_end: s2,
-            }));
+            })));
         }
         SectionCase::Conic(c) => c,
     };
@@ -1488,14 +1639,17 @@ fn chord_spec<T: Decide>(
         }
     };
     let witness = carrier.mid_point(t_start, t_end);
-    Ok(Some(EdgeCurveSpec {
-        description: geom_brep::EdgeDescriptionSpec::Intersection {
-            pair: geom_brep::SurfacePair::new(wall_key, plane_key),
-            witness,
+    Ok(Some(SectionChord {
+        spec: EdgeCurveSpec {
+            description: geom_brep::EdgeDescriptionSpec::Intersection {
+                pair: geom_brep::SurfacePair::new(wall_key, plane_key),
+                witness,
+            },
+            carrier,
+            param_start: t_start,
+            param_end: t_end,
         },
-        carrier,
-        param_start: t_start,
-        param_end: t_end,
+        ends: Some(SectionEnds::of(&conic, ctx.origin, ctx.normal.get())),
     }))
 }
 
@@ -1640,7 +1794,7 @@ fn bool_planar_chord_spec<T: Decide>(
     u1: VertexKey,
     u2: VertexKey,
     leave: Departure<T>,
-) -> Result<Option<EdgeCurveSpec<T>>, SplitJoinError> {
+) -> Result<Option<SectionChord<T>>, SplitJoinError> {
     if !matches!(
         wall,
         geom::Surface::Cylinder { .. } | geom::Surface::Sphere { .. } | geom::Surface::Cone { .. }
@@ -1714,14 +1868,17 @@ fn bool_planar_chord_spec<T: Decide>(
         }
     };
     let witness = carrier.mid_point(t_start, t_end);
-    Ok(Some(EdgeCurveSpec {
-        description: geom_brep::EdgeDescriptionSpec::Intersection {
-            pair: geom_brep::SurfacePair::new(plane_key, wall_aux),
-            witness,
+    Ok(Some(SectionChord {
+        spec: EdgeCurveSpec {
+            description: geom_brep::EdgeDescriptionSpec::Intersection {
+                pair: geom_brep::SurfacePair::new(plane_key, wall_aux),
+                witness,
+            },
+            carrier,
+            param_start: t_start,
+            param_end: t_end,
         },
-        carrier,
-        param_start: t_start,
-        param_end: t_end,
+        ends: Some(SectionEnds::of(&conic, p_o, p_n)),
     }))
 }
 
@@ -1742,6 +1899,8 @@ pub(crate) struct SegmentCurve<T: Real> {
     halves: (HalfEdgeKey, HalfEdgeKey),
     /// The curve, or `None` for the straight chord.
     spec: Option<EdgeCurveSpec<T>>,
+    /// The plane a section conic's ends are read on.
+    ends: Option<SectionEnds<T>>,
 }
 
 #[cfg(test)]
@@ -1749,7 +1908,11 @@ impl<T: Real> SegmentCurve<T> {
     /// A segment curve as `segment_curve` would hand it over, for a row
     /// that winds a closing without a join.
     pub(crate) fn of(halves: (HalfEdgeKey, HalfEdgeKey), spec: Option<EdgeCurveSpec<T>>) -> Self {
-        Self { halves, spec }
+        Self {
+            halves,
+            spec,
+            ends: None,
+        }
     }
 }
 
@@ -1781,6 +1944,38 @@ impl<T: Decide> SegmentCurve<T> {
             }
         };
         self.running_from(h2, face)
+    }
+
+    /// The join's refusal of a chord on `spec`, this curve run from one of
+    /// its ends, between the vertices `ends`, dividing `face`, where the
+    /// attachment gate refuses it: the input's reading of its end where
+    /// the curve is a section conic and [`SectionEnds::reading`] finds
+    /// one, else the gate's.
+    fn refusal(
+        &self,
+        body: &Body<T>,
+        face: FaceKey,
+        ends: (VertexKey, VertexKey),
+        spec: Option<&EdgeCurveSpec<T>>,
+        band: Band,
+    ) -> impl FnOnce(EulerOpError) -> SplitJoinError + use<T> {
+        let read = self.ends.and_then(|plane| {
+            let at = (vertex_point(body, ends.0), vertex_point(body, ends.1));
+            spec.map(|spec| (plane, spec.clone(), at))
+        });
+        move |refusal| {
+            let reading = read
+                .as_ref()
+                .and_then(|(plane, spec, at)| plane.reading(spec, *at, &refusal, band));
+            match reading {
+                Some((reading, diag)) => SplitJoinError::SectionEndEscalated {
+                    face,
+                    reading,
+                    diag,
+                },
+                None => refusal.into(),
+            }
+        }
     }
 
     /// The chord's spec running from the site of matched half `at` to the
@@ -3269,8 +3464,8 @@ impl ChordJoiner {
             halves.0
         };
         let (u1, u2) = chord.ends;
-        let spec = match along_edge_spec(body, &lane, plan.locus, face, u1, u2)? {
-            Some(spec) => Some(spec),
+        let section = match along_edge_spec(body, &lane, plan.locus, face, u1, u2)? {
+            Some(spec) => Some(SectionChord::bare(spec)),
             None => chord_spec(
                 body,
                 self.band,
@@ -3281,9 +3476,11 @@ impl ChordJoiner {
                 leave.from(chord.from, face)?,
             )?,
         };
+        let (spec, ends) = section.map_or((None, None), |c| (Some(c.spec), c.ends));
         Ok(Some(SegmentCurve {
             halves: (chord.from, to),
             spec,
+            ends,
         }))
     }
 
@@ -3307,6 +3504,7 @@ impl ChordJoiner {
         let mut newf = None;
         if let Some(chord) = &plan.first {
             let spec = curve.running_from(chord.from, oldf)?;
+            let refused = curve.refusal(body, oldf, chord.ends, spec.as_ref(), self.band);
             match chord.site {
                 ChordSite::Mef(site) => {
                     // `outside` is the first half past the run; after the
@@ -3326,7 +3524,9 @@ impl ChordJoiner {
                     // `a_boolean_that_splits_a_reversed_wall_inherits_the_parent_bit`.
                     let created = match spec {
                         None => body.mef_chord(site, tol)?,
-                        Some(spec) => body.mef(site, spec, FaceSurface::Inherit, tol)?,
+                        Some(spec) => body
+                            .mef(site, spec, FaceSurface::Inherit, tol)
+                            .map_err(refused)?,
                     };
                     self.slivers.insert(created.face, ());
                     self.fragments.push((created.face, oldf));
@@ -3336,7 +3536,7 @@ impl ChordJoiner {
                 ChordSite::Mekr(site) => {
                     let made = match spec {
                         None => body.mekr_chord(site, tol)?,
-                        Some(spec) => body.mekr(site, spec, tol)?,
+                        Some(spec) => body.mekr(site, spec, tol).map_err(refused)?,
                     };
                     minted.push(made.edge);
                 }
@@ -3355,9 +3555,12 @@ impl ChordJoiner {
                 });
             };
             let spec = curve.running_from(chord.from, owner)?;
+            let refused = curve.refusal(body, owner, chord.ends, spec.as_ref(), self.band);
             let created = match spec {
                 None => body.mef_chord(site, tol)?,
-                Some(spec) => body.mef(site, spec, FaceSurface::Inherit, tol)?,
+                Some(spec) => body
+                    .mef(site, spec, FaceSurface::Inherit, tol)
+                    .map_err(refused)?,
             };
             self.slivers.insert(created.face, ());
             self.fragments.push((created.face, owner));
@@ -3919,6 +4122,9 @@ mod chart_ring_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod cone_ring_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod section_end_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod sibling_escalation_rows;
@@ -4764,6 +4970,7 @@ mod tests {
             u2,
             leave,
         )
+        .map(|chord| chord.map(|c| c.spec))
     }
 
     /// **The datum orients the chord.** The fixture's ellipse is

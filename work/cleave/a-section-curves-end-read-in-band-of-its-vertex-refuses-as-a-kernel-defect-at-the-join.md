@@ -82,3 +82,35 @@ section conic's amplified rounding. Only the first may become an
 becomes an arm-side refusal on the carrier's conditioning, as GERM's row
 asks. Then give each input reading its lever, at both doors, and check
 that moving the parts as told builds.
+
+## Built (branch cleave/section-end-inband-join)
+
+Measured first on main `c00d333a21`: every pose above reproduces at its
+ε (the split's rim and square families at 1e-9, 1e-6 and 1e-12, the
+Boolean's tilted slab at 1e-6), all ending in the kernel-defect ending.
+
+- **The decision reads the input, not the residual.** Where the gate
+  escalates a section conic chord's endpoint pin, the join re-reads the
+  pin with the vertex moved onto the plane the conic lies in, by its own
+  offset off it (`chord_join.rs`'s `SectionEnds::reading`). That plane
+  is the section plane, or, where the table stood the axis-normal circle
+  in for the section (`pc_rim_alignment`, `pn_axis_normal` Zero), that
+  circle's plane. Zero says the miss was the input's offset; in band or
+  past it, it is the carrier's own and stays the gate's refusal (Q1).
+  The rule lives in `merge_faces::edge_on_faces_reading`, generalised
+  with the endpoint arm; the describers answer no.
+- **Two stories, by structure:** `SplitJoinError::SectionEndEscalated`
+  with `SectionEndReading::OnPlane` (the split's edge-on-faces words; the
+  Boolean re-types it as `BooleanDecision::EdgeOnFaces`) or
+  `SquareToAxis` (a section read square to the wall's axis: the tilt and
+  the vertex's offset add, so the lever names both moves).
+- **Separation measured** (`examples/section_end_census_probe.rs`): at
+  1e-12, 173 runs of planes nearly along the axis (θ = 3e-4 … 1e-5,
+  margins 1.14e-12 to 7.3e-12) stay `Euler(Escalated{Endpoint*})`; none
+  is typed. Every rim, frustum, seam-vertex and square-box pose is typed.
+- **Levers build** at both doors: the vertex onto the plane or 50ε off
+  it; the plane square or 1e-2 off square.
+- Pins: `sweep` `section_end_poses` (three tests), `topo`
+  `chord_join::section_end_rows`.
+- Filed: `work/cleave/a-section-read-square-at-its-band-edge-refuses-downstream-at-1e-12.md`,
+  `work/flux/a-slab-face-nearly-along-a-cylinder-ruling-exhausts-the-volume-quadrature.md`.

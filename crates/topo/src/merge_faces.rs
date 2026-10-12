@@ -38,7 +38,9 @@ use std::collections::BTreeMap;
 
 use geom::SurfaceKind;
 use geom::{NetState, Surface};
-use geom_brep::recourse::{Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite, Unsized};
+use geom_brep::recourse::{
+    LeverOnly, Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite, Unsized,
+};
 use geom_core::{Band, BandError, Decide, Decided, Indeterminate, Real, Tol};
 use slotmap::SecondaryMap;
 
@@ -713,37 +715,63 @@ pub(crate) const EDGE_ON_FACES_LEVER: &str =
 pub(crate) const EDGE_ON_PLANE_LEVER: &str =
     edge_on_faces_lever!(geom_core::split_plane_recourse!(), "the plane");
 
+/// An edge along the split's cut read in band of a face it bounds, in
+/// the split's words: its finish's describer and its join's chord end.
+pub(crate) fn edge_on_plane_refusal(diag: &Indeterminate) -> String {
+    diag.undecided(
+        edge_on_faces_subject!("an edge along the cut"),
+        LeverOnly {
+            lever: EDGE_ON_PLANE_LEVER,
+        }
+        .recourse(RefusedArm::Undecided(diag), Reading::Build),
+    )
+    .to_string()
+}
+
 /// **Whether an attachment refusal is an edge's own reading on its
-/// faces**, the input's (D9 row 1), at every door that describes an edge
-/// between vertices an earlier reading placed: its carrier's residual
-/// against a surface it lies on, or its chart image's, read in band, on a
-/// line carrier. A line is the chord between those vertices, so its miss
-/// is their offset plus a rounding, which escalating tells truly. A
-/// circle, ellipse, spiric or spline is a construction from the surfaces,
-/// whose own error can be amplified into the band (an ellipse nearly along
-/// a cylinder's axis carries its semi-major axis's rounding), so it keeps
-/// the gate's refusal, as does every other check and a definite miss.
+/// faces**, the input's (D9 row 1), at every door that describes or
+/// mints an edge between vertices an earlier reading placed: a miss read
+/// in band that is those vertices' offsets plus a rounding, which
+/// escalating tells truly.
+///
+/// - A line carrier's residual against a surface it lies on, or its
+///   chart image's. A line is the chord between the vertices, so its
+///   miss is their offset. A circle, ellipse, spiric or spline is a
+///   construction from the surfaces, whose own error can be amplified
+///   into the band (an ellipse nearly along a cylinder's axis carries its
+///   semi-major axis's rounding), so its residual keeps the gate's
+///   refusal.
+/// - Any carrier's endpoint pin, where `end_on_plane` says the pin
+///   decides Zero with its vertex moved onto the plane it was read on
+///   (the join's section chords, `chord_join`'s `SectionEnds::reading`):
+///   the miss was the vertex's on-plane offset, not the carrier's.
+///   A describer that reads no plane answers no.
+///
+/// A definite miss and every other check keep the gate's refusal.
 pub(crate) fn edge_on_faces_reading(
     carrier: geom::CurveKind,
     refusal: &EulerOpError,
+    end_on_plane: impl FnOnce(geom_brep::CertCheck) -> bool,
 ) -> Option<Indeterminate> {
     let (EulerOpError::Certification { error } | EulerOpError::RechartFalsifies { error, .. }) =
         refusal
     else {
         return None;
     };
-    match (carrier, error) {
+    let geom_brep::CertifyError::Escalated { check, cause, .. } = error else {
+        return None;
+    };
+    let read = match (carrier, check) {
         (
             geom::CurveKind::Line,
-            geom_brep::CertifyError::Escalated {
-                check:
-                    geom_brep::CertCheck::SurfaceResidual { .. } | geom_brep::CertCheck::ChartResidual,
-                cause,
-                ..
-            },
-        ) => Some(*cause),
-        _ => None,
-    }
+            geom_brep::CertCheck::SurfaceResidual { .. } | geom_brep::CertCheck::ChartResidual,
+        ) => true,
+        (_, geom_brep::CertCheck::EndpointStart | geom_brep::CertCheck::EndpointEnd) => {
+            end_on_plane(*check)
+        }
+        _ => false,
+    };
+    read.then_some(*cause)
 }
 
 /// An attachment refusal's payload without its ending: a definite

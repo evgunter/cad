@@ -2258,7 +2258,7 @@ fn of_attachment(
     carrier: geom::CurveKind,
     cause: crate::euler::EulerOpError,
 ) -> DescribeRefusal {
-    match crate::merge_faces::edge_on_faces_reading(carrier, &cause) {
+    match crate::merge_faces::edge_on_faces_reading(carrier, &cause, |_| false) {
         Some(diag) => DescribeRefusal::off_face(edge, diag),
         None => DescribeRefusal::refused(edge, failure, cause, carrier == geom::CurveKind::Nurbs),
     }

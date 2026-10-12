@@ -76,7 +76,6 @@ use crate::chord_join::SplitJoinError;
 use crate::entity::{EdgeKey, FaceKey, LoopBoundary, ShellKey, SolidKey, VertexKey};
 use crate::euler::{EulerOpError, FaceSurface};
 use geom::Surface;
-use geom_brep::recourse::{LeverOnly, Reading, RefusedArm};
 use geom_core::Tol;
 
 /// One side of a split result: a real body, or the typed empty side
@@ -437,7 +436,7 @@ fn of_attachment(
     carrier: geom::CurveKind,
     refusal: EulerOpError,
 ) -> SplitFinishError {
-    match crate::merge_faces::edge_on_faces_reading(carrier, &refusal) {
+    match crate::merge_faces::edge_on_faces_reading(carrier, &refusal, |_| false) {
         Some(diag) => SplitFinishError::EdgeOnFacesEscalated { edge, diag },
         None => refusal.into(),
     }
@@ -509,15 +508,9 @@ impl core::fmt::Display for SplitFinishError {
                     super::split_lever_ending(diag),
                 )
                 .fmt(f),
-            Self::EdgeOnFacesEscalated { diag, .. } => diag
-                .undecided(
-                    crate::merge_faces::edge_on_faces_subject!("an edge along the cut"),
-                    LeverOnly {
-                        lever: crate::merge_faces::EDGE_ON_PLANE_LEVER,
-                    }
-                    .recourse(RefusedArm::Undecided(diag), Reading::Build),
-                )
-                .fmt(f),
+            Self::EdgeOnFacesEscalated { diag, .. } => {
+                crate::merge_faces::edge_on_plane_refusal(diag).fmt(f)
+            }
             Self::SmoothJoinRefuted { .. } => write!(
                 f,
                 "two faces along the cut meet smoothly at the middle of their shared edge \
