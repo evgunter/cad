@@ -4057,15 +4057,11 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
     band: Band,
     window: RoundWindow,
 ) -> Result<RoundOutcome, PropsError> {
-    debug_assert!(
-        window.first <= QUAD2_MAX_ROUNDS,
-        "a window resuming at round {} is past this lane's last round {QUAD2_MAX_ROUNDS}",
-        window.first
-    );
     let rect = PatchRect::new(rect)?;
     let (u0, u1, v0, v1) = rect.corners();
     // M8-3: the rational patch is the SAME integrand over a polynomial
     // cube (`f = N/w³`), so it takes its own lane rather than refusing.
+    // That lane checks a window against its own last round.
     if weights.iter().any(|w| *w != 1.0) {
         return rational_patch_face::<T>(
             kv_u,
@@ -4080,6 +4076,11 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
             window,
         );
     }
+    debug_assert!(
+        window.first <= QUAD2_MAX_ROUNDS,
+        "a window resuming at round {} is past this lane's last round {QUAD2_MAX_ROUNDS}",
+        window.first
+    );
     // The derivative grids, built once (mixed partials commute on
     // spline nets exactly).
     let s = PatchGrid::base(&TensorChannels::from_fn(
