@@ -2,10 +2,11 @@
 id: a-pinch-line-crossing-a-face-interior-drops-the-pinchs-records
 kind: issue
 title: A pinch line crossing a face's interior drops the pinch's records at the new pinch end
-status: open
+status: closed
 opened: 2026-10-03
 priority: P1
 cost: M
+closed: 2026-10-11
 ---
 
 
@@ -63,26 +64,13 @@ Waits on `intent-stage4-is-built`, not on the whole program: a missing v-v conta
 
 E does not reach this. The missing record is a v-v row at a pierce, not a face pair, and E's door glues and records face pairs only (`crates/topo/src/boolean/glue.rs:40`). `a_pinch_line_through_a_face_drops_its_records_at_the_new_end` (`crates/topo/tests/union_flush_onto_edge_contact.rs:780`) is unchanged on E and pins the failure as it stands. "Owed" stands.
 
-## Green on a recorded fusion (2026-10-11, FLUSH's PR 4728)
+## Closed (2026-10-11)
 
-The pinch line's two coincident edges pierce the face at one point, and
-each pierce used to mint its own ring vertex there, on its own point
-key. `vtxfac::mint_ring` now mints one ring per face and point for all
-the pierces there. Grouping them is a value decision (`bool_contact_vertex`,
-`vtxfac::ring_groups`), and the op records it: a `VertexFusion` row with
-its margin, and a vertex-vertex record of the piercing operand's citing
-it (`ops::ledger`), which the carry turns into a record of every pair of
-result vertices the two reach.
-
-The pin is now `a_pinch_line_through_a_face_keeps_the_pinch_at_the_new_end`.
-All seven ops build and pass 3′. The four that keep the pinch's two
-pieces at (0, 0, 1) (`pinch ∖`, both `∩`s and `block ∩`) assert the
-record of the pair and the `VertexFusion` row. The pair is on two
-point keys where the pinch's vertices survive, and on the ring's one
-key where the cutter's or the block's copies do.
-
-**What is left of "Owed".** The record is backed by the ring's value
-decision. It is not backed by the pinch's own carried record, the
-"coincident by construction" route this row asks for. That is still
-unbuilt, so the row stays open on that remainder, unless the owner
-judges the recorded fusion enough.
+Closed by CONTACTHOLD's `the-boolean-records-no-line-touch-and-the-census-does-not-demand-one`
+(branch `contacthold/ee-line-touch-record`). The pinch now records an
+edge-edge row along its line. With the pinch's records carried, the
+carried row's split lineage (`boolean::ops::ee_lineage`) decides the two
+split vertices at the face crossing one and records them as a v-v row.
+`a_pinch_line_through_a_face_keeps_its_records_at_the_new_end`
+(`crates/topo/tests/union_flush_onto_edge_contact.rs`), renamed from the
+pin, asserts 3′ passing in all seven ops, `block ∩ pinch` included.

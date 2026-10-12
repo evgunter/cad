@@ -2,8 +2,10 @@
 id: node-operand-has-one-consumer-where-axis-datum-is-the-same-door
 kind: issue
 title: eval/wire.rs's node_operand and mate/member.rs's axis_datum are the same door written twice, and they disagree about the seat
-status: open
+status: closed
 opened: 2026-09-21
+pr: 4741
+closed: 2026-10-11
 ---
 
 
@@ -58,3 +60,9 @@ The two files have two owners: `eval/wire.rs` is WIRE's,
 `mate/member.rs` is MSOLVE's (`scripts/work.py territory`). Filed
 here because the helper with a home is WIRE's; a lane that takes it
 announces the crossing to MSOLVE.
+
+Closed by #4741: dissolved. Its one consumer was the loft section
+read (`section_of`), which now reads the operand's evaluated profile
+value instead of the node, so `node_operand` went with it.
+`axis_datum` remains the only door of this shape, and with one door
+there is no seat to reconcile.

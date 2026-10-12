@@ -524,8 +524,10 @@ pub struct VeContact {
     pub edge: crate::entity::EdgeKey,
 }
 
-/// Two edges whose interiors meet, within one operand carried back into
-/// an op ([`OperandRecords`]).
+/// Two edges whose interiors meet: within one operand carried back into
+/// an op, both that operand's ([`OperandRecords`]); in the reduction's
+/// working set, `a` an edge of A and `b` one of B, each in its operand
+/// clone's keys ([`ReductionContacts`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct EeContact {
     /// One edge.
@@ -568,7 +570,8 @@ pub enum Cell {
 }
 
 /// **The boolean reduction's working contact set** (Mäntylä's ON-sets
-/// `sonvv`, `sonva`, `sonvb`), each row citing the reduction's own
+/// `sonvv`, `sonva`, `sonvb`, and the touches along a line the
+/// classification reads), each row citing the reduction's own
 /// decisions: operand-tagged, every key in its operand clone's arena.
 /// It is the reduction's vocabulary, read by operand by the
 /// classification and the insertion, and it is not a body's record:
@@ -583,12 +586,18 @@ pub struct ReductionContacts {
     pub a_on_b: Vec<Cited<VfContact>>,
     /// Vertices of B on faces of A (`sonvb`).
     pub b_on_a: Vec<Cited<VfContact>>,
+    /// Coincident line edges of A and B whose interiors meet with no
+    /// germ between them, both staying on the result's boundary, each
+    /// citing the vertex records at its two ends (`touch_rows`). Written
+    /// by the classification, so empty at the sweep.
+    pub ee: Vec<Cited<EeContact>>,
 }
 
 impl ReductionContacts {
     /// Every row as its two operand-tagged cells and its citations, in
     /// one fixed order: the vertex pairs (A's vertex, B's), then A's
-    /// vertices on B's faces, then B's on A's, each vertex first.
+    /// vertices on B's faces, then B's on A's, each vertex first, then
+    /// the edge pairs (A's edge, B's).
     pub fn rows(&self) -> impl Iterator<Item = ([(Operand, Cell); 2], &Cites)> + '_ {
         let vv = self.vv.iter().map(|c| {
             (
@@ -611,11 +620,15 @@ impl ReductionContacts {
                 )
             })
         }
-        vv.chain(vf(Operand::A, Operand::B, &self.a_on_b)).chain(vf(
-            Operand::B,
-            Operand::A,
-            &self.b_on_a,
-        ))
+        let ee = self.ee.iter().map(|c| {
+            (
+                [(Operand::A, Cell::Edge(c.a)), (Operand::B, Cell::Edge(c.b))],
+                &c.cites,
+            )
+        });
+        vv.chain(vf(Operand::A, Operand::B, &self.a_on_b))
+            .chain(vf(Operand::B, Operand::A, &self.b_on_a))
+            .chain(ee)
     }
 }
 
@@ -4640,7 +4653,8 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     // (`insert::reconcile_shared`), so no mint moves a half-edge another
     // pair's plan read.
     let mut classified = Vec::with_capacity(contacts.vv.len());
-    for c in contacts.vv.iter().map(|c| c.record) {
+    let mut line_touches = Vec::new();
+    for (i, c) in contacts.vv.iter().map(|c| c.record).enumerate() {
         let a_sectors = sectors::build_sectors(&a, Operand::A, c.a, band)?;
         let b_sectors = sectors::build_sectors(&b, Operand::B, c.b, band)?;
         for (operand, vertex, own, other, partner) in [
@@ -4686,6 +4700,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             &mut held,
         )?;
         let sector_read = (records.clone(), raw.clone());
+        let mut touched = Vec::new();
         recl::recl_edges(
             &mut records,
             &mut raw,
@@ -4697,7 +4712,9 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             &declared,
             band,
             &recl::Reversed::default(),
+            &mut touched,
         )?;
+        line_touches.extend(touched.into_iter().map(|he| (i, he)));
         classified.push((c, a_sectors, b_sectors, records, raw, sector_read));
     }
     let mut read = Vec::with_capacity(touches.len() + paired.len());
@@ -4737,6 +4754,8 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     }
     // An edge of a shared vertex that two crossing pairs' edge-edge
     // germs run along folds Out in each of them (`recl::Reversed`).
+    // Read before the insertion moves any edge's end onto a copy.
+    let ee = touch_rows(&a, &b, &contacts.vv, &line_touches)?;
     let edge_germs: Vec<[Vec<HalfEdgeKey>; 2]> = classified
         .iter()
         .map(|(_, a_s, b_s, records, raw, _)| {
@@ -4767,9 +4786,31 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         let (_, a_sectors, b_sectors, records, raw, (sector_records, sector_raw)) =
             &mut classified[i];
         (*records, *raw) = (sector_records.clone(), sector_raw.clone());
+        let mut retouched = Vec::new();
         recl::recl_edges(
-            records, raw, a_sectors, b_sectors, &a, &b, op, &declared, band, &reversed,
+            records,
+            raw,
+            a_sectors,
+            b_sectors,
+            &a,
+            &b,
+            op,
+            &declared,
+            band,
+            &reversed,
+            &mut retouched,
         )?;
+        // A reversal moves a germ between flankers, after the touch is
+        // read: the pass reads the touches the first did.
+        let first = line_touches
+            .iter()
+            .filter(|(j, _)| *j == i)
+            .map(|(_, he)| he);
+        if !retouched.iter().eq(first) {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "a reversed edge pass reads other touches than the first pass at its vertex pair",
+            });
+        }
     }
     let mut plans = classified
         .iter()
@@ -4813,7 +4854,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         op,
         a: carved_a,
         b: carved_b,
-        contacts,
+        contacts: ReductionContacts { ee, ..contacts },
         null_edges,
         null_pairs,
         pierce_rings,
@@ -4832,6 +4873,70 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         coincidences,
         pending,
     })
+}
+
+/// **The reduction's edge-edge rows**: for each touch the
+/// classification read at vertex pair `vv[i]` (`recl::recl_edges`), the
+/// two half-edges' edges, where both are lines, recorded as A's edge
+/// and B's. The reduction split each edge at every vertex of the other
+/// lying on it, so the two edges run between the same two points, each
+/// a vertex pair the classification reads, and it reads the touch at
+/// both. The row cites what C3's shortest chain asks of a pair two
+/// vertex identities imply: the vertex records at its two ends, the two
+/// pairs it was read at. Read before the insertion, while every edge
+/// still ends at the vertex its row names. A touch along two curved
+/// edges writes no row: two arcs leaving a vertex along one tangent
+/// need not coincide.
+///
+/// # Errors
+///
+/// [`BooleanError::JoinDesync`] where a half-edge does not resolve or
+/// its edge does not end at the pair's vertex;
+/// [`BooleanError::ClassificationInvariant`] where a touch is read at
+/// other than its two ends: an end with no vertex record is a bound D1
+/// never infers.
+fn touch_rows<T: Real>(
+    a: &Body<T>,
+    b: &Body<T>,
+    vv: &[Cited<VvContact>],
+    touches: &[(usize, [HalfEdgeKey; 2])],
+) -> Result<Vec<Cited<EeContact>>, BooleanError> {
+    let desync = |what| BooleanError::JoinDesync { what };
+    // The edge `he` lies on, which ends at `near`.
+    let edge = |body: &Body<T>, he: HalfEdgeKey, near: VertexKey| {
+        let edge = body
+            .get_half_edge(he)
+            .map(|h| h.edge)
+            .ok_or_else(|| desync("a touch's half-edge does not resolve"))?;
+        match body.edge_vertices(edge) {
+            Some((v, w)) if near == v || near == w => Ok(edge),
+            Some(_) => Err(desync("a touch's edge does not end at its vertex pair")),
+            None => Err(desync("a touch's edge does not resolve")),
+        }
+    };
+    // Each pair of edges, and the vertex pairs it was read at.
+    let mut read: Vec<(EeContact, Vec<usize>)> = Vec::new();
+    for &(i, [ha, hb]) in touches {
+        let ea = edge(a, ha, vv[i].a)?;
+        let eb = edge(b, hb, vv[i].b)?;
+        if !(crate::census::edge_is_line(a, ea) && crate::census::edge_is_line(b, eb)) {
+            continue;
+        }
+        let pair = EeContact { a: ea, b: eb };
+        match read.iter_mut().find(|(p, _)| *p == pair) {
+            Some((_, ends)) if ends.contains(&i) => {}
+            Some((_, ends)) => ends.push(i),
+            None => read.push((pair, vec![i])),
+        }
+    }
+    read.into_iter()
+        .map(|(pair, ends)| match ends[..] {
+            [here, there] => Ok(Cited::new(pair, vv[here].cites.union(&vv[there].cites))),
+            _ => Err(BooleanError::ClassificationInvariant {
+                what: "two edges touching along a line are read at other than their two ends",
+            }),
+        })
+        .collect()
 }
 
 /// A point where the insertion hung runs at a turned run's copy

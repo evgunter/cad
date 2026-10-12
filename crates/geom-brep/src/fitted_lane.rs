@@ -130,6 +130,7 @@ pub struct FittedLane<T: Real> {
         &crate::ProjectedImage<T>,
         &NurbsCurve3<T>,
         &Surface<T>,
+        &[f64],
     ) -> Result<ProjectedHull, PcurveCertifyError>,
 }
 
@@ -210,15 +211,17 @@ impl<T: Real> FittedLane<T> {
     /// sector condition and cone lever) and the chart's implicit form
     /// composed along `twin_net`, the carrier written in the frame of
     /// `twin`, the chart's orthonormal twin
-    /// (`pcurve_cache::projected`'s docs). Certification arithmetic, so
-    /// it sits on this door.
+    /// (`pcurve_cache::projected`'s docs), with `cuts` added to its
+    /// parts' breaks (the analytic rung-3 limb's halvings; check 4 adds
+    /// none). Certification arithmetic, so it sits on this door.
     pub(crate) fn projected_hull(
         self,
         image: &crate::ProjectedImage<T>,
         twin_net: &NurbsCurve3<T>,
         twin: &Surface<T>,
+        cuts: &[f64],
     ) -> Result<ProjectedHull, PcurveCertifyError> {
-        (self.projected_lane)(image, twin_net, twin)
+        (self.projected_lane)(image, twin_net, twin, cuts)
     }
 
     /// **The chart foot of one point** on a NURBS wall —
@@ -281,7 +284,7 @@ mod wiring_rows {
         }
         if !std::ptr::fn_addr_eq(
             lane.projected_lane,
-            projected_hull_lane::<T> as fn(_, _, _) -> _,
+            projected_hull_lane::<T> as fn(_, _, _, _) -> _,
         ) {
             return Err("projected_lane is not `pcurve_cache::projected_hull_lane`");
         }

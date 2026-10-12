@@ -976,11 +976,6 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         // recourse is "seed at a scalar with a tangent channel" (or
         // name a continuous parameter), not the box's.
         C::Seed => "seed",
-        // The seed stopped at a C6/D9-pinned section: its own tag,
-        // because the recourse ("this parameter cannot be seeded
-        // through a loft or sweep section") is neither the box's nor
-        // the scalar's.
-        C::SeedPinnedSection => "seed_pinned_section",
         C::WrongOperand => "wrong_operand",
         // An operand reads a variable its operation no longer defines:
         // the delete that removed it reported the strand.
@@ -1024,11 +1019,9 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::Shell => "shell",
         C::ShellLaneUnsupported => "shell_lane_unsupported",
         // The derived sketch frame's refusals (DOCM-1): one
-        // carrier-kind refusal, one read-back refusal, and the section
-        // refusal DM1c adds.
+        // carrier-kind refusal and one read-back refusal.
         C::FaceFrameNotPlanar => "face_frame_not_planar",
         C::FaceFrameReadback => "face_frame_readback",
-        C::DerivedFrameSection => "derived_frame_section",
         // **No new word.** A carried frame refusal is the SAME fact
         // as the one raised at the frame itself, and the arm exists to
         // add the frame's id to the prose, not to split the fact in
@@ -1157,7 +1150,6 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::ToleranceConflict { .. } => None,
         NodeErrorKind::ParamBox { source } => Some(param_box_error_tag(source)),
         NodeErrorKind::Seed { source } => Some(seed_error_tag(source)),
-        NodeErrorKind::SeedPinnedSection { .. } => None,
         NodeErrorKind::WrongOperand { .. } => None,
         NodeErrorKind::UnresolvedRead { .. } => None,
         NodeErrorKind::SelectResolve { error, .. } => Some(resolve_error_tag(error)),
@@ -1201,7 +1193,6 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::ShellLaneUnsupported { .. } => None,
         NodeErrorKind::FaceFrameNotPlanar { .. } => None,
         NodeErrorKind::FaceFrameReadback { error } => Some(readback_error_tag(error)),
-        NodeErrorKind::DerivedFrameSection { .. } => None,
         NodeErrorKind::FrameDirection { .. } => None,
         NodeErrorKind::WitnessBifurcation(_) => None,
         NodeErrorKind::Part { .. } => None,
@@ -1720,6 +1711,7 @@ pub fn loft_error_tag(err: &LoftError) -> &'static str {
         LoftError::SeamStructure { .. } => "seam_structure",
         LoftError::SectionStructure => "section_structure",
         LoftError::PlacementNotAPoint { .. } => "placement_not_a_point",
+        LoftError::SectionNotAPoint { .. } => "section_not_a_point",
         LoftError::ReversedStacking { .. } => "reversed_stacking",
         LoftError::DegenerateStacking { .. } => "degenerate_stacking",
         LoftError::FarSectionNotForward { .. } => "far_section_not_forward",
