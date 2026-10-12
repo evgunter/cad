@@ -5963,13 +5963,12 @@ fn derivative_net<T: Real>(s: &geom::NurbsSurface<T>, along_v: bool) -> Vec<Vec3
         }
     };
     let mut out = Vec::with_capacity(n_out.saturating_sub(1) * n_in);
-    #[allow(clippy::cast_precision_loss)]
     for i in 0..n_out.saturating_sub(1) {
         let denom = k[i + p + 1] - k[i + 1];
         if denom == 0.0 {
             continue;
         }
-        let factor = T::from_f64(p as f64) / (held[i + p + 1] - held[i + 1]);
+        let factor = geom_core::spline::span_derivative_scale(p, held[i + 1], held[i + p + 1]);
         for j in 0..n_in {
             out.push((at(i + 1, j) - at(i, j)) * factor);
         }
@@ -6018,7 +6017,6 @@ fn curve_rate_bound<T: Real>(c: &NurbsCurve3<T>) -> SupSpeed<T> {
         c.knot_values().values(),
     );
     let mut sup = T::zero();
-    #[allow(clippy::cast_precision_loss)]
     for i in 0..ctl.len().saturating_sub(1) {
         let denom = k[i + p + 1] - k[i + 1];
         if denom == 0.0 {
@@ -6026,7 +6024,7 @@ fn curve_rate_bound<T: Real>(c: &NurbsCurve3<T>) -> SupSpeed<T> {
         }
         sup = sup.max(
             (ctl[i + 1] - ctl[i]).norm()
-                * (T::from_f64(p as f64) / (held[i + p + 1] - held[i + 1])),
+                * geom_core::spline::span_derivative_scale(p, held[i + 1], held[i + p + 1]),
         );
     }
     // The rational factor (M8-3), the curve-side twin of

@@ -168,6 +168,7 @@ use core::ops::{Add, Mul, Sub};
 use geom_core::spline::ProjectiveScalar;
 use geom_core::spline::{
     self, KnotAlgebraError, KnotSpan, KnotVector, Knots, Span, SpanLocate, SplineError,
+    derivative_net,
 };
 use geom_core::{Interval, Point2, Point3, Real, Vec2, Vec3};
 use std::sync::OnceLock;
@@ -311,35 +312,6 @@ fn blossom<T: Real, V: Copy + Add<Output = V> + Sub<Output = V> + Mul<T, Output 
         }
     }
     d.last().copied()
-}
-
-/// The derivative net of the degree-`p` coefficients `net`, whose
-/// first entry is coefficient `first`: entry `k` is
-/// `p·(net[k+1] − net[k])/(u_{i+p+1} − u_{i+1})` with `i = first + k`.
-/// The knot difference is checked positive on the structure `knots`
-/// and formed in `T` over the `held` knots. `None` on a non-positive
-/// difference or a knot index past the vector.
-fn derivative_net<T: Real, P: Copy + Sub<Output = V>, V: Mul<T, Output = V>>(
-    net: &[P],
-    knots: &[f64],
-    held: &[T],
-    p: usize,
-    first: usize,
-) -> Option<Vec<V>> {
-    net.windows(2)
-        .enumerate()
-        .map(|(k, pair)| {
-            let i = first + k;
-            let du = *knots.get(i + p + 1)? - *knots.get(i + 1)?;
-            #[allow(clippy::neg_cmp_op_on_partial_ord)]
-            if !(du > 0.0) {
-                return None;
-            }
-            #[allow(clippy::cast_precision_loss)]
-            let scale = T::from_f64(p as f64) / (*held.get(i + p + 1)? - *held.get(i + 1)?);
-            Some((pair[1] - pair[0]) * scale)
-        })
-        .collect()
 }
 
 /// `Σⱼ wⱼ·rowⱼ` over the nonzero exact weights `w`, in ascending `j`;
@@ -2265,7 +2237,8 @@ impl<T: Real> NurbsCurve3<T> {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use super::{NurbsCurve3, binomial, derivative_net, pieces_exact};
+    use super::{NurbsCurve3, binomial, pieces_exact};
+    use geom_core::spline::derivative_net;
     use geom_core::spline::{KnotVector, Knots};
     use geom_core::{Dual, Point3, Real, Sym};
     use test_utils::fuzz;

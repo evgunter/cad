@@ -2,10 +2,12 @@
 id: the-span-derivative-scale-is-spelled-in-six-places
 kind: issue
 title: The span derivative-net scale p/(u_{i+p+1} − u_{i+1}) is spelled in six places across four crates; give it one home in geom-core spline
-status: open
+status: closed
 opened: 2026-10-12
 priority: P4
 cost: M
+closed: 2026-10-12
+branch: nurbs/one-derivative-scale
 ---
 
 ## What
@@ -34,3 +36,40 @@ One `T`-generic scale (and net) in geom-core `spline`, beside
 `SplineCoeffs::derivative_coeffs`, taking the zero-difference policy
 from its caller. `derivative_net` moves there. Each site keeps its
 operation order where a golden pins it bit for bit.
+
+## Closed (NURBS, branch `nurbs/one-derivative-scale`)
+
+`geom_core::spline::derivative` is the home:
+- `span_derivative_scale(p, lo, hi) = T::from_f64(p as f64) / (hi − lo)`
+  checks nothing. A zero knot difference is the caller's: a net refuses,
+  a sup skips the pair, an enclosure reads the division's own answer.
+  Each site keeps its own indexing and its own check.
+- `derivative_net` moved here from `geom/src/curves/nurbs.rs`
+  unchanged; it refuses on a non-positive structure difference.
+
+Every routed site computes the same operations in the same order as
+before, so no bit moves.
+
+| site | disposition |
+|---|---|
+| `geom` `nurbs.rs` `derivative_net` | moved to `geom_core::spline::derivative_net`; its scale is the helper |
+| `topo` `shell.rs` `spline_speed` | routed; the skip on a zero structure difference stays at the site |
+| `geom-brep` `pcurve_cache.rs`, the surface derivative net | routed; skip stays |
+| `geom-brep` `pcurve_cache.rs` `curve_rate_bound` (the row's `chart_stretch_inf` spline arm reads its twin net) | routed; skip stays |
+| `geom-brep` `ssi/enclose.rs` `pair_scales` | routed at `Interval`: `Interval::point` is `Real::from_f64`, so `deg / (point(hi) − point(lo))` is the helper's own spelling; no check, as before |
+| `geom-brep` `ssi/enclose.rs` `bezier_scales` (**seventh site**, `degree / (b − a)` over a Bézier block) | routed, likewise |
+| `geom-core` `spline/hull.rs` `deriv_coeff` | **left**: its fixed association `(c_{i+1} − c_i)·p / Δu` (D9, stated at the site) is not `Δc·(p/Δu)`, and the two round differently at `Interval` |
+| `topo` `offset_derive.rs` `polynomial_speed` | **left**: `‖ΔP‖·p / dt` at `f64` associates the same way as `deriv_coeff`, so it is not the helper's product either |
+
+**Sweeps:**
+- **Pass 1, the scale's shape:** `from_f64(p as f64) / (`,
+  `Interval::point((p|degree) as f64)`, `* (p as f64) /`. It found the
+  six sites and `bezier_scales`.
+- **Pass 2, the knot difference's shape** (`[i + p + 1] − [i + 1]`,
+  `.get(i + p + 1)`), aimed at pass 1's blind spot of a scale spelled
+  through another name or conversion. Its other hits are de Boor and
+  blossom ratios `(u − t_i)/(t_{i+p+1−r} − t_i)` (`spline/algebra.rs`,
+  `spline/locate.rs`, `spline/blossom.rs`, `props/quad.rs`), a
+  different formula.
+- **Pass 3:** `derived_u`/`derived_v` in `spline/net.rs` go through
+  `hull.rs`'s `deriv_coeff`.
