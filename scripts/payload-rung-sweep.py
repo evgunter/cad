@@ -151,6 +151,12 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     # `BooleanError::EdgeUndescribed`'s failure, a kernel-defect refusal.
     "EdgeDescribeFailure": ("argued", "non-carriage with its falsifier, beside the "
                             "declaration in crates/topo/src/merge_faces.rs"),
+    # `BooleanError::LineageRow`'s two closed words: a kernel defect, so
+    # nothing branches on them.
+    "LineageRows": ("argued", "non-carriage with its falsifier, beside the declaration "
+                    "in crates/topo/src/lineage.rs"),
+    "RowDefect": ("argued", "non-carriage with its falsifier, beside the declaration "
+                  "in crates/topo/src/lineage.rs"),
     # `BooleanError::GermSectionSpiric`'s loops: `WedgeCheck`'s shape,
     # argued beside the declaration.
     "SpiricLoops": ("argued", "non-carriage with its falsifier, beside the declaration "
@@ -237,6 +243,7 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     "Implicated": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
     "JoinReading": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
     "OperandKeys": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
+    "Cell": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
     "Origin": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
     "Placed": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
     "RowCell": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),

@@ -23,7 +23,7 @@ pub(crate) fn band(tol: Tol) -> Result<Band, NamingError> {
 pub(crate) const FAMILY: &str = "name_frag_";
 
 /// The order-along predicate's name, written once: the ranker records
-/// it and [`decision_words`] states what it decides.
+/// it and [`DECISION_WORDS`] states what it decides.
 pub(crate) const ORDER_ALONG: &str = "name_frag_order_along";
 
 /// The on-member-edge predicate's name (`emit_union`'s `Flush`): whether
@@ -45,33 +45,41 @@ pub(crate) const ON_MEMBER_EDGE: &str = "name_frag_on_member_edge";
 /// ranked along that line or tied, so they enter the names.
 pub(crate) const ON_SEAM_LINE: &str = "name_frag_on_seam_line";
 
-/// The chord-on-rim predicate's name (`emit_topo`'s `chord_on_rim`):
-/// whether a boolean's chord between two merged faces lies within the
-/// rim its key's side reads it through to.
+/// The chord-on-rim predicate's name (`emit_topo`'s `chord_within`):
+/// whether a boolean's chord between two faces of one operand lies
+/// within an edge those faces share — the rim a merged pair's key side
+/// reads it through to, an unmerged pair's one shared rim, or, where
+/// the pair shares several edges, each of them in turn
+/// (`rim_holding`). On a straight rim it places the chord's ends on the
+/// rim's segment; on a curved one it orders them along the carrier
+/// (`Track::cover`).
 ///
 /// **Outside the [`FAMILY`], and that is a choice with a cost.** The
 /// family is the fragment QUALIFIER vocabulary: `resolve`'s diagnosis
 /// ladder reads a `name_frag_` flip as the name's own discriminator
 /// changing sign. This predicate is not a qualifier — its verdict
-/// enters no name — so it stays out. The cost: when its flip is what
-/// makes a chord's name vanish (the chord leaves its rim and the
-/// emitter refuses), the ladder ranks that flip as a generic one rather
-/// than as the name's own.
+/// picks which shared edge a chord descends to, and adds nothing to
+/// the name's qualifiers — so it stays out. The cost: when its flip is
+/// what makes a chord's name vanish or move (the chord leaves its rim
+/// and the emitter refuses, or lands in another shared edge), the
+/// ladder ranks that flip as a generic one rather than as the name's
+/// own.
 pub(crate) const CHORD_ON_RIM: &str = "name_chord_on_rim";
 
-/// What one of the naming layer's decisions decides, in the words a
+/// What each of the naming layer's decisions decides, in the words a
 /// refusal or a diagnosis states in place of the predicate's name
 /// (which is routing, kept to `Debug`): a clause with no colon or dash
-/// of its own. `None` for a predicate this layer does not own.
-pub(crate) fn decision_words(predicate: &str) -> Option<&'static str> {
-    match predicate {
-        ORDER_ALONG => Some("the order of two crossings along an edge"),
-        ON_MEMBER_EDGE => Some("a point's place along an edge"),
-        ON_SEAM_LINE => Some("whether a point lies on a seam's line"),
-        CHORD_ON_RIM => Some("whether a chord lies on its rim"),
-        _ => None,
-    }
-}
+/// of its own.
+pub(crate) const DECISION_WORDS: &[(&str, &str)] = &[
+    (ORDER_ALONG, "the order of two crossings along an edge"),
+    (ON_MEMBER_EDGE, "a point's place along an edge"),
+    (ON_SEAM_LINE, "whether a point lies on a seam's line"),
+    (CHORD_ON_RIM, "whether a chord lies on its rim"),
+    (
+        crate::pose::SEL_DATUM_DISTANCE,
+        "which side of a selection's stated distance from a datum a point lies on",
+    ),
+];
 
 /// One candidate's extent along an oriented carrier: the certified
 /// min/max of its probe parameters (values stay HERE — only the

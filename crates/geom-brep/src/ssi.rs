@@ -146,7 +146,8 @@ pub use boundary::{
     BoundaryChart, BoundaryPoint, ChartCorner, ChartEnd, ChartSide, SsiBoundaryContact,
 };
 pub use certify::{
-    OneArcRefusal, SSI_CERT_SPANS, SSI_TUBE_RADIUS, SsiCertificate, SsiLimb, SsiTube,
+    OneArcRefusal, SSI_CERT_SPANS, SSI_HULL_CUTS, SSI_HULL_WORK, SSI_TUBE_RADIUS, SsiCertificate,
+    SsiLimb, SsiTube,
 };
 pub use exhaust::{
     ExhaustLane, Exhaustiveness, ExhaustivenessRefusal, FloorFault, FloorKind, FloorRefusal,
@@ -497,14 +498,17 @@ pub enum SsiError {
         floor: f64,
     },
     /// Limb 3 ran and never got an answer: the ladder had rungs, but
-    /// no rung's tube probe produced an enclosure at all (each
-    /// returned nothing rather than a margin). Structural, like
-    /// [`SsiError::TubeLadderEmpty`], and likewise carrying no margin
-    /// — the distinction between them is exactly whether any radius
-    /// was ever tried.
+    /// no rung measured a margin. A rung is silent where its chain is
+    /// empty or broken, or where a box's transversality enclosure is
+    /// refused (an operand with no enclosure arm, or a poisoned box).
+    /// It carries no margin, like [`SsiError::TubeLadderEmpty`]; the
+    /// distinction between them is whether any radius was tried.
     TubeProbeSilent {
         /// How many rungs were offered and answered with nothing.
         rungs: u32,
+        /// How many of them had a transversality enclosure refused; the
+        /// rest built no chain.
+        refused: u32,
     },
     /// Limb 3's transversality is not certified clear of the zero band
     /// over the tube chain at any rung (its enclosure straddles zero, or
@@ -968,11 +972,12 @@ impl core::fmt::Display for SsiError {
                  from the {extent:e} m extent falls below the {floor:e} m ladder \
                  floor the tolerance sets, so limb 3 never ran and nothing was measured"
             ),
-            Self::TubeProbeSilent { rungs } => write!(
+            Self::TubeProbeSilent { rungs, refused } => write!(
                 f,
-                "ssi: none of the uniqueness tube's {rungs} ladder rungs produced an \
-                 enclosure, so limb 3 has nothing to decide — a structural refusal, \
-                 with no margin behind it"
+                "ssi: none of the uniqueness tube's {rungs} ladder rungs measured a \
+                 margin ({refused} had a transversality enclosure refused, the rest built \
+                 no chain), so limb 3 has nothing to decide — a structural refusal, with \
+                 no margin behind it"
             ),
             Self::TubeStraddles { verdict, boxes } => write!(
                 f,
@@ -1193,18 +1198,14 @@ impl core::fmt::Display for SsiError {
             ),
             Self::Escalated { decision, cause } => write!(
                 f,
-                concat!("ssi: whether {}", geom_core::undecided!(), ": {}"),
-                decision.question(),
+                concat!("ssi: {}", geom_core::undecided!(), ": {}"),
+                SsiDecision::Trace(*decision),
                 cause.payload()
             ),
             Self::CertificateEscalated { limb, cause } => write!(
                 f,
-                concat!(
-                    "ssi: whether the fitted carrier passes {}",
-                    geom_core::undecided!(),
-                    ": {}"
-                ),
-                limb.name(),
+                concat!("ssi: {}", geom_core::undecided!(), ": {}"),
+                SsiDecision::Limb(*limb),
                 cause.payload()
             ),
             Self::DomainUnusable { field, value } => {
@@ -1249,10 +1250,11 @@ impl SsiError {
                 crate::certify::recourse(CertCheck::Transversality, verdict.arm(), reading)
             }
             Self::PairTangent { verdict } => PAIR_TANGENCY.recourse(verdict.arm(), reading),
-            Self::Escalated { decision, cause } => decision.ending(cause, reading),
-            // Each limb ends by its own decision on every arm.
+            Self::Escalated { decision, cause } => {
+                SsiDecision::Trace(*decision).ending(cause, reading)
+            }
             Self::CertificateEscalated { limb, cause } => {
-                crate::certify::recourse(limb.check(), RefusedArm::Undecided(cause), reading)
+                SsiDecision::Limb(*limb).ending(cause, reading)
             }
             Self::CertificateLimb { limb, .. } => {
                 crate::certify::recourse(limb.check(), RefusedArm::SignCertain(None), reading)
@@ -1430,6 +1432,9 @@ impl SsiError {
             Self::TubeDegenerate(TubeDegeneracy::WallConstantAcrossLocus) => {
                 WALL_COLLAPSED_RECOURSE.to_owned()
             }
+            // A refused enclosure is a pair or box the tube cannot yet
+            // enclose.
+            Self::TubeProbeSilent { refused, .. } if *refused > 0 => NOT_YET_ENDING.to_owned(),
             // The box chain and the pcurve are the kernel's: a fitted
             // cubic's span hulls meet at the knots it passes through, and
             // its tangent names a direction.
@@ -2226,6 +2231,44 @@ impl TraceDecision {
             // Every arm is reported; a poisoned distance is no input's,
             // since both operands are refused at the door unless finite.
             Self::BoundarySection => defect_ending(reading).to_owned(),
+        }
+    }
+}
+
+/// **The decision an SSI escalation names**: a trace's
+/// ([`SsiError::Escalated`]) or a certificate limb's
+/// ([`SsiError::CertificateEscalated`]). A door that carries an SSI
+/// escalation on in its own refusal carries this with it, so the
+/// escalation ends by its own decision at every door.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SsiDecision {
+    /// A trace's own decision.
+    Trace(TraceDecision),
+    /// A certificate limb's trilean ([`SsiLimb::check`]).
+    Limb(SsiLimb),
+}
+
+impl SsiDecision {
+    /// The ending this decision's escalation on `cause` carries, read at
+    /// `at`: a trace's by [`TraceDecision::ending`], a limb's by its own
+    /// check, as the limb's decided refusal ends.
+    #[must_use]
+    pub fn ending(self, cause: &Indeterminate, at: impl Into<ReadAt>) -> String {
+        match self {
+            Self::Trace(decision) => decision.ending(cause, at.into().reading()),
+            Self::Limb(limb) => {
+                crate::certify::recourse(limb.check(), RefusedArm::Undecided(cause), at)
+            }
+        }
+    }
+}
+
+/// The question the decision asks, as "whether …".
+impl core::fmt::Display for SsiDecision {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Trace(decision) => write!(f, "whether {}", decision.question()),
+            Self::Limb(limb) => write!(f, "whether the fitted carrier passes {}", limb.name()),
         }
     }
 }
@@ -3541,6 +3584,7 @@ mod ending_tests {
                 KERNEL_DEFECT_ENDING,
                 KERNEL_OR_FILE_DEFECT_ENDING,
             ),
+            ("tube probe, refused", NOT_YET_ENDING, NOT_YET_ENDING),
             (
                 "foot point",
                 KERNEL_LIMIT_RECOURSE,
@@ -3964,7 +4008,20 @@ mod ending_tests {
                     floor: 8e-9,
                 },
             ),
-            ("tube probe", SsiError::TubeProbeSilent { rungs: 6 }),
+            (
+                "tube probe",
+                SsiError::TubeProbeSilent {
+                    rungs: 6,
+                    refused: 0,
+                },
+            ),
+            (
+                "tube probe, refused",
+                SsiError::TubeProbeSilent {
+                    rungs: 6,
+                    refused: 6,
+                },
+            ),
             (
                 "tube not one arc, count",
                 SsiError::TubeNotOneArc {

@@ -159,7 +159,7 @@ use geom_core::spline::derivative_knot_slice;
 use geom_core::spline::net::TensorNet;
 use geom_core::spline::{
     CoeffWindow, Derived, KnotVector, Param, ParamRange, RingRefinement, SplineCoeffs,
-    SplineCoeffsBuf, TensorChannels, last_at_or_below,
+    SplineCoeffsBuf, TensorChannels, diagonal_in_span, last_at_or_below, restrict_bernstein,
 };
 use geom_core::{Band, Decide, InfSpeed, Margin, Sign};
 
@@ -1027,10 +1027,12 @@ fn require_holes_wound_against(
 /// Interval de Boor on one span: the span's polynomial evaluated at an
 /// enclosed parameter from its `p + 1` active ring-bracketed
 /// coefficients — the thin `f(m)` the composite rule needs on spline
-/// channels. Pure certification arithmetic (knots are `f64` structure;
-/// every knot difference is formed in the ring so its rounding is
-/// outward, matching `deriv_coeff`). Sound for any `t`; outside the
-/// span's closure it is the polynomial extension.
+/// channels. Sound for any `t`; outside the span's closure it is the
+/// polynomial extension, which the composite rule reads where a vertex
+/// pad puts a node past the domain.
+///
+/// A `t` inside the span's closure is the piece's blossom on the
+/// diagonal; any other `t` is the extension ([`de_boor_on`]).
 fn de_boor(win: CoeffWindow<'_, Interval>, t: Interval) -> Interval {
     let span = win.span();
     let kv = span.knots();
@@ -1043,13 +1045,24 @@ fn de_boor(win: CoeffWindow<'_, Interval>, t: Interval) -> Interval {
     )
 }
 
-/// The recurrence [`de_boor`] and the [`Loose::Raw`] evaluators share:
+/// The evaluation [`de_boor`] and the [`Loose::Raw`] evaluators share:
 /// `active` the `p + 1` coefficients of the span whose first control is
 /// `first`, over the knot list `u` they are a span of — a
 /// [`CoeffWindow`]'s, or a raw direction's line windowed by
 /// [`raw_span`]. Both callers form `active` from the span that `first`
 /// names, so every index here is in range.
+///
+/// A `t` lying whole in the span's closure is the piece's blossom on
+/// the diagonal ([`diagonal_in_span`], every level
+/// [`Certification::between`]). Any other `t` — a vertex pad's node past
+/// the domain, or one straddling a span end — is the polynomial
+/// extension: de Boor's recurrence with the affine step
+/// `(1 − α)·x + α·y`, sound for any `α`, since a ratio past `[0, 1]` is
+/// no combination between its sources.
 fn de_boor_on(u: &[f64], p: usize, first: usize, active: &[Interval], t: Interval) -> Interval {
+    if let Some(value) = diagonal_in_span(u, p, first, active, t) {
+        return value;
+    }
     let mut d = active.to_vec();
     for r in 1..=p {
         for j in (r..=p).rev() {
@@ -1449,6 +1462,11 @@ impl Loose {
     /// `degree` on the raw knot list `knots`: [`Loose::Raw`] at degree
     /// ≥ 1, [`Loose::Const`] at 0. A [`KnotVector`]'s own derivative is
     /// [`KnotVector::derived`]'s.
+    ///
+    /// `knots` is a clamped vector's knot list with an outer pair dropped
+    /// per derivative (`derivative_knot_slice`), so it is nondecreasing:
+    /// that is what [`raw_span`] searches by and what puts
+    /// [`de_boor_on`]'s ratios in `[0, 1]` at a parameter inside the span.
     fn of(knots: Vec<f64>, degree: usize) -> Self {
         if degree >= 1 {
             Self::Raw { knots, degree }
@@ -4226,27 +4244,25 @@ fn vertex_slack(p: RPt2) -> f64 {
     0.5 * (p.0.width() + p.1.width())
 }
 
-/// De Casteljau bisection of a bracketed Bézier control polygon: the
-/// two halves at `λ = ½`, each again a Bézier polygon of the same
-/// degree whose first and last points are the arc's endpoints there
-/// and whose hull contains its half of the arc.
-///
-/// The rounding lands OUTWARD in every bracket, so both halves are
+/// Bisection of a bracketed Bézier control polygon: the two halves at
+/// `λ = ½`, each again a Bézier polygon of the same degree whose first
+/// and last points are the arc's endpoints there and whose hull
+/// contains its half of the arc. Each channel's row is restricted to
+/// `[0, ½]` and `[½, 1]` ([`restrict_bernstein`]), so both halves are
 /// certified enclosures of the same arc rather than re-approximations
 /// of it.
 fn bezier_bisect(block: &[RPt2]) -> (Vec<RPt2>, Vec<RPt2>) {
-    let half = pt(0.5);
-    let lerp = |x: RPt2, y: RPt2| -> RPt2 { (x.0 + (y.0 - x.0) * half, x.1 + (y.1 - x.1) * half) };
-    let mut level: Vec<RPt2> = block.to_vec();
-    let mut left = vec![level[0]];
-    let mut right = vec![level[level.len() - 1]];
-    while level.len() > 1 {
-        level = level.windows(2).map(|w| lerp(w[0], w[1])).collect();
-        left.push(level[0]);
-        right.push(level[level.len() - 1]);
-    }
-    right.reverse();
-    (left, right)
+    let half = |channel: &[Interval], (a, b): (f64, f64)| {
+        restrict_bernstein(channel, (pt(a), pt(b)))
+            .unwrap_or_else(|_| vec![Interval::refused(); channel.len()])
+    };
+    let xs: Vec<Interval> = block.iter().map(|q| q.0).collect();
+    let ys: Vec<Interval> = block.iter().map(|q| q.1).collect();
+    let zip = |x: Vec<Interval>, y: Vec<Interval>| x.into_iter().zip(y).collect::<Vec<RPt2>>();
+    (
+        zip(half(&xs, (0.0, 0.5)), half(&ys, (0.0, 0.5))),
+        zip(half(&xs, (0.5, 1.0)), half(&ys, (0.5, 1.0))),
+    )
 }
 
 /// Why [`bezier_blocks`] refused.
@@ -5375,6 +5391,28 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
 mod tests {
     use super::*;
     use geom_core::Tol;
+
+    /// **A node straddling its span's end, whose true value lies past
+    /// it, is enclosed by the extension.** On `t − 1` over `[0, 1]` (the
+    /// degree-1 piece with coefficients `−1, 0`), the node
+    /// `[1⁻, 1⁺]` may be `1 + 2⁻⁵²`, where the piece reads `2⁻⁵²`. A node
+    /// not whole in the span's closure takes the affine extension, which
+    /// encloses it; the blossom would meet it with the sources' hull
+    /// `[−1, 0]` and lose it. Red when the closure test is loosened to
+    /// an overlap.
+    #[test]
+    fn a_node_straddling_its_span_end_is_enclosed_by_the_extension() {
+        let past = 1.0f64.next_up();
+        let t = Interval::from_bounds(1.0f64.next_down(), past);
+        let got = de_boor_on(&[0.0, 0.0, 1.0, 1.0], 1, 0, &[pt(-1.0), pt(0.0)], t);
+        assert!(
+            got.contains(past - 1.0),
+            "{got:?} misses the extension's value {:e} at {past}",
+            past - 1.0
+        );
+        let inside = de_boor_on(&[0.0, 0.0, 1.0, 1.0], 1, 0, &[pt(-1.0), pt(0.0)], pt(0.5));
+        assert!(inside.contains(-0.5), "{inside:?}");
+    }
 
     /// The corpus's declared ambient uncertainty — the ε the fixed
     /// quadrature schedule (D9) is dimensioned for, and the boundary

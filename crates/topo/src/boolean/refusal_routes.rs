@@ -327,8 +327,9 @@ pub enum BooleanDecision {
     /// the result, after every declaration was spent, so none is read.
     SeamJet,
     /// Whether an edge of the result lies on both faces it bounds: its
-    /// exact carrier's residual against one of the two faces' surfaces,
-    /// at the attachment gate that certifies its description. A residual
+    /// line chord's residual against one of the two faces' surfaces, at
+    /// the attachment gate that certifies its description
+    /// ([`crate::merge_faces::edge_on_faces_reading`]). A residual
     /// passes only at zero, so no tolerance is its recourse. Its ends are
     /// vertices an earlier reading placed on the faces they meet, so a
     /// carrier read in band of a face says that an edge or a vertex of
@@ -342,9 +343,9 @@ pub enum BooleanDecision {
     /// is read.
     EdgeOnFaces,
     /// Whether a shell of the result bounds material or a cavity, at the
-    /// finished-body gate: its volume over its area, the mean thickness
-    /// it stands for (`chk_shell_volume_sign`), either definite sign a
-    /// role. Raised only where the shell's certified reading lies wholly
+    /// finished-body gate (check 10, a shell of a solid of several): its
+    /// volume over its area (`chk_shell_volume_sign`), either definite
+    /// sign a role. Raised only where the shell's certified reading lies wholly
     /// in band: a shell in band of having no volume, which definite cuts
     /// can compose, so the operands are ill-conditioned at this ε. It
     /// names the shell whose reading binds the offer, and how many more
@@ -884,8 +885,8 @@ const SEAM_WEDGE: SizedDecision = SizedDecision {
 };
 
 /// Whether a shell of the result bounds material or a cavity
-/// ([`BooleanDecision::ShellRole`]): the margin is `V/A`, the shell's
-/// mean thickness, a length, and either definite sign is a role.
+/// ([`BooleanDecision::ShellRole`]): the margin is `V/A`, a length,
+/// and either definite sign is a role.
 const RESULT_SHELL: SizedDecision = SizedDecision {
     lever: "move the parts so the pieces and cavities they leave are clearly thick",
     size: "thickness",
@@ -1455,7 +1456,9 @@ impl BooleanDecision {
                 "whether the two faces touching along a seam edge curve apart there or share \
                  their curvature"
             }
-            Self::EdgeOnFaces => "whether an edge of the result lies on both faces it bounds",
+            Self::EdgeOnFaces => {
+                crate::merge_faces::edge_on_faces_subject!("an edge of the result")
+            }
             Self::ShellRole { .. } => "whether a shell of the result bounds material or a cavity",
             Self::Sphere(question) => question.subject(),
             Self::SelfCheck(check) => check.subject(),
@@ -2339,7 +2342,8 @@ pub(in crate::boolean) mod tests {
                 "whether an edge of the result lies on both faces it bounds",
                 Ending::Lever(
                     "Recourse: move the geometry so each edge and vertex that meets a face lies \
-                     clearly on that face or clearly off it",
+                     clearly on it or clearly off it, and an edge that ends on it leaves it at a \
+                     clear angle",
                 ),
             ),
             BooleanDecision::ShellRole { .. } => (

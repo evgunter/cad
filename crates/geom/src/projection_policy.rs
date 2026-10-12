@@ -31,8 +31,8 @@
 //!   finite arithmetic the selected parameter is bitwise what an
 //!   `f64`-only iteration produces;
 //! - the returned projection is then **evaluated at `T`** at that
-//!   selected parameter, so the distance and the orthogonality
-//!   residuals are the consumer's own scalar — an enclosure on the
+//!   selected parameter, so the foot and its distance are the
+//!   consumer's own scalar — an enclosure on the
 //!   interval lane, which is what makes a rung-3 certificate against a
 //!   NURBS operand exist there at all.
 //!
@@ -80,7 +80,7 @@
 //! them. The reason is not that they certify — it is that they get the
 //! ANSWER wrong: [`mid`] selects the foot parameter and the two
 //! `Projection` types store it as `f64`, so at a dual the foot and the
-//! orthogonality residual come back as partials at a frozen `t*`,
+//! distance come back as partials at a frozen `t*`,
 //! missing the term each type's own docs name. The bound makes that
 //! answer unreachable; it does not make it right, and issue **#874**
 //! stays open for the fix that would.

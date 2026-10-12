@@ -20,7 +20,7 @@
 use core::f64::consts::{PI, TAU};
 
 use geom_core::{Affine3, Band, Point3, Tol, Vec3};
-use topo::{BooleanError, BooleanResult, PointInSolidError, SolidContainment};
+use topo::{Body, BooleanError, BooleanResult, PointInSolidError, SolidContainment};
 
 /// How deep a point must sit, inside or out, for its truth to count.
 pub const MARGIN: f64 = 1e-4;
@@ -203,8 +203,6 @@ pub fn assert_is_but(
     points: &[Point3<f64>],
     partial_cone_refusals: usize,
 ) -> f64 {
-    let tol = Tol::witness();
-    let band = Band::linear(tol).unwrap();
     let r = got
         .as_ref()
         .unwrap_or_else(|e| panic!("{label}: wanted {want:?}, refused {e:?}"));
@@ -217,56 +215,15 @@ pub fn assert_is_but(
             );
             0.0
         }
-        (Want::Body(v, tolerance), BooleanResult::Body(bb)) => {
-            let body = &bb.body;
-            let got_v = topo::mass_properties(body, tol)
-                .unwrap_or_else(|e| panic!("{label}: the volume refused {e:?}"))
-                .volume;
-            assert!(
-                (got_v - v).abs() <= tolerance,
-                "{label}: volume {got_v} against {v} (± {tolerance})"
-            );
-            topo::validate_geometric(body, tol)
-                .unwrap_or_else(|e| panic!("{label}: tier 3: {e:?}"));
-            for &p in named {
-                assert!(
-                    truth(p).abs() > MARGIN,
-                    "{label}: the named point {p:?} sits on the truth's boundary"
-                );
-            }
-            let (mut checked, mut refused) = (0, 0);
-            for (i, &p) in named.iter().chain(points).enumerate() {
-                let d = truth(p);
-                if d.abs() <= MARGIN {
-                    continue;
-                }
-                let want_in = d > 0.0;
-                let got_c = match topo::point_in_solid(body, p, band, tol) {
-                    Ok(c) => c,
-                    Err(PointInSolidError::PartialConeFace { .. }) if i >= named.len() => {
-                        refused += 1;
-                        continue;
-                    }
-                    Err(e) => panic!("{label}: point_in_solid at {p:?} refused {e:?}"),
-                };
-                let ok = match got_c {
-                    SolidContainment::In => want_in,
-                    SolidContainment::Out => !want_in,
-                    SolidContainment::OnBoundary => false,
-                };
-                assert!(
-                    ok,
-                    "{label}: at {p:?} (depth {d:e}) point_in_solid says {got_c:?}"
-                );
-                checked += 1;
-            }
-            assert!(
-                checked > named.len() && refused <= partial_cone_refusals,
-                "{label}: {checked} points answered, {refused} refused `PartialConeFace` \
-                 (at most {partial_cone_refusals})"
-            );
-            got_v
-        }
+        (Want::Body(v, tolerance), BooleanResult::Body(bb)) => assert_body_is(
+            label,
+            &bb.body,
+            (v, tolerance),
+            truth,
+            named,
+            points,
+            partial_cone_refusals,
+        ),
         (want, r) => panic!(
             "{label}: wanted {want:?}, got {}",
             match r {
@@ -275,4 +232,70 @@ pub fn assert_is_but(
             }
         ),
     }
+}
+
+/// [`assert_is_but`]'s check on a returned body: its `mass_properties`
+/// volume is `v` within `tolerance`, it passes tier 3, and its
+/// `point_in_solid` agrees with `truth` as there. Returns the volume.
+///
+/// # Panics
+///
+/// On any check failing.
+pub fn assert_body_is(
+    label: &str,
+    body: &Body<f64>,
+    (v, tolerance): (f64, f64),
+    truth: &dyn Fn(Point3<f64>) -> f64,
+    named: &[Point3<f64>],
+    points: &[Point3<f64>],
+    partial_cone_refusals: usize,
+) -> f64 {
+    let tol = Tol::witness();
+    let band = Band::linear(tol).unwrap();
+    let got_v = topo::mass_properties(body, tol)
+        .unwrap_or_else(|e| panic!("{label}: the volume refused {e:?}"))
+        .volume;
+    assert!(
+        (got_v - v).abs() <= tolerance,
+        "{label}: volume {got_v} against {v} (± {tolerance})"
+    );
+    topo::validate_geometric(body, tol).unwrap_or_else(|e| panic!("{label}: tier 3: {e:?}"));
+    for &p in named {
+        assert!(
+            truth(p).abs() > MARGIN,
+            "{label}: the named point {p:?} sits on the truth's boundary"
+        );
+    }
+    let (mut checked, mut refused) = (0, 0);
+    for (i, &p) in named.iter().chain(points).enumerate() {
+        let d = truth(p);
+        if d.abs() <= MARGIN {
+            continue;
+        }
+        let want_in = d > 0.0;
+        let got_c = match topo::point_in_solid(body, p, band, tol) {
+            Ok(c) => c,
+            Err(PointInSolidError::PartialConeFace { .. }) if i >= named.len() => {
+                refused += 1;
+                continue;
+            }
+            Err(e) => panic!("{label}: point_in_solid at {p:?} refused {e:?}"),
+        };
+        let ok = match got_c {
+            SolidContainment::In => want_in,
+            SolidContainment::Out => !want_in,
+            SolidContainment::OnBoundary => false,
+        };
+        assert!(
+            ok,
+            "{label}: at {p:?} (depth {d:e}) point_in_solid says {got_c:?}"
+        );
+        checked += 1;
+    }
+    assert!(
+        checked > named.len() && refused <= partial_cone_refusals,
+        "{label}: {checked} points answered, {refused} refused `PartialConeFace` \
+         (at most {partial_cone_refusals})"
+    );
+    got_v
 }
