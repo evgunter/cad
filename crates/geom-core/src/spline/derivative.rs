@@ -8,7 +8,7 @@
 //!
 //! # The rational speed bound
 //!
-//! [`rational_span_speed_sup`] is the one statement of an upper bound
+//! [`rational_speed_sup`] is the one statement of an upper bound
 //! on a rational spline's derivative, the **pair-term bound**. On a
 //! nonempty span of degree `p`, with `kᵢ = p/(u_{i+p+1} − u_{i+1})`,
 //!
@@ -93,11 +93,11 @@ fn norm<T: Real, const D: usize>(v: [T; D]) -> T {
 /// The pair-term bound on `sup ‖C′‖` over one nonempty `span` (module
 /// docs: the derivation and why no knot difference is checked), for the
 /// rational spline with control `points` and `weights` over the `held`
-/// knot values of the vector `span` indexes. The weights are the
-/// caller's to have checked strictly positive and finite; the answer is
-/// poison (NaN) on an index past an array, never a refusal.
-#[must_use]
-pub fn rational_span_speed_sup<T: Real, const D: usize>(
+/// knot values of the vector `span` indexes; poison (NaN) on an index
+/// past an array, never a refusal. Private: `span` and `held` must
+/// index one vector, which [`rational_speed_sup`] pairs from one
+/// [`Knots`].
+fn rational_span_speed_sup<T: Real, const D: usize>(
     span: Span<'_>,
     held: &[T],
     points: &[[T; D]],
@@ -135,9 +135,12 @@ pub fn rational_span_speed_sup<T: Real, const D: usize>(
     sup.map_or(poison, |s| s / least)
 }
 
-/// [`rational_span_speed_sup`] over the nonempty spans `spans` of
-/// `knots` (indices into its vector, empty ones skipped): their max,
-/// or poison when none is nonempty.
+/// The pair-term bound on `sup ‖C′‖` (module docs) over the nonempty
+/// spans `spans` of `knots` (indices into its vector, empty ones
+/// skipped): their max, or poison when none is nonempty. The weights
+/// are positive by construction; a refinement that rounds one to zero
+/// divides by a zero least weight, which reads `+∞` or NaN, never a
+/// low finite number.
 #[must_use]
 pub fn rational_speed_sup<T: SpanLocate, const D: usize>(
     knots: &Knots<T>,

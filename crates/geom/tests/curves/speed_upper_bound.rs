@@ -1,5 +1,5 @@
 //! **The rational speed bound** (`NurbsCurve3::speed_upper_bound`, the
-//! pair-term bound of `geom_core::spline::rational_span_speed_sup`)
+//! pair-term bound of `geom_core::spline::rational_speed_sup`)
 //! dominates the true speed, never reads above the homogeneous recipe
 //! it replaced, and is the true sup where the pair terms attain it.
 
@@ -191,4 +191,74 @@ fn the_bound_covers_random_rational_nets() {
             &c,
         );
     }
+}
+
+/// **The pin at `j ∉ {i, i + 1}`.** On the quadratic through `(0, 0)`,
+/// `(1, 0)`, `(2, 0)` with weights `4, 1, 1`, the largest pair term is
+/// pair `0` read at `P₂`:
+/// `‖1·(P₁ − P₀) − (1 − 4)·(P₂ − P₀)‖ = 7`, scale `2`, least weight `1`,
+/// so the bound is `14` exactly. Dropping the `−Δw·(P_j − Pᵢ)` term
+/// reads `2`, and reading `j` over the pair's own points only reads
+/// `8` (pair `0` at `P₁`, `w₀·‖P₁ − P₀‖ = 4`).
+#[test]
+fn the_bound_reads_its_largest_term_at_a_point_outside_the_pair() {
+    let c = curve(
+        vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0],
+        2,
+        &[(0.0, 0.0), (1.0, 0.0), (2.0, 0.0)],
+        vec![4.0, 1.0, 1.0],
+    );
+    assert_eq!(c.speed_upper_bound().get(), 14.0);
+    check("collinear quadratic, weights 4 1 1", &c);
+}
+
+/// **The bound is local.** A degree-2 spline over three spans whose
+/// last point lies `100` out and is active on the last span only; the
+/// first pair's weight step is `9`. Reading that pair against every
+/// control point — a sound but global bound — meets the far point at
+/// `‖10·(P₁ − P₀) − 9·(P₄ − P₀)‖ ≈ 900` per unit scale; the bound reads
+/// each pair against its own span's points, and stays near the last
+/// span's own `‖P₄ − P₃‖ ≈ 100`.
+#[test]
+fn the_bound_reads_each_pair_against_its_own_spans_points() {
+    let c = curve(
+        vec![0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 3.0, 3.0],
+        2,
+        &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (2.0, 1.0), (100.0, 1.0)],
+        vec![1.0, 10.0, 1.0, 1.0, 1.0],
+    );
+    let m = c.speed_upper_bound().get();
+    // The global reading of pair 0: scale `2/(u₂ − u₁) = 2`, least
+    // weight `1`.
+    let global = 2.0 * (10.0f64 * 1.0 - 9.0 * 100.0).hypot(-9.0);
+    assert!(
+        m < global / 4.0,
+        "bound {m} reads the far point through the first pair (global {global})"
+    );
+    check("a far point active on the last span only", &c);
+}
+
+/// **A refinement that rounds a weight to zero reads no finite low
+/// bound.** On a net of the least subnormal weight, a midpoint
+/// insertion forms `½·w + ½·w`, and each half rounds to zero: the
+/// refined curve holds a zero weight the constructor would refuse.
+/// The bound divides by that zero least weight, so it reads `+∞` or
+/// NaN, never a number below the true speed.
+#[test]
+fn a_weight_collapsed_by_refinement_reads_no_finite_bound() {
+    let w = f64::from_bits(1);
+    let c = curve(
+        vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0],
+        2,
+        &[(0.0, 0.0), (1.0, 1.0), (2.0, 0.0)],
+        vec![w, w, w],
+    );
+    let refined = c.insert_knot(0.5, 1).expect("the insertion is admitted");
+    assert!(
+        refined.weight_channel().contains(&0.0),
+        "the midpoint insertion kept every weight positive: {:?}",
+        refined.weight_channel()
+    );
+    let m = refined.speed_upper_bound().get();
+    assert!(!m.is_finite(), "a collapsed weight read a finite bound {m}");
 }
