@@ -2,8 +2,9 @@
 id: recl-membership-tangent-lump-arm-is-unreachable
 kind: issue
 title: topo: recl's membership reads a declared-Tangent flank pair's lump, but the tangent-flank short-circuit has already skipped every such pair
-status: open
+status: closed
 opened: 2026-09-30
+closed: 2026-10-12
 ---
 
 
@@ -38,3 +39,14 @@ Moved from TOPO to TOPOTAIL when TOPO dropped to P2 and split on its priority se
 ## Released by stage 4 F (2026-10-11)
 
 Stage 4 F (`declared-pairs-retire`) retired every boolean declaration: no author can declare a pair, the glue is what the margins decide, and the declare offer, the flush detector and the carried declarations are gone. What this row waited on has fired; re-read it against that tree.
+
+## Closed (2026-10-12)
+
+`contacthold/same-side-tangent-touch` (PR 4781) deletes the
+`tangent_flank` short-circuit, so the membership's `Tangent` lump arm
+is now the path that decides a verified `Tangent` flank pair at an
+edge–edge site. Rows that reach it, measured with a probe in that arm:
+`wedge_end_doors::two_discs_kissing_externally_touch_at_every_op`,
+`verbs_cylcyl_r1_review_probes::externally_tangent_walls_touch_at_every_op`,
+`review_4704_flush_round_oracle::a_same_side_tangent_touch_answers_every_op`
+and `review_4781_r1_probes::review_4781_touch_pairs_every_op`.

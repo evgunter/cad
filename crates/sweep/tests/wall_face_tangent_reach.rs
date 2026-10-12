@@ -2,15 +2,15 @@
 //! (`work/cleave/tier-3-passes-a-curved-wall-touching-a-plane-face-interior-along-a-line.md`).
 //!
 //! A rod (r = 0.5, z ∈ [0.25, 0.75]) rests on the side face y = 2 of a
-//! 4 × 4 × 1 plate, tangent along the ruling x = 0, y = 2. The union has
-//! material on both sides of the ruling: #131's doubled cusp, two
-//! coincident distinct slit edges on the locus, whose arm is unbuilt.
-//! Two vertex-on-face records would certify two points of that line,
-//! and a later union bridging the rod to the plate fused such an answer
-//! into one shell with an edgeless contact every at-rest gate passed.
-//! So the union refuses `TangentSlitArmUnbuilt`, at `f64` and at
-//! `Interval`; subtract and intersect, which leave material on at most
-//! one side of the ruling, still answer.
+//! 4 × 4 × 1 plate, tangent along the ruling x = 0, y = 2. The union is
+//! the two solids touching along that ruling through the plate face's
+//! interior, a face–face curve touch no record the reduction mints can
+//! name (`crates/topo/README.md` C7). Two vertex-on-face records would
+//! certify only the line's two ends, and a later union bridging the rod
+//! to the plate would fuse that answer into one shell with an edgeless
+//! contact every at-rest gate passes. So the union refuses
+//! `TangentSlitArmUnbuilt`, at `f64` and at `Interval`; subtract and
+//! intersect owe no record of the touch and still answer.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Affine3, Point2, Tol, Vec3};
