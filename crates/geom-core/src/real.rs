@@ -824,7 +824,7 @@ pub trait Real:
 ///   datum door, the evaluation layer's `unit()`, and every one of
 ///   [`linalg::frame`](crate::linalg::frame)'s normalizing sites (the
 ///   roll offset and the ladder's rungs reach it through
-///   [`OrthoFrame::from_aim`](crate::OrthoFrame::from_aim));
+///   [`RigidMotion::from_aim`](crate::RigidMotion::from_aim));
 /// - `sweep`'s `revolve::axis::AxisFrame::build`;
 /// - `topo`'s `sector_shape`, which asks it of each bounding chord
 ///   separately because its arm is their `min` and [`Real::min`]

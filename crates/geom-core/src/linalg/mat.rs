@@ -14,7 +14,7 @@
 use core::convert::Infallible;
 use core::ops::Mul;
 
-use crate::linalg::Vec3;
+use crate::linalg::{UnitVec3, Vec3};
 use crate::real::Real;
 
 /// A linear map of the 3-D tangent space, stored as three named columns.
@@ -186,7 +186,20 @@ impl<T: Real> Mat3<T> {
     /// `+ c` swamps the same floor, and the half angle buys a sixth at
     /// best.
     pub fn rotation_about(axis: Vec3<T>, angle: T) -> Self {
-        let n = axis.normalize();
+        Self::rodrigues(axis.normalize(), angle)
+    }
+
+    /// [`Self::rotation_about`] about an axis already held as a
+    /// [`UnitVec3`] witness, which is not normalized a second time:
+    /// the same Rodrigues entries in the same evaluation order, over
+    /// the witness's own components. The rotation mints of
+    /// [`RigidMotion`](super::RigidMotion) are this matrix.
+    pub fn rotation_about_unit(axis: UnitVec3<T>, angle: T) -> Self {
+        Self::rodrigues(axis.get(), angle)
+    }
+
+    /// The Rodrigues entries over `n` as given.
+    fn rodrigues(n: Vec3<T>, angle: T) -> Self {
         let (s, c) = angle.sin_cos();
         let t = T::one() - c;
         let (x, y, z) = (n.x, n.y, n.z);
@@ -261,7 +274,12 @@ impl<T: Real> Mat3<T> {
     /// degenerate axis must ask that question, not `is_nan`.
     /// Evaluation order fixed as written (D9).
     pub fn identity_minus_rotation_about(axis: Vec3<T>, angle: T) -> Self {
-        let n = axis.normalize();
+        Self::identity_minus_rodrigues(axis.normalize(), angle)
+    }
+
+    /// [`Self::identity_minus_rotation_about`] over an axis already
+    /// unit, as [`Self::rotation_about_unit`] is to [`Self::rotation_about`].
+    pub(in crate::linalg) fn identity_minus_rodrigues(n: Vec3<T>, angle: T) -> Self {
         let (hs, hc) = (angle * T::from_f64(0.5)).sin_cos();
         let two = T::from_f64(2.0);
         let s = two * hs * hc;

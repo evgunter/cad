@@ -20,7 +20,7 @@ use sweep::ExtrudeSide;
 use geom::Surface;
 use geom_brep::{EdgeDescription, newell_plane};
 use geom_core::Tol;
-use geom_core::{Band, OrthoFrame, Point2, Point3, Real, Vec3};
+use geom_core::{Band, RigidMotion, Point2, Point3, Real, Vec3};
 use profile::{
     LoopRole, Profile, ProfileLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop,
 };
@@ -1323,7 +1323,7 @@ fn survives_error_paths_extended() {
     );
     // NaN placement: 2-D validation cannot see it; the geometry gate
     // refuses at the first certification, typed, body discarded.
-    let bad_plane = SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(f64::NAN, 0.0, 0.0)));
+    let bad_plane = SketchPlane::from_frame(RigidMotion::axes_xy(Point3::new(f64::NAN, 0.0, 0.0)));
     let vp_bad = Profile::new(bad_plane, vec![l_loop()])
         .validate(Tol::witness())
         .expect("validation is 2-D; the poisoned placement passes through");

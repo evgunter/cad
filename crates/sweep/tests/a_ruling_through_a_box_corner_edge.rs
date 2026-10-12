@@ -21,7 +21,7 @@
 
 use core::f64::consts::PI;
 
-use geom_core::{Band, OrthoFrame, Point2, Point3, Tol, Vec3};
+use geom_core::{Band, RigidMotion, Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane};
 use sweep::test_support::{brick, corners, finished, prism_on, revolved_about_y, sketch_from_axes};
 use sweep::{ExtrudeSide, Extrusion, Revolution, extrude};
@@ -56,11 +56,11 @@ enum Axis {
 }
 
 impl Axis {
-    fn frame(self, at: f64) -> OrthoFrame<f64> {
+    fn frame(self, at: f64) -> RigidMotion<f64> {
         match self {
-            Self::X => OrthoFrame::axes_yz(Point3::new(at, 0.0, 0.0)),
-            Self::Y => OrthoFrame::axes_zx(Point3::new(0.0, at, 0.0)),
-            Self::Z => OrthoFrame::axes_xy(Point3::new(0.0, 0.0, at)),
+            Self::X => RigidMotion::axes_yz(Point3::new(at, 0.0, 0.0)),
+            Self::Y => RigidMotion::axes_zx(Point3::new(0.0, at, 0.0)),
+            Self::Z => RigidMotion::axes_xy(Point3::new(0.0, 0.0, at)),
         }
     }
 

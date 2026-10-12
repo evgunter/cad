@@ -150,7 +150,7 @@
 use core::f64::consts::PI;
 use pncad::document::ExtrudeSide;
 
-use pncad::geom_core::{Affine3, Mat3, OrthoFrame, Point2, Point3, Vec2, Vec3};
+use pncad::geom_core::{Affine3, Mat3, RigidMotion, Point2, Point3, Vec2, Vec3};
 use pncad::prelude::{Open, Start};
 use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane, Via};
 use pncad::sweep::blend::BlendError;
@@ -2303,7 +2303,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    extrusion is deferred past M2. The probe pins that door, not
     //    the out-of-plane blade, which the scene above builds live.
     let leafp = {
-        let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, 0.0)));
+        let plane = SketchPlane::from_frame(RigidMotion::axes_xy(p3(0.0, 0.0, 0.0)));
         // Algebra-authored (LIB-G1): via-point arcs (see `leaf`).
         let lp = Open
             .at(p2(0.0, 0.0))

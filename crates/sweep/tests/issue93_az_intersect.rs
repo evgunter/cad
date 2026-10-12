@@ -29,7 +29,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;
-use geom_core::{Decide, OrthoFrame, Point2, Point3};
+use geom_core::{Decide, RigidMotion, Point2, Point3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
 use sweep::ExtrudeSide;
@@ -102,7 +102,7 @@ fn validated<T: Decide>(plane: SketchPlane<T>, loops: Vec<ProfileLoop<T>>) -> Va
 /// The A prism: profile on world xy, extruded z ∈ [-1/16, 2 + 1/16]
 /// (strictly covers Z's z-extent [0, 2]).
 fn a_prism<T: Decide + topo::AtRestPolicy>(loops: Vec<ProfileLoop<T>>) -> AtRestBody<T> {
-    let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(
+    let plane = SketchPlane::from_frame(RigidMotion::axes_xy(Point3::new(
         T::from_f64(0.0),
         T::from_f64(0.0),
         T::from_f64(-0.0625),
@@ -137,7 +137,7 @@ fn z_prism<T: Decide + topo::AtRestPolicy>() -> AtRestBody<T> {
         (1.8125, 1.5625),
         (-0.0625, 0.4375),
     ];
-    let plane = SketchPlane::from_frame(OrthoFrame::axes_yz(Point3::new(
+    let plane = SketchPlane::from_frame(RigidMotion::axes_yz(Point3::new(
         T::from_f64(-0.0625),
         T::from_f64(0.0),
         T::from_f64(0.0),
@@ -233,7 +233,7 @@ fn az_coupled_flush_is_one_exact_body() {
         (1.8125, 1.5625),
         (0.0, 0.4375),
     ];
-    let plane = SketchPlane::from_frame(OrthoFrame::axes_yz(Point3::new(0.0_f64, 0.0, 0.0)));
+    let plane = SketchPlane::from_frame(RigidMotion::axes_yz(Point3::new(0.0_f64, 0.0, 0.0)));
     let z_flush = extrude(
         &validated(plane, vec![lp(&z_poly_flush)]),
         Extrusion::Distance {

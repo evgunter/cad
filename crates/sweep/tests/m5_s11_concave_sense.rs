@@ -63,7 +63,7 @@ use common::orient::{
 };
 use geom::Surface;
 use geom_core::Tol;
-use geom_core::{Affine3, OrthoFrame, Point2, Point3, Vec3};
+use geom_core::{Affine3, RigidMotion, Point2, Point3, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use revolve_common::{assert_all_tiers, axis_y, validated};
 use sweep::test_support::{finished, swept_elbow_lofted};
@@ -826,7 +826,7 @@ fn a_lofted_operand_refuses_the_union_check_typed() {
         Point2::new(1.1, 1.35),
         Point2::new(0.9, 1.35),
     ]);
-    let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(0.0, 0.0, 0.3)));
+    let plane = SketchPlane::from_frame(RigidMotion::axes_xy(Point3::new(0.0, 0.0, 0.3)));
     let vp = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();

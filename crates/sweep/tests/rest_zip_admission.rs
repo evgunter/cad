@@ -16,7 +16,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{OrthoFrame, Point3, Tol};
+use geom_core::{RigidMotion, Point3, Tol};
 use sweep::test_support::{brick, extruded, finished, sketch_at};
 use topo::{AtRestBody, BooleanError, BooleanResult};
 
@@ -102,7 +102,7 @@ fn reflex_beside_a_post(
     let post = finished(
         "the post",
         extruded(
-            profile::SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(x0, -1.5, 1.0))),
+            profile::SketchPlane::from_frame(RigidMotion::axes_xy(Point3::new(x0, -1.5, 1.0))),
             vec![rounded(1.0, 1.0, 0.25)],
             1.8,
             t,
@@ -286,7 +286,7 @@ fn rounded_at(at: (f64, f64, f64), w: f64, h: f64, r: f64, height: f64) -> AtRes
     finished(
         "a rounded block",
         extruded(
-            profile::SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(at.0, at.1, at.2))),
+            profile::SketchPlane::from_frame(RigidMotion::axes_xy(Point3::new(at.0, at.1, at.2))),
             vec![rounded(w, h, r)],
             height,
             t,

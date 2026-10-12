@@ -974,7 +974,7 @@ pub use splitting::{
     SplitReduction, SplitResult, TangencyReadings, Uncrossable, UncrossableCarrier,
     classify_neighborhood, plane_section, point_in_loop, split, split_reduce, vertex_sides,
 };
-pub use transform::{TransformError, check_rigid, not_rigid_reading, transform_rigid};
+pub use transform::{TransformError, transform_rigid};
 pub use validate::{
     AtRestBody, CensusContact, CensusSubject, CensusUnsupportedCause, ContactMark,
     CrossingSideVerdict, RingContact, RingPairContact, StaleDeclaration, Unfinished,

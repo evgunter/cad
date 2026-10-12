@@ -38,7 +38,7 @@ use std::sync::Mutex;
 
 use geom_core::k_stats::{Detached, detached, splice};
 use geom_core::linalg::frame::{FrameError, FrameInput, FrameVector};
-use geom_core::linalg::{Affine3, Mat3, OrthoFrame, Point3, UnitVec3, UnitVec3Error, Vec3};
+use geom_core::linalg::{Affine3, Mat3, RigidMotion, Point3, UnitVec3, UnitVec3Error, Vec3};
 use geom_core::predicate::Band;
 use geom_core::{Decide, Real, Tol};
 
@@ -1454,7 +1454,7 @@ fn face_base<P: crate::ProfilePayload, T: SolveScalar>(
     side: MateSide,
     read: &Walk,
     tol: Tol,
-) -> Result<OrthoFrame<T>, Box<MateFault>> {
+) -> Result<RigidMotion<T>, Box<MateFault>> {
     let member = &read.member;
     let unresolved = |refusal| {
         Box::new(MateFault::FaceUnresolved {
@@ -1515,13 +1515,13 @@ fn face_base<P: crate::ProfilePayload, T: SolveScalar>(
 fn compose_offset<T: SolveScalar>(
     mate: RecipeNodeId,
     side: MateSide,
-    base: Option<OrthoFrame<T>>,
+    base: Option<RigidMotion<T>>,
     offset: &crate::placement::Placement,
     env: &VarEnv<T>,
     band: Band,
 ) -> Result<SideFrame<T>, Box<MateFault>> {
     let (before, base) = match base {
-        None => (Motion::Identity, OrthoFrame::axes_xy(Point3::origin())),
+        None => (Motion::Identity, RigidMotion::axes_xy(Point3::origin())),
         Some(face) => (Motion::Map(face.to_affine()), face),
     };
     let refused = |error: crate::eval::NodeErrorKind| {

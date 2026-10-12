@@ -796,7 +796,7 @@ fn beyond(
     tol: Tol,
 ) -> Result<topo::AtRestBody<f64>, String> {
     use crate::eval::measure::{Carrier, carrier_of, reach_of};
-    use geom_core::{OrthoFrame, Point2, Vec3};
+    use geom_core::{RigidMotion, Point2, Vec3};
     use profile::{Step, Target};
     let band = Band::linear(tol).map_err(|e| e.to_string())?;
     let sense = aggregate
@@ -870,7 +870,7 @@ fn beyond(
     let frame = [Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0)]
         .into_iter()
         .find_map(|reference| {
-            OrthoFrame::from_axis_and_reference(base, normal, reference, AT_REST_BEYOND_FRAME, band)
+            RigidMotion::from_axis_and_reference(base, normal, reference, AT_REST_BEYOND_FRAME, band)
                 .ok()
         })
         .ok_or("the carrier's normal spans no frame")?;

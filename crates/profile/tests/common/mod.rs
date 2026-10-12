@@ -140,8 +140,8 @@ pub fn frame_of(
     o: geom_core::Point3<f64>,
     u: geom_core::Vec3<f64>,
     v: geom_core::Vec3<f64>,
-) -> geom_core::OrthoFrame<f64> {
-    geom_core::OrthoFrame::gram_schmidt(
+) -> geom_core::RigidMotion<f64> {
+    geom_core::RigidMotion::gram_schmidt(
         o,
         u,
         v,

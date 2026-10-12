@@ -14,7 +14,7 @@ use sweep::ExtrudeSide;
 use geom::Surface;
 use geom_brep::{EdgeDescription, newell_plane};
 use geom_core::Tol;
-use geom_core::{Band, OrthoFrame, Point2, Point3, Vec3};
+use geom_core::{Band, RigidMotion, Point2, Point3, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop};
 use sweep::{ExtrudeError, Extruded, Extrusion, extrude};
 use topo::readback::{EulerCounts, euler_counts};
@@ -509,7 +509,7 @@ fn both_extrusion_directions_build_outward_solids() {
 fn placed_profile_extrudes_along_its_own_normal() {
     // The placement is the profile's own: an exact rigid frame with
     // normal +y (u = ẑ, v = x̂), offset from the origin.
-    let plane = SketchPlane::from_frame(OrthoFrame::axes_zx(Point3::new(2.0, 1.0, 3.0)));
+    let plane = SketchPlane::from_frame(RigidMotion::axes_zx(Point3::new(2.0, 1.0, 3.0)));
     let vp = Profile::new(plane, vec![l_loop()])
         .validate(Tol::witness())
         .unwrap();

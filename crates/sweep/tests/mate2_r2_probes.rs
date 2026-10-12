@@ -11,7 +11,7 @@
 use crate::mate2_common;
 
 use crate::common::three_arc;
-use geom_core::{OrthoFrame, Point2, Point3, Tol, Vec2};
+use geom_core::{RigidMotion, Point2, Point3, Tol, Vec2};
 use mate2_common::*;
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 use sweep::test_support::{extruded, finished};
@@ -118,7 +118,7 @@ fn revolved_collar() -> Body<f64> {
 
 /// A three-arc peg along the world Y axis, y ∈ [y0, y0 + h].
 fn peg_along_y(y0: f64, h: f64) -> Body<f64> {
-    let plane = SketchPlane::from_frame(OrthoFrame::axes_zx(Point3::new(0.0, y0, 0.0)));
+    let plane = SketchPlane::from_frame(RigidMotion::axes_zx(Point3::new(0.0, y0, 0.0)));
     extruded(
         plane,
         vec![three_arc(Point2::new(0.0, 0.0), 0.5, 0.0)],
@@ -146,7 +146,7 @@ fn r2_full_period_bore_unions() {
 #[test]
 fn r2_full_period_peg_unions() {
     // The collar along Y, arc-split (extruded on the peg's plane).
-    let plane = SketchPlane::from_frame(OrthoFrame::axes_zx(Point3::new(0.0, 1.0, 0.0)));
+    let plane = SketchPlane::from_frame(RigidMotion::axes_zx(Point3::new(0.0, 1.0, 0.0)));
     let o = Point2::new(0.0, 0.0);
     let c = extruded(
         plane,

@@ -124,7 +124,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::NurbsCurve3;
-use geom_core::{Affine3, Band, Bounds, Decide, OrthoFrame, Point2, Point3, Real, Vec2, Vec3};
+use geom_core::{Affine3, Band, Bounds, Decide, RigidMotion, Point2, Point3, Real, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanInputs, EdgeKey, FaceKey, LoopBoundary};
@@ -686,7 +686,7 @@ const FIXTURE_FRAME_AXIS: &str = "fixture_frame_axis";
 /// plane that is tilted, rotated or deliberately noisy.
 ///
 /// An axis-aligned fixture does not come here: the exact world frames
-/// (`OrthoFrame::axes_xy` and its two siblings) need no decision, and
+/// (`RigidMotion::axes_xy` and its two siblings) need no decision, and
 /// [`sketch_at`] is the xy one at a station.
 ///
 /// # Panics
@@ -701,7 +701,7 @@ pub fn sketch_from_axes<T: Decide>(
     tol: Tol,
 ) -> SketchPlane<T> {
     SketchPlane::from_frame(
-        OrthoFrame::gram_schmidt(
+        RigidMotion::gram_schmidt(
             o,
             u,
             v,
@@ -729,8 +729,8 @@ pub fn tube_frame<T: Decide>(
     axis: Vec3<T>,
     u_ref: Vec3<T>,
     tol: Tol,
-) -> geom_core::OrthoFrame<T> {
-    OrthoFrame::from_axis_and_reference(
+) -> geom_core::RigidMotion<T> {
+    RigidMotion::from_axis_and_reference(
         center,
         axis,
         u_ref,
@@ -743,7 +743,7 @@ pub fn tube_frame<T: Decide>(
 /// The world xy sketch plane lifted to station `z0`, the placement
 /// every axis-aligned fixture here extrudes from.
 pub fn sketch_at<T: Decide>(z0: T) -> SketchPlane<T> {
-    SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(T::zero(), T::zero(), z0)))
+    SketchPlane::from_frame(RigidMotion::axes_xy(Point3::new(T::zero(), T::zero(), z0)))
 }
 
 /// **A prism on an arbitrary sketch plane**: one closed loop of

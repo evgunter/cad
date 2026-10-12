@@ -17,7 +17,7 @@
 use core::cell::Cell;
 use core::convert::Infallible;
 
-use geom_core::{Affine3, Mat3, OrthoFrame, Point2, Point3, Vec3};
+use geom_core::{Affine3, Mat3, RigidMotion, Point2, Point3, Vec3};
 use profile::SketchPlane;
 
 use crate::common::frame_of;
@@ -72,9 +72,9 @@ fn each_canonical_plane_is_its_own_from_frame_spelling() {
         SketchPlane::zx(),
     ];
     let spelled_all = [
-        SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::origin())),
-        SketchPlane::from_frame(OrthoFrame::axes_yz(Point3::origin())),
-        SketchPlane::from_frame(OrthoFrame::axes_zx(Point3::origin())),
+        SketchPlane::from_frame(RigidMotion::axes_xy(Point3::origin())),
+        SketchPlane::from_frame(RigidMotion::axes_yz(Point3::origin())),
+        SketchPlane::from_frame(RigidMotion::axes_zx(Point3::origin())),
     ];
     for (k, plane) in named.iter().enumerate() {
         let spelled = spelled_all[k];
@@ -120,7 +120,7 @@ fn the_frame_accessors_read_back_exactly_what_from_frame_wrote() {
     // signed zero, which is why `origin` transcribes the translation
     // rather than adding it to the coordinate origin.
     let o = Point3::new(-0.0, 2.0, 3.5);
-    let frame = OrthoFrame::axes_yz(o);
+    let frame = RigidMotion::axes_yz(o);
     let plane = SketchPlane::from_frame(frame);
 
     assert_eq!(plane.origin().x.to_bits(), (-0.0f64).to_bits());
@@ -142,7 +142,7 @@ fn plane_equality_is_bit_exact_and_the_two_zeros_differ() {
     // The `Doc::bit_eq` precedent (spec D7): a sketch plane carries no
     // ε, so the only honest equality it can offer compares BITS —
     // `-0.0` keeps its own identity rather than being folded away.
-    let frame = |x: f64| SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(x, 0.0, 0.0)));
+    let frame = |x: f64| SketchPlane::from_frame(RigidMotion::axes_xy(Point3::new(x, 0.0, 0.0)));
     assert!(frame(0.0).bit_eq(&SketchPlane::xy()));
     assert!(!frame(0.0).bit_eq(&frame(-0.0)));
     assert!(frame(-0.0).bit_eq(&frame(-0.0)));
@@ -155,7 +155,7 @@ fn the_partial_eq_impl_is_bit_eq_and_answers_the_same_on_the_two_zeros() {
     // comparison, which the `-0.0` row below is exactly the case for:
     // any tolerant or IEEE equality calls those two planes the same
     // and `bit_eq` calls them different.
-    let frame = |x: f64| SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(x, 0.0, 0.0)));
+    let frame = |x: f64| SketchPlane::from_frame(RigidMotion::axes_xy(Point3::new(x, 0.0, 0.0)));
     let rows = [
         frame(0.0),
         frame(-0.0),
@@ -214,7 +214,7 @@ const FRAMES: [(Point3<f64>, Vec3<f64>, Vec3<f64>); 5] = [
 
 #[test]
 fn from_frame_is_the_witness_conversion_bit_for_bit() {
-    // One home: `SketchPlane::from_frame` IS `OrthoFrame::to_affine` —
+    // One home: `SketchPlane::from_frame` IS `RigidMotion::to_affine` —
     // a delegation, so the twelve stored components agree by BITS, and
     // the columns are the frame's own three axes. The conversion's own
     // identity with the hand spelling, over the wide corpus, is pinned

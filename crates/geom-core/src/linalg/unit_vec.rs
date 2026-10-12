@@ -35,11 +35,11 @@
 //! - The exact basis axes and the cross product of an orthonormal
 //!   pair, both private to [`linalg`](super) and both exact by
 //!   construction rather than by decision — they exist so
-//!   [`OrthoFrame`](super::OrthoFrame) can build the world frames and
+//!   [`RigidMotion`](super::RigidMotion) can build the world frames and
 //!   its own third axis, and they are documented on their own doors.
 //! - `UnitVec3::embed` and `UnitVec3::pin` — the exact crossings
 //!   between `f64` and the other scalars, as
-//!   [`OrthoFrame`](super::OrthoFrame)'s module docs state them: an
+//!   [`RigidMotion`](super::RigidMotion)'s module docs state them: an
 //!   embedded direction witnesses the `f64` decision, carried.
 //!
 //! The deciding ladders in [`frame`](super::frame) mint through the
@@ -355,7 +355,7 @@ impl<T: Real> UnitVec3<T> {
     /// This is NOT a "check that it is already unit" constructor and
     /// cannot be used as one: the premise is carried by the ARGUMENT
     /// types plus the orthogonality the one caller
-    /// ([`OrthoFrame`](super::OrthoFrame)) establishes at its own
+    /// ([`RigidMotion`](super::RigidMotion)) establishes at its own
     /// mints, and the result is a product rather than a vector handed
     /// in. A caller holding two witnesses it merely believes are
     /// perpendicular has a decision to make, not a door to call, which
@@ -364,9 +364,22 @@ impl<T: Real> UnitVec3<T> {
         Self(a.0.cross(b.0))
     }
 
+    /// **A unit vector a rigid motion produced**, by construction: a
+    /// column or row of a rotation's Rodrigues form, or a witness
+    /// carried through a rigid linear part
+    /// ([`RigidMotion`](super::RigidMotion)), each unit over the reals
+    /// for every value its inputs take. Like
+    /// [`Self::cross_of_orthonormal`] it is not a "check that it is
+    /// already unit" constructor: the premise is the construction, and
+    /// its only callers are [`RigidMotion`](super::RigidMotion)'s mints
+    /// and the decided door, which has decided the column's norm.
+    pub(in crate::linalg) fn by_construction(v: Vec3<T>) -> Self {
+        Self(v)
+    }
+
     /// The exact `x̂`, unit as its literal bits at every scalar that
     /// represents 0 and 1 — no decision, nothing to decide. Private to
-    /// [`linalg`](super), where [`OrthoFrame`](super::OrthoFrame)'s
+    /// [`linalg`](super), where [`RigidMotion`](super::RigidMotion)'s
     /// world frames are its only readers: a public exact-axis mint
     /// would be a door with no caller, and a caller wanting a
     /// direction it computed wants [`UnitVec3::new`].

@@ -13,7 +13,7 @@
 //! [`Subgroup`] the mates fold is the one a pose is known up to, read
 //! here once ([`crate::VarKind::symmetry`] names its family).
 
-use geom_core::linalg::{OrthoFrame, Point3, UnitVec3};
+use geom_core::linalg::{RigidMotion, Point3, UnitVec3};
 use geom_core::predicate::{Band, Indeterminate, Margin, Sign};
 use geom_core::{Decide, Real};
 
@@ -62,7 +62,7 @@ pub enum PoseValue<T: Real> {
     /// normal are pinned. The payload is the frame witness: `u` and `v`
     /// are unit and orthogonal as a property of the type, and
     /// `w = u × v` is the normal.
-    Frame(OrthoFrame<T>),
+    Frame(RigidMotion<T>),
 }
 
 impl<T: Real> PoseValue<T> {

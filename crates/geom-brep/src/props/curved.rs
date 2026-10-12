@@ -28,7 +28,7 @@
 use geom::Curve3;
 use geom::Surface;
 use geom_core::{
-    Band, Decide, LeveredUnitError, Margin, OrthoFrame, Point3, Real, Sign, UNIT_DIRECTION_ARM,
+    Band, Decide, LeveredUnitError, Margin, RigidMotion, Point3, Real, Sign, UNIT_DIRECTION_ARM,
     UnitVec3, UnitVec3Error, Vec3,
 };
 
@@ -4602,7 +4602,7 @@ fn fold_chain<T: Decide>(
 /// about `−τ̂` at its minor center, so `dv/dt = −orient`. Definite by
 /// construction (the `Zero` arm refuses typed).
 ///
-/// `τ̂ = â × ρ̂` is the frame [`OrthoFrame::from_aim_and_reference`]
+/// `τ̂ = â × ρ̂` is the frame [`RigidMotion::from_aim_and_reference`]
 /// mints about the torus axis with the meridian centre's offset as the
 /// reference, so both lengths are decided before the orientation is:
 /// the axis under `props_torus_axis`, the radial under
@@ -4630,7 +4630,7 @@ fn torus_meridian_orient<T: Decide>(
             what: UNIT_DIRECTION_ARM,
         },
     })?;
-    let frame = OrthoFrame::from_aim_and_reference(
+    let frame = RigidMotion::from_aim_and_reference(
         center,
         aim,
         c_c - center,

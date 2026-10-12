@@ -34,7 +34,7 @@ use pncad::profile::{ConstructedLoop, SketchPlane};
 /// the reference radial the window's angles start from. The axis is
 /// decided and KEPT; the reference yields its component along it.
 ///
-/// One line over `OrthoFrame::from_axis_and_reference`, spelled here
+/// One line over `RigidMotion::from_axis_and_reference`, spelled here
 /// because these probes are an integration test of the tour BINARY
 /// and cannot reach the tour's own `scalar::axis_frame`.
 ///
@@ -47,8 +47,8 @@ fn tube_frame(
     axis: Vec3<f64>,
     u_ref: Vec3<f64>,
     tol: Tol,
-) -> pncad::geom_core::OrthoFrame<f64> {
-    pncad::geom_core::OrthoFrame::from_axis_and_reference(
+) -> pncad::geom_core::RigidMotion<f64> {
+    pncad::geom_core::RigidMotion::from_axis_and_reference(
         center,
         axis,
         u_ref,

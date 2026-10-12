@@ -2091,7 +2091,7 @@ impl SketchPlane {
         // the axes' words.
         let band = pncad::geom_core::Band::linear(pncad::geom_core::Tol::witness())
             .map_err(|error| super::checks::checks_err(py, &d::ChecksError::Band { error }))?;
-        pncad::geom_core::OrthoFrame::gram_schmidt(
+        pncad::geom_core::RigidMotion::gram_schmidt(
             pncad::authoring::p3::<f64>(
                 origin.0.0.meters(),
                 origin.1.0.meters(),

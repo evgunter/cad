@@ -26,7 +26,7 @@ use crate::booleans::{check, expect_seamed, finished, try_intersect};
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
 use pncad::authoring::{p3, polygon, validated};
-use pncad::geom_core::{OrthoFrame, Tol};
+use pncad::geom_core::{RigidMotion, Tol};
 
 /// Exact volume, 38627/14336: V = ∫ len_x(A at y) · len_z(Z at y) dy
 /// over y ∈ [0, 5/2] (each prism spans the other's extrusion). Both
@@ -74,7 +74,7 @@ fn lp<S: Scalar>(poly: &[(f64, f64)], tol: Tol) -> ConstructedLoop<S> {
 
 /// The A prism: xy sketch at z = 0, extruded 2 along +z.
 fn a_prism<S: Scalar>(tol: Tol) -> AtRestBody<S> {
-    let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, 0.0)));
+    let plane = SketchPlane::from_frame(RigidMotion::axes_xy(p3(0.0, 0.0, 0.0)));
     let body = extrude(
         &validated(plane, vec![lp(&A_OUTLINE, tol), lp(&A_COUNTER, tol)], tol).expect("A profile"),
         Extrusion::Distance {
@@ -90,7 +90,7 @@ fn a_prism<S: Scalar>(tol: Tol) -> AtRestBody<S> {
 
 /// The Z prism: yz sketch at x = 0, extruded 2 along +x.
 fn z_prism<S: Scalar>(tol: Tol) -> AtRestBody<S> {
-    let plane = SketchPlane::from_frame(OrthoFrame::axes_yz(p3(0.0, 0.0, 0.0)));
+    let plane = SketchPlane::from_frame(RigidMotion::axes_yz(p3(0.0, 0.0, 0.0)));
     let body = extrude(
         &validated(plane, vec![lp(&Z_OUTLINE, tol)], tol).expect("Z profile"),
         Extrusion::Distance {

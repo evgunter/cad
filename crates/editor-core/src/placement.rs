@@ -4,7 +4,7 @@
 //! expressions and literal frames.
 
 use geom_core::predicate::Band;
-use geom_core::{Affine3, Decide, Mat3, Real, Vec3};
+use geom_core::{Affine3, Decide, Mat3, Real, RigidMotion, RigidMotionError, Vec3};
 
 use crate::eval::slots::SlotValues;
 use crate::eval::{NodeErrorKind, NodeRefusal};
@@ -62,9 +62,9 @@ pub(crate) const PLACEMENT_AXIS_ROLE: &str = "placement rotation axis";
 /// the R4 equivariance prerequisite would be invisible in the format.
 ///
 /// Rigidity is not a field invariant — it is a decided predicate with
-/// one home, [`topo::check_rigid`], which the kernel's placement door
-/// ([`topo::transform_rigid`]) asks of every map it moves a body by and
-/// [`Frame::admission_fault`] asks of every frame a document admits.
+/// one home, [`RigidMotion::check_rigid`], which a literal step asks
+/// when it evaluates ([`Placement`]) and [`Frame::admission_fault`]
+/// asks of every frame a document admits.
 ///
 /// # Exactness
 ///
@@ -147,15 +147,11 @@ impl Frame {
     /// `v` — the `Transform` node's own composition order (D9; see
     /// [`Frame`]'s exactness rule for what that order buys).
     ///
-    /// **Normalizing the axis here is not redundant, and removing it
-    /// would cost the bit agreement.** The transform node normalizes
-    /// its axis before building the rotation (`eval::wire`'s `unit`)
-    /// and `Mat3::rotation_about` normalizes again internally, so an
-    /// axis carried through un-normalized would take one fewer rounding
-    /// step through this door than through that one — for any axis, not
-    /// just unit ones. Deciding the direction costs the agreement
-    /// nothing, because [`geom_core::decide_unit_direction`] answers
-    /// `v.normalize()`, the very expression a bare normalization used.
+    /// **Deciding the axis here is what keeps the bit agreement.** The
+    /// transform node decides its axis into a witness (`eval::wire`'s
+    /// `unit`) and rotates about the witness as given
+    /// ([`Mat3::rotation_about_unit`]); so does this door, so the two
+    /// take the same rounding steps for any axis.
     ///
     /// **The axis is DECIDED here**, through the evaluation layer's
     /// own direction door ([`crate::eval::unit_direction`]) under
@@ -182,7 +178,7 @@ impl Frame {
         let dir = crate::eval::unit_direction(Vec3::from_array(axis), PLACEMENT_AXIS_ROLE, band)
             .map_err(|e| AxisRefusal(NodeRefusal::from(e)))?;
         Ok(Self {
-            columns: Mat3::rotation_about(dir.get(), angle).to_cols_array(),
+            columns: Mat3::rotation_about_unit(dir, angle).to_cols_array(),
             translation: v,
         })
     }
@@ -250,13 +246,30 @@ impl Frame {
 
     /// The motion this frame denotes in the backend scalar, with a
     /// bit-exact identity marked as such ([`Motion`]) — which only a
-    /// stored frame can know, by its bits.
+    /// stored frame can know, by its bits. A general map: the frame
+    /// may be improper ([`Frame::compose`] composes any two).
     #[must_use]
     pub(crate) fn motion<T: Real>(&self) -> Motion<T> {
         if self.is_identity_bits() {
             Motion::Identity
         } else {
             Motion::Map(self.affine())
+        }
+    }
+
+    /// [`Frame::motion`] admitted as a rigid motion at the backend
+    /// scalar, through the decided door ([`RigidMotion::check_rigid`]):
+    /// what a literal step of a [`Placement`] moves a body by. The
+    /// bit-exact identity is marked and asks nothing.
+    ///
+    /// # Errors
+    ///
+    /// The decided door's refusal.
+    pub(crate) fn rigid_motion<T: Decide>(&self, band: Band) -> Result<Motion<T>, RigidMotionError> {
+        if self.is_identity_bits() {
+            Ok(Motion::Identity)
+        } else {
+            RigidMotion::check_rigid(&self.affine(), band).map(Motion::Rigid)
         }
     }
 
@@ -267,6 +280,7 @@ impl Frame {
     pub(crate) fn from_motion(motion: Motion<f64>) -> Self {
         match motion {
             Motion::Identity => Frame::IDENTITY,
+            Motion::Rigid(rigid) => Frame::from_affine(rigid.to_affine()),
             Motion::Map(map) => Frame::from_affine(map),
         }
     }
@@ -301,10 +315,9 @@ impl Frame {
     /// ([`FrameSite`]), and forwards this answer's sentence rather than
     /// restating it.
     ///
-    /// Rigidity is [`topo::check_rigid`] at `tol`'s linear band, the
-    /// predicate the evaluation's [`topo::TransformError::NotRigid`]
-    /// applies, so a frame admitted here is one the evaluation moves a
-    /// body by. A tolerance that forms no band decides nothing, and
+    /// Rigidity is [`RigidMotion::check_rigid`] at `tol`'s linear band,
+    /// the door a literal step's evaluation asks, so a frame admitted
+    /// here is one the evaluation moves a body by. A tolerance that forms no band decides nothing, and
     /// every evaluation at it refuses before it reads a frame, so the
     /// rigidity half is left to the next door that holds a band: the
     /// load door asks it again at the loading tolerance.
@@ -321,12 +334,16 @@ impl Frame {
             return Some(FrameFault::Improper { determinant });
         }
         let band = Band::linear(tol).ok()?;
-        match topo::check_rigid(&self.affine_f64(), band) {
-            Ok(()) => None,
-            Err(topo::TransformError::NotRigid { check }) => Some(FrameFault::NotRigid { check }),
-            // `check_rigid` raises `NotRigid` and `NonFiniteMap`, and
-            // the frame's coordinates were decided finite above.
-            Err(_) => Some(FrameFault::NonFinite),
+        match RigidMotion::check_rigid(&self.affine_f64(), band) {
+            Ok(_) => None,
+            Err(
+                RigidMotionError::NotRigid { check } | RigidMotionError::Undecided { check, .. },
+            ) => Some(FrameFault::NotRigid { check }),
+            // The door's other refusals are about finiteness, and the
+            // frame's coordinates were decided finite above.
+            Err(RigidMotionError::NonFiniteTranslation { .. } | RigidMotionError::NonFinite(_)) => {
+                Some(FrameFault::NonFinite)
+            }
         }
     }
 
@@ -363,11 +380,11 @@ pub enum FrameFault {
     },
     /// The frame is proper but not definitely a rigid motion at
     /// tolerance: it may scale or shear an axis
-    /// ([`topo::check_rigid`]).
+    /// ([`RigidMotion::check_rigid`]).
     NotRigid {
         /// The rigidity check that refused, which
-        /// [`topo::not_rigid_reading`] puts in words; routing, never
-        /// rendered by name.
+        /// [`geom_core::not_rigid_reading`] puts in words; routing,
+        /// never rendered by name.
         check: &'static str,
     },
 }
@@ -385,7 +402,7 @@ impl core::fmt::Display for FrameFault {
             Self::NotRigid { check } => write!(
                 f,
                 "is not definitely rigid at tolerance: {}",
-                topo::not_rigid_reading(check)
+                geom_core::not_rigid_reading(check)
             ),
         }
     }
@@ -464,12 +481,22 @@ impl Default for Frame {
 ///
 /// The identity is marked rather than detected: only a stored frame
 /// knows it is the identity, by its bits ([`Frame::motion`]); a map
-/// computed from expressions is a [`Motion::Map`] whatever its value.
+/// computed from expressions is a [`Motion::Rigid`] or a [`Motion::Map`]
+/// whatever its value.
+///
+/// A motion a placement's chain built is a [`Motion::Rigid`] witness —
+/// minted by construction, or admitted at the decided door — and a
+/// product of two witnesses is one, not decided again. A
+/// [`Motion::Map`] is a map nothing witnessed (a frame composed as a
+/// general map, a pose the mate solve composed), and it is decided at
+/// the door that moves a body by it ([`Motion::rigid`]).
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum Motion<T: Real> {
     /// The bit-exact identity: composes with anything by returning it.
     Identity,
-    /// Any other motion.
+    /// A rigid motion, witnessed.
+    Rigid(RigidMotion<T>),
+    /// Any other motion, as a general map.
     Map(Affine3<T>),
 }
 
@@ -477,12 +504,18 @@ impl<T: Real> Motion<T> {
     /// `self ∘ inner`, `inner` acting first. A bit-exact identity on
     /// either side returns the other operand verbatim, with zero
     /// arithmetic; otherwise [`Affine3`]'s own product in its fixed
-    /// association.
+    /// association — two witnesses through [`RigidMotion::compose`],
+    /// which is that product bit for bit and stays a witness. A
+    /// product whose translation overflows is no witness, and stays the
+    /// general map, which the decided door then refuses.
     #[must_use]
     pub(crate) fn compose(self, inner: Self) -> Self {
         match (self, inner) {
             (Self::Identity, other) | (other, Self::Identity) => other,
-            (Self::Map(outer), Self::Map(inner)) => Self::Map(outer * inner),
+            (Self::Rigid(outer), Self::Rigid(inner)) => outer
+                .compose(inner)
+                .map_or_else(|_| Self::Map(outer.to_affine() * inner.to_affine()), Self::Rigid),
+            (outer, inner) => Self::Map(outer.affine() * inner.affine()),
         }
     }
 
@@ -491,17 +524,28 @@ impl<T: Real> Motion<T> {
     pub(crate) fn affine(self) -> Affine3<T> {
         match self {
             Self::Identity => Affine3::identity(),
+            Self::Rigid(rigid) => rigid.to_affine(),
             Self::Map(map) => map,
         }
     }
+}
 
-    /// The map, `None` for the bit-exact identity — what a door that
-    /// skips the identity (an instance placement's fast path) reads.
-    #[must_use]
-    pub(crate) fn non_identity(self) -> Option<Affine3<T>> {
+impl<T: Decide> Motion<T> {
+    /// **The motion a body is moved by**: `None` for the bit-exact
+    /// identity, which a door that skips the identity (an instance
+    /// placement's fast path) reads; a witness as it is; and a general
+    /// map through the decided door ([`RigidMotion::check_rigid`]).
+    ///
+    /// # Errors
+    ///
+    /// [`NodeErrorKind::Motion`] carrying the decided door's refusal.
+    pub(crate) fn rigid(self, band: Band) -> Result<Option<RigidMotion<T>>, NodeErrorKind> {
         match self {
-            Self::Identity => None,
-            Self::Map(map) => Some(map),
+            Self::Identity => Ok(None),
+            Self::Rigid(rigid) => Ok(Some(rigid)),
+            Self::Map(map) => RigidMotion::check_rigid(&map, band)
+                .map(Some)
+                .map_err(NodeErrorKind::Motion),
         }
     }
 }
@@ -528,11 +572,11 @@ impl<T: Real> Motion<T> {
 ///
 /// # Exactness
 ///
-/// [`Placement::eval`] builds a rigid step by the construction the
-/// transform node has always used, so a one-step rigid placement moves
-/// a body by exactly the bits it did before the chain existed; a
-/// literal step is read through [`Frame::motion`], so a one-step
-/// literal placement IS its frame, bit for bit ([`Placement::literal`]).
+/// [`Placement::eval`] builds a rigid step by the transform node's own
+/// construction ([`RigidMotion::rotation_then_translation`]); a literal
+/// step is admitted through [`Frame::rigid_motion`], which carries the
+/// frame's coordinates, so a one-step literal placement IS its frame,
+/// bit for bit ([`Placement::literal`]).
 /// The chain folds through [`Motion::compose`], so a bit-exact identity
 /// literal anywhere in it moves no bit; any other chain of two or more
 /// steps is the [`Affine3`] product, which rounds as that product does.
@@ -771,15 +815,19 @@ impl Placement {
     }
 
     /// **The one construction of a placement's motion**, from its
-    /// slots already evaluated: a rigid step by the transform
+    /// slots already evaluated: a rigid step minted by the transform
     /// construction over its axis decided under the transform's role
-    /// word, a literal step by [`Frame::motion`], the chain folded
-    /// through [`Motion::compose`].
+    /// word, a literal step admitted at the decided door
+    /// ([`Frame::rigid_motion`]), the chain folded through
+    /// [`Motion::compose`] — so a chain of witnesses is one, decided
+    /// nowhere again.
     ///
     /// # Errors
     ///
     /// [`NodeErrorKind::MissingSlot`] when a rigid step's slot is not
-    /// among `vals`, and the direction door's own refusal.
+    /// among `vals`, the direction door's own refusal, and
+    /// [`NodeErrorKind::Motion`] for a step's motion that is not
+    /// minted or not admitted.
     pub(crate) fn motion<T: Decide>(
         &self,
         vals: &SlotValues<T>,
@@ -827,9 +875,9 @@ impl Placement {
                     )?;
                     let angle =
                         crate::eval::need_scalar(vals, SlotId::rigid(k, RigidArg::RotationAngle))?;
-                    Motion::Map(crate::eval::transform_map(translation, axis, angle))
+                    Motion::Rigid(crate::eval::transform_map(translation, axis, angle)?)
                 }
-                Step::Literal(frame) => frame.motion(),
+                Step::Literal(frame) => frame.rigid_motion(band).map_err(NodeErrorKind::Motion)?,
             };
             composed = composed.compose(map);
         }

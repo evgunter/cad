@@ -1,6 +1,6 @@
 //! **`tube_along_arc` — the world-coordinate tube/torus door** (M6-3
 //! Leg F; the Ev-ratified rider, #175 thread). A ring-torus body
-//! from its INTENT parameters: the spine FRAME (an [`OrthoFrame`] —
+//! from its INTENT parameters: the spine FRAME (an [`RigidMotion`] —
 //! its origin the ring centre, its `w` the spine axis, its `u` the
 //! reference radial the window is measured from), the major radius, an
 //! arc window (or a full ring), and the tube's minor
@@ -59,7 +59,7 @@
 use geom_core::k_stats::decide;
 use geom_core::predicate::BandError;
 use geom_core::{
-    Affine3, Band, Decide, Indeterminate, Margin, Mat3, OrthoFrame, Point2, Point3, Real, Sign,
+    Affine3, Band, Decide, Indeterminate, Margin, Mat3, RigidMotion, Point2, Point3, Real, Sign,
     Tol, Vec2,
 };
 
@@ -252,11 +252,11 @@ impl std::error::Error for TubeError {}
 /// ring-torus convention (`R > r > 0`) refuses through the shared
 /// `axis_arc_clearance`/`axis_vertex_radius` decides as
 /// [`TubeError::Revolve`]. Nothing here refuses the FRAME: an
-/// [`OrthoFrame`] is orthonormal by its type, decided at whichever
+/// [`RigidMotion`] is orthonormal by its type, decided at whichever
 /// mint built it, so the axis and the reference radial arrive as facts
 /// rather than as claims this door has to re-examine.
 pub fn tube_along_arc<T: Decide + topo::AtRestPolicy>(
-    frame: OrthoFrame<T>,
+    frame: RigidMotion<T>,
     major_radius: T,
     window: TubeWindow<T>,
     minor_radius: T,
@@ -287,7 +287,7 @@ pub fn tube_along_arc<T: Decide + topo::AtRestPolicy>(
 // is not such a subset: it is one intent, an origin and a spin, and it
 // arrives carrying the decision that its axes are orthonormal.
 pub fn tube_along_arc_hollow<T: Decide + topo::AtRestPolicy>(
-    frame: OrthoFrame<T>,
+    frame: RigidMotion<T>,
     major_radius: T,
     window: TubeWindow<T>,
     minor_radius: T,
@@ -300,7 +300,7 @@ pub fn tube_along_arc_hollow<T: Decide + topo::AtRestPolicy>(
 /// Both doors' body (module docs). `wall` present ⇔ hollow.
 #[allow(clippy::too_many_arguments)]
 fn build<T: Decide + topo::AtRestPolicy>(
-    frame: OrthoFrame<T>,
+    frame: RigidMotion<T>,
     major_radius: T,
     window: TubeWindow<T>,
     minor_radius: T,

@@ -30,7 +30,7 @@ impl<T: Real> Affine3<T> {
     ///
     /// Everything it stores, it stores VERBATIM. Where a caller builds
     /// a placement from a base point — the frame witness's
-    /// [`OrthoFrame::to_affine`](crate::OrthoFrame::to_affine) is where
+    /// [`RigidMotion::to_affine`](crate::RigidMotion::to_affine) is where
     /// that happens — the translation is the subtraction
     /// `origin − Point3::origin()`: componentwise `x − (+0.0)`, which
     /// IEEE 754 leaves at `x` for every bit pattern (`−0.0`, `±inf` and
