@@ -13,8 +13,13 @@
 //! compactified as `L·tan ψ`, so a component reaching the window's edge
 //! runs to infinity — counts its components by cell adjacency, and
 //! classes each: touching the edge, unbounded; else essential iff it
-//! crosses the seam an odd number of times. It shares nothing with the
-//! arm but the carriers. `classify` must agree with 0 mismatches:
+//! crosses the seam an odd number of times. It shares no code with the
+//! arm. The grid is refined until it resolves the section
+//! ([`resolves`]), read off the partner's quadric along each column
+//! line, which meets it at most twice: that check decides only where the
+//! grid is too coarse, never a component or a class. An answer no grid
+//! within the budget resolves is tallied `untraced`, and a fixed row
+//! that comes to it fails. `classify` must agree with 0 mismatches:
 //!
 //! - on the cone's chart, part for part in count and class
 //!   (`essential_f`), and on the partner's chart the same
@@ -65,22 +70,299 @@ use test_utils::fuzz::{self, Rng};
 const EDGE: f64 = 1e-4;
 
 /// The section traced on the ruling chart `line(θ) = (B, v)`, the
-/// distance along `v` compactified as `scale·tan ψ`.
+/// distance along `v` compactified as `scale·tan ψ`, on the coarsest grid
+/// from `720 × 721` cells up that [`resolves`] the section, each refusal
+/// doubling the cells round the turn, along the lines, or both; `None`
+/// past [`GRID_BUDGET`].
 fn ruled(
     line: &dyn Fn(f64) -> (Point3<f64>, Vec3<f64>),
     scale: f64,
     partner: &Surface<f64>,
-) -> Traced {
-    trace(
-        &|u, psi| {
-            let (b, v) = line(u);
-            b + v * (scale * psi.tan())
-        },
-        &|q| geom_brep::implicit_residual(partner, q),
-        (-FRAC_PI_2 + EDGE, FRAC_PI_2 - EDGE),
-        720,
-        721,
-    )
+) -> Option<Traced> {
+    let window = (-FRAC_PI_2 + EDGE, FRAC_PI_2 - EDGE);
+    let (mut nu, mut nv) = (720, 721);
+    while nu * nv <= GRID_BUDGET {
+        let grid = (nu, nv, window);
+        // The column lines alone first; the grid is traced only on a
+        // size they accept.
+        let short = match resolves(grid, None, line, scale, partner) {
+            Ok(()) => {
+                let traced = trace(
+                    &|u, psi| {
+                        let (b, v) = line(u);
+                        b + v * (scale * psi.tan())
+                    },
+                    &|q| geom_brep::implicit_residual(partner, q),
+                    window,
+                    nu,
+                    nv,
+                );
+                match resolves(grid, Some(&traced), line, scale, partner) {
+                    Ok(()) => return Some(traced),
+                    Err(short) => short,
+                }
+            }
+            Err(short) => short,
+        };
+        match short {
+            Short::Turn => nu *= 2,
+            Short::Line => nv *= 2,
+            Short::Both => (nu, nv) = (2 * nu, 2 * nv),
+        }
+    }
+    None
+}
+
+/// The most cells [`ruled`] traces one chart on: sixteen times the
+/// first grid's.
+const GRID_BUDGET: usize = 16 * 720 * 721;
+
+/// Where a grid is too coarse for the section: round the turn, along the
+/// lines, or both.
+enum Short {
+    Turn,
+    Line,
+    Both,
+}
+
+/// `(Q₂, Q₁, Q₀)`: the partner's quadric `Q` along the line `B + t·v`,
+/// `Q` positive off the carrier as its implicit residual is — against a
+/// cone `|w|²cos²α − (w·a)²`, against a cylinder `|w|² − (w·d)² − r²`.
+fn along(partner: &Surface<f64>, b: Point3<f64>, v: Vec3<f64>) -> [f64; 3] {
+    let (w0, n, k, r2) = match *partner {
+        Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            ..
+        } => (b - apex, axis.normalize(), half_angle.cos().powi(2), 0.0),
+        Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            ..
+        } => (b - origin, axis.normalize(), 1.0, radius * radius),
+        _ => unreachable!("the search's partners are cylinders and cones"),
+    };
+    let (hw, hv) = (w0.dot(n), v.dot(n));
+    [
+        k * v.dot(v) - hv * hv,
+        2.0 * (k * w0.dot(v) - hw * hv),
+        k * w0.dot(w0) - hw * hw - r2,
+    ]
+}
+
+/// The roots in each strip between consecutive columns of a
+/// trigonometric polynomial `f` of degree at most 2 sampled at the `N`
+/// columns `2πi/N`, each sample true to within `noise`; `None` where a
+/// strip is not certified to hold none or exactly one. The harmonics are
+/// read off the samples (exact for a degree under `N/2`), and give `f`'s
+/// derivatives at each column and the bounds `|f⁽ᵐ⁾| ≤ Σ kᵐ·Aₖ`. Each
+/// half of a strip is read by Taylor's theorem from its own end: a
+/// function `g` with value `g₀` and slope `g₁` there and `|g″| ≤ B` keeps
+/// the sign of its linear part, and at least the smaller of that part's
+/// end magnitudes less `B·w²/2`, over a half of width `w`. A strip whose
+/// halves both keep `f′`'s sign holds one root if its ends differ in sign
+/// and none if they agree; one whose halves both keep `f`'s holds none.
+fn strip_roots(samples: &[f64], noise: f64) -> Option<Vec<u8>> {
+    let n = samples.len();
+    let h = TAU / n as f64;
+    let harmonic = |k: usize| {
+        let (c, s) = samples
+            .iter()
+            .enumerate()
+            .fold((0.0, 0.0), |(c, s), (i, &f)| {
+                let (sn, cs) = (k as f64 * h * i as f64).sin_cos();
+                (c + f * cs, s + f * sn)
+            });
+        (2.0 * c / n as f64, 2.0 * s / n as f64)
+    };
+    let [h1, h2, h3, h4] = [1, 2, 3, 4].map(harmonic);
+    let amp = |(c, s): (f64, f64)| c.hypot(s);
+    let mean = samples.iter().sum::<f64>() / n as f64;
+    assert!(
+        amp(h3) + amp(h4) <= 1e-9 * (mean.abs() + amp(h1) + amp(h2)) + 4.0 * noise,
+        "a chart's coefficient of degree past 2: harmonics {h3:?} {h4:?}"
+    );
+    // `f`'s `m`-th derivative at column `i`, from the harmonics, and its
+    // ceiling round the turn; each carries `2·Σ kᵐ` of the noise.
+    let derivative = |m: i32, i: usize| {
+        let u = h * i as f64;
+        [(1.0, h1), (2.0, h2)]
+            .iter()
+            .fold(0.0, |acc, &(k, (c, s))| {
+                let (sn, cs) = (k * u).sin_cos();
+                let turned = match m.rem_euclid(4) {
+                    0 => c * cs + s * sn,
+                    1 => s * cs - c * sn,
+                    2 => -(c * cs + s * sn),
+                    _ => -(s * cs - c * sn),
+                };
+                acc + k.powi(m) * turned
+            })
+    };
+    let charge = |m: i32| 2.0 * (1.0 + 2f64.powi(m)) * noise;
+    let ceiling = |m: i32| amp(h1) + 2f64.powi(m) * amp(h2) + charge(m);
+    let w = h / 2.0;
+    // Whether `g`, read from one end at `(g₀, g₁)` with `|g″| ≤ bend`,
+    // keeps one sign over the half next to it.
+    let keeps = |g0: f64, g1: f64, bend: f64, slack: f64| {
+        let far = g0 + g1 * w;
+        (g0 > 0.0) == (far > 0.0) && g0.abs().min(far.abs()) - slack > bend * w * w / 2.0
+    };
+    (0..n)
+        .map(|i| {
+            let j = (i + 1) % n;
+            let value = |c: usize, toward: f64| (samples[c], toward * derivative(1, c));
+            let ((f0, f1), (g0, g1)) = (value(i, 1.0), value(j, -1.0));
+            if f0.abs() <= noise || g0.abs() <= noise {
+                return None;
+            }
+            let apart = (f0 > 0.0) != (g0 > 0.0);
+            let slope = |c: usize, toward: f64| (derivative(1, c), toward * derivative(2, c));
+            let ((d0, d1), (e0, e1)) = (slope(i, 1.0), slope(j, -1.0));
+            let slack = charge(1) + charge(2) * w;
+            if keeps(d0, d1, ceiling(3), slack)
+                && keeps(e0, e1, ceiling(3), slack)
+                && (d0 > 0.0) == (e0 > 0.0)
+            {
+                return Some(u8::from(apart));
+            }
+            let level = keeps(f0, f1, ceiling(2), noise + charge(1) * w)
+                && keeps(g0, g1, ceiling(2), noise + charge(1) * w);
+            (level && !apart).then_some(0)
+        })
+        .collect()
+}
+
+/// **Whether the grid `(nu, nv, window)` resolves the section** — once
+/// `traced` on it, where given — on the ruling chart `line`
+/// against `partner`, read from the partner's quadric along each column
+/// line, which a line meets at most twice: its discriminant `E` and
+/// leading coefficient `Q₂` are trigonometric polynomials of degree at
+/// most 2 round the turn (one of `B`, `v` is constant on a ruling chart).
+///
+/// - **Round the turn**: every strip between columns holds at most one
+///   root of `E` and of `Q₂` ([`strip_roots`]), so no loop, pinch or
+///   asymptote pair hides between two columns, and each run of columns
+///   on which `E > 0` holds a column whose roots in the window lie in
+///   distinct cells.
+/// - **Along the lines**: on each column the sign changes the grid sees
+///   are the roots in the window less a pair sharing a cell, and the two
+///   roots lie in distinct cells — two cells apart where they may be two
+///   components (`E > 0` round the turn, or a run holding an asymptote) —
+///   except beside a strip holding a fold, where they meet.
+/// - **No saddle cell**, which cell adjacency would read as one
+///   component.
+fn resolves(
+    (n, nv, (v0, v1)): (usize, usize, (f64, f64)),
+    traced: Option<&Traced>,
+    line: &dyn Fn(f64) -> (Point3<f64>, Vec3<f64>),
+    scale: f64,
+    partner: &Surface<f64>,
+) -> Result<(), Short> {
+    if traced.is_some_and(|t| t.saddles > 0) {
+        return Err(Short::Both);
+    }
+    let coefficients: Vec<[f64; 3]> = (0..n)
+        .map(|i| {
+            let (b, v) = line(TAU * i as f64 / n as f64);
+            along(partner, b, v)
+        })
+        .collect();
+    let rounding = |x: f64| 64.0 * f64::EPSILON * x;
+    let e: Vec<f64> = coefficients
+        .iter()
+        .map(|&[a, b, c]| b * b - 4.0 * a * c)
+        .collect();
+    let e_noise = rounding(
+        coefficients
+            .iter()
+            .map(|&[a, b, c]| b * b + 4.0 * (a * c).abs())
+            .fold(0.0, f64::max),
+    );
+    let lead: Vec<f64> = coefficients.iter().map(|c| c[0]).collect();
+    let lead_noise = rounding(1.0);
+    let (Some(folds), Some(asymptotes)) =
+        (strip_roots(&e, e_noise), strip_roots(&lead, lead_noise))
+    else {
+        return Err(Short::Turn);
+    };
+    // The cell of a root `t` along a column, if it is in the window.
+    let cell = |t: f64| {
+        let x = ((t / scale).atan() - v0) / (v1 - v0);
+        (0.0..1.0).contains(&x).then(|| (x * nv as f64) as usize)
+    };
+    let positive = |i: usize| e[i] > 0.0;
+    let full_turn = (0..n).all(positive);
+    // Runs of positive columns, each as its first column and length.
+    let starts: Vec<usize> = if full_turn {
+        vec![0]
+    } else {
+        (0..n)
+            .filter(|&i| positive(i) && !positive((i + n - 1) % n))
+            .collect()
+    };
+    let mut column_cells: Vec<Vec<usize>> = vec![Vec::new(); n];
+    for (i, &[a, b, c]) in coefficients.iter().enumerate() {
+        if !positive(i) {
+            continue;
+        }
+        let root = e[i].sqrt();
+        let q = -0.5 * (b + if b < 0.0 { -root } else { root });
+        let mut cells: Vec<usize> = [q / a, c / q].into_iter().filter_map(cell).collect();
+        cells.sort_unstable();
+        column_cells[i] = cells;
+    }
+    if let Some(traced) = traced {
+        for (cells, &changes) in column_cells.iter().zip(&traced.column_changes) {
+            let seen = match cells.as_slice() {
+                [x, y] if x == y => 0,
+                c => c.len(),
+            };
+            if seen != changes {
+                return Err(Short::Line);
+            }
+        }
+    }
+    for &start in &starts {
+        let len = if full_turn {
+            n
+        } else {
+            (0..n).take_while(|&k| positive((start + k) % n)).count()
+        };
+        let columns: Vec<usize> = (0..len).map(|k| (start + k) % n).collect();
+        // The strips the run spans, with those at its ends.
+        let strips = (0..=len).map(|k| (start + n - 1 + k) % n);
+        let apart = if full_turn || strips.clone().any(|s| asymptotes[s] == 1) {
+            2
+        } else {
+            1
+        };
+        let beside_fold = |i: usize| folds[i] == 1 || folds[(i + n - 1) % n] == 1;
+        let mut held = false;
+        for &i in &columns {
+            let distinct = match column_cells[i].as_slice() {
+                [] => false,
+                [_] => true,
+                [x, y] => y - x >= 1,
+                _ => unreachable!("a line meets a quadric at most twice"),
+            };
+            held |= distinct;
+            if beside_fold(i) {
+                continue;
+            }
+            if let [x, y] = column_cells[i].as_slice()
+                && y - x < apart
+            {
+                return Err(Short::Line);
+            }
+        }
+        if !held {
+            return Err(Short::Both);
+        }
+    }
+    Ok(())
 }
 
 /// A ruling chart: the line at each angle, as `(B, v)`.
@@ -348,8 +630,9 @@ fn cone_near_asymptote(rng: &mut Rng, k: &Frame) -> Option<Pose> {
 /// so a bounded component stays well inside the window (near one, a
 /// loop runs out to `~1/gap` scales, past the compactified chart's
 /// resolution, and reads as reaching its edge); and each apex is `0.05`
-/// of the scale off the other carrier, so a loop about it is not
-/// narrower than the other chart's cells.
+/// of the scale off the other carrier, so the section does not pinch to
+/// a point there. A loop about an apex is still as narrow as that cone's
+/// aperture makes it, and [`ruled`] refines the grid for it.
 fn traceable(k: &Frame, partner: &Surface<f64>) -> bool {
     let clear = |surface: &Surface<f64>, q: Point3<f64>| {
         geom_brep::implicit_residual(surface, q).abs() > 0.05 * k.scale
@@ -397,6 +680,8 @@ fn class_on(c: &Component<f64>, essential: bool) -> Class {
 /// What one pose came to.
 enum Outcome {
     Answered,
+    /// Answered, and no grid within the budget resolves the section.
+    Untraced,
     Refused(&'static str),
 }
 
@@ -525,16 +810,19 @@ pub(super) fn traced_mismatches(
         unreachable!("the first carrier is a cone")
     };
     let k = frame(apex, axis.normalize(), half_angle, scale);
-    against_the_trace(&k, &partner_of(partner, scale), parts, single)
+    against_the_trace(&k, &partner_of(partner, scale), parts, single).unwrap_or_else(|| {
+        vec!["no grid within the budget resolves the section on both charts".to_owned()]
+    })
 }
 
-/// The mismatches between `parts` and the traced section.
+/// The mismatches between `parts` and the traced section; `None` where
+/// no grid within [`GRID_BUDGET`] resolves a chart.
 fn against_the_trace(
     k: &Frame,
     partner: &Partner,
     parts: &[Component<f64>],
     single: bool,
-) -> Vec<String> {
+) -> Option<Vec<String>> {
     let mut bad = Vec::new();
     let cone = k.surface();
     let (s, c) = k.alpha.sin_cos();
@@ -542,8 +830,8 @@ fn against_the_trace(
         &|u| (k.apex, k.a * c + k.radial(u) * s),
         k.scale,
         &partner.surface,
-    );
-    let theirs = ruled(&*partner.line, k.scale, &cone);
+    )?;
+    let theirs = ruled(&*partner.line, k.scale, &cone)?;
     for (side, traced, flag) in [("cone", &mine, true), ("partner", &theirs, false)] {
         let mut want = traced.classes.clone();
         want.sort();
@@ -586,7 +874,7 @@ fn against_the_trace(
     if single && mine.classes.len() != 1 {
         bad.push(format!("single, traced {:?}", mine.classes));
     }
-    bad
+    Some(bad)
 }
 
 /// The mismatches of one pose, as sentences.
@@ -648,8 +936,13 @@ fn check(k: &Frame, pose: &Pose) -> (Outcome, Vec<String>) {
     if m < 0.03 * k.scale || !traceable(k, partner) {
         return (Outcome::Answered, bad);
     }
-    bad.extend(against_the_trace(k, &pose.partner, &parts, single));
-    (Outcome::Answered, bad)
+    match against_the_trace(k, &pose.partner, &parts, single) {
+        Some(traced) => {
+            bad.extend(traced);
+            (Outcome::Answered, bad)
+        }
+        None => (Outcome::Untraced, bad),
+    }
 }
 
 type Poser = fn(&mut Rng, &Frame) -> Option<Pose>;
@@ -687,6 +980,7 @@ fn the_general_pose_cone_rows_agree_with_the_traced_section() {
             let (outcome, bad) = check(&k, &pose);
             let key = match outcome {
                 Outcome::Answered => "answered".to_owned(),
+                Outcome::Untraced => "answered, untraced".to_owned(),
                 Outcome::Refused(row) => {
                     // The farthest a refusal stood off every degeneracy,
                     // as a share of the must-answer floor.
@@ -818,4 +1112,154 @@ fn dump_for_the_mpmath_oracle() {
             );
         }
     }
+}
+
+/// A pinned pose: `check` finds no mismatch, and an answer is traced.
+fn agrees(k: &Frame, pose: &Pose) {
+    let (outcome, bad) = check(k, pose);
+    assert!(bad.is_empty(), "{}: {}", pose.what, bad.join("\n"));
+    assert!(
+        !matches!(outcome, Outcome::Untraced),
+        "{}: answered, and no grid within the budget resolves it",
+        pose.what
+    );
+}
+
+fn generic(what: &str, partner: Partner) -> Pose {
+    Pose {
+        what: what.to_owned(),
+        partner,
+        margin: None,
+    }
+}
+
+/// A needle cone (α 0.055) parallel to a wide one (α 0.98) pokes one
+/// loop through it, null on the wide cone and 0.49° of its turn: inside
+/// one column of the first grid. Seed `0x924171afe325def2` at effort 1.
+#[test]
+fn a_parallel_needle_pokes_a_loop_narrower_than_a_column() {
+    let k = frame(
+        Point3::new(-1.2242364198117168, 2.6908604663467344, 2.2697869874119023),
+        Vec3::new(-0.7766578854319418, 0.6257266832420425, 0.07258544534062752),
+        0.9780387075993603,
+        3.480389269348853,
+    );
+    let partner = cone(frame(
+        Point3::new(3.1463864208946175, 3.8911479163575393, -1.0672946609789895),
+        k.a,
+        0.0547163656830942,
+        k.scale,
+    ));
+    agrees(&k, &generic("parallel cone", partner));
+}
+
+/// The needle as the first carrier (α 0.064) against an antiparallel
+/// wide cone (α 1.07): the loop is 0.41° of the wide cone's turn.
+/// Seed `0xc70ed950ae541691` at effort 1.
+#[test]
+fn an_antiparallel_wide_cone_takes_a_loop_narrower_than_a_column() {
+    let k = frame(
+        Point3::new(1.7607851645201547, 0.6830273125948181, -1.406044550949951),
+        Vec3::new(
+            -0.36028068755660553,
+            -0.8366754476210794,
+            0.41251911655316803,
+        ),
+        0.0641900968100325,
+        2.0304779108234405,
+    );
+    let partner = cone(frame(
+        Point3::new(0.07693663316657151, 2.32856615980017, -3.306580468032254),
+        k.a * -1.0,
+        1.0732269008406512,
+        k.scale,
+    ));
+    agrees(&k, &generic("parallel cone", partner));
+}
+
+/// A needle (α 0.085) tilted 28° off a wide cone's axis (α 0.94): a
+/// loop 0.47° of the wide cone's turn. Seed `0x36a100199db4330e` at
+/// effort 1.
+#[test]
+fn a_tilted_needle_pokes_a_loop_narrower_than_a_column() {
+    let k = frame(
+        Point3::new(-0.03741468578592999, 0.7404188176378705, -0.871689350005166),
+        Vec3::new(
+            -0.48238260865339555,
+            0.3281324536304198,
+            -0.8121798518451596,
+        ),
+        0.9443691848509118,
+        1.01447310159946,
+    );
+    let partner = cone(frame(
+        Point3::new(-0.8756810204060506, -0.2863071260418617, 0.5783643361779968),
+        Vec3::new(0.6388220151868295, -0.6278931744885514, 0.44458586835765235),
+        0.08454365565732458,
+        k.scale,
+    ));
+    agrees(&k, &generic("tilted cone", partner));
+}
+
+/// A needle (α 0.076, scale 114) through a wall of radius 14.1: on the
+/// wall's chart the loop is under a cell thick along the rulings
+/// (`scale·tan ψ` stretches a cell to a metre there), and its witness
+/// sits at its tip. Seed `0x8cb02b1f1a051f77` at effort 1.
+#[test]
+fn a_needle_through_a_wall_cuts_a_loop_thinner_than_a_row() {
+    let k = frame(
+        Point3::new(-104.0899309254388, -19.15285302422717, -108.5326162148933),
+        Vec3::new(
+            -0.48167379885257966,
+            0.026245568556438097,
+            -0.8759574884833591,
+        ),
+        0.07597174100034275,
+        114.1474179272722,
+    );
+    let partner = cylinder(
+        Point3::new(-178.95139890292558, -116.2197552299878, -51.84854674756527),
+        Vec3::new(0.40887315477552494, 0.7758904196716273, -0.4804339704534811),
+        14.141020393308477,
+        k.scale,
+    );
+    agrees(&k, &generic("oblique cylinder", partner));
+}
+
+/// A wall 6.3e-4 rad off a generator's direction, 0.103 m off the
+/// aperture degeneracy at scale 30: near that generator the clearance
+/// turns at 1.5e4 m/rad, so it steps 1.7e-12 m between adjacent `f64`
+/// angles, past the zero band at ε 1e-12. Answering or refusing the
+/// precision floor are both true; refusing a fold is not. Seed
+/// `0x65a60eddf0c5bc9c` at effort 1, ε 1e-12.
+#[test]
+fn a_wall_near_the_aperture_refuses_no_fold_past_the_floor() {
+    let k = frame(
+        Point3::new(-28.924207277765834, -1.5123477261036697, 2.3533239296898643),
+        Vec3::new(
+            -0.31791937683018767,
+            -0.6852549429731327,
+            -0.655250282691121,
+        ),
+        0.27630426497190785,
+        29.79211117877402,
+    );
+    let partner = cylinder(
+        Point3::new(-21.855617919159616, -2.897427238216567, 35.35622257066682),
+        Vec3::new(
+            -0.38428223035007797,
+            -0.8196199083608736,
+            -0.42491219475990905,
+        ),
+        14.121612464241352,
+        k.scale,
+    );
+    agrees(
+        &k,
+        &Pose {
+            what: "cylinder near the aperture".to_owned(),
+            partner,
+            margin: Some(-0.10318818850341424),
+        },
+    );
 }

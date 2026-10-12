@@ -73,6 +73,11 @@ pub(super) struct Traced {
     /// Each cell's component, if the zero set crosses it.
     comp: Vec<Option<usize>>,
     pub(super) classes: Vec<Class>,
+    /// The sign changes along each column `u = 2πi/nu`.
+    pub(super) column_changes: Vec<usize>,
+    /// The cells whose corners alternate in sign round the cell: two
+    /// arcs or a crossing, which cell adjacency cannot tell apart.
+    pub(super) saddles: usize,
 }
 
 fn find(parent: &mut [usize], mut x: usize) -> usize {
@@ -103,10 +108,14 @@ pub(super) fn trace(
     let n = nu * nv;
     let mut parent: Vec<usize> = (0..n).collect();
     let mut active = vec![false; n];
+    let mut column_changes = vec![0usize; nu];
+    let mut saddles = 0usize;
     for j in 0..nv {
         for i in 0..nu {
             let (a, b, c, d) = (s(i, j), s(i + 1, j), s(i, j + 1), s(i + 1, j + 1));
             active[cell(i, j)] = !(a == b && b == c && c == d);
+            column_changes[i] += usize::from(a != c);
+            saddles += usize::from(a == d && b == c && a != b);
             // The right neighbour shares column i + 1.
             if s(i + 1, j) != s(i + 1, j + 1) {
                 let (x, y) = (
@@ -163,6 +172,8 @@ pub(super) fn trace(
         v1,
         comp,
         classes,
+        column_changes,
+        saddles,
     }
 }
 

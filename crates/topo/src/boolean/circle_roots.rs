@@ -720,9 +720,14 @@ pub(super) fn certified_subdivision<T: Decide>(
             // Reported within `π` of the arc's midpoint, so a caller
             // compares it with `[t0, t1]` directly: the first cut's ends
             // are moved along their pieces, so the last piece runs past
-            // the half-turn.
+            // the half-turn. The bracket closes on two adjacent scalars;
+            // the root is the one whose residual is nearer zero, since a
+            // steep residual can step across the band's zero between them
+            // and their midpoint rounds onto either.
             let mid = (t0 + t1) / two;
-            let root = mid + ((lo + hi) / two - mid).reduce_periodic_centred(T::tau());
+            let reported = |t: T| mid + (t - mid).reduce_periodic_centred(T::tau());
+            let (at_lo, at_hi) = (reported(lo), reported(hi));
+            let root = (residual(at_lo).abs() - residual(at_hi).abs()).select_le_zero(at_lo, at_hi);
             match decide(rows.side, Margin::of(residual(root)), band) {
                 Ok(Sign::Zero) => {}
                 _ => return Ok(CircleRoots::Uncertain),
