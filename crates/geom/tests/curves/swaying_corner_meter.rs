@@ -321,5 +321,27 @@ fn the_rational_meter_stays_below_the_speed_and_refuses_a_stall() {
         built * 2 >= cases && stalls * 8 >= cases,
         "fuzz rot: {built} nets, {stalls} stalls of {cases} — {}",
         fuzz::replay()
+
+/// The meter is memoised on the curve, and the memo is not part of its
+/// value: reading it leaves `Debug` unchanged, a clone reads the same
+/// bits, and a curve built from a metered one by a door that moves the
+/// net (here a uniform scale by 2, which doubles the speed) meters its
+/// own net rather than inheriting the first answer.
+#[test]
+fn the_meter_memo_is_invisible_and_never_inherited() {
+    let c = swaying(2.0, 3);
+    let before = format!("{c:?}");
+    let m = c.speed_lower_bound().get();
+    assert_eq!(format!("{c:?}"), before, "reading the meter changed Debug");
+    assert_eq!(
+        c.clone().speed_lower_bound().get().to_bits(),
+        m.to_bits(),
+        "clone"
+    );
+    let scaled = c.map_points(|p| Point3::new(p.x * 2.0, p.y * 2.0, p.z * 2.0));
+    let ms = scaled.speed_lower_bound().get();
+    assert!(
+        (ms - 2.0 * m).abs() <= 1e-12 * m,
+        "scaled net metered {ms}, twice the source's {m} expected"
     );
 }
