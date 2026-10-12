@@ -117,9 +117,9 @@ fn r1_a_difference_across_an_edge_kiss_decides_the_minted_pair() {
 /// divided with its remainder removed (its one piece itself), the other
 /// substituted by a cell the result does not hold (an op bug: the
 /// lineage does not cover it). D1: "a cell the lineage does not cover
-/// refuses". PINS THE DEFECT: the carry consumes the record (Ok, empty).
+/// refuses". Fixed in fde80e8b85: it refuses `Unmapped`.
 #[test]
-fn r1_a_lineage_gap_beside_a_removal_is_consumed_not_refused() {
+fn r1_a_lineage_gap_beside_a_removal_refuses_unmapped() {
     let (base, ee) = edge_kiss();
     let [x, y] = base.contacts.rows()[ee as usize].cells();
     let lineage = topo::Lineage::new()
