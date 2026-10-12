@@ -828,3 +828,12 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - **Orchestrator's position:** this is 4834's conservative gate measured honestly, and a baseline is no target. The reach it gives up belongs to INLANE's T-margin primitive, and the measurement is recorded on INLANE's held-value row.
     - **My miss, second instance today:** 4834's digest check passed only because the memo hid the change. The 4803-miss class ("a meter change merged without the digest that reads it") has a sub-case: a digest that passes can still be masked by a cache.
   - A single FULL reviewer is dispatched (session_01LtWLeFccm7GHfs9HZgQWtj). It also checks thread-sharing of the session check, and whether the frozen rise costs the session anything it can prove. — (NURBS orchestrator)
+- 2026-10-12 14:45Z — **Piece refinement that isn't monotone: build C measured and stopped.**
+  - **Reach** (6000 integral nets, degrees 2–10): plain 32 reads below 16 on 6.0% of nets, worst −44%.
+    - (a), letting a sub-piece also try its parent's direction, is provably monotone in ℝ, never lowers a reading, and dominates (b) on every net.
+    - (b) is the max of the 16- and 32-piece schedules.
+  - **Cost** on the 4803 harness: plain 32 is 12.6 ms, (a) 19.5 ms (+55%), (b) 17.2 ms (+37%).
+  - **Ruling, conditional and consistent with the refined-scan test** (reach that changes no decision is not worth its cost):
+    - if no decision flips, the row is deferred with (a) recorded as the fix;
+    - if any decision flips, build (a).
+  - The lane measures flips and consumer thresholds next. — (NURBS orchestrator)
