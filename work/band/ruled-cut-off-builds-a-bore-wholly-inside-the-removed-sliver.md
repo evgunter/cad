@@ -221,3 +221,18 @@ membership test (4).
   no flip to cite and falls to `cause_not_in_evidence`. The population
   diff's blind spot (a consumed face and a face freed in one edit cancel)
   applies here as it does to the Boolean's.
+- **Adjudicated (orchestrator, 2026-10-12): reading (A), no new record.**
+  The ruling says "the verdict is logged so a later reader of a consumed
+  name resolves `Vanished` with the blend's verdict as the cause", and "no
+  `Consumed` record … at least until something needs it". The blend
+  node's verdict log is that log, and `Vanished { PredicateFlip }` is
+  that resolution, the same path a feature inside a Boolean's tool takes.
+  So step 2 adds no `Diagnosis` arm and no record on `Blended`; a cause
+  naming the feature, band and depth waits until something needs it (the
+  INTENT consumption lint is the likely first reader). What remains of
+  step 2 rides step 3, where a consumed name first exists: (i) a row that
+  a name resolved before the carve resolves `Vanished { PredicateFlip {
+  fillet3_face_clearance, … } }` after it; (ii) `reach::Unclear` breaks an
+  equal-`hi` tie by `EntityId` so `WhollyInside { at }` names one face
+  whatever the edge order. The no-prior-run blind spot is the Boolean's
+  too, and is recorded, not built.
