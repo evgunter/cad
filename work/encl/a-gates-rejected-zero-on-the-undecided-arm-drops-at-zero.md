@@ -2,12 +2,13 @@
 id: a-gates-rejected-zero-on-the-undecided-arm-drops-at-zero
 kind: issue
 title: A gate's rejected Zero routed as RefusedArm::Undecided never shows the decision's at_zero note
-status: review
+status: closed
 opened: 2026-10-12
 priority: P3
 cost: E
 branch: encl/rejected-zero-at-zero
 pr: 4855
+closed: 2026-10-12
 ---
 
 
