@@ -39,7 +39,8 @@ statement of why prose is not enough here.
 `geom_brep::chart_stretch_inf`'s `ChartStretchInf` is the other half:
 `inf_u`/`inf_v` are inf rates and `sup_u`/`sup_v` are the very numbers
 `chart_stretch_sup` now answers as `SupSpeed` (the two doors report ONE
-sup — `the_two_doors_report_one_sup` pins that equality). Its fields
+sup: `chart_stretch_inf`'s spline arm reads `nurbs_stretch_bounds`,
+the same call `chart_stretch_sup` answers with). Its fields
 stayed bare `f64`/`T` for the same scoping reason, and `area_inf` is an
 AREA rate, which the linear pair does not name at all. Whoever types
 `certified_arms` will pass through this struct on the way.
