@@ -35,3 +35,13 @@ seeds, so the row has not run at 1e-12 since PR 4231 added it.
 Either the residual's floor has to be read against the lever `far`
 puts on it, or the fixture keeps `far` within what the band
 certifies at 1e-12, with that limit stated beside it.
+
+## Folded in: TINT's `tipped-rod-join-escalates-at-1e-12`
+
+TINT filed the same failure on 2026-10-07: the BAND lane saw it running
+`CAD_TOLERANCE_EPS=1e-12 cargo nextest run -p sweep`, identical on
+`origin/main`, with the same margin of 1.2533e-12. ENCL's nightly triage
+flagged the pair, and that row is folded in here because TANG's PR 4231
+added the row. Its framing of the fork: either the check's lever must
+absorb the stored origin's distance, or the row is eps-sensitive and
+wants a loud skip at that row.
