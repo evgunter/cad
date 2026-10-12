@@ -674,6 +674,17 @@ fn matched_records<T: Decide>(
             lane,
         });
     }
+    if std::env::var_os("CAD_PROBE_DUMP").is_some() {
+        let mut set: Vec<_> = segments
+            .iter()
+            .map(|s| {
+                let [a, b] = s.ends;
+                (a.min(b), a.max(b))
+            })
+            .collect();
+        set.sort();
+        eprintln!("PROBE matching {set:?}");
+    }
     Ok((segments, open))
 }
 
@@ -1856,17 +1867,45 @@ fn first_pair<T: Decide>(
         own.get(&partner)
             .is_some_and(|&(_, _, (back, _))| back == *germ)
     });
+    // R2 review probe (env-gated): mutants of the mutuality check, a
+    // reversed in-band order, and a log of in-band readings.
+    let mutant = std::env::var("CAD_PROBE_MUTANT").unwrap_or_default();
+    let mutual = match mutant.as_str() {
+        "always" => true,
+        "exists" => own.iter().all(|(_, &(_, _, (partner, _)))| own.contains_key(&partner)),
+        "flip" => !mutual,
+        _ => mutual,
+    };
+    let reverse = std::env::var_os("CAD_PROBE_REVERSE").is_some();
+    let log = std::env::var_os("CAD_PROBE_DUMP").is_some();
+    let inband = std::cell::Cell::new(0usize);
     let mut met: Vec<_> = own.into_values().collect();
     met.sort_by_key(|&(at, ..)| at);
     let mut best: Option<(Reach<T>, (Slot, Slot))> = None;
     for (_, reach, m) in met {
         best = keep_nearer(best, (reach, m), |c, b| {
+            if nearest_sign(c, b, band).is_err() {
+                inband.set(inband.get() + 1);
+            }
             if mutual {
-                Ok(nearer_or_scan(c, b, band))
+                if reverse && std::env::var_os("CAD_PROBE_REVERSE_ALL").is_none() {
+                    // In-band only: the candidate takes an in-band reading.
+                    Ok(match nearest_sign(c, b, band) {
+                        Ok(s) => s == Sign::Negative,
+                        Err(_) => true,
+                    })
+                } else if reverse {
+                    Ok(!matches!(nearest_sign(b, c, band), Ok(Sign::Negative)))
+                } else {
+                    Ok(nearer_or_scan(c, b, band))
+                }
             } else {
                 nearer(c, b, band)
             }
         })?;
+    }
+    if log && inband.get() > 0 {
+        eprintln!("PROBE first_pair mutual={mutual} inband={} pick={:?}", inband.get(), best.map(|(_, m)| m));
     }
     Ok(best.map(|(_, m)| m))
 }
