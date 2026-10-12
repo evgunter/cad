@@ -26,6 +26,7 @@
 
 #![allow(clippy::panic, clippy::expect_used)]
 
+use crate::shared::surf::at_apex;
 use crate::shared::tol::band;
 use geom::{Curve3, Surface};
 use geom_brep::intersect::{
@@ -492,7 +493,7 @@ fn plane_cone_decides_the_apex_gap_and_the_discriminant_as_one_sum() {
             normal,
             u_ref: Vec3::unit_y(),
         };
-        plane_cone_section(&plane, &cone, 1.0, band())
+        plane_cone_section(&plane, &cone, &at_apex(&cone, 1.0), band())
     };
     let got = at(INSIDE * z, INSIDE * z);
     assert!(
