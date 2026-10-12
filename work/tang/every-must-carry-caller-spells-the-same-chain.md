@@ -2,10 +2,12 @@
 id: every-must-carry-caller-spells-the-same-chain
 kind: issue
 title: every must_carry_over_edge caller spells the same sorted, edge_extent, rule, route, chart chain
-status: open
+status: review
 opened: 2026-10-12
 priority: P1
 cost: M
+pr: 4859
+branch: tang/one-must-carry-chain
 ---
 
 
