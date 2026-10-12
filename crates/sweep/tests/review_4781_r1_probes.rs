@@ -354,9 +354,8 @@ fn touch_pairs() -> Vec<(&'static str, Shape, Shape)> {
 }
 
 /// **Every touch-only pair answers every op right, both orders, three
-/// scales.** Prints each line. Red on any non-OK where the two edges on
-/// the line coincide end to end; where they are staggered, red on
-/// anything but `CurvedBooleanUnsupported`.
+/// scales**, edges of unequal extent along the line included. Prints
+/// each line; red on any non-OK.
 #[test]
 fn review_4781_touch_pairs_every_op() {
     let mut bad = Vec::new();
@@ -366,19 +365,7 @@ fn review_4781_touch_pairs_every_op() {
                 let (x, y) = (x.scaled(s), y.scaled(s));
                 for line in pose(x, y, 0.0, Some(2)) {
                     println!("{name} s={s:e} {order} | {line}");
-                    // Edges of unequal extent along the line (a vertex of
-                    // one in the other's edge interior) refuse at every
-                    // op: the frontier of
-                    // `work/contacthold/a-same-side-slab-past-the-round-stops-at-curved-boolean-unsupported.md`.
-                    let staggered = name.contains("short")
-                        || name.contains("tall")
-                        || name.contains("staggered");
-                    let ok = if staggered {
-                        line.contains(": REFUSED CurvedBooleanUnsupported ")
-                    } else {
-                        line.contains(": OK ")
-                    };
-                    if !ok {
+                    if !line.contains(": OK ") {
                         bad.push(format!("{name} s={s:e} {order} | {line}"));
                     }
                 }
@@ -478,7 +465,7 @@ fn review_4781_near_tangent_cylinders() {
 /// materials on ONE side): box `x ∈ [-3, 1], y ∈ [0, 3]` whose face
 /// `x = 1` is tangent to the unit cylinder at the seam `(1, 0)`, box
 /// edge on the seam ruling, and the cylinder's `y ≥ 0` half inside the
-/// box. ∩ is the half cylinder.
+/// box. ∩ is the half cylinder. Every op answers, both orders.
 #[test]
 fn review_4781_kiss_with_overlap() {
     let unit = Shape::Cyl {
@@ -496,7 +483,7 @@ fn review_4781_kiss_with_overlap() {
     for (order, x, y) in [("ab", unit, bx), ("ba", bx, unit)] {
         for line in pose(x, y, meet, None) {
             println!("{order} | {line}");
-            if line.contains("WRONG") || line.contains("ClassificationInvariant") {
+            if !line.contains(": OK ") {
                 bad.push(format!("{order} | {line}"));
             }
         }

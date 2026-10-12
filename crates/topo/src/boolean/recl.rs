@@ -39,7 +39,9 @@ use geom_core::{Band, Decide, Margin, Sign, Vec3};
 use super::carrier_eq::CarrierDesc;
 use super::plane_eq::{PlaneEqError, PlaneRelation};
 use super::sectors::{BoolSector, Flank, PairRecord, Reach, crossing_flank, pair_codes, side_code};
-use super::tables::{TableIiVerdict, eq15_3_lump, kept_copy, resolve_verdict, table_ii};
+use super::tables::{
+    TableIiVerdict, eq15_3_lump, kept_copy, resolve_verdict, table_ii, table_iii_rule,
+};
 use super::{BooleanError, BooleanOp, Coincide, DeclarationRead, Operand, SideCode};
 use crate::body::Body;
 use crate::entity::EntityId;
@@ -1455,13 +1457,18 @@ fn resolve_edge_sector<T: Decide>(
     let k2 = flank_key(own_secs, f_e, true, ref_sector.normal, band)?;
     let (v1, v2) = table_ii(k1, k2);
     let comparison = if a_side { Operand::A } else { Operand::B };
-    let mut relation = PlaneRelation::SameOriented;
+    // Table III's rule: whether the on-flanker lumps Out. A glued
+    // tangency's on-flanker lumps by the side its carrier curves to
+    // ([`super::sectors::tangent_lump`]); any other by its carrier
+    // identity with the reference (Eq. 15.3).
+    let mut lumps_out = false;
     if matches!(
         (v1, v2),
         (TableIiVerdict::Rule | TableIiVerdict::NotRule, _)
             | (_, TableIiVerdict::Rule | TableIiVerdict::NotRule)
     ) {
         let on_flanker = if k1 == SideCode::On { f_s } else { f_e };
+        let own_sec = &own_secs[on_flanker];
         let (own_body, ref_body): (&Body<T>, &Body<T>) = if a_side {
             (a_body, b_body)
         } else {
@@ -1472,18 +1479,55 @@ fn resolve_edge_sector<T: Decide>(
         } else {
             (super::Operand::B, super::Operand::A)
         };
-        relation = require_same(
-            own_body,
-            own_op,
-            &own_secs[on_flanker],
-            ref_body,
-            ref_op,
-            ref_sector,
-            declared,
-            ReadOn::FirstBounds,
-            own_secs[on_flanker].arm.min(ref_sector.arm),
-            band,
-        )?;
+        let arm = own_sec.arm.min(ref_sector.arm);
+        lumps_out = if declared.declares_tangent(own_op, own_sec.face, ref_op, ref_sector.face) {
+            let read = declared.read(
+                &[(own_op, own_sec.face, ref_op, ref_sector.face)],
+                Coincide::TangentSide,
+                &[],
+            );
+            let surface_of = |body: &Body<T>, face| {
+                body.get_face(face)
+                    .and_then(|f| body.get_surface(f.surface))
+                    .cloned()
+                    .ok_or(BooleanError::ClassificationInvariant {
+                        what: "a glued tangency's face lost its surface",
+                    })
+            };
+            let p = own_body.half_edge_start_point(own_sec.he).ok_or(
+                BooleanError::ClassificationInvariant {
+                    what: "edge-sector site lost its point",
+                },
+            )?;
+            super::sectors::tangent_lump(
+                &surface_of(own_body, own_sec.face)?,
+                &surface_of(ref_body, ref_sector.face)?,
+                declared.reach_of(own_op, own_sec.face, ref_op, ref_sector.face)?,
+                ref_sector.normal,
+                own_sec.normal,
+                p,
+                op,
+                comparison,
+                own_sec.face,
+                arm,
+                read,
+                band,
+            )? == SideCode::Out
+        } else {
+            let relation = require_same(
+                own_body,
+                own_op,
+                own_sec,
+                ref_body,
+                ref_op,
+                ref_sector,
+                declared,
+                ReadOn::FirstBounds,
+                arm,
+                band,
+            )?;
+            table_iii_rule(op, comparison, relation)
+        };
     }
     // A `Yes` cell is Table II's mixed row, which names the flanker keyed
     // In. The one fold rule decides which flanker the crossing is
@@ -1499,7 +1543,7 @@ fn resolve_edge_sector<T: Decide>(
         _ => flank,
     };
     for (flank, verdict) in [(f_s, v1), (f_e, v2)] {
-        if resolve_verdict(verdict, op, comparison, relation) {
+        if resolve_verdict(verdict, lumps_out) {
             let flank = germ_flank(flank, verdict);
             let pair = |r: usize| if a_side { (flank, r) } else { (r, flank) };
             let held = twins(ref_secs, ref_idx).into_iter().find_map(|r| {
