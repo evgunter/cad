@@ -152,21 +152,27 @@ fn shared(k: f64, g: f64) -> f64 {
         .sum()
 }
 
-/// Where a run that does not build may stop, by `k`. With the pair order
-/// fixed the `k = 10` pose moves on, and must then build.
+/// Where a run that does not build may stop, by `k`.
 ///
-/// - `k = 10`, past the travel order: the notch's two walls are parallel
-///   and `24ε` apart, and their section arcs' chords differ by a few ε,
-///   so the order between the two pairs ties in band
-///   (`bool_join_nearest`;
-///   `work/sect/a-bar-through-a-ball-refuses-at-a-door-that-moves-with-scale.md`).
+/// - `k = 10`, past the travel order, and past the order between the
+///   two pairs the notch's parallel walls carry (their chords differ by
+///   a few ε, but every germ's nearest is mutual, so the order is
+///   free): the finger's section arc certifies its span at the
+///   ellipse's minor semi-axis, reading `3.4ε` for an arc `24ε` long
+///   (`interval_span_forward`;
+///   `work/issues/an-ellipse-arcs-span-is-levered-by-its-global-speed-floor.md`).
 /// - `k = 60`, at the travel order: `24` bands of arc do not clear the
 ///   sites' slack of `60` (`bool_join_arc_clear`).
 fn stops_where_expected(k: f64, e: &BooleanError) -> bool {
     match e {
-        BooleanError::Escalated { diag, .. } if k == 10.0 => {
-            diag.predicate == Some("bool_join_nearest")
-        }
+        BooleanError::Join(topo::SplitJoinError::Euler(topo::EulerOpError::Certification {
+            error:
+                geom_brep::CertifyError::Escalated {
+                    check: geom_brep::CertCheck::ParamSpan,
+                    cause,
+                    ..
+                },
+        })) if k == 10.0 => cause.predicate == Some("interval_span_forward"),
         BooleanError::Escalated { diag, .. } if k == 60.0 => {
             diag.predicate == Some("bool_join_arc_clear")
         }

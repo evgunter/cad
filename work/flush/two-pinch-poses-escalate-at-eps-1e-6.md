@@ -135,3 +135,15 @@ Pins:
   escalates again and the row goes red.
 
 Pose 2 is unchanged (above).
+
+Two other rows had pinned the same spurious escalation, and both
+move with the fix:
+- `crates/sweep/tests/germ_plane_torus_frame.rs`: the bar across the
+  hole tied two pairs `3.2e-6 m` apart at ε 1e-6. Its row now asserts
+  that the bar reaches the dispatch at every ε
+  (`a_pair_order_tie_in_band_on_a_bar_across_the_hole_reaches_the_dispatch`).
+- `crates/sweep/tests/band_apart_partners_on_a_steep_ellipse.rs`:
+  `k = 10` now gets past the pair order. It stops at the finger arc's
+  span certificate (`interval_span_forward`, margin 3.39ε for an arc
+  24ε long), filed as
+  `work/issues/an-ellipse-arcs-span-is-levered-by-its-global-speed-floor.md`.
