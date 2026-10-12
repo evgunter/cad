@@ -43,7 +43,7 @@ const UNKNOWN: &str = "roster_unknown_probe";
 ///
 /// The sentence is the tail of the refusal, byte for byte, the home
 /// every name-keyed table's fall-through composes; the shared
-/// coincidence recourse still arrives ahead of it through `{source}`
+/// coincidence recourse still arrives ahead of it in the ending
 /// (the class `every-escalation-carries-the-coincidence-recourse-first`
 /// names, which the path door's junction keys keep on purpose); and the
 /// door asserts no category. The blend door is not a leg here: its
@@ -70,7 +70,7 @@ fn the_path_door_renders_the_gap_sentence_for_an_unknown_name() {
             "no category over an unknown name: {path}"
         );
         assert!(
-            path.starts_with("an unnamed decision is too close to call: "),
+            path.starts_with("an unnamed decision is undecided: "),
             "the door names what escalated ahead of the payload: {path}"
         );
     }
@@ -110,9 +110,7 @@ fn the_validator_door_appends_a_site_note_and_routes_nothing() {
         }
         .to_string();
         assert!(
-            text.starts_with(
-                "validation escalated between loop 0 segment 0 and loop 0 segment 1: "
-            ),
+            text.starts_with("between loop 0 segment 0 and loop 0 segment 1, "),
             "{text}"
         );
         assert!(text.contains(COINCIDENCE_RECOURSE), "{text}");

@@ -700,14 +700,10 @@ pub fn fillet_recourse_for(predicate: &str) -> Option<&'static str> {
 }
 
 /// Every predicate this crate decides whose ONLY recourse is the shared
-/// coincidence clause the escalation's own payload already carries,
-/// with what its margin measures.
+/// ending (`escalation_ending`), with what its margin measures.
 ///
-/// Each of these meters a separation, a length or a side — a quantity
-/// whose levers are exactly the three [`COINCIDENCE_RECOURSE`] names
-/// (declare the coincidence, move the geometry, lower the tolerance).
-/// A door that could add a fourth lever for one of them owes it a
-/// sentence of its own and takes the name off this list.
+/// A door that could add a lever for one of them owes it a sentence of
+/// its own and takes the name off this list.
 ///
 /// **Being here is a DECISION and reads as one.**
 /// [`crate::PathError::Escalated`] renders a listed name with the
@@ -896,6 +892,66 @@ pub fn shared_clause_only(predicate: &str) -> Option<&'static str> {
         .map(|(_, reason)| *reason)
 }
 
+/// The decisions of this crate whose margin is no size the user chose,
+/// each with the lever its refusal ends in: a levered sine or cosine (a
+/// junction's or a corner's turn and side), an angle (an authored sweep,
+/// an arc's sweep against a full turn, a full turn's reach and sense), a
+/// winding (a loop's signed area), a form or order selection (a bulge's
+/// sense, a segment straight or an arc, the canonical order read at the
+/// exact-order band, which no tolerance moves), or a scene magnitude the
+/// band is no lever on (`arc_carrier_resolution`, which ends as its
+/// definite refusal, [`ProfileError::ArcBelowSceneResolution`], does).
+/// No smaller tolerance is their recourse (D4 ¶1 (i)), so
+/// `escalation_ending` ends them in their lever alone.
+/// `recourse_roster` holds each name against the names `src` decides.
+#[cfg_attr(
+    not(any(test, feature = "test-support")),
+    allow(
+        unreachable_pub,
+        reason = "re-exported by the crate root only under \
+     `test-support`; interior in every other build"
+    )
+)]
+pub const LEVER_ONLY_DECISIONS: &[(&str, &str)] = &[
+    ("arc_carrier_resolution", ARC_SCENE_RESOLUTION_RECOURSE),
+    ("arc_sweep_range", COINCIDENCE_RECOURSE),
+    ("canonical_order_x", COINCIDENCE_RECOURSE),
+    ("canonical_order_y", COINCIDENCE_RECOURSE),
+    ("full_turn_reach", COINCIDENCE_RECOURSE),
+    ("full_turn_sense", COINCIDENCE_RECOURSE),
+    ("loop_orientation", COINCIDENCE_RECOURSE),
+    ("path_arc_bulge", COINCIDENCE_RECOURSE),
+    ("path_arc_sweep", COINCIDENCE_RECOURSE),
+    ("path_arc_sweep_full", COINCIDENCE_RECOURSE),
+    ("path_corner_turn", COINCIDENCE_RECOURSE),
+    ("path_junction_side", COINCIDENCE_RECOURSE),
+    ("path_junction_turn", COINCIDENCE_RECOURSE),
+    ("segment_straightness", COINCIDENCE_RECOURSE),
+];
+
+/// The one ending an escalation of this crate's decisions carries,
+/// whichever door renders it whole ([`ProfileError::Escalated`],
+/// [`crate::PathError::Escalated`]): a [`LEVER_ONLY_DECISIONS`] name
+/// ends in its lever alone, noted where its margin could not be read;
+/// every other is a size the user may have chosen and ends in
+/// [`Indeterminate::ending`], tolerance arm included (D4 ¶1).
+pub(crate) fn escalation_ending(source: &Indeterminate) -> String {
+    let lever_only = source.predicate.and_then(|predicate| {
+        LEVER_ONLY_DECISIONS
+            .iter()
+            .find(|(name, _)| *name == predicate)
+    });
+    match lever_only {
+        Some((_, lever)) => geom_core::lever_recourse(
+            lever,
+            source
+                .margin
+                .unreadable_note(geom_core::UNREADABLE_MARGIN_NOTE),
+        ),
+        None => source.ending(COINCIDENCE_RECOURSE),
+    }
+}
+
 /// The subject a door states for an escalation whose name has no words
 /// in [`decision_subject`]: `geom_core::UNNAMED_DECISION`.
 #[cfg_attr(
@@ -911,7 +967,7 @@ pub const UNNAMED_DECISION: &str = geom_core::UNNAMED_DECISION;
 /// What an escalated decision of this crate was deciding, in the words
 /// a refusal states before the margin it could not call: each a clause
 /// that stands alone, with no colon or dash of its own, so the door can
-/// follow it with "is too close to call". The one home of these words,
+/// follow it with the undecided verdict. The one home of these words,
 /// read by [`ProfileError::Escalated`] and [`crate::PathError::Escalated`]'s
 /// fall-through; [`SHARED_CLAUSE_ONLY`]'s reasons are for the roster's
 /// readers, not for the screen. `None` only for the fillet
@@ -1244,17 +1300,17 @@ impl fmt::Display for ProfileError {
                     .unwrap_or(UNNAMED_DECISION);
                 write!(
                     f,
-                    "validation escalated {site}: {what} is too close to call: {source}"
+                    "{}",
+                    source.undecided(format_args!("{site}, {what}"), escalation_ending(source))
                 )?;
-                // The near-tangency site note (#101 point 2, reworked by
-                // the S6 two-tolerance sweep): the recourse levers ride
-                // `{source}` (the shared carrier); this addendum adds
-                // only the site-specific mechanics of the construct lever.
+                // The near-tangency site note: the levers ride the
+                // ending (`escalation_ending`); this addendum adds only
+                // the site-specific mechanics of the construct lever.
                 //
                 // IT IS KEYED ON A (SITE, NAME) PAIR, and it appends
                 // nothing for every other pair. That default is honest
                 // because the note is not a recourse: the levers are
-                // already rendered by `{source}`, and a pair it does not
+                // already rendered by the ending, and a pair it does not
                 // match is one with no extra MECHANICS to add, never one
                 // whose recourse is missing. A recourse that went silent
                 // here would be the failure this crate's own roster

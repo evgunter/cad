@@ -92,6 +92,26 @@ caller's, per `Reading`. Three render the whole escalation
   `UndecidedRefusal`, which needs an `Indeterminate`: two of
   `SectorReading`'s arms are decided disagreements carrying margins.
 
+**Done: the profile slice, in PR NNNN** (four sentences: `path.rs`'s
+junction arm and both fall-through arms, `validate.rs`'s
+`ProfileError::Escalated`, now "{site}, {subject} is undecided: …").
+Both doors end through one `validate::escalation_ending`: the names in
+`validate::LEVER_ONLY_DECISIONS` (levered turns and sides, angles, the
+loop winding, form and order selections, `arc_carrier_resolution`) end
+in their lever alone, every other in `ending(COINCIDENCE_RECOURSE)`.
+
+- Skipped: nothing on D10 ground in the slice.
+- Left: the hand-spelled decision-specific verdicts in `path.rs`'s
+  `Escalated` (`path_continuation_target_offset` and the seam arrival,
+  "neither … nor definitely off it"; `path_leg_length`, "could not be
+  told from zero"), each with a hand-written ending;
+  `FILLET_ENCLOSING_RECOURSE` restating the verdict ("too close to … to
+  tell whether") after "the fillet at this corner is undecided"; the
+  fillet and stored-form arms' `lever_recourse(.., None)`, which drops
+  the unreadable-margin note on poison; `structure.rs`'s
+  `StructureRefusal` bare `{source}` (owned by
+  `work/paths/paths-refusals-short-of-the-shape-guard.md`).
+
 ## Repair shape
 
 One crate per PR, re-baselining the texts each moves; drop

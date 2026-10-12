@@ -30,7 +30,7 @@
 //! recourse table.** `ProfileError::Escalated`'s near-tangency addendum
 //! (`validate.rs`) appends a site NOTE for three carrier names at a
 //! segment pair and appends nothing otherwise; the levers themselves
-//! ride `{source}` for every name, so its default asserts nothing and
+//! ride the shared ending for every name, so its default asserts nothing and
 //! it has no gap to name. Those three names also carry a sentence at
 //! `PathError`'s stored-form arm, and the two differ on purpose — the
 //! validator sees a segment pair the caller authored, the door a form
@@ -162,11 +162,39 @@ fn every_decided_name_is_routed_or_listed_with_its_reason() {
         if listed.contains(name) {
             let what = profile::decision_subject(name).expect("a listed name has a subject");
             assert!(
-                rendered(name).starts_with(&format!("{what} is too close to call:")),
+                rendered(name).starts_with(&format!("{what} is undecided: ")),
                 "`{name}` is listed as shared-clause-only but a routed arm answers it: {}",
                 rendered(name)
             );
         }
+    }
+}
+
+/// **Every lever-only decision is one the crate decides, under a subject
+/// a refusal states.** A name in `validate::LEVER_ONLY_DECISIONS` that
+/// nothing in `src` decides any more — a gate renamed under it — would
+/// leave its decision on the sized ending with nothing to say so.
+#[test]
+fn every_lever_only_decision_is_decided_and_named() {
+    let census = census();
+    let listed: BTreeSet<&str> = profile::LEVER_ONLY_DECISIONS
+        .iter()
+        .map(|(n, _)| *n)
+        .collect();
+    assert_eq!(
+        listed.len(),
+        profile::LEVER_ONLY_DECISIONS.len(),
+        "a name is listed twice in LEVER_ONLY_DECISIONS"
+    );
+    for (name, _) in profile::LEVER_ONLY_DECISIONS {
+        assert!(
+            census.names.contains(*name),
+            "`{name}` is listed as lever-only, but nothing in the crate's src decides it"
+        );
+        assert!(
+            profile::decision_subject(name).is_some(),
+            "`{name}` is listed as lever-only and has no subject"
+        );
     }
 }
 
@@ -345,4 +373,200 @@ fn nothing_in_src_is_invisible_to_the_reader() {
          not walk, so a gate there is outside the roster: {:?}",
         census.unwalked
     );
+}
+
+/// The escalation under `name` at `margin`, against the band
+/// `(1e-9, 1e-8)`.
+fn at(name: &'static str, margin: MarginDiag) -> Indeterminate {
+    Indeterminate {
+        margin,
+        band: Band::new(1e-9, 1e-8).expect("the band forms"),
+        predicate: Some(name),
+        terminal_sliver: false,
+    }
+}
+
+/// **Both doors end an undecided decision as its kind warrants, and
+/// the same way.** A lever-only decision (a junction's turn, a loop's
+/// winding, the canonical order, an arc's scene resolution) ends in its
+/// lever alone on a value and on a straddle, noted on an unreadable
+/// margin; a sized one (a radius, a
+/// segment's length) offers the tolerance on a value, subdivision on a
+/// straddle and the inputs on an unreadable margin. A name nothing
+/// decides keeps the sized ending and names the hole.
+#[test]
+fn the_undecided_endings_follow_the_decisions_kind() {
+    use profile::{EscalationSite, ProfileError, SegmentRef};
+    let value = MarginDiag::value(5e-9);
+    let straddle = MarginDiag::enclosure(-2e-9, 5e-9);
+    let poison = MarginDiag::INVALID;
+    let path = |name, margin| {
+        PathError::<f64>::Escalated {
+            source: at(name, margin),
+        }
+        .to_string()
+    };
+    let validation = |site, name, margin| {
+        ProfileError::Escalated {
+            site,
+            source: at(name, margin),
+        }
+        .to_string()
+    };
+    let segment = SegmentRef {
+        loop_index: 0,
+        segment_index: 1,
+    };
+    let cases = [
+        (
+            "a junction's turn, value",
+            path("path_junction_turn", value),
+            "whether the path turns at this junction is undecided: margin 5e-9 lies inside the \
+             ambiguity band (1e-9, 1e-8). Recourse: move the geometry",
+        ),
+        (
+            "a junction's turn, straddle",
+            path("path_junction_turn", straddle),
+            "whether the path turns at this junction is undecided: enclosure [-2e-9, 5e-9] \
+             cannot be classified against the ambiguity band (1e-9, 1e-8). Recourse: move the \
+             geometry",
+        ),
+        (
+            "a junction's turn, unreadable",
+            path("path_junction_turn", poison),
+            "whether the path turns at this junction is undecided: margin is invalid (NaN or a \
+             refused enclosure) against the ambiguity band (1e-9, 1e-8). Recourse: move the \
+             geometry; an unreadable margin may indicate a kernel bug worth reporting",
+        ),
+        (
+            "a circle's radius, value",
+            path("path_circle_radius", value),
+            "whether a circle's radius is zero is undecided: margin 5e-9 lies inside the \
+             ambiguity band (1e-9, 1e-8). Recourse: move the geometry, or, if this size is \
+             intended, tighten the tolerance below 5e-10 m",
+        ),
+        (
+            "a circle's radius, straddle",
+            path("path_circle_radius", straddle),
+            "whether a circle's radius is zero is undecided: enclosure [-2e-9, 5e-9] cannot be \
+             classified against the ambiguity band (1e-9, 1e-8). Recourse: subdivide the \
+             parameter box for a tighter enclosure, or move the geometry",
+        ),
+        (
+            "a circle's radius, unreadable",
+            path("path_circle_radius", poison),
+            "whether a circle's radius is zero is undecided: margin is invalid (NaN or a refused \
+             enclosure) against the ambiguity band (1e-9, 1e-8). Recourse: check the \
+             operation's inputs upstream, then move the geometry; an unreadable margin may \
+             indicate a kernel bug worth reporting",
+        ),
+        (
+            "an unknown name, value",
+            path("roster_unknown_probe", value),
+            "an unnamed decision is undecided: margin 5e-9 lies inside the ambiguity band \
+             (1e-9, 1e-8). Recourse: move the geometry, or, if this size is intended, tighten \
+             the tolerance below 5e-10 m — no recourse is recorded for this decision",
+        ),
+        (
+            "validation, a loop's winding, value",
+            validation(
+                EscalationSite::Loop { loop_index: 0 },
+                "loop_orientation",
+                value,
+            ),
+            "on loop 0, which way round a loop runs is undecided: margin 5e-9 lies inside the \
+             ambiguity band (1e-9, 1e-8). Recourse: move the geometry",
+        ),
+        (
+            "validation, a loop's winding, straddle",
+            validation(
+                EscalationSite::Loop { loop_index: 0 },
+                "loop_orientation",
+                straddle,
+            ),
+            "on loop 0, which way round a loop runs is undecided: enclosure [-2e-9, 5e-9] \
+             cannot be classified against the ambiguity band (1e-9, 1e-8). Recourse: move the \
+             geometry",
+        ),
+        (
+            "validation, a loop's winding, unreadable",
+            validation(
+                EscalationSite::Loop { loop_index: 0 },
+                "loop_orientation",
+                poison,
+            ),
+            "on loop 0, which way round a loop runs is undecided: margin is invalid (NaN or a \
+             refused enclosure) against the ambiguity band (1e-9, 1e-8). Recourse: move the \
+             geometry; an unreadable margin may indicate a kernel bug worth reporting",
+        ),
+        (
+            "validation, a segment's length, value",
+            validation(EscalationSite::Segment(segment), "vertex_separation", value),
+            "at loop 0 segment 1, whether a segment has any length is undecided: margin 5e-9 \
+             lies inside the ambiguity band (1e-9, 1e-8). Recourse: move the geometry, or, if \
+             this size is intended, tighten the tolerance below 5e-10 m",
+        ),
+        (
+            "validation, a segment's length, straddle",
+            validation(
+                EscalationSite::Segment(segment),
+                "vertex_separation",
+                straddle,
+            ),
+            "at loop 0 segment 1, whether a segment has any length is undecided: enclosure \
+             [-2e-9, 5e-9] cannot be classified against the ambiguity band (1e-9, 1e-8). \
+             Recourse: subdivide the parameter box for a tighter enclosure, or move the geometry",
+        ),
+        (
+            "validation, a segment's length, unreadable",
+            validation(
+                EscalationSite::Segment(segment),
+                "vertex_separation",
+                poison,
+            ),
+            "at loop 0 segment 1, whether a segment has any length is undecided: margin is \
+             invalid (NaN or a refused enclosure) against the ambiguity band (1e-9, 1e-8). \
+             Recourse: check the operation's inputs upstream, then move the geometry; an \
+             unreadable margin may indicate a kernel bug worth reporting",
+        ),
+        (
+            "validation, the canonical order, value",
+            validation(
+                EscalationSite::Loop { loop_index: 0 },
+                "canonical_order_x",
+                value,
+            ),
+            "on loop 0, which of two points comes first along x is undecided: margin 5e-9 lies \
+             inside the ambiguity band (1e-9, 1e-8). Recourse: move the geometry",
+        ),
+        (
+            "validation, an arc's scene resolution, value",
+            validation(
+                EscalationSite::Segment(segment),
+                "arc_carrier_resolution",
+                value,
+            ),
+            "at loop 0 segment 1, whether the scene can read an arc's difference from its \
+             vertices at its magnitude is undecided: margin 5e-9 lies inside the ambiguity band \
+             (1e-9, 1e-8). Recourse: move the profile nearer the origin, or author the arc with \
+             a smaller radius (a flatter arc stores its centre farther out); a coarser tolerance \
+             also reads it, and an arc the path lattice constructs is verified at its \
+             construction, so validating its loop with that provenance (a \
+             `ConstructedProfile`, `pncad::validated`) does not re-read it",
+        ),
+        (
+            "validation, the junction's side, value",
+            validation(
+                EscalationSite::Segment(segment),
+                "path_junction_side",
+                value,
+            ),
+            "at loop 0 segment 1, whether the path carries straight on at this junction or \
+             doubles back into a cusp is undecided: margin 5e-9 lies inside the ambiguity band \
+             (1e-9, 1e-8). Recourse: move the geometry",
+        ),
+    ];
+    for (what, got, want) in cases {
+        assert_eq!(got, want, "{what}");
+    }
 }

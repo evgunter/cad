@@ -29,6 +29,12 @@ ending table for a sized decision.
   `geom_brep::offset_meters::MeterError::Escalated` now carries a
   `Meter`.
 
+- **A second name-keyed table** (ENCL, PR NNNN):
+  `validate::LEVER_ONLY_DECISIONS` picks the ending both
+  `PathError::Escalated` and `ProfileError::Escalated` give a name
+  (`validate::escalation_ending`). The closed type below retires it with
+  the routing.
+
 ## Repair shape
 
 Carry the decision (a closed enum of the path door's gates) on the

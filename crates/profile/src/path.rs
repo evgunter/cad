@@ -2007,24 +2007,22 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                             geom_core::lever_recourse(FILLET_STORED_FORM_INBAND_RECOURSE, None),
                         )
                         .fmt(f),
-                    // The junction keys keep the full `Indeterminate`
-                    // Display, shared recourse and all: at a junction
-                    // "declare the coincidence" is exactly the right advice,
-                    // and `.tangent()` is what declaring it means. They are
-                    // NAMED here, because the label is a claim about the
-                    // two of them and about nothing else the funnel
-                    // decides.
-                    Some("path_junction_turn" | "path_junction_side") => write!(
-                        f,
-                        "{} is too close to call: {source}",
-                        source
-                            .predicate
-                            .and_then(crate::validate::decision_subject)
-                            .unwrap_or(crate::validate::UNNAMED_DECISION)
-                    ),
+                    // The junction keys end as validation ends them
+                    // (`validate::escalation_ending`). They are NAMED
+                    // here, because the label is a claim about the two of
+                    // them and about nothing else the funnel decides.
+                    Some("path_junction_turn" | "path_junction_side") => source
+                        .undecided(
+                            source
+                                .predicate
+                                .and_then(crate::validate::decision_subject)
+                                .unwrap_or(crate::validate::UNNAMED_DECISION),
+                            crate::validate::escalation_ending(source),
+                        )
+                        .fmt(f),
                     // A name no arm above claims. If the crate has
-                    // decided it needs nothing beyond the shared clause
-                    // `{source}` already ends in, it is in
+                    // decided it needs nothing beyond the shared ending,
+                    // it is in
                     // `validate::SHARED_CLAUSE_ONLY` and the refusal
                     // stops there; otherwise the refusal names the hole,
                     // through the one home every recourse table's
@@ -2040,12 +2038,14 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                             .predicate
                             .and_then(crate::validate::shared_clause_only)
                             .is_some();
+                        let refusal =
+                            source.undecided(what, crate::validate::escalation_ending(source));
                         if listed {
-                            write!(f, "{what} is too close to call: {source}")
+                            refusal.fmt(f)
                         } else {
                             write!(
                                 f,
-                                "{what} is too close to call: {source} — {}",
+                                "{refusal} — {}",
                                 geom_core::MissingRecourse(source.predicate)
                             )
                         }

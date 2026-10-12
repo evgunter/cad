@@ -189,17 +189,17 @@ pub use sugar::{ArcSweep, FilletLegShape, bulge_from_center, bulge_from_via};
 /// reason: the census row asserts that every `fillet_*` predicate name
 /// the construction sugar decides has a sentence, and a census that
 /// restated the mapping would be checking its own copy. So do
-/// [`validate::SHARED_CLAUSE_ONLY`] and [`validate::shared_clause_only`]:
-/// the roster row holds that list against the names the crate's `src`
-/// decides, in both directions, and a restated copy would hold against
-/// itself.
+/// [`validate::SHARED_CLAUSE_ONLY`], [`validate::shared_clause_only`] and
+/// [`validate::LEVER_ONLY_DECISIONS`]: the roster row holds those lists
+/// against the names the crate's `src` decides, and a restated copy
+/// would hold against itself.
 #[cfg(any(test, feature = "test-support"))]
 pub use validate::{
     ARC_SCENE_RESOLUTION_RECOURSE, FILLET_ENCLOSING_RECOURSE, FILLET_FIT_RECOURSE,
     FILLET_FLATTENED_RECOURSE, FILLET_LEG_EXTENT_RECOURSE, FILLET_NO_CORNER_RECOURSE,
     FILLET_OFFSET_LEVER_RECOURSE, FILLET_SCENE_RESOLUTION_RECOURSE,
-    FILLET_STORED_FORM_INBAND_RECOURSE, FILLET_TURN_INBAND_RECOURSE, SHARED_CLAUSE_ONLY,
-    UNNAMED_DECISION, fillet_recourse_for, shared_clause_only,
+    FILLET_STORED_FORM_INBAND_RECOURSE, FILLET_TURN_INBAND_RECOURSE, LEVER_ONLY_DECISIONS,
+    SHARED_CLAUSE_ONLY, UNNAMED_DECISION, fillet_recourse_for, shared_clause_only,
 };
 pub use validate::{
     ArcCheck, BlendArc, ConstructedProfile, ContactKind, DecidedJoint, EscalationSite, FilletLeg,
