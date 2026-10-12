@@ -19,7 +19,7 @@ did not ask it to.
 | The planar arc carrier | `src/arc.rs` (`Arc2`: centre, radius and signed sweep, the one arc value `profile` and `geom-brep` share, and its one evaluation) |
 | Knot structure | `src/spline/knots.rs` (`KnotVector`, `Span`, `InteriorKnot`), `src/spline/locate.rs` (`SpanLocate`, `SpanSet`) — the S1 clause below |
 | Knot algebra | `src/spline/algebra.rs` (insertion, refinement, removal, degree elevation, the union-and-refine routine) |
-| Evaluation and bounds | `src/spline/basis.rs` (basis values and derivatives), `src/spline/hull.rs` (the C2.2 sup-norm mechanism), `src/spline/compose.rs`, `src/spline/net.rs` |
+| Evaluation and bounds | `src/spline/basis.rs` (basis values and derivatives), `src/spline/hull.rs` (the C2.2 sup-norm mechanism), `src/spline/blossom.rs` (the certified blossom of a span window, every level through `Certification::between`), `src/spline/compose.rs`, `src/spline/net.rs` |
 
 ## The spline layer's pairing rule (SPLINE-DESIGN S1)
 
@@ -101,7 +101,7 @@ its window (`CoeffWindow<'a, E>`, `RationalWindow<'a, E>`) holding the
 pair beside a `Span<'a>` of its own vector, and every door reads
 everything from the borrow. `SplineCoeffs` carries the **nonrational**
 doors and no other — per span `CoeffWindow::{hull, derivative_hull,
-sup_norm_bound}`, over the domain `SplineCoeffs::{domain_hull,
+sup_norm_bound, blossom, restrict}`, over the domain `SplineCoeffs::{domain_hull,
 derivative_coeffs, derivative_domain_hull, sup_norm_bound}`;
 `RationalCoeffs` carries the **rational** doors and no other — per span
 `RationalWindow::hull_rational`, over the domain

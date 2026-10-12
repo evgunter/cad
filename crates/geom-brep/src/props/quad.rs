@@ -159,7 +159,7 @@ use geom_core::spline::derivative_knot_slice;
 use geom_core::spline::net::TensorNet;
 use geom_core::spline::{
     CoeffWindow, Derived, KnotVector, Param, ParamRange, RingRefinement, SplineCoeffs,
-    SplineCoeffsBuf, TensorChannels, last_at_or_below,
+    SplineCoeffsBuf, TensorChannels, last_at_or_below, restrict_bernstein,
 };
 use geom_core::{Band, Decide, InfSpeed, Margin, Sign};
 
@@ -1031,6 +1031,16 @@ fn require_holes_wound_against(
 /// every knot difference is formed in the ring so its rounding is
 /// outward, matching `deriv_coeff`). Sound for any `t`; outside the
 /// span's closure it is the polynomial extension.
+///
+/// **Not routed through the blossom primitive, on purpose.** Each step
+/// is the affine `(1 − α)·x + α·y`, not [`Certification::between`]:
+/// routed through [`CoeffWindow::blossom`] inside the span (the
+/// extension past it has no blossom), step-import's
+/// `arc_loft_natively_computes_its_rational_volume` reads the imported
+/// arc loft's volume one ulp off the native one, where the affine form
+/// reproduces it bit for bit. That ulp is the whole-body fold's face
+/// order, not this step (`work/nurbs/quad-de-boor-through-the-blossom-breaks-the-import-bit-identity.md`),
+/// so routing it is open there.
 fn de_boor(win: CoeffWindow<'_, Interval>, t: Interval) -> Interval {
     let span = win.span();
     let kv = span.knots();
@@ -1449,6 +1459,10 @@ impl Loose {
     /// `degree` on the raw knot list `knots`: [`Loose::Raw`] at degree
     /// ≥ 1, [`Loose::Const`] at 0. A [`KnotVector`]'s own derivative is
     /// [`KnotVector::derived`]'s.
+    ///
+    /// `knots` is a clamped vector's knot list with an outer pair dropped
+    /// per derivative (`derivative_knot_slice`), so it is nondecreasing:
+    /// that is what [`raw_span`] searches by.
     fn of(knots: Vec<f64>, degree: usize) -> Self {
         if degree >= 1 {
             Self::Raw { knots, degree }
@@ -4226,27 +4240,25 @@ fn vertex_slack(p: RPt2) -> f64 {
     0.5 * (p.0.width() + p.1.width())
 }
 
-/// De Casteljau bisection of a bracketed Bézier control polygon: the
-/// two halves at `λ = ½`, each again a Bézier polygon of the same
-/// degree whose first and last points are the arc's endpoints there
-/// and whose hull contains its half of the arc.
-///
-/// The rounding lands OUTWARD in every bracket, so both halves are
+/// Bisection of a bracketed Bézier control polygon: the two halves at
+/// `λ = ½`, each again a Bézier polygon of the same degree whose first
+/// and last points are the arc's endpoints there and whose hull
+/// contains its half of the arc. Each channel's row is restricted to
+/// `[0, ½]` and `[½, 1]` ([`restrict_bernstein`]), so both halves are
 /// certified enclosures of the same arc rather than re-approximations
 /// of it.
 fn bezier_bisect(block: &[RPt2]) -> (Vec<RPt2>, Vec<RPt2>) {
-    let half = pt(0.5);
-    let lerp = |x: RPt2, y: RPt2| -> RPt2 { (x.0 + (y.0 - x.0) * half, x.1 + (y.1 - x.1) * half) };
-    let mut level: Vec<RPt2> = block.to_vec();
-    let mut left = vec![level[0]];
-    let mut right = vec![level[level.len() - 1]];
-    while level.len() > 1 {
-        level = level.windows(2).map(|w| lerp(w[0], w[1])).collect();
-        left.push(level[0]);
-        right.push(level[level.len() - 1]);
-    }
-    right.reverse();
-    (left, right)
+    let half = |channel: &[Interval], (a, b): (f64, f64)| {
+        restrict_bernstein(channel, (pt(a), pt(b)))
+            .unwrap_or_else(|_| vec![Interval::refused(); channel.len()])
+    };
+    let xs: Vec<Interval> = block.iter().map(|q| q.0).collect();
+    let ys: Vec<Interval> = block.iter().map(|q| q.1).collect();
+    let zip = |x: Vec<Interval>, y: Vec<Interval>| x.into_iter().zip(y).collect::<Vec<RPt2>>();
+    (
+        zip(half(&xs, (0.0, 0.5)), half(&ys, (0.0, 0.5))),
+        zip(half(&xs, (0.5, 1.0)), half(&ys, (0.5, 1.0))),
+    )
 }
 
 /// Why [`bezier_blocks`] refused.
