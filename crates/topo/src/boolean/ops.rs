@@ -3338,12 +3338,10 @@ pub(super) fn ledger<T: Decide>(
 
 /// The point each vertex-on-face row's vertex rests at, read from the
 /// operand's clone, by `(operand, vertex)` in clone keys: the reduction's
-/// own rows and each operand's carried ones. A kernel vertex keeps its
-/// point bit for bit through the graft, the zips and the output stage
-/// (none moves one; a zip that fuses one away is read at its survivor,
-/// and [`carry_rows`] skips its rows), so this is the point the vertex
-/// has in the result, or had where a later stage took it
-/// ([`Descendants::holder`]'s [`Rest::Dead`]).
+/// own rows (`a_on_b` an A vertex, `b_on_a` a B one) and each operand's
+/// carried ones. No stage moves a vertex, so this is the point a kept
+/// vertex has in the result ([`carry_rows`] checks it), and the one a
+/// vertex a later stage took had ([`Rest::Taken`]).
 ///
 /// # Errors
 ///
@@ -3354,13 +3352,12 @@ fn rests<T: Real>(
     carried: &[Rows; 2],
 ) -> Result<Rests<T>, BooleanError> {
     let mut at = BTreeMap::new();
-    let discovered = tagged(&red.contacts)
-        .into_iter()
-        .filter_map(|([x, y], _)| match (x.1, y.1) {
-            (Cell::Vertex(v), Cell::Face(_)) => Some((x.0, v)),
-            (Cell::Face(_), Cell::Vertex(v)) => Some((y.0, v)),
-            _ => None,
-        });
+    let discovered = [
+        (Operand::A, &red.contacts.a_on_b),
+        (Operand::B, &red.contacts.b_on_a),
+    ]
+    .into_iter()
+    .flat_map(|(side, rows)| rows.iter().map(move |c| (side, c.record.vertex)));
     let carried = [Operand::A, Operand::B]
         .into_iter()
         .zip(carried)
