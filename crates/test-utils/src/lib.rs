@@ -6,6 +6,9 @@
 //! - [`census`], the one declared-set-against-witnessed-set
 //!   comparison, so a suite whose subject is a list kept in step by
 //!   hand does not keep a second copy of the comparator that way too.
+//! - [`cone_cut`], a double cone cut by a plane in double-double
+//!   arithmetic: the oracle the plane × cone rows in two crates judge a
+//!   served line pair, and their fixtures' poses, against.
 //! - [`f6`], the ratified `Display` contract's predicate — a refusal
 //!   renders as a sentence and never as its own `Debug` dump — with the
 //!   variant identifier read off the value rather than written down
@@ -62,6 +65,7 @@
 //! to create.
 
 pub mod census;
+pub mod cone_cut;
 pub mod f6;
 pub mod fuzz;
 pub mod offer;

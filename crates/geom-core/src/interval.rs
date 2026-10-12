@@ -850,6 +850,22 @@ impl crate::spline::SpanLocate for Interval {
         Self(enclosure_hull_of(self.0, other.0))
     }
 
+    fn restrict_window(
+        window: &[Self],
+        span: crate::spline::Span<'_>,
+        held: &[Self],
+        ends: (f64, f64),
+        _held_ends: (Self, Self),
+    ) -> Vec<Self> {
+        // A held knot at `Interval` is the point of its `f64` structure,
+        // so the certified restriction reads the structure; the held
+        // values are checked for length only, as at every scalar.
+        if held.len() != span.knots().knots().len() {
+            return vec![Self::from_f64(f64::NAN); span.degree() + 1];
+        }
+        crate::spline::blossom::restrict_window(window, span, ends)
+    }
+
     fn refine_homogeneous(
         refinement: &crate::spline::RingRefinement,
         _knots: &crate::spline::Knots<Self>,

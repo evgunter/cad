@@ -1141,7 +1141,7 @@ fn the_in_band_wedge_is_in_band_at_the_glue_door() {
 /// review's probe, undeclared).
 fn curved_flank_membership(arm: f64) -> Result<(), BooleanError> {
     use super::super::recl::resolve_edge_edge;
-    use super::super::sectors::{BoolSector, PairRecord};
+    use super::super::sectors::BoolSector;
     let tol = Tol::witness();
     let o = Point3::new(0.0, 0.0, 0.0);
     let (x, y, z) = (
@@ -1185,17 +1185,9 @@ fn curved_flank_membership(arm: f64) -> Result<(), BooleanError> {
         normal: OutwardNormal::from_chart(y, true),
         arm,
     };
-    let records = [PairRecord {
-        a: 0,
-        b: 0,
-        sa: (super::super::SideCode::On, super::super::SideCode::Out),
-        sb: (super::super::SideCode::Out, super::super::SideCode::In),
-        intersect: true,
-    }];
     let corner = |face| [sector(z, x, face), sector(x, z, face)];
     let declared = GluedPairs::<f64>::without_struts(&Glue::none(), Default::default());
     resolve_edge_edge(
-        &records,
         &corner(fca),
         &corner(fcb),
         &ca,
@@ -1617,9 +1609,8 @@ fn planar_flank_membership(against: bool, rest: bool) -> Result<(), BooleanError
 
 /// [`planar_flank_membership`] at the flankers' arm `arm`.
 fn planar_flank_membership_at(against: bool, rest: bool, arm: f64) -> Result<(), BooleanError> {
-    use super::super::SideCode::{In, On, Out};
     use super::super::recl::resolve_edge_edge;
-    use super::super::sectors::{BoolSector, PairRecord};
+    use super::super::sectors::BoolSector;
     let tol = Tol::witness();
     let o = Point3::new(0.0, 0.0, 0.0);
     let (x, y, z) = (
@@ -1647,13 +1638,6 @@ fn planar_flank_membership_at(against: bool, rest: bool, arm: f64) -> Result<(),
         normal: OutwardNormal::from_chart(y, true),
         arm,
     };
-    let records = [PairRecord {
-        a: 0,
-        b: 0,
-        sa: (On, Out),
-        sb: (Out, In),
-        intersect: true,
-    }];
     let flank = if against { -x } else { x };
     let decls = Glue {
         pairs: if rest {
@@ -1666,7 +1650,6 @@ fn planar_flank_membership_at(against: bool, rest: bool, arm: f64) -> Result<(),
     let one = super::super::verify_declared_contacts(&pa.body, &pb.body, &decls, band())?;
     let declared = GluedPairs::build(&decls, one, &pa.body, &pb.body, band())?;
     resolve_edge_edge(
-        &records,
         &[sector(z, x, fa), sector(x, z, fa)],
         &[sector(z, flank, fb), sector(flank, z, fb)],
         &pa.body,
@@ -2684,6 +2667,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("ops.rs", "ledger", "BooleanDecision::SelfCheck", 1),
     ("ops.rs", "ledger", "BooleanDecision::VertexOnVertex", 1),
     ("ops.rs", "ledger", "SelfCheck::CarriedLineage", 1),
+    ("ops.rs", "span_in_band", "BooleanDecision::SelfCheck", 1),
+    ("ops.rs", "span_in_band", "SelfCheck::CarriedLineage", 1),
     (
         "ops.rs",
         "volume_backstop",
@@ -2697,7 +2682,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "recl.rs",
         "resolve_edge_edge",
         "Coincide::CurvedFlankSense",
-        2,
+        1,
     ),
     ("recl.rs", "resolve_edge_edge", "Coincide::FlankSense", 1),
     ("recl.rs", "resolve_edge_edge", "Coincide::TangentSide", 1),

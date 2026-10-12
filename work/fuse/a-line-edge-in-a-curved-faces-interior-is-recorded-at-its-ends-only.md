@@ -45,3 +45,14 @@ result gate.
 When that lane lands: the carry records the edge-face pair (the edge's
 two end rests imply it: one group's cells, an edge and the face its ends
 rest in), and the two tests' counts move by one, named in their PR.
+
+## 2026-10-11 — the planar case is minted (FLUSH)
+
+`boolean::ops::record_spans` (FLUSH's `an-apex-edge-…`, branch
+`flush/apex-edge-in-face-plane`) records a line edge's span between
+two consecutive bounds against each plane face, or line edge, both
+bounds touch and whose interior holds the span's midpoint. It skips a
+curved face by design: a line between two points of a curved face need
+not lie in it. When the curve-touch lane lands, this row's step is that
+function's face test widened to a curved face whose carrier holds the
+line, not a new producer.

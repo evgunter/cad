@@ -327,8 +327,9 @@ pub enum BooleanDecision {
     /// the result, after every declaration was spent, so none is read.
     SeamJet,
     /// Whether an edge of the result lies on both faces it bounds: its
-    /// exact carrier's residual against one of the two faces' surfaces,
-    /// at the attachment gate that certifies its description. A residual
+    /// line chord's residual against one of the two faces' surfaces, at
+    /// the attachment gate that certifies its description
+    /// ([`crate::merge_faces::edge_on_faces_reading`]). A residual
     /// passes only at zero, so no tolerance is its recourse. Its ends are
     /// vertices an earlier reading placed on the faces they meet, so a
     /// carrier read in band of a face says that an edge or a vertex of
@@ -1455,7 +1456,9 @@ impl BooleanDecision {
                 "whether the two faces touching along a seam edge curve apart there or share \
                  their curvature"
             }
-            Self::EdgeOnFaces => "whether an edge of the result lies on both faces it bounds",
+            Self::EdgeOnFaces => {
+                crate::merge_faces::edge_on_faces_subject!("an edge of the result")
+            }
             Self::ShellRole { .. } => "whether a shell of the result bounds material or a cavity",
             Self::Sphere(question) => question.subject(),
             Self::SelfCheck(check) => check.subject(),
@@ -2339,7 +2342,8 @@ pub(in crate::boolean) mod tests {
                 "whether an edge of the result lies on both faces it bounds",
                 Ending::Lever(
                     "Recourse: move the geometry so each edge and vertex that meets a face lies \
-                     clearly on that face or clearly off it",
+                     clearly on it or clearly off it, and an edge that ends on it leaves it at a \
+                     clear angle",
                 ),
             ),
             BooleanDecision::ShellRole { .. } => (

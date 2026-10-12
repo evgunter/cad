@@ -709,6 +709,101 @@ pub(crate) fn face_axial_range<T: Decide>(
     Ok((below, above))
 }
 
+/// **How far along a cone's axis a face reaches**: bounds `(lo, hi)` on
+/// `(x − apex)·axis` over `face`, read off its boundary as
+/// [`face_axial_range`] reads it, each edge over the span it holds.
+///
+/// A face on the cone itself can hold the apex inside its boundary (a
+/// tip bounded by its rim alone), where its range is not its
+/// boundary's: the axis coordinate peaks on a smooth surface only at
+/// the boundary, and the apex is not smooth. So a face on a cone keeps
+/// its boundary's range only where every loop's azimuth window is
+/// decided narrower than three quarters of a turn: a boundary loop that
+/// encloses the apex winds a whole turn about the axis. Anywhere else
+/// (a wider window, an unread one, a refusal reading it) the range is
+/// widened to hold the apex. A face on any other surface keeps its
+/// boundary's range: on a plane the coordinate is linear.
+///
+/// # Errors
+///
+/// A face whose outer loop is a lone vertex ([`face_extent`]).
+pub(crate) fn cone_axial_window<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    cone: &geom::Surface<T>,
+    band: Band,
+) -> Result<(T, T), UnboundedFace> {
+    let &geom::Surface::Cone { apex, axis, .. } = cone else {
+        unreachable!("a window along a cone's axis is asked of a cone")
+    };
+    // A floor under every boundary reading, so the folds below start
+    // past nothing the boundary holds.
+    let floor = T::zero() - face_reach_from(body, face, apex)?;
+    let along = |p: Point3<T>| (p - apex).dot(axis);
+    let hi = boundary_fold(body, face, floor, along, |curve| {
+        span_of(curve).range_along(apex, axis).1
+    })?;
+    let lo = T::zero()
+        - boundary_fold(
+            body,
+            face,
+            floor,
+            |p| T::zero() - along(p),
+            |curve| T::zero() - span_of(curve).range_along(apex, axis).0,
+        )?;
+    let own @ geom::Surface::Cone { .. } = face_surface(body, face) else {
+        return Ok((lo, hi));
+    };
+    let widened = (lo.min(T::zero()), hi.max(T::zero()));
+    let quarters = T::from_f64(1.5 * core::f64::consts::PI);
+    // Every loop, not the outer alone: a file's designated outer bound
+    // can be a hole, and the loop enclosing the apex then a ring.
+    let wide = match crate::chord_join::face_loop_azimuth_windows(body, own, face, band) {
+        Ok(windows) => windows
+            .into_iter()
+            .try_fold(T::zero() - quarters, |wide, w| {
+                w.map(|(from, to)| wide.max(to - from - quarters))
+            }),
+        Err(_) => None,
+    };
+    Ok(wide.map_or(widened, |wide| {
+        (
+            wide.select_le_zero(lo, widened.0),
+            wide.select_le_zero(hi, widened.1),
+        )
+    }))
+}
+
+/// **A face as the plane×cone arm's reach** ([`geom_brep::Reach::Face`]),
+/// measured from `at` against `cone`'s axis: its window along the axis
+/// ([`cone_axial_window`]), narrowed to `within` where the caller knows
+/// the consumed region lies inside a second window too, and
+/// [`face_reach_from`] `at` as its lever.
+///
+/// # Errors
+///
+/// A face whose outer loop is a lone vertex ([`face_extent`]).
+pub(crate) fn cone_face_reach<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    at: Point3<T>,
+    (cone, within): (&geom::Surface<T>, Option<(T, T)>),
+    band: Band,
+) -> Result<geom_brep::Reach<T>, UnboundedFace> {
+    let &geom::Surface::Cone { apex, axis, .. } = cone else {
+        unreachable!("the plane×cone arm's reach is asked of a cone")
+    };
+    let (lo, hi) = cone_axial_window(body, face, cone, band)?;
+    let (lo, hi) = within.map_or((lo, hi), |(from, to)| (lo.max(from), hi.min(to)));
+    let at_axis = (at - apex).dot(axis);
+    Ok(geom_brep::Reach::Face {
+        at,
+        below: at_axis - lo,
+        above: hi - at_axis,
+        across: face_reach_from(body, face, at)?,
+    })
+}
+
 /// A certified edge as the reach of the span it holds.
 fn span_of<T: Decide>(curve: &geom_brep::EdgeCurve<T>) -> geom_brep::Reach<T> {
     let (t0, t1) = curve.params();
@@ -728,8 +823,20 @@ fn boundary_reach<T: Decide>(
     point: impl Fn(Point3<T>) -> T,
     edge: impl Fn(&geom_brep::EdgeCurve<T>) -> T,
 ) -> Result<T, UnboundedFace> {
+    boundary_fold(body, face, T::zero(), point, edge)
+}
+
+/// [`boundary_reach`] from `floor` rather than zero: the greatest of
+/// `floor` and every boundary reading.
+fn boundary_fold<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    floor: T,
+    point: impl Fn(Point3<T>) -> T,
+    edge: impl Fn(&geom_brep::EdgeCurve<T>) -> T,
+) -> Result<T, UnboundedFace> {
     let face_data = proven(&body.faces, face, EntityId::Face);
-    let mut extent = T::zero();
+    let mut extent = floor;
     let outer = face_data.outer;
     for (loop_key, members) in body.face_boundary_by_loop(face, face_data) {
         for member in members {

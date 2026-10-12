@@ -93,57 +93,125 @@ of those pairs (chords 1.000045882 and 1.000051078).
 
 ## Fix: the proof
 
-**Where every germ's nearest partner keeps it back, the order among
-pairs cannot change the matching.** Commit a pair `(g, h)`. No other
-germ `q` has `g` or `h` as its nearest: if `q`'s nearest were `g`,
-then `g`'s nearest would be `q`, and it is `h`. `nearer_along` compares
-two of one germ's candidates and reads nothing else, so taking away
-candidates other than a germ's nearest leaves that nearest unchanged.
-The next round therefore has the same pairs, minus the one just
-committed, and they are still mutual. By induction the rounds commit
-exactly the first round's pairs, in whatever order. A germ with no
-partner gains none, because candidates are only ever consumed.
+**The matching is free of the pair order where three premises hold.**
+The premises are:
 
-Where some germ's nearest is not mutual, committing a pair can turn
-that germ to its next partner. The round never ranked that pair, so
-the order can matter. There the order is still read, and an in-band
-reading still escalates. One mechanism makes the order matter on a
-conic: a germ chooses along its line by travel, the round ranks by
-chord, and on an ellipse of aspect √2 or more the chord to a farther
-partner can be the shorter one. No pose was built to show it. On
-straight lines an argument from the edge-ordered greedy matching
-(an edge is matched iff no earlier adjacent edge is) suggests that
-disjoint ties never matter there. The fix does not rely on that.
+- every germ's nearest partner has it as its own nearest;
+- every germ is straight;
+- the band's escalation threshold exceeds twice its zero (`K > 2`).
 
-`boolean/join.rs`: `find_match`'s second stage is now `first_pair`,
-whose doc comment carries the argument. When every germ's nearest is
-mutual it reads the order through `nearer_or_scan`, where an in-band
-chord difference keeps the incumbent (scan order, D9) as an exact tie
-does. Otherwise it uses `nearer`, as before. Every definite reading is
-the same as before, so a pose that built before builds the same way.
-Only a pose that escalated here changes.
+The run then commits exactly the first round's pairs, or escalates.
 
-Pins:
-- `first_pair_rows::an_in_band_order_is_free_only_among_mutual_nearests`
-  (`join.rs`). The same in-band tie between two disjoint pairs keeps
-  the round when all germs are mutual. It escalates on
-  `bool_join_nearest` once a fifth germ's nearest lands in one of the
-  pairs.
-- Pose 1 is out of `REFUSES_AT_1E6` (`crates/sweep/tests/pinch_faces_tessellate.rs`).
-  It builds and tessellates at ε 1e-6, 1e-9 and 1e-12, with the mesh's
-  volume exact. If the premise stops holding on that pose, the tie
-  escalates again and the row goes red.
+- **No other germ points into a committed pair.** Commit `(g, h)`. If
+  another germ's nearest were `g`, then `g`'s nearest would be that
+  germ, and it is `h`.
+- **A straight germ ranks by one number.** It ranks its candidates by
+  chord, and each reading is the difference of two chords.
+- **A shortened scan keeps its winner `w` (`K > 2`).** The scan keeps
+  its incumbent unless a candidate reads at least `K·zero` nearer, and
+  a tie is within `zero`.
+  - Every candidate met before `w` lost to an incumbent at least
+    `K·zero` farther than `w`, so it lies at least `(K − 1)·zero`
+    beyond `w`.
+  - Every candidate met after `w` lies no nearer than `w − zero`.
+  - A scan that has lost candidates other than `w` therefore meets `w`
+    against an incumbent at least `(K − 1)·zero` farther, which `K > 2`
+    puts past a tie. Either `w` takes the incumbency or the reading
+    escalates, and nothing after it reads `K·zero` nearer.
+- **Each later round** holds the same pairs less the committed ones,
+  still mutual. Its scans may escalate under one order and not under
+  another, so the run commits these pairs or escalates.
+- **The order still reaches the surgery.** It picks which pair is
+  joined first, which scan order already decided for exact ties.
 
-Pose 2 is unchanged (above).
+**Why each premise is needed.**
 
-Two other rows had pinned the same spurious escalation, and both
-move with the fix:
-- `crates/sweep/tests/germ_plane_torus_frame.rs`: the bar across the
-  hole tied two pairs `3.2e-6 m` apart at ε 1e-6. Its row now asserts
-  that the bar reaches the dispatch at every ε
-  (`a_pair_order_tie_in_band_on_a_bar_across_the_hole_reaches_the_dispatch`).
-- `crates/sweep/tests/band_apart_partners_on_a_steep_ellipse.rs`:
-  `k = 10` now gets past the pair order. It stops at the finger arc's
-  span certificate (`interval_span_forward`, margin 3.39ε for an arc
-  24ε long), filed as
-  `work/issues/an-ellipse-arcs-span-is-levered-by-its-global-speed-floor.md`.
+- **`K > 2`.** Two chained ties span `2·zero`, which `K ≤ 2` can read
+  as definite. The review's witnesses:
+  - at `K = 2`, the scan `[3, 2, 1]` picks 1, and with 3 removed it
+    picks 2;
+  - at `K = 1.1`, eight germs whose round is all mutual build two
+    different matchings in two orders.
+  - `Tolerance` admits any `K > 1` (`CAD_AMBIGUITY_K`).
+- **Straight germs.** Along a conic, `nearer_along` reads travel from
+  the incumbent's site, not one number per candidate, so the argument
+  does not carry over as written. Filed as
+  `work/flush/conic-germs-pair-order-is-unargued.md`.
+- **Mutual nearests.** Without it, committing a pair can turn a germ to
+  its next partner, a pair the round never ranked.
+
+`boolean/join.rs`:
+
+- `find_match`'s second stage is now `first_pair`, whose doc comment
+  carries the argument.
+- `first_pair` chooses its comparator once. Where the premises hold it
+  takes `nearer_or_scan`: an in-band reading keeps the incumbent (scan
+  order, D9), as an exact tie does. A poisoned margin or a straddling
+  enclosure still escalates. Elsewhere it takes `nearer`, unchanged.
+- The per-germ scan is `keep_own`, which `find_match` and the tests
+  share.
+
+Every definite reading is the same as before.
+
+Pins (`first_pair_rows` in `join.rs`):
+
+- `an_in_band_order_is_free_only_where_the_matching_cannot_move`. A
+  tie of five zeros between two mutual straight pairs keeps the round
+  at `K = 10`. It escalates on `bool_join_nearest` in each of these
+  cases:
+  - a fifth germ's nearest lands in a pair;
+  - `K = 2`;
+  - the germs are a circle's.
+
+  A poisoned chord escalates even where the order is free.
+- `at_k_1_1_the_order_among_mutual_pairs_moves_the_matching`. On the
+  review's eight-germ witness, two orders build two different
+  matchings, and `first_pair` escalates.
+- Pose 1 is out of `REFUSES_AT_1E6`
+  (`crates/sweep/tests/pinch_faces_tessellate.rs`). It builds and
+  tessellates at ε 1e-6, 1e-9 and 1e-12, and the mesh volume is exact.
+
+Two conic-germ rows still escalate, as before, and are unchanged:
+
+- `band_apart_partners_on_a_steep_ellipse.rs` at `k = 10`;
+- `germ_plane_torus_frame.rs`, the bar across the hole, at 1e-6.
+
+Both are in the conic row.
+
+## Batteries moved
+
+Every `#[ignore]`d test of `sweep`'s `all` (77) ran at ε 1e-9 and 1e-6,
+on `main` at `f6d326490` with this branch's `join.rs` and with main's.
+Outcomes were diffed by pose. Every move is an escalation that now
+builds. Each pose moved at 1e-6 reads, verbatim, as it read at 1e-9
+with main's `join.rs`. The four `RCW` lines are the exception: they
+escalated at 1e-9 too, and now build alike at both ε.
+
+At 1e-9:
+
+- `near_tangent_battery`: 126 → `OK SOUND` (`Ltop` 108, `w60` 12,
+  `asym` 6).
+- `join_rc_probes` `rc_wide_battery`: 180 → `OK SOUND`.
+
+At 1e-6:
+
+- `corner_pairs_battery`: 252 → `OK SOUND`.
+- `pinch_runs_battery`: 18 → `OK SOUND`.
+- `dbl_battery`: 12 → `OK SOUND`.
+- `rc_wide_battery`: 4 → `OK SOUND`.
+- `review_sixx_r2_probes` (`notch343 edge … m=2.0e-2`): 30 →
+  `OK SOUND`.
+- `four_pairs_battery`: 54 moved.
+  - 50 → `OK SOUND`.
+  - 4 → `OK BAD`: `four i=4 j=2 t=2 k=0` and `i=7 j=6 t=0 k=3`, U,
+    both orders. They are `OK BAD` at 1e-9 on main too. That is the
+    seams-row class
+    `work/flush/a-pinch-the-seams-do-not-link-keeps-its-cones-on-separate-keys.md`
+    (`flush/touch-key`).
+- `curved_notch_pinch`: 6 (`curved i=11 j=6 k=0`, every op and order)
+  → bodies. Two read `t3p=ok`, four `CensusUndecidable`, four mesh
+  `Triangulation(Plane rings=0)`, exactly as at 1e-9.
+
+Nothing else moved. The set of failing ignored probes is the same in
+both runs; they are measurement probes that need env input or are
+known-red.

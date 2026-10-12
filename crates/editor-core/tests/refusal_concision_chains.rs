@@ -1765,12 +1765,29 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 },
             ),
             (
+                "SectionUnarmed",
+                J::SectionUnarmed {
+                    face,
+                    divided: geom::SurfaceKind::Plane,
+                    wall: geom::SurfaceKind::Torus,
+                },
+            ),
+            (
                 "RingIslandUnread",
                 J::RingIslandUnread {
                     face,
                     kind: geom::SurfaceKind::Cone,
                 },
             ),
+            (
+                "TangentChordEscalated",
+                J::TangentChordEscalated { face, diag: diag() },
+            ),
+            (
+                "TangentChordBendEscalated",
+                J::TangentChordBendEscalated { face, diag: diag() },
+            ),
+            ("TangentChordRefuted", J::TangentChordRefuted { face }),
             (
                 "SectionCrossings",
                 J::SectionCrossings {
@@ -1816,6 +1833,10 @@ fn split() -> Vec<(String, NodeErrorKind)> {
         (
             "DescribeBendEscalated",
             F::DescribeBendEscalated { edge, diag: diag() },
+        ),
+        (
+            "EdgeOnFacesEscalated",
+            F::EdgeOnFacesEscalated { edge, diag: diag() },
         ),
         ("SmoothJoinRefuted", F::SmoothJoinRefuted { edge }),
         (

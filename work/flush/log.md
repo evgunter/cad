@@ -316,3 +316,43 @@ None waits on an INTENT stage. A row that turns out to need one moves back. — 
 - **The pinch residue** (`flush/pinch-residue`) has three P2 rows on one ground: the 36 cube-less `ZipCorrespondence` lines, the curved-notch `JoinDesync`, and the vertex-vertex pinches whose cones stay on separate keys. The two refusals are to be root-caused before anything changes. The seams row is weighed against ruling B (PR 4728). If it needs a choice that D10, PR 4057 and ruling B leave open, the lane stops and reports. Three M rows together are reviewed as H: a concurrent dual pair.
 - **The two-pinch pose 1 proof** (`flush/two-pinch-pose-proof`) asks one question: can a cross-germ tie in `join::find_match` change the greedy matching? If it cannot, the escalation is spurious and the pose builds. If it can, a pose that shows it makes the escalation honest.
 — (FLUSH orchestrator)
+
+## 2026-10-12 — PR 4690 ratified: thinness is judged by pairs alone
+
+- **Ev ruled** on PR 4690 ("sounds good!"), and the PR merged.
+  - A boolean's result is too thin only when a pair of its cells is in band.
+  - An in-band shell is a shell, in a solid of several shells, whose role is certified in band.
+  - Check 7 is an orientation probe, not a thinness gate, at every door.
+  - Fork log row 113 is filled in: designer A's first recommendation matched.
+- **Implementation dispatched** on `flush/thinness-by-pairs`:
+  - retire PR 4636's sole-shell gate;
+  - flip the slab and sliver tests to build in [Kε, 2Kε), and add pair refusals below Kε;
+  - re-measure the gate half of `a-result-that-is-only-a-sliver-shell-passes-the-door` under pairs.
+- **Follows this unit:** `check-10-reads-a-cavitys-role-from-its-volume-sign` (`brick ∖ slab`, design).
+— (FLUSH orchestrator)
+
+## 2026-10-12 — PR 4737 merged: a line edge in a plane face records its span
+
+- **Closed:** `an-apex-edge-in-the-partners-face-plane-…` (P0). Its premise, an `EdgeFaceOverlap`, did not reproduce on main. The real gap was D1's: the span of an edge lying in the partner's plane face went unrecorded. `record_spans` now records it, as edge-face rows only.
+- **Shape.** CONTACTHOLD's PR 4740 merged during the fix pass. It owns the edge-along-edge record and the `ee_lineage` fixes, so this PR took main's version, and each record has one producer. The census exports `segments_parallel` and `segment_cross_point` for its callers.
+- **Review:** sequential (byte 130). One review, APPROVE-WITH-FIXES with 0 MAJOR and 2 MINOR; no second review ran. All ten items were taken or overtaken by 4740.
+- **Reconciled with PR 4728** as the second to merge. The pinch pins pass, and the arc, corner, pinch and `dbl` batteries move 0 lines. The span battery moves 18 lines, each `e-f` 0 → 1 with tier 3′ still ok.
+- **Merged over** main's open INTENT P0 loft test at 1e-12.
+- **Class** (the third time): fixes at `boolean/ops.rs`'s carry keep minting copies of the census's reads. The common brief now says the census's read is the one home.
+— (FLUSH orchestrator)
+
+## 2026-10-12 — PR 4777 merged: the pinch residue
+
+- **Closed:** `a-cube-less-a-pinched-operand-…` and `a-curved-notch-at-a-corner-pinch-…`.
+  - **The 36 `dbl` lines.** A split swaps corners' loop successors, so the section faces no longer pair one to one. They now zip by edge pairs (`glue`, and `zip_split` for a split seam). `glue` reproduces the old loopglue on every face-pair seam both reviewers measured.
+  - **The 15 curved lines.** The discard picks a null-edge copy by its mirrored place in the twin's cycle, loop by loop, not by its two end vertices.
+- **Review:** concurrent pair (three M rows treated as H). Both APPROVE-WITH-FIXES with 0 MAJOR. One fix pass, and R2's delta check confirmed it.
+- **Filed:**
+  - REFS `a-discard-names-a-bordered-stretch-by-its-two-end-vertices`. Same defect class one layer down, but it needs a naming-shape choice.
+  - FLUSH `a-split-seams-kfmrh-onto-a-curved-host-is-unexercised` (P3).
+- **The third row** (two parts' touching vertices on two keys) stopped at a design question.
+  - The designer pair agreed on their first reports: one point key wherever an op decided one point, across an assembly's solids too.
+  - **Ruled A** (fork-log row 121). It extends ruling B and changes no ratified decision. It is building on `flush/touch-key`.
+  - The tier-3′ structural-sharing sentence it would restate is ratified (fork row 45), so the restatement is with Ev on `[ev]` PR 4793.
+- **Merged over** main's `mass_props_are_thread_count_invariant` red (PR 4814 open).
+— (FLUSH orchestrator)
