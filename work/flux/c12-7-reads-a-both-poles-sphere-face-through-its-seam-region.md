@@ -2,8 +2,9 @@
 id: c12-7-reads-a-both-poles-sphere-face-through-its-seam-region
 kind: ruling
 title: C12 (7): a sphere face whose loop holds both poles is read through its seam region
-status: open
+status: closed
 opened: 2026-10-11
+closed: 2026-10-12
 ---
 
 

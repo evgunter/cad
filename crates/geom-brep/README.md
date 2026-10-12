@@ -776,23 +776,25 @@ singularity inside a face is a vertex of it, so a sphere face lies on
 the side of its loop that holds no chart pole. The closed-form lane and
 tier 3 read that side to cross-check the face's sense bit, and refuse a
 contradiction, wherever at least one pole lies off the loop
-(`sphere_loop_side`). A face whose loop holds both poles is read
-through its seam region, the faces of its surface it reaches across
-shared edges: a pole on an edge interior to the region lies inside it,
-so the region is the side of its boundary that holds such a pole
+(`sphere_loop_side`). A face whose loop holds both poles is read through
+its seam region, the faces of its surface it reaches across shared
+edges: a pole on an edge interior to the region lies inside it, so the
+region is the side of its boundary that holds such a pole
 (`sphere_region_material_sign`); a region with two or more boundary
-loops is read by the sign of its area. A region with no boundary is a
-whole sphere, whose side is its shell's orientation. A region whose
-boundary carries both poles, or whose poles lie on no member's loop,
-encodes no side: the pole-free reading would assume the rule above,
-which validity does not yet enforce. For a region of one face the
-flipped bit describes the complement, another valid body. A loop with
-a pole off it on each side encodes no side: under either sense its face holds a pole, which is validity's to
-refuse. Nor does a loop whose poles both read undecided: a pole within
-the ambiguity band of a great or near-great carrier's plane has its
-antipode there too, so a face whose loop passes that close to a pole
-is measured under its bit alone. A face with holes reads its side off the sign of its own
-Gauss–Bonnet area. (8) In-house SVD and
+loops is read by the sign of its area. A region with no boundary covers
+the sphere and encodes no side: covered once, it is a shell whose
+orientation checks 7 and 10 read; covered more than once, its faces
+overlap and nothing here reads it. A region whose boundary carries both
+poles, or whose poles lie on no member's loop, encodes no side: the
+pole-free reading would assume the rule above, which validity does not
+yet enforce. For a region of one face the flipped bit describes the
+complement, another valid body. A loop with a pole off it on each side
+encodes no side: under either sense its face holds a pole, which is
+validity's to refuse. Nor does a loop whose poles both read undecided: a
+pole within the ambiguity band of a great or near-great carrier's plane
+has its antipode there too, so a face whose loop passes that close to a
+pole is measured under its bit alone. A face with holes reads its side
+off the sign of its own Gauss–Bonnet area. (8) In-house SVD and
 least-squares solvers with fixed elimination order
 (`geom-core/src/linalg`). (9) The curvo audit is `docs/CURVO-AUDIT.md`
 (it has no SSI); the stance is DESIGN.md Q5.
