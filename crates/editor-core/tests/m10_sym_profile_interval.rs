@@ -549,10 +549,17 @@ const PLATE_MAX_TERMS: usize = 28;
 /// `Door/Decision` 7099 → 7181 (+82); calls, `*/Decision` forms and
 /// every decision tally hold (`m10_10_pins_interval` reads the pair's
 /// sum unchanged).
+///
+/// Check 4 reading a `cos t`/`sin t` pair at its exact sup
+/// (`√(m + √(q² + (a·b)²))`, `√(a² + b²)`) instead of the sum of its
+/// coefficients' norms: a longer expression per envelope term, so
+/// `Plain/Decision` 15735 → 15749 and `Early/Decision` 8657 → 8671
+/// (+14 forms each) and those lines' digests; calls, freezes and every
+/// other line hold.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1048 forms 15735 frozen 252 digest bb9b65c26e1986776057380748e8f28c\n\
+     Plain/Decision calls 1048 forms 15749 frozen 252 digest 066bebc5066c4c94ae93362a0873cb94\n\
      Plain/Assertion calls 654 forms 4349 frozen 389 digest b82ea8fd0878e9410927c81ec1a03b95\n\
-     Early/Decision calls 352 forms 8657 frozen 0 digest 11d22e34e12b763fd880057381499ac5\n\
+     Early/Decision calls 352 forms 8671 frozen 0 digest eeaf8b06f90df22e99214afb32688acd\n\
      Early/Assertion calls 654 forms 5312 frozen 0 digest ba87a0aca9ba1283a9177f2602626bdd\n\
      Door/Decision calls 396 forms 7181 frozen 0 digest 188fd982307faf268e6444b8ea1c82bb\n\
      Door/Assertion calls 396 forms 0 frozen 0 digest 00000000000000000000000000000000";
