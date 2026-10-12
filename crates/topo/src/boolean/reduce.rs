@@ -597,7 +597,7 @@ pub(super) fn gate_unverdicted_operand<T: Decide + crate::props::AtRestPolicy>(
 /// the face's kind, or as a broken face): an operation that cuts such a
 /// solid would read it as given with nothing to say which side its
 /// material is on.
-fn gate_sliver_orientation<T: Decide + crate::props::AtRestPolicy>(
+pub(super) fn gate_sliver_orientation<T: Decide + crate::props::AtRestPolicy>(
     body: &crate::AtRestBody<T>,
     operand: Operand,
     band: Band,

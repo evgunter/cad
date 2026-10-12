@@ -481,7 +481,11 @@ pub fn boolean_op_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
 ) -> Result<BooleanResult<T>, BooleanError> {
     #[cfg(feature = "door-tier3-meter")]
     let door_from = std::time::Instant::now();
+    #[cfg(feature = "review-sliver-probe")]
+    review_sliver_probe::take();
     let result = Glue::of(inputs).and_then(|glue| boolean_door(op, a, b, &glue, strategy, tol));
+    #[cfg(feature = "review-sliver-probe")]
+    review_sliver_probe::record(op, &result, tol);
     #[cfg(feature = "door-tier3-meter")]
     super::door_meter::record(op, &result, door_from.elapsed(), [a.outcome(), b.outcome()]);
     result
@@ -4021,6 +4025,8 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
         kept.as_ref().map(|_| ()).map_err(Vec::as_slice),
     ));
     let kept = kept.map_err(finished_body_refusal)?;
+    #[cfg(feature = "review-sliver-probe")]
+    review_sliver_probe::note(kept.slivers().len());
     if kept.outcome() == crate::AtRestOutcome::NotRunAtThisScalar {
         structural_gate(&kept, band)?;
     }
@@ -8294,5 +8300,80 @@ mod holder_rows {
             }
             got => panic!("{got:?}"),
         }
+    }
+}
+
+/// Review probe (PR 4783): every door call whose result gate passed a
+/// solid check 7 read as a sliver, which the retired gate refused, with
+/// the door's outcome and the census over the result's own contacts.
+#[cfg(feature = "review-sliver-probe")]
+mod review_sliver_probe {
+    use super::{BooleanError, BooleanOp, BooleanResult};
+    use crate::props::AtRestPolicy;
+    use std::io::Write as _;
+    std::thread_local! {
+        static SLIVERS: core::cell::Cell<usize> = const { core::cell::Cell::new(0) };
+    }
+    pub(super) fn note(n: usize) {
+        SLIVERS.with(|c| c.set(c.get().max(n)));
+    }
+    pub(super) fn take() -> usize {
+        SLIVERS.with(|c| c.replace(0))
+    }
+    #[allow(clippy::panic)]
+    pub(super) fn record<T: geom_core::Decide + AtRestPolicy>(
+        op: BooleanOp,
+        result: &Result<BooleanResult<T>, BooleanError>,
+        tol: geom_core::Tol,
+    ) {
+        let n = take();
+        if n == 0 {
+            return;
+        }
+        let Ok(path) = std::env::var("CAD_REVIEW_SLIVER_OUT") else {
+            return;
+        };
+        let (outcome, census) = match result {
+            Ok(BooleanResult::Empty) => ("empty".to_string(), "-".to_string()),
+            Ok(BooleanResult::Body(r)) => (
+                format!(
+                    "body orient={}",
+                    match geom_core::Band::linear(tol) {
+                        Ok(band) => match super::super::reduce::gate_sliver_orientation(
+                            &r.body,
+                            super::super::Operand::A,
+                            band,
+                            tol,
+                        ) {
+                            Ok(()) => "out".to_string(),
+                            Err(e) => format!("{e:?}").chars().take(200).collect(),
+                        },
+                        Err(_) => "noband".to_string(),
+                    }
+                ),
+                match T::gate_at_rest_declared(&r.body, &r.contacts, tol) {
+                    Ok(o) => format!("ok:{o:?}"),
+                    Err(es) => es
+                        .iter()
+                        .map(|e| format!("{e:?}").chars().take(400).collect::<String>())
+                        .collect::<Vec<_>>()
+                        .join(" ; "),
+                },
+            ),
+            Err(e) => (format!("{e:?}").chars().take(300).collect(), "-".to_string()),
+        };
+        let line = format!(
+            "{}\t{op:?}\t{}\t{}\t{n}\t{outcome}\t{census}\n",
+            std::thread::current().name().unwrap_or("?"),
+            T::NAME,
+            tol.eps(),
+        );
+        eprint!("REVIEW-SLIVER {line}");
+        std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+            .and_then(|mut f| f.write_all(line.as_bytes()))
+            .unwrap_or_else(|e| panic!("review-sliver-probe: {path}: {e}"));
     }
 }

@@ -477,3 +477,112 @@ fn a_millimetre_cube_on_a_thin_plate_builds() {
         );
     }
 }
+
+/// Review probes for PR 4783 (`flush/thinness-by-pairs-review`): print-only,
+/// run with `--run-ignored all --no-capture`.
+mod review_4783_probes {
+    use super::*;
+
+    fn line(r: &Result<topo::BooleanResult<f64>, BooleanError>, tol: Tol) -> String {
+        match r {
+            Ok(res) => match res.body() {
+                None => "EMPTY".to_string(),
+                Some(b) => {
+                    let census = match b.body.validate_pseudomanifold(&b.contacts, tol) {
+                        Ok(()) => "census ok".to_string(),
+                        Err(es) => format!(
+                            "census {}",
+                            es.iter()
+                                .map(|e| match e {
+                                    ValidationError::CensusEscalated { cause } => format!(
+                                        "Escalated({:?} {:?})",
+                                        cause.predicate,
+                                        cause.margin.diagnostic_f64_for_error_text().value()
+                                    ),
+                                    other => format!("{other:?}").chars().take(120).collect(),
+                                })
+                                .collect::<Vec<_>>()
+                                .join("; ")
+                        ),
+                    };
+                    format!("BUILT shells/solid {:?} {census}", shells_per_solid(b))
+                }
+            },
+            Err(BooleanError::Escalated { decision, diag }) => format!(
+                "REFUSE Escalated {decision:?} margin {:?}",
+                diag.margin.diagnostic_f64_for_error_text().value()
+            ),
+            Err(e) => format!("REFUSE {}", format!("{e:?}").chars().take(200).collect::<String>()),
+        }
+    }
+
+    /// The slab, the hollow and the fin over a fine ladder of thicknesses,
+    /// in units of the running ε.
+    #[test]
+    #[ignore = "review probe; prints"]
+    fn review_4783_wall_ladder() {
+        let tol = Tol::witness();
+        let walls: [(&str, Wall); 3] = [("slab", slab), ("hollow", hollow), ("fin", fin)];
+        for (wall, build) in walls {
+            for k in 2..=50 {
+                let m = f64::from(k) * 0.5;
+                let r = build(m * tol.eps(), tol);
+                println!("WALL eps={:e} {wall} {m}ε => {}", tol.eps(), line(&r, tol));
+            }
+        }
+    }
+
+    /// The needle results the door ships with an in-band pair, used
+    /// downstream: as an operand against a far cube, and re-intersected.
+    #[test]
+    #[ignore = "review probe; prints"]
+    fn review_4783_needle_downstream() {
+        let tol = Tol::witness();
+        let corner = [2.0, 1.0, 1.0];
+        let edge = [2.0, 1.0, 0.0];
+        let far = brick((10.0, 11.0), (10.0, 11.0), (10.0, 11.0), tol);
+        let near = brick((1.0, 5.0), (-1.0, 3.0), (-1.0, 0.5), tol);
+        for (d, cube_first) in [(1e-8, false), (1e-8, true), (3e-8, false), (3e-8, true)] {
+            let (piece, cube) = corner_pose(&NOTCH307_PIECE, corner, edge, 3, d, tol);
+            let r = if cube_first {
+                intersect(&cube, &piece, tol)
+            } else {
+                intersect(&piece, &cube, tol)
+            };
+            let tag = format!("NEEDLE d={d:e} cube_first={cube_first}");
+            println!("{tag} => {}", line(&r, tol));
+            let Ok(res) = r else { continue };
+            let Some(b) = res.body() else { continue };
+            let n = &b.body;
+            let m = topo::mass_properties(n, tol).expect("measures");
+            println!("{tag} V={:e} A={:e} V/A={:e}", m.volume, m.surface_area, m.volume / m.surface_area);
+            println!("{tag} ∪ far => {}", line(&topo::union(n, &far, tol), tol));
+            println!("{tag} far ∪ => {}", line(&topo::union(&far, n, tol), tol));
+            println!("{tag} ∖ far => {}", line(&topo::subtract(n, &far, tol), tol));
+            println!("{tag} ∪ near => {}", line(&topo::union(n, &near, tol), tol));
+            println!("{tag} ∩ cube => {}", line(&intersect(n, &cube, tol), tol));
+            println!("{tag} cube ∖ => {}", line(&topo::subtract(&cube, n, tol), tol));
+        }
+    }
+
+    /// The `notch307` piece ∩ cube over every sixteenth and a ladder of
+    /// tilts, both orders.
+    #[test]
+    #[ignore = "review probe; prints"]
+    fn review_4783_needle_family() {
+        let tol = Tol::witness();
+        let corner = [2.0, 1.0, 1.0];
+        let edge = [2.0, 1.0, 0.0];
+        for a in 0..16 {
+            for d in [5e-9, 1e-8, 1.5e-8, 2e-8, 2.5e-8, 3e-8, 4e-8, 1e-7] {
+                let (piece, cube) = corner_pose(&NOTCH307_PIECE, corner, edge, a, d, tol);
+                for (o, r) in [
+                    ("pc", intersect(&piece, &cube, tol)),
+                    ("cp", intersect(&cube, &piece, tol)),
+                ] {
+                    println!("FAMILY eps={:e} a{a} d={d:e} {o} => {}", tol.eps(), line(&r, tol));
+                }
+            }
+        }
+    }
+}

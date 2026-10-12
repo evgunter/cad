@@ -62,6 +62,8 @@ probe = ["geom-core/probe", "geom-brep/probe"]
 # Opt-in and instrumentation only — it changes no result — run through
 # `scripts/door-tier3-meter.py`.
 door-tier3-meter = []
+# Review probe (PR 4783): logs results the retired sole-shell gate refused.
+review-sliver-probe = []
 
 [dependencies]
 # Optional: `test-support` above (the `Undecided` roster).
