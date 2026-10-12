@@ -23,7 +23,7 @@ PR 4807 routed `props::quad`'s de Boor through the blossom. A node inside its sp
 - It is not allocation. The door allocates one window copy per node (`blossom.rs:312`). PR 4807's one-door refactor removed the first cut's per-node argument vector and row re-collect.
 
 **Shape is open** to the lane that takes this. Two candidates:
-- a fast path in `between` for a point ratio (a quadrature node's α is often a point or near one);
+- a fast path in `between` for a point ratio;
 - hoisting the convex form's per-level work.
 
 Soundness must not move: `between`'s enclosure claim and its pinned meets (PR 4551's batteries and mutants) hold as they are. A faster form must be bit-equal, or a subset that stays certified. Re-measure on the same row, solo, on isolated targets. (NURBS orchestrator, via PR 4807)
