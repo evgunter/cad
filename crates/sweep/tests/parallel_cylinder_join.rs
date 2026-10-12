@@ -412,12 +412,13 @@ fn cut_and_tipped(
 /// stored up to 1e5 m off its faces, and tipped a fifth of the zero band:
 /// every op builds SOUND at the closed-form volume, in both orders.
 ///
-/// A pose runs only where ε can name the cut on the long rod. A strut's
-/// split is stored as a parameter `u ∈ [0, 1]` along its whole extrusion
-/// vector, so the stored range resolves the cut only to `2·far·2⁻⁵³ =
-/// far·f64::EPSILON` along it, and certification meters that miss
-/// against ε. At `far = 1e5` that is 2.2e-11 m, so ε = 1e-12 escalates
-/// `carrier_matches_mapped_source` on the long rod's struts.
+/// A pose runs only inside D4 ¶4's size range at the run's ε: the long
+/// rod reaches `|z| = far`, where f64 spaces coordinates
+/// `ulp(far) ≈ far·2⁻⁵²`, so a residual between two points evaluated
+/// there can read a whole ulp of rounding. Past `far ≈ 2⁵²·ε` no stored
+/// datum certifies within ε. At `far = 1e5` and ε = 1e-12,
+/// `carrier_matches_mapped_source` reads one ulp at `|z| ≈ 6.2e4` on the
+/// long rod's strut and escalates.
 #[test]
 fn a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings() {
     const R: f64 = 0.5;
@@ -427,15 +428,18 @@ fn a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings() {
     let poses: Vec<Pose> = [2.0, 1000.0, 1.0e5]
         .into_iter()
         .filter(|&far| {
-            let resolvable = far * f64::EPSILON <= zero;
-            if !resolvable {
-                println!(
-                    "SKIPPED at this ε: a rod cut from ±{far} m stores its cut to {:e} m, \
-                     past the zero band {zero:e}",
-                    far * f64::EPSILON
+            let in_range = far * f64::EPSILON <= zero;
+            if !in_range {
+                test_utils::vacuity::stood_down(
+                    &format!("rod cut from ±{far} m"),
+                    &format!(
+                        "f64 spaces coordinates {:e} m apart at |z| = {far}, past the zero band \
+                         {zero:e}: no pose this far certifies at this ε",
+                        far * f64::EPSILON
+                    ),
                 );
             }
-            resolvable
+            in_range
         })
         .map(|far| Pose {
             label: format!("rod cut from ±{far} m, tipped 0.2·zero"),
@@ -446,6 +450,10 @@ fn a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings() {
             shared: area * (span.1 - span.0),
         })
         .collect();
+    assert!(
+        !poses.is_empty(),
+        "every pose stood down at zero band {zero:e}"
+    );
     let bad = unsound(&poses);
     assert!(bad.is_empty(), "{}", bad.join("\n"));
 }
