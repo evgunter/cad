@@ -2087,6 +2087,7 @@ mod tests {
     fn a_run_of_unbounded_hulls_halves_to_the_cut_cap() {
         assert_eq!(subdivided(|_| f64::INFINITY), (f64::INFINITY, 12));
     }
+
     /// **Limb 3's construction site carries the verdict and the margin
     /// it classified.** A clearance inside the zero band refuses `Zero`
     /// with the reporting margin the classifier saw — the levered
