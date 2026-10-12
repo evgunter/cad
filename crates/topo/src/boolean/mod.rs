@@ -176,9 +176,11 @@ pub use edge_join::{
 };
 pub use join::CompletedPolygonPair;
 pub use ops::{
-    BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, boolean_op_with,
-    intersect, subtract, union,
+    BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, SettleError,
+    Settler, boolean_op_with, intersect, subtract, union,
 };
+#[cfg(feature = "sweep-testing")]
+pub use ops::{StagePoints, arm_output_stage_points, take_output_stage_points};
 pub use plane_eq::{PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, oriented_plane_eq};
 pub(crate) use records::incident;
 pub use records::{CarryRefusal, Contact, ContactKind, ContactPairError, ContactRecords};
@@ -282,7 +284,9 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_carrier_cross_circles_apart"
         | "bool_carrier_cross_circles_nested"
         | "bool_carrier_cross_plane_offset"
-        | "bool_carrier_cross_concentric" => CrossingDecision::OnEdge.subject(),
+        | "bool_carrier_cross_concentric"
+        | "bool_carrier_cross_line_meets_ellipse"
+        | "bool_carrier_cross_ellipses_one_curve" => CrossingDecision::OnEdge.subject(),
         "bool_face_disc_carrier"
         | "bool_contact_arc_end_vertex"
         | "bool_curved_contain_carrier"
@@ -559,6 +563,10 @@ pub(crate) struct EdgeSplit {
 /// The order is vertex < edge < face, then key: a record's canonical
 /// order, so its kind reads off its two cells' dimensions
 /// ([`ContactKind`]).
+///
+/// It is also the live cell a point lies inside: where a Boolean's
+/// result settles a vertex a later stage deleted without moving its
+/// point ([`crate::boolean::Settler::settle`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Cell {
     /// A vertex.
@@ -2029,13 +2037,13 @@ pub enum BooleanError {
         /// The face of the other operand it met.
         face: FaceKey,
     },
-    /// The both-edges-split point lane needs a carrier with an exact
-    /// point parameter and got one without. `Line` and `Circle` have
-    /// one; `Ellipse` reaches here, because the operand gate admits it,
-    /// so this is a **narrower** condition than the gate's, at a later
-    /// stage — which is exactly why it is its own variant rather than a
-    /// second reach of [`Self::CurvedEdgeUnsupported`]. One doc and one
-    /// message covering both could name neither.
+    /// The both-edges-split point lane needs a carrier with a point
+    /// parameter ([`geom::Curve3::param_near`]) and got a spline, which
+    /// has none. The operand gate refuses a spline edge first, as
+    /// [`Self::CurvedEdgeUnsupported`], so no public door raises this
+    /// while the gate stands; it is the split lane's own precondition,
+    /// which is why it is its own variant. One doc and one message
+    /// covering both could name neither.
     PointSplitCarrierUnsupported {
         /// The offending operand and edge.
         operand: Operand,
@@ -2971,9 +2979,14 @@ pub enum BooleanError {
     /// boundary representation exists for it.
     UnrepresentableResult,
     /// Re-certifying a grafted edge description against the combined
-    /// body's surfaces refused (the combine door's remap lane —
-    /// bitwise-identical inputs make this unreachable for well-formed
-    /// grafts; loud, never a dangling reference).
+    /// body's surfaces, through the scalar's NURBS lane, refused (the
+    /// combine door's `graft_solid`). The inputs are bitwise the
+    /// source's, so a certifying scalar re-derives what the source
+    /// already holds; what reaches here is a carrier whose certificate
+    /// needs the lane at a scalar that holds none
+    /// ([`geom_brep::CertifyError::NurbsLaneNotSupplied`]), or a
+    /// certificate the source should not have held. Loud, never a
+    /// dangling reference.
     GraftRecertify(geom_brep::CertifyError),
     /// The result sort could not read which piece of material a shell
     /// of the result belongs to ([`crate::pieces`]): a solid is one
@@ -3509,9 +3522,10 @@ impl core::fmt::Display for BooleanError {
             ),
             Self::PointSplitCarrierUnsupported { operand, .. } => write!(
                 f,
-                "an ellipse edge of the {} operand has to be split where the solids \
-                 meet, and the Boolean can split only lines and circles there. \
-                 Recourse: move the parts so that edge does not meet the other solid",
+                "a spline (NURBS) edge of the {} operand has to be split where the \
+                 solids meet, and the Boolean cannot find a point's parameter on a \
+                 spline. Recourse: move the parts so that edge does not meet the other \
+                 solid",
                 operand_word(*operand),
             ),
             Self::GermEdgeCarrierUnsupported { operand, .. } => write!(

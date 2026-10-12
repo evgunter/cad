@@ -27,8 +27,7 @@
 //! | quantity | true | `Dual64` reported |
 //! |---|---|---|
 //! | `d(foot.x)/ds`, curve and surface | `0` | `1` |
-//! | `d(orthogonality)/ds`, curve | `0` | `4` |
-//! | `d(distance)/ds` | `0` | `0` — right, and only on the cosine exit |
+//! //! | `d(distance)/ds` | `0` | `0` — right, and only on the cosine exit |
 //!
 //! **A fixer loses the red-test workflow.** To reproduce those numbers
 //! now, loosen `impl<T: CertifiedBounds>` back to `impl<T: Bounds>` in
@@ -106,11 +105,11 @@ const H: f64 = 1e-6;
 /// The query point is FIXED while the carrier slides, so the true
 /// derivatives are exactly derivable by hand: the perpendicular foot of
 /// `(1, 1, 0)` onto a line along x stays at `x = 1` whatever `s` is, and
-/// the orthogonality residual is identically zero. **Both true values
-/// are `0`** — which is what makes the reported tangents in the module
-/// header wrong, and what a #874 fix has to produce.
+/// the distance stays `1`. **Both true values are `0`** — which is what
+/// makes the reported tangents in the module header wrong, and what a
+/// #874 fix has to produce.
 #[test]
-fn the_true_curve_foot_and_orthogonality_derivatives_are_zero() {
+fn the_true_curve_foot_and_distance_derivatives_are_zero() {
     let at = |s: f64| {
         sliding_line::<f64>(s)
             .project(Point3::new(1.0, 1.0, 0.0))
@@ -125,20 +124,15 @@ fn the_true_curve_foot_and_orthogonality_derivatives_are_zero() {
         d(|r| r.foot.x)
     );
     assert!(
-        d(|r| r.orthogonality).abs() < 1e-6,
-        "the orthogonality residual is identically zero as s varies: got {}",
-        d(|r| r.orthogonality)
-    );
-    assert!(
         d(|r| r.distance).abs() < 1e-6,
         "the distance from a fixed point to a sliding line is stationary here: got {}",
         d(|r| r.distance)
     );
-    // The foot really is at x = 1 and the residual really is zero, so
-    // the derivatives above are zeros of a constant, not of noise.
+    // The foot really is at x = 1 and the distance really is 1, so the
+    // derivatives above are zeros of a constant, not of noise.
     let mid = at(0.0);
     assert!((mid.foot.x - 1.0).abs() < 1e-9);
-    assert!(mid.orthogonality.abs() < 1e-9);
+    assert!((mid.distance - 1.0).abs() < 1e-9);
 }
 
 /// The surface twin. Same fixture, same true derivatives, two

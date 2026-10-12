@@ -69,7 +69,8 @@ do today. The loop-re-parenting fix pass measured the ripple's shape
 for a sibling bound (`Bounds` on three doors: forty signatures across
 four crates without converging), so the ripple is not a small diff.
 TOPO recommends the **declared posture**, stated at each op and in
-`pcurves.rs`'s posture table, with the `Fitted`/`General` frontier and
+`pcurves.rs`'s posture table, with the `Fitted`/`General` frontier
+(since closed: PR 4410 carries those rows across `split_edge`) and
 this row as the record; the ripple stays available if a consumer
 appears that needs a minted edge to arrive cached.
 
@@ -249,7 +250,7 @@ face". Do not close the item; the dual runs at review.
 
 ## Note from SCALAR (2026-09-29)
 
-Since LANE-4 (PR #3194) the fitted door is a value (`FittedLane<T>`), so a derivation door could take `Option<FittedLane<T>>` under `T: Decide` (H5 ruling 3's shape) rather than widen to `AtRestPolicy` — a third answer beside the split and the ripple, as TQUERY's `split-edge-cannot-carry-a-fitted-or-general-pcurve-row` records for `split_edge`.
+Since LANE-4 (PR #3194) the fitted door is a value (`FittedLane<T>`), so a derivation door could take `Option<FittedLane<T>>` under `T: Decide` (H5 ruling 3's shape) rather than widen to `AtRestPolicy` — a third answer beside the split and the ripple, as TQUERY's `split-edge-cannot-carry-a-fitted-or-general-pcurve-row` recorded for `split_edge`. That item closed with PR 4410. Its caller, `split_edge`, already held `AtRestPolicy`, so `split_cache` reads the fitted door from the scalar with no ripple.
 
 ## Closed (2026-09-29, PR 3160)
 

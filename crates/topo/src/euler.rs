@@ -862,9 +862,9 @@ pub enum EulerOpError {
         /// The typed re-certification failure.
         error: CertifyError,
     },
-    /// The spec is an `Intersection` of a plane and a described NURBS
-    /// wall (M7-8), whose certificate only the plane × NURBS lane
-    /// derives, and this scalar's policy holds no lane
+    /// The spec's certificate needs the NURBS lane (the classes are
+    /// listed on [`CertifyError::NurbsLaneNotSupplied`]), and this
+    /// scalar's policy holds no lane
     /// ([`crate::AtRestPolicy::nurbs_lane`] answers `None`: a dual,
     /// DL1). Every Euler door takes its lane from that policy, so a lane
     /// missing there is the scalar's. The body is untouched.
@@ -1232,13 +1232,57 @@ pub enum EulerOpError {
         /// The in-band/poisoned margin diagnostics.
         diag: geom_core::Indeterminate,
     },
+    /// [`Body::split_edge`] of a tangent edge: whether a child stays
+    /// tangent along its own span is in band, at a station of the
+    /// must-carry rule over the child
+    /// ([`geom_brep::MustCarryEscalation::FirstOrder`]).
+    ///
+    /// Unreached: the dihedral escalates on its arm only over a child
+    /// whose extent lies inside the band, and the interiority gate
+    /// refuses such a child first; along a ruling, the tangent edge the
+    /// kernel's doors mint, both normals are constant, so a child
+    /// station reads the dihedral the parent's certificate read.
+    SplitTangentEscalated {
+        /// The edge being split.
+        edge: EdgeKey,
+        /// The deciding station's diagnostic.
+        diag: geom_core::Indeterminate,
+    },
+    /// [`Body::split_edge`] of a tangent edge: whether the two faces
+    /// curve apart along a child or share their curvature there is in
+    /// band (`"tangent_second_order"`,
+    /// [`geom_brep::MustCarryEscalation::SecondOrder`]). The rule meters
+    /// the sagitta over the child's own extent, so a short child can be
+    /// in band where its parent was jet-determinate: the child is
+    /// certifiable as neither the tangency nor a chart image (D4 ¶3).
+    SplitTangentBendEscalated {
+        /// The edge being split.
+        edge: EdgeKey,
+        /// The sagitta's diagnostic.
+        diag: geom_core::Indeterminate,
+    },
+    /// [`Body::split_edge`] of a tangent edge: a station of the
+    /// must-carry rule over a child reads the two faces at a corner
+    /// ([`geom_brep::MustCarryRefusal::Refuted`]), against the tangency
+    /// the parent's certificate holds along the whole edge.
+    ///
+    /// Unreached, for the reason [`Self::SplitTangentEscalated`] is: a
+    /// child's arm is no longer than its parent's, so a station the
+    /// certified parent holds smooth cannot read definitely transverse.
+    SplitTangentRefuted {
+        /// The edge being split.
+        edge: EdgeKey,
+    },
     /// [`Body::split_edge`] could not carry a parent half-edge's stored
     /// **pcurve row** across the split: the parent's chart image,
     /// restricted to a child's sub-interval, failed the certification
     /// the whole image passed. Raised before any mutation, so the body
-    /// is untouched — a covered chart lane that refuses here is a
-    /// defect, never a licence to leave the face half-minted
-    /// (`crate::pcurves::split_cache`).
+    /// is untouched, never a licence to leave the face half-minted
+    /// (`crate::pcurves::split_cache`). At the band the parent's row
+    /// was certified at, a covered chart lane that refuses here is a
+    /// defect. At a tighter band it need not be: a fitted-grade row's
+    /// check 4 reads the whole carrier, so it can refuse a child
+    /// typed.
     PcurveSplit {
         /// The edge being split.
         edge: EdgeKey,
@@ -1371,10 +1415,9 @@ impl EulerOpError {
                 error.render(at)
             ),
             Self::NurbsLaneUnsupported { edge, scalar } => format!(
-                "{} lies between a plane and a spline face, and its certificate is derived \
-                 through the plane x NURBS lane, which only a scalar with certification \
-                 rights holds; the {scalar} scalar does not. Recourse: run the operation at \
-                 a certifying scalar",
+                "{}'s certificate needs the NURBS lane, which only a scalar with \
+                 certification rights holds; the {scalar} scalar does not. Recourse: run the \
+                 operation at a certifying scalar",
                 edge.map_or_else(|| "the new edge".to_owned(), |e| format!("edge {e:?}"))
             ),
             Self::RebasedNullEdge { edge } => format!(
@@ -1541,6 +1584,25 @@ impl EulerOpError {
                     )),
                 )
                 .to_string(),
+            Self::SplitTangentEscalated { diag, .. } => diag
+                .undecided(
+                    "whether a piece of a split tangent edge stays tangent along its span",
+                    diag.ending(crate::split::TANGENT_PIECE_LEVER),
+                )
+                .to_string(),
+            Self::SplitTangentBendEscalated { diag, .. } => diag
+                .undecided(
+                    "whether the faces of a piece of a split tangent edge curve apart along it \
+                     or share their curvature there",
+                    diag.ending(crate::split::TANGENT_PIECE_LEVER),
+                )
+                .to_string(),
+            Self::SplitTangentRefuted { .. } => format!(
+                "a piece of a split tangent edge reads a corner at a station along it, against \
+                 the tangency the edge certified, so what that piece is cannot be said. \
+                 Recourse: {}",
+                crate::split::TANGENT_PIECE_LEVER
+            ),
             Self::PcurveSplit {
                 edge,
                 half_edge,
@@ -1824,6 +1886,25 @@ pub(crate) fn every_euler_op_error_once()
                 terminal_sliver: false,
             },
         },
+        EulerOpError::SplitTangentEscalated {
+            edge: ek,
+            diag: geom_core::Indeterminate {
+                margin: geom_core::MarginDiag::value(5e-9),
+                band: Band::new(1e-9, 1e-8).unwrap(),
+                predicate: Some("dihedral_arm"),
+                terminal_sliver: false,
+            },
+        },
+        EulerOpError::SplitTangentBendEscalated {
+            edge: ek,
+            diag: geom_core::Indeterminate {
+                margin: geom_core::MarginDiag::value(5e-9),
+                band: Band::new(1e-9, 1e-8).unwrap(),
+                predicate: Some("tangent_second_order"),
+                terminal_sliver: false,
+            },
+        },
+        EulerOpError::SplitTangentRefuted { edge: ek },
         EulerOpError::SplitJointUndecided {
             edge: ek,
             half_edge: he,

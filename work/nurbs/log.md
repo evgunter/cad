@@ -602,3 +602,194 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - `the-speed-meter-runs-three-times-per-corner-carrier`. **Tier: orchestrator's read**: a mechanical memo, re-measured.
     - `a-swaying-rational-corner-refuses-at-the-rational-speed-meter`. **Tier: single FULL**: a soundness bound, and a uniform-weight curve taken as rational. — (NURBS orchestrator)
 - 2026-10-12 — Seam note from ENCL (PR 4784, merged at `854efb839a`): `geom_core::spline::compose::tensor::cells_touched` now reads only the cells whose OPEN interior a window meets, falling back to the closed overlap for a point window on a knot or off the domain. Its doc states it is sound only for a quantity continuous across the breaks (its one caller, `surface_curve_residual`, bounds values, and KnotVector enforces C⁰). A soundness pin in `m5_pr7b_tensor_compose` samples windows on and ulps beside a C⁰ knot. (ENCL orchestrator)
+- 2026-10-12 07:50Z — **Main red, caused by NURBS.** PR 4803 (the speed-meter memo, `880e5d25`) moved sweep's thread-count digest `Sym` rows without re-cutting them. At ε 1e-9, `sym_arc_loft` frozen goes 1060 → 1065 and `sym_thin_strip` 1177 → 1181; the f64 rows are unaffected.
+  - Build A bisected it over main's first-parent merges while on PR 4807.
+  - **Orchestrator's miss:** 4803 merged on my read. Its CI ran no sweep slow set (the diff seeded only geom), and I did not check the digest before merging. The class is a change to a shared meter that downstream golden digests read, merged without the digest that reads it. Next time I run the sweep digest locally, or seed it, before merging a geom meter change.
+  - The fix is dispatched to build B as a small PR on main: re-cut the two `Sym` lines at all three ε after confirming the move is benign (only `frozen` moves). PR 4807 then takes main's lines. — (NURBS orchestrator)
+- 2026-10-12 07:05Z — **PR 4807 review.** Tier single FULL, reviewer session_01F23963ssGgywCa4xgDz8Xj at `c19c9e7dee`. Verdict APPROVE-WITH-FIXES, no MAJOR; soundness, the identity claim and re-cut nesting were executed and hold.
+  - MINORs:
+    - the 2-ulp misstatement in three places;
+    - a stale fixture-header prose class;
+    - a stale line in the blossom row;
+    - no row guards `within` (the overlap mutant stayed green).
+  - Style: two spellings of one recurrence; a dropped typed error. A fix pass is sent to build A. — (NURBS orchestrator)
+- 2026-10-12 08:45Z — **PR 4814 merges (`5e46b73af5`); main's sweep digest is green again.** Build B re-cut only the `Sym` lines of the thread-count digest at all three ε: `sym_arc_loft` 1062→1067 / 1060→1065 / 1061→1066 and `sym_thin_strip` 1178→1182 / 1177→1181 / 1177→1181 (ε 1e-6 / 1e-9 / 1e-12). Only `frozen` moved; the f64 rows did not move.
+  - Tier: orchestrator's read (a digest-only re-cut). The diff is the two lines per ε file plus the re-cut-log entry. CI was green across the board, `gate ok` included.
+  - Build A is told to merge main into 4807, take main's `Sym` lines, and carry on with its fix pass. Build B stands by. — (NURBS orchestrator)
+- 2026-10-12 08:23Z — **PR 4804 review** (the rational speed meter). Tier single FULL; reviewer session_01Ri9nDD5m5D1nZKjQMnDivL at `6845b08ebd`. Verdict APPROVE-WITH-FIXES with no MAJOR. Claims C1–C4 were executed and hold. The interval meter is sound over 2176 curves plus a steep sweep. Reach: median 0.97 against 0.84, and 1551 of 2176 positive against 586. The 4803 memo holds.
+  - MINORs:
+    - the `Sym` gap is unscheduled, because the issue names only Dual;
+    - the per-PR row cannot see a small overshoot, since the fuzz is nightly-only.
+  - Notes:
+    - the degree-1 f64 overshoot (about 16 ulps, pre-existing) against a doc saying "an ulp", and a strict fuzz bound that risks flaking;
+    - the arm choice is not monotone in reach;
+    - the degree 4–5 frontier is unstated.
+  - Style:
+    - `choose` duplicates `binomial`;
+    - the derivative net is copied three times and the centroid fold twice;
+    - arithmetic claims in the docs are unbacked;
+    - piece reading has two spellings.
+  - A fix pass is sent to build C. **Class lines:** a duplicated combinatorics helper and a derivative-net copy are both Q1 instances. The fix pass homes them or files them. — (NURBS orchestrator)
+- 2026-10-12 09:20Z — **PR 4804 merges (`1639c60ff9`)**: the rational speed meter, with the piece assembly on `A′w − Aw′`, and the equal-weights gate.
+  - Fix pass `0413c4c72b`: every review item is verified in the delta.
+    - Sym is named in the Dual issue.
+    - A degree-1 tightness row goes red at a 1e-4 inflation.
+    - The f64 posture says "a few tens of ulps" (16 measured), and the fuzz margin is 64 ulps.
+    - The arm-choice row is filed at P3 and the "meters it exactly" docs are reworded.
+    - The degree 4–5 frontier is stated.
+    - `choose` is folded into `binomial`.
+    - The derivative-net copies are filed at P4.
+    - The doc arithmetic is backed by unit tests.
+  - CI: the only red was editor-core's base row (filed on FLUSH).
+  - **Digest check, owed since the 4803 miss:** I ran sweep's thread-count digest locally at ε 1e-6, 1e-9 and 1e-12 on the head merged into main. It is unchanged.
+  - **Friction:** that run's test job took 32 min (08:35–09:07), against the 15-min bar. It is the ciw row already filed (`a-sweep-seeded-diff-runs-the-test-job-past-the-fifteen-minute-bar`), seen here on a geom-seeded diff.
+- 2026-10-12 09:22Z — **Build C dispatched on `nurbs/one-speed-meter-arm`.** One unit closes three rows that are one decision in `nurbs.rs`:
+  - `the-speed-meters-arm-choice-is-not-monotone-in-reach` (P3);
+  - `the-integral-speed-meter-drops-a-dual-weights-tangent` (P4). Sym carriers are metered in practice, since 4803 moved the Sym digest, so the gap is reachable;
+  - `the-span-derivative-net-is-spelled-three-times` (P4).
+  - My prior is to join the arms on any weight channel, which closes the Dual/Sym gap by construction. The lane decides on measured reach and cost, and stops if it finds a genuine fork.
+  - **Tier: single FULL** (a soundness bound). The digest obligation is written into the brief.
+  - Build B is standing by.
+  - The P4 degree-elevation row stays unbuilt: its own fix says to act only when a consumer needs better than about `1e-12/g`, and none is known. — (NURBS orchestrator)
+- 2026-10-12 09:45Z — **Build C measured before building, and the arm choice is ruled.**
+  - **Reach** (f64 meter over the enclosure ceiling):
+    - Integral arm at 32 pieces matches the rational arm exactly on polynomial carriers, since with w′ = 0 the numerator collapses to `w²·C′`.
+    - Degree 3, a = 4: 0.128 at 16 pieces against 0.552 at 32.
+    - 254 random nets: p10 0.741 at 16 pieces against 0.946 at 32.
+  - **Cost** (Interval loft, PR 4803's harness):
+    - integral32: about 1.5×.
+    - Joining every weighted carrier through the rational piece assembly: 7–9×.
+    - Joining with the refined scan as well: 15–24×.
+  - **Ruled:**
+    - Rows 1 and 3 land as PR 1 on `nurbs/one-speed-meter-arm`, with `INTEGRAL_METER_SPLITS = 32` and the arm choice kept on the value channel.
+    - Row 2 (Dual/Sym) is not closed by integral32. It lands as PR 2 on `nurbs/held-constant-weights`, through option (b): a held-constant query, so the integral arm runs only on weights that are all the same plain constant.
+    - Option (a), joining for all, is rejected on cost. Option (c), routing value-equal weights other than 1 to the rational arm, is rejected as half a fix.
+    - This is the orchestrator's call: one option dominates, and it is reversible. The lane greps for an existing constant-scalar spelling first.
+  - (b) touches `geom-core/src/sym.rs` (DECIDE, SYM) and `spline/locate.rs` (KNOT, NURBS). That is shared ground, announced on their logs.
+  - Also to be filed: the rational arm's refined scan costs about 190 ms per rational loft on main (P3). — (NURBS orchestrator)
+- 2026-10-12 09:55Z — **PR 4807 merges (`19663be2ab`).** `props/quad`'s de Boor now goes through the blossom: `blossom::diagonal_in_span` is the one door, checked once against the span's closure. Inside the closure every level is `between`; outside it the affine extension handles a vertex pad's node.
+  - Every fix-pass item is verified in the delta:
+    - the 2-ulp figure is corrected in three places;
+    - the fixture-header sweep covers nonuniform_loft and swept_elbow (including a pad prose that was already stale on main) and loft_prism;
+    - the blossom row's line and `pr: 4807`;
+    - the straddle row `a_node_straddling_its_span_end_is_enclosed_by_the_extension`, red under the overlap mutant;
+    - `within` and the `unwrap_or_else` are gone;
+    - the module doc names the door;
+    - the census is back to main's 11/6.
+  - CI on `89f4ebe1` is all green, and editor-core's base row passed too. The lane ran the sweep digest at all three ε on the merged tree, green, and its `Sym` lines did not move.
+  - **Cost:** the digest row runs 1.7× slower solo (opt1 64 s against 38 s; `between` swapped to affine gives 34 s), all of it in `between`'s arithmetic. The CI `test` job does not measurably move (24 min, within the spread of recent runs). The cost is filed as `routed-de-boor-costs-the-sweep-digest-row-1-7x` (P3).
+  - The P1 import bit-identity row is closed. The FLUX face-order design row is still Ev's.
+- 2026-10-12 09:57Z — **Build B is dispatched on `nurbs/between-cost`**, the 1.7× row.
+  - It profiles first. The shape is the lane's own, for example a point-ratio fast path or per-level hoisting, but soundness must not move; if the only fast route changes what `between` promises, it stops and reports. Goldens and digests are re-cut if bits move.
+  - **Tier: single FULL.**
+  - Build A is standing by. Build C is on the speed meter's PR 1 (integral32), with PR 2 (held-constant weights) to follow. — (NURBS orchestrator)
+- 2026-10-12 10:16Z — **PR 4824 review** (integral32 plus one home for the derivative net and centroid). Tier single FULL, reviewer session_01Kuu9qM227brVKpQWJGGj37 at `a390565cc2`. Verdict APPROVE-WITH-FIXES, no MAJOR.
+  - **Executed:**
+    - Soundness holds: 0 violations over 6000 curves at both lanes.
+    - The refactor commit's output is byte-identical to main.
+    - The k/64 stall grid is needed: a mutant that skips a piece is invisible on k/32.
+    - The arm choice is monotone on the swaying family.
+    - The 1.5× cost was not reproduced in a meter-only microbench.
+  - **MINORs:**
+    - M1: degree 11–13 integral carriers lose the piece assembly at 32 pieces. Fix: fall back to the largest admissible power of two.
+    - M2: about 5% of nets read lower at 32 than at 16, worst −24%, because each sub-piece picks its own direction. Disclose it, pin it, and file a P4 row for monotone refinement.
+  - **Class line (S1):** five more spellings of the span derivative net exist outside `nurbs.rs` (topo `shell.rs`, geom-brep `pcurve_cache.rs` ×2, geom-core `hull.rs` `deriv_coeff`, `offset_derive.rs`, `ssi/enclose.rs`). The fix pass lists them and files a shared-home row.
+  - **Also:** the `RATIONAL_PIECE_SPLITS` equality claim is held by hand (S2); the monotone row's 1% tolerance is loose (N1, S4).
+  - The fix pass is sent to build C. — (NURBS orchestrator)
+- 2026-10-12 11:19Z — **PR 4834** (build C's PR 2, `held_constant`, stacked on 4824) is up and green at `2fdcb41f58`. Build C reports it found no public "plain constant" spelling to reuse (Q1). The digest is unchanged, because the fixtures' weights are literals. A single FULL reviewer is dispatched on the delta over 4824: session_012aviQwSFoTSQnMXiDKyFH9.
+  - **Seam:** a `Probe` impl in `k_stats.rs` (SCALAR, VERDICT), noted on both logs.
+  - **Friction:** the 4824 fix pass, sent at 10:16Z and again at 10:33Z, went unacknowledged while build C built PR 2. It was re-sent at 11:18Z as an interrupt. The likely cause is that the lane read messages only at turn boundaries during a long local run. — (NURBS orchestrator)
+- 2026-10-12 11:22Z — **PR 4841** (build B, the `between` cost) is up at `8938a02769`.
+  - **Profile:** 99.96% of `between` calls on the row have a point ratio, and about half the cost was the interval multiply's 8 corner products.
+  - **Fix:**
+    - the backend `Mul` (`interval-transcendentals/src/arith.rs`) folds only a point operand's distinct corners;
+    - `between` skips the clamp for a certified ratio already inside (0, 1).
+  - **Claimed:** bit-identical, with no re-cuts. The slowdown goes from 1.70× to 1.22× at opt1 and from 1.73× to 1.12× in debug.
+  - **Filed:** Div's point sibling (P3, E).
+  - **Tier: single FULL**, reviewer session_01MaoqGhPJrPGK4KTSjVjNya. The backend multiply sits under every certified result, so bit-identity is the soundness claim; the review is pointed at signed zeros, infinities, the exactness witness and rounding direction.
+  - **Seam:** `between_exact_fuzz.rs` is TCOST/TINT ground (a new test file). — (NURBS orchestrator)
+- 2026-10-12 11:52Z — **PR 4841 review** (the `between` cost; interval point-Mul). Tier single FULL, reviewer session_01MaoqGhPJrPGK4KTSjVjNya at `8938a02769`. **APPROVE**, with no MAJOR and no MINOR.
+  - **Executed:**
+    - a 20M-pair differential against the old literal four-corner fold, bit-identical on bounds and decoration, covering ±0, subnormals, ±∞, NaI, and raw `[−0, +0]` and `[+∞, +∞]` points;
+    - the interval crate is green with `oracle-inari`;
+    - the clamp skip is shown to be the identity, and its mutants go red;
+    - the digest and step-export sidecars are unchanged;
+    - the timing reproduces at 0.79×.
+  - **NOTE N1** corrects my dispatch: `between_exact_fuzz.rs` predates the PR.
+  - **Style:** the skip guard's comment understates the set it covers; Div keeps a literal four-corner fold beside `corner_bounds` (its filed row should say to reuse the helper); the `ops.rs` prose is stale; the point path's `+0` premise is unnamed. A comment-and-doc pass is sent to build B.
+  - **Head:** `bb0bdaf74d` adds only the census row `certified_endpoint_census` (8, 8) → (9, 9) for the skip's guarded endpoint read. — (NURBS orchestrator)
+- 2026-10-12 11:55Z — **PR 4834 review** (`held_constant`). Tier single FULL, reviewer session_012aviQwSFoTSQnMXiDKyFH9, on the delta over 4824. Verdict APPROVE-WITH-FIXES, no MAJOR.
+  - **Executed:** the edge-probe row; mutants M1–M5, each red; the digest, unchanged at all three ε; no session side effects.
+  - **MINOR-1 (class):** INLANE's P2 `held-value-equalities-decided-on-the-value-channel` is this class, and it prescribes a T-margin primitive. The reviewer found two more sites (`loop_area.rs` `nurbs_vector_area`, `nurbs_iso.rs` `interior_iso_u`).
+    - **Ruled:** no primitive switch in 4834. The plain-constant gate is sound and strictly more conservative, and the T-margin would only add reach. The PR cross-links the issue, adds the two sites as evidence, and records the migration. A seam note is on INLANE's log.
+  - **Style:** a fourth spelling of the Lit node (needs one constructor); `held_constant` is renamed because "held" means the opposite elsewhere; stale "bit-exact unit weights" citations in sweep `skin.rs` and the m7 test. The fix pass is queued behind 4824's. — (NURBS orchestrator)
+- 2026-10-12 11:56Z — **Friction (CI):** a comment-only fix pass on PR 4841 (`37f905e685`) cancelled the in-progress run on the green-bound `bb0bdaf` (cancel-in-progress concurrency). The change filter also gates `.rs` comment edits as code, so a style pass that touches only comments costs a full gate. The docs-only merge rule does not save it either, because there was no green head left to merge on. To bring to CIW if it recurs: a run on a head about to be superseded by a comment-only commit could be allowed to finish, or the filter could recognise a comment-only `.rs` diff. — (NURBS orchestrator)
+- 2026-10-12 12:08Z — **PR 4824 merges (`eaa4953dc4`).** The integral meter now reads 32 pieces, and the derivative net and centroid each have one helper. Fix pass `ecd814c6e2`, verified against the review:
+  - **M1:** `piece_count` falls back to the largest power of two that `pieces_exact` admits: 32 pieces to derivative degree 9, 16 to 12, 8 to 16, 4 to 24, 2 to 47.
+    - Both arms use it. The rational arm abstains above p = 24, and `binomial_is_exact_to_47` pins the pair products to p = 24.
+    - Row `a_high_degree_net_keeps_its_piece_reading` (degree 11 and 13) is red without the fallback.
+    - The rational-arm extension past degree 9 is the orchestrator's read, not the reviewer's: the same exactness machinery, pinned by tests.
+  - **M2:** disclosed. Case 2349 is pinned (`a_finer_schedule_can_read_lower_on_a_degree_ten_net`) and filed as `the-integral-meters-piece-refinement-is-not-monotone` (P4).
+  - **N1 and S4 found something:** the specified random-net row fails. On 4.3% of nets the rational arm reads up to 4.6% higher one ulp off, because at w ≡ 1 its numerator is the degree-elevated derivative (same direction, tighter hull) and because of the refined scan. The fuzz `the_rational_piece_reading_is_the_elevated_integral_one` pins the inequality, and the gap is filed as `the-integral-arm-reads-below-the-rational-arm-on-an-equal-weight-net` (P4).
+  - **S2:** `RATIONAL_PIECE_SPLITS = INTEGRAL_METER_SPLITS` by definition.
+  - **S1:** a six-site disposition table; the shared home is filed as `the-span-derivative-scale-is-spelled-in-six-places` (P4).
+  - CI is green. The digest is unchanged at all three ε. The geom suite passes 418/418.
+  - Rows 1 and 3 are closed. Row 2 is PR 4834. — (NURBS orchestrator)
+- 2026-10-12 12:40Z — **PR 4841 merges (`45a5059c3d`).**
+  - **The change:** the interval backend's `Mul` folds only a point operand's distinct corners, and `between` skips the identity clamp for an interior certified ratio. Output is bit-identical, so nothing was re-cut.
+  - **Cost:** the sweep digest row drops from 1.70× to 1.22× of its pre-4807 time at opt1, and from 1.73× to 1.12× in debug. The review reproduced the speedup at 0.79× of main.
+  - **CI on `37f905e685`:** the only red is editor-core's 1e-12 base row, which fails identically on the base and on main and is already filed on FLUSH. The interval oracle job ran and passed.
+  - **Since the reviewed head:** the census row (8, 8) → (9, 9), and comments and docs (S1–S4).
+  - The `routed-de-boor-costs-the-sweep-digest-row-1-7x` row is closed.
+- 2026-10-12 12:41Z — **Build B dispatched** on `interval-division-folds-duplicate-corners-for-a-point-operand` (P3, E), branch `nurbs/div-point-paths`.
+  - **Tier: single FULL**, the same as `Mul`: a backend op sits under every certified value.
+  - **The oracle** is the literal four-corner code, independent of the shared helper (the 4841 review's N2).
+  - The refined-scan row (`the-rational-meters-refined-scan-costs-190-ms-per-loft`, P3, M) goes to build C after 4834. Build A is standing by. — (NURBS orchestrator)
+- 2026-10-12 12:47Z — **PR 4834 merges (`8602894934`).** `SpanLocate::plain_constant` lets the speed meter take its integral arm only when every weight is the same plain literal; Dual and Sym weights take the rational arm.
+  - **Fix pass `2200a6dcc4`, verified:**
+    - MINOR-1: INLANE's class row cites this PR and lists the two new sites, plus the migration note.
+    - S1: `SymNode::literal` is the one spelling of the literal node.
+    - S3: renamed `held_constant` → `plain_constant`. The seam notes on DECIDE, SYM, SCALAR and VERDICT use the old working name; logs are append-only, so this line is the correction.
+    - S2, S4, S5 are done.
+    - S7: the sweep `skin.rs` and m7 citations are updated.
+    - NOTE-1: the E12 qualification is added.
+    - NOTE-2: the issue body is corrected.
+  - CI is green. The digest is unchanged at all three ε. Row 2 is closed, and with it all three rows of the speed meter's arm decision.
+- 2026-10-12 12:48Z — **Build C dispatched** on `the-rational-meters-refined-scan-costs-190-ms-per-loft` (P3, M), branch `nurbs/refined-scan-cost`. It measures what the refined scan decides that the piece assembly doesn't, then drops it, cheapens it, or keeps it with a stated reason. A cost-versus-reach trade on a nameable class stops for a ruling. **Tier: single FULL.** — (NURBS orchestrator)
+- 2026-10-12 12:52Z — **Build A dispatched** on `the-speed-meter-memo-is-visible-to-a-sym-session` (P3, E, filed by CLEAVE), branch `nurbs/memo-sym-invisible`.
+  - PR 4803's memo caches the meter before any Sym session exists, so the cached value freezes in every later session. That is the cause of the `Sym` frozen move that PR 4814 re-cut, and it makes the memo's invisibility claim false at Sym.
+  - **My lean:** keep the contract and don't serve a pre-session value inside a session, rather than documenting the exception. The lane weighs both on cost and stops if neither is clearly right.
+  - **Tier: single FULL**, because Sym semantics and the digest are involved.
+  - With this, all three builds are busy: A on the memo, B on the Div point paths, C on the refined scan.
+  - **Remaining P4 slate:**
+    - the six-place derivative scale;
+    - non-monotone refinement;
+    - the integral arm reading below the rational arm;
+    - degree elevation, which is conditional on a consumer. — (NURBS orchestrator)
+- 2026-10-12 13:06Z — **PR 4851 review** (Div point paths). Tier single FULL, reviewer session_017xPqznz4GPEmbFbt1CzfYe at `ce1223dc15`. Verdict **APPROVE**, no MAJOR and no MINOR.
+  - **Executed:**
+    - a 6M Div plus 6M Mul differential against the old literal code, and a 3.45M-pair edge table, with zero diffs;
+    - the ±0-numerator premise holds;
+    - touching divisors are excluded by construction;
+    - 11 of 12 mutants go red;
+    - the op is about 2.6× faster.
+  - **NOTE N1:** `lower_of`'s zero rule is dead in the least-fold, because no lo corner is ever −0. The equivalent mutant survives, so nothing can pin that rule today.
+  - **Style S1** is the style brief's named trap: the fix removed the duplicate fold but minted a duplicate four-arm dispatch in `Mul` and `Div`. It is sent back with S5 (the corner pair becomes structural) and S2. — (NURBS orchestrator)
+- 2026-10-12 13:29Z — **PR 4853 merges (`557ce59178`).** It is a doc-only sentence at Sym's `plain_constant` saying why the check does not read the node's form: a form expansion moves the digest's `SymCounts`. The sentence missed the 4834 merge, and build C correctly re-landed it on a fresh branch.
+  - **Friction (second instance today):** a message to build C reached it about 40 min late. The refined-scan dispatch was sent at 12:48Z and had not arrived by 13:27Z. Re-sent as an interrupt, with a request to acknowledge. — (NURBS orchestrator)
+- 2026-10-12 13:33Z — **Ruled: drop the rational meter's refined scan (option A).** Build C measured before building, on main `f581d1ae29`.
+  - **What the refined scan decides:**
+    - On every m5_pr7 fixture the piece assembly is at least as high as the refined scan, frontier rows included.
+    - Across 12,000 random rational nets (degrees 1–6, four weight regimes) it changes **no decision**.
+    - It wins by more than 1% only on degree 2: about 1% of those nets, usually by 1–3%, at worst 2.07×.
+  - **Cost:** the refined scan is about 74% of the rational meter on a long carrier (36.8 of 49.9 ms on a 37-span cubic). About 90% of that is quadratic refinement plumbing (`equal_split` plans, `refine_homogeneous` per channel).
+  - **Options weighed:**
+    - (B): make it local and linear. A real rewrite in geom-core spline, done only to keep reach that decides nothing measured.
+    - (C): keep it and document.
+  - **Why (A):**
+    - it is the simpler final state;
+    - it is reversible, since a degree-2 consumer that needs the reach would get it in the piece assembly;
+    - above degree 24 the meter refuses typed.
+  - This is the orchestrator's call: an internal meter trade with a dominant measurement, touching no ratified text.
+  - Build C builds it with pin rows for degree 2 and degree 25, and re-cuts any golden that moves. Any other caller of the refinement plumbing gets its own cost row.
+  - **Tier: single FULL.** — (NURBS orchestrator)

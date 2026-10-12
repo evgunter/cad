@@ -56,14 +56,6 @@ const LAYERS: &[(&str, &[&str])] = &[
             "vertex_separation",
         ],
     ),
-    (
-        "whether the path turns at this junction",
-        &["path_junction_turn"],
-    ),
-    (
-        "whether the path carries straight on at this junction",
-        &["path_junction_side"],
-    ),
 ];
 
 fn rendered(name: &'static str) -> String {
@@ -115,11 +107,12 @@ fn every_routed_name_renders_the_sentence_its_own_layer_owns() {
     let src = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src");
     for name in test_utils::source::predicate_census(&src, profile_carriers()).names {
         let name: &'static str = Box::leak(name.into_boxed_str());
-        // The door's own fall-through: a listed name opens with what
-        // its margin measures, an unlisted one with the door.
+        // The door's own fall-through opens with what the decision
+        // decides, in its subject's words, or as unnamed.
         let text = rendered(name);
         let fall_through = text.starts_with(profile::UNNAMED_DECISION)
-            || profile::shared_clause_only(name).is_some();
+            || profile::decision_subject(name)
+                .is_some_and(|what| text.starts_with(&format!("{what} is undecided: ")));
         let routed = !fall_through;
         assert_eq!(
             routed,
