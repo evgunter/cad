@@ -63,18 +63,24 @@ straddle: `ssi/enclose.rs`'s `implicit_gradient_enclosure` has no torus
 - **Geometry.** The export spline (513 controls, 510 spans) lies
   2.9e-13 m off the torus and 5e-18 m off the plane (20 000 samples),
   and limb 2 certifies it. It is within the band.
-- **Scale and budget.** Neither binds. All 20 rungs run
-  (1.4e-2 m down to 2.7e-8 m, above the 8e-9 m floor), and `boxes: 510`
-  is the chain's span count, not a budget. An export-shaped
-  512-node interpolant of a plane × cylinder section at the vessel's
-  scale certifies
+- **Scale and budget.** On the spiric, the ladder never bottomed out.
+  All 20 rungs ran (1.4e-2 m down to 2.7e-8 m, above the 8e-9 m
+  floor), and `boxes: 510` is the chain's span count, not a budget.
+  But every rung was refused there, so whether some rung's margin
+  would clear on the torus is unmeasured.
+- **Does such a chain certify where it can be enclosed?** Yes, shown
+  on plane × cylinder only: an export-shaped 512-node interpolant of a
+  section at the vessel's scale certifies, chain and ladder included
   (`analytic_rung3_certificate.rs`,
   `a_dense_interpolant_of_a_section_certifies_its_tube`).
 
 The edge now states why it has no tube:
 `AnalyticRung3Refusal::NoTubeEnclosure { operand }`, raised once limb 2
 holds. The roster is `ssi::enclose::has_implicit_enclosure`, pinned
-against the enclosures. A certifying spline on the same spiric waits on
-the torus arm, which is CHART's
+against the enclosures.
+
+A certifying spline on the same spiric waits first on the torus arms of
+both enclosures, which is CHART's
 `torus-certificate-runs-root-free-through-its-quartic` (evidence added
-there).
+there). After those, it still needs a margin that clears at some rung
+and the one-arc proof, neither of which is measured.

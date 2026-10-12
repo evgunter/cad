@@ -432,8 +432,8 @@ pub(crate) fn graph_margin<T: CertifiedBounds>(
 /// readings come from the derivative numerators' vector terms
 /// ([`CellNet::transverse_readings`]), so a rigid map that carries `n`
 /// with the wall moves the margin by its rounding width. `Ok(None)`
-/// when the stretch has no finite bound or `∇φ`'s enclosure is refused
-/// ([`tube_margin`]).
+/// when the stretch has no finite bound; `NaN` where `∇φ`'s enclosure
+/// is refused ([`tube_margin`]), which measured nothing.
 ///
 /// # Errors
 ///
@@ -474,7 +474,9 @@ pub(super) fn chart_transverse_margin<T: CertifiedBounds>(
         ));
     }
     // A lower bound over an upper bound stays one only rounded down.
-    Ok(tube_margin(phi).map(|m| div_down(m, stretch)))
+    Ok(Some(
+        tube_margin(phi).map_or(f64::NAN, |m| div_down(m, stretch)),
+    ))
 }
 
 /// A uniqueness tube's reading of one transversality enclosure: its
@@ -2700,6 +2702,37 @@ mod tests {
         }
     }
 
+    /// **A refused plane normal measures no chart margin.** Over the
+    /// dome, a window's transverse margin against a plane is a finite
+    /// distance from zero. With the normal refused, `∇φ` is refused while
+    /// the chart's stretch stays finite, and the margin reads `NaN`
+    /// (measured nothing), never the `0` of a straddle.
+    #[test]
+    fn a_refused_normal_measures_no_chart_margin() {
+        let k = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2)
+            .expect("clamped quadratic");
+        let mut control = Vec::with_capacity(9);
+        for i in 0..3u8 {
+            for j in 0..3u8 {
+                let y = if i == 1 && j == 1 { -1.5 } else { 0.0 };
+                control.push(Point3::new(f64::from(i) / 2.0, y, f64::from(j) / 2.0));
+            }
+        }
+        let dome = NurbsSurface::new(k.clone(), k, control, vec![1.0; 9]).expect("the dome");
+        let boxes = NurbsBoxes::new(&dome);
+        let (tx, ty) = (1.0_f64, 0.3_f64);
+        let tangent = (tx, ty, tx.hypot(ty));
+        let read = |n| {
+            chart_transverse_margin(&boxes, n, win(INSIDE_ONE_CELL), tangent)
+                .expect("the window is not degenerate")
+                .expect("the stretch is finite")
+        };
+        let measured = read([0.0, 1.0, 0.0].map(Interval::point));
+        assert!(measured.is_finite() && measured > 0.0, "{measured}");
+        let refused = read([Interval::refused(); 3]);
+        assert!(refused.is_nan(), "a refused normal read {refused}");
+    }
+
     /// **The derivative box shrinks with its window below a span cell.**
     /// The dome `x = s, z = t, y = −4d·s(1−s)·t(1−t)` is one quadratic
     /// Bézier patch, so every window touches the same single cell, whose
@@ -2913,7 +2946,9 @@ mod tests {
 
     /// **[`super::has_implicit_enclosure`] answers what the enclosures
     /// do**, kind by kind, on a box clear of every operand's degenerate
-    /// set.
+    /// set. It asks both: the tube's one-arc proof (`one_arc_r3`)
+    /// reads the residual enclosure as well as the gradient, so an arm
+    /// that encloses the gradient alone does not admit a kind.
     #[test]
     fn the_enclosure_roster_is_the_enclosures_own() {
         let plane = Surface::Plane {

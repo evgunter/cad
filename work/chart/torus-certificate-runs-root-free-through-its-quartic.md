@@ -65,13 +65,22 @@ enough to be useful", `composite_form`'s and `certify.rs`'s module doc's
 ## A consumer waiting on it
 
 The edge certificate's tube (`edge_nurbs::analytic_rung3`) reads these
-arms. Until they exist it refuses every carrier with a torus or cone
-operand by name, `AnalyticRung3Refusal::NoTubeEnclosure`, once limb 2
-holds; the roster is `ssi::enclose::has_implicit_enclosure`. That
+arms. Until they exist it refuses, by name, every carrier with an
+operand outside `ssi::enclose::has_implicit_enclosure`'s roster:
+`AnalyticRung3Refusal::NoTubeEnclosure`, raised once limb 2 holds. That
 covers STEP's re-imported spiric rims
-(`step-import/tests/spiric_roundtrip.rs`). Measured on the vessel
-cavity's rim: the 1e-4 m export spline lies 2.9e-13 m off the torus,
-and limb 2 certifies it, so the torus gradient arm is all that keeps it
-from adopting. When the arms land, widen the roster, and re-pin that row
-and `analytic_rung3_certificate.rs`'s
+(`step-import/tests/spiric_roundtrip.rs`).
+
+Measured on the vessel cavity's rim: the 1e-4 m export spline lies
+2.9e-13 m off the torus, and limb 2 certifies it, so the tube is where
+it refuses. Adopting it needs more than these arms, though:
+- the torus arms of both `implicit_enclosure` and
+  `implicit_gradient_enclosure` (the roster asks both, because
+  `one_arc_r3` reads both);
+- then a margin that clears at some rung;
+- then the one-arc proof.
+
+None of the last two has been measured on this rim. When the arms land,
+widen the roster, and re-pin that row and
+`analytic_rung3_certificate.rs`'s
 `a_cone_or_torus_operand_refuses_the_tube_by_name`.

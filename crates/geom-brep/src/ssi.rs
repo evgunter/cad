@@ -498,14 +498,17 @@ pub enum SsiError {
         floor: f64,
     },
     /// Limb 3 ran and never got an answer: the ladder had rungs, but
-    /// no rung's tube probe produced an enclosure at all (each
-    /// returned nothing rather than a margin). Structural, like
-    /// [`SsiError::TubeLadderEmpty`], and likewise carrying no margin
-    /// — the distinction between them is exactly whether any radius
-    /// was ever tried.
+    /// no rung measured a margin. A rung is silent where its chain is
+    /// empty or broken, or where a box's transversality enclosure is
+    /// refused (an operand with no enclosure arm, or a poisoned box).
+    /// It carries no margin, like [`SsiError::TubeLadderEmpty`]; the
+    /// distinction between them is whether any radius was tried.
     TubeProbeSilent {
         /// How many rungs were offered and answered with nothing.
         rungs: u32,
+        /// How many of them had a transversality enclosure refused; the
+        /// rest built no chain.
+        refused: u32,
     },
     /// Limb 3's transversality is not certified clear of the zero band
     /// over the tube chain at any rung (its enclosure straddles zero, or
@@ -969,11 +972,12 @@ impl core::fmt::Display for SsiError {
                  from the {extent:e} m extent falls below the {floor:e} m ladder \
                  floor the tolerance sets, so limb 3 never ran and nothing was measured"
             ),
-            Self::TubeProbeSilent { rungs } => write!(
+            Self::TubeProbeSilent { rungs, refused } => write!(
                 f,
-                "ssi: none of the uniqueness tube's {rungs} ladder rungs produced an \
-                 enclosure, so limb 3 has nothing to decide — a structural refusal, \
-                 with no margin behind it"
+                "ssi: none of the uniqueness tube's {rungs} ladder rungs measured a \
+                 margin ({refused} had a transversality enclosure refused, the rest built \
+                 no chain), so limb 3 has nothing to decide — a structural refusal, with \
+                 no margin behind it"
             ),
             Self::TubeStraddles { verdict, boxes } => write!(
                 f,
@@ -1431,6 +1435,9 @@ impl SsiError {
             Self::TubeDegenerate(TubeDegeneracy::WallConstantAcrossLocus) => {
                 WALL_COLLAPSED_RECOURSE.to_owned()
             }
+            // A refused enclosure is a pair or box the tube cannot yet
+            // enclose.
+            Self::TubeProbeSilent { refused, .. } if *refused > 0 => NOT_YET_ENDING.to_owned(),
             // The box chain and the pcurve are the kernel's: a fitted
             // cubic's span hulls meet at the knots it passes through, and
             // its tangent names a direction.
@@ -3542,6 +3549,7 @@ mod ending_tests {
                 KERNEL_DEFECT_ENDING,
                 KERNEL_OR_FILE_DEFECT_ENDING,
             ),
+            ("tube probe, refused", NOT_YET_ENDING, NOT_YET_ENDING),
             (
                 "foot point",
                 KERNEL_LIMIT_RECOURSE,
@@ -3965,7 +3973,20 @@ mod ending_tests {
                     floor: 8e-9,
                 },
             ),
-            ("tube probe", SsiError::TubeProbeSilent { rungs: 6 }),
+            (
+                "tube probe",
+                SsiError::TubeProbeSilent {
+                    rungs: 6,
+                    refused: 0,
+                },
+            ),
+            (
+                "tube probe, refused",
+                SsiError::TubeProbeSilent {
+                    rungs: 6,
+                    refused: 6,
+                },
+            ),
             (
                 "tube not one arc, count",
                 SsiError::TubeNotOneArc {

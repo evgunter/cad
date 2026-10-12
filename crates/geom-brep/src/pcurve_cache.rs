@@ -2867,8 +2867,9 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         ),
         E::TubeProbeSilent { .. } => (
             Some(SsiLimb::Tube),
-            "no rung of the uniqueness tube's radius ladder produced an enclosure, so \
-             limb 3 has nothing to decide",
+            "no rung of the uniqueness tube's radius ladder measured a margin (its chain \
+             would not build, or a transversality enclosure was refused), so limb 3 has \
+             nothing to decide",
             None,
         ),
         E::UnsupportedCertificate { what } => (None, what, None),

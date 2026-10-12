@@ -1132,13 +1132,29 @@ fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
 /// smallest zero-free margin (dimensionless, the `sin θ` scale), its box
 /// count, and, where the margin is zero-free, what the one-arc proof
 /// found. `one_arc` is `None` where the chain is no graph, so the proof
-/// had no hypothesis; it never reads as proved where nothing was.
+/// had no hypothesis; it never reads as proved where nothing was. The
+/// margin is `NaN` where a box's transversality enclosure was refused
+/// ([`Rung::refused`]).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Rung {
     pub(crate) tube: SsiTube<f64>,
     pub(crate) margin: f64,
     pub(crate) boxes: u32,
     pub(crate) one_arc: Option<Result<(), Shortfall>>,
+}
+
+impl Rung {
+    /// A rung at which a box's transversality enclosure was refused
+    /// ([`tube_margin`]): it measured nothing, so it has no margin and
+    /// no proof, and [`limb_three`] counts it rather than reading it.
+    fn refused(tube: SsiTube<f64>) -> Self {
+        Self {
+            tube,
+            margin: f64::NAN,
+            boxes: 0,
+            one_arc: None,
+        }
+    }
 }
 
 /// Limb 3's **enclosure probe** for an analytic pair: the graph
@@ -1153,8 +1169,8 @@ pub(crate) struct Rung {
 /// telemetry and blur the one decision that matters. The single named
 /// decision runs once, upstairs, on the chosen radius.
 ///
-/// `None` when the chain is broken or an enclosure refused, which is a
-/// definite structural refusal.
+/// `None` when the chain is empty or broken, a definite structural
+/// refusal; [`Rung::refused`] where a box's transversality enclosure is.
 fn probe_tube_analytic<T: Decide + Bounds + CertifiedEnclosure>(
     chain: &[(Box3, Vec3<T>)],
     s1: &Surface<T>,
@@ -1181,7 +1197,9 @@ fn probe_tube_analytic<T: Decide + Bounds + CertifiedEnclosure>(
         }
         prev = Some(bx);
         padded.push(bx);
-        let m = tube_margin(graph_margin(s1, s2, bx, *e))?;
+        let Some(m) = tube_margin(graph_margin(s1, s2, bx, *e)) else {
+            return Some(Rung::refused(SsiTube::Spatial { radius }));
+        };
         if m < worst {
             worst = m;
         }
@@ -1338,6 +1356,13 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
         let Some(margin) = chart_transverse_margin(boxes, n, rect, (tx, ty, tn))? else {
             return Ok(None);
         };
+        if margin.is_nan() {
+            return Ok(Some(Rung::refused(SsiTube::Chart {
+                rung,
+                pad_u: pad.0,
+                pad_v: pad.1,
+            })));
+        }
         if margin < worst {
             worst = margin;
         }
@@ -1431,8 +1456,8 @@ type PairPads = ((f64, f64), (f64, f64));
 /// the two knot rectangles ([`super::four::one_arc_pair`]).
 ///
 /// `None` when either pcurve has no windows, the two disagree on their
-/// spans, a tangent is unusable, or a box's margin is refused
-/// ([`tube_margin`]): a definite structural refusal at this rung.
+/// spans, or a tangent is unusable: a definite structural refusal at
+/// this rung. [`Rung::refused`] where a box's margin is.
 fn probe_tube_pair<T: Decide + Bounds + CertifiedEnclosure>(
     (pa, pb): (&NurbsCurve2<T>, &NurbsCurve2<T>),
     (na, nb): (super::ChartedNurbs<'_, T>, super::ChartedNurbs<'_, T>),
@@ -1461,7 +1486,14 @@ fn probe_tube_pair<T: Decide + Bounds + CertifiedEnclosure>(
         // A chain box's midpoint steers which determinant is asked: a
         // point the chain chose, entered as the constant it is.
         let e = tangent(T::from_f64(mid))?;
-        worst = worst.min(tube_margin(graph_margin(&pair, x, e))?);
+        // No row reaches this refusal: the ℝ⁴ Jacobian is refused only
+        // from a non-finite chart net, whose speeds `ChartedNurbs::mint`
+        // refuses before any tube exists. It shares `tube_margin` and
+        // the refused rung with the ℝ³ probe, which a row does reach.
+        let Some(m) = tube_margin(graph_margin(&pair, x, e)) else {
+            return Some(Rung::refused(SsiTube::TwoChart { rung, pad_a, pad_b }));
+        };
+        worst = worst.min(m);
         boxes.push(x);
     }
     // An end's state is a point the one-arc proof looks for inside an
@@ -1609,11 +1641,16 @@ fn limb_three<T: Decide>(
         });
     }
     let mut not_one_arc = 0u32;
+    let mut refused = 0u32;
     let mut narrowest: Option<Rung> = None;
     for radius in ladder.iter().copied() {
         let Some(rung) = probe(radius)? else {
             continue;
         };
+        if rung.margin.is_nan() {
+            refused += 1;
+            continue;
+        }
         match (rung.margin > 0.0, rung.one_arc) {
             (true, Some(Ok(()))) => {
                 let t = tube_transversality(rung.margin, extent, rung.boxes, band)?;
@@ -1632,6 +1669,7 @@ fn limb_three<T: Decide>(
         #[allow(clippy::cast_possible_truncation)]
         return Err(SsiError::TubeProbeSilent {
             rungs: ladder.len() as u32,
+            refused,
         });
     };
     let shortfall = match (rung.margin > 0.0, rung.one_arc) {
@@ -1653,7 +1691,10 @@ fn limb_three<T: Decide>(
             match decide_positive("ssi_tube_one_arc", Margin::of(T::from_f64(f64::NAN)), band) {
                 Err(cause) => OneArcRefusal::Undecided(cause),
                 Ok(()) => {
-                    return Err(SsiError::TubeProbeSilent { rungs: not_one_arc });
+                    return Err(SsiError::TubeProbeSilent {
+                        rungs: not_one_arc,
+                        refused: 0,
+                    });
                 }
             }
         }
@@ -2337,14 +2378,16 @@ mod tests {
                 (0.0, (0.01, 0.01)),
                 at_ends(),
             )
-            .expect("the unit patch's chart is not degenerate");
-            let margin = verdict.map_or(0.0, |c| c.margin);
-            assert_eq!(
-                margin, 0.0,
+            .expect("the unit patch's chart is not degenerate")
+            .expect("the probe answers at this rung");
+            assert!(
+                verdict.margin.is_nan() && verdict.one_arc.is_none(),
                 "a domain-violated plane normal produced transversality \
-                 margin {margin} — the crossing read the BRACKET door, so \
-                 the chart tube certifies uniqueness from a plane equation \
-                 that was clamped out of its own domain"
+                 margin {} — the crossing read the BRACKET door, so the \
+                 chart tube certifies uniqueness from a plane equation that \
+                 was clamped out of its own domain; refused, the rung \
+                 measured nothing",
+                verdict.margin
             );
         }
 
@@ -3153,7 +3196,10 @@ mod tests {
         let rungs = tube_ladder(0.1, band).count() as u32;
         assert!(rungs > 0, "the ladder offers rungs");
         assert!(
-            matches!(got, Err(SsiError::TubeProbeSilent { rungs: r }) if r == rungs),
+            matches!(
+                got,
+                Err(SsiError::TubeProbeSilent { rungs: r, refused }) if r == rungs && refused == rungs
+            ),
             "{got:?}"
         );
     }

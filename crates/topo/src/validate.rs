@@ -2757,8 +2757,8 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
              apex height or the other nappe)"
         }
         CertifyError::AnalyticRung3(A::NoTubeEnclosure { .. }) => {
-            "its curve lies on both faces, but the check cannot yet prove it is their one \
-             crossing on a cone or a torus"
+            "its curve lies within the tolerance of both faces, but the check cannot yet \
+             enclose one face's gradient, so it cannot prove the curve is their one crossing"
         }
         CertifyError::IntervalNotForward {
             verdict: Refused::Zero(_),
