@@ -8,7 +8,6 @@ priority: P2
 cost: M
 refs: [boolean-conic-side-code-zero-is-first-order, an-arc-tangent-to-a-face-at-its-end-is-split-at-the-edge-of-the-band]
 design: true
-needs_ev: true
 ---
 
 
