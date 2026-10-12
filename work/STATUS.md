@@ -2882,6 +2882,7 @@ area `kernel`; prefix `walks/`; tag `(WALKS orchestrator)`; ab_band `6600-6699`.
 | `a-split-touching-at-a-notch-apex-mints-a-vertex-twice` | 2026-10-10 | A split whose plane touches a notch's apex mints the apex's above copy twice, and Python panics on the refusal |
 | `aabb-poison-is-per-lane-and-a-one-lane-nan-box-prunes` | 2026-10-10 | bvh::Aabb promises a NaN bound poisons the whole box, but from_points folds per lane and overlaps prunes on a finite lane |
 | `an-ellipse-arcs-span-is-levered-by-its-global-speed-floor` | 2026-10-12 | An ellipse arc's span check is levered by the ellipse's global speed floor (its minor semi-axis), so a 24-band arc on a steep flank reads 3.4 bands and escalates |
+| `an-undecided-margin-over-an-interval-box-ends-as-a-kernel-defect` | 2026-10-12 | An undecided margin over an interval box ends 'this is a kernel defect; report it': recourse::Reading has no box-replay reading |
 | `describe-maps-every-chart-pcurve-escalation-to-chart-image` | 2026-10-12 | certify's describe re-wraps every chart_pcurve escalation as CertCheck::ChartImage, so an azimuth-headroom escalation ends as a defect rather than by ParamWinding |
 
 ## Blocked
