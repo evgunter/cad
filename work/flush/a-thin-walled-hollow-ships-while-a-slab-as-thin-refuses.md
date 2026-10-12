@@ -9,6 +9,7 @@ cost: M
 refs: [a-result-that-is-only-a-sliver-shell-passes-the-door, 4636]
 closed: 2026-10-12
 branch: flush/thinness-by-pairs
+pr: 4783
 ---
 
 
