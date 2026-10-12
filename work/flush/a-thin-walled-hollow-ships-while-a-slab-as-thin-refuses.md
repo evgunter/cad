@@ -2,11 +2,13 @@
 id: a-thin-walled-hollow-ships-while-a-slab-as-thin-refuses
 kind: issue
 title: A thin-walled hollow ships while a slab as thin refuses: the door reads a sliver per shell, never per solid
-status: open
+status: closed
 opened: 2026-10-11
 priority: P2
 cost: M
 refs: [a-result-that-is-only-a-sliver-shell-passes-the-door, 4636]
+closed: 2026-10-12
+branch: flush/thinness-by-pairs
 ---
 
 
@@ -164,3 +166,11 @@ Tests (`topo/tests/sliver_shell_role.rs`):
 `missed_ray_side.rs`
 `a_thin_slab_is_a_legal_operand_against_a_brick_far_away` keeps its
 assertion. Its doc now names check 10 as the refusal's source.
+
+## Closed
+
+Built to Ev's ruling on PR 4690: the door judges thinness by pairs
+alone. What is left lives on two rows. The in-band edge pairs that only
+the census reads are on `boolean-door-runs-the-census-over-its-result`
+(REACHHOLD). A thin operand that check 10 still refuses (`slab ∪ far`,
+`brick ∖ slab`) is on `check-10-reads-a-cavitys-role-from-its-volume-sign`.
