@@ -400,6 +400,8 @@ mod review_4730_divided_carry_probes;
 mod review_4740_r1_probes;
 #[path = "review_cleave_mint_doors.rs"]
 mod review_cleave_mint_doors;
+#[path = "review_pipe_probe.rs"]
+mod review_pipe_probe;
 #[path = "spline_reanchor_rows.rs"]
 mod spline_reanchor_rows;
 #[path = "split_tangent_edge.rs"]
