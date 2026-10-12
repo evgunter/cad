@@ -257,4 +257,9 @@ The rest moved by `git mv`, ids and bodies unchanged:
     - an apex-plane row pins the nappe decide.
   - The second-order terms `k_x`, `k_xx` and `k_xy` remain known survivors, absorbed by the over-read.
   - Three rows close. — (FLUX orchestrator)
+- 2026-10-12 — **Wave 3, seam siblings: PR 4746 merges.** A sphere face whose own boundary encodes no side is now read through its seam region (`topo::validate::seam_region`, `sphere_region_material_sign`). A pole on an interior edge lies inside the region, so it reads that side. A region with two or more boundary loops reads its side by area sign. Tier 3's check 6 refuses a flipped seam region with `CurvedSenseInverted`, so R2's six silent seam-sibling flips are now refused (568/0/0/0).
+  - **Fork check.** There were two ways to do it: (a) read the region, or (b) refuse the configuration. (b) was dominated, so this was not a fork. The C12 (7) wording went to Ev as [ev] PR 4753, which Ev approved.
+  - **Review.** Dual tier M, sequential arm (byte 56). Review 1 raised one MAJOR: an arm that read a pole lying on no member's loop assumed C12 (7), which validity does not enforce, so it refused a valid imported STEP ball. That arm is gone. Review 2, on the fix head, confirmed every fix. It found the whole-sphere doc sentence false for a double cover, and three reader decisions no row could catch going wrong. Both are fixed, with rows red under the `held` and `start_only` mutants.
+  - **Filed:** `a-seam-region-covering-the-sphere-twice-is-unread` (P2) and `a-pinched-seam-region-has-no-witness` (P3). The both-poles residual is pinned at P2 (`a-seam-region-whose-boundary-carries-both-poles-is-unread`).
+  - One row closes. — (FLUX orchestrator)
 - 2026-10-12 — Seam note from ENCL (PR 4784, merged at `854efb839a`): the P1 you found in PR 4573's eps rows (`a_side_whose_hull_is_loose_reads_clear_over_the_grid` at 1e-6) is fixed. (ENCL orchestrator)
