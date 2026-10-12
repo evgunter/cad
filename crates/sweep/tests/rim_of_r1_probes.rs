@@ -182,7 +182,7 @@ fn phase_one_reread_and_the_rotation_claim_on_every_arc() {
 /// hand the answer back to `fillet_edges`; it carves.
 #[test]
 fn the_refusals_own_text_names_the_door_and_following_it_carves() {
-    let source = waisted(tol());
+    let source = sweep::test_support::finished("source", waisted(tol()), tol());
     let before = mass_properties(&source, tol()).unwrap().volume;
     let seed = arcs_at(&source, 1.0, 0.0)[0];
     let Err(refusal) = fillet_edges(&source, &[seed], 0.05, tol()) else {

@@ -91,12 +91,12 @@ fn slab(depth: f64) -> ProfileDoc {
     declare(&mut r, "depth", depth);
     let f = frame(&mut r);
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane: f,
+        frame: f.into(),
         loops: vec![unit_square()],
         ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: param("depth"),
         side: ExtrudeSide::Along,
     });
@@ -118,7 +118,7 @@ fn notch(height: f64) -> ProfileDoc {
     declare(&mut r, "height", height);
     let f = frame(&mut r);
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane: f,
+        frame: f.into(),
         loops: vec![LoopProgram::polygon_expr([
             [len(0.0), len(0.0)],
             [len(0.5), param("height")],
@@ -129,7 +129,7 @@ fn notch(height: f64) -> ProfileDoc {
         ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
@@ -156,12 +156,12 @@ fn defined_slab() -> ProfileDoc {
     declare(&mut r, "depth", 1.0);
     let f = frame(&mut r);
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane: f,
+        frame: f.into(),
         loops: vec![unit_square()],
         ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: Formula::mul(param("depth"), scl(2.0)).expect("a length times a scalar"),
         side: ExtrudeSide::Along,
     });
@@ -172,12 +172,12 @@ fn slab_slot(depth: f64) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
     let f = frame(&mut r);
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane: f,
+        frame: f.into(),
         loops: vec![unit_square()],
         ids: Vec::new(),
     }));
     let e = r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: len(depth),
         side: ExtrudeSide::Along,
     });
@@ -199,7 +199,7 @@ fn two_param_slab() -> ProfileDoc {
     });
     let f = frame(&mut r);
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane: f,
+        frame: f.into(),
         loops: vec![LoopProgram::polygon_expr([
             [len(0.0), len(0.0)],
             [param("side"), len(0.0)],
@@ -209,7 +209,7 @@ fn two_param_slab() -> ProfileDoc {
         ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: param("depth"),
         side: ExtrudeSide::Along,
     });
@@ -221,17 +221,17 @@ fn patterned() -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
     let f = frame(&mut r);
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane: f,
+        frame: f.into(),
         loops: vec![unit_square()],
         ids: Vec::new(),
     }));
     let e = r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: len(0.5),
         side: ExtrudeSide::Along,
     });
     let pat = r.insert(Node::Pattern {
-        input: e,
+        input: e.into(),
         count: Formula::count(3),
         kind: PatternKind::Linear {
             direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -355,20 +355,20 @@ fn a_driven_step_certifies_within_its_turn() {
         }));
         let f = frame(&mut r);
         let p = r.insert(Node::Profile(ProfileProgram {
-            plane: f,
+            frame: f.into(),
             loops: vec![unit_square()],
             ids: Vec::new(),
         }));
         let e = r.insert(Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(0.5),
             side: ExtrudeSide::Along,
         });
         let pattern = r.insert(Node::Pattern {
-            input: e,
+            input: e.into(),
             count: Formula::count(3),
             kind: PatternKind::Circular {
-                axis,
+                axis: axis.into(),
                 step: fixture::ang(step),
             },
         });
@@ -759,8 +759,8 @@ fn the_slot_widens_its_own_variable() {
         "no name is minted"
     );
     assert_eq!(
-        derived.doc.var_order(),
-        doc.var_order(),
+        derived.doc.var_ids(),
+        doc.var_ids(),
         "no variable is declared"
     );
 }
@@ -779,7 +779,7 @@ fn a_parameter_field_boxes_directly() {
     .expect("the parameter boxes");
     assert_eq!(derived.axis, var(&doc, "depth"));
     assert_eq!(derived.doc.vars().len(), doc.vars().len());
-    assert_eq!(derived.doc.order(), doc.order());
+    assert_eq!(derived.doc.ids(), doc.ids());
     assert_eq!(derived.nominal, 1.0);
     let r = range_of(&doc, "depth", RangeSeed::symmetric(0.25), &budget(24, 2048));
     assert!(matches!(r.lo(), RangeSide::Certified { .. }));
@@ -809,7 +809,7 @@ fn a_slot_the_rewrite_cannot_name_refuses_typed() {
     // A slot reading a defined variable has no interval of its own:
     // the query refuses, naming the variables to certify instead.
     let driven = defined_slab();
-    let extrude = *driven.order().last().expect("the extrude is last");
+    let extrude = *driven.ids().last().expect("the extrude is last");
     assert_eq!(
         derive(
             &driven,
@@ -842,7 +842,7 @@ fn a_slot_the_rewrite_cannot_name_refuses_typed() {
             slot: SlotId::Radius
         })
     );
-    let ghost = RecipeNodeId(9999);
+    let ghost = RecipeNodeId::new(0, 9999);
     assert_eq!(
         derive(
             &driven,
@@ -860,12 +860,12 @@ fn a_slot_the_rewrite_cannot_name_refuses_typed() {
     assert_eq!(
         derive(
             &driven,
-            &RangeField::Param(editor_core::VarId(0)),
+            &RangeField::Param(editor_core::VarId::new(0, 0)),
             seed,
             tol()
         ),
         Err(RangeRefusal::NotAContinuousParam {
-            param: editor_core::SpokenVar::new(editor_core::VarId(0), None)
+            param: editor_core::SpokenVar::new(editor_core::VarId::new(0, 0), None)
         })
     );
 }
@@ -933,12 +933,12 @@ fn a_profile_step_argument_widens() {
     let mut r = Recorder::new();
     let f = frame(&mut r);
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane: f,
+        frame: f.into(),
         loops: vec![unit_square()],
         ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });

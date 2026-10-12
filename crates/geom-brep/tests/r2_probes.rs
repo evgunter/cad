@@ -111,7 +111,7 @@ fn seam_delta(
     let p0 = carrier.eval(t0);
     let p1 = carrier.eval(t1);
     let spec = EdgeCurveSpec {
-        description: EdgeDescriptionSpec::seam(keys[0]),
+        description: EdgeDescriptionSpec::wrap(keys[0]),
         carrier,
         param_start: t0,
         param_end: t1,

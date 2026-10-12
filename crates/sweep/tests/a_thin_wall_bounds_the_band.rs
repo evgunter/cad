@@ -54,7 +54,11 @@ fn bisector_point(r: f64) -> (f64, f64) {
 fn a_band_past_a_thin_walls_far_face_refuses_at_the_reach_meter() {
     let tol = Tol::witness();
     let (pts, ko) = thin_flare();
-    let body = revolved_about_y(corners(&pts), Revolution::Full, tol);
+    let body = sweep::test_support::finished(
+        "body",
+        revolved_about_y(corners(&pts), Revolution::Full, tol),
+        tol,
+    );
     let edges = rim_arcs_at(&body, BORE, 0.0);
     assert!(!edges.is_empty(), "the inner corner's rim");
     let past = |r: f64| {
@@ -99,9 +103,13 @@ fn a_cone_foot_past_its_bend_never_reaches_the_headroom() {
     // A flat (60° half-angle) frustum's base rim: the ball's foot sits up
     // the cone, where `ρ` is smaller than at the edge, and the foot's own
     // bend is past the ball from `r ≈ 0.268`.
-    let body = revolved_about_y(
-        corners(&[(0.1, 0.0), (1.0, 0.0), (0.2, 0.8 * t30), (0.1, 0.8 * t30)]),
-        Revolution::Full,
+    let body = sweep::test_support::finished(
+        "body",
+        revolved_about_y(
+            corners(&[(0.1, 0.0), (1.0, 0.0), (0.2, 0.8 * t30), (0.1, 0.8 * t30)]),
+            Revolution::Full,
+            tol,
+        ),
         tol,
     );
     let edges = rim_arcs_at(&body, 1.0, 0.0);

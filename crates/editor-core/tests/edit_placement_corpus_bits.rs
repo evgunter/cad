@@ -14,11 +14,11 @@ use crate::fixture::value_channel::value_digest_nodes;
 use corpus::{eval, failures};
 use editor_core::Node;
 
-/// `(document, node id, digest)` for every `Transform` the registry
-/// holds, in registry then document order — taken on `569540027`, and
-/// the same at the default, `1e-6` and `1e-12` ε rows. The digest feeds
-/// the node id, so a re-minted id moves the word with no geometry
-/// moving; so does a point landing in another arena slot.
+/// `(document, node's mint ordinal, digest)` for every `Transform` the
+/// registry holds, in registry then document order, the same at the
+/// default, `1e-6` and `1e-12` ε rows. The digest feeds the node id, so
+/// a re-minted id moves the word with no geometry moving; so does a
+/// point landing in another arena slot.
 ///
 /// Re-pinned when declaring a variable began minting its id: the rows of
 /// the four documents that declare one (`die`, `heat_sink`,
@@ -31,111 +31,83 @@ use editor_core::Node;
 /// and with it every row this hashes. No outcome or point moved:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held untouched across the change.
-const PINNED: &[(&str, u64, u64)] = &[
-    ("die", 7737271460520352144, 0xe80400cf98834e8a),
-    ("die", 17378071859743756397, 0x0ca5a266b8fb4528),
-    ("die", 721692123010527227, 0x3a0dae2b13f2d216),
-    ("die", 14971010633686759539, 0xe6d650f97a27a2e0),
-    ("die", 14052667631799044213, 0x90de49f35944d52a),
-    ("die", 1311043390687188205, 0xa6f465265658a511),
-    ("die", 17515496266726983249, 0x61b6164116b15b59),
-    ("die", 15243212580900555671, 0x540000099c4dc7c6),
-    ("die", 3387376929605905626, 0xe8d7e3da1519ac63),
-    ("die", 13345870966724836724, 0xd950372607955122),
-    ("die", 13813147807747047695, 0x38c13ff4da8bceee),
-    ("die", 15993098211746638895, 0xa40aae30682cd6e1),
-    ("die", 7791515320851863244, 0x68c28daa7a6c3184),
-    ("die", 11319635659781039511, 0xaa11935fcbfdf4a8),
-    ("die", 11489815378188868632, 0xf6577309fc3143e0),
-    ("die", 10844839672210544606, 0x5c53ee03dce6778f),
-    ("die", 7309163247844024614, 0x34add9124d6449ac),
-    ("die", 13379572687054000213, 0x29d83765cddaf123),
-    ("die", 4919800054970687188, 0xe69aac4fac6aa42d),
-    ("die", 2910535887588818879, 0xb31383975e68e1e7),
-    ("die", 3378863270133240766, 0x1605740be9499566),
-    ("heat_sink", 11865892429783732516, 0xa9b6150dd1fc2ef4),
-    ("heat_sink", 16783533055005839466, 0x3fe976906e925f90),
-    ("heat_sink", 5378097503098638365, 0x53f657e4f6c62101),
-    ("heat_sink", 4217065770962140755, 0x8d91d0b1081ae001),
-    ("heat_sink", 6728457609622360334, 0x7ff3479ca4d55648),
-    ("kitchen_sink", 2716691094503816113, 0x3068bc9dfd54a5aa),
-    ("die_pips", 3616840321126588636, 0x8ace02c55b153ded),
-    ("part_select", 9397978846600865866, 0xa6a76d525e40e428),
-    ("die_composed", 3616840321126588636, 0x8ace02c55b153ded),
-    (
-        "die_composed_tour",
-        14934969119361055721,
-        0xadfb5bdc342c883a,
-    ),
-    (
-        "die_composed_tour",
-        12321946086614061860,
-        0x51accfbf63acd9ec,
-    ),
-    ("die_composed_tour", 1607595739630803563, 0x36c5b0dc980939e7),
-    (
-        "die_composed_tour",
-        12314759081092211246,
-        0x0c2a08a4c37ded1b,
-    ),
-    ("die_composed_tour", 3796523877164864820, 0xfcf5fdb10223fc58),
-    (
-        "die_composed_tour",
-        16354879676066552213,
-        0x37d79bdbaa63cc6f,
-    ),
-    ("die_composed_tour", 1744719274560299663, 0x479d4f3e38d0b028),
-    (
-        "die_composed_tour",
-        17307922903490645166,
-        0x265a245ede45b6b8,
-    ),
-    (
-        "die_composed_tour",
-        10251832615738266467,
-        0xe78d23e2043503c1,
-    ),
-    (
-        "die_composed_tour",
-        12913916506033112012,
-        0x71a6644ccc9d103b,
-    ),
-    (
-        "die_composed_tour",
-        10891647831853294135,
-        0xb12b8971dd3e52ad,
-    ),
-    ("die_composed_tour", 92835628372886175, 0xfc53f654b574e039),
-    ("die_composed_tour", 849907914837897822, 0xd15a458df062c5fe),
-    (
-        "die_composed_tour",
-        16188805933911949637,
-        0x55efb3eb36e0800d,
-    ),
-    ("die_composed_tour", 2043580579064484645, 0x312837419a8ab310),
-    (
-        "die_composed_tour",
-        10687756545180916313,
-        0xab9273b94ebb7270,
-    ),
-    (
-        "die_composed_tour",
-        18252633885557477507,
-        0xcbd1647b5eed42a5,
-    ),
-    ("die_composed_tour", 7756297561168519233, 0x89c390fcbedb300c),
-    ("die_composed_tour", 578548427347514355, 0x099379621baeea2f),
-    ("die_composed_tour", 7684283349274090191, 0x42b1bac52104ac26),
-    ("die_composed_tour", 4091348359908227239, 0x3bacd76869f7dd40),
+///
+/// **Re-pinned when an id became its mint ordinal and its digest**: a
+/// row names its node by ordinal, and every word moved with the id it
+/// hashes; the ids-masked geometry fence held.
+///
+/// **Re-pinned when a selection became a variable**: the tour document
+/// mints one selection ahead of its transforms, so each of its rows'
+/// ordinals moved by one and its words with them; every other row held,
+/// and so did the ids-masked geometry fence.
+///
+/// **Re-pinned for INTENT stage 3 PR A** (a revolve's axis is a line on
+/// the node): `kitchen_sink`, `die_pips`, `die_composed` and the tour
+/// document hold no in-plane axis datum, so their later ids moved —
+/// ordinals by two where the datum and its frame read went — and every
+/// row naming them; every other row held its word, and the ids-masked
+/// geometry fence held. Taken merged over FORK-DM4 unit 1 (PR 4527).
+const PINNED: &[(&str, u32, u64)] = &[
+    ("die", 206, 0x1d1f8e2cc2c77841),
+    ("die", 217, 0x3785f6c2ba33c653),
+    ("die", 228, 0x3363eb4ff73f9450),
+    ("die", 239, 0x7c530731603cf65d),
+    ("die", 250, 0x16a67e6236d9b604),
+    ("die", 261, 0x45be4dfc27529307),
+    ("die", 272, 0xbe821eb0e7022f3d),
+    ("die", 283, 0x1913295a11edfb23),
+    ("die", 294, 0x7b63f6965d66520b),
+    ("die", 305, 0x6ccbe66957580fd1),
+    ("die", 316, 0x86490582263f56a0),
+    ("die", 327, 0xcb52fa219a088672),
+    ("die", 338, 0x6595f3d39824a5c4),
+    ("die", 349, 0xeb30370b669c0ef6),
+    ("die", 360, 0x196dc6fb4191848f),
+    ("die", 371, 0x691c8c2dadb72338),
+    ("die", 382, 0x40f78ac17a0954c5),
+    ("die", 393, 0x680102bdf5bb645a),
+    ("die", 404, 0x348213346708f0f1),
+    ("die", 415, 0x79dacbb4b3757f7d),
+    ("die", 426, 0x07a07e93956ce3bd),
+    ("heat_sink", 74, 0x489cb40be1b10601),
+    ("heat_sink", 85, 0xc48f84c3a2ca7050),
+    ("heat_sink", 96, 0x861a4c449370dbcd),
+    ("heat_sink", 107, 0x3c57788966584962),
+    ("heat_sink", 118, 0xb3a54c8e814e0680),
+    ("kitchen_sink", 95, 0x804d2736f9974e1d),
+    ("die_pips", 66, 0x3d71a421838e2998),
+    ("part_select", 60, 0x36f2cf9c61b0b7b5),
+    ("die_composed", 66, 0x3d71a421838e2998),
+    ("die_composed_tour", 70, 0x39eec164647550ed),
+    ("die_composed_tour", 79, 0xfc601184b6fc2fbf),
+    ("die_composed_tour", 88, 0xd3f0085f4000e2a7),
+    ("die_composed_tour", 97, 0x788d10cc494d92a3),
+    ("die_composed_tour", 106, 0x61ecd055b6d6ac98),
+    ("die_composed_tour", 115, 0xa84c1386e8975904),
+    ("die_composed_tour", 124, 0xe5c58557ae0952af),
+    ("die_composed_tour", 133, 0x06706c8ffe901572),
+    ("die_composed_tour", 142, 0xceebc2885fb47bc7),
+    ("die_composed_tour", 151, 0x1353af534d629e31),
+    ("die_composed_tour", 160, 0x44345bd453aa5c84),
+    ("die_composed_tour", 169, 0x1e93a5002169d373),
+    ("die_composed_tour", 178, 0x090d47379b784835),
+    ("die_composed_tour", 187, 0xdd1947903d37f26e),
+    ("die_composed_tour", 196, 0x22c7d552b7124fef),
+    ("die_composed_tour", 205, 0x963d7364ae8c897a),
+    ("die_composed_tour", 214, 0x770471b37929ce4d),
+    ("die_composed_tour", 223, 0x1452417a62d0fb02),
+    ("die_composed_tour", 232, 0x12eda247c5a28e71),
+    ("die_composed_tour", 241, 0xfc3510c67d5d1089),
+    ("die_composed_tour", 250, 0x213b8c3b14c19ff2),
 ];
 
 #[test]
 fn every_corpus_transform_places_its_body_by_the_pinned_bits() {
-    let mut got: Vec<(&'static str, u64, u64)> = Vec::new();
+    let mut got: Vec<(&'static str, u32, u64)> = Vec::new();
     for doc in corpus::documents() {
         let transforms: Vec<_> = doc
             .doc
-            .order()
+            .ids()
             .iter()
             .copied()
             .filter(|id| matches!(doc.doc.node(*id), Some(Node::Transform { .. })))
@@ -148,8 +120,8 @@ fn every_corpus_transform_places_its_body_by_the_pinned_bits() {
         assert!(bad.is_empty(), "{} failed to evaluate: {bad:?}", doc.name);
         for (id, word, fed) in value_digest_nodes(&ev) {
             if transforms.contains(&id) {
-                assert!(fed > 0, "{} node {}: nothing was digested", doc.name, id.0);
-                got.push((doc.name, id.0, word));
+                assert!(fed > 0, "{} node {}: nothing was digested", doc.name, id);
+                got.push((doc.name, id.0.ordinal(), word));
             }
         }
     }

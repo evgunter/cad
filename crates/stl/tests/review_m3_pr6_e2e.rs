@@ -39,7 +39,7 @@ fn die(x0: f64, y0: f64, z0: f64) -> AtRestBody<f64> {
     let BooleanResult::Body(b) = subtract(&cube, &cutter, Tol::witness()).unwrap() else {
         panic!("die subtract is a body");
     };
-    assert!(b.contacts.vv.is_empty() && b.contacts.a_on_b.is_empty());
+    assert!(b.contacts.is_empty());
     assert_eq!(
         mass_properties(&b.body, Tol::witness()).unwrap().volume,
         0.875
@@ -55,7 +55,11 @@ fn r6_pocketed_dice_kiss_e2e() {
         panic!("kiss union is a body");
     };
     // 3′ gate: green with carried contacts, red without.
-    assert_eq!(assembly.contacts.vv.len(), 1, "one corner kiss");
+    assert_eq!(
+        assembly.contacts.vertex_vertex().count(),
+        1,
+        "one corner kiss"
+    );
     assert_eq!(
         validate_pseudomanifold(&assembly.body, &assembly.contacts, Tol::witness()),
         Ok(())
@@ -66,7 +70,7 @@ fn r6_pocketed_dice_kiss_e2e() {
     assert!(
         withheld
             .iter()
-            .all(|e| matches!(e, ValidationError::UndeclaredContact { .. })),
+            .all(|e| matches!(e, ValidationError::UnrecordedContact { .. })),
         "{withheld:?}"
     );
     // Structure + exact oracles (the parts=2 discipline: shell count

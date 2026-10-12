@@ -121,7 +121,8 @@ fn three_top_edges_in_a_row(body: &Body<f64>) -> Vec<EdgeKey> {
 }
 
 /// One carve through the public door, checked the same way for every
-/// fixture: one band, tier-3 valid, the `+N, +N+1, +1` census delta,
+/// fixture: one band, tier-3 valid, the `+1, +2, +1` census delta (the
+/// crossings' `+N, +N+1, +1` less the closing join's `N − 1`),
 /// and `V₁ − V₀` equal to `signed` — the oracle with the material
 /// side's sign — to well inside the agreement measured (~1e-15 on
 /// volumes of order 1–10).
@@ -129,7 +130,7 @@ fn carve_and_check(body: &Body<f64>, arcs: &[EdgeKey], signed: f64, what: &str) 
     let n = arcs.len();
     let v0 = volume(body, what);
     let c0 = census(body);
-    let out = fillet_edges(body, arcs, RHO, tol())
+    let out = fillet_edges(&sweep::test_support::at_rest(body, tol()), arcs, RHO, tol())
         .unwrap_or_else(|e| panic!("{what}: the whole rim carves, got {e}"));
     assert_eq!(out.band_faces.len(), 1, "{what}: one band");
     assert!(
@@ -141,8 +142,17 @@ fn carve_and_check(body: &Body<f64>, arcs: &[EdgeKey], signed: f64, what: &str) 
     let c1 = census(&out.body);
     assert_eq!(
         (c1.0 - c0.0, c1.1 - c0.1, c1.2 - c0.2),
-        (n, n + 1, 1),
-        "{what}: one vertex and one edge per crossing, one more edge, one band face"
+        // The closing join (maximal edges) takes every host rim foot
+        // but the one the band's slit lands on: n - 1 joins, each one
+        // vertex and one edge.
+        (1, 2, 1),
+        "{what}: one vertex and one edge per crossing, one more edge, one band face, \
+         less the n - 1 joins of the host trimlines"
+    );
+    assert_eq!(
+        out.naming.as_ref().map(|r| r.edge_joins.len()),
+        Some(n - 1),
+        "{what}: every host rim foot but the slit's is joined"
     );
     let moved = volume(&out.body, what) - v0;
     assert!(

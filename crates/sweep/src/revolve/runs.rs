@@ -73,6 +73,19 @@ pub(super) fn collapse_runs<T: Decide>(
     loop_index: usize,
     band: Band,
 ) -> Result<Collapsed<T>, RevolveError> {
+    if profile::is_full_turn(segs) {
+        // One segment, so no run to collapse and no joint to read.
+        return Ok(Collapsed {
+            cls: LoopClasses {
+                verts: cls.verts.clone(),
+                walls: cls.walls.clone(),
+            },
+            members: vec![vec![segs[0].canonical_segment]],
+            joins: vec![Join::Corner],
+            segs: segs.to_vec(),
+            n_canon: 1,
+        });
+    }
     let pair = loop_pairs(segs, cls, loop_index, band)?;
     let col = crate::swept::collapse_runs(segs, &crate::swept::joins(segs, &pair), |seg, next| {
         seg.continued(next)

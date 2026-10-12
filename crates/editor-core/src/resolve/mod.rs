@@ -16,7 +16,7 @@
 //!   combinatorially indistinguishable — that is what a tie means — so
 //!   the tied set expressed in names is the tie row itself, and the
 //!   [`TieWitness`] carries the multiplicity and site).
-//! - The documented `order_along` over-tie widens: a reference to a
+//! - The documented `rank_by` over-tie widens: a reference to a
 //!   RANKED fragment name whose group over-tied resolves `Ambiguous`
 //!   with the WIDENED base name as the candidate — never a mis-bind.
 //! - N3's offered candidates (a retired constituent's merged name; a
@@ -120,7 +120,7 @@ pub enum ResolveError {
         name: StableName,
         /// The distinct names the tied set answers to (module docs:
         /// the tie row itself, or the widened base on an
-        /// `order_along` over-tie).
+        /// `rank_by` over-tie).
         candidates: Vec<StableName>,
         /// The recorded tie's site and width.
         tie: TieWitness,
@@ -300,7 +300,7 @@ impl ResolveError {
     /// The tie row IS the ambiguity (N5), so the candidates are that
     /// row expressed in names and are derived from the witness here
     /// rather than restated per door. `at` is the referenced name
-    /// itself, except on an `order_along` over-tie, where it is the
+    /// itself, except on an `rank_by` over-tie, where it is the
     /// widened base row the reference actually tied against.
     pub(crate) fn ambiguous(
         name: &StableName,
@@ -337,11 +337,11 @@ impl ResolveError {
 /// Why a name vanished.
 ///
 /// N5's arms, including [`Self::GroupResized`] and the border delta
-/// ([`Self::BorderDelta`]), plus two additions that are NOT N5's and
-/// are marked as such wherever they are read: the reserved
+/// ([`Self::BorderDelta`]), plus one addition that is NOT N5's and is
+/// marked as such wherever it is read: the reserved
 /// `WitnessBifurcation` arm (SOLVER-DESIGN W3, constructed by the M6
-/// solver) and [`Self::ConsumedByFold`]. A consumer matching this enum
-/// is matching more than N5 wrote.
+/// solver). A consumer matching this enum is matching more than N5
+/// wrote.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Diagnosis {
     /// A recorded predicate flip on the name's derivation path — the
@@ -425,66 +425,6 @@ pub enum Diagnosis {
         /// What was found there.
         cause: UpstreamCause,
     },
-    /// An n-ary union's fold consumed the entity a member-space name
-    /// denotes, by a composition that leaves no one entity for the
-    /// name to denote — NOT N5's: the arm the rule *"a composition that
-    /// breaks one name denotes one entity refuses"* adds for the
-    /// compositions other than a merge. A merge's own case is looked
-    /// through, not refused (`Node::Union`).
-    ///
-    /// Read off the accumulation's rows at the step the name is fed
-    /// to, never by re-measuring the face: which composition consumed
-    /// it is the SHAPE of the rows that descend from it
-    /// ([`FoldConsumption`]). A refusal carrying this diagnosis offers
-    /// no replacement, because none is unique: a split and a
-    /// fragmented merge leave several candidates.
-    ///
-    /// The union is not a field: the name this diagnoses is a
-    /// member-space name, minted by that union, so it is the name's own
-    /// minting node, and the refusal carrying the name already says so.
-    ConsumedByFold {
-        /// How the fold consumed it.
-        by: FoldConsumption,
-    },
-}
-
-/// Which composition of a union's fold consumed a member's entity
-/// ([`Diagnosis::ConsumedByFold`]) — the structural shape of what the
-/// accumulation holds in its place.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum FoldConsumption {
-    /// A later member SPLIT it: the accumulation holds fragments of
-    /// it (the name with `Fragment` qualifiers after it), bare or as
-    /// constituents of later merges, and never the name itself as a
-    /// face. The step that split it may also have merged part of it:
-    /// the name is then a constituent of a bare merged row beside its
-    /// own fragment, and that row holds only part of the face.
-    Split,
-    /// A declared MERGE consumed it and a later member split the
-    /// merged face: the accumulation holds fragments of a merged row
-    /// whose constituent set covers the name, and no bare merged row
-    /// that does.
-    FragmentedMerge,
-}
-
-// The composition as the clause of [`Diagnosis::ConsumedByFold`]'s
-// sentence that says what happened to the entity and why nothing is
-// offered in its place.
-impl core::fmt::Display for FoldConsumption {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(match self {
-            Self::Split => {
-                "a later member split it into fragments, some perhaps merged with \
-                 another member's face in the same step, and which piece the \
-                 reference means is not decidable from the names, so none is offered"
-            }
-            Self::FragmentedMerge => {
-                "a declared merge consumed it and a later member then split the merged \
-                 face, and which fragment the reference means is not decidable from the \
-                 names, so none is offered"
-            }
-        })
-    }
 }
 
 /// The seams on a resized group's parent that only one of the two runs
@@ -796,11 +736,6 @@ impl crate::spoken::Say for Diagnosis {
             Self::WitnessBifurcation(refusal) => {
                 write!(f, "{}", crate::witness::BranchSelectionRefused(refusal))
             }
-            Self::ConsumedByFold { by } => write!(
-                f,
-                "the union that minted it consumed it before the step its declared pair is \
-                 fed to: {by}"
-            ),
             Self::Upstream { node, cause } => write!(
                 f,
                 "{}, upstream of {}, the name's minting node, but not on its derivation path",
@@ -916,7 +851,7 @@ pub struct TieWitness {
     /// The node whose table records the tie.
     pub node: RecipeNodeId,
     /// The tied table row (the referenced name itself, or the widened
-    /// base name on an `order_along` over-tie).
+    /// base name on an `rank_by` over-tie).
     pub at: StableName,
     /// How many equally-admissible candidates tie there.
     pub width: usize,
@@ -1128,7 +1063,7 @@ fn enrich_impl<T: Decide, P: PriorCtx>(
 /// BANKED obligation, ruled at PR 7 review A1): the operand→final
 /// paint gap means an attribute on an operand-node name resolves on
 /// the intermediate body only — the final node's corresponding face
-/// is a DIFFERENT derivation (`FromA(x)` ≠ `x`, N1 identity), showing
+/// is a DIFFERENT derivation (`From(r, x)` ≠ `x`, N1 identity), showing
 /// neither paint nor loss. The explicit repair must be ergonomic:
 /// this maps EVERY appearance key (resolving or not — the gap is
 /// silent by design, so suggestions cannot be gated on a loss) to the
@@ -1240,9 +1175,7 @@ impl<U: Decide> Prior<'_, U> {
         flips: &FlipSet,
         nodes: &BTreeSet<RecipeNodeId>,
     ) -> Option<Evidence> {
-        if let Some((node, f)) =
-            in_document_order(self.doc(), new.doc, flips.flips_on_nodes(nodes)).first()
-        {
+        if let Some((node, f)) = in_id_order(flips.flips_on_nodes(nodes)).first() {
             return Some(Evidence::Flip(*node, *f));
         }
         let ddiff = self.doc().diff(new.doc);
@@ -1255,20 +1188,12 @@ impl<U: Decide> Prior<'_, U> {
     }
 }
 
-/// `found` in the order the lanes read evidence: by where its node
-/// stands in the current document, then in the last-good one — the
-/// node the author placed first answers first, whatever its id. Stable,
-/// so one node's flips keep their own order.
-fn in_document_order<V>(
-    old: &Doc<ProfileProgram>,
-    new: &Doc<ProfileProgram>,
-    mut found: Vec<(RecipeNodeId, V)>,
-) -> Vec<(RecipeNodeId, V)> {
-    let (in_new, in_old) = (new.positions(), old.positions());
-    let at = |positions: &BTreeMap<RecipeNodeId, usize>, id| {
-        positions.get(&id).copied().unwrap_or(usize::MAX)
-    };
-    found.sort_by_key(|&(id, _)| (at(&in_new, id), at(&in_old, id)));
+/// `found` in the order the lanes read evidence: by its node's id, so
+/// the node the author placed first answers first — the current and
+/// the last-good document are one history, whose ids order as they
+/// were minted. Stable, so one node's flips keep their own order.
+fn in_id_order<V>(mut found: Vec<(RecipeNodeId, V)>) -> Vec<(RecipeNodeId, V)> {
+    found.sort_by_key(|&(id, _)| id);
     found
 }
 
@@ -1304,7 +1229,7 @@ impl<U: Decide> PriorCtx for Prior<'_, U> {
         path: &BTreeSet<RecipeNodeId>,
     ) -> Option<Diagnosis> {
         let flips = diff_verdicts(self.ctx.eval, new.eval);
-        let family = in_document_order(self.doc(), new.doc, flips.flips_on_nodes(path))
+        let family = in_id_order(flips.flips_on_nodes(path))
             .into_iter()
             .find(|(_, f)| f.predicate.starts_with(crate::names::FAMILY));
         let flip = |f: VerdictFlip| Diagnosis::PredicateFlip {
@@ -1350,11 +1275,17 @@ impl<U: Decide> PriorCtx for Prior<'_, U> {
     }
 
     fn group_resized<T: Decide>(&self, new: RunCtx<'_, T>, name: &StableName) -> Option<Diagnosis> {
-        group_resized(self.ctx.eval, new.eval, name)
+        group_resized(self.ctx.eval, new, name)
     }
 
     fn tombstone<T: Decide>(&self, _new: RunCtx<'_, T>, name: &StableName) -> Option<Tombstone> {
-        let (node, entity) = lookup_unique(self.ctx.eval, name)?;
+        // A line is no row: its last-good entry is the least row on it,
+        // as a union reads a cited line (N5, "A cited line").
+        let (node, entity) = lookup_unique(self.ctx.eval, name).or_else(|| {
+            line_rows(self.ctx.eval, name)
+                .iter()
+                .find_map(|row| lookup_unique(self.ctx.eval, row))
+        })?;
         let table = &self.ctx.eval.value(node)?.name_table;
         let Some(body) = table.name_of(&EntityRef {
             body: entity.body,
@@ -1412,7 +1343,7 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
         None => {}
     }
 
-    // 3. The order_along over-tie widening (spec D1): a ranked
+    // 3. The `rank_by` over-tie widening (spec D1): a ranked
     //    fragment reference whose group over-tied resolves Ambiguous
     //    against the WIDENED base row — never a mis-bind.
     let mut offers = Vec::new();
@@ -1429,12 +1360,20 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
             Some((_, Entry::Unique(_))) => offers.push(base),
             None => {}
         }
+    } else if let Some(line) = piece_line(name) {
+        // An edge piece's base is its line, which no table publishes:
+        // the surviving pieces of the line are offered (N5, "A cited
+        // line"), the undivided edge among them where it is one row.
+        for row in line_rows(new.eval, &line) {
+            if matches!(lookup(new.eval, row), Some((_, Entry::Unique(_)))) {
+                offers.push((**row).clone());
+            }
+        }
     } else if let Some(base) = unqualified(name)
-        // The same collapse for a face or edge piece: the undivided
-        // survivor is offered for an explicit `Rebind`, never bound.
-        // There is no over-tie to widen to here — a `Borders`, `Keeps`
-        // or `Ends` tie is a row of the QUALIFIED name, which step 2
-        // already answered.
+        // The same collapse for a face piece: the undivided survivor is
+        // offered for an explicit `Rebind`, never bound. There is no
+        // over-tie to widen to here — a `Borders` or `Keeps` tie is a
+        // row of the QUALIFIED name, which step 2 already answered.
         && matches!(lookup(new.eval, &base), Some((_, Entry::Unique(_))))
     {
         offers.push(base);
@@ -1461,9 +1400,20 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
 
     // Cascade dominates: an embedded operand name that itself fails
     // to resolve carries the root cause (its own diagnosis chains).
+    // A name cited by its line is present while any row lies on it, and
+    // so is the line a name resolved here is, when it is one: an edge
+    // spelled with no piece qualifier that neither run holds as a row.
+    let is_line = name.kind == EntityKind::Edge
+        && *crate::names::edge_line(&crate::names::NameRef::new(name.clone())) == *name
+        && !prior.carried(name);
+    let lines = cited_lines(name, is_line);
     let mut cascade: Option<StableName> = None;
     walk_names(name, Partners::Cascade, &mut |inner| {
-        if cascade.is_none() && lookup(new.eval, inner).is_none() {
+        if cascade.is_none()
+            && lookup(new.eval, inner).is_none()
+            && !(lines.iter().any(|l| core::ptr::eq(*l, inner))
+                && !line_rows(new.eval, inner).is_empty())
+        {
             cascade = Some(inner.clone());
         }
     });
@@ -1520,6 +1470,77 @@ fn fragment_base(name: &StableName) -> Option<StableName> {
     let mut base = name.clone();
     base.path.pop();
     (!base.path.is_empty()).then_some(base)
+}
+
+/// **The line an edge piece lies on**: its base, where its qualifier is
+/// `Ends` (N2).
+fn piece_line(name: &StableName) -> Option<StableName> {
+    (name.kind == EntityKind::Edge
+        && matches!(
+            name.path.last(),
+            Some(RoleSeg::Fragment(Qualifier::Ends(_)))
+        ))
+    .then(|| fragment_base(name))
+    .flatten()
+}
+
+/// **The rows that lie on `line`** (N5, "A cited line"): the edge rows
+/// of `line`'s node's table whose line it is, in key order. Empty where
+/// that node has no table in this run or no row lies on it.
+fn line_rows<'a, T: Decide>(
+    eval: &'a Evaluation<T>,
+    line: &StableName,
+) -> &'a [crate::names::NameRef] {
+    eval.value(line.node)
+        .map_or(&[], |v| v.name_table.on_line(line))
+}
+
+/// **Every name `name` cites by its line**, at every depth, `name`
+/// itself read as a line where `is_line`: a crossing's
+/// edges, a band crossing's, a seam vertex's, a `Keeps` entry, the parent an edge piece
+/// wraps, and the parent a line wraps in turn (`names::role::edge_line`).
+/// By address, so a reader can tell a name in a line position from an
+/// equal one elsewhere in the tree.
+fn cited_lines(name: &StableName, is_line: bool) -> Vec<&StableName> {
+    let mut out: Vec<&StableName> = Vec::new();
+    let mut stack: Vec<(&StableName, bool)> = vec![(name, is_line)];
+    while let Some((n, is_line)) = stack.pop() {
+        let mut lines: Vec<&StableName> = Vec::new();
+        let tail = n
+            .path
+            .iter()
+            .rposition(|s| !matches!(s, RoleSeg::Fragment(Qualifier::Ends(_))))
+            .map_or(0, |i| i + 1);
+        let piece = n.kind == EntityKind::Edge && tail < n.path.len();
+        if (piece || is_line) && tail == 1 {
+            lines.extend(crate::names::wrapped_edge(&n.path[0]).map(|w| &**w));
+        }
+        for seg in &n.path {
+            match seg {
+                RoleSeg::Crossing { edge, .. }
+                | RoleSeg::CrossingVertex { edge, .. }
+                | RoleSeg::BandCross { edge, .. } => {
+                    lines.push(edge);
+                }
+                RoleSeg::EdgeCrossing { a, b, .. } => lines.extend([&**a, &**b]),
+                RoleSeg::Seam { a, b } if n.kind == EntityKind::Vertex => {
+                    lines.extend([&**a, &**b]);
+                }
+                RoleSeg::Fragment(Qualifier::Keeps(kept)) => lines.extend(kept),
+                _ => {}
+            }
+        }
+        let mut children = Vec::new();
+        embedded(n, Partners::Include, &mut children);
+        for c in children {
+            let line = lines.iter().any(|l| core::ptr::eq(*l, c));
+            if line {
+                out.push(c);
+            }
+            stack.push((c, line));
+        }
+    }
+    out
 }
 
 /// A face or edge piece's base ([`fragment_base`]) — what the SAME
@@ -1608,24 +1629,23 @@ fn border_delta<T: Decide>(
 /// # Why a fragment name can vanish with no flip
 ///
 /// This is the one statement of it; the sites that need it point
-/// here. A fragment qualifier exists only while its group has two or
-/// more members (N2), and `OrderAlong` spells the size of a group of
-/// crossings of one sense into the name as `of`. So a fragment name
-/// vanishes whenever its group stops being divided, and a ranked
-/// crossing's whenever its group changes size, and neither event need
-/// flip any discriminator: a `Borders` group that stops being divided
-/// leaves no piece whose walls could be compared — the walls still
-/// stand where they stood relative to the survivor — and an
-/// `OrderAlong` group ranks its members against EACH OTHER, so a group
-/// of one runs no pair. What remains in evidence is the count. An edge
-/// piece's `Ends` holds no count, so a cut elsewhere on its parent, by
-/// a face that does not already cross it, leaves its name as it was. A
-/// crossing's sense is its own, and a crossing ranked among others of
-/// its sense keeps an ordinal, so a second crossing of the same sense
-/// by a face that already crosses the parent renames the first, and
-/// every piece whose `Ends` cite it vanishes too; so do a piece whose
-/// own end moves, a lone piece its parent's second cut gives `Ends`,
-/// and a group that collapses to one.
+/// here. A face fragment's qualifier exists only while its group has
+/// two or more members (N2), an edge piece's `Ends` while its parent is
+/// divided, and `OrderAlong` spells the size of a group of crossings of
+/// one sense into the name as `of`. So a fragment name vanishes
+/// whenever its group stops being divided, and a ranked crossing's
+/// whenever its group changes size, and neither event need flip any
+/// discriminator: a `Borders` group that stops being divided leaves no
+/// piece whose walls could be compared — the walls still stand where
+/// they stood relative to the survivor — and an `OrderAlong` group
+/// ranks its members against EACH OTHER, so a group of one runs no
+/// pair. What remains in evidence is the count. An edge piece's `Ends`
+/// holds no count and a crossing's sense is its own, so a cut elsewhere
+/// on its parent leaves the piece's name as it was, and so do the
+/// crossings it ends at; a second crossing of the same sense by a face
+/// that already crosses the parent ranks the first, and every piece
+/// whose `Ends` cite it vanishes too; so does a piece whose own end
+/// moves, which leaves its group's count as it was.
 ///
 /// # What is counted
 ///
@@ -1694,7 +1714,7 @@ fn border_delta<T: Decide>(
 /// two table scans; nothing reaches any log.
 fn group_resized<U: Decide, T: Decide>(
     prior: &Evaluation<U>,
-    new: &Evaluation<T>,
+    RunCtx { doc, eval: new }: RunCtx<'_, T>,
     name: &StableName,
 ) -> Option<Diagnosis> {
     let base = fragment_base(name)?;
@@ -1715,6 +1735,10 @@ fn group_resized<U: Decide, T: Decide>(
             &new_value.name_table,
             &base,
             prior_value.fragment_groups.is_folded(),
+            match doc.node(name.node) {
+                Some(crate::node::Node::Subtract { from, .. }) => Some(from.read),
+                _ => None,
+            },
             was.parents > 1 || now.parents > 1,
         ),
     })
@@ -1779,11 +1803,11 @@ fn group_reading(groups: &crate::names::FragmentGroups, base: &StableName) -> Op
 /// wrong kind and never read.
 ///
 /// The parent is read off the group's base, per emitter:
-/// - a pair boolean's `FromA(p)` / `FromB(p)`: the seam's A side / B
+/// - a subtract's `From(r, p)`: one side of the seam, the A side or B
 ///   side is `p`, spelled in the operand's table, and the cutter is the
 ///   other side, verbatim — an operand's names are its own published
 ///   identity, so a cutter the operand re-qualified reads as renamed;
-/// - a union's `FromMember { .. }`, carried `Seam { .. }` line or
+/// - a union's `From { .. }`, carried `Seam { .. }` line or
 ///   `Merged(..)` face, with any fold-accumulated `Fragment` tail: the
 ///   union's seams are in name order, so either side may be the parent,
 ///   and a side that is the base with only `Fragment`s after it (a
@@ -1792,7 +1816,7 @@ fn group_reading(groups: &crate::names::FragmentGroups, base: &StableName) -> Op
 ///   tail dropped: a union's trailing fragments are the fold's, not the
 ///   member's, so a cutter a fold step re-ranked or stopped dividing is
 ///   the same cutter. A `Seam`-headed base is the pair case's
-///   `FromA(Seam ..)` — a seam line an earlier step minted, cut by a
+///   `From(r, Seam ..)` — a seam line an earlier step minted, cut by a
 ///   later step's seam vertices — read the same way;
 /// - any other base — a split's `SplitFragment` (its one cutter is the
 ///   tool, which is no row), a pair boolean's own seam chain (pieces of
@@ -1823,9 +1847,10 @@ fn group_cutters(
     new_table: &crate::names::NameTable,
     base: &StableName,
     union: bool,
+    from: Option<crate::VarId>,
     tied: bool,
 ) -> GroupCutters {
-    let Some(parent) = SeamParent::of(base, union) else {
+    let Some(parent) = SeamParent::of(base, union, from) else {
         return GroupCutters::NotSeamBounded;
     };
     if tied {
@@ -1849,8 +1874,8 @@ fn group_cutters(
 /// Where a group's parent sits in the `Seam` rows of its minting node
 /// ([`group_cutters`]).
 enum SeamParent<'a> {
-    /// A pair boolean's operand entity: the A side of every seam on it,
-    /// or the B side.
+    /// A subtract's operand entity: the A side of every seam on it, the
+    /// subtract's `from`, or the B side.
     Pair {
         parent: &'a StableName,
         a_side: bool,
@@ -1860,7 +1885,7 @@ enum SeamParent<'a> {
 }
 
 impl<'a> SeamParent<'a> {
-    fn of(base: &'a StableName, union: bool) -> Option<Self> {
+    fn of(base: &'a StableName, union: bool, from: Option<crate::VarId>) -> Option<Self> {
         // A face is divided by seam edges, an edge by seam vertices;
         // nothing divides a vertex or a body.
         if !matches!(base.kind, EntityKind::Face | EntityKind::Edge) {
@@ -1868,15 +1893,13 @@ impl<'a> SeamParent<'a> {
         }
         let head = &base.path[..fragment_tail_start(&base.path)];
         match (union, head) {
-            (false, [RoleSeg::FromA(p)]) if head.len() == base.path.len() => Some(Self::Pair {
-                parent: p,
-                a_side: true,
-            }),
-            (false, [RoleSeg::FromB(p)]) if head.len() == base.path.len() => Some(Self::Pair {
-                parent: p,
-                a_side: false,
-            }),
-            (true, [RoleSeg::FromMember { .. } | RoleSeg::Seam { .. } | RoleSeg::Merged(_)]) => {
+            (false, [RoleSeg::From { read, of: p }]) if head.len() == base.path.len() => {
+                Some(Self::Pair {
+                    parent: p,
+                    a_side: from == Some(*read),
+                })
+            }
+            (true, [RoleSeg::From { .. } | RoleSeg::Seam { .. } | RoleSeg::Merged(_)]) => {
                 Some(Self::Union)
             }
             _ => None,
@@ -2033,22 +2056,22 @@ fn widened_base(name: &StableName) -> Option<StableName> {
 /// - **Unmerge.** The constituents of `name`'s own top-level `Merged`
 ///   segment are the names the merge retired; when the merge stops
 ///   happening they are live again, exactly as spelled. A merge nested
-///   DEEPER — inside `FromA(m)`, where `m` is the merged row — is not
+///   DEEPER — inside `From(r, m)`, where `m` is the merged row — is not
 ///   dropped by this scan, it is RE-POINTED: an embedded operand name
 ///   that does not itself resolve makes the whole resolution a
 ///   `Cascade { through: m }`, which names `m` as the root cause, and
 ///   resolving `m` runs this function with the `Merged` segment at ITS
 ///   top level. So the deep case is answered where it is answerable,
 ///   one name up, and answered with names that resolve — which is what
-///   a scan through `FromA(m)` could not do, since the offer it would
+///   a scan through `From(r, m)` could not do, since the offer it would
 ///   collect is the bare constituent and the name that would be live
-///   is `FromA(x)`.
+///   is `From(r, x)`.
 /// - **Merge.** A retired name's merged row is offered from the table
 ///   that HOLDS it: a live `Merged` row whose flat set COVERS the name
 ///   (`names::merged::covers`). A constituent is covered outright. A
 ///   merged face that a WIDER merge consumed — the inner row of a
 ///   boolean over a boolean, carried into the outer as
-///   `FromA(inner:Merged(cs))` and never itself a constituent, since
+///   `From(r, Merged(cs))` and never itself a constituent, since
 ///   the outer row lists `cs`'s faces re-wrapped — is covered by that
 ///   outer row, because every face it stood for is in the set. The
 ///   row is found whole and at its own depth; a candidate that merely
@@ -2080,7 +2103,7 @@ fn merge_offers<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> Vec<Stabl
 /// Rebind suggestions for a vanished-or-gapped name (spec D9's
 /// suggestion ladder, general form): every SAME-KIND name in the
 /// evaluation whose derivation STRUCTURALLY wraps `name` (embeds it
-/// as an operand name at any depth — `FromA(x)`, `Instance{of: x}`,
+/// as an operand name at any depth — `From(r, x)`, `Instance{of: x}`,
 /// seams, fragments of it), deterministically ordered (first carrying
 /// node, then name order). These are SUGGESTIONS for an explicit
 /// `Rebind` — nothing follows automatically (the ratified EMPTY
@@ -2133,8 +2156,8 @@ pub fn rebind_suggestions<T: Decide>(eval: &Evaluation<T>, name: &StableName) ->
 /// not checkable here and defer to evaluation-time resolution.
 ///
 /// Checked sites: every payload name an `InsertNode` carries
-/// ([`crate::node::Node::payload_names`] is the list) and `Rebind`'s
-/// target. Every other
+/// ([`crate::node::Node::payload_names`] is the list), every name a
+/// selection it or a `SetParam` authors carries, and `Rebind`'s target. Every other
 /// edit validates exactly as [`crate::edit::apply`] — including the
 /// four appearance edits, which DO carry a name: theirs resolves at
 /// evaluation, into a typed [`crate::appearance::AppearanceLoss`].
@@ -2175,11 +2198,15 @@ pub fn apply_with_names<T: Decide>(
     // unchecked group silently, which is the one outcome the split is
     // there to prevent.
     match edit {
-        DocEdit::InsertNode { node, .. } => names.extend(node.payload_names()),
-        DocEdit::Rebind { to, .. } => names.push(to),
-        DocEdit::SetDeclare { pairs, .. } => {
-            names.extend(pairs.iter().flat_map(|((a, b), _)| [&a.name, &b.name]));
+        DocEdit::InsertNode { node, .. } => {
+            names.extend(node.payload_names());
+            names.extend(node.selected_names());
         }
+        DocEdit::SetParam {
+            value: crate::SlotValue::Read(read),
+            ..
+        } => names.extend(read.selected_names()),
+        DocEdit::Rebind { to, .. } => names.push(to),
         // Name-carrying and deliberately unchecked here: an appearance
         // name resolves at evaluation, where a miss is a typed
         // `AppearanceLoss` rather than a silent drop, and clearing is
@@ -2211,7 +2238,6 @@ pub fn apply_with_names<T: Decide>(
         | DocEdit::ReWitness { .. }
         | DocEdit::ReWitnessBulk { .. }
         | DocEdit::SetTolerance { .. }
-        | DocEdit::SetRoots { .. }
         | DocEdit::SetOffset { .. }
         | DocEdit::SetGauge { .. }
         | DocEdit::Promote { .. }
@@ -2232,25 +2258,38 @@ pub fn apply_with_names<T: Decide>(
 }
 
 /// The nodes a name's derivation passes through: its minting node,
-/// every embedded operand name's nodes (recursively), every
-/// discriminator partner's nodes, and every node id a SEGMENT carries
-/// in its own right — the localization set of N7 ("an edit renames
-/// nothing outside derivation paths that actually pass through the
-/// edited node").
+/// every embedded operand name's nodes (recursively) and every
+/// discriminator partner's nodes — the localization set of N7 ("an edit
+/// renames nothing outside derivation paths that actually pass through
+/// the edited node").
 ///
-/// The last of those is a union's member edge
-/// ([`crate::names::RoleSeg::FromMember`]): the entity derives from
-/// that member, and the member is named by an id rather than by a
-/// name, so a walk that only visits embedded names would leave it out
-/// of the localization set and out of every id check built on this.
+/// A read a segment carries ([`crate::names::RoleSeg::From`]) is a
+/// variable, not a node: [`derivation_reads`] lists those, and the load
+/// door holds them to the mint log beside these.
 pub fn derivation_nodes(name: &StableName) -> BTreeSet<RecipeNodeId> {
     let mut nodes = BTreeSet::from([name.node]);
-    nodes.extend(name.path.iter().filter_map(crate::names::member_edge));
     for_each_inner(name, &mut |inner| {
         nodes.insert(inner.node);
-        nodes.extend(inner.path.iter().filter_map(crate::names::member_edge));
     });
     nodes
+}
+
+/// **The reads a name's derivation passes through**: every read a
+/// segment of the name, or of a name it embeds, carries in its own
+/// right ([`crate::names::RoleSeg::From`]). The entity derives from the
+/// input each names, and a read is an id rather than a name, so a walk
+/// that only visits embedded names would leave it out of every id check
+/// built on [`derivation_nodes`].
+pub fn derivation_reads(name: &StableName) -> BTreeSet<crate::VarId> {
+    let mut reads: BTreeSet<crate::VarId> = name
+        .path
+        .iter()
+        .filter_map(crate::names::read_edge)
+        .collect();
+    for_each_inner(name, &mut |inner| {
+        reads.extend(inner.path.iter().filter_map(crate::names::read_edge));
+    });
+    reads
 }
 
 /// The UPSTREAM node set of a name minted at `node`, and THE SCOPE
@@ -2276,8 +2315,8 @@ fn upstream_nodes(
     node: RecipeNodeId,
     path: &BTreeSet<RecipeNodeId>,
 ) -> BTreeSet<RecipeNodeId> {
-    let mut nodes = crate::roots::strict_ancestors(old, node);
-    nodes.append(&mut crate::roots::strict_ancestors(new, node));
+    let mut nodes = crate::doc::strict_ancestors(old, node);
+    nodes.append(&mut crate::doc::strict_ancestors(new, node));
     nodes.retain(|n| !path.contains(n));
     nodes
 }
@@ -2337,18 +2376,16 @@ fn embedded<'a>(name: &'a StableName, partners: Partners, f: &mut Vec<&'a Stable
     for seg in &name.path {
         match seg {
             // Structural embeddings: the entity derives from these.
-            RoleSeg::FromA(n)
-            | RoleSeg::FromB(n)
-            | RoleSeg::FromMember { of: n, .. }
+            RoleSeg::From { of: n, .. }
             | RoleSeg::SectionEdge { face: n, .. }
             | RoleSeg::SplitFragment { parent: n, .. }
             | RoleSeg::CrossingVertex { edge: n, .. }
             | RoleSeg::OnToolVertex { of: n, .. }
             | RoleSeg::Instance { of: n, .. }
+            | RoleSeg::Placed { of: n }
             // The fillet vocabulary (M6-5): every argument is the
             // SOURCE entity the blend was born for — derivation, not
             // discrimination.
-            | RoleSeg::FromTarget(n)
             | RoleSeg::BlendFace(n)
             | RoleSeg::CornerFace(n)
             | RoleSeg::Mitre { vertex: n }
@@ -2454,7 +2491,7 @@ fn structural_param_change(
     let changed_vars = &ddiff.vars;
     // In document order: a node both runs hold is in `new`'s order.
     let candidates: Vec<RecipeNodeId> = new
-        .order()
+        .ids()
         .iter()
         .copied()
         .filter(|id| path.is_none_or(|p| p.contains(id)))
@@ -2544,15 +2581,15 @@ mod tests {
     use crate::names::{CapEnd, FragmentGroups, NameRef, NameTable, ProfileEdgeRef};
     use topo::{EdgeKey, FaceKey, VertexKey};
 
-    const NODE: RecipeNodeId = RecipeNodeId(7);
+    const NODE: RecipeNodeId = RecipeNodeId::new(0, 7);
 
     fn face(node: u64, seg: u32) -> StableName {
         StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId::new(0, node),
             path: vec![RoleSeg::Lateral(
                 ProfileEdgeRef::Piece {
-                    step: crate::node::StepId(u64::from(seg)),
+                    step: crate::node::StepId::new(0, u64::from(seg)),
                     role: crate::names::PieceRole::Leg,
                 }
                 .into(),
@@ -2564,7 +2601,7 @@ mod tests {
     fn top() -> StableName {
         StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(2),
+            node: RecipeNodeId::new(0, 2),
             path: vec![RoleSeg::Cap(CapEnd::End)],
         }
     }
@@ -2574,7 +2611,10 @@ mod tests {
         StableName {
             kind: EntityKind::Face,
             node: NODE,
-            path: vec![RoleSeg::FromA(NameRef::new(top()))],
+            path: vec![RoleSeg::From {
+                read: crate::names::FOLD_A,
+                of: NameRef::new(top()),
+            }],
         }
     }
 
@@ -2583,8 +2623,8 @@ mod tests {
         StableName {
             kind: inner.kind,
             node: NODE,
-            path: core::iter::once(RoleSeg::FromMember {
-                member: RecipeNodeId(member),
+            path: core::iter::once(RoleSeg::From {
+                read: crate::VarId::new(1, member),
                 of: NameRef::new(inner),
             })
             .chain(tail.iter().cloned())
@@ -2631,7 +2671,14 @@ mod tests {
 
     /// A pair boolean's reading of `prior` against `now`.
     fn pair(prior: Vec<StableName>, now: Vec<StableName>) -> GroupCutters {
-        group_cutters(&table(prior), &table(now), &base(), false, false)
+        group_cutters(
+            &table(prior),
+            &table(now),
+            &base(),
+            false,
+            Some(crate::names::FOLD_A),
+            false,
+        )
     }
 
     fn read(gone: Vec<StableName>, new: Vec<StableName>) -> GroupCutters {
@@ -2712,7 +2759,14 @@ mod tests {
         assert_eq!(group_reading(&tied, &base()).unwrap().parents, 2);
         let rows = || table(vec![seam(EntityKind::Edge, top(), face(5, 1), &[])]);
         assert_eq!(
-            group_cutters(&rows(), &rows(), &base(), false, true),
+            group_cutters(
+                &rows(),
+                &rows(),
+                &base(),
+                false,
+                Some(crate::names::FOLD_A),
+                true
+            ),
             GroupCutters::TiedParents
         );
     }
@@ -2741,13 +2795,13 @@ mod tests {
             &[],
         )];
         assert_eq!(
-            group_cutters(&table(prior), &table(now), &base, true, false),
+            group_cutters(&table(prior), &table(now), &base, true, None, false),
             read(vec![member(3, face(5, 3), &[])], vec![])
         );
     }
 
     /// A union group whose base is a seam line an earlier fold step
-    /// minted is read like the pair's `FromA(Seam ..)`: the later step's
+    /// minted is read like a pair's `From { of: Seam .. }`: the later step's
     /// seam vertices on that line, and a piece of it, name its cutters.
     #[test]
     fn a_union_seam_line_group_is_read() {
@@ -2764,7 +2818,7 @@ mod tests {
         let prior = vec![vertex(line.clone(), cutter(0)), vertex(cutter(1), piece)];
         let now = vec![vertex(line.clone(), cutter(0))];
         assert_eq!(
-            group_cutters(&table(prior), &table(now), &line, true, false),
+            group_cutters(&table(prior), &table(now), &line, true, None, false),
             read(vec![cutter(1)], vec![])
         );
     }
@@ -2782,7 +2836,7 @@ mod walk_tests {
     fn leaf(node: u64) -> StableName {
         StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId::new(0, node),
             path: vec![RoleSeg::Cap(CapEnd::End)],
         }
     }
@@ -2791,9 +2845,12 @@ mod walk_tests {
     fn over(inner: StableName, node: u64) -> StableName {
         StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId::new(0, node),
             path: vec![
-                RoleSeg::FromA(NameRef::new(inner)),
+                RoleSeg::From {
+                    read: crate::names::FOLD_A,
+                    of: NameRef::new(inner),
+                },
                 RoleSeg::Fragment(Qualifier::Borders(vec![leaf(node + 1000)])),
             ],
         }
@@ -2803,10 +2860,12 @@ mod walk_tests {
     fn a_walk_visits_depth_first_in_path_order() {
         let name = over(over(leaf(1), 2), 3);
         let mut seen = Vec::new();
-        walk_names(&name, Partners::Include, &mut |n| seen.push(n.node.0));
+        walk_names(&name, Partners::Include, &mut |n| {
+            seen.push(n.node.0.digest())
+        });
         assert_eq!(seen, [2, 1, 1002, 1003], "partners included");
         seen.clear();
-        walk_names(&name, Partners::Skip, &mut |n| seen.push(n.node.0));
+        walk_names(&name, Partners::Skip, &mut |n| seen.push(n.node.0.digest()));
         assert_eq!(seen, [2, 1], "partners skipped");
     }
 

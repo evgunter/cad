@@ -5,8 +5,8 @@
 //! array is a different pair, a bit-equal vector at another address is
 //! a different pair); the minimal degree-1 pair has exactly one
 //! derivative coefficient and no degree's minimal vector underflows
-//! `derivative_coeffs`'s `len − 1`; `span_at` on the totality cases
-//! mints the window `KnotVector::span_at` names.
+//! `derivative_coeffs`'s `len − 1`; `span_at` mints the window
+//! `KnotVector::span_at` names, and none at NaN.
 //!
 //! What is NOT here, because it has no spelling: a rational claim on a
 //! pair minted without weights, and a nonrational bound on a pair
@@ -40,7 +40,7 @@ fn debug_prints_addresses_and_no_value() {
     assert!(!s.contains("123456"), "{s}");
     assert!(s.contains("0x"), "addresses are hex: {s}");
     assert!(s.contains("len: 7"), "{s}");
-    let win = pair.span_at(0.3);
+    let win = pair.span_at(0.3).unwrap();
     let s = format!("{win:?}");
     assert!(s.starts_with("CoeffWindow"), "{s}");
     assert!(!s.contains("123456"), "{s}");
@@ -51,7 +51,7 @@ fn debug_prints_addresses_and_no_value() {
     assert!(s.starts_with("RationalCoeffs"), "{s}");
     assert!(!s.contains("123456") && !s.contains("987654"), "{s}");
     assert!(s.contains("len: 7"), "{s}");
-    let s = format!("{:?}", rational.span_at(0.3));
+    let s = format!("{:?}", rational.span_at(0.3).unwrap());
     assert!(s.starts_with("RationalWindow"), "{s}");
     assert!(
         !s.contains("123456") && !s.contains("987654") && !s.contains("0.25"),
@@ -140,7 +140,7 @@ fn the_minimal_degree_one_pair_has_one_derivative_coefficient() {
 }
 
 #[test]
-fn span_at_is_total_exactly_as_the_vectors_is() {
+fn span_at_locates_exactly_as_the_vectors_does() {
     let k = cubic();
     let n = k.control_count();
     #[allow(clippy::cast_precision_loss)]
@@ -158,12 +158,13 @@ fn span_at_is_total_exactly_as_the_vectors_is() {
         f64::INFINITY,
         f64::NEG_INFINITY,
     ] {
-        assert_eq!(pair.span_at(t).span(), k.span_at(t), "t = {t}");
+        assert_eq!(pair.span_at(t).map(|w| w.span()), k.span_at(t), "t = {t}");
+        assert_eq!(pair.span_at(t).is_none(), t.is_nan(), "t = {t}");
         // The rational window has no span accessor to read; its mint
         // agrees with the indexed one at the span the vector names.
         assert_eq!(
             rational.span_at(t),
-            rational.span(k.span_at(t).index()).unwrap(),
+            k.span_at(t).and_then(|s| rational.span(s.index())),
             "t = {t}"
         );
     }

@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-01
 priority: P2
 cost: E
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt, the-box-driver-carries-no-part-resolver]
+blocked_on: [intent-stage3-is-built, the-box-driver-carries-no-part-resolver]
 ---
 
 Found by a designer weighing plan item 19 (the analysis lanes). The
@@ -91,3 +91,7 @@ now take one (`stackup::sensitivities` and `stackup::stackup`'s
 `resolver`, `ClearanceQuery::resolver`); the driver is the remaining
 door (`work/flux/the-box-driver-carries-no-part-resolver.md`), and
 closing this row waits on it.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage3-is-built`, not on the whole program: the fix is a terminal class in drive.rs classify_replay for MateFault arms (Unpinned, dangling head, unresolved part), a vocabulary stage 3 rewrites (placement as a bundle of mates, subgroup overconstraint); keeps the-box-driver-carries-no-part-resolver. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

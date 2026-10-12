@@ -70,6 +70,13 @@
 //! order**, so a change to how the mint draws ids moves all three
 //! numbers with no point moving.
 //!
+//! **THE `f64` AND `Interval` NUMBERS MOVED AT FORK-DM4 BY IDS ALONE.**
+//! The three boolean nodes replaced `Boolean { op, a, b }`, and a node's
+//! variant feeds its mint preimage, so every node from the first boolean
+//! on re-minted and the stream reorders. No point moved: the id-free
+//! row, `the_corpus_geometry_is_bit_identical_with_ids_masked`, held
+//! across the change without a re-bless.
+//!
 //! THE INTERVAL NUMBER MOVED ONCE FOR THE AZIMUTH CONSOLIDATION, and
 //! the `f64` one did not. Point parameter recovery on a periodic
 //! carrier used to be spelled three times, two of them SELECTING a `2π`
@@ -96,6 +103,44 @@
 //! outcome flipped and no point of any body moved, which is the claim
 //! worth making here. It is not a claim of parameter-level bit
 //! identity, and nothing in this file should be read as one.
+//!
+//! **ALL THREE NUMBERS MOVED WHEN A MEASURE BECAME ONE PRIMITIVE**
+//! (INTENT stage 2 PR D), and through one document only.
+//! `measured_web`'s measure used to hold the web's arithmetic; it now
+//! holds the distance alone, and the web is an anonymous definition
+//! the assertion reads. The measure node's mint preimage moved with its
+//! shape (`tests/golden/mint_node_ids.txt`), so its id and the
+//! assertion's moved, and the measure's outcome is now the distance
+//! rather than the web. `lib_g16_corpus_name_digests` moved
+//! `measured_web`'s row and no other, and the id-masked geometry fence
+//! below did not move: no body's point moved anywhere.
+//!
+//! **ALL THREE NUMBERS MOVED WHEN AN ASSERTION'S `dir` BECAME
+//! `relation`** (INTENT stage 5 PR A), through `measured_web` only.
+//! The mint preimage is the stored node, so the renamed field moved the
+//! assertion's id and every id the mint chain draws after it (the
+//! placement's). No outcome or point moved: `lib_g16_corpus_name_digests`
+//! moved `measured_web`'s row alone, the id-masked geometry fence held,
+//! and the assertion's verdict, dumped at `f64` and at `Interval` on main
+//! and on the branch, was the same text.
+//!
+//! **ALL THREE NUMBERS MOVED WHEN A SELECTION BECAME A VARIABLE**
+//! (INTENT stage 2 PR E), through the seven documents that blend,
+//! shell, frame on a face or measure. Each such node now reads a
+//! selection variable its insert mints, so its id moved, and every id
+//! minted after it in the document. `lib_g16_corpus_name_digests`
+//! moved those seven rows and no other, and the id-masked geometry
+//! fence below did not move: no outcome flipped and no body's point
+//! moved anywhere. Merged with stage 5 A's `relation`, the numbers were
+//! re-taken once more; only `measured_web`'s rows moved, where both
+//! changes meet.
+//!
+//! **ALL FOUR NUMBERS MOVED WHEN A SPLIT'S HALF BECAME ITS PORT**,
+//! through `part_select` alone: the document's two `Part` projections
+//! of a split's halves are gone and its union reads the split's two
+//! ports. Two nodes fewer is two outcomes fewer, so the id-masked fence
+//! moved too; `lib_g16_corpus_name_digests` moved that row and no
+//! other, and every point of the bodies that remain is where it was.
 //!
 //! A whole-corpus scalar is a blunt instrument for "did an existing
 //! document move", and there is now a SECOND, finer measurement to
@@ -196,6 +241,16 @@
 //! No document was added or removed and no outcome or point moved:
 //! [`the_corpus_geometry_is_bit_identical_with_ids_masked`], which
 //! masks every id, held its number across the change untouched.
+//!
+//! RE-BLESSED FOR AN `Expr` THAT HOLDS NO FLOAT (INTENT-LITERALS PR D),
+//! all three rows, for ids alone: a written quantity inside a formula
+//! mints an anonymous variable of its own, so `kitchen_sink`, the one
+//! document whose formulas hold one, mints other ids
+//! (`lib_g16_corpus_name_digests` moved on that row alone). No outcome or point moved: the id-free
+//! row held, and an id-free dump of every outcome and point at `f64`
+//! AND at `Interval`, taken on PR C's head and on this one, is
+//! byte-identical — no constant the corpus's geometry reads is
+//! non-dyadic, so no enclosure widened.
 //!
 //! RE-BLESSED ONCE FOR THE SKETCH FRAME, and this one could NOT be
 //! measured by the removal procedure below — which is why it is written
@@ -308,11 +363,9 @@
 //!   `0cf7de91f6a41015, eb2817baa67d6be1` — the committed constants
 //!   of the tree it landed on, and all three rows came back GREEN
 //!   against them, the probe row executed. That removal is also the
-//!   receipt for two changes the unit made on the path every other
+//!   receipt for a change the unit made on the path every other
 //!   document walks: `wire_split` stamping both halves in one source
-//!   index space, and the same-source debug assertions reading a
-//!   channel-less scalar as no evidence — neither moved a coordinate
-//!   of any pre-existing document. `lib_g16_corpus_name_digests`
+//!   index space moved no coordinate of any pre-existing document. `lib_g16_corpus_name_digests`
 //!   agrees the finer way — every pre-existing per-document row
 //!   unchanged, one row added.
 //!
@@ -383,6 +436,16 @@
 //! each way. The reason for accepting the move is on the enclosure
 //! side, for anchors that are not exact: see
 //! `Mat3::identity_minus_rotation_about`.
+//!
+//! ALL THREE NUMBERS MOVED WHEN THE BLEND BEGAN ENDING WITH THE JOIN
+//! (3881 step 3, PR C; `docs/DESIGN.md`, maximal edges), and only
+//! through the two documents that fillet a rim. A rim band's two host
+//! trimlines lie on one circle and meet at the host foot the band's
+//! slit does not reach; the join kills that foot and makes them one
+//! edge, so the fillet nodes of `die_composed` and `die_composed_tour`
+//! hold one point fewer per band. `lib_g16_corpus_name_digests` agrees the finer
+//! way: those two documents' rows moved and no other did. The
+//! `interval` row was measured on this tree, as the other two were.
 //!
 //! RE-DERIVED AGAIN, INTERVAL ROW ONLY, FOR A FOLD REFORMULATION
 //! (issue 1191). `profile`'s signed swept angle stopped composing a
@@ -476,6 +539,48 @@
 //!   they were 4 to 8), endpoints moving at most 9 ulps. Each still
 //!   holds its value. The dump does not say which read of the
 //!   reversed carrier the widening enters through.
+//!
+//! **EVERY NUMBER MOVED, THE ID-FREE ONE TOO, FOR INTENT STAGE 2 PR C
+//! (the product is the world), and for a structural reason.** Each
+//! corpus document now places its bodies: a `PlaceInWorld` node per
+//! placed body, each with a value and points of its own, and a `Part`
+//! pick for each placed pattern copy. The tour die also keeps its blank
+//! (DM4: nothing places it, so it is not deleted). Those nodes join the
+//! stream, so the id-free digest moves with the node count, as it did
+//! at DOCM-3. What the documents deliver did not move, and that is
+//! asserted rather than argued: `intent_s2_c_world`'s migration check
+//! holds each document's product to the digest recorded on the tree
+//! before the change, body for body and in order.
+//!
+//! RE-BLESSED, ALL FOUR ROWS, WHEN A REVOLVE'S TURNED VERTEX CAME TO
+//! TURN ITS OFFSET FROM THE AXIS (`q + R·(p − q)`, W1 in
+//! `crates/geom-core/README.md`) rather than go through the composite
+//! map `R·p + (I − R)·q`. Measured by a scratch dump of every node's
+//! outcome and every point's bits, the tree with and without the
+//! change: every node outcome identical; 8 points moved, all in
+//! `kitchen_sink`, at most 2 ulps at `f64`; at `Interval` the same 8
+//! points, every one NARROWER, to 0.10–0.15× of its old width (6.4e-15
+//! at worst before, 8.9e-16 after). Turning a revolved description by
+//! the same spelling at evaluation moved no corpus point at either
+//! scalar.
+//!
+//! **EVERY NUMBER MOVED, THE ID-FREE ONE TOO, FOR INTENT STAGE 3 PR A
+//! (a revolve's axis is a line on the node).** The in-plane axis datum
+//! left the vocabulary: each revolve writes its axis as four slots of
+//! its own, so four corpus documents hold one node fewer, every later
+//! id re-mints, and the id-free digest loses one pointless `datum`
+//! outcome per document. Measured rather than argued: the id-free
+//! digest with every pointless `datum` outcome dropped is the same on
+//! the base tree and on this one — `(0x2370_478e_c993_590d,
+//! 0xe9da_67e7_5e7d_f009)` before the turned-vertex change above
+//! merged, `(0xbb6f_8c13_2eb3_f98d, 0xe3ef_0697_8aaf_ef89)` after —
+//! so no point and no other outcome moved.
+//! Re-taken merged over FORK-DM4 unit 1 (PR 4527); the id-free digest
+//! held there.
+//! Re-taken again merged over the split-half retirement (PR 4618),
+//! which drops two `Part` outcomes of its own: the id-free digest with
+//! pointless `datum` outcomes dropped is `(0x77f4_6374_c6b8_bb0d,
+//! 0xf303_efdf_51fc_fb09)` on that main and on this tree alike.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus;
@@ -540,13 +645,13 @@ pub(crate) enum Seen<'a, T: geom_core::Real> {
     /// Node `id` of document `doc` and its outcome.
     Node {
         doc: &'a str,
-        id: u64,
+        id: editor_core::MintId,
         outcome: Outcome,
     },
     /// Point `i` of the body node `id` carries, in arena order.
     Point {
         doc: &'a str,
-        id: u64,
+        id: editor_core::MintId,
         i: usize,
         key: topo::PointKey,
         p: &'a geom_core::Point3<T>,
@@ -555,7 +660,7 @@ pub(crate) enum Seen<'a, T: geom_core::Real> {
 
 /// A node's outcome as the fence observes it.
 pub(crate) enum Outcome {
-    Poisoned { through: u64 },
+    Poisoned { through: editor_core::MintId },
     Failed,
     Ok { kind: &'static str },
 }
@@ -648,11 +753,13 @@ where
         Seen::FixtureRefused(_) => d.text("refused"),
         Seen::Document(name) => d.text(name),
         Seen::Node { id, outcome, .. } => {
-            d.u64(id);
+            d.u64(u64::from(id.ordinal()));
+            d.u64(id.digest());
             match outcome {
                 Outcome::Poisoned { through } => {
                     d.text("poisoned");
-                    d.u64(through);
+                    d.u64(u64::from(through.ordinal()));
+                    d.u64(through.digest());
                 }
                 Outcome::Failed => d.text("failed"),
                 Outcome::Ok { kind } => d.text(kind),
@@ -769,7 +876,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x71a0_ec4a_f2dc_5759, 0x3543_1b6f_a4f8_31ad),
+        (0x4350_f267_f58a_3457, 0x789b_1192_e944_30b3),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -795,7 +902,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x08b0_7030_4ba2_d22a, 0x0072_4762_032d_27de),
+        (0xbaa1_65e6_5edf_10c3, 0xacce_6e0c_f962_8a97),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -819,7 +926,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x71a0_ec4a_f2dc_5759, 0x3543_1b6f_a4f8_31ad),
+        (0x4350_f267_f58a_3457, 0x789b_1192_e944_30b3),
         "the corpus's Probe evaluation moved"
     );
 }
@@ -835,7 +942,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
 /// preimages, and this number — taken on main before the change and on
 /// the branch after it — did not.
 fn id_free_corpus_digest() -> (u64, u64) {
-    type Nodes = std::collections::BTreeMap<u64, (String, Vec<[u64; 3]>)>;
+    type Nodes = std::collections::BTreeMap<editor_core::MintId, (String, Vec<[u64; 3]>)>;
     let mut docs: Vec<(String, Nodes)> = Vec::new();
     let mut fixture = Digest::new();
     walk::<f64>(|seen| match seen {
@@ -897,7 +1004,7 @@ fn the_corpus_geometry_is_bit_identical_with_ids_masked() {
     println!("m10-p fence id-free: {got:016x?}");
     assert_eq!(
         got,
-        (0x556a_eaf5_b2dc_3e4a, 0x3361_8bf1_bd5d_d21e),
+        (0xf613_9d62_68dd_3931, 0xe6b3_fef9_f9f8_90fd),
         "an outcome or a point of the corpus moved — every other row here also \
          moves with ids, and this one does not"
     );

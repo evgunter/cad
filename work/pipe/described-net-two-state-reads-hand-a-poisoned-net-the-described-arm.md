@@ -2,10 +2,11 @@
 id: described-net-two-state-reads-hand-a-poisoned-net-the-described-arm
 kind: issue
 title: Thirteen placeholder-or-described reads outside tier-3 check 1 hand a described net carrying poison to the described arm
-status: open
+status: closed
 opened: 2026-09-05
 priority: P0
 cost: H
+closed: 2026-10-10
 ---
 
 
@@ -65,3 +66,47 @@ by reading the row against the tree on 2026-09-11, not a verdict on the
 finding, and a lane that finds it wrong says so in its PR. The id, the
 `track:` letter where the row carries one, and the body above are
 unchanged by the move.
+
+## Closed (routing pass)
+
+Swept on `origin/main` at the cut of `pipe/described-net-routing`
+(2026-10-10). This pass only routed: it filed rows and changed no
+kernel code. Sites are cited by name, and line numbers are approximate.
+**Pass 1** grepped `is_placeholder|net_state()|NetState::` over
+`crates/*/src`, which also catches `Surface::is_placeholder_chart`. That
+pattern cannot see a consumer that never asks the state question. **Pass
+2** was aimed at that gap: `Surface::Nurbs(` arms (137 hits) and direct
+`.control()` reads outside `geom`, triaged for raw-`f64` or per-axis
+readings of a net. Where a poisoned net reaches a reading that goes
+through `Decide`, an `Interval` (`from_f64(NaN)` is NaI), or a finiteness
+gate, it escalates or refuses. Only an unguarded `f64` fold or per-axis
+box can answer wrongly.
+
+The thirteen, as they stand now:
+
+- `topo/src/pcurves.rs` `DescribedChart::of` (was `:273`; no program claims the file). **Fine.** A poisoned chart reaches the mint and the validator. There `chart_stretch_sup`'s NaN arm escalates in `spline_gap_closes` (`PinMiss::Escalated`), and the certification lanes refuse (`ChartSpeed(NotFinite)`, foot point inconclusive). No wrong answer.
+- `topo/src/props/quad_lane.rs` `nurbs_face` (was `props.rs:1531`; no program claims the file). **Fine, by reading.** The net enters as `Interval::from_certified` (NaI), and `geom_brep::props::quad`'s `nurbs_patch_face_rounds` refuses an uncertified flux or area (`QuadratureUnsupported`, "… a non-finite net"). Not probed. That needs a loft wall with its rows kept.
+- `topo/src/replace_face.rs` `mint_offset` (was `:1211`; SHELL/SHELF). **Fine.** The offset fit door refuses: whole-patch `Meter`, or `OffsetFitError::NonFiniteSample`, whose doc names exactly this case.
+- `topo/src/transform.rs` `map_surface` / `map_curve` NURBS arms (were `:370`, `:495`; SHELL/SHELF/OFFSET). **Wrong (latent).** The arms map a poisoned net instead of refusing it, and a probe shows a 45° rotation turns an all-`x`-poisoned net into the placeholder. Filed `transform-rigid-maps-a-poisoned-net-into-the-placeholder` (SHELF, P3/E).
+- `topo/src/census.rs` reach-box `ControlNet` arm (was `:1741`). **Excluded: S350's lane.** For that lane, a probe of `face_reach` on a poisoned wall answered `Some((NaN, 0, -1), (NaN, 0, 2))`, which is the partial box S350 describes.
+- `topo/src/census.rs` arm-1 placeholder skip (~5465; was `:2284`; RESTREAD). **Fine once S350 lands.** The poisoned net is correctly not skipped and goes on to `reach_box`, the described arm, whose fault is S350's. The comment's argument that "no public-door body carries one" holds for poisoned nets too, since check 1 bars them.
+- `topo/src/census.rs` (was `:3488`). **No live site on main.** The only other two-state read left in the file is the in-src test helper `swap_placeholders`.
+- `mesh/src/chords.rs` `nurbs_tighten` (was `:508`; CHORD/TESS). **Fine.** `face_bound` → `nurbs_cell_grid`: `patch_bound::comp_nets` reads the net as `Interval::point` (NaI), and the per-cell finite check refuses `UnsupportedNurbsFace` ("second-derivative hull is unbounded/refused"). This is in the chord pass, before any lane runs.
+- `mesh/src/trimmed.rs` placeholder arm (was `:200`; TESS). **Fine.** A poisoned face has already refused the whole tessellation in the chord pass, and `face_cells` answers `MissingEntity` for an unfilled face.
+- `step-import/src/adopt.rs` arc-rim wall pick, iso-candidate wall loop, `nurbs_plane_pair` (were `:530`, `:710`, `:952`; EXCH), plus `entities.rs`'s recognition gate. **Fine.** No NaN can enter an imported net: the lexer's number token is digits, sign, `.` and `E`, `as_real` parses that, and `length_scale` is an exact nonzero power of ten. So `Poisoned` is unreachable at import. `±∞` is reachable (see the first note below), and the import's closing `validate_geometric` refuses it.
+
+The other pass-1 hits, outside the thirteen:
+
+- `editor-core/src/mate/reach.rs` `face_reach` (MSOLVE). **Fine.** The NaN bound propagates through `Real::max`, and `eval`'s `reach_over_cache` refuses `ReachRefusal::NoFiniteBound`.
+- `geom-brep/src/certify.rs` `resolve_iso`, `plane_nurbs_pair` (no program claims the file), and `edge_nurbs.rs` `plane_nurbs_limbs` / `chart_image` / `chart_foot` (ISO). **Fine.** `SsiOperand::nurbs` refuses `SsiError::ChartSpeed(NotFinite)`, which the probe saw, and projection onto the net does not converge (`FootPointInconclusive`).
+- `geom-brep/src/pcurve_cache.rs` `chart_stretch_sup` / `chart_stretch_inf` / `run_{fitted,iso_arc,iso}_checks` (PCERT/PCTAIL) and `pcurve_cache/projected.rs`. **Fine.** The sup arm is NaN and escalates in `decide`, `net_inf` answers zero on poison (the refusing answer), and the projected lane refuses a non-analytic chart.
+- `step-export/src/writer.rs` `surface_kind`, `printable_carrier`, the `B_SPLINE_SURFACE` arm (EXCH/EXPORT). **Fine.** `fmt_real` refuses `NonFiniteReal` at the first poisoned control point. The kind is named "nurbs", not "poisoned", which is wording and not a wrong answer.
+- `topo/src/attach.rs` `slot_chartless`, `landing_of_spec`, `wears_no_chart` (TOPO). **Fine.** A poisoned chart is not chartless, so it is held to the vouching rule. That is stricter than the placeholder gets.
+- `topo/src/validate.rs` check 1 and `topo/src/merge_faces.rs` `MergeKind::of` already match three states.
+
+From pass 2: the kind dispatches (`chart.rs`, `chart_region.rs`, `face_normal.rs`, `readback.rs`, `param_source.rs`, `boolean/*`, `editor-core/src/clearance.rs`, `sweep/src/blend/reach.rs`) give the placeholder no benign arm, so a poisoned net fares exactly as a placeholder does: refused, or escalated through `chart_stretch_inf`'s zero inf. The direct net readers checked were `boolean/boxes.rs` `ControlNet` (`nurbs_surface_aabb`, poison box since CERT-N2), `ssi/enclose.rs` `CellNet` (NaI channels, gated behind `SsiOperand::nurbs`), `offset_fit.rs` `recentre_origin` (NaN-dropping `f64::min`, but it only places a cost centre and NaI channels refuse), `offset_derive.rs` `translates_along` (an undecided margin does not hold), and `mesh` `patch_bound` (NaI). **Blind spot:** the 137 `Surface::Nurbs(` arms were triaged, not each traced to its refusal. Curve-side nets (`NurbsCurve3::is_placeholder`, which has no `net_state` twin) were out of scope except where `transform.rs` shares the fix.
+
+The two notes:
+
+- `±∞` nets read as described. **A real but narrow gap.** At rest it is closed by `validate.rs` check 1 (`net_is_finite`). The three-state door still answers `Described`, and `merge_faces` already takes it as `Curved`. Filed `net-state-reads-an-infinite-net-as-described` (FLUX, P3/M, design).
+- `topo/src/r2_probes.rs`'s header said "committed to the reviewer's own branch only". **Fixed as a drive-by** in this branch.

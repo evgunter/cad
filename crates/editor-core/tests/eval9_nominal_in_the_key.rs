@@ -34,12 +34,12 @@ use geom_core::Tol;
 
 /// The frame, the document's first node.
 fn frame(doc: &ProfileDoc) -> RecipeNodeId {
-    doc.order()[0]
+    doc.ids()[0]
 }
 
 /// The profile drawn on it, the second.
 fn profile(doc: &ProfileDoc) -> RecipeNodeId {
-    doc.order()[1]
+    doc.ids()[1]
 }
 
 fn p() -> VarName {
@@ -330,6 +330,6 @@ fn the_probe_document_carries_the_parameter_only_in_the_frame() {
     let Some(Node::Profile(program)) = doc.node(profile(&doc)) else {
         panic!("a profile second");
     };
-    assert_eq!(program.plane, frame(&doc));
+    assert_eq!(doc.operation_of(program.frame), Some(frame(&doc)));
     assert!(!program.reads(var), "the program must hold no parameter");
 }

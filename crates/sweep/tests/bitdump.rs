@@ -118,7 +118,13 @@ fn bitdump_die() {
         return;
     };
     let body = cube(1.0, Tol::witness());
-    let out = fillet_edges(&body, &query::all_edges(&body), 0.15, Tol::witness()).unwrap();
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&body, Tol::witness()),
+        &query::all_edges(&body),
+        0.15,
+        Tol::witness(),
+    )
+    .unwrap();
     let mut text = dump(&out.body);
     let _ = writeln!(
         text,
@@ -142,7 +148,13 @@ fn bitdump_ruled_band() {
     let source = rod_with_flat(Tol::witness());
     let creases = rod_creases(&source);
     assert_eq!(creases.len(), 2, "the milled rod has two creases");
-    let out = fillet_edges(&source, &creases, ROD_FILLET, Tol::witness()).unwrap();
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&source, Tol::witness()),
+        &creases,
+        ROD_FILLET,
+        Tol::witness(),
+    )
+    .unwrap();
     let mut text = dump(&out.body);
     let _ = writeln!(
         text,
@@ -170,7 +182,13 @@ fn bitdump_pip_rims() {
     );
     let mut all = box_edges;
     all.extend(rims);
-    let out = fillet_edges(&pipped, &all, 0.05, Tol::witness()).unwrap();
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&pipped, Tol::witness()),
+        &all,
+        0.05,
+        Tol::witness(),
+    )
+    .unwrap();
     let mut text = dump(&out.body);
     let _ = writeln!(
         text,
@@ -190,7 +208,13 @@ fn bitdump_chamfered_cube() {
         return;
     };
     let body = cube(1.0, Tol::witness());
-    let out = chamfer_edges(&body, &query::all_edges(&body), 0.1, Tol::witness()).unwrap();
+    let out = chamfer_edges(
+        &sweep::test_support::at_rest(&body, Tol::witness()),
+        &query::all_edges(&body),
+        0.1,
+        Tol::witness(),
+    )
+    .unwrap();
     let mut text = dump(&out.body);
     let _ = writeln!(
         text,
@@ -202,8 +226,13 @@ fn bitdump_chamfered_cube() {
 
 /// One rim's carve, dumped with its band face named.
 fn dump_rim(name: &str, body: &Body<f64>, arcs: &[EdgeKey], r: f64) -> String {
-    let out = fillet_edges(body, arcs, r, Tol::witness())
-        .unwrap_or_else(|e| panic!("{name} carves on both sides of the differential: {e:?}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(body, Tol::witness()),
+        arcs,
+        r,
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("{name} carves on both sides of the differential: {e:?}"));
     let mut text = format!("== {name} ==\n");
     text.push_str(&dump(&out.body));
     let _ = writeln!(text, "band={:?}", out.band_faces);
@@ -465,19 +494,16 @@ fn bitdump_extrude_revolve_corpus() {
         ),
         extruded(
             "rounded square (tangent line-arc joins)",
-            vec![
-                bulge_loop(vec![
-                    (Point2::new(0.25, 0.0), 0.0),
-                    (Point2::new(0.75, 0.0), b),
-                    (Point2::new(1.0, 0.25), 0.0),
-                    (Point2::new(1.0, 0.75), b),
-                    (Point2::new(0.75, 1.0), 0.0),
-                    (Point2::new(0.25, 1.0), b),
-                    (Point2::new(0.0, 0.75), 0.0),
-                    (Point2::new(0.0, 0.25), b),
-                ])
-                .with_tangent_joints(vec![0, 1, 2, 3, 4, 5, 6, 7]),
-            ],
+            vec![bulge_loop(vec![
+                (Point2::new(0.25, 0.0), 0.0),
+                (Point2::new(0.75, 0.0), b),
+                (Point2::new(1.0, 0.25), 0.0),
+                (Point2::new(1.0, 0.75), b),
+                (Point2::new(0.75, 1.0), 0.0),
+                (Point2::new(0.25, 1.0), b),
+                (Point2::new(0.0, 0.75), 0.0),
+                (Point2::new(0.0, 0.25), b),
+            ])],
             0.5,
         ),
         extruded(
@@ -509,19 +535,16 @@ fn bitdump_extrude_revolve_corpus() {
     ));
     rows.push(extruded_by(
         "rounded-corner prism, reversed (against the normal)",
-        vec![
-            bulge_loop(vec![
-                (Point2::new(0.25, 0.0), 0.0),
-                (Point2::new(0.75, 0.0), b),
-                (Point2::new(1.0, 0.25), 0.0),
-                (Point2::new(1.0, 0.75), b),
-                (Point2::new(0.75, 1.0), 0.0),
-                (Point2::new(0.25, 1.0), b),
-                (Point2::new(0.0, 0.75), 0.0),
-                (Point2::new(0.0, 0.25), b),
-            ])
-            .with_tangent_joints(vec![0, 1, 2, 3, 4, 5, 6, 7]),
-        ],
+        vec![bulge_loop(vec![
+            (Point2::new(0.25, 0.0), 0.0),
+            (Point2::new(0.75, 0.0), b),
+            (Point2::new(1.0, 0.25), 0.0),
+            (Point2::new(1.0, 0.75), b),
+            (Point2::new(0.75, 1.0), 0.0),
+            (Point2::new(0.25, 1.0), b),
+            (Point2::new(0.0, 0.75), 0.0),
+            (Point2::new(0.0, 0.25), b),
+        ])],
         sweep::Extrusion::Distance {
             depth: 0.5,
             side: ExtrudeSide::Against,
@@ -628,7 +651,7 @@ fn bitdump_extruded_two_arc_rims() {
     ] {
         let arcs = circle_arcs_at_z(&body, z);
         assert_eq!(arcs.len(), 2, "{name}: two arcs by authoring");
-        let out = fillet_edges(&body, &arcs, 0.1, tol).unwrap();
+        let out = fillet_edges(&sweep::test_support::at_rest(&body, tol), &arcs, 0.1, tol).unwrap();
         let mut text = dump(&out.body);
         let _ = writeln!(
             text,

@@ -92,13 +92,14 @@ pub use ::profile::{
 };
 
 // Validation: the gate, its typed refusals, and the canonical output.
-// `BlendArc` is in this family because it is what
-// `ValidatedLoop::blend_arcs` hands back — a read-back door on a type
-// this list carries, whose return type a caller must be able to name.
+// `BlendArc` and `DecidedJoint` (with its `JointCarriers`) are in this
+// family because `ValidatedLoop::blend_arcs` and `decided_joints` hand
+// them back — read-back doors on a type this list carries, whose return
+// types a caller must be able to name.
 pub use ::profile::{
-    ArcCheck, BlendArc, ContactKind, EscalationSite, FilletLeg, FilletLegCarrier, LoopRole,
-    NoCornerReason, ProfileError, SegmentKind, SegmentRef, ValidatedLoop, ValidatedProfile,
-    ValidatedSegment,
+    ArcCheck, BlendArc, ContactKind, DecidedJoint, EscalationSite, FilletLeg, FilletLegCarrier,
+    JointCarriers, LoopRole, NoCornerReason, ProfileError, SegmentKind, SegmentRef, ValidatedLoop,
+    ValidatedProfile, ValidatedSegment,
 };
 
 // **The structure record and the guided doors.** One vocabulary, and

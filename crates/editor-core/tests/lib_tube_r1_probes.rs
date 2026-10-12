@@ -47,14 +47,15 @@ fn axis_doc() -> (ProfileDoc, RecipeNodeId) {
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Box::new(Node::Datum(Datum::Axis {
+            node: Box::new(Node::Datum(Datum::Frame {
                 origin: [len(0.0), len(0.0), len(0.0)],
-                direction: [scl(0.0), scl(0.0), scl(1.0)],
+                u: [scl(1.0), scl(0.0), scl(0.0)],
+                v: [scl(0.0), scl(1.0), scl(0.0)],
             })),
             fresh: Vec::new(),
         },
     );
-    let spine = *doc.order().last().expect("datum");
+    let spine = *doc.ids().last().expect("datum");
     (doc, spine)
 }
 
@@ -83,8 +84,7 @@ fn the_storage_contract_holds_at_non_dyadic_values() {
             &doc,
             &DocEdit::InsertNode {
                 node: Box::new(Node::HollowTube {
-                    spine,
-                    u_ref: [scl(1.0), scl(0.0), scl(0.0)],
+                    frame: spine.into(),
                     major_radius: len(2.0),
                     window: TubeWindow::Arc {
                         t0: ang(0.0),
@@ -96,7 +96,7 @@ fn the_storage_contract_holds_at_non_dyadic_values() {
                 fresh: Vec::new(),
             },
         );
-        let tube = *doc.order().last().expect("tube");
+        let tube = *doc.ids().last().expect("tube");
         let ev = eval::<f64>(&doc);
         assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
         let body = body_of(&ev, tube);
@@ -121,8 +121,7 @@ fn the_storage_contract_holds_at_non_dyadic_values() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Tube {
-                spine,
-                u_ref: [scl(1.0), scl(0.0), scl(0.0)],
+                frame: spine.into(),
                 major_radius: len(2.0),
                 window: TubeWindow::Full,
                 minor_radius: len(0.3),
@@ -130,7 +129,7 @@ fn the_storage_contract_holds_at_non_dyadic_values() {
             fresh: Vec::new(),
         },
     );
-    let tube = *doc.order().last().expect("tube");
+    let tube = *doc.ids().last().expect("tube");
     let ev = eval::<f64>(&doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     assert_eq!(
@@ -148,8 +147,7 @@ fn the_storage_contract_holds_at_non_dyadic_values() {
 fn identical_tubes_in_one_document_mint_disjoint_total_name_tables() {
     let (mut doc, spine) = axis_doc();
     let mk = || Node::Tube {
-        spine,
-        u_ref: [scl(1.0), scl(0.0), scl(0.0)],
+        frame: spine.into(),
         major_radius: len(2.0),
         window: TubeWindow::Full,
         minor_radius: len(0.5),
@@ -161,7 +159,7 @@ fn identical_tubes_in_one_document_mint_disjoint_total_name_tables() {
             fresh: Vec::new(),
         },
     );
-    let first = *doc.order().last().expect("first tube");
+    let first = *doc.ids().last().expect("first tube");
     doc = push(
         &doc,
         &DocEdit::InsertNode {
@@ -169,7 +167,7 @@ fn identical_tubes_in_one_document_mint_disjoint_total_name_tables() {
             fresh: Vec::new(),
         },
     );
-    let second = *doc.order().last().expect("second tube");
+    let second = *doc.ids().last().expect("second tube");
 
     let ev = eval::<f64>(&doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
@@ -207,8 +205,7 @@ fn a_hollow_full_rings_cavity_faces_are_named_totally() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::HollowTube {
-                spine,
-                u_ref: [scl(1.0), scl(0.0), scl(0.0)],
+                frame: spine.into(),
                 major_radius: len(2.0),
                 window: TubeWindow::Full,
                 minor_radius: len(0.5),
@@ -217,7 +214,7 @@ fn a_hollow_full_rings_cavity_faces_are_named_totally() {
             fresh: Vec::new(),
         },
     );
-    let tube = *doc.order().last().expect("tube");
+    let tube = *doc.ids().last().expect("tube");
     let ev = eval::<f64>(&doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     let body = body_of(&ev, tube);

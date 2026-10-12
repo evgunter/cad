@@ -85,7 +85,7 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    DatumValue, Doc, Evaluation, Node, ProfileProgram, RecipeNodeId, ValuePayload,
+    Doc, Evaluation, Node, PoseValue, ProfileProgram, RecipeNodeId, ValuePayload,
 };
 use pncad::geom_core::{Point3, UnitVec3, Vec3};
 
@@ -573,20 +573,16 @@ const POINT_ARM_PX: f64 = 14.0;
 /// Which kind of datum a drawing came from — carried so a consumer can
 /// say what it is pointing at without re-reading the document.
 ///
-/// **A partition of the datum VALUES by how they are drawn**, which is
-/// why four members cover `DatumValue`'s five arms: `AxisInPlane` is a
-/// line in space and is drawn as the axis it is, so it carries this
-/// same tag as `Axis`. `draw_one` is where each datum value is given
-/// its tag.
+/// **A partition of the datum VALUES by how they are drawn**: one
+/// member per value a datum node evaluates to. `draw_one` is where each
+/// datum value is given its tag.
 ///
 /// **Not the add-datum form's `forms::DatumKindChoice`**, which names
 /// what that form OFFERS rather than what a drawing IS, and which owns
-/// the radio row's words and its `ALL`. The two differ by
-/// `AxisInPlane` and by `FaceFrame`, and for one reason twice over:
-/// each is its own choice in the form because authoring it takes a
-/// PICK, and each is drawn here as the thing it evaluates to — the
-/// axis, and the frame. Neither side is required to move when the
-/// other does.
+/// the radio row's words and its `ALL`. The two differ by `FaceFrame`,
+/// its own choice in the form because authoring it takes a PICK, and
+/// drawn here as the frame it evaluates to. Neither side is required to
+/// move when the other does.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DatumKind {
     /// A plane: an outlined, gridded rectangle plus a normal tick.
@@ -697,7 +693,7 @@ impl DatumDraws {
 /// does a node this evaluation never reached.
 pub fn draws(doc: &Doc<ProfileProgram>, eval: &Evaluation<f64>, view: View) -> DatumDraws {
     let mut out = Vec::new();
-    for &node in doc.order() {
+    for node in doc.ids() {
         // The NODE says it is a datum and the EVALUATION says what it
         // came to. Reading only the value would draw a datum for
         // anything that happens to evaluate to one; reading only the
@@ -719,37 +715,31 @@ pub fn draws(doc: &Doc<ProfileProgram>, eval: &Evaluation<f64>, view: View) -> D
 }
 
 /// One datum value's wireframe.
-fn draw_one(node: RecipeNodeId, datum: &DatumValue<f64>, view: View) -> DatumDraw {
+fn draw_one(node: RecipeNodeId, datum: &PoseValue<f64>, view: View) -> DatumDraw {
     match datum {
-        DatumValue::Plane { origin, normal } => DatumDraw {
+        PoseValue::Plane { origin, normal } => DatumDraw {
             node,
             kind: DatumKind::Plane,
             segments: plane_segments(*origin, *normal, view),
         },
-        DatumValue::Axis { origin, dir } => DatumDraw {
+        PoseValue::Axis { origin, dir } => DatumDraw {
             node,
             kind: DatumKind::Axis,
             segments: axis_segments(*origin, *dir, view),
         },
-        DatumValue::Point { position } => DatumDraw {
+        PoseValue::Point { position } => DatumDraw {
             node,
             kind: DatumKind::Point,
             segments: point_segments(*position, view),
         },
-        DatumValue::Frame(f) => DatumDraw {
+        PoseValue::Frame(f) => DatumDraw {
             node,
             kind: DatumKind::Frame,
             segments: frame_segments(f.origin(), f.u().get(), f.v().get(), view),
         },
-        // Drawn from the WORLD lift, and drawn as the axis it is: the
-        // sketch coordinates it was authored in are what a revolve
-        // reads, not what a viewport shows, and a line in space looks
-        // the same however it was written down.
-        DatumValue::AxisInPlane { origin, dir, .. } => DatumDraw {
-            node,
-            kind: DatumKind::Axis,
-            segments: axis_segments(*origin, *dir, view),
-        },
+        PoseValue::Direction { .. } => {
+            unreachable!("a datum node's value is a point, an axis, a plane or a frame")
+        }
     }
 }
 

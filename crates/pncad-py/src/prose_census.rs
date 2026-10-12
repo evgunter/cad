@@ -1738,7 +1738,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
     (
         "crates/geom-brep/src/nurbs_iso.rs",
         "IsoRowError",
-        "u",
+        "at",
         1,
         "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
@@ -1783,17 +1783,18 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
          match binding, and this census types patterns and fields",
     ),
     (
-        "crates/topo/src/flush.rs",
-        "FlushRefusal",
-        POSITIONAL,
-        4,
-        "a positional `{:?}` over an expression this census does not type",
+        "crates/topo/src/offset_derive.rs",
+        "CornerVerdict",
+        "sine",
+        1,
+        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
+         this renders a brace at `Interval` and prose at `f64`",
     ),
     (
         "crates/topo/src/replace_face.rs",
         "ReplaceFaceError",
         "gap",
-        4,
+        3,
         "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
     ),
@@ -1901,7 +1902,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
 /// renders would trip the assertion and panic where that arm means to
 /// refuse gracefully. This row is that warning made mechanical.
 const KNOWN_DEBUG_RAISES: &[(&str, &str, &str)] = &[(
-    "crates/pncad-py/src/py/flush.rs",
+    "crates/pncad-py/src/py/contact.rs",
     "format!(\"a contact class this binding predates: {other:?}\")",
     "an unknown `ContactClass` has nothing but `Debug` to render it; the arm \
      and `errors.rs` both say so, and a struct variant of that enum would \

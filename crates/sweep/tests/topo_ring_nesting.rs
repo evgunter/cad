@@ -60,7 +60,7 @@ fn circle(cx: f64, cy: f64, r: f64) -> Vec<(f64, f64, f64)> {
     vec![(cx - r, cy, 1.0), (cx + r, cy, 1.0)]
 }
 
-/// Check 9's four words in a structural report.
+/// Check 9's words in a structural report.
 fn check_9_words(body: &Body<f64>) -> Vec<String> {
     match topo::validate_geometric_structural(body, tol()) {
         Ok(()) => Vec::new(),
@@ -73,6 +73,10 @@ fn check_9_words(body: &Body<f64>) -> Vec<String> {
                         | ValidationError::RingContactEscalated { .. }
                         | ValidationError::RingOutsideOuter { .. }
                         | ValidationError::RingNestingUndecided { .. }
+                        | ValidationError::RingMeetsRing { .. }
+                        | ValidationError::RingPairContactEscalated { .. }
+                        | ValidationError::PinchCornerCrossed { .. }
+                        | ValidationError::PinchCornerEscalated { .. }
                 )
             })
             .map(|e| format!("{e:?}"))

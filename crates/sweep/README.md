@@ -24,7 +24,7 @@ chamfers) is registered in `docs/KERNEL-VERBS.md`; the canal blend is
 |---|---|
 | Extrude: translational sweep along the sketch normal; caps, walls, hole rings, rim upgrades | `crates/sweep/src/extrude.rs` |
 | Revolve: axis and angle conventions, partial wedge and full ring, seam meridians, the `tube_along_arc` torus door | `crates/sweep/src/revolve/` (`mod.rs`, `axis.rs`, `partial.rs`, `full.rs`, `chain.rs`, `surfaces.rs`, `upgrade.rs`, `tube.rs`) |
-| Loft and path sweep bodies: extrude's topology over NURBS walls | `crates/sweep/src/loft.rs` (`loft_body`, `sweep_body`) |
+| Loft and path sweep bodies: extrude's topology over NURBS walls | `crates/sweep/src/loft.rs` (`loft_body`, `loft_profiles`, `sweep_body`) |
 | Skinned and swept NURBS surfaces (the definitional geometry, not an approximation) | `crates/sweep/src/skin.rs` |
 | The lowering every profile sweep shares: traversal order, carriers, cosurface decisions | `crates/sweep/src/swept.rs` |
 | The two blend doors, one per verb; each attaches its `BlendKind` once | `crates/sweep/src/fillet.rs`, `crates/sweep/src/chamfer.rs` |
@@ -43,8 +43,14 @@ chamfers) is registered in `docs/KERNEL-VERBS.md`; the canal blend is
 A band changes the material between its supports and its blend surface:
 a convex band removes it, a concave one adds it. Predicate 2 meters that
 region — the band's REACH — against every face of the body that is not
-a support of the chain, in any shell: a face there would be cut through
-or buried, and the surgery has no step for either. The supports' own
+a support of the chain, in any shell, and reads each face as clear of
+it, wholly inside it, or crossing it. A feature wholly inside the reach
+goes with that material, as a feature wholly inside a Boolean's tool goes
+with the tool: its faces, edges and rings die in the carve, and the
+verdict is logged so a later reader of one of its names resolves
+`Vanished` with the blend's verdict as the cause. A face crossing the
+reach would need the band trimmed by it, which the surgery has no step
+for, and refuses. The supports' own
 boundary features are judged first, by the battery's screen and the
 surgery's exact ring and boundary meters; the reach runs after them,
 before any mutation, and refuses `BlendError::FaceClearance` — a
@@ -67,11 +73,12 @@ meridian sheet over its own extent along its trace (read off its
 boundary: the azimuth it winds, and on a sphere the sign of
 `∮ (z − z_c) dθ`, say which singular points it covers), every other face
 on cells of its box in space, and a face's margin is the least lower
-bound over its cells. It skips the
-chain's own supports, every face at a chain vertex (the faces the band
-runs into, which predicate 6 and the surgery judge), and any face on a
-support's own stored surface (which can touch the reach only on its
-boundary). Two bands of one request are read together: a support of
+bound over its cells. A link's reach skips its chain's supports, the
+faces at its own two vertices that its window ends in (the faces the
+band runs into, which predicate 6 and the surgery judge: a plane the
+window is capped by, or a corner patch's support; a face at another
+link's end is metered like any other), and any face on a support's own
+stored surface (which can touch the reach only on its boundary). Two bands of one request are read together: a support of
 the other chain is metered by what survives that chain's band, the other
 band's new surface is metered as a face (but a concave band's surface
 against a convex band's reach, whose removed material the concave region
@@ -100,9 +107,10 @@ and revolve build ONE wall per run on every carrier kind, so no sweep mints
 a same-key adjacency for a merge to undo. The one exception is a run that
 is the whole closed loop of k ≥ 2 pieces (a circle split at authored
 stations): it keeps its authored cuts (C12.5). A one-piece closed loop is
-one wall whose strut is its wrap edge (D1). Extrude builds it; revolve
-and loft refuse it (`OneSegmentLoop`) until the torus and spline charts
-read a wrap edge (`work/paths/one-segment-loop-revolves-and-lofts-to-one-wall.md`).
+one wall whose strut is its wrap edge (D1), in every verb: extrude's
+cylinder wraps `u` across it, a partial revolve's torus wraps `v`, a
+loft's spline wall wraps `u`, and a full revolve's torus is one face
+closed both ways, its meridian and its latitude circle each a wrap edge.
 A station inside a run has no entity in the body: a cap carries the run as
 one rim edge, as the wall is one face (`docs/DESIGN.md`, maximal edges),
 and a partial revolve's run of on-axis segments is one axis edge. It
@@ -223,9 +231,11 @@ outer cycle or, at an annulus's inner circle, its ring, whose trim then
 replaces that ring. Its one crossing takes the strut, and the trim is
 minted so the host keeps its key (`lone_host_trim`); both rims of such
 an annulus are annulus rims, and carve in one call. A CURVED single face
-carrying every arc is authorable through `topo`'s `kef` and refuses at
-the half-band gate on both routes
-(`work/blend/curved-single-host-rim-refuses-at-the-half-band-gate.md`).
+carrying every arc is authorable through `topo`'s `kef_describing` (a
+cylinder wall merged over one seam meridian, the other restated as its
+wrap edge), but each rim's two arcs then meet at a vertex nothing else
+does, which tier 3 refuses at rest, so no blend door takes it
+(`fillet_h5_r2_probes::a_curved_single_face_carrying_both_arcs_is_construction_state`).
 
 **A3-3 — the genuine mid-curve run-out is named and not implemented.**
 Stopping a band part-way along a smooth rim, at a station with no
@@ -259,6 +269,7 @@ stored kinds (plane, cylinder, line, circle, ellipse).
   band is cut off by the other band's support, the two regions overlap,
   and the bands meet along their intersection — a line for a chamfer, a
   planar ellipse for a fillet (two cylinders of one radius tangent to
+<<<<<<< HEAD
   the shared support, whose axes therefore meet). When the two bands'
   feet on the unrequested edge L coincide, the mitre runs from the
   trimlines' crossing on the shared face down to L, and L ends there.
@@ -276,8 +287,10 @@ stored kinds (plane, cylinder, line, circle, ellipse).
   per verb and both signed by which foot is further: the gap between
   the feet on L, and the overrun's chord from the mitre's end to the far
   foot, which is the one new short edge. Neither alone suffices for a
-  chamfer: near a coincidence its chord runs from a fifth to twice the
-  gap. Both Zero builds the mitre on L; both definite builds the
+  chamfer: near a coincidence its chord is not proportional to the gap,
+  their ratio moving with the corner and growing without bound as the
+  turn flattens toward a T, and at a box corner the gap closes
+  quadratically in the skew while the chord closes linearly. Both Zero builds the mitre on L; both definite builds the
   overrun on the side the sign picks; anything else escalates, with a
   recourse that makes the feet meet (equal, or for a chamfer
   supplementary, face angles), moves them clearly apart (a larger
@@ -287,6 +300,23 @@ stored kinds (plane, cylinder, line, circle, ellipse).
   (`BatteryVerdict::coincidences`, D10). No ball rests at a turn, so the
   mitre is G0 between the bands; it never competes with the patch,
   because the request count decides.
+=======
+  the shared support, whose axes therefore meet). When the trihedron is
+  isosceles about the unrequested edge L — equal dihedrals at the two
+  requested edges, the same fact as equal face angles at the vertex —
+  the mitre runs from the trimlines' crossing on the shared face down to
+  L, and L ends there. Otherwise the band that reaches further is cut off
+  past the mitre by the other band's far support, one more short curve
+  down to L. Which holds is a margined verdict (`fillet3_turn_isosceles`,
+  the two face angles at the vertex compared, and the two bands' feet on
+  L): Zero builds
+  the first, definite the second, the sliver band refuses. A Zero
+  verdict is a coincidence decided from values, so the verdict records
+  it (`BatteryVerdict::coincidences`, D10), and `Blended::coincidences`
+  carries the rows to the document's coincidence door. No ball rests at a turn,
+  so the mitre is G0 between the bands; it never competes with the
+  patch, because the request count decides.
+>>>>>>> origin/main
 
 Chain G1 (predicate 4) is a classifier at a junction of two plane–plane
 links: Zero, one band through a joint; definite, two chain ends at a
@@ -298,6 +328,14 @@ face's rim edges split at the feet, the end curve `mef`'d across it, one
 trimline per support; at a turn, L split at its foot, a strut out to the
 trimlines' crossing on the shared face, and the mitre `mef`'d across one
 band, the triangle it cuts off folded into the other.
+
+The battery's other Zero verdicts are coincidences decided from values
+too, and record the same way: a junction chain G1 reads tangent is a
+`Tangent` row between its two links' edges, arriving then leaving, and
+a curved pair's `fillet3_support_coaxiality` is a row between its two
+supports: `Coaxial` for the axis a torus band is minted on, `CoRuled`
+for the ruling a cylinder band is. A self-closed
+link's own seam is one cell, not two, and records nothing.
 
 What still refuses, typed `UnsupportedRunOut` with a detail naming the
 shape: a curved end face (a fillet against a cylinder meets it in a
@@ -368,7 +406,9 @@ the band's tangent contact with a curved support, the arcs as its
 transverse intersection with the cap, on either material side. On
 either side the cap loses the sliver between the arc and the old
 vertex, cut away on the convex side and covered by the fill on the
-concave side, and every other edge of the cap stays where it
+concave side; a feature of the cap wholly inside the sliver goes with
+it, as predicate 2 reads any feature wholly inside a band's reach, and
+every other edge of the cap stays where it
 was — the edges of its other cycles (a bore's ring, or the outer cycle
 where the cut runs in a ring) and those of the cut cycle other than
 the two rims it shortens (a notch in the outline). Each is metered
@@ -378,7 +418,15 @@ farthest the sliver reaches, less the inside of the band's section
 (the circle, or the ellipse), cut down to the half-plane towards the
 old vertex that the sliver lies in and, on a round end, to the box the
 sliver spans in the section's own axes — so a tilted section's long
-major axis reaches no edge the sliver does not. The meter is
+major axis reaches no edge the sliver does not. A straight edge is
+read point by point, at every scalar: it is clear when each of its
+points is clear of one face of the region or another, the least over
+the segment taken at its ends, the centre's foot and the faces'
+pairwise crossings, all closed-form, with an ellipse's inside read
+through the disc of its minor semi-axis. A crossing whose divisor's
+enclosure meets zero is skipped rather than spread over the edge.
+A circle or ellipse edge must clear one face whole.
+The meter is
 the same ring carry-through pass under the same
 `fillet3_ring_clearance`; an edge not definitely clear of the region
 refuses `RingClearance` at the cap
@@ -393,7 +441,7 @@ length at the section's centroid
 band an ellipse trims, of either band, measures through the certified
 quadrature, tessellates, and takes a boolean beside or through the
 band; with an operand wholly apart the boolean's containment door
-refuses it (`work/contact/at-infinity-probe-measures-in-closed-form-only.md`,
+refuses it (`work/restread/at-infinity-probe-measures-in-closed-form-only.md`,
 pinned in `crates/sweep/tests/band_planar_oblique_fillet.rs`). The
 CONCAVE ruled band — the material-adding side, the fill covering the region
 under the arc — is pinned through the extrude door too: a rod's section

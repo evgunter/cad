@@ -2,10 +2,12 @@
 id: cylinder-offsets-read-at-a-stored-origin-off-the-reach
 kind: issue
 title: three cylinder-offset rows read a cylinder's stored origin against another carrier's axis, off the reach
-status: open
+status: closed
 opened: 2026-10-06
 priority: P2
 cost: M
+closed: 2026-10-07
+branch: tang/cylinder-offsets-at-the-reach
 ---
 
 
@@ -57,13 +59,43 @@ Two more sites read a cylinder's position off the reach, found by PR
 ## The fix's shape
 
 Read each offset where the consumed extent is, as the two classifiers
-now do: the feet of a `Reach`'s point on the axes (`Reach::foot_on`),
-the tilt levered from there by an EXACT distance to the consumed
-points (`Reach::lever_between` for two axes, the apex for a cone),
-never a ball around them. The chart-region and join sites need a reach
+now do: for two cylinders, the feet of a `Reach`'s point on the axes
+(`Reach::foot_on`), the tilt levered from there (`Reach::lever_between`);
+for the cone arm, at the APEX, against the cylinder's own axis, the tilt
+levered from the apex by the consumed region's distance from it. Never
+a ball around the consumed points as a lever. The chart-region and join sites need a reach
 from their callers; the cone arm's callers (`route_pose`'s edge span,
 chord_join's cone lane) already hold one.
 
 Found by the class sweep of the `tang/classifiers-read-at-the-reach`
 lane (pattern: `x − a·(x·a)` with `x` an origin difference; the hit
 list is in that PR's body).
+
+## Closed
+
+By `tang/cylinder-offsets-at-the-reach`:
+
+- `cone_cylinder_section`'s `coc_coaxial` reads the apex's distance from
+  the CYLINDER's axis, and the arm's `extent` is the consumed region's
+  distance from the apex, every row's pivot.
+- `route_pose` takes no anchor from a cylinder: the cone×cylinder arm,
+  the only scalar arm a cylinder reaches, is levered from the apex.
+- `parallel_radical_plane` reads the axis offset between the axes' feet
+  at the germ sites the join connects (`geom_brep::parallel_axes_at`).
+- Held by the D10 hold, filed as
+  `declared-cylinder-pair-offsets-read-off-the-reach` (parked):
+  `chart_region_cyl_offset`. The transfer parameter `c` beside it is
+  not a defect (that item says why).
+- `carrier_cyl_reach`'s operand-ordered pivot runs on undeclared pairs
+  too; it decides the sum and is sound, filed open as
+  `carrier-cyl-reach-pivots-on-operand-twos-foot` (P3). `cylinder_data`'s
+  offset datum is not a defect: both callers hand it operand 2's foot,
+  so it is already read at the reach.
+- The cone×cylinder rows still decide the tilt and the offset one at a
+  time; `cylinder-axis-rows-decide-tilt-and-gap-one-at-a-time` now
+  covers that arm too, at P2.
+- The sweep's new hits are filed on their owners' slates:
+  `offset-axial-classify-reads-a-stored-origin-against-the-body-axis`
+  (OFFSET), `sheet-clip-admits-a-cylinder-at-its-stored-origin-by-an-unlevered-tilt`
+  (BAND), `step-adopt-reads-a-plane-origin-against-another-planes-normal`
+  (EXCH).

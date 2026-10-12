@@ -18,7 +18,7 @@ use geom_core::Vec3;
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{ball_poled, cube, finished};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
-use topo::{AtRestBody, Body, BooleanDeclarations};
+use topo::{AtRestBody, Body};
 
 /// The die's side, meters.
 const DIE_L: f64 = 1.0;
@@ -35,9 +35,14 @@ const PIP_D: f64 = 0.22;
 fn blank() -> AtRestBody<f64> {
     let body = cube(DIE_L, Tol::witness());
     let edges: Vec<_> = body.edges().map(|(k, _)| k).collect();
-    let blank = fillet_edges(&body, &edges, DIE_R, Tol::witness())
-        .expect("the die blank")
-        .body;
+    let blank = fillet_edges(
+        &sweep::test_support::at_rest(&body, Tol::witness()),
+        &edges,
+        DIE_R,
+        Tol::witness(),
+    )
+    .expect("the die blank")
+    .body;
     finished("the die blank", blank, Tol::witness())
 }
 
@@ -140,7 +145,7 @@ fn pip_tool() -> AtRestBody<f64> {
             BooleanOp::Union,
             &tool,
             &pip(*c, *n),
-            &BooleanDeclarations::none(),
+            &topo::BooleanInputs::default(),
             SweepStrategy::Realized,
             Tol::witness(),
         )
@@ -158,7 +163,7 @@ fn subtract(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> Body<f64> {
         BooleanOp::Subtract,
         a,
         b,
-        &BooleanDeclarations::none(),
+        &topo::BooleanInputs::default(),
         SweepStrategy::Realized,
         Tol::witness(),
     )
@@ -335,7 +340,7 @@ fn deviation_1_both_doors_compose_and_agree() {
         BooleanOp::Subtract,
         &blank(),
         &pip_tool(),
-        &BooleanDeclarations::none(),
+        &topo::BooleanInputs::default(),
         SweepStrategy::Realized,
         Tol::witness(),
     )
@@ -363,9 +368,14 @@ fn deviation_1_both_doors_compose_and_agree() {
         .filter(|k| pipped.get_edge(*k).is_some())
         .collect();
     assert_eq!(surviving.len(), 12, "every box edge survives the pips");
-    let via_surgery = fillet_edges(&pipped, &surviving, DIE_R, Tol::witness())
-        .expect("the in-place surgery takes the subset request (M6 unit 1)")
-        .body;
+    let via_surgery = fillet_edges(
+        &sweep::test_support::at_rest(&pipped, Tol::witness()),
+        &surviving,
+        DIE_R,
+        Tol::witness(),
+    )
+    .expect("the in-place surgery takes the subset request (M6 unit 1)")
+    .body;
     assert_eq!(
         topo::validate_geometric(&via_surgery, Tol::witness()),
         Ok(()),

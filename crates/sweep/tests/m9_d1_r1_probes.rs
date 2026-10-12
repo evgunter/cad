@@ -165,7 +165,14 @@ fn partial_subdivided_axis_run_exports_its_two_end_poles() {
     assert!((pole_y(&t, 0, 1) - 1.0).abs() < 1e-12);
     assert_eq!(t.poles[0][2], None, "the axis station has no entity");
     assert_eq!(t.body.vertices().count(), 2);
-    assert_eq!(topo::joinable_vertices(&t.body), vec![]);
+    assert_eq!(
+        topo::joinable_vertices(
+            &t.body,
+            geom_core::Band::linear(geom_core::Tol::witness()).unwrap()
+        )
+        .unwrap(),
+        vec![]
+    );
 }
 
 /// Mixed on/off-axis (the dome): (0,0) —line→ (1,0) —quarter arc→

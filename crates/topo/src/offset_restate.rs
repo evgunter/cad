@@ -9,7 +9,7 @@
 //! ([`chart_moves`]). What the doors differ in is how a declaration
 //! travels with the edge, so each passes that as `carried`.
 
-use geom_brep::{EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, MappedCurve};
+use geom_brep::{EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, MappedCurve, SurfacePair};
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Margin, Point3, Real, Sign};
 
@@ -57,24 +57,18 @@ pub(crate) fn restate<T: Real>(
         EdgeAuthority::Declared(mc) => Some(carried(mc)?),
     };
     Ok(match description {
-        EdgeDescription::Intersection { s1, s2, .. } => EdgeDescriptionSpec::Intersection {
-            s1,
-            s2,
-            witness: mid,
-        },
-        EdgeDescription::TangentIntersection { s1, s2, .. } => {
-            EdgeDescriptionSpec::TangentIntersection {
-                s1,
-                s2,
-                witness: mid,
-            }
+        EdgeDescription::Intersection { pair, .. } => {
+            EdgeDescriptionSpec::Intersection { pair, witness: mid }
+        }
+        EdgeDescription::TangentIntersection { pair, .. } => {
+            EdgeDescriptionSpec::TangentIntersection { pair, witness: mid }
         }
         EdgeDescription::Chart(c) => match beside_moving(c.surface, sides) {
             Some(moving) => held_neighbour_image(moving, c.surface, declared, mid),
             None => EdgeDescriptionSpec::Chart {
                 surface: c.surface,
                 image: (!slides).then_some(c.pcurve),
-                seam: c.seam,
+                wrap: c.wrap,
                 declared,
             },
         },
@@ -101,8 +95,7 @@ pub(crate) fn held_neighbour_image<T: Real>(
 ) -> EdgeDescriptionSpec<T> {
     match declared {
         None => EdgeDescriptionSpec::Intersection {
-            s1: moving,
-            s2: held,
+            pair: SurfacePair::new(moving, held),
             witness,
         },
         Some(mc) => EdgeDescriptionSpec::chart(moving).declared_by(mc),

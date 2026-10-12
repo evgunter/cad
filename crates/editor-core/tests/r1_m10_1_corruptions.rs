@@ -128,7 +128,7 @@ fn a_corrupt_distribution_in_a_saved_edit_log_refuses_at_load() {
         Err(PersistError::EditReplay { index, error }) => {
             assert_eq!(index, 0);
             assert_eq!(
-                error,
+                *error,
                 EditError::InvalidDistribution {
                     var: base.spoken_declare(
                         &VarName::from_static("s"),

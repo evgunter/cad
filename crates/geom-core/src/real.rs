@@ -311,7 +311,23 @@ pub trait Real:
     const NAME: &'static str;
 
     /// Embeds an `f64` exactly (a point interval, a constant dual number).
+    ///
+    /// **For a constant only**: a literal, a count, a tolerance, data
+    /// that is a constant of the model. At [`crate::Sym`] it is an exact
+    /// rational, so a value the kernel COMPUTED and re-entered here is a
+    /// different function of the parameters than the one it came from,
+    /// and a symbolic `Zero` over it is a theorem about the wrong
+    /// function (ERROR-DESIGN E12). A computed value stays in `Self`, or
+    /// enters through [`Real::from_computed`].
     fn from_f64(x: f64) -> Self;
+
+    /// Embeds an `f64` that a NUMERICAL routine computed (a root, a
+    /// march point, a bound read off an enclosure): the value is
+    /// [`Real::from_f64`]'s, and at [`crate::Sym`] each call is its own
+    /// unknown ([`crate::Sym::opaque`]), so no identity is proved over
+    /// it. Declared, never defaulted: a scalar that defaulted it to
+    /// `from_f64` would re-enter every computed value as a constant.
+    fn from_computed(x: f64) -> Self;
 
     /// The additive identity.
     fn zero() -> Self;
@@ -953,6 +969,25 @@ pub fn is_zero_length<T: Real>(len: T, witness: T) -> bool {
     !is_finite_length(len / witness)
 }
 
+/// Whether `x` is EXACTLY zero, of either sign: at the point scalars
+/// `x == 0.0` on the value, at the interval scalar only the degenerate
+/// hull `[−0, 0]`. An enclosure that merely contains zero, and poison,
+/// are not zero.
+///
+/// [`Real`] compares nothing, so the read is arithmetic: `x · 0` is
+/// poison exactly when `x` is not finite, and for a finite `x`,
+/// `x · (1/x)` is poison exactly when `x` is zero (0 · ∞; at `Interval`
+/// the reciprocal of `[0, 0]` is empty). It is structure read as
+/// structure, not a tolerance decision, so a caller that takes the
+/// `false` branch for a nearly-zero value must be the one that refuses
+/// or routes more.
+///
+/// Its callers are what `grep -rn is_exact_zero crates` finds; each
+/// says at the call what an exact zero means there.
+pub fn is_exact_zero<T: Real>(x: T) -> bool {
+    !(x * T::zero()).is_poison() && (x * (T::one() / x)).is_poison()
+}
+
 /// Bracket extraction off a scalar — deliberately a separate trait, never
 /// folded into [`Real`], and **not** the certification door.
 ///
@@ -1273,6 +1308,20 @@ pub mod bounds_allowlist {
     //! crossing-layer functions (`curved_face_arm`, `wall_crossing`,
     //! `settle_deferred`) carry the bound as a reachability ride to it and
     //! read no bracket of their own.
+    //!
+    //! `topo::validate`'s `ring_pairs` — check 9's broad phase over the
+    //! rings of one face — falls under this entry on the same terms as
+    //! `census::Trees`: it boxes each ring through the certified box
+    //! constructor (`edge_box`, hulled over the ring's edges at the sweep
+    //! pad), builds the C10 tree over those boxes and drives its queries,
+    //! deciding nothing; the contact arms that follow decide every pair the
+    //! boxes do not clear, through `Decide`. Its one box-level answer is
+    //! the pruning grant, in the disjointness direction the #571 rule
+    //! allows: a box miss can only clear a pair, never make one meet. The
+    //! weakest bound that works is `Decide + Bounds`: sole `Decide` reads
+    //! no box, and sole `Bounds` cannot call the arms. It reads no bound
+    //! its callers do not already carry (`tier3_local_checks_marked`, under
+    //! the at-rest validator's own entry).
     //!
     //! `topo::face_boxes` — `FaceBoxes::of`, the blend's candidate prune
     //! for predicate 2's reach meter — falls under this entry on the
@@ -1736,6 +1785,10 @@ impl Real for f64 {
 
     /// The identity — every `f64` embeds as itself, exactly.
     fn from_f64(x: f64) -> Self {
+        x
+    }
+
+    fn from_computed(x: f64) -> Self {
         x
     }
 

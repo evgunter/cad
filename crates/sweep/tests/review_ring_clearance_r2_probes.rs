@@ -126,7 +126,8 @@ fn a_non_coaxial_ring_carries_through_the_hostless_annulus_trim() {
         "the containment margin is definitely positive"
     );
     let arcs = rim_arcs_at(&body, 1.0, 1.0);
-    let out = fillet_edges(&body, &arcs, r, tol()).expect("the top rim carves over a pip");
+    let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, r, tol())
+        .expect("the top rim carves over a pip");
     validate_geometric(&out.body, tol()).expect("tier-3 valid");
     assert_eq!(
         out.body.get_face(host).map_or(0, |fd| fd.rings.len()),
@@ -166,7 +167,7 @@ fn the_boolean_route_to_the_exact_containment_backstop_is_blocked() {
     );
     let body = pipped(dc, pr);
     let arcs = rim_arcs_at(&body, 1.0, 1.0);
-    let err = fillet_edges(&body, &arcs, r, tol())
+    let err = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, r, tol())
         .expect_err("a ring outside the trim circle refuses")
         .error;
     let BlendError::FaceClearanceUncertified { margin, .. } = err else {
@@ -216,7 +217,13 @@ fn a_non_coaxial_ladder_trim_circle_carves_inside_its_boundary_and_refuses_outsi
     );
     let arcs = rim_arcs_at(&carves, pr, 1.0);
     assert_eq!(arcs.len(), 2, "the pip rim is two arcs");
-    let out = fillet_edges(&carves, &arcs, r, tol()).expect("the nested trim circle carves");
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&carves, tol()),
+        &arcs,
+        r,
+        tol(),
+    )
+    .expect("the nested trim circle carves");
     validate_geometric(&out.body, tol()).expect("tier-3 valid");
 
     let refuses = pipped(0.68, pr);
@@ -226,9 +233,14 @@ fn a_non_coaxial_ladder_trim_circle_carves_inside_its_boundary_and_refuses_outsi
         "the containment margin is definitely negative"
     );
     let arcs = rim_arcs_at(&refuses, pr, 1.0);
-    let err = fillet_edges(&refuses, &arcs, r, tol())
-        .expect_err("a trim circle crossing its host's boundary refuses")
-        .error;
+    let err = fillet_edges(
+        &sweep::test_support::at_rest(&refuses, tol()),
+        &arcs,
+        r,
+        tol(),
+    )
+    .expect_err("a trim circle crossing its host's boundary refuses")
+    .error;
     let BlendError::FaceClearanceUncertified { margin, .. } = err else {
         panic!("the sampled screen answers first on this pair, got {err:?}");
     };

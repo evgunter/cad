@@ -58,7 +58,7 @@ fn box_doc() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, cube) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -284,7 +284,7 @@ fn at(datum: RecipeNodeId, cmp: Cmp, v: f64) -> [GeomPred; 1] {
     [GeomPred::DatumDistance {
         datum,
         cmp,
-        value: editor_core::test_support::stored_expr(&len(v)),
+        value: len(v),
     }]
 }
 
@@ -404,7 +404,7 @@ fn a_non_length_value_refuses() {
     let bad = [GeomPred::DatumDistance {
         datum,
         cmp: Cmp::Approx,
-        value: editor_core::test_support::stored_expr(&ang(1.0)),
+        value: ang(1.0),
     }];
     assert!(matches!(
         select_where(
@@ -444,7 +444,7 @@ fn a_non_datum_reference_refuses() {
     }
     // An unevaluated node id, same door: a node with no value is its
     // own refusal, carrying the standing rather than a word for it.
-    let ghost = at(RecipeNodeId(9999), Cmp::Approx, 0.0);
+    let ghost = at(RecipeNodeId::new(0, 9999), Cmp::Approx, 0.0);
     assert!(matches!(
         select_where(
             &ev,
@@ -454,11 +454,8 @@ fn a_non_datum_reference_refuses() {
             &no_params(),
             Tol::witness()
         ),
-        Err(SelectRefusal::DatumHasNoValue(
-            NodeStanding::NotInDocument {
-                node: RecipeNodeId(9999)
-            }
-        ))
+        Err(SelectRefusal::DatumHasNoValue(NodeStanding::NotInDocument { node }))
+            if node == RecipeNodeId::new(0, 9999)
     ));
 }
 
@@ -471,7 +468,7 @@ fn a_valueless_node_is_empty_not_an_error() {
     assert!(
         select_where(
             &ev,
-            RecipeNodeId(9999),
+            RecipeNodeId::new(0, 9999),
             &all(EntityKind::Edge),
             &[GeomPred::CurveKind(CurveKindSet::just(CurveKind::Line))],
             &no_params(),
@@ -518,33 +515,29 @@ fn kind_sets_carry_exactly_their_members() {
 /// The composed die's fillet target and the two operand nodes, read
 /// out of the document itself (the `lib_u7_select` recovery, verbatim
 /// — nothing here restates an id the document already knows).
-fn composed_ids(
-    doc: &ProfileDoc,
-    ev: &editor_core::Evaluation<f64>,
-) -> (RecipeNodeId, RecipeNodeId, RecipeNodeId) {
+fn composed_ids(doc: &ProfileDoc) -> (RecipeNodeId, RecipeNodeId, RecipeNodeId) {
     let (_, pipped) = doc
-        .order()
+        .ids()
         .iter()
         .find_map(|id| match doc.node(*id) {
-            Some(Node::Fillet { target, .. }) => Some((*id, *target)),
+            Some(Node::Fillet { selection, .. }) => Some((*id, doc.read_operation(*selection)?)),
             _ => None,
         })
         .expect("the composed die has a fillet node");
-    let operand = |pick: fn(&editor_core::RoleSeg) -> Option<&editor_core::StableName>| {
-        editor_core::all_edges(ev, pipped)
-            .iter()
-            .find_map(|n| n.path.first().and_then(pick).map(|inner| inner.node))
-            .expect("the target's table carries this operand")
+    let Some(Node::Subtract { from, tool, .. }) = doc.node(pipped) else {
+        panic!("the fillet's target is the die's subtract");
     };
-    let cube = operand(|s| match s {
-        editor_core::RoleSeg::FromA(inner) => Some(&**inner),
-        _ => None,
-    });
-    let ball = operand(|s| match s {
-        editor_core::RoleSeg::FromB(inner) => Some(&**inner),
-        _ => None,
-    });
-    (cube, ball, pipped)
+    let operand = |read| {
+        doc.operation_of(read)
+            .expect("an operand read has a producer")
+    };
+    // The tool is the pip, a Transform of the ball; the ball's names
+    // ride it through unchanged, so the names carry the revolve's id.
+    let ball = match doc.node(operand(tool.read)) {
+        Some(Node::Transform { input, .. }) => operand(*input),
+        other => panic!("the die's tool is the placed ball, got {other:?}"),
+    };
+    (operand(from.read), ball, pipped)
 }
 
 /// **THE ACCEPTANCE (LIB-SEL1 §2.4).** `die_composed`'s fourteen
@@ -582,7 +575,7 @@ fn composed_ids(
 fn the_geometric_selector_materializes_the_authored_die_composed_selection() {
     let doc = corpus::die_composed::document();
     let ev = eval(&doc.doc);
-    let (cube, ball, pipped) = composed_ids(&doc.doc, &ev);
+    let (cube, ball, pipped) = composed_ids(&doc.doc);
 
     let edges = all(EntityKind::Edge);
     let straight = select_where(

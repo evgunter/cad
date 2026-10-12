@@ -86,8 +86,13 @@ fn both_rims(b: &Bore) -> Vec<EdgeKey> {
 }
 
 fn one_call(b: &Bore) -> Filleted<f64> {
-    fillet_edges(&b.body, &both_rims(b), RHO, tol())
-        .unwrap_or_else(|e| panic!("{}: both rims fillet in one call, got {e:?}", b.what))
+    fillet_edges(
+        &sweep::test_support::at_rest(&b.body, tol()),
+        &both_rims(b),
+        RHO,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("{}: both rims fillet in one call, got {e:?}", b.what))
 }
 
 /// **Both rims build in one call**, valid, two bands, and the volume is
@@ -116,13 +121,19 @@ fn both_rims_of_a_bore_fillet_in_one_call_and_remove_two_corner_tori() {
 fn the_one_call_bore_is_the_sequential_composition_in_both_orders() {
     for b in bores() {
         let v_one = volume(&one_call(&b).body);
+        let operand = sweep::test_support::at_rest(&b.body, tol());
         for (first, second) in [(b.lo, b.hi), (b.hi, b.lo)] {
-            let mid = fillet_edges(&b.body, &circle_arcs_at_z(&b.body, first), RHO, tol())
+            let mid = fillet_edges(&operand, &circle_arcs_at_z(&b.body, first), RHO, tol())
                 .unwrap_or_else(|e| panic!("{}: the z = {first} rim alone, got {e:?}", b.what))
                 .body;
-            let end = fillet_edges(&mid, &circle_arcs_at_z(&mid, second), RHO, tol())
-                .unwrap_or_else(|e| panic!("{}: then the z = {second} rim, got {e:?}", b.what))
-                .body;
+            let end = fillet_edges(
+                &sweep::test_support::at_rest(&mid, tol()),
+                &circle_arcs_at_z(&mid, second),
+                RHO,
+                tol(),
+            )
+            .unwrap_or_else(|e| panic!("{}: then the z = {second} rim, got {e:?}", b.what))
+            .body;
             let v_seq = volume(&end);
             assert!(
                 (v_one - v_seq).abs() < 1e-13,

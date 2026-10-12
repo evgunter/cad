@@ -59,10 +59,10 @@ use editor_core::mc::{McConfig, monte_carlo};
 use editor_core::report::{Dials, MassBasis, MassBudget, leaf_histogram, report_key};
 use editor_core::stackup::stackup;
 use editor_core::{
-    AssertionDir, AssertionVerdict, CancelToken, CapEnd, Dimension, Distribution, DocEdit,
-    EvalOptions, Formula, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, Node, NodeResult,
-    ProfileDoc, ProfileLift, ProfileProgram, RecipeNodeId, RoleSeg, SitedRef, UnevaluatedReason,
-    UnitSym, ValuePayload, VarName, evaluate,
+    AssertionRelation, AssertionVerdict, CancelToken, CapEnd, Dimension, Distribution, DocEdit,
+    EvalOptions, Formula, FreeVar, LoopProgram, MeasurePrimitive, Node, NodeResult, ProfileDoc,
+    ProfileLift, ProfileProgram, RecipeNodeId, RoleSeg, SitedRef, UnevaluatedReason, UnitSym,
+    ValuePayload, VarName, evaluate,
 };
 use geom_core::{Bounds, Tol};
 
@@ -115,19 +115,6 @@ fn assertion_verdict<T: geom_core::Decide>(
     }
 }
 
-fn measure_value<T: geom_core::Decide>(
-    ev: &editor_core::Evaluation<T>,
-    node: RecipeNodeId,
-) -> Option<T> {
-    match ev.result(node) {
-        Some(NodeResult::Ok(v)) => match &v.payload {
-            ValuePayload::Measure { value, .. } => Some(*value),
-            _ => None,
-        },
-        _ => None,
-    }
-}
-
 fn param(r: &mut Recorder, n: &'static str, value: f64, dist: Option<Distribution>) {
     r.push(DocEdit::DeclareVar {
         name: name(n),
@@ -154,12 +141,12 @@ fn translate(r: &mut Recorder, input: RecipeNodeId, t: [Formula; 3]) -> RecipeNo
 fn prism(r: &mut Recorder, origin: [f64; 3], corners: &[(f64, f64)], height: f64) -> RecipeNodeId {
     let plane = r.insert(fixture::frame(origin, [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![LoopProgram::polygon(corners.iter().copied()).expect("finite corners")],
         ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(height),
         side: ExtrudeSide::Along,
     })
@@ -177,7 +164,10 @@ const OFFSET: f64 = 0.25;
 /// over the notch at height `LIFT`. Returns the L's top cap and the
 /// block's bottom cap as measure references, and the measure/assertion
 /// nodes for `min_clearance(cap, underside) ≥ bound`.
-fn notch(bound: f64, dir: AssertionDir) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+fn notch(
+    bound: f64,
+    relation: AssertionRelation,
+) -> (ProfileDoc, editor_core::VarId, RecipeNodeId) {
     let mut r = Recorder::new();
     let ell = prism(
         &mut r,
@@ -198,20 +188,19 @@ fn notch(bound: f64, dir: AssertionDir) -> (ProfileDoc, RecipeNodeId, RecipeNode
         &[(1.25, 1.25), (1.75, 1.25), (1.75, 1.75), (1.25, 1.75)],
         0.5,
     );
-    let measure = r.insert(
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
-            vec![
+    let measure = r
+        .measure(
+            &[MeasurePrimitive::MinClearance { a: 0, b: 1 }],
+            &[
                 SitedRef::at_mint(fixture::fname(ell, RoleSeg::Cap(CapEnd::End))),
                 SitedRef::at_mint(fixture::fname(block, RoleSeg::Cap(CapEnd::Start))),
             ],
         )
-        .expect("both indices in range"),
-    );
+        .outputs[0];
     let assertion = r.insert(Node::Assertion {
-        measure,
+        value: fixture::read_var(&r.doc, measure),
         bound: len(bound),
-        dir,
+        relation,
     });
     (r.doc, measure, assertion)
 }
@@ -247,9 +236,9 @@ fn true_notch_clearance() -> f64 {
 /// windows reds it and sends a reader back here.
 #[test]
 fn the_min_clearance_bracket_bounds_the_trimmed_faces_from_below() {
-    let (doc, measure, _) = notch(0.2, AssertionDir::AtLeast);
+    let (doc, measure, _) = notch(0.2, AssertionRelation::AtLeast);
     let ev = eval_over::<geom_core::Interval>(&doc, None);
-    let value = measure_value(&ev, measure).expect("the measure has an interval value");
+    let value = fixture::reading(&doc, &ev, measure).expect("the measure has an interval value");
     let truth = true_notch_clearance();
     eprintln!(
         "notch: min_clearance windows ∈ [{}, {}], true face separation {truth}",
@@ -284,9 +273,9 @@ fn the_min_clearance_bracket_bounds_the_trimmed_faces_from_below() {
 /// `work/trim/min-separation-tightening-crosses-the-drive.md`.
 #[test]
 fn the_notch_bracket_is_the_windows_not_the_faces() {
-    let (doc, measure, _) = notch(0.2, AssertionDir::AtLeast);
+    let (doc, measure, _) = notch(0.2, AssertionRelation::AtLeast);
     let ev = eval_over::<geom_core::Interval>(&doc, None);
-    let value = measure_value(&ev, measure).expect("the measure has an interval value");
+    let value = fixture::reading(&doc, &ev, measure).expect("the measure has an interval value");
     eprintln!(
         "EVIDENCE notch bracket [{}, {}] vs window distance {LIFT} vs face distance {}",
         value.lo(),
@@ -308,7 +297,7 @@ fn the_notch_bracket_is_the_windows_not_the_faces() {
 /// window's 0.1. A CI row 1 over this document reds a true assertion.
 #[test]
 fn an_at_least_assertion_over_a_notch_does_not_read_violated_when_the_faces_clear_it() {
-    let (doc, _, assertion) = notch(0.2, AssertionDir::AtLeast);
+    let (doc, _, assertion) = notch(0.2, AssertionRelation::AtLeast);
     let ev = eval_over::<geom_core::Interval>(&doc, None);
     let verdict = assertion_verdict(&ev, assertion);
     eprintln!("notch AtLeast 0.2 (true 0.269): {verdict:?}");
@@ -322,7 +311,7 @@ fn an_at_least_assertion_over_a_notch_does_not_read_violated_when_the_faces_clea
 /// `MinSeparation` docs say the containment-true reading makes sound.
 #[test]
 fn an_at_most_assertion_over_a_notch_does_not_read_holds_when_the_faces_exceed_it() {
-    let (doc, _, assertion) = notch(0.15, AssertionDir::AtMost);
+    let (doc, _, assertion) = notch(0.15, AssertionRelation::AtMost);
     let ev = eval_over::<geom_core::Interval>(&doc, None);
     let verdict = assertion_verdict(&ev, assertion);
     eprintln!("notch AtMost 0.15 (true 0.269): {verdict:?}");
@@ -457,7 +446,7 @@ fn min_clearance_of_a_body_against_itself_is_the_selections_self_clearance() {
 /// A plate whose web is `distance(wall 0, wall 2) = 2`, placed by a
 /// uniform parameter, with an assertion `web ≥ bound`. No
 /// `min_clearance` anywhere.
-fn web_plate(bound: f64, law: Distribution) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+fn web_plate(bound: f64, law: Distribution) -> (ProfileDoc, editor_core::VarId, RecipeNodeId) {
     let mut r = Recorder::new();
     param(&mut r, "place", 0.0, Some(law));
     let solid = prism(
@@ -475,10 +464,10 @@ fn web_plate(bound: f64, law: Distribution) -> (ProfileDoc, RecipeNodeId, Recipe
             len(0.0),
         ],
     );
-    let measure = r.insert(
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            vec![
+    let measure = r
+        .measure(
+            &[MeasurePrimitive::Distance { a: 0, b: 1 }],
+            &[
                 SitedRef::new(
                     placed,
                     fixture::fname(solid, fixture::wall(&r.doc, solid, 0)),
@@ -489,12 +478,11 @@ fn web_plate(bound: f64, law: Distribution) -> (ProfileDoc, RecipeNodeId, Recipe
                 ),
             ],
         )
-        .expect("in range"),
-    );
+        .outputs[0];
     let assertion = r.insert(Node::Assertion {
-        measure,
+        value: fixture::read_var(&r.doc, measure),
         bound: len(bound),
-        dir: AssertionDir::AtLeast,
+        relation: AssertionRelation::AtLeast,
     });
     (r.doc, measure, assertion)
 }
@@ -616,14 +604,14 @@ fn report_key_tells_two_budgets_apart() {
     );
     let plane = r.insert(fixture::xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]).expect("square"),
         ],
         ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: Formula::named(name("depth"), Dimension::Length),
         side: ExtrudeSide::Along,
     });
@@ -724,18 +712,18 @@ fn report_key_tells_two_budgets_apart() {
 
 /// The unit's neck with the bound / the pairing / the box as arguments.
 fn neck(bound: f64, wall_b: u32, law: Distribution) -> (ProfileDoc, RecipeNodeId) {
-    neck_dir(bound, wall_b, law, AssertionDir::AtLeast)
+    neck_related(bound, wall_b, law, AssertionRelation::AtLeast)
 }
 
-/// The same, with the assertion's direction chosen — which the fix
+/// The same, with the assertion's relation chosen — which the fix
 /// pass made load-bearing: `min_clearance` reaches `Violated` only
 /// through `AtMost` now (`measure::Certified`), because the `AtLeast`
 /// arm that would read the carrier's upper end refuses instead.
-fn neck_dir(
+fn neck_related(
     bound: f64,
     wall_b: u32,
     law: Distribution,
-    dir: AssertionDir,
+    relation: AssertionRelation,
 ) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
     param(&mut r, "place", 0.0, Some(law));
@@ -767,10 +755,10 @@ fn neck_dir(
             len(0.0),
         ],
     );
-    let measure = r.insert(
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
-            vec![
+    let measure = r
+        .measure(
+            &[MeasurePrimitive::MinClearance { a: 0, b: 1 }],
+            &[
                 SitedRef::new(
                     placed,
                     fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
@@ -781,12 +769,11 @@ fn neck_dir(
                 ),
             ],
         )
-        .expect("in range"),
-    );
+        .outputs[0];
     let assertion = r.insert(Node::Assertion {
-        measure,
+        value: fixture::read_var(&r.doc, measure),
         bound: len(bound),
-        dir,
+        relation,
     });
     (r.doc, assertion)
 }
@@ -804,7 +791,7 @@ fn neck_dir(
 /// planting through it would be planting a refusal.
 #[test]
 fn a_planted_violated_reads_violated_over_a_certified_leaf() {
-    let (doc, assertion) = neck_dir(0.3, 9, uniform(), AssertionDir::AtMost);
+    let (doc, assertion) = neck_related(0.3, 9, uniform(), AssertionRelation::AtMost);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &numeric_lane(), Tol::witness()).expect("builds");
     assert!(!verdict.certified().is_empty());
@@ -837,6 +824,35 @@ fn the_at_least_arm_that_read_the_carriers_end_now_refuses_by_name() {
             assert_eq!((verb, endpoint), ("min_clearance", "upper"));
             assert_eq!(recourse, editor_core::WINDOW_TIGHTENING);
         }
+        other => panic!("expected a typed window-superset refusal, got {other:?}"),
+    }
+}
+
+/// **`=` over the window superset reads both ends, so it is violated
+/// only off the faces' end and never holds.** Over the 0.4 neck on a
+/// certified leaf, `= 0.3` is violated off `lo` (sound, as `AtMost`
+/// is), and `= 0.5` would be violated off the carrier's `hi`, so it
+/// refuses by that end. Breaks if `Equal` reads one end only (the
+/// `0.5` row reads `Violated`).
+#[test]
+fn equal_over_min_clearance_answers_only_off_the_faces_end() {
+    let at = |bound| {
+        let (doc, assertion) = neck_related(bound, 9, uniform(), AssertionRelation::Equal);
+        let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+        let verdict = drive(&doc, &analyzed, &numeric_lane(), Tol::witness()).expect("builds");
+        let leaf = &verdict.certified()[0];
+        let ev = eval_over::<geom_core::Interval>(&doc, Some(leaf.box_.clone()));
+        assertion_verdict(&ev, assertion)
+    };
+    let below = at(0.3);
+    assert!(
+        matches!(below, AssertionVerdict::Violated { .. }),
+        "{below:?}"
+    );
+    match at(0.5) {
+        AssertionVerdict::Unevaluated {
+            reason: UnevaluatedReason::WindowSuperset { endpoint, .. },
+        } => assert_eq!(endpoint, "upper"),
         other => panic!("expected a typed window-superset refusal, got {other:?}"),
     }
 }
@@ -933,10 +949,10 @@ fn a_mixed_document_is_forced_by_its_band_alone_and_split_band_masses_refuse_typ
             Formula::named(name("lift"), Dimension::Length),
         ],
     );
-    let measure = r.insert(
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            vec![
+    let measure = r
+        .measure(
+            &[MeasurePrimitive::Distance { a: 0, b: 1 }],
+            &[
                 SitedRef::new(
                     placed,
                     fixture::fname(solid, fixture::wall(&r.doc, solid, 0)),
@@ -947,12 +963,11 @@ fn a_mixed_document_is_forced_by_its_band_alone_and_split_band_masses_refuse_typ
                 ),
             ],
         )
-        .expect("in range"),
-    );
+        .outputs[0];
     r.insert(Node::Assertion {
-        measure,
+        value: fixture::read_var(&r.doc, measure),
         bound: len(1.0),
-        dir: AssertionDir::AtLeast,
+        relation: AssertionRelation::AtLeast,
     });
     let analyzed = analyzed_box(&r.doc, &AnalysisPolicy::default());
     match MassBasis::of(&analyzed) {
@@ -1019,9 +1034,9 @@ fn bracket(
     lift_law: Distribution,
 ) -> (
     ProfileDoc,
+    editor_core::VarId,
     RecipeNodeId,
-    RecipeNodeId,
-    RecipeNodeId,
+    editor_core::VarId,
     RecipeNodeId,
 ) {
     let mut r = Recorder::new();
@@ -1054,10 +1069,10 @@ fn bracket(
         ],
     );
     // web = distance(post's x=1 wall, base's x=0 wall) = 1 + offset.
-    let web = r.insert(
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            vec![
+    let web = r
+        .measure(
+            &[MeasurePrimitive::Distance { a: 0, b: 1 }],
+            &[
                 SitedRef::new(
                     post,
                     fixture::fname(post_solid, fixture::wall(&r.doc, post_solid, 3)),
@@ -1065,17 +1080,16 @@ fn bracket(
                 SitedRef::at_mint(fixture::fname(base, fixture::wall(&r.doc, base, 3))),
             ],
         )
-        .expect("in range"),
-    );
+        .outputs[0];
     let web_ok = r.insert(Node::Assertion {
-        measure: web,
+        value: fixture::read_var(&r.doc, web),
         bound: len(0.9),
-        dir: AssertionDir::AtLeast,
+        relation: AssertionRelation::AtLeast,
     });
-    let clearance = r.insert(
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
-            vec![
+    let clearance = r
+        .measure(
+            &[MeasurePrimitive::MinClearance { a: 0, b: 1 }],
+            &[
                 SitedRef::new(
                     post,
                     editor_core::StableName {
@@ -1091,12 +1105,11 @@ fn bracket(
                 }),
             ],
         )
-        .expect("in range"),
-    );
+        .outputs[0];
     let clear_ok = r.insert(Node::Assertion {
-        measure: clearance,
+        value: fixture::read_var(&r.doc, clearance),
         bound: len(0.1),
-        dir: AssertionDir::AtLeast,
+        relation: AssertionRelation::AtLeast,
     });
     (r.doc, web, web_ok, clearance, clear_ok)
 }
@@ -1257,13 +1270,13 @@ fn the_bracket_walk_through_the_public_doors() {
 
 fn node_named(doc: &editor_core::ProfileDoc, pick: usize) -> RecipeNodeId {
     let mut transforms: Vec<RecipeNodeId> = doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .filter(|&id| matches!(doc.node(id), Some(Node::Transform { .. })))
         .collect();
     let mut extrudes: Vec<RecipeNodeId> = doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .filter(|&id| matches!(doc.node(id), Some(Node::Extrude { .. })))
@@ -1320,7 +1333,7 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
     }
     let plane = r.insert(fixture::xy_frame());
     let plate_p = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([
                 (-4.0e-3, -2.0e-3),
@@ -1333,13 +1346,13 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
         ids: Vec::new(),
     }));
     let _plate = r.insert(Node::Extrude {
-        profile: plate_p,
+        profile: plate_p.into(),
         distance: len(1.0e-3),
         side: ExtrudeSide::Along,
     });
     let hole = |r: &mut Recorder, centre: Formula, radius: &'static str| {
         let p = r.insert(Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [centre, len(0.0)],
                 radius: Formula::named(name(radius), Dimension::Length),
@@ -1347,7 +1360,7 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
             ids: Vec::new(),
         }));
         r.insert(Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0e-3),
             side: ExtrudeSide::Along,
         })
@@ -1383,18 +1396,20 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
         SitedRef::new(node, faces.remove(0))
     };
     let refs = vec![wall(hole_a), wall(hole_b)];
-    let radius_of =
-        |n: &'static str| MeasureExpr::value(Formula::named(name(n), Dimension::Length));
-    let web = MeasureExpr::sub(
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        MeasureExpr::add(radius_of("hole_a_r"), radius_of("hole_b_r")).expect("L + L"),
+    let distance = r
+        .measure(&[MeasurePrimitive::Distance { a: 0, b: 1 }], &refs)
+        .outputs[0];
+    let radius_of = |n: &'static str| Formula::named(name(n), Dimension::Length);
+    let web = Formula::sub(
+        r.len_of(distance),
+        Formula::add(radius_of("hole_a_r"), radius_of("hole_b_r")).expect("L + L"),
     )
     .expect("L − L");
-    let measure = r.insert(Node::measure(web, refs).expect("in range"));
+    let measure = r.define("measure", web);
     let assertion = r.insert(Node::Assertion {
-        measure,
+        value: fixture::read_var(&r.doc, measure),
         bound: len(bound),
-        dir: AssertionDir::AtLeast,
+        relation: AssertionRelation::AtLeast,
     });
 
     let analyzed = analyzed_box(&r.doc, &AnalysisPolicy::default());

@@ -5,6 +5,7 @@
 //! circle/ellipse carriers.
 
 use geom_brep::recourse::{Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite};
+use geom_core::k_stats::NonzeroSign;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Tol};
 use slotmap::SecondaryMap;
 
@@ -13,7 +14,7 @@ use crate::body::Body;
 use crate::boolean::boxes::BoxFrame;
 use crate::entity::{EdgeKey, FaceKey, VertexKey};
 use crate::null::CurveGeom;
-use crate::validate::decide;
+use crate::validate::{decide, decide_nonzero};
 
 /// **The carrier gate, scoped to what the plane can reach** (C12.1:
 /// the gate retires per arm, never wholesale).
@@ -242,19 +243,48 @@ pub(super) fn classify_vertices<T: Decide>(
     plane: &SplitPlane<T>,
     band: Band,
 ) -> Result<(SecondaryMap<VertexKey, PlaneSide>, Vec<VertexKey>), SplitReduceError> {
+    classify_vertices_margined(body, plane, band).map(|(sides, on, _)| (sides, on))
+}
+
+/// Each vertex's side, the ON vertices in arena order, and the margin
+/// each ON vertex was decided Zero on ([`classify_vertices_margined`]).
+pub(super) type MarginedSides = (
+    SecondaryMap<VertexKey, PlaneSide>,
+    Vec<VertexKey>,
+    SecondaryMap<VertexKey, geom_core::MarginDiag>,
+);
+
+/// [`classify_vertices`], with the margin each ON vertex was decided
+/// Zero on: the coincidence a pinch records ([`crate::coincidence`]).
+pub(super) fn classify_vertices_margined<T: Decide>(
+    body: &Body<T>,
+    plane: &SplitPlane<T>,
+    band: Band,
+) -> Result<MarginedSides, SplitReduceError> {
     let mut sides = SecondaryMap::new();
     let mut on_vertices = Vec::new();
+    let mut on_margins = SecondaryMap::new();
     for (vertex_key, p) in body.vertex_points() {
         let margin = Margin::of(crate::sector_shape::plane_offset(
             plane.origin,
             plane.normal.get(),
             p,
         ));
-        let side = match decide("split_vertex_side", margin, band) {
-            Ok(Sign::Negative) => PlaneSide::Below,
-            Ok(Sign::Positive) => PlaneSide::Above,
-            Ok(Sign::Zero) => {
+        let side = match crate::validate::decide_reported("split_vertex_side", margin, band) {
+            Ok(geom_core::Decided {
+                sign: Sign::Negative,
+                ..
+            }) => PlaneSide::Below,
+            Ok(geom_core::Decided {
+                sign: Sign::Positive,
+                ..
+            }) => PlaneSide::Above,
+            Ok(geom_core::Decided {
+                sign: Sign::Zero,
+                margin,
+            }) => {
                 on_vertices.push(vertex_key);
+                on_margins.insert(vertex_key, margin);
                 PlaneSide::On
             }
             Err(diag) => {
@@ -266,7 +296,7 @@ pub(super) fn classify_vertices<T: Decide>(
         };
         sides.insert(vertex_key, side);
     }
-    Ok((sides, on_vertices))
+    Ok((sides, on_vertices, on_margins))
 }
 
 /// Which lane finds where a carrier's span crosses a plane
@@ -478,6 +508,24 @@ fn conic_plane_meet<T: Decide>(
     plane_normal: geom_core::Vec3<T>,
     band: Band,
 ) -> ConicPlaneMeet<T> {
+    let candidates = match conic_plane_candidates(conic, plane_origin, plane_normal, band) {
+        Ok(candidates) => candidates,
+        Err(meet) => return meet,
+    };
+    let (s_u, s_v) = (conic.major, conic.minor);
+    span_roots(candidates, t0, t1, s_u, s_v, band)
+}
+
+/// **The carrier half of [`conic_plane_meet`]**: where the whole conic
+/// meets the plane, as carrier parameters (one for a graze, two for a
+/// crossing), before any span is read. `Err` carries the answer that
+/// needs no span — parallel, a miss, or the fault a rung escalated.
+pub(crate) fn conic_plane_candidates<T: Decide>(
+    conic: geom_brep::Conic<T>,
+    plane_origin: geom_core::Point3<T>,
+    plane_normal: geom_core::Vec3<T>,
+    band: Band,
+) -> Result<[Option<T>; 2], ConicPlaneMeet<T>> {
     let geom_brep::Conic {
         center,
         axis,
@@ -505,21 +553,23 @@ fn conic_plane_meet<T: Decide>(
     // two apart. Without the gate the in-plane case reaches the graze
     // arm with a 0/0 phase. The in-band twin escalates (F6).
     match decide("split_conic_plane_parallel", Margin::of(r), band) {
-        Ok(Sign::Zero) => return ConicPlaneMeet::Parallel { offset: d0 },
+        Ok(Sign::Zero) => return Err(ConicPlaneMeet::Parallel { offset: d0 }),
         Ok(Sign::Positive | Sign::Negative) => {}
         Err(diag) => {
-            return ConicPlaneMeet::Roots(Err(ConicRootFault::PlaneParallel(diag)));
+            return Err(ConicPlaneMeet::Roots(Err(ConicRootFault::PlaneParallel(
+                diag,
+            ))));
         }
     }
     // 1. Does the sinusoid reach zero at all — and how many roots?
     let both_roots = match decide("split_conic_belly_graze", Margin::of(r - d0.abs()), band) {
-        Ok(Sign::Negative) => return ConicPlaneMeet::Miss,
+        Ok(Sign::Negative) => return Err(ConicPlaneMeet::Miss),
         Ok(Sign::Positive) => true,
         // Graze: the double root, processed once (processing both
         // would split twice at coincident parameters and escalate on
         // the second interiority check — same refusal, worse site).
         Ok(Sign::Zero) => false,
-        Err(diag) => return ConicPlaneMeet::Roots(Err(ConicRootFault::BellyGraze(diag))),
+        Err(diag) => return Err(ConicPlaneMeet::Roots(Err(ConicRootFault::BellyGraze(diag)))),
     };
     // The sinusoid's phase, branch-stabilized (M5 S13): `atan2`'s cut
     // sits on the negative-`a` axis, and an interval `b` that touches
@@ -549,21 +599,30 @@ fn conic_plane_meet<T: Decide>(
             .acos();
         [Some(phi + delta), Some(phi - delta)]
     } else {
-        let graze_side = |diag| ConicPlaneMeet::Roots(Err(ConicRootFault::BellyGraze(diag)));
-        match decide("split_conic_graze_side", Margin::of(d0), band) {
-            Ok(Sign::Negative) => [Some(phi), None],
-            Ok(Sign::Positive) => [Some(phi + T::pi()), None],
-            // |D| is within ε of R ≥ Kε, so it reads Zero only when
-            // K ≤ 2 and the conic's reach is itself inside the band.
-            Ok(Sign::Zero) => {
-                return graze_side(crate::invalid_margin::invalid(
-                    band,
-                    "split_conic_graze_side",
-                ));
+        // |D| is within ε of R ≥ Kε, so it decides zero only when K ≤ 2
+        // and the conic's reach is itself inside the band; the gate's
+        // rejection carries that margin.
+        match decide_nonzero("split_conic_graze_side", Margin::of(d0), band) {
+            Ok(NonzeroSign::Negative) => [Some(phi), None],
+            Ok(NonzeroSign::Positive) => [Some(phi + T::pi()), None],
+            Err(diag) => {
+                return Err(ConicPlaneMeet::Roots(Err(ConicRootFault::BellyGraze(diag))));
             }
-            Err(diag) => return graze_side(diag),
         }
     };
+    Ok(candidates)
+}
+
+/// The span half of [`conic_plane_meet`]: the candidates interior to
+/// `[t0, t1]`, ascending.
+fn span_roots<T: Decide>(
+    candidates: [Option<T>; 2],
+    t0: T,
+    t1: T,
+    s_u: T,
+    s_v: T,
+    band: Band,
+) -> ConicPlaneMeet<T> {
     let tau = T::tau();
     // The conservative meter (radians → meters): the smaller semi-axis
     // MAGNITUDE (the stored semi-axes carry no order, `geom_brep::Conic`;
@@ -682,14 +741,17 @@ fn conic_plane_meet<T: Decide>(
 /// the honest lane the raw book formula lacks). New vertices are ON by
 /// the decision that placed them: a crossing root lies on the plane, and
 /// a graze root within ε of it by `split_conic_belly_graze`'s Zero.
-/// Their verdicts are cached without re-measuring.
+/// Their verdicts are cached without re-measuring. Returns each piece
+/// a split minted with the edge it was split from, `(new edge,
+/// divided-from edge)` in mint order.
 pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     plane: &SplitPlane<T>,
     sides: &mut SecondaryMap<VertexKey, PlaneSide>,
     on_vertices: &mut Vec<VertexKey>,
     tol: Tol,
-) -> Result<(), SplitReduceError> {
+) -> Result<Vec<(EdgeKey, EdgeKey)>, SplitReduceError> {
+    let mut pieces = Vec::new();
     let band = geom_core::Band::linear(tol)?;
     // Snapshot: splitting adds edges; only operand edges can cross (a
     // split child's remaining crossing is handled through the parent's
@@ -777,15 +839,16 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
                 SplitReduceError::CrossingInsertion {
                     edge: target,
                     endpoints: (u, v),
-                    source: source.from_driver(),
+                    source: Box::new(source.from_driver()),
                 }
             })?;
             sides.insert(created.vertex, PlaneSide::On);
             on_vertices.push(created.vertex);
+            pieces.push((created.new_edge, target));
             target = created.new_edge;
         }
     }
-    Ok(())
+    Ok(pieces)
 }
 
 #[cfg(test)]
@@ -1131,6 +1194,81 @@ mod tests {
             anchored.lo(),
             anchored.hi()
         );
+    }
+
+    /// **A graze's side decided zero keeps its margin, and each door that
+    /// reads the fault ends on it.** A circle of radius 2ε in a plane
+    /// square to the query plane, its centre ε off it, at K = 2: the
+    /// parallel gate passes `R = 2ε`, the belly decides the graze
+    /// (`R − |D| = ε`), and the graze's side `D = ±ε` decides zero, which
+    /// only K ≤ 2 reaches. The nonzero gate rejects it carrying `D`, at
+    /// every ε, either side, either normal. Read as a margin, it ends as
+    /// one: the split's lever; the Boolean's edge-on-plane gap with
+    /// its tighter tolerance; the census's coincidence menu, not the
+    /// defect ending a poisoned margin takes.
+    #[test]
+    fn a_graze_side_decided_zero_keeps_its_margin() {
+        use super::{ConicRootFault, conic_plane_candidates};
+        use crate::boolean::refusal_routes::{BooleanDecision, DeclarationRead};
+        for e in [1e-3, 1e-6, 1e-9, 1e-12] {
+            let band = Band::new(e, 2.0 * e).unwrap();
+            for (off, nz) in [(1.0, 1.0), (-1.0, 1.0), (1.0, -1.0), (-1.0, -1.0)] {
+                let label = format!("ε = {e:e}, centre {off}·ε, normal {nz}·z");
+                let conic = geom_brep::Conic {
+                    center: Point3::new(0.0, 0.0, off * e),
+                    axis: Vec3::unit_x(),
+                    u_ref: Vec3::unit_z(),
+                    major: 2.0 * e,
+                    minor: 2.0 * e,
+                };
+                let normal = Vec3::new(0.0, 0.0, nz);
+                let got = conic_plane_candidates(conic, Point3::origin(), normal, band);
+                let Err(ConicPlaneMeet::Roots(Err(fault @ ConicRootFault::BellyGraze(diag)))) = got
+                else {
+                    panic!("{label}: {got:?}");
+                };
+                assert_eq!(diag.predicate, Some("split_conic_graze_side"), "{label}");
+                assert_eq!(
+                    diag.margin.rejected_sign(),
+                    Some(geom_core::Sign::Zero),
+                    "{label}"
+                );
+                assert_eq!(
+                    diag.margin.diagnostic_f64_for_error_text(),
+                    geom_core::ErrorTextReading::Value(off * nz * e),
+                    "{label}: the centre's offset"
+                );
+                let split = crate::SplitReduceError::CrossingEscalated {
+                    edge: crate::EdgeKey::default(),
+                    fault,
+                }
+                .to_string();
+                assert!(
+                    split.contains("within the zero band")
+                        && split.ends_with(&format!(
+                            ". Recourse: {}",
+                            super::super::SPLIT_COINCIDENCE_RECOURSE
+                        )),
+                    "{label}: the split's lever: {split}"
+                );
+                let boolean = crate::BooleanError::Escalated {
+                    decision: BooleanDecision::of_conic_root(fault, DeclarationRead::Moot),
+                    diag,
+                }
+                .to_string();
+                assert!(
+                    boolean.contains("if this gap is intended, tighten the tolerance below")
+                        && !boolean.contains("unreadable"),
+                    "{label}: the Boolean's sized ending: {boolean}"
+                );
+                let census = crate::ValidationError::CensusEscalated { cause: diag }.to_string();
+                assert!(
+                    census.ends_with(&format!("Recourse: {}", geom_core::COINCIDENCE_RECOURSE))
+                        && !census.contains("defect"),
+                    "{label}: the census's coincidence menu: {census}"
+                );
+            }
+        }
     }
 }
 

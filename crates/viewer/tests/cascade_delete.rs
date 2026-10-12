@@ -21,9 +21,7 @@
 use crate::common;
 use pncad::document::ExtrudeSide;
 
-use pncad::document::{
-    BooleanOp, Doc, DocEdit, Node, ProfileProgram, RecipeNodeId, cascade_delete_order,
-};
+use pncad::document::{Doc, DocEdit, Node, ProfileProgram, RecipeNodeId, cascade_delete_order};
 use pncad::geom_core::Tol;
 use viewer::session::{DocSession, SessionOp};
 
@@ -49,7 +47,7 @@ fn die_shaped(tol: Tol) -> Die {
     let (doc, blank) = common::inserted(
         &doc,
         Node::Extrude {
-            profile: blank_profile,
+            profile: blank_profile.into(),
             distance: common::len(0.04),
             side: ExtrudeSide::Along,
         },
@@ -59,7 +57,7 @@ fn die_shaped(tol: Tol) -> Die {
     let (mut doc, pip) = common::inserted(
         &doc,
         Node::Extrude {
-            profile: pip_profile,
+            profile: pip_profile.into(),
             distance: common::len(0.004),
             side: ExtrudeSide::Along,
         },
@@ -87,11 +85,9 @@ fn die_shaped(tol: Tol) -> Die {
         );
         let (next, cut) = common::inserted(
             &next,
-            Node::Boolean {
-                op: BooleanOp::Subtract,
-                a: body,
-                b: placed,
-                declare: Vec::new(),
+            Node::Subtract {
+                from: body.into(),
+                tool: placed.into(),
             },
             tol,
         );
@@ -102,20 +98,12 @@ fn die_shaped(tol: Tol) -> Die {
     }
     let (doc, inner) = common::inserted(
         &doc,
-        Node::Fillet {
-            target: body,
-            radius: common::len(0.001),
-            selection: Vec::new(),
-        },
+        Node::fillet(body, common::len(0.001), Vec::new()),
         tol,
     );
     let (doc, outer) = common::inserted(
         &doc,
-        Node::Fillet {
-            target: inner,
-            radius: common::len(0.0005),
-            selection: Vec::new(),
-        },
+        Node::fillet(inner, common::len(0.0005), Vec::new()),
         tol,
     );
     Die {
@@ -128,7 +116,7 @@ fn die_shaped(tol: Tol) -> Die {
 
 /// The live node ids, sorted — a document's identity for these rows.
 fn live(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
-    let mut ids = doc.order().to_vec();
+    let mut ids = doc.ids().to_vec();
     ids.sort_unstable();
     ids
 }
@@ -180,7 +168,7 @@ fn a_mid_chain_delete_takes_exactly_the_downstream_cone() {
         );
     }
     assert_eq!(
-        after.order().len(),
+        after.ids().len(),
         before.len() - expected.len(),
         "nothing else moved"
     );
@@ -239,7 +227,7 @@ fn the_delete_affordance_names_the_count_and_the_kinds() {
         leaf.label,
         format!(
             "Delete Fillet {}",
-            test_utils::refusal::tag(die.fillets[1].0)
+            test_utils::refusal::tag(die.fillets[1].0.digest())
         )
     );
     assert_eq!(
@@ -251,13 +239,13 @@ fn the_delete_affordance_names_the_count_and_the_kinds() {
     assert_eq!(
         mid.label,
         format!(
-            "Delete Boolean {} and 12 dependent features",
-            test_utils::refusal::tag(die.booleans[10].0)
+            "Delete Subtract {} and 12 dependent features",
+            test_utils::refusal::tag(die.booleans[10].0.digest())
         )
     );
     assert_eq!(
         mid.hover.as_deref(),
-        Some("Also deletes 12 features that depend on it: 10 × Boolean, 2 × Fillet"),
+        Some("Also deletes 12 features that depend on it: 10 × Subtract, 2 × Fillet"),
         "grouped by kind, most numerous first"
     );
 
@@ -267,8 +255,8 @@ fn the_delete_affordance_names_the_count_and_the_kinds() {
     assert_eq!(
         blank_cascade.label,
         format!(
-            "Delete Boolean {} and 22 dependent features",
-            test_utils::refusal::tag(die.booleans[0].0)
+            "Delete Subtract {} and 22 dependent features",
+            test_utils::refusal::tag(die.booleans[0].0.digest())
         )
     );
 
@@ -278,7 +266,7 @@ fn the_delete_affordance_names_the_count_and_the_kinds() {
         one.label,
         format!(
             "Delete Fillet {} and 1 dependent feature",
-            test_utils::refusal::tag(die.fillets[0].0)
+            test_utils::refusal::tag(die.fillets[0].0.digest())
         )
     );
     assert_eq!(

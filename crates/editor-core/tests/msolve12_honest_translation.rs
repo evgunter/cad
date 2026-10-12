@@ -237,7 +237,9 @@ fn c1_every_separated_pair_measures_what_it_refuses() {
                                         format!("clash {predicate}")
                                     }
                                     Err(
-                                        stop @ (FoldStop::OutOfRange | FoldStop::Unleverable(_)),
+                                        stop @ (FoldStop::OutOfRange
+                                        | FoldStop::Unleverable(_)
+                                        | FoldStop::NoRepresentative { .. }),
                                     ) => {
                                         panic!(
                                             "every arm here decides angles and every meeting \
@@ -436,7 +438,9 @@ fn a_lever_inside_the_zero_band_decides_no_angle() {
     for arm in [0.0, 0.1 * zero, 0.5 * zero, zero] {
         for (held, added) in [(plane, axis), (axis, plane)] {
             match intersect(held, added, band, lever(arm)) {
-                Err(FoldStop::Unleverable(LeverRefusal::BelowZeroBand { arm: a, zero: z })) => {
+                Err(FoldStop::Unleverable(refusal))
+                    if let LeverRefusal::BelowZeroBand { arm: a, zero: z } = *refusal =>
+                {
                     assert_eq!((a.to_bits(), z.to_bits()), (arm.to_bits(), zero.to_bits()));
                 }
                 other => panic!("arm {arm:e}: {other:?}"),
@@ -500,7 +504,7 @@ fn part(label: &str) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -520,8 +524,8 @@ fn rest(
             .expect("a definite frame")
     };
     Node::Mate {
-        a: fixture::head(in_part(ids[0], body, CapEnd::Start)),
-        b: fixture::head(in_part(ids[1], body, CapEnd::Start)),
+        a: fixture::head(in_part(ids[0], body, CapEnd::Start)).into(),
+        b: fixture::head(in_part(ids[1], body, CapEnd::Start)).into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: side(origin),

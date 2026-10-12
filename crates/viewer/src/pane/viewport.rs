@@ -1282,8 +1282,8 @@ mod tests {
         //
         // The fault is built by hand rather than provoked, and that is
         // the honest way round. A fault a document can REACH by an
-        // ordinary edit — a root driven to a zero distance — is a
-        // failed root, which `frame::badge_site` sends to the feature
+        // ordinary edit — a placed body driven to a zero distance — is
+        // a failed placement, which `frame::badge_site` sends to the feature
         // tree. The ones it keeps for this channel are not authorable
         // from the panels.
         let tol = Tol::witness();
@@ -1310,7 +1310,7 @@ mod tests {
         // silence is only correct while the other channel speaks.
         assert!(
             product_badge(Some(fault), session.committed_doc()).is_none(),
-            "a failed root is the tree's to badge: {fault}"
+            "a failed placement is the tree's to badge: {fault}"
         );
         assert!(
             session
@@ -1329,7 +1329,7 @@ mod tests {
         let folded = fold_recorded(&camera, std::slice::from_ref(&fit));
         let raised = frame::Message::new(
             frame::Subject::Document,
-            "product: two roots collide in the name table",
+            "product: a declared contact has no image in the graft",
             frame::Retold::Again,
         );
         let mut status = Some(raised.clone());

@@ -53,7 +53,7 @@ fn block(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -79,7 +79,7 @@ fn vanished(instance: RecipeNodeId) -> StableName {
         path: vec![RoleSeg::InPart {
             of: StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(99),
+                node: RecipeNodeId::new(0, 99),
                 path: vec![RoleSeg::Cap(CapEnd::End)],
             }
             .into(),
@@ -94,8 +94,8 @@ fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
 
 fn mate_node(a: StableName, b: StableName, class: ContactClass, seat: f64) -> AuthoredNode {
     Node::Mate {
-        a: crate::fixture::head(a),
-        b: crate::fixture::head(b),
+        a: crate::fixture::head(a).into(),
+        b: crate::fixture::head(b).into(),
         class,
         alignment: Alignment {
             a: frame([0.0, 0.0, seat], [0.0, 0.0, 1.0]),
@@ -121,6 +121,7 @@ fn stand(
         doc = next;
         ids.push(id);
     }
+    doc = crate::fixture::place_all(doc, &ids);
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
@@ -164,6 +165,7 @@ fn row_of(
         }
         ids.push(id);
     }
+    doc = crate::fixture::place_all(doc, &ids);
     (doc, ids)
 }
 
@@ -179,6 +181,9 @@ fn headline(result: &Result<editor_core::Assembly<f64>, AssemblyError>) -> Strin
                 } => format!("Reference mate={mate:?} side={side:?} why={why:?}"),
                 editor_core::MintRefusal::NoAtRestRecord { mate, class, .. } => {
                     format!("NoAtRestRecord mate={mate:?} class={class:?}")
+                }
+                editor_core::MintRefusal::Unevaluated { mate, standing } => {
+                    format!("Unevaluated mate={mate:?} standing={standing:?}")
                 }
             })
             .collect::<Vec<_>>()
@@ -233,7 +238,7 @@ fn p1_both_bad_mates_refuse_badref_heading_the_list() {
             if matches!(
                 refusals.as_slice(),
                 [
-                    editor_core::MintRefusal::Reference { .. },
+                    editor_core::MintRefusal::Unevaluated { .. },
                     editor_core::MintRefusal::NoAtRestRecord { .. },
                 ]
             )
@@ -282,7 +287,7 @@ fn p2_both_bad_mates_refuse_tangent_heading_the_list() {
                 refusals.as_slice(),
                 [
                     editor_core::MintRefusal::NoAtRestRecord { .. },
-                    editor_core::MintRefusal::Reference { .. },
+                    editor_core::MintRefusal::Unevaluated { .. },
                 ]
             )
     ));
@@ -337,6 +342,7 @@ fn p5_checks_with_a_bad_mate_before_a_good_one() {
         doc = next;
         ids.push(id);
     }
+    doc = crate::fixture::place_all(doc, &ids);
     // Park the third cube far away, then declare a Tangent against it
     // (unmintable, and not touching, so it contributes no pair).
     let (next, _) = step(
@@ -418,7 +424,7 @@ fn p7_seam_gate_by_arm() {
         Err(AssemblyError::AtRest { findings }) => {
             let undeclared = findings
                 .iter()
-                .filter(|f| format!("{:?}", f.error).contains("UndeclaredContact"))
+                .filter(|f| format!("{:?}", f.error).contains("UnrecordedContact"))
                 .count();
             println!(
                 "P7: AtRest findings={} undeclared={}",
@@ -449,6 +455,7 @@ fn p8_inner_mint_refusals_reach_the_outer_gate() {
         inner = next;
         ids.push(id);
     }
+    inner = crate::fixture::place_all(inner, &ids);
     let (inner, _) = step(
         inner,
         DocEdit::InsertNode {

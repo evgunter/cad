@@ -119,8 +119,13 @@ fn a_d_hole_fillets_both_creases_at_the_rod_closed_form() {
         let creases = rod_creases(&source);
         let (v0, e0, f0) = census(&source);
         let vol0 = volume(&source);
-        let out = fillet_edges(&source, &creases, r, tol())
-            .unwrap_or_else(|e| panic!("{what}: both creases carve, got {e}"));
+        let out = fillet_edges(
+            &sweep::test_support::at_rest(&source, tol()),
+            &creases,
+            r,
+            tol(),
+        )
+        .unwrap_or_else(|e| panic!("{what}: both creases carve, got {e}"));
         assert_eq!(out.blend_faces.len(), 2, "{what}: one band per crease");
         assert!(out.corner_faces.is_empty() && out.band_faces.is_empty());
         assert_eq!(

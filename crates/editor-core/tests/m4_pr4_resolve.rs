@@ -1,5 +1,5 @@
 //! M4 PR 4 spec D1/D3: the N5 resolution ladder end to end —
-//! Resolved / Ambiguous (direct tie and the order_along over-tie
+//! Resolved / Ambiguous (direct tie and the `rank_by` over-tie
 //! widening) / NodeGone / Vanished with the verdict-diff diagnosis
 //! (PredicateFlip, StructuralParam, Cascade) + tombstones / typed
 //! Indeterminate — plus N3 offers, the rebind suggestion ladder, and
@@ -22,11 +22,10 @@ use std::sync::Arc;
 use editor_core::NodeStanding;
 use editor_core::eval::WitnessSlot;
 use editor_core::{
-    BooleanOp, CancelToken, CapEnd, ContentKey, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions,
+    CancelToken, CapEnd, ContentKey, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions,
     EvalOutcome, Evaluation, NameTable, NamingKey, Node, ProfileDoc, Qualifier, RecipeEditRef,
-    RecipeNodeId, Resolution, ResolveError, ResolveIndeterminate, RoleSeg, RunCtx, SitedRef,
-    SlotId, StableName, apply_with_names, evaluate, rebind_suggestions, resolve,
-    resolve_with_prior,
+    RecipeNodeId, Resolution, ResolveError, ResolveIndeterminate, RoleSeg, RunCtx, SlotId,
+    StableName, apply_with_names, evaluate, rebind_suggestions, resolve, resolve_with_prior,
 };
 use fixture::{ang, insert, len, minted, on_frame, scl, step};
 use geom_core::Tol;
@@ -63,7 +62,7 @@ fn block(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -73,32 +72,57 @@ fn block(
 /// **A twin of the block `extrude`** ([`block`]): its frame, profile and
 /// extrude inserted again, every slot reading the original's variable
 /// ([`Node::authored`]), so the two are one geometry by structure —
-/// equal values typed apart are two variables, which is no sharing.
+/// equal values typed apart are two variables, which is no sharing. A
+/// variable two slots share is named (VR2), so each the original reads
+/// unnamed is named first.
 fn twin(doc: ProfileDoc, extrude: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
     let Some(Node::Extrude { profile, .. }) = doc.node(extrude) else {
         panic!("{extrude} is a block's extrude")
     };
-    let profile = *profile;
+    let profile = doc
+        .operation_of(*profile)
+        .expect("the profile read is live");
     let Some(Node::Profile(program)) = doc.node(profile) else {
         panic!("{profile} is a block's profile")
     };
-    let frame = program.plane;
+    let frame = doc
+        .operation_of(program.frame)
+        .expect("the plane read is live");
     let authored = |doc: &ProfileDoc, id: RecipeNodeId| {
         doc.node(id)
             .unwrap_or_else(|| panic!("{id} is in the document"))
             .authored(doc)
     };
+    let mut doc = doc;
+    for id in [frame, profile, extrude] {
+        let slots = doc.node(id).expect("held").slots();
+        for slot in slots {
+            let var = doc.slot(id, slot).expect("a slot reads a variable");
+            if doc.var_name(var).is_none() {
+                let name = editor_core::VarName::new(format!("twin_{}", doc.var_names().len()))
+                    .expect("a name");
+                doc = step(
+                    doc,
+                    DocEdit::RenameVar {
+                        var: var.into(),
+                        name: Some(name),
+                    },
+                )
+                .0;
+            }
+        }
+    }
     let node = authored(&doc, frame);
     let (doc, frame) = insert(doc, node);
     let mut node = authored(&doc, profile);
     if let Node::Profile(program) = &mut node {
-        program.plane = frame;
+        program.frame = frame.into();
         program.ids = Vec::new();
     }
     let (doc, profile) = insert(doc, node);
     let mut node = authored(&doc, extrude);
     if let Node::Extrude { profile: of, .. } = &mut node {
-        *of = profile;
+        *of = profile.into();
     }
     insert(doc, node)
 }
@@ -110,6 +134,10 @@ struct Slide {
     b0: RecipeNodeId,
     transform: RecipeNodeId,
     union: RecipeNodeId,
+    /// `a`'s read, the union's first member.
+    a_read: editor_core::VarId,
+    /// The transform's read, the union's second member.
+    t_read: editor_core::VarId,
 }
 
 fn slide_union(tx: f64) -> Slide {
@@ -130,14 +158,11 @@ fn slide_union(tx: f64) -> Slide {
     // The B side is read at the TRANSFORM — the boolean's operand —
     // and named in `b0`'s vocabulary, which the transform carries
     // verbatim (N1).
-    let decl = fixture::declare_x_offset_flush_at(&doc, (a, a), (transform, b0));
+    let (a_read, t_read) = (fixture::out(&doc, a), fixture::out(&doc, transform));
     let (doc, union) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a,
-            b: transform,
-            declare: decl,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), transform.into()]),
         },
     );
     Slide {
@@ -146,6 +171,8 @@ fn slide_union(tx: f64) -> Slide {
         b0,
         transform,
         union,
+        a_read,
+        t_read,
     }
 }
 
@@ -155,7 +182,7 @@ fn slide_to(s: &Slide, tx: f64) -> ProfileDoc {
         DocEdit::SetParam {
             node: s.transform,
             slot: SlotId::Translation(editor_core::Axis3::X),
-            expr: len(tx),
+            value: len(tx).into(),
             fresh: Vec::new(),
         },
     );
@@ -197,13 +224,19 @@ fn union_names_resolve_uniquely_and_pass_through_transforms() {
     let wrapped = minted(
         EntityKind::Face,
         s.union,
-        RoleSeg::FromA(cap.clone().into()),
+        RoleSeg::From {
+            read: s.a_read,
+            of: cap.clone().into(),
+        },
     );
     let cap_b = minted(EntityKind::Face, s.b0, RoleSeg::Cap(CapEnd::End));
     let wrapped_b = minted(
         EntityKind::Face,
         s.union,
-        RoleSeg::FromB(cap_b.clone().into()),
+        RoleSeg::From {
+            read: s.t_read,
+            of: cap_b.clone().into(),
+        },
     );
     let mut constituents = vec![wrapped.clone(), wrapped_b];
     constituents.sort_unstable();
@@ -254,18 +287,16 @@ fn tied_name_resolves_ambiguous_with_the_tie_witness() {
     let (doc, b) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(2.0),
             side: ExtrudeSide::Along,
         },
     );
     let (doc, sub) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a,
-            b,
-            declare: Vec::new(),
+        Node::Subtract {
+            from: a.into(),
+            tool: b.into(),
         },
     );
     let ev = run(&doc, None);
@@ -303,7 +334,7 @@ fn tied_name_resolves_ambiguous_with_the_tie_witness() {
     }
 }
 
-// ---- Ambiguous: the order_along over-tie widening (hand-built
+// ---- Ambiguous: the `rank_by` over-tie widening (hand-built
 // table — the emitter's over-tie row is the widened BASE name; a
 // reference to a RANKED name must widen to it, never mis-bind) ----
 
@@ -350,6 +381,8 @@ fn ranked_reference_widens_to_the_tied_base_row() {
             fragment_groups: Arc::default(),
             contacts: Arc::new(topo::ContactRecords::default()),
             carried: Arc::new(editor_core::CarriedDeclarations::default()),
+            coincidences: Arc::new([]),
+            cited_inputs: Arc::new([]),
             parts: 1,
             verdicts: Arc::new(vec![]),
             escalations: Arc::new(vec![]),
@@ -372,6 +405,7 @@ fn ranked_reference_widens_to_the_tied_base_row() {
         reused: 0,
         part_evaluations: 0,
         appearance: editor_core::AppearanceResolution::default(),
+        env: Default::default(),
     };
     let mut ranked = base.clone();
     ranked
@@ -439,7 +473,7 @@ fn never_minted_node_reports_foreign_not_deleted() {
     let ev = run(&doc, None);
     let foreign = minted(
         EntityKind::Face,
-        RecipeNodeId(9999),
+        RecipeNodeId::new(0, 9999),
         RoleSeg::Cap(CapEnd::End),
     );
     match resolve(
@@ -456,7 +490,7 @@ fn never_minted_node_reports_foreign_not_deleted() {
             assert_eq!(
                 *edit,
                 RecipeEditRef::ForeignNode {
-                    node: RecipeNodeId(9999)
+                    node: RecipeNodeId::new(0, 9999)
                 },
                 "a never-minted id must not be blamed on a delete"
             );
@@ -542,7 +576,7 @@ fn pattern_count_shrink_diagnoses_structural_param() {
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: body,
+            input: body.into(),
             count: editor_core::Formula::count(3),
             kind: editor_core::PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -616,7 +650,7 @@ fn instance_of_vanished_master_name_diagnoses_cascade() {
     let (doc, pattern) = insert(
         s.doc.clone(),
         Node::Pattern {
-            input: s.union,
+            input: s.union.into(),
             count: editor_core::Formula::count(2),
             kind: editor_core::PatternKind::Linear {
                 direction: [scl(0.0), scl(1.0), scl(0.0)],
@@ -651,7 +685,7 @@ fn instance_of_vanished_master_name_diagnoses_cascade() {
         DocEdit::SetParam {
             node: s.transform,
             slot: SlotId::Translation(editor_core::Axis3::X),
-            expr: len(2.5),
+            value: len(2.5).into(),
             fresh: Vec::new(),
         },
     );
@@ -713,11 +747,8 @@ fn failed_and_poisoned_targets_resolve_indeterminate_not_vanished() {
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, u) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a,
-            b,
-            declare: Vec::new(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
         },
     );
     // Zero the A extrude's distance: A fails, the union poisons.
@@ -726,7 +757,7 @@ fn failed_and_poisoned_targets_resolve_indeterminate_not_vanished() {
         DocEdit::SetParam {
             node: a,
             slot: SlotId::Distance,
-            expr: len(0.0),
+            value: len(0.0).into(),
             fresh: Vec::new(),
         },
     );
@@ -766,7 +797,14 @@ fn rebind_suggestions_offer_wrapping_derivations() {
     // row — the suggestion ladder offers the MERGED name (whose
     // constituents embed the cap's wrap); nothing is followed
     // automatically — these are Rebind candidates only.
-    let wrapped = minted(EntityKind::Face, s.union, RoleSeg::FromA(cap.into()));
+    let wrapped = minted(
+        EntityKind::Face,
+        s.union,
+        RoleSeg::From {
+            read: s.a_read,
+            of: cap.into(),
+        },
+    );
     assert!(
         suggestions.iter().any(|n| matches!(
             n.path.first(),
@@ -778,141 +816,10 @@ fn rebind_suggestions_offer_wrapping_derivations() {
 
 // ---- R6: name-level edit-time validation (banked from PR 3) ----
 
-/// **`apply_with_names` holds a declared name to the evaluation it is
-/// given where it can, and defers where it cannot**: a real pair is
-/// accepted, a typo role on an evaluated node refuses
-/// `NameUnresolvedInEvaluation`, a backward name the evaluation has
-/// not seen passes to evaluation-time resolution, and a forward name
-/// is the door's `DeclaredNameNotUpstream`, not the carve-out's.
-#[test]
-fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() {
-    let doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (2.0, 3.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, u) = insert(
-        doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a,
-            b,
-            declare: Vec::new(),
-        },
-    );
-    let ev = run(&doc, None);
-    let cap_a = minted(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End));
-    let cap_b = minted(EntityKind::Face, b, RoleSeg::Cap(CapEnd::End));
-    // A real pair: accepted.
-    assert!(
-        apply_with_names(
-            &doc,
-            &DocEdit::SetDeclare {
-                node: u,
-                pairs: editor_core::declare_rest(vec![(
-                    SitedRef::at_mint(cap_a.clone()),
-                    SitedRef::at_mint(cap_b),
-                )]),
-            },
-            &ev,
-            Tol::witness(),
-            &editor_core::RefusingReach
-        )
-        .is_ok()
-    );
-    // A typo role on an EVALUATED node: refused at the edit door.
-    let bogus = minted(
-        EntityKind::Face,
-        a,
-        RoleSeg::Lateral(crate::fixture::no_piece().into()),
-    );
-    let err = apply_with_names(
-        &doc,
-        &DocEdit::SetDeclare {
-            node: u,
-            pairs: editor_core::declare_rest(vec![(
-                SitedRef::at_mint(cap_a.clone()),
-                SitedRef::at_mint(bogus.clone()),
-            )]),
-        },
-        &ev,
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    )
-    .unwrap_err();
-    assert_eq!(
-        err,
-        editor_core::EditError::NameUnresolvedInEvaluation {
-            name: doc.spoken_name(&bogus)
-        }
-    );
-    // The carve-out: a name on a node the supplied evaluation has NOT
-    // seen passes through, and is resolved at evaluation. Here that
-    // evaluation predates `b`, so a role `b` does not have passes,
-    // where the same typo on the evaluated `a` refused above.
-    let bogus_b = minted(
-        EntityKind::Face,
-        b,
-        RoleSeg::Lateral(crate::fixture::no_piece_of(&doc).into()),
-    );
-    let (early, _) = block(
-        ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness()),
-        (0.0, 1.0),
-        (0.0, 1.0),
-        0.0,
-        1.0,
-    );
-    let ev_early = run(&early, None);
-    let deferred = apply_with_names(
-        &doc,
-        &DocEdit::SetDeclare {
-            node: u,
-            pairs: editor_core::declare_rest(vec![(
-                SitedRef::at_mint(cap_a.clone()),
-                SitedRef::at_mint(bogus_b),
-            )]),
-        },
-        &ev_early,
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    )
-    .map(|_| ());
-    assert!(
-        deferred.is_ok(),
-        "a name the evaluation has not seen defers to evaluation-time resolution: {deferred:?}"
-    );
-    // A FORWARD reference is not the carve-out's: a name minted after
-    // the declaring node is refused at the door whatever the
-    // evaluation has seen, since none of the node's operands can hold
-    // it.
-    let (doc2, c) = block(doc.clone(), (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
-    let cap_c = minted(EntityKind::Face, c, RoleSeg::Cap(CapEnd::End));
-    assert_eq!(
-        apply_with_names(
-            &doc2,
-            &DocEdit::SetDeclare {
-                node: u,
-                pairs: editor_core::declare_rest(vec![(
-                    SitedRef::at_mint(cap_a),
-                    SitedRef::new(b, cap_c.clone()),
-                )]),
-            },
-            &ev,
-            Tol::witness(),
-            &editor_core::RefusingReach
-        )
-        .unwrap_err(),
-        editor_core::EditError::DeclaredNameNotUpstream {
-            node: doc2.spoken(u),
-            name: doc2.spoken_name(&cap_c),
-        },
-        "a forward reference is refused at the door"
-    );
-}
-
-/// The same door, same obligation, for the OTHER payloads that carry a
-/// name. A fillet's selection is checkable exactly when a declared
-/// pair is — the minting node evaluated `Ok` — so a typo role on an
-/// evaluated node is refused here rather than surviving to the fillet's
-/// own resolution.
+/// **`apply_with_names` holds a payload name to the evaluation it is
+/// given.** A fillet's selection is checkable exactly when its minting
+/// node evaluated `Ok`, so a typo role on an evaluated node is refused
+/// here rather than surviving to the fillet's own resolution.
 #[test]
 fn apply_with_names_checks_a_fillet_selection_under_the_same_rule() {
     let doc = ProfileDoc::empty_derived("m4_pr4_resolve_fillet_door", Tol::witness());
@@ -997,15 +904,13 @@ fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
     let under = |n: &StableName| n == needle || occurs(n, needle, partners);
     hay.path.iter().any(|seg| match seg {
         // One embedded operand name: the entity derives from it.
-        RoleSeg::FromA(x)
-        | RoleSeg::FromB(x)
-        | RoleSeg::FromMember { of: x, .. }
+        RoleSeg::From { of: x, .. }
         | RoleSeg::SectionEdge { face: x, .. }
         | RoleSeg::SplitFragment { parent: x, .. }
         | RoleSeg::CrossingVertex { edge: x, .. }
         | RoleSeg::OnToolVertex { of: x, .. }
         | RoleSeg::Instance { of: x, .. }
-        | RoleSeg::FromTarget(x)
+        | RoleSeg::Placed { of: x }
         | RoleSeg::BlendFace(x)
         | RoleSeg::CornerFace(x)
         | RoleSeg::Mitre { vertex: x }
@@ -1094,14 +999,14 @@ fn only_wall_mention(hay: &StableName, needle: &StableName) -> bool {
 /// segment reports the opposite.
 #[test]
 fn the_phantom_detector_sees_through_the_whole_vocabulary() {
-    let needle = fixture::fname(RecipeNodeId(1), RoleSeg::Cap(CapEnd::End));
+    let needle = fixture::fname(RecipeNodeId::new(0, 1), RoleSeg::Cap(CapEnd::End));
     let partner_only = StableName {
         kind: EntityKind::Face,
-        node: RecipeNodeId(2),
+        node: RecipeNodeId::new(0, 2),
         path: vec![RoleSeg::Fragment(Qualifier::Borders(vec![needle.clone()]))],
     };
     let blended = fixture::fname(
-        RecipeNodeId(3),
+        RecipeNodeId::new(0, 3),
         RoleSeg::BlendFace(partner_only.clone().into()),
     );
 
@@ -1117,7 +1022,10 @@ fn the_phantom_detector_sees_through_the_whole_vocabulary() {
     );
     // The same segment, carrying the needle structurally: a real
     // derivation, and the detector must not call it a phantom.
-    let derived = fixture::fname(RecipeNodeId(3), RoleSeg::BlendFace(needle.clone().into()));
+    let derived = fixture::fname(
+        RecipeNodeId::new(0, 3),
+        RoleSeg::BlendFace(needle.clone().into()),
+    );
     assert!(
         !only_wall_mention(&derived, &needle),
         "a blend OF the name is a derivation, not a phantom"
@@ -1151,7 +1059,7 @@ fn suggestions_never_offer_wall_phantoms_and_are_kind_filtered() {
     let (doc, band) = insert(
         doc,
         Node::Extrude {
-            profile: bp,
+            profile: bp.into(),
             distance: len(2.0),
             side: ExtrudeSide::Along,
         },
@@ -1169,11 +1077,9 @@ fn suggestions_never_offer_wall_phantoms_and_are_kind_filtered() {
     );
     let (doc, sub) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: _a,
-            b: tr,
-            declare: Vec::new(),
+        Node::Subtract {
+            from: _a.into(),
+            tool: tr.into(),
         },
     );
     let ev = run(&doc, None);
@@ -1241,8 +1147,7 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
     let (doc1, bl) = insert(
         doc,
         Node::Union {
-            members: vec![a, b],
-            declare: Vec::new(),
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
         },
     );
     let ev1 = run(&doc1, None);
@@ -1250,8 +1155,8 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
     let member_cap = |m: RecipeNodeId| StableName {
         kind: EntityKind::Face,
         node: bl,
-        path: vec![RoleSeg::FromMember {
-            member: m,
+        path: vec![RoleSeg::From {
+            read: fixture::out(&doc1, m),
             of: minted(EntityKind::Face, m, RoleSeg::Cap(CapEnd::End)).into(),
         }],
     };
@@ -1273,7 +1178,7 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
         doc1.clone(),
         DocEdit::SetMembers {
             node: bl,
-            members: vec![a, c],
+            members: editor_core::Bodies::Spelled(vec![a.into(), c.into()]),
         },
     );
     // #95 disposition 2 LANDED (M4 PR 5): the memo-TRANSFERRED run
@@ -1348,8 +1253,7 @@ fn grandparent_repoint_rederives_the_grandchild_names() {
     let (doc, x) = insert(
         doc,
         Node::Union {
-            members: vec![b, d],
-            declare: Vec::new(),
+            members: editor_core::Bodies::Spelled(vec![b.into(), d.into()]),
         },
     );
     let (doc1, n) = insert(
@@ -1368,7 +1272,7 @@ fn grandparent_repoint_rederives_the_grandchild_names() {
         doc1,
         DocEdit::SetMembers {
             node: x,
-            members: vec![c, d],
+            members: editor_core::Bodies::Spelled(vec![c.into(), d.into()]),
         },
     );
     let ev2 = run(&doc2, Some(&ev1));
@@ -1410,7 +1314,7 @@ fn single_run_vanished_falls_back_to_cause_not_in_evidence() {
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: body,
+            input: body.into(),
             count: editor_core::Formula::count(2),
             kind: editor_core::PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -1460,14 +1364,19 @@ fn single_run_vanished_falls_back_to_cause_not_in_evidence() {
 // ---- Review Finding 1 ruling: the qualifier-delta rung, for a ----
 // ---- face piece the border delta ----
 
-/// A body-kind piece name `[FromA(f), Fragment(Borders(walls))]` at
-/// `node` — the hand-built shape for the border-delta pins.
+/// A body-kind piece name `[From(read, f), Fragment(Borders(walls))]`
+/// at `node` — the hand-built shape for the border-delta pins, `read`
+/// an arbitrary fixed operand read (the evaluation is hand-built, so no
+/// document holds it).
 fn piece(node: RecipeNodeId, f: &StableName, walls: &[&StableName]) -> StableName {
     StableName {
         kind: EntityKind::Body,
         node,
         path: vec![
-            RoleSeg::FromA(f.clone().into()),
+            RoleSeg::From {
+                read: editor_core::VarId::new(0, 1),
+                of: f.clone().into(),
+            },
             RoleSeg::Fragment(Qualifier::Borders(
                 walls.iter().map(|&w| w.clone()).collect(),
             )),
@@ -1500,6 +1409,8 @@ fn one_node_eval(
             fragment_groups: Arc::default(),
             contacts: Arc::new(topo::ContactRecords::default()),
             carried: Arc::new(editor_core::CarriedDeclarations::default()),
+            coincidences: Arc::new([]),
+            cited_inputs: Arc::new([]),
             parts: 1,
             verdicts: Arc::new(vec![]),
             escalations: Arc::new(vec![]),
@@ -1522,6 +1433,7 @@ fn one_node_eval(
         reused: 0,
         part_evaluations: 0,
         appearance: editor_core::AppearanceResolution::default(),
+        env: Default::default(),
     }
 }
 

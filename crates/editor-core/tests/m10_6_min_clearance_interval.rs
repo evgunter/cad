@@ -46,10 +46,10 @@ use editor_core::clearance::{MinSepSelection, MinSeparationConfig, min_separatio
 use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use editor_core::stackup::stackup;
 use editor_core::{
-    AssertionDir, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit, EvalOptions,
-    Formula, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, MeasureUnavailableAt, Node,
-    NodeErrorKind, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef,
-    UnevaluatedReason, UnitSym, ValuePayload, VarName, evaluate,
+    AssertionRelation, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit,
+    EvalOptions, Formula, FreeVar, LoopProgram, MeasurePrimitive, MeasureUnavailableAt, Node,
+    NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef, UnevaluatedReason, UnitSym,
+    ValuePayload, VarName, evaluate,
 };
 use geom_core::{Bounds, Tol};
 
@@ -107,7 +107,7 @@ fn dumbbell() -> Dumbbell {
     });
     let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon(
                 [
@@ -131,7 +131,7 @@ fn dumbbell() -> Dumbbell {
         ids: Vec::new(),
     }));
     let solid = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(2.0),
         side: ExtrudeSide::Along,
     });
@@ -151,26 +151,24 @@ fn dumbbell() -> Dumbbell {
             angle: ang(0.0),
         },
     ));
-    let measure = r.insert(
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
-            vec![
-                SitedRef::new(
-                    placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
-                ),
-                SitedRef::new(
-                    placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 9)),
-                ),
-            ],
-        )
-        .expect("both indices in range"),
+    let measured = r.measure(
+        &[MeasurePrimitive::MinClearance { a: 0, b: 1 }],
+        &[
+            SitedRef::new(
+                placed,
+                fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
+            ),
+            SitedRef::new(
+                placed,
+                fixture::fname(solid, fixture::wall(&r.doc, solid, 9)),
+            ),
+        ],
     );
+    let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     let assertion = r.insert(Node::Assertion {
-        measure,
+        value: fixture::read_var(&r.doc, measure_value),
         bound: len(BOUND),
-        dir: AssertionDir::AtLeast,
+        relation: AssertionRelation::AtLeast,
     });
     Dumbbell {
         doc: r.doc,
@@ -476,7 +474,7 @@ fn the_symbolic_tier_refuses_a_clearance_measure_by_its_spoken_node() {
         refusal.to_string().starts_with(&format!(
             "Measure \"neck gap\" ({}) is a `min_clearance`, whose engine has no lane at \
              the symbolic identity tier",
-            test_utils::refusal::tag(f.measure.0)
+            test_utils::refusal::tag(f.measure.0.digest())
         )),
         "{refusal}"
     );
@@ -500,13 +498,16 @@ fn a_pairing_the_wedge_rule_empties_refuses_typed() {
 }
 
 /// **Row 5**: a reference that names neither a body nor a face refuses
-/// typed, naming what it found.
+/// at the door, as the seat's kind (FORK-VTX): a `min_clearance`
+/// reference reads a `Body` or a `Face`, and a selection's kind is fixed
+/// when it is minted, so the edge's selection is refused before any
+/// evaluation sees it.
 #[test]
-fn a_selection_that_is_not_a_body_or_a_face_refuses_typed() {
+fn a_selection_that_is_not_a_body_or_a_face_refuses_at_the_door() {
     let mut r = Recorder::new();
     let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
                 .expect("finite corners"),
@@ -514,36 +515,38 @@ fn a_selection_that_is_not_a_body_or_a_face_refuses_typed() {
         ids: Vec::new(),
     }));
     let solid = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
-    let measure = r.insert(
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
-            vec![
-                // A real EDGE name — the extrude's own lateral edge at
-                // profile vertex 0 — so the reference resolves and the
-                // refusal is about its KIND rather than about a name
-                // that names nothing.
-                SitedRef::at_mint(fixture::prism_edges(&r.doc, solid, 4).remove(2)),
-                SitedRef::at_mint(fixture::fname(solid, fixture::wall(&r.doc, solid, 2))),
-            ],
-        )
-        .expect("both indices in range"),
+    // A real EDGE name — the extrude's own lateral edge at profile
+    // vertex 0 — so the refusal is about its KIND rather than about a
+    // name that names nothing.
+    let edge = SitedRef::at_mint(fixture::prism_edges(&r.doc, solid, 4).remove(2));
+    let face = SitedRef::at_mint(fixture::fname(solid, fixture::wall(&r.doc, solid, 2)));
+    let refused = editor_core::measure(
+        &r.doc,
+        &[MeasurePrimitive::MinClearance { a: edge, b: face }],
+        Tol::witness(),
+        &editor_core::RefusingReach,
     );
-    let ev = eval_over::<geom_core::Interval>(&r.doc, None);
-    let Some(NodeResult::Failed(err)) = ev.result(measure) else {
-        panic!("an edge is not a selection, so the measure refuses");
+    let Err(err) = refused else {
+        panic!("an edge is no min_clearance reference, so the insert refuses");
     };
     assert!(
         matches!(
-            err.kind,
-            NodeErrorKind::MeasureSelectionKind { verb: "min_clearance", found }
-                if found.kind() == editor_core::EntityKind::Edge
+            &err,
+            editor_core::EditError::SlotVarKind {
+                found: editor_core::VarKind::Edge,
+                expected: editor_core::SlotKind::Measured(editor_core::MeasureVerb::MinClearance),
+                ..
+            }
         ),
-        "typed, naming what it found: {}",
-        err.kind
+        "typed, naming what it found: {err:?}"
+    );
+    assert!(
+        err.to_string().contains("a body or a face"),
+        "the refusal says what the reference admits: {err}"
     );
 }
 
@@ -567,7 +570,7 @@ fn a_stackup_over_a_min_clearance_forfeits_its_advisory_columns_and_still_gates(
     assert!(!verdict.certified().is_empty(), "the box certifies");
     let report = stackup(
         &f.doc,
-        f.measure,
+        crate::fixture::output(&f.doc, f.measure),
         &analyzed,
         &verdict,
         None,

@@ -53,6 +53,13 @@ fn difference(r: f64, big_r: f64) -> f64 {
     (1.0 / r - 1.0 / big_r).abs() * r * r * 0.5
 }
 
+/// A pair of surface kinds, in kind-name order: the pair is a set, so
+/// a reading keyed by it does not depend on which surface was minted
+/// first.
+fn kinds_of(a: SurfaceKind, b: SurfaceKind) -> (SurfaceKind, SurfaceKind) {
+    if a.name() <= b.name() { (a, b) } else { (b, a) }
+}
+
 /// One contact edge as the rule sees it: its support pair, whether the
 /// certificate's lane admits it, the rule's verdict and the weakest
 /// interior station's margin.
@@ -72,9 +79,10 @@ fn contacts(body: &Body<f64>) -> Vec<Contact> {
         let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
             continue;
         };
-        let EdgeDescription::TangentIntersection { s1, s2, .. } = *c.description() else {
+        let EdgeDescription::TangentIntersection { pair, .. } = *c.description() else {
             continue;
         };
+        let [s1, s2] = pair.keys();
         let (s1, s2) = (
             body.get_surface(s1).expect("a described edge's surface"),
             body.get_surface(s2).expect("a described edge's surface"),
@@ -92,7 +100,7 @@ fn contacts(body: &Body<f64>) -> Vec<Contact> {
             })
             .fold(f64::INFINITY, f64::min);
         out.push(Contact {
-            kinds: (s1.kind(), s2.kind()),
+            kinds: kinds_of(s1.kind(), s2.kind()),
             in_lane: tangent_certificate_lane(carrier, s1, s2),
             verdict: must_carry_over_edge(s1, s2, carrier, t0, t1, extent, band),
             min_margin,
@@ -104,7 +112,7 @@ fn contacts(body: &Body<f64>) -> Vec<Contact> {
 /// The weakest margin over the contact edges of one support pair.
 fn min_of(rows: &[Contact], pair: (SurfaceKind, SurfaceKind)) -> f64 {
     rows.iter()
-        .filter(|r| r.kinds == pair)
+        .filter(|r| r.kinds == kinds_of(pair.0, pair.1))
         .map(|r| r.min_margin)
         .fold(f64::INFINITY, f64::min)
 }
@@ -197,7 +205,13 @@ fn refusal_kind(e: &BlendError) -> String {
 #[test]
 fn r2_the_die_and_the_rod_census_retaken() {
     let die = cube(1.0, tol());
-    let out = fillet_edges(&die, &query::all_edges(&die), 0.15, tol()).expect("the die carves");
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&die, tol()),
+        &query::all_edges(&die),
+        0.15,
+        tol(),
+    )
+    .expect("the die carves");
     let rows = contacts(&out.body);
     assert_eq!(rows.len(), 48, "24 trimlines and 24 corner arcs");
     assert!(rows.iter().all(|r| r.in_lane));
@@ -217,7 +231,13 @@ fn r2_the_die_and_the_rod_census_retaken() {
     }
 
     let body = rod_with_flat(tol());
-    let out = fillet_edges(&body, &rod_creases(&body), ROD_FILLET, tol()).expect("the rod carves");
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &rod_creases(&body),
+        ROD_FILLET,
+        tol(),
+    )
+    .expect("the rod carves");
     let rows = contacts(&out.body);
     assert_eq!(rows.len(), 4, "the rod's four trimlines");
     assert!(
@@ -255,7 +275,7 @@ fn r2_the_die_and_the_rod_census_retaken() {
 #[test]
 fn r2_the_in_band_verdict_at_radii_derived_here() {
     let b = band();
-    let die = cube(1.0, tol());
+    let die = sweep::test_support::finished("die", cube(1.0, tol()), tol());
     for mult in [1.2, 1.9] {
         let r = mult * b.escalate();
         let (m, _) = in_band(
@@ -277,7 +297,12 @@ fn r2_the_in_band_verdict_at_radii_derived_here() {
         .expect("the family member mills");
     let crease = rod_upper_crease(&body);
     let (m, shown) = in_band(
-        fillet_edges(&body, &[crease], r, tol()),
+        fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &[crease],
+            r,
+            tol(),
+        ),
         "the rod at R/r = 1.75, margin 0.7·Kε",
     );
     assert!(
@@ -312,7 +337,11 @@ fn r2_the_recourse_names_the_peak_and_the_smaller_radius_past_it() {
     let (ratio, frac) = (1.5, 0.75);
     let r0 = 2.0 * frac * b.escalate() / (1.0 - 1.0 / ratio);
     let big_r = ratio * r0;
-    let body = rod_with_flat_at(big_r, r0, 10.0 * r0, 2.0 * big_r, tol()).expect("the rod mills");
+    let body = sweep::test_support::finished(
+        "body",
+        rod_with_flat_at(big_r, r0, 10.0 * r0, 2.0 * big_r, tol()).expect("the rod mills"),
+        tol(),
+    );
     let crease = rod_upper_crease(&body);
     let (m0, shown) = in_band(
         fillet_edges(&body, &[crease], r0, tol()),
@@ -372,8 +401,13 @@ fn r2_the_recourse_names_the_peak_and_the_smaller_radius_past_it() {
     let scaled = rod_with_flat_at(2.0 * big_r, 2.0 * r0, 20.0 * r0, 4.0 * big_r, tol())
         .expect("the scaled rod mills");
     let crease = rod_upper_crease(&scaled);
-    let out = fillet_edges(&scaled, &[crease], 2.0 * r0, tol())
-        .unwrap_or_else(|e| panic!("blending a larger feature is followable: {e}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&scaled, tol()),
+        &[crease],
+        2.0 * r0,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("blending a larger feature is followable: {e}"));
     let rows = contacts(&out.body);
     assert!(
         !rows.is_empty()
@@ -404,7 +438,7 @@ fn r2_the_recourse_names_the_peak_and_the_smaller_radius_past_it() {
 /// cannot be crossed.
 #[test]
 fn r2_a_sphere_support_toward_osculation_never_reaches_the_rule() {
-    let body = dome(1.0, tol());
+    let body = sweep::test_support::finished("body", dome(1.0, tol()), tol());
     let rim = one_edge_rim_at(&body, 1.0, 0.0);
     let mut table = String::from("dome (sphere support, R = 1), equator rim:\n");
     for r in [0.1, 0.25, 0.4, 0.5, 0.6, 0.75, 0.9, 0.95, 0.99] {
@@ -454,7 +488,7 @@ fn r2_the_rules_stations_scale_with_the_contact_edge_count() {
     use geom_core::k_stats::{self, Probe};
     use sweep::test_support::rod_d_profile_at;
     let interior = usize::try_from(CERT_SAMPLES - 2).expect("a small count");
-    let body = rod_d_profile_at::<Probe>(tol());
+    let body = sweep::test_support::finished("body", rod_d_profile_at::<Probe>(tol()), tol());
     let creases = rod_creases(&body);
     assert_eq!(creases.len(), 2, "the D-rod's two creases");
     let mut seen = Vec::new();
@@ -500,11 +534,17 @@ fn r2_the_rules_stations_scale_with_the_contact_edge_count() {
 #[test]
 fn r2_the_corner_balls_arcs_carry_the_rules_verdict() {
     let die = cube(1.0, tol());
-    let out = fillet_edges(&die, &query::all_edges(&die), 0.15, tol()).expect("the die carves");
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&die, tol()),
+        &query::all_edges(&die),
+        0.15,
+        tol(),
+    )
+    .expect("the die carves");
     let rows = contacts(&out.body);
     let arcs: Vec<&Contact> = rows
         .iter()
-        .filter(|r| r.kinds == (SurfaceKind::Cylinder, SurfaceKind::Sphere))
+        .filter(|r| r.kinds == kinds_of(SurfaceKind::Cylinder, SurfaceKind::Sphere))
         .collect();
     assert_eq!(
         arcs.len(),

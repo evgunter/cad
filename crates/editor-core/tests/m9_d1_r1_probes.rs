@@ -41,25 +41,14 @@ fn revolve_chain(steps: Vec<ProgramStep<Formula>>, angle: f64) -> (ProfileDoc, R
     let (doc, p) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![LoopProgram::Chain(steps)],
             ids: Vec::new(),
         }),
     );
-    let (doc, axis) = insert(
-        doc,
-        // The axis, in the frame's own coordinates: the profile's v is
-        // world +Y, so the line the revolve turns about is that
-        // frame's +y through (0, 0).
-        fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)),
-    );
     insert(
         doc,
-        Node::Revolve {
-            profile: p,
-            axis,
-            angle: ang(angle),
-        },
+        fixture::revolve_about(p, (0.0, 0.0), (0.0, 1.0), ang(angle)),
     )
 }
 
@@ -79,7 +68,7 @@ fn subdivided_axis_run_is_representable_through_the_program_layer() {
     // does not have would be turned away for that instead.
     let (doc, plane) = insert(doc, fixture::xy_frame());
     let node = Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![LoopProgram::Chain(vec![
             ProgramStep::At(len2([0.0, 1.0])),
             ProgramStep::LineTo(ProgramTarget::Point(len2([0.0, 0.0]))),
@@ -166,7 +155,7 @@ fn export_poles_by_canonical_vertex(
     revolution: sweep::Revolution<f64>,
 ) -> Vec<bool> {
     let profile = *doc
-        .order()
+        .ids()
         .iter()
         .find(|id| matches!(doc.node(**id), Some(Node::Profile(_))))
         .expect("the doc's profile node");

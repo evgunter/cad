@@ -81,14 +81,18 @@ pub enum NodeErrorClass {
     CurvedSolidFrontier,
     /// [`NodeErrorKind::MissingInput`].
     MissingInput,
+    /// [`NodeErrorKind::UnresolvedRead`].
+    UnresolvedRead,
+    /// [`NodeErrorKind::SelectResolve`].
+    SelectResolve,
+    /// [`NodeErrorKind::SelectKind`].
+    SelectKind,
     /// [`NodeErrorKind::ToleranceConflict`].
     ToleranceConflict,
     /// [`NodeErrorKind::ParamBox`].
     ParamBox,
     /// [`NodeErrorKind::Seed`].
     Seed,
-    /// [`NodeErrorKind::SeedPinnedSection`].
-    SeedPinnedSection,
     /// [`NodeErrorKind::WrongOperand`].
     WrongOperand,
     /// [`NodeErrorKind::EmptyOperand`].
@@ -115,8 +119,12 @@ pub enum NodeErrorClass {
     VerbArity,
     /// [`NodeErrorKind::Escalated`].
     Escalated,
-    /// [`NodeErrorKind::AxisInDifferentPlane`].
-    AxisInDifferentPlane,
+    /// [`NodeErrorKind::PoseRead`].
+    PoseRead,
+    /// [`NodeErrorKind::PoseDegenerate`].
+    PoseDegenerate,
+    /// [`NodeErrorKind::PoseScalar`].
+    PoseScalar,
     /// [`NodeErrorKind::NonPositiveCount`].
     NonPositiveCount,
     /// [`NodeErrorKind::NegativeSpacing`].
@@ -148,48 +156,20 @@ pub enum NodeErrorClass {
     UnschedulableCycle,
     /// [`NodeErrorKind::Naming`].
     Naming,
-    /// [`NodeErrorKind::ParamSourceAttach`].
-    ParamSourceAttach,
-    /// [`NodeErrorKind::DeclareResolve`].
-    DeclareResolve,
-    /// [`NodeErrorKind::DeclareSiteNotAnOperand`].
-    DeclareSiteNotAnOperand,
-    /// [`NodeErrorKind::DeclareUnsupportedPair`].
-    DeclareUnsupportedPair,
-    /// [`NodeErrorKind::UndeclaredCoincidence`].
-    UndeclaredCoincidence,
-    /// [`NodeErrorKind::UndeclarableContact`].
-    UndeclarableContact,
-    /// [`NodeErrorKind::BlendSelectionResolve`] refused by a fillet.
-    FilletSelectionResolve,
-    /// [`NodeErrorKind::BlendSelectionResolve`] refused by a chamfer.
-    ChamferSelectionResolve,
-    /// [`NodeErrorKind::BlendSelectionKind`] refused by a fillet.
-    FilletSelectionKind,
-    /// [`NodeErrorKind::BlendSelectionKind`] refused by a chamfer.
-    ChamferSelectionKind,
+    /// [`NodeErrorKind::UnionFoldStep`].
+    UnionFoldStep,
     /// [`NodeErrorKind::BlendSelectionEmpty`] refused by a fillet.
     FilletSelectionEmpty,
     /// [`NodeErrorKind::BlendSelectionEmpty`] refused by a chamfer.
     ChamferSelectionEmpty,
     /// [`NodeErrorKind::Shell`].
     Shell,
-    /// [`NodeErrorKind::ShellOpenResolve`].
-    ShellOpenResolve,
-    /// [`NodeErrorKind::ShellOpenKind`].
-    ShellOpenKind,
     /// [`NodeErrorKind::ShellLaneUnsupported`].
     ShellLaneUnsupported,
-    /// [`NodeErrorKind::FaceFrameResolve`].
-    FaceFrameResolve,
-    /// [`NodeErrorKind::FaceFrameKind`].
-    FaceFrameKind,
     /// [`NodeErrorKind::FaceFrameNotPlanar`].
     FaceFrameNotPlanar,
     /// [`NodeErrorKind::FaceFrameReadback`].
     FaceFrameReadback,
-    /// [`NodeErrorKind::DerivedFrameSection`].
-    DerivedFrameSection,
     /// [`NodeErrorKind::FrameDirection`] carrying
     /// [`geom_core::UnitVec3Error::Degenerate`].
     FrameDirectionDegenerate,
@@ -249,6 +229,8 @@ pub enum NodeErrorClass {
     MateContradictory,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::Under`].
     MateUnder,
+    /// [`NodeErrorKind::Mate`] carrying [`MateFault::SideUnresolved`].
+    MateSideUnresolved,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::DanglingHead`].
     MateDanglingHead,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::PlacerRefused`].
@@ -274,8 +256,6 @@ pub enum NodeErrorClass {
     MateFrameUnevaluated,
     /// [`NodeErrorKind::CrossingUnverified`].
     CrossingUnverified,
-    /// [`NodeErrorKind::MeasureRefResolve`].
-    MeasureRefResolve,
     /// [`NodeErrorKind::MeasureRefUnreadable`].
     MeasureRefUnreadable,
     /// [`NodeErrorKind::MeasureNonFinite`].
@@ -284,12 +264,8 @@ pub enum NodeErrorClass {
     MeasureNotParallel,
     /// [`NodeErrorKind::MeasureUnsupported`].
     MeasureUnsupported,
-    /// [`NodeErrorKind::MeasureMalformed`].
-    MeasureMalformed,
     /// [`NodeErrorKind::PayloadExpr`].
     PayloadExpr,
-    /// [`NodeErrorKind::MeasureSelectionKind`].
-    MeasureSelectionKind,
     /// [`NodeErrorKind::MeasureClearanceRefused`].
     MeasureClearanceRefused,
     /// [`NodeErrorKind::AssertionDimension`].
@@ -323,10 +299,12 @@ impl NodeErrorKind {
             Self::Loft(_) => C::Loft,
             Self::CurvedSolidFrontier { .. } => C::CurvedSolidFrontier,
             Self::MissingInput { .. } => C::MissingInput,
+            Self::UnresolvedRead { .. } => C::UnresolvedRead,
+            Self::SelectResolve { .. } => C::SelectResolve,
+            Self::SelectKind { .. } => C::SelectKind,
             Self::ToleranceConflict { .. } => C::ToleranceConflict,
             Self::ParamBox { .. } => C::ParamBox,
             Self::Seed { .. } => C::Seed,
-            Self::SeedPinnedSection { .. } => C::SeedPinnedSection,
             Self::WrongOperand { .. } => C::WrongOperand,
             Self::EmptyOperand { .. } => C::EmptyOperand,
             Self::ProductOperand { .. } => C::ProductOperand,
@@ -340,7 +318,9 @@ impl NodeErrorKind {
             Self::MissingSlot { .. } => C::MissingSlot,
             Self::VerbArity { .. } => C::VerbArity,
             Self::Escalated { .. } => C::Escalated,
-            Self::AxisInDifferentPlane { .. } => C::AxisInDifferentPlane,
+            Self::PoseRead { .. } => C::PoseRead,
+            Self::PoseDegenerate { .. } => C::PoseDegenerate,
+            Self::PoseScalar { .. } => C::PoseScalar,
             Self::NonPositiveCount { .. } => C::NonPositiveCount,
             Self::NegativeSpacing { .. } => C::NegativeSpacing,
             Self::DegenerateSpacing => C::DegenerateSpacing,
@@ -350,30 +330,14 @@ impl NodeErrorKind {
             Self::PlacementRule(fault) => C::of_placement_rule(fault),
             Self::UnschedulableCycle => C::UnschedulableCycle,
             Self::Naming(_) => C::Naming,
-            Self::ParamSourceAttach(_) => C::ParamSourceAttach,
-            Self::DeclareResolve { .. } => C::DeclareResolve,
-            Self::DeclareSiteNotAnOperand { .. } => C::DeclareSiteNotAnOperand,
-            Self::DeclareUnsupportedPair { .. } => C::DeclareUnsupportedPair,
-            Self::UndeclaredCoincidence { .. } => C::UndeclaredCoincidence,
-            Self::UndeclarableContact { .. } => C::UndeclarableContact,
-            Self::BlendSelectionResolve { verb, .. } => {
-                by_verb(*verb, C::FilletSelectionResolve, C::ChamferSelectionResolve)
-            }
-            Self::BlendSelectionKind { verb, .. } => {
-                by_verb(*verb, C::FilletSelectionKind, C::ChamferSelectionKind)
-            }
+            Self::UnionFoldStep { .. } => C::UnionFoldStep,
             Self::BlendSelectionEmpty { verb } => {
                 by_verb(*verb, C::FilletSelectionEmpty, C::ChamferSelectionEmpty)
             }
             Self::Shell(_) => C::Shell,
-            Self::ShellOpenResolve { .. } => C::ShellOpenResolve,
-            Self::ShellOpenKind { .. } => C::ShellOpenKind,
             Self::ShellLaneUnsupported { .. } => C::ShellLaneUnsupported,
-            Self::FaceFrameResolve { .. } => C::FaceFrameResolve,
-            Self::FaceFrameKind { .. } => C::FaceFrameKind,
             Self::FaceFrameNotPlanar { .. } => C::FaceFrameNotPlanar,
             Self::FaceFrameReadback { .. } => C::FaceFrameReadback,
-            Self::DerivedFrameSection { .. } => C::DerivedFrameSection,
             Self::FrameDirection { refusal, .. } => {
                 let raised = refusal.node_error().class();
                 FRAME_DIRECTION
@@ -405,14 +369,11 @@ impl NodeErrorKind {
             Self::Unplaced { .. } => C::Unplaced,
             Self::PlacementRefused { .. } => C::PlacementRefused,
             Self::CrossingUnverified { .. } => C::CrossingUnverified,
-            Self::MeasureRefResolve { .. } => C::MeasureRefResolve,
             Self::MeasureRefUnreadable { .. } => C::MeasureRefUnreadable,
             Self::MeasureNonFinite { .. } => C::MeasureNonFinite,
             Self::MeasureNotParallel { .. } => C::MeasureNotParallel,
             Self::MeasureUnsupported(_) => C::MeasureUnsupported,
-            Self::MeasureMalformed(_) => C::MeasureMalformed,
             Self::PayloadExpr { .. } => C::PayloadExpr,
-            Self::MeasureSelectionKind { .. } => C::MeasureSelectionKind,
             Self::MeasureClearanceRefused(_) => C::MeasureClearanceRefused,
             Self::AssertionDimension { .. } => C::AssertionDimension,
         }
@@ -458,6 +419,7 @@ impl NodeErrorClass {
             MateFault::Band { .. } => Self::MateBand,
             MateFault::Contradictory { .. } => Self::MateContradictory,
             MateFault::Under { .. } => Self::MateUnder,
+            MateFault::SideUnresolved { .. } => Self::MateSideUnresolved,
             MateFault::DanglingHead { .. } => Self::MateDanglingHead,
             MateFault::PlacerRefused { .. } => Self::MatePlacerRefused,
             MateFault::PartSelectsAnotherCopy { .. } => Self::MatePartSelectsAnotherCopy,
@@ -547,10 +509,12 @@ mod tests {
         Loft,
         CurvedSolidFrontier,
         MissingInput,
+        UnresolvedRead,
+        SelectResolve,
+        SelectKind,
         ToleranceConflict,
         ParamBox,
         Seed,
-        SeedPinnedSection,
         WrongOperand,
         EmptyOperand,
         ProductOperand,
@@ -564,7 +528,9 @@ mod tests {
         MissingSlot,
         VerbArity,
         Escalated,
-        AxisInDifferentPlane,
+        PoseRead,
+        PoseDegenerate,
+        PoseScalar,
         NonPositiveCount,
         NegativeSpacing,
         DegenerateSpacing,
@@ -578,27 +544,13 @@ mod tests {
         PlacementRuleNonRigidFrame,
         UnschedulableCycle,
         Naming,
-        ParamSourceAttach,
-        DeclareResolve,
-        DeclareSiteNotAnOperand,
-        DeclareUnsupportedPair,
-        UndeclaredCoincidence,
-        UndeclarableContact,
-        FilletSelectionResolve,
-        ChamferSelectionResolve,
-        FilletSelectionKind,
-        ChamferSelectionKind,
+        UnionFoldStep,
         FilletSelectionEmpty,
         ChamferSelectionEmpty,
         Shell,
-        ShellOpenResolve,
-        ShellOpenKind,
         ShellLaneUnsupported,
-        FaceFrameResolve,
-        FaceFrameKind,
         FaceFrameNotPlanar,
         FaceFrameReadback,
-        DerivedFrameSection,
         FrameDirectionDegenerate,
         FrameDirectionNonFiniteLength,
         FrameDirectionUnderflowedLength,
@@ -624,6 +576,7 @@ mod tests {
         MateBand,
         MateContradictory,
         MateUnder,
+        MateSideUnresolved,
         MateDanglingHead,
         MatePlacerRefused,
         MatePartSelectsAnotherCopy,
@@ -636,14 +589,11 @@ mod tests {
         MateFaceUnresolved,
         MateFrameUnevaluated,
         CrossingUnverified,
-        MeasureRefResolve,
         MeasureRefUnreadable,
         MeasureNonFinite,
         MeasureNotParallel,
         MeasureUnsupported,
-        MeasureMalformed,
         PayloadExpr,
-        MeasureSelectionKind,
         MeasureClearanceRefused,
         AssertionDimension,
     }
@@ -671,7 +621,7 @@ mod tests {
     fn name() -> StableName {
         StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(3),
+            node: RecipeNodeId::new(0, 3),
             path: Vec::new(),
         }
     }
@@ -680,7 +630,7 @@ mod tests {
         Box::new(crate::ResolveError::NodeGone {
             name: name(),
             edit: crate::RecipeEditRef::NodeDeleted {
-                node: RecipeNodeId(3),
+                node: RecipeNodeId::new(0, 3),
             },
         })
     }
@@ -712,8 +662,8 @@ mod tests {
 
     fn frame_direction(error: UnitVec3Error) -> K {
         K::FrameDirection {
-            profile: RecipeNodeId(4),
-            frame: RecipeNodeId(2),
+            profile: RecipeNodeId::new(0, 4),
+            frame: RecipeNodeId::new(0, 2),
             refusal: crate::DirectionRefusal {
                 role: "frame normal",
                 error,
@@ -732,7 +682,7 @@ mod tests {
     #[allow(clippy::too_many_lines)]
     fn witness(class: C) -> K {
         use crate::{EvalError, SlotId};
-        let n = RecipeNodeId;
+        let n = |i| RecipeNodeId::new(0, i);
         match class {
             C::Expr => K::Expr {
                 slot: SlotId::Distance,
@@ -782,23 +732,36 @@ mod tests {
                 what: "a sweep along a curved path",
             },
             C::MissingInput => K::MissingInput { input: n(3) },
+            C::UnresolvedRead => K::UnresolvedRead {
+                slot: crate::OperandSlot::Target,
+                var: crate::VarId::new(3, 3),
+            },
+            C::SelectResolve => K::SelectResolve {
+                slot: crate::OperandSlot::Selection,
+                var: crate::VarId::new(3, 3),
+                reference: 0,
+                error: resolve_error(),
+            },
+            C::SelectKind => found_body(|found| K::SelectKind {
+                slot: crate::OperandSlot::Selection,
+                var: crate::VarId::new(3, 3),
+                name: Box::new(name()),
+                expected: crate::EntityKind::Edge,
+                found,
+            }),
             C::ToleranceConflict => K::ToleranceConflict {
                 document_eps: 1.0e-7,
                 process_eps: 1.0e-9,
             },
             C::ParamBox => K::ParamBox {
                 source: crate::ParamBoxError::UnknownParam {
-                    param: crate::SpokenVar::new(crate::VarId(1), None),
+                    param: crate::SpokenVar::new(crate::VarId::new(0, 1), None),
                 },
             },
             C::Seed => K::Seed {
                 source: crate::SeedError::UnknownVar {
-                    var: crate::SpokenVar::new(crate::VarId(1), None),
+                    var: crate::SpokenVar::new(crate::VarId::new(0, 1), None),
                 },
-            },
-            C::SeedPinnedSection => K::SeedPinnedSection {
-                section: n(3),
-                param: crate::VarId(1),
             },
             C::WrongOperand => K::WrongOperand {
                 input: n(3),
@@ -846,10 +809,18 @@ mod tests {
                 predicate: "side_of_plane",
                 source: diag(),
             },
-            C::AxisInDifferentPlane => K::AxisInDifferentPlane {
-                axis: n(3),
-                axis_plane: Some(n(1)),
-                profile_plane: Some(n(2)),
+            C::PoseRead => K::PoseRead {
+                pose: crate::VarKind::Axis,
+                fault: crate::pose::PoseReadFault::NoAxis {
+                    carrier: crate::pose::Carrier::Surface(geom::SurfaceKind::Plane),
+                },
+            },
+            C::PoseDegenerate => K::PoseDegenerate {
+                construction: crate::pose::PoseConstruction::Through,
+            },
+            C::PoseScalar => K::PoseScalar {
+                var: crate::VarId::new(2, 0),
+                source: EvalError::NonFiniteResult,
             },
             C::NonPositiveCount => K::NonPositiveCount { count: 0 },
             C::NegativeSpacing => K::NegativeSpacing {
@@ -860,10 +831,7 @@ mod tests {
             C::DegenerateSpacing => K::DegenerateSpacing,
             C::DegenerateStep => K::DegenerateStep,
             C::FullRangeStep => K::FullRangeStep {
-                step: crate::expr::Expr::try_from(
-                    crate::Formula::angle_in(400.0, quantity::DEG).expect("a literal angle"),
-                )
-                .expect("a literal holds no name"),
+                step: crate::Formula::angle_in(400.0, quantity::DEG).expect("a literal angle"),
                 evaluated: None,
                 turns: crate::StepTurns::Within(
                     crate::Formula::angle_in(40.0, quantity::DEG).expect("a literal angle"),
@@ -897,61 +865,11 @@ mod tests {
             C::Naming => K::Naming(crate::NamingError::Emission {
                 what: "a cap face with no profile loop behind it",
             }),
-            C::ParamSourceAttach => K::ParamSourceAttach(topo::ParamAttachError::StaleKey),
-            C::DeclareResolve => K::DeclareResolve {
-                error: resolve_error(),
-                reference: 0,
+            C::UnionFoldStep => K::UnionFoldStep {
+                member: 2,
+                read: crate::VarId::new(2, 2),
+                refusal: Box::new(K::UnschedulableCycle),
             },
-            C::DeclareSiteNotAnOperand => K::DeclareSiteNotAnOperand { at: n(3) },
-            C::DeclareUnsupportedPair => K::DeclareUnsupportedPair {
-                kinds: (EntityKind::Edge, EntityKind::Vertex),
-                cross_operand: true,
-            },
-            C::UndeclaredCoincidence => K::UndeclaredCoincidence {
-                finding: Box::new(crate::FlushFinding {
-                    pair: (
-                        crate::SitedRef {
-                            at: n(2),
-                            name: name(),
-                        },
-                        crate::SitedRef {
-                            at: n(3),
-                            name: name(),
-                        },
-                    ),
-                    class: topo::BooleanCoincidence::REST,
-                    evidence: crate::FlushEvidence {
-                        relation: topo::PlaneRelation::SameOpposite,
-                        rung: crate::FlushRung::DecidedCoincident,
-                    },
-                }),
-                merged: Box::new((Vec::new(), Vec::new())),
-                diag: diag(),
-            },
-            C::UndeclarableContact => K::UndeclarableContact {
-                row: Box::new(name()),
-                diag: diag(),
-            },
-            C::FilletSelectionResolve => K::BlendSelectionResolve {
-                verb: BlendKind::Fillet,
-                error: resolve_error(),
-                reference: 0,
-            },
-            C::ChamferSelectionResolve => K::BlendSelectionResolve {
-                verb: BlendKind::Chamfer,
-                error: resolve_error(),
-                reference: 0,
-            },
-            C::FilletSelectionKind => found_body(|found| K::BlendSelectionKind {
-                verb: BlendKind::Fillet,
-                name: Box::new(name()),
-                found,
-            }),
-            C::ChamferSelectionKind => found_body(|found| K::BlendSelectionKind {
-                verb: BlendKind::Chamfer,
-                name: Box::new(name()),
-                found,
-            }),
             C::FilletSelectionEmpty => K::BlendSelectionEmpty {
                 verb: BlendKind::Fillet,
             },
@@ -959,31 +877,12 @@ mod tests {
                 verb: BlendKind::Chamfer,
             },
             C::Shell => K::Shell(Box::new(topo::ShellError::Thickness { thickness: -0.5 })),
-            C::ShellOpenResolve => K::ShellOpenResolve {
-                error: resolve_error(),
-                reference: 0,
-            },
-            C::ShellOpenKind => found_body(|found| K::ShellOpenKind {
-                name: Box::new(name()),
-                found,
-            }),
             C::ShellLaneUnsupported => K::ShellLaneUnsupported { scalar: "interval" },
-            C::FaceFrameResolve => K::FaceFrameResolve {
-                error: resolve_error(),
-            },
-            C::FaceFrameKind => found_body(|found| K::FaceFrameKind {
-                name: Box::new(name()),
-                found,
-            }),
             C::FaceFrameNotPlanar => K::FaceFrameNotPlanar {
                 carrier: geom::SurfaceKind::Cylinder,
             },
             C::FaceFrameReadback => K::FaceFrameReadback {
                 error: topo::readback::ReadbackError::NoCarrier,
-            },
-            C::DerivedFrameSection => K::DerivedFrameSection {
-                profile: n(3),
-                frame: n(2),
             },
             C::FrameDirectionDegenerate => frame_direction(UnitVec3Error::Degenerate),
             C::FrameDirectionNonFiniteLength => frame_direction(UnitVec3Error::NonFiniteLength),
@@ -1030,7 +929,10 @@ mod tests {
             }),
             C::PartProduct => part(crate::PartFault::PartProduct {
                 held: Default::default(),
-                refusal: crate::ProductError::NoBodyRoots.into(),
+                refusal: crate::ProductError::EmptyProduct {
+                    unplaced: Vec::new(),
+                }
+                .into(),
             }),
             C::PartReferenceCycle => part(crate::PartFault::ReferenceCycle {
                 cycle: vec![doc_ref(), doc_ref()],
@@ -1076,6 +978,11 @@ mod tests {
                 parent: n(6),
                 child: n(7),
                 residual: crate::Subgroup::Se3,
+            }),
+            C::MateSideUnresolved => mate(crate::MateFault::SideUnresolved {
+                mate: n(9),
+                side: crate::MateSide::A,
+                read: crate::VarId::new(3, 3),
             }),
             C::MateDanglingHead => mate(crate::MateFault::DanglingHead {
                 mate: n(9),
@@ -1160,12 +1067,9 @@ mod tests {
                 outer: Box::new(crate::FaceName::new(name()).expect("a face name")),
                 name: Box::new(name()),
             },
-            C::MeasureRefResolve => K::MeasureRefResolve {
-                error: resolve_error(),
-                reference: 0,
-            },
             C::MeasureRefUnreadable => K::MeasureRefUnreadable {
-                name: Box::new(name()),
+                slot: crate::OperandSlot::Measured(crate::MeasureVerb::Distance, 0),
+                var: crate::VarId::new(3, 3),
                 error: crate::InterrogateError::NoSuchName,
             },
             C::MeasureNonFinite => K::MeasureNonFinite {
@@ -1184,22 +1088,11 @@ mod tests {
                     b: "torus",
                 })
             }
-            C::MeasureMalformed => {
-                K::MeasureMalformed(crate::MeasureNodeFault::RefIndexOutOfRange {
-                    verb: "min_clearance",
-                    index: 2,
-                    refs: 2,
-                })
-            }
             C::PayloadExpr => K::PayloadExpr {
                 what: "placement",
                 index: 2,
                 source: EvalError::NonFiniteResult,
             },
-            C::MeasureSelectionKind => found_body(|found| K::MeasureSelectionKind {
-                verb: "min_clearance",
-                found,
-            }),
             C::MeasureClearanceRefused => {
                 K::MeasureClearanceRefused(crate::clearance::ClearanceRefusal::Unsupported {
                     carrier: "a free-form face",

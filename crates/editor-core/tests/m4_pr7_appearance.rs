@@ -10,8 +10,8 @@ use editor_core::ExtrudeSide;
 
 use editor_core::NodeStanding;
 use editor_core::{
-    AppearanceLossCause, Attr, AttrKind, BooleanOp, CancelToken, CapEnd, Dimension, DocEdit,
-    EditError, EntityKey, EntityKind, EvalOptions, Evaluation, Formula, FreeVar, Node, PatternKind,
+    AppearanceLossCause, Attr, AttrKind, CancelToken, CapEnd, Dimension, DocEdit, EditError,
+    EntityKey, EntityKind, EvalOptions, Evaluation, Formula, FreeVar, Node, PatternKind,
     ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, SpokenName, StableName, VarName, evaluate,
 };
 use fixture::{DEPTH, desc, die, insert, len, minted, on_frame, scl, square, step};
@@ -63,7 +63,7 @@ fn block(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -131,7 +131,7 @@ fn set_appearance_validates_and_applies_purely() {
     // A never-existed node id: typed refusal at the edit door.
     let bogus = minted(
         EntityKind::Face,
-        RecipeNodeId(999),
+        RecipeNodeId::new(0, 999),
         RoleSeg::Cap(CapEnd::End),
     );
     assert_eq!(
@@ -249,7 +249,7 @@ fn appearance_edits_replay_bit_identically_and_diff_reports_them() {
     let (doc2, ext) = insert(
         doc1,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -468,7 +468,7 @@ fn failed_target_node_is_a_typed_indeterminate_loss() {
         DocEdit::SetParam {
             node: ext,
             slot: editor_core::SlotId::Distance,
-            expr: len(0.0),
+            value: len(0.0).into(),
             fresh: Vec::new(),
         },
     );
@@ -485,7 +485,7 @@ fn failed_target_node_is_a_typed_indeterminate_loss() {
         DocEdit::SetParam {
             node: ext,
             slot: editor_core::SlotId::Distance,
-            expr: len(1.0),
+            value: len(1.0).into(),
             fresh: Vec::new(),
         },
     );
@@ -502,11 +502,8 @@ fn poisoned_target_node_reports_the_failed_ancestor() {
     let (doc, b) = block(doc, (1.0, 3.0), (0.25, 1.75), 0.125, 0.75);
     let (doc, uni) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a,
-            b,
-            declare: Vec::new(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
         },
     );
     // Attribute a UNION-minted face name (node = the boolean).
@@ -531,7 +528,7 @@ fn poisoned_target_node_reports_the_failed_ancestor() {
         DocEdit::SetParam {
             node: a,
             slot: editor_core::SlotId::Distance,
-            expr: len(0.0),
+            value: len(0.0).into(),
             fresh: Vec::new(),
         },
     );
@@ -558,7 +555,7 @@ fn structural_count_reduction_vanishes_the_instance_name_loudly() {
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
-            input: ext,
+            input: ext.into(),
             count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -642,18 +639,16 @@ fn tie_fixture() -> (ProfileDoc, RecipeNodeId) {
     let (doc, b) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(2.0),
             side: ExtrudeSide::Along,
         },
     );
     let (doc, sub) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a,
-            b,
-            declare: Vec::new(),
+        Node::Subtract {
+            from: a.into(),
+            tool: b.into(),
         },
     );
     (doc, sub)
@@ -747,11 +742,8 @@ fn operand_paint_does_not_follow_the_face_through_a_boolean() {
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, uni) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a,
-            b,
-            declare: Vec::new(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
         },
     );
     let cap = minted(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End));

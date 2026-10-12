@@ -120,9 +120,14 @@ fn the_die_octants_carry_stored_sphere_pcurves_at_rest() {
     .unwrap()
     .body;
     let rims: Vec<topo::EdgeKey> = blank.edges().map(|(k, _)| k).collect();
-    let filleted = sweep::blend::fillet_edges(&blank, &rims, 0.12, Tol::witness())
-        .expect("the die blank fillets")
-        .body;
+    let filleted = sweep::blend::fillet_edges(
+        &sweep::test_support::at_rest(&blank, Tol::witness()),
+        &rims,
+        0.12,
+        Tol::witness(),
+    )
+    .expect("the die blank fillets")
+    .body;
     let mut spheres = 0usize;
     for (_, face) in filleted.faces() {
         if matches!(

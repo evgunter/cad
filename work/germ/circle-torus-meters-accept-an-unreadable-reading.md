@@ -2,9 +2,14 @@
 id: circle-torus-meters-accept-an-unreadable-reading
 kind: issue
 title: The circle x torus half-angle door's noise and root-slack meters accept an Err reading (NaN or in-gap), where its parallel-axes sibling refuses
-status: open
+status: closed
 opened: 2026-10-01
-refs: [circle-torus-root-slack-crowds-the-zero-band-at-1e-12, sphere-union-sphere-refuses-though-the-section-is-closed-form]
+refs: [circle-torus-root-slack-crowds-the-zero-band-at-1e-12, 3659]
+priority: P2
+cost: M
+closed: 2026-10-10
+branch: germ/half-angle-meters
+pr: 4600
 ---
 
 Found by the PR 3659 review (`reach-snowman` fix pass) while sweeping
@@ -75,3 +80,56 @@ zero band, on the very reading this posture passes (review 2,
 `topo_dr2_probe.rs`, `dr2_gap_noise_root_error`). (a reviewer probe outside the tree). The in-band answers the
 ladder gives otherwise are filed as
 `the-half-angle-ladder-certifies-in-band-configurations`.
+
+## Closed (branch `germ/half-angle-meters`, 2026-10-10)
+
+**The root-slack sites refuse now.** The table's last row has no site
+left. Each certified root's slack is `certified_subdivision`'s
+`RootSlack` meter (`bool_circle_torus_sub_root_slack`,
+`bool_conic_quadric_sub_root_slack`, `bool_conic_cone_root_slack`), and
+that meter refuses `Err` (`Ok(Sign::Positive) | Err(_)` →
+`Uncertain`). Measured: made to accept, it certifies roots 1.08–1.10e-9
+m off at ε = 1e-9 on the ρ = 1500 family. That is the "what passing
+costs" reading above, and it now pins
+`in_band_sweep::a_circle_of_radius_1500_places_its_roots_within_the_zero_band`.
+
+**The noise site's `Err` licenses nothing.** `ladder_roots` answers
+nothing but an escalation. The noise meter only decides whether the
+ladder runs, and the answer is always the subdivision's, which charges
+the same noise to every Taylor term. So a gap reading, or none, can only
+add a refusal. Measured against the exact oracle at the three ε, on
+poses whose meter reads `Err`:
+
+- **In-band poses** (6% of the in-band sweep at 1e-9, 10% at 1e-12):
+  none answered.
+- **Definite poses:** every `Miss` and every certified count true.
+- **ρ = 1500 against a unit wall at ε = 1e-9** (all gap readings): the
+  worst root is 3.5e-10 m off.
+
+A NaN reading needs `f_per_metre ≤ 0`: a torus off the ring convention,
+which body validation refuses (`DegenerateTorus`). Driven straight into
+`circle_torus_roots` on 3,000 random circles each at R/r = 0.5, 0.9, 1
+and 0, the door answered nothing wrong at a definite pose (the spindle
+tori all `Uncertain`).
+
+**Why the arm stays.** It is not dead: gap readings reach it. It is not
+meaningless either: it decides whether the ladder's escalations are
+consulted. Moving it to the parallel-axes sibling's posture (`Err` →
+`Uncertain`) was measured on main with the whole topo suite at ε default,
+1e-6 and 1e-12 (slow set included), and with sweep at 1e-12:
+
+- **Default and 1e-6:** it moves one row, the new
+  `in_band_sweep::a_circle_of_radius_1500_reading_its_noise_in_the_gap_is_answered_truly`.
+- **1e-12:** `circle_torus::tests::a_clear_circle_is_a_miss` goes red
+  too. The other two rows on record above stay green.
+- **sweep at 1e-12:** `parallel_cylinder_join::a_tipped_rod_…` and
+  `cone_operand_rows::an_oblique_rod_and_a_tilted_cone_…` failed, but
+  they fail on main without the change: the first is filed
+  (`work/tint/tipped-rod-join-escalates-at-1e-12.md`,
+  `work/tang/a-far-origin-rod-cut-escalates-its-mapped-source-at-eps-1e-12.md`),
+  and the second, its `a rod clear` fixture refused
+  `FallbackExtentUnsupported` on near-tangent carriers, is filed by this
+  branch (`work/tint/an-oblique-rod-clear-of-a-cone-refuses-the-extent-scan-at-1e-12.md`; it is red at 1e-6 too).
+
+So refusing would cost a true `Miss` at 1e-12 and buy nothing measured.
+The 16-ulp term-bound charge needs no tightening for it.

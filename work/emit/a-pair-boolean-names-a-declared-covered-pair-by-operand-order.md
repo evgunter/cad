@@ -2,8 +2,7 @@
 id: a-pair-boolean-names-a-declared-covered-pair-by-operand-order
 kind: issue
 title: A pair boolean names a declared covered pair by operand order: emit_topo reads merge_groups, not covered
-status: parked
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+status: open
 opened: 2026-10-02
 design: true
 priority: P2
@@ -34,3 +33,11 @@ When that stage is built, re-ask this as "how does a pair boolean name a
 coincident covered pair the verdict glued", if it still arises. Parked on
 `d10-one-way-to-say-intent-is-unbuilt`, as the union member-order row
 was (PR 4141).
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: naming a declared covered pair; declarations retire at stage 4, re-ask it as naming a Zero-glued covered pair. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-09)
+
+E answers the D10 re-ask's premise: a coincident covered pair is now glued whether or not it is declared, because the glue door declares every Zero-decided pair itself (`crates/topo/src/boolean/glue.rs:40`). The covered pairs a declaration produced and the ones the verdict produces are therefore one set (`crates/topo/src/boolean/mod.rs:1770`, `covered`). The naming question is unchanged. The pair boolean's emission still reads only `naming.merge_groups` (`crates/editor-core/src/names/emit_topo.rs:903`, `:989`) and never `covered`, so the faces of such a pair are still named by operand order. The question is now "how does a pair boolean name a Zero-glued covered pair", and it is Ev's call as before.

@@ -15,7 +15,7 @@ use crate::expr::{Dimension, Expr, ExprPath, ParamValue, VarEnv};
 use crate::ident::DocumentId;
 use crate::names::StableName;
 use crate::node::{Node, RecipeNodeId, SlotId};
-use crate::var::{Var, VarId};
+use crate::var::{Var, VarDef, VarId};
 use geom_core::Tol;
 
 /// A document-level parameter name (spec D4's "parameter refs").
@@ -291,6 +291,10 @@ pub enum DistributionRefusal {
         /// The invariant that failed.
         fault: DistributionFault,
     },
+    /// The formula is not one written value: a formula's uncertainty
+    /// is the pushforward of its inputs', so only a written quantity
+    /// carries one ([`crate::Formula::with_distribution`]).
+    NotAWrittenValue,
 }
 
 // The refusal's own prose, for a caller holding the door's `Err`
@@ -304,6 +308,9 @@ impl core::fmt::Display for DistributionRefusal {
                 "a count is a structural parameter, fixed under any error analysis, so it takes no distribution",
             ),
             Self::Invalid { fault } => write!(f, "{fault}"),
+            Self::NotAWrittenValue => f.write_str(
+                "only a written value takes a distribution; a formula's uncertainty is its inputs'",
+            ),
         }
     }
 }
@@ -359,12 +366,13 @@ pub(crate) enum VarReadFault {
         /// The id.
         var: VarId,
     },
-    /// A reader of a live variable at another dimension than its kind.
+    /// A reader of a live variable at a dimension its kind does not
+    /// read at.
     Kind {
         /// The variable.
         var: VarId,
-        /// The dimension its kind reads at.
-        declared: Dimension,
+        /// Its kind.
+        declared: crate::VarKind,
         /// The dimension the leaf reads it at.
         referenced: Dimension,
     },
@@ -764,9 +772,15 @@ impl FreeVar {
     }
 }
 
-/// The document: recipe DAG (node map + insertion-ordered list) +
-/// document metadata (spec D2; ratified F2's substrate). `P` is the
+/// The document: recipe DAG (the node map, in id order, which is the
+/// order the nodes were inserted in) + document metadata (spec D2; ratified F2's substrate). `P` is the
 /// opaque profile payload (spec D1/D3 — see [`Node`]).
+///
+/// Id order is topological — every input's id is less than its
+/// consumer's — **except where [`crate::DocEdit::SetMembers`] gives a
+/// union a member minted after it**: that door checks liveness and
+/// acyclicity, not order, so the union then points forward
+/// (`work/doors/a-member-set-after-its-union-points-forward-so-save-and-cascade-delete-break.md`).
 ///
 /// **A field added here that holds a [`StableName`] is placed in
 /// `Carrier` below**, which is the one enumeration of the document's
@@ -799,23 +813,15 @@ pub struct Doc<P> {
     /// removes and a step a `SetProgram` drops keep their log entries,
     /// so neither id is minted again.
     pub(crate) mint: crate::Mint,
-    /// The nodes, by stable id.
+    /// The nodes, by stable id. Ids order as they were minted, so the
+    /// map's order is the order the nodes were inserted in (the
+    /// recipe's presentation order; the DAG's edges are the nodes'
+    /// input refs, spec D3).
     #[serde(with = "crate::persist::strict::nodes")]
     pub(crate) nodes: BTreeMap<RecipeNodeId, Node<P>>,
-    /// Insertion order of the live nodes (the recipe's presentation
-    /// order; the DAG's edges are the nodes' input refs, spec D3).
-    pub(crate) order: Vec<RecipeNodeId>,
-    /// The document's ordered product roots (ASSEMBLY-DESIGN A10,
-    /// ASM-ROOTS D-1): document data, never a DAG node. Two invariants
-    /// hold at rest and after every edit — *coverage* (every node is
-    /// an ancestor of, or is, some root) and *ancestor-freedom* (no
-    /// root is a strict ancestor of another) — which together say the
-    /// root SET is exactly the DAG's sink set; the list adds the
-    /// product's solid ORDER, which is therefore semantic. No
-    /// duplicates; every entry is live.
-    pub(crate) roots: Vec<RecipeNodeId>,
-    /// **The variables** (VARIABLES-DESIGN VR1/VR3), by minted id. Every
-    /// key is logged in the mint as [`crate::Minted::Var`].
+    /// **The variables** (VARIABLES-DESIGN VR1/VR3), by minted id, so in
+    /// declaration order. Every key is logged in the mint as
+    /// [`crate::Minted::Var`].
     #[serde(with = "crate::persist::strict::vars")]
     pub(crate) vars: BTreeMap<VarId, Var>,
     /// **The variables' names** (VR2), beside the variables as
@@ -828,15 +834,6 @@ pub struct Doc<P> {
         with = "crate::persist::strict::var_names"
     )]
     pub(crate) var_names: BTreeMap<VarId, VarName>,
-    /// **The variables' declaration order** — `order`'s twin for the
-    /// variable table. Ids are digest output, so their numeric order
-    /// means nothing to an author; this is the one author-meaningful
-    /// order of the document's variables, and every lane that lists or
-    /// tie-breaks variables reads it ([`Self::free_vars`]). A
-    /// permutation of `vars`' keys (the load door checks it). Absent
-    /// from the wire while empty.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub(crate) var_order: Vec<VarId>,
     /// The recorded modeling tolerance ε (M4 PR 6 spec D4): new
     /// documents record the process's committed ambient ε; loading
     /// reconciles the recorded value against the process (one process
@@ -900,7 +897,10 @@ pub(crate) enum Carrier {
     /// carriers (DM7), so this variant names the field and not its
     /// contents.
     Payloads,
-    /// The appearance store's keys: a `StableName` under Declare's N5
+    /// The selections' names ([`crate::VarDef::Select`]): the names a
+    /// slot reads, each held by the variable that selects it.
+    Selections,
+    /// The appearance store's keys: a `StableName` under N5's dangling
     /// semantics (`DocEdit::SetAppearance`), held by the document
     /// itself rather than by any node.
     Appearance,
@@ -910,25 +910,33 @@ impl Carrier {
     /// Every carrier, in the order [`Doc::name_carriers`] walks them
     /// — which it walks them BY, so this is the order rather than a
     /// description of one.
-    pub(crate) const ALL: [Carrier; 2] = [Carrier::Payloads, Carrier::Appearance];
+    pub(crate) const ALL: [Carrier; 3] =
+        [Carrier::Payloads, Carrier::Selections, Carrier::Appearance];
 }
 
 /// **One [`StableName`] the document holds, and what holds it** — the
 /// element of [`Doc::name_carriers`].
 ///
-/// The two carriers are not the same shape and this does not flatten
-/// them: a payload name has a carrying node, which is the node a
-/// report names and a containment check tests; a store key has none,
-/// because the store holds the attachment itself. That difference is
-/// why DM7's report has two arms (`Maintenance::Strand` and
-/// `Maintenance::StrandedAppearance`), and they map onto these two
-/// variants one to one.
+/// The carriers are not the same shape and this does not flatten them:
+/// a payload name has a carrying node, which is the node a report names
+/// and a containment check tests; a selection's has a carrying
+/// variable; a store key has neither, because the store holds the
+/// attachment itself. DM7's report has one arm per variant
+/// (`Maintenance::Strand`, `Maintenance::StrandedSelection`,
+/// `Maintenance::StrandedAppearance`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum NameCarrier<'a> {
     /// A name in a live node's payload; that node carries it.
     Payload {
         /// The node whose payload holds the name.
         node: RecipeNodeId,
+        /// The name.
+        name: &'a StableName,
+    },
+    /// A name a selection holds; that variable carries it.
+    Select {
+        /// The selection.
+        var: VarId,
         /// The name.
         name: &'a StableName,
     },
@@ -952,7 +960,7 @@ impl<'a> NameCarrier<'a> {
     /// the accessor.
     pub(crate) fn name(self) -> &'a StableName {
         match self {
-            Self::Payload { name, .. } | Self::Store { name } => name,
+            Self::Payload { name, .. } | Self::Select { name, .. } | Self::Store { name } => name,
         }
     }
 }
@@ -971,11 +979,8 @@ impl<P> Doc<P> {
             id,
             mint: crate::Mint::empty(),
             nodes: BTreeMap::new(),
-            order: Vec::new(),
-            roots: Vec::new(),
             vars: BTreeMap::new(),
             var_names: BTreeMap::new(),
-            var_order: Vec::new(),
             epsilon: tol.eps(),
             witnesses: BTreeMap::new(),
             metadata: BTreeMap::new(),
@@ -1049,37 +1054,59 @@ impl<P> Doc<P> {
         self.mint.has_node(id)
     }
 
-    /// Live node ids in insertion order.
-    pub fn order(&self) -> &[RecipeNodeId] {
-        &self.order
+    /// **The live node ids, in id order**: the order the nodes were
+    /// inserted in, which is what every tie between nodes breaks by.
+    /// Topological except where `SetMembers` points a union forward
+    /// (see [`Doc`]).
+    pub fn ids(&self) -> Vec<RecipeNodeId> {
+        self.nodes.keys().copied().collect()
     }
 
-    /// **Each live node's position in [`Doc::order`]**: the order the
-    /// author placed the nodes in, which is what every tie between
-    /// nodes breaks by, since an id is a digest and says nothing of
-    /// seniority.
-    pub fn positions(&self) -> BTreeMap<RecipeNodeId, usize> {
-        self.order
+    /// **The world placements** (A10), in document order: the nodes
+    /// whose copies are the product.
+    pub fn placements(&self) -> Vec<RecipeNodeId> {
+        self.nodes
             .iter()
-            .enumerate()
-            .map(|(at, &id)| (id, at))
+            .filter(|(_, node)| matches!(node, Node::PlaceInWorld { .. }))
+            .map(|(&id, _)| id)
             .collect()
     }
 
-    /// The ordered product roots (A10): the gather order of the
-    /// document's product solids.
-    pub fn roots(&self) -> &[RecipeNodeId] {
-        &self.roots
+    /// **The unplaced bodies** (A10): every live `Body` or `Bodies`
+    /// output no world placement reads, a placement's own copy aside,
+    /// in document order. What a door needing a product names when the
+    /// world is empty ([`crate::ProductError::EmptyProduct`]); a
+    /// `Bodies` output (a pattern's) is placed through a `Part` pick of
+    /// one of its bodies.
+    pub fn unplaced(&self) -> Vec<VarId> {
+        let placed: std::collections::BTreeSet<VarId> = self
+            .nodes
+            .values()
+            .filter_map(|node| match node {
+                Node::PlaceInWorld { body, .. } if !body.is_indexed() => Some(body.read),
+                _ => None,
+            })
+            .collect();
+        self.nodes
+            .iter()
+            .filter(|(_, node)| !matches!(node, Node::PlaceInWorld { .. }))
+            .flat_map(|(&id, _)| self.outputs(id))
+            .filter(|var| {
+                self.vars.get(var).is_some_and(|v| {
+                    matches!(v.kind(), crate::VarKind::Body | crate::VarKind::Bodies)
+                }) && !placed.contains(var)
+            })
+            .collect()
     }
 
     /// Number of live nodes.
     pub fn len(&self) -> usize {
-        self.order.len()
+        self.nodes.len()
     }
 
     /// Whether the document has no live nodes.
     pub fn is_empty(&self) -> bool {
-        self.order.is_empty()
+        self.nodes.is_empty()
     }
 
     /// **Every faulty variable leaf of one expression**, in pre-order:
@@ -1089,26 +1116,34 @@ impl<P> Doc<P> {
     pub(crate) fn var_read_faults(&self, expr: &Expr) -> Vec<VarReadFault> {
         let mut reads = Vec::new();
         expr.var_reads(&mut reads);
+        self.var_read_faults_of(reads)
+    }
+
+    /// [`Self::var_read_faults`] of the reads `reads`, each a variable
+    /// and the dimension it is read at, in order.
+    pub(crate) fn var_read_faults_of(&self, reads: Vec<(VarId, Dimension)>) -> Vec<VarReadFault> {
         reads
             .into_iter()
             .filter_map(|(var, referenced)| match self.vars.get(&var) {
                 None if self.mint.has_var(var) => Some(VarReadFault::Dead { var }),
                 None => Some(VarReadFault::Unminted { var }),
-                Some(held) if held.kind().dimension() != referenced => Some(VarReadFault::Kind {
-                    var,
-                    declared: held.kind().dimension(),
-                    referenced,
-                }),
+                Some(held) if held.kind().dimension() != Some(referenced) => {
+                    Some(VarReadFault::Kind {
+                        var,
+                        declared: held.kind(),
+                        referenced,
+                    })
+                }
                 Some(_) => None,
             })
             .collect()
     }
 
     /// **The scope the edit door lowers a name in**: the variable the
-    /// document names `name`, with the dimension its kind reads at.
-    pub(crate) fn lowering_scope(&self, name: &VarName) -> Option<(VarId, Dimension)> {
+    /// document names `name`, and its kind.
+    pub(crate) fn lowering_scope(&self, name: &VarName) -> Option<(VarId, crate::VarKind)> {
         let id = self.var_named(name.as_str())?;
-        Some((id, self.vars.get(&id)?.kind().dimension()))
+        Some((id, self.vars.get(&id)?.kind()))
     }
 
     /// **The nodes that read `var`**, in document order: one walk over
@@ -1120,14 +1155,10 @@ impl<P> Doc<P> {
         P: crate::ProfilePayload,
     {
         let through = self.reached_through_definitions(var);
-        self.order
+        self.nodes
             .iter()
-            .copied()
-            .filter(|id| {
-                self.nodes
-                    .get(id)
-                    .is_some_and(|node| through.iter().any(|&v| node_reads(node, v)))
-            })
+            .filter(|(_, node)| through.iter().any(|&v| node_reads(node, v)))
+            .map(|(&id, _)| id)
             .collect()
     }
 
@@ -1138,12 +1169,7 @@ impl<P> Doc<P> {
         edges
             .position
             .get(&var)
-            .map(|&at| {
-                edges.definers[at]
-                    .iter()
-                    .map(|&d| self.var_order[d])
-                    .collect()
-            })
+            .map(|&at| edges.definers[at].iter().map(|&d| edges.ids[d]).collect())
             .unwrap_or_default()
     }
 
@@ -1155,7 +1181,7 @@ impl<P> Doc<P> {
         let mut frontier: Vec<usize> = edges.position.get(&var).copied().into_iter().collect();
         while let Some(at) = frontier.pop() {
             for &definer in &edges.definers[at] {
-                if reached.insert(self.var_order[definer]) {
+                if reached.insert(edges.ids[definer]) {
                     frontier.push(definer);
                 }
             }
@@ -1167,8 +1193,15 @@ impl<P> Doc<P> {
     /// free variable.
     pub(crate) fn definition_reads(&self, var: VarId) -> Vec<VarId> {
         let mut reads = Vec::new();
-        if let Some(expr) = self.vars.get(&var).and_then(|v| v.def().defined()) {
-            expr.var_reads(&mut reads);
+        match self.vars.get(&var).map(Var::def) {
+            Some(VarDef::Defined(expr)) => expr.var_reads(&mut reads),
+            Some(VarDef::Select(select)) => return vec![select.body],
+            Some(VarDef::Pose(def)) => {
+                let mut out: Vec<VarId> = def.reads().into_iter().map(|(_, &r, _)| r).collect();
+                out.extend(def.scalars().into_iter().map(|(_, &s)| s));
+                return out;
+            }
+            Some(VarDef::Free(_) | VarDef::Output { .. }) | None => {}
         }
         reads.into_iter().map(|(read, _)| read).collect()
     }
@@ -1178,28 +1211,27 @@ impl<P> Doc<P> {
     /// definitions reads it, so each is linear in the variables and
     /// their reads.
     fn definition_edges(&self) -> DefinitionEdges {
-        let position: BTreeMap<VarId, usize> = self
-            .var_order
-            .iter()
-            .enumerate()
-            .map(|(at, &id)| (id, at))
-            .collect();
-        let mut reads = vec![Vec::new(); self.var_order.len()];
-        let mut definers = vec![Vec::new(); self.var_order.len()];
+        let ids = self.var_ids();
+        let position: BTreeMap<VarId, usize> =
+            ids.iter().enumerate().map(|(at, &id)| (id, at)).collect();
+        let mut reads = vec![Vec::new(); ids.len()];
+        let mut definers = vec![Vec::new(); ids.len()];
         let mut any = false;
         for (at, read_by) in reads.iter_mut().enumerate() {
-            let Some(expr) = self
-                .vars
-                .get(&self.var_order[at])
-                .and_then(|v| v.def().defined())
-            else {
+            // A pose definition is ordered by what it reads as a defined
+            // variable is: its reads and its scalars, so a walk in
+            // definition order (`observed`, the bindings) meets each
+            // after everything it reads.
+            if !matches!(
+                self.vars.get(&ids[at]).map(Var::def),
+                Some(VarDef::Defined(_) | VarDef::Pose(_))
+            ) {
                 continue;
-            };
-            let mut leaves = Vec::new();
-            expr.var_reads(&mut leaves);
-            let mut held: Vec<usize> = leaves
+            }
+            let mut held: Vec<usize> = self
+                .definition_reads(ids[at])
                 .into_iter()
-                .filter_map(|(read, _)| position.get(&read).copied())
+                .filter_map(|read| position.get(&read).copied())
                 .collect();
             held.sort_unstable();
             held.dedup();
@@ -1210,6 +1242,7 @@ impl<P> Doc<P> {
             *read_by = held;
         }
         DefinitionEdges {
+            ids,
             position,
             reads,
             definers,
@@ -1217,13 +1250,6 @@ impl<P> Doc<P> {
         }
     }
 
-    /// **The anonymous variables nothing live reads** (VR7), in the
-    /// order a cascading removal reports them: a variable is live when
-    /// it is named, when a node reads it, or when the definition of a
-    /// live variable reads it. Each round takes, in declaration order,
-    /// the anonymous variables read by no node and by no definition of
-    /// a variable still standing — so a defined variable comes before
-    /// the variables only its definition read.
     /// **Whether `var` is a typed value**: an anonymous free variable,
     /// what a value written at a slot lowers to. A value gesture or a
     /// re-notation on a slot reading one moves it in place, keeping its
@@ -1233,11 +1259,61 @@ impl<P> Doc<P> {
         !self.var_names.contains_key(&var) && self.free(var).is_some()
     }
 
+    /// **How many readers each variable has** (VR2): each slot holding
+    /// it — a measure's value leaves and an assertion's bound among
+    /// them (VR4) — each operand reading it, and each definition reading
+    /// it, however often that one definition reads it. The one census
+    /// of readers: the VR7 sweep ([`Self::unread_anonymous_vars`]) and
+    /// the share check ([`Self::shared_unnamed_vars`]) both ask it.
+    pub fn reader_counts(&self) -> BTreeMap<VarId, usize>
+    where
+        P: crate::ProfilePayload,
+    {
+        let mut readers: BTreeMap<VarId, usize> = BTreeMap::new();
+        for node in self.nodes.values() {
+            let slots = node.exprs().into_iter().copied();
+            let operands = node.operand_rows().into_iter().map(|(_, var)| var);
+            for var in slots.chain(operands) {
+                *readers.entry(var).or_default() += 1;
+            }
+        }
+        for var in self.vars.keys() {
+            for read in self
+                .definition_reads(*var)
+                .into_iter()
+                .collect::<BTreeSet<_>>()
+            {
+                *readers.entry(read).or_default() += 1;
+            }
+        }
+        readers
+    }
+
+    /// **The unnamed variables more than one reader reads**, in id
+    /// order: what no door admits (VR2, VR7) and the load door refuses
+    /// (VR9). An output is not among them: it is read by its readers
+    /// and named by its operation and port.
+    pub fn shared_unnamed_vars(&self) -> Vec<VarId>
+    where
+        P: crate::ProfilePayload,
+    {
+        let readers = self.reader_counts();
+        self.vars
+            .iter()
+            .filter(|(id, var)| {
+                !self.var_names.contains_key(id)
+                    && var.def().output().is_none()
+                    && readers.get(id).is_some_and(|&n| n > 1)
+            })
+            .map(|(&id, _)| id)
+            .collect()
+    }
+
     /// **The anonymous variables [`Node::written`] would not reproduce**:
-    /// one read more than once — by two slots, as a fresh entry shared
-    /// within one edit, or by a slot and a definition — which a written
-    /// re-insert splits into one per reader, and one that carries a
-    /// distribution, which a value written at a slot cannot carry.
+    /// one its one reader's formula reads more than once, which a
+    /// written re-insert splits into one per read, and a count read by
+    /// a definition, which written there reads back as the integer
+    /// constant.
     /// Rebuilding a document by re-inserting its nodes as written is
     /// the document only where this is empty and no anonymous variable
     /// was value-edited after its insert (whose mint read the old
@@ -1254,59 +1330,74 @@ impl<P> Doc<P> {
                 *reads.entry(var).or_default() += 1;
             }
         }
+        let mut defining = std::collections::BTreeSet::new();
         for held in self.vars.values() {
             if let crate::VarDef::Defined(defined) = held.def() {
                 let mut read = Vec::new();
                 defined.var_reads(&mut read);
                 for (var, _) in read {
                     *reads.entry(var).or_default() += 1;
+                    defining.insert(var);
                 }
             }
         }
-        self.var_order
-            .iter()
+        self.vars
+            .keys()
             .copied()
             .filter(|var| !self.var_names.contains_key(var))
             .filter(|var| {
                 reads.get(var).copied().unwrap_or(0) > 1
-                    || self.free(*var).and_then(FreeVar::distribution).is_some()
+                    || (defining.contains(var)
+                        && matches!(self.free(*var), Some(FreeVar::Count { .. })))
             })
             .collect()
     }
 
+    /// **The anonymous variables nothing live reads** (VR7), in the
+    /// order a cascading removal reports them: an unnamed variable with
+    /// no reader ([`Self::reader_counts`]) goes, and so, round by round,
+    /// does one whose only readers were definitions of variables that
+    /// went. An output is not among them: it lives exactly as long as
+    /// its node. Each round is in declaration order, so a defined
+    /// variable comes before the variables only its definition read.
     pub(crate) fn unread_anonymous_vars(&self) -> Vec<VarId>
     where
         P: crate::ProfilePayload,
     {
-        let mut node_read = BTreeSet::new();
-        for node in self.nodes.values() {
-            node_read.extend(node.exprs().into_iter().copied());
-        }
+        let counts = self.reader_counts();
         let edges = self.definition_edges();
         let unheld = |at: usize| {
-            let id = self.var_order[at];
-            !self.var_names.contains_key(&id) && !node_read.contains(&id)
+            let id = edges.ids[at];
+            !self.var_names.contains_key(&id)
+                && self
+                    .vars
+                    .get(&id)
+                    .is_some_and(|var| var.def().output().is_none())
         };
-        // How many standing definitions read each variable: a round
-        // removes its variables' reads, and a variable whose count
-        // falls to none joins the next round.
-        let mut holders: Vec<usize> = edges.definers.iter().map(Vec::len).collect();
-        let mut round: Vec<usize> = (0..self.var_order.len())
-            .filter(|&at| holders[at] == 0 && unheld(at))
+        // Each variable's readers still standing: a round removes its
+        // variables' definitions, and a variable whose count falls to
+        // none joins the next round.
+        let mut readers: Vec<usize> = edges
+            .ids
+            .iter()
+            .map(|id| counts.get(id).copied().unwrap_or(0))
+            .collect();
+        let mut round: Vec<usize> = (0..edges.ids.len())
+            .filter(|&at| readers[at] == 0 && unheld(at))
             .collect();
         let mut removed = Vec::new();
         while !round.is_empty() {
             let mut next = Vec::new();
             for &at in &round {
                 for &read in &edges.reads[at] {
-                    holders[read] -= 1;
-                    if holders[read] == 0 && unheld(read) {
+                    readers[read] -= 1;
+                    if readers[read] == 0 && unheld(read) {
                         next.push(read);
                     }
                 }
             }
             next.sort_unstable();
-            removed.extend(round.iter().map(|&at| self.var_order[at]));
+            removed.extend(round.iter().map(|&at| edges.ids[at]));
             round = next;
         }
         removed
@@ -1315,7 +1406,7 @@ impl<P> Doc<P> {
     /// **The order definitions evaluate in**: every variable, each
     /// after the variables its definition reads, ties broken by
     /// declaration order — so a document with no definition lists
-    /// [`Self::var_order`]. A variable on a definition cycle, or
+    /// [`Self::var_ids`]. A variable on a definition cycle, or
     /// reading one, which no door admits, comes last, in declaration
     /// order. Kahn's algorithm over [`Self::definition_edges`], the
     /// earliest-declared ready variable first.
@@ -1323,12 +1414,132 @@ impl<P> Doc<P> {
         self.ordered().0
     }
 
+    /// **The observed variables** (D10): every [`Node::Measure`]'s
+    /// output — a function of the built geometry — and every definition
+    /// reading one, directly or through another definition, a pose
+    /// definition's included. Only an
+    /// assertion reads one ([`crate::EditError::ConstructionReadsObserved`]).
+    pub fn observed(&self) -> std::collections::BTreeSet<VarId> {
+        let mut observed: std::collections::BTreeSet<VarId> = self
+            .vars
+            .keys()
+            .copied()
+            .filter(|&id| self.measured_output(id))
+            .collect();
+        if observed.is_empty() {
+            return observed;
+        }
+        for id in self.definition_order() {
+            // A pose definition is a definition too: a standoff by a
+            // measured length is as observed as the length.
+            if !matches!(
+                self.vars.get(&id).map(Var::def),
+                Some(VarDef::Defined(_) | VarDef::Pose(_))
+            ) {
+                continue;
+            }
+            if self
+                .definition_reads(id)
+                .iter()
+                .any(|read| observed.contains(read))
+            {
+                observed.insert(id);
+            }
+        }
+        observed
+    }
+
+    /// **The first slot of `node` reading an observed variable**
+    /// (`observed`, [`Self::observed`]), with the variable, when `node`
+    /// is a construction: every node but an assertion, which is the one
+    /// reader of a measured value (D10). `None` otherwise.
+    pub(crate) fn observed_read(
+        &self,
+        observed: &std::collections::BTreeSet<VarId>,
+        node: &Node<P>,
+    ) -> Option<(crate::SlotId, VarId)>
+    where
+        P: crate::ProfilePayload,
+    {
+        if observed.is_empty() || matches!(node, Node::Assertion { .. }) {
+            return None;
+        }
+        node.rows()
+            .into_iter()
+            .find(|(_, var)| observed.contains(var))
+            .map(|(slot, &var)| (slot, var))
+            .or_else(|| {
+                // An operand reads an observed variable through a pose
+                // definition that reads one.
+                node.operand_rows()
+                    .into_iter()
+                    .find(|(_, var)| observed.contains(var))
+                    .map(|(slot, var)| (crate::SlotId::Operand(slot), var))
+            })
+    }
+
+    /// **The first construction in this document reading an observed
+    /// variable** ([`Self::observed_read`]), in node order: the node,
+    /// the slot and the variable. `None` for a document in which only
+    /// assertions read measured values.
+    pub(crate) fn observed_read_fault(&self) -> Option<(RecipeNodeId, crate::SlotId, VarId)>
+    where
+        P: crate::ProfilePayload,
+    {
+        let observed = self.observed();
+        if observed.is_empty() {
+            return None;
+        }
+        self.nodes.iter().find_map(|(&id, node)| {
+            self.observed_read(&observed, node)
+                .map(|(slot, var)| (id, slot, var))
+        })
+    }
+
+    /// **The measures' outputs `var` reads**, through definitions: `var`
+    /// itself when it is one, else every one its definition's closure
+    /// reads, each once, in first-read order. Empty for a variable that
+    /// is not observed ([`Self::observed`]).
+    pub fn observed_outputs(&self, var: VarId) -> Vec<VarId> {
+        let mut out = Vec::new();
+        let mut seen = std::collections::BTreeSet::new();
+        let mut stack = vec![var];
+        while let Some(at) = stack.pop() {
+            if !seen.insert(at) {
+                continue;
+            }
+            let Some(held) = self.vars.get(&at) else {
+                continue;
+            };
+            if held.def().output().is_some() {
+                if self.measured_output(at) {
+                    out.push(at);
+                }
+                continue;
+            }
+            if let Some(expr) = held.def().defined() {
+                let mut reads = Vec::new();
+                expr.var_reads(&mut reads);
+                stack.extend(reads.into_iter().rev().map(|(read, _)| read));
+            }
+        }
+        out
+    }
+
+    /// Whether `var` is a [`Node::Measure`]'s output: the one kind of
+    /// output that is observed.
+    fn measured_output(&self, var: VarId) -> bool {
+        self.operation_of(var)
+            .is_some_and(|node| matches!(self.nodes.get(&node), Some(Node::Measure { .. })))
+    }
+
     /// [`Self::definition_order`], and how many of its variables
     /// Kahn's algorithm placed: the rest are on a cycle or read one.
     fn ordered(&self) -> (Vec<VarId>, usize) {
         let edges = self.definition_edges();
         if !edges.any {
-            return (self.var_order.clone(), self.var_order.len());
+            let placed = edges.ids.len();
+            return (edges.ids, placed);
         }
         let mut waiting: Vec<usize> = edges.reads.iter().map(Vec::len).collect();
         let mut ready: std::collections::BinaryHeap<std::cmp::Reverse<usize>> = (0..waiting.len())
@@ -1338,7 +1549,7 @@ impl<P> Doc<P> {
         let mut placed = vec![false; waiting.len()];
         let mut order = Vec::with_capacity(waiting.len());
         while let Some(std::cmp::Reverse(at)) = ready.pop() {
-            order.push(self.var_order[at]);
+            order.push(edges.ids[at]);
             placed[at] = true;
             for &definer in &edges.definers[at] {
                 waiting[definer] -= 1;
@@ -1349,7 +1560,8 @@ impl<P> Doc<P> {
         }
         let ordered = order.len();
         order.extend(
-            self.var_order
+            edges
+                .ids
                 .iter()
                 .zip(&placed)
                 .filter(|(_, placed)| !**placed)
@@ -1427,7 +1639,7 @@ impl<P> Doc<P> {
             return Some(ExpansionFault::Cycle { var, through });
         }
         let sizes = self.expansion_nodes(&order);
-        self.var_order.iter().find_map(|id| {
+        self.vars.keys().find_map(|id| {
             let nodes = *sizes.get(id)?;
             (nodes > crate::edit::DEFINITION_NODE_BOUND)
                 .then_some(ExpansionFault::TooLarge { var: *id, nodes })
@@ -1447,10 +1659,37 @@ impl<P> Doc<P> {
         formula.lower(&|name| self.lowering_scope(name))
     }
 
-    /// **The text of `expr`**, its readers written by the names this
-    /// document holds ([`crate::unparse`]).
+    /// **`formula` with its names read by id**: every name replaced by
+    /// a reader of the variable this document names so, its written
+    /// quantities kept — the formula a slot's [`Self::slot_expansion`]
+    /// is compared against, and the one a caller evaluates against this
+    /// document without storing it.
+    ///
+    /// # Errors
+    ///
+    /// The first name, in pre-order, the document does not hold at the
+    /// kind it is read at, or fresh-table read ([`crate::LowerFault`]).
+    pub fn resolve(&self, formula: &crate::Formula) -> Result<crate::Formula, crate::LowerFault> {
+        let scope = |name: &VarName| self.lowering_scope(name);
+        match formula.unresolved(&scope, &[]) {
+            Some(fault) => Err(fault),
+            None => Ok(formula.lower_held(&scope)),
+        }
+    }
+
+    /// **The text of `expr`**, as written: its readers of a named
+    /// variable written by the names this document holds, each reader
+    /// of an anonymous one by what it holds ([`Self::written`]) — a
+    /// written value in its unit (`5 mm`), a definition expanded — and
+    /// a reader of a variable the document does not hold by its full id
+    /// ([`crate::unparse`]). An anonymous variable has one reader
+    /// (VR2), so the text set back where it was read re-mints it for
+    /// that reader alone: no share is split, and a shared variable is
+    /// written by its name.
     pub fn unparse<L: crate::expr::LeafSet>(&self, expr: &crate::expr::ExprTree<L>) -> String {
-        crate::expr::unparse(expr, &|id| self.var_names.get(&id))
+        crate::expr::unparse(&self.written_formula(&expr.to_formula()), &|id| {
+            self.var_names.get(&id)
+        })
     }
 
     /// The variables, by id.
@@ -1461,6 +1700,320 @@ impl<P> Doc<P> {
     /// The variable `id`, if live.
     pub fn var(&self, id: VarId) -> Option<&Var> {
         self.vars.get(&id)
+    }
+
+    /// **The operation `var` is an output of**, and its port: `None`
+    /// for a variable this document does not hold, or one no operation
+    /// defines.
+    pub fn defined_by(&self, var: VarId) -> Option<(RecipeNodeId, u8)> {
+        self.vars.get(&var)?.def().output()
+    }
+
+    /// **The operation `var` is an output of** ([`Self::defined_by`]
+    /// without the port).
+    pub fn operation_of(&self, var: VarId) -> Option<RecipeNodeId> {
+        self.defined_by(var).map(|(node, _)| node)
+    }
+
+    /// **The selection `var` is defined by**, if it is one.
+    pub fn selection(&self, var: VarId) -> Option<&crate::var::Select> {
+        self.vars.get(&var)?.def().select()
+    }
+
+    /// **Rewrites the names of the selections of `body` through `map`**,
+    /// all at once, returning how many it rewrote: `map` answers the
+    /// name a selection now holds, or `None` to leave it. Each selection
+    /// rewritten returns to its kind's stored form
+    /// ([`crate::var::Select::canonical`]), so a rewrite onto an
+    /// already-selected entity shrinks the set by one; a singleton keeps
+    /// its one name. `Rebind`'s reach into the selections (N5's one
+    /// repair, addressed by body and name).
+    pub(crate) fn rewrite_selection_names(
+        &mut self,
+        body: VarId,
+        map: &mut dyn FnMut(&StableName) -> Option<StableName>,
+    ) -> usize {
+        let mut hits = 0usize;
+        for var in self.vars.values_mut() {
+            let kind = var.kind();
+            let Some(select) = var.select_mut() else {
+                continue;
+            };
+            if select.body != body {
+                continue;
+            }
+            let mut here = 0usize;
+            for name in &mut select.names {
+                if let Some(next) = map(name) {
+                    *name = next;
+                    here += 1;
+                }
+            }
+            if here > 0 {
+                select.names =
+                    crate::var::Select::canonical(kind, core::mem::take(&mut select.names));
+                hits += here;
+            }
+        }
+        hits
+    }
+
+    /// **The operation an operand reading `var` depends on**: the one
+    /// `var` is an output of, or for a selection the one its body is.
+    /// `None` for a read this document does not resolve.
+    pub fn read_operation(&self, var: VarId) -> Option<RecipeNodeId> {
+        match self.selection(var) {
+            Some(select) => self.operation_of(select.body),
+            None => self.operation_of(var),
+        }
+    }
+
+    /// **A read as it was written**: an anonymous selection as the
+    /// selection it is, an anonymous pose as its definition, each read
+    /// within written the same way and each scalar as the formula it
+    /// was written as; any other read by id.
+    pub fn written_operand(&self, var: VarId) -> crate::Operand {
+        if self.var_names.contains_key(&var) {
+            return crate::Operand::Var(var);
+        }
+        match self.vars.get(&var).map(Var::def) {
+            Some(VarDef::Select(select)) => {
+                crate::Operand::select(crate::Operand::Var(select.body), select.names.clone())
+            }
+            Some(VarDef::Pose(def)) => {
+                let written = def.try_map(
+                    &mut |_, &read| Ok::<_, core::convert::Infallible>(self.written_operand(read)),
+                    &mut |slot, &scalar| {
+                        Ok(crate::Formula::from(
+                            self.written(&crate::Expr::var(scalar, slot.dimension())),
+                        ))
+                    },
+                );
+                let Ok(written) = written;
+                crate::Operand::Pose(Box::new(written))
+            }
+            _ => crate::Operand::Var(var),
+        }
+    }
+
+    /// **The operations and ports a read reaches** (D10: reading is the
+    /// only dependency): an output's own, a selection's body's, and for
+    /// a pose definition every one its reads reach, through nested
+    /// definitions, in read order, each once. Its scalars reach no
+    /// operation: a construction reads what was written. Empty for a
+    /// read this document does not resolve.
+    pub fn read_ports(&self, var: VarId) -> Vec<(RecipeNodeId, u8)> {
+        let mut out = Vec::new();
+        self.push_read_ports(var, &mut out, &mut BTreeSet::new());
+        out
+    }
+
+    fn push_read_ports(
+        &self,
+        var: VarId,
+        out: &mut Vec<(RecipeNodeId, u8)>,
+        seen: &mut BTreeSet<VarId>,
+    ) {
+        if !seen.insert(var) {
+            return;
+        }
+        let Some(held) = self.vars.get(&var) else {
+            return;
+        };
+        let at = match held.def() {
+            VarDef::Output { node, port } => Some((*node, *port)),
+            VarDef::Select(select) => self.defined_by(select.body),
+            VarDef::Pose(def) => {
+                for (_, &read, _) in def.reads() {
+                    self.push_read_ports(read, out, seen);
+                }
+                None
+            }
+            VarDef::Free(_) | VarDef::Defined(_) => None,
+        };
+        if let Some(at) = at
+            && !out.contains(&at)
+        {
+            out.push(at);
+        }
+    }
+
+    /// **The first variable a read reaches that the document does not
+    /// hold, or that names a body no live operation defines**: a
+    /// deleted operation leaves its readers unresolved (D10), and a
+    /// selection's or a pose definition's readers with them. `None`
+    /// when the read resolves.
+    pub fn unresolved_read(&self, var: VarId) -> Option<VarId> {
+        let Some(held) = self.vars.get(&var) else {
+            return Some(var);
+        };
+        match held.def() {
+            VarDef::Output { .. } => self.operation_of(var).is_none().then_some(var),
+            VarDef::Select(select) => self
+                .operation_of(select.body)
+                .is_none()
+                .then_some(select.body),
+            VarDef::Pose(def) => def
+                .reads()
+                .into_iter()
+                .find_map(|(_, &read, _)| self.unresolved_read(read)),
+            VarDef::Free(_) | VarDef::Defined(_) => Some(var),
+        }
+    }
+
+    /// **The operations `node` depends on** (D10: reading is the only
+    /// dependency): the operations defining the variables its operands
+    /// read ([`Node::operand_rows`]), then those defining the measured
+    /// values its expressions read through definitions
+    /// ([`Self::observed_outputs`]: an assertion's value); a selection
+    /// read is its body's operation, and a pose definition's every one
+    /// its reads reach ([`Self::read_ports`]). In read
+    /// order, each once; a read this document does not resolve
+    /// contributes nothing (an unresolved read is the reader's refusal at
+    /// evaluation, not an edge). Empty for a node this document does not
+    /// hold.
+    ///
+    /// A slot reads free and defined variables, which no operation
+    /// defines; a slot reading an operation's output refuses at
+    /// evaluation ([`crate::EvalError::OutputRead`]), so it adds no
+    /// edge.
+    pub fn upstream(&self, node: RecipeNodeId) -> Vec<RecipeNodeId>
+    where
+        P: crate::ProfilePayload,
+    {
+        self.nodes
+            .get(&node)
+            .map_or_else(Vec::new, |n| self.upstream_of(n))
+    }
+
+    /// [`Self::upstream`] of a node read in this document, live or not.
+    pub(crate) fn upstream_of(&self, node: &Node<P>) -> Vec<RecipeNodeId>
+    where
+        P: crate::ProfilePayload,
+    {
+        let mut out: Vec<RecipeNodeId> = Vec::new();
+        let observed = node
+            .exprs()
+            .into_iter()
+            .flat_map(|&var| self.observed_outputs(var))
+            .filter_map(|var| self.operation_of(var));
+        let at = node
+            .operand_rows()
+            .into_iter()
+            .flat_map(|(_, var)| self.read_ports(var))
+            .map(|(at, _)| at)
+            .chain(observed);
+        for id in at {
+            if !out.contains(&id) {
+                out.push(id);
+            }
+        }
+        out
+    }
+
+    /// **What is wrong with reading `held` at a seat admitting
+    /// `expected`** (D10), if anything: a kind the seat does not admit
+    /// ([`crate::SlotKind::admits`]); or, for a reader that
+    /// constructs, a world placement's copy, read directly or through a
+    /// selection of it (D10: construction never reads the world; a
+    /// measure observes a copy's placed geometry). Asked of a live read
+    /// by every door that writes or loads one — the edit doors' lowering
+    /// and the load door's operand walk — so the rule is stated once;
+    /// liveness is each door's own question, asked before.
+    pub(crate) fn read_fault(
+        &self,
+        held: &crate::Var,
+        expected: crate::SlotKind,
+        reader: Reader,
+    ) -> Option<ReadFault> {
+        if !expected.admits(held) {
+            return Some(ReadFault::Kind { found: held.kind() });
+        }
+        // A selection reads its body: constructing from a face of a copy
+        // reads the copy, whichever seat minted the selection.
+        if let (Reader::Constructs, Some(select)) = (reader, held.def().select()) {
+            let (body, _) = self.var(select.body)?.def().output()?;
+            return matches!(self.node(body), Some(Node::PlaceInWorld { .. }))
+                .then_some(ReadFault::WorldCopy { placement: body });
+        }
+        let (from, _) = held.def().output()?;
+        (reader == Reader::Constructs && matches!(self.node(from), Some(Node::PlaceInWorld { .. })))
+            .then_some(ReadFault::WorldCopy { placement: from })
+    }
+
+    /// **The variable port `port` of `node` defines**
+    /// ([`crate::VarDef::Output`]), if `node` is live and has that port.
+    pub fn output(&self, node: RecipeNodeId, port: u8) -> Option<VarId> {
+        self.vars
+            .iter()
+            .find(|(_, var)| var.def().output() == Some((node, port)))
+            .map(|(&id, _)| id)
+    }
+
+    /// **What an operand naming `node` alone reads**
+    /// ([`crate::Operand::Node`], spec Q5): its one output. `None` for a
+    /// node that is not live, defines nothing, or defines several
+    /// outputs (a revolve's body and axis, a split's two halves), whose
+    /// read names its port; the edit door refuses each typed.
+    pub fn read_of_node(&self, node: RecipeNodeId) -> Option<VarId> {
+        match self.outputs(node).as_slice() {
+            [one] => Some(*one),
+            _ => None,
+        }
+    }
+
+    /// **The variables `node` defines**, in port order: one per port of
+    /// its signature ([`Node::outputs`]) while it is live, none once it
+    /// is gone.
+    ///
+    /// One pass over the variable table, as [`Self::output`] is: an
+    /// edit already copies the document, so a door asking it per node
+    /// it removes stays linear in the table.
+    pub fn outputs(&self, node: RecipeNodeId) -> Vec<VarId> {
+        let mut ports: Vec<(u8, VarId)> = self
+            .vars
+            .iter()
+            .filter_map(|(&id, var)| match var.def().output() {
+                Some((of, port)) if of == node => Some((port, id)),
+                _ => None,
+            })
+            .collect();
+        ports.sort_unstable();
+        ports.into_iter().map(|(_, id)| id).collect()
+    }
+
+    /// **`node`'s signature resolved**: each port's name and kind, a
+    /// placer's read off the variable it reads ([`crate::PortKind::Placed`]).
+    /// `None` when `node`, or the variable a placer reads, is not live.
+    pub fn signature(&self, node: RecipeNodeId) -> Option<Vec<(&'static str, crate::VarKind)>> {
+        self.signature_of(self.nodes.get(&node)?)
+    }
+
+    /// [`Self::signature`] of `node`, read in this document.
+    pub(crate) fn signature_of(
+        &self,
+        node: &Node<P>,
+    ) -> Option<Vec<(&'static str, crate::VarKind)>> {
+        node.outputs()
+            .into_iter()
+            .map(|port| {
+                let kind = match port.kind {
+                    crate::PortKind::Of(kind) => kind,
+                    // A placer has the shape of what it reads: `Bodies`
+                    // over a `Bodies`, `Body` otherwise.
+                    crate::PortKind::Placed => {
+                        let Node::Transform { input, .. } = node else {
+                            unreachable!("only a transform's port is placed")
+                        };
+                        match self.vars.get(input)?.kind() {
+                            crate::VarKind::Bodies => crate::VarKind::Bodies,
+                            _ => crate::VarKind::Body,
+                        }
+                    }
+                };
+                Some((port.name, kind))
+            })
+            .collect()
     }
 
     /// The free variable `id`, if live and free.
@@ -1478,14 +2031,15 @@ impl<P> Doc<P> {
     /// name is read off it with [`Self::var_name`] where a lane needs
     /// one.
     pub fn free_vars(&self) -> impl Iterator<Item = (VarId, &FreeVar)> + '_ {
-        self.var_order
+        self.vars
             .iter()
-            .filter_map(|&id| Some((id, self.vars.get(&id)?.free()?)))
+            .filter_map(|(&id, var)| Some((id, var.free()?)))
     }
 
-    /// The variables in declaration order ([`Self::free_vars`]'s base).
-    pub fn var_order(&self) -> &[VarId] {
-        &self.var_order
+    /// **The variable ids, in id order**: the order they were declared
+    /// in ([`Self::free_vars`]'s base).
+    pub fn var_ids(&self) -> Vec<VarId> {
+        self.vars.keys().copied().collect()
     }
 
     /// The name the document holds for `id`, if any.
@@ -1511,18 +2065,43 @@ impl<P> Doc<P> {
         self.var_named(name).and_then(|id| self.free(id))
     }
 
-    /// **The parser's scope**: every named variable, by name, at the
-    /// dimension a reader reads it at.
+    /// **The parser's scope**: every named scalar variable, by name, at
+    /// the dimension a reader reads it at. A named output of a
+    /// reference kind is no parameter of a formula.
     pub fn var_scope(&self) -> BTreeMap<VarName, Dimension> {
         self.var_names
             .iter()
-            .filter_map(|(id, name)| Some((name.clone(), self.vars.get(id)?.kind().dimension())))
+            .filter_map(|(id, name)| Some((name.clone(), self.vars.get(id)?.kind().dimension()?)))
             .collect()
     }
 
     /// `id` as a sentence names it: its name, or `variable <tag>`.
     pub fn spoken_var(&self, id: VarId) -> crate::spoken::SpokenVar {
         crate::spoken::SpokenVar::new(id, self.var_names.get(&id).cloned())
+    }
+
+    /// **A value as a report speaks it**: a named variable by its name,
+    /// an operation's output as the value of its operation, and an
+    /// unnamed definition as the value its one reader reads (VR7: it is
+    /// spoken by its reader).
+    pub fn spoken_value(&self, id: VarId) -> String
+    where
+        P: crate::ProfilePayload,
+    {
+        if let Some(name) = self.var_names.get(&id) {
+            return name.to_string();
+        }
+        if let Some(node) = self.operation_of(id) {
+            return format!("the value of {}", self.spoken(node));
+        }
+        match self
+            .nodes
+            .iter()
+            .find(|(_, node)| node.exprs().contains(&&id))
+        {
+            Some((&reader, _)) => format!("the value {} reads", self.spoken(reader)),
+            None => self.spoken_var(id).to_string(),
+        }
     }
 
     /// **How a declare of `def` under `name` speaks its variable**:
@@ -1658,16 +2237,18 @@ impl<P> Doc<P> {
     /// collecting version built eagerly.
     fn names_in(&self, carrier: Carrier) -> Box<dyn Iterator<Item = NameCarrier<'_>> + '_> {
         match carrier {
-            Carrier::Payloads => Box::new(
-                self.order
-                    .iter()
-                    .filter_map(|&id| self.nodes.get(&id).map(|node| (id, node)))
-                    .flat_map(|(id, node)| {
-                        node.payload_names()
-                            .into_iter()
-                            .map(move |name| NameCarrier::Payload { node: id, name })
-                    }),
-            ),
+            Carrier::Payloads => Box::new(self.nodes.iter().flat_map(|(&id, node)| {
+                node.payload_names()
+                    .into_iter()
+                    .map(move |name| NameCarrier::Payload { node: id, name })
+            })),
+            Carrier::Selections => Box::new(self.vars.iter().flat_map(|(&var, held)| {
+                held.def()
+                    .select()
+                    .into_iter()
+                    .flat_map(|select| select.names.iter())
+                    .map(move |name| NameCarrier::Select { var, name })
+            })),
             Carrier::Appearance => Box::new(
                 self.appearance
                     .keys()
@@ -1714,13 +2295,13 @@ impl<P> Doc<P> {
 
     /// **What a node's slot reads, as written**: a reader of its
     /// variable, each anonymous variable it reaches replaced by what it
-    /// holds — a free one by its value in the unit it was written in, a
-    /// defined one by its definition, expanded the same way — so the
-    /// formula the slot was written as, every name read by id. `None`
-    /// if the node is gone or the slot absent; a reader of the slot's
-    /// variable where the expansion would nest past the bound every
-    /// expression is held to.
-    pub fn slot_expansion(&self, node: RecipeNodeId, slot: SlotId) -> Option<Expr>
+    /// holds — a free one by the quantity it holds, in the unit it was
+    /// written in and with its distribution, a defined one by its
+    /// definition, expanded the same way — so the formula the slot was
+    /// written as, every name read by id. `None` if the node is gone or
+    /// the slot absent; a reader of the slot's variable where the
+    /// expansion would nest past the bound every expression is held to.
+    pub fn slot_expansion(&self, node: RecipeNodeId, slot: SlotId) -> Option<crate::Formula>
     where
         P: crate::ProfilePayload,
     {
@@ -1728,16 +2309,29 @@ impl<P> Doc<P> {
         let dim = self
             .vars
             .get(&var)
-            .map_or(slot.dimension(), |v| v.kind().dimension());
+            .and_then(|v| v.kind().dimension())
+            .unwrap_or_else(|| slot.expr_dimension());
         Some(self.written(&Expr::var(var, dim)))
     }
 
     /// **`expr` as written**: each anonymous variable it reaches
     /// replaced by what it holds ([`Self::slot_expansion`]); `expr`
     /// itself where that would nest past the bound.
-    pub fn written(&self, expr: &Expr) -> Expr {
-        self.anonymous_expansion(expr)
-            .unwrap_or_else(|_| expr.clone())
+    ///
+    /// A free variable is written as the quantity it holds, its
+    /// correctly-rounded double, so a constant typed alone at a slot
+    /// reads back as that value and not as its spelling: `1/3` typed
+    /// at a `Scalar` slot mints a free variable holding
+    /// `0.3333333333333333` (Q1), and that is what it reads back as.
+    pub fn written(&self, expr: &Expr) -> crate::Formula {
+        self.written_formula(&crate::Formula::from(expr))
+    }
+
+    /// [`Self::written`] of a formula: each reader of an anonymous
+    /// variable replaced by what it holds, the rest as written.
+    fn written_formula(&self, formula: &crate::Formula) -> crate::Formula {
+        self.anonymous_expansion(formula)
+            .unwrap_or_else(|_| formula.clone())
     }
 
     /// **`expr` expanded only along `path`**: each anonymous definition
@@ -1767,8 +2361,11 @@ impl<P> Doc<P> {
 
     /// `expr` with every reader of an anonymous variable replaced by
     /// what it holds ([`Self::slot_expansion`]).
-    fn anonymous_expansion(&self, expr: &Expr) -> Result<Expr, crate::DimensionError> {
-        expr.substitute_vars(&mut |var| {
+    fn anonymous_expansion(
+        &self,
+        formula: &crate::Formula,
+    ) -> Result<crate::Formula, crate::DimensionError> {
+        formula.substitute_vars(&mut |var| {
             if self.var_names.contains_key(&var) {
                 return None;
             }
@@ -1777,10 +2374,24 @@ impl<P> Doc<P> {
                     dim,
                     value,
                     display_unit,
-                    ..
-                }) => Expr::literal_leaf_with_unit(*value, *dim, display_unit.def()).ok(),
-                crate::VarDef::Free(FreeVar::Count { value }) => Some(Expr::count(*value)),
-                crate::VarDef::Defined(defined) => self.anonymous_expansion(defined).ok(),
+                    distribution,
+                }) => Some(crate::Formula::own_leaf(
+                    crate::expr::AuthoredLeaf::Quantity(Box::new(crate::expr::Quantity {
+                        value: *value,
+                        unit: *display_unit,
+                        distribution: *distribution,
+                    })),
+                    *dim,
+                )),
+                crate::VarDef::Free(FreeVar::Count { value }) => {
+                    Some(crate::Formula::count(*value))
+                }
+                crate::VarDef::Defined(defined) => self
+                    .anonymous_expansion(&crate::Formula::from(defined))
+                    .ok(),
+                crate::VarDef::Output { .. }
+                | crate::VarDef::Select(_)
+                | crate::VarDef::Pose(_) => None,
             }
         })
     }
@@ -1788,7 +2399,7 @@ impl<P> Doc<P> {
     /// The expression subtree an [`ExprPath`] addresses in its slot's
     /// expansion ([`Self::slot_expansion`]), or `None` if the node is
     /// gone, the slot absent, or the path off the tree (spec D5).
-    pub fn expr_at(&self, path: &ExprPath) -> Option<Expr>
+    pub fn expr_at(&self, path: &ExprPath) -> Option<crate::Formula>
     where
         P: crate::ProfilePayload,
     {
@@ -1836,32 +2447,50 @@ impl<P> Doc<P> {
     /// refuses binds nothing and records its refusal, which each
     /// reader then refuses with ([`crate::EvalError::DefinitionRefused`]).
     pub fn bind_definitions<T: Decide>(&self, env: &mut VarEnv<T>) {
-        for id in self.definition_order() {
-            let Some(expr) = self.vars.get(&id).and_then(|v| v.def().defined()) else {
-                continue;
-            };
-            env.bindings.remove(&id);
-            env.refused.remove(&id);
-            if self.var_names.contains_key(&id) {
-                env.written.remove(&id);
-            } else {
+        // An output has no value outside its operation's evaluation: its
+        // reader refuses saying so, in its own words.
+        for (&id, var) in &self.vars {
+            if var.def().output().is_some() {
+                env.bindings.remove(&id);
+                env.refused
+                    .insert(id, crate::EvalError::OutputRead { var: id });
                 env.written.insert(id);
             }
-            let bound = if expr.dim() == Dimension::Count {
-                crate::expr::eval_count(expr, env).map(ParamValue::Count)
-            } else {
-                crate::expr::eval(expr, env).map(|value| ParamValue::Continuous {
-                    dim: expr.dim(),
-                    value,
-                })
-            };
-            match bound {
-                Ok(bound) => {
-                    env.bindings.insert(id, bound);
-                }
-                Err(refusal) => {
-                    env.refused.insert(id, refusal);
-                }
+        }
+        for id in self.definition_order() {
+            self.bind_definition(id, env);
+        }
+    }
+
+    /// **Bind the one defined variable `id`** in `env` from its
+    /// definition, evaluated over `env` at `env`'s scalar, or record its
+    /// refusal ([`Self::bind_definitions`]' step). Nothing for a
+    /// variable that is not defined.
+    pub(crate) fn bind_definition<T: Decide>(&self, id: VarId, env: &mut VarEnv<T>) {
+        let Some(expr) = self.vars.get(&id).and_then(|v| v.def().defined()) else {
+            return;
+        };
+        env.bindings.remove(&id);
+        env.refused.remove(&id);
+        if self.var_names.contains_key(&id) {
+            env.written.remove(&id);
+        } else {
+            env.written.insert(id);
+        }
+        let bound = if expr.dim() == Dimension::Count {
+            crate::expr::eval_count(expr, env).map(ParamValue::Count)
+        } else {
+            crate::expr::eval(expr, env).map(|value| ParamValue::Continuous {
+                dim: expr.dim(),
+                value,
+            })
+        };
+        match bound {
+            Ok(bound) => {
+                env.bindings.insert(id, bound);
+            }
+            Err(refusal) => {
+                env.refused.insert(id, refusal);
             }
         }
     }
@@ -1889,6 +2518,8 @@ fn expanded_size(expr: &Expr, sizes: &BTreeMap<VarId, usize>, cap: usize) -> usi
 /// by declaration position: each defined variable's live reads, and
 /// each variable's definers in declaration order.
 struct DefinitionEdges {
+    /// The variable ids, in declaration order: what a position indexes.
+    ids: Vec<VarId>,
     position: BTreeMap<VarId, usize>,
     reads: Vec<Vec<usize>>,
     definers: Vec<Vec<usize>>,
@@ -1922,8 +2553,6 @@ impl<P: PartialEq + crate::ProfilePayload> Doc<P> {
     pub fn bit_eq(&self, other: &Doc<P>) -> bool {
         self.id == other.id
             && self.mint == other.mint
-            && self.order == other.order
-            && self.roots == other.roots
             && self.epsilon.to_bits() == other.epsilon.to_bits()
             // Witness bytes are exact data (no float semantics to
             // conflate) — structural equality IS bit equality here.
@@ -1943,7 +2572,6 @@ impl<P: PartialEq + crate::ProfilePayload> Doc<P> {
                     .is_some_and(|theirs| node.bit_eq(theirs))
             })
             && self.var_names == other.var_names
-            && self.var_order == other.var_order
             && self.vars.len() == other.vars.len()
             && self.vars.iter().all(|(id, var)| {
                 other
@@ -2068,6 +2696,41 @@ pub(crate) fn epsilon_admissible(eps: f64) -> bool {
     eps.is_finite() && eps > 0.0
 }
 
+/// The strict ancestors of `from` in ONE document, visited depth-first
+/// over [`Doc::upstream`] in deterministic order; `visit` sees each
+/// reached node once. The crate's one transitive walk over reads —
+/// [`strict_ancestors`] is it with nothing to refuse.
+pub(crate) fn walk_strict_ancestors<P: crate::ProfilePayload, E>(
+    doc: &Doc<P>,
+    from: RecipeNodeId,
+    seen: &mut std::collections::BTreeSet<RecipeNodeId>,
+    mut visit: impl FnMut(RecipeNodeId) -> Result<(), E>,
+) -> Result<(), E> {
+    let mut stack: Vec<RecipeNodeId> = doc.upstream(from);
+    while let Some(id) = stack.pop() {
+        if !seen.insert(id) {
+            continue;
+        }
+        visit(id)?;
+        stack.extend(doc.upstream(id));
+    }
+    Ok(())
+}
+
+/// Every node `from` depends on through its reads in `doc`, itself
+/// excluded — [`walk_strict_ancestors`] collected.
+pub(crate) fn strict_ancestors<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    from: RecipeNodeId,
+) -> std::collections::BTreeSet<RecipeNodeId> {
+    let mut seen = std::collections::BTreeSet::new();
+    let walked: Result<(), core::convert::Infallible> =
+        walk_strict_ancestors(doc, from, &mut seen, |_| Ok(()));
+    match walked {
+        Ok(()) => seen,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #![allow(clippy::panic, clippy::expect_used)]
@@ -2077,23 +2740,22 @@ mod tests {
     use crate::ident::{ContentPin, DocRef, DocumentId};
     use crate::mate::ContactClass;
     use crate::names::{EntityKind, FaceName, StableName};
-    use crate::node::{InterfaceCrossing, InterfaceRecord, Node, RecipeNodeId, SitedRef};
+    use crate::node::{InterfaceCrossing, InterfaceRecord, Node, RecipeNodeId};
     use crate::program::ProfileDoc;
     use geom_core::Tol;
-    use topo::BooleanCoincidence;
 
     test_utils::f6_variants! {
         /// **The document's name carriers**, welded to [`Carrier`] by
         /// the match the macro writes: a carrier added to the enum
         /// leaves it non-exhaustive, and the census below compares
         /// this roster against [`Carrier::ALL`] in both directions.
-        const CARRIER: Carrier = [Payloads, Appearance];
+        const CARRIER: Carrier = [Payloads, Selections, Appearance];
     }
 
     fn name(node: u64, kind: EntityKind) -> StableName {
         StableName {
             kind,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId::new(0, node),
             path: Vec::new(),
         }
     }
@@ -2153,75 +2815,35 @@ mod tests {
     }
 
     /// **Both carriers, in the contracted order**: every payload name
-    /// in document order, then every store key in the store's own
-    /// order.
+    /// in id order, then every store key in the store's own order.
     ///
-    /// The fixture makes both halves of that falsifiable. The two
-    /// nodes sit in the document in the REVERSE of their id order, so
-    /// a walk over the node map instead of `Doc::order` swaps the
-    /// first two rows; and both store keys are minted by a node that
-    /// sorts BEFORE either payload name, so a walk that merged the
-    /// two carriers into one sorted list — or ran the store first —
-    /// puts them at the front instead of the back.
+    /// The fixture makes the second half falsifiable: both store keys
+    /// are minted by a node that sorts BEFORE either payload name, so
+    /// a walk that merged the two carriers into one sorted list — or
+    /// ran the store first — puts them at the front instead of the
+    /// back.
     ///
     /// DM7's report is this walk filtered on the deleted node, so
     /// this order is the clause's payload-strands-before-store-strands
     /// order; `dm7_delete_strands` holds that end of it at the door.
     /// The fixture is built by poking `Doc`'s fields, not through
-    /// the edit doors, because the reversal has to be the row's choice:
-    /// through the doors, how a node's id sorts against the ids before
-    /// it is the mint's digest, not the author's. In-crate reach spells
-    /// that state in five lines and keeps the row's subject the walk
-    /// rather than the door.
+    /// the edit doors: in-crate reach spells that state in a few lines
+    /// and keeps the row's subject the walk rather than the door.
     #[test]
     fn name_carriers_reads_the_payloads_then_the_store() {
         let mut doc: ProfileDoc = Doc::empty_derived("carriers", Tol::witness());
-        let first = name(9, EntityKind::Face);
-        let second = name(9, EntityKind::Edge);
-        let third = name(10, EntityKind::Face);
         let painted_a = name(0, EntityKind::Face);
         let painted_b = name(1, EntityKind::Face);
 
-        // Declared in id order, ordered in the document backwards.
-        doc.nodes.insert(
-            RecipeNodeId(0),
-            Node::Boolean {
-                op: crate::BooleanOp::Union,
-                a: RecipeNodeId(98),
-                b: RecipeNodeId(99),
-                declare: vec![(
-                    (
-                        SitedRef::at_mint(first.clone()),
-                        SitedRef::at_mint(second.clone()),
-                    ),
-                    BooleanCoincidence::REST,
-                )],
-            },
-        );
-        doc.nodes.insert(
-            RecipeNodeId(1),
-            Node::Boolean {
-                op: crate::BooleanOp::Union,
-                a: RecipeNodeId(98),
-                b: RecipeNodeId(99),
-                declare: vec![(
-                    (
-                        SitedRef::at_mint(third.clone()),
-                        SitedRef::at_mint(third.clone()),
-                    ),
-                    BooleanCoincidence::TANGENT,
-                )],
-            },
-        );
-        // The third payload shape this walk reaches: an instance's
-        // interface record. Its crossing's `outer` is a name in THIS
+        // The payload shape this walk reaches: an instance's interface
+        // record. Its crossing's `outer` is a name in THIS
         // document and is carried by the INSTANCE — which is what a
         // DM7 strand over it names — while its `inner` is no name of
         // this document at all (`Node::payload_names`' arm says why),
         // so its absence below is asserted by the same equality.
         let crossed = name(11, EntityKind::Face);
         doc.nodes.insert(
-            RecipeNodeId(2),
+            RecipeNodeId::new(0, 2),
             Node::InstantiatePart {
                 doc_ref: DocRef {
                     id: DocumentId::derive("carriers-part"),
@@ -2239,7 +2861,6 @@ mod tests {
                 offset: Some(crate::placement::Placement::IDENTITY),
             },
         );
-        doc.order = vec![RecipeNodeId(2), RecipeNodeId(1), RecipeNodeId(0)];
         for key in [&painted_b, &painted_a] {
             doc.appearance
                 .insert(key.clone(), AppearanceRecord::default());
@@ -2249,34 +2870,18 @@ mod tests {
             doc.name_carriers().collect::<Vec<_>>(),
             vec![
                 NameCarrier::Payload {
-                    node: RecipeNodeId(2),
+                    node: RecipeNodeId::new(0, 2),
                     name: &crossed,
-                },
-                NameCarrier::Payload {
-                    node: RecipeNodeId(1),
-                    name: &third,
-                },
-                NameCarrier::Payload {
-                    node: RecipeNodeId(1),
-                    name: &third,
-                },
-                NameCarrier::Payload {
-                    node: RecipeNodeId(0),
-                    name: &first,
-                },
-                NameCarrier::Payload {
-                    node: RecipeNodeId(0),
-                    name: &second,
                 },
                 NameCarrier::Store { name: &painted_a },
                 NameCarrier::Store { name: &painted_b },
             ],
-            "the walk is `Carrier::ALL`'s order: document order over the payloads, then the \
+            "the walk is `Carrier::ALL`'s order: id order over the payloads, then the \
              store's own key order"
         );
     }
 
-    /// A document holding `a := b + 1 mm` and `b := a`, written past
+    /// A document holding `a := b + c` and `b := a`, written past
     /// the doors (which refuse it, as the load walk does), both named
     /// (an unnamed definition is a slot's formula, whose refusal is the
     /// slot's own — `VarEnv::written`): the shape
@@ -2284,19 +2889,19 @@ mod tests {
     /// answer for.
     fn cyclic() -> (ProfileDoc, crate::var::VarId, crate::var::VarId) {
         use crate::expr::{Dimension, Expr};
-        use crate::var::{Var, VarDef, VarId};
+        use crate::var::{Var, VarId};
         let mut doc = ProfileDoc::empty_derived("doc-cyclic", Tol::witness());
-        let (a, b) = (VarId(1), VarId(2));
+        let (a, b) = (VarId::new(0, 1), VarId::new(0, 2));
         let read = |var| Expr::var(var, Dimension::Length);
-        let one = Expr::literal(0.001, Dimension::Length).expect("a length");
+        let one = read(VarId::new(0, 3));
         doc.vars.insert(
             a,
-            Var::new(VarDef::Defined(
+            Var::written(crate::WrittenDef::Defined(
                 Expr::add(read(b), one).expect("lengths add"),
             )),
         );
-        doc.vars.insert(b, Var::new(VarDef::Defined(read(a))));
-        doc.var_order = vec![a, b];
+        doc.vars
+            .insert(b, Var::written(crate::WrittenDef::Defined(read(a))));
         doc.var_names.insert(a, super::VarName::from_static("a"));
         doc.var_names.insert(b, super::VarName::from_static("b"));
         (doc, a, b)
@@ -2331,32 +2936,70 @@ mod tests {
     #[test]
     fn an_expansion_count_saturates_past_the_bound() {
         use crate::expr::{Dimension, Expr};
-        use crate::var::{Var, VarDef, VarId};
+        use crate::var::{Var, VarId};
         let mut doc = ProfileDoc::empty_derived("doc-saturate", Tol::witness());
-        let w = VarId(1);
+        let w = VarId::new(0, 1);
         doc.vars.insert(
             w,
-            Var::new(VarDef::Free(super::FreeVar::continuous(
+            Var::written(crate::WrittenDef::Free(super::FreeVar::continuous(
                 Dimension::Length,
                 1.0,
             ))),
         );
-        doc.var_order.push(w);
         let mut prev = w;
         for k in 2..40 {
-            let id = VarId(k);
+            let id = VarId::new(0, k);
             let read = Expr::var(prev, Dimension::Length);
             doc.vars.insert(
                 id,
-                Var::new(VarDef::Defined(
+                Var::written(crate::WrittenDef::Defined(
                     Expr::add(read.clone(), read).expect("adds"),
                 )),
             );
-            doc.var_order.push(id);
             prev = id;
         }
         let sizes = doc.expansion_nodes(&doc.definition_order());
-        assert_eq!(sizes[&VarId(2)], 3);
+        assert_eq!(sizes[&VarId::new(0, 2)], 3);
         assert_eq!(sizes[&prev], crate::edit::DEFINITION_NODE_BOUND + 1);
     }
+}
+
+/// **How a seat reads its variable** ([`Doc::read_fault`]): a
+/// construction builds from it, a measure's selection observes it, and
+/// only an observer may read a world copy (D10).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Reader {
+    /// A construction seat.
+    Constructs,
+    /// A measure's reference seat, or a selection's own body read: a
+    /// selection names faces and builds nothing, so what reads it
+    /// decides.
+    Observes,
+}
+
+impl Reader {
+    /// How a seat of `kind` reads: a measure's observes, every other
+    /// constructs.
+    pub(crate) fn of(kind: crate::SlotKind) -> Self {
+        match kind {
+            crate::SlotKind::Measured(_) => Self::Observes,
+            _ => Self::Constructs,
+        }
+    }
+}
+
+/// [`Doc::read_fault`]'s answer, rendered by each door in its own
+/// vocabulary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ReadFault {
+    /// The variable's kind is not one the seat admits.
+    Kind {
+        /// The variable's kind.
+        found: crate::VarKind,
+    },
+    /// The variable is a world placement's copy.
+    WorldCopy {
+        /// The placement.
+        placement: RecipeNodeId,
+    },
 }

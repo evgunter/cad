@@ -254,7 +254,7 @@ fn volume(body: &Body<f64>) -> f64 {
 #[test]
 fn every_lantern_rim_carves_whole_to_its_closed_form() {
     let r = 0.05;
-    let source = lantern();
+    let source = sweep::test_support::finished("source", lantern(), tol());
     for (name, rim_r, rim_y, center) in rims() {
         let arcs = rim_arcs_at(&source, rim_r, rim_y);
         assert_full_revolve_rim(&arcs, name);
@@ -296,8 +296,13 @@ fn every_lantern_rim_carves_whole_to_its_closed_form() {
 fn the_band_over_two_arcs_is_one_annulus_wall() {
     let source = lantern();
     let arcs = rim_arcs_at(&source, SHOULDER.0, SHOULDER.1);
-    let out = fillet_edges(&source, &arcs, 0.05, tol())
-        .unwrap_or_else(|e| panic!("the shoulder fillets, got {e:?}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&source, tol()),
+        &arcs,
+        0.05,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the shoulder fillets, got {e:?}"));
     let face = out.band_faces[0];
     let fd = out.body.get_face(face).unwrap();
     assert!(fd.rings.is_empty(), "a curved face carries no ring");
@@ -380,15 +385,25 @@ fn a_seam_split_rim_removes_what_its_one_edge_twin_removes() {
 
         let cut_split = v_lantern
             - volume(
-                &fillet_edges(&lantern, &split, r, tol())
-                    .unwrap_or_else(|e| panic!("{name} fillets on the lantern, got {e:?}"))
-                    .body,
+                &fillet_edges(
+                    &sweep::test_support::at_rest(&lantern, tol()),
+                    &split,
+                    r,
+                    tol(),
+                )
+                .unwrap_or_else(|e| panic!("{name} fillets on the lantern, got {e:?}"))
+                .body,
             );
         let cut_whole = v_bored
             - volume(
-                &fillet_edges(&bored, &whole, r, tol())
-                    .unwrap_or_else(|e| panic!("{name} fillets on the twin, got {e:?}"))
-                    .body,
+                &fillet_edges(
+                    &sweep::test_support::at_rest(&bored, tol()),
+                    &whole,
+                    r,
+                    tol(),
+                )
+                .unwrap_or_else(|e| panic!("{name} fillets on the twin, got {e:?}"))
+                .body,
             );
         assert!(
             cut_split > 0.0,
@@ -418,7 +433,7 @@ fn the_three_rims_fillet_in_sequence_to_one_valid_solid() {
             2,
             "{name} is still its seam's two arcs before its carve"
         );
-        let out = fillet_edges(&body, &arcs, r, tol())
+        let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, r, tol())
             .unwrap_or_else(|e| panic!("{name} fillets on the running result, got {e:?}"));
         bands += out.band_faces.len();
         body = out.body;
@@ -557,8 +572,13 @@ fn the_lanterns_arms_fold_both_sense_bits() {
 fn a_seam_split_band_records_every_birth_and_every_death() {
     let source = lantern();
     let arcs = rim_arcs_at(&source, SHOULDER.0, SHOULDER.1);
-    let out = fillet_edges(&source, &arcs, 0.05, tol())
-        .unwrap_or_else(|e| panic!("the shoulder fillets, got {e:?}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&source, tol()),
+        &arcs,
+        0.05,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the shoulder fillets, got {e:?}"));
     assert_naming_totality(&source, &out, &arcs, "the shoulder");
     let rec = out.naming.as_ref().expect("recorded");
     assert_eq!(

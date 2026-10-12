@@ -8,6 +8,9 @@ github: 1057
 refs: [VERBS-C5ARMS, 1048]
 priority: P1
 cost: H
+design: true
+branch: germ/plane-torus-germ-frame
+pr: 4614
 ---
 
 ## From GitHub issue 1057
@@ -87,6 +90,14 @@ waits on the props lane for a spiric-bounded face
 (`work/props/spiric-bounded-face-area-is-unimplemented.md`) and on
 SHELL's opened-arm lift (`work/shell/shell-open-lift-takes-the-per-chart-door-on-the-klein-elbow.md`).
 
+**2026-10-10 (FLUX, `spiric-bounded-face-area-is-unimplemented`).** The
+props lane for a spiric-bounded face landed (`geom_brep::props::spiric`):
+the sealed klein elbow, the elbow opened at one cap, the hand-built
+wall pair and the sectioned vessel all pass check 7 and measure against
+their cut-revolve oracles. Of (2) above, neither blocker stands: the
+props lane is in and SHELL's opened-arm lift closed, so rows 3/4/8's
+re-authoring is the demo's own work now.
+
 ## An obligation for the join-frame arm: the corner bar's lens (REACH, 2026-10-01)
 
 Since the pierce lane's sector-side charge is read at its peak (PR
@@ -107,3 +118,15 @@ Measured on branch `tang/abutting-rim`: a z-axis tube of radius
 `z` (its rim on the torus's 45° latitude), unioned undeclared. Since that
 branch the rim is an ON event at the crossing layer, and the union stops
 here, `GermFrameUnsupported { Plane × Torus }`, in both member orders.
+
+## U-T1, the plane × torus germ frame (GERM, 2026-10-11)
+
+`docs/GERM-TORUS-PLANE-FRAME-SPEC.md`'s first unit, on
+`germ/plane-torus-germ-frame`. `pair_section_frame_at` serves the
+meridian circles, the spiric ovals and the concentric circles, each
+germ on its own loop, and refuses every other transverse plane as
+`GermSectionSpiric { loops }`. Every served pose of the spec's §0 now
+stops at the germ-pair dispatch (F2, U-T2's door); TANG's tube stops at
+the wall side's section (F3b); the donut's corner bar refuses at its end
+square's null oval. The coaxial cylinder × sphere loop question (Q6)
+measured not live.

@@ -21,7 +21,7 @@ use geom_core::{Affine3, Vec3};
 use sweep::blend::build::{chamfer_edges, fillet_edges};
 use sweep::{Extrusion, Revolution};
 use topo::{
-    AtRestBody, Body, BooleanDeclarations, BooleanOp, BooleanResult, SplitPart, SweepStrategy,
+    AtRestBody, Body, BooleanInputs, BooleanOp, BooleanResult, SplitPart, SweepStrategy,
     boolean_op_with, split,
 };
 use verbs::{Arity, PairOut, Verb, VerbError, VerbKind, VerbRecord};
@@ -74,12 +74,18 @@ fn the_fillet_dispatch_is_the_fillet_door() {
     let cube = sweep::test_support::cube(1.0, tol());
     let edges: Vec<_> = cube.edges().map(|(k, _)| k).collect();
 
-    let door = fillet_edges(&cube, &edges, 0.1, tol()).unwrap();
+    let door = fillet_edges(
+        &sweep::test_support::at_rest(&cube, tol()),
+        &edges,
+        0.1,
+        tol(),
+    )
+    .unwrap();
     let via = Verb::Fillet {
         edges: edges.clone(),
         radius: 0.1,
     }
-    .run(&cube, tol())
+    .run(&finished("the operand", cube.clone(), tol()), tol())
     .unwrap();
 
     assert_eq!(dump(&door.body), dump(&via.body));
@@ -95,12 +101,18 @@ fn the_chamfer_dispatch_is_the_chamfer_door() {
     let cube = sweep::test_support::cube(1.0, tol());
     let edges: Vec<_> = cube.edges().map(|(k, _)| k).collect();
 
-    let door = chamfer_edges(&cube, &edges, 0.1, tol()).unwrap();
+    let door = chamfer_edges(
+        &sweep::test_support::at_rest(&cube, tol()),
+        &edges,
+        0.1,
+        tol(),
+    )
+    .unwrap();
     let via = Verb::Chamfer {
         edges: edges.clone(),
         distance: 0.1,
     }
-    .run(&cube, tol())
+    .run(&finished("the operand", cube.clone(), tol()), tol())
     .unwrap();
 
     assert_eq!(dump(&door.body), dump(&via.body));
@@ -119,12 +131,18 @@ fn a_refusal_crosses_the_dispatch_unaltered() {
     let cube = sweep::test_support::cube(1.0, tol());
     let edges: Vec<_> = cube.edges().map(|(k, _)| k).collect();
 
-    let door = chamfer_edges(&cube, &edges, 0.0, tol()).unwrap_err();
+    let door = chamfer_edges(
+        &sweep::test_support::at_rest(&cube, tol()),
+        &edges,
+        0.0,
+        tol(),
+    )
+    .unwrap_err();
     let via = Verb::Chamfer {
         edges,
         distance: 0.0,
     }
-    .run(&cube, tol())
+    .run(&finished("the operand", cube.clone(), tol()), tol())
     .unwrap_err();
 
     let VerbError::Blend(carried) = via else {
@@ -159,7 +177,7 @@ fn the_boolean_dispatch_is_the_boolean_door() {
     // A proper crossing: overlap in every axis, no face-on-face rest.
     let b = shifted_cube(Vec3::new(0.5, 0.5, 0.5));
 
-    let decls = BooleanDeclarations::none();
+    let decls = BooleanInputs::default();
     let door = boolean_op_with(
         BooleanOp::Union,
         &a,
@@ -171,7 +189,7 @@ fn the_boolean_dispatch_is_the_boolean_door() {
     .unwrap();
     let via = Verb::Boolean {
         op: BooleanOp::Union,
-        declare: BooleanDeclarations::none(),
+        inputs: Box::new(BooleanInputs::default()),
     }
     .run_pair(&a, &b, SweepStrategy::Realized, tol())
     .unwrap();
@@ -214,7 +232,7 @@ fn an_empty_boolean_result_crosses_as_the_typed_empty() {
         BooleanOp::Intersect,
         &a,
         &b,
-        &BooleanDeclarations::none(),
+        &BooleanInputs::default(),
         SweepStrategy::Realized,
         tol(),
     )
@@ -223,7 +241,7 @@ fn an_empty_boolean_result_crosses_as_the_typed_empty() {
 
     let via = Verb::Boolean {
         op: BooleanOp::Intersect,
-        declare: BooleanDeclarations::none(),
+        inputs: Box::new(BooleanInputs::default()),
     }
     .run_pair(&a, &b, SweepStrategy::Realized, tol())
     .unwrap();
@@ -234,25 +252,25 @@ fn an_empty_boolean_result_crosses_as_the_typed_empty() {
 }
 
 /// **A boolean refusal crosses unaltered.** The fixture is two cubes
-/// resting face on face with nothing declared — the undeclared-
-/// coincidence refusal, reached identically both ways.
+/// 2ε apart, inside the ambiguity band at every ε — the in-band
+/// refusal, reached identically both ways.
 #[test]
 fn a_boolean_refusal_crosses_the_dispatch_unaltered() {
     let a = unit_cube();
-    let b = shifted_cube(Vec3::new(1.0, 0.0, 0.0));
+    let b = shifted_cube(Vec3::new(1.0 + 2.0 * tol().eps(), 0.0, 0.0));
 
     let door = boolean_op_with(
         BooleanOp::Union,
         &a,
         &b,
-        &BooleanDeclarations::none(),
+        &BooleanInputs::default(),
         SweepStrategy::Realized,
         tol(),
     )
     .unwrap_err();
     let via = Verb::Boolean {
         op: BooleanOp::Union,
-        declare: BooleanDeclarations::none(),
+        inputs: Box::new(BooleanInputs::default()),
     }
     .run_pair(&a, &b, SweepStrategy::Realized, tol())
     .unwrap_err();
@@ -285,7 +303,7 @@ fn sample(kind: VerbKind) -> Verb<f64> {
         },
         VerbKind::Boolean(op) => Verb::Boolean {
             op,
-            declare: BooleanDeclarations::none(),
+            inputs: Box::new(BooleanInputs::default()),
         },
         VerbKind::Split => Verb::Split {
             plane: z_plane(0.5),
@@ -442,7 +460,7 @@ fn the_arity_refusal_names_the_declared_operand_and_the_door() {
         distance: 1.0_f64,
         side: ExtrudeSide::Along,
     }
-    .run(&cube, tol())
+    .run(&finished("the operand", cube.clone(), tol()), tol())
     .expect_err("an extrude is not a one-body verb");
     assert_eq!(
         err.to_string(),
@@ -452,7 +470,7 @@ fn the_arity_refusal_names_the_declared_operand_and_the_door() {
     let err = Verb::Split {
         plane: z_plane(0.5),
     }
-    .run(&cube, tol())
+    .run(&finished("the operand", cube.clone(), tol()), tol())
     .expect_err("a split hands back two sides, which the one-body door cannot");
     assert_eq!(
         err.to_string(),
@@ -476,7 +494,7 @@ fn the_arity_refusal_names_the_declared_operand_and_the_door() {
         thickness: 0.1_f64,
         open: Vec::new(),
     }
-    .run(&cube, tol())
+    .run(&finished("the operand", cube.clone(), tol()), tol())
     .expect_err("a shell's door asks more of the scalar than the one-body door does");
     assert_eq!(
         err.to_string(),
@@ -506,9 +524,9 @@ fn the_arity_refusal_names_the_declared_operand_and_the_door() {
     // and names a `Boolean` door no caller can reach.
     let err = Verb::Boolean {
         op: BooleanOp::Subtract,
-        declare: BooleanDeclarations::none(),
+        inputs: Box::new(BooleanInputs::default()),
     }
-    .run(&cube, tol())
+    .run(&finished("the operand", cube.clone(), tol()), tol())
     .expect_err("a boolean takes two operands, not one");
     assert_eq!(
         err.to_string(),
@@ -567,29 +585,22 @@ fn vertices_at(body: &Body<f64>, x: f64, y: f64, z: f64) -> usize {
         .count()
 }
 
-/// **The dispatch agrees with the door THROUGH the D7 pinch lane.**
+/// **The dispatch agrees with the door through a pinch below the
+/// plane.**
 ///
-/// The kernel door reruns a one-sided pinch mirrored and swaps the
-/// sides back, so on this operand what `topo::split` returns is the
-/// mirrored run's decomposition re-labelled — not the direct run's,
-/// which refuses. The premise — that the lane is TAKEN on this
-/// operand — is asserted, not assumed, through the one observable
-/// only the lane can produce: the kernel mints vertex copies for the
-/// ABOVE side's pinch runs only, so a below-side pinch that succeeds
-/// with two coincident-but-distinct copies at each tip on the pieces
-/// side, and one vertex on the slab side, got those copies from the
-/// mirrored run. A direct run of this orientation has no way to mint
-/// them and refuses instead (the kernel's own suite pins that half).
+/// On this operand the pinched pieces lie below the plane's normal, so
+/// the kernel mints the pieces' tip copies on the Below side: two
+/// coincident-but-distinct vertices at each tip on the pieces side, one
+/// on the slab side. A plane whose orientation the dispatch re-derived
+/// would put the pieces on the other side.
 ///
 /// The dispatch calls the door and nothing beneath it, so agreement
 /// is by construction; it is pinned rather than assumed because the
 /// one thing the dispatch could do to the plane — re-derive it, or
 /// its orientation, before the door — is exactly what this operand
-/// would expose while every other row stayed green. (The direct
-/// pipeline is private to `topo::splitting`; nothing here can reach
-/// it, so that is not the failure this row guards.)
+/// would expose while every other row stayed green.
 #[test]
-fn the_split_dispatch_agrees_with_the_door_through_the_pinch_lane() {
+fn the_split_dispatch_agrees_with_the_door_through_a_pinch_below_the_plane() {
     let prism = sweep::test_support::finished("the pinch prism", pinch_prism(), tol());
     let plane = pinch_plane();
 
@@ -602,15 +613,14 @@ fn the_split_dispatch_agrees_with_the_door_through_the_pinch_lane() {
     assert_eq!(
         pieces.shells().count(),
         3,
-        "the pinch lane's three floor pieces did not reach the dispatch"
+        "the pinch's three floor pieces did not reach the dispatch below the plane"
     );
-    // The lane's signature: copies minted for the pieces at each tip
-    // line, the slab keeping the one original vertex.
+    // The pieces' copies at each tip line, the slab keeping one vertex.
     for z in [0.0, 1.0] {
         assert_eq!(
             vertices_at(pieces, 4.0, 1.0, z),
             2,
-            "the pieces side carries no tip copies at z = {z}: the mirror lane was not taken"
+            "the pieces side carries no tip copies at z = {z}"
         );
         assert_eq!(vertices_at(slab, 4.0, 1.0, z), 1);
     }

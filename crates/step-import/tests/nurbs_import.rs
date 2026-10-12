@@ -131,7 +131,7 @@ fn reverse_data_section(text: &str) -> String {
 #[derive(Debug)]
 enum Posture {
     /// Bounds returned.
-    Certified(topo::MassProperties<f64>),
+    Certified(topo::MassProperties<f64>, Vec<topo::test_support::FaceTerm>),
     /// The schedule cannot reach `1024·ε` — typed, with its width (the
     /// last round's own, or the bound the loop refused on after round 0).
     Budget,
@@ -141,8 +141,11 @@ enum Posture {
 
 fn rational_props_posture(body: &topo::Body<f64>, who: &str) -> Posture {
     let target = 1024.0 * geom_core::Tol::witness().get().eps;
-    match topo::mass_properties(body, Tol::witness()) {
-        Ok(props) => Posture::Certified(props),
+    // The same walk as `topo::mass_properties`, with each face's own term
+    // handed back beside the sum (the round trip compares them face by
+    // face).
+    match topo::test_support::mass_properties_with_face_terms(body, Tol::witness()) {
+        Ok((props, terms)) => Posture::Certified(props, terms),
         Err(err) => {
             let topo::MassPropsError::Face { source, .. } = &err else {
                 panic!("{who}: expected a per-face volume refusal, got: {err:?}");
@@ -248,12 +251,16 @@ fn arc_loft_natively_computes_its_rational_volume() {
     // re-measure it: (1) this native quadrature; (2) the at-rest gate
     // INSIDE `import_step` below — the tier-3′ door, which computes
     // the imported body's enclosure to decide its +V invariant and
-    // hands it back as `StepImport::Solid`'s `enclosure`, so the
-    // bit-identity assertion below reads THAT object and no second
-    // quadrature runs on the imported body; (3) the gate inside the
-    // reversed-DATA re-import. Three, not four and not one. The
-    // fourth — a `mass_properties` on the reordered body — was removed
-    // on 2026-08-22 in favour of a body-identity comparison; see that
+    // hands it back as `StepImport::Solid`'s `enclosure`, which the
+    // assertions below read; (3) the gate inside the
+    // reversed-DATA re-import; (4) the imported body's own measurement,
+    // through `topo::test_support::mass_properties_with_face_terms`
+    // (`mass_properties`' walk with each face's term handed back), which
+    // the per-face bit-identity claim below needs: the gate hands back
+    // the sum, not the terms. Four, bought for that claim; (1) runs
+    // through the same door, so it costs nothing extra. A
+    // `mass_properties` on the reordered body was removed on
+    // 2026-08-22 in favour of a body-identity comparison; see that
     // arm.
     //
     // Tier 3 consumes exactly this number through its +V invariant, and
@@ -263,11 +270,11 @@ fn arc_loft_natively_computes_its_rational_volume() {
     // the same quadrature at the same ε.
     let posture = rational_props_posture(&native, "native");
     let native_props = match &posture {
-        Posture::Certified(props) => Some(props),
+        Posture::Certified(props, terms) => Some((props, terms)),
         Posture::Budget | Posture::Escalated => None,
     };
     let certified = native_props.is_some();
-    if let Some(want) = native_props {
+    if let Some((want, _)) = native_props {
         assert!(
             want.volume > 12.0 && want.volume < 13.0,
             "native arc-loft volume: {}",
@@ -361,19 +368,73 @@ fn arc_loft_natively_computes_its_rational_volume() {
             // aggregate gate having certified it, and the field IS what
             // that check decided on.
             let got = enclosure;
-            let want = native_props.expect("the native side certified");
-            // **BIT identity, not overlap** (R1 MINOR-2). Overlap is
-            // what soundness needs — two certified enclosures of one
-            // solid must intersect — but it is not what actually
+            let (want, want_terms) = native_props.expect("the native side certified");
+            // **BIT identity where it holds, ulp identity where it
+            // cannot** (R1 MINOR-2, re-stated for
+            // `work/exch/arc-loft-round-trip-volume-differs-by-face-order.md`).
+            // Overlap is what soundness needs, but it is not what actually
             // happens, and asserting the weaker fact would let a real
-            // divergence hide inside a pad. The reader reconstructs the
-            // same chart and the same trim, so the same quadrature runs
-            // on the same bits: pin THAT, and let a single ulp of drift
-            // be a finding.
+            // divergence hide inside a pad. What the reader reproduces is
+            // every FACE: the same chart and trim, so each face's
+            // quadrature runs on the same bits and returns the same flux.
+            // What it does not reproduce is the face ARENA order: its
+            // Euler-operator assembly allocates faces in its own order,
+            // and the body fold sums the face terms in plain `f64` in
+            // arena order (`topo::props`' `fold_runs`, D9 addendum idiom
+            // 2's sequential fold), and an `f64` sum rounds differently in
+            // another order. Whether the fold should be order-independent
+            // is FLUX's design row
+            // `work/flux/the-whole-body-property-fold-depends-on-face-order.md`.
+            // So:
+            //
+            // * the import's gate enclosure IS the imported body's own
+            //   measurement, bit for bit (same body, same order);
+            let (imported, imported_terms) =
+                topo::test_support::mass_properties_with_face_terms(&body, Tol::witness())
+                    .expect("the imported body measures where its gate certified");
             assert_eq!(
-                got.volume.to_bits(),
-                want.volume.to_bits(),
-                "the round trip must reproduce the volume BIT-identically: \
+                (got.volume.to_bits(), got.volume_pad.to_bits()),
+                (imported.volume.to_bits(), imported.volume_pad.to_bits()),
+                "the gate's enclosure must BE the imported body's measurement: \
+                 gate {} ± {}, measured {} ± {}",
+                got.volume,
+                got.volume_pad,
+                imported.volume,
+                imported.volume_pad,
+            );
+            // * every face's flux term and half-width, native against
+            //   imported, bit for bit: the same multiset of terms, each
+            //   face matched by its bits rather than its key (the keys
+            //   are the two arenas' own);
+            let bits = |terms: &[topo::test_support::FaceTerm]| {
+                let mut bits: Vec<(u64, u64)> = terms
+                    .iter()
+                    .map(|&(_, flux, pad)| (flux.to_bits(), pad.to_bits()))
+                    .collect();
+                bits.sort_unstable();
+                bits
+            };
+            assert_eq!(
+                bits(want_terms),
+                bits(&imported_terms),
+                "the round trip must reproduce every face's flux bit for bit: \
+                 native {want_terms:?}, imported {imported_terms:?}"
+            );
+            // * native against imported bodies, the same terms summed in
+            //   two orders: two orders of one sum may round apart by at
+            //   most one ulp per addition, so the volumes must agree to
+            //   within `faces − 1` ulps of each other, and the pad (a sum
+            //   of non-negative pads in the same fold, outward) must still
+            //   agree bit for bit at this body's values. Measured: 0 ulps
+            //   before NURBS #4553 moved the rational wall's flux bits,
+            //   1 at ε = 1e-6 and 2 at 1e-9 after it, and 1 and 0 since
+            //   the skin computes in `T` (PR 4726) moved them again.
+            let faces = native.faces().count() as u64;
+            let ulps = got.volume.to_bits().abs_diff(want.volume.to_bits());
+            assert!(
+                got.volume > 0.0 && want.volume > 0.0 && ulps < faces,
+                "the round trip must reproduce the volume to within the fold's \
+                 face-order rounding ({ulps} ulps against {faces} faces): \
                  imported {} ± {}, native {} ± {}",
                 got.volume,
                 got.volume_pad,

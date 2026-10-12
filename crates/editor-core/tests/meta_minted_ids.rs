@@ -1,8 +1,8 @@
-//! **A name whose minted id is above `i64::MAX` becomes metadata**:
-//! a minted id is a 64-bit digest, so about half of all ids sit above
-//! `i64::MAX`, and a name carrying one goes through `to_value` and
-//! `from_value` as far as any other name does, and through save and
-//! load inside a metadata record.
+//! **A name whose minted digest is above `i64::MAX` becomes metadata**:
+//! a minted id carries a 64-bit digest, so about half of all ids hold
+//! one above `i64::MAX`, and a name carrying one goes through
+//! `to_value` and `from_value` as far as any other name does, and
+//! through save and load inside a metadata record.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -34,13 +34,13 @@ fn minted_high() -> (ProfileDoc, RecipeNodeId) {
             insert(
                 doc,
                 Node::Extrude {
-                    profile,
+                    profile: profile.into(),
                     distance: len(f64::from(d)),
                     side: ExtrudeSide::Along,
                 },
             )
         })
-        .find(|(_, extrude)| i64::try_from(extrude.0).is_err())
+        .find(|(_, extrude)| i64::try_from(extrude.0.digest()).is_err())
         .expect("one of 64 extrudes is minted above i64::MAX")
 }
 
@@ -96,7 +96,7 @@ fn a_name_minted_above_i64_max_becomes_metadata_as_deep_as_any_name() {
         "and comes back the same name"
     );
     let (high_depth, high_refusal) = deepest_metadata(&high);
-    let (low_depth, low_refusal) = deepest_metadata(&cap(RecipeNodeId(1)));
+    let (low_depth, low_refusal) = deepest_metadata(&cap(RecipeNodeId::new(0, 1)));
     assert!(high_depth > 1, "a nested name becomes metadata too");
     assert_eq!(
         (high_depth, &high_refusal),
@@ -158,26 +158,30 @@ fn metadata_holding_a_name_minted_above_i64_max_saves_and_loads() {
     );
 }
 
-/// **A node id read by a door that takes only `u64` comes back through
+/// **A node id read by a door with its own visitor comes back through
 /// `from_value` at every id**, as it does through the saved text: a
-/// profile's `plane` reads through `plane_ref`, whose visitor takes a
-/// `u64` alone, so an id spelled as an `i64` below `i64::MAX` would be
-/// refused while the same id above it read back.
+/// profile's `plane` reads through `plane_ref`, whose visitor takes the
+/// id's string alone, so an id spelled any other way would be refused.
 #[test]
 fn a_profile_program_comes_back_through_metadata_at_every_plane_id() {
-    for id in [5, i64::MAX as u64, i64::MAX as u64 + 1, u64::MAX] {
+    for (ordinal, id) in [
+        (1, 5),
+        (2, i64::MAX as u64),
+        (3, i64::MAX as u64 + 1),
+        (u32::MAX, u64::MAX),
+    ] {
         let program: ProfileProgram = ProfileProgram {
-            plane: RecipeNodeId(id),
+            frame: editor_core::VarId::new(ordinal, id),
             loops: Vec::new(),
             ids: Vec::new(),
         };
         let value = to_value(&program).expect("a profile program is metadata");
         let back = from_value::<ProfileProgram>(&value)
             .unwrap_or_else(|e| panic!("plane {id} comes back through from_value: {e}"));
-        assert_eq!(back.plane, program.plane, "plane {id} comes back as itself");
+        assert_eq!(back.frame, program.frame, "plane {id} comes back as itself");
         let json = serde_json::to_string(&program).unwrap();
         let read = serde_json::from_str::<ProfileProgram>(&json)
             .unwrap_or_else(|e| panic!("plane {id} reads back from text: {e}"));
-        assert_eq!(read.plane, program.plane, "plane {id} reads back from text");
+        assert_eq!(read.frame, program.frame, "plane {id} reads back from text");
     }
 }

@@ -46,7 +46,7 @@ fn small() -> String {
     let (doc, _) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -164,73 +164,68 @@ fn a_missing_required_field_refuses_naming_it() {
 /// row above. The ADDITIVE half cannot be measured with bytes older
 /// than a break, so this exemplar is written by today's writer and kept
 /// minimal: nothing newer than {Datum, Profile, Extrude} appears in it.
-/// Re-frozen again when a profile's steps gained minted ids (the
-/// program's `ids` and the document's step counter), the same kind of
-/// break, and again when the counter became the step mint's chain and
-/// log, again when node ids moved onto that mint, and again when an
-/// extrude's side became a required field, and again when a slot
-/// came to hold its variable's id.
+/// It is re-frozen, by today's writer, at each such break: last when an
+/// operand became a read of a variable, so its table holds the three
+/// nodes' outputs and the profile and the extrude read the outputs
+/// before them, and the profile's operand field took its one name,
+/// `frame`.
 const OLDER_SHAPED: &str = concat!(
-    "id: 8ad37e1a750ae77132c0bf059acb322f\n{\"snapshot\":{\"id\":\"8ad37e1a750ae77132c0bf",
-    "059acb322f\",\"mint\":{\"chain\":\"0316a8e5f987300fb63dbac217e149d3ac1a39a289aa4d0de",
-    "502fe43be30e09f\",\"log\":[{\"node\":222550937288781839},{\"var\":687067507121259641",
-    "},{\"var\":1692951550161305783},{\"var\":3992818210703844589},{\"var\":4557121810070",
-    "918341},{\"var\":4720270004154464002},{\"var\":5217081412177518420},{\"step\":642089",
-    "1478810644163},{\"node\":6952591527216186421},{\"var\":6958480090943866564},{\"var\"",
-    ":8004427572517704354},{\"var\":9933765765270439050},{\"step\":10270049170496020773},",
-    "{\"var\":10636643242840588584},{\"var\":11508714693452263776},{\"var\":1152016280368",
-    "8111428},{\"var\":12921966442148625044},{\"var\":13437228041663008622},{\"var\":1496",
-    "9638619857046222},{\"var\":15645373147172179756},{\"step\":16054304900290762691},{\"",
-    "var\":16300829493895992422},{\"var\":16922366612452288273},{\"node\":174034797324733",
-    "40673},{\"step\":17434746612444774629},{\"step\":18381077563867063357}]},\"nodes\":{",
-    "\"222550937288781839\":{\"Extrude\":{\"profile\":6952591527216186421,\"distance\":12",
-    "921966442148625044,\"side\":\"along\"}},\"6952591527216186421\":{\"Profile\":{\"plan",
-    "e\":17403479732473340673,\"loops\":[{\"Chain\":[{\"At\":[10636643242840588584,800442",
-    "7572517704354]},{\"LineTo\":{\"Point\":[3992818210703844589,16922366612452288273]}},",
-    "{\"LineTo\":{\"Point\":[14969638619857046222,4720270004154464002]}},{\"LineTo\":{\"P",
-    "oint\":[13437228041663008622,4557121810070918341]}},{\"LineTo\":\"Start\"}]}],\"ids\"",
-    ":[[17434746612444774629,6420891478810644163,18381077563867063357,1605430490029076269",
-    "1,10270049170496020773]]}},\"17403479732473340673\":{\"Datum\":{\"Frame\":{\"origin\"",
-    ":[16300829493895992422,9933765765270439050,1692951550161305783],\"u\":[1564537314717",
-    "2179756,6958480090943866564,5217081412177518420],\"v\":[11508714693452263776,1152016",
-    "2803688111428,687067507121259641]}}}},\"order\":[17403479732473340673,69525915272161",
-    "86421,222550937288781839],\"roots\":[222550937288781839],\"vars\":{\"687067507121259",
-    "641\":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Scalar\",\"v",
-    "alue\":0.0,\"display_unit\":\"\"}}}},\"1692951550161305783\":{\"kind\":\"Length\",\"",
-    "def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"",
-    "m\"}}}},\"3992818210703844589\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous",
-    "\":{\"dim\":\"Length\",\"value\":1.0,\"display_unit\":\"m\"}}}},\"455712181007091834",
-    "1\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"val",
-    "ue\":1.0,\"display_unit\":\"m\"}}}},\"4720270004154464002\":{\"kind\":\"Length\",\"d",
-    "ef\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":1.0,\"display_unit\":\"",
-    "m\"}}}},\"5217081412177518420\":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Continuous",
-    "\":{\"dim\":\"Scalar\",\"value\":0.0,\"display_unit\":\"\"}}}},\"6958480090943866564",
-    "\":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Scalar\",\"valu",
-    "e\":0.0,\"display_unit\":\"\"}}}},\"8004427572517704354\":{\"kind\":\"Length\",\"def",
-    "\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"",
-    "}}}},\"9933765765270439050\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":",
-    "{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}},\"10636643242840588584\"",
-    ":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\"",
-    ":0.0,\"display_unit\":\"m\"}}}},\"11508714693452263776\":{\"kind\":\"Scalar\",\"def\"",
-    ":{\"Free\":{\"Continuous\":{\"dim\":\"Scalar\",\"value\":0.0,\"display_unit\":\"\"}}",
-    "}},\"11520162803688111428\":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{",
-    "\"dim\":\"Scalar\",\"value\":1.0,\"display_unit\":\"\"}}}},\"12921966442148625044\":",
-    "{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\"",
-    ":1.0,\"display_unit\":\"m\"}}}},\"13437228041663008622\":{\"kind\":\"Length\",\"def\"",
-    ":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}",
-    "}}},\"14969638619857046222\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":",
-    "{\"dim\":\"Length\",\"value\":1.0,\"display_unit\":\"m\"}}}},\"15645373147172179756\"",
-    ":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Scalar\",\"value\"",
-    ":1.0,\"display_unit\":\"\"}}}},\"16300829493895992422\":{\"kind\":\"Length\",\"def\"",
-    ":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}",
-    "}}},\"16922366612452288273\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":",
-    "{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}}},\"var_order\":[1630082",
-    "9493895992422,9933765765270439050,1692951550161305783,15645373147172179756,695848009",
-    "0943866564,5217081412177518420,11508714693452263776,11520162803688111428,68706750712",
-    "1259641,10636643242840588584,8004427572517704354,3992818210703844589,169223666124522",
-    "88273,14969638619857046222,4720270004154464002,13437228041663008622,4557121810070918",
-    "341,12921966442148625044],\"epsilon\":1e-09,\"witnesses\":{},\"metadata\":{},\"appea",
-    "rance\":[]},\"edits\":[]}",
+    "id: da925a30e31f7fdaa7044e3e5ba4ae17\n",
+    "{\"snapshot\":{\"id\":\"da925a30e31f7fdaa7044e3e5ba4ae17\",\"mint\":{\"chain\":\"5d28910d3b",
+    "2f6ef6b5465cd99f255ab6de869b2eaff65bc0cfc6200b45ffd778\",\"log\":[{\"var\":\"1:b639d84",
+    "4bab8e826\"},{\"var\":\"2:74af9d633a64b77a\"},{\"var\":\"3:fb5fef638c30912c\"},{\"var\":\"4:",
+    "ee1d73a8dc8f8ad6\"},{\"var\":\"5:f9047724cc168290\"},{\"var\":\"6:2fdd1f61b8b90439\"},{\"v",
+    "ar\":\"7:5cdde09d996c5c61\"},{\"var\":\"8:af949e9d2cd2d001\"},{\"var\":\"9:135249424cb8e0e",
+    "7\"},{\"node\":\"10:54a0180a83275575\"},{\"var\":\"11:7b9b7a031545bc84\"},{\"var\":\"12:aa1a",
+    "1f25549ff844\"},{\"var\":\"13:ce0b2c4bfce400e2\"},{\"var\":\"14:826a2b7c495117a7\"},{\"var",
+    "\":\"15:74ce4ff170398ca6\"},{\"var\":\"16:4b36daafb7685c2b\"},{\"var\":\"17:c9a0e5f82154ce",
+    "3e\"},{\"var\":\"18:73bc05541afded5a\"},{\"var\":\"19:e51d8c264d945b32\"},{\"node\":\"20:fe7",
+    "be5bb524c1ab3\"},{\"step\":\"21:9fe386cec8abaedb\"},{\"step\":\"22:3e2fb0ac72647b8e\"},{\"",
+    "step\":\"23:465379dd775c12be\"},{\"step\":\"24:0495217d37468ca6\"},{\"step\":\"25:f252c518",
+    "f0a50982\"},{\"var\":\"26:430f4189a776294e\"},{\"var\":\"27:ba3d8dce8cc42ae6\"},{\"node\":\"",
+    "28:431c72536b7ab1f8\"},{\"var\":\"29:5d28910d3b2f6ef6\"}]},\"nodes\":{\"10:54a0180a83275",
+    "575\":{\"Datum\":{\"Frame\":{\"origin\":[\"1:b639d844bab8e826\",\"2:74af9d633a64b77a\",\"3:f",
+    "b5fef638c30912c\"],\"u\":[\"4:ee1d73a8dc8f8ad6\",\"5:f9047724cc168290\",\"6:2fdd1f61b8b9",
+    "0439\"],\"v\":[\"7:5cdde09d996c5c61\",\"8:af949e9d2cd2d001\",\"9:135249424cb8e0e7\"]}}},\"",
+    "20:fe7be5bb524c1ab3\":{\"Profile\":{\"frame\":\"11:7b9b7a031545bc84\",\"loops\":[{\"Chain\"",
+    ":[{\"At\":[\"12:aa1a1f25549ff844\",\"13:ce0b2c4bfce400e2\"]},{\"LineTo\":{\"Point\":[\"14:8",
+    "26a2b7c495117a7\",\"15:74ce4ff170398ca6\"]}},{\"LineTo\":{\"Point\":[\"16:4b36daafb7685c",
+    "2b\",\"17:c9a0e5f82154ce3e\"]}},{\"LineTo\":{\"Point\":[\"18:73bc05541afded5a\",\"19:e51d8",
+    "c264d945b32\"]}},{\"LineTo\":\"Start\"}]}],\"ids\":[[\"21:9fe386cec8abaedb\",\"22:3e2fb0ac",
+    "72647b8e\",\"23:465379dd775c12be\",\"24:0495217d37468ca6\",\"25:f252c518f0a50982\"]]}},",
+    "\"28:431c72536b7ab1f8\":{\"Extrude\":{\"profile\":\"26:430f4189a776294e\",\"distance\":\"27",
+    ":ba3d8dce8cc42ae6\",\"side\":\"along\"}}},\"vars\":{\"1:",
+    "b639d844bab8e826\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"",
+    "value\":0.0,\"display_unit\":\"m\"}}}},\"2:74af9d633a64b77a\":{\"kind\":\"Length\",\"def\":{\"",
+    "Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}},\"3:fb5fef",
+    "638c30912c\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\"",
+    ":0.0,\"display_unit\":\"m\"}}}},\"4:ee1d73a8dc8f8ad6\":{\"kind\":\"Scalar\",\"def\":{\"Free\":",
+    "{\"Continuous\":{\"dim\":\"Scalar\",\"value\":1.0,\"display_unit\":\"\"}}}},\"5:f9047724cc168",
+    "290\":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Scalar\",\"value\":0.0,\"d",
+    "isplay_unit\":\"\"}}}},\"6:2fdd1f61b8b90439\":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Contin",
+    "uous\":{\"dim\":\"Scalar\",\"value\":0.0,\"display_unit\":\"\"}}}},\"7:5cdde09d996c5c61\":{\"k",
+    "ind\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Scalar\",\"value\":0.0,\"display_u",
+    "nit\":\"\"}}}},\"8:af949e9d2cd2d001\":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{\"",
+    "dim\":\"Scalar\",\"value\":1.0,\"display_unit\":\"\"}}}},\"9:135249424cb8e0e7\":{\"kind\":\"Sc",
+    "alar\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Scalar\",\"value\":0.0,\"display_unit\":\"\"}",
+    "}}},\"11:7b9b7a031545bc84\":{\"kind\":\"Frame\",\"def\":{\"Output\":{\"node\":\"10:54a0180a83",
+    "275575\",\"port\":0}}},\"12:aa1a1f25549ff844\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Conti",
+    "nuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}},\"13:ce0b2c4bfce400e2\":",
+    "{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"displa",
+    "y_unit\":\"m\"}}}},\"14:826a2b7c495117a7\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuou",
+    "s\":{\"dim\":\"Length\",\"value\":1.0,\"display_unit\":\"m\"}}}},\"15:74ce4ff170398ca6\":{\"ki",
+    "nd\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_un",
+    "it\":\"m\"}}}},\"16:4b36daafb7685c2b\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{",
+    "\"dim\":\"Length\",\"value\":1.0,\"display_unit\":\"m\"}}}},\"17:c9a0e5f82154ce3e\":{\"kind\":",
+    "\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":1.0,\"display_unit\":",
+    "\"m\"}}}},\"18:73bc05541afded5a\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim",
+    "\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}},\"19:e51d8c264d945b32\":{\"kind\":\"Len",
+    "gth\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":1.0,\"display_unit\":\"m\"}",
+    "}}},\"26:430f4189a776294e\":{\"kind\":\"Profile\",\"def\":{\"Output\":{\"node\":\"20:fe7be5bb",
+    "524c1ab3\",\"port\":0}}},\"27:ba3d8dce8cc42ae6\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Con",
+    "tinuous\":{\"dim\":\"Length\",\"value\":1.0,\"display_unit\":\"m\"}}}},\"29:5d28910d3b2f6ef6",
+    "\":{\"kind\":\"Body\",\"def\":{\"Output\":{\"node\":\"28:431c72536b7ab1f8\",\"port\":0}}}},\"eps",
+    "ilon\":1e-09,\"witnesses\":{},\"metadata\":{},\"appearance\":[]},\"edits\":[]}",
     "\n"
 );
 
@@ -258,7 +253,7 @@ fn an_older_shaped_document_lacking_newer_vocabulary_loads() {
     assert_ne!(text, OLDER_SHAPED, "the ε rewrite must land");
     let loaded = load(&text, Tol::witness()).expect("an older-shaped document loads");
     assert_eq!(
-        loaded.doc.order().len(),
+        loaded.doc.ids().len(),
         3,
         "frame, profile and extrude, as written"
     );
@@ -293,9 +288,9 @@ fn bytes_that_are_not_json_stay_parse() {
 /// are `crates/pncad/tests/plate_param.pncad` exactly as main held it
 /// before the side became structural (Ev, #3551), frozen here so the
 /// row reads real history rather than a mutation of today's save. They
-/// predate readers by id too, and a reader by name is the first thing
-/// the parser meets that this build cannot read, so the refusal names
-/// it (`Param`) and carries the regenerate recourse once. It is kept as
+/// predate ids as pairs too, and an id spelled as one integer is the
+/// first thing the parser meets that this build cannot read, so the
+/// refusal names it and carries the regenerate recourse once. It is kept as
 /// `.cad`, as `bool13_goldens/`' older bytes are: refusal evidence, not
 /// a member of the `*.pncad` corpus the load rows walk.
 #[test]
@@ -315,7 +310,7 @@ fn a_document_from_before_the_extrude_side_refuses_unreadable() {
     // slot written as an expression where a slot now holds its
     // variable's id.
     assert!(
-        msg.contains("invalid type: map, expected u64"),
+        msg.contains("expected an id: its mint ordinal"),
         "the refusal names what it cannot read: {msg}"
     );
     assert_eq!(msg.matches(REGENERATE_RECOURSE).count(), 1, "{msg}");

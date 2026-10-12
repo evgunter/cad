@@ -12,10 +12,9 @@ use test_utils::refusal::tagged;
 
 use editor_core::NodeStanding;
 use editor_core::{
-    BooleanOp, BooleanValue, CancelToken, CapEnd, DocumentId, EntityKey, EntityKind, EntityRef,
-    EvalOptions, Evaluation, HitTestError, Node, PickHit, ProfileDoc, RecipeNodeId, Resolution,
-    RoleSeg, RunCtx, SplitSide, StableName, UnnamedEntity, ValuePayload, body_name, entity_name,
-    evaluate, resolve,
+    BooleanValue, CancelToken, CapEnd, DocumentId, EntityKey, EntityKind, EntityRef, EvalOptions,
+    Evaluation, HitTestError, Node, PickHit, ProfileDoc, RecipeNodeId, Resolution, RoleSeg, RunCtx,
+    SplitSide, StableName, UnnamedEntity, ValuePayload, body_name, entity_name, evaluate, resolve,
 };
 use fixture::{ang, die, insert, len, on_frame, scl};
 use geom_core::Tol;
@@ -145,7 +144,7 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
         insert(
             doc,
             Node::Extrude {
-                profile: p,
+                profile: p.into(),
                 distance: len(1.0),
                 side: ExtrudeSide::Along,
             },
@@ -162,20 +161,16 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
         insert(
             doc,
             Node::Extrude {
-                profile: p,
+                profile: p.into(),
                 distance: len(1.0),
                 side: ExtrudeSide::Along,
             },
         )
     };
-    let decl = fixture::declare_x_offset_flush(&doc, a, b);
     let (doc, u) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a,
-            b,
-            declare: decl,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
         },
     );
     // Split the union.
@@ -189,12 +184,12 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
     let (doc, _split) = insert(
         doc,
         Node::Split {
-            target: u,
-            tool: plane,
+            target: u.into(),
+            tool: plane.into(),
         },
     );
     // A partial revolve (bands, meridians, wedge caps).
-    let (doc, plane, rp) = fixture::on_frame_keeping(
+    let (doc, rp) = fixture::on_frame(
         doc,
         [0.0, 3.0, 0.0],
         [1.0, 0.0, 0.0],
@@ -203,20 +198,15 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
     );
     // The world axis sat at the FRAME's origin pointing along its v, so
     // in the frame's own coordinates it is +y through (0, 0).
-    let (doc, axis) = insert(doc, fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
     let (doc, _rev) = insert(
         doc,
-        Node::Revolve {
-            profile: rp,
-            axis,
-            angle: ang(std::f64::consts::FRAC_PI_2),
-        },
+        fixture::revolve_about(rp, (0.0, 0.0), (0.0, 1.0), ang(std::f64::consts::FRAC_PI_2)),
     );
     // A pattern of the union.
     let (doc, _pat) = insert(
         doc,
         Node::Pattern {
-            input: u,
+            input: u.into(),
             count: editor_core::Formula::count(3),
             kind: editor_core::PatternKind::Linear {
                 direction: [scl(0.0), scl(0.0), scl(1.0)],
@@ -250,7 +240,7 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
     let (doc, ext) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(0.0), // degenerate: the extrude fails,
             side: ExtrudeSide::Along,
         },
@@ -258,18 +248,15 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
     let (doc, ext2) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
     );
     let (doc, u) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: ext,
-            b: ext2,
-            declare: Vec::new(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![ext.into(), ext2.into()]),
         },
     );
     let ev = run(&doc);
@@ -285,9 +272,9 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
         }))
     );
     assert_eq!(
-        body_name(&ev, RecipeNodeId(tagged(9999)), 0),
+        body_name(&ev, RecipeNodeId::new(0, tagged(9999)), 0),
         Err(HitTestError::Standing(NodeStanding::NotInDocument {
-            node: RecipeNodeId(tagged(9999))
+            node: RecipeNodeId::new(0, tagged(9999))
         }))
     );
     // The Unnamed bug door: a node whose (legitimately empty) table
@@ -351,8 +338,8 @@ test_utils::f6_variants! {
 /// cites, and its roster had drifted from the other one.
 #[test]
 fn hit_test_error_display_names_its_content_not_its_struct() {
-    let node = RecipeNodeId(tagged(7));
-    let through = RecipeNodeId(tagged(3));
+    let node = RecipeNodeId::new(0, tagged(7));
+    let through = RecipeNodeId::new(0, tagged(3));
     // Two faces of ONE node, differing only in their role path — the
     // shared-edge tie's own shape, and the case that says the
     // rendering carries the path.

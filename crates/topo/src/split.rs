@@ -25,7 +25,7 @@
 
 use geom_brep::CertifyError;
 use geom_brep::recourse::{Reading, Refused, RefusedArm, SizedDecision, SizedPass, StoredDefinite};
-use geom_core::{Band, Decide, InfSpeed, Margin, Tol};
+use geom_core::{Band, Decide, InfSpeed, Margin, Point3, Tol};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, GeomRef, HalfEdgeKey, VertexKey};
@@ -178,10 +178,10 @@ impl<T: Decide> Body<T> {
     /// what is there, and minting what is missing is the producer's
     /// closing mint.
     ///
-    /// Two frontiers, both stated at `split_cache`. A
-    /// `Fitted`/`General` row is left exactly as found, because its
-    /// certification doors take the fitted door
-    /// ([`crate::AtRestPolicy::fitted_lane`]). And on a
+    /// A projected row restricts like any other, its hull terms read
+    /// through the fitted door ([`crate::AtRestPolicy::fitted_lane`]).
+    /// Two frontiers, both stated at `split_cache`. A `Fitted` or
+    /// `General` row is left exactly as found. And on a
     /// SPLINE chart the carry is exact — a described-NURBS wall's
     /// `IsoLine`/`IsoArc` rows restrict like any other and tier 3
     /// reads `Ok` — but the recovery step the caveat below names,
@@ -210,6 +210,37 @@ impl<T: Decide> Body<T> {
         &mut self,
         edge: EdgeKey,
         t: T,
+        tol: Tol,
+    ) -> Result<SplitEdgeCreated, EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
+        self.split_edge_minting(edge, t, None, tol)
+    }
+
+    /// [`Self::split_edge`], with the new vertex holding `at`'s own
+    /// bits rather than `carrier(t)`'s: the split lands on a point the
+    /// caller already holds (another vertex's), and the two must read
+    /// one point. Both children certify against `at`, so a point off
+    /// the carrier past the band refuses as any endpoint would.
+    pub(crate) fn split_edge_onto(
+        &mut self,
+        edge: EdgeKey,
+        t: T,
+        at: Point3<T>,
+        tol: Tol,
+    ) -> Result<SplitEdgeCreated, EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
+        self.split_edge_minting(edge, t, Some(at), tol)
+    }
+
+    fn split_edge_minting(
+        &mut self,
+        edge: EdgeKey,
+        t: T,
+        at: Option<Point3<T>>,
         tol: Tol,
     ) -> Result<SplitEdgeCreated, EulerOpError>
     where
@@ -298,7 +329,7 @@ impl<T: Decide> Body<T> {
         let (u, v) = (hp_data.start, hm_data.start);
         let p_u = self.linked_vertex_point(u, EntityId::HalfEdge(hp.key()), "start");
         let p_v = self.linked_vertex_point(v, EntityId::HalfEdge(hm.key()), "start");
-        let p_new = curve.carrier().eval(t);
+        let p_new = at.unwrap_or_else(|| curve.carrier().eval(t));
         // ---- Geometry gate (still no mutation): both children must
         // certify against their own endpoints.
         let (spec1, spec2) = curve.split_specs(t);
@@ -309,22 +340,23 @@ impl<T: Decide> Body<T> {
         // sub-intervals and re-certified. Read-only, so a refusal
         // leaves the body untouched like every gate above it.
         let [rows_plus, rows_minus] =
-            crate::pcurves::split_cache(self, [hp.key(), hm.key()], t, band).map_err(
-                |crate::pcurves::SplitRowError { half_edge, refusal }| match refusal {
-                    crate::pcurves::SplitRefusal::Certify(error) => EulerOpError::PcurveSplit {
-                        edge,
-                        half_edge,
-                        error,
-                    },
-                    crate::pcurves::SplitRefusal::Joint(diag) => {
-                        EulerOpError::SplitJointUndecided {
+            crate::pcurves::split_cache(self, [hp.key(), hm.key()], t, band, T::fitted_lane())
+                .map_err(
+                    |crate::pcurves::SplitRowError { half_edge, refusal }| match refusal {
+                        crate::pcurves::SplitRefusal::Certify(error) => EulerOpError::PcurveSplit {
                             edge,
                             half_edge,
-                            diag,
+                            error,
+                        },
+                        crate::pcurves::SplitRefusal::Joint(diag) => {
+                            EulerOpError::SplitJointUndecided {
+                                edge,
+                                half_edge,
+                                diag,
+                            }
                         }
-                    }
-                },
-            )?;
+                    },
+                )?;
 
         // ---- Mutation (infallible from here on). ----
         // Minting order (documented above): point, curve1, curve2,
@@ -457,7 +489,8 @@ mod tests {
 
     use geom::Curve3;
     use geom_brep::{
-        EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, MappedCurve, SketchSegment,
+        EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, MappedCurve, MappedSource,
+        SketchSegment,
     };
     use geom_core::{Affine3, Arc2, Point2, Point3, Vec3};
 
@@ -523,18 +556,20 @@ mod tests {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(Point3::new(1.0, 0.0, 0.0), true).unwrap();
         let spec = EdgeCurveSpec {
-            description: EdgeDescriptionSpec::Scaffold(MappedCurve::PlacedSegment {
-                segment: SketchSegment::Arc {
-                    a: Point2::new(1.0, 0.0),
-                    b: Point2::new(0.0, 1.0),
-                    arc: Arc2 {
-                        centre: Point2::new(0.0, 0.0),
-                        radius: 1.0,
-                        sweep: FRAC_PI_2,
+            description: EdgeDescriptionSpec::Scaffold(MappedCurve::whole(
+                MappedSource::PlacedSegment {
+                    segment: SketchSegment::Arc {
+                        a: Point2::new(1.0, 0.0),
+                        b: Point2::new(0.0, 1.0),
+                        arc: Arc2 {
+                            centre: Point2::new(0.0, 0.0),
+                            radius: 1.0,
+                            sweep: FRAC_PI_2,
+                        },
                     },
+                    place: Affine3::identity(),
                 },
-                place: Affine3::identity(),
-            }),
+            )),
             carrier: Curve3::Circle {
                 center: Point3::new(0.0, 0.0, 0.0),
                 axis: Vec3::unit_z(),
@@ -575,8 +610,11 @@ mod tests {
         // The restricted description is still a placed arc.
         assert!(matches!(
             c2.description(),
-            EdgeDescription::Scaffold(MappedCurve::PlacedSegment {
-                segment: SketchSegment::Arc { .. },
+            EdgeDescription::Scaffold(MappedCurve {
+                source: MappedSource::PlacedSegment {
+                    segment: SketchSegment::Arc { .. },
+                    ..
+                },
                 ..
             })
         ));

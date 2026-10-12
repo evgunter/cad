@@ -46,7 +46,7 @@ fn cut_cylinder_gains_tessellation_and_props_columns() {
     assert!(failures(&ev).is_empty());
     let split = d
         .doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .find(|&id| {

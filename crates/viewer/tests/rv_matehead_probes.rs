@@ -63,7 +63,7 @@ fn an_edge_named_pick_is_refused_by_the_mate_tool() {
 fn the_kind_refusal_forwards_the_head_constructors_sentence() {
     let refusal = pncad::document::FaceName::new(pncad::prelude::StableName {
         kind: EntityKind::Edge,
-        node: pncad::document::RecipeNodeId(0),
+        node: pncad::document::RecipeNodeId::new(0, 0),
         path: Vec::new(),
     })
     .expect_err("an edge is not a face name");
@@ -79,7 +79,7 @@ fn the_kind_refusal_forwards_the_head_constructors_sentence() {
 
     let operand = MateToolError::NotAnInstancePick {
         side: MateSide::A,
-        node: pncad::document::SpokenNode::absent(pncad::document::RecipeNodeId(0)),
+        node: pncad::document::SpokenNode::absent(pncad::document::RecipeNodeId::new(0, 0)),
     }
     .to_string();
     assert!(
@@ -102,8 +102,13 @@ fn a_face_name_at_an_instance_with_no_part_wrapper_refuses_at_the_pre_check() {
     let bench = asm::bench("rv-matehead-bare", tol);
     let session = asm::open_bench(&bench, tol);
     let (mut a, b) = asm::seat_picks(&session, &bench);
-    assert_eq!(a.name.node, a.node, "pick a is read at its own instance");
-    a.name.path = Vec::new();
+    assert_eq!(a.name.node, a.node, "pick a is on its instance's copy");
+    // The instance's own name under the copy's wrap, its `InPart`
+    // taken off: a bare face name at the instance.
+    let (placement, own) = a.name.copy_of().expect("a pick on a copy is wrapped");
+    let mut bare = own.clone();
+    bare.path = Vec::new();
+    a.name = bare.in_copy(placement);
     let mut tool = MateTool::new();
     tool.pick(session.doc(), a);
     tool.pick(session.doc(), b);

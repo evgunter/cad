@@ -191,7 +191,7 @@ owns. All of it sits behind the non-default `app` feature; without it
 the crate is renderer-free and headless-tested.
 
 **The pick index is built off the UI thread, and it adds no frame
-state.** Tessellating a document's roots and building their triangle
+state.** Tessellating a document's placed copies and building their triangle
 BVHs is the expensive step behind every picture here — seconds on a
 dense document, and the window did not repaint while it ran, because
 `sync_scene` called `PickIndex::build` inline. It runs on its own

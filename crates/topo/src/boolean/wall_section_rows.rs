@@ -341,7 +341,6 @@ fn a_wall_no_ray_reaches_never_escalates_the_query() {
     let wall = cyl_wall_sheet(
         &mut body,
         CylFrame::canonical(1.0),
-        None,
         (0.5, 2.0),
         (0.0, 1.0),
         tol,
@@ -376,14 +375,11 @@ fn a_wall_no_ray_reaches_never_escalates_the_query() {
     );
 }
 
-/// **A junction the hit cannot be put on one side of escalates.** From
-/// a resolved outline this cannot happen: near a vertex without a
-/// meridian both incident planes pass within the band of the hit, and a
-/// meridian run's span catches a hit between its ends. So the branch is
-/// a guard, and this row holds it: the step with its meridian span
-/// dropped, asked between the two floors on the step's azimuth.
+/// **A junction the hit is on both sides of carries both sides.** The
+/// step with its meridian span dropped, asked between the two floors on
+/// the step's azimuth: definitely above one floor and below the other.
 #[test]
-fn a_hit_between_a_junctions_pieces_escalates() {
+fn a_hit_between_a_junctions_pieces_carries_both_sides() {
     let WallOutline::Chart {
         pieces,
         mut junctions,
@@ -394,10 +390,341 @@ fn a_hit_between_a_junctions_pieces_escalates() {
     junctions[0].span = None;
     let outline = WallOutline::Chart { pieces, junctions };
     match ask(&outline, UPPER_HALF, on_wall(HALF_PI, 0.5)) {
-        Err(PointInSolidError::Escalated { diag, .. }) => {
-            assert_eq!(diag.predicate, Some("bool_wall_junction"));
+        Err(PointInSolidError::JunctionSidesDisagree { sides, .. }) => {
+            assert_eq!((read(sides.0), read(sides.1)), (0.5, -0.5));
         }
         other => panic!("{other:?}"),
+    }
+}
+
+/// A decided reading's point margin.
+fn read(m: geom_core::MarginDiag) -> f64 {
+    m.diagnostic_f64_for_error_text().value().unwrap()
+}
+
+/// [`point_on_wall_in_face`] at `band`, on the unit wall about `z`.
+fn ask_at(
+    outline: &WallOutline<f64>,
+    az: (f64, f64),
+    p: Point3<f64>,
+    band: Band,
+) -> Result<Option<bool>, PointInSolidError> {
+    point_on_wall_in_face(
+        FaceKey::default(),
+        Point3::new(0.0, 0.0, 0.0),
+        z(),
+        1.0,
+        Vec3::new(1.0, 0.0, 0.0),
+        az,
+        outline,
+        p,
+        band,
+    )
+}
+
+/// A refusal's renderings — the solid door's, the containment door's,
+/// the at-rest validator's and the census's — each asserted to end on
+/// `ending`, with no unreadable-margin note: every margin it carries was
+/// read. The census's sentence is `census`'s.
+fn every_door_ends_on(e: &PointInSolidError, ending: &str, census: crate::census::Undecided) {
+    let contain = crate::boolean::contain::solid_err(e.clone()).to_string();
+    let (_, at_rest) = crate::validate::classify_point_in_solid(e);
+    for (door, text) in [
+        ("solid", e.to_string()),
+        ("contain", contain),
+        ("validator", at_rest.into_owned()),
+    ] {
+        assert!(text.ends_with(ending), "{door}: {text}");
+        assert!(!text.contains("unreadable"), "{door}: {text}");
+    }
+    assert_eq!(
+        crate::census::Undecided::of_point_in_solid(e).what(),
+        census.what()
+    );
+}
+
+/// [`every_door_ends_on`] the placement lever alone, which every door's
+/// placement shares, and the census's witness too close to call.
+fn ends_on_the_placement_lever(e: &PointInSolidError) {
+    let lever = format!("Recourse: {}", crate::boolean::placement_lever(None));
+    every_door_ends_on(e, &lever, crate::census::Undecided::WitnessTooClose(None));
+}
+
+/// **A V of two steep pieces, read at `K = 1.5`, puts a hit on opposite
+/// sides of them.** The pieces meet at `(1, 0, 1)`, each plane
+/// `0.9ε` off that vertex (a vertex within the band of each edge), their
+/// normals tilted `α` toward opposite tangents. A hit `0.9ε` round the
+/// wall from the vertex's ruling, at or a few `ε` off its height, is
+/// within the junction's band and reads definitely above one plane and
+/// definitely below the other. At the default `K` the same hit is in the
+/// planes' band instead.
+#[test]
+fn a_hit_in_a_steep_junctions_band_carries_both_sides() {
+    let eps = Tol::witness().eps();
+    let tight = Band::new(eps, 1.5 * eps).unwrap();
+    for (alpha, rise) in [
+        (1.5f64, 0.0),
+        (1.5, 3.0 * eps),
+        (1.5, -3.0 * eps),
+        (1.4, 0.0),
+    ] {
+        let (s, c) = alpha.sin_cos();
+        let v = Point3::new(1.0, 0.0, 1.0);
+        let (na, nb) = (Vec3::new(0.0, s, c), Vec3::new(0.0, -s, c));
+        let a = WallPlane {
+            point: v - na * (0.9 * eps),
+            normal: na,
+        };
+        let b = WallPlane {
+            point: v + nb * (0.9 * eps),
+            normal: nb,
+        };
+        let outline = WallOutline::Chart {
+            pieces: vec![
+                WallPiece {
+                    plane: a,
+                    az: (-0.3, 0.0),
+                    ends: (2, 0),
+                },
+                WallPiece {
+                    plane: b,
+                    az: (0.0, 0.3),
+                    ends: (0, 1),
+                },
+                WallPiece {
+                    plane: rim(10.0),
+                    az: (-0.3, 0.3),
+                    ends: (2, 1),
+                },
+            ],
+            junctions: vec![
+                WallJunction {
+                    az: 0.0,
+                    pieces: (0, 1),
+                    span: None,
+                },
+                WallJunction {
+                    az: 0.3,
+                    pieces: (1, 2),
+                    span: Some((plane_height(&b, 0.3), 10.0)),
+                },
+                WallJunction {
+                    az: -0.3,
+                    pieces: (2, 0),
+                    span: Some((plane_height(&a, -0.3), 10.0)),
+                },
+            ],
+        };
+        let p = on_wall((0.9 * eps).asin(), 1.0 + rise);
+        let label = format!("alpha {alpha}, rise {rise:e}");
+        match ask_at(&outline, (-0.3, 0.3), p, tight) {
+            Err(e @ PointInSolidError::JunctionSidesDisagree { sides, band, .. }) => {
+                assert_eq!(band, tight, "{label}");
+                let (sa, sb) = (read(sides.0), read(sides.1));
+                assert!(sa > 1.5 * eps && sb < -1.5 * eps, "{label}: {sa:e}, {sb:e}");
+                assert!(e.in_band(), "{label}: a reading about where the hit stands");
+                ends_on_the_placement_lever(&e);
+            }
+            other => panic!("{label}: {other:?}"),
+        }
+        assert!(
+            matches!(
+                ask_at(&outline, (-0.3, 0.3), p, band()),
+                Err(PointInSolidError::Escalated { .. })
+            ),
+            "{label}: at the default K the sides are in band"
+        );
+    }
+}
+
+/// The face's region at `(theta, h)` read off the outline itself, as
+/// [`wall_outline`]'s parity argument states it: the pieces whose
+/// sub-window strictly holds `theta` and which stand above `h`, counted
+/// mod 2. A truth for a point clear of every piece and meridian.
+fn parity_truth(outline: &WallOutline<f64>, theta: f64, h: f64) -> bool {
+    let WallOutline::Chart { pieces, .. } = outline else {
+        unreachable!("the rows here are charts");
+    };
+    pieces
+        .iter()
+        .filter(|p| p.az.0 < theta && theta < p.az.1 && plane_height(&p.plane, theta) > h)
+        .count()
+        % 2
+        == 1
+}
+
+/// Floor pieces on `floors` over `(−0.3, 0)`, `(0, w)` and `(w, 0.3)`,
+/// under a roof at 2.5 over the whole window. Each junction between
+/// floors whose heights differ is a meridian run between them.
+fn sliver_floor(w: f64, floors: [WallPlane<f64>; 3]) -> WallOutline<f64> {
+    let run = |a: &WallPlane<f64>, b: &WallPlane<f64>, at: f64| {
+        let (x, y) = (plane_height(a, at), plane_height(b, at));
+        ((x - y).abs() > 1e-6).then(|| (x.min(y), x.max(y)))
+    };
+    let [l, m, r] = floors;
+    let roof = rim(2.5);
+    WallOutline::Chart {
+        pieces: vec![
+            WallPiece {
+                plane: l,
+                az: (-0.3, 0.0),
+                ends: (3, 0),
+            },
+            WallPiece {
+                plane: m,
+                az: (0.0, w),
+                ends: (0, 1),
+            },
+            WallPiece {
+                plane: r,
+                az: (w, 0.3),
+                ends: (1, 2),
+            },
+            WallPiece {
+                plane: roof,
+                az: (-0.3, 0.3),
+                ends: (3, 2),
+            },
+        ],
+        junctions: vec![
+            WallJunction {
+                az: 0.0,
+                pieces: (0, 1),
+                span: run(&l, &m, 0.0),
+            },
+            WallJunction {
+                az: w,
+                pieces: (1, 2),
+                span: run(&m, &r, w),
+            },
+            WallJunction {
+                az: 0.3,
+                pieces: (2, 3),
+                span: Some((plane_height(&r, 0.3), 2.5)),
+            },
+            WallJunction {
+                az: -0.3,
+                pieces: (3, 0),
+                span: Some((plane_height(&l, -0.3), 2.5)),
+            },
+        ],
+    }
+}
+
+/// **A piece both of whose ends are active does not cover the hit.**
+/// At `K = 1.2` a piece `w` wide, `1.2ε < w < 2ε`, has a definite extent
+/// and both its ends within `ε` of a hit at its middle. Read just past
+/// both, the parity is the true one: on flat floors, on tilted ones, at
+/// a step up (a meridian run at the sliver's far end), and on a face
+/// that is itself the sliver, turning back at both ends. The truth is
+/// the parity read at the hit's exact azimuth ([`parity_truth`]).
+#[test]
+fn a_piece_narrower_than_two_bands_is_read_past_both_ends() {
+    let eps = Tol::witness().eps();
+    let tight = Band::new(eps, 1.2 * eps).unwrap();
+    for w in [1.3 * eps, 1.5 * eps, 1.9 * eps] {
+        let cases = [
+            (
+                "flat",
+                sliver_floor(w, [rim(0.0), rim(0.0), rim(0.0)]),
+                [1.0, -1.0, 3.0],
+            ),
+            (
+                "tilted",
+                sliver_floor(w, [section(0.3), section(0.3), section(0.3)]),
+                [1.5, 0.5, 3.0],
+            ),
+            (
+                "tilted, stepped",
+                sliver_floor(w, [section(0.3), section(0.25), section(0.35)]),
+                [1.5, 0.5, 3.0],
+            ),
+            (
+                "step up",
+                sliver_floor(w, [rim(0.0), rim(0.0), rim(1.0)]),
+                [2.0, -1.0, 3.0],
+            ),
+        ];
+        for (label, outline, heights) in cases {
+            for h in heights {
+                let got = ask_at(&outline, (-0.3, 0.3), on_wall(w / 2.0, h), tight);
+                let truth = parity_truth(&outline, w / 2.0, h);
+                assert_eq!(got.unwrap(), Some(truth), "{label}, w {w:e}, h {h}");
+            }
+        }
+        // The face is the sliver: it turns back at both of its ends.
+        let turning = WallOutline::Chart {
+            pieces: vec![
+                WallPiece {
+                    plane: rim(0.0),
+                    az: (0.0, w),
+                    ends: (1, 0),
+                },
+                WallPiece {
+                    plane: rim(2.5),
+                    az: (0.0, w),
+                    ends: (1, 0),
+                },
+            ],
+            junctions: vec![
+                WallJunction {
+                    az: w,
+                    pieces: (0, 1),
+                    span: Some((0.0, 2.5)),
+                },
+                WallJunction {
+                    az: 0.0,
+                    pieces: (1, 0),
+                    span: Some((0.0, 2.5)),
+                },
+            ],
+        };
+        for h in [-1.0, 3.0] {
+            let got = ask_at(&turning, (0.0, w), on_wall(w / 2.0, h), tight);
+            let truth = parity_truth(&turning, w / 2.0, h);
+            assert_eq!(got.unwrap(), Some(truth), "turning, w {w:e}, h {h}");
+        }
+        assert_eq!(
+            ask_at(&turning, (0.0, w), on_wall(w / 2.0, 1.0), tight).unwrap(),
+            None,
+            "turning, w {w:e}: between floor and roof is within a band of both meridians"
+        );
+    }
+}
+
+/// **A narrow piece's window margin in band of zero is a limit of the
+/// kernel's window reading, told as one.** On a window `width` wide the
+/// cosine construction's margin at a hit `δ` past (or short of) its end
+/// is about `sin(width/2)·δ`: at `δ = 2Kε` the junction there is
+/// definitely not active, and still the margin is within `ε`. The hit is
+/// clear of every boundary, so it is no graze; the refusal carries the
+/// gate's decided margin, names the narrow window, and ends on moving
+/// the point and the kernel-limit note at every door.
+#[test]
+fn a_narrow_windows_collapsed_margin_keeps_its_reading() {
+    let tol = Tol::witness();
+    let (eps, k) = (tol.eps(), tol.k());
+    for width in [0.02, 0.05, 0.08] {
+        let window = (0.0, width);
+        for past in [2.0 * k * eps, -2.0 * k * eps] {
+            let label = format!("width {width}, past {past:e}");
+            match ask(&cut_upper(window), window, on_wall(width + past, 2.0)) {
+                Err(e @ PointInSolidError::NarrowWindowUnread { diag, .. }) => {
+                    assert_eq!(diag.predicate, Some("bool_wall_trim"), "{label}");
+                    assert_eq!(diag.margin.rejected_sign(), Some(Sign::Zero), "{label}");
+                    let m = read(diag.margin);
+                    assert!(m.abs() <= eps, "{label}: {m:e}");
+                    assert!(e.in_band(), "{label}: the ray is set aside, kept");
+                    assert!(e.to_string().contains("narrow"), "{label}: {e}");
+                    every_door_ends_on(
+                        &e,
+                        NARROW_WINDOW_NOTE,
+                        crate::census::Undecided::WitnessNarrowWindow,
+                    );
+                }
+                other => panic!("{label}: {other:?}"),
+            }
+        }
     }
 }
 
@@ -460,6 +787,6 @@ fn the_window_construction_sites_are_the_ones_listed() {
     );
     assert_eq!(
         sites(include_str!("contain.rs")),
-        named(&["curved_face_placement"])
+        named(&["curved_interior_placement"])
     );
 }

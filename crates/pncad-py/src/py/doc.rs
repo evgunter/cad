@@ -42,15 +42,14 @@ fn infallible<'py, T>(converted: Result<Bound<'py, T>, std::convert::Infallible>
 /// one concept one name; where two arms name one concept differently
 /// the concept's clearest word wins and `crate::edit_payload` states
 /// the mapping at the arm. Every attribute is present at every raise
-/// site of the class — the document layer's refusals, the declare
-/// sugar's, and the three the boundary builds itself — so `getattr`
+/// site of the class — the document layer's refusals and the three the boundary builds itself — so `getattr`
 /// never raises and a caller need not branch on `variant` first.
 fn edit_fields(
     py: Python<'_>,
     variant: &str,
     inner: Option<&'static str>,
     payload: &crate::edit_payload::EditPayload<'_>,
-) -> [(&'static str, Py<PyAny>); 26] {
+) -> [(&'static str, Py<PyAny>); 25] {
     let none = || py.None();
     // A field whose own construction failed degrades to `None` rather
     // than replacing the kernel's refusal with a boundary one: the
@@ -72,7 +71,6 @@ fn edit_fields(
         ("inner_variant", inner_variant(py, inner)),
         ("node", node(payload.node)),
         ("input", node(payload.input)),
-        ("referenced_by", node(payload.referenced_by)),
         ("slot", word(payload.slot)),
         ("param", word(payload.param.map(|p| p.as_str()))),
         (
@@ -214,41 +212,6 @@ fn boundary_edit_err(py: Python<'_>, refusal: BoundaryEdit<'_>, message: String)
             &crate::edit_payload::EditPayload::NONE,
         ),
     )
-}
-
-/// Raise `EditError` for a declare-sugar refusal.
-///
-/// `DeclareError` implements `Display`: the human message is the
-/// door's own prose (its `Edit` arm forwards the document layer's
-/// message, so one refusal keeps one voice), and the machine payload
-/// is the stable tag (`crate::tags::declare_error_tag` — the `Edit`
-/// arm carries the document layer's own tag through) plus that arm's
-/// fields.
-fn declare_err(py: Python<'_>, err: &pncad::select::DeclareError) -> PyErr {
-    // The `Edit` arm carries the document layer's refusal whole, so
-    // its inner arm and its payload cross too; `NoFindings` has
-    // neither.
-    let (inner, payload) = match err {
-        pncad::select::DeclareError::Edit(inner) => (
-            edit_inner_variant_tag(inner),
-            crate::edit_payload::edit_payload(inner),
-        ),
-        pncad::select::DeclareError::NoFindings => (None, crate::edit_payload::EditPayload::NONE),
-    };
-    typed_err(
-        py,
-        ErrorClass::Edit,
-        err.to_string(),
-        &edit_fields(py, crate::tags::declare_error_tag(err), inner, &payload),
-    )
-}
-
-/// The kernel's declared-pair list for a boolean's or union's
-/// `declare=` or a `DocEdit.set_declare`: each inspected finding's pair
-/// and class. An empty list is the undeclared node.
-fn declared_pairs(findings: Vec<super::flush::FlushFinding>) -> Vec<d::DeclaredPair> {
-    let kernel: Vec<pncad::select::FlushFinding> = findings.into_iter().map(|f| f.0).collect();
-    pncad::select::declared_pairs(&kernel)
 }
 
 /// Raise `PersistError` carrying the refusal's stable tag and the
@@ -627,7 +590,7 @@ pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
 /// The expression a node SLOT takes, refused at the door when its
 /// dimension is not the slot's.
 ///
-/// The dimension a slot requires is [`d::SlotId::dimension`] — the
+/// The dimension a slot requires is [`d::SlotId::expr_dimension`] — the
 /// kernel's own table, read rather than restated — and the refusal is
 /// the kernel's own `EditError`, the one `apply` raises for the same
 /// expression in the same slot. So an angle handed to a length slot
@@ -638,7 +601,7 @@ pub(crate) fn slot_expr(
     slot: d::SlotId,
     expr: &super::expr::SlotArg,
 ) -> PyResult<d::Formula> {
-    let expected = slot.dimension();
+    let expected = slot.expr_dimension();
     let formula = expr.formula(py, expected)?;
     let found = formula.dim();
     if found == expected {
@@ -648,7 +611,7 @@ pub(crate) fn slot_expr(
         py,
         &d::EditError::SlotDimensionMismatch {
             slot,
-            expected,
+            expected: slot.kind(),
             found,
         },
     ))
@@ -729,7 +692,7 @@ fn label_from_text(py: Python<'_>, text: &str) -> PyResult<d::Label> {
 /// same class of refusal as a string where a `SketchPlane` belongs,
 /// with no kernel refusal to forward. A WELL-FORMED name that denotes
 /// nothing in this document refuses at the kernel's own door
-/// (`fillet_selection_resolve`), which is where that belongs.
+/// (`select_resolve`), which is where that belongs.
 pub(crate) fn name_from_text(text: &str) -> PyResult<pncad::prelude::StableName> {
     pncad::prelude::StableName::from_json(text).map_err(|err| {
         pyo3::exceptions::PyValueError::new_err(format!(
@@ -784,8 +747,8 @@ fn slot_from_text(word: &str) -> PyResult<d::SlotId> {
         return Ok(slot);
     }
     Err(pyo3::exceptions::PyValueError::new_err(
-        if word == "profile" {
-            "`profile` addresses one expression inside a profile program, and the rest of \
+        if word == "program" {
+            "`program` addresses one expression inside a profile program, and the rest of \
          that address — a loop index, a step index and which argument — is not carried \
          by the word: a profile's numbers are re-authored, not edited at a slot"
                 .to_owned()
@@ -793,6 +756,16 @@ fn slot_from_text(word: &str) -> PyResult<d::SlotId> {
             "`placement_step` addresses one expression of a later step of a transform's \
          placement, and the rest of that address — the step index and which component — \
          is an integer the word does not carry, so no slot word here writes at it"
+                .to_owned()
+        } else if word == "section" || word == "member" {
+            format!(
+                "`{word}` addresses one entry of a list a node reads, and its position is not \
+             carried by the word: `DocEdit.set_members` writes the list whole"
+            )
+        } else if word == "index" {
+            "`index` addresses one index of a read of a family's member, and the rest of that \
+         address — the seat the read sits at and which index — is not carried by the word: \
+         the member read is re-authored"
                 .to_owned()
         } else if word == "mate_frame_step" {
             "`mate_frame_step` addresses one expression of a mate side's frame offset, and the \
@@ -825,10 +798,137 @@ pub(crate) fn seam(
 #[derive(Clone, Copy)]
 pub(crate) struct NodeId(pub(crate) d::RecipeNodeId);
 
+/// **What `DocEdit.set_param` writes**: a node, read through its
+/// output, or anything a slot argument is — a variable, a formula, a
+/// value.
+#[derive(FromPyObject)]
+pub(crate) enum SlotValueArg {
+    /// A node, read through its one output.
+    Node(NodeId),
+    /// A variable, a formula or a value.
+    Slot(super::expr::SlotArg),
+}
+
+/// **An operand as Python writes it**: a node, read at its one output
+/// (a node with several, a revolve or a split, refuses
+/// `ambiguous_output`: its port is read by `Doc.output`), a variable
+/// — an output by `Doc.output`, or a name's — or a pose defined at the
+/// seat (`PoseDef`).
+#[derive(FromPyObject, Clone)]
+pub(crate) enum OperandArg {
+    /// A node, read at its one output.
+    Node(NodeId),
+    /// A variable, read as itself.
+    Var(Var),
+    /// A pose defined at the seat.
+    Pose(super::pose::PoseDef),
+}
+
+impl OperandArg {
+    /// The authored read.
+    pub(crate) fn read(self) -> d::Operand {
+        match self {
+            Self::Node(node) => d::Operand::Node(node.0),
+            Self::Var(var) => d::Operand::Var(var.0),
+            Self::Pose(pose) => pose.inner,
+        }
+    }
+}
+
+/// **One member of a family, read by index** (REFERENCES DM3): `xs[i]`,
+/// written `op[i]` on the family's operand — a node or a variable —
+/// with one count per index. It is a read of the family, not a
+/// variable: an operation reading it keys the member's names by the
+/// family's read. Every body seat takes one; an index out of the
+/// family's range refuses `instance_out_of_range` at `evaluate`.
+#[pyclass(frozen, module = "pncad", from_py_object)]
+#[derive(Clone)]
+pub(crate) struct IndexedRead {
+    read: OperandArg,
+    at: Vec<d::Formula>,
+}
+
+impl IndexedRead {
+    /// `read` at the one index `index`, read as a count.
+    fn of(py: Python<'_>, read: OperandArg, index: &super::expr::SlotArg) -> PyResult<Self> {
+        Ok(Self {
+            read,
+            at: vec![index.formula(py, d::Dimension::Count)?],
+        })
+    }
+}
+
+#[pymethods]
+impl IndexedRead {
+    fn __repr__(&self) -> String {
+        let read = match &self.read {
+            OperandArg::Node(node) => format!("NodeId({})", node.0.full()),
+            OperandArg::Var(var) => format!("Var({})", var.0.full()),
+            OperandArg::Pose(_) => {
+                unreachable!("an indexed read is `[]` on a node or a variable, never a pose")
+            }
+        };
+        let at: Vec<String> = self.at.iter().map(ToString::to_string).collect();
+        format!("{read}[{}]", at.join(", "))
+    }
+}
+
+/// **A read at a body seat as Python writes it**: an operand read
+/// plainly, or one member of a family (`op[i]`, [`IndexedRead`]).
+#[derive(FromPyObject, Clone)]
+pub(crate) enum BodyArg {
+    /// One member of a family.
+    Indexed(IndexedRead),
+    /// An operand, read plainly.
+    Read(OperandArg),
+}
+
+impl BodyArg {
+    /// The authored read.
+    pub(crate) fn read(self) -> d::BodyRead<d::Formula> {
+        match self {
+            Self::Indexed(IndexedRead { read, at }) => d::BodyRead::indexed(read.read(), at),
+            Self::Read(read) => d::BodyRead::plain(read.read()),
+        }
+    }
+}
+
+/// **A union's or an intersect's members as Python writes them**: ONE
+/// operand, a family read whole (a pattern's output), or a sequence of
+/// reads, each on its own (an operand, or a member `op[i]`) — the
+/// kernel's `Bodies`. Whether a read in a sequence is itself a family
+/// is the kernel's question at the door (`slot_var_kind`), not this
+/// one's.
+#[derive(FromPyObject)]
+pub(crate) enum MembersArg {
+    /// One read: the family it reads, whole.
+    Family(BodyArg),
+    /// A sequence of reads, in the order written.
+    Spelled(Vec<BodyArg>),
+}
+
+impl MembersArg {
+    /// The authored argument.
+    pub(crate) fn bodies(self) -> d::Bodies<d::BodyRead<d::Formula>> {
+        match self {
+            Self::Family(read) => d::Bodies::Family(read.read()),
+            Self::Spelled(reads) => {
+                d::Bodies::Spelled(reads.into_iter().map(BodyArg::read).collect())
+            }
+        }
+    }
+}
+
 #[pymethods]
 impl NodeId {
     fn __repr__(&self) -> String {
         format!("NodeId({})", self.0.full())
+    }
+
+    /// One member of the family this node's output is, at `index`
+    /// ([`IndexedRead`]).
+    fn __getitem__(&self, py: Python<'_>, index: super::expr::SlotArg) -> PyResult<IndexedRead> {
+        IndexedRead::of(py, OperandArg::Node(*self), &index)
     }
 
     fn __eq__(&self, other: &Self) -> bool {
@@ -837,7 +937,7 @@ impl NodeId {
 
     fn __hash__(&self) -> u64 {
         let _tol = Tol::witness();
-        self.0.0
+        self.0.0.digest()
     }
 }
 
@@ -879,10 +979,25 @@ impl Doc {
     fn evaluand(&self, py: Python<'_>, evaluand: Evaluand) -> PyResult<d::Formula> {
         match evaluand {
             Evaluand::Formula(formula) => Ok(formula.0),
-            Evaluand::Var(Var(var)) => {
-                let dim = self.inner.var(var).map(|held| match held.def() {
-                    d::VarDef::Free(free) => free.dim(),
-                    d::VarDef::Defined(expr) => expr.dim(),
+            Evaluand::Var(Var(var, _)) => {
+                // An operation's output of a reference kind is no value an
+                // expression reads; a scalar one has no binding outside an
+                // evaluation, so its reader refuses `unresolved_var`.
+                if let Some(held) = self.inner.var(var)
+                    && held.kind().dimension().is_none()
+                {
+                    return Err(pyo3::exceptions::PyTypeError::new_err(format!(
+                        "{} is an operation's output of kind {}, which no expression reads",
+                        self.inner.spoken_var(var),
+                        held.kind()
+                    )));
+                }
+                let dim = self.inner.var(var).and_then(|held| match held.def() {
+                    d::VarDef::Free(free) => Some(free.dim()),
+                    d::VarDef::Defined(expr) => Some(expr.dim()),
+                    d::VarDef::Output { .. } | d::VarDef::Select(_) | d::VarDef::Pose(_) => {
+                        held.kind().dimension()
+                    }
                 });
                 let Some(dim) = dim else {
                     let unheld = d::EvalError::UnresolvedVar { var };
@@ -893,9 +1008,9 @@ impl Doc {
         }
     }
 
-    fn authored(&self, py: Python<'_>, formula: &d::Formula) -> PyResult<d::Expr> {
+    fn authored(&self, py: Python<'_>, formula: &d::Formula) -> PyResult<d::Formula> {
         self.inner
-            .lowered(formula)
+            .resolve(formula)
             .map_err(|fault| super::expr::lower_fault_err(py, &fault))
     }
 
@@ -916,10 +1031,8 @@ impl Doc {
     /// `pub(crate)` because the rest of the crate reads the document,
     /// so nothing stops a new door assigning either field directly.
     /// [`Doc::insert_node`] closes that hole for `insert` by taking its
-    /// action up internally, and [`Doc::declare_findings`] closes it for the
-    /// declare doors by taking the kernel sugar's whole acceptance up
-    /// here; a door reaching `d::apply` for any OTHER edit lands here,
-    /// and a kernel door answering a whole action's paired document and
+    /// action up internally; a door reaching `d::apply` for any OTHER
+    /// edit lands here, and a kernel door answering a whole action's paired document and
     /// maintenance lands in [`Doc::take_up`] directly; anything else is a
     /// bug the test names. The refactoring wrappers are the
     /// one family that does not pass through: they never `apply` a
@@ -955,11 +1068,36 @@ impl Doc {
         label: Option<d::Label>,
         resolver: Option<&super::store::Workspace>,
     ) -> Result<NodeId, d::EditError> {
+        self.minting(label, resolver, |action| action.insert(node))
+    }
+
+    /// `insert_node` for an insert spelled as its [`d::DocEdit`] — the
+    /// kernel's own sugar for one, `DocEdit::place`'s among them.
+    fn insert_edit(
+        &mut self,
+        edit: d::DocEdit<d::ProfileProgram>,
+        label: Option<d::Label>,
+    ) -> Result<NodeId, d::EditError> {
+        self.minting(label, None, |action| {
+            let minted = action.apply(edit)?;
+            Ok(minted.unwrap_or_else(|| unreachable!("an accepted insert mints a node")))
+        })
+    }
+
+    /// The shared tail: `insert` on a fresh action, then the label.
+    fn minting(
+        &mut self,
+        label: Option<d::Label>,
+        resolver: Option<&super::store::Workspace>,
+        insert: impl FnOnce(
+            &mut d::Recording<'_, d::ProfileProgram>,
+        ) -> Result<d::RecipeNodeId, d::EditError>,
+    ) -> Result<NodeId, d::EditError> {
         let tol = Tol::witness();
         let seam = seam(resolver);
         let reach = d::PartReach::<f64>::with_resolver(seam.as_ref(), tol);
         let mut action = d::Recording::start(&self.inner, tol, &reach);
-        let id = action.insert(node)?;
+        let id = insert(&mut action)?;
         if let Some(label) = label {
             action.apply(d::DocEdit::SetLabel {
                 node: id,
@@ -969,21 +1107,6 @@ impl Doc {
         let done = action.finish()?;
         self.take_up(done.doc, done.maintenance);
         Ok(NodeId(id))
-    }
-
-    /// The declare doors' shared tail: the kernel declare sugar's
-    /// acceptance — the new document, its record and its (empty)
-    /// maintenance — is taken up whole through the swap point, and
-    /// every `DeclareError` arm reaches Python through the same
-    /// `declare_err`.
-    fn accept_declared(
-        &mut self,
-        py: Python<'_>,
-        applied: Result<d::Applied<d::ProfileProgram>, pncad::select::DeclareError>,
-    ) -> PyResult<()> {
-        let applied = applied.map_err(|err| declare_err(py, &err))?;
-        self.accept(applied);
-        Ok(())
     }
 }
 
@@ -1242,16 +1365,16 @@ impl Doc {
             .collect()
     }
 
-    /// The document's ordered **product roots** — what `product` and
-    /// `assemble` gather, in this order.
+    /// **The world placements**, in document order: the nodes whose
+    /// copies are the product — what `product` and `assemble` gather,
+    /// in this order.
     ///
-    /// Set through `DocEdit.set_roots`. Maintained automatically by
-    /// every other edit (inserting a node that consumes a root
-    /// transfers it), so a document always states its product rather
-    /// than leaving it to be inferred.
-    #[getter]
-    fn roots(&self) -> Vec<NodeId> {
-        self.inner.roots().iter().copied().map(NodeId).collect()
+    /// Written through `place` (or an inserted `Node.place_in_world`),
+    /// and through nothing else: no edit places or unplaces as a side
+    /// effect, so a body is in the product exactly when a placement
+    /// reads it.
+    fn placements(&self) -> Vec<NodeId> {
+        self.inner.placements().into_iter().map(NodeId).collect()
     }
 
     /// An instance's **offset** in its gauge (A11 (2)), or `None` when
@@ -1391,6 +1514,44 @@ impl Doc {
             .map_err(|err| edit_err(py, &err))
     }
 
+    /// **Insert measures** (ERROR-DESIGN E3, D10): one `Measure` node
+    /// per primitive, in order, as one action — all land or none does.
+    /// Answers a `Measured`: the measures and their outputs, the
+    /// observed values an assertion reads. Arithmetic over them is an
+    /// ordinary `Formula`: name an output (`DocEdit.rename_var`) and
+    /// write the arithmetic with `Doc.parse_formula`; an assertion reads
+    /// the formula, or `DocEdit.declare_var` names it.
+    ///
+    /// Exactly `insert(Node.measure(p))` per primitive, recorded as one
+    /// action and answered with the outputs, as `sketch_frame` is
+    /// `insert(Node.sketch_frame(...))`.
+    #[pyo3(signature = (primitives, *, resolver=None))]
+    fn measure(
+        &mut self,
+        py: Python<'_>,
+        primitives: Vec<super::measure::MeasurePrimitive>,
+        resolver: Option<&super::store::Workspace>,
+    ) -> PyResult<Measured> {
+        let primitives: Vec<d::MeasurePrimitive> = primitives.into_iter().map(|p| p.0).collect();
+        let tol = Tol::witness();
+        let seam = seam(resolver);
+        let reach = d::PartReach::<f64>::with_resolver(seam.as_ref(), tol);
+        let mut action = d::Recording::start(&self.inner, tol, &reach);
+        let measured = action
+            .measure(&primitives)
+            .map_err(|err| edit_err(py, &err))?;
+        let done = action.finish().map_err(|err| edit_err(py, &err))?;
+        self.take_up(done.doc, done.maintenance);
+        Ok(Measured {
+            measures: measured.measures.into_iter().map(NodeId).collect(),
+            outputs: measured
+                .outputs
+                .into_iter()
+                .map(|out| Var::of(&self.inner, out))
+                .collect(),
+        })
+    }
+
     /// **Insert a sketch frame and return its id** — the one line a
     /// profile needs before it can name a plane.
     ///
@@ -1420,6 +1581,32 @@ impl Doc {
         self.insert(py, &node, label, None)
     }
 
+    /// **Place one copy of `body` in the world** at `pose`, the
+    /// identity when `None`, and return the placement's id.
+    ///
+    /// The one door that puts a body in the product: nothing places as
+    /// a side effect, so a boolean of two placed bodies leaves both
+    /// placed and the boolean unplaced until it is placed here. The
+    /// edit is the Rust façade's `DocEdit::place`, the insert of
+    /// `Node.place_in_world(body, pose)`. A split's half is placed by
+    /// its output, `place(doc.output(split, 1))`.
+    ///
+    /// Two placements of one body are two copies. `label=` labels the
+    /// placement in the same call, as `insert`'s does.
+    #[pyo3(signature = (body, pose=None, *, label=None))]
+    fn place(
+        &mut self,
+        py: Python<'_>,
+        body: BodyArg,
+        pose: Option<super::place::Placement>,
+        label: Option<&str>,
+    ) -> PyResult<NodeId> {
+        let label = label.map(|text| label_from_text(py, text)).transpose()?;
+        Node::place_in_world(py, body.clone(), pose.clone())?;
+        self.insert_edit(d::DocEdit::place(body.read(), pose.map(|p| p.0)), label)
+            .map_err(|err| edit_err(py, &err))
+    }
+
     /// The label a person gave `node`, or `None` when it has none.
     ///
     /// A label is document data beside the node: not unique, never
@@ -1447,60 +1634,16 @@ impl Doc {
             .map(|label| label.as_str().to_owned()))
     }
 
-    /// ADD one inspected finding's pair to the declared pairs of the
-    /// live boolean or union `node`, keeping every pair it declares
-    /// already — the detect/declare protocol's declare arm
-    /// (SELECT-DESIGN §3), and the door an `undeclared_coincidence`
-    /// refusal's recourse names: following each refusal with its
-    /// `finding` converges on a node that declares every contact it
-    /// meets. A pair on the same two sides as one already declared
-    /// replaces it rather than repeating it. Nothing here detects;
-    /// findings reach this door as VALUES the caller already inspected
-    /// (the ruled no-fusion boundary).
-    ///
-    /// Raises `EditError`: `set_declare_on_non_declaring` when `node`
-    /// is neither a boolean nor a union, `unknown_node` for a node the
-    /// document does not hold, `declared_site_not_an_operand` for a
-    /// finding inspected between other operands than `node`'s, and the
-    /// name checks an insert runs on a pair naming a node or step the
-    /// document does not hold.
-    fn declare(
-        &mut self,
-        py: Python<'_>,
-        node: &NodeId,
-        finding: &super::flush::FlushFinding,
-    ) -> PyResult<()> {
-        let applied = pncad::select::declare(&self.inner, node.0, &finding.0, Tol::witness());
-        self.accept_declared(py, applied)
-    }
-
-    /// Declare a SET of inspected findings on the live boolean or union
-    /// `node`, replacing its whole declared-pair list —
-    /// `DocEdit.set_declare`'s replace, where `declare` adds (the
-    /// boundary is fusion, not arity). Same refusals as `declare`; an
-    /// EMPTY list refuses (`no_findings`) rather than
-    /// clearing silently — `DocEdit.set_declare(node, [])` is the
-    /// spelling that clears.
-    fn declare_all(
-        &mut self,
-        py: Python<'_>,
-        node: &NodeId,
-        findings: Vec<super::flush::FlushFinding>,
-    ) -> PyResult<()> {
-        let kernel: Vec<pncad::select::FlushFinding> = findings.into_iter().map(|f| f.0).collect();
-        let applied = pncad::select::declare_all(&self.inner, node.0, &kernel, Tol::witness());
-        self.accept_declared(py, applied)
-    }
-
     /// How many nodes the document holds.
     #[getter]
     fn node_count(&self) -> usize {
         self.inner.len()
     }
 
-    /// The document's evaluation order.
+    /// The document's nodes in id order, which is the order they were
+    /// inserted in.
     fn order(&self) -> Vec<NodeId> {
-        self.inner.order().iter().copied().map(NodeId).collect()
+        self.inner.ids().into_iter().map(NodeId).collect()
     }
 
     /// **The document's named free parameters**, by name, in
@@ -1541,7 +1684,7 @@ impl Doc {
     #[getter]
     fn definitions<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         let out = PyDict::new(py);
-        for &id in self.inner.var_order() {
+        for id in self.inner.var_ids() {
             let Some(expr) = self.inner.var(id).and_then(|v| v.def().defined()) else {
                 continue;
             };
@@ -1563,7 +1706,7 @@ impl Doc {
     fn vars<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         let out = PyDict::new(py);
         for (id, param) in self.inner.free_vars() {
-            out.set_item(Var(id), FreeVar(param.clone()))?;
+            out.set_item(Var::of(&self.inner, id), FreeVar(param.clone()))?;
         }
         Ok(out)
     }
@@ -1580,7 +1723,28 @@ impl Doc {
 
     /// The variable this document names `name`, or `None`.
     fn var(&self, name: &VarName) -> Option<Var> {
-        self.inner.var_named(name.0.as_str()).map(Var)
+        self.inner
+            .var_named(name.0.as_str())
+            .map(|id| Var::of(&self.inner, id))
+    }
+
+    /// **The variable port `port` of `node` defines** (`Doc::output`):
+    /// an operation's output, which lives exactly as long as its node.
+    /// `None` for a node the document does not hold; a port the live
+    /// node's signature does not have raises `ValueError`.
+    #[pyo3(signature = (node, port = 0))]
+    fn output(&self, node: &NodeId, port: u8) -> PyResult<Option<Var>> {
+        let Some(signature) = self.inner.signature(node.0) else {
+            return Ok(None);
+        };
+        match self.inner.output(node.0, port) {
+            Some(var) => Ok(Some(Var::of(&self.inner, var))),
+            None => Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "{} defines {} port(s), so it has no port {port}",
+                self.inner.spoken(node.0),
+                signature.len()
+            ))),
+        }
     }
 
     /// **The variable a node's slot reads** (`Doc::slot`), or `None`
@@ -1588,7 +1752,10 @@ impl Doc {
     /// reads one: a value written there is its own anonymous variable,
     /// and passing the handle to another slot is how two slots share it.
     fn slot(&self, node: &NodeId, slot: &str) -> PyResult<Option<Var>> {
-        Ok(self.inner.slot(node.0, slot_from_text(slot)?).map(Var))
+        Ok(self
+            .inner
+            .slot(node.0, slot_from_text(slot)?)
+            .map(|id| Var::of(&self.inner, id)))
     }
 
     /// The name this document holds for `var`, or `None` — for an
@@ -1599,7 +1766,7 @@ impl Doc {
 
     /// **The text of `expr`**, each variable it reads written by the
     /// name this document holds for it (`Doc::unparse`); one with no
-    /// name here writes its full id, `#<16 hex>`.
+    /// name here writes its full id, `#<ordinal>:<16 hex>`.
     fn unparse(&self, expr: super::expr::EitherForm) -> String {
         match expr {
             super::expr::EitherForm::Formula(formula) => self.inner.unparse(&formula.0),
@@ -1756,58 +1923,13 @@ impl Doc {
     }
 }
 
-/// Which Boolean the document layer performs.
-///
-/// Rust has ONE `BooleanOp` — the kernel enum the recipe node carries
-/// — and this is its binding. The mirror exists because `#[pyclass]`
-/// cannot be attached to a type from another crate, so a python-side
-/// copy is forced; the obligation it owes the kernel is that every
-/// kernel operation has a member here, which
-/// [`_binds_every_kernel_operation`] is what enforces.
-#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) enum BooleanOp {
-    /// Fuse the operands.
-    Union,
-    /// Keep the common volume.
-    Intersect,
-    /// Remove `b` from `a`.
-    Subtract,
-}
-
-impl BooleanOp {
-    fn to_document(self) -> d::BooleanOp {
-        match self {
-            Self::Union => d::BooleanOp::Union,
-            Self::Intersect => d::BooleanOp::Intersect,
-            Self::Subtract => d::BooleanOp::Subtract,
-        }
-    }
-}
-
-/// Every kernel operation has a member on the python mirror.
-///
-/// The direction is the load-bearing one. `to_document` matches on
-/// `Self` — a closed local enum — so it says nothing about the kernel
-/// growing; an operation added there would leave the python surface
-/// silently short of it. This match is over the KERNEL enum, so that
-/// addition breaks this build and the binding must be written.
-///
-/// It is never called: a type-checked match is the whole product, and
-/// the leading underscore is what says so.
-const fn _binds_every_kernel_operation(kernel: d::BooleanOp) -> BooleanOp {
-    match kernel {
-        d::BooleanOp::Union => BooleanOp::Union,
-        d::BooleanOp::Intersect => BooleanOp::Intersect,
-        d::BooleanOp::Subtract => BooleanOp::Subtract,
-    }
-}
-
 /// Which side of its sketch plane a `Node.extrude` goes toward.
 ///
-/// The binding of the kernel's `ExtrudeSide`, mirrored for the reason
-/// [`BooleanOp`] is, and held to it the same way
-/// ([`_binds_every_kernel_side`]).
+/// The binding of the kernel's `ExtrudeSide`. The mirror exists
+/// because `#[pyclass]` cannot be attached to a type from another
+/// crate, so a python-side copy is forced; the obligation it owes the
+/// kernel is that every kernel side has a member here, which
+/// [`_binds_every_kernel_side`] is what enforces.
 #[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum ExtrudeSide {
@@ -1826,8 +1948,16 @@ impl ExtrudeSide {
     }
 }
 
-/// Every kernel side has a member on the python mirror — the match is
-/// over the KERNEL enum. Never called.
+/// Every kernel side has a member on the python mirror.
+///
+/// The direction is the load-bearing one. `to_document` matches on
+/// `Self` — a closed local enum — so it says nothing about the kernel
+/// growing; a side added there would leave the python surface
+/// silently short of it. This match is over the KERNEL enum, so that
+/// addition breaks this build and the binding must be written.
+///
+/// It is never called: a type-checked match is the whole product, and
+/// the leading underscore is what says so.
 const fn _binds_every_kernel_side(kernel: d::ExtrudeSide) -> ExtrudeSide {
     match kernel {
         d::ExtrudeSide::Along => ExtrudeSide::Along,
@@ -1835,15 +1965,9 @@ const fn _binds_every_kernel_side(kernel: d::ExtrudeSide) -> ExtrudeSide {
     }
 }
 
-/// **Which body of a multi-body value a `Node.part` selects**: the
-/// named half of a split, or one instance of a pattern by index.
-///
-/// One class for the two because the node is one sentence — "this
-/// body, out of those" — and the VALUE decides which arm is
-/// well-typed: a half against a split, an index against a pattern's
-/// instances. Any other pairing refuses typed at `evaluate`
-/// (`wrong_operand`), never here, because which value a node id
-/// carries is not known until the document runs.
+/// **Which copy of a pattern a `Node.part` selects**, by index. A
+/// split's halves need no selector: each is an output of the split,
+/// read as `doc.output(split, port)`.
 ///
 /// The shape is `PatternKind`'s: a frozen value class of static
 /// constructors, one per kernel arm, spelled in snake case.
@@ -1853,19 +1977,6 @@ pub(crate) struct PartSelect(pub(crate) d::PartSelect<d::Formula>);
 
 #[pymethods]
 impl PartSelect {
-    /// The named half of a `Node.split` value.
-    ///
-    /// `Above` is the material on the tool plane's normal side and
-    /// `Below` the other — the same two words `SegPat.side` takes, and
-    /// the same output-body order `Value.split`'s tuple is in. A half
-    /// the cut left with no material refuses at `evaluate`
-    /// (`empty_half`), which is a statement about the geometry rather
-    /// than about the selection.
-    #[staticmethod]
-    fn split_half(half: super::select::SplitHalf) -> Self {
-        Self(d::PartSelect::SplitHalf(half.to_kernel()))
-    }
-
     /// The `index`-th instance of a `Node.pattern` value, counting
     /// from zero.
     ///
@@ -2128,6 +2239,23 @@ pub(crate) struct Node {
     pub(crate) inner: d::AuthoredNode,
 }
 
+impl Node {
+    /// Each expression slot of `node` checked against the slot it
+    /// lands in, so a refusal names that slot.
+    fn check_slots(py: Python<'_>, node: &d::AuthoredNode) -> PyResult<()> {
+        for slot in node.slots() {
+            if let Some(expr) = node.expr(slot) {
+                slot_expr(
+                    py,
+                    slot,
+                    &super::expr::SlotArg::Formula(super::expr::Formula(expr.clone())),
+                )?;
+            }
+        }
+        Ok(())
+    }
+}
+
 #[pymethods]
 impl Node {
     /// A closed polygonal sketch on a sketch plane.
@@ -2143,21 +2271,15 @@ impl Node {
     /// is a boundary refusal rather than an ambiguous unit. They are
     /// the sketch's own (x, y), which `plane` maps into the world.
     ///
-    /// `elevation` earns its keep because the kernel is fail-loud
-    /// about coincidence: it never INFERS that two faces are the same
-    /// face, so two solids merely touching on a shared plane are
-    /// refused (the `undeclared_coincidence` menu) until the author
-    /// declares the contact. Authoring a genuine Boolean therefore
-    /// needs solids that interpenetrate, which needs sketches at
-    /// different heights — or the detect/declare protocol
-    /// (`Evaluation.find_flush_candidates` → `Doc.declare_all`).
+    /// `elevation` places the sketch's plane, so two solids sketched at
+    /// different heights stack or interpenetrate as authored.
     #[staticmethod]
     fn polygon(
         py: Python<'_>,
         points: Vec<(super::expr::SlotArg, super::expr::SlotArg)>,
-        plane: NodeId,
+        plane: OperandArg,
     ) -> PyResult<Self> {
-        let plane = plane.0;
+        let plane = plane.read();
         // The polygon as a loop PROGRAM (the post-switch v4 payload:
         // the program IS the profile's definition). The expansion
         // itself is `LoopProgram::polygon_expr`'s, not this door's:
@@ -2186,7 +2308,7 @@ impl Node {
             .collect::<PyResult<Vec<_>>>()?;
         Ok(Self {
             inner: d::Node::Profile(d::ProfileProgram {
-                plane,
+                frame: plane,
                 loops: vec![d::LoopProgram::polygon_expr(corners)],
                 ids: Vec::new(),
             }),
@@ -2214,12 +2336,12 @@ impl Node {
     /// typed refusal at `evaluate`. The binding's only job is that the
     /// loops arrive in the order they were written.
     #[staticmethod]
-    fn profile(py: Python<'_>, outline: &Bound<'_, PyAny>, plane: NodeId) -> PyResult<Self> {
-        let plane = plane.0;
+    fn profile(py: Python<'_>, outline: &Bound<'_, PyAny>, plane: OperandArg) -> PyResult<Self> {
+        let plane = plane.read();
         let loops = loops_from_outline(py, outline)?;
         Ok(Self {
             inner: d::Node::Profile(d::ProfileProgram {
-                plane,
+                frame: plane,
                 loops,
                 ids: Vec::new(),
             }),
@@ -2240,21 +2362,28 @@ impl Node {
     #[pyo3(signature = (profile, distance, side = ExtrudeSide::Along))]
     fn extrude(
         py: Python<'_>,
-        profile: &NodeId,
+        profile: OperandArg,
         distance: super::expr::SlotArg,
         side: ExtrudeSide,
     ) -> PyResult<Self> {
         let distance = slot_expr(py, d::SlotId::Distance, &distance)?;
         Ok(Self {
             inner: d::Node::Extrude {
-                profile: profile.0,
+                profile: profile.read(),
                 distance,
                 side: side.to_document(),
             },
         })
     }
 
-    /// Revolve an upstream profile about a datum axis.
+    /// Revolve an upstream profile about an axis line in its own plane.
+    ///
+    /// `axis_origin` and `axis_direction` are the line in the profile's
+    /// own 2-D coordinates: the origin lengths, the direction
+    /// dimensionless and unnormalized. Four numbers in the plane cannot
+    /// leave it, so no residual is checked. The revolve's second output
+    /// (`Doc.output(revolve, 1)`) is the line lifted to 3-D, an axis
+    /// other nodes read.
     ///
     /// `angle` is the node's `revolve_angle` slot —
     /// `DocEdit.set_param` is what drives it afterwards, as it is for
@@ -2262,15 +2391,23 @@ impl Node {
     #[staticmethod]
     fn revolve(
         py: Python<'_>,
-        profile: &NodeId,
-        axis: &NodeId,
+        profile: OperandArg,
+        axis_origin: (super::expr::SlotArg, super::expr::SlotArg),
+        axis_direction: (super::expr::SlotArg, super::expr::SlotArg),
         angle: super::expr::SlotArg,
     ) -> PyResult<Self> {
         let angle = slot_expr(py, d::SlotId::RevolveAngle, &angle)?;
         Ok(Self {
             inner: d::Node::Revolve {
-                profile: profile.0,
-                axis: axis.0,
+                profile: profile.read(),
+                axis_origin: [
+                    slot_expr(py, d::SlotId::Origin(d::Axis3::X), &axis_origin.0)?,
+                    slot_expr(py, d::SlotId::Origin(d::Axis3::Y), &axis_origin.1)?,
+                ],
+                axis_direction: [
+                    slot_expr(py, d::SlotId::Direction(d::Axis3::X), &axis_direction.0)?,
+                    slot_expr(py, d::SlotId::Direction(d::Axis3::Y), &axis_direction.1)?,
+                ],
                 angle,
             },
         })
@@ -2279,12 +2416,10 @@ impl Node {
     /// **A solid tube** — a ring torus, or an elbow of one, from its
     /// INTENT parameters.
     ///
-    /// `spine` is a `Node.datum_axis`: its origin is the tube's
-    /// centre and its direction is the spine axis, both used, both
-    /// stored EXACTLY. `u_ref` is the reference direction the
-    /// window's angles are measured from — a dimensionless triple,
-    /// matching `SlotId::Direction`, exactly as `Node.datum_axis`
-    /// takes its own direction.
+    /// `frame` is a `Node.datum_frame` (or a variable holding one): its
+    /// origin is the tube's centre, its normal (`u × v`) the spine
+    /// axis, and its `u` the reference direction the window's angles
+    /// are measured from.
     ///
     /// # This is not `Node.revolve` of a circle
     ///
@@ -2300,38 +2435,24 @@ impl Node {
     /// convention `R > r > 0` — each is the kernel's own typed refusal
     /// at `evaluate`, tagged `tube`.
     ///
-    /// NEITHER DIRECTION HAS TO BE UNIT. `spine` is a
-    /// `Node.datum_axis`, and a datum axis normalizes its direction
-    /// when it evaluates — exactly as it does for `Node.revolve`, so
-    /// `datum_axis` given `(0, 0, 2)` is the unit z axis. `u_ref` is a
-    /// bare triple that passes through no datum, and the evaluator
-    /// mints the tube's FRAME from the two: `u_ref` normalized as the
-    /// frame's reference radial, the axis as its third axis, and the
-    /// second axis their exact cross product. So `u_ref` need not be
-    /// unit and need not be perpendicular — only OFF THE AXIS LINE. A
-    /// `u_ref` along the axis, or of zero or non-finite length,
-    /// refuses as `degenerate_direction` (or its format siblings)
-    /// naming the role `tube reference direction`.
+    /// NEITHER FRAME DIRECTION HAS TO BE UNIT. The frame's own door
+    /// orthonormalizes `u` and `v` and refuses a degenerate or
+    /// parallel pair at the frame, one node upstream; what the tube
+    /// reads is always unit and perpendicular.
     ///
     /// There is no wall argument: a tube with a wall is
     /// `Node.hollow_tube`, a different node kind.
     #[staticmethod]
     fn tube(
         py: Python<'_>,
-        spine: &NodeId,
-        u_ref: (
-            super::expr::SlotArg,
-            super::expr::SlotArg,
-            super::expr::SlotArg,
-        ),
+        frame: OperandArg,
         major_radius: super::expr::SlotArg,
         window: &TubeWindow,
         minor_radius: super::expr::SlotArg,
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Tube {
-                spine: spine.0,
-                u_ref: u_ref_expr(py, u_ref)?,
+                frame: frame.read(),
                 major_radius: slot_expr(py, d::SlotId::TubeMajorRadius, &major_radius)?,
                 window: window.inner.clone(),
                 minor_radius: slot_expr(py, d::SlotId::TubeMinorRadius, &minor_radius)?,
@@ -2358,7 +2479,7 @@ impl Node {
     /// # Nothing is pre-checked, and the wall least of all
     ///
     /// Everything `Node.tube` refuses, this refuses identically — the
-    /// axis normalizes at the datum here too — plus
+    /// frame orthonormalizes at the datum here too — plus
     /// three verdicts only this door can raise: the thickness is not
     /// positive at tolerance, `minor_radius - wall` is not a bore,
     /// and — the one neither of the others can see — the gap between
@@ -2369,12 +2490,7 @@ impl Node {
     #[staticmethod]
     fn hollow_tube(
         py: Python<'_>,
-        spine: &NodeId,
-        u_ref: (
-            super::expr::SlotArg,
-            super::expr::SlotArg,
-            super::expr::SlotArg,
-        ),
+        frame: OperandArg,
         major_radius: super::expr::SlotArg,
         window: &TubeWindow,
         minor_radius: super::expr::SlotArg,
@@ -2382,8 +2498,7 @@ impl Node {
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::HollowTube {
-                spine: spine.0,
-                u_ref: u_ref_expr(py, u_ref)?,
+                frame: frame.read(),
                 major_radius: slot_expr(py, d::SlotId::TubeMajorRadius, &major_radius)?,
                 window: window.inner.clone(),
                 minor_radius: slot_expr(py, d::SlotId::TubeMinorRadius, &minor_radius)?,
@@ -2419,12 +2534,12 @@ impl Node {
     #[staticmethod]
     fn loft(
         py: Python<'_>,
-        profiles: Vec<NodeId>,
+        profiles: Vec<OperandArg>,
         v_degree: super::expr::SlotArg,
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Loft {
-                profiles: profiles.iter().map(|p| p.0).collect(),
+                profiles: profiles.into_iter().map(OperandArg::read).collect(),
                 v_degree: slot_expr(py, d::SlotId::VDegree, &v_degree)?,
             },
         })
@@ -2506,46 +2621,11 @@ impl Node {
         })
     }
 
-    /// A datum axis written IN a sketch frame — what a revolve turns.
-    ///
-    /// `plane` is the `Datum.frame` node the axis lives in, and the
-    /// two pairs are that frame's own 2-D coordinates: the origin
-    /// slots `Length`, the direction's dimensionless and
-    /// unnormalized, as `SlotId::Direction`'s `Scalar` says.
-    ///
-    /// A revolve takes one of these and NOT a `datum_axis`: a 3-D axis
-    /// would have to be checked into the profile's plane, and that
-    /// check was a tolerance verdict on a direction residual. Written
-    /// here, the axis cannot leave the frame — and whether it is the
-    /// frame the profile was drawn on is an equality of node ids.
-    #[staticmethod]
-    fn datum_axis_in_plane(
-        py: Python<'_>,
-        plane: NodeId,
-        origin: (super::expr::SlotArg, super::expr::SlotArg),
-        direction: (super::expr::SlotArg, super::expr::SlotArg),
-    ) -> PyResult<Self> {
-        Ok(Self {
-            inner: d::Node::Datum(d::Datum::AxisInPlane {
-                plane: plane.0,
-                origin: [
-                    slot_expr(py, d::SlotId::Origin(d::Axis3::X), &origin.0)?,
-                    slot_expr(py, d::SlotId::Origin(d::Axis3::Y), &origin.1)?,
-                ],
-                direction: [
-                    slot_expr(py, d::SlotId::Direction(d::Axis3::X), &direction.0)?,
-                    slot_expr(py, d::SlotId::Direction(d::Axis3::Y), &direction.1)?,
-                ],
-            }),
-        })
-    }
-
     /// **A sketch frame DERIVED from a face** — "sketch on this
     /// face", as a node.
     ///
     /// `at` is the body-denoting node the face is read out of, and it
-    /// is a DAG input exactly as [`Node::datum_axis_in_plane`]'s
-    /// `plane` is: the frame moves when the face moves, so raising the
+    /// is a DAG input: the frame moves when the face moves, so raising the
     /// body carries every sketch built on this frame up with it.
     /// `face` is one of the opaque texts `Evaluation.all_faces` /
     /// `select` answered with, handed back unread — the face is
@@ -2563,10 +2643,10 @@ impl Node {
     /// two facts `Evaluation.face_frame` hands out — so a sketch on
     /// the underside of a plate faces out of the plate.
     ///
-    /// Refuses typed at `evaluate`, never here: `face_frame_resolve`
-    /// for a name that stopped denoting (the repair is
-    /// `DocEdit.update_reference`), `face_frame_kind` for an edge or
-    /// vertex name, `face_frame_not_planar` for a curved carrier — a
+    /// Refuses typed at `evaluate`, never here: `select_resolve` for a
+    /// name that stopped denoting (the repair is `DocEdit.rebind`),
+    /// `select_kind` for an edge or vertex name, `face_frame_not_planar`
+    /// for a curved carrier — a
     /// sketch frame wants a plane, and `Evaluation.face_carrier_kind`
     /// is the door that answers which carrier it found — and
     /// `face_frame_readback` for a body whose stored geometry cannot
@@ -2574,17 +2654,13 @@ impl Node {
     #[staticmethod]
     fn datum_face_frame(
         py: Python<'_>,
-        at: &NodeId,
+        at: OperandArg,
         face: &str,
         spin: super::expr::SlotArg,
     ) -> PyResult<Self> {
         let spin = slot_expr(py, d::SlotId::Spin, &spin)?;
         Ok(Self {
-            inner: d::Node::Datum(d::Datum::FaceFrame {
-                at: at.0,
-                face: name_from_text(face)?,
-                spin,
-            }),
+            inner: d::Node::Datum(d::Datum::face_frame(at.read(), name_from_text(face)?, spin)),
         })
     }
 
@@ -2723,8 +2799,8 @@ impl Node {
     ///
     /// Nothing is pre-checked beyond the text being a name at all. An
     /// EMPTY selection (`fillet_selection_empty`), a name that
-    /// resolves to nothing (`fillet_selection_resolve`), a name of the
-    /// wrong kind (`fillet_selection_kind`), a tangential edge the
+    /// resolves to nothing (`select_resolve`), a name of the
+    /// wrong kind (`select_kind`), a tangential edge the
     /// roller cannot enter (`fillet`) — every one of those is the
     /// kernel's own typed refusal at `evaluate`.
     ///
@@ -2739,7 +2815,7 @@ impl Node {
     #[staticmethod]
     fn fillet(
         py: Python<'_>,
-        target: &NodeId,
+        target: OperandArg,
         radius: super::expr::SlotArg,
         selection: Vec<String>,
     ) -> PyResult<Self> {
@@ -2749,7 +2825,7 @@ impl Node {
             .map(|text| name_from_text(text))
             .collect::<PyResult<Vec<_>>>()?;
         Ok(Self {
-            inner: d::Node::fillet(target.0, radius, selection),
+            inner: d::Node::fillet(target.read(), radius, selection),
         })
     }
 
@@ -2768,8 +2844,8 @@ impl Node {
     ///
     /// Nothing is pre-checked beyond the text being a name at all. An
     /// EMPTY selection (`chamfer_selection_empty`), a name that
-    /// resolves to nothing (`chamfer_selection_resolve`), a name of
-    /// the wrong kind (`chamfer_selection_kind`), an edge whose two
+    /// resolves to nothing (`select_resolve`), a name of
+    /// the wrong kind (`select_kind`), an edge whose two
     /// supports are not both planes (`chamfer`) — every one of those
     /// is the kernel's own typed refusal at `evaluate`.
     ///
@@ -2782,7 +2858,7 @@ impl Node {
     #[staticmethod]
     fn chamfer(
         py: Python<'_>,
-        target: &NodeId,
+        target: OperandArg,
         distance: super::expr::SlotArg,
         selection: Vec<String>,
     ) -> PyResult<Self> {
@@ -2792,7 +2868,7 @@ impl Node {
             .map(|text| name_from_text(text))
             .collect::<PyResult<Vec<_>>>()?;
         Ok(Self {
-            inner: d::Node::chamfer(target.0, distance, selection),
+            inner: d::Node::chamfer(target.read(), distance, selection),
         })
     }
 
@@ -2822,8 +2898,8 @@ impl Node {
     /// solid's never names them. The
     /// designation FREEZES in the sense `Node.fillet` states.
     ///
-    /// A name that resolves to nothing (`shell_open_resolve`), a name
-    /// of the wrong kind (`shell_open_kind`), a non-positive wall or a
+    /// A name that resolves to nothing (`select_resolve`), a name
+    /// of the wrong kind (`select_kind`), a non-positive wall or a
     /// wall two facing faces cannot both afford, a rim the kernel cannot
     /// build or read (`shell`) — every one of those is the kernel's own
     /// typed refusal at `evaluate`.
@@ -2836,7 +2912,7 @@ impl Node {
     #[staticmethod]
     fn shell(
         py: Python<'_>,
-        target: &NodeId,
+        target: OperandArg,
         thickness: super::expr::SlotArg,
         open: Vec<String>,
     ) -> PyResult<Self> {
@@ -2846,7 +2922,7 @@ impl Node {
             .map(|text| name_from_text(text))
             .collect::<PyResult<Vec<_>>>()?;
         Ok(Self {
-            inner: d::Node::shell(target.0, thickness, open),
+            inner: d::Node::shell(target.read(), thickness, open),
         })
     }
 
@@ -2857,11 +2933,11 @@ impl Node {
     /// A tool that is not a splitting surface, or a cut that produces
     /// nothing, refuses typed at `evaluate`.
     #[staticmethod]
-    fn split(target: &NodeId, tool: &NodeId) -> Self {
+    fn split(target: BodyArg, tool: OperandArg) -> Self {
         Self {
             inner: d::Node::Split {
-                target: target.0,
-                tool: tool.0,
+                target: target.read(),
+                tool: tool.read(),
             },
         }
     }
@@ -2885,7 +2961,7 @@ impl Node {
     #[staticmethod]
     fn transform(
         py: Python<'_>,
-        input: &NodeId,
+        input: OperandArg,
         translation: (
             super::expr::SlotArg,
             super::expr::SlotArg,
@@ -2915,84 +2991,100 @@ impl Node {
     #[staticmethod]
     fn transform_by(
         py: Python<'_>,
-        input: &NodeId,
+        input: OperandArg,
         placement: &super::place::Placement,
     ) -> PyResult<Self> {
-        let inner = d::Node::transform(input.0, placement.0.clone());
-        for slot in inner.slots() {
-            if let Some(expr) = inner.expr(slot) {
-                slot_expr(
-                    py,
-                    slot,
-                    &super::expr::SlotArg::Formula(super::expr::Formula(expr.clone())),
-                )?;
-            }
-        }
+        let inner = d::Node::transform(input.read(), placement.0.clone());
+        Self::check_slots(py, &inner)?;
         Ok(Self { inner })
     }
 
-    /// A Boolean of two upstream solids.
+    /// **One copy of `body` in the world** at `pose`, the identity when
+    /// `None`: the operation whose output is a product copy. Inserting
+    /// it is `Doc.place`.
     ///
-    /// `declare` is the boolean's declared contact pairs, given as the
-    /// `FlushFinding`s the caller INSPECTED — each carries its pair and
-    /// its class — and held as the node's own payload; an empty list
-    /// declares nothing. The kernel never infers that two faces are
-    /// the same face, so operands that merely touch refuse, and that
-    /// refusal is the typed MENU: an `EvaluationError` with
-    /// `kind == "undeclared_coincidence"` whose `finding` attribute
-    /// carries the candidate declaration. The protocol that fills this
-    /// argument is `Evaluation.find_flush_candidates` → inspect → this
-    /// `declare=`, or `Doc.declare`/`Doc.declare_all` on the live node.
+    /// The pose is a `Placement` chain, `Node.transform_by`'s, and each
+    /// rigid step's components are checked against the slot they land
+    /// in, as there.
     #[staticmethod]
-    #[pyo3(signature = (op, a, b, declare=Vec::new()))]
-    fn boolean(
-        op: BooleanOp,
-        a: &NodeId,
-        b: &NodeId,
-        declare: Vec<super::flush::FlushFinding>,
+    #[pyo3(signature = (body, pose=None))]
+    fn place_in_world(
+        py: Python<'_>,
+        body: BodyArg,
+        pose: Option<super::place::Placement>,
     ) -> PyResult<Self> {
+        let inner = d::Node::place_in_world(
+            body.read(),
+            pose.map_or(d::Placement::IDENTITY, |pose| pose.0),
+        );
+        Self::check_slots(py, &inner)?;
+        Ok(Self { inner })
+    }
+
+    /// **The union**: the material in ANY member, folded into ONE
+    /// body in the members' order (D9 — the fold order is the list's,
+    /// and the list is data).
+    ///
+    /// `members` is a list of operands, each read on its own, or ONE
+    /// operand standing for a whole family — a pattern's output — whose
+    /// bodies are the members in index order. Any count is a union: one
+    /// member is that body, none is the typed empty body, and a read
+    /// listed twice is the same material twice, so `[a, a]` is `a`. A
+    /// family read beside single reads in one list refuses at
+    /// `Doc.insert` (`slot_var_kind`), as does a member id the document
+    /// does not hold (`unresolved_input`). Whether a member is a BODY
+    /// is the kernel's question at `evaluate`, as it is at every other
+    /// operand seat.
+    ///
+    /// The membership is data, so `DocEdit.set_members` rewrites it on
+    /// the live node. Not `Node.placed_union`, whose members are one
+    /// prototype under a placement rule.
+    ///
+    /// Members whose faces a margin decides on one surface glue there,
+    /// and the coincidence is recorded for the `unproven_coincidence`
+    /// check. A refusal only a fold step raises is
+    /// `kind == "union_fold_step"`, naming the member it folds in.
+    #[staticmethod]
+    fn union(members: MembersArg) -> PyResult<Self> {
         Ok(Self {
-            inner: d::Node::Boolean {
-                op: op.to_document(),
-                a: a.0,
-                b: b.0,
-                declare: declared_pairs(declare),
+            inner: d::Node::Union {
+                members: members.bodies(),
             },
         })
     }
 
-    /// **The n-ary union**: two or more member bodies folded into ONE
-    /// body, in the LIST's order (D9 — the fold order is the list's,
-    /// and the list is data).
+    /// **The intersect**: the material in EVERY member, folded in the
+    /// members' order.
     ///
-    /// Not `Node.boolean`, which is the BINARY operation over two
-    /// named operand slots, and not `Node.placed_union`, whose
-    /// members are one prototype under a placement rule. Here every
-    /// member is authored on its own and the membership is a list, so
-    /// `DocEdit.set_members` can rewrite it on the live node — which
-    /// is the whole reason this node exists rather than a chain of
-    /// booleans, whose shape can only be re-authored.
-    ///
-    /// `declare` is the same declared-pair list `Node.boolean`
-    /// carries, consumed the same way one step further in: the fold's
-    /// steps are pairs, and a declared pair is fed at the step its two
-    /// members meet at. Without one, members that merely TOUCH refuse
-    /// (`EvaluationError`, `kind == "undeclared_coincidence"`), exactly
-    /// as a binary boolean's operands do.
-    ///
-    /// Refuses at `Doc.insert`, of the list as stated: fewer than two
-    /// members (`too_few_members`, carrying the `count` it found), a
-    /// member repeated (`duplicate_input`, naming it), a member id the
-    /// document does not hold (`unresolved_input`). Whether a member is
-    /// a BODY is not asked here — that is the kernel's question at
-    /// `evaluate`, as it is at every other operand seat.
+    /// `members` is `Node.union`'s, read the same way:
+    /// a list of operands or one family read, any count — one member
+    /// is that body, none is the typed empty body, and `[a, a]` is
+    /// `a`. A fold step whose members share no material is the typed
+    /// empty body, not a refusal. `DocEdit.set_members` rewrites the
+    /// list on the live node.
     #[staticmethod]
-    #[pyo3(signature = (members, declare=Vec::new()))]
-    fn union(members: Vec<NodeId>, declare: Vec<super::flush::FlushFinding>) -> PyResult<Self> {
+    fn intersect(members: MembersArg) -> PyResult<Self> {
         Ok(Self {
-            inner: d::Node::Union {
-                members: members.iter().map(|m| m.0).collect(),
-                declare: declared_pairs(declare),
+            inner: d::Node::Intersect {
+                members: members.bodies(),
+            },
+        })
+    }
+
+    /// **The subtract**: `from_` with the material of `tool` cut away.
+    ///
+    /// The one pair node: difference neither commutes nor associates,
+    /// so its two operands are named slots (`from`, spelled `from_`
+    /// here because `from` is a Python keyword, and `tool`). Several
+    /// tools are one subtract of their union,
+    /// `Node.subtract(body, Node.union([t1, t2]))`. A body cut by
+    /// itself, `Node.subtract(a, a)`, is the typed empty body.
+    #[staticmethod]
+    fn subtract(from_: BodyArg, tool: BodyArg) -> PyResult<Self> {
+        Ok(Self {
+            inner: d::Node::Subtract {
+                from: from_.read(),
+                tool: tool.read(),
             },
         })
     }
@@ -3029,47 +3121,38 @@ impl Node {
     #[staticmethod]
     fn pattern(
         py: Python<'_>,
-        input: &NodeId,
+        input: OperandArg,
         count: super::expr::SlotArg,
         kind: &super::place::PatternKind,
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Pattern {
-                input: input.0,
+                input: input.read(),
                 count: slot_expr(py, d::SlotId::Count, &count)?,
                 kind: kind.0.clone(),
             },
         })
     }
 
-    /// **The projection**: ONE body out of a multi-body value — "the
-    /// upper half of that split", "instance 3 of that pattern".
+    /// **The projection**: ONE body out of a pattern's copies —
+    /// "instance 3 of that pattern".
     ///
-    /// A projection, not an operation. The selected body is the half's
-    /// or the instance's OWN, and the node's name table is the input's
+    /// A projection, not an operation. The selected body is the
+    /// instance's OWN, and the node's name table is the input's
     /// restricted to that body with every name verbatim, so a selector
-    /// already spelled against that half or that instance resolves
-    /// here unchanged and a `Value.mass_properties` read matches the
-    /// side read straight off `Value.split` / `Value.bodies`.
+    /// already spelled against that instance resolves here unchanged
+    /// and a `Value.mass_properties` read matches the body read
+    /// straight off `Value.bodies`.
     ///
-    /// `of` is the split or pattern node whose value is read, and
-    /// `select` says which body (`PartSelect.split_half` /
-    /// `PartSelect.instance`). This is a NODE rather than a selector
-    /// argument on every consumer: one meaning, one node, and every
-    /// downstream door keeps the operand shape it has.
-    ///
-    /// Refuses typed at `evaluate`, never here — which body a node id
-    /// carries is not known until the document runs: `wrong_operand`
-    /// when the selector and the value disagree in kind (a half asked
-    /// of a pattern, an index asked of a split, either asked of a
-    /// plain body), `empty_half` when the cut left that side with no
-    /// material, and `instance_out_of_range` for an index outside
-    /// `0 .. count`.
+    /// `of` reads the copies (a list of bodies), and `select` says
+    /// which one (`PartSelect.instance`). Reading anything else
+    /// refuses at insert (`slot_var_kind`). An index outside
+    /// `0 .. count` refuses at `evaluate` (`instance_out_of_range`).
     #[staticmethod]
-    fn part(of: &NodeId, select: &PartSelect) -> Self {
+    fn part(of: OperandArg, select: &PartSelect) -> Self {
         Self {
             inner: d::Node::Part {
-                of: of.0,
+                of: of.read(),
                 select: select.0.clone(),
             },
         }
@@ -3103,12 +3186,12 @@ impl Node {
     #[staticmethod]
     fn placed_union(
         py: Python<'_>,
-        input: &NodeId,
+        input: OperandArg,
         count: super::expr::SlotArg,
         kind: &super::place::PatternKind,
     ) -> PyResult<Self> {
         let count = slot_expr(py, d::SlotId::Count, &count)?;
-        let node = d::Node::placed_union(input.0, count, kind.0.clone()).ok_or_else(|| {
+        let node = d::Node::placed_union(input.read(), count, kind.0.clone()).ok_or_else(|| {
             boundary_edit_err(
                 py,
                 BoundaryEdit::PlacementRule(&d::PlacementRuleFault::CountSpelling {
@@ -3131,9 +3214,12 @@ impl Node {
     /// does a non-finite (`non_finite_placement`) or improper
     /// (`improper_placement`) frame.
     #[staticmethod]
-    fn placed_union_at(input: &NodeId, frames: Vec<super::place::Frame>) -> Self {
+    fn placed_union_at(input: OperandArg, frames: Vec<super::place::Frame>) -> Self {
         Self {
-            inner: d::Node::placed_union_at(input.0, frames.into_iter().map(|f| f.0).collect()),
+            inner: d::Node::placed_union_at(
+                input.read(),
+                frames.into_iter().map(|f| f.0).collect(),
+            ),
         }
     }
 
@@ -3171,8 +3257,8 @@ impl Node {
 
     /// A **gauge**: a frame other placements stand on (A11 (2)). It
     /// holds a `Placement` — rigid steps a document parameter can
-    /// drive, literal frames, or both — and denotes no body, so as a
-    /// product root it contributes nothing.
+    /// drive, literal frames, or both — and denotes no body, so
+    /// nothing can place it.
     ///
     /// `parent` is the gauge it sits on, `None` for the world; its
     /// frame is the parent's composed with `placement`. Instances name
@@ -3249,8 +3335,10 @@ impl Node {
     /// reaching a document.
     ///
     /// A dangling reference is not refused here: the solve refuses
-    /// typed naming its head (`MateFault`, `mate_dangling_head`),
-    /// which is the ratified dangling-reference semantics — or, where
+    /// typed naming its head (`MateFault`, `mate_dangling_head`), or
+    /// the side's read when it is no face of a live body
+    /// (`mate_side_unresolved`), which is the ratified
+    /// dangling-reference semantics — or, where
     /// the head resolves and a pattern or transform placing it could
     /// not derive a pose, naming that placer and carrying the
     /// evaluation's own cause (`mate_placer_refused`).
@@ -3261,26 +3349,23 @@ impl Node {
         a: &str,
         b_at: &NodeId,
         b: &str,
-        class_: super::flush::ContactClass,
+        class_: super::contact::ContactClass,
         alignment: &super::mate::Alignment,
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Mate {
-                a: d::SitedFace::new(a_at.0, face_name_from_text(py, a)?),
-                b: d::SitedFace::new(b_at.0, face_name_from_text(py, b)?),
+                a: d::SitedFace::new(a_at.0, face_name_from_text(py, a)?).into(),
+                b: d::SitedFace::new(b_at.0, face_name_from_text(py, b)?).into(),
                 class: class_.to_kernel(py)?,
                 alignment: alignment.0.clone(),
             },
         })
     }
-    /// **A measurement sink** (ERROR-DESIGN E3): one dimension-generic
-    /// node that denotes no body and evaluates to a typed quantity.
-    ///
-    /// `expr` is the measured expression — `MeasureExpr`, whose leaves
-    /// are closed-form primitives over `refs` and ordinary document
-    /// expressions. `refs` is the reference list those primitives
-    /// index, IN ORDER, each a `(node, name)` pair: the entity's
-    /// stable name, and the node its carrier is READ AT.
+    /// **One measurement** (ERROR-DESIGN E3): a `Measure` node holds
+    /// one closed-form primitive and defines one observed scalar, its
+    /// output (`Doc.output(node)`), which only an assertion reads,
+    /// directly or through a definition. Arithmetic over measured
+    /// values is an ordinary `Formula` over the outputs.
     ///
     /// **The read site is the half that makes a measure report placed
     /// geometry.** A rigid transform is identity-preserving — the
@@ -3290,62 +3375,50 @@ impl Node {
     /// gives the placed number; naming the minting node gives the
     /// authored one. Both are legal, and they are different questions.
     ///
-    /// **The references ARE dag edges**, unlike a boolean's declared
-    /// pairs or a `Node.mate`'s names: a measure resolves its own against
-    /// values that must already exist, so the referenced nodes are its
-    /// data dependencies and deleting one is refused at the delete
-    /// door (`delete_would_dangle`) like any other consumer's input.
+    /// **The references ARE dag edges**, unlike a `Node.mate`'s
+    /// names: each is a selection of the named
+    /// node's body (or, for a whole body, a read of it), so the
+    /// referenced nodes are its data dependencies, and deleting one is
+    /// accepted and reported on the measure (`stranded_read` and
+    /// `stranded_selection`), like any other reader's.
     ///
-    /// Every index is checked HERE, through Rust's `Node::measure` —
-    /// the one construction door — so an expression whose leaf points
-    /// past the end of `refs` raises `MeasureNodeFault` where it is
-    /// written rather than at the `Doc.apply` after it. Nothing else
-    /// is pre-checked: a name that no longer resolves
-    /// (`measure_ref_resolve`), a carrier pair with no v1 closed form
-    /// (`measure_unsupported`), a `min_clearance` handed an edge
-    /// (`measure_selection_kind`) and a non-finite result
-    /// (`measure_non_finite`) are all the kernel's own typed refusals
-    /// at `evaluate`.
+    /// What each primitive reads is checked when the node is inserted:
+    /// `distance` a face, an edge or a vertex, `angle` a face or an
+    /// edge, `min_clearance` a body or a face, `gap` a face, and any
+    /// other refuses `slot_var_kind`. The rest are the kernel's own
+    /// typed refusals at `evaluate`: a name that no longer resolves
+    /// (`select_resolve`), a carrier pair with no v1 closed form
+    /// (`measure_unsupported`) and a non-finite result
+    /// (`measure_non_finite`).
     #[staticmethod]
-    fn measure(
-        py: Python<'_>,
-        expr: &super::measure::MeasureExpr,
-        refs: Vec<(NodeId, String)>,
-    ) -> PyResult<Self> {
-        let refs = refs
-            .iter()
-            .map(|(at, name)| Ok(d::SitedRef::new(at.0, name_from_text(name)?)))
-            .collect::<PyResult<Vec<_>>>()?;
-        d::Node::measure(expr.0.clone(), refs)
-            .map(|inner| Self { inner })
-            .map_err(|fault| super::measure::measure_node_fault_err(py, &fault))
+    fn measure(primitive: &super::measure::MeasurePrimitive) -> Self {
+        Self {
+            inner: d::Node::measure(&primitive.0),
+        }
     }
 
     /// **A recorded tolerance requirement** (ERROR-DESIGN E10): design
     /// intent as document data, in the versioned recipe rather than in
     /// a script beside it.
     ///
-    /// `measure` is the `Node.measure` this constrains — an ordinary
-    /// DAG edge, so a failed or poisoned measure poisons the assertion
-    /// rather than producing a verdict about nothing. `dir` is which
-    /// side of `bound` the measurement must fall on, and `bound` is an
-    /// `Formula` from `Doc.parse_formula`.
+    /// `value` is the scalar this bounds: a measure's output
+    /// (`Doc.output(measure)`), `Doc.measure`'s `value`, or any formula
+    /// or variable — a variable at its own kind's dimension, anything
+    /// else at the bound's. A failed or poisoned
+    /// measure under it poisons the assertion rather than producing a
+    /// verdict about nothing. `relation` is how the value must relate to
+    /// `bound` (`>=`, `<=` or `=`), and `bound` is a `Formula` from `Doc.parse_formula`.
     ///
     /// **The bound is an expression and not a quantity, because its
-    /// DIMENSION is the measure's.** Every other node door takes a
-    /// typed `Length` or `Angle` because a slot's address fixes what
-    /// it holds; this one's is fixed by the node it points at, and it
-    /// may be an angle, a count or a plain scalar as readily as a
-    /// length. `Doc.parse_formula("0.5 mm")` is the one spelling, and it
-    /// reaches document parameters (`"min_web"`) in the same call —
-    /// which is what makes an assertion re-decidable by a parameter
-    /// edit.
+    /// DIMENSION is the value's.** It may be an angle, a count or a plain
+    /// scalar as readily as a length. `Doc.parse_formula("0.5 mm")` is
+    /// the one spelling, and it reaches document parameters
+    /// (`"min_web"`) in the same call — which is what makes an assertion
+    /// re-decidable by a parameter edit.
     ///
-    /// Two things are checked at `Doc.apply` rather than here,
-    /// because both need the document: that `measure` names a measure
-    /// at all (`assertion_target`) and that the bound's dimension is
-    /// the measured one (`assertion_dimension`). A document therefore
-    /// never carries a comparison of radians with metres.
+    /// That the value's dimension is the bound's is checked at
+    /// `Doc.apply` (`assertion_dimension`), so a document never carries
+    /// a comparison of radians with metres.
     ///
     /// **Report-only, structurally.** No op in the vocabulary accepts
     /// a verdict as an operand, the product gather skips an assertion
@@ -3353,17 +3426,27 @@ impl Node {
     /// because one is `Violated`. Read it with `Value.assertion`.
     #[staticmethod]
     fn assertion(
-        measure: &NodeId,
-        dir: super::measure::AssertionDir,
+        py: Python<'_>,
+        value: super::expr::SlotArg,
+        relation: super::measure::AssertionRelation,
         bound: &super::expr::Formula,
-    ) -> Self {
-        Self {
+    ) -> PyResult<Self> {
+        Ok(Self {
             inner: d::Node::Assertion {
-                measure: measure.0,
+                // A variable is read at its own kind's dimension, so a
+                // mismatch with the bound is the door's
+                // `assertion_dimension`; anything else at the bound's.
+                value: match &value {
+                    super::expr::SlotArg::Var(Var(id, Some(kind))) => match kind.dimension() {
+                        Some(dim) => d::Formula::var(*id, dim),
+                        None => value.formula(py, bound.0.dim())?,
+                    },
+                    _ => value.formula(py, bound.0.dim())?,
+                },
                 bound: bound.0.clone(),
-                dir: dir.to_kernel(),
+                relation: relation.to_kernel(),
             },
-        }
+        })
     }
 }
 
@@ -3415,14 +3498,36 @@ impl VarName {
 /// naming nothing the document holds, and the id is never minted again.
 ///
 /// An id is document-scoped: the same bits in another document name
-/// another variable, or none.
+/// another variable, or none. The handle carries the kind the document
+/// held it at when it was read, `None` for one it no longer held: a
+/// kind is fixed at minting, so it never goes stale.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone, Copy)]
-pub(crate) struct Var(pub(crate) d::VarId);
+pub(crate) struct Var(pub(crate) d::VarId, pub(crate) Option<d::VarKind>);
+
+impl Var {
+    /// The handle of `id`, read in `doc`.
+    pub(crate) fn of(doc: &d::ProfileDoc, id: d::VarId) -> Self {
+        Self(id, doc.var(id).map(d::Var::kind))
+    }
+}
 
 #[pymethods]
 impl Var {
-    /// The id with every bit shown: sixteen lowercase hex digits.
+    /// **What the variable holds** (VR3, D10), fixed at minting: a
+    /// scalar's dimension word (`"length"`, `"angle"`, `"scalar"`,
+    /// `"count"`), a pose's (`"point"`, `"direction"`, `"axis"`,
+    /// `"plane"`, `"frame"`) or a shape's (`"body"`, `"bodies"`,
+    /// `"profile"`). `None` for a handle read where the document held
+    /// no such variable.
+    #[getter]
+    fn kind(&self) -> Option<&'static str> {
+        self.1.map(crate::errors::var_kind_tag)
+    }
+
+    /// The whole id: its mint ordinal, a colon, and its digest as sixteen
+    /// lowercase hex digits — the key a saved file's variable table
+    /// holds it under. (Named for when an id was its hex digest alone.)
     #[getter]
     fn hex(&self) -> String {
         self.0.full().to_string()
@@ -3432,12 +3537,46 @@ impl Var {
         format!("Var({})", self.0.full())
     }
 
+    /// One member of the family this variable holds, at `index`
+    /// ([`IndexedRead`]).
+    fn __getitem__(&self, py: Python<'_>, index: super::expr::SlotArg) -> PyResult<IndexedRead> {
+        IndexedRead::of(py, OperandArg::Var(*self), &index)
+    }
+
     fn __eq__(&self, other: &Self) -> bool {
         self.0 == other.0
     }
 
     fn __hash__(&self) -> u64 {
-        self.0.0
+        self.0.0.digest()
+    }
+}
+
+/// **What `Doc.measure` inserted**: the measures, one per primitive in
+/// order, and their outputs in the same order.
+#[pyclass(frozen, module = "pncad", from_py_object)]
+#[derive(Clone)]
+pub(crate) struct Measured {
+    measures: Vec<NodeId>,
+    outputs: Vec<Var>,
+}
+
+#[pymethods]
+impl Measured {
+    /// The `Measure` nodes, one per primitive.
+    #[getter]
+    fn measures(&self) -> Vec<NodeId> {
+        self.measures.clone()
+    }
+
+    /// Each measure's output, in the same order.
+    #[getter]
+    fn outputs(&self) -> Vec<Var> {
+        self.outputs.clone()
+    }
+
+    fn __repr__(&self) -> String {
+        format!("Measured({} measures)", self.measures.len())
     }
 }
 
@@ -3890,7 +4029,7 @@ impl FreeValue {
 /// The exposed edits are `insert_node`, `delete_node`,
 /// `set_members`, `set_param`, `set_tolerance`, the
 /// variable doors (`declare_var` / `define_var` / `set_var_value`),
-/// `set_roots`, `set_offset`, `set_gauge`, `promote`, `fold`,
+/// `set_offset`, `set_gauge`, `promote`, `fold`,
 /// `update_reference`, `rebind`, and
 /// `bind_count_param` / `bind_instance_param` / `bind_v_degree_param`,
 /// the structural-slot edit narrowed to one named slot and a
@@ -3987,64 +4126,37 @@ impl DocEdit {
         })
     }
 
-    /// **Replace a node's whole LIST input** — a `Node.union`'s
-    /// members, a `Node.loft`'s sections — with the list stated in
-    /// full.
+    /// **Replace a node's whole LIST input** — a `Node.union`'s or a
+    /// `Node.intersect`'s members, a `Node.loft`'s sections — with the
+    /// list stated in full. `members` takes `Node.union`'s shape: a
+    /// sequence of operands, or one operand reading a family whole.
     ///
     /// The one edit that changes a live node's inputs, and it can be
     /// that because it is unambiguous by construction: there is no
     /// positional spelling and no per-entry arm, so nothing is
     /// inferred about which of the old entries survived or moved.
     /// Dropping one member is this edit without it plus a
-    /// `DocEdit.delete_node` of the orphan, one committed action. A
-    /// union's declared pairs are left as they were, so a pair whose two
-    /// members are both still in the list re-routes to the step they
-    /// now meet at; a pair whose member was DROPPED has lost its site
-    /// and refuses at the next evaluation as a vanished name, rather
-    /// than being edited away silently.
+    /// `DocEdit.delete_node` of the orphan, one committed action.
     ///
     /// Every check `Doc.insert` makes of a node's inputs is remade
     /// here, of the REWRITTEN node, so this edit cannot reach a state
     /// an insert would have refused: `unresolved_input` for a member
-    /// the document does not hold, `duplicate_input` for a repeat,
-    /// `too_few_members` for a list under the node's floor (carrying
-    /// the `count` it found), and `would_cycle` for a member
-    /// downstream of the node itself — the one refusal an insert gets
-    /// for free and this edit does not. A node carrying no list at all
-    /// refuses `set_members_on_non_list`.
+    /// the document does not hold, `slot_var_kind` for a family read
+    /// beside single reads, and `would_cycle` for a member downstream
+    /// of the node itself — the one refusal an insert gets for free
+    /// and this edit does not. Any count is a list: one member, or
+    /// none, is a union or intersect still. A loft's sections are
+    /// spelled one read each, so a family there refuses
+    /// `loft_sections_spelled`; a node carrying no list at all refuses
+    /// `set_members_on_non_list`.
     #[staticmethod]
-    fn set_members(node: &NodeId, members: Vec<NodeId>) -> Self {
+    fn set_members(node: &NodeId, members: MembersArg) -> Self {
         Self {
             inner: d::DocEdit::SetMembers {
                 node: node.0,
-                members: members.iter().map(|m| m.0).collect(),
+                members: members.bodies(),
             },
         }
-    }
-
-    /// **Replace a live boolean's or union's whole declared-pair
-    /// list** with the pairs and classes of `findings` — the inspected
-    /// `FlushFinding`s, as `Node.boolean`'s `declare=` takes them. An
-    /// empty list clears the declaration. Nothing is inferred about
-    /// the old list: it is replaced whole.
-    ///
-    /// Refuses typed on `EditError`: `set_declare_on_non_declaring`
-    /// for a node that is neither a boolean nor a union,
-    /// `unknown_node` for a node the document does not hold, the name
-    /// checks an insert runs (`declare_names_missing_node`,
-    /// `name_step_never_minted`, `read_site_missing_node`) on a pair
-    /// naming what the document does not hold, and the pair rule an
-    /// insert asks: `declared_site_not_an_operand` for a pair read at a
-    /// node that is not one of `node`'s operands,
-    /// `declared_name_not_upstream` for a name not minted before `node`.
-    #[staticmethod]
-    fn set_declare(node: &NodeId, findings: Vec<super::flush::FlushFinding>) -> PyResult<Self> {
-        Ok(Self {
-            inner: d::DocEdit::SetDeclare {
-                node: node.0,
-                pairs: declared_pairs(findings),
-            },
-        })
     }
 
     /// **Replace a CONTINUOUS slot's expression on a live node** — an
@@ -4071,25 +4183,41 @@ impl DocEdit {
     /// than quietly crossing the divide the edit vocabulary keeps
     /// unlosable. The `bind_*_param` trio is where they are edited.
     ///
+    /// **An operand is a slot too** (D10, one door): at an operand's
+    /// word — an extrude's `profile`, a boolean's `a`, a transform's
+    /// `input` — the value is a read, a `NodeId` (its output in that
+    /// seat) or a `Var`, and the node reads it from then on. At a
+    /// scalar slot a node is read through its output, as a `Var` is.
+    ///
     /// Refuses typed on `EditError`: `unknown_node`, `unknown_slot`
     /// for a slot this node does not carry (naming the slot it
     /// lacks), `slot_dimension_mismatch` for an expression of the
-    /// wrong dimension (carrying the required and offered pair), and
-    /// `slot_unknown_var_name` / `slot_var_kind` for a
-    /// parameter reference the document does not answer.
+    /// wrong dimension, or any expression at an operand (carrying the
+    /// required and offered pair), and `slot_unknown_var_name` /
+    /// `slot_var_kind` for a read the slot does not take; at an operand
+    /// also `operand_unresolved`, `ambiguous_output`,
+    /// `defines_nothing` and `would_cycle`.
     #[staticmethod]
-    fn set_param(
-        py: Python<'_>,
-        node: &NodeId,
-        slot: &str,
-        expr: super::expr::SlotArg,
-    ) -> PyResult<Self> {
+    fn set_param(py: Python<'_>, node: &NodeId, slot: &str, value: SlotValueArg) -> PyResult<Self> {
         let slot = slot_from_text(slot)?;
+        let value = match (value, slot.dimension()) {
+            (SlotValueArg::Node(node), _) => d::SlotValue::Read(d::Operand::Node(node.0)),
+            (SlotValueArg::Slot(super::expr::SlotArg::Var(var)), None) => {
+                d::SlotValue::Read(d::Operand::Var(var.0))
+            }
+            (SlotValueArg::Slot(arg), Some(dim)) => d::SlotValue::Formula(arg.formula(py, dim)?),
+            // An expression at an operand is the kernel's refusal to
+            // make, with the dimension it was offered: written at its
+            // own dimension, a variable's read at its kind's.
+            (SlotValueArg::Slot(arg), None) => {
+                d::SlotValue::Formula(arg.formula(py, arg.own_dimension())?)
+            }
+        };
         Ok(Self {
             inner: d::DocEdit::SetParam {
                 node: node.0,
                 slot,
-                expr: expr.formula(py, slot.dimension())?,
+                value,
                 fresh: Vec::new(),
             },
         })
@@ -4275,7 +4403,8 @@ impl DocEdit {
     /// (`unknown_var`), a name another variable holds
     /// (`var_name_taken`), the name the variable already has
     /// (`var_name_unchanged`), and clearing the name of a variable
-    /// nothing reads (`anonymous_var_unread`).
+    /// nothing reads (`anonymous_var_unread`) or more than one reader
+    /// reads (`shared_var_needs_name`: an unnamed variable has one).
     #[staticmethod]
     #[pyo3(signature = (var, name))]
     fn rename_var(var: VarArg, name: Option<&VarName>) -> Self {
@@ -4417,30 +4546,6 @@ impl DocEdit {
         }
     }
 
-    /// Set the document's ordered **product roots** outright.
-    ///
-    /// THE designate/undesignate door: one TOTAL edit rather than
-    /// partial add/remove arms, so the product's solid order is always
-    /// stated rather than inferred from an edit sequence. What the
-    /// roots name is what `product` and `assemble` gather, in this
-    /// order.
-    ///
-    /// Validator-checked like any other apply. The four root
-    /// invariants refuse under their own tags — `root_not_live`,
-    /// `root_duplicate`, `root_ancestor` (one root upstream of
-    /// another would gather its material twice), `root_uncovered` (a
-    /// live node reaching no root is a silently dead subgraph) — on
-    /// `EditError`, because which invariant broke is what a caller
-    /// branches on.
-    #[staticmethod]
-    fn set_roots(roots: Vec<NodeId>) -> Self {
-        Self {
-            inner: d::DocEdit::SetRoots {
-                roots: roots.iter().map(|n| n.0).collect(),
-            },
-        }
-    }
-
     /// Set an instance's **offset** in its gauge (A11 (2)), or clear
     /// it with `None`.
     ///
@@ -4512,10 +4617,9 @@ impl DocEdit {
     /// dependent takes the gauge's label, and otherwise the label goes,
     /// reported as `label_dropped` maintenance.
     ///
-    /// Refuses typed on `EditError`: `fold_on_non_gauge`,
-    /// `fold_would_dangle` (`referenced_by` reads the gauge as an
-    /// input), and `fold_would_start_placing` (`input` is the mate that
-    /// would start placing).
+    /// Refuses typed on `EditError`: `fold_on_non_gauge` and
+    /// `fold_would_start_placing` (`input` is the mate that would start
+    /// placing).
     #[staticmethod]
     #[pyo3(signature = (gauge))]
     fn fold(gauge: &NodeId) -> Self {
@@ -4559,17 +4663,19 @@ impl DocEdit {
     ///
     /// THE name repair, and the only one. A selection is stored as a
     /// stable name — a fillet's edges, a chamfer's, a shell's open
-    /// faces, a declaration's pairs — and a recipe edit upstream can
+    /// faces — and a recipe edit upstream can
     /// leave one denoting something else or nothing at all. This edit
     /// says what it now denotes, once: no alias table persists and
     /// nothing follows automatically afterwards, so a second name
     /// that needs the same repair is a second edit.
     ///
-    /// **A one-shot recorded intent, not a rename.** The sites
-    /// rewritten are the payloads that carry a name, and every one of
-    /// them re-canonicalizes as its own node would: a blend selection
-    /// is a set, a shell's designation an ordered list that drops a
-    /// repeat and keeps the earlier position.
+    /// **A one-shot recorded intent, not a rename**, addressed by body
+    /// and name: with `body` (the `Var` of a body, `Doc.output(node)`),
+    /// the selections of that body naming `from_name` are rewritten,
+    /// each re-canonicalizing as its kind does — an edge set re-sorts,
+    /// a face set drops a repeat and keeps the earlier position; with
+    /// no body, the names no selection holds (mate heads,
+    /// appearance keys).
     ///
     /// Neither half keeps the kernel's bare word — `from` is a Python
     /// keyword — so both take the role suffix, exactly as
@@ -4588,9 +4694,11 @@ impl DocEdit {
     /// source, so there is nothing to repair — a GUI's selection is
     /// not document state, and repairing one is re-selecting).
     #[staticmethod]
-    fn rebind(from_name: &str, to_name: &str) -> PyResult<Self> {
+    #[pyo3(signature = (from_name, to_name, body=None))]
+    fn rebind(from_name: &str, to_name: &str, body: Option<Var>) -> PyResult<Self> {
         Ok(Self {
             inner: d::DocEdit::Rebind {
+                body: body.map(|var| var.0),
                 from: name_from_text(from_name)?,
                 to: name_from_text(to_name)?,
             },
@@ -4631,9 +4739,8 @@ impl DocEdit {
     /// is not a step of its loop's new program. Refuses
     /// `step_ids_refused` before the program is replayed —
     /// `inner_variant` says which way the ids are wrong (`loop_count`,
-    /// `shape`, `not_this_profiles`, `repeated`, or `collides` for a new
-    /// id the document's mint log already holds; `not_minted`, an id the
-    /// log lacks, is the load door's word for the same family) —
+    /// `shape`, `not_this_profiles`, or `repeated`; `not_minted`, an id
+    /// the log lacks, is the load door's word for the same family) —
     /// `set_program_on_non_profile`
     /// for a node holding no program, and then everything an insert
     /// refuses of a profile: `slot_unknown_var_name` and its siblings
@@ -4739,20 +4846,6 @@ pub(crate) fn load(py: Python<'_>, text: &str) -> PyResult<Loaded> {
     })
 }
 
-/// A reference direction's three components, each checked against the
-/// direction slot it lands in — the spelling `Node.datum_axis` gives
-/// its own direction, shared so the two cannot drift.
-fn u_ref_expr(
-    py: Python<'_>,
-    u: (
-        super::expr::SlotArg,
-        super::expr::SlotArg,
-        super::expr::SlotArg,
-    ),
-) -> PyResult<[d::Formula; 3]> {
-    direction_expr(py, d::VectorSlot::Direction, &u)
-}
-
 /// A vector slot's three components, each checked against its own
 /// per-axis `SlotId`.
 pub(crate) fn direction_expr(
@@ -4825,7 +4918,7 @@ impl TubeWindow {
 }
 
 /// Every kernel window spelling has a constructor on the python
-/// mirror, enforced in the load-bearing direction (the `BooleanOp`
+/// mirror, enforced in the load-bearing direction (the `ExtrudeSide`
 /// mirror's argument, verbatim): the match is over the KERNEL enum, so
 /// a variant added there breaks this build rather than leaving the
 /// python surface silently short of it. Never called.
@@ -4839,10 +4932,12 @@ const fn _binds_every_kernel_window(kernel: &d::TubeWindow<d::Formula>) -> &'sta
 /// Register the document surface on the module.
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<NodeId>()?;
+    m.add_class::<IndexedRead>()?;
     m.add_class::<Doc>()?;
     m.add_class::<DocEdit>()?;
     m.add_class::<VarName>()?;
     m.add_class::<Var>()?;
+    m.add_class::<Measured>()?;
     m.add_class::<FreeVar>()?;
     m.add_class::<VarDecl>()?;
     // The expansion bound `definition_too_large`'s `count` is measured
@@ -4851,7 +4946,6 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<FreeValue>()?;
     m.add_class::<Node>()?;
     m.add_class::<SketchPlane>()?;
-    m.add_class::<BooleanOp>()?;
     m.add_class::<ExtrudeSide>()?;
     m.add_class::<PartSelect>()?;
     m.add_class::<TubeWindow>()?;

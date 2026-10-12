@@ -2,11 +2,12 @@
 id: a-crossing-cites-its-edge-by-a-name-that-holds-that-edges-ends-so-names-grow-exponentially
 kind: issue
 title: A crossing cites its crossed edge by the edge's full name, which holds that edge's Ends, so a name grows exponentially with how deep its piece sits in a chain of cuts
-status: open
+status: closed
 opened: 2026-10-06
+closed: 2026-10-07
 priority: P1
-pr: 4212
-branch: emit/ev-cite-the-line
+pr: 4228
+branch: emit/cite-the-line
 refs: [a-second-crossing-by-one-face-renames-the-first-and-its-pieces, edge-pieces-are-named-by-their-ends]
 ---
 
@@ -109,3 +110,18 @@ bullets; N5 *A cited line*); fork-log row 77 records it.
   once `Ends` on every piece lands.
 
 The PR 4212 body holds the fork's measurements.
+
+## Closed (PR 4228, 2026-10-07)
+
+PR 4228 builds the ruling. `edge_line` (`names/role.rs`) is cited at
+every site on the list, and in the blend's `BandCross` too. The reading
+rule is `NameTable::on_line`: the cascade rung, the offers, the union's
+`member_edge` and the group record all read a cited line through it.
+Ranking is one helper, `rank_crossings`, which reads each crossing on
+its own piece of the shared carrier. `Ends` is back on every piece.
+
+`tests/name_size_against_cut_depth.rs` holds the result. The longest
+name on the boolean trim chain is 83 words at every depth. The Split
+chain grows 18 words per trim, through N2's per-cut `SplitFragment`, so
+it is linear rather than flat. Corpus p99/max is 97/181 words.
+

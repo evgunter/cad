@@ -100,7 +100,11 @@ fn poison_vec<T: Real>() -> Vec3<T> {
 /// point and unit axis: `q = p − anchor`, `h = q·axis`,
 /// `w = q − axis·h`. Shared by every axisymmetric form below (fixed
 /// order, D9).
-fn axial_radial<T: Real>(p: Point3<T>, anchor: Point3<T>, axis: Vec3<T>) -> (T, Vec3<T>) {
+pub(crate) fn axial_radial<T: Real>(
+    p: Point3<T>,
+    anchor: Point3<T>,
+    axis: Vec3<T>,
+) -> (T, Vec3<T>) {
     let q = p - anchor;
     let h = q.dot(axis);
     let w = q - axis * h;
@@ -1472,6 +1476,43 @@ pub fn conic_torus_residual<T: Real>(
     minor_radius: T,
     theta: T,
 ) -> Rounded<T> {
+    let (rho, h) = conic_torus_split(conic, t_center, t_axis, theta);
+    let d = rho - Rounded::exact(major_radius);
+    let r = Rounded::exact(minor_radius);
+    (d.square() + h.square() - r.square()).div_exact(T::from_f64(2.0) * minor_radius)
+}
+
+/// The torus's implicit `F` ([`ConicTorusHarmonics`]) at the [`Conic`]
+/// point of parameter `theta`, in its factored form
+/// `((ρ − R)² + h² − r²)·((ρ + R)² + h² − r²)` — `2r·res` times `Q` —
+/// carried with a first-order running bound on its rounding
+/// ([`Rounded`]), from the same point, axial split and distance from the
+/// axis as [`conic_torus_residual`]. `theta`, the frames and the radii
+/// are taken as exact.
+#[must_use]
+pub fn conic_torus_implicit<T: Real>(
+    conic: &Conic<T>,
+    t_center: Point3<T>,
+    t_axis: Vec3<T>,
+    major_radius: T,
+    minor_radius: T,
+    theta: T,
+) -> Rounded<T> {
+    let (rho, h) = conic_torus_split(conic, t_center, t_axis, theta);
+    let (big, r) = (Rounded::exact(major_radius), Rounded::exact(minor_radius));
+    let (hh, rr) = (h.square(), r.square());
+    ((rho - big).square() + hh - rr) * ((rho + big).square() + hh - rr)
+}
+
+/// The [`Conic`] point of parameter `theta` against the torus's frame:
+/// its distance `ρ` from the axis and its height `h` along it, with the
+/// running bounds of [`conic_torus_residual`]'s chain.
+fn conic_torus_split<T: Real>(
+    conic: &Conic<T>,
+    t_center: Point3<T>,
+    t_axis: Vec3<T>,
+    theta: T,
+) -> (Rounded<T>, Rounded<T>) {
     use geom_core::running::{cross, dot, exact_vec};
     let ulp = T::from_f64(2.0 * geom_core::UNIT_ROUNDOFF);
     let (sin, cos) = theta.sin_cos();
@@ -1491,9 +1532,52 @@ pub fn conic_torus_residual<T: Real>(
     let h = dot(q, axis);
     let w: [Rounded<T>; 3] = core::array::from_fn(|i| q[i] - axis[i] * h);
     let rho = (w[0].square() + w[1].square() + w[2].square()).sqrt();
-    let d = rho - Rounded::exact(major_radius);
-    let r = Rounded::exact(minor_radius);
-    (d.square() + h.square() - r.square()).div_exact(T::from_f64(2.0) * minor_radius)
+    (rho, h)
+}
+
+/// A sphere's or a cylinder wall's [`implicit_residual`] at the [`Conic`]
+/// point of parameter `theta`, `(|⊥q|² − r²)/2r` (`⊥` the identity on a
+/// sphere, the projection off the axis on a wall), carried with a
+/// first-order running bound on its rounding ([`Rounded`]): the point's
+/// own evaluation ([`Conic::point`]'s order, `sin` and `cos` charged an
+/// ulp each), the axial split, the square and the residual. `theta`, the
+/// frames and the radius are taken as exact. The value is bit-identical
+/// to [`implicit_residual`] at [`Conic::point`]: every operation is that
+/// chain's, in its order. The surface is given by its anchor (a sphere's
+/// centre, a wall's origin), its axis (`None` on a sphere) and its
+/// radius.
+#[must_use]
+pub fn conic_quadric_residual<T: Real>(
+    conic: &Conic<T>,
+    (anchor, axis, radius): (Point3<T>, Option<Vec3<T>>, T),
+    theta: T,
+) -> Rounded<T> {
+    use geom_core::running::{cross, dot, exact_vec};
+    let ulp = T::from_f64(2.0 * geom_core::UNIT_ROUNDOFF);
+    let (sin, cos) = theta.sin_cos();
+    let transcendental = |x: T| Rounded {
+        value: x,
+        error: ulp * x.abs(),
+    };
+    let (sin, cos) = (transcendental(sin), transcendental(cos));
+    let (a, b) = (Rounded::exact(conic.major), Rounded::exact(conic.minor));
+    let (n, u) = (exact_vec(conic.axis), exact_vec(conic.u_ref));
+    let v = cross(n, u);
+    let c = exact_vec(Vec3::new(conic.center.x, conic.center.y, conic.center.z));
+    let o = exact_vec(Vec3::new(anchor.x, anchor.y, anchor.z));
+    let (ac, bs) = (a * cos, b * sin);
+    let q: [Rounded<T>; 3] = core::array::from_fn(|i| c[i] + u[i] * ac + v[i] * bs - o[i]);
+    let w = match axis {
+        None => q,
+        Some(axis) => {
+            let axis = exact_vec(axis);
+            let h = dot(q, axis);
+            core::array::from_fn(|i| q[i] - axis[i] * h)
+        }
+    };
+    let r = Rounded::exact(radius);
+    (w[0].square() + w[1].square() + w[2].square() - r.square())
+        .div_exact(T::from_f64(2.0) * radius)
 }
 
 /// The sphere's linearized residual along a circle carrier, which is a
@@ -1675,47 +1759,6 @@ struct ResidualHarmonics<T> {
     /// trigonometric polynomial of degree two, so its `k`-th derivative
     /// is bounded by `2ᵏ·noise` (Bernstein's inequality).
     noise: T,
-}
-
-/// The seam frame of an axisymmetric surface: `(w, u_ref, v_ref)` with
-/// `w` the radial component of `p` relative to the surface's own
-/// anchor/axis and `v_ref = axis × u_ref` — the pieces the
-/// a seam chart image residuals are built from. `None` for
-/// the plane (not periodic — a seam description on it is malformed) and
-/// for [`Surface::Nurbs`] (unimplemented).
-pub(crate) fn seam_frame<T: Real>(
-    s: &Surface<T>,
-    p: Point3<T>,
-) -> Option<(Vec3<T>, Vec3<T>, Vec3<T>)> {
-    let (anchor, axis, u_ref) = match *s {
-        // Nurbs: no implicit/seam form (C2.1 foot points, M5 PR 4).
-        // Approx: neither — its stand-in is a spline, and an offset
-        // description carries no axis to hang a seam frame on.
-        Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => return None,
-        Surface::Cylinder {
-            origin,
-            axis,
-            u_ref,
-            ..
-        } => (origin, axis, u_ref),
-        Surface::Cone {
-            apex, axis, u_ref, ..
-        } => (apex, axis, u_ref),
-        Surface::Sphere {
-            center,
-            axis,
-            u_ref,
-            ..
-        } => (center, axis, u_ref),
-        Surface::Torus {
-            center,
-            axis,
-            u_ref,
-            ..
-        } => (center, axis, u_ref),
-    };
-    let (_, w) = axial_radial(p, anchor, axis);
-    Some((w, u_ref, axis.cross(u_ref)))
 }
 
 #[cfg(test)]

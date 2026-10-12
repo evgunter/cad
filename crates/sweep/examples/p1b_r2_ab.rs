@@ -94,7 +94,12 @@ fn main() {
     );
 
     let edges: Vec<EdgeKey> = blank.edges().map(|(k, _)| k).collect();
-    match fillet_edges(&blank, &edges, r, Tol::witness()) {
+    match fillet_edges(
+        &sweep::test_support::at_rest(&blank, Tol::witness()),
+        &edges,
+        r,
+        Tol::witness(),
+    ) {
         Err(e) => {
             // ARM B's interesting outcome: if reinstating the conversion
             // makes the fillet refuse, the refusal (and its site) is the

@@ -32,9 +32,8 @@ use editor_core::clearance::{
 };
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
-    CapEnd, Datum, Dimension, Distribution, DocEdit, Formula, FreeVar, LoopProgram, Node,
-    ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg,
-    VarName,
+    CapEnd, Dimension, Distribution, DocEdit, Formula, FreeVar, LoopProgram, Node, ProfileDoc,
+    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, VarName,
 };
 use geom_core::{Bounds, Interval, Tol, Vec3};
 
@@ -105,12 +104,12 @@ fn insert_xy_frame(r: &mut Recorder) -> RecipeNodeId {
 fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId {
     let plane = insert_xy_frame(r);
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![LoopProgram::polygon(points.iter().copied()).expect("finite corners")],
         ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: len(depth),
         side: ExtrudeSide::Along,
     })
@@ -394,12 +393,12 @@ fn bumped_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     ]);
     let plane = insert_xy_frame(&mut r);
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![chain],
         ids: Vec::new(),
     }));
     let solid = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
@@ -501,15 +500,14 @@ fn a_partial_revolve_band_reports_its_phantom_turn() {
         plane,
         vec![vec![(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)]],
     )));
-    let axis = r.insert(Node::Datum(Datum::Axis {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        direction: [scl(0.0), scl(1.0), scl(0.0)],
-    }));
-    let quarter = r.insert(Node::Revolve {
+    // The axis line, in the profile's own coordinates: its v is the
+    // world axis the quarter turns about.
+    let quarter = r.insert(fixture::revolve_about(
         profile,
-        axis,
-        angle: ang(core::f64::consts::FRAC_PI_2),
-    });
+        (0.0, 0.0),
+        (0.0, 1.0),
+        ang(core::f64::consts::FRAC_PI_2),
+    ));
     // The block: x ∈ [-2.5, -2.1], y ∈ [0, 1], z ∈ [-0.2, 0.2], placed
     // by the parameter along z (a rigid translation).
     let block = extruded(
@@ -591,15 +589,14 @@ fn a_partial_revolve_about_z_is_the_control_for_the_hulled_band() {
         plane,
         vec![vec![(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)]],
     )));
-    let axis = r.insert(Node::Datum(Datum::Axis {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        direction: [scl(0.0), scl(0.0), scl(1.0)],
-    }));
-    let quarter = r.insert(Node::Revolve {
+    // The axis line, in the profile's own coordinates: its v is the
+    // world axis the quarter turns about.
+    let quarter = r.insert(fixture::revolve_about(
         profile,
-        axis,
-        angle: ang(core::f64::consts::FRAC_PI_2),
-    });
+        (0.0, 0.0),
+        (0.0, 1.0),
+        ang(core::f64::consts::FRAC_PI_2),
+    ));
     // The block: x ∈ [-2.5, -2.1], y ∈ [-0.2, 0.2] (placed), z ∈ [0, 1].
     let block = extruded(
         &mut r,

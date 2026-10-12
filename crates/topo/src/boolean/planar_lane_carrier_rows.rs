@@ -14,7 +14,7 @@
 //! rows read what the sweep's arms themselves do with it. **No public
 //! door reaches these arms with such an edge while that gate stands**
 //! (`reduce::gate_operand_edges`); the rows are what pins them until it
-//! goes (`work/reach/delete-the-boolean-operand-edge-gate.md`).
+//! goes (`work/orbit/delete-the-boolean-operand-edge-gate.md`).
 //!
 //! The oracles are closed forms, never the kernel's evaluator: the
 //! Bézier's `x(t) = 2t(1−t)·mx + 2t²`, `y(t) = 4t(1−t)·h`, and the
@@ -29,7 +29,7 @@ use crate::euler::{FaceSurface, MefSite, MevSite};
 use crate::test_support_fixtures::brick;
 use crate::{Body, FaceKey};
 use geom::{Curve3, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
 use geom_core::{Point3, Tol, Vec3};
 
 /// The Bézier arc's control net, peak height `h`.
@@ -96,7 +96,7 @@ fn arc_sheet(mx: f64, h: f64) -> (Body<f64>, crate::EdgeKey) {
                 description: EdgeDescriptionSpec::Chart {
                     surface: plane,
                     image: Some(arc_image(mx, h)),
-                    seam: false,
+                    wrap: false,
                     declared: None,
                 },
                 carrier: arc(mx, h),
@@ -177,8 +177,7 @@ fn spiric_cap() -> (Body<f64>, crate::EdgeKey) {
             p1,
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
-                    s1: torus,
-                    s2: plane,
+                    pair: SurfacePair::new(torus, plane),
                     witness: spiric.eval(0.0),
                 },
                 carrier: spiric,
@@ -228,7 +227,7 @@ fn brick_face(x: (f64, f64), y: (f64, f64), n: Vec3<f64>) -> (Body<f64>, FaceKey
 fn sweep_a(
     a: &Body<f64>,
     b: &Body<f64>,
-) -> Result<(Body<f64>, crate::boolean::ContactRecords), BooleanError> {
+) -> Result<(Body<f64>, crate::boolean::ReductionContacts), BooleanError> {
     let (mut x, mut y) = (a.clone(), b.clone());
     let mut acc = super::ContactAcc::default();
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
@@ -236,7 +235,7 @@ fn sweep_a(
         &mut x,
         &mut y,
         crate::boolean::Operand::A,
-        &crate::boolean::DeclaredPairs::default(),
+        &crate::boolean::GluedPairs::default(),
         &mut acc,
         band,
         super::SweepStrategy::Realized,
@@ -246,7 +245,7 @@ fn sweep_a(
         &crate::boolean::separating::OperandAxes::new(crate::boolean::boxes::axis_key),
         Tol::witness(),
     )?;
-    Ok((x, acc.finish()))
+    Ok((x, acc.finish().0))
 }
 
 /// The arc's closed form at `t`.
@@ -262,7 +261,7 @@ fn bezier(mx: f64, h: f64, t: f64) -> (f64, f64) {
 /// spline's box is the whole space, a spiric's its whole-period box),
 /// and a carrier with no lane cannot be cleared of any face.
 fn assert_refused(
-    got: Result<(Body<f64>, crate::boolean::ContactRecords), BooleanError>,
+    got: Result<(Body<f64>, crate::boolean::ReductionContacts), BooleanError>,
     edge: crate::EdgeKey,
     b: &Body<f64>,
 ) {
@@ -353,7 +352,6 @@ fn an_arc_crossing_a_cylinder_wall_refuses() {
     cyl_wall_sheet(
         &mut b,
         CylFrame::canonical(1.0),
-        None,
         (0.0, core::f64::consts::PI),
         (-1.0, 1.0),
         Tol::witness(),
@@ -402,7 +400,6 @@ fn a_spiric_crossing_a_cylinder_wall_refuses() {
     cyl_wall_sheet(
         &mut b,
         CylFrame::canonical(2.5),
-        None,
         (0.0, core::f64::consts::PI),
         (-2.0, 2.0),
         Tol::witness(),

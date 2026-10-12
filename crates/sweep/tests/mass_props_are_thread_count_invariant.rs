@@ -171,8 +171,12 @@ fn sym_bodies() -> Vec<(String, Body<Sym<f64>>)> {
     let eps = Tol::witness().get().eps;
     let arc = |s: f64| {
         loft_body::<Sym<f64>>(
-            &[arc_section(s), arc_section(s), arc_section(s)],
-            &stacked(&[0.0, 1.0, 2.0], s),
+            &sweep::test_support::lift_sections::<Sym<f64>>(&[
+                arc_section(s),
+                arc_section(s),
+                arc_section(s),
+            ]),
+            &sweep::test_support::lift_places::<Sym<f64>>(&stacked(&[0.0, 1.0, 2.0], s)),
             2,
             Tol::witness(),
         )
@@ -180,11 +184,11 @@ fn sym_bodies() -> Vec<(String, Body<Sym<f64>>)> {
         .body
     };
     let strip = loft_body::<Sym<f64>>(
-        &[
+        &sweep::test_support::lift_sections::<Sym<f64>>(&[
             strip_section(1.0e12 * eps, 1.0e9 * eps, false),
             strip_section(1.0e12 * eps, 1.0e9 * eps, false),
-        ],
-        &stacked(&[0.0, 1.0], 1.0e12 * eps),
+        ]),
+        &sweep::test_support::lift_places::<Sym<f64>>(&stacked(&[0.0, 1.0], 1.0e12 * eps)),
         1,
         Tol::witness(),
     )
@@ -428,6 +432,84 @@ fn digest() -> String {
 /// 708 → 644, `sz` 56 → 48, `num` 652 → 596; `sym_thin_strip`
 /// 716 → 652, `sz` 64 → 48, `num` 652 → 604). Every verdict, pad,
 /// `frozen` count and f64 row is unchanged.
+///
+/// **Re-cut at all three ε when the pcurve iso lane's seam class began
+/// reading which way an image runs its column** (`pcurve_iso_seam_sense`,
+/// the wrap-edge unit: a one-segment loft's strut runs its column
+/// backward). One more numeric decision per seam-class row, so the two
+/// `validate_geometric` rows gain 8 each (`sym_arc_loft` 644 → 652,
+/// `num` 596 → 604; `sym_thin_strip` 652 → 660, `num` 604 → 612).
+/// Every verdict hash, pad, volume, refusal and `frozen` column is
+/// unchanged.
+///
+/// **Re-cut at all three ε when the cylinder quadrature began deciding
+/// that no junction of a loop is a period off on the chart**
+/// (`props_quad_junction_period`, one decision per junction, so that it
+/// can read a face's rings). Only `tilted_cut_upper`'s verdict count
+/// moves, by 8 at every ε (4 → 12, 10 → 18, 16 → 24 at ε = 1e-6 / 1e-9 /
+/// 1e-12), and its hash with it; its volume, area and pads are
+/// bit-identical and no other line moves.
+///
+/// **Re-cut at all three ε when the integral speed meter took a third,
+/// per-piece assembly** (`geom::NurbsCurve3::speed_lower_bound`'s
+/// `piece_assembly`). Only `sym_arc_loft`'s `validate_geometric`
+/// `frozen` column moves, by one at every ε (607 → 606 / 539 → 538 /
+/// 606 → 605 at ε = 1e-6 / 1e-9 / 1e-12). Decisions, discharges, shapes
+/// and every verdict are unchanged. Measured by disabling only that
+/// assembly on a probe build, which restores the old column.
+///
+/// **Re-cut at all three ε when the loft's placements and skinned walls
+/// began entering the scalar as computed values** (`Real::from_computed`
+/// in `sweep::loft`, an unknown each at `Sym` where each was a
+/// constant, a seam column shared by the two walls that end on it).
+/// Only the `frozen` column of the two `validate_geometric` rows moves,
+/// and up: `sym_arc_loft` 606 → 1254 / 538 → 1244 / 605 → 1253 and
+/// `sym_thin_strip` 704 → 1257 / 674 → 1268 / 699 → 1256 at
+/// ε = 1e-6 / 1e-9 / 1e-12. The walk freezes more nodes once its
+/// leaves are unknowns rather than constants; which freeze cause each
+/// added count is, is not measured. Decisions, discharges (`sz`),
+/// shapes, verdicts and every f64 row are unchanged.
+///
+/// **Re-cut at all three ε when the rational patch lane's knot
+/// refinement moved into the certification ring** (`geom_brep::props::
+/// quad`'s `refine_dir`, PR 4553: each homogeneous channel refined by
+/// the convex certified step, where `ring_lerp` combined points through
+/// the plan's rounded `f64` λ). Only `arc_loft_1e9eps` moves, the one
+/// body whose walls are rational patches: `v`, `a`, `vpad` and `apad`
+/// in their last bits at every ε. Each new volume and area enclosure
+/// lies inside the old one; the volume pads fall by 7e-6 of themselves
+/// and the area pads by 4e-10. Bisected: PR 4553's parent `afabd44061`
+/// reads the old line and its merge `98e620a195` the new. Verdicts,
+/// refusals, the other rows and the sym-session counts are unchanged.
+///
+/// **Re-cut at all three ε when the skin began computing its values in
+/// `T`** (`8054ec236f`, PR 4726: the projective split, the banded solve
+/// and the loft run in the sections' scalar). Bisected at ε = 1e-9: its
+/// parent `cb58e63b8b` reads the line above for `arc_loft_1e9eps`, and
+/// the commit reads this one. Two things move:
+/// * **`arc_loft_1e9eps`'s pads**, and `a` by one ulp at ε = 1e-6. The
+///   skin's arc conversion now calls `Real`'s sines and cosines (the
+///   pure-Rust `libm` D9 prescribes) where it called `f64`'s inherent
+///   ones, so an arc's weight or tangent pole moves by an ulp: the body
+///   itself moves, not the quadrature. Every pad moves by at most
+///   1.1e-9 of itself and every old and new enclosure nest, one inside
+///   the other. The new one is the inner one except for the volume at
+///   ε = 1e-9 (pad +1.06e-9 relative) and the area at 1e-6, where the
+///   old one is.
+/// * **the `Sym` rows' `validate_geometric` `frozen` column**, down:
+///   `sym_arc_loft` 1254 → 1062 / 1244 → 1060 / 1253 → 1061 and
+///   `sym_thin_strip` 1257 → 1178 / 1268 → 1177 / 1256 → 1177 at
+///   ε = 1e-6 / 1e-9 / 1e-12. The walls are computed in `T` instead of
+///   lifted as opaque unknowns. This also undoes two `sz` moves main
+///   made without a re-cut: PR 4703 turned the `pcurve_iso_boundary`
+///   theorems numeric (`sz=28` / `24`), and PR 4708 recovered most of
+///   them but lost the `pcurve_loop_continuity` ones (`sz=40` / `36`).
+///   This commit returns every decision class to its pre-4703 outcome,
+///   `sz=48` and `num=604` / `612` (the per-class table is in
+///   `work/nurbs/the-arc-loft-thread-count-digest-is-red-on-main.md`).
+///   The split is deterministic: 1 and 4 threads, run twice, alone and
+///   after the f64 block, read alike at every one of those commits.
+///   Decisions, shapes and verdicts are unchanged.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),

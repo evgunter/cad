@@ -18,7 +18,7 @@ use geom::Curve3;
 use geom::Surface;
 use geom_brep::{
     CertCheck, CertifyError, EdgeAuthority, EdgeCurve, EdgeCurveSpec, EdgeDescription,
-    EdgeDescriptionSpec, MappedCurve,
+    EdgeDescriptionSpec, MappedCurve, MappedSource,
 };
 use geom_core::{Band, Point3, Tol, Vec3};
 
@@ -269,13 +269,13 @@ fn r2_the_rest_door_silently_ignores_its_arguments_on_an_at_rest_spec() {
     };
     let restated = spec.at_rest_in_chart(keys[1], true);
     match restated.description {
-        EdgeDescriptionSpec::Chart { surface, seam, .. } => {
+        EdgeDescriptionSpec::Chart { surface, wrap, .. } => {
             assert_eq!(
                 surface, keys[0],
                 "the door kept the OLD chart and dropped the one it was handed"
             );
             assert!(
-                !seam,
+                !wrap,
                 "the door dropped the seam obligation it was handed, silently"
             );
         }
@@ -428,7 +428,10 @@ fn r2_the_scaffolding_door_certifies_with_no_surface_at_all() {
     assert!(
         matches!(
             edge.authority(),
-            EdgeAuthority::Declared(MappedCurve::ExtrudedPoint { .. })
+            EdgeAuthority::Declared(MappedCurve {
+                source: MappedSource::ExtrudedPoint { .. },
+                ..
+            })
         ),
         "a scaffold's pushforward IS its declaration"
     );

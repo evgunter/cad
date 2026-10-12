@@ -18,6 +18,7 @@
 
 test_utils::gated_to![
     "crates/geom-brep/src/pcurve_cache.rs",
+    "crates/geom-brep/src/pcurve_cache/projected.rs",
     "crates/geom/src/surfaces.rs",
     "crates/geom/src/curves.rs",
     "crates/geom/src/azimuth.rs",
@@ -25,10 +26,13 @@ test_utils::gated_to![
 
 use std::collections::BTreeSet;
 
+mod projected;
+mod projected_searches;
+
 use super::{
-    ChartWindings, Derivation, EnvelopeTerm, EnvelopeTerms, Pcurve, PcurveCache,
-    PcurveCertifyError, PcurveCheck, Winding, carrier_harmonic, chart_image_harmonic,
-    derive_harmonic, incidence, orthonormal_chart, periodic_envelope,
+    ChartWindings, Derivation, EnvelopeTerm, EnvelopeTerms, FocalImage, Pcurve, PcurveCache,
+    PcurveCertifyError, PcurveCheck, Winding, carrier_harmonic, chart_image_harmonic, chart_pcurve,
+    derive_harmonic, focal_section_envelope, incidence, orthonormal_chart, periodic_envelope,
 };
 use geom::{Curve3, Surface};
 use geom_core::predicate::Band;
@@ -607,8 +611,8 @@ fn windings_of(derivation: Derivation) -> ChartWindings {
         Derivation::SphereMeridian { sigma, .. } | Derivation::TorusMeridian { sigma } => {
             (Winding::Zero, Some(sigma))
         }
-        Derivation::ConeSection => {
-            unreachable!("windings_of: the sweep draws no ellipse on a cone")
+        Derivation::FocalSection => {
+            unreachable!("windings_of: this sweep draws no focal section")
         }
     };
     ChartWindings { u, v }
@@ -641,7 +645,7 @@ fn arm(derivation: Derivation) -> &'static str {
             moving(beta, "torus parallel", "torus parallel, zero winding")
         }
         Derivation::TorusMeridian { .. } => "torus meridian",
-        Derivation::Plane | Derivation::ConeSection => unreachable!("the sweep draws neither"),
+        Derivation::Plane | Derivation::FocalSection => unreachable!("the sweep draws neither"),
     }
 }
 
@@ -1203,6 +1207,640 @@ fn the_closed_form_tables_compose_back_to_the_carrier() {
             terms.total(),
             terms.0,
             fuzz::replay()
+        );
+    }
+}
+
+/// A random tilted plane section of a random cone, and the cone.
+fn cone_section(s: &mut fuzz::Rng) -> Option<(Surface<f64>, Curve3<f64>)> {
+    let (axis, u_ref) = frame(s);
+    let apex = Point3::new(s.range(-3.0, 3.0), s.range(-3.0, 3.0), s.range(-3.0, 3.0));
+    let half_angle = s.range(0.15, 1.3);
+    let cone = Surface::Cone {
+        apex,
+        axis,
+        half_angle,
+        u_ref,
+    };
+    // A tilt under the generator's keeps the section an ellipse.
+    let tilt = s.range(0.02, 0.8) * (FRAC_PI_2 - half_angle);
+    let side = axis.cross(u_ref);
+    let normal = axis * tilt.cos() + (u_ref * s.range(-1.0, 1.0) + side).normalize() * tilt.sin();
+    let normal = normal.normalize();
+    let plane = Surface::Plane {
+        origin: apex + axis * (s.range(0.5, 3.0) * sign(s)),
+        normal,
+        u_ref: unit(s).cross(normal).normalize(),
+    };
+    match crate::intersect::plane_cone_section(&plane, &cone, 4.0, band()) {
+        Ok(crate::intersect::PlaneConeSection::TiltedEllipse(e)) => Some((cone, e)),
+        _ => None,
+    }
+}
+
+/// A random ring torus and one of its Villarceau circles, on either
+/// family and traversal, from any start.
+fn villarceau(s: &mut fuzz::Rng) -> (Surface<f64>, Curve3<f64>) {
+    let (axis, u_ref) = frame(s);
+    let center = Point3::new(s.range(-3.0, 3.0), s.range(-3.0, 3.0), s.range(-3.0, 3.0));
+    let major = s.range(0.5, 3.0);
+    let minor = major * s.range(0.1, 0.85);
+    let phi = s.range(-PI, PI);
+    let d = rad(axis, u_ref, phi);
+    let tilt = (minor / major).asin();
+    let lean = d.cross(axis) * tilt.cos() + axis * (sign(s) * tilt.sin());
+    let psi = s.range(-PI, PI);
+    (
+        Surface::Torus {
+            center,
+            axis,
+            major_radius: major,
+            minor_radius: minor,
+            u_ref,
+        },
+        circle(
+            center + d * minor,
+            d.cross(lean) * sign(s),
+            major,
+            d * psi.cos() + lean * psi.sin(),
+        ),
+    )
+}
+
+/// **The focal-section lemma, swept** (a counterexample search: the
+/// seed varies). On a cone section and a Villarceau circle alike, for a
+/// carrier moved off its chart, a stored image with any of its eight
+/// numbers moved, and a chart whose frame is off its convention, the
+/// envelope `focal_section_envelope` states is never below the sampled
+/// sup of the stored image's residual, at `f64` or at `Interval`; and
+/// an exact row's envelope is rounding-scale.
+#[test]
+fn the_focal_section_envelope_dominates_its_residual_on_both_instances() {
+    let mut s = fuzz::start("pcurve_cache::envelope_lemma::focal_section");
+    let mut checked = [0usize; 2];
+    for trial in 0..fuzz::scaled(300) {
+        let torus = s.below(2) == 0;
+        let Some((chart, exact)) = (if torus {
+            Some(villarceau(&mut s))
+        } else {
+            cone_section(&mut s)
+        }) else {
+            continue;
+        };
+        let Ok(derived) = chart_pcurve(&exact, &chart, band()) else {
+            panic!(
+                "trial {trial}: an exact {} does not derive — {}",
+                if torus {
+                    "Villarceau circle"
+                } else {
+                    "cone section"
+                },
+                fuzz::replay()
+            );
+        };
+        let Pcurve::FocalSection(image) = derived else {
+            panic!(
+                "trial {trial}: {derived:?} is no focal section — {}",
+                fuzz::replay()
+            );
+        };
+        // 0: the carrier moves; 1: the image moves; 2: the frame moves;
+        // 3: nothing moves.
+        let mode = s.below(4);
+        let delta = magnitude(&mut s);
+        let carrier = if mode == 0 {
+            perturbed(&mut s, &exact, delta)
+        } else {
+            exact.clone()
+        };
+        let surface = if mode == 2 {
+            frame_moved(&mut s, &chart, delta)
+        } else {
+            chart
+        };
+        let pick = s.below(9);
+        let mut slot = 0;
+        let mut jitter = |v: f64| {
+            slot += 1;
+            if mode == 1 && (pick == 0 || pick == slot) {
+                v + delta * s.range(-1.0, 1.0)
+            } else {
+                v
+            }
+        };
+        let stored_image = FocalImage {
+            u0: jitter(image.u0),
+            t0: jitter(image.t0),
+            v0: jitter(image.v0),
+            va: jitter(image.va),
+            vb: jitter(image.vb),
+            vl: jitter(image.vl),
+            beta: jitter(image.beta),
+            sense: jitter(image.sense),
+        };
+        let stored = Pcurve::FocalSection(stored_image);
+        let (t0, t1) = span(&mut s);
+        let reach = t0.abs().max(t1.abs());
+        let v_sup = stored.chart_box(t0, t1).v_reach();
+        let form = carrier_harmonic(&carrier).unwrap();
+        let envelope = focal_section_envelope(&stored_image, form, &surface, v_sup, reach);
+        let sup = sampled_sup(&stored, &surface, &carrier, t0, t1);
+        let noise = 64.0 * f64::EPSILON * scale(&surface, &carrier, reach);
+        let context = || {
+            format!(
+                "trial {trial} (torus {torus}, mode {mode}, δ = {delta:e}, pick {pick}, \
+                 span [{t0}, {t1}])"
+            )
+        };
+        assert!(
+            envelope >= sup - noise,
+            "{}: envelope {envelope:e} under the sampled sup {sup:e} — {}",
+            context(),
+            fuzz::replay()
+        );
+        if mode == 3 {
+            assert!(
+                envelope <= noise,
+                "{}: an exact row costs {envelope:e} — {}",
+                context(),
+                fuzz::replay()
+            );
+        }
+        let lift = Interval::from_f64;
+        let lifted_image = FocalImage {
+            u0: lift(stored_image.u0),
+            t0: lift(stored_image.t0),
+            v0: lift(stored_image.v0),
+            va: lift(stored_image.va),
+            vb: lift(stored_image.vb),
+            vl: lift(stored_image.vl),
+            beta: lift(stored_image.beta),
+            sense: lift(stored_image.sense),
+        };
+        let lifted = Pcurve::FocalSection(lifted_image);
+        let at_iv = focal_section_envelope(
+            &lifted_image,
+            carrier_harmonic(&carrier.map_scalar(lift)).unwrap(),
+            &surface.map_scalar(lift),
+            lifted.chart_box(lift(t0), lift(t1)).v_reach(),
+            lift(reach),
+        )
+        .hi();
+        assert!(
+            envelope.is_finite() && at_iv >= sup - noise,
+            "{}: the Interval envelope {at_iv:e} is under the sampled sup {sup:e} — {}",
+            context(),
+            fuzz::replay()
+        );
+        checked[usize::from(torus)] += 1;
+    }
+    println!(
+        "[fuzz] envelope_lemma::focal_section: {} cone and {} torus rows checked",
+        checked[0], checked[1]
+    );
+}
+
+/// **The meridional-phase remainder is load-bearing** (a static row).
+/// A Villarceau circle's image with `β` moved off `−r/(R + √(R² − r²))`
+/// splits as `H + (r + R·e)·cos E·ρ̂(u)` with `H` an exact ellipse; offered
+/// against THAT ellipse as its carrier, every coefficient difference is
+/// rounding and the whole residual is the remainder, which reaches
+/// `|r + R·e|` at the vertex. An envelope without the phase term reads
+/// rounding there.
+#[test]
+fn the_phase_remainder_carries_a_carrier_that_is_the_harmonic_part() {
+    let (big, minor) = (2.0_f64, 0.7_f64);
+    let (axis, u_ref) = (Vec3::unit_z(), Vec3::unit_x());
+    let surface = Surface::Torus {
+        center: Point3::origin(),
+        axis,
+        major_radius: big,
+        minor_radius: minor,
+        u_ref,
+    };
+    let tilt = (minor / big).asin();
+    let lean = Vec3::unit_y() * tilt.cos() + axis * tilt.sin();
+    let exact = circle(
+        Point3::new(minor, 0.0, 0.0),
+        Vec3::unit_x().cross(lean),
+        big,
+        u_ref,
+    );
+    let derived = chart_pcurve(&exact, &surface, band()).unwrap();
+    let Pcurve::FocalSection(image) = derived else {
+        panic!("{derived:?} is no focal section")
+    };
+    assert_eq!(image.t0, 0.0, "the vertex is the carrier's start");
+    let beta = image.beta * 0.999;
+    let stored_image = FocalImage { beta, ..image };
+    let stored = Pcurve::FocalSection(stored_image);
+    // `H` at the stored `β`: `O − R·e·d0 + cos t·R·d0 + sin t·(R·q·d1 + vl·r·n̂)`.
+    let bb = beta * beta;
+    let (e, q) = (2.0 * beta / (1.0 + bb), (1.0 - bb) / (1.0 + bb));
+    let d0 = rad(axis, u_ref, image.u0);
+    let d1 = axis.cross(d0) * image.sense;
+    let (x, y) = (d0 * big, d1 * (big * q) + axis * (image.vl * minor));
+    let carrier = Curve3::Ellipse {
+        center: Point3::origin() - d0 * (big * e),
+        axis: x.cross(y).normalize(),
+        major: x.norm(),
+        minor: y.norm(),
+        u_ref: x.normalize(),
+    };
+    let (t0, t1) = (-0.5, 0.5);
+    let envelope = focal_section_envelope(
+        &stored_image,
+        carrier_harmonic(&carrier).unwrap(),
+        &surface,
+        stored.chart_box(t0, t1).v_reach(),
+        0.5,
+    );
+    let sup = sampled_sup(&stored, &surface, &carrier, t0, t1);
+    let phase = (minor + big * e).abs();
+    assert!(
+        sup > 0.9 * phase,
+        "the residual is the remainder: {sup:e} against {phase:e}"
+    );
+    let noise = 64.0 * f64::EPSILON * scale(&surface, &carrier, 0.5);
+    assert!(
+        envelope >= sup - noise,
+        "envelope {envelope:e} under the sampled sup {sup:e}"
+    );
+}
+
+/// **A Villarceau circle moved off its class is refused typed, and never
+/// read off the torus while it is within the band** (a counterexample
+/// search, the seed varies; the reviewers' probe on PR 4227). Each draw
+/// moves a Villarceau circle of a random torus by a size from the band's
+/// three regimes along one of six directions — the centre's radial, the
+/// axis, the equator's tangent, a tilt about the centre's radial, the
+/// radius, a turn about the vertex's tangent — and the torus arm's
+/// answer is checked: an image it mints and certifies has an envelope
+/// over the dense residual, and `CarrierOffChart` is never the answer
+/// for a circle whose dense distance from the torus is within `ε`.
+#[test]
+fn a_moved_villarceau_circle_is_refused_typed_and_never_off_within_the_band() {
+    let mut s = fuzz::start("pcurve_cache::envelope_lemma::moved_villarceau");
+    let b = band();
+    let mut answers = [0usize; 4];
+    for trial in 0..fuzz::scaled(300) {
+        let (surface, carrier) = villarceau(&mut s);
+        let Surface::Torus {
+            center: tc,
+            axis,
+            major_radius,
+            minor_radius,
+            ..
+        } = surface
+        else {
+            unreachable!("villarceau draws a torus")
+        };
+        let Curve3::Circle {
+            center,
+            axis: n,
+            radius,
+            u_ref,
+        } = carrier
+        else {
+            unreachable!("villarceau draws a circle")
+        };
+        let delta = match s.below(3) {
+            0 => b.zero() * s.range(0.1, 0.9),
+            1 => b.escalate() * s.range(1.5, 30.0),
+            _ => 10f64.powf(s.range(-7.0, -3.0)),
+        };
+        let which = s.below(6);
+        let w = center - tc;
+        let d = (w - axis * w.dot(axis)).normalize();
+        let moved = match which {
+            0 => circle(center + d * delta, n, radius, u_ref),
+            1 => circle(center + axis * delta, n, radius, u_ref),
+            2 => circle(center + axis.cross(d) * delta, n, radius, u_ref),
+            3 => {
+                let n2 = (n + n.cross(d) * delta).normalize();
+                circle(center, n2, radius, (u_ref - n2 * u_ref.dot(n2)).normalize())
+            }
+            4 => circle(center, n, radius + delta, u_ref),
+            _ => {
+                let tangent = n.cross(d);
+                let n2 = (n + d * delta).normalize();
+                let toward = n2.cross(tangent).normalize();
+                let c2 = center + d * radius - toward * (radius * d.dot(toward).signum());
+                circle(c2, n2, radius, (u_ref - n2 * u_ref.dot(n2)).normalize())
+            }
+        };
+        let dense = (0..2048)
+            .map(|i| {
+                let q = moved.eval(f64::from(i) * TAU / 2048.0) - tc;
+                let h = q.dot(axis);
+                let rho = (q - axis * h).norm();
+                ((rho - major_radius).hypot(h) - minor_radius).abs()
+            })
+            .fold(0.0, f64::max);
+        let context =
+            || format!("trial {trial}, move {which} by {delta:e}, dense distance {dense:e}");
+        match chart_pcurve(&moved, &surface, b) {
+            Ok(image) => {
+                answers[0] += 1;
+                if let Ok(cache) =
+                    PcurveCache::certify(image.clone(), 0.0, TAU, &moved, &surface, b)
+                {
+                    let sup = sampled_sup(&image, &surface, &moved, 0.0, TAU);
+                    let noise = 64.0 * f64::EPSILON * scale(&surface, &moved, TAU);
+                    assert!(
+                        cache.certificate().envelope >= sup - noise,
+                        "{}: envelope {:e} under the residual {sup:e} — {}",
+                        context(),
+                        cache.certificate().envelope,
+                        fuzz::replay()
+                    );
+                }
+            }
+            Err(PcurveCertifyError::CarrierOffChart { .. }) => {
+                answers[1] += 1;
+                assert!(
+                    dense > b.zero(),
+                    "{}: within the band, read off the torus — {}",
+                    context(),
+                    fuzz::replay()
+                );
+            }
+            Err(PcurveCertifyError::CarrierGrazesChart { .. }) => answers[2] += 1,
+            Err(PcurveCertifyError::Escalated { .. }) => answers[3] += 1,
+            Err(other) => panic!(
+                "{}: refused untyped for this arm: {other} — {}",
+                context(),
+                fuzz::replay()
+            ),
+        }
+    }
+    println!(
+        "[fuzz] envelope_lemma::moved_villarceau: {} minted, {} off, {} grazing, {} escalated",
+        answers[0], answers[1], answers[2], answers[3]
+    );
+}
+
+/// **Each envelope term the sweep leaves slack for is load-bearing in a
+/// row of its own** (static rows; the reviewers' probes on PR 4227):
+/// against a carrier equal to the lemma's own harmonic part `H` (or the
+/// exact carrier), the term is the whole residual, so an envelope that
+/// drops or under-states it reads under the sampled sup.
+mod focal_section_term_rows {
+    use super::super::Harmonic3;
+    use super::*;
+
+    fn sup_against(p: &Pcurve<f64>, s: &Surface<f64>, h: Harmonic3<f64>, t0: f64, t1: f64) -> f64 {
+        (0..=8192)
+            .map(|k| {
+                let t = t0 + (t1 - t0) * (f64::from(k) / 8192.0);
+                let q = p.eval(t);
+                let c = h.c + h.a * t.cos() + h.b * t.sin() + h.l * t;
+                s.eval(q.x, q.y).distance(c)
+            })
+            .fold(0.0, f64::max)
+    }
+
+    fn check(name: &str, p: &Pcurve<f64>, s: &Surface<f64>, h: Harmonic3<f64>, t0: f64, t1: f64) {
+        let Pcurve::FocalSection(image) = *p else {
+            unreachable!("the rows store focal sections")
+        };
+        let v_sup = p.chart_box(t0, t1).v_reach();
+        let env = focal_section_envelope(&image, h, s, v_sup, t0.abs().max(t1.abs()));
+        let sup = sup_against(p, s, h, t0, t1);
+        assert!(
+            env >= sup - 1e-13,
+            "{name}: envelope {env:e} under sampled sup {sup:e}"
+        );
+    }
+
+    fn torus(big: f64, r: f64) -> Surface<f64> {
+        Surface::Torus {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            major_radius: big,
+            minor_radius: r,
+            u_ref: Vec3::unit_x(),
+        }
+    }
+
+    /// The lemma's torus `H` at the stored fields (its docs' formula).
+    fn torus_h(i: &FocalImage<f64>, big: f64, r: f64) -> Harmonic3<f64> {
+        let n = Vec3::unit_z();
+        let d0 = rad(n, Vec3::unit_x(), i.u0);
+        let d1 = n.cross(d0) * i.sense;
+        let bb = i.beta * i.beta;
+        let (e, q) = (2.0 * i.beta / (1.0 + bb), (1.0 - bb) / (1.0 + bb));
+        let v_r = i.v0 + i.vl * i.t0;
+        let x = d0 * big + n * (r * v_r.sin());
+        let y = d1 * (big * q) + n * (r * i.vl * v_r.cos());
+        let (st, ct) = i.t0.sin_cos();
+        Harmonic3 {
+            c: Point3::origin() - d0 * (big * e),
+            a: x * ct - y * st,
+            b: x * st + y * ct,
+            l: Vec3::new(0.0, 0.0, 0.0),
+        }
+    }
+
+    fn image_of(p: &Pcurve<f64>) -> FocalImage<f64> {
+        let Pcurve::FocalSection(image) = *p else {
+            unreachable!("the rows store focal sections")
+        };
+        image
+    }
+
+    fn villarceau_fields(big: f64, r: f64, t0: f64) -> Pcurve<f64> {
+        Pcurve::FocalSection(FocalImage {
+            u0: 0.0,
+            t0,
+            v0: -t0,
+            va: 0.0,
+            vb: 0.0,
+            vl: 1.0,
+            beta: -r / (big + (big * big - r * r).sqrt()),
+            sense: 1.0,
+        })
+    }
+
+    fn with(p: &Pcurve<f64>, f: impl Fn(&mut FocalImage<f64>)) -> Pcurve<f64> {
+        let mut i = image_of(p);
+        f(&mut i);
+        Pcurve::FocalSection(i)
+    }
+
+    /// The Villarceau circle of `torus(big, r)` centred `r` along `+x`,
+    /// started `t0` before its outer-equator vertex.
+    fn villarceau_carrier(big: f64, r: f64, t0: f64) -> Curve3<f64> {
+        let tilt = (r / big).asin();
+        let lean = Vec3::unit_y() * tilt.cos() + Vec3::unit_z() * tilt.sin();
+        let n = Vec3::unit_x().cross(lean);
+        let d = Vec3::unit_x();
+        circle(
+            Point3::new(r, 0.0, 0.0),
+            n,
+            big,
+            d * (-t0).cos() + n.cross(d) * (-t0).sin(),
+        )
+    }
+
+    /// `r·|sin v_r|` half of the meridional-phase remainder.
+    #[test]
+    fn phase_sine_half() {
+        let (big, r) = (2.0, 0.7);
+        let s = torus(big, r);
+        let p = with(&villarceau_fields(big, r, 0.0), |i| i.v0 += 0.05);
+        let h = torus_h(&image_of(&p), big, r);
+        check("phase_sine_half", &p, &s, h, -1.5, 1.5);
+    }
+
+    /// The `+1` on the tube drift (H reads `vl` for its sign).
+    #[test]
+    fn tube_drift_plus_one() {
+        let (big, r) = (2.0, 0.7);
+        let s = torus(big, r);
+        let p = with(&villarceau_fields(big, r, 0.0), |i| i.vl = 1.0 + 1e-3);
+        let h = torus_h(&image_of(&p), big, r);
+        check(
+            "tube_drift_plus_one",
+            &p,
+            &s,
+            h,
+            FRAC_PI_2 - 0.01,
+            FRAC_PI_2 + 0.01,
+        );
+    }
+
+    /// `E_max = reach + |t0|`: a vertex far from a short span.
+    #[test]
+    fn e_max_reads_t0() {
+        let (big, r) = (2.0, 0.7);
+        let s = torus(big, r);
+        let carrier = villarceau_carrier(big, r, 3.0);
+        let derived = chart_pcurve(&carrier, &s, band()).unwrap();
+        let t0 = image_of(&derived).t0;
+        assert!((t0 - 3.0).abs() < 1e-12, "vertex at {t0}");
+        let p = with(&derived, |i| {
+            i.vl *= 1.0 + 1e-3;
+            i.v0 = -i.vl * i.t0;
+        });
+        check(
+            "e_max_reads_t0",
+            &p,
+            &s,
+            carrier_harmonic(&carrier).unwrap(),
+            -0.05,
+            0.05,
+        );
+    }
+
+    /// The torus sense-drift lever is `R + r`, not `R`.
+    #[test]
+    fn torus_sense_lever_is_outer_radius() {
+        let (big, r) = (1.0, 0.8);
+        let s = torus(big, r);
+        let carrier = villarceau_carrier(big, r, 0.0);
+        let derived = chart_pcurve(&carrier, &s, band()).unwrap();
+        let p = with(&derived, |i| i.sense *= 1.0 + 1e-4);
+        let k = 3.0 * TAU;
+        check(
+            "torus_sense_lever_is_outer_radius",
+            &p,
+            &s,
+            carrier_harmonic(&carrier).unwrap(),
+            k - 0.1,
+            k + 0.1,
+        );
+    }
+
+    /// The cone remainder's `e·v0·sin t0` (a stored `t0 ≠ 0`).
+    #[test]
+    fn cone_remainder_reads_sin_t0() {
+        let (alpha, t0) = (0.5_f64, 0.5_f64);
+        let (sin_a, cos_a) = alpha.sin_cos();
+        let n = Vec3::unit_z();
+        let s = Surface::Cone {
+            apex: Point3::origin(),
+            axis: n,
+            half_angle: alpha,
+            u_ref: Vec3::unit_x(),
+        };
+        let (beta, v0) = (0.3_f64, 2.0_f64);
+        let bb = beta * beta;
+        let (e, q) = (2.0 * beta / (1.0 + bb), (1.0 - bb) / (1.0 + bb));
+        let (st, ct) = t0.sin_cos();
+        let (va, vb) = (-e * v0 * ct, 0.0);
+        let p = Pcurve::FocalSection(FocalImage {
+            u0: 0.0,
+            t0,
+            v0,
+            va,
+            vb,
+            vl: 0.0,
+            beta,
+            sense: 1.0,
+        });
+        let d0 = Vec3::unit_x();
+        let d1 = n.cross(d0);
+        let lever = sin_a * v0;
+        let (x, y) = (d0 * lever, d1 * (lever * q));
+        let h = Harmonic3 {
+            c: Point3::origin() + n * (cos_a * v0) - d0 * (lever * e),
+            a: n * (cos_a * va) + x * ct - y * st,
+            b: n * (cos_a * vb) + x * st + y * ct,
+            l: Vec3::new(0.0, 0.0, 0.0),
+        };
+        check("cone_remainder_reads_sin_t0", &p, &s, h, 1.0, 2.0);
+    }
+
+    /// The sense drift's `π` on a cone: a near-parabolic section
+    /// (`β = 0.95`) whose short span sits where the true anomaly runs
+    /// furthest ahead of the eccentric one, with `sense` off by `1e-6`.
+    /// There the azimuth's drift is `|ν|`, well past `E_max + 1`.
+    #[test]
+    fn the_sense_drift_reads_pi_on_a_cone() {
+        let alpha = 0.5_f64;
+        let n = Vec3::unit_z();
+        let s = Surface::Cone {
+            apex: Point3::origin(),
+            axis: n,
+            half_angle: alpha,
+            u_ref: Vec3::unit_x(),
+        };
+        let (beta, v0) = (0.95_f64, 2.0_f64);
+        let bb = beta * beta;
+        let e = 2.0 * beta / (1.0 + bb);
+        let exact = Pcurve::FocalSection(FocalImage {
+            u0: 0.0,
+            t0: 0.0,
+            v0,
+            va: -e * v0,
+            vb: 0.0,
+            vl: 0.0,
+            beta,
+            sense: 1.0,
+        });
+        // The carrier is the exact image's own map, an ellipse: its
+        // harmonic form read off three of its points.
+        let at = |t: f64| {
+            let q = exact.eval(t);
+            s.eval(q.x, q.y)
+        };
+        let (p0, p1, p2) = (at(0.0), at(FRAC_PI_2), at(PI));
+        let c = Point3::origin() + ((p0 - Point3::origin()) + (p2 - Point3::origin())) * 0.5;
+        let h = Harmonic3 {
+            c,
+            a: (p0 - p2) * 0.5,
+            b: p1 - c,
+            l: Vec3::new(0.0, 0.0, 0.0),
+        };
+        let p = with(&exact, |i| i.sense = 1.0 + 1e-6);
+        check(
+            "the_sense_drift_reads_pi_on_a_cone",
+            &p,
+            &s,
+            h,
+            -1.57,
+            -1.56,
         );
     }
 }

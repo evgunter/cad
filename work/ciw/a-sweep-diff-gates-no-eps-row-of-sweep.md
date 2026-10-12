@@ -19,7 +19,7 @@ logs `eps_extra=package(topo)`, which comes from its doc edit in topo.
 So none of the rows it fixes run at 1e-6 or 1e-12 at the gate.
 
 Those rows' eps-only red reached main through PR 3611 the same way
-(`work/reach/reach-volume-backstop-fails-off-the-default-eps`). It
+(`reach-volume-backstop-fails-off-the-default-eps` (REACH, closed by PR 3636)). It
 surfaced only on a diff that ran `all()` (EDIT's PR 3625), and then it
 blocked unrelated PRs (#2468). The filter's own comment names the rule
 for joining the list ("the eps-only reds of 2026-07..09 sat in these

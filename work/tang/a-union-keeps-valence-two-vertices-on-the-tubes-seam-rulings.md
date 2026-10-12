@@ -2,7 +2,9 @@
 id: a-union-keeps-valence-two-vertices-on-the-tubes-seam-rulings
 kind: issue
 title: A dome rim lying on a tube's wall leaves valence-2 vertices on the tube's seam rulings in the union
-status: open
+status: closed
+closed: 2026-10-07
+branch: fuse/curved-join
 opened: 2026-10-02
 priority: P3
 cost: M
@@ -66,3 +68,13 @@ and the sweep splits the ruling at the prism edge's ends. Its unions
 are `(4, 8, 6)` with the edge inside one wall face, against the tube's
 `(4, 6, 4)`, and `(9, 19, 12)` across the rim, against a minimal
 `(9, 18, 11)`.
+
+## Closed — the curved join takes them (#fuse/curved-join)
+
+The seam rulings' split vertices are valence-2 vertices between two
+pieces of one ruling on one chart's `u = const` family at a regular
+point, so FUSE's curved join (`topo::boolean::edge_join`, the `Chart`
+arm) joins them. Every row this item named now reads the minimal
+`(6, 10, 7)`, and `pi_seam_and_kiss_through_the_boolean`'s `built`
+asserts `joinable_vertices` empty on every body it checks.
+

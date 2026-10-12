@@ -10,10 +10,10 @@ use editor_core::ExtrudeSide;
 use std::f64::consts::{FRAC_PI_2, PI, TAU};
 
 use editor_core::{
-    BooleanOp, CancelToken, Datum, EvalOptions, Evaluation, Node, NodeErrorKind, NodeResult,
-    PatternKind, ProfileDoc, ValuePayload, evaluate,
+    CancelToken, Datum, EvalOptions, Evaluation, Node, NodeErrorKind, NodeResult, PatternKind,
+    ProfileDoc, ValuePayload, evaluate,
 };
-use fixture::{ang, insert, len, on_frame, on_frame_keeping, scl};
+use fixture::{ang, insert, len, on_frame, scl};
 use geom_core::Tol;
 use topo::{mass_properties, validate, validate_closed};
 
@@ -45,20 +45,10 @@ fn unit_cube(doc: ProfileDoc, x0: f64, y0: f64) -> (ProfileDoc, editor_core::Rec
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
-    )
-}
-
-fn y_axis(doc: ProfileDoc, origin_z: f64) -> (ProfileDoc, editor_core::RecipeNodeId) {
-    insert(
-        doc,
-        Node::Datum(Datum::Axis {
-            origin: [len(0.0), len(0.0), len(origin_z)],
-            direction: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
     )
 }
 
@@ -66,7 +56,7 @@ fn y_axis(doc: ProfileDoc, origin_z: f64) -> (ProfileDoc, editor_core::RecipeNod
 fn revolve_wires_the_datum_axis_through_the_sketch_plane() {
     let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
     // Unit square touching the axis: full revolve → cylinder r=1 h=1.
-    let (doc, plane, prof) = on_frame_keeping(
+    let (doc, prof) = on_frame(
         doc,
         [0.0; 3],
         [1.0, 0.0, 0.0],
@@ -75,14 +65,10 @@ fn revolve_wires_the_datum_axis_through_the_sketch_plane() {
     );
     // The sketch's own +y through its origin — the same line the
     // world-space `y_axis` named, in the coordinates the revolve reads.
-    let (doc, axis) = insert(doc, fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
+    // Decided coincident with τ ⇒ Full.
     let (doc, rev) = insert(
         doc,
-        Node::Revolve {
-            profile: prof,
-            axis,
-            angle: ang(TAU), // decided coincident with τ ⇒ Full
-        },
+        fixture::revolve_about(prof, (0.0, 0.0), (0.0, 1.0), ang(TAU)),
     );
     let ev = run(&doc);
     let ValuePayload::Body(body) = &ev.value(rev).expect("revolve evaluated").payload else {
@@ -92,91 +78,6 @@ fn revolve_wires_the_datum_axis_through_the_sketch_plane() {
     assert_eq!(validate_closed(body), Ok(()));
     let vol = mass_properties(body, Tol::witness()).unwrap().volume;
     assert!((vol - PI).abs() < 1e-9, "cylinder volume π, got {vol}");
-}
-
-/// **The out-of-plane revolve axis is not a refusal any more — it is
-/// not a document.**
-///
-/// This row asserted `AxisNotInSketchPlane`: a 3-D axis whose origin
-/// sat a metre off the sketch plane, caught by a decided projection.
-/// A revolve takes an axis written IN a frame now, so the two ways
-/// that authoring can go wrong are both KIND questions, and neither
-/// needs a band:
-///
-///  1. a 3-D `Datum::Axis` at the seat is the wrong kind of node, and
-///  2. an in-plane axis written in a DIFFERENT frame is the right kind
-///     in the wrong place.
-///
-/// The old row's own numbers cannot be spelled at all: `y_axis`'s
-/// `origin_z` has no counterpart in a frame's two coordinates, which
-/// is the whole claim of the rung.
-#[test]
-fn a_revolve_refuses_an_axis_it_cannot_turn_in() {
-    let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
-    let (doc, plane, prof) = on_frame_keeping(
-        doc,
-        [0.0; 3],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![vec![(0.5, 0.0), (1.0, 0.0), (1.0, 1.0), (0.5, 1.0)]],
-    );
-
-    // (1) The 3-D axis: a kind mismatch at the operand door, naming
-    //     what to author instead.
-    let (doc, world_axis) = y_axis(doc, 1.0);
-    let (doc, bad_kind) = insert(
-        doc,
-        Node::Revolve {
-            profile: prof,
-            axis: world_axis,
-            angle: ang(PI),
-        },
-    );
-
-    // (2) The right kind in the wrong frame: a SECOND frame, parallel
-    //     to the first and a metre up, carrying an axis of its own.
-    //     Nothing about the axis is out of ITS plane — the numbers are
-    //     identical to a legal one — so no projection could tell these
-    //     two documents apart. The node ids can, exactly.
-    let (doc, other_plane) = insert(
-        doc,
-        fixture::frame([0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
-    );
-    let (doc, stranger) = insert(
-        doc,
-        fixture::axis_in_plane(other_plane, (0.0, 0.0), (0.0, 1.0)),
-    );
-    let (doc, wrong_frame) = insert(
-        doc,
-        Node::Revolve {
-            profile: prof,
-            axis: stranger,
-            angle: ang(PI),
-        },
-    );
-    let ev = run(&doc);
-    match ev.nodes.get(&bad_kind) {
-        Some(NodeResult::Failed(e)) => assert!(
-            matches!(e.kind, NodeErrorKind::WrongOperand { input, .. } if input == world_axis),
-            "got {:?}",
-            e.kind
-        ),
-        other => panic!("expected Failed, got {other:?}"),
-    }
-    match ev.nodes.get(&wrong_frame) {
-        Some(NodeResult::Failed(e)) => assert!(
-            matches!(
-                e.kind,
-                NodeErrorKind::AxisInDifferentPlane { axis, axis_plane, profile_plane }
-                    if axis == stranger
-                        && axis_plane == Some(other_plane)
-                        && profile_plane == Some(plane)
-            ),
-            "got {:?}",
-            e.kind
-        ),
-        other => panic!("expected Failed, got {other:?}"),
-    }
 }
 
 #[test]
@@ -212,7 +113,7 @@ fn linear_pattern_evaluates_instances_as_data() {
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
-            input: cube,
+            input: cube.into(),
             count: editor_core::Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(2.0), scl(0.0), scl(0.0)], // normalized by eval
@@ -235,30 +136,27 @@ fn linear_pattern_evaluates_instances_as_data() {
             .fold(f64::INFINITY, f64::min);
         assert_eq!(min_x, 2.0 * i as f64);
     }
-    // Patterns do NOT implicitly union: consuming one as a boolean
-    // operand is a typed refusal (part selection is PR 3 naming).
+    // Patterns do NOT implicitly union: a boolean operand reads one
+    // body, so reading a pattern's instances is refused by kind at the
+    // door (part selection is PR 3 naming).
     let (doc2, other) = unit_cube(doc.clone(), 10.0, 10.0);
-    let (doc2, boolean) = insert(
-        doc2,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: pat,
-            b: other,
-            declare: Vec::new(),
+    let refusal = crate::fixture::insert_refused(
+        &doc2,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![pat.into(), other.into()]),
         },
     );
-    let ev2 = run(&doc2);
-    match ev2.nodes.get(&boolean) {
-        Some(NodeResult::Failed(e)) => assert!(matches!(
-            e.kind,
-            NodeErrorKind::WrongOperand {
-                expected: "body",
-                found: "instances",
+    assert!(
+        matches!(
+            refusal,
+            editor_core::EditError::SlotVarKind {
+                found: editor_core::VarKind::Bodies,
+                expected: editor_core::SlotKind::Is(editor_core::VarKind::Body),
                 ..
             }
-        )),
-        other => panic!("expected Failed, got {other:?}"),
-    }
+        ),
+        "{refusal:?}"
+    );
 }
 
 #[test]
@@ -276,10 +174,10 @@ fn circular_pattern_rotates_about_the_datum_axis() {
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
-            input: cube,
+            input: cube.into(),
             count: editor_core::Formula::count(4),
             kind: PatternKind::Circular {
-                axis,
+                axis: axis.into(),
                 step: ang(FRAC_PI_2),
             },
         },
@@ -407,7 +305,7 @@ fn typed_refusal_doors() {
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
-            input: cube,
+            input: cube.into(),
             count: editor_core::Formula::count(0),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -424,7 +322,8 @@ fn typed_refusal_doors() {
         other => panic!("expected Failed, got {other:?}"),
     }
 
-    // A Split value as a boolean operand (needs PR 3 naming).
+    // A split named alone as a boolean operand is either of its two
+    // halves: the door refuses it, and the read names a port.
     let (doc, tool) = insert(
         doc,
         Node::Datum(Datum::Plane {
@@ -432,29 +331,27 @@ fn typed_refusal_doors() {
             normal: [scl(0.0), scl(0.0), scl(1.0)],
         }),
     );
-    let (doc, split_node) = insert(doc, Node::Split { target: cube, tool });
-    let (doc, second) = unit_cube(doc, 5.0, 5.0);
-    let (doc, boolean) = insert(
+    let (doc, split_node) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Intersect,
-            a: split_node,
-            b: second,
-            declare: Vec::new(),
+        Node::Split {
+            target: cube.into(),
+            tool: tool.into(),
         },
     );
-    let ev = run(&doc);
-    match ev.nodes.get(&boolean) {
-        Some(NodeResult::Failed(e)) => assert!(matches!(
-            e.kind,
-            NodeErrorKind::WrongOperand {
-                expected: "body",
-                found: "split",
-                ..
-            }
-        )),
-        other => panic!("expected Failed, got {other:?}"),
-    }
+    let (doc, second) = unit_cube(doc, 5.0, 5.0);
+    let refusal = crate::fixture::insert_refused(
+        &doc,
+        Node::Intersect {
+            members: editor_core::Bodies::Spelled(vec![split_node.into(), second.into()]),
+        },
+    );
+    assert!(
+        matches!(
+            &refusal,
+            editor_core::EditError::AmbiguousOutput { input, .. } if input.id() == split_node
+        ),
+        "{refusal:?}"
+    );
 }
 
 /// **A linear pattern's direction, with a length that is not a finite
@@ -477,7 +374,7 @@ fn non_finite_pattern_direction_refuses_at_the_direction_door() {
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
-            input: cube,
+            input: cube.into(),
             count: editor_core::Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1e200), scl(0.0), scl(0.0)],
@@ -533,7 +430,7 @@ fn an_underflowed_pattern_direction_refuses_as_underflow_not_as_zero_length() {
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
-            input: cube,
+            input: cube.into(),
             count: editor_core::Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1e-180), scl(0.0), scl(0.0)],
@@ -618,7 +515,7 @@ fn a_zero_and_a_merely_small_pattern_direction_keep_the_zero_refusal() {
         let (doc, pat) = insert(
             doc,
             Node::Pattern {
-                input: cube,
+                input: cube.into(),
                 count: editor_core::Formula::count(3),
                 kind: PatternKind::Linear {
                     direction: [scl(component), scl(0.0), scl(0.0)],
@@ -664,7 +561,7 @@ fn an_underflowed_pattern_direction_still_decides_zero_at_the_interval_scalar() 
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
-            input: cube,
+            input: cube.into(),
             count: editor_core::Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1e-180), scl(0.0), scl(0.0)],
@@ -783,7 +680,7 @@ fn the_kernel_refusal_maps_onto_every_arm_of_this_layers_door() {
         let (doc, pat) = insert(
             doc,
             Node::Pattern {
-                input: cube,
+                input: cube.into(),
                 count: editor_core::Formula::count(3),
                 kind: PatternKind::Linear {
                     direction: [scl(component), scl(0.0), scl(0.0)],
@@ -914,7 +811,7 @@ fn a_non_finite_pattern_direction_mints_nothing_at_the_interval_scalar() {
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
-            input: cube,
+            input: cube.into(),
             count: editor_core::Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1e200), scl(0.0), scl(0.0)],
@@ -937,71 +834,4 @@ fn a_non_finite_pattern_direction_mints_nothing_at_the_interval_scalar() {
         ),
         other => panic!("expected a refusal, got {other:?}"),
     }
-}
-
-/// **A boolean's declared pairs are its own payload, and `SetDeclare`
-/// replaces them on the live node.** Undeclared, the flush contacts are
-/// refused; the same boolean with the pairs set fuses. A node that
-/// declares no contacts refuses the edit at the door.
-#[test]
-fn set_declare_on_a_live_boolean_fuses_its_flush_contacts() {
-    let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
-    let (doc, a) = unit_cube(doc, 0.0, 0.0);
-    let (doc, b) = unit_cube(doc, 0.5, 0.0); // overlapping, flush y/z planes
-    let pairs = fixture::declare_x_offset_flush(&doc, a, b);
-    let (doc, boolean) = insert(
-        doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a,
-            b,
-            declare: Vec::new(),
-        },
-    );
-    let undeclared = run(&doc);
-    assert!(
-        matches!(
-            undeclared.nodes.get(&boolean),
-            Some(NodeResult::Failed(e))
-                if matches!(e.kind, NodeErrorKind::UndeclaredCoincidence { .. })
-        ),
-        "the flush contacts are refused while undeclared, got {:?}",
-        undeclared.nodes.get(&boolean)
-    );
-
-    let declared = doc
-        .apply(
-            &editor_core::DocEdit::SetDeclare {
-                node: boolean,
-                pairs: pairs.clone(),
-            },
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        )
-        .expect("a live boolean takes a declared-pair list");
-    assert_eq!(declared.record.minted, None, "the edit mints nothing");
-    let Some(Node::Boolean { declare, .. }) = declared.doc.node(boolean) else {
-        panic!("the boolean is live under its own id");
-    };
-    assert_eq!(declare, &pairs, "the list is the one set");
-    let ev = run(&declared.doc);
-    let ValuePayload::Boolean(editor_core::BooleanValue::Body { body, .. }) =
-        &ev.value(boolean).expect("boolean evaluated").payload
-    else {
-        panic!("expected boolean body");
-    };
-    assert_eq!(mass_properties(body, Tol::witness()).unwrap().volume, 1.5); // dyadic union
-
-    let refused = doc.apply(
-        &editor_core::DocEdit::SetDeclare { node: a, pairs },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    );
-    assert!(
-        matches!(
-            &refused,
-            Err(editor_core::EditError::SetDeclareOnNonDeclaring { node }) if node.id() == a
-        ),
-        "an extrude declares no contacts, got {refused:?}"
-    );
 }

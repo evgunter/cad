@@ -424,7 +424,7 @@ mod tests {
     fn name() -> StableName {
         StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(7),
+            node: RecipeNodeId::new(0, 7),
             path: vec![RoleSeg::OutputBody],
         }
     }

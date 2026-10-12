@@ -604,12 +604,12 @@ fn the_refusals_are_symmetric_across_apply_replay_save_and_load() {
         match load(&bent, Tol::witness()).expect_err("load refuses") {
             PersistError::EditReplay { index, error } => {
                 assert_eq!(index, 0, "the refusing edit is named by index");
-                assert_eq!(error, want, "load's refusal is the same typed error");
+                assert_eq!(*error, want, "load's refusal is the same typed error");
             }
             other => panic!("load refused with {other:?}, not EditReplay"),
         }
         match save(&doc, &[direct], Tol::witness()).expect_err("save refuses") {
-            PersistError::EditReplay { error, .. } => assert_eq!(error, want, "save's refusal"),
+            PersistError::EditReplay { error, .. } => assert_eq!(*error, want, "save's refusal"),
             other => panic!("save refused with {other:?}"),
         }
     }

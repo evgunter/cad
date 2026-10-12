@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-02
 priority: P1
 cost: M
-refs: [sphere-operand-box-is-the-whole-ball, split-gate-refuses-a-whole-body-for-one-unarmed-face]
+refs: [sphere-operand-box-is-the-whole-ball, 3843]
 ---
 
 

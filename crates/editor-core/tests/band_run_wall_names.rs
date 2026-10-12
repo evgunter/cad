@@ -16,7 +16,7 @@ use editor_core::{
 use geom_core::Tol;
 
 use crate::fixture::{
-    ang, axis_in_plane, frame, insert, len, len2, minted, piece, run, scl, table, vpiece,
+    ang, frame, insert, len, len2, minted, piece, revolve_about, run, scl, table, vpiece,
 };
 
 fn to(x: f64, y: f64) -> ProgramTarget<Formula> {
@@ -43,7 +43,7 @@ fn profiled(steps: Vec<ProgramStep<Formula>>) -> (ProfileDoc, RecipeNodeId, Reci
     let (doc, p) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![LoopProgram::Chain(steps)],
             ids: Vec::new(),
         }),
@@ -60,7 +60,7 @@ fn extruded_by(steps: Vec<ProgramStep<Formula>>, side: ExtrudeSide) -> (ProfileD
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side,
         },
@@ -68,16 +68,8 @@ fn extruded_by(steps: Vec<ProgramStep<Formula>>, side: ExtrudeSide) -> (ProfileD
 }
 
 fn revolved(steps: Vec<ProgramStep<Formula>>, angle: f64) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, plane, p) = profiled(steps);
-    let (doc, axis) = insert(doc, axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
-    insert(
-        doc,
-        Node::Revolve {
-            profile: p,
-            axis,
-            angle: ang(angle),
-        },
-    )
+    let (doc, _, p) = profiled(steps);
+    insert(doc, revolve_about(p, (0.0, 0.0), (0.0, 1.0), ang(angle)))
 }
 
 fn run_of(doc: &ProfileDoc, sweep: RecipeNodeId, segments: &[usize]) -> PieceRun {
@@ -569,7 +561,9 @@ fn arc_run_names_agree_across_scalars() {
 /// The profile a sweep node sweeps.
 fn profile_of(doc: &ProfileDoc, sweep: RecipeNodeId) -> RecipeNodeId {
     match doc.node(sweep) {
-        Some(Node::Extrude { profile, .. } | Node::Revolve { profile, .. }) => *profile,
+        Some(Node::Extrude { profile, .. } | Node::Revolve { profile, .. }) => doc
+            .operation_of(*profile)
+            .expect("the profile read is live"),
         other => panic!("not a sweep: {other:?}"),
     }
 }

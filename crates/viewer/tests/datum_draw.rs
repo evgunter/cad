@@ -370,7 +370,7 @@ fn only_datum_nodes_draw() {
     // The square's frame is a datum and DOES draw; the profile drawn
     // on it is the ordinary node this row is about.
     let (framed, tol) = evaluated(vec![common::xy_frame()]);
-    let frame = framed.order()[0];
+    let frame = framed.ids()[0];
     let (doc, _) = inserted(&framed, square(frame, 0.02), tol);
     let (doc, _) = inserted(&doc, point([0.0, 0.0, 0.0]), tol);
     let drawn = draws(&doc, tol, [0.0, -0.15, 0.1]);

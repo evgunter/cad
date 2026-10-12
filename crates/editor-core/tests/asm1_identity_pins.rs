@@ -41,7 +41,7 @@ fn exemplar(
     let (doc, extrude) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(0.5),
             side: ExtrudeSide::Along,
         },
@@ -204,7 +204,7 @@ fn row4_node_edit_moves_pin() {
         DocEdit::SetParam {
             node: extrude,
             slot: editor_core::SlotId::Distance,
-            expr: len(0.625),
+            value: len(0.625).into(),
             fresh: Vec::new(),
         },
     );
@@ -415,7 +415,7 @@ fn stated_consequence_undone_insert_moves_pin() {
     // One node in, one node out: the profile alone, on a frame the
     // document already carries, so the delete restores the count.
     // The exemplar's own frame: node 0, ahead of its profile.
-    let plane = doc.order()[0];
+    let plane = doc.ids()[0];
     let (with_extra, extra) = insert(
         doc,
         Node::Profile(desc(

@@ -2,11 +2,13 @@
 id: nurbs-iso-derive-line-rim-arm-refuses-an-interior-row
 kind: issue
 title: nurbs_iso_derive's LINE rim arm places a rim only on a boundary row of a spline wall's chart, so a moved cap's rim on an interior row refuses
-status: open
+status: closed
 opened: 2026-10-06
 priority: P1
 cost: M
 refs: [iso-derivation-arms-assume-an-edge-spans-the-charts-whole-domain]
+pr: 4351
+closed: 2026-10-08
 ---
 
 
@@ -54,3 +56,11 @@ the chart's interior by an offset.
 Every cap offset of a spline-walled body whose seams are parallel to
 the cap normal (the straight prism, the M7-8-style extruded walls) —
 the first lofted body that otherwise reaches past the re-anchor.
+
+## Closed
+
+PR #4351. The cap class certifies a rim on an interior row (the seam
+class on the transposed chart), the line-rim arm offers the row its
+start's foot measures, and the `Intersection` arm offers rows to a
+carrier in the row's spline space. The prism's inward cap offset now
+builds with each rim on the walls' row v = 0.95.

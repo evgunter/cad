@@ -34,7 +34,7 @@ fn block(label: &str, tol: Tol) -> (ProfileDoc, RecipeNodeId) {
     common::inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: common::len(0.02),
             side: ExtrudeSide::Along,
         },
@@ -58,7 +58,7 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
     let (doc, pattern) = common::inserted(
         &doc,
         Node::Pattern {
-            input: legs,
+            input: legs.into(),
             count: Formula::count(4),
             kind: PatternKind::Linear {
                 direction: [common::scl(1e200), common::scl(0.0), common::scl(0.0)],
@@ -75,15 +75,16 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
     let (doc, mate) = common::inserted(
         &doc,
         Node::Mate {
-            a: common::head(StableName {
+            a: (common::head(StableName {
                 kind: EntityKind::Face,
                 node: pattern,
                 path: vec![RoleSeg::Instance {
                     i: 1,
                     of: in_part(legs, leg_body, CapEnd::End).into(),
                 }],
-            }),
-            b: common::head(in_part(cap, top_body, CapEnd::Start)),
+            }))
+            .into(),
+            b: common::head(in_part(cap, top_body, CapEnd::Start)).into(),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: frame([0.0, 0.0, 0.02], [0.0, 0.0, 1.0]),
@@ -120,8 +121,8 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
             "Mate {} failed: the mate solve refused: this mate's a reference has no \
              derived pose: Pattern {p}, on its derivation, refuses. Recourse: repair \
              Pattern {p}",
-            test_utils::refusal::tag(mate.0),
-            p = test_utils::refusal::tag(pattern.0),
+            test_utils::refusal::tag(mate.0.digest()),
+            p = test_utils::refusal::tag(pattern.0.digest()),
         ),
         "the row names the placer the evaluation typed"
     );
@@ -135,7 +136,7 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
             line: format!(
                 "Pattern {} failed: the pattern direction has no finite length (a component \
                  overflows the norm or is not a number). Recourse: {}",
-                test_utils::refusal::tag(pattern.0),
+                test_utils::refusal::tag(pattern.0.digest()),
                 geom_core::RANGE_RECOURSE
             ),
         }],
@@ -198,7 +199,7 @@ fn copies(label: &str, copy: u32, part_selects: Option<i64>, tol: Tol) -> Copies
     let (doc, pattern) = common::inserted(
         &doc,
         Node::Pattern {
-            input: legs,
+            input: legs.into(),
             count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
@@ -212,7 +213,7 @@ fn copies(label: &str, copy: u32, part_selects: Option<i64>, tol: Tol) -> Copies
             let (doc, part) = common::inserted(
                 &doc,
                 Node::Part {
-                    of: pattern,
+                    of: pattern.into(),
                     select: PartSelect::Instance(Formula::count(i)),
                 },
                 tol,
@@ -244,8 +245,8 @@ fn copies(label: &str, copy: u32, part_selects: Option<i64>, tol: Tol) -> Copies
     let (doc, mate) = common::inserted(
         &doc,
         Node::Mate {
-            a,
-            b: common::head(in_part(cap, top_body, CapEnd::Start)),
+            a: a.into(),
+            b: common::head(in_part(cap, top_body, CapEnd::Start)).into(),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: frame([0.0, 0.0, 0.02], [0.0, 0.0, 1.0]),

@@ -24,11 +24,11 @@ use test_utils::refusal::tagged;
 use std::collections::BTreeMap;
 
 use editor_core::{
-    Advisory, BooleanOp, CancelToken, CheckEvidence, CheckFinding, CheckId, CheckKind,
-    ChecksConfig, ChecksError, ChecksReport, EvalOptions, Evaluation, Node, ProfileDoc,
-    RecipeNodeId, Severity, enforce_checks, run_checks, subject_body,
+    Advisory, CancelToken, CheckEvidence, CheckFinding, CheckId, CheckKind, ChecksConfig,
+    ChecksError, ChecksReport, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId, Severity,
+    enforce_checks, run_checks, subject_body,
 };
-use fixture::{ang, insert, len, on_frame, scl, square};
+use fixture::{ang, insert, len, on_frame, square};
 use geom_core::Tol;
 use topo::ShellClassifyError;
 
@@ -55,28 +55,27 @@ fn slab(doc: ProfileDoc, cx: f64, h: f64, z0: f64, dz: f64) -> (ProfileDoc, Reci
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
     )
 }
 
-/// Two disjoint unit cubes, deliberately united: one root, one body,
-/// two components.
+/// Two disjoint unit cubes, deliberately united and placed: one copy,
+/// one body, two components. Answers the placement, the checks'
+/// subject.
 fn disjoint_union() -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("dsc-checks-disjoint", Tol::witness());
     let (doc, a) = slab(doc, 0.0, 0.5, 0.0, 1.0);
     let (doc, b) = slab(doc, 3.0, 0.5, 0.0, 1.0);
-    insert(
+    let (doc, result) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a,
-            b,
-            declare: Vec::new(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
         },
-    )
+    );
+    fixture::place(doc, result)
 }
 
 /// `A ∖ B` with `B` strictly inside `A`: the void birth — one
@@ -85,15 +84,14 @@ fn voided() -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("dsc-checks-voided", Tol::witness());
     let (doc, a) = slab(doc, 0.0, 1.5, 0.0, 3.0);
     let (doc, b) = slab(doc, 0.0, 0.5, 1.0, 1.0);
-    insert(
+    let (doc, result) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a,
-            b,
-            declare: Vec::new(),
+        Node::Subtract {
+            from: a.into(),
+            tool: b.into(),
         },
-    )
+    );
+    fixture::place(doc, result)
 }
 
 fn checks(doc: &editor_core::ProfileDoc, cfg: &ChecksConfig) -> ChecksReport {
@@ -110,8 +108,7 @@ fn disjoint_union_is_one_finding() {
         report.findings,
         vec![CheckFinding {
             check: CheckId::Connectedness,
-            root,
-            output_ix: 0,
+            subject: editor_core::FindingSubject::Output { root, output_ix: 0 },
             evidence: CheckEvidence::Connectedness {
                 actual: 2,
                 expected: 1,
@@ -221,15 +218,13 @@ fn annihilated() -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("dsc-checks-annihilated", Tol::witness());
     let (doc, a) = slab(doc, 0.0, 0.5, 0.0, 1.0);
     let (doc, b) = slab(doc, 3.0, 0.5, 0.0, 1.0);
-    insert(
+    let (doc, result) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Intersect,
-            a,
-            b,
-            declare: Vec::new(),
+        Node::Intersect {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
         },
-    )
+    );
+    fixture::place(doc, result)
 }
 
 #[test]
@@ -247,8 +242,7 @@ fn stale_expectation_on_a_vanished_body() {
         report.findings,
         vec![CheckFinding {
             check: CheckId::Connectedness,
-            root,
-            output_ix: 0,
+            subject: editor_core::FindingSubject::Output { root, output_ix: 0 },
             evidence: CheckEvidence::StaleExpectation { expected: 1 },
         }]
     );
@@ -268,10 +262,10 @@ fn annihilation_without_a_stated_expectation_is_clean() {
 
 #[test]
 fn stale_expectation_on_a_nonexistent_root() {
-    // The key names no root output at all (wrong id): same staleness,
+    // The key names no placement output at all (wrong id): same staleness,
     // attributed at the entry's own key.
     let (doc, root) = disjoint_union();
-    let ghost = RecipeNodeId(root.0 + 999);
+    let ghost = RecipeNodeId::new(root.0.ordinal() + 999, root.0.digest());
     let cfg = ChecksConfig {
         expected_components: BTreeMap::from([((root, 0), 2), ((ghost, 0), 1)]),
         ..ChecksConfig::default()
@@ -281,8 +275,10 @@ fn stale_expectation_on_a_nonexistent_root() {
         report.findings,
         vec![CheckFinding {
             check: CheckId::Connectedness,
-            root: ghost,
-            output_ix: 0,
+            subject: editor_core::FindingSubject::Output {
+                root: ghost,
+                output_ix: 0,
+            },
             evidence: CheckEvidence::StaleExpectation { expected: 1 },
         }]
     );
@@ -302,13 +298,17 @@ fn in_band_shell_escalates_typed_never_guessed() {
     let tol = Tol::witness();
     let dz = (1.0 + tol.k()) * tol.eps();
     let doc = ProfileDoc::empty_derived("dsc-checks-thin", Tol::witness());
-    let (doc, root) = slab(doc, 0.0, 0.5, 0.0, dz);
+    let (doc, thin) = slab(doc, 0.0, 0.5, 0.0, dz);
+    let (doc, root) = fixture::place(doc, thin);
     let report = checks(&doc, &ChecksConfig::default());
     // Exactly one finding: the typed escalation. NEVER a counted
     // verdict — an in-band orientation is not guessed to a side (F6).
     assert_eq!(report.findings.len(), 1, "{report}");
     let finding = &report.findings[0];
-    assert_eq!((finding.root, finding.output_ix), (root, 0));
+    assert_eq!(
+        finding.subject,
+        editor_core::FindingSubject::Output { root, output_ix: 0 }
+    );
     let CheckEvidence::Escalated {
         source: ShellClassifyError::Escalated { source, .. },
     } = &finding.evidence
@@ -337,22 +337,21 @@ fn in_band_shell_escalates_typed_never_guessed() {
 
 /// The void side of the same decision: a 3 m box holding a unit-square
 /// cavity `(1 + K)·ε` thick. The outer shell decides; the cavity's
-/// `V/A` is negative and in band, so its role does not read, and the
-/// Boolean door's result gate (tier 3) refuses the union naming that
-/// shell (check 10's `ShellRoleUndecided`): a solid whose shells cannot
-/// be wound is not built, so the checks run stops at the failed root.
-/// The refusal carries the escalation, and a margin on a side the
-/// decision accepts ends valued at `|m|/K`.
+/// `V/A`, certified about the body, lies wholly in band on the void side,
+/// so the Boolean door's result gate refuses the union as the operands'
+/// ill-conditioning (D10, Booleans: `Escalated` on the shell's role, not
+/// `ResultInvalid`): a result holding an in-band shell is not built, so
+/// the checks run stops at its placement, poisoned through the failed
+/// boolean. The refusal carries the certified enclosure, and ends valued
+/// at `|m|/K` off its nearer end.
 ///
 /// The sheet is what a unit cube cavity leaves when a box filling all
 /// but its top `(1 + K)·ε` is united into it. Subtracting a thin tool
-/// directly never reaches the census: the Boolean's own orientation
-/// read of the uncut tool (`bool_point_in_solid_infinity`, the same
-/// `V/A`) is in band and refuses the node.
+/// directly never reaches the census either: the cavity it leaves is a
+/// shell whose role is in band, which the same result gate refuses.
 #[test]
 fn in_band_void_shell_escalates_with_its_valued_ending() {
     use geom_core::{Band, ErrorTextReading};
-    use topo::ValidationError;
     let tol = Tol::witness();
     let t = (1.0 + tol.k()) * tol.eps();
     let doc = ProfileDoc::empty_derived("dsc-checks-thin-void", Tol::witness());
@@ -360,70 +359,65 @@ fn in_band_void_shell_escalates_with_its_valued_ending() {
     let (doc, b) = slab(doc, 0.0, 0.5, 1.0, 1.0);
     let (doc, hollow) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a,
-            b,
-            declare: Vec::new(),
+        Node::Subtract {
+            from: a.into(),
+            tool: b.into(),
         },
     );
     let (doc, c) = slab(doc, 0.0, 0.8, 0.5, 1.5 - t);
     let (doc, root) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: hollow,
-            b: c,
-            declare: Vec::new(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![hollow.into(), c.into()]),
         },
     );
+    let (doc, placement) = fixture::place(doc, root);
     let ev = run(&doc);
     let refused = run_checks(&doc, &ev, &ChecksConfig::default(), tol)
         .expect_err("the door refuses a solid whose cavity has no role");
     assert!(
-        matches!(&refused, ChecksError::Root(editor_core::NodeStanding::Failed { node }) if *node == root),
-        "expected the failed root, got: {refused:?}"
+        matches!(
+            &refused,
+            ChecksError::Root(editor_core::NodeStanding::Poisoned { node, through })
+                if *node == placement && *through == root
+        ),
+        "expected the placement poisoned through the failed boolean, got: {refused:?}"
     );
     let failed = ev.node_error(root).expect("the root's refusal");
-    let editor_core::NodeErrorKind::Boolean(topo::BooleanError::ResultInvalid { errors }) =
-        &failed.kind
-    else {
-        panic!("expected the door's result gate, got: {failed:?}");
-    };
-    let [
-        error @ ValidationError::ShellRoleUndecided {
-            error: ShellClassifyError::Escalated { source: ind, .. },
-            ..
+    let editor_core::NodeErrorKind::Boolean(
+        error @ topo::BooleanError::Escalated {
+            decision: topo::BooleanDecision::ShellRole { others: 0, .. },
+            diag,
         },
-    ] = errors.as_slice()
+    ) = &failed.kind
     else {
-        panic!("expected the cavity's undecided role, alone, got: {errors:?}");
+        panic!("expected the door's in-band typing, got: {failed:?}");
     };
-    // Check 10 reads a shell's role under check 7's names.
-    assert_eq!(ind.predicate, Some("positive_volume"), "{error}");
-    assert_eq!(ind.band, Band::linear(tol).expect("the run's band"));
-    let ErrorTextReading::Value(m) = ind.margin.diagnostic_f64_for_error_text() else {
-        panic!("expected a valued margin, got: {error}");
+    // Check 10's certified reading, wholly in the band.
+    assert_eq!(diag.predicate, Some("positive_volume_exact"), "{error}");
+    assert!(diag.terminal_sliver, "{error}");
+    assert_eq!(diag.band, Band::linear(tol).expect("the run's band"));
+    let ErrorTextReading::Enclosure { lo, hi } = diag.margin.diagnostic_f64_for_error_text() else {
+        panic!("expected a certified enclosure, got: {error}");
     };
     // The cavity's own V/A on the void side: a unit square `h` deep,
     // `h` the sheet as its two planes are represented.
     let h = 2.0 - (0.5 + (1.5 - t));
     let want = -h / (2.0 + 4.0 * h);
     assert!(
-        m < 0.0 && (m - want).abs() <= 1e-6 * want.abs(),
-        "margin {m:e}, want ≈ {want:e}"
+        lo <= hi && hi < 0.0 && (hi - want).abs() <= 1e-6 * want.abs(),
+        "enclosure [{lo:e}, {hi:e}], want ≈ {want:e}"
     );
-    let below = m.abs() / (ind.band.escalate() / ind.band.zero());
-    let ending = format!(
-        "Recourse: thicken or remove the degenerate geometry, or, if this thickness is \
-         intended, tighten the tolerance below {below:e} m"
-    );
+    let below = hi.abs() / (diag.band.escalate() / diag.band.zero());
     let rendered = error.to_string();
     assert!(
+        rendered.starts_with("whether a shell of the result bounds material or a cavity"),
+        "{rendered}"
+    );
+    assert!(
         rendered.ends_with(&format!(
-            "margin {m:e} lies inside the ambiguity band ({:e}, {:e}). {ending}",
-            ind.band.zero(),
-            ind.band.escalate()
+            "Recourse: move the parts so the pieces and cavities they leave are clearly thick, \
+             or, if this thickness is intended, tighten the tolerance below {below:e} m"
         )),
         "{rendered}"
     );
@@ -438,7 +432,14 @@ fn a_findings_attribution_resolves_to_its_subject() {
     let report =
         run_checks(&doc, &ev, &ChecksConfig::default(), Tol::witness()).expect("checks run");
     let finding = &report.findings[0];
-    let (body, contacts) = subject_body(&ev, finding.root, finding.output_ix)
+    let editor_core::FindingSubject::Output {
+        root: at,
+        output_ix,
+    } = finding.subject
+    else {
+        panic!("a connectedness finding is about a root output")
+    };
+    let (body, contacts) = subject_body(&ev, at, output_ix)
         .expect("the attribution resolves against the evaluation it came from");
     // The flagged body IS the disjoint union: the two shells the
     // finding counted (their grouping into solids is the kernel's
@@ -446,7 +447,7 @@ fn a_findings_attribution_resolves_to_its_subject() {
     assert_eq!(body.shells().count(), 2);
     // The subject's DECLARATIONS travel with it, so the tier-3′ gate
     // reached through an attribution asks about the same body the
-    // producer minted. This union declares nothing (`declare: Vec::new()`,
+    // producer minted. This union carries no records (no member holds one,
     // and its operands are three metres apart), so the honest claim
     // here is that the empty set is what arrived — not that the pair
     // is populated. The case where a non-empty set is the difference
@@ -458,7 +459,7 @@ fn a_findings_attribution_resolves_to_its_subject() {
     assert_eq!(*contacts, topo::ContactRecords::default());
     // An attribution with no subject (a stale expectation's shape)
     // resolves to None, not to a wrong body.
-    assert!(subject_body(&ev, finding.root, 7).is_none());
+    assert!(subject_body(&ev, at, 7).is_none());
 }
 
 // ---------------------------------------------------------------------
@@ -478,14 +479,28 @@ fn a_findings_attribution_resolves_to_its_subject() {
 // - `Error` refuses at `enforce_checks` and nowhere else;
 // - the report is deterministic across runs.
 
-/// Two slabs as two SEPARATE product roots (no boolean joining them),
-/// `b` centered at `cx`. The gather lists both as sinks, which is
-/// exactly the shape a recipe grows when a feature is left dangling.
+/// Two slabs placed as two SEPARATE copies (no boolean joining them),
+/// `b` centered at `cx`: the two placements, the shape a document
+/// grows when a body is placed beside what it was meant to join.
 fn two_roots(cx: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("dsc-checks-two-roots", Tol::witness());
     let (doc, a) = slab(doc, 0.0, 0.5, 0.0, 1.0);
     let (doc, b) = slab(doc, cx, 0.5, 0.0, 1.0);
+    let (doc, a) = fixture::place(doc, a);
+    let (doc, b) = fixture::place(doc, b);
     (doc, a, b)
+}
+
+/// The report's separation findings: two placed copies that meet are
+/// also the census's rows, which the `unproven-coincidence` check
+/// reports beside them.
+fn separation(report: &editor_core::ChecksReport) -> Vec<CheckFinding> {
+    report
+        .findings
+        .iter()
+        .filter(|f| f.check == CheckId::Separation)
+        .cloned()
+        .collect()
 }
 
 #[test]
@@ -496,11 +511,13 @@ fn overlapping_roots_are_one_finding_naming_both() {
     let report = checks(&doc, &ChecksConfig::default());
     assert_eq!(report.skipped, vec![CheckId::ChartCoherence]);
     assert_eq!(
-        report.findings,
+        separation(&report),
         vec![CheckFinding {
             check: CheckId::Separation,
-            root: a,
-            output_ix: 0,
+            subject: editor_core::FindingSubject::Output {
+                root: a,
+                output_ix: 0,
+            },
             evidence: CheckEvidence::NotSeparated {
                 other_root: b,
                 other_output: 0,
@@ -512,11 +529,17 @@ fn overlapping_roots_are_one_finding_naming_both() {
     // is about.
     let rendered = report.findings[0].to_string();
     assert!(
-        rendered.contains(&format!("root {}", test_utils::refusal::tag(a.0))),
+        rendered.contains(&format!(
+            "placement {}",
+            test_utils::refusal::tag(a.0.digest())
+        )),
         "{rendered}"
     );
     assert!(
-        rendered.contains(&format!("root {}", test_utils::refusal::tag(b.0))),
+        rendered.contains(&format!(
+            "placement {}",
+            test_utils::refusal::tag(b.0.digest())
+        )),
         "{rendered}"
     );
     // And it denies the CERTIFICATE — it never claims the two overlap,
@@ -542,11 +565,13 @@ fn touching_roots_are_reported_as_uncertified_not_as_overlapping() {
     let (doc, a, b) = two_roots(1.0);
     let report = checks(&doc, &ChecksConfig::default());
     assert_eq!(
-        report.findings,
+        separation(&report),
         vec![CheckFinding {
             check: CheckId::Separation,
-            root: a,
-            output_ix: 0,
+            subject: editor_core::FindingSubject::Output {
+                root: a,
+                output_ix: 0,
+            },
             evidence: CheckEvidence::NotSeparated {
                 other_root: b,
                 other_output: 0,
@@ -601,7 +626,7 @@ fn separation_off_is_visibly_skipped_and_independent() {
         report.skipped,
         vec![CheckId::ChartCoherence, CheckId::Separation]
     );
-    assert_eq!(report.findings, Vec::new());
+    assert_eq!(separation(&report), Vec::new());
 
     // The other direction: turning connectedness off leaves the
     // separation resident running. Before this resident existed the
@@ -623,53 +648,28 @@ fn separation_off_is_visibly_skipped_and_independent() {
     // half a document that gathers cannot show: a document whose
     // gather REFUSES still reports, because with the only
     // subject-reading resident off there is nothing to gather for.
-    // Two `Transform`s of one extrude are two roots whose name rows
-    // collide in the product table.
-    let doc = ProfileDoc::empty_derived("dsc-checks-collide", Tol::witness());
-    let (doc, profile) = on_frame(
-        doc,
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![square(0.0, 0.0, 0.5)],
-    );
-    let (doc, extrude) = insert(
-        doc,
-        Node::Extrude {
-            profile,
-            distance: len(1.0),
-            side: ExtrudeSide::Along,
-        },
-    );
-    let moved = |doc, dx: f64| {
-        insert(
-            doc,
-            Node::transform(
-                extrude,
-                editor_core::Step::Rigid {
-                    translation: [len(dx), len(0.0), len(0.0)],
-                    axis: [scl(0.0), scl(0.0), scl(1.0)],
-                    angle: ang(0.0),
-                },
-            ),
-        )
-    };
-    let (doc, _) = moved(doc, 3.0);
-    let (doc, _) = moved(doc, 6.0);
-    let ev = run(&doc);
+    // An instance whose group nothing places, placed: the world holds
+    // no copy and the gather refuses, while the copy evaluates.
+    let (doc, opts) = fixture::unplaced_world("dsc-checks-unplaced");
+    let ev = fixture::run(&doc, &opts);
     assert!(
         editor_core::product_recorded(&doc, &ev, Tol::witness()).is_err(),
         "the premise: this document's gather refuses"
     );
     let off = ChecksConfig {
         separation: Advisory::Off,
+        unproven_coincidence: Advisory::Off,
         ..ChecksConfig::default()
     };
     let report = run_checks(&doc, &ev, &off, Tol::witness())
-        .expect("with the subject-reading resident off, no gather is attempted");
+        .expect("with the subject-reading residents off, no gather is attempted");
     assert_eq!(
         report.skipped,
-        vec![CheckId::ChartCoherence, CheckId::Separation]
+        vec![
+            CheckId::ChartCoherence,
+            CheckId::UnprovenCoincidence,
+            CheckId::Separation
+        ]
     );
     // …and with it on, the same document refuses on the subject.
     assert!(
@@ -704,7 +704,10 @@ fn the_registry_order_is_every_check() {
             // `Separation`, this resident would lose every finding on
             // exactly the documents that do not gather.
             CheckId::ChartCoherence => 1,
-            CheckId::Separation => 2,
+            // Before `Separation`, for the same reason: it reads node
+            // values, never the subject.
+            CheckId::UnprovenCoincidence => 2,
+            CheckId::Separation => 3,
         };
         assert_eq!(
             CheckId::ALL[position],
@@ -714,7 +717,7 @@ fn the_registry_order_is_every_check() {
     }
     assert_eq!(
         CheckId::ALL.len(),
-        3,
+        4,
         "a variant added without a place in `ALL` is a resident the \
          registry would never gather for"
     );
@@ -760,7 +763,7 @@ fn separation_cannot_refuse_because_it_ships_no_waiver() {
     let (doc, _, _) = two_roots(0.0);
     let cfg = ChecksConfig::default();
     let report = checks(&doc, &cfg);
-    assert_eq!(report.findings.len(), 1);
+    assert_eq!(separation(&report).len(), 1);
     assert!(
         enforce_checks(&report, &cfg).is_ok(),
         "a finding from a waiver-less resident never gates"
@@ -790,22 +793,18 @@ fn separation_findings_are_certified_and_deterministic() {
 /// cylinder bands and two plane annuli, so the body carries
 /// chart-bearing faces for the examination to read.
 fn washer() -> (ProfileDoc, RecipeNodeId) {
-    let (doc, plane, p) = fixture::on_frame_keeping(
+    let (doc, p) = fixture::on_frame(
         ProfileDoc::empty_derived("dsc-checks-washer", Tol::witness()),
         [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 0.0, 1.0],
         vec![vec![(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)]],
     );
-    let (doc, axis) = insert(doc, fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
-    insert(
+    let (doc, washer) = insert(
         doc,
-        Node::Revolve {
-            profile: p,
-            axis,
-            angle: ang(std::f64::consts::TAU),
-        },
-    )
+        fixture::revolve_about(p, (0.0, 0.0), (0.0, 1.0), ang(std::f64::consts::TAU)),
+    );
+    fixture::place(doc, washer)
 }
 
 /// Only the chart-coherence resident, at `knob`.
@@ -854,7 +853,8 @@ fn the_chart_coherence_resident_carries_the_whole_kernel_report() {
         report
             .findings
             .iter()
-            .all(|f| f.check == CheckId::ChartCoherence && f.root == root && f.output_ix == 0),
+            .all(|f| f.check == CheckId::ChartCoherence
+                && f.subject == editor_core::FindingSubject::Output { root, output_ix: 0 }),
         "every finding is attributed to the rest body it was measured on"
     );
     assert!(
@@ -902,8 +902,10 @@ fn an_unexamined_loop_is_a_finding_never_a_skipped_check() {
         document: editor_core::DocumentId(1),
         findings: vec![CheckFinding {
             check: CheckId::ChartCoherence,
-            root: RecipeNodeId(tagged(3)),
-            output_ix: 0,
+            subject: editor_core::FindingSubject::Output {
+                root: RecipeNodeId::new(0, tagged(3)),
+                output_ix: 0,
+            },
             evidence: CheckEvidence::ChartCoherenceUnexamined {
                 unexamined: topo::Unexamined {
                     face: topo::FaceKey::default(),
@@ -915,11 +917,13 @@ fn an_unexamined_loop_is_a_finding_never_a_skipped_check() {
             },
         }],
         skipped: Vec::new(),
+        pending: Vec::new(),
     };
     let chose_not_to = ChecksReport {
         document: editor_core::DocumentId(1),
         findings: Vec::new(),
         skipped: vec![CheckId::ChartCoherence],
+        pending: Vec::new(),
     };
 
     let data = could_not_look.to_string();
@@ -950,8 +954,10 @@ fn an_unexamined_loop_is_a_finding_never_a_skipped_check() {
 fn a_coherence_measurement_renders_its_length_and_its_band() {
     let finding = CheckFinding {
         check: CheckId::ChartCoherence,
-        root: RecipeNodeId(tagged(4)),
-        output_ix: 1,
+        subject: editor_core::FindingSubject::Output {
+            root: RecipeNodeId::new(0, tagged(4)),
+            output_ix: 1,
+        },
         evidence: CheckEvidence::ChartCoherence {
             finding: topo::CoherenceFinding {
                 face: topo::FaceKey::default(),
@@ -969,7 +975,7 @@ fn a_coherence_measurement_renders_its_length_and_its_band() {
     };
     let rendered = finding.to_string();
     assert!(
-        rendered.contains("check chart-coherence: root 000000000004 output 1"),
+        rendered.contains("check chart-coherence: placement 000000000004 output 1"),
         "{rendered}"
     );
     assert!(

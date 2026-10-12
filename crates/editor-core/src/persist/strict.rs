@@ -233,7 +233,7 @@ mod tests {
     /// key as the file spells it, escapes and all.
     #[test]
     fn a_duplicate_key_is_said_as_a_parse_can_say_it() {
-        let id = RecipeNodeId(0x3fa9_c1d2_a0b1_0042);
+        let id = RecipeNodeId::new(0, 0x3fa9_c1d2_a0b1_0042);
         let said = refusal::<RecipeNodeId>(
             &format!("{{\"{0}\": 1, \"{0}\": 2}}", id.0),
             "snapshot node",

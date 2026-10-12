@@ -8,9 +8,9 @@
 //! speaks one id whether its held names were written by name or by id.
 #![allow(clippy::expect_used, clippy::panic)]
 
+use crate::blocks::block;
 use crate::corpus;
-use crate::docm7_union_declare::block;
-use crate::fixture::resolver::in_part;
+use crate::fixture::resolver::{PartStore, in_part};
 use crate::fixture::{ang, head, len, scl};
 use editor_core::{
     Alignment, AuthoredNode, AxisSense, CapEnd, ContactClass, CountMismatch, Dimension, DocEdit,
@@ -69,7 +69,7 @@ fn a_listed_pattern_with_an_unheld_count_refuses_the_rule_not_a_panic() {
     let refused = edit(
         &doc,
         &insert(Node::Pattern {
-            input: b,
+            input: b.into(),
             count: Formula::named(name("nope"), Dimension::Count),
             kind: PatternKind::Explicit(vec![Frame::IDENTITY]),
         }),
@@ -94,7 +94,7 @@ fn a_listed_union_with_an_unheld_count_refuses_the_rule_not_a_panic() {
     let refused = edit(
         &doc,
         &insert(Node::PlacedUnion {
-            input: b,
+            input: b.into(),
             count: Some(Formula::named(name("nope"), Dimension::Count)),
             kind: PatternKind::Explicit(vec![Frame::IDENTITY]),
         }),
@@ -163,7 +163,7 @@ fn a_refused_insert_speaks_one_id_by_name_or_by_id() {
     let doc = applied.doc;
     let node = |first: Formula| -> AuthoredNode {
         Node::Pattern {
-            input: b,
+            input: b.into(),
             count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -202,7 +202,10 @@ impl Unheld {
     fn formula(self, dim: Dimension) -> Formula {
         match self {
             Self::Name => Formula::named(name("nope"), dim),
-            Self::Id => Formula::var(editor_core::VarId(test_utils::refusal::tagged(9)), dim),
+            Self::Id => Formula::var(
+                editor_core::VarId::new(0, test_utils::refusal::tagged(9)),
+                dim,
+            ),
             Self::Fresh => Formula::fresh(0, dim),
         }
     }
@@ -275,33 +278,47 @@ fn kind_of(node: &AuthoredNode) -> String {
 /// a caller.
 #[test]
 fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
-    let (edge_doc, b) = body();
+    // The block placed in its world, as a part stored for instancing
+    // is: the mate rows name its caps through that placement.
+    let mut store = PartStore::default();
+    let (part, b) = store.insert_part(body(), Tol::witness());
+    let edge_doc = store.doc(part.id);
+    // The block's own sketch frame and profile, for the slots that read
+    // those kinds.
+    let held = |is: fn(&Node<ProfileProgram>) -> bool| {
+        edge_doc
+            .ids()
+            .into_iter()
+            .find(|&id| edge_doc.node(id).is_some_and(is))
+            .expect("the block holds it")
+    };
+    let frame = held(|n| matches!(n, Node::Datum(editor_core::Datum::Frame { .. })));
+    let profile = held(|n| matches!(n, Node::Profile(_)));
     // The listed-rule counts no slot addresses (p1/p2), and the slot
     // types no corpus document holds: a shell, a sweep, a windowed
     // tube, a gauge's and an instance's placements, a mate's frame
-    // offsets. The door lowers before it reads an input, so the inputs
-    // here need only be ids.
+    // offsets. Each operand reads a live output of the kind its slot
+    // admits, so the refusal is the formula's.
     let edges: Vec<AuthoredNode> = vec![
         Node::Pattern {
-            input: b,
+            input: b.into(),
             count: Formula::count(2),
             kind: PatternKind::Explicit(vec![Frame::IDENTITY]),
         },
         Node::PlacedUnion {
-            input: b,
+            input: b.into(),
             count: Some(Formula::count(2)),
             kind: PatternKind::Explicit(vec![Frame::IDENTITY]),
         },
         Node::shell(b, len(0.01), Vec::new()),
         Node::Sweep {
-            profile: b,
-            path: b,
+            profile: profile.into(),
+            path: profile.into(),
             stations: Formula::count(4),
             v_degree: Formula::count(3),
         },
         Node::Tube {
-            spine: b,
-            u_ref: [scl(1.0), scl(0.0), scl(0.0)],
+            frame: frame.into(),
             major_radius: len(0.5),
             minor_radius: len(0.1),
             window: TubeWindow::Arc {
@@ -317,8 +334,8 @@ fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
             Some(rigid()),
         ),
         Node::Mate {
-            a: head(in_part(b, b, CapEnd::End)),
-            b: head(in_part(b, b, CapEnd::Start)),
+            a: head(in_part(b, b, CapEnd::End)).into(),
+            b: head(in_part(b, b, CapEnd::Start)).into(),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: MateFrame::on_part(rigid()),
@@ -334,7 +351,7 @@ fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
         .map(|node| ("edge".to_owned(), edge_doc.clone(), node))
         .collect();
     for d in corpus::documents() {
-        for &id in d.doc.order() {
+        for id in d.doc.ids() {
             let node = d
                 .doc
                 .node(id)
@@ -353,7 +370,11 @@ fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
             let mut at = 0;
             loop {
                 let (mutated, seen) = unheld_at(form, at, |f| {
-                    node.try_map_slots(|p, g| p.try_map_slots(&mut |e| g(e)), &mut |e| f(e))
+                    node.try_map_slots(
+                        |p, g, r| p.try_map_slots(&mut |e| g(e), &mut |at, read| r(at, read)),
+                        &mut |e| f(e),
+                        &mut |_, read| Ok(read.clone()),
+                    )
                 });
                 if at >= seen {
                     break;
@@ -374,7 +395,7 @@ fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
             continue;
         };
         let Some(target) = doc
-            .order()
+            .ids()
             .iter()
             .copied()
             .find(|&id| doc.node(id).is_some_and(|held| held.authored(doc) == *node))
@@ -462,7 +483,7 @@ fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
     // that no corpus document holds owes an edge above.
     assert_eq!(
         kinds.len(),
-        23,
+        25,
         "a node kind the sweep does not reach: {kinds:?}"
     );
 }
@@ -480,6 +501,10 @@ impl editor_core::ProfilePayload for Unlisted<editor_core::VarId> {
     fn lower<E>(
         authored: &Unlisted<Formula>,
         f: &mut dyn FnMut(&Formula) -> Result<editor_core::VarId, E>,
+        _read: &mut dyn FnMut(
+            editor_core::OperandSlot,
+            &editor_core::Operand,
+        ) -> Result<editor_core::VarId, E>,
     ) -> Result<Self, E> {
         Ok(Unlisted {
             hidden: f(&authored.hidden)?,

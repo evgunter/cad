@@ -241,7 +241,7 @@ fn r2_no_product_verb_hands_back_a_scaffold_at_rest() {
 
     // Chamfer and fillet of the cube — the two verbs built on the
     // strut surgery whose six conversion sites the unit reverted.
-    let c = cube(1.0, Tol::witness());
+    let c = sweep::test_support::finished("c", cube(1.0, Tol::witness()), Tol::witness());
     if let Ok(f) = sweep::chamfer::chamfer_edges(&c, &query::all_edges(&c), 0.1, Tol::witness()) {
         bodies.push(("chamfer cube (all edges)", f.body));
     }
@@ -327,7 +327,7 @@ fn r2_no_face_offset_flips_is_declared_silently() {
                 Err(e) => {
                     println!("[R2-S2] face {f:?} at d = {d}: refused loudly — {e:?}");
                 }
-                Ok(()) => {
+                Ok(_) => {
                     let after = declared_map(&body);
                     for (edge, was) in &before {
                         if let Some((_, now)) = after.iter().find(|(k, _)| k == edge)

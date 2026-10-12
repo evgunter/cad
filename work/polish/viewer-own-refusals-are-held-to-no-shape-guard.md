@@ -24,7 +24,7 @@ suite renders the other 24 arms through `problems`, so none of them is
 checked for the budget, a stage prefix, a `Debug` struct, an arena key
 or a recourse.
 
-One instance, by reading: `Refusal::NoSuchParam` renders
+One instance, by reading: `Refusal::NoSuchVariable` renders
 "no document parameter named {name} — {UNDECLARED_PARAM_RECOURSE}".
 Its sibling at the edit door, `EditError::DocParamNotDeclared`, labels
 the same const `Recourse:`; the viewer's arm states it bare, so the

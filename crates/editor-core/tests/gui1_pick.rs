@@ -46,7 +46,7 @@ fn cube_doc_node(doc: ProfileDoc, dx: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -241,18 +241,15 @@ fn unusable_nodes_surface_typed_errors() {
     let (doc, bad) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(0.0), // degenerate: the extrude fails,
             side: ExtrudeSide::Along,
         },
     );
     let (doc, poisoned) = insert(
         doc,
-        Node::Boolean {
-            op: editor_core::BooleanOp::Union,
-            a: bad,
-            b: good,
-            declare: Vec::new(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![bad.into(), good.into()]),
         },
     );
     let ev = run(&doc);
@@ -274,7 +271,7 @@ fn unusable_nodes_surface_typed_errors() {
             through: bad
         })
     );
-    let foreign = RecipeNodeId(9999);
+    let foreign = RecipeNodeId::new(0, 9999);
     assert_eq!(
         pick_face(&ev, &t(foreign), &r).expect_err("foreign node is an error"),
         HitTestError::Standing(NodeStanding::NotInDocument { node: foreign })
@@ -419,7 +416,7 @@ fn node_pick_door_is_prepaired_and_typed() {
     let (doc, bad) = insert(
         doc,
         Node::Extrude {
-            profile: lone_profile,
+            profile: lone_profile.into(),
             distance: len(0.0), // degenerate: fails,
             side: ExtrudeSide::Along,
         },
@@ -464,7 +461,7 @@ fn node_pick_door_is_prepaired_and_typed() {
             .expect_err("a failed node has no body to pair"),
         NodePickError::Standing(NodeStanding::Failed { node: bad })
     );
-    let foreign = RecipeNodeId(9999);
+    let foreign = RecipeNodeId::new(0, 9999);
     assert_eq!(
         editor_core::NodePick::build(&ev, foreign, 0, DELTA, Tol::witness())
             .expect_err("a foreign id has no result"),

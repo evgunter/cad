@@ -79,6 +79,12 @@ impl KeyHasher {
         }
     }
 
+    /// Feeds a minted id: its ordinal, then its digest.
+    pub fn write_id(&mut self, id: crate::MintId) {
+        self.write_u64(u64::from(id.ordinal()));
+        self.write_u64(id.digest());
+    }
+
     /// Feeds a tag byte (domain separation between record kinds).
     pub fn write_tag(&mut self, tag: u8) {
         self.write_u64(u64::from(tag));

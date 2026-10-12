@@ -61,7 +61,7 @@ strut in entry `k`, whose corner is `next(mate(sectors[k].he))`. The
 sector table was read before either mint, and `reconcile_shared` only
 reconciles one pair's runs against *other* pairs' cuts, so nothing
 stops the second run reading a half the first moved. That is the strut
-form of `work/join/four-germ-vertex-pairs-run-b-in-a-order` (whose fan
+form of `four-germ-vertex-pairs-run-b-in-a-order` (JOIN, closed by PR 4036) (whose fan
 form refuses `Euler(FanStartMismatch)` from `mev_fan_plan`).
 
 On `45dc18f9` the unchecked step landed at the copy and the strut hung

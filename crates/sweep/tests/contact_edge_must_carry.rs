@@ -110,6 +110,13 @@ fn difference_branch(r: f64, big_r: f64) -> f64 {
 // Reading a body's contact edges through the rule.
 // ---------------------------------------------------------------
 
+/// A pair of surface kinds, in kind-name order: the pair is a set, so
+/// a reading keyed by it does not depend on which surface was minted
+/// first.
+fn kinds_of(a: SurfaceKind, b: SurfaceKind) -> (SurfaceKind, SurfaceKind) {
+    if a.name() <= b.name() { (a, b) } else { (b, a) }
+}
+
 /// One contact edge's reading: the pair, the lane, every interior
 /// station's margin and verdict, and the rule's own answer.
 struct ContactReading {
@@ -147,9 +154,10 @@ fn contact_readings(body: &Body<f64>) -> Vec<ContactReading> {
         let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
             continue;
         };
-        let EdgeDescription::TangentIntersection { s1, s2, .. } = *c.description() else {
+        let EdgeDescription::TangentIntersection { pair, .. } = *c.description() else {
             continue;
         };
+        let [s1, s2] = pair.keys();
         let s1 = body.get_surface(s1).expect("a described edge's surface");
         let s2 = body.get_surface(s2).expect("a described edge's surface");
         let carrier = c.carrier();
@@ -174,7 +182,7 @@ fn contact_readings(body: &Body<f64>) -> Vec<ContactReading> {
             .collect();
         let verdict = must_carry_over_edge(s1, s2, carrier, t0, t1, extent, band);
         out.push(ContactReading {
-            kinds: (s1.kind(), s2.kind()),
+            kinds: kinds_of(s1.kind(), s2.kind()),
             in_lane,
             stations,
             verdict,
@@ -232,7 +240,7 @@ fn summary(name: &str, readings: &[ContactReading]) -> String {
 fn corpus() -> Vec<(String, Body<f64>)> {
     let tol = tol();
     let carve = |name: &str, body: &Body<f64>, edges: &[EdgeKey], r: f64| {
-        let out = fillet_edges(body, edges, r, tol)
+        let out = fillet_edges(&sweep::test_support::at_rest(body, tol), edges, r, tol)
             .unwrap_or_else(|e| panic!("{name} carves on the corpus: {e}"));
         (name.to_owned(), out.body)
     };
@@ -346,8 +354,11 @@ fn plane_sphere_rim(body: &Body<f64>) -> Vec<EdgeKey> {
 
 /// The corpus's contact edges, as the bit-dump corpus's rows carve them.
 /// The count is the corpus's own structure, pinned so a fixture that
-/// silently stops carving cannot empty the census.
-const CORPUS_CONTACT_EDGES: usize = 158;
+/// silently stops carving cannot empty the census. A blend ends with
+/// the join (`docs/DESIGN.md`, maximal edges), so two contact edges on
+/// one carrier meeting at a foot nothing else reaches are one (158
+/// before the join).
+const CORPUS_CONTACT_EDGES: usize = 147;
 
 // ---------------------------------------------------------------
 // The near-osculating family: a rod with a flat, at any radius.
@@ -363,7 +374,12 @@ fn rod_family(ratio: f64, r: f64) -> Result<Filleted<f64>, BlendRefusal> {
     let body = rod_with_flat_at(ratio * r, r, 10.0 * r, 2.0 * ratio * r, tol())
         .expect("the family member mills");
     let crease = rod_upper_crease(&body);
-    fillet_edges(&body, &[crease], r, tol())
+    fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &[crease],
+        r,
+        tol(),
+    )
 }
 
 /// The radius at which the rod family at `ratio` reads a second-order
@@ -408,6 +424,11 @@ fn in_band_refusal(result: Result<Filleted<f64>, BlendRefusal>, what: &str) -> B
                 shown.contains(FILLET3_CONTACT_RECOURSE),
                 "{what}: the refusal names the radius as the lever.\n  got: {shown}"
             );
+            assert!(
+                shown.contains("if this separation is intended, tighten the tolerance below "),
+                "{what}: either definite sign of the separation builds, so the tolerance \
+                 that decides it is offered.\n  got: {shown}"
+            );
             error
         }
     }
@@ -449,7 +470,7 @@ fn every_contact_edge_on_the_corpus_is_jet_determinate() {
         let min_of = |pair: (SurfaceKind, SurfaceKind)| {
             readings
                 .iter()
-                .filter(|r| r.kinds == pair)
+                .filter(|r| r.kinds == kinds_of(pair.0, pair.1))
                 .map(|r| r.min_margin())
                 .fold(f64::INFINITY, f64::min)
         };
@@ -511,7 +532,7 @@ fn the_rod_family_the_door_admits_stores_the_intrinsic_description() {
         );
         let cylinder = readings
             .iter()
-            .find(|r| r.kinds == (SurfaceKind::Cylinder, SurfaceKind::Cylinder))
+            .find(|r| r.kinds == kinds_of(SurfaceKind::Cylinder, SurfaceKind::Cylinder))
             .expect("the cylinder-side trimline");
         assert_eq!(cylinder.verdict, MustCarryVerdict::JetDeterminate);
         assert!(
@@ -562,7 +583,12 @@ fn a_contact_in_the_bands_octave_refuses_typed_with_the_predicate_and_the_lever(
     let die = cube(1.0, tol());
     let r = 1.5 * b.escalate();
     in_band_refusal(
-        fillet_edges(&die, &query::all_edges(&die), r, tol()),
+        fillet_edges(
+            &sweep::test_support::at_rest(&die, tol()),
+            &query::all_edges(&die),
+            r,
+            tol(),
+        ),
         "the die at r = 1.5·Kε",
     );
     for ratio in [2.0, 1.5] {
@@ -590,7 +616,7 @@ fn a_contact_in_the_bands_octave_refuses_typed_with_the_predicate_and_the_lever(
 #[test]
 fn the_contact_recourse_is_followable_at_each_site_kind() {
     let b = band();
-    let die = cube(1.0, tol());
+    let die = sweep::test_support::finished("die", cube(1.0, tol()), tol());
     in_band_refusal(
         fillet_edges(&die, &query::all_edges(&die), 1.5 * b.escalate(), tol()),
         "the die at r = 1.5·Kε",
@@ -625,11 +651,21 @@ fn the_contact_recourse_is_followable_at_each_site_kind() {
     let theta = (1.5 * b.escalate() / r).sqrt();
     let (body, edges) = skewed_cavity_edges(theta, scale);
     in_band_refusal(
-        fillet_edges(&body, &edges, r, tol()),
+        fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &edges,
+            r,
+            tol(),
+        ),
         "the slim wedge at θ²·r/2 = 0.75·Kε",
     );
-    let out = fillet_edges(&body, &edges, 0.1 * r, tol())
-        .unwrap_or_else(|e| panic!("the wedge at a tenth of the radius builds: {e}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &edges,
+        0.1 * r,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the wedge at a tenth of the radius builds: {e}"));
     assert_eq!(
         corner_arc_chart_images(&out),
         4,
@@ -654,7 +690,7 @@ fn corner_arc_chart_images(out: &Filleted<f64>) -> usize {
                     body.get_curve_geom(e.curve)
                         .and_then(|g| g.certified())
                         .map(|c| c.description()),
-                    Some(EdgeDescription::Chart(c)) if !c.seam
+                    Some(EdgeDescription::Chart(c)) if !c.wrap
                 )
         })
         .count()
@@ -677,8 +713,13 @@ fn each_contact_edge_spends_the_rules_stations_once_beside_the_certificates() {
     let creases = rod_creases(&body);
     assert_eq!(creases.len(), 2, "the D-rod's two creases");
     k_stats::start_recording();
-    let out = fillet_edges(&body, &creases, Probe(ROD_FILLET), tol())
-        .unwrap_or_else(|e| panic!("the D-rod's creases carve: {e}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &creases,
+        Probe(ROD_FILLET),
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the D-rod's creases carve: {e}"));
     let spent = k_stats::take_samples()
         .iter()
         .filter(|s| s.predicate == "tangent_second_order")
@@ -694,4 +735,50 @@ fn each_contact_edge_spends_the_rules_stations_once_beside_the_certificates() {
         "each contact edge spends the schedule's interior once in the rule and once in the \
          certificate"
     );
+}
+
+/// **The rule reads one verdict whichever surface it is asked from
+/// first.** Constructors and the certificate both read the pair in key
+/// order now (`SurfacePair::sorted`), so the order is pinned either
+/// way; this row measures whether it had to be. For every contact edge
+/// the corpus carves, all of them jet-determinate, the rule's verdict
+/// at `Interval` is the same with the two surfaces swapped.
+#[test]
+fn the_rule_reads_every_corpus_contact_the_same_in_both_orders_at_interval() {
+    use geom_core::{Interval, Real};
+    let band = band();
+    let mut read = 0;
+    for (name, body) in corpus() {
+        for (_, e) in body.edges() {
+            let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
+                continue;
+            };
+            let EdgeDescription::TangentIntersection { pair, .. } = *c.description() else {
+                continue;
+            };
+            let [a, b] = pair.keys().map(|k| {
+                body.get_surface(k)
+                    .expect("a described edge's surface")
+                    .map_scalar(Interval::from_f64)
+            });
+            let carrier = c.carrier().map_scalar(Interval::from_f64);
+            let (t0, t1) = c.params();
+            let chord = c.carrier().eval(t0).distance(c.carrier().eval(t1));
+            let extent = Interval::from_f64(edge_extent(c.carrier(), t0, t1, chord));
+            let (t0, t1) = (Interval::from_f64(t0), Interval::from_f64(t1));
+            let ab = must_carry_over_edge(&a, &b, &carrier, t0, t1, extent, band);
+            let ba = must_carry_over_edge(&b, &a, &carrier, t0, t1, extent, band);
+            assert_eq!(
+                ab,
+                MustCarryVerdict::JetDeterminate,
+                "{name}: the contact is jet-determinate"
+            );
+            assert_eq!(
+                ab, ba,
+                "{name}: the rule's verdict does not depend on the pair's order"
+            );
+            read += 1;
+        }
+    }
+    assert!(read > 0, "the corpus carves contact edges");
 }

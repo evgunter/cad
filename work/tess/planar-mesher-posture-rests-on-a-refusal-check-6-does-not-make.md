@@ -116,7 +116,7 @@ the class working as advertised.
 ## Flip condition
 
 The sentence stops being false the day check 6's planar arm widens
-past line carriers — `work/join/verbs-1031b-assigner-checker-divergence.md`
+past line carriers — `verbs-1031b-assigner-checker-divergence` (JOIN, closed at JOIN's opening on what main carried)
 holds that open question and its cost. Until then the wording and the
 posture are this row's.
 

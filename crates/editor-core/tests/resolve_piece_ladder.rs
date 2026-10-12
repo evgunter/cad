@@ -17,7 +17,7 @@ use std::sync::Arc;
 
 use editor_core::eval::WitnessSlot;
 use editor_core::{
-    Axis3, BooleanOp, CancelToken, ContentKey, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions,
+    Axis3, CancelToken, ContentKey, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions,
     EvalOutcome, Evaluation, FragmentGroups, GroupCutters, NameTable, NamingKey, Node, ProfileDoc,
     Qualifier, RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SlotId, StableName,
     evaluate, resolve_with_prior,
@@ -59,7 +59,7 @@ fn block(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -106,11 +106,9 @@ fn slot() -> Slot {
     );
     let (doc, cut) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a,
-            b: tr,
-            declare: Vec::new(),
+        Node::Subtract {
+            from: a.into(),
+            tool: tr.into(),
         },
     );
     Slot {
@@ -128,7 +126,7 @@ fn slide(s: &Slot, axis: Axis3, to: f64) -> ProfileDoc {
         DocEdit::SetParam {
             node: s.tr,
             slot: SlotId::Translation(axis),
-            expr: len(to),
+            value: len(to).into(),
             fresh: Vec::new(),
         },
     )
@@ -235,13 +233,21 @@ fn body_ent(i: u32) -> editor_core::EntityRef {
     }
 }
 
-/// The piece of `of` that borders `walls`.
-fn frag(node: RecipeNodeId, of: &StableName, walls: Vec<StableName>) -> StableName {
+/// The piece of `of`, read through `read`, that borders `walls`.
+fn frag(
+    node: RecipeNodeId,
+    read: editor_core::VarId,
+    of: &StableName,
+    walls: Vec<StableName>,
+) -> StableName {
     StableName {
         kind: EntityKind::Body,
         node,
         path: vec![
-            RoleSeg::FromA(of.clone().into()),
+            RoleSeg::From {
+                read,
+                of: of.clone().into(),
+            },
             RoleSeg::Fragment(Qualifier::Borders(walls)),
         ],
     }
@@ -265,6 +271,8 @@ fn one_node_eval(
             fragment_groups: Arc::new(groups),
             contacts: Arc::new(topo::ContactRecords::default()),
             carried: Arc::new(editor_core::CarriedDeclarations::default()),
+            coincidences: Arc::new([]),
+            cited_inputs: Arc::new([]),
             parts: 1,
             verdicts: Arc::new(log),
             escalations: Arc::new(vec![]),
@@ -287,6 +295,7 @@ fn one_node_eval(
         reused: 0,
         part_evaluations: 0,
         appearance: editor_core::AppearanceResolution::default(),
+        env: Default::default(),
     }
 }
 
@@ -322,13 +331,19 @@ fn hand() -> Hand {
         ],
     };
     let walls = [wall(0), wall(1)];
+    // The names are hand-built over the first node, read through its
+    // own output.
+    let read = fixture::out(&doc, n);
     Hand {
         base: StableName {
             kind: EntityKind::Body,
             node: n,
-            path: vec![RoleSeg::FromA(of.clone().into())],
+            path: vec![RoleSeg::From {
+                read,
+                of: of.clone().into(),
+            }],
         },
-        frag: frag(n, &of, vec![walls[0].clone()]),
+        frag: frag(n, read, &of, vec![walls[0].clone()]),
         inner: vec![of, walls[0].clone(), walls[1].clone()],
         walls,
         doc,
@@ -431,13 +446,22 @@ fn a_collapsed_edge_piece_group_at_the_cut_is_diagnosed_group_resized() {
     for to in [2.5_f64, 3.5] {
         let s = slot();
         let ev1 = run(&s.doc, None);
+        let Some(Node::Subtract { from: plate, .. }) = s.doc.node(s.cut) else {
+            panic!("the cut is a subtract")
+        };
+        let plate = plate.read;
         let pieces: Vec<StableName> = ev1
             .value(s.cut)
             .expect("the cut evaluates")
             .name_table
             .iter()
             .filter_map(|(n, e)| {
-                let hit = matches!(n.path.last(), Some(RoleSeg::Fragment(Qualifier::Ends(_))));
+                // The plate's rim pieces: the bar's own edges are lone
+                // pieces whose ends the slide moves.
+                let hit = matches!(
+                    n.path.first(),
+                    Some(RoleSeg::From { read, .. }) if *read == plate
+                ) && matches!(n.path.last(), Some(RoleSeg::Fragment(Qualifier::Ends(_))));
                 (hit && matches!(e, Entry::Unique(_))).then(|| n.clone())
             })
             .collect();

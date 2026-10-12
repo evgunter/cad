@@ -1,29 +1,22 @@
 //! `offset_planes_together` — the SIMULTANEOUS offset door, planar
 //! corners.
 //!
-//! # Why this exists, and why the per-face door could not be widened
+//! # Why this exists
 //!
 //! [`crate::replace_faces_offset`] moves ONE chart and re-describes its
 //! boundary against neighbours that did not move. Composing it over
-//! every chart of a body — which is what `shell` did — cannot produce
-//! an offset body at an OBLIQUE junction, and the reason is arithmetic
-//! rather than a posture:
+//! every chart of a body cannot produce an offset body at an OBLIQUE
+//! junction, and the reason is arithmetic rather than a posture:
 //!
-//! A corner where planes `n₁, n₂, n₃` meet is visited once per chart,
-//! and each visit transports it rigidly by that chart's own `d·nᵢ`, so
-//! it accumulates `Σ dᵢ·nᵢ`. The corner an offset body needs is the
-//! point satisfying `nᵢ·x = nᵢ·oᵢ + dᵢ` for every `i` at once. Those
-//! agree exactly when the normals are mutually perpendicular — which is
-//! why a box has always been right and is bit-identical here — and
-//! diverge otherwise: on a regular hexagonal prism at `t = 0.02` the
-//! accumulation lands 11.5 mm from the true corner and leaves 30 mm of
-//! wall where 20 mm was asked for.
-//!
-//! `ReanchorOffCarrier` is the gate that has been PREVENTING that body,
-//! and it stays load-bearing for everything this door does not cover.
-//! What this door does instead is solve the corner ONCE, against every
-//! moved plane meeting it, and re-derive each edge as the intersection
-//! of its TWO MOVED planes.
+//! The corner an offset body needs where planes `n₁, n₂, n₃` meet is
+//! the point satisfying `nᵢ·x = nᵢ·oᵢ + dᵢ` for every `i` at once. A
+//! rigid transport of it by each chart's own `d·nᵢ` accumulates
+//! `Σ dᵢ·nᵢ`, which agrees exactly when the normals are mutually
+//! perpendicular and diverges otherwise: on a regular hexagonal prism
+//! at `t = 0.02` it lands 11.5 mm from the true corner. This door
+//! solves it ONCE, against every moved plane meeting it, and re-derives
+//! each edge as the intersection of its TWO MOVED planes: the closed
+//! form of [`crate::offset_surfaces_together`] on an all-planar solid.
 //!
 //! # Scope, stated as a gate rather than as a hope
 //!
@@ -35,8 +28,8 @@
 //! moves has corners it cannot solve without every other chart at that
 //! corner, and a partially moving solid has corners whose answer
 //! depends on faces it was not told about.
-//! Curved corners are the C5-table work that follows this unit; until
-//! it lands they refuse where they always did.
+//! A solid with a curved face goes through
+//! [`crate::offset_surfaces_together`] instead.
 //!
 //! **The unit is the SOLID, not the body.** A corner is the meeting of
 //! charts that belong to one solid — two solids share no vertex, no
@@ -44,6 +37,18 @@
 //! independent corner problems, and this door solves the ones it was
 //! given. Every entity it reads and every entity it writes lies on a
 //! solid the moves name; the rest of the body is bitwise untouched.
+//!
+//! # Charts, not material
+//!
+//! Each move's distance is along its chart's stored normal, and no
+//! face's sense decides the move: its argument is stated against charts
+//! alone, so it takes construction state, a [`Body`] tier 2 in and
+//! tier 2 out, where a door whose argument means something about
+//! material takes an [`crate::AtRestBody`] (`crates/topo/README.md`,
+//! "Shell and offset surgery"). Its result becomes finished only
+//! through [`crate::AtRestBody::validate`]: on an inside-out solid the
+//! charts move as they would on any other, and the result refuses
+//! there as the operand would, `NegativeVolume`.
 //!
 //! # What every step is, exactly
 //!
@@ -155,6 +160,10 @@ struct MovedPlane<T: Real> {
 /// linear in the body, and what that costs — is [`Scope`]'s, stated
 /// there once for both doors.
 ///
+/// The door **ends with the join** (`docs/DESIGN.md`, maximal edges):
+/// the moved body is joined on the clone before it is adopted, and the
+/// joins are returned ([`crate::replace_face::OffsetOutcome`]).
+///
 /// # Errors
 ///
 /// [`ReplaceFaceError`], the body untouched on every one: the whole
@@ -165,43 +174,26 @@ pub fn offset_planes_together<T: Decide + crate::props::AtRestPolicy>(
     moves: &[ChartMove<T>],
     band: Band,
     tol: Tol,
-) -> Result<(), ReplaceFaceError<T>> {
-    // ---- Decide: the chart moves are well formed. ----
-    //
-    // One surface key per chart and no face named twice: both are
-    // structural, both are one arena scan, and both are named HERE so
-    // a caller's mistake does not surface as a downstream refusal
-    // about something else.
-    let mut seen: Vec<FaceKey> = Vec::new();
-    for m in moves {
-        let Some(&first) = m.faces.first() else {
-            return Err(ReplaceFaceError::EmptyGroup);
-        };
-        let key = body
-            .get_face(first)
-            .ok_or(ReplaceFaceError::StaleFace { face: first })?
-            .surface;
-        for &face in &m.faces {
-            let data = body
-                .get_face(face)
-                .ok_or(ReplaceFaceError::StaleFace { face })?;
-            if data.surface != key {
-                return Err(ReplaceFaceError::TogetherChartMixed { face, other: first });
-            }
-            if seen.contains(&face) {
-                return Err(ReplaceFaceError::TogetherFaceRepeated { face });
-            }
-            seen.push(face);
-        }
-    }
+) -> Result<crate::replace_face::OffsetOutcome, ReplaceFaceError<T>> {
+    offset_planes_together_staged(body, moves, band, tol, true)
+        .map(|joins| crate::replace_face::OffsetOutcome { joins })
+}
 
-    // ---- Decide: the scope gate. ----
-    //
-    // The scope is the SOLIDS the moves touch, and every face of each
-    // of them must be in the set: a corner belongs to one solid, so a
-    // solid named in part has corners whose answer depends on faces
-    // the door was not told about, while a solid named not at all has
-    // no corner this call can disturb.
+/// [`offset_planes_together`], ending with the join where `join` is set. Unset, the
+/// result is construction state a later step must join: the shell's
+/// cavity and lift offsets, which key their naming rows by the moved
+/// body's cells.
+pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    moves: &[ChartMove<T>],
+    band: Band,
+    tol: Tol,
+    join: bool,
+) -> Result<Vec<crate::boolean::EdgeJoin>, ReplaceFaceError<T>> {
+    // ---- Decide: the chart moves are well formed. ----
+    let seen = well_formed(body, moves)?;
+
+    // ---- Decide: the scope gate (`covers_its_solids`). ----
     let scope = scope_of_moves(body, moves)?;
     let mut planes: Vec<(FaceKey, MovedPlane<T>)> = Vec::new();
     for m in moves {
@@ -229,11 +221,7 @@ pub fn offset_planes_together<T: Decide + crate::props::AtRestPolicy>(
             ));
         }
     }
-    for (face, _) in body.faces() {
-        if scope.holds_face(face) && !planes.iter().any(|(k, _)| *k == face) {
-            return Err(ReplaceFaceError::TogetherPartialSet { face });
-        }
-    }
+    covers_its_solids(body, &scope, &seen)?;
     let plane_of = |face: FaceKey| planes.iter().find(|(k, _)| *k == face).map(|(_, p)| p);
 
     // ---- Decide: every corner, before anything is written. ----
@@ -473,8 +461,10 @@ pub fn offset_planes_together<T: Decide + crate::props::AtRestPolicy>(
     if let Err(errors) = crate::validate::validate_closed(&staged) {
         return Err(ReplaceFaceError::ResultNotClosed { errors });
     }
+    let joins =
+        crate::replace_face::staged_join(&mut staged, join, tol, &|v| scope.holds_vertex(v))?;
     body.adopt(staged);
-    Ok(())
+    Ok(joins)
 }
 
 /// Whether the moves ask the corner on `at`'s planes to move —
@@ -883,6 +873,62 @@ impl Scope {
         self.vertices
             .get(vertex)
             .is_some_and(|s| self.solids.contains(s))
+    }
+}
+
+/// **The chart moves are well formed**: each names at least one face,
+/// every face resolves, a move's faces share ONE surface key
+/// ([`ReplaceFaceError::TogetherChartMixed`]), and no face is named twice
+/// across the call ([`ReplaceFaceError::TogetherFaceRepeated`]). Every
+/// simultaneous door checks this first, so a caller's mistake is named
+/// rather than surfacing downstream as a refusal about something else.
+/// The faces named, in the order named.
+pub(crate) fn well_formed<T: Real>(
+    body: &Body<T>,
+    moves: &[ChartMove<T>],
+) -> Result<Vec<FaceKey>, ReplaceFaceError<T>> {
+    let mut seen: Vec<FaceKey> = Vec::new();
+    for m in moves {
+        let Some(&first) = m.faces.first() else {
+            return Err(ReplaceFaceError::EmptyGroup);
+        };
+        let key = body
+            .get_face(first)
+            .ok_or(ReplaceFaceError::StaleFace { face: first })?
+            .surface;
+        for &face in &m.faces {
+            let data = body
+                .get_face(face)
+                .ok_or(ReplaceFaceError::StaleFace { face })?;
+            if data.surface != key {
+                return Err(ReplaceFaceError::TogetherChartMixed { face, other: first });
+            }
+            if seen.contains(&face) {
+                return Err(ReplaceFaceError::TogetherFaceRepeated { face });
+            }
+            seen.push(face);
+        }
+    }
+    Ok(seen)
+}
+
+/// **No solid is touched in part**: every face of every solid `scope`
+/// names is one of the faces `seen` the moves name
+/// ([`ReplaceFaceError::TogetherPartialSet`]). A corner belongs to one
+/// solid, so a solid named in part has corners whose answer depends on
+/// faces the door was not told about, while a solid named not at all
+/// has no corner the call can disturb.
+pub(crate) fn covers_its_solids<T: Real>(
+    body: &Body<T>,
+    scope: &Scope,
+    seen: &[FaceKey],
+) -> Result<(), ReplaceFaceError<T>> {
+    match body
+        .faces()
+        .find(|(face, _)| scope.holds_face(*face) && !seen.contains(face))
+    {
+        Some((face, _)) => Err(ReplaceFaceError::TogetherPartialSet { face }),
+        None => Ok(()),
     }
 }
 

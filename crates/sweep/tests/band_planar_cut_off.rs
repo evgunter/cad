@@ -154,6 +154,15 @@ impl Verb {
         body: &Body<f64>,
         edges: &[EdgeKey],
     ) -> Result<Blended<f64>, BlendError> {
+        self.run_finished(&sweep::test_support::at_rest(body, tol()), edges)
+    }
+
+    /// [`Self::run`] on an operand already finished.
+    pub(crate) fn run_finished(
+        self,
+        body: &topo::AtRestBody<f64>,
+        edges: &[EdgeKey],
+    ) -> Result<Blended<f64>, BlendError> {
         match self {
             Self::Chamfer => chamfer_edges(body, edges, D, tol()),
             Self::Fillet => fillet_edges(body, edges, D, tol()),
@@ -339,7 +348,13 @@ fn a_chamfered_box_edge_matches_the_boolean_less_its_prism() {
         &beyond(1.5, -1.0),
         tol(),
     );
-    let carved = chamfer_edges(&body, &[front, back], D, tol()).expect("both edges chamfer");
+    let carved = chamfer_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &[front, back],
+        D,
+        tol(),
+    )
+    .expect("both edges chamfer");
     let (v_bool, v_carve) = (volume(&by_boolean), volume(&carved.body));
     assert!(
         (v_bool - v_carve).abs() < 1e-12,
@@ -510,9 +525,14 @@ fn every_end_the_cut_off_does_not_build_refuses_typed() {
     // Valence four: a chamfered cube's patch vertex, which a trimline of
     // the chamfer ends at.
     let cube_body = cube(1.0, tol());
-    let chamfered = chamfer_edges(&cube_body, &query::all_edges(&cube_body), D, tol())
-        .expect("the cube chamfers")
-        .body;
+    let chamfered = chamfer_edges(
+        &sweep::test_support::at_rest(&cube_body, tol()),
+        &query::all_edges(&cube_body),
+        D,
+        tol(),
+    )
+    .expect("the cube chamfers")
+    .body;
     let rec_edge = query::all_edges(&chamfered)
         .into_iter()
         .find(|&e| {
@@ -565,18 +585,14 @@ fn every_end_the_cut_off_does_not_build_refuses_typed() {
 /// the open-chain door, which carves no chain whose links mix arms.
 #[test]
 fn a_closed_rim_with_one_turn_breaks_there_and_refuses_its_mixed_chain() {
-    use profile::RawLoop;
     let s3 = 3f64.sqrt();
     let body = sweep::test_support::extruded(
         profile::SketchPlane::xy(),
-        vec![
-            profile::test_support::bulge_loop(vec![
-                (Point2::new(0.0, 0.0), 0.0),
-                (Point2::new(1.5, -s3 / 2.0), s3),
-                (Point2::new(1.5, s3 / 2.0), 0.0),
-            ])
-            .with_tangent_joints(vec![1, 2]),
-        ],
+        vec![profile::test_support::bulge_loop(vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(1.5, -s3 / 2.0), s3),
+            (Point2::new(1.5, s3 / 2.0), 0.0),
+        ])],
         1.0,
         tol(),
     );

@@ -1,5 +1,5 @@
-//! **A declared area-overlap cap contact merges.** Two blocks whose
-//! coplanar caps are declared in contact and overlap in AREA meet
+//! **An area-overlap cap contact merges.** Two blocks whose coplanar
+//! caps are flush and overlap in AREA meet
 //! along a seam that bends at the overlap's corner. The merge output
 //! stage joins each cap pair, deletes the seam edge the glue leaves
 //! dangling together with its free end, and publishes one cap top and
@@ -14,14 +14,12 @@
 
 use crate::common;
 
-use common::{
-    brick, describe_as_intersections, finished, flush_declarations, holed_block, prism_z,
-};
+use common::{brick, describe_as_intersections, finished, holed_block, prism_z};
 use geom_core::Tol;
 use topo::validate::{validate_closed, validate_geometric};
 use topo::{
-    AtRestBody, Body, BooleanBody, BooleanDeclarations, BooleanError, BooleanResult, LoopBoundary,
-    Operand, mass_properties, union_with, validate_pseudomanifold,
+    AtRestBody, Body, BooleanBody, BooleanResult, LoopBoundary, mass_properties, union,
+    validate_pseudomanifold,
 };
 
 fn unwrap_body(r: BooleanResult<f64>) -> BooleanBody<f64> {
@@ -67,7 +65,7 @@ fn assert_green(bb: &BooleanBody<f64>, what: &str) {
     );
 }
 
-/// `a ∪ f`, caps declared: each cap pair meets along a two-edge seam
+/// `a ∪ f`, caps glued: each cap pair meets along a two-edge seam
 /// bent 90° at (1, 1).
 fn a_union_f() -> BooleanBody<f64> {
     let tol = Tol::witness();
@@ -81,9 +79,7 @@ fn a_union_f() -> BooleanBody<f64> {
         brick::<f64>((0.5, 1.5), (0.5, 1.5), (0.0, 1.0), tol),
         tol,
     );
-    let decls = flush_declarations(&a, &f, tol);
-    assert_eq!(decls.coincident_faces.len(), 2, "both caps declared");
-    unwrap_body(union_with(&a, &f, &decls, tol).expect("the declared area-overlap union runs"))
+    unwrap_body(union(&a, &f, tol).expect("the area-overlap union runs"))
 }
 
 /// The third brick, touching both blocks.
@@ -123,18 +119,15 @@ fn an_area_overlap_cap_contact_publishes_one_cap_top_and_bottom() {
     assert_green(&bb, "a ∪ f");
 }
 
-/// **The merged union is a legal operand**: the next union, with its
-/// own contacts declared, runs and skips nothing. The finished body is
+/// **The merged union is a legal operand**: the next union, gluing its
+/// own contacts, runs and skips nothing. The finished body is
 /// the L-shaped hexagon's prism: six walls and two caps.
 #[test]
-fn the_merged_union_takes_a_third_brick_declared() {
+fn the_merged_union_takes_a_third_brick() {
     let tol = Tol::witness();
     let af = a_union_f();
     let c = c();
-    let decls = flush_declarations(&af.body, &c, tol);
-    let bb = unwrap_body(
-        union_with(&af.body, &c, &decls, tol).expect("a merged union is a boolean operand"),
-    );
+    let bb = unwrap_body(union(&af.body, &c, tol).expect("a merged union is a boolean operand"));
     assert!(
         bb.naming.merge_skipped.is_empty(),
         "{:?}",
@@ -145,40 +138,6 @@ fn the_merged_union_takes_a_third_brick_declared() {
     assert_eq!(faces_at_height(&bb.body, 0.0), 1, "one bottom cap");
     assert_eq!(mass_properties(&bb.body, tol).unwrap().volume, 2.0);
     assert_green(&bb, "(a ∪ f) ∪ c");
-}
-
-/// **Without its declarations the next union refuses on a pair it
-/// really has**: an undeclared coincidence ACROSS the operands — not a
-/// same-operand pair left by the merge, which no declaration could
-/// cover.
-#[test]
-fn the_merged_union_refuses_an_undeclared_third_brick_across_operands() {
-    let tol = Tol::witness();
-    let af = a_union_f();
-    let err = union_with(&af.body, &c(), &BooleanDeclarations::none(), tol)
-        .expect_err("c's flush faces are undeclared");
-    let BooleanError::UndeclaredCoincidence { pair, .. } = &err else {
-        panic!("expected an undeclared coincidence, got {err:?}");
-    };
-    // The refused pair is exactly one the declarations would have
-    // covered: A's face and c's face, in that order, a flush pair.
-    let [(Operand::A, fa), (Operand::B, fb)] = *pair else {
-        panic!("a cross-operand (A, B) pair: {err:?}");
-    };
-    let flush = flush_declarations(&af.body, &c(), tol);
-    assert!(
-        flush
-            .coincident_faces
-            .iter()
-            .any(|d| (d.a, d.b) == (fa, fb)),
-        "({fa:?}, {fb:?}) is a flush pair of the two operands: {:?}",
-        flush.coincident_faces
-    );
-    // ...and it is the two TOP caps: the merged union's octagonal top
-    // and c's top, the first continuation the reduction's scan meets in
-    // arena order.
-    assert_eq!(face_height(&af.body, fa), Some(1.0), "{err:?}");
-    assert_eq!(face_height(&c(), fb), Some(1.0), "{err:?}");
 }
 
 /// **The bent seam's corner is deleted, and no record survives to
@@ -232,8 +191,7 @@ fn a_bent_seam_around_a_hole_merges_to_one_ringed_cap() {
         brick::<f64>((0.5, 2.5), (2.0, 3.5), (0.0, 1.0), tol),
         tol,
     );
-    let decls = flush_declarations(&u, &bar, tol);
-    let bb = unwrap_body(union_with(&u, &bar, &decls, tol).expect("the declared union runs"));
+    let bb = unwrap_body(union(&u, &bar, tol).expect("the union runs"));
     assert!(
         bb.naming.merge_skipped.is_empty(),
         "{:?}",
@@ -262,16 +220,15 @@ fn holed() -> AtRestBody<f64> {
     finished("the holed block", block, tol)
 }
 
-/// `holed() ∪ plug`, every flush pair declared, then a next union with
+/// `holed() ∪ plug`, every flush pair glued, then a next union with
 /// a brick flush on the block's `x = 3` wall: both must run, publish
 /// no skip and stay green, at the volumes given.
 fn assert_plug_merges(plug: Body<f64>, volume: f64, what: &str) {
     let tol = Tol::witness();
     let plug = finished(what, plug, tol);
     let block = holed();
-    let decls = flush_declarations(&block, &plug, tol);
     let bb = unwrap_body(
-        union_with(&block, &plug, &decls, tol)
+        union(&block, &plug, tol)
             .unwrap_or_else(|e| panic!("{what}: the plugged block merges, got {e:?}")),
     );
     assert!(
@@ -295,9 +252,8 @@ fn assert_plug_merges(plug: Body<f64>, volume: f64, what: &str) {
         brick::<f64>((3.0, 4.0), (0.0, 2.0), (0.0, 2.0), tol),
         tol,
     );
-    let decls = flush_declarations(&bb.body, &next, tol);
     let nb = unwrap_body(
-        union_with(&bb.body, &next, &decls, tol)
+        union(&bb.body, &next, tol)
             .unwrap_or_else(|e| panic!("{what}: the result is an operand, got {e:?}")),
     );
     assert!(nb.naming.merge_skipped.is_empty(), "{what}: next union");
@@ -318,17 +274,15 @@ fn assert_plug_merges(plug: Body<f64>, volume: f64, what: &str) {
 fn an_exactly_plugged_hole_merges_to_whole_caps() {
     let plug = brick::<f64>((1.0, 2.0), (0.5, 1.5), (0.0, 2.0), Tol::witness());
     let block = holed();
-    let decls = flush_declarations(&block, &plug, Tol::witness());
     let join = topo::test_support::boolean_join_refusal(
         topo::BooleanOp::Union,
         &block,
         &plug,
-        &decls,
         Tol::witness(),
     );
     assert!(
         matches!(join, Ok(None)),
-        "the join builds the exact plug, not the declared-REST zip: got {join:?}"
+        "the join builds the exact plug: got {join:?}"
     );
     assert_plug_merges(plug, 12.0, "exact plug");
 }
@@ -365,9 +319,7 @@ fn a_plug_folded_first_merges_into_the_face_it_plugs() {
         tol,
     );
     let block = holed();
-    let decls = flush_declarations(&plug, &block, tol);
-    let bb =
-        unwrap_body(union_with(&plug, &block, &decls, tol).expect("the plug folded first merges"));
+    let bb = unwrap_body(union(&plug, &block, tol).expect("the plug folded first merges"));
     assert!(
         bb.naming.merge_skipped.is_empty(),
         "{:?}",

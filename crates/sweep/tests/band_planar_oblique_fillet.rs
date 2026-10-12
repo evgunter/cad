@@ -173,16 +173,17 @@ fn a_near_perpendicular_end_escalates_or_decides_the_circle() {
 /// watertight. The boolean takes it with a brick beside the band and
 /// with one through it, in every op, tier-3 valid at the closed forms:
 /// the notch's overlap is its box, the slot's its box less the band's
-/// section over the slot's width. A brick wholly apart refuses at the
-/// containment door, whose rays from the far brick meet nothing and
-/// whose volume fallback is closed-form only — the boolean's open row
-/// (`work/contact/at-infinity-probe-measures-in-closed-form-only.md`),
-/// pinned here so it retires with it.
+/// section over the slot's width. A brick wholly apart is sided by the
+/// containment door, whose rays from the far brick meet nothing: the
+/// closed-form volume cannot read the at-infinity side of the band an
+/// ellipse trims, and a ray aimed at a planar face of it does. `∖` keeps
+/// the filleted body, `∪` adds the brick, `∩` is empty.
 #[test]
 fn the_ellipse_edges_pass_the_tessellator_and_the_boolean() {
     let body = parallelogram::<f64>();
     let e = edge(&body, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
-    let out = fillet_edges(&body, &[e], D, tol()).expect("the oblique fillet builds");
+    let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &[e], D, tol())
+        .expect("the oblique fillet builds");
     let mesh = mesh::tessellate(&out.body, 5e-3, tol()).expect("the filleted body tessellates");
     mesh::validate::check_mesh(&mesh).expect("watertight");
     let (v, pad) = volume_enclosure(&out.body);
@@ -225,19 +226,25 @@ fn the_ellipse_edges_pass_the_tessellator_and_the_boolean() {
         brick((5.0, 6.0), (5.0, 6.0), (5.0, 6.0), tol()),
         tol(),
     );
-    for (op, result) in [
-        ("subtract", topo::subtract(&operand, &apart, tol())),
-        ("union", topo::union(&operand, &apart, tol())),
+    for (op, result, want) in [
+        ("subtract", topo::subtract(&operand, &apart, tol()), v),
+        ("union", topo::union(&operand, &apart, tol()), v + 1.0),
     ] {
-        match result {
-            Err(BooleanError::Containment(topo::PointInSolidError::VolumeUncertified)) => {}
-            other => panic!(
-                "a brick apart ({op}): the containment door's closed-form fallback refuses, got \
-                 {:?} — retire this pin with the boolean's row",
-                other.map(|_| ())
-            ),
-        }
+        let result = result.unwrap_or_else(|e| panic!("a brick apart ({op}): builds, got {e:?}"));
+        let result = &result.body().expect("not empty").body;
+        let (got, pad_r) = volume_enclosure(result);
+        assert!(
+            (got - want).abs() < 1e-12 + pad + pad_r,
+            "a brick apart ({op}): V {got} vs the closed form {want}"
+        );
     }
+    assert!(
+        matches!(
+            topo::intersect(&operand, &apart, tol()),
+            Ok(topo::BooleanResult::Empty)
+        ),
+        "a brick apart (intersect): empty"
+    );
 }
 
 /// The edge between two points of an `Interval` body, either way round.
@@ -270,7 +277,13 @@ fn edge_at(body: &Body<Interval>, a: [f64; 3], b: [f64; 3]) -> EdgeKey {
 fn the_oblique_fillet_carves_at_the_certified_scalar() {
     let body = parallelogram::<Interval>();
     let e = edge_at(&body, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
-    let out = fillet_edges(&body, &[e], iv(D), tol()).expect("carves at Interval");
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &[e],
+        iv(D),
+        tol(),
+    )
+    .expect("carves at Interval");
     validate_geometric(&out.body, tol()).expect("tier 3 at Interval");
     assert_naming_totality(&body, &out, &[e], "the oblique fillet at Interval");
     for (arc, _, _) in &out.naming.as_ref().expect("births").arcs {
@@ -372,7 +385,12 @@ fn a_drafted_wall_escalates_on_its_ellipses_axes() {
         );
         let top = edge(&body, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
         let apart = r * (1.0 / theta.cos() - 1.0);
-        let result = fillet_edges(&body, &[top], r, tol());
+        let result = fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &[top],
+            r,
+            tol(),
+        );
         if apart > band.escalate() {
             let out = result.unwrap_or_else(|e| panic!("a {deg}° draft builds, got {}", e.error));
             validate_geometric(&out.body, tol()).expect("tier 3");
@@ -517,7 +535,8 @@ fn a_steep_drilled_wall_keeps_its_bottom_edge_clear() {
 fn a_brick_through_a_steep_elliptic_end_builds_in_every_op() {
     let body = leaning(3.0);
     let e = edge(&body, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
-    let out = fillet_edges(&body, &[e], D, tol()).expect("the s = 3 fillet builds");
+    let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &[e], D, tol())
+        .expect("the s = 3 fillet builds");
     let cutter = brick((-0.5, 0.15), (-0.5, 0.05), (0.92, 1.5), tol());
     let operand = finished("the filleted parallelogram", out.body.clone(), tol());
     let tool = finished("the brick", cutter.clone(), tol());
@@ -526,7 +545,7 @@ fn a_brick_through_a_steep_elliptic_end_builds_in_every_op() {
             op,
             &operand,
             &tool,
-            &topo::BooleanDeclarations::none(),
+            &topo::BooleanInputs::default(),
             topo::boolean::SweepStrategy::Realized,
             tol(),
         )

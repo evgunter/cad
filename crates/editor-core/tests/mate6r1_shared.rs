@@ -44,7 +44,7 @@ fn block(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -70,7 +70,7 @@ fn dangling(instance: RecipeNodeId) -> StableName {
         path: vec![RoleSeg::InPart {
             of: StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(99),
+                node: RecipeNodeId::new(0, 99),
                 path: vec![RoleSeg::Cap(CapEnd::End)],
             }
             .into(),
@@ -85,8 +85,8 @@ fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
 
 fn mate_of(a: StableName, b: StableName, seat: f64, class: ContactClass) -> AuthoredNode {
     Node::Mate {
-        a: crate::fixture::head(a),
-        b: crate::fixture::head(b),
+        a: crate::fixture::head(a).into(),
+        b: crate::fixture::head(b).into(),
         class,
         alignment: Alignment {
             a: frame([0.0, 0.0, seat], [0.0, 0.0, 1.0]),
@@ -127,6 +127,7 @@ fn row_of(
         }
         ids.push(id);
     }
+    doc = crate::fixture::place_all(doc, &ids);
     (doc, ids)
 }
 
@@ -143,6 +144,9 @@ fn verdict(result: &Result<editor_core::Assembly<f64>, AssemblyError>) -> String
                 }
                 editor_core::MintRefusal::Reference { mate, side, .. } => {
                     format!("Reference(mate={}, side={side:?})", mate.0)
+                }
+                editor_core::MintRefusal::Unevaluated { mate, .. } => {
+                    format!("Unevaluated(mate={})", mate.0)
                 }
             })
             .collect::<Vec<_>>()
@@ -301,13 +305,13 @@ fn r1_a_good_mate_after_a_bad_one() {
 /// fail the tier-3′ census. Two cubes are seated exactly touching by a
 /// `Tangent` mate — `Tangent` mints no at-rest record, so nothing
 /// declares the contact the mate itself created, and the census would
-/// answer `UndeclaredContact` if it ran.
+/// answer `UnrecordedContact` if it ran.
 ///
 /// Old order: `mint` returned `NoAtRestRecord` before
 /// `gate_at_rest_declared` was ever called. New order: the gather
 /// RECORDS the refusal and `assemble` raises it before the same gate.
 /// If precedence is preserved the verdict is `NoAtRestRecord` on both
-/// trees; if it inverted, this tree answers `AtRest(UndeclaredContact)`.
+/// trees; if it inverted, this tree answers `AtRest(UnrecordedContact)`.
 #[test]
 fn r1_mint_refusal_precedes_the_census() {
     let mut store = PartStore::default();
@@ -365,6 +369,7 @@ fn r1_false_carried_declaration_at_both_doors() {
         inner = next;
         sub.push(id);
     }
+    inner = crate::fixture::place_all(inner, &sub);
     let (inner, _) = step(
         inner,
         DocEdit::InsertNode {
@@ -407,6 +412,7 @@ fn r1_true_carried_declaration_at_both_doors() {
         inner = next;
         sub.push(id);
     }
+    inner = crate::fixture::place_all(inner, &sub);
     let (inner, _) = step(
         inner,
         DocEdit::InsertNode {
@@ -499,7 +505,7 @@ fn r1_no_mates_document_digest() {
         "R1-PROBE no_mates solids={} contacts={:?} roots={} names_empty={}",
         g.body.solids().count(),
         g.contacts,
-        g.solid_roots.len(),
+        g.solid_copies.len(),
         format!("{:?}", g.names).len()
     );
 }
@@ -507,7 +513,7 @@ fn r1_no_mates_document_digest() {
 // ============ CLAIM 4: the red-first numbers, exactly ============
 
 /// PROBE (claim 4): issue 946's own shape at the size the PR quotes —
-/// an inner stand instantiated ×3. The PR claims 24 `UndeclaredContact`
+/// an inner stand instantiated ×3. The PR claims 24 `UnrecordedContact`
 /// findings on the merge base and a green gate after, with 6 solids and
 /// 3 carried patch records.
 #[test]
@@ -521,6 +527,7 @@ fn r1_three_stands_exact_counts() {
         inner = next;
         sub.push(id);
     }
+    inner = crate::fixture::place_all(inner, &sub);
     let (inner, _) = step(
         inner,
         DocEdit::InsertNode {
@@ -541,7 +548,7 @@ fn r1_three_stands_exact_counts() {
     println!(
         "R1-PROBE three_stands solids={} patches={} => {gate}",
         g.body.solids().count(),
-        g.contacts.patches.len()
+        g.contacts.face_face().count()
     );
 }
 
@@ -567,6 +574,7 @@ fn r1_overlapping_false_carried_declaration() {
         inner = next;
         sub.push(id);
     }
+    inner = crate::fixture::place_all(inner, &sub);
     // seat 0.5 on a unit cube: the two cubes INTERPENETRATE, and the
     // Rest declaration over their caps is a lie about that geometry.
     let (inner, _) = step(
@@ -601,7 +609,7 @@ fn r1_overlapping_false_carried_declaration() {
 }
 
 /// PROBE (claim 5, closing the `checks` lane): TWO instances of the
-/// overlapping-and-falsely-declared stand, so `solid_roots` certainly
+/// overlapping-and-falsely-declared stand, so `solid_copies` certainly
 /// holds more than one row and `separation` certainly has pairs to
 /// judge. Prints the root count beside the finding count, so a zero can
 /// be read as "nothing to suppress" rather than "suppressed".
@@ -616,6 +624,7 @@ fn r1_two_overlapping_false_stands() {
         inner = next;
         sub.push(id);
     }
+    inner = crate::fixture::place_all(inner, &sub);
     let (inner, _) = step(
         inner,
         DocEdit::InsertNode {
@@ -644,8 +653,8 @@ fn r1_two_overlapping_false_stands() {
     };
     println!(
         "R1-PROBE two_overlapping_false_stands roots={} solids={} patches={} separation_findings => {sep}",
-        g.solid_roots.len(),
+        g.solid_copies.len(),
         g.body.solids().count(),
-        g.contacts.patches.len()
+        g.contacts.face_face().count()
     );
 }

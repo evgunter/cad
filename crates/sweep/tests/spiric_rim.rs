@@ -7,11 +7,11 @@
 //! minted rim — on the SECTIONED VESSEL (the tour's `torusvessel` wall
 //! 1), the partial revolve whose rims mint through a public door and
 //! reach tier 3. The klein ELBOW's rims mint too, its equator seams
-//! re-author, and its hollow reaches the same props door
-//! (`the_elbow_stops_at_the_props_door` below) — so its cavity, like
-//! the vessel's, is not readable through any public door at this head. The elbow rows that
-//! MOVE doors stay in their own suites (`torax_axial`, `verbs_shell`,
-//! `torax_interval`, `shell7_seam_corner`).
+//! re-author, and both hollows pass tier 3 and measure against their
+//! cut-revolve oracles (`the_elbow_hollows_to_its_measured_volume`,
+//! `the_sectioned_vessel_hollows_to_its_measured_volume` below). The
+//! elbow rows that MOVE doors stay in their own suites (`torax_axial`,
+//! `verbs_shell`, `torax_interval`, `shell7_seam_corner`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -21,11 +21,14 @@ use geom::{Curve3, Surface};
 use geom_core::{Band, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
-use topo::{Body, ShellError, transform_rigid};
+use topo::{Body, transform_rigid};
 
 use crate::common::charts::hollow_moves;
 use crate::common::poses::torax_pose;
-use crate::common::torus_walls::{klein_elbow, props_door, vessel_cavity, vessel_quarter};
+use crate::common::torus_walls::{
+    assert_hollow_volume, disc_cut_volume, klein_elbow, vessel_cavity, vessel_hollow_volume,
+    vessel_quarter,
+};
 use sweep::test_support::finished;
 
 fn tol() -> Tol {
@@ -309,9 +312,8 @@ fn the_minted_rim_survives_a_rigid_re_pose() {
 }
 
 /// **Row 11 — the census refusals reachable through public doors**,
-/// on the vessel's cavity: the at-rest gate a boolean operand is
-/// finished through (check 7's spiric cap, the props door below), the mesh's trimmed
-/// lane (its torus/plane roster is the MESH frontier,
+/// on the vessel's cavity: the mesh's trimmed lane (its torus/plane
+/// roster is the MESH frontier,
 /// `work/issues/trimmed-tessellation-lacks-torus-and-plane-arms.md`),
 /// and the STEP writer, which now WRITES an export-only spline and
 /// refuses this body for a different reason than "no arm": the
@@ -319,26 +321,14 @@ fn the_minted_rim_survives_a_rigid_re_pose() {
 /// kernel's ε (`work/curved/spiric-step-spline-bound-is-second-order.md`),
 /// which is why the row asserts that exact `kind` rather than any
 /// `spiric…` prefix — the two refusals are different facts and the
-/// day the bound is fixed this row must move, loudly. The props doors
-/// are the closing measurement row below.
+/// day the bound is fixed this row must move, loudly. The at-rest gate
+/// a boolean operand is finished through no longer refuses: check 7
+/// measures the spiric cap and wall (the closing rows below).
 #[test]
 fn the_census_refusals_through_public_doors() {
     let (_, cavity) = vessel_cavity(1.0 / 128.0);
-    let errors = topo::AtRestBody::validate(cavity.clone(), tol())
-        .expect_err("the cavity is not a finished body, so no boolean takes it");
-    assert!(
-        matches!(
-            errors.as_slice(),
-            [topo::ValidationError::VolumeUncomputable {
-                source: topo::MassPropsError::Face {
-                    source: geom_brep::PropsError::Unimplemented,
-                    ..
-                },
-                ..
-            }]
-        ),
-        "the at-rest gate refuses the spiric cap's volume, as the props door does, got {errors:?}"
-    );
+    topo::AtRestBody::validate(cavity.clone(), tol())
+        .unwrap_or_else(|e| panic!("the cavity passes the at-rest gate, check 7 included: {e:?}"));
     let e =
         mesh::tessellate(&cavity, 1e-3, tol()).expect_err("no trimmed lane for the torus chart");
     let mesh::TessellateError::UnsupportedCurve { note, .. } = &e else {
@@ -362,76 +352,57 @@ fn the_census_refusals_through_public_doors() {
     );
 }
 
-/// **The elbow reaches the props door, as the vessel does.** The rims
-/// MINT (both endpoint meters and the midpoint meter pass — the
+/// **The elbow hollows to its measured volume at two more walls.** The
+/// rims MINT (both endpoint meters and the midpoint meter pass — the
 /// mutants that flip the oval or the reach guard's sign refuse on the
 /// rim edge, `torax_axial`), each rim's window is read forward of its
 /// start, the equator seams' declarations follow the corners the moved
-/// caps turned about the axis, and the hollow reaches tier 3: check 7
-/// refuses `VolumeUncomputable` at a cap whose spiric loop's area has
-/// no closed form (`Unimplemented`). The old door was the attach
-/// layer's `RechartFalsifies { EdgeKey(2v1), IntervalNotForward }` — a
-/// rim window read backwards by `π·r′` on `atan2`'s branch cut.
+/// caps turned about the axis, and the hollow passes tier 3: check 7
+/// measures the spiric caps and walls. Two thicknesses `torax_axial`'s
+/// `0.05` row does not take, so the moved caps cut the torus at two
+/// other stand-offs `d = t` and the cavity's minor radius moves with
+/// them. Once this row's door was check 7's `Unimplemented` at a cap,
+/// and before that the attach layer's `RechartFalsifies { EdgeKey(2v1),
+/// IntervalNotForward }` — a rim window read backwards by `π·r′` on
+/// `atan2`'s branch cut.
 #[test]
-fn the_elbow_stops_at_the_props_door() {
-    let elbow = klein_elbow_of_disc(0.275);
-    let e = topo::shell(&finished("the operand", elbow.clone(), tol()), 0.05, tol())
-        .expect_err("check 7's volume");
-    println!("[spiric] the elbow's door: {e:?}");
-    let (_, source) = props_door(&e).unwrap_or_else(|| panic!("the props door, got {e:?}"));
-    assert_eq!(
-        source,
-        geom_brep::PropsError::Unimplemented,
-        "a spiric cap's area"
-    );
+fn the_elbow_hollows_to_its_measured_volume() {
+    let r = 0.275;
+    let elbow = klein_elbow_of_disc(r);
+    let theta = core::f64::consts::FRAC_PI_2;
+    for t in [0.02, 0.1] {
+        let hollow = topo::shell(&finished("the operand", elbow.clone(), tol()), t, tol())
+            .unwrap_or_else(|e| panic!("the elbow hollows at {t}, got {e:?}"))
+            .body;
+        assert_hollow_volume(
+            &format!("the klein elbow at {t}"),
+            &hollow,
+            disc_cut_volume(theta, t, 0.0, 1.2, r) - disc_cut_volume(theta, t, 2.0, 1.2, r - t),
+        );
+    }
 }
 
-/// **The sectioned vessel reaches the props door** — the tour's
-/// `torusvessel` wall 1 on the scene's own body: a quarter turn of the
-/// bellied meridian hollows through the kind-changing mint, both
-/// endpoint meters, certification at the minor radius, insertion and
-/// pcurves (the torus wall's spiric half-edges NOW CACHED, which row 9
-/// asserts) to tier 3, whose checks
-/// 1–6 pass; **check 7 refuses** `VolumeUncomputable` — at a CAP,
-/// visited before the torus wall in arena order, so the payload is
-/// `loop_vector_area`'s `Unimplemented` (the oval's area is an
-/// elliptic integral). The torus wall behind it is NOT
-/// `torus_boundary`'s parse: `topo`'s face flux routes a loop carrying
-/// a spiric to the quadrature lane, whose chart gate refuses
-/// `QuadratureUnsupported { "conic trim on a cone/sphere/torus chart
-/// …" }` (`props.rs`, `cut_face_rounds`) — read from the source, since
-/// no public door visits the wall before the cap; the closed-form
-/// parse's own answer for the wall is the row below. The spec named
-/// the wall's parse first; the run shows the cap. Same door as the
-/// lune's (`NotIsoRectangle { "props_meridian_great" }`), different
-/// premise.
+/// **The sectioned vessel hollows to its measured volume** — the
+/// tour's `torusvessel` wall 1 on the scene's own body: a quarter turn
+/// of the bellied meridian hollows through the kind-changing mint,
+/// both endpoint meters, certification at the minor radius, insertion
+/// and pcurves (the torus wall's spiric half-edges CACHED, which row 9
+/// asserts) to tier 3, which it now passes: check 7 measures the two
+/// spiric-bounded caps and the torus wall between them by the spiric
+/// quadrature lane, and the volume is the meridian's quarter turn less
+/// its inset's cut revolve ([`vessel_hollow_volume`]). The row's old
+/// door was check 7's `VolumeUncomputable` at a cap
+/// (`Unimplemented`, `loop_vector_area`).
 #[test]
-fn the_sectioned_vessel_stops_at_the_props_door() {
+fn the_sectioned_vessel_hollows_to_its_measured_volume() {
     let quarter = vessel_quarter();
     assert_eq!(topo::validate_geometric(&quarter, tol()), Ok(()));
-    let e = topo::shell(
-        &finished("the operand", quarter.clone(), tol()),
-        1.0 / 128.0,
-        tol(),
-    )
-    .expect_err("tier 3's volume");
-    println!("[spiric] the sectioned vessel's door: {e:?}");
-    let ShellError::NotValid { errors } = e else {
-        panic!("the hollow must reach tier 3, got {e:?}");
-    };
-    assert!(
-        matches!(
-            errors[..],
-            [topo::ValidationError::VolumeUncomputable {
-                source: topo::MassPropsError::Face {
-                    source: geom_brep::PropsError::Unimplemented,
-                    ..
-                },
-                ..
-            }]
-        ),
-        "check 7 at a cap's loop area, got {errors:?}"
-    );
+    let t = 1.0 / 128.0;
+    let hollow = topo::shell(&finished("the operand", quarter.clone(), tol()), t, tol())
+        .unwrap_or_else(|e| panic!("the sectioned vessel hollows, got {e:?}"))
+        .body;
+    assert_eq!(hollow.shells().count(), 2, "outer boundary + cavity");
+    assert_hollow_volume("the sectioned vessel", &hollow, vessel_hollow_volume(t));
 }
 
 /// **The torus wall's closed-form parse names its spiric rim** — the
@@ -1081,7 +1052,7 @@ mod interval_rows {
         let mut cavity = body.clone();
         let band = Band::linear(tol).expect("band");
         match topo::offset_charts_together(&mut cavity, &moves, band, tol) {
-            Ok(()) => {}
+            Ok(_) => {}
             Err(topo::ReplaceFaceError::Escalated { source })
                 if tol.eps() < geom_core::tolerance::DEFAULT_EPS =>
             {

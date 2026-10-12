@@ -39,7 +39,7 @@ fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
 /// the profile drawn on it, then the extrude whose body every rim name
 /// below is minted by — the document's third node.
 fn body(doc: &ProfileDoc) -> RecipeNodeId {
-    doc.order()[2]
+    doc.ids()[2]
 }
 
 fn planted(selection: impl FnOnce(&ProfileDoc) -> Vec<StableName>) -> (ProfileDoc, RecipeNodeId) {
@@ -51,7 +51,7 @@ fn planted(selection: impl FnOnce(&ProfileDoc) -> Vec<StableName>) -> (ProfileDo
     let (doc, profile) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![square],
             ids: Vec::new(),
         }),
@@ -59,7 +59,7 @@ fn planted(selection: impl FnOnce(&ProfileDoc) -> Vec<StableName>) -> (ProfileDo
     let (doc, body) = fixture::insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -79,10 +79,10 @@ fn planted(selection: impl FnOnce(&ProfileDoc) -> Vec<StableName>) -> (ProfileDo
 }
 
 /// The symmetric U cutter subtracted from a block — the corpus's
-/// standard N2 TIE source (`m4_pr5_declare.rs`'s fixture, verbatim
-/// geometry). Returns the document and the subtract node.
+/// standard N2 TIE source. Returns the document and the subtract
+/// node.
 fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
-    use editor_core::{BooleanOp, DocEdit, apply};
+    use editor_core::{DocEdit, apply};
     use fixture::on_frame;
     let mut doc = ProfileDoc::empty_derived("m6_5_selection_refusals", Tol::witness());
     let insert = |doc: &ProfileDoc, node: AuthoredNode| {
@@ -110,7 +110,7 @@ fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
     let (d, ua) = insert(
         &d,
         Node::Extrude {
-            profile: bp,
+            profile: bp.into(),
             distance: len(4.0),
             side: ExtrudeSide::Along,
         },
@@ -134,18 +134,16 @@ fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
     let (d, ub) = insert(
         &d,
         Node::Extrude {
-            profile: up,
+            profile: up.into(),
             distance: len(2.0),
             side: ExtrudeSide::Along,
         },
     );
     let (d, us) = insert(
         &d,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: ua,
-            b: ub,
-            declare: Vec::new(),
+        Node::Subtract {
+            from: ua.into(),
+            tool: ub.into(),
         },
     );
     doc = d;
@@ -192,7 +190,7 @@ fn a_selection_naming_a_never_existed_node_refuses_at_edit_time() {
                 len(0.125),
                 vec![{
                     let mut elsewhere = rim(&doc, body(&doc), 0);
-                    elsewhere.node = RecipeNodeId(99);
+                    elsewhere.node = RecipeNodeId::new(0, 99);
                     elsewhere
                 }],
             )),
@@ -202,7 +200,7 @@ fn a_selection_naming_a_never_existed_node_refuses_at_edit_time() {
         &editor_core::RefusingReach,
     ) {
         Err(EditError::DeclareNamesMissingNode { name }) => {
-            assert_eq!(name.name().node, RecipeNodeId(99));
+            assert_eq!(name.name().node, RecipeNodeId::new(0, 99));
         }
         other => panic!("a typo id must refuse at the edit door, got {other:?}"),
     }
@@ -222,7 +220,7 @@ fn a_selection_naming_a_deleted_node_is_node_gone() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
-                profile: doc.order()[1],
+                profile: doc.ids()[1].into(),
                 distance: len(2.0),
                 side: ExtrudeSide::Along,
             }),
@@ -257,7 +255,7 @@ fn a_selection_naming_a_deleted_node_is_node_gone() {
     .expect("deleting a node a NAME references is allowed (N5)")
     .doc;
     refuses(&after, fillet, |kind| match kind {
-        NodeErrorKind::BlendSelectionResolve { error, .. } => match error.as_ref() {
+        NodeErrorKind::SelectResolve { error, .. } => match error.as_ref() {
             ResolveError::NodeGone { name, edit } => {
                 assert_eq!(name.node, spare_id);
                 assert!(
@@ -289,7 +287,7 @@ fn a_selection_naming_an_absent_entity_is_vanished() {
         }]
     });
     refuses(&doc, fillet, |kind| match kind {
-        NodeErrorKind::BlendSelectionResolve { error, .. } => match error.as_ref() {
+        NodeErrorKind::SelectResolve { error, .. } => match error.as_ref() {
             ResolveError::Vanished {
                 name,
                 diagnosis,
@@ -315,9 +313,7 @@ fn a_selection_naming_an_absent_entity_is_vanished() {
 
 /// **Ambiguous + TieWitness**: a tie-marked name has two or more
 /// equally-admissible candidates, so a selection cannot pick one. The
-/// tie is the symmetric U cutter's N2 tie — the same fixture
-/// `m4_pr5_declare.rs` uses for the Declare side of this refusal, so
-/// the two sites are shown answering the same question the same way.
+/// tie is the symmetric U cutter's N2 tie.
 #[test]
 fn a_tied_selection_name_refuses_ambiguous_with_its_witness() {
     let (doc, us) = symmetric_u();
@@ -351,7 +347,7 @@ fn a_tied_selection_name_refuses_ambiguous_with_its_witness() {
     .expect("the fillet inserts");
     let fillet = applied.record.minted.expect("a minted id");
     refuses(&applied.doc, fillet, |kind| match kind {
-        NodeErrorKind::BlendSelectionResolve { error, .. } => match error.as_ref() {
+        NodeErrorKind::SelectResolve { error, .. } => match error.as_ref() {
             ResolveError::Ambiguous {
                 name,
                 candidates,
@@ -384,7 +380,7 @@ fn a_selection_naming_a_face_refuses_on_kind() {
     let (doc, fillet) = planted(|doc| vec![face(doc)]);
     let face = face(&doc);
     refuses(&doc, fillet, |kind| match kind {
-        NodeErrorKind::BlendSelectionKind { name, found, .. } => {
+        NodeErrorKind::SelectKind { name, found, .. } => {
             assert_eq!(**name, face);
             assert_eq!(found.kind(), EntityKind::Face);
         }

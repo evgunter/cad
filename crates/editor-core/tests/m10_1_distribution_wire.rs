@@ -182,7 +182,7 @@ fn a_broken_distribution_in_the_edit_log_refuses_at_save() {
         Err(PersistError::EditReplay { index, error }) => {
             assert_eq!(index, 0);
             assert_eq!(
-                error,
+                *error,
                 EditError::InvalidDistribution {
                     var: spoken,
                     fault: DistributionFault::SigmaNotPositive { sigma: -1.0 },

@@ -2,10 +2,12 @@
 id: shell-operand-shape-arms-behind-the-at-rest-gate
 kind: issue
 title: shell's piece sort, Pieces, OperandOuterShells and ChartSenseMixed arms sit behind a gate that refuses what they read
-status: open
+status: closed
 opened: 2026-10-06
 priority: P3
 cost: E
+closed: 2026-10-08
+pr: 4315
 ---
 
 
@@ -37,3 +39,16 @@ other scalar reaches it:
 Owed: for each, find a finished operand that reaches it or retire it.
 Retiring a variant crosses `editor-core/src/verbs/shell.rs`'s mapping,
 `pncad-py/src/tags.rs` and `editor-core/tests/refusal_concision_chains.rs`.
+
+## Closed (PR 4315, 2026-10-08)
+
+The piece sort, `ShellError::Pieces` and `ShellError::OperandOuterShells`
+are retired. Check 10 reads the same roles at the same tolerance and
+lane, and finishes a body only with every role decided and at most one
+`Outer` per multi-shell solid; check 7 refuses a solid of shells each
+decided negative. The role count in `shell_open` is now an
+`unreachable!` invariant. `ChartSenseMixed` is reachable from a STEP
+import that cites one plane in both senses. It stays, pinned by
+`crates/step-import/tests/shell_reads_a_chart_worn_both_ways.rs`. The
+verb's refusal of that shellable body is filed as
+`shell-refuses-a-finished-body-wearing-one-chart-both-ways`.

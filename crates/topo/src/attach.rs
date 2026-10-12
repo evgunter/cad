@@ -1214,10 +1214,9 @@ impl<T: Decide> Body<T> {
     /// # Errors
     ///
     /// [`BadArgument::Stale`](crate::euler::BadArgument::Stale) if `edge` does not
-    /// resolve; [`EulerOpError::DescriptionNotAdjacent`] on an
-    /// `Intersection`/`Seam` description whose surfaces are not the
-    /// edge's faces' surfaces; [`EulerOpError::Certification`] on a
-    /// failed gate, whose plane × NURBS lane is the scalar's policy
+    /// resolve; [`EulerOpError::DescriptionNotAdjacent`] on a
+    /// description whose surfaces are not the edge's faces' surfaces;
+    /// [`EulerOpError::Certification`] on a failed gate, whose plane × NURBS lane is the scalar's policy
     /// ([`crate::AtRestPolicy::nurbs_lane`]), and
     /// [`EulerOpError::NurbsLaneUnsupported`] where that class meets a
     /// scalar holding none; [`EulerOpError::PcurveMint`] where a face is
@@ -1303,6 +1302,42 @@ impl<T: Decide> Body<T> {
             .restated_spec()
             .at_rest_in_chart(chart, false);
         self.set_edge_curve(edge, spec, tol)?;
+        Ok(())
+    }
+
+    /// Every edge described as a wrap edge whose two halves an operation
+    /// has left on two faces, re-described where it rests: the same
+    /// image in the chart it names, without the wrap flag. A wrap
+    /// edge is a fact about ONE face (D1), so once a cut parts its
+    /// halves it is a boundary between two faces of one surface, and
+    /// tier 3 holds it to that (`DescriptionNotAdjacent`).
+    pub(crate) fn rest_parted_wrap_edges(&mut self, tol: Tol) -> Result<(), EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
+        let parted: Vec<(EdgeKey, geom_brep::EdgeCurveSpec<T>)> = self
+            .edges
+            .iter()
+            .filter_map(|(edge, e)| {
+                let c = self.edge_curve_linked(edge, e).certified()?;
+                let geom_brep::EdgeDescription::Chart(ch) = c.description() else {
+                    return None;
+                };
+                let sides = crate::readback::edge_sides_of(self, edge, e);
+                if !ch.wrap || sides.plus.face == sides.minus.face {
+                    return None;
+                }
+                let mut spec = c.restated_spec();
+                if let geom_brep::EdgeDescriptionSpec::Chart { ref mut wrap, .. } = spec.description
+                {
+                    *wrap = false;
+                }
+                Some((edge, spec))
+            })
+            .collect();
+        for (edge, spec) in parted {
+            self.set_edge_curve(edge, spec, tol)?;
+        }
         Ok(())
     }
 
@@ -1502,7 +1537,8 @@ impl<T: Decide> Body<T> {
 /// home for [`Body::set_edge_curve`] and the minting doors that take a
 /// caller's description ([`Body::mef`]): an intrinsic description's two
 /// surfaces are exactly `faces`, a chart image names one of them, a
-/// chart seam names the one surface on both sides, and a scaffold names
+/// wrap edge names the one surface on both sides (that its halves bound
+/// one face is tier 3's), and a scaffold names
 /// none. `faces` are the surfaces the edge's two faces wear, `he_plus`'s
 /// first; `edge` is the edge the refusal names, `None` for the one a
 /// minting door mints. Pure.
@@ -1908,10 +1944,10 @@ pub(crate) enum Named {
     /// An intrinsic description's two operands (`Intersection` and
     /// `TangentIntersection` alike: the described pair IS the faces'
     /// pair).
-    Pair(SurfaceKey, SurfaceKey),
-    /// A chart image's chart, and whether the image claims to be the
-    /// chart's parameterization seam.
-    Chart { surface: SurfaceKey, seam: bool },
+    Pair(geom_brep::SurfacePair),
+    /// A chart image's chart, and whether the edge is a wrap edge of a
+    /// face on it (D1).
+    Chart { surface: SurfaceKey, wrap: bool },
     /// A scaffold, or a null edge: there is no surface to name.
     Nothing,
 }
@@ -1927,13 +1963,11 @@ impl Named {
 
     fn of_description<T: Real>(description: &geom_brep::EdgeDescription<T>) -> Self {
         match description {
-            geom_brep::EdgeDescription::Intersection { s1, s2, .. }
-            | geom_brep::EdgeDescription::TangentIntersection { s1, s2, .. } => {
-                Self::Pair(*s1, *s2)
-            }
+            geom_brep::EdgeDescription::Intersection { pair, .. }
+            | geom_brep::EdgeDescription::TangentIntersection { pair, .. } => Self::Pair(*pair),
             geom_brep::EdgeDescription::Chart(c) => Self::Chart {
                 surface: c.surface,
-                seam: c.seam,
+                wrap: c.wrap,
             },
             geom_brep::EdgeDescription::Scaffold(_) => Self::Nothing,
         }
@@ -1941,12 +1975,10 @@ impl Named {
 
     fn of_spec<T: Real>(description: &geom_brep::EdgeDescriptionSpec<T>) -> Self {
         match *description {
-            geom_brep::EdgeDescriptionSpec::Intersection { s1, s2, .. }
-            | geom_brep::EdgeDescriptionSpec::TangentIntersection { s1, s2, .. } => {
-                Self::Pair(s1, s2)
-            }
-            geom_brep::EdgeDescriptionSpec::Chart { surface, seam, .. } => {
-                Self::Chart { surface, seam }
+            geom_brep::EdgeDescriptionSpec::Intersection { pair, .. }
+            | geom_brep::EdgeDescriptionSpec::TangentIntersection { pair, .. } => Self::Pair(pair),
+            geom_brep::EdgeDescriptionSpec::Chart { surface, wrap, .. } => {
+                Self::Chart { surface, wrap }
             }
             geom_brep::EdgeDescriptionSpec::Scaffold(_) => Self::Nothing,
         }
@@ -1957,7 +1989,10 @@ impl Named {
     /// pushforward carries its own defining data) or a null edge.
     pub(crate) fn keys(self) -> impl Iterator<Item = SurfaceKey> {
         let (a, b) = match self {
-            Self::Pair(s1, s2) => (Some(s1), Some(s2)),
+            Self::Pair(pair) => {
+                let [s1, s2] = pair.keys();
+                (Some(s1), Some(s2))
+            }
             Self::Chart { surface, .. } => (Some(surface), None),
             Self::Nothing => (None, None),
         };
@@ -1968,18 +2003,17 @@ impl Named {
     /// and `minus`, its own keys read through `slot_of`. A chart image
     /// names ONE of the two faces' surfaces (a wall–wall seam is the
     /// u-boundary iso of either wall, and the minted convention picks
-    /// one); an image that claims to BE the chart's parameterization
-    /// seam names the one surface on both sides, by what a seam is; a
-    /// scaffold names none.
+    /// one); a wrap edge names the one surface on both sides, its two
+    /// halves bounding one face on it (D1); a scaffold names none.
     fn adjacent_to(self, [plus, minus]: [Slot; 2], slot_of: impl Fn(SurfaceKey) -> Slot) -> bool {
         match self {
-            Self::Pair(s1, s2) => {
-                let (s1, s2) = (slot_of(s1), slot_of(s2));
-                (s1 == plus && s2 == minus) || (s1 == minus && s2 == plus)
-            }
-            Self::Chart { surface, seam } => {
+            Self::Pair(pair) => pair
+                .keys()
+                .into_iter()
+                .any(|k| slot_of(k) == plus && pair.other(k).map(&slot_of) == Some(minus)),
+            Self::Chart { surface, wrap } => {
                 let surface = slot_of(surface);
-                if seam {
+                if wrap {
                     surface == plus && surface == minus
                 } else {
                     surface == plus || surface == minus
@@ -1994,7 +2028,7 @@ impl Named {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use geom::Surface;
-    use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec};
+    use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, SurfacePair};
     use geom_core::{Point3, Tol, Vec3};
 
     use super::Rechart;
@@ -2343,7 +2377,7 @@ mod tests {
             assert!(
                 matches!(
                     description(&body, e),
-                    EdgeDescription::Intersection { s1, s2, .. } if s1 == new || s2 == new
+                    EdgeDescription::Intersection { pair, .. } if pair.contains(new)
                 ),
                 "an edge listed from the helper keeps its kind, on the new key"
             );
@@ -2868,8 +2902,7 @@ mod tests {
         let [plus, minus] = faces_of(body, edge);
         let mut spec = EdgeCurveSpec::line_between(p0, p1);
         spec.description = EdgeDescriptionSpec::Intersection {
-            s1: surf(body, plus),
-            s2: surf(body, minus),
+            pair: SurfacePair::new(surf(body, plus), surf(body, minus)),
             witness: p0.lerp(p1, 0.5),
         };
         spec
@@ -3107,10 +3140,10 @@ mod tests {
         let bottom = surf(&body, face_at(&body, 2, 0.0));
         let front = surf(&body, face_at(&body, 1, 0.0));
         let mut far_pair = restated(&body, edge);
-        let EdgeDescriptionSpec::Intersection { s1, s2, .. } = &mut far_pair.description else {
+        let EdgeDescriptionSpec::Intersection { pair, .. } = &mut far_pair.description else {
             panic!("the brick's rim is described as intersections")
         };
-        (*s1, *s2) = (bottom, front);
+        *pair = SurfacePair::new(bottom, front);
         let far_pair = vec![(edge, far_pair)];
         assert_err_deep_unchanged(
             &mut body,
@@ -3334,8 +3367,7 @@ mod tests {
     fn rim(s1: SurfaceKey, s2: SurfaceKey) -> EdgeCurveSpec<f64> {
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
-                s1,
-                s2,
+                pair: SurfacePair::new(s1, s2),
                 witness: Point3::new(-1.0, 0.0, 0.0),
             },
             carrier: geom::Curve3::Circle {
@@ -3755,8 +3787,10 @@ mod tests {
     /// describing twin takes them as
     /// [`Body::kfmrh_carried_redescriptions`] states them on the cap's
     /// key, reaping the membrane's key, and tier 3 reports none of them
-    /// at rest where the lifted kill strands all four. (The demoted ring
-    /// winds as the outer loop it was, which tier 3 reports either way.)
+    /// naming a chart neither side wears, where the lifted kill strands
+    /// all four. (The demoted ring winds as the outer loop it was, and
+    /// its edges bound the cap on both sides, which tier 3 reports
+    /// either way.)
     #[test]
     fn kfmrh_describing_carries_the_strand_kfmrh_refuses() {
         let (mut body, top, membrane) = inlay_on_own_key();
@@ -3800,7 +3834,19 @@ mod tests {
             validate_geometric(b, tol())
                 .unwrap_err()
                 .into_iter()
-                .filter(|e| matches!(e, ValidationError::DescriptionNotAdjacent { .. }))
+                .filter(|e| match e {
+                    ValidationError::DescriptionNotAdjacent { edge } => {
+                        let (plus, minus) =
+                            crate::readback::edge_sides(b, *edge).unwrap().surfaces();
+                        match restated(b, *edge).description {
+                            EdgeDescriptionSpec::Chart { surface, .. } => {
+                                surface != plus && surface != minus
+                            }
+                            _ => true,
+                        }
+                    }
+                    _ => false,
+                })
                 .count()
         };
         assert_eq!(

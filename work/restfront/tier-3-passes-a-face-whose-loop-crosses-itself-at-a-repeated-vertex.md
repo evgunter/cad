@@ -2,10 +2,12 @@
 id: tier-3-passes-a-face-whose-loop-crosses-itself-at-a-repeated-vertex
 kind: issue
 title: Tier 3 passes a face whose loop crosses itself at a vertex it visits twice
-status: open
+status: closed
 opened: 2026-10-06
 priority: P1
 cost: M
+closed: 2026-10-07
+refs: [4240, the-corner-slice-arm-is-silent-on-cones-nurbs-faces-and-first-order-ties]
 ---
 
 ## What
@@ -61,3 +63,20 @@ known to reach the crossed shape now. The ring-order mirror mutant
 above still does, so the tier-3 gap stands.
 `topo::test_support::meeting::corners_disjoint` is the planar check,
 shared.
+
+## Closed (branch `join/tier3-pinch-checks`)
+
+JOIN's corner-slice row built this check as check 9's corner arm
+(`validate.rs`, `pinch_corner_errors`, refusing `PinchCornerCrossed`).
+Corners are grouped by point key, so a vertex a loop visits twice is
+read along with several vertices on one point. Curved faces are read in
+the tangent plane at the point, as asked here. The arm's silences are
+filed as `the-corner-slice-arm-is-silent-on-cones-nurbs-faces-and-first-order-ties`.
+
+The witness above no longer reaches a crossed body on main `fe26bdfe`.
+With `vtxfac::ring_order`'s struts mirrored, `holes_meeting_at_a_vertex`'s
+wedges either refuse at the union (`PierceRunsNested`, every order that
+folded three or four wedges before the plate) or build with disjoint
+corners (`corners_disjoint` holds and tier 3 is clean). The new pin is a
+hand-built crossed face instead,
+`validate::tests::check_9_refuses_a_corner_crossing_its_face_at_a_pinch`.

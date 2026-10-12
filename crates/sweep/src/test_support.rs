@@ -127,7 +127,7 @@ use geom::NurbsCurve3;
 use geom_core::{Affine3, Band, Bounds, Decide, OrthoFrame, Point2, Point3, Real, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
-use topo::{Body, BooleanDeclarations, EdgeKey, FaceKey, LoopBoundary};
+use topo::{Body, BooleanInputs, EdgeKey, FaceKey, LoopBoundary};
 
 use crate::blend::BlendKind;
 use crate::blend::battery::{BlendRequest, Chain, Link, resolve_link, run_battery, walk_chains};
@@ -233,6 +233,22 @@ pub fn assert_legal_operand(what: &str, body: &Body<f64>, tol: Tol) {
 }
 
 pub use topo::test_support::finished;
+
+/// `body`, cloned and finished ([`finished`]): the operand of ONE blend
+/// door call on a fixture held by reference. Each call clones and pays
+/// tier 3, so a body handed to several doors is finished once with
+/// [`finished`] and that operand reused.
+///
+/// # Panics
+///
+/// As [`finished`], where the gate refuses the body, naming the
+/// caller's line.
+#[must_use]
+#[track_caller]
+pub fn at_rest<T: topo::AtRestPolicy>(body: &Body<T>, tol: Tol) -> topo::AtRestBody<T> {
+    let caller = core::panic::Location::caller();
+    finished(&format!("the blend operand at {caller}"), body.clone(), tol)
+}
 
 /// The square of side `l` with a corner at the origin, counter-clockwise
 /// from that corner, as profile vertices — the one spelling of the block
@@ -1002,6 +1018,23 @@ pub fn stacked_at(zs: &[f64]) -> Vec<Affine3<f64>> {
         .collect()
 }
 
+/// **Fixture sections at a lane scalar**: each loop of `sections`
+/// carried into `T` value by value as the constants a fixture's
+/// literals are ([`Real::from_f64`]), for a row that lofts at a scalar
+/// other than `f64` ([`crate::loft_body`] takes its sections in the
+/// scalar it builds at).
+pub fn lift_sections<T: Real>(sections: &[Section]) -> Vec<Section<ProfileLoop<T>>> {
+    sections
+        .iter()
+        .map(|s| s.iter().map(|lp| lp.map_scalar(T::from_f64)).collect())
+        .collect()
+}
+
+/// [`lift_sections`]' placements: each a fixture's constant.
+pub fn lift_places<T: Real>(places: &[Affine3<f64>]) -> Vec<Affine3<T>> {
+    places.iter().map(|p| p.map(T::from_f64)).collect()
+}
+
 /// [`loft_prism`] with its sections placed at `zs` instead of
 /// [`PRISM_Z`]. The spacing is the only thing the fold varies, so it
 /// is the only thing this door takes.
@@ -1074,6 +1107,9 @@ pub fn faces_around<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<FaceKey> {
 /// direction (a) and (b) do not imply: a retirement the surgery forgets
 /// to record is invisible to both and to the census delta alike. Also:
 /// the band and blend rows together name exactly `requested`. The
+/// blend ends with the join (`BlendNaming::edge_joins`): an edge or
+/// vertex a join killed is its row there, so (c) and (d) read it as
+/// accounted for, mint or source alike. The
 /// per-row COUNTS (feet, splits, retired seam vertices) stay in the
 /// rows, because they are the fixture's, not the walk's.
 pub fn assert_naming_totality<T: Real>(
@@ -1157,7 +1193,12 @@ pub fn assert_naming_totality<T: Real>(
             "{what}: a minted vertex reused a key: {v:?}"
         );
     }
-    // (d) every mint is present.
+    // (d) every mint is present, unless the closing join killed it:
+    // its `gone` edge and its vertex are its row in `edge_joins`.
+    let joined_gone: Vec<EdgeKey> = rec.edge_joins.iter().map(|j| j.gone).collect();
+    let joined_vertex: Vec<topo::VertexKey> = rec.edge_joins.iter().map(|j| j.vertex).collect();
+    minted_edges.retain(|e| !joined_gone.contains(e));
+    minted_vertices.retain(|v| !joined_vertex.contains(v));
     for f in &minted_faces {
         assert!(
             out.body.get_face(*f).is_some(),
@@ -1234,7 +1275,7 @@ pub fn assert_naming_totality<T: Real>(
     for (k, _) in source.edges() {
         if out.body.get_edge(k).is_none() {
             assert!(
-                rec.dead.edges.contains(&k) || banded.contains(&k),
+                rec.dead.edges.contains(&k) || banded.contains(&k) || joined_gone.contains(&k),
                 "{what}: source edge {k:?} vanished with no retirement recorded"
             );
         }
@@ -1242,7 +1283,7 @@ pub fn assert_naming_totality<T: Real>(
     for (k, _) in source.vertices() {
         if out.body.get_vertex(k).is_none() {
             assert!(
-                rec.dead.vertices.contains(&k),
+                rec.dead.vertices.contains(&k) || joined_vertex.contains(&k),
                 "{what}: source vertex {k:?} vanished with no retirement recorded"
             );
         }
@@ -2021,7 +2062,7 @@ pub fn realized(op: BooleanOp, a: &Body<f64>, b: &Body<f64>, tol: Tol) -> Body<f
         op,
         &finished("the fixture's operand A", a.clone(), tol),
         &finished("the fixture's operand B", b.clone(), tol),
-        &BooleanDeclarations::none(),
+        &BooleanInputs::default(),
         SweepStrategy::Realized,
         tol,
     )

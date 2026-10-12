@@ -74,7 +74,7 @@ use crate::{
     MefSite, MevCreated, MevSite, MvfsCreated,
 };
 use geom::{Curve3, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, newell_plane};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair, newell_plane};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Real, Vec3};
 
@@ -708,7 +708,10 @@ pub fn describe_as_intersections<T: geom_core::Decide + crate::props::AtRestPoli
             geom_brep::DihedralClass::Transverse => {}
         }
         let mut spec = EdgeCurveSpec::line_between(p0, p1);
-        spec.description = EdgeDescriptionSpec::Intersection { s1, s2, witness };
+        spec.description = EdgeDescriptionSpec::Intersection {
+            pair: SurfacePair::new(s1, s2),
+            witness,
+        };
         body.set_edge_curve(edge_key, spec, tol).unwrap();
     }
 }
@@ -724,6 +727,52 @@ pub fn mapped_cube<T: geom_core::Decide + crate::props::AtRestPolicy>(
     let mut body = Body::<T>::new();
     cube_into(&mut body, map, tol);
     body
+}
+
+/// **A wedge cornered on a block's top**: the block `[−1, 3] × [−2, 2.5]
+/// × [0, 1]`, and a parallelepiped cornered at `(0.5, 0.2, 1)` by an
+/// `opening_deg` wedge angle, its face in the block's top plane tilted
+/// about the wedge's `x` edge by `tilt` (m/m). It stands `height` tall,
+/// sunk `depth` into the block. Returns `(block, wedge)`.
+pub fn wedge_on_a_block_top(
+    opening_deg: f64,
+    tilt: f64,
+    height: f64,
+    depth: f64,
+    tol: Tol,
+) -> (Body<f64>, Body<f64>) {
+    let phi = opening_deg.to_radians();
+    let (ea, eb) = (
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(phi.cos(), phi.sin(), tilt * phi.sin()),
+    );
+    let p = Point3::new(0.5, 0.2, 1.0);
+    (
+        brick((-1.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol),
+        mapped_cube(
+            move |u, v, w| p + ea * u + eb * v + Vec3::new(0.0, 0.0, height * w - depth),
+            tol,
+        ),
+    )
+}
+
+/// The one planar face of `body` whose outward normal leans along
+/// `facing` in `z` (`+1` up, `−1` down).
+///
+/// # Panics
+///
+/// Unless exactly one face does.
+pub fn face_facing(body: &Body<f64>, facing: f64) -> crate::entity::FaceKey {
+    let hits: Vec<_> = body
+        .faces()
+        .map(|(k, _)| k)
+        .filter(|&k| {
+            matches!(crate::face_carrier(body, k),
+                Some(crate::CarrierDesc::Plane { normal, .. }) if normal.z * facing > 0.99)
+        })
+        .collect();
+    assert_eq!(hits.len(), 1, "one face faces {facing}");
+    hits[0]
 }
 
 /// [`mapped_cube`] into an EXISTING body (a second `mvfs` seeds a
@@ -744,37 +793,6 @@ pub fn cube_into<T: geom_core::Decide + crate::props::AtRestPolicy>(
     // Construction-final description step (D6) — the whole of what
     // this door does that [`geometric_cube`] does not.
     describe_as_intersections(body, tol);
-}
-
-/// Test-authoring convenience: the [`crate::BooleanDeclarations`] declaring
-/// every flush face pair of `(a, b)`, on any carrier the `Rest`
-/// ladder verifies — the test author's
-/// stand-in for a recipe declaration (the author built the contact
-/// deliberately; this writes the intent down).
-///
-/// The detection is the library's ([`crate::flush`]), so this helper
-/// interprets nothing: it detects through the same door the op then
-/// verifies with, and hands the findings straight to the declare
-/// sugar. Coincidence CERTIFICATION still happens inside the op
-/// through the verified declared rung, never here.
-///
-/// **The in-band arm INVERTED here, deliberately.** The hand declarer
-/// this replaced treated an in-band pair as plausible and declared it
-/// anyway, leaving the op's declared rung to re-check it. A finding is
-/// only ever DEFINITE, so the library refuses instead — and this
-/// helper turns that refusal into a panic rather than swallowing it,
-/// which makes "every fixture that reaches this helper decides
-/// definitely" a fixture assertion instead of an assumption. A future
-/// fixture built inside the band fails loudly at its own door; the old
-/// helper would have declared it and moved on.
-pub fn flush_declarations<T: geom_core::Decide>(
-    a: &Body<T>,
-    b: &Body<T>,
-    tol: Tol,
-) -> crate::BooleanDeclarations {
-    let found = crate::flush::find_flush_candidates(a, b, tol)
-        .expect("a fixture's flush pairs decide definitely");
-    crate::flush::declare_all(&found)
 }
 
 // ---------------------------------------------------------------------
@@ -1250,9 +1268,6 @@ pub enum CylKey {
 /// wall face with the cylinder key it is on: two rim arcs on exact
 /// circle carriers described as the cylinder cut by the plane at that
 /// height, and two meridian struts on certified chord lines.
-/// `source`, when given, is the recipe node id recorded on the
-/// cylinder key as `GeomSource::minted(source, 0)`; it is recorded
-/// whether the key was minted here or shared.
 ///
 /// The descending rim runs on the REVERSED axis so its own parameter
 /// still increases, which is how the split lane mints one.
@@ -1270,7 +1285,6 @@ pub fn cyl_wall_sheet_keyed<T: geom_core::Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     frame: CylFrame,
     key: CylKey,
-    source: Option<u64>,
     (u0, u1): (f64, f64),
     (v0, v1): (f64, f64),
     tol: Tol,
@@ -1295,10 +1309,6 @@ pub fn cyl_wall_sheet_keyed<T: geom_core::Decide + crate::props::AtRestPolicy>(
         CylKey::Bare => body.add_surface(frame.surface()),
         CylKey::Shared(cyl) => cyl,
     };
-    if let Some(source) = source {
-        body.set_surface_source(cyl, crate::GeomSource::minted(source, 0))
-            .unwrap();
-    }
     let rim = |body: &mut Body<T>, v: f64, ccw: bool| {
         let centre = frame.centre(v).map(T::from_f64);
         let plane = body.add_surface(Surface::Plane {
@@ -1324,8 +1334,7 @@ pub fn cyl_wall_sheet_keyed<T: geom_core::Decide + crate::props::AtRestPolicy>(
         };
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
-                s1: cyl,
-                s2: plane,
+                pair: SurfacePair::new(cyl, plane),
                 witness: frame.at((u0 + u1) * 0.5, v),
             },
             carrier,
@@ -1409,7 +1418,6 @@ pub(crate) fn unit_cyl_sheet(
         body,
         CylFrame::canonical(1.0),
         cyl.map_or(CylKey::Bare, CylKey::Shared),
-        None,
         (u0, u1),
         (z0, z1),
         tol,
@@ -1420,8 +1428,6 @@ pub(crate) fn unit_cyl_sheet(
 
 /// An open cylinder-wall sheet over `[u0, u1] x [v0, v1]` of `frame`,
 /// grown into `body` and returned, with every pcurve minted.
-/// `source`, when given, is the recipe node id recorded on the
-/// cylinder key as `GeomSource::minted(source, 0)`.
 ///
 /// The sheet is the seed face's complement ([`CylKey::OnSeed`]), so the
 /// cylinder key lives in the seed face's surface slot and the returned
@@ -1436,13 +1442,11 @@ pub(crate) fn unit_cyl_sheet(
 pub fn cyl_wall_sheet<T: geom_core::Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     frame: CylFrame,
-    source: Option<u64>,
     (u0, u1): (f64, f64),
     (v0, v1): (f64, f64),
     tol: Tol,
 ) -> FaceKey {
-    let (face, _) =
-        cyl_wall_sheet_keyed(body, frame, CylKey::OnSeed, source, (u0, u1), (v0, v1), tol);
+    let (face, _) = cyl_wall_sheet_keyed(body, frame, CylKey::OnSeed, (u0, u1), (v0, v1), tol);
     crate::pcurves::mint_pcurves(body, tol).unwrap();
     face
 }
@@ -1474,7 +1478,7 @@ pub fn arc_chain_over_the_jump(
 ) -> (Body<f64>, FaceKey, [HalfEdgeKey; 2], [HalfEdgeKey; 2]) {
     let frame = CylFrame::canonical(1.0);
     let mut body = Body::<f64>::new();
-    let face = cyl_wall_sheet(&mut body, frame, None, (4.2, 5.4), (0.0, 1.0), tol);
+    let face = cyl_wall_sheet(&mut body, frame, (4.2, 5.4), (0.0, 1.0), tol);
     let rim = body
         .edges()
         .map(|(e, _)| e)
@@ -1579,7 +1583,7 @@ pub fn kill_under_a_null_strut(
 ) {
     let frame = CylFrame::canonical(1.0);
     let mut body = Body::<f64>::new();
-    let face = cyl_wall_sheet(&mut body, frame, None, (0.2, 1.4), (0.0, 1.0), tol);
+    let face = cyl_wall_sheet(&mut body, frame, (0.2, 1.4), (0.0, 1.0), tol);
     // The bottom rim is the one circle edge whose interval is `[0.2,
     // 1.4]`, the ascending one, whose parameter IS the azimuth.
     let rim = body
@@ -1629,6 +1633,154 @@ pub fn kill_under_a_null_strut(
     (body, face, null, toward_tip, listing)
 }
 
+/// **A wall trimmed obliquely, its rim one closed ellipse on one seam
+/// vertex**: the unit cylinder about `z` cut by the plane through the
+/// origin of normal `(−sin φ, 0, cos φ)`. The rim's centre is the origin,
+/// its major semi-axis `1/cos φ` along `(cos φ, 0, sin φ)`, and its one
+/// vertex the major end `(1, 0, tan φ)`; the rim reaches `tan φ` either
+/// side of the origin along the axis, `2·tan φ` from the vertex: the
+/// rim's highest point at `φ > 0`, its lowest at `φ < 0`. Returns
+/// the body, one of the two faces the rim bounds (each is bounded by the
+/// rim alone) and the vertex.
+#[cfg(test)]
+pub(crate) fn oblique_rim_wall(phi: f64) -> (Body<f64>, FaceKey, crate::VertexKey) {
+    let tol = Tol::witness();
+    let (s, c) = phi.sin_cos();
+    let carrier = Curve3::Ellipse {
+        center: Point3::origin(),
+        axis: Vec3::new(-s, 0.0, c),
+        major: 1.0 / c,
+        minor: 1.0,
+        u_ref: Vec3::new(c, 0.0, s),
+    };
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(carrier.eval(0.0), true).unwrap();
+    body.set_face_surface(
+        seed.face,
+        FaceSurface::New {
+            surface: Surface::Cylinder {
+                origin: Point3::origin(),
+                axis: Vec3::unit_z(),
+                radius: 1.0,
+                u_ref: Vec3::unit_x(),
+            },
+            sense: true,
+        },
+    )
+    .unwrap();
+    let cyl = body.get_face(seed.face).unwrap().surface;
+    let plane = body.add_surface(Surface::Plane {
+        origin: Point3::origin(),
+        normal: Vec3::new(-s, 0.0, c),
+        u_ref: Vec3::new(c, 0.0, s),
+    });
+    let tau = core::f64::consts::TAU;
+    body.mef(
+        MefSite::Lone {
+            r#loop: seed.r#loop,
+        },
+        EdgeCurveSpec {
+            description: EdgeDescriptionSpec::Intersection {
+                pair: SurfacePair::new(cyl, plane),
+                witness: carrier.eval(0.5 * tau),
+            },
+            carrier,
+            param_start: 0.0,
+            param_end: tau,
+        },
+        FaceSurface::Inherit,
+        tol,
+    )
+    .unwrap();
+    (body, seed.face, seed.vertex)
+}
+
+/// **A planar cap on an arc of `carrier`** (a circle) over `span`,
+/// closed by its chord, built through the public operators: the arc's
+/// start corner at the carrier's start, its end corner at the carrier's
+/// end plus `off` (certified, so `off` lies within the run's zero band).
+/// Returns the body and the cap face.
+pub fn arc_cap(
+    carrier: Curve3<f64>,
+    span: (f64, f64),
+    off: Vec3<f64>,
+    tol: Tol,
+) -> (Body<f64>, FaceKey) {
+    let Curve3::Circle {
+        center,
+        axis,
+        radius,
+        u_ref,
+    } = carrier
+    else {
+        unreachable!("an arc cap is cut from a circle, and the caller passed another curve")
+    };
+    let mut body = Body::<f64>::new();
+    let (p0, p1) = (carrier.eval(span.0), carrier.eval(span.1) + off);
+    let seed = body.mvfs(p0, true).unwrap();
+    let plane = body.add_surface(Surface::Plane {
+        origin: center,
+        normal: axis,
+        u_ref,
+    });
+    let wall = body.add_surface(Surface::Cylinder {
+        origin: center,
+        axis,
+        radius,
+        u_ref,
+    });
+    let arc = body
+        .mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            p1,
+            EdgeCurveSpec {
+                description: EdgeDescriptionSpec::Intersection {
+                    pair: SurfacePair::new(wall, plane),
+                    witness: carrier.eval(0.5 * (span.0 + span.1)),
+                },
+                carrier,
+                param_start: span.0,
+                param_end: span.1,
+            },
+            tol,
+        )
+        .unwrap();
+    let cap = body
+        .mef(
+            MefSite::Chords {
+                he1: arc.he_minus,
+                he2: arc.he_plus,
+            },
+            EdgeCurveSpec::line_between(p1, p0),
+            FaceSurface::Shared {
+                key: plane,
+                sense: true,
+            },
+            tol,
+        )
+        .unwrap();
+    (body, cap.face)
+}
+
+/// **A planar half-disc cap** ([`arc_cap`]): the unit circle's arc from
+/// `(1, 0, 0)` to `(-1, 0, 0)` through `+y`, its end corner stored `off`
+/// along `-y` from the carrier's end. Returns the body, the cap face, and
+/// the carrier's end at `π`.
+pub fn half_disc_cap(off: f64, tol: Tol) -> (Body<f64>, FaceKey, Point3<f64>) {
+    let carrier = Curve3::Circle {
+        center: Point3::origin(),
+        axis: Vec3::unit_z(),
+        radius: 1.0,
+        u_ref: Vec3::unit_x(),
+    };
+    let span = (0.0, core::f64::consts::PI);
+    let end = carrier.eval(span.1);
+    let (body, cap) = arc_cap(carrier, span, -Vec3::unit_y() * off, tol);
+    (body, cap, end)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1646,7 +1798,6 @@ mod tests {
         let face = cyl_wall_sheet(
             &mut body,
             CylFrame::canonical(1.0),
-            Some(11),
             (0.2, 1.4),
             (0.0, 1.0),
             Tol::witness(),
@@ -1661,19 +1812,11 @@ mod tests {
             "the sheet solid alone, no scaffold: {counts:?}"
         );
 
-        // The wall and the seed face it was cut from share one
-        // cylinder key, and that key carries the source.
+        // The wall is on the frame's cylinder.
         let cyl = body.get_face(face).unwrap().surface;
         assert!(
             matches!(body.get_surface(cyl), Some(Surface::Cylinder { .. })),
             "the returned face is on the frame's cylinder"
-        );
-        assert_eq!(
-            body.surface_source(cyl),
-            Some(&crate::GeomSource::minted(11, 0)),
-            "the cylinder key carries the whole source the door mints, \
-             `node` and `expr` both — a row reading only `node` leaves \
-             the minted index asserted by nothing"
         );
 
         // No lone-vertex face is left behind: every loop this body
@@ -1724,7 +1867,6 @@ mod tests {
             &mut seeded,
             CylFrame::canonical(1.0),
             CylKey::OnSeed,
-            None,
             (0.2, 1.4),
             (0.0, 1.0),
             Tol::witness(),
@@ -1740,7 +1882,6 @@ mod tests {
             &mut bare,
             CylFrame::canonical(1.0),
             CylKey::Bare,
-            None,
             (0.2, 1.4),
             (0.0, 1.0),
             Tol::witness(),

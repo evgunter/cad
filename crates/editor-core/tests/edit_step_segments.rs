@@ -383,7 +383,7 @@ fn prism(id: &str, points: Vec<(f64, f64)>) -> (ProfileDoc, RecipeNodeId, Recipe
     let (doc, ext) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -571,7 +571,7 @@ fn loft_of_loops(
     let (doc, loft) = insert(
         doc,
         Node::Loft {
-            profiles: ids.clone(),
+            profiles: ids.clone().into_iter().map(Into::into).collect(),
             v_degree: Formula::count(1),
         },
     );
@@ -1568,7 +1568,7 @@ fn arc_prism(
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![LoopProgram::Chain(steps)],
             ids: Vec::new(),
         }),
@@ -1576,7 +1576,7 @@ fn arc_prism(
     let (doc, ext) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -1725,7 +1725,7 @@ fn a_carrier_loop_is_answered_at_every_edge() {
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![LoopProgram::CircleSplit {
                 centre: [len(0.0), len(0.0)],
                 radius: radius.clone(),
@@ -1869,7 +1869,7 @@ fn a_fillets_radius_reaches_its_arcs_wall() {
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![filleted],
             ids: Vec::new(),
         }),
@@ -1877,7 +1877,7 @@ fn a_fillets_radius_reaches_its_arcs_wall() {
     let (doc, ext) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -1929,7 +1929,7 @@ fn a_fillets_radius_reaches_its_arcs_wall() {
         (got - 0.5).abs() < 1e-9,
         "and that wall is a cylinder at the authored radius, not {got}"
     );
-    let attached: Vec<editor_core::Expr> = pv.edge_radii[0]
+    let attached: Vec<editor_core::Formula> = pv.edge_radii[0]
         .iter()
         .flatten()
         .map(|v| written(&doc, *v))
@@ -1988,7 +1988,7 @@ fn an_arrival_steps_fillet_arc_is_answered_and_its_via_arc_is_not() {
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![chain],
             ids: Vec::new(),
         }),
@@ -1996,7 +1996,7 @@ fn an_arrival_steps_fillet_arc_is_answered_and_its_via_arc_is_not() {
     let (doc, ext) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -2263,7 +2263,7 @@ fn rotated_arc_prism(
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![LoopProgram::Chain(steps)],
             ids: Vec::new(),
         }),
@@ -2271,7 +2271,7 @@ fn rotated_arc_prism(
     let (doc, ext) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -2494,7 +2494,7 @@ fn keyed_but_never_attached() -> ProfileDoc {
     let (doc, _) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![program],
             ids: Vec::new(),
         }),
@@ -2547,7 +2547,7 @@ fn a_fillet_cannot_be_a_loops_closing_corner() {
         let attempt = doc.apply(
             &editor_core::DocEdit::InsertNode {
                 node: Box::new(Node::Profile(ProfileProgram {
-                    plane,
+                    frame: plane.into(),
                     loops: vec![head(closer.clone())],
                     ids: Vec::new(),
                 })),
@@ -2663,7 +2663,7 @@ fn a_one_radius_fused_step_attaches_to_its_fillet_arc() {
         .apply(
             &editor_core::DocEdit::InsertNode {
                 node: Box::new(Node::Profile(ProfileProgram {
-                    plane,
+                    frame: plane.into(),
                     loops: vec![program],
                     ids: Vec::new(),
                 })),
@@ -2674,11 +2674,11 @@ fn a_one_radius_fused_step_attaches_to_its_fillet_arc() {
         )
         .expect("a fused step over a bulge spec is authorable and replays");
     let doc = applied.doc;
-    let profile = *doc.order().last().expect("the inserted profile node");
+    let profile = *doc.ids().last().expect("the inserted profile node");
     let (doc, ext) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -2775,7 +2775,7 @@ fn a_fused_steps_three_radii_each_reach_their_own_wall() {
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![program],
             ids: Vec::new(),
         }),
@@ -2783,7 +2783,7 @@ fn a_fused_steps_three_radii_each_reach_their_own_wall() {
     let (doc, ext) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -3328,6 +3328,6 @@ fn every_arc_mode_carries_a_radius_in_both_vocabularies_or_in_neither() {
 }
 
 /// What a program argument reading `var` was written as.
-fn written(doc: &editor_core::ProfileDoc, var: editor_core::VarId) -> editor_core::Expr {
+fn written(doc: &editor_core::ProfileDoc, var: editor_core::VarId) -> editor_core::Formula {
     doc.written(&editor_core::Expr::var(var, editor_core::Dimension::Length))
 }

@@ -2,12 +2,13 @@
 id: one-shape-placed-n-times-has-no-product
 kind: issue
 title: one shape placed N times by transforms has no product, so the chain document draws its links but checks, mass properties and export have nothing to read
-status: open
+status: closed
 priority: P1
 cost: M
 design: true
 opened: 2026-10-02
 refs: [the-solve-accepts-a-body-placed-under-two-roots, does-n3-retire-loudly-generalise-to-the-folds-other-compositions]
+closed: 2026-10-08
 ---
 
 Filed by SHOW's `gallery-writes-every-document-scene` lane, on WIRE's
@@ -60,3 +61,13 @@ transforms want a door that mints per-placement names, so the gather can
 hold N copies of one body? Or must such a document be an assembly of
 `InstantiatePart`s? If the latter, the refusal's recourse should say so,
 and the chain scene is re-authored on that door.
+
+## Closed
+
+By INTENT stage 2 unit C (`the-product-is-an-explicit-list`, branch
+`intent/s2-c-world`): the product is the world, and each copy is its
+own output with names qualified by its placement, so the once-per-product
+refusal is gone. The chain document places four bars and five pins and
+its product is nine solids: `demos/tour/src/gallery.rs`, the `chain`
+row of the gallery table. Its eleven separation findings are the
+joints no mate declares.

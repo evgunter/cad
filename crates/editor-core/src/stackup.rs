@@ -50,13 +50,10 @@
 //!
 //! **The lift's limits are not staleness.** A pass runs the guided
 //! lift and the anchor runs the build path, and there are nodes the
-//! lift refuses that the build path builds: a loft's or a sweep's
-//! section is C6/D9-pinned to `f64` (the skinned surface's structure
-//! must be lane-identical), so a seed on a parameter that section
-//! reads has nowhere to go — and a guided elaboration can refuse a
-//! decision it cannot re-confirm. Those refusals are typed at the
-//! node (`NodeErrorKind::SeedPinnedSection`, `ProfileLaneReplay`) and
-//! the pairing recognises them BY KIND: the entry becomes
+//! lift refuses that the build path builds: a guided elaboration can
+//! refuse a decision it cannot re-confirm. That refusal is typed at
+//! the node (`NodeErrorKind::ProfileLaneReplay`) and
+//! the pairing recognises it BY KIND: the entry becomes
 //! [`SensitivityOutcome::Unliftable`] — the spec's typed valve, never a
 //! finite zero and never a `PairingViolation` — and every node poisoned
 //! through that refusal is accounted to it. Any other disagreement
@@ -136,12 +133,13 @@ use topo::Body;
 use crate::analysis::{AnalyzedBox, BoxAxis, MeasureUnavailable, ParamBox};
 use crate::doc::Doc;
 use crate::drive::{CertifiedLeaf, MeasureAccounting, ParamBoxVerdict, Receipt};
+use crate::eval::measure::Observed;
 use crate::eval::{
-    BooleanValue, CancelToken, ContentKey, DatumValue, EvalOptions, EvalOutcome, Evaluation,
-    NodeErrorKind, NodeResult, NodeStanding, ProfileLift, SplitSide, ValuePayload, evaluate,
+    BooleanValue, CancelToken, ContentKey, EvalOptions, EvalOutcome, Evaluation, NodeErrorKind,
+    NodeResult, PoseValue, ProfileLift, SplitSide, ValuePayload, evaluate,
 };
 use crate::measure::AssertionVerdict;
-use crate::node::{Node, RecipeNodeId};
+use crate::node::RecipeNodeId;
 use crate::program::ProfileProgram;
 use crate::resolve::VerdictVectorKey;
 use crate::spoken::SpokenNode;
@@ -176,16 +174,6 @@ pub enum Chamber {
 /// lift's typed limits (module docs), never a finite wrong number.
 #[derive(Debug, Clone, PartialEq)]
 pub enum LiftRefusal {
-    /// The seeded parameter feeds a loft's or a sweep's SECTION, which
-    /// stays `f64` by C6/D9 (the skinned surface's knots, degrees and
-    /// control bits must be identical in every lane), so the seed has
-    /// no lane to ride in. The valve the spec's grounding names.
-    PinnedSection {
-        /// The section profile node the seed reaches and stops at.
-        section: RecipeNodeId,
-        /// The seeded variable.
-        param: VarId,
-    },
     /// The guided elaboration at the pass's scalar could not
     /// re-confirm a structure decision the build path made (a lift
     /// limitation, not a build difference: the value channel is the
@@ -226,9 +214,10 @@ pub enum SensitivityOutcome {
     /// error itself (`NodeErrorKind` is neither `Clone` nor
     /// `PartialEq`, so this entry carries its node and its rendering).
     MeasureRefused {
-        /// The refusing node — the measure, or the failed ancestor it
-        /// was poisoned through.
-        node: RecipeNodeId,
+        /// The refusing node — a measure under the value, or the
+        /// failed ancestor it was poisoned through; `None` for a value
+        /// no measure is under, whose own definition refused.
+        node: Option<RecipeNodeId>,
         /// The node error, rendered.
         cause: String,
     },
@@ -345,11 +334,10 @@ impl core::error::Error for PairingViolation {}
 /// entries, not this.
 #[derive(Debug, Clone, PartialEq)]
 pub enum SensitivityRefusal {
-    /// The named node is not a `Measure` node.
-    NotAMeasure {
-        /// The node that was asked about, spoken from the document
-        /// asked about.
-        node: SpokenNode,
+    /// The variable asked about is not a live scalar variable.
+    NotAScalar {
+        /// The variable, spoken from the document asked about.
+        var: crate::SpokenVar,
     },
     /// The chamber verdict's root box does not even name this
     /// document's continuous parameters — driven over a different
@@ -364,8 +352,8 @@ pub enum SensitivityRefusal {
         /// small `Err`.
         leaf: Box<ParamBox>,
         /// The first node whose key differs (or is missing on one
-        /// side), in evaluation order.
-        node: DivergedAt,
+        /// side), in evaluation order; boxed for the same reason.
+        node: Box<DivergedAt>,
         /// The drive's recorded key there, if the record has one.
         recorded: Option<ContentKey>,
         /// This document's replay key there, if the replay built it.
@@ -411,7 +399,11 @@ impl core::fmt::Display for DivergedAt {
 impl core::fmt::Display for SensitivityRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::NotAMeasure { node } => write!(f, "{node} is not a Measure node"),
+            Self::NotAScalar { var } => write!(
+                f,
+                "{var} is not a scalar variable of this document: a stackup is over a value, \
+                 typically a measure's output or a definition over measures' outputs"
+            ),
             Self::ForeignVerdict => f.write_str(
                 "the chamber verdict's root box does not span this document's continuous \
                  parameters — it was driven over a different parameter set and certifies \
@@ -465,14 +457,14 @@ impl core::error::Error for SensitivityRefusal {}
 /// foreign or not of this build, or the pairing gate fired.
 pub fn sensitivities(
     doc: &Doc<ProfileProgram>,
-    measure: RecipeNodeId,
+    value: VarId,
     paired: Option<&Evaluation<f64>>,
     chamber: Option<&ParamBoxVerdict>,
     parallel: bool,
     resolver: Option<&Arc<dyn crate::part::PartResolver>>,
     tol: Tol,
 ) -> Result<Vec<Sensitivity>, SensitivityRefusal> {
-    driver(doc, measure, paired, chamber, parallel, resolver, tol).map(|d| d.entries)
+    driver(doc, value, paired, chamber, parallel, resolver, tol).map(|d| d.entries)
 }
 
 /// What the driver's shared core hands back: the anchored f64 build,
@@ -486,16 +478,16 @@ struct Driven {
 
 fn driver(
     doc: &Doc<ProfileProgram>,
-    measure: RecipeNodeId,
+    value: VarId,
     paired: Option<&Evaluation<f64>>,
     chamber: Option<&ParamBoxVerdict>,
     parallel: bool,
     resolver: Option<&Arc<dyn crate::part::PartResolver>>,
     tol: Tol,
 ) -> Result<Driven, SensitivityRefusal> {
-    if !matches!(doc.node(measure), Some(Node::Measure { .. })) {
-        return Err(SensitivityRefusal::NotAMeasure {
-            node: doc.spoken(measure),
+    if doc.var(value).and_then(|v| v.kind().dimension()).is_none() {
+        return Err(SensitivityRefusal::NotAScalar {
+            var: doc.spoken_var(value),
         });
     }
     // The mark is a property of the nominal's leaf — one chamber for
@@ -555,7 +547,7 @@ fn driver(
         // typed, which is the entry's own state.
         let outcome = match pair_pass(doc, &anchor, &pass)? {
             Some((node, refusal)) => SensitivityOutcome::Unliftable { node, refusal },
-            None => read_pass(doc, &pass, measure, &chamber),
+            None => read_pass(doc, &pass, value, &chamber),
         };
         Ok(Sensitivity {
             document: doc.id(),
@@ -609,8 +601,8 @@ fn leaf_opts(box_: ParamBox, resolver: Option<&Arc<dyn crate::part::PartResolver
 }
 
 /// The stackup's NOMINAL column: the f64 value, or the typed reason
-/// there is none — distinguished from a measure node that genuinely
-/// failed, which stays an error.
+/// there is none — distinguished from a measure that genuinely failed,
+/// which stays an error.
 ///
 /// [`measure_of`] folds both into one `Err` because its other callers
 /// want that; this one is the report's advisory column and has to tell
@@ -618,83 +610,44 @@ fn leaf_opts(box_: ParamBox, resolver: Option<&Arc<dyn crate::part::PartResolver
 fn nominal_of(
     doc: &Doc<ProfileProgram>,
     ev: &Evaluation<f64>,
-    id: RecipeNodeId,
-) -> Result<Result<f64, crate::measure::MeasureUnavailableAt>, (RecipeNodeId, String)> {
-    match ev.usable(id) {
-        Ok(v) => match &v.payload {
-            ValuePayload::Measure { value, .. } => Ok(Ok(*value)),
-            ValuePayload::MeasureUnavailable { reason, .. } => Ok(Err(*reason)),
-            other => Err((
-                id,
-                format!(
-                    "node is {} {} node",
-                    crate::sentence::article(other.kind_name()),
-                    other.kind_name()
-                ),
-            )),
-        },
-        Err(standing) => Err(no_measure(doc, ev, standing)),
+    value: VarId,
+) -> Result<Result<f64, crate::measure::MeasureUnavailableAt>, (Option<RecipeNodeId>, String)> {
+    match ev.reading_spoken(doc, value)? {
+        Observed::Value(v) => Ok(Ok(v)),
+        Observed::Unavailable(reason) => Ok(Err(reason)),
     }
 }
 
-/// The refusal for a measure node with no value, rendered with the
-/// node it came from: a failed measure's own error, spoken from `doc`
-/// (a formula it carries reads by name), a poisoned one's failed
-/// ancestor's, and otherwise the standing.
-fn no_measure<T: geom_core::Decide>(
-    doc: &Doc<ProfileProgram>,
-    ev: &Evaluation<T>,
-    standing: NodeStanding,
-) -> (RecipeNodeId, String) {
-    ev.node_error(standing.node()).map_or_else(
-        || (standing.node(), standing.to_string()),
-        |e| (e.node, e.kind_spoken(doc)),
-    )
-}
-
-/// The measured value at `id`, or the refusal rendered with the node
-/// it came from (the measure itself, or the failed ancestor a poisoned
-/// measure names) — the one ladder every reader of a measure payload
-/// takes.
+/// The measured value of `value`, or the refusal rendered with the node
+/// it came from ([`Evaluation::reading`]).
+///
+/// **A measure with no value at this scalar reads as a refusal HERE**,
+/// carrying its own reason, and that is the honest shape rather than a
+/// gap in this report: E5's nominal is the f64 build's number, its
+/// per-param table is a `Dual` pass's, and a `min_clearance` has
+/// neither. So a stackup over one refuses `MeasureRefusedAtNominal`
+/// naming the scalar and the door, and the certified answer for such a
+/// measure is the per-leaf enclosure table
+/// ([`crate::report::LeafHistogram`]) rather than a nominal with
+/// contributions around it.
 fn measure_of<T: geom_core::Decide + Copy>(
     doc: &Doc<ProfileProgram>,
     ev: &Evaluation<T>,
-    id: RecipeNodeId,
-) -> Result<T, (RecipeNodeId, String)> {
-    match ev.usable(id) {
-        Ok(v) => match &v.payload {
-            ValuePayload::Measure { value, .. } => Ok(*value),
-            // **A measure with no value at this scalar reads as a
-            // refusal HERE**, carrying its own reason, and that is the
-            // honest shape rather than a gap in this report: E5's
-            // nominal is the f64 build's number, its per-param table is
-            // a `Dual` pass's, and a `min_clearance` has neither. So a
-            // stackup over one refuses `MeasureRefusedAtNominal` naming
-            // the scalar and the door, and the certified answer for
-            // such a measure is the per-leaf enclosure table
-            // ([`crate::report::LeafHistogram`]) rather than a nominal
-            // with contributions around it.
-            ValuePayload::MeasureUnavailable { reason, .. } => Err((id, format!("{reason}"))),
-            // Unreachable while the driver's front check holds (the
-            // node IS a measure and it evaluated Ok); answered as the
-            // node's own refusal rather than panicking.
-            other => Err((
-                id,
-                format!(
-                    "node evaluated to {} {} value, not a measure",
-                    crate::sentence::article(other.kind_name()),
-                    other.kind_name()
-                ),
-            )),
-        },
-        Err(standing) => Err(no_measure(doc, ev, standing)),
+    value: VarId,
+) -> Result<T, (Option<RecipeNodeId>, String)> {
+    match ev.reading_spoken(doc, value)? {
+        Observed::Value(v) => Ok(v),
+        Observed::Unavailable(reason) => Err((
+            Some(crate::eval::measure::unavailable_at(doc, value)),
+            format!("{reason}"),
+        )),
     }
 }
 
-/// One pass's reading at the measure node (E9 lives here): the tangent
-/// off the payload's public field; a non-finite tangent under a finite
-/// value is the forfeiture state, NEVER a refusal — the only refusals
-/// are the measure's own doors, carried per entry.
+/// One pass's reading of the measured value (E9 lives here): the
+/// tangent off the value's public field; a non-finite tangent under a
+/// finite value is the forfeiture state, NEVER a refusal — the only
+/// refusals are the measures' own doors, carried per entry.
 ///
 /// The finiteness test is tangent-channel float classification in the
 /// driver lane — E9's explicit reading of derivative-channel
@@ -702,10 +655,10 @@ fn measure_of<T: geom_core::Decide + Copy>(
 fn read_pass(
     doc: &Doc<ProfileProgram>,
     pass: &Evaluation<Dual64>,
-    measure: RecipeNodeId,
+    value: VarId,
     chamber: &Chamber,
 ) -> SensitivityOutcome {
-    match measure_of(doc, pass, measure) {
+    match measure_of(doc, pass, value) {
         Ok(value) => {
             let tangent = value.deriv;
             if tangent.is_finite() {
@@ -782,16 +735,6 @@ fn pair_pass(
                 }
             }
             (Some(NodeResult::Ok(_)), Some(NodeResult::Failed(e))) => match &e.kind {
-                NodeErrorKind::SeedPinnedSection { section, param } => {
-                    unlifted.insert(id);
-                    valve.get_or_insert((
-                        id,
-                        LiftRefusal::PinnedSection {
-                            section: *section,
-                            param: *param,
-                        },
-                    ));
-                }
                 NodeErrorKind::ProfileLaneReplay { loop_, step, .. } => {
                     unlifted.insert(id);
                     valve.get_or_insert((
@@ -935,46 +878,28 @@ fn payload_digest<T: ValueChannel>(payload: &ValuePayload<T>) -> u64 {
     // `value_digest_tags_reuse_no_retired_number` reads: each arm's
     // first `d.u64` after its `=>` is its tag.
     match payload {
-        ValuePayload::Datum(DatumValue::Plane { origin, normal }) => {
+        ValuePayload::Datum(PoseValue::Plane { origin, normal }) => {
             d.u64(10);
             d.point3(*origin);
             d.vec3(normal.get());
         }
-        ValuePayload::Datum(DatumValue::Axis { origin, dir }) => {
+        ValuePayload::Datum(PoseValue::Axis { origin, dir }) => {
             d.u64(11);
             d.point3(*origin);
             d.vec3(dir.get());
         }
-        ValuePayload::Datum(DatumValue::Point { position }) => {
+        ValuePayload::Datum(PoseValue::Point { position }) => {
             d.u64(12);
             d.point3(*position);
         }
-        ValuePayload::Datum(DatumValue::Frame(f)) => {
+        ValuePayload::Datum(PoseValue::Frame(f)) => {
             d.u64(13);
             d.point3(f.origin());
             d.vec3(f.u().get());
             d.vec3(f.v().get());
         }
-        ValuePayload::Datum(DatumValue::AxisInPlane {
-            plane_origin,
-            plane_dir,
-            origin,
-            dir,
-        }) => {
-            // 24, not a number among the datum arms above: the tags
-            // are the digest's wire and renumbering one would move
-            // every pinned digest that carries a later arm.
-            d.u64(24);
-            // All four fields, not just the world pair. The authored
-            // 2-D numbers are what a revolve actually reads, and this
-            // digest's contract is every scalar the payload stores —
-            // so the lift being derived from them is a reason they
-            // agree, not a reason to digest only one of the two.
-            d.scalar(plane_origin.x);
-            d.scalar(plane_origin.y);
-            d.scalar(plane_dir.x);
-            d.scalar(plane_dir.y);
-            d.point3(*origin);
+        ValuePayload::Datum(PoseValue::Direction { dir }) => {
+            d.u64(27);
             d.vec3(dir.get());
         }
         ValuePayload::Profile(p) => {
@@ -1164,7 +1089,7 @@ fn tie(
             };
             return Err(SensitivityRefusal::VerdictNotOfThisBuild {
                 leaf: Box::new(leaf.box_.clone()),
-                node,
+                node: Box::new(node),
                 recorded: r.map(|(_, k)| k),
                 replayed: p.map(|(_, k)| k),
             });
@@ -1345,8 +1270,8 @@ pub struct Stackup {
     /// The document this was taken of, the one document its human
     /// form speaks from. Outside the goldening form and its content key.
     pub document: crate::DocumentId,
-    /// The `Measure` node the report is about.
-    pub measurement: RecipeNodeId,
+    /// The measured value the report is about ([`crate::Doc::observed`]).
+    pub measurement: VarId,
     /// The f64 build's measured value — re-derived from the anchored
     /// evaluation, never handed in — or the typed reason there is none.
     ///
@@ -1429,11 +1354,7 @@ impl Stackup {
                 s,
                 "param {} sensitivity={} contribution={} chamber_span={}",
                 row.param.full(),
-                sensitivity_text(
-                    &row.sensitivity,
-                    |id| format!("node {}", id.full()),
-                    |var| format!("variable {}", var.full())
-                ),
+                sensitivity_text(&row.sensitivity, |id| format!("node {}", id.full()),),
                 match &row.contribution {
                     Ok(v) => format!("{:016x}", v.to_bits()),
                     Err(u) => format!("unavailable:{}", u.var().id().full()),
@@ -1502,11 +1423,15 @@ impl Stackup {
     /// # Panics
     ///
     /// When `doc` is not the document the stackup was taken of.
-    pub fn render<P>(&self, doc: &Doc<P>, analyzed: &crate::analysis::AnalyzedBox) -> String {
+    pub fn render<P: crate::ProfilePayload>(
+        &self,
+        doc: &Doc<P>,
+        analyzed: &crate::analysis::AnalyzedBox,
+    ) -> String {
         use core::fmt::Write as _;
         crate::spoken::assert_taken_of("this stackup", self.document, doc);
         let mut s = String::new();
-        let _ = writeln!(s, "stackup of {}", doc.spoken(self.measurement));
+        let _ = writeln!(s, "stackup of {}", doc.spoken_value(self.measurement));
         let _ = writeln!(
             s,
             "  CERTIFIED WORST CASE (the only gating number): [{}, {}] over {} certified \
@@ -1545,11 +1470,7 @@ impl Stackup {
                 s,
                 "    ∂m/∂{}: {}   contribution {}",
                 doc.spoken_var(row.param),
-                sensitivity_text(
-                    &row.sensitivity,
-                    |id| doc.spoken(id).to_string(),
-                    |var| doc.spoken_var(var).to_string()
-                ),
+                sensitivity_text(&row.sensitivity, |id| doc.spoken(id).to_string(),),
                 match &row.contribution {
                     Ok(v) => Readable(*v).to_string(),
                     Err(u) => format!("[{}]", u.respoken(doc)),
@@ -1629,21 +1550,12 @@ const RSS_BLOCKER_LEAD: &str = "      - ";
 /// When `doc` is not the document the entry was taken of.
 pub fn render_sensitivity<P>(entry: &Sensitivity, doc: &Doc<P>) -> String {
     crate::spoken::assert_taken_of("this sensitivity", entry.document, doc);
-    sensitivity_text(
-        &entry.outcome,
-        |id| doc.spoken(id).to_string(),
-        |var| doc.spoken_var(var).to_string(),
-    )
+    sensitivity_text(&entry.outcome, |id| doc.spoken(id).to_string())
 }
 
-/// One sensitivity reading, each node it names written by `node` and
-/// each variable by `var`: spoken in the human form, the full id in the
-/// goldening form.
-fn sensitivity_text(
-    outcome: &SensitivityOutcome,
-    node: impl Fn(RecipeNodeId) -> String,
-    var: impl Fn(VarId) -> String,
-) -> String {
+/// One sensitivity reading, each node it names written by `node`:
+/// spoken in the human form, the full id in the goldening form.
+fn sensitivity_text(outcome: &SensitivityOutcome, node: impl Fn(RecipeNodeId) -> String) -> String {
     match outcome {
         SensitivityOutcome::Derivative { value, chamber } => format!(
             "{value} ({})",
@@ -1655,9 +1567,13 @@ fn sensitivity_text(
         SensitivityOutcome::TangentDegraded { tangent } => {
             format!("degraded tangent ({tangent})")
         }
-        SensitivityOutcome::MeasureRefused { node: id, cause } => {
+        SensitivityOutcome::MeasureRefused {
+            node: Some(id),
+            cause,
+        } => {
             format!("refused at {}: {cause}", node(*id))
         }
+        SensitivityOutcome::MeasureRefused { node: None, cause } => format!("refused: {cause}"),
         // Spelled out rather than `Debug`-printed: this string is read
         // by a person in `render` and compared by a golden in
         // `serialize`, and `Debug` is a form neither of those wants.
@@ -1665,11 +1581,6 @@ fn sensitivity_text(
             "unliftable at {}: {}",
             node(*id),
             match refusal {
-                LiftRefusal::PinnedSection { section, param } => format!(
-                    "{} feeds the section of {}, which stays f64 (C6/D9)",
-                    var(*param),
-                    node(*section)
-                ),
                 LiftRefusal::GuidedReplay { loop_, step } => format!(
                     "the guided elaboration could not re-confirm loop {loop_} step {step} \
                      at this pass's scalar"
@@ -1723,9 +1634,10 @@ pub enum StackupRefusal {
     /// and nothing to report. The cause is the measure door's own,
     /// rendered.
     MeasureRefusedAtNominal {
-        /// The refusing node (the measure, or the ancestor it was
-        /// poisoned through), spoken from the document asked about.
-        node: SpokenNode,
+        /// The refusing node (a measure under the value, or the
+        /// ancestor it was poisoned through), spoken from the document
+        /// asked about; `None` for a value no measure is under.
+        node: Option<SpokenNode>,
         /// The node error, rendered.
         cause: String,
     },
@@ -1757,8 +1669,9 @@ pub enum StackupRefusal {
     LeafDiverged {
         /// The leaf's box, boxed so the refusal stays a small `Err`.
         leaf: Box<ParamBox>,
-        /// The refusing node, spoken from the document asked about.
-        node: SpokenNode,
+        /// The refusing node, spoken from the document asked about;
+        /// `None` for a value no measure is under.
+        node: Option<SpokenNode>,
         /// The node error, rendered.
         cause: String,
     },
@@ -1783,8 +1696,9 @@ impl core::fmt::Display for StackupRefusal {
             ),
             Self::MeasureRefusedAtNominal { node, cause } => write!(
                 f,
-                "{node} refuses at the nominal build, so there is no nominal to \
-                 report: {cause}"
+                "{} refuses at the nominal build, so there is no nominal to report: {cause}",
+                node.as_ref()
+                    .map_or_else(|| "the value".to_owned(), ToString::to_string)
             ),
             Self::NothingCertified { receipt, .. } => write!(
                 f,
@@ -1795,9 +1709,11 @@ impl core::fmt::Display for StackupRefusal {
             ),
             Self::LeafDiverged { node, cause, .. } => write!(
                 f,
-                "a certified leaf tied to this build by its content keys refused at {node} \
-                 on replay — same inputs, a different result (a D9 replay-identity \
-                 break): {cause}"
+                "a certified leaf tied to this build by its content keys refused at {} on \
+                 replay — same inputs, a different result (a D9 replay-identity break): \
+                 {cause}",
+                node.as_ref()
+                    .map_or_else(|| "the value".to_owned(), ToString::to_string)
             ),
             Self::WorstCaseUncertified { .. } => f.write_str(
                 "a certified leaf's measure enclosure carries a domain violation — a \
@@ -1842,7 +1758,7 @@ impl core::error::Error for StackupRefusal {}
 #[allow(clippy::too_many_arguments)]
 pub fn stackup(
     doc: &Doc<ProfileProgram>,
-    measure: RecipeNodeId,
+    value: VarId,
     analyzed: &AnalyzedBox,
     verdict: &ParamBoxVerdict,
     paired: Option<&Evaluation<f64>>,
@@ -1857,7 +1773,7 @@ pub fn stackup(
         anchor,
         chamber,
         entries,
-    } = driver(doc, measure, paired, Some(verdict), parallel, resolver, tol)
+    } = driver(doc, value, paired, Some(verdict), parallel, resolver, tol)
         .map_err(StackupRefusal::Sensitivity)?;
 
     // **The nominal, re-derived from the anchored build — and
@@ -1871,11 +1787,11 @@ pub fn stackup(
     // A measure that FAILED for any other reason is still fatal here:
     // `measure_of`'s other error arms mean the node did not evaluate,
     // which is a broken report and not a forfeited column.
-    let nominal = match nominal_of(doc, &anchor, measure) {
+    let nominal = match nominal_of(doc, &anchor, value) {
         Ok(n) => n,
         Err((node, cause)) => {
             return Err(StackupRefusal::MeasureRefusedAtNominal {
-                node: doc.spoken(node),
+                node: node.map(|node| doc.spoken(node)),
                 cause,
             });
         }
@@ -1889,7 +1805,7 @@ pub fn stackup(
             receipt: verdict.receipt(),
         });
     }
-    let worst_case = worst_case(doc, measure, verdict, parallel, resolver, tol)?;
+    let worst_case = worst_case(doc, value, verdict, parallel, resolver, tol)?;
 
     // The advisory columns. Half-widths and σ come off the analyzed
     // box's own axes (the pairing-safe doors), derivatives off the
@@ -1968,7 +1884,7 @@ pub fn stackup(
 
     Ok(Stackup {
         document: doc.id(),
-        measurement: measure,
+        measurement: value,
         nominal,
         chamber,
         per_param,
@@ -1989,7 +1905,7 @@ pub fn stackup(
 /// hulling a NaN.
 fn worst_case(
     doc: &Doc<ProfileProgram>,
-    measure: RecipeNodeId,
+    value: VarId,
     verdict: &ParamBoxVerdict,
     parallel: bool,
     resolver: Option<&Arc<dyn crate::part::PartResolver>>,
@@ -2030,7 +1946,7 @@ fn worst_case(
             &prior,
             crate::eval::LeafRequest {
                 keys: true,
-                measure: Some(measure),
+                measure: Some(value),
                 ..crate::eval::LeafRequest::default()
             },
             tol,
@@ -2041,7 +1957,7 @@ fn worst_case(
             .unwrap_or(Ok(None))
             .map_err(|(node, cause)| StackupRefusal::LeafDiverged {
                 leaf: Box::new(leaf.box_.clone()),
-                node: doc.spoken(node),
+                node: node.map(|node| doc.spoken(node)),
                 cause,
             })?
             .ok_or_else(|| StackupRefusal::WorstCaseUncertified {
@@ -2146,7 +2062,8 @@ mod tests {
     /// weld, so an arm with no example here fails every row that reads
     /// this.
     fn every_arm(param: &'static str) -> Vec<Unavailable> {
-        let param = crate::SpokenVar::new(crate::VarId(1), Some(VarName::from_static(param)));
+        let param =
+            crate::SpokenVar::new(crate::VarId::new(0, 1), Some(VarName::from_static(param)));
         let all = vec![
             Unavailable::TangentDegraded { var: param.clone() },
             Unavailable::MeasureRefused { var: param.clone() },
@@ -2212,7 +2129,10 @@ mod tests {
         let rendered = render_rss(
             &Rss::UnavailableBecause {
                 blockers: vec![Unavailable::Unliftable {
-                    var: crate::SpokenVar::new(crate::VarId(1), Some(VarName::from_static("w"))),
+                    var: crate::SpokenVar::new(
+                        crate::VarId::new(0, 1),
+                        Some(VarName::from_static("w")),
+                    ),
                 }],
             },
             &no_vars(),

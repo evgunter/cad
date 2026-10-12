@@ -277,7 +277,7 @@ fn assert_pierces_on_the_section(label: &str, body: &Body<f64>, d: f64) {
 /// the residual's near extreme cannot place the pierce point to within
 /// `1e-12`: the circle × sphere roots answer uncertain and every op
 /// refuses at the pierce door
-/// (`work/reach/f64-cannot-place-a-shallow-crossing-within-the-finest-band.md`).
+/// (`work/apex/f64-cannot-place-a-shallow-crossing-within-the-finest-band.md`).
 #[test]
 fn the_near_tangent_family_stops_at_1e_7_at_eps_1e_12() {
     if Tol::witness().get().eps != 1e-12 {
@@ -529,7 +529,7 @@ fn a_lens_against_a_ball_crossing_both_its_caps_builds() {
 /// partner face of the ball is both a plane×sphere germ's partner (its
 /// aux is a copy of the ball's sphere) and a sphere pair's (its aux is
 /// a radical plane). Keyed by the partner face alone, the two auxes
-/// collide and every op refuses `ResidualExceeded { Surface2Residual }`;
+/// collide and every op refuses `ResidualExceeded { SurfaceResidual }`;
 /// keyed by the datum each one is, every op builds to the oracle — in
 /// both operand orders.
 #[test]
@@ -709,8 +709,13 @@ fn the_snowman_waist_fillets() {
                 .all(|a| *a == sweep::blend::BlendArm::SphereSphereTorus),
         "every waist link takes the sphere × sphere arm, got {arms:?}"
     );
-    let out = sweep::blend::build::fillet_edges(&body, &waist, r, Tol::witness())
-        .unwrap_or_else(|e| panic!("the waist fillets, got {e:?}"));
+    let out = sweep::blend::build::fillet_edges(
+        &sweep::test_support::at_rest(&body, Tol::witness()),
+        &waist,
+        r,
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("the waist fillets, got {e:?}"));
     assert_eq!(
         topo::validate_geometric(&out.body, Tol::witness()),
         Ok(()),
@@ -1427,4 +1432,277 @@ fn the_fallback_assembly_carries_the_kept_operands_certificates() {
             );
         }
     }
+}
+
+/// **A corner at a cap circle's conventional vertex reads the circle's
+/// interior** (`docs/DESIGN.md`, maximal edges). Two cut-ins on the
+/// lens's top face leave, in the lens ∩ bricks caps, each cap circle a
+/// closed edge whose one vertex is conventional. A cube whose corner
+/// rests on the circle, its body diagonal pointing away from the cap,
+/// touches the cap at that one point. Its corner exactly at the
+/// conventional vertex, and turned 40° along the circle from it, in
+/// both member orders: every union records the touch as the corner on
+/// the circle's interior, `(u, E)`, never `(u, v)`, and tier 3′ answers
+/// alike, its curved cross-solid reach the only finding. The census
+/// still sweeps the vertex's point: stripped of its record, the corner
+/// at the vertex is an unrecorded contact, so the record is what backs
+/// it.
+#[test]
+fn a_corner_at_a_caps_conventional_vertex_reads_the_circles_interior() {
+    use geom_core::{Affine3, Point3, Vec3};
+    let tol = Tol::witness();
+    let lens = run(BooleanOp::Intersect, &ball(R1, 0.0), &ball(R2, D));
+    let bricks = run(
+        BooleanOp::Union,
+        &brick_toward(dir(68.0, 130.0), 0.985, 0.2, 0.3),
+        &brick_toward(dir(68.0, 50.0), 0.985, 0.2, 0.3),
+    );
+    let caps = run(BooleanOp::Intersect, &lens, &bricks);
+    let (x, circle) = caps
+        .vertices()
+        .find(|&(v, _)| topo::is_conventional_vertex(&caps, v))
+        .map(|(v, d)| (v, caps.get_half_edge(d.emanating.unwrap()).unwrap().edge))
+        .expect("a cap circle's conventional vertex");
+    let at_vertex = *caps.get_point(caps.get_vertex(x).unwrap().point).unwrap();
+    let geom::Curve3::Circle { center, axis, .. } = *caps
+        .get_curve_geom(caps.get_edge(circle).unwrap().curve)
+        .unwrap()
+        .certified()
+        .unwrap()
+        .carrier()
+    else {
+        panic!("the cap's edge is a circle")
+    };
+    // The cap lies on the side of its plane away from the unit sphere's
+    // centre.
+    let n = if axis.dot(center - Point3::origin()) > 0.0 {
+        axis
+    } else {
+        -axis
+    };
+    let diagonal = Vec3::new(1.0, 1.0, 1.0) / 3.0_f64.sqrt();
+    let turn = diagonal.cross(-n);
+    let aim = Affine3::rotation_about_axis(
+        Point3::origin(),
+        turn / turn.norm(),
+        turn.norm().atan2(diagonal.dot(-n)),
+    );
+    let caps = finished("the caps", caps.into_body(), tol);
+    let mut seen = Vec::new();
+    for along in [0.0_f64, 40.0] {
+        let p =
+            Affine3::rotation_about_axis(center, n, along.to_radians()).transform_point(at_vertex);
+        let cube: Body<f64> = sweep::test_support::brick((0.0, 0.1), (0.0, 0.1), (0.0, 0.1), tol);
+        let place = Affine3::translation(p - Point3::origin()) * aim;
+        let cube = finished(
+            "the cube",
+            topo::transform_rigid(&cube, &place, tol).unwrap(),
+            tol,
+        );
+        for (order, r) in [
+            topo::union(&caps, &cube, tol),
+            topo::union(&cube, &caps, tol),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let label = format!("{along}° along the circle, order {order}");
+            let Ok(topo::BooleanResult::Body(bb)) = r else {
+                panic!("{label}: builds: {r:?}")
+            };
+            let verdict: Vec<String> = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol)
+                .err()
+                .unwrap_or_default()
+                .iter()
+                .map(|e| {
+                    format!("{e:?}")
+                        .split([' ', '{', '('])
+                        .next()
+                        .unwrap()
+                        .to_owned()
+                })
+                .collect();
+            assert!(
+                verdict.iter().all(|k| k == "CensusUndecidable"),
+                "{label}: tier 3′ finds no record at fault: {verdict:?}"
+            );
+            let c = &bb.contacts;
+            let records = [
+                c.vertex_vertex().count(),
+                c.vertex_face().count(),
+                c.vertex_edge().count(),
+                c.edge_edge().count(),
+            ];
+            assert_eq!(records, [0, 0, 1, 0], "{label}: one (u, E) record");
+            let (_, e) = c.vertex_edge().next().unwrap();
+            let edge = bb.body.get_edge(e).unwrap();
+            assert!(
+                matches!(
+                    bb.body
+                        .get_curve_geom(edge.curve)
+                        .unwrap()
+                        .certified()
+                        .unwrap()
+                        .carrier(),
+                    geom::Curve3::Circle { .. }
+                ),
+                "{label}: the record's edge is the cap circle"
+            );
+            // Stripped of the record, the touch at the vertex is found:
+            // the sweeps still read a conventional vertex's point.
+            let bare: topo::ContactRecords = bb
+                .contacts
+                .rows()
+                .iter()
+                .filter(|c| !matches!(c.kind(), topo::ContactKind::VertexEdge(..)))
+                .cloned()
+                .collect();
+            let stripped: Vec<String> = topo::validate_pseudomanifold(&bb.body, &bare, tol)
+                .err()
+                .unwrap_or_default()
+                .iter()
+                .map(|e| format!("{e:?}"))
+                .filter(|e| !e.starts_with("CensusUndecidable"))
+                .collect();
+            if along == 0.0 {
+                assert!(
+                    matches!(stripped.as_slice(), [e] if e.starts_with(
+                        "UnrecordedContact { contact: VertexVertex"
+                    )),
+                    "{label}: without its record the corner at the vertex is undeclared: \
+                     {stripped:?}"
+                );
+            } else {
+                // The gap, pinned: `work/fuse/a-corner-on-a-circles-interior-is-unseen-at-tier-three-prime`.
+                assert!(
+                    stripped.is_empty(),
+                    "{label}: off the vertex the touch is on a curved edge's interior, \
+                     outside the vertex sweeps: {stripped:?}"
+                );
+            }
+            seen.push((label, records, verdict.len()));
+        }
+    }
+    for (label, records, verdict) in &seen[1..] {
+        assert_eq!(
+            (records, verdict),
+            (&seen[0].1, &seen[0].2),
+            "{label}: reads as the corner at the vertex in order 0 does"
+        );
+    }
+}
+
+/// **A plane through a cap circle at its conventional vertex cuts it as
+/// it cuts it anywhere else** (`docs/DESIGN.md`, maximal edges). The
+/// lens ∩ brick cap's circle is one closed edge with a conventional
+/// vertex. A plane through the cap's axis halves it; through the vertex
+/// and turned 40° about the axis, each op's half is the same body: the
+/// same census, no records, valid at tiers 3 and 3′, half the cap's
+/// closed form. Before the split carried a sphere general circle's
+/// fitted row, the cut through the vertex left the parent half's row
+/// spanning the whole circle.
+#[test]
+fn a_plane_through_a_caps_conventional_vertex_cuts_as_elsewhere() {
+    use geom_core::{Affine3, Point3};
+    let tol = Tol::witness();
+    let lens = run(BooleanOp::Intersect, &ball(R1, 0.0), &ball(R2, D));
+    let cap = run(
+        BooleanOp::Intersect,
+        &lens,
+        &brick_toward(dir(68.0, 50.0), 0.985, 0.2, 0.3),
+    );
+    let (x, circle) = cap
+        .vertices()
+        .find(|&(v, _)| topo::is_conventional_vertex(&cap, v))
+        .map(|(v, d)| (v, cap.get_half_edge(d.emanating.unwrap()).unwrap().edge))
+        .expect("the cap circle's conventional vertex");
+    let at_vertex = *cap.get_point(cap.get_vertex(x).unwrap().point).unwrap();
+    let geom::Curve3::Circle { center, axis, .. } = *cap
+        .get_curve_geom(cap.get_edge(circle).unwrap().curve)
+        .unwrap()
+        .certified()
+        .unwrap()
+        .carrier()
+    else {
+        panic!("the cap's edge is a circle")
+    };
+    let half = cap_volume(1.0, 0.015) / 2.0;
+    let cap = finished("the cap", cap.into_body(), tol);
+    let mut seen = Vec::new();
+    for along in [0.0_f64, 40.0] {
+        let p = Affine3::rotation_about_axis(center, axis, along.to_radians())
+            .transform_point(at_vertex);
+        let normal = axis.cross((p - center) / (p - center).norm());
+        let brick = brick_toward(normal, normal.dot(center - Point3::origin()), 3.0, 3.0);
+        for (op, r) in [
+            ("∖", topo::subtract(&cap, &brick, tol)),
+            ("∩", topo::intersect(&cap, &brick, tol)),
+        ] {
+            let label = format!("{along}° along the circle, cap {op} brick");
+            let Ok(topo::BooleanResult::Body(bb)) = r else {
+                panic!("{label}: builds: {r:?}")
+            };
+            let b = &bb.body;
+            assert_solid(&label, b, half);
+            topo::validate_pseudomanifold(b, &bb.contacts, tol)
+                .unwrap_or_else(|e| panic!("{label}: tier 3′: {e:?}"));
+            let c = &bb.contacts;
+            let got = (
+                (b.faces().count(), b.edges().count(), b.vertices().count()),
+                [
+                    c.vertex_vertex().count(),
+                    c.vertex_face().count(),
+                    c.vertex_edge().count(),
+                    c.edge_edge().count(),
+                ],
+            );
+            assert_eq!(
+                got,
+                ((3, 3, 2), [0; 4]),
+                "{label}: the half cap, no records"
+            );
+            seen.push(got);
+        }
+    }
+    assert!(seen.windows(2).all(|w| w[0] == w[1]), "one body: {seen:?}");
+}
+
+/// **A closed join through the door leaves a conventional vertex**
+/// (`Body::join_edges`, `docs/DESIGN.md`, maximal edges). The lens ∩
+/// bricks cap's circle is one closed edge whose one vertex is
+/// conventional; split at its middle, it is two arcs between two
+/// vertices of valence 2. The join door makes it one closed edge
+/// again: one join, whose survivor it reports as conventional, and the
+/// body at tier 3 with no joinable vertex left.
+#[test]
+fn a_closed_join_through_the_door_leaves_a_conventional_vertex() {
+    let tol = Tol::witness();
+    let band = geom_core::Band::linear(tol).unwrap();
+    let lens = run(BooleanOp::Intersect, &ball(R1, 0.0), &ball(R2, D));
+    let bricks = run(
+        BooleanOp::Union,
+        &brick_toward(dir(68.0, 130.0), 0.985, 0.2, 0.3),
+        &brick_toward(dir(68.0, 50.0), 0.985, 0.2, 0.3),
+    );
+    let mut caps = run(BooleanOp::Intersect, &lens, &bricks).into_body();
+    let circle = caps
+        .vertices()
+        .find(|&(v, _)| topo::is_conventional_vertex(&caps, v))
+        .map(|(_, d)| caps.get_half_edge(d.emanating.unwrap()).unwrap().edge)
+        .expect("a cap circle's conventional vertex");
+    let (t0, t1) = caps
+        .get_curve_geom(caps.get_edge(circle).unwrap().curve)
+        .and_then(topo::CurveGeom::certified)
+        .unwrap()
+        .params();
+    let counts = (caps.vertices().count(), caps.edges().count());
+    caps.split_edge(circle, 0.5 * (t0 + t1), tol).unwrap();
+    assert_eq!(topo::joinable_vertices(&caps, band).unwrap().len(), 2);
+    let joins = caps.join_edges(band, tol).unwrap();
+    assert_eq!(joins.len(), 1, "one join closes the circle");
+    let survivor = joins[0].conventional.expect("the survivor is conventional");
+    assert!(topo::is_conventional_vertex(&caps, survivor));
+    assert_eq!((caps.vertices().count(), caps.edges().count()), counts);
+    assert!(topo::joinable_vertices(&caps, band).unwrap().is_empty());
+    topo::validate_geometric(&caps, tol).unwrap();
 }

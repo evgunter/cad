@@ -3645,7 +3645,7 @@ pub(crate) mod tests {
     /// different surface's bound. The rational arm never had a
     /// whole-net counterpart — it has always been a fold.
     pub(crate) fn whole_net_bound(s: &NurbsSurface<f64>) -> Option<NurbsFaceBound> {
-        use geom_core::spline::net::TensorNet;
+        use geom_core::spline::{Derived, TensorCoeffs, TensorNet};
         assert!(
             !patch_bound::is_rational(s),
             "the whole-net spelling is the integral arm's; a rational face has no such arm"
@@ -3653,19 +3653,26 @@ pub(crate) mod tests {
         let (kv_u, kv_v) = (s.knots_u(), s.knots_v());
         patch_bound::check_direction(kv_u).ok()?;
         patch_bound::check_direction(kv_v).ok()?;
-        let kv_u1 = (kv_u.degree() >= 2)
-            .then(|| patch_bound::derived_knots(kv_u))
-            .transpose()
-            .ok()?;
-        let kv_v1 = (kv_v.degree() >= 2)
-            .then(|| patch_bound::derived_knots(kv_v))
-            .transpose()
-            .ok()?;
-        let (nu, nv) = s.control_counts();
+        let nv = kv_v.control_count();
         let zero = Interval::zero();
         let mut sq = [zero; 5];
+        // Past `check_direction`, a first partial is a spline or one
+        // span's constant, whose second partial is zero; a
+        // discontinuous one is a broken premise, said loudly.
+        fn second(
+            derived: Derived<'_, TensorCoeffs<'_>>,
+            diff: impl FnOnce(&TensorCoeffs<'_>) -> TensorNet,
+        ) -> Interval {
+            match derived {
+                Derived::Vector(t) => diff(&t).hull(),
+                Derived::SpanConstant(_) => Interval::zero(),
+                Derived::Discontinuous { .. } => {
+                    panic!("a discontinuous derivative past check_direction")
+                }
+            }
+        }
         for c in 0..3 {
-            let base = TensorNet::from_fn(nu, nv, |i, j| {
+            let base = TensorCoeffs::from_fn(kv_u, kv_v, |i, j| {
                 let p = s.control()[i * nv + j];
                 Interval::point(match c {
                     0 => p.x,
@@ -3673,11 +3680,9 @@ pub(crate) mod tests {
                     _ => p.z,
                 })
             });
-            let d10 = base.diff_u_knots(kv_u);
-            let d01 = base.diff_v_knots(kv_v);
-            let d11 = d10.diff_v_knots(kv_v);
-            let g20 = kv_u1.as_ref().map_or(zero, |k| d10.diff_u_knots(k).hull());
-            let g02 = kv_v1.as_ref().map_or(zero, |k| d01.diff_v_knots(k).hull());
+            let (d10, d01, d11) = (base.diff_u(), base.diff_v(), base.diff_uv());
+            let g20 = second(base.derived_u(), |t| t.diff_u());
+            let g02 = second(base.derived_v(), |t| t.diff_v());
             for (slot, h) in sq
                 .iter_mut()
                 .zip([g20, d11.hull(), g02, d10.hull(), d01.hull()])

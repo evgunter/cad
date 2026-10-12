@@ -12,8 +12,8 @@
 //! `reach_slab_cut_sector_side` row. Stacked discs stand in for the revolved
 //! silhouette a rook naturally is: this scene predates
 //! `ProfileShape`'s `Path` arm, which can now spell one.) On the way
-//! the user mis-picks a boolean (typed refusals), tries to crown the
-//! rook with a circular pattern and learns instances are not a body,
+//! the user tries to crown the rook with a circular pattern and learns
+//! instances are not a body,
 //! fuses the same rule into ONE body and unions THAT onto the crown,
 //! deletes that experiment (the cascade, priced by the affordance
 //! first), undoes it back, walks the history both ways, edits AFTER an
@@ -36,11 +36,12 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use viewer::session::BooleanSpec;
 
 use core::f64::consts::{FRAC_PI_2, PI};
 
 use common::{ang, body_volume, len, len3, near, scl3, session_insert, shape};
-use pncad::document::{BooleanOp, Doc, DocEdit, RecipeNodeId, SlotId};
+use pncad::document::{Doc, DocEdit, RecipeNodeId, SlotId};
 use pncad::geom_core::Tol;
 use pncad::prelude::ValuePayload;
 use viewer::props::SlotValue;
@@ -100,11 +101,19 @@ const MERLON_OFF: f64 = 0.009;
 /// the rook is drawn on five different heights up its axis, and a
 /// profile names the plane it sits on.
 const CARVED_STATES: usize = 23;
-/// Edits on the FINAL saved path: the twenty-two carving edits
-/// (`CARVED_STATES` less the root) plus the taller-drum edit. Equal to
-/// `CARVED_STATES` only because one root and one drum edit cancel —
-/// the two constants count different quantities (states vs edits).
-const SAVED_PATH_EDITS: usize = (CARVED_STATES - 1) + 1;
+/// The world's own edits among the carving actions (A10), each riding
+/// in the action that caused it: five extrudes each placed (5); the
+/// chamfer re-pointing the plinth's placement (1); four booleans each
+/// re-pointing their first operand's placement and deleting the
+/// second's (8); the transform of the cutter that boolean already
+/// withdrew, which places nothing (0); and the last boolean, whose
+/// second operand nothing places, re-pointing only (1).
+const WORLD_EDITS: usize = 15;
+/// Edits on the FINAL saved path: the twenty-two carving actions'
+/// own edits (`CARVED_STATES` less the root), the world's edits among
+/// them, and the taller-drum edit — edits, where `CARVED_STATES`
+/// counts states.
+const SAVED_PATH_EDITS: usize = (CARVED_STATES - 1) + WORLD_EDITS + 1;
 
 // --- closed forms ---------------------------------------------------
 
@@ -215,7 +224,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         "the chamfer takes about the edge prisms off: {v_plinth} vs {v_pad}"
     );
 
-    // ── The base disc, and a mis-pick at the boolean door ───────────
+    // ── The base disc ────────────────────────────────────────────────
     let base_profile = circle_at(&mut session, BASE_R, BASE_Z);
     let base = session_insert(
         &mut session,
@@ -224,35 +233,10 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
             distance: len(BASE_H),
         },
     );
-    // The user double-picks the plinth into both operand seats. The
-    // EDIT door refuses TYPED, names the node, and records nothing —
-    // layer 3 forwards that refusal rather than pre-checking the pair.
-    let states = session.history().len();
-    let mispick = session.perform(SessionOp::AddBoolean {
-        op: BooleanOp::Union,
-        a: softened,
-        b: softened,
-        declare: Vec::new(),
-    });
-    let rendered = mispick
-        .refusal
-        .as_ref()
-        .expect("a self-boolean refuses")
-        .to_string();
-    assert!(
-        rendered.contains(&format!("Chamfer {}", test_utils::refusal::tag(softened.0))),
-        "the refusal names the double-picked node: {rendered}"
-    );
-    assert!(mispick.committed.is_empty(), "a refusal commits nothing");
-    assert_eq!(session.history().len(), states, "and mints no state");
-
     let u1 = session_insert(
         &mut session,
         SessionOp::AddBoolean {
-            op: BooleanOp::Union,
-            a: softened,
-            b: base,
-            declare: Vec::new(),
+            spec: BooleanSpec::Union(vec![softened.into(), base.into()]),
         },
     );
     let v_u1 = body_volume(&mut session, u1, tol);
@@ -276,10 +260,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     let u2 = session_insert(
         &mut session,
         SessionOp::AddBoolean {
-            op: BooleanOp::Union,
-            a: u1,
-            b: shaft,
-            declare: Vec::new(),
+            spec: BooleanSpec::Union(vec![u1.into(), shaft.into()]),
         },
     );
     let v_u2 = body_volume(&mut session, u2, tol);
@@ -298,10 +279,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     let u3 = session_insert(
         &mut session,
         SessionOp::AddBoolean {
-            op: BooleanOp::Union,
-            a: u2,
-            b: drum,
-            declare: Vec::new(),
+            spec: BooleanSpec::Union(vec![u2.into(), drum.into()]),
         },
     );
     let v_u3 = body_volume(&mut session, u3, tol);
@@ -321,10 +299,10 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     let cut1 = session_insert(
         &mut session,
         SessionOp::AddBoolean {
-            op: BooleanOp::Subtract,
-            a: u3,
-            b: cutter,
-            declare: Vec::new(),
+            spec: BooleanSpec::Subtract {
+                from: u3.into(),
+                tool: cutter.into(),
+            },
         },
     );
     let v_cut1 = body_volume(&mut session, cut1, tol);
@@ -335,7 +313,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     let cutter2 = session_insert(
         &mut session,
         SessionOp::AddTransform {
-            input: cutter,
+            input: cutter.into(),
             translation: len3([0.0, 0.0, CUT2_LIFT]),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
             rotation_angle: ang(FRAC_PI_2),
@@ -344,10 +322,10 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     let carved = session_insert(
         &mut session,
         SessionOp::AddBoolean {
-            op: BooleanOp::Subtract,
-            a: cut1,
-            b: cutter2,
-            declare: Vec::new(),
+            spec: BooleanSpec::Subtract {
+                from: cut1.into(),
+                tool: cutter2.into(),
+            },
         },
     );
     let v_carved = body_volume(&mut session, carved, tol);
@@ -358,9 +336,9 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     );
     assert_eq!(session.history().len(), CARVED_STATES);
     assert_eq!(
-        session.committed_doc().roots(),
-        &[carved],
-        "one product root: the rook"
+        common::world(session.committed_doc()),
+        [carved],
+        "the world is one copy: the rook"
     );
     let carved_doc = session.committed_doc().clone();
 
@@ -388,7 +366,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     let pattern = session_insert(
         &mut session,
         SessionOp::AddPattern {
-            input: block,
+            input: block.into(),
             count: 4,
             rule: PatternRuleSpec::Circular {
                 axis,
@@ -411,10 +389,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     // consumes (the F4 division the heatsink demo documents).
     let states = session.history().len();
     let refused = session.perform(SessionOp::AddBoolean {
-        op: BooleanOp::Union,
-        a: carved,
-        b: pattern,
-        declare: Vec::new(),
+        spec: BooleanSpec::Union(vec![carved.into(), pattern.into()]),
     });
     assert!(
         matches!(
@@ -434,7 +409,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     let merlons = session_insert(
         &mut session,
         SessionOp::AddPlacedUnion {
-            input: block,
+            input: block.into(),
             count: 4,
             rule: PatternRuleSpec::Circular {
                 axis,
@@ -459,10 +434,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     let crenellated = session_insert(
         &mut session,
         SessionOp::AddBoolean {
-            op: BooleanOp::Union,
-            a: carved,
-            b: merlons,
-            declare: Vec::new(),
+            spec: BooleanSpec::Union(vec![carved.into(), merlons.into()]),
         },
     );
     // Each merlon meets the crown in its sunk slab and nowhere else,
@@ -479,33 +451,41 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
 
     // ── Deleting the experiment: the affordance prices the cascade
     //    BEFORE the click, the delete takes the cone as one action ───
+    // The crenellated rook's world placement reads the union, so it is
+    // in the cone too (A10): the cascade takes the copy with the body.
+    let rook_copy = common::copy_of(session.committed_doc(), crenellated);
     let affordance = session.delete_affordance(block);
     assert_eq!(
         affordance.label,
         format!(
-            "Delete Extrude {} and 3 dependent features",
-            test_utils::refusal::tag(block.0)
+            "Delete Extrude {} and 4 dependent features",
+            test_utils::refusal::tag(block.0.digest())
         )
     );
     assert!(
         affordance.hover.as_deref().is_some_and(|hover| {
-            ["1 × Pattern", "1 × PlacedUnion", "1 × Boolean"]
-                .iter()
-                .all(|kind| hover.contains(kind))
+            [
+                "1 × Pattern",
+                "1 × PlacedUnion",
+                "1 × Union",
+                "1 × PlaceInWorld",
+            ]
+            .iter()
+            .all(|kind| hover.contains(kind))
         }),
         "the hover names each dependent by kind: {:?}",
         affordance.hover
     );
     assert_eq!(
         affordance.cascade,
-        vec![crenellated, merlons, pattern, block],
+        vec![rook_copy, crenellated, merlons, pattern, block],
         "consumers first, the target last"
     );
     let deleted = session.perform(SessionOp::DeleteNode { node: block });
     assert!(deleted.refusal.is_none(), "{:?}", deleted.refusal);
     assert_eq!(
         deleted.committed.len(),
-        4,
+        5,
         "one delete per doomed node, recorded as ONE action"
     );
     for (edit, want) in deleted.committed.iter().zip(&affordance.cascade) {
@@ -523,7 +503,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     );
     assert!(
         doc.node(axis).is_some() && doc.node(block_profile).is_some(),
-        "nodes that only FED the target survive as roots of their own"
+        "nodes that only FED the target survive"
     );
     assert_eq!(session.history().len(), CARVED_STATES + 8);
 
@@ -627,7 +607,11 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     );
     {
         let rows = session.tree_rows();
-        assert_eq!(rows.len(), CARVED_STATES - 1, "one row per feature");
+        assert_eq!(
+            rows.len(),
+            CARVED_STATES,
+            "one row per feature, and the rook's world placement"
+        );
         assert!(
             rows.iter().all(|row| row.status == RowStatus::Ok),
             "every feature is green: {rows:?}"

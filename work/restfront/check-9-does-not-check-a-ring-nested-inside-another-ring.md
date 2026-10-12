@@ -66,3 +66,12 @@ a producer that skipped the check.
 The taker's ring-vs-ring arm should decide contact as well as nesting,
 and should run the split's nesting rows
 (`crates/sweep/tests/split_section_rings.rs`) for a regression.
+
+## The touching shape is built (branch `join/tier3-pinch-checks`)
+
+Check 9 now runs its contact arms over every pair of rings of a face
+and refuses `RingMeetsRing` (pinned by
+`validate::tests::check_9_refuses_two_rings_touching_at_a_vertex`).
+The nesting shape, one ring inside another, is still not asked, so this
+row stays open for it. `split_section_rings.rs` is in the suite and
+passes with the new arm.

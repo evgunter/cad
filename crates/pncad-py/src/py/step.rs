@@ -41,7 +41,7 @@ impl StepId {
     }
 
     fn __hash__(&self) -> u64 {
-        self.0.0
+        self.0.0.digest()
     }
 }
 

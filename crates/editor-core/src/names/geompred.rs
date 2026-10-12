@@ -66,8 +66,8 @@
 use geom_core::{Band, BandError, Decide, Sign};
 use topo::{Body, query};
 
-use crate::eval::{DatumValue, Evaluation, NodeStanding, ValuePayload};
-use crate::expr::{Dimension, Expr, VarEnv};
+use crate::eval::{Evaluation, NodeStanding, PoseValue, ValuePayload};
+use crate::expr::{Dimension, VarEnv};
 use crate::names::InterrogateError;
 use crate::names::role::StableName;
 use crate::names::table::EntityKey;
@@ -76,7 +76,8 @@ use crate::node::RecipeNodeId;
 // The kernel query seat's vocabulary, re-exported at its historical
 // home so this crate's public surface is unchanged (see the module
 // docs' layering note).
-pub use topo::query::{CurveKind, CurveKindSet, SEL_DATUM_DISTANCE, SurfaceKindSet};
+pub use crate::pose::SEL_DATUM_DISTANCE;
+pub use topo::query::{CurveKind, CurveKindSet, SurfaceKindSet};
 
 /// The comparison a [`GeomPred::DatumDistance`] makes against its
 /// stated value: the SIGN trilean, never a bare float equality.
@@ -159,9 +160,11 @@ pub enum GeomPred {
         datum: RecipeNodeId,
         /// Which side of the value a candidate must land on.
         cmp: Cmp,
-        /// The stated length. `Dimension::Length` — any other
-        /// dimension refuses.
-        value: Expr,
+        /// The stated length, as written: a quantity, or a formula
+        /// over the document's variables by id. `Dimension::Length` —
+        /// any other dimension refuses, and so does a name, which only
+        /// a document's edit door resolves.
+        value: crate::Formula,
     },
     // RESERVED, unbuilt (GS-Q2): `Convex` / `Reflex`. See the module
     // docs — the slot is named there so the door is visibly open.
@@ -189,9 +192,7 @@ pub enum GeomPred {
 /// faults of a malformed query — [`NotADatum`](Self::NotADatum),
 /// [`DatumHasNoValue`](Self::DatumHasNoValue),
 /// [`NotALength`](Self::NotALength), [`BadValue`](Self::BadValue) —
-/// and the detector's [`PairInBand`](Self::PairInBand) and
-/// [`NodeHasNoValue`](Self::NodeHasNoValue) are about the query and
-/// the pair, not about the filter's exactness.
+/// are about the query, not about the filter's exactness.
 /// One door with one contract was preferred over splitting into an
 /// infallible and a fallible materializer.
 #[derive(Debug)]
@@ -244,48 +245,11 @@ pub enum SelectRefusal {
         /// The datum node's standing.
         NodeStanding,
     ),
-    /// One of the flush detector's two nodes has no value in this
-    /// evaluation, so there is no geometry to pair.
-    NodeHasNoValue(
-        /// That node's standing.
-        NodeStanding,
-    ),
     /// The stated value is not a length (`Dimension::Length`) — the
     /// comparand of a distance must be a distance.
     NotALength {
         /// What dimension the expression actually has.
         dim: crate::expr::Dimension,
-    },
-    /// A candidate PAIR's verify-door margin landed inside the
-    /// ambiguity band, or the door could not decide it: the flush
-    /// detector reports only DEFINITE findings, and an in-band pair
-    /// must be neither reported nor silently dropped (SELECT-DESIGN
-    /// §3a) — so the query refuses and NAMES the pair. The detector's
-    /// pair-shaped sibling of [`InBand`](Self::InBand).
-    PairInBand {
-        /// The face-name pair whose margin was indeterminate.
-        pair: Box<(StableName, StableName)>,
-        /// The nodes whose outputs hold the pair's two faces — the
-        /// flush query's two nodes, which may hold names alike (two
-        /// copies of one body), so the sentence says each.
-        at: (RecipeNodeId, RecipeNodeId),
-        /// The verify-door funnel site — `bool_plane_*` on the
-        /// planar rung, `carrier_sphere_*` / `carrier_cyl_*` /
-        /// `carrier_torus_*` on the curved ones, since detection
-        /// reuses the C4 verifier's own sites per carrier kind and
-        /// mints none of its own.
-        predicate: &'static str,
-        /// The funnel's own diagnostic (margin, band, recourse).
-        source: geom_core::Indeterminate,
-    },
-    /// The flush detector's two nodes live in different spaces (A9,
-    /// A11 (2)): one is in an unplaced group's own space, and nothing
-    /// outside an unplaced group is compared with it.
-    AcrossSpaces {
-        /// The unplaced group, by its root.
-        group: RecipeNodeId,
-        /// Why nothing places it.
-        cause: crate::mate::Unplaced,
     },
     /// The stated value expression did not evaluate.
     BadValue(crate::expr::EvalError),
@@ -306,11 +270,6 @@ pub enum SelectRefusal {
     /// restated here: two copies of one derivation are two things to
     /// keep true, and this one has already drifted apart from that one.
     Band(BandError),
-    /// The detector's verify door handed back `Distinct` as a finding's
-    /// evidence, which no finding carries
-    /// ([`topo::flush::DistinctFinding`]): a kernel defect, refused
-    /// rather than reported as either class.
-    DistinctFinding(topo::flush::DistinctFinding),
 }
 
 // The human-readable rendering (LIB-DOORS F6 shape): each arm states
@@ -331,14 +290,17 @@ impl crate::spoken::Say for SelectRefusal {
         let named =
             |f: &mut core::fmt::Formatter<'_>, name: &StableName| write!(f, "{}", by.name(name));
         match self {
+            // The question closes before the name, so a name whose words
+            // run on (a join, a qualifier's list) reads as the subject in
+            // its bracket and never as more of the question.
             Self::InBand { name, source, .. } => {
-                f.write_str("select: the query cannot decide whether ")?;
-                named(f, name)?;
                 write!(
                     f,
-                    " is in or out: {}",
-                    source.under(geom_core::NO_DECLARATION_RECOURSE)
-                )
+                    "select: the query cannot decide whether the {} is in or out (",
+                    name.kind.noun()
+                )?;
+                named(f, name)?;
+                write!(f, "): {}", source.under(geom_core::COINCIDENCE_RECOURSE))
             }
             Self::TiedDisagrees {
                 name,
@@ -376,46 +338,11 @@ impl crate::spoken::Say for SelectRefusal {
                     crate::spoken::Said(standing, by)
                 )
             }
-            Self::NodeHasNoValue(standing) => {
-                write!(
-                    f,
-                    "select: the flush query's node has no value: {}",
-                    crate::spoken::Said(standing, by)
-                )
-            }
             Self::NotALength { dim } => write!(
                 f,
                 "select: the comparand of a distance is a distance, and this expression has \
                  dimension {dim}"
             ),
-            Self::PairInBand {
-                pair, at, source, ..
-            } => {
-                f.write_str("select: ")?;
-                // A name does not say the node holding it, so two copies
-                // of one body hold names alike: then each face is said
-                // with its node.
-                let (one, two) = (by.name(&pair.0).to_string(), by.name(&pair.1).to_string());
-                if one == two {
-                    write!(
-                        f,
-                        "{one} on {} and {two} on {}",
-                        by.node(at.0),
-                        by.node(at.1)
-                    )?;
-                } else {
-                    write!(f, "{one} and {two}")?;
-                }
-                // The margin is said as the sentence's own aside, so the
-                // sentence is the claim and the names' joins do not cut
-                // it off from the margin.
-                write!(
-                    f,
-                    " may coincide ({}){}",
-                    source.payload(),
-                    source.under(geom_core::NO_DECLARATION_RECOURSE).tail()
-                )
-            }
             Self::BadValue(error) => {
                 write!(f, "select: the stated value did not evaluate: {error}")
             }
@@ -423,16 +350,6 @@ impl crate::spoken::Say for SelectRefusal {
                 f,
                 "select: the ambiguity band itself could not be built from the ambient \
                  tolerance, so no comparison below it can be trusted: {error}"
-            ),
-            Self::DistinctFinding(defect) => write!(f, "select: {defect}"),
-            Self::AcrossSpaces { group, cause } => write!(
-                f,
-                "select: the two nodes live in different spaces — one is in the own space of the \
-                 group rooted at {}, unplaced because {}, and nothing outside an \
-                 unplaced group is compared with it. {}",
-                by.node(*group),
-                crate::spoken::Said(cause, by),
-                crate::sentence::Recourse(crate::mate::UNPLACED_RECOURSE)
             ),
         }
     }
@@ -495,7 +412,7 @@ pub(crate) enum Prepared<'a, T: Decide> {
     /// [`GeomPred::DatumDistance`], resolved.
     Distance {
         /// The datum's evaluated geometry.
-        datum: &'a DatumValue<T>,
+        datum: &'a PoseValue<T>,
         /// Which side of `value` a candidate must land on.
         cmp: Cmp,
         /// The stated length, evaluated.
@@ -528,11 +445,14 @@ pub(crate) fn prepare<'a, T: Decide>(
                 }
                 let v = ev.usable(*datum).map_err(SelectRefusal::DatumHasNoValue)?;
                 match &v.payload {
-                    ValuePayload::Datum(d) => Ok(Prepared::Distance {
-                        datum: d,
-                        cmp: *cmp,
-                        value: crate::expr::eval(value, params).map_err(SelectRefusal::BadValue)?,
-                    }),
+                    ValuePayload::Datum(d) if !matches!(d, PoseValue::Direction { .. }) => {
+                        Ok(Prepared::Distance {
+                            datum: d,
+                            cmp: *cmp,
+                            value: crate::expr::eval(value, params)
+                                .map_err(SelectRefusal::BadValue)?,
+                        })
+                    }
                     other => Err(SelectRefusal::NotADatum {
                         datum: *datum,
                         found: other.kind_name(),
@@ -587,7 +507,9 @@ pub(crate) fn candidate_matches<T: Decide>(
                         error,
                     }
                 })?;
-                match query::datum_distance_sign(datum, point, *value, band) {
+                let sign = crate::pose::datum_distance_sign(datum, point, *value, band)
+                    .unwrap_or_else(|| unreachable!("`prepare` admits no direction"));
+                match sign {
                     Ok(sign) => match cmp {
                         Cmp::Approx => sign == Sign::Zero,
                         Cmp::Greater => sign == Sign::Positive,
@@ -638,20 +560,16 @@ mod census {
             Unreadable,
             NotADatum,
             DatumHasNoValue,
-            NodeHasNoValue,
             NotALength,
-            PairInBand,
-            AcrossSpaces,
             BadValue,
             Band,
-            DistinctFinding,
         ];
     }
 
     fn name() -> Box<StableName> {
         Box::new(StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(7),
+            node: RecipeNodeId::new(0, 7),
             path: vec![RoleSeg::Cap(CapEnd::End)],
         })
     }
@@ -683,28 +601,15 @@ mod census {
                 error: InterrogateError::WholeBody,
             },
             SelectRefusal::NotADatum {
-                datum: RecipeNodeId(9),
+                datum: RecipeNodeId::new(0, 9),
                 found: "a body",
             },
             SelectRefusal::DatumHasNoValue(NodeStanding::Poisoned {
-                node: RecipeNodeId(9),
-                through: RecipeNodeId(4),
-            }),
-            SelectRefusal::NodeHasNoValue(NodeStanding::Failed {
-                node: RecipeNodeId(9),
+                node: RecipeNodeId::new(0, 9),
+                through: RecipeNodeId::new(0, 4),
             }),
             SelectRefusal::NotALength {
                 dim: Dimension::Angle,
-            },
-            SelectRefusal::PairInBand {
-                pair: Box::new((*name(), *name())),
-                at: (RecipeNodeId(7), RecipeNodeId(8)),
-                predicate: "bool_plane_side_of",
-                source: in_band(),
-            },
-            SelectRefusal::AcrossSpaces {
-                group: RecipeNodeId(3),
-                cause: crate::mate::Unplaced::NoOffset,
             },
             SelectRefusal::BadValue(crate::expr::EvalError::ContinuousExprInCountEval {
                 found: Dimension::Length,
@@ -713,7 +618,6 @@ mod census {
                 zero: 5e-324,
                 escalate: 5e-324,
             }),
-            SelectRefusal::DistinctFinding(topo::flush::DistinctFinding),
         ];
         let read: Vec<String> = samples
             .iter()
