@@ -43,7 +43,7 @@ fixture in `crates/geom-brep/src/ssi/enclose.rs`'s tests), translated:
 Assemble the cross from translation-free terms, either a cell-local
 origin for `A` (as `patch_bound`, `mesh::chords` and `mesh::nurbs_cert`
 do) or per-pair control-point differences (as
-`NurbsBoxes::cell_quotient_numerator` does after PR 3863), so a
+`CellNet::quotient_numerator` in `ssi/enclose.rs` does after PR 3863), so a
 translation moves the area enclosure by its rounding width. The flux
 integrand itself depends on the origin, so its width should be judged
 against the flux's own magnitude after the fix. Settle whether

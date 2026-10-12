@@ -2839,9 +2839,8 @@ mod tests {
         // norms of uncancelled vectors, a few products deep, and measure
         // 8e-16 to 4e-15: `sup‖M̃‖` 3.6e-15, the patches' speeds 2.0e-15
         // (integral) and 8.5e-16 (rational), the meters' `sup‖S_u × S_v‖`
-        // 2.2e-15 (integral) and
-        // 4.0e-15 (rational). 1e-10 is ~130× the worst and nine decades
-        // under a box fold.
+        // 2.2e-15 (integral) and 4.0e-15 (rational). 1e-10 is ~130× the
+        // worst and nine decades under a box fold.
         const DRIFT: f64 = 1e-10;
         let splits = [0.25, 0.5, 0.75];
         let base = bowed_patch()
