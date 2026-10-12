@@ -152,11 +152,13 @@ fn at_interval_a_point_polygon_lofts_on_its_value_channel() {
 
 /// At `Interval` a section vertex wider than a point has no value
 /// channel to select the skin on, and refuses by name, naming its
-/// section.
+/// section. The vertex is one ulp wide: the section still validates at
+/// every tolerance row, since the validator's margins at that vertex
+/// widen by a few ulps and stay inside the zero band.
 #[test]
 fn at_interval_a_wide_section_refuses_as_section_not_a_point() {
     let i = Interval::from_f64;
-    let wide = Interval::from_bounds(1.2 - 1e-12, 1.2 + 1e-12);
+    let wide = Interval::from_bounds(1.2, 1.2f64.next_up());
     match loft_profiles::<Interval>(
         &[
             validated(i(1.0), i(0.0), i(0.0)),
