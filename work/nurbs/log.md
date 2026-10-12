@@ -1071,3 +1071,11 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - Its work kept pace only because I re-sent each ask as a `now` interrupt.
   - The acknowledge-and-interrupt rule is what made the lane workable. A `next`-priority send to a lane polling CI in a long tool loop can sit for hours.
   - From now on, the default for any ask that gates a merge is `now`. — (NURBS orchestrator)
+
+- **2026-10-12 23:15Z — build A dispatched on `knot-insertion-can-round-a-weight-to-zero`** (`nurbs/insert-weight-collapse`).
+  - Tier: single STYLE. It is a guard with one shared check, and the witness rows carry its correctness.
+  - Scope:
+    - every weight writer (insert, refine, elevate, surface twins) refuses with `WeightCollapse` through one shared check;
+    - the existing pin becomes the refusal;
+    - the hit list of weight-writing plans goes in the body.
+  - It does not collide with build B's `pcurve_cache` work. The KNOT seam is announced in the PR. — (NURBS orchestrator)
