@@ -238,7 +238,7 @@ use geom_core::{
 
 use crate::descent::{self, Descent, Work};
 use crate::offset_meters::{MeterError, MeterResult, meter_patch, mig};
-use crate::patch_bound::{PatchBoundError, check_direction, is_rational};
+use crate::patch_bound::{PatchBoundError, check_direction, is_rational, unit_scaled_weights};
 use crate::recourse::Reading;
 use geom_core::spline::{Derived, TensorCoeffs};
 
@@ -2149,6 +2149,8 @@ impl Composite {
         fit: &NurbsSurface<f64>,
         d: f64,
     ) -> Result<Self, OffsetFitError> {
+        let (base, fit) = (unit_scaled_weights(base)?, unit_scaled_weights(fit)?);
+        let (base, fit) = (&*base, &*fit);
         let (ku, kv) = (base.knots_u(), base.knots_v());
         let rational = is_rational(base);
         // One break list per direction, carrying every operand's
@@ -3221,6 +3223,53 @@ mod tests {
                 "w coefficient {k} reads {h:?}, which misses (1 + 0.6)/2"
             );
         }
+    }
+
+    /// **One power of two on every weight moves no cell bound, and the
+    /// fit certifies as the unit face does.** At `2⁻³⁰⁰` the base's
+    /// `w³` and `w⁴` underflow to zero, so `cell_terms`' weight and
+    /// sign-witness guards would refuse every cell and the loop would
+    /// end `BoundNotFinite` with no bound behind it; at `2³⁰⁰` they
+    /// overflow; `2⁻¹⁰⁰⁰` sits at the bottom of the normal range. Each
+    /// scale, on the base or on the fit, describes the same surface,
+    /// so each cell bound is the unit pair's to the bit.
+    #[test]
+    fn a_uniform_weight_scale_moves_no_cell_bound() {
+        use crate::patch_bound::tests::weights_times_pow2;
+        let (d, tol) = (0.3, 1e-3);
+        let band = Band::linear(Tol::witness()).unwrap();
+        let unit = quarter_cylinder();
+        let (fit, cert) = super::fit_offset_at(&unit, d, tol, band).unwrap();
+        let bounds = |base: &geom::NurbsSurface<f64>, fit: &geom::NurbsSurface<f64>| {
+            let comp = Composite::build(base, fit, d).unwrap();
+            let (nu, nv) = comp.x.cell_counts();
+            (0..nu)
+                .flat_map(|su| (0..nv).map(move |sv| (su, sv)))
+                .map(|(su, sv)| comp.cell_bound(su, sv, cert.normal_floor, d).to_bits())
+                .collect::<Vec<_>>()
+        };
+        let want = bounds(&unit, &fit);
+        assert!(
+            want.iter().all(|b| f64::from_bits(*b).is_finite()),
+            "the unit pair left a cell unbounded"
+        );
+        for (kb, kf) in [(-300, 0), (300, 0), (-1000, 0), (0, -300), (-300, 600)] {
+            let got = bounds(
+                &weights_times_pow2(&unit, kb),
+                &weights_times_pow2(&fit, kf),
+            );
+            assert_eq!(got, want, "base 2^{kb}, fit 2^{kf}: a cell bound moved");
+        }
+        let (_, scaled) = super::fit_offset_at(&weights_times_pow2(&unit, -300), d, tol, band)
+            .unwrap_or_else(|e| panic!("the 2^-300 face refused: {e}"));
+        assert_eq!(scaled.rounds, 3, "the 2^-300 face's rounds");
+        assert_eq!(
+            scaled.hull_sup.to_bits(),
+            cert.hull_sup.to_bits(),
+            "the 2^-300 face certified {:e}, the unit face {:e}",
+            scaled.hull_sup,
+            cert.hull_sup
+        );
     }
 
     /// A degree-1 direction with an interior knot has a partial that
