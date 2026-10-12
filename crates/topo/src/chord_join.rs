@@ -6270,7 +6270,7 @@ mod segment_curve_tests {
 /// **A run's joint branch is a literal.** Over a box, an entry `k`
 /// periods from the previous exit as polynomials that are not constants,
 /// on a cylinder, at `k` either side of zero: the branch less `k` is the
-/// zero polynomial. And on a narrow cone, a continuous joint at a vertex
+/// zero polynomial. And on a narrow cone (`sin α ≈ 0.01`), a continuous joint at a vertex
 /// decided clear of the apex but with its lever `d·sin α` under the band
 /// takes the image itself by the near-pole read, where every mark reads
 /// Zero or in band.
@@ -6319,7 +6319,10 @@ mod nearest_branch_rows {
             half_angle: alpha,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
-        for d in [1e-8, 5e-8, 1e-7, 1e-6, 1e-5] {
+        // From the band's escalate edge, where the incidence first decides
+        // the vertex clear of the apex and its lever is a hundredth of
+        // that, to a thousand times it, where every mark decides.
+        for d in [1.0, 5.0, 10.0, 100.0, 1000.0].map(|m| m * band.escalate()) {
             let vertex = Point3::new(d * alpha.sin(), 0.0, d * alpha.cos());
             assert_eq!(
                 decide("cone_row_apex", Margin::of(d), band),

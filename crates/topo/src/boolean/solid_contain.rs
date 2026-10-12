@@ -6492,9 +6492,10 @@ mod joint_branch_rows {
     fn a_gap_in_band_of_a_half_period_mark_meets_on_neither_branch() {
         let band = Band::linear(Tol::witness()).unwrap();
         let arms = (SupSpeed::new(2.5), SupSpeed::new(0.5));
-        // `2.5·2e-9 = 5e-9` from the mark at π: inside the band, so the
-        // mark is undecided, and a half period from either branch.
-        let gap = core::f64::consts::PI + 2e-9;
+        // Midway through the band from the mark at π, metered at the
+        // rate 2.5: the mark is undecided, and a half period from either
+        // branch.
+        let gap = core::f64::consts::PI + 0.5 * (band.zero() + band.escalate()) / 2.5;
         let joint = torus_chart_joint(
             FaceKey::default(),
             (0.3 + gap, 0.2),
