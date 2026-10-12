@@ -35,7 +35,10 @@ check 1's chart gates measure against. `SpiricIdentity` holds by the
 same algebra. A whole oval on its mirror torus now mints through public
 `mvfs`, `set_face_surface` and `mef`, and tier 3 reads it clean
 (`crates/topo/tests/a_whole_spiric_oval_bounds_its_mirror_torus.rs`);
-on main, that `mef` refused with `ChartImageUnavailable`. No producer
+on main (1f7ef8844e), that `mef` refused at the edge's description
+residual ("definitely exceeds the tolerance band … this is a kernel
+defect; report it"). Main's derivation handed the mirror chart the
+OWN-torus wall image, which the residual refuses at sample 0. No producer
 reaches the class: torus×torus is unimplemented in C5, and mirror is
 unbuilt. A side effect: `Pcurve::mirror_v` is total.
 
