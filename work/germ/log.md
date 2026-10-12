@@ -1016,3 +1016,5 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
     - **A:** an anchored conic representation (re-pose the cause). Cites the Ev-ratified Q1 K rule (PR 4335).
     - **B:** a representation-independent parameter-resolution check in the attachment certificate, so the refusal names the geometry lever. B ranks re-representation second and calls the check the reversible first step. B also flags D4 ¶4's size-range gate as unimplemented.
   - **Reconciliation round 1:** each designer has the other's report verbatim (`round1.md` in its own lane dir) and is asked whether the two are a sequence.
+
+- 2026-10-12 — PR 4812 retitled `[ev] plane × quadric conic sections past their band: re-pose the conic carrier, and how a resolution limit refuses`; body rewritten as a decision document (end state agreed: anchored conic carrier; split: certificate resolution check refuses with a geometry lever (B) vs relabels only (A); PCERT's three chart fixes now; both "For Ev" sections A/B). Marked ready, subscribed. DESIGN-FORK-LOG row 121 recommendation half is on the branch (`9b4323fb2e`); the Ev/match/A-B half follows Ev's answer.
