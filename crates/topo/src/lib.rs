@@ -712,11 +712,6 @@ pub mod test_support {
             true,
             "ball_beside_a_slab_in_band_subtract",
         ),
-        (
-            "Coincidence(EdgeOnCurvedFace)",
-            true,
-            "brick_below_a_tube_union",
-        ),
     ];
 
     /// The topology-arena lengths of `body`. A free function because

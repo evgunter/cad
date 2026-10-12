@@ -28,7 +28,8 @@
 //! The coincfr4 review's poses are adopted here (its wedges W1–W6, its
 //! turned corner cc2, its bent prism, its off-axis seam) and in `sweep`'s
 //! `offer_rows` (its dome on a tube, its off-axis spheres, its balls by a
-//! slab, its brick below a tube): a harness that passes only on its own
+//! slab; its brick below a tube refuses at the glue door, offering no
+//! value): a harness that passes only on its own
 //! poses was that review's finding. The census below is keyed per
 //! decision, and [`every_site_names_the_decision_it_raises`] keys the
 //! sites.
@@ -2546,6 +2547,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::ArcSphereRoots",
         1,
     ),
+    ("glue.rs", "tangency", "Coincide::Rim", 1),
     ("insert.rs", "germ_dir", "BooleanDecision::SelfCheck", 1),
     ("insert.rs", "germ_dir", "SelfCheck::GermLine", 1),
     ("insert.rs", "record_germ_dir", "Coincide::TangentLocus", 2),
@@ -2617,7 +2619,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("mod.rs", "unsettled_rest", "Coincide::DeclaredReach", 1),
-    ("mod.rs", "route_rim", "Coincide::Rim", 2),
+    ("mod.rs", "route_rim", "Coincide::Rim", 1),
     ("mod.rs", "verify_tangency", "Coincide::Contact", 2),
     ("mod.rs", "verify_tangency", "Coincide::Rim", 1),
     ("mod.rs", "verify_tangency", "Coincide::TangentLocus", 1),

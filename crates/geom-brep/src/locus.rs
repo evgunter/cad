@@ -13,7 +13,7 @@ use crate::extent::{ExtentBall, Reach};
 use crate::intersect::{
     ParallelAxes, PlaneCylinder, RuledSection, cylinder_axes_parallel_reported,
     decide_across_reported, parallel_axes_at, parallel_cylinder_gap_reported, parallel_swing,
-    plane_cylinder_ruled,
+    plane_cylinder_ruled, ruled_gap,
 };
 
 /// **The certified-lane tangent LOCUS** (M9-2, the M9-1 PR-2 DEV-1
@@ -89,6 +89,11 @@ pub enum TangentLocusError {
 ///   `tangent_locus_internal_gap` reads `|r1 − r2| − d` the same way —
 ///   an internal tangency, which no section classifier holds — and
 ///   `tangent_locus_side` places its generator.
+///
+/// Either arm's tangency needs both rows Zero, so where the axis row is
+/// in band and the gap row still decides a crossing or a clearance, the
+/// pair is `NotTangent` on that row: a definite verdict answers before
+/// an in-band one ([`definite_over_in_band`]).
 ///
 /// `reach` is the declared pair's consumed extent, the one `topo`'s
 /// carrier-pair doors lever their ladder at.
@@ -169,7 +174,24 @@ pub fn tangent_locus<T: Decide>(
                 r: radius,
             };
             let gap = "pc_parallel_gap";
-            match plane_cylinder_ruled(&pc, reach, band).map_err(escalate)? {
+            let (ruled, axis_log) =
+                geom_core::k_stats::detached(|| plane_cylinder_ruled(&pc, reach, band));
+            let ruled = match ruled {
+                Ok(ruled) => {
+                    geom_core::k_stats::splice(axis_log);
+                    ruled
+                }
+                Err(diag) => {
+                    return Err(definite_over_in_band(diag, axis_log, || {
+                        match ruled_gap(&pc, reach, band) {
+                            Ok((Sign::Positive, _)) => Some((false, gap)),
+                            Ok((Sign::Negative, _)) => Some((true, gap)),
+                            Ok((Sign::Zero, _)) | Err(_) => None,
+                        }
+                    }));
+                }
+            };
+            match ruled {
                 Some(RuledSection::TangentLine { origin, dir, gap }) => {
                     Ok(TangentLocus::Line { origin, gap, dir })
                 }
@@ -203,60 +225,59 @@ pub fn tangent_locus<T: Decide>(
         ) => {
             // Each tangency below is one only with the axes parallel, so
             // its margin stands for both.
-            let parallel =
-                match cylinder_axes_parallel_reported(reach, (*o1, *a1), (*o2, *a2), band)
-                    .map_err(escalate)?
-                {
-                    Decided {
-                        sign: Sign::Zero,
-                        margin,
-                    } => margin,
-                    Decided { .. } => {
-                        return Err(TangentLocusError::Unsupported {
-                            what: "cylinder×cylinder tangency is closed-form only for PARALLEL \
+            let (parallel, axis_log) = geom_core::k_stats::detached(|| {
+                cylinder_axes_parallel_reported(reach, (*o1, *a1), (*o2, *a2), band)
+            });
+            let parallel = match parallel {
+                Ok(Decided {
+                    sign: Sign::Zero,
+                    margin,
+                }) => {
+                    geom_core::k_stats::splice(axis_log);
+                    margin
+                }
+                Ok(Decided { .. }) => {
+                    geom_core::k_stats::splice(axis_log);
+                    return Err(TangentLocusError::Unsupported {
+                        what: "cylinder×cylinder tangency is closed-form only for PARALLEL \
                                axes (the generator line); skew/crossing axes are outside \
                                the lane",
-                        });
-                    }
-                };
+                    });
+                }
+                Err(diag) => {
+                    return Err(definite_over_in_band(diag, axis_log, || {
+                        let dist = parallel_axes_at(reach, (*o1, *a1), (*o2, *a2)).d;
+                        let swing = parallel_swing(reach, (*o1, *a1), (*o2, *a2), dist);
+                        match parallel_cylinder_gaps((*r1, *r2), dist, swing, band) {
+                            Ok(CylinderGap::NotTangent { apart, predicate }) => {
+                                Some((apart, predicate))
+                            }
+                            Ok(CylinderGap::External(_) | CylinderGap::Internal(_)) | Err(_) => {
+                                None
+                            }
+                        }
+                    }));
+                }
+            };
             let ParallelAxes {
                 foot1,
                 d_vec: w,
                 d: dist,
             } = parallel_axes_at(reach, (*o1, *a1), (*o2, *a2));
             let swing = parallel_swing(reach, (*o1, *a1), (*o2, *a2), dist);
-            // External tangency first (|w| = r1 + r2): the common case
-            // and the flush detector's; internal (|w| = |r1 − r2|)
-            // second. Fixed probe order (D9).
-            match parallel_cylinder_gap_reported((*r1, *r2), dist, swing, band).map_err(escalate)? {
-                (Sign::Zero, gap) => {
+            match parallel_cylinder_gaps((*r1, *r2), dist, swing, band).map_err(escalate)? {
+                CylinderGap::External(gap) => {
                     let w_hat = w.normalize();
-                    return Ok(TangentLocus::Line {
+                    Ok(TangentLocus::Line {
                         origin: foot1 + w_hat * *r1,
                         gap: gap.jointly(parallel),
                         dir: *a1,
-                    });
+                    })
                 }
-                (Sign::Negative, _) => {
-                    return Err(TangentLocusError::NotTangent {
-                        apart: true,
-                        predicate: "cc_parallel_gap",
-                    });
+                CylinderGap::NotTangent { apart, predicate } => {
+                    Err(TangentLocusError::NotTangent { apart, predicate })
                 }
-                (Sign::Positive, _) => {}
-            }
-            // The internal gap moves with the axes' distance, so it is
-            // read across the reach as the external one is.
-            let internal = "tangent_locus_internal_gap";
-            match decide_across_reported(
-                [internal, "tangent_locus_internal_gap_floor"],
-                (*r1 - *r2).abs() - dist,
-                swing,
-                band,
-            )
-            .map_err(escalate)?
-            {
-                (Sign::Zero, gap) => {
+                CylinderGap::Internal(gap) => {
                     // Internal tangency: the smaller cylinder rests
                     // inside the larger; the generator sits on the
                     // offset direction at the LARGER radius from the
@@ -300,18 +321,6 @@ pub fn tangent_locus<T: Decide>(
                         dir: *a1,
                     })
                 }
-                // dist < |r1 − r2|: one cylinder nested strictly inside
-                // the other, their minimum distance |r1 − r2| − dist
-                // definitely positive: apart.
-                (Sign::Positive, _) => Err(TangentLocusError::NotTangent {
-                    apart: true,
-                    predicate: internal,
-                }),
-                // |r1 − r2| < dist < r1 + r2: the surfaces cross.
-                (Sign::Negative, _) => Err(TangentLocusError::NotTangent {
-                    apart: false,
-                    predicate: internal,
-                }),
             }
         }
         _ => Err(TangentLocusError::Unsupported {
@@ -319,6 +328,92 @@ pub fn tangent_locus<T: Decide>(
                    cylinder pairs only (the DEV-1 certified set)",
         }),
     }
+}
+
+/// **Definite counter-evidence answers before an in-band parallelism.**
+/// Each closed-form tangency needs its axis row Zero AND its gap row
+/// Zero, so where the axis row is in band (`diag`, its run `axis_log`)
+/// and the gap row, read across the reach with the tilt beside it,
+/// still decides a crossing or a clearance (`refute`'s `(apart,
+/// predicate)`), the pair is definitely not tangent and the axis row's
+/// escalation is superseded. Otherwise the escalation stands, and the
+/// gap reading it rests on nothing is dropped.
+fn definite_over_in_band(
+    diag: Indeterminate,
+    axis_log: geom_core::k_stats::Detached,
+    refute: impl FnOnce() -> Option<(bool, &'static str)>,
+) -> TangentLocusError {
+    let (refuted, gap_log) = geom_core::k_stats::detached(refute);
+    match refuted {
+        Some((apart, predicate)) => {
+            geom_core::k_stats::splice_superseded(axis_log);
+            geom_core::k_stats::splice(gap_log);
+            TangentLocusError::NotTangent { apart, predicate }
+        }
+        None => {
+            geom_core::k_stats::splice(axis_log);
+            drop(gap_log);
+            TangentLocusError::Escalated(diag)
+        }
+    }
+}
+
+/// What a parallel cylinder pair's gap rows read.
+enum CylinderGap {
+    /// `r1 + r2 − d` Zero: external tangency, with its margin.
+    External(MarginDiag),
+    /// `|r1 − r2| − d` Zero: internal tangency, with its margin.
+    Internal(MarginDiag),
+    /// A definite clearance or crossing, with the row that decided it.
+    NotTangent {
+        apart: bool,
+        predicate: &'static str,
+    },
+}
+
+/// **The gap rows of two cylinders whose axes stand `d` apart**, each
+/// read across the reach with the axes' `swing` beside it: external
+/// tangency first (`|w| = r1 + r2`, the common case and the flush
+/// detector's), internal (`|w| = |r1 − r2|`) second. Fixed probe order
+/// (D9).
+fn parallel_cylinder_gaps<T: Decide>(
+    radii: (T, T),
+    d: T,
+    swing: T,
+    band: Band,
+) -> Result<CylinderGap, Indeterminate> {
+    match parallel_cylinder_gap_reported(radii, d, swing, band)? {
+        (Sign::Zero, gap) => return Ok(CylinderGap::External(gap)),
+        (Sign::Negative, _) => {
+            return Ok(CylinderGap::NotTangent {
+                apart: true,
+                predicate: "cc_parallel_gap",
+            });
+        }
+        (Sign::Positive, _) => {}
+    }
+    let internal = "tangent_locus_internal_gap";
+    Ok(
+        match decide_across_reported(
+            [internal, "tangent_locus_internal_gap_floor"],
+            (radii.0 - radii.1).abs() - d,
+            swing,
+            band,
+        )? {
+            (Sign::Zero, gap) => CylinderGap::Internal(gap),
+            // d < |r1 − r2|: one cylinder nested strictly inside the
+            // other, their least distance definitely positive.
+            (Sign::Positive, _) => CylinderGap::NotTangent {
+                apart: true,
+                predicate: internal,
+            },
+            // |r1 − r2| < d < r1 + r2: the surfaces cross.
+            (Sign::Negative, _) => CylinderGap::NotTangent {
+                apart: false,
+                predicate: internal,
+            },
+        },
+    )
 }
 
 #[cfg(test)]
@@ -492,6 +587,79 @@ mod tests {
                 "the axis row escalates"
             ),
             other => panic!("the tilt levered across the extent reads in band: {other:?}"),
+        }
+    }
+
+    /// **A definite gap answers before an in-band tilt.** The plane
+    /// pair above over the 10 m patch, its axis tilt in band, with the
+    /// axis lowered or raised half a metre: no tilt in band closes a
+    /// half-metre crossing or clearance, so the pair is definitely not
+    /// tangent, on the gap row. At the tangent height the gap reads
+    /// zero and the axis row's escalation stands.
+    #[test]
+    fn a_definite_gap_refuses_a_plane_pair_whose_tilt_is_in_band() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let theta: f64 = 0.3 * band.zero();
+        let plane = Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let cyl = |height: f64| Surface::Cylinder {
+            origin: Point3::new(0.0, 0.0, height),
+            axis: Vec3::new(theta.cos(), 0.0, theta.sin()),
+            radius: 1.0,
+            u_ref: Vec3::unit_z(),
+        };
+        let ten = ExtentBall::new(Point3::new(5.0, 0.0, 0.0), 5.0);
+        for (height, want_apart, why) in [(0.5, false, "crossing"), (1.5, true, "clear")] {
+            match tangent_locus(&plane, &cyl(height), ten, band) {
+                Err(TangentLocusError::NotTangent { apart, predicate }) => {
+                    assert_eq!(apart, want_apart, "{why}");
+                    assert_eq!(predicate, "pc_parallel_gap", "{why}");
+                }
+                other => panic!("{why}: the gap refutes the tangency: {other:?}"),
+            }
+        }
+        match tangent_locus(&plane, &cyl(1.0), ten, band) {
+            Err(TangentLocusError::Escalated(d)) => {
+                assert_eq!(d.predicate, Some("pc_axis_plane_parallel"));
+            }
+            other => panic!("at the tangent height the tilt escalates: {other:?}"),
+        }
+    }
+
+    /// The same for two cylinders: unit cylinders along `x` over the
+    /// 10 m patch, the second's axis tilted in band, their axes 3 m
+    /// apart (clear of each other) or 1 m apart (crossing). At 2 m the
+    /// external gap reads zero and the axis row's escalation stands.
+    #[test]
+    fn a_definite_gap_refuses_a_cylinder_pair_whose_tilt_is_in_band() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let theta: f64 = 0.3 * band.zero();
+        let along = |y: f64, tilt: f64| Surface::Cylinder {
+            origin: Point3::new(0.0, y, 0.0),
+            axis: Vec3::new(tilt.cos(), 0.0, tilt.sin()),
+            radius: 1.0,
+            u_ref: Vec3::unit_z(),
+        };
+        let ten = ExtentBall::new(Point3::new(5.0, 0.0, 0.0), 5.0);
+        for (y, want, why) in [
+            (3.0, (true, "cc_parallel_gap"), "clear"),
+            (1.0, (false, "tangent_locus_internal_gap"), "crossing"),
+        ] {
+            match tangent_locus(&along(0.0, 0.0), &along(y, theta), ten, band) {
+                Err(TangentLocusError::NotTangent { apart, predicate }) => {
+                    assert_eq!((apart, predicate), want, "{why}");
+                }
+                other => panic!("{why}: the gap refutes the tangency: {other:?}"),
+            }
+        }
+        match tangent_locus(&along(0.0, 0.0), &along(2.0, theta), ten, band) {
+            Err(TangentLocusError::Escalated(d)) => {
+                assert_eq!(d.predicate, Some("cc_axes_parallel"));
+            }
+            other => panic!("at the tangent distance the tilt escalates: {other:?}"),
         }
     }
 }

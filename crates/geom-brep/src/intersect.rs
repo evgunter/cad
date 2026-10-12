@@ -992,32 +992,20 @@ fn plane_cylinder_ruled_read<T: Decide>(
     reach: &Reach<T>,
     band: Band,
 ) -> Result<(Decided, Option<RuledSection<T>>), Indeterminate> {
-    let &PlaneCylinder { q, n, o, a, r } = pc;
-    let o = reach.foot_on(o, a);
-    let c = a.dot(n);
-    let gap_signed = (o - q).dot(n);
-    // The rulings this lane mints stand on the hinge through `o − n·gap`,
-    // `−gap·c` along the axis from the foot; the reach is levered from
-    // there (`geom_brep::extent`'s module docs).
-    let hinge = o - n * gap_signed;
-    let cos = (T::one() - c.powi(2)).max(T::zero()).sqrt();
-    let lever = reach.hinge_lever(o, -(gap_signed * c)) + reach.turn_lever(hinge, (n, a), c, cos);
+    let RuledFrame {
+        o,
+        c,
+        gap_signed,
+        lever,
+    } = ruled_frame(pc, reach);
+    let (n, a, r) = (pc.n, pc.a, pc.r);
     // A tangent line's Zero is one only with this one, so its margin
     // stands for both.
     let parallel = decide_reported("pc_axis_plane_parallel", Margin::levered(c, lever), band)?;
     if parallel.sign != Sign::Zero {
         return Ok((parallel, None));
     }
-    // A consumed point of the ruling stands off the plane by the tilt
-    // levered from the hinge, and the wall stands `r − |gap|` off the
-    // plane at the foot: the ruling stands at most their sum off the
-    // section, so the gap is read across the reach with the tilt beside it.
-    let section = match decide_across_reported(
-        ["pc_parallel_gap", "pc_parallel_gap_floor"],
-        r - gap_signed.abs(),
-        Margin::levered(c, lever).value(),
-        band,
-    )? {
+    let section = match ruled_gap(pc, reach, band)? {
         (Sign::Positive, _) => {
             // Cross-section chord: the plane cuts the circle at
             // foot ± w·half, foot the axis' plane projection.
@@ -1043,6 +1031,65 @@ fn plane_cylinder_ruled_read<T: Decide>(
         (Sign::Negative, _) => RuledSection::Empty,
     };
     Ok((parallel, Some(section)))
+}
+
+/// The axis-in-plane lane's frame: the foot of `reach`'s point on the
+/// axis, the axis' normal component `c`, the foot's signed height over
+/// the plane, and the lever the tilt is read at.
+struct RuledFrame<T: Real> {
+    o: Point3<T>,
+    c: T,
+    gap_signed: T,
+    lever: T,
+}
+
+fn ruled_frame<T: Decide>(pc: &PlaneCylinder<T>, reach: &Reach<T>) -> RuledFrame<T> {
+    let &PlaneCylinder { q, n, o, a, .. } = pc;
+    let o = reach.foot_on(o, a);
+    let c = a.dot(n);
+    let gap_signed = (o - q).dot(n);
+    // The rulings this lane mints stand on the hinge through `o − n·gap`,
+    // `−gap·c` along the axis from the foot; the reach is levered from
+    // there (`geom_brep::extent`'s module docs).
+    let hinge = o - n * gap_signed;
+    let cos = (T::one() - c.powi(2)).max(T::zero()).sqrt();
+    let lever = reach.hinge_lever(o, -(gap_signed * c)) + reach.turn_lever(hinge, (n, a), c, cos);
+    RuledFrame {
+        o,
+        c,
+        gap_signed,
+        lever,
+    }
+}
+
+/// **The axis-in-plane lane's gap row**, `pc_parallel_gap`: a consumed
+/// point of a ruling stands off the plane by the tilt levered from the
+/// hinge, and the wall stands `r − |gap|` off the plane at the foot, so
+/// the ruling stands at most their sum off the section and the gap is
+/// read across the reach with the tilt beside it. Positive crosses,
+/// Negative clears, Zero touches along the ruling.
+///
+/// It reads whatever `pc_axis_plane_parallel` decides: a definite sign
+/// here is a crossing or a clearance no tilt within the swing closes,
+/// which is how the tangent-locus lane refuses a pair the axis row
+/// leaves in band ([`crate::tangent_locus`]).
+pub(crate) fn ruled_gap<T: Decide>(
+    pc: &PlaneCylinder<T>,
+    reach: &Reach<T>,
+    band: Band,
+) -> Result<(Sign, MarginDiag), Indeterminate> {
+    let RuledFrame {
+        c,
+        gap_signed,
+        lever,
+        ..
+    } = ruled_frame(pc, reach);
+    decide_across_reported(
+        ["pc_parallel_gap", "pc_parallel_gap_floor"],
+        pc.r - gap_signed.abs(),
+        Margin::levered(c, lever).value(),
+        band,
+    )
 }
 
 /// A plane×cylinder pair: the plane's origin `q` and unit normal `n`,

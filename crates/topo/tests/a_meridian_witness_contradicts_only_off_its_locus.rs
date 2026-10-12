@@ -3,9 +3,10 @@
 //! spine is tangent to it along a whole MERIDIAN circle
 //! (`geom_brep::tangent_certificate_lane`'s docs). The sag there is
 //! tenths of a metre, so the gate can neither verify nor, on the exact
-//! locus, contradict; a witness lifted definitely off the locus is a
-//! measured miss whatever the sag, and contradicts. (Under the gate that
-//! subtracted the sag, all three rows read `Ok(Bridged)`.)
+//! locus, contradict: every reading is definite and the refusal rests
+//! on the sag alone, so the certificate does not reach the span. A
+//! witness lifted definitely off the locus is a measured miss whatever
+//! the sag, and contradicts.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -68,23 +69,20 @@ fn read(lift: f64) -> Result<topo::contact::ContactVerdict, ContactRefusal> {
 }
 
 #[test]
-fn the_exact_meridian_escalates_on_its_sample() {
+fn the_exact_meridian_is_not_certifiable_on_its_sample() {
     let out = read(0.0);
-    let Err(ContactRefusal::Escalated { diag }) = out else {
-        panic!("on the locus, an unbounded span neither verifies nor contradicts: {out:?}");
-    };
-    assert_eq!(
-        diag.predicate,
-        Some("contact_tangent_on_1"),
-        "the span bound is the cause"
+    assert!(
+        matches!(out, Err(ContactRefusal::NotCertifiable { .. })),
+        "on the locus, an unbounded span neither verifies nor contradicts, and no \
+         reading is in band: {out:?}"
     );
 }
 
 #[test]
-fn a_meridian_lifted_inside_the_zero_band_still_escalates() {
+fn a_meridian_lifted_inside_the_zero_band_is_not_certifiable() {
     let out = read(0.5 * band().zero());
     assert!(
-        matches!(out, Err(ContactRefusal::Escalated { .. })),
+        matches!(out, Err(ContactRefusal::NotCertifiable { .. })),
         "a sample within ε is not a miss: {out:?}"
     );
 }
@@ -104,16 +102,16 @@ fn a_meridian_lifted_beyond_the_band_contradicts_under_the_sag() {
 
 /// The span-too-wide refusal rests on two DEFINITE readings (the span
 /// bound decided past the band, the sample decided on the surface), so
-/// it is built off the frame's escalation log: a node that builds past
-/// an unglued pair must not read to the driver as undecided. Both
-/// readings stay on the verdict log.
+/// it is no escalation and stays off the frame's escalation log: a node
+/// that builds past an unglued pair must not read to the driver as
+/// undecided. Both readings stay on the verdict log.
 #[test]
 fn the_span_too_wide_refusal_is_not_on_the_escalation_log() {
     let bracket = geom_core::k_stats::Bracket::open();
     let out = read(0.0);
     let log = bracket.finish();
     assert!(
-        matches!(out, Err(ContactRefusal::Escalated { .. })),
+        matches!(out, Err(ContactRefusal::NotCertifiable { .. })),
         "{out:?}"
     );
     assert!(

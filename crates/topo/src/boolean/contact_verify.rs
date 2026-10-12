@@ -680,24 +680,15 @@ fn tangent_table<T: Decide>(
     // The touch between samples: the worst sampled separation plus its
     // certified sag (`TangentSpanBounds::gap_sag`), the edge
     // certifier's `tangent_gap_hull_sup` statement. Every sample decided
-    // on the surfaces, so a refusal here rests on the sag and carries
-    // this reading.
+    // touching, so an in-band span escalates on this reading and one
+    // beyond the band rests on the sag alone.
     let touch = match geom_core::k_stats::decide_magnitude_reported(
         "contact_tangent_touch",
         Margin::of(gap_max + bounds.gap_sag),
         band,
     ) {
         Ok((Magnitude::Zero, margin)) => margin,
-        Ok((Magnitude::Positive, margin)) => {
-            return Err(ContactRefusal::Escalated {
-                diag: Indeterminate {
-                    margin,
-                    band,
-                    predicate: Some("contact_tangent_touch"),
-                    terminal_sliver: false,
-                },
-            });
-        }
+        Ok((Magnitude::Positive, _)) => return Err(SAG_UNREACHED),
         Err(diag) => return Err(ContactRefusal::Escalated { diag }),
     };
     let verdict = if bridged {
@@ -788,10 +779,13 @@ fn touching<T: Decide>(
 ///   been read touching there ([`touching`]), so the miss is the
 ///   witness's, a bad cache, and no gap could help: no `Fit` steer. The
 ///   refusal carries the `off` reading;
-/// - escalated between. An in-band far side is its own escalation. A
-///   far side decided beyond the band beside a sample decided on the
-///   surface rests on the sag, so the refusal carries the `on` reading
-///   and its margin; an in-band sample carries its own.
+/// - escalated where a reading is in band: an in-band far side, or an
+///   in-band sample under a far side decided beyond the band, each
+///   carrying its own reading;
+/// - not certifiable where none is: a far side decided beyond the band
+///   beside a sample decided on the surface rests on the sag alone, so
+///   the certificate does not reach the span, which no in-band geometry
+///   caused.
 ///
 /// MUST-VERIFY-DEFINITE (C4): "the witness within ε of each surface".
 /// The in-band residual is not the bridged residue — that list holds
@@ -809,11 +803,11 @@ fn on_surface<T: Decide>(
         terminal_sliver: false,
     };
     let far = geom_core::k_stats::decide_magnitude_reported(on, Margin::of(r.abs() + sag), band);
-    let far_margin = match far {
+    match far {
         Ok((Magnitude::Zero, _)) => return Ok(()),
-        Ok((Magnitude::Positive, margin)) => margin,
+        Ok((Magnitude::Positive, _)) => {}
         Err(diag) => return Err(ContactRefusal::Escalated { diag }),
-    };
+    }
     match crate::validate::decide_reported(off, Margin::of(r), band) {
         Ok(geom_core::Decided {
             sign: Sign::Positive | Sign::Negative,
@@ -824,12 +818,17 @@ fn on_surface<T: Decide>(
         }),
         Ok(geom_core::Decided {
             sign: Sign::Zero, ..
-        }) => Err(ContactRefusal::Escalated {
-            diag: reading(on, far_margin),
-        }),
+        }) => Err(SAG_UNREACHED),
         Err(diag) => Err(ContactRefusal::Escalated { diag }),
     }
 }
+
+/// A span the jet schedule's sag does not reach: every sample decided,
+/// and only the bound between them beyond the band.
+const SAG_UNREACHED: ContactRefusal = ContactRefusal::NotCertifiable {
+    what: "the jet schedule's span sag does not reach: every sample is decided, and the \
+           bound between them stands beyond the band",
+};
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -1028,6 +1027,7 @@ mod tests {
             On,
             Escalated,
             Contradicted,
+            NotCertifiable,
         }
         for (r, sag, want, why) in [
             (0.0, 0.0, Want::On, "an exact sample, no sag"),
@@ -1041,7 +1041,7 @@ mod tests {
             (
                 0.0,
                 big,
-                Want::Escalated,
+                Want::NotCertifiable,
                 "on at the sample, a sag beyond K·ε between",
             ),
             (
@@ -1059,6 +1059,12 @@ mod tests {
             (
                 0.6 * eps,
                 big,
+                Want::NotCertifiable,
+                "a sample within ε under a large sag",
+            ),
+            (
+                3.0 * eps,
+                big,
                 Want::Escalated,
                 "an in-band sample under a large sag",
             ),
@@ -1066,12 +1072,10 @@ mod tests {
             let got = match on_surface(["probe_on", "probe_off"], r, sag, b) {
                 Ok(()) => Want::On,
                 Err(ContactRefusal::Escalated { diag }) => {
-                    // The sample decided on the surface: the sag is the cause.
-                    if r == 0.0 {
-                        assert_eq!(diag.predicate, Some("probe_on"), "{why}");
-                    }
+                    assert!(!diag.margin.is_invalid(), "{why}: the in-band reading");
                     Want::Escalated
                 }
+                Err(ContactRefusal::NotCertifiable { .. }) => Want::NotCertifiable,
                 Err(ContactRefusal::Contradicted { diag, .. }) => {
                     assert_eq!(diag.predicate, Some("probe_off"), "{why}");
                     assert!(!diag.margin.is_invalid(), "{why}: the measured margin");

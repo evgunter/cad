@@ -5227,7 +5227,8 @@ fn verify_declared_contacts<T: Decide>(
                 // Every refusal is the op's: the door glued this pair on
                 // the same reading.
                 let spent = DeclarationRead::Spent(GlueClass::Tangent);
-                let tangency = glued_tangency(a, fa, b, fb, spent, band)?;
+                let tangency = glued_tangency(a, fa, b, fb, spent, band)
+                    .map_err(|f| f.refusal(fa, fb, spent))?;
                 verified
                     .coincidences
                     .push(tangent_row(fa, fb, tangency.margin));
@@ -5530,6 +5531,9 @@ pub(crate) enum TangencyFailure {
     /// A refusal no reading of the pair settles: an in-band margin, an
     /// unreadable face.
     Refused(BooleanError),
+    /// Along a rim, a junction the routing places outside what the zip
+    /// builds (a cusp, or one it cannot place), refused as itself.
+    Unrouted(BooleanError),
 }
 
 impl TangencyFailure {
@@ -5542,7 +5546,7 @@ impl TangencyFailure {
         match self {
             Self::Contradicted { fact, margin } => glue_contradicted(fa, fb, class, fact, margin),
             Self::Unsupported => BooleanError::UnsupportedDeclarationClass { class },
-            Self::Refused(e) => e,
+            Self::Refused(e) | Self::Unrouted(e) => e,
         }
     }
 }
@@ -5730,11 +5734,12 @@ pub(crate) fn tangent_pair_at_rest<T: Decide>(
     })
 }
 
-/// **The glue door's tangency, as a glued pair's refusal**: the check
-/// ([`verify_tangency`]), and along a rim the routing ([`route_rim`]),
-/// each failure refused under `read`. The door
-/// ([`glue::decided_declarations`]) reads any refusal as no tangency; the
-/// op ([`verify_declared_contacts`]) propagates it.
+/// **The glue door's tangency**: the check ([`verify_tangency`]), and
+/// along a rim the routing ([`route_rim`]). The door
+/// ([`glue::decided_declarations`]) reads a refusal no reading settles
+/// as the operation's and every other failure as no tangency; the op
+/// ([`verify_declared_contacts`]) refuses each failure under its read
+/// ([`TangencyFailure::refusal`]).
 pub(crate) fn glued_tangency<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
@@ -5742,9 +5747,8 @@ pub(crate) fn glued_tangency<T: Decide>(
     fb: FaceKey,
     read: DeclarationRead,
     band: Band,
-) -> Result<Tangency<T>, BooleanError> {
-    let tangency =
-        verify_tangency(a, fa, b, fb, read, band).map_err(|f| f.refusal(fa, fb, read))?;
+) -> Result<Tangency<T>, TangencyFailure> {
+    let tangency = verify_tangency(a, fa, b, fb, read, band)?;
     if let rim_wedge::Locus::Rim(rim) = tangency.locus {
         route_rim(a, fa, b, fb, rim, read, band)?;
     }
@@ -5760,15 +5764,10 @@ pub(crate) fn verify_tangent_declaration<T: Decide>(
     fb: FaceKey,
     band: Band,
 ) -> Result<(), BooleanError> {
-    glued_tangency(
-        a,
-        fa,
-        b,
-        fb,
-        DeclarationRead::Spent(GlueClass::Tangent),
-        band,
-    )
-    .map(|_| ())
+    let spent = DeclarationRead::Spent(GlueClass::Tangent);
+    glued_tangency(a, fa, b, fb, spent, band)
+        .map(|_| ())
+        .map_err(|f| f.refusal(fa, fb, spent))
 }
 
 /// A glued face's carrier and orientation bit, read off one lookup: a
@@ -5999,19 +5998,21 @@ fn route_rim<T: Decide>(
     rim: rim_wedge::Rim<T>,
     read: DeclarationRead,
     band: Band,
-) -> Result<(), BooleanError> {
-    let unplaced = BooleanError::UnsupportedDeclarationClass {
+) -> Result<(), TangencyFailure> {
+    use TangencyFailure::{Refused, Unrouted};
+    let unplaced = Unrouted(BooleanError::UnsupportedDeclarationClass {
         class: GlueClass::Tangent,
-    };
-    let (sa, sense_a) = glued_face(a, fa, Operand::A)?;
-    let (sb, sense_b) = glued_face(b, fb, Operand::B)?;
+    });
+    let in_band = |diag| Refused(BooleanError::coincidence(Coincide::Rim, read, diag));
+    let (sa, sense_a) = glued_face(a, fa, Operand::A).map_err(Refused)?;
+    let (sb, sense_b) = glued_face(b, fb, Operand::B).map_err(Refused)?;
     let extent = rim.radius + rim.radius;
     let routing = rim_wedge::classify_shared_rim(&sa, sense_a, &sb, sense_b, rim, extent, band)
-        .map_err(|diag| BooleanError::coincidence(Coincide::Rim, read, diag))?;
+        .map_err(in_band)?;
     match routing {
         rim_wedge::RimRouting::Seam => {
             match rim_wedge::departures(a, fa, b, fb, rim_wedge::Locus::Rim(rim), band)
-                .map_err(|diag| BooleanError::coincidence(Coincide::Rim, read, diag))?
+                .map_err(in_band)?
             {
                 rim_wedge::Departure::Opposite => Ok(()),
                 rim_wedge::Departure::Same
@@ -6021,21 +6022,21 @@ fn route_rim<T: Decide>(
                 | rim_wedge::Departure::EdgeKindUnread => Err(unplaced),
             }
         }
-        rim_wedge::RimRouting::Cusp(wedge) => Err(BooleanError::RimCuspArmUnbuilt {
+        rim_wedge::RimRouting::Cusp(wedge) => Err(Unrouted(BooleanError::RimCuspArmUnbuilt {
             pair: crate::contact::DeclaredContact {
                 a: fa,
                 b: fb,
                 class: ContactClass::Tangent,
             },
             wedge,
-        }),
+        })),
         // The table verified the pair tangent with a definite
         // second-order margin, so neither a crossing nor an osculating
         // lamina remains for the routing to find.
         rim_wedge::RimRouting::Transverse | rim_wedge::RimRouting::Lamina => {
-            Err(BooleanError::ClassificationInvariant {
+            Err(Refused(BooleanError::ClassificationInvariant {
                 what: "rim routing: a verified tangency read as a crossing or a lamina",
-            })
+            }))
         }
     }
 }
