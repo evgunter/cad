@@ -5970,6 +5970,18 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 &desc,
                 band,
             )?;
+            // PROBE (designer, final state A): every vertex-vertex record
+            // of the result puts its two vertices on one point key.
+            let vv: Vec<_> = contacts.vertex_vertex().collect();
+            for (va, vb) in vv {
+                let (Some(da), Some(db)) = (body.get_vertex(va), body.get_vertex(vb)) else {
+                    continue;
+                };
+                if da.point != db.point {
+                    let onto = da.point;
+                    let _ = body.share_point(&[va, vb], onto);
+                }
+            }
             let body = gate(body, band, tol)?;
             let (graft_vertices, graft_edges, graft_dead_edges, graft_faces) = graft_rows(&graft);
             let naming = BooleanNaming {
