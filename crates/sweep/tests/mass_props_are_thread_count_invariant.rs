@@ -267,6 +267,18 @@ fn digest() -> String {
 /// — a move the branch cannot explain, or one in the wrong direction —
 /// is a finding, and the table stays where it is.
 ///
+/// **Re-cut at all three ε, `tilted_cut_upper` only, when each section
+/// chord's ellipse was seamed at the principal vertex nearest its arc.**
+/// The cut's two half-ellipse arcs now run `[−π/2, π/2]` about their
+/// minor vertex instead of `[0, π]` from a major one, so the wall's
+/// quadrature samples a different parameterization. Every enclosure
+/// still holds `π/8` (the midpoint misses it by 5.8e-7 / 2.2e-9 /
+/// 1.2e-13 against pads of 3.8e-5 / 5.8e-7 / 1.4e-10 at ε = 1e-6 / 1e-9
+/// / 1e-12). The pads halve at 1e-6 and 1e-12 on the same verdict
+/// count; at 1e-9 the walk meets its target one round sooner (16
+/// verdicts, not 18), and reports that round's wider pad. No other line
+/// of the block moves.
+///
 /// **Re-cut at all three ε when the C9 ring became a newtype over
 /// `interval-transcendentals`' `DInterval`.** That is the other repair
 /// the assertion below names: the ring padded one representable step
