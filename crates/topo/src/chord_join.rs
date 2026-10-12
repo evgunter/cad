@@ -292,6 +292,9 @@ pub enum SplitJoinError {
         /// The entity the join was reading when it could not continue.
         entity: EntityId,
     },
+    /// The join's face division list refused a row where a chord added
+    /// it ([`crate::lineage::FaceDivisions::push`]): a kernel defect.
+    LineageRow(crate::lineage::RowRefusal),
     /// The exact-order band's constants did not construct —
     /// structurally impossible for the two literal bit patterns, typed
     /// rather than panicked (no panic paths in operator code).
@@ -558,6 +561,11 @@ impl core::fmt::Display for SplitJoinError {
             Self::Corrupt { entity } => {
                 write!(f, "the join's traversal failed at {entity} (corrupt body)")
             }
+            Self::LineageRow(refusal) => write!(
+                f,
+                "the join's lineage records refused {refusal}. {}",
+                geom_core::KERNEL_DEFECT_ENDING
+            ),
             Self::Band(e) => write!(f, "{e}"),
             Self::Euler(e) => write!(f, "an Euler operation refused: {e}"),
             // The carrier's constructor states its escalation for a
@@ -743,8 +751,9 @@ pub(crate) fn corrupt_edge(edge: EdgeKey) -> SplitJoinError {
 }
 
 /// Chord-mef fragment rows: `(new face, divided-from face)` in mint
-/// order (naming emission, M4 PR 3).
-pub(crate) type FragmentRows = Vec<(FaceKey, FaceKey)>;
+/// order (naming emission, M4 PR 3), checked as each is added
+/// ([`crate::lineage::FaceDivisions`]).
+pub(crate) type FragmentRows = crate::lineage::FaceDivisions;
 
 /// The point of `v`, a vertex the join read out of its working body: a
 /// miss of the vertex or its point panics naming it (D2 row 4).
@@ -790,7 +799,7 @@ pub(crate) struct ChordJoiner {
     /// entities alive in the body they hold. This is mint-time wiring
     /// knowledge, recorded so the naming layer never reconstructs
     /// parentage by inspection (NAMING-DESIGN N4: no post-hoc scans).
-    fragments: Vec<(FaceKey, FaceKey)>,
+    fragments: FragmentRows,
     /// The run band (ring re-homing containment).
     band: Band,
     /// Pierce rings a division left unplaced: every vertex on the run,
@@ -808,7 +817,7 @@ impl ChordJoiner {
     pub(crate) fn new(band: Band) -> Self {
         Self {
             slivers: SecondaryMap::new(),
-            fragments: Vec::new(),
+            fragments: FragmentRows::default(),
             band,
             pending: SecondaryMap::new(),
             completed: SecondaryMap::new(),
@@ -3721,7 +3730,9 @@ impl ChordJoiner {
                         Some(spec) => body.mef(site, spec, FaceSurface::Inherit, tol)?,
                     };
                     self.slivers.insert(created.face, ());
-                    self.fragments.push((created.face, oldf));
+                    self.fragments
+                        .push((created.face, oldf))
+                        .map_err(SplitJoinError::LineageRow)?;
                     minted.push(created.edge);
                     newf = Some((created.face, outside));
                 }
@@ -3752,7 +3763,9 @@ impl ChordJoiner {
                 Some(spec) => body.mef(site, spec, FaceSurface::Inherit, tol)?,
             };
             self.slivers.insert(created.face, ());
-            self.fragments.push((created.face, owner));
+            self.fragments
+                .push((created.face, owner))
+                .map_err(SplitJoinError::LineageRow)?;
             minted.push(created.edge);
         }
         // Ring re-homing (`laringmv`, the lkemr/ring-placement mirror
@@ -3814,13 +3827,15 @@ impl ChordJoiner {
         let promoted = body.mfkrh(ring, FaceSurface::Inherit)?.face;
         body.set_face_sense(promoted, sense)?;
         self.slivers.insert(promoted, ());
-        self.fragments.push((promoted, oldf));
+        self.fragments
+            .push((promoted, oldf))
+            .map_err(SplitJoinError::LineageRow)?;
         let replan = JoinPlan::of(body, plan.halves, SegmentEdge::Locus(plan.locus), self.band)?;
-        let walled_from = self.fragments.len();
+        let walled_from = self.fragments.rows().len();
         // The halves' loop is now the promoted face's outer, which
         // `lone_ring` never takes, so this `join` mints its two chords.
         let minted = self.join(body, &replan, curve, tol)?;
-        let walled: Vec<FaceKey> = self.fragments[walled_from..]
+        let walled: Vec<FaceKey> = self.fragments.rows()[walled_from..]
             .iter()
             .map(|&(f, _)| f)
             .collect();
@@ -5642,7 +5657,7 @@ mod pending_ring_tests {
         // half, off the partner's face.
         let joined = face_of(&body, body.get_half_edge(s[0]).unwrap().parent_loop);
         assert_eq!(
-            j.take_fragments(),
+            j.take_fragments().rows(),
             [(joined, home)],
             "the join divided the partner's face"
         );
@@ -5699,14 +5714,14 @@ mod pending_ring_tests {
         assert_eq!(face_of(&body, merged), top, "and still where it was");
         let merge = j.take_fragments();
         assert!(
-            merge.iter().all(|&(_, from)| from == top),
+            merge.rows().iter().all(|&(_, from)| from == top),
             "the merge's chords divided only the face it was in: {merge:?}"
         );
         join(&mut j, &mut body, ha[1], l[0]).unwrap();
         assert_eq!(j.unplaced_ring(&body), None, "the partner's join placed it");
         let joined = face_of(&body, body.get_half_edge(ha[1]).unwrap().parent_loop);
         assert_eq!(
-            j.take_fragments(),
+            j.take_fragments().rows(),
             [(joined, home)],
             "its chords walled a sliver off the partner's face"
         );

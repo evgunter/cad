@@ -168,6 +168,7 @@ use core::ops::{Add, Mul, Sub};
 use geom_core::spline::ProjectiveScalar;
 use geom_core::spline::{
     self, KnotAlgebraError, KnotSpan, KnotVector, Knots, Span, SpanLocate, SplineError,
+    derivative_net,
 };
 use geom_core::{Interval, Point2, Point3, Real, Vec2, Vec3};
 use std::sync::OnceLock;
@@ -305,35 +306,6 @@ fn blossom<T: Real, V: Copy + Add<Output = V> + Sub<Output = V> + Mul<T, Output 
         }
     }
     d.last().copied()
-}
-
-/// The derivative net of the degree-`p` coefficients `net`, whose
-/// first entry is coefficient `first`: entry `k` is
-/// `p·(net[k+1] − net[k])/(u_{i+p+1} − u_{i+1})` with `i = first + k`.
-/// The knot difference is checked positive on the structure `knots`
-/// and formed in `T` over the `held` knots. `None` on a non-positive
-/// difference or a knot index past the vector.
-fn derivative_net<T: Real, P: Copy + Sub<Output = V>, V: Mul<T, Output = V>>(
-    net: &[P],
-    knots: &[f64],
-    held: &[T],
-    p: usize,
-    first: usize,
-) -> Option<Vec<V>> {
-    net.windows(2)
-        .enumerate()
-        .map(|(k, pair)| {
-            let i = first + k;
-            let du = *knots.get(i + p + 1)? - *knots.get(i + 1)?;
-            #[allow(clippy::neg_cmp_op_on_partial_ord)]
-            if !(du > 0.0) {
-                return None;
-            }
-            #[allow(clippy::cast_precision_loss)]
-            let scale = T::from_f64(p as f64) / (*held.get(i + p + 1)? - *held.get(i + 1)?);
-            Some((pair[1] - pair[0]) * scale)
-        })
-        .collect()
 }
 
 /// `Σⱼ wⱼ·rowⱼ` over the nonzero exact weights `w`, in ascending `j`;
@@ -478,11 +450,12 @@ macro_rules! nurbs_curve {
             /// construction ([`SpanLocate::point_value`]): what every
             /// structure decision on the weights reads.
             weight_channel: Vec<f64>,
-            /// [`Self::speed_lower_bound`], filled on first read. It is
-            /// a function of the four fields above, which nothing
-            /// mutates after construction, so it cannot go stale; every
-            /// door that changes them builds a new curve with an empty
-            /// memo, and a clone carries the memo of the same value.
+            /// [`Self::speed_lower_bound`], filled on first read outside
+            /// a symbolic session. It is a function of the four fields
+            /// above, which nothing mutates after construction, so it
+            /// cannot go stale; every door that changes them builds a
+            /// new curve with an empty memo, and a clone carries the
+            /// memo of the same value.
             speed: OnceLock<geom_core::InfSpeed<T>>,
         }
 
@@ -1237,12 +1210,23 @@ macro_rules! nurbs_curve {
             /// discriminates assembly structure, never geometry: the
             /// geometric decision (is the bound positive?) stays with
             /// the caller's trilean.
+            ///
+            /// **Memoised outside a symbolic session only.** A session's
+            /// table holds the nodes it saw built, and a node minted
+            /// anywhere else freezes in it to an unknown of its own
+            /// (`geom_core::sym`, "No session, no tier"), so a memo
+            /// served across that boundary would change what the
+            /// session decides. Inside one the meter is computed afresh,
+            /// and nothing it mints is kept.
             pub fn speed_lower_bound(&self) -> geom_core::InfSpeed<T> {
+                if geom_core::sym::session_installed() {
+                    return self.speed_lower_bound_uncached();
+                }
                 *self.speed.get_or_init(|| self.speed_lower_bound_uncached())
             }
 
-            /// [`Self::speed_lower_bound`]'s computation, run once per
-            /// curve by its memo.
+            /// [`Self::speed_lower_bound`]'s computation: once per curve
+            /// outside a symbolic session, at every read inside one.
             fn speed_lower_bound_uncached(&self) -> geom_core::InfSpeed<T> {
                 let poison = T::from_f64(f64::NAN);
                 // Weights not all one plain constant ⇒ rational: the
@@ -1988,7 +1972,8 @@ impl<T: Real> NurbsCurve3<T> {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use super::{NurbsCurve3, binomial, derivative_net, pieces_exact};
+    use super::{NurbsCurve3, binomial, pieces_exact};
+    use geom_core::spline::derivative_net;
     use geom_core::spline::{KnotVector, Knots};
     use geom_core::{Dual, Point3, Real, Sym};
     use test_utils::fuzz;
@@ -2185,5 +2170,26 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// A read inside a symbolic session leaves the memo empty: what the
+    /// session minted is not kept for a later read, in or out of a
+    /// session. A read outside one fills it.
+    #[test]
+    fn a_session_never_fills_the_speed_memo() {
+        use geom_core::SymBudget;
+        use geom_core::sym::with_session;
+        let c = swaying().map_scalar(Sym::<f64>::from_f64);
+        let budget = SymBudget {
+            max_terms: 64,
+            max_degree: 8,
+        };
+        let _ = with_session(budget, || c.speed_lower_bound());
+        assert!(c.speed.get().is_none(), "a session's read filled the memo");
+        let _ = c.speed_lower_bound();
+        assert!(
+            c.speed.get().is_some(),
+            "a read outside a session left the memo empty"
+        );
     }
 }
