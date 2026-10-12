@@ -2,10 +2,11 @@
 id: two-discs-kissing-externally-refuse-classification-invariant
 kind: issue
 title: Two coplanar discs kissing externally refuse ClassificationInvariant, declared or not
-status: open
+status: closed
 opened: 2026-10-10
 priority: P2
 cost: M
+closed: 2026-10-12
 ---
 
 
@@ -41,3 +42,11 @@ ruling's two end vertices. What a kiss's union should produce is the
 open question on
 `work/contacthold/a-same-side-tangent-touch-refuses-at-every-op.md`,
 which carries this row's fix.
+
+## Closed (2026-10-12)
+
+`contacthold/same-side-tangent-touch` deletes the short-circuit, per
+Ev's ruling on `[ev]` PR 4723. Every op on the pair now answers: each
+∖ returns its disc, ∩ is `Empty`, and ∪ is a two-solid `Assembly` at
+2π carrying the edge–edge record of the two seam rulings. The row is
+`wedge_end_doors::two_discs_kissing_externally_touch_at_every_op`.
