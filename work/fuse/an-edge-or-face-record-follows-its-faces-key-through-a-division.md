@@ -39,3 +39,12 @@ carried edge-in-face record on a face a second body's section cuts),
 measured on main; then the same lineage read with this record kind's
 question: the live piece whose interior the edge's interior meets
 (for a face-face record, the pieces that still overlap).
+
+## Evidence (CONTACTHOLD, PR 4820)
+
+The reduction's own records now read a face the join divided through
+its pieces and chords (`ops::place_found`, the one carry's placement):
+a vertex-face or two-cell row lands on each pair the census confirms.
+An operand's carried edge-face and face-face records still never enter
+the boolean (`work/wire/a-boolean-drops-its-operands-curve-and-patch-records.md`),
+so that half stays open; no pose here was measured.
