@@ -50,7 +50,9 @@ impl Mul for DInterval {
         let dec = self.dec.min(rhs.dec);
         // A point operand's corners coincide, so its corner products are
         // the general fold's own values without the repeats, and the
-        // fold's extremes over them are the same bits.
+        // fold's extremes over them are the same bits. That holds for a
+        // `[-0, +0]` point too: `mul_lo`/`mul_hi` return `+0` for any zero
+        // factor, so its two corners give the same products.
         let (lo, hi) = match (self.lo == self.hi, rhs.lo == rhs.hi) {
             (true, true) => (mul_lo(self.lo, rhs.lo), mul_hi(self.lo, rhs.lo)),
             (true, false) => corner_bounds(&[self.lo], &[rhs.lo, rhs.hi]),

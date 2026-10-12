@@ -30,4 +30,6 @@ division, so it was left out of that PR.
 
 Owed: the same point paths in `Div`'s non-touching branch, with a row
 pinning them to the four-corner fold over an edge table (the `Mul`
-row's `EDGES`, minus divisors that touch zero).
+row's `EDGES`, minus divisors that touch zero). The point paths should
+reuse `arith.rs`'s `corner_bounds`, generalized over the corner
+function, rather than mint a third fold.
