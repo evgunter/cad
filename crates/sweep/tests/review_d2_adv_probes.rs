@@ -401,6 +401,7 @@ fn class(e: &BlendError) -> &'static str {
         BlendError::UnjoinedOperand { .. } => "UnjoinedOperand(row 1)",
         BlendError::SurgeryInvariant { .. } => "SurgeryInvariant(row 4)",
         BlendError::RingClearance { .. } => "RingClearance",
+        BlendError::WhollyInside { .. } => "WhollyInside(row 2)",
         BlendError::Certify { .. } => "Certify",
         BlendError::Op { .. } => "Op",
         BlendError::Join { .. } => "Join",
