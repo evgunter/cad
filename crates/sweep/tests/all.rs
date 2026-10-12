@@ -1091,7 +1091,7 @@ mod pole_ball_shells;
 #[path = "shell_curved_mouth.rs"]
 mod shell_curved_mouth;
 
-#[path = "review_4737_span_probes.rs"]
-mod review_4737_span_probes;
 #[path = "r2_carries_records_probe.rs"]
 mod r2_carries_records_probe;
+#[path = "review_4737_span_probes.rs"]
+mod review_4737_span_probes;

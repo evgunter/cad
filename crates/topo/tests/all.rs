@@ -390,6 +390,8 @@ mod divided_cell_carry;
 mod holes_meeting_at_a_vertex;
 #[path = "pierce_strut_at_a_pinch.rs"]
 mod pierce_strut_at_a_pinch;
+#[path = "r2_onecarry_probes.rs"]
+mod r2_onecarry_probes;
 #[path = "review_4694_carry_probes.rs"]
 mod review_4694_carry_probes;
 #[path = "review_4730_divided_carry_probes.rs"]
@@ -408,5 +410,3 @@ mod split_through_an_apex;
 mod tangent_touch_charges_both_sags;
 #[path = "three_solids_on_one_line.rs"]
 mod three_solids_on_one_line;
-#[path = "r2_onecarry_probes.rs"]
-mod r2_onecarry_probes;
