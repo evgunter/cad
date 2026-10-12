@@ -2066,11 +2066,10 @@ pub enum EndSection<T: Real> {
 
 /// The refusal for a turn whose two bands' feet on its third edge stand
 /// definitely apart: the band reaching further, whose requested edge the
-/// refusal names, runs on past the mitre onto the other band's face of
-/// that edge, and that overrun is not built.
-pub const TURN_OVERRUN: &str = "two requested edges turn at a vertex where their bands' feet on \
-     its third edge stand apart: the band of the named edge reaches further, and would run on past \
-     the mitre onto the other band's face of the third edge, an overrun that is not built";
+/// refusal's `at` names, runs on past the mitre onto the other band's
+/// face of that edge, and that overrun is not built.
+pub const TURN_OVERRUN: &str = "at a turn, one band's foot lies further down the third edge, so \
+     that band would run past the mitre onto the other band's face of it, an overrun not built";
 
 /// **A turn predicate 6 admitted**: two of a trivalent vertex's three
 /// edges requested, the third, `edge`, not, and the two bands' feet on
