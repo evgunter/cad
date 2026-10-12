@@ -254,28 +254,28 @@ fn curved_notch_pinch() {
 }
 
 /// A curved notch meeting a corner pinch at its reflex vertex builds the
-/// right body, which two lanes outside the boolean cannot yet read: the
-/// census's cross-solid backstop cannot clear two solids touching only at
-/// the pinch (`work/restread/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`),
-/// and the at-infinity probe measures in closed form only, so a cylinder
-/// wall cut along an ellipse refuses a further union
-/// (`work/restread/at-infinity-probe-measures-in-closed-form-only.md`).
-/// One pose per population of [`curved_notch_pinch`]; when a lane lands,
-/// its pose's pinned refusal flips and the pin is re-baselined there.
+/// right body, which the census's cross-solid backstop cannot yet read:
+/// it cannot clear two solids touching only at the pinch
+/// (`work/restread/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`).
+/// A further union with a brick far away builds, the brick added: the
+/// closed-form volume cannot side a cylinder wall cut along an ellipse,
+/// and a ray aimed at a planar face does. One pose per population of
+/// [`curved_notch_pinch`]; when the census lane lands, its pose's pinned
+/// finding flips and the pin is re-baselined there.
 #[test]
-fn a_curved_notch_at_a_corner_pinch_builds_bodies_two_lanes_cannot_read_yet() {
+fn a_curved_notch_at_a_corner_pinch_builds_bodies_the_census_cannot_read_yet() {
     let x = curved_notch_body(bulge());
     let far = finished(
         "the far brick",
         sweep::test_support::brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol()),
     );
-    // (pose, tag, tier 3' undecidable, the further union refuses)
+    // (pose, tag, tier 3' undecidable)
     let pins = [
-        ((0, 0, 0), "ab I", true, true),
-        ((0, 0, 0), "ab U", false, true),
-        ((9, 4, 4), "ab S", true, false),
+        ((0, 0, 0), "ab I", true),
+        ((0, 0, 0), "ab U", false),
+        ((9, 4, 4), "ab S", true),
     ];
-    for (pose, tag, undecidable, unmeasured) in pins {
+    for (pose, tag, undecidable) in pins {
         let label = format!("{pose:?} {tag}");
         let (_, res, want) = runs(&x, pose)
             .unwrap_or_else(|| panic!("{label}: the pinch refuses"))
@@ -308,17 +308,15 @@ fn a_curved_notch_at_a_corner_pinch_builds_bodies_two_lanes_cannot_read_yet() {
             undecidable,
             "{label}: tier 3' undecidable: {findings:?}"
         );
-        let reuse = topo::union(&bb.body, &far, tol());
-        assert_eq!(
-            matches!(
-                reuse,
-                Err(BooleanError::Containment(
-                    topo::PointInSolidError::VolumeUncertified
-                ))
-            ),
-            unmeasured,
-            "{label}: the further union: {:?}",
-            reuse.err()
+        let reuse = topo::union(&bb.body, &far, tol())
+            .unwrap_or_else(|e| panic!("{label}: the further union builds, got {e:?}"));
+        let joined = mass_properties(&reuse.body().expect("not empty").body, tol())
+            .unwrap()
+            .volume;
+        assert!(
+            (joined - (want + 1.0)).abs() < 1e-7,
+            "{label}: the further union's volume {joined} against {}",
+            want + 1.0
         );
     }
 }

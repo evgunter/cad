@@ -256,13 +256,11 @@ fn in_the_band(diag: &geom_core::Indeterminate) -> bool {
 }
 
 /// **Every cut through a bore reads its truth at every pose.** Every
-/// answer is the truth. The one refusal admitted is the at-infinity side
-/// on a point OUTSIDE the body: a body with a tilted-section wall carries
-/// no closed-form volume, so a probe whose first ray meets nothing is
-/// `VolumeUncertified`, which the props lane owns. A point inside is
-/// answered, or refused as an in-band escalation: at ε = 1e-6 three
-/// probes per half of the bored cylinder cut at tilt 0.3 escalate on the
-/// wall trim.
+/// answer is the truth, and the one refusal admitted is an in-band
+/// escalation: at ε = 1e-6 three probes per half of the bored cylinder
+/// cut at tilt 0.3 escalate on the wall trim. A probe whose rays meet
+/// nothing is answered off a ray aimed at a planar face, since a body
+/// with a tilted-section wall carries no closed-form volume.
 #[test]
 fn every_cut_through_a_bore_reads_its_truth_at_every_pose() {
     let band = Band::linear(tol()).expect("the witness band");
@@ -276,7 +274,7 @@ fn every_cut_through_a_bore_reads_its_truth_at_every_pose() {
                 "{} {part:?}: the grid must reach the material",
                 case.name
             );
-            let (mut answered, mut at_infinity, mut escalated) = (0, 0, 0);
+            let (mut answered, mut escalated) = (0, 0);
             for (pose, map) in poses() {
                 let posed = transform_rigid(&body, &map, tol()).unwrap();
                 for &(p, inside) in &probes {
@@ -289,7 +287,6 @@ fn every_cut_through_a_bore_reads_its_truth_at_every_pose() {
                     match point_in_solid(&posed, map.transform_point(p), band, tol()) {
                         Ok(got) if got == want => answered += 1,
                         Ok(got) => problems.push(format!("{at}: {got:?}")),
-                        Err(PointInSolidError::VolumeUncertified) if !inside => at_infinity += 1,
                         Err(
                             PointInSolidError::Escalated { diag, .. }
                             | PointInSolidError::Loop(topo::PointInLoopError::Escalated {
@@ -301,8 +298,7 @@ fn every_cut_through_a_bore_reads_its_truth_at_every_pose() {
                 }
             }
             eprintln!(
-                "MEASURE {} {part:?}: answered {answered}, at infinity {at_infinity}, \
-                 escalated {escalated}",
+                "MEASURE {} {part:?}: answered {answered}, escalated {escalated}",
                 case.name
             );
             let floor = case.floor[i];

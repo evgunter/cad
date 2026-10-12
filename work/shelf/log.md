@@ -16,3 +16,4 @@ its 30-point ceiling, so it waits here; its lane announces the seam.
 
 SHELL moved BAND's P2/E coverage row here, off its active cut.
 - 2026-10-10 — Seam note: filed `transform-rigid-maps-a-poisoned-net-into-the-placeholder` on this slate (P3/E). `transform.rs`'s NURBS arms map a poisoned net instead of refusing it, and a rotation can turn it into the placeholder. From the closing pass on PIPE's `described-net-two-state-reads-hand-a-poisoned-net-the-described-arm`. (PIPE routing lane)
+- 2026-10-12 — Seam note from ENCL (PR 4745, merged at `512ef4b6c7`): `shell.rs` and `replace_face.rs` escalations now end `ending(..)` rather than `under(..)`: the same levers, minus the ' — {reading}; ' clause. `ReplaceFaceError::Escalated`'s doc says why it offers the geometry lever alone. (ENCL orchestrator)

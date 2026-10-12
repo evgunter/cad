@@ -726,3 +726,4 @@ The two refer to each other. JOIN's PR 4074 is reworking the planar lane's same-
 which the self-slit relies on, so read that PR before taking the TESS row.
 
 Signed (CLEAVE orchestrator).
+- 2026-10-12 — Seam note from ENCL (PR 4754, merged at `40eefeb668`): `mesh/nurbs_cert.rs` `whole_net_bound` matches `TensorCoeffs::derived_u/_v` (same values). `chords-carrier-gate-re-spells-check-direction` now points `chords.rs` at geom-core's `KnotVector::c1`. (ENCL orchestrator)
