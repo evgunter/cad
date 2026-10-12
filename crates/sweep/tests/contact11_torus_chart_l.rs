@@ -2,8 +2,8 @@
 //! so. A half donut less a bar over one quarter of its upper tube would
 //! leave both torus walls L-shaped in the chart (a parallel cut by the
 //! bar's floor, a meridian by its side); the pipeline refuses the torus
-//! × plane germ pair (the germ-pair dispatch has no torus arm) before
-//! any containment is asked. The chart-box check
+//! × plane germ pair (at the chord layer's section, which has no
+//! plane × torus arm) before any containment is asked. The chart-box check
 //! that refuses such a face at the containment doors is pinned in
 //! `topo`'s `an_l_shaped_torus_face_refuses_rather_than_trim_by_its_hull`;
 //! what this row asserts once the pair is admitted is scheduled by
@@ -13,7 +13,6 @@
 
 use crate::common::operands::bar;
 use crate::revolve_common;
-use geom::SurfaceKind;
 use geom_core::Tol;
 use revolve_common::{axis_y, validated};
 use sweep::test_support::finished;
@@ -38,13 +37,13 @@ fn a_notched_half_donut_refuses_at_the_torus_plane_pair() {
     };
     assert!(
         matches!(
-            err,
-            BooleanError::CurvedBooleanUnsupported {
-                operand: topo::Operand::A,
-                kind: SurfaceKind::Torus,
+            &err,
+            BooleanError::Join(topo::SplitJoinError::SectionUnarmed {
+                divided: geom::SurfaceKind::Torus,
+                wall: geom::SurfaceKind::Torus,
                 ..
-            }
+            })
         ),
-        "refused where the germ-pair dispatch has no torus arm: {err:?}"
+        "refused where the torus side's section has no plane × torus arm: {err:?}"
     );
 }

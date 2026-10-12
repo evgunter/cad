@@ -83,18 +83,17 @@ reads it per part of the carrier's knot spans, at
 `pcurve_cache::projected::net_offset_sup`; the search's limbs do not
 yet, which is why their rung-3 arms are unretired. Where the bound does
 not clear the band, the composite's uncleared spans are halved round by
-round under a budget (`SSI_HULL_WORK` spans recomputed over the rounds,
-`SSI_HULL_CUTS` breaks added), each piece cut from its Bézier segment's
-own row so no cut compounds another's width: the limb passes once the
-bound clears; refuses on the composite's certified value at a break
-where that lies past the band's zero, since no bound over a span
-holding the break can clear; and refuses on the lowest bound any round
-reached where the budget is spent, or two rounds in a row leave that
-lowest bound where it was, first — so a first composite already over
+round, each piece cut from its Bézier segment's own row so no cut
+compounds another's width: the limb passes once the bound clears;
+refuses on the composite's certified value at a break where that lies
+past the band's zero, since no bound over a span holding the break can
+clear; and otherwise refuses on the lowest bound any round reached
+where the crate's stop rule ends the rounds (`crate::descent`, in its
+own units: `SSI_HULL_WORK` spans recomputed over the rounds,
+`SSI_HULL_CUTS` breaks added) — so a first composite already over
 `SSI_HULL_WORK` spans is never subdivided and refuses on its first
-hull, a later round whose bound is NaN stops on the lowest certified
-bound before it rather than escalating, and a round that only equals
-the lowest bound counts as not lowering it. Against an analytic operand
+hull, and a later round whose bound is NaN stops on the lowest certified
+bound before it rather than escalating. Against an analytic operand
 the value at a break is limb 1's residual, a measured miss: at the edge
 certificate it is the carrier's distance from the surface, bounded
 below by `|f|` over an upper bound on the factor that divides it to
@@ -113,7 +112,9 @@ distance from that surface over the edge's interval, whatever faces
 store pcurve rows (a planar face stores none), which implies limb 1;
 and the tube over the same interval, or over the whole carrier where
 the carrier is rational with unequal weights (no piece of it has `f64`
-weights at an enclosure scalar). Each box, cut to the wall's knot rectangle (and to the
+weights at an enclosure scalar). A door that holds no lane certifies
+no such edge: it refuses `CertifyError::NurbsLaneNotSupplied`, as it
+refuses a plane × NURBS one. Each box, cut to the wall's knot rectangle (and to the
 ℝ³ slab where a search clips to one), holds exactly one piece: two
 simple solutions on its boundary, or a stretch of its boundary on a
 side of the wall's domain that the boundary pass reads within ε of the
@@ -786,13 +787,25 @@ singularity inside a face is a vertex of it, so a sphere face lies on
 the side of its loop that holds no chart pole. The closed-form lane and
 tier 3 read that side to cross-check the face's sense bit, and refuse a
 contradiction, wherever at least one pole lies off the loop
-(`sphere_loop_side`). A loop with a pole off it on each side encodes no
-side: under either sense its face holds a pole, which is validity's to
-refuse. Nor does a loop whose poles both read undecided: a pole within
-the ambiguity band of a great or near-great carrier's plane has its
-antipode there too, so a face whose loop passes that close to a pole
-is measured under its bit alone. A face with holes reads its side off the sign of its own
-Gauss–Bonnet area. (8) In-house SVD and
+(`sphere_loop_side`). A face whose loop holds both poles is read through
+its seam region, the faces of its surface it reaches across shared
+edges: a pole on an edge interior to the region lies inside it, so the
+region is the side of its boundary that holds such a pole
+(`sphere_region_material_sign`); a region with two or more boundary
+loops is read by the sign of its area. A region with no boundary covers
+the sphere and encodes no side: covered once, it is a shell whose
+orientation checks 7 and 10 read; covered more than once, its faces
+overlap and nothing here reads it. A region whose boundary carries both
+poles, or whose poles lie on no member's loop, encodes no side: the
+pole-free reading would assume the rule above, which validity does not
+yet enforce. For a region of one face the flipped bit describes the
+complement, another valid body. A loop with a pole off it on each side
+encodes no side: under either sense its face holds a pole, which is
+validity's to refuse. Nor does a loop whose poles both read undecided: a
+pole within the ambiguity band of a great or near-great carrier's plane
+has its antipode there too, so a face whose loop passes that close to a
+pole is measured under its bit alone. A face with holes reads its side
+off the sign of its own Gauss–Bonnet area. (8) In-house SVD and
 least-squares solvers with fixed elimination order
 (`geom-core/src/linalg`). (9) The curvo audit is `docs/CURVO-AUDIT.md`
 (it has no SSI); the stance is DESIGN.md Q5.
@@ -874,13 +887,12 @@ Both bound conservatively (they can refuse a regular patch, never accept
 a degenerate one). The fit (`offset_fit.rs`) is the NURBS Book's A9.4
 grid interpolation at the base's own parameters, then a
 certify-and-insert loop that refines the cells carrying the sup until
-every cell certifies or the loop refuses naming what stopped it —
-`SeedOverCap` before any round, or `SampleCapReached`, both read
-against the cap on a grid's total sample count, which bounds each
-fit's size but not the run's total work: there is no round budget, and
-the round count is bounded because every round that does not refuse
-grows the grid under the cap; `RefinementStalled` when the strongest
-step gains nothing; the last two carry the last grid's bound
+every cell certifies or the crate's stop rule (`crate::descent`)
+refuses naming what stopped it — `SeedOverCap` before any round,
+against the cap on a grid's total sample count; `WallReached`, naming
+that cap or the cumulative budget on the samples fitted over all the
+rounds (`OFFSET_FIT_WORK`); `RefinementStalled` on two idle rounds,
+the second marked in both directions; the last two carry the last grid's bound
 and the smallest any round reached (`BestBound`, whose doc states when a
 request at it certifies); `BoundNotFinite`, carrying that smallest
 finite bound or none, when the last grid's bound is not finite;

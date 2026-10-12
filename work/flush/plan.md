@@ -19,8 +19,6 @@ lanes in flight are expected to close more, so the track is not split.
 | pri | item | cost | title |
 |---|---|---|---|
 | P2 | `a-thin-walled-hollow-ships-while-a-slab-as-thin-refuses` | M | a thin-walled hollow ships while a slab as thin refuses: retire PR 4636's sole-shell gate; thinness is judged by pairs alone (Ev, PR 4690) |
-| P2 | `a-curved-notch-at-a-corner-pinch-refuses-join-desync-on-a-section-vertexs-null-edge-copies` | M | a curved notch at a corner pinch refuses `JoinDesync` on a section vertex's null-edge copies (15 lines, 5 poses) |
-| P2 | `a-cube-less-a-pinched-operand-piercing-its-face-refuses-the-split-cones-re-pair` | M | a cube less a pinched operand piercing its face refuses `ZipCorrespondence` at `split_cones`' re-pair (36 `dbl` lines, typed since PR 4728) |
 | P2 | `a-pinch-the-seams-do-not-link-keeps-its-cones-on-separate-keys` | M | a pinch whose keys no seam ties keeps its cones on separate point keys |
 | P3 | `two-pinch-poses-escalate-at-eps-1e-6` | M | pose 1 at ε 1e-6: can a cross-germ tie between pairs that share no germ change the greedy matching (a proof task; pose 2 is honest) |
 
@@ -56,8 +54,10 @@ Parked, and not counted:
    step 2's measuring lane), then the pinch rows:
    `the-pre-zip-pinch-weld-retires-…` and `a-hole-weld-cannot-tell-…` (done,
    PR 4728); `a-pinch-the-seams-do-not-link-…` (vertex-vertex pinches with
-   no pierce), `a-cube-less-a-pinched-operand-…` (PR 4728's typed residue) and `a-curved-notch-at-a-corner-pinch-refuses-join-desync-…`
-   (the residue of the curved shared-pinch re-read, PR 4698).
+   no pierce; ruling A, fork-log row 121: two parts' value-decided
+   coincident vertices share one point key, building on `flush/touch-key`),
+   `a-cube-less-a-pinched-operand-…` and `a-curved-notch-at-a-corner-pinch-refuses-join-desync-…`
+   (done, PR 4777).
 5. **The E tail** (done, PR 4714: five rows closed; `two-pinch-poses-…`
    stays open as a proof task about pose 1's matcher tie).
 
