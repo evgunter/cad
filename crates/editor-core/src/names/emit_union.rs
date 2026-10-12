@@ -808,10 +808,21 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
     /// **Finished vertex `v` where two member edges meet**, the lines
     /// [`Flush::crossing`] reads there: `EdgeCrossing { a, a_sense, b,
     /// b_sense }`, the two in name order, each with the sense the fold
-    /// step that minted the vertex read along it. `None` where the two
-    /// are one member's, or where the step read no sense along one of
-    /// them: a vertex the fold met as a junction of seam lines, which
-    /// keeps the fold's spelling.
+    /// step that minted the vertex read along it.
+    ///
+    /// Two fallbacks publish the fold's spelling instead, unsignalled:
+    /// - **The two lines are one member's.** A member that holds two
+    ///   coincident edges (the pinch's joined blocks, their contact)
+    ///   pierces another at one point; no member pair meets there. The
+    ///   fold's junction stands, alike in both orders
+    ///   (`union_pinch_member_order::two_edges_of_one_member_at_the_pinch_keep_the_folds_junction`).
+    /// - **No step read a sense along one line.** Where the vertex was
+    ///   minted by one edge crossing a third member's face, the second
+    ///   edge later reaches it as a vertex of the fold so far, named as
+    ///   the fold's own, and nothing reads its sense. The fold's
+    ///   `Crossing` stands, so the name depends on member order
+    ///   (`union_pinch_member_order::two_legs_on_the_plate_are_spelled_by_member_order`;
+    ///   `work/emit/a-meeting-of-three-members-at-one-point-has-no-order-free-sense.md`).
     fn edge_crossing(
         &self,
         v: topo::VertexKey,
@@ -850,7 +861,12 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
     /// finished body: each finished edge at `v` that lies along no
     /// member edge and between faces of different members is one line,
     /// `Seam` of its two faces' names in name order, and the run is
-    /// sorted. `None` where fewer than two such lines pass.
+    /// sorted.
+    ///
+    /// Two fallbacks publish the fold's spelling instead, unsignalled,
+    /// and no fixture reaches either: fewer than two such lines pass
+    /// (member edges meeting with no seam between their members), or a
+    /// face at a seam edge has no parent name.
     fn junction(&self, v: topo::VertexKey) -> Result<Option<StableName>, NamingError> {
         let members = |f: &topo::FaceKey| -> BTreeSet<VarId> {
             self.faces

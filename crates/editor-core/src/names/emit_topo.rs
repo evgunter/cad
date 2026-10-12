@@ -2082,8 +2082,9 @@ fn name_boolean_vertices<T: Decide>(
             // side, none on the B side, and, everything above having
             // already run, no single B face to supply the other parent.
             // The vertex is half-decided, the body is sound and the
-            // recipe is legal, so what is missing is a rule. Maximal edges join that witness's vertex away, and
-            // no document reaches the arm now
+            // recipe is legal, so what is missing is a rule. Maximal
+            // edges join that witness's vertex away, and no document
+            // reaches the arm now
             // (`work/wire/a-merged-face-with-several-same-side-constituents-has-no-chord-rule.md`).
             //
             // **Its mirror (`([], [_])`) is not here, and the
@@ -2526,8 +2527,10 @@ fn sense_of(
 /// vertex `vertex` with**, where no operand names any of its own keys
 /// `keys` ([`operand_vertex_keys`]): the other operand's vertex in
 /// every vertex-pair row (`ReductionContacts::vv`) that holds one of
-/// them. A vertex resting on a face (`a_on_b`, `b_on_a`) is the row's
-/// own key, so it is among `keys` wherever it reaches the vertex.
+/// them. A vertex-on-face row (`a_on_b`, `b_on_a`) is not read: it
+/// holds the resting vertex's own key and a face, no second vertex key
+/// at the point to pair with, so it can name a result vertex only
+/// through that key, which `keys` already reads.
 fn contact_identity(
     vertex: VertexKey,
     keys: &BTreeSet<(topo::Operand, VertexKey)>,
@@ -5735,6 +5738,62 @@ mod touch_reread_rows {
             }
         }
         named
+    }
+
+    /// **A corner the result holds as several vertices is one tied name
+    /// over them** (N2: each is that corner, and nothing tells them
+    /// apart): "over a void in the bare arch", `x − y` at rest, leaves
+    /// `x`'s apex at the plate's top as several result vertices, each a
+    /// null copy of it, and names them all `x`'s corner, tied
+    /// (`work/emit/a-corner-held-as-several-result-vertices-ties.md`).
+    #[test]
+    fn a_corner_held_as_several_result_vertices_is_one_tied_name() {
+        use crate::names::table::Entry;
+        let pose = &poses()[0];
+        let p = |b: [[f64; 3]; 3]| apex_pyramid(&b, pose, t());
+        let arch_base = corners(60.0, 0.5, 0.4);
+        let bare_hollow = built(subtract(&p(arch_base), &p(nest(arch_base, 0.7)), t()));
+        let over = p(corners(50.0, 0.7, 0.5));
+        let (xn, yn) = (RecipeNodeId::new(0, 1), RecipeNodeId::new(0, 2));
+        let (xt, yt) = (table(&over, xn), table(&bare_hollow, yn));
+        let Ok(BooleanResult::Body(r)) = subtract(&over, &bare_hollow, t()) else {
+            panic!("x − y builds");
+        };
+        let a = OperandCtx {
+            node: xn,
+            read: crate::names::FOLD_A,
+            table: &xt,
+            body: &over,
+        };
+        let b = OperandCtx {
+            node: yn,
+            read: crate::names::FOLD_B,
+            table: &yt,
+            body: &bare_hollow,
+        };
+        let named = name_boolean(RecipeNodeId::new(0, 9), &r.body, &r.naming, &a, &b, t())
+            .expect("x − y names");
+        let ties: Vec<(&crate::names::StableName, usize)> = named
+            .table
+            .iter()
+            .filter_map(|(n, e)| match e {
+                Entry::Tied(rs) if n.kind == EntityKind::Vertex => Some((n, rs.len())),
+                _ => None,
+            })
+            .collect();
+        let [(name, n)] = ties.as_slice() else {
+            panic!("one tied vertex name: {ties:?}");
+        };
+        assert_eq!(*n, 2, "{name:?}: the two vertices at the corner");
+        assert!(
+            matches!(
+                name.path.as_slice(),
+                [RoleSeg::From { read, of }]
+                    if *read == crate::names::FOLD_A
+                        && matches!(of.path.as_slice(), [RoleSeg::CapVertex(..)])
+            ),
+            "the tie is x's own corner: {name:?}"
+        );
     }
 
     /// At rest, every scene.

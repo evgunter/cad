@@ -108,12 +108,6 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// a member said as a port says the split and the half ("from Split
 /// …'s above"), where a `Part` was said by its one tag. The percentiles
 /// and maxima held.
-///
-/// The full total rose again (112 words) when every vertex where an edge
-/// meets the other operand came to be named by its edges and senses:
-/// `crossing_slots`' three touches said as seams of two parents are said
-/// as a touch and two edge crossings, each sense a word or three
-/// ("meets from inside"). The percentiles and maxima held.
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
     ("scoped faces", [16, 43, 57, 55_705]),
     ("full", [19, 123, 196, 411_530]),
@@ -174,11 +168,6 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 ///
 /// INTENT stage 4 PR F: a boolean node lost its `declare` field, so the
 /// nodes minted after the first boolean took new tags.
-///
-/// The touch and the edge crossings moved it with [`NAME_WORDS`]: the
-/// words that moved are `crossing_slots`' three vertices, said by their
-/// edges and senses where they were said as seams, and the pieces they
-/// end.
 const SAID_DIGEST: u64 = 0x8847_779b_5d77_9f9e;
 
 /// The tables an evaluation answers for a name it does not hold: a

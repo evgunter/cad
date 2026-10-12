@@ -1075,6 +1075,74 @@ mod tests {
         Detail::Open(at.iter().map(|pos| pos.to_vec()).collect())
     }
 
+    /// **A crossing says its sense, and a meeting no edge passes
+    /// through is a touch**: an edge meeting a face from outside or from
+    /// inside, two edges touching each other's body from outside, and
+    /// one edge crossing where the other touches.
+    #[test]
+    fn a_touch_says_which_side_it_meets_from() {
+        use crate::names::role::Sense;
+        let crossing = |sense| {
+            name(
+                EntityKind::Vertex,
+                OP,
+                vec![RoleSeg::Crossing {
+                    edge: NameRef::new(rim(1)),
+                    face: NameRef::new(wall(2)),
+                    sense,
+                }],
+            )
+        };
+        let edges = |a_sense, b_sense| {
+            name(
+                EntityKind::Vertex,
+                OP,
+                vec![RoleSeg::EdgeCrossing {
+                    a: NameRef::new(rim(1)),
+                    a_sense,
+                    b: NameRef::new(rim(2)),
+                    b_sense,
+                }],
+            )
+        };
+        for (sense, head, verb) in [
+            (Sense::Enters, "the crossing where ", " enters the body of "),
+            (Sense::Leaves, "the crossing where ", " leaves the body of "),
+            (
+                Sense::Outside,
+                "the touch where ",
+                " meets from outside the body of ",
+            ),
+            (
+                Sense::Inside,
+                "the touch where ",
+                " meets from inside the body of ",
+            ),
+        ] {
+            let s = said(&crossing(sense));
+            assert!(s.starts_with(head) && s.contains(verb), "{sense:?}: {s}");
+        }
+        let touch = said(&edges(Sense::Outside, Sense::Outside));
+        assert!(
+            touch.starts_with("the touch where ")
+                && touch.contains(" meets from outside the other body and ")
+                && touch.contains(" meets from outside the first"),
+            "{touch}"
+        );
+        let mixed = said(&edges(Sense::Enters, Sense::Inside));
+        assert!(
+            mixed.starts_with("the crossing where ")
+                && mixed.contains(" enters the other body and ")
+                && mixed.contains(" meets from inside the first"),
+            "{mixed}"
+        );
+        assert_ne!(
+            said(&crossing(Sense::Outside)),
+            said(&crossing(Sense::Inside)),
+            "the two touches read apart"
+        );
+    }
+
     /// By tag every carry says the read it came through, after the
     /// feature that made the leaf; which node holds the name is the
     /// enclosing sentence's to say.
