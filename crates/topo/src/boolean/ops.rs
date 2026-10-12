@@ -839,21 +839,7 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
     red.enter_join_surgery();
     let connected = bool_connect(&mut red, a, b, band, tol);
     red.leave_join_surgery(connected.is_ok());
-    // A ring whose cones touch along a ray in the face holds a corner of
-    // no angle, which a run round it may enclose: the unbuilt shape, not
-    // the kernel's defect.
-    let connected =
-        connected.map_err(|e| match (&e, red.pierce_rings.iter().find(|r| r.tied)) {
-            (BooleanError::JoinDesync { what }, Some(ring))
-                if *what == super::join::DEGENERATE_RING_WINDING =>
-            {
-                BooleanError::PinchRaysInAFace {
-                    operand: ring.operand.other(),
-                    face: ring.face,
-                }
-            }
-            _ => e,
-        })?;
+    let connected = connected?;
     if connected.completed.is_empty() {
         return Err(BooleanError::JoinDesync {
             what: "null pairs joined into no completed polygon",

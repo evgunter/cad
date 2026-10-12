@@ -1326,10 +1326,14 @@ impl<T: Real> Geo<T> {
     /// operand vertices the op glued there by a value decision (one
     /// pierce ring serving several pierces, `boolean::vtxfac::mint_ring`,
     /// whose seams tie their keys, `boolean::zip::share_points`). The op
-    /// records that decision (`DecisionSite::VertexFusion`), with
-    /// a record of the cones citing it, for the `unproven-coincidence`
-    /// lint. The census reads keys, not lineage, so it cannot tell the
-    /// two cases apart and does not ask for the record.
+    /// records that decision (`DecisionSite::VertexFusion`) for the
+    /// `unproven-coincidence` lint where a record of its result cites it
+    /// (`boolean::reduce::PendingRow`): where the cones stay distinct
+    /// vertices, the record of the cones. Where the decision glues them
+    /// into one vertex, that record is gone, and the row is emitted only
+    /// where another touch at the point cites it through its chain (a
+    /// vertex on a face there). The census reads keys, not lineage, so
+    /// it cannot tell the cases apart and does not ask for the record.
     fn same_point(&self, a: VertexKey, b: VertexKey) -> bool {
         a == b
             || matches!(
