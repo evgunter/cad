@@ -122,6 +122,7 @@ use crate::live::{Proven, linked, proven};
 use crate::null::CurveGeom;
 use crate::ring_path::{LoopArc, Path, Quadric, path_parity};
 use crate::splitting::containment::{LoopContainment, PointInLoopError, point_in_loop};
+use crate::splitting::order::{FRAME_ARM, FRAME_AXIS};
 use crate::splitting::rules::{face_axial_range, face_extent};
 use crate::validate::decide;
 use geom_core::Tol;
@@ -381,12 +382,8 @@ use geom_core::COINCIDENCE_RECOURSE as JOIN_RECOURSE;
 /// predicate: the join order's frame, or the order of two points in it.
 fn order_decision(predicate: Option<&str>) -> &'static str {
     match predicate {
-        Some("split_join_frame_axis") => {
-            "whether the section plane's normal lies along a coordinate axis"
-        }
-        Some("split_join_frame_arm") => {
-            "which direction in the section plane to order points along"
-        }
+        Some(FRAME_AXIS) => "whether the section plane's normal lies along a coordinate axis",
+        Some(FRAME_ARM) => "which direction in the section plane to order points along",
         _ => "the order of two section points",
     }
 }
@@ -398,7 +395,7 @@ fn order_decision(predicate: Option<&str>) -> &'static str {
 /// the escalation's whole ending.
 fn order_ending(diag: &Indeterminate) -> String {
     match diag.predicate {
-        Some("split_join_frame_axis" | "split_join_frame_arm") => LeverOnly {
+        Some(FRAME_AXIS | FRAME_ARM) => LeverOnly {
             lever: JOIN_RECOURSE,
         }
         .recourse(RefusedArm::Undecided(diag), Reading::Build),
@@ -445,10 +442,8 @@ impl core::fmt::Display for SplitJoinError {
                     "re-homing a hole loop: {}",
                     diag.undecided(
                         decision.subject(),
-                        LeverOnly {
-                            lever: decision.lever(),
-                        }
-                        .recourse(escalation.arm(diag), Reading::Build),
+                        crate::boolean::ContainDecision::Loop(*decision)
+                            .lever_ending(*escalation, diag),
                     )
                 ),
                 // The rays are the walk's own, so the levers are its.
