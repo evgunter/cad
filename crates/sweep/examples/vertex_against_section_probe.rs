@@ -81,7 +81,7 @@ fn main() {
                 }
                 let d = k * e;
                 let tag = format!("phi{phi}a{alpha} psi{pname} delta/eps={k}");
-                if door != "bool" {
+                if door != "bool" && door != "mirror" {
                     let at = Point3::new(c + d * n.x, s + d * n.y, d * n.z);
                     let plane = topo::test_support::split_plane(at, n, tol());
                     let line = match split(&cyl, &plane, tol()) {
@@ -94,7 +94,7 @@ fn main() {
                     };
                     println!("SPLIT {tag}: {line}");
                 }
-                if door != "split" {
+                if door != "split" && door != "mirror" {
                     // The slab x ≥ 1 (its face through (1, 0, 0), outward
                     // −x), its normal turned onto `n`, moved δ along n.
                     let slab = finished(sweep::test_support::prism_at(
@@ -127,6 +127,38 @@ fn main() {
                         Err(err) => format!("REFUSED {err:?} | {err}"),
                     };
                     println!("BOOL {tag}: {line}");
+                }
+                if door == "mirror" {
+                    // The mirrored pose: a box's corner on the wall at
+                    // half height, one of its faces the plane, the
+                    // vertex the box's and the wall the other solid's.
+                    let mid = Point3::new(1.0, 0.0, 0.5);
+                    let corner = finished(sweep::test_support::prism_at(
+                        [(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)]
+                            .iter()
+                            .map(|&(x, y)| (Point2::new(x, y), 0.0))
+                            .collect(),
+                        0.5,
+                        1.0,
+                        tol(),
+                    ));
+                    let x = Vec3::new(1.0, 0.0, 0.0);
+                    let axis = x.cross(local);
+                    let corner = if axis.norm() == 0.0 {
+                        corner
+                    } else {
+                        turned(&corner, mid, axis / axis.norm(), x.dot(local).acos())
+                    };
+                    let corner = turned(&corner, o, z, phi);
+                    let corner = finished(
+                        topo::transform_rigid(&corner, &Affine3::translation(n * d), tol())
+                            .unwrap(),
+                    );
+                    let line = match topo::subtract(&cyl, &corner, tol()) {
+                        Ok(r) => format!("ok vol={:.9}", vol(r.body().map(|b| &*b.body))),
+                        Err(err) => format!("REFUSED {err:?} | {err}"),
+                    };
+                    println!("MIRROR {tag}: {line}");
                 }
             }
         }
