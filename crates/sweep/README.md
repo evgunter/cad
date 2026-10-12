@@ -290,16 +290,16 @@ stored kinds (plane, cylinder, line, circle, ellipse).
   their ratio moving with the corner and growing without bound as the
   turn flattens toward a T, and at a box corner the gap closes
   quadratically in the skew while the chord closes linearly. Both Zero
-  builds the mitre on L; both definite builds the overrun on the side the sign picks; anything else escalates, with a
-  recourse that makes the feet meet (equal, or for a chamfer
-  supplementary, face angles), moves them clearly apart (a larger
-  setback, a more asymmetric corner), or requests L too for the patch.
-  A Zero verdict is a coincidence decided from values, the two feet
-  being one point, so the verdict records it
-  (`BatteryVerdict::coincidences`, D10), and `Blended::coincidences`
-  carries the rows to the document's coincidence door. No ball rests
-  at a turn, so the mitre is G0 between the bands; it never competes with the patch,
-  because the request count decides.
+  builds the mitre on L; both definite builds the overrun on the side
+  the sign picks; anything else escalates, with a recourse that makes
+  the feet meet (equal, or for a chamfer supplementary, face angles),
+  moves them clearly apart (a larger setback, a more asymmetric corner),
+  or requests L too for the patch. A Zero verdict is a coincidence
+  decided from values, the two feet being one point, so the verdict
+  records it (`BatteryVerdict::coincidences`, D10), and
+  `Blended::coincidences` carries the rows to the document's coincidence
+  door. No ball rests at a turn, so the mitre is G0 between the bands;
+  it never competes with the patch, because the request count decides.
 
 Chain G1 (predicate 4) is a classifier at a junction of two plane–plane
 links: Zero, one band through a joint; definite, two chain ends at a
