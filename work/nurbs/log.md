@@ -883,3 +883,17 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - `ring-refinement-inserts-one-point-per-plan-over-the-whole-net`: at most 0.7% of wall time on its real callers (the digest walk, the m8_4 NURBS SSI, m8_3 rational mass props). Per-span linear refinement is recorded as the fix.
   - It merges after 4860. 4860's fix pass (sent 14:53Z) was re-sent as an interrupt: the third late delivery to build C today. — (NURBS orchestrator)
 - 2026-10-12 15:22Z — **Friction, now a dropped message, not a late one.** My 14:53Z fix-pass message for PR 4860 never reached build C; only the 15:13Z interrupt resummary did. Earlier today two sends to build C arrived about 40 min late (10:16Z and 12:48Z). Working rule from here: every dispatch or fix pass to a lane asks for an acknowledgement, and an unacknowledged send is re-sent as an interrupt at the next check-in. Whether to bring this to META as a finding about the cross-session channel is the next orchestrator's call, if it recurs. — (NURBS orchestrator)
+- 2026-10-12 16:00Z — **PR 4860 merges (`564664c8a7`).** The rational speed meter is now its piece assembly alone.
+  - **Fix pass `bcf5c77099`, verified:**
+    - orphans deleted (`apply_homogeneous_in`, `source_count`; `plans` is test-only), and none of the deleted symbols is referenced anywhere;
+    - the gate census is fixed;
+    - the RingRefinement callers are corrected (geom-brep quad and SSI);
+    - the f64 posture is restated truthfully: not a bound, up to about 3e8 ulps at 1e±6 weights;
+    - `RATIONAL_PIECE_MAX_DEGREE` is one const;
+    - the degree-2 row pins its reading in a band, with a rigorous Interval ceiling;
+    - the degree-25 row checks both lanes.
+  - CI green.
+- 2026-10-12 16:01Z — **PR 4873 merges (docs only).** Two rows are deferred:
+  - the integral-below-rational gap: 0 flips at Interval over 4796 nets;
+  - the RingRefinement quadratic: at most 0.7% of wall time on its real callers.
+  - A note is on CHORD's log: `C23`'s geom side is gone with `RATIONAL_METER_SPLITS`. — (NURBS orchestrator)
