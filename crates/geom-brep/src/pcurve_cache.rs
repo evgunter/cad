@@ -1319,33 +1319,20 @@ const _: () = {
 };
 /// The number a fitted-lane refusal carries, named for what it IS.
 ///
-/// The SSI door's definite refusals each measured something different,
-/// so each rides its own named arm: flattening them onto one anonymous
-/// number loses the only thing a reader needs, what the number means.
-/// The foot distances are quantities the lane projected out of an
-/// enclosure when it refused. The limb residual and the tube's
-/// clearance are the reporting margins their verdicts were decided on
+/// The fitted lane's definite refusals each measured something
+/// different, so each rides its own named arm: flattening them onto one
+/// anonymous number loses the only thing a reader needs, what the
+/// number means. The foot distances are quantities the image producer
+/// projected out of an enclosure when it refused. The limb residual is
+/// the reporting margin the hull limb's verdict was decided on
 /// ([`geom_core::MarginDiag`], for the message only), as `edge_nurbs`'
-/// `Limb` and `TubeStraddles` carry them: a point at `f64`, and at
-/// `Interval` the enclosure, rendered `[lo, hi] m`.
+/// `Limb` carries it: a point at `f64`, and at `Interval` the
+/// enclosure, rendered `[lo, hi] m`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FittedMagnitude {
     /// A certificate limb exceeded ε: what the classifier saw of the
     /// limb's residual, in metres, for the message only.
     LimbResidual(geom_core::MarginDiag),
-    /// Limb 3's uniqueness tube did not classify clear of the zero band.
-    /// The number is a **certified clearance**, not a measured extent:
-    /// it is exactly zero whenever the enclosure contains zero, so `0`
-    /// here reads "not certifiably zero-free", never "measured zero".
-    /// The box count is the informative companion (`edge_nurbs`'
-    /// `TubeStraddles` carries the same pair, with the verdict).
-    CertifiedClearance {
-        /// The certified zero-free clearance in metres (0 = none), as
-        /// the classifier read it: for the message only.
-        certified_clearance: geom_core::MarginDiag,
-        /// Boxes in the tube chain.
-        boxes: u32,
-    },
     /// A certified foot point would not converge: the last distance the
     /// projection saw, in metres, at the schedule parameter it gave up
     /// on.
@@ -1813,13 +1800,6 @@ impl core::fmt::Display for PcurveCertifyError {
                 },
                 match magnitude {
                     Some(FittedMagnitude::LimbResidual(v)) => format!(" (limb residual {v:e} m)"),
-                    Some(FittedMagnitude::CertifiedClearance {
-                        certified_clearance,
-                        boxes,
-                    }) => format!(
-                        " (certified clearance {certified_clearance:e} m over {boxes} tube \
-                         boxes — zero means no clearance was certified, not a measured zero)"
-                    ),
                     Some(FittedMagnitude::LastFootDistance { t, last_distance }) => format!(
                         " (the projection's last distance was {last_distance:e} m at t = {t:e})"
                     ),
@@ -2294,20 +2274,22 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
     // held there.
     let eval = |t| carrier.eval(t);
     let schedule = match carrier {
-        Curve3::Nurbs(net) => crate::edge_nurbs::net_schedule(net, &eval),
+        Curve3::Nurbs(net) => {
+            crate::edge_nurbs::Schedule::new(&eval, net.domain(), net.knot_values().domain())
+        }
         _ => {
             let (lo, hi) = (
                 params.0.lo().min(params.1.lo()),
                 params.0.hi().max(params.1.hi()),
             );
-            (
-                &eval as &dyn Fn(T) -> geom_core::Point3<T>,
+            crate::edge_nurbs::Schedule::new(
+                &eval,
                 (lo, hi),
                 (T::from_computed(lo), T::from_computed(hi)),
             )
         }
     };
-    let (t0, t1) = schedule.1;
+    let (t0, t1) = schedule.domain();
     let certificate = |what| PcurveCertifyError::FittedCertificate {
         limb: None,
         what,
@@ -2629,15 +2611,14 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
 /// of C2 against this chart alone, a certified bound on
 /// `sup |S(P(t)) − C(t)|` over the image's domain, its rounds halved as
 /// `ssi::certify`'s limb 2 halves them.
-/// A closed-form carrier's image must cover the edge's interval
-/// `params`: its domain is the image's own, read as `f64` structure
-/// against the interval's outer ends (C6).
+/// The image must cover the edge's interval `params`: its domain is
+/// read as `f64` structure against the interval's outer ends (C6).
 ///
 /// # Errors
 ///
 /// [`PcurveCertifyError::FittedCertificate`] when the bound refuses or
-/// the carrier cannot be enclosed, or a closed-form carrier's image
-/// stops short of the edge.
+/// the carrier cannot be enclosed, or the image stops short of the
+/// edge.
 pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
     carrier: &Curve3<T>,
     image: &NurbsCurve2<T>,
@@ -2656,19 +2637,25 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
             unreachable!("fitted_lane: `run_fitted_checks` admits only a spline chart at check 1")
         }
     };
-    if !matches!(carrier, Curve3::Nurbs(_)) {
-        let (d0, d1) = image.knots().domain();
-        if !(d0 <= t0.lo().min(t1.lo()) && t0.hi().max(t1.hi()) <= d1) {
-            return Err(PcurveCertifyError::FittedCertificate {
-                limb: Some(SsiLimb::HullSup),
-                what: "the image's domain stops short of the edge's interval, so its hull \
-                       bound says nothing about the edge's ends",
-                magnitude: None,
-            });
-        }
+    // The bound is over the image's domain, so the edge's interval must
+    // lie inside it, for every carrier kind. Nothing upstream says so of
+    // a spline: its evaluation clamps at its knot domain, so an edge's
+    // end check reads `C(1)` at `t = 1.5` and passes. The domain ends
+    // and the interval's outer ends are `f64` structure here (C6): the
+    // knot domain is stored `f64`, and the outer ends are the interval's
+    // certified bracket, so the comparison decides containment of every
+    // point the scalar admits and rounds nothing.
+    let (d0, d1) = image.knots().domain();
+    if !(d0 <= t0.lo().min(t1.lo()) && t0.hi().max(t1.hi()) <= d1) {
+        return Err(PcurveCertifyError::FittedCertificate {
+            limb: Some(SsiLimb::HullSup),
+            what: "the image's domain stops short of the edge's interval, so its hull \
+                   bound says nothing about the edge's ends",
+            magnitude: None,
+        });
     }
     use crate::ssi::certify::{
-        CHART_HULL, Hull, Refused, chart_breaks, chart_composite, chart_data, hull_limb, subdivide,
+        CHART_HULL, Hull, Refused, chart_breaks, chart_round, hull_limb, subdivide,
     };
     use geom_core::spline::algebra::range_grid_points;
     // Each round's composite against this chart alone, cut at `cuts`
@@ -2689,10 +2676,13 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
         let coords = net.certified_coords();
         subdivide(
             |cuts: &[f64]| -> Result<Hull, crate::ssi::SsiError> {
-                let (c, p, s) =
-                    chart_data((net.knots(), net.weight_channel(), &coords), pimage, schart)?;
                 let extra: Vec<f64> = grid.iter().chain(cuts).copied().collect();
-                chart_composite(&c, &p, &s, &extra)
+                chart_round(
+                    (net.knots(), net.weight_channel(), &coords),
+                    pimage,
+                    schart,
+                    &extra,
+                )
             },
             band,
         )
@@ -2713,12 +2703,12 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
                     },
                 )?;
                 let weights = vec![1.0; enclosed.knots.control_count()];
-                let (c, p, s) = chart_data(
+                chart_round(
                     (&enclosed.knots, &weights, &enclosed.coords),
                     pimage,
                     schart,
-                )?;
-                chart_composite(&c, &p, &s, &[])
+                    &[],
+                )
             },
             band,
         )
@@ -2727,107 +2717,56 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
     hull_limb(&CHART_HULL, stopped, band, &mut Refused::default()).map_err(ssi_refusal)
 }
 
-/// The control-net diameter of a carrier, in metres — a convexity fact
-/// (the hull property), not an evaluation.
-pub(crate) fn carrier_diameter<T: Real>(carrier: &NurbsCurve3<T>) -> T {
-    let mut ctl = carrier.control().iter();
-    let Some(first) = ctl.next() else {
-        return T::zero();
-    };
-    let (mut lo, mut hi) = (*first, *first);
-    for p in ctl {
-        lo = Point3::new(lo.x.min(p.x), lo.y.min(p.y), lo.z.min(p.z));
-        hi = Point3::new(hi.x.max(p.x), hi.y.max(p.y), hi.z.max(p.z));
-    }
-    (hi - lo).norm()
-}
-
-/// The SSI refusal, reduced to the three parts this module's closed
-/// enum carries — the limb, the reason (including the escalating
-/// predicate's own name) and the offending margin. That triple is the
-/// actionable content; see the
+/// The hull limb's refusal, reduced to the three parts this module's
+/// closed enum carries — the limb, the reason (including the
+/// escalating predicate's own name) and the offending margin. That
+/// triple is the actionable content; see the
 /// [`PcurveCertifyError::FittedCertificate`] docs for what the
 /// flattening buys and, honestly, what it does not.
+///
+/// Its one producer is [`fitted_lane`], which runs limb 2's hull
+/// against the row's chart and nothing else: the composite refuses
+/// [`SsiError::UnsupportedCertificate`](crate::ssi::SsiError), and the
+/// limb's verdict a definite [`SsiError::CertificateLimb`] or an
+/// escalated `CertificateEscalated`. Those are the arms written out.
 ///
 /// **Escalations leave by a different door.** They are the only
 /// refusals carrying a margin the classifier judged, and that margin is
 /// unreadable without the band it was judged against, so the
-/// escalation travels whole, its decision with its `Indeterminate`, in
-/// [`PcurveCertifyError::FittedEscalated`]. What remains here is
-/// definite and structural refusals, whose numbers are each named for
-/// what they are ([`FittedMagnitude`]) and are `None` when the refusal
-/// measured nothing.
+/// escalation travels whole, its limb with its `Indeterminate`, in
+/// [`PcurveCertifyError::FittedEscalated`].
 fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
     use crate::ssi::SsiError as E;
     let (limb, what, magnitude) = match e {
-        E::Escalated { decision, cause } => {
-            return PcurveCertifyError::FittedEscalated {
-                decision: SsiDecision::Trace(decision),
-                cause,
-            };
-        }
         E::CertificateEscalated { limb, cause } => {
             return PcurveCertifyError::FittedEscalated {
                 decision: SsiDecision::Limb(limb),
                 cause,
             };
         }
-        E::ChartRow { source } => return PcurveCertifyError::ChartRow { source },
-        // Only a marching door refines, and the fitted lane certifies
-        // through `certify_branch` alone, so this is unreachable here.
-        // Unwrapping it would drop a step-budget stop's own ending
-        // (`SsiError::ending`).
-        E::RefinementExhausted { refusal, .. } => return ssi_refusal(*refusal),
         E::CertificateLimb { limb, margin } => (
             Some(limb),
             "a certificate limb exceeded ε",
             Some(FittedMagnitude::LimbResidual(margin)),
         ),
-        E::TubeStraddles { verdict, boxes } => (
-            Some(SsiLimb::Tube),
-            "the uniqueness tube's transversality is not certified clear of zero (a genuine \
-             sliver of the operand pair — escalate, never desingularize)",
-            Some(FittedMagnitude::CertifiedClearance {
-                certified_clearance: verdict.margin(),
-                boxes,
-            }),
-        ),
-        E::FootPointInconclusive { t, last_distance } => (
-            Some(SsiLimb::OnLocus),
-            "a certified foot point would not converge",
-            Some(FittedMagnitude::LastFootDistance { t, last_distance }),
-        ),
-        E::TubeLadderEmpty { .. } => (
-            Some(SsiLimb::Tube),
-            "the uniqueness tube's radius ladder is empty — the carrier's extent is too \
-             small against the run's tolerance for any rung to clear the ladder floor, so \
-             limb 3 never ran and measured nothing",
-            None,
-        ),
-        E::TubeProbeSilent { .. } => (
-            Some(SsiLimb::Tube),
-            "no rung of the uniqueness tube's radius ladder measured a margin (its chain \
-             would not build, or a transversality enclosure was refused), so limb 3 has \
-             nothing to decide",
-            None,
-        ),
         E::UnsupportedCertificate { what } => (None, what, None),
-        E::ChartSpeed(r) => (None, r.what(), None),
-        E::TubeDegenerate(d) => (Some(SsiLimb::Tube), d.what(), None),
-        // Limb 3 proves one arc spanning the carrier at this door too.
-        E::TubeNotOneArc { .. } => (
-            Some(SsiLimb::Tube),
-            "the uniqueness tube's chain was a graph but not proved to hold one arc spanning \
-             the carrier: the edge may join two arcs of the intersection, or overrun its arc's \
-             end",
-            None,
-        ),
         // Exhaustive BY VARIANT rather than by catch-all: a new
         // `SsiError` must be dispositioned here deliberately, and the
-        // compiler is what enforces that. These are the structural
-        // refusals whose full text lives at the SSI door; none of them
-        // measured a quantity this lane can name.
-        E::TransversalityBand { .. }
+        // compiler is what enforces that. The hull limb raises none of
+        // these (the trace's, the tube's, the foot projection's and the
+        // marching doors' refusals); were one to reach here it is a
+        // structural refusal whose full text lives at the SSI door.
+        E::Escalated { .. }
+        | E::ChartRow { .. }
+        | E::RefinementExhausted { .. }
+        | E::TubeStraddles { .. }
+        | E::FootPointInconclusive { .. }
+        | E::TubeLadderEmpty { .. }
+        | E::TubeProbeSilent { .. }
+        | E::ChartSpeed(_)
+        | E::TubeDegenerate(_)
+        | E::TubeNotOneArc { .. }
+        | E::TransversalityBand { .. }
         | E::PairTangent { .. }
         | E::OperandNotFinite { .. }
         | E::ExhaustivenessInconclusive(_)
@@ -2859,8 +2798,8 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         | E::InvalidMarchTol { .. }
         | E::MarchTolMismatch { .. } => (
             None,
-            "the rung-3 certificate refused structurally (see geom_brep::SsiError for the \
-             full text at the SSI door)",
+            "the hull limb refused structurally (see geom_brep::SsiError for the full text \
+             at the SSI door)",
             None,
         ),
     };
@@ -9732,25 +9671,6 @@ mod tests {
         assert!((rate - 1.0).abs() < 1e-15, "the unit-chord net meters at 1");
     }
 
-    /// SSI's corrupt-chart refusal leaves the fitted lane as this
-    /// module's `ChartRow` with the spline layer's payload whole — not
-    /// flattened into `FittedCertificate`'s text, which would read as a
-    /// certificate's refusal rather than a structural one.
-    #[test]
-    fn an_ssi_chart_row_refusal_keeps_its_source() {
-        let source = SplineError::WeightCountMismatch {
-            weights: 5,
-            control: 6,
-        };
-        let got = ssi_refusal(crate::ssi::SsiError::ChartRow {
-            source: source.clone(),
-        });
-        assert!(
-            matches!(&got, PcurveCertifyError::ChartRow { source: s } if *s == source),
-            "{got:?}"
-        );
-    }
-
     /// A schedule check's escalation renders its payload and then its
     /// check's own labelled ending, read at a build: the azimuth headroom
     /// ends as the edge winding gate does.
@@ -9775,52 +9695,40 @@ mod tests {
         );
     }
 
-    /// A limb-3 escalation ends by the tube's own decision at the
-    /// pcurve door, as at the SSI door, at rest: the transversality's
-    /// lever and its tighten offer in band, never the fitted lane's last
-    /// resort.
+    /// A hull-limb escalation, the one escalation the fitted lane
+    /// raises, ends by its limb's own decision at the pcurve door as at
+    /// the SSI door, at rest, poisoned margin or not.
     #[test]
-    fn a_tube_escalation_ends_the_same_at_the_ssi_and_pcurve_doors() {
+    fn a_hull_escalation_ends_the_same_at_the_ssi_and_pcurve_doors() {
         let cause = Indeterminate {
             margin: geom_core::MarginDiag::value(5e-9),
             band: Band::new(1e-9, 1e-8).unwrap(),
-            predicate: Some("ssi_tube_transversality"),
+            predicate: Some("ssi_hull_sup_chart"),
             terminal_sliver: false,
         };
-        let ssi = crate::ssi::SsiError::CertificateEscalated {
-            limb: SsiLimb::Tube,
-            cause,
-        };
-        let want = "Recourse: move the geometry so the surfaces cross at a clearer angle, or, \
-                    if this angle is intended, tighten the tolerance below 5e-10 m";
-        assert_eq!(ssi.ending(Reading::AtRest), want, "the SSI door");
-        let pcurve = ssi_refusal(ssi);
-        assert_eq!(
-            pcurve.ending(Reading::AtRest).as_deref(),
-            Some(want),
-            "the pcurve door: {pcurve}"
-        );
-        // A poisoned margin keeps the tube's lever, with the stored
-        // margin's unreadable note in place of the tighten offer.
-        let poisoned = crate::ssi::SsiError::CertificateEscalated {
-            limb: SsiLimb::Tube,
-            cause: Indeterminate {
-                margin: geom_core::MarginDiag::INVALID,
-                ..cause
-            },
-        };
-        let want = "Recourse: move the geometry so the surfaces cross at a clearer angle; an \
-                    unreadable margin may indicate a kernel or file defect worth reporting";
-        assert_eq!(
-            poisoned.ending(Reading::AtRest),
-            want,
-            "poisoned, the SSI door"
-        );
-        assert_eq!(
-            ssi_refusal(poisoned).ending(Reading::AtRest).as_deref(),
-            Some(want),
-            "poisoned, the pcurve door"
-        );
+        for margin in [cause.margin, geom_core::MarginDiag::INVALID] {
+            let ssi = crate::ssi::SsiError::CertificateEscalated {
+                limb: SsiLimb::HullSup,
+                cause: Indeterminate { margin, ..cause },
+            };
+            let want = ssi.ending(Reading::AtRest);
+            let pcurve = ssi_refusal(ssi);
+            assert!(
+                matches!(
+                    pcurve,
+                    PcurveCertifyError::FittedEscalated {
+                        decision: SsiDecision::Limb(SsiLimb::HullSup),
+                        ..
+                    }
+                ),
+                "{pcurve:?}"
+            );
+            assert_eq!(
+                pcurve.ending(Reading::AtRest).as_deref(),
+                Some(want.as_str()),
+                "the pcurve door ends as the SSI door: {pcurve}"
+            );
+        }
     }
 
     // ---- The seam class's LINE-carrier limb (#388). ----

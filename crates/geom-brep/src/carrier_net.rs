@@ -442,6 +442,28 @@ mod tests {
         }
     }
 
+    /// On uneven spans the joint control must hold both neighbours' end:
+    /// a two-radian span's end control is wide by its remainder, a
+    /// thousandth-wide span's start is tight, and either one alone
+    /// misses the other span's carrier near the break. The hull holds
+    /// both, in either order of widths.
+    #[test]
+    fn r2_uneven_spans_need_the_joint_hull() {
+        let circle = Curve3::Circle {
+            center: Point3::new(0.3, -0.2, 0.5),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 0.8,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        for breaks in [[-0.4, 1.6, 1.601], [-0.4, -0.399, 1.6]] {
+            assert_eq!(
+                encloses(&circle, &breaks, None),
+                Ok(()),
+                "the circle's net encloses it across the joint of {breaks:?}"
+            );
+        }
+    }
+
     /// A spiric whose square root's argument reaches zero (offset equal
     /// to the inner radius) has no certified net over a span that holds
     /// the zero: the caller refuses on `None`.

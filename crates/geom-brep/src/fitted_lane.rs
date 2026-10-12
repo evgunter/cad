@@ -171,12 +171,22 @@ impl<T: Real> FittedLane<T> {
     /// The producer is `edge_nurbs`'s — the one derivation of this
     /// object in the tree (`edge_nurbs::chart_image`): foot points at
     /// the D9-fixed schedule, interpolated on the carrier's own
-    /// parameter. A spline carrier's image spans its knot domain, which
-    /// the composite pairs it on; any other carrier's spans `params`'
-    /// outer ends. It is EVIDENCE and certifies nothing by itself; the
-    /// caller's next move is [`crate::PcurveCache::certify_general`],
-    /// which bounds `sup_t |S(P(t)) − C(t)|` over the whole span
-    /// against the chart.
+    /// parameter at degree 1 (`PXN_IMAGE_DEGREE`). It is EVIDENCE and
+    /// certifies nothing by itself; the caller's next move is
+    /// [`crate::PcurveCache::certify_general`], which bounds
+    /// `sup_t |S(P(t)) − C(t)|` over the whole span against the chart.
+    /// A degree-1 image certifies only where the foot path is straight
+    /// to ε: a spline carrier's wherever its edge certificate holds
+    /// (that certificate reads this same image), a line's on a flat
+    /// chart, and a circle's, ellipse's or spiric's foot path bends, so
+    /// its image refuses at the hull ([`PcurveCertifyError::FittedCertificate`]).
+    ///
+    /// `params` is read only for a carrier with no knot domain. A
+    /// spline's image spans its own knot domain, because the composite
+    /// pairs carrier and image on one parameter there; whether that
+    /// domain holds the edge's interval is check 4's to refuse
+    /// (`fitted_lane`), not the producer's. Any other carrier's image
+    /// spans `params`' outer ends.
     ///
     /// It sits on THIS door rather than beside its producer because the
     /// derivation and the certificate are the same split — both need

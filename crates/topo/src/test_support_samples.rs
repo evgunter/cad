@@ -613,16 +613,13 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
             source: geom_core::spline::SplineError::DomainInvalid { lo: 1.0, hi: 0.0 },
         },
         PcurveCertifyError::FittedCertificate {
-            limb: Some(geom_brep::SsiLimb::Tube),
-            what: "the uniqueness tube straddles a second branch",
-            magnitude: Some(FittedMagnitude::CertifiedClearance {
-                certified_clearance: MarginDiag::value(1e-7),
-                boxes: 12,
-            }),
+            limb: Some(geom_brep::SsiLimb::HullSup),
+            what: "a certificate limb exceeded ε",
+            magnitude: Some(FittedMagnitude::LimbResidual(MarginDiag::value(1e-7))),
         },
         PcurveCertifyError::CarrierDomain(carrier_domain_collapsed()),
         PcurveCertifyError::FittedEscalated {
-            decision: geom_brep::SsiDecision::Limb(geom_brep::SsiLimb::Tube),
+            decision: geom_brep::SsiDecision::Limb(geom_brep::SsiLimb::HullSup),
             cause: diag(),
         },
         PcurveCertifyError::IntervalNotForward,

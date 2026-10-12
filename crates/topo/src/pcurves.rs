@@ -1136,17 +1136,20 @@ fn uniform_breaks(spans: usize) -> Option<geom_core::spline::KnotVector> {
 ///   line through the chart's own rational-quadratic parameter
 ///   ([`Pcurve::IsoArc`], M8-3). Both mapped description forms the
 ///   kernel mints for a circle reach it — see the arm's own note.
-/// - An [`geom_brep::EdgeDescription::Intersection`] over a SPLINE carrier
-///   that lies on a boundary column maps as that column: the same iso
-///   line the `IsoCurve` arm mints, recovered from the carrier because
-///   the intrinsic description names no chart coordinate; one on a
-///   boundary row (a cap–wall rim) maps as that row. The residency is a
-///   pick over the columns and rows and their two directions, definite
-///   or escalated, then over the interior row the carrier's end feet
-///   measure (a cap rim an offset moved). Any other locus — an INTERIOR
-///   column is the executed case (#498) — takes U2's `General`
+/// - An [`geom_brep::EdgeDescription::Intersection`] over a spline or
+///   line carrier that lies on a boundary column maps as that column:
+///   the same iso line the `IsoCurve` arm mints, recovered from the
+///   carrier because the intrinsic description names no chart
+///   coordinate; one on a boundary row (a cap–wall rim) maps as that
+///   row. The residency is a pick over the columns and rows and their
+///   two directions, definite or escalated, then over the interior row
+///   the carrier's end feet measure (a cap rim an offset moved). A
+///   circle is offered to the arc rim. Any other locus or carrier — an
+///   INTERIOR column is the executed case (#498) — takes U2's `General`
 ///   curve-in-UV arm at the honest Fitted grade, derived from the
-///   wall's own foot schedule.
+///   wall's own foot schedule at degree 1: it certifies where the foot
+///   path is straight to ε and refuses at the hull
+///   (`FittedCertificate`) where a curved carrier bends it.
 /// - Everything else on a NURBS chart refuses typed with the class
 ///   named.
 fn nurbs_iso_derive<T: AtRestPolicy>(
@@ -1531,10 +1534,15 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
             //   form and never will, and `General` is #498's home for
             //   it rather than a refusal.
             //
-            // A DIAGONAL locus reaches here too and is not this unit's:
-            // it refuses earlier, at edge certification, on
-            // `PXN_IMAGE_DEGREE` (`geom-brep/src/edge_nurbs.rs`, banked
-            // to #264), so no body carrying one reaches this pass.
+            // A DIAGONAL locus reaches here too and takes `General` the
+            // same way: its image is the chart image the edge certificate
+            // itself derives (`edge_nurbs::chart_image`, at
+            // `PXN_IMAGE_DEGREE`), so it certifies wherever the edge did.
+            // A closed-form carrier reaches here only through the doors
+            // today (the spline-pair edge certificates refuse it first:
+            // `work/pcert/the-spline-pair-edge-certificates-refuse-a-closed-form-carrier.md`);
+            // its degree-1 image certifies a straight foot path and
+            // refuses at the hull where a circle or ellipse bends one.
             // ---- An interior ROW: the rim of a cap an offset moved
             // into the chart. Its row and `u` map are the ones the
             // carrier's two end feet measure, offered to the same
@@ -2861,15 +2869,19 @@ fn derive_face<T: AtRestPolicy>(
     // construction's STATED `General` image here at every scalar, a dual
     // included, and an absent door refuses at check 4, so an image that
     // fails checks 1–3 draws those checks' verdict at every scalar.
-    let fitted = |w: &Walked<T>| {
-        restate(
+    let fitted = |w: &Walked<T>| match &w.pcurve {
+        Pcurve::Fitted(_) | Pcurve::General(_) | Pcurve::Projected(_) => restate(
             &w.pcurve,
             (w.t0, w.t1),
             &w.carrier,
             surface,
             band,
             T::fitted_lane(),
-        )
+        ),
+        closed => unreachable!(
+            "certify_walked hands the fitted door only Fitted, General and Projected images: \
+             {closed:?}"
+        ),
     };
     if !refused.is_empty() {
         // A walk stops at the first refusal of its loop, so an edge
@@ -6087,19 +6099,19 @@ mod recourse_tests {
         }
     }
 
-    /// A fitted-lane limb-3 escalation, rendered through the mint's
-    /// `Certify` arm, ends in the tube's own labelled recourse at a
-    /// build: the transversality lever and its tighten offer.
+    /// A fitted-lane escalation (the hull limb's, the one it raises),
+    /// rendered through the mint's `Certify` arm, ends in its limb's own
+    /// labelled recourse at a build.
     #[test]
-    fn a_fitted_tube_escalation_renders_its_own_recourse_through_the_mint() {
+    fn a_fitted_hull_escalation_renders_its_own_recourse_through_the_mint() {
         let finding = PcurveMintError::Certify {
             half_edge: HalfEdgeKey::default(),
             error: PcurveCertifyError::FittedEscalated {
-                decision: geom_brep::SsiDecision::Limb(geom_brep::SsiLimb::Tube),
+                decision: geom_brep::SsiDecision::Limb(geom_brep::SsiLimb::HullSup),
                 cause: Indeterminate {
                     margin: MarginDiag::value(5e-9),
                     band: Band::new(1e-9, 1e-8).unwrap(),
-                    predicate: Some("ssi_tube_transversality"),
+                    predicate: Some("ssi_hull_sup_chart"),
                     terminal_sliver: false,
                 },
             },
@@ -6108,9 +6120,9 @@ mod recourse_tests {
             finding.to_string(),
             "the pcurve of half-edge HalfEdgeKey(null) failed certification: pcurve \
              certification: the fitted lane's certificate escalated — whether the fitted carrier \
-             passes limb 3 (uniqueness tube) is undecided: margin 5e-9 lies inside the ambiguity \
-             band (1e-9, 1e-8). Recourse: move the geometry so the surfaces cross at a clearer \
-             angle, or, if this angle is intended, tighten the tolerance below 5e-10 m"
+             passes limb 2 (control-hull sup-norm bound) is undecided: margin 5e-9 lies inside \
+             the ambiguity band (1e-9, 1e-8). Recourse: loosen the tolerance, as a last resort; \
+             this refusal may indicate a kernel bug worth reporting"
         );
     }
 }

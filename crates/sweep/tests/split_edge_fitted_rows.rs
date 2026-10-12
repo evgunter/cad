@@ -208,7 +208,7 @@ fn general_seam_at_rest<T: AtRestPolicy>() -> (Body<T>, HalfEdgeKey, EdgeKey, Su
 /// chart keep the parent's image, of the same variant, over their own
 /// sub-intervals, with the parent's check-4 certificate, and the pcurve
 /// phase of tier 3 reads the split body clean.
-fn split_carries<T: AtRestPolicy>(
+fn split_carries<T: AtRestPolicy + geom_core::Bounds>(
     mut body: Body<T>,
     parent_half: HalfEdgeKey,
     edge: EdgeKey,
@@ -241,7 +241,16 @@ fn split_carries<T: AtRestPolicy>(
         "{kind} @ {}: the parent's row holds a check-4 hull bound",
         T::NAME
     );
-    let parent_hull = format!("{:?}", parent.certificate().envelope);
+    // The check-4 certificate IS the hull bound (`envelope`, with its
+    // statement above), compared as the bits of its enclosure's ends:
+    // `f64`'s are the value's, `Interval`'s its bracket's.
+    let bits = |e: T| {
+        (
+            geom_core::Bounds::lo(e).to_bits(),
+            geom_core::Bounds::hi(e).to_bits(),
+        )
+    };
+    let parent_hull = bits(parent.certificate().envelope);
     let (t0, t1) = parent.params();
     let t = (t0 + t1) * T::from_f64(0.5);
     let created = body
@@ -264,8 +273,14 @@ fn split_carries<T: AtRestPolicy>(
                 T::NAME
             );
             assert_eq!(
-                format!("{:?}", cache.certificate().envelope),
-                parent_hull,
+                (
+                    cache.certificate().statement,
+                    bits(cache.certificate().envelope)
+                ),
+                (
+                    geom_brep::EnvelopeStatement::MapResidualComposite,
+                    parent_hull
+                ),
                 "{kind} @ {}: {h:?}'s check 4 is the parent's, bit for bit",
                 T::NAME
             );
@@ -290,7 +305,7 @@ fn split_carries<T: AtRestPolicy>(
 }
 
 /// The minted `General` row, split.
-fn general_row<T: AtRestPolicy>() {
+fn general_row<T: AtRestPolicy + geom_core::Bounds>() {
     let (body, he, edge, chart) = general_seam_at_rest::<T>();
     assert!(
         matches!(body.pcurve(he).unwrap().pcurve(), Pcurve::General(_)),
@@ -301,7 +316,7 @@ fn general_row<T: AtRestPolicy>() {
 
 /// The same image stated through `certify_fitted` and attached as a
 /// caller would, split.
-fn fitted_row<T: AtRestPolicy>() {
+fn fitted_row<T: AtRestPolicy + geom_core::Bounds>() {
     let (mut body, he, edge, chart) = general_seam_at_rest::<T>();
     let Pcurve::General(image) = body.pcurve(he).unwrap().pcurve().clone() else {
         panic!("the mint stores the interior column's General image")

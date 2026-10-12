@@ -1,10 +1,10 @@
 ---
-id: an-off-iso-straight-edge-on-a-spline-face-mints-a-wrong-row
+id: an-off-iso-straight-edge-on-a-spline-face-refuses-its-rows
 kind: issue
-title: the mint's line-rim arm gives an off-iso straight edge on a spline face a row through its start foot, and the loop walk refuses
+title: the mint refuses a spline face holding an off-iso straight edge (LoopDiscontinuity, no rows stored), because its line-rim arm picks a row through the start foot
 status: open
 opened: 2026-10-12
-priority: P1
+priority: P2
 cost: M
 ---
 
@@ -22,8 +22,13 @@ end feet, builds the `u` map from them, and picks the row with
 `side_pick(&row(p0x, plx), &[cv0, cv1, f0.y])`. That pick reads only
 the carrier's START point, which every row through the start foot
 passes. So an off-iso straight edge (a diagonal) gets an `IsoLine`
-that leaves the carrier everywhere past its start. It is a wrong image
-rather than a refusal, and the loop walk then refuses the face.
+that leaves the carrier everywhere past its start. The candidate is
+never stored: the loop walk refuses the face loudly
+(`LoopDiscontinuity`, zero rows stored). So this is a completeness gap,
+a false refusal of a face that has a certifiable `General` image, and
+not a wrong row at rest. Both PR 4900 reviews executed it and found it
+pre-existing on the merge base, not widened by that PR (orchestrator,
+2026-10-12: P2).
 
 Measured on main + this branch: a triangle lamina on the bilinear
 identity chart `(u, v) ↦ (u, v, 0)` (`mvfs`, two `mev_line`s, one

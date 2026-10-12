@@ -30,7 +30,7 @@ adoption ladder (`crates/step-import/src/adopt.rs`, `adopt_edges`):
   reaches its `Chart`/`Scaffold` line-rim arm, which picks a row through
   the start foot and mints a wrong `IsoLine`. The import then refuses
   the face (`LoopDiscontinuity` on the probe,
-  `work/pcert/an-off-iso-straight-edge-on-a-spline-face-mints-a-wrong-row.md`).
+  `work/pcert/an-off-iso-straight-edge-on-a-spline-face-refuses-its-rows.md`).
   For a wall × wall pair no rung is left.
 
 So no rung reaches the `General` image the fitted-grade row can now

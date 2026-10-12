@@ -37,7 +37,7 @@ gives an off-iso line its `General` image. The refusal at the edge
 certificate is unchanged and comes first. Not reproduced through a
 STEP file: the measurement is the code path above plus the topo-level
 probe in
-`work/pcert/an-off-iso-straight-edge-on-a-spline-face-mints-a-wrong-row.md`.
+`work/pcert/an-off-iso-straight-edge-on-a-spline-face-refuses-its-rows.md`.
 
 ## Fix, one of
 

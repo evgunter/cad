@@ -584,7 +584,8 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
         surface.certified_coords(),
     );
     let hull = |cuts: &[f64]| -> Result<Hull, SsiError> {
-        let (cdata, pdata, sdata) = chart_data(
+        let extra: Vec<f64> = chart.iter().chain(cuts).copied().collect();
+        chart_round(
             (carrier.knots(), carrier.weight_channel(), &coords),
             (pcurve.knots(), pcurve.weight_channel(), &pcoords),
             (
@@ -593,9 +594,8 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
                 surface.weight_channel(),
                 &scoords,
             ),
-        )?;
-        let extra: Vec<f64> = chart.iter().chain(cuts).copied().collect();
-        chart_composite(&cdata, &pdata, &sdata, &extra)
+            &extra,
+        )
     };
     // ---- limb 1: the fixed schedule, through certified foot points --
     // The schedule on the carrier's held domain (its ends held, its
@@ -645,36 +645,39 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     Ok((worst, sup))
 }
 
-/// The three operands of limb 2's composite as certification data,
+/// A curve operand of limb 2's composite as certification data: its
+/// knots, weights and certified control coordinates.
+pub(crate) type CurveOperand<'a> = (&'a KnotVector, &'a [f64], &'a [Vec<Interval>]);
+
+/// A spline chart operand of limb 2's composite as certification data:
+/// its two knot vectors, weights and certified control coordinates.
+pub(crate) type ChartOperand<'a> = (
+    &'a KnotVector,
+    &'a KnotVector,
+    &'a [f64],
+    &'a [Vec<Interval>],
+);
+
+/// One round of limb 2 against a spline chart: the carrier and its
+/// pcurve composed into `chart`, cut at `breaks` besides both curves'
+/// knots ([`chart_composite`]). The one home of the round for every
+/// caller — the SSI door's NURBS operand and the fitted row's chart —
 /// each refusal named for its operand.
-#[allow(clippy::type_complexity)]
-pub(crate) fn chart_data<'a>(
-    (ck, cw, cc): (&'a KnotVector, &'a [f64], &'a [Vec<Interval>]),
-    (pk, pw, pc): (&'a KnotVector, &'a [f64], &'a [Vec<Interval>]),
-    (su, sv, sw, sc): (
-        &'a KnotVector,
-        &'a KnotVector,
-        &'a [f64],
-        &'a [Vec<Interval>],
-    ),
-) -> Result<
-    (
-        CurveCertData<'a>,
-        CurveCertData<'a>,
-        tensor::SurfaceCertData<'a>,
-    ),
-    SsiError,
-> {
+pub(crate) fn chart_round(
+    (ck, cw, cc): CurveOperand<'_>,
+    (pk, pw, pc): CurveOperand<'_>,
+    (su, sv, sw, sc): ChartOperand<'_>,
+    breaks: &[f64],
+) -> Result<Hull, SsiError> {
     let malformed = |what| move |_| SsiError::UnsupportedCertificate { what };
-    Ok((
-        CurveCertData::new(ck, cw, cc).map_err(malformed(
-            "the fitted carrier's enclosure data is malformed",
-        ))?,
-        CurveCertData::new(pk, pw, pc)
-            .map_err(malformed("the traced pcurve's enclosure data is malformed"))?,
-        tensor::SurfaceCertData::new(su, sv, sw, sc)
-            .map_err(malformed("the NURBS operand's enclosure data is malformed"))?,
-    ))
+    let cdata = CurveCertData::new(ck, cw, cc).map_err(malformed(
+        "the fitted carrier's enclosure data is malformed",
+    ))?;
+    let pdata = CurveCertData::new(pk, pw, pc)
+        .map_err(malformed("the traced pcurve's enclosure data is malformed"))?;
+    let sdata = tensor::SurfaceCertData::new(su, sv, sw, sc)
+        .map_err(malformed("the NURBS operand's enclosure data is malformed"))?;
+    chart_composite(&cdata, &pdata, &sdata, breaks)
 }
 
 /// Limb 2's composite of one round: `S(P(t)) − C(t)` against the
@@ -689,7 +692,7 @@ pub(crate) fn chart_data<'a>(
 /// samples anything (C2.2). Both curves are decomposed onto the merged
 /// break list by exact knot insertion, so a carrier and a pcurve on
 /// different knot vectors are aligned structurally.
-pub(crate) fn chart_composite(
+fn chart_composite(
     cdata: &CurveCertData<'_>,
     pdata: &CurveCertData<'_>,
     sdata: &tensor::SurfaceCertData<'_>,
