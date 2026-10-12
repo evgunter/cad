@@ -6,10 +6,21 @@ status: open
 opened: 2026-10-07
 priority: P2
 cost: H
-design: true
-needs_ev: true
 ---
 
+
+## Ruled (Ev, PR 4245, 2026-10-12)
+
+"this design sounds good!" — after a conditional yes (2026-10-08) on the
+limits near isosceles and at the T-joint, consistency with other CAD and
+with the design principles, which the orchestrator checked numerically on
+the PR (with the box-corner limit corrected after PR 4844's reviews: the
+chamfer's chord is the gap times a corner-fixed ratio, both quadratic at a
+box corner). The design is `crates/sweep/README.md`'s run-out paragraph:
+the far band `k` is cut off past the mitre by the other band's face of L,
+decided on the gap and the chord. Fork-log row 121. Build order: (1) the
+verdict and its coincidence record (PR 4844); (2) the chamfer's overrun;
+(3) the fillet's overrun.
 
 Split from `a-plane-plane-blend-cannot-end-at-an-unrequested-corner` at its
 step 4 (PR 4209), as Ev's PR 4085 ruling directs ("step 5: the non-isosceles
