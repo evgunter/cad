@@ -1,7 +1,7 @@
 //! **Every document-reachable operand refusal, both halves, byte-exact.**
 //!
 //! Every typed operand mismatch in `eval::wire` is built by one door
-//! (`operand`, or `node_operand` for the road that holds no value) out
+//! (`operand`) out
 //! of two independent parts: the `expected:` phrase the door was asked
 //! for, and the `found:` family the input actually carries, which the
 //! door reads for itself.
@@ -308,12 +308,12 @@ fn wired() -> (
         plane,
     );
 
-    // ---- the node road: `found:` is the NODE's family ----
+    // ---- the section reads: a loft's and a sweep's profiles ----
 
     doc = add(
         doc,
         &mut rows,
-        "section_of (a Loft over a body)",
+        "a Loft section that is a body",
         Owes::EditDoor(VarKind::Body, SlotKind::Is(VarKind::Profile)),
         Node::Loft {
             profiles: vec![profile.into(), body.into()],
@@ -324,7 +324,7 @@ fn wired() -> (
     doc = add(
         doc,
         &mut rows,
-        "section_of (a Loft over a frame datum)",
+        "a Loft section that is a frame datum",
         Owes::EditDoor(VarKind::Frame, SlotKind::Is(VarKind::Profile)),
         Node::Loft {
             profiles: vec![profile.into(), sketch.into()],
@@ -335,7 +335,7 @@ fn wired() -> (
     doc = add(
         doc,
         &mut rows,
-        "section_of on the sweep road (a Sweep whose profile is a body)",
+        "a Sweep whose profile is a body",
         Owes::EditDoor(VarKind::Body, SlotKind::Is(VarKind::Profile)),
         Node::Sweep {
             profile: body.into(),

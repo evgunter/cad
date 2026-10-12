@@ -2,9 +2,10 @@
 id: a-curved-rest-union-builds-as-disjoint-since-4604
 kind: issue
 title: Since PR 4604 a frustum's support plates at δ = 0 union to a disjoint Assembly: a curved-on-curved rest is recorded but not read as a touch
-status: open
+status: closed
 opened: 2026-10-11
 priority: P0
+closed: 2026-10-12
 ---
 
 

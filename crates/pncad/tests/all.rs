@@ -4849,8 +4849,6 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   `TessellateError`, a `RecipeNodeId` and a `u32`.
 /// - **The analysis lane's INTERIOR residue** (`FlipEvidence`,
 ///   `StructureFlip`, `AxisScalar`, `var_env_over`, `SeedScalar`,
-///   `SectionScalar` (which scalars carry a loft or sweep section's
-///   placement off a derived frame — a lane fact, decided by the type),
 ///   `seed_env`, `std_deviation`, `sensitivities`,
 ///   `PairingViolation`; the third lane seam `MinClearanceLane`
 ///   with its `MinClearanceOperand`, which is how a `min_clearance`
@@ -4894,7 +4892,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   which `Doc::mint` answers. The doors read it and a consumer never
 ///   writes it; what a consumer holds is the ids themselves
 ///   (`RecipeNodeId`, `StepId`), carried.
-const NOT_CARRIED: [&str; 96] = [
+const NOT_CARRIED: [&str; 95] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -4948,7 +4946,6 @@ const NOT_CARRIED: [&str; 96] = [
     "Resolved",
     "Rgba8",
     "RunStatus",
-    "SectionScalar",
     "SeedScalar",
     "SlotPayload",
     "StructureFlip",

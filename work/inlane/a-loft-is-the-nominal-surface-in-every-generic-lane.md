@@ -2,11 +2,13 @@
 id: a-loft-is-the-nominal-surface-in-every-generic-lane
 kind: issue
 title: A loft or sweep is its nominal surface in every generic lane: Dual sees no derivative in a section's variables, Interval certifies the nominal over a box
-status: dispatched
+status: closed
 opened: 2026-10-11
 priority: P1
 cost: M
 refs: [the-pinned-profile-lift-launders-at-sym, a-loft-takes-its-placements-as-f64]
+pr: 4741
+closed: 2026-10-11
 ---
 
 
@@ -115,3 +117,36 @@ Both answered yes. This item is the document half, after the skin unit.
   onto it: the plane's placement is the `places[i]` it passes.
 - editor-core's `wire_loft` lifts its `f64` sections and placements
   at the door through `from_computed` until this unit lands.
+
+Closed by #4741, the document half. A loft reads each section
+operand's Profile value at `T` (`wire.rs`'s `section_value`, through
+`sweep::loft_profiles`); `section_of`, `SectionScalar`,
+`SeedPinnedSection`, `DerivedFrameSection`, `LaneEnv::seed` and
+`LiftRefusal::PinnedSection` are retired, and DM1c's and PP6's section
+clauses are rewritten.
+- At `Dual`, a seed on a section's radius moves the lofted wall
+  (`eval10_section_reads_the_nominal`'s
+  `a_seed_on_a_section_radius_moves_the_lofted_wall`).
+- At `Interval` under the guided lift, a box reaching a section
+  refuses typed (`SectionNotAPoint`) rather than lofting the nominal
+  over the box. So does a section with no box whose values are a few
+  ulps wide: an arc's sweep, and the plane of a rotated authored frame
+  (`PlacementNotAPoint`). Main lofted both. The E6 drive over such a
+  document now bisects to its budget on refused leaves. Main certified
+  none of these lofts either: it refused in one leaf as a
+  `FlipCrossing` on a predicate-count divergence. An unrotated polygon
+  loft now certifies where main refused it
+  (`e6_drive_over_a_loft_at_interval`).
+- Under the pinned lift a section's values are its `f64` form lifted,
+  as an extrude's profile is: a box still lofts the nominal, and a
+  `Dual` seed on a section gives a zero derivative where main refused
+  typed (`SeedPinnedSection`). Both belong to
+  `the-pinned-profile-lift-launders-at-sym`.
+- The Monte Carlo lane (guided, one box per sample) now lofts each
+  sample's sections rather than the nominal.
+- A face-frame loft evaluates at `Dual` and `Sym`. At `Interval` it
+  refuses `PlacementNotAPoint`, because the frame's landed placement
+  is an enclosure.
+
+The `Interval` enclosure of the family, and the face-frame loft at
+`Interval`, wait on `the-skin-at-interval-encloses-the-nominal-skin`.
