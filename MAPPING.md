@@ -1,0 +1,2 @@
+Design fork: what UncoveredClass::NoFittedClass is (a fitted-grade image of a line, ellipse or spiric on a spline chart): no-route class, caller misuse, or something else (mint-has-no-route-to-the-spiric-and-no-fitted-classes; no-fitted-class-misuse-is-excused-by-not-owed)
+Dispatched 2026-10-12T17:40Z. urandom byte 130 (even): Opus = A, Fable = B. The byte was drawn at 17:51Z, after delivery; dispatch-order labels (A = Opus) happened to coincide with the byte's.
