@@ -766,3 +766,12 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - non-monotone refinement;
     - the integral arm reading below the rational arm;
     - degree elevation, which is conditional on a consumer. — (NURBS orchestrator)
+- 2026-10-12 13:06Z — **PR 4851 review** (Div point paths). Tier single FULL, reviewer session_017xPqznz4GPEmbFbt1CzfYe at `ce1223dc15`. Verdict **APPROVE**, no MAJOR and no MINOR.
+  - **Executed:**
+    - a 6M Div plus 6M Mul differential against the old literal code, and a 3.45M-pair edge table, with zero diffs;
+    - the ±0-numerator premise holds;
+    - touching divisors are excluded by construction;
+    - 11 of 12 mutants go red;
+    - the op is about 2.6× faster.
+  - **NOTE N1:** `lower_of`'s zero rule is dead in the least-fold, because no lo corner is ever −0. The equivalent mutant survives, so nothing can pin that rule today.
+  - **Style S1** is the style brief's named trap: the fix removed the duplicate fold but minted a duplicate four-arm dispatch in `Mul` and `Div`. It is sent back with S5 (the corner pair becomes structural) and S2. — (NURBS orchestrator)
