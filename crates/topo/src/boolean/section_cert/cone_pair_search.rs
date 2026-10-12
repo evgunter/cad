@@ -127,8 +127,9 @@ enum Short {
 
 /// `(Q₂, Q₁, Q₀)`: the partner's quadric `Q` along the line `B + t·v`,
 /// `Q` positive off the carrier as its implicit residual is — against a
-/// cone `|w|²cos²α − (w·a)²`, against a cylinder `|w|² − (w·d)² − r²`.
-fn along(partner: &Surface<f64>, b: Point3<f64>, v: Vec3<f64>) -> [f64; 3] {
+/// cone `|w|²cos²α − (w·a)²`, against a cylinder `|w|² − (w·d)² − r²` —
+/// and the magnitudes of the terms each sums, which bound its rounding.
+fn along(partner: &Surface<f64>, b: Point3<f64>, v: Vec3<f64>) -> ([f64; 3], [f64; 3]) {
     let (w0, n, k, r2) = match *partner {
         Surface::Cone {
             apex,
@@ -145,11 +146,19 @@ fn along(partner: &Surface<f64>, b: Point3<f64>, v: Vec3<f64>) -> [f64; 3] {
         _ => unreachable!("the search's partners are cylinders and cones"),
     };
     let (hw, hv) = (w0.dot(n), v.dot(n));
-    [
-        k * v.dot(v) - hv * hv,
-        2.0 * (k * w0.dot(v) - hw * hv),
-        k * w0.dot(w0) - hw * hw - r2,
-    ]
+    let (ww, wv) = (w0.dot(w0), w0.norm());
+    (
+        [
+            k * v.dot(v) - hv * hv,
+            2.0 * (k * w0.dot(v) - hw * hv),
+            k * ww - hw * hw - r2,
+        ],
+        [
+            k + hv * hv,
+            2.0 * (k * wv + (hw * hv).abs()),
+            k * ww + hw * hw + r2,
+        ],
+    )
 }
 
 /// The roots in each strip between consecutive columns of a
@@ -264,25 +273,31 @@ fn resolves(
     if traced.is_some_and(|t| t.saddles > 0) {
         return Err(Short::Both);
     }
-    let coefficients: Vec<[f64; 3]> = (0..n)
+    let (coefficients, terms): (Vec<[f64; 3]>, Vec<[f64; 3]>) = (0..n)
         .map(|i| {
             let (b, v) = line(TAU * i as f64 / n as f64);
             along(partner, b, v)
         })
-        .collect();
-    let rounding = |x: f64| 64.0 * f64::EPSILON * x;
+        .unzip();
+    // Each coefficient is true to within `16ε` of its terms' magnitude,
+    // and `E` to within what those errors and its own two products move.
+    let rounding = |x: f64| 16.0 * f64::EPSILON * x;
     let e: Vec<f64> = coefficients
         .iter()
         .map(|&[a, b, c]| b * b - 4.0 * a * c)
         .collect();
-    let e_noise = rounding(
-        coefficients
-            .iter()
-            .map(|&[a, b, c]| b * b + 4.0 * (a * c).abs())
-            .fold(0.0, f64::max),
-    );
+    let e_noise = coefficients
+        .iter()
+        .zip(&terms)
+        .map(|(&[a, b, c], &[ma, mb, mc])| {
+            let (da, db, dc) = (rounding(ma), rounding(mb), rounding(mc));
+            (2.0 * b.abs() + db) * db
+                + 4.0 * (a.abs() * dc + c.abs() * da + da * dc)
+                + rounding(b * b + 4.0 * (a * c).abs())
+        })
+        .fold(0.0, f64::max);
     let lead: Vec<f64> = coefficients.iter().map(|c| c[0]).collect();
-    let lead_noise = rounding(1.0);
+    let lead_noise = terms.iter().map(|t| rounding(t[0])).fold(0.0, f64::max);
     let (Some(folds), Some(asymptotes)) =
         (strip_roots(&e, e_noise), strip_roots(&lead, lead_noise))
     else {
