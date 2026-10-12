@@ -779,11 +779,13 @@ contradiction, wherever at least one pole lies off the loop
 (`sphere_loop_side`). A face whose loop holds both poles is read
 through its seam region, the faces of its surface it reaches across
 shared edges: a pole on an edge interior to the region lies inside it,
-so the region is the side of its boundary that holds such a pole, and
-not the side that holds a pole on no member's loop
-(`sphere_region_material_sign`). A region with no boundary is a whole
-sphere, whose side is its shell's orientation. A region whose boundary
-carries both poles encodes no side; for a region of one face, the
+so the region is the side of its boundary that holds such a pole
+(`sphere_region_material_sign`); a region with two or more boundary
+loops is read by the sign of its area. A region with no boundary is a
+whole sphere, whose side is its shell's orientation. A region whose
+boundary carries both poles, or whose poles lie on no member's loop,
+encodes no side: the pole-free reading would assume the rule above,
+which validity does not yet enforce. For a region of one face the
 flipped bit describes the complement, another valid body. A loop with
 a pole off it on each side encodes no side: under either sense its face holds a pole, which is validity's to
 refuse. Nor does a loop whose poles both read undecided: a pole within
