@@ -50,3 +50,23 @@ first.
 ## CONTACT close-out triage (2026-10-08)
 
 It absorbs the closed duplicate `a-notched-full-turn-wall-has-no-ray-trim`: the same full-turn-wall window guard (`narrower_than_period`, `solid_contain.rs`). Its witness is in `germ_coplanar_conic.rs`, and the fix carries it as a row.
+
+## Met again (CLEAVE `cleave/missed-ray-side`, 2026-10-11)
+
+On that branch a ray that meets nothing has its side read by rays
+aimed at planar faces, wherever the volume does not decide it. The
+one-segment cylinder of `crates/sweep/tests/a_plane_across_a_one_face_wall.rs`
+was cut by the tilted plane `z = 1 + y·tan 20°`, and by the plane
+`z = c + m(1 − x)` for `c ∈ {0.02, 1e-3}`.
+
+- Its `∪` results and `B ∖ A` now unite with a far brick.
+- The wall pieces, `A ∩ B` (both orders) and `A ∖ B`, still do not, at
+  ε 1e-9, 1e-6 and 1e-12.
+- Instrumented on the tilted `A ∩ B` at 1e-9, from
+  `point_in_solid((50, 50, 50))`: every aimed ray, at the bottom disc
+  and at the ellipse cap, is set aside on this row's
+  `bool_wall_trim_period` (margin `Invalid`) at the wall face. The
+  refusal the caller sees is still the volume's `VolumeUncertified`.
+
+`a_plane_across_a_one_face_wall` pins those three runs as
+`Known::Operand` and cites this row.

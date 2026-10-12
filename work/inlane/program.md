@@ -2,7 +2,7 @@
 id: inlane
 kind: program
 title: INLANE — every carrier's values in the lane scalar: the skin, the loft's sections, the profile lift
-status: ready
+status: active
 opened: 2026-10-11
 area: kernel
 prefix: inlane/

@@ -5,6 +5,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::surf::at_apex;
 use crate::shared::tol::band;
 use geom::{Curve3, Surface};
 use geom_brep::intersect::{PlaneConeSection, plane_cone_section};
@@ -50,7 +51,8 @@ fn section_of(half_angle: f64, tilt: f64) -> Curve3<f64> {
         normal,
         u_ref: side.cross(normal),
     };
-    let Ok(PlaneConeSection::TiltedEllipse(e)) = plane_cone_section(&plane, &surface, 3.0, band())
+    let Ok(PlaneConeSection::TiltedEllipse(e)) =
+        plane_cone_section(&plane, &surface, &at_apex(&surface, 3.0), band())
     else {
         panic!("a {tilt} rad tilt of a {half_angle} rad cone is an ellipse");
     };

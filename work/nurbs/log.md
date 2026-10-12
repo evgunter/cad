@@ -545,3 +545,60 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - Re-ruled: option 1, the unconditional meet, unless its suite-level cost (m5 fast set, `props::quad` rows) exceeds 1b's by more than about 10%.
     - If it does, 1b stays, with the trade stated at the claim site and a P3 revisit row.
   - Either way, a static thin-ratio row guards the meet. (NURBS orchestrator)
+- **2026-10-11 20:15Z.** Resumed after a ~9.5 h usage pause; check-in 50 fired at 10:40Z and was delivered at 20:09Z.
+  - **On main meanwhile:**
+    - ENCL (`e91669029a`) re-scoped the arc-loft import row: volumes agree within faces−1 ulps.
+    - INTENT u4 and the skin computed in `T` moved the serial golden again, with notes left on our P0 row.
+    - CLEAVE PR 4707 fixed the support-plates red. The NURBS-filed GERM duplicate is closed against it.
+  - **PR 4684 now conflicts in all four files it touches.** Build B is told to reconcile:
+    - keep the stronger import assertions;
+    - re-cut the digest only if it is still red on main, listing every cause.
+  - **PR 4551.** Build A's cost run kept option 1 within the 10% bar. It is implementing the unconditional meet, with a pinned thin-ratio guard row: 16.7% narrower at Λ two ulps wide. (NURBS orchestrator)
+- 2026-10-11 20:55Z — **Check-in 51.** Items 3 and 4 had already landed in PR 4742. INTENT landed a NURBS row on main, `the-arc-loft-thread-count-digest-is-red-on-main` (P1):
+  - besides the `arc_loft_1e9eps` line, the two `sym_*` digest rows lost about 20 symbolic zeros (likely mover: INTENT's PR 4703);
+  - the same rows read differently on main at 9baeb0056e and on PR 4732's CI at 090278cdb (sz 28/24 against 40/36), so the Sym split may be nondeterministic.
+
+  Build B (PR 4684) is told to root-cause both before any re-cut, to report before pushing, and to close INTENT's row with every cause listed. PR 4551 (build A) is still running mutation rows for option 1; it has not pushed. — (NURBS orchestrator)
+- 2026-10-11 22:50Z — **PR 4684 merges (e7bc2b7286). Orchestrator's read.**
+  - It re-cuts the thread-count digest, which was red on main. Each cause is bisected and logged at `expected()`:
+    - 4553 moved the volume, area and pads; the new enclosures nest inside the old;
+    - 4708 moved the Sym split;
+    - `8054ec236f` (skin in T) moved arc_loft by about an ulp, through libm. The enclosures nest, though not always new-inside-old, because the body itself moved.
+  - It closes INTENT's P1 row `the-arc-loft-thread-count-digest-is-red-on-main`.
+    - **The Sym split is deterministic.** It is byte-identical at 1 and 4 threads, run twice, alone and after the f64 block, at four commits.
+    - **PR 4703's lost symbolic zeros were a regression.** Iso-boundary residuals are exactly zero by construction; 4703 discharged them only numerically. Main has since restored every class: every predicate×outcome count equals pre-4703's. Only `frozen` moves.
+  - step-import's arc-loft row now asserts per-face bit identity and gate == the imported body's own measurement, beside ENCL's `faces − 1` ulp bound (test-support door `topo::test_support::mass_properties_with_face_terms`).
+  - It files FLUX's design row on the face-order fold; a seam note is on FLUX's log.
+  - Merged on a docs-only delta over green c25f38a643: a clean merge of main, and doc comments only in the PR's own diff.
+- 2026-10-11 22:50Z — **PR 4551.** CI at b95395e1a9 was red on two counts:
+  - the digest, which was main's and is now fixed by 4684;
+  - E0560: ENCL's rung-3 hull refine renamed `Hull`'s fields under the `hull_limb` guard row. It is a semantic conflict with main that the textual merge cannot see.
+
+  Build A is told to merge main (taking 4684's digest wholesale) and port the row. Its port of 4684's digest showed the convex meet leaves the digest unmoved at all three ε. Its de_boor row is corrected: the ulp is the face-order fold. — (NURBS orchestrator)
+- 2026-10-12 — Seam note from ENCL (PR 4754, merged at `40eefeb668`): geom-core spline gains `Derived<'a, V = KnotVector> { Vector(V), SpanConstant(&[f64] breaks), Discontinuous { knots, degree } }`, which names why `derivative()` may have no vector. It is returned by `KnotVector::derived`, `SplineCoeffs::derived` and `TensorCoeffs::derived_u/_v`. `KnotVector::c1() -> Result<(), C1Break>` is the one home of the C¹ admission (`Degree1Crease` / `Crease`). Both `derivative()` doors are now `derived().vector()`. `TensorCoeffs::derivative_u/_v` are removed (tests read `derived_u().vector()`). `derived()` maps `clamped`'s `InteriorMultiplicityTooHigh` to `Discontinuous`; any other refusal is `unreachable!`, by the review's proof that a valid KnotVector cannot raise one. No golden moved. (ENCL orchestrator)
+- 2026-10-12 02:50Z — **PR 4551: build A.**
+  - Friction: the lane held its push three times for full four-ε local passes, each over an hour. Main moved underneath during two of them, re-opening conflicts in `props/quad.rs` and the digest, against discipline §2 (hosted CI is the verification of record). It was interrupted at 02:43 and pushed `52644abf56`: main merged, `Hull` port, main's digest wholesale. Its re-cut of `arc_loft_1e9eps` on top follows if CI reds.
+  - The topo `conic_quadric` seed `0xe8586f5f5e218549` is red on main too, so it is not 4551's. It is added as a witness to GERM's `the-in-band-sweep-fuzz-finds-a-miss-answered-inside-the-escalation-gap`.
+  - PR 4758 merged with Ev's sign-off: one `CARGO_TARGET_DIR` per worktree. META's row is closed. — (NURBS orchestrator)
+- 2026-10-12 04:50Z — **PR 4551 at `0d5b56685e`.**
+  - CI at f50ab134 is red only in the eps step. Both reds are main's, reproduced on main `8cd31ca1` and on the branch, each isolated:
+    - sweep `at_interval_a_wide_section_refuses_as_section_not_a_point` is main's P0 `a-wide-loft-section-escalates-chord-side-at-1e-12-on-main`, with ENCL;
+    - editor-core `a_ring_serving_two_pierces_records_their_fusion_unproven` is filed on FLUSH (P1).
+  - Isolated cost table: head against 1b is m5 −0.6% / +1.0% and quad +6.9% / −2.8%, so **option 1 holds**.
+  - The rule for merge: once CI on the new head is red in exactly those two base rows and nothing else, 4551 merges, with the DR row last and a standing-down comment on the PR. — (NURBS orchestrator)
+- 2026-10-12 05:25Z — **PR 4551 merges (`aa1f124298`).** It is fork 3's step: `Certification::between` (the monotone corner lerp, met per corner with its convex form and with `hull(x, y)`) and `CoeffWindow::blossom` with the `restrict` doors. `convex_step`, `insert_once_ring` and `sub_segment` are gone.
+  - The DR row went on as the last commit (concurrent, H, tally 0); the index number is assigned on main.
+  - CI at `0d5b56685e` was red only on editor-core `a_ring_serving_two_pierces_records_their_fusion_unproven`, which is red on main and filed on FLUSH. The sweep base row `at_interval_a_wide_section_refuses_as_section_not_a_point` passed in that run because CI tests the PR merged into current main, which carries its fix (PR 4785, `031369bb81`). Build A's local repro on `8cd31ca1` predates that fix. Slow set 311/311.
+  - `arc_loft_1e9eps` is re-cut on main's line, every enclosure nested inside the old. The isolated cost table keeps option 1.
+  - Builds A and B are both standing by. NURBS has no unit in flight. — (NURBS orchestrator)
+- 2026-10-12 05:26Z — **Wave 2 dispatched**, all on main `360cf55eb2`. This is a sequencing call: P3s next, and the P4 degree-elevation row waits.
+  - **Build A** (session_01WzFKtLWBVWNnnS3M5ezaMB): `quad-de-boor-through-the-blossom-breaks-the-import-bit-identity`.
+    - It re-routes `props/quad::de_boor` through the blossom and checks against 4684's per-face bit-identity row.
+    - **Tier: single FULL**, because it is a certified quadrature path.
+  - **Build B** (session_01VSe9NnecKcXKBB3VP44z5J): `tilted-lune-sits-at-the-f64-floor-of-its-band`.
+    - First it settles whether the hosted/local split was a head difference or nondeterminism, then it gives the fixture margin.
+    - **Tier: orchestrator's read** for a fixture margin, escalating to FULL if nondeterminism is found.
+  - **Build C** (new, session_01BMzcQm9byLUetFkgRp3iPf), in two PRs:
+    - `the-speed-meter-runs-three-times-per-corner-carrier`. **Tier: orchestrator's read**: a mechanical memo, re-measured.
+    - `a-swaying-rational-corner-refuses-at-the-rational-speed-meter`. **Tier: single FULL**: a soundness bound, and a uniform-weight curve taken as rational. — (NURBS orchestrator)
+- 2026-10-12 — Seam note from ENCL (PR 4784, merged at `854efb839a`): `geom_core::spline::compose::tensor::cells_touched` now reads only the cells whose OPEN interior a window meets, falling back to the closed overlap for a point window on a knot or off the domain. Its doc states it is sound only for a quantity continuous across the breaks (its one caller, `surface_curve_residual`, bounds values, and KnotVector enforces C⁰). A soundness pin in `m5_pr7b_tensor_compose` samples windows on and ulps beside a C⁰ knot. (ENCL orchestrator)

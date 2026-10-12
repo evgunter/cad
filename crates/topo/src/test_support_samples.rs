@@ -240,6 +240,7 @@ fn point_in_solid_errors() -> Vec<crate::boolean::PointInSolidError> {
             kind: geom::SurfaceKind::Nurbs,
         },
         S::VolumeUncertified,
+        S::InsideOut,
         S::PartialSphereFace { face },
         S::PartialConeFace { face },
         S::PartialTorusFace { face },
@@ -535,6 +536,11 @@ fn analytic_rung3_refusals() -> Vec<geom_brep::AnalyticRung3Refusal> {
         A::Limb {
             operand: geom::SurfaceKind::Plane,
             limb: geom_brep::Rung3Limb::HullSup,
+            margin: MarginDiag::value(7.5e-5),
+        },
+        A::Limb {
+            operand: geom::SurfaceKind::Plane,
+            limb: geom_brep::Rung3Limb::HullValue,
             margin: MarginDiag::value(7.5e-5),
         },
         A::Escalated {
@@ -1210,6 +1216,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         },
         ValidationError::CurvedSenseInverted { face },
         ValidationError::NegativeVolume { solid },
+        ValidationError::SliverInsideOut { solid },
         ValidationError::RingOutsideOuter {
             face,
             ring: loop_,

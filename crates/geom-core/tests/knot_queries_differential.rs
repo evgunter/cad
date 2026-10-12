@@ -24,13 +24,10 @@
 //!    path calls `find_span_in`, which is `pub(crate)` and therefore
 //!    unreachable from an integration test: everything below enters
 //!    through `span_at`, so a fault in `find_span_in`'s own body — its
-//!    `+ degree` — would not be seen here. Two in-crate gates own that
+//!    `+ degree` — would not be seen here. One in-crate gate owns that
 //!    claim: `knots.rs`'s
 //!    `the_span_search_matches_its_definitional_oracle_at_every_exit`,
-//!    which pins the two doors equal at every interior probe, and
-//!    `compose.rs`'s
-//!    `the_raw_span_search_tracks_the_linear_scan_through_every_insertion`,
-//!    which does it on the list mid-mutation.
+//!    which pins the two doors equal at every interior probe.
 //!
 //! Merged into few tests on purpose (nextest is process-per-test, so a
 //! shared generator would otherwise be rebuilt per row); every assertion

@@ -12,8 +12,8 @@ use geom_core::Decide;
 use geom_core::Tol;
 use topo::test_support::arena_counts;
 use topo::{
-    AtRestBody, Body, BooleanError, BooleanOp, BooleanReduction, ValidationError, boolean_reduce,
-    validate,
+    AtRestBody, Body, BooleanError, BooleanOp, BooleanReduction, Operand, ValidationError,
+    boolean_reduce, validate,
 };
 
 fn reduce_ok<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
@@ -60,6 +60,33 @@ fn two_bricks<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(op: BooleanOp)
     assert_eq!(red.pierce_rings.len(), 6);
     let struts = red.null_edges.iter().filter(|e| e.dangling).count();
     assert_eq!(struts, 6); // the six pierced-face ring struts
+    // No two pierces share a face and a point, so each ring serves one,
+    // in contact order, and its records stand right after its pierce's
+    // own: a ring of one mints where a per-pierce ring did.
+    let pierces: Vec<_> = red
+        .contacts
+        .a_on_b
+        .iter()
+        .chain(&red.contacts.b_on_a)
+        .map(|c| vec![c.vertex])
+        .collect();
+    assert_eq!(
+        red.pierce_rings
+            .iter()
+            .map(|r| r.pierces.clone())
+            .collect::<Vec<_>>(),
+        pierces,
+        "one ring per pierce, in contact order"
+    );
+    assert_eq!(
+        red.null_edges.iter().map(|e| e.operand).collect::<Vec<_>>(),
+        [Operand::A, Operand::B]
+            .repeat(3)
+            .into_iter()
+            .chain([Operand::B, Operand::A].repeat(3))
+            .collect::<Vec<_>>(),
+        "each pierce's null edge, then its ring's strut"
+    );
     // Determinism (D9): bitwise-identical record dumps on replay.
     let red2 = reduce_ok(op, &a, &b);
     assert_eq!(

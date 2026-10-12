@@ -424,18 +424,21 @@ fn the_collapse_meter_brackets_the_sphere_s_known_curvature() {
     let cells = patch_cells_refined(&base, OFFSET_METER_LADDER[1]).unwrap();
     {
         use geom_core::interval::Interval as RI;
-        let dot3 = |a: &[RI; 3], b: &[RI; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
         let nsq = |a: &[RI; 3]| a[0].sqr() + a[1].sqr() + a[2].sqr();
         let mut worst: Option<(f64, String)> = None;
         for c in &cells {
             let n = geom_brep::offset_meters::cell_normal(c);
-            let mag = RI::from_bounds(n.floor, n.sup);
+            let mag = RI::from_bounds(n.floor, c.m_sup);
             let unit = [n.m[0] / mag, n.m[1] / mag, n.m[2] / mag];
-            let (e, f, g) = (nsq(&c.s_u), dot3(&c.s_u, &c.s_v), nsq(&c.s_v));
+            let (e, f, g) = (
+                nsq(&c.s_u),
+                geom_core::interval::dot(&c.s_u, &c.s_v),
+                nsq(&c.s_v),
+            );
             let (l, m, nn) = (
-                dot3(&unit, &c.s_uu),
-                dot3(&unit, &c.s_uv),
-                dot3(&unit, &c.s_vv),
+                geom_core::interval::dot(&unit, &c.s_uu),
+                geom_core::interval::dot(&unit, &c.s_uv),
+                geom_core::interval::dot(&unit, &c.s_vv),
             );
             let a = mag.sqr();
             let w11 = (g * l - f * m) / a;
@@ -446,7 +449,7 @@ fn the_collapse_meter_brackets_the_sphere_s_known_curvature() {
                  W11=[{:.3},{:.3}]",
                 c.u,
                 n.floor,
-                n.sup,
+                c.m_sup,
                 e.lo(),
                 e.hi(),
                 f.lo(),

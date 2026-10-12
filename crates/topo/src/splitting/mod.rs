@@ -262,6 +262,9 @@ pub struct SplitReduction<T: Real> {
     /// The pinches the ON verdicts decided, in ON-vertex order, keyed in
     /// the operand ([`crate::coincidence`]).
     pub coincidences: Vec<crate::Coincidence>,
+    /// Each piece a crossing split minted, `(new edge, divided-from
+    /// edge)` in mint order.
+    pub edge_pieces: Vec<(EdgeKey, EdgeKey)>,
 }
 
 /// **A knife edge the split would mint and cannot declare.** The plane
@@ -629,6 +632,17 @@ impl From<EulerOpError> for SplitReduceError {
 /// declarations, so its plane is the first lever.
 pub(crate) use geom_core::SPLIT_PLANE_RECOURSE as SPLIT_COINCIDENCE_RECOURSE;
 
+/// The ending of a split escalation whose margin is no size the user
+/// chose (an angle, a winding, an order, a vertex's offset from the
+/// plane): the split's lever alone, with the unreadable-margin note on
+/// poison (D4 ¶1 (i)).
+pub(crate) fn split_lever_ending(diag: &geom_core::Indeterminate) -> String {
+    LeverOnly {
+        lever: SPLIT_COINCIDENCE_RECOURSE,
+    }
+    .recourse(RefusedArm::Undecided(diag), Reading::Build)
+}
+
 impl core::fmt::Display for SplitReduceError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         use geom_core::RANGE_RECOURSE;
@@ -684,16 +698,19 @@ impl core::fmt::Display for SplitReduceError {
             Self::SliverVertex { diag, .. } => diag
                 .undecided(
                     "whether a vertex lies on the split plane",
-                    LeverOnly {
-                        lever: SPLIT_COINCIDENCE_RECOURSE,
-                    }
-                    .recourse(RefusedArm::Undecided(diag), Reading::Build),
+                    split_lever_ending(diag),
                 )
                 .fmt(f),
             Self::SliverSector { reading, .. } => write!(
                 f,
-                "which side of the split plane a face leaves a vertex on is too close to \
-                 call ({reading}). {}",
+                concat!(
+                    geom_core::undecided!(
+                        "which side of the split plane a face leaves a vertex on",
+                        payload
+                    ),
+                    ". {}"
+                ),
+                reading,
                 reading.ending()
             ),
             Self::SectionGermsEscalated { reading, diag, .. } => match reading {
@@ -864,7 +881,8 @@ pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
     classify::carrier_gate(&body, plane, band)?;
     let (mut sides, mut on_vertices, on_margins) =
         classify::classify_vertices_margined(&body, plane, band)?;
-    classify::insert_crossings(&mut body, plane, &mut sides, &mut on_vertices, tol)?;
+    let edge_pieces =
+        classify::insert_crossings(&mut body, plane, &mut sides, &mut on_vertices, tol)?;
 
     let mut null_edges = Vec::new();
     let mut coincidences = Vec::new();
@@ -914,6 +932,7 @@ pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
         on_vertices,
         null_edges,
         coincidences,
+        edge_pieces,
     })
 }
 
@@ -1092,9 +1111,10 @@ pub(crate) fn through_the_join<T: geom_core::Decide + crate::props::AtRestPolicy
 ///
 /// [`SplitError`], each stage's typed refusals passed through whole (no
 /// degenerate body is ever emitted). The sides are gated at tier 2
-/// ([`SplitFinishError::ResultInvalid`]). Tier 3 is deliberately not run
-/// on the sides: a pinch side's touching pieces carry contacts split
-/// declares nowhere.
+/// ([`SplitFinishError::ResultInvalid`]); tier 3 is not run on them. A
+/// pinch side's touching pieces need no contact record, since their
+/// copies of the pinched vertex share its point key, and the ON verdict
+/// that pinched them is in [`SplitResult::coincidences`].
 pub fn split<T: geom_core::Decide + crate::props::AtRestPolicy>(
     operand: &AtRestBody<T>,
     plane: &SplitPlane<T>,

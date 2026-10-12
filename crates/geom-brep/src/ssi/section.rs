@@ -40,7 +40,7 @@ use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
 use geom_core::interval::max_bound;
 use geom_core::k_stats::decide;
-use geom_core::spline::{RingRefinement, sub_segment};
+use geom_core::spline::{RingRefinement, restrict_segment};
 use geom_core::{Band, Decide, Indeterminate, Interval, Margin, Point3, Sign, SupSpeed, Vec3};
 
 use super::SsiError;
@@ -253,7 +253,9 @@ impl Pieces {
     fn over(&self, a: f64, b: f64) -> Vec<(Vec<Interval>, Vec<Interval>)> {
         self.cuts(a, b)
             .into_iter()
-            .map(|((k, hc, wc), cut)| (sub_segment(hc, *k, cut), sub_segment(wc, *k, cut)))
+            .map(|((k, hc, wc), cut)| {
+                (restrict_segment(hc, *k, cut), restrict_segment(wc, *k, cut))
+            })
             .collect()
     }
 
@@ -267,7 +269,7 @@ impl Pieces {
                 #[allow(clippy::cast_precision_loss)]
                 let pf = Interval::point((hc.len() - 1) as f64);
                 let dh: Vec<Interval> = hc.windows(2).map(|c| pf * (c[1] - c[0]) / span).collect();
-                sub_segment(&dh, (*k0, *k1), cut)
+                restrict_segment(&dh, (*k0, *k1), cut)
             })
             .collect()
     }
@@ -297,7 +299,7 @@ pub(crate) struct SignBudget;
 /// **The sign of `φ` over pieces, read on a refined hull.** `φ` shares
 /// its sign with `h` (the weights are positive), so each piece's `h`
 /// coefficients are read. A piece whose hull straddles zero is halved
-/// ([`sub_segment`]), spending one of `budget`, and its halves are read.
+/// ([`restrict_segment`]), spending one of `budget`, and its halves are read.
 /// Each half is cut from the row it halves.
 ///
 /// - `Some`: every piece reads one-signed, all of one sign.
@@ -343,8 +345,8 @@ fn refined_sign(
             }
             *budget -= 1;
             let (left, right) = (
-                sub_segment(&c, (0.0, 1.0), (0.0, 0.5)),
-                sub_segment(&c, (0.0, 1.0), (0.5, 1.0)),
+                restrict_segment(&c, (0.0, 1.0), (0.0, 0.5)),
+                restrict_segment(&c, (0.0, 1.0), (0.5, 1.0)),
             );
             if Certification::width(Interval::hull(hull(&left), hull(&right))) >= before {
                 return Ok(None);

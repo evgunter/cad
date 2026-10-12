@@ -50,13 +50,10 @@
 //!
 //! **The lift's limits are not staleness.** A pass runs the guided
 //! lift and the anchor runs the build path, and there are nodes the
-//! lift refuses that the build path builds: a loft's or a sweep's
-//! section is C6/D9-pinned to `f64` (the skinned surface's structure
-//! must be lane-identical), so a seed on a parameter that section
-//! reads has nowhere to go — and a guided elaboration can refuse a
-//! decision it cannot re-confirm. Those refusals are typed at the
-//! node (`NodeErrorKind::SeedPinnedSection`, `ProfileLaneReplay`) and
-//! the pairing recognises them BY KIND: the entry becomes
+//! lift refuses that the build path builds: a guided elaboration can
+//! refuse a decision it cannot re-confirm. That refusal is typed at
+//! the node (`NodeErrorKind::ProfileLaneReplay`) and
+//! the pairing recognises it BY KIND: the entry becomes
 //! [`SensitivityOutcome::Unliftable`] — the spec's typed valve, never a
 //! finite zero and never a `PairingViolation` — and every node poisoned
 //! through that refusal is accounted to it. Any other disagreement
@@ -177,16 +174,6 @@ pub enum Chamber {
 /// lift's typed limits (module docs), never a finite wrong number.
 #[derive(Debug, Clone, PartialEq)]
 pub enum LiftRefusal {
-    /// The seeded parameter feeds a loft's or a sweep's SECTION, which
-    /// stays `f64` by C6/D9 (the skinned surface's knots, degrees and
-    /// control bits must be identical in every lane), so the seed has
-    /// no lane to ride in. The valve the spec's grounding names.
-    PinnedSection {
-        /// The section profile node the seed reaches and stops at.
-        section: RecipeNodeId,
-        /// The seeded variable.
-        param: VarId,
-    },
     /// The guided elaboration at the pass's scalar could not
     /// re-confirm a structure decision the build path made (a lift
     /// limitation, not a build difference: the value channel is the
@@ -748,16 +735,6 @@ fn pair_pass(
                 }
             }
             (Some(NodeResult::Ok(_)), Some(NodeResult::Failed(e))) => match &e.kind {
-                NodeErrorKind::SeedPinnedSection { section, param } => {
-                    unlifted.insert(id);
-                    valve.get_or_insert((
-                        id,
-                        LiftRefusal::PinnedSection {
-                            section: *section,
-                            param: *param,
-                        },
-                    ));
-                }
                 NodeErrorKind::ProfileLaneReplay { loop_, step, .. } => {
                     unlifted.insert(id);
                     valve.get_or_insert((
@@ -1377,11 +1354,7 @@ impl Stackup {
                 s,
                 "param {} sensitivity={} contribution={} chamber_span={}",
                 row.param.full(),
-                sensitivity_text(
-                    &row.sensitivity,
-                    |id| format!("node {}", id.full()),
-                    |var| format!("variable {}", var.full())
-                ),
+                sensitivity_text(&row.sensitivity, |id| format!("node {}", id.full()),),
                 match &row.contribution {
                     Ok(v) => format!("{:016x}", v.to_bits()),
                     Err(u) => format!("unavailable:{}", u.var().id().full()),
@@ -1497,11 +1470,7 @@ impl Stackup {
                 s,
                 "    ∂m/∂{}: {}   contribution {}",
                 doc.spoken_var(row.param),
-                sensitivity_text(
-                    &row.sensitivity,
-                    |id| doc.spoken(id).to_string(),
-                    |var| doc.spoken_var(var).to_string()
-                ),
+                sensitivity_text(&row.sensitivity, |id| doc.spoken(id).to_string(),),
                 match &row.contribution {
                     Ok(v) => Readable(*v).to_string(),
                     Err(u) => format!("[{}]", u.respoken(doc)),
@@ -1581,21 +1550,12 @@ const RSS_BLOCKER_LEAD: &str = "      - ";
 /// When `doc` is not the document the entry was taken of.
 pub fn render_sensitivity<P>(entry: &Sensitivity, doc: &Doc<P>) -> String {
     crate::spoken::assert_taken_of("this sensitivity", entry.document, doc);
-    sensitivity_text(
-        &entry.outcome,
-        |id| doc.spoken(id).to_string(),
-        |var| doc.spoken_var(var).to_string(),
-    )
+    sensitivity_text(&entry.outcome, |id| doc.spoken(id).to_string())
 }
 
-/// One sensitivity reading, each node it names written by `node` and
-/// each variable by `var`: spoken in the human form, the full id in the
-/// goldening form.
-fn sensitivity_text(
-    outcome: &SensitivityOutcome,
-    node: impl Fn(RecipeNodeId) -> String,
-    var: impl Fn(VarId) -> String,
-) -> String {
+/// One sensitivity reading, each node it names written by `node`:
+/// spoken in the human form, the full id in the goldening form.
+fn sensitivity_text(outcome: &SensitivityOutcome, node: impl Fn(RecipeNodeId) -> String) -> String {
     match outcome {
         SensitivityOutcome::Derivative { value, chamber } => format!(
             "{value} ({})",
@@ -1621,11 +1581,6 @@ fn sensitivity_text(
             "unliftable at {}: {}",
             node(*id),
             match refusal {
-                LiftRefusal::PinnedSection { section, param } => format!(
-                    "{} feeds the section of {}, which stays f64 (C6/D9)",
-                    var(*param),
-                    node(*section)
-                ),
                 LiftRefusal::GuidedReplay { loop_, step } => format!(
                     "the guided elaboration could not re-confirm loop {loop_} step {step} \
                      at this pass's scalar"

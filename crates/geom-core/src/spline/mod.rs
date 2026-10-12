@@ -44,6 +44,7 @@
 
 pub mod algebra;
 pub mod basis;
+pub mod blossom;
 pub mod compose;
 pub mod hull;
 pub mod knot_values;
@@ -54,11 +55,13 @@ pub mod projective;
 pub mod range;
 
 pub use algebra::{CurvePlan, KnotAlgebraError, RemovalStep, RingRefinement};
+pub use blossom::{BlossomError, SpanRow, restrict_bernstein, restrict_segment};
 pub use compose::{
     BernsteinSpans, CanonicalSurface, ComposeError, CompositeForm, CurveCertData, ImplicitSurface,
-    sub_segment,
 };
-pub use hull::{CoeffWindow, RationalCoeffs, RationalWindow, SplineCoeffs, SplineCoeffsBuf};
+pub use hull::{
+    C1Break, CoeffWindow, Derived, RationalCoeffs, RationalWindow, SplineCoeffs, SplineCoeffsBuf,
+};
 pub use knot_values::{KnotSpan, Knots};
 pub use knots::{
     KnotMirrorError, KnotVector, KnotVectorIssue, Span, SplineError, derivative_knot_slice,
@@ -66,5 +69,5 @@ pub use knots::{
 };
 pub use locate::{SpanLocate, SpanSet, poison_from};
 pub use net::{TensorChannels, TensorCoeffs, TensorNet};
-pub use projective::{ProjectivePoint, ProjectiveScalar};
+pub use projective::{ProjectivePoint, ProjectiveScalar, ProjectiveSplit};
 pub use range::{Param, ParamRange, last_at_or_below};

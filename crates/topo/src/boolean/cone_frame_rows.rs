@@ -66,8 +66,13 @@ fn wall_reach() -> f64 {
     (on_wall() - Point3::new(-1.0, 1.0, 0.0)).norm()
 }
 
+/// A cone face's reach as a length measured from `at`.
+fn measured(at: Point3<f64>, lever: f64) -> geom_brep::Reach<f64> {
+    geom_brep::Reach::Measured { at, lever }
+}
+
 /// The frame both ways round, levered at the frustum face's reach
-/// ([`FrameExtent::Reach`]). The two readings must agree; the row reads
+/// ([`FrameExtent::Cone`]). The two readings must agree; the row reads
 /// the first.
 fn frame(p: &geom::Surface<f64>, cone: &geom::Surface<f64>, at: Point3<f64>) -> Frame {
     let read = |a, b| {
@@ -75,7 +80,7 @@ fn frame(p: &geom::Surface<f64>, cone: &geom::Surface<f64>, at: Point3<f64>) -> 
             a,
             b,
             at,
-            FrameExtent::Reach(wall_reach()),
+            FrameExtent::Cone(measured(at, wall_reach())),
             band(),
         ))
     };
@@ -315,7 +320,7 @@ fn a_near_parabola_escalates_and_is_never_snapped_to_an_ellipse() {
             p,
             &cone,
             at,
-            FrameExtent::Reach(lever),
+            FrameExtent::Cone(measured(at, lever)),
             b,
         ))
     };
@@ -394,12 +399,12 @@ fn a_frustum_far_from_its_apex_is_levered_at_its_own_reach() {
             (on.clone(), Vec::new())
         };
         let (at, span) = frame_reading(a, c, on_a, on_b).unwrap();
-        let extent = frame_extent((a, &body, face), (c, &body, face), at, span).unwrap();
+        let extent = frame_extent((a, &body, face), (c, &body, face), at, span, b).unwrap();
         (at, extent)
     };
     let probe = plane([0.5, 0.5, 0.0], Vec3::new(1.0, 0.0, 0.0));
     let (at, extent) = reading(&probe, &cone);
-    let FrameExtent::Reach(reach) = extent else {
+    let FrameExtent::Cone(geom_brep::Reach::Face { across: reach, .. }) = extent else {
         panic!("a plane×cone pair is levered at the cone face's reach, got {extent:?}");
     };
     let half = (Point3::new(1.01, 1.0, 0.0) - Point3::new(1.0, 0.0, 0.0)).norm() / 2.0;
@@ -501,7 +506,13 @@ fn a_frame_handed_another_pairs_extent_is_a_desync() {
             round: 1.0,
         },
     ] {
-        let got = one_loop(pair_section_frame_at(&p, &cone, on_wall(), extent, b));
+        let got = one_loop(pair_section_frame_at(
+            &p,
+            &cone,
+            on_wall(),
+            extent.clone(),
+            b,
+        ));
         assert!(
             matches!(got, Err(FrameError::Desync(_))),
             "plane×cone under {extent:?}: got {}",
@@ -525,7 +536,7 @@ fn a_frame_handed_another_pairs_extent_is_a_desync() {
             a,
             c,
             Point3::new(1.0, 0.3, 0.0),
-            FrameExtent::Reach(1.0),
+            FrameExtent::Cone(measured(Point3::new(1.0, 0.3, 0.0), 1.0)),
             b,
         ));
         assert!(
@@ -565,5 +576,48 @@ fn declared_equal_walls_meeting_at_a_sliver_escalate_the_circle_question() {
             "{label}: got {}",
             shape(&got)
         );
+    }
+}
+
+/// **The frame's cone face window holds the face.** [`frame_extent`] on
+/// patches `u ∈ [0, u1] × z ∈ [z0, z1]` of the cone of half-angle `1/2`
+/// about `z` from the origin (`boxes::tests::cone_wall`), read from a
+/// corner in both member orders: its [`FrameExtent::Cone`] window is
+/// `[z0, z1]` to rounding under three quarters of a turn, and holds the
+/// apex past it. A window that misses any of the face lets the frame
+/// serve a line pair over points nearer the apex than it reads.
+#[test]
+fn the_frames_cone_window_holds_its_face() {
+    let b = band();
+    let cone = geom::Surface::Cone {
+        apex: Point3::origin(),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        half_angle: 0.5,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let p = plane([0.0, 0.0, 0.6], Vec3::new(1.0, 0.0, 0.0));
+    for (u1, (z0, z1)) in [(1.0, (0.5, 1.0)), (1.0, (0.01, 2.0)), (5.0, (0.25, 0.75))] {
+        let (body, face) = crate::boolean::boxes::tests::cone_wall(0.5, 0.0, u1, z0, z1);
+        let at = body.vertex_points().next().map(|(_, q)| q).unwrap();
+        for (label, a, c) in [("plane, cone", &p, &cone), ("cone, plane", &cone, &p)] {
+            let label = format!("u ∈ [0, {u1}], z ∈ [{z0}, {z1}], {label}");
+            let extent = frame_extent((a, &body, face), (c, &body, face), at, None, b).unwrap();
+            let FrameExtent::Cone(reach) = extent else {
+                panic!("{label}: a plane×cone pair reads the cone face, got {extent:?}");
+            };
+            let (lo, hi) = reach.range_along(Point3::origin(), Vec3::new(0.0, 0.0, 1.0));
+            assert!(
+                lo <= z0 + 1e-12 && hi >= z1 - 1e-12,
+                "{label}: the window [{lo}, {hi}] misses some of the face"
+            );
+            if u1 < 1.5 * core::f64::consts::PI {
+                assert!(
+                    lo >= z0 - 1e-12 && hi <= z1 + 1e-12,
+                    "{label}: the window [{lo}, {hi}] reaches past the face"
+                );
+            } else {
+                assert!(lo <= 0.0, "{label}: the window [{lo}, {hi}] holds the apex");
+            }
+        }
     }
 }

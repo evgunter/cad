@@ -1426,3 +1426,24 @@ Ev said go.
   - Ruled: the round budget no longer stops an Improved loop, and the cap becomes a total-sample cap (nu·nv ≤ 2304). The default ε then certifies, and 1e-12 refuses `SampleCapReached` typed.
   - Provenance: the cap and its README phrase are agent text (ce235c86f1 VERBS-OFF-B; 1d242b4917 / 887f5e39d3), so the change is not Ev's.
   - M tier: the review draw comes when the lane is green.
+- **Unit 21 reviewed** (2026-10-11 ~11:50Z): PR 4677 @267928e, sequential (byte 32), one Opus review: APPROVE-WITH-FIXES, no MAJOR, so no second review.
+  - The differential and the moved rows were confirmed independently.
+  - Ruled: `SeedInRegion` departs from Ev's letter ("a region is the answer"), and a Side region at the old middle is a valid row edge. The fix pass implements the letter (Side → the row via `level_row`'s carrier, Corner → refuse), plus the de-duplication and docs.
+  - Fix pass sent.
+- **Unit 20 review dispatched**: PR 4672 @5ffb365, sequential (byte 109), one Opus review.
+- **Unit 20 reviewed** (2026-10-11 ~13:00Z): PR 4672 @5ffb365, sequential (byte 109), one Opus review: APPROVE-WITH-FIXES, no MAJOR.
+  - Termination and soundness held, and three mutations turned the rows red.
+  - The orchestrator's ruling repeated the lane's "same worst-case work" claim, which is false in total (rounds repeat up to the cap). Corrected in the fix pass.
+  - Also in the fix pass: the seed checked against the cap, a BoundNotFinite fixture row, the per-ε split pinned in encl, a slow-set row, doc rot in two open items, and filing the two-stop-rules duplication.
+- **Unit 21 merged** (2026-10-11 ~13:35Z): PR 4677 (6562aa3). The fix pass at 06c62ff was verified against the 8 points.
+  - `branch_at` answers a Region per Ev's letter: a Side region gives the wall's boundary row (`wall_row`, shared with `level_row`), and a Corner region refuses by name.
+  - The row file is `docs/dual-review-log/rows/PR-4677.md` (sequential, protocol `24b76fff0e`).
+  - Hosted `test` was red only on main's owned reds (GERM's support plates, NURBS's digest).
+- **Unit 20 merged** (2026-10-11 ~16:35Z): PR 4672 (61ee8bf). The fix pass at a4223c7 was verified.
+  - After two merges of main, the 1e-9 rim band was re-pinned at 1.5994e-6 ±5%, because main's rim derivation moved the value.
+  - Row file `docs/dual-review-log/rows/PR-4672.md` (sequential).
+  - Hosted `test` was red only on NURBS's digest.
+  - The lane noted the sweep 1e-12 set took 781 s locally, against 169 s earlier, cause unknown (main's changes or box load). Watch the nightly.
+- **Every unit in the plan has landed** (1–21). What's left on the slate is 16 P3 items, plus CLEAR's parked curved-clearance pair (SHELL-3/4). Closing versus continuing is put to Ev.
+- 2026-10-11 — Seam note from ENCL (PR 4687, merged at `aaf011d01b`): `offset_meters::CellNormal::sup` is gone; readers take `PatchCell::m_sup`, a certified coefficient-norm bound on ‖S_u×S_v‖ (with the rational quotient terms) that is rigid-invariant to rounding. The rational chart speeds are coefficient-vector norms too. At rest the bounds are up to ~1.8% looser than the box in a frame that suits it. A NaN `m_sup` now refuses where the box/Gram fallback used to answer. (ENCL orchestrator)
+- 2026-10-12 — Seam note from ENCL (PR 4745, merged at `512ef4b6c7`): `shell.rs` and `replace_face.rs` escalations now end `ending(..)` rather than `under(..)`: the same levers, minus the ' — {reading}; ' clause. `ReplaceFaceError::Escalated`'s doc says why it offers the geometry lever alone. (ENCL orchestrator)

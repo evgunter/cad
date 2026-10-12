@@ -513,19 +513,22 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
             }
         })?;
         // Every reading crosses to metres by one outward division.
+        let spans: Vec<f64> = composite
+            .span_bounds()
+            .into_iter()
+            .map(|b| mag_in_meters(b, per_meter))
+            .collect();
         Ok(Hull {
             sup: mag_in_meters(composite.bound(), per_meter),
             breaks: composite.num.breaks().to_vec(),
-            spans: composite
-                .span_bounds()
-                .into_iter()
-                .map(|b| mag_in_meters(b, per_meter))
-                .collect(),
-            values: composite
+            work: spans.len(),
+            spans,
+            floors: composite
                 .break_values()
                 .into_iter()
-                .map(|v| in_meters(v, per_meter))
+                .map(|v| zero_free_lower_bound(in_meters(v, per_meter)))
                 .collect(),
+            data: (),
         })
     };
     // ---- limb 1: the fixed schedule ----
@@ -625,7 +628,13 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
             sup: residual.sup_bound(),
             breaks: residual.breaks().to_vec(),
             spans: residual.span_bounds().to_vec(),
-            values: residual.break_values().to_vec(),
+            floors: residual
+                .break_values()
+                .iter()
+                .map(|&v| zero_free_lower_bound(v))
+                .collect(),
+            work: residual.span_bounds().len(),
+            data: (),
         })
     };
     // ---- limb 1: the fixed schedule, through certified foot points --
@@ -724,17 +733,24 @@ fn locatable(decided: &Result<Decided, geom_core::Indeterminate>) -> bool {
     }
 }
 
-/// Limb 2's composite, span by span: a certified upper bound in metres
-/// on the carrier's residual over each span, span `j` covering
-/// `[breaks[j], breaks[j+1]]`, and a certified enclosure of the residual
-/// at each break.
-struct Hull {
+/// A limb's composite, span by span, as a round of [`subdivide`] reads
+/// it: a certified upper bound in metres on the carrier's residual over
+/// each span, span `j` covering `[breaks[j], breaks[j+1]]`, and a
+/// certified lower bound in metres on its magnitude at each break.
+/// `data` is what the limb decides on once the rounds stop.
+pub(crate) struct Hull<P = ()> {
     /// The bound over the whole carrier, the composite's own.
-    sup: f64,
-    breaks: Vec<f64>,
-    spans: Vec<f64>,
-    /// The residual's value at `breaks[j]`, in metres.
-    values: Vec<Interval>,
+    pub(crate) sup: f64,
+    pub(crate) breaks: Vec<f64>,
+    pub(crate) spans: Vec<f64>,
+    /// The residual's magnitude at `breaks[j]` is at least `floors[j]`,
+    /// in metres (`0` where nothing is certified).
+    pub(crate) floors: Vec<f64>,
+    /// How many spans the round's composite recomputed, which
+    /// [`SSI_HULL_WORK`] counts: the spans above, or more where the
+    /// composite runs past the carrier they cover.
+    pub(crate) work: usize,
+    pub(crate) data: P,
 }
 
 /// Whether a certified upper bound clears the band's zero: a selection
@@ -755,7 +771,7 @@ struct Halved {
     bound: f64,
 }
 
-impl Hull {
+impl<P> Hull<P> {
     /// Pushes onto `at` every span whose bound does not clear the band's
     /// zero. A selection of where to look, never a decision: the refusal
     /// it locates is decided by the limb, and a refused (`NaN`) span is
@@ -792,14 +808,14 @@ impl Hull {
         spans
     }
 
-    /// The break whose value's certified lower bound is largest, with
-    /// that bound, where it lies past the band's zero: no bound over a
-    /// span holding the break can clear.
+    /// The break whose certified floor is largest, with that floor,
+    /// where it lies past the band's zero: no bound over a span holding
+    /// the break can clear.
     fn past(&self, band: Band) -> Option<(f64, f64)> {
         self.breaks
             .iter()
-            .zip(&self.values)
-            .map(|(&t, &v)| (t, zero_free_lower_bound(v)))
+            .zip(&self.floors)
+            .map(|(&t, &floor)| (t, floor))
             .filter(|&(_, floor)| !clears(floor, band))
             .max_by(|a, b| a.1.total_cmp(&b.1))
     }
@@ -826,38 +842,53 @@ impl Halved {
 /// on the first hull, 15 refused on a break's value there): every call
 /// that decided by subdividing spent at most 826 spans. The adversarial
 /// wall of `m` C0 spans under each composite span (`ssi_limb3_one_arc`)
-/// clears at 826 (1964 at its steepest P/N) for m = 64, 3511 (8058) for
-/// m = 256 and 14 188 (32 684) for m = 1024. This budget is twice the
-/// m = 64 rows' and five times the corpus's. A carrier whose first
-/// composite has more spans than this is read on that hull alone; the
-/// one such carrier measured, a dome arc at ε 1e-14 over 4242 to 14 814
-/// spans, reads its lowest bound there.
-pub(crate) const SSI_HULL_WORK: usize = 4096;
+/// clears at 268 (414 at its steepest P/N) for m = 64, 1273 (2018) for
+/// m = 256 and 5908 (11 374) for m = 1024 at the default ε, where the
+/// pcurve's values at the breaks fall on the wall's knots but for a few,
+/// and at 628 (1314), 2740 (5538) and 11 188 (22 434) at ε 1e-6, where
+/// the foot points' offset carries every one of them off its knot. These
+/// figures were measured on 2026-10-12 with an uncommitted probe under an
+/// unbounded budget; from outside, only that file's m = 64, m = 1024 and
+/// m = 2048 rows guard them. This budget is three times the m = 64 rows'
+/// steepest figure (1314) and five times the corpus's (826). A carrier
+/// whose first composite has more spans than this is read on that hull
+/// alone; the one such carrier measured, a dome arc at ε 1e-14 over
+/// 4242 to 14 814 spans, reads its lowest bound there.
+///
+/// The analytic rung-3 limb counts every part of its lane's composite,
+/// which covers the carrier's whole net whatever the edge's interval
+/// reads, so a long carrier shared by many edges spends nearly the whole
+/// budget on its first hull and gets few rounds or none. Measured once,
+/// on 2026-10-11, with a temporary probe in `net_offset_sup` over the
+/// same four ci profiles: 94 calls, all deciding on their first hull (89
+/// cleared, 5 on a break's value), the largest costing 4080 parts.
+pub const SSI_HULL_WORK: usize = 4096;
 
 /// The most breaks limb 2's rounds add to its composite in all. A
 /// round that would pass it halves its worst spans up to it. Under the
 /// unbounded budget of [`SSI_HULL_WORK`]'s measurement the corpus's
 /// calls that decided by subdividing took at most 348 cuts, and the
-/// adversarial wall clears at 348 (600) cuts for m = 64, 1498 (2520)
-/// for m = 256 and 6056 (10 200) for m = 1024: this cap clears every
-/// m = 64 row and spends itself on m ≥ 256, where the work budget alone
-/// would let a few more rounds run.
-pub(crate) const SSI_HULL_CUTS: usize = 1024;
+/// adversarial wall clears at 38 (42) cuts for m = 64, 254 (324) for
+/// m = 256 and 1432 (2444) for m = 1024 at the default ε, and at 218
+/// (342), 986 (1494) and 4058 (6102) at ε 1e-6 (the same probe as
+/// [`SSI_HULL_WORK`]'s figures): this cap clears every m = 64 row and
+/// spends itself on m = 1024, and on the steepest m = 256 rows at 1e-6.
+pub const SSI_HULL_CUTS: usize = 1024;
 
 /// The subdivision stops on the round that makes this many rounds in a
 /// row that do not lower the lowest bound over the whole carrier: at 2
 /// it stops on the second such round, and one is all it lets pass.
 const SSI_HULL_IDLE_ROUNDS: usize = 2;
 
-/// Where limb 2's subdivision stopped.
-enum Subdivided {
+/// Where a hull limb's subdivision stopped.
+pub(crate) enum Subdivided<P = ()> {
     /// On the bound over the whole carrier: it cleared the band's zero,
     /// or the budget ran out or the bound stopped falling, first. The
     /// hull is the round's with the lowest bound.
-    Bound(Hull),
+    Bound(Hull<P>),
     /// On a break whose value is certified past the band's zero.
     Value {
-        hull: Hull,
+        hull: Hull<P>,
         /// The break.
         at: f64,
         /// The certified lower bound on the value there, in metres.
@@ -865,7 +896,11 @@ enum Subdivided {
     },
 }
 
-/// **Limb 2, subdivided until it decides** (C2.2): the composite's
+/// **Limb 2, subdivided until it decides** (C2.2), for every door that
+/// states it: the search's two arms here, and the analytic rung-3
+/// certificate's distance bound
+/// ([`crate::pcurve_cache::projected::net_offset_sup`]). `hull` builds a
+/// round's hull with its argument's breaks added. The composite's
 /// uncleared spans are halved, worst bound first, round by round, until
 /// its bound clears the band's zero, or a break's certified value lies
 /// past it, or it stops: the next round would pass [`SSI_HULL_WORK`],
@@ -886,11 +921,12 @@ enum Subdivided {
 /// rows (`compose`'s `ch_*` steps), so a span-restricted round would
 /// thread a span mask through that algebra, and the tensor residual,
 /// whose spans are composed one by one, would need a public door of its
-/// own that only this caller reads.
+/// own that only this caller reads. A round costs its hull's
+/// [`Hull::work`].
 ///
 /// Three outcomes follow from that and are the code's, not accidents:
-/// - a first hull whose composite already has more spans than
-///   [`SSI_HULL_WORK`] (spans plus the round's cuts) gets no round at
+/// - a first hull whose composite already costs more than
+///   [`SSI_HULL_WORK`] (its work plus the round's cuts) gets no round at
 ///   all, so a refusal on its bound is a refusal on an unsubdivided
 ///   carrier;
 /// - a later round whose bound is NaN stops the subdivision on the
@@ -899,12 +935,12 @@ enum Subdivided {
 ///   caller as NaN);
 /// - a round whose bound equals the lowest counts as idle, and the
 ///   older hull is kept.
-fn subdivide(
-    hull: impl Fn(&[f64]) -> Result<Hull, SsiError>,
+pub(crate) fn subdivide<P, E>(
+    hull: impl Fn(&[f64]) -> Result<Hull<P>, E>,
     band: Band,
-) -> Result<Subdivided, SsiError> {
+) -> Result<Subdivided<P>, E> {
     let mut cuts: Vec<f64> = Vec::new();
-    let mut lowest: Option<Hull> = None;
+    let mut lowest: Option<Hull<P>> = None;
     let (mut idle, mut work) = (0, 0);
     loop {
         let h = hull(&cuts)?;
@@ -923,7 +959,7 @@ fn subdivide(
         next.truncate(SSI_HULL_CUTS - cuts.len());
         // On the first hull `work` is 0, so a composite over the budget
         // stops here unsubdivided.
-        let cost = h.spans.len() + next.len();
+        let cost = h.work + next.len();
         let refused = h.sup.is_nan();
         // A NaN bound compares as not lower, so a later round's NaN keeps
         // the earlier certified hull and stops on it (`refused` below);
@@ -3007,5 +3043,67 @@ mod tests {
             refused.error
         );
         assert!(refused.at.is_none(), "limb 3 was located: {:?}", refused.at);
+    }
+
+    /// **Limb 2's bound escalates at `Interval` with its margin as an
+    /// enclosure** (4553's second review, MINOR-B): in band, the
+    /// escalation names the arm's bound predicate and carries the bound
+    /// as an `Interval`, both ends the bound's own bits, and the error
+    /// text renders an enclosure. Red if the margin is flattened to one
+    /// `f64` (`Margin::of(hull.sup)`), which reads and renders as a
+    /// value. Driven at `hull_limb` itself: on the analytic pair the
+    /// SSI door reaches, limb 2 reads under limb 1 under the monotone
+    /// step (`review_ssiflat_r2_probes`' probe 5), so no band there
+    /// lets limb 2 escalate first.
+    #[test]
+    #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+    fn the_hull_bound_escalates_with_an_enclosure_at_interval() {
+        use super::{ANALYTIC_HULL, CHART_HULL, Hull, SsiError, Subdivided, hull_limb};
+        use geom_core::{Band, ErrorTextReading, Interval, MarginDiag};
+        let band = Band::new(4.0e-15, 6.0e-15).unwrap();
+        let sup = 5.0e-15;
+        for arm in [&ANALYTIC_HULL, &CHART_HULL] {
+            let hull = Hull {
+                sup,
+                breaks: vec![0.0, 1.0],
+                spans: vec![sup],
+                floors: vec![0.0; 2],
+                work: 1,
+                data: (),
+            };
+            let mut at = super::Refused::default();
+            let err = hull_limb::<Interval>(arm, Subdivided::Bound(hull), band, &mut at)
+                .expect_err("a bound in the band escalates");
+            let SsiError::CertificateEscalated { ref cause, .. } = err else {
+                panic!("{}: not the escalation: {err:?}", arm.sup);
+            };
+            assert_eq!(cause.predicate, Some(arm.sup));
+            let ErrorTextReading::Enclosure { lo, hi } =
+                MarginDiag::diagnostic_f64_for_error_text(cause.margin)
+            else {
+                panic!(
+                    "{}: limb 2's margin at Interval must read as an enclosure: {:?}",
+                    arm.sup, cause.margin
+                );
+            };
+            assert_eq!(
+                (lo.to_bits(), hi.to_bits()),
+                (sup.to_bits(), sup.to_bits()),
+                "{}: the escalation must carry the bound's own ends",
+                arm.sup
+            );
+            let shown = err.to_string();
+            assert!(
+                shown.contains("enclosure [") && !shown.contains("NaN"),
+                "{}: the text must render the enclosure: {shown}",
+                arm.sup
+            );
+            assert_eq!(
+                at.spans.len(),
+                1,
+                "{}: the uncleared span is located",
+                arm.sup
+            );
+        }
     }
 }

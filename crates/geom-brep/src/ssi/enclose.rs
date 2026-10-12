@@ -74,7 +74,7 @@
 use geom::{NurbsSurface, Surface, SurfaceWindow};
 use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
-use geom_core::interval::{div_down, max_bound, min_bound, norm_sq, norm_sup};
+use geom_core::interval::{cross, div_down, dot, max_bound, min_bound, norm_sq, norm_sup};
 use geom_core::spline::algebra::certainly_positive;
 use geom_core::spline::{KnotVector, ParamRange, RingRefinement, Span, TensorNet};
 use geom_core::{CertifiedBounds, CertifiedEnclosure, Interval, Point3, SupSpeed, Vec3};
@@ -278,22 +278,6 @@ fn pad_interval<T: CertifiedEnclosure>(r: T) -> Interval {
     }
 }
 
-fn dot3(a: [Interval; 3], b: [Interval; 3]) -> Interval {
-    // Ascending association (D9), matching `Vec3::dot`.
-    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
-}
-
-/// (Component-for-component `offset_meters::cross`, which is the
-/// borrow-shaped twin one crate module over; noted at both sites so
-/// the duplication is a decision. A third consumer collapses them.)
-fn cross3(a: [Interval; 3], b: [Interval; 3]) -> [Interval; 3] {
-    [
-        a[1] * b[2] - a[2] * b[1],
-        a[2] * b[0] - a[0] * b[2],
-        a[0] * b[1] - a[1] * b[0],
-    ]
-}
-
 fn constv<T: CertifiedBounds>(v: Vec3<T>) -> [Interval; 3] {
     [
         Interval::from_certified(v.x),
@@ -326,7 +310,7 @@ fn subp<T: CertifiedBounds>(b: Box3, p: Point3<T>) -> [Interval; 3] {
 pub(crate) fn implicit_enclosure<T: CertifiedBounds>(surface: &Surface<T>, b: Box3) -> Interval {
     let two = Interval::point(2.0);
     match *surface {
-        Surface::Plane { origin, normal, .. } => dot3(subp(b, origin), constv(normal)),
+        Surface::Plane { origin, normal, .. } => dot(&subp(b, origin), &constv(normal)),
         Surface::Sphere { center, radius, .. } => {
             // `sqr`, never `r * r`: the radius enclosure is one
             // operand, and squaring it as two independent ones widens
@@ -343,7 +327,7 @@ pub(crate) fn implicit_enclosure<T: CertifiedBounds>(surface: &Surface<T>, b: Bo
         } => {
             let q = subp(b, origin);
             let a = constv(axis);
-            let h = dot3(q, a);
+            let h = dot(&q, &a);
             // |w|² from the radial vector itself, NOT as |q|² − (q·â)².
             //
             // The algebraic identity is exact in ℝ and catastrophic in
@@ -398,7 +382,7 @@ pub(crate) fn implicit_gradient_enclosure<T: CertifiedBounds>(
             // the enclosure is as tight as the unit form's.
             let q = subp(b, origin);
             let a = constv(axis);
-            let h = dot3(q, a) * (Interval::from_bounds(2.0, 2.0) - norm_sq(&a));
+            let h = dot(&q, &a) * (Interval::from_bounds(2.0, 2.0) - norm_sq(&a));
             let r = Interval::from_certified(radius);
             [
                 (q[0] - a[0] * h) / r,
@@ -426,7 +410,7 @@ pub(crate) fn graph_margin<T: CertifiedBounds>(
 ) -> Interval {
     let g1 = implicit_gradient_enclosure(s1, b);
     let g2 = implicit_gradient_enclosure(s2, b);
-    dot3(cross3(g1, g2), constv(e))
+    dot(&cross(&g1, &g2), &constv(e))
 }
 
 /// The plane × NURBS chart probe's transversality margin over one
@@ -489,7 +473,7 @@ pub(super) fn chart_transverse_margin<T: CertifiedBounds>(
 /// (The mignitude. `offset_meters::mig` is the same arithmetic read
 /// as a coefficient-hull assembly term rather than a decision; noted
 /// at both sites.)
-pub(super) fn zero_free_lower_bound(i: Interval) -> f64 {
+pub(crate) fn zero_free_lower_bound(i: Interval) -> f64 {
     if !i.is_certified() {
         return 0.0;
     }
@@ -1070,19 +1054,17 @@ impl CellNet {
     /// is the caller's answer either way, and a sound one.
     ///
     /// The cut is blossoming, `b_k = f(a, …, a, b, …, b)` with `k` of the
-    /// `b`s, run by de Boor's recurrence in certification arithmetic on
-    /// the homogeneous net `(w·(P − c), w)`, and the Cartesian block is
-    /// read back as the quotient. `c` is the block's first point's lower
-    /// bracket end, translating the net so the products are formed on
-    /// differences; the cut block's points are in that frame.
+    /// `b`s ([`bezier_on`]), on the homogeneous net `(w·(P − c), w)`, and
+    /// the Cartesian block is read back as the quotient. `c` is the
+    /// block's first point's lower bracket end, translating the net so
+    /// the products are formed on differences; the cut block's points are
+    /// in that frame.
     ///
     /// The cut block's boxes are not always narrower than the whole
     /// block's. The recurrence's rounding can outgrow what the cut saves:
-    /// on a net constant along the cut whose `P − c` does not round
-    /// exactly, `d₁ − d₀` of two equal non-point intervals is a
-    /// symmetric interval rather than zero, and on a window a few ulps
-    /// wide the `degree / (b − a)` scale amplifies every such width. So
-    /// the caller meets the two ([`NurbsBoxes::deriv_box`]).
+    /// on a window a few ulps wide the `degree / (b − a)` scale
+    /// amplifies every ulp the blossom adds. So the caller meets the two
+    /// ([`NurbsBoxes::deriv_box`]).
     fn cut(&self, (span_u, span_v): (Span<'_>, Span<'_>), w: UvWindow) -> Option<Self> {
         let (cut_u, cut_v) = (inside(span_u, w.u), inside(span_v, w.v));
         if cut_u.is_none() && cut_v.is_none() {
@@ -1346,12 +1328,12 @@ impl CellNet {
         // extreme at the ends of the hull of their `d`, where they are
         // read.
         let dots = |a: &[Affine]| -> Vec<(Interval, Interval)> {
-            a.iter().map(|t| (dot3(n, t.k), t.g)).collect()
+            a.iter().map(|t| (dot(&n, &t.k), t.g)).collect()
         };
         let (du, dv) = (dots(&au), dots(&bv));
         let along = qs
             .iter()
-            .map(|q| dot3(n, *q))
+            .map(|q| dot(&n, q))
             .reduce(Interval::hull)
             .filter(|d| d.is_certified())
             .and_then(|d| {
@@ -1613,36 +1595,26 @@ fn inside(span: Span<'_>, w: ParamRange) -> Option<(f64, f64)> {
 
 /// The Bézier coefficients over `[a, b]` of the polynomial piece that
 /// `line` (the `degree + 1` coefficients of `span`'s window) defines on
-/// that span: the blossom `f(a^{p−k}, b^k)` for each `k`, by de Boor's
-/// recurrence with the `r`-th level at its own argument. `None` when the
-/// line is not one window long or a knot read leaves the vector.
+/// that span, channel by channel: each channel's window restricted to
+/// `[a, b]` ([`geom_core::spline::SpanRow::restrict`]). `None` when the
+/// line is not one window long or the restriction refuses.
 fn bezier_on(
     line: &[[Interval; 4]],
     span: Span<'_>,
     (a, b): (f64, f64),
 ) -> Option<Vec<[Interval; 4]>> {
-    let (p, s, t) = (span.degree(), span.index(), span.knots().knots());
-    if line.len() != p + 1 {
-        return None;
+    let mut out = vec![[Interval::refused(); 4]; line.len()];
+    for c in 0..4 {
+        let channel: Vec<Interval> = line.iter().map(|l| l[c]).collect();
+        let row = span
+            .with_window(&channel)?
+            .restrict((Interval::point(a), Interval::point(b)))
+            .ok()?;
+        for (k, v) in row.into_iter().enumerate() {
+            out[k][c] = v;
+        }
     }
-    (0..=p)
-        .map(|k| {
-            let mut d = line.to_vec();
-            for r in 1..=p {
-                let x = Interval::point(if r <= p - k { a } else { b });
-                for i in (r..=p).rev() {
-                    // `s ≥ p` (the span's invariant), so `s + i − p` and
-                    // `s + i + 1 − r` are in the window's knot range.
-                    let (&lo, &hi) = t.get(s + i - p).zip(t.get(s + i + 1 - r))?;
-                    let lo = Interval::point(lo);
-                    let alpha = (x - lo) / (Interval::point(hi) - lo);
-                    let (d0, d1) = (d[i - 1], d[i]);
-                    d[i] = core::array::from_fn(|c| d0[c] + alpha * (d1[c] - d0[c]));
-                }
-            }
-            Some(d[p])
-        })
-        .collect()
+    Some(out)
 }
 
 /// The box every reading over a window that names no region answers.

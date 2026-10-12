@@ -45,6 +45,10 @@ pub struct Decision {
     /// (indeterminate, or refused). Two builds that decided one
     /// predicate with different signs may have branched after it.
     pub sign: Option<Sign>,
+    /// The theorem the decision's `Zero` stands on, where it answered
+    /// one ([`crate::MarginDiag::theorem`]): `None` for a sign read off
+    /// the value channel, or no sign at all.
+    pub theorem: Option<crate::Theorem>,
 }
 
 thread_local! {
@@ -79,6 +83,7 @@ pub(super) fn note<T: Real>(node: SymId, value: T) -> Option<usize> {
                 node,
                 value: format!("{value:?}").parse::<f64>().ok(),
                 sign: None,
+                theorem: None,
             });
             v.len() - 1
         })
@@ -94,6 +99,7 @@ pub(super) fn settle(noted: Option<usize>, decided: &Result<Decided, Indetermina
     RECORDER.with(|r| {
         if let Some(x) = r.borrow_mut().as_mut().and_then(|v| v.get_mut(i)) {
             x.sign = Some(d.sign);
+            x.theorem = d.margin.theorem();
         }
     });
 }

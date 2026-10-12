@@ -69,34 +69,38 @@ in metres for an analytic operand (`implicit.rs`); for a NURBS operand
 surface bounds the distance from above, so a foot is owed no limb of
 its own.
 (2) Sup-norm honesty between samples, by control-coefficient hull bounds
-in certification arithmetic (C9): `geom_core::spline::compose` composes
-the implicit form with the carrier (converted to metres by a constant
-factor for plane, cylinder and sphere; on the cone and the torus the
-metres form is a root of a polynomial, which no polynomial composite
-carries, so the conversion is a per-span lever instead: a scalar bound
-on the carrier's distance from the axis, whose one square root is of a
-bound, in the scalar's own outward-rounded arithmetic. The edge
-certificate reads it (`pcurve_cache::projected::net_offset_sup`); the
-search's limbs do not yet, which is why their rung-3 arms are
-unretired), and `compose::tensor` encloses
+in certification arithmetic (C9). `geom_core::spline::compose` composes
+the implicit form with the carrier, and `compose::tensor` encloses
 `S(P(t)) − C(t)` as one composite for a NURBS operand so the
 cancellation that is the whole content of the claim survives into the
-bound. Where the bound does not clear the band, the composite's
-uncleared spans are halved round by round under a budget
-(`SSI_HULL_WORK` spans recomputed over the rounds, `SSI_HULL_CUTS`
-breaks added), each piece cut from its Bézier segment's own row so no
-cut compounds another's width: the limb passes once the bound clears;
-refuses on the composite's certified value at a break where that lies
-past the band's zero, since no bound over a span holding the break can
-clear (against an analytic operand that value is limb 1's residual, a
-measured miss; against a NURBS one it is the bound's own quantity at a
-point, a bound on the miss); and refuses on the lowest bound any round
+bound. The implicit form converts to metres by a constant factor for
+plane, cylinder and sphere. On the cone and the torus the metres form
+is a root of a polynomial, which no polynomial composite carries, so
+the conversion is a per-span lever instead: a scalar bound on the
+carrier's distance from the axis, whose one square root is of a bound,
+in the scalar's own outward-rounded arithmetic. The edge certificate
+reads it per part of the carrier's knot spans, at
+`pcurve_cache::projected::net_offset_sup`; the search's limbs do not
+yet, which is why their rung-3 arms are unretired. Where the bound does
+not clear the band, the composite's uncleared spans are halved round by
+round under a budget (`SSI_HULL_WORK` spans recomputed over the rounds,
+`SSI_HULL_CUTS` breaks added), each piece cut from its Bézier segment's
+own row so no cut compounds another's width: the limb passes once the
+bound clears; refuses on the composite's certified value at a break
+where that lies past the band's zero, since no bound over a span
+holding the break can clear; and refuses on the lowest bound any round
 reached where the budget is spent, or two rounds in a row leave that
 lowest bound where it was, first — so a first composite already over
 `SSI_HULL_WORK` spans is never subdivided and refuses on its first
 hull, a later round whose bound is NaN stops on the lowest certified
 bound before it rather than escalating, and a round that only equals
-the lowest bound counts as not lowering it. (3) The uniqueness tube: over a chain of boxes of certified radius
+the lowest bound counts as not lowering it. Against an analytic operand
+the value at a break is limb 1's residual, a measured miss: at the edge
+certificate it is the carrier's distance from the surface, bounded
+below by `|f|` over an upper bound on the factor that divides it to
+metres, read off the break's point. Against a NURBS operand it is the
+bound's own quantity at a point, a bound on the miss.
+(3) The uniqueness tube: over a chain of boxes of certified radius
 around the carrier, the enclosure of `(∇f₁ × ∇f₂)·e` excludes zero, so
 by a mean-value argument each slice holds at most one solution, and each
 connected piece of the solution set in a box ends on the box's boundary
@@ -661,7 +665,10 @@ before anything is built, which is what lets an interval replay certify
 validity over a parameter box. They run in that order, except face
 clearance's reach arm (every band against every face of the body it
 does not blend), which needs the plan's feet: it runs in the surgery
-after predicate 6 and before any mutation. Every constant-radius arm
+after predicate 6 and before any mutation. Face clearance reads each face
+three ways, not two: clear of the band's material, wholly inside it (the
+face goes with that material, as a face wholly inside a Boolean's tool
+does), or crossing it (refused). Every constant-radius arm
 mints a torus or a cylinder (the envelope of equal spheres over a circle
 or a line spine); a cone belongs to the variable-radius family.
 Trimlines are stored as `TangentIntersection`. Scope: a straight band
@@ -865,9 +872,9 @@ base's own chart parameters. Meters (`offset_meters.rs`, read off
 floor*, a certified lower bound on `‖S_u × S_v‖` (three assemblies, the
 largest wins: componentwise mignitude, fixed-direction projection, and
 the Gram determinant `EG − F²`), classified by `offset_normal_floor` with
-the patch's faster chart speed as lever (on an integral patch read from
-the norms of the derived control vectors, D4 ¶2; on a rational one from
-the speed's componentwise enclosure), deliberately not `|d|`, since
+the patch's faster chart speed as lever (read from the norms of
+coefficient vectors, D4 ¶2, as the floor's companion `sup‖S_u × S_v‖`
+is), deliberately not `|d|`, since
 whether the normal degenerates does not depend on `d`; and the
 *collapse headroom*, principal curvatures `[κ_lo, κ_hi]` from the closed
 form of the two fundamental forms, refusing through
@@ -908,7 +915,8 @@ definition, boolean-family; its execution never runs the crossing
 pipeline. An open shell is unrepresentable by construction (every edge
 has exactly two half-edges; D1 is manifold-first), and shell does not
 need one. *Sealed* (`topo::shell`): one clone with every boundary face
-moved to its inward offset, every chart of a solid at once (all-planar
+moved to its inward offset, every chart of a solid at once (a chart is
+body-wide, and each solid's own faces are grouped by chart; all-planar
 solids through `offset_planes_together`, which solves each corner
 against all moved planes; planes meeting revolved walls through
 `offset_charts_together`; anything else through
@@ -920,7 +928,12 @@ meeting it; the first two are its closed forms, and
 through the shared void-insertion door `boolean::voids::insert_void`
 with the construction's own d-vs-reach margins carried as
 `VoidContainment::Carried` evidence; the door never derives
-containment. The result is a two-shell solid, and the invariant this
+containment. Every boundary thickens, the outer shell inward and each
+void outward by the same signed distance (a void's faces are wound with
+their material side outward), and each void moves with its dilated twin
+into a solid of its own: for `k` voids the result holds `k + 1` solids
+and `2(k + 1)` shells, every operand shell surviving under its key. The
+invariant this
 preserves is that every cavity is born through that one door (three
 producers: boolean subtraction, shell, the full revolve of a holed
 profile). *Opened* (`shell_open`): the sealed construction, then each
@@ -930,7 +943,10 @@ annular rim face. Nothing opens; the result is closed, the designated
 shell's thin solid is single-shell (a hollow operand's other thin
 solids keep their two), and the invariant is closure, not genus (one
 opening is a cup, genus 0). Refusals: a wall past a curved face's reach
-at O1's floor, inverted cavity walls at edge re-attachment. A fitted
+at O1's floor, inverted cavity walls at edge re-attachment, two facing
+planar walls closer than `2t` (`WallClearance`), and two planar walls at
+an angle whose moved regions cross (`OffsetsCross`); curved walls
+have no clearance gate yet (Open, below). A fitted
 face's edge with a plane is their section over the fit through the old
 edge's middle (`PlaneSection::branch_at`, C5): the branch there, the
 fit's boundary row where a `Side` region holds the middle (the plane
@@ -997,9 +1013,12 @@ bracketed by two tori, by construction.
 
 - Shell's curved wall clearance: two facing curved walls closer than
   `2t` shell to a self-intersecting cavity that tier 3 does not catch
-  (`wall_clearance` gates planar operands only); the general clearance
-  certificate over a parameter box belongs to the error-propagation
-  lane (`docs/ERROR-DESIGN.md`).
+  (`wall_clearance` gates planar operands only). Ev ruled B on #1737:
+  the clearance engine's body-level half moves into `topo` behind the
+  interval scalar, and the curved gate at the shell door reads it.
+  The engine has not moved yet (`editor_core::clearance`); the work is
+  CLEAR's (`shell-curved-wall-clearance-window`, parked on
+  `shell-curved-clearance-consumer`).
 - Corner taxonomy: the uniformly concave trihedron is carved but has no
   `CornerConfig` tag; the finer run-out taxonomy (per-end assignment,
   setback parameters) is reserved for the design that implements
