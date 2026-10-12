@@ -809,3 +809,12 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - **Kept:** `RingRefinement`, which has other callers. Its quadratic plan chain is filed as `ring-refinement-inserts-one-point-per-plan-over-the-whole-net` (P4).
   - **Side effect:** the equal-weight arm gap shrinks from 4.3% of nets (worst 4.6%) to 1.9% (worst 0.20%).
 - 2026-10-12 14:30Z — **Main's digest is green at all three ε.** Build A's status reported a suspected frozen-count rise from PR 4834, so I ran sweep's thread-count digest (both rows, golden walk included) on main `562f8e7f1d` at ε 1e-6, 1e-9 and 1e-12, on an isolated target. All pass. I asked build A to name what its rise is relative to. — (NURBS orchestrator)
+- 2026-10-12 14:33Z — **PR 4866** (build B, one span-derivative scale) is up at `2e53479560`.
+  - **Routed:** 5 sites, plus a seventh found by the shape sweep (`ssi/enclose.rs` `bezier_scales`).
+  - **Left on their own association:** `hull.rs` `deriv_coeff` and `offset_derive.rs`, which use `(Δ·p)/Δu`.
+  - The claim is bit-identical. The single FULL reviewer is session_01YM7Atx7n64oDJr2vgFucdD.
+  - Seam notes are on the PCERT, PCTAIL, SSIARITH, SSIEDGE, SSIMARCH, KNOT, SHELF and SHELL logs.
+- 2026-10-12 14:34Z — **Build C dispatched** on `the-integral-meters-piece-refinement-is-not-monotone` (P4, M), branch `nurbs/monotone-piece-refinement`.
+  - It measures both fixes first: sub-pieces trying the parent direction, and max of the two schedules.
+  - "Leave it, disclosed" is an acceptable answer. A trade stops for a ruling.
+  - **Tier: single FULL.** — (NURBS orchestrator)
