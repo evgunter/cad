@@ -1091,3 +1091,8 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - r4886a/b: active (208 files written in 15 min; drafts at 20:31 and 21:12).
   - Re-armed for 22:50.
 - 2026-10-12 — r4886b (B) in: APPROVE-WITH-FIXES, 0 MAJOR. MINOR: no row pins Fix 1's E-strip certificate (M1, M7–M9 survive); a rotated-needle sweep shows the guard does real work (16 mismatches under M1). NITs: the mutant table is off in two places; label shifts are understated; the trace rows trace only at default ε; Fix 2 has no row at its own site; base-point rounding is uncharged in the noise. Executed: 400k direct certified_subdivision trials, 0 wrong; 60000 cone-pair poses against an independent 50-digit oracle, 0 mismatches; 66 refusals turned into answers, all true. Saved to scratchpad/dr4886/r4886b.md. r4886a still running.
+- 2026-10-12 22:22 — r4886a (A) in: APPROVE-WITH-FIXES, 0 MAJOR (saved scratchpad/dr4886/r4886a.md). Its MINORs:
+  - The row still fails about 0.4% of fresh seeds at 1e-12. `0x870` is a fold label on a resolvable close pair. `0xc7c` is an answered witness 1.04e-8 m off the cylinder, 2.4e4 m from the apex: a likely pre-existing witness-contract defect. Both are byte-identical with fixes 2 and 3 reverted, so the item must not close.
+  - No pinned row guards the strip certificate (NOSTRIP, TAYLOR0 survive; pin 0x7f5).
+  - The strip charge is not rigorous.
+  **Pair: no MAJOR either side** (tallied 0, major false). Both independently found the unpinned strip certificate and the wrong mutant table. Fix pass dispatched with the union (9 items): session_016uVzsPcUpUWpvmi1kehTbn on germ/cone-pair-fuzz-mismatches.
