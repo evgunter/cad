@@ -347,9 +347,8 @@ fn in_band_shell_escalates_typed_never_guessed() {
 ///
 /// The sheet is what a unit cube cavity leaves when a box filling all
 /// but its top `(1 + K)·ε` is united into it. Subtracting a thin tool
-/// directly never reaches the census: the Boolean's own orientation
-/// read of the uncut tool (`bool_point_in_solid_infinity`, the same
-/// `V/A`) is in band and refuses the node.
+/// directly never reaches the census either: the cavity it leaves is a
+/// shell whose role is in band, which the same result gate refuses.
 #[test]
 fn in_band_void_shell_escalates_with_its_valued_ending() {
     use geom_core::{Band, ErrorTextReading};

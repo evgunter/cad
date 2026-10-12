@@ -2,10 +2,11 @@
 id: a-tilted-plug-in-its-hole-refuses-at-the-ellipse-rims
 kind: issue
 title: A tilted plug back in its hole refuses CurvedPierceUnsupported at every pose: the one-carrier arm's interior question reads no ellipse on the wall's boundary
-status: open
+status: dispatched
 opened: 2026-10-11
 priority: P2
 cost: M
+branch: cleave/one-carrier-reads-ellipses
 ---
 
 

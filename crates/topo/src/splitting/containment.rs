@@ -459,13 +459,17 @@ impl core::fmt::Display for PointInLoopError {
                 .fmt(f),
             Self::RayExhausted { .. } => write!(
                 f,
-                "whether a point lies in a loop is undecided: {}",
+                geom_core::undecided!("whether a point lies in a loop", payload),
                 ray_walk::NoRaySettled
             ),
             Self::CorruptLoop { r#loop } => {
                 write!(f, "loop {loop:?} is not walkable")
             }
-            Self::Uncrossable(u) => write!(f, "whether a point lies in a loop is undecided: {u}"),
+            Self::Uncrossable(u) => write!(
+                f,
+                geom_core::undecided!("whether a point lies in a loop", payload),
+                u
+            ),
             Self::OffPlane(o) => write!(f, "{o}"),
         }
     }

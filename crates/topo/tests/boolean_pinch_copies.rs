@@ -100,8 +100,20 @@ fn pinches<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>()
     ]
 }
 
+/// Each pinch passes tiers 2 and 3′ with its own records, and records
+/// each touch along a line: a subtraction's pinch keeps both edges,
+/// each between a face of each operand, and the kissing cube's two
+/// bottom edges lie along the L's notch rim. Red if the reduction
+/// writes the edge-edge row only where both wedges read Out.
 fn assert_pinches_pass<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() {
     for (name, r) in pinches::<T>() {
+        let lines = if name == "reflex_vertex_kiss" { 2 } else { 1 };
+        assert_eq!(
+            r.contacts.edge_edge().count(),
+            lines,
+            "{name}: edge-edge rows: {:?}",
+            r.contacts
+        );
         assert_eq!(validate_closed(&r.body), Ok(()), "{name}: tier 2");
         assert_eq!(
             validate_pseudomanifold(&r.body, &r.contacts, Tol::witness()),

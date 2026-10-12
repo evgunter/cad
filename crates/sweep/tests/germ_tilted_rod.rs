@@ -200,18 +200,14 @@ fn the_rod_short_of_the_inner_equator_answers_every_op() {
                 m.volume
             );
             // The rod pieces (∩, `c ∖ h`) carry the cap's ellipse on
-            // their wall, which the at-infinity probe cannot measure in
-            // closed form: a ray from outside that misses them refuses
-            // `VolumeUncertified`
-            // (`work/restread/at-infinity-probe-measures-in-closed-form-only.md`).
-            let trimmed = matches!((op, rod_first), (Op::Intersect, _) | (Op::Subtract, true));
+            // their wall, which the closed-form volume cannot measure: a
+            // ray from outside that misses them is sided by a ray aimed
+            // at a planar face.
             for (q, inside) in probes.into_iter().zip(inside) {
-                let band = geom_core::Band::linear(Tol::witness()).expect("the run's band");
-                let got = topo::point_in_solid(&b.body, q, band, Tol::witness());
-                let uncertified = matches!(got, Err(topo::PointInSolidError::VolumeUncertified));
-                assert!(
-                    in_solid(&b.body, q) == Some(inside) || (trimmed && !inside && uncertified),
-                    "{what} at {pose}, {q:?}: {got:?}"
+                assert_eq!(
+                    in_solid(&b.body, q),
+                    Some(inside),
+                    "{what} at {pose}, {q:?}"
                 );
             }
         }

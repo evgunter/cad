@@ -202,7 +202,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "CrossingUnverified",
     "CurvedSolidFrontier",
     "DegenerateDirection",
-    "DerivedFrameSection",
     "EmptyHalf",
     "EmptyOperand",
     "Expr",
@@ -265,7 +264,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Seed/CountVar",
     "Seed/TangentUnrepresentable",
     "Seed/UnknownVar",
-    "SeedPinnedSection",
     "ShellLaneUnsupported",
     "SelectKind",
     "SelectResolve/Ambiguous",
@@ -1209,13 +1207,6 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         ),
         row("UnschedulableCycle", NodeErrorKind::UnschedulableCycle),
         row(
-            "SeedPinnedSection",
-            NodeErrorKind::SeedPinnedSection {
-                section: RecipeNodeId::new(0, tagged(3)),
-                param: editor_core::VarId::new(0, tagged(7)),
-            },
-        ),
-        row(
             "BlendSelectionEmpty",
             NodeErrorKind::BlendSelectionEmpty {
                 verb: sweep::blend::BlendKind::Fillet,
@@ -1229,13 +1220,6 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             "FaceFrameNotPlanar",
             NodeErrorKind::FaceFrameNotPlanar {
                 carrier: geom::SurfaceKind::Cylinder,
-            },
-        ),
-        row(
-            "DerivedFrameSection",
-            NodeErrorKind::DerivedFrameSection {
-                profile: RecipeNodeId::new(0, tagged(3)),
-                frame: Some(RecipeNodeId::new(0, tagged(2))),
             },
         ),
         row(
@@ -2454,6 +2438,7 @@ fn loft() -> Vec<(String, NodeErrorKind)> {
         ),
         ("SectionStructure", E::SectionStructure),
         ("PlacementNotAPoint", E::PlacementNotAPoint { section: 1 }),
+        ("SectionNotAPoint", E::SectionNotAPoint { section: 1 }),
         ("ReversedStacking", E::ReversedStacking { slab: 1 }),
         ("DegenerateStacking", E::DegenerateStacking { slab: 1 }),
         ("FarSectionNotForward", E::FarSectionNotForward { slab: 1 }),
@@ -4728,7 +4713,7 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
     };
     let head =
         "check connectedness: placement 000000000004 output 0: the component count is unknowable: ";
-    let sign = "the sign of a shell's volume is too close to call: ";
+    let sign = "the sign of a shell's volume is undecided: ";
     let in_band =
         |m: &str| format!("{head}{sign}margin {m} lies inside the ambiguity band (1e-9, 1e-8). ");
     let pinned = [

@@ -149,6 +149,8 @@ mod docm9_range;
 mod dsc_checks;
 #[path = "e4_dual_door.rs"]
 mod e4_dual_door;
+#[path = "e6_drive_over_a_loft_at_interval.rs"]
+mod e6_drive_over_a_loft_at_interval;
 #[path = "edit_blend_canonical.rs"]
 mod edit_blend_canonical;
 #[path = "edit_blend_one_box_of_two.rs"]
