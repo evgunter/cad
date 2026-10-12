@@ -30,43 +30,43 @@ use topo::Body;
 
 use crate::common::operands::{leaning_turn, parallelepiped};
 
-type V = [f64; 3];
+pub(crate) type V = [f64; 3];
 
-fn add(a: V, b: V) -> V {
+pub(crate) fn add(a: V, b: V) -> V {
     [a[0] + b[0], a[1] + b[1], a[2] + b[2]]
 }
-fn sub(a: V, b: V) -> V {
+pub(crate) fn sub(a: V, b: V) -> V {
     [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
 }
-fn mul(a: V, k: f64) -> V {
+pub(crate) fn mul(a: V, k: f64) -> V {
     [a[0] * k, a[1] * k, a[2] * k]
 }
-fn dot(a: V, b: V) -> f64 {
+pub(crate) fn dot(a: V, b: V) -> f64 {
     a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
 }
-fn cross(a: V, b: V) -> V {
+pub(crate) fn cross(a: V, b: V) -> V {
     [
         a[1] * b[2] - a[2] * b[1],
         a[2] * b[0] - a[0] * b[2],
         a[0] * b[1] - a[1] * b[0],
     ]
 }
-fn norm(a: V) -> f64 {
+pub(crate) fn norm(a: V) -> f64 {
     dot(a, a).sqrt()
 }
-fn unit(a: V) -> V {
+pub(crate) fn unit(a: V) -> V {
     mul(a, 1.0 / norm(a))
 }
-fn angle(a: V, b: V) -> f64 {
+pub(crate) fn angle(a: V, b: V) -> f64 {
     norm(cross(a, b)).atan2(dot(a, b))
 }
 /// `a` less its component along the unit `n`, normalised.
-fn across(a: V, n: V) -> V {
+pub(crate) fn across(a: V, n: V) -> V {
     unit(sub(a, mul(n, dot(a, n))))
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Verb {
+pub(crate) enum Verb {
     Chamfer,
     Fillet,
 }
@@ -74,15 +74,15 @@ enum Verb {
 /// The cone at the vertex (the origin): unit edge directions and the
 /// inward unit normals of its three faces.
 #[derive(Clone, Copy, Debug)]
-struct Cone {
-    l: V,
-    e: [V; 2],
-    n_s: V,
-    n: [V; 2],
+pub(crate) struct Cone {
+    pub(crate) l: V,
+    pub(crate) e: [V; 2],
+    pub(crate) n_s: V,
+    pub(crate) n: [V; 2],
 }
 
 impl Cone {
-    fn of(l: V, e1: V, e2: V) -> Self {
+    pub(crate) fn of(l: V, e1: V, e2: V) -> Self {
         let (l, e1, e2) = (unit(l), unit(e1), unit(e2));
         let inward = |a: V, b: V, toward: V| {
             let n = unit(cross(a, b));
@@ -102,7 +102,7 @@ impl Cone {
 
     /// The cone of face angles `φ₁`, `φ₂` (each `eᵢ` against `L`) and
     /// dihedral `γ` at `L`.
-    fn angles(phi: [f64; 2], gamma: f64) -> Self {
+    pub(crate) fn angles(phi: [f64; 2], gamma: f64) -> Self {
         let l = [0.0, 0.0, 1.0];
         let u = [[1.0, 0.0, 0.0], [gamma.cos(), gamma.sin(), 0.0]];
         let e = |i: usize| add(mul(l, phi[i].cos()), mul(u[i], phi[i].sin()));
@@ -110,20 +110,20 @@ impl Cone {
     }
 
     /// The dihedral inside the cone at `eᵢ`, between `S` and `Fᵢ`.
-    fn beta(&self, i: usize) -> f64 {
+    pub(crate) fn beta(&self, i: usize) -> f64 {
         PI - angle(self.n_s, self.n[i])
     }
-    fn phi(&self, i: usize) -> f64 {
+    pub(crate) fn phi(&self, i: usize) -> f64 {
         angle(self.e[i], self.l)
     }
-    fn theta_s(&self) -> f64 {
+    pub(crate) fn theta_s(&self) -> f64 {
         angle(self.e[0], self.e[1])
     }
-    fn gamma(&self) -> f64 {
+    pub(crate) fn gamma(&self) -> f64 {
         PI - angle(self.n[0], self.n[1])
     }
     /// `L`'s height over `S` per unit length: `sin φᵢ · sin βᵢ`, either `i`.
-    fn h(&self) -> f64 {
+    pub(crate) fn h(&self) -> f64 {
         dot(self.l, self.n_s)
     }
     fn inside(&self, x: V, eps: f64) -> bool {
@@ -197,43 +197,43 @@ fn meet(o: V, d: V, n: V, k: f64) -> V {
 
 /// One turn, measured.
 #[derive(Clone, Debug)]
-struct Turn {
-    verb: Verb,
+pub(crate) struct Turn {
+    pub(crate) verb: Verb,
     /// Each band's trimline on its face of `L`, met with `L`, as
     /// distances along `L`: direct, and closed form.
-    feet: [f64; 2],
-    feet_closed: [f64; 2],
+    pub(crate) feet: [f64; 2],
+    pub(crate) feet_closed: [f64; 2],
     /// The band whose foot is further, and the face the overrun lies on
     /// (the other band's support of `L`); `None` when the feet coincide.
-    far: Option<usize>,
-    gap: f64,
+    pub(crate) far: Option<usize>,
+    pub(crate) gap: f64,
     /// The trimlines' crossing on `S` and the mitre's end on each `Fⱼ`.
-    crossing: V,
-    q: [V; 2],
+    pub(crate) crossing: V,
+    pub(crate) q: [V; 2],
     /// The face the mitre reaches first, read from the ends alone.
-    mitre_lands: Option<usize>,
+    pub(crate) mitre_lands: Option<usize>,
     /// The overrun region on the near face: closed form (chamfer) or
     /// boundary integral (fillet), and the grid's count.
-    area: f64,
-    area_grid: f64,
+    pub(crate) area: f64,
+    pub(crate) area_grid: f64,
     /// The grid's resolution: what its counts may be off by.
-    grid_tol: f64,
+    pub(crate) grid_tol: f64,
     /// What the union takes beyond its own band on the FAR face (the
     /// grid's count; zero when the overrun is one face's alone).
-    far_face_extra: f64,
+    pub(crate) far_face_extra: f64,
     /// The overrun region's angle at the far foot (between `L` and the
     /// overrun curve) and at the mitre's end (between the near band's
     /// trimline and the overrun curve).
-    angle_at_foot: f64,
-    angle_at_mitre: f64,
+    pub(crate) angle_at_foot: f64,
+    pub(crate) angle_at_mitre: f64,
     /// The turn the band's boundary makes at the mitre's end, from the
     /// mitre onto the overrun curve (zero: tangent).
-    mitre_kink: f64,
+    pub(crate) mitre_kink: f64,
     /// Fillet: the overrun ellipse's semi-axes.
-    ellipse: Option<(f64, f64)>,
+    pub(crate) ellipse: Option<(f64, f64)>,
 }
 
-fn measure(c: &Cone, verb: Verb, size: f64, grid: usize) -> Turn {
+pub(crate) fn measure(c: &Cone, verb: Verb, size: f64, grid: usize) -> Turn {
     let b = [band(c, 0, verb, size), band(c, 1, verb, size)];
     let foot = |i: usize| b[i].s / dot(c.l, b[i].w_f);
     let feet = [foot(0), foot(1)];
@@ -524,7 +524,7 @@ fn check(name: &str, c: &Cone, t: &Turn, size: f64) {
 
 /// The corner of `body` at `at` as a cone, its edge toward `l_to` taken
 /// as `L`.
-fn cone_at(body: &Body<f64>, at: Point3<f64>, l_to: Point3<f64>) -> Cone {
+pub(crate) fn cone_at(body: &Body<f64>, at: Point3<f64>, l_to: Point3<f64>) -> Cone {
     let point = |v| {
         *body
             .get_point(body.get_vertex(v).expect("a vertex").point)

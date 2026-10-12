@@ -1,5 +1,6 @@
-//! **A sphere face slit to its pole: the interval lane's azimuth window
-//! encloses the `f64` replay's, and containment answers the same.**
+//! **A sphere face slit to its pole: the interval lane's azimuth walk
+//! never excludes the `f64` replay's branch, and containment answers the
+//! same.**
 //!
 //! The dome is a unit hemisphere revolved about `y`: a flat base and two
 //! π-band sphere faces meeting along two meridians at the pole. Merging
@@ -11,9 +12,14 @@
 //! sits exactly on its jump: at `f64` it lands a whole period on, and at
 //! `Interval` the enclosure straddles it and spans both branches.
 //!
-//! The window row holds the interval window against the `f64`
-//! window on every slit: a pick that kept one branch of the straddle
-//! would hand back a window excluding the replay's. The containment row
+//! The window row holds the interval walk against the `f64` window on
+//! every slit. Where the walk closes before the slit, the interval window
+//! encloses the replay's. Where it crosses the slit mid-walk, the next
+//! joint inherits the straddle: its gap spans a whole period, no
+//! half-period mark decides, and the walk escalates
+//! (`split_window_branch`) rather than pick a branch. A pick that kept
+//! one branch of the straddle would hand back a window excluding the
+//! replay's. The containment row
 //! asks points of the dome at both scalars; the slit face's rims wrap
 //! the axis, so the door reads its latitude window and not the azimuth
 //! one, and a pick that refused the straddle instead would turn every
@@ -39,8 +45,8 @@ use sweep::Revolution;
 use sweep::test_support::{finished, revolved_about_y_at};
 use topo::{
     AtRestPolicy, Body, BooleanError, BooleanOp, BooleanResult, SolidContainment, SplitError,
-    SplitReduceError, SweepStrategy, ValidationError, face_azimuth_window_traces, point_in_solid,
-    validate, validate_closed,
+    SplitJoinError, SplitReduceError, SweepStrategy, ValidationError, face_azimuth_window_traces,
+    point_in_solid, validate, validate_closed,
 };
 
 fn f<T: Real>(x: f64) -> T {
@@ -143,8 +149,9 @@ fn a_slit_dome_answers_containment_at_interval() {
     verdicts::<Interval>("Interval");
 }
 
-/// The slit face's azimuth window: the one sphere face the slit leaves.
-fn window<T: Decide + Bounds>(slit: &Body<T>) -> (T, T) {
+/// The slit face's azimuth window walk: the one sphere face the slit
+/// leaves.
+fn window<T: Decide>(slit: &Body<T>) -> Result<Option<(T, T)>, SplitJoinError> {
     let band = Band::linear(Tol::witness()).expect("the witness band");
     let mut spheres = slit.faces().filter(|(_, face)| {
         matches!(
@@ -155,12 +162,10 @@ fn window<T: Decide + Bounds>(slit: &Body<T>) -> (T, T) {
     let (face, _) = spheres.next().expect("the slit sphere face");
     assert!(spheres.next().is_none(), "one sphere face after the kill");
     face_azimuth_window_traces(slit, face, band)
-        .expect("the slit face's walk")
-        .expect("the slit face's loop is a cycle")
 }
 
 #[test]
-fn the_interval_window_of_a_slit_dome_encloses_the_f64_window() {
+fn the_interval_walk_escalates_where_the_slit_straddles_its_branch() {
     let replay = slits::<f64>();
     let certified = slits::<Interval>();
     assert_eq!(
@@ -168,19 +173,37 @@ fn the_interval_window_of_a_slit_dome_encloses_the_f64_window() {
         certified.len(),
         "one slit per kill in each lane"
     );
+    let mut escalated = Vec::new();
     for (i, (r, c)) in replay.iter().zip(&certified).enumerate() {
-        let (r_lo, r_hi) = window(r);
-        let (c_lo, c_hi) = window(c);
-        for (end, want, got) in [("lo", r_lo, c_lo), ("hi", r_hi, c_hi)] {
-            assert!(
-                got.lo() <= want && want <= got.hi(),
-                "slit {i}: the interval window's {end} [{:e}, {:e}] does not enclose \
-                 the f64 window's {want} (f64 window ({r_lo}, {r_hi}))",
-                got.lo(),
-                got.hi()
-            );
+        let (r_lo, r_hi) = window(r)
+            .expect("the f64 walk")
+            .expect("the slit face's loop is a cycle");
+        match window(c) {
+            Ok(Some((c_lo, c_hi))) => {
+                for (end, want, got) in [("lo", r_lo, c_lo), ("hi", r_hi, c_hi)] {
+                    assert!(
+                        got.lo() <= want && want <= got.hi(),
+                        "slit {i}: the interval window's {end} [{:e}, {:e}] does not \
+                         enclose the f64 window's {want} (f64 window ({r_lo}, {r_hi}))",
+                        got.lo(),
+                        got.hi()
+                    );
+                }
+            }
+            Err(SplitJoinError::Escalated { diag, .. })
+                if diag.predicate == Some("split_window_branch") =>
+            {
+                escalated.push(i);
+            }
+            other => panic!("slit {i}: the interval walk: {other:?}"),
         }
     }
+    assert_eq!(
+        escalated,
+        [1, 3],
+        "the walks killed from the minus half cross the slit mid-walk and escalate; \
+         the others close before it"
+    );
 }
 
 /// The unit ball about `(0.5, 1, 0.5)`'s `y` axis at radius 0.3, whose
