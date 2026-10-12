@@ -900,7 +900,8 @@ definition, boolean-family; its execution never runs the crossing
 pipeline. An open shell is unrepresentable by construction (every edge
 has exactly two half-edges; D1 is manifold-first), and shell does not
 need one. *Sealed* (`topo::shell`): one clone with every boundary face
-moved to its inward offset, every chart of a solid at once (all-planar
+moved to its inward offset, every chart of a solid at once (a chart is
+body-wide, and each solid's own faces are grouped by chart; all-planar
 solids through `offset_planes_together`, which solves each corner
 against all moved planes; planes meeting revolved walls through
 `offset_charts_together`; anything else through
@@ -912,7 +913,12 @@ meeting it; the first two are its closed forms, and
 through the shared void-insertion door `boolean::voids::insert_void`
 with the construction's own d-vs-reach margins carried as
 `VoidContainment::Carried` evidence; the door never derives
-containment. The result is a two-shell solid, and the invariant this
+containment. Every boundary thickens, the outer shell inward and each
+void outward by the same signed distance (a void's faces are wound with
+their material side outward), and each void moves with its dilated twin
+into a solid of its own: for `k` voids the result holds `k + 1` solids
+and `2(k + 1)` shells, every operand shell surviving under its key. The
+invariant this
 preserves is that every cavity is born through that one door (three
 producers: boolean subtraction, shell, the full revolve of a holed
 profile). *Opened* (`shell_open`): the sealed construction, then each
@@ -922,7 +928,10 @@ annular rim face. Nothing opens; the result is closed, the designated
 shell's thin solid is single-shell (a hollow operand's other thin
 solids keep their two), and the invariant is closure, not genus (one
 opening is a cup, genus 0). Refusals: a wall past a curved face's reach
-at O1's floor, inverted cavity walls at edge re-attachment. A fitted
+at O1's floor, inverted cavity walls at edge re-attachment, two facing
+planar walls closer than `2t` (`WallClearance`), and two planar walls at
+an angle whose moved regions cross (`OffsetsCross`); curved walls
+have no clearance gate yet (Open, below). A fitted
 face's edge with a plane is their section over the fit through the old
 edge's middle (`PlaneSection::branch_at`, C5): the branch there, the
 fit's boundary row where a `Side` region holds the middle (the plane
@@ -989,9 +998,12 @@ bracketed by two tori, by construction.
 
 - Shell's curved wall clearance: two facing curved walls closer than
   `2t` shell to a self-intersecting cavity that tier 3 does not catch
-  (`wall_clearance` gates planar operands only); the general clearance
-  certificate over a parameter box belongs to the error-propagation
-  lane (`docs/ERROR-DESIGN.md`).
+  (`wall_clearance` gates planar operands only). Ev ruled B on #1737:
+  the clearance engine's body-level half moves into `topo` behind the
+  interval scalar, and the curved gate at the shell door reads it.
+  The engine has not moved yet (`editor_core::clearance`); the work is
+  CLEAR's (`shell-curved-wall-clearance-window`, parked on
+  `shell-curved-clearance-consumer`).
 - Corner taxonomy: the uniformly concave trihedron is carved but has no
   `CornerConfig` tag; the finer run-out taxonomy (per-end assignment,
   setback parameters) is reserved for the design that implements
