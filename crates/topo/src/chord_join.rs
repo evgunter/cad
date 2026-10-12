@@ -351,6 +351,11 @@ pub enum SplitJoinError {
     /// ruling it cuts the face on is in band, at a station of the
     /// must-carry rule over the ruling
     /// ([`geom_brep::MustCarryEscalation::FirstOrder`]).
+    ///
+    /// No shipped pose reaches it: a cut turned off tangent by an
+    /// angle the rule's first order would leave in band refuses at the
+    /// reduction first (`wedge_end_doors.rs`,
+    /// `a_cut_turned_about_the_ruling_refuses_before_the_chord`).
     TangentChordEscalated {
         /// The curved face the ruling divides.
         face: FaceKey,
@@ -373,6 +378,9 @@ pub enum SplitJoinError {
     /// corner ([`geom_brep::MustCarryRefusal::Refuted`]), against the
     /// section table's tangent verdict: the two readings disagree, so
     /// the split refuses rather than choose a description.
+    ///
+    /// Unreached like [`Self::TangentChordEscalated`], for the same
+    /// reason.
     TangentChordRefuted {
         /// The curved face the ruling divides.
         face: FaceKey,
@@ -1376,8 +1384,10 @@ fn arc_leaving<T: Decide>(
 ///
 /// 1. Classify (plane × wall surface) through THE table
 ///    ([`section_case`]) — trileans before any rung; a conic proceeds,
-///    a ruling falls back to the straight chord, a tangent ruling is
-///    described as such (C7), escalations pass through whole.
+///    a ruling falls back to the straight chord, a tangent ruling
+///    stores what the must-carry rule over it demands
+///    ([`geom_brep::must_carry_over_edge`]: the intrinsic tangency, or
+///    an image in the section chart), escalations pass through whole.
 /// 2. Orient: of the conic's two arcs from `u1` to `u2`, take the one
 ///    leaving `u1` along `leave`, the section's direction of departure
 ///    there as the lane that paired the chord's ends decided it
@@ -1522,19 +1532,12 @@ fn chord_spec<T: Decide>(
             let description =
                 match geom_brep::must_carry_over_edge(sa, sb, &carrier, s1, s2, extent, band)
                     .description(pair, witness)
-                    .map_err(|refusal| match refusal {
-                        geom_brep::MustCarryRefusal::InBand(
-                            geom_brep::MustCarryEscalation::FirstOrder(escalation),
-                        ) => SplitJoinError::TangentChordEscalated {
-                            face,
-                            diag: escalation.diag(),
-                        },
-                        geom_brep::MustCarryRefusal::InBand(
-                            geom_brep::MustCarryEscalation::SecondOrder(diag),
-                        ) => SplitJoinError::TangentChordBendEscalated { face, diag },
-                        geom_brep::MustCarryRefusal::Refuted => {
-                            SplitJoinError::TangentChordRefuted { face }
-                        }
+                    .map_err(|refusal| {
+                        refusal.route(
+                            |diag| SplitJoinError::TangentChordEscalated { face, diag },
+                            |diag| SplitJoinError::TangentChordBendEscalated { face, diag },
+                            || SplitJoinError::TangentChordRefuted { face },
+                        )
                     })? {
                     geom_brep::MustCarryDescription::Intrinsic(description) => description,
                     geom_brep::MustCarryDescription::Conventional => {
@@ -1902,6 +1905,7 @@ impl<T: Decide> SegmentCurve<T> {
             | geom_brep::EdgeDescriptionSpec::TangentIntersection { .. }
             | geom_brep::EdgeDescriptionSpec::Chart {
                 image: None,
+                wrap: false,
                 declared: None,
                 ..
             } => Ok(Some(EdgeCurveSpec {
@@ -1918,9 +1922,10 @@ impl<T: Decide> SegmentCurve<T> {
                         "a scaffold segment curve that is neither a line nor a circle",
                     )),
             },
+            // A chord bounds two faces, so it is never a wrap edge (D1).
             geom_brep::EdgeDescriptionSpec::Chart { .. } => Err(invariant(
-                "a segment curve stating a chart image or a declaration (no chord lane states \
-                 one)",
+                "a segment curve stating a chart image, a declaration or a wrap (no chord lane \
+                 states one)",
             )),
         }
     }
@@ -5888,8 +5893,9 @@ mod segment_curve_tests {
 
     /// **A tangent chord the must-carry rule describes conventionally
     /// runs back like an intrinsic one**: its chart image is derived
-    /// from the carrier, so the reversed carrier carries it, while a
-    /// stated image does not follow and refuses.
+    /// from the carrier, so the reversed carrier carries it. A stated
+    /// image and a declaration do not follow it, and a chord is never a
+    /// wrap edge, so each of those refuses.
     #[test]
     fn a_derived_chart_chord_runs_back_and_a_stated_image_refuses() {
         let he = |n: u64| HalfEdgeKey::from(KeyData::from_ffi(n));
@@ -5945,12 +5951,41 @@ mod segment_curve_tests {
                 },
             ))),
         );
-        assert!(
-            matches!(
-                stated.running_from(he(2), face),
-                Err(SplitJoinError::SectionInvariant { .. })
-            ),
-            "a stated image does not follow the carrier"
+        let declared = SegmentCurve::of(
+            (he(1), he(2)),
+            Some(spec(
+                geom_brep::EdgeDescriptionSpec::chart(surface).declared_by(
+                    geom_brep::MappedCurve {
+                        source: geom_brep::MappedSource::ExtrudedPoint {
+                            point: geom_core::Point2::new(0.0, 0.0),
+                            place: geom_core::Affine3::identity(),
+                            vec: Vec3::new(0.0, 0.0, 1.0),
+                        },
+                        range: geom_brep::SubRange::whole(),
+                    },
+                ),
+            )),
         );
+        let wrap = SegmentCurve::of(
+            (he(1), he(2)),
+            Some(spec(geom_brep::EdgeDescriptionSpec::wrap(surface))),
+        );
+        for (label, curve) in [
+            ("a stated image", &stated),
+            ("a declaration", &declared),
+            ("a wrap", &wrap),
+        ] {
+            assert!(
+                matches!(
+                    curve.running_from(he(2), face),
+                    Err(SplitJoinError::SectionInvariant { .. })
+                ),
+                "{label} does not run back"
+            );
+            assert!(
+                curve.running_from(he(1), face).is_ok(),
+                "{label} runs forward as computed"
+            );
+        }
     }
 }

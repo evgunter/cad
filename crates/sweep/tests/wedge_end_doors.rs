@@ -310,14 +310,28 @@ fn shoulder_cut() -> topo::SplitPlane<f64> {
 /// - beyond `K·ε` — jet-determinate: the intrinsic tangency.
 ///
 /// Each row's depth is a multiple of `√(2ε)`, so the rows hold at every
-/// tolerance row the suite runs at.
+/// tolerance row the suite runs at; the rows at `0.99`, `1.01`,
+/// `0.99·√K` and `1.01·√K` sit 2% either side of the two boundaries.
 #[test]
 fn a_split_tangent_to_a_thin_shoulder_describes_its_ruling_by_the_rule() {
     let eps = tol().eps();
     let k = tol().k();
     let unit = (2.0 * eps).sqrt();
     let in_band = |c: f64| c * c > 1.0 && c * c < k;
-    for c in [0.25, 0.5, 0.8, 1.5, 2.5, 4.0, 8.0] {
+    let root_k = k.sqrt();
+    for c in [
+        0.25,
+        0.5,
+        0.8,
+        0.99,
+        1.01,
+        1.5,
+        2.5,
+        0.99 * root_k,
+        1.01 * root_k,
+        4.0,
+        8.0,
+    ] {
         let h = c * unit;
         let label = format!("h = {c}·√(2ε) = {h:e}");
         let result = topo::split(&shoulder(h), &shoulder_cut(), tol());
@@ -396,6 +410,48 @@ fn a_split_tangent_to_a_thin_shoulder_describes_its_ruling_by_the_rule() {
             }
         }
         assert_eq!(seams, 1, "{label}: the one seam the cut mints");
+    }
+}
+
+/// **A cut turned about the tangent ruling refuses before the chord's
+/// first-order reading.** The section table reads the turned plane
+/// tangent while the wall's sag off it stays in the zero band, and the
+/// must-carry rule's first order would meter the turn over the ruling;
+/// at every turn the rule could leave in band or read a corner, the
+/// reduction refuses first, so neither
+/// [`topo::SplitJoinError::TangentChordEscalated`] nor
+/// [`topo::SplitJoinError::TangentChordRefuted`] is reached, and a cut
+/// that answers is tier-3 valid.
+#[test]
+fn a_cut_turned_about_the_ruling_refuses_before_the_chord() {
+    let eps = tol().eps();
+    for h in [1.0, 0.5 * (2.0 * eps).sqrt()] {
+        let body = shoulder(h);
+        for theta in [
+            1e-10_f64, 1e-9, 3e-9, 1e-8, 3e-8, 1e-7, 1e-6, 1e-5, 4e-5, 1e-4,
+        ] {
+            let label = format!("h = {h:e}, θ = {theta:e}");
+            let normal = Vec3::new(theta.sin(), -theta.cos(), 0.0);
+            let plane = topo::test_support::split_plane(Point3::new(0.0, 1.0, 0.0), normal, tol());
+            match topo::split(&body, &plane, tol()) {
+                Ok(halves) => {
+                    for part in [&halves.above, &halves.below] {
+                        if let Some(piece) = part.body() {
+                            assert_eq!(
+                                topo::validate_geometric(piece, tol()),
+                                Ok(()),
+                                "{label}: a side that answers is tier-3 valid"
+                            );
+                        }
+                    }
+                }
+                Err(topo::SplitError::Join(
+                    e @ (topo::SplitJoinError::TangentChordEscalated { .. }
+                    | topo::SplitJoinError::TangentChordRefuted { .. }),
+                )) => panic!("{label}: the chord's first-order arm is reached: {e:?}"),
+                Err(_) => {}
+            }
+        }
     }
 }
 
