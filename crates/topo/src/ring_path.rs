@@ -12,18 +12,19 @@
 //! azimuth) and an arc of a parallel, in either order, after a segment
 //! that moves the start onto the tube through the end, so the pieces
 //! meet exactly. Every loop arc is a plane section of the surface (a
-//! circle or an ellipse: no lane mints another conic) or, on a cone, a
-//! ruling. So a piece meets a section arc only where it crosses the
-//! arc's plane, which a circle piece does at most twice and a segment
-//! once, and it meets a ruling only where the ruling crosses a
-//! parallel's plane. Two rulings meet only at the apex, which no piece
-//! reaches.
+//! circle or an ellipse: no lane mints another conic; on a torus, also
+//! a spiric oval) or, on a cone, a ruling. So a piece meets a section
+//! arc only where it crosses the arc's plane, which a circle piece does
+//! at most twice and a segment once, and it meets a ruling only where
+//! the ruling crosses a parallel's plane. Two rulings meet only at the
+//! apex, which no piece reaches.
 //!
 //! A plane cuts a torus in up to two loops, so on a torus a crossing of
-//! an arc's plane lies on the arc's own circle only on that circle's
-//! side of the split between the two ([`ArcLoop`]): a loop arc on a
-//! torus is a meridian or a parallel, whose plane's other loop is the
-//! meridian across the axis or the parallel across the tube. The split
+//! an arc's plane lies on the arc's own loop only on that loop's side
+//! of the split between the two ([`ArcLoop`]): a loop arc on a torus is
+//! a meridian, a parallel or a spiric oval, whose plane's other loop is
+//! the meridian across the axis, the parallel across the tube or the
+//! oval across the axis's trace. The split
 //! is decided at the crossing, **`split_ring_path_torus_loop`**, as the
 //! boolean join's section loops are told apart.
 //!
@@ -507,6 +508,23 @@ pub(crate) enum LoopArc<T: Real> {
         dir: Vec3<T>,
         span: (T, T),
     },
+    /// An arc of a spiric oval on a torus
+    /// (`centre + u_ref·offset + m·f(t) + axis·minor·sin t`,
+    /// `m = axis × u_ref`, `f = √((major + minor·cos t)² − offset²)`, the
+    /// carrier's own form): one of the two loops its plane parallel to
+    /// the axis cuts, on the `+m` side of the axis's trace (`own`). Its
+    /// parameter is the torus's minor angle at a point, and its speed in
+    /// it is at least `minor`.
+    Spiric {
+        centre: Point3<T>,
+        axis: Vec3<T>,
+        u_ref: Vec3<T>,
+        major: T,
+        minor: T,
+        offset: T,
+        span: (T, T),
+        own: ArcLoop<T>,
+    },
     /// An arc of a torus's top or bottom circle, the parallel of radius
     /// `R` (`centre + (u_ref·cos t + (axis × u_ref)·sin t)·radius`),
     /// whose plane touches the torus along it. A path meets it only where
@@ -566,6 +584,82 @@ impl<T: Real> LoopArc<T> {
         }
     }
 
+    /// **A section arc's plane and its reading at a point of it**, for
+    /// a conic or a spiric oval: the plane (a point of it and its unit
+    /// normal), the arc's span, the least speed of its parameter (metres
+    /// per radian: a conic's minor semi-axis, an oval's tube radius),
+    /// which levers an in-span reading, and the side of its plane's two
+    /// loops its own lies on. `None` for a ruling or a crest.
+    fn plane(&self) -> Option<SectionArc<T>> {
+        match *self {
+            Self::Conic {
+                centre,
+                axis,
+                b,
+                span,
+                own,
+                ..
+            } => Some(SectionArc {
+                origin: centre,
+                normal: axis,
+                span,
+                speed: b,
+                own,
+            }),
+            Self::Spiric {
+                centre,
+                u_ref,
+                minor,
+                offset,
+                span,
+                own,
+                ..
+            } => Some(SectionArc {
+                origin: centre + u_ref * offset,
+                normal: u_ref,
+                span,
+                speed: minor,
+                own: Some(own),
+            }),
+            Self::Line { .. } | Self::Crest { .. } => None,
+        }
+    }
+
+    /// The parameter of `x`, a point of a section arc's plane, on the
+    /// branch of its span's middle: a conic's eccentric anomaly, an
+    /// oval's minor angle `atan2(h, ρ − R)`. A ruling or a crest has
+    /// none.
+    fn param_at(&self, x: Point3<T>) -> Option<T> {
+        match *self {
+            Self::Conic {
+                centre,
+                axis,
+                u_ref,
+                a,
+                b,
+                span,
+                ..
+            } => {
+                let w = x - centre;
+                let v_ref = axis.cross(u_ref);
+                Some(branch((w.dot(v_ref) / b).atan2(w.dot(u_ref) / a), span))
+            }
+            Self::Spiric {
+                centre,
+                axis,
+                major,
+                span,
+                ..
+            } => {
+                let w = x - centre;
+                let h = w.dot(axis);
+                let rho = (w - axis * h).norm();
+                Some(branch(h.atan2(rho - major), span))
+            }
+            Self::Line { .. } | Self::Crest { .. } => None,
+        }
+    }
+
     /// The straight arc from `from` to `to`.
     pub(crate) fn segment(from: Point3<T>, to: Point3<T>) -> Self {
         let d = to - from;
@@ -576,6 +670,17 @@ impl<T: Real> LoopArc<T> {
             span: (T::zero(), length),
         }
     }
+}
+
+/// A section arc's plane and the length its in-span readings are
+/// levered by ([`LoopArc::plane`]).
+#[derive(Clone, Copy)]
+struct SectionArc<T: Real> {
+    origin: Point3<T>,
+    normal: Vec3<T>,
+    span: (T, T),
+    speed: T,
+    own: Option<ArcLoop<T>>,
 }
 
 /// **Which of two loops of one plane section a point lies on**: the sign
@@ -689,6 +794,48 @@ impl<T: Decide> ArcLoop<T> {
 }
 
 impl<T: Decide> Quadric<T> {
+    /// **The loop arc of a spiric oval on this torus**, over `params`;
+    /// `None` for any other carrier, and on a sphere or a cone. The
+    /// oval's plane, parallel to the axis, cuts the torus in it and the
+    /// oval across the axis's trace: its own loop is on the carrier's
+    /// `+m` side of that trace.
+    pub(crate) fn torus_spiric_arc(
+        &self,
+        carrier: &geom::Curve3<T>,
+        (t0, t1): (T, T),
+    ) -> Option<LoopArc<T>> {
+        let (
+            Self::Torus { .. },
+            &geom::Curve3::Spiric {
+                center,
+                axis,
+                u_ref,
+                major_radius,
+                minor_radius,
+                offset,
+            },
+        ) = (*self, carrier)
+        else {
+            return None;
+        };
+        Some(LoopArc::Spiric {
+            centre: center,
+            axis,
+            u_ref,
+            major: major_radius,
+            minor: minor_radius,
+            offset,
+            span: (t0.min(t1), t0.max(t1)),
+            own: ArcLoop {
+                split: LoopSplit::Side {
+                    origin: center,
+                    dir: axis.cross(u_ref),
+                },
+                positive: true,
+            },
+        })
+    }
+
     /// **The loop arc of a circle on this torus**, over `params`: a
     /// meridian or a parallel, with its [`ArcLoop`]; `Ok(None)` for any
     /// other circle (no plane section of a torus outside the touching
@@ -829,7 +976,7 @@ impl<T: Decide> Quadric<T> {
 /// over when any of its in-span readings is decided out of span, though
 /// another escalate.
 ///
-/// - A circle piece meets a conic's plane where
+/// - A circle piece meets a conic's or an oval's plane where
 ///   `A cos θ + B sin θ = −D/r` (`A`, `B` the plane normal's components
 ///   on the piece's frame, `D` the piece's centre's offset from the
 ///   plane): at two parameters when `r·√(A² + B²) > |D|`
@@ -837,8 +984,14 @@ impl<T: Decide> Quadric<T> {
 ///   in metres: moving the plane by it flips the meeting). A graze inside
 ///   the gap's band escalates, and the caller asks the next path. On the
 ///   arrival arc, the root nearer the piece's end is the arrival.
-/// - A segment meets a conic's plane where its ends' offsets from it
-///   (**`split_ring_path_segment_side`**) differ in sign.
+/// - A segment meets a conic's or an oval's plane where its ends'
+///   offsets from it (**`split_ring_path_segment_side`**) differ in
+///   sign. An end on the plane is a meeting there alone, and a segment
+///   whose length is in the band (**`split_ring_path_lead_point`**: a
+///   lead from a point already on its tube) is its start; either is
+///   passed over where it is decided off the arc (on the plane's other
+///   loop, or out of the arc's span), and leaves the path undecided
+///   otherwise. A segment of decided length in the plane says nothing.
 /// - A ruling meets a circle piece's plane once (it is decided across
 ///   it, **`split_ring_path_line_across`**: the cosine between the
 ///   plane's normal and the ruling, levered at the piece's radius), and
@@ -850,7 +1003,8 @@ impl<T: Decide> Quadric<T> {
 /// - Each meeting point counts when it lies strictly inside the piece's
 ///   span and the arc's (**`split_ring_path_in_span`**: the distance
 ///   along the piece or the arc to a span end — a parameter levered at a
-///   circle's radius or a conic's minor semi-axis, or a line's length —
+///   circle's radius, a conic's minor semi-axis or an oval's tube radius
+///   (each the least speed of its parameter), or a line's length —
 ///   times the slope the piece crosses the other's plane at. That is the
 ///   carrier displacement that moves the root past the end: near a graze
 ///   a root moves by the displacement over the slope, so a span end a
@@ -875,6 +1029,16 @@ pub(crate) fn path_parity<T: Decide>(
     // A crossing of a torus arc's plane on the plane's other loop is no
     // crossing of the arc: its side is one more reading of the crossing.
     let on_own = |own: Option<ArcLoop<T>>, x: Point3<T>| own.map_or(inside, |l| l.read(x, band));
+    // The arms below that read a section arc match only a conic or an
+    // oval, which both have a plane and a parameter.
+    let section = |arc: &LoopArc<T>| match arc.plane() {
+        Some(sec) => sec,
+        None => unreachable!("only a conic or an oval arc is read as a section arc"),
+    };
+    let param = |arc: &LoopArc<T>, x: Point3<T>| match arc.param_at(x) {
+        Some(t) => t,
+        None => unreachable!("only a conic or an oval arc is read as a section arc"),
+    };
     let mut odd = false;
     let last = path.pieces.len().saturating_sub(1);
     for (i, piece) in path.pieces.iter().enumerate() {
@@ -884,26 +1048,18 @@ pub(crate) fn path_parity<T: Decide>(
             match (*piece, *arc) {
                 (
                     Piece::Arc(p) | Piece::Meridian(p),
-                    LoopArc::Conic {
-                        centre,
-                        axis,
-                        u_ref,
-                        a,
-                        b,
-                        span,
-                        own,
-                    },
+                    LoopArc::Conic { .. } | LoopArc::Spiric { .. },
                 ) => {
-                    let Some(roots) = plane_roots(&p, (centre, axis), arrival, band)? else {
+                    let sec = section(arc);
+                    let Some(roots) = plane_roots(&p, (sec.origin, sec.normal), arrival, band)?
+                    else {
                         return Ok(None);
                     };
-                    let v_ref = axis.cross(u_ref);
                     for (t, slope) in roots {
-                        let w = p.at(t) - centre;
-                        let s = branch((w.dot(v_ref) / b).atan2(w.dot(u_ref) / a), span);
+                        let s = param(arc, p.at(t));
                         let [p0, p1] = in_span(t, p.span, p.radius * slope);
-                        let [a0, a1] = in_span(s, span, b * slope);
-                        readings.push([p0, p1, a0, a1, on_own(own, p.at(t))]);
+                        let [a0, a1] = in_span(s, sec.span, sec.speed * slope);
+                        readings.push([p0, p1, a0, a1, on_own(sec.own, p.at(t))]);
                     }
                 }
                 // A crest is a torus's, whose paths' arcs are parallels
@@ -1002,39 +1158,59 @@ pub(crate) fn path_parity<T: Decide>(
                     let [a0, a1] = in_span(s, span, slope);
                     readings.push([p0, p1, a0, a1, inside]);
                 }
-                (
-                    Piece::Segment { from, to, .. },
-                    LoopArc::Conic {
-                        centre,
-                        axis,
-                        u_ref,
-                        a,
-                        b,
-                        span,
-                        own,
-                    },
-                ) => {
+                (Piece::Segment { from, to, .. }, LoopArc::Conic { .. } | LoopArc::Spiric { .. }) => {
                     if arrival {
                         continue;
                     }
-                    let (d0, d1) = (axis.dot(from - centre), axis.dot(to - centre));
+                    let sec = section(arc);
+                    let (o, n) = (sec.origin, sec.normal);
+                    let (d0, d1) = (n.dot(from - o), n.dot(to - o));
                     let s0 = decide_m("split_ring_path_segment_side", Margin::of(d0))?;
                     let s1 = decide_m("split_ring_path_segment_side", Margin::of(d1))?;
-                    if s0 == Sign::Zero || s1 == Sign::Zero {
-                        return Ok(None);
+                    let length = (to - from).norm();
+                    // A segment whose length is in the band is the point
+                    // it starts at: the lead from a point already on the
+                    // tube it moves onto.
+                    let point = s0 == Sign::Zero
+                        && s1 == Sign::Zero
+                        && decide_m("split_ring_path_lead_point", Margin::of(length))?
+                            == Sign::Zero;
+                    match (s0, s1) {
+                        (Sign::Zero, Sign::Zero) if !point => return Ok(None),
+                        // A segment off the plane meets it at its end there
+                        // alone, and a point at itself, which is no meeting
+                        // with the arc where it is decided off it: on the
+                        // plane's other loop, or out of the arc's span (a
+                        // point's at the arc's least speed). Otherwise the
+                        // path starts or ends on the arc, and says nothing.
+                        (Sign::Zero, _) | (_, Sign::Zero) => {
+                            let end = if s0 == Sign::Zero { from } else { to };
+                            let slope = if point {
+                                T::one()
+                            } else {
+                                ((d0 - d1) / length).abs()
+                            };
+                            let [a0, a1] = in_span(param(arc, end), sec.span, sec.speed * slope);
+                            let reading = [a0, a1, on_own(sec.own, end)];
+                            if reading.contains(&Ok(Sign::Negative)) {
+                                continue;
+                            }
+                            if let Some(&Err(diag)) = reading.iter().find(|r| r.is_err()) {
+                                return Err(diag);
+                            }
+                            return Ok(None);
+                        }
+                        _ => {}
                     }
                     if s0 == s1 {
                         continue;
                     }
                     let x = from + (to - from) * (d0 / (d0 - d1));
-                    let w = x - centre;
-                    let v_ref = axis.cross(u_ref);
-                    let s = branch((w.dot(v_ref) / b).atan2(w.dot(u_ref) / a), span);
                     // The plane moved by δ moves the root by δ over the
                     // slope the segment crosses it at, `|n̂·d̂|`.
                     let slope = ((d0 - d1) / (to - from).norm()).abs();
-                    let [a0, a1] = in_span(s, span, b * slope);
-                    readings.push([inside, inside, a0, a1, on_own(own, x)]);
+                    let [a0, a1] = in_span(param(arc, x), sec.span, sec.speed * slope);
+                    readings.push([inside, inside, a0, a1, on_own(sec.own, x)]);
                 }
                 (Piece::Segment { ruling, lever, .. }, LoopArc::Line { dir, .. }) => {
                     if arrival {

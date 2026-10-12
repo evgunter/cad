@@ -35,10 +35,10 @@ fn loops(
     cut: &geom::Surface<f64>,
     wall: &geom::Surface<f64>,
     lever: f64,
-) -> ([SectionConic<f64>; 2], LoopSplit<f64>) {
+) -> ([SectionCurve<f64>; 2], LoopSplit<f64>) {
     let f = FaceKey::default();
     match section_case(
-        (f, geom::SurfaceKind::Plane),
+        f,
         band(),
         cut,
         wall,
@@ -52,27 +52,17 @@ fn loops(
 
 /// The loop the chord between `sites` takes.
 fn pick(
-    (loops, split): &([SectionConic<f64>; 2], LoopSplit<f64>),
+    (loops, split): &([SectionCurve<f64>; 2], LoopSplit<f64>),
     sites: [Point3<f64>; 2],
-) -> Result<SectionConic<f64>, SplitJoinError> {
-    let [a, b] = loops;
-    section_loop(
-        FaceKey::default(),
-        [clone(a), clone(b)],
-        *split,
-        sites,
-        band(),
-    )
+) -> Result<SectionCurve<f64>, SplitJoinError> {
+    section_loop(FaceKey::default(), loops.clone(), *split, sites, band())
 }
 
-fn clone(c: &SectionConic<f64>) -> SectionConic<f64> {
-    SectionConic {
-        center: c.center,
-        normal: c.normal,
-        major: c.major,
-        sa: c.sa,
-        sb: c.sb,
-        carrier: c.carrier.clone(),
+/// The circle a loop of a meridian or concentric section is.
+fn circle(c: SectionCurve<f64>) -> SectionConic<f64> {
+    match c {
+        SectionCurve::Conic(c) => c,
+        SectionCurve::Oval(o) => panic!("a circle's loop came back an oval: {:?}", o.carrier),
     }
 }
 
@@ -90,7 +80,7 @@ fn a_chord_whose_sites_lie_on_c2_is_an_arc_of_c2() {
         let two = loops(&plane(Point3::origin(), n), &d, 3.0);
         for z in [2.0, -2.0] {
             let on = |t: f64| Point3::new(0.0, 0.5 * t.sin(), z + 0.5 * t.cos());
-            let got = pick(&two, [on(0.3), on(2.1)]).unwrap();
+            let got = circle(pick(&two, [on(0.3), on(2.1)]).unwrap());
             assert!(
                 (got.center - Point3::new(0.0, 0.0, z)).norm() < 1e-12,
                 "normal {n:?}: the chord's sites on the circle about z = {z} took the one about \
@@ -104,7 +94,7 @@ fn a_chord_whose_sites_lie_on_c2_is_an_arc_of_c2() {
     let two = loops(&plane(Point3::new(0.0, h, 0.0), Vec3::unit_y()), &d, 3.0);
     for radius in [2.0 + w, 2.0 - w] {
         let on = |t: f64| Point3::new(radius * t.cos(), h, radius * t.sin());
-        let got = pick(&two, [on(0.4), on(-2.5)]).unwrap();
+        let got = circle(pick(&two, [on(0.4), on(-2.5)]).unwrap());
         assert!(
             (got.sa - radius).abs() < 1e-12,
             "the chord's sites on the circle of radius {radius} took radius {}",
@@ -123,11 +113,11 @@ fn a_chords_sites_on_two_loops_or_neither_are_refused() {
     let d = torus(2.0, 0.5);
     let two = loops(&plane(Point3::origin(), Vec3::unit_x()), &d, 3.0);
     let (c1, c2) = (Point3::new(0.0, 0.5, 2.0), Point3::new(0.0, 0.5, -2.0));
-    let invariant = |got: Result<SectionConic<f64>, SplitJoinError>, what: &str| {
+    let invariant = |got: Result<SectionCurve<f64>, SplitJoinError>, what: &str| {
         assert!(
             matches!(got, Err(SplitJoinError::SectionInvariant { .. })),
             "{what}: {:?}",
-            got.map(|c| c.center)
+            got.map(|c| c.carrier().clone())
         );
     };
     invariant(pick(&two, [c1, c2]), "a site on each circle");
@@ -148,13 +138,13 @@ fn a_chords_sites_on_two_loops_or_neither_are_refused() {
 
 /// The largest distance off `cut` and off `wall`'s torus of points
 /// round `c`.
-fn off_both(c: &SectionConic<f64>, cut: &geom::Surface<f64>, (big_r, r): (f64, f64)) -> (f64, f64) {
+fn off_both(c: &SectionCurve<f64>, cut: &geom::Surface<f64>, (big_r, r): (f64, f64)) -> (f64, f64) {
     let geom::Surface::Plane { origin, normal, .. } = *cut else {
         unreachable!()
     };
     (0..720)
         .map(|k| {
-            c.carrier
+            c.carrier()
                 .eval(f64::from(k) * core::f64::consts::TAU / 720.0)
         })
         .map(|p| {
@@ -188,7 +178,7 @@ fn off_both(c: &SectionConic<f64>, cut: &geom::Surface<f64>, (big_r, r): (f64, f
 fn the_minted_circles_stand_within_the_band_at_the_thinnest_reach() {
     let b = band();
     let reach = 0.112;
-    let within_band = |two: &[SectionConic<f64>; 2],
+    let within_band = |two: &[SectionCurve<f64>; 2],
                        cut: &geom::Surface<f64>,
                        (big_r, r): (f64, f64),
                        what: &str| {
@@ -198,14 +188,14 @@ fn the_minted_circles_stand_within_the_band_at_the_thinnest_reach() {
                 plane_off <= b.zero() && torus_off <= b.zero(),
                 "R = {big_r}, r = {r}, {what}: a circle of radius {} stands {plane_off:e} off \
                  the cut and {torus_off:e} off the torus, against the band's {:e}",
-                c.sa,
+                c.lever(),
                 b.zero()
             );
         }
     };
     let case = |cut: &geom::Surface<f64>, wall: &geom::Surface<f64>| {
         section_case(
-            (FaceKey::default(), geom::SurfaceKind::Plane),
+            FaceKey::default(),
             b,
             cut,
             wall,

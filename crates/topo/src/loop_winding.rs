@@ -147,6 +147,105 @@ pub(crate) fn conic_segment_term<T: Real>(
     ))
 }
 
+/// The 16-point Gauss–Legendre rule on `[−1, 1]`: its positive nodes and
+/// their weights (the rule is symmetric).
+const GAUSS16: [(f64, f64); 8] = [
+    (0.095_012_509_837_637_44, 0.189_450_610_455_068_5),
+    (0.281_603_550_779_258_9, 0.182_603_415_044_923_6),
+    (0.458_016_777_657_227_4, 0.169_156_519_395_002_5),
+    (0.617_876_244_402_643_7, 0.149_595_988_816_576_7),
+    (0.755_404_408_355_003, 0.124_628_971_255_533_9),
+    (0.865_631_202_387_831_7, 0.095_158_511_682_492_8),
+    (0.944_575_023_073_232_6, 0.062_253_523_938_647_9),
+    (0.989_400_934_991_649_9, 0.027_152_459_411_754_1),
+];
+
+/// The pieces [`spiric_segment_term`]'s rule splits a span into.
+const SPIRIC_PIECES: u32 = 64;
+
+/// **A spiric arc's term** — [`conic_segment_term`]'s for a
+/// `Curve3::Spiric`, with a third member: a bound on the bulge's error.
+///
+/// With `P(t) = c + u·d + m·f(t) + a·r·sin t` (`m = a × u`, `m × a = u`,
+/// `f = √((R + r·cos t)² − d²)`), the arc's twice-area over its chord is
+///
+/// ```text
+///   ∫ (P − P(t_a)) × P′ dt = (c + u·d − P(t_a)) × (P(t_b) − P(t_a))
+///                          + u·r·(2J − [f·sin t]_{t_a}^{t_b}),
+///   J = ∫ f(t)·cos t dt
+/// ```
+///
+/// over the traversal `t_a → t_b` (`q × q′ = u·r·(f·cos t − f′·sin t)`
+/// for `q = m·f + a·r·sin t`, and the `f′` half integrates by parts).
+/// `J` is an elliptic integral, taken by the 16-point Gauss–Legendre
+/// rule over [`SPIRIC_PIECES`] equal pieces. Its remainder is bounded
+/// from the integrand's analytic strip: off the real axis by `|Im t| ≤
+/// δ = min(1, f_min²/(16·r·(R + r)))`, `f_min² = (R − r)² − d²`, the
+/// radicand moves by at most `r·η·(2(R + r) + r·η) ≤ 6δ·r·(R + r) ≤
+/// f_min²/2` (`η = cosh δ − 1 + sinh δ ≤ 2δ`), so `f` is analytic there
+/// and `|f·cos t| ≤ M = 2(R + r)`. A piece of width `h` maps that strip
+/// to one of half-width `s = 2δ/h` about `[−1, 1]`, which holds the
+/// Bernstein ellipse `ϱ = s + √(s² + 1)`, and the rule's error on the
+/// piece is at most `(64/15)·M·ϱ^{−32}/(ϱ² − 1)·h/2` (Trefethen, ATAP
+/// Thm 19.3). The bulge's error is `2r` times the pieces' sum. A strip
+/// thin against the pieces leaves a bound the size of the bulge, which
+/// the winding reads as undecided, never wrong.
+///
+/// The length is `|Δ|` times the speed's supremum over a period,
+/// `r·√(1 + d²/f_min²)` ([`geom::spiric_rate_bounds`]): an upper bound,
+/// as an ellipse's is. `None` for any other carrier.
+pub(crate) fn spiric_segment_term<T: Real>(
+    (carrier, (t0, t1)): (&Curve3<T>, (T, T)),
+    forward: bool,
+) -> Option<(Vec3<T>, T, T)> {
+    let Curve3::Spiric {
+        center,
+        axis,
+        u_ref,
+        major_radius: big_r,
+        minor_radius: r,
+        offset: d,
+    } = *carrier
+    else {
+        return None;
+    };
+    let (ta, tb) = if forward { (t0, t1) } else { (t1, t0) };
+    let f = |t: T| ((big_r + r * t.cos()).powi(2) - d.powi(2)).sqrt();
+    let at = |t: T| {
+        let (s, _) = t.sin_cos();
+        center + u_ref * d + axis.cross(u_ref) * f(t) + axis * (r * s)
+    };
+    let half = T::from_f64(0.5);
+    let pieces = T::from_f64(f64::from(SPIRIC_PIECES));
+    let h = (tb - ta) / pieces;
+    let mut j = T::zero();
+    for k in 0..SPIRIC_PIECES {
+        let mid = ta + h * (T::from_f64(f64::from(k)) + half);
+        for (x, w) in GAUSS16 {
+            for x in [x, -x] {
+                let t = mid + h * half * T::from_f64(x);
+                j = j + f(t) * t.cos() * h * half * T::from_f64(w);
+            }
+        }
+    }
+    let (pa, pb) = (at(ta), at(tb));
+    let ends = f(tb) * tb.sin() - f(ta) * ta.sin();
+    let bulge = (center + u_ref * d - pa).cross(pb - pa)
+        + u_ref * (r * (T::from_f64(2.0) * j - ends));
+    let f_min2 = (big_r - r).powi(2) - d.powi(2);
+    let delta = T::one().min(f_min2 / (T::from_f64(16.0) * r * (big_r + r)));
+    let s = T::from_f64(2.0) * delta / h.abs();
+    let rho = s + (s.powi(2) + T::one()).sqrt();
+    let per_piece = T::from_f64(64.0 / 15.0) * T::from_f64(2.0) * (big_r + r)
+        / rho.powi(32)
+        / (rho.powi(2) - T::one())
+        * h.abs()
+        * half;
+    let error = T::from_f64(2.0) * r * per_piece * pieces;
+    let (speed, _) = geom::spiric_rate_bounds(r, d, (big_r - r, big_r + r), T::one());
+    Some((bulge, (tb - ta).abs() * speed, error))
+}
+
 /// **A conic carrier's frame** — the one reading of a circle or an
 /// ellipse as `P(θ) = center + a·cos θ + b·sin θ`, `a = u_ref·sa`,
 /// `b = (axis × u_ref)·sb`: a circle's `sa = sb = radius`, an
@@ -419,21 +518,25 @@ impl<T: Decide> Body<T> {
         band: geom_core::Band,
     ) -> Option<Result<Decided, Indeterminate>> {
         let mut walked: Vec<Step<'_, T>> = Vec::with_capacity(halves.len());
-        // Whether some carrier is a conic: the one fact about the
-        // carrier set the sum reads (the correction block below).
-        let mut any_conic = false;
-        let conic_kind = |carrier: &Curve3<T>| match carrier {
-            geom::Curve3::Line { .. } => Some(false),
-            geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => Some(true),
-            geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => None,
+        // Whether some carrier is curved, and whether one is a spiric:
+        // the facts about the carrier set the sum reads (the correction
+        // block below, and the spiric rule's error folded into it).
+        let (mut any_conic, mut any_spiric) = (false, false);
+        let mut kind = |carrier: &Curve3<T>| {
+            match carrier {
+                geom::Curve3::Line { .. } => {}
+                geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => any_conic = true,
+                geom::Curve3::Spiric { .. } => any_spiric = true,
+                geom::Curve3::Nurbs(_) => return None,
+            }
+            Some(())
         };
         let closing_curve = match closing {
             Closing::Run(RunClosing::Curve(carrier, params)) => Some(((carrier, params), true)),
             Closing::Cycle | Closing::Run(RunClosing::Straight) => None,
         };
         if let Some(((carrier, _), _)) = closing_curve {
-            let conic = conic_kind(carrier)?;
-            any_conic |= conic;
+            kind(carrier)?;
         }
         for &he in halves {
             let hd = crate::live::proven(&self.half_edges, he, EntityId::HalfEdge);
@@ -454,8 +557,7 @@ impl<T: Decide> Body<T> {
             });
             let curve = self.edge_curve_linked(hd.edge, edge).certified();
             if let Some(curve) = curve {
-                let conic = conic_kind(curve.carrier())?;
-                any_conic |= conic;
+                kind(curve.carrier())?;
             }
             walked.push((
                 self.winding_point(hd.start, EntityId::HalfEdge(he), "start"),
@@ -481,7 +583,14 @@ impl<T: Decide> Body<T> {
                 self.winding_point(end.start, EntityId::HalfEdge(next), "start")
             }
         };
-        let conic = |step: &Step<'_, T>| step.1.and_then(|(c, fwd)| conic_segment_term(c, fwd));
+        // Each curved edge's bulge, length and the bound on its bulge's
+        // error (none for a conic, whose bulge is closed form).
+        let term = |(c, fwd): Traversed<'_, T>| {
+            conic_segment_term(c, fwd)
+                .map(|(bulge, len)| (bulge, len, T::zero()))
+                .or_else(|| spiric_segment_term(c, fwd))
+        };
+        let conic = |step: &Step<'_, T>| step.1.and_then(term);
         let open = matches!(closing, Closing::Run(_));
         let mut newell = Vec3::new(T::zero(), T::zero(), T::zero());
         // The F4 metering lever: the boundary's own length, accumulated
@@ -496,32 +605,42 @@ impl<T: Decide> Body<T> {
             }
             perimeter = perimeter
                 + match conic(step) {
-                    Some((_, len)) => len,
+                    Some((_, len, _)) => len,
                     None => (next - p).norm(),
                 };
         }
-        let closing_term = closing_curve.and_then(|(c, fwd)| conic_segment_term(c, fwd));
+        let closing_term = closing_curve.and_then(term);
         if open {
             perimeter = perimeter
                 + match closing_term {
-                    Some((_, len)) => len,
+                    Some((_, len, _)) => len,
                     None => (end - p0).norm(),
                 };
         }
-        // The conic correction (module docs), added only when some
-        // carrier is a conic: a line-only cycle keeps the chord sum.
+        // The curved correction (module docs), added only when some
+        // carrier is curved: a line-only cycle keeps the chord sum.
         // Summed on its own and added once, so the chord sum is never
         // re-associated.
-        if any_conic {
+        let mut error = T::zero();
+        if any_conic || any_spiric {
             let mut bulge = Vec3::new(T::zero(), T::zero(), T::zero());
-            for (b, _) in walked.iter().filter_map(conic).chain(closing_term) {
+            for (b, _, e) in walked.iter().filter_map(conic).chain(closing_term) {
                 bulge = bulge + b;
+                error = error + e;
             }
             newell = newell + bulge;
         }
+        let mut area = normal.dot(newell);
+        // A spiric rule's error moves the area toward zero by as much as
+        // it could be off, and no further: a bound the size of the area
+        // leaves it undecided.
+        if any_spiric {
+            let error = error * normal.norm();
+            area = area - area.max(-error).min(error);
+        }
         Some(crate::validate::decide_reported(
             WINDING_PREDICATE,
-            Margin::over_lever(normal.dot(newell), perimeter),
+            Margin::over_lever(area, perimeter),
             band,
         ))
     }
