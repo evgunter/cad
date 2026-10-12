@@ -552,6 +552,8 @@ mod review_ladder_split_key_r2_probes;
 mod review_m2_pr4;
 #[path = "review_m2_pr4_interval.rs"]
 mod review_m2_pr4_interval;
+#[path = "review_4765_curved_probes.rs"]
+mod review_4765_curved_probes;
 #[path = "review_m2_pr5.rs"]
 mod review_m2_pr5;
 #[path = "review_m2_pr5_interval.rs"]
