@@ -54,6 +54,7 @@
 //! `Dual<f64>`, `Interval`, and `Dual<Interval>`.
 
 pub mod certify;
+pub mod conic_bend;
 pub mod description;
 pub mod dihedral;
 pub mod edge_nurbs;
@@ -90,6 +91,7 @@ pub use certify::{
     CERT_SAMPLES, CertCheck, Certificate, CertifyError, EdgeCurve, EdgeCurveSpec,
     IntersectionDraft, NurbsLane, edge_extent, folded_parallelism, sample_param, schedule_param,
 };
+pub use conic_bend::{BendBounds, ConicBend, conic_bend_side};
 pub use description::{
     ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, authority_of,
 };

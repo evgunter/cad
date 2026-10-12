@@ -283,8 +283,8 @@ impl<T: Real> ReferenceNormal<T> {
     }
 
     /// The reference normal as a plain vector — crate-internal, for
-    /// the predicate's own dot product.
-    fn vec(self) -> Vec3<T> {
+    /// the predicates' own dot products.
+    pub(crate) fn vec(self) -> Vec3<T> {
         self.0
     }
 }

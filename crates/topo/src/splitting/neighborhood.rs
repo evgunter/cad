@@ -145,7 +145,7 @@ pub(super) fn chord<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
     he: HalfEdgeKey,
-) -> Result<(VertexKey, Vec3<T>, Option<(Vec3<T>, T)>), SplitReduceError> {
+) -> Result<(VertexKey, Vec3<T>, Option<(Vec3<T>, T, geom_brep::ConicBend<T>, geom::CurveKind)>), SplitReduceError> {
     let final_vertex = body.proven_half_edge_end(he);
     let p_base = body.resolve_vertex_point(vertex, Proven);
     let p_final = body.resolve_vertex_point(final_vertex, Proven);
@@ -179,10 +179,11 @@ pub(super) fn chord<T: Decide>(
             let speed_sq = tangent.norm_squared();
             let chord_len = p_final.distance(p_base);
             let extent = geom_brep::edge_extent(curve.carrier(), t0, t1, chord_len);
+            let bend = geom_brep::ConicBend::of(curve.carrier(), tangent, deriv2, t1 - t0);
             Ok((
                 final_vertex,
                 tangent.normalize() * extent,
-                Some((deriv2, speed_sq)),
+                Some((deriv2, speed_sq, bend, curve.carrier().kind())),
             ))
         }
     }
@@ -254,7 +255,7 @@ pub(super) fn classify_neighborhood_rays<T: Decide>(
         //   margin (in-plane departure — an in-plane arc or a graze
         //   contact) classifies On for rule (b)'s adjudication;
         //   in-band escalates typed.
-        let class = if let Some((deriv2, speed_sq)) = conic_jet {
+        let class = if let Some((deriv2, speed_sq, probe_bend, probe_kind)) = conic_jet {
             let margin = Margin::of(dir_a.dot(plane.normal.get()));
             match decide("split_conic_departure", margin, band) {
                 Ok(Sign::Negative) => PlaneSide::Below,
@@ -273,6 +274,37 @@ pub(super) fn classify_neighborhood_rays<T: Decide>(
                     // `sense` bit to fold in. Its type says so —
                     // `enters_material`'s face slot would not accept
                     // it, and this slot does not accept a bare vector.
+                    {
+                        let probe_old = geom_brep::enters_material_order2(
+                            deriv2,
+                            speed_sq,
+                            geom_brep::ReferenceNormal::of_split_plane(plane.normal.get()),
+                            dir_a.norm(),
+                            band,
+                        );
+                        let probe_new = geom_brep::conic_bend_side(
+                            dir_a,
+                            dir_a.norm(),
+                            probe_bend,
+                            geom_brep::ReferenceNormal::of_split_plane(plane.normal.get()),
+                            band,
+                        );
+                        let line = format!(
+                            "CONICPROBE {} kind={probe_kind:?} old={:?} new={:?} same={}\n",
+                            std::thread::current().name().unwrap_or("?"),
+                            probe_old.as_ref().map_err(|_| ()),
+                            probe_new.as_ref().map_err(|_| ()),
+                            probe_old.as_ref().ok() == probe_new.as_ref().ok()
+                        );
+                        use std::io::Write as _;
+                        if let Ok(mut f) = std::fs::OpenOptions::new()
+                            .create(true)
+                            .append(true)
+                            .open("/tmp/claude-0/-home-user-cad/9220d35f-cefb-500b-9af4-4fbe2ad48f0c/scratchpad/conic-probe.log")
+                        {
+                            let _ = f.write_all(line.as_bytes());
+                        }
+                    }
                     match geom_brep::enters_material_order2(
                         deriv2,
                         speed_sq,
