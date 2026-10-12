@@ -576,3 +576,18 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
 
   Build A is told to merge main (taking 4684's digest wholesale) and port the row. Its port of 4684's digest showed the convex meet leaves the digest unmoved at all three ε. Its de_boor row is corrected: the ulp is the face-order fold. — (NURBS orchestrator)
 - 2026-10-12 — Seam note from ENCL (PR 4754, merged at `40eefeb668`): geom-core spline gains `Derived<'a, V = KnotVector> { Vector(V), SpanConstant(&[f64] breaks), Discontinuous { knots, degree } }`, which names why `derivative()` may have no vector. It is returned by `KnotVector::derived`, `SplineCoeffs::derived` and `TensorCoeffs::derived_u/_v`. `KnotVector::c1() -> Result<(), C1Break>` is the one home of the C¹ admission (`Degree1Crease` / `Crease`). Both `derivative()` doors are now `derived().vector()`. `TensorCoeffs::derivative_u/_v` are removed (tests read `derived_u().vector()`). `derived()` maps `clamped`'s `InteriorMultiplicityTooHigh` to `Discontinuous`; any other refusal is `unreachable!`, by the review's proof that a valid KnotVector cannot raise one. No golden moved. (ENCL orchestrator)
+- 2026-10-12 02:50Z — **PR 4551: build A.**
+  - Friction: the lane held its push three times for full four-ε local passes, each over an hour. Main moved underneath during two of them, re-opening conflicts in `props/quad.rs` and the digest, against discipline §2 (hosted CI is the verification of record). It was interrupted at 02:43 and pushed `52644abf56`: main merged, `Hull` port, main's digest wholesale. Its re-cut of `arc_loft_1e9eps` on top follows if CI reds.
+  - The topo `conic_quadric` seed `0xe8586f5f5e218549` is red on main too, so it is not 4551's. It is added as a witness to GERM's `the-in-band-sweep-fuzz-finds-a-miss-answered-inside-the-escalation-gap`.
+  - PR 4758 merged with Ev's sign-off: one `CARGO_TARGET_DIR` per worktree. META's row is closed. — (NURBS orchestrator)
+- 2026-10-12 04:50Z — **PR 4551 at `0d5b56685e`.**
+  - CI at f50ab134 is red only in the eps step. Both reds are main's, reproduced on main `8cd31ca1` and on the branch, each isolated:
+    - sweep `at_interval_a_wide_section_refuses_as_section_not_a_point` is main's P0 `a-wide-loft-section-escalates-chord-side-at-1e-12-on-main`, with ENCL;
+    - editor-core `a_ring_serving_two_pierces_records_their_fusion_unproven` is filed on FLUSH (P1).
+  - Isolated cost table: head against 1b is m5 −0.6% / +1.0% and quad +6.9% / −2.8%, so **option 1 holds**.
+  - The rule for merge: once CI on the new head is red in exactly those two base rows and nothing else, 4551 merges, with the DR row last and a standing-down comment on the PR. — (NURBS orchestrator)
+- 2026-10-12 05:25Z — **PR 4551 merges (`aa1f124298`).** It is fork 3's step: `Certification::between` (the monotone corner lerp, met per corner with its convex form and with `hull(x, y)`) and `CoeffWindow::blossom` with the `restrict` doors. `convex_step`, `insert_once_ring` and `sub_segment` are gone.
+  - The DR row went on as the last commit (concurrent, H, tally 0); the index number is assigned on main.
+  - CI at `0d5b56685e` was red only on editor-core `a_ring_serving_two_pierces_records_their_fusion_unproven`, which is red on main and filed on FLUSH. The sweep base row `at_interval_a_wide_section_refuses_as_section_not_a_point` passed in that run because CI tests the PR merged into current main, which carries its fix (PR 4785, `031369bb81`). Build A's local repro on `8cd31ca1` predates that fix. Slow set 311/311.
+  - `arc_loft_1e9eps` is re-cut on main's line, every enclosure nested inside the old. The isolated cost table keeps option 1.
+  - Builds A and B are both standing by. NURBS has no unit in flight. — (NURBS orchestrator)

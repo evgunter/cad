@@ -721,11 +721,12 @@ fn crossings<T: Decide>(
             match locus {
                 Locus::Line { origin, dir } => {
                     // The closest approach of the segment's line to the
-                    // locus, as a segment parameter.
-                    let n = w.cross(dir);
-                    if maybe_nonzero(n.norm()) {
-                        let lambda = (origin - p0).cross(dir).dot(n) / n.dot(n);
-                        candidates.push(p0 + w * lambda);
+                    // locus.
+                    if maybe_nonzero(w.cross(dir).norm()) {
+                        candidates.push(crate::census::segment_cross_point(
+                            (p0, p1),
+                            (origin, origin + dir),
+                        ));
                     }
                 }
                 Locus::Rim(rim) => {

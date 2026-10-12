@@ -2812,8 +2812,8 @@ pub enum BooleanError {
     /// attachment gate refused its description on a reading no move of
     /// the parts reaches. It ends in the defect ending (a kernel bug,
     /// loudly), or, on a fitted carrier, in the certification's own
-    /// last resort. An exact carrier read in band of one of its faces
-    /// is an [`BooleanError::Escalated`] of
+    /// last resort. A line chord read in band of one of its faces is an
+    /// [`BooleanError::Escalated`] of
     /// [`BooleanDecision::EdgeOnFaces`].
     EdgeUndescribed {
         /// The edge, diagnostic only: the result is never returned.
