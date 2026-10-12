@@ -2,8 +2,9 @@
 id: an-intersection-into-a-void-at-a-vertex-has-no-seam-vertex-rule-in-one-order
 kind: issue
 title: An intersection whose operand crosses into a void at one vertex refuses SeamVertexParentage in one operand order and names in the other
-status: review
+status: closed
 opened: 2026-10-07
+closed: 2026-10-12
 priority: P2
 cost: M
 branch: emit/touch-crossing
@@ -61,3 +62,7 @@ two quadrilateral arches' `y ∪ x` refused, `Emission`, at every pose.
 With a vertex named as an operand's own corner at every operand key
 the boolean leaves at the point, those name too, so the rows no longer
 accept any refusal (`no_rule` is gone) and every cell must name.
+
+## Closed (PR 4816, 2026-10-12)
+
+Closed by PR 4816: no cell refuses any more.

@@ -2,8 +2,9 @@
 id: a-touch-and-an-edge-edge-crossing-have-no-ruled-spelling
 kind: issue
 title: The sense ruling names no spelling for an edge that touches a face without crossing it, nor for two edges crossing; the build keeps Seam for the first and mints EdgeCrossing for the second
-status: review
+status: closed
 opened: 2026-10-06
+closed: 2026-10-12
 priority: P2
 cost: M
 pr: 4816
@@ -113,3 +114,7 @@ name in every member order, and three or four wedges, with the plate
 and without it, now do in every order (they did not on main). What is
 left is filed as
 `work/emit/a-meeting-of-three-members-at-one-point-has-no-order-free-sense.md`.
+
+## Closed (PR 4816, 2026-10-12)
+
+Built by PR 4816: corner identity, the four-valued sense, `Crossing`/`EdgeCrossing` for every meeting, and the union edge x edge read from the finished body. The residue went to `a-meeting-of-three-members-at-one-point-has-no-order-free-sense`, and the corner tie to `a-corner-held-as-several-result-vertices-ties`, both design rows.
