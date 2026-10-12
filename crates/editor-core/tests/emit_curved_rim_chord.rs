@@ -10,15 +10,15 @@
 //! over a straight rim in two pieces is `resolve_cited_line`'s.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::blocks::{block, failure, run};
 use crate::corpus::body_of;
-use crate::docm7_union_declare::{block, failure, run};
 use crate::emit_shared_rim_several::Bx;
-use crate::fixture::{edge_of, frame, insert, len, len2, table};
+use crate::fixture::{edge_of, frame, insert, len, len2, out, table};
 
 use editor_core::{
-    BooleanOp, EntityKind, ExtrudeSide, Formula, LoopProgram, NameRef, Node, ProfileDoc,
-    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, Qualifier, RecipeNodeId, RoleSeg,
-    StableName,
+    EntityKind, ExtrudeSide, Formula, LoopProgram, NameRef, Node, ProfileDoc, ProfileProgram,
+    ProgramArcData, ProgramStep, ProgramTarget, Qualifier, RecipeNodeId, RoleSeg, StableName,
+    VarId,
 };
 use geom_core::Tol;
 use topo::EdgeKey;
@@ -65,7 +65,7 @@ fn prism(doc: ProfileDoc, rim: Rim) -> (ProfileDoc, RecipeNodeId) {
     let (doc, p) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![LoopProgram::Chain(steps)],
             ids: Vec::new(),
         }),
@@ -73,7 +73,7 @@ fn prism(doc: ProfileDoc, rim: Rim) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -94,11 +94,9 @@ fn notched_prism(rim: Rim) -> (ProfileDoc, RecipeNodeId) {
         let (d, notch) = block(doc, x, y, z.0, z.1);
         (doc, body) = insert(
             d,
-            Node::Boolean {
-                op: BooleanOp::Subtract,
-                a: body,
-                b: notch,
-                declare: Vec::new(),
+            Node::Subtract {
+                from: body.into(),
+                tool: notch.into(),
             },
         );
     }
@@ -111,14 +109,14 @@ const NEAR_200: Bx = ((-1.5, -0.6), (-0.38, -0.30), (0.8, 1.0));
 const NEAR_90: Bx = ((-0.04, 0.04), (0.6, 1.5), (0.8, 1.0));
 
 /// The line edge `n` lies on: `n` with every piece qualifier removed,
-/// through the `FromA`/`FromB` wrappers a boolean adds (names README,
+/// through the `From` wrappers a boolean adds (names README,
 /// "Edge pieces").
 fn line_of(n: &StableName) -> StableName {
     let mut n = n.clone();
     while matches!(n.path.last(), Some(RoleSeg::Fragment(Qualifier::Ends(_)))) {
         n.path.pop();
     }
-    if let [RoleSeg::FromA(inner) | RoleSeg::FromB(inner)] = n.path.as_mut_slice() {
+    if let [RoleSeg::From { of: inner, .. }] = n.path.as_mut_slice() {
         *inner = NameRef::new(line_of(inner));
     }
     n
@@ -133,6 +131,7 @@ fn within_sources(
     ev: &editor_core::Evaluation<f64>,
     union: RecipeNodeId,
     notched: RecipeNodeId,
+    notched_read: VarId,
     at: &str,
 ) -> usize {
     let point = |b: &topo::Body<f64>, he| {
@@ -169,10 +168,10 @@ fn within_sources(
         let editor_core::EntityKey::Edge(k) = e.key else {
             continue;
         };
-        let Some(RoleSeg::FromMember { member, of }) = name.path.first() else {
+        let Some(RoleSeg::From { read, of }) = name.path.first() else {
             continue;
         };
-        if *member != notched {
+        if *read != notched_read {
             continue;
         }
         // The source rows: `of` itself, or, where `of` cites a line,
@@ -250,8 +249,7 @@ fn unites_in_both_orders(rim: Rim, x: (f64, f64), y: (f64, f64), pieces: usize, 
         let (doc, u) = insert(
             doc,
             Node::Union {
-                members: members.clone(),
-                declare: Vec::new(),
+                members: editor_core::Bodies::Spelled(members.iter().map(|&m| m.into()).collect()),
             },
         );
         let ev = run(&doc);
@@ -261,7 +259,7 @@ fn unites_in_both_orders(rim: Rim, x: (f64, f64), y: (f64, f64), pieces: usize, 
             "{at}: the union evaluates: {:?}",
             failure(&ev, u)
         );
-        let named = within_sources(&ev, u, notched, &at);
+        let named = within_sources(&ev, u, notched, out(&doc, notched), &at);
         assert!(
             named >= pieces,
             "{at}: the top rim survives in at least {pieces} named pieces \
