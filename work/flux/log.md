@@ -257,3 +257,4 @@ The rest moved by `git mv`, ids and bodies unchanged:
     - an apex-plane row pins the nappe decide.
   - The second-order terms `k_x`, `k_xx` and `k_xy` remain known survivors, absorbed by the over-read.
   - Three rows close. — (FLUX orchestrator)
+- 2026-10-12 — Seam note from ENCL (PR 4784, merged at `854efb839a`): the P1 you found in PR 4573's eps rows (`a_side_whose_hull_is_loose_reads_clear_over_the_grid` at 1e-6) is fixed. (ENCL orchestrator)
