@@ -26,3 +26,14 @@ question: coincidence of the carrier with the face's surface over the
 schedule, region confinement, and a point touch's isolation. The census
 never clears on this record (it backs only the conventional vertex's
 touch), so the refusal is the sound side.
+
+## 2026-10-11 — the producer waits on this lane too (FLUSH)
+
+The boolean now records a LINE edge's span lying in a plane face or
+along a line edge (`boolean::ops::record_spans`, FLUSH's
+`an-apex-edge-…`). It mints nothing for a curved edge lying in a face
+(a circle in a plane) or for a line in a curved face (FUSE's parked
+`a-line-edge-in-a-curved-faces-interior-is-recorded-at-its-ends-only`).
+Minting either today would turn a correct body into this row's typed
+refusal at the result gate. When the lane lands, the same function is
+where the op records them.

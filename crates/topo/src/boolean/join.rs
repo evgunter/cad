@@ -159,6 +159,7 @@ use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, Vertex
 use crate::face_normal::face_outward_normal;
 use crate::loop_winding::{RunClosing, RunMissesEnd};
 use crate::null::NullFacePair;
+use crate::ring_path::LoopSplit;
 use crate::validate::{decide, decide_positive};
 use geom_core::Tol;
 
@@ -269,11 +270,11 @@ enum KindArm {
 
 /// The kind arm of a germ face pair, A's kind first.
 fn kind_arm(a: geom::SurfaceKind, b: geom::SurfaceKind) -> KindArm {
-    use geom::SurfaceKind::{Cone, Cylinder, Plane, Sphere};
+    use geom::SurfaceKind::{Cone, Cylinder, Plane, Sphere, Torus};
     match (a, b) {
         (Plane, Plane) => KindArm::Planar,
-        (Plane, Sphere | Cylinder | Cone) => KindArm::PlaneWall,
-        (Sphere | Cylinder | Cone, Plane) => KindArm::WallPlane,
+        (Plane, Sphere | Cylinder | Cone | Torus) => KindArm::PlaneWall,
+        (Sphere | Cylinder | Cone | Torus, Plane) => KindArm::WallPlane,
         (Sphere, Sphere) => KindArm::Spheres,
         (Cylinder, Cylinder) => KindArm::Cylinders,
         _ => KindArm::None,
@@ -290,8 +291,8 @@ enum RingClosure<T: geom_core::Real> {
     /// segment's curve.
     Planar,
     /// A curved face: a cylinder's island closes along this section
-    /// plane, on the face's chart; a sphere's or a cone's by the
-    /// segment's curve.
+    /// plane, on the face's chart; a sphere's, a cone's or a torus's by
+    /// the segment's curve.
     Wall((Point3<T>, UnitVec3<T>)),
     /// A segment along an edge of this solid (the named operand), of
     /// both solids or of this one alone, reads no section on this side:
@@ -311,8 +312,8 @@ enum IslandClosing<'a, T: geom_core::Real> {
     /// A wall face: closed along the section plane its chords lie in,
     /// on the face's chart.
     Wall((Point3<T>, UnitVec3<T>)),
-    /// A sphere or a cone face: closed by the segment's curve, an arc of
-    /// a plane section or a cone's ruling
+    /// A sphere, a cone or a torus face: closed by the segment's curve,
+    /// an arc of a plane section or a cone's ruling
     /// ([`crate::chord_join::path_island_winding`]).
     Quadric(&'a SegmentCurve<T>),
 }
@@ -418,12 +419,13 @@ impl SolidJoin {
     }
 
     /// The planar-side curve against the partner `wall`, through
-    /// [`JoinLane::BoolPlanar`], the wall copy keyed by `partner_face`.
+    /// [`JoinLane::BoolPlanar`], the wall copy keyed by `partner_face`;
+    /// `window` is that face's along a cone's axis.
     fn bool_planar_curve<T: Decide>(
         &mut self,
         body: &mut Body<T>,
         plan: &JoinPlan,
-        wall: geom::Surface<T>,
+        (wall, window): (geom::Surface<T>, Option<(T, T)>),
         partner_face: FaceKey,
         leave: Leave<T>,
     ) -> Result<SegmentCurve<T>, BooleanError> {
@@ -431,6 +433,7 @@ impl SolidJoin {
         let mut partner = self.aux.get(&datum).copied();
         let lane = JoinLane::BoolPlanar {
             wall,
+            window,
             partner_key: &mut partner,
         };
         let curve = self.curve(body, plan, lane, leave)?;
@@ -1218,7 +1221,13 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                 sb.curve(&mut red.b, &plan_b, JoinLane::Planar, leave_b)?,
             ),
             Some(GermLane::PlaneWall(plane)) => (
-                sa.bool_planar_curve(&mut red.a, &plan_a, gb.clone(), germ.b_face, leave_a)?,
+                sa.bool_planar_curve(
+                    &mut red.a,
+                    &plan_a,
+                    (gb.clone(), cone_window(&red.b, germ.b_face, &gb, band)),
+                    germ.b_face,
+                    leave_a,
+                )?,
                 sb.split_curve(
                     &mut red.b,
                     &plan_b,
@@ -1235,8 +1244,14 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                     AuxDatum::Partner(germ.b_face),
                     leave_a,
                 )?;
-                let curve_b =
-                    sb.bool_planar_curve(&mut red.b, &plan_b, ga.clone(), germ.a_face, leave_b)?;
+                let window = cone_window(&red.a, germ.a_face, &ga, band);
+                let curve_b = sb.bool_planar_curve(
+                    &mut red.b,
+                    &plan_b,
+                    (ga.clone(), window),
+                    germ.a_face,
+                    leave_b,
+                )?;
                 (curve_a, curve_b)
             }
             Some(GermLane::Radical(radical)) => {
@@ -2167,8 +2182,8 @@ pub(super) fn face_pair_section_loops<T: Decide>(
         witnesses(body_b, face_b),
     )
     .map_err(desync)?;
-    let extent =
-        frame_extent((&sa, body_a, face_a), (&sb, body_b, face_b), at, span).map_err(desync)?;
+    let extent = frame_extent((&sa, body_a, face_a), (&sb, body_b, face_b), at, span, band)
+        .map_err(desync)?;
     pair_section_frame_at(&sa, &sb, at, extent, band)
         .map_err(|e| frame_refusal(e, (face_a, &sa), (face_b, &sb)))
 }
@@ -2238,8 +2253,8 @@ pub(super) fn frame_reading<T: Decide>(
 
 /// **What [`pair_section_frame_at`] levers a pair at**: the consumed
 /// region's measure, taken from the reading point `at`.
-#[derive(Clone, Copy, Debug)]
-pub(super) enum FrameExtent<T> {
+#[derive(Clone, Debug)]
+pub(super) enum FrameExtent<T: geom_core::Real> {
     /// Nothing measured: the pair is levered by its radii.
     Radii,
     /// A cylinder pair's walls' span ([`frame_reading`]).
@@ -2259,10 +2274,13 @@ pub(super) enum FrameExtent<T> {
         /// ([`agreed_section`](crate::chord_join::agreed_section)).
         round: T,
     },
-    /// A plane×cone or plane×torus pair's curved face: its farthest
-    /// distance from `at`, each edge levered round its whole carrier
+    /// A plane×torus pair's torus face: its farthest distance from `at`,
+    /// each edge levered round its whole carrier
     /// ([`face_reach_from`](crate::splitting::rules::face_reach_from)).
     Reach(T),
+    /// A plane×cone pair's cone face, against the cone's axis
+    /// ([`cone_face_reach`](crate::splitting::rules::cone_face_reach)).
+    Cone(geom_brep::Reach<T>),
 }
 
 /// **The consumed region's measure [`pair_section_frame_at`] levers at**,
@@ -2277,10 +2295,12 @@ pub(super) enum FrameExtent<T> {
 /// ([`face_reach_round_from`](crate::splitting::rules::face_reach_round_from)),
 /// which [`agreed_section`](crate::chord_join::agreed_section) reads
 /// together. A plane×cone pair's section lies on the cone face, which
-/// hands the table its farthest distance from `at`: the one measure the
-/// cone's split lane levers the same section at. A plane×torus pair's
-/// lies on the torus face, levered the same way. Every other pair takes
-/// the walls' `span`.
+/// hands the table its range along the cone's axis from `at` and its
+/// farthest distance from `at`: the measures the cone's split lane
+/// reads the same section at. A plane×torus pair's lies on the torus
+/// face, which hands its farthest distance from `at`, the one measure
+/// the torus's split lane levers it at. Every other pair takes the
+/// walls' `span`.
 ///
 /// # Errors
 ///
@@ -2290,6 +2310,7 @@ pub(super) fn frame_extent<T: Decide>(
     (sb, body_b, face_b): (&geom::Surface<T>, &Body<T>, FaceKey),
     at: geom_core::Point3<T>,
     span: Option<T>,
+    band: Band,
 ) -> Result<FrameExtent<T>, &'static str> {
     let (body, face, axis) = match (sa, sb) {
         (geom::Surface::Plane { .. }, geom::Surface::Cylinder { axis, .. }) => {
@@ -2298,10 +2319,16 @@ pub(super) fn frame_extent<T: Decide>(
         (geom::Surface::Cylinder { axis, .. }, geom::Surface::Plane { .. }) => {
             (body_a, face_a, *axis)
         }
-        (geom::Surface::Plane { .. }, geom::Surface::Cone { .. } | geom::Surface::Torus { .. }) => {
+        (geom::Surface::Plane { .. }, cone @ geom::Surface::Cone { .. }) => {
+            return cone_reach((body_b, face_b), (body_a, face_a), at, cone, band);
+        }
+        (cone @ geom::Surface::Cone { .. }, geom::Surface::Plane { .. }) => {
+            return cone_reach((body_a, face_a), (body_b, face_b), at, cone, band);
+        }
+        (geom::Surface::Plane { .. }, geom::Surface::Torus { .. }) => {
             return face_reach(body_b, face_b, at);
         }
-        (geom::Surface::Cone { .. } | geom::Surface::Torus { .. }, geom::Surface::Plane { .. }) => {
+        (geom::Surface::Torus { .. }, geom::Surface::Plane { .. }) => {
             return face_reach(body_a, face_a, at);
         }
         _ => return Ok(span.map_or(FrameExtent::Radii, FrameExtent::Span)),
@@ -2322,8 +2349,43 @@ pub(super) fn frame_extent<T: Decide>(
 /// [`frame_extent`]'s refusal: a wall with no extent to lever at.
 const LONE_WALL: &str = "a germ wall's outer loop is a lone vertex";
 
-/// [`frame_extent`]'s plane×cone and plane×torus arm: the curved face's
-/// reach from `at`.
+/// The window along a cone wall's axis that `face` reaches over
+/// ([`cone_axial_window`](crate::splitting::rules::cone_axial_window)):
+/// the partner's face, which the planar side's section lies in, or the
+/// planar face, which the frame's does. `None` off a cone.
+fn cone_window<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    wall: &geom::Surface<T>,
+    band: Band,
+) -> Option<(T, T)> {
+    if !matches!(wall, geom::Surface::Cone { .. }) {
+        return None;
+    }
+    // The one refusal is a face whose outer loop is a lone vertex, which
+    // has no extent to narrow by: the reader's own face's window holds
+    // the section without it, and that face's own lone loop is refused
+    // where its reach is measured.
+    crate::splitting::rules::cone_axial_window(body, face, wall, band).ok()
+}
+
+/// [`frame_extent`]'s plane×cone arm: the cone face's reach from `at`,
+/// its window narrowed to the plane face's, as the planar side's chord
+/// reads the same section ([`JoinLane::BoolPlanar`]).
+fn cone_reach<T: Decide>(
+    (body, face): (&Body<T>, FaceKey),
+    (plane_body, plane_face): (&Body<T>, FaceKey),
+    at: geom_core::Point3<T>,
+    cone: &geom::Surface<T>,
+    band: Band,
+) -> Result<FrameExtent<T>, &'static str> {
+    let within = cone_window(plane_body, plane_face, cone, band);
+    crate::splitting::rules::cone_face_reach(body, face, at, (cone, within), band)
+        .map(FrameExtent::Cone)
+        .map_err(|_| LONE_WALL)
+}
+
+/// [`frame_extent`]'s plane×torus arm: the torus face's reach from `at`.
 fn face_reach<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -2337,11 +2399,12 @@ fn face_reach<T: Decide>(
 /// **The rulings lane's chords are rulings**: each wall's split lane,
 /// run against the pair's radical plane, minted the straight chord.
 ///
-/// A wall the plane only touches has a tangent chord
-/// (`TangentIntersection`): the walls touch along one ruling, undeclared
-/// contact that no arm here takes, refused `CurvedBooleanUnsupported`
-/// naming that wall. Any other curve is a conic, a plane the frame read
-/// parallel to both axes and a wall's table did not, which is a desync.
+/// A wall the plane only touches has a tangent chord, a line on the
+/// ruling whatever description the must-carry rule gave it: the walls
+/// touch along one ruling, undeclared contact that no arm here takes,
+/// refused `CurvedBooleanUnsupported` naming that wall. Any other curve
+/// is a conic, a plane the frame read parallel to both axes and a
+/// wall's table did not, which is a desync.
 ///
 /// No pose reaches either refusal through a public door: walls that
 /// touch along a ruling, or an axis pair the table reads apart from the
@@ -2351,9 +2414,9 @@ fn rulings_are_straight<T: geom_core::Real>(
     sides: [(&SegmentCurve<T>, Operand, FaceKey); 2],
 ) -> Result<(), BooleanError> {
     for (curve, operand, face) in sides {
-        match curve.spec().map(|spec| &spec.description) {
+        match curve.spec().map(|spec| &spec.carrier) {
             None => {}
-            Some(geom_brep::EdgeDescriptionSpec::TangentIntersection { .. }) => {
+            Some(geom::Curve3::Line { .. }) => {
                 return Err(BooleanError::CurvedBooleanUnsupported {
                     operand,
                     face,
@@ -2630,29 +2693,6 @@ pub(super) enum SectionLoops<T: geom_core::Real> {
     },
 }
 
-/// **Which loop of two a site of the section lies on**: the sign of a
-/// margin that is decided definite at every point of the section.
-#[derive(Clone, Copy, Debug)]
-pub(super) enum LoopSplit<T: geom_core::Real> {
-    /// `(p − origin)·dir`, `dir` unit.
-    Side {
-        /// A point of the plane between the loops.
-        origin: geom_core::Point3<T>,
-        /// That plane's unit normal.
-        dir: geom_core::Vec3<T>,
-    },
-    /// `p`'s distance from the axis `(origin, axis)` less `radius`,
-    /// `axis` unit.
-    Radius {
-        /// A point of the axis.
-        origin: geom_core::Point3<T>,
-        /// The axis.
-        axis: geom_core::Vec3<T>,
-        /// The radius between the loops.
-        radius: T,
-    },
-}
-
 impl<T: Decide> SectionLoops<T> {
     /// A conic's one loop, its centre a centre of symmetry.
     fn conic((center, axis): (geom_core::Point3<T>, geom_core::Vec3<T>)) -> Self {
@@ -2676,15 +2716,7 @@ impl<T: Decide> SectionLoops<T> {
             Self::One(lp) => return Ok((0, *lp)),
             Self::Two { loops, split } => (loops, split),
         };
-        let margin = match *split {
-            LoopSplit::Side { origin, dir } => (p - origin).dot(dir),
-            LoopSplit::Radius {
-                origin,
-                axis,
-                radius,
-            } => (p - origin).cross(axis).norm() - radius,
-        };
-        match decide("bool_join_section_loop", Margin::of(margin), band) {
+        match decide("bool_join_section_loop", Margin::of(split.margin(p)), band) {
             Ok(Sign::Positive) => Ok((0, loops[0])),
             Ok(Sign::Negative) => Ok((1, loops[1])),
             Ok(Sign::Zero) => Err(BooleanError::JoinDesync {
@@ -2868,7 +2900,9 @@ fn conic_section_frame_at<T: Decide>(
             let lever = match extent {
                 FrameExtent::Span(l) => l.max(r1.max(*r2)),
                 FrameExtent::Radii | FrameExtent::Wall { .. } => r1.max(*r2),
-                FrameExtent::Reach(_) => return Err(FrameError::Desync(FACE_REACH_ELSEWHERE)),
+                FrameExtent::Reach(_) | FrameExtent::Cone(_) => {
+                    return Err(FrameError::Desync(FACE_REACH_ELSEWHERE));
+                }
             };
             let reach = geom_brep::Reach::Measured { at, lever };
             match geom_brep::cylinder_axes_parallel(&reach, (*o1, *a1), (*o2, *a2), band) {
@@ -2923,7 +2957,9 @@ fn conic_section_frame_at<T: Decide>(
             &geom_brep::Reach::Measured { at, lever: radius },
             band,
         ),
-        FrameExtent::Reach(_) => return Err(FrameError::Desync(FACE_REACH_ELSEWHERE)),
+        FrameExtent::Reach(_) | FrameExtent::Cone(_) => {
+            return Err(FrameError::Desync(FACE_REACH_ELSEWHERE));
+        }
     };
     match section {
         Ok(geom_brep::PlaneCylinderSection::Rim(geom::Curve3::Circle { center, axis, .. }))
@@ -2943,8 +2979,9 @@ fn conic_section_frame_at<T: Decide>(
     }
 }
 
-/// [`FrameExtent::Reach`] handed to a cylinder pair: only a cone or a
-/// torus face's frame is levered at it ([`frame_extent`]).
+/// [`FrameExtent::Reach`] or [`FrameExtent::Cone`] handed to a cylinder
+/// pair: only a cone or a torus face's frame is levered at them
+/// ([`frame_extent`]).
 const FACE_REACH_ELSEWHERE: &str = "a curved face's reach levered a pair with no cone or torus";
 
 /// A germ pair's section refusal that is not the table's verdict on the
@@ -2972,9 +3009,9 @@ fn section_refusal(e: geom_brep::SectionError) -> FrameError {
 /// decision (R1), and its refusal carries the table's own naming of the
 /// conic ([`FrameError::OutsideInventory`]).
 ///
-/// Levered at the cone face's reach from the reading point
-/// ([`FrameExtent::Reach`], the only extent [`frame_extent`] hands a
-/// plane×cone pair); any other extent is a desync.
+/// Read over the cone face's reach ([`FrameExtent::Cone`], the only
+/// extent [`frame_extent`] hands a plane×cone pair); any other extent is
+/// a desync.
 #[allow(clippy::type_complexity)] // (conic center, conic axis) — one frame tuple
 fn pk_germ_frame<T: Decide>(
     plane: &geom::Surface<T>,
@@ -2982,12 +3019,12 @@ fn pk_germ_frame<T: Decide>(
     extent: FrameExtent<T>,
     band: Band,
 ) -> Result<Option<(geom_core::Point3<T>, geom_core::Vec3<T>)>, FrameError> {
-    let FrameExtent::Reach(lever) = extent else {
+    let FrameExtent::Cone(reach) = extent else {
         return Err(FrameError::Desync(
             "a plane×cone frame was levered at no cone face's reach",
         ));
     };
-    match geom_brep::plane_cone_section(plane, cone, lever, band) {
+    match geom_brep::plane_cone_section(plane, cone, &reach, band) {
         Ok(
             geom_brep::PlaneConeSection::TiltedEllipse(geom::Curve3::Ellipse {
                 center, axis, ..
@@ -3582,9 +3619,9 @@ fn choose_roles<T: Decide>(
             .map(RoleLane::Decided)
             .ok_or(desync("every chord arc separates a loose scaffolding pair"));
     }
-    // Ring lane: decided by the run's winding. A planar, sphere or cone
-    // face's run is closed by the segment's curve, so it waits on that
-    // curve ([`RoleLane::resolve`]); a cylinder face's closes along its section
+    // Ring lane: decided by the run's winding. A planar, sphere, cone or
+    // torus face's run is closed by the segment's curve, so it waits on
+    // that curve ([`RoleLane::resolve`]); a cylinder face's closes along its section
     // plane on its chart, decided here, before the curve is computed in
     // the order it decides. An along-edge segment reads no section: a
     // curved face there refuses typed, before any chord is computed.
@@ -3676,7 +3713,7 @@ enum RoleLane<T: geom_core::Real> {
     Decided((HalfEdgeKey, HalfEdgeKey)),
     /// A ring of the planar `face`, with its outward `normal`.
     Ring { face: FaceKey, normal: Vec3<T> },
-    /// A ring of the sphere or cone `face`.
+    /// A ring of the sphere, cone or torus `face`.
     QuadricRing { face: FaceKey },
 }
 
@@ -3763,8 +3800,8 @@ fn ring_order<T: Decide>(
 ///
 /// A wall face ([`IslandClosing::Wall`]) asks the same question on its
 /// own chart, [`crate::chord_join::chart_island_winding`], with the run
-/// closed along the plane this solid's chords lie in; a sphere or cone
-/// face ([`IslandClosing::Quadric`]) asks it without a chart,
+/// closed along the plane this solid's chords lie in; a sphere, cone or
+/// torus face ([`IslandClosing::Quadric`]) asks it without a chart,
 /// [`crate::chord_join::path_island_winding`], closed by the curve.
 fn ring_run_ccw<T: Decide>(
     body: &Body<T>,
@@ -4689,7 +4726,8 @@ mod frame_dispatch_tests {
                 (on.clone(), Vec::new())
             };
             let (at, span) = super::frame_reading(a, b, on_a, on_b).expect("a reading");
-            let extent = super::frame_extent((a, body, face), (b, body, face), at, span).unwrap();
+            let extent =
+                super::frame_extent((a, body, face), (b, body, face), at, span, band()).unwrap();
             let got = super::one_loop(super::pair_section_frame_at(a, b, at, extent, band()));
             (label, got)
         })
@@ -6442,25 +6480,19 @@ mod radical_plane_rows {
             origin: Point3::new(0.0, 0.0, 0.0),
             dir: Vec3::new(0.0, 0.0, 1.0),
         };
-        let spec = |tangent: bool| {
-            let (s1, s2) = Default::default();
-            let witness = Point3::new(0.0, 0.0, 0.5);
-            geom_brep::EdgeCurveSpec {
-                description: if tangent {
-                    geom_brep::EdgeDescriptionSpec::TangentIntersection {
-                        pair: geom_brep::SurfacePair::new(s1, s2),
-                        witness,
-                    }
-                } else {
-                    geom_brep::EdgeDescriptionSpec::Intersection {
-                        pair: geom_brep::SurfacePair::new(s1, s2),
-                        witness,
-                    }
-                },
-                carrier: line.clone(),
-                param_start: 0.0,
-                param_end: 1.0,
-            }
+        let circle = geom::Curve3::Circle {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let (s1, s2) = Default::default();
+        let witness = Point3::new(0.0, 0.0, 0.5);
+        let spec = |description, carrier: &geom::Curve3<f64>| geom_brep::EdgeCurveSpec {
+            description,
+            carrier: carrier.clone(),
+            param_start: 0.0,
+            param_end: 1.0,
         };
         let curve = |spec| SegmentCurve::of((he(1), he(2)), spec);
         let straight = curve(None);
@@ -6468,10 +6500,31 @@ mod radical_plane_rows {
             rulings_are_straight([(a, Operand::A, fa), (b, Operand::B, fb)])
         };
         assert!(ask(&straight, &straight).is_ok(), "two rulings pass");
-        let touching = curve(Some(spec(true)));
+        // The tangent chord is the ruling under either description the
+        // must-carry rule can give it.
+        let intrinsic = curve(Some(spec(
+            geom_brep::EdgeDescriptionSpec::TangentIntersection {
+                pair: geom_brep::SurfacePair::new(s1, s2),
+                witness,
+            },
+            &line,
+        )));
+        let conventional = curve(Some(spec(geom_brep::EdgeDescriptionSpec::chart(s2), &line)));
         for (label, got, operand, wall) in [
-            ("A touches", ask(&touching, &straight), Operand::A, fa),
-            ("B touches", ask(&straight, &touching), Operand::B, fb),
+            ("A touches", ask(&intrinsic, &straight), Operand::A, fa),
+            ("B touches", ask(&straight, &intrinsic), Operand::B, fb),
+            (
+                "A touches, conventional",
+                ask(&conventional, &straight),
+                Operand::A,
+                fa,
+            ),
+            (
+                "B touches, conventional",
+                ask(&straight, &conventional),
+                Operand::B,
+                fb,
+            ),
         ] {
             assert!(
                 matches!(
@@ -6485,7 +6538,13 @@ mod radical_plane_rows {
                 "{label}: {got:?}"
             );
         }
-        let conic = curve(Some(spec(false)));
+        let conic = curve(Some(spec(
+            geom_brep::EdgeDescriptionSpec::Intersection {
+                pair: geom_brep::SurfacePair::new(s1, s2),
+                witness,
+            },
+            &circle,
+        )));
         assert!(
             matches!(
                 ask(&straight, &conic),
@@ -6627,9 +6686,11 @@ mod kind_arm_rows {
             ((Plane, Sphere), KindArm::PlaneWall),
             ((Plane, Cylinder), KindArm::PlaneWall),
             ((Plane, Cone), KindArm::PlaneWall),
+            ((Plane, Torus), KindArm::PlaneWall),
             ((Sphere, Plane), KindArm::WallPlane),
             ((Cylinder, Plane), KindArm::WallPlane),
             ((Cone, Plane), KindArm::WallPlane),
+            ((Torus, Plane), KindArm::WallPlane),
             ((Sphere, Sphere), KindArm::Spheres),
             ((Cylinder, Cylinder), KindArm::Cylinders),
         ];

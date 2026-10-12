@@ -1054,19 +1054,17 @@ impl CellNet {
     /// is the caller's answer either way, and a sound one.
     ///
     /// The cut is blossoming, `b_k = f(a, …, a, b, …, b)` with `k` of the
-    /// `b`s, run by de Boor's recurrence in certification arithmetic on
-    /// the homogeneous net `(w·(P − c), w)`, and the Cartesian block is
-    /// read back as the quotient. `c` is the block's first point's lower
-    /// bracket end, translating the net so the products are formed on
-    /// differences; the cut block's points are in that frame.
+    /// `b`s ([`bezier_on`]), on the homogeneous net `(w·(P − c), w)`, and
+    /// the Cartesian block is read back as the quotient. `c` is the
+    /// block's first point's lower bracket end, translating the net so
+    /// the products are formed on differences; the cut block's points are
+    /// in that frame.
     ///
     /// The cut block's boxes are not always narrower than the whole
     /// block's. The recurrence's rounding can outgrow what the cut saves:
-    /// on a net constant along the cut whose `P − c` does not round
-    /// exactly, `d₁ − d₀` of two equal non-point intervals is a
-    /// symmetric interval rather than zero, and on a window a few ulps
-    /// wide the `degree / (b − a)` scale amplifies every such width. So
-    /// the caller meets the two ([`NurbsBoxes::deriv_box`]).
+    /// on a window a few ulps wide the `degree / (b − a)` scale
+    /// amplifies every ulp the blossom adds. So the caller meets the two
+    /// ([`NurbsBoxes::deriv_box`]).
     fn cut(&self, (span_u, span_v): (Span<'_>, Span<'_>), w: UvWindow) -> Option<Self> {
         let (cut_u, cut_v) = (inside(span_u, w.u), inside(span_v, w.v));
         if cut_u.is_none() && cut_v.is_none() {
@@ -1597,36 +1595,26 @@ fn inside(span: Span<'_>, w: ParamRange) -> Option<(f64, f64)> {
 
 /// The Bézier coefficients over `[a, b]` of the polynomial piece that
 /// `line` (the `degree + 1` coefficients of `span`'s window) defines on
-/// that span: the blossom `f(a^{p−k}, b^k)` for each `k`, by de Boor's
-/// recurrence with the `r`-th level at its own argument. `None` when the
-/// line is not one window long or a knot read leaves the vector.
+/// that span, channel by channel: each channel's window restricted to
+/// `[a, b]` ([`geom_core::spline::SpanRow::restrict`]). `None` when the
+/// line is not one window long or the restriction refuses.
 fn bezier_on(
     line: &[[Interval; 4]],
     span: Span<'_>,
     (a, b): (f64, f64),
 ) -> Option<Vec<[Interval; 4]>> {
-    let (p, s, t) = (span.degree(), span.index(), span.knots().knots());
-    if line.len() != p + 1 {
-        return None;
+    let mut out = vec![[Interval::refused(); 4]; line.len()];
+    for c in 0..4 {
+        let channel: Vec<Interval> = line.iter().map(|l| l[c]).collect();
+        let row = span
+            .with_window(&channel)?
+            .restrict((Interval::point(a), Interval::point(b)))
+            .ok()?;
+        for (k, v) in row.into_iter().enumerate() {
+            out[k][c] = v;
+        }
     }
-    (0..=p)
-        .map(|k| {
-            let mut d = line.to_vec();
-            for r in 1..=p {
-                let x = Interval::point(if r <= p - k { a } else { b });
-                for i in (r..=p).rev() {
-                    // `s ≥ p` (the span's invariant), so `s + i − p` and
-                    // `s + i + 1 − r` are in the window's knot range.
-                    let (&lo, &hi) = t.get(s + i - p).zip(t.get(s + i + 1 - r))?;
-                    let lo = Interval::point(lo);
-                    let alpha = (x - lo) / (Interval::point(hi) - lo);
-                    let (d0, d1) = (d[i - 1], d[i]);
-                    d[i] = core::array::from_fn(|c| d0[c] + alpha * (d1[c] - d0[c]));
-                }
-            }
-            Some(d[p])
-        })
-        .collect()
+    Some(out)
 }
 
 /// The box every reading over a window that names no region answers.

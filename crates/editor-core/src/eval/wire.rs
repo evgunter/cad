@@ -2918,10 +2918,12 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             // The judgement's rows, named in the two members' own tables:
             // the node's coincidences are its pairwise judgement's (#4323:
             // the pass is its coincidence door, rows in member space),
-            // each pair's in the author's list order. A vertex identity
-            // is a row only where a record cites it (D1), and the
-            // judgement's records are not the node's: the fold step that
-            // keeps the touch publishes the row its record cites.
+            // each pair's in the author's list order. The judgement's
+            // records are not the node's, so its vertex identities are
+            // dropped: the fold step that keeps a touch publishes the row
+            // its record cites. A pinch's row, which no record cites, is
+            // published by no step
+            // (`work/wire/a-union-fold-publishes-no-pinch-row.md`).
             let judged: Vec<topo::Coincidence> = out
                 .coincidences
                 .iter()

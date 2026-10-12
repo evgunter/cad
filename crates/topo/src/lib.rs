@@ -168,7 +168,7 @@ pub mod geometry;
 pub(crate) mod source_walk;
 
 #[cfg(test)]
-mod cert_m3r1_probes;
+pub(crate) mod cert_m3r1_probes;
 pub mod instance;
 pub(crate) mod invalid_margin;
 #[cfg(test)]
@@ -394,8 +394,8 @@ pub mod test_support {
         crate::boolean::combine::take_bridges()
             .into_iter()
             .map(|b| match b {
-                crate::boolean::combine::Bridge::Recertify { .. } => GraftBridge::Recertify,
-                crate::boolean::combine::Bridge::RemapKeys => GraftBridge::RemapKeys,
+                crate::boolean::combine::BridgeKind::Recertify => GraftBridge::Recertify,
+                crate::boolean::combine::BridgeKind::RemapKeys => GraftBridge::RemapKeys,
             })
             .collect()
     }
@@ -861,8 +861,8 @@ pub use surgery::Surgery;
 // that can hold it: upward layers RE-EXPORT these, never redefine.
 #[cfg(feature = "sweep-testing")]
 pub use boolean::{
-    PlantedDegradation, sweep_records, sweep_split, sweep_traces, sweep_traces_with_pad,
-    take_shared_points,
+    PlantedDegradation, swap_split_roles, sweep_records, sweep_split, sweep_traces,
+    sweep_traces_with_pad, take_shared_points,
 };
 #[cfg(feature = "sweep-testing")]
 pub use chord_join::face_azimuth_window_traces;

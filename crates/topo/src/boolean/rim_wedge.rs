@@ -8,19 +8,18 @@
 //! - **wedge π** — the outward normals agree across the rim and the
 //!   two faces leave it on opposite sides ([`departures`]): the
 //!   composed material is smooth through it, and the rim is a SEAM of
-//!   one composite wall. Between two operands it is declared a `Seam`
-//!   and verified (C4); inside one body it is structural.
+//!   one composite wall. Between two operands the boolean glues the
+//!   faces' tangency (C4) and the seam is read on the result; inside
+//!   one body it is structural.
 //! - **normals agree, same departure** — the two faces leave the rim on
 //!   ONE side (a bowl hanging in a tube's mouth): a nested touch, a
 //!   cusp the normals alone cannot tell from the seam. The material
 //!   table answers [`RimRouting::Seam`] for it, since it reads only the
 //!   two sheets' normals and jets; [`departures`] is what tells the two
 //!   apart, and both callers ask it after the table.
-//! - **wedge 0 or 2π** — the normals oppose, the material pinches to a
-//!   knife edge or opens to a circular slit. That is the declared-cusp
-//!   family, DEFINED AND UNBUILT: the pair reaching this routing has no
-//!   tangent-locus arm, and no consumer yet builds the cusp or slit
-//!   edge from a locus of any shape. Its refusal names both.
+//! - **wedge 0 or 2π** — the normals oppose across the rim. A pair
+//!   reaching this routing has no tangent-locus arm for its two
+//!   surface kinds, which is what its refusal names.
 //! - **anything the samples cannot settle** — escalates, naming the
 //!   predicate that failed to decide. Never a silent verdict.
 //!
@@ -67,8 +66,8 @@ pub(crate) enum RimRouting {
     /// leave it on opposite sides (the smooth seam, the built arm), a
     /// nested touch if on one side. [`departures`] decides which.
     Seam,
-    /// Wedge 0 or 2π: the declared-`Tangent` cusp family, defined and
-    /// unbuilt.
+    /// Wedge 0 or 2π: outward normals opposed along the rim
+    /// ([`super::BooleanError::RimCuspArmUnbuilt`]).
     Cusp(MaterialWedge),
     /// Opposed sides whose jets osculate — conformal contact along the
     /// locus, which is a `Rest` claim wearing a rim's clothes.
@@ -723,11 +722,12 @@ fn crossings<T: Decide>(
             match locus {
                 Locus::Line { origin, dir } => {
                     // The closest approach of the segment's line to the
-                    // locus, as a segment parameter.
-                    let n = w.cross(dir);
-                    if maybe_nonzero(n.norm()) {
-                        let lambda = (origin - p0).cross(dir).dot(n) / n.dot(n);
-                        candidates.push(p0 + w * lambda);
+                    // locus.
+                    if maybe_nonzero(w.cross(dir).norm()) {
+                        candidates.push(crate::census::segment_cross_point(
+                            (p0, p1),
+                            (origin, origin + dir),
+                        ));
                     }
                 }
                 Locus::Rim(rim) => {
