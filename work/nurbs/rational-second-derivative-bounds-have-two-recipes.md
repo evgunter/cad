@@ -23,13 +23,23 @@ hull plus `(S − c)` hull times the weight-derivative hull, over
 
 - `crates/mesh/src/chords.rs:309` `rational_carrier_m_bound`, a
   `sup‖C″‖` bound, which is one derivative order up.
-- `crates/geom-brep/src/patch_bound.rs:943` `rational_cells`. Its
+- `crates/geom-brep/src/patch_bound.rs` `rational_cells`. Its
   `s_u`/`s_v` interval boxes are both the rational `s_u_sup`/`s_v_sup`
   and the inputs to the `S_uu`/`S_uv`/`S_vv` recurrences behind
   `m_sup`. Routing only the scalar sups through the pair-term
   statement would leave two `S_u` recipes in one cell (the box for the
   recurrence and the pair term for the sup). That is why it was not
   routed alongside the speed bound.
+
+Two readers take `rational_cells`' first-order readings as they stand, so
+they read recipe A per cell rather than the pair-term statement:
+- `crates/geom-brep/src/offset_meters.rs` `patch_regularity`, which
+  folds `PatchCell::s_u_sup` / `s_v_sup` into its `SupSpeed` pair;
+- `crates/mesh/src/nurbs_cert.rs` `cell_readings`, which reads the
+  cells' `s_u` / `s_v` boxes beside the second-order ones.
+
+They move with this row: once a cell's `S_u` box comes from the
+pair-term statement, both read it unchanged.
 
 ## Shape of the fix
 

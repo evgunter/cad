@@ -82,8 +82,7 @@ pub fn derivative_net<T: Real, P: Copy + Sub<Output = V>, V: Mul<T, Output = V>>
             if !(du > 0.0) {
                 return None;
             }
-            let scale = span_derivative_scale(p, *held.get(i + 1)?, *held.get(i + p + 1)?);
-            Some((pair[1] - pair[0]) * scale)
+            Some((pair[1] - pair[0]) * pair_scale(held, p, i)?)
         })
         .collect()
 }
@@ -101,17 +100,14 @@ fn norm<T: Real, const D: usize>(v: [T; D]) -> T {
 /// `S ↦ k·[lever − dw·(S − p0)]` with `lever = w₁(P₁ − P₀)` and
 /// `dw = w₁ − w₀`. The one statement of the term: the sups below
 /// evaluate it at points, and a reader that carries it through a rigid
-/// map (`geom-brep`'s SSI enclosure) reads its parts.
+/// map (`geom-brep`'s SSI enclosure) reads it about a centre
+/// ([`Self::about`]).
 #[derive(Clone, Copy, Debug)]
 pub struct RationalPairTerm<T, const D: usize> {
-    /// The pair's derivative scale `p/(u_{i+p+1} − u_{i+1})`.
-    pub scale: T,
-    /// `w₁(P₁ − P₀)`.
-    pub lever: [T; D],
-    /// `w₁ − w₀`.
-    pub dw: T,
-    /// `P₀`.
-    pub p0: [T; D],
+    scale: T,
+    lever: [T; D],
+    dw: T,
+    p0: [T; D],
 }
 
 impl<T: Real, const D: usize> RationalPairTerm<T, D> {
@@ -126,11 +122,42 @@ impl<T: Real, const D: usize> RationalPairTerm<T, D> {
         }
     }
 
-    /// The term at the point `s`: `scale·[lever − dw·(s − p0)]`.
+    /// The term as an affine function of the offset `q = S − c`:
+    /// `(k, g)` with term `= k − g·q`, `k = scale·[lever + dw·(p0 − c)]`
+    /// and `g = scale·dw`. Every point enters as a difference with
+    /// another, so a translation moves `k` by its rounding width alone.
+    #[must_use]
+    pub fn about(&self, c: [T; D]) -> ([T; D], T) {
+        (
+            core::array::from_fn(|i| (self.lever[i] + self.dw * (self.p0[i] - c[i])) * self.scale),
+            self.dw * self.scale,
+        )
+    }
+
+    /// The term at the point `s`: [`Self::about`] `s` itself,
+    /// `scale·[lever − dw·(s − p0)]`.
     #[must_use]
     pub fn at(&self, s: [T; D]) -> [T; D] {
-        core::array::from_fn(|c| (self.lever[c] - self.dw * (s[c] - self.p0[c])) * self.scale)
+        self.about(s).0
     }
+
+    /// The weight step `w₁ − w₀`: exactly zero where the pair's weights
+    /// agree, so the term does not read `S`.
+    #[must_use]
+    pub fn weight_step(&self) -> T {
+        self.dw
+    }
+}
+
+/// The derivative scale of pair `i` of a degree-`p` spline over the
+/// `held` knot values: [`span_derivative_scale`] over
+/// `u_{i+1} … u_{i+p+1}`, `None` past the vector.
+fn pair_scale<T: Real>(held: &[T], p: usize, i: usize) -> Option<T> {
+    Some(span_derivative_scale(
+        p,
+        *held.get(i + 1)?,
+        *held.get(i + p + 1)?,
+    ))
 }
 
 /// `max_{term, point} ‖term(point)‖ / least`, or poison when there is
@@ -174,9 +201,8 @@ fn rational_span_speed_sup<T: Real, const D: usize>(
     let terms: Option<Vec<RationalPairTerm<T, D>>> = span
         .first_derived_window()
         .map(|i| {
-            let scale = span_derivative_scale(p, *held.get(i + 1)?, *held.get(i + p + 1)?);
             Some(RationalPairTerm::new(
-                scale,
+                pair_scale(held, p, i)?,
                 (*points.get(i)?, *weights.get(i)?),
                 (*points.get(i + 1)?, *weights.get(i + 1)?),
             ))
@@ -224,29 +250,26 @@ fn rational_cell_stretch_sup<T: Real, const D: usize>(
     let Some(least) = least else {
         return poison;
     };
-    let mut terms = Vec::new();
     let (run, other, held, p) = if along_u {
         (su, sv, held_u, su.degree())
     } else {
         (sv, su, held_v, sv.degree())
     };
-    for i in run.first_derived_window() {
-        let (Some(&lo), Some(&hi)) = (held.get(i + 1), held.get(i + p + 1)) else {
-            return poison;
-        };
-        let scale = span_derivative_scale(p, lo, hi);
-        for b in other.window() {
+    let terms: Option<Vec<RationalPairTerm<T, D>>> = run
+        .first_derived_window()
+        .flat_map(|i| other.window().map(move |b| (i, b)))
+        .map(|(i, b)| {
             let (a0, a1) = if along_u {
-                (at(i, b), at(i + 1, b))
+                (at(i, b)?, at(i + 1, b)?)
             } else {
-                (at(b, i), at(b, i + 1))
+                (at(b, i)?, at(b, i + 1)?)
             };
-            let (Some(a0), Some(a1)) = (a0, a1) else {
-                return poison;
-            };
-            terms.push(RationalPairTerm::new(scale, a0, a1));
-        }
-    }
+            Some(RationalPairTerm::new(pair_scale(held, p, i)?, a0, a1))
+        })
+        .collect();
+    let Some(terms) = terms else {
+        return poison;
+    };
     pair_sup(terms.into_iter(), &active, least)
 }
 

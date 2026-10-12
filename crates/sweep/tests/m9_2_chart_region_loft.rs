@@ -149,14 +149,13 @@ fn a_rational_iso_arc_wall_extracts_and_certifies_positive_area() {
         .map(|(key, _)| key)
         .find(|&key| wall_pcurve_kinds(&body, key).contains(&"IsoArc"))
         .expect("the bulged edge sweeps to a wall with IsoArc rims");
-    // A RATIONAL chart, so every bracket is taken at its own end: the
-    // infs are DIVIDED by the weight-ratio factor where
-    // `nurbs_stretch_bounds` multiplies by it, and the area element
-    // divides by its square. What survives on this wall is
-    // `inf |S_u| ≈ 1.0488`, `inf |S_v| ≈ 0.5244`, `sup ≈ (5.267,
-    // 1.907)` and `inf |S_u × S_v| ≈ 0.5499`, giving `ρ ≈ 0.1613` and
-    // arms `≈ (0.1692, 0.0846)`. The unit square scales to a
-    // 0.1692 × 0.0846 m rectangle of mean width ≈ 0.0564 m: a much
+    // A RATIONAL chart: the infs are DIVIDED by the weight-ratio
+    // factor and the area element by its square, while the sups are
+    // the pair-term bound (`NurbsSurface::stretch_sup`). What this wall
+    // reads is `inf |S_u| ≈ 1.0488`, `inf |S_v| ≈ 0.5244`,
+    // `sup ≈ (4.0775, 1.3810)` and `inf |S_u × S_v| ≈ 0.5499`, giving
+    // `ρ ≈ 0.2132` and arms `≈ (0.2236, 0.1118)`. The unit square scales
+    // to a 0.2236 × 0.1118 m rectangle of mean width ≈ 0.0745 m: a
     // weaker reading than the polynomial wall's, as the conservative
     // rational direction should be, and still definite.
     match chart_region_overlap(&body, arc_wall, &body, arc_wall, band()) {

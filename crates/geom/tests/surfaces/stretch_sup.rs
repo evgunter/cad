@@ -218,12 +218,12 @@ fn at_unit_weights_the_bound_is_the_control_difference_bound() {
 }
 
 /// **Soundness fuzz** (counterexample search): random rational nets,
-/// degree 1–3 per direction, weights over three decades, random
+/// degree 1–5 per direction, weights over six decades, random
 /// interior knots (some repeated): every row of [`check`].
 #[test]
 fn the_bound_covers_random_rational_nets() {
     let mut rng = fuzz::start("stretch_sup::random");
-    let cases = fuzz::scaled(16);
+    let cases = fuzz::scaled(25);
     let knots = |rng: &mut fuzz::Rng, p: usize, n: usize| {
         let mut k = vec![0.0; p + 1];
         let mut u = 0.0;
@@ -238,7 +238,7 @@ fn the_bound_covers_random_rational_nets() {
         k
     };
     for case in 0..cases {
-        let (pu, pv) = (1 + case % 3, 1 + (case / 3) % 3);
+        let (pu, pv) = (1 + case % 5, 1 + (case / 5) % 5);
         let (nu, nv) = (pu + 1 + rng.below(3), pv + 1 + rng.below(3));
         let (ku, kv) = (knots(&mut rng, pu, nu), knots(&mut rng, pv, nv));
         let pts: Vec<Point3<f64>> = (0..nu * nv)
@@ -251,11 +251,14 @@ fn the_bound_covers_random_rational_nets() {
             })
             .collect();
         let w: Vec<f64> = (0..nu * nv)
-            .map(|_| 10f64.powf(rng.range(-1.5, 1.5)))
+            .map(|_| 10f64.powf(rng.range(-3.0, 3.0)))
             .collect();
-        let (Ok(ku), Ok(kv)) = (KnotVector::clamped(ku, pu), KnotVector::clamped(kv, pv)) else {
-            continue;
-        };
+        // Multiplicities stay at most the degree, so every vector is
+        // admissible: a refusal is a harness bug, and loud.
+        let (ku, kv) = (
+            KnotVector::clamped(ku, pu).expect("an admissible u vector"),
+            KnotVector::clamped(kv, pv).expect("an admissible v vector"),
+        );
         let s = NurbsSurface::new(ku, kv, pts, w).unwrap();
         check(
             &format!(
@@ -265,4 +268,81 @@ fn the_bound_covers_random_rational_nets() {
             &s,
         );
     }
+}
+
+/// **The pair's own points do not suffice, on a surface.** The curve
+/// `speed_upper_bound`'s `reading_the_pair_terms_at_the_pairs_own_points_is_unsound`
+/// pins (`P₀ = P₁`, weights over six decades, sup near `658.6`
+/// against a pair-only reading below `4.9`), ruled along `v` between
+/// two equal rows, so `S_u` is that curve's derivative: reading `j`
+/// over each pair's own two points would be unsound by `136×`.
+#[test]
+fn reading_the_pair_terms_at_the_pairs_own_points_is_unsound() {
+    let (p0, p2) = (
+        Point3::new(-0.76958, 0.67766, 0.0),
+        Point3::new(-0.21312, -0.94362, 0.0),
+    );
+    let w = [563.52, 1.1505e-3, 1.6169e-3];
+    let s = surface(
+        (vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2),
+        (vec![0.0, 0.0, 1.0, 1.0], 1),
+        vec![p0, p0, p0, p0, p2, p2],
+        w.iter().flat_map(|&x| [x, x]).collect(),
+    );
+    let pts = [p0, p0, p2];
+    let least = w.iter().copied().fold(f64::INFINITY, f64::min);
+    let mut pair_only = 0.0f64;
+    for i in 0..2 {
+        for j in [i, i + 1] {
+            let v = (pts[i + 1] - pts[i]) * w[i + 1] - (pts[j] - pts[i]) * (w[i + 1] - w[i]);
+            pair_only = pair_only.max(2.0 * v.norm() / least);
+        }
+    }
+    // `S_u` does not depend on `v` (the rows are equal), and its peak
+    // is sharp: one `u` line, finely.
+    let si = s.map_scalar(<Interval as Real>::from_f64);
+    #[allow(clippy::cast_precision_loss)]
+    let floor_u = (0..=4000)
+        .map(|i| {
+            let u = (f64::from(i) / 4000.0).clamp(0.0, 1.0);
+            si.ders(Interval::from_f64(u), Interval::from_f64(0.0))
+                .du
+                .norm()
+                .lo()
+        })
+        .fold(0.0, f64::max);
+    assert!(
+        floor_u > 10.0 * pair_only,
+        "sampled sup {floor_u} vs the pair-only reading {pair_only}"
+    );
+    check("ruled pair-only counterexample", &s);
+}
+
+/// **The bound is local, per cell.** Two `u` cells (bilinear, the two
+/// rows `10⁻³` apart), the far column's weight `10⁻³` and its points
+/// `10⁻³` from the middle column's: each cell's bound reads its own least weight, so the near
+/// cell's `‖P₁ − P₀‖ = 1` stays near `1`, and the far cell's tiny step
+/// over its tiny weight near `1` too. Dividing the near cell's terms by
+/// the patch's least weight instead — sound, but global — reads
+/// `1000`.
+#[test]
+fn each_cell_reads_its_own_least_weight() {
+    let (tiny, step) = (1e-3, 1e-3);
+    // The two rows `step` apart: the cell's points are what `S` ranges
+    // over, so a far row would read in the far cell's own terms.
+    let column = |x: f64| [Point3::new(x, 0.0, 0.0), Point3::new(x, 0.0, step)];
+    let s = surface(
+        (vec![0.0, 0.0, 1.0, 2.0, 2.0], 1),
+        (vec![0.0, 0.0, 1.0, 1.0], 1),
+        [column(0.0), column(1.0), column(1.0 + step)].concat(),
+        vec![1.0, 1.0, 1.0, 1.0, tiny, tiny],
+    );
+    let (mu, _) = s.stretch_sup();
+    let global = 1.0 / tiny;
+    assert!(
+        mu.get() < global / 100.0,
+        "bound {} reads the near cell over the far cell's weight (global {global})",
+        mu.get()
+    );
+    check("a tiny weight in the far cell only", &s);
 }

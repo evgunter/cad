@@ -1262,11 +1262,10 @@ impl CellNet {
     /// skipped).
     fn s_offsets(&self, terms: &[&[PairTerm]]) -> Option<([Interval; 3], Vec<[Interval; 3]>)> {
         let c = *self.pts.first()?;
-        let flat = terms
-            .iter()
-            .flat_map(|t| t.iter())
-            .all(|t| t.dw.is_certified() && t.dw.lo() == 0.0 && t.dw.hi() == 0.0)
-            && self.pts.iter().flatten().all(|x| x.is_certified());
+        let flat = terms.iter().flat_map(|t| t.iter()).all(|t| {
+            let dw = t.weight_step();
+            dw.is_certified() && dw.lo() == 0.0 && dw.hi() == 0.0
+        }) && self.pts.iter().flatten().all(|x| x.is_certified());
         if flat {
             return Some((c, vec![[Interval::point(0.0); 3]]));
         }
@@ -1381,14 +1380,11 @@ impl CellNet {
 /// `NurbsSurface::stretch_sup` read one formula.
 type PairTerm = geom_core::spline::RationalPairTerm<Interval, 3>;
 
-/// The term as a function of the offset `S − c`:
-/// `k·(lever + dw·(P₀ − c)) − k·dw·(S − c)`. Every point still enters
-/// as a difference with another.
+/// The term as an [`Affine`] in the offset `S − c`
+/// ([`geom_core::spline::RationalPairTerm::about`]).
 fn about(t: &PairTerm, c: [Interval; 3]) -> Affine {
-    Affine {
-        k: core::array::from_fn(|i| (t.lever[i] + t.dw * (t.p0[i] - c[i])) * t.scale),
-        g: t.dw * t.scale,
-    }
+    let (k, g) = t.about(c);
+    Affine { k, g }
 }
 
 /// A vector affine in the offset `q = S − c`: `k − g·q`.

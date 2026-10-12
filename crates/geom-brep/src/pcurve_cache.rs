@@ -5653,8 +5653,8 @@ pub fn chart_stretch_sup<T: Real>(
         // were harmless only because the iso lane's own rational gate
         // refused before any rational chart reached this function.
         // That gate is gone, so the arm has to be real —
-        // `nurbs_stretch_bounds` carries the Floater weight-ratio
-        // factor for exactly this.
+        // `nurbs_stretch_bounds` reads the rational pair-term bound
+        // (`NurbsSurface::stretch_sup`) for exactly this.
         //
         // The catch-all is SPLIT: an approximating surface's arms are
         // its FIT's derivative-net bounds — the same statement about
@@ -5726,8 +5726,8 @@ fn chart_arms_at<T: Real>(
 /// nonempty cell; at unit weights the polynomial control-difference
 /// bound). One door for the whole file: [`chart_stretch_inf`]'s sup
 /// components read the same call, so `chart_stretch_sup(s).0` and
-/// `chart_stretch_inf(s).sup_u` are one computation, pinned by
-/// `the_two_doors_report_one_sup`.
+/// `chart_stretch_inf(s).sup_u` are one computation by construction
+/// (`chart_stretch_inf`'s spline arm calls this function).
 fn nurbs_stretch_bounds<T: Real>(s: &geom::NurbsSurface<T>) -> (SupSpeed<T>, SupSpeed<T>) {
     s.stretch_sup()
 }
@@ -6062,8 +6062,9 @@ fn schedule_residuals<T: Decide>(
 /// question in another shape, `matches!(…, Ok(Sign::Positive))` on the
 /// raw gap. NaN propagates ([`Real::max`]).
 ///
-/// Metered through an infinite sup arm (an overflowing weight ratio), a
-/// contained gap is `0·∞ = NaN` and refuses, fail-loud
+/// Metered through an infinite sup arm (a sup whose quotient
+/// overflows, or a weight a refinement rounded to zero), a contained
+/// gap is `0·∞ = NaN` and refuses, fail-loud
 /// (`escape_tests::a_contained_gap_through_an_infinite_arm_refuses`).
 fn escape<T: Real>(gap: T) -> T {
     gap.max(T::zero())
@@ -10120,79 +10121,6 @@ mod tests {
     }
 }
 
-/// The two stretch doors' agreement — cheap, and load-bearing.
-#[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::panic)]
-mod stretch_door_agreement {
-    use geom::{NurbsSurface, Surface};
-    use geom_core::Point3;
-    use geom_core::spline::KnotVector;
-    use std::sync::Arc;
-
-    /// `chart_stretch_sup(s).0` and `chart_stretch_inf(s).sup_u` are
-    /// the same number, and the `ρ` assembly ASSUMES they are: it
-    /// divides the second by the inf to form the normalized trace
-    /// while the escape lane meters with the first. Both read
-    /// `NurbsSurface::stretch_sup`, so this pin costs nothing and would
-    /// red the moment either grows a factor the other does not.
-    #[test]
-    fn the_two_doors_report_one_sup() {
-        /// `(knots_u, degree_u, knots_v, degree_v, flat xyz, weights)`
-        type Case = (Vec<f64>, usize, Vec<f64>, usize, Vec<f64>, Vec<f64>);
-        let cases: Vec<Case> = vec![
-            // bilinear, unit weights
-            (
-                vec![0.0, 0.0, 1.0, 1.0],
-                1,
-                vec![0.0, 0.0, 1.0, 1.0],
-                1,
-                vec![0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 4.0, 0.0, 0.0, 4.0, 1.0, 0.0],
-                vec![1.0; 4],
-            ),
-            // bilinear, RATIONAL: the rational bound must land on both doors
-            (
-                vec![0.0, 0.0, 1.0, 1.0],
-                1,
-                vec![0.0, 0.0, 1.0, 1.0],
-                1,
-                vec![0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 4.0, 0.0, 0.0, 4.0, 1.0, 0.0],
-                vec![1.0, 0.5, 2.0, 1.0],
-            ),
-            // degree 2 in u, a varying stretch and a repeated knot
-            (
-                vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0],
-                2,
-                vec![0.0, 0.0, 1.0, 1.0],
-                1,
-                vec![
-                    0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.25, 0.0, 0.0, 0.25, 1.0, 0.0, 4.25, 0.0, 0.0,
-                    4.25, 1.0, 0.0,
-                ],
-                vec![1.0; 6],
-            ),
-        ];
-        for (ku, pu, kv, pv, coords, weights) in cases {
-            let control: Vec<Point3<f64>> = coords
-                .chunks_exact(3)
-                .map(|c| Point3::new(c[0], c[1], c[2]))
-                .collect();
-            let s: Surface<f64> = Surface::Nurbs(Arc::new(
-                NurbsSurface::new(
-                    KnotVector::clamped(ku, pu).unwrap(),
-                    KnotVector::clamped(kv, pv).unwrap(),
-                    control,
-                    weights,
-                )
-                .unwrap(),
-            ));
-            let (sup_u, sup_v) = super::chart_stretch_sup(&s).unwrap();
-            let inf = super::chart_stretch_inf(&s);
-            assert_eq!(sup_u.get(), inf.sup_u, "the u sup must be ONE number");
-            assert_eq!(sup_v.get(), inf.sup_v, "the v sup must be ONE number");
-        }
-    }
-}
-
 /// **A cone has no surface-level azimuth sup, and the door says so.**
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::float_cmp)]
@@ -10446,8 +10374,9 @@ mod escape_tests {
         assert!(escape(f64::NAN).is_nan(), "poison propagates");
     }
 
-    /// `weight_ratio_factor` answers `+inf` for an overflowing ratio.
-    /// Through that arm a contained gap meters as `0·∞ = NaN` and
+    /// A sup arm can read `+inf` (an overflowing quotient, or a zero
+    /// least weight after a refinement rounded one away). Through that
+    /// arm a contained gap meters as `0·∞ = NaN` and
     /// refuses (fail-loud); an escape meters as `+inf` and is definite.
     #[test]
     fn a_contained_gap_through_an_infinite_arm_refuses() {
