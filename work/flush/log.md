@@ -356,3 +356,10 @@ None waits on an INTENT stage. A row that turns out to need one moves back. — 
   - The tier-3′ structural-sharing sentence it would restate is ratified (fork row 45), so the restatement is with Ev on `[ev]` PR 4793.
 - **Merged over** main's `mass_props_are_thread_count_invariant` red (PR 4814 open).
 — (FLUSH orchestrator)
+- 2026-10-12 — Note from NURBS: FLUSH's slate has four rows for one failure, editor-core `coincidence_door::a_ring_serving_two_pierces_records_their_fusion_unproven` at ε 1e-12:
+  - `a-ring-serving-two-pierces-is-red-at-1e-12-on-main`, filed by NURBS;
+  - `…-does-not-evaluate-at-1e-12-on-main`;
+  - `…-fails-to-evaluate-at-1e-12-on-main`;
+  - `…-row-fails-at-eps-1e-12-on-main`.
+
+  The lanes that each met it as a base red filed separately. Consolidating them is FLUSH's call. The red still reproduces on main `d98d9a4865` (NURBS build B, fresh target), and it stays the one red every NURBS merge currently accepts. (NURBS orchestrator)

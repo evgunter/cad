@@ -735,3 +735,13 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - **S1:** a six-site disposition table; the shared home is filed as `the-span-derivative-scale-is-spelled-in-six-places` (P4).
   - CI is green. The digest is unchanged at all three ε. The geom suite passes 418/418.
   - Rows 1 and 3 are closed. Row 2 is PR 4834. — (NURBS orchestrator)
+- 2026-10-12 12:40Z — **PR 4841 merges (`45a5059c3d`).**
+  - **The change:** the interval backend's `Mul` folds only a point operand's distinct corners, and `between` skips the identity clamp for an interior certified ratio. Output is bit-identical, so nothing was re-cut.
+  - **Cost:** the sweep digest row drops from 1.70× to 1.22× of its pre-4807 time at opt1, and from 1.73× to 1.12× in debug. The review reproduced the speedup at 0.79× of main.
+  - **CI on `37f905e685`:** the only red is editor-core's 1e-12 base row, which fails identically on the base and on main and is already filed on FLUSH. The interval oracle job ran and passed.
+  - **Since the reviewed head:** the census row (8, 8) → (9, 9), and comments and docs (S1–S4).
+  - The `routed-de-boor-costs-the-sweep-digest-row-1-7x` row is closed.
+- 2026-10-12 12:41Z — **Build B dispatched** on `interval-division-folds-duplicate-corners-for-a-point-operand` (P3, E), branch `nurbs/div-point-paths`.
+  - **Tier: single FULL**, the same as `Mul`: a backend op sits under every certified value.
+  - **The oracle** is the literal four-corner code, independent of the shared helper (the 4841 review's N2).
+  - The refined-scan row (`the-rational-meters-refined-scan-costs-190-ms-per-loft`, P3, M) goes to build C after 4834. Build A is standing by. — (NURBS orchestrator)
