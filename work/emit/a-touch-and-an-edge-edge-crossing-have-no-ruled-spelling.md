@@ -2,12 +2,13 @@
 id: a-touch-and-an-edge-edge-crossing-have-no-ruled-spelling
 kind: issue
 title: The sense ruling names no spelling for an edge that touches a face without crossing it, nor for two edges crossing; the build keeps Seam for the first and mints EdgeCrossing for the second
-status: open
+status: closed
 opened: 2026-10-06
+closed: 2026-10-12
 priority: P2
 cost: M
-pr: 4284
-branch: emit/ev-touch-spelling
+pr: 4816
+branch: emit/touch-crossing
 refs: [a-second-crossing-by-one-face-renames-the-first-and-its-pieces]
 ---
 
@@ -76,3 +77,44 @@ bullet), and fork-log row 120 records it.
   turn the pinned emission refusals that now fuse into builds, and check
   that those orders publish one table.
 
+
+## Built (branch `emit/touch-crossing`)
+
+- **Corner identity.** `emit_topo::name_boolean_vertices` reads a
+  vertex's operand identity at every operand key the boolean leaves at
+  the point: the kept key, its fusion partners, the rest of
+  `operand_vertex_keys` (A's first), then the vertex-pair contact rows
+  (`contact_identity`). An `a_on_b` / `b_on_a` row's vertex is the
+  operand's own key, so it is among those keys wherever it reaches the
+  vertex; a probe over the corpus, the rim-rank and pinch families and
+  the names unit tests found no non-identity vertex at such a row's
+  point. Several result vertices at one corner (null copies the result
+  keeps apart) are that corner's tie. The edge × contact-vertex `Seam`
+  arm goes with it: a contact partner names the vertex as itself.
+- **The four-valued sense** (`role::Sense`: `Outside`, `Inside`,
+  `Sense::crosses`), its key tag, and the words: "the touch where E
+  meets from inside the body of F". `side_in_body` refuses a side with
+  no classified piece; nothing reaches it.
+- **Every edge × face vertex is a `Crossing`, every edge × edge one an
+  `EdgeCrossing`.** `Seam` heads only a point on one seam line and the
+  junction run.
+- **A union's edge × edge vertex from the finished body**
+  (`emit_union::Flush::edge_crossing`): closes
+  `an-edge-edge-crossing-vertex-of-a-union-is-spelled-by-member-order`.
+
+## The residue: three or more members' edges at one point
+
+Not built as A's reading. `EdgeCrossing` holds two edges, and no ruled
+spelling carries three or more edges' senses, so reading each against
+all the other members together has nowhere to go without widening the
+segment, a design change. Today's spelling there is the junction run of
+seam lines, and the union now reads it from the finished body
+(`emit_union::Flush::junction`), so every `union_pinch` row keeps one
+name in every member order, and three or four wedges, with the plate
+and without it, now do in every order (they did not on main). What is
+left is filed as
+`work/emit/a-meeting-of-three-members-at-one-point-has-no-order-free-sense.md`.
+
+## Closed (PR 4816, 2026-10-12)
+
+Built by PR 4816: corner identity, the four-valued sense, `Crossing`/`EdgeCrossing` for every meeting, and the union edge x edge read from the finished body. The residue went to `a-meeting-of-three-members-at-one-point-has-no-order-free-sense`, and the corner tie to `a-corner-held-as-several-result-vertices-ties`, both design rows.

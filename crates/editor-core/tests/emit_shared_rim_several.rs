@@ -330,29 +330,14 @@ pub(crate) fn probe_corpus() -> Vec<(String, Vec<Bx>, Vec<usize>)> {
     docs
 }
 
-/// The emitter's two open residues the probe corpus reaches, by the
-/// cases that reach them:
-/// - `row` and `rowids`, where `a` and `h` (their x = 1 walls glued)
-///   fold before `b` joins across them, reach the unenumerated
-///   seam-vertex residue
-///   (`work/wire/a-legal-declared-union-reaches-the-seam-vertex-parentage-residue-emission.md`);
-/// - `cross` reaches the held-edge residue of a face held as several
-///   borders
-///   (`work/emit/a-held-edge-wholly-inside-a-dropped-face-is-recorded-nowhere.md`).
-const RESIDUES: [(&str, &str); 3] = [
-    (
-        "row",
-        "seam vertex parentage underdetermined from incident edges",
-    ),
-    (
-        "rowids",
-        "seam vertex parentage underdetermined from incident edges",
-    ),
-    (
-        "cross",
-        "a piece of a face held as several borders no recorded discard between them",
-    ),
-];
+/// The emitter's open residue the probe corpus reaches, by the case
+/// that reaches it: `cross` reaches the held-edge residue of a face held
+/// as several borders
+/// (`work/emit/a-held-edge-wholly-inside-a-dropped-face-is-recorded-nowhere.md`).
+const RESIDUES: [(&str, &str); 1] = [(
+    "cross",
+    "a piece of a face held as several borders no recorded discard between them",
+)];
 
 #[test]
 fn no_order_of_the_probe_corpus_refuses_several_shared_rims() {
@@ -389,29 +374,12 @@ fn no_order_of_the_probe_corpus_refuses_several_shared_rims() {
             }
         }
     }
-    // 256 cells fuse. In the eight orders of `row` and `rowids` that fold
-    // `a` and `h` before `b`, and in ten of `cross`, the emitter reaches a
+    // 272 cells fuse. In ten orders of `cross` the emitter reaches a
     // residue ([`RESIDUES`]).
-    assert_eq!(fused, 256, "cells fused");
+    assert_eq!(fused, 272, "cells fused");
     assert_eq!(
         residue,
         [
-            "row [0, 2, 3, 1]",
-            "row [0, 3, 1, 2]",
-            "row [0, 3, 2, 1]",
-            "row [2, 0, 3, 1]",
-            "row [2, 3, 0, 1]",
-            "row [3, 0, 1, 2]",
-            "row [3, 0, 2, 1]",
-            "row [3, 2, 0, 1]",
-            "rowids [0, 2, 3, 1]",
-            "rowids [0, 3, 1, 2]",
-            "rowids [0, 3, 2, 1]",
-            "rowids [2, 0, 3, 1]",
-            "rowids [2, 3, 0, 1]",
-            "rowids [3, 0, 1, 2]",
-            "rowids [3, 0, 2, 1]",
-            "rowids [3, 2, 0, 1]",
             "cross [0, 1, 2, 3]",
             "cross [0, 2, 1, 3]",
             "cross [0, 2, 3, 1]",
