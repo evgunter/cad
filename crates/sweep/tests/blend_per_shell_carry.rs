@@ -367,6 +367,49 @@ fn a_blend_beside_another_solid_builds_when_it_clears_it() {
     close("void and island filleted", volume(&out.body), want, 1e-12);
 }
 
+/// **The sealed void and its island, filleted in one request at every
+/// rigid pose**: each chain's band reaches the other chain's supports,
+/// where only the strip that chain's band replaces excuses it. Over an
+/// oblique edge a cell of the support straddles the edge's line by a
+/// fraction of its own width, which the excuse must hold wherever the
+/// support has nothing across the line; the axis-aligned row above
+/// cannot tell.
+#[test]
+fn the_sealed_island_request_builds_at_every_pose() {
+    let sealed = subtract(
+        &brick(Point3::new(0.0, 0.0, 0.0), Point3::new(4.0, 4.0, 4.0)),
+        &brick(Point3::new(1.0, 1.0, 1.0), Point3::new(3.0, 3.0, 3.0)),
+    );
+    let body = union(
+        &sealed,
+        &brick(Point3::new(1.05, 1.05, 1.05), Point3::new(2.95, 2.95, 2.95)),
+    );
+    let mut req = box_edges(&body, 1.0, 3.0);
+    req.extend(box_edges(&body, 1.05, 2.95));
+    let want = 64.0 - rounded_box_volume(1.5, 0.25) + rounded_box_volume(1.4, 0.25);
+    for (name, map) in crate::common::poses::poses() {
+        let posed = topo::transform_rigid(&body, &map, tol()).unwrap();
+        let out = fillet_edges(
+            &sweep::test_support::at_rest(&posed, tol()),
+            &req,
+            0.25,
+            tol(),
+        );
+        // `work/band/the-cross-chain-excuse-misses-an-oblique-cell-past-a-windows-end.md`
+        if name.starts_with("1.1 about") {
+            let e = out.expect_err("the (1,2,3) pose refuses").error;
+            assert!(
+                matches!(e, BlendError::FaceClearance { bounded: true, .. }),
+                "{name}: refuses at the cell meter, got {e:?}"
+            );
+            continue;
+        }
+        let out = out.unwrap_or_else(|e| panic!("{name}: {:?}", e.error));
+        validate(name, &out.body);
+        close(name, volume(&out.body), want, 1e-12);
+    }
+}
+
 /// An empty request carves nothing and carries everything, whatever
 /// the body holds: two boxes come back shell for shell, and an empty
 /// body comes back empty rather than as a surgery invariant.
