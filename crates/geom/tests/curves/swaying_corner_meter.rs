@@ -398,7 +398,8 @@ fn a_degree_one_rational_net_meters_its_exact_minimum() {
 /// value: reading it leaves `Debug` unchanged, a clone reads the same
 /// bits, and a curve built from a metered one by a door that moves the
 /// net (here a uniform scale by 2, which doubles the speed) meters its
-/// own net rather than inheriting the first answer.
+/// own net rather than inheriting the first answer. A symbolic session
+/// is not served it either (the row below).
 #[test]
 fn the_meter_memo_is_invisible_and_never_inherited() {
     let c = swaying(2.0, 3);
@@ -415,5 +416,42 @@ fn the_meter_memo_is_invisible_and_never_inherited() {
     assert!(
         (ms - 2.0 * m).abs() <= 1e-12 * m,
         "scaled net metered {ms}, twice the source's {m} expected"
+    );
+}
+
+/// At `Sym` the memo is invisible to a session too: a curve whose meter
+/// was first read before the session decides over its meter with the same
+/// freezes as one whose meter is first read inside it. A memo served
+/// across that boundary hands the session a node it never recorded,
+/// which freezes to an unknown of its own.
+#[test]
+fn a_meter_read_before_a_session_is_not_served_inside_it() {
+    use geom_core::k_stats::decide;
+    use geom_core::predicate::{Band, Margin, Sign};
+    use geom_core::sym::with_session;
+    use geom_core::{Sym, SymBudget, Tol};
+    type S = Sym<f64>;
+    let budget = SymBudget {
+        max_terms: 4096,
+        max_degree: 128,
+    };
+    let in_session = |c: &NurbsCurve3<S>| {
+        with_session(budget, || {
+            let m = c.speed_lower_bound().get();
+            let band = Band::linear(Tol::witness()).expect("linear band");
+            decide("meter_memo", Margin::of(m - m), band)
+        })
+    };
+    let read_before = swaying(2.0, 3).map_scalar(S::from_f64);
+    let _ = read_before.speed_lower_bound();
+    let fresh = swaying(2.0, 3).map_scalar(S::from_f64);
+    let (before, before_counts) = in_session(&read_before);
+    let (inside, inside_counts) = in_session(&fresh);
+    assert_eq!(before, Ok(Sign::Zero), "{before_counts:?}");
+    assert_eq!(inside, Ok(Sign::Zero), "{inside_counts:?}");
+    assert_eq!(
+        before_counts.frozen, inside_counts.frozen,
+        "a meter first read before the session froze differently: {before_counts:?} against \
+         {inside_counts:?}"
     );
 }

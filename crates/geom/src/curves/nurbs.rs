@@ -484,11 +484,12 @@ macro_rules! nurbs_curve {
             /// construction ([`SpanLocate::point_value`]): what every
             /// structure decision on the weights reads.
             weight_channel: Vec<f64>,
-            /// [`Self::speed_lower_bound`], filled on first read. It is
-            /// a function of the four fields above, which nothing
-            /// mutates after construction, so it cannot go stale; every
-            /// door that changes them builds a new curve with an empty
-            /// memo, and a clone carries the memo of the same value.
+            /// [`Self::speed_lower_bound`], filled on first read outside
+            /// a symbolic session. It is a function of the four fields
+            /// above, which nothing mutates after construction, so it
+            /// cannot go stale; every door that changes them builds a
+            /// new curve with an empty memo, and a clone carries the
+            /// memo of the same value.
             speed: OnceLock<geom_core::InfSpeed<T>>,
         }
 
@@ -1245,7 +1246,18 @@ macro_rules! nurbs_curve {
             /// discriminates assembly structure, never geometry: the
             /// geometric decision (is the bound positive?) stays with
             /// the caller's trilean.
+            ///
+            /// **Memoised outside a symbolic session only.** A session's
+            /// table holds the nodes it saw built, and a node minted
+            /// anywhere else freezes in it to an unknown of its own
+            /// (`geom_core::sym`, "No session, no tier"), so a memo
+            /// served across that boundary would change what the
+            /// session decides. Inside one the meter is computed afresh,
+            /// and nothing it mints is kept.
             pub fn speed_lower_bound(&self) -> geom_core::InfSpeed<T> {
+                if geom_core::sym::session_counts().is_some() {
+                    return self.speed_lower_bound_uncached();
+                }
                 *self.speed.get_or_init(|| self.speed_lower_bound_uncached())
             }
 
