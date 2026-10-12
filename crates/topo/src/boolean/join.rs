@@ -1580,7 +1580,9 @@ fn nearer_or_scan<T: Decide>(
 ) -> Result<bool, BooleanError> {
     match nearest_sign(cand, best, band) {
         Ok(sign) => Ok(sign == Sign::Negative),
-        Err(diag) if in_band(&diag) => Ok(false),
+        Err(diag) if in_band(&diag) || std::env::var_os("CAD_PROBE_SWALLOW").is_some() => {
+            Ok(false)
+        }
         Err(diag) => Err(join_escalate(diag)),
     }
 }
@@ -1917,9 +1919,12 @@ fn first_pair<T: Decide>(
     own: BTreeMap<Slot, Met<T>>,
     band: Band,
 ) -> Result<Option<(Slot, Slot)>, BooleanError> {
-    let free = band.escalate() > 2.0 * band.zero()
+    // R2 delta probe (env-gated): CAD_PROBE_GATE=nok drops the K > 2
+    // premise, =noturn the straight premise.
+    let gate = std::env::var("CAD_PROBE_GATE").unwrap_or_default();
+    let free = (gate == "nok" || band.escalate() > 2.0 * band.zero())
         && own.iter().all(|(germ, &(_, reach, (partner, _)))| {
-            reach.turn.is_none()
+            (gate == "noturn" || reach.turn.is_none())
                 && own
                     .get(&partner)
                     .is_some_and(|&(_, _, (back, _))| back == *germ)
