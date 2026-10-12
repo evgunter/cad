@@ -658,7 +658,9 @@ fn matched_records<T: Decide>(
     let (sa, sb) = (Sides::new(red, Operand::A), Sides::new(red, Operand::B));
     let mut open = open_records(red)?;
     let mut segments = Vec::new();
+    let mut review_set: Vec<(Slot, Slot)> = Vec::new();
     while let Some((entry, cand)) = find_match(&open, red, &sa, &sb, band)? {
+        review_set.push((entry, cand));
         let germ = open[entry.0].a[entry.1].0;
         for (r, slot) in [entry, cand] {
             open[r].a[slot].1 = true;
@@ -673,6 +675,10 @@ fn matched_records<T: Decide>(
             germ,
             lane,
         });
+    }
+    if std::env::var("REVIEW_PROBE_SET").is_ok() {
+        review_set.sort();
+        eprintln!("REVIEW_PROBE_SET {review_set:?}");
     }
     Ok((segments, open))
 }
@@ -1856,17 +1862,31 @@ fn first_pair<T: Decide>(
         own.get(&partner)
             .is_some_and(|&(_, _, (back, _))| back == *germ)
     });
+    let probe = std::env::var("REVIEW_PROBE_JOIN").is_ok();
+    let reverse = std::env::var("REVIEW_PROBE_REVERSE").is_ok();
+    if probe {
+        let pairs: Vec<_> = own
+            .iter()
+            .map(|(g, (at, r, (p, _)))| format!("{g:?}->{p:?}@{at} c={:?}", r.chord))
+            .collect();
+        eprintln!("REVIEW_PROBE round mutual={mutual} {}", pairs.join(" "));
+    }
     let mut met: Vec<_> = own.into_values().collect();
     met.sort_by_key(|&(at, ..)| at);
     let mut best: Option<(Reach<T>, (Slot, Slot))> = None;
     for (_, reach, m) in met {
         best = keep_nearer(best, (reach, m), |c, b| {
-            if mutual {
+            if mutual && reverse {
+                Ok(!matches!(nearest_sign(c, b, band), Ok(Sign::Positive)))
+            } else if mutual {
                 Ok(nearer_or_scan(c, b, band))
             } else {
                 nearer(c, b, band)
             }
         })?;
+    }
+    if probe {
+        eprintln!("REVIEW_PROBE commit {:?}", best.as_ref().map(|(_, m)| *m));
     }
     Ok(best.map(|(_, m)| m))
 }
@@ -6739,9 +6759,23 @@ mod review_probe {
             adj[j][i] = Some(d);
         }
         let band = Band::new(1.0, 1.1).unwrap();
-        println!("pr   = {:?}", run(n, &adj, band, None));
-        println!("base = {:?}", run(n, &adj, band, Some(0)));
-        for s in 1..40u64 { println!("alt{s} = {:?}", run(n, &adj, band, Some(s * 7919))); }
+        // K = 1.1 (Tolerance admits any finite K > 1): main's matcher
+        // escalates; the PR's commits one matching; another order among
+        // the same all-mutual round commits a different one.
+        let norm = |v: Vec<(Slot, Slot)>| {
+            let mut v = v;
+            v.sort();
+            v
+        };
+        assert!(run(n, &adj, band, Some(0)).is_err(), "main escalates");
+        let pr = norm(run(n, &adj, band, None).expect("the PR builds"));
+        let other: Vec<_> = (1..40u64)
+            .filter_map(|s| run(n, &adj, band, Some(s * 7919)).ok())
+            .map(norm)
+            .filter(|m| *m != pr)
+            .collect();
+        assert!(!other.is_empty(), "some order reaches another matching");
+        println!("pr = {pr:?}\nother = {:?}", other[0]);
     }
 
     #[test]
