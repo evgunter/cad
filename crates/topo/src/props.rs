@@ -2973,7 +2973,7 @@ impl fmt::Display for ShellClassifyPayload<'_> {
             ShellClassifyError::Props { source, .. } => write!(f, "{source}"),
             ShellClassifyError::Escalated { source, .. } => write!(
                 f,
-                "the sign of a shell's volume is too close to call: {}",
+                geom_core::undecided!("the sign of a shell's volume", payload),
                 source.payload()
             ),
             ShellClassifyError::ZeroVolume { .. } => f.write_str(
