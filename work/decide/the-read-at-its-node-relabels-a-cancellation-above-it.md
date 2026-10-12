@@ -7,6 +7,7 @@ opened: 2026-10-02
 priority: P2
 refs: [DECIDE-9, the-decision-read-answers-theorems-the-must-carry-stations-would-prove]
 cost: M
+needs_ev: true
 ---
 
 
@@ -64,3 +65,42 @@ measured on this shape):
 
 Each must leave alone every decision the read answers where no form
 settles, and its `numeric` count.
+
+## Question
+
+What a `symbolic_zero` / `sign_gated` / `registered` label means.
+
+DECIDE-10's draft (branch `decide/10-read-behind-the-parent`, its
+measurements in this item's copy there) made a label the strongest
+any proof earns. It walked every gated decision again with the value
+reads shut. On the tilted derived-frame family, where this class is
+the only one that occurs, that walk costs 25× and 21×:
+- the start-cap/FlipZ row goes from 0.525 s to 13.35 s;
+- the boss row goes from 0.130 s to 2.74 s.
+
+The cost is the read-free proof's own size. The fix pass found 368
+distinct roots, and read-free frames up to 1,391 terms, so it is not
+memoisable.
+
+Two designers weighed it independently and converged after one
+round. Their recommendation is that a label names the premises of the
+proof the tier found, not the strongest label another proof could
+earn:
+- The shut walk does not ship. Instead, a document's need for the read
+  is the differential against `SymRules::without_the_reads`.
+- The ladder keeps asking its rungs strongest-first, which keeps the
+  draft's cheap top-rung check.
+- The three answers the read loses with it on are each fixed at their
+  own cause:
+  - S8: an atom is keyed by its argument's polynomial, with the gate
+    carried on the form.
+  - S13: a freeze is keyed by its operation over its kids' forms, not by
+    its node.
+  - S12: a label is a set of premises (`{}`, `{read}`,
+    `{registration}`, `{read, registration}`), and
+    `MarginDiag::jointly` is a union. On main, `jointly` reports
+    `sign_gated ⊔ registered` as `registered`, which drops the read.
+- The labels no longer meet the spec's invariant ("every decision the
+  read-free walk proves is a theorem with the read on"). So the
+  invariant is retired.
+
