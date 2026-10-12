@@ -15,16 +15,17 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::spline::Knots;
 use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve3, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Bounds, Interval, Point2, Point3, Real, SpanLocate, SupSpeed, Tol, Vec3};
 use topo::pcurves::ChartArm;
 use topo::{
     Body, ChartBound, ChartEdge, ChartLoop, FaceSurface, LoopBoundary, MefSite, MetredRect,
-    MevSite, PcurveCertifyError, PcurveMintError, chart_boundary,
+    MevSite, PcurveMintError, chart_boundary,
 };
 
 use crate::common;
@@ -465,8 +466,7 @@ fn t7_a_loop_that_wraps_the_chart_refuses() {
         let carrier = half_arc(start);
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
-                s1: cyl,
-                s2: pln,
+                pair: SurfacePair::new(cyl, pln),
                 witness: carrier.eval(iv(pi / 2.0)),
             },
             carrier,
@@ -531,13 +531,13 @@ fn face_chart(body: &Body<Interval>, face: topo::FaceKey) -> Surface<Interval> {
 }
 
 /// **T9** — a `Curve3::Nurbs` carrier on a PLANE chart has no
-/// closed-form image, and the refusal propagates out of
-/// `chart_boundary` typed rather than being swallowed into an empty
-/// bound. The same test states the positive premise first: an
-/// untouched planar face describes.
-/// Kills: swallowing the refusal into an empty description.
+/// closed-form image; its image is the projected one (its net mapped
+/// through the affine chart), so the face still describes, the edge as
+/// an envelope rather than a structural segment, and the description
+/// still answers the outside test. The same test states the premise
+/// first: an untouched planar face describes as four segments.
 #[test]
-fn t9_a_nurbs_carrier_on_a_plane_chart_refuses_typed() {
+fn t9_a_nurbs_carrier_on_a_plane_chart_describes_through_its_projected_image() {
     let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
     let built = common::prism::<Interval>(&square, 1.0, geom_core::Tol::witness());
     let mut body = built.body;
@@ -581,7 +581,7 @@ fn t9_a_nurbs_carrier_on_a_plane_chart_refuses_typed() {
     );
 
     // Now swap one carrier for a degree-1 NURBS along the same chord —
-    // the same locus, a kind the plane chart has no image for.
+    // the same locus, a kind with no closed-form plane-chart image.
     let edge_key = {
         let lp = body.get_face(face).unwrap().outer;
         let LoopBoundary::Cycle { first } = body.get_loop(lp).unwrap().boundary else {
@@ -606,12 +606,15 @@ fn t9_a_nurbs_carrier_on_a_plane_chart_refuses_typed() {
         .unwrap();
     let q1 = *body.get_point(body.get_vertex(end).unwrap().point).unwrap();
     let knots = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
-    let spline = NurbsCurve3::new(knots, vec![q0, q1], vec![1.0, 1.0])
-        .expect("the chord as a degree-1 spline");
+    let spline = NurbsCurve3::new(
+        Knots::from(knots).lift(geom_core::Real::from_f64),
+        vec![q0, q1],
+        vec![Real::one(); 2],
+    )
+    .expect("the chord as a degree-1 spline");
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
-            s1,
-            s2,
+            pair: SurfacePair::new(s1, s2),
             witness: q0.lerp(q1, iv(0.5)),
         },
         carrier: Curve3::Nurbs(Arc::new(spline)),
@@ -621,21 +624,26 @@ fn t9_a_nurbs_carrier_on_a_plane_chart_refuses_typed() {
     body.set_edge_curve(edge_key, spec, Tol::witness())
         .expect("a rung-3 carrier under an Intersection description certifies");
 
-    let err = chart_boundary(&body, face, &chart, band())
-        .expect_err("a Nurbs carrier has no closed-form plane-chart image");
+    let described = chart_boundary(&body, face, &chart, band())
+        .expect("a Nurbs carrier on a plane chart describes through its projected image");
+    assert_eq!(described.loops[0].edges.len(), 4, "the same four edges");
+    assert_eq!(
+        described.loops[0]
+            .edges
+            .iter()
+            .filter(|e| !matches!(e, ChartEdge::Segment { .. }))
+            .count(),
+        1,
+        "the spline edge is not a segment by structure, the three lines still are"
+    );
+    let metred = described.metred((Interval::one(), Interval::one()));
     assert!(
-        matches!(
-            err,
-            PcurveMintError::Certify {
-                error: PcurveCertifyError::UnsupportedCarrier {
-                    chart: geom::SurfaceKind::Plane,
-                    carrier: geom::CurveKind::Nurbs,
-                    class: geom_brep::UncoveredClass::SplineCarrier,
-                },
-                ..
-            }
-        ),
-        "the refusal must name the carrier kind it cannot image: {err}"
+        metred.certifies_outside(MetredRect::new(100.0, 101.0, 100.0, 101.0), b),
+        "a cell far from the face still certifies outside"
+    );
+    assert!(
+        !metred.certifies_outside(MetredRect::point(centre.0, centre.1), b),
+        "the face's own centre is still material"
     );
 }
 

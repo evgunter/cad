@@ -199,8 +199,7 @@ fn lamina(delta: f64) -> Body<f64> {
             edge,
             geom_brep::EdgeCurveSpec {
                 description: geom_brep::EdgeDescriptionSpec::Intersection {
-                    s1: pl,
-                    s2: wl,
+                    pair: geom_brep::SurfacePair::new(pl, wl),
                     witness: carrier.eval(0.5),
                 },
                 carrier: Curve3::Nurbs(Arc::new(carrier)),

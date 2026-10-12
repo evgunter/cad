@@ -137,7 +137,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             refuses_at: Some(3.030e2),
             refused_by: None,
             registered: 48,
-            symbolic_zero: [774, 774, 774],
+            symbolic_zero: [814, 814, 814],
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
         Study {
@@ -149,14 +149,15 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // The fillet's tangency is the registration
             // `centre ≡ t1 + σ·r·n̂₁`, not an identity of the offset
             // centre's algebra, so eight `dihedral_wedge` decisions are
-            // registered rather than proved.
-            registered: 47,
+            // registered rather than proved. The tangent certificate's
+            // gap rows on the fillet's contact edges added ten (47 → 57).
+            registered: 57,
             // One is the fillet run out read against its arrival carrier
             // (`path_run_out_carrier`), a margin the tier proves zero.
             // How many the tier reaches depends on the order the
             // variables' symbols sort in
             // (`work/rules/sym-tier-reach-depends-on-symbol-order`).
-            symbolic_zero: [1376, 1376, 1376],
+            symbolic_zero: [1386, 1386, 1386],
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {
@@ -167,11 +168,11 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             refused_by: None,
             // Rule F's differential on this document is
             // `m10_9_the_pad_at_both_rule_f_dials`'s.
-            registered: 54,
+            registered: 64,
             // Three are the fillet run outs read against their arrival
             // carriers (`path_run_out_carrier`), margins the tier proves
             // zero.
-            symbolic_zero: [1256, 1256, 1256],
+            symbolic_zero: [1306, 1306, 1306],
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },
     ]
@@ -511,6 +512,18 @@ fn m10_9_no_registrant_lies_on_any_measured_document() {
 /// analyzed box, the two dials read the same receipt at every ε row
 /// (`work/rules/the-negative-arm-lost-its-document-consumer`).
 ///
+/// Re-taken on the tree that composes three changes: PCERT's
+/// chart-angle unit and the extrude's cap decide
+/// (`cap_plane_orientation`) set the decision columns, and an intrinsic
+/// edge description's surfaces becoming a set
+/// (`geom_brep::SurfacePair`) moves only the frozen count, which is
+/// 3232 composed (3171 without the set).
+/// The cause is the transversality wedge
+/// (`geom_brep::dihedral::wedge_decided`'s `n1.cross(n2)`), which the
+/// certificate reads in key order and the extrude's dihedral in builder
+/// order: symmetric in value up to sign, not in form, so mixed
+/// orientations build distinct hash-consed forms. No decision moved.
+///
 /// **What runs it: the slow set** (`.config/nextest.toml`), at the
 /// default ε on every PR whose diff seeds `editor-core`, and every night
 /// at every ε row. It is two whole-box pad replays on top of the gating
@@ -551,7 +564,7 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
     }
     assert_eq!(
         got[0],
-        (1256, 2, 54, 1192, 3171),
+        (1306, 2, 64, 1284, 3280),
         "rule F shut: the pad's receipt"
     );
     assert_eq!(

@@ -77,7 +77,7 @@ fn box_node(doc: ProfileDoc, ox: f64, oy: f64, w: f64, h: f64) -> (ProfileDoc, R
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(h),
             side: ExtrudeSide::Along,
         },

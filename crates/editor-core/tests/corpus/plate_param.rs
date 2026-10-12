@@ -29,8 +29,8 @@
 
 use editor_core::ExtrudeSide;
 use editor_core::{
-    BooleanOp, Dimension, DocEdit, Formula, FreeVar, LoopProgram, Node, ProfileProgram,
-    ProgramStep, ProgramTarget, RecipeNodeId, SlotId, VarName,
+    Dimension, DocEdit, Formula, FreeVar, LoopProgram, Node, ProfileProgram, ProgramStep,
+    ProgramTarget, RecipeNodeId, SlotId, VarName,
 };
 
 use crate::fixture::{frame, len, xy_frame};
@@ -84,7 +84,7 @@ pub fn outline() -> LoopProgram<Formula> {
 /// two holes.
 pub fn plate_profile(plane: RecipeNodeId) -> ProfileProgram<Formula> {
     ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![
             outline(),
             hole_loop(HOLE_CENTRES[0]),
@@ -104,7 +104,7 @@ pub fn document() -> CorpusDoc {
     let plate_plane = r.insert(xy_frame());
     let plate_p = r.insert(Node::Profile(plate_profile(plate_plane)));
     let plate = r.insert(Node::Extrude {
-        profile: plate_p,
+        profile: plate_p.into(),
         distance: len(PLATE_DEPTH),
         side: ExtrudeSide::Along,
     });
@@ -116,7 +116,7 @@ pub fn document() -> CorpusDoc {
     // no coincident faces to refuse.
     let tab_plane = r.insert(frame([0.0, 0.0, 0.125], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let tab_p = r.insert(Node::Profile(ProfileProgram {
-        plane: tab_plane,
+        frame: tab_plane.into(),
         loops: vec![
             LoopProgram::polygon([(3.5, 1.75), (4.5, 1.75), (4.5, 2.5), (3.5, 2.5)])
                 .expect("finite tab corners"),
@@ -124,17 +124,16 @@ pub fn document() -> CorpusDoc {
         ids: Vec::new(),
     }));
     let tab = r.insert(Node::Extrude {
-        profile: tab_p,
+        profile: tab_p.into(),
         distance: len(0.25),
         side: ExtrudeSide::Along,
     });
 
-    let union = r.insert(Node::Boolean {
-        op: BooleanOp::Union,
-        a: plate,
-        b: tab,
-        declare: Vec::new(),
+    let union = r.insert(Node::Union {
+        members: editor_core::Bodies::Spelled(vec![plate.into(), tab.into()]),
     });
+
+    r.place(union);
 
     CorpusDoc {
         name: "plate_param",
@@ -146,7 +145,7 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: tab,
             slot: SlotId::Distance,
-            expr: len(0.625),
+            value: len(0.625).into(),
             fresh: Vec::new(),
         },
         bump_root: tab,

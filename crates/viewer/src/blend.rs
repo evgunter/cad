@@ -17,9 +17,8 @@
 //! # One target, and why the rule is structural
 //!
 //! [`crate::session::SessionOp::AddFillet`] and its chamfer twin carry
-//! ONE target — `Node::Fillet { target, .. }` blends edges of one
-//! body, and a selection resolves through that body's name table and
-//! no other. So the accumulator holds one [`BlendTarget`] and a set of
+//! ONE target — a fillet reads one `Edges` selection, which states its
+//! body once and resolves through that body's name table and no other. So the accumulator holds one [`BlendTarget`] and a set of
 //! names under it: the first pick fixes the target, and a pick on
 //! another drawn body has nowhere to land. It is refused as a typed
 //! event ([`BlendEvent::OtherTarget`]) rather than silently ignored,
@@ -85,8 +84,8 @@ pub const FREEZE_NOTE: &str = "the picked edges freeze at commit: an upstream ed
 /// The drawn body a blend's edges belong to: the node whose value it
 /// is, and which of that node's output bodies.
 ///
-/// The NODE is what `Node::Fillet` stores as its target and what the
-/// selection's names resolve through. The BODY index rides along
+/// The NODE is the one whose output the fillet's selection reads, and
+/// what the selection's names resolve through. The BODY index rides along
 /// because an edge pick carries one and a set drawn from two bodies of
 /// one node would be as wrong as a set drawn from two nodes — the
 /// accumulator scopes to the pair it was opened on, and the refusal
@@ -136,7 +135,7 @@ impl BlendTarget {
         match selection {
             Selection::Edge(edge) => Some(Self::of(edge)),
             Selection::Face(face) => Some(Self::of_face(face)),
-            Selection::None | Selection::Node(_) | Selection::Param(_) => None,
+            Selection::None | Selection::Node(_) | Selection::Variable(_) => None,
         }
     }
 }
@@ -754,18 +753,18 @@ mod tests {
     /// held set is untouched.
     #[test]
     fn a_target_whose_edges_the_index_cannot_name_refuses_the_load_in_its_words() {
-        let (eval, mut index, extrude) = plate_indexed(pncad::geom_core::Tol::witness());
+        let (eval, mut index, copy) = plate_indexed(pncad::geom_core::Tol::witness());
         let (doc, _) = crate::scene::plate_with_hole(pncad::geom_core::Tol::witness())
             .expect("the plate authors");
         let target = BlendTarget {
-            node: extrude,
+            node: copy,
             body: 0,
         };
-        let drawn = index.edges_in(extrude, 0).to_vec();
+        let drawn = index.edges_in(copy, 0).to_vec();
         let mut tool = BlendTool::new();
         let held = EdgeSelection {
             name: index.edge_name_of(drawn[0]).expect("named").clone(),
-            node: extrude,
+            node: copy,
             body: 0,
         };
         assert_eq!(tool.pick(&doc, &held), None);
@@ -773,7 +772,7 @@ mod tests {
 
         let first = index.unname_edge(drawn[2]);
         let refused = EdgeNamesRefused {
-            node: extrude,
+            node: copy,
             body: 0,
             first,
             named: drawn.len() - 1,
@@ -793,7 +792,7 @@ mod tests {
         assert!(
             said.contains(&refused.to_string())
                 && said.contains(
-                    &Said(&EdgeNameFault::Unnamed(first), Speaker::TAG.about(extrude)).to_string()
+                    &Said(&EdgeNameFault::Unnamed(first), Speaker::TAG.about(copy)).to_string()
                 ),
             "the index's own words, through its Display: {said}"
         );
@@ -826,16 +825,16 @@ mod tests {
     /// and the load answers what it answers for a body with no edges.
     #[test]
     fn a_target_the_index_does_not_draw_is_not_a_naming_refusal() {
-        let (eval, index, extrude) = plate_indexed(pncad::geom_core::Tol::witness());
+        let (eval, index, copy) = plate_indexed(pncad::geom_core::Tol::witness());
         let (doc, _) = crate::scene::plate_with_hole(pncad::geom_core::Tol::witness())
             .expect("the plate authors");
         let target = BlendTarget {
-            node: extrude,
+            node: copy,
             body: 7,
         };
         assert!(matches!(
             index.edge_name_of(EdgeId {
-                node: extrude,
+                node: copy,
                 body: 7,
                 boundary: 0,
             }),

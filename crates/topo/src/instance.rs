@@ -17,8 +17,7 @@
 //! is the disjoint union of two bodies' contents in one arena. The
 //! transplant itself is `combine`'s, called verbatim — same fresh keys
 //! in deterministic slot order (D9), same forwarded provenance, same
-//! `GeomSource` and pcurve-cache carry, same description surface-key
-//! remap. Two differences, both forced by what a DISJOINT graft is:
+//! pcurve-cache carry, same description surface-key remap. Two differences, both forced by what a DISJOINT graft is:
 //! the destination is an empty solid the graft mints instead of one
 //! already holding shells, and the description bridge carries the
 //! source's certificate with the handles rewritten rather than
@@ -54,7 +53,7 @@
 //! reach is stated exactly (the census module docs carry the full
 //! class-by-class envelope): an overlap or touch that leaves
 //! vertex/line/planar boundary evidence surfaces as the
-//! undeclared-contact hard error naming the guilty pair (a proper
+//! unrecorded-contact hard error naming the guilty pair (a proper
 //! pierce is categorically undeclarable) and certifies where
 //! declared; cross-solid proximity with a curved side (against a
 //! curved OR planar partner, F5) REFUSES as `CensusUndecidable` — the
@@ -62,8 +61,9 @@
 //! (the C9-ring conformal-rest / partial-embedding class); one
 //! instance's extents nested inside another's go to the material
 //! test, which clears a part sitting in a concavity and refuses an
-//! embedded one typed (`InstanceInterference` — recorded gate-skips,
-//! the declaration that would admit it, do not exist yet). A pair of
+//! embedded one typed (`InstanceInterference`, which no record
+//! admits; between two copies at rest the assembly layer reports it as
+//! a finding). A pair of
 //! PLANAR faces is left
 //! to the sweeps only when both are bounded entirely by line edges,
 //! which is what puts a whole boundary in front of them — so an
@@ -129,8 +129,8 @@ pub fn graft_disjoint<T: geom_core::Decide>(
 /// (`combine`'s module docs), and N calls mint where this one call
 /// shares. Which source solid a grafted face came
 /// from stays derivable exactly as it was before the graft: from the
-/// solid it now sits under, and from the `GeomSource`/provenance
-/// records the transplant carries.
+/// solid it now sits under, and from the provenance records the
+/// transplant carries.
 ///
 /// Sharing is impossible here for the same reason it is at the single
 /// door: every transplanted entity is re-created under a FRESH key, so
@@ -191,7 +191,7 @@ pub fn graft_disjoint_all<T: geom_core::Decide>(
 /// **The count is over the aggregate's SOLIDS.** Its one caller,
 /// `step_import::import_step`, gates each placed instance, which is one
 /// solid, with tier 3; its aggregate gate is tier 3′, the
-/// declared-contact census, which is where the cross-part structure is
+/// contact-record census, which is where the cross-part structure is
 /// checked. Its instance count IS its solid count, and it says why at
 /// the call. A caller that counts something else owes the reason its
 /// count IS the solid count, at the call.
@@ -496,7 +496,15 @@ mod tests {
         let mut dst = cube();
         let before = deep_snapshot(&dst);
         let err = graft_disjoint(&mut dst, &Body::<f64>::new()).expect_err("no solid to graft");
-        assert!(format!("{err:?}").contains("JoinDesync"), "{err:?}");
+        assert!(
+            matches!(
+                err,
+                crate::BooleanError::JoinDesync {
+                    what: "graft source does not hold exactly one solid"
+                }
+            ),
+            "{err:?}"
+        );
         assert_eq!(
             deep_snapshot(&dst),
             before,
@@ -510,7 +518,15 @@ mod tests {
         let mut dst = cube();
         let before = deep_snapshot(&dst);
         let err = graft_disjoint(&mut dst, &two).expect_err("two solids in the source");
-        assert!(format!("{err:?}").contains("JoinDesync"), "{err:?}");
+        assert!(
+            matches!(
+                err,
+                crate::BooleanError::JoinDesync {
+                    what: "graft source does not hold exactly one solid"
+                }
+            ),
+            "{err:?}"
+        );
         assert_eq!(
             deep_snapshot(&dst),
             before,

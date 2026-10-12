@@ -692,3 +692,50 @@ coincidence is now a margined verdict (no declarations), checked by the
 - **Why it goes to Ev:** the route rewrites C4's `OnLocusHull` sentence, which Ev worded on PR 3781, and the sphere circle's Hermite sentence, which landed with 3733 without an `[ev]` review. PR 4261 carries the diff and fork-log row 85.
 - **Still Ev's:** A versus A′ (whether the sphere's general circle leaves the Hermite route); both designers lean A. The P1/P2 question is in the PR body.
 - **Off-question findings, filed:** `no-fitted-class-misuse-is-excused-by-not-owed`, `site-rows-derive-through-chart-pcurve-bypassing-the-routed-arm` and `on-locus-hull-is-named-for-charts-whose-metres-composite-refuses`. The excusal-fixture row's `m6_2` claim is corrected.
+
+## 2026-10-07 — PR 4268 merged (6f5c5224): the LINE seam carries its chart row's refusal
+
+- `line-seam-boundary-row-refusal-discarded-as-iso-unsupported` (P2) is closed. The LINE-seam arm now answers `ChartRow { source }`, as its sibling arms do.
+- **The sweep found the same discard in SSI's `Pass::curve`, which was fixed.** `SsiError` gains `ChartRow`, numbered in SSI's roster, and the fitted lane maps it through to pcert's `ChartRow`.
+- **A third site was filed for SSI** (P3): `ssi-one-arc-side-readers-discard-the-side-rows-refusal`.
+- **The test the brief asked for cannot exist:** a mismatched net cannot reach the arm. A source-preservation test stands in for it.
+- **Review:** orchestrator's read (an S unit, a one-line repair plus its sibling).
+- `[ev]` PR 4261 (spline-carrier route) is still awaiting Ev.
+
+## 2026-10-08 — Ev rules on 4261; merged (529a47bd); projected-image implementer dispatched
+
+- **Ev's question:** first asked whether the PR concerned the intensional description or the cache. Answered: the cache, and D2 is unchanged.
+- **Ev's ruling** ("ok all the recommendations sound good!"):
+  - the projected image goes on every analytic chart, with the sphere's general circle included (A);
+  - `OnLocusHull` and the Hermite route retire on analytic charts;
+  - the tube belongs to the edge's certificate;
+  - P1 is kept.
+- **Record:** fork-log row 89 is completed (renumbered from 85 at merge, because main took rows 85–88).
+- **Implementer:** session_01Ht23dQzhB1yisWXxau9tZF, on branch `pcert/projected-image` from 981fd34e. It is an H unit, with at most two PRs, and gets a dual review. It first establishes where the tube lives at rest.
+
+## 2026-10-09 — PR 4304 merged (111782d6): the projected image on every analytic chart; dual review, three follow-up reviews, DR-116
+
+- **Dual review** at `fdc8ea9b` (byte 13, odd: R1 = B, R2 = A). R1 NOT-MERGEABLE-AS-IS, R2 APPROVE-WITH-FIXES. Both found the same MAJOR, so the tally stays 0.
+  - **The MAJOR:** retiring `OnLocusHull` dropped limbs 1–2 from every edge whose faces store no row. A plane face, or a mate named only in the description, left the edge with only the tube. Red probes on plane × cylinder.
+  - **Class finding:** *the edge certificate must not rely on rows existing.* `edge_nurbs::analytic_rung3` now states limb 2 against each analytic operand at every door holding the lane.
+- **A 13-item fix pass**, then a confirming single-Opus review: MERGEABLE-WITH-FIXES.
+  - Limb 2 read the whole net, so an edge refused on geometry past its ends. The derivation's incidence gate and the piece-granular `met` did too. Class: *whole-net reads where the edge's interval is owed.*
+  - An unratified no-lane sentence had entered C2 in the fix pass. It was removed, and the lane-free doors were filed as `lane-free-doors-skip-the-analytic-rung3-limbs` (P2).
+- **Two delta reviews:**
+  - The new cut and the hull refinement formed f64 knot-insertion plans at `Interval`, which is the item-9 class again. Fixed by windowing without a cut, breaks in the composite's own ring, and an exact equal-weight piece. The rational tube reads its whole net (P3). The tube chain's own f64 refinement is pre-existing and filed P2.
+  - The implementer had reported "a real hole" in min/max over brackets. The reviewer showed there was none: Interval min/max propagate the refusal. The guard stays, its rationale is corrected, and MUT9 is pinned on a cylinder.
+- **CI along the way:**
+  - a pncad-py prose-census miss, fixed;
+  - main's demos goldens left unrun after #4353's blend join, re-pinned on main (#4383 merged, plus d5a518b1b);
+  - one default-ε `test` failure on `7c7b15e2` that never reproduced locally and could not be read, because the Actions log blob host is denied by the session network policy (Ev told). It was green on the next head.
+  - a semantic conflict with JOIN's new near-pole row, which named the retired `ArcNearPole`. Its δ = 1e-7 cut now builds, with every volume holding.
+- **DR-116:** recorded as DR-114 on the branch, renumbered twice (main took 114 and 115 first). Fair pairs that found any MAJOR: 54.
+- **Next on the slate:** the mirror-torus spiric / no-fitted classes, the filed P2s (`lane-free-doors-…`, the tube chain's f64 refinement), and `a-reimported-spiric-rim-refuses-at-the-edge-tube`.
+- 2026-10-09 — Seam note from ENCL (PR 4422, merged): `geom_brep::recourse::RefusedArm::SignCertain` now takes `Option<MarginDiag>`; construct with `SignCertain(None)` unless the decision is a residual miss, and match with `SignCertain(_)`. `certify::definite_miss_in_file` / `Unsized::definite_residual_in_file` are gone; `Unsized::residual_in_file` is the one door. (ENCL orchestrator)
+- 2026-10-09 — Seam note from ENCL (PR 4427, `encl/limb-refusal-margin`, merged at `e3646226c0`): `SsiError::CertificateLimb`, `PlaneNurbsRefusal::Limb` and `AnalyticRung3Refusal::Limb` now carry `margin: MarginDiag` beside `value`, minted by `decide_reported`; the decision bit is identical to `decide`. Match them with `..`. The margin is for error text only: never branch on it (Bounds clause 2). `MissReading::DefiniteUnvalued` is gone, and `geom_core::FileCoincidence::new` now takes only `eps_in`. A new limb mint on your ground should use `decide_reported` and carry the margin, so that the import door can say whether the miss lies within the file's ε_in. Known gap: a hull-sup limb's margin is an upper bound, read today as the miss (ENCL row `hull-sup-limb-reads-its-bound-as-the-miss-at-the-import-door`). (ENCL orchestrator)
+- 2026-10-10 — Seam note from ENCL: filed `pcurve-envelope-bound-ends-as-a-stored-contradiction` on your slate, from PR 4504's review. `Unsized::LastResort` is renamed `Fit` there, and a new `Unsized::Bound` ends a certified-bound refusal in the last resort at every reading. Your `PcurveCheck::Envelope` looks like a bound. (ENCL orchestrator)
+- 2026-10-10 — Seam note from ENCL (PR 4504, merged): `geom_brep::recourse::Unsized::LastResort` is renamed `Unsized::Fit`, with the same behaviour, and a new `Unsized::Bound` ends a refusal on a certified upper bound in the kernel-limit last resort at every reading. At the import door, `MissReading::Bound` names the bound. `CertCheck::bounds_a_miss()` answers whether a check is a bound. A table on your ground that refuses on a bound, not a measured miss, should take `Bound`. (ENCL orchestrator)
+- 2026-10-10 — Seam note from ENCL (PR 4520, merged): the PlaneNurbs limbs are decided once, in the lane (`ssi::certify` `nurbs_limbs`). `geom_brep::certify::run_checks` no longer re-decides them, and the k-stream names `plane_nurbs_on_locus` and `plane_nurbs_hull_sup` are gone. The certificate's `max_residual` is bit-identical. (ENCL orchestrator) Filed `fitted-pcurve-envelope-re-decides-the-ssi-hull` on your ground: `pcurve_cache::run_fitted_checks` re-decides `ssi.hull_sup` the same way.
+- 2026-10-10 — Seam note from ENCL (PR 4529, merged): `SsiError::CertificateLimb`, `PlaneNurbsRefusal::Limb` and `AnalyticRung3Refusal::Limb` no longer carry `value: f64`; the margin is the only copy and their Displays print it. Refinement routes on a crate-private refused residual recorded with the refusal (`LimbRefusal`), not on the margin. The step-budget ending reads a decided `RefineStop::StepBudget { trend: ResidualTrend }`, and `STEP_BUDGET_FLOOR_RECOURSE` now says "the refused residual stopped falling". `RoundMargin` and `pcurve_cache::FittedMagnitude::LimbResidual` hold `MarginDiag`. Tests that read a margin's upper end use `geom_core::test_support::upper`, the one helper. This supersedes the earlier note saying the margin sits "beside `value`". (ENCL orchestrator)
+- 2026-10-11 — Seam note from ENCL (PR 4675, merged at `e423573ba9`): `pcurve_cache::projected_hull_lane` takes a new `cuts: &[f64]` argument (extra parameter cuts, chained after the uniform part breaks), threaded through `FittedLane`'s `projected_lane` field. `projected::distance_floor` and `Meters` now give a certified distance floor on every stored analytic chart: the torus divisor is `max((m+r)|M²−r²|, (M+r)|m²−r²|)`, which is exact on ring, horn and spindle tori. A non-positive torus lever refuses `SectorRefused{Lever}`. Filed here by the lane: `projected-check4-incidence-refuses-on-fixed-parts-without-halving`. (ENCL orchestrator)
+- 2026-10-12 — Seam note from ENCL (PR 4756, merged at `730e342025`): `IsoFamilyRefusal::Undecided`'s Display is payload-only (no ending), and its question has one spelling, the new public `geom_brep::ISO_FAMILY_CLAUSE`. No product reader uses that Display now; the join writes its own sentence on the same clause. Filed on HONE: `PcurveCertifyError::ending` is never called for a join's `Image` arm, although `Escalated` can reach it through `chart_iso_family` → `derive_harmonic` → `derive_class`. (ENCL orchestrator)

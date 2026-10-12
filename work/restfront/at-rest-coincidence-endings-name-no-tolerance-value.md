@@ -24,7 +24,7 @@ reading naming the two LEVERS and no tolerance at all:
 
 That is honest — it offers no lever that does not exist — but it is less
 than D4 ¶1 (i) allows. `Reading::AtRest` is a reading that MAY name a
-tolerance (only `Reading::Adopt` may not), the arm is band-decided, and
+tolerance, the arm is band-decided, and
 the escalation that reached this classifier carries the margin and the
 band that would value it. The one home for the valued sentence is
 `geom_core::Indeterminate::ending(levers)`, which `geom_brep::recourse`'s

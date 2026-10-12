@@ -188,7 +188,9 @@ fn reassembly_oracle_generic_cube() {
     // Re-glue and compare.
     reglue_pair(&mut body, below_face, above_face, tol);
     assert_eq!(validate(&body), Ok(()));
-    body.merge_coplanar_faces(tol).unwrap();
+    // The oracle compares against the operand with the crossings
+    // inserted, which the public door's join would take away.
+    crate::test_support::merge_unjoined(&mut body, tol).unwrap();
     assert_eq!(validate_closed(&body), Ok(()));
 
     // Reference: operand + the same crossing insertions only.

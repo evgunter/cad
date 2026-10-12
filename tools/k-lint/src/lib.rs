@@ -2,9 +2,10 @@
 //! K-telemetry CSVs (the `scripts/k_probe_sweep.sh` output — every
 //! predicate decision of the Band 4 corpus + the demo scenes at the
 //! recording scalar) and FLAGS margins that crowd a decision boundary.
-//! **The CI row is a GATE: a finding fails it.** A firing lint is
-//! evidence that the margin DISTRIBUTION moved — possibly that a
-//! threshold or the baseline is stale — never a licence to nudge
+//! **The CI row is a GATE: a finding fails it.** Rule (2)'s zero arm is
+//! the one reading that is tallied and printed instead of flagged. A
+//! firing lint is evidence that the margin DISTRIBUTION moved — possibly
+//! that a threshold or the baseline is stale — never a licence to nudge
 //! geometry until the lint goes quiet; the CLI prints that discipline
 //! and its recourse on every failure (`main.rs`). Harness breakage
 //! (missing or malformed input) fails with its own distinct voice.
@@ -21,7 +22,10 @@
 //!    escalation threshold (`|m| < 10² · Kε`, **capped at**
 //!    [`BASELINE_FLOOR_MARGIN`] — see "Rule (2)'s discrimination
 //!    floor"), or a zero-classified margin within [`PROXIMITY_FACTOR`]
-//!    below the coincidence threshold (`|m| > ε / 10²`).
+//!    below the coincidence threshold (`|m| > ε / 10²`). **The zero
+//!    arm is a tally, not a finding** ([`zero_arm_usage`]): the CLI
+//!    prints how much of ε each such predicate uses, per file, and
+//!    fails nothing on it. The definite arm gates.
 //! 3. **Below the baseline floor** — a definite non-zero margin
 //!    smaller than [`BASELINE_FLOOR_MARGIN`], the bottom edge of the
 //!    committed baseline's ε-INDEPENDENT distribution (see "Threshold
@@ -31,13 +35,6 @@
 //!    an ε-scaled target rather than a model-scale distance: a definite
 //!    margin below [`EPS_COUPLED_FLOOR_RATIO`] · ε. Those families are
 //!    NOT subject to rules (2) or (3) — see "The ε-coupled families".
-//! 5. **Off its construction's target** — for the construction-coupled
-//!    names ([`CONSTRUCTION_COUPLED`]), whose ZERO-classified margin is
-//!    a certified bound the kernel REFINED to a stated fraction of ε:
-//!    a zero row above [`CONSTRUCTION_CEILING_FACTOR`] times that
-//!    fraction of ε, or any definite row (a bound past the band is a
-//!    refused certificate). Those names are NOT subject to rule (2)'s
-//!    zero arm — see "The construction-coupled families".
 //!
 //! Ratio rules (2), (3) and (4) apply only to samples deciding against an
 //! AMBIENT band (`band_zero ≥` [`AMBIENT_BAND_MIN`]): the kernel also
@@ -206,69 +203,6 @@
 //! rather than a baseline re-derivation that will not move. Gating on
 //! the NAME is what makes the guard independent of a row's sign.
 //!
-//! # The construction-coupled families (rule 5)
-//!
-//! Rule (2)'s zero arm judges every family by the same question: a
-//! `zero` row above `ε/10²` sits within two decades of the coincidence
-//! threshold. That is the right question for a residual that measures
-//! rounding, and the wrong one for a certified BOUND that the kernel
-//! refines until it clears a stated fraction of the band. Such a bound
-//! lands just under that fraction at every ε by construction, so rule
-//! (2) would flag every row it ever records. Unlike rule (4)'s family,
-//! the rows are `zero` rather than definite. Rostering the name under
-//! rule (4) therefore would not touch them, and [`EPS_COUPLED_UNRULED`],
-//! which gates on the name, would fail every sweep.
-//!
-//! [`CONSTRUCTION_COUPLED`] lists these names, each with the fraction
-//! its construction targets. Today that is exactly one:
-//! `pcurve_envelope_hermite`, the envelope `certify_fitted` re-derives
-//! for a general circle's chart image on a sphere. `geom-brep`'s
-//! `sphere_circle_image_lane` refines that image by trisection "until
-//! every span's certified bound is a quarter of the band"
-//! (`hermite_image(…, 0.25 * band.zero())`). `run_fitted_checks` mints
-//! the name for the envelope whose statement is `MapResidualHermite`,
-//! the construction `fitted_lane` states for that image. The name is
-//! keyed on the construction, not on the carrier kind, so a later
-//! circle lane with another construction keeps `pcurve_envelope` until
-//! it is ruled. The closed-form lanes' envelopes are rounding-sized
-//! (~1e-15 m, ε-independent), keep that name, and stay under the metre
-//! rules.
-//!
-//! Measured on the first sweep that carried the rows: a fresh
-//! `scripts/k_probe_sweep.sh` over the corpus and the demo scenes at the
-//! `reach/tilted-sphere-pair` head (2026-10-02), 8 rows per ε row, all on
-//! `demo/lily_walls`, where wall 7 carves the lantern's zone sphere along
-//! a tilted section. All are `zero`. Their `|m|/ε` are 0.1942 and 0.2290
-//! at 1e-6, 0.2124 and 0.2409 at 1e-9, and 0.2470 and 0.2498 at 1e-12,
-//! each twice. The maximum, 0.2498, sits 0.1% under the target.
-//!
-//! The rule: a `zero` row is flagged above
-//! [`CONSTRUCTION_CEILING_FACTOR`] · target · ε (0.30·ε for the quarter
-//! band), and any definite row is flagged, since a definite envelope is
-//! the certificate refusing. The ceiling's 20% over the target is the
-//! stated margin. The target is met by the `f64` bound at the
-//! structure's bracket midpoints, and the certificate re-derives the
-//! bound at the run's own scalar, so a re-derivation may land a
-//! rounding over the target and must not flag. 20% is two orders above
-//! any such rounding and still well under the band. A zero row above the
-//! ceiling means the refinement no longer meets its own target, or the
-//! certificate no longer re-derives what the refinement bounded: a
-//! moved construction, which is what this rule exists to catch. Rule (1)
-//! is unchanged: an envelope that escalates is in-band whatever its
-//! name.
-//!
-//! **The premise is pinned at its source.**
-//! `tests/construction_coupled.rs` reads `pcurve_cache.rs` through the
-//! shared lexer. It reds if the name is minted anywhere but the
-//! `MapResidualHermite` arm of `run_fitted_checks`, if that statement is
-//! stated anywhere but `fitted_lane`, or if `sphere_circle_image_lane`
-//! stops refining to `0.25 * band.zero()`. The target here and the
-//! target there cannot drift apart silently.
-//!
-//! Rule 5 tallies under its own number ([`Reason::rule`]), so a run's
-//! per-rule line says how many findings are a construction off its
-//! target. It is decided, like rules 2 and 3, and demotes with them.
-//!
 //! # Rule (2)'s discrimination floor
 //!
 //! Rules (2)-above and (3) are two thresholds on the SAME quantity — a
@@ -339,12 +273,15 @@ pub const AMBIENT_BAND_MIN: f64 = 1e-13;
 /// bounds it is derived instead, in `tests/threshold_provenance.rs`:
 /// below the structural edge the rule-2 cap stops binding at the
 /// loosest supported row, and above the corpus's own largest zero-side
-/// ratio the baseline starts flagging itself under rule (2)-below.
-/// **That measured ceiling is the binding one of the two** — well
-/// under the structural edge, and under 2x above the shipped factor,
-/// at the 1e-12 row where a fixed rounding-scale coincidence is
-/// closest to `band_zero`. Both halves of that sentence are the
-/// assertions the test makes, in that order. It is NOT the crate's
+/// ratio the baseline starts tallying itself under rule (2)'s zero arm.
+/// The measured ceiling is the nearer of the two — well under the
+/// structural edge, and under 2x above the shipped factor, at the
+/// 1e-12 row where a fixed rounding-scale coincidence is closest to
+/// `band_zero`. Both halves of that sentence are the assertions the
+/// test makes, in that order. Since the zero arm became a tally (Ev,
+/// PR 4567) crossing it fails no gate: it says the baseline would
+/// tally itself, which is what prompts a re-cut. Only the structural
+/// edge constrains what gates. It is NOT the crate's
 /// narrowest headroom: this one is 1.88x of a policy digit, while
 /// `EPS_COUPLED_FLOOR_RATIO` sits 8.9% below its P0 and this floor
 /// 16.6% below its datum — different quantities, not a ranking.
@@ -505,42 +442,6 @@ pub fn eps_coupled_excuse(predicate: &str) -> Option<&'static str> {
 /// test is where the move happens.
 pub const EPS_COUPLED_FLOOR_RATIO: f64 = 1.5e2;
 
-/// **The construction-coupled names**, as `(predicate, target, why)`:
-/// names whose `zero` margin is a certified bound the kernel refines to
-/// `target · ε` by construction. They are judged by rule (5) instead of
-/// rule (2)'s zero arm (module docs, "The construction-coupled
-/// families", which carries the measured distribution). An explicit
-/// list, never inferred, for the reason [`EPS_COUPLED_PREDICATES`] is
-/// one: a name not on it stays under the metre rules and flags loudly.
-pub const CONSTRUCTION_COUPLED: [(&str, f64, &str); 1] = [(
-    "pcurve_envelope_hermite",
-    0.25,
-    concat!(
-        "the sphere general-circle image's Hermite sup bound: geom-brep's ",
-        "sphere_circle_image_lane refines the image until every span's certified bound is ",
-        "a quarter of the band, and certify_fitted re-derives it",
-    ),
-)];
-
-/// Rule (5)'s ceiling, as a multiple of a [`CONSTRUCTION_COUPLED`]
-/// name's target: a `zero` row above `factor · target · ε` is flagged.
-/// 1.2 is the stated margin over the measured maximum (0.2498·ε against
-/// the 0.25·ε target): the certificate re-derives the bound at the run's
-/// scalar, so a rounding over target must not flag, and a re-derived
-/// envelope 20% over its construction's target is a construction that
-/// moved.
-pub const CONSTRUCTION_CEILING_FACTOR: f64 = 1.2;
-
-/// Rule (5)'s `zero`-row ceiling for `predicate`, in units of ε, if it
-/// is a [`CONSTRUCTION_COUPLED`] name.
-#[must_use]
-pub fn construction_ceiling(predicate: &str) -> Option<f64> {
-    CONSTRUCTION_COUPLED
-        .iter()
-        .find(|(n, _, _)| *n == predicate)
-        .map(|(_, target, _)| CONSTRUCTION_CEILING_FACTOR * target)
-}
-
 /// Whether `predicate` is one of the [`EPS_COUPLED_PREDICATES`].
 #[must_use]
 pub fn is_eps_coupled(predicate: &str) -> bool {
@@ -565,20 +466,11 @@ pub enum Reason {
     Invalid,
     /// Definite margin within [`PROXIMITY_FACTOR`] of `band_escalate`.
     NearBandAbove,
-    /// Zero-classified margin within [`PROXIMITY_FACTOR`] below
-    /// `band_zero`.
-    NearBandBelow,
     /// Definite margin below [`BASELINE_FLOOR_MARGIN`].
     BelowBaselineFloor,
     /// An [`EPS_COUPLED_PREDICATES`] margin below
     /// [`EPS_COUPLED_FLOOR_RATIO`] · ε.
     BelowEpsCoupledFloor,
-    /// A [`CONSTRUCTION_COUPLED`] name's `zero` margin above its
-    /// ceiling ([`construction_ceiling`]).
-    AboveConstructionTarget,
-    /// A [`CONSTRUCTION_COUPLED`] name's definite margin: the bound
-    /// passed the band and the certificate refused.
-    ConstructionRefused,
 }
 
 impl Reason {
@@ -594,36 +486,27 @@ impl Reason {
     /// toward zero by construction will make in bulk without anything
     /// being wrong.
     ///
-    /// Rule 5 is the construction-coupled names' own rule (module
-    /// docs, "The construction-coupled families"). It tallies under its
-    /// own number so a run says how many of its findings are a
-    /// construction off its target rather than a margin near the band.
-    /// It is decided, like rules 2 and 3, and demotes with them. Rule 4's
-    /// floor tallies under rule 3, the floor it recalibrates.
+    /// Rule 4's floor tallies under rule 3, the floor it recalibrates.
     ///
-    /// A consumer may demote 2, 3 and 5 with a recorded justification
+    /// A consumer may demote 2 and 3 with a recorded justification
     /// (`docs/K-REPORT.md`'s recourse 2). Demoting rule 1 would demote
     /// the trigger, so nothing offers that.
     pub fn rule(self) -> u8 {
         match self {
             Self::InBand | Self::Invalid => 1,
-            Self::NearBandAbove | Self::NearBandBelow => 2,
+            Self::NearBandAbove => 2,
             Self::BelowBaselineFloor | Self::BelowEpsCoupledFloor => 3,
-            Self::AboveConstructionTarget | Self::ConstructionRefused => 5,
         }
     }
 
     /// Every reason, for tallying — so a per-rule count cannot silently
     /// omit a variant the enum grows.
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 5] = [
         Self::InBand,
         Self::Invalid,
         Self::NearBandAbove,
-        Self::NearBandBelow,
         Self::BelowBaselineFloor,
         Self::BelowEpsCoupledFloor,
-        Self::AboveConstructionTarget,
-        Self::ConstructionRefused,
     ];
 }
 
@@ -633,20 +516,52 @@ impl core::fmt::Display for Reason {
             Reason::InBand => "IN the ambiguity band (indeterminate outcome)",
             Reason::Invalid => "invalid (poisoned) margin",
             Reason::NearBandAbove => "definite within 10^2 of the escalation threshold",
-            Reason::NearBandBelow => "zero-classified within 10^2 of the coincidence threshold",
             Reason::BelowBaselineFloor => "definite below the baseline distribution's floor (4e-5)",
             Reason::BelowEpsCoupledFloor => {
                 "ε-coupled headroom below the ε-relative floor (1.5e2·ε)"
             }
-            Reason::AboveConstructionTarget => {
-                "construction-coupled bound above its construction's target (1.2·target·ε)"
-            }
-            Reason::ConstructionRefused => {
-                "construction-coupled bound decided definite: the certificate refused"
-            }
         };
         f.write_str(s)
     }
+}
+
+/// Rule (2)'s zero arm: the fraction of `band_zero` a zero-classified
+/// margin uses, when it is more than `1 /` [`PROXIMITY_FACTOR`] of it.
+///
+/// **A tally, never a finding.** A `zero` outcome answers "within ε",
+/// and a margin that is the arithmetic's own rounding — a root slack, a
+/// noise meter — sits in this window by construction at the tightest ε
+/// on a metre-scale scene. Its usage of ε is a fact about the scene and
+/// the ε row, so the CLI prints it ([`Scan::zero_arm`]) and fails
+/// nothing on it. Rule (2)'s definite arm is a [`Reason`] and gates.
+#[must_use]
+pub fn zero_arm_usage(margin: f64, band_zero: f64, outcome: &str) -> Option<f64> {
+    let m = margin.abs();
+    (outcome == "zero" && band_zero >= AMBIENT_BAND_MIN && m > band_zero / PROXIMITY_FACTOR)
+        .then(|| m / band_zero)
+}
+
+/// One predicate's zero-arm readings in one file ([`zero_arm_usage`]).
+#[derive(Debug, Clone)]
+pub struct ZeroArmTally {
+    pub predicate: String,
+    /// Samples of this predicate the zero arm read.
+    pub count: usize,
+    /// The one with the largest `|m| / band_zero`; the first such row
+    /// on a tie.
+    pub worst: ZeroArmRow,
+}
+
+/// One zero-arm sample, with the row it came from.
+#[derive(Debug, Clone)]
+pub struct ZeroArmRow {
+    /// 1-based line number in the input.
+    pub line: usize,
+    pub shape: String,
+    pub margin: f64,
+    pub band_zero: f64,
+    /// `|margin| / band_zero`.
+    pub usage: f64,
 }
 
 /// One flagged CSV row.
@@ -687,6 +602,9 @@ pub struct Scan {
     /// rests on the registrant's argument.
     pub registered: usize,
     pub flags: Vec<Flag>,
+    /// Rule (2)'s zero arm, per predicate, largest usage first. Never
+    /// part of [`Scan::flags`]: see [`zero_arm_usage`].
+    pub zero_arm: Vec<ZeroArmTally>,
     /// `Some((10²·Kε, floor))` when this file's ambient rows are loose
     /// enough that rule (2)'s definite arm was capped at the baseline
     /// floor. The CLI PRINTS this — the cap is never silent (module
@@ -853,9 +771,7 @@ pub struct ParseError {
 /// datum against every supported ε row's band.
 ///
 /// `predicate` selects the rule set: the [`EPS_COUPLED_PREDICATES`]
-/// answer to rule (4) instead of rules (2) and (3), and the
-/// [`CONSTRUCTION_COUPLED`] names to rule (5) instead of rule (2)'s zero
-/// arm — module docs.
+/// answer to rule (4) instead of rules (2) and (3) — module docs.
 #[must_use]
 pub fn lint_sample(
     predicate: &str,
@@ -866,34 +782,12 @@ pub fn lint_sample(
 ) -> Vec<Reason> {
     let mut reasons = Vec::new();
     let m = margin.abs();
-    // Rule (5): a construction-coupled name answers to its own target
-    // instead of rule (2)'s zero arm, and its refusal side is a finding
-    // too (module docs, "The construction-coupled families").
-    if let Some(ceiling) = construction_ceiling(predicate) {
-        match outcome {
-            "indeterminate" => reasons.push(Reason::InBand),
-            "invalid" => reasons.push(Reason::Invalid),
-            "zero" if band_zero >= AMBIENT_BAND_MIN && m > ceiling * band_zero => {
-                reasons.push(Reason::AboveConstructionTarget);
-            }
-            "positive" | "negative" if band_zero >= AMBIENT_BAND_MIN => {
-                reasons.push(Reason::ConstructionRefused);
-            }
-            _ => {}
-        }
-        return reasons;
-    }
     match outcome {
         "indeterminate" => reasons.push(Reason::InBand),
         "invalid" => reasons.push(Reason::Invalid),
-        "zero" if band_zero >= AMBIENT_BAND_MIN => {
-            // Coincidence proximity is the same question in the same
-            // units for every family: a zero classification is a
-            // decision against ε itself, ε-coupled or not.
-            if m > band_zero / PROXIMITY_FACTOR {
-                reasons.push(Reason::NearBandBelow);
-            }
-        }
+        // Rule (2)'s zero arm reads these, as a tally and for every
+        // family alike: `zero_arm_usage`.
+        "zero" => {}
         // **Never a rule sample, and not because it is uninteresting.**
         // A `symbolic_zero` row is a decision the symbolic identity tier
         // answered (ERROR-DESIGN E12): the margin's expression is
@@ -953,6 +847,7 @@ pub fn lint_sample(
 /// failure voice.
 pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
     let mut flags = Vec::new();
+    let mut zero_arm: Vec<ZeroArmTally> = Vec::new();
     let mut scanned = 0usize;
     let mut symbolic = 0usize;
     let mut sign_gated = 0usize;
@@ -1076,6 +971,28 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
                 proximity_capped = Some((raw, BASELINE_FLOOR_MARGIN));
             }
         }
+        if let Some(usage) = zero_arm_usage(margin, band_zero, out) {
+            let row = ZeroArmRow {
+                line: i + 1,
+                shape: shape.to_string(),
+                margin,
+                band_zero,
+                usage,
+            };
+            match zero_arm.iter_mut().find(|t| t.predicate == pred) {
+                Some(t) => {
+                    t.count += 1;
+                    if usage > t.worst.usage {
+                        t.worst = row;
+                    }
+                }
+                None => zero_arm.push(ZeroArmTally {
+                    predicate: pred.to_string(),
+                    count: 1,
+                    worst: row,
+                }),
+            }
+        }
         let reasons = lint_sample(pred, margin, band_zero, band_escalate, out);
         if !reasons.is_empty() {
             flags.push(Flag {
@@ -1088,12 +1005,14 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
             });
         }
     }
+    zero_arm.sort_by(|a, b| b.worst.usage.total_cmp(&a.worst.usage));
     Ok(Scan {
         scanned,
         symbolic,
         sign_gated,
         registered,
         flags,
+        zero_arm,
         proximity_capped,
         unruled: EPS_COUPLED_UNRULED
             .iter()
@@ -1180,17 +1099,74 @@ mod tests {
     }
 
     #[test]
-    fn proximity_flags_both_sides_of_the_band() {
+    fn proximity_flags_the_definite_side_and_tallies_the_zero_side() {
         // Definite 1.5 decades above Kε: flagged (and it is also below
         // the baseline floor).
         assert_eq!(
             lint_sample("p", 3e-7, 1e-9, 1e-8, "positive"),
             vec![Reason::NearBandAbove, Reason::BelowBaselineFloor]
         );
-        // Zero half a decade below ε: flagged.
+        // Zero half a decade below ε: read by the zero arm, and no
+        // flag.
+        assert!(lint_sample("p", 3e-10, 1e-9, 1e-8, "zero").is_empty());
+        assert_eq!(zero_arm_usage(-3e-10, 1e-9, "zero"), Some(3e-10 / 1e-9));
+        // At the threshold itself, under it, against a tie-break band,
+        // or on a definite outcome: not read.
+        assert_eq!(zero_arm_usage(1e-11, 1e-9, "zero"), None);
+        assert_eq!(zero_arm_usage(1e-12, 1e-9, "zero"), None);
+        assert_eq!(zero_arm_usage(1e-101, 1e-100, "zero"), None);
+        assert_eq!(zero_arm_usage(3e-10, 1e-9, "positive"), None);
+    }
+
+    #[test]
+    fn the_zero_arm_tallies_per_predicate_and_keeps_the_worst_row() {
+        let csv = "shape,predicate,margin,band_zero,band_escalate,outcome\n\
+                   demo/a,p,2e-14,1e-12,1e-11,zero\n\
+                   demo/b,q,5e-14,1e-12,1e-11,zero\n\
+                   demo/c,p,3e-13,1e-12,1e-11,zero\n\
+                   demo/d,p,-1e-13,1e-12,1e-11,zero\n\
+                   demo/e,p,5e-15,1e-12,1e-11,zero\n";
+        let scan = lint_csv(csv).expect("valid csv");
+        assert!(scan.flags.is_empty(), "the zero arm is never a flag");
+        let got: Vec<_> = scan
+            .zero_arm
+            .iter()
+            .map(|t| {
+                (
+                    t.predicate.as_str(),
+                    t.count,
+                    t.worst.line,
+                    t.worst.shape.as_str(),
+                )
+            })
+            .collect();
         assert_eq!(
-            lint_sample("p", 3e-10, 1e-9, 1e-8, "zero"),
-            vec![Reason::NearBandBelow]
+            got,
+            vec![("p", 3, 4, "demo/c"), ("q", 1, 3, "demo/b")],
+            "per predicate, largest usage first, the worst row kept"
+        );
+        assert_eq!(scan.zero_arm[0].worst.usage, 3e-13 / 1e-12);
+    }
+
+    #[test]
+    fn the_zero_arm_sorts_by_usage_and_keeps_the_first_row_on_a_tie() {
+        // The smaller-usage predicate comes first in the file, so an
+        // unsorted tally reads it first; `p`'s worst usage is tied
+        // between lines 3 and 4, so `>=` would keep line 4.
+        let csv = "shape,predicate,margin,band_zero,band_escalate,outcome\n\
+                   demo/a,q,5e-14,1e-12,1e-11,zero\n\
+                   demo/b,p,3e-13,1e-12,1e-11,zero\n\
+                   demo/c,p,-3e-13,1e-12,1e-11,zero\n";
+        let scan = lint_csv(csv).expect("valid csv");
+        let got: Vec<_> = scan
+            .zero_arm
+            .iter()
+            .map(|t| (t.predicate.as_str(), t.count, t.worst.line))
+            .collect();
+        assert_eq!(
+            got,
+            vec![("p", 2, 3), ("q", 1, 2)],
+            "largest usage first whatever the file order; the first row on a tie"
         );
     }
 
@@ -1523,7 +1499,7 @@ mod tests {
         for r in Reason::ALL {
             let rule = r.rule();
             assert!(
-                [1, 2, 3, 5].contains(&rule),
+                [1, 2, 3].contains(&rule),
                 "{r:?} claims rule {rule}, which is not one the CLI tallies"
             );
         }
@@ -1538,7 +1514,7 @@ mod tests {
         for r in Reason::ALL {
             assert!(seen.insert(format!("{r:?}")), "{r:?} listed twice in ALL");
         }
-        assert_eq!(seen.len(), 8, "Reason::ALL must list every variant");
+        assert_eq!(seen.len(), 5, "Reason::ALL must list every variant");
     }
 
     /// An `indeterminate` row is rule 1 and a merely-near-threshold row

@@ -367,10 +367,9 @@ fn the_ringed_wall_rows_hold_off_the_origin() {
 /// segment instead of the exact section reverses its sign (the delta
 /// review's MI3) and the union refuses `SeamOrientation` at the zip.
 /// With the exact closure the ∩ and bar ∖ pipe build, pass every tier
-/// and balance against the bar; the ∪ and pipe ∖ bar build too, and
-/// stop one layer later, at the result gate's check 7: their wall
-/// carries a ring trimmed by ellipse arcs, which no volume lane reads yet
-/// (`work/props/an-ellipse-trimmed-ring-on-a-cylinder-wall-has-no-volume-lane.md`).
+/// and balance against the bar; the ∪ and pipe ∖ bar, whose wall
+/// carries a ring trimmed by ellipse arcs, balance against the pipe and
+/// the bar less that ∩.
 #[test]
 fn a_thin_bar_turned_about_two_axes_gets_through_the_join() {
     let tol = Tol::witness();
@@ -412,24 +411,17 @@ fn a_thin_bar_turned_about_two_axes_gets_through_the_join() {
         vi > 0.0 && vd > 0.0 && (vi + vd - v_bar).abs() <= pi + pd + 1e-12 * v_bar,
         "∩ {vi} + bar ∖ pipe {vd} against the bar {v_bar}"
     );
-    for (op, out) in [
-        ("∪", topo::union(&pipe, &bar, tol)),
-        ("pipe ∖ bar", topo::subtract(&pipe, &bar, tol)),
-    ] {
-        assert!(
-            matches!(
-                &out,
-                Err(BooleanError::ResultInvalid { errors })
-                    if matches!(errors.as_slice(), [topo::ValidationError::VolumeUncomputable {
-                        source: topo::MassPropsError::RingOnCurvedFace { .. },
-                        ..
-                    }])
-            ),
-            "turned thin bar, {op}: expected the result gate's check 7 on the ellipse-ringed \
-             wall, got {:?}",
-            out.map(|_| "a body")
-        );
-    }
+    let v_pipe = 4.0 * PI;
+    let (vu, pu) = measure("∪", topo::union(&pipe, &bar, tol));
+    let (vp, pp) = measure("pipe ∖ bar", topo::subtract(&pipe, &bar, tol));
+    assert!(
+        (vu - (v_pipe + v_bar - vi)).abs() <= pu + pi + 1e-12 * v_pipe,
+        "∪ {vu} against the pipe and the bar less ∩ {vi}"
+    );
+    assert!(
+        (vp - (v_pipe - vi)).abs() <= pp + pi + 1e-12 * v_pipe,
+        "pipe ∖ bar {vp} against the pipe less ∩ {vi}"
+    );
 }
 
 /// **A wall's sense bit is checked against its boundary even when the
@@ -588,28 +580,15 @@ fn a_long_armed_bar_builds() {
     assert_bar_through_the_pipe((-3.0, 3.0), (-0.3, 0.3), (-0.3, 0.3));
 }
 
-/// **The kind fence, differential — and what it does and does not
-/// witness.**
-///
-/// MEASURED, the frustum's bar meets `CurvedPairUnsupported { kind:
-/// Cone, other_kind: Plane }`: the kind-PAIR operand gate, on the cone
-/// face against the BAR's own plane face. It never reaches the crossing
-/// layer's `f2` fold or `face_geo` at all, so this row does NOT witness
-/// "the ring lane gave a cone no roots" — that pair has had no arm
-/// since long before this lane, and the row reads identically with the
-/// ring lane reverted.
-///
-/// It is kept for what it does witness, asserted positively rather than
-/// as a not-the-other-door: a cone operand is stopped at the OUTERMOST
-/// gate, so no cone geometry is ever handed to the wall lane in the
-/// first place. That is a dead-belt fence — the inner fences
-/// (`face_geo`'s `KindUnsupported`, the `f2` fold's Cylinder/Sphere-only
-/// arms, and `wall_crossing`'s own non-cylinder `Unsettled`) are the
-/// live ones and are unreachable from any authorable cone body while
-/// this gate stands. If a later unit opens the pair gate for cones,
-/// this row flips and the inner fences become the ones under test.
+/// **A cone wall cut along its axis refuses by decision, naming the
+/// conic.** The bar's side planes `z = 0.25` and `z = 0.35` run parallel
+/// to the frustum's axis, so each meets the cone wall in a HYPERBOLA,
+/// which is outside the conic inventory (`geom_brep`'s C1/C5, ruling
+/// R1). The cone is on the operand roster, so the pair passes the gate
+/// and the crossing layer, and the join's section frame names the conic:
+/// `GermSectionOutsideInventory`, never a missing arm and never a body.
 #[test]
-fn a_cone_wall_is_stopped_at_the_outermost_gate() {
+fn a_cone_wall_cut_along_its_axis_names_the_hyperbola() {
     let tol = Tol::witness();
     let frustum = {
         let lp = bulge_loop(
@@ -644,12 +623,152 @@ fn a_cone_wall_is_stopped_at_the_outermost_gate() {
     assert!(
         matches!(
             err,
-            BooleanError::CurvedPairUnsupported {
-                kind: geom::SurfaceKind::Cone,
-                other_kind: geom::SurfaceKind::Plane,
+            BooleanError::GermSectionOutsideInventory {
+                conic: geom_brep::OutsideConic::Hyperbola,
+                a_kind: geom::SurfaceKind::Cone,
+                b_kind: geom::SurfaceKind::Plane,
                 ..
             }
         ),
-        "the cone's own door, asserted rather than excluded: {err:?}"
+        "the hyperbola's refusal, by decision: {err:?}"
     );
+}
+
+/// `∫∫ f(a, b) da db` over `[a0, a1] × [b0, b1]` by a 20-point
+/// Gauss–Legendre rule per axis on 8 panels each — far below every
+/// tolerance below for the smooth integrands the rows hand it.
+fn gauss_2d(f: impl Fn(f64, f64) -> f64, (a0, a1): (f64, f64), (b0, b1): (f64, f64)) -> f64 {
+    // Nodes and weights on [−1, 1], by Newton on P₂₀.
+    let n = 20;
+    let mut nodes = Vec::with_capacity(n);
+    for i in 0..n {
+        let mut x = (PI * (i as f64 + 0.75) / (n as f64 + 0.5)).cos();
+        let mut dp = 0.0;
+        for _ in 0..100 {
+            let (mut p0, mut p1) = (1.0, x);
+            for k in 2..=n {
+                let k = k as f64;
+                (p0, p1) = (p1, ((2.0 * k - 1.0) * x * p1 - (k - 1.0) * p0) / k);
+            }
+            dp = n as f64 * (x * p1 - p0) / (x * x - 1.0);
+            let step = p1 / dp;
+            x -= step;
+            if step.abs() < 1e-16 {
+                break;
+            }
+        }
+        nodes.push((x, 2.0 / ((1.0 - x * x) * dp * dp)));
+    }
+    let panels = 8;
+    let axis = |lo: f64, hi: f64| -> Vec<(f64, f64)> {
+        let h = (hi - lo) / panels as f64;
+        (0..panels)
+            .flat_map(|p| {
+                let c = lo + h * (p as f64 + 0.5);
+                nodes
+                    .iter()
+                    .map(move |&(x, w)| (c + 0.5 * h * x, 0.5 * h * w))
+            })
+            .collect()
+    };
+    let bs = axis(b0, b1);
+    axis(a0, a1)
+        .into_iter()
+        .map(|(a, wa)| bs.iter().map(|&(b, wb)| wa * wb * f(a, b)).sum::<f64>())
+        .sum()
+}
+
+/// The brick `x ∈ (cx − 1.1, cx + 1.1)`, `y ∈ (cy + 0.2, cy + 0.7)`,
+/// `z ∈ (−0.15, 0.15)` turned by `theta` about the x axis through
+/// `(cx, cy + 0.45, 0)`, against [`pipe_at`] `(cx, cy)`: each of `ops`
+/// builds, passes tier 3 and meets its exact volume. ∩ is
+/// `∬ 2·√(1 − y²)` over the turned section (each chord of the section
+/// crosses the disc whole, since `|x − cx| ≤ 1.1` and `|y − cy| < 1`),
+/// and `∪ = pipe + bar − ∩`, `pipe ∖ bar = pipe − ∩`, `bar ∖ pipe = bar − ∩`.
+fn assert_turned_bar_through_the_pipe(theta: f64, (cx, cy): (f64, f64), ops: &[&str]) {
+    let tol = Tol::witness();
+    let v_pipe = 4.0 * PI;
+    let v_bar = 2.2 * 0.5 * 0.3;
+    let pipe = pipe_at((cx, cy));
+    let bar = brick(
+        (cx - 1.1, cx + 1.1),
+        (cy + 0.2, cy + 0.7),
+        (-0.15, 0.15),
+        tol,
+    );
+    let bar = topo::transform_rigid(
+        &bar,
+        &Affine3::rotation_about_axis(
+            geom_core::Point3::new(cx, cy + 0.45, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            theta,
+        ),
+        tol,
+    )
+    .expect("a rigid pose");
+    let bar = finished("the turned bar", bar, tol);
+    let (c, s) = (theta.cos(), theta.sin());
+    let v_cap = gauss_2d(
+        |a, b| {
+            let y = 0.45 + a * c - b * s;
+            2.0 * (1.0 - y * y).sqrt()
+        },
+        (-0.25, 0.25),
+        (-0.15, 0.15),
+    );
+    for &op in ops {
+        let (out, exact) = match op {
+            "∩" => (topo::intersect(&pipe, &bar, tol), v_cap),
+            "∪" => (topo::union(&pipe, &bar, tol), v_pipe + v_bar - v_cap),
+            "pipe ∖ bar" => (topo::subtract(&pipe, &bar, tol), v_pipe - v_cap),
+            "bar ∖ pipe" => (topo::subtract(&bar, &pipe, tol), v_bar - v_cap),
+            other => panic!("no such op {other}"),
+        };
+        let pose = format!("θ = {theta}, axis at ({cx}, {cy}), {op}");
+        let topo::BooleanResult::Body(out) =
+            out.unwrap_or_else(|e| panic!("{pose}: refused {e:?}"))
+        else {
+            panic!("{pose}: came back empty");
+        };
+        assert_eq!(
+            topo::validate_geometric(&out.body, tol),
+            Ok(()),
+            "{pose}: tier 3"
+        );
+        let m = topo::mass_properties(&out.body, tol)
+            .unwrap_or_else(|e| panic!("{pose}: mass properties {e:?}"));
+        assert!(
+            (m.volume - exact).abs() <= m.volume_pad + 1e-9 * exact,
+            "{pose}: volume {} ± {} against the exact {exact}",
+            m.volume,
+            m.volume_pad
+        );
+    }
+}
+
+/// **A wall ringed by ellipse arcs measures**, at every tilt the item
+/// names and in every op ([`assert_turned_bar_through_the_pipe`]): the
+/// brick turned about the x axis crosses the pipe's wall in two rings
+/// of ellipse arcs, one each side of the axis, which the ∪ and
+/// pipe ∖ bar walls carry and the cylinder's quadrature reads as loops
+/// of their own.
+#[test]
+fn a_wall_ringed_by_ellipse_arcs_measures() {
+    for theta in [0.3, 0.7, 1.0, 1.3] {
+        assert_turned_bar_through_the_pipe(
+            theta,
+            (0.0, 0.0),
+            &["∩", "∪", "pipe ∖ bar", "bar ∖ pipe"],
+        );
+    }
+}
+
+/// **The ringed wall off the axis**: with the pipe's axis at `(3, −2)`
+/// a ring's share of the wall's `origin·A⃗` is not zero, so the ∪ and
+/// pipe ∖ bar walls miss their volumes by the ring's share unless the
+/// quadrature sums every loop's vector area. (At the origin a ring on
+/// a wall bounds no axial vector area and the term drops out.)
+#[test]
+fn a_ringed_wall_off_the_origin_counts_its_rings_position() {
+    assert_turned_bar_through_the_pipe(0.7, (3.0, -2.0), &["∪", "pipe ∖ bar"]);
 }

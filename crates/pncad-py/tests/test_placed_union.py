@@ -18,7 +18,6 @@ import unittest
 from pathlib import Path
 
 from pncad import (
-    BooleanOp,
     Bulge,
     Doc,
     DocEdit,
@@ -132,7 +131,7 @@ class TestTheFinGroup(unittest.TestCase):
             acc = (
                 placed
                 if acc is None
-                else chain_doc.insert(Node.boolean(BooleanOp.Union, acc, placed))
+                else chain_doc.insert(Node.union([acc, placed]))
             )
 
         group_doc = Doc()
@@ -276,26 +275,26 @@ def die_tool_document():
     # frame's own v direction, so the meridian's pole-to-pole line is
     # (0, 1) through the origin. Being in the plane is no longer a
     # tolerance question — it is what the four numbers mean.
-    axis = doc.insert(Node.datum_axis_in_plane(plane, (
-        Formula.length_in(0, m),
-        Formula.length_in(0, m),
-    ), (
-        Formula.literal(0.0),
-        Formula.literal(1.0),
-    )))
+    axis = (
+        (Formula.length_in(0, m), Formula.length_in(0, m)),
+        (Formula.literal(0.0), Formula.literal(1.0)),
+    )
     half_disc = (
         Open.at((0 * m, -PIP_R * m))
         .arc_to(Bulge((0 * m, PIP_R * m), 1.0))
         .line_to(Start)
     )
     ball_p = doc.insert(Node.profile(half_disc, plane=plane))
-    ball = doc.insert(Node.revolve(ball_p, axis, Formula.angle_in(2.0 * math.pi, rad)))
+    ball = doc.insert(Node.revolve(ball_p, *axis, Formula.angle_in(2.0 * math.pi, rad)))
 
     # ---- the whole cutting tool, in ONE node ----
-    tool = doc.insert(Node.placed_union_at(ball, pip_placements()))
+    tool = doc.insert(Node.placed_union_at(doc.output(ball, 0), pip_placements()))
     pipped = doc.insert(
-        Node.boolean(BooleanOp.Subtract, cube, tool)
+        Node.subtract(cube, tool)
     )
+    # The pipped die is the product: placed once, last, as the corpus
+    # document places it.
+    doc.place(pipped)
     return doc, ball, tool, pipped
 
 
@@ -329,20 +328,21 @@ class TestTheDieTool(unittest.TestCase):
         doc, _ball, tool, pipped = die_tool_document()
         ev = evaluate(doc)
 
-        # NINE nodes: frame, profile, extrude, frame, profile, datum,
-        # revolve, group, subtract. Two of the nine are the sketch
-        # frames the cube and the meridian are drawn on — the cube's
-        # is the xy plane, the meridian's is the xz plane, and they
-        # are different planes, so they are different nodes. The
-        # pairwise tool this replaces spends the same seven upstream
-        # and then six transforms, five unions and the subtract, so
-        # the group's saving is the eleven it collapses into one.
+        # NINE nodes: frame, profile, extrude, frame, profile, revolve,
+        # group, subtract, and the subtract's world placement.
+        # Two of the nine are the sketch frames the cube and the meridian
+        # are drawn on — the cube's is the xy plane, the meridian's is
+        # the xz plane, and they are different planes, so they are
+        # different nodes. The pairwise tool this replaces spends the
+        # same seven upstream and then six transforms, five unions, the
+        # subtract and its placement, so the group's saving is the
+        # eleven it collapses into one.
         self.assertEqual(len(doc), 9)
 
         # The claim itself, counted BY KIND — the mirror of
         # `crates/editor-core/tests/lib_placedunion.rs`'s
         # `the_die_tool_is_one_node_and_still_cuts`, which counts
-        # `Node::PlacedUnion` / `Node::Boolean{Union}` /
+        # `Node::PlacedUnion` / `Node::Union` /
         # `Node::Transform` over `doc.order()` and asserts (1, 0, 0).
         # The byte pin below still holds and its text still names
         # every node's kind; it is no longer what settles this, and a
@@ -352,13 +352,13 @@ class TestTheDieTool(unittest.TestCase):
         self.assertEqual(
             (
                 kinds.count("placed_union"),
-                kinds.count("boolean_union"),
+                kinds.count("union"),
                 kinds.count("transform"),
             ),
             (1, 0, 0),
         )
         self.assertEqual(doc.node_kind(tool), "placed_union")
-        self.assertEqual(doc.node_kind(pipped), "boolean_subtract")
+        self.assertEqual(doc.node_kind(pipped), "subtract")
 
         # An ordinary BODY out of the group — the property that lets a
         # boolean consume it at all.

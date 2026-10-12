@@ -20,7 +20,7 @@ use geom::Curve3;
 use geom::Surface;
 use geom_brep::{
     CertCheck, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, SurfaceKey,
-    tangent_certificate_lane, tangent_jet,
+    SurfacePair, tangent_certificate_lane, tangent_jet,
 };
 use geom_core::{Bounds, Decide, Interval, Point3, Real, Vec3};
 use slotmap::SlotMap;
@@ -110,8 +110,7 @@ fn the_corner_ball_cylinder_circle_certifies_as_a_tangent_intersection() {
     );
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::TangentIntersection {
-            s1: k_sphere,
-            s2: k_cyl,
+            pair: SurfacePair::new(k_sphere, k_cyl),
             witness,
         },
         carrier: circle,
@@ -188,17 +187,25 @@ fn cap_crossing(r: f64, h: f64) -> (Surface<f64>, Surface<f64>, Curve3<f64>) {
 }
 
 /// A quarter of `cap_crossing`'s circle at the scalar `T`, described
-/// by `describe` over the (plane, cylinder) keys, certified.
+/// by `describe` over the (plane, cylinder) keys, certified. The pair
+/// certifies in key order, so `cylinder_first` (the cylinder minted
+/// first, holding the lower key) is what puts the cylinder first.
 fn certify_cap_quarter<T: Decide>(
     r: f64,
+    cylinder_first: bool,
     describe: impl Fn(SurfaceKey, SurfaceKey, Point3<T>) -> EdgeDescriptionSpec<T>,
 ) -> Result<EdgeCurve<T>, CertifyError> {
     let (plane, cylinder, circle) = cap_crossing(r, 0.5);
     let lift = |x: f64| T::from_f64(x);
     let circle = circle.map_scalar(lift);
     let mut surfaces: SlotMap<SurfaceKey, Surface<T>> = SlotMap::with_key();
-    let k_plane = surfaces.insert(plane.map_scalar(lift));
-    let k_cyl = surfaces.insert(cylinder.map_scalar(lift));
+    let (k_plane, k_cyl) = if cylinder_first {
+        let k_cyl = surfaces.insert(cylinder.map_scalar(lift));
+        (surfaces.insert(plane.map_scalar(lift)), k_cyl)
+    } else {
+        let k_plane = surfaces.insert(plane.map_scalar(lift));
+        (k_plane, surfaces.insert(cylinder.map_scalar(lift)))
+    };
     let (t0, t1) = (T::zero(), lift(core::f64::consts::FRAC_PI_2));
     let witness = circle.eval(lift(core::f64::consts::FRAC_PI_4));
     let spec = EdgeCurveSpec {
@@ -219,22 +226,39 @@ fn certify_cap_quarter<T: Decide>(
 /// The cap crossing described as a tangency at `T`, with the surfaces
 /// in the (plane, cylinder) order or reversed.
 fn tangent_cap_quarter<T: Decide>(r: f64, reversed: bool) -> Result<EdgeCurve<T>, CertifyError> {
-    certify_cap_quarter(r, |plane, cylinder, witness| {
-        let (s1, s2) = if reversed {
-            (cylinder, plane)
-        } else {
-            (plane, cylinder)
-        };
-        EdgeDescriptionSpec::TangentIntersection { s1, s2, witness }
+    certify_cap_quarter(r, reversed, |plane, cylinder, witness| {
+        EdgeDescriptionSpec::TangentIntersection {
+            pair: SurfacePair::new(plane, cylinder),
+            witness,
+        }
     })
 }
 
 /// The refusal a right-angle crossing described as a tangency owes, in
-/// either order and at any scalar: its defect is first-order.
-const PARALLELISM_DEFECT: CertifyError = CertifyError::ResidualExceeded {
-    check: CertCheck::TangentParallel,
-    sample: 1,
-};
+/// either order and at any scalar: its defect is first-order, and it
+/// carries the reading the scalar classified — a point margin at `f64`,
+/// an enclosure at `Interval` (`kind`) — lying wholly past the band's
+/// far edge, which a poisoned or zero reading would not. It is named at
+/// the first sample: the gap reads the shared normal's orientation at
+/// every sample, ends included, and perpendicular normals have none, so
+/// the defect at the folded arm names the refusal there.
+fn is_parallelism_defect(refusal: Option<CertifyError>, kind: geom_core::MarginKind) -> bool {
+    let Some(CertifyError::ResidualExceeded {
+        check: CertCheck::TangentParallel,
+        sample: 0,
+        margin,
+    }) = refusal
+    else {
+        return false;
+    };
+    let escalate = band().escalate();
+    margin.kind() == kind
+        && match margin.diagnostic_f64_for_error_text() {
+            geom_core::ErrorTextReading::Value(m) => m.abs() >= escalate,
+            geom_core::ErrorTextReading::Enclosure { lo, hi } => lo >= escalate || hi <= -escalate,
+            geom_core::ErrorTextReading::Invalid => false,
+        }
+}
 
 /// **A right-angle crossing described as a tangency is refused at the
 /// parallelism check** — D4 ¶1's `sin θ ≤ ε·|κ_rel|`, i.e. the margin
@@ -275,18 +299,19 @@ fn a_right_angle_crossing_described_as_a_tangency_is_refused() {
         );
     }
 
-    certify_cap_quarter::<f64>(r, |s1, s2, witness| EdgeDescriptionSpec::Intersection {
-        s1,
-        s2,
-        witness,
+    certify_cap_quarter::<f64>(r, false, |s1, s2, witness| {
+        EdgeDescriptionSpec::Intersection {
+            pair: SurfacePair::new(s1, s2),
+            witness,
+        }
     })
     .expect("the cap crossing is a certified transverse intersection");
 
     for reversed in [false, true] {
-        assert_eq!(
-            tangent_cap_quarter::<f64>(r, reversed).err(),
-            Some(PARALLELISM_DEFECT),
-            "a right-angle crossing is not a tangency (reversed: {reversed})"
+        let refusal = tangent_cap_quarter::<f64>(r, reversed).err();
+        assert!(
+            is_parallelism_defect(refusal, geom_core::MarginKind::Value),
+            "a right-angle crossing is not a tangency (reversed: {reversed}): {refusal:?}"
         );
     }
 }
@@ -318,10 +343,10 @@ fn a_right_angle_crossing_described_as_a_tangency_is_refused_at_interval() {
     );
 
     for reversed in [false, true] {
-        assert_eq!(
-            tangent_cap_quarter::<Interval>(r, reversed).err(),
-            Some(PARALLELISM_DEFECT),
-            "a right-angle crossing is not a tangency at Interval (reversed: {reversed})"
+        let refusal = tangent_cap_quarter::<Interval>(r, reversed).err();
+        assert!(
+            is_parallelism_defect(refusal, geom_core::MarginKind::Enclosure),
+            "a right-angle crossing is not a tangency at Interval (reversed: {reversed}): {refusal:?}"
         );
     }
 }

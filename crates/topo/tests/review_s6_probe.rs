@@ -11,10 +11,7 @@ use crate::common;
 use common::{brick, finished, prism_z};
 use geom_core::COINCIDENCE_RECOURSE;
 use geom_core::Tol;
-use topo::{
-    BooleanError, BooleanOp, ContactRecords, ValidationError, boolean_reduce,
-    validate_pseudomanifold,
-};
+use topo::{BooleanOp, ContactRecords, ValidationError, boolean_reduce, validate_pseudomanifold};
 
 /// The recourse a message must carry exactly once. An undeclared
 /// contact carries the TWO-arm contact menu (SELECT-DESIGN §3d,
@@ -25,7 +22,7 @@ use topo::{
 /// meaningful there and meaningless at a contact.
 fn recourse_for(e: &ValidationError) -> &'static str {
     match e {
-        ValidationError::UndeclaredContact { .. } => topo::CONTACT_RECOURSE,
+        ValidationError::UnrecordedContact { .. } => topo::CONTACT_RECOURSE,
         ValidationError::ContactContradicted { .. } => topo::CONTRADICTION_RECOURSE,
         _ => COINCIDENCE_RECOURSE,
     }
@@ -42,33 +39,11 @@ fn assert_unified(msg: &str, recourse: &str) {
     assert!(!msg.contains("Indeterminate {"), "Debug leakage: {msg}");
 }
 
-/// Pair 2 e2e: two bricks whose faces coincide exactly (flush stack,
-/// independent recipe sources, NO declaration) and an in-band gap —
-/// both must refuse with ONE unified message carrying the recourse
-/// exactly once.
+/// Pair 2 e2e: an in-band gap must refuse with ONE unified message
+/// carrying the recourse exactly once. (Two bricks whose faces
+/// coincide exactly glue on their decided zero: `flush_rows`.)
 #[test]
 fn probe_boolean_coincidence_pair_e2e() {
-    // Exactly-on: b sits flush on a (shared plane z = 1), undeclared.
-    let a = finished(
-        "operand A",
-        brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), Tol::witness()),
-        Tol::witness(),
-    );
-    let b = finished(
-        "operand B",
-        brick::<f64>((0.5, 1.5), (0.5, 1.5), (1.0, 2.0), Tol::witness()),
-        Tol::witness(),
-    );
-    let err = boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness())
-        .expect_err("undeclared flush contact must refuse");
-    let msg = err.to_string();
-    eprintln!("[probe] boolean exactly-on:\n  {msg}\n");
-    assert!(
-        matches!(err, BooleanError::UndeclaredCoincidence { .. }),
-        "{err:?}"
-    );
-    assert_unified(&msg, COINCIDENCE_RECOURSE);
-
     // In-band: corner gap of 3 eps (inside the sliver band).
     let eps = geom_core::Tol::witness().get().eps;
     let g = 1.0 + 3.0 * eps;
@@ -132,7 +107,7 @@ fn probe_census_pair_e2e() {
         for e in scenario(delta) {
             let msg = e.to_string();
             match e {
-                ValidationError::UndeclaredContact { .. } => {
+                ValidationError::UnrecordedContact { .. } => {
                     saw_contact = true;
                     eprintln!("[probe] census definite (delta={delta}):\n  {msg}\n");
                     assert_unified(&msg, recourse_for(&e));
@@ -143,7 +118,10 @@ fn probe_census_pair_e2e() {
                     assert_unified(&msg, recourse_for(&e));
                     // The margin is developer detail: it survives in the
                     // payload, and the sentence says what it means.
-                    assert!(msg.contains("too close to call at this tolerance"), "{msg}");
+                    assert!(
+                        msg.contains("whether two parts of the body touch is undecided"),
+                        "{msg}"
+                    );
                     assert!(
                         format!("{e:?}").contains("Value(")
                             || format!("{e:?}").contains("Enclosure"),
@@ -154,6 +132,6 @@ fn probe_census_pair_e2e() {
             }
         }
     }
-    assert!(saw_contact, "fixtures never hit UndeclaredContact");
+    assert!(saw_contact, "fixtures never hit UnrecordedContact");
     assert!(saw_escalated, "fixtures never hit CensusEscalated");
 }

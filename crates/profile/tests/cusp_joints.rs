@@ -1,6 +1,6 @@
-//! **A validated loop keeps which declared joints are cusps.** The
-//! `.cusp()` door emits the same declaration `.tangent()` does, so the
-//! kind is decided at validation — once per declared joint, with the
+//! **A validated loop keeps which tangent joints are cusps.** The
+//! `.cusp()` door constructs a tangent joint as `.tangent()` does, so
+//! the kind is decided at validation — once per tangent joint, with the
 //! path door's own `path_junction_side` question — and recorded as
 //! `ValidatedLoop::cusp_joints`: canonical, carried through the
 //! reversal remap, the lift and the guided replay, and read by
@@ -10,7 +10,7 @@
 use geom_core::{Point2, Tol};
 use profile::test_support::bulge_loop;
 use profile::{
-    ClosedLoop, ConstructedProfile, Decision, Open, Profile, ProfileError, ProfileLoop, RawLoop,
+    ClosedLoop, ConstructedProfile, Decision, Open, Profile, ProfileError, ProfileLoop,
     SketchPlane, Start, ValidatedProfile, replay_guided, replay_recording,
 };
 
@@ -50,7 +50,6 @@ fn raw_lune() -> ProfileLoop<f64> {
         (Point2::new(0.0, 2.0), -1.0),
         (Point2::new(0.0, 0.0), 1.0),
     ])
-    .with_tangent_joints(vec![2])
 }
 
 /// The canonical index of the vertex at `at`.
@@ -68,7 +67,7 @@ fn the_cusp_door_records_its_joint_and_the_tangent_door_does_not() {
     assert_eq!(v.loops()[0].tangent_joints(), &[2]);
     assert_eq!(v.loops()[0].cusp_joints(), &[2]);
 
-    // A rounded rectangle: eight declared joints, every one smooth.
+    // A rounded rectangle: eight tangent joints, every one smooth.
     let q = 0.25;
     let b = core::f64::consts::FRAC_PI_8.tan();
     let rounded = bulge_loop(vec![
@@ -80,8 +79,7 @@ fn the_cusp_door_records_its_joint_and_the_tangent_door_does_not() {
         (Point2::new(q, 1.0), b),
         (Point2::new(0.0, 1.0 - q), 0.0),
         (Point2::new(0.0, q), b),
-    ])
-    .with_tangent_joints((0..8).collect());
+    ]);
     let v = validated(vec![rounded]);
     assert_eq!(v.loops()[0].tangent_joints().len(), 8);
     assert_eq!(v.loops()[0].cusp_joints(), &[] as &[usize]);
@@ -110,7 +108,7 @@ fn a_reversed_loop_keeps_its_cusp_at_the_same_vertex() {
 }
 
 /// An arbelos: a big semicircle over two small ones, three cusps and
-/// no smooth joint. Every arc is declared tangent at both ends, and
+/// no smooth joint. Every arc is tangent at both ends, and
 /// none is a fillet.
 #[test]
 fn an_arbelos_has_three_cusps_and_no_blend_arc() {
@@ -118,8 +116,7 @@ fn an_arbelos_has_three_cusps_and_no_blend_arc() {
         (Point2::new(0.0, 0.0), -1.0),
         (Point2::new(1.0, 0.0), -1.0),
         (Point2::new(2.0, 0.0), 1.0),
-    ])
-    .with_tangent_joints(vec![0, 1, 2]);
+    ]);
     let v = validated(vec![arbelos]);
     assert_eq!(v.loops()[0].tangent_joints(), &[0, 1, 2]);
     assert_eq!(v.loops()[0].cusp_joints(), &[0, 1, 2]);

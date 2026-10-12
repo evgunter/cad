@@ -332,17 +332,29 @@ impl<T: Bounds> SectionFrame<T> {
 
 impl<T: Bounds> CapSliver<T> {
     /// **How clear one end-face edge is of the sliver**: the `carrier`
-    /// over `window` misses `Ω` when this is positive, being the largest
-    /// of how far the edge stays inside the section (or the disc of its
-    /// minor semi-axis), beyond `reach`,
-    /// and short of each floor. `None` for a carrier with no closed
-    /// form ([`piece_distance`]).
+    /// over `window` misses `Ω` when this is positive. `None` for a
+    /// carrier with no closed form ([`piece_distance`]).
     ///
-    /// Each term clears the whole edge on its own, so an edge that
-    /// misses `Ω` only by leaving it through different faces at
-    /// different points reads not-clear — a conservative refusal, never
-    /// a silent pass.
+    /// A curved edge is read term by term ([`Self::whole_clearance`]),
+    /// so one that misses `Ω` only by leaving it through different
+    /// faces at different points reads not-clear — a conservative
+    /// refusal, never a silent pass. A straight edge is also read point
+    /// by point ([`Self::line_clearance`]) and the larger reading kept:
+    /// the whole-edge one still carries an elliptic section's own depth,
+    /// which the pointwise read replaces by the disc of its minor
+    /// semi-axis.
     pub(in crate::blend) fn clearance(&self, carrier: &Curve3<T>, window: (T, T)) -> Option<T> {
+        let whole = self.whole_clearance(carrier, window)?;
+        Some(match *carrier {
+            Curve3::Line { origin, dir } => whole.max(self.line_clearance(origin, dir, window)),
+            _ => whole,
+        })
+    }
+
+    /// The largest of how far the whole edge stays inside the section
+    /// (or the disc of its minor semi-axis), beyond `reach`, and short
+    /// of each floor: each term clears the whole edge on its own.
+    fn whole_clearance(&self, carrier: &Curve3<T>, window: (T, T)) -> Option<T> {
         let (near, far) = piece_distance(carrier, window, self.center)?;
         let mut clear = near - self.reach;
         if let Some(section) = self.inside {
@@ -358,6 +370,108 @@ impl<T: Bounds> CapSliver<T> {
             clear = clear.max(floor - high);
         }
         Some(clear)
+    }
+
+    /// **How clear a straight edge is of `Ω`, point by point**: the
+    /// least over the segment of `G(p)`, the largest of `‖q‖ − reach`,
+    /// `minor − ‖q‖` on a round end, and each `floorₖ − q·dₖ`, with
+    /// `q = p − center`. Each term bounds from below `p`'s distance
+    /// from a set containing `Ω` (the disc to `reach`, the outside of
+    /// the disc of the minor semi-axis, a half-plane), so `G > 0`
+    /// puts `p` outside `Ω`.
+    ///
+    /// In arc length `s` each term is affine, convex (`‖q‖ − reach`) or
+    /// concave (`minor − ‖q‖`), so `G`'s least is at an end, at the
+    /// foot of `center` on the line, or where two terms cross, each
+    /// crossing closed-form. A candidate off any crossing is still a
+    /// point of the segment, where `G` is no lower than its least.
+    ///
+    /// Against the sliver `S` itself only the ends carry soundness: a
+    /// line meets the end curve at most twice, so a segment that meets
+    /// `S` has an end in it. The rest of the candidates buy carves, and
+    /// only a unit test against a sampled least can see one go missing.
+    fn line_clearance(&self, origin: Point3<T>, dir: Vec3<T>, (ta, tb): (T, T)) -> T {
+        let zero = T::zero();
+        let one = T::one();
+        let pa = origin + dir * ta;
+        let chord = origin + dir * tb - pa;
+        // An edge has positive length, so `len` is no divisor of zero.
+        let len = chord.norm();
+        let e = chord * (one / len);
+        let q0 = pa - self.center;
+        // `‖q‖² = (s + b)² + d2`, `d2` read off the foot's own offset
+        // as [`piece_distance`] reads it, which does not cancel far
+        // from `center` as `q0·q0 − b²` does.
+        let b = q0.dot(e);
+        let d2 = (q0 - e * b).norm().powi(2);
+        let minor = self.inside.map(|s| s.minor);
+        // Each floor as `a + k·s`.
+        let affine = || {
+            self.floors
+                .iter()
+                .map(move |&(d, floor)| (floor - q0.dot(d), zero - e.dot(d)))
+        };
+        let g = |s: T| {
+            let s = s.max(zero).min(len);
+            let rho = (q0 + e * s).norm();
+            let v = minor.map_or(rho - self.reach, |m| (rho - self.reach).max(m - rho));
+            affine().fold(v, |v, (a, k)| v.max(a + k * s))
+        };
+        // A quotient whose divisor's bracket meets zero is skipped: at
+        // `f64` that is a divisor that vanishes (below), and at `Interval`
+        // the candidate would spread over the segment and read `G` over
+        // all of it. A skipped candidate can only raise the reading, and
+        // never past the ends.
+        let over = |x: T, y: T| (y.lo() > 0.0 || y.hi() < 0.0).then(|| x / y);
+        // Both ends, though a clamped crossing would reach either: they
+        // are what soundness against `S` reads, so no skipped quotient
+        // may lose one.
+        let mut least = g(zero).min(g(len)).min(g(zero - b));
+        let mut at = |s: Option<T>| {
+            if let Some(s) = s {
+                least = least.min(g(s));
+            }
+        };
+        // `‖q‖ = a + k·s`, `|k| ≤ 1`: with `τ = s + b` and `a′ = a − k·b`,
+        // `(1 − k²)·τ² − 2·a′·k·τ + d2 − a′² = 0`, whose roots are
+        // `(d2 − a′²)/(a′·k ∓ r)`, both signs taken where `topo`'s
+        // `solid_contain::quadratic_roots` picks one. It never divides by
+        // `1 − k²`, which vanishes on an edge along a floor's direction
+        // and leaves the equation linear with the one root it takes. A
+        // divisor vanishes alone only where `a′² = d2`: the other root
+        // is then the foot, and `G` runs monotonically through the root
+        // lost, since between the two crossings the larger term is the
+        // one heading away from the foot's value.
+        let mut radial = |a: T, k: T| {
+            let a1 = a - k * b;
+            let r = (a1.powi(2) - (one - k.powi(2)) * d2).max(zero).sqrt();
+            for r in [r, zero - r] {
+                at(over(d2 - a1.powi(2), a1 * k - r).map(|t| t - b));
+            }
+        };
+        for (a, k) in affine() {
+            radial(self.reach + a, k);
+            if let Some(m) = minor {
+                radial(m - a, zero - k);
+            }
+        }
+        if let Some(m) = minor {
+            let h = ((m + self.reach) / T::from_f64(2.0)).powi(2) - d2;
+            let h = h.max(zero).sqrt();
+            at(Some(h - b));
+            at(Some(zero - h - b));
+        }
+        for (i, (ai, ki)) in affine().enumerate() {
+            for (aj, kj) in affine().skip(i + 1) {
+                // The two differ by `δ0` at the start and `δ1` at the end,
+                // so where they cross inside the segment it is at
+                // `len·|δ0|/(|δ0| + |δ1|)`.
+                let d0 = (ai - aj).abs();
+                let d1 = (ai - aj + (ki - kj) * len).abs();
+                at(over(len * d0, d0 + d1));
+            }
+        }
+        least
     }
 }
 
@@ -824,4 +938,248 @@ pub(in crate::blend) fn fold_sliver<T: Decide>(
     body.kev(spur).map_err(|e| op("end vertex kev", e))?;
     rec.dead.vertices.push(vertex);
     Ok(())
+}
+
+#[cfg(test)]
+mod line_meter_fuzz;
+
+#[cfg(test)]
+mod tests {
+    use super::{CapSliver, SectionFrame};
+    use geom::Curve3;
+    use geom_core::{Bounds, Interval, Point3, Real, Vec3};
+    use topo::{EdgeKey, FaceKey};
+
+    /// A sliver enclosure about the origin in the `z = 0` plane, spelled
+    /// in plain numbers so one region builds at every scalar.
+    pub(super) struct Region {
+        /// The section's major axis's angle, its major and minor
+        /// semi-axes; `None` on a chord end.
+        pub(super) section: Option<(f64, f64, f64)>,
+        pub(super) reach: f64,
+        /// Each unit direction `dₖ` and its floor.
+        pub(super) floors: Vec<((f64, f64), f64)>,
+    }
+
+    impl Region {
+        pub(super) fn sliver<T: Real>(&self) -> CapSliver<T> {
+            let f = T::from_f64;
+            let v = |x: f64, y: f64| Vec3::new(f(x), f(y), f(0.0));
+            CapSliver {
+                cap: FaceKey::default(),
+                rims: [EdgeKey::default(); 2],
+                center: Point3::new(f(0.0), f(0.0), f(0.0)),
+                inside: self.section.map(|(a, major, minor)| SectionFrame {
+                    u: v(a.cos(), a.sin()),
+                    w: v(-a.sin(), a.cos()),
+                    major: f(major),
+                    minor: f(minor),
+                }),
+                reach: f(self.reach),
+                floors: self
+                    .floors
+                    .iter()
+                    .map(|&((x, y), floor)| (v(x, y), f(floor)))
+                    .collect(),
+            }
+        }
+
+        /// The straight-edge meter on the segment `a → b`, at `f64` and at
+        /// `Interval`.
+        pub(super) fn meter(&self, a: (f64, f64), b: (f64, f64)) -> (f64, Interval) {
+            let at = |x: f64, y: f64| Point3::new(x, y, 0.0);
+            let dir = Vec3::new(b.0 - a.0, b.1 - a.1, 0.0);
+            let iv = Interval::from_f64;
+            (
+                self.sliver::<f64>()
+                    .line_clearance(at(a.0, a.1), dir, (0.0, 1.0)),
+                self.sliver::<Interval>().line_clearance(
+                    Point3::new(iv(a.0), iv(a.1), iv(0.0)),
+                    Vec3::new(iv(dir.x), iv(dir.y), iv(0.0)),
+                    (iv(0.0), iv(1.0)),
+                ),
+            )
+        }
+
+        /// `G` at `p`, from its definition.
+        pub(super) fn g(&self, p: (f64, f64)) -> f64 {
+            let rho = p.0.hypot(p.1);
+            let v = self.section.map_or(rho - self.reach, |(_, _, minor)| {
+                (rho - self.reach).max(minor - rho)
+            });
+            self.floors
+                .iter()
+                .fold(v, |v, &((x, y), floor)| v.max(floor - p.0 * x - p.1 * y))
+        }
+
+        /// Whether `p` is in `Ω`: within `reach`, outside the section
+        /// itself (an ellipse, not its minor disc), and above every floor.
+        fn holds(&self, p: (f64, f64)) -> bool {
+            let outside = self.section.is_none_or(|(a, major, minor)| {
+                let (x, y) = (p.0 * a.cos() + p.1 * a.sin(), p.1 * a.cos() - p.0 * a.sin());
+                (x / major).powi(2) + (y / minor).powi(2) >= 1.0
+            });
+            p.0.hypot(p.1) <= self.reach
+                && outside
+                && self
+                    .floors
+                    .iter()
+                    .all(|&((x, y), floor)| p.0 * x + p.1 * y >= floor)
+        }
+    }
+
+    /// The distance from `p` to the segment `a → b`.
+    fn to_segment(p: (f64, f64), a: (f64, f64), b: (f64, f64)) -> f64 {
+        let (dx, dy) = (b.0 - a.0, b.1 - a.1);
+        let t = (((p.0 - a.0) * dx + (p.1 - a.1) * dy) / (dx.powi(2) + dy.powi(2))).clamp(0.0, 1.0);
+        (p.0 - a.0 - t * dx).hypot(p.1 - a.1 - t * dy)
+    }
+
+    /// **The straight-edge meter never reads a segment farther from `Ω`
+    /// than it is**, on every segment between two points of a lattice
+    /// over and around four regions, at `f64` and at `Interval`: below
+    /// the segment's distance to each point of a grid over `Ω`, and not
+    /// positive where a sample of the segment is in `Ω`. `Ω` is read off
+    /// its own definition, with an elliptic section, so this goes red
+    /// if a term of `G` stops bounding the distance to `Ω`.
+    ///
+    /// It is also the segment's least `G` (the candidate set is
+    /// complete): never above a dense run of samples, and never more
+    /// than their spacing below their least, `G` being 1-Lipschitz along
+    /// the segment. The lattice holds segments along the box's floor
+    /// directions, whose crossings with a radial term have a vanishing
+    /// leading coefficient and at `Interval` one that straddles zero, and
+    /// through the centre; one region repeats a direction, so two affine
+    /// terms coincide.
+    #[test]
+    fn the_line_meter_is_the_least_of_g_and_never_reads_past_omega() {
+        let (c, s) = (40f64.to_radians().cos(), 40f64.to_radians().sin());
+        let box_floors = vec![
+            ((c, s), 0.85),
+            ((1.0, 0.0), 0.5),
+            ((-1.0, 0.0), -1.3),
+            ((0.0, 1.0), 0.1),
+            ((0.0, -1.0), -1.25),
+        ];
+        let regions = [
+            (
+                "round end",
+                Region {
+                    section: Some((0.0, 1.0, 1.0)),
+                    reach: 1.3,
+                    floors: box_floors.clone(),
+                },
+            ),
+            (
+                "tilted elliptic end",
+                Region {
+                    section: Some((0.3, 1.4, 0.8)),
+                    reach: 1.5,
+                    floors: vec![((c, s), 0.2), ((0.0, -1.0), -1.4)],
+                },
+            ),
+            (
+                "chord end",
+                Region {
+                    section: None,
+                    reach: 1.3,
+                    floors: vec![((c, s), 0.4)],
+                },
+            ),
+            (
+                "a repeated direction",
+                Region {
+                    section: Some((0.0, 1.0, 1.0)),
+                    reach: 1.3,
+                    floors: vec![((1.0, 0.0), 0.5), ((1.0, 0.0), 0.5), ((0.0, 1.0), 0.1)],
+                },
+            ),
+        ];
+        let lattice: Vec<(f64, f64)> = (0..7)
+            .flat_map(|i| (0..7).map(move |j| (i, j)))
+            .map(|(i, j)| (-2.0 + f64::from(i) / 1.5, -2.0 + f64::from(j) / 1.5))
+            .collect();
+        const N: u32 = 400;
+        for (what, region) in &regions {
+            let omega: Vec<(f64, f64)> = (0..=80)
+                .flat_map(|i| (0..=80).map(move |j| (i, j)))
+                .map(|(i, j)| (-1.6 + f64::from(i) / 25.0, -1.6 + f64::from(j) / 25.0))
+                .filter(|&p| region.holds(p))
+                .collect();
+            assert!(omega.len() > 100, "{what}: the grid meets Ω");
+            let (mut handed_over, mut through) = (0usize, 0usize);
+            for (k, &a) in lattice.iter().enumerate() {
+                for &b in &lattice[k + 1..] {
+                    let len = (b.0 - a.0).hypot(b.1 - a.1);
+                    let (m, iv) = region.meter(a, b);
+                    let near = omega
+                        .iter()
+                        .map(|&p| to_segment(p, a, b))
+                        .fold(f64::INFINITY, f64::min);
+                    let samples = (0..=N).map(|n| {
+                        let t = f64::from(n) / f64::from(N);
+                        (a.0 + (b.0 - a.0) * t, a.1 + (b.1 - a.1) * t)
+                    });
+                    let meets = samples.clone().any(|p| region.holds(p));
+                    through += usize::from(meets);
+                    let least = samples.map(|p| region.g(p)).fold(f64::INFINITY, f64::min);
+                    for (scalar, read) in [("f64", m), ("Interval", iv.lo())] {
+                        assert!(
+                            read <= near + 1e-12 && !(meets && read > 0.0),
+                            "{what}, {scalar}: {a:?} → {b:?} reads {read}, but is {near} from \
+                             a point of Ω (meets it: {meets})"
+                        );
+                        assert!(
+                            read <= least + 1e-12,
+                            "{what}, {scalar}: {a:?} → {b:?}: {read} is above a sampled G {least}"
+                        );
+                        assert!(
+                            read >= least - len / f64::from(2 * N) - 1e-12,
+                            "{what}, {scalar}: {a:?} → {b:?}: {read} is below the least G {least}"
+                        );
+                    }
+                    let carrier = Curve3::Line {
+                        origin: Point3::new(a.0, a.1, 0.0),
+                        dir: Vec3::new(b.0 - a.0, b.1 - a.1, 0.0),
+                    };
+                    let whole = region.sliver::<f64>().whole_clearance(&carrier, (0.0, 1.0));
+                    handed_over += usize::from(m > 1e-3 && whole.is_some_and(|w| w <= 0.0));
+                }
+            }
+            assert!(through > 0, "{what}: some segment runs through Ω");
+            if *what == "round end" {
+                assert!(
+                    handed_over > 0,
+                    "{what}: some segment the meter clears is cleared by no one term over its \
+                     whole length"
+                );
+            }
+        }
+    }
+
+    /// **Far from the centre the meter keeps its digits**: a segment
+    /// `10⁴` from `center` at its start, passing `0.9` from it, between
+    /// the disc of the minor semi-axis and `reach`. `G` there is least
+    /// where the two radial terms cross, at `‖q‖ = 1.15`, and that least
+    /// is `−0.15` exactly; the crossing is placed from the line's
+    /// distance to `center`, which a spelling that squares `‖q‖` and
+    /// subtracts reads `~10⁻⁸` off.
+    #[test]
+    fn a_segment_far_from_the_centre_reads_its_least_to_rounding() {
+        let region = Region {
+            section: Some((0.0, 1.0, 1.0)),
+            reach: 1.3,
+            floors: Vec::new(),
+        };
+        let t = 0.37f64;
+        let (u, n) = ((t.cos(), t.sin()), (-t.sin(), t.cos()));
+        let at = |s: f64| (0.9 * n.0 + s * u.0, 0.9 * n.1 + s * u.1);
+        let (a, b) = (at(-1.0e4), at(1.0e4));
+        let (m, iv) = region.meter(a, b);
+        assert!((m + 0.15).abs() < 1e-11, "f64 reads {m}, not −0.15");
+        assert!(
+            iv.lo() <= -0.15 && iv.lo() > -0.15 - 1e-10,
+            "Interval reads {iv:?}, not −0.15"
+        );
+    }
 }

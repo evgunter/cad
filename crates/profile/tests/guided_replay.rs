@@ -28,7 +28,7 @@ use crate::common;
 use common::{annulus, coverage_corpus, profile, rect, rounded_rect, tol};
 use geom_core::{Point2, Sign, Tol};
 use profile::{
-    ArcSweep, Center, Decision, DecisionValue, Open, PathError, ProfileLoop, ReplayErrorKind,
+    ArcSweep, Center, ConstructedLoop, Decision, DecisionValue, Open, PathError, ReplayErrorKind,
     ReplayStructure, StructureRefusalKind, replay, replay_guided, replay_recording,
 };
 
@@ -63,7 +63,7 @@ fn vesica_lens(dx: f64) -> Vec<profile::Step<f64>> {
     .program
 }
 
-fn same_bits(a: &ProfileLoop<f64>, b: &ProfileLoop<f64>, what: &str) {
+fn same_bits(a: &ConstructedLoop<f64>, b: &ConstructedLoop<f64>, what: &str) {
     assert_eq!(a.vertices().len(), b.vertices().len(), "{what}: arity");
     for (i, (u, v)) in a.vertices().iter().zip(b.vertices()).enumerate() {
         assert_eq!(u.x.to_bits(), v.x.to_bits(), "{what} vertex {i} x");
@@ -74,7 +74,11 @@ fn same_bits(a: &ProfileLoop<f64>, b: &ProfileLoop<f64>, what: &str) {
             "{what} segment {i}"
         );
     }
-    assert_eq!(a.tangent_joints(), b.tangent_joints(), "{what}: joints");
+    assert_eq!(
+        a.constructed_joints(),
+        b.constructed_joints(),
+        "{what}: joints"
+    );
 }
 
 // ------------------------------------------------------------------
@@ -87,10 +91,9 @@ fn same_bits(a: &ProfileLoop<f64>, b: &ProfileLoop<f64>, what: &str) {
 fn guided_replay_at_f64_reproduces_plain_replay_bitwise() {
     for (i, closed) in coverage_corpus().into_iter().enumerate() {
         let plain = replay(&closed.program, tol()).expect("the corpus replays");
-        let plain = plain.as_loop();
         let (recorded, structure) =
             replay_recording(&closed.program, tol()).expect("and records while it does");
-        same_bits(plain, recorded.as_loop(), &format!("row {i}: recording"));
+        same_bits(&plain, &recorded, &format!("row {i}: recording"));
         // The chain's OWN record — written as it lowered — must be the
         // one a replay of its program rebuilds.
         assert_eq!(
@@ -99,7 +102,7 @@ fn guided_replay_at_f64_reproduces_plain_replay_bitwise() {
         );
         let guided = replay_guided(&closed.program, &structure, tol())
             .expect("and the record it just wrote guides it");
-        same_bits(plain, guided.as_loop(), &format!("row {i}: guided"));
+        same_bits(&plain, &guided, &format!("row {i}: guided"));
     }
 }
 

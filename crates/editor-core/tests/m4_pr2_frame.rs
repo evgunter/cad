@@ -11,7 +11,7 @@
 use crate::fixture;
 
 use editor_core::{
-    Axis3, CancelToken, DatumValue, Dimension, EvalOptions, Evaluation, NodeErrorKind, NodeResult,
+    Axis3, CancelToken, Dimension, EvalOptions, Evaluation, NodeErrorKind, NodeResult, PoseValue,
     ProfileDoc, SlotId, ValuePayload, evaluate,
 };
 use fixture::insert;
@@ -43,7 +43,7 @@ fn evaluated(
 ) -> (Vec3<f64>, Vec3<f64>, Vec3<f64>) {
     match run(doc).nodes.get(&id) {
         Some(NodeResult::Ok(val)) => match &val.payload {
-            ValuePayload::Datum(DatumValue::Frame(f)) => (f.u().get(), f.v().get(), f.w().get()),
+            ValuePayload::Datum(PoseValue::Frame(f)) => (f.u().get(), f.v().get(), f.w().get()),
             other => panic!("expected a frame value, got {other:?}"),
         },
         other => panic!("expected Ok, got {other:?}"),
@@ -159,8 +159,8 @@ fn every_frame_slot_is_declared_and_reachable() {
     // The three families, spelled: a frame is an origin plus two
     // directions, and the dimensions say which is which.
     for axis in Axis3::ALL {
-        assert_eq!(SlotId::Origin(axis).dimension(), Dimension::Length);
-        assert_eq!(SlotId::U(axis).dimension(), Dimension::Scalar);
-        assert_eq!(SlotId::V(axis).dimension(), Dimension::Scalar);
+        assert_eq!(SlotId::Origin(axis).dimension(), Some(Dimension::Length));
+        assert_eq!(SlotId::U(axis).dimension(), Some(Dimension::Scalar));
+        assert_eq!(SlotId::V(axis).dimension(), Some(Dimension::Scalar));
     }
 }

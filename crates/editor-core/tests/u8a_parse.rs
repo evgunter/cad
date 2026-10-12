@@ -38,18 +38,25 @@ fn perr(src: &str) -> ParseError {
     parse_formula(src, &no_params()).expect_err(src)
 }
 
+/// The `f64` bits of every number `e` holds, in pre-order: a written
+/// quantity's value, and a rational constant's value.
 fn bits(e: &Formula) -> Vec<u64> {
     let mut out = Vec::new();
-    e.literal_bits(&mut out);
+    if let Some(v) = e.literal_value() {
+        out.push(v.to_bits());
+    } else if let Some(r) = e.as_ratio() {
+        out.push(r.eval::<f64>().to_bits());
+    }
+    for i in 0..2 {
+        if let Some(child) = e.child(i) {
+            out.extend(bits(child));
+        }
+    }
     out
 }
 
 fn ev(e: &Formula) -> f64 {
-    eval::<f64>(
-        &editor_core::test_support::stored_expr(e),
-        &VarEnv::default(),
-    )
-    .expect("finite eval")
+    eval::<f64>(&Clone::clone(e), &VarEnv::default()).expect("finite eval")
 }
 
 #[test]
@@ -99,10 +106,7 @@ fn bare_integers_are_counts_and_bare_reals_are_scalars() {
     let five = p("5");
     assert_eq!(five.dim(), Dimension::Count);
     assert_eq!(
-        eval_count(
-            &editor_core::test_support::stored_expr(&five),
-            &VarEnv::<f64>::default()
-        ),
+        eval_count(&Clone::clone(&five), &VarEnv::<f64>::default()),
         Ok(5)
     );
     for src in ["5.0", "5.", "1e3", "2.5e-3", "0.5"] {
@@ -325,9 +329,19 @@ fn every_dimension_error_reaches_through_the_parser() {
             found: Dimension::Length,
         }
     );
+    // A count of integer constants beside a continuous operand reads as
+    // the scalar it equals (`2 * 5 mm`, `turn/4`, `(2 + 1) * 5 mm`); a
+    // count reading a variable there is still refused.
+    assert_eq!(p("2 * 5 mm").dim(), Dimension::Length);
+    assert_eq!(p("turn/4").dim(), Dimension::Angle);
+    assert_eq!(ev(&p("(2 + 1) * 5 mm")), 0.015);
+    let count_param: BTreeMap<_, _> = [(VarName::from_static("n"), Dimension::Count)].into();
     assert_eq!(
-        dim_err("2 * 5 mm"),
-        DimensionError::CountNeedsExplicitPromotion { op: "mul" }
+        parse_formula("n * 5 mm", &count_param),
+        Err(ParseError::Dimension {
+            pos: 2,
+            error: DimensionError::CountNeedsExplicitPromotion { op: "mul" },
+        })
     );
     assert_eq!(
         dim_err("5 / 2"),
@@ -400,7 +414,7 @@ proptest! {
         let text = text.unwrap();
         let e = parse_formula(&text, &no_params()).expect(&text);
         prop_assert_eq!(e.dim(), dim, "{}", &text);
-        let back = eval::<f64>(&editor_core::test_support::stored_expr(&e), &VarEnv::default()).expect(&text);
+        let back = eval::<f64>(&Clone::clone(&e), &VarEnv::default()).expect(&text);
         prop_assert_eq!(back.to_bits(), value.to_bits(), "{}", &text);
     }
 }
@@ -411,6 +425,13 @@ proptest! {
 /// `.` or an exponent — so it lexes as a REAL, never as a Count).
 fn arb_real_text() -> impl Strategy<Value = String> {
     (-1.0e6f64..1.0e6).prop_map(|v| format!("{v:?}"))
+}
+
+/// A bare decimal's text a constant spells exactly: six places keep
+/// its reduced numerator and denominator under 2^53, as a bare number
+/// inside a formula must be (`ConstantOutOfRange` otherwise).
+fn arb_constant_text() -> impl Strategy<Value = String> {
+    (-1.0e6f64..1.0e6).prop_map(|v| format!("{v:.6}"))
 }
 
 /// Random well-formed source of the given dimension, exercising every
@@ -424,7 +445,7 @@ fn arb_text_of(dim: Dimension, depth: u32) -> BoxedStrategy<String> {
         Dimension::Angle => (arb_real_text(), prop_oneof!["deg", "rad", "pi rad"])
             .prop_map(|(n, u)| format!("{n} {u}"))
             .boxed(),
-        Dimension::Scalar => prop_oneof![arb_real_text(), Just("S".to_string())].boxed(),
+        Dimension::Scalar => prop_oneof![arb_constant_text(), Just("S".to_string())].boxed(),
         Dimension::Count => prop_oneof![
             (-1000i64..1000).prop_map(|n| n.to_string()),
             Just("N".to_string()),
@@ -691,11 +712,18 @@ fn unparse_writes_a_literal_in_the_unit_it_remembers() {
     );
 
     // The dimensionless row is the one whose notation is the ABSENCE of
-    // a suffix, so a Scalar still writes bare digits — and `2.0` rather
-    // than `2`, because a bare integer is a `Count` in this grammar.
+    // a suffix, so a written dimensionless value is written as its bare
+    // digits — `2.0` rather than `2`, because a bare integer is a
+    // `Count` in this grammar. Those digits read back as the constant
+    // they spell exactly where one in range does (alone, either mints
+    // a free `Scalar`), and alone as the written value where none does.
     let scalar = Formula::literal(2.0, Dimension::Scalar).expect("finite scalar");
-    assert_eq!(scalar.display_unit().map(|u| u.symbol()), Some(""));
-    assert_eq!(round_trip(&scalar), "2.0");
+    assert!(scalar.as_quantity().is_some());
+    assert_eq!(unparse(&scalar, &|_| None), "2.0");
+    assert_eq!(rp("2.0"), Formula::ratio(2, 1).unwrap());
+    let inexact = Formula::literal(0.1 + 0.2, Dimension::Scalar).expect("finite scalar");
+    assert_eq!(inexact.display_unit().map(|u| u.symbol()), Some(""));
+    assert_eq!(round_trip(&inexact), "0.30000000000000004");
 }
 
 /// **A minus sign directly before a number is that literal's own**, so
@@ -731,9 +759,14 @@ fn a_sign_before_a_number_is_the_literals_own() {
             "-9223372036854775808",
         ),
         (
-            "a negative zero",
-            Formula::literal(-0.0, Dimension::Scalar).expect("finite"),
-            "-0.0",
+            "a negative constant",
+            Formula::ratio(-3, 2).expect("in range"),
+            "-1.5",
+        ),
+        (
+            "a negated constant",
+            Formula::neg(Formula::ratio(1, 3).expect("in range")).expect("shallow"),
+            "-(1/3)",
         ),
         (
             "a sign after an operator",
@@ -789,7 +822,9 @@ fn random_leaf(rng: &mut fuzz::Rng, dim: Dimension) -> Formula {
             Formula::literal_with_unit(value, dim, unit(&["rad", "deg", "pi rad"], rng))
                 .expect("a finite angle")
         }
-        (Dimension::Scalar, _) => Formula::literal(value, dim).expect("a finite scalar"),
+        // A bare decimal inside a formula is the constant it spells,
+        // so it is drawn with few enough places to be one in range.
+        (Dimension::Scalar, _) => p(&format!("{value:.6}")),
         (Dimension::Count, 1) => Formula::count(if rng.below(2) == 0 {
             i64::MIN
         } else {

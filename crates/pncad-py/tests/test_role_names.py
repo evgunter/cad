@@ -84,13 +84,10 @@ T, ROLL = 0.125, 0.125
 
 def axis_of(doc, frame):
     """The sketch frame's own +y through its origin."""
-    return doc.insert(Node.datum_axis_in_plane(frame, (
-        Formula.length_in(0, m),
-        Formula.length_in(0, m),
-    ), (
-        Formula.literal(0.0),
-        Formula.literal(1.0),
-    )))
+    return (
+        (Formula.length_in(0, m), Formula.length_in(0, m)),
+        (Formula.literal(0.0), Formula.literal(1.0)),
+    )
 
 
 def ring(doc):
@@ -100,7 +97,7 @@ def ring(doc):
     chain, legs = polygon([(RI, 0), (RO, 0), (RO, H), (RI, H)])
     profile = doc.insert(Node.profile(chain, plane=frame))
     return Scene(doc, profile, [legs]), doc.insert(
-        Node.revolve(profile, axis_of(doc, frame), Formula.angle_in(2 * math.pi, rad))
+        Node.revolve(profile, *axis_of(doc, frame), Formula.angle_in(2 * math.pi, rad))
     )
 
 
@@ -112,7 +109,7 @@ def frustum(doc):
     chain, legs = polygon([(0, 0), (R_BASE, 0), (R_TOP, H_F), (0, H_F)])
     profile = doc.insert(Node.profile(chain, plane=frame))
     return Scene(doc, profile, [legs]), doc.insert(
-        Node.revolve(profile, axis_of(doc, frame), Formula.angle_in(2 * math.pi, rad))
+        Node.revolve(profile, *axis_of(doc, frame), Formula.angle_in(2 * math.pi, rad))
     )
 
 
@@ -127,7 +124,7 @@ def holed_ring(doc):
     return Scene(doc, profile, [outer_legs, hole_legs]), doc.insert(
         Node.revolve(
             profile,
-            axis_of(doc, frame),
+            *axis_of(doc, frame),
             Formula.angle_in(2 * math.pi, rad),
         )
     )
@@ -305,28 +302,30 @@ class TestTheDoorAnswersTheKernelsOwnText(unittest.TestCase):
         doc = Doc()
         scene, node = ring(doc)
         # The top annulus opened: the other three bands survive the
-        # hollowing, and each wears its own name under the shell.
-        hollow = doc.insert(Node.shell(node, Formula.length_in(T, m), [band(node, scene.piece(0, 2))]))
+        # hollowing, and each wears its own name under the shell, keyed
+        # by the target read the shell takes them in through.
+        target = doc.output(node, 0)
+        hollow = doc.insert(Node.shell(target, Formula.length_in(T, m), [band(node, scene.piece(0, 2))]))
         ev = evaluate(doc)
         survivors = ev.select(
             hollow,
             Selector.of(
-                NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.FromTarget))
+                NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.From))
             ),
         )
         self.assertEqual(
             sorted(survivors),
-            sorted(carried(hollow, band(node, scene.piece(0, seg))) for seg in (0, 1, 3)),
+            sorted(carried(hollow, target, band(node, scene.piece(0, seg))) for seg in (0, 1, 3)),
         )
         # The kind is the inner name's, never re-decided: a carried
         # face resolves as a face.
-        self.assertEqual(ev.resolve(carried(hollow, band(node, scene.piece(0, 0)))).status, "resolved")
+        self.assertEqual(ev.resolve(carried(hollow, target, band(node, scene.piece(0, 0)))).status, "resolved")
 
     def test_text_that_is_not_a_name_refuses_at_the_boundary(self):
         doc = Doc()
         _scene, node = ring(doc)
         with self.assertRaises(ValueError):
-            carried(node, "the bottom face")
+            carried(node, doc.output(node, 0), "the bottom face")
 
 
 class TestASelectionAuthoredBeforeAnyEvaluation(unittest.TestCase):
@@ -340,7 +339,7 @@ class TestASelectionAuthoredBeforeAnyEvaluation(unittest.TestCase):
         scene, node = ring(doc)
         # Authored against the recipe alone — nothing is evaluated
         # until the assertion below.
-        hollow = doc.insert(Node.shell(node, Formula.length_in(T, m), [band(node, scene.piece(0, 2))]))
+        hollow = doc.insert(Node.shell(doc.output(node, 0), Formula.length_in(T, m), [band(node, scene.piece(0, 2))]))
         ev = evaluate(doc)
         body = ev.value(hollow).body()
         body.validate()
@@ -368,7 +367,7 @@ class TestASelectionAuthoredBeforeAnyEvaluation(unittest.TestCase):
         scene, node = ring(doc)
         rolled = doc.insert(
             Node.fillet(
-                node,
+                doc.output(node, 0),
                 Formula.length_in(ROLL, m),
                 [band_rim(node, scene.piece(0, 2)), band_rim(node, scene.piece(0, 3))],
             )

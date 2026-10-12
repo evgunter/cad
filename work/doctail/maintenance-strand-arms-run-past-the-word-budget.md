@@ -31,7 +31,6 @@ Both are over the 50-word line the census lists at, before any payload.
 
 `crates/editor-core/src/edit.rs` is `edit`'s by territory.
 
-**Crossing announced**: `crates/editor-core/src/edit.rs` is RECIPE's by
-territory (`work/recipe/program.md`'s `paths`), and DOCTAIL's own fence
-says every refusal-prose unit here announces its crossing there. Filed
-on DOCTAIL because the subject is the refusal sentence, not the door.
+**Territory**: `crates/editor-core/src/edit.rs` was RECIPE's when this
+was filed, and is DOCTAIL's own since RECIPE closed (2026-10-11,
+`docs/doc-ledger/recipe-leaves-the-tracker.md`); INTENT shares it.

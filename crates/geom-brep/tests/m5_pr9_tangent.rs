@@ -16,7 +16,7 @@ use geom_brep::SurfaceKey;
 use geom_brep::recourse::{Classified, Refused};
 use geom_brep::{
     CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec,
-    PlaneCylinderSection,
+    PlaneCylinderSection, SurfacePair,
 };
 use geom_core::{Interval, MarginDiag, Point3, Real, Vec3};
 
@@ -51,8 +51,7 @@ fn ruling_spec(k1: SurfaceKey, k2: SurfaceKey) -> EdgeCurveSpec<f64> {
     };
     EdgeCurveSpec {
         description: EdgeDescriptionSpec::TangentIntersection {
-            s1: k1,
-            s2: k2,
+            pair: SurfacePair::new(k1, k2),
             witness: carrier.eval(0.5),
         },
         carrier,
@@ -120,6 +119,9 @@ fn the_tangent_predicates_reach_the_k_funnel() {
         "tangent_normal_parallel",
         "tangent_hull_sup",
         "tangent_tube_margin",
+        "tangent_gap",
+        "tangent_gap_orientation",
+        "tangent_gap_hull_sup",
     ] {
         assert!(
             v.iter().any(|x| x.predicate == name),
@@ -155,8 +157,7 @@ fn a_g2_flat_pair_refuses_second_order_definitely() {
     };
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::TangentIntersection {
-            s1: k1,
-            s2: k2,
+            pair: SurfacePair::new(k1, k2),
             witness: carrier.eval(0.5),
         },
         carrier,
@@ -214,8 +215,7 @@ fn an_in_band_second_order_margin_escalates_f6() {
     };
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::TangentIntersection {
-            s1: k1,
-            s2: k2,
+            pair: SurfacePair::new(k1, k2),
             witness: carrier.eval(0.5),
         },
         carrier,
@@ -246,8 +246,7 @@ fn a_skewed_carrier_fails_normal_parallelism() {
     };
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::TangentIntersection {
-            s1: k1,
-            s2: k2,
+            pair: SurfacePair::new(k1, k2),
             witness: carrier.eval(0.5),
         },
         carrier,
@@ -280,8 +279,7 @@ fn an_off_surface_carrier_fails_the_residual_schedule_at_band_scale() {
     };
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::TangentIntersection {
-            s1: k1,
-            s2: k2,
+            pair: SurfacePair::new(k1, k2),
             witness: carrier.eval(0.5),
         },
         carrier,
@@ -294,6 +292,68 @@ fn an_off_surface_carrier_fails_the_residual_schedule_at_band_scale() {
         matches!(err, CertifyError::ResidualExceeded { .. }),
         "off-surface by 100·escalate refuses definitely: {err}"
     );
+}
+
+/// **The certificate reads the touch on the pair** (C7): the unit
+/// cylinder against the plane `x = 1 + gap`, the carrier at
+/// `x = 1 + witness`. The two residuals see the carrier; the gap
+/// `s = r₁ − σ·r₂` sees the surfaces.
+///
+/// - 1.8ε apart, the carrier halfway: each residual is 0.9ε and passes;
+///   the gap is in band and escalates.
+/// - 15ε apart, and 15ε into each other, the carrier halfway: the gap
+///   is definite either way (each residual, 7.5ε, is in band).
+/// - Touching, the carrier 11ε off along the shared normal: the
+///   heights cancel in the gap, and the residual against the cylinder
+///   refuses.
+#[test]
+fn the_certificate_reads_the_pairs_gap_beside_the_carriers_residuals() {
+    let eps = band().zero();
+    let along = |gap: f64, witness: f64| {
+        let (k1, k2, map) = arena2(cylinder(), plane_through_line(1.0 + gap, 0.0));
+        let carrier = Curve3::Line {
+            origin: Point3::new(1.0 + witness, 0.0, 0.0),
+            dir: Vec3::new(0.0, 0.0, 1.0),
+        };
+        let (p0, p1) = (carrier.eval(0.0), carrier.eval(1.0));
+        let spec = EdgeCurveSpec {
+            description: EdgeDescriptionSpec::TangentIntersection {
+                pair: SurfacePair::new(k1, k2),
+                witness: carrier.eval(0.5),
+            },
+            carrier,
+            param_start: 0.0,
+            param_end: 1.0,
+        };
+        (
+            k1,
+            EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), band()),
+        )
+    };
+    match along(1.8 * eps, 0.9 * eps).1 {
+        Err(CertifyError::Escalated {
+            check: geom_brep::CertCheck::TangentGap,
+            ..
+        }) => {}
+        other => panic!("1.8ε apart escalates on the gap: {other:?}"),
+    }
+    for gap in [15.0, -15.0] {
+        match along(gap * eps, 0.5 * gap * eps).1 {
+            Err(CertifyError::ResidualExceeded {
+                check: geom_brep::CertCheck::TangentGap,
+                ..
+            }) => {}
+            other => panic!("{gap}ε refuses definitely on the gap: {other:?}"),
+        }
+    }
+    let (k1, got) = along(0.0, 11.0 * eps);
+    match got {
+        Err(CertifyError::ResidualExceeded {
+            check: geom_brep::CertCheck::SurfaceResidual { surface },
+            ..
+        }) => assert_eq!(surface, k1, "the residual against the cylinder"),
+        other => panic!("a carrier 11ε off a touching pair refuses on its residual: {other:?}"),
+    }
 }
 
 #[test]
@@ -329,8 +389,7 @@ fn the_coaxial_circle_class_was_retired_into_the_lane_at_pr_12() {
     };
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::TangentIntersection {
-            s1: k1,
-            s2: k2,
+            pair: SurfacePair::new(k1, k2),
             witness: carrier.eval(0.75),
         },
         carrier,
@@ -372,8 +431,7 @@ fn a_coaxial_cone_sphere_contact_circle_certifies() {
     };
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::TangentIntersection {
-            s1: k1,
-            s2: k2,
+            pair: SurfacePair::new(k1, k2),
             witness: carrier.eval(0.75),
         },
         carrier,
@@ -415,8 +473,7 @@ fn outside_the_span_bound_lane_refuses_typed() {
     };
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::TangentIntersection {
-            s1: k1,
-            s2: k2,
+            pair: SurfacePair::new(k1, k2),
             witness: carrier.eval(1.0),
         },
         carrier,
@@ -558,12 +615,27 @@ fn a_small_angle_false_tangency_is_decided_at_the_parallelism_band_edge() {
         ),
         "a defect inside the band escalates at the parallelism check"
     );
-    assert_eq!(
-        certify_at(2.0 * escalate).unwrap_err(),
-        CertifyError::ResidualExceeded {
-            check: geom_brep::CertCheck::TangentParallel,
-            sample: 1,
-        }
+    let refusal = certify_at(2.0 * escalate).unwrap_err();
+    let CertifyError::ResidualExceeded {
+        check: geom_brep::CertCheck::TangentParallel,
+        sample: 1,
+        margin,
+    } = refusal
+    else {
+        panic!("a definite defect refuses at the parallelism check: {refusal:?}");
+    };
+    // The refusal carries the reading it was decided on: a point margin
+    // past the band's far edge, which the import door reads as the miss.
+    let geom_core::ErrorTextReading::Value(m) = margin.diagnostic_f64_for_error_text() else {
+        panic!("an f64 classification reports a point margin: {margin:?}");
+    };
+    // The planted defect is twice the band's far edge, so the carried
+    // reading lies past that edge and within a rounding factor of it.
+    assert!(
+        (escalate..=4.0 * escalate).contains(&m.abs()),
+        "the carried miss {m:e} lies past the band's far edge {escalate:e}, near the planted \
+         {:e}",
+        2.0 * escalate
     );
 }
 
@@ -582,8 +654,7 @@ fn certify_line_at(
     let (p0, p1) = (carrier.eval(0.0), carrier.eval(1.0));
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::TangentIntersection {
-            s1: k1,
-            s2: k2,
+            pair: SurfacePair::new(k1, k2),
             witness: carrier.eval(0.5),
         },
         carrier,
@@ -645,13 +716,18 @@ fn a_second_order_refusal_is_renamed_only_by_a_definite_defect_at_the_folded_arm
     );
 
     let definite = (1e3 * zero / length).asin();
-    assert_eq!(
-        certify_line_at(1.0, tangent_plane(), plane_through_line(1.0, definite)).unwrap_err(),
-        CertifyError::ResidualExceeded {
-            check: geom_brep::CertCheck::TangentParallel,
-            sample: 1,
-        },
-        "a definite first-order defect names the refusal"
+    let refusal =
+        certify_line_at(1.0, tangent_plane(), plane_through_line(1.0, definite)).unwrap_err();
+    assert!(
+        matches!(
+            refusal,
+            CertifyError::ResidualExceeded {
+                check: geom_brep::CertCheck::TangentParallel,
+                sample: 1,
+                ..
+            }
+        ),
+        "a definite first-order defect names the refusal: {refusal:?}"
     );
 
     let radius = zero;
@@ -694,8 +770,7 @@ fn certify_line_at_interval(
     let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::TangentIntersection {
-            s1: k1,
-            s2: k2,
+            pair: SurfacePair::new(k1, k2),
             witness: carrier.eval(lift(0.5)),
         },
         carrier,
@@ -774,12 +849,16 @@ fn a_renamed_refusal_leaves_no_second_order_escalation_on_the_log() {
     );
 
     let (out, recorded) = certify_line_at_interval(r, cylinder_of(r), plane_through_line(r, tilt));
-    assert_eq!(
-        out.err(),
-        Some(CertifyError::ResidualExceeded {
-            check: geom_brep::CertCheck::TangentParallel,
-            sample: 1,
-        })
+    assert!(
+        matches!(
+            out,
+            Err(CertifyError::ResidualExceeded {
+                check: geom_brep::CertCheck::TangentParallel,
+                sample: 1,
+                ..
+            })
+        ),
+        "{out:?}"
     );
     assert_eq!(
         escalated(&recorded),

@@ -1,10 +1,9 @@
 //! **The walks over an expression tree that keep their own stack.**
 //!
-//! [`Expr`](crate::Expr) and [`MeasureExpr`](crate::MeasureExpr) are
-//! both trees of one- and two-operand nodes over leaves. The walks over
-//! them that must cost the thread's stack nothing, however deep a tree
-//! nests, are written once here for either: [`fold`], the evaluation
-//! both evaluators run, and [`free`], the drop both types run.
+//! [`Expr`](crate::Expr) is a tree of one- and two-operand nodes over
+//! leaves. The walks over it that must cost the thread's stack nothing,
+//! however deep a tree nests, are written here: [`fold`], the
+//! evaluation the evaluator runs, and [`free`], the drop it runs.
 
 /// How an evaluation walk values a node it visits.
 pub(crate) enum Visit<'t, N, T> {

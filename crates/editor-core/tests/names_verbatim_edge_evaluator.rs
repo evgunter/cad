@@ -86,9 +86,11 @@ test_utils::f6_variants! {
         Chamfer,
         Shell,
         Split,
-        Boolean,
+        Intersect,
+        Subtract,
         Union,
         Transform,
+        PlaceInWorld,
         Pattern,
         Part,
         PlacedUnion,
@@ -120,7 +122,7 @@ fn block(label: &str) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -168,8 +170,8 @@ fn stacked_blocks() -> (ProfileDoc, EvalOptions) {
     let (doc, _mate) = insert(
         doc,
         Node::Mate {
-            a: fixture::head(in_part(base, base_body, CapEnd::End)),
-            b: fixture::head(in_part(top, top_body, CapEnd::Start)),
+            a: fixture::head(in_part(base, base_body, CapEnd::End)).into(),
+            b: fixture::head(in_part(top, top_body, CapEnd::Start)).into(),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: mate_frame([0.0, 0.0, 1.0]),

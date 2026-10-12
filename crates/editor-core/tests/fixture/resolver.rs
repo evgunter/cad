@@ -44,14 +44,17 @@ impl PartStore {
         DocRef { id, pin }
     }
 
-    /// [`Self::insert`] for a part builder's `(document, body)`,
-    /// answering the reference with the body [`in_part`] names the
-    /// part's caps through.
+    /// [`Self::insert`] for a part builder's `(document, body)`, with
+    /// `body` placed in the part's world first (A10: the part's product
+    /// is its world), answering the reference with the body [`in_part`]
+    /// names the part's caps through.
     pub fn insert_part(
         &mut self,
         (doc, body): (ProfileDoc, RecipeNodeId),
         tol: Tol,
     ) -> (DocRef, RecipeNodeId) {
+        let (doc, placement) = super::place(doc, body);
+        record_placement(body, placement);
         (self.insert(doc, tol), body)
     }
 
@@ -113,18 +116,59 @@ pub fn with_resolver(store: PartStore) -> EvalOptions {
     }
 }
 
+/// The placement [`PartStore::insert_part`] placed each body with, by
+/// the body. A node id is the digest of the mint chain it was minted
+/// at, and the placement is inserted right after its body, so one body
+/// id names one placement id in every document that holds it.
+static PLACED: std::sync::Mutex<BTreeMap<RecipeNodeId, RecipeNodeId>> =
+    std::sync::Mutex::new(BTreeMap::new());
+
+fn record_placement(body: RecipeNodeId, placement: RecipeNodeId) {
+    PLACED
+        .lock()
+        .expect("the placement record")
+        .insert(body, placement);
+}
+
+/// **The world placement [`PartStore::insert_part`] placed `body`
+/// with**: what the part's product names `body`'s entities under.
+///
+/// # Panics
+///
+/// If no part stored through [`PartStore::insert_part`] holds `body`.
+pub fn placement_of(body: RecipeNodeId) -> RecipeNodeId {
+    *PLACED
+        .lock()
+        .expect("the placement record")
+        .get(&body)
+        .unwrap_or_else(|| panic!("{body:?} is no body a part stored with `insert_part` placed"))
+}
+
 /// **A cap face of `instance`'s part product**, in the wrapper the
 /// instantiate node mints: the part's own name for the face — a cap of
-/// `body`, the part document's body node as its builder minted it —
-/// worn inside a [`RoleSeg::InPart`] under the instance that placed it,
-/// the kernel's own wrapper (`FaceName::in_part`).
+/// `body`, as its placement's copy carries it ([`RoleSeg::Placed`]) —
+/// worn inside a [`RoleSeg::InPart`] under the
+/// instance that placed it, the kernel's own wrapper
+/// (`FaceName::in_part`).
 pub fn in_part(instance: RecipeNodeId, body: RecipeNodeId, cap: CapEnd) -> StableName {
-    editor_core::FaceName::new(StableName {
+    editor_core::FaceName::new(in_world(body, cap))
+        .expect("a cap is a face")
+        .in_part(instance)
+        .into_name()
+}
+
+/// **A cap face of a part's product**, as the part's own gather names
+/// it: the body's cap under its placement's copy ([`placement_of`]).
+pub fn in_world(body: RecipeNodeId, cap: CapEnd) -> StableName {
+    StableName {
         kind: EntityKind::Face,
-        node: body,
-        path: vec![RoleSeg::Cap(cap)],
-    })
-    .expect("a cap is a face")
-    .in_part(instance)
-    .into_name()
+        node: placement_of(body),
+        path: vec![RoleSeg::Placed {
+            of: editor_core::NameRef::new(StableName {
+                kind: EntityKind::Face,
+                node: body,
+                path: vec![RoleSeg::Cap(cap)],
+            }),
+        }],
+    }
 }

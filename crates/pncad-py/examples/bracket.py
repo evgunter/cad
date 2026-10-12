@@ -32,7 +32,7 @@ import math
 import os
 import tempfile
 
-from pncad import BooleanOp, Doc, Formula, Node, Open, Start, evaluate, import_step, mm
+from pncad import Doc, Formula, Node, Open, Start, evaluate, import_step, mm
 
 PLATE = (80, 40)  # mm
 # The plate's corner radius: the natural one for this plate. It was
@@ -93,21 +93,18 @@ def slab(doc, x, y, z):
 def main():
     doc = Doc()
 
-    # The kernel is fail-loud about coincidence — it never INFERS that
-    # two faces are the same face — so every solid here genuinely
-    # interpenetrates the one it is combined with. Boxes that merely
-    # touch on a shared plane are refused until the contact is
-    # declared, which is a document-authoring subject of its own.
+    # Faces that meet on one plane glue where their margins decide it:
+    # the web stands flush on the plate, and the
+    # pocket's floor is flush with the plate's bottom.
 
-    # A rounded base plate, and an upright web sunk into it and
-    # poking out.
+    # A rounded base plate, and an upright web standing on it.
     base = rounded_plate(doc, PLATE[0], PLATE[1], CORNER, 8 * mm)
-    web = slab(doc, (36 * mm, 44 * mm), (5 * mm, 35 * mm), (4 * mm, 34 * mm))
-    bracket = doc.insert(Node.boolean(BooleanOp.Union, base, web))
+    web = slab(doc, (36 * mm, 44 * mm), (5 * mm, 35 * mm), (8 * mm, 34 * mm))
+    bracket = doc.insert(Node.union([base, web]))
 
     # A lightening pocket, entering from below and stopping inside.
-    pocket = slab(doc, (8 * mm, 28 * mm), (10 * mm, 30 * mm), (-2 * mm, 5 * mm))
-    lightened = doc.insert(Node.boolean(BooleanOp.Subtract, bracket, pocket))
+    pocket = slab(doc, (8 * mm, 28 * mm), (10 * mm, 30 * mm), (0 * mm, 5 * mm))
+    lightened = doc.insert(Node.subtract(bracket, pocket))
 
     ev = evaluate(doc)
     print(f"document: {doc.node_count} nodes, tolerance {doc.epsilon}")

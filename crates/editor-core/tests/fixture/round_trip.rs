@@ -105,16 +105,25 @@ pub fn identity(doc: &ProfileDoc) -> (NodeMap, StepMap) {
 }
 
 /// **Each variable of `a` matched to its image in `b`**: a named one
-/// by its name, and one a matched definition reads — anonymous ones
+/// by its name, an operation's output by its port on the node's image
+/// under `map`, and one a matched definition reads — anonymous ones
 /// among them — by its place among that definition's reads, followed
-/// to a fixed point. The two documents mint their own ids; a name or a
-/// definition is what a reader reads.
-fn var_images(a: &ProfileDoc, b: &ProfileDoc) -> BTreeMap<MintId, MintId> {
+/// to a fixed point. The two documents mint their own ids; a name, a
+/// port or a definition is what a reader reads.
+fn var_images(a: &ProfileDoc, b: &ProfileDoc, map: &NodeMap) -> BTreeMap<MintId, MintId> {
     let mut images: BTreeMap<MintId, MintId> = a
         .var_names()
         .iter()
         .filter_map(|(id, name)| Some((id.0, b.var_named(name.as_str())?.0)))
         .collect();
+    for (&from, &to) in map {
+        for port in 0..=u8::MAX {
+            let (Some(x), Some(y)) = (a.output(from, port), b.output(to, port)) else {
+                break;
+            };
+            images.entry(x.0).or_insert(y.0);
+        }
+    }
     let reads = |d: &ProfileDoc, id: MintId| {
         let mut out = Vec::new();
         if let Some(expr) = d
@@ -236,6 +245,10 @@ fn same_payload(
 /// `steps`** (module docs); the error lists every disagreement, one
 /// line each, opening with the check that found it.
 ///
+/// The map is the one the refactorings carried nodes with, and the
+/// documents are live. Two SAVED bodies with no map between them are
+/// `tests/wire/up_to_ids.rs`'s, which builds its map from the walk.
+///
 /// # Errors
 ///
 /// The disagreements.
@@ -263,7 +276,7 @@ pub fn same_up_to_ids(
     }
     let ids: BTreeMap<MintId, MintId> = map.iter().map(|(k, v)| (k.0, v.0)).collect();
     let step_ids: BTreeMap<MintId, MintId> = steps.iter().map(|(k, v)| (k.0, v.0)).collect();
-    let var_ids = var_images(a, b);
+    let var_ids = var_images(a, b, map);
     let mut covered = BTreeSet::new();
     for id in live(a) {
         let Some(&to) = map.get(&id) else {
@@ -301,12 +314,6 @@ pub fn same_up_to_ids(
             problems.push(format!("preimage: {id:?} has none"));
         }
     }
-    let roots_a: Vec<Option<RecipeNodeId>> =
-        a.roots().iter().map(|r| map.get(r).copied()).collect();
-    let roots_b: Vec<Option<RecipeNodeId>> = b.roots().iter().map(|&r| Some(r)).collect();
-    if roots_a != roots_b {
-        problems.push(format!("roots: {roots_a:?} vs {roots_b:?}"));
-    }
     let position: BTreeMap<RecipeNodeId, usize> =
         b.ids().iter().enumerate().map(|(i, &id)| (id, i)).collect();
     for group in editor_core::groups(a) {
@@ -320,14 +327,19 @@ pub fn same_up_to_ids(
             ));
         }
     }
-    // Variables are compared by name, a definition with the ids it
+    // Variables are compared by name, a definition as written (each
+    // anonymous variable it reads as what it holds) with the ids it
     // reads read as their images: the two documents mint their own
     // ids, and a name is what a reader reads.
     let vars = |d: &ProfileDoc, through: Option<&BTreeMap<MintId, MintId>>| {
         d.var_names()
             .iter()
             .filter_map(|(id, name)| {
-                let shown = format!("{:?}", d.var(*id)?);
+                let held = d.var(*id)?;
+                let shown = match held.def().defined() {
+                    Some(defined) => format!("{:?} {:?}", held.kind(), d.written(defined)),
+                    None => format!("{held:?}"),
+                };
                 let shown = match through {
                     Some(vars) => renamed(&shown, &ids, &step_ids, vars),
                     None => shown,

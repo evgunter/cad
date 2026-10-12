@@ -118,36 +118,39 @@ residuals permitted where a candidate-swapping symmetry makes
 equivariance impossible — the S8 rung-3 precedent. The alternative
 (a residual-free mandate) makes the unit open-ended.
 
-## P4 — Pattern-of-a-body stays the kernel truth (feature patterns are sugar)
+## P4 — One instancing semantics: the index
 
-This kernel patterns **bodies**: `Node::Pattern` → N placed bodies;
-`PlacedUnion` → one certified-disjoint fused body; a hole pattern is
-`PlacedUnion(cutter, rule)` → `Subtract`. Conventional CAD patterns
-**features**, and the divergence shows in naming (`Instance(i)`
-wraps the body's names, not a feature's roles). **Recommendation**:
-keep body semantics as the kernel truth — it is already ratified
-through GROUP-BOOLEAN A′ and shipped — and treat feature-pattern
-spelling as recipe-generator sugar that LOWERS to body patterns,
-added when a consumer demands it. The mental-model cost is real and
-recorded; the alternative (a kernel feature-replication node) re-
-runs arbitrary ops N times inside evaluation and buys nothing the
-lowering doesn't, at the price of a second instancing semantics.
+A document repeats by an index variable (D10, Repetition): what reads
+`k = index(N)` is evaluated once per value of `k`. A copy pattern is a
+placement reading an index, its values expressions in it; a feature pattern is a construction reading
+one; neither lowers to the other, because there is one instancing
+semantics and it is the index. Copies of one body are built once and
+mapped as rigid images; a construction whose scalar inputs read an
+index is built per member (no construction reads a frame), since
+equivariance is audited at the site (P3), never assumed. A hole pattern is `subtract(plate, union(cutters))`
+with `cutters` a family. A reflection is not a pose, so
+mirror is a construction: `Mirror { body, plane }`
+is a construction defining a new `Body` in its source's root, the
+plane a `Plane` pose whose reads reach that root alone (a face read as a
+plane, or a plane constructed from the body's geometry), and every pose
+is proper. A symmetric part is `union(body, Mirror { body, plane })`,
+one construction whose seam is the plane's face read twice; a chiral
+twin elsewhere is a placement of the image, and there the plane carries
+no shape. P1–P3 and P6 are that
+construction's design, and the linear, circular and mirror spellings are façade functions that
+write the program.
 
 ## P5 — Derivable items, adopted here
 
-- **`SegPat` instance-index predicate**: the selector cannot say
-  "instance 7" except as a full exact path, which GROUP-BOOLEAN's
+- **`SegPat` member-index predicate**: the selector cannot say
+  "member 7" except as a full exact path, which GROUP-BOOLEAN's
   "one-row selector addresses ball i's cavity face" promise assumed.
-  Small additive `SegPat` arm; no ratified text blocks it.
+  Small additive `SegPat` arm matching a `Member { (i, …), of }`
+  segment by its index tuple; no ratified text blocks it.
 - **Mirror × STEP**: import already refuses det = −1 by ratified
   choice (M7-4); export policy is A8's recorded residue and follows
   P1 mechanically (`advanced_face.same_sense` maps `Face::sense`).
   Deferred with its owner, not re-opened here.
-- **Multi-output-body pattern masters** are admitted: a pattern
-  over an `Instances` value places it whole, placement-major (output
-  body `j·M + i`, `name_pattern`'s layout), and a mirror over one
-  follows the same layout with its `Mirror(i)` segment where
-  `Instance(j)` sits.
 
 ## P6 — Consequence for hole features
 

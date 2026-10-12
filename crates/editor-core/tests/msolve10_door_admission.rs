@@ -58,7 +58,7 @@ fn box_part(label: &str, half: f64, height: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(height),
             side: ExtrudeSide::Along,
         },
@@ -117,8 +117,8 @@ fn mate_across(
     alignment: Alignment<Formula>,
 ) -> AuthoredNode {
     Node::Mate {
-        a: fixture::head(in_part(a, a_body, CapEnd::End)),
-        b: fixture::head(in_part(b, b_body, CapEnd::Start)),
+        a: fixture::head(in_part(a, a_body, CapEnd::End)).into(),
+        b: fixture::head(in_part(b, b_body, CapEnd::Start)).into(),
         class: ContactClass::Rest,
         alignment,
     }
@@ -127,7 +127,7 @@ fn mate_across(
 /// `node` with its `b` head replaced.
 fn with_b(mut node: AuthoredNode, head: editor_core::SitedFace) -> AuthoredNode {
     if let Node::Mate { b, .. } = &mut node {
-        *b = head;
+        *b = head.into();
     }
     node
 }
@@ -135,7 +135,7 @@ fn with_b(mut node: AuthoredNode, head: editor_core::SitedFace) -> AuthoredNode 
 /// `node` with its `a` head replaced.
 fn with_a(mut node: AuthoredNode, head: editor_core::SitedFace) -> AuthoredNode {
     if let Node::Mate { a, .. } = &mut node {
-        *a = head;
+        *a = head.into();
     }
     node
 }
@@ -724,7 +724,7 @@ fn a2_a_mate_on_a_pair_the_fold_never_reads_is_refused_on_the_datum_alone() {
         let (doc, copies) = insert(
             doc,
             Node::Pattern {
-                input: ids[0],
+                input: ids[0].into(),
                 count: editor_core::Formula::count(2),
                 kind: editor_core::PatternKind::Linear {
                     direction: [fixture::scl(1.0), fixture::scl(0.0), fixture::scl(0.0)],
@@ -835,6 +835,7 @@ fn own_datum_subject(fault: &MateFault) -> Option<RecipeNodeId> {
         MateFault::Frame { mate, .. }
         | MateFault::ClassNotAdmitted { mate }
         | MateFault::TableLacks { mate, .. }
+        | MateFault::SideUnresolved { mate, .. }
         | MateFault::DanglingHead { mate, .. }
         | MateFault::PartSelectsAnotherCopy { mate, .. }
         | MateFault::SelfMate { mate, .. }
@@ -920,6 +921,11 @@ fn renamed(fault: MateFault, from: RecipeNodeId, to: RecipeNodeId) -> MateFault 
             parent,
             child,
             residual,
+        },
+        MateFault::SideUnresolved { mate, side, read } => MateFault::SideUnresolved {
+            mate: r(mate),
+            side,
+            read,
         },
         MateFault::DanglingHead { mate, side, head } => MateFault::DanglingHead {
             mate: r(mate),
@@ -1055,7 +1061,7 @@ fn corpus() -> Vec<Row> {
         let (doc, copies) = insert(
             doc,
             Node::Pattern {
-                input: ids[0],
+                input: ids[0].into(),
                 count: editor_core::Formula::count(2),
                 kind: editor_core::PatternKind::Linear {
                     direction: [fixture::scl(1.0), fixture::scl(0.0), fixture::scl(0.0)],
@@ -1090,7 +1096,7 @@ fn corpus() -> Vec<Row> {
         let (doc, local) = insert(
             doc,
             Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: len(1.0),
                 side: ExtrudeSide::Along,
             },
@@ -1113,9 +1119,8 @@ fn corpus() -> Vec<Row> {
         ("msolve10-corpus-stranded", doc, opts)
     });
     rows.push({
-        // One member on both sides, by a rebind after insert: the
-        // name-repair door moves a head read at its own mint with its
-        // name, so `b`'s head lands on `a`.
+        // One member on both sides, by a re-point after insert: the
+        // side's slot door writes `b`'s side onto `a`.
         let (doc, ids, opts, body) = instances("msolve10-corpus-self", 2);
         let reach = mate_reach::<f64>(&opts, Tol::witness());
         let (doc, _) = step_with(
@@ -1126,11 +1131,16 @@ fn corpus() -> Vec<Row> {
             },
             &reach,
         );
+        let mate_id = *doc.ids().last().expect("the mate is the last node");
         let (doc, _) = step_with(
             doc,
-            DocEdit::Rebind {
-                from: in_part(ids[1], body, CapEnd::Start),
-                to: in_part(ids[0], body, CapEnd::Start),
+            DocEdit::SetParam {
+                node: mate_id,
+                slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Side(MateSide::B)),
+                value: editor_core::SlotValue::Read(
+                    fixture::head(in_part(ids[0], body, CapEnd::Start)).into(),
+                ),
+                fresh: Vec::new(),
             },
             &reach,
         );
@@ -1142,7 +1152,7 @@ fn corpus() -> Vec<Row> {
         let (doc, pattern) = insert(
             doc,
             Node::Pattern {
-                input: ids[1],
+                input: ids[1].into(),
                 count: editor_core::Formula::count(3),
                 kind: editor_core::PatternKind::Linear {
                     direction: [fixture::scl(1.0), fixture::scl(0.0), fixture::scl(0.0)],
@@ -1153,7 +1163,7 @@ fn corpus() -> Vec<Row> {
         let (doc, part) = insert(
             doc,
             Node::Part {
-                of: pattern,
+                of: pattern.into(),
                 select: editor_core::PartSelect::Instance(editor_core::Formula::count(0)),
             },
         );
@@ -1183,8 +1193,8 @@ fn corpus() -> Vec<Row> {
         // parts were in hand, read where one is not.
         let (doc, ids, opts, body) = instances("msolve10-corpus-lost", 1);
         let mut both = PartStore::new();
-        both.insert(
-            box_part("msolve10-corpus-lost-part", 0.5, 1.0).0,
+        both.insert_part(
+            box_part("msolve10-corpus-lost-part", 0.5, 1.0),
             Tol::witness(),
         );
         let (lost_ref, lost_body) = both.insert_part(
@@ -1264,7 +1274,7 @@ fn a2_the_door_and_the_solve_agree_on_every_mate_of_the_corpus() {
                 continue;
             }
             mates += 1;
-            let twin = at_the_door(&doc, &reach, node.authored(&doc));
+            let twin = at_the_door(&doc, &reach, node.written(&doc));
             match poses.fault(id) {
                 None => {
                     assert!(

@@ -752,3 +752,38 @@ Declined: `#[non_exhaustive]` on `Unfinished`, because the one foreign match
 should break the build on a new case. Filed:
 `restfront/dual-operand-read-passes-an-orientation-it-cannot-measure`.
 Not changed: `common::cavity::cut`'s re-gate (66 callers).
+
+## 2026-10-07 — a straight cap edge clear of the cut-off's sliver carves (PR #4271)
+
+The cut-off sliver's clearance meter read a cap edge only as wholly inside
+the ball's section, wholly beyond the reach, or wholly short of the floor,
+so an edge that left the enclosure Ω by different faces refused where it
+was clear. `line_clearance` now reads a straight edge exactly: the least of
+Ω's defining function over its ends, the radial foot and the terms'
+pairwise crossings, at every scalar (a quotient whose divisor's bracket
+meets zero is skipped; soundness against the sliver rests on the ends).
+Three rectangular-hole witnesses carve, at `Interval` too, and the
+keyhole at `r = BR` carves at its closed form. The half-plane wedge near
+the feet had no witness on main (pinned as a row).
+
+Class-H dual review (DR row in this PR; both APPROVE-WITH-FIXES, tally 0),
+taken in full:
+- the `Interval` collapse at a floor-parallel edge;
+- a cancellation far from the centre;
+- a candidate-set fuzzer that can go red, at both scalars;
+- an independent Ω oracle;
+- the filed rows corrected.
+
+Filed: `blend-reach-refuses-a-bore-clear-of-a-ruled-cut-offs-sliver`,
+`cap-sliver-meter-reads-a-curved-edge-term-by-term`.
+
+Claim 1 (a bore wholly inside the sliver dying with it) is NOT built. The
+unit row stays open, re-titled to that question: may a blend delete an
+authored feature wholly inside the material it removes? It goes to Ev
+after the designer protocol (both designers recommend building it).
+- 2026-10-09 — Seam note from ENCL (PR 4411, merged): `geom_brep::must_carry_over_edge` now reads the second-order sagitta on every pair (tier 3's walk), so an in-band sagitta escalates `InBand(SecondOrder)` out of lane too; `UnderDetermined` out of lane means every station read Positive (or a station read Zero/Negative). An out-of-lane all-Positive pair now costs `CERT_SAMPLES−2` `tangent_second_order` samples. (ENCL orchestrator)
+- 2026-10-09 — Seam note from ENCL (PR 4416, merged): `geom_core::lever_recourse(lever, note)` is the one spelling of a lever-alone ending, and `Indeterminate::undecided(subject, ending)` the one "{subject} is undecided: {payload}. {ending}"; compose them, do not re-spell. In `topo::boolean::refusal_routes`, `Ending::Lever` is now `Lever(&str)` (`LeverPass` is gone). Rendered texts are unchanged. (ENCL orchestrator)
+- 2026-10-09 — Seam note from ENCL (PR 4422, merged): `geom_brep::recourse::RefusedArm::SignCertain` now takes `Option<MarginDiag>`; construct with `SignCertain(None)` unless the decision is a residual miss, and match with `SignCertain(_)`. `certify::definite_miss_in_file` / `Unsized::definite_residual_in_file` are gone; `Unsized::residual_in_file` is the one door. (ENCL orchestrator)
+- 2026-10-09 — Seam note from ENCL: dispatching `encl/sweep-must-carry-escalation`. `sweep::blend::surgery`'s contact-edge, `sweep::extrude` (strut, cap rim) and `sweep::revolve::upgrade` will map `MustCarryEscalation` exhaustively instead of `.diag()`. The blend's second-order reading gets its `AnySign` tolerance ending back, and a first-order station stops reading as `ContactSecondOrder`. Texts may move on in-band must-carry refusals. (ENCL orchestrator)
+- 2026-10-09 — Seam note from ENCL (PR 4450, merged at `59cdb05871`). `topo::DihedralReading::of_lever` / `of_must_carry` are the one map from a dihedral escalation to a reading; use them, not `(Lever(e.rung()), e.diag())` by hand. `sweep::blend` has two new closed decisions, `ContactArm` and `ContactWedge`, and `ContactSecondOrder` now offers the tolerance (`AnySign`). `ExtrudeError`/`RevolveError` `SliverJoin`/`SliverRim` now carry `reading: DihedralReading`, and their second-order text reads through `Indeterminate::undecided`. The editor-core fault line for `Escalated(contact)` is exactly at the 75-word budget. (ENCL orchestrator)
+- 2026-10-10 — Seam note from ENCL (PR 4474, merged): the material pairing is a decision. `geom_brep::MATERIAL_PAIRING` and `MATERIAL_PAIRING_CLAUSE` end it at tier 3 (`WedgeCheck::MaterialPairing`) and split finish (`SplitFinishError::DescribeSideEscalated`), with a true tolerance offer. Where the wedge would re-decide below m/K, `pairing_at_wedge` quotes the wedge and offers w/K, as `at_wedge` does. `MaterialStations`' `Break` is `MaterialStop { check, cause }`. The cusp-side Zero reads via `decide_nonzero`. New k_stats predicates appear on the refusal path only: "material_pairing_offer_wedge" and "material_pairing_wedge". (ENCL orchestrator)

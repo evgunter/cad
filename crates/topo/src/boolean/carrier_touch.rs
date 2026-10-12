@@ -303,8 +303,24 @@ fn ball_off_face<T: Decide + Bounds>(
             | ContainError::RayExhausted
             | ContainError::Uncrossable(_),
         ) => Ok(false),
-        Err(ContainError::Escalated(diag)) => Err(BooleanError::Escalated {
-            decision: BooleanDecision::Containment,
+        // The foot is placed only where every boundary edge's whole
+        // carrier (a segment, a circle, an ellipse's annulus) stands
+        // clear of a ball of at least `escalate` about it, so the
+        // boundary pass reads it definitely off every carrier, and an
+        // arc's end is read only at a point on its carrier.
+        Err(ContainError::ArcEndClearOfCorners(gaps)) => unreachable!(
+            "face {face:?} placed a foot at an arc's end ({gaps:?}), though every boundary \
+             carrier stands clear of the ball of radius {radius:?} about it"
+        ),
+        Err(ContainError::Escalated {
+            decision,
+            escalation,
+            diag,
+        }) => Err(BooleanError::Escalated {
+            decision: BooleanDecision::Containment {
+                decision,
+                escalation,
+            },
             diag,
         }),
         Err(ContainError::StaleFace(face)) => super::contain::driver_face_stale(face),
@@ -357,9 +373,7 @@ fn edge_clear_of_ball<T: Decide + Bounds>(
         geom::Curve3::Line { .. } => {
             let a = boxes::edge_end_point(y, edge, e.he_plus, "he_plus");
             let b = boxes::edge_end_point(y, edge, e.he_minus, "he_minus");
-            let (d, w) = (b - a, at - a);
-            let s = (w.dot(d) / d.norm_squared()).max(T::zero()).min(T::one());
-            (w - d * s).norm()
+            crate::sector_shape::point_segment_distance(a, b, at)
         }
         geom::Curve3::Circle {
             center,

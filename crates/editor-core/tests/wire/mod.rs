@@ -13,6 +13,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
+/// One saved document against another up to minted ids, the newer
+/// one's output variables set aside.
+pub mod up_to_ids;
+
 /// **A saved document, corrupted at one path of its wire form.**
 ///
 /// The load-door suites need files the edit doors could not have

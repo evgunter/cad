@@ -21,7 +21,7 @@ use crate::common;
 use geom_core::{Band, Point3, Tol};
 use topo::{
     Body, CensusContact, ContactRecords, EntityId, SolidContainment, SolidKey, ValidationError,
-    VvContact, point_in_solid_of, validate_pseudomanifold,
+    point_in_solid_of, validate_pseudomanifold,
 };
 
 /// The L profile: counterclockwise from `+z`, reflex at (1, 1).
@@ -92,7 +92,7 @@ fn touch_kinds(errors: &[ValidationError]) -> Vec<&'static str> {
     let mut kinds: Vec<&'static str> = errors
         .iter()
         .filter_map(|e| match e {
-            ValidationError::UndeclaredContact { contact, .. } => Some(match contact {
+            ValidationError::UnrecordedContact { contact, .. } => Some(match contact {
                 CensusContact::VertexVertex { .. } => "VertexVertex",
                 CensusContact::VertexOnFace { .. } => "VertexOnFace",
                 CensusContact::VertexOnEdge { .. } => "VertexOnEdge",
@@ -219,7 +219,7 @@ fn a_block_flush_with_the_arm_top_clears_on_its_shared_edge() {
 /// corner separates the two cones and the bracket's complement there is
 /// not convex, so neither sufficient test certifies the rest: the
 /// analysis refuses typed as unanalysed (filed as
-/// `work/contact/a-touch-at-a-saddle-corner-refuses-unanalysed.md`).
+/// `work/inside/a-touch-at-a-saddle-corner-refuses-unanalysed.md`).
 /// Unmoved from the base, where the vertex pair had no analysis at all.
 #[test]
 fn a_block_on_the_floor_of_the_inner_corner_refuses_unanalysed() {
@@ -258,17 +258,15 @@ fn a_tilted_block_touching_a_corner_clears_declared_or_not() {
     let (a, b) = errors
         .iter()
         .find_map(|e| match e {
-            ValidationError::UndeclaredContact {
+            ValidationError::UnrecordedContact {
                 contact: CensusContact::VertexVertex { a, b },
                 ..
             } => Some((*a, *b)),
             _ => None,
         })
         .unwrap();
-    let records = ContactRecords {
-        vv: vec![VvContact { a, b }],
-        ..ContactRecords::default()
-    };
+    let records =
+        topo::test_support::records(&body, [(topo::Cell::Vertex(a), topo::Cell::Vertex(b))]);
     assert_eq!(
         validate_pseudomanifold(&body, &records, Tol::witness()),
         Ok(())

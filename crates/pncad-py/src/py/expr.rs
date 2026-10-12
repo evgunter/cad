@@ -262,6 +262,56 @@ impl Formula {
         Self(d::Formula::count(value))
     }
 
+    /// The exact rational constant `num / den` (`Formula::ratio`):
+    /// inside a formula a constant, at a slot's root a written
+    /// dimensionless value. `LiteralError` with `kind`
+    /// `"constant_out_of_range"` for a denominator that is not
+    /// positive, or where the reduced numerator or denominator exceeds
+    /// 2^53 — any Python int, however wide; its `value` is the
+    /// quotient, or the numerator where there is none.
+    #[staticmethod]
+    fn ratio(py: Python<'_>, num: &Bound<'_, PyAny>, den: &Bound<'_, PyAny>) -> PyResult<Self> {
+        let wide = |part: &Bound<'_, PyAny>| -> PyResult<Option<i128>> {
+            match part.extract::<i128>() {
+                Ok(n) => Ok(Some(n)),
+                Err(err) if err.is_instance_of::<pyo3::exceptions::PyOverflowError>(py) => Ok(None),
+                Err(err) => Err(err),
+            }
+        };
+        let (n, q) = (wide(num)?, wide(den)?);
+        let out = || d::DimensionError::ConstantOutOfRange {
+            text: format!("{num}/{den}"),
+        };
+        #[allow(clippy::cast_precision_loss)]
+        let value = match (n, q) {
+            (Some(n), Some(q)) if q > 0 => n as f64 / q as f64,
+            (Some(n), _) => n as f64,
+            (None, _) => num.extract::<f64>().unwrap_or(0.0),
+        };
+        let reduced = match (n, q) {
+            (Some(n), Some(q)) if q > 0 => {
+                let (mut a, mut b) = (n.unsigned_abs(), q.unsigned_abs());
+                while b != 0 {
+                    (a, b) = (b, a % b);
+                }
+                let g = a.max(1);
+                let (n, q) = (n / g.cast_signed(), q / g.cast_signed());
+                i64::try_from(n).ok().zip(u64::try_from(q).ok())
+            }
+            _ => None,
+        };
+        let refused = |err: d::DimensionError| literal_err(py, value, &err);
+        let (n, q) = reduced.ok_or_else(|| refused(out()))?;
+        d::Formula::ratio(n, q).map(Self).map_err(refused)
+    }
+
+    /// One full rotation, the exact angle constant (`Formula::turn`): a
+    /// right angle is a quarter of it.
+    #[staticmethod]
+    fn turn() -> Self {
+        Self(d::Formula::turn())
+    }
+
     /// What this expression measures: `"length"`, `"angle"`,
     /// `"count"` or `"scalar"`.
     ///
@@ -380,6 +430,20 @@ impl SlotArg {
             Self::Scalar(x) => literal(py, *x, d::Dimension::Scalar),
         }
     }
+    /// The dimension a value or a formula carries of itself, for an
+    /// expression offered where no dimension is fixed (an operand,
+    /// whose refusal names it). A variable has none of its own and
+    /// `DocEdit.set_param` writes one there as a read; asked anyway, it
+    /// answers a length.
+    pub(crate) fn own_dimension(&self) -> d::Dimension {
+        match self {
+            Self::Formula(formula) => formula.0.dim(),
+            Self::WrittenAngle(_) | Self::Angle(_) => d::Dimension::Angle,
+            Self::Count(_) => d::Dimension::Count,
+            Self::Scalar(_) => d::Dimension::Scalar,
+            Self::Var(_) | Self::WrittenLength(_) | Self::Length(_) => d::Dimension::Length,
+        }
+    }
 }
 
 /// **A stored expression** — what a document holds once the edit door
@@ -420,13 +484,6 @@ impl Expr {
         d::unparse(&self.0, &|_| None)
     }
 
-    /// The number a BARE literal carries, in canonical kernel units,
-    /// or `None` for anything else ([`Formula::literal_value`]'s rule).
-    #[getter]
-    fn literal_value(&self) -> Option<f64> {
-        self.0.literal_value()
-    }
-
     fn __repr__(&self) -> String {
         format!("Expr({:?}, {})", self.text(), self.dimension())
     }
@@ -462,7 +519,11 @@ pub(crate) fn name_fault_err(py: Python<'_>, fault: &d::NameFault) -> PyErr {
                 fault.name
             ),
         ),
-        d::Unlowered::Kind { declared, .. } => (dim(fault.dim), dim(declared), fault.to_string()),
+        d::Unlowered::Kind { declared, .. } => (
+            dim(fault.dim),
+            text(crate::errors::var_kind_tag(declared)),
+            fault.to_string(),
+        ),
     };
     let fields = [
         ("variant", text(crate::tags::name_fault_tag(fault))),
@@ -494,6 +555,18 @@ pub(crate) fn lower_fault_err(py: Python<'_>, fault: &d::LowerFault) -> PyErr {
                         .held
                         .map_or_else(none, |held| text(dimension_tag(held))),
                 ),
+                ("count", none()),
+            ];
+            typed_err(py, ErrorClass::Eval, fault.to_string(), &fields)
+        }
+        d::LowerFault::Quantity { dim } => {
+            let none = || py.None();
+            let text = |s: &str| PyString::new(py, s).unbind().into_any();
+            let fields = [
+                ("variant", text(crate::tags::lower_fault_tag(fault))),
+                ("name", none()),
+                ("expected", text(dimension_tag(*dim))),
+                ("found", none()),
                 ("count", none()),
             ];
             typed_err(py, ErrorClass::Eval, fault.to_string(), &fields)
@@ -588,7 +661,9 @@ pub(crate) fn parse_err(py: Python<'_>, err: &d::ParseError) -> PyErr {
             none(),
             none(),
         ),
-        P::MalformedNumber { pos, text: t } | P::IntegerOverflow { pos, text: t } => (
+        P::MalformedNumber { pos, text: t }
+        | P::IntegerOverflow { pos, text: t }
+        | P::RatioPartNotInteger { pos, text: t } => (
             *pos,
             none(),
             none(),
@@ -706,9 +781,11 @@ pub(crate) fn eval_err(
     };
 
     let (name, expected, found, count) = match err {
+        // A leaf only the edit door resolves: the lowering's own words.
+        E::Unlowered(fault) => return lower_fault_err(py, fault),
         // The defined variable read; its definition's own refusal is
         // the sentence's.
-        E::UnresolvedVar { var } | E::DefinitionRefused { var, .. } => {
+        E::UnresolvedVar { var } | E::OutputRead { var } | E::DefinitionRefused { var, .. } => {
             (text(&var_text(var)), none(), none(), none())
         }
         E::VarKindMismatch { var, bound, read } => {

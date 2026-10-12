@@ -37,7 +37,7 @@ fn cube(label: &str) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -368,7 +368,7 @@ fn a_bad_literal_step_is_refused_at_both_doors() {
 /// at the same bits, and step 0 (the literal) has no slot to write.
 #[test]
 fn a_parameter_drives_a_rigid_steps_angle() {
-    let turn = VarName::from_static("turn");
+    let turn = VarName::from_static("spin");
     let (doc, body) = cube("placement-param");
     let (doc, _) = step(
         doc,
@@ -423,7 +423,7 @@ fn a_parameter_drives_a_rigid_steps_angle() {
         DocEdit::SetParam {
             node: placed,
             slot: angle,
-            expr: ang(quarter),
+            value: ang(quarter).into(),
             fresh: Vec::new(),
         },
     );
@@ -437,7 +437,7 @@ fn a_parameter_drives_a_rigid_steps_angle() {
         &DocEdit::SetParam {
             node: placed,
             slot: SlotId::RotationAngle,
-            expr: ang(quarter),
+            value: ang(quarter).into(),
             fresh: Vec::new(),
         },
         Tol::witness(),
@@ -457,7 +457,7 @@ fn a_parameter_drives_a_rigid_steps_angle() {
 /// unknown slot.
 #[test]
 fn a_later_steps_slots_are_addressed_and_checked_at_both_doors() {
-    let turn = VarName::from_static("turn");
+    let turn = VarName::from_static("spin");
     let (doc, body) = cube("placement-later-steps");
     let (doc, _) = step(
         doc,
@@ -535,7 +535,7 @@ fn a_later_steps_slots_are_addressed_and_checked_at_both_doors() {
     let set = DocEdit::SetParam {
         node: t,
         slot: SlotId::rigid(2, RigidArg::Translation(Axis3::Y)),
-        expr: len(-0.0),
+        value: len(-0.0).into(),
         fresh: Vec::new(),
     };
     let (doc, _) = step(doc, set.clone());
@@ -562,7 +562,7 @@ fn a_later_steps_slots_are_addressed_and_checked_at_both_doors() {
                 DocEdit::SetParam {
                     node: t,
                     slot: SlotId::rigid(1, RigidArg::RotationAngle),
-                    expr: ang(0.5),
+                    value: ang(0.5).into(),
                     fresh: Vec::new(),
                 }
             ),
@@ -576,7 +576,7 @@ fn a_later_steps_slots_are_addressed_and_checked_at_both_doors() {
     let bad_ref = doctored(&full, |w| {
         let angle = &mut w["snapshot"]["nodes"][key.as_str()]["Transform"]["placement"]["steps"][2]
             ["Rigid"]["angle"];
-        let turn = doc.var_named("turn").expect("the fixture declares turn");
+        let turn = doc.var_named("spin").expect("the fixture declares spin");
         assert_eq!(*angle, serde_json::json!(turn.0), "aimed at the variable");
         *angle = serde_json::json!(1);
     });

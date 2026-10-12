@@ -90,7 +90,8 @@
 pub use editor_core::{
     Applied, AttrKind, CarryForwardDoor, Doc, DocEdit, EditError, EditRecord, Maintenance,
     MaintenanceNet, MetaVersionError, PiecesFault, ProgramRefusal, Recorded, Recording,
-    RegaugeThenMateOutcome, StepId, StepIdFault, Took, apply, apply_replayed, regauge_then_mate,
+    RegaugeThenMateOutcome, SlotValue, StepId, StepIdFault, Took, apply, apply_replayed,
+    regauge_then_mate,
 };
 pub use editor_core::{
     ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
@@ -100,15 +101,16 @@ pub use editor_core::{
 // the cost of the button and builds the sequence behind it from this.
 pub use editor_core::cascade_delete_order;
 
-// Node vocabulary. `BooleanOp` is the KERNEL's, which the recipe node
-// carries directly; it is re-exported here so document-layer code can
-// spell the whole node vocabulary through one module. `CountMismatch`
+// Node vocabulary. A union or intersect takes one `Bodies` argument (a
+// family read, or spelled reads); a subtract is binary. `CountMismatch`
 // rides with `PlacementRuleFault`: it is what that fault and
-// `EditError::PlacementRuleMismatch` carry.
+// `EditError::PlacementRuleMismatch` carry. An operand field is an
+// `Operand` read, written at an `OperandSlot` (a `SlotId::Operand`)
+// that admits a `SlotKind`; `DocEdit::SetParam` writes a `SlotValue`.
 pub use editor_core::{
-    Axis3, BooleanOp, CountMismatch, Datum, DeclaredPair, ExtrudeSide, InputFault, ListFault,
-    MeasureNodeFault, MintId, Node, PartSelect, PatternKind, PlacementRuleFault, RecipeNodeId,
-    RigidArg, SlotId, TubeWindow, VectorSlot, declare_continuation, declare_rest,
+    Axis3, Bodies, BodyRead, CountMismatch, Datum, ExtrudeSide, InputFault, ListFault, MintId,
+    Node, Operand, OperandSlot, OutputPort, PartSelect, PatternKind, PlacementRuleFault, PortKind,
+    RecipeNodeId, RigidArg, SlotId, SlotKind, TubeWindow, VectorSlot,
 };
 
 // How a sentence names a node: the kind noun and tag a person reads, the
@@ -129,10 +131,13 @@ pub use editor_core::{Label, LabelFault};
 pub use editor_core::{Placement, Step};
 
 // The measurement vocabulary (ERROR-DESIGN E3/E10, CONTACT-DESIGN C5).
-// `MeasureExpr` + `MeasurePrimitive` are what a `Node::Measure` is
-// built from, so a caller who cannot spell them cannot author one at
-// all; `AssertionDir` is a field of `Node::Assertion` for the same
-// reason. `AssertionVerdict` and `UnevaluatedReason` are the READING
+// A `Node::Measure` holds one `MeasurePrimitive`; the builder (`measure`,
+// `Recording::measure`) records one measure per primitive and answers
+// their outputs as `Measured` (in a `MeasureOutcome`). A caller who
+// cannot spell them cannot author one at all; `AssertionRelation` is a field
+// of `Node::Assertion` for the same reason. `Observed` and
+// `ObservedRefusal` are what `Evaluation::reading` answers a measured
+// value with. `AssertionVerdict` and `UnevaluatedReason` are the READING
 // half — the payload an evaluated assertion carries — and E10's whole
 // point is that a verdict is consumed by reports. `ASSERT_BOUND` is
 // the funnel site name, carried like `SEL_DATUM_DISTANCE` so a
@@ -153,8 +158,9 @@ pub use editor_core::{Placement, Step};
 // is what a caller who read a name out of a file has to handle.
 pub use editor_core::clearance::{CellBudget, ClearanceRefusal, SelectionRefusal};
 pub use editor_core::{
-    ASSERT_BOUND, AssertionDir, AssertionVerdict, FaceName, MeasureExpr, MeasurePrimitive,
-    MeasureUnavailableAt, NotAFaceName, SitedFace, SitedRef, UnevaluatedReason,
+    ASSERT_BOUND, AssertionRelation, AssertionVerdict, FaceName, MeasureOutcome, MeasurePrimitive,
+    MeasureUnavailableAt, MeasureVerb, Measured, NotAFaceName, Observed, ObservedRefusal,
+    SitedFace, SitedRef, UnevaluatedReason, measure,
 };
 
 // Expressions and their text door.
@@ -171,6 +177,9 @@ pub use editor_core::{
 // `DimensionError` is the refusal `Formula`'s constructor doors return
 // (`literal`, the operator builders) — re-exported so a caller can
 // MATCH on it rather than pre-check the conditions it refuses.
+// `Ratio` is the exact constant a formula holds (VR5) and `Quantity` a
+// written value (VR6), which `Formula::as_ratio` / `as_quantity` hand
+// back, so a caller reading a formula can name what it holds.
 // `unparse` is `parse_formula`'s inverse, the text door OUTWARD: the
 // source text an expression reads back from, which is what a panel
 // showing a stored expression needs and cannot otherwise derive.
@@ -179,14 +188,14 @@ pub use editor_core::{
 // which expression the edit replaces.
 pub use editor_core::{
     AuthoredLeaf, AuthoredNode, Dimension, DimensionError, Expr, ExprPath, ExprTree, Formula,
-    FreshFault, LeafSet, LowerFault, NameFault, ParseError, Slot, StoredLeaf, Unlowered, VarEnv,
-    parse_formula, unparse,
+    FreshFault, LeafSet, LowerFault, NameFault, ParseError, Quantity, Ratio, Slot, StoredLeaf,
+    Unlowered, VarEnv, parse_formula, unparse,
 };
 
 // The expression READ side: an expression's current value under a
 // document's parameter environment (`Doc::var_env`). A panel that
-// shows a slot before editing it needs this — `Expr::literal_value`
-// answers only for a bare literal, and a slot driven by
+// shows a slot before editing it needs this — `Formula::literal_value`
+// answers only for a lone written quantity, and a slot driven by
 // `width/2 - margin` has a value the consumer otherwise cannot obtain
 // without re-implementing the evaluator. `EvalError` rides along so a
 // slot whose value cannot be computed says which parameter is missing
@@ -205,8 +214,9 @@ pub use editor_core::expr::{EvalError, eval, eval_count, eval_var, eval_var_coun
 // held beside it — a string newtype admissible by construction (one
 // identifier an expression reads back), whose fallible constructor
 // answers `VarNameFault`. `Var` is the variable a document holds, of a
-// `VarKind` fixed at minting and defined by a `VarDef` (free, or defined
-// by an `Expr` over other variables); `VarDecl` is the definition as
+// `VarKind` fixed at minting and defined by a `VarDef` (free, defined
+// by an `Expr` over other variables, or an output of an operation,
+// which `Doc::output` reads); `VarDecl` is the definition as
 // an edit carries it, read by name before the door lowers it; `FreeVar`
 // is a free definition's dimension plus exact stored value. `VarRef` is how
 // an edit addresses a variable, by id or by name. Recipe vocabulary,
@@ -215,6 +225,9 @@ pub use editor_core::expr::{EvalError, eval, eval_count, eval_var, eval_var_coun
 // `VarDecl`, the variable edits take a `VarRef`, and `Formula::named`
 // takes a `VarName` — so without them the parametric flagship
 // (`plate_param`, guide §3.2) could not be authored façade-only.
+// `FreshEntry` is an entry of an edit's fresh table: a variable the
+// edit mints for its formulas, under a name when two readers share it
+// (an unnamed variable has one reader, VR2).
 // `SpokenVar` is a variable as a refusal speaks it.
 // `FreeValue` is the value half of a free variable, and the reason it is
 // curated is the door it opens: `DocEdit::SetVarValue` writes a new
@@ -240,8 +253,9 @@ pub use editor_core::expr::{EvalError, eval, eval_count, eval_var, eval_var_coun
 // `EditError::DefinitionTooLarge` refuses past, so a caller holding that
 // refusal's count can read what it was measured against.
 pub use editor_core::{
-    DEFINITION_NODE_BOUND, DisplayUnitRefusal, DistributionRefusal, FreeValue, FreeVar, UnitSym,
-    Var, VarDecl, VarDef, VarId, VarKind, VarName, VarNameFault, VarNameReason, VarRef,
+    DEFINITION_NODE_BOUND, DisplayUnitRefusal, DistributionRefusal, FreeValue, FreeVar, FreshEntry,
+    Select, SelectionFault, UnitSym, Var, VarDecl, VarDef, VarId, VarKind, VarName, VarNameFault,
+    VarNameReason, VarRef, WrittenDef,
 };
 
 // A parameter's optional uncertainty (ERROR-DESIGN E1/E2), and the
@@ -271,7 +285,7 @@ pub use editor_core::DocParamField;
 // REFUSAL is the detect/declare protocol's trigger, and
 // `NodeError`/`NodeErrorKind` were unreachable without the result
 // enum that carries them.
-// `DatumValue`'s direction fields are `geom_core::UnitVec3`, reached
+// `PoseValue`'s direction fields are `geom_core::UnitVec3`, reached
 // through the re-exported `geom_core` crate rather than curated here:
 // a consumer cannot read a datum's normal, or build a datum at all,
 // without naming the type that makes it unit, and it names it at the
@@ -311,9 +325,9 @@ pub use editor_core::DocParamField;
 // `StepTurns` rides with `NodeErrorKind`: it is `FullRangeStep`'s
 // `turns`, how the copies of a step a turn or more would land.
 pub use editor_core::{
-    Arity, BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, DatumValue,
-    DirectionRefusal, EvalOptions, EvalOutcome, Evaluation, Found, FramePlacement, Mispaired,
-    NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue,
+    Arity, BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, DirectionRefusal,
+    EvalOptions, EvalOutcome, Evaluation, Found, FramePlacement, Mispaired, NodeError,
+    NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue, PoseValue,
     ProfileLift, SplitSide, StepTurns, ValuePayload, VerbKind, evaluate,
 };
 
@@ -325,8 +339,8 @@ pub use editor_core::{
 // schema version (the persist module docs say why), so there is no
 // version constant to carry either.
 pub use editor_core::{
-    Loaded, NonFiniteSite, PersistError, ProgramFault, REGENERATE_RECOURSE, SnapshotError, load,
-    save,
+    Loaded, NonFiniteSite, OutputFault, PersistError, ProgramFault, REGENERATE_RECOURSE,
+    SelectionBodyFault, SnapshotError, load, save,
 };
 
 // A refusal's two renderings: under its stage word (`Display`), and as
@@ -352,16 +366,19 @@ pub use editor_core::{
 // through the document layer (the memo currency's substrate).
 pub use editor_core::ContentBits;
 
-// Explicit product roots: the ordered root list is read through
-// `Doc::roots` and set through
-// `DocEdit::SetRoots`; `product` is the whole-document gather those
-// roots name, and `RootFault` is the shared invariant refusal both
-// the edit and persistence doors carry. `OwnSpace` is one unplaced
-// group's own space, which a `Product` carries beside the world for
-// the at-rest gate to check, and `own_spaces` gathers every one.
+// The world (A10): the product is every copy a world placement
+// (`Node::PlaceInWorld`) defines, in the placements' document order,
+// read through `Doc::placements` and authored by `DocEdit::place` —
+// the one door that places, and the one Python's `Doc.place` is.
+// `product` is the whole-document gather of those copies. `OwnSpace`
+// is one unplaced group's own space, which a `Product` carries beside
+// the world for the at-rest gate to check, and `own_spaces` gathers
+// every one. `AtRestRow` is one of the product's at-rest decisions,
+// beside whose pair it is (`AtRestBy`): a mate's, or two copies' the
+// census found touching.
 pub use editor_core::{
-    OwnSpace, PlacedTwice, Product, ProductError, ProductErrorKind, ProductRefusal, Refusal,
-    RootFault, SourceFinding, own_spaces, product, product_recorded,
+    AtRestBy, AtRestRow, OwnSpace, Product, ProductError, ProductErrorKind, ProductRefusal,
+    Refusal, SourceFinding, own_spaces, product, product_recorded,
 };
 
 // The gather's own witness, and only where `debug_assertions` are on:
@@ -390,8 +407,7 @@ pub use editor_core::{
 // offset `Placement` — a `MatePrimitive`, an
 // `AxisSense`), the solve's per-node outcome
 // (`SolvedPoses`, `MateRole`, the residual `Subgroup`), and `MateFault`
-// — the typed refusal every door carries, the way `RootFault` is
-// carried above. `member_of` is A11's member vocabulary itself, which
+// — the typed refusal every door carries. `member_of` is A11's member vocabulary itself, which
 // an authoring door must gate on so it admits exactly the heads the
 // solve places (`Member` is its answer); `member_reading` is the same
 // walk with the name it reached at the member's instance, and
@@ -420,10 +436,10 @@ pub use editor_core::LeverRefusal;
 pub use editor_core::{
     Alignment, AxisSense, CONTRADICTORY_RECOURSE, Clash, FrameBase, Lever, MateFault, MateFrame,
     MatePrimitive, MateReach, MateRole, MateSide, Member, OFFSET_RECOURSE, OffsetCheck, PartReach,
-    PlacerRow, Placing, PoseRefusal, ReachRefusal, RefusingReach, SolvedPoses, Space, Subgroup,
-    UNDER_RECOURSE, UNPLACED_RECOURSE, Unplaced, gauge_chain, groups, head_face, mate_reach,
-    member_of, member_reading, places, reading_edges, relative_freedom_components, root_of,
-    solve_document,
+    PlacerRow, Placing, PoseRefusal, PoseSymmetry, ReachRefusal, RefusingReach, SolvedPoses, Space,
+    Subgroup, SubgroupFamily, UNDER_RECOURSE, UNPLACED_RECOURSE, Unplaced, gauge_chain, groups,
+    head_face, head_of, mate_reach, member_of, member_reading, places, relative_freedom_components,
+    root_of, solve_document,
 };
 /// Why a mate's face base did not resolve to a pose, which
 /// [`MateFault::FaceUnresolved`] carries — by the same payload rule.
@@ -485,10 +501,15 @@ pub use editor_core::{CLASS_DEFERRAL, ClassAdmission, class_admission, table_gap
 // `NoAtRestRecord` row ends on, carried for the reason `UNDER_RECOURSE`
 // is: a caller asserting that a refusal reaches its recourse must not
 // do it by re-typing the sentence.
+// An overlap between two copies' material is not a refusal but an
+// `InterferenceFinding` on `Assembly::interference` (D10): its copies
+// (`CopyRef`), its `Overlap` (the bounding faces as `FaceSite`s, or
+// `Unlocalized` with why), and the assertion that quiets it, if any.
 pub use editor_core::{
     Assembly, AssemblyError, AtRestFinding, Attribution, CarriedDeclaration, CarriedDeclarations,
-    CarriedRefusal, CarriedUnplaced, MintRefusal, MintedDeclaration, NO_AT_REST_RECORD_RECOURSE,
-    RefusedRef, Relation, Route, assemble, assemble_gathered,
+    CarriedRefusal, CarriedUnplaced, CopyRef, FaceSite, InterferenceFinding, MintRefusal,
+    MintedDeclaration, NO_AT_REST_RECORD_RECOURSE, Overlap, RefusedRef, Relation, Route,
+    Unlocalized, assemble, assemble_gathered,
 };
 
 // Split and inline: the first-class
@@ -504,7 +525,7 @@ pub use editor_core::{
 // `InterfaceCrossing::Mate`.
 pub use editor_core::{
     InlineError, InlineOutcome, InterfaceCrossing, InterfaceRecord, NodeMap, SplitError,
-    SplitOutcome, StepMap, inline, split,
+    SplitOutcome, StepMap, Uncarried, inline, split,
 };
 
 // The pin-update door. `DocEdit`'s
@@ -525,7 +546,7 @@ pub use editor_core::{PinMultiplicity, PinSites, UpdateError, mixed_pins, update
 // or evaluation); `enforce_checks` is the one refusing path, and the
 // CALLER chooses where to gate on it. Deliberately NOT in the prelude
 // (prelude membership is corpus-measured).
-// `subject_body` resolves a finding's (root, output_ix) attribution
+// `subject_body` resolves a root-output finding's (root, output_ix) attribution
 // back to the flagged body and the declarations its producer minted
 // for it, in the same evaluation.
 // `run_checks_on` is the registry over a `Subject` the caller gathered
@@ -538,9 +559,21 @@ pub use editor_core::{PinMultiplicity, PinSites, UpdateError, mixed_pins, update
 // does not reports that as a finding rather than as a clean body.
 pub use editor_core::{
     Advisory, ChartCoherenceLane, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal,
-    ChecksConfig, ChecksError, ChecksReport, Severity, Subject, enforce_checks, run_checks,
-    run_checks_on, subject_body,
+    ChecksConfig, ChecksError, ChecksReport, DoorFindings, DoorJob, FindingSubject, Severity,
+    Subject, enforce_checks, run_checks, run_checks_at_rest_on, run_checks_on, subject_body,
 };
+// The coincidence door (D10): the rows an evaluation's nodes decided
+// from values, and what the door decides about each — the payload of
+// `CheckEvidence::UnprovenCoincidence`. The record's relation and
+// decision site are the kernel's own words (`topo::coincidence`), and
+// the door is a module so its `Recourse` keeps its name. A cell on a
+// profile piece names it by `select`'s `ProfileEdgeRef`, curated there.
+pub use editor_core::coincide;
+pub use editor_core::{CitedInput, NamedCell, NamedCoincidence, Proof, Residual, Rung, Unreplayed};
+// The pose definitions (D10): how a pose variable is defined, read off
+// geometry or constructed, and the faults the doors and the evaluator
+// name. A module, so its arms keep their names (`pose::PoseDef::Plane`).
+pub use editor_core::pose;
 /// The shell door's typed refusal, which two `CheckEvidence` arms
 /// carry — by the payload rule this list states at `VerbKind`.
 ///
@@ -559,6 +592,7 @@ pub use editor_core::{
 /// `BandError` and `Indeterminate`, and the shell key and the mass-
 /// properties refusal are one module hop away at `pncad::topo::…`.
 pub use topo::ShellClassifyError;
+pub use topo::coincidence;
 
 // The profile description node type and its document alias, plus the
 // refusal of the door that reads a step's profile edges — matchable

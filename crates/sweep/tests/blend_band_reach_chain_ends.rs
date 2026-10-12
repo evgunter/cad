@@ -32,7 +32,7 @@ use topo::{Body, EdgeKey, EntityId, FaceKey, validate_geometric};
 
 use crate::common::cavity::{brick, cut, edges_with_corners, prism};
 use crate::common::interval::{iv, p2};
-use crate::common::stations::cut_stations;
+use crate::common::stations::{construction_state, cut_stations};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -350,9 +350,10 @@ fn leaning_cut_off(station: Option<f64>) -> (Body<f64>, Vec<EdgeKey>) {
 /// in the band, leaves the near link `[0, 3.95]` a band the end face —
 /// at the far link's end, no vertex of the near one — cuts across the
 /// joint. The meter refuses the end face uncertified; under the
-/// chain-wide skip it passed. The door's joint-foot screen refuses the
-/// body first. A station at `x = 2`, and none, are clear at the meter
-/// and build.
+/// chain-wide skip it passed. A station at `x = 2`, and none, are
+/// clear at the meter. No door takes a body holding a station — the
+/// at-rest gate refuses it (tier 3's check 11) — so only the unstationed
+/// rim builds.
 #[test]
 fn a_jointed_chains_far_end_face_is_metered_against_the_near_link() {
     let r = 0.5;
@@ -377,18 +378,8 @@ fn a_jointed_chains_far_end_face_is_metered_against_the_near_link() {
             && (ny.abs() - 0.6 / 9.36f64.sqrt()).abs() < 1e-9,
         "the face named is the leaning end face, got normal ({nx}, {ny})"
     );
-    let door = fillet_edges(
-        &sweep::test_support::at_rest(&body, tol()),
-        &edges,
-        r,
-        tol(),
-    )
-    .map(|_| ())
-    .map_err(|e| e.error);
-    assert!(
-        matches!(door, Err(BlendError::FaceClearanceUncertified { .. })),
-        "the door's joint-foot screen refuses first: {door:?}"
-    );
+    // No door takes the jointed body: its station is construction state.
+    assert_eq!(construction_state(&body, tol()).len(), 1, "the station");
     for station in [Some(2.0), None] {
         let (body, edges) = leaning_cut_off(station);
         let req = BlendRequest {
@@ -398,6 +389,10 @@ fn a_jointed_chains_far_end_face_is_metered_against_the_near_link() {
         };
         if let Err(e) = band_reach(&req, band()) {
             panic!("{station:?}: clear at the meter: {e:?}");
+        }
+        if station.is_some() {
+            assert_eq!(construction_state(&body, tol()).len(), 1, "the station");
+            continue;
         }
         let f = fillet_edges(
             &sweep::test_support::at_rest(&body, tol()),

@@ -191,19 +191,17 @@ fn p2_anchored_width_is_bounded_by_center_width_plus_far_anchor_slack() {
 
 /// The defect's own shape: a short sub-arc whose center is derived from
 /// its own short chord, so the center is wide — the 0.4 % window of the
-/// pip meridian from `s = 0.4`, its endpoints cut by `restrict` and its
-/// carrier lowered from that chord and the window's bulge. (`restrict`
-/// keeps the parent's carrier; this is the carrier a profile's lift
-/// derives for a short authored arc.)
+/// pip meridian from `s = 0.4`, its endpoints the meridian's
+/// evaluations at the window's ends and its carrier lowered from that
+/// chord and the window's bulge — the carrier a profile's lift derives
+/// for a short authored arc.
 fn short_sub_arc() -> SketchSegment<Interval> {
     let meridian = lowered_arc(
         Point2::new(iv(0.0), iv(-0.09)),
         Point2::new(iv(0.0), iv(0.09)),
         iv(1.0),
     );
-    let SketchSegment::Arc { a, b, .. } = meridian.restrict(iv(0.4), iv(0.404)) else {
-        panic!("restriction changed the segment kind");
-    };
+    let (a, b) = (meridian.eval(iv(0.4)), meridian.eval(iv(0.404)));
     lowered_arc(a, b, (iv(1.0).atan() * (iv(0.404) - iv(0.4))).tan())
 }
 

@@ -72,6 +72,8 @@ pub(super) enum BoundaryCrossing<T: geom_core::Real> {
         t: T,
         p: Point3<T>,
         at: FaceContainment,
+        /// The margin that decided `p` on that boundary entity.
+        margin: geom_core::MarginDiag,
     },
     /// Certified: the edge's interior meets the face's boundary nowhere.
     Clear,
@@ -162,10 +164,10 @@ pub(super) fn boundary_crossing<T: Decide>(
             continue;
         }
         let p = carrier.eval(t);
-        if let Some(at) = super::contain::curved_boundary_containment(y, face, p, band)
+        if let Some((at, margin)) = super::contain::curved_boundary_containment(y, face, p, band)
             .map_err(|e| super::reduce::esc(e, y_is, face))?
         {
-            return Ok(BoundaryCrossing::At { t, p, at });
+            return Ok(BoundaryCrossing::At { t, p, at, margin });
         }
     }
     Ok(BoundaryCrossing::Clear)
@@ -725,7 +727,6 @@ mod crossing_rows {
         let face = cyl_wall_sheet(
             &mut body,
             CylFrame::canonical(1.0),
-            None,
             (0.2, 1.4),
             (0.0, 1.0),
             tol,
@@ -755,7 +756,7 @@ mod crossing_rows {
         )
         .unwrap()
         {
-            BoundaryCrossing::At { t, p: q, at } => {
+            BoundaryCrossing::At { t, p: q, at, .. } => {
                 assert!(t.abs() < 1e-12, "the meeting is at the span's middle: {t}");
                 assert!(q.distance(p) < 1e-12, "at the rim point: {q:?}");
                 assert!(
@@ -778,7 +779,6 @@ mod crossing_rows {
         let face = cyl_wall_sheet(
             &mut body,
             CylFrame::canonical(1.0),
-            None,
             (0.2, 1.4),
             (0.0, 1.0),
             tol,
@@ -853,7 +853,6 @@ mod crossing_rows {
         let face = cyl_wall_sheet(
             &mut body,
             CylFrame::canonical(1.0),
-            None,
             (0.2, 1.4),
             (0.0, 1.0),
             tol,

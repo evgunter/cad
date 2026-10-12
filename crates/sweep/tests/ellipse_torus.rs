@@ -173,7 +173,7 @@ fn refusals(a: &Body<f64>, b: &Body<f64>) -> Vec<(&'static str, BooleanError)> {
 /// pairs are examined and none accepted, and the crossing layer passes.
 /// Every op then stops at the extent scan, whose oblique torus × plane
 /// and torus × wall pairs have no section classification
-/// (`work/reach/a-torus-near-a-tilted-cut-stops-at-the-extent-scan.md`).
+/// (`work/orbit/a-torus-near-a-tilted-cut-stops-at-the-extent-scan.md`).
 #[test]
 fn a_torus_just_clear_of_the_rim_is_decided_by_its_roots() {
     let a = drum_lower();
@@ -203,8 +203,9 @@ fn a_torus_just_clear_of_the_rim_is_decided_by_its_roots() {
 /// millimetre, and a ring of radius 0.45 about the drum's axis at the
 /// cut's centre whose tube the rim enters and leaves: the rim's pairs are
 /// accepted at its certified roots, the crossing layer passes, and every
-/// op stops at the join, whose oblique plane × torus and wall × torus
-/// germ pairs have no frame (the same filed door).
+/// op stops at the join's germ frame: an oblique plane × torus germ pair
+/// cuts a general spiric quartic, refused by name, and a wall × torus
+/// pair has no frame (the same filed door).
 #[test]
 fn a_torus_crossing_the_rim_reaches_the_join() {
     let a = drum_lower();
@@ -224,7 +225,11 @@ fn a_torus_crossing_the_rim_reaches_the_join() {
         assert!(accepted > 0, "{label}: the rim's crossings are accepted");
         for (op, e) in refusals(&a, &b) {
             assert!(
-                matches!(e, BooleanError::GermFrameUnsupported { .. }),
+                matches!(
+                    e,
+                    BooleanError::GermFrameUnsupported { .. }
+                        | BooleanError::GermSectionSpiric { .. }
+                ),
                 "{label}, {op}: got {e:?}"
             );
         }

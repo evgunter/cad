@@ -1,11 +1,10 @@
-//! The refinement loop's four faces, pinned from outside the module
+//! The refinement loop's three faces, pinned from outside the module
 //! over a corpus rather than one instance each: every refusal the
 //! corpus reaches keeps its face's own payload invariants — the two
 //! faces that carry a bound carry a finite one, every face that carries
 //! a bound also carries the smallest any round reached, no larger than
-//! its last and on a grid no finer, the cap face never fires on the
-//! round budget's last round (the budget test precedes the marking),
-//! `rounds` never exceeds the budget, a not-finite face carries the
+//! its last and on a grid no finer, every grid is within the sample
+//! cap, a not-finite face carries the
 //! smallest finite bound or none — and every message names the lever
 //! its face's doc claims.
 //!
@@ -25,20 +24,13 @@
 //! reds here rather than passing the payload invariants above, which
 //! hold whatever the numbers are.
 //!
-//! The budget face is pinned by its reading too: `budget` on
-//! `LastRound::Improved`, `budget-did-not-improve` on
-//! `LastRound::DidNotImprove`, since those are two different sentences
-//! to the caller.
-//!
 //! Re-baselining a row here is the ordinary answer when a bound
 //! moves; what the table forbids is moving one silently.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::NurbsSurface;
-use geom_brep::offset_fit::{
-    BestBound, LastRound, OFFSET_FIT_BUDGET, OFFSET_FIT_SAMPLE_CAP, OffsetFitError, fit_offset_at,
-};
+use geom_brep::offset_fit::{BestBound, OFFSET_FIT_SAMPLE_CAP, OffsetFitError, fit_offset_at};
 use geom_core::KERNEL_LIMIT_LAST_RESORT;
 
 use crate::shared::fixture::quarter_cylinder;
@@ -77,7 +69,6 @@ fn best_is_the_smallest(
 /// The refusal faces one column reached, one counter each.
 #[derive(Default)]
 struct Faces {
-    budget: u32,
     cap: u32,
     /// A not-finite bound with no finite round behind it.
     not_finite_none: u32,
@@ -88,7 +79,7 @@ struct Faces {
 
 impl Faces {
     fn total(&self) -> u32 {
-        self.budget + self.cap + self.not_finite_none + self.not_finite_lost + self.stalled
+        self.cap + self.not_finite_none + self.not_finite_lost + self.stalled
     }
 }
 
@@ -116,35 +107,9 @@ fn column(name: &str, base: &NurbsSurface<f64>, d: f64, want: [(&str, f64); 5]) 
         let mut got_best: Option<f64> = None;
         let got: (&str, f64) = match fit_offset_at(base, d, t, band()) {
             Ok((_, c)) => ("certified", c.hull_sup),
-            Err(OffsetFitError::BudgetExhausted {
-                budget,
-                grid,
-                achieved,
-                tolerance,
-                last_round,
-                best,
-            }) => {
-                seen.budget += 1;
-                let at = format!("{name} d={d} t={t}");
-                got_best = Some(best_is_the_smallest(&at, achieved, grid, tolerance, best));
-                assert_eq!(budget, OFFSET_FIT_BUDGET, "{name} d={d} t={t}");
-                assert!(
-                    achieved.is_finite(),
-                    "{name} d={d} t={t}: BudgetExhausted carries a non-finite bound"
-                );
-                assert!(achieved > tolerance, "{name} d={d} t={t}");
-                assert!(
-                    grid.0 <= OFFSET_FIT_SAMPLE_CAP && grid.1 <= OFFSET_FIT_SAMPLE_CAP,
-                    "{name} d={d} t={t}: grid past the cap"
-                );
-                match last_round {
-                    LastRound::Improved => ("budget", achieved),
-                    LastRound::DidNotImprove => ("budget-did-not-improve", achieved),
-                }
-            }
             Err(OffsetFitError::SampleCapReached {
                 cap,
-                rounds,
+                rounds: _,
                 grid,
                 achieved,
                 tolerance,
@@ -159,21 +124,14 @@ fn column(name: &str, base: &NurbsSurface<f64>, d: f64, want: [(&str, f64); 5]) 
                     "{name} d={d} t={t}: SampleCapReached carries a non-finite bound"
                 );
                 assert!(achieved > tolerance, "{name} d={d} t={t}");
-                // THE TIE: the budget test runs before the marking, so
-                // a cap stop can never be the budget's last round.
                 assert!(
-                    (rounds as usize) < OFFSET_FIT_BUDGET,
-                    "{name} d={d} t={t}: the cap face fired on the budget's last round \
-                     (rounds={rounds}, budget={OFFSET_FIT_BUDGET})"
-                );
-                assert!(
-                    grid.0 <= OFFSET_FIT_SAMPLE_CAP && grid.1 <= OFFSET_FIT_SAMPLE_CAP,
-                    "{name} d={d} t={t}"
+                    grid.0 * grid.1 <= OFFSET_FIT_SAMPLE_CAP,
+                    "{name} d={d} t={t}: grid {grid:?} past the cap"
                 );
                 ("cap", achieved)
             }
             Err(OffsetFitError::BoundNotFinite {
-                rounds,
+                rounds: _,
                 grid,
                 d: dd,
                 tolerance,
@@ -182,12 +140,8 @@ fn column(name: &str, base: &NurbsSurface<f64>, d: f64, want: [(&str, f64); 5]) 
                 assert_eq!(dd, d, "{name} d={d} t={t}");
                 assert_eq!(tolerance, t, "{name} d={d} t={t}");
                 assert!(
-                    (rounds as usize) <= OFFSET_FIT_BUDGET,
-                    "{name} d={d} t={t}: rounds past the budget"
-                );
-                assert!(
-                    grid.0 <= OFFSET_FIT_SAMPLE_CAP && grid.1 <= OFFSET_FIT_SAMPLE_CAP,
-                    "{name} d={d} t={t}"
+                    grid.0 * grid.1 <= OFFSET_FIT_SAMPLE_CAP,
+                    "{name} d={d} t={t}: grid {grid:?} past the cap"
                 );
                 match best.map(|b| b.bound) {
                     None => {
@@ -216,12 +170,12 @@ fn column(name: &str, base: &NurbsSurface<f64>, d: f64, want: [(&str, f64); 5]) 
                 let at = format!("{name} d={d} t={t}");
                 got_best = Some(best_is_the_smallest(&at, achieved, grid, tolerance, best));
                 assert!(
-                    (rounds as usize) <= OFFSET_FIT_BUDGET,
-                    "{name} d={d} t={t}: rounds past the budget"
+                    grid.0 * grid.1 <= OFFSET_FIT_SAMPLE_CAP,
+                    "{name} d={d} t={t}: a stall after {rounds} rounds on {grid:?}, past the cap"
                 );
                 ("stalled", achieved)
             }
-            Err(e) => panic!("{name} d={d} t={t}: the loop left the four faces: {e:?}"),
+            Err(e) => panic!("{name} d={d} t={t}: the loop left the three faces: {e:?}"),
         };
         // The census row. The face is pinned by name, because which
         // face a request wears is the thing a change to the bound
@@ -257,8 +211,8 @@ fn column(name: &str, base: &NurbsSurface<f64>, d: f64, want: [(&str, f64); 5]) 
         moved.join("; ")
     );
     eprintln!(
-        "{name} d={d}: budget={} cap={} not_finite(none)={} not_finite(lost)={} stalled={}",
-        seen.budget, seen.cap, seen.not_finite_none, seen.not_finite_lost, seen.stalled
+        "{name} d={d}: cap={} not_finite(none)={} not_finite(lost)={} stalled={}",
+        seen.cap, seen.not_finite_none, seen.not_finite_lost, seen.stalled
     );
     assert!(
         seen.total() > 0,
@@ -302,11 +256,11 @@ fn quarter_cylinder_at_delta_1e_6_keeps_every_faces_payload_invariants() {
         &quarter_cylinder(1.0, 1.0),
         1e-6,
         [
-            ("cap", 3.7544249e-7),
-            ("cap", 3.7544249e-7),
-            ("cap", 3.7544249e-7),
-            ("certified", 3.7544249e-7),
-            ("certified", 1.7071974e-5),
+            ("cap", 2.2452729e-8),
+            ("cap", 2.2452729e-8),
+            ("cap", 2.2452729e-8),
+            ("certified", 3.7471819e-7),
+            ("certified", 1.7006033e-5),
         ],
     );
     assert!(
@@ -317,61 +271,16 @@ fn quarter_cylinder_at_delta_1e_6_keeps_every_faces_payload_invariants() {
 }
 
 /// Each message names what stopped the loop and the repair the face's
-/// doc claims, and no other: the budget and the cap are told apart by
-/// what they name, the budget's two readings say which one it was, the
+/// doc claims, and no other: the cap names samples and no rounds, the
 /// message reports the best bound rather than the last, a face with a
 /// geometry lever names it and no loosening, a face with none names
 /// loosening to the best bound as the last resort, and the two
 /// not-finite cases send the caller to two different repairs.
 #[test]
 fn each_faces_message_names_its_lever() {
-    let budget = |last_round| {
-        OffsetFitError::BudgetExhausted {
-            budget: OFFSET_FIT_BUDGET,
-            grid: (9, 9),
-            achieved: 2e-3,
-            tolerance: 1e-9,
-            last_round,
-            best: BestBound {
-                bound: 1e-3,
-                grid: (7, 9),
-            },
-        }
-        .to_string()
-    };
-    let (improved, flat) = (
-        budget(LastRound::Improved),
-        budget(LastRound::DidNotImprove),
-    );
-    for b in [&improved, &flat] {
-        assert!(
-            b.contains(&format!("all {OFFSET_FIT_BUDGET} refinement rounds")),
-            "{b}"
-        );
-        assert!(!b.contains("samples"), "{b}");
-        assert!(b.contains("best certified error was 0.001 m"), "{b}");
-        assert!(!b.contains("0.002"), "the last bound is named: {b}");
-    }
-    // Splitting the face buys each piece rounds, which is a repair
-    // only while rounds were still paying, and a reading with a
-    // geometry lever advises no loosening. The did-not-improve reading
-    // has no lever but the tolerance, so it names that as the last
-    // resort, with the kernel-bug note. The recourse is compared WHOLE,
-    // from its marker to the end, so no rewording of the clause before
-    // it can hide a split creeping back in, or a loosening.
+    // The recourse is compared WHOLE, from its marker to the end, so no
+    // rewording of the clause before it can hide a loosening creeping in.
     let recourse = |m: &str| m.split_once("Recourse: ").map(|(_, r)| r.to_owned());
-    assert!(improved.contains("while still improving"), "{improved}");
-    assert_eq!(
-        recourse(&improved).as_deref(),
-        Some("split the face so each piece fits in fewer rounds"),
-        "{improved}"
-    );
-    assert!(
-        !flat.contains("still improving") && flat.contains("did not improve on the one before"),
-        "{flat}"
-    );
-    let want = format!("loosen the tolerance to 0.001 m or more, {KERNEL_LIMIT_LAST_RESORT}");
-    assert_eq!(recourse(&flat).as_deref(), Some(want.as_str()), "{flat}");
     let c = OffsetFitError::SampleCapReached {
         cap: OFFSET_FIT_SAMPLE_CAP,
         rounds: 5,
@@ -385,9 +294,7 @@ fn each_faces_message_names_its_lever() {
     }
     .to_string();
     assert!(
-        c.contains(&format!(
-            "limit of {OFFSET_FIT_SAMPLE_CAP} samples per direction"
-        )),
+        c.contains(&format!("limit of {OFFSET_FIT_SAMPLE_CAP} samples,")),
         "{c}"
     );
     assert!(!c.contains("rounds"), "{c}");

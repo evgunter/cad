@@ -7,7 +7,7 @@ priority: P2
 cost: M
 design: true
 opened: 2026-10-03
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage3-is-built]
 refs: [MSOLVE-14, a-box-over-a-solved-clocking-widens-thirty-thousandfold]
 ---
 
@@ -63,3 +63,7 @@ is the extreme case of that.
   only the constraints the candidate was not built from.
 - Or evaluate the membership margin in a centred (mean-value) form over
   the box, so an identically-zero residual encloses to second order.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage3-is-built`, not on the whole program: the escalation is member_of and check_offsets re-measuring zero-by-construction residuals; stage 3 decides overconstraint by subgroup algebra and closes checked offsets as assertions. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

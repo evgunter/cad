@@ -8,9 +8,10 @@
 //! (an overhanging seat, ordinary authoring) — while a TRANSVERSE
 //! crossing (material on ONE side) is interpenetration. The rung's
 //! side verdict is deliberately THREE-valued: opposite-sides backs
-//! (the seat certifies), same-side refuses NAMING the verdict (the
-//! C6 declared-interpenetration hook — a future class consumes it as
-//! admission evidence), undecided escalates typed. The first two arms
+//! (the seat certifies), same-side refuses carrying the verdict as
+//! the refusal's `side` field (between two copies at rest the editor's
+//! gate reads it as interference evidence, ASSEMBLY A5), undecided
+//! escalates typed. The first two arms
 //! are reached below; the THIRD is not reachable on this corpus, and
 //! that is a statement about the fix-pass screens rather than a
 //! coverage gap: undecided now requires a candidate that HOLDS the
@@ -34,9 +35,8 @@
 //! pins that reach where it still lives).
 //!
 //! `EdgeFacePierce` takes no rung at all: a transverse dive is
-//! interpenetration until C6's recorded gate-skips exist, and the
-//! MATE-4b staging defers that arm to C6's era BY NAME (stage 2).
-//! The pierce pin below holds that door shut.
+//! interpenetration, which no declaration admits (C6). The pierce pin
+//! below holds that door shut.
 //!
 //! The re-blessed (b) fence — the declared straddle seat certifying
 //! outright, and its bare control byte-pinned — lives with the
@@ -61,7 +61,7 @@
 use crate::common;
 
 use geom_core::Tol;
-use topo::{Body, CensusContact, ContactRecords, FaceKey, PatchContact, ValidationError};
+use topo::{Body, CensusContact, ContactRecords, CrossingSideVerdict, FaceKey, ValidationError};
 
 /// [`common::straddle_seat`] as this file's tuple:
 /// `(body, post_top, post_side_x030, shelf_bottom, shelf_side_y030)`.
@@ -76,17 +76,13 @@ fn straddle_parts() -> (Body<f64>, FaceKey, FaceKey, FaceKey, FaceKey) {
     )
 }
 
-fn declared(pairs: &[(FaceKey, FaceKey)]) -> ContactRecords {
-    ContactRecords {
-        patches: pairs
+fn declared<T: geom_core::Real>(body: &Body<T>, pairs: &[(FaceKey, FaceKey)]) -> ContactRecords {
+    topo::test_support::records(
+        body,
+        pairs
             .iter()
-            .map(|&(a, b)| PatchContact {
-                face_a: a,
-                face_b: b,
-            })
-            .collect(),
-        ..ContactRecords::default()
-    }
+            .map(|&(a, b)| (topo::Cell::Face(a), topo::Cell::Face(b))),
+    )
 }
 
 fn errors(body: &Body<f64>, records: &ContactRecords) -> Vec<ValidationError> {
@@ -96,14 +92,23 @@ fn errors(body: &Body<f64>, records: &ContactRecords) -> Vec<ValidationError> {
     }
 }
 
+/// A crossing's side verdict.
+fn side(contact: &CensusContact) -> Option<CrossingSideVerdict> {
+    match contact {
+        CensusContact::EdgeEdgeCross { side, .. } => *side,
+        _ => None,
+    }
+}
+
 /// The `EdgeEdgeCross` refusals of a list, as `(finding, witness)`.
 fn crossings(errors: &[ValidationError]) -> Vec<(CensusContact, String)> {
     errors
         .iter()
         .filter_map(|e| match e {
-            ValidationError::UndeclaredContact {
+            ValidationError::UnrecordedContact {
                 contact: contact @ CensusContact::EdgeEdgeCross { .. },
                 witness,
+                ..
             } => Some((*contact, witness.clone())),
             _ => None,
         })
@@ -123,7 +128,7 @@ fn crossings(errors: &[ValidationError]) -> Vec<(CensusContact, String)> {
 fn the_declared_crossing_seat_certifies_both_ways() {
     let (body, post_top, _, shelf_bottom, _) = straddle_parts();
     for pair in [(post_top, shelf_bottom), (shelf_bottom, post_top)] {
-        let found = errors(&body, &declared(&[pair]));
+        let found = errors(&body, &declared(&body, &[pair]));
         assert!(
             found.is_empty(),
             "the declared overhang seat certifies with the record in \
@@ -138,10 +143,9 @@ fn the_declared_crossing_seat_certifies_both_ways() {
 /// `z = 0.5`, so the seat is interpenetration, not rest. The declared
 /// pair holds both crossing points (the geometry is unchanged in
 /// plan), the side test answers SAME-SIDE, and the refusal carries
-/// the verdict by name — the declared-interpenetration hook: C6's
-/// future class consumes exactly this verdict as admission evidence,
-/// which is why the finding must never regress to a plain undeclared
-/// crossing. The lying declaration itself is `ContactContradicted`
+/// the verdict as its `side` — the interference evidence the at-rest
+/// gate reads between copies, which is why the finding must never
+/// regress to a plain undeclared crossing. The lying declaration itself is `ContactContradicted`
 /// (aligned senses), independently — both refusals stand, run both
 /// ways for the frame.
 #[test]
@@ -167,7 +171,7 @@ fn a_transverse_crossing_refuses_naming_the_side_verdict() {
     let bare = crossings(&errors(&body, &ContactRecords::default()));
     assert_eq!(bare.len(), 2, "{bare:?}");
     assert!(
-        bare.iter().all(|(_, w)| !w.contains("side verdict")),
+        bare.iter().all(|(c, _)| side(c).is_none()),
         "an unanswered crossing names no verdict: {bare:?}"
     );
 
@@ -175,13 +179,13 @@ fn a_transverse_crossing_refuses_naming_the_side_verdict() {
         (post.bottom_face, shelf_bottom),
         (shelf_bottom, post.bottom_face),
     ] {
-        let found = errors(&body, &declared(&[pair]));
+        let found = errors(&body, &declared(&body, &[pair]));
         let crossed = crossings(&found);
         assert_eq!(crossed.len(), 2, "declared {pair:?}: {found:?}");
         assert!(
             crossed
                 .iter()
-                .all(|(_, w)| w.contains("side verdict: same-side")),
+                .all(|(c, _)| side(c) == Some(CrossingSideVerdict::SameSide)),
             "a transverse crossing refuses with the verdict NAMED \
              (declared {pair:?}): {crossed:?}"
         );
@@ -230,7 +234,7 @@ fn a_verified_pair_elsewhere_backs_no_crossing() {
     let shelf_bottom = skeys.face(shelf.bottom_face).unwrap();
 
     let bare = crossings(&errors(&body, &ContactRecords::default()));
-    let found = errors(&body, &declared(&[(flush_top, shelf_bottom)]));
+    let found = errors(&body, &declared(&body, &[(flush_top, shelf_bottom)]));
     let crossed = crossings(&found);
     assert_eq!(
         format!("{bare:?}"),
@@ -271,11 +275,11 @@ fn a_verified_pair_elsewhere_backs_no_crossing() {
 fn a_perpendicular_pair_holding_the_point_names_nothing() {
     let (body, _, post_side_x030, _, shelf_side_y030) = straddle_parts();
     let pair = (post_side_x030, shelf_side_y030);
-    let found = errors(&body, &declared(&[pair]));
+    let found = errors(&body, &declared(&body, &[pair]));
     let crossed = crossings(&found);
     assert_eq!(crossed.len(), 2, "{found:?}");
     assert!(
-        crossed.iter().all(|(_, w)| !w.contains("side verdict")),
+        crossed.iter().all(|(c, _)| side(c).is_none()),
         "no side question is posed for a pair whose carrier does not \
          hold the crossing edges: {crossed:?}"
     );
@@ -344,7 +348,7 @@ fn an_unverified_point_holding_pair_backs_no_crossing() {
     let block_bottom = bkeys.face(block.bottom_face).unwrap();
 
     let bare = crossings(&errors(&body, &ContactRecords::default()));
-    let found = errors(&body, &declared(&[(post_top, block_bottom)]));
+    let found = errors(&body, &declared(&body, &[(post_top, block_bottom)]));
     let with = crossings(&found);
     assert_eq!(
         format!("{bare:?}"),
@@ -354,7 +358,7 @@ fn an_unverified_point_holding_pair_backs_no_crossing() {
     );
     assert_eq!(with.len(), 2, "{found:?}");
     assert!(
-        with.iter().all(|(_, w)| !w.contains("side verdict")),
+        with.iter().all(|(c, _)| side(c).is_none()),
         "and no verdict is named — the pair never verified, so it \
          never spoke: {with:?}"
     );
@@ -362,11 +366,9 @@ fn an_unverified_point_holding_pair_backs_no_crossing() {
 
 /// **The pierce pin.** `EdgeFacePierce` consults NO rung: a
 /// transverse dive through a face's interior is interpenetration
-/// however the seat is declared, and the vocabulary that could admit
-/// one — C6's recorded interference gate-skips — does not exist yet.
-/// The MATE-4b ruling defers that arm to C6's interference-fit era BY
-/// NAME (staging, stage 2); this unit lands stage 1 only, and issue
-/// 973 stays OPEN over the pierce arm. A tall post run through the
+/// however the seat is declared: no declaration admits one (C6), and
+/// between two copies at rest it is an interference finding, not a
+/// contact. A tall post run through the
 /// thin shelf pierces both shelf faces at its two sub-shelf corners'
 /// vertical edges; declaring the pierced face against the piercing
 /// edge's own side face changes not one pierce finding.
@@ -391,9 +393,10 @@ fn the_pierce_stays_categorical() {
         errors(&body, records)
             .iter()
             .filter_map(|e| match e {
-                ValidationError::UndeclaredContact {
+                ValidationError::UnrecordedContact {
                     contact: CensusContact::EdgeFacePierce { edge, face },
                     witness,
+                    ..
                 } => Some(format!("{edge:?} through {face:?} at {witness}")),
                 _ => None,
             })
@@ -404,11 +407,10 @@ fn the_pierce_stays_categorical() {
         !bare.is_empty(),
         "the tall post pierces the shelf somewhere"
     );
-    let with_declaration = pierces(&declared(&[(post.side_faces[0], shelf_bottom)]));
+    let with_declaration = pierces(&declared(&body, &[(post.side_faces[0], shelf_bottom)]));
     assert_eq!(
         bare, with_declaration,
-        "no declaration reaches a pierce: the class is categorical \
-         until C6's era, by name"
+        "no declaration reaches a pierce: the class is categorical"
     );
 }
 
@@ -467,7 +469,7 @@ fn the_structural_door_at_a_dual_refuses_the_declared_seat_typed_and_backs_no_cr
         "no declaration, no consult: {bare:?}"
     );
 
-    let found = structural(&dual, &declared(&[pair]));
+    let found = structural(&dual, &declared(&dual, &[pair]));
     let refusals = lane_refusals(&found);
     assert_eq!(
         refusals.len(),
@@ -494,13 +496,13 @@ fn the_structural_door_at_a_dual_refuses_the_declared_seat_typed_and_backs_no_cr
         pair,
         "the two seats are built in one arena order"
     );
-    let at_f64 = topo::validate_pseudomanifold_structural(&seat, &declared(&[pair]), tol)
+    let at_f64 = topo::validate_pseudomanifold_structural(&seat, &declared(&seat, &[pair]), tol)
         .expect_err("the `_structural` door at f64 holds no region door either");
     let shape = |errors: &[ValidationError]| -> Vec<String> {
         errors
             .iter()
             .map(|e| match e {
-                ValidationError::UndeclaredContact { contact, .. } => format!("{contact:?}"),
+                ValidationError::UnrecordedContact { contact, .. } => format!("{contact:?}"),
                 other => format!("{other:?}"),
             })
             .collect()
@@ -512,7 +514,7 @@ fn the_structural_door_at_a_dual_refuses_the_declared_seat_typed_and_backs_no_cr
          rendering aside"
     );
     assert!(
-        errors(&seat, &declared(&[pair])).is_empty(),
+        errors(&seat, &declared(&seat, &[pair])).is_empty(),
         "and the certified door, holding the region door, certifies the seat"
     );
 }

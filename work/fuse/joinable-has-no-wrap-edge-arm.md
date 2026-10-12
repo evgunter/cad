@@ -4,6 +4,8 @@ kind: issue
 title: The curved join has no arm for a wrap edge, where one face lies on both sides of the two edges
 status: open
 opened: 2026-10-07
+priority: P3
+cost: M
 ---
 
 ## The finding

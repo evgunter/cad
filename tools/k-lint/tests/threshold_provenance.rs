@@ -69,7 +69,7 @@ use std::process::{Command, Stdio};
 
 use k_lint::{
     AMBIENT_BAND_MIN, BASELINE_FLOOR_MARGIN, EPS_COUPLED_FLOOR_RATIO, EPS_COUPLED_PREDICATES,
-    EPS_COUPLED_UNRULED, PROXIMITY_FACTOR, Reason, lint_sample,
+    EPS_COUPLED_UNRULED, PROXIMITY_FACTOR, Reason, lint_csv, lint_sample, zero_arm_usage,
 };
 
 /// The era the shipped thresholds were cut from — the one
@@ -493,16 +493,20 @@ fn the_gap_holds_across(eras: &[&str]) {
 /// **The lower edge is structural**, from rule (2)'s discrimination
 /// floor (module docs): the cap must bind at the loosest supported row
 /// and nowhere else. **The upper edge is MEASURED**, and it is the
-/// half nothing said before: rule (2)-below flags a zero-classified
-/// margin above `band_zero / PROXIMITY_FACTOR`, and the M7 corpus's
+/// half nothing said before: rule (2)'s zero arm tallies a
+/// zero-classified margin above `band_zero / PROXIMITY_FACTOR`, and the
+/// M7 corpus's
 /// own largest zero-side ratio puts a ceiling on the factor at the
-/// tightest row. That ceiling is the BINDING one of the two edges —
+/// tightest row. That ceiling is the NEARER of the two edges,
 /// asserted as a comparison against the structural edge rather than as
-/// a number — and the room it leaves is bounded above by the doc's own
-/// "under 2x", so a corpus that moves toward it says so. It is not a
-/// ranking against this crate's other constants: their headrooms are
-/// fractions below a measured datum and this one is a multiple of a
-/// policy digit.
+/// a number. The room it leaves is bounded above by the doc's own
+/// "under 2x", so a corpus that moves toward it says so. Since the zero
+/// arm became a tally (Ev, PR 4567), crossing the ceiling fails no
+/// gate and only makes the baseline tally itself: it is kept as the
+/// re-cut trigger, and the structural edge alone constrains what gates.
+/// It is not a ranking against this crate's other constants: their
+/// headrooms are fractions below a measured datum and this one is a
+/// multiple of a policy digit.
 ///
 /// The definite arm is deliberately not part of this: post-cap,
 /// `proximity_above_threshold` never exceeds [`BASELINE_FLOOR_MARGIN`],
@@ -540,17 +544,10 @@ fn proximity_factor_is_a_policy_choice_and_this_is_what_moving_it_costs() {
             }
             // The consequence, in the lint's own voice: not one
             // zero-classified row of the era the thresholds were cut
-            // from may fire rule (2)-below.
+            // from is read by rule (2)'s zero arm.
             assert!(
-                !lint_sample(
-                    r.predicate,
-                    r.margin,
-                    r.band_zero,
-                    r.band_escalate,
-                    r.outcome
-                )
-                .contains(&Reason::NearBandBelow),
-                "M7 flags its own zero side at {}/{} (eps={row})",
+                zero_arm_usage(r.margin, r.band_zero, r.outcome).is_none(),
+                "M7 tallies its own zero side at {}/{} (eps={row})",
                 r.shape,
                 r.predicate
             );
@@ -598,17 +595,17 @@ fn proximity_factor_is_a_policy_choice_and_this_is_what_moving_it_costs() {
     );
 
     // The measured ceiling, from the corpus's own zero-classified
-    // population: rule (2)-below fires when |m|/band_zero > 1/factor,
+    // population: rule (2)'s zero arm reads |m|/band_zero > 1/factor,
     // so the largest recorded ratio is where the baseline starts
-    // flagging itself.
+    // tallying itself.
     let ceiling = 1.0 / worst;
     assert!(
         PROXIMITY_FACTOR < ceiling,
         "PROXIMITY_FACTOR {PROXIMITY_FACTOR:e} is at or above the \
          corpus's own zero-side ceiling {ceiling:e} ({at}) — the M7 \
-         baseline flags itself under rule (2)-below"
+         baseline tallies itself under rule (2)'s zero arm"
     );
-    // The ceiling is the BINDING edge, and by a wide margin: the
+    // The ceiling is the NEARER edge, and by a wide margin: the
     // structural interval reaches 4e3 and the corpus stops the factor
     // an order of magnitude earlier. Said as a comparison rather than
     // a number so a moved corpus moves the claim.
@@ -633,6 +630,50 @@ fn proximity_factor_is_a_policy_choice_and_this_is_what_moving_it_costs() {
          and PROXIMITY_FACTOR's doc says \"under 2x above the shipped \
          factor\""
     );
+}
+
+/// **Rule (2)'s zero arm is calibrated by [`PROXIMITY_FACTOR`] and
+/// gates nothing**, at every supported ε row. A zero sample at the top
+/// of the window (`0.99·ε`) and one just past its bottom are tallied
+/// and never flagged; one at the bottom edge itself is not read; and a
+/// definite sample at the same row below the baseline floor still
+/// flags, so the arm going quiet did not take the definite side with
+/// it.
+#[test]
+fn the_zero_arm_is_tallied_at_every_row_and_never_gates() {
+    for row in ROWS {
+        let eps: f64 = row.parse().expect("an eps row");
+        let escalate = 10.0 * eps;
+        let edge = eps / PROXIMITY_FACTOR;
+        let csv = format!(
+            "shape,predicate,margin,band_zero,band_escalate,outcome\n\
+             demo/top,p,{top:e},{eps:e},{escalate:e},zero\n\
+             demo/low,p,{low:e},{eps:e},{escalate:e},zero\n\
+             demo/edge,p,{edge:e},{eps:e},{escalate:e},zero\n\
+             demo/floor,q,{floor:e},{eps:e},{escalate:e},positive\n",
+            top = 0.99 * eps,
+            low = edge * 1.01,
+            floor = BASELINE_FLOOR_MARGIN / 2.0,
+        );
+        let scan = lint_csv(&csv).expect("valid rows");
+        assert_eq!(
+            scan.zero_arm.iter().map(|t| t.count).sum::<usize>(),
+            2,
+            "eps={row}: the two zero samples inside the window are tallied, the edge one is not"
+        );
+        assert_eq!(scan.zero_arm[0].worst.shape, "demo/top", "eps={row}");
+        assert_eq!(
+            zero_arm_usage(edge, eps, "zero"),
+            None,
+            "eps={row}: the window is open at band_zero/PROXIMITY_FACTOR"
+        );
+        let flagged: Vec<&str> = scan.flags.iter().map(|f| f.shape.as_str()).collect();
+        assert_eq!(
+            flagged,
+            vec!["demo/floor"],
+            "eps={row}: only the definite sample is a finding"
+        );
+    }
 }
 
 /// The three readings `docs/K-REPORT.md` rests the era decision on,

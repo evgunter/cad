@@ -11,7 +11,7 @@ cost: M
 
 Found by the REACH lane `reach/lily-leaf-1e12`. Until that lane, the nightly
 `k-lint (dev-probe)` row never reached its lint step: `scripts/k_probe_sweep.sh`
-panicked in its 1e-12 demo pass (`work/reach/lily-leaf-b-mass-exhausts-the-quadrature-budget-at-eps-1e-12.md`).
+panicked in its 1e-12 demo pass (`lily-leaf-b-mass-exhausts-the-quadrature-budget-at-eps-1e-12` (REACH, closed by PR 3976)).
 With the sweep exiting 0, `tools/k-lint` over the three fresh CSVs exits 2.
 Most of its flags already have rows (`work/chart/chart-bound-outer-span-decides-a-poisoned-margin.md`,
 `work/germ/circle-torus-root-slack-crowds-the-zero-band-at-1e-12.md`,
@@ -40,3 +40,11 @@ The name flags on a second scene. A full `scripts/k_probe_sweep.sh` at
 3.626e-8 and 2.828e-8 on the same scene, so the headroom moved by
 ~1e-10 between those heads and the flags stayed. Which faces they are
 is as unmeasured as the cutaway's.
+
+## Rule 2's zero arm is a tally (Ev, PR 4567, 2026-10-10)
+
+The zero-classified sample this row counts (3.86e-10 at 1e-9, twice on
+main `f43f16b26`) no longer gates: rule 2's zero arm is tallied and
+printed (`props_quad_converged: 2 … the margin uses 39% of eps here`),
+built on `germ/klint-zero-arm-tally`. The eps-coupled headroom flags
+(rule 4) still gate and are this row's subject.
