@@ -1056,3 +1056,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - B: a donut box refuses `CurvedPierceUnsupported`. A says this is correct, a tangent neighbour edge.
   - A: a seam-turned cylinder `point_in_solid` `WallOutlineUnsupported` (INSIDE's ringed-wall family).
   - A and B: test-only rows pinning the sphere/cylinder/cone corner lens and B5's segment listing. These are folded into U-T4's row 3 text.
+- 2026-10-12 19:48 — Check-in: r4886a and r4886b are alive (writes at 19:44 and 19:42). PR 4812 and PR 4895: no comments from Ev; 4895's CI is green. Lanes were free, so I dispatched both one-face torus items: the pierce ring (session_01XaZ48YKYar6TwqZ7UCXZGk, branch germ/one-face-torus-pierce-ring; it also checks B's two-face donut RingHomingAmbiguous) and the slab chord-role desync (session_01QdDQ2BiSpxjA2VknB694V4, branch germ/slab-one-face-torus-roles). Review arms are drawn at review. Re-armed for 20:47.
