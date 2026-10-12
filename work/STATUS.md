@@ -3581,7 +3581,6 @@ area `kernel`; prefix `walks/`; tag `(WALKS orchestrator)`; ab_band `6600-6699`.
 | 14 | `nothingtodo-pattern-sites-took-a-payload-tint` | tint | open | Four viewer suites' NothingToDo patterns took a payload from a VNEWS unit |
 | 14 | `opout-contacts-body-zero-invariant-is-held-by-prose` | wire | open | OpOut's 'a multi-output op never fills contacts' is held by a doc comment, not by the type |
 | 14 | `path-kernel-bug-refusals-end-in-a-tag` | paths | open | profile: PathError UnderdeterminedLeg and OverdeterminedJunction end in '(a kernel bug)', not the shared kernel-defect ending |
-| 14 | `profile-endings-say-lower-the-tolerance-and-route-by-name` | paths | open | profile: the path door's turn refusal and FILLET_OFFSET_LEVER_RECOURSE say 'lower the tolerance', and PathError::Escalated routes its ending by predicate name |
 | 14 | `python-lint-row-is-locally-unverifiable-on-this-image` | ciw | open | the container ships ruff 0.15.8 against a 0.16.1 pin, so the python-lint row skips for every lane |
 | 14 | `red-run-whose-jobs-never-started-reads-as-a-broken-tree` | ciw | open | A run whose jobs were never acquired is indistinguishable from a broken tree, and the tell is undocumented |
 | 14 | `refusal-nothingtodo-pattern-sites-took-a-payload` | tcost | open | Four viewer suites' NothingToDo patterns took a payload from a VNEWS unit |
