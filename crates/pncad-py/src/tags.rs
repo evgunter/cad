@@ -1620,7 +1620,6 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::ContactContradicted => "contact_contradicted",
         BooleanErrorKind::ContinuationContradicted => "continuation_contradicted",
         BooleanErrorKind::UnsupportedDeclarationClass => "unsupported_declaration_class",
-        BooleanErrorKind::SeamContradicted => "seam_contradicted",
         BooleanErrorKind::RimCuspArmUnbuilt => "rim_cusp_arm_unbuilt",
         BooleanErrorKind::TangentSlitArmUnbuilt => "tangent_slit_arm_unbuilt",
         BooleanErrorKind::InvalidInput => "invalid_input",
@@ -2974,8 +2973,7 @@ pub fn coincidence_relation_tag(relation: pncad::document::coincidence::Relation
         R::EqualAngles => "equal_angles",
         R::Tangent { aligned: true } => "tangent",
         R::Tangent { aligned: false } => "cusp",
-        R::TangentContact { seam: false } => "tangent_contact",
-        R::TangentContact { seam: true } => "seam",
+        R::SurfaceTangent => "surface_tangent",
         R::Coaxial => "coaxial",
         R::CoRuled => "co_ruled",
     }
