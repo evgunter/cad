@@ -22,8 +22,9 @@ M={
 'rho_low_is_mid':('let rho_low = (rho - perp(am).norm() * x_max - perp(bm).norm() * y_max).max(T::zero());','let rho_low = rho;'),
 'h_low_is_mid':('let h = (hm.abs() - ha.abs() * x_max - hb.abs() * y_max)\n            .max((hm - ha).abs() - (ha.powi(2) + hb.powi(2)).sqrt());','let h = hm.abs();'),
 'h_only_global':('let h = (hm.abs() - ha.abs() * x_max - hb.abs() * y_max)\n            .max((hm - ha).abs() - (ha.powi(2) + hb.powi(2)).sqrt());','let h = (hm - ha).abs() - (ha.powi(2) + hb.powi(2)).sqrt();'),
-'drop_nappe':('!= Sign::Positive\n','== Sign::Zero && false\n'),
+'drop_nappe':('Margin::of(h_low),','Margin::of(h_low.abs() + T::one()),'),
 }
+BOUND={'drop_ellipse_incidence','one_piece','pieces_16','drop_ky','ky_halved','drop_kx','drop_kxx','drop_kxy','rho_low_is_mid','h_low_is_mid','h_only_global','drop_nappe'}
 names=sys.argv[1:] or list(M)
 env=dict(os.environ,CARGO_TARGET_DIR='/home/user/tgt4744m',CAD_TOLERANCE_EPS='1e-6')
 for n in names:
@@ -33,9 +34,15 @@ for n in names:
         assert s.count(a)==1,(n,a,s.count(a)); s=s.replace(a,b)
     open(F,'w').write(s)
     try:
-        r=subprocess.run(['cargo','test','-q','-p','geom-brep','--test','all','--','props_cone','stored_span_winding_bound','incidence','review_4744_verify::verify_threshold','review_4744_verify::verify_soundness'],cwd=W,env=env,capture_output=True,text=True,timeout=3000)
+        r=subprocess.run(['cargo','test','-q','-p','geom-brep','--test','all','--','props_cone','stored_span_winding_bound','incidence',]+(['review_4744_verify::verify_threshold','review_4744_verify::verify_soundness','review_4744_probes::an_off'] if n in BOUND else []),cwd=W,env=env,capture_output=True,text=True,timeout=3000)
         out=r.stdout+r.stderr
-        fails=sorted(set(l.split()[1] for l in out.splitlines() if l.startswith('test ') and l.strip().endswith('FAILED')))
+        ls=out.splitlines()
+        idx=[i for i,l in enumerate(ls) if l.strip()=='failures:']
+        fails=[]
+        if idx:
+            for l in ls[idx[-1]+1:]:
+                if not l.strip(): break
+                fails.append(l.strip())
         res=[l for l in out.splitlines() if 'test result' in l or l.startswith('error') or 'THRESH b' in l or 'SOUND' in l]
         print(n,'|',res,'|',fails,flush=True)
     finally:

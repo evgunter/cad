@@ -406,3 +406,19 @@ fn verify_threshold_ratio() {
     for l in &over { println!("THRESH OVER {l}"); }
     assert!(over.is_empty());
 }
+
+/// An ellipse crossing the apex's plane: refused by name as off its
+/// nappe (pins `props_cone_ellipse_nappe`).
+#[test]
+fn verify_nappe_named() {
+    for e in [
+        El { c: [0.0, 0.0, 0.0], n: [0.0, 0.0, 1.0], a: 2.0, b: 1.0, u: [1.0, 0.0, 0.0] },
+        El { c: [0.0, 0.0, 0.3], n: unit([0.0, 1.0, 0.2]), a: 2.0, b: 1.0, u: unit([0.0, -0.2, 1.0]) },
+    ] {
+        let c64 = class(&verdict_at::<f64>(0.5, &e, 0.0, TAU));
+        let ci = class(&verdict_at::<Interval>(0.5, &e, 0.0, TAU));
+        println!("NAPPE f64={c64} int={ci}");
+        assert_eq!(c64, "off:props_cone_ellipse_nappe");
+        assert_eq!(ci, "off:props_cone_ellipse_nappe");
+    }
+}
