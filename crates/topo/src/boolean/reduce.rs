@@ -607,7 +607,7 @@ fn gate_sliver_orientation<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<(), BooleanError> {
     let solids: Vec<crate::entity::SolidKey> = match body.outcome() {
-        crate::AtRestOutcome::Validated => body.slivers().iter().map(|s| s.solid).collect(),
+        crate::AtRestOutcome::Validated => body.slivers().to_vec(),
         crate::AtRestOutcome::NotRunAtThisScalar => body.solids().map(|(k, _)| k).collect(),
     };
     for solid in solids {

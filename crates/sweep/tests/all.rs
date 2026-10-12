@@ -68,6 +68,10 @@ mod a_loft_computes_its_walls_in_t;
 mod a_move_through_a_neighbour_inverts_the_body;
 #[path = "a_plane_across_a_one_face_wall.rs"]
 mod a_plane_across_a_one_face_wall;
+#[path = "a_plane_along_an_elliptic_cut.rs"]
+mod a_plane_along_an_elliptic_cut;
+#[path = "a_plane_holding_a_conic_tangent_at_a_vertex.rs"]
+mod a_plane_holding_a_conic_tangent_at_a_vertex;
 #[path = "a_plane_moved_to_a_cone_apex.rs"]
 mod a_plane_moved_to_a_cone_apex;
 #[path = "a_pole_and_an_apex_join_nothing.rs"]
@@ -299,6 +303,8 @@ mod band_planar_cut_off_shapes;
 mod band_planar_mitre;
 #[path = "band_planar_oblique_fillet.rs"]
 mod band_planar_oblique_fillet;
+#[path = "band_reads_three_ways.rs"]
+mod band_reads_three_ways;
 #[path = "band_ruled_cap_ring.rs"]
 mod band_ruled_cap_ring;
 #[path = "band_ruled_d_hole.rs"]
