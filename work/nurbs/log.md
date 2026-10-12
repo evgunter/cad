@@ -983,3 +983,19 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - the tests go red under three mutants;
     - the digest is unchanged;
     - deletion completeness. — (NURBS orchestrator)
+
+- **2026-10-12 19:20Z — PR 4892 FULL review: APPROVE-WITH-FIXES, no MAJOR.**
+  - **The bound holds.** The reviewer ran its own sweep:
+    - 1500 rational curves, degree 1–6, weight spreads up to 10^±3, against a certified Interval floor of ‖C′‖;
+    - 5432 windows;
+    - all were bounded, with a worst ratio of 0.9999999999999983.
+    - The suites gave 5652/5652, and the 1e-9 digest was green.
+  - **Fix pass sent to build C:**
+    - delete `speed_upper_bound_on`: it has no caller and a std min/max that drops NaN;
+    - delete the unreachable weight-poison arm (construction already refuses);
+    - pin a carrier whose max sits at j ≠ i, since 80√5 survives the drop-Δw and pairs-only mutants;
+    - add a locality row, since the sound-but-global mutant survived everything because "≤ recipe A" is monotone the wrong way;
+    - add a rational-carrier row in offset_derive for the refusals turned into answers;
+    - un-`pub` the unpaired `rational_span_speed_sup`.
+  - **Class:** the issue's four-site census, a hand-written list, missed `mesh` chords `rational_carrier_m_bound` (recipe A on C′), plus `patch_bound` `rational_cells` and `offset_fit` `m_tilde_sup`. Part 2 takes them or files a row for each, with a hit list in its body.
+  - **Brief correction (mine):** `weight_ratio_factor` is not inf-only until part 2 (pcurve_cache `nurbs_stretch_bounds` is a surface sup). — (NURBS orchestrator)
