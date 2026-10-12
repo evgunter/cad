@@ -958,11 +958,7 @@ fn level_row(
             Ok(c) => c,
             Err(_) => continue,
         };
-        let Some(speed) = polynomial_speed(&column) else {
-            return Ok(Some(Err(SectionVerdict::Unsupported {
-                what: "a rational wall column's speed has no bound the section is read at",
-            })));
-        };
+        let speed = certified_speed(&column);
         let roots = match geom_brep::boundary_section(
             &column,
             origin,
@@ -1042,23 +1038,15 @@ fn bisect(
     if phi(a).abs() <= phi(b).abs() { a } else { b }
 }
 
-/// A certified sup of a polynomial spline's speed: its derivative's
-/// control net, through the knot differences, each rounded outward.
-/// `None` for a rational carrier.
-fn polynomial_speed(c: &NurbsCurve3<f64>) -> Option<f64> {
-    if c.weights().iter().any(|w| *w != 1.0) {
-        return None;
-    }
-    let (p, k, ctl) = (c.degree(), c.knots().knots(), c.control());
-    let mut sup = 0.0f64;
-    #[allow(clippy::cast_precision_loss)]
-    for i in 0..ctl.len().saturating_sub(1) {
-        let dt = k[i + p + 1] - k[i + 1];
-        if dt > 0.0 {
-            sup = sup.max((ctl[i + 1] - ctl[i]).norm() * (p as f64) / dt);
-        }
-    }
-    Some((sup * (1.0 + 1e-12)).next_up())
+/// A certified sup of a spline's speed, polynomial or rational: the
+/// curve's [`NurbsCurve3::speed_upper_bound`] read at `Interval`, whose
+/// upper end bounds the exact pair-term bound from above.
+fn certified_speed(c: &NurbsCurve3<f64>) -> f64 {
+    geom_core::Bounds::hi(
+        c.map_scalar(<geom_core::Interval as geom_core::Real>::from_f64)
+            .speed_upper_bound()
+            .get(),
+    )
 }
 
 /// **The plane's root along a spline carrier** nearest `seed`: the
@@ -1077,11 +1065,7 @@ fn plane_spline_root(
             what: "a moved surface's root along a spline edge is solved for a plane only",
         });
     };
-    let Some(speed) = polynomial_speed(carrier) else {
-        return Err(CornerVerdict::Unsupported {
-            what: "a rational spline edge's speed has no bound the corner is read at",
-        });
-    };
+    let speed = certified_speed(carrier);
     let section = geom_brep::boundary_section(
         carrier,
         origin,
@@ -1309,5 +1293,95 @@ mod regions {
             matches!(got, Ok(Err(SectionVerdict::Corner { .. }))),
             "expected the corner's refusal, got {got:?}"
         );
+    }
+}
+
+/// **The spline lane reaches rational carriers.** Both doors that meter
+/// a spline's speed ([`certified_speed`]) answer on a rational one:
+/// `level_row`'s column and `plane_spline_root`'s edge each read the
+/// pair-term bound, where they refused before it.
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod rational_carriers {
+    use super::{SplineRoot, plane_spline_root, plane_wall_section};
+    use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
+    use geom_core::spline::KnotVector;
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).expect("the witness band")
+    }
+
+    fn quad() -> KnotVector {
+        KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).expect("clamped")
+    }
+
+    /// A biquadratic wall whose rows are level (height `−½, 0, ½` by
+    /// row) and whose weights vary along its columns, so `level_row`
+    /// meters a RATIONAL column: `z = 0` holds its middle row, which
+    /// is the section, every control point on the plane.
+    #[test]
+    fn a_level_row_of_a_rational_wall_is_the_section() {
+        let control = (0..9)
+            .map(|n| {
+                let (i, j) = (n / 3, n % 3);
+                #[allow(clippy::cast_precision_loss)]
+                Point3::new(0.5 * i as f64, 0.1 * (i * j) as f64, 0.5 * j as f64 - 0.5)
+            })
+            .collect();
+        let weights = (0..9).map(|n| [1.0, 0.5, 1.0][n % 3]).collect();
+        let wall = NurbsSurface::new(quad(), quad(), control, weights).expect("a rational wall");
+        let plane = Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let old = Curve3::Line {
+            origin: Point3::new(0.0, 0.05, 0.0),
+            dir: Vec3::unit_x(),
+        };
+        let row = match plane_wall_section(&plane, &wall, &old, (0.0, 1.0), 1.0, band()) {
+            Ok(Ok(c)) => c,
+            other => panic!("the middle row is the section, got {other:?}"),
+        };
+        for p in row.control() {
+            assert!(
+                p.z.abs() <= 1e-12,
+                "a row control point off the plane: {p:?}"
+            );
+        }
+    }
+
+    /// A rational quarter arc crossed by the plane `x = ½`: the root is
+    /// the arc's point at 60°.
+    #[test]
+    fn a_rational_edge_has_its_plane_root() {
+        let h = 0.5f64.sqrt();
+        let arc = NurbsCurve3::new(
+            quad(),
+            vec![
+                Point3::new(1.0, 0.0, 0.0),
+                Point3::new(1.0, 1.0, 0.0),
+                Point3::new(0.0, 1.0, 0.0),
+            ],
+            vec![1.0, h, 1.0],
+        )
+        .expect("a quarter arc");
+        let plane = Surface::Plane {
+            origin: Point3::new(0.5, 0.0, 0.0),
+            normal: Vec3::unit_x(),
+            u_ref: Vec3::unit_y(),
+        };
+        match plane_spline_root(&plane, &arc, 0.6, 1.0, band()) {
+            Ok(SplineRoot::At(t)) => {
+                let p = arc.eval(t);
+                assert!(
+                    (p.x - 0.5).abs() <= 1e-9 && (p.y - 0.75f64.sqrt()).abs() <= 1e-9,
+                    "the root reads {p:?}"
+                );
+            }
+            Ok(SplineRoot::Short { .. }) => panic!("the arc crosses the plane; no root read"),
+            Err(e) => panic!("the rational edge refused: {e:?}"),
+        }
     }
 }
