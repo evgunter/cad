@@ -934,3 +934,154 @@ fn graft_solids_impl<T: geom_core::Decide>(
     };
     Ok((map, pairs.into_iter().map(|(_, dk)| dk).collect()))
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod recertify_lane_tests {
+    use std::sync::Arc;
+
+    use geom::{Curve3, NurbsCurve3, Surface};
+    use geom_brep::{CertifyError, EdgeCurveSpec, EdgeDescriptionSpec};
+    use geom_core::spline::KnotVector;
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    use super::{Bridge, Targets, graft_staged};
+    use crate::props::AtRestPolicy;
+    use crate::{Body, BooleanError, CurveGeom, FaceSurface, MevSite};
+
+    /// A body holding one analytic rung-3 edge: the unit quarter circle
+    /// in `z = 0` as one rational quadratic arc, exactly on the plane
+    /// `z = 0` and the cylinder `ρ = 1`, certified through the lane.
+    fn rung3_body() -> Body<f64> {
+        let w = std::f64::consts::FRAC_PI_4.cos();
+        let carrier = Arc::new(
+            NurbsCurve3::new(
+                KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+                vec![
+                    Point3::new(1.0, 0.0, 0.0),
+                    Point3::new(1.0, 1.0, 0.0),
+                    Point3::new(0.0, 1.0, 0.0),
+                ],
+                vec![1.0, w, 1.0],
+            )
+            .unwrap(),
+        );
+        let (p0, p1) = (carrier.eval(0.0), carrier.eval(1.0));
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(p0, true).unwrap();
+        let plane = body
+            .set_face_surface(
+                seed.face,
+                FaceSurface::New {
+                    surface: Surface::Plane {
+                        origin: Point3::origin(),
+                        normal: Vec3::unit_z(),
+                        u_ref: Vec3::unit_x(),
+                    },
+                    sense: true,
+                },
+            )
+            .unwrap();
+        let anchor = body.mvfs(p1, true).unwrap();
+        let cylinder = body
+            .set_face_surface(
+                anchor.face,
+                FaceSurface::New {
+                    surface: Surface::Cylinder {
+                        origin: Point3::origin(),
+                        axis: Vec3::unit_z(),
+                        radius: 1.0,
+                        u_ref: Vec3::unit_x(),
+                    },
+                    sense: true,
+                },
+            )
+            .unwrap();
+        body.mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            p1,
+            EdgeCurveSpec {
+                description: EdgeDescriptionSpec::Intersection {
+                    s1: plane,
+                    s2: cylinder,
+                    witness: carrier.eval(0.5),
+                },
+                carrier: Curve3::Nurbs(carrier),
+                param_start: 0.0,
+                param_end: 1.0,
+            },
+            Tol::witness(),
+        )
+        .expect("the lane certifies the quarter circle");
+        body
+    }
+
+    /// **The re-certifying graft holds the lane it is handed.** With
+    /// none it refuses the analytic rung-3 edge typed, before any check
+    /// of the edge; with the policy's lane — the one `graft_solid`
+    /// hands — it certifies the edge, which only the lane's C2 limbs
+    /// (both operands' distance limbs and the tube) can do, since a
+    /// lane-free door refuses the class. The grafted edge then
+    /// re-certifies through the lane and refuses without it.
+    #[test]
+    fn the_recertifying_graft_certifies_an_analytic_rung3_edge_through_the_lane() {
+        let src = rung3_body();
+        let tol = Tol::witness();
+        let free = graft_staged(
+            &mut Body::new(),
+            Targets::Minted,
+            &src,
+            Bridge::Recertify { tol },
+            None,
+        )
+        .map(|_| ());
+        assert!(
+            matches!(
+                free,
+                Err(BooleanError::GraftRecertify(
+                    CertifyError::NurbsLaneNotSupplied
+                ))
+            ),
+            "no lane: {free:?}"
+        );
+
+        let mut dst = Body::new();
+        graft_staged(
+            &mut dst,
+            Targets::Minted,
+            &src,
+            Bridge::Recertify { tol },
+            <f64 as AtRestPolicy>::nurbs_lane(),
+        )
+        .expect("the policy's lane certifies the grafted edge");
+        let band = Band::linear(tol).unwrap();
+        let mut grafted = 0;
+        for (_, edge) in dst.edges.iter() {
+            let Some(CurveGeom::Certified(curve)) = dst.curves.get(edge.curve) else {
+                continue;
+            };
+            let he = &dst.half_edges[edge.he_plus];
+            let point = |v| dst.points[dst.vertices[v].point];
+            let (start, end) = (point(he.start), point(dst.half_edges[he.next].start));
+            let surfaces = |k| dst.surfaces.get(k).cloned();
+            assert_eq!(
+                curve.recertify(start, end, surfaces, band).map(|_| ()),
+                Err(CertifyError::NurbsLaneNotSupplied),
+                "the grafted edge at a lane-free door"
+            );
+            curve
+                .recertify_via(
+                    start,
+                    end,
+                    surfaces,
+                    band,
+                    <f64 as AtRestPolicy>::nurbs_lane(),
+                )
+                .expect("the grafted edge re-certifies through the lane");
+            grafted += 1;
+        }
+        assert_eq!(grafted, 1, "the one rung-3 edge was grafted");
+    }
+}
