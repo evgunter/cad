@@ -478,11 +478,12 @@ macro_rules! nurbs_curve {
             /// construction ([`SpanLocate::point_value`]): what every
             /// structure decision on the weights reads.
             weight_channel: Vec<f64>,
-            /// [`Self::speed_lower_bound`], filled on first read. It is
-            /// a function of the four fields above, which nothing
-            /// mutates after construction, so it cannot go stale; every
-            /// door that changes them builds a new curve with an empty
-            /// memo, and a clone carries the memo of the same value.
+            /// [`Self::speed_lower_bound`], filled on first read outside
+            /// a symbolic session. It is a function of the four fields
+            /// above, which nothing mutates after construction, so it
+            /// cannot go stale; every door that changes them builds a
+            /// new curve with an empty memo, and a clone carries the
+            /// memo of the same value.
             speed: OnceLock<geom_core::InfSpeed<T>>,
         }
 
@@ -1237,12 +1238,23 @@ macro_rules! nurbs_curve {
             /// discriminates assembly structure, never geometry: the
             /// geometric decision (is the bound positive?) stays with
             /// the caller's trilean.
+            ///
+            /// **Memoised outside a symbolic session only.** A session's
+            /// table holds the nodes it saw built, and a node minted
+            /// anywhere else freezes in it to an unknown of its own
+            /// (`geom_core::sym`, "No session, no tier"), so a memo
+            /// served across that boundary would change what the
+            /// session decides. Inside one the meter is computed afresh,
+            /// and nothing it mints is kept.
             pub fn speed_lower_bound(&self) -> geom_core::InfSpeed<T> {
+                if geom_core::sym::session_installed() {
+                    return self.speed_lower_bound_uncached();
+                }
                 *self.speed.get_or_init(|| self.speed_lower_bound_uncached())
             }
 
-            /// [`Self::speed_lower_bound`]'s computation, run once per
-            /// curve by its memo.
+            /// [`Self::speed_lower_bound`]'s computation: once per curve
+            /// outside a symbolic session, at every read inside one.
             fn speed_lower_bound_uncached(&self) -> geom_core::InfSpeed<T> {
                 let poison = T::from_f64(f64::NAN);
                 // Weights not all one plain constant ⇒ rational: the
@@ -2185,5 +2197,26 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// A read inside a symbolic session leaves the memo empty: what the
+    /// session minted is not kept for a later read, in or out of a
+    /// session. A read outside one fills it.
+    #[test]
+    fn a_session_never_fills_the_speed_memo() {
+        use geom_core::SymBudget;
+        use geom_core::sym::with_session;
+        let c = swaying().map_scalar(Sym::<f64>::from_f64);
+        let budget = SymBudget {
+            max_terms: 64,
+            max_degree: 8,
+        };
+        let _ = with_session(budget, || c.speed_lower_bound());
+        assert!(c.speed.get().is_none(), "a session's read filled the memo");
+        let _ = c.speed_lower_bound();
+        assert!(
+            c.speed.get().is_some(),
+            "a read outside a session left the memo empty"
+        );
     }
 }
