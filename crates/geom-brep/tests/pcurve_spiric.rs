@@ -466,8 +466,9 @@ fn a_wall_image_certifies_at_a_whole_period_shift_and_not_at_a_half_one() {
 }
 
 /// **The chart roster, at the door.** A spiric lies on its own cutting
-/// plane and its own torus and on no other analytic chart, and the
-/// mint says so per kind rather than falling through one refusal.
+/// plane and the two tori that hold it (its own and that torus's mirror
+/// through the plane) and on no other analytic chart, and the mint says
+/// so per kind rather than falling through one refusal.
 #[test]
 fn the_mint_refuses_every_chart_a_spiric_does_not_lie_on() {
     let c = carrier();
