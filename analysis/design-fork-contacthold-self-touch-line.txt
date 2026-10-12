@@ -1,0 +1,4 @@
+fork: a-bridge-union-fuses-a-declared-tangent-rest-into-one-shell-with-an-edgeless-contact (a solid touching itself along a tangent line through a face interior)
+dispatched: 2026-10-12
+byte: 70
+mapping: A=opus B=fable
