@@ -2,10 +2,12 @@
 id: the-integral-speed-meter-drops-a-dual-weights-tangent
 kind: issue
 title: The integral speed meter reads only the net, so at a Dual or Sym scalar it drops what a held weight carries beyond its value when the weights' values are equal
-status: open
+status: closed
 opened: 2026-10-12
 priority: P4
 cost: M
+branch: nurbs/held-constant-weights
+closed: 2026-10-12
 ---
 
 ## What
@@ -35,3 +37,18 @@ then reading the held weights
 (`the_collapsed_row_carries_a_held_weights_tangent`). No caller is
 known to meter a carrier at `Dual` or `Sym`; if none does, the fix is a stated
 restriction rather than code.
+
+## Closed (2026-10-12)
+
+`SpanLocate` gains `held_constant(self) -> Option<f64>`
+(`crates/geom-core/src/spline/locate.rs`), declared at every scalar:
+`f64` and a point `Interval` answer their value; `Dual` only with a
+derivative of exactly zero; `Sym` only when its node is the literal of
+its value (the `Lit` node's content hash, recomputed, so nothing is
+interned); `Probe` as `f64`. `speed_lower_bound` takes the integral arm
+only when every weight is the same held constant, and the rational arm
+otherwise. Rows, each red under the value-channel choice:
+`a_dual_weight_with_a_tangent_takes_the_rational_arm` and
+`a_computed_sym_weight_takes_the_rational_arm` (`nurbs.rs` tests), with
+`held_constant_reads_only_what_is_carried_as_a_constant` (`locate.rs`
+tests) on each scalar.

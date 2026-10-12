@@ -266,6 +266,18 @@ pub trait SpanLocate: sealed::Sealed + Real {
     /// midpoint would invent one.
     fn point_value(self) -> Option<f64>;
 
+    /// The `f64` this value IS, with nothing else carried, or `None`.
+    /// Stricter than [`SpanLocate::point_value`], which reads only the
+    /// value channel: a `Dual` answers only with a derivative of exactly
+    /// zero, and a `Sym` only when its node is the literal of its value,
+    /// so a held value that depends on a parameter or a symbol is never
+    /// read as a constant. A structure decision that holds only for
+    /// genuinely equal values (equal NURBS weights cancel out of the
+    /// curve) reads this, not the value channel. `None` is always the
+    /// conservative answer. Declared, never defaulted: a wrapper has to
+    /// say what it carries beyond its value.
+    fn held_constant(self) -> Option<f64>;
+
     /// [`SpanLocate::point_value`], or NaN where there is none: the
     /// `f64` a structure decision reads, so that a value with no point
     /// (poison, an enclosure wider than a point) takes every
@@ -315,6 +327,10 @@ impl SpanLocate for f64 {
 
     fn point_value(self) -> Option<f64> {
         (!self.is_nan()).then_some(self)
+    }
+
+    fn held_constant(self) -> Option<f64> {
+        self.point_value()
     }
 
     fn split_projective<A: super::ProjectiveSplit<Self>>(arm: A) -> A::Out {
@@ -374,5 +390,27 @@ mod tests {
         // Dual hulls channel-wise: over f64 channels that is poison.
         let h = Dual::new(0.25, 1.0).enclosure_hull(Dual::new(0.75, -1.0));
         assert!(h.value.is_nan() && h.deriv.is_nan());
+    }
+
+    /// `held_constant` at each scalar: a constant answers its value;
+    /// poison, a wide enclosure, a derivative and a non-literal symbol
+    /// each answer `None`, whatever the value channel says.
+    #[test]
+    fn held_constant_reads_only_what_is_carried_as_a_constant() {
+        use crate::interval::Interval;
+        use crate::sym::Sym;
+        assert_eq!(2.5f64.held_constant(), Some(2.5));
+        assert_eq!(f64::NAN.held_constant(), None);
+        assert_eq!(<Interval as Real>::from_f64(2.5).held_constant(), Some(2.5));
+        assert_eq!(Interval::from_bounds(1.0, 2.0).held_constant(), None);
+        assert_eq!(Dual64::constant(2.5).held_constant(), Some(2.5));
+        assert_eq!(Dual::new(2.5, 1.0).point_value(), Some(2.5));
+        assert_eq!(Dual::new(2.5, 1.0).held_constant(), None);
+        let lit = <Sym<f64> as Real>::from_f64;
+        assert_eq!(lit(2.5).held_constant(), Some(2.5));
+        assert_eq!(<Sym<f64> as Real>::one().held_constant(), Some(1.0));
+        let computed = lit(1.25) + lit(1.25);
+        assert_eq!(computed.point_value(), Some(2.5));
+        assert_eq!(computed.held_constant(), None);
     }
 }

@@ -5272,6 +5272,21 @@ impl<T: SpanLocate> SpanLocate for Sym<T> {
         self.value.point_value()
     }
 
+    /// A constant only when this value's node is the literal of its
+    /// value ([`Real::from_f64`]'s node, recomputed by its content
+    /// hash, so nothing is interned and no session is read): any other
+    /// node, a constant expression included, may carry a symbol, and
+    /// `None` is the conservative answer.
+    fn held_constant(self) -> Option<f64> {
+        let v = self.value.held_constant()?;
+        let literal = SymNode {
+            op: SymOp::Lit,
+            payload: v.to_bits(),
+            kids: [SymId::UNRECORDED; 3],
+        };
+        (self.node == literal.id()).then_some(v)
+    }
+
     fn split_projective<A: crate::spline::ProjectiveSplit<Self>>(arm: A) -> A::Out {
         T::split_projective(crate::spline::projective::SymArm(arm))
     }
