@@ -1146,11 +1146,17 @@ impl KeyWriter {
                         self.v2(*pm);
                         self.v2(*pa);
                     }
-                    SpiricImage::Wall { u0, v0, sense } => {
+                    SpiricImage::Wall {
+                        u0,
+                        v0,
+                        u_sense,
+                        v_sense,
+                    } => {
                         self.u8(1);
                         self.f64(*u0);
                         self.f64(*v0);
-                        self.f64(*sense);
+                        self.f64(*u_sense);
+                        self.f64(*v_sense);
                     }
                 }
             }

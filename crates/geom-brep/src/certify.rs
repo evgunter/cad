@@ -1819,32 +1819,24 @@ impl<T: Real> EdgeCurve<T> {
     /// re-statement to every image on it, which is what makes an
     /// orientation reversal a certification-preserving map rather
     /// than a geometry change with a stale certificate beside it.
-    ///
-    /// # Errors
-    ///
-    /// `None` exactly when [`crate::Pcurve::mirror_v`] answers `None`
-    /// — a spiric WALL image, which has no reflected locus. That door
-    /// carries the derivation and the reason no caller reaches it: a
-    /// wall image lives on a torus chart, and the one producer of this
-    /// call (`topo::revert`) mirrors plane charts only.
     #[must_use]
-    pub fn with_chart_v_mirrored(&self) -> Option<Self> {
+    pub fn with_chart_v_mirrored(&self) -> Self {
         let description = match self.description {
             EdgeDescription::Chart(ref c) => EdgeDescription::Chart(ChartCurve {
                 surface: c.surface,
-                pcurve: c.pcurve.mirror_v()?,
+                pcurve: c.pcurve.mirror_v(),
                 wrap: c.wrap,
             }),
             ref other => other.clone(),
         };
-        Some(Self {
+        Self {
             description,
             authority: self.authority,
             carrier: self.carrier.clone(),
             param_start: self.param_start,
             param_end: self.param_end,
             certificate: self.certificate,
-        })
+        }
     }
 
     /// The carrier parameter at schedule sample `i` (i ∈ 0…8): the

@@ -615,13 +615,17 @@ fn the_trimmed_lane_misses_when_a_pcurve_changes_and_hits_when_a_plane_does() {
                         pm,
                         pa,
                     },
-                    geom_brep::SpiricImage::Wall { u0, v0, sense } => {
-                        geom_brep::SpiricImage::Wall {
-                            u0: u0 + TAU,
-                            v0,
-                            sense,
-                        }
-                    }
+                    geom_brep::SpiricImage::Wall {
+                        u0,
+                        v0,
+                        u_sense,
+                        v_sense,
+                    } => geom_brep::SpiricImage::Wall {
+                        u0: u0 + TAU,
+                        v0,
+                        u_sense,
+                        v_sense,
+                    },
                 },
             },
             // Likewise no cone or torus chart here; `u0` is the one

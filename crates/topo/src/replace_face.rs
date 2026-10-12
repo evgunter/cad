@@ -3099,10 +3099,16 @@ fn shift_chart_v<T: Real>(pcurve: &geom_brep::Pcurve<T>, shift: T) -> Option<geo
                     pm,
                     pa,
                 },
-                geom_brep::SpiricImage::Wall { u0, v0, sense } => geom_brep::SpiricImage::Wall {
+                geom_brep::SpiricImage::Wall {
+                    u0,
+                    v0,
+                    u_sense,
+                    v_sense,
+                } => geom_brep::SpiricImage::Wall {
                     u0,
                     v0: v0 + shift,
-                    sense,
+                    u_sense,
+                    v_sense,
                 },
             },
         },

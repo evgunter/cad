@@ -630,7 +630,8 @@ enum WallImage {
     /// A spiric's `SpiricImage::Wall` and the radii its image carries.
     Spiric {
         v0: Interval,
-        sense: Interval,
+        u_sense: Interval,
+        v_sense: Interval,
         major: Interval,
         minor: Interval,
     },
@@ -716,11 +717,18 @@ fn spiric_face<T: Decide + geom_core::CertifiedBounds>(
                         Pcurve::Spiric {
                             major,
                             minor,
-                            image: SpiricImage::Wall { v0, sense, .. },
+                            image:
+                                SpiricImage::Wall {
+                                    v0,
+                                    u_sense,
+                                    v_sense,
+                                    ..
+                                },
                             ..
                         } => WallImage::Spiric {
                             v0: iv(*v0),
-                            sense: iv(*sense),
+                            u_sense: iv(*u_sense),
+                            v_sense: iv(*v_sense),
                             major: iv(*major),
                             minor: iv(*minor),
                         },
@@ -825,7 +833,8 @@ fn spiric_wall(
             (
                 WallImage::Spiric {
                     v0,
-                    sense,
+                    u_sense,
+                    v_sense,
                     major: image_major,
                     minor: image_minor,
                 },
@@ -849,11 +858,17 @@ fn spiric_wall(
                          its torus's",
                     ));
                 }
-                let sense = match exact(*sense) {
-                    Some(s) if s == 1.0 || s == -1.0 => s,
+                let sense = match (exact(*u_sense), exact(*v_sense)) {
+                    (Some(u), Some(v)) if u == v && (v == 1.0 || v == -1.0) => v,
+                    (Some(u), Some(v)) if u == -v && (v == 1.0 || v == -1.0) => {
+                        return Err(unsupported(
+                            "a spiric wall image on the carrier's mirror torus — the wall \
+                             terms read the carrier's own torus",
+                        ));
+                    }
                     _ => {
                         return Err(unsupported(
-                            "a spiric wall image whose sense is not exactly ±1",
+                            "a spiric wall image whose signs are not exactly ±1",
                         ));
                     }
                 };

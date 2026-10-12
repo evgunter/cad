@@ -60,3 +60,8 @@ the chart can still lie within ε of it (a tangent segment of length
 `≲ √(8εR)` on a sphere), and is called off-chart. That posture is the
 lane's throughout (chart images are carrier images), and no producer is
 known to reach it.
+
+Moved by `pcert/mint-routes-spiric-nofitted` (2026-10-12): the
+spiric's foreign tori are no longer an uncovered class. The mirror torus
+mints its wall image, and every other torus refuses `CarrierOffChart`
+by the same coefficient match.

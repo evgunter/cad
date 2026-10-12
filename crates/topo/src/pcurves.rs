@@ -2684,8 +2684,7 @@ pub fn mint_pcurves_of<T: AtRestPolicy>(
 /// refusal, or a panic on a torn record, leaves the body as found.
 ///
 /// A face whose rows are not owed ([`not_owed`]: a pair the chart can
-/// hold but no route covers yet — a spline carrier on an analytic
-/// chart, a mirror-torus spiric, a line, ellipse or spiric offered a
+/// hold but no route covers yet — a line, ellipse or spiric offered a
 /// fitted image — or a fitted face at a scalar with no fitted door; the
 /// at-rest pass excuses exactly these, by the same predicate)
 /// contributes the rows it held, carried ([`carry_rows`]), so the mint
@@ -6243,21 +6242,32 @@ mod polar_shift_tests {
             image: SpiricImage::Wall {
                 u0: 0.25,
                 v0: 0.5,
-                sense: -1.0,
+                u_sense: 1.0,
+                v_sense: -1.0,
             },
         };
         let Pcurve::Spiric {
             major,
             minor,
             offset,
-            image: SpiricImage::Wall { u0, v0, sense },
+            image:
+                SpiricImage::Wall {
+                    u0,
+                    v0,
+                    u_sense,
+                    v_sense,
+                },
         } = shift_polar_branch(&wall, 3.0, period)
         else {
             panic!("the wall arm keeps its variant and its image kind");
         };
         assert_eq!(v0, 0.5 + 3.0 * period, "v0 takes the whole-period shift");
         assert_eq!(u0, 0.25, "the azimuth constant is the other door's");
-        assert_eq!(sense, -1.0, "the sign is not a branch");
+        assert_eq!(
+            (u_sense, v_sense),
+            (1.0, -1.0),
+            "the signs are not a branch"
+        );
         assert_eq!((major, minor, offset), (0.09375, 0.0703125, 0.0078125));
 
         // A cap lives on a plane chart, where no joint decides a

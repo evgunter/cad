@@ -378,6 +378,8 @@ mod a_meridian_witness_contradicts_only_off_its_locus;
 mod a_vertex_read_again_classes_every_edge;
 #[path = "a_vertex_read_by_two_sector_passes.rs"]
 mod a_vertex_read_by_two_sector_passes;
+#[path = "a_whole_spiric_oval_bounds_its_mirror_torus.rs"]
+mod a_whole_spiric_oval_bounds_its_mirror_torus;
 #[path = "a_whole_villarceau_circle_bounds_a_torus_face.rs"]
 mod a_whole_villarceau_circle_bounds_a_torus_face;
 #[path = "certified_enclosure_impl_census.rs"]

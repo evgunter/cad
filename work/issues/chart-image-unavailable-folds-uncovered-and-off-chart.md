@@ -57,3 +57,7 @@ scalar, because a circle's incidence is the closed-form
 `off_sphere_sup` and its envelope needs no fitted door. Of the
 uncovered classes the fold can still meet, only `NoFittedClass`,
 `MirrorTorusSpiric` and `FittedLaneUnsupported` remain.
+
+Moved by `pcert/mint-routes-spiric-nofitted` (2026-10-12): the
+mirror-torus spiric now mints its wall image, so `MirrorTorusSpiric` is
+deleted. Only `NoFittedClass` and `FittedLaneUnsupported` remain.

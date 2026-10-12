@@ -717,7 +717,13 @@ fn a_displaced_azimuth_constant_reds_at_every_sample() {
         major,
         minor,
         offset,
-        image: geom_brep::SpiricImage::Wall { u0, v0, sense },
+        image:
+            geom_brep::SpiricImage::Wall {
+                u0,
+                v0,
+                u_sense,
+                v_sense,
+            },
     } = stored
     else {
         panic!("the wall's image is a spiric wall image");
@@ -730,7 +736,8 @@ fn a_displaced_azimuth_constant_reds_at_every_sample() {
         image: geom_brep::SpiricImage::Wall {
             u0: u0 + delta,
             v0,
-            sense,
+            u_sense,
+            v_sense,
         },
     };
     let floor = (major - minor) * 2.0 * (delta / 2.0).sin();
@@ -1159,7 +1166,10 @@ mod interval_rows {
                     major,
                     minor,
                     offset: image_offset,
-                    image: geom_brep::SpiricImage::Wall { sense, .. },
+                    image:
+                        geom_brep::SpiricImage::Wall {
+                            u_sense, v_sense, ..
+                        },
                 } = *cache.pcurve()
                 else {
                     panic!("the wall's image is a spiric wall image");
@@ -1174,10 +1184,17 @@ mod interval_rows {
                         "{what}: the image's bracket {a:?} is not the carrier's {b:?}"
                     );
                 }
+                for sense in [u_sense, v_sense] {
+                    assert!(
+                        geom_core::Real::abs(sense).lo() == 1.0
+                            && geom_core::Real::abs(sense).hi() == 1.0,
+                        "each wall sign is exactly a unit sign at the certified scalar: \
+                         {sense:?}"
+                    );
+                }
                 assert!(
-                    geom_core::Real::abs(sense).lo() == 1.0
-                        && geom_core::Real::abs(sense).hi() == 1.0,
-                    "the wall's sense is exactly a unit sign at the certified scalar: {sense:?}"
+                    u_sense.lo() == v_sense.lo(),
+                    "the rim lies on its own torus, so its signs agree: {u_sense:?} {v_sense:?}"
                 );
                 let cert = cache.certificate();
                 assert_eq!(

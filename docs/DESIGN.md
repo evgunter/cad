@@ -636,9 +636,11 @@ and (b) the SSI generic-`T` lift are discharged and keep no entry):
   Villarceau circle and a cone's tilted section mint their exact image
   (`Pcurve::FocalSection`), and a circle within the band of a cone or
   torus that is none of its circles refuses as a defect
-  (`CarrierGrazesChart`). C4's exemption, a face left uncached until
-  its class's route lands, covers the mirror-torus spiric and
-  no-fitted classes, on their PCERT row.
+  (`CarrierGrazesChart`); a spiric on its torus's mirror through the
+  cutting plane mints the wall image with its azimuth sign opposed
+  (`SpiricImage::Wall`). C4's exemption, a face left uncached until
+  its class's route lands, covers the no-fitted class, on its PCERT
+  row.
 - **(d) cyl×sphere germ chords** — a fitted carrier's chart image
   exists as `Pcurve::Projected` and certifies at rest, and a chord takes
   its arc from the germs it joins, reading no window; what is missing
