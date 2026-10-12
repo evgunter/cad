@@ -6,8 +6,6 @@ status: open
 opened: 2026-10-12
 priority: P2
 cost: M
-design: true
-needs_ev: true
 ---
 
 
@@ -46,3 +44,13 @@ Do several result vertices at one operand corner owe a discriminator
 each), or is the tie the honest name? Main's per-vertex address came
 from spelling one of them as a seam, which the ruling retires. A design
 fork, not to be settled by inventing a discriminator in the emitter.
+
+## Ruling (Ev, PR 4881, fork-log row 124)
+
+Each vertex an operand corner is held as is a fragment of it:
+- `From(x, v) + Fragment(Borders)` over the walls that divide the corner there, read as a face piece's walls are (`borders.rs`'s divides filter);
+- equal sets tie;
+- a corner held as one vertex keeps its bare name.
+
+The build is this row's. It re-pins
+`touch_reread_rows::a_corner_held_as_several_result_vertices_is_one_tied_name`.

@@ -470,7 +470,7 @@ fn discarded<T: Decide>(
     (sides, in_out): (&SecondaryMap<FaceKey, SideCode>, &[(FaceKey, FaceKey)]),
     (operand, kept_vertex): (Operand, &dyn Fn(VertexKey) -> Option<VertexKey>),
     held: (
-        &[(FaceKey, FaceKey)],
+        &crate::lineage::FaceDivisions,
         &dyn Fn(VertexKey) -> Option<VertexKey>,
     ),
 ) -> Result<Vec<DiscardRow>, BooleanError> {

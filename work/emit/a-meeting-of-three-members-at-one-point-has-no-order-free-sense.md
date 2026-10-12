@@ -6,8 +6,6 @@ status: open
 opened: 2026-10-12
 priority: P2
 cost: M
-design: true
-needs_ev: true
 ---
 
 
@@ -107,3 +105,14 @@ with no signal. They are named in the doc comments of
 | `junction`: a face at a seam edge has no parent name | no fixture | none |
 
 Refusing at any of these would break the pinch builds, so none refuses.
+
+## Ruling (Ev, PR 4881, fork-log row 124)
+
+The ruling is stated in names README N2 *Vertices* and the flush paragraph:
+- **The name.** A vertex that is not an operand corner is named by the lines through it: the member edges cut there (flush lines counted once, as the least), plus, at a union, each seam whose faces bound none of those edges.
+- **Spellings.** One line meeting one face is a `Crossing`. Two or more lines are an `EdgeCrossing` run.
+- **Senses.** Each edge's sense is read against the members of the name's other entries, from the members' pairwise judgements. Seams carry no sense, and vertices with one run rank along a straight seam they share.
+- **Retired.** `Flush::junction` and the four silent fallbacks.
+
+The build is this row's. It also closes the order dependence in
+`a-crossing-of-a-union-seam-is-spelled-by-member-order`.

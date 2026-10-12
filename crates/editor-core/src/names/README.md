@@ -286,17 +286,19 @@ The qualifier depends on what was split:
   member edge through a seam is the run of the edge and the seam. A face
   through the vertex that bounds none of its lines is not in its name: the
   lines locate the vertex, as a corner resting on a face cites no face.
-  Each line's sense is read against the closed bodies of the members the
-  name's other entries belong to, other than the line's own: the crossing
-  face's member for a `Crossing`, the other lines' members for a run. A
-  boolean reads it at the step that mints the vertex. A union reads a member
-  edge's from its members' pairwise judgements, a side being inside when any
-  judgement classed it so, and a seam's by a verdict of its own; a side
-  neither reads refuses. Reversing an edge swaps `Enters` and `Leaves` and
-  keeps the other two.
+  Each edge in the name carries its sense, read against the closed bodies of
+  the members the name's other entries belong to, other than the edge's own:
+  the crossing face's member for a `Crossing`, the other lines' members for a
+  run. A seam in a run carries none. A boolean reads the sense at the step
+  that mints the vertex. A union reads it from its members' pairwise
+  judgements, a side being inside when any judgement classed it so; a side
+  no judgement classed refuses. Reversing an edge swaps `Enters` and
+  `Leaves` and keeps the other two.
   Crossings of one line by one face with the same sense, and vertices with
-  the same run, are ranked along the (first) line by its carrier's own
-  parameter, in the edge's stored orientation; an equal pair ties.
+  the same run, are ranked along a line they share by its carrier's own
+  parameter, in its stored orientation: the run's least edge, or where the
+  run holds no edge, a straight seam in it. An equal pair, or a run with no
+  such line, ties.
   Where the result holds an operand corner as several vertices, each is a
   fragment of it, `Fragment(Borders)` over the walls that divide the corner
   there, read as a face piece's walls are (`borders.rs`); equal sets tie, and

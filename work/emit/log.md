@@ -2195,4 +2195,15 @@ whether a face through the point belongs in the name. They converged:
 - each sense is read against what the name cites;
 - a corner's copies are `Fragment(Borders)` fragments of it.
 
-Fork-log row 121; the `[ev]` PR states it in N2.
+Fork-log row 124; the `[ev]` PR states it in N2.
+
+## 2026-10-12 — PR 4881 ruled
+
+Ev approved the converged recommendation. Ev asked two follow-up questions:
+- whether senses are inconsistent today (no: only a seam line's sense would be new);
+- whether that sense is meaningful.
+
+Then Ev ruled to leave the seam sense out while ranking is the easier route. Two vertices
+with one seam run rank along a straight seam they share. The two rows are
+now build rows, with `design` and `needs_ev` cleared; the fork-log row was renumbered to 124
+at merge.

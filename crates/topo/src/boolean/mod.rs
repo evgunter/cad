@@ -166,7 +166,7 @@ pub use contain::{
 pub(crate) use contain::{
     CurvedPlacement, PlacementError, driver_face_stale, face_placement, loop_circle,
 };
-pub use discard::{DiscardRow, HeldEdge, lineage_root};
+pub use discard::{DiscardRow, HeldEdge};
 // Crate-internal: tier 3's check 11 reads every vertex through the
 // join's own predicate.
 pub(crate) use edge_join::joinable_at_rest;
@@ -1859,6 +1859,36 @@ pub enum SpiricLoops {
     Null,
 }
 
+/// **Whose record a [`BooleanError::CarryRefused`] refused**, which says
+/// what the refusal's record index counts.
+///
+/// **NOT carried to the façade's curated list, and that is a decision
+/// rather than an omission** (`scripts/payload-rung-sweep.py` names
+/// this rung; the disposition table cites this paragraph as its home).
+/// A Rust caller can already name and match it — `pncad` re-exports
+/// `topo` whole — and the refusal's sentence names whose record it was,
+/// and the refusal it carries ([`super::CarryRefusal`]) says what went
+/// wrong the same way for each. Carrying it
+/// would add the CUR3 property row and a Python word with no reader that
+/// acts on the difference.
+///
+/// **The falsifier is a caller that repairs its own records** — one that
+/// drops or re-derives an operand's record the carry refused before
+/// retrying: it must tell an operand's record from the op's own, and the
+/// index from which list. Then carry it and delete this paragraph and the
+/// disposition row with it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RefusedRow {
+    /// One of the operand's carried records: the index is that
+    /// operand's record list's.
+    Carried(Operand),
+    /// A ring tie the reduction decided on the operand, carried as its
+    /// records are: the index counts the ties carried on that operand.
+    RingTie(Operand),
+    /// A record the reduction found: the index is its working set's.
+    Found,
+}
+
 /// Typed failure of [`boolean_reduce`]; the operands are never touched.
 #[derive(Debug)]
 pub enum BooleanError {
@@ -2800,10 +2830,9 @@ pub enum BooleanError {
         closed: bool,
     },
     /// **A rest the op carries could not be placed on the pieces of the
-    /// face it divided.** A vertex-on-face record's face was divided by
-    /// the section, and the record lands on the piece whose interior
-    /// holds its vertex (`ops::Descendants::holder`); no piece read
-    /// `In`, and this piece's read failed, so the rest may be on it.
+    /// face it divided.** A record's span along a line edge is placed in
+    /// a face by its midpoint (`ops::span_held`), and this piece's read
+    /// failed, so the span may be on it.
     RestPieceUnread {
         /// The piece, in result keys.
         face: FaceKey,
@@ -2811,11 +2840,37 @@ pub enum BooleanError {
         /// chart trim gives no verdict for this face.
         refusal: Option<ContainError>,
     },
+    /// **A record the op carries, or found, could not be placed on the
+    /// result** (D1): the one carry refused it
+    /// (`ops::carried`, `records::landings`): a pair of its cells'
+    /// images the census cannot read, or a record that lands on no pair
+    /// with nothing removed to consume it.
+    CarryRefused {
+        /// Whose record it is, which says what the refusal's record
+        /// index counts.
+        row: RefusedRow,
+        /// The carry's refusal.
+        refusal: super::CarryRefusal,
+    },
     /// The A/B lockstep invariant failed during joining, finishing, or
     /// the combine door (a kernel bug or corrupt reduction, loudly).
     JoinDesync {
         /// Which lockstep invariant broke.
         what: &'static str,
+    },
+    /// A lineage list refused a row where a stage added it: a vertex
+    /// fusion, a substitution or a face division that maps a cell to
+    /// itself, names a cell an earlier row retired, or mints a cell an
+    /// earlier row already names. Each list checks its rows there, so
+    /// none of its readers meets a corrupt one; reaching this is a
+    /// kernel defect.
+    LineageRow {
+        /// The list that refused the row.
+        rows: crate::lineage::LineageRows,
+        /// What is wrong with the row.
+        defect: crate::lineage::RowDefect,
+        /// The cell the defect is about.
+        key: Cell,
     },
     /// An edge the Boolean minted, or a boundary edge of a face its
     /// merge left in place, could not be described against the two
@@ -3130,8 +3185,12 @@ pub enum BooleanErrorKind {
     JoinCarrierUnsupported,
     /// [`BooleanError::RestPieceUnread`].
     RestPieceUnread,
+    /// [`BooleanError::CarryRefused`].
+    CarryRefused,
     /// [`BooleanError::JoinDesync`].
     JoinDesync,
+    /// [`BooleanError::LineageRow`].
+    LineageRow,
     /// [`BooleanError::EdgeUndescribed`].
     EdgeUndescribed,
     /// [`BooleanError::TornComponent`].
@@ -3352,7 +3411,9 @@ impl BooleanError {
             Self::JoinUndecided(_) => BooleanErrorKind::JoinUndecided,
             Self::JoinCarrierUnsupported { .. } => BooleanErrorKind::JoinCarrierUnsupported,
             Self::RestPieceUnread { .. } => BooleanErrorKind::RestPieceUnread,
+            Self::CarryRefused { .. } => BooleanErrorKind::CarryRefused,
             Self::JoinDesync { .. } => BooleanErrorKind::JoinDesync,
+            Self::LineageRow { .. } => BooleanErrorKind::LineageRow,
             Self::EdgeUndescribed { .. } => BooleanErrorKind::EdgeUndescribed,
             Self::TornComponent { .. } => BooleanErrorKind::TornComponent,
             Self::ShellWitnessExhausted { .. } => BooleanErrorKind::ShellWitnessExhausted,
@@ -3423,16 +3484,17 @@ pub(crate) fn kind_word(kind: geom::SurfaceKind) -> &'static str {
 /// **This is the one statement of the pairs the Boolean can join**: the
 /// germ-pair join (`join::bool_connect`, and the chord layer it mints
 /// sections through) joins a plane face against a plane, cylinder,
-/// sphere or cone face, mirrors included,
-/// and two spheres or two parallel cylinders along their radical plane.
+/// sphere or cone face, mirrors included, and against a torus face where
+/// the plane holds the torus's axis or stands square to it, and two
+/// spheres or two parallel cylinders along their radical plane.
 /// The rustdoc that needs the set points here. The operand gate's box
 /// test is conservative (a box overlap is a MAY),
 /// so moving the face clear of the other solid is a real recourse even
 /// where the faces never touch in exact geometry.
 pub(crate) fn meeting_recourse(kind: &str) -> String {
     format!(
-        "Recourse: reshape the parts so they meet only where a plane face meets \
-         a plane, cylinder, sphere or cone face, or move them so the {kind} face stays \
+        "Recourse: reshape the parts so every meeting is a plane against a plane, cylinder, \
+         sphere, cone, or torus whose axis it holds or is square to, or move the {kind} face \
          clear of the other solid"
     )
 }
@@ -3932,10 +3994,35 @@ impl core::fmt::Display for BooleanError {
                     "through the other edge's far end"
                 }
             ),
+            Self::CarryRefused { row, refusal } => {
+                let whose = match row {
+                    RefusedRow::Carried(operand) => {
+                        format!("a contact record of the {} operand", operand_word(*operand))
+                    }
+                    RefusedRow::RingTie(operand) => {
+                        format!("a ring tie on the {} operand", operand_word(*operand))
+                    }
+                    RefusedRow::Found => "a contact record the Boolean found".to_owned(),
+                };
+                write!(
+                    f,
+                    "the Boolean could not carry {whose} onto its result: {refusal}"
+                )
+            }
             Self::JoinDesync { what } => write!(
                 f,
                 "A/B lockstep invariant violated: {what} (kernel bug or corrupt \
                  reduction)"
+            ),
+            Self::LineageRow { rows, defect, key } => write!(
+                f,
+                "the Boolean's lineage records refused {}, so no body is returned. \
+                 {KERNEL_DEFECT_ENDING}",
+                crate::lineage::RowRefusal {
+                    rows: *rows,
+                    defect: *defect,
+                    key: *key,
+                }
             ),
             Self::EdgeUndescribed {
                 failure,
@@ -6279,14 +6366,8 @@ fn validate_declarations<T: Decide>(
                 return Err(bad(operand, "carried e-e pair names one edge twice"));
             }
             for e in [touch.a, touch.b] {
-                let Some(d) = body.get_edge(e) else {
+                if body.get_edge(e).is_none() {
                     return Err(bad(operand, "carried e-e edge key does not resolve"));
-                };
-                // Edge-split lineage reads each edge as the segment
-                // between its ends (`ops::ee_lineage`), which only a
-                // line edge is.
-                if edge_join::certified_line(body, e, d).is_none() {
-                    return Err(bad(operand, "carried e-e edge is not a certified line"));
                 }
             }
         }
@@ -6295,6 +6376,30 @@ fn validate_declarations<T: Decide>(
     carried(a, &decls.records_a, Operand::A)?;
     carried(b, &decls.records_b, Operand::B)?;
     Ok(())
+}
+
+impl BooleanError {
+    /// The chord join's refusal as the Boolean's: nested whole
+    /// ([`Self::Join`]), except a lineage row the join's division list
+    /// refused, which is the Boolean's own [`Self::LineageRow`], so one
+    /// lineage refusal reaches a caller one way.
+    #[must_use]
+    pub fn of_join(error: SplitJoinError) -> Self {
+        match error {
+            SplitJoinError::LineageRow(refusal) => refusal.into(),
+            other => Self::Join(other),
+        }
+    }
+}
+
+impl From<crate::lineage::RowRefusal> for BooleanError {
+    fn from(refusal: crate::lineage::RowRefusal) -> Self {
+        Self::LineageRow {
+            rows: refusal.rows,
+            defect: refusal.defect,
+            key: refusal.key,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -7126,6 +7231,11 @@ mod tests {
                 source: crate::pcurves::PcurveMintError::Unminted { face },
             },
             BooleanError::JoinDesync { what: "a lockstep" },
+            BooleanError::LineageRow {
+                rows: crate::lineage::LineageRows::Substitutions,
+                defect: crate::lineage::RowDefect::NamesRetired,
+                key: Cell::Face(face),
+            },
             BooleanError::EdgeUndescribed {
                 edge: EdgeKey::default(),
                 failure: crate::merge_faces::EdgeDescribeFailure::NotWalkable,
@@ -7262,7 +7372,9 @@ mod tests {
                 BooleanErrorKind::JoinUndecided => "JoinUndecided",
                 BooleanErrorKind::JoinCarrierUnsupported => "JoinCarrierUnsupported",
                 BooleanErrorKind::RestPieceUnread => "RestPieceUnread",
+                BooleanErrorKind::CarryRefused => "CarryRefused",
                 BooleanErrorKind::JoinDesync => "JoinDesync",
+                BooleanErrorKind::LineageRow => "LineageRow",
                 BooleanErrorKind::EdgeUndescribed => "EdgeUndescribed",
                 BooleanErrorKind::TornComponent => "TornComponent",
                 BooleanErrorKind::ShellWitnessExhausted => "ShellWitnessExhausted",

@@ -4820,6 +4820,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "arc_loop_containment_unsupported",
             "band",
+            "carry_refused",
             "classification_invariant",
             "coincident_shell",
             "contact_contradicted",
@@ -4852,6 +4853,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "join_carrier_unsupported",
             "join_desync",
             "join_undecided",
+            "lineage_row",
             "merge",
             "non_finite_sector_chord",
             "non_manifold_result",
@@ -5490,7 +5492,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "duplicate",
             "emission",
             "escalated",
-            "fragment_lineage_cycle",
             "member_edge_tied",
             "merged_chord",
             "merged_chord_constituents",
