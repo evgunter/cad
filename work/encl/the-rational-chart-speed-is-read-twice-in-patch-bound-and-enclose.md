@@ -2,13 +2,14 @@
 id: the-rational-chart-speed-is-read-twice-in-patch-bound-and-enclose
 kind: issue
 title: the rational chart speed is read twice, by patch_bound's rational cells and ssi::enclose's speed_sup, and enclose's reading costs 1.57× at the meters' first rung and 1.25× at the second
-status: dispatched
+status: review
 opened: 2026-10-11
 priority: P3
 cost: M
 design: true
 refs: [the-meters-sup-side-still-reads-boxes-where-the-cell-carries-no-coefficient-form]
 branch: encl/one-chart-speed
+pr: 4891
 ---
 
 
