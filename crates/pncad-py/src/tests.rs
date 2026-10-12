@@ -4969,8 +4969,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "co_ruled",
             "coaxial",
-            "cusp",
             "common_foot",
+            "cusp",
             "on_carrier",
             "same_opposite",
             "same_oriented",
