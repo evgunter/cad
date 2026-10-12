@@ -1759,7 +1759,7 @@ macro_rules! nurbs_curve {
                         ) else {
                             return poison;
                         };
-                        let b = (l / (w_max * w_max)).min(l / (w_min * w_min));
+                        let b = (l / w_max.powi(2)).min(l / w_min.powi(2));
                         acc = Some(match acc {
                             None => b,
                             Some(x) => x.min(b),
