@@ -176,9 +176,11 @@ pub use edge_join::{
 };
 pub use join::CompletedPolygonPair;
 pub use ops::{
-    BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, boolean_op_with,
-    intersect, subtract, union,
+    BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, SettleError,
+    Settler, boolean_op_with, intersect, subtract, union,
 };
+#[cfg(feature = "sweep-testing")]
+pub use ops::{StagePoints, arm_output_stage_points, take_output_stage_points};
 pub use plane_eq::{PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, oriented_plane_eq};
 pub(crate) use records::incident;
 pub use records::{CarryRefusal, Contact, ContactKind, ContactPairError, ContactRecords};
@@ -559,6 +561,10 @@ pub(crate) struct EdgeSplit {
 /// The order is vertex < edge < face, then key: a record's canonical
 /// order, so its kind reads off its two cells' dimensions
 /// ([`ContactKind`]).
+///
+/// It is also the live cell a point lies inside: where a Boolean's
+/// result settles a vertex a later stage deleted without moving its
+/// point ([`crate::boolean::Settler::settle`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Cell {
     /// A vertex.

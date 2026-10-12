@@ -845,14 +845,15 @@ pub use boolean::{
     GivenPair, HeldEdge, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided,
     LeverArm, NullEdgePairRecord, Operand, OperandKeys, OperandRecords, PairFace, PairRefusalSite,
     PairSite, PairUnread, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation,
-    PlaneRung, PointInSolidError, ReductionContacts, SectorRead, SectorRung, SelfCheck, Settling,
-    ShellOrientation, SideCode, SolidContainment, SolidFaces, SphereQuestion, SpiricLoops,
-    SweepStrategy, SweepTrace, TorusConvention, VeContact, VfContact, VoidContainment,
-    VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung, boolean_op_with,
-    boolean_reduce, carrier_eq, contfp, curved_face_containment, decision_words, face_carrier,
-    flush_pair_relation, insert_void, insert_voids, intersect, is_conventional_vertex, join_covers,
-    joinable_vertices, joined_cell, joined_edge, lineage_root, oriented_plane_eq, point_in_solid,
-    point_in_solid_faces, point_in_solid_of, subtract, tangent_pair_relation, union,
+    PlaneRung, PointInSolidError, ReductionContacts, SectorRead, SectorRung, SelfCheck,
+    SettleError, Settler, Settling, ShellOrientation, SideCode, SolidContainment, SolidFaces,
+    SphereQuestion, SpiricLoops, SweepStrategy, SweepTrace, TorusConvention, VeContact, VfContact,
+    VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung,
+    boolean_op_with, boolean_reduce, carrier_eq, contfp, curved_face_containment, decision_words,
+    face_carrier, flush_pair_relation, insert_void, insert_voids, intersect,
+    is_conventional_vertex, join_covers, joinable_vertices, joined_cell, joined_edge, lineage_root,
+    oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of, subtract,
+    tangent_pair_relation, union,
 };
 pub use joint::{Deck, JointElement};
 pub use lineage::Divisions;
@@ -861,8 +862,8 @@ pub use surgery::Surgery;
 // that can hold it: upward layers RE-EXPORT these, never redefine.
 #[cfg(feature = "sweep-testing")]
 pub use boolean::{
-    PlantedDegradation, swap_split_roles, sweep_records, sweep_split, sweep_traces,
-    sweep_traces_with_pad, take_shared_points,
+    PlantedDegradation, StagePoints, arm_output_stage_points, swap_split_roles, sweep_records,
+    sweep_split, sweep_traces, sweep_traces_with_pad, take_output_stage_points, take_shared_points,
 };
 #[cfg(feature = "sweep-testing")]
 pub use chord_join::face_azimuth_window_traces;
