@@ -92,7 +92,7 @@ caller's, per `Reading`. Three render the whole escalation
   `UndecidedRefusal`, which needs an `Indeterminate`: two of
   `SectorReading`'s arms are decided disagreements carrying margins.
 
-**Done: the sweep slice, in PR N** (ten sentences, all whole renders
+**Done: the sweep slice, in PR 4766** (eleven sentences, the ten above and `CapPlaneError::Orientation`, all whole renders
 through `Indeterminate::undecided`, lever unchanged at
 `COINCIDENCE_RECOURSE`). Lengths take `ending(..)`: extrude's two,
 loft's two, revolve's axis length and cosurface, the clearance's
