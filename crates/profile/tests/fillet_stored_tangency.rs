@@ -316,8 +316,18 @@ fn a_shallow_arc_x_arc_corner_validates_wherever_its_legs_stand_apart() {
     let kk = tol().k() * tol().eps();
     // The item's witness: at 1e-6 the door builds it with its legs
     // 1.11Kε apart, and the finer rows refuse it at the door.
-    if let Ok(lp) = arc_arc(5e-5, R) {
-        validates(lp, tol()).unwrap_or_else(|e| panic!("theta = 5e-5: validates, got {e}"));
+    match arc_arc(5e-5, R) {
+        Ok(lp) => {
+            assert!(
+                tol().eps() >= 1e-6,
+                "theta = 5e-5: the door refuses it below eps = 1e-6"
+            );
+            validates(lp, tol()).unwrap_or_else(|e| panic!("theta = 5e-5: validates, got {e}"));
+        }
+        Err(e) => assert!(
+            tol().eps() < 1e-6,
+            "theta = 5e-5: the door builds it at eps = 1e-6, got {e}"
+        ),
     }
     let (mut read, mut near) = (0, 0);
     for radius in [0.02, 0.05, 0.2, 0.5, 1.0] {

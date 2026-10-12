@@ -681,7 +681,10 @@ fn line_span<T: Decide>(s: &Seg<T>, q: Point2<T>, band: Band) -> Result<Sign, In
 /// hidden). No wrong-accept path exists through the zone: Zero routes
 /// to endpoint-Touch contacts, which are errors for non-adjacent pairs
 /// and are discounted only within ε of the actual shared vertex
-/// (`contact_at_shared_vertex` is an uncompressed direct distance).
+/// (`contact_at_shared_vertex` is an uncompressed direct distance), and
+/// an in-band reading of a candidate either escalates or hands it to
+/// the segment's end ([`end_in_stretch`]), whose readings are direct
+/// distances and do not depend on how far the zone reaches.
 ///
 /// [`touches`] reads a segment end's radial foot here, so the same
 /// compression is how far past the arc's end, along the carrier, an end
@@ -1402,9 +1405,9 @@ fn candidates<T: Decide>(
     band: Band,
 ) -> Result<(), Indeterminate> {
     let mut missed = false;
-    for &q in points {
+    for (i, &q) in points.iter().enumerate() {
         let (m1, m2) = spans(q);
-        let in_band = [(s1, s2, m1.is_err()), (s2, s1, m2.is_err())];
+        let read = [(s1, s2, m1.is_err()), (s2, s1, m2.is_err())];
         match joint(m1, || m2) {
             Ok(None) => missed = true,
             Ok(Some(j)) => contacts.push(Contact {
@@ -1415,10 +1418,14 @@ fn candidates<T: Decide>(
                 },
             }),
             Err(source) => {
-                let settled = in_band
+                let rival = match points {
+                    [first, second] => Some(if i == 0 { second } else { first }),
+                    _ => None,
+                };
+                let settled = read
                     .into_iter()
-                    .filter(|&(_, _, unread)| unread)
-                    .all(|(seg, other, _)| end_in_stretch(seg, other, q, band));
+                    .filter(|&(_, _, in_band)| in_band)
+                    .all(|(seg, other, _)| end_in_stretch(seg, other, q, rival, band));
                 if !settled {
                     return Err(source);
                 }
@@ -1433,25 +1440,52 @@ fn candidates<T: Decide>(
 }
 
 /// Whether `seg`'s end nearest the candidate `q`, which `seg`'s span
-/// reads in band, stands within ε of `other`'s carrier: the end
-/// `nearer_end` picks (margin (q − a)·û − L/2, the projection's offset
-/// from the chord's bisector), read by `circle_side` or `chord_side`.
+/// reads in band, stands in `q`'s own stretch: the end `nearer_end`
+/// picks (margin (q − a)·û − L/2, the projection's offset from the
+/// chord's bisector, so the end nearer `q` in distance; on a line, the
+/// same t `line_span` reads, less L/2) reads on `other`'s carrier
+/// (`circle_side` or `chord_side`), and, where the carriers have a
+/// second candidate `rival`, definitely nearer `q` than `rival`
+/// (`own_candidate`, margin |end − rival| − |end − q|).
 /// Any other reading, in band included, is false, and the caller's
 /// escalation stands.
 ///
 /// When it holds, the ends settle the pair as they do after a miss
-/// ([`end_touches`]). An in-band reading puts `q` within the span
-/// reading's reach of that end, and a candidate stands for a stretch
-/// (ε/sin φ at a crossing of angle φ, √(2rε) at a tangency), so at a
-/// shallow crossing the end stands inside it. Were `q` on both
-/// segments, the carrier from `q` to the end's foot on `other` stays
-/// within ε of `seg`'s, since the distance to it grows away from `q`.
-/// So either `other` holds that foot, and the end touches it, or
-/// `other` ends between `q` and the foot, within ε of `seg`'s carrier
-/// and over the part of `seg` between `q` and its end, and that end
-/// touches `seg`. Neither reads clear. At a steep crossing the end
-/// lies off `other`'s carrier, and the escalation stands.
-fn end_in_stretch<T: Decide>(seg: &Seg<T>, other: &Seg<T>, q: Point2<T>, band: Band) -> bool {
+/// ([`end_touches`]). Were `q` on `seg`, the part of `seg` between `q`
+/// and that end is the shorter way round `seg`'s carrier between them
+/// (an end nearer in distance is nearer along the carrier, and the
+/// part of an arc inside it is at most a half turn). Along `seg`'s
+/// carrier the distance to `other`'s rises from each candidate to one
+/// peak midway to the next, so that shorter way, from a candidate to a
+/// point nearer it than the rival, holds no peak: the distance grows
+/// from `q` to the end, which is within ε. That holds on a line and on
+/// a circle of any radius or sweep, and whatever `arc_span`'s
+/// compression lets the in-band reading reach, because the reading
+/// asks the end, not the span. So were `q` on both segments, either
+/// `other` holds the end's foot, and the end touches it, or `other`
+/// ends between `q` and the foot, within ε of `seg`'s carrier and over
+/// the part of `seg` between `q` and its end, and that end touches
+/// `seg`. Neither reads clear. Were `q` off either segment, the
+/// candidate is a miss, which the ends settle anyway.
+///
+/// So the end read confines the settle to `q`'s stretch, at any
+/// crossing angle: at a steep crossing that stretch is short, and the
+/// end lies in it only where it stands within about ε of `q` itself.
+/// Where `seg` and `other` are adjacent, their shared vertex is on both
+/// carriers. If the carriers read secant it is one candidate, `rival`
+/// to the other, and settles that one only from nearer it than itself.
+/// If they read tangent, a re-crossing within the band of the vertex
+/// is that one candidate's stretch: the carriers stay within ε between
+/// the two, so the pair meets there only as the joint does, and the
+/// joint pass classifies it (a cusp re-crossing a few ε out reads as a
+/// tangent cusp).
+fn end_in_stretch<T: Decide>(
+    seg: &Seg<T>,
+    other: &Seg<T>,
+    q: Point2<T>,
+    rival: Option<&Point2<T>>,
+    band: Band,
+) -> bool {
     let half = seg.len * T::from_f64(0.5);
     let end = match decide(
         "nearer_end",
@@ -1462,7 +1496,17 @@ fn end_in_stretch<T: Decide>(seg: &Seg<T>, other: &Seg<T>, q: Point2<T>, band: B
         Ok(Sign::Positive) => seg.b,
         Ok(Sign::Zero) | Err(_) => return false,
     };
-    matches!(carrier_side(other, end, band), Ok(Sign::Zero))
+    let own = rival.is_none_or(|&rival| {
+        matches!(
+            decide(
+                "own_candidate",
+                Margin::of(end.distance(rival) - end.distance(q)),
+                band
+            ),
+            Ok(Sign::Positive)
+        )
+    });
+    own && matches!(carrier_side(other, end, band), Ok(Sign::Zero))
 }
 
 /// Which side of `host`'s carrier the point `p` lies on: `chord_side`
@@ -1475,8 +1519,8 @@ fn carrier_side<T: Decide>(host: &Seg<T>, p: Point2<T>, band: Band) -> Result<Si
 }
 
 /// The touches of two segments whose carriers meet near a candidate
-/// one span definitely missed: every end of either that touches the
-/// other ([`touches`]).
+/// one span definitely missed, or one [`end_in_stretch`] settled: every
+/// end of either that touches the other ([`touches`]).
 ///
 /// A candidate stands for a stretch, not a point. Carriers within ε at
 /// a tangency stay within ε for about √(2rε) either side of it, and at
@@ -1963,6 +2007,11 @@ mod pair_contact_tests {
     /// to the right, each ending `s` (in arc length) short of the
     /// crossing or past it. The chordal span reading of the crossing is
     /// then in band on both, and the segments are 2s apart, or cross.
+    /// `rejections`'s dome is the same crossing read as a whole profile,
+    /// through the public door, which cannot name these builders. A
+    /// line tangent to a circle reads its one candidate in band where
+    /// the line ends 0.8Kε either side of the tangency, and its end,
+    /// on the circle, touches the arc.
     fn in_band_rows<T: Decide>() -> Vec<(&'static str, Read, Read)> {
         let t = Tol::witness().get();
         let band = Band::linear(Tol::witness()).unwrap_or_else(|e| panic!("band: {e}"));
@@ -2019,6 +2068,24 @@ mod pair_contact_tests {
                 ),
             ),
             (
+                "shallow tangency: the line ends 0.8Kε past the tangency, on the arc",
+                Ok(1),
+                read(
+                    &line((-1.0, 0.0), (s, 0.0), band),
+                    &arc::<T>((0.0, 1.0), 1.0, -quarter - 1.0, 2.0, band),
+                    band,
+                ),
+            ),
+            (
+                "shallow tangency: the line ends 0.8Kε short of the tangency, on the arc",
+                Ok(1),
+                read(
+                    &line((-1.0, 0.0), (-s, 0.0), band),
+                    &arc::<T>((0.0, 1.0), 1.0, -quarter - 1.0, 2.0, band),
+                    band,
+                ),
+            ),
+            (
                 "square: the arc holds the crossing 2Kε from its end, read in band",
                 Err(Some("arc_span")),
                 read(
@@ -2034,8 +2101,9 @@ mod pair_contact_tests {
     /// only inside its stretch**, at `f64` and at `Interval`
     /// ([`in_band_rows`]). At a shallow crossing two segments stopping
     /// short on opposite sides read no contact and two running past it
-    /// touch; at a square one the arc's end lies off the line, and the
-    /// in-band reading escalates.
+    /// touch; a line ending either side of its tangency with an arc
+    /// touches it at that end; at a square crossing the arc's end lies
+    /// off the line, and the in-band reading escalates.
     #[test]
     fn a_crossing_read_in_band_settles_on_the_ends_inside_its_stretch() {
         let mut wrong_rows = wrong("f64", in_band_rows::<f64>());

@@ -10,9 +10,13 @@
 //! third end a line or an arc at an edge of the band off another
 //! segment's carrier, leaving it at an angle as small as 10⁻⁶, which is
 //! where an in-band end reading has to escalate rather than read clear.
-//! The last third end two segments at an edge of the band either side of their
-//! carriers' crossing, at angles down to 10⁻⁶, where a span reads the
-//! crossing in band and the ends have to settle it.
+//! The last third end two segments at an edge of the band either side
+//! of their carriers' crossing, at angles down to 10⁻⁶, where a span
+//! reads the crossing in band and the ends have to settle it. A second
+//! search ([`rivals`]) puts the carriers' two crossings close together,
+//! so an end beside one stands within ε of both carriers while the
+//! segments meet at the other. Draws whose coordinates are too large
+//! for the oracle's `f64` to resolve ε are counted and skipped.
 //!
 //! In a file of its own so the per-file test gate can skip it without
 //! skipping `seg`'s deterministic pair rows.
@@ -132,7 +136,7 @@ fn oracle(s1: Shape, s2: Shape) -> f64 {
                 }
             }
             if h.abs() < r {
-                let half = (r * r - h * h).sqrt();
+                let half = ((r - h.abs()) * (r + h.abs())).sqrt();
                 for t in [tc - half, tc + half] {
                     let x = (a.0 + t * u.0, a.1 + t * u.1);
                     if on_line(t) && on_arc(start, sweep, (x.1 - c.1).atan2(x.0 - c.0)) {
@@ -166,11 +170,25 @@ fn oracle(s1: Shape, s2: Shape) -> f64 {
                     }
                 }
             }
-            let x = (d * d + r1 * r1 - r2 * r2) / (2.0 * d);
-            if r1 * r1 > x * x {
-                let y = (r1 * r1 - x * x).sqrt();
+            // The crossings, from the smaller circle's centre, in
+            // factored form: the radical line's offset `x` from that
+            // centre and the half-chord `y` each lose to cancellation
+            // as a difference of squares when the radii differ by
+            // orders of magnitude.
+            let (small, rs, rl, towards) = if r1 <= r2 {
+                (c1, r1, r2, u)
+            } else {
+                (c2, r2, r1, (-u.0, -u.1))
+            };
+            let (lens, inner) = (rs + rl - d, d + rs - rl);
+            if lens > 0.0 && inner > 0.0 {
+                let x = rs - lens * (rl + d - rs) / (2.0 * d);
+                let y = (lens * inner * (d + rl - rs) * (d + rs + rl)).sqrt() / (2.0 * d);
                 for s in [-1.0, 1.0] {
-                    let p = (c1.0 + x * u.0 - s * y * u.1, c1.1 + x * u.1 + s * y * u.0);
+                    let p = (
+                        small.0 + x * towards.0 - s * y * towards.1,
+                        small.1 + x * towards.1 + s * y * towards.0,
+                    );
                     if on_arc(a1, w1, (p.1 - c1.1).atan2(p.0 - c1.0))
                         && on_arc(a2, w2, (p.1 - c2.1).atan2(p.0 - c2.0))
                     {
@@ -179,9 +197,16 @@ fn oracle(s1: Shape, s2: Shape) -> f64 {
                 }
             }
         }
-        // Two chords: the four endpoint distances, and a crossing.
+        // Two chords: the four endpoint distances, and a crossing, which
+        // needs every side read past its rounding. An end within that of
+        // the other carrier is as near the other chord as its distance
+        // says, so the endpoint distances cover the rest.
         (Shape::Line { a, b }, Shape::Line { a: c, b: d }) => {
-            let side = |p: P, q: P, x: P| (q.0 - p.0) * (x.1 - p.1) - (q.1 - p.1) * (x.0 - p.0);
+            let side = |p: P, q: P, x: P| {
+                let s = (q.0 - p.0) * (x.1 - p.1) - (q.1 - p.1) * (x.0 - p.0);
+                let rounding = 8.0 * f64::EPSILON * dist(p, q) * (dist(p, x) + len(p));
+                if s.abs() > rounding { s.signum() } else { 0.0 }
+            };
             if side(a, b, c) * side(a, b, d) < 0.0 && side(c, d, a) * side(c, d, b) < 0.0 {
                 best = 0.0;
             }
@@ -451,18 +476,43 @@ fn band_edge(rng: &mut fuzz::Rng, eps: f64, k: f64) -> (Shape, Shape) {
     }
 }
 
-/// Sweeps `n` draws at scalar `T`; returns the counterexamples, and the
-/// draws that escalated.
-fn sweep<T: Decide>(scalar: &str, rng: &mut fuzz::Rng, n: usize) -> (Vec<String>, usize) {
+/// The most the oracle's `f64` arithmetic can be off by on a pair: a
+/// few ulps of the largest coordinate or radius it reads.
+fn oracle_slack(s1: Shape, s2: Shape) -> f64 {
+    let scale = [s1, s2]
+        .into_iter()
+        .map(|s| match s {
+            Shape::Line { a, b } => a.0.abs().max(a.1.abs()).max(b.0.abs()).max(b.1.abs()),
+            Shape::Arc { c, r, .. } => c.0.abs().max(c.1.abs()) + r,
+        })
+        .fold(0.0, f64::max);
+    4.0 * f64::EPSILON * scale
+}
+
+/// Sweeps `n` draws from `draw` at scalar `T`; returns the
+/// counterexamples, the draws that escalated, and the draws the oracle
+/// could not resolve at ε (its slack past a quarter of ε), which no
+/// draw counts.
+fn sweep<T: Decide>(
+    scalar: &str,
+    rng: &mut fuzz::Rng,
+    n: usize,
+    draw: fn(&mut fuzz::Rng, f64, f64) -> (Shape, Shape),
+) -> (Vec<String>, usize, usize) {
     let t = Tol::witness().get();
     let band = Band::linear(Tol::witness()).expect("the run's band");
-    let (mut wrong, mut escalated) = (Vec::new(), 0);
+    let (mut wrong, mut escalated, mut unresolved) = (Vec::new(), 0, 0);
     for _ in 0..n {
         let (s1, s2) = draw(rng, t.eps, t.k);
+        let slack = oracle_slack(s1, s2);
+        if slack > 0.25 * t.eps {
+            unresolved += 1;
+            continue;
+        }
         match kernel::<T>(s1, s2, band) {
             Read::Contacts(0, s1, s2) => {
                 let d = oracle(s1, s2);
-                if d <= t.eps {
+                if d + slack <= t.eps {
                     wrong.push(format!(
                         "{scalar}: {s1:?} × {s2:?}: no contact at distance {d:e}"
                     ));
@@ -472,16 +522,21 @@ fn sweep<T: Decide>(scalar: &str, rng: &mut fuzz::Rng, n: usize) -> (Vec<String>
             Read::Escalated => escalated += 1,
         }
     }
-    (wrong, escalated)
+    (wrong, escalated, unresolved)
 }
 
-#[test]
-fn a_near_tangent_pair_reads_no_contact_only_past_eps() {
-    let mut rng = fuzz::start("seg_reach_fuzz::a_near_tangent_pair_reads_no_contact_only_past_eps");
-    let (mut wrong, f64_escalated) = sweep::<f64>("f64", &mut rng, fuzz::scaled(40_000));
-    let (wrong_i, interval_escalated) =
-        sweep::<Interval>("Interval", &mut rng, fuzz::scaled(10_000));
-    println!("escalated: {f64_escalated} at f64, {interval_escalated} at Interval");
+/// Runs `draw` at `f64` and at `Interval` and asserts no pair the
+/// oracle puts within ε read no contact.
+fn search(label: &str, draw: fn(&mut fuzz::Rng, f64, f64) -> (Shape, Shape)) {
+    let mut rng = fuzz::start(label);
+    let (mut wrong, f64_escalated, f64_unresolved) =
+        sweep::<f64>("f64", &mut rng, fuzz::scaled(40_000), draw);
+    let (wrong_i, interval_escalated, interval_unresolved) =
+        sweep::<Interval>("Interval", &mut rng, fuzz::scaled(10_000), draw);
+    println!(
+        "escalated: {f64_escalated} at f64, {interval_escalated} at Interval; past the \
+         oracle's resolution: {f64_unresolved} at f64, {interval_unresolved} at Interval"
+    );
     wrong.extend(wrong_i);
     assert!(
         wrong.is_empty(),
@@ -490,4 +545,110 @@ fn a_near_tangent_pair_reads_no_contact_only_past_eps() {
         wrong[..wrong.len().min(5)].join("\n"),
         fuzz::replay()
     );
+}
+
+#[test]
+fn a_near_tangent_pair_reads_no_contact_only_past_eps() {
+    search(
+        "seg_reach_fuzz::a_near_tangent_pair_reads_no_contact_only_past_eps",
+        draw,
+    );
+}
+
+/// **A crossing near its rival reads no contact only where the
+/// segments are apart.** Draws from [`rivals`]: the carriers' two
+/// crossings as little as ε apart, so an end beside one stands within
+/// ε of both carriers while the segments meet at the other.
+#[test]
+fn a_crossing_near_its_rival_reads_no_contact_only_past_eps() {
+    search(
+        "seg_reach_fuzz::a_crossing_near_its_rival_reads_no_contact_only_past_eps",
+        rivals,
+    );
+}
+
+/// A circle, and a line or a second circle, through two crossings `X`
+/// and `Y`, from 0.5ε to 10³ε apart or anywhere along the circle, at
+/// up to 300 from the origin, radii from 0.5Kε to 10⁴ (two circles'
+/// within 10² of each other), and crossing angles up to a quarter
+/// turn. Each segment's ends are drawn beside
+/// `X`, beside `Y` (at an edge of the band, between the two, or up to
+/// a tenth of the radius off), or anywhere, and an arc runs either way
+/// between them, so it sweeps up to 10⁻³ short of a full turn. That
+/// puts a segment's end beside one crossing while the pair meets at
+/// the other, which an in-band span reading, compressed past 5.6 rad
+/// or on a radius of a few Kε, can reach.
+fn rivals(rng: &mut fuzz::Rng, eps: f64, k: f64) -> (Shape, Shape) {
+    let signed = |rng: &mut fuzz::Rng, lo: f64, hi: f64| {
+        10f64.powf(rng.range(lo, hi)) * if rng.unit() < 0.5 { -1.0 } else { 1.0 }
+    };
+    let x = (signed(rng, -1.0, 2.5), signed(rng, -1.0, 2.5));
+    let radius = |rng: &mut fuzz::Rng, lo: f64, hi: f64| {
+        10f64.powf(rng.range(lo.max(0.5 * k * eps).log10(), hi.min(1e4).log10()))
+    };
+    let r2 = radius(rng, 0.0, 1e4);
+    let apart = if rng.unit() < 0.5 {
+        (eps * 10f64.powf(rng.range(-0.3, 3.0))).min(1.998 * r2)
+    } else {
+        2.0 * r2 * rng.range(1e-3, 0.999)
+    };
+    let psi = rng.range(0.0, TAU);
+    let u = (psi.cos(), psi.sin());
+    let y = (x.0 + apart * u.0, x.1 + apart * u.1);
+    // The circle of radius `r` through X and Y, its centre on the
+    // chord's left or right.
+    let circle = |rng: &mut fuzz::Rng, r: f64| {
+        let side = if rng.unit() < 0.5 { -1.0 } else { 1.0 };
+        let off = side * (r * r - 0.25 * apart * apart).max(0.0).sqrt();
+        (
+            (0.5 * (x.0 + y.0) - off * u.1, 0.5 * (x.1 + y.1) + off * u.0),
+            r,
+        )
+    };
+    // An offset from an anchor along the carrier: an edge of the band,
+    // a fraction of the gap between the crossings, or up to a tenth of
+    // the radius.
+    let offset = |rng: &mut fuzz::Rng, r: f64| match rng.below(3) {
+        0 => edge(rng, eps, k),
+        1 => apart * rng.range(-1.0, 1.0),
+        _ => signed(rng, -4.0, -1.0) * r,
+    };
+    let on_circle = |rng: &mut fuzz::Rng, (c, r): (P, f64)| {
+        let angle = |p: P| (p.1 - c.1).atan2(p.0 - c.0);
+        let anchor = |rng: &mut fuzz::Rng| match rng.below(3) {
+            0 => angle(x) + offset(rng, r) / r,
+            1 => angle(y) + offset(rng, r) / r,
+            _ => rng.range(0.0, TAU),
+        };
+        let (from, to) = (anchor(rng), anchor(rng));
+        let turn = if rng.unit() < 0.5 { -1.0 } else { 1.0 };
+        let sweep = ((to - from) * turn).rem_euclid(TAU).clamp(1e-9, TAU - 1e-3);
+        Shape::Arc {
+            c,
+            r,
+            start: from,
+            sweep: turn * sweep,
+        }
+    };
+    let carrier2 = circle(rng, r2);
+    let s2 = on_circle(rng, carrier2);
+    let s1 = if rng.unit() < 0.5 {
+        // Radii within 10² of each other: past that, `f64`'s secant
+        // arm misreads crossings (`arc-arc-secant-arm-misses-crossings-at-unequal-radii`).
+        let r1 = radius(rng, (0.5 * apart * 1.0001).max(r2 * 1e-2), r2 * 1e2);
+        let carrier1 = circle(rng, r1);
+        on_circle(rng, carrier1)
+    } else {
+        let along = |rng: &mut fuzz::Rng| match rng.below(3) {
+            0 => offset(rng, r2),
+            1 => apart + offset(rng, r2),
+            _ => signed(rng, -2.0, 2.5),
+        };
+        let (t0, t1) = (along(rng), along(rng));
+        Shape::Line {
+            a: (x.0 + t0 * u.0, x.1 + t0 * u.1),
+            b: (x.0 + t1 * u.0, x.1 + t1 * u.1),
+        }
+    };
+    if rng.unit() < 0.5 { (s1, s2) } else { (s2, s1) }
 }

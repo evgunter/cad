@@ -1230,38 +1230,52 @@ fn probe_fan_oracle_coned_volume() {
 // θ ≈ π boundaries) from real profiles and pin what actually happens.
 // =====================================================================
 
-#[test]
-fn survives_near_tangent_arc_join_classification() {
-    // Cylinder wall then an arc leaving (2,1) at a start tangent
-    // rotated ~4.5ε off vertical (bulge = tan(π/8 − 1.5ε·...)): the
-    // wall–wall dihedral at the join is a genuine sliver. Mixed
-    // line/arc kinds skip the cosurface share structurally, so this
-    // reaches the DIHEDRAL classifier — the trilean must escalate
-    // (SliverJoin), never silently pick corner-or-smooth. If profile
-    // validation refuses first, that is an equally honest upstream
-    // refusal and this test pins whichever layer speaks. The arc's
-    // carrier, of radius ≈1 centred near (1, 1), reaches the axis within
-    // ~6ε, so the revolve may refuse its ring-torus clearance
-    // (`axis_arc_clearance`) before it reaches the dihedral.
+/// A wall at `x0 + 1` from y = 0 to 1, then an arc to `(x0, 2)` whose
+/// start tangent is turned 1.5ε off the wall's (bulge
+/// tan(π/8 − 1.5ε)), its carrier of radius ≈ 1 centred near
+/// `(x0, 1)`, then down to `(x0, 0)` and back.
+fn near_tangent_arc_join(x0: f64) -> Profile<f64> {
     let delta = 3.0 * eps();
     let bulge = (FRAC_PI_8 - delta / 2.0).tan();
     let lp = bulge_loop(vec![
-        (Point2::new(2.0, 0.0), 0.0),
-        (Point2::new(2.0, 1.0), bulge),
-        (Point2::new(1.0, 2.0), 0.0),
-        (Point2::new(1.0, 0.0), 0.0),
+        (Point2::new(x0 + 1.0, 0.0), 0.0),
+        (Point2::new(x0 + 1.0, 1.0), bulge),
+        (Point2::new(x0, 2.0), 0.0),
+        (Point2::new(x0, 0.0), 0.0),
     ]);
-    match Profile::new(SketchPlane::xy(), vec![lp]).validate(Tol::witness()) {
-        Err(profile::ProfileError::Escalated { .. }) => {}
-        Err(e) => panic!("unexpected upstream error {e:?}"),
-        Ok(vp) => match revolve(&vp, axis_y(), Revolution::Partial(1.0), Tol::witness()) {
-            Err(RevolveError::SliverJoin { .. }) => {}
-            Err(RevolveError::SliverRim { .. }) => {}
-            Err(RevolveError::SliverAxisClearance {
-                segment_index: 1, ..
-            }) => {}
-            other => panic!("sliver dihedral must escalate somewhere, got {other:?}"),
-        },
+    Profile::new(SketchPlane::xy(), vec![lp])
+}
+
+#[test]
+fn survives_near_tangent_arc_join_classification() {
+    // The wall–arc dihedral at the join is a genuine sliver. Mixed
+    // line/arc kinds skip the cosurface share structurally, so the
+    // revolve reaches the DIHEDRAL classifier, which must escalate
+    // (SliverJoin), never silently pick corner-or-smooth. The profile
+    // stands 3 off the axis, so no axis clearance speaks first.
+    let vp = near_tangent_arc_join(3.0)
+        .validate(Tol::witness())
+        .unwrap_or_else(|e| panic!("the near-tangent join validates, got {e:?}"));
+    match revolve(&vp, axis_y(), Revolution::Partial(1.0), Tol::witness()) {
+        Err(RevolveError::SliverJoin { .. }) => {}
+        other => panic!("the sliver dihedral must escalate as SliverJoin, got {other:?}"),
+    }
+}
+
+/// **The same join against the axis refuses at the arc's ring-torus
+/// clearance**: centred near (1, 1) at radius ≈ 1, the arc's carrier
+/// crosses the axis by about 6ε, which `axis_arc_clearance` reads
+/// before the revolve reaches the dihedral.
+#[test]
+fn a_near_tangent_join_whose_arc_crosses_the_axis_refuses_its_clearance() {
+    let vp = near_tangent_arc_join(1.0)
+        .validate(Tol::witness())
+        .unwrap_or_else(|e| panic!("the near-tangent join validates, got {e:?}"));
+    match revolve(&vp, axis_y(), Revolution::Partial(1.0), Tol::witness()) {
+        Err(RevolveError::SliverAxisClearance {
+            segment_index: 1, ..
+        }) => {}
+        other => panic!("the arc's axis clearance must refuse, got {other:?}"),
     }
 }
 

@@ -425,7 +425,9 @@ fn holes_touching_at_a_vertex_between_two_tangent_arcs_are_non_simple() {
 /// first to `end` (arc length) short of the crossing, a connector to
 /// the point `end` past it on the second, the right leg down the
 /// second, and a chord closing underneath. The legs are non-adjacent
-/// and stand ≈ 2·`end` apart across the crossing.
+/// and stand ≈ 2·`end` apart across the crossing. It is `seg`'s
+/// `in_band_rows` crossing read as a whole profile; a `tests/` binary
+/// cannot name that module's builders.
 fn dome_across_a_shallow_crossing(phi: f64, end: f64) -> profile::Profile<f64> {
     use geom_core::Arc2;
     use profile::{ProfileLoop, RawLoop, Segment};
