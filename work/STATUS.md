@@ -1146,7 +1146,7 @@ area `kernel`; prefix `band/`; tag `(BAND orchestrator)`; ab_band `7800-7899`.
 | pri | item | kind | cost | status | title | blocked on | PR |
 |---|---|---|---|---|---|---|---|
 | P2 | `a-blend-corner-patch-holds-a-chart-pole` | issue | M | open | A fillet corner patch's sphere chart puts a pole inside the patch, which the ratified PR 2850 rule says must be a vertex |  |  |
-| P2 | `a-non-isosceles-turn-overruns-past-the-mitre` | issue | H +design | open | blend: two requested edges at a non-isosceles trivalent corner refuse TURN_NOT_ISOSCELES, where Ev's ruling builds the mitre plus one short overrun curve |  |  |
+| P2 | `a-non-isosceles-turn-overruns-past-the-mitre` | issue | H | open | blend: two requested edges at a non-isosceles trivalent corner refuse TURN_NOT_ISOSCELES, where Ev's ruling builds the mitre plus one short overrun curve |  |  |
 | P2 | `blend-reach-never-meters-the-bands-of-one-chain-against-each-other` | issue | M | open | blend: the reach never meters two bands of one chain, or of two chains that meet, against each other, anywhere — not only at the vertex they share |  |  |
 | P2 | `body-not-intact-renders-every-detail-as-a-reference-that-did-not-resolve` | issue | E | open | blend: BodyNotIntact's rendering says '<at> did not resolve' for every Row-1 detail, including a cycle or verdict disagreement where the key resolved |  |  |
 | P2 | `cap-sliver-floor-arc-term-and-whole-circle-arm-are-unpinned` | issue | D | open | blend: two terms of the cap sliver meter are pinned by no assembly row (the arc's floor term; the whole-circle arm of an arc extreme) |  |  |
