@@ -17,7 +17,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, Surface};
-use geom_brep::{EnvelopeStatement, Pcurve, PcurveCache, PcurveCertifyError, SpiricImage};
+use geom_brep::{
+    EnvelopeStatement, Pcurve, PcurveCache, PcurveCertifyError, SpiricImage, WallTorus,
+};
 use geom_core::{Band, Point2, Point3, Tol, Vec2, Vec3};
 
 const R: f64 = 0.09375;
@@ -73,15 +75,14 @@ fn cap_plane() -> Surface<f64> {
 }
 
 /// The wall image the mint produces for [`carrier`] on [`torus`],
-/// with both signs at `sense` and `v0` open so a row can move exactly
-/// one number.
+/// with `sense` and `v0` open so a row can move exactly one number.
 fn wall(sense: f64, v0: f64) -> Pcurve<f64> {
     // `u0` is the chart azimuth of the cutting plane's normal: `n = +x`
     // is the chart's own `u_ref`, so it is zero here.
-    wall_image(0.0, sense, sense, v0)
+    wall_image(0.0, sense, WallTorus::Own, v0)
 }
 
-fn wall_image(u0: f64, u_sense: f64, v_sense: f64, v0: f64) -> Pcurve<f64> {
+fn wall_image(u0: f64, sense: f64, torus: WallTorus, v0: f64) -> Pcurve<f64> {
     Pcurve::Spiric {
         major: R,
         minor: RR,
@@ -89,8 +90,8 @@ fn wall_image(u0: f64, u_sense: f64, v_sense: f64, v0: f64) -> Pcurve<f64> {
         image: SpiricImage::Wall {
             u0,
             v0,
-            u_sense,
-            v_sense,
+            sense,
+            torus,
         },
     }
 }
@@ -549,8 +550,8 @@ fn the_mirror_torus_holds_the_oval_and_mints_its_wall_image() {
             SpiricImage::Wall {
                 u0,
                 v0,
-                u_sense,
-                v_sense,
+                sense,
+                torus,
             },
         ..
     } = minted
@@ -558,9 +559,9 @@ fn the_mirror_torus_holds_the_oval_and_mints_its_wall_image() {
         panic!("a wall image: {minted:?}")
     };
     assert_eq!(
-        (u0.abs(), v0, u_sense, v_sense),
-        (core::f64::consts::PI, 0.0, -1.0, 1.0),
-        "the azimuth of −n, and the azimuth channel's sign opposed to the minor angle's"
+        (u0.abs(), v0, sense, torus),
+        (core::f64::consts::PI, 0.0, 1.0, WallTorus::Mirror),
+        "the azimuth of −n, the chart axis the carrier's, and the mirror named"
     );
     let row = certify(minted, &mirror, band()).expect("the mirror wall certifies");
     assert_eq!(
@@ -576,8 +577,8 @@ fn the_mirror_torus_holds_the_oval_and_mints_its_wall_image() {
 }
 
 /// **A wall image names one of the two tori, and is no image on the
-/// other.** The product of the signs names the torus the identity maps
-/// through, so the own-torus image on the mirror and the mirror image
+/// other.** The image's tag names the torus the identity maps through,
+/// so the own-torus image on the mirror and the mirror image
 /// on the own torus are each the wrong image of a carrier the chart
 /// holds (`ImageMismatch`, not off the chart); a torus that is neither
 /// holds no oval of it (`CarrierOffChart`), whichever image it is
@@ -585,7 +586,7 @@ fn the_mirror_torus_holds_the_oval_and_mints_its_wall_image() {
 #[test]
 fn a_wall_image_names_one_torus_and_is_refused_on_the_other() {
     let own = wall(1.0, 0.0);
-    let mirrored = wall_image(core::f64::consts::PI, -1.0, 1.0, 0.0);
+    let mirrored = wall_image(core::f64::consts::PI, 1.0, WallTorus::Mirror, 0.0);
     for (what, image, surface) in [
         ("the own image on the mirror", own.clone(), mirror_torus()),
         (
@@ -620,34 +621,4 @@ fn a_wall_image_names_one_torus_and_is_refused_on_the_other() {
             "the {what} image on a third torus: {e:?}"
         );
     }
-}
-
-/// **Each sign is priced in its own channel.** A residue `η` in
-/// `|u_sense|` moves the azimuth by up to `η·π` at the outer arm, and
-/// one in `|v_sense|` moves the minor angle by `η·reach` at `r` — an
-/// order less here. So the same admitted `η` costs the envelope at
-/// least `arm·η·π` on the azimuth sign and less than that on the
-/// minor-angle sign: a door that priced either sign in the other's
-/// channel reads the two the same.
-#[test]
-fn each_wall_sign_is_priced_in_its_own_channel() {
-    let eta = 0.1 * tol().eps() / ARM;
-    // `|1 + η| − 1` rounds a hair under `η` in f64.
-    let floor = 0.99 * ARM * eta * core::f64::consts::PI;
-    let env = |p| {
-        certify(p, &torus(), band())
-            .expect("a drift the envelope can afford certifies")
-            .certificate()
-            .envelope
-    };
-    let on_u = env(wall_image(0.0, 1.0 + eta, 1.0, 0.0));
-    let on_v = env(wall_image(0.0, 1.0, 1.0 + eta, 0.0));
-    assert!(
-        on_u >= floor,
-        "the azimuth sign's price: {on_u:e} vs {floor:e}"
-    );
-    assert!(
-        on_v > 0.0 && on_v < floor,
-        "the minor-angle sign's price is its own: {on_v:e} vs {floor:e}"
-    );
 }

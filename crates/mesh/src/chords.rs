@@ -575,8 +575,8 @@ fn nurbs_tighten(
                 return Err(TessellateError::UnsupportedCurve {
                     edge: ek,
                     note: "NURBS-face half-edge carries a SPIRIC pcurve — a spiric's \
-                           chart images live on its own cutting plane and its own \
-                           torus, so no spline chart mints one",
+                           chart images live on its own cutting plane and the two tori \
+                           that hold it, so no spline chart mints one",
                 });
             }
             // As the spiric: a focal-section image certifies on a cone

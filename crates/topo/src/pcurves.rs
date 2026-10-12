@@ -4561,7 +4561,7 @@ fn chart_edge<T: Decide>(
             matches!(chart, Surface::Plane { .. })
                 && matches!(walked.carrier, geom::Curve3::Line { .. })
         }
-        // A spiric image is curved on BOTH charts it lives on — the
+        // A spiric image is curved on EVERY chart it lives on — the
         // cap's `pm·f(t) + pa·sin t` and the wall's `atan2(f, d)`
         // azimuth — so it takes the envelope door below, which the
         // `_` arm there already answers from `eval` over the span
@@ -6248,7 +6248,7 @@ mod derive_without_a_door {
 #[allow(clippy::unwrap_used, clippy::float_cmp, clippy::panic)]
 mod polar_shift_tests {
     use super::shift_polar_branch;
-    use geom_brep::{Pcurve, SpiricImage};
+    use geom_brep::{Pcurve, SpiricImage, WallTorus};
     use geom_core::{Point2, Vec2};
 
     /// **The meridional branch shift, at its own door.** A body cannot
@@ -6269,8 +6269,8 @@ mod polar_shift_tests {
             image: SpiricImage::Wall {
                 u0: 0.25,
                 v0: 0.5,
-                u_sense: 1.0,
-                v_sense: -1.0,
+                sense: -1.0,
+                torus: WallTorus::Mirror,
             },
         };
         let Pcurve::Spiric {
@@ -6281,8 +6281,8 @@ mod polar_shift_tests {
                 SpiricImage::Wall {
                     u0,
                     v0,
-                    u_sense,
-                    v_sense,
+                    sense,
+                    torus,
                 },
         } = shift_polar_branch(&wall, 3.0, period)
         else {
@@ -6290,11 +6290,8 @@ mod polar_shift_tests {
         };
         assert_eq!(v0, 0.5 + 3.0 * period, "v0 takes the whole-period shift");
         assert_eq!(u0, 0.25, "the azimuth constant is the other door's");
-        assert_eq!(
-            (u_sense, v_sense),
-            (1.0, -1.0),
-            "the signs are not a branch"
-        );
+        assert_eq!(sense, -1.0, "the sign is not a branch");
+        assert_eq!(torus, WallTorus::Mirror, "nor is the torus");
         assert_eq!((major, minor, offset), (0.09375, 0.0703125, 0.0078125));
 
         // A cap lives on a plane chart, where no joint decides a

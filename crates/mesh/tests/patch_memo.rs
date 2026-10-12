@@ -618,13 +618,13 @@ fn the_trimmed_lane_misses_when_a_pcurve_changes_and_hits_when_a_plane_does() {
                     geom_brep::SpiricImage::Wall {
                         u0,
                         v0,
-                        u_sense,
-                        v_sense,
+                        sense,
+                        torus,
                     } => geom_brep::SpiricImage::Wall {
                         u0: u0 + TAU,
                         v0,
-                        u_sense,
-                        v_sense,
+                        sense,
+                        torus,
                     },
                 },
             },

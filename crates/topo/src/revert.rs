@@ -276,13 +276,23 @@ impl<T: Real> Body<T> {
             let CurveGeom::Certified(curve) = geom else {
                 continue;
             };
-            if plane_images.contains(&key) {
-                *curve = curve.with_chart_v_mirrored();
+            let on_plane = plane_images.contains(&key);
+            // `None` is the one image with no reflected locus — a
+            // spiric WALL image, which lives on a torus chart by
+            // construction and therefore cannot be on a plane face.
+            // Reached only by a row already on the wrong face, which
+            // this door may not repair: it travels as found, the
+            // dead-key exception's posture one case over, and the
+            // at-rest pcurve validator is what reports it.
+            if on_plane && let Some(mirrored) = curve.with_chart_v_mirrored() {
+                *curve = mirrored;
             }
         }
         for (he_key, row) in out.pcurves.iter_mut() {
-            if plane_rows.contains(&he_key) {
-                *row = row.mirrored_v();
+            if plane_rows.contains(&he_key)
+                && let Some(mirrored) = row.mirrored_v()
+            {
+                *row = mirrored;
             }
         }
         // The curved arm (M5 S12): the reversal a non-plane chart

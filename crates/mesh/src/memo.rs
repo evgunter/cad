@@ -88,7 +88,7 @@ use std::collections::HashMap;
 use geom::{
     Curve3, CurveData, DatumValue, NurbsCurve2, NurbsCurve3, NurbsSurface, Surface, SurfaceData,
 };
-use geom_brep::{FocalImage, FramedCarrier, Pcurve, ProjectedChart, SpiricImage};
+use geom_brep::{FocalImage, FramedCarrier, Pcurve, ProjectedChart, SpiricImage, WallTorus};
 use geom_core::spline::KnotVector;
 use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use topo::{Body, FaceKey};
@@ -1149,14 +1149,17 @@ impl KeyWriter {
                     SpiricImage::Wall {
                         u0,
                         v0,
-                        u_sense,
-                        v_sense,
+                        sense,
+                        torus,
                     } => {
                         self.u8(1);
                         self.f64(*u0);
                         self.f64(*v0);
-                        self.f64(*u_sense);
-                        self.f64(*v_sense);
+                        self.f64(*sense);
+                        self.u8(match torus {
+                            WallTorus::Own => 0,
+                            WallTorus::Mirror => 1,
+                        });
                     }
                 }
             }

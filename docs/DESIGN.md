@@ -638,9 +638,10 @@ and (b) the SSI generic-`T` lift are discharged and keep no entry):
   torus that is none of its circles refuses as a defect
   (`CarrierGrazesChart`); a spiric on its torus's mirror through the
   cutting plane mints the wall image with its azimuth sign opposed
-  (`SpiricImage::Wall`). C4's exemption, a face left uncached until
-  its class's route lands, covers the no-fitted class, on its PCERT
-  row.
+  (`SpiricImage::Wall`, tagged `WallTorus::Mirror`). C4's exemption, a
+  face left uncached until its class's route lands, covers the
+  no-fitted class, on PCERT's
+  `no-fitted-class-misuse-is-excused-by-not-owed`.
 - **(d) cyl×sphere germ chords** — a fitted carrier's chart image
   exists as `Pcurve::Projected` and certifies at rest, and a chord takes
   its arc from the germs it joins, reading no window; what is missing
