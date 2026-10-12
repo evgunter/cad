@@ -152,6 +152,8 @@
 //! documented slack there, unchanged).
 
 use geom_core::Bounds;
+use geom_core::exact::{Rounding, sum_rounded};
+
 use geom_core::interval::certification::Certification;
 use geom_core::interval::{Interval, certified_hi, cross, dot};
 use geom_core::spline::algebra;
@@ -360,6 +362,11 @@ impl TrimEdgeQ {
 // ---------------------------------------------------------------------
 // Transcendental-free trig enclosures (module docs)
 // ---------------------------------------------------------------------
+
+/// The rounded-once sum of `f64` terms, to nearest.
+fn sum_nearest(terms: &[f64]) -> f64 {
+    sum_rounded(terms, Rounding::Nearest)
+}
 
 /// Shorthand: a point bracket.
 pub(super) fn pt(x: f64) -> Interval {
@@ -865,12 +872,14 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
         let per_loop: Vec<Interval> = loops
             .iter()
             .map(|edges| {
-                edges.iter().fold(Interval::zero(), |a, e| {
-                    a + harmonic_edge_integral(e, pieces, radius)
-                })
+                let terms: Vec<Interval> = edges
+                    .iter()
+                    .map(|e| harmonic_edge_integral(e, pieces, radius))
+                    .collect();
+                geom_core::interval::sum_enclosures(&terms)
             })
             .collect();
-        let a_s = per_loop.iter().fold(Interval::zero(), |a, &l| a + l);
+        let a_s = geom_core::interval::sum_enclosures(&per_loop);
         let area = (radius * a_s).abs_enclosure();
         let flux = radius.sqr() * a_s + o_dot_va;
         // Convergence: mean-boundary-displacement metering (module
@@ -889,11 +898,13 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
             // must be definitely positive, metered as the face's mean
             // width area/perimeter — a length (the closed-form lanes'
             // `props_face_extent` lever, quadrature-shaped).
-            let perim: f64 = loops
-                .iter()
-                .flat_map(|edges| edges.iter())
-                .map(|e| edge_metric_length(e, radius))
-                .sum();
+            let perim = sum_nearest(
+                &loops
+                    .iter()
+                    .flat_map(|edges| edges.iter())
+                    .map(|e| edge_metric_length(e, radius))
+                    .collect::<Vec<_>>(),
+            );
             match classify_len::<T>(
                 "props_quad_face_extent",
                 Margin::over_lever(lo_or_refuse(area), perim),
@@ -1000,16 +1011,18 @@ fn require_holes_wound_against(
         return Ok(());
     }
     let length = |edges: &[TrimEdgeQ]| {
-        pt(edges
-            .iter()
-            .map(|e| edge_metric_length(e, radius))
-            .sum::<f64>())
+        pt(sum_nearest(
+            &edges
+                .iter()
+                .map(|e| edge_metric_length(e, radius))
+                .collect::<Vec<_>>(),
+        ))
     };
     let whole = (
         radius * a_s,
-        loops
-            .iter()
-            .fold(Interval::zero(), |l, edges| l + length(edges)),
+        geom_core::interval::sum_enclosures(
+            &loops.iter().map(|edges| length(edges)).collect::<Vec<_>>(),
+        ),
     );
     let holes: Vec<(Interval, Interval)> = loops
         .iter()
@@ -4837,15 +4850,15 @@ fn chord_polygon_flux(
 ) -> (Interval, f64) {
     let (mu, mv) = (wu.len() - 1, wv.len() - 1);
     let vbreaks = breakpoints(kv_v);
-    let mut total = Interval::zero();
-    let mut sliver = 0.0f64;
+    let mut total = Vec::with_capacity(cells.len());
+    let mut sliver = Vec::with_capacity(cells.len());
     for c in cells {
         let ((ua, va), (ub, vb)) = (c.a, c.b);
         if ua == ub {
             continue;
         }
         let (cuts, sl) = chord_cuts(kv_u, kv_v, c.a, c.b);
-        sliver += sl;
+        sliver.push(sl);
         let slope = (pt(vb) - pt(va)) / (pt(ub) - pt(ua));
         let ell = |u: Interval| -> Interval { pt(va) + (u - pt(ua)) * slope };
         let mut chord = Interval::zero();
@@ -4895,9 +4908,12 @@ fn chord_polygon_flux(
         }
         // `cuts` runs ascending; the chord's own direction carries the
         // sign of `∫_{u_a}^{u_b}`.
-        total = total + if ub > ua { chord } else { -chord };
+        total.push(if ub > ua { -chord } else { chord });
     }
-    (-total, sliver)
+    (
+        geom_core::interval::sum_enclosures(&total),
+        sum_rounded(&sliver, Rounding::Up),
+    )
 }
 
 /// **The chord polygon's area**, the same Green decomposition with
@@ -4950,7 +4966,7 @@ fn chord_polygon_area(
     let ku = breakpoints(kv_u);
     let kvb = breakpoints(kv_v);
     let v0 = kvb[0];
-    let mut total = Interval::zero();
+    let mut total = Vec::with_capacity(cells.len());
     for c in cells {
         let ((ua, va), (ub, vb)) = (c.a, c.b);
         if ua == ub {
@@ -5036,9 +5052,9 @@ fn chord_polygon_area(
             let mismatch = 0.125 * slope.abs() * hu.powi(2) * band_g.width();
             chord = chord + widen((pt(q) - pt(p)) * col, mismatch);
         }
-        total = total + if ub > ua { chord } else { -chord };
+        total.push(if ub > ua { -chord } else { chord });
     }
-    -total
+    geom_core::interval::sum_enclosures(&total)
 }
 
 /// The chart box every global hull below is taken over: the hull of
@@ -5076,11 +5092,12 @@ fn trim_box(chords: &[TrimChord]) -> (Interval, Interval) {
 /// is `|w|`-weighted and the flux is `w`-weighted, so Green's own
 /// signed answer IS the flux and the area takes this sign.
 fn polygon_winding(cells: &[TrimCell]) -> f64 {
-    let mut acc = 0.0f64;
-    for c in cells {
-        acc += c.a.0 * c.b.1 - c.b.0 * c.a.1;
-    }
-    acc
+    sum_nearest(
+        &cells
+            .iter()
+            .map(|c| c.a.0 * c.b.1 - c.b.0 * c.a.1)
+            .collect::<Vec<_>>(),
+    )
 }
 
 /// **The trimmed-region quadrature** (TRIM-2): certified flux and area
@@ -5229,7 +5246,7 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
         // that survives INSIDE them is real (two pcurves read one
         // shared vertex) and is paid below at `|Δu|·sup|G_f|`, which is
         // exactly what the closing segment would contribute.
-        let mut gap_u = 0.0f64;
+        let mut gap_u = Vec::with_capacity(cells.len());
         for i in 0..cells.len() {
             let end = cells[i].b;
             let next = &cells[(i + 1) % cells.len()];
@@ -5240,30 +5257,38 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
                     what: TRIM_OPEN_WALK,
                 });
             }
-            gap_u += gu.abs();
+            gap_u.push(gu.abs());
         }
+        let gap_u = sum_rounded(&gap_u, Rounding::Up);
         // The envelope pad's lever and the extent gate's perimeter,
         // both derived here from the cells the door built.
-        let mut edge_len = vec![0.0f64; chords.len()];
+        let mut edge_len = vec![Vec::new(); chords.len()];
         for c in &cells {
-            edge_len[c.edge] += c.var.0 * rate_u + c.var.1 * rate_v;
+            edge_len[c.edge].push(c.var.0 * rate_u + c.var.1 * rate_v);
         }
-        let perimeter: f64 = edge_len.iter().sum();
-        let boundary_defect: f64 = chords
+        let edge_len: Vec<f64> = edge_len
             .iter()
-            .zip(&edge_len)
-            .map(|(c, l)| l * c.env.mag())
-            .sum();
-        let mut lune_f = 0.0f64;
-        let mut lune_g = 0.0f64;
-        let mut vertex_pad = 0.0f64;
+            .map(|l| sum_rounded(l, Rounding::Up))
+            .collect();
+        let perimeter = sum_rounded(&edge_len, Rounding::Up);
+        let boundary_defect = sum_rounded(
+            &chords
+                .iter()
+                .zip(&edge_len)
+                .map(|(c, l)| l * c.env.mag())
+                .collect::<Vec<_>>(),
+            Rounding::Up,
+        );
+        let mut lune_f = Vec::with_capacity(cells.len());
+        let mut lune_g = Vec::with_capacity(cells.len());
+        let mut vertex_pad = Vec::with_capacity(cells.len());
         for c in &cells {
             let chord_len = ((c.b.0 - c.a.0).powi(2) + (c.b.1 - c.a.1).powi(2)).sqrt();
             // The chord polygon's vertices are the endpoint brackets'
             // MIDPOINTS, so the closed walk is exact structure; the
             // connectors from a midpoint to the true endpoint sweep at
             // most `chord·slack` of chart area, which is what this pays.
-            vertex_pad += chord_len * c.slack;
+            vertex_pad.push(chord_len * c.slack);
             let Some((bu, bv)) = c.hull else {
                 continue;
             };
@@ -5278,9 +5303,12 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
                 ),
                 None => (refused_vec(), refused_vec()),
             };
-            lune_f += a * dot(&hs, &hc).mag();
-            lune_g += a * (hc[0].sqr() + hc[1].sqr() + hc[2].sqr()).sqrt().mag();
+            lune_f.push(a * dot(&hs, &hc).mag());
+            lune_g.push(a * (hc[0].sqr() + hc[1].sqr() + hc[2].sqr()).sqrt().mag());
         }
+        let lune_f = sum_rounded(&lune_f, Rounding::Up);
+        let lune_g = sum_rounded(&lune_g, Rounding::Up);
+        let vertex_pad = sum_rounded(&vertex_pad, Rounding::Up);
         let winding = polygon_winding(&cells);
         let (flux_raw, sliver) =
             chord_polygon_flux(&s, su.as_ref(), sv.as_ref(), kv_u, kv_v, &cells, &wu, &wv);

@@ -664,6 +664,8 @@ mod split_section_rings;
 mod split_tangent_edge_curved;
 #[path = "split_through_a_ruling.rs"]
 mod split_through_a_ruling;
+#[path = "storage_invariant_props.rs"]
+mod storage_invariant_props;
 #[path = "turning_orientation.rs"]
 mod turning_orientation;
 #[path = "verbs_1031b_arcwind.rs"]

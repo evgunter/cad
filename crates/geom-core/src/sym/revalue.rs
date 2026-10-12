@@ -141,6 +141,21 @@ pub fn revalue(node: SymId, env: &dyn Fn(ParamSymbol) -> Option<f64>) -> Option<
                 SymOp::Lit => Some(f64::from_bits(n.payload)),
                 SymOp::Pi => Some(f64::pi()),
                 SymOp::Add => Some(kid(0)? + kid(1)?),
+                SymOp::SumOnce => {
+                    let mut terms = vec![kid(1)?];
+                    let mut link = n.kids[0];
+                    loop {
+                        match sess.nodes.get(&link) {
+                            Some(prev) if prev.op == SymOp::SumOnce => {
+                                terms.push(memo.get(&prev.kids[1]).copied().flatten()?);
+                                link = prev.kids[0];
+                            }
+                            _ => break,
+                        }
+                    }
+                    terms.push(memo.get(&link).copied().flatten()?);
+                    Some(f64::sum_rounded_once(&terms))
+                }
                 SymOp::Sub => Some(kid(0)? - kid(1)?),
                 // `Div` mints `Mul(a, Inv(b))` with the quotient as its
                 // value; re-value it as the quotient it was.

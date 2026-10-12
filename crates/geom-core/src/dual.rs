@@ -595,6 +595,17 @@ impl<T: KinkJacobian> Real for Dual<T> {
         }
     }
 
+    /// Componentwise at `T`, so the value channel is the plain-`T`
+    /// sum's bits.
+    fn sum_rounded_once(terms: &[Self]) -> Self {
+        let values: Vec<T> = terms.iter().map(|t| t.value).collect();
+        let derivs: Vec<T> = terms.iter().map(|t| t.deriv).collect();
+        Self {
+            value: T::sum_rounded_once(&values),
+            deriv: T::sum_rounded_once(&derivs),
+        }
+    }
+
     /// `(aⁿ, n·aⁿ⁻¹·a')` — the value channel is `T::powi` verbatim, so it
     /// inherits `T`'s poison contract *exactly*: `f64`'s NaN-at-`n = 0`
     /// guard and the interval scalar's tight, decoration-preserving power

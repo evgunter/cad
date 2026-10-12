@@ -604,7 +604,7 @@ BOUNDS_ALLOWLIST=(
   # `props/quad_lane.rs`, and its fourteen occurrences are there under
   # the same ruling; `props.rs` keeps the assemblers, `QuadLane`,
   # `ShellDoor` and the wiring rows.
-  'crates/topo/src/props.rs 9 M5 PR 11, the certified-quadrature plumbing'
+  'crates/topo/src/props.rs 10 M5 PR 11, the certified-quadrature plumbing; the test-support door mass_properties_in_face_order is mass_properties with the face list handed in, at the same bound'
   # quad_lane.rs 14 -> 15: `closed_form` re-derives a closed-form
   # face's flux at the interval scalar, lifting the face's geometry
   # through `Interval::from_certified` (`Decide + CertifiedBounds`), and

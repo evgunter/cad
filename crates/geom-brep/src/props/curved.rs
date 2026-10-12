@@ -1219,10 +1219,7 @@ fn cylinder_face<T: Decide>(
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
     let chart = cylinder_chart(origin, axis, radius, loops, band)?;
-    let mut va = Vec3::new(T::zero(), T::zero(), T::zero());
-    for edges in loops {
-        va = va + loop_vector_area(edges, origin)?;
-    }
+    let va = loops_vector_area(loops, origin)?;
     let flux = radius.powi(2) * chart.area + (origin - Point3::origin()).dot(va);
     Ok(FaceContribution {
         flux,
@@ -1281,12 +1278,12 @@ fn cylinder_chart<T: Decide>(
 ) -> Result<CylinderChart<T>, PropsError> {
     let mut rims = Vec::new();
     let mut levels = Vec::new();
-    let mut length = T::zero();
+    let mut lines = Vec::new();
     // Per loop: its first rim's index in `rims`, and its line length.
     let mut spans: Vec<(usize, T)> = Vec::with_capacity(loops.len());
     for edges in loops {
         let first_rim = rims.len();
-        let length_before = length;
+        let first_line = lines.len();
         // The carriers first: an edge off the surface, or one this
         // closed form has no arm for, refuses as itself.
         let b = cylinder_boundary(origin, axis, radius, edges, band)?;
@@ -1298,7 +1295,7 @@ fn cylinder_chart<T: Decide>(
                 Premise::Inventory,
             )?;
             if let Curve3::Line { .. } = e.carrier {
-                length = length + (e.p1() - e.p0()).norm();
+                lines.push((e.p1() - e.p0()).norm());
             }
         }
         for rim in &b.rims {
@@ -1310,7 +1307,7 @@ fn cylinder_chart<T: Decide>(
             rims.push((v, t_sign::<T>(rim.d_u_sign) * rim.dt));
         }
         levels.extend(b.levels);
-        spans.push((first_rim, length - length_before));
+        spans.push((first_rim, T::sum_rounded_once(&lines[first_line..])));
     }
     let (lo, hi) = min_max(&levels)?;
     require_extent(Margin::of(hi - lo), band)?;
@@ -1319,7 +1316,7 @@ fn cylinder_chart<T: Decide>(
             what: "curved face without a rim (non-sphere)",
         });
     }
-    let winding = rims.iter().fold(T::zero(), |acc, &(_, du)| acc + du);
+    let winding = winding_of(&rims);
     require_zero(
         "props_chart_loops_closed",
         Margin::levered(winding, radius),
@@ -1329,11 +1326,13 @@ fn cylinder_chart<T: Decide>(
     let anchor = lo + (hi - lo) * T::from_f64(0.5);
     // One loop's anchored chart area and boundary length.
     let loop_chart = |rims: &[(T, T)], lines: T| {
-        rims.iter().fold((T::zero(), lines), |(a, l), &(v, du)| {
-            (a - (v - anchor) * du, l + radius * du.abs())
-        })
+        let area: Vec<T> = rims.iter().map(|&(v, du)| -((v - anchor) * du)).collect();
+        let length: Vec<T> = core::iter::once(lines)
+            .chain(rims.iter().map(|&(_, du)| radius * du.abs()))
+            .collect();
+        (T::sum_rounded_once(&area), T::sum_rounded_once(&length))
     };
-    let (area, length) = loop_chart(&rims, length);
+    let (area, length) = loop_chart(&rims, T::sum_rounded_once(&lines));
     if spans.len() > 1 {
         let holes = cylinder_holes(&rims, &spans, loop_chart, radius, band)?;
         require_holes_wound_against(
@@ -1344,6 +1343,24 @@ fn cylinder_chart<T: Decide>(
         )?;
     }
     Ok(CylinderChart { area, length })
+}
+
+/// The rims' net Δu, as the rounded-once sum.
+fn winding_of<T: Real>(rims: &[(T, T)]) -> T {
+    T::sum_rounded_once(&rims.iter().map(|&(_, du)| du).collect::<Vec<_>>())
+}
+
+/// Every loop's vector area ([`loop_vector_area`]) about `origin`,
+/// summed rounded-once over the loops.
+fn loops_vector_area<T: Decide>(
+    loops: &[&[LoopEdge<T>]],
+    origin: Point3<T>,
+) -> Result<Vec3<T>, PropsError> {
+    let per_loop = loops
+        .iter()
+        .map(|edges| loop_vector_area(edges, origin))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(Vec3::sum_rounded_once(&per_loop))
 }
 
 /// A cylinder face's holes: each ring that does not wind the cylinder
@@ -1363,7 +1380,7 @@ fn cylinder_holes<T: Decide>(
     for (i, &(start, lines)) in spans.iter().enumerate().skip(1) {
         let end = spans.get(i + 1).map_or(rims.len(), |&(next, _)| next);
         let ring = &rims[start..end];
-        let winding = ring.iter().fold(T::zero(), |acc, &(_, du)| acc + du);
+        let winding = winding_of(ring);
         if classify(
             "props_ring_contractible",
             Margin::levered(winding, radius),
@@ -1818,11 +1835,10 @@ fn cone_loops<T: Decide>(
         }
         require_cone_conic_spans(edges, band)?;
     }
-    let (mut ends, mut length, mut axial, mut va) =
-        (Vec::new(), T::zero(), T::zero(), Vec3::zero());
+    let (mut ends, mut lengths, mut vas) = (Vec::new(), Vec::new(), Vec::new());
     let mut per_loop = Vec::with_capacity(loops.len());
     for &edges in loops {
-        let mut loop_length = T::zero();
+        let first = lengths.len();
         for (e, next) in edges.iter().zip(edges.iter().cycle().skip(1)) {
             require_zero(
                 "props_loop_closed",
@@ -1831,18 +1847,17 @@ fn cone_loops<T: Decide>(
                 Premise::Inventory,
             )
             .map_err(cone_loop_refusal)?;
-            let l = cone_edge_length(e)?;
-            length = length + l;
-            loop_length = loop_length + l;
+            lengths.push(cone_edge_length(e)?);
             ends.push(slant(e.p0()));
             ends.push(slant(e.p1()));
         }
         let loop_va = loop_vector_area(edges, apex)?;
-        let loop_axial = axis.dot(loop_va);
-        axial = axial + loop_axial;
-        va = va + loop_va;
-        per_loop.push((loop_axial, loop_length));
+        vas.push(loop_va);
+        per_loop.push((axis.dot(loop_va), T::sum_rounded_once(&lengths[first..])));
     }
+    let length = T::sum_rounded_once(&lengths);
+    let axial = T::sum_rounded_once(&per_loop.iter().map(|&(a, _)| a).collect::<Vec<_>>());
+    let va = Vec3::sum_rounded_once(&vas);
     let (lo, hi) = min_max(&ends)?;
     let nappe = match (
         classify("props_cone_nappe", Margin::of(lo), band, PropsCheck::Exact)?,
@@ -2438,22 +2453,29 @@ fn cone_loop_winding<T: Decide>(
             (-step, (ends.1, ends.0))
         });
     }
-    let mut total = T::zero();
+    // `turned` is the running azimuth from the first vertex, positional
+    // by definition; the loop's total is the rounded-once sum of the
+    // same pieces, so it does not read where the loop starts.
+    let mut turned = T::zero();
+    let mut pieces = Vec::with_capacity(2 * edges.len());
     let mut vertices = Vec::with_capacity(edges.len());
     for (k, e) in edges.iter().enumerate() {
         let (step, ((_, start_apex), (end, end_apex))) = steps[k];
         vertices.push((
             e.traversal_ends().0,
-            if start_apex { None } else { Some(total) },
+            if start_apex { None } else { Some(turned) },
         ));
-        total = total + step;
+        turned = turned + step;
+        pieces.push(step);
         let ((start, next_apex), _) = steps[(k + 1) % steps.len()].1;
         if !end_apex && !next_apex {
-            total = total + turn(end, start);
+            let joint = turn(end, start);
+            turned = turned + joint;
+            pieces.push(joint);
         }
     }
     Ok(ConeWinding {
-        total,
+        total: T::sum_rounded_once(&pieces),
         arm,
         through_apex,
         vertices,
@@ -2663,12 +2685,12 @@ fn unanimous_rim_dir<T: Real>(rims: &[Rim<T>]) -> Option<Sign> {
         .then_some(first.d_u_sign)
 }
 
-/// The `Δu` a one-group rim set spans — the plain sum of the stored
-/// spans, asked only where a fold has already established one group
+/// The `Δu` a one-group rim set spans — the rounded-once sum of the
+/// stored spans, asked only where a fold has already established one group
 /// (one level, one direction). It decides nothing and records nothing; the
 /// deciding is [`require_rim_only_closed`]'s.
 fn span_sum<T: Real>(rims: &[Rim<T>]) -> T {
-    rims.iter().fold(T::zero(), |acc, r| acc + r.dt)
+    T::sum_rounded_once(&rims.iter().map(|r| r.dt).collect::<Vec<_>>())
 }
 
 /// The cone's azimuthal lever arm: the first rim's own radius
@@ -2771,14 +2793,14 @@ fn sphere_face<T: Decide>(
         radius,
         band,
     )?;
-    let mut solid = region;
+    let mut solid = vec![region];
     for ring in rings {
         let hole = solid_angle(center, ring, !sense);
         require_solid_angle("props_sphere_hole_area", hole, radius, band)?;
-        solid = solid - hole;
+        solid.push(-hole);
     }
-    let area = radius.powi(2) * solid;
-    let va = gauss.iter().fold(Vec3::zero(), |va, g| va + g.vector_area);
+    let area = radius.powi(2) * T::sum_rounded_once(&solid);
+    let va = Vec3::sum_rounded_once(&gauss.iter().map(|g| g.vector_area).collect::<Vec<_>>());
     let radial = radius * area;
     let radial = if sense { radial } else { -radial };
     Ok(FaceContribution {
@@ -2859,11 +2881,13 @@ fn solid_angle<T: Decide>(center: Point3<T>, lp: &SphereLoop<T>, left: bool) -> 
     // The apex: the centroid of those points, a sum of vectors of the
     // sphere's radius that leans into a small region, so its direction
     // is read to the points' own precision.
-    let apex = thirds
-        .iter()
-        .flat_map(|ends| ends.iter())
-        .fold(Vec3::zero(), |sum, &p| sum + p);
-    let mut fan = T::zero();
+    let apex = Vec3::sum_rounded_once(
+        &thirds
+            .iter()
+            .flat_map(|ends| ends.iter().copied())
+            .collect::<Vec<_>>(),
+    );
+    let mut fan = Vec::with_capacity(4 * lp.arcs.len());
     for (arc, ends) in lp.arcs.iter().zip(&thirds) {
         let delta = arc.span / pieces;
         // The carrier plane's offset along its (unit) axis, over the
@@ -2895,7 +2919,7 @@ fn solid_angle<T: Decide>(center: Point3<T>, lp: &SphereLoop<T>, left: bool) -> 
         let segment = T::from_f64(2.0) * k * g - d * f;
         for k in 0..3 {
             let wedge = triangle_solid_angle(apex, ends[k], ends[k + 1]);
-            fan = fan + segment + if stored_left { wedge } else { -wedge };
+            fan.push(segment + if stored_left { wedge } else { -wedge });
         }
     }
     // Close the fan across the rounding gap at each vertex, where one
@@ -2903,8 +2927,9 @@ fn solid_angle<T: Decide>(center: Point3<T>, lp: &SphereLoop<T>, left: bool) -> 
     for (i, arc) in lp.arcs.iter().enumerate() {
         let next = &lp.arcs[(i + 1) % lp.arcs.len()];
         let gap = triangle_solid_angle(apex, arc.at - center, next.from - center);
-        fan = if left { fan + gap } else { fan - gap };
+        fan.push(if left { gap } else { -gap });
     }
+    let fan = T::sum_rounded_once(&fan);
     let four_pi = tau + tau;
     let turns = ((gauss - fan) / four_pi + T::from_f64(0.5)).floor();
     let fixed = fan + four_pi * turns;
@@ -3056,7 +3081,7 @@ fn sphere_loop<T: Decide>(
         });
     }
     let normal = |p: Point3<T>| (p - center) / radius;
-    let mut curvature = T::zero();
+    let mut curvature = Vec::with_capacity(edges.len());
     let mut arcs = Vec::with_capacity(edges.len());
     for e in edges {
         let Curve3::Circle {
@@ -3098,11 +3123,7 @@ fn sphere_loop<T: Decide>(
         let span = e.t1 - e.t0;
         // `N·â` is the same at every point of the arc.
         let k = normal(from).dot(n_c) * span;
-        curvature = if e.forward {
-            curvature + k
-        } else {
-            curvature - k
-        };
+        curvature.push(if e.forward { k } else { -k });
         let tangent = |p: Point3<T>| {
             let d = n_c.cross(p - c_c);
             let d = d / d.norm();
@@ -3121,7 +3142,7 @@ fn sphere_loop<T: Decide>(
             arrive: tangent(at),
         });
     }
-    let mut corners = T::zero();
+    let mut corners = Vec::with_capacity(arcs.len());
     for (i, arc) in arcs.iter().enumerate() {
         let next = &arcs[(i + 1) % arcs.len()];
         require_on_loop(
@@ -3130,15 +3151,16 @@ fn sphere_loop<T: Decide>(
             band,
         )?;
         require_cusp_free(arc.arrive, next.depart, radius, band)?;
-        corners = corners
-            + normal(arc.at)
+        corners.push(
+            normal(arc.at)
                 .dot(arc.arrive.cross(next.depart))
-                .atan2(arc.arrive.dot(next.depart));
+                .atan2(arc.arrive.dot(next.depart)),
+        );
     }
     Ok(SphereLoop {
         arcs,
-        curvature,
-        corners,
+        curvature: T::sum_rounded_once(&curvature),
+        corners: T::sum_rounded_once(&corners),
         vector_area: loop_vector_area(edges, center)?,
     })
 }
@@ -3230,11 +3252,10 @@ fn side_of_sphere_loops<T: Decide>(
         [one] => pole_free_side(center, radius, axis, one, band),
         [outer, rings @ ..] => {
             let face = |left: bool| {
-                rings
-                    .iter()
-                    .fold(solid_angle(center, outer, left), |s, ring| {
-                        s - solid_angle(center, ring, !left)
-                    })
+                let parts: Vec<T> = core::iter::once(solid_angle(center, outer, left))
+                    .chain(rings.iter().map(|ring| -solid_angle(center, ring, !left)))
+                    .collect();
+                T::sum_rounded_once(&parts)
             };
             for (left, side) in [(true, Sign::Positive), (false, Sign::Negative)] {
                 if classify(
@@ -3458,7 +3479,7 @@ fn pole_side<T: Decide>(
         let lift = w.dot(pole);
         (t - pole * t.dot(pole)) * (T::one() - lift) + (w - pole * lift) * t.dot(pole)
     };
-    let mut turning = lp.corners;
+    let mut turning = vec![lp.corners];
     for (arc, c) in lp.arcs.iter().zip(circulations) {
         let full = classify(
             "props_sphere_pole_arc_full",
@@ -3475,8 +3496,9 @@ fn pole_side<T: Decide>(
             let half = T::pi() * T::from_f64(0.5) + (-d.dot(chord)).atan2(c * cross);
             c * (half + half)
         };
-        turning = turning + sweep;
+        turning.push(sweep);
     }
+    let turning = T::sum_rounded_once(&turning);
     Ok(
         match classify(
             "props_sphere_pole_winding",
@@ -4075,6 +4097,7 @@ fn torus_chart<T: Decide>(
         length: T::zero(),
     };
     let mut per_loop: Vec<(T, T)> = Vec::with_capacity(loops.len());
+    let mut fluxes = Vec::with_capacity(loops.len());
     for edges in loops {
         // Every edge is certified rim or meridian first, so a face this
         // inventory has no arm for refuses as itself.
@@ -4143,8 +4166,8 @@ fn torus_chart<T: Decide>(
         // walk began: the turns are counted from the loop's lowest.
         let mut rims: Vec<(T, T, T)> = Vec::new();
         let mut running = None;
-        let (mut wind_u, mut wind_v) = (T::zero(), T::zero());
-        let mut length = T::zero();
+        let (mut wind_u, mut wind_v) = (Vec::new(), Vec::new());
+        let mut length = Vec::new();
         for step in &steps {
             match *step {
                 TorusStep::Rim {
@@ -4173,26 +4196,26 @@ fn torus_chart<T: Decide>(
                     let turns = (at - angle).periodic_branch(T::tau());
                     let v = angle + T::tau() * turns;
                     running = Some(v);
-                    wind_u = wind_u + du;
-                    length = length + rho * du.abs();
+                    wind_u.push(du);
+                    length.push(rho * du.abs());
                     rims.push((angle, turns, du));
                 }
                 TorusStep::Meridian { dv } => {
                     running = running.map(|at| at + dv);
-                    wind_v = wind_v + dv;
-                    length = length + r * dv.abs();
+                    wind_v.push(dv);
+                    length.push(r * dv.abs());
                 }
             }
         }
         require_zero(
             "props_torus_lift_closed_u",
-            Margin::levered(wind_u, major),
+            Margin::levered(T::sum_rounded_once(&wind_u), major),
             band,
             Premise::Inventory,
         )?;
         require_zero(
             "props_torus_lift_closed_v",
-            Margin::levered(wind_v, minor),
+            Margin::levered(T::sum_rounded_once(&wind_v), minor),
             band,
             Premise::Inventory,
         )?;
@@ -4208,16 +4231,14 @@ fn torus_chart<T: Decide>(
         let (lo, hi) = min_max(&lifted.iter().map(|&(v, _)| v).collect::<Vec<_>>())?;
         let anchor = lo + (hi - lo) * half;
         let (f_m, g_m) = (f(anchor), g(anchor));
-        let (flux, area) = lifted
-            .iter()
-            .fold((T::zero(), T::zero()), |(fl, ar), &(v, du)| {
-                (fl - (f(v) - f_m) * du, ar - (g(v) - g_m) * du)
-            });
-        per_loop.push((area, length));
-        total.flux = total.flux + flux;
-        total.area = total.area + area;
-        total.length = total.length + length;
+        let flux: Vec<T> = lifted.iter().map(|&(v, du)| -((f(v) - f_m) * du)).collect();
+        let area: Vec<T> = lifted.iter().map(|&(v, du)| -((g(v) - g_m) * du)).collect();
+        per_loop.push((T::sum_rounded_once(&area), T::sum_rounded_once(&length)));
+        fluxes.push(T::sum_rounded_once(&flux));
     }
+    total.flux = T::sum_rounded_once(&fluxes);
+    total.area = T::sum_rounded_once(&per_loop.iter().map(|&(a, _)| a).collect::<Vec<_>>());
+    total.length = T::sum_rounded_once(&per_loop.iter().map(|&(_, l)| l).collect::<Vec<_>>());
     if per_loop.len() > 1 {
         require_holes_wound_against(
             "props_chart_area_side",
@@ -4241,10 +4262,7 @@ fn torus_face<T: Decide>(
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
     let chart = torus_chart(center, axis, major, minor, loops, band)?;
-    let mut va = Vec3::new(T::zero(), T::zero(), T::zero());
-    for edges in loops {
-        va = va + loop_vector_area(edges, center)?;
-    }
+    let va = loops_vector_area(loops, center)?;
     Ok(FaceContribution {
         flux: chart.flux + (center - Point3::origin()).dot(va),
         area: chart.area.abs(),

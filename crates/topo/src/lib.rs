@@ -301,7 +301,9 @@ pub mod test_support {
     // purpose — a guard that reached for the constant the builder uses
     // would be comparing that constant against itself.
     pub use crate::null::with_ring_root;
-    pub use crate::props::{FaceTerm, mass_properties_with_face_terms};
+    pub use crate::props::{
+        FaceTerm, mass_properties_in_face_order, mass_properties_with_face_terms, relabeled,
+    };
     pub use crate::test_support_fixtures::{
         CubeOps, CylFrame, CylKey, FaceGeometry, NullStrutListing, Prism, PrismOps, RingFaceOps,
         StraddleSeat, arc_chain_over_the_jump, assert_every_chord_named_by_both_rules, brick,

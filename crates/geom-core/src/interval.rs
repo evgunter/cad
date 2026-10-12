@@ -371,6 +371,15 @@ pub fn div_down(num: f64, den: f64) -> f64 {
     if q.is_certified() { q.lo() } else { num / den }
 }
 
+/// The rounded-once sum of enclosures ([`Real::sum_rounded_once`] at
+/// the interval scalar: the lower ends summed exactly and rounded down,
+/// the upper ends up), for the certification files that may not name
+/// `Real`.
+#[must_use]
+pub fn sum_enclosures(terms: &[Interval]) -> Interval {
+    <Interval as Real>::sum_rounded_once(terms)
+}
+
 /// The larger of two `f64` bounds, `NaN` if either is: [`Real::max`] at
 /// `f64`, for the certification files that may not name `Real`.
 /// `f64::max` would drop a refused bound.
@@ -678,6 +687,35 @@ impl Real for Interval {
                 self.0.decoration().min(Decoration::Def),
             ))
         }
+    }
+
+    /// The lower ends summed exactly and rounded down, the upper ends
+    /// summed exactly and rounded up; the decoration is the terms'
+    /// least, and an unbounded result caps it at `Dac`, as addition
+    /// does. Poison propagates as in addition: any NaI gives NaI, else
+    /// any empty term gives empty.
+    fn sum_rounded_once(terms: &[Self]) -> Self {
+        use crate::exact::{Rounding, sum_rounded};
+        if terms.iter().any(|t| t.0.is_nai()) {
+            return Self(DInterval::nai());
+        }
+        if terms.iter().any(|t| t.0.is_empty()) {
+            return Self(DInterval::empty());
+        }
+        let los: Vec<f64> = terms.iter().map(|t| t.0.lo()).collect();
+        let his: Vec<f64> = terms.iter().map(|t| t.0.hi()).collect();
+        let dec = terms
+            .iter()
+            .map(|t| t.0.decoration())
+            .min()
+            .unwrap_or(Decoration::Com);
+        Self(
+            DInterval::from_bounds(
+                sum_rounded(&los, Rounding::Down),
+                sum_rounded(&his, Rounding::Up),
+            )
+            .with_dec_capped(dec),
+        )
     }
 
     /// **Overrides** the defaulted squaring algorithm with the backend's

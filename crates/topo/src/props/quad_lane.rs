@@ -5,6 +5,7 @@ use geom_brep::props::spiric;
 use geom_brep::props::{FaceContribution, LoopEdge, PropsError, loop_vector_area};
 use geom_brep::{Pcurve, SpiricImage};
 use geom_core::Tol;
+use geom_core::exact::{Rounding, sum_rounded};
 use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
 // The compound `Decide + Bounds` bound below is a RATIFIED seam
@@ -225,14 +226,30 @@ pub(super) fn closed_form<T: Decide + geom_core::CertifiedBounds>(
 fn loops_vector_area(
     loops: &[Vec<LoopEdge<Interval>>],
 ) -> Result<geom_core::Vec3<Interval>, PropsError> {
-    let mut va = geom_core::Vec3::zero();
+    let mut per_loop = Vec::with_capacity(loops.len());
     for edges in loops {
-        let Some(anchor) = edges.first().map(|e| e.carrier.eval(e.t0)) else {
+        let Some(anchor) = least_point(edges.iter().map(|e| e.carrier.eval(e.t0))) else {
             return Err(PropsError::DegenerateFace);
         };
-        va = va + loop_vector_area(edges, anchor)?;
+        per_loop.push(loop_vector_area(edges, anchor)?);
     }
-    Ok(va)
+    Ok(geom_core::Vec3::sum_rounded_once(&per_loop))
+}
+
+/// The point of `points` least in its coordinates' bracket ends, read
+/// in `x, y, z` order — a choice that does not read the order the
+/// points come in, which is what lets a loop's anchor be a point of the
+/// loop without being where its walk starts.
+fn least_point(points: impl Iterator<Item = Point3<Interval>>) -> Option<Point3<Interval>> {
+    let key = |p: &Point3<Interval>| [p.x, p.y, p.z].map(|c| (c.lo(), c.hi()));
+    points.min_by(|a, b| {
+        key(a)
+            .iter()
+            .zip(key(b).iter())
+            .map(|(x, y)| x.0.total_cmp(&y.0).then(x.1.total_cmp(&y.1)))
+            .find(|o| o.is_ne())
+            .unwrap_or(core::cmp::Ordering::Equal)
+    })
 }
 
 /// `surface` carried by `−by`: every point-valued datum moved, every
@@ -382,10 +399,11 @@ fn planar_face_about(
     centre: Point3<Interval>,
 ) -> Result<FaceContribution<Interval>, PropsError> {
     let anchor = loops_anchor(loops)?;
-    let mut va = geom_core::Vec3::zero();
-    for edges in loops {
-        va = va + loop_vector_area(edges, anchor)?;
-    }
+    let per_loop = loops
+        .iter()
+        .map(|edges| loop_vector_area(edges, anchor))
+        .collect::<Result<Vec<_>, _>>()?;
+    let va = geom_core::Vec3::sum_rounded_once(&per_loop);
     Ok(FaceContribution {
         flux: (anchor - centre).dot(va),
         area: va.norm(),
@@ -406,16 +424,17 @@ pub(super) fn polygon_face_about(
     rings: &[Vec<Point3<Interval>>],
     centre: Point3<Interval>,
 ) -> Result<FaceContribution<Interval>, PropsError> {
-    let Some(&anchor) = rings.first().and_then(|ring| ring.first()) else {
+    let Some(anchor) = least_point(rings.iter().flatten().copied()) else {
         return Err(PropsError::DegenerateFace);
     };
-    let mut va = geom_core::Vec3::zero();
+    let mut terms = Vec::new();
     for ring in rings {
         for (i, &p) in ring.iter().enumerate() {
             let q = ring[(i + 1) % ring.len()];
-            va = va + (p - anchor).cross(q - anchor) * Interval::point(0.5);
+            terms.push((p - anchor).cross(q - anchor) * Interval::point(0.5));
         }
     }
+    let va = geom_core::Vec3::sum_rounded_once(&terms);
     Ok(FaceContribution {
         flux: (anchor - centre).dot(va),
         area: va.norm(),
@@ -485,10 +504,11 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
         });
     };
     let eps = tol.eps();
-    let mut va = geom_core::Vec3::new(T::zero(), T::zero(), T::zero());
-    for (edges, _) in loops {
-        va = va + loop_vector_area(edges, *origin)?;
-    }
+    let per_loop = loops
+        .iter()
+        .map(|(edges, _)| loop_vector_area(edges, *origin))
+        .collect::<Result<Vec<_>, _>>()?;
+    let va = geom_core::Vec3::sum_rounded_once(&per_loop);
     // The flux about the chart's own origin, `r²·A_s`, is where the
     // face is; only this term carries its position. Taken about a centre
     // it is `(origin − centre)·A⃗` in interval arithmetic, a lever the
@@ -745,14 +765,12 @@ fn spiric_face<T: Decide + geom_core::CertifiedBounds>(
     spiric::spiric_face_rounds::<T>(&face, tol.eps(), band, window)
 }
 
-/// A loop set's anchor: the first carrier's start point — the convention
-/// [`planar_face_about`] and [`spiric_cap`] share, so a plane's flux
-/// lever is a point of the face whichever lane reads it.
+/// A loop set's anchor: the least of its carriers' start points
+/// ([`least_point`]) — the convention [`planar_face_about`] and
+/// [`spiric_cap`] share, so a plane's flux lever is a point of the face
+/// whichever lane reads it.
 fn loops_anchor(loops: &[Vec<LoopEdge<Interval>>]) -> Result<Point3<Interval>, PropsError> {
-    loops
-        .first()
-        .and_then(|edges| edges.first())
-        .map(|e| e.carrier.eval(e.t0))
+    least_point(loops.iter().flatten().map(|e| e.carrier.eval(e.t0)))
         .ok_or(PropsError::DegenerateFace)
 }
 
@@ -765,24 +783,21 @@ fn spiric_cap(
     centre: Point3<Interval>,
 ) -> Result<spiric::SpiricFaceQ, PropsError> {
     let anchor = loops_anchor(loops)?;
-    let mut closed_va = [Interval::zero(); 3];
+    let mut closed_va = Vec::new();
     let mut spirics = Vec::new();
-    let mut perimeter = 0.0;
+    let mut perimeter = Vec::new();
     for e in loops.iter().flatten() {
-        perimeter += length_bound(e)?;
+        perimeter.push(length_bound(e)?);
         match spiric_edge_q(e, anchor, None) {
             Some(q) => spirics.push(q),
-            None => {
-                let va = rv(loop_vector_area(core::slice::from_ref(e), anchor)?);
-                closed_va = [0, 1, 2].map(|k| closed_va[k] + va[k]);
-            }
+            None => closed_va.push(loop_vector_area(core::slice::from_ref(e), anchor)?),
         }
     }
     Ok(spiric::SpiricFaceQ {
-        closed_va,
+        closed_va: rv(geom_core::Vec3::sum_rounded_once(&closed_va)),
         spirics,
         lever: rv(anchor - centre),
-        perimeter,
+        perimeter: sum_rounded(&perimeter, Rounding::Up),
         wall: None,
     })
 }
@@ -814,12 +829,12 @@ fn spiric_wall(
         rims: Vec::new(),
         meridians: Vec::new(),
     };
-    let mut closed_va = [Interval::zero(); 3];
+    let mut closed_va = Vec::new();
     let mut spirics = Vec::new();
-    let mut perimeter = 0.0;
+    let mut perimeter = Vec::new();
     for h in halves {
         let e = &h.edge;
-        perimeter += length_bound(e)?;
+        perimeter.push(length_bound(e)?);
         let signed = |x: Interval| if e.forward { x } else { -x };
         match (&h.image, &e.carrier) {
             (
@@ -898,14 +913,13 @@ fn spiric_wall(
                 ));
             }
         }
-        let va = rv(loop_vector_area(core::slice::from_ref(e), c)?);
-        closed_va = [0, 1, 2].map(|k| closed_va[k] + va[k]);
+        closed_va.push(loop_vector_area(core::slice::from_ref(e), c)?);
     }
     Ok(spiric::SpiricFaceQ {
-        closed_va,
+        closed_va: rv(geom_core::Vec3::sum_rounded_once(&closed_va)),
         spirics,
         lever: rv(c - centre),
-        perimeter,
+        perimeter: sum_rounded(&perimeter, Rounding::Up),
         wall: Some(chart),
     })
 }
@@ -970,8 +984,8 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
         }
     };
     let mut polygon: Vec<(f64, f64)> = Vec::with_capacity(outer.len());
-    let mut boundary_defect = 0.0f64;
-    let mut perimeter = 0.0f64;
+    let mut boundary_defect = Vec::new();
+    let mut perimeter = Vec::new();
     let lifted = crate::pcurves::lifted_images(body, hes);
     for ((le, he), lifted) in outer.iter().zip(hes).zip(&lifted) {
         let (Some(cache), Some(image)) = (body.pcurve(*he), lifted) else {
@@ -1022,8 +1036,8 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
         }
         // Metric boundary length bound + the map-residual defect.
         let len = carrier_metric_length(&le.carrier, t0, t1)?;
-        perimeter += len;
-        boundary_defect += len * Interval::from_certified(cache.certificate().envelope).mag();
+        perimeter.push(len);
+        boundary_defect.push(len * Interval::from_certified(cache.certificate().envelope).mag());
     }
     // The rectangle certificate: hull of the traversal polygon,
     // every vertex on a corner, and the shoelace equal to ±the
@@ -1036,11 +1050,15 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
         v0 = v0.min(y);
         v1 = v1.max(y);
     }
-    let mut shoelace = 0.0f64;
+    let (perimeter, boundary_defect) = (
+        sum_rounded(&perimeter, Rounding::Up),
+        sum_rounded(&boundary_defect, Rounding::Up),
+    );
+    let mut shoelace = Vec::with_capacity(polygon.len());
     for i in 0..polygon.len() {
         let (xa, ya) = polygon[i];
         let (xb, yb) = polygon[(i + 1) % polygon.len()];
-        shoelace += xa * yb - xb * ya;
+        shoelace.push(xa * yb - xb * ya);
         if (xa != u0 && xa != u1) && (ya != v0 && ya != v1) {
             return Err(PropsError::QuadratureUnsupported {
                 what: "a NURBS-face boundary vertex sits strictly inside the UV \
@@ -1049,7 +1067,7 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
             });
         }
     }
-    shoelace *= 0.5;
+    let shoelace = sum_rounded(&shoelace, Rounding::Nearest) * 0.5;
     let rect_area = (u1 - u0) * (v1 - v0);
     let winding = if shoelace == rect_area {
         1.0
@@ -1667,8 +1685,8 @@ mod tests {
         /// **All or nothing.** The notch307 prism with a disc planted in
         /// its top has planes bounded by lines and planes bounded by a
         /// circle, so no face takes the polygon route: its re-derivation
-        /// is each face's own closed form about the corner, summed in walk
-        /// order, bit for bit. The prism's slanted edges end off their
+        /// is each face's own closed form about the corner, summed
+        /// rounded once, bit for bit. The prism's slanted edges end off their
         /// vertex points, so a line-bounded plane read as its polygon
         /// would not match. The prism alone takes the polygon route.
         #[test]
@@ -1702,18 +1720,17 @@ mod tests {
                 "a disc in the top keeps every face off the polygon route"
             );
             let centre = corner_of(&body, lane, &runs).unwrap();
-            let (mut flux, mut area) = (Interval::zero(), Interval::zero());
-            let mut polygon = Interval::zero();
+            let (mut flux, mut area, mut polygon) = (Vec::new(), Vec::new(), Vec::new());
             for run in &runs {
                 let (face, surface) = resolve_face(&body, run.face);
                 let loops = face_loops(&body, face).unwrap();
                 let (c, _) =
                     super::super::closed_form(surface, &loops, face.sense, band, centre, None)
                         .unwrap();
-                flux = flux + c.flux;
-                area = area + c.area;
-                polygon = polygon
-                    + match vertex_rings(&body, surface, &flat_loops(&body, face).unwrap(), lane)
+                flux.push(c.flux);
+                area.push(c.area);
+                polygon.push(
+                    match vertex_rings(&body, surface, &flat_loops(&body, face).unwrap(), lane)
                         .unwrap()
                     {
                         Some(rings) => {
@@ -1722,8 +1739,11 @@ mod tests {
                                 .flux
                         }
                         None => c.flux,
-                    };
+                    },
+                );
             }
+            let sum = geom_core::interval::sum_enclosures;
+            let (flux, area, polygon) = (sum(&flux), sum(&area), sum(&polygon));
             let bits = |x: Interval| (x.is_certified(), x.lo().to_bits(), x.hi().to_bits());
             assert_ne!(
                 bits(polygon),

@@ -668,6 +668,33 @@ pub trait Real:
     ///   the value channel hulls.
     fn select_le_zero(self, when_le: Self, when_gt: Self) -> Self;
 
+    /// **The rounded-once sum of a sequence** — the one summation every
+    /// fold over a SET or a CYCLE uses (the edges of a loop, the loops
+    /// of a face, the faces of a body), so that the result does not
+    /// read the order the terms are stored in.
+    ///
+    /// It belongs on `Real` rather than on [`crate::Decide`]: it is
+    /// value-channel arithmetic every scalar must answer, and no
+    /// decision is taken in it. Declared, never defaulted: a sequential
+    /// default would make a new scalar's folds order-dependent without
+    /// anything noticing.
+    ///
+    /// Per-instantiation semantics, each a function of the MULTISET of
+    /// terms:
+    ///
+    /// - `f64`: the exact sum rounded once to nearest
+    ///   ([`crate::exact::sum_rounded`]).
+    /// - `Interval`: the exact sum of the lower ends rounded down and of
+    ///   the upper ends rounded up — never wider than the sequential
+    ///   sum, and the decoration the sequential sum would carry.
+    /// - `Dual<T>`: componentwise at `T`, so the value channel is the
+    ///   plain-`T` sum's bits.
+    /// - `Probe`: `f64`'s.
+    /// - `Sym<T>`: the value channel is `T`'s; the node records the
+    ///   additions in the order given, so the expression's SHAPE is the
+    ///   one thing here that is not order-free.
+    fn sum_rounded_once(terms: &[Self]) -> Self;
+
     /// Range reduction into one period: `self − period·floor(self/period)`
     /// — for `period > 0`, the representative of `self` modulo `period`
     /// lying in `[0, period)` up to rounding (see below). The intended
@@ -2019,6 +2046,10 @@ impl Real for f64 {
         } else {
             when_gt
         }
+    }
+
+    fn sum_rounded_once(terms: &[Self]) -> Self {
+        crate::exact::sum_rounded(terms, crate::exact::Rounding::Nearest)
     }
 }
 

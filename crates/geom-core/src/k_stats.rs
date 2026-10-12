@@ -1742,6 +1742,11 @@ impl Real for Probe {
     fn select_le_zero(self, when_le: Self, when_gt: Self) -> Self {
         Self(Real::select_le_zero(self.0, when_le.0, when_gt.0))
     }
+
+    fn sum_rounded_once(terms: &[Self]) -> Self {
+        let values: Vec<f64> = terms.iter().map(|t| t.0).collect();
+        Self(f64::sum_rounded_once(&values))
+    }
 }
 
 /// `Probe` brackets itself exactly, like `f64` (it IS an f64 with a
