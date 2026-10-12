@@ -922,3 +922,80 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
 - 2026-10-12 16:33Z — **PR 4866 conflicts with main** in `from-f64-sites.tsv`: 4860 deleted rows that 4866 edits.
   - Build B is merging main in and will re-run the gates and the digest on the merged tree. Its CI on the merged head is the base-containing-the-fix check that the new back-to-back rule asks for.
   - My first local digest attempt was void: the merge into my worktree had silently failed on this conflict, so the run tested 4866's own tip. **Lesson:** confirm `git log` shows the merge commit before trusting a merged-tree run. — (NURBS orchestrator)
+- 2026-10-12 17:24Z — **PR 4866 merges (`d5c5f5bbf4`).** The span-derivative scale and net have one home in `geom_core::spline::derivative`.
+  - **Routed:** 7 sites, including step-import's `recognize.rs`.
+  - **Left on their own association, with reasons:** `hull.rs`, `offset_derive.rs` and `quad.rs` `raw_deriv`.
+  - The association is pinned bitwise at f64, Interval and Dual.
+  - The private surface net is renamed `skipping_surface_derivative_net`.
+  - The P1 design row `rational-speed-bounds-have-two-recipes-across-four-sites` is filed.
+  - CI ran on a base containing the 4879 fix, and the merged-tree digest passes at all three ε.
+- 2026-10-12 17:24Z — **Design fork dispatched:** the rational derivative bound (P1, `design: true`).
+  - Two designers were dispatched together under `docs/prompts/designer.md`, with the same problem statement and no candidate solutions.
+  - Blinding was done per `docs/DESIGN-FORK-PROTOCOL.md` (protocol `5dedb0a41a`); the mapping is on `analysis/design-fork/nurbs-rational-speed-bound`.
+  - If the reports agree and it is not Ev's fork, the orchestrator rules. Otherwise it goes to an `[ev]` PR with A/B unlabelled.
+  - Tracker PR 4884 merged. — (NURBS orchestrator)
+- 2026-10-12 17:40Z — **PR 4887** (build A, the digest dispute column) is up and green at `8d260be3`.
+  - **The change:** `counts_line` prints `disp=` (`theorems_disputed`). It reads 0 on all twelve Sym lines at all three ε.
+  - **Answer to 4869's NOTE-4:** a probe with 4834's arm choice reverted also reads `disp` 0. So the roughly 1.8k extra frozen check sites cost no dispute detection on these lofts.
+  - **Not added:** `retried`, because it is zero by construction (the digest's `with_session` has no retry ladder). This is better than the brief.
+  - Single STYLE reviewer: session_012pqiv3hQFynNCn6ToMCDZw.
+- 2026-10-12 17:31Z — **Design fork, rational derivative bound: A's first report is recorded** (blinded; B is pending).
+  - **Recommendation:** one bound, the per-span quotient-term bound, as one geom-core door with `speed_upper_bound`/`SupSpeed` twins; the weight-ratio recipe is retired on the sup side.
+  - **Zero-span predicate:** none needed, because walking nonempty spans makes every active pair's difference positive.
+  - **Premise corrected:** three recipes at six sites, not two at four.
+  - **Measured:** the per-span bound's median is 1.26× the true sup, against 19.7× for the weight-ratio recipe.
+  - **Off-question:** `chart_stretch_inf`'s rational lower bound rests on an unproven B-spline extension of Floater. — (NURBS orchestrator)
+- 2026-10-12 17:45Z — **Rational derivative bound ruled; the designers converged.** B's first report (17:41Z) agrees with A on substance.
+  - **The bound:** one per-span pair-term bound. It is proven, needs no centre, and is tightest on every curve measured. Its geometric mean is 4.0× the true sup against 46.5× for ratio²; over 1600 curves, A measured a median of 1.26.
+  - **Retire ratio² on the sup side:** Floater's theorem is for rational Bézier curves, and nothing proves its extension to B-splines.
+  - **No zero-span predicate:** a zero or NaN knot gap is unrepresentable on a `KnotVector`, so all four spellings are dead.
+  - **The premise was too narrow:** there are three recipes at six or seven sites, including `enclose.rs` and `mesh`'s `patch_bound`.
+  - **The only difference was the home**, geom-core window versus geom. A's typed-window door answers B's raw-slice objection.
+  - **Ruled by the orchestrator, no `[ev]` PR:** the designers agree and no ratified text is touched. The blinding record is on the analysis branch; this is not a DESIGN-FORK-LOG row, since only forks that go to Ev are logged there.
+  - **Build C is dispatched** on `nurbs/one-rational-speed-bound`: the pair term stated once in geom-core, `speed_upper_bound`/`stretch_sup` in geom, every sup site routed, ratio² retired on the sup side, and the dead predicates removed. Tier single FULL per PR, with up to two stacked PRs.
+  - **To be filed in that PR:**
+    - `chart_stretch_inf`'s unproven rational inf (P2), with B's proven twin;
+    - `mesh` recipe-A cells (P3). — (NURBS orchestrator)
+- 2026-10-12 17:45Z — **A reviewer failed to start (my miss).** The PR 4887 STYLE reviewer was created with the short SHA `8d260be3`. Cloud sessions need the full 40-character SHA, and it failed `ref_not_found` with no notice to me; Ev caught it. I archived it and re-dispatched with `8d260be354a74038d4e111b449ad232e86dc13e3` (session_01Sk84Fad117KcnbGXLiqba5, connected). All other dispatches today used full SHAs. **Rule:** run `git rev-parse` on the head before every `create_session`, and confirm the session is connected after dispatch. — (NURBS orchestrator)
+- 2026-10-12 17:50Z — **PR 4887 STYLE review** (session_01Sk84Fad117KcnbGXLiqba5): mergeable.
+  - `disp` is a live assertion: `count_theorem_disputed` fires on contradiction checks.
+  - The re-cut is exactly 12 lines, inserting `disp=0` only.
+  - The `retried` omission is right.
+  - **Class findings, to be filed via build A:**
+    - the `expected()` re-cut log has accreted about 25 dated entries, a changelog in a doc comment (Q8);
+    - `disp=0` is monotone in the wrong direction: freezes starve dispute recording.
+  - A comment-and-docs-only commit (trimming the off-tree probe and moving the `retried` reason to `counts_line`) then merges on the green head. — (NURBS orchestrator)
+- 2026-10-12 18:16Z — **PR 4887 merges (`c1514de8c7`).** The digest gains a `disp=` column, which reads 0 on all Sym lines.
+  - The style pass is comments only: the off-tree probe is trimmed and the `retried` reason sits at `counts_line`.
+  - **Filed:**
+    - `the-thread-count-digests-re-cut-log-is-a-changelog` (P4, E);
+    - `disp-zero-can-be-satisfied-by-freezes` (P4, M; a SYM/DECIDE seam when built).
+  - Build A is dispatched on the changelog trim (`nurbs/digest-log-trim`). Tier: orchestrator's read. It lands before build C's rational-bound re-cut, to keep their conflict small. — (NURBS orchestrator)
+
+- **2026-10-12 18:40Z — PR 4892 (rational speed bound, part 1) FULL reviewer dispatched.**
+  - Session: session_01L9BiRwMrCxHYyp24sk3b5t, at `d7484a0edcd8d7358a44fd88270c05c1e649dc0e`. The full SHA came from `git rev-parse`, and the session is confirmed connected.
+  - Tier: single FULL.
+  - Claims to falsify:
+    - door soundness at f64 and Interval, swept against a sampled sup;
+    - the window variant;
+    - the NaN poison and the Sym memo rule;
+    - the routed sites (shell, offset_derive, pcurve_cache) keep their guarantees;
+    - the tests go red under three mutants;
+    - the digest is unchanged;
+    - deletion completeness. — (NURBS orchestrator)
+
+- **2026-10-12 19:20Z — PR 4892 FULL review: APPROVE-WITH-FIXES, no MAJOR.**
+  - **The bound holds.** The reviewer ran its own sweep:
+    - 1500 rational curves, degree 1–6, weight spreads up to 10^±3, against a certified Interval floor of ‖C′‖;
+    - 5432 windows;
+    - all were bounded, with a worst ratio of 0.9999999999999983.
+    - The suites gave 5652/5652, and the 1e-9 digest was green.
+  - **Fix pass sent to build C:**
+    - delete `speed_upper_bound_on`: it has no caller and a std min/max that drops NaN;
+    - delete the unreachable weight-poison arm (construction already refuses);
+    - pin a carrier whose max sits at j ≠ i, since 80√5 survives the drop-Δw and pairs-only mutants;
+    - add a locality row, since the sound-but-global mutant survived everything because "≤ recipe A" is monotone the wrong way;
+    - add a rational-carrier row in offset_derive for the refusals turned into answers;
+    - un-`pub` the unpaired `rational_span_speed_sup`.
+  - **Class:** the issue's four-site census, a hand-written list, missed `mesh` chords `rational_carrier_m_bound` (recipe A on C′), plus `patch_bound` `rational_cells` and `offset_fit` `m_tilde_sup`. Part 2 takes them or files a row for each, with a hit list in its body.
+  - **Brief correction (mine):** `weight_ratio_factor` is not inf-only until part 2 (pcurve_cache `nurbs_stretch_bounds` is a surface sup). — (NURBS orchestrator)

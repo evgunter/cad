@@ -9,7 +9,6 @@ refs: [VERBS-C5ARMS, 1048]
 priority: P1
 cost: H
 design: true
-needs_ev: true
 branch: germ/plane-torus-chord-circles
 pr: 4847
 ---
@@ -162,12 +161,12 @@ tube's top and bottom circles across the cylinder `ρ = R`. The lily now
 stops past the join, at the interior-loop guard on its two tube walls
 (`work/orbit/the-lilys-stem-and-arch-walls-have-no-certificate-arm.md`).
 
-## The question for Ev (PR 4895)
+## The corner bar's lens (Ev, PR 4895, 2026-10-12)
 
-U-T4 (the spiric chord) waits on the torus spec's Q1: how the fat corner
-bar's lens is joined truly. Both designers recommend tracing it through
-the chord's existing arc rule (`arc_leaving`, `oriented_arc`), with
-U-T4's row 3 as its pin and no guard in any layer. On main the matcher
-already pairs B5's corners on one oval, and the same class builds true
-bodies on the sphere, cylinder and cone. A rule refusing vertex-only
-components would refuse up to 634 six-op runs that build today.
+The torus spec's Q1 is answered: the fat corner bar's lens is traced
+through the chord's existing arc rule (`arc_leaving`, `oriented_arc`),
+with U-T4's row 3 as its pin and no guard in any layer. On main the
+matcher already pairs B5's corners on one oval, and the same class
+builds true bodies on the sphere, cylinder and cone; a rule refusing
+vertex-only components would refuse up to 634 six-op runs that build
+today. U-T4 is unblocked.
