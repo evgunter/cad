@@ -366,6 +366,7 @@ fn the_envelope_covers_an_admitted_error() {
             // samples carry theirs: a few ulps of the torus's size.
             let rounding = 16.0 * f64::EPSILON * (MAJOR + MINOR + 1.0);
             let envelope = cache.certificate().envelope;
+            eprintln!("R2VILL {what}: sup-env {:e} rounding {:e} env {:e}", sup - envelope, rounding, envelope);
             assert!(
                 envelope + rounding >= sup,
                 "{what}: envelope {envelope:e} under the sampled residual {sup:e}"

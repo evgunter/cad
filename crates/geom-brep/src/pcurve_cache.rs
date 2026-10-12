@@ -4373,6 +4373,14 @@ fn harmonic_sup<T: Real>(a: Vec3<T>, b: Vec3<T>) -> T {
     let two = T::one() + T::one();
     let (aa, bb) = (a.norm_squared(), b.norm_squared());
     let (m, q) = ((aa + bb) / two, (aa - bb) / two);
+    match option_env!("R2_MUT") {
+        Some("rms") => return m.sqrt(),
+        Some("noinner") => return (m + q.powi(2) + a.dot(b).powi(2)).sqrt(),
+        Some("vmax") => return a.norm().max(b.norm()),
+        Some("qneg") => { let q = (bb - aa) / two; return (m + (q.powi(2) + a.dot(b).powi(2)).sqrt()).sqrt(); }
+        Some("noab") => return (m + q.powi(2).sqrt()).sqrt(),
+        _ => {}
+    }
     (m + (q.powi(2) + a.dot(b).powi(2)).sqrt()).sqrt()
 }
 
@@ -4382,6 +4390,11 @@ fn harmonic_sup_scalar<T: Real>(a: T, b: T) -> T {
     #[cfg(test)]
     if harmonic_sum_mutant("scalar") {
         return a.abs() + b.abs();
+    }
+    match option_env!("R2_MUT") {
+        Some("smax") => return a.abs().max(b.abs()),
+        Some("srms") => return ((a.powi(2) + b.powi(2)) / (T::one() + T::one())).sqrt(),
+        _ => {}
     }
     (a.powi(2) + b.powi(2)).sqrt()
 }
@@ -8633,6 +8646,10 @@ mod envelope_lemma_fuzz;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod harmonic_sup_rows;
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic, clippy::all)]
+mod r2_probes;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
