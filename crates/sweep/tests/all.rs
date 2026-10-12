@@ -301,6 +301,8 @@ mod band_planar_cut_off_shapes;
 mod band_planar_mitre;
 #[path = "band_planar_oblique_fillet.rs"]
 mod band_planar_oblique_fillet;
+#[path = "band_reads_three_ways.rs"]
+mod band_reads_three_ways;
 #[path = "band_ruled_cap_ring.rs"]
 mod band_ruled_cap_ring;
 #[path = "band_ruled_d_hole.rs"]
