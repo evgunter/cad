@@ -54,3 +54,22 @@ values are one node). The counted decisions move, so the goldens that
 count decisions re-cut. Nothing reaches these sites with a variable
 weight or knot today: the skinned arc wall (`the-skin-computes-its-values-in-t`)
 is the first that will.
+
+## More sites, and the NURBS speed meter (NURBS, PR 4834's review, 2026-10-12)
+
+PR 4834's FULL review found two more sites of this class:
+
+- `geom-brep/src/props/loop_area.rs` `nurbs_vector_area`: `*w != 1.0`
+  on the channel sends a carrier down the polynomial lane;
+- `geom-brep/src/nurbs_iso.rs` `interior_iso_u`: `along_u_constant`,
+  decided on the channel, gives `omega = 1`.
+
+The NURBS speed meter's arm choice (`NurbsCurve3::speed_lower_bound`,
+`crates/geom/src/curves/nurbs.rs`) now reads
+`SpanLocate::plain_constant` (PR 4834): the integral arm only when every
+weight is the same plain constant (an `f64`, a point `Interval`, a
+`Dual` with zero derivative, a `Sym` literal), the rational arm
+otherwise. That is sound and stricter than a `T`-margin, so it should
+move to this class's primitive when that lands, or the primitive should
+subsume it.
+

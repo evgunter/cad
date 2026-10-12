@@ -1876,6 +1876,13 @@ impl<T: SpanLocate> EdgeCurve<T> {
     /// contract, bitwise the certification schedule's middle sample),
     /// a chart image keeps its chart, its parent's image and its wrap flag.
     ///
+    /// A `TangentIntersection` child is the restriction, not yet its
+    /// description: the must-carry rule
+    /// ([`crate::must_carry_over_edge`]) meters its sagitta over the
+    /// child's own extent, so a short child may owe a chart image, or a
+    /// refusal, instead. `topo`'s `Body::split_edge` asks the rule of
+    /// each child before certifying it.
+    ///
     /// The children are *specs*, not certified carriers: the caller
     /// must run each through [`EdgeCurve::certify`] against its own
     /// endpoints (D4 ¶2 — the restriction arithmetic is verified, not

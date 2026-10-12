@@ -20,7 +20,6 @@ lanes in flight are expected to close more, so the track is not split.
 |---|---|---|---|
 | P2 | `a-thin-walled-hollow-ships-while-a-slab-as-thin-refuses` | M | a thin-walled hollow ships while a slab as thin refuses: retire PR 4636's sole-shell gate; thinness is judged by pairs alone (Ev, PR 4690) |
 | P2 | `a-pinch-the-seams-do-not-link-keeps-its-cones-on-separate-keys` | M | a pinch whose keys no seam ties keeps its cones on separate point keys |
-| P3 | `two-pinch-poses-escalate-at-eps-1e-6` | M | pose 1 at ε 1e-6: can a cross-germ tie between pairs that share no germ change the greedy matching (a proof task; pose 2 is honest) |
 
 Parked, and not counted:
 
@@ -59,7 +58,8 @@ Parked, and not counted:
    `a-cube-less-a-pinched-operand-…` and `a-curved-notch-at-a-corner-pinch-refuses-join-desync-…`
    (done, PR 4777).
 5. **The E tail** (done, PR 4714: five rows closed; `two-pinch-poses-…`
-   stays open as a proof task about pose 1's matcher tie).
+   closed with PR 4769: among straight, mutual germs with K > 2 the
+   matcher's pair order cannot move the matching).
 
 ## The intent-refactor hold (Ev, `[ev]` PR 3990, 2026-10-03)
 

@@ -322,8 +322,11 @@ fn l_corner_caps_merge_at_the_recipe_door_tier3_green() {
 /// The crossing slots with the SECOND slot subtracted first. Where the
 /// first slot's floor edge (y = 1, z = 0.5) meets the second slot's
 /// bottom rim (x = 1, z = 0.5), the vertex lies on both operand edges,
-/// so it is the seam vertex of those two edges — not a junction of seam
-/// lines, which is a vertex no operand edge passes through. The second
+/// so it is the edge crossing of those two edges (N2), each with its
+/// sense: the floor edge enters or leaves the second slot, and the
+/// second slot's rim lies in the first cavity's closed body on both
+/// sides, on its floor. Not a junction of seam lines, which is a vertex
+/// no operand edge passes through. The second
 /// slot's rim reaches the result in pieces split off around a stretch
 /// the subtract killed, and is named a piece of that rim.
 #[test]
@@ -381,8 +384,11 @@ fn crossing_slots_swapped_order_names_the_floor_corner_for_both_edges() {
     assert!(
         matches!(
             corner.path.as_slice(),
-            [RoleSeg::Seam { a, b }] if a.kind == EntityKind::Edge && b.kind == EntityKind::Edge
+            [RoleSeg::EdgeCrossing { a, a_sense, b, b_sense: editor_core::Sense::Inside }]
+                if a.kind == EntityKind::Edge && b.kind == EntityKind::Edge && a_sense.crosses()
         ),
-        "the floor corner is the seam vertex of two operand edges: {corner}"
+        "the floor corner is the edge crossing of two operand edges, the first \
+         slot's floor edge crossing the second's body and the second's rim \
+         inside the first's: {corner}"
     );
 }

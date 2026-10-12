@@ -964,8 +964,10 @@ pub fn face_clearance<T: Decide + Bounds>(
 /// [`face_clearance`] with its margin already formed: the door the
 /// surgery's planar strip meter decides through, whose margin is the
 /// closed form of the screen's `gap − setback` over a strip's bounding
-/// rectangle rather than one subtraction (`surgery::strip_clearance`).
-/// `gap` is the measurement the refusal reports beside it.
+/// rectangle rather than one subtraction (`surgery::strip_clearance`),
+/// and the reach's, whose margin is a support vertex's depth inside the
+/// strip its band replaces (`reach::screened`). `gap` is the
+/// measurement the refusal reports beside it.
 ///
 /// # Errors
 ///

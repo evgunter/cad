@@ -128,14 +128,14 @@ fn reach<T: Real>(surface: &geom::Surface<T>) -> Option<T> {
     }
 }
 
-/// Bounds on the curve's speed, metres per unit of its parameter, and on
-/// its curvature. A conic's come from [`Conic`], which reads the
-/// semi-axes as magnitudes in either order (an ellipse stored minor
-/// first is as legal as one stored major first: `geom::Curve3::Ellipse`).
+/// Bounds on the curve's speed, metres per unit of its parameter
+/// ([`crate::carrier_speed::speed_hi`]), and on its curvature, a conic's
+/// from [`Conic`].
 fn speed_bound<T: Real>(carrier: &geom::Curve3<T>) -> Option<(T, T)> {
+    let speed = crate::carrier_speed::speed_hi(carrier)?;
     match *carrier {
-        geom::Curve3::Line { dir, .. } => Some((dir.norm(), T::zero())),
-        _ => Conic::of(carrier).map(|c| (c.speed_hi(), c.curvature_hi())),
+        geom::Curve3::Line { .. } => Some((speed, T::zero())),
+        _ => Conic::of(carrier).map(|c| (speed, c.curvature_hi())),
     }
 }
 

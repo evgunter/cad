@@ -809,6 +809,14 @@ enum OpSide<K> {
 }
 
 impl<K: Copy> OpSide<K> {
+    /// Operand `side`'s key `k`.
+    fn on(side: topo::Operand, k: K) -> Self {
+        match side {
+            topo::Operand::A => OpSide::A(k),
+            topo::Operand::B => OpSide::B(k),
+        }
+    }
+
     /// The operand this key is read against, and the key in its space.
     fn of<'o, 'a, T: Decide>(
         self,
@@ -1919,56 +1927,70 @@ fn name_boolean_vertices<T: Decide>(
         }
         upstream_name(op.table, op.node, ent(0, EntityKey::Vertex(k))).map(Some)
     };
-    // The operand identity of one result-arena vertex key, if its
-    // operand's table names it.
-    let operand_identity =
-        |k: VertexKey| -> Result<Option<(StableName, bool, Parent)>, NamingError> {
-            let (side, _) = operand_key(naming, inv_vertices, k)?;
-            Ok(named_in(side)?.map(|u| {
-                let parent = side.map(EntityKey::Vertex).parent();
-                (
-                    name1(EntityKind::Vertex, node, side.wrap(a, b, u.name)),
-                    u.tied,
-                    parent,
-                )
-            }))
-        };
+    // The vertex named as operand vertex `side`, its upstream `u`.
+    let identity_of = |side: OpSide<VertexKey>, u: Upstream| {
+        let parent = side.map(EntityKey::Vertex).parent();
+        (
+            name1(EntityKind::Vertex, node, side.wrap(a, b, u.name)),
+            u.tied,
+            parent,
+        )
+    };
     // Candidate seam-vertex names, grouped for multiplicity: the key
     // is the (A, B) parent pair, the value (descends-from-a-tie,
     // vertices).
     let mut senses = CrossingSenses::new();
     let mut groups: BTreeMap<RoleSeg, (bool, Vec<(VertexKey, Along)>)> = BTreeMap::new();
+    // Operand vertices → the result vertices that are each of them:
+    // several where the boolean leaves several at one corner (null
+    // copies), a tie, as nothing tells them apart.
+    let mut corners: BTreeMap<StableName, (bool, Parent, Vec<super::table::EntityRef>)> =
+        BTreeMap::new();
     for (v, _) in body.vertices() {
-        // Operand pass-downs: the kept key itself, then its dead
-        // fusion partners nearest first (`fused_partners`). The KEPT
-        // key's identity wins when both operands fused here, and
-        // along a chain of fusions the key nearest the survivor does:
-        // `operand_identity` checks the graft destination first, and
-        // the kept key is A's exactly because `zip_seam` keeps the
-        // outer cycle's vertex.
-        let mut identity = operand_identity(v)?;
-        if identity.is_none() {
-            for &dead in fused.partners.get(&v).into_iter().flatten() {
-                identity = operand_identity(dead)?;
-                if identity.is_some() {
-                    break;
-                }
+        // A vertex that is one of an operand's own vertices is that
+        // vertex (N2), read at every operand key the boolean leaves at
+        // the point: the kept key, then its fusion partners nearest
+        // first (`fused_partners`; A's where both operands fused here,
+        // as `zip_seam` keeps the outer cycle's vertex), then the rest
+        // A's first (`operand_vertex_keys`), then the vertex the
+        // reduction's contact rows pair one of them with
+        // (`contact_identity`).
+        let keys = operand_vertex_keys(naming, inv_vertices, &fused, v)?;
+        let mut identity = None;
+        let kept = core::iter::once(&v).chain(fused.partners.get(&v).into_iter().flatten());
+        let mut order = Vec::new();
+        for &k in kept {
+            order.push(operand_key(naming, inv_vertices, k)?.0);
+        }
+        order.extend(keys.iter().map(|&(o, k)| OpSide::on(o, k)));
+        for side in order {
+            if let Some(u) = named_in(side)? {
+                identity = Some(identity_of(side, u));
+                break;
             }
         }
+        if identity.is_none()
+            && let Some((side, u)) =
+                contact_identity(v, &keys, &naming.reduction_contacts, named_in)?
+        {
+            identity = Some(identity_of(side, u));
+        }
         if let Some((name, from_tie, parent)) = identity {
-            // A vertex carried through whole: a group of one.
-            rec.record(&name, vec![ent(0, EntityKey::Vertex(v))], parent);
-            put(t, tie, from_tie, name, ent(0, EntityKey::Vertex(v)))?;
+            let at = corners
+                .entry(name)
+                .or_insert((from_tie, parent, Vec::new()));
+            at.0 |= from_tie;
+            at.2.push(ent(0, EntityKey::Vertex(v)));
             continue;
         }
         // What the boolean classified here: the senses a crossing is
         // named by, and the evidence a union reads for a vertex its fold
         // names some other way (`CrossingSenses`).
-        let at_v = senses_at(naming, inv_vertices, &fused, v, a, b)?;
+        let at_v = senses_at(naming, &keys, a, b)?;
         let crossed: Vec<(StableName, Sense)> = at_v
             .iter()
-            .filter(|s| !s.unoriented)
-            .filter_map(|s| s.sense.map(|sense| (s.name.clone(), sense)))
+            .filter(|s| !(s.unoriented && s.sense.crosses()))
+            .map(|s| (s.name.clone(), s.sense))
             .collect();
         if !crossed.is_empty() {
             senses.insert(v, crossed);
@@ -2035,76 +2057,22 @@ fn name_boolean_vertices<T: Decide>(
             list.sort_unstable();
             list.dedup();
         }
-        // Contact-record partner: the reduction's own declared
-        // contacts (mint-time, PRE-remap — `reduction_contacts`). Each
-        // row speaks each operand's own CLONE keys — its A column A-clone
-        // keys, its B column B-clone keys — and `operand_key` puts this
-        // vertex's result key into the same space, whichever clone the
-        // arena is. A vertex with no seam structure of its own finds its
-        // coincident operand partner here — recorded knowledge, never
-        // re-measured. Two shapes have one: a residual crossing whose
-        // seam was consumed (shared-plane overlaps), and a vertex minted
-        // on one operand's edge where the other's vertex touches it with
-        // nothing zipped AT that vertex — in any result kind, a seamed
-        // one included, since a zip elsewhere in the body does not reach
-        // it. The touch comes in both orientations, so the partner is
-        // read on whichever side the vertex's key belongs to.
-        //
-        // EVERY row for this vertex is read, not the first: a vertex
-        // coincident with several vertices of the other operand has a
-        // row for each, and its name must not depend on which one the
-        // reduction wrote first (`one_partner`).
-        let rc = &naming.reduction_contacts;
-        let (partner_a, partner_b): (Option<Upstream>, Option<Upstream>) =
-            match operand_key(naming, inv_vertices, v)?.0 {
-                OpSide::A(ka) => {
-                    let named = rc
-                        .vv
-                        .iter()
-                        .filter(|r| r.a == ka)
-                        .map(|r| named_in(OpSide::B(r.b)))
-                        .collect::<Result<Vec<_>, _>>()?;
-                    (None, one_partner(v, named.into_iter().flatten().collect())?)
-                }
-                OpSide::B(kb) => {
-                    let named = rc
-                        .vv
-                        .iter()
-                        .filter(|r| r.b == kb)
-                        .map(|r| named_in(OpSide::A(r.a)))
-                        .collect::<Result<Vec<_>, _>>()?;
-                    (one_partner(v, named.into_iter().flatten().collect())?, None)
-                }
-            };
-        from_tie |= partner_b.as_ref().is_some_and(|u| u.tied);
-        from_tie |= partner_a.as_ref().is_some_and(|u| u.tied);
-        let partner_b_inner: Option<NameRef> = partner_b.map(|u| u.name);
-        let partner_a_inner: Option<NameRef> = partner_a.map(|u| u.name);
         // The A side of the pair is always an A-descended name and the
         // B side always a B-descended one: every arm draws its two
         // components from different sources, so `Seam{x, x}` — a
         // well-formed name for the wrong thing — has no arm to come
-        // from. The contact-record partners are bound in the
-        // scrutinee, not guarded and unwrapped, so the compiler
-        // carries that.
-        let pair = match (
-            a_edges.as_slice(),
-            b_edges.as_slice(),
-            partner_a_inner.as_ref(),
-            partner_b_inner.as_ref(),
-        ) {
-            ([ae], [be], _, _) => (ae.clone(), be.clone()),
+        // from.
+        let pair = match (a_edges.as_slice(), b_edges.as_slice()) {
+            ([ae], [be]) => (ae.clone(), be.clone()),
             // A pure seam-junction vertex (M4 PR 5: declared merges
             // can consume every operand-descended edge at a crossing
             // vertex): the incident seam edges' face parents determine
             // it when they agree on ONE (A, B) pair.
-            ([], [], _, _) if a_faces.len() == 1 && b_faces.len() == 1 => {
+            ([], []) if a_faces.len() == 1 && b_faces.len() == 1 => {
                 (a_faces[0].clone(), b_faces[0].clone())
             }
-            ([ae], [], _, _) if b_faces.len() == 1 => (ae.clone(), b_faces[0].clone()),
-            ([], [be], _, _) if a_faces.len() == 1 => (a_faces[0].clone(), be.clone()),
-            ([ae], [], _, Some(pb)) => (ae.clone(), pb.clone()),
-            ([], [be], Some(pa), _) => (pa.clone(), be.clone()),
+            ([ae], []) if b_faces.len() == 1 => (ae.clone(), b_faces[0].clone()),
+            ([], [be]) if a_faces.len() == 1 => (a_faces[0].clone(), be.clone()),
             // A seam JUNCTION (M4 PR 5: declared merges can consume
             // every operand-descended edge at a crossing): the vertex
             // where k ≥ 2 seam LINES meet. Its name is the path of the
@@ -2115,7 +2083,7 @@ fn name_boolean_vertices<T: Decide>(
             // single edge is its parent; and so is a point edges of both
             // operands run through, one of them on one side, where no
             // edge pair is.
-            (aes, bes, _, _)
+            (aes, bes)
                 if seam_lines.len() >= 2
                     && match (aes.len(), bes.len()) {
                         (0, 0) => true,
@@ -2141,14 +2109,14 @@ fn name_boolean_vertices<T: Decide>(
             // Written to a witness: an ordinary declared union reached
             // exactly this shape — one operand-descended edge on the A
             // side, none on the B side, and, everything above having
-            // already run, no single B face and no contact-record partner
-            // to supply the other parent. The vertex is half-decided, the
-            // body is sound and the recipe is legal, so what is missing is
-            // a rule. Maximal edges join that witness's vertex away, and
-            // no document reaches the arm now
+            // already run, no single B face to supply the other parent.
+            // The vertex is half-decided, the body is sound and the
+            // recipe is legal, so what is missing is a rule. Maximal
+            // edges join that witness's vertex away, and no document
+            // reaches the arm now
             // (`work/wire/a-merged-face-with-several-same-side-constituents-has-no-chord-rule.md`).
             //
-            // **Its mirror (`([], [_], None, _)`) is not here, and the
+            // **Its mirror (`([], [_])`) is not here, and the
             // reason is the finish's asymmetry, scoped to ZIPPED
             // vertices.** The witness is a vertex whose B structure a
             // shared plane consumed: Eq. 15.3 lumps every B on-sector to
@@ -2157,8 +2125,8 @@ fn name_boolean_vertices<T: Decide>(
             // keeps A's vertex where the two meet. The mirror needs B's
             // lone edge surviving where A's structure was consumed, which
             // that lumping does not produce. A vertex nothing zipped
-            // (a touch) is not covered by this argument; its parent comes
-            // from the contact-record partner on either side, and on a
+            // (a touch) is not covered by this argument; the vertex its
+            // contact rows pair it with names it, on either side, and on a
             // straight edge the output stage joins it away. Two kinds of
             // row hold the sides: `swapping_the_operands_swaps_the_sides_of_every_name`
             // (in `emit_boolean_vertex_keys`) holds the two sides
@@ -2169,7 +2137,7 @@ fn name_boolean_vertices<T: Decide>(
             // each name belongs to. A shape nobody has reached is not a
             // shape known to be legal, so the mirror stays in the residue
             // below.
-            ([_], [], _, _) => return Err(NamingError::SeamVertexParentage { vertex: v }),
+            ([_], []) => return Err(NamingError::SeamVertexParentage { vertex: v }),
             // The unenumerated residue, which stays an emission bug. A
             // catch-all is the preimage of every case nobody has named
             // — `a_edges.len() >= 2 && b_edges.len() >= 2` among them —
@@ -2181,60 +2149,51 @@ fn name_boolean_vertices<T: Decide>(
                 ));
             }
         };
-        // The vertex's head: an edge crossing a face is a crossing with
-        // the edge's sense, two edges crossing a crossing with both
-        // senses, and anything else — a touch included, where an edge
-        // neither enters nor leaves the other operand — a seam of its two
-        // parents.
+        // The vertex's head: an edge meeting a face is a crossing with
+        // the edge's sense, two edges meeting a crossing with both
+        // senses, and a point on one seam line a seam of its two faces.
         let (pa, pb) = pair;
         let sense = |side, edge: &NameRef| sense_of(&at_v, side, edge);
-        let senses = match (pa.kind, pb.kind) {
-            (EntityKind::Edge, EntityKind::Face) => (sense(topo::Operand::A, &pa)?, None),
-            (EntityKind::Face, EntityKind::Edge) => (None, sense(topo::Operand::B, &pb)?),
-            (EntityKind::Edge, EntityKind::Edge) => {
-                (sense(topo::Operand::A, &pa)?, sense(topo::Operand::B, &pb)?)
-            }
-            _ => (None, None),
-        };
-        let (seg, along) = match (pa.kind, pb.kind, senses) {
-            (EntityKind::Edge, EntityKind::Face, (Some(sense), None)) => (
+        let (seg, along) = match (pa.kind, pb.kind) {
+            (EntityKind::Edge, EntityKind::Face) => (
                 RoleSeg::Crossing {
                     edge: edge_line(&pa),
+                    sense: sense(topo::Operand::A, &pa)?,
                     face: pb,
-                    sense,
                 },
                 Along::A(pa),
             ),
-            (EntityKind::Face, EntityKind::Edge, (None, Some(sense))) => (
+            (EntityKind::Face, EntityKind::Edge) => (
                 RoleSeg::Crossing {
                     edge: edge_line(&pb),
+                    sense: sense(topo::Operand::B, &pb)?,
                     face: pa,
-                    sense,
                 },
                 Along::B(pb),
             ),
-            (EntityKind::Edge, EntityKind::Edge, (Some(a_sense), Some(b_sense))) => (
+            (EntityKind::Edge, EntityKind::Edge) => (
                 RoleSeg::EdgeCrossing {
                     a: edge_line(&pa),
-                    a_sense,
+                    a_sense: sense(topo::Operand::A, &pa)?,
                     b: edge_line(&pb),
-                    b_sense,
+                    b_sense: sense(topo::Operand::B, &pb)?,
                 },
                 Along::A(pa),
             ),
-            _ => (
-                RoleSeg::Seam {
-                    a: edge_line(&pa),
-                    b: edge_line(&pb),
-                },
-                Along::Either(pa, pb),
-            ),
+            (EntityKind::Face, EntityKind::Face) => {
+                (RoleSeg::Seam { a: pa, b: pb }, Along::Nowhere)
+            }
+            _ => return Err(bug("a seam vertex's parents are neither edges nor faces")),
         };
         // Pieces of one line crossed alike share a name, and rank along
         // the line, each read on its own piece.
         let slot = groups.entry(seg).or_insert((false, Vec::new()));
         slot.0 |= from_tie;
         slot.1.push((v, along));
+    }
+    for (name, (from_tie, parent, ents)) in corners {
+        rec.record(&name, ents.clone(), parent);
+        mint_candidates(t, tie, from_tie, name, ents)?;
     }
     for (seg, (from_tie, verts)) in groups {
         let base = name1(EntityKind::Vertex, node, seg);
@@ -2258,10 +2217,7 @@ fn name_boolean_vertices<T: Decide>(
             let on = match along {
                 Along::A(e) => crossed_edge(e, a.table).map(|k| (a, k, e)),
                 Along::B(e) => crossed_edge(e, b.table).map(|k| (b, k, e)),
-                Along::Either(pa, pb) => match crossed_edge(pa, a.table) {
-                    Some(k) => Some((a, k, pa)),
-                    None => crossed_edge(pb, b.table).map(|k| (b, k, pb)),
-                },
+                Along::Nowhere => None,
             };
             let Some((op, k, parent)) = on else {
                 crossings.clear();
@@ -2292,11 +2248,11 @@ fn name_boolean_vertices<T: Decide>(
 }
 
 /// The edge a seam vertex is ranked along: an A-side edge, a B-side
-/// one, or the first of a seam's two parents that is an edge.
+/// one, or none, for a point on a seam line.
 enum Along {
     A(NameRef),
     B(NameRef),
-    Either(NameRef, NameRef),
+    Nowhere,
 }
 
 /// What a boolean fused, read once per boolean: each result vertex's
@@ -2395,42 +2351,32 @@ fn operand_vertex_keys(
 struct EdgeSense {
     side: topo::Operand,
     name: StableName,
-    /// `None` where the edge does not cross there.
-    sense: Option<Sense>,
+    sense: Sense,
     /// The edge is a seam with no first side to read it along, so a
-    /// sense it would carry is no fact of the names ([`oriented`]).
+    /// sense that crosses is no fact of the names ([`oriented`]).
     unoriented: bool,
 }
 
-/// **The senses at result vertex `v`** (N2): each operand edge with a
-/// piece the kernel classified beside the vertex
-/// ([`topo::EdgePieceClass`]), with its sense against the other
-/// operand's closed body along the edge as [`crossed_edge_orientation`]
-/// reads it, and `None` where it does not cross there — both sides of
-/// the vertex lie in the closed body, or both outside it.
-///
-/// The vertex is read at its own key and at every key fused into it,
-/// each in its operand's clone. A piece `In` or `On` lies in the closed
-/// body. A side of the vertex with no piece counts as outside it where
-/// the vertex is the operand edge's own end on that side, so no portion
-/// of the edge lies there.
+/// **The senses at the result vertex whose operand keys are `keys`**
+/// (N2, [`operand_vertex_keys`]): each operand edge with a piece the
+/// kernel classified beside the vertex ([`topo::EdgePieceClass`]), with
+/// its sense against the other operand's closed body along the edge as
+/// [`crossed_edge_orientation`] reads it. A piece `In` or `On` lies in
+/// the closed body.
 ///
 /// # Errors
 ///
 /// [`NamingError::Emission`] where one side of the vertex holds pieces
-/// of one edge on both sides of the other operand, or where a side with
-/// edge beyond the vertex has no classified piece: a row the boolean
-/// owed is missing, not a fact of the edge.
+/// of one edge on both sides of the other operand, or holds no
+/// classified piece: a vertex that is not an operand's own holds the
+/// edge on both sides, so a row the boolean owed is missing.
 fn senses_at<T: Decide>(
     naming: &topo::BooleanNaming,
-    inv_vertices: &BTreeMap<VertexKey, VertexKey>,
-    fused: &Fused,
-    v: VertexKey,
+    keys: &BTreeSet<(topo::Operand, VertexKey)>,
     a: &OperandCtx<'_, T>,
     b: &OperandCtx<'_, T>,
 ) -> Result<Vec<EdgeSense>, NamingError> {
     let bug = |what| NamingError::Emission { what };
-    let keys = operand_vertex_keys(naming, inv_vertices, fused, v)?;
     // (side, edge) → (the sides of the vertex in the closed body,
     // before it and after it).
     let mut sides: BTreeMap<(topo::Operand, EdgeKey), [BTreeSet<bool>; 2]> = BTreeMap::new();
@@ -2446,30 +2392,25 @@ fn senses_at<T: Decide>(
             topo::Operand::A => a,
             topo::Operand::B => b,
         };
-        // A side with no piece lies past the edge's own end there.
-        let (start, end) = edge_ends(op.body, edge)?;
-        let one = |set: &BTreeSet<bool>, end_here: VertexKey| {
-            side_in_body(set, keys.contains(&(side, end_here)))
-        };
         let name = op
             .table
             .name_of(&ent(0, EntityKey::Edge(edge)))
             .ok_or(bug("a classified operand edge is not named"))?
             .clone();
-        let sense = match (one(&before, start)?, one(&after, end)?) {
-            (false, true) => Some(Sense::Enters),
-            (true, false) => Some(Sense::Leaves),
-            _ => None,
+        let sense = match (side_in_body(&before)?, side_in_body(&after)?) {
+            (false, true) => Sense::Enters,
+            (true, false) => Sense::Leaves,
+            (false, false) => Sense::Outside,
+            (true, true) => Sense::Inside,
         };
         let forward = crossed_edge_orientation(op.body, op.table, edge, &name)?;
-        let sense = match forward {
-            Some(false) => sense.map(Sense::flipped),
-            _ => sense,
-        };
         out.push(EdgeSense {
             side,
             name,
-            sense,
+            sense: match forward {
+                Some(false) => sense.flipped(),
+                _ => sense,
+            },
             unoriented: forward.is_none(),
         });
     }
@@ -2478,19 +2419,16 @@ fn senses_at<T: Decide>(
 
 /// **Whether one side of a vertex lies in the other operand's closed
 /// body** along a crossed edge, from the classes of the edge's pieces
-/// there (`true` for `In` or `On`): the one class read, or outside where
-/// no piece lies there because the edge ends at the vertex
-/// (`ends_here`).
+/// there (`true` for `In` or `On`).
 ///
 /// # Errors
 ///
-/// [`NamingError::Emission`] where the edge runs on past the vertex but
-/// no piece of it there was classified — a row the boolean owed, not a
-/// fact of the edge — or where its pieces there read both ways.
-fn side_in_body(classes: &BTreeSet<bool>, ends_here: bool) -> Result<bool, NamingError> {
+/// [`NamingError::Emission`] where no piece there was classified — a
+/// row the boolean owed, not a fact of the edge — or where its pieces
+/// there read both ways.
+fn side_in_body(classes: &BTreeSet<bool>) -> Result<bool, NamingError> {
     let bug = |what| NamingError::Emission { what };
     match classes.len() {
-        0 if ends_here => Ok(false),
         0 => Err(bug(UNCLASSIFIED_SIDE)),
         1 => Ok(classes.contains(&true)),
         _ => Err(bug(
@@ -2499,9 +2437,8 @@ fn side_in_body(classes: &BTreeSet<bool>, ends_here: bool) -> Result<bool, Namin
     }
 }
 
-/// A crossed edge runs on past the crossing with no piece classified.
-const UNCLASSIFIED_SIDE: &str =
-    "a crossing's edge runs on past the crossing on a side the boolean classified no piece of";
+/// A crossed edge has a side at the crossing with no piece classified.
+const UNCLASSIFIED_SIDE: &str = "a crossing's edge has a side the boolean classified no piece of";
 
 #[cfg(test)]
 mod side_tests {
@@ -2509,23 +2446,20 @@ mod side_tests {
 
     use super::{NamingError, UNCLASSIFIED_SIDE, side_in_body};
 
-    /// **A side of a crossing with no classified piece is outside only
-    /// where the edge ends there** (N2): past its own end no portion of
-    /// the edge lies on that side; where it runs on, a missing class is a
-    /// row the boolean owed, and refuses.
+    /// **A side of a crossing with no classified piece refuses** (N2):
+    /// a vertex that is not an operand's own holds the edge on both
+    /// sides, so a missing class is a row the boolean owed.
     #[test]
-    fn a_side_with_no_classified_piece_is_outside_only_past_the_edges_end() {
+    fn a_side_with_no_classified_piece_refuses() {
         use std::collections::BTreeSet;
 
-        let none = BTreeSet::new();
-        assert!(!side_in_body(&none, true).unwrap());
         assert!(matches!(
-            side_in_body(&none, false),
+            side_in_body(&BTreeSet::new()),
             Err(NamingError::Emission { what }) if what == UNCLASSIFIED_SIDE
         ));
-        assert!(side_in_body(&BTreeSet::from([true]), false).unwrap());
-        assert!(!side_in_body(&BTreeSet::from([false]), true).unwrap());
-        assert!(side_in_body(&BTreeSet::from([true, false]), false).is_err());
+        assert!(side_in_body(&BTreeSet::from([true])).unwrap());
+        assert!(!side_in_body(&BTreeSet::from([false])).unwrap());
+        assert!(side_in_body(&BTreeSet::from([true, false])).is_err());
     }
 }
 
@@ -2589,7 +2523,7 @@ mod fused_tests {
 }
 
 /// **The sense at a vertex of `side`'s edge `edge`**, among the
-/// vertex's [`senses_at`]: `None` where it does not cross there.
+/// vertex's [`senses_at`].
 ///
 /// # Errors
 ///
@@ -2601,7 +2535,7 @@ fn sense_of(
     senses: &[EdgeSense],
     side: topo::Operand,
     edge: &StableName,
-) -> Result<Option<Sense>, NamingError> {
+) -> Result<Sense, NamingError> {
     let bug = |what| NamingError::Emission { what };
     let mut read = senses.iter().filter(|s| s.side == side && s.name == *edge);
     let first = read.next().ok_or(bug(
@@ -2612,27 +2546,64 @@ fn sense_of(
             "edges of one name read different senses at one crossing",
         ));
     }
-    if first.unoriented && first.sense.is_some() {
+    if first.unoriented && first.sense.crosses() {
         return Err(bug(UNORIENTED));
     }
     Ok(first.sense)
 }
 
-/// The one contact-record partner a seam vertex is named by, from the
+/// **The operand vertex the reduction's contact rows pair result
+/// vertex `vertex` with**, where no operand names any of its own keys
+/// `keys` ([`operand_vertex_keys`]): the other operand's vertex in
+/// every vertex-pair row (`ReductionContacts::vv`) that holds one of
+/// them. A vertex-on-face row (`a_on_b`, `b_on_a`) is not read: it
+/// holds the resting vertex's own key and a face, no second vertex key
+/// at the point to pair with, so it can name a result vertex only
+/// through that key, which `keys` already reads.
+fn contact_identity(
+    vertex: VertexKey,
+    keys: &BTreeSet<(topo::Operand, VertexKey)>,
+    contacts: &topo::ReductionContacts,
+    named_in: impl Fn(OpSide<VertexKey>) -> Result<Option<Upstream>, NamingError>,
+) -> Result<Option<(OpSide<VertexKey>, Upstream)>, NamingError> {
+    let mut named = Vec::new();
+    for row in &contacts.vv {
+        let partner = if keys.contains(&(topo::Operand::A, row.a)) {
+            OpSide::B(row.b)
+        } else if keys.contains(&(topo::Operand::B, row.b)) {
+            OpSide::A(row.a)
+        } else {
+            continue;
+        };
+        if let Some(u) = named_in(partner)? {
+            named.push((partner, u));
+        }
+    }
+    one_partner(vertex, named)
+}
+
+/// The one contact-record partner a vertex is named by, from the
 /// named partners of EVERY row that pairs it: none is no partner, one
 /// name — however many rows carry it — is that partner (tie-descended
 /// if any row's is), and several distinct names refuse
 /// ([`NamingError::SeamVertexPartners`]) rather than choose.
-fn one_partner(vertex: VertexKey, named: Vec<Upstream>) -> Result<Option<Upstream>, NamingError> {
-    let mut distinct: Vec<Upstream> = Vec::new();
-    for u in named {
-        match distinct.iter_mut().find(|d| d.name == u.name) {
-            Some(d) => d.tied |= u.tied,
-            None => distinct.push(u),
+fn one_partner<K: Copy>(
+    vertex: VertexKey,
+    named: Vec<(OpSide<K>, Upstream)>,
+) -> Result<Option<(OpSide<K>, Upstream)>, NamingError> {
+    let mut distinct: Vec<(OpSide<K>, Upstream)> = Vec::new();
+    for (side, u) in named {
+        match distinct
+            .iter_mut()
+            .find(|(s, d)| s.operand() == side.operand() && d.name == u.name)
+        {
+            Some((_, d)) => d.tied |= u.tied,
+            None => distinct.push((side, u)),
         }
     }
     if distinct.len() > 1 {
-        let mut candidates: Vec<StableName> = distinct.iter().map(|u| (*u.name).clone()).collect();
+        let mut candidates: Vec<StableName> =
+            distinct.iter().map(|(_, u)| (*u.name).clone()).collect();
         candidates.sort();
         return Err(NamingError::SeamVertexPartners { vertex, candidates });
     }
@@ -3785,8 +3756,9 @@ mod tests {
     #[test]
     fn one_partner_takes_one_name_however_many_rows_carry_it() {
         let v = VertexKey::default();
-        assert!(one_partner(v, Vec::new()).unwrap().is_none());
-        let got = one_partner(v, vec![upstream(3, false), upstream(3, true)])
+        assert!(one_partner::<()>(v, Vec::new()).unwrap().is_none());
+        let b = OpSide::B(());
+        let (_, got) = one_partner(v, vec![(b, upstream(3, false)), (b, upstream(3, true))])
             .unwrap()
             .expect("two rows naming one partner decide it");
         assert_eq!(got.name, upstream(3, false).name);
@@ -3796,9 +3768,13 @@ mod tests {
     #[test]
     fn one_partner_refuses_two_distinct_partners() {
         let v = VertexKey::default();
-        let Err(NamingError::SeamVertexPartners { vertex, candidates }) =
-            one_partner(v, vec![upstream(3, false), upstream(4, false)])
-        else {
+        let Err(NamingError::SeamVertexPartners { vertex, candidates }) = one_partner(
+            v,
+            vec![
+                (OpSide::B(()), upstream(3, false)),
+                (OpSide::B(()), upstream(4, false)),
+            ],
+        ) else {
             panic!("two distinct partners must refuse as SeamVertexPartners")
         };
         assert_eq!(vertex, v);
@@ -5825,13 +5801,13 @@ mod track_cover {
 /// body's own contact holds, beside pyramids standing there, voids
 /// hanging from it, islands in the voids and voids in the pyramids, or
 /// two pyramids united at their apexes there, in every op and both
-/// orders at every pose, name through [`name_boolean`] with no emission
-/// refusal. Two shapes have no emitter rule, as on main (`no_rule`). `crates/topo/tests/a_vertex_read_again_classes_every_edge.rs`
+/// orders at every pose, name through [`name_boolean`] with no
+/// refusal. `crates/topo/tests/a_vertex_read_again_classes_every_edge.rs`
 /// reads the same scenes' rows against their germs.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod touch_reread_rows {
-    use super::{NamingError, OperandCtx, name_boolean};
+    use super::{OperandCtx, name_boolean};
     use crate::names::emit::{ent, name1};
     use crate::names::role::{CapEnd, EntityKind, RoleSeg};
     use crate::names::table::{EntityKey, NameTable};
@@ -5895,37 +5871,6 @@ mod touch_reread_rows {
         t
     }
 
-    /// The cells the emitter has no rule for, each named, as on main:
-    /// - `y ∩ x` where the pyramid crosses into a void in an arch, a
-    ///   seam vertex no rule parents in that order
-    ///   (`work/emit/an-intersection-into-a-void-at-a-vertex-has-no-seam-vertex-rule-in-one-order.md`);
-    /// - a union in either order over a quadrilateral void in a
-    ///   quadrilateral arch, a seam vertex whose parentage its incident
-    ///   edges leave underdetermined
-    ///   (`work/wire/a-legal-declared-union-reaches-the-seam-vertex-parentage-residue-emission.md`).
-    fn no_rule(label: &str, what: &str, e: &NamingError) -> bool {
-        const SEAM: [&str; 5] = [
-            "over a void in the bare arch",
-            "over the void in the arch",
-            "over the void, the island in it",
-            "over a quad void in a quad arch",
-            "over a quad void in a bare quad arch",
-        ];
-        const QUADS: [&str; 2] = [
-            "over a quad void in a quad arch",
-            "over a quad void in a bare quad arch",
-        ];
-        match e {
-            NamingError::SeamVertexParentage { .. } => what == "y ∩ x" && SEAM.contains(&label),
-            NamingError::Emission { what: why } => {
-                (what == "x ∪ y" || what == "y ∪ x")
-                    && QUADS.contains(&label)
-                    && why.starts_with("seam vertex parentage underdetermined")
-            }
-            _ => false,
-        }
-    }
-
     /// Names every op on `(x, y)` in both orders; returns how many built.
     fn names(label: &str, x: &AtRestBody<f64>, y: &AtRestBody<f64>, pose: &Pose) -> usize {
         let (xn, yn) = (RecipeNodeId::new(0, 1), RecipeNodeId::new(0, 2));
@@ -5956,11 +5901,66 @@ mod touch_reread_rows {
             };
             match name_boolean(RecipeNodeId::new(0, 9), &r.body, &r.naming, &a, &b, t()) {
                 Ok(_) => named += 1,
-                Err(e) if no_rule(label, what, &e) => {}
                 Err(e) => panic!("{label}, {}, {what}: names, got {e:?}", pose.label),
             }
         }
         named
+    }
+
+    /// **A corner the result holds as several vertices is one tied name
+    /// over them** (N2: each is that corner, and nothing tells them
+    /// apart): "over a void in the bare arch", `x − y` at rest, leaves
+    /// `x`'s apex at the plate's top as several result vertices, each a
+    /// null copy of it, and names them all `x`'s corner, tied
+    /// (`work/emit/a-corner-held-as-several-result-vertices-ties.md`).
+    #[test]
+    fn a_corner_held_as_several_result_vertices_is_one_tied_name() {
+        use crate::names::table::Entry;
+        let pose = &poses()[0];
+        let p = |b: [[f64; 3]; 3]| apex_pyramid(&b, pose, t());
+        let arch_base = corners(60.0, 0.5, 0.4);
+        let bare_hollow = built(subtract(&p(arch_base), &p(nest(arch_base, 0.7)), t()));
+        let over = p(corners(50.0, 0.7, 0.5));
+        let (xn, yn) = (RecipeNodeId::new(0, 1), RecipeNodeId::new(0, 2));
+        let (xt, yt) = (table(&over, xn), table(&bare_hollow, yn));
+        let Ok(BooleanResult::Body(r)) = subtract(&over, &bare_hollow, t()) else {
+            panic!("x − y builds");
+        };
+        let a = OperandCtx {
+            node: xn,
+            read: crate::names::FOLD_A,
+            table: &xt,
+            body: &over,
+        };
+        let b = OperandCtx {
+            node: yn,
+            read: crate::names::FOLD_B,
+            table: &yt,
+            body: &bare_hollow,
+        };
+        let named = name_boolean(RecipeNodeId::new(0, 9), &r.body, &r.naming, &a, &b, t())
+            .expect("x − y names");
+        let ties: Vec<(&crate::names::StableName, usize)> = named
+            .table
+            .iter()
+            .filter_map(|(n, e)| match e {
+                Entry::Tied(rs) if n.kind == EntityKind::Vertex => Some((n, rs.len())),
+                _ => None,
+            })
+            .collect();
+        let [(name, n)] = ties.as_slice() else {
+            panic!("one tied vertex name: {ties:?}");
+        };
+        assert_eq!(*n, 2, "{name:?}: the two vertices at the corner");
+        assert!(
+            matches!(
+                name.path.as_slice(),
+                [RoleSeg::From { read, of }]
+                    if *read == crate::names::FOLD_A
+                        && matches!(of.path.as_slice(), [RoleSeg::CapVertex(..)])
+            ),
+            "the tie is x's own corner: {name:?}"
+        );
     }
 
     /// At rest, every scene.
