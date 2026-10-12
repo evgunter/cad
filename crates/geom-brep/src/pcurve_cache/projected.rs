@@ -136,6 +136,7 @@ use geom_core::predicate::Band;
 use geom_core::spline::{KnotVector, ParamRange, SpanLocate, poison_from};
 use geom_core::{Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec2, Vec3};
 
+use crate::harmonic::harmonic_sup;
 use crate::offset::Nappe;
 
 use super::{
@@ -1924,9 +1925,10 @@ pub(super) fn projected_envelope<T: Decide>(
             let Surface::Sphere { center, radius, .. } = *surface else {
                 return Err(refuse("a circle's projected image is written for a sphere"));
             };
+            // `Δc + Δa·cos t + Δb·sin t`: the centre's gap and the pair's
+            // exact sup.
             let d = (*centre - to_frame(form.c - o, &e)).norm()
-                + (*a - to_frame(form.a, &e)).norm()
-                + (*b - to_frame(form.b, &e)).norm();
+                + harmonic_sup(*a - to_frame(form.a, &e), *b - to_frame(form.b, &e));
             for &k in &met {
                 let b = image.frame_box(k, t0, t1);
                 holds(b.x.0, band, k, SectorChannel::Azimuth)?;

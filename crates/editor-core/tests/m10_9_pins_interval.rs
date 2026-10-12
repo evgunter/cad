@@ -540,6 +540,9 @@ fn m10_9_what_the_registry_buys() {
 /// certificate reads in key order and the extrude's dihedral in builder
 /// order: symmetric in value up to sign, not in form, so mixed
 /// orientations build distinct hash-consed forms. No decision moved.
+/// Check 4 reading a `cos t`/`sin t` pair at its exact sup instead of
+/// its coefficient sum builds a longer form per envelope term: frozen
+/// 3280 → 3294, every decision column held.
 ///
 /// **What runs it: the slow set** (`.config/nextest.toml`), at the
 /// default ε on every PR whose diff seeds `editor-core`, and every night
@@ -573,7 +576,7 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
         );
         got.push((c.symbolic, c.numeric, c.frozen));
     }
-    assert_eq!(got[0], (1372, 1284, 3280), "rule F shut: the pad's receipt");
+    assert_eq!(got[0], (1372, 1284, 3294), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],
         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"

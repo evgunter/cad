@@ -187,6 +187,8 @@ mod surfaces_review_m5_pr3_attack_interval;
 mod surfaces_s32_jet_projection;
 #[path = "surfaces/span_window_pairing.rs"]
 mod surfaces_span_window_pairing;
+#[path = "surfaces/stretch_sup.rs"]
+mod surfaces_stretch_sup;
 
 test_utils::every_suite_file_is_aggregated!();
 #[path = "curves/n3r2_c24_meter.rs"]

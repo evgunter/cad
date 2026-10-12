@@ -179,6 +179,7 @@ use geom_core::{
 };
 
 use crate::certify::{CERT_SAMPLES, CertCheck, sample_param};
+use crate::harmonic::{harmonic_sup, harmonic_sup_scalar};
 use crate::recourse::{Reading, RefusedArm, Unsized};
 use crate::ssi::{SsiCertificate, SsiDecision, SsiLimb, SsiOperand};
 
@@ -2017,8 +2018,11 @@ pub enum EnvelopeStatement {
     ///
     /// On a PLANE chart the map is affine, so `S ∘ P` has the
     /// coefficients the image maps to, and the bound is the norms of
-    /// their differences from the carrier's: `‖Δc‖ + ‖Δa‖ + ‖Δb‖ +
-    /// ‖Δl‖·T`, with `T = max(|t₀|, |t₁|)`.
+    /// their differences from the carrier's: `‖Δc‖ + σ(Δa, Δb) +
+    /// ‖Δl‖·T`, with `T = max(|t₀|, |t₁|)` and
+    /// `σ(x, y) = sup_t ‖x·cos t + y·sin t‖ = √(m + √(q² + (x·y)²))`,
+    /// `m = (‖x‖² + ‖y‖²)/2`, `q = (‖x‖² − ‖y‖²)/2` — `√(x² + y²)` for
+    /// scalars.
     ///
     /// # On a periodic chart: incidence plus fidelity
     ///
@@ -2057,7 +2061,7 @@ pub enum EnvelopeStatement {
     /// e·(x·e)`, `w = c − (the chart's origin, apex or centre)`, `h =
     /// w·e`, and `T` as above, the lemma per arm — `S(P_d(t)) − C(t)`
     /// written out, then bounded by one triangle inequality per
-    /// coefficient:
+    /// coefficient, a `cos t`/`sin t` pair read together by its `σ`:
     ///
     /// - **Cylinder, moving** (`β = ±1`): `−w_r + g·cos t + β·e×g·sin
     ///   t + (β·e×a_r − b_r)·sin t − l_r·t` with `g = R·â_r − a_r`;
@@ -2068,12 +2072,12 @@ pub enum EnvelopeStatement {
     /// - **Cylinder, meridian** (radial motion decided Zero — or
     ///   undecided, the D9 tie-break): `(R·ŵ_r − w_r) − a_r·cos t −
     ///   b_r·sin t − l_r·t` ⇒ **radius** `|R − ‖w_r‖|` + **drift**
-    ///   `‖a_r‖ + ‖b_r‖` + **line** `‖l_r‖·T`.
+    ///   `σ(a_r, b_r)` + **line** `‖l_r‖·T`.
     /// - **Cone, rim** (slant `ρ = |h|·tan α`; `rad(u)·v` flips with the
     ///   nappe, so the image's radial is `ρ·â_r` on either): `−w_r +
     ///   (g − e·(a·e))·cos t + (β·e×g + β·e×a_r − b_r − e·(b·e))·sin t
     ///   − l·t`, `g = ρ·â_r − a_r` ⇒ **centre** `‖w_r‖` + **radius** `|ρ
-    ///   − ‖a_r‖|` + **orientation** + **tilt** `|a·e| + |b·e|` +
+    ///   − ‖a_r‖|` + **orientation** + **tilt** `σ(a·e, b·e)` +
     ///   **line** `‖l‖·T`.
     /// - **Cone, ruling** (a line; `(h_ref, r_ref)` the height and
     ///   radial of whichever datum the nappe was read off — the anchor
@@ -2117,8 +2121,8 @@ pub enum EnvelopeStatement {
     /// A winding decided Zero on a moving class (a carrier whose radial
     /// part does not turn — no carrier of the chart) takes the image's
     /// constant radial `ρ·rad(α)` at its full length: **radius** `ρ`
-    /// (the torus's `R + r` plus the tube) and **drift** the radial
-    /// coefficients, so even that class is bounded rather than refused
+    /// (the torus's `R + r` plus the tube) and **drift** `σ(a_r, b_r)`,
+    /// so even that class is bounded rather than refused
     /// unmeasured.
     ///
     /// **The frame.** Every arm above is a lemma about an orthonormal
@@ -4048,7 +4052,7 @@ fn run_harmonic_checks<T: Decide>(
             let d_a = image_form.a - carrier_form.a;
             let d_b = image_form.b - carrier_form.b;
             let d_l = image_form.l - carrier_form.l;
-            d_c.norm() + d_a.norm() + d_b.norm() + d_l.norm() * reach
+            d_c.norm() + harmonic_sup(d_a, d_b) + d_l.norm() * reach
         }
     };
     // Not folded into `max_residual`: that field is the sampled max,
@@ -4407,11 +4411,11 @@ fn incidence<T: Decide>(
                 } => {
                     terms.add(Centre, w_r.norm());
                     terms.add(Radius, radius);
-                    terms.add(Drift, a_r.norm() + b_r.norm());
+                    terms.add(Drift, harmonic_sup(a_r, b_r));
                 }
                 _ => {
                     terms.add(Radius, norm_gap(radius, radius.powi(2), w_r));
-                    terms.add(Drift, a_r.norm() + b_r.norm());
+                    terms.add(Drift, harmonic_sup(a_r, b_r));
                 }
             }
         }
@@ -4455,7 +4459,7 @@ fn incidence<T: Decide>(
                     let rho = h * nappe.value() * slope;
                     let (a_r, b_r) = (radial(a), radial(b));
                     terms.add(Centre, w_r.norm());
-                    terms.add(Tilt, a.dot(axis).abs() + b.dot(axis).abs());
+                    terms.add(Tilt, harmonic_sup_scalar(a.dot(axis), b.dot(axis)));
                     terms.add(Line, l.norm() * reach);
                     match beta {
                         Winding::Pos | Winding::Neg => {
@@ -4464,7 +4468,7 @@ fn incidence<T: Decide>(
                         }
                         Winding::Zero => {
                             terms.add(Radius, rho);
-                            terms.add(Drift, a_r.norm() + b_r.norm());
+                            terms.add(Drift, harmonic_sup(a_r, b_r));
                         }
                     }
                 }
@@ -4491,7 +4495,7 @@ fn incidence<T: Decide>(
                     let rho_sq = radius.powi(2) - h.powi(2);
                     let rho = rho_sq.sqrt();
                     terms.add(Centre, w_r.norm());
-                    terms.add(Tilt, aa.abs() + bb.abs());
+                    terms.add(Tilt, harmonic_sup_scalar(aa, bb));
                     match beta {
                         Winding::Pos | Winding::Neg => {
                             terms.add(Radius, norm_gap(rho, rho_sq, a_r));
@@ -4499,7 +4503,7 @@ fn incidence<T: Decide>(
                         }
                         Winding::Zero => {
                             terms.add(Radius, rho);
-                            terms.add(Drift, a_r.norm() + b_r.norm());
+                            terms.add(Drift, harmonic_sup(a_r, b_r));
                         }
                     }
                 }
@@ -4546,7 +4550,7 @@ fn incidence<T: Decide>(
                     let m_sq = h.powi(2) + core.powi(2);
                     let tube = (minor_sq - m_sq).abs() / (minor_radius + m_sq.sqrt());
                     terms.add(Centre, w_r.norm());
-                    terms.add(Tilt, aa.abs() + b.dot(axis).abs());
+                    terms.add(Tilt, harmonic_sup_scalar(aa, b.dot(axis)));
                     match beta {
                         Winding::Pos | Winding::Neg => {
                             terms.add(Radius, tube);
@@ -4554,7 +4558,7 @@ fn incidence<T: Decide>(
                         }
                         Winding::Zero => {
                             terms.add(Radius, tube + major_radius + minor_radius);
-                            terms.add(Drift, a_r.norm() + b_r.norm());
+                            terms.add(Drift, harmonic_sup(a_r, b_r));
                         }
                     }
                 }
@@ -4814,12 +4818,10 @@ fn fidelity<T: Decide>(
         Some(T::zero())
     };
     let du = less_branch(p0.x - q0.x, k_u)
-        + (pa.x - qa.x).abs()
-        + (pb.x - qb.x).abs()
+        + harmonic_sup_scalar(pa.x - qa.x, pb.x - qb.x)
         + (pl.x - ql.x).abs() * reach;
     let dv = less_branch(p0.y - q0.y, k_v)
-        + (pa.y - qa.y).abs()
-        + (pb.y - qb.y).abs()
+        + harmonic_sup_scalar(pa.y - qa.y, pb.y - qb.y)
         + (pl.y - ql.y).abs() * reach;
     terms.add(EnvelopeTerm::FidelityU, arm_u.to_meters(du));
     terms.add(EnvelopeTerm::FidelityV, arm_v.to_meters(dv));
@@ -5049,24 +5051,26 @@ fn run_focal_section_checks<T: Decide>(
 ///     `H = apex + n̂·cos α·v(t) + sin α·v0·((cos E − e)·d0 + q·sin E·d1)`,
 ///     and `v(t) − v0·(1 − e·cos E) = (va + e·v0·cos t0)·cos t +
 ///     (vb + e·v0·sin t0)·sin t + vl·t`, so the **remainder** is
-///     `sin α·(|va + e·v0·cos t0| + |vb + e·v0·sin t0| + |vl|·reach)`.
+///     `sin α·(√((va + e·v0·cos t0)² + (vb + e·v0·sin t0)²) + |vl|·reach)`.
 ///   - *Torus*, `Ŝ(u, v) = O + (R + r·cos v)·ρ̂(u) + r·sin v·n̂`,
 ///     `A = R`, with `v_r = v0 + vl·t0` the tube angle at the vertex.
 ///     **Meridional drift**: `v(t) = v_r + vl·E + va·cos t + vb·sin t`,
 ///     and reading `v* = v_r + s·E` (`s` the sign of `vl`) instead
-///     moves the point by `r·(|va| + |vb| + ||vl| − 1|·E_max)`
+///     moves the point by `r·(√(va² + vb²) + ||vl| − 1|·E_max)`
 ///     (`|∂Ŝ/∂v| = r`). Then `R + r·cos v* = R·(1 − e·cos E) +
 ///     (r·cos v_r + R·e)·cos E − s·r·sin v_r·sin E` and
 ///     `r·sin v* = r·sin v_r·cos E + s·r·cos v_r·sin E`, so
 ///     `Ŝ(P*(t)) = H(t) + (…)·ρ̂(u(t))` with
 ///     `H = O + R·((cos E − e)·d0 + q·sin E·d1) + r·(sin v_r·cos E + s·cos v_r·sin E)·n̂`,
 ///     whose `s` is read as `vl` at `r·||vl| − 1|` more, and the
-///     **meridional-phase remainder** `|r·cos v_r + R·e| + r·|sin v_r|`
+///     **meridional-phase remainder** `√((r·cos v_r + R·e)² + r²·sin² v_r)`
 ///     — zero in ℝ exactly when the vertex is on the outer equator and
 ///     `e = −r/R`, the Villarceau circle's.
 /// - **Coefficients.** `H` is `h_c + h_a·cos t + h_b·sin t + h_l·t`
 ///   (rotating `cos E`, `sin E` by `t0`), so
-///   `sup |H − C| ≤ |h_c − c| + |h_a − a| + |h_b − b| + |h_l − l|·reach`.
+///   `sup |H − C| ≤ |h_c − c| + σ(h_a − a, h_b − b) + |h_l − l|·reach`,
+///   `σ` the exact sup of a `cos t`/`sin t` pair
+///   ([`EnvelopeStatement::MapResidualClosedForm`]).
 ///
 /// Every term is rounding-scale on a minted image, so the envelope is
 /// the exact image's distance from the carrier plus the drift every
@@ -5113,7 +5117,7 @@ fn focal_section_envelope<T: Real>(
             let (sin_a, cos_a) = half_angle.sin_cos();
             let lever = sin_a * v0;
             let remainder = sin_a
-                * ((va + ecc * v0 * ct).abs() + (vb + ecc * v0 * st).abs() + vl.abs() * reach);
+                * (harmonic_sup_scalar(va + ecc * v0 * ct, vb + ecc * v0 * st) + vl.abs() * reach);
             (
                 apex + axis * (cos_a * v0) - d0 * (lever * ecc),
                 d0 * lever,
@@ -5133,8 +5137,8 @@ fn focal_section_envelope<T: Real>(
             let v_r = v0 + vl * t0;
             let (sv, cv_r) = v_r.sin_cos();
             let tube_drift = (vl.abs() - one).abs();
-            let meridional = r * (va.abs() + vb.abs() + tube_drift * (e_max + one));
-            let phase = (r * cv_r + big * ecc).abs() + r * sv.abs();
+            let meridional = r * (harmonic_sup_scalar(va, vb) + tube_drift * (e_max + one));
+            let phase = harmonic_sup_scalar(r * cv_r + big * ecc, r * sv);
             let zero = Vec3::new(T::zero(), T::zero(), T::zero());
             (
                 center - d0 * (big * ecc),
@@ -5152,8 +5156,7 @@ fn focal_section_envelope<T: Real>(
     let h_a = a + x * ct - y * st;
     let h_b = b + x * st + y * ct;
     (k - carrier.c).norm()
-        + (h_a - carrier.a).norm()
-        + (h_b - carrier.b).norm()
+        + harmonic_sup(h_a - carrier.a, h_b - carrier.b)
         + (l - carrier.l).norm() * reach
         + outside
         + frame_defect(surface, v_sup)
@@ -5653,8 +5656,8 @@ pub fn chart_stretch_sup<T: Real>(
         // were harmless only because the iso lane's own rational gate
         // refused before any rational chart reached this function.
         // That gate is gone, so the arm has to be real —
-        // `nurbs_stretch_bounds` carries the Floater weight-ratio
-        // factor for exactly this.
+        // `nurbs_stretch_bounds` reads the rational pair-term bound
+        // (`NurbsSurface::stretch_sup`) for exactly this.
         //
         // The catch-all is SPLIT: an approximating surface's arms are
         // its FIT's derivative-net bounds — the same statement about
@@ -5721,45 +5724,15 @@ fn chart_arms_at<T: Real>(
 }
 
 /// `(sup |S_u|, sup |S_v|)` bounds for a NURBS chart — **rational
-/// nets included** — from the derivative control net (the B-spline
-/// derivative formula `Qᵢ = p·(Pᵢ₊₁ − Pᵢ)/(kᵢ₊ₚ₊₁ − kᵢ₊₁)` per
-/// row/column, then the partition-of-unity hull `max |Qᵢⱼ|`), carried
-/// to the rational case by the weight-ratio factor the body applies
-/// (see the note at `ratio`). Knot arithmetic is `f64` structure; a
-/// zero divisor (a fully collapsed support) contributes nothing, per
-/// the standard convention.
-///
-/// The "callers gate rationality" contract this header used to carry
-/// was retired by M8-3, when the factor went in and the iso lane's
-/// rational gate came out; it is spelled out here because
-/// [`chart_stretch_inf`] cites this function three times and a stale
-/// precondition on a cited derivation is a trap for the next reader.
+/// nets included** — read off the chart's own statement,
+/// [`geom::NurbsSurface::stretch_sup`] (the pair-term bound per
+/// nonempty cell; at unit weights the polynomial control-difference
+/// bound). One door for the whole file: [`chart_stretch_inf`]'s sup
+/// components read the same call, so `chart_stretch_sup(s).0` and
+/// `chart_stretch_inf(s).sup_u` are one computation by construction
+/// (`chart_stretch_inf`'s spline arm calls this function).
 fn nurbs_stretch_bounds<T: Real>(s: &geom::NurbsSurface<T>) -> (SupSpeed<T>, SupSpeed<T>) {
-    // **The rational factor** (M8-3). The control-difference bounds
-    // are POLYNOMIAL convexity facts. For a rational patch the
-    // standard extension (Floater 1992, derivatives of rational
-    // Bézier/B-spline forms) multiplies them by the weight ratio;
-    // squaring it is the conservative reading, and conservative is the
-    // SAFE direction for both consumers — a larger arm makes
-    // `side_of`'s boundary snap harder to admit and every slack term
-    // larger, never the reverse. Exactly 1 for a weight-1 net, so no
-    // integral-lane number moves.
-    let ratio = weight_ratio_factor::<T>(s.weight_channel(), s.weights());
-    // ONE spelling of the derivative net for the whole file: this
-    // function's two loops were the same walk as
-    // `skipping_surface_derivative_net`'s, down to the `denom == 0.0`
-    // skip, and a second copy of a
-    // convexity fact is a second place for it to drift. The `inf`
-    // door reads the same nets, so `chart_stretch_sup(s).0` and
-    // `chart_stretch_inf(s).sup_u` are now one computation rather
-    // than two that happen to agree — an equality the `ρ` assembly
-    // ASSUMES, and which is pinned by
-    // `the_two_doors_report_one_sup`.
-    let sup_of = |q: &[Vec3<T>]| q.iter().fold(T::zero(), |m, v| m.max(v.norm()));
-    (
-        SupSpeed::new(sup_of(&skipping_surface_derivative_net(s, false)) * ratio),
-        SupSpeed::new(sup_of(&skipping_surface_derivative_net(s, true)) * ratio),
-    )
+    s.stretch_sup()
 }
 
 /// The INF-side reading of a spline chart's derivative nets — the
@@ -5794,8 +5767,7 @@ pub struct ChartStretchInf<T> {
 ///
 /// # The nets, and the inf read along a direction
 ///
-/// The polynomial derivative nets are the same ones
-/// [`nurbs_stretch_bounds`] takes the max over: per direction,
+/// The polynomial derivative nets, per direction,
 /// `Qᵢⱼ = p·(Pᵢ₊₁ⱼ − Pᵢⱼ)/(kᵢ₊ₚ₊₁ − kᵢ₊₁)`, and `S_u(u, v)` is a
 /// **convex combination** of them (partition of unity over the
 /// degree-reduced basis; a zero divisor is a support the basis
@@ -5820,28 +5792,25 @@ pub struct ChartStretchInf<T> {
 /// though both per-axis infs are healthy — which is exactly the case
 /// the per-axis pair alone cannot see.
 ///
-/// **The rational factor, taken OPPOSITE to the sup side.** The
-/// rational derivative identity (Floater 1992) writes `S_u` as
-/// `Σᵢ γᵢ ΔPᵢ` with non-negative `γ` whose sum lies in
-/// `[1/ratio, ratio]` for `ratio = (w_max/w_min)²` — the same factor
-/// [`weight_ratio_factor`] computes and [`nurbs_stretch_bounds`]
-/// MULTIPLIES by. The two ends of that one bracket are the two sides:
-/// the sup multiplies, the inf **divides**, and the area element — a
-/// product of two such factors — divides by `ratio²`.
+/// **The rational factor, on the inf side only.** The rational
+/// derivative identity (Floater 1992) writes `S_u` as `Σᵢ γᵢ ΔPᵢ`
+/// with non-negative `γ` whose sum lies in `[1/ratio, ratio]` for
+/// `ratio = (w_max/w_min)²` ([`weight_ratio_factor`]); the infs
+/// **divide** by it and the area element — a product of two such
+/// factors — divides by `ratio²`. The sup components do not use the
+/// bracket: they are the pair-term statement
+/// [`geom::NurbsSurface::stretch_sup`], which [`chart_stretch_sup`]
+/// reads too.
 ///
 /// *Provenance, stated because the citation does not cover all of
 /// it.* Floater's result is a CURVE statement, and the tensor-product
-/// reading — apply it per direction with the patch's own weight
-/// bracket — is the same extension `nurbs_stretch_bounds` already
-/// makes on the sup side and has shipped under since M8-3; the
-/// in-tree evidence is that function's consumers, not a citation.
-/// What is quoted from Floater is the two-sidedness of the bracket:
-/// that the same `(w_max/w_min)²` bounds the coefficient sum from
-/// both ends. Sharpening either end is a separate unit. A rational
-/// chart therefore earns a weaker inf reading than a unit-weight one.
-/// That is the conservative direction, and on a unit-weight net every
-/// factor is exactly 1, so nothing here moves for the polynomial
-/// charts.
+/// reading applies it per direction with the patch's own weight
+/// bracket. What is quoted from Floater is the two-sidedness of the
+/// bracket; whether its lower end holds as stated is
+/// `work/nurbs/chart-stretch-inf-rational-floor-is-unproven.md`. A
+/// rational chart earns a weaker inf reading than a unit-weight one;
+/// on a unit-weight net the factor is exactly 1, so nothing here
+/// moves for the polynomial charts.
 ///
 /// # The assembly a caller owes: per-axis infs are not lever arms
 ///
@@ -5997,8 +5966,9 @@ fn skipping_surface_derivative_net<T: Real>(
 /// [`chart_stretch_inf`]'s spline arm — the derivation lives there.
 fn nurbs_stretch_inf<T: Real>(s: &geom::NurbsSurface<T>) -> ChartStretchInf<T> {
     let ratio = weight_ratio_factor::<T>(s.weight_channel(), s.weights());
-    // The same two nets [`nurbs_stretch_bounds`] reads, from the same
-    // door, so `sup_u`/`sup_v` below ARE that function's components.
+    // The polynomial derivative nets the inf side reads; the sup side
+    // is the chart's own statement, so `sup_u`/`sup_v` below ARE
+    // [`nurbs_stretch_bounds`]' components.
     let (q_u, q_v) = (
         skipping_surface_derivative_net(s, false),
         skipping_surface_derivative_net(s, true),
@@ -6012,14 +5982,14 @@ fn nurbs_stretch_inf<T: Real>(s: &geom::NurbsSurface<T>) -> ChartStretchInf<T> {
         }
     }
     let cross_sup = sup_of(&crosses);
-    // Each bracket taken at the end the direction needs: the sups
-    // multiply (as `nurbs_stretch_bounds` does), the infs divide, and
-    // the area element carries one factor per net.
+    // The infs divide by the weight bracket and the area element
+    // carries one factor per net; the sups are the pair-term statement.
+    let (sup_u, sup_v) = nurbs_stretch_bounds(s);
     ChartStretchInf {
         inf_u: net_inf(&q_u, poly_sup_u) / ratio,
         inf_v: net_inf(&q_v, poly_sup_v) / ratio,
-        sup_u: poly_sup_u * ratio,
-        sup_v: poly_sup_v * ratio,
+        sup_u: sup_u.get(),
+        sup_v: sup_v.get(),
         area_inf: net_inf(&crosses, cross_sup) / ratio.powi(2),
     }
 }
@@ -6033,9 +6003,10 @@ fn nurbs_stretch_inf<T: Real>(s: &geom::NurbsSurface<T>) -> ChartStretchInf<T> {
 /// they would refuse: knot insertion on a net of subnormal weights
 /// rounds an inserted weight to `0`. A list that is empty or holds a
 /// weight that is not strictly positive and finite therefore answers
-/// POISON — any number here is a factor on a SUP arm, and one below the
-/// true ratio under-states it in the unsafe direction. A ratio that
-/// overflows answers `+inf`, which over-states (the safe direction).
+/// POISON — any number here divides an INF arm, and one below the
+/// true ratio over-states it in the unsafe direction. A ratio that
+/// overflows answers `+inf`, which drives the inf to zero (the safe
+/// direction).
 fn weight_ratio_factor<T: Real>(channel: &[f64], held: &[T]) -> T {
     if channel.is_empty() || channel.len() != held.len() {
         return T::from_f64(f64::NAN);
@@ -6094,8 +6065,9 @@ fn schedule_residuals<T: Decide>(
 /// question in another shape, `matches!(…, Ok(Sign::Positive))` on the
 /// raw gap. NaN propagates ([`Real::max`]).
 ///
-/// Metered through an infinite sup arm (an overflowing weight ratio), a
-/// contained gap is `0·∞ = NaN` and refuses, fail-loud
+/// Metered through an infinite sup arm (a sup whose quotient
+/// overflows, or a weight a refinement rounded to zero), a contained
+/// gap is `0·∞ = NaN` and refuses, fail-loud
 /// (`escape_tests::a_contained_gap_through_an_infinite_arm_refuses`).
 fn escape<T: Real>(gap: T) -> T {
     gap.max(T::zero())
@@ -7558,7 +7530,7 @@ fn derive_class<T: Decide>(
                     let w_r = radial(center - apex);
                     let rim = match decide(
                         "pcurve_cone_chart_axial",
-                        Margin::of(aa.abs() + ba.abs()),
+                        Margin::of(harmonic_sup_scalar(aa, ba)),
                         band,
                     )
                     .map_err(esc)?
@@ -7771,7 +7743,7 @@ fn derive_class<T: Decide>(
             // axis' direction? (Metered in meters at the chart radius.)
             match decide(
                 "pcurve_sphere_chart_axial",
-                Margin::of(aa.abs() + ba.abs()),
+                Margin::of(harmonic_sup_scalar(aa, ba)),
                 band,
             )
             .map_err(esc)?
@@ -7929,7 +7901,7 @@ fn derive_class<T: Decide>(
             // axial parts of a and b are displacements.)
             match decide(
                 "pcurve_torus_chart_axial",
-                Margin::of(aa.abs() + ba.abs()),
+                Margin::of(harmonic_sup_scalar(aa, ba)),
                 band,
             )
             .map_err(esc)?
@@ -8580,6 +8552,10 @@ pub use projected::{FramedCarrier, ProjectedChart, ProjectedImage, SectorChannel
 mod envelope_lemma_fuzz;
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod harmonic_sup_rows;
+
+#[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use core::f64::consts::{FRAC_PI_2, PI, TAU};
@@ -9114,8 +9090,10 @@ mod tests {
 
     /// The review probe's second attack, kept: tuned near-cancelling
     /// harmonic + linear corruptions cannot hide under the envelope
-    /// (the residual lives in `span{1, cos, sin, t}` and the envelope
-    /// dominates it termwise), and certification refuses them.
+    /// (the residual lives in `span{1, cos, sin, t}`, and the envelope
+    /// reads its constant and linear parts at their size and its
+    /// `cos`/`sin` pair at its exact sup, so the oracle's termwise sum
+    /// here is over it), and certification refuses them.
     #[test]
     fn cancellation_cannot_beat_the_envelope() {
         let (r, h, tilt) = (0.5, 0.5, 0.3);
@@ -10145,79 +10123,6 @@ mod tests {
     }
 }
 
-/// The two stretch doors' agreement — cheap, and load-bearing.
-#[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::panic)]
-mod stretch_door_agreement {
-    use geom::{NurbsSurface, Surface};
-    use geom_core::Point3;
-    use geom_core::spline::KnotVector;
-    use std::sync::Arc;
-
-    /// `chart_stretch_sup(s).0` and `chart_stretch_inf(s).sup_u` are
-    /// the same number, and the `ρ` assembly ASSUMES they are: it
-    /// divides the second by the inf to form the normalized trace
-    /// while the escape lane meters with the first. They now share one
-    /// derivative-net door, so this pin costs nothing and would red
-    /// the moment either grows a factor the other does not.
-    #[test]
-    fn the_two_doors_report_one_sup() {
-        /// `(knots_u, degree_u, knots_v, degree_v, flat xyz, weights)`
-        type Case = (Vec<f64>, usize, Vec<f64>, usize, Vec<f64>, Vec<f64>);
-        let cases: Vec<Case> = vec![
-            // bilinear, unit weights
-            (
-                vec![0.0, 0.0, 1.0, 1.0],
-                1,
-                vec![0.0, 0.0, 1.0, 1.0],
-                1,
-                vec![0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 4.0, 0.0, 0.0, 4.0, 1.0, 0.0],
-                vec![1.0; 4],
-            ),
-            // bilinear, RATIONAL: the factor must land on both doors
-            (
-                vec![0.0, 0.0, 1.0, 1.0],
-                1,
-                vec![0.0, 0.0, 1.0, 1.0],
-                1,
-                vec![0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 4.0, 0.0, 0.0, 4.0, 1.0, 0.0],
-                vec![1.0, 0.5, 2.0, 1.0],
-            ),
-            // degree 2 in u, a varying stretch and a repeated knot
-            (
-                vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0],
-                2,
-                vec![0.0, 0.0, 1.0, 1.0],
-                1,
-                vec![
-                    0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.25, 0.0, 0.0, 0.25, 1.0, 0.0, 4.25, 0.0, 0.0,
-                    4.25, 1.0, 0.0,
-                ],
-                vec![1.0; 6],
-            ),
-        ];
-        for (ku, pu, kv, pv, coords, weights) in cases {
-            let control: Vec<Point3<f64>> = coords
-                .chunks_exact(3)
-                .map(|c| Point3::new(c[0], c[1], c[2]))
-                .collect();
-            let s: Surface<f64> = Surface::Nurbs(Arc::new(
-                NurbsSurface::new(
-                    KnotVector::clamped(ku, pu).unwrap(),
-                    KnotVector::clamped(kv, pv).unwrap(),
-                    control,
-                    weights,
-                )
-                .unwrap(),
-            ));
-            let (sup_u, sup_v) = super::chart_stretch_sup(&s).unwrap();
-            let inf = super::chart_stretch_inf(&s);
-            assert_eq!(sup_u.get(), inf.sup_u, "the u sup must be ONE number");
-            assert_eq!(sup_v.get(), inf.sup_v, "the v sup must be ONE number");
-        }
-    }
-}
-
 /// **A cone has no surface-level azimuth sup, and the door says so.**
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::float_cmp)]
@@ -10471,8 +10376,9 @@ mod escape_tests {
         assert!(escape(f64::NAN).is_nan(), "poison propagates");
     }
 
-    /// `weight_ratio_factor` answers `+inf` for an overflowing ratio.
-    /// Through that arm a contained gap meters as `0·∞ = NaN` and
+    /// A sup arm can read `+inf` (an overflowing quotient, or a zero
+    /// least weight after a refinement rounded one away). Through that
+    /// arm a contained gap meters as `0·∞ = NaN` and
     /// refuses (fail-loud); an escape meters as `+inf` and is definite.
     #[test]
     fn a_contained_gap_through_an_infinite_arm_refuses() {
