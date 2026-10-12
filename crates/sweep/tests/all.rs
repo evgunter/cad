@@ -70,6 +70,8 @@ mod a_move_through_a_neighbour_inverts_the_body;
 mod a_plane_across_a_one_face_wall;
 #[path = "a_plane_along_an_elliptic_cut.rs"]
 mod a_plane_along_an_elliptic_cut;
+#[path = "a_plane_holding_a_conic_tangent_at_a_vertex.rs"]
+mod a_plane_holding_a_conic_tangent_at_a_vertex;
 #[path = "a_plane_moved_to_a_cone_apex.rs"]
 mod a_plane_moved_to_a_cone_apex;
 #[path = "a_pole_and_an_apex_join_nothing.rs"]

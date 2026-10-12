@@ -92,7 +92,7 @@ pub use certify::{
     CERT_SAMPLES, CertCheck, Certificate, CertifyError, EdgeCurve, EdgeCurveSpec,
     IntersectionDraft, NurbsLane, edge_extent, folded_parallelism, sample_param, schedule_param,
 };
-pub use conic_bend::{BendBounds, ConicBend, conic_bend_side};
+pub use conic_bend::{BendBounds, ConicBend, ConicDeparture, conic_bend_side};
 pub use description::{
     ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, authority_of,
 };

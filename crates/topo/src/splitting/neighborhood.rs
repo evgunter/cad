@@ -134,12 +134,10 @@ pub(super) fn sector_face<T: Decide>(
 /// - **Line** carriers: the chord `p(final) − p(base)` — the M3 path,
 ///   bit-identical (the chord IS the direction, and its length the
 ///   extent).
-/// - **Circle/Ellipse** carriers (M5 PR 5): the carrier's outgoing
-///   unit tangent at the base vertex (`+deriv(t₀)` when `he` is the
-///   plus half, `−deriv(t₁)` when the minus half — the `he_plus`
-///   forward contract), scaled by [`geom_brep::edge_extent`] (the
-///   certified point-set-diameter lower bound; the chord collapses on
-///   near-closed arcs), with its [`geom_brep::ConicBend`] there.
+/// - **Conic** carriers: the departure [`geom_brep::ConicDeparture`]
+///   reads, the outgoing unit tangent scaled by
+///   [`geom_brep::edge_extent`] (the chord collapses on near-closed
+///   arcs), with the edge's [`geom_brep::ConicBend`] there.
 #[allow(clippy::type_complexity)] // (far vertex, scaled dir, conic bend) — one internal tuple
 pub(super) fn chord<T: Decide>(
     body: &Body<T>,
@@ -170,13 +168,9 @@ pub(super) fn chord<T: Decide>(
         geom::Curve3::Circle { .. }
         | geom::Curve3::Ellipse { .. }
         | geom::Curve3::Spiric { .. } => {
-            let (t0, t1) = curve.params();
-            let (tangent, _) = curve.walk_tangents(he == edge.he_plus);
-            let deriv2 = curve.walk_departure_deriv2(he == edge.he_plus);
-            let chord_len = p_final.distance(p_base);
-            let extent = geom_brep::edge_extent(curve.carrier(), t0, t1, chord_len);
-            let bend = geom_brep::ConicBend::of(curve.carrier(), tangent, deriv2, t1 - t0);
-            Ok((final_vertex, tangent.normalize() * extent, Some(bend)))
+            let departure =
+                geom_brep::ConicDeparture::of(curve, he == edge.he_plus, p_final.distance(p_base));
+            Ok((final_vertex, departure.dir, Some(departure.bend)))
         }
     }
 }
@@ -234,19 +228,18 @@ pub(super) fn classify_neighborhood_rays<T: Decide>(
     for (i, &he) in orbit.iter().enumerate() {
         let (final_vertex, dir_a, conic_bend) = chord(body, vertex, he)?;
         // Entry class — "which side does this edge lead to":
-        // - LINE edges: the far vertex's cached verdict, bit-identical
-        //   to M3 (a straight edge's interior is the chord).
-        // - CONIC edges (M1 fix, M5 PR 5 review): the OUTGOING TANGENT
-        //   side through the named trilean `split_conic_departure`
-        //   (margin `t̂·n̂` metered at the edge's honest extent — dir_a
-        //   is exactly t̂·extent). The far vertex misleads on conics:
-        //   a belly arc between ON vertices departs into its own side
-        //   while both endpoints read On. Post-root-insertion the
-        //   interior is sign-constant (every interior crossing was
-        //   split out), so the departure IS the interior side; a Zero
-        //   margin (in-plane departure — an in-plane arc or a graze
-        //   contact) classifies On for rule (b)'s adjudication;
-        //   in-band escalates typed.
+        // - LINE edges: the far vertex's cached verdict (a straight
+        //   edge's interior is the chord).
+        // - CONIC edges: the OUTGOING TANGENT side through the named
+        //   trilean `split_conic_departure` (margin `t̂·n̂` metered at
+        //   the edge's extent — dir_a is exactly t̂·extent). The far
+        //   vertex misleads on conics: a belly arc between ON vertices
+        //   departs into its own side while both endpoints read On.
+        //   Post-root-insertion the interior is sign-constant (every
+        //   interior crossing was split out), so the departure IS the
+        //   interior side; a Zero margin (in-plane departure — an
+        //   in-plane arc or a graze contact) reads one order down,
+        //   below; in-band escalates typed.
         let class = if let Some(bend) = conic_bend {
             let margin = Margin::of(dir_a.dot(plane.normal.get()));
             match decide("split_conic_departure", margin, band) {

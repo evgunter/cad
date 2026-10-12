@@ -24,14 +24,12 @@ spiric section can inflect, so it has no positive lower curvature bound
 to give it the circle's reading. A cure reads the section's departure
 some other way (e.g. a height bound for the in-plane case alone).
 
-**Both lanes now.** The splitting lane's in-plane conic departure
-(`splitting/neighborhood.rs`, `split_conic_departure`'s Zero) reads
-through the same `geom_brep::conic_bend_side`
-(`two-second-order-conic-readers-certify-one-fact-differently`), so a
-spiric edge departing in a split plane refuses `SliverSector` on
-`conic_bend` there too, where it used to read its curvature at the
-vertex as a bare sagitta. A cure lands once, in
-`crates/geom-brep/src/conic_bend.rs`. No corpus test reached that tie
-in either lane (probe over the split-touching sweep, editor-core and
-topo suites, 2026-10-12: every tie read was a circle or a fixture's
-ellipse).
+**The split cannot reach it.** The splitting lane reads an in-plane
+conic departure through the same `geom_brep::conic_bend_side`
+(`splitting/neighborhood.rs`, `split_conic_departure`'s Zero), but no
+spiric edge gets there: the gate (`splitting/classify.rs`) refuses
+`CurvedEdgeUnsupported` for a spiric edge unless `edge_clears` puts its
+whole locus, or a face of it, off the plane's band, and `sector_face`'s
+`Torus` arm refuses `CurvedBooleanUnsupported` behind it. The finding is
+the boolean's alone; a cure lands once, in
+`crates/geom-brep/src/conic_bend.rs`.

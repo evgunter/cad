@@ -46,7 +46,9 @@
 
 #[cfg(test)]
 use geom_brep::enters_material;
-use geom_brep::{ConicBend, EntersMaterial, OutwardNormal, enters_material_reported};
+use geom_brep::{
+    ConicBend, ConicDeparture, EntersMaterial, OutwardNormal, enters_material_reported,
+};
 use geom_core::k_stats::{Magnitude, NonzeroSign};
 use geom_core::{Band, Decide, Decided, Margin, Point3, Sign, Vec3};
 
@@ -360,18 +362,9 @@ pub(super) fn orbit_corners<T: Decide>(
             geom::Curve3::Circle { .. }
             | geom::Curve3::Ellipse { .. }
             | geom::Curve3::Spiric { .. } => {
-                let (t0, t1) = curve.params();
-                let walk = he == edge.he_plus;
-                let (tangent, _) = curve.walk_tangents(walk);
-                let extent =
-                    geom_brep::edge_extent(curve.carrier(), t0, t1, p_end.distance(p_base));
-                let bend = ConicBend::of(
-                    curve.carrier(),
-                    tangent,
-                    curve.walk_departure_deriv2(walk),
-                    t1 - t0,
-                );
-                (tangent.normalize() * extent, Reach::Conic { extent, bend })
+                let ConicDeparture { dir, extent, bend } =
+                    ConicDeparture::of(curve, he == edge.he_plus, p_end.distance(p_base));
+                (dir, Reach::Conic { extent, bend })
             }
         }
     };
@@ -5460,21 +5453,16 @@ mod tests {
     /// the plane `z = 0` and bending toward `bend` (unit, normal to
     /// `+x`): its tangent, and its reach as `orbit_corners` mints it.
     fn quarter_arc(bend: Vec3<f64>) -> (Vec3<f64>, Reach<f64>) {
+        let span = core::f64::consts::FRAC_PI_2;
         let carrier = geom::Curve3::Circle {
             center: geom_core::Point3::origin() + bend,
             axis: Vec3::new(1.0, 0.0, 0.0).cross(bend),
             radius: 1.0,
             u_ref: -bend,
         };
-        let extent =
-            geom_brep::edge_extent(&carrier, 0.0, core::f64::consts::FRAC_PI_2, 2f64.sqrt());
+        let extent = geom_brep::edge_extent(&carrier, 0.0, span, 2.0 * (span / 2.0).sin());
         let tangent = carrier.deriv(0.0);
-        let bend = ConicBend::of(
-            &carrier,
-            tangent,
-            carrier.deriv2(0.0),
-            core::f64::consts::FRAC_PI_2,
-        );
+        let bend = ConicBend::of(&carrier, tangent, carrier.deriv2(0.0), span);
         (tangent.normalize() * extent, Reach::Conic { extent, bend })
     }
 
@@ -5529,8 +5517,8 @@ mod tests {
     /// ends of an ellipse's axes: an `In` must put a point of the edge
     /// past the escalation band below the plane, an `Out` above it, and
     /// an `On` keep every point within the escalation band. `In` and
-    /// `Out` are checked at the witness the derivation names, the point
-    /// at arc length `min(extent, π/(2·κ_max))`, found here by sampling.
+    /// `Out` are checked at the witness the derivation names
+    /// ([`geom_brep::conic_bend_side`]), found here by sampling.
     #[test]
     fn a_conic_tie_verdict_is_true_of_the_sampled_arc() {
         let b = band();
@@ -5595,8 +5583,11 @@ mod tests {
                         let extent = geom_brep::edge_extent(&flat, 0.0, span, chord);
                         // The witness the derivation names, found
                         // independently: the sample at arc length
-                        // `l = min(extent, π/(2·κ_max))`, with `κ_max`
-                        // sampled over the whole carrier.
+                        // `l = min(max(extent, b·span), cap)`, `b` the
+                        // lesser semi-axis (the least speed) and `cap`
+                        // a half turn on a circle, `π/(2·κ_max)` on an
+                        // ellipse, with `κ_max` sampled over the whole
+                        // carrier.
                         let kmax = (0..=samples)
                             .map(|i| {
                                 let t = core::f64::consts::TAU * i as f64 / samples as f64;
@@ -5604,7 +5595,12 @@ mod tests {
                                 d1.cross(d2).norm() / d1.norm().powi(3)
                             })
                             .fold(0.0f64, f64::max);
-                        let l = extent.min(core::f64::consts::FRAC_PI_2 / kmax);
+                        let cap = if along_n == along_t {
+                            core::f64::consts::PI * along_n
+                        } else {
+                            core::f64::consts::FRAC_PI_2 / kmax
+                        };
+                        let l = extent.max(along_n.min(along_t) * span).min(cap);
                         // The arc length `l` is found to a step of
                         // `span / samples²`: coarse steps up to the one it
                         // falls in, fine ones within it, so the witness
@@ -5771,13 +5767,35 @@ mod tests {
         let Reach::Conic { extent, bend } = reach else {
             unreachable!("`quarter_arc` mints a conic reach")
         };
-        // Lifts `2·sin²(extent/2) ≈ extent²/2`: a third of the zero band.
+        // The arc's length and extent bounded loosely, but soundly, by
+        // a length whose lift `2·sin²(short/2) ≈ short²/2` is a third
+        // of the zero band.
         let short = (2.0 * b.zero() / 3.0).sqrt();
+        let geom_brep::BendBounds::Planar {
+            least,
+            reach,
+            rise,
+            lifts_to,
+            ..
+        } = bend.bounds
+        else {
+            unreachable!("a circle's bend is planar")
+        };
+        let loose = ConicBend {
+            bounds: geom_brep::BendBounds::Planar {
+                least,
+                reach,
+                rise,
+                arc: short,
+                lifts_to,
+            },
+            ..bend
+        };
         let got = pierce_side(
             dir,
             Reach::Conic {
                 extent: short,
-                bend,
+                bend: loose,
             },
             n,
             FaceShape::Plane,

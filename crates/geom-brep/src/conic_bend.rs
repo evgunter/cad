@@ -4,8 +4,9 @@
 //! (`topo::boolean::sectors::pierce_side`) and the splitting lane's
 //! neighbourhood (`topo::splitting::neighborhood`) both read it here.
 //!
-//! [`ConicBend::of`] takes the carrier's jet where the edge leaves the
-//! vertex and the bounds its curvature keeps along the carrier;
+//! [`ConicDeparture::of`] reads an edge's departure tangent, extent and
+//! [`ConicBend`] (the carrier's jet where the edge leaves the vertex
+//! and the bounds its curvature keeps along the carrier);
 //! [`conic_bend_side`] turns them into a side of a plane.
 
 use crate::enters::{EntersMaterial, ReferenceNormal};
@@ -27,24 +28,68 @@ pub struct ConicBend<T: Real> {
 /// The bounds a conic's curvature keeps everywhere on its carrier.
 #[derive(Clone, Copy, Debug)]
 pub enum BendBounds<T: Real> {
-    /// A circle or an ellipse: a plane curve whose curvature lies in
-    /// `[least, most]`, both positive, and whose points all lie within
-    /// `reach` of the vertex and within `rise` of its tangent line
-    /// there.
+    /// A circle or an ellipse: a plane curve whose curvature is at
+    /// least `least`, positive, and whose points all lie within `reach`
+    /// of the vertex and within `rise` of its tangent line there.
     Planar {
         /// The least curvature anywhere on the carrier.
         least: T,
-        /// The greatest.
-        most: T,
         /// A bound on every point's distance from the vertex.
         reach: T,
         /// A bound on every point's distance from the tangent line at
         /// the vertex, toward the principal normal.
         rise: T,
+        /// A lower bound on the edge's arc length.
+        arc: T,
+        /// The arc length from the vertex over which the carrier rises
+        /// at least `2·sin²(least·s/2)/least` off its tangent line at
+        /// `s` ([`conic_bend_side`]).
+        lifts_to: T,
     },
     /// A spiric section: no curvature bound is certified, so its tie
     /// with a plane reads no side.
     Unbounded,
+}
+
+/// **Where an edge on a conic carrier leaves a vertex**, read once for
+/// both vertex-neighbourhood lanes.
+#[derive(Clone, Copy, Debug)]
+pub struct ConicDeparture<T: Real> {
+    /// The departure's unit tangent scaled to [`Self::extent`]: its
+    /// `.norm()` is the sector predicates' lever arm, its
+    /// `.normalize()` the direction.
+    pub dir: Vec3<T>,
+    /// The edge's extent ([`crate::edge_extent`]).
+    pub extent: T,
+    /// How the edge bends off [`Self::dir`].
+    pub bend: ConicBend<T>,
+}
+
+impl<T: Decide> ConicDeparture<T> {
+    /// The departure of `curve`'s walk out of its vertex (`he_plus`
+    /// walks `t₀ → t₁`, [`crate::EdgeCurve::walk_tangents`]), `chord`
+    /// the distance between the edge's end vertices.
+    ///
+    /// # Panics
+    ///
+    /// On a line or NURBS carrier ([`ConicBend::of`]).
+    #[must_use]
+    pub fn of(curve: &crate::EdgeCurve<T>, he_plus: bool, chord: T) -> Self {
+        let (t0, t1) = curve.params();
+        let (tangent, _) = curve.walk_tangents(he_plus);
+        let extent = crate::edge_extent(curve.carrier(), t0, t1, chord);
+        let bend = ConicBend::of(
+            curve.carrier(),
+            tangent,
+            curve.walk_departure_deriv2(he_plus),
+            t1 - t0,
+        );
+        Self {
+            dir: tangent.normalize() * extent,
+            extent,
+            bend,
+        }
+    }
 }
 
 impl<T: Decide> ConicBend<T> {
@@ -63,31 +108,37 @@ impl<T: Decide> ConicBend<T> {
         let bounds = match *carrier {
             // The parameter is the angle, so the arc is `radius·span`
             // long, no point lies further than the diameter, and the arc
-            // rises `radius·(1 − cos θ) = 2·radius·sin²(θ/2)` off its
-            // tangent at angle `θ`, most at `θ = min(span, π)` (the sine
-            // form, since `1 − cos θ` cancels to nothing at a small `θ`).
+            // rises exactly `radius·(1 − cos θ) = 2·radius·sin²(θ/2)` off
+            // its tangent at angle `θ`, which grows to `θ = π`; most at
+            // `θ = min(span, π)` (the sine form, since `1 − cos θ`
+            // cancels to nothing at a small `θ`).
             geom::Curve3::Circle { radius, .. } => BendBounds::Planar {
                 least: T::one() / radius,
-                most: T::one() / radius,
                 reach: (radius * span).min(radius * T::from_f64(2.0)),
                 rise: radius
                     * T::from_f64(2.0)
                     * (span.min(T::pi()) * T::from_f64(0.5)).sin().powi(2),
+                arc: radius * span,
+                lifts_to: radius * T::pi(),
             },
             // Semi-axes `a ≥ b`: the curvature runs from `b/a²` at the
             // ends of the minor axis to `a/b²` at the ends of the major,
             // and no point lies further than the major diameter. Off its
             // tangent the arc rises `y' = sin φ ≤ φ ≤ most·s`, so at most
             // `most·S²/2` over its length `S ≤ a·span` (the speed is at
-            // most `a`), and never past the major diameter.
+            // most `a`), and never past the major diameter. The speed is
+            // at least `b`, so the arc is at least `b·span` long. The
+            // lift bound holds while the tangent turns at most a quarter
+            // turn at the greatest curvature.
             geom::Curve3::Ellipse { major, minor, .. } => {
                 let (a, b) = (major.abs().max(minor.abs()), major.abs().min(minor.abs()));
                 let most = a / b.powi(2);
                 BendBounds::Planar {
                     least: b / a.powi(2),
-                    most,
                     reach: a * T::from_f64(2.0),
                     rise: (most * (a * span).powi(2) * T::from_f64(0.5)).min(a * T::from_f64(2.0)),
+                    arc: b * span,
+                    lifts_to: T::pi() * T::from_f64(0.5) / most,
                 }
             }
             geom::Curve3::Spiric { .. } => BendBounds::Unbounded,
@@ -113,18 +164,20 @@ impl<T: Decide> ConicBend<T> {
 /// residue the Zero left (`|x| ≤ s`), the second the bend.
 ///
 /// **The bend's lower bound.** The tangent turns at the curvature
-/// `κ(s) ∈ [least, most]`, so its angle `φ(s)` lies between `least·s`
+/// `κ(s) ∈ [least, most]` (`most` the greatest), so its angle `φ(s)` lies between `least·s`
 /// and `most·s`. While `most·s ≤ π/2`, `sin φ ≥ sin(least·s)`, and
 /// integrating, `y(s) ≥ (1 − cos(least·s))/least
-/// = 2·sin²(least·s/2)/least`. So at `l = min(extent, π/(2·most))` the
-/// arc stands at least
+/// = 2·sin²(least·s/2)/least`; on a circle that is the exact rise, out
+/// to a half turn (`lifts_to`). So at `l = min(max(extent, arc),
+/// lifts_to)` the arc stands at least
 ///
 /// `|N̂·n̂|·2·sin²(least·l/2)/least − |t̂·n̂|·l`
 ///
 /// off the plane on the side `N̂·n̂` names, and a margin that clears the
 /// band is the verdict: bending against `n̂` is
 /// [`EntersMaterial::Enters`], along it [`EntersMaterial::Exits`]. `l`
-/// is capped at the extent, so the witness point lies on the edge.
+/// is no longer than the arc (`extent` and `arc` both bound it from
+/// below), so the witness point lies on the edge.
 ///
 /// **Tangent.** Every point of the arc lies in its own plane, within
 /// `reach` of the vertex and within `rise` of the tangent line there
@@ -154,9 +207,10 @@ pub fn conic_bend_side<T: Decide>(
     let (lift, l) = match bend.bounds {
         BendBounds::Planar {
             least,
-            most,
             reach,
             rise,
+            arc,
+            lifts_to,
         } => {
             if let Ok(Sign::Zero) = crate::dihedral::decide(
                 "conic_flat",
@@ -165,7 +219,7 @@ pub fn conic_bend_side<T: Decide>(
             ) {
                 return Ok(EntersMaterial::Tangent);
             }
-            let l = extent.min(T::pi() * T::from_f64(0.5) / most);
+            let l = extent.max(arc).min(lifts_to);
             let half_turn = (least * l * T::from_f64(0.5)).sin();
             (
                 normal_part * half_turn.powi(2) * T::from_f64(2.0) / least,

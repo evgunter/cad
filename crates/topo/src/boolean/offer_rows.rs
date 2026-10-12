@@ -787,9 +787,10 @@ fn conic_bend(margin: f64) -> Result<(), BooleanError> {
         curvature: Vec3::new(0.0, 0.0, 1.0),
         bounds: BendBounds::Planar {
             least: 1.0,
-            most: 1.0,
             reach: core::f64::consts::FRAC_PI_2,
             rise: 1.0,
+            arc: extent,
+            lifts_to: core::f64::consts::PI,
         },
     };
     pierce_side(
