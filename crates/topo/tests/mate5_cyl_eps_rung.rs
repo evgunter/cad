@@ -533,13 +533,11 @@ fn sphere_cone_and_torus_cross_instance_pairs_stay_refused() {
 // The interval lane: the fold's honest remainder, constructed
 // ---------------------------------------------------------------------
 
-/// The fix-pass coverage obligation: `PeriodFold` was previously
-/// constructed by no test at any scalar. Here it is constructed at the
-/// scalar it exists FOR — `Body<Interval>` — on the exact
-/// configuration `periodic_branch` documents as its honest remainder:
-/// two windows a genuine HALF-PERIOD apart, where the two nearest
-/// branches are equidistant, the fold integer's enclosure spans two
-/// integers, and the arm declines typed instead of picking a branch.
+/// `PeriodFold`, constructed at `Body<Interval>` on the configuration
+/// it exists for: two windows a genuine HALF-PERIOD apart, where the
+/// two nearest branches are equidistant, the fold's half-period mark
+/// decides Zero, and the arm declines typed instead of picking a
+/// branch.
 mod interval_lane {
     use super::{ChartRegionError, ContactVerdict, CylFrame, band, cyl_wall_sheet};
     use geom_core::Tol;
@@ -548,12 +546,9 @@ mod interval_lane {
 
     /// INVARIANT (the fold's remainder, constructed): two descriptions
     /// of one cylinder whose trims sit an exact
-    /// HALF-PERIOD apart in azimuth. The fold argument's true value
-    /// lands on `periodic_branch`'s documented tie; interval
-    /// arithmetic's outward rounding gives the enclosure positive
-    /// width across it, the branch index spans two integers, and the
-    /// arm declines `PeriodFold` — the variant's first constructing
-    /// row at any scalar.
+    /// HALF-PERIOD apart in azimuth. The gap between the windows'
+    /// midpoints sits on the fold's half-period mark, which decides
+    /// Zero, so no branch is named and the arm declines `PeriodFold`.
     #[test]
     fn a_half_period_tie_declines_period_fold() {
         let pi = core::f64::consts::PI;

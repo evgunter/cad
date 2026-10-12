@@ -2,11 +2,12 @@
 id: periodic-branch-floor-remains-at-three-sites
 kind: issue
 title: Real::periodic_branch, an opaque floor atom over a box, still picks branches at chord_join, chart_region and solid_contain
-status: open
+status: closed
 opened: 2026-10-02
+closed: 2026-10-12
 priority: P2
 cost: M
-refs: [loop-walk-branch-is-an-opaque-floor-atom]
+refs: [loop-walk-branch-is-an-opaque-floor-atom, periodic-branch-floor-remains-at-the-raw-picks]
 ---
 
 
@@ -33,3 +34,29 @@ measured. A shift taken from any of them that lands a row more than
 
 The fix, where a site turns out to run over a box, is the walk's:
 decide the branch as structure with `whole_periods`.
+
+## Closed
+
+Closed by `pcert/periodic-branch-structural`. All three sites now decide
+their branch as structure with `geom_brep::whole_periods`:
+
+- `solid_contain::torus_chart_joint` meters the marks through the
+  channel's rate, as its closure is metered.
+- `chart_region::period_fold` levers them at the radius.
+- `chord_join::nearest_branch` uses the vertex's lever
+  (`pcurves::joint_arm`), off the pole and apex.
+
+Measured first. None of the three is reached over a parameter box in
+the topo, sweep, step-import, mesh or editor-core suites. All three are
+generic (`T: Decide`), though, so a box reaches them by type, and at
+every `Sym` call the floor carried an opaque atom. A row per site at
+`Sym<Interval>` over a box shows the decision that reads the branch
+deciding as a theorem. A floor-restoring mutant is red on each.
+
+One behaviour moved: a sphere face slit to its pole. At `Interval` its
+walk now escalates at the joint after the slit, where the floor carried
+the straddle on as a window a period wide
+(`crates/sweep/tests/pole_slit_window.rs`). No row reaches
+`MAX_BRANCH_PERIODS`. The six other floor branch picks the sweep found
+are `periodic-branch-floor-remains-at-the-raw-picks`.
+

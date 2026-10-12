@@ -4064,7 +4064,10 @@ fn singular_at<T: Decide>(
 /// point rather than from a stored latitude. On a plane or a spline
 /// chart the first channel is not an angle, and the arm is
 /// [`chart_u_arm`]'s rate.
-fn joint_arm<T: Real>(chart: DescribedChart<'_, T>, vertex: geom_core::Point3<T>) -> ChartArm<T> {
+pub(crate) fn joint_arm<T: Real>(
+    chart: DescribedChart<'_, T>,
+    vertex: geom_core::Point3<T>,
+) -> ChartArm<T> {
     let off_axis = |origin: geom_core::Point3<T>, axis: geom_core::Vec3<T>| {
         let w = vertex - origin;
         (w - axis * w.dot(axis)).norm()

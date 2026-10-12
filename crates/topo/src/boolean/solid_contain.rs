@@ -2407,7 +2407,6 @@ fn torus_chart_windows<T: Decide>(
     let LoopBoundary::Cycle { first } = body.get_loop(f.outer).ok_or_else(corrupt)?.boundary else {
         return Ok(None);
     };
-    let tau = T::tau();
     // The channels' rates, bounded above: a parallel's radius
     // `R + r·cos t` is at most `R + r`, and a meridian's is `r`.
     let arms = (SupSpeed::new(lever), SupSpeed::new(minor_radius));
@@ -2464,16 +2463,11 @@ fn torus_chart_windows<T: Decide>(
         };
         let at = |t: T| (p0.x + pl.x * t, p0.y + pl.y * t);
         let (mut entry, mut exit) = (at(entry_t), at(exit_t));
-        if let Some(&(_, (pu, pv))) = sides.last() {
-            let ku = (pu - entry.0).periodic_branch(tau) * tau;
-            let kv = (pv - entry.1).periodic_branch(tau) * tau;
-            entry = (entry.0 + ku, entry.1 + kv);
-            exit = (exit.0 + ku, exit.1 + kv);
-            // **The walk is continuous**: each entry is the previous
-            // exit, so an edge the walk stepped over leaves a gap here.
-            if !torus_chart_meets(face, (pu, pv), entry, arms, band)? {
+        if let Some(&(_, prev)) = sides.last() {
+            let Some((e, x)) = torus_chart_joint(face, prev, (entry, exit), arms, band)? else {
                 return Ok(None);
-            }
+            };
+            (entry, exit) = (e, x);
         }
         sides.push((entry, exit));
     }
@@ -2490,6 +2484,55 @@ fn torus_chart_windows<T: Decide>(
     // (header).
     chart_polygon_box("bool_torus_chart_box", &sides, arms.0, arms.1, band)
         .map_err(|diag| PointInSolidError::Escalated { face, diag })
+}
+
+/// **One joint of a torus chart walk**: the side `(entry, exit)` moved
+/// onto the branch of `prev`, the exit before it, when the walk meets
+/// there. The branch is decided as structure, per channel
+/// ([`geom_brep::whole_periods`]): sign decisions at the half-period
+/// marks, metered through the channel's rate as the closure is, so the
+/// shift is a whole number of periods `k·τ` with `k` a literal. `None`
+/// where the walk does not meet: the gap sits on a mark (half a period
+/// from either branch), is out of the branch reach, or the shifted entry
+/// is not the exit.
+///
+/// # Errors
+///
+/// [`PointInSolidError::Escalated`] where a mark or the closure is
+/// in band.
+#[allow(clippy::type_complexity)] // a side's two chart points
+fn torus_chart_joint<T: Decide>(
+    face: FaceKey,
+    prev: (T, T),
+    (entry, exit): ((T, T), (T, T)),
+    arms: (SupSpeed<T>, SupSpeed<T>),
+    band: Band,
+) -> Result<Option<((T, T), (T, T))>, PointInSolidError> {
+    let tau = T::tau();
+    let shift = |gap: T, arm: SupSpeed<T>| match geom_brep::whole_periods(
+        "bool_torus_chart_branch",
+        gap,
+        tau,
+        |g| Margin::metered_sup(g, arm),
+        band,
+    ) {
+        Ok(k) => Ok(Some(k * tau)),
+        Err(geom_brep::BranchMiss::Undecided(diag)) => {
+            Err(PointInSolidError::Escalated { face, diag })
+        }
+        Err(geom_brep::BranchMiss::OnMark | geom_brep::BranchMiss::OutOfReach) => Ok(None),
+    };
+    let (Some(ku), Some(kv)) = (
+        shift(prev.0 - entry.0, arms.0)?,
+        shift(prev.1 - entry.1, arms.1)?,
+    ) else {
+        return Ok(None);
+    };
+    let entry = (entry.0 + ku, entry.1 + kv);
+    let exit = (exit.0 + ku, exit.1 + kv);
+    // **The walk is continuous**: each entry is the previous exit, so an
+    // edge the walk stepped over leaves a gap here.
+    Ok(torus_chart_meets(face, prev, entry, arms, band)?.then_some((entry, exit)))
 }
 
 /// Do two chart points of one torus walk coincide? Each channel's
@@ -6375,5 +6418,40 @@ mod escalated_ending_rows {
                 );
             }
         }
+    }
+}
+
+/// **A torus walk's joint lands on a literal branch.** Over a box, a
+/// joint whose entry sits one period from the previous exit in both
+/// channels, as polynomials that are not constants: the branch is
+/// decided by its marks, so the shifted entry meets the exit as the
+/// zero polynomial in each channel, and the walk closes as a theorem
+/// where the value channel alone is about 0.64 rad wide.
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod joint_branch_rows {
+    use super::*;
+    use geom_core::{Real, Sym};
+
+    #[test]
+    fn a_joint_a_period_out_meets_as_a_theorem_over_a_box() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (out, counts) =
+            crate::test_support_fixtures::whole_period_gap_over_a_box(1.0, |a, b| {
+                let arms = (
+                    SupSpeed::new(Sym::from_f64(2.5)),
+                    SupSpeed::new(Sym::from_f64(0.5)),
+                );
+                torus_chart_joint(FaceKey::default(), (a, a), ((b, b), (b, b)), arms, band)
+                    .map(|joint| joint.is_some())
+            });
+        assert!(
+            matches!(out, Ok(true)),
+            "the walk meets across the joint: {out:?}"
+        );
+        assert_eq!(
+            counts.symbolic_zero, 2,
+            "each channel's closure is the zero polynomial"
+        );
     }
 }

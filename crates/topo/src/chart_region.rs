@@ -39,10 +39,9 @@
 //!   agree within ε everywhere the pair's trims reach (bounded from
 //!   the descriptions with the radius-pricing `hyp` lever, then
 //!   MEASURED at the trims), and folds the angular coordinate by ONE
-//!   whole period pinned per pair through
-//!   [`geom_core::Real::periodic_branch`] (CERT-4's repaired fold;
-//!   the [`ChartRegionError::PeriodFold`] decline is that primitive's
-//!   documented half-period-tie remainder).
+//!   whole number of periods decided per pair as structure
+//!   ([`geom_brep::whole_periods`]; the [`ChartRegionError::PeriodFold`]
+//!   decline is a gap on a half-period mark).
 //!
 //! For both arms the claim earned is *certified everywhere within ε*,
 //! never *exact*: `decide`'s `Ok(Zero)` means `|m| ≤ zero`, not
@@ -262,15 +261,11 @@ pub enum ChartRegionError {
     /// exists (module docs).
     SeamBranch,
     /// The whole-period fold that carries one cylinder description's
-    /// chart window onto the other's could not be PINNED to a single
-    /// integer at this scalar. The fold runs through
-    /// [`geom_core::Real::periodic_branch`] (issue 1191's widening
-    /// class was repaired by CERT-4/#1303); what this variant carries
-    /// is that primitive's DOCUMENTED honest remainder — the two
-    /// windows sit a genuine half-period tie apart, the enclosure
-    /// spans two integers, and no branch may be picked. Conservative
-    /// BY DIRECTION: the tie declines toward escalation, never toward
-    /// certifying a false overlap.
+    /// chart window onto the other's names no branch: the two windows'
+    /// midpoints sit ON a half-period mark (a genuine tie, half a
+    /// period from two branches) or more than
+    /// [`geom_brep::MAX_BRANCH_PERIODS`] periods apart. The tie
+    /// declines, never certifying a false overlap.
     PeriodFold,
     /// A declared pair's two carrier DESCRIPTIONS are definitely apart
     /// somewhere over the pair's OWN extent. Door 1 bounds the tilt
@@ -398,9 +393,9 @@ impl core::fmt::Display for ChartRegionError {
             Self::PeriodFold => write!(
                 f,
                 "chart-region: the cross-description angular fold could not be \
-                 pinned to one whole period at this scalar — the two windows sit \
-                 a genuine half-period tie apart (periodic_branch's documented \
-                 remainder); the tie declines, it never certifies. Move one \
+                 pinned to one whole period — the two windows sit a genuine \
+                 half-period tie apart, or more periods apart than the branch \
+                 reach; the tie declines, it never certifies. Move one \
                  description's window off the half-period tie, or re-describe the \
                  pair on one cylinder rather than two"
             ),
@@ -1304,20 +1299,18 @@ fn cyl_frame<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<CylFrame<T>, Ch
 /// Door-1 refusal is `ContactRefusal`, a different type), so consuming
 /// the verdict admits no refused pair either way.
 ///
-/// # The fold (CERT-4's repaired primitive; the tie remainder)
+/// # The fold
 ///
 /// `δ` is a principal-value angle and each polygon rides its own
 /// pinned branch, so the transferred window may sit whole periods
-/// away from A's. ONE integer `k` — `(mid_A − mid_B̃).periodic_branch(τ)`
-/// — is pinned per pair and applied to every transferred vertex.
-/// Issue 1191's floor-widening class was REPAIRED by CERT-4 (#1303),
-/// and this arm consumes the repaired primitive; what remains is that
-/// primitive's DOCUMENTED honest remainder — at the interval scalar
-/// the enclosure spans two integers exactly when the windows sit a
-/// genuine half-period tie apart — and there the integer cannot be
-/// pinned and the arm declines [`ChartRegionError::PeriodFold`]. The
-/// widening runs toward decline only, never toward a false
-/// certification.
+/// away from A's. ONE integer `k` is decided per pair, from the gap
+/// `mid_A − mid_B̃` between the two windows' azimuth midpoints, and
+/// applied to every transferred vertex. It is decided as structure
+/// ([`geom_brep::whole_periods`], `chart_region_period_fold`): sign
+/// decisions at the half-period marks, levered by the radius, so the
+/// shift is `k·τ` with `k` a literal at every scalar. A gap on a mark
+/// (the windows a half-period tie apart) or past the branch reach
+/// declines [`ChartRegionError::PeriodFold`]; a mark in band escalates.
 ///
 /// # Decline posture (issue 1435's disclosure obligation)
 ///
@@ -1562,17 +1555,9 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
         return band_overlap(&uv_a, &uv_b, band_a, band_b, a.radius, band);
     }
 
-    // --- The fold: one whole period, pinned per pair through
-    //     `Real::periodic_branch` (issue 1191's widening class was
-    //     repaired by CERT-4/#1303; what remains is that primitive's
-    //     DOCUMENTED honest remainder — a genuine half-period tie,
-    //     where the enclosure spans two integers and the arm declines
-    //     typed rather than picking a branch).
-    let k = (window_mid(&uv_a) - window_mid(&uv_b)).periodic_branch(T::tau());
-    if !(k.lo() == k.hi() && k.lo().is_finite()) {
-        return Err(ChartRegionError::PeriodFold);
-    }
-    let shift = k * T::tau();
+    // --- The fold: one whole period, pinned per pair as structure
+    //     (doc above).
+    let shift = period_fold(window_mid(&uv_a) - window_mid(&uv_b), a.radius, band)?;
     let fold = |p: &Point2<T>| Point2::new(p.x + shift, p.y);
     uv_b = FaceUv {
         outer: uv_b.outer.iter().map(fold).collect(),
@@ -1588,6 +1573,33 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
     overlap_of_uv(
         body_a, face_a, body_b, face_b, &surface_a, &uv_a, &uv_b, band,
     )
+}
+
+/// The fold's shift `k·τ` for windows whose azimuth midpoints are `gap`
+/// apart, on a cylinder of `radius`: `k` decided by the half-period marks
+/// ([`geom_brep::whole_periods`]) metered at the radius, so it is a
+/// literal at every scalar.
+///
+/// # Errors
+///
+/// [`ChartRegionError::PeriodFold`] where the gap sits on a mark or past
+/// the branch reach; [`ChartRegionError::Escalated`] where a mark is in
+/// band.
+fn period_fold<T: Decide>(gap: T, radius: T, band: Band) -> Result<T, ChartRegionError> {
+    let tau = T::tau();
+    match geom_brep::whole_periods(
+        "chart_region_period_fold",
+        gap,
+        tau,
+        |g| Margin::levered(g, radius),
+        band,
+    ) {
+        Ok(k) => Ok(k * tau),
+        Err(geom_brep::BranchMiss::Undecided(diag)) => Err(ChartRegionError::Escalated(diag)),
+        Err(geom_brep::BranchMiss::OnMark | geom_brep::BranchMiss::OutOfReach) => {
+            Err(ChartRegionError::PeriodFold)
+        }
+    }
 }
 
 /// The largest world-metre distance between a face's transferred chart
@@ -5792,6 +5804,34 @@ mod from_computed_rows {
                 laundered: 0,
             },
             "the decisions at the witness are opaque, and the rest re-value with the scale"
+        );
+    }
+}
+
+/// **The cross-description fold is a literal number of periods.** Over
+/// a box, windows a period apart as polynomials that are not constants:
+/// the fold's shift less one period is the zero polynomial.
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod period_fold_rows {
+    use super::*;
+    use geom_core::{Real, Sym};
+
+    #[test]
+    fn the_fold_is_a_whole_period_as_a_theorem_over_a_box() {
+        let band = Band::linear(geom_core::Tol::witness()).unwrap();
+        let (out, counts) =
+            crate::test_support_fixtures::whole_period_gap_over_a_box(1.0, |a, b| {
+                let shift = period_fold(a - b, Sym::from_f64(2.0), band).unwrap();
+                crate::validate::decide("period_fold_row", Margin::of(shift - Sym::tau()), band)
+            });
+        assert!(
+            matches!(out, Ok(Sign::Zero)),
+            "the fold is one period: {out:?}"
+        );
+        assert_eq!(
+            counts.symbolic_zero, 1,
+            "the shift less τ is the zero polynomial"
         );
     }
 }
