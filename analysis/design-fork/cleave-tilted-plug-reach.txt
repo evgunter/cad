@@ -1,0 +1,5 @@
+fork: cleave tilted-plug one-carrier reach (work/cleave/a-tilted-plug-in-its-hole-refuses-at-the-ellipse-rims.md)
+dispatched: 2026-10-12
+urandom byte: 233
+mapping: Fable=A Opus=B
+protocol: 4fbf874b32
