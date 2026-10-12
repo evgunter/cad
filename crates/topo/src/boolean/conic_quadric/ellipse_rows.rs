@@ -400,10 +400,10 @@ mod fuzz_rows {
     //! the configurations where the ladder's root variable distorts arc
     //! length most, checked against the TRUE distance, at three bands.
 
-    use core::f64::consts::{PI, TAU};
+    use core::f64::consts::TAU;
 
     use super::*;
-    use crate::boolean::conic_oracle::{distance, sign_changes, unit};
+    use crate::boolean::conic_oracle::{distance, exact, unit};
     use geom_core::{Point3, Vec3};
     use test_utils::fuzz;
 
@@ -414,8 +414,9 @@ mod fuzz_rows {
     ///
     /// - every certified root lies on the surface, its TRUE distance
     ///   inside the zero band;
-    /// - a certified count is never below the true sign changes, which a
-    ///   dense sampling of the true distance finds;
+    /// - a certified count is the true count of crossings, which the
+    ///   exact oracle ([`exact::truth`]) places round the turn, a graze
+    ///   pair however close included;
     /// - a `Miss` is never certified for a carrier that comes within the
     ///   zero band of the surface, or crosses it.
     ///
@@ -440,7 +441,6 @@ mod fuzz_rows {
     }
 
     fn hold_against_the_true_distance(rng: &mut fuzz::Rng) {
-        let dense = 20_000;
         for eps in [1e-6, 1e-9, 1e-12] {
             let band = Band::new(eps, 10.0 * eps).unwrap();
             let (mut certified, mut misses, mut uncertain, mut escalated) = (0, 0, 0, 0);
@@ -489,16 +489,11 @@ mod fuzz_rows {
                 };
                 let t0 = rng.range(0.0, TAU);
                 let t1 = t0 + rng.range(0.1, TAU);
-                let mid = (t0 + t1) / 2.0;
                 let Ok(found) = conic_quadric_roots(&e, t0, t1, &s, band) else {
                     escalated += 1;
                     continue;
                 };
-                let samples: Vec<f64> = (0..=dense)
-                    .map(|k| distance(&s, e.eval(mid - PI + TAU * f64::from(k) / f64::from(dense))))
-                    .collect();
-                let changes = sign_changes(&samples);
-                let closest = samples.iter().fold(f64::INFINITY, |m, d| m.min(d.abs()));
+                let truth = exact::truth(&e, &s);
                 let label = format!(
                     "ε {eps}, case {i}: {e:?} against {s:?} on [{t0}, {t1}] — {}",
                     fuzz::replay()
@@ -510,20 +505,23 @@ mod fuzz_rows {
                             let off = distance(&s, e.eval(t)).abs();
                             assert!(off <= eps, "{label}: root {t} lies {off} off the surface");
                         }
-                        assert!(
-                            count >= changes,
-                            "{label}: {count} certified roots, {changes} sign changes"
+                        assert_eq!(
+                            count,
+                            truth.roots.len(),
+                            "{label}: certified {count} of {:?}",
+                            truth.roots
                         );
                     }
                     CircleRoots::Miss => {
                         misses += 1;
                         assert!(
-                            changes == 0 && closest > eps,
-                            "{label}: a Miss {closest} from the surface, {changes} sign changes"
+                            truth.roots.is_empty() && truth.depth > eps,
+                            "{label}: a Miss {} from the surface, true crossings {:?}",
+                            truth.depth,
+                            truth.roots
                         );
                     }
                     CircleRoots::Uncertain | CircleRoots::OnSurface => uncertain += 1,
-                    CircleRoots::CountDisagrees => panic!("{label}: CountDisagrees"),
                     CircleRoots::AtApex => panic!("{label}: no apex on a sphere or a wall"),
                 }
             }
@@ -758,7 +756,6 @@ mod graze_rows {
                             assert!(off <= eps, "{label}: root {t} lies {off} off");
                         }
                     }
-                    Ok(CircleRoots::CountDisagrees) => panic!("{label}: CountDisagrees"),
                     _ => declined += 1,
                 }
             }

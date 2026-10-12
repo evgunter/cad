@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-03
 priority: P1
 cost: H
-blocked_on: [census-cross-solid-curved-pairs-undecidable-on-shell-results, a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms, a-two-pinch-union-ships-a-pinch-its-records-do-not-declare, a-boolean-drops-its-operands-own-contact-records]
+blocked_on: [census-cross-solid-curved-pairs-undecidable-on-shell-results, a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms, a-two-pinch-union-ships-a-pinch-its-records-do-not-declare]
 refs: [3987, 3870]
 ---
 
@@ -81,9 +81,27 @@ zip's admission fix (`work/zip/a-flush-declared-reflex-union-ships-the-wrong-vol
 The REST zip shipped `vol a + vol b′` at all 16 runs of what is now
 `crates/sweep/tests/rest_zip_admission.rs`
 `a_reflex_union_behind_a_join_lever_never_ships_the_overlap_twice`
-(8 poses, both orders). 12 of those 16 passed the door's tier-3 gate and
+(8 poses, both orders; renamed
+`a_reflex_union_at_a_tangent_site_never_ships_the_overlap_twice` when
+stage 4 A deleted the zip). 12 of those 16 passed the door's tier-3 gate and
 failed `validate_pseudomanifold` over their own `BooleanBody::contacts`
 when the probe ran it. The other 4 passed tier 3′ as well, so the census
 would not have caught every one of them. The admission fix makes the zip
 decline all 16, so the door no longer ships these bodies. It still shows
 that the door's tier-3-only gate lets a body tier 3′ refuses reach the caller.
+
+## Evidence: four near-tangent results the door ships (branch `cleave/near-tangent-invariants`, 2026-10-10)
+
+PR 4581 retired the pierce-germ `ClassificationInvariant` that refused
+four of JOIN's near-tangent census runs at ε = 1e-12. Those runs now
+build their closed-form volume and fail tier 3′ definitely, which this
+door does not see:
+- `w345 nt e1 a13 d1e-8` and `d1e-9`, prism ∩ cube: two stale `VertexOnFace` records each.
+- `w345 nt e1 a14 d1e-8`, cube ∩ prism: two stale `VertexOnFace` records.
+- `w345 nt e1 a14 d1e-8`, cube ∖ prism: three undeclared contacts (`VertexOnFace` at `(2, 0, 1)` and `(2, 0, 0)`, an `EdgeFaceOverlap` at `(2, 0, 0.5)`).
+
+`crates/sweep/tests/near_tangent_pierce_poses.rs` pins them at exactly
+those findings (`SHIPS_A_FINDING`), so a door census that refuses them
+turns that pin red, to be re-pinned at the refusal. The findings are
+FUSE's (`work/fuse/a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms.md`,
+where the full list is).

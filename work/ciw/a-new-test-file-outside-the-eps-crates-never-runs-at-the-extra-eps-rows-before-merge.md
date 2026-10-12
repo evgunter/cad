@@ -47,7 +47,7 @@ gate's cost policy, so it is ciw's call and not a drive-by.
 PR 4074 added `crates/sweep/tests/pinch_faces_tessellate.rs`. It
 touched sweep, but no path in it matched `(probe|golden)`, so the file
 never ran at 1e-6 before merge. Its `notch307 fib117` row escalates the
-boolean at 1e-6 on main (`work/join/pinch-tessellate-row-escalates-at-eps-1e-6`).
+boolean at 1e-6 on main (`pinch-tessellate-row-escalates-at-eps-1e-6`, JOIN, closed by PR 4083).
 The first gate run to see it was PR 4111's (run 37421965598). That PR
 reached sweep's ε rows only because it edits two `*_probes.rs` files.
 The gap therefore covers most of sweep's rows and every

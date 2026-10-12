@@ -3579,7 +3579,7 @@ mod value_field_tests {
             let (doc, extrude) = inserted(
                 &doc,
                 Node::Extrude {
-                    profile,
+                    profile: profile.into(),
                     distance: Formula::written_length(WrittenLength::canonical_in(canonical, MM))
                         .expect("a finite written length"),
                     side: pncad::document::ExtrudeSide::Along,
@@ -3630,7 +3630,7 @@ mod value_field_tests {
             let (doc, pattern) = inserted(
                 base.session.doc(),
                 Node::Pattern {
-                    input: extrude,
+                    input: extrude.into(),
                     count: Formula::count(count),
                     kind: PatternKind::Linear {
                         direction: [scl(0.0), scl(1.0), scl(0.0)],

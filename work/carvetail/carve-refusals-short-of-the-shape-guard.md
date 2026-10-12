@@ -97,3 +97,10 @@ ground. `CapPlane`/`SidePlane` forward `NewellError`, and
 `Pcurve` forwards `PcurveMintError`. Both are filed on
 `work/issues/unowned-viewer-refusals-short-of-the-shape-guard.md`.
 The repair can be made at either end.
+
+**Since (ENCL, `encl/sweep-must-carry-escalation`):** the four sweep sliver
+variants carry which reading escalated (`topo::DihedralReading`) and word the
+second-order bend apart from the first-order sliver (`sweep::swept::sliver_text`),
+but each still ends in the payload's generic `COINCIDENCE_RECOURSE` ("declare
+the coincidence, or move the geometry") rather than its decision's own lever;
+the decision each reading asks is now in hand at the site.

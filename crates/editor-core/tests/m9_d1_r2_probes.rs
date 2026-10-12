@@ -34,25 +34,14 @@ fn revolve_programs(loops: Vec<LoopProgram<Formula>>, angle: f64) -> (ProfileDoc
     let (doc, p) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops,
             ids: Vec::new(),
         }),
     );
-    let (doc, axis) = insert(
-        doc,
-        // The axis, in the frame's own coordinates: the profile's v is
-        // world +Y, so the line the revolve turns about is that
-        // frame's +y through (0, 0).
-        fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)),
-    );
     insert(
         doc,
-        Node::Revolve {
-            profile: p,
-            axis,
-            angle: ang(angle),
-        },
+        fixture::revolve_about(p, (0.0, 0.0), (0.0, 1.0), ang(angle)),
     )
 }
 

@@ -41,9 +41,9 @@
 //!   (`sectors::cone_read`);
 //! - the plate alone, and the arches without it, read once.
 //!
-//! The operands' own contacts do not reach a result
-//! (`work/wire/a-boolean-drops-its-operands-own-contact-records.md`), so
-//! tier 3′ is asserted where the result holds no such contact and
+//! A kernel op called without `BooleanInputs` records carries none of
+//! its operands' records, so the operands' own contacts do not reach a
+//! result here, and tier 3′ is asserted where the result holds no such contact and
 //! otherwise refuses only those, at `MEET`, or a touch there the
 //! census misreads (`three_prime`). Each result's material near `MEET`
 //! is the op's over the operands' (`material_holds`), and each class
@@ -108,9 +108,8 @@ fn dart_below() -> [[f64; 3]; 4] {
     ]
 }
 
-/// The lying pyramid's corner on the top, which rests there as a
-/// contact of the plate's and the pyramid's own.
-fn lie_corner() -> Option<[f64; 3]> {
+/// The far end of the lying pyramid's ray along the top.
+fn lying_ray() -> Option<[f64; 3]> {
     Some(lying(0.0)[2])
 }
 
@@ -131,9 +130,8 @@ fn volume(b: &AtRestBody<f64>) -> f64 {
 }
 
 /// Every refusal of tier 3′ is at [`MEET`]: a contact there no record
-/// backs, an operand's own, which the result does not carry
-/// (`work/wire/a-boolean-drops-its-operands-own-contact-records.md`),
-/// or a touch there between two solids that the census misreads. Those
+/// backs, an operand's own, which a kernel op called without
+/// `BooleanInputs` records does not carry, or a touch there between two solids that the census misreads. Those
 /// are a pyramid notched by another, a saddle corner on the plate
 /// (`work/inside/a-touch-at-a-saddle-corner-refuses-unanalysed.md`),
 /// and a pyramid on a solid that touches itself there, read from its
@@ -142,28 +140,31 @@ fn volume(b: &AtRestBody<f64>) -> f64 {
 /// [`material_holds`] reads those results right. Where `along`, a
 /// pyramid's edge lies in a face of the other's, and that edge's own
 /// contact, which no record carries, may refuse too
-/// (`work/join/a-corner-pair-with-an-edge-in-the-partners-face-plane-builds-with-undeclared-contacts.md`).
-/// Where `own` names a corner relative to [`MEET`], an operand's corner
-/// rests on a face of its own there, the lying pyramid's on the top, and
-/// that corner's contact and its edge's from `MEET`, likewise dropped,
-/// may refuse too. Returns whether 3′ held.
+/// (`work/flush/a-corner-pair-with-an-edge-in-the-partners-face-plane-builds-with-unrecorded-contacts.md`).
+/// Where `ray` names the far end of the lying pyramid's ray along the
+/// top (relative to [`MEET`]), that ray's contacts may refuse too: its
+/// corner on the top and the ray on it, the operand's own, likewise not
+/// carried; and an edge of the other operand along the ray, whose
+/// overlap with it the result's record does not carry
+/// (`work/tang/an-edge-along-a-partners-ray-through-a-touch-has-no-record.md`).
+/// Returns whether 3′ held.
 fn three_prime(
     what: &str,
     r: &topo::BooleanBody<f64>,
     pose: &Pose,
     along: bool,
-    own: Option<[f64; 3]>,
+    ray: Option<[f64; 3]>,
 ) -> bool {
     let Err(errors) = validate_pseudomanifold(&r.body, &r.contacts, t()) else {
         return true;
     };
     let meet = at(pose.at(MEET));
     let at_meet = |v| at(readback::vertex_point(&r.body, v).unwrap()) == meet;
-    let corner = own.map(|c| pose.at([0, 1, 2].map(|k| MEET[k] + c[k])));
-    let at_own = |v| Some(at(readback::vertex_point(&r.body, v).unwrap())) == corner.map(at);
-    // On the segment from `MEET` to the own corner, to a micron.
-    let on_own = |e| {
-        let Some(c) = corner else { return false };
+    let far = ray.map(|c| pose.at([0, 1, 2].map(|k| MEET[k] + c[k])));
+    let at_far = |v| Some(at(readback::vertex_point(&r.body, v).unwrap())) == far.map(at);
+    // On the segment from `MEET` to the ray's far end, to a micron.
+    let on_ray = |e| {
+        let Some(c) = far else { return false };
         let o = pose.at(MEET);
         let edge = r.body.get_edge(e).unwrap();
         let plus = r.body.get_half_edge(edge.he_plus).unwrap();
@@ -185,10 +186,11 @@ fn three_prime(
     };
     for e in &errors {
         let ok = match e {
-            ValidationError::UndeclaredContact { contact, .. } => match *contact {
+            ValidationError::UnrecordedContact { contact, .. } => match *contact {
                 CensusContact::VertexVertex { a, b } => at_meet(a) && at_meet(b),
-                CensusContact::VertexOnFace { vertex, .. } => at_meet(vertex) || at_own(vertex),
-                CensusContact::EdgeFaceOverlap { edge, .. } => along || on_own(edge),
+                CensusContact::VertexOnFace { vertex, .. } => at_meet(vertex) || at_far(vertex),
+                CensusContact::EdgeFaceOverlap { edge, .. } => along || on_ray(edge),
+                CensusContact::EdgeEdgeOverlap { a, b } => on_ray(a) && on_ray(b),
                 _ => false,
             },
             ValidationError::CensusUndecidable { a, b, what: class } => {
@@ -320,7 +322,7 @@ fn builds(label: &str, x: &AtRestBody<f64>, y: &AtRestBody<f64>, pose: &Pose) ->
 }
 
 /// [`builds`], where `along` says an edge of one lies in a face of the
-/// other, and `own` names a corner of one resting on a face of its own
+/// other, and `ray` names a ray an edge of each lies along
 /// ([`three_prime`]).
 fn builds_along(
     label: &str,
@@ -328,7 +330,7 @@ fn builds_along(
     y: &AtRestBody<f64>,
     pose: &Pose,
     along: bool,
-    own: Option<[f64; 3]>,
+    ray: Option<[f64; 3]>,
 ) -> usize {
     let mut held = 0;
     let mut v = [0.0; 6];
@@ -358,7 +360,7 @@ fn builds_along(
                 assert_eq!(validate_geometric(&r.body, t()), Ok(()), "{what}: tier 3");
                 material_holds(&what, keep, Some(&r.body), &probes);
                 classes_hold(&what, &r, a, b, pose);
-                held += usize::from(three_prime(&what, &r, pose, along, own));
+                held += usize::from(three_prime(&what, &r, pose, along, ray));
                 volume(&r.body)
             }
             Ok(BooleanResult::Empty) => {
@@ -384,6 +386,43 @@ fn builds_along(
         );
     }
     held
+}
+
+/// Every op on `(x, y)`, in both orders, refuses `VertexReadTwice` on a
+/// vertex of `x`'s operand that pierces then pairs: its apex at
+/// [`MEET`], or one the sweep mints where `x`'s edge crosses the lying
+/// pyramid's ray, whichever pair is read first.
+fn refuses_beside_the_ray(label: &str, x: &AtRestBody<f64>, y: &AtRestBody<f64>, pose: &Pose) {
+    let meet = at(pose.at(MEET));
+    let at_meet_or_minted =
+        |body: &AtRestBody<f64>, v| readback::vertex_point(body, v).map_or(true, |p| at(p) == meet);
+    for (what, x_is, r) in [
+        ("x − y", Operand::A, subtract(x, y, t())),
+        ("y − x", Operand::B, subtract(y, x, t())),
+        ("x ∪ y", Operand::A, union(x, y, t())),
+        ("y ∪ x", Operand::B, union(y, x, t())),
+        ("x ∩ y", Operand::A, intersect(x, y, t())),
+        ("y ∩ x", Operand::B, intersect(y, x, t())),
+    ] {
+        let what = format!("{label}, {}, {what}", pose.label);
+        match r {
+            Err(BooleanError::VertexReadTwice {
+                operand,
+                vertex,
+                reads: [SectorRead::Pierce(_), SectorRead::Pair(partner)],
+            }) => {
+                assert_eq!(operand, x_is, "{what}: the operand read twice");
+                assert!(
+                    at_meet_or_minted(x, vertex) && at_meet_or_minted(y, partner),
+                    "{what}: the pair read twice is at MEET or minted"
+                );
+            }
+            other => panic!(
+                "{what}: refuses VertexReadTwice, a pierce then a pair, got {:?}",
+                other.map(|_| ())
+            ),
+        }
+    }
 }
 
 /// Every op on `(x, y)`, in both orders, refuses `VertexReadTwice` on
@@ -722,7 +761,7 @@ fn a_touching_vertex_paired_on_the_face_builds_sound_in_every_op() {
         ("over a lying pyramid", &s.over),
         ("hanging below a lying pyramid", &s.hang),
     ] {
-        builds_along(label, x, &s.lying, pose, false, lie_corner());
+        builds_along(label, x, &s.lying, pose, false, lying_ray());
     }
     // The crossed arch is one of three partners, each in turn, whichever
     // the pairs' order reads first.
@@ -739,37 +778,18 @@ fn a_touching_vertex_paired_on_the_face_builds_sound_in_every_op() {
 /// and pyramids under it, on it beside the lying one, around it, inside
 /// it and continuing its face across it each pair with its apex. A
 /// pyramid with a face flush on the top across the ray, and one with a
-/// face on the lying pyramid's, refuse that coincidence undeclared
-/// before it pairs. At rest; every pose is the slow matrix's.
+/// face on the lying pyramid's, refuse `VertexReadTwice`: the layering
+/// is not read beside a coincidence of the touch's or the pair's
+/// (`vtxfac::partner_side`). At rest; every pose is the slow matrix's.
 #[test]
 fn a_touching_vertex_beside_a_partner_along_the_face_builds_sound_in_every_op() {
     let pose = &Pose::rest();
     let s = Scene::at(pose);
     for (label, x) in &s.along_ray {
-        builds_along(label, x, &s.lying, pose, false, lie_corner());
+        builds_along(label, x, &s.lying, pose, false, lying_ray());
     }
-    undeclared_refuses("flush on the top", &s.flush, &s.lying, pose);
-    undeclared_refuses("on the lying pyramid's face", &s.on_lying, &s.lying, pose);
-}
-
-/// Every op on `(x, y)`, in both orders, refuses a face of `x` on one of
-/// `y`'s as an undeclared coincidence.
-fn undeclared_refuses(label: &str, x: &AtRestBody<f64>, y: &AtRestBody<f64>, pose: &Pose) {
-    for (what, r) in [
-        ("x − y", subtract(x, y, t())),
-        ("y − x", subtract(y, x, t())),
-        ("x ∪ y", union(x, y, t())),
-        ("y ∪ x", union(y, x, t())),
-        ("x ∩ y", intersect(x, y, t())),
-        ("y ∩ x", intersect(y, x, t())),
-    ] {
-        assert!(
-            matches!(r, Err(BooleanError::UndeclaredCoincidence { .. })),
-            "{label}, {}, {what}: refuses undeclared, got {:?}",
-            pose.label,
-            r.map(|_| ())
-        );
-    }
+    refuses_beside_the_ray("flush on the top", &s.flush, &s.lying, pose);
+    refuses_beside_the_ray("on the lying pyramid's face", &s.on_lying, &s.lying, pose);
 }
 
 /// **A vertex in several pairs, or touching a face beside nested
@@ -968,14 +988,14 @@ fn every_scene_builds_sound_or_refuses_typed_at_every_pose() {
             ("standing beside a lying pyramid", &s.cone),
             ("over a lying pyramid", &s.over),
             ("hanging below a lying pyramid", &s.hang),
-        ]
-        .into_iter()
-        .chain(s.along_ray.iter().map(|(label, x)| (*label, x)))
-        {
-            held += builds_along(label, x, &s.lying, &pose, false, lie_corner());
+        ] {
+            held += builds_along(label, x, &s.lying, &pose, false, lying_ray());
         }
-        undeclared_refuses("flush on the top", &s.flush, &s.lying, &pose);
-        undeclared_refuses("on the lying pyramid's face", &s.on_lying, &s.lying, &pose);
+        for (label, x) in &s.along_ray {
+            held += builds_along(label, x, &s.lying, &pose, false, lying_ray());
+        }
+        refuses_beside_the_ray("flush on the top", &s.flush, &s.lying, &pose);
+        refuses_beside_the_ray("on the lying pyramid's face", &s.on_lying, &s.lying, &pose);
         refuses(
             "a prism through the top",
             &s.prism,
@@ -1069,113 +1089,6 @@ fn five_members_fold_onto_the_plate_in_sampled_member_orders() {
             assert!((v - want).abs() < 1e-9, "{what}: volume {v}, want {want}");
         }
     }
-}
-
-/// **A declaration never serves a vertex beside a partner along the
-/// face** (D10): the route reads none. Every op, in both orders, on each
-/// scene against the lying pyramid, at rest, with each class declared on
-/// each pair of their faces: the door refuses it as no coincidence of
-/// theirs, or it serves the undeclared result (a body of the same shape,
-/// or the same refusal). The two that hold a coincidence, a face flush
-/// on the top and one on the lying pyramid's, refuse it undeclared; so
-/// declared, where it is one, the pair reads it, beside a partner along
-/// the face, and refuses `VertexReadTwice`, as it did before the
-/// partner was read at all.
-#[test]
-fn a_declaration_never_serves_a_vertex_beside_a_partner_along_the_face() {
-    use common::meeting::shape;
-    use topo::{
-        BooleanCoincidence, BooleanDeclarations, FacePairDeclaration, intersect_with,
-        subtract_with, union_with,
-    };
-    let pose = &Pose::rest();
-    let s = Scene::at(pose);
-    let classes = [
-        BooleanCoincidence::REST,
-        BooleanCoincidence::TANGENT,
-        BooleanCoincidence::Continuation,
-        BooleanCoincidence::Seam,
-    ];
-    let kind = |r: &Result<BooleanResult<f64>, BooleanError>| match r {
-        Ok(BooleanResult::Body(r)) => Ok(Some(shape(&r.body))),
-        Ok(BooleanResult::Empty) => Ok(None),
-        Err(e) => Err(format!("{e:?}")
-            .split([' ', '{', '('])
-            .next()
-            .unwrap_or("")
-            .to_owned()),
-    };
-    let scenes = [
-        ("standing beside a lying pyramid", &s.cone),
-        ("over a lying pyramid", &s.over),
-        ("hanging below a lying pyramid", &s.hang),
-        ("flush on the top", &s.flush),
-        ("on the lying pyramid's face", &s.on_lying),
-    ]
-    .into_iter()
-    .chain(s.along_ray.iter().map(|(label, x)| (*label, x)));
-    let (mut door, mut served, mut paired) = (0, 0, 0);
-    for (label, x) in scenes {
-        for (a, b, order) in [(x, &s.lying, "x, y"), (&s.lying, x, "y, x")] {
-            type Op = fn(
-                &AtRestBody<f64>,
-                &AtRestBody<f64>,
-                &BooleanDeclarations,
-                Tol,
-            ) -> Result<BooleanResult<f64>, BooleanError>;
-            let ops: [(&str, Op); 3] = [
-                ("−", subtract_with),
-                ("∪", union_with),
-                ("∩", intersect_with),
-            ];
-            for (op, run) in ops {
-                let what = format!("{label}, {order}, {op}");
-                let undeclared = kind(&run(a, b, &BooleanDeclarations::none(), t()));
-                for (fa, _) in a.faces() {
-                    for (fb, _) in b.faces() {
-                        for class in classes {
-                            let decls = BooleanDeclarations {
-                                coincident_faces: vec![FacePairDeclaration::new(fa, fb, class)],
-                                ..BooleanDeclarations::none()
-                            };
-                            let got = kind(&run(a, b, &decls, t()));
-                            match &got {
-                                _ if got == undeclared => served += 1,
-                                Err(e)
-                                    if [
-                                        "ContactContradicted",
-                                        "ContinuationContradicted",
-                                        "SeamContradicted",
-                                        "UnsupportedDeclarationClass",
-                                    ]
-                                    .contains(&e.as_str()) =>
-                                {
-                                    door += 1;
-                                }
-                                Err(e)
-                                    if e == "VertexReadTwice"
-                                        && undeclared.as_ref().err().map(String::as_str)
-                                            == Some("UndeclaredCoincidence") =>
-                                {
-                                    paired += 1;
-                                }
-                                _ => panic!(
-                                    "{what}: {class:?} on {fa:?} × {fb:?} serves {got:?}, \
-                                     undeclared {undeclared:?}"
-                                ),
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    eprintln!("door {door}, served {served}, paired {paired}");
-    assert_eq!(
-        paired, 12,
-        "a declared coincidence reaches the pair and refuses"
-    );
-    assert!(door > 0 && served > 0, "door {door}, served {served}");
 }
 
 /// Whether `body` holds `q`: `None` on its boundary or where the read
@@ -1300,9 +1213,10 @@ fn builds_or_refuses(
 /// touch escalates, so no partner in band reaches a pair. Within the
 /// zero every scene builds as on the top or escalates where a sector
 /// pair reads in band; off it the partner is strictly one side, or
-/// crosses the top. A refusal is an escalation, the undeclared
-/// coincidence of the two faces on a face, or, a pyramid inside the
-/// lifted one, the pierce germ that no sector holds alone
+/// crosses the top. A refusal is an escalation, the
+/// coincidence a face of the pyramid on the top or on the lying one's
+/// refuses (`VertexReadTwice`), or, a pyramid inside the lifted one, the
+/// pierce germ that no sector holds alone
 /// (`work/cleave/near-tangent-pierce-poses-reach-three-classification-invariants.md`).
 #[test]
 fn a_partner_tipped_off_the_face_builds_sound_or_refuses_typed_at_every_pose() {
@@ -1335,25 +1249,22 @@ fn a_partner_tipped_off_the_face_builds_sound_or_refuses_typed_at_every_pose() {
                     && matches!(e, BooleanError::ClassificationInvariant { what }
                         if *what == "pierce germ direction not uniquely within its sector")
             };
-            for (label, x, inside) in [
+            for (label, x, faced) in [
                 ("standing beside", &s.cone, false),
                 ("over", &s.over, false),
                 ("hanging below", &s.hang, false),
-                ("flush on the top", &s.flush, false),
-                ("on its face", &s.on_lying, false),
+                ("flush on the top", &s.flush, true),
+                ("on its face", &s.on_lying, true),
             ]
             .into_iter()
-            .chain(
-                s.along_ray
-                    .iter()
-                    .map(|(label, x)| (*label, x, label.starts_with("inside"))),
-            ) {
+            .chain(s.along_ray.iter().map(|(label, x)| (*label, x, false)))
+            {
+                let inside = label.starts_with("inside");
                 let label = format!("{label}, the pyramid lying {k}ε off the top");
                 built += builds_or_refuses(&label, x, &y, &pose, &|e| {
-                    matches!(
-                        e,
-                        BooleanError::Escalated { .. } | BooleanError::UndeclaredCoincidence { .. }
-                    ) || (inside && germ(e))
+                    matches!(e, BooleanError::Escalated { .. })
+                        || (faced && matches!(e, BooleanError::VertexReadTwice { .. }))
+                        || (inside && germ(e))
                 });
             }
         }

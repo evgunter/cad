@@ -56,7 +56,9 @@ fn dyadic_coeffs(rng: &mut fuzz::Rng, n: usize) -> (Vec<f64>, Vec<i64>) {
 /// Rational spline value at `t` — the sampling oracle, independent of
 /// the hull machinery.
 fn eval_rational(kv: &KnotVector, coeffs: &[f64], weights: &[f64], t: f64) -> f64 {
-    let span = kv.span_at(t);
+    let Some(span) = kv.span_at(t) else {
+        return f64::NAN;
+    };
     let nvals = basis::basis_funs(span, t);
     let first = span.first_control();
     let (mut num, mut den) = (0.0, 0.0);

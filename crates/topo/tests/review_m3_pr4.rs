@@ -10,7 +10,7 @@
 
 use crate::common;
 
-use common::{brick, finished, flush_declarations, prism_z};
+use common::{brick, finished, prism_z};
 use geom_core::Decide;
 use geom_core::Tol;
 use topo::{AtRestBody, Body, BooleanError, BooleanOp, BooleanReduction, boolean_reduce, validate};
@@ -38,15 +38,7 @@ fn reduce_ok<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     b: &AtRestBody<T>,
 ) -> BooleanReduction<T> {
     let (da, db) = (dump(a), dump(b));
-    // M4 PR 5: the review corpus declares its intended flush contacts.
-    let red = topo::boolean_reduce_declared(
-        op,
-        a,
-        b,
-        &flush_declarations(a, b, Tol::witness()),
-        Tol::witness(),
-    )
-    .unwrap();
+    let red = topo::boolean_reduce(op, a, b, Tol::witness()).unwrap();
     assert_eq!(dump(a), da, "operand A mutated");
     assert_eq!(dump(b), db, "operand B mutated");
     validate(&red.a).unwrap();
@@ -135,7 +127,7 @@ fn census_post_through_slab() {
         // Structural probe of one pierce ring: the ring vertex must live
         // on a RING loop of the pierced face, and the outer loop must
         // NOT contain it (kemr put the lone vertex on the ring side).
-        let ring = red.pierce_rings[0];
+        let ring = &red.pierce_rings[0];
         let face = red.a.get_face(ring.face).unwrap();
         let on_loop = |lk, vk| -> bool {
             let l = red.a.get_loop(lk).unwrap();
@@ -313,21 +305,15 @@ fn l_prism_unit() -> AtRestBody<f64> {
     finished("the L-prism", l, Tol::witness())
 }
 
-/// `op` on `a` and `b` under `decls` builds a body that passes tiers 2
+/// `op` on `a` and `b` builds a body that passes tiers 2
 /// and 3′ and the at-rest certificate at the closed-form `volume`, or
 /// the empty result when `volume` is zero.
-fn assert_sound(
-    op: BooleanOp,
-    a: &AtRestBody<f64>,
-    b: &AtRestBody<f64>,
-    decls: &topo::BooleanDeclarations,
-    volume: f64,
-) {
+fn assert_sound(op: BooleanOp, a: &AtRestBody<f64>, b: &AtRestBody<f64>, volume: f64) {
     let tol = Tol::witness();
     let res = match op {
-        BooleanOp::Union => topo::union_with(a, b, decls, tol),
-        BooleanOp::Intersect => topo::intersect_with(a, b, decls, tol),
-        BooleanOp::Subtract => topo::subtract_with(a, b, decls, tol),
+        BooleanOp::Union => topo::union(a, b, tol),
+        BooleanOp::Intersect => topo::intersect(a, b, tol),
+        BooleanOp::Subtract => topo::subtract(a, b, tol),
     };
     let bb = match res {
         Ok(topo::BooleanResult::Empty) if volume == 0.0 => return,
@@ -354,11 +340,10 @@ fn assert_sound(
 /// Reflex edge, touch: a triangular prism nestled in the notch of an
 /// L-prism, its corner on the reflex vertical edge, adding its area to
 /// the L's 3 with nothing in common.
-/// - Sharing only that edge (area 0.42), no declaration is needed: the
-///   reduction finds the two v-v contacts and no seam. Both of the
+/// - Sharing only that edge (area 0.42): the reduction finds the two v-v contacts and no seam. Both of the
 ///   triangle's flankers lie outside both of the L's flanking planes, so
 ///   no verdict splits and the wedge's extent is never asked.
-/// - Flush along the +x arm's wall (area 0.4, declared): the wall's
+/// - Flush along the +x arm's wall (area 0.4): the wall's
 ///   anti-parallel tie reads the On ladder, which splits the verdicts,
 ///   and the union is right only if the 270° wedge reads reflex.
 #[test]
@@ -381,27 +366,26 @@ fn reflex_edge_touch_benign() {
             red.null_pairs.is_empty() && red.null_edges.is_empty(),
             "op {op:?}: seam minted at a touch-only reflex edge"
         );
-        assert_sound(op, &a, &edge, &topo::BooleanDeclarations::default(), volume);
+        assert_sound(op, &a, &edge, volume);
     }
     let flush = finished(
         "the flush triangle",
         prism_z::<f64>(&[(1.0, 1.0), (2.0, 1.0), (1.5, 1.8)], 0.0, 1.0, tol).body,
         tol,
     );
-    let decls = flush_declarations(&a, &flush, tol);
     for (op, volume) in [
         (BooleanOp::Union, 3.4),
         (BooleanOp::Intersect, 0.0),
         (BooleanOp::Subtract, 3.0),
     ] {
-        assert_sound(op, &a, &flush, &decls, volume);
+        assert_sound(op, &a, &flush, volume);
     }
 }
 
 /// Reflex edge, crossing: the triangle straddles the +x arm of the L
 /// from the reflex edge, so the edge-edge site reads the L's 270° wedge
-/// and must germ there. Undeclared, the coplanar caps refuse at the
-/// coincidence door; declared flush, each op builds the closed form:
+/// and must germ there. The coplanar caps glue on their decided zero,
+/// and each op builds the closed form:
 /// the L's 3 and the triangle's 0.4 share its lower half, 0.2.
 #[test]
 fn reflex_edge_crossing_builds_sound() {
@@ -417,23 +401,17 @@ fn reflex_edge_crossing_builds_sound() {
         .body,
         Tol::witness(),
     );
-    let decls = flush_declarations(&a, &b, Tol::witness());
     for (op, volume) in [
         (BooleanOp::Union, 3.2),
         (BooleanOp::Intersect, 0.2),
         (BooleanOp::Subtract, 2.8),
     ] {
-        let err = boolean_reduce(op, &a, &b, Tol::witness()).unwrap_err();
-        assert!(
-            matches!(err, BooleanError::UndeclaredCoincidence { .. }),
-            "op {op:?}: undeclared caps, got {err:?}"
-        );
-        assert_sound(op, &a, &b, &decls, volume);
+        assert_sound(op, &a, &b, volume);
     }
 }
 
 /// Notch-fill: the brick exactly fills the L-prism's notch (every
-/// contact is a declared coplanar tie; union = full box). Runs the
+/// contact is a coplanar tie; union = full box). Runs the
 /// densest tie surface in the corpus: shared walls opposite-oriented,
 /// shared top/bottom SAME-oriented (⁺ row live), six v-v sites, the
 /// reflex edge shared. Expect: success with seams only where the ∪ rim
@@ -478,9 +456,7 @@ fn notch_fill_dense_ties() {
                 assert_eq!(red.contacts.vv.len(), 6, "op {op:?}");
             }
             Err(
-                e @ (BooleanError::ClassificationInvariant { .. }
-                | BooleanError::Escalated { .. }
-                | BooleanError::UndeclaredCoincidence { .. }),
+                e @ (BooleanError::ClassificationInvariant { .. } | BooleanError::Escalated { .. }),
             ) => {
                 eprintln!("op {op:?}: refused: {e}");
             }
@@ -491,14 +467,12 @@ fn notch_fill_dense_ties() {
 
 /// plane_eq door: bit-DIFFERENT NaN normals must never compare Same
 /// (the PR 1 NaN lesson at the new seam) — and must not silently pass
-/// as Distinct either. Post-retirement (M4 PR 5): an axis-plane
-/// revert pair decides SameOpposite through the SAME-SOURCE rung
-/// (reverted orient), and WITHOUT sources the same values refuse
-/// Undeclared — value equality never glues (rung (b)).
+/// as Distinct either. An axis-plane revert pair (one normal the other's
+/// negation, a signed zero apart) decides SameOpposite on its margins.
 #[test]
 fn plane_eq_nan_and_negzero() {
     use geom_core::{Band, Point3, Vec3};
-    use topo::{GeomSource, PlaneIdentity, PlaneRelation, oriented_plane_eq};
+    use topo::{PlaneIdentity, PlaneRelation, oriented_plane_eq};
     let band = Band::linear(Tol::witness()).unwrap();
     let mk = |n: Vec3<f64>, o: Point3<f64>| topo::boolean::plane_eq::PlaneDesc {
         origin: o,
@@ -510,34 +484,14 @@ fn plane_eq_nan_and_negzero() {
     let p2 = mk(Vec3::new(0.0, 0.0, nan2), Point3::new(0.0, 0.0, 0.0));
     let r = oriented_plane_eq(&p1, &p2, PlaneIdentity::NONE, &metre_ball(1.0), band);
     assert!(r.is_err(), "bit-different NaN planes decided {r:?}");
-    // Same-source revert pair (the post-retirement declared rung):
-    // orient split decides SameOpposite with zero numerics.
     let q1 = mk(Vec3::new(0.0, 0.0, 1.0), Point3::new(0.0, 0.0, 5.0));
     let q2 = mk(Vec3::new(-0.0, -0.0, -1.0), Point3::new(0.0, 0.0, 5.0));
-    let src = GeomSource::minted(1, 0);
-    let src_rev = src.reverted();
-    assert_eq!(
-        oriented_plane_eq(
-            &q1,
-            &q2,
-            PlaneIdentity {
-                s1: Some(&src),
-                s2: Some(&src_rev),
-                declared: false
-            },
-            &metre_ball(1.0),
-            band
-        )
-        .unwrap(),
-        PlaneRelation::SameOpposite
-    );
-    // The SAME values without sources: Undeclared, typed — the M4
-    // PR 5 narrowing (equal bits without shared source stay unglued).
-    let r = oriented_plane_eq(&q1, &q2, PlaneIdentity::NONE, &metre_ball(1.0), band);
-    assert!(
-        matches!(r, Err(topo::PlaneEqError::Undeclared { .. })),
-        "unsourced value-equal planes must refuse Undeclared, got {r:?}"
-    );
+    for id in [PlaneIdentity::NONE, PlaneIdentity::DECLARED] {
+        assert_eq!(
+            oriented_plane_eq(&q1, &q2, id, &metre_ball(1.0), band).unwrap(),
+            PlaneRelation::SameOpposite
+        );
+    }
 }
 
 // ---- Interval lane spot checks on the review fixtures. ----
@@ -680,9 +634,8 @@ fn generic_edge_edge_mixed_order_pair() {
 
 /// A brick over `x` with one face relabelled a cone whose apex sits
 /// one unit before the brick on the `x` axis, the face's boundary left
-/// on the brick's lines. The cone is a kind with no wired boolean arm,
-/// and its box is read off the face's own boundary, so where the BRICK
-/// sits decides whether the box reaches `[0, 1]^3`.
+/// on the brick's lines. Its box is read off the face's own boundary,
+/// so where the BRICK sits decides whether the box reaches `[0, 1]^3`.
 #[cfg(test)]
 fn brick_with_cone_face_at(x: (f64, f64)) -> (topo::Body<f64>, topo::FaceKey) {
     use geom_core::Vec3;
@@ -783,10 +736,10 @@ fn assert_cone_face_refuses_at_rest(b: Body<f64>, face: topo::FaceKey) {
     );
 }
 
-/// A face whose kind has no wired boolean arm, posed so its box reaches
-/// the other operand: the cone-relabelled brick is refused at rest on
-/// the relabelled face (`assert_cone_face_refuses_at_rest`), so it
-/// never reaches the boolean's pair-scoped curved gate.
+/// A relabelled cone face posed so its box reaches the other operand:
+/// the brick is refused at rest on the relabelled face
+/// (`assert_cone_face_refuses_at_rest`), so it never reaches the
+/// boolean.
 #[test]
 fn curved_face_gate_witness() {
     // The brick overlaps `[0, 1]^3`, so the cone face's box would reach it.

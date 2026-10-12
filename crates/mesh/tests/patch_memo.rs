@@ -285,7 +285,7 @@ fn arena_keys_are_not_in_the_key_a_reminted_surface_key_hits_on_every_lane() {
         }
         // The re-chart drops a face's pcurve rows when it cannot see the
         // two keys as one chart, and an equal surface under a fresh key
-        // with no `GeomSource` is exactly that case
+        // is exactly that case
         // (`topo::Body::set_face_surface`'s rule, which the describing
         // door keeps). Re-minting is the door's
         // own prescription, and on a surface equal to the one it
@@ -358,7 +358,7 @@ fn rows_of(body: &Body<f64>, face: FaceKey) -> (usize, usize) {
 /// the bodies that can tell them apart.** Putting a face on a fresh key
 /// holding the surface it already had is a chart change the setter
 /// cannot see through when the surface is ANALYTIC — two keys, an equal
-/// surface, no `GeomSource` — and the face's rows go, which is the
+/// surface — and the face's rows go, which is the
 /// bound the row above re-mints past. A described-NURBS or `Approx`
 /// surface is a shared payload: cloning the `Surface` clones the `Arc`,
 /// the setter's predicate reads the two keys as one chart, and the rows

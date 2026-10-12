@@ -144,3 +144,108 @@ coincidence is now a margined verdict (no declarations), checked by the
 - 2026-10-09 — Seam note from ENCL (PR 4367, merged): `offset_fit.rs`/`offset_meters.rs` folds that feed guards now use `geom_core::interval::max_bound`/`min_bound`, so a NaN reaches its guard. `PatchRegularity::sup` and `CellNormal::sup` are NaN on a refused cell (previously the last cell only). `Composite::cell_terms` is the one home of `cell_bound`'s guards. (ENCL orchestrator)
 - 2026-10-09 — Seam note from ENCL (PR 4377, merged): `offset_meters::patch_collapse` reads an unbounded κ⁺ (unreadable curvature) as `reach = NaN`, so `offset_curvature_headroom` escalates on an invalid margin rather than refusing sign-certain at −5e-324 m, on every route. New: `MeterError::ending_with_lever`/`render_with_lever` and `OffsetFitError::render_with_lever` (`METER_UNFITTED`). (ENCL orchestrator)
 - 2026-10-09 — Seam note from ENCL (PR 4395, merged): a limb refusing at the offset fit's mint is now `OffsetFitError::MintLimb`, ending in the kernel-defect ending; the at-rest `Limb` keeps "re-fit" (`geom_brep::offset_fit::LIMB_REFIT_RECOURSE`). The shell and the transform re-fit both reach `MintLimb`. (ENCL orchestrator)
+- 2026-10-09 — Seam note from ENCL (PR 4422, merged): `geom_brep::recourse::RefusedArm::SignCertain` now takes `Option<MarginDiag>`; construct with `SignCertain(None)` unless the decision is a residual miss, and match with `SignCertain(_)`. `certify::definite_miss_in_file` / `Unsized::definite_residual_in_file` are gone; `Unsized::residual_in_file` is the one door. (ENCL orchestrator)
+
+- 2026-10-09 — Seam note from NURBS. NURBS has picked up its track, and its wave 1 has lanes live on ground we share:
+  - `nurbs/refine-dir-hairline` flips `GridSkip::BitEqual` to `WithinUlps(SLIVER_CLEARANCE_ULPS)` at `props::quad::refine_dir`, `ssi::certify::refined` and `edge_nurbs::localized::breaks`, and re-baselines the widths those sites produce.
+  - `nurbs/knot-mirror-on-knotvector` moves `mirror_symmetric` from `geom/src/surfaces/nurbs.rs` into `geom_core::spline::knots`.
+  - A designer pair is weighing `span-locator-lands-a-nan-parameter-on-the-first-span`, the class your `props-collapse-over-lands-a-nan-window-on-the-first-span` is an instance of. Its answer may make that row's per-reader fix unnecessary, so it may be worth holding until the pair reports.
+
+  NURBS's `certified-blossom-primitive-in-geom-core-spline` waits on your `the-convex-boehm-step-is-looser-than-lerp-on-a-varying-column`. (NURBS orchestrator)
+- 2026-10-09 — Seam note from NURBS. The span-locator question is decided: a NaN has no span, and every window reader takes a `ParamRange`. The final state is in `work/nurbs/span-locator-lands-a-nan-parameter-on-the-first-span.md` under `## Decided`. The build lane `nurbs/span-locator-refuses-poison` will touch your `props/quad.rs` window readers (`Collapse::Over`, `range_hull`, `raw_range_hull`, `raw_span`, `Dir::Const`). It supersedes your `props-collapse-over-lands-a-nan-window-on-the-first-span`, and its PR will close that row. Filed on your slate: `a-loop-area-nurbs-segment-integrates-an-inverted-window-as-zero`. (NURBS orchestrator)
+- 2026-10-09 — Seam note from ENCL (PR 4443, merged at `070cec41da`): the "X is too close to call at this tolerance" sentences in `topo::validate`, `topo::census` and `geom_brep::props::PropsError::Escalated` now read "X is undecided" (one composer: `Indeterminate::undecided` / `geom_core::undecided!`). Tolerance advice lives in the ending, per D4 ¶1 (i). Not-yet endings join a note with `"; "` via `geom_core::noted`, and the `Recourse:` label is `geom_core::Recourse`. A new refusal on your ground should use these instead of hand-spelling. The remaining "too close to call" sites are listed in ENCL's `too-close-to-call-remainder`. (ENCL orchestrator)
+- 2026-10-10 — Seam note: filed `net-state-reads-an-infinite-net-as-described` on this slate (P3/M, design). `NetState` reads a `±∞` net as `Described`; only tier-3 check 1 patches it, and `merge_faces` takes it as `Curved`. From the closing pass on PIPE's `described-net-two-state-reads-hand-a-poisoned-net-the-described-arm`. (PIPE routing lane)
+- 2026-10-10 — Seam note from PIPE: filed `nurbs-curve-has-no-net-state-door` on this slate, the curve-side half of the described-net sweep that PIPE closed. (PIPE orchestrator)
+- 2026-10-10 — Seam note from ENCL (PR 4475, merged at `61977302ae`): a poisoned margin's note now depends on the door that reads it. At a build it is "an unreadable margin may indicate a kernel bug worth reporting" ("or collapsed" is gone). At rest or at the import door it is "…a kernel or file defect worth reporting". `geom_brep::recourse::unreadable_margin_note(reading)` picks it. geom-core's `SizedWords` gained `unreadable: &str`, and `Indeterminate::ending_noted(levers, unreadable)` exists beside `ending`. An at-rest reader of a nested refusal composes its own ending (fork-log row 9): it does not add `ending(Reading)` to the type. `topo::props::SHELL_ROLE`, `ShellClassifyError::arm()`, `JoinUndecided::diag()` and `JOIN_SUBJECT`/`JOIN_LEVER` are public for that. (ENCL orchestrator)
+- 2026-10-10 — Seam note from ENCL (PR 4474, merged): the material pairing is a decision. `geom_brep::MATERIAL_PAIRING` and `MATERIAL_PAIRING_CLAUSE` end it at tier 3 (`WedgeCheck::MaterialPairing`) and split finish (`SplitFinishError::DescribeSideEscalated`), with a true tolerance offer. Where the wedge would re-decide below m/K, `pairing_at_wedge` quotes the wedge and offers w/K, as `at_wedge` does. `MaterialStations`' `Break` is `MaterialStop { check, cause }`. The cusp-side Zero reads via `decide_nonzero`. New k_stats predicates appear on the refusal path only: "material_pairing_offer_wedge" and "material_pairing_wedge". (ENCL orchestrator)
+
+## 2026-10-10 — a new orchestrator picks FLUX up and cuts it on its priority seam
+
+FLUX measured **125.5 budget points against 30** (52 open rows, nothing
+in flight, no `flux/` branch live). The cut is on the priority seam. FLUX
+keeps the eight curved-arm rows, at exactly 30 points:
+`rim-side-and-rim-dir-group…`, `sphere-wedge-arm…`, `stored-spans…`,
+`an-ellipse-trimmed-ring…` (priced P0/H), `spiric-bounded-face-area…`,
+and the sphere-arm trio (`sphere-face-with-a-hole…`,
+`sphere-flux-arm-carries-two-closed-forms…`, `a-sphere-face-whose-boundary-encodes-no-side…`).
+Its territory narrows to `props/*` and `topo/src/props.rs`.
+
+The rest moved by `git mv`, ids and bodies unchanged:
+
+- **FLUXTAIL** (12 rows, 22.5 points, P3, `ready`): the arms' numeric honesty.
+- **KNOT** (10 rows, 24.5 points, P2, `ready`): the spline, net and fit doors.
+- **SCALAR** (14 rows, 29 points, P1, `ready`): the scalar doors, their hand-spelled readers, and the box driver's readings.
+- **FLUXHOLD** (4 parked rows and 1 closed row, P2, `blocked`): the D10-held rows, each parked on the INTENT unit that rebuilds its ground. Those are `an-assertion-relates-by-equality` (`assertion-verdict-derives-partialeq-alone`), `intent-stage3-is-built` (`the-box-driver-carries-no-part-resolver`), `transform-retires-into-a-placement` (`authored-and-derived-directions…`, datum normals and mate directions) and `declared-pairs-retire` (`indeterminate-display-offers-declare…`).
+- **NURBS**: `the-convex-boehm-step-is-looser-than-lerp…` and `the-projective-applier-still-lerps…`. NURBS's charter is the certified Boehm step, and its blossom unit waits on the first.
+- **STACK**: `stackup-measure-refused-carries-its-node-error-rendered`. Its D10 trigger, `measure-is-an-operation` (PR 4355), had already fired.
+- **Closed**: `measureexpr-has-no-display-or-as-primitive`, superseded by PR 4355, because `MeasureExpr` no longer exists.
+
+**The D10 check, row by row.** Several rows sat near held ground and were judged NOT held. They are recorded here so the next reader can disagree:
+
+- `a-gate-rejection-of-a-decided-enclosure-bisects-to-budget` is the drive's leaf reading of a k_stats escalation. It is not Expr vocabulary.
+- `analysis-boxes-keep-an-axis-order…` is post-stage-1 cleanup. No later stage rewrites `ParamBox`'s order.
+- `the-race-rows-leaves…` is a test fixture.
+- `invalid-margin-recourse…`: its question is `MarginDiag::Invalid`'s two causes. The declare lever in its text retires with declared pairs regardless.
+- `a-planar-face-sums-its-area-about-a-far-carrier-origin` and `project-eps-point-is-absolute…`: stage 3 E (`an-operation-computes-in-a-frame-of-its-reads`) will shrink how far geometry sits from its origin, but neither fix depends on it.
+
+**Pricing.** Unpriced rows were priced, and legacy `D` was re-priced (all to `M`). `patherror-display-renders-float-noise` went from E to M, on its own body's three-owner analysis. `an-ellipse-trimmed-ring…` was banded P0: a union of a tilted bar and a pipe refuses on 72 of 72 ops.
+
+**Band collision fixed.** FLUX's `ab_band` 10300–10399 was PLACE's (EDIT's 2026-10-02 exit), and FLUX never appeared in the roster. FLUX now takes 12600–12699. The cut claims 12200–12599 for its four new programs (`docs/MODEL-AB-LOG.md`). No FLUX ordinal was ever drawn.
+
+**What FLUX does next.** The sphere-arm trio goes to a designer pair first; whether Gauss–Bonnet subsumes the iso-rectangle form decides all three. The P0 lanes (rim-side with stored-spans, then the wedge fold) and the spiric arm go to implementers. All of them edit `props/curved.rs`, so they are sequenced or seamed. — (FLUX orchestrator)
+- 2026-10-10 — **Wave 1 dispatched.**
+  - A designer pair (A and B, concurrent, problem statement only) weighs the sphere arm as one question. It covers the two closed forms, the ring face, the side encoding, the wedge's lineage fold, and `props_rim_side`'s cycle-order reading. Design-fork byte 142, recorded under `analysis/design-fork/` if the question goes to Ev. The wedge and rim-side rows wait on the pair, because their fixes may be moot under its answer.
+  - Implementer `flux/ellipse-ring` (P0 H) has its own cloud session.
+  - Implementer `flux/spiric-area` (P2 H, the row with a demo behind it) has its own cloud session.
+  - Both implementers edit `props/curved.rs` and are seamed to each other. Their review tier is set when each PR is up. Per plan §3, expect dual review on both, because each changes what the kernel certifies over a family. — (FLUX orchestrator)
+- 2026-10-10 — Seam note from ENCL (PR 4517, merged): per Ev's ruling in PR 4498, the C2 foot-orthogonality limb is retired. `ssi_foot_orthogonality` and its check row are gone from `geom_brep::ssi::certify` `nurbs_limbs`, and `geom::SurfaceProjection.orthogonality_u/v` are deleted: a surface projection now carries only `distance`, which is the residual that gets banded. `SurfaceProjectionInconclusive::last_orthogonality_*` stays as refusal text. The curve half's orthogonality field is FLUX's row `curve-projection-orthogonality-field-has-no-reader`. (ENCL orchestrator)
+- 2026-10-10 — **The sphere-arm designer pair converged (fork log row 109) after four rounds, two of them crossings.** Both now recommend one Gauss–Bonnet form over every loop, the iso arm retired from flux, and one `sphere_loop_side` reader (per-pole winding) called by the flux arm and check 6. Round 4 turned on a fact the orchestrator verified: check 4 reads material pairing only on `Smooth` edges, so a flipped one-loop face that meets its neighbours transversally is caught only by the pole-free side. That reading rests on Ev's provisional PR 2850 ruling, so the `[ev]` PR `flux/ev-sphere-pole-side` asks whether the ruling may bear a refusal. The rest of the design changes no ratified text. The build is dispatched now, because today's tilted-circle reader already rests on the same ruling; a "no" from Ev removes the one-loop reader and states the gap. Filed off-question, each with its owner: `cone-face-closed-form-runs-an-iso-premise…` (FLUX, P1), `a-torus-face-whose-chart-closes-in-both-directions…` (FLUXTAIL, a probe), `same-surface-faces-sharing-an-edge…` (RESTFRONT), `sphere-window-borrows-the-material-sign…` (BOXES). — (FLUX orchestrator)
+- 2026-10-10 — **Ev answered PR 4549: "this works".** The PR 2850 ruling is load-bearing for the sphere side check, and its home is geom-brep README C12 (7). Fork row 109 is filled in (renumbered from 108 at merge), and `needs_ev` is cleared on `sphere-flux-arm-carries-two-closed-forms-for-one-face-kind`. `flux/sphere-arm` keeps the one-loop pole-free reader. — (FLUX orchestrator)
+- 2026-10-10 — **Wave 1, spiric lane: PR 4554 merges.** The unit got dual review (DR-149), a concurrent pair on `74fd2a71`. Both reviewers' verdicts were NOT-MERGEABLE-AS-IS on the endpoint census alone; neither falsified any correctness claim by execution. The adjudicated fix pass at `d43a02f36a` did the following:
+  - the census reads are now guarded by name;
+  - committed rows kill all eight surviving mutants;
+  - one span-window rate bound replaces three spellings, so a cut through the tube hole (|d| > R − r) now measures;
+  - the 1024-piece fallback is deleted;
+  - the elbow gets an e2e surface-area oracle, and a reference re-take script is committed.
+
+  An independent verifier confirmed all seven items by execution. Its far-offset note is filed as FLUXTAIL's `a-spiric-elbow-a-hundred-kilometres-out-exhausts-the-quadrature-budget`. — (FLUX orchestrator)
+- 2026-10-11 — **Wave 1, the ringed cylinder wall: PR 4557 merges.** The unit got dual review, a concurrent pair on `60597c6d`.
+  - The real gap the review found (R2, demonstrated): the ring-winding gate ran only on a converged round, so an open window could carry a same-wound ring. It now runs on every round exit.
+  - The per-PR gate could not go red on a ring dropped from o·A⃗ (R1). A fast row now catches that.
+  - Corrupt loops now get typed defect refusals.
+  - The verifier caught one regression the fix pass itself introduced: a `debug_assert` replacing a typed refusal. It was restored.
+  - Filed on QUAD: the pre-existing thin-ring refinement gap. Filed on GERM: the plane×cone apex fuzz counterexample, which reproduces on main.
+  - Extent-gate timing was argued and kept converged-only; the verifier could not break the argument. — (FLUX orchestrator)
+- 2026-10-11 — Note from ENCL: main is red on step-import `nurbs_import::arc_loft_natively_computes_its_rational_volume`. ENCL bisected it to NURBS #4553. The cause is a face-order dependence in `fold_runs` that #4553 exposed; #4553 itself is not wrong. Filed `work/exch/arc-loft-round-trip-volume-differs-by-face-order.md` (P1) with the mechanism and two repair shapes. (ENCL orchestrator)
+- 2026-10-11 — **Wave 1, the sphere arm: PR 4573 merges.** Every circle-bounded sphere face is now measured by one Gauss–Bonnet form, and its side comes from one reader, `sphere_loop_side`. The iso-rectangle arm is retired. The unit went through dual review (a concurrent pair on `0cf61fd2`), three fix passes and two independent verifiers.
+  - R1's demonstrated MAJOR (a red row left un-re-baselined) is the tallied finding. R2 found the silent double flip of seam siblings, filed as `a-pair-of-seam-siblings-flipped-together-is-silent`, and the negative holed area, now refused.
+  - Thin-region precision is restored by a Van Oosterom–Strackee fan, not by looser bounds.
+  - The first verifier caught a regression the fix pass itself introduced: the interval lane's small-region enclosure floored at ±2e-12 sr, about 1.7e8× wider than main, and `certify_role` reads it. The root cause was the fan's apex. It is now the centroid, within 3.5× of main.
+  - The widened `pi_seam` row is pinned per member order. Its 1e-12 asymmetry is filed on FLUXTAIL (`a-kept-rim-off-its-sphere-is-read-on-its-own-sphere-so-member-orders-diverge`).
+  - The second verifier caught a sliver row whose volume check could not fail. It now asserts relative to the exact lens.
+  - Main-side reds found on the way, both filed: the arc-loft thread-count digest (NURBS) and an SSI row at 1e-6 (ENCL).
+  - Five rows close. — (FLUX orchestrator)
+- 2026-10-11 — **Wave 2, stored spans: PR 4680 merges.** Review tier: single full review. The decides fire only on hand-built loops, and no certified value moves, only verdict populations. Two named decides now cover every rim and torus-meridian span reader in props: `props_rim_span_*` at the rim mints and in the cone's shared span readers, and `props_meridian_span_*` behind one door.
+  - The review (APPROVE-WITH-FIXES, 0/3/1) found two cone readers still reading a 3π span raw, and two torus levers no row pinned. All are fixed and pinned by mutants.
+  - On the way, main stopped compiling `sweep` (PRs 4591 and 4662 crossed). FLUX fixed it in PR 4700. The digest re-cut that follows is flagged to NURBS' PR 4684.
+  - Main itself has since moved that digest's sym columns again (`sz` 48 → 28/24). — (FLUX orchestrator)
+- 2026-10-11 — **Wave 2, cone faces: PR 4696 merges.** Every one-nappe cone face is now measured by its vector area over all of its loops. The S58 iso premise and the `du_of_rims` family are retired.
+  - **Review.** Dual, holdout arm (byte 120), on `5df2f692`.
+    - R2's demonstrated MAJOR is the tallied finding: the rewrite had dropped the on-surface premises, and straight chords measured as a cone wall. R1 raised no MAJOR, so this is an **M-tier miss**, and a short readout to Ev follows.
+    - Bilateral: apex loops sweeping past 2π, and loops meeting themselves at a vertex.
+  - **First fix pass:**
+    - incidence restored;
+    - apex loops bounded at 2π;
+    - a vertex decide with a seam exemption;
+    - typed `ConeLoop` and `HolesExceedFace` refusals.
+  - **Verifier 1** found a regression the restoration introduced: the rim-fit lever was off by 1/cos α, so 316 legal near-flat faces escalated. **The second fix pass** levers it at true distance, gives the material sign lane parity with the flux lane, and adds incidence rows.
+  - **Verifier 2** confirmed: the sweep's failures are identical to `5df2`'s. Its two fail-closed MINORs are filed (`cone-incidence-decides-over-lever-toward-the-needle-and-the-flat`).
+  - **Main-side reds** met on the way and filed by others: `near_tangent_pierce_poses` at 1e-6 (FUSE), and two compile breaks (4700, 876d537). — (FLUX orchestrator)
+- 2026-10-11 — **Seam note from NURBS: a design row on FLUX's slate.** PR 4684 filed `the-whole-body-property-fold-depends-on-face-order` (`design: true`).
+  - `topo::props`' `fold_runs` sums face terms in arena order, which is the D9 addendum's idiom 2. So one solid stored in two face orders measures a volume a few ulp apart. The per-face terms are bit-identical, as step-import's arc-loft row now asserts.
+  - An order-independent fold would change ratified text (the D9 addendum), so it is Ev's call, routed through FLUX as the owner of `props`.
+  - ENCL's PR 4682 bound (`faces − 1` ulp) is the body-level claim until then.
+  - The same mechanism explains NURBS' `quad-de-boor-through-the-blossom-breaks-the-import-bit-identity`, so routing `de_boor` through the blossom waits on, or is checked against, this row. — (NURBS orchestrator)
+- 2026-10-11 — Seam note from ENCL (PR 4687, merged at `aaf011d01b`): `geom_core::interval::certified_hi` (the upper end if certified, else NaN) replaces quad's `hi_or_refuse`, and `geom_core::interval::{cross, dot}` replace quad's `rv_cross`/`rv_dot` (also read by `props/spiric.rs`). Same component and association order, so the results are bit-identical. (ENCL orchestrator)
+- 2026-10-12 — Seam note from ENCL (PR 4745, merged at `512ef4b6c7`): `props.rs`'s shell-volume sign refusal is payload-only through `geom_core::undecided!`; its text is unchanged apart from the shared joint. (ENCL orchestrator)
+- 2026-10-12 — Seam note from ENCL (PR 4754, merged at `40eefeb668`): `props/quad.rs`: `Loose::from_derived` is the one Derived→Loose mapping, read by `Level::of` and `PatchGrid::step`. `Loose::below` is deleted, and `Loose::of` serves only the raw-list step-down. Bit-identical. The FLUX row `second-derivative-sup-takes-a-control-net-beside-its-vector` gained evidence and a stale-premise line; the duplicate KNOT row was dropped. (ENCL orchestrator)

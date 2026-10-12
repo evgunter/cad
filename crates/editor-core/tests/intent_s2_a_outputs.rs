@@ -6,7 +6,7 @@
 //! signatures of its nodes.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::fixture::{self, ang, axis_in_plane, insert, len, on_frame_keeping, scl, xform};
+use crate::fixture::{self, ang, insert, len, on_frame_keeping, revolve_about, scl, xform};
 use crate::wire::{doctored, up_to_ids, wire_body};
 use editor_core::{
     CarryForwardDoor, DocEdit, EditError, Formula, FreeValue, Node, OutputFault, PatternKind,
@@ -27,7 +27,7 @@ fn block(seed: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
     let (doc, extrude) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: editor_core::ExtrudeSide::Along,
         },
@@ -59,26 +59,28 @@ fn kinds(doc: &ProfileDoc, node: RecipeNodeId) -> Vec<VarKind> {
 #[test]
 fn every_operation_defines_its_signature_at_insert() {
     let (doc, frame, profile, extrude) = block("s2a-signatures");
-    let (doc, axis) = insert(doc, axis_in_plane(frame, (0.0, 0.0), (0.0, 1.0)));
     let (doc, revolve) = insert(
         doc,
-        Node::Revolve {
-            profile,
-            axis,
-            angle: ang(1.0),
-        },
+        revolve_about(profile, (0.0, 0.0), (0.0, 1.0), ang(1.0)),
+    );
+    let (doc, plane) = insert(
+        doc,
+        Node::Datum(editor_core::Datum::Plane {
+            origin: [len(0.0), len(0.0), len(0.5)],
+            normal: [scl(0.0), scl(0.0), scl(1.0)],
+        }),
     );
     let (doc, split) = insert(
         doc,
         Node::Split {
-            target: extrude,
-            tool: frame,
+            target: extrude.into(),
+            tool: plane.into(),
         },
     );
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: extrude,
+            input: extrude.into(),
             count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -94,9 +96,9 @@ fn every_operation_defines_its_signature_at_insert() {
     );
     for (node, want) in [
         (frame, vec![VarKind::Frame]),
+        (plane, vec![VarKind::Plane]),
         (profile, vec![VarKind::Profile]),
         (extrude, vec![VarKind::Body]),
-        (axis, vec![VarKind::Axis]),
         (revolve, vec![VarKind::Body, VarKind::Axis]),
         (split, vec![VarKind::Body, VarKind::Body]),
         (pattern, vec![VarKind::Bodies]),
@@ -120,7 +122,7 @@ fn an_insert_reports_its_outputs_and_a_delete_takes_them_with_its_node() {
         .apply(
             &DocEdit::InsertNode {
                 node: Box::new(Node::Extrude {
-                    profile,
+                    profile: profile.into(),
                     distance: len(2.0),
                     side: editor_core::ExtrudeSide::Along,
                 }),
@@ -150,7 +152,7 @@ fn an_insert_reports_its_outputs_and_a_delete_takes_them_with_its_node() {
         DocEdit::SetParam {
             node,
             slot: SlotId::Distance,
-            expr: len(3.0),
+            value: len(3.0).into(),
             fresh: Vec::new(),
         },
     );
@@ -210,14 +212,19 @@ fn a_formula_reading_a_body_refuses_naming_its_kind() {
     let edit = DocEdit::SetParam {
         node: extrude,
         slot: SlotId::Distance,
-        expr: Formula::named(
+        value: Formula::named(
             VarName::new("plate").expect("a name"),
             editor_core::Dimension::Length,
-        ),
+        )
+        .into(),
         fresh: Vec::new(),
     };
     match doc.apply(&edit, Tol::witness(), &editor_core::RefusingReach) {
-        Err(error @ EditError::SlotVarKind { declared, .. }) => {
+        Err(
+            error @ EditError::SlotVarKind {
+                found: declared, ..
+            },
+        ) => {
             assert_eq!(declared, VarKind::Body);
             assert!(error.to_string().contains("body"), "{error}");
         }
@@ -335,6 +342,7 @@ fn the_load_door_holds_the_table_to_every_signature() {
 #[test]
 fn a_split_carries_a_named_output_onto_its_nodes_new_one() {
     let (doc, _, _, extrude) = block("s2a-split");
+    let doc = fixture::place(doc, extrude).0;
     let body = doc.output(extrude, 0).expect("an extrude defines its body");
     let (doc, _) = fixture::step(
         doc,
@@ -395,9 +403,16 @@ fn the_up_to_ids_comparator_holds_a_document_and_refuses_each_mutant() {
     let err = up_to_ids::equal_up_to_ids(&dropped, &new).expect_err("a dropped node");
     assert!(err.contains("nodes"), "{err}");
 
+    // The second placement reads the first one's body.
     let mut swapped = old.clone();
-    let roots = swapped["snapshot"]["roots"].as_array_mut().unwrap();
-    roots.swap(0, 1);
+    let mut reads: Vec<&mut serde_json::Value> = swapped["snapshot"]["nodes"]
+        .as_object_mut()
+        .unwrap()
+        .values_mut()
+        .filter_map(|node| node.get_mut("PlaceInWorld"))
+        .map(|placement| &mut placement["body"])
+        .collect();
+    *reads[1] = reads[0].clone();
     let err = up_to_ids::equal_up_to_ids(&swapped, &new).expect_err("an inconsistent renaming");
     assert!(err.contains("earlier"), "{err}");
     // A document that is an edit log alone, which the walk compares
@@ -468,7 +483,7 @@ fn signature_row(node: &editor_core::AuthoredNode) -> String {
         .into_iter()
         .map(|port| match port.kind {
             editor_core::PortKind::Of(kind) => format!("{}:{kind:?}", port.name),
-            editor_core::PortKind::PlacedFrom(_) => format!("{}:placed", port.name),
+            editor_core::PortKind::Placed => format!("{}:placed", port.name),
         })
         .collect();
     format!("{variant} -> [{}]", ports.join(", "))
@@ -487,7 +502,6 @@ fn every_node_shape_states_its_signature() {
         "Datum::Plane -> [plane:Plane]",
         "Datum::Axis -> [axis:Axis]",
         "Datum::Point -> [point:Point]",
-        "Datum::AxisInPlane -> [axis:Axis]",
         "Datum::Frame -> [frame:Frame]",
         "Datum::FaceFrame -> [frame:Frame]",
         "Profile -> [profile:Profile]",
@@ -502,11 +516,14 @@ fn every_node_shape_states_its_signature() {
         "Chamfer -> [body:Body]",
         "Shell -> [body:Body]",
         "Split -> [above:Body, below:Body]",
-        "Boolean -> [body:Body]",
+        "Subtract -> [body:Body]",
         "Union -> [body:Body]",
+        "Intersect -> [body:Body]",
         "Transform -> [body:placed]",
         "Transform -> [body:placed]",
         "Transform -> [body:placed]",
+        "PlaceInWorld -> [copy:Body]",
+        "PlaceInWorld -> [copy:Body]",
         "Pattern -> [bodies:Bodies]",
         "PlacedUnion -> [body:Body]",
         "PlacedUnion -> [body:Body]",
@@ -516,7 +533,6 @@ fn every_node_shape_states_its_signature() {
         "Pattern -> [bodies:Bodies]",
         "PlacedUnion -> [body:Body]",
         "PlacedUnion -> [body:Body]",
-        "Part -> [body:Body]",
         "Part -> [body:Body]",
         "InstantiatePart -> [body:Body]",
         "Gauge -> []",
@@ -529,8 +545,8 @@ fn every_node_shape_states_its_signature() {
 
 /// **A pose kind's symmetry** (D10, A11 (1)): a frame is known
 /// outright, a plane up to in-plane motion, an axis up to slide and
-/// spin; a point's and a direction's subgroups are not in the family,
-/// and a scalar or a shape is no pose.
+/// spin, a point up to rotation about it, a direction up to translation
+/// and spin about it; a scalar or a shape is no pose.
 #[test]
 fn a_pose_kind_names_its_subgroup_family() {
     use editor_core::SubgroupFamily;
@@ -538,8 +554,8 @@ fn a_pose_kind_names_its_subgroup_family() {
         (VarKind::Frame, Some(SubgroupFamily::Trivial)),
         (VarKind::Plane, Some(SubgroupFamily::Planar)),
         (VarKind::Axis, Some(SubgroupFamily::Cylindrical)),
-        (VarKind::Point, None),
-        (VarKind::Direction, None),
+        (VarKind::Point, Some(SubgroupFamily::Spherical)),
+        (VarKind::Direction, Some(SubgroupFamily::Parallel)),
         (VarKind::Length, None),
         (VarKind::Angle, None),
         (VarKind::Scalar, None),
@@ -568,11 +584,17 @@ fn a_datums_value_folds_the_subgroup_its_kind_names() {
             normal: [scl(0.0), scl(0.0), scl(1.0)],
         }),
     );
-    let (doc, axis) = insert(doc, axis_in_plane(frame, (0.0, 0.0), (0.0, 1.0)));
     let (doc, point) = insert(
         doc,
         Node::Datum(editor_core::Datum::Point {
             position: [len(0.0), len(0.0), len(0.0)],
+        }),
+    );
+    let (doc, axis) = insert(
+        doc,
+        Node::Datum(editor_core::Datum::Axis {
+            origin: [len(0.0), len(0.0), len(0.0)],
+            direction: [scl(0.0), scl(0.0), scl(1.0)],
         }),
     );
     let ev = crate::corpus::eval::<f64>(&doc);
@@ -585,11 +607,7 @@ fn a_datums_value_folds_the_subgroup_its_kind_names() {
             .var(doc.output(node, 0).expect("a datum defines its pose"))
             .unwrap()
             .kind();
-        assert_eq!(
-            value.symmetry().and_then(|subgroup| subgroup.family()),
-            kind.symmetry(),
-            "{kind:?}"
-        );
+        assert_eq!(value.symmetry().family(), kind.symmetry(), "{kind:?}");
     }
 }
 
@@ -624,16 +642,17 @@ fn instance_named_bracket(
         let body = doc.output(extrude, 0).expect("an extrude defines its body");
         doc = named(doc, body, heir);
     }
+    doc = fixture::place(doc, extrude).0;
     if second_body {
-        doc = insert(
+        let (next, second) = insert(
             doc,
             Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: len(2.0),
                 side: editor_core::ExtrudeSide::Along,
             },
-        )
-        .0;
+        );
+        doc = fixture::place(next, second).0;
     }
     let cut: std::collections::BTreeSet<_> = doc.ids().iter().copied().collect();
     let out = editor_core::split(
@@ -687,7 +706,7 @@ fn inline_carries_the_name_on_an_instances_body() {
             assert_eq!(name.as_str(), "bracket");
             assert_eq!(why, editor_core::Uncarried::Bodies { count: 2 });
         }
-        other => panic!("two body roots have no one heir, got {other:?}"),
+        other => panic!("two placed bodies have no one heir, got {other:?}"),
     }
 
     let (host, instance, store, _) =
@@ -715,57 +734,33 @@ fn inline_carries_the_name_on_an_instances_body() {
     }
 }
 
-/// **A slot reading a measured value refuses at evaluation saying so**:
-/// the door that refuses it is unit D's (`ConstructionReadsObserved`),
-/// and until then the reader's refusal names the output it read, never
-/// a deleted or undeclared variable.
+/// **A placer whose operand is gone loads, and refuses at evaluation**:
+/// deleting the operation it reads strands its read (D10), and the
+/// output walk, which has no kind to hold its port to, leaves it to
+/// the read's own refusal, `UnresolvedRead`.
 #[test]
-fn a_slot_reading_an_output_refuses_naming_it() {
-    let (doc, _, _, extrude) = block("s2a-observed");
-    let (doc, measure) = insert(
-        doc,
-        Node::measure(editor_core::MeasureExpr::value(len(0.5)), Vec::new())
-            .expect("a measured value"),
-    );
-    let gap = doc.output(measure, 0).expect("a measure defines its value");
-    assert_eq!(doc.var(gap).unwrap().kind(), VarKind::Length);
-    let doc = named(doc, gap, "gap");
-    let (doc, _) = fixture::step(
-        doc,
-        DocEdit::SetParam {
-            node: extrude,
-            slot: SlotId::Distance,
-            expr: Formula::named(VarName::new("gap").unwrap(), editor_core::Dimension::Length),
-            fresh: Vec::new(),
-        },
-    );
-    let ev = crate::corpus::eval::<f64>(&doc);
-    let Some(editor_core::NodeResult::Failed(error)) = ev.nodes.get(&extrude) else {
-        panic!("the reader refuses: {:?}", ev.nodes.get(&extrude))
-    };
-    let said = error.to_string();
-    assert!(said.contains("an operation's output"), "{said}");
-    assert!(!said.contains("deleted"), "{said}");
-}
-
-/// **A placer whose operand is gone is the structural walk's**: the
-/// output walk has no kind to hold its port to, and the walk after it
-/// refuses the dangling input, so the file refuses either way.
-#[test]
-fn a_placer_on_a_dangling_operand_refuses_at_the_structural_walk() {
+fn a_placer_on_a_deleted_operand_loads_and_refuses_its_read() {
     let (doc, _, _, extrude) = block("s2a-dangling-placer");
     let (doc, moved) = insert(doc, xform(extrude, [0.0, 0.0, 1.0], [0.0, 0.0, 1.0], 0.0));
-    let (doc, gone) = insert(doc, fixture::xy_frame());
-    let (doc, _) = fixture::step(doc, DocEdit::DeleteNode { id: gone });
+    let read = doc.output(extrude, 0).expect("the extrude's body");
+    let (doc, _) = fixture::step(doc, DocEdit::DeleteNode { id: extrude });
     let text = save(&doc, &[], Tol::witness()).expect("saves");
-    let (moved, gone) = (moved.0.to_string(), gone);
-    let dangling = doctored(&text, |wire| {
-        wire["snapshot"]["nodes"][&moved]["Transform"]["input"] = gone.0.to_string().into();
-    });
-    match load(&dangling, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::DanglingInput { input, .. })) => {
-            assert_eq!(input.id(), gone);
-        }
-        other => panic!("a placer on a deleted node refuses DanglingInput, got {other:?}"),
+    let loaded = load(&text, Tol::witness())
+        .expect("a stranded read loads")
+        .doc;
+    let ev = crate::corpus::eval::<f64>(&loaded);
+    match ev.nodes.get(&moved) {
+        Some(editor_core::NodeResult::Failed(error)) => assert!(
+            matches!(
+                error.kind,
+                editor_core::NodeErrorKind::UnresolvedRead {
+                    slot: editor_core::OperandSlot::Input,
+                    var,
+                } if var == read
+            ),
+            "{:?}",
+            error.kind
+        ),
+        other => panic!("the placer refuses its stranded read, got {other:?}"),
     }
 }

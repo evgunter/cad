@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-07
 priority: P3
 cost: M
-refs: [a-corner-is-a-slice-of-its-face-tier-3-check, tier-3-passes-a-face-whose-loop-crosses-itself-at-a-repeated-vertex]
+refs: [4240, tier-3-passes-a-face-whose-loop-crosses-itself-at-a-repeated-vertex]
 ---
 
 

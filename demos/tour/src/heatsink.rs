@@ -20,34 +20,29 @@
 //! out, `Instance(i)` naming preserved and `SlotId::Count` the
 //! structural slot the edit drives.
 //!
-//! # Why the fins are sunk ([`flush_fins`], run live)
+//! # Sunk fins, and flush ones ([`flush_fins`], run live)
 //!
 //! **The fins sit 1/16 inside the base rather than flush on it** — "the
 //! table-leg pattern", a transversal union instead of a face contact.
 //! A real extruded heat sink's fins are flush with its base, and the
-//! flush document builds: fins sketched ON the base top, the five
-//! base-face pairs found by `find_flush_candidates` (each a `Rest`,
-//! `SameOpposite`), declared through `declared_pairs` on the union, and the union
-//! against the five-shell `PlacedUnion` operand comes out at the
-//! closed-form volume of the rounded base + 5 fins.
+//! flush document builds: fins sketched ON the base top, the union
+//! glues the five base-face contacts on their decided zero (D10,
+//! Booleans), and the union against the five-shell `PlacedUnion`
+//! operand comes out at the closed-form volume of the rounded base + 5
+//! fins.
 //!
-//! The count EDIT is what the flush document cannot take in one step.
-//! The union's declaration names the five instances it was detected
-//! against, the edit to 7 makes `Instance(5)` and `Instance(6)` flush
-//! with nothing declaring them, and the union refuses
-//! `UndeclaredCoincidence` on `Instance(5)` — correctly. The recourse is
-//! a second edit: detect again (seven pairs) and set them as the LIVE
-//! union's declaration (`declare_all`, a `SetDeclare`), which builds at
-//! the closed-form volume of 7 fins with the union keeping its id. That
-//! is two edits per count step, where this scene's subject is one edit
-//! recomputing only what is downstream of it, so the scene keeps the
-//! sunk fins and measures the two-edit door instead.
+//! The count EDIT builds in one step too: the edit to 7 leaves
+//! `Instance(5)` and `Instance(6)` flush with the base, and the union
+//! glues them alike, at the closed-form volume of 7 fins with the
+//! union keeping its id. The
+//! scene keeps the sunk fins as its subject, and measures the flush
+//! document's edit beside them.
 //!
 //! # The base is rounded after the union
 //!
 //! **The fillet is the last node**, so the count edit re-runs it on the
 //! part it changed. Its twelve edges are the union's edges that came
-//! through from the plate (`FromA`), selected once at five fins and
+//! through from the plate's read, selected once at five fins and
 //! stored by name. The fins' feet are rectangular rings of the plate's
 //! top face, and the blend meters each ring edge against each band's
 //! trimline before it carves: the fins stand 1/8 inside the long edges
@@ -68,19 +63,15 @@ use pncad::prelude::AuthoredNode;
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    BooleanOp, CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Evaluation, Formula,
-    LoopProgram, Node, NodeErrorKind, PatternKind, ProfileProgram, RecipeNodeId, RefusingReach,
-    SlotId, ValuePayload, apply, evaluate, parse_formula,
+    Bodies, CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Evaluation, Formula,
+    LoopProgram, Node, PatternKind, ProfileProgram, RecipeNodeId, RefusingReach, SlotId,
+    ValuePayload, apply, evaluate, parse_formula,
 };
 // `probe_solids` is the only scene door pinned to the recording scalar
 // (see its note), and it rides the `probe` feature with it.
 #[cfg(feature = "probe")]
 use pncad::geom_core::Probe;
-use pncad::prelude::PlaneRelation;
-use pncad::select::{
-    BooleanCoincidence, ContactClass, EntityKind, NamePat, RoleSeg, SegPat, SegTag, Selector,
-    declare_all, declared_pairs, find_flush_candidates, select,
-};
+use pncad::select::{EntityKind, NamePat, SegPat, SegTag, Selector, select};
 
 use crate::scalar::Scalar;
 
@@ -118,9 +109,9 @@ const FIN_GAIN: f64 = 0.1875 * 0.75 * 0.75;
 /// How a fin meets the base.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Seat {
-    /// 1/16 inside the base: a transversal union, nothing to declare.
+    /// 1/16 inside the base: a transversal union.
     Sunk,
-    /// On the base top, every foot declared as a `Rest` contact.
+    /// On the base top, every foot a flush contact the union glues.
     Flush,
 }
 
@@ -129,13 +120,9 @@ struct Recipe {
     /// The `PlacedUnion` over the fin — the fin count's structural
     /// slot, and what `SetStructuralParam` edits.
     group: RecipeNodeId,
-    /// The `Boolean(Union)` that folds the fin group into the base.
-    union: RecipeNodeId,
     /// The `Fillet` that rounds the plate's edges on the unioned part:
     /// the document's final body.
     solid: RecipeNodeId,
-    /// The node the union takes as its base operand.
-    base: RecipeNodeId,
 }
 
 fn insert(doc: &mut Doc<ProfileProgram>, node: AuthoredNode, tol: Tol) -> RecipeNodeId {
@@ -191,7 +178,7 @@ fn scene_doc(tol: Tol) -> Recipe {
 }
 
 /// Builds the heat sink at five fins. Where a stored selection is
-/// needed — the fillet's edges, the declared contacts — it is taken
+/// needed — the fillet's edges — it is taken
 /// from an evaluation of the document so far: evaluate, select, store.
 fn build_doc(tol: Tol, seat: Seat) -> Recipe {
     let base_loops = vec![
@@ -221,7 +208,7 @@ fn build_doc(tol: Tol, seat: Seat) -> Recipe {
     let base_p = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
-            plane: base_plane,
+            frame: base_plane.into(),
             loops: base_loops,
             ids: Vec::new(),
         }),
@@ -230,7 +217,7 @@ fn build_doc(tol: Tol, seat: Seat) -> Recipe {
     let base = insert(
         &mut doc,
         Node::Extrude {
-            profile: base_p,
+            profile: base_p.into(),
             distance: pe("250 mm"),
             side: ExtrudeSide::Along,
         },
@@ -244,7 +231,7 @@ fn build_doc(tol: Tol, seat: Seat) -> Recipe {
     let fin_p = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
-            plane: fin_plane,
+            frame: fin_plane.into(),
             loops: fin_loops,
             ids: Vec::new(),
         }),
@@ -253,7 +240,7 @@ fn build_doc(tol: Tol, seat: Seat) -> Recipe {
     let fin_e = insert(
         &mut doc,
         Node::Extrude {
-            profile: fin_p,
+            profile: fin_p.into(),
             distance: pe(fin_height),
             side: ExtrudeSide::Along,
         },
@@ -274,50 +261,26 @@ fn build_doc(tol: Tol, seat: Seat) -> Recipe {
         .expect("a Linear rule is parametric, so it carries a count"),
         tol,
     );
-    let declare = match seat {
-        Seat::Sunk => Vec::new(),
-        Seat::Flush => {
-            let found = find_flush_candidates(&eval(&doc, None, tol), base, group, tol)
-                .expect("the fin feet are definite flush pairs");
-            // The inspection: one resting contact per fin, the base top
-            // against that fin's foot.
-            assert_eq!(found.len(), 5, "one contact per fin: {found:#?}");
-            assert!(
-                found.iter().all(
-                    |f| f.class == BooleanCoincidence::Contact(ContactClass::Rest)
-                        && f.evidence.relation == PlaneRelation::SameOpposite
-                ),
-                "every foot rests on the top: {found:#?}"
-            );
-            declared_pairs(&found)
-        }
-    };
     let union = insert(
         &mut doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: base,
-            b: group,
-            declare,
+        Node::Union {
+            members: Bodies::Spelled(vec![base.into(), group.into()]),
         },
         tol,
     );
     // The plate's twelve edges on the unioned part: the union's edges
-    // that came through from operand A.
+    // that came through from the plate's read.
     let edges = select(
         &eval(&doc, None, tol),
         union,
-        &Selector::of(NamePat::of_kind(EntityKind::Edge).seg(SegPat::tag(SegTag::FromA))),
+        &Selector::of(
+            NamePat::of_kind(EntityKind::Edge)
+                .seg(SegPat::tag(SegTag::From).of([NamePat::any().node(base)])),
+        ),
     );
     assert_eq!(edges.len(), 12, "the plate's edges: {edges:#?}");
     let solid = insert(&mut doc, Node::fillet(union, pe(RADIUS), edges), tol);
-    Recipe {
-        doc,
-        group,
-        union,
-        solid,
-        base,
-    }
+    Recipe { doc, group, solid }
 }
 
 /// The document's OWN final body, read back, gated on the exact
@@ -386,58 +349,40 @@ pub(crate) fn probe_solids(tol: Tol) -> Vec<pncad::topo::Body<Probe>> {
     out
 }
 
-/// This scene's recipe, as a document the GUI can open.
+/// This scene's recipe, as a document the GUI can open: the finished
+/// heat sink, placed in the world.
 ///
 /// The same `build_doc` the stops walk — the gallery must not be a
 /// second authoring of the scene, or it would stop being evidence
 /// about this one.
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
-    scene_doc(tol).doc
+    let r = scene_doc(tol);
+    apply(&r.doc, &DocEdit::place(r.solid, None), tol, &RefusingReach)
+        .expect("the heat sink places")
+        .doc
 }
 
-/// Flush fins, measured live — the module docs' first section.
-///
-/// Not a wall: an undeclared contact after the count edit refusing is
-/// the boolean failing loud. The recourse is a second edit, measured
-/// here: the re-detected pairs set as the live union's declaration.
+/// Flush fins, measured live — the module docs' first section: the
+/// count edit builds the flush document in one edit.
 fn flush_fins(tol: Tol) {
     let flush = build_doc(tol, Seat::Flush);
     let ev5 = eval(&flush.doc, None, tol);
     solidify(&flush, &ev5, 5, tol);
     println!(
-        "   flush fins, 5 declared Rest contacts: the union builds, volume {} (gated 1e-9)",
+        "   flush fins, 5 Rest contacts: the union glues them and builds, volume {} (gated 1e-9)",
         volume(5)
     );
 
     let doc7 = set_count(&flush.doc, flush.group, 7, tol);
     let ev7 = eval(&doc7, Some(&ev5), tol);
-    let refusal = ev7.node_error(flush.union).map(|e| &e.kind);
-    assert!(
-        matches!(refusal, Some(NodeErrorKind::UndeclaredCoincidence { finding, .. })
-            if matches!(finding.pair.1.name.path.first(), Some(RoleSeg::Instance { i: 5, .. }))),
-        "the count edit leaves Instance(5) flush and undeclared: {refusal:?}"
-    );
+    let edited = Recipe { doc: doc7, ..flush };
+    solidify(&edited, &ev7, 7, tol);
     println!(
-        "   flush fins, count edited 5 -> 7: the union refuses UndeclaredCoincidence on Instance(5)"
-    );
-
-    // The recourse: detect again at 7 and set the pairs as the live
-    // union's whole declaration.
-    let found = find_flush_candidates(&ev7, flush.base, flush.group, tol)
-        .expect("the fin feet are definite flush pairs");
-    assert_eq!(found.len(), 7, "one contact per fin: {found:#?}");
-    let doc = declare_all(&doc7, flush.union, &found, tol)
-        .expect("the union is live and the findings are its operands'")
-        .doc;
-    let ev = eval(&doc, Some(&ev7), tol);
-    let redeclared = Recipe { doc, ..flush };
-    solidify(&redeclared, &ev, 7, tol);
-    println!(
-        "   flush fins, re-detect + declare on the live union at 7: the union builds, volume {} \
-         (two edits; recomputed {}, reused {}; the union keeps its id)",
+        "   flush fins, count edited 5 -> 7: the union glues the two new feet and \
+         builds, volume {} (one edit; recomputed {}, reused {}; the union keeps its id)",
         volume(7),
-        ev.recomputed,
-        ev.reused
+        ev7.recomputed,
+        ev7.reused
     );
 }
 
@@ -536,8 +481,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 note: Some(format!(
                     "{recompute_story}; fins sunk 1/16 into a base rounded at r = 1/32 \
                      after the union (volume {} = the rounded plate's closed form + {n} fins, \
-                     gated 1e-9); flush fins build, but a count edit outruns their declared \
-                     contacts",
+                     gated 1e-9); flush fins build too, and a count edit's new feet glue \
+                     on their decided zero",
                     volume(n)
                 )),
                 view: View {
@@ -653,7 +598,7 @@ mod scene {
     //! The PR gate runs the tour's tests, not the tour: this is where the
     //! scene's own assertions — the recompute and reuse counts, the
     //! surviving names, the volume at every count, and the flush fins'
-    //! refusal and recourse — run on every PR that touches the tour.
+    //! build — run on every PR that touches the tour.
 
     #[test]
     fn the_scene_holds() {

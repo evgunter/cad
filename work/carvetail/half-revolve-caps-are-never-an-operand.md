@@ -2,12 +2,11 @@
 id: half-revolve-caps-are-never-an-operand
 kind: issue
 title: A pi revolve of an axis-touching profile returns coplanar co-oriented Start and End caps on different keys, so it can never be a boolean operand
-status: parked
+status: open
 opened: 2026-09-25
 priority: P2
 cost: M
 refs: [full-revolve-emits-split-planar-walls]
-blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -36,3 +35,7 @@ The refusal this row is about is the boolean's `UndeclaredCoincidence` on two ca
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: the F7 gate refuses UndeclaredCoincidence on value-decided coplanar caps; stage 4 turns that into Zero glue plus the lint, changing what the row asks for. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-09)
+
+E deletes `UndeclaredCoincidence`, but the half revolve is still no operand. The caps sit in ONE operand, and a Zero-decided coplanar neighbour pair there is `NonMaximalFaces` (`crates/topo/src/boolean/reduce.rs:636`), or `CoplanarNeighbours` where the θ = π margin reads in band (`reduce.rs:643`). The boolean's glue door reads cross-operand pairs only (`crates/topo/src/boolean/glue.rs:40`). The revolve runs no merge of its own (`crates/sweep/src/` calls no `merge_coplanar_faces`), so it still returns the caps on two keys. The row's ask stands: either the revolve emits one cap across the axis, or it merges what its margins decide one plane. The merge now glues such a pair by margin (`crates/topo/src/merge_faces.rs:2255`, `faces_continue`).

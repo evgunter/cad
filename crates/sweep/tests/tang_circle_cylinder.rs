@@ -266,37 +266,36 @@ fn a_tilted_rod_through_a_rim_reaches_the_germ_frame() {
     }
 }
 
-/// **A rim circle TANGENT to a parallel wall, or crossing or clearing
-/// it by less than the zero band, keeps the pierce door.** Two parallel
-/// unit cylinders `2 + δ` apart, staggered, `|δ|` at most half the zero
-/// band: each rim circle's extreme residual against the other wall is
-/// `δ`. The first-harmonic arm decides on that exact extreme, puts it in the
-/// zero band and escalates to `Uncertain`, and the crossing layer keeps
-/// its door, naming a rim circle. The half-angle ladder does not decide
-/// on the residual's range and can certify an in-band configuration as a
-/// miss (`work/germ/the-half-angle-ladder-certifies-in-band-configurations.md`),
-/// so this row is what goes red if circles square to the axis are routed
-/// to the ladder.
+/// **A rim circle on a parallel wall tangent to its own, or crossing or
+/// clearing it by less than the zero band, is a tangency.**
+/// Two parallel unit cylinders `2 + δ` apart, staggered, `|δ|` at most
+/// half the zero band: each rim circle's extreme residual against the
+/// other wall is `δ`, and the two walls touch along a ruling within the
+/// zero band. The boolean verifies that tangency by its witness, and
+/// each op reaches the join and refuses there, `CurvedBooleanUnsupported` naming B's wall: the
+/// join has no arm for the tangent wall pair. The half-angle ladder,
+/// which does not decide on the residual's range and can certify an
+/// in-band configuration as a miss
+/// (`work/germ/the-half-angle-ladder-certifies-in-band-configurations.md`),
+/// is not what answers.
 #[test]
-fn a_rim_circle_within_the_band_of_a_parallel_wall_keeps_the_pierce_door() {
+fn a_rim_circle_within_the_band_of_a_parallel_wall_is_a_tangency() {
     let half_zero = geom_core::Band::linear(Tol::witness()).unwrap().zero() / 2.0;
     let a = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
     for delta in [0.0, -half_zero, half_zero] {
         let b = cyl(2.0 + delta, 0.0, 1.0, 0.5, 2.5);
         for op in [BooleanOp::Union, BooleanOp::Subtract, BooleanOp::Intersect] {
-            let err = run(op, &a, &b).expect_err("an in-band contact is not a crossing");
-            let BooleanError::CurvedPierceUnsupported { operand, edge, .. } = &err else {
-                panic!("δ {delta}, {op:?}: expected the curved pierce door, got {err:?}");
-            };
-            let body = if *operand == topo::Operand::A { &a } else { &b };
-            let carrier = body
-                .get_edge(*edge)
-                .and_then(|e| body.get_curve_geom(e.curve))
-                .and_then(topo::CurveGeom::certified)
-                .map(|c| c.carrier().clone());
+            let want = run(op, &a, &b);
             assert!(
-                matches!(carrier, Some(topo::Curve3::Circle { .. })),
-                "δ {delta}, {op:?}: the refusing edge is a rim circle: {carrier:?}"
+                matches!(
+                    want,
+                    Err(BooleanError::CurvedBooleanUnsupported {
+                        operand: topo::Operand::B,
+                        kind: geom::SurfaceKind::Cylinder,
+                        ..
+                    })
+                ),
+                "δ {delta}, {op:?}: the join has no arm for the tangent wall pair: {want:?}"
             );
         }
     }

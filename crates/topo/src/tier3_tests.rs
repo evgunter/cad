@@ -1450,8 +1450,7 @@ fn dangling_description_is_a_tier1_error() {
     let mut spec =
         EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
     spec.description = geom_brep::EdgeDescriptionSpec::Intersection {
-        s1: s_seed,
-        s2: s_plus,
+        pair: geom_brep::SurfacePair::new(s_seed, s_plus),
         witness: Point3::new(0.5, 0.0, 0.0),
     };
     // NB: coincident planes would fail transversality — so tilt the
@@ -1492,8 +1491,7 @@ fn description_references_keep_a_surface_alive() {
     let mut spec =
         EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
     spec.description = geom_brep::EdgeDescriptionSpec::Intersection {
-        s1: s_seed,
-        s2: s_plus,
+        pair: geom_brep::SurfacePair::new(s_seed, s_plus),
         witness: Point3::new(0.5, 0.0, 0.0),
     };
     body.set_edge_curve(split.edge, spec, tol).unwrap();
@@ -1687,9 +1685,15 @@ fn edge_spec(body: &Body<f64>, edge: crate::entity::EdgeKey, kind: Carrier) -> E
     // The kissing edge is the one whose two faces are the two
     // cylinders; every other edge here is a definite corner.
     let description = if adjacent_are_the_two_cylinders(body, edge) {
-        geom_brep::EdgeDescriptionSpec::TangentIntersection { s1, s2, witness }
+        geom_brep::EdgeDescriptionSpec::TangentIntersection {
+            pair: geom_brep::SurfacePair::new(s1, s2),
+            witness,
+        }
     } else {
-        geom_brep::EdgeDescriptionSpec::Intersection { s1, s2, witness }
+        geom_brep::EdgeDescriptionSpec::Intersection {
+            pair: geom_brep::SurfacePair::new(s1, s2),
+            witness,
+        }
     };
     EdgeCurveSpec {
         description,
@@ -1917,10 +1921,184 @@ fn the_second_order_band_has_three_outcomes_and_they_are_three_answers() {
     );
 }
 
+/// **Check 4 and the shared-rim routing spell no second-order reading
+/// of their own.** Both read the second-order margin through
+/// `geom_brep::second_order_walk` once, with the material reads in
+/// `validate::MaterialStations`; the validator takes its stations from
+/// `geom_brep::interior_stations`. So the rows that pin the walk and
+/// the hook speak for both: a loop, a `"tangent_second_order"` decide
+/// or a material read inlined back into either file's production code
+/// reds here. The `#[cfg(test)]` modules are blanked first: a row there
+/// asserting a predicate name is not a second spelling.
+#[test]
+fn check_4_and_the_rim_route_their_second_order_reading_through_the_one_walk() {
+    // The code-and-literals view with every `#[cfg(test)] mod … { … }`
+    // blanked, carved on the code-only view where every bracket is real.
+    let production = |text: &str| {
+        use test_utils::source::{balanced_end, code_and_literals, code_only, skip_ws, word_at};
+        let code = code_only(text);
+        let mut kept = code_and_literals(text).into_bytes();
+        assert_eq!(code.len(), kept.len(), "the two views align byte for byte");
+        let mut from = 0;
+        while let Some(at) = code[from..].find("#[cfg(test)]").map(|i| i + from) {
+            let mut item = skip_ws(&code, at + "#[cfg(test)]".len());
+            while code[item..].starts_with("#[") {
+                let attr_end = balanced_end(&code, item + 1).expect("an attribute closes");
+                item = skip_ws(&code, attr_end + 1);
+            }
+            from = item;
+            if !word_at(&code, item, "mod") {
+                continue;
+            }
+            let open = item + code[item..].find('{').expect("a test module has a body");
+            let close = balanced_end(&code, open).expect("a test module closes");
+            kept[at..=close].fill(b' ');
+            from = close;
+        }
+        String::from_utf8(kept).expect("only ASCII spans are blanked")
+    };
+    let scan = |file: &str, calls: &[(&str, usize)], spellings: &[&str]| {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(file);
+        let source = production(&std::fs::read_to_string(path).unwrap());
+        for &(call, count) in calls {
+            assert_eq!(
+                source.matches(call).count(),
+                count,
+                "`{file}` calls `{call}` {count} time(s)"
+            );
+        }
+        for spelling in spellings {
+            assert!(
+                !source.contains(spelling),
+                "`{file}` spells `{spelling}` beside the walk"
+            );
+        }
+    };
+    let walk = [
+        "\"tangent_second_order\"",
+        "tangent_second_order(",
+        "tangent_jet(",
+    ];
+    let material = [
+        "\"material_cusp_side\"",
+        "\"material_wedge_side\"",
+        "classify_material_pairing(",
+        "material_kappa_rel(",
+        "folded_lever_arm(",
+    ];
+    scan(
+        "src/validate.rs",
+        &[("second_order_walk(", 1), ("interior_stations(", 1)],
+        &walk,
+    );
+    scan(
+        "src/boolean/rim_wedge.rs",
+        &[("second_order_walk(", 1), ("MaterialStations::new(", 1)],
+        &[walk.as_slice(), material.as_slice()].concat(),
+    );
+}
+
+/// **Row: the must-carry rule and tier 3 read one second-order walk.**
+/// The family above, asked of both callers of
+/// `geom_brep::second_order_walk` at once: the rule a constructor asks
+/// (`geom_brep::must_carry_over_edge`) and tier 3's check 4. Each pair
+/// below is one radius read by both, so a change to the walk's decision
+/// moves both halves of a row together.
+#[test]
+fn the_must_carry_rule_and_tier_3_answer_one_family_through_one_walk() {
+    use geom_brep::{MustCarryEscalation, MustCarryVerdict, must_carry_over_edge};
+    let tol = Tol::witness();
+    let eps = tol.get().eps;
+    let band = geom_core::Band::linear(tol).expect("the witness band");
+    let cylinder = |radius: f64| Surface::Cylinder {
+        origin: Point3::new(0.0, 0.0, radius),
+        axis: Vec3::unit_y(),
+        radius,
+        u_ref: Vec3::unit_x(),
+    };
+    let carrier = geom::Curve3::Line {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        dir: Vec3::unit_y(),
+    };
+    let extent = geom_brep::edge_extent(&carrier, 0.0, 1.0, 1.0);
+    let rule = |r2: f64| {
+        must_carry_over_edge(
+            &cylinder(1.0),
+            &cylinder(r2),
+            &carrier,
+            0.0,
+            1.0,
+            extent,
+            band,
+        )
+    };
+
+    let (tier3, [seg, split]) = kissing_cylinder_pillow(tol, 2.0);
+    assert_eq!(
+        (rule(2.0), tier3),
+        (
+            MustCarryVerdict::JetDeterminate,
+            vec![
+                ValidationError::TangentNotIntrinsic { edge: seg },
+                ValidationError::TangentNotIntrinsic { edge: split },
+            ]
+        ),
+        "determinate: the rule demands the intrinsic tangency and tier 3 refuses its absence"
+    );
+
+    let (tier3, _) = kissing_cylinder_pillow(tol, 1.0);
+    assert_eq!(
+        rule(1.0),
+        MustCarryVerdict::UnderDetermined,
+        "osculating: the rule"
+    );
+    assert!(
+        !tier3.is_empty()
+            && tier3
+                .iter()
+                .all(|e| matches!(e, ValidationError::LaminaWedge { .. })),
+        "osculating: tier 3 reads the same under-determination as a lamina: {tier3:?}"
+    );
+
+    let r2 = 1.0 / (1.0 - 6.0 * eps);
+    let (tier3, _) = kissing_cylinder_pillow(tol, r2);
+    assert!(
+        matches!(
+            rule(r2),
+            MustCarryVerdict::InBand(MustCarryEscalation::SecondOrder(Indeterminate {
+                predicate: Some("tangent_second_order"),
+                ..
+            }))
+        ),
+        "in band: the rule escalates second-order: {:?}",
+        rule(r2)
+    );
+    assert!(
+        !tier3.is_empty()
+            && tier3.iter().all(|e| matches!(
+                e,
+                ValidationError::SliverDihedral {
+                    check: crate::validate::WedgeCheck::SecondOrder,
+                    cause: Indeterminate {
+                        predicate: Some("tangent_second_order"),
+                        ..
+                    },
+                    ..
+                }
+            )),
+        "in band: tier 3 escalates second-order: {tier3:?}"
+    );
+}
+
 /// The 3′ pass judges a wedge end exactly as tier 3 does: the local
 /// battery reads no contact record, so a jet-determinate cusp passes
-/// 3′ with no records, and a curve record naming its edge — which the
-/// census certifies on the jet schedule — changes nothing about it.
+/// 3′ with no records. A face–face record of the cusp's two walls is
+/// the census's to read, never the battery's, and the census refuses
+/// it: the walls are tangent along their shared edge, but the cusp's
+/// material is the crescent between them, so as a contact of two
+/// materials their sheets overlap (`contact_tangent_overlap`). Nor do
+/// the walls' interiors meet: they touch only along the edge both
+/// bound.
 #[test]
 fn the_pseudomanifold_gate_judges_a_cusp_as_tier_3_does() {
     let tol = Tol::witness();
@@ -1933,15 +2111,31 @@ fn the_pseudomanifold_gate_judges_a_cusp_as_tier_3_does() {
         ),
         Ok(())
     );
-    let mut records = crate::boolean::ContactRecords::default();
-    records.curves.push(crate::boolean::CurveContact {
-        face_a: p.face_side[0],
-        face_b: p.face_side[2],
-        witness: kiss_edge(&p),
-    });
-    assert_eq!(
-        crate::validate::validate_pseudomanifold(&p.body, &records, tol),
-        Ok(())
+    let records: crate::boolean::ContactRecords = [crate::Cited::new(
+        crate::Contact::new(
+            &p.body,
+            crate::Cell::Face(p.face_side[0]),
+            crate::Cell::Face(p.face_side[2]),
+        )
+        .unwrap(),
+        crate::Cites::decided(0),
+    )]
+    .into_iter()
+    .collect();
+    let errors = crate::validate::validate_pseudomanifold(&p.body, &records, tol)
+        .expect_err("the census reads the record");
+    assert!(
+        matches!(
+            &errors[..],
+            [ValidationError::ContactContradicted {
+                margin: Indeterminate {
+                    predicate: Some("contact_tangent_overlap"),
+                    ..
+                },
+                ..
+            }]
+        ),
+        "only the record's own confirm refuses, on the material crescent: {errors:?}"
     );
 }
 
@@ -2205,6 +2399,123 @@ fn material_arm_error_table() {
             other => panic!("a split must escalate, got {other:?}"),
         }
     }
+}
+
+/// The tolerance a refusal's text offers, read off its sentence.
+fn offered_tolerance(text: &str) -> f64 {
+    let after = text
+        .split("tighten the tolerance below ")
+        .nth(1)
+        .unwrap_or_else(|| panic!("no tolerance offered: {text}"));
+    after.trim_end_matches(" m").parse().unwrap()
+}
+
+/// **The material reads stop with the margin their decision decided,
+/// and check 4 ends each stop as its decision.** At `K = 1.2` and an
+/// arm of `1.3·ε` the arm gate passes, and a plane leaning 42° or 30°
+/// off another reads smooth there (the wedge `sin θ · arm` is within
+/// ε): the state check 4 reaches. Their pairing margin `cos θ · arm` is
+/// decided zero at 42° and in band at 30°, and both refuse as the one
+/// pairing decision — the arm's lever with a tolerance that decides it.
+/// At 30° the wedge reads zero at the pairing's own `m/K`, which is
+/// offered; at 42° it would not, so the offer is the wedge's `w/K`,
+/// where the wedge and the pairing both decide. The cusp side reads a
+/// jet whose relative curvature is zero: its gate's decided Zero
+/// carries the margin tagged, not a mint.
+#[test]
+fn material_reads_stop_with_their_decided_margin_and_end_as_their_decision() {
+    use core::ops::ControlFlow;
+    use geom_brep::StationHook;
+    use geom_core::{MarginDiag, Sign};
+    let (eps, k) = (1e-9, 1.2);
+    let band = geom_core::Band::new(eps, k * eps).unwrap();
+    let arm = 1.3 * eps;
+    let edge = crate::fixtures::raw_prism(3, Tol::witness())
+        .body
+        .edges()
+        .next()
+        .expect("the fixture has edges")
+        .0;
+    let origin = Point3::new(0.0, 0.0, 0.0);
+    let floor = Surface::Plane {
+        origin,
+        normal: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    let leaning = |degrees: f64| {
+        let (sin, cos) = degrees.to_radians().sin_cos();
+        Surface::Plane {
+            origin,
+            normal: Vec3::new(sin, 0.0, cos),
+            u_ref: Vec3::unit_y(),
+        }
+    };
+    let station = |arm: f64, kappa_rel: f64| geom_brep::Station {
+        p: origin,
+        jet: geom_brep::TangentJet {
+            sin_theta: 0.0,
+            kappa_rel,
+        },
+        arm,
+    };
+    // Check 4's one push of a stop.
+    let finding = |stop: crate::validate::MaterialStop| ValidationError::SliverDihedral {
+        edge,
+        check: stop.check,
+        cause: stop.cause,
+    };
+    let lead = "which side of an edge the material of its two smoothly meeting faces lies on \
+                is undecided. Recourse: move the geometry so that edge is clearly longer and no \
+                face curves tightly there, or, if this length is intended, tighten the tolerance \
+                below ";
+    let sin42 = 42.0_f64.to_radians().sin();
+    let cos30 = 30.0_f64.to_radians().cos();
+    for (label, degrees, offered) in [
+        ("decided zero", 42.0, sin42 * arm / k),
+        ("in band", 30.0, cos30 * arm / k),
+    ] {
+        let wall = leaning(degrees);
+        assert_eq!(
+            geom_brep::classify_dihedral(&floor, &wall, origin, arm, band),
+            Ok(geom_brep::DihedralClass::Smooth),
+            "{label}: check 4 reaches the pairing"
+        );
+        let mut stations = crate::validate::MaterialStations::new(&floor, true, &wall, true, band);
+        let ControlFlow::Break(stop) = stations.before_decision(&station(arm, 1.0)) else {
+            panic!("{label}: the pairing stops the walk");
+        };
+        let text = finding(stop).to_string();
+        assert!(text.starts_with(lead), "{label}: {text}");
+        let quoted = offered_tolerance(&text);
+        assert!(
+            (quoted - offered).abs() <= 1e-9 * offered,
+            "{label}: offers {quoted:e}, wants {offered:e}"
+        );
+    }
+    let mut stations = crate::validate::MaterialStations::new(&floor, true, &floor, true, band);
+    let ControlFlow::Break(stop) = stations.after_positive(&station(1.0, 0.0)) else {
+        panic!("a zero cusp-side margin stops the walk");
+    };
+    assert_eq!(
+        (
+            stop.cause.predicate,
+            stop.cause.margin.rejected_sign(),
+            stop.cause.margin == MarginDiag::INVALID
+        ),
+        (Some("material_cusp_side"), Some(Sign::Zero), false),
+        "the cusp side stops with its gate's decided Zero, not a hand-minted poison"
+    );
+    // Its magnitude decided positive one decision before, so the Zero
+    // contradicts it: the defect ending, as a split's.
+    assert_eq!(
+        finding(stop).to_string(),
+        format!(
+            "which side of an edge the material of its two smoothly meeting faces lies on could \
+             not be read consistently along it. {}",
+            geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+        ),
+        "the cusp side's contradiction ends as a defect"
+    );
 }
 
 // ---------------------------------------------------------------------
@@ -2627,7 +2938,7 @@ fn a_shell_selection_reads_the_material_that_shell_alone_bounds() {
     );
     let band = geom_core::Band::linear(tol).expect("a band");
     let probe = |shell, p: Point3<f64>| {
-        let sel = SolidFaces::of_shell(&body, shell).expect("a shell selection");
+        let sel = SolidFaces::of_shell(&body, shell);
         point_in_solid_faces(&body, &sel, p, band, tol).expect("the walk answers")
     };
     let in_cavity = Point3::new(0.43, 0.41, 0.47);
@@ -2698,7 +3009,7 @@ fn check_10_reads_past_a_witness_where_two_shells_touch() {
     refile_shells(&mut body, small, keeper);
 
     let band = geom_core::Band::linear(tol).expect("a band");
-    let sel = SolidFaces::of_shell(&body, big_void).expect("a selection");
+    let sel = SolidFaces::of_shell(&body, big_void);
     let first = body
         .faces()
         .find(|(_, f)| f.shell == small_void)
@@ -3002,7 +3313,10 @@ fn half_disc(r: f64, h: f64, (cx, cy, z0): (f64, f64, f64), far: bool, tol: Tol)
         let (s1, s2) = adjacent_surfaces(&p.body, e);
         let witness = carrier.eval(0.5 * t1);
         let spec = EdgeCurveSpec {
-            description: geom_brep::EdgeDescriptionSpec::Intersection { s1, s2, witness },
+            description: geom_brep::EdgeDescriptionSpec::Intersection {
+                pair: geom_brep::SurfacePair::new(s1, s2),
+                witness,
+            },
             carrier,
             param_start: 0.0,
             param_end: t1,
@@ -3011,6 +3325,162 @@ fn half_disc(r: f64, h: f64, (cx, cy, z0): (f64, f64, f64), far: bool, tol: Tol)
     }
     crate::pcurves::mint_pcurves(&mut p.body, tol).unwrap();
     p.body
+}
+
+/// **Reviewer probes (CONTACTHOLD census review): a line edge crossing
+/// or touching a coplanar conic rim never validates clean.** The
+/// census's edge passes never read a line × conic event
+/// (`census-edge-pass-reads-no-line-conic-crossing`, closed on the
+/// measurement that every verdict on such a configuration refuses).
+/// These rows are that measurement as a guard: each goes red the day
+/// one of these seats validates clean, which is the day the missing
+/// event costs soundness rather than vocabulary. The half-disc post is
+/// `half_disc(0.25, 0.5, (0.3, 0.2, 0.0))`: its cap is the half of the
+/// circle `|(x, y) - (0.3, 0.2)| = 0.25` on `+y`, at `z = 0.5`, so its
+/// rim's apex is `(0.3, 0.45, 0.5)`.
+mod line_conic_review {
+    use super::*;
+    use crate::FaceKey;
+    use crate::boolean::{Cell, Contact, ContactRecords};
+    use crate::test_support_fixtures::{
+        FaceGeometry, describe_as_intersections, prism_ops, prism_z,
+    };
+
+    const APEX: (f64, f64, f64) = (0.3, 0.45, 0.5);
+
+    fn post() -> (Body<f64>, FaceKey) {
+        let body = half_disc(0.25, 0.5, (0.3, 0.2, 0.0), false, Tol::witness());
+        let cap = body
+            .faces
+            .iter()
+            .find(|(_, f)| {
+                matches!(
+                    body.surfaces.get(f.surface),
+                    Some(Surface::Plane { normal, origin, .. })
+                        if normal.z == 1.0 && origin.z == 0.5
+                )
+            })
+            .map(|(k, _)| k)
+            .expect("the cap");
+        (body, cap)
+    }
+
+    /// The post beside a box `[x] × [y] × [z]`, with the cap and the
+    /// box's underside.
+    fn post_and_box(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> (Body<f64>, FaceKey, FaceKey) {
+        let (mut body, cap) = post();
+        let shelf: crate::test_support_fixtures::Prism<f64> = prism_z(
+            &[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)],
+            z.0,
+            z.1,
+            Tol::witness(),
+        );
+        let keys = crate::graft_disjoint_all_keyed(&mut body, &shelf.body).expect("a graft");
+        let under = keys.face(shelf.bottom_face).expect("the underside");
+        (body, cap, under)
+    }
+
+    fn patch(a: FaceKey, b: FaceKey) -> ContactRecords {
+        [crate::Cited::new(
+            Contact::of(Cell::Face(a), Cell::Face(b)).unwrap(),
+            crate::Cites::decided(0),
+        )]
+        .into_iter()
+        .collect()
+    }
+
+    fn validate(body: &Body<f64>, records: &ContactRecords) -> Vec<ValidationError> {
+        crate::validate::validate_pseudomanifold(body, records, Tol::witness())
+            .expect_err("a line × conic seat never validates clean")
+    }
+
+    /// The row's own seat: the shelf's `y = 0.30` underside edge crosses
+    /// the cap's rim twice, coplanar. Bare and with the (cap, underside)
+    /// patch, the overlap cell on the cap is a hard finding.
+    #[test]
+    fn a_shelf_edge_crossing_the_rim_in_plane_never_validates_clean() {
+        let (body, cap, under) = post_and_box((0.0, 0.9), (0.0, 0.30), (0.5, 0.54));
+        for records in [ContactRecords::default(), patch(cap, under)] {
+            let errors = validate(&body, &records);
+            assert!(
+                errors.iter().any(|e| matches!(
+                    e,
+                    ValidationError::UnrecordedContact {
+                        contact: crate::CensusContact::EdgeFaceOverlap { face, .. },
+                        ..
+                    } if *face == cap
+                )),
+                "the shelf edge's cell in the cap stays hard: {errors:?}"
+            );
+        }
+    }
+
+    /// The tangent case: the box's `y = 0.45` underside edge touches the
+    /// rim at its apex only, coplanar, so no cell lies in the cap and no
+    /// pass reads the touch. It refuses all the same (measured: the
+    /// backstop's `CurvedWithinReach` on the wall and the cap against the
+    /// box's faces; with the patch, Door 2's `NonPlanarTrim` as well).
+    #[test]
+    fn a_shelf_edge_tangent_to_the_rim_in_plane_never_validates_clean() {
+        let (body, cap, under) = post_and_box((0.0, 0.9), (APEX.1, 0.75), (0.5, 0.54));
+        for records in [ContactRecords::default(), patch(cap, under)] {
+            validate(&body, &records);
+        }
+    }
+
+    /// The tangent case beside the post rather than on it: a block whose
+    /// `y = 0.45` face is tangent to the wall along the ruling through
+    /// the apex and whose top is flush with the cap, so its top edge
+    /// touches the rim at the apex from outside. Measured: the backstop
+    /// refuses the wall and the two arc-bounded planar faces against the
+    /// block's faces.
+    #[test]
+    fn a_flush_block_tangent_to_the_wall_never_validates_clean() {
+        let (body, _, _) = post_and_box((0.0, 0.6), (APEX.1, 0.7), (0.0, 0.5));
+        validate(&body, &ContactRecords::default());
+    }
+
+    /// The transverse case: a wedge whose edge runs along `(0, 1, -1)`
+    /// through the apex touches the post there and nowhere else (above
+    /// the cap on one side of the apex, outside the wall on the other).
+    /// Pass 4 reads the touch as `OnEdge` of the cap and reports nothing,
+    /// pass 5 never sees the arc, and the cross-solid backstop is what
+    /// refuses.
+    #[test]
+    fn a_wedge_edge_touching_the_rim_transversally_never_validates_clean() {
+        let (mut body, cap) = post();
+        let s = std::f64::consts::FRAC_1_SQRT_2;
+        let (x0, y0, z0) = APEX;
+        let mut wedge = Body::<f64>::new();
+        // local (a, b, c) → apex + a·x̂ + b·(0, s, s) + c·(0, -s, s):
+        // a rotation, so the profile's winding carries over. The wedge's
+        // material is on b ≥ 0, its edge the line a = b = 0.
+        prism_ops(
+            &mut wedge,
+            &[(0.0, 0.0), (0.1, 0.1), (-0.1, 0.1)],
+            (-0.15, 0.15),
+            move |a, b, c| Point3::new(x0 + a, y0 + s * (b - c), z0 + s * (b + c)),
+            FaceGeometry::Certified,
+            Tol::witness(),
+        );
+        describe_as_intersections(&mut wedge, Tol::witness());
+        crate::graft_disjoint_all_keyed(&mut body, &wedge).expect("a graft");
+        let errors = validate(&body, &ContactRecords::default());
+        assert!(
+            errors.iter().any(|e| matches!(
+                e,
+                ValidationError::CensusUndecidable { a, b, .. }
+                    if *a == crate::EntityId::Face(cap) || *b == crate::EntityId::Face(cap)
+            )),
+            "the backstop holds the cap against the wedge: {errors:?}"
+        );
+        assert!(
+            !errors
+                .iter()
+                .any(|e| matches!(e, ValidationError::UnrecordedContact { .. })),
+            "no census lane reads the touch itself: {errors:?}"
+        );
+    }
 }
 
 /// **A curved walk's sign is read off its exact volume too.** A 1 mm
@@ -3194,4 +3664,71 @@ fn the_census_gate_finds_a_far_slab_nested_in_another_solid() {
         )),
         "the slab stands inside the block's material: {errors:?}"
     );
+}
+
+/// The cusp prism and a brick whose top face y = 0 is tangent to the
+/// outer wall along the cusp's line (x = 0, y = 0), the normals opposed.
+mod a_tangent_record_off_the_cusp {
+    use super::*;
+    use crate::boolean::{Cell, ContactRecords};
+
+    /// **A face–face record on two carriers needs the faces to meet.**
+    /// The brick stands 4 m above the prism along the tangent line, so
+    /// the record of the outer wall and the brick's top names two faces
+    /// whose extents along the line are disjoint: stale, and so is the
+    /// inner wall's, before any sense is read. Red when the table runs
+    /// over the union of the two extents.
+    #[test]
+    fn a_tangent_record_of_two_faces_four_metres_apart_is_stale() {
+        let tol = Tol::witness();
+        let mut p = cusp_prism(tol);
+        let block =
+            crate::test_support_fixtures::brick::<f64>((-0.5, 0.5), (-1.0, 0.0), (5.0, 6.0), tol);
+        let keys = crate::graft_disjoint_all_keyed(&mut p.body, &block).unwrap();
+        let top = block
+            .faces()
+            .find(|(_, f)| match block.get_surface(f.surface) {
+                Some(Surface::Plane { origin, normal, .. }) => {
+                    normal.y.abs() > 0.5 && origin.y.abs() < 1e-12
+                }
+                _ => false,
+            })
+            .and_then(|(k, _)| keys.face(k))
+            .unwrap();
+        let record = |wall| -> ContactRecords {
+            [crate::Cited::new(
+                crate::Contact::new(&p.body, Cell::Face(wall), Cell::Face(top)).unwrap(),
+                crate::Cites::decided(0),
+            )]
+            .into_iter()
+            .collect()
+        };
+        let gate = |r: &ContactRecords| crate::validate::validate_pseudomanifold(&p.body, r, tol);
+        assert_eq!(
+            gate(&ContactRecords::default()),
+            Ok(()),
+            "apart, unrecorded"
+        );
+        let outer = gate(&record(p.face_side[0])).expect_err("apart along the line");
+        assert!(
+            outer.iter().any(|e| matches!(
+                e,
+                ValidationError::StaleContactDeclaration {
+                    declaration: crate::validate::StaleDeclaration::Patch { .. }
+                }
+            )),
+            "{outer:?}"
+        );
+        let inner = gate(&record(p.face_side[2])).expect_err("apart along the line");
+        assert_eq!(inner.len(), 1, "{inner:?}");
+        assert!(
+            matches!(
+                inner[0],
+                ValidationError::StaleContactDeclaration {
+                    declaration: crate::validate::StaleDeclaration::Patch { .. }
+                }
+            ),
+            "{inner:?}"
+        );
+    }
 }

@@ -241,7 +241,7 @@ fn probe_edit(
             // A sample the slot's dimension cannot carry is a sample
             // that cannot be expressed there, which is this door's own
             // `None` rather than a second kind of refusal.
-            SlotValue::of(slot.dimension(), value).ok()?,
+            SlotValue::of(slot.expr_dimension(), value).ok()?,
             props::slot_unit(doc, *node, *slot),
         )
         .ok(),

@@ -54,7 +54,10 @@ use topo::{Body, FaceKey, LoopBoundary, ShellError, VertexKey, transform_rigid};
 use crate::common::charts::hollow_moves;
 use crate::common::latitude_seam::latitude_on_partial_wall;
 use crate::common::poses::torax_pose;
-use crate::common::torus_walls::{klein_elbow, props_door, torus_barrel, torus_belly};
+use crate::common::torus_walls::{
+    assert_hollow_area, assert_hollow_volume, cut_cap_area, disc_cut_volume, disc_cut_wall_area,
+    klein_elbow, torus_barrel, torus_belly,
+};
 use sweep::test_support::finished;
 
 fn tol() -> Tol {
@@ -535,27 +538,40 @@ fn lune(r: f64, turn: f64) -> Body<f64> {
 /// its window read forward of its start (`offset_axial_edge_window`).
 /// The disc's two profile vertices revolve into `RevolvedPoint`-declared
 /// equator seams whose ends the moved caps turn about the axis, and the
-/// declarations follow the corners. The hollow assembles, passes checks
-/// 1–6, and check 7 refuses `VolumeUncomputable` at a CAP: its spiric
-/// loop's area is an elliptic integral (`Unimplemented`) — the door the
-/// sectioned vessel stands at (`spiric_rim`).
+/// declarations follow the corners. The hollow assembles and passes
+/// tier 3, check 7 included: the spiric-bounded caps and torus walls
+/// are measured by the spiric quadrature lane
+/// (`geom_brep::props::spiric`), and the hollow's volume is the
+/// quarter-turn disc less its cavity (`disc_cut_volume`). One door
+/// earlier it stood at check 7, `VolumeUncomputable` at a cap whose
+/// spiric loop's area had no lane (`Unimplemented`).
 #[test]
-fn torax_the_klein_elbow_hollows_to_the_props_door() {
+fn torax_the_klein_elbow_hollows_to_its_measured_volume() {
     let r = 0.275_f64;
     let elbow = klein_elbow(vec![bulge_loop(vec![
         (Point2::new(-r, 0.0), 1.0),
         (Point2::new(r, 0.0), 1.0),
     ])]);
-    let e = topo::shell(&finished("the operand", elbow.clone(), tol()), 0.05, tol())
-        .expect_err("check 7's volume");
-    println!("[torax] the elbow's next door: {e:?}");
-    let (face, source) = props_door(&e).unwrap_or_else(|| panic!("not the props door: {e:?}"));
-    assert_eq!(
-        source,
-        geom_brep::PropsError::Unimplemented,
-        "a spiric-bounded cap's area, at {face:?}"
+    let hollow = topo::shell(&finished("the operand", elbow.clone(), tol()), 0.05, tol())
+        .unwrap_or_else(|e| panic!("the elbow hollows, got {e:?}"))
+        .body;
+    let theta = core::f64::consts::FRAC_PI_2;
+    assert_hollow_volume(
+        "the klein elbow",
+        &hollow,
+        disc_cut_volume(theta, 0.05, 0.0, 1.2, r)
+            - disc_cut_volume(theta, 0.05, 2.0, 1.2, r - 0.05),
     );
     let small = r - 0.05;
+    // Outer wall and caps, then the cavity's spiric-bounded wall and caps.
+    assert_hollow_area(
+        "the klein elbow",
+        &hollow,
+        disc_cut_wall_area(theta, 0.0, 0.0, 1.2, r)
+            + 2.0 * cut_cap_area(0.0, 1.2, r)
+            + disc_cut_wall_area(theta, 0.05, 2.0, 1.2, small)
+            + 2.0 * cut_cap_area(0.05, 1.2, small),
+    );
 
     // The section that rim edge needs is not a circle.
     let big = 1.2_f64;
@@ -815,7 +831,7 @@ fn torax_the_lune_cavity_survives_a_rigid_re_pose() {
 ///
 /// The OPERAND measures: its wall is a rim-free band between two
 /// meridians on two great circles, which the sphere flux arm reads by
-/// the meridian pair (`props_wedge_azimuth`), so the
+/// Gauss–Bonnet, so the
 /// quarter-turn lune's tier 3 passes at the ball wedge's closed form
 /// `πr³/3`. `shell` then walks the WHOLE hollow — corners, carriers,
 /// pcurves, containment — and its last act, tier 3's +V invariant,
@@ -1176,12 +1192,16 @@ fn torax_re_authored_arcs_put_both_corners_on_the_moved_circle() {
                 (_, geom_brep::EdgeAuthority::Declared(m)) => m,
                 _ => continue,
             };
-            let geom_brep::MappedCurve::PlacedSegment {
-                segment:
-                    geom_brep::SketchSegment::Arc {
-                        a,
-                        b,
-                        arc: Arc2 { centre, radius, .. },
+            let geom_brep::MappedCurve {
+                source:
+                    geom_brep::MappedSource::PlacedSegment {
+                        segment:
+                            geom_brep::SketchSegment::Arc {
+                                a,
+                                b,
+                                arc: Arc2 { centre, radius, .. },
+                                ..
+                            },
                         ..
                     },
                 ..

@@ -45,22 +45,20 @@
 //!   `|S_u·r| ≤ ε₂·|S_u|·|r|` **and** `|S_v·r| ≤ ε₂·|S_v|·|r|` with
 //!   ε₂ = [`PROJECT_EPS_COSINE`]; *stagnation*
 //!   `|Δu·S_u + Δv·S_v| ≤` [`PROJECT_EPS_POINT`] (this is how a
-//!   domain-edge foot converges — the clamp pins the parameters, the
-//!   step dies, and the projection reports the **honest, possibly
-//!   large** orthogonality residuals of the boundary point).
+//!   domain-edge foot converges: the clamp pins the parameters and the
+//!   step dies).
 //! - **Non-convergence** is the typed [`SurfaceProjectionInconclusive`]
 //!   refusal — never a best-effort answer.
 //!
 //! # Honesty, in two parameters
 //!
-//! The shared contract is `crate::projection_policy`'s. Here the residual
-//! set is three — `distance`, `orthogonality_u`, `orthogonality_v` —
-//! and all three ride the [`SurfaceProjection`] so the consumer can
-//! band them together: a far sheet fails on `distance`, a domain-edge
-//! clamp fails on an orthogonality residual, and a degenerate chart
-//! point (`|S_u| = 0`, e.g. a collapsed row of control points) meets
-//! the cosine test with a trivially-zero residual that `distance`
-//! refuses.
+//! The shared contract is `crate::projection_policy`'s. The residual
+//! the [`SurfaceProjection`] carries is `distance`. A foot is a point of
+//! the surface at every exit, so `distance` bounds the query point's
+//! distance from the surface above: a far sheet, a domain-edge clamp
+//! and a degenerate chart point (`|S_u| = 0`, e.g. a collapsed row of
+//! control points, where the cosine test meets a trivially-zero
+//! residual) each read a distance no smaller than the true one.
 
 use geom_core::{Bounds, CertifiedBounds, Point3, Readable, Real};
 
@@ -69,21 +67,19 @@ use crate::projection_policy::{
 };
 use crate::surfaces::NurbsSurface;
 
-/// A converged surface foot point WITH its certified residuals (C2.1;
-/// see the module docs' honesty section — the consumer bands all three
-/// together, and this type exists so it *can*).
+/// A converged surface foot point with its certified distance (C2.1;
+/// the module docs' honesty section).
 ///
 /// **At `T = Dual` every `T`-valued field here carries a partial
 /// derivative rather than a total one — issue #874.** `u` and `v` are
 /// selected as `f64` and frozen (`crate::projection_policy::mid`), so each field
 /// is differentiated at fixed `(u*, v*)` and is short by the two
 /// `∂/∂u × du*/dp` and `∂/∂v × dv*/dp` terms a frozen parameter cannot
-/// produce — `S_u`, `S_v` for `foot`; `S_uu·r + |S_u|²` and
-/// `S_uv·r + S_u·S_v` for `orthogonality_u`, and their transposes for
-/// `orthogonality_v`; `S_u·r/|r|` and `S_v·r/|r|` for `distance`.
+/// produce — `S_u`, `S_v` for `foot`; `S_u·r/|r|` and `S_v·r/|r|` for
+/// `distance`.
 ///
-/// **`distance` is the only one the iteration bounds, and it bounds it on
-/// ONE of the three exits** — the *cosine* one, where its coefficients
+/// **The iteration bounds `distance`'s dropped terms on ONE of the three
+/// exits** — the *cosine* one, where its coefficients
 /// are the acceptance quantities in both directions and the dropped terms
 /// are at most `ε₂·|S_u|·|du*/dp|` and `ε₂·|S_v|·|dv*/dp|`. The
 /// *coincidence* exit holds no orthogonality condition, and *stagnation*
@@ -104,12 +100,6 @@ pub struct SurfaceProjection<T: Real> {
     pub foot: Point3<T>,
     /// `|S(u*,v*) − P|` in meters — the nearness residual, at `T`.
     pub distance: T,
-    /// `|S_u·(S − P)|` — the u-orthogonality residual (meters² per
-    /// parameter unit; honest and possibly large for a domain-edge
-    /// foot), at `T`.
-    pub orthogonality_u: T,
-    /// `|S_v·(S − P)|` — the v-orthogonality residual, at `T`.
-    pub orthogonality_v: T,
     /// Newton steps consumed (diagnostic structure).
     pub iterations: usize,
 }
@@ -177,11 +167,12 @@ impl<T: Bounds> NurbsSurface<T> {
                     #[allow(clippy::cast_precision_loss)]
                     let fu = i as f64 / (PROJECT_SEEDS_PER_SPAN - 1) as f64;
                     let u = a0 + (a1 - a0) * fu;
+                    let tu = T::from_computed(u);
                     for j in 0..PROJECT_SEEDS_PER_SPAN {
                         #[allow(clippy::cast_precision_loss)]
                         let fv = j as f64 / (PROJECT_SEEDS_PER_SPAN - 1) as f64;
                         let v = b0 + (b1 - b0) * fv;
-                        let d = win.eval_in_span(T::from_f64(u), T::from_f64(v)) - p;
+                        let d = win.eval_in_span(tu, T::from_computed(v)) - p;
                         let d2 = mid(d.dot(d));
                         // Strict `<`: first minimum wins, NaN never does.
                         if d2 < best_d2 {
@@ -218,7 +209,7 @@ impl<T: CertifiedBounds> NurbsSurface<T> {
     /// — the raw entry behind [`Self::project`] (module docs: iteration
     /// policy, acceptance conditions, clamping, honesty). A bad seed
     /// converges to whatever stationary point it converges to; the
-    /// carried residuals stay honest, which is the point.
+    /// carried distance stays honest, which is the point.
     ///
     /// # Errors
     ///
@@ -239,9 +230,11 @@ impl<T: CertifiedBounds> NurbsSurface<T> {
         let mut last_fv = f64::NAN;
         let mut last_dist = f64::NAN;
         while iterations < PROJECT_MAX_ITERS {
-            let j = self
-                .window_at(u, v)
-                .ders_in_span(T::from_f64(u), T::from_f64(v));
+            // A NaN seed has no window: the projection is inconclusive.
+            let Some(win) = self.window_at(u, v) else {
+                break;
+            };
+            let j = win.ders_in_span(T::from_computed(u), T::from_computed(v));
             let r = j.point - p;
             // The iteration reads structure through the brackets; the
             // T-valued jet above is what the accepted payload is built
@@ -264,8 +257,6 @@ impl<T: CertifiedBounds> NurbsSurface<T> {
                     v,
                     foot: j.point,
                     distance: r.norm(),
-                    orthogonality_u: j.du.dot(r).abs(),
-                    orthogonality_v: j.dv.dot(r).abs(),
                     iterations,
                 });
             }
@@ -284,11 +275,12 @@ impl<T: CertifiedBounds> NurbsSurface<T> {
             iterations += 1;
             // Acceptance: parameter stagnation, measured in meters
             // through the chart (domain-edge feet land here).
-            let moved = j.du * T::from_f64(un - u) + j.dv * T::from_f64(vn - v);
+            let moved = j.du * T::from_computed(un - u) + j.dv * T::from_computed(vn - v);
             if mid(moved.norm()) <= PROJECT_EPS_POINT {
-                let jn = self
-                    .window_at(un, vn)
-                    .ders_in_span(T::from_f64(un), T::from_f64(vn));
+                let Some(win) = self.window_at(un, vn) else {
+                    break;
+                };
+                let jn = win.ders_in_span(T::from_computed(un), T::from_computed(vn));
                 let r = jn.point - p;
                 let dist = r.norm();
                 if !mid(dist).is_nan() {
@@ -297,8 +289,6 @@ impl<T: CertifiedBounds> NurbsSurface<T> {
                         v: vn,
                         foot: jn.point,
                         distance: dist,
-                        orthogonality_u: jn.du.dot(r).abs(),
-                        orthogonality_v: jn.dv.dot(r).abs(),
                         iterations,
                     });
                 }

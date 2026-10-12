@@ -29,13 +29,14 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use viewer::session::BooleanSpec;
 
 use core::f64::consts::PI;
 
 use common::{ang, body_volume, len, len3, near, scl3, session_insert, shape};
 use pncad::document::{
-    Axis3, BooleanOp, Dimension, Doc, DocEdit, EditError, FreeVar, ProfileProgram, RecipeNodeId,
-    SlotId, StepArg, VarName,
+    Axis3, Dimension, Doc, DocEdit, EditError, FreeVar, ProfileProgram, RecipeNodeId, SlotId,
+    StepArg, VarName,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::MM;
@@ -290,7 +291,7 @@ fn the_parametric_living_walk() {
     let tower_up = session_insert(
         &mut session,
         SessionOp::AddTransform {
-            input: tower,
+            input: tower.into(),
             // 0.025 deliberately equals `height - embed` today, so the
             // part is coherent before the drive lands; a literal that
             // stayed driving would be caught by the stage-9/11 ripples.
@@ -308,10 +309,7 @@ fn the_parametric_living_walk() {
     let hull = session_insert(
         &mut session,
         SessionOp::AddBoolean {
-            op: BooleanOp::Union,
-            a: base,
-            b: tower_up,
-            declare: Vec::new(),
+            spec: BooleanSpec::Union(vec![base.into(), tower_up.into()]),
         },
     );
     let r1 = BASE_R * TAPER;
@@ -365,7 +363,7 @@ fn the_parametric_living_walk() {
     let lamp_up = session_insert(
         &mut session,
         SessionOp::AddTransform {
-            input: lamp,
+            input: lamp.into(),
             // 0.08 deliberately equals `height * 3 - embed * 2` today
             // (coherent mid-build); a literal that stayed driving would
             // be caught by the stage-9/11 variable ripples.
@@ -383,25 +381,26 @@ fn the_parametric_living_walk() {
     let lighthouse = session_insert(
         &mut session,
         SessionOp::AddBoolean {
-            op: BooleanOp::Union,
-            a: hull,
-            b: lamp_up,
-            declare: Vec::new(),
+            spec: BooleanSpec::Union(vec![hull.into(), lamp_up.into()]),
         },
     );
     assert_eq!(
-        session.committed_doc().roots(),
-        &[lighthouse],
-        "one product root: the finished part"
+        common::world(session.committed_doc()),
+        [lighthouse],
+        "the world is one copy: the finished part"
     );
     let got = body_volume(&mut session, lighthouse, tol);
     let want = lighthouse_volume(BASE_R, TAPER, HEIGHT, EMBED, LAMP_H);
     assert!(near(got, want), "lighthouse volume {got} vs {want}");
     let rows = session.tree_rows();
-    // Thirteen: the ten features, and the three sketch frames they are
+    // Fourteen: the ten features, the three sketch frames they are
     // drawn on — a plane is a feature of the document now, and the
-    // tree says so.
-    assert_eq!(rows.len(), 13, "ten features and three frames");
+    // tree says so — and the one world placement of the finished part.
+    assert_eq!(
+        rows.len(),
+        14,
+        "ten features, three frames and the lighthouse's placement"
+    );
     assert!(
         rows.iter().all(|row| row.status == RowStatus::Ok),
         "every row green: {rows:?}"

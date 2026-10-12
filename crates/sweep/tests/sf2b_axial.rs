@@ -17,7 +17,7 @@ use core::f64::consts::PI;
 use crate::common::bulge;
 use crate::common::shell_operands::vessel;
 use geom_core::{Point2, Tol, Vec2};
-use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
+use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::finished;
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::Body;
@@ -262,8 +262,7 @@ fn a_torus_belly_and_a_tangent_bullet_hollow_through_the_axial_door() {
                 (core::f64::consts::FRAC_PI_2 / 4.0).tan(),
             ),
             (Point2::new(0.0, h + r), 0.0),
-        ])
-        .with_tangent_joints(vec![2]),
+        ]),
         Revolution::Full,
     );
     let solid = |rad: f64, base: f64| PI * rad * rad * (h - base) + 2.0 * PI * rad.powi(3) / 3.0;

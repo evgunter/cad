@@ -133,6 +133,9 @@ mod cone_rows;
 #[cfg(test)]
 mod ellipse_rows;
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod in_band_sweep;
+#[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod shallow_sweep;
 
@@ -150,12 +153,15 @@ const fn first_rows(decision: BooleanDecision) -> FirstHarmonicRows {
     }
 }
 
+/// The ladder's noise meter's row (module docs, "Two arms").
+const LADDER_NOISE: &str = "bool_conic_quadric_ladder_noise";
+
 /// The ladder's rows, per surface decision.
 const fn ladder_rows(decision: BooleanDecision) -> HalfAngleRows {
     HalfAngleRows {
         pole: "bool_conic_quadric_pole",
         conditioning: "bool_conic_quadric_pole_conditioning",
-        noise: "bool_conic_quadric_ladder_noise",
+        noise: LADDER_NOISE,
         quartic: QuarticRows {
             disc: "bool_conic_quadric_disc",
             shape: "bool_conic_quadric_shape",
@@ -199,7 +205,7 @@ pub(super) fn conic_quadric_roots<T: Decide>(
                ellipse or a surface that is not a sphere, a cylinder or a cone",
     };
     let conic = geom_brep::Conic::of(carrier).ok_or_else(desync)?;
-    let (h, decision, quadric) = match (carrier, surface) {
+    match (carrier, surface) {
         (
             &geom::Curve3::Circle {
                 center,
@@ -231,26 +237,9 @@ pub(super) fn conic_quadric_roots<T: Decide>(
                 t1,
                 &first_rows(BooleanDecision::ArcSphereRoots),
                 band,
-            );
+            )
+            .map(CircleRoots::from);
         }
-        (_, &geom::Surface::Sphere { center, radius, .. }) => (
-            geom_brep::conic_sphere_harmonics(&conic, center, radius),
-            BooleanDecision::ArcSphereRoots,
-            (center, None, radius),
-        ),
-        (
-            _,
-            &geom::Surface::Cylinder {
-                origin,
-                axis,
-                radius,
-                ..
-            },
-        ) => (
-            geom_brep::conic_cylinder_harmonics(&conic, origin, axis, radius),
-            BooleanDecision::ArcCylinderRoots,
-            (origin, Some(axis), radius),
-        ),
         (
             _,
             &geom::Surface::Cone {
@@ -262,14 +251,15 @@ pub(super) fn conic_quadric_roots<T: Decide>(
         ) => {
             return cone_roots(&conic, (apex, axis, half_angle), (t0, t1), surface, band);
         }
-        _ => return Err(desync()),
-    };
-    // The harmonics' rounding, in residual metres: the term bound is in
-    // m², before the `2r` division. It is a charge on the residual's
-    // evaluation (`geom_brep::HARMONIC_NOISE_ULPS`), so it covers the
-    // arm's readings together — `c₀ ∓ A₁` and the `A₂` it charges.
-    let noise = rounding_charge(h.terms) / h.per;
-    if let Some(first) = first_harmonic_arm(&h, noise, band) {
+        _ => {}
+    }
+    let QuadricLadder {
+        h,
+        decision,
+        quadric,
+        frame,
+    } = quadric_ladder(&conic, surface, (t0, t1)).ok_or_else(desync)?;
+    if let Some(first) = first_harmonic_arm(&h, frame.walk.noise, band) {
         return first_harmonic_roots(
             &first,
             conic.speed_hi(),
@@ -277,12 +267,13 @@ pub(super) fn conic_quadric_roots<T: Decide>(
             t1,
             &first_rows(decision),
             band,
-        );
+        )
+        .map(CircleRoots::from);
     }
     half_angle_roots(
         &TrigPoly::second(h.c0, h.c1, h.s1, h.c2, h.s2),
         |theta| geom_brep::implicit_residual(surface, conic.point(theta)),
-        ladder_frame(&conic, (t0, t1), noise, h.floor),
+        frame,
         &ladder_rows(decision),
         Some(&RootSlack {
             row: LADDER_ROOT_SLACK,
@@ -291,6 +282,56 @@ pub(super) fn conic_quadric_roots<T: Decide>(
         }),
         band,
     )
+}
+
+/// A conic against a sphere or a wall, read for the door's two arms: its
+/// harmonics, the surface's decision, the quadric as
+/// [`geom_brep::conic_quadric_residual`] reads it, and the ladder's frame,
+/// which carries the harmonics' noise.
+struct QuadricLadder<T: Decide> {
+    h: geom_brep::ConicHarmonics<T>,
+    decision: BooleanDecision,
+    quadric: (geom_core::Point3<T>, Option<geom_core::Vec3<T>>, T),
+    frame: HalfAngleFrame<T>,
+}
+
+/// [`QuadricLadder`] for `conic` against `surface` over `[t0, t1]`, or
+/// `None` when `surface` is neither a sphere nor a cylinder.
+fn quadric_ladder<T: Decide>(
+    conic: &geom_brep::Conic<T>,
+    surface: &geom::Surface<T>,
+    (t0, t1): (T, T),
+) -> Option<QuadricLadder<T>> {
+    let (h, decision, quadric) = match *surface {
+        geom::Surface::Sphere { center, radius, .. } => (
+            geom_brep::conic_sphere_harmonics(conic, center, radius),
+            BooleanDecision::ArcSphereRoots,
+            (center, None, radius),
+        ),
+        geom::Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            ..
+        } => (
+            geom_brep::conic_cylinder_harmonics(conic, origin, axis, radius),
+            BooleanDecision::ArcCylinderRoots,
+            (origin, Some(axis), radius),
+        ),
+        _ => return None,
+    };
+    // The harmonics' rounding, in residual metres: the term bound is in
+    // m², before the `2r` division. It is a charge on the residual's
+    // evaluation (`geom_brep::HARMONIC_NOISE_ULPS`), so it covers the
+    // arm's readings together — `c₀ ∓ A₁` and the `A₂` it charges.
+    let noise = rounding_charge(h.terms) / h.per;
+    let frame = ladder_frame(conic, (t0, t1), noise, h.floor);
+    Some(QuadricLadder {
+        h,
+        decision,
+        quadric,
+        frame,
+    })
 }
 
 /// The ladder's root-slack row on a sphere or a wall (module docs, "Two
@@ -365,14 +406,14 @@ fn cone_roots<T: Decide>(
     let h = geom_brep::conic_cone_harmonics(conic, apex, axis, half_angle);
     let noise = rounding_charge(h.terms) / h.per;
     let roots = if let Some(first) = first_harmonic_arm(&h, noise, band) {
-        let roots = first_harmonic_roots(
+        let roots = CircleRoots::from(first_harmonic_roots(
             &first,
             conic.speed_hi(),
             t0,
             t1,
             &first_rows(BooleanDecision::ArcConeRoots),
             band,
-        )?;
+        )?);
         if let CircleRoots::OnSurface = roots {
             // `|res| ≤ |F| / floor`: a constant `F` in the band certifies
             // the carrier on the cone only once its whole reach, read

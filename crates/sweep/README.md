@@ -24,7 +24,7 @@ chamfers) is registered in `docs/KERNEL-VERBS.md`; the canal blend is
 |---|---|
 | Extrude: translational sweep along the sketch normal; caps, walls, hole rings, rim upgrades | `crates/sweep/src/extrude.rs` |
 | Revolve: axis and angle conventions, partial wedge and full ring, seam meridians, the `tube_along_arc` torus door | `crates/sweep/src/revolve/` (`mod.rs`, `axis.rs`, `partial.rs`, `full.rs`, `chain.rs`, `surfaces.rs`, `upgrade.rs`, `tube.rs`) |
-| Loft and path sweep bodies: extrude's topology over NURBS walls | `crates/sweep/src/loft.rs` (`loft_body`, `sweep_body`) |
+| Loft and path sweep bodies: extrude's topology over NURBS walls | `crates/sweep/src/loft.rs` (`loft_body`, `loft_profiles`, `sweep_body`) |
 | Skinned and swept NURBS surfaces (the definitional geometry, not an approximation) | `crates/sweep/src/skin.rs` |
 | The lowering every profile sweep shares: traversal order, carriers, cosurface decisions | `crates/sweep/src/swept.rs` |
 | The two blend doors, one per verb; each attaches its `BlendKind` once | `crates/sweep/src/fillet.rs`, `crates/sweep/src/chamfer.rs` |
@@ -289,6 +289,14 @@ face's rim edges split at the feet, the end curve `mef`'d across it, one
 trimline per support; at a turn, L split at its foot, a strut out to the
 trimlines' crossing on the shared face, and the mitre `mef`'d across one
 band, the triangle it cuts off folded into the other.
+
+The battery's other Zero verdicts are coincidences decided from values
+too, and record the same way: a junction chain G1 reads tangent is a
+`Tangent` row between its two links' edges, arriving then leaving, and
+a curved pair's `fillet3_support_coaxiality` is a row between its two
+supports: `Coaxial` for the axis a torus band is minted on, `CoRuled`
+for the ruling a cylinder band is. A self-closed
+link's own seam is one cell, not two, and records nothing.
 
 What still refuses, typed `UnsupportedRunOut` with a detail naming the
 shape: a curved end face (a fillet against a cylinder meets it in a

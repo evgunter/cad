@@ -154,7 +154,7 @@ fn a_slot_is_written_in_the_unit_its_literal_remembers() {
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: common::len_mm(0.008),
             side: ExtrudeSide::Along,
         },
@@ -177,7 +177,7 @@ fn a_slot_is_written_in_the_unit_its_literal_remembers() {
     let (doc, plain) = common::inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: common::len(0.008),
             side: ExtrudeSide::Along,
         },
@@ -305,7 +305,7 @@ fn a_value_edit_keeps_the_slots_rendering_unit() {
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: common::len_mm(0.008),
             side: ExtrudeSide::Along,
         },
@@ -364,7 +364,7 @@ fn changing_the_display_unit_leaves_the_value_bit_identical() {
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: common::len(0.008),
             side: ExtrudeSide::Along,
         },
@@ -476,7 +476,7 @@ fn a_unit_change_refuses_typed_on_a_computed_slot_and_a_foreign_unit() {
     let (doc, plain) = common::inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: common::len(0.008),
             side: ExtrudeSide::Along,
         },
@@ -511,7 +511,7 @@ fn the_field_shows_a_bare_literals_number_without_its_unit() {
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: common::len_mm(0.008),
             side: ExtrudeSide::Along,
         },
@@ -619,7 +619,7 @@ fn a_typed_literal_with_a_unit_authors_the_display_unit_too() {
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: common::len_mm(0.008),
             side: ExtrudeSide::Along,
         },
@@ -798,7 +798,7 @@ fn a_parameters_range_reads_in_the_unit_it_was_searched_in() {
         let (doc, _) = common::inserted(
             &doc,
             Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: Formula::named(name.clone(), Dimension::Length),
                 side: ExtrudeSide::Along,
             },
@@ -920,7 +920,7 @@ fn a_parameter_field_is_written_the_way_its_declaration_says() {
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: common::len_mm(0.008),
             side: ExtrudeSide::Along,
         },

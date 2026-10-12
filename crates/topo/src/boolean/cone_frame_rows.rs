@@ -14,11 +14,11 @@
 
 use super::BooleanError;
 use super::join::{
-    FrameError, FrameExtent, frame_extent, frame_reading, frame_refusal, pair_section_frame,
-    pair_section_frame_at,
+    FrameError, FrameExtent, frame_extent, frame_reading, frame_refusal, one_loop,
+    pair_section_frame, pair_section_frame_at,
 };
 use crate::entity::FaceKey;
-use geom_brep::{OutsideConic, RadiusEvidence, SectionError};
+use geom_brep::{OutsideConic, SectionError};
 use geom_core::{Band, Point3, Tol, Vec3};
 
 type Frame = Result<Option<(Point3<f64>, Vec3<f64>)>, FrameError>;
@@ -71,14 +71,13 @@ fn wall_reach() -> f64 {
 /// the first.
 fn frame(p: &geom::Surface<f64>, cone: &geom::Surface<f64>, at: Point3<f64>) -> Frame {
     let read = |a, b| {
-        pair_section_frame_at(
+        one_loop(pair_section_frame_at(
             a,
             b,
-            RadiusEvidence::None,
             at,
             FrameExtent::Reach(wall_reach()),
             band(),
-        )
+        ))
     };
     let (first, other) = (read(p, cone), read(cone, p));
     assert_eq!(
@@ -103,6 +102,7 @@ fn shape(frame: &Frame) -> String {
         Err(FrameError::NoArm) => "no arm".into(),
         Err(FrameError::RadiusEscalated { .. }) => "radius escalated".into(),
         Err(FrameError::IntersectingCylinderAxes { .. }) => "pinch".into(),
+        Err(FrameError::Spiric { loops, .. }) => format!("spiric {loops:?}"),
     }
 }
 
@@ -311,14 +311,13 @@ fn a_near_parabola_escalates_and_is_never_snapped_to_an_ellipse() {
         )
     };
     let read = |p: &geom::Surface<f64>| {
-        pair_section_frame_at(
+        one_loop(pair_section_frame_at(
             p,
             &cone,
-            RadiusEvidence::None,
             at,
             FrameExtent::Reach(lever),
             b,
-        )
+        ))
     };
     let sliver = (b.zero() * b.escalate()).sqrt();
     let got = read(&turned(sliver));
@@ -387,7 +386,7 @@ fn a_frustum_far_from_its_apex_is_levered_at_its_own_reach() {
     let cone = far_cone();
     let alpha = 0.01_f64.atan();
     let b = band();
-    let on = super::rest::face_witnesses(&body, face).unwrap();
+    let on = super::carrier_pair::face_witnesses(&body, face).unwrap();
     let reading = |a: &geom::Surface<f64>, c: &geom::Surface<f64>| {
         let (on_a, on_b) = if matches!(a, geom::Surface::Plane { .. }) {
             (Vec::new(), on.clone())
@@ -420,7 +419,7 @@ fn a_frustum_far_from_its_apex_is_levered_at_its_own_reach() {
         let p = turned(margin);
         for (label, a, c) in [("plane, cone", &p, &cone), ("cone, plane", &cone, &p)] {
             let (at, extent) = reading(a, c);
-            let got = pair_section_frame_at(a, c, RadiusEvidence::None, at, extent, b);
+            let got = one_loop(pair_section_frame_at(a, c, at, extent, b));
             let verdict = match &got {
                 Ok(Some(_)) => "served",
                 Err(FrameError::Escalated(d)) => d.predicate.unwrap_or("unnamed"),
@@ -473,14 +472,7 @@ fn a_near_circular_tilt_escalates_the_circle_question_not_a_desync() {
     };
     let p = plane([0.0, 0.5, 0.0], tilted(1.0));
     for (label, a, c) in [("plane, wall", &p, &wall), ("wall, plane", &wall, &p)] {
-        let got = pair_section_frame(
-            a,
-            c,
-            RadiusEvidence::None,
-            Point3::new(1.0, 0.5, 0.0),
-            None,
-            b,
-        );
+        let got = pair_section_frame(a, c, Point3::new(1.0, 0.5, 0.0), None, b);
         assert_eq!(
             verdict(&got),
             "ellipse_axes_distinct",
@@ -509,7 +501,7 @@ fn a_frame_handed_another_pairs_extent_is_a_desync() {
             round: 1.0,
         },
     ] {
-        let got = pair_section_frame_at(&p, &cone, RadiusEvidence::None, on_wall(), extent, b);
+        let got = one_loop(pair_section_frame_at(&p, &cone, on_wall(), extent, b));
         assert!(
             matches!(got, Err(FrameError::Desync(_))),
             "plane×cone under {extent:?}: got {}",
@@ -529,14 +521,13 @@ fn a_frame_handed_another_pairs_extent_is_a_desync() {
         u_ref: Vec3::new(0.0, 1.0, 0.0),
     };
     for (label, a, c) in [("plane, wall", &p, &wall), ("wall, wall", &wall, &other)] {
-        let got = pair_section_frame_at(
+        let got = one_loop(pair_section_frame_at(
             a,
             c,
-            RadiusEvidence::None,
             Point3::new(1.0, 0.3, 0.0),
             FrameExtent::Reach(1.0),
             b,
-        );
+        ));
         assert!(
             matches!(got, Err(FrameError::Desync(_))),
             "{label} under a cone face's reach: got {}",
@@ -568,14 +559,7 @@ fn declared_equal_walls_meeting_at_a_sliver_escalate_the_circle_question() {
         wall(Vec3::new(-phi.sin(), phi.cos(), 0.0)),
     );
     for (label, x, y) in [("a, b", &a, &c), ("b, a", &c, &a)] {
-        let got = pair_section_frame(
-            x,
-            y,
-            RadiusEvidence::Declared,
-            Point3::new(0.0, 0.0, 0.0),
-            None,
-            b,
-        );
+        let got = pair_section_frame(x, y, Point3::new(0.0, 0.0, 0.0), None, b);
         assert!(
             matches!(&got, Err(FrameError::Escalated(d)) if d.predicate == Some("ellipse_axes_distinct")),
             "{label}: got {}",

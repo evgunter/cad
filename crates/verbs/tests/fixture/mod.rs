@@ -68,10 +68,8 @@ pub fn z_plane(z: f64) -> SplitPlane<f64> {
 /// (`topo`'s acceptance suite calls it MIRRORED): a slab over three
 /// floor pieces that touch the slab's underside at `y = 1` along tip
 /// lines only, extruded 1 along `+z`. Split at [`pinch_plane`] with
-/// `+y` up, the pinched pieces are BELOW, and the direct run refuses
-/// the one-sided pinch; the kernel door reruns it mirrored and swaps
-/// the sides back. A dispatch row that agrees with the door on THIS
-/// operand is agreeing through that lane, not around it.
+/// `+y` up, the pinched pieces are BELOW, so the kernel mints their tip
+/// copies on the Below side.
 pub fn pinch_prism() -> Body<f64> {
     let verts = [
         (0.0, 0.0),

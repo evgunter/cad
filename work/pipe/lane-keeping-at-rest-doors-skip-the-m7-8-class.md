@@ -2,11 +2,12 @@
 id: lane-keeping-at-rest-doors-skip-the-m7-8-class
 kind: issue
 title: The lane-keeping at-rest doors make no check-2 claim about an M7-8 edge, at every scalar
-status: open
+status: closed
 opened: 2026-09-05
 refs: [1877]
 priority: P1
-cost: D
+cost: H
+closed: 2026-10-10
 ---
 
 ## What
@@ -100,3 +101,14 @@ is the `_structural` doors' documented skip (`validate.rs`'s door roster
 states it), which is the twin's meaning rather than a defect. Whether
 the row closes is PIPE's call; ATREST-10 records the evidence here and
 does not close it.
+
+## Closed 2026-10-10 (PIPE)
+
+Closed on ATREST-10's evidence, re-read against main. LANE-1 (PR 3010)
+took option 2: `validate_pseudomanifold` and `contact_marks` are the
+certified doors, holding the plane × NURBS lane, and their lane-free
+forms are the `_structural` twins. `validate.rs`'s door roster states
+what `_structural` means. The callers this row named — `pncad-py`'s
+`validate_pseudomanifold` and the tour's tier-3′ calls (now
+`validate_pseudomanifold_certificate`) — reach the certified doors. A
+documented `_structural` skip is the twin's meaning, not a defect.

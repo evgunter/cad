@@ -7,7 +7,7 @@ closed: 2026-10-09
 opened: 2026-10-08
 priority: P2
 cost: M
-refs: [near-tangent-boolean-results-ship-with-an-escalated-tier-3-census]
+refs: [4335]
 pr: 4386
 branch: encl/shell-volume-local-origin
 ---

@@ -504,8 +504,8 @@ impl SolidSeparation {
 ///
 /// The multi-solid companion to [`SolidSeparation`]: that door decides
 /// whether two solids can touch, this one says which solid an entity
-/// is part of, so a caller holding entity-keyed records (declared
-/// contacts, a picked face) can ask its question at solid
+/// is part of, so a caller holding entity-keyed records (contact
+/// records, a picked face) can ask its question at solid
 /// granularity.
 ///
 /// Built from STORED structure by one forward walk of the ownership

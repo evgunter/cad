@@ -10,7 +10,7 @@ use sweep::ExtrudeSide;
 use crate::common::approx::band;
 use geom_brep::{EntersMaterial, OutwardNormal, enters_material, implicit_residual};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
-use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use profile::{Profile, SketchPlane};
 use sweep::test_support::{brick, finished};
 use sweep::{Extrusion, extrude};
 use topo::{AtRestBody, BooleanError};
@@ -188,66 +188,6 @@ fn r1_the_planar_cap_pierce_and_the_curved_wall_pierce_both_join() {
     assert!(
         (wall - truth).abs() < 1e-12,
         "curved lane: the overlap is counted once, volume {wall} vs {truth}"
-    );
-}
-
-/// **PROBE 4 — what door the cone fixture actually reaches.**
-///
-/// The acceptance row asserts only that the cone is NOT the ring lane's
-/// join door — a negative. MEASURED, the door is
-/// `CurvedPairUnsupported { kind: Cone, other_kind: Plane }`: the
-/// kind-PAIR gate on the frustum's cone face against the bar's own
-/// PLANE face. The pair never reaches the crossing layer's `f2` fold or
-/// `face_geo` at all, so the row cannot witness what the PR body claims
-/// of it — "the differential row proves the ring lane did not give a
-/// cone roots". A cone×plane union has had no arm since long before
-/// this lane; the row would read the same with the PR reverted.
-#[test]
-fn r1_the_cone_fixture_names_its_own_door() {
-    let tol = Tol::witness();
-    let frustum = {
-        let lp = bulge_loop(
-            [(0.2, 0.0), (0.6, 0.0), (0.4, 0.6), (0.2, 0.6)]
-                .into_iter()
-                .map(|(r, y)| (Point2::new(r, y), 0.0))
-                .collect(),
-        );
-        let vp = Profile::new(SketchPlane::xy(), vec![lp])
-            .validate(tol)
-            .unwrap();
-        sweep::revolve(
-            &vp,
-            sweep::RevolveAxis {
-                origin: Point2::new(0.0, 0.0),
-                dir: geom_core::Vec2::new(0.0, 1.0),
-            },
-            sweep::Revolution::Full,
-            tol,
-        )
-        .unwrap()
-        .body
-    };
-    let err = topo::union(
-        &finished("the frustum", frustum, tol),
-        &finished(
-            "the bar",
-            brick((-1.0, 1.0), (-0.05, 0.05), (0.25, 0.35), tol),
-            tol,
-        ),
-        tol,
-    )
-    .expect_err("no arm for a cone pierce");
-    // Measured, not assumed.
-    assert!(
-        matches!(
-            err,
-            BooleanError::CurvedPairUnsupported {
-                kind: geom::SurfaceKind::Cone,
-                other_kind: geom::SurfaceKind::Plane,
-                ..
-            }
-        ),
-        "the cone's own door: {err:?}"
     );
 }
 

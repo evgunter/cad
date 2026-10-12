@@ -25,20 +25,28 @@ use editor_core::{
     Alignment, AxisSense, CapEnd, Clash, ContactClass, DocEdit, DocumentId, EditError, EvalOptions,
     Frame, Lever, LeverRefusal, MateFault, MateFrame, MatePrimitive, MateReach, MateRole, Node,
     NodeErrorKind, NodeResult, PartFault, PartReach, ProfileDoc, ReachRefusal, RecipeNodeId,
-    ResolveFault, SplitError, content_pin, mate_reach, product, split,
+    ResolveFault, SplitError, ValuePayload, content_pin, mate_reach, product, split,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{
-    ang, at_the_door, axis_in_plane, insert, len, on_frame, on_frame_keeping, run, solve, step,
-};
+use fixture::{ang, at_the_door, insert, len, on_frame, revolve_about, run, solve, step};
 use geom_core::predicate::{Band, Sign};
 use geom_core::{Decide, Point3, Tol};
 
 // ---- Substrate ----
 
+/// **`doc` with `body` placed in its world**, as
+/// [`PartStore::insert_part`] places it — so [`in_part`] spells the
+/// part's caps through that placement wherever the part is stored.
+fn placed_part(doc: ProfileDoc, body: RecipeNodeId) -> ProfileDoc {
+    let mut scratch = PartStore::new();
+    let (doc_ref, _) = scratch.insert_part((doc, body), Tol::witness());
+    scratch.doc(doc_ref.id)
+}
+
 /// A box part: a square of half-side `half` at the origin, extruded
 /// `height` along +z. Its farthest point from the part origin is the
-/// top corner, `sqrt(2 half² + height²)` away.
+/// top corner, `sqrt(2 half² + height²)` away. The body is placed in
+/// the part's world ([`placed_part`]).
 fn box_part(label: &str, half: f64, height: f64) -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, profile) = on_frame(
@@ -48,15 +56,15 @@ fn box_part(label: &str, half: f64, height: f64) -> ProfileDoc {
         [0.0, 1.0, 0.0],
         vec![fixture::square(0.0, 0.0, half)],
     );
-    let (doc, _) = insert(
+    let (doc, body) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(height),
             side: ExtrudeSide::Along,
         },
     );
-    doc
+    placed_part(doc, body)
 }
 
 /// `part` (a [`box_part`]) re-valued in place: its square's half-width
@@ -73,7 +81,10 @@ fn resized(part: ProfileDoc, half: f64, height: f64) -> ProfileDoc {
         unreachable!("found as a profile")
     };
     let ids = program.kept_in_place();
-    let loops = fixture::desc(program.plane, vec![fixture::square(0.0, 0.0, half)]).loops;
+    let plane = part
+        .operation_of(program.frame)
+        .expect("the plane read is live");
+    let loops = fixture::desc(plane, vec![fixture::square(0.0, 0.0, half)]).loops;
     let body = body_node(&part);
     let (part, _) = fixture::step(
         part,
@@ -89,7 +100,7 @@ fn resized(part: ProfileDoc, half: f64, height: f64) -> ProfileDoc {
         DocEdit::SetParam {
             node: body,
             slot: editor_core::SlotId::Distance,
-            expr: len(height),
+            value: len(height).into(),
             fresh: Vec::new(),
         },
     );
@@ -99,10 +110,11 @@ fn resized(part: ProfileDoc, half: f64, height: f64) -> ProfileDoc {
 /// A cylinder part: a rectangle `radius × height` in the xy plane,
 /// revolved a full turn about the plane's +y through the origin. The
 /// cylinder stands on the origin along +y; its farthest point from
-/// the origin is the top rim, `sqrt(radius² + height²)` away.
+/// the origin is the top rim, `sqrt(radius² + height²)` away. The body
+/// is placed in the part's world ([`placed_part`]).
 fn cylinder_part(label: &str, radius: f64, height: f64) -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, plane, profile) = on_frame_keeping(
+    let (doc, profile) = on_frame(
         doc,
         [0.0; 3],
         [1.0, 0.0, 0.0],
@@ -114,16 +126,11 @@ fn cylinder_part(label: &str, radius: f64, height: f64) -> ProfileDoc {
             (0.0, height),
         ]],
     );
-    let (doc, axis) = insert(doc, axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
-    let (doc, _) = insert(
+    let (doc, body) = insert(
         doc,
-        Node::Revolve {
-            profile,
-            axis,
-            angle: ang(std::f64::consts::TAU),
-        },
+        revolve_about(profile, (0.0, 0.0), (0.0, 1.0), ang(std::f64::consts::TAU)),
     );
-    doc
+    placed_part(doc, body)
 }
 
 /// **The node a part's caps are named on**: its one extrude or
@@ -150,8 +157,8 @@ fn body_node(part: &ProfileDoc) -> RecipeNodeId {
     body
 }
 
-/// `n` instances of `part`, the options that resolve them, and the
-/// part's [`body_node`].
+/// `n` instances of `part`, each placed in the world, the options that
+/// resolve them, and the part's [`body_node`].
 fn instances(
     label: &str,
     part: ProfileDoc,
@@ -167,6 +174,7 @@ fn instances(
         doc = next;
         ids.push(id);
     }
+    let doc = fixture::place_all(doc, &ids);
     let opts = EvalOptions {
         resolver: Some(Arc::new(store)),
         ..EvalOptions::default()
@@ -196,8 +204,8 @@ fn clocked(
     alignment: Alignment<Formula>,
 ) -> AuthoredNode {
     Node::Mate {
-        a: fixture::head(in_part(a, a_body, CapEnd::End)),
-        b: fixture::head(in_part(b, b_body, CapEnd::Start)),
+        a: fixture::head(in_part(a, a_body, CapEnd::End)).into(),
+        b: fixture::head(in_part(b, b_body, CapEnd::Start)).into(),
         class: ContactClass::Rest,
         alignment,
     }
@@ -757,11 +765,24 @@ fn a5_a_part_change_that_flips_the_verdict_moves_the_mates_memo() {
         ),
         Verdict::Parallel | Verdict::Indeterminate => {
             // The band did not separate the two scales at this ε, so
-            // the solve's answer did not move and neither does the
-            // key: the mate's key follows the VERDICT, not the part's
-            // bytes, which is exactly the claim.
-            let key_large = second.value(mate).map(|v| v.content_key);
-            assert_eq!(Some(key_small), key_large, "no flip, no key move");
+            // the solve's answer did not move. The key does: a mate's
+            // key is its reads' upstream keys (D10), and its sides read
+            // faces of the re-pinned instances, so the memo cannot
+            // serve the old entry — it re-runs and answers the same.
+            let large = second.value(mate).expect("the large part's mate evaluates");
+            assert_ne!(
+                key_small, large.content_key,
+                "the mate reads the re-pinned parts"
+            );
+            let role = |payload: &ValuePayload<f64>| match payload {
+                ValuePayload::Mate(role) => *role,
+                other => panic!("a mate evaluates to its role, got {other:?}"),
+            };
+            assert_eq!(
+                first.value(mate).map(|v| role(&v.payload)),
+                Some(role(&large.payload)),
+                "no flip, the same answer"
+            );
         }
     }
 }
@@ -891,7 +912,11 @@ fn a6_a_mate_graph_edit_on_an_unresolvable_part_is_not_refused() {
         ),
     ] {
         let applied = applied.expect("deleting a placing mate is never refused");
-        assert!(applied.maintenance.is_empty(), "{:?}", applied.maintenance);
+        assert!(
+            crate::fixture::without_anonymous(&applied.maintenance).is_empty(),
+            "{:?}",
+            applied.maintenance
+        );
         assert!(
             matches!(
                 applied.doc.node(ids[0]),
@@ -907,7 +932,7 @@ fn a6_a_mate_graph_edit_on_an_unresolvable_part_is_not_refused() {
 /// on its coincidence is decided over its two parts, once each — and
 /// joins the third instance's group, clearing the offset of its first
 /// operand's group root (the mate door). An offset, an appearance, a
-/// union and its declared-pair list, a fourth instance and every delete — the mate's, the root's — ask nothing:
+/// union, a fourth instance and every delete — the mate's, the root's — ask nothing:
 /// no edit records a frame, so none solves.
 #[test]
 fn a6_only_a_mate_inserts_rider_asks_the_store() {
@@ -973,8 +998,7 @@ fn a6_only_a_mate_inserts_rider_asks_the_store() {
         .apply(
             &DocEdit::InsertNode {
                 node: Box::new(Node::Union {
-                    members: vec![b, c],
-                    declare: Vec::new(),
+                    members: editor_core::Bodies::Spelled(vec![b.into(), c.into()]),
                 }),
                 fresh: Vec::new(),
             },
@@ -982,19 +1006,7 @@ fn a6_only_a_mate_inserts_rider_asks_the_store() {
             &counting,
         )
         .expect("a union asks nothing");
-    let u = union.record.minted.expect("the union is minted");
-    let doc = union
-        .doc
-        .apply(
-            &DocEdit::SetDeclare {
-                node: u,
-                pairs: Vec::new(),
-            },
-            tol,
-            &counting,
-        )
-        .expect("a declared-pair list asks nothing")
-        .doc;
+    let doc = union.doc;
     let doc = doc
         .apply(
             &DocEdit::InsertNode {
@@ -1011,11 +1023,15 @@ fn a6_only_a_mate_inserts_rider_asks_the_store() {
             .apply(&DocEdit::DeleteNode { id }, tol, &counting)
             .expect("a delete is never refused for the placement it removes");
         assert!(
-            applied.maintenance.iter().all(|row| matches!(
-                row,
-                editor_core::Maintenance::Strand { .. }
-                    | editor_core::Maintenance::StrandedAppearance { .. }
-            )),
+            crate::fixture::without_anonymous(&applied.maintenance)
+                .iter()
+                .all(|row| matches!(
+                    row,
+                    editor_core::Maintenance::Strand { .. }
+                        | editor_core::Maintenance::StrandedRead { .. }
+                        | editor_core::Maintenance::StrandedSelection { .. }
+                        | editor_core::Maintenance::StrandedAppearance { .. }
+                )),
             "a delete reports what it stranded and records no frame: {:?}",
             applied.maintenance
         );
@@ -1144,15 +1160,27 @@ fn a5_at_interval_the_doors_reach_is_the_brackets_hi_bit_for_bit() {
         Some(Node::InstantiatePart { doc_ref, .. }) => *doc_ref,
         other => panic!("an instance, not {other:?}"),
     };
-    let (doc, mate) = mated(
-        doc,
-        &opts,
-        clocked(
-            (ids[0], body),
-            (ids[1], body),
-            coincidence(frame([0.0, 0.0, 0.7]), frame([0.0; 3]), 0.0),
-        ),
+    // A revolved cylinder has no caps by those names, so each side reads
+    // the first face its instance's table carries: the sides now
+    // resolve at evaluation, and this row is about the reach.
+    let ev0 = run(&doc, &opts);
+    let first_face = |instance: RecipeNodeId| {
+        fixture::table(&ev0, instance)
+            .iter()
+            .map(|(name, _)| name.clone())
+            .find(|name| name.kind == editor_core::EntityKind::Face)
+            .expect("a cylinder has faces")
+    };
+    let mut node = clocked(
+        (ids[0], body),
+        (ids[1], body),
+        coincidence(frame([0.0, 0.0, 0.7]), frame([0.0; 3]), 0.0),
     );
+    if let Node::Mate { a, b, .. } = &mut node {
+        *a = fixture::head(first_face(ids[0])).into();
+        *b = fixture::head(first_face(ids[1])).into();
+    }
+    let (doc, mate) = mated(doc, &opts, node);
     let r64 = mate_reach::<f64>(&opts, Tol::witness())
         .reach(&doc_ref)
         .expect("bounded at f64");
@@ -1196,7 +1224,7 @@ fn a5_at_interval_the_doors_reach_is_the_brackets_hi_bit_for_bit() {
 
 // ---- The correctness arm's probes, adopted ----
 
-/// The unit cube `[0,1]³`.
+/// The unit cube `[0,1]³`, placed in its world ([`placed_part`]).
 fn block(label: &str) -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, profile) = on_frame(
@@ -1206,15 +1234,15 @@ fn block(label: &str) -> ProfileDoc {
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
-    let (doc, _) = insert(
+    let (doc, body) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
     );
-    doc
+    placed_part(doc, body)
 }
 
 /// A part's evaluated body, through the ordinary doors.
@@ -1428,7 +1456,7 @@ fn a6_an_indeterminate_groups_mate_deletes_like_any_other() {
         ),
     ] {
         let applied = applied.expect("deleting a mate is never refused");
-        assert!(applied.maintenance.is_empty());
+        assert!(crate::fixture::without_anonymous(&applied.maintenance).is_empty());
     }
 }
 
@@ -1451,7 +1479,8 @@ fn a6_a_split_levers_its_mate_through_the_callers_resolver() {
             coincidence(frame([0.0, 0.0, 1.0]), frame([0.0; 3]), 0.0),
         ),
     );
-    let cut = [a, b, m].into_iter().collect();
+    // The group, its mate and the world placements of what it moves.
+    let cut = fixture::with_placements(&doc, &[a, b, m].into_iter().collect());
     split(
         &doc,
         &cut,

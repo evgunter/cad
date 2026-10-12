@@ -15,10 +15,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::spline::Knots;
 use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve3, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Bounds, Interval, Point2, Point3, Real, SpanLocate, SupSpeed, Tol, Vec3};
 use topo::pcurves::ChartArm;
@@ -465,8 +466,7 @@ fn t7_a_loop_that_wraps_the_chart_refuses() {
         let carrier = half_arc(start);
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
-                s1: cyl,
-                s2: pln,
+                pair: SurfacePair::new(cyl, pln),
                 witness: carrier.eval(iv(pi / 2.0)),
             },
             carrier,
@@ -606,12 +606,15 @@ fn t9_a_nurbs_carrier_on_a_plane_chart_describes_through_its_projected_image() {
         .unwrap();
     let q1 = *body.get_point(body.get_vertex(end).unwrap().point).unwrap();
     let knots = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
-    let spline = NurbsCurve3::new(knots, vec![q0, q1], vec![1.0, 1.0])
-        .expect("the chord as a degree-1 spline");
+    let spline = NurbsCurve3::new(
+        Knots::from(knots).lift(geom_core::Real::from_f64),
+        vec![q0, q1],
+        vec![Real::one(); 2],
+    )
+    .expect("the chord as a degree-1 spline");
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
-            s1,
-            s2,
+            pair: SurfacePair::new(s1, s2),
             witness: q0.lerp(q1, iv(0.5)),
         },
         carrier: Curve3::Nurbs(Arc::new(spline)),

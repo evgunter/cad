@@ -40,7 +40,7 @@ use editor_core::{
     CancelToken, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId, RimSupport, RoleSeg,
     evaluate,
 };
-use fixture::{ang, axis_in_plane, edge_of, insert, len, on_frame_keeping, table};
+use fixture::{ang, edge_of, insert, len, on_frame, revolve_about, table};
 use geom::Surface;
 use geom_core::Tol;
 use topo::{Body, EdgeKey, SurfaceKey};
@@ -68,7 +68,7 @@ const MOUTH: u32 = 2;
 /// surface kind, so a kind cannot tell them apart at all.
 fn lantern() -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("blend5_rim_support", Tol::witness());
-    let (doc, plane, profile) = on_frame_keeping(
+    let (doc, profile) = on_frame(
         doc,
         [0.0; 3],
         [1.0, 0.0, 0.0],
@@ -81,20 +81,9 @@ fn lantern() -> (ProfileDoc, RecipeNodeId) {
             (0.2, 0.75),
         ]],
     );
-    let (doc, axis) = insert(
-        doc,
-        // The axis, in the frame's own coordinates: the profile's v is
-        // world +Y, so the line the revolve turns about is that
-        // frame's +y through (0, 0).
-        axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)),
-    );
     let (doc, revolve) = insert(
         doc,
-        Node::Revolve {
-            profile,
-            axis,
-            angle: ang(std::f64::consts::TAU),
-        },
+        revolve_about(profile, (0.0, 0.0), (0.0, 1.0), ang(std::f64::consts::TAU)),
     );
     (doc, revolve)
 }
@@ -106,9 +95,11 @@ fn filleted_mouth() -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Fillet {
-            target: revolve,
             radius: len(0.05),
-            selection: vec![mouth],
+            selection: editor_core::Operand::select(
+                editor_core::Operand::output(revolve, 0),
+                vec![mouth],
+            ),
         },
     )
 }
@@ -237,9 +228,11 @@ fn the_host_is_the_planar_support_wherever_the_rim_has_one() {
     let (doc, fillet) = insert(
         doc,
         Node::Fillet {
-            target: revolve,
             radius: len(0.05),
-            selection: vec![lip],
+            selection: editor_core::Operand::select(
+                editor_core::Operand::output(revolve, 0),
+                vec![lip],
+            ),
         },
     );
     let ev = run(&doc);
@@ -316,7 +309,7 @@ fn a_seam_split_rim_gives_all_its_arcs_one_pair_of_roles() {
     let doc = ProfileDoc::empty_derived("blend5_seam_split", Tol::witness());
     // Both ends on the axis, so every wall is a pair of half-bands and
     // every rim a pair of arcs (BLEND-1's lantern shape).
-    let (doc, plane, profile) = on_frame_keeping(
+    let (doc, profile) = on_frame(
         doc,
         [0.0; 3],
         [1.0, 0.0, 0.0],
@@ -329,20 +322,9 @@ fn a_seam_split_rim_gives_all_its_arcs_one_pair_of_roles() {
             (0.0, 1.2),
         ]],
     );
-    let (doc, axis) = insert(
-        doc,
-        // The axis, in the frame's own coordinates: the profile's v is
-        // world +Y, so the line the revolve turns about is that
-        // frame's +y through (0, 0).
-        axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)),
-    );
     let (doc, revolve) = insert(
         doc,
-        Node::Revolve {
-            profile,
-            axis,
-            angle: ang(std::f64::consts::TAU),
-        },
+        revolve_about(profile, (0.0, 0.0), (0.0, 1.0), ang(std::f64::consts::TAU)),
     );
     // The BASE rim (disk meets the lower cone): the one whose two
     // links disagree on slot order, and which has a planar support.
@@ -357,9 +339,11 @@ fn a_seam_split_rim_gives_all_its_arcs_one_pair_of_roles() {
     let (doc, fillet) = insert(
         doc,
         Node::Fillet {
-            target: revolve,
             radius: len(0.05),
-            selection,
+            selection: editor_core::Operand::select(
+                editor_core::Operand::output(revolve, 0),
+                selection,
+            ),
         },
     );
     let ev = run(&doc);

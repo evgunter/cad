@@ -304,7 +304,11 @@ mod interval_probes {
                     "{name}: lift widened a control coordinate"
                 );
             }
-            assert_eq!(ci.weights(), c.weights(), "{name}: weights moved");
+            assert_eq!(
+                ci.weight_channel(),
+                c.weight_channel(),
+                "{name}: weights moved"
+            );
             assert_eq!(ci.knots().knots(), c.knots().knots(), "{name}: knots moved");
             for t in params() {
                 let q = c.eval(t);

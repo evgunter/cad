@@ -5,35 +5,27 @@ CONTACT's parked rows: the D10 hold on declared contacts, the coincidence door a
 Opened 2026-10-09 by CONTACT's closing cut on its priority seam
 (`work/README.md`, Track size), when CONTACT measured 99.5 budget
 points against 30 with its P0 units landed or parked (PRs 4363, 4368,
-4372; CONTACT-13 parked on the D10 hold). Nothing dispatched.
+4372; CONTACT-13 parked on the D10 hold).
 
 ## The slate
 
-No row is dispatchable (`status: blocked`).
+In flight:
+
+- PR 4575 (`contacthold/side-code-order2`, dual review, fix pass): `boolean-conic-side-code-zero-is-first-order`
+- `contacthold/at-rest-cell-pairs` (dual review): `at-rest-records-are-unordered-cell-pairs`, with `curve-contact-names-one-face-where-its-witness-edge-lies-in-two` and `contact-records-carry-operand-labels-into-the-at-rest-currency` riding
+
+Merged: PR 4545 (wording), PR 4550 (census backstop), PR 4558 (tangent locus), PR 4559 (census edge passes).
+
+Open, held for designers: `contact-verify-lane-gate-answers-a-crossing-not-certifiable` (PR 4558 has landed; same function) and `tangent-offset-and-tilt-are-two-epsilon-checks-where-rest-is-one-displacement` (ratified C4/C7 text; a fork for Ev if the designers find one).
+
+Open, filed by this session's reviews: `zero-to-distinct-cells-on-one-point-doors-audit` (P2), `census-containment-gate-reads-instances-along-world-axes-only`, `a-vf-record-defers-a-whole-curved-face-pair-at-the-backstop` (measure first), `contact-verify-keeps-a-bridged-or-later-overruled-second-order-escalation`.
 
 Parked, each on its named trigger:
 
-- `CONTACT-13` — on [intent-stage4-is-built]
-- `declared-only-meetings-clear-at-the-census-gate-unread` — on [intent-stage4-is-built]
-- `a-bridge-union-fuses-a-declared-tangent-rest-into-one-shell-with-an-edgeless-contact` — on [declared-pairs-retire]
-- `boolean-vertex-contact-records-are-inferred-from-values` — on [coincidences-are-recorded-at-one-door]
-- `contact-verify-on-surface-residual-subtracts-its-sag` — on [booleans-glue-on-zero]
-- `curve-contact-names-one-face-where-its-witness-edge-lies-in-two` — on [coincidences-are-recorded-at-one-door]
-- `topo-surgery-verbs-drop-a-bodys-contact-records` — on [coincidences-are-recorded-at-one-door]
-- `a-same-operand-f7-refusal-is-rendered-as-a-declarable-undeclared-contact` — on [booleans-glue-on-zero]
-- `a-tube-rim-vertex-touching-a-face-along-its-tangent-unions-past-tier-3-prime` — on [coincidences-are-recorded-at-one-door]
-- `boolean-conic-side-code-zero-is-first-order` — on [booleans-glue-on-zero]
-- `carrier-escalation-drops-its-plane-rung-at-the-contact-doors` — on [declared-pairs-retire]
-- `census-declared-sites-read-a-torn-record-as-absent` — on [booleans-glue-on-zero]
-- `census-edge-pass-reads-no-line-conic-crossing` — on [declared-pairs-retire]
-- `contact-records-carry-operand-labels-into-the-at-rest-currency` — on [coincidences-are-recorded-at-one-door]
-- `contact-tangent-relation-decides-offsets-and-tilt-per-sample` — on [booleans-glue-on-zero]
-- `contact-verify-lane-gate-answers-a-crossing-not-certifiable` — on [booleans-glue-on-zero]
-- `contact-verify-logs-a-second-order-escalation-its-outcome-overruled` — on [booleans-glue-on-zero]
-- `declared-faces-has-no-cross-solid-check` — on [booleans-glue-on-zero]
-- `ef-bound-backed-migrates-to-region-confinement` — on [declared-pairs-retire]
+- `CONTACT-13`, `declared-only-meetings-clear-at-the-census-gate-unread`, `the-touch-analysis-reads-curved-cones-tighter-than-the-reach-box` — on [intent-stage4-is-built]
+- `a-bridge-union-fuses-a-declared-tangent-rest-into-one-shell-with-an-edgeless-contact`, `carrier-escalation-drops-its-plane-rung-at-the-contact-doors` — on [declared-pairs-retire]
+- `topo-surgery-verbs-drop-a-bodys-contact-records`, `declared-faces-has-no-cross-solid-check` — on [at-rest-records-are-unordered-cell-pairs]
 - `notched-half-donut-owes-its-notch-and-volume-when-torus-plane-lands` — on [c5-plane-torus-cone-cylinder-arms]
-- `the-touch-analysis-reads-curved-cones-tighter-than-the-reach-box` — on [intent-stage4-is-built]
 
 ## Order
 

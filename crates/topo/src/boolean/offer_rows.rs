@@ -42,10 +42,7 @@
 
 use super::super::reduce::{ContactAcc, CurvedEvent, curved_face_arm};
 use super::super::sectors::{NO_CURVATURE, Reach, side_code, tangent_relative_side};
-use super::super::{
-    BooleanDeclarations, BooleanError, BooleanErrorKind, DeclaredPairs, FacePairDeclaration,
-    Operand,
-};
+use super::super::{BooleanError, BooleanErrorKind, Glue, GluedPair, GluedPairs, Operand};
 use super::tests::every_decision;
 use super::*;
 use crate::contact::ContactClass;
@@ -205,6 +202,7 @@ cases! {
         sector_side(Vec3::new(1.0, 0.0, -D), Reach::Extent(1.0));
     pierce_curvature_short_of_its_bend: "PierceCurvature", D, SECTOR_SITE, Valued =>
         pierce_curvature(D);
+    conic_bend_short_of_the_band: "ConicBend", D, SECTOR_SITE, Valued => conic_bend(D);
     joined_vertex_off_a_pole: "JoinUndecided", D, EDGE_JOIN_SITE, Valued => vertex_off_a_pole(D);
     tangent_side_in_band: "Coincidence(TangentSide)", -D, TANGENT_SITE, Valued =>
         tangent_side(false);
@@ -235,6 +233,11 @@ cases! {
     // its bounds still read On: the bounds' margin decides it.
     thinner_wedge_tilted_past_the_band: "Coincidence(Sectors)", 1.5e-8 * sin_deg(2.0), Public,
         Valued => wedge_on_a_block(super::super::BooleanOp::Union, 2.0, 1.5e-8);
+    // Tilted in band over the two faces, so the glue door leaves the pair
+    // unglued: the corner's bounds' margin, not the glue door's, is the
+    // one a smaller tolerance clears.
+    thin_wedge_in_band_over_its_faces: "Coincidence(Sectors)", 2e-9 * sin_deg(5.0), Public,
+        Valued => wedge_on_a_block(super::super::BooleanOp::Union, 5.0, 2e-9);
     // The coincfr4 review's wedges (W1–W4), on its own poses: turned,
     // scaled, hanging from the bottom face, and tilted into the block,
     // each through the three public ops.
@@ -265,12 +268,6 @@ cases! {
         Valued => turned_wedge(2, true, 200.0, 5.0, 1.0, -D);
     // The arms this pass withdrew, each on the raise that showed its
     // offer false.
-    // The tilt, `D/4` a metre, levered at the declared pair's extent:
-    // the ball around both faces' 3 m × 3 m footprint, `1.5·√2`.
-    tangent_screen_of_a_tilted_block: "Coincidence(Planes)",
-        D / 4.0 * 1.5 * core::f64::consts::SQRT_2, Public,
-        Withdrawn(Because::Refuses("UnsupportedDeclarationClass")) =>
-        tilted_block_declared_tangent();
     membership_along_a_curved_flank: "Coincidence(CurvedFlankSense)", D, Door::Site(
         "the membership tie is read inside the edge-edge resolution, on hand-built sectors: \
          an in-band sense needs a flanker arm inside the band, which the corner's arm rung \
@@ -338,14 +335,9 @@ cases! {
         pierced_torus(1.0, D);
     horn_torus_at_the_band: "Torus(Ring)", D, NORMAL_SITE, Valued =>
         pierced_torus(1.0, 1.0 - D);
-    // No door reaches this guard today: the join's dispatch hands
-    // `cs_pair_frame` `CoaxialEvidence::None` for every cylinder × sphere
-    // pair (`join::germ_frame`), so the declared-coaxial arm this raise
-    // takes runs only here. It stays because that arm is the frame the
-    // coaxial declaration is read into once a door passes one
-    // (`boolean-coincidence-route-still-holds-join-and-self-check-decisions`,
-    // the `Radius` fork), and its offer is executed against the guard
-    // it would meet then.
+    // The join reaches this guard through `cs_germ_frame` on a
+    // cylinder × sphere germ pair whose axis offset decides Zero: the
+    // section asks its radius guard on the coaxial arm only.
     coaxial_thin_cylinder: "Radius(Cylinder)", D, FRAME_SITE, Valued =>
         coaxial_frame(D, 1.0);
     // The cylinder's guard asks first, so a sphere radius in band beside
@@ -377,15 +369,16 @@ cases! {
     // Overlapping plane flanks lie on one plane, which the door then asks
     // to be one face.
     flanks_along_a_short_arm: "Coincidence(FlankSense)", D, FLANK_SITE,
-        Withdrawn(Because::Refuses("UndeclaredCoincidence")) =>
+        Withdrawn(Because::Refuses("Coincidence(Carriers)")) =>
         planar_flank_membership(false, false);
     // Declared `Rest`, the one face the door verified.
     flanks_along_a_short_arm_declared_rest: "Coincidence(FlankSense)", D, FLANK_SITE, Valued =>
         planar_flank_membership(false, true);
     // Coincident planes facing opposite ways, read at a short arm: the
-    // offset rung asks next, and refuses an undeclared pair.
+    // offset rung asks next, and refuses a pair no glue door glued (the
+    // site is called directly here, past the operation's glue door).
     planes_facing_at_a_short_arm: "PlaneOrientation", -D, FLANK_SITE,
-        Withdrawn(Because::Refuses("UndeclaredCoincidence")) => shared_side_plane(D);
+        Withdrawn(Because::Refuses("Coincidence(Carriers)")) => shared_side_plane(D);
     flanks_against_a_short_arm: "Coincidence(FlankSense)", -D, FLANK_SITE, Valued =>
         planar_flank_membership(true, false);
     neighbours_bent_at_the_band: "Neighbours(Parallel)", D, GATE_SITE, Valued =>
@@ -394,32 +387,12 @@ cases! {
     // whose chord is 0, so the angle reads over the circle's extent.
     neighbours_bent_across_a_circle: "Neighbours(Parallel)", D, GATE_SITE, Valued =>
         bent_disc(D);
-    // Finished bodies (the coincv5 review's NF-2 pose): a prism whose
-    // wall turns by a zero-band angle at a short edge, the offset the
-    // gate reads being the bend, so it is offered from the zero band.
-    // Its kink lies on both walls exactly, so it is described at every
-    // tolerance a re-run takes; beside a far brick and crossed by one
-    // through each public op.
-    neighbours_kinked_beside_a_far_brick: "CoplanarNeighbours", -KINK * KINK_HEIGHT, Public,
-        Valued => kinked_prism(None, KINK);
-    neighbours_kinked_crossed_union: "CoplanarNeighbours", -KINK * KINK_HEIGHT, Public,
-        Valued => kinked_prism(Some(0), KINK);
-    neighbours_kinked_crossed_subtract: "CoplanarNeighbours", -KINK * KINK_HEIGHT, Public,
-        Valued => kinked_prism(Some(1), KINK);
-    neighbours_kinked_crossed_intersect: "CoplanarNeighbours", -KINK * KINK_HEIGHT, Public,
-        Valued => kinked_prism(Some(2), KINK);
-    neighbours_kinked_twice_as_far_beside_a_far_brick: "CoplanarNeighbours",
-        -2.0 * KINK * KINK_HEIGHT, Public, Valued => kinked_prism(None, 2.0 * KINK);
-    neighbours_kinked_twice_as_far_crossed_union: "CoplanarNeighbours",
-        -2.0 * KINK * KINK_HEIGHT, Public, Valued => kinked_prism(Some(0), 2.0 * KINK);
-    // The coincv5 review's split top bent about its diagonal, its
-    // plane's origin far along the plane, asked at the gate: its bent
-    // half's far corner stays on the walls, `KINK · ½√2` off the bent
-    // plane, inside the band at the design tolerance and outside it
-    // below the offer, so the re-run has no finished body of this pose
-    // to hand a door (`bent_split_far_origin`).
-    neighbours_bent_far_origin_at_the_gate: "CoplanarNeighbours", KINK * FRAC_1_SQRT_2,
-        GATE_SITE, Valued => at_the_gate(bent_split_far_origin(10.0));
+    // A split top's half lifted off its plane by an offset in band,
+    // either way: the gate's offset rung, which passes on either sign.
+    neighbours_lifted_in_band: "CoplanarNeighbours", -D, GATE_SITE, Valued =>
+        lifted_neighbours(D);
+    neighbours_lowered_in_band: "CoplanarNeighbours", D, GATE_SITE, Valued =>
+        lifted_neighbours(-D);
     rim_just_above_a_face: "Coincidence(EdgeOnPlane)", D, RIM_PLANE_SITE, Valued =>
         rim_over_a_brick(1.0 - D);
     rim_just_below_a_face: "Coincidence(EdgeOnPlane)", -D, RIM_PLANE_SITE, Valued =>
@@ -451,11 +424,282 @@ cases! {
     seam_barely_creased: "SeamWedge", D, SEAM_SITE, Valued =>
         seam(D, 1.0, Vec3::new(0.0, 0.0, 1.0));
     seam_barely_bending_apart: "SeamJet", D, SEAM_SITE, Valued => seam_bend(D);
+    // The near-tangent census's lump (`notch307 nt e0 a3 d1e-8 pc I`):
+    // every cut that makes it is definite, and its V/A lies in band.
+    sliver_lump_of_an_intersection: "ShellRole", sliver_lump().thickness(), Public, Valued =>
+        sliver_lump().intersect();
+    // The same lump as a cavity: a box less each operand, unioned.
+    sliver_cavity_of_a_union: "ShellRole", -sliver_lump().thickness(), Public, Valued =>
+        sliver_lump().cavity();
+    // Two such cavities, of `V/A` −3.29e-9 and −6.58e-9: in either order
+    // the thinner binds, and the tolerance it offers decides both.
+    two_sliver_cavities_of_a_union: "ShellRole", -sliver_lump().thickness(), Public, Valued =>
+        sliver_lump().two_cavities(false);
+    two_sliver_cavities_of_a_union_reversed: "ShellRole", -sliver_lump().thickness(), Public,
+        Valued => sliver_lump().two_cavities(true);
     sphere_barely_leaning: "Sphere(RecutAlign)", D, Door::Site(
         "a re-cut sphere's lean is read on a crossing-free escape, where an axis near the escape \
          normal carries a seam across the escape plane that the crossing layer meets first: no \
          public raise is known to reach it in band"
     ), Valued => recut(D);
+}
+
+/// A point or direction, for the near-tangent pose's own arithmetic.
+type V3 = [f64; 3];
+
+fn dot3(a: V3, b: V3) -> f64 {
+    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+}
+
+fn cross3(a: V3, b: V3) -> V3 {
+    [
+        a[1] * b[2] - a[2] * b[1],
+        a[2] * b[0] - a[0] * b[2],
+        a[0] * b[1] - a[1] * b[0],
+    ]
+}
+
+fn add3(a: V3, b: V3) -> V3 {
+    [a[0] + b[0], a[1] + b[1], a[2] + b[2]]
+}
+
+fn sub3(a: V3, b: V3) -> V3 {
+    [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
+}
+
+fn scale3(a: V3, k: f64) -> V3 {
+    a.map(|c| c * k)
+}
+
+fn unit3(a: V3) -> V3 {
+    scale3(a, 1.0 / dot3(a, a).sqrt())
+}
+
+/// Two unit directions square to `m` and to each other.
+fn basis3(m: V3) -> (V3, V3) {
+    let m = unit3(m);
+    let seed = if m[2].abs() < 0.9 {
+        [0.0, 0.0, 1.0]
+    } else {
+        [1.0, 0.0, 0.0]
+    };
+    let u = unit3(cross3(seed, m));
+    (u, cross3(m, u))
+}
+
+/// `faces` (outward-wound polygons of a convex solid) less the side
+/// `n · x > d`, the cut closed by a cap.
+fn clip3(faces: &[Vec<V3>], n: V3, d: f64) -> Vec<Vec<V3>> {
+    let mut kept = Vec::new();
+    let mut cap: Vec<V3> = Vec::new();
+    for f in faces {
+        let mut g = Vec::new();
+        for i in 0..f.len() {
+            let (p, q) = (f[i], f[(i + 1) % f.len()]);
+            let (sp, sq) = (dot3(n, p) - d, dot3(n, q) - d);
+            if sp <= 0.0 {
+                g.push(p);
+            }
+            if sp * sq < 0.0 {
+                let x = add3(p, scale3(sub3(q, p), sp / (sp - sq)));
+                g.push(x);
+                cap.push(x);
+            }
+            if sp == 0.0 {
+                cap.push(p);
+            }
+        }
+        if g.len() >= 3 {
+            kept.push(g);
+        }
+    }
+    if cap.len() >= 3 {
+        let c = scale3(
+            cap.iter().fold([0.0; 3], |a, &b| add3(a, b)),
+            1.0 / cap.len() as f64,
+        );
+        let (e1, e2) = basis3(unit3(n));
+        let at = |x: V3| dot3(sub3(x, c), e2).atan2(dot3(sub3(x, c), e1));
+        cap.sort_by(|a, b| at(*a).total_cmp(&at(*b)));
+        if dot3(cross3(sub3(cap[1], cap[0]), sub3(cap[2], cap[0])), n) < 0.0 {
+            cap.reverse();
+        }
+        kept.push(cap);
+    }
+    kept
+}
+
+/// The near-tangent census's witness pose (`notch307 nt e0 a3 d1e-8`):
+/// the notch prism, corner `v = (2, 1, 1)`, and a cube of side 4 whose
+/// near face passes through `v`, its normal `m` a sixteenth-turn pose
+/// about the corner's top edge `e = (2, 1, 0)` tilted `1e-8` rad along
+/// it. Their intersection keeps, beside its main lump, a lump along `e`
+/// that meets it only at `v`.
+struct SliverLump {
+    v: V3,
+    u: V3,
+    w: V3,
+    m: V3,
+}
+
+/// The notch prism's profile.
+const NOTCH: [(f64, f64); 5] = [(0.0, 0.0), (4.0, 0.0), (4.0, 2.0), (2.0, 1.0), (0.0, 2.0)];
+
+fn sliver_lump() -> SliverLump {
+    let e = unit3([2.0, 1.0, 0.0]);
+    let (p1, p2) = basis3(e);
+    let turn = core::f64::consts::TAU * 3.25 / 16.0;
+    let m = unit3(add3(
+        add3(scale3(p1, turn.cos()), scale3(p2, turn.sin())),
+        scale3(e, 1e-8),
+    ));
+    let (u, w) = basis3(m);
+    SliverLump {
+        v: [2.0, 1.0, 1.0],
+        u,
+        w,
+        m,
+    }
+}
+
+impl SliverLump {
+    /// The lump's volume over its area, from the pose's own geometry:
+    /// the prism's convex piece beyond the notch, about `v`, clipped by
+    /// the cube's six planes.
+    fn thickness(&self) -> f64 {
+        let Self { u, w, m, .. } = *self;
+        let piece =
+            [(2.0, 0.0), (4.0, 0.0), (4.0, 2.0), (2.0, 1.0)].map(|(x, y)| (x - 2.0, y - 1.0));
+        let bottom: Vec<V3> = piece.iter().map(|&(x, y)| [x, y, -1.0]).collect();
+        let top: Vec<V3> = piece.iter().map(|&(x, y)| [x, y, 0.0]).collect();
+        let mut faces: Vec<Vec<V3>> = vec![bottom.iter().rev().copied().collect(), top.clone()];
+        for i in 0..4 {
+            let j = (i + 1) % 4;
+            faces.push(vec![bottom[i], bottom[j], top[j], top[i]]);
+        }
+        let cuts = [
+            (scale3(m, -1.0), 0.0),
+            (m, 4.0),
+            (u, 2.0),
+            (scale3(u, -1.0), 2.0),
+            (w, 2.0),
+            (scale3(w, -1.0), 2.0),
+        ];
+        let lump = cuts
+            .iter()
+            .fold(faces, |faces, &(n, d)| clip3(&faces, n, d));
+        let (mut volume, mut area) = (0.0, 0.0);
+        for f in &lump {
+            for i in 1..f.len() - 1 {
+                let c = cross3(sub3(f[i], f[0]), sub3(f[i + 1], f[0]));
+                volume += dot3(f[0], cross3(f[i], f[i + 1])) / 6.0;
+                area += dot3(c, c).sqrt() / 2.0;
+            }
+        }
+        volume / area
+    }
+
+    /// The two operands, finished.
+    fn operands(&self) -> (crate::AtRestBody<f64>, crate::AtRestBody<f64>) {
+        self.operands_at(1.0, 0.0)
+    }
+
+    /// The two operands scaled `k` about the origin and moved `dx` along
+    /// `x`, finished: the lump's `V/A` scales by `k`.
+    fn operands_at(&self, k: f64, dx: f64) -> (crate::AtRestBody<f64>, crate::AtRestBody<f64>) {
+        let Self { v, u, w, m } = *self;
+        let tol = Tol::witness();
+        let notch = NOTCH.map(|(x, y)| (k * x + dx, k * y));
+        let prism = finished(
+            "the notch prism",
+            crate::test_support_fixtures::prism::<f64>(&notch, k, tol).body,
+            tol,
+        );
+        let v = add3(scale3(v, k), [dx, 0.0, 0.0]);
+        let corner = move |x: f64, y: f64, z: f64| {
+            let p = add3(
+                v,
+                add3(
+                    scale3(u, k * (-2.0 + 4.0 * x)),
+                    add3(scale3(w, k * (-2.0 + 4.0 * y)), scale3(m, k * 4.0 * z)),
+                ),
+            );
+            Point3::new(p[0], p[1], p[2])
+        };
+        let cube = finished(
+            "the cube",
+            crate::test_support_fixtures::mapped_cube::<f64>(corner, tol),
+            tol,
+        );
+        (prism, cube)
+    }
+
+    /// Two of the lump's cavities in one result, the second at twice the
+    /// scale 20 along `x` (so twice the `V/A`): a box less both prisms,
+    /// unioned with a larger box less both cubes, in the given order.
+    fn two_cavities(&self, boxed_cubes_first: bool) -> Result<(), BooleanError> {
+        let tol = Tol::witness();
+        let (prism, cube) = self.operands();
+        let (wide_prism, wide_cube) = self.operands_at(2.0, 20.0);
+        let around = |r: f64| {
+            finished(
+                "a box",
+                crate::test_support_fixtures::brick::<f64>(
+                    (-r, 24.0 + r),
+                    (-r, 4.0 + r),
+                    (-r, 4.0 + r),
+                    tol,
+                ),
+                tol,
+            )
+        };
+        let less = |from: crate::AtRestBody<f64>, tools: [&crate::AtRestBody<f64>; 2]| {
+            tools.iter().fold(from, |acc, tool| {
+                let r =
+                    crate::subtract(&acc, tool, tol).expect("a box less a tool inside it builds");
+                r.body()
+                    .expect("a box less a tool inside it is not empty")
+                    .body
+                    .clone()
+            })
+        };
+        let prisms = less(around(6.0), [&prism, &wide_prism]);
+        let cubes = less(around(7.0), [&cube, &wide_cube]);
+        let (a, b) = if boxed_cubes_first {
+            (&cubes, &prisms)
+        } else {
+            (&prisms, &cubes)
+        };
+        crate::union(a, b, tol).map(|_| ())
+    }
+
+    fn intersect(&self) -> Result<(), BooleanError> {
+        let (prism, cube) = self.operands();
+        crate::intersect(&prism, &cube, Tol::witness()).map(|_| ())
+    }
+
+    /// `(box ∖ prism) ∪ (larger box ∖ cube)`, whose cavities are the
+    /// intersection's lumps.
+    fn cavity(&self) -> Result<(), BooleanError> {
+        let tol = Tol::witness();
+        let (prism, cube) = self.operands();
+        let around = |r: f64| {
+            let side = (-r, 4.0 + r);
+            finished(
+                "a box",
+                crate::test_support_fixtures::brick::<f64>(side, side, side, tol),
+                tol,
+            )
+        };
+        let less_prism =
+            crate::subtract(&around(6.0), &prism, tol).expect("the box less the prism builds");
+        let less_cube =
+            crate::subtract(&around(7.0), &cube, tol).expect("the larger box less the cube builds");
+        let (Some(a), Some(b)) = (less_prism.body(), less_cube.body()) else {
+            panic!("a box less an operand inside it is not empty");
+        };
+        crate::union(&a.body, &b.body, tol).map(|_| ())
+    }
 }
 
 /// The norm of the coincfr4 review's cc2 turning axis, `(−2, 1, ½)`.
@@ -475,8 +719,8 @@ const NORMAL_SITE: Door = Door::Site(
      directly",
 );
 const FRAME_SITE: Door = Door::Site(
-    "the radius guards run on the declared-coaxial cylinder and sphere frame, which no public \
-     door passes",
+    "the radius guards run on the coaxial cylinder and sphere frame, whose radii are set \
+     directly",
 );
 const TRANSVERSE_FRAME_SITE: Door = Door::Site(
     "the transverse cylinder and sphere frame's reach is read on the two surfaces, set \
@@ -529,6 +773,33 @@ fn pierce_curvature(margin: f64) -> Result<(), BooleanError> {
     let c = 2.0 * margin.sqrt();
     let dir = Vec3::new((1.0 - c * c).sqrt(), 0.0, c);
     side_code(dir, Reach::Bisector(0.5), n, 1.0, band()).map(|_| ())
+}
+
+/// A unit-radius arc leaving a plane along it, short enough that the
+/// least lift its bend gives it at its extent, `2·sin²(extent/2)`, is
+/// `margin`.
+fn conic_bend(margin: f64) -> Result<(), BooleanError> {
+    use super::super::sectors::{Bend, BendBounds, FaceShape, pierce_side};
+    let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
+    let extent = 2.0 * (margin / 2.0).sqrt().asin();
+    let bend = Bend {
+        curvature: Vec3::new(0.0, 0.0, 1.0),
+        bounds: BendBounds::Planar {
+            least: 1.0,
+            most: 1.0,
+            reach: core::f64::consts::FRAC_PI_2,
+            rise: 1.0,
+        },
+    };
+    pierce_side(
+        Vec3::new(1.0, 0.0, 0.0),
+        Reach::Conic { extent, bend },
+        n,
+        FaceShape::Plane,
+        NO_CURVATURE(),
+        band(),
+    )
+    .map(|_| ())
 }
 
 // The join's regularity readings share one refusal. The pole distance
@@ -597,7 +868,7 @@ fn tangent_side(arm_gate: bool) -> Result<(), BooleanError> {
     } else {
         (2.0 * D / (accel(&ball) - accel(&floor)).abs()).sqrt()
     };
-    let read = DeclarationRead::Spent(BooleanCoincidence::TANGENT);
+    let read = DeclarationRead::Spent(GlueClass::TANGENT);
     tangent_relative_side(&ball, &floor, n, p, d, arm, read, band()).map(|_| ())
 }
 
@@ -654,13 +925,11 @@ fn line_run(profile: [(f64, f64); 4]) -> Result<(), BooleanError> {
     let wall = cyl_wall_sheet(
         &mut y,
         CylFrame::canonical(1.0),
-        None,
         (-0.5, 0.5),
         (0.0, 1.0),
         tol,
     );
-    let declared =
-        DeclaredPairs::<f64>::without_struts(&BooleanDeclarations::none(), Default::default());
+    let declared = GluedPairs::<f64>::without_struts(&Glue::none(), Default::default());
     let mut acc = ContactAcc::default();
     curved_face_arm(
         &x,
@@ -688,33 +957,25 @@ fn line_run(profile: [(f64, f64); 4]) -> Result<(), BooleanError> {
 fn arc_against_a_wall(r: f64, class: Option<ContactClass>) -> Result<(), BooleanError> {
     let tol = Tol::witness();
     let mut x: crate::body::Body<f64> = crate::body::Body::new();
-    let xw = cyl_wall_sheet(
-        &mut x,
-        CylFrame::canonical(r),
-        None,
-        (0.5, 1.0),
-        (0.25, 0.5),
-        tol,
-    );
+    let xw = cyl_wall_sheet(&mut x, CylFrame::canonical(r), (0.5, 1.0), (0.25, 0.5), tol);
     let sense = x.get_face(xw).unwrap().sense;
     x.set_face_sense(xw, !sense).unwrap();
     let mut y: crate::body::Body<f64> = crate::body::Body::new();
     let yw = cyl_wall_sheet(
         &mut y,
         CylFrame::canonical(1.0),
-        None,
         (0.0, 3.0),
         (0.0, 1.0),
         tol,
     );
-    let decls = BooleanDeclarations {
-        coincident_faces: class
-            .map(|class| vec![FacePairDeclaration::new(xw, yw, class)])
+    let decls = Glue {
+        pairs: class
+            .map(|class| vec![GluedPair::new(xw, yw, class)])
             .unwrap_or_default(),
-        ..BooleanDeclarations::none()
+        ..Glue::none()
     };
     let one = super::super::verify_declared_contacts(&x, &y, &decls, band())?;
-    let declared = DeclaredPairs::build(&decls, one, &x, &y, band())?;
+    let declared = GluedPairs::build(&decls, one, &x, &y, band())?;
     let (edge_key, edge) = x
         .edges()
         .map(|(k, e)| (k, e.clone()))
@@ -763,7 +1024,7 @@ fn wedge_on_a_block(
         op,
         &block,
         &wedge,
-        &BooleanDeclarations::none(),
+        &super::super::BooleanInputs::default(),
         super::super::SweepStrategy::Realized,
         tol,
     )
@@ -772,66 +1033,106 @@ fn wedge_on_a_block(
 
 /// The block and the wedge of [`wedge_on_a_block`].
 fn lane_wedge(opening_deg: f64, tilt: f64) -> (crate::AtRestBody<f64>, crate::AtRestBody<f64>) {
-    use crate::test_support_fixtures::{brick, mapped_cube};
     let tol = Tol::witness();
-    let phi = opening_deg.to_radians();
-    let (ea, eb) = (
-        Vec3::new(1.0, 0.0, 0.0),
-        Vec3::new(phi.cos(), phi.sin(), tilt * phi.sin()),
-    );
-    let p = Point3::new(0.5, 0.2, 1.0);
-    let wedge = mapped_cube::<f64>(
-        move |u, v, w| p + ea * u + eb * v + Vec3::new(0.0, 0.0, w),
-        tol,
-    );
+    let (block, wedge) =
+        crate::test_support_fixtures::wedge_on_a_block_top(opening_deg, tilt, 1.0, 0.0, tol);
     (
-        finished(
-            "the lane's block",
-            brick((-1.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol),
-            tol,
-        ),
+        finished("the lane's block", block, tol),
         finished("the lane's wedge", wedge, tol),
     )
 }
 
-/// A block tilted by an in-band angle on a block's top face, the pair
-/// declared `Tangent` (the review's G2 pose).
-fn tilted_block_declared_tangent() -> Result<(), BooleanError> {
-    block_declared_tangent_at(D / 2.0)
+/// The wedge `thin_wedge_in_band_over_its_faces` raises, every op in
+/// both orders: the first outcome other than a `Coincidence(Sectors)`
+/// refusal, or that refusal where every op gives it.
+#[test]
+#[ignore = "a child row: the_in_band_wedge_is_in_band_at_the_glue_door runs it"]
+fn wedge_in_band_every_op() {
+    use super::super::BooleanOp::{Intersect, Subtract, Union};
+    let tol = Tol::witness();
+    let (block, wedge) = lane_wedge(5.0, 2e-9);
+    let run = |op, a, b| {
+        super::super::boolean_op_with(
+            op,
+            a,
+            b,
+            &super::super::BooleanInputs::default(),
+            super::super::SweepStrategy::Realized,
+            tol,
+        )
+        .map(|_| ())
+    };
+    let outcomes = [
+        run(Union, &block, &wedge),
+        run(Union, &wedge, &block),
+        run(Intersect, &block, &wedge),
+        run(Intersect, &wedge, &block),
+        run(Subtract, &block, &wedge),
+        run(Subtract, &wedge, &block),
+    ]
+    .map(outcome);
+    let sectors =
+        |o: &Outcome| matches!(o, Outcome::Refused { key, .. } if key == "Coincidence(Sectors)");
+    let first = outcomes
+        .iter()
+        .find(|o| !sectors(o))
+        .unwrap_or(&outcomes[0]);
+    report("wedge_in_band_every_op", first);
 }
 
-/// The same block, its top rising by `tilt` over each metre along `x`.
-fn block_declared_tangent_at(tilt: f64) -> Result<(), BooleanError> {
-    use crate::test_support_fixtures::{brick, mapped_cube};
-    let tol = Tol::witness();
-    let a = finished("block", brick((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), tol), tol);
-    let b = finished(
-        "tilted block",
-        mapped_cube::<f64>(
-            move |u, v, w| Point3::new(1.0 + 2.0 * u, 1.0 + 2.0 * v, 1.0 + w + tilt * u),
-            tol,
+/// `thin_wedge_in_band_over_its_faces`' glue door reads its pair in band
+/// over the two faces, and `thin_wedge_on_a_block`'s reads it apart: the
+/// two cases are the corner's refusal with and without an in-band glue
+/// verdict before it. Just below the tolerance the glue door's margin
+/// would offer, the glue door reads the pair apart and every op still
+/// refuses at the corner, so that offer would be false; the corner's own
+/// executes (the case above).
+#[test]
+fn the_in_band_wedge_is_in_band_at_the_glue_door() {
+    use super::super::carrier_pair::carrier_pair_relation;
+    use crate::test_support_fixtures::face_facing;
+    let read = |tilt: f64, band| {
+        let (block, wedge) = lane_wedge(5.0, tilt);
+        carrier_pair_relation(
+            &block,
+            face_facing(&block, 1.0),
+            &wedge,
+            face_facing(&wedge, -1.0),
+            false,
+            band,
+        )
+    };
+    let glue_margin = match read(2e-9, design_band()) {
+        Ok(Err(crate::CarrierEqError::Escalated { diag, .. })) => {
+            geom_core::test_support::upper(diag.margin)
+        }
+        other => panic!("in band at 2e-9: {other:?}"),
+    };
+    assert!(
+        matches!(
+            read(D, design_band()),
+            Ok(Ok(crate::CarrierRelation::Distinct))
         ),
-        tol,
+        "apart at D: {:?}",
+        read(D, design_band())
     );
-    let facing = |body: &crate::body::Body<f64>, up: bool| {
-        body.faces()
-            .map(|(k, _)| k)
-            .find(|&k| {
-                matches!(super::super::face_carrier(body, k),
-                    Some(super::super::CarrierDesc::Plane { normal, .. })
-                        if (normal.z > 0.99) == up && normal.z.abs() > 0.99)
-            })
-            .unwrap()
-    };
-    let decls = BooleanDeclarations {
-        coincident_faces: vec![FacePairDeclaration::new(
-            facing(&a, true),
-            facing(&b, false),
-            ContactClass::Tangent,
-        )],
-        ..BooleanDeclarations::none()
-    };
-    super::super::union_with(&a, &b, &decls, tol).map(|_| ())
+    let below = test_utils::offer::BELOW * glue_margin / geom_core::tolerance::DEFAULT_K;
+    let tighter = Band::new(below, geom_core::tolerance::DEFAULT_K * below).unwrap();
+    assert!(
+        matches!(
+            read(2e-9, tighter),
+            Ok(Ok(crate::CarrierRelation::Distinct))
+        ),
+        "apart below the glue door's offer {below:e}: {:?}",
+        read(2e-9, tighter)
+    );
+    let module = module_path!()
+        .split_once("::")
+        .map_or(module_path!(), |(_, m)| m);
+    match run(&format!("{module}::wedge_in_band_every_op"), below) {
+        Outcome::Refused { key, .. } if key == "Coincidence(Sectors)" => {}
+        other => panic!("every op refuses at the corner at {below:e}: {other:?}"),
+    }
 }
 
 /// Two corners sharing an edge along `z`, one flanked by a cylinder
@@ -892,8 +1193,7 @@ fn curved_flank_membership(arm: f64) -> Result<(), BooleanError> {
         intersect: true,
     }];
     let corner = |face| [sector(z, x, face), sector(x, z, face)];
-    let declared =
-        DeclaredPairs::<f64>::without_struts(&BooleanDeclarations::none(), Default::default());
+    let declared = GluedPairs::<f64>::without_struts(&Glue::none(), Default::default());
     resolve_edge_edge(
         &records,
         &corner(fca),
@@ -931,7 +1231,13 @@ fn pierce_germ_line() -> Result<(), BooleanError> {
         normal: OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
         arm: 1.0,
     };
-    super::super::vtxfac::pierce_germ_dir(&s, Vec3::new(D.sin(), 0.0, D.cos()), band()).map(|_| ())
+    super::super::vtxfac::pierce_germ_dir(
+        &s,
+        Vec3::new(D.sin(), 0.0, D.cos()),
+        super::super::vtxfac::OutBound::Start,
+        band(),
+    )
+    .map(|_| ())
 }
 
 /// `A` a block `[0, 2]² × [0, 1]`, `B` a unit block standing over its
@@ -990,7 +1296,7 @@ fn tangent_side_of(side: f64) -> Result<(), BooleanError> {
         -geom_brep::implicit_hessian_form(s, p, d) / geom_brep::implicit_gradient(s, p).dot(n.vec())
     };
     let arm = (2.0 * D / (accel(&ball) - accel(&floor)).abs()).sqrt();
-    let read = DeclarationRead::Spent(BooleanCoincidence::TANGENT);
+    let read = DeclarationRead::Spent(GlueClass::TANGENT);
     tangent_relative_side(&ball, &floor, n, p, d, arm, read, band()).map(|_| ())
 }
 
@@ -1042,7 +1348,7 @@ fn pierced_torus(major: f64, minor: f64) -> Result<(), BooleanError> {
         .map_err(|refusal| BooleanError::of_pierced_normal(refusal, Operand::B, st.face))
 }
 
-/// The declared-coaxial frame of a cylinder of radius `cyl` and a
+/// The coaxial frame of a cylinder of radius `cyl` and a
 /// sphere of radius `sph` on one axis.
 fn coaxial_frame(cyl: f64, sph: f64) -> Result<(), BooleanError> {
     use super::super::join::{cs_pair_frame, frame_refusal};
@@ -1059,7 +1365,7 @@ fn coaxial_frame(cyl: f64, sph: f64) -> Result<(), BooleanError> {
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let face = crate::entity::FaceKey::default();
-    cs_pair_frame(&c, &s, geom_brep::CoaxialEvidence::Declared, band())
+    cs_pair_frame(&c, &s, band())
         .map(|_| ())
         .map_err(|e| frame_refusal(e, (face, &c), (face, &s)))
 }
@@ -1096,16 +1402,9 @@ fn transverse_frame(reach: f64) -> Result<(), BooleanError> {
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let face = crate::entity::FaceKey::default();
-    pair_section_frame(
-        &c,
-        &s,
-        geom_brep::RadiusEvidence::None,
-        Point3::new(0.0, 0.0, 0.0),
-        None,
-        band(),
-    )
-    .map(|_| ())
-    .map_err(|e| frame_refusal(e, (face, &c), (face, &s)))
+    pair_section_frame(&c, &s, Point3::new(0.0, 0.0, 0.0), None, band())
+        .map(|_| ())
+        .map_err(|e| frame_refusal(e, (face, &c), (face, &s)))
 }
 
 /// The arc `[0, 1]` of the unit circle about `z` against the plane
@@ -1263,7 +1562,6 @@ fn vertex_near_a_sheet_corner() -> Result<(), BooleanError> {
     let face = cyl_wall_sheet(
         &mut y,
         CylFrame::canonical(1.0),
-        None,
         (0.0, 1.0),
         (0.0, 1.0),
         tol,
@@ -1271,7 +1569,6 @@ fn vertex_near_a_sheet_corner() -> Result<(), BooleanError> {
     cyl_wall_sheet(
         &mut y,
         CylFrame::canonical(1.0),
-        None,
         (3.0 + D, 4.0),
         (0.5, 1.0),
         tol,
@@ -1284,6 +1581,7 @@ fn vertex_near_a_sheet_corner() -> Result<(), BooleanError> {
         VertexKey::default(),
         px,
         face,
+        geom_core::MarginDiag::value(0.0),
         &mut acc,
         band(),
         tol,
@@ -1357,16 +1655,16 @@ fn planar_flank_membership_at(against: bool, rest: bool, arm: f64) -> Result<(),
         intersect: true,
     }];
     let flank = if against { -x } else { x };
-    let decls = BooleanDeclarations {
-        coincident_faces: if rest {
-            vec![FacePairDeclaration::new(fa, fb, ContactClass::Rest)]
+    let decls = Glue {
+        pairs: if rest {
+            vec![GluedPair::new(fa, fb, ContactClass::Rest)]
         } else {
             Vec::new()
         },
-        ..BooleanDeclarations::none()
+        ..Glue::none()
     };
     let one = super::super::verify_declared_contacts(&pa.body, &pb.body, &decls, band())?;
-    let declared = DeclaredPairs::build(&decls, one, &pa.body, &pb.body, band())?;
+    let declared = GluedPairs::build(&decls, one, &pa.body, &pb.body, band())?;
     resolve_edge_edge(
         &records,
         &[sector(z, x, fa), sector(x, z, fa)],
@@ -1398,18 +1696,17 @@ fn shared_side_plane(arm: f64) -> Result<(), BooleanError> {
         end: z,
         start_reach: Reach::Chord {
             base: o,
-            far: o + y,
+            far: o + y * arm,
         },
         end_reach: Reach::Chord {
             base: o,
-            far: o + z,
+            far: o + z * arm,
         },
         face,
         normal: OutwardNormal::from_chart(Vec3::new(1.0, 0.0, 0.0), true),
         arm,
     };
-    let declared =
-        DeclaredPairs::<f64>::without_struts(&BooleanDeclarations::none(), Default::default());
+    let declared = GluedPairs::<f64>::without_struts(&Glue::none(), Default::default());
     super::super::recl::require_same(
         &pa.body,
         Operand::A,
@@ -1418,6 +1715,7 @@ fn shared_side_plane(arm: f64) -> Result<(), BooleanError> {
         Operand::B,
         &sector(pb.side_faces[3]),
         &declared,
+        super::super::recl::ReadOn::Faces,
         arm,
         band(),
     )
@@ -1432,6 +1730,17 @@ fn bent_neighbours(margin: f64) -> Result<(), BooleanError> {
         let theta = margin / diagonal;
         let up = Vec3::new(0.0, 0.0, 1.0);
         plane_through(p0, along, up * theta.cos() + along.cross(up) * theta.sin())
+    });
+    super::super::reduce::gate_maximal_faces(&body, Operand::A, band())
+}
+
+/// A unit prism's top split on its diagonal, one half re-described on
+/// the parallel plane `offset` above: the operand's maximal-faces gate,
+/// whose offset rung reads it.
+fn lifted_neighbours(offset: f64) -> Result<(), BooleanError> {
+    let body = super::tests::top_split_redescribed(|p0, along, _| {
+        let up = Vec3::new(0.0, 0.0, 1.0);
+        plane_through(p0 + up * offset, along, up)
     });
     super::super::reduce::gate_maximal_faces(&body, Operand::A, band())
 }
@@ -1471,12 +1780,11 @@ fn bent_disc(margin: f64) -> Result<(), BooleanError> {
 }
 
 /// The public op `k` (0 union, 1 subtract, else intersect) of `a` and
-/// `b`, `decls` declared.
+/// `b`.
 fn public_op(
     k: u8,
     a: &crate::AtRestBody<f64>,
     b: &crate::AtRestBody<f64>,
-    decls: &BooleanDeclarations,
 ) -> Result<(), BooleanError> {
     let op = match k {
         0 => super::super::BooleanOp::Union,
@@ -1487,7 +1795,7 @@ fn public_op(
         op,
         a,
         b,
-        decls,
+        &super::super::BooleanInputs::default(),
         super::super::SweepStrategy::Realized,
         Tol::witness(),
     )
@@ -1544,39 +1852,7 @@ fn turned_wedge(
     tilt: f64,
 ) -> Result<(), BooleanError> {
     let wedge = review_wedge(top, rot, opening, s, tilt);
-    public_op(k, &big_block(), &wedge, &BooleanDeclarations::none())
-}
-
-/// The plane face of `body` whose outward normal is `±z` (`up`) through
-/// height `z`.
-fn z_face(body: &crate::body::Body<f64>, z: f64, up: bool) -> crate::entity::FaceKey {
-    body.faces()
-        .map(|(k, _)| k)
-        .find(|&k| {
-            matches!(super::super::face_carrier(body, k),
-                Some(super::super::CarrierDesc::Plane { normal, origin, .. })
-                    if (normal.z > 0.9) == up && normal.z.abs() > 0.9
-                        && (origin.z - z).abs() < 1e-3)
-        })
-        .unwrap()
-}
-
-/// A wedge on the block `block` (its top at `z = 1`), the wedge's bottom
-/// declared `Rest` on the block's top through the public door, by op `k`.
-fn declared_rest_wedge(
-    k: u8,
-    block: &crate::AtRestBody<f64>,
-    wedge: &crate::AtRestBody<f64>,
-) -> Result<(), BooleanError> {
-    let decls = BooleanDeclarations {
-        coincident_faces: vec![FacePairDeclaration::new(
-            z_face(block, 1.0, true),
-            z_face(wedge, 1.0, false),
-            ContactClass::Rest,
-        )],
-        ..BooleanDeclarations::none()
-    };
-    public_op(k, block, wedge, &decls)
+    public_op(k, &big_block(), &wedge)
 }
 
 /// A unit block whose corner sits on the corner `(1, 1, 1)` of the unit
@@ -1600,166 +1876,7 @@ fn corner_on_a_corner(axis: Vec3<f64>, theta: f64) -> Result<(), BooleanError> {
         mapped_cube::<f64>(move |u, v, w| c + turn(Vec3::new(u, v, w)), tol),
         tol,
     );
-    public_op(0, &a, &b, &BooleanDeclarations::none())
-}
-
-/// The zero-band angle the neighbour bodies turn by.
-const KINK: f64 = 5.5e-10;
-
-/// The height of [`kinked_prism`], the length of its kinked edge.
-const KINK_HEIGHT: f64 = 0.1;
-
-/// `body`'s edges described the way a construction describes them at
-/// this run's tolerance: each edge the at-rest gate finds without an
-/// honest description (the scaffold an extrusion or a split leaves, a
-/// description a re-chart strands, or one at rest where its faces are
-/// transverse) is described as the intersection of its two faces where
-/// the band decides them transverse, and at rest in its first face's
-/// chart otherwise, which holds it exactly. A pose bent within the band
-/// at one tolerance is bent past it at a smaller one, so a case re-run
-/// below its offer finishes the same geometry.
-fn described_at_this_tolerance(mut body: crate::body::Body<f64>) -> crate::body::Body<f64> {
-    use crate::ValidationError as V;
-    let tol = Tol::witness();
-    let Err(errors) = crate::AtRestBody::validate(body.clone(), tol) else {
-        return body;
-    };
-    let mut edges: Vec<_> = errors
-        .iter()
-        .filter_map(|e| match e {
-            V::ScaffoldAtRest { edge }
-            | V::DescriptionNotAdjacent { edge }
-            | V::TransverseNotIntrinsic { edge } => Some(*edge),
-            _ => None,
-        })
-        .collect();
-    edges.sort();
-    edges.dedup();
-    for edge in edges {
-        let (s1, s2) = crate::readback::edge_sides(&body, edge)
-            .expect("a live edge's sides")
-            .surfaces();
-        let e = body.get_edge(edge).expect("a live edge");
-        let at = |body: &crate::body::Body<f64>, v| {
-            *body
-                .get_point(body.get_vertex(v).expect("a live vertex").point)
-                .expect("a live point")
-        };
-        let (p0, p1) = (
-            at(
-                &body,
-                body.get_half_edge(e.he_plus)
-                    .expect("a live half-edge")
-                    .start,
-            ),
-            at(
-                &body,
-                body.get_half_edge(e.he_minus).expect("its twin").start,
-            ),
-        );
-        let witness = p0.lerp(p1, 0.5);
-        let transverse = geom_brep::classify_dihedral(
-            body.get_surface(s1).expect("a live surface"),
-            body.get_surface(s2).expect("a live surface"),
-            witness,
-            p0.distance(p1),
-            band(),
-        );
-        let mut spec = geom_brep::EdgeCurveSpec::line_between(p0, p1);
-        spec = match transverse {
-            Ok(geom_brep::DihedralClass::Transverse) => {
-                spec.description = geom_brep::EdgeDescriptionSpec::Intersection { s1, s2, witness };
-                spec
-            }
-            _ => spec.at_rest_in_chart(s1, false),
-        };
-        body.set_edge_curve(edge, spec, tol)
-            .expect("the edge takes its description");
-    }
-    body
-}
-
-/// `body` finished, then the public op `k` of it and the brick `cross`,
-/// or, where `k` is `None`, the union of it and a far brick.
-fn beside_or_crossed(
-    what: &str,
-    body: crate::body::Body<f64>,
-    k: Option<u8>,
-    cross: crate::body::Body<f64>,
-) -> Result<(), BooleanError> {
-    let tol = Tol::witness();
-    let body = finished(what, body, tol);
-    match k {
-        None => {
-            let far = crate::test_support_fixtures::brick::<f64>(
-                (20.0, 21.0),
-                (0.0, 1.0),
-                (0.0, 1.0),
-                tol,
-            );
-            public_op(
-                0,
-                &body,
-                &finished("the far brick", far, tol),
-                &BooleanDeclarations::none(),
-            )
-        }
-        Some(k) => public_op(
-            k,
-            &body,
-            &finished("the crossing brick", cross, tol),
-            &BooleanDeclarations::none(),
-        ),
-    }
-}
-
-/// A prism of height [`KINK_HEIGHT`] whose profile turns by `theta` at
-/// `(0.1, 0)`: the wall along `y = 0` and the one tilted by `theta` out
-/// to `x = 10.1` share the vertical edge there, which lies on both walls
-/// exactly and is described at this run's tolerance (the extrusion
-/// leaves it a scaffold, the walls being in band of each other at the
-/// design tolerance). Beside a far
-/// brick (`k` `None`) or crossed on its long wall by the public op `k`
-/// (the coincv5 review's `kinked_prism`; the kink at rest is the delta
-/// review's `d_kinked_prism_with_its_kink_at_rest`).
-fn kinked_prism(k: Option<u8>, theta: f64) -> Result<(), BooleanError> {
-    let tol = Tol::witness();
-    let h = KINK_HEIGHT;
-    let profile = [
-        (0.0, 0.0),
-        (0.1, 0.0),
-        (10.1, 10.0 * theta.tan()),
-        (10.1, 1.0),
-        (0.0, 1.0),
-    ];
-    let body = described_at_this_tolerance(prism_z::<f64>(&profile, 0.0, h, tol).body);
-    let cross = crate::test_support_fixtures::brick::<f64>(
-        (4.0, 5.0),
-        (-0.5, 0.5),
-        (0.02, 0.5 * h + 0.3),
-        tol,
-    );
-    beside_or_crossed("the kinked prism", body, k, cross)
-}
-
-/// `body` through the maximal-faces gate, as operand A.
-fn at_the_gate(body: crate::Body<f64>) -> Result<(), BooleanError> {
-    super::super::reduce::gate_maximal_faces(&body, Operand::A, band())
-}
-
-/// A split top whose re-described half is bent by [`KINK`] about the
-/// diagonal (its edges stay on it), its plane's origin `l` from the
-/// diagonal within the plane (the coincv5 review's
-/// `split_bent_far_origin`). The bent half's far corner stays where the
-/// walls put it, `KINK · ½√2` off the bent plane: a finished body only
-/// while that is inside the band, so no tolerance below the offer
-/// finishes it.
-fn bent_split_far_origin(l: f64) -> crate::Body<f64> {
-    super::tests::top_split_redescribed(|p0, along, _| {
-        let up = Vec3::new(0.0, 0.0, 1.0);
-        let n = up * KINK.cos() + along.cross(up) * KINK.sin();
-        plane_through(p0 + n.cross(along) * l, along, n)
-    })
+    public_op(0, &a, &b)
 }
 
 /// **A stranded split top is refused typed at the at-rest gate, before
@@ -1771,8 +1888,7 @@ fn bent_split_far_origin(l: f64) -> crate::Body<f64> {
 /// door that classifies — the boolean doors and `boolean_reduce`
 /// alike — takes a finished body. The offset
 /// is far past the band at every tolerance, so the refusal is the
-/// stranded body's, not any offer's (the coincv5 review's NF-2). The
-/// `CoplanarNeighbours` offers run on finished bodies, in the cases.
+/// stranded body's, not any offer's (the coincv5 review's NF-2).
 #[test]
 fn a_stranded_split_top_is_refused_at_the_at_rest_gate() {
     let up = Vec3::new(0.0, 0.0, 1.0);
@@ -1841,8 +1957,35 @@ fn row(case: &Case) -> String {
 
 /// The point margin a refusal quotes, read off its payload.
 fn quoted_margin(text: &str) -> Option<f64> {
-    let (_, tail) = text.split_once("margin ")?;
-    tail.split_whitespace().next()?.parse::<f64>().ok()
+    if let Some((_, tail)) = text.split_once("margin ") {
+        return tail.split_whitespace().next()?.parse::<f64>().ok();
+    }
+    // An enclosure on one side of zero quotes its nearer end.
+    let (_, tail) = text.split_once("enclosure [")?;
+    let (lo, tail) = tail.split_once(", ")?;
+    let (hi, _) = tail.split_once(']')?;
+    let (lo, hi) = (lo.parse::<f64>().ok()?, hi.parse::<f64>().ok()?);
+    Some(if lo.abs() < hi.abs() { lo } else { hi })
+}
+
+/// **An enclosure quotes its end nearer zero**, on either side: the
+/// offer below it is the one that decides the whole enclosure. The
+/// fixtures' enclosures are an ulp wide, so these are wide on purpose.
+#[test]
+fn a_quoted_enclosure_is_its_end_nearer_zero() {
+    let quote = |enclosure: &str| {
+        quoted_margin(&format!(
+            "whether a shell of the result bounds material or a cavity is undecided: \
+             enclosure {enclosure} cannot be classified against the ambiguity band (1e-9, 1e-8)"
+        ))
+    };
+    assert_eq!(quote("[3e-9, 6e-9]"), Some(3e-9), "the outer side");
+    assert_eq!(quote("[-6e-9, -3e-9]"), Some(-3e-9), "the void side");
+    assert_eq!(
+        quoted_margin("margin 5.5e-9 lies inside the ambiguity band (1e-9, 1e-8)"),
+        Some(5.5e-9),
+        "a point margin"
+    );
 }
 
 /// Whether `got` is `want` to the precision a fixed pose's margin is
@@ -2052,7 +2195,7 @@ fn design_band() -> Band {
 /// margin: an exhaustive match, so a new kind is a compile error here
 /// until it is placed.
 fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
-    use geom_brep::recourse::Refused;
+    use geom_brep::recourse::{Classified, Refused};
     let zero = || Classified {
         margin: diag.margin,
         band: diag.band,
@@ -2071,17 +2214,11 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
             .into_iter()
             .map(|decision| BooleanError::Escalated { decision, diag })
             .collect(),
-        BooleanErrorKind::CoplanarNeighbours => [
-            super::NeighbourOffset::Zero(zero()),
-            super::NeighbourOffset::Undecided(diag),
-        ]
-        .into_iter()
-        .map(|offset| BooleanError::CoplanarNeighbours {
+        BooleanErrorKind::CoplanarNeighbours => vec![BooleanError::CoplanarNeighbours {
             operand,
             faces: [face, face],
-            offset,
-        })
-        .collect(),
+            offset: diag,
+        }],
         BooleanErrorKind::SpheresMeet => refused()
             .into_iter()
             .map(|verdict| BooleanError::SpheresMeet {
@@ -2117,12 +2254,9 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
                 })
             })
             .collect(),
-        // Its margin is exactly zero or unreadable, and its recourse
-        // names no value (the filed NOTE-1 residue).
-        BooleanErrorKind::UndeclaredCoincidence
         // Quote no margin: a frontier, a declaration refused, a kernel
         // invariant, or a range fault.
-        | BooleanErrorKind::Band
+        BooleanErrorKind::Band
         | BooleanErrorKind::CurvedBooleanUnsupported
         | BooleanErrorKind::CurvedPierceUnsupported
         | BooleanErrorKind::CrossingAtConeApex
@@ -2133,6 +2267,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::GermEdgeCarrierUnsupported
         | BooleanErrorKind::ArcLoopContainmentUnsupported
         | BooleanErrorKind::PointInFaceRefused
+        | BooleanErrorKind::RestPieceUnread
         | BooleanErrorKind::ScaffoldingOperand
         | BooleanErrorKind::InsideOutOperand
         | BooleanErrorKind::UnjoinedOperand
@@ -2146,10 +2281,11 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::SeamContradicted
         | BooleanErrorKind::RimCuspArmUnbuilt
         | BooleanErrorKind::TangentSlitArmUnbuilt
-        | BooleanErrorKind::InvalidDeclaration
+        | BooleanErrorKind::InvalidInput
         | BooleanErrorKind::PairingMismatch
         | BooleanErrorKind::SharedVertexCrossings
         | BooleanErrorKind::PinchConesOnSeparateKeys
+        | BooleanErrorKind::PinchRaysInAFace
         | BooleanErrorKind::VertexReadTwice
         | BooleanErrorKind::ClassificationInvariant
         | BooleanErrorKind::CurvedPairUnsupported
@@ -2157,11 +2293,11 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::FallbackExtentUnsupported
         | BooleanErrorKind::GermFrameUnsupported
         | BooleanErrorKind::GermSectionOutsideInventory
+        | BooleanErrorKind::GermSectionSpiric
         | BooleanErrorKind::GermFrameCylinderPinch
-        | BooleanErrorKind::RestZipUnsupported
         | BooleanErrorKind::JoinDesync
+        | BooleanErrorKind::EdgeUndescribed
         | BooleanErrorKind::JoinCarrierUnsupported
-        | BooleanErrorKind::CurvedRestUnrecorded
         | BooleanErrorKind::TornComponent
         | BooleanErrorKind::ShellWitnessExhausted
         | BooleanErrorKind::CoincidentShell
@@ -2236,92 +2372,6 @@ fn every_arm_that_offers_a_value_has_an_executed_case() {
         "offering arms with no executed case: {missing:?}\ncases standing for no offering arm: \
          {stale:?}"
     );
-}
-
-// ------------------------------------------------------------------
-// A declared `Rest` at a decided tilt (the coincfr4 review's MAJOR-1).
-// ------------------------------------------------------------------
-
-/// Declares the C2 rows: one `#[ignore]`d child each, run at
-/// [`DESIGN_EPS`] by [`a_declared_rest_at_a_decided_tilt_is_contradicted`].
-macro_rules! declared_rows {
-    ($($name:ident => $raise:expr;)*) => {
-        $(
-            #[test]
-            #[ignore = "a child row: a_declared_rest_at_a_decided_tilt_is_contradicted runs it"]
-            fn $name() {
-                report(stringify!($name), &outcome($raise));
-            }
-        )*
-        const DECLARED_ROWS: &[&str] = &[$(stringify!($name)),*];
-    };
-}
-
-declared_rows! {
-    // The lane's own pose, whose normals decide its tilt at 1e-9.
-    declared_rest_on_a_wedge_tilted_past_the_band_union => {
-        let (block, wedge) = lane_wedge(2.0, 1.5e-8);
-        declared_rest_wedge(0, &block, &wedge)
-    };
-    declared_rest_on_a_wedge_tilted_past_the_band_subtract => {
-        let (block, wedge) = lane_wedge(2.0, 1.5e-8);
-        declared_rest_wedge(1, &block, &wedge)
-    };
-    declared_rest_on_a_wedge_tilted_past_the_band_intersect => {
-        let (block, wedge) = lane_wedge(2.0, 1.5e-8);
-        declared_rest_wedge(2, &block, &wedge)
-    };
-    // The review's W1: the door's ladder bridges the tilt, and the
-    // sector's normals decide it at the arm.
-    declared_rest_on_a_turned_wedge_union => {
-        declared_rest_wedge(0, &big_block(), &review_wedge(true, 37.0, 3.0, 2.0, D))
-    };
-    declared_rest_on_a_turned_wedge_subtract => {
-        declared_rest_wedge(1, &big_block(), &review_wedge(true, 37.0, 3.0, 2.0, D))
-    };
-}
-
-/// **A declared `Rest` pair whose sectors' tilt is decided is
-/// contradicted, and offers neither a declaration nor a tolerance**
-/// (C2, declared through `boolean_op_with`): a decided tilt is no
-/// coincidence a declaration settles, so the decided-tilt arm of `vtxfac`
-/// reads none and refuses the declared pair as the door does at a
-/// smaller tolerance. Removed, the declaration leaves the undeclared
-/// cases `thinner_wedge_tilted_past_the_band` and
-/// `wedge_turned_on_a_block_*`, whose offers are executed true.
-#[test]
-fn a_declared_rest_at_a_decided_tilt_is_contradicted() {
-    let module = module_path!()
-        .split_once("::")
-        .map_or(module_path!(), |(_, m)| m);
-    for name in DECLARED_ROWS {
-        let got = run(&format!("{module}::{name}"), DESIGN_EPS);
-        let Outcome::Refused { key, defect, text } = &got else {
-            panic!("{name}: a declared Rest at a decided tilt builds: {got:?}");
-        };
-        assert!(
-            key == "ContactContradicted"
-                && !defect
-                && text.contains("the declared planes are not parallel")
-                && !text.contains("declare the coincidence")
-                && !text.contains("tighten"),
-            "{name}: {got:?}"
-        );
-    }
-    // Undeclared, the same poses offer the tolerance and no declaration.
-    for name in [
-        "thinner_wedge_tilted_past_the_band",
-        "wedge_turned_on_a_block_union",
-    ] {
-        let got = run(&format!("{module}::{name}"), DESIGN_EPS);
-        assert!(
-            matches!(&got, Outcome::Refused { key, text, .. }
-                if key == "Coincidence(Sectors)"
-                    && !text.contains("declare")
-                    && text.contains("tighten")),
-            "{name}: {got:?}"
-        );
-    }
 }
 
 // ------------------------------------------------------------------
@@ -2495,20 +2545,19 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     (
         "conic_quadric/mod.rs",
         "conic_quadric_roots",
+        "BooleanDecision::ArcSphereRoots",
+        1,
+    ),
+    (
+        "conic_quadric/mod.rs",
+        "quadric_ladder",
         "BooleanDecision::ArcCylinderRoots",
         1,
     ),
     (
         "conic_quadric/mod.rs",
-        "conic_quadric_roots",
+        "quadric_ladder",
         "BooleanDecision::ArcSphereRoots",
-        2,
-    ),
-    ("finish.rs", "corner_holds", "Coincide::Sectors", 1),
-    (
-        "finish.rs",
-        "weld_pinches",
-        "BooleanDecision::VertexOnVertex",
         1,
     ),
     ("insert.rs", "germ_dir", "BooleanDecision::SelfCheck", 1),
@@ -2519,12 +2568,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("join.rs", "bool_connect", "Coincide::Section", 1),
     ("join.rs", "frame_refusal", "BooleanDecision::Radius", 1),
     ("join.rs", "frame_refusal", "Coincide::Section", 1),
-    ("join.rs", "germ_arm", "Coincide::Join", 1),
-    ("join.rs", "germs_face_each_other", "Coincide::Join", 1),
-    ("join.rs", "nearer", "Coincide::Join", 1),
-    ("join.rs", "nearer_along", "Coincide::Join", 1),
+    ("join.rs", "join_escalate", "Coincide::Join", 1),
     ("join.rs", "parallel_radical_plane", "Coincide::Section", 1),
-    ("join.rs", "partners", "Coincide::Join", 1),
     (
         "join.rs",
         "ring_winding_order",
@@ -2540,6 +2585,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("join.rs", "rotational_sense", "SelfCheck::ArcFacing", 1),
     ("mod.rs", "coincidence", "BooleanDecision::Coincidence", 1),
+    ("mod.rs", "undecided_coincidence", "Coincide::Carriers", 1),
+    ("mod.rs", "unglued_coincidence", "Coincide::Carriers", 1),
     ("mod.rs", "decision_words", "BooleanDecision::ArcSpan", 1),
     (
         "mod.rs",
@@ -2610,7 +2657,9 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("ops.rs", "sphere_pair_cut", "SphereQuestion::CutIn", 1),
     ("ops.rs", "recut_lean", "BooleanDecision::Sphere", 1),
     ("ops.rs", "recut_lean", "SphereQuestion::RecutAlign", 1),
+    ("ops.rs", "of_describe", "BooleanDecision::EdgeOnFaces", 1),
     ("ops.rs", "seam_refusal", "BooleanDecision::SeamJet", 1),
+    ("ops.rs", "escalated", "BooleanDecision::ShellRole", 1),
     ("ops.rs", "seam_refusal", "LeverArm::Seam", 1),
     ("ops.rs", "sphere_extent_scan", "BooleanDecision::Sphere", 1),
     (
@@ -2630,14 +2679,13 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("ops.rs", "ee_lineage", "BooleanDecision::SelfCheck", 1),
     ("ops.rs", "ee_lineage", "BooleanDecision::VertexOnVertex", 1),
     ("ops.rs", "ee_lineage", "SelfCheck::CarriedLineage", 1),
-    ("ops.rs", "split_lineage", "BooleanDecision::SelfCheck", 1),
-    (
-        "ops.rs",
-        "split_lineage",
-        "BooleanDecision::VertexOnVertex",
-        1,
-    ),
-    ("ops.rs", "split_lineage", "SelfCheck::CarriedLineage", 1),
+    ("ops.rs", "piece_holds", "BooleanDecision::SelfCheck", 1),
+    ("ops.rs", "piece_holds", "SelfCheck::CarriedLineage", 1),
+    ("ops.rs", "ledger", "BooleanDecision::SelfCheck", 1),
+    ("ops.rs", "ledger", "BooleanDecision::VertexOnVertex", 1),
+    ("ops.rs", "ledger", "SelfCheck::CarriedLineage", 1),
+    ("ops.rs", "span_in_band", "BooleanDecision::SelfCheck", 1),
+    ("ops.rs", "span_in_band", "SelfCheck::CarriedLineage", 1),
     (
         "ops.rs",
         "volume_backstop",
@@ -2651,10 +2699,11 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "recl.rs",
         "resolve_edge_edge",
         "Coincide::CurvedFlankSense",
-        1,
+        2,
     ),
     ("recl.rs", "resolve_edge_edge", "Coincide::FlankSense", 1),
     ("recl.rs", "resolve_edge_edge", "Coincide::TangentSide", 1),
+    ("recl.rs", "unglued_tilt", "Coincide::Sectors", 2),
     ("recl.rs", "wedge_is_reflex", "Coincide::Sectors", 1),
     (
         "reduce.rs",
@@ -2758,6 +2807,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("sectors.rs", "build_sectors", "BooleanDecision::Corner", 1),
+    ("sectors.rs", "conic_side", "BooleanDecision::ConicBend", 1),
     ("sectors.rs", "in_sector", "Coincide::Sectors", 1),
     (
         "sectors.rs",
@@ -2767,15 +2817,15 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("sectors.rs", "pair_search", "Coincide::Sectors", 1),
     ("sectors.rs", "parallel_same", "Coincide::Sectors", 1),
-    ("sectors.rs", "runs_in", "Coincide::EdgeOnPlane", 1),
     (
         "sectors.rs",
-        "side_code",
+        "read_side",
         "BooleanDecision::PierceCurvature",
         1,
     ),
-    ("sectors.rs", "side_code", "Coincide::SectorSide", 1),
-    ("sectors.rs", "side_code", "LeverArm::SectorSide", 1),
+    ("sectors.rs", "read_side", "Coincide::SectorSide", 1),
+    ("sectors.rs", "read_side", "LeverArm::SectorSide", 1),
+    ("sectors.rs", "runs_in", "Coincide::EdgeOnPlane", 1),
     ("sectors.rs", "tangent_lump", "Coincide::TangentLocus", 1),
     (
         "sectors.rs",
@@ -2793,6 +2843,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     (
         "vtxfac.rs",
         "classify_vertex_on_face",
+        "BooleanDecision::ConicBend",
+        1,
+    ),
+    (
+        "vtxfac.rs",
+        "classify_vertex_on_face",
         "Coincide::Sectors",
         2,
     ),
@@ -2804,6 +2860,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("vtxfac.rs", "germ_order", "Coincide::Sectors", 1),
     ("vtxfac.rs", "pierce_germ_dir", "Coincide::Sectors", 1),
+    (
+        "vtxfac.rs",
+        "ring_groups",
+        "BooleanDecision::VertexOnVertex",
+        1,
+    ),
     (
         "zip.rs",
         "one_vertex_sense",
@@ -2846,23 +2908,17 @@ lever_rows! {
         arc_against_a_wall(1.0, Some(ContactClass::Rest));
     covered_vertex_moved_clear_of_its_face: Some("ContactContradicted") =>
         arc_against_a_wall(1.1, Some(ContactClass::Rest));
-    // `Coincidence(Planes)`: a declared-`Tangent` pair of planes, clearly
-    // parallel (contradicted) or clearly tilted (the class unsupported):
-    // no move of the parts passes, so the arm ends as that frontier.
-    tangent_planes_made_parallel: Some("ContactContradicted") => block_declared_tangent_at(0.0);
-    tangent_planes_clearly_tilted: Some("UnsupportedDeclarationClass") =>
-        block_declared_tangent_at(1e-3);
     // `FlankSense`, overlapping and undeclared: lengthened, the sense
-    // decides and the undeclared coplanar pair refuses next, whose own
-    // story is the declaration, which passes.
-    overlapping_flanks_lengthened: Some("UndeclaredCoincidence") =>
+    // decides and the coplanar pair, which no glue door glued here,
+    // refuses next, whose own story is the declaration, which passes.
+    overlapping_flanks_lengthened: Some("Coincidence(Carriers)") =>
         planar_flank_membership_at(false, false, 1e-3);
     overlapping_flanks_lengthened_declared_rest: None =>
         planar_flank_membership_at(false, true, 1e-3);
     touching_flanks_lengthened: None => planar_flank_membership_at(true, false, 1e-3);
     // `PlaneOrientation`: lengthened, the offset rung refuses the
-    // undeclared pair next, as above.
-    facing_planes_lengthened: Some("UndeclaredCoincidence") => shared_side_plane(1e-3);
+    // unglued pair next, as above.
+    facing_planes_lengthened: Some("Coincidence(Carriers)") => shared_side_plane(1e-3);
     // `VertexOnFace`: the vertices moved clearly off the face.
     vertex_moved_clearly_above_a_face: None => block_on_a_block(1.0 + 1e-3);
     vertex_moved_clearly_into_a_face: None => block_on_a_block(1.0 - 1e-3);

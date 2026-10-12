@@ -172,7 +172,7 @@ fn shared_frame_doc(lift: f64) -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2], 
     let (doc, extrude) = fixture::insert(
         doc,
         Node::Extrude {
-            profile: first,
+            profile: first.into(),
             distance: fixture::len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -284,7 +284,7 @@ fn a_derived_frame_carries_no_placement_and_its_profile_still_builds() {
     let (doc, cube) = fixture::insert(
         doc,
         Node::Extrude {
-            profile: base,
+            profile: base.into(),
             distance: fixture::len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -292,8 +292,13 @@ fn a_derived_frame_carries_no_placement_and_its_profile_still_builds() {
     let (doc, derived) = fixture::insert(
         doc,
         Node::Datum(Datum::FaceFrame {
-            at: cube,
-            face: fixture::fname(cube, editor_core::RoleSeg::Cap(editor_core::CapEnd::End)),
+            face: editor_core::Operand::select(
+                cube,
+                vec![fixture::fname(
+                    cube,
+                    editor_core::RoleSeg::Cap(editor_core::CapEnd::End),
+                )],
+            ),
             spin: fixture::ang(0.0),
         }),
     );
@@ -307,7 +312,7 @@ fn a_derived_frame_carries_no_placement_and_its_profile_still_builds() {
     let (doc, up) = fixture::insert(
         doc,
         Node::Extrude {
-            profile: boss,
+            profile: boss.into(),
             distance: fixture::len(0.5),
             side: ExtrudeSide::Along,
         },
@@ -465,7 +470,7 @@ fn an_authored_frames_profile_places_at_the_nominal_not_at_the_boxed_lane() {
 
 /// Row 7 — **a frame whose NOMINAL axes refuse does not poison the
 /// readers that never wanted the nominal.** The frame lands its value
-/// at the lane, an in-plane axis written against it evaluates, and the
+/// at the lane, a tube built in it evaluates, and the
 /// refusal is raised at the PROFILE, which is the reader that needed
 /// the nominal placement.
 ///
@@ -498,10 +503,18 @@ fn a_frame_unreadable_at_the_nominal_refuses_its_profile_and_nothing_else() {
             v: [0.0, 1.0, 0.0].map(fixture::scl),
         }),
     );
-    let (doc, axis) = fixture::insert(doc, fixture::axis_in_plane(frame, (0.0, 0.0), (0.0, 1.0)));
     let (doc, profile) = fixture::insert(
         doc,
         Node::Profile(fixture::desc(frame, vec![fixture::square(0.0, 0.0, 0.5)])),
+    );
+    let (doc, tube) = fixture::insert(
+        doc,
+        Node::Tube {
+            frame: frame.into(),
+            major_radius: fixture::len(2.0),
+            window: editor_core::TubeWindow::Full,
+            minor_radius: fixture::len(0.5),
+        },
     );
     let ev = evaluate::<f64>(
         &doc,
@@ -520,10 +533,9 @@ fn a_frame_unreadable_at_the_nominal_refuses_its_profile_and_nothing_else() {
          driven to zero here"
     );
     assert!(
-        ev.value(axis).is_some(),
-        "an in-plane axis reads the LANDED frame and does not care about the \
-         nominal: {:?}",
-        ev.node_error(axis)
+        ev.value(tube).is_some(),
+        "a tube reads the LANDED frame and does not care about the nominal: {:?}",
+        ev.node_error(tube)
     );
     assert!(
         matches!(

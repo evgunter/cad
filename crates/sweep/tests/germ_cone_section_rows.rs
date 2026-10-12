@@ -1,18 +1,17 @@
 //! **The section certificate's cone rows on real bodies**, at verdict
-//! level: the preview cone of `docs/GERM-VERBS-CONE-SPEC.md` §0 against
-//! its fixtures, and a seamed frustum against a tilted slab.
+//! level: the preview cone of the cone admission's spec (its §0,
+//! `docs/doc-ledger/germ-verbs-cone-spec.md`) against its fixtures, and a seamed frustum against a tilted slab.
 //!
-//! The operand gate keeps every cone pair off the operations until the
-//! roster flips (and past it the sector algebra has no cone arm), so the
-//! rows read the certificate directly: on the crossings path with the
-//! events of the cone's root lane (`topo::section_report_admitting_cones`,
-//! behind `sweep-testing`), and on the no-crossings path
+//! The rows read the certificate directly: on the crossings path with
+//! the events of the cone's root lane
+//! (`topo::test_support::section_report`), and
+//! on the no-crossings path
 //! (`topo::test_support::no_crossings_section_report`), each pair with
 //! the cone face, its components cleared or refused with no event
 //! anywhere. A W1 or W2 clearance holds whatever the crossing layer
 //! finds; W3 and the no-event decision are what the pass answers when it
-//! finds nothing. No op returns a body with a cone operand yet, so there
-//! is no body to measure.
+//! finds nothing. The bodies the ops return on these fixtures are
+//! measured in `cone_operand_rows.rs`.
 //!
 //! The preview cone is the triangle `(0,0) (1,0) (0,1)` revolved fully
 //! about `y`, merged to one cone face: apex `(0, 1, 0)`, lateral face
@@ -27,8 +26,10 @@ use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use revolve_common::*;
 use sweep::{Revolution, RevolveAxis, revolve};
-use topo::test_support::{brick, no_crossings_certificates, no_crossings_section_report};
-use topo::{Body, BooleanError, FaceKey};
+use topo::test_support::{
+    brick, no_crossings_certificates, no_crossings_section_report, section_report,
+};
+use topo::{Body, BooleanError, BooleanOp, FaceKey};
 
 /// `polygon` (radius, height) revolved about `y`, fully (merged) or
 /// through `theta`.
@@ -199,11 +200,16 @@ fn the_nested_cone_has_no_cone_pair() {
     );
 }
 
-/// **P1, an oblique rod**: the preview's bite carrier, a cylinder along
-/// `x` about `(y, z) = (0.45, 0.8)`, radius `0.3`. Cone × oblique
-/// cylinder has no arm: R-reach, naming the cone face.
+/// **P1, an oblique rod, bites the cone in one loop interior to both
+/// faces**: the preview's bite carrier, a cylinder along `x` about
+/// `(y, z) = (0.45, 0.8)`, radius `0.3`, its axis outside the cone
+/// (`ρ = 0.55 < 0.8` at `y = 0.45`). The general-pose arm reads one
+/// null loop, its witness inside both faces, and with no event the pass
+/// refuses it as a certified interior loop (R-loop), naming the cone
+/// face; the rod's caps, far outside the cone, clear `Out`. The mutant
+/// reading the loop essential on either carrier clears it by W2: red.
 #[test]
-fn an_oblique_rod_refuses_on_reach() {
+fn an_oblique_rod_bites_one_loop_interior_to_both_faces() {
     let cone = cone();
     let along_x = topo::transform_rigid(
         &pin(0.3, 0.0, -2.0, 2.0),
@@ -218,14 +224,23 @@ fn an_oblique_rod_refuses_on_reach() {
     )
     .unwrap();
     let v = cone_verdicts(&cone, &rod);
-    assert!(v.iter().any(|x| x == "Err(Reach)"), "{v:?}");
+    assert_eq!(
+        v.iter().filter(|x| *x == "Err(Loop)").count(),
+        1,
+        "one pair refuses R-loop: {v:?}"
+    );
+    assert!(
+        v.iter()
+            .all(|x| x == "Err(Loop)" || x.starts_with("Ok([Out")),
+        "every other pair clears Out: {v:?}"
+    );
     match no_crossings_certificates(&cone, &rod, Tol::witness()) {
         Err(BooleanError::FallbackExtentUnsupported {
             operand,
             face,
             what,
         }) => {
-            assert!(what.contains("no section classification"), "{what}");
+            assert!(what.contains("closed loop interior to both"), "{what}");
             assert!(
                 operand == topo::Operand::A && is_cone(&cone, face),
                 "{face:?}"
@@ -317,7 +332,7 @@ fn the_preview_pairs_clear_with_the_sweeps_events() {
     };
     for (what, b) in &fixtures {
         for (x, y, cone_is_a) in [(&cone, b, true), (b, &cone, false)] {
-            let v: Vec<String> = topo::section_report_admitting_cones(x, y, Tol::witness())
+            let v: Vec<String> = section_report(BooleanOp::Union, x, y, Tol::witness())
                 .unwrap_or_else(|e| panic!("{what}: the sweep refused {e:?}"))
                 .into_iter()
                 .filter(|(fa, fb, _)| {
@@ -375,7 +390,7 @@ fn a_ball_across_a_generator_edge_clears_by_w4_through_the_door() {
         Vec3::new(0.45, 0.55, -0.01) + Vec3::new(h, h, 0.0) * 0.045,
     );
     for (a, b, cone_is_a) in [(&quarter, &ball, true), (&ball, &quarter, false)] {
-        let v: Vec<String> = topo::section_report_admitting_cones(a, b, Tol::witness())
+        let v: Vec<String> = section_report(BooleanOp::Union, a, b, Tol::witness())
             .unwrap()
             .into_iter()
             .filter(|(fa, fb, _)| {

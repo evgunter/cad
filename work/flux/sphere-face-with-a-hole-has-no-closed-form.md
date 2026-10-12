@@ -2,11 +2,13 @@
 id: sphere-face-with-a-hole-has-no-closed-form
 kind: issue
 title: A sphere face with a hole has no closed form (RingOnCurvedFace), though the Gauss–Bonnet loop lane extends to rings
-status: open
+status: closed
 opened: 2026-10-05
 priority: P1
 cost: M
 refs: [a-ring-on-a-sphere-face-has-no-island-winding]
+pr: 4573
+closed: 2026-10-11
 ---
 
 
@@ -27,9 +29,9 @@ ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1),
 
 The result is right to carry the hole: the slab's top face pierces the
 ball's face in a circle no seam crosses. `topo::props::face_flux`
-refuses any ring on a curved face but a rim-and-ruling cylinder wall,
-and `geom_brep::props::curved_face_loops` reads one loop for every
-other kind. The point-in-solid at-infinity probe reads the same
+refuses any ring on a curved face but a cone wall's or a rim-and-ruling
+cylinder or torus wall's, and `geom_brep::props::curved_face_loops`
+reads one loop on a sphere. The point-in-solid at-infinity probe reads the same
 volume (`solid_contain::at_infinity_side`, `VolumeUncertified`), so an
 operand with such a face cannot be classified either.
 
@@ -65,3 +67,20 @@ Past the volume, `mesh::curved::tessellate_curved` and
 `mesh::trimmed` refuse any ringed curved face
 (`TessellateError::RingOnCurvedFace`), so these results will not mesh
 either until that lane reads a ring.
+
+## Fixed (`flux/sphere-arm`, 2026-10-10)
+
+`χ = 1 − r`: `curved::sphere_face` measures a sphere face over all its
+loops, a hole's area positive and less than the outer region's
+(`props_sphere_hole_area`), and `topo::props::face_flux` hands a sphere
+face its rings. The rows that pinned the refusal now build at their
+slice integrals: `a_ring_on_a_sphere_face.rs` (every pose, every op),
+`four_crossings_…` ∪ and ball ∖ slab, `a_tube_ending_on_a_ball`'s
+tilted 1.2, `m5_s13_review_probes::probe_edge_escape_lands_a_ring…`,
+and `shell_curved_mouth`'s sphere window. The mesh lane still refuses a
+ringed curved face (TESS's).
+
+## Closed (2026-10-11, PR 4573)
+
+(FLUX orchestrator) Merged after dual review, three fix passes and two
+independent verifiers. The DR row is `docs/dual-review-log/rows/PR-4573.md`.

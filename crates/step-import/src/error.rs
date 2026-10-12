@@ -15,7 +15,7 @@ pub struct AdoptionAttempt {
     /// The interpretation attempted.
     pub candidate: AdoptionCandidate,
     /// The certification/attachment gate's refusal, rendered as at rest
-    /// with the file's ε_in words (`topo::EulerOpError::render_in_file`).
+    /// with the file's ε_in words (`topo::EulerOpError::render`).
     pub refusal: topo::EulerOpError,
 }
 
@@ -143,19 +143,6 @@ pub enum StepImportError {
         /// The rejected value.
         value: f64,
     },
-    /// A position-anchored import declaration
-    /// ([`crate::ImportContact`]) did not resolve to exactly the
-    /// entities its kind names on the assembled body (M9-2, D7 step
-    /// 4): a declaration that cannot be pinned to real entities is a
-    /// typed refusal, never a silent drop — the same posture as the
-    /// boolean door's dangling-declaration refusal.
-    DeclarationUnresolved {
-        /// The anchor position that failed to resolve.
-        at: [f64; 3],
-        /// How many candidate vertices were found within ε_in of the
-        /// anchor (a vertex-rest anchor needs exactly two).
-        found: usize,
-    },
     /// A real token failed to parse as an f64.
     MalformedReal {
         /// The entity instance carrying the token.
@@ -215,11 +202,9 @@ pub enum StepImportError {
         residual: f64,
     },
     /// A described NURBS wall's own boundary column would not re-wrap
-    /// as a curve while an edge was being adopted against it: the
-    /// stored surface's control net disagrees with the knot vector it
-    /// is indexed by, or a weight on the extracted column is not a
-    /// positive finite number — neither of which a surface that passed
-    /// `geom::NurbsSurface::new` can do. Unreachable from any body
+    /// as a curve while an edge was being adopted against it: a weight
+    /// on the extracted column is not a positive finite number, which
+    /// a surface that passed `geom::NurbsSurface::new` cannot hold. Unreachable from any body
     /// this reader assembles, and surfaced rather than swallowed (D4
     /// ¶2, and [`geom_brep::boundary_iso_u`]'s own `# Errors`
     /// contract): the payload says WHICH structural invariant the wall
@@ -332,7 +317,7 @@ pub enum StepImportError {
         /// `None`.
         solid: Option<u64>,
         /// The verdicts, verbatim: tiers 1–3 for a solid asked on its
-        /// own, tiers 1–3′ (the declared-contact census) for the
+        /// own, tiers 1–3′ (the contact-record census) for the
         /// assembled body.
         errors: Vec<topo::ValidationError>,
     },
@@ -387,13 +372,6 @@ impl fmt::Display for StepImportError {
                 f,
                 "step import: ε_in override {value} is not finite and strictly positive"
             ),
-            Self::DeclarationUnresolved { at, found } => write!(
-                f,
-                "step import: the declared contact anchored at {at:?} resolved to {found} \
-                 coincident vertices on the assembled body (a vertex-rest anchor needs \
-                 exactly two) — fix the anchor or remove the declaration; unresolved \
-                 intent never silently drops"
-            ),
             Self::MalformedReal { id, token } => write!(
                 f,
                 "step import: entity #{id}: token '{token}' is not a Part 21 real"
@@ -404,7 +382,7 @@ impl fmt::Display for StepImportError {
             Self::Assembly { id, source, file } => write!(
                 f,
                 "step import: assembling entity #{id}: {}",
-                source.render_in_file(*file)
+                source.render(*file)
             ),
             Self::Adoption { id, attempts, file } => {
                 write!(
@@ -421,7 +399,7 @@ impl fmt::Display for StepImportError {
                         f,
                         "{}: {}",
                         attempt.candidate,
-                        attempt.refusal.render_in_file(*file)
+                        attempt.refusal.render(*file)
                     )?;
                 }
                 Ok(())
@@ -487,10 +465,31 @@ impl fmt::Display for StepImportError {
                     verdicts.join("; ")
                 )
             }
-            Self::Join { solid, refusal } => write!(
-                f,
-                "step import: joining the edges of the solid at #{solid}: {refusal}"
-            ),
+            Self::Join { solid, refusal } => {
+                write!(
+                    f,
+                    "step import: joining the edges of the solid at #{solid}: "
+                )?;
+                // The import door reads the adopted body at rest.
+                match refusal {
+                    topo::JoinRefusal::Undecided(undecided) => match undecided.diag() {
+                        Some(diag) => write!(
+                            f,
+                            "{} is undecided ({}). {}",
+                            topo::JOIN_SUBJECT,
+                            diag.payload(),
+                            diag.ending_noted(
+                                topo::JOIN_LEVER,
+                                geom_brep::recourse::unreadable_margin_note(
+                                    geom_brep::recourse::Reading::AtRest
+                                )
+                            )
+                        ),
+                        None => write!(f, "{refusal}"),
+                    },
+                    _ => write!(f, "{refusal}"),
+                }
+            }
             Self::Placement { transform, source } => write!(
                 f,
                 "step import: the assembly placement stated at #{transform} refused \
@@ -507,3 +506,60 @@ impl fmt::Display for StepImportError {
 }
 
 impl std::error::Error for StepImportError {}
+
+#[cfg(test)]
+mod join_text {
+    //! **The import door's join reads the adopted body at rest**: an
+    //! undecided join keeps the reading's own lever in front of the
+    //! join's, and a poisoned margin takes the stored-geometry note in
+    //! place of a lever about an operation's inputs.
+    #![allow(clippy::unwrap_used)]
+
+    use geom_core::{Band, Indeterminate, MarginDiag, UNREADABLE_STORED_MARGIN_NOTE};
+
+    use super::StepImportError;
+
+    fn join(margin: MarginDiag) -> (Indeterminate, String) {
+        let diag = Indeterminate {
+            margin,
+            band: Band::new(1e-9, 1e-8).unwrap(),
+            predicate: Some("dihedral_arm"),
+            terminal_sliver: false,
+        };
+        let error = StepImportError::Join {
+            solid: 7,
+            refusal: topo::JoinRefusal::Undecided(topo::JoinUndecided {
+                vertex: topo::VertexKey::default(),
+                reading: topo::JoinReading::Regularity(diag),
+            }),
+        };
+        (diag, error.to_string())
+    }
+
+    #[test]
+    fn an_undecided_join_at_import_keeps_the_readings_lever() {
+        let lead = "step import: joining the edges of the solid at #7: ";
+        let subject = topo::JOIN_SUBJECT;
+        let lever = topo::JOIN_LEVER;
+        let (straddle, text) = join(MarginDiag::enclosure(-2e-9, 5e-9));
+        assert_eq!(
+            text,
+            format!(
+                "{lead}{subject} is undecided ({}). Recourse: subdivide the parameter box \
+                 for a tighter enclosure, or {lever}",
+                straddle.payload()
+            ),
+            "a straddle"
+        );
+        let (poisoned, text) = join(MarginDiag::INVALID);
+        assert_eq!(
+            text,
+            format!(
+                "{lead}{subject} is undecided ({}). Recourse: {lever}; \
+                 {UNREADABLE_STORED_MARGIN_NOTE}",
+                poisoned.payload()
+            ),
+            "an unreadable margin"
+        );
+    }
+}

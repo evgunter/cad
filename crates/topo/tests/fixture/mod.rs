@@ -44,7 +44,7 @@ use std::sync::Arc;
 use geom::Surface;
 use geom::{Curve3, NurbsCurve3};
 use geom_brep::ssi::{self, SsiDomain};
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, PcurveCache};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, PcurveCache, SurfacePair};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Real, Vec3};
 use topo::{Body, HalfEdgeKey};
@@ -158,8 +158,7 @@ fn restrict(branch: &ssi::SsiBranch, frac: (f64, f64)) -> NurbsCurve3<f64> {
 }
 
 fn lift3<T: Real>(c: &NurbsCurve3<f64>) -> NurbsCurve3<T> {
-    let control = c.control().iter().map(|p| p.map(T::from_f64)).collect();
-    NurbsCurve3::new(c.knots().clone(), control, c.weights().to_vec()).expect("lifted structure")
+    c.map_scalar(T::from_f64)
 }
 
 /// Build the fixture at `T`: the edge, and the rows the mint derives.
@@ -232,8 +231,7 @@ where
             p1,
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
-                    s1: cyl_key,
-                    s2: sph_key,
+                    pair: SurfacePair::new(cyl_key, sph_key),
                     witness: carrier.eval(mid),
                 },
                 carrier: Curve3::Nurbs(Arc::clone(&carrier)),

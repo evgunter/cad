@@ -16,7 +16,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::{ContactAcc, SweepKnobs, SweepStrategy, sweep_and_settle};
-use crate::boolean::{BooleanError, ContactRecords, DeclaredPairs, VfContact};
+use crate::boolean::{BooleanError, GluedPairs, ReductionContacts, VfContact};
 use crate::test_support_fixtures::{CylFrame, brick, cyl_wall_sheet};
 use crate::{Body, FaceKey, VertexKey};
 use geom::Curve3;
@@ -33,7 +33,6 @@ pub(in crate::boolean) fn split_sheet() -> (Body<f64>, VertexKey) {
     cyl_wall_sheet(
         &mut body,
         CylFrame::canonical(1.0),
-        None,
         (0.0, core::f64::consts::PI),
         (-1.0, 1.0),
         tol,
@@ -96,10 +95,10 @@ pub(in crate::boolean) fn brick_under(top: f64) -> (Body<f64>, FaceKey) {
 pub(in crate::boolean) fn sweep(
     x: &Body<f64>,
     y: &Body<f64>,
-) -> Result<ContactRecords, BooleanError> {
+) -> Result<ReductionContacts, BooleanError> {
     let (mut x, mut y) = (x.clone(), y.clone());
     let mut acc = ContactAcc::default();
-    let declared = DeclaredPairs::default();
+    let declared = GluedPairs::default();
     sweep_and_settle(
         &mut x,
         &mut y,
@@ -111,7 +110,7 @@ pub(in crate::boolean) fn sweep(
         [None, None],
         Tol::witness(),
     )?;
-    Ok(acc.finish())
+    Ok(acc.finish().0)
 }
 
 /// **The rim in the face's plane records its valence-2 vertex.** No
@@ -128,7 +127,10 @@ fn a_rim_arc_in_the_face_plane_records_its_valence_two_vertex() {
     let (b, g) = brick_under(1.0);
     let contacts = sweep(&a, &b).expect("the sweep runs");
     assert!(
-        contacts.a_on_b.contains(&VfContact { vertex: w, face: g }),
+        contacts
+            .a_on_b
+            .iter()
+            .any(|c| *c == VfContact { vertex: w, face: g }),
         "the valence-2 vertex is recorded on the top face: {:?}",
         contacts.a_on_b
     );

@@ -2,9 +2,13 @@
 id: recourse-table-has-no-lever-only-ending
 kind: issue
 title: geom_brep::recourse has no lever-only ending or undecided-refusal shape, so each consumer spells both itself
-status: open
+status: closed
+closed: 2026-10-09
+branch: encl/recourse-lever-only
+pr: 4416
 opened: 2026-10-01
 priority: P3
+cost: E
 ---
 
 
@@ -42,3 +46,12 @@ A lever-only decision in the table (say `LeverOnly { lever }` with a
 `recourse(arm, reading)` like its siblings), and one helper composing
 `{subject} is undecided: {payload}. {ending}` from a subject, an
 `Indeterminate` and an ending, which the five Displays call.
+
+## Closed
+
+2026-10-09. PR 4416 merged at `de6cacd3d7` after a review (APPROVE) and a fix pass; hosted CI was green.
+- `geom_core::lever_recourse(lever, note)` is the one spelling of `Recourse: {lever}[; {note}]`, used across geom-core, geom-brep, topo, sweep and profile.
+- `Indeterminate::undecided(subject, ending)` (`UndecidedRefusal`) is the one `{subject} is undecided: {payload}. {ending}`, at 14 sites.
+- `Ending::Lever(&str)`; `LeverPass` is gone.
+- Rendered texts are byte-identical.
+- Follow-up: `not-yet-note-separator-and-too-close-family`.

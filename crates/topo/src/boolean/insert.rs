@@ -77,7 +77,7 @@ use super::{
 };
 use super::{BooleanDecision, Coincide, DeclarationRead, SelfCheck};
 use crate::body::{Body, WALKS_CLOSE};
-use crate::contact::BooleanCoincidence;
+use crate::contact::GlueClass;
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::euler::{MevSite, RunSite};
 use crate::live::{Proven, linked, proven};
@@ -104,8 +104,8 @@ fn insert_null_pairs<T: Decide>(
     b_sectors: &[BoolSector<T>],
     records: &[PairRecord],
     raw: &[PairRecord],
-    declared: &super::DeclaredPairs<T>,
-    contacts: &super::ContactRecords,
+    declared: &super::GluedPairs<T>,
+    contacts: &super::ReductionContacts,
     op: BooleanOp,
     band: Band,
 ) -> Result<InsertOut<T>, BooleanError> {
@@ -299,6 +299,66 @@ impl<T: geom_core::Real> Default for Hung<T> {
     }
 }
 
+/// **The record of a germ tangent to a bound of its sector**, read in
+/// the sector across that bound where its locus names that sector's
+/// face. The bound is the one `raw` reads On, so it is the moved
+/// sector's bound too, and the moved pair's own codes
+/// ([`super::sectors::pair_codes`]) read On there; everywhere else they
+/// must read what the record carries, which is checked. Any other
+/// record, and one whose neighbour across the bound is not the locus's
+/// face, is returned as it is.
+///
+/// # Errors
+///
+/// [`BooleanError::ClassificationInvariant`] where a moved pair's own
+/// codes off the On bound differ from the record's, and the escalation
+/// of a code read in band.
+fn across_tangent<T: Decide>(
+    r: PairRecord,
+    raw: &PairRecord,
+    loci: (super::Locus, super::Locus),
+    (a, b): (&[BoolSector<T>], &[BoolSector<T>]),
+    band: Band,
+) -> Result<PairRecord, BooleanError> {
+    let across = |sectors: &[BoolSector<T>], i: usize, read: (SideCode, SideCode), locus| {
+        let super::Locus::InFace(f) = locus else {
+            return i;
+        };
+        if sectors[i].face == f {
+            return i;
+        }
+        let n = sectors.len();
+        let k = match read {
+            (SideCode::On, _) => (i + 1) % n,
+            (_, SideCode::On) => (i + n - 1) % n,
+            _ => return i,
+        };
+        if sectors[k].face == f { k } else { i }
+    };
+    let moved = PairRecord {
+        a: across(a, r.a, raw.sa, loci.0),
+        b: across(b, r.b, raw.sb, loci.1),
+        ..r
+    };
+    if (moved.a, moved.b) == (r.a, r.b) {
+        return Ok(moved);
+    }
+    let (fa, fb) = super::sectors::pair_codes(&a[moved.a], &b[moved.b], band)?;
+    let stands = |kept: (SideCode, SideCode), fresh: (SideCode, SideCode)| {
+        [(kept.0, fresh.0), (kept.1, fresh.1)]
+            .into_iter()
+            .all(|(k, f)| f == SideCode::On || k == f)
+    };
+    if stands(moved.sa, fa) && stands(moved.sb, fb) {
+        Ok(moved)
+    } else {
+        Err(BooleanError::ClassificationInvariant {
+            what: "a germ moved across a tangent bound reads other crossing codes in the sector \
+                   across it",
+        })
+    }
+}
+
 /// The null edges of one vertex pair, every reading taken: what
 /// [`mint_plans`] mints without reading the orbit's geometry again.
 #[derive(Clone, Debug)]
@@ -324,8 +384,8 @@ pub(super) fn plan_null_pairs<T: Decide>(
     b_sectors: &[BoolSector<T>],
     records: &[PairRecord],
     raw: &[PairRecord],
-    declared: &super::DeclaredPairs<T>,
-    contacts: &super::ContactRecords,
+    declared: &super::GluedPairs<T>,
+    contacts: &super::ReductionContacts,
     op: BooleanOp,
     band: Band,
 ) -> Result<NullPlan<T>, BooleanError> {
@@ -387,6 +447,15 @@ pub(super) fn plan_null_pairs<T: Decide>(
             )
         })
         .collect::<Result<Vec<_>, BooleanError>>()?;
+    // A germ only tangent to a bound of its sector lies in the face
+    // across that bound ([`super::sectors::germ_loci`]): it is that
+    // face's germ, so it is minted in the sector across the bound.
+    let survivors: Vec<PairRecord> = survivors
+        .iter()
+        .zip(&raw)
+        .zip(&loci)
+        .map(|((&&r, w), &l)| across_tangent(r, w, l, (a_sectors, b_sectors), band))
+        .collect::<Result<_, _>>()?;
     // A germ along an edge runs along it: its two flankers may be
     // coplanar (an edge-edge germ is the pair of the two solids' own
     // fold flankers) or tangent (a germ only tangent to the other
@@ -422,7 +491,7 @@ pub(super) fn plan_null_pairs<T: Decide>(
     let n = survivors.len();
     let (mut a_order, b_order) = if n > 2 {
         let entries =
-            |side: fn(&PairRecord) -> usize| survivors.iter().map(|r| side(r)).collect::<Vec<_>>();
+            |side: fn(&PairRecord) -> usize| survivors.iter().map(side).collect::<Vec<_>>();
         (
             walk_order(a_sectors, &entries(|r| r.a), &dirs, band)?,
             walk_order(b_sectors, &entries(|r| r.b), &dirs, band)?,
@@ -2038,10 +2107,10 @@ pub(super) fn strut_order<T: Decide>(
         return Ok(far1);
     }
     let order = Margin::levered(germs.0.cross(germs.1).dot(normal), arm);
-    match crate::validate::decide_nonzero("bool_strut_order", order, band).map_err(refuse)? {
-        NonzeroSign::Negative => Ok(true),
-        NonzeroSign::Positive => Ok(false),
-    }
+    Ok(
+        crate::validate::decide_nonzero("bool_strut_order", order, band).map_err(refuse)?
+            == NonzeroSign::Negative,
+    )
 }
 
 /// The unit direction of an orbit half-edge, one the sector walk
@@ -2067,7 +2136,7 @@ fn record_germ_dir<T: Decide>(
     b_body: &Body<T>,
     sa: &BoolSector<T>,
     sb: &BoolSector<T>,
-    declared: &super::DeclaredPairs<T>,
+    declared: &super::GluedPairs<T>,
     band: Band,
 ) -> Result<Vec3<T>, BooleanError> {
     // What the door read of the pair, which the questions below refuse
@@ -2077,7 +2146,7 @@ fn record_germ_dir<T: Decide>(
         Coincide::TangentLocus,
         &[],
     );
-    if read != DeclarationRead::Spent(BooleanCoincidence::TANGENT) {
+    if read != DeclarationRead::Spent(GlueClass::TANGENT) {
         return germ_dir(sa, sb, read, band);
     }
     let surface_of = |body: &Body<T>, face| {
@@ -2129,11 +2198,14 @@ fn record_germ_dir<T: Decide>(
 /// (grazes count — an on-bound germ's direction IS the bound). An
 /// ambiguous or coplanar configuration refuses loudly.
 ///
-/// Sense-invariant given its sources (S10): `±(n_a × n_b)` is a LINE,
-/// and the sign is chosen by sector membership, not by either normal —
-/// flipping a normal flips the raw cross product and the `within`
-/// verdicts pick the same ray back out. The normals arrive already
-/// oriented from `sectors::sector_face`; nothing is multiplied here.
+/// The sign is the membership `sectors::pair_search` made this crossing
+/// record on: the same `within` readings of the same line at the same
+/// arms, so they single out the ray they found there. `±(n_a × n_b)` is
+/// a LINE and membership picks the ray, so neither normal's sign
+/// survives into it; they arrive outward from `sectors::sector_face`
+/// and nothing is multiplied here. (A pierce germ is signed by its
+/// transition's codes instead, `vtxfac::pierce_germ_dir`, which reads
+/// both normals as outward.)
 fn germ_dir<T: Decide>(
     sa: &BoolSector<T>,
     sb: &BoolSector<T>,
@@ -2422,8 +2494,8 @@ mod tests {
             &[],
             &recs,
             &recs,
-            &crate::boolean::DeclaredPairs::default(),
-            &crate::boolean::ContactRecords::default(),
+            &crate::boolean::GluedPairs::default(),
+            &crate::boolean::ReductionContacts::default(),
             BooleanOp::Union,
             geom_core::Band::linear(Tol::witness()).unwrap(),
         )
@@ -2438,8 +2510,8 @@ mod tests {
             &[],
             &recs,
             &recs,
-            &crate::boolean::DeclaredPairs::default(),
-            &crate::boolean::ContactRecords::default(),
+            &crate::boolean::GluedPairs::default(),
+            &crate::boolean::ReductionContacts::default(),
             BooleanOp::Union,
             geom_core::Band::linear(Tol::witness()).unwrap(),
         )
@@ -2561,8 +2633,8 @@ mod tests {
                 &b_secs,
                 recs,
                 recs,
-                &crate::boolean::DeclaredPairs::default(),
-                &crate::boolean::ContactRecords::default(),
+                &crate::boolean::GluedPairs::default(),
+                &crate::boolean::ReductionContacts::default(),
                 op,
                 band,
             )
@@ -2936,7 +3008,7 @@ mod tests {
     /// two germs in one sector entry: the walk order ([`walk_order`])
     /// refuses them, before any mint. Four
     /// survivors at one vertex pair in real geometry are
-    /// `work/join/four-germ-vertex-pairs-run-b-in-a-order`'s.
+    /// `four-germ-vertex-pairs-run-b-in-a-order`'s (JOIN, closed by PR 4036).
     #[test]
     fn f12_four_unordered_struts_refuse_before_any_mint() {
         use SideCode::{In, Out};
@@ -3005,8 +3077,8 @@ mod tests {
             &b_sectors,
             &recs,
             &recs,
-            &crate::boolean::DeclaredPairs::default(),
-            &crate::boolean::ContactRecords::default(),
+            &crate::boolean::GluedPairs::default(),
+            &crate::boolean::ReductionContacts::default(),
             BooleanOp::Union,
             geom_core::Band::linear(Tol::witness()).unwrap(),
         )
@@ -3216,6 +3288,108 @@ mod tests {
         assert!(
             got.is_err(),
             "decided with no comparand away from zero: {got:?}"
+        );
+    }
+
+    /// **A germ tangent to a bound of its sector moves to the sector
+    /// across that bound, and only there.** A's orbit is a cube's
+    /// corner: sectors on `z = 0` (from `+x` to `+y`), `x = 0` (`+y` to
+    /// `+z`) and `y = 0` (`+z` to `+x`), each `start` its successor's
+    /// `end`. B's sector lies in the plane through `+y` that parts `+x`
+    /// from `+z`, so the `z = 0` sector reads its `start` On. A germ there
+    /// whose locus is the `x = 0` face moves one sector on; one whose
+    /// locus is the `y = 0` face, which lies across no On bound, stays.
+    /// Read from the `x = 0` sector, whose `end` is On, the germ moves one
+    /// back to `z = 0`. A plane through `+y` that leaves `+x` and `+z` on
+    /// one side reads the moved sector's far bound against the record's,
+    /// which refuses.
+    #[test]
+    fn a_germ_tangent_to_a_bound_reads_in_the_sector_across_it() {
+        use super::super::sectors::{Reach, pair_codes};
+        use crate::boolean::Locus;
+        use geom_brep::OutwardNormal;
+        use geom_core::Point3;
+        let band = Band::linear(Tol::witness()).unwrap();
+        let prism = crate::test_support_fixtures::prism_z::<f64>(
+            &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
+            0.0,
+            1.0,
+            Tol::witness(),
+        );
+        let faces: Vec<FaceKey> = prism.body.faces().map(|(f, _)| f).take(4).collect();
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let (x, y, z) = (Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z());
+        let sector = |end: Vec3<f64>, start: Vec3<f64>, normal: Vec3<f64>, face| BoolSector {
+            he: HalfEdgeKey::default(),
+            start,
+            end,
+            start_reach: Reach::Chord {
+                base: o,
+                far: o + start,
+            },
+            end_reach: Reach::Chord {
+                base: o,
+                far: o + end,
+            },
+            face,
+            normal: OutwardNormal::from_chart(normal, true),
+            arm: 1.0,
+        };
+        let a = [
+            sector(x, y, -z, faces[0]),
+            sector(y, z, -x, faces[1]),
+            sector(z, x, -y, faces[2]),
+        ];
+        // Clean the On of a raw tuple to the opposite of its other code.
+        let clean = |c: (SideCode, SideCode)| match c {
+            (SideCode::On, k) | (k, SideCode::On) => {
+                let other = if k == SideCode::In {
+                    SideCode::Out
+                } else {
+                    SideCode::In
+                };
+                if c.0 == SideCode::On {
+                    (other, k)
+                } else {
+                    (k, other)
+                }
+            }
+            c => c,
+        };
+        let read = |n: Vec3<f64>, i: usize, locus: FaceKey| {
+            let n = n.normalize();
+            // B's sector in its plane, straddling A's faces' planes.
+            let e = y.cross(n).normalize();
+            let b = [sector(y - e, y + e, n, faces[3])];
+            let (sa, sb) = pair_codes(&a[i], &b[0], band).unwrap();
+            let raw = PairRecord {
+                a: i,
+                b: 0,
+                sa,
+                sb,
+                intersect: true,
+            };
+            let r = PairRecord {
+                sa: clean(sa),
+                sb: clean(sb),
+                ..raw
+            };
+            let loci = (Locus::InFace(locus), Locus::InFace(faces[3]));
+            (raw, across_tangent(r, &raw, loci, (&a, &b), band))
+        };
+        let parting = Vec3::new(1.0, 0.0, -1.0);
+        let (raw, moved) = read(parting, 0, faces[1]);
+        assert_eq!(raw.sa.0, SideCode::On, "the z = 0 sector's start is On");
+        assert_eq!(moved.unwrap().a, 1, "moved one on, to x = 0");
+        let (_, kept) = read(parting, 0, faces[2]);
+        assert_eq!(kept.unwrap().a, 0, "no On bound faces y = 0: it stays");
+        let (raw, back) = read(parting, 1, faces[0]);
+        assert_eq!(raw.sa.1, SideCode::On, "the x = 0 sector's end is On");
+        assert_eq!(back.unwrap().a, 0, "moved one back, to z = 0");
+        let (_, refused) = read(Vec3::new(1.0, 0.0, 1.0), 0, faces[1]);
+        assert!(
+            matches!(refused, Err(BooleanError::ClassificationInvariant { .. })),
+            "{refused:?}"
         );
     }
 }

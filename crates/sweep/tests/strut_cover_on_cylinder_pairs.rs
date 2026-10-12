@@ -1,17 +1,14 @@
 //! **The strut source of the one-sided cover on cylinder pairs**
 //! (`topo::boolean`'s `tangency_certifies_side`, its strut column),
-//! measured and pinned. The strut column admits plane × cylinder only;
-//! the cylinder × cylinder row waits on INTENT stage 4
-//! (`work/tang/the-strut-cover-on-cylinder-pairs.md`).
+//! measured and pinned.
 //!
 //! A plate whose outline runs a big arc into a small one, tangent at
 //! the joint, is extruded: its two walls are cylinders tangent along a
 //! ruling, and the edge between them is described
 //! `TangentIntersection`: the small arc is authored as the big one's
 //! tangent continuation (`.tangent()`), a constructed tangency, as the
-//! rounded stack's fillets are. Two such plates are stacked with
-//! every flush finding declared, as the rounded stack of
-//! `reach_continuation` is. The union needs the strut cover on the
+//! rounded stack's fillets are. Two such plates are stacked, as the
+//! rounded stack of `reach_continuation` is. The union needs the strut cover on the
 //! cylinder pair: the lower plate's tangent ruling ends on the upper
 //! plate's continued wall, and the cover is what lets that endpoint
 //! through the crossing layer. Three stacks, in both member orders: the
@@ -21,14 +18,14 @@
 //! comes from the lower plate's strut in each direction the row
 //! certifies.
 //!
-//! The run rows pin today's outcome: every stack refuses at the
-//! crossing layer declared and at the carrier ladder undeclared, and
-//! the one-profile capsule's sphere × cylinder strut, met by a coaxial
-//! rod, refuses at the crossing layer. The `#[ignore]`d rows are the
-//! cylinder row's witness: with the row admitted (the item's diff) the
-//! stacks build at their closed form and meet their point probes, and
-//! their subtract and intersect stop at the fallback extent. Run them
-//! with `cargo nextest run -p sweep --run-ignored only -E
+//! The rows pin the outcome: every stack unions at its closed form,
+//! its subtract and intersect stop at the fallback extent; the
+//! one-profile capsule's
+//! sphere × cylinder strut, met by a coaxial rod, refuses at the
+//! crossing layer, save the rod ending on the joint, which unions at its
+//! closed form in both member orders. The `#[ignore]`d row meters the covered stack against
+//! point probes through its mesh, which the tessellation refuses; run
+//! it with `cargo nextest run -p sweep --run-ignored only -E
 //! 'test(strut_cover_on_cylinder_pairs)'`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -39,10 +36,7 @@ use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{ArcSweep, Center, Open, ProfileLoop, Start};
 use sweep::test_support::{extruded, finished, sketch_at};
 use sweep::{ExtrudeSide, Extrusion, Revolution, extrude};
-use topo::{
-    AtRestBody, Body, BooleanCoincidence, BooleanDeclarations, BooleanError, BooleanResult,
-    FaceKey, FacePairDeclaration,
-};
+use topo::{AtRestBody, Body, BooleanError, BooleanResult};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -215,13 +209,6 @@ fn tangent_struts(b: &Body<f64>) -> Vec<(SurfaceKind, SurfaceKind)> {
         .collect()
 }
 
-/// The flush detector's findings between `a` and `b`, every one
-/// declared: the mating plane `Rest` and the walls continuations.
-fn findings(a: &Body<f64>, b: &Body<f64>) -> BooleanDeclarations {
-    let found = topo::flush::find_flush_candidates(a, b, tol()).expect("the plates decide");
-    topo::flush::declare_all(&found)
-}
-
 /// The generalized winding number of the closed triangle mesh about
 /// `p`: 1 inside, 0 outside, read from the triangles alone.
 fn winding(mesh: &mesh::Mesh, p: [f64; 3]) -> f64 {
@@ -258,7 +245,7 @@ const STACKS: [(Outline, Outline); 3] = [
     (Outline::Inside, Outline::CutBack),
 ];
 
-/// One stack united in both member orders with every finding declared:
+/// One stack united in both member orders:
 /// each order's label and its body, valid at tier 3 and 3′.
 fn stacks(lower: Outline, upper: Outline) -> Vec<(String, topo::BooleanBody<f64>)> {
     let (p, q) = (plate(lower, 0.0), plate(upper, 1.0));
@@ -271,8 +258,7 @@ fn stacks(lower: Outline, upper: Outline) -> Vec<(String, topo::BooleanBody<f64>
         .into_iter()
         .map(|(order, a, b)| {
             let label = format!("{lower:?} under {upper:?}, {order}");
-            let out = topo::union_with(a, b, &findings(a, b), tol())
-                .unwrap_or_else(|e| panic!("{label}: builds: {e:?}"));
+            let out = topo::union(a, b, tol()).unwrap_or_else(|e| panic!("{label}: builds: {e:?}"));
             let BooleanResult::Body(bb) = out else {
                 panic!("{label}: a stack is not empty");
             };
@@ -291,21 +277,16 @@ fn stacks(lower: Outline, upper: Outline) -> Vec<(String, topo::BooleanBody<f64>
         .collect()
 }
 
-/// **Every arc-joint stack refuses today**, in both member orders: its
-/// union, subtract and intersect, every flush finding declared, refuse
-/// `CurvedPierceUnsupported` at the crossing layer, where the lower
-/// plate's tangent ruling ends on the upper plate's continued wall and
-/// the strut column has no cylinder row to cover it; undeclared, the
-/// union refuses `UndeclaredCoincidence` at the carrier ladder before
-/// any cover is built.
-///
-/// When the cylinder × cylinder strut row lands, the declared union
-/// flips to the closed-form build
-/// ([`two_cylinders_tangent_along_a_ruling_cover_the_stack`]) and the
-/// subtract and intersect to `FallbackExtentUnsupported`
+/// **Every arc-joint stack unions and stops its subtract and intersect
+/// at the fallback extent**, in both member orders: the lower plate's tangent ruling ends on the upper plate's
+/// continued wall, and the cover takes each op past the crossing layer.
+/// The union builds ([`two_cylinders_tangent_along_a_ruling_cover_the_stack`]
+/// meters it); the subtract and intersect refuse
+/// `FallbackExtentUnsupported`, the no-crossings path unable to certify
+/// the continued walls' abutment
 /// ([`the_stacks_subtract_and_intersect_stop_at_the_fallback_extent`]).
 #[test]
-fn the_arc_joint_stacks_refuse_at_the_crossing_layer() {
+fn the_arc_joint_stacks_union_and_stop_at_the_fallback_extent() {
     for (lower, upper) in STACKS {
         let (p, q) = (plate(lower, 0.0), plate(upper, 1.0));
         assert_eq!(
@@ -315,22 +296,23 @@ fn the_arc_joint_stacks_refuse_at_the_crossing_layer() {
         );
         for (order, a, b) in [("P, Q", &p, &q), ("Q, P", &q, &p)] {
             let label = format!("{lower:?} under {upper:?}, {order}");
-            let d = findings(a, b);
             for (op, r) in [
-                ("∪", topo::union_with(a, b, &d, tol())),
-                ("∖", topo::subtract_with(a, b, &d, tol())),
-                ("∩", topo::intersect_with(a, b, &d, tol())),
+                ("∪", topo::union(a, b, tol())),
+                ("∖", topo::subtract(a, b, tol())),
+                ("∩", topo::intersect(a, b, tol())),
             ] {
-                assert!(
-                    matches!(r, Err(BooleanError::CurvedPierceUnsupported { .. })),
-                    "{label}, {op} declared: {r:?}"
-                );
+                if op == "∪" {
+                    assert!(
+                        matches!(r, Ok(BooleanResult::Body(_))),
+                        "{label}, ∪: builds: {r:?}"
+                    );
+                } else {
+                    assert!(
+                        matches!(r, Err(BooleanError::FallbackExtentUnsupported { .. })),
+                        "{label}, {op}: {r:?}"
+                    );
+                }
             }
-            let r = topo::union(a, b, tol());
-            assert!(
-                matches!(r, Err(BooleanError::UndeclaredCoincidence { .. })),
-                "{label}, ∪ undeclared: {r:?}"
-            );
         }
     }
 }
@@ -340,15 +322,7 @@ fn the_arc_joint_stacks_refuse_at_the_crossing_layer() {
 /// 3′, at the two outlines' closed-form areas summed. The lower plate
 /// carries its strut, one tangent ruling between two cylinders, and
 /// nothing else tangent.
-///
-/// Refuses `CurvedPierceUnsupported` without the strut column's
-/// cylinder row ([`the_arc_joint_stacks_refuse_at_the_crossing_layer`]).
-/// The cut-back stack is red with either of the row's two directions
-/// dropped (the strut face on one side of the upper wall, and the upper
-/// wall on one side of the strut face); the stacks of one outline
-/// build on either alone, each plate's strut covering the other's.
 #[test]
-#[ignore = "the cylinder × cylinder strut row's witness, parked on INTENT stage 4: apply the diff in work/tang/the-strut-cover-on-cylinder-pairs.md and run with --run-ignored only"]
 fn two_cylinders_tangent_along_a_ruling_cover_the_stack() {
     for (lower, upper) in STACKS {
         let want = area(lower) + area(upper);
@@ -369,7 +343,7 @@ fn two_cylinders_tangent_along_a_ruling_cover_the_stack() {
 /// the union's watertight mesh puts it, in every stack and both member
 /// orders.
 #[test]
-#[ignore = "the cylinder × cylinder strut row's witness, parked on INTENT stage 4: apply the diff in work/tang/the-strut-cover-on-cylinder-pairs.md and run with --run-ignored only"]
+#[ignore = "the covered stack's tessellation refuses CertificateExceeded on the lower plate's wall at 5e-3; run with --run-ignored only"]
 fn the_covered_stack_meets_its_point_probes() {
     for (lower, upper) in STACKS {
         for (label, bb) in stacks(lower, upper) {
@@ -409,22 +383,20 @@ fn the_covered_stack_meets_its_point_probes() {
     }
 }
 
-/// **With the cylinder row, the stack's subtract and intersect stop
+/// **The stack's subtract and intersect stop
 /// at the fallback extent**, as the rounded stack's do
 /// (`reach_continuation`;
 /// `rounded-stack-subtract-and-intersect-refuse-fallback-extent`): the
 /// cover takes them past the crossing layer, and the no-crossings path
 /// cannot certify the continued walls' abutment.
 #[test]
-#[ignore = "the cylinder × cylinder strut row's witness, parked on INTENT stage 4: apply the diff in work/tang/the-strut-cover-on-cylinder-pairs.md and run with --run-ignored only"]
 fn the_stacks_subtract_and_intersect_stop_at_the_fallback_extent() {
     for shape in [Outline::Inside, Outline::S] {
         let (p, q) = (plate(shape, 0.0), plate(shape, 1.0));
         for (order, a, b) in [("P, Q", &p, &q), ("Q, P", &q, &p)] {
-            let d = findings(a, b);
             for (op, r) in [
-                ("∖", topo::subtract_with(a, b, &d, tol())),
-                ("∩", topo::intersect_with(a, b, &d, tol())),
+                ("∖", topo::subtract(a, b, tol())),
+                ("∩", topo::intersect(a, b, tol())),
             ] {
                 assert!(
                     matches!(r, Err(BooleanError::FallbackExtentUnsupported { .. })),
@@ -491,41 +463,18 @@ fn rod(z0: f64, len: f64) -> AtRestBody<f64> {
     finished("the rod", rod, t)
 }
 
-/// Every cylinder face of `x` against every one of `y`, continuations.
-fn walls_continued(x: &Body<f64>, y: &Body<f64>) -> BooleanDeclarations {
-    let walls = |b: &Body<f64>| -> Vec<FaceKey> {
-        b.faces()
-            .filter(|(_, f)| {
-                b.get_surface(f.surface).map(geom::Surface::kind) == Some(SurfaceKind::Cylinder)
-            })
-            .map(|(k, _)| k)
-            .collect()
-    };
-    let mut d = BooleanDeclarations::none();
-    for fa in walls(x) {
-        for fb in walls(y) {
-            d.coincident_faces.push(FacePairDeclaration::new(
-                fa,
-                fb,
-                BooleanCoincidence::Continuation,
-            ));
-        }
-    }
-    d
-}
-
 /// **The capsule's sphere × cylinder strut has no witness yet**: a
-/// coaxial rod of the capsule's radius, its wall declared a
-/// continuation of the capsule's, reaching the joint circle (ending on
-/// it, past it into the half ball, past the whole ball, or starting
-/// from it) refuses `CurvedPierceUnsupported` in both member orders.
-/// With the strut column's sphere row admitted each one refuses at a
-/// later door instead (the join's `CurvedBooleanUnsupported`, the
-/// interior-loop guard's `CurvedPairUnsupported`, or an escalated
-/// sector coincidence), so that row waits for a witness. Undeclared,
-/// each refuses `UndeclaredCoincidence` at the carrier ladder. A rod
-/// stopping short of the joint, which no cover is asked about, builds
-/// at its closed form.
+/// coaxial rod of the capsule's radius, its wall a continuation of the
+/// capsule's, reaching the joint circle past it
+/// (into the half ball, or past the whole ball) or starting from it
+/// refuses `CurvedPierceUnsupported` in both member orders. Ending ON
+/// the joint, the union builds in both member orders, the capsule with
+/// the rod's stub below it. With the
+/// strut column's sphere row admitted each pose refuses at a later door
+/// instead (the join's `CurvedBooleanUnsupported`, the interior-loop
+/// guard's `CurvedPairUnsupported`, or an escalated sector coincidence),
+/// so that row waits for a witness. A rod stopping short of the joint, which no cover is
+/// asked about, builds at its closed form.
 #[test]
 fn the_capsules_strut_waits_at_the_crossing_layer() {
     let cap = capsule();
@@ -537,6 +486,7 @@ fn the_capsules_strut_waits_at_the_crossing_layer() {
             }),
         "the capsule's joint, two semicircles between its tube and half ball: {struts:?}"
     );
+    let capsule_volume = PI * R * R * H + 2.0 / 3.0 * PI * R.powi(3);
     for (pose, z0, len) in [
         ("ending on the joint", -1.0, 1.0 + H),
         ("into the half ball", -1.0, 1.0 + H + R / 2.0),
@@ -545,22 +495,29 @@ fn the_capsules_strut_waits_at_the_crossing_layer() {
     ] {
         let rod = rod(z0, len);
         for (order, a, b) in [("capsule, rod", &cap, &rod), ("rod, capsule", &rod, &cap)] {
-            let r = topo::union_with(a, b, &walls_continued(a, b), tol());
-            assert!(
-                matches!(r, Err(BooleanError::CurvedPierceUnsupported { .. })),
-                "{pose}, {order}, declared: {r:?}"
-            );
-            let r = topo::union(a, b, tol());
-            assert!(
-                matches!(r, Err(BooleanError::UndeclaredCoincidence { .. })),
-                "{pose}, {order}, undeclared: {r:?}"
-            );
+            let got = topo::union(a, b, tol());
+            match (pose, order, &got) {
+                ("ending on the joint", _, Ok(BooleanResult::Body(bb))) => {
+                    let v = topo::mass_properties(&bb.body, tol()).unwrap().volume;
+                    let want = capsule_volume + PI * R * R;
+                    assert!(
+                        (v - want).abs() <= 1e-12 * want,
+                        "{pose}, {order}: {v} against {want}"
+                    );
+                }
+                (
+                    "into the half ball" | "over the half ball" | "from the joint",
+                    _,
+                    Err(BooleanError::CurvedPierceUnsupported { .. }),
+                ) => {}
+                _ => panic!("{pose}, {order}: {got:?}"),
+            }
         }
     }
     let rod = rod(-1.0, 1.0 + H / 2.0);
     let want = PI * R * R * (H + 1.0) + 2.0 / 3.0 * PI * R.powi(3);
     for (order, a, b) in [("capsule, rod", &cap, &rod), ("rod, capsule", &rod, &cap)] {
-        let r = topo::union_with(a, b, &walls_continued(a, b), tol());
+        let r = topo::union(a, b, tol());
         let Ok(BooleanResult::Body(bb)) = r else {
             panic!("short of the joint, {order}: builds: {r:?}");
         };

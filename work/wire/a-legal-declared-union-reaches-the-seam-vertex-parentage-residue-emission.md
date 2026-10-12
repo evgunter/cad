@@ -88,3 +88,16 @@ every pose (`a_vertex_read_by_two_sector_passes::every_scene_builds_sound_or_ref
 so the refusal is the emitter's. `crates/editor-core/src/names/emit_topo.rs`,
 `touch_reread_rows::no_rule`, allows exactly these cells and cites this
 item.
+
+## Reached undeclared (INTENT stage 4 PR E, 2026-10-10)
+
+PR E glues `(a, h)`'s flush walls undeclared. In
+`emit_shared_rim_several::no_order_of_the_probe_corpus_refuses_several_shared_rims`
+only `(a, b)` is declared, and `row` and `rowids` now reach this
+residue in `[a, h, b, g]` and `[h, a, b, g]`. That is the same pair of
+orders the declared row measured. The test admits it by name
+(`RESIDUES`).
+
+## More orders reach it (stage 4 F, 2026-10-11)
+
+With declarations retired, the member orders that used to refuse `DeclareResolve` first now run, and more of them reach this residue. `emit_seam_junction`'s four members: 2 orders → 8 (every order that folds `a` and `h` before `b`). `emit_union_rim_piece_ranks`' covered contact: 2 → 8. `row` and `rowids`: 2 → 8 each. In each of these the order refused before and refuses now, and no order that fused moved (`emit_shared_rim_several`'s 256 fused cells hold).

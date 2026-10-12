@@ -13,19 +13,9 @@ fn import_text(text: &str) -> Result<StepImport, StepImportError> {
 }
 
 fn solid(text: &str, what: &str) -> topo::Body<f64> {
-    let options = if what.contains("kiss") {
-        // The corner kiss is declared through the M9-2 import channel
-        // (D7 step 4); undeclared it refuses at the shared 3′ gate.
-        ImportOptions {
-            declared_contacts: vec![step_import::ImportContact::VertexRest {
-                at: [1.0, 1.0, 1.0],
-            }],
-            ..ImportOptions::default()
-        }
-    } else {
-        ImportOptions::default()
-    };
-    match import_step(text, &options, Tol::witness()).unwrap_or_else(|e| panic!("{what}: {e}")) {
+    match import_step(text, &ImportOptions::default(), Tol::witness())
+        .unwrap_or_else(|e| panic!("{what}: {e}"))
+    {
         StepImport::Solid { body, .. } => body,
         StepImport::Wireframe { .. } => panic!("{what}: wireframe"),
     }

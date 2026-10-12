@@ -26,7 +26,7 @@ fn site_mint_scaling() {
     let frame = CylFrame::canonical(1.0);
     for n in [25_usize, 50, 100, 200, 400] {
         let mut body = Body::<f64>::new();
-        let wall = cyl_wall_sheet(&mut body, frame, None, (0.2, 1.4), (0.0, 1.0), tol);
+        let wall = cyl_wall_sheet(&mut body, frame, (0.2, 1.4), (0.0, 1.0), tol);
         let rim = body
             .edges()
             .map(|(e, _)| e)

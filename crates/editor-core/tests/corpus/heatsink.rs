@@ -29,9 +29,7 @@
 //! the base half of the DAG is reused).
 
 use editor_core::ExtrudeSide;
-use editor_core::{
-    BooleanOp, Dimension, DocEdit, Formula, FreeVar, Node, PatternKind, SlotId, VarName,
-};
+use editor_core::{Dimension, DocEdit, Formula, FreeVar, Node, PatternKind, SlotId, VarName};
 
 use crate::fixture::{ang, len, scl};
 
@@ -56,7 +54,7 @@ pub fn document() -> CorpusDoc {
         vec![vec![(0.0, 0.0), (3.0, 0.0), (3.0, 1.0), (0.0, 1.0)]],
     );
     let base = r.insert(Node::Extrude {
-        profile: base_p,
+        profile: base_p.into(),
         distance: len(0.25),
         side: ExtrudeSide::Along,
     });
@@ -72,13 +70,13 @@ pub fn document() -> CorpusDoc {
         ]],
     );
     let fin = r.insert(Node::Extrude {
-        profile: fin_p,
+        profile: fin_p.into(),
         distance: len(0.8125),
         side: ExtrudeSide::Along,
     });
     // The instance-payload half of the document.
     let pattern = r.insert(Node::Pattern {
-        input: fin,
+        input: fin.into(),
         count: Formula::count(FINS),
         kind: PatternKind::Linear {
             direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -106,13 +104,13 @@ pub fn document() -> CorpusDoc {
                 angle: ang(0.0),
             },
         ));
-        acc = r.insert(Node::Boolean {
-            op: BooleanOp::Union,
-            a: acc,
-            b: tr,
-            declare: Vec::new(),
+        acc = r.insert(Node::Union {
+            members: editor_core::Bodies::Spelled(vec![acc.into(), tr.into()]),
         });
     }
+
+    r.place(acc);
+    super::place_instances(&mut r, pattern, FINS);
 
     CorpusDoc {
         name: "heat_sink",
@@ -127,7 +125,7 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: fin,
             slot: SlotId::Distance,
-            expr: len(0.6875),
+            value: len(0.6875).into(),
             fresh: Vec::new(),
         },
         bump_root: fin,

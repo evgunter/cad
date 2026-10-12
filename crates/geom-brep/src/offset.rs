@@ -102,8 +102,7 @@
 
 use geom::Surface;
 use geom_core::{
-    Band, Indeterminate, KERNEL_DEFECT_ENDING, Margin, NO_DECLARATION_RECOURSE, NOT_YET_ENDING,
-    Sign,
+    Band, COINCIDENCE_RECOURSE, Indeterminate, KERNEL_DEFECT_ENDING, Margin, NOT_YET_ENDING, Sign,
 };
 
 use crate::dihedral::decide;
@@ -302,13 +301,12 @@ impl<T: geom_core::Real> core::fmt::Display for OffsetError<T> {
                 "the surface is already a fitted offset, and offsetting one again is not \
                  built. {NOT_YET_ENDING}"
             ),
-            // The offset door takes no declaration, so the escalation's
-            // own lever is the geometry alone.
-            Self::Escalated { source } => write!(
-                f,
-                "whether the offset surface keeps a valid radius is too close to call: {}",
-                source.under(NO_DECLARATION_RECOURSE)
-            ),
+            Self::Escalated { source } => source
+                .undecided(
+                    "whether the offset surface keeps a valid radius",
+                    source.ending(COINCIDENCE_RECOURSE),
+                )
+                .fmt(f),
         }
     }
 }

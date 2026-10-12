@@ -254,8 +254,11 @@ impl<T: Decide> SpiricArc<T> {
                 Ok(_) => {}
                 Err(diag) => read = Some(diag),
             }
-            match decide(rows.on, Margin::of(gap), band) {
-                Ok(Sign::Zero) => return Ok(SpiricHit::On),
+            match geom_core::k_stats::decide_reported(rows.on, Margin::of(gap), band) {
+                Ok(geom_core::Decided {
+                    sign: Sign::Zero,
+                    margin,
+                }) => return Ok(SpiricHit::On(margin)),
                 Ok(_) => {}
                 Err(diag) => read = Some(diag),
             }
@@ -361,12 +364,13 @@ impl<T: Decide> SpiricArc<T> {
 }
 
 /// Where a point sits against a spiric arc — [`SpiricArc::contact`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum SpiricHit {
     /// Definitely off the arc.
     Off,
-    /// Within the band of a point of the arc, clear of its ends.
-    On,
+    /// Within the band of a point of the arc, clear of its ends, by the
+    /// margin that decided it.
+    On(geom_core::MarginDiag),
     /// Within the band of one of the arc's two ends.
     End,
     /// A piece outlasted the reading's depth or budget: not placed.
@@ -489,9 +493,8 @@ mod tests {
             "{lane}: not vacuous ({asked} asked, {inside} inside)"
         );
         let mid = point(at(0.3));
-        assert_eq!(
-            k.contact(mid, ROWS, band),
-            Ok(SpiricHit::On),
+        assert!(
+            matches!(k.contact(mid, ROWS, band), Ok(SpiricHit::On(_))),
             "{lane}: on the arc"
         );
         assert_eq!(

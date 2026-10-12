@@ -49,7 +49,7 @@ const OVER_BUDGET_DELTA: f64 = 1.0e-5;
 
 /// The tour's gallery ring, as the committed fixture.
 fn gallery_ring(tol: Tol) -> DocSession {
-    let mut session = DocSession::inline(gallery_ring_doc(tol), tol);
+    let mut session = crate::common::inline_without_door(gallery_ring_doc(tol), tol);
     session.pump();
     session
 }
@@ -180,8 +180,8 @@ fn the_gallery_ring_at_the_starting_delta_is_inside_the_budget() {
 #[test]
 fn a_document_inside_the_budget_is_drawn_as_asked() {
     let tol = Tol::witness();
-    let (doc, _root) = viewer::scene::plate_with_hole(tol).expect("the startup document");
-    let mut session = DocSession::inline(doc, tol);
+    let (doc, _) = viewer::scene::plate_with_hole(tol).expect("the startup document");
+    let mut session = crate::common::inline_without_door(doc, tol);
     session.pump();
     let body = session.landed_body().expect("the plate gathers");
     let requested = delta(INITIAL_DELTA);
@@ -1121,7 +1121,7 @@ fn the_budget_commits_the_delta_it_always_has() {
     let tol = Tol::witness();
     let mut answers: Vec<Answer> = Vec::new();
     for (document, doc) in budgeted_documents(tol) {
-        let mut session = DocSession::inline(doc, tol);
+        let mut session = crate::common::inline_without_door(doc, tol);
         session.pump();
         let body = session
             .landed_body()
@@ -1223,7 +1223,7 @@ fn no_probe_out_tessellates_the_picture_it_sizes() {
     let tol = Tol::witness();
     let mut flat_rows = 0_usize;
     for (document, doc) in budgeted_documents(tol) {
-        let mut session = DocSession::inline(doc, tol);
+        let mut session = crate::common::inline_without_door(doc, tol);
         session.pump();
         let body = session
             .landed_body()
@@ -1255,7 +1255,7 @@ fn no_probe_out_tessellates_the_picture_it_sizes() {
     );
 }
 
-/// The tour's two gallery documents — the multi-root ones the display
+/// The tour's two gallery documents — the multi-copy ones the display
 /// budget was written for.
 fn gallery_documents(tol: Tol) -> Vec<(&'static str, ProfileDoc)> {
     let tour = corpus::documents()
@@ -1308,7 +1308,7 @@ fn extent_of(body: &pncad::topo::Body<f64>, delta: f64, tol: Tol) -> f64 {
 fn a_bodys_count_has_stopped_falling_by_its_own_extent() {
     let tol = Tol::witness();
     for (document, doc) in budgeted_documents(tol) {
-        let mut session = DocSession::inline(doc, tol);
+        let mut session = crate::common::inline_without_door(doc, tol);
         session.pump();
         let body = session
             .landed_body()
@@ -1358,7 +1358,7 @@ fn a_bodys_count_has_stopped_falling_by_its_own_extent() {
 fn a_budget_delta_does_not_depend_on_the_delta_asked_for() {
     let tol = Tol::witness();
     for (document, doc) in gallery_documents(tol) {
-        let mut session = DocSession::inline(doc, tol);
+        let mut session = crate::common::inline_without_door(doc, tol);
         session.pump();
         let body = session
             .landed_body()
