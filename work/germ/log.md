@@ -1010,3 +1010,9 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - The row is `design: true`.
   - Per the protocol, one problem statement with no options (sha256 `44910a558af6`). Blinding byte 248, even: **Opus = A**, recorded on `analysis/design-fork/conic-past-band`. Designers A (Opus) and B (Fable) are dispatched concurrently as local subagents, each in its own lane dir.
   - The U-T2 fix pass is reading a CI red that it says is also red on clean main.
+- 2026-10-12 08:45 — **Conic fork: both first reports are in** (`scratchpad/fork-conic/report-{A,B}.md`).
+  - Both recommend no arm refusal, both say PCERT owns the cone image's cancellation, both correct the brief's framing, and both rate their recommendation "likely".
+  - They split on the final state:
+    - **A:** an anchored conic representation (re-pose the cause). Cites the Ev-ratified Q1 K rule (PR 4335).
+    - **B:** a representation-independent parameter-resolution check in the attachment certificate, so the refusal names the geometry lever. B ranks re-representation second and calls the check the reversible first step. B also flags D4 ¶4's size-range gate as unimplemented.
+  - **Reconciliation round 1:** each designer has the other's report verbatim (`round1.md` in its own lane dir) and is asked whether the two are a sequence.
