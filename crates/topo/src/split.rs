@@ -163,10 +163,12 @@ impl<T: Decide> Body<T> {
     /// [`geom_brep::Pcurve`] is a function of the carrier parameter
     /// and holds no interval of its own, so each child's image is the
     /// parent's restricted to its sub-interval, exactly as each
-    /// child's carrier is. A restriction DERIVES nothing, which is why
-    /// it re-certifies through `PcurveCache::certify` — `geom-brep`
-    /// declares that door `impl<T: Decide>` — and why the rows add no
-    /// bound to this op's own. Both restrictions
+    /// child's carrier is. A restriction DERIVES nothing: it
+    /// re-certifies the parent's image through the door that stated it
+    /// (`restate`: `PcurveCache::certify` for an exact row,
+    /// `certify_projected`, `certify_fitted` or `certify_general` for
+    /// the rest, the last three through the scalar's
+    /// [`crate::AtRestPolicy::fitted_lane`]). Both restrictions
     /// are certified in the plan phase
     /// ([`crate::pcurves::split_cache`]), so a face this op touches is
     /// never left half-minted and a refusal
@@ -178,18 +180,16 @@ impl<T: Decide> Body<T> {
     /// what is there, and minting what is missing is the producer's
     /// closing mint.
     ///
-    /// A projected row restricts like any other, its hull terms read
-    /// through the fitted door ([`crate::AtRestPolicy::fitted_lane`]).
-    /// Two frontiers, both stated at `split_cache`. A `Fitted` or
-    /// `General` row is left exactly as found. And on a
-    /// SPLINE chart the carry is exact — a described-NURBS wall's
-    /// `IsoLine`/`IsoArc` rows restrict like any other and tier 3
-    /// reads `Ok` — but the recovery step the caveat below names,
-    /// `mint_pcurves`, refuses on the body the split produces: the iso
-    /// derivation's rim arms map an edge's WHOLE interval onto the
-    /// chart's whole `u` domain, which a sub-edge no longer spans.
-    /// Pre-existing, filed on TRIM's slate; what changed here is that
-    /// a split of such a wall no longer NEEDS that pass.
+    /// Projected and fitted-grade rows restrict like any other. The
+    /// carry is exact on every chart; two readers of the split body are
+    /// narrower, both stated at `split_cache`. On a SPLINE chart the
+    /// recovery step the caveat below names, `mint_pcurves`, refuses on
+    /// a described-NURBS wall's split: the iso derivation's rim arms
+    /// map an edge's WHOLE interval onto the chart's whole `u` domain,
+    /// which a sub-edge no longer spans (pre-existing, filed on ISO's
+    /// slate; a split of such a wall no longer NEEDS that pass). And
+    /// the trimmed quadrature lane refuses a carried `General` row's
+    /// sub-range typed (filed on QUAD's slate).
     ///
     /// # Tier-3 caveat (review F2)
     ///
@@ -340,23 +340,22 @@ impl<T: Decide> Body<T> {
         // sub-intervals and re-certified. Read-only, so a refusal
         // leaves the body untouched like every gate above it.
         let [rows_plus, rows_minus] =
-            crate::pcurves::split_cache(self, [hp.key(), hm.key()], t, band, T::fitted_lane())
-                .map_err(
-                    |crate::pcurves::SplitRowError { half_edge, refusal }| match refusal {
-                        crate::pcurves::SplitRefusal::Certify(error) => EulerOpError::PcurveSplit {
+            crate::pcurves::split_cache(self, [hp.key(), hm.key()], t, band).map_err(
+                |crate::pcurves::SplitRowError { half_edge, refusal }| match refusal {
+                    crate::pcurves::SplitRefusal::Certify(error) => EulerOpError::PcurveSplit {
+                        edge,
+                        half_edge,
+                        error,
+                    },
+                    crate::pcurves::SplitRefusal::Joint(diag) => {
+                        EulerOpError::SplitJointUndecided {
                             edge,
                             half_edge,
-                            error,
-                        },
-                        crate::pcurves::SplitRefusal::Joint(diag) => {
-                            EulerOpError::SplitJointUndecided {
-                                edge,
-                                half_edge,
-                                diag,
-                            }
+                            diag,
                         }
-                    },
-                )?;
+                    }
+                },
+            )?;
 
         // ---- Mutation (infallible from here on). ----
         // Minting order (documented above): point, curve1, curve2,
