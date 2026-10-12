@@ -2,8 +2,9 @@
 id: a-pinch-vertex-is-named-by-the-fold-step-that-mints-it
 kind: issue
 title: A union's pinch vertex is named by the fold step that mints it, so its name depends on the member order
-status: open
+status: closed
 opened: 2026-10-06
+closed: 2026-10-12
 priority: P1
 cost: M
 ---
@@ -65,3 +66,15 @@ four wedges. What is left is two wedges with the plate (3 names, as on
 main): two members' edges meeting on a third member's face. It is
 filed with the touch ruling's residue as
 `work/emit/a-meeting-of-three-members-at-one-point-has-no-order-free-sense.md`.
+
+## Closed (branch `emit/vertex-run`, 2026-10-12)
+
+The residue, two wedges with the plate, is one name in all 6 member
+orders: the union names every non-corner vertex by the lines through it
+in the finished body (`emit_union::Flush::meeting`, names README N2), so
+the meeting point is the run of the two legs, each `Outside`, whichever
+step minted it. Three and four wedges, with and without the plate, are
+one run of their legs in every order. Pinned by
+`union_pinch_member_order::two_legs_on_the_plate_are_their_touch_in_every_member_order`
+and `the_junction_where_the_wedges_meet_has_one_name_in_every_member_order`;
+the build is `work/emit/a-meeting-of-three-members-at-one-point-has-no-order-free-sense.md`.

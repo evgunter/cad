@@ -1968,7 +1968,10 @@ impl<'a> SeamParent<'a> {
             if row.node != base.node || row.kind != seam_kind {
                 continue;
             }
-            let on_parent = row.path.iter().any(|seg| !self.cut_by(base, seg).is_empty());
+            let on_parent = row
+                .path
+                .iter()
+                .any(|seg| !self.cut_by(base, seg).is_empty());
             if !on_parent {
                 continue;
             }
@@ -2003,9 +2006,11 @@ impl<'a> SeamParent<'a> {
                     .map(|(_, l)| &*l.line)
                     .collect()
             }
-            RoleSeg::Crossing { edge, face, .. } => {
-                self.holds(base, edge).then_some(&**face).into_iter().collect()
-            }
+            RoleSeg::Crossing { edge, face, .. } => self
+                .holds(base, edge)
+                .then_some(&**face)
+                .into_iter()
+                .collect(),
             _ => Vec::new(),
         }
     }

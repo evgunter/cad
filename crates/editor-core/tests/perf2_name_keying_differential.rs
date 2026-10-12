@@ -170,9 +170,9 @@ fn sans_epsilon(t: &str) -> String {
 /// other document held its word.
 const PINNED: &[(&str, u64, u64)] = &[
     ("die", 0xd72f039cbf03dff5, 0xc4419fe7887fa041),
-    ("corner_table", 0xd096c8d3473a2924, 0xcc1c35defda29f84),
+    ("corner_table", 0x9ea78d8780a1cd68, 0xcc1c35defda29f84),
     ("heat_sink", 0x28a1b80da248137b, 0xf4af7c24a597adea),
-    ("crossing_slots", 0x4aed4fe32d24386f, 0xfd8f77c1f5dd4008),
+    ("crossing_slots", 0x3086170ae41a9a89, 0xfd8f77c1f5dd4008),
     ("nested_islands_105", 0x909dbef37a66ff00, 0xfbb23451ffa46126),
     (
         "nested_islands_106_depth1",

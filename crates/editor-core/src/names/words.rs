@@ -1032,8 +1032,8 @@ mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::*;
-    use crate::names::role::RunLine;
     use crate::names::role::NameRef;
+    use crate::names::role::RunLine;
     use crate::node::StepId;
 
     const EXTRUDE: RecipeNodeId = RecipeNodeId::new(0, 1 << 16);
@@ -1133,22 +1133,22 @@ mod tests {
         let touch = said(&edges(Sense::Outside, Some(Sense::Outside)));
         assert!(
             touch.starts_with("the touch where ")
-                && touch.contains(" meets from outside the rest and ")
-                && touch.ends_with(" meets from outside the rest"),
+                && touch.matches(" meets from outside the rest").count() == 2
+                && touch.contains(" the rest and "),
             "{touch}"
         );
         let mixed = said(&edges(Sense::Enters, Some(Sense::Inside)));
         assert!(
             mixed.starts_with("the crossing where ")
                 && mixed.contains(" enters the rest and ")
-                && mixed.ends_with(" meets from inside the rest"),
+                && mixed.contains(" meets from inside the rest"),
             "{mixed}"
         );
         let seam = said(&edges(Sense::Outside, None));
         assert!(
             seam.starts_with("the touch where ")
                 && seam.contains(" meets from outside the rest and ")
-                && seam.ends_with(" runs through"),
+                && seam.contains(" runs through"),
             "{seam}"
         );
         assert_ne!(

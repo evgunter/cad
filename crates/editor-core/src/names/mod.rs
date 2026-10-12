@@ -80,7 +80,8 @@ pub(crate) use nest::{read_door, write_door};
 pub use role::{
     CapEnd, EntityKind, FaceName, MeridianEnd, NameRef, NotAFaceName, PieceRole, PieceRun,
     ProfileEdgeRef, ProfileVertexRef, Qualifier, RimSupport, RolePath, RoleSeg, RunLine,
-    SectionCircle, Sense, SplitHalf, StableName, band, band_pi, band_rim, band_rim_pi, carried, meridian_vertex,
+    SectionCircle, Sense, SplitHalf, StableName, band, band_pi, band_rim, band_rim_pi, carried,
+    meridian_vertex,
 };
 pub(crate) use role::{Carry, SegRewrite, inert_seg, locator_seg};
 pub(crate) use role::{FOLD_A, FOLD_B, read_edge};

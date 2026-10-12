@@ -382,19 +382,14 @@ const KNOWN_MIXED: &[(&str, &str, usize, &str)] = &[("cross", "U", 10, "Naming:1
 /// `(label, union, (order, name) absences, their digest)`. The digest is
 /// [`fnv1a`] over the sorted `"<label> <union> <order>: <name>"` lines, so
 /// a change in WHICH names are missing turns the row red even where the
-/// count holds; the failure prints the new digest. In `cross` and
-/// `r1three`, whose flush contacts glue, the vertex where a member's face
-/// crosses a seam of two others, the seam edge's pieces it ends and, in
-/// `cross`, the merged faces those pieces bound are spelled by member
-/// order;
+/// count holds; the failure prints the new digest. In `cross`, whose
+/// flush contacts glue, the `Borders` set of a merged face's pieces is
+/// spelled by member order: 2 names absent in each of 14 orders;
 /// `work/emit/a-crossing-of-a-union-seam-is-spelled-by-member-order.md`
-/// owns it. A vertex where two member edges meet is named from the
-/// finished body (`emit_union::Flush::edge_crossing`), so `r5poke` and
+/// owns it. Every vertex is named from the finished body
+/// (`emit_union::Flush::meeting`), so `r1three`, `r5poke` and
 /// `r5pokehi` publish one table.
-const KNOWN_ABSENT: &[(&str, &str, usize, u64)] = &[
-    ("cross", "U", 140, 4903466734301499407),
-    ("r1three", "U", 480, 7402196657749732725),
-];
+const KNOWN_ABSENT: &[(&str, &str, usize, u64)] = &[("cross", "U", 28, 16065181359862335641)];
 
 /// One fused order and every entity it publishes, as sorted geometry.
 type OrderGeometry = (String, Vec<String>);
@@ -833,7 +828,9 @@ fn a_vertex_cites_a_member_edge_whole_and_lies_on_it() {
                             | RoleSeg::Crossing {
                                 edge: a, face: b, ..
                             } => vec![a.name(), b.name()],
-                            RoleSeg::EdgeCrossing(run) => run.iter().map(|l| l.line.name()).collect(),
+                            RoleSeg::EdgeCrossing(run) => {
+                                run.iter().map(|l| l.line.name()).collect()
+                            }
                             _ => continue,
                         };
                         for side in sides {

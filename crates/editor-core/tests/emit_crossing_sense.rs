@@ -71,8 +71,7 @@ fn two_crossing_edges_carry_each_ones_sense_against_the_other_block() {
     let body = body_of(&ev, u);
     let mut seen = 0;
     for (name, entry) in table(&ev, u).iter() {
-        let (Entry::Unique(r), [RoleSeg::EdgeCrossing(run)]) = (entry, name.path.as_slice())
-        else {
+        let (Entry::Unique(r), [RoleSeg::EdgeCrossing(run)]) = (entry, name.path.as_slice()) else {
             continue;
         };
         let EntityKey::Vertex(v) = r.key else {
@@ -231,7 +230,7 @@ fn a_corner_resting_on_a_face_is_the_corner_in_either_order() {
 
 /// **Where a member's edge crosses another's, the union names the vertex
 /// by the two edges and their senses in either member order**, read
-/// from the finished body (`emit_union::Flush::edge_crossing`): `b`
+/// from the finished body (`emit_union::Flush::meeting`): `b`
 /// stands out of `a`'s top, flush with it on the `y = 0` and `y = 1`
 /// walls and the bottom, and its lateral edge at `x = 1.5`, `y = 0`
 /// crosses `a`'s top rim there.

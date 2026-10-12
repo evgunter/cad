@@ -118,7 +118,7 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// scoped row held.
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
     ("scoped faces", [16, 43, 57, 55_705]),
-    ("full", [19, 123, 196, 411_600]),
+    ("full", [19, 122, 196, 411_498]),
 ];
 
 /// **A digest of every word the corpus's names say** — each name a
@@ -181,7 +181,7 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// `crossing_slots`, a rim piece named as a seam, two floor corners and
 /// the pieces ending at them say other words. No other document's words
 /// moved (`lib_g16_corpus_name_digests` moved that row alone).
-const SAID_DIGEST: u64 = 0xb636_efde_3119_f966;
+const SAID_DIGEST: u64 = 0x825d_ab47_ca34_6a4c;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a

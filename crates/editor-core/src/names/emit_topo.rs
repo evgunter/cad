@@ -772,7 +772,8 @@ fn oriented<T: geom_core::Real>(
 
 /// A crossed seam edge with no first side: neither way along it is a
 /// fact of the names, so neither is a crossing's sense.
-pub(super) const UNORIENTED: &str = "a crossed seam edge has no first side to orient its crossings by";
+pub(super) const UNORIENTED: &str =
+    "a crossed seam edge has no first side to orient its crossings by";
 
 /// One boolean operand under naming.
 pub(crate) struct OperandCtx<'a, T: Decide> {

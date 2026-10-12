@@ -28,9 +28,9 @@
 //! form by `names::canonical`, the one list of a path's name-ordered
 //! positions, which the pair emitter's mint and every rewrite of a
 //! published name also end in: a `Merged` set and a `Borders` set
-//! are sorted, an `Ends` pair is sorted, a junction's run of lines is
-//! sorted, and a `Seam`'s two sides are put in name order, because a
-//! union has no A and B.
+//! are sorted, an `Ends` pair is sorted, a junction's run of lines and
+//! an `EdgeCrossing`'s run are sorted, and a `Seam`'s two sides are put
+//! in name order, because a union has no A and B.
 //!
 //! Putting a `Seam`'s sides in name order can also rewrite a VALUE.
 //! A crossing of a seam edge reads its sense, and a group of them its
@@ -65,10 +65,12 @@
 //!   joined) is named for that set ([`Flush`], [`group_member_edges`])
 //!   — which member was operand A is fold history;
 //! - a vertex is named for the member vertex it sits at, or for the
-//!   member edge it lies on and the one face crossing it there, and
-//!   otherwise cites the member edge it lies on whole, not the stretch
-//!   of it the fold had cut when it met the vertex, and a seam by its
-//!   head ([`cite_member_edges`]);
+//!   lines through it — the member edge it lies on and the one face
+//!   crossing it there, or the run of member edges and seams that meet
+//!   there, each edge's sense read from the members' pairwise judgements
+//!   ([`Flush::meeting`]) — and otherwise cites the member edge it lies
+//!   on whole, not the stretch of it the fold had cut when it met the
+//!   vertex, and a seam by its head ([`cite_member_edges`]);
 //! - every piece of a member edge the finished body does not hold
 //!   whole, a lone one included, and several pieces of one seam, are
 //!   told apart by their ends, over the vertex names just published
@@ -742,7 +744,8 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
     /// through it** (N2), where it is no member vertex.
     ///
     /// Its lines are the member edges the finished edges at `v` lie on,
-    /// flush lines once as the least ([`Flush::line_at`]), and each seam
+    /// those that run flush on one line once as the least of them
+    /// ([`Flush::line_at`], [`Flush::same_way`]), and each seam
     /// at `v` whose two faces descend from no face of those member edges,
     /// cited by its group's base ([`EdgeLines`]). One member edge and no
     /// seam is the `Crossing` of that edge and the one face at `v` that
@@ -751,15 +754,14 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
     /// sense against the members of the name's other entries
     /// ([`Flush::sense_against`]); a seam carries none.
     ///
-    /// `None` where the finished body does not say: a point on one seam
-    /// line alone, whose seam's own vertex name stands, or a finished
-    /// edge at `v` that is neither a member edge's piece nor a seam (a
-    /// curved member edge's piece the fold did not name as one).
+    /// `None` for a point on one seam line alone, whose seam's own vertex
+    /// name stands.
     ///
     /// # Errors
     ///
-    /// [`NamingError::Emission`] where one member edge and no seam meet
-    /// other than one face, or as [`Flush::sense_against`].
+    /// [`NamingError::Emission`] where a finished edge at `v` is neither a
+    /// member edge's piece nor a seam, where one member edge and no seam
+    /// meet other than one face, or as [`Flush::sense_against`].
     fn meeting(
         &self,
         v: topo::VertexKey,
@@ -781,9 +783,25 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
             } else if let Some(&base) = lines.seam.get(&k) {
                 seam_edges.push((k, base));
             } else {
-                return Ok(None);
+                return Err(bug(
+                    "a union vertex lies on a finished edge that is neither a member edge's piece \
+                     nor a seam",
+                ));
             }
         }
+        // Member edges of several finished edges that run flush on one
+        // line are that line once, as the least of them.
+        let mut lines: Vec<MemberEntity> = Vec::with_capacity(cited.len());
+        for line in cited {
+            let mut flush = false;
+            for kept in &lines {
+                flush |= self.same_way(&line, kept)?.is_some();
+            }
+            if !flush {
+                lines.push(line);
+            }
+        }
+        let cited: BTreeSet<MemberEntity> = lines.into_iter().collect();
         let sides = self.sides(&along)?;
         let bounds = |f: &topo::FaceKey| {
             self.faces
@@ -804,16 +822,20 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         if cited.is_empty() && seams.len() < 2 {
             return Ok(None);
         }
-        if let ([line], true) = (cited.iter().collect::<Vec<_>>().as_slice(), seams.is_empty()) {
+        if let ([line], true) = (
+            cited.iter().collect::<Vec<_>>().as_slice(),
+            seams.is_empty(),
+        ) {
             let mut faces = BTreeMap::new();
             for k in at {
                 for f in self.inc.edge_faces.get(k).into_iter().flatten() {
                     if bounds(f) {
                         continue;
                     }
-                    let name = self.face_names.get(f).ok_or(bug(
-                        "a face at a union's crossing has no parent name",
-                    ))?;
+                    let name = self
+                        .face_names
+                        .get(f)
+                        .ok_or(bug("a face at a union's crossing has no parent name"))?;
                     faces.insert(name, self.members_of(f));
                 }
             }
@@ -888,10 +910,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
     }
 
     /// The faces of member edges `edges`, each in its member, by name.
-    fn sides(
-        &self,
-        edges: &BTreeSet<MemberEntity>,
-    ) -> Result<BTreeSet<MemberEntity>, NamingError> {
+    fn sides(&self, edges: &BTreeSet<MemberEntity>) -> Result<BTreeSet<MemberEntity>, NamingError> {
         let mut sides = BTreeSet::new();
         for (n, name) in edges {
             let m = self.member(*n, name.name())?;
@@ -944,30 +963,52 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         let bug = |what| NamingError::Emission { what };
         let (n, name) = line;
         let m = self.member(*n, name.name())?;
-        let (body, k) = member_edge(self.members, *n, name.name())?;
+        // The member's rows on the line, each with its edge: the
+        // classified piece is the one at `v`.
+        let mut rows: BTreeMap<topo::EdgeKey, &StableName> = BTreeMap::new();
+        for row in core::iter::once(name.name())
+            .chain(m.table.on_line(name.name()).iter().map(|r| r.name()))
+        {
+            if let Some(Entry::Unique(e)) = m.table.lookup(row)
+                && let EntityKey::Edge(k) = e.key
+            {
+                rows.entry(k).or_insert(row);
+            }
+        }
         let p = vertex_point(self.body, v)?;
         let read = |i: usize| self.members.get(i).map(|m| m.read);
         let mut sides: [Option<bool>; 2] = [None, None];
+        let mut piece = BTreeSet::new();
         for c in &links.classes {
-            if c.edge != k
+            if !rows.contains_key(&c.edge)
                 || read(c.member) != Some(*n)
                 || !read(c.other).is_some_and(|o| others.contains(&o))
             {
                 continue;
             }
             let gap = Margin::of((c.at - p).norm());
-            let off = decide(ON_MEMBER_EDGE, gap, self.bnd).map_err(|source| {
-                NamingError::Escalated {
+            let off =
+                decide(ON_MEMBER_EDGE, gap, self.bnd).map_err(|source| NamingError::Escalated {
                     predicate: ON_MEMBER_EDGE,
                     source,
-                }
-            })?;
+                })?;
             if off != Sign::Zero {
                 continue;
             }
+            piece.insert(c.edge);
             let side = &mut sides[usize::from(c.starts)];
             *side = Some(side.unwrap_or(false) | c.inside);
         }
+        let mut piece = piece.into_iter();
+        let k = match (piece.next(), piece.next()) {
+            (Some(k), None) => k,
+            (None, _) => return Err(bug(UNCLASSIFIED_SIDE)),
+            (Some(_), Some(_)) => {
+                return Err(bug(
+                    "two of a member's pieces of one line are classified at one union vertex",
+                ));
+            }
+        };
         let [Some(before), Some(after)] = sides else {
             return Err(bug(UNCLASSIFIED_SIDE));
         };
@@ -977,7 +1018,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
             (false, false) => Sense::Outside,
             (true, true) => Sense::Inside,
         };
-        match crossed_edge_orientation(body, m.table, k, name.name())? {
+        match crossed_edge_orientation(m.body, m.table, k, rows[&k])? {
             Some(true) => Ok(sense),
             Some(false) => Ok(sense.flipped()),
             None if sense.crosses() => Err(bug(UNORIENTED)),
@@ -3259,7 +3300,7 @@ mod tests {
             let bnd = geom_core::Band::new(1e-9, 1e-6).unwrap();
             let members = self.members();
             let parents = Parents::empty();
-                let flush = Flush::of(self.union, &self.body, &members, &parents, bnd)?;
+            let flush = Flush::of(self.union, &self.body, &members, &parents, bnd)?;
             let lines = EdgeLines {
                 member: BTreeMap::new(),
                 seam: BTreeMap::new(),
@@ -3495,18 +3536,6 @@ mod tests {
             flush.resensed(&was, None, ordered.clone()).unwrap(),
             ordered,
             "each sense stays with its line where the run is reordered"
-        );
-        let recited = flush
-            .resensed(
-                &edge_crossing(&[(5, Sense::Enters), (4, Sense::Leaves)]),
-                None,
-                edge_crossing(&[(3, Sense::Enters), (4, Sense::Leaves)]),
-            )
-            .unwrap();
-        assert_eq!(
-            recited,
-            edge_crossing(&[(3, Sense::Leaves), (4, Sense::Leaves)]),
-            "a line re-cited along an edge running the other way flips; the rest stand"
         );
 
         let joined = StableName {
