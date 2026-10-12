@@ -1820,6 +1820,10 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             "DescribeBendEscalated",
             F::DescribeBendEscalated { edge, diag: diag() },
         ),
+        (
+            "EdgeOnFacesEscalated",
+            F::EdgeOnFacesEscalated { edge, diag: diag() },
+        ),
         ("SmoothJoinRefuted", F::SmoothJoinRefuted { edge }),
         (
             "KnifeEdge",
