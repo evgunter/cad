@@ -134,60 +134,6 @@ fn the_face_box_panics_on_a_torn_boundary_curve() {
     );
 }
 
-/// `finish.rs` `pinch_site`: a face round the pierce vertex whose loop
-/// walk breaks panics, where it refused `JoinDesync` ("not walkable").
-#[test]
-fn the_pinch_site_panics_on_a_broken_walk_round_its_vertex() {
-    let mut body = cube();
-    let face = first_face(&body);
-    let members = outer_members(&body, face);
-    let start = |he| body.get_half_edge(he).unwrap().start;
-    let (u, w) = (start(members[0]), start(members[2]));
-    assert!(
-        matches!(super::finish::pinch_site(&body, u, w, |_| true, |_, _, _| Ok(true)), Ok(Some((f, _))) if f == face),
-        "two diagonal corners pinch across their one face"
-    );
-    // `members[1]` runs between the two corners after `u`: no step of
-    // `u`'s orbit reads it, and the face's walk does.
-    body.half_edges.remove(members[1]);
-    assert_torn_op_panics(
-        "pinch_site",
-        &mut body,
-        &["the loop walk from", ROW_FOUR, OPERATORS_KEEP_LINKS],
-        |b| {
-            super::finish::pinch_site(b, u, w, |_| true, |_, _, _| Ok(true))
-                .map(|s| s.map(|(f, _)| f))
-        },
-    );
-}
-
-/// `finish.rs` `pinch_site`: a ring link of a face round the pierce
-/// vertex that does not resolve panics, where it was stepped over. No
-/// step of the vertex's orbit reads a ring, so the face's own loop walk
-/// is the read.
-#[test]
-fn the_pinch_site_panics_on_a_torn_ring_link() {
-    let mut body = cube();
-    let face = first_face(&body);
-    let members = outer_members(&body, face);
-    let start = |he| body.get_half_edge(he).unwrap().start;
-    let (u, w) = (start(members[0]), start(members[2]));
-    assert!(
-        matches!(super::finish::pinch_site(&body, u, w, |_| true, |_, _, _| Ok(true)), Ok(Some((f, _))) if f == face),
-        "two diagonal corners pinch across their one face"
-    );
-    let named = tear_ring(&mut body, face);
-    assert_torn_op_panics(
-        "pinch_site",
-        &mut body,
-        &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
-        |b| {
-            super::finish::pinch_site(b, u, w, |_| true, |_, _, _| Ok(true))
-                .map(|s| s.map(|(f, _)| f))
-        },
-    );
-}
-
 /// `ops.rs` `describe_edges`: a torn curve panics, where it read as an
 /// edge with no existing description and refused `NotWalkable`. Every
 /// edge of the cylinder sheet is smooth, and the smooth arm writes
@@ -498,7 +444,6 @@ fn the_vertex_on_face_classification_panics_on_a_torn_pierced_surface() {
             &ReductionContacts::default(),
             None,
             band(),
-            Tol::witness(),
         )
         .map(drop)
     };

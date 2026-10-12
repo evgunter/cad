@@ -95,6 +95,8 @@ mod a_tube_ending_on_a_ball;
 mod an_annular_tube_through_a_plate;
 #[path = "an_arc_tangent_at_a_boolean_vertex.rs"]
 mod an_arc_tangent_at_a_boolean_vertex;
+#[path = "an_inside_out_thin_tube_operand.rs"]
+mod an_inside_out_thin_tube_operand;
 #[path = "at_rest_pcurve_faces.rs"]
 mod at_rest_pcurve_faces;
 #[path = "band_apart_partners_on_a_steep_ellipse.rs"]
