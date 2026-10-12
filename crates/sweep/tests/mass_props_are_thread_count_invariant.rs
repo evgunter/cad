@@ -202,7 +202,7 @@ fn sym_bodies() -> Vec<(String, Body<Sym<f64>>)> {
 
 fn counts_line(name: &str, door: &str, refused: bool, c: &SymCounts, shapes: usize) -> String {
     format!(
-        "{name} {door} {} decisions={} sz={} sg={} reg={} rref={} rcon={} num={} frozen={} shapes={}",
+        "{name} {door} {} decisions={} sz={} sg={} reg={} rref={} rcon={} num={} disp={} frozen={} shapes={}",
         if refused { "REFUSED" } else { "OK" },
         c.decisions(),
         c.symbolic_zero,
@@ -211,6 +211,7 @@ fn counts_line(name: &str, door: &str, refused: bool, c: &SymCounts, shapes: usi
         c.registrations_refused,
         c.registrations_contradicted,
         c.numeric,
+        c.theorems_disputed,
         c.frozen,
         shapes,
     )
