@@ -57,12 +57,34 @@ the band. It still sits under `JoinUndecided`, a refusal that says
 One reading, two verdicts. `JoinUndecided::diag` already returns
 `None` for it.
 
+`PcurveCertifyError::ending(reading)` (`pcurve_cache.rs`) gives the
+ending for the arms that are a decision's refused arm: `Escalated`,
+`ResidualExceeded`, `IntervalNotForward`, `AzimuthPeriodExceeded`,
+`TubePeriodExceeded` and `FittedEscalated`. Neither the Boolean's
+`Image` arm nor `JoinRefusal`'s calls it. `chart_iso_family` reaches
+`derive_harmonic`, which reaches `derive_class`, and a read of
+`derive_class` shows `Escalated` is reachable through that path:
+- `winding_escalated`, at four sites;
+- `incidence_escalated`, through `chart_incidence`,
+  `sphere_circle_incidence`, `torus_oblique_circle` and
+  `cone_conic_incidence`.
+
+So an incidence or winding margin in the band arrives at the join as
+`Image(Escalated)`. Today it renders as "undecided" with the bare
+`PcurveCertifyError` text at the Boolean, and as a kernel or file
+defect at the join door, while it is an undecided margin with an
+ending of its own. `derive_class`'s body was not seen to raise
+`ResidualExceeded` or the period arms: no grep hit, and the helpers it
+calls were not followed further.
+
 ## Repair shape
 
 - Give the chart-class arm a lever true of it at every door, ending
   `LeverOnly`.
 - Render both doors through `Indeterminate::undecided`.
 - Move `Image` out of `JoinReading` (or out of "undecided") so that
-  every door gives it one verdict.
+  every door gives it one verdict, ending it through
+  `PcurveCertifyError::ending` where it is a decision's arm.
+- Re-baseline `undecided_text::a_chart_image_that_did_not_derive_ends_without_a_recourse_today`.
 - Re-baseline, with literal text, `edge_join.rs`'s `undecided_text`
   tests and `validate.rs`'s `JoinUndecidedAtRest` fixtures.

@@ -7279,10 +7279,16 @@ pub enum IsoFamilyRefusal {
     /// (`pcurve_chart_radial_moving`): a ruling or a moving carrier,
     /// undecided. The mint takes the ruling's form there as a structure
     /// tie-break that its envelope keeps honest; a family cannot be
-    /// read off a tie-break. Its sentence carries the payload alone:
-    /// the ending is the door's that holds it.
+    /// read off a tie-break. Its sentence is the question
+    /// ([`ISO_FAMILY_CLAUSE`]) and the payload, with no ending; the join,
+    /// which holds it, reads the escalation and writes its own sentence
+    /// on the same clause.
     Undecided(Indeterminate),
 }
+
+/// What the chart-class reading of [`chart_iso_family`] asks of an
+/// edge, after "whether": the one spelling of that question.
+pub const ISO_FAMILY_CLAUSE: &str = "runs along a cylinder's ruling or around it";
 
 impl core::fmt::Display for IsoFamilyRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -7290,11 +7296,8 @@ impl core::fmt::Display for IsoFamilyRefusal {
             Self::Image(e) => write!(f, "{e}"),
             Self::Undecided(diag) => write!(
                 f,
-                concat!(
-                    "whether the edge runs along a cylinder's ruling or around it",
-                    geom_core::undecided!(),
-                    ": {}"
-                ),
+                concat!("whether the edge {}", geom_core::undecided!(), ": {}"),
+                ISO_FAMILY_CLAUSE,
                 diag.payload()
             ),
         }
