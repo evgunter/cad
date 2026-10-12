@@ -2,8 +2,11 @@
 id: second-derivative-sup-takes-a-control-net-beside-its-vector
 kind: issue
 title: nonrational_second_derivative_sup takes a control net beside its knot vector and re-mints its differenced level
-status: open
+status: review
+pr: 4838
 opened: 2026-10-10
+priority: P3
+cost: E
 ---
 
 
