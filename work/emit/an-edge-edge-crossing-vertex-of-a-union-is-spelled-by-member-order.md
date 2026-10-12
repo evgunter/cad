@@ -73,8 +73,9 @@ A union names a vertex where two member edges meet from the finished
 body, `EdgeCrossing` of the two in name order with the senses the fold
 step that minted it read (`emit_union::Flush::edge_crossing`).
 `r5poke` and `r5pokehi` publish one table in both orders
-(`KNOWN_ABSENT` holds neither), and `cross` drops from 266 absences to
-140: every one that went was an edge crossing, its face-crossing
+(`KNOWN_ABSENT` holds neither), and `cross` drops from main's 308
+absences (after the killed-lineage chase) to 140, a strict subset of
+main's: every one that went was an edge crossing, its face-crossing
 spelling in the other order, or a member-edge piece ending at it. What
 `cross` and `r1three` keep is a crossing of a union seam, filed as
 `work/emit/a-crossing-of-a-union-seam-is-spelled-by-member-order.md`.
