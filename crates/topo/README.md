@@ -250,9 +250,16 @@ kernel derives exactly which.
 
 A continuation is not a contact and not a `ContactClass`: a mate (and every
 record and census reading) speaks `ContactClass`, and a boolean glues a
-pair as a `GlueClass`, which is `Contact(ContactClass) | Continuation |
-Seam`. A mate cannot state a continuation, and at rest two flush walls
-carry nothing to verify.
+pair as a `GlueClass`, which is `Rest | Continuation | Tangent`. A mate
+cannot state a continuation, and at rest two flush walls carry nothing
+to verify. A glued `Tangent` is the tangency of two distinct carriers
+along a locus the witness lane certifies, and says nothing of the
+materials: whether the pair is a contact (a void crescent between the
+sheets), an overlap (a crescent both materials fill), a seam or a nested
+touch is read where it is consumed, by the lump and by the wedge of the
+result's junction (C7). `ContactClass::Tangent`, the record's and the
+mate's class, keeps its material claim, and a shared crescent
+contradicts it.
 
 Verification is `Rest`'s carrier rung with the sense bit reversed:
 carrier non-contradiction through the kind ladder, senses aligned as an
@@ -263,27 +270,15 @@ description of the group's arena-first face that lies in no other
 member's hole. That is ordinarily operand A's, and B's where A's face
 plugs a hole of B's.
 
-**Seam.** Two faces, one from each operand, on DISTINCT carriers tangent
-along a curve with their senses ALIGNED are a *seam*: the two surfaces
-join G1 along that curve, material wedge π. It is the aligned-sense twin
-of `Tangent`, as a continuation is of `Rest`, and like a continuation it
-is not a contact: a boolean glues it where the witness lane verifies it,
-and a mate cannot state it.
-
-Verification is the `Tangent` witness lane along the same locus with the
-sense bit reversed; opposed senses contradict it. Wherever the two faces
-touch along the curve, each must END there and the two must leave it on
-opposite sides. Each of these contradicts the seam, with the fact named:
-a cusp; a face running on through the curve where the other touches it;
-sides that differ along the curve; a pair touching nowhere. A pair that
-meets the curve only at a point (two faces of two face sets across a
-vertex of the curve) is read at that point when both faces end there; a
-pair sharing no point at all is the pair touching nowhere.
-
-Rim routing by material wedge (C7) then decides the rim, and the zip
-mints it as the smooth seam carrying `TangentIntersection`. A G1 joint
-authored inside one profile is the structural form of the same fact and
-needs no declaration.
+**Seam.** A *seam* is a junction of the result whose material wedge is
+π: two faces on distinct carriers joining G1 along a curve. It is read
+on the result, not glued on the operands: the boolean glues the two
+faces' tangency (`Tangent`), and the op and the membership decide which
+edge the result carries on the locus. One tangent pair can leave a seam
+under one op, a knife edge under another and no edge under a third.
+Rim routing by material wedge (C7) decides the rim, and the zip mints a
+seam carrying `TangentIntersection`. A G1 joint authored inside one
+profile is the structural form of the same fact.
 
 **The crossing layer's one-sided cover.** An edge touching the other
 operand's carrier — a root at an end, its interior uncertified — is
@@ -375,10 +370,10 @@ quiets it; no blanket "disable interference checking" exists.
 
 **C7 — The join lane.** At the curved coplanar-lump sites (`vtxfac.rs`,
 `recl.rs`) a tangent pair the witness lane decides (the
-glue door, `boolean/glue.rs`), or a `Rest` its margin decides, descends
-to second order (`sectors.rs`: the
+glue door, `boolean/glue.rs`), whichever side its materials lie on, or a
+`Rest` its margin decides, descends to second order (`sectors.rs`: the
 sector's relative transverse curvature signed against the other face's
-outward normal, the declaration bridging an exact zero). The join
+outward normal, the pair's sense bit bridging an exact zero). The join
 discards each side of a conformal contact whole, on any carrier the
 ladder certifies, and its finish fuses the two solids along the seam
 once, so at full engagement union volume is the operands' sum.
@@ -386,8 +381,12 @@ once, so at full engagement union volume is the operands' sum.
 A rim with a determinate G1 jet carries `TangentIntersection`. Rim
 routing reads the material wedge of a junction, an edge of the result
 that both tangent faces bound (`docs/MATE-7-TANGENCY-DESIGN.md`): π ⇒
-smooth seam (a glued `Seam` pair or structural); 0/2π ⇒ the cusp
-family, defined but unbuilt (`BooleanError::RimCuspArmUnbuilt`). Two
+smooth seam; 0/2π ⇒ the cusp family. A wedge-0 junction along a line
+locus builds through the ON-edge lane and passes tier 3 on its jet
+(κ_rel determinate); `BooleanError::RimCuspArmUnbuilt` remains where no
+locus arm exists. Two operands whose materials overlap beside a tangent
+locus (an overlapping tangency) leave a π junction under ∖, a wedge-0
+junction under ∩, and none under ∪, where the locus is interior. Two
 operands that touch only along a tangent line leave no junction: each
 keeps its own edge on the line, the membership decides every op, ∖
 returns the operand, ∩ is empty, and ∪ is two solids (D1's pieces) whose
@@ -403,7 +402,9 @@ mate declarations landed in `ContactRecords`, no boolean, no zip.
 
 **C8 — Ratification boundary.** Refusals are typed per class and retire
 per table arm, never wholesale; `CensusUnsupported` and
-`CurvedBooleanUnsupported` name the C4 recourse vocabulary. Still open:
+`CurvedBooleanUnsupported` name the C4 recourse vocabulary. A tangent
+pair the witness lane has a locus for is glued, so it never meets
+`CurvedBooleanUnsupported`, which remains the refusal outside the lane. Still open:
 NURBS↔analytic same-locus recognition; kinematics (records are
 geometric; mate solving is not here).
 
