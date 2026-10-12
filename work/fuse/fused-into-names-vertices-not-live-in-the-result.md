@@ -54,7 +54,7 @@ that records the kill without moving the point: the output stage's join
 (336, inside the joined edge) and the merge's pruning (432, inside the
 merged face). `BooleanNaming::settler` settles each result vertex,
 fused or not, on that live cell (`topo::Cell`), carrying the merge's
-kills into the naming (`merge_killed_vertices`), and refuses
+lineage into the naming (`merge_substitutions`), and refuses
 `SettleError` where a chase ends on no live cell or its rows cycle;
 `fused_into` is the fused vertices settled. The naming layer's answers are unchanged; citing a
 border that runs inside a face or an edge is

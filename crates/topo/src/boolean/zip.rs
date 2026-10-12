@@ -116,7 +116,7 @@ impl Fusions {
 
     /// The vertex `v` survives as, through every fusion.
     #[must_use]
-    pub(crate) fn survivor(&self, v: VertexKey) -> VertexKey {
+    pub fn survivor(&self, v: VertexKey) -> VertexKey {
         self.rows
             .iter()
             .fold(v, |at, &(dead, kept)| if at == dead { kept } else { at })

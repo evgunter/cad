@@ -179,6 +179,8 @@ pub use ops::{
     BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, SettleError,
     Settler, boolean_op_with, intersect, subtract, union,
 };
+#[cfg(feature = "sweep-testing")]
+pub use ops::{StagePoints, take_output_stage_points};
 pub use plane_eq::{PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, oriented_plane_eq};
 pub(crate) use records::incident;
 pub use records::{CarryRefusal, Contact, ContactKind, ContactPairError, ContactRecords};
