@@ -12,8 +12,13 @@ const R: f64 = 0.5;
 const DEPTH: f64 = 6.0;
 
 fn cylinder(tol: Tol) -> AtRestBody<f64> {
-    let lp = bulge_loop(vec![(Point2::new(-R, 0.0), 1.0), (Point2::new(R, 0.0), 1.0)]);
-    let profile = Profile::new(SketchPlane::xy(), vec![lp]).validate(tol).unwrap();
+    let lp = bulge_loop(vec![
+        (Point2::new(-R, 0.0), 1.0),
+        (Point2::new(R, 0.0), 1.0),
+    ]);
+    let profile = Profile::new(SketchPlane::xy(), vec![lp])
+        .validate(tol)
+        .unwrap();
     let c = extrude(
         &profile,
         Extrusion::Distance {
@@ -36,7 +41,12 @@ fn elliptic_piece(tol: Tol) -> (AtRestBody<f64>, Point3<f64>) {
         Vec3::new(-theta.sin(), 0.0, theta.cos()),
         tol,
     );
-    let lower = split(&body, &cut, tol).unwrap().below.body().unwrap().clone();
+    let lower = split(&body, &cut, tol)
+        .unwrap()
+        .below
+        .body()
+        .unwrap()
+        .clone();
     let apex = Point3::new(R, 0.0, DEPTH / 2.0 + R * theta.tan());
     (topo::test_support::finished("lower", lower, tol), apex)
 }
@@ -73,13 +83,25 @@ fn check_membership(
                 if d.abs() < 1e-3 {
                     continue;
                 }
-                let (want, other) = if d > 0.0 { (above, below) } else { (below, above) };
+                let (want, other) = if d > 0.0 {
+                    (above, below)
+                } else {
+                    (below, above)
+                };
                 let inn = |part: &SplitPart<f64>| match part.body() {
                     Some(b) => point_in_solid(b, p, band, tol).unwrap(),
                     None => SolidContainment::Out,
                 };
-                assert_eq!(inn(want), SolidContainment::In, "{label}: {p:?} (d={d}) not in its side");
-                assert_eq!(inn(other), SolidContainment::Out, "{label}: {p:?} (d={d}) in the other side");
+                assert_eq!(
+                    inn(want),
+                    SolidContainment::In,
+                    "{label}: {p:?} (d={d}) not in its side"
+                );
+                assert_eq!(
+                    inn(other),
+                    SolidContainment::Out,
+                    "{label}: {p:?} (d={d}) in the other side"
+                );
                 checked += 1;
             }
         }
@@ -89,7 +111,9 @@ fn check_membership(
 
 fn side_verdicts(v: &[geom_core::k_stats::Verdict]) -> Vec<(&'static str, Sign)> {
     v.iter()
-        .filter(|x| x.predicate.starts_with("conic_") || x.predicate.starts_with("tangent_sector_order2"))
+        .filter(|x| {
+            x.predicate.starts_with("conic_") || x.predicate.starts_with("tangent_sector_order2")
+        })
         .map(|x| (x.predicate, x.sign))
         .collect()
 }
@@ -100,17 +124,34 @@ fn side_verdicts(v: &[geom_core::k_stats::Verdict]) -> Vec<(&'static str, Sign)>
 fn p1_elliptic_ruling_plane_flipped_normal_lands_above() {
     let tol = Tol::witness();
     let (piece, apex) = elliptic_piece(tol);
-    for (n, want_above) in [(Vec3::new(1.0, 0.0, 0.0), false), (Vec3::new(-1.0, 0.0, 0.0), true)] {
+    for (n, want_above) in [
+        (Vec3::new(1.0, 0.0, 0.0), false),
+        (Vec3::new(-1.0, 0.0, 0.0), true),
+    ] {
         let plane = topo::test_support::split_plane(apex, n, tol);
         let br = Bracket::open();
         let r = split(&piece, &plane, tol).unwrap_or_else(|e| panic!("{n:?}: {e:?}"));
         let v = br.finish().verdicts;
         eprintln!("p1 n={n:?}: {:?}", side_verdicts(&v));
-        let (whole, empty) = if want_above { (&r.above, &r.below) } else { (&r.below, &r.above) };
-        assert!(matches!(empty, SplitPart::Empty), "{n:?}: the other side is empty");
+        let (whole, empty) = if want_above {
+            (&r.above, &r.below)
+        } else {
+            (&r.below, &r.above)
+        };
+        assert!(
+            matches!(empty, SplitPart::Empty),
+            "{n:?}: the other side is empty"
+        );
         assert!(whole.body().is_some(), "{n:?}: whole piece");
-        let want_sign = if want_above { Sign::Positive } else { Sign::Negative };
-        let c = v.iter().filter(|x| x.predicate == "conic_bend_side" && x.sign == want_sign).count();
+        let want_sign = if want_above {
+            Sign::Positive
+        } else {
+            Sign::Negative
+        };
+        let c = v
+            .iter()
+            .filter(|x| x.predicate == "conic_bend_side" && x.sign == want_sign)
+            .count();
         assert!(c >= 2, "{n:?}: conic_bend_side {want_sign:?} count {c}");
         let th = 0.2f64.acos();
         let inside = |p: Point3<f64>| {
@@ -128,13 +169,20 @@ fn p2_circle_ruling_plane_both_normals() {
     let tol = Tol::witness();
     let body = cylinder(tol);
     let o = Point3::new(R, 0.0, 0.0);
-    for (n, want_above) in [(Vec3::new(1.0, 0.0, 0.0), false), (Vec3::new(-1.0, 0.0, 0.0), true)] {
+    for (n, want_above) in [
+        (Vec3::new(1.0, 0.0, 0.0), false),
+        (Vec3::new(-1.0, 0.0, 0.0), true),
+    ] {
         let plane = topo::test_support::split_plane(o, n, tol);
         let br = Bracket::open();
         let r = split(&body, &plane, tol).unwrap_or_else(|e| panic!("{n:?}: {e:?}"));
         let v = br.finish().verdicts;
         eprintln!("p2 n={n:?}: {:?}", side_verdicts(&v));
-        let (whole, empty) = if want_above { (&r.above, &r.below) } else { (&r.below, &r.above) };
+        let (whole, empty) = if want_above {
+            (&r.above, &r.below)
+        } else {
+            (&r.below, &r.above)
+        };
         assert!(matches!(empty, SplitPart::Empty));
         assert!(whole.body().is_some());
         let k = check_membership("p2", &inside_cyl, &r.above, &r.below, o, n, tol);
@@ -187,7 +235,12 @@ fn p4_near_cap_plane_window() {
         let br = Bracket::open();
         let r = split(&body, &plane, tol);
         let v = br.finish().verdicts;
-        eprintln!("p4 m={m}: {:?} -> {:?}", side_verdicts(&v), r.as_ref().map(|r| (r.above.body().is_some(), r.below.body().is_some())));
+        eprintln!(
+            "p4 m={m}: {:?} -> {:?}",
+            side_verdicts(&v),
+            r.as_ref()
+                .map(|r| (r.above.body().is_some(), r.below.body().is_some()))
+        );
         match r {
             Ok(r) => {
                 if !(matches!(r.below, SplitPart::Empty) && r.above.body().is_some()) {
@@ -217,7 +270,9 @@ fn p5_quarter_arc_near_cap_plane_window() {
         (Point2::new(-R, 0.0), q),
         (Point2::new(0.0, -R), q),
     ]);
-    let profile = Profile::new(SketchPlane::xy(), vec![lp]).validate(tol).unwrap();
+    let profile = Profile::new(SketchPlane::xy(), vec![lp])
+        .validate(tol)
+        .unwrap();
     let c = extrude(
         &profile,
         Extrusion::Distance {
@@ -238,7 +293,12 @@ fn p5_quarter_arc_near_cap_plane_window() {
         let br = Bracket::open();
         let r = split(&body, &plane, tol);
         let v = br.finish().verdicts;
-        eprintln!("p5 m={m}: {:?} -> {:?}", side_verdicts(&v), r.as_ref().map(|r| (r.above.body().is_some(), r.below.body().is_some())));
+        eprintln!(
+            "p5 m={m}: {:?} -> {:?}",
+            side_verdicts(&v),
+            r.as_ref()
+                .map(|r| (r.above.body().is_some(), r.below.body().is_some()))
+        );
         match r {
             Ok(r) => {
                 if !(matches!(r.below, SplitPart::Empty) && r.above.body().is_some()) {

@@ -68,8 +68,6 @@ mod a_loft_computes_its_walls_in_t;
 mod a_move_through_a_neighbour_inverts_the_body;
 #[path = "a_plane_across_a_one_face_wall.rs"]
 mod a_plane_across_a_one_face_wall;
-#[path = "review_4826_conic_side_probe.rs"]
-mod review_4826_conic_side_probe;
 #[path = "a_plane_along_an_elliptic_cut.rs"]
 mod a_plane_along_an_elliptic_cut;
 #[path = "a_plane_moved_to_a_cone_apex.rs"]
@@ -218,6 +216,8 @@ mod r2_mesh1_donut_probes;
 mod rehome_rings_lune;
 #[path = "review_4704_flush_round_oracle.rs"]
 mod review_4704_flush_round_oracle;
+#[path = "review_4826_conic_side_probe.rs"]
+mod review_4826_conic_side_probe;
 #[path = "review_r2_vv_probes.rs"]
 mod review_r2_vv_probes;
 #[path = "review_sixx_r2_probes.rs"]
