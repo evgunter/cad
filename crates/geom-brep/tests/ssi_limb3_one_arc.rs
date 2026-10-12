@@ -834,33 +834,39 @@ fn loose_side_rows(grid: &[((f64, f64), f64, usize)], controls: &[usize]) {
             "{at}: the search's answer (branches, contacts, a region along the side)"
         );
         let got = declared(&wall, (0.0, 1.0));
-        if m <= 64 {
-            assert!(
-                matches!(
-                    got,
-                    Err(geom_brep::PlaneNurbsRefusal::TubeNotOneArc {
-                        cause: ssi::OneArcRefusal::Count { solutions: 0 },
-                        ..
-                    })
-                ),
+        let tube = matches!(
+            got,
+            Err(geom_brep::PlaneNurbsRefusal::TubeNotOneArc {
+                cause: ssi::OneArcRefusal::Count { solutions: 0 },
+                ..
+            })
+        );
+        let bound = matches!(
+            got,
+            Err(geom_brep::PlaneNurbsRefusal::Limb {
+                limb: ssi::SsiLimb::HullSup,
+                ..
+            } | geom_brep::PlaneNurbsRefusal::Escalated {
+                limb: ssi::SsiLimb::HullSup,
+                ..
+            })
+        );
+        match m {
+            ..=64 => assert!(
+                tube,
                 "{at}: the carrier along the side passes limbs 1 and 2, and its tube holds \
                  no solution: {got:?}"
-            );
-        } else {
-            assert!(
-                matches!(
-                    got,
-                    Err(geom_brep::PlaneNurbsRefusal::Limb {
-                        limb: ssi::SsiLimb::HullSup,
-                        ..
-                    } | geom_brep::PlaneNurbsRefusal::Escalated {
-                        limb: ssi::SsiLimb::HullSup,
-                        ..
-                    })
-                ),
+            ),
+            2048.. => assert!(
+                bound,
                 "{at}: limb 2's subdivision budget is spent, and it refuses on its bound: \
                  {got:?}"
-            );
+            ),
+            _ => assert!(
+                tube || bound,
+                "{at}: the carrier refuses, by its tube holding no solution or on limb 2's \
+                 bound: {got:?}"
+            ),
         }
     }
     for &m in controls {
@@ -878,14 +884,25 @@ fn loose_side_rows(grid: &[((f64, f64), f64, usize)], controls: &[usize]) {
 /// at rest.** `z = k·x + h(y)`, `h` over `m` C0 spans each `(P, −N, P)`,
 /// `P > N`: along the side `x = 0`, `φ = h ≥ (P − N)/2 > 0` and the wall
 /// rises inward, so the locus is empty, but every span's hull holds `−N`.
-/// The search answers no branch and no region. The carrier along the
-/// side lies within `P < ε` of the plane, so limb 2, subdivided, passes
-/// it over 64 spans, and its tube refuses with no solution in a box;
-/// over 256 or more, each of the composite's spans meets many of the
-/// wall's, its hull clears only after more halving than limb 2's budget
-/// holds, and it refuses on its bound. Red under the side's sign read on
-/// its unrefined hull: the search then reports a `Side` region on the
-/// empty locus.
+/// The search answers no branch and no region. Red under the side's sign
+/// read on its unrefined hull: the search then reports a `Side` region on
+/// the empty locus.
+///
+/// The carrier along the side lies within `P < ε` of the plane, and it
+/// never certifies. Limb 2's composite starts on the pcurve's 32 spans
+/// and halves them, so its spans are dyadic. A span two wall spans wide
+/// does not clear: the wall span holding its start, extended to its end,
+/// reads `h(s) = 2(P + N)·s(s − 1) + P ≥ 5P + 4N > ε` there (`s ≥ 2` in
+/// that span's units), and the composite's end coefficient is that
+/// value. So limb 2 passes only on spans one wall span wide or less. Over
+/// 64 spans that is well inside its budget, and its tube refuses with no
+/// solution in a box. Over 2048 it takes 2016 cuts, past the 1024 its
+/// budget holds, and it refuses on its bound. Between, which of the two
+/// refusals comes depends on where the pcurve's breaks fall against the
+/// wall's knots: on them, a span holding one wall span reads that span's
+/// polynomial alone, while a break carried off a knot by the foot points'
+/// offset (as at ε 1e-6) leaves the span reading its neighbour's
+/// polynomial extended across it, and that span takes more halving.
 ///
 /// The control, `(0.3ε, −0.5ε, 0.3ε)` on each span, holds two zeros of
 /// `φ` on every span: its hulls straddle because `φ` does, and the side
@@ -899,7 +916,8 @@ fn a_side_whose_hull_is_loose_reads_clear_at_both_doors() {
 
 /// [`a_side_whose_hull_is_loose_reads_clear_at_both_doors`] over the
 /// reported grid: `P/N ∈ {0.6/0.2, 0.9/0.5}`, `k ∈ {10, 100}`,
-/// `m ∈ {64, 256, 1024}`, and the control at `m = 1024` too.
+/// `m ∈ {64, 256, 1024}`, the row that spends limb 2's budget at
+/// `m = 2048`, and the control at `m = 1024` too.
 #[test]
 fn a_side_whose_hull_is_loose_reads_clear_over_the_grid() {
     let mut grid = Vec::new();
@@ -910,5 +928,6 @@ fn a_side_whose_hull_is_loose_reads_clear_over_the_grid() {
             }
         }
     }
+    grid.push(((0.6, 0.2), 10.0, 2048));
     loose_side_rows(&grid, &[64, 1024]);
 }

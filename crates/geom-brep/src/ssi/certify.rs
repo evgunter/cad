@@ -842,9 +842,11 @@ impl Halved {
 /// on the first hull, 15 refused on a break's value there): every call
 /// that decided by subdividing spent at most 826 spans. The adversarial
 /// wall of `m` C0 spans under each composite span (`ssi_limb3_one_arc`)
-/// clears at 826 (1964 at its steepest P/N) for m = 64, 3511 (8058) for
-/// m = 256 and 14 188 (32 684) for m = 1024. This budget is twice the
-/// m = 64 rows' and five times the corpus's. A carrier whose first
+/// clears at 268 (414 at its steepest P/N) for m = 64, 1273 (2018) for
+/// m = 256 and 5908 (11 374) for m = 1024 where the composite's breaks
+/// fall on the wall's knots, and at 628 (1314), 2740 (5538) and
+/// 11 188 (22 434) at ε 1e-6, where the foot points carry them off. This
+/// budget is three times the m = 64 rows' and five times the corpus's. A carrier whose first
 /// composite has more spans than this is read on that hull alone; the
 /// one such carrier measured, a dome arc at ε 1e-14 over 4242 to 14 814
 /// spans, reads its lowest bound there.
@@ -862,10 +864,11 @@ pub(crate) const SSI_HULL_WORK: usize = 4096;
 /// round that would pass it halves its worst spans up to it. Under the
 /// unbounded budget of [`SSI_HULL_WORK`]'s measurement the corpus's
 /// calls that decided by subdividing took at most 348 cuts, and the
-/// adversarial wall clears at 348 (600) cuts for m = 64, 1498 (2520)
-/// for m = 256 and 6056 (10 200) for m = 1024: this cap clears every
-/// m = 64 row and spends itself on m ≥ 256, where the work budget alone
-/// would let a few more rounds run.
+/// adversarial wall clears at 38 (42) cuts for m = 64, 254 (324) for
+/// m = 256 and 1432 (2444) for m = 1024 with its breaks on the wall's
+/// knots, and at 218 (342), 986 (1494) and 4058 (6102) off them: this
+/// cap clears every m = 64 row and spends itself on m = 1024, and on the
+/// steepest m = 256 rows off the knots.
 pub(crate) const SSI_HULL_CUTS: usize = 1024;
 
 /// The subdivision stops on the round that makes this many rounds in a

@@ -120,8 +120,11 @@
 //! domain is served by the boundary cell's polynomial extension —
 //! exactly the spline's own clamped extension semantics (see the
 //! [`super::super`] span contract) — and a window that straddles a knot
-//! line is bounded on **every** cell it touches and maxed, which is
-//! sound on each cell's own territory and conservative off it.
+//! line is bounded on **every** cell whose interior it meets and maxed,
+//! which is sound on each cell's own territory and conservative off it.
+//! A cell the window meets only on its edge is not read: interior knot
+//! multiplicity is at most the degree, so the surface is continuous
+//! across a knot line and its value there is the neighbour's own.
 //!
 //! # C6 and the refusal posture
 //!
@@ -544,23 +547,29 @@ pub fn coefficient_norm_sup(num: [&[Interval]; 3]) -> f64 {
 // Cell selection (structure, f64) and the entry point
 // ---------------------------------------------------------------------
 
-/// The cell indices of the break list `breaks` whose closed interval
-/// meets `window`, clamped so an out-of-domain window is served by the
-/// boundary cell's polynomial extension (module docs, domain posture).
-/// Returns the inclusive index range. A [`ParamRange`] has no NaN or
-/// inverted spelling, so no window lands on a cell it does not name.
-///
-/// Banked observation (PR 7b review NOTE 1, 2026-07-31): the overlap
-/// test is **closed**, so a window whose endpoint lands exactly on a
-/// knot pulls in the neighbor cell whose contribution is a
-/// single-point agreement (the two patch polynomials agree at the
-/// knot). A strict-interior test would be tighter and still sound —
-/// a future tightening, banked rather than slipped into a fix pass.
+/// The cell indices of the break list `breaks` whose open interior
+/// meets `window`, or, where none does (a window that is one point on a
+/// break, or lies off the domain), whose closed interval meets it,
+/// clamped so an out-of-domain window is served by the boundary cell's
+/// polynomial extension (module docs, domain posture). Returns the
+/// inclusive index range. A [`ParamRange`] has no NaN or inverted
+/// spelling, so no window lands on a cell it does not name.
 fn cells_touched(breaks: &[f64], window: ParamRange) -> (usize, usize) {
     let last = breaks.len() - 2;
     let (lo, hi) = window.ends();
-    // The first cell whose upper break is at or above `lo` (the closed
-    // overlap), and the last whose lower break is at or below `hi`.
+    // The first cell whose upper break is above `lo`, and the last whose
+    // lower break is below `hi`.
+    let first_open = breaks[1..=last + 1].partition_point(|b| *b <= lo.get());
+    let last_open = breaks[..=last]
+        .partition_point(|b| *b < hi.get())
+        .checked_sub(1);
+    if let Some(end) = last_open
+        && first_open <= end
+    {
+        return (first_open, end);
+    }
+    // The closed overlap: the first cell whose upper break is at or
+    // above `lo`, and the last whose lower break is at or below `hi`.
     let first_cell = breaks[1..=last + 1].partition_point(|b| *b < lo.get());
     let last_cell = last_at_or_below(&breaks[..=last], hi);
     match last_cell {
@@ -758,16 +767,29 @@ mod tests {
     /// The cell locator against the closed-overlap scan it replaced,
     /// over windows inside, on, straddling and outside the breaks.
     #[test]
-    fn cells_touched_is_the_closed_overlap_clamped_to_an_edge_cell() {
+    fn cells_touched_is_the_open_overlap_else_the_closed_one_clamped() {
         fn scan(breaks: &[f64], lo: f64, hi: f64) -> (usize, usize) {
             let last = breaks.len() - 2;
-            let (mut first, mut end) = (last, 0);
-            for cell in 0..=last {
-                if breaks[cell + 1] >= lo && breaks[cell] <= hi {
-                    first = first.min(cell);
-                    end = end.max(cell);
+            let meets = |open: bool| {
+                let (mut first, mut end) = (last, 0);
+                for cell in 0..=last {
+                    let met = if open {
+                        breaks[cell + 1] > lo && breaks[cell] < hi
+                    } else {
+                        breaks[cell + 1] >= lo && breaks[cell] <= hi
+                    };
+                    if met {
+                        first = first.min(cell);
+                        end = end.max(cell);
+                    }
                 }
+                (first, end)
+            };
+            let (first, end) = meets(true);
+            if first <= end {
+                return (first, end);
             }
+            let (first, end) = meets(false);
             if first > end {
                 if hi < breaks[0] { (0, 0) } else { (last, last) }
             } else {
