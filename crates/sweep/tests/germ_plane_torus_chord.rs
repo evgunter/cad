@@ -323,6 +323,40 @@ fn tori_of_one_face_pair(big_r: f64, r: f64) -> Vec<(String, AtRestBody<f64>, bo
     tori
 }
 
+/// **A slab across a torus of one face pair builds its true body**: the
+/// slab `[−6, 6] × [h, h2] × [−6, 6]`, whose two faces each cut the
+/// torus in two concentric circles, against the one-face torus (its
+/// vertex at three phases) and the torus seamed on `y = 0`. Every circle
+/// crosses its face's wrap meridian once, so one face carries up to four
+/// one-site loops, and each loop's chord must keep the others' two
+/// halves on one side of it.
+#[test]
+fn a_slab_across_a_torus_of_one_face_pair_builds_its_true_body() {
+    let (big_r, r) = (2.0, 0.5);
+    let mut tori: Vec<_> = [0.0, 1.0, PI]
+        .into_iter()
+        .map(|phase| {
+            (
+                format!("the one-face torus, vertex at {phase}"),
+                one_face_torus(big_r, r, phase),
+            )
+        })
+        .collect();
+    tori.push(("the seamed torus".to_string(), seamed_torus(big_r, r)));
+    for (name, body) in tori {
+        let t = ring(body, (big_r, r));
+        for (h, h2) in [(0.1, 0.3), (-0.2, 0.3), (-0.4, -0.1), (0.05, 0.45)] {
+            holds_to_the_truth(
+                &format!("{name}, the slab {h} < y < {h2}"),
+                &t,
+                &boxed((-6.0, 6.0), (h, h2), (-6.0, 6.0)),
+                cap(big_r, r, h) - cap(big_r, r, h2),
+                about_the_tube(big_r, r),
+            );
+        }
+    }
+}
+
 /// **A section circle along an equator edge of the torus refuses typed**
 /// in every op: the plane `y = 0` against the one-face torus whose
 /// vertex lies on an equator, whose wrap parallel is that circle, and
