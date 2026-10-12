@@ -1256,33 +1256,30 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                 // smooth refutes this arm's premise, and the strut
                 // refuses rather than store a description neither
                 // reading chose.
-                let refused = |refusal| match refusal {
-                    geom_brep::MustCarryRefusal::InBand(escalation) => {
-                        let (reading, source) = DihedralReading::of_must_carry(escalation);
-                        ExtrudeError::SliverJoin {
-                            loop_index,
-                            vertex_index: segs[j].chord.canonical_vertex,
-                            reading,
-                            source,
-                        }
-                    }
-                    geom_brep::MustCarryRefusal::Refuted => {
-                        ExtrudeError::SmoothJoinRefuted { edge: strut.edge }
-                    }
+                let vertex_index = segs[j].chord.canonical_vertex;
+                let sliver = |reading, source| ExtrudeError::SliverJoin {
+                    loop_index,
+                    vertex_index,
+                    reading,
+                    source,
                 };
-                let (pair, [sa, sb]) = SurfacePair::sorted(k_prev, &s_prev, k_next, &s_next);
-                match geom_brep::must_carry_over_edge(
-                    sa,
-                    sb,
-                    &carrier,
-                    T::zero(),
-                    w_norm,
-                    w_norm,
+                match geom_brep::must_carry_description(
+                    geom_brep::SmoothJoin {
+                        surfaces: [(k_prev, &s_prev), (k_next, &s_next)],
+                        carrier: &carrier,
+                        interval: (T::zero(), w_norm),
+                        chord: w_norm,
+                        witness: mid,
+                    },
                     band,
-                )
-                .description(pair, mid)
-                .map_err(refused)?
-                {
+                    k_prev,
+                    |lever| {
+                        let (reading, source) = DihedralReading::of_lever(lever);
+                        sliver(reading, source)
+                    },
+                    |diag| sliver(DihedralReading::Bend, diag),
+                    || ExtrudeError::SmoothJoinRefuted { edge: strut.edge },
+                )? {
                     geom_brep::MustCarryDescription::Intrinsic(description) => {
                         let spec = EdgeCurveSpec {
                             description,
@@ -1292,7 +1289,7 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                         };
                         body.set_edge_curve(strut.edge, spec, tol)?;
                     }
-                    geom_brep::MustCarryDescription::Conventional => {
+                    geom_brep::MustCarryDescription::Conventional(chart) => {
                         // No intrinsic tangency is demanded: a station
                         // read the second order zero-side (the surfaces
                         // under-determine the locus), or every station
@@ -1343,7 +1340,7 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                         // strut against `k_next` — and it is benign
                         // here only because of the ruling argument
                         // above.
-                        body.describe_at_rest(strut.edge, k_prev, tol)?;
+                        body.describe_at_rest(strut.edge, chart, tol)?;
                     }
                 }
             }
@@ -1645,23 +1642,29 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
         // choice). The at-rest gate then refuses the body, because a
         // smooth cap–wall pair has no material side.
         Ok(DihedralClass::Smooth) => {
-            let refused = |refusal| match refusal {
-                geom_brep::MustCarryRefusal::InBand(escalation) => {
-                    let (reading, source) = DihedralReading::of_must_carry(escalation);
-                    ExtrudeError::SliverRim {
-                        loop_index,
-                        segment_index,
-                        reading,
-                        source,
-                    }
-                }
-                geom_brep::MustCarryRefusal::Refuted => ExtrudeError::SmoothJoinRefuted { edge },
+            let sliver = |reading, source| ExtrudeError::SliverRim {
+                loop_index,
+                segment_index,
+                reading,
+                source,
             };
-            let (pair, [sa, sb]) = SurfacePair::sorted(cap, &s_cap, wall, &s_wall);
-            match geom_brep::must_carry_over_edge(sa, sb, &carrier, t0, t1, extent, band)
-                .description(pair, witness)
-                .map_err(refused)?
-            {
+            match geom_brep::must_carry_description(
+                geom_brep::SmoothJoin {
+                    surfaces: [(cap, &s_cap), (wall, &s_wall)],
+                    carrier: &carrier,
+                    interval: (t0, t1),
+                    chord: q_from.distance(q_to),
+                    witness,
+                },
+                band,
+                wall,
+                |lever| {
+                    let (reading, source) = DihedralReading::of_lever(lever);
+                    sliver(reading, source)
+                },
+                |diag| sliver(DihedralReading::Bend, diag),
+                || ExtrudeError::SmoothJoinRefuted { edge },
+            )? {
                 geom_brep::MustCarryDescription::Intrinsic(description) => {
                     let spec = EdgeCurveSpec {
                         description,
@@ -1671,8 +1674,8 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
                     };
                     body.set_edge_curve(edge, spec, tol)?;
                 }
-                geom_brep::MustCarryDescription::Conventional => {
-                    body.describe_at_rest(edge, wall, tol)?;
+                geom_brep::MustCarryDescription::Conventional(chart) => {
+                    body.describe_at_rest(edge, chart, tol)?;
                 }
             }
             Ok(())

@@ -853,16 +853,88 @@ pub enum MustCarryDescription<T: Real> {
     /// stores it on its carrier.
     Intrinsic(crate::EdgeDescriptionSpec<T>),
     /// The conventional description: a chart image where the edge
-    /// rests. Which adjacent chart, and whether the stored carrier is
-    /// restated or the exact carrier stated, is the caller's: a
-    /// sweep-minted edge already stores its locus and restates it,
-    /// while a blend contact edge stores a chord scaffold and states
-    /// the locus fresh.
-    Conventional,
+    /// rests, in the adjacent chart the caller named. Whether the
+    /// stored carrier is restated or the exact carrier stated is the
+    /// caller's: a sweep-minted edge already stores its locus and
+    /// restates it, while a blend contact edge stores a chord scaffold
+    /// and states the locus fresh ([`MustCarryDescription::spec`]).
+    Conventional(crate::SurfaceKey),
 }
 
-/// Why a join entered as definitely smooth gets no description: each
-/// caller maps it to its own typed refusal.
+impl<T: Real> MustCarryDescription<T> {
+    /// The description stated fresh: the intrinsic tangency, or a chart
+    /// image the certification door derives from the carrier in the
+    /// named chart.
+    #[must_use]
+    pub fn spec(self) -> crate::EdgeDescriptionSpec<T> {
+        match self {
+            Self::Intrinsic(description) => description,
+            Self::Conventional(chart) => crate::EdgeDescriptionSpec::chart(chart),
+        }
+    }
+}
+
+/// A join entered as definitely smooth, as the must-carry rule is asked
+/// about it ([`must_carry_description`]): its two surfaces with their
+/// keys, in either order, and the edge between them — its carrier, its
+/// parameter interval, the chord between its ends (the extent is
+/// [`crate::edge_extent`]'s over these) and its witness.
+#[derive(Clone, Copy)]
+pub struct SmoothJoin<'a, T: Real> {
+    /// The two surfaces, each with its key.
+    pub surfaces: [(crate::SurfaceKey, &'a Surface<T>); 2],
+    /// The edge's carrier.
+    pub carrier: &'a geom::Curve3<T>,
+    /// The edge's parameter interval on the carrier.
+    pub interval: (T, T),
+    /// The distance between the edge's two ends.
+    pub chord: T,
+    /// The witness an intrinsic description stores.
+    pub witness: Point3<T>,
+}
+
+/// **What a definitely-smooth join stores**, or the caller's typed
+/// refusal: the surfaces put in their pair's key order
+/// ([`crate::SurfacePair::sorted`]), the rule over the edge's extent
+/// ([`must_carry_over_edge`]), its verdict mapped to a description
+/// ([`MustCarryVerdict::description`]) with the conventional one resting
+/// in `chart`, and each refusal built by the caller: an in-band
+/// first-order station (the dihedral, with the rung that raised it),
+/// an in-band second-order station (the sagitta), or a refuted smooth
+/// premise.
+///
+/// Which adjacent chart a conventional edge rests in is each caller's
+/// choice, so it is an argument here.
+///
+/// # Errors
+///
+/// What `first_order`, `second_order` or `refuted` builds, on an
+/// in-band or transverse verdict.
+pub fn must_carry_description<T: Decide, E>(
+    join: SmoothJoin<'_, T>,
+    band: Band,
+    chart: crate::SurfaceKey,
+    first_order: impl FnOnce(LeverEscalation) -> E,
+    second_order: impl FnOnce(Indeterminate) -> E,
+    refuted: impl FnOnce() -> E,
+) -> Result<MustCarryDescription<T>, E> {
+    let [(ka, a), (kb, b)] = join.surfaces;
+    let (pair, [sa, sb]) = crate::SurfacePair::sorted(ka, a, kb, b);
+    let (t0, t1) = join.interval;
+    let extent = crate::edge_extent(join.carrier, t0, t1, join.chord);
+    must_carry_over_edge(sa, sb, join.carrier, t0, t1, extent, band)
+        .description(pair, join.witness, chart)
+        .map_err(|refusal| match refusal {
+            MustCarryRefusal::InBand(MustCarryEscalation::FirstOrder(escalation)) => {
+                first_order(escalation)
+            }
+            MustCarryRefusal::InBand(MustCarryEscalation::SecondOrder(diag)) => second_order(diag),
+            MustCarryRefusal::Refuted => refuted(),
+        })
+}
+
+/// Why a join entered as definitely smooth gets no description:
+/// [`must_carry_description`] routes it to its caller's typed refusals.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum MustCarryRefusal {
     /// [`MustCarryVerdict::InBand`]: certifiable as neither, refused
@@ -874,33 +946,11 @@ pub enum MustCarryRefusal {
     Refuted,
 }
 
-impl MustCarryRefusal {
-    /// The refusal routed to its caller's three typed arms: an in-band
-    /// first-order station (the dihedral, with the deciding rung's
-    /// diagnostic), an in-band second-order station (the sagitta), or a
-    /// refuted smooth premise. One spelling of the split every caller
-    /// that names the three apart makes.
-    pub fn route<E>(
-        self,
-        first_order: impl FnOnce(Indeterminate) -> E,
-        second_order: impl FnOnce(Indeterminate) -> E,
-        refuted: impl FnOnce() -> E,
-    ) -> E {
-        match self {
-            Self::InBand(MustCarryEscalation::FirstOrder(escalation)) => {
-                first_order(escalation.diag())
-            }
-            Self::InBand(MustCarryEscalation::SecondOrder(diag)) => second_order(diag),
-            Self::Refuted => refuted(),
-        }
-    }
-}
-
 impl MustCarryVerdict {
     /// The one mapping from the verdict to what the join stores:
     /// jet-determinate ⇒ the intrinsic `TangentIntersection { pair,
-    /// witness }`, under-determined ⇒ conventional, in-band and
-    /// transverse ⇒ a typed refusal. `pair` names the surfaces
+    /// witness }`, under-determined ⇒ conventional, in `chart`, in-band
+    /// and transverse ⇒ a typed refusal. `pair` names the surfaces
     /// [`must_carry_over_edge`] was asked about.
     ///
     /// # Errors
@@ -910,12 +960,13 @@ impl MustCarryVerdict {
         self,
         pair: crate::SurfacePair,
         witness: Point3<T>,
+        chart: crate::SurfaceKey,
     ) -> Result<MustCarryDescription<T>, MustCarryRefusal> {
         match self {
             Self::JetDeterminate => Ok(MustCarryDescription::Intrinsic(
                 crate::EdgeDescriptionSpec::TangentIntersection { pair, witness },
             )),
-            Self::UnderDetermined => Ok(MustCarryDescription::Conventional),
+            Self::UnderDetermined => Ok(MustCarryDescription::Conventional(chart)),
             Self::InBand(source) => Err(MustCarryRefusal::InBand(source)),
             Self::Transverse => Err(MustCarryRefusal::Refuted),
         }
@@ -1447,7 +1498,7 @@ mod tests {
         let (a, b) = (keys.insert(()), keys.insert(()));
         let pair = crate::SurfacePair::new(a, b);
         let witness = Point3::new(1.0, 2.0, 3.0);
-        match MustCarryVerdict::JetDeterminate.description(pair, witness) {
+        match MustCarryVerdict::JetDeterminate.description(pair, witness, b) {
             Ok(MustCarryDescription::Intrinsic(
                 crate::EdgeDescriptionSpec::TangentIntersection {
                     pair: got,
@@ -1456,10 +1507,12 @@ mod tests {
             )) => assert!(got == pair && w.distance(witness) == 0.0, "{got:?} {w:?}"),
             other => panic!("jet-determinate must be the intrinsic tangency: {other:?}"),
         }
-        assert!(matches!(
-            MustCarryVerdict::UnderDetermined.description(pair, witness),
-            Ok(MustCarryDescription::Conventional)
-        ));
+        for chart in [a, b] {
+            assert!(matches!(
+                MustCarryVerdict::UnderDetermined.description::<f64>(pair, witness, chart),
+                Ok(MustCarryDescription::Conventional(got)) if got == chart
+            ));
+        }
         let source = MustCarryEscalation::SecondOrder(Indeterminate {
             margin: geom_core::MarginDiag::value(5e-9),
             band: band(),
@@ -1467,13 +1520,125 @@ mod tests {
             terminal_sliver: false,
         });
         assert!(matches!(
-            MustCarryVerdict::InBand(source).description(pair, witness),
+            MustCarryVerdict::InBand(source).description(pair, witness, a),
             Err(MustCarryRefusal::InBand(s)) if s == source
         ));
         assert!(matches!(
-            MustCarryVerdict::Transverse.description(pair, witness),
+            MustCarryVerdict::Transverse.description(pair, witness, a),
             Err(MustCarryRefusal::Refuted)
         ));
+    }
+
+    /// **The shared chain answers each verdict with the caller's own
+    /// pieces**: an under-determined join rests in the chart the caller
+    /// named, whichever it names and in either surface order; a
+    /// jet-determinate one is the tangency over the pair in key order;
+    /// and each refusal comes from the constructor for its own reading
+    /// — an in-band dihedral from the first-order one, with the rung
+    /// that raised it, an in-band sagitta from the second-order one, a
+    /// corner from the refuted one.
+    #[test]
+    fn must_carry_description_answers_with_the_callers_chart_and_constructors() {
+        #[derive(Debug, PartialEq)]
+        enum Refused {
+            FirstOrder(LeverRung),
+            SecondOrder(Option<&'static str>),
+            Refuted,
+        }
+        let mut keys = slotmap::SlotMap::<crate::SurfaceKey, ()>::with_key();
+        let (a, b) = (keys.insert(()), keys.insert(()));
+        let ask = |sa: &Surface<f64>, sb: &Surface<f64>, carrier, interval: (f64, f64), chart| {
+            let (t0, t1) = interval;
+            let join = |surfaces| SmoothJoin {
+                surfaces,
+                carrier,
+                interval,
+                chord: t1 - t0,
+                witness: carrier.mid_point(t0, t1),
+            };
+            [[(a, sa), (b, sb)], [(b, sb), (a, sa)]].map(|surfaces| {
+                must_carry_description(
+                    join(surfaces),
+                    band(),
+                    chart,
+                    |lever| Refused::FirstOrder(lever.rung()),
+                    |diag| Refused::SecondOrder(diag.predicate),
+                    || Refused::Refuted,
+                )
+            })
+        };
+        let along = |dir| geom::Curve3::Line {
+            origin: Point3::origin(),
+            dir,
+        };
+        let floor = plane(Vec3::unit_z(), Vec3::unit_x());
+        let (x_axis, y_axis) = (along(Vec3::unit_x()), along(Vec3::unit_y()));
+
+        let coplanar = plane(Vec3::unit_z(), Vec3::unit_y());
+        for chart in [a, b] {
+            for answer in ask(&floor, &coplanar, &x_axis, (0.0, 1.0), chart) {
+                assert!(
+                    matches!(answer, Ok(MustCarryDescription::Conventional(got)) if got == chart),
+                    "coplanar planes rest in the named chart {chart:?}: {answer:?}"
+                );
+            }
+        }
+
+        let cylinder = Surface::Cylinder {
+            origin: Point3::new(0.0, 0.0, 2.0),
+            axis: Vec3::unit_y(),
+            radius: 2.0,
+            u_ref: Vec3::unit_x(),
+        };
+        for answer in ask(&floor, &cylinder, &y_axis, (0.0, 10.0), a) {
+            assert!(
+                matches!(
+                    answer,
+                    Ok(MustCarryDescription::Intrinsic(
+                        crate::EdgeDescriptionSpec::TangentIntersection { pair, .. }
+                    )) if pair == crate::SurfacePair::new(a, b)
+                ),
+                "a plane on a cylinder's generator is the intrinsic tangency: {answer:?}"
+            );
+        }
+
+        let theta = 3.0 * eps();
+        let near = plane(Vec3::new(theta.sin(), 0.0, theta.cos()), Vec3::unit_y());
+        for answer in ask(&floor, &near, &y_axis, (0.0, 1.0), a) {
+            assert_eq!(
+                answer.unwrap_err(),
+                Refused::FirstOrder(LeverRung::Reading),
+                "an in-band dihedral is the first-order constructor's"
+            );
+        }
+
+        let (sin, cos) = std::f64::consts::FRAC_PI_4.sin_cos();
+        let cone = Surface::Cone {
+            apex: Point3::origin(),
+            axis: Vec3::unit_z(),
+            half_angle: std::f64::consts::FRAC_PI_4,
+            u_ref: Vec3::unit_x(),
+        };
+        let ruling = Vec3::new(sin, 0.0, cos);
+        let tangent = plane(Vec3::new(cos, 0.0, -sin), ruling);
+        let len = (2.0 * (band().zero() * band().escalate()).sqrt() / 0.01).sqrt();
+        let generator = along(ruling);
+        for answer in ask(&cone, &tangent, &generator, (100.0, 100.0 + len), a) {
+            assert_eq!(
+                answer.unwrap_err(),
+                Refused::SecondOrder(Some("tangent_second_order")),
+                "an in-band sagitta is the second-order constructor's"
+            );
+        }
+
+        let wall = plane(Vec3::unit_x(), Vec3::unit_y());
+        for answer in ask(&floor, &wall, &y_axis, (0.0, 1.0), a) {
+            assert_eq!(
+                answer.unwrap_err(),
+                Refused::Refuted,
+                "a corner is the refuted constructor's"
+            );
+        }
     }
 
     /// **The lane gates the demand, never the in-band refusal.** The

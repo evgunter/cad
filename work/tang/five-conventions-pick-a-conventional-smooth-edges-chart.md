@@ -16,8 +16,9 @@ Raised by the review of the PR that routed `Body::split_edge`'s tangent
 children through the must-carry rule.
 
 A smooth edge the rule calls under-determined stores a chart image,
-and the rule leaves "which adjacent chart" to the caller
-(`MustCarryDescription::Conventional`). Each caller decides differently:
+and the rule leaves "which adjacent chart" to the caller: it is the
+`chart` argument of `geom_brep::must_carry_description`, handed back
+in `MustCarryDescription::Conventional`. Each caller decides differently:
 
 | caller | chart |
 |---|---|

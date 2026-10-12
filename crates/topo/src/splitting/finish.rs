@@ -1047,25 +1047,23 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                     );
                     // What the join stores is the must-carry rule's
                     // over the edge, and each refusal is this op's own.
-                    let (pair, [sa, sb]) =
-                        geom_brep::SurfacePair::sorted(s_self, surf_self, s_other, surf_other);
-                    let demanded = geom_brep::must_carry_over_edge(
-                        sa,
-                        sb,
-                        &spec.carrier,
-                        spec.param_start,
-                        spec.param_end,
-                        arm,
+                    let demanded = geom_brep::must_carry_description(
+                        geom_brep::SmoothJoin {
+                            surfaces: [(s_self, surf_self), (s_other, surf_other)],
+                            carrier: &spec.carrier,
+                            interval: (spec.param_start, spec.param_end),
+                            chord: p0.distance(p1),
+                            witness,
+                        },
                         band,
-                    )
-                    .description(pair, witness)
-                    .map_err(|refusal| {
-                        refusal.route(
-                            |diag| SplitFinishError::DescribeEscalated { edge, diag },
-                            |diag| SplitFinishError::DescribeBendEscalated { edge, diag },
-                            || SplitFinishError::SmoothJoinRefuted { edge },
-                        )
-                    })?;
+                        s_self,
+                        |lever| SplitFinishError::DescribeEscalated {
+                            edge,
+                            diag: lever.diag(),
+                        },
+                        |diag| SplitFinishError::DescribeBendEscalated { edge, diag },
+                        || SplitFinishError::SmoothJoinRefuted { edge },
+                    )?;
                     // A description of the demanded kind that names
                     // the edge's current pair stays verbatim (a stated
                     // image travels exactly); anything else — a
@@ -1097,12 +1095,7 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                         // in to within the BAND: on a near-flush
                         // operand it is metered like any description
                         // (D4 ¶3).
-                        spec.description = match demanded {
-                            geom_brep::MustCarryDescription::Intrinsic(description) => description,
-                            geom_brep::MustCarryDescription::Conventional => {
-                                geom_brep::EdgeDescriptionSpec::chart(s_self)
-                            }
-                        };
+                        spec.description = demanded.spec();
                         if let Some(geom_brep::EdgeAuthority::Declared(mc)) =
                             existing.as_ref().map(|c| c.authority())
                         {

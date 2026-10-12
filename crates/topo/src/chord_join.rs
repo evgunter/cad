@@ -1587,24 +1587,24 @@ fn chord_spec<T: Decide>(
                      dividing, and no operator removes a surface a later chord still names"
                 )
             });
-            let extent = geom_brep::edge_extent(&carrier, s1, s2, p1.distance(p2));
-            let (pair, [sa, sb]) =
-                geom_brep::SurfacePair::sorted(wall_key, &wall, plane_key, plane);
-            let description =
-                match geom_brep::must_carry_over_edge(sa, sb, &carrier, s1, s2, extent, band)
-                    .description(pair, witness)
-                    .map_err(|refusal| {
-                        refusal.route(
-                            |diag| SplitJoinError::TangentChordEscalated { face, diag },
-                            |diag| SplitJoinError::TangentChordBendEscalated { face, diag },
-                            || SplitJoinError::TangentChordRefuted { face },
-                        )
-                    })? {
-                    geom_brep::MustCarryDescription::Intrinsic(description) => description,
-                    geom_brep::MustCarryDescription::Conventional => {
-                        geom_brep::EdgeDescriptionSpec::chart(plane_key)
-                    }
-                };
+            let description = geom_brep::must_carry_description(
+                geom_brep::SmoothJoin {
+                    surfaces: [(wall_key, &wall), (plane_key, plane)],
+                    carrier: &carrier,
+                    interval: (s1, s2),
+                    chord: p1.distance(p2),
+                    witness,
+                },
+                band,
+                plane_key,
+                |lever| SplitJoinError::TangentChordEscalated {
+                    face,
+                    diag: lever.diag(),
+                },
+                |diag| SplitJoinError::TangentChordBendEscalated { face, diag },
+                || SplitJoinError::TangentChordRefuted { face },
+            )?
+            .spec();
             return Ok(Some(EdgeCurveSpec {
                 description,
                 carrier,

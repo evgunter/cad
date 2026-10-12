@@ -286,26 +286,24 @@ impl<T: Decide> Body<T> {
             })
         };
         let [ka, kb] = pair.keys();
-        let (pair, [sa, sb]) = geom_brep::SurfacePair::sorted(ka, surface(ka), kb, surface(kb));
-        let (s0, s1) = (spec.param_start, spec.param_end);
-        let extent = geom_brep::edge_extent(&spec.carrier, s0, s1, p0.distance(p1));
-        let description =
-            match geom_brep::must_carry_over_edge(sa, sb, &spec.carrier, s0, s1, extent, band)
-                .description(pair, witness)
-                .map_err(|refusal| {
-                    refusal.route(
-                        |diag| EulerOpError::SplitTangentEscalated { edge, diag },
-                        |diag| EulerOpError::SplitTangentBendEscalated { edge, diag },
-                        || EulerOpError::SplitTangentRefuted { edge },
-                    )
-                })? {
-                geom_brep::MustCarryDescription::Intrinsic(description) => description,
-                geom_brep::MustCarryDescription::Conventional => {
-                    geom_brep::EdgeDescriptionSpec::chart(
-                        crate::pcurves::half_edge_face(self, he_plus).1.surface,
-                    )
-                }
-            };
+        let description = geom_brep::must_carry_description(
+            geom_brep::SmoothJoin {
+                surfaces: [(ka, surface(ka)), (kb, surface(kb))],
+                carrier: &spec.carrier,
+                interval: (spec.param_start, spec.param_end),
+                chord: p0.distance(p1),
+                witness,
+            },
+            band,
+            crate::pcurves::half_edge_face(self, he_plus).1.surface,
+            |lever| EulerOpError::SplitTangentEscalated {
+                edge,
+                diag: lever.diag(),
+            },
+            |diag| EulerOpError::SplitTangentBendEscalated { edge, diag },
+            || EulerOpError::SplitTangentRefuted { edge },
+        )?
+        .spec();
         Ok(EdgeCurveSpec {
             description,
             ..spec
