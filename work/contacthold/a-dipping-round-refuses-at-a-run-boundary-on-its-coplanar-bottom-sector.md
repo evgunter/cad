@@ -39,3 +39,48 @@ coplanar sector" at the lumped wall sector. Forcing the arc's every
 reading to its far vertex moved this refusal to that one, by unlumping
 the wall. The answer wants a run boundary on a lumped coplanar sector to
 take its germ from the tangency locus, not from the sector's bounds.
+
+## Re-measured on main b59055db63 (2026-10-12): the refusal moved, and its premise is gone
+
+`the_untilted_dip` now refuses all four ops `CurvedBooleanUnsupported
+{ face: <the wall>, kind: Cylinder }`, raised by the C8 guard in
+`vtxfac::classify_vertex_on_face` ("a CURVED on-carrier sector is
+opened by a VERIFIED declaration and by nothing else"); `sectors::along`
+is no longer reached. A first-parent bisect from PR 4575's merge
+(aeab3e2ae5, which reproduces the finding above) puts the move at PR
+4604's merge (758bd7acb4, `contacthold/at-rest-cell-pairs-census`).
+
+What 4604 changed: the C4 `Tangent` table now reads the material
+crescent (`contact_verify::tangent_table`, `contact_tangent_overlap`),
+so a `Tangent` CONTACT whose two materials overlap between the sheets
+is contradicted. The dip's wall and the slab's top are exactly that:
+tangent along the rim, normals opposed, and the lens `4 − π` between
+them is in both materials. A probe in `glue::tangency` shows the glue
+door (`glue::decided_declarations`) now offers no class for the pair:
+`Contact` refuses `contact_tangent_overlap`, `Seam` refuses
+`seam_senses_aligned`. With no glue class the wall sector is an
+undeclared curved on-carrier sector, and C8 refuses it.
+
+So the finding above was reached only through a false auto-declaration:
+before 4604 the door glued the pair as a `Tangent` contact it is not,
+which is also why the union refused `TangentSlitArmUnbuilt` (#131's
+doubled cusp of two bodies touching along a line), a refusal that does
+not describe this union, where the wall inside the slab simply goes.
+The run boundary on the coplanar bottom sector needs the wall sector
+lumped `In`, which is the overlap itself, so no non-overlapping posture
+reaches `along`'s refusal either: the upright round on the wide slab
+(the wall curving away) answers at every op.
+
+**Open question, ahead of `along`:** an *overlapping* (internal)
+tangency between operands is a coincidence the kernel infers from
+values, so under D10 it is recorded at the glue door; the door's
+vocabulary (`GlueClass`: `Rest`, continuation, seam, `Tangent`
+contact) has no class for it, and C7's second-order lump
+(`sectors::tangent_lump`) opens only for a pair the door decides. The
+two shapes in view are a door verdict for a tangency that claims no
+material sides (opening the lump, whose definite `In`/`Out` reading
+uses no declaration), or reading the lump in `vtxfac` straight off the
+witness locus, which infers a coincidence outside the one door. Only
+once one of them lands does the run boundary this row names become
+reachable again, and the intersection would then meet MATE-7's unbuilt
+wedge-0 cusp along the rim (`RimCuspArmUnbuilt` family).
