@@ -144,6 +144,8 @@ mod cone_join_lane;
 mod cone_operand_rows;
 #[path = "continuation_pose.rs"]
 mod continuation_pose;
+#[path = "crossing_equal_rods.rs"]
+mod crossing_equal_rods;
 #[path = "cylinder_sphere_frame.rs"]
 mod cylinder_sphere_frame;
 #[path = "four_crossings_on_one_section_circle.rs"]

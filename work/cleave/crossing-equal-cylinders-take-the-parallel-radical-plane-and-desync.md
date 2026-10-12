@@ -67,3 +67,35 @@ reads the axes before taking `Cylinders`, so a coplanar crossing pair
 goes to a lane that holds its plane sections, or a typed frontier
 refusal where no lane does. A `JoinDesync` is a kernel invariant, and
 valid input must not reach one.
+
+## Built (branch cleave/crossing-cylinders-join)
+
+Measured first on `1b2ae6356d`, at ε = 1e-9, 1e-6 and 1e-12, at spins
+`(0.4, 0.3)`, `(1.0, −0.7)` and `(0, 0)` and with `B` from `x = 0.5`:
+all 24 runs refuse the row's `JoinDesync`. A probe at the `Cylinders`
+arm showed the germ is `OnEdge` on the ellipse's solid and `InFace` on
+the other's. `germ_section_loops` therefore reads the edge's ellipse
+frame (`along_edge_conic`), and the face-pair frame dispatch, which
+reads the axes, is never asked of this pair. `kind_arm` then sent the
+pair to `Cylinders` on kinds alone.
+
+The fix is in `boolean/join.rs`:
+
+- `kind_arm` takes the axes' reading. A cylinder pair keeps
+  `KindArm::Cylinders` only when its axes read parallel.
+- That reading is `face_pair_axes_parallel`, taken where
+  `face_pair_section_loops` reads the frame and levered as it levers
+  it, through the frame dispatch's own reading, now factored out as
+  `cylinder_pair_axes`. A face pair whose frame was read gets the same
+  answer from both.
+- In band, the reading escalates `Escalated { Coincidence(Section,
+  Moot) }`, the frame's own refusal for that margin. A definite crossing
+  has no kind arm and goes to the edge-plane lane.
+
+The scene now reaches that lane and refuses at its copy of the ellipse
+edge, at every ε and pose above. That copy is filed as
+`cleave/the-edge-plane-lane-copies-no-ellipse-edge`, with what lies
+behind it. The fixture, `crates/sweep/tests/crossing_equal_rods.rs`,
+holds every op to its closed form or to that one refusal. Unit rows:
+`kind_arm_rows` and
+`frame_dispatch_tests::the_kind_arm_reads_parallel_apart_and_in_band_as_the_frame_does`.
