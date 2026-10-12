@@ -44,8 +44,8 @@ The second site, from a pierce whose partner is tipped off the face:
 `crates/topo/tests/a_vertex_read_by_two_sector_passes.rs`,
 `a_partner_tipped_off_the_face_builds_sound_or_refuses_typed_at_every_pose`.
 The plate united with a pyramid lying on its top, its corner at 60°
-lifted 100ε off the top (`lie`), against "inside the lying pyramid"
-(`along_ray`), whose edge along the top at 60° runs 60ε under the lying
+lifted 100ε off the top (`meeting::lying`), against "inside the lying pyramid"
+(`meeting::along_lying_ray`), whose edge along the top at 60° runs 60ε under the lying
 pyramid's lifted edge. Every op, both orders, every pose, at ε = 1e-9
 and 1e-12: `ClassificationInvariant { what: "pierce germ direction not
 uniquely within its sector" }`. At 1e-6 the same cells escalate

@@ -81,11 +81,11 @@ use std::collections::BTreeMap;
 
 use super::sectors::{BoolSector, PierceLever, build_sectors, pierce_side, pierce_side_reported};
 use super::tables::{eq15_3_lump, lump_keeps_one};
+use super::{AlongFace, Coincide, Contradiction, DeclarationRead};
 use super::{
     BoolNullEdgeRecord, BooleanError, BooleanOp, NullEdgePairRecord, Operand, PairSite,
     PierceRingRecord, ReductionContacts, SectorRead, SideCode, VfContact,
 };
-use super::{Coincide, Contradiction, DeclarationRead};
 use crate::body::{Body, WALKS_CLOSE};
 use crate::contact::GlueClass;
 use crate::entity::{EntityId, HalfEdgeKey, VertexKey};
@@ -148,61 +148,71 @@ pub(super) struct PierceDatum<T: geom_core::Real> {
     pub lever: PierceLever<T>,
 }
 
+/// What [`partner_side`] read of a partner beside a touch.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum PartnerRead {
+    /// Its link lies on `side` of the face, `along` it where a bound
+    /// reads on a planar face.
+    Side { side: SideCode, along: bool },
+    /// Its bounds read both sides of the face.
+    Across,
+    /// Its link runs along the face where the side is not read.
+    Along(AlongFace),
+}
+
 /// **The side of a pierced face a paired vertex's link lies on**, where
 /// the piercing vertex only touches the face, read by the reading the
 /// touch itself was decided by: the side every bound of `partner`'s
 /// sectors reads, or reads on a planar face, where every sector has a
-/// bound off it; `None` where the bounds read both sides, a sector reads
-/// on the face at both bounds, a bound reads on a curved face (which way
-/// it leaves is the two carriers' relative curvature), or a bound reads
-/// on it beside a touch that is `flush` with the face. A bound read in
-/// band escalates.
+/// bound off it.
 ///
-/// Each sector is a planar wedge under a half-turn, so it lies in the
-/// closed half-space its bounds do, and meets the face's plane only
-/// along a bound read on it. The partner's link therefore lies in one
-/// closed half-space and meets the plane only along rays, so the side
-/// of the link inside that half-space (its cone, met or joined) meets
-/// the plane only along those rays, which lie on its boundary: every
-/// direction in the plane stays on the other solid's boundary, and
-/// [`touch_classes`] layers the cones as for a partner off the face. A
-/// sector on the face at both bounds is a face of the partner in the
-/// plane, or a half-plane through a line in it. A touch flush with the
-/// face lumps its sector there against the face alone, which a partner
-/// along the face would sit on.
+/// Each sector is a wedge under a half-turn, so the link lies in that
+/// closed half-space and meets the face's plane only along the rays
+/// read on it, on its cone's boundary; [`touch_classes`] layers the cone
+/// as for a partner off the face.
+///
+/// Every bound is read before any verdict, so the verdict is the bounds'
+/// whatever their order: a bound in band escalates (the first in orbit
+/// order is quoted); else bounds on both sides read [`PartnerRead::Across`];
+/// else a bound on a curved face, a sector on the face at both bounds,
+/// or a bound on it beside a touch `flush` with the face, read
+/// [`PartnerRead::Along`], in that order.
 pub(super) fn partner_side<T: Decide>(
     partner: &[BoolSector<T>],
     datum: PierceDatum<T>,
     flush: bool,
     band: Band,
-) -> Result<Option<PartnerSide>, BooleanError> {
-    let (mut side, mut along) = (None, false);
+) -> Result<PartnerRead, BooleanError> {
+    let mut codes = Vec::with_capacity(partner.len());
     for s in partner {
-        let mut on = 0;
-        for (dir, reach) in [(s.start, s.start_reach), (s.end, s.end_reach)] {
+        let code = |dir, reach: super::sectors::Reach<T>| {
             let lever = datum.lever.within(reach.length());
-            let read = pierce_side(dir, reach, datum.normal, datum.shape, lever, band)?;
-            match read.code {
-                SideCode::On if datum.shape == super::sectors::FaceShape::Plane => on += 1,
-                SideCode::On => return Ok(None),
-                c if side.is_none_or(|k| k == c) => side = Some(c),
-                _ => return Ok(None),
-            }
-        }
-        along |= on > 0;
-        if on == 2 || (along && flush) {
-            return Ok(None);
-        }
+            pierce_side(dir, reach, datum.normal, datum.shape, lever, band).map(|read| read.code)
+        };
+        codes.push([code(s.start, s.start_reach)?, code(s.end, s.end_reach)?]);
     }
-    Ok(side.map(|side| PartnerSide { side, along }))
-}
-
-/// [`partner_side`]'s reading: the side of the face the partner's link
-/// lies on, and whether it runs along the face there.
-#[derive(Clone, Copy, Debug)]
-pub(super) struct PartnerSide {
-    pub side: SideCode,
-    pub along: bool,
+    let mut side = None;
+    for c in codes.iter().flatten().filter(|&&c| c != SideCode::On) {
+        if side.is_some_and(|k| k != *c) {
+            return Ok(PartnerRead::Across);
+        }
+        side = Some(*c);
+    }
+    let along = codes.iter().flatten().any(|&c| c == SideCode::On);
+    let refused = if along && datum.shape == super::sectors::FaceShape::Curved {
+        Some(AlongFace::Curved)
+    } else if codes.iter().any(|b| b.iter().all(|&c| c == SideCode::On)) {
+        Some(AlongFace::FaceOnFace)
+    } else if along && flush {
+        Some(AlongFace::Flush)
+    } else {
+        None
+    };
+    Ok(match (refused, side) {
+        (Some(how), _) => PartnerRead::Along(how),
+        (None, Some(side)) => PartnerRead::Side { side, along },
+        (None, None) => PartnerRead::Across,
+    })
 }
 
 /// One pair of a vertex read again: its partner, the partner's side of
@@ -228,8 +238,9 @@ fn held(class: SideCode, met: bool) -> bool {
 /// none of their cones, flipped once for each cone that holds it.
 ///
 /// Each partner's material is a convex cone (met) or its complement
-/// (joined) whose boundary meets the others' only at the point, so the
-/// cones nest or lie apart. Every face bounds the other solid's
+/// (joined) whose boundary meets the others' at the point, or beside a
+/// touch along rays on the touched face ([`partner_side`]), so the cones
+/// nest or lie apart. Every face bounds the other solid's
 /// material on one side only, so crossing a partner's boundary flips
 /// it. A partner's row says on which side of its own boundary the edge
 /// lies, so which cones hold the edge, and how many, is read off the
@@ -363,7 +374,9 @@ fn layered_alone<T: Decide>(
     refuse: impl Fn(usize, usize) -> BooleanError,
 ) -> Result<Option<Vec<(HalfEdgeKey, SideCode)>>, BooleanError> {
     // Partner `i`'s cone lies inside `j`'s where `j` holds every edge
-    // of `i` (strictly: cones whose boundaries meet only at the point).
+    // of `i` (strictly: cones whose boundaries meet only at the point;
+    // two sharing a ray read apart,
+    // `work/tang/pair-classes-keeps-per-pair-rows-where-its-layering-is-undecided.md`).
     let inside = |i: usize, j: usize| -> Result<bool, BooleanError> {
         let read = super::sectors::wedge_classes(&pairs[i].sectors, &pairs[j].sectors, band)?
             .ok_or_else(|| refuse(j, i))?;
@@ -2232,7 +2245,7 @@ mod tests {
     /// The partner's corner lies in `y = 0` over the face `z = 0`: a line
     /// edge up `+z`, and a unit arc leaving along `+x`, tangent to the
     /// face, bending up. To first order the arc ties and the partner's
-    /// side is unread (`None`, which refuses); read by its bend it is
+    /// side is unread (`Along`, which refuses); read by its bend it is
     /// `Out`, as the line is, and the partner lies outside.
     #[test]
     fn a_touching_partner_reads_its_tangent_arc_by_its_bend() {
@@ -2271,17 +2284,20 @@ mod tests {
             shape,
             lever: PierceLever::Everywhere(NO_CURVATURE()),
         };
-        let side = |shape| {
-            partner_side(&partner, datum(shape), false, band)
-                .unwrap()
-                .map(|r| (r.side, r.along))
-        };
+        let side = |shape| partner_side(&partner, datum(shape), false, band).unwrap();
         assert_eq!(
             side(FaceShape::Plane),
-            Some((SideCode::Out, false)),
+            PartnerRead::Side {
+                side: SideCode::Out,
+                along: false
+            },
             "against a plane the arc reads its bend"
         );
-        assert_eq!(side(FaceShape::Curved), None, "to first order the arc ties");
+        assert_eq!(
+            side(FaceShape::Curved),
+            PartnerRead::Along(AlongFace::Curved),
+            "to first order the arc ties"
+        );
     }
 
     /// **An in-band pierce germ line is the sector's tilt undecided**,
@@ -2386,59 +2402,98 @@ mod tests {
             shape: FaceShape::Plane,
             lever: PierceLever::Everywhere(NO_CURVATURE()),
         };
+        // Every rotation of the sector order reads alike.
         let read = |rays: &[[f64; 3]], datum, flush| {
-            partner_side(&cone(rays), datum, flush, band).map(|r| r.map(|r| (r.side, r.along)))
+            let mut sectors = cone(rays);
+            let first = partner_side(&sectors, datum, flush, band);
+            for _ in 1..sectors.len() {
+                sectors.rotate_left(1);
+                let again = partner_side(&sectors, datum, flush, band);
+                assert_eq!(
+                    format!("{again:?}"),
+                    format!("{first:?}"),
+                    "a rotation of {rays:?}"
+                );
+            }
+            first
         };
+        use PartnerRead::{Across, Along, Side};
+        let side = |side, along| Side { side, along };
         let standing = [[1.0, 0.0, 1.0], [0.0, 1.0, 1.0], [-1.0, -1.0, 1.0]];
         let lying = [[1.0, 0.0, 0.0], [0.0, 1.0, 1.0], [0.0, -1.0, 1.0]];
-        for (what, rays, flush, want) in [
-            ("standing", &standing[..], false, Some((Out, false))),
+        let across = [[1.0, 0.0, 1.0], [0.0, 1.0, -1.0], [-1.0, -1.0, 1.0]];
+        let curved = PierceDatum {
+            shape: FaceShape::Curved,
+            ..plane
+        };
+        for (what, rays, datum, flush, want) in [
+            ("standing", &standing[..], plane, false, side(Out, false)),
             (
                 "hanging",
                 &[[1.0, 0.0, -1.0], [0.0, 1.0, -1.0], [-1.0, -1.0, -1.0]][..],
+                plane,
                 false,
-                Some((In, false)),
+                side(In, false),
             ),
             (
                 "lying, a ray on the face",
                 &lying[..],
+                plane,
                 false,
-                Some((Out, true)),
+                side(Out, true),
             ),
             (
                 "lying under the face",
                 &[[1.0, 0.0, 0.0], [0.0, 1.0, -1.0], [0.0, -1.0, -1.0]][..],
+                plane,
                 false,
-                Some((In, true)),
+                side(In, true),
             ),
-            (
-                "across the face",
-                &[[1.0, 0.0, 1.0], [0.0, 1.0, -1.0], [-1.0, -1.0, 1.0]][..],
-                false,
-                None,
-            ),
+            ("across the face", &across[..], plane, false, Across),
             (
                 "a face on the face",
                 &[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [-1.0, -1.0, 1.0]][..],
+                plane,
                 false,
-                None,
+                Along(AlongFace::FaceOnFace),
             ),
             (
                 "standing beside a flush touch",
                 &standing[..],
+                plane,
                 true,
-                Some((Out, false)),
+                side(Out, false),
             ),
-            ("lying beside a flush touch", &lying[..], true, None),
+            (
+                "lying beside a flush touch",
+                &lying[..],
+                plane,
+                true,
+                Along(AlongFace::Flush),
+            ),
+            (
+                "lying on a curved face",
+                &lying[..],
+                curved,
+                false,
+                Along(AlongFace::Curved),
+            ),
+            (
+                "across a curved face, a ray on it",
+                &[[1.0, 0.0, 0.0], [0.0, 1.0, -1.0], [-1.0, -1.0, 1.0]][..],
+                curved,
+                false,
+                Across,
+            ),
         ] {
-            assert_eq!(read(rays, plane, flush).unwrap(), want, "{what}");
+            assert_eq!(read(rays, datum, flush).unwrap(), want, "{what}");
         }
         // A bound three zero bands off the face reads in band; a hundred
         // reads off it.
-        for (lift, want) in [(3.0 * z, None), (100.0 * z, Some((Out, false)))] {
+        for (lift, want) in [(3.0 * z, None), (100.0 * z, Some(side(Out, false)))] {
             let rays = [[1.0, 0.0, lift], [0.0, 1.0, 1.0], [0.0, -1.0, 1.0]];
             match (read(&rays, plane, false), want) {
-                (Ok(got), Some(_)) => assert_eq!(got, want, "lifted {lift}"),
+                (Ok(got), Some(want)) => assert_eq!(got, want, "lifted {lift}"),
                 (Err(BooleanError::Escalated { decision, .. }), None) => assert_eq!(
                     decision,
                     super::super::BooleanDecision::Coincidence(
@@ -2457,7 +2512,7 @@ mod tests {
         let rays = [[1.0, 0.0, slope], [0.0, 1.0, 1.0], [0.0, -1.0, 1.0]];
         assert_eq!(
             read(&rays, plane, false).unwrap(),
-            Some((Out, false)),
+            side(Out, false),
             "on a plane"
         );
         let bent = PierceDatum {
@@ -2468,13 +2523,6 @@ mod tests {
         assert!(
             read(&rays, bent, false).is_err(),
             "on a face bent at a unit radius"
-        );
-        // On a curved face a bound on its tangent plane says nothing of
-        // which way the partner leaves the face.
-        assert_eq!(
-            read(&lying, bent, false).unwrap(),
-            None,
-            "lying on a curved face"
         );
     }
 

@@ -836,10 +836,10 @@ pub mod validate;
 
 pub use body::Body;
 pub use boolean::{
-    ArcEndGaps, BoolNullEdgeRecord, BooleanBody, BooleanDecision, BooleanError, BooleanErrorKind,
-    BooleanInputs, BooleanNaming, BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind,
-    CarriedRecord, CarrierDesc, CarrierEqError, CarrierRelation, CarryRefusal, Cell, Coincide,
-    CoincidenceMeasure, CompletedPolygonPair, ConsumedExtent, Contact, ContactKind,
+    AlongFace, ArcEndGaps, BoolNullEdgeRecord, BooleanBody, BooleanDecision, BooleanError,
+    BooleanErrorKind, BooleanInputs, BooleanNaming, BooleanOp, BooleanReduction, BooleanResult,
+    BooleanResultKind, CarriedRecord, CarrierDesc, CarrierEqError, CarrierRelation, CarryRefusal,
+    Cell, Coincide, CoincidenceMeasure, CompletedPolygonPair, ConsumedExtent, Contact, ContactKind,
     ContactPairError, ContactRecords, ContainDecision, ContainError, Contradiction,
     DeclarationRead, DiscardRow, EdgeJoin, EdgePieceClass, EeContact, FaceContainment, Fusions,
     GivenPair, HeldEdge, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided,

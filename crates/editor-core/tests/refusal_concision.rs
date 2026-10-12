@@ -696,6 +696,16 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
+            "PartnerAlongFace",
+            BooleanError::PartnerAlongFace {
+                operand: Operand::A,
+                vertex: VertexKey::default(),
+                face: FaceKey::default(),
+                partner: VertexKey::default(),
+                along: topo::AlongFace::FacesInOnePlane,
+            },
+        ),
+        (
             "NonManifoldResult",
             BooleanError::NonManifoldResult {
                 a_vertex: VertexKey::default(),

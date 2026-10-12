@@ -152,9 +152,9 @@ impl G {
         }
     }
 
-    /// The germ's side of direction `d`: In / Out where every nearby
-    /// direction agrees, On where they disagree.
-    fn side(&self, d: [f64; 3]) -> SideCode {
+    /// The germ's side of direction `d`: In / Out where every direction
+    /// within `ball` (radians) agrees, On where they disagree.
+    fn side(&self, d: [f64; 3], ball: f64) -> SideCode {
         let l = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt();
         let d = d.map(|x| x / l);
         let (mut i, mut o) = (0, 0);
@@ -163,7 +163,7 @@ impl G {
             let (s, c) = (2.399_963 * f64::from(k)).sin_cos();
             let r = z.mul_add(-z, 1.0).sqrt();
             let u = [r * c, r * s, z];
-            let q = [0, 1, 2].map(|j| d[j] + 1e-7 * u[j]);
+            let q = [0, 1, 2].map(|j| d[j] + ball * u[j]);
             if self.has(q) {
                 i += 1;
             } else {
@@ -222,12 +222,14 @@ struct Tally {
 }
 
 /// Every op on `(x, y)` in both orders, tallied: each edge at `MEET` of
-/// a built result's operands has one row, the germ's side.
+/// a built result's operands has one row, the germ's side read within
+/// `ball` radians.
 fn check(
     label: &str,
     x: (&AtRestBody<f64>, &G),
     y: (&AtRestBody<f64>, &G),
     pose: &Pose,
+    ball: f64,
     tally: &mut Tally,
 ) {
     let meet = at(pose.at(MEET));
@@ -269,8 +271,10 @@ fn check(
                         if here != v {
                             continue;
                         }
-                        let want =
-                            other.side(local(pose, readback::vertex_point(own, far).unwrap() - p));
+                        let want = other.side(
+                            local(pose, readback::vertex_point(own, far).unwrap() - p),
+                            ball,
+                        );
                         let got: Vec<SideCode> = r
                             .naming
                             .edge_classes
@@ -929,7 +933,7 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
                 order.push(label);
             }
             let tally = tallies.entry(label).or_default();
-            check(label, x, y, &pose, tally);
+            check(label, x, y, &pose, 1e-7, tally);
         }
     }
     let mut failures = Vec::new();
@@ -948,4 +952,349 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
     }
     assert!(failures.is_empty(), "{failures:#?}");
     assert!(rows > 0, "rows were read");
+}
+
+/// A probe cell's tally beside [`Tally`]: what built, what was empty or
+/// refused, and each result that read wrong against the germ.
+#[derive(Default, Debug)]
+struct ProbeTally {
+    cells: usize,
+    built: usize,
+    empty: usize,
+    refused: BTreeMap<String, usize>,
+    bad: Vec<String>,
+}
+
+/// Every op on `(x, y)` in both orders against the analytic germ: tier
+/// 3, the material at 240 directions `radius` from `MEET` (where the
+/// germ reads a side within `ball`), and volumes that add up where all
+/// six build.
+fn probe_material(
+    label: &str,
+    x: (&AtRestBody<f64>, &G),
+    y: (&AtRestBody<f64>, &G),
+    pose: &Pose,
+    radius: f64,
+    ball: f64,
+    tally: &mut ProbeTally,
+) {
+    use topo::{SolidContainment, mass_properties, point_in_solid};
+    let band = Band::linear(t()).unwrap();
+    let meet = pose.at(MEET);
+    let o = pose.at([0.0; 3]);
+    let dirs: Vec<[f64; 3]> = (0..240)
+        .map(|k| {
+            let z = 1.0 - (2.0 * f64::from(k) + 1.0) / 240.0;
+            let (s, c) = (2.399_963 * f64::from(k)).sin_cos();
+            let r = z.mul_add(-z, 1.0).sqrt();
+            [r * c, r * s, z]
+        })
+        .collect();
+    let vol = |b: &AtRestBody<f64>| mass_properties(b, t()).map(|m| m.volume);
+    let (Ok(vx), Ok(vy)) = (vol(x.0), vol(y.0)) else {
+        tally.bad.push(format!("{label}: an operand's volume"));
+        return;
+    };
+    type Keep = fn(bool, bool) -> bool;
+    let x_less: Keep = |a, b| a && !b;
+    let y_less: Keep = |a, b| b && !a;
+    let or: Keep = |a, b| a || b;
+    let and: Keep = |a, b| a && b;
+    let mut v = [None; 6];
+    for (k, (what, keep, r)) in [
+        ("x − y", x_less, subtract(x.0, y.0, t())),
+        ("y − x", y_less, subtract(y.0, x.0, t())),
+        ("x ∪ y", or, union(x.0, y.0, t())),
+        ("y ∪ x", or, union(y.0, x.0, t())),
+        ("x ∩ y", and, intersect(x.0, y.0, t())),
+        ("y ∩ x", and, intersect(y.0, x.0, t())),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        tally.cells += 1;
+        let what = format!("{label}, {}, {what}", pose.label);
+        // The germ's verdict at each direction it reads a side at.
+        let sides = dirs.iter().filter_map(|&d| {
+            let (sx, sy) = (x.1.side(d, ball), y.1.side(d, ball));
+            (sx != SideCode::On && sy != SideCode::On)
+                .then(|| (d, keep(sx == SideCode::In, sy == SideCode::In)))
+        });
+        let body = match r {
+            Ok(BooleanResult::Body(r)) => r.body,
+            Ok(BooleanResult::Empty) => {
+                tally.empty += 1;
+                v[k] = Some(0.0);
+                if let Some((d, _)) = sides.into_iter().find(|&(_, want)| want) {
+                    tally
+                        .bad
+                        .push(format!("{what}: empty, but the germ holds {d:?}"));
+                }
+                continue;
+            }
+            Err(e) => {
+                let kind = format!("{e:?}");
+                let kind = kind.split([' ', '{', '(']).next().unwrap_or("").to_owned();
+                *tally.refused.entry(kind).or_default() += 1;
+                continue;
+            }
+        };
+        tally.built += 1;
+        if let Err(e) = validate_geometric(&body, t()) {
+            tally.bad.push(format!("{what}: tier 3 {e:?}"));
+            continue;
+        }
+        v[k] = vol(&body).ok();
+        for (d, want) in sides {
+            let q = meet + (pose.at(d.map(|c| c * radius)) - o);
+            let got = match point_in_solid(&body, q, band, t()) {
+                Ok(SolidContainment::In) => true,
+                Ok(SolidContainment::Out) => false,
+                _ => continue,
+            };
+            if got != want {
+                tally.bad.push(format!(
+                    "{what}: material along {d:?} {got}, the germ {want}"
+                ));
+                break;
+            }
+        }
+    }
+    if let [Some(xl), Some(yl), Some(u1), Some(u2), Some(i1), Some(i2)] = v {
+        let tol = 1e-9 * (vx + vy).max(1.0);
+        for (name, lhs, rhs) in [
+            ("|x ∪ y| + |x ∩ y|", u1 + i1, vx + vy),
+            ("|y ∪ x| + |y ∩ x|", u2 + i2, vx + vy),
+            ("|x − y| + |x ∩ y|", xl + i1, vx),
+            ("|y − x| + |x ∩ y|", yl + i1, vy),
+        ] {
+            if (lhs - rhs).abs() > tol {
+                tally
+                    .bad
+                    .push(format!("{label}, {}: {name} {lhs}, want {rhs}", pose.label));
+            }
+        }
+    }
+}
+
+/// The apex's distance from the plane through `b`'s corners (relative
+/// to the apex): within it the pyramid is its cone.
+fn apex_reach(b: [[f64; 3]; 3]) -> f64 {
+    let u = [0, 1, 2].map(|k| b[1][k] - b[0][k]);
+    let v = [0, 1, 2].map(|k| b[2][k] - b[0][k]);
+    let n = [
+        u[1] * v[2] - u[2] * v[1],
+        u[2] * v[0] - u[0] * v[2],
+        u[0] * v[1] - u[1] * v[0],
+    ];
+    let l = (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).sqrt();
+    ((0..3).map(|k| n[k] * b[0][k]).sum::<f64>() / l).abs()
+}
+
+/// **Partners along the face, by bearing, height, spread and scale,
+/// build sound or refuse typed against the analytic germ** (PR 4413's
+/// review probe, sampled): pyramids lying on the plate's top or voids
+/// under it with an edge on the top, flat to steep and
+/// narrow to near a half-turn wide, sectors near a half-turn on the
+/// ray, and the on-face corner lifted through the band; against
+/// fourteen pyramids standing, hanging, on the ray and tilted 2ε off
+/// it; turned in general, at full size and a thirtieth. Every built
+/// cell is tier 3, its rows at `MEET` the germ's (read within 100ε over
+/// the scale), its material the germ's near `MEET`, and its volumes add
+/// up; refusals are tallied, never asserted away.
+#[test]
+fn partners_along_the_face_build_sound_against_the_germ() {
+    let eps = t().eps();
+    let mut germ = Tally::default();
+    let mut probe = ProbeTally::default();
+    let poses = poses();
+    for pose in [&poses[2]] {
+        for scale in [0.03, 1.0] {
+            let p = |b: [[f64; 3]; 3]| tet(b.map(|c| c.map(|x| x * scale)), pose);
+            let ball = 100.0 * eps / scale;
+            let plate_b = posed_box("the plate", PLATE, pose, t());
+            let mut partners: Vec<(String, [[f64; 3]; 3], bool)> = Vec::new();
+            for phi in [250.0] {
+                for (h, spread) in [(0.5, 20.0), (0.05, 20.0), (0.5, 85.0), (0.01, 89.0)] {
+                    for (above, z) in [(true, h), (false, -h)] {
+                        partners.push((
+                            format!(
+                                "{} φ {phi} h {h} spread {spread}",
+                                if above { "lying" } else { "void under" }
+                            ),
+                            [
+                                bearing(phi + spread, 0.4, z),
+                                bearing(phi - spread, 0.4, z),
+                                bearing(phi, 0.5, 0.0),
+                            ],
+                            above,
+                        ));
+                    }
+                }
+                for (delta, h) in [(1.0, 1e-3), (1e-3, 1e-3), (2.0, 0.0)] {
+                    for sign in [-1.0, 1.0] {
+                        partners.push((
+                            format!(
+                                "half-turn φ {phi} δ {}{delta} h {h}",
+                                if sign < 0.0 { "−" } else { "+" }
+                            ),
+                            [
+                                bearing(phi, 0.5, 0.0),
+                                bearing(phi + 90.0, 0.4, 0.4),
+                                bearing(phi + 180.0 + sign * delta, 0.5, h),
+                            ],
+                            true,
+                        ));
+                    }
+                }
+                for k in [-100.0, -5.0, -0.5, 0.5, 5.0, 100.0] {
+                    partners.push((
+                        format!("lifted φ {phi} k {k}"),
+                        [
+                            bearing(phi + 20.0, 0.4, 0.5),
+                            bearing(phi - 20.0, 0.4, 0.5),
+                            bearing(phi, 0.5, k * eps / scale),
+                        ],
+                        true,
+                    ));
+                }
+            }
+            for (plabel, base, above) in &partners {
+                let ylabel = format!("{plabel}, scale {scale}");
+                let yp = p(*base);
+                let made = if *above {
+                    union(&plate_b, &yp, t())
+                } else {
+                    subtract(&plate_b, &yp, t())
+                };
+                let y_b = match made {
+                    Ok(BooleanResult::Body(r)) => r.body,
+                    other => {
+                        let kind = format!("{:?}", other.map(|_| ()));
+                        let kind = kind.split([' ', '{', '(']).nth(1).unwrap_or("").to_owned();
+                        *probe.refused.entry(format!("partner: {kind}")).or_default() += 1;
+                        continue;
+                    }
+                };
+                let y_g = if *above {
+                    u(G::Half, c(*base))
+                } else {
+                    dd(G::Half, c(*base))
+                };
+                let ray = *base.iter().find(|c| c[2] == 0.0).unwrap_or(&base[2]);
+                let phi = ray[1].atan2(ray[0]).to_degrees();
+                let xs: [(&str, [[f64; 3]; 3]); 14] = [
+                    ("standing 240", corners(240.0, 0.5, 0.4)),
+                    ("standing across", corners(phi + 180.0, 0.5, 0.4)),
+                    ("over", corners(phi, 0.7, 0.5)),
+                    ("hanging", corners(phi, -0.5, 0.4)),
+                    ("hanging 200", corners(phi + 200.0, -0.5, 0.4)),
+                    (
+                        "under the ray",
+                        [
+                            bearing(phi, 0.3, 0.0),
+                            bearing(phi + 40.0, 0.4, -0.3),
+                            bearing(phi - 40.0, 0.4, -0.3),
+                        ],
+                    ),
+                    (
+                        "on the ray beside",
+                        [
+                            bearing(phi, 0.3, 0.0),
+                            bearing(phi + 50.0, 0.4, 0.2),
+                            bearing(phi + 90.0, 0.4, 0.4),
+                        ],
+                    ),
+                    (
+                        "on the ray, the other side",
+                        [
+                            bearing(phi, 0.3, 0.0),
+                            bearing(phi - 90.0, 0.4, 0.4),
+                            bearing(phi - 50.0, 0.4, 0.2),
+                        ],
+                    ),
+                    (
+                        "on the ray, near flat above",
+                        [
+                            bearing(phi, 0.3, 0.0),
+                            bearing(phi + 120.0, 0.4, 0.01),
+                            bearing(phi - 120.0, 0.4, 0.01),
+                        ],
+                    ),
+                    (
+                        "on the ray, near flat below",
+                        [
+                            bearing(phi, 0.3, 0.0),
+                            bearing(phi + 120.0, 0.4, -0.01),
+                            bearing(phi - 120.0, 0.4, -0.01),
+                        ],
+                    ),
+                    (
+                        "an edge inside the along face",
+                        [
+                            [0, 1, 2].map(|k| 0.3 * (base[0][k] + base[2][k])),
+                            bearing(phi + 180.0, 0.4, 0.3),
+                            bearing(phi + 120.0, 0.4, 0.6),
+                        ],
+                    ),
+                    (
+                        "an edge inside the other along face",
+                        [
+                            [0, 1, 2].map(|k| 0.3 * (base[1][k] + base[2][k])),
+                            bearing(phi - 120.0, 0.4, 0.6),
+                            bearing(phi + 180.0, 0.4, 0.3),
+                        ],
+                    ),
+                    (
+                        "the ray tilted 2ε up",
+                        [
+                            bearing(phi, 0.3, 2.0 * eps / scale),
+                            bearing(phi + 50.0, 0.4, 0.2),
+                            bearing(phi + 90.0, 0.4, 0.4),
+                        ],
+                    ),
+                    (
+                        "the ray tilted 2ε down",
+                        [
+                            bearing(phi, 0.3, -2.0 * eps / scale),
+                            bearing(phi + 40.0, 0.4, -0.3),
+                            bearing(phi - 40.0, 0.4, -0.3),
+                        ],
+                    ),
+                ];
+                for (xl, xb) in xs {
+                    let label = format!("{ylabel} | {xl}");
+                    let x_b = p(xb);
+                    let x_g = c(xb);
+                    let before = (germ.wrong, germ.missing, germ.doubled);
+                    germ.first = None;
+                    check(&label, (&x_b, &x_g), (&y_b, &y_g), pose, ball, &mut germ);
+                    if (germ.wrong, germ.missing, germ.doubled) != before {
+                        probe
+                            .bad
+                            .push(format!("{label}: germ rows {:?}", germ.first));
+                    }
+                    let radius = (0.25 * apex_reach(*base).min(apex_reach(xb))).min(1e-3) * scale;
+                    probe_material(
+                        &label,
+                        (&x_b, &x_g),
+                        (&y_b, &y_g),
+                        pose,
+                        radius,
+                        ball,
+                        &mut probe,
+                    );
+                }
+            }
+        }
+    }
+    eprintln!(
+        "cells {}, built {}, empty {}, germ rows {}; refused {:?}",
+        probe.cells, probe.built, probe.empty, germ.rows, probe.refused
+    );
+    assert!(probe.bad.is_empty(), "{:#?}", probe.bad);
+    assert!(
+        probe.built > 0 && germ.rows > 0,
+        "cells built and rows read"
+    );
 }

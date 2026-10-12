@@ -34,7 +34,10 @@
 //!   without;
 //! - a pyramid with an edge lying **along** the arch's face;
 //! - a pyramid **lying** on the plate, an edge on its top, which a
-//!   touching vertex refuses to pair with (`vtxfac::partner_side`);
+//!   touching vertex pairs with (`vtxfac::partner_side`), pyramids along
+//!   that edge, and the lying pyramid's corner tipped off the top; and
+//!   pyramids with a face on the top or on the lying pyramid's, which
+//!   refuse `PartnerAlongFace`;
 //! - a **dart** on the plate, whose apex is a reflex edge, and the plate
 //!   less a dart or a near-flat quadrilateral, a void below the top
 //!   whose apex is one too, each read as a polygon cone
@@ -60,12 +63,17 @@ use common::meeting::{
 };
 use geom_core::{Band, Point3, Tol, Vec3};
 use topo::{
-    AtRestBody, BooleanError, BooleanResult, CensusContact, EntityId, Operand, SectorRead,
-    SideCode, SolidContainment, ValidationError, intersect, mass_properties, point_in_solid,
-    point_in_solid_of, readback, subtract, union, validate_geometric, validate_pseudomanifold,
+    AlongFace, AtRestBody, BooleanError, BooleanResult, CensusContact, EntityId, Operand,
+    SectorRead, SideCode, SolidContainment, ValidationError, intersect, mass_properties,
+    point_in_solid, point_in_solid_of, readback, subtract, union, validate_geometric,
+    validate_pseudomanifold,
 };
 
 const THIRD: f64 = 1.0 / 3.0;
+
+/// The ops in which the flush pyramid's pierce crosses the top, which
+/// refuses before its pair is read.
+const FLUSH_CROSSES: [&str; 2] = ["x ∪ y", "y ∪ x"];
 
 fn t() -> Tol {
     Tol::witness()
@@ -388,11 +396,21 @@ fn builds_along(
     held
 }
 
-/// Every op on `(x, y)`, in both orders, refuses `VertexReadTwice` on a
-/// vertex of `x`'s operand that pierces then pairs: its apex at
-/// [`MEET`], or one the sweep mints where `x`'s edge crosses the lying
-/// pyramid's ray, whichever pair is read first.
-fn refuses_beside_the_ray(label: &str, x: &AtRestBody<f64>, y: &AtRestBody<f64>, pose: &Pose) {
+/// Every op on `(x, y)`, in both orders, refuses on a vertex of `x`'s
+/// operand that touches the top and pairs with a partner along it, its
+/// apex at [`MEET`] or one the sweep mints where `x`'s edge crosses the
+/// lying pyramid's ray, whichever pair is read first:
+/// `PartnerAlongFace` as `how`, or, in the `crossing` ops, where that
+/// vertex's pierce crosses the top, `VertexReadTwice` before the pair is
+/// read.
+fn refuses_beside_the_ray(
+    label: &str,
+    x: &AtRestBody<f64>,
+    y: &AtRestBody<f64>,
+    pose: &Pose,
+    how: AlongFace,
+    crossing: &[&str],
+) {
     let meet = at(pose.at(MEET));
     let at_meet_or_minted =
         |body: &AtRestBody<f64>, v| readback::vertex_point(body, v).map_or(true, |p| at(p) == meet);
@@ -404,21 +422,41 @@ fn refuses_beside_the_ray(label: &str, x: &AtRestBody<f64>, y: &AtRestBody<f64>,
         ("x ∩ y", Operand::A, intersect(x, y, t())),
         ("y ∩ x", Operand::B, intersect(y, x, t())),
     ] {
+        let crosses = crossing.contains(&what);
         let what = format!("{label}, {}, {what}", pose.label);
         match r {
+            Err(BooleanError::PartnerAlongFace {
+                operand,
+                vertex,
+                partner,
+                along,
+                ..
+            }) => {
+                assert!(
+                    !crosses,
+                    "{what}: refuses at the crossing pierce, got {along:?}"
+                );
+                assert_eq!(operand, x_is, "{what}: the touching operand");
+                assert!(
+                    at_meet_or_minted(x, vertex) && at_meet_or_minted(y, partner),
+                    "{what}: the pair is at MEET or minted"
+                );
+                assert_eq!(along, how, "{what}: how the partner meets the face");
+            }
             Err(BooleanError::VertexReadTwice {
                 operand,
                 vertex,
                 reads: [SectorRead::Pierce(_), SectorRead::Pair(partner)],
             }) => {
-                assert_eq!(operand, x_is, "{what}: the operand read twice");
+                assert!(crosses, "{what}: refuses {how:?}, got the crossing pierce");
+                assert_eq!(operand, x_is, "{what}: the touching operand");
                 assert!(
                     at_meet_or_minted(x, vertex) && at_meet_or_minted(y, partner),
-                    "{what}: the pair read twice is at MEET or minted"
+                    "{what}: the pair is at MEET or minted"
                 );
             }
             other => panic!(
-                "{what}: refuses VertexReadTwice, a pierce then a pair, got {:?}",
+                "{what}: refuses PartnerAlongFace, got {:?}",
                 other.map(|_| ())
             ),
         }
@@ -778,7 +816,7 @@ fn a_touching_vertex_paired_on_the_face_builds_sound_in_every_op() {
 /// and pyramids under it, on it beside the lying one, around it, inside
 /// it and continuing its face across it each pair with its apex. A
 /// pyramid with a face flush on the top across the ray, and one with a
-/// face on the lying pyramid's, refuse `VertexReadTwice`: the layering
+/// face on the lying pyramid's, refuse `PartnerAlongFace`: the layering
 /// is not read beside a coincidence of the touch's or the pair's
 /// (`vtxfac::partner_side`). At rest; every pose is the slow matrix's.
 #[test]
@@ -788,8 +826,22 @@ fn a_touching_vertex_beside_a_partner_along_the_face_builds_sound_in_every_op() 
     for (label, x) in &s.along_ray {
         builds_along(label, x, &s.lying, pose, false, lying_ray());
     }
-    refuses_beside_the_ray("flush on the top", &s.flush, &s.lying, pose);
-    refuses_beside_the_ray("on the lying pyramid's face", &s.on_lying, &s.lying, pose);
+    refuses_beside_the_ray(
+        "flush on the top",
+        &s.flush,
+        &s.lying,
+        pose,
+        AlongFace::Flush,
+        &FLUSH_CROSSES,
+    );
+    refuses_beside_the_ray(
+        "on the lying pyramid's face",
+        &s.on_lying,
+        &s.lying,
+        pose,
+        AlongFace::FacesInOnePlane,
+        &[],
+    );
 }
 
 /// **A vertex in several pairs, or touching a face beside nested
@@ -994,8 +1046,22 @@ fn every_scene_builds_sound_or_refuses_typed_at_every_pose() {
         for (label, x) in &s.along_ray {
             held += builds_along(label, x, &s.lying, &pose, false, lying_ray());
         }
-        refuses_beside_the_ray("flush on the top", &s.flush, &s.lying, &pose);
-        refuses_beside_the_ray("on the lying pyramid's face", &s.on_lying, &s.lying, &pose);
+        refuses_beside_the_ray(
+            "flush on the top",
+            &s.flush,
+            &s.lying,
+            &pose,
+            AlongFace::Flush,
+            &FLUSH_CROSSES,
+        );
+        refuses_beside_the_ray(
+            "on the lying pyramid's face",
+            &s.on_lying,
+            &s.lying,
+            &pose,
+            AlongFace::FacesInOnePlane,
+            &[],
+        );
         refuses(
             "a prism through the top",
             &s.prism,
@@ -1215,7 +1281,8 @@ fn builds_or_refuses(
 /// pair reads in band; off it the partner is strictly one side, or
 /// crosses the top. A refusal is an escalation, the
 /// coincidence a face of the pyramid on the top or on the lying one's
-/// refuses (`VertexReadTwice`), or, a pyramid inside the lifted one, the
+/// refuses (`PartnerAlongFace`, or `VertexReadTwice` where its pierce
+/// crosses the top), or, a pyramid inside the lifted one, the
 /// pierce germ that no sector holds alone
 /// (`work/cleave/near-tangent-pierce-poses-reach-three-classification-invariants.md`).
 #[test]
@@ -1263,7 +1330,12 @@ fn a_partner_tipped_off_the_face_builds_sound_or_refuses_typed_at_every_pose() {
                 let label = format!("{label}, the pyramid lying {k}ε off the top");
                 built += builds_or_refuses(&label, x, &y, &pose, &|e| {
                     matches!(e, BooleanError::Escalated { .. })
-                        || (faced && matches!(e, BooleanError::VertexReadTwice { .. }))
+                        || (faced
+                            && matches!(
+                                e,
+                                BooleanError::PartnerAlongFace { .. }
+                                    | BooleanError::VertexReadTwice { .. }
+                            ))
                         || (inside && germ(e))
                 });
             }
