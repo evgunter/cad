@@ -2,12 +2,13 @@
 id: unsized-fit-reads-a-rejected-zero-on-the-undecided-arm-as-the-last-resort
 kind: issue
 title: pcurve_cache's FittedEscalated drops which SSI decision escalated and ends every escalation as Unsized::Fit, so one SSI decision ends two ways across doors
-status: review
+status: closed
 pr: 4874
 opened: 2026-10-12
 priority: P3
 cost: E
 branch: encl/fitted-escalated-keeps-decision
+closed: 2026-10-12
 ---
 
 
