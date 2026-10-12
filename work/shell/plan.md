@@ -63,6 +63,53 @@ The P3 re-anchor rows (`reanchor-does-not-extend-…`,
 `per-chart-door-transports-a-torus-rim-…` follow; the two unpriced
 rows are priced before they are dispatched.
 
+then, as units:
+
+13. **A fitted wall's section is its fit's** — `a-fitted-wall-has-no-section-with-a-moved-cap`
+    (P2, H): decided 2026-10-08 (the item's `## Decided`). C5 routes
+    `(Plane, Approx)` over `approx.fit()`, the edge stores the `Approx`
+    key, and nothing is composed into its bound. Lofts then stop at the
+    wall–wall seams. Dual review.
+14. **The per-chart door's inverted body** — `the-per-chart-door-adopts-an-inverted-body`
+    (P2, M): unit 10's `## Decided` already rules that the doors are
+    construction steps, finished only through `AtRestBody::validate`.
+    What is owed is the check that every caller adopting the door's
+    result passes that gate, and pins showing the frustum and tube
+    moves refuse there. Single review.
+
+After 13, re-measure and price `a-wall-seam-between-two-fits-has-no-section`
+(P2, H) before dispatching it.
+
+then, as units:
+
+15. **A moved fit's corners** — `a-moved-fitted-faces-corners-have-no-root-on-a-derived-spline-section`
+    (P2, H): seed the plane's root on a derived spline section, or root
+    the fit along a held edge, so a fitted face bounded by planes moves.
+    Lands after 13 (both in `replace_face.rs`). Dual review.
+16. **The tilted read's three gaps** — `tilted-read-accepts-a-zero-touch-on-any-vertex-sharing-pair`
+    (E), `tilted-read-skips-edge-adjacent-pairs-that-cross-away-from-their-edge`
+    (M) and `tilted-read-takes-a-spline-or-spiric-edge-as-its-carrier-ball`
+    (M), all P3 and all in `moved_walls_cross` (`shell.rs`). The skipped
+    edge-adjacent pair is a possible silent crossing, so the unit is
+    M-tier: rule-1 draw byte 178 (mod 3 = 1), sequential.
+
+The wall seam re-measured (its `## Measured`, 2026-10-09): the loft's
+seams refuse at the iso-row guard and at `Approx × Nurbs`, behind a fit
+budget the default ε misses. It needs a designer pair before it is
+priced, after 15.
+
+The wall seam went to a designer pair (fork-log row 106). Ev ruled on PR 4515: one complete NURBS × NURBS arm, a `Section` handle with `branch_at` and `all()`. The designed final state is in the item's `## Designed` and `## Decided`. It cuts into:
+
+17. **Narrow the iso-row arm** — `the-iso-row-arm-reads-a-u-moving-chart-image-as-a-u-row` (P2), plus the iso-row half of the wall-seam `## Designed`. The arm fires only for a self-shared image or a neighbour that holds the move, and reads the image's own row. M tier: rule-1 byte 37 (mod 3 = 1), sequential.
+18. **The general simultaneous door** — `shell-moves-every-chart-of-a-solid-through-one-simultaneous-door` (P2, H). Every chart of a solid moves at once; edges are sections of moved surfaces, and corners are their roots. Dual review. It runs beside 17 (both touch `replace_face.rs`; each merges main often).
+19. **The NURBS × NURBS arm** — `a-wall-seam-between-two-fits-has-no-section` (P2, H), as ruled. After 18.
+20. **The saddle fit's reach** — `a-saddle-walls-offset-fit-stalls-short-of-the-default-eps` (P3, measure first).
+21. **The plane × NURBS door takes `branch_at`** — `the-plane-nurbs-door-selects-its-branch-by-nearest-sample` (P2, M), the ruling's second half (PR 4515: "in the arm's unit or the next"). A `Section`-shaped handle over the plane × NURBS lane; `plane_nurbs_ssi` becomes `all()`, and `plane_wall_section` calls `branch_at(mid)`. M tier: rule-1 byte 32 (mod 3 = 2), sequential. It runs beside 20 (different files).
+
+Unit 19 merged (PR 4597, 2026-10-11). Its follow-ups are filed: the boundary pass's Side/Corner regions and its cost (SSIEDGE), `all()`'s small-loop budget and the ℝ⁴ walk's duplication (SSIEDGE), the M8-4 mint with a non-plane pair and the loft top rim's certificate (ISO).
+
+Curved wall clearance (geom-brep README, Open) is the gate before a shelled loft is sound at rest. It is priced after 19.
+
 Units 8 and 10 run in parallel (different files); unit 9's measure
 runs beside them.
 

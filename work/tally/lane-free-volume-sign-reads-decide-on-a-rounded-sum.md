@@ -6,11 +6,11 @@ status: open
 opened: 2026-10-03
 priority: P3
 cost: M
-refs: [volume-door-reads-a-tiny-valid-boolean-result-wrong]
+refs: [3977]
 ---
 
 Residue of REACH's check-7 fix for
-`work/contact/volume-door-reads-a-tiny-valid-boolean-result-wrong`
+`volume-door-reads-a-tiny-valid-boolean-result-wrong` (closed, PR 3977)
 (PR 3977).
 
 A sign read off a body's signed volume stands only where the volume's

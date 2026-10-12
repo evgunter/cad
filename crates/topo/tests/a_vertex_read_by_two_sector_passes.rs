@@ -41,9 +41,9 @@
 //!   (`sectors::cone_read`);
 //! - the plate alone, and the arches without it, read once.
 //!
-//! The operands' own contacts do not reach a result
-//! (`work/wire/a-boolean-drops-its-operands-own-contact-records.md`), so
-//! tier 3′ is asserted where the result holds no such contact and
+//! A kernel op called without `BooleanInputs` records carries none of
+//! its operands' records, so the operands' own contacts do not reach a
+//! result here, and tier 3′ is asserted where the result holds no such contact and
 //! otherwise refuses only those, at `MEET`, or a touch there the
 //! census misreads (`three_prime`). Each result's material near `MEET`
 //! is the op's over the operands' (`material_holds`), and each class
@@ -124,18 +124,17 @@ fn volume(b: &AtRestBody<f64>) -> f64 {
 }
 
 /// Every refusal of tier 3′ is at [`MEET`]: a contact there no record
-/// backs, an operand's own, which the result does not carry
-/// (`work/wire/a-boolean-drops-its-operands-own-contact-records.md`),
-/// or a touch there between two solids that the census misreads. Those
+/// backs, an operand's own, which a kernel op called without
+/// `BooleanInputs` records does not carry, or a touch there between two solids that the census misreads. Those
 /// are a pyramid notched by another, a saddle corner on the plate
-/// (`work/contact/a-touch-at-a-saddle-corner-refuses-unanalysed.md`),
+/// (`work/inside/a-touch-at-a-saddle-corner-refuses-unanalysed.md`),
 /// and a pyramid on a solid that touches itself there, read from its
 /// vertex alone
-/// (`work/contact/a-solid-touching-itself-at-a-vertex-reads-its-star-from-the-vertex-alone.md`).
+/// (`work/inside/a-solid-touching-itself-at-a-vertex-reads-its-star-from-the-vertex-alone.md`).
 /// [`material_holds`] reads those results right. Where `along`, a
 /// pyramid's edge lies in a face of the other's, and that edge's own
 /// contact, which no record carries, may refuse too
-/// (`work/join/a-corner-pair-with-an-edge-in-the-partners-face-plane-builds-with-undeclared-contacts.md`).
+/// (`work/flush/a-corner-pair-with-an-edge-in-the-partners-face-plane-builds-with-unrecorded-contacts.md`).
 /// Returns whether 3′ held.
 fn three_prime(what: &str, r: &topo::BooleanBody<f64>, pose: &Pose, along: bool) -> bool {
     let Err(errors) = validate_pseudomanifold(&r.body, &r.contacts, t()) else {
@@ -153,7 +152,7 @@ fn three_prime(what: &str, r: &topo::BooleanBody<f64>, pose: &Pose, along: bool)
     };
     for e in &errors {
         let ok = match e {
-            ValidationError::UndeclaredContact { contact, .. } => match *contact {
+            ValidationError::UnrecordedContact { contact, .. } => match *contact {
                 CensusContact::VertexVertex { a, b } => at_meet(a) && at_meet(b),
                 CensusContact::VertexOnFace { vertex, .. } => at_meet(vertex),
                 CensusContact::EdgeFaceOverlap { .. } => along,

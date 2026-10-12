@@ -77,7 +77,7 @@ Reproducers (`#[ignore]`, pinning today's answer, a refusal expected):
 `crates/sweep/tests/wall_face_tangent_reach.rs`,
 `a_bridge_over_a_declared_tangent_rest_answers_an_edgeless_contact`
 and its `_at_interval` twin. The door half is filed as
-`work/contact/a-bridge-union-fuses-a-declared-tangent-rest-into-one-shell-with-an-edgeless-contact.md`.
+`work/contacthold/a-bridge-union-fuses-a-declared-tangent-rest-into-one-shell-with-an-edgeless-contact.md`.
 
 **The plant, reproduced.** With `wall_graze`'s
 `(false, WallBend::OutOfMaterial)` arm returning `side`, the hole at

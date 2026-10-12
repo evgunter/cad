@@ -111,8 +111,8 @@ pub(crate) fn axial_radial<T: Real>(
     (h, w)
 }
 
-/// **A point's elevation off a cone, in metres — the ONE home of the
-/// cone's residual.** `ρ·cos α − s·sin α`, with `ρ` the point's distance
+/// **A point's elevation off a cone, in metres** — the cone's residual
+/// ([`cone_offset`]) at a point. `ρ·cos α − s·sin α`, with `ρ` the point's distance
 /// from the axis and `s` its axial height above the apex taken toward
 /// the nappe asked about:
 ///
@@ -145,7 +145,16 @@ pub fn cone_elevation<T: Real>(
         Some(crate::Nappe::Opening) => h,
         Some(crate::Nappe::Mirror) => T::zero() - h,
     };
-    w.norm() * c_a - s * s_a
+    cone_offset(w.norm(), s, s_a, c_a)
+}
+
+/// The cone residual itself, from a point's distance `rho` from the axis
+/// and its height `s` toward the nappe asked about, at `(sin α, cos α)`:
+/// `rho·cos α − s·sin α` ([`cone_elevation`]'s arithmetic, for a caller
+/// that holds `rho` and `s` already — a coaxial circle's radius and
+/// height, or a unit direction's two components).
+pub fn cone_offset<T: Real>(rho: T, s: T, sin_a: T, cos_a: T) -> T {
+    rho * cos_a - s * sin_a
 }
 
 /// The linearized implicit residual of `p` against `s`, in meters (the
@@ -1476,6 +1485,43 @@ pub fn conic_torus_residual<T: Real>(
     minor_radius: T,
     theta: T,
 ) -> Rounded<T> {
+    let (rho, h) = conic_torus_split(conic, t_center, t_axis, theta);
+    let d = rho - Rounded::exact(major_radius);
+    let r = Rounded::exact(minor_radius);
+    (d.square() + h.square() - r.square()).div_exact(T::from_f64(2.0) * minor_radius)
+}
+
+/// The torus's implicit `F` ([`ConicTorusHarmonics`]) at the [`Conic`]
+/// point of parameter `theta`, in its factored form
+/// `((ρ − R)² + h² − r²)·((ρ + R)² + h² − r²)` — `2r·res` times `Q` —
+/// carried with a first-order running bound on its rounding
+/// ([`Rounded`]), from the same point, axial split and distance from the
+/// axis as [`conic_torus_residual`]. `theta`, the frames and the radii
+/// are taken as exact.
+#[must_use]
+pub fn conic_torus_implicit<T: Real>(
+    conic: &Conic<T>,
+    t_center: Point3<T>,
+    t_axis: Vec3<T>,
+    major_radius: T,
+    minor_radius: T,
+    theta: T,
+) -> Rounded<T> {
+    let (rho, h) = conic_torus_split(conic, t_center, t_axis, theta);
+    let (big, r) = (Rounded::exact(major_radius), Rounded::exact(minor_radius));
+    let (hh, rr) = (h.square(), r.square());
+    ((rho - big).square() + hh - rr) * ((rho + big).square() + hh - rr)
+}
+
+/// The [`Conic`] point of parameter `theta` against the torus's frame:
+/// its distance `ρ` from the axis and its height `h` along it, with the
+/// running bounds of [`conic_torus_residual`]'s chain.
+fn conic_torus_split<T: Real>(
+    conic: &Conic<T>,
+    t_center: Point3<T>,
+    t_axis: Vec3<T>,
+    theta: T,
+) -> (Rounded<T>, Rounded<T>) {
     use geom_core::running::{cross, dot, exact_vec};
     let ulp = T::from_f64(2.0 * geom_core::UNIT_ROUNDOFF);
     let (sin, cos) = theta.sin_cos();
@@ -1495,9 +1541,52 @@ pub fn conic_torus_residual<T: Real>(
     let h = dot(q, axis);
     let w: [Rounded<T>; 3] = core::array::from_fn(|i| q[i] - axis[i] * h);
     let rho = (w[0].square() + w[1].square() + w[2].square()).sqrt();
-    let d = rho - Rounded::exact(major_radius);
-    let r = Rounded::exact(minor_radius);
-    (d.square() + h.square() - r.square()).div_exact(T::from_f64(2.0) * minor_radius)
+    (rho, h)
+}
+
+/// A sphere's or a cylinder wall's [`implicit_residual`] at the [`Conic`]
+/// point of parameter `theta`, `(|⊥q|² − r²)/2r` (`⊥` the identity on a
+/// sphere, the projection off the axis on a wall), carried with a
+/// first-order running bound on its rounding ([`Rounded`]): the point's
+/// own evaluation ([`Conic::point`]'s order, `sin` and `cos` charged an
+/// ulp each), the axial split, the square and the residual. `theta`, the
+/// frames and the radius are taken as exact. The value is bit-identical
+/// to [`implicit_residual`] at [`Conic::point`]: every operation is that
+/// chain's, in its order. The surface is given by its anchor (a sphere's
+/// centre, a wall's origin), its axis (`None` on a sphere) and its
+/// radius.
+#[must_use]
+pub fn conic_quadric_residual<T: Real>(
+    conic: &Conic<T>,
+    (anchor, axis, radius): (Point3<T>, Option<Vec3<T>>, T),
+    theta: T,
+) -> Rounded<T> {
+    use geom_core::running::{cross, dot, exact_vec};
+    let ulp = T::from_f64(2.0 * geom_core::UNIT_ROUNDOFF);
+    let (sin, cos) = theta.sin_cos();
+    let transcendental = |x: T| Rounded {
+        value: x,
+        error: ulp * x.abs(),
+    };
+    let (sin, cos) = (transcendental(sin), transcendental(cos));
+    let (a, b) = (Rounded::exact(conic.major), Rounded::exact(conic.minor));
+    let (n, u) = (exact_vec(conic.axis), exact_vec(conic.u_ref));
+    let v = cross(n, u);
+    let c = exact_vec(Vec3::new(conic.center.x, conic.center.y, conic.center.z));
+    let o = exact_vec(Vec3::new(anchor.x, anchor.y, anchor.z));
+    let (ac, bs) = (a * cos, b * sin);
+    let q: [Rounded<T>; 3] = core::array::from_fn(|i| c[i] + u[i] * ac + v[i] * bs - o[i]);
+    let w = match axis {
+        None => q,
+        Some(axis) => {
+            let axis = exact_vec(axis);
+            let h = dot(q, axis);
+            core::array::from_fn(|i| q[i] - axis[i] * h)
+        }
+    };
+    let r = Rounded::exact(radius);
+    (w[0].square() + w[1].square() + w[2].square() - r.square())
+        .div_exact(T::from_f64(2.0) * radius)
 }
 
 /// The sphere's linearized residual along a circle carrier, which is a

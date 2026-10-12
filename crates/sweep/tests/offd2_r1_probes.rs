@@ -566,12 +566,11 @@ fn probe_partial_group_refuses_and_leaves_body_untouched() {
 /// **The elbow's cap: a refusal the per-chart door decides late.** A
 /// partial revolve's torus wall: its planar caps contain the torus
 /// axis. Offset, a cap is parallel to the axis and OFF it, and cuts a
-/// spiric — a pose the plane×torus arm serves (its two ovals), so the
-/// C5 gate admits it. The per-chart door transports the rim rather than
-/// sectioning it, so its moved corner stands `8.331e-4` m off the
-/// transported carrier and the re-anchor refuses, after the plan. (The
-/// axial door is the door that sections it; `shell` sends an elbow
-/// there.) The C5 table's own `plane × torus` note is held row by row
+/// spiric — a pose the plane×torus arm serves (its two ovals), and the
+/// per-chart door derives the rim as that section and its corners as
+/// roots. What stops it is later still: a wall seam's declared sketch
+/// record is an arc, which the re-anchor cannot redraw to the moved
+/// corner. The C5 table's own `plane × torus` note is held row by row
 /// in `intersect_table::route_inventory`.
 #[test]
 fn probe_late_err_leaves_body_untouched() {
@@ -592,14 +591,11 @@ fn probe_late_err_leaves_body_untouched() {
     let mut work = elbow.clone();
     let before = format!("{work:?}");
     let e = topo::replace_face_offset(&mut work, cap, -0.05, Tol::witness())
-        .expect_err("the moved cap cuts a spiric the transport cannot follow");
-    let topo::ReplaceFaceError::ReanchorOffCarrier { gap, .. } = e else {
-        panic!("expected the re-anchor refusal, got {e}");
+        .expect_err("a seam's arc record cannot follow the moved corner");
+    let topo::ReplaceFaceError::CarrierLaneUnsupported { what, .. } = e else {
+        panic!("expected the arc record's refusal, got {e}");
     };
-    assert!(
-        (5.0e-4..2.0e-3).contains(&gap),
-        "the measured sub-millimetre gap, got {gap}"
-    );
+    assert!(what.contains("sketch arc"), "{what}");
     assert_eq!(
         before,
         format!("{work:?}"),

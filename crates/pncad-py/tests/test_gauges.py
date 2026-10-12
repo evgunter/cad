@@ -177,11 +177,13 @@ class Gauges(unittest.TestCase):
         # outer document mints the same two ids first, so it holds the
         # group's id as its own post, labelled apart.
         sub = Doc("py-gauge-below-sub")
-        sub.insert(Node.instantiate_part(self.post_ref))
+        kept = sub.insert(Node.instantiate_part(self.post_ref))
         lost = sub.insert(Node.instantiate_part(self.post_ref))
         sub.apply(DocEdit.set_offset(lost, lifted(2)))
         sub.apply(DocEdit.set_offset(lost, None))
         sub.apply(DocEdit.set_label(lost, "lost post"))
+        sub.place(kept)
+        sub.place(lost)
         self.ws.create(sub)
         sub_ref = DocRef(sub.id, content_pin(sub))
         outer = Doc("py-gauge-below-outer")

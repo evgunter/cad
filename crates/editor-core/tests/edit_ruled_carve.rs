@@ -171,7 +171,7 @@ fn carve(
     let (doc, profile) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![lp],
             ids: Vec::new(),
         }),
@@ -179,7 +179,7 @@ fn carve(
     let (doc, rod) = fixture::insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(height),
             side: ExtrudeSide::Along,
         },
@@ -194,9 +194,8 @@ fn carve(
     let (doc, fillet) = fixture::insert(
         doc,
         Node::Fillet {
-            target: rod,
             radius: len(ROD_FILLET),
-            selection,
+            selection: editor_core::Operand::select(rod, selection),
         },
     );
     Ruled {
@@ -365,13 +364,16 @@ fn foot_name(f: &Ruled, end: CapEnd, crease: u32, support: u32) -> StableName {
 
 /// The carve's own survivor of the wall a `support` argument names —
 /// the face the foot has to be a vertex OF, not merely on the surface
-/// of. A shrunk support survives as [`RoleSeg::FromTarget`] of its
-/// extrude name.
+/// of. A shrunk support survives as [`RoleSeg::From`] of its
+/// extrude name, read through the blend's target, the rod.
 fn support_face(f: &Ruled, support: u32) -> StableName {
     minted(
         EntityKind::Face,
         f.fillet,
-        RoleSeg::FromTarget(NameRef::new(wall(&f.doc, f.rod, support))),
+        RoleSeg::From {
+            read: fixture::out(&f.doc, f.rod),
+            of: NameRef::new(wall(&f.doc, f.rod, support)),
+        },
     )
 }
 
@@ -587,7 +589,10 @@ fn a_surviving_rim_piece_carries_the_rim_it_was_cut_from() {
                         &minted(
                             EntityKind::Vertex,
                             f.fillet,
-                            RoleSeg::FromTarget(NameRef::new(cap_vertex(&f.doc, f.rod, end, v))),
+                            RoleSeg::From {
+                                read: fixture::out(&f.doc, f.rod),
+                                of: NameRef::new(cap_vertex(&f.doc, f.rod, end, v)),
+                            },
                         ),
                     ),
                 });

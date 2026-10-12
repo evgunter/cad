@@ -74,14 +74,14 @@
 //!   against a fresh re-certification: a check of a body that
 //!   evaluates, so it routes beside [`orient`] rather than beside the
 //!   readers of stored data;
-//! - [`revert_ops`] — ∖ in both operand orders and ∩ under one set of
-//!   declarations, swapped for the reversed order: what a suite drives
-//!   a door WITH, as [`poses`];
-//! - [`seam_pairs`] — the face pairs of two face sets that meet along
-//!   a curve, so a seam or `Tangent` declaration names only those: what
-//!   a suite drives a door WITH, as [`revert_ops`];
+//! - [`touch_union`] — every op on two operands that touch only along
+//!   a line, held to what the touch owes: a check of a body, so beside
+//!   [`solid_truth`];
+//! - [`revert_ops`] — ∖ in both operand orders and ∩: what a suite
+//!   drives a door WITH, as [`poses`];
 //! - [`differential`] — the differential batteries' polygon oracles,
-//!   their one per-pose `outcome` line and the reflex-corner pose: a
+//!   their one per-pose `outcome` line, the reflex-corner pose and the
+//!   near-tangent corner poses: a
 //!   truth derived without the kernel plus the check every battery
 //!   prints, so beside [`oracles`];
 //! - [`stations`] — a station cut back into a rim by hand, and the
@@ -90,6 +90,10 @@
 //! - [`pinch_cones`] — a boolean's cones at a point from the operands'
 //!   convex pieces, and the vertices a built body holds there: a truth
 //!   derived without the kernel plus the check against it, so beside
+//!   [`differential`];
+//! - [`solid_truth`] — the operands' point membership in closed form
+//!   and the check of a boolean's body against it (volume, tier 3,
+//!   `point_in_solid`): a truth plus the check against it, so beside
 //!   [`differential`];
 //! - `revolve_common` — the revolve suites' own, and the place `eps`
 //!   presently lives despite belonging to no verb.
@@ -242,8 +246,7 @@ pub mod contact_edges;
 /// WITH, so it routes here.
 pub mod poses;
 
-/// ∖ in both operand orders and ∩ under one set of declarations,
-/// swapped for the reversed order. What a suite drives a door WITH, so
+/// ∖ in both operand orders and ∩. What a suite drives a door WITH, so
 /// it routes here.
 pub mod revert_ops;
 
@@ -262,10 +265,15 @@ pub mod differential;
 /// body holds there: a truth plus the check of a body against it, so
 /// beside [`differential`].
 pub mod pinch_cones;
-/// The pairs of two face sets that meet along a curve, kept from a
-/// cross product of seam or `Tangent` declarations. What a suite drives
-/// a door WITH, so it routes here.
-pub mod seam_pairs;
+/// The operands' point membership in closed form, and the check every
+/// body a boolean returns is held to against it (volume, tier 3,
+/// `point_in_solid`): a truth plus the check of a body against it, so
+/// beside [`differential`].
+pub mod solid_truth;
+/// Every op on two operands that touch only along a line, held to
+/// what a touch owes (the operand back, empty, two solids with the
+/// edge–edge record): a check of a body, so beside [`solid_truth`].
+pub mod touch_union;
 
 /// A station cut back into a rim by hand, and the reader that finds a
 /// body's stations, curved carriers included. Body authoring plus the

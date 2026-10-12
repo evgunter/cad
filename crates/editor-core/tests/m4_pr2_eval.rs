@@ -236,7 +236,7 @@ fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
         vec![fixture::square(0.0, 0.0, 0.5)],
     );
     let block = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: Formula::named(h.clone(), Dimension::Length),
         side: ExtrudeSide::Along,
     });
@@ -306,14 +306,15 @@ fn poisoning_hits_descendants_only_and_is_walkable() {
             &editor_core::DocEdit::SetParam {
                 node: d.pz_extrude,
                 slot: SlotId::Distance,
-                expr: editor_core::Formula::div(
+                value: editor_core::Formula::div(
                     editor_core::Formula::named(
                         editor_core::VarName::from_static("pip_depth"),
                         editor_core::Dimension::Length,
                     ),
                     fixture::scl(0.0),
                 )
-                .unwrap(),
+                .unwrap()
+                .into(),
                 fresh: Vec::new(),
             },
             Tol::witness(),
@@ -398,7 +399,7 @@ fn cancelation_returns_a_typed_partial_result() {
 
 #[test]
 fn disjoint_subtract_to_empty_is_a_typed_success() {
-    use editor_core::{BooleanOp, Node};
+    use editor_core::Node;
     // A 1×1×1 cube inside a 3×3×3 cube: inner ∖ outer = ∅.
     let doc = ProfileDoc::empty_derived("m4_pr2_eval", Tol::witness());
     let (doc, small_p) = fixture::on_frame(
@@ -411,7 +412,7 @@ fn disjoint_subtract_to_empty_is_a_typed_success() {
     let (doc, small) = fixture::insert(
         doc,
         Node::Extrude {
-            profile: small_p,
+            profile: small_p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -426,29 +427,24 @@ fn disjoint_subtract_to_empty_is_a_typed_success() {
     let (doc, big) = fixture::insert(
         doc,
         Node::Extrude {
-            profile: big_p,
+            profile: big_p.into(),
             distance: len(3.0),
             side: ExtrudeSide::Along,
         },
     );
     let (doc, sub) = fixture::insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: small,
-            b: big,
-            declare: Vec::new(),
+        Node::Subtract {
+            from: small.into(),
+            tool: big.into(),
         },
     );
     // A downstream consumer of the empty value: typed EmptyOperand
     // failure, not a poison and not a panic.
     let (doc, consumer) = fixture::insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: sub,
-            b: big,
-            declare: Vec::new(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![sub.into(), big.into()]),
         },
     );
     let ev = run(&doc, None, false);
@@ -467,7 +463,7 @@ fn disjoint_subtract_to_empty_is_a_typed_success() {
 
 #[test]
 fn split_evaluates_both_parts_role_tagged() {
-    use editor_core::{Datum, DatumValue, Node, SplitSide};
+    use editor_core::{Datum, Node, PoseValue, SplitSide};
     let doc = ProfileDoc::empty_derived("m4_pr2_eval", Tol::witness());
     let (doc, prof) = fixture::on_frame(
         doc,
@@ -479,7 +475,7 @@ fn split_evaluates_both_parts_role_tagged() {
     let (doc, cube) = fixture::insert(
         doc,
         Node::Extrude {
-            profile: prof,
+            profile: prof.into(),
             distance: len(2.0),
             side: ExtrudeSide::Along,
         },
@@ -495,14 +491,14 @@ fn split_evaluates_both_parts_role_tagged() {
     let (doc, split_node) = fixture::insert(
         doc,
         Node::Split {
-            target: cube,
-            tool: plane,
+            target: cube.into(),
+            tool: plane.into(),
         },
     );
     let ev = run(&doc, None, false);
     // The datum evaluated with a NORMALIZED normal.
     match &ev.value(plane).unwrap().payload {
-        ValuePayload::Datum(DatumValue::Plane { normal, .. }) => {
+        ValuePayload::Datum(PoseValue::Plane { normal, .. }) => {
             let normal = normal.get();
             assert_eq!((normal.x, normal.y, normal.z), (0.0, 0.0, 1.0));
         }

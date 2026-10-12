@@ -179,7 +179,7 @@ fn a_rotated_bracket_and_brick_sweep_clears_no_overlap() {
     // The one known cost: a brick seated in the inner corner ON the
     // floor meets the bracket's saddle corner `(1, 1)` (a reflex edge
     // and two convex ones), which no test certifies
-    // (`work/contact/a-touch-at-a-saddle-corner-refuses-unanalysed.md`).
+    // (`work/inside/a-touch-at-a-saddle-corner-refuses-unanalysed.md`).
     assert!(
         false_refusals
             .iter()
@@ -571,7 +571,7 @@ fn a_rotated_comb_and_channel_sweep_clears_no_overlap() {
     // (the channel's `[1, 2] × [1, 2]`, the comb's gap `[0.5, 1.5] ×
     // [1, 2]`) either sits on the floor of the slot's inner corners —
     // saddle corners no test certifies
-    // (`work/contact/a-touch-at-a-saddle-corner-refuses-unanalysed.md`) —
+    // (`work/inside/a-touch-at-a-saddle-corner-refuses-unanalysed.md`) —
     // or, off the floor, has every corner on the host's boundary, which
     // the probe cannot place.
     let named = |r: &String| {

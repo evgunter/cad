@@ -68,6 +68,7 @@ from pncad import (
     MatePrimitive,
     NamePat,
     Node,
+    PartSelect,
     PatternKind,
     Placement,
     SegPat,
@@ -127,8 +128,9 @@ def prism(seed, width, depth, height):
 
     The extrusion runs +z from the sketch plane at z = 0, so the part's
     SEATING face is its top cap and its datum face is the origin plane.
-    Three nodes: the sketch frame, the section drawn on it, the
-    extrude that consumes both.
+    Four nodes: the sketch frame, the section drawn on it, the extrude
+    that consumes both, and the placement that puts the extrude in the
+    part's world — what an instance of the part delivers.
     """
     doc = Doc(seed)
     profile = doc.insert(
@@ -142,7 +144,7 @@ def prism(seed, width, depth, height):
             plane=doc.sketch_frame(elevation=Formula.length_in(0, m)),
         )
     )
-    doc.insert(Node.extrude(profile, Formula.length_in(height, m)))
+    doc.place(doc.insert(Node.extrude(profile, Formula.length_in(height, m))))
     return doc
 
 
@@ -167,11 +169,21 @@ def cap_selector(side, wrapper=None):
     The whole point of the wrapper argument: a part's own cap name and
     the same face seen through the instance that placed it are the SAME
     query one nesting deeper. Nothing here reads inside a name.
+
+    `PART_FACE` is the wrapper a part's face wears seen through an
+    instance: the instance's own, round the copy the part's world
+    placement makes of its body.
     """
     pat = NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.Cap).side(side))
     for tag in reversed(wrapper or []):
         pat = NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(tag).of([pat]))
     return Selector.of(pat)
+
+
+#: A part's face as an instance of the part names it: the part's
+#: product name — its body's face under its one world placement's copy
+#: — worn under the instance.
+PART_FACE = [SegTag.InPart, SegTag.Placed]
 
 
 def one(found):
@@ -188,9 +200,7 @@ def instance_face(store, doc, node, side):
     already wrapped at the instance that placed it, which is what a
     mate reference is.
     """
-    found = evaluate(doc, resolver=store).select(
-        node, cap_selector(side, [SegTag.InPart])
-    )
+    found = evaluate(doc, resolver=store).select(node, cap_selector(side, PART_FACE))
     return one(found)
 
 
@@ -257,6 +267,10 @@ def layout(post_ref, shelf_ref, posts=Node.pattern):
     body. One count and one rule serve both, so nothing about the
     scene moves with the switch.
 
+    The product is the posts' copies, then the shelf's: each pattern
+    instance is projected out of the family by `Node.part` and placed,
+    and a fused `placed_union` family, one body, is placed whole.
+
     Answers the document and its three nodes, in document order.
     """
     doc = Doc(LAYOUT_SEED)
@@ -291,6 +305,12 @@ def layout(post_ref, shelf_ref, posts=Node.pattern):
             ),
         )
     )
+    if posts is Node.pattern:
+        for i in range(PATTERN_COUNT):
+            doc.place(doc.insert(Node.part(family, PartSelect.instance(Formula.count(i)))))
+    else:
+        doc.place(family)
+    doc.place(shelf_i)
     return doc, post_i, family, shelf_i
 
 
@@ -299,8 +319,10 @@ def stand(store, post_ref, shelf_ref, primitive=None, class_=ContactClass.Rest):
     SEATED on them by mates.
 
     Only the root post keeps an offset — each mate names the part it
-    moves first, and the mate door clears that part's offset. Answers the document,
-    its three instances and its two mates, each in document order.
+    moves first, and the mate door clears that part's offset. Each
+    instance is placed in the world, in instance order. Answers the
+    document, its three instances and its two mates, each in document
+    order.
     """
     doc = Doc(STAND_SEED)
     post_a = doc.insert(Node.instantiate_part(post_ref))
@@ -312,6 +334,8 @@ def stand(store, post_ref, shelf_ref, primitive=None, class_=ContactClass.Rest):
     )
     shelf_i = doc.insert(Node.instantiate_part(shelf_ref))
     post_b = doc.insert(Node.instantiate_part(post_ref))
+    for instance in (post_a, shelf_i, post_b):
+        doc.place(instance)
     a_top = instance_face(store, doc, post_a, CapEnd.End)
     b_top = instance_face(store, doc, post_b, CapEnd.End)
     s_bottom = instance_face(store, doc, shelf_i, CapEnd.Start)

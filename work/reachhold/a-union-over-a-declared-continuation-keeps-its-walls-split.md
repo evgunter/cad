@@ -2,11 +2,10 @@
 id: a-union-over-a-declared-continuation-keeps-its-walls-split
 kind: issue
 title: B ∪ A over a declared rounded continuation builds the thick plate with its walls split where the thin plate's lay (18 or 14 faces against 10)
-status: parked
+status: open
 opened: 2026-10-02
 priority: P3
 cost: M
-blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -35,3 +34,7 @@ sides are the ones left split.
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: fix site is merge_coplanar_faces_declared (the declared-continuation merge), which stage 4 rewrites into glue on Zero verdicts. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-09)
+
+E rewrites the merge so that it glues every adjacent pair its margins decide one carrier facing one way, planar and curved, declared or not (`crates/topo/src/merge_faces.rs:2255`, `faces_continue`). B ∪ A still builds 18 faces sunk and 14 flush against the plate's 10: the pin is unchanged (`crates/sweep/tests/reach_continuation.rs:1213`–`:1266`). The split walls are therefore not a missing merge rung. Which faces stay split, and why the merge leaves them, is the row's measurement still to make.

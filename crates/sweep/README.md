@@ -24,7 +24,7 @@ chamfers) is registered in `docs/KERNEL-VERBS.md`; the canal blend is
 |---|---|
 | Extrude: translational sweep along the sketch normal; caps, walls, hole rings, rim upgrades | `crates/sweep/src/extrude.rs` |
 | Revolve: axis and angle conventions, partial wedge and full ring, seam meridians, the `tube_along_arc` torus door | `crates/sweep/src/revolve/` (`mod.rs`, `axis.rs`, `partial.rs`, `full.rs`, `chain.rs`, `surfaces.rs`, `upgrade.rs`, `tube.rs`) |
-| Loft and path sweep bodies: extrude's topology over NURBS walls | `crates/sweep/src/loft.rs` (`loft_body`, `sweep_body`) |
+| Loft and path sweep bodies: extrude's topology over NURBS walls | `crates/sweep/src/loft.rs` (`loft_body`, `loft_profiles`, `sweep_body`) |
 | Skinned and swept NURBS surfaces (the definitional geometry, not an approximation) | `crates/sweep/src/skin.rs` |
 | The lowering every profile sweep shares: traversal order, carriers, cosurface decisions | `crates/sweep/src/swept.rs` |
 | The two blend doors, one per verb; each attaches its `BlendKind` once | `crates/sweep/src/fillet.rs`, `crates/sweep/src/chamfer.rs` |
@@ -43,8 +43,14 @@ chamfers) is registered in `docs/KERNEL-VERBS.md`; the canal blend is
 A band changes the material between its supports and its blend surface:
 a convex band removes it, a concave one adds it. Predicate 2 meters that
 region — the band's REACH — against every face of the body that is not
-a support of the chain, in any shell: a face there would be cut through
-or buried, and the surgery has no step for either. The supports' own
+a support of the chain, in any shell, and reads each face as clear of
+it, wholly inside it, or crossing it. A feature wholly inside the reach
+goes with that material, as a feature wholly inside a Boolean's tool goes
+with the tool: its faces, edges and rings die in the carve, and the
+verdict is logged so a later reader of one of its names resolves
+`Vanished` with the blend's verdict as the cause. A face crossing the
+reach would need the band trimmed by it, which the surgery has no step
+for, and refuses. The supports' own
 boundary features are judged first, by the battery's screen and the
 surgery's exact ring and boundary meters; the reach runs after them,
 before any mutation, and refuses `BlendError::FaceClearance` — a
@@ -290,6 +296,14 @@ trimline per support; at a turn, L split at its foot, a strut out to the
 trimlines' crossing on the shared face, and the mitre `mef`'d across one
 band, the triangle it cuts off folded into the other.
 
+The battery's other Zero verdicts are coincidences decided from values
+too, and record the same way: a junction chain G1 reads tangent is a
+`Tangent` row between its two links' edges, arriving then leaving, and
+a curved pair's `fillet3_support_coaxiality` is a row between its two
+supports: `Coaxial` for the axis a torus band is minted on, `CoRuled`
+for the ruling a cylinder band is. A self-closed
+link's own seam is one cell, not two, and records nothing.
+
 What still refuses, typed `UnsupportedRunOut` with a detail naming the
 shape: a curved end face (a fillet against a cylinder meets it in a
 quartic with no stored carrier); a foot that lands inside a support
@@ -355,7 +369,9 @@ the band's tangent contact with a curved support, the arcs as its
 transverse intersection with the cap, on either material side. On
 either side the cap loses the sliver between the arc and the old
 vertex, cut away on the convex side and covered by the fill on the
-concave side, and every other edge of the cap stays where it
+concave side; a feature of the cap wholly inside the sliver goes with
+it, as predicate 2 reads any feature wholly inside a band's reach, and
+every other edge of the cap stays where it
 was — the edges of its other cycles (a bore's ring, or the outer cycle
 where the cut runs in a ring) and those of the cut cycle other than
 the two rims it shortens (a notch in the outline). Each is metered
@@ -388,7 +404,7 @@ length at the section's centroid
 band an ellipse trims, of either band, measures through the certified
 quadrature, tessellates, and takes a boolean beside or through the
 band; with an operand wholly apart the boolean's containment door
-refuses it (`work/contact/at-infinity-probe-measures-in-closed-form-only.md`,
+refuses it (`work/restread/at-infinity-probe-measures-in-closed-form-only.md`,
 pinned in `crates/sweep/tests/band_planar_oblique_fillet.rs`). The
 CONCAVE ruled band — the material-adding side, the fill covering the region
 under the arc — is pinned through the extrude door too: a rod's section

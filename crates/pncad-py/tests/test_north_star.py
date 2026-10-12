@@ -20,8 +20,6 @@ from typing import ClassVar
 from pncad import (
     ArcSide,
     ArcSweep,
-    BooleanCoincidence,
-    BooleanOp,
     Bulge,
     Center,
     Cmp,
@@ -43,7 +41,6 @@ from pncad import (
     VarName,
     PartSelect,
     PatternKind,
-    PlaneRelation,
     Radius,
     SegPat,
     SegTag,
@@ -113,26 +110,25 @@ def rod(doc, cx, cy, r, z):
 def projectbox(doc):
     """Tour scene `projectbox` (demos/tour/src/projectbox.rs): 15 ops
     — cavity, six vent slots, four round bosses standing on the floor
-    (each union declaring the flush detector's findings), and a through-bore
+    (each union gluing the boss's rest on it), and a through-bore
     down each boss and out through the floor. Shared by the
     volume-oracle row and the `cutaway` row, which splits exactly
     this body."""
     body = slab(doc, (0, 3), (0, 2), (0, 1.5))
     body = doc.insert(
-        Node.boolean(BooleanOp.Subtract, body, slab(doc, (0.25, 2.75), (0.25, 1.75), (0.25, 2.0)))
+        Node.subtract(body, slab(doc, (0.25, 2.75), (0.25, 1.75), (0.25, 2.0)))
     )
     for x in [(0.5, 0.875), (1.3125, 1.6875), (2.125, 2.5)]:
         for y in [(-0.25, 0.5), (1.5, 2.25)]:
             body = doc.insert(
-                Node.boolean(BooleanOp.Subtract, body, slab(doc, x, y, (0.5, 1.25)))
+                Node.subtract(body, slab(doc, x, y, (0.5, 1.25)))
             )
     for cx, cy in PROJECTBOX_BOSS_AXES:
         boss = rod(doc, cx, cy, PROJECTBOX_BOSS_R, PROJECTBOX_BOSS_Z)
-        findings = evaluate(doc).find_flush_candidates(body, boss)
-        body = doc.insert(Node.boolean(BooleanOp.Union, body, boss, declare=findings))
+        body = doc.insert(Node.union([body, boss]))
     for cx, cy in PROJECTBOX_BOSS_AXES:
         bore = rod(doc, cx, cy, PROJECTBOX_BORE_R, (-0.125, PROJECTBOX_BOSS_Z[1] + 0.25))
-        body = doc.insert(Node.boolean(BooleanOp.Subtract, body, bore))
+        body = doc.insert(Node.subtract(body, bore))
     return body
 
 
@@ -158,14 +154,11 @@ class TestChute(unittest.TestCase):
         frame = doc.sketch_frame()
         profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in poly], plane=frame))
         # The axis in the sketch's own coordinates: the frame's v is world +y, so the world y axis is its own +y.
-        axis = doc.insert(Node.datum_axis_in_plane(frame, (
-            Formula.length_in(0, m),
-            Formula.length_in(0, m),
-        ), (
-            Formula.literal(0.0),
-            Formula.literal(1.0),
-        )))
-        chute = doc.insert(Node.revolve(profile, axis, Formula.angle_in(270, deg)))
+        axis = (
+            (Formula.length_in(0, m), Formula.length_in(0, m)),
+            (Formula.literal(0.0), Formula.literal(1.0)),
+        )
+        chute = doc.insert(Node.revolve(profile, *axis, Formula.angle_in(270, deg)))
 
         expected = (1287.0 / 2048.0) * math.pi
         self.assertAlmostEqual(volume_of(doc, chute), expected, delta=1e-12)
@@ -173,9 +166,9 @@ class TestChute(unittest.TestCase):
 
 class TestDie(unittest.TestCase):
     """Tour scene `die` (demos/tour/src/bool_bodies.rs): a cube less 21
-    pip pockets, 21 sequential undeclared subtracts. Every cutter
-    overshoots its face and is strictly interior in the other two axes,
-    so no operand pair shares a plane and the undeclared lane is legal."""
+    pip pockets, 21 sequential subtracts. Every cutter overshoots its
+    face and is strictly interior in the other two axes, so no operand
+    pair shares a plane."""
 
     def test_die_matches_the_exact_dyadic_oracle(self):
         h, inn, out = 0.125, (0.875, 1.5), (-1.5, -0.875)
@@ -199,7 +192,7 @@ class TestDie(unittest.TestCase):
         for centres, box in faces:
             for a, b in centres:
                 cutter = slab(doc, *box(a, b))
-                body = doc.insert(Node.boolean(BooleanOp.Subtract, body, cutter))
+                body = doc.insert(Node.subtract(body, cutter))
                 pips += 1
 
         self.assertEqual(pips, 21)
@@ -211,7 +204,7 @@ class TestDie(unittest.TestCase):
 class TestProjectbox(unittest.TestCase):
     """Tour scene `projectbox` (demos/tour/src/projectbox.rs): the
     longest boolean chain in the tour, 15 ops, the bosses' unions
-    through the detect/declare protocol."""
+    gluing their rests."""
 
     def test_projectbox_matches_the_closed_form_oracle(self):
         doc = Doc()
@@ -252,7 +245,7 @@ class TestHeatsink(unittest.TestCase):
         for i in range(fins):
             dx = i * 0.3125
             fin = slab(doc, (0.25 + dx, 0.4375 + dx), (0.125, 0.875), (0.1875, 1.0))
-            body = doc.insert(Node.boolean(BooleanOp.Union, body, fin))
+            body = doc.insert(Node.union([body, fin]))
         return volume_of(doc, body)
 
     def test_each_fin_count_matches_the_scene_oracle(self):
@@ -358,17 +351,19 @@ class TestPlateParam(unittest.TestCase):
     )
 
     # Insert order: FRAME, profile, plate, FRAME, tab profile, tab,
-    # union, measure, assertion. The union is index 6 and no longer the
-    # last insert — the fixture gained the measurement pair so the READ
-    # doors below have a document to read.
+    # union, its world placement, measure, assertion. The union is
+    # index 6 and no longer the last insert — the fixture places it and
+    # gained the measurement pair so the READ doors below have a
+    # document to read.
     #
     # Two frames, not one: the plate and its tab are sketched at
     # different heights, so they are drawn on different planes, and a
     # plane is a node each names.
     PROFILE = 1
     UNION = 6
-    MEASURE = 7
-    ASSERTION = 8
+    PLACED = 7
+    MEASURE = 8
+    ASSERTION = 9
 
     def plate(self):
         doc = load(self.FIXTURE.read_text(encoding="utf-8")).doc
@@ -550,20 +545,18 @@ class TestPlateParam(unittest.TestCase):
 
 
 def y_axis(doc, plane):
-    """The sketch's own +y through its origin, as a revolve axis.
+    """The sketch's own +y through its origin, as a revolve's axis: the
+    `(axis_origin, axis_direction)` pair a revolve writes in its
+    profile's frame, splatted into `Node.revolve`.
 
-    It used to be the WORLD y axis, and a revolve checked that the axis
-    lay in the profile's plane. An axis written in the frame cannot
-    leave it, so `plane` is which frame — and the four numbers below
-    are that frame's coordinates, not the world's.
+    An axis written in the profile's frame cannot leave its plane, so
+    the four numbers below are that frame's coordinates, not the
+    world's; `doc` and `plane` are kept for the callers' shape.
     """
-    return doc.insert(Node.datum_axis_in_plane(plane, (
-        Formula.length_in(0, m),
-        Formula.length_in(0, m),
-    ), (
-        Formula.literal(0.0),
-        Formula.literal(1.0),
-    )))
+    return (
+        (Formula.length_in(0, m), Formula.length_in(0, m)),
+        (Formula.literal(0.0), Formula.literal(1.0)),
+    )
 
 
 class TestBracket(unittest.TestCase):
@@ -629,24 +622,26 @@ class TestBracket(unittest.TestCase):
             )
         )
         split = doc.insert(Node.split(bracket, tool))
-        offcuts = doc.insert(Node.part(split, PartSelect.split_half(SplitHalf.Above)))
-        corner = doc.insert(Node.part(split, PartSelect.split_half(SplitHalf.Below)))
+        offcuts, corner = evaluate(doc).value(split).split()
+        assert offcuts is not None and corner is not None
 
         whole = volume_of(doc, bracket)
-        off = volume_of(doc, offcuts)
+        off = offcuts.mass_properties().volume
+        kept = corner.mass_properties().volume
         self.assertAlmostEqual(off, 2 * 0.75 * ((3 - self.CUT) + 0.5), delta=1e-12)
-        self.assertAlmostEqual(off + volume_of(doc, corner), whole, delta=1e-12)
+        self.assertAlmostEqual(off + kept, whole, delta=1e-12)
 
         chords = evaluate(doc).select(
-            corner,
+            split,
             Selector.of(
-                NamePat.of_kind(EntityKind.Edge).path([SegPat.tag(SegTag.SectionEdge), SegPat.tag(SegTag.Fragment)])
+                NamePat.of_kind(EntityKind.Edge).path(
+                    [SegPat.tag(SegTag.SectionEdge).side(SplitHalf.Below), SegPat.tag(SegTag.Fragment)]
+                )
             ),
         )
         self.assertEqual(len(chords), 4, "two legs x two caps, each chord named by its ends")
 
-        kept = volume_of(doc, corner)
-        broken = doc.insert(Node.chamfer(corner, Formula.length_in(0.1, m), chords))
+        broken = doc.insert(Node.chamfer(doc.output(split, 1), Formula.length_in(0.1, m), chords))
         self.assertAlmostEqual(volume_of(doc, broken), kept - 4 * (0.1**2 / 2) * math.sqrt(2), delta=1e-12)
 
 
@@ -674,7 +669,7 @@ class TestVase(unittest.TestCase):
         vase = doc.insert(
             Node.revolve(
                 doc.insert(Node.profile(outline, plane=frame)),
-                y_axis(doc, frame),
+                *y_axis(doc, frame),
                 Formula.angle_in(360, deg),
             )
         )
@@ -711,7 +706,7 @@ class TestSheave(unittest.TestCase):
         sheave = doc.insert(
             Node.revolve(
                 doc.insert(Node.profile(outline, plane=frame)),
-                y_axis(doc, frame),
+                *y_axis(doc, frame),
                 Formula.angle_in(360, deg),
             )
         )
@@ -751,7 +746,7 @@ class TestBossplate(unittest.TestCase):
                 doc.insert(Node.profile(boss_outline, plane=doc.sketch_frame(elevation=Formula.length_in(0.4, m)))), Formula.length_in(1.2, m)
             )
         )
-        fused = doc.insert(Node.boolean(BooleanOp.Union, plate, boss))
+        fused = doc.insert(Node.union([plate, boss]))
 
         expected = 16.0 + math.pi * 0.25 * 0.6
         self.assertAlmostEqual(volume_of(doc, fused), expected, delta=1e-6)
@@ -793,7 +788,7 @@ class TestSnowman(unittest.TestCase):
             .line_to(Start)
         )
         profile = doc.insert(Node.profile(semicircle, plane=frame))
-        return doc.insert(Node.revolve(profile, axis, Formula.angle_in(2 * math.pi, rad)))
+        return doc.insert(Node.revolve(profile, *axis, Formula.angle_in(2 * math.pi, rad)))
 
     def level(self, doc, y):
         return doc.insert(
@@ -860,9 +855,11 @@ class TestSnowman(unittest.TestCase):
         axis = y_axis(doc, frame)
         bottom = self.ball(doc, frame, axis, self.R1, 0.0)
         head = self.ball(doc, frame, axis, self.R2, self.D)
-        union = doc.insert(Node.boolean(BooleanOp.Union, bottom, head))
-        bitten = doc.insert(Node.boolean(BooleanOp.Subtract, bottom, head))
-        lens = doc.insert(Node.boolean(BooleanOp.Intersect, bottom, head))
+        # A revolve defines its body and its axis: each read names the body.
+        a, b = doc.output(bottom, 0), doc.output(head, 0)
+        union = doc.insert(Node.union([a, b]))
+        bitten = doc.insert(Node.subtract(a, b))
+        lens = doc.insert(Node.intersect([a, b]))
         below, above = self.level(doc, 0.0), self.level(doc, self.D)
 
         ev = evaluate(doc)
@@ -1157,15 +1154,6 @@ def letter(doc, poly, plane, distance):
     return doc.insert(Node.extrude(sketch, Formula.length_in(distance, m)))
 
 
-def declared_intersect(doc, a, b):
-    """`a` ∩ `b` with every flush contact between them declared, the
-    detect/declare protocol the tour's `try_intersect_declared` spells:
-    evaluate, `find_flush_candidates`, and hand the findings to the
-    boolean's `declare=`."""
-    findings = evaluate(doc).find_flush_candidates(a, b)
-    return doc.insert(Node.boolean(BooleanOp.Intersect, a, b, declare=findings))
-
-
 def silhouette3(doc):
     """The 3-way solid, and the 2-way it is built from — ONE
     construction, because the Rust scenes are one too. The 3-way is
@@ -1173,8 +1161,8 @@ def silhouette3(doc):
     h = letter(doc, H_LETTER, SketchPlane.xy(), 3.0)
     t = letter(doc, T_LETTER, SketchPlane.yz(), 2.0)
     c = letter(doc, C_LETTER, SketchPlane.zx(), 3.0)
-    two = declared_intersect(doc, h, t)
-    three = declared_intersect(doc, c, two)
+    two = doc.insert(Node.intersect([h, t]))
+    three = doc.insert(Node.intersect([c, two]))
     return two, three
 
 
@@ -1364,8 +1352,8 @@ class TestPlate(unittest.TestCase):
 
 class TestAz(unittest.TestCase):
     """Tour scene `az` (demos/tour/src/az.rs, row 36): the A prism and
-    the Z prism, drawn in one block, intersected with their flush
-    contacts declared. The A's counter is a true inner loop, so the
+    the Z prism, drawn in one block, intersected across their flush
+    contacts. The A's counter is a true inner loop, so the
     scene needed multi-loop profiles; its yz frame came with G3.
 
     The scene's own exact oracle: 38627/14336."""
@@ -1400,7 +1388,7 @@ class TestAz(unittest.TestCase):
                 Formula.length_in(2.0, m),
             )
         )
-        az = declared_intersect(doc, a, z)
+        az = doc.insert(Node.intersect([a, z]))
         # demos/tour/src/az.rs::V_AZ, at the scene's own 1e-9 gate.
         self.assertAlmostEqual(volume_of(doc, az), 38627.0 / 14336.0, delta=1e-9)
 
@@ -1677,14 +1665,11 @@ class DieScene:
         frame = doc.sketch_frame(plane=plane)
         sketch = doc.insert(Node.profile(half, plane=frame))
         # The axis in the sketch's own coordinates: the frame's v IS world +z, so the pole axis is its own +y.
-        axis = doc.insert(Node.datum_axis_in_plane(frame, (
-            Formula.length_in(0, m),
-            Formula.length_in(0, m),
-        ), (
-            Formula.literal(0.0),
-            Formula.literal(1.0),
-        )))
-        return doc.insert(Node.revolve(sketch, axis, Formula.angle_in(2.0 * math.pi, rad)))
+        axis = (
+            (Formula.length_in(0, m), Formula.length_in(0, m)),
+            (Formula.literal(0.0), Formula.literal(1.0)),
+        )
+        return doc.insert(Node.revolve(sketch, *axis, Formula.angle_in(2.0 * math.pi, rad)))
 
     def pipped_die(self, doc):
         """The pipped cube: cube ∖ (21 fused balls), one subtract."""
@@ -1713,7 +1698,7 @@ class DieScene:
                 placed.append(
                     doc.insert(
                         Node.transform(
-                            origin_ball,
+                            doc.output(origin_ball, 0),
                             (
                                 Formula.length_in(c[0], m),
                                 Formula.length_in(c[1], m),
@@ -1728,8 +1713,8 @@ class DieScene:
 
         tool = placed[0]
         for pip in placed[1:]:
-            tool = doc.insert(Node.boolean(BooleanOp.Union, tool, pip))
-        return doc.insert(Node.boolean(BooleanOp.Subtract, cube, tool))
+            tool = doc.insert(Node.union([tool, pip]))
+        return doc.insert(Node.subtract(cube, tool))
 
 
 class TestDiepips(DieScene, unittest.TestCase):
@@ -2007,7 +1992,7 @@ class TestRocker(unittest.TestCase):
     BLEND, KNEE, EYE = 0.5 * m, 0.5 * m, 0.25 * m
     DEPTH = 0.5 * m
     KEY_C, KEY_R, KEY_W, KEY_SLOT = (3.5, -0.25), 0.5, 0.2, 0.8
-    CREASE = 0.25
+    CREASE = BLEND.meters
 
     def outline(self):
         return (
@@ -2140,25 +2125,22 @@ class TestRocker(unittest.TestCase):
 
 class TestTable(unittest.TestCase):
     """Corpus scene `corner_table` (row 30): the corner-aligned
-    four-leg table, authored through the DETECT/DECLARE protocol from
-    Python (LIB-PYG5, G5) exactly as the Rust corpus authors it
-    (`editor-core/tests/corpus/table.rs`): per leg, evaluate the
-    document so far, `find_flush_candidates` between the accumulated
-    body and the new leg, INSPECT the findings (the counts below are
-    that inspection), and hand them to the union's `declare=`. Nothing
-    is fused; nothing parses a name.
+    four-leg table, authored from Python exactly as the Rust corpus
+    authors it (`editor-core/tests/corpus/table.rs`): per leg, a union
+    of the accumulated body and the new leg, which glues the leg's
+    flush walls. Nothing parses a name.
 
     Exact oracles, derived as the corpus derives them (dyadic):
     volume = top 4·3·0.25 = 3, plus per leg 0.5·0.5·1.125 = 0.28125
     minus the slab overlap 0.5·0.5·0.125 = 0.03125 ⇒ +0.25 each ⇒
     4.0. Area = 27.5 + 4·2.75 − 4·0.625 (interior boundary removed
     per union) − 4·0.125 (double-counted coplanar wall overlap) =
-    35.5. The finding inventory per leg is 2, 4, 5, 7: two corner
-    wall planes each, plus every earlier leg's floor plane, plus one
-    inner-wall plane per same-side earlier leg — all flush walls, the
-    merge-stage SameOriented flavor."""
+    35.5. The coincident planes per leg are two corner wall planes,
+    plus every earlier leg's floor plane, plus one inner-wall plane per
+    same-side earlier leg — all flush walls, the merge-stage
+    SameOriented flavor."""
 
-    def test_table_builds_through_detect_declare_and_matches_the_oracles(self):
+    def test_table_builds_and_matches_the_oracles(self):
         doc = Doc()
         top = slab(doc, (0, 4), (0, 3), (1, 1.25))
         legs = [
@@ -2168,19 +2150,9 @@ class TestTable(unittest.TestCase):
             ((0.0, 0.5), (2.5, 3.0)),
         ]
         acc = top
-        for i, (x, y) in enumerate(legs):
+        for x, y in legs:
             leg = slab(doc, x, y, (0, 1.125))
-            # The protocol: evaluate, detect, INSPECT, declare —
-            # findings pass through the author's hands as values.
-            ev = evaluate(doc)
-            findings = ev.find_flush_candidates(acc, leg)
-            self.assertEqual(len(findings), [2, 4, 5, 7][i])
-            for f in findings:
-                self.assertEqual(f.relation, PlaneRelation.SameOriented)
-                self.assertEqual(f.class_, BooleanCoincidence.Continuation)
-            acc = doc.insert(
-                Node.boolean(BooleanOp.Union, acc, leg, declare=findings)
-            )
+            acc = doc.insert(Node.union([acc, leg]))
         ev = evaluate(doc)
         self.assertTrue(ev.succeeded(acc))
         body = ev.value(acc).body()
@@ -2194,106 +2166,42 @@ class TestTable(unittest.TestCase):
 
 class TestCrosslapAtTheNamingWall(unittest.TestCase):
     """Tour scene `crosslap` (row 37): the two notched beams MATED.
-    Undeclared, the mate refuses at the coincidence door — since
-    register R3 as the typed MENU (`kind == "undeclared_coincidence"`,
-    the candidate declaration attached). The recourse the menu names
-    is executed: detect, INSPECT (the joint's mate is the
-    resting-contact class — the notch floor/ceiling and the four
-    crossing walls, all `SameOpposite`), declare. The beams' tops and
-    bottoms carry on into each other across the notch edges —
-    continuations — so the mate alone still refuses, naming one; with
-    them declared too, the kernel glues at the scene's exact oracle
-    2·(BEAM_VOL − NOTCH_VOL) = 1.875 (`demos/tour/src/crosslap.rs`
-    asserts it), and the document layer stops at the naming wall the
-    next test pins.
+    The joint's contacts are the mate (the notch floor/ceiling and the
+    four crossing walls, all `SameOpposite`) and the beams' tops and
+    bottoms, which carry on into each other across the notch edges —
+    continuations. The kernel glues them at the scene's exact oracle 2·(BEAM_VOL − NOTCH_VOL) = 1.875
+    (`demos/tour/src/crosslap.rs` asserts it), and the document layer
+    stops at the naming wall the next test pins.
 
-    The inspection step EARNS ITS KEEP here, and honestly: the
-    detector also reports the beams' coplanar exteriors (bottoms at
-    z=0, tops at z=0.5 — `SameOriented`, continuations), and
-    declaring the BOTTOM pairs trips a document-layer naming-emitter
-    wall (`kind == "naming"`) after the kernel glues fine — a
-    measured residue pinned below, not hidden. The scene's statement
-    (the mate) needs none of those pairs; its oracle holds exactly."""
+    The wall is the bottom plane's: the glued bottoms merge into one
+    face whose seam chords no naming rule places (`kind == "naming"`),
+    a measured residue pinned below, not hidden."""
 
     def beams(self, doc):
         beam_a = doc.insert(
-            Node.boolean(
-                BooleanOp.Subtract,
-                slab(doc, (0, 4), (1.75, 2.25), (0, 0.5)),
-                slab(doc, (1.75, 2.25), (1.5, 2.5), (0.25, 0.75)),
-            )
+            Node.subtract(slab(doc, (0, 4), (1.75, 2.25), (0, 0.5)), slab(doc, (1.75, 2.25), (1.5, 2.5), (0.25, 0.75)))
         )
         beam_b = doc.insert(
-            Node.boolean(
-                BooleanOp.Subtract,
-                slab(doc, (1.75, 2.25), (0, 4), (0, 0.5)),
-                slab(doc, (1.5, 2.5), (1.75, 2.25), (-0.25, 0.25)),
-            )
+            Node.subtract(slab(doc, (1.75, 2.25), (0, 4), (0, 0.5)), slab(doc, (1.5, 2.5), (1.75, 2.25), (-0.25, 0.25)))
         )
         return beam_a, beam_b
 
-    def test_the_mate_refuses_undeclared_then_glues_declared(self):
-        doc = Doc()
-        beam_a, beam_b = self.beams(doc)
-        naive = doc.insert(Node.boolean(BooleanOp.Union, beam_a, beam_b))
-        ev = evaluate(doc)
-        self.assertFalse(ev.succeeded(naive))
-        with self.assertRaises(EvaluationError) as caught:
-            ev.value(naive)
-        self.assertEqual(caught.exception.kind, "undeclared_coincidence")
-        menu = caught.exception.finding
-        self.assertIsNotNone(menu)
-
-        # The menu's declare arm, executed: the detector reports the
-        # joint's whole flush inventory, the menu's own finding among
-        # them — the mate itself (the resting-contact class: the notch
-        # floor/ceiling and the four crossing walls) and the beams'
-        # exteriors, whose tops and bottoms carry on into each other
-        # across the notch edges: continuations. Declaring the mate
-        # alone leaves those continuations undeclared, and the union
-        # refuses on one of them, which is the menu it carries.
-        findings = ev.find_flush_candidates(beam_a, beam_b)
-        self.assertIn(menu, findings)
-        self.assertEqual(menu.class_, BooleanCoincidence.Continuation)
-        mate = [f for f in findings if f.relation == PlaneRelation.SameOpposite]
-        self.assertEqual(len(mate), 5)
-        self.assertTrue(all(f.class_ == BooleanCoincidence.Rest for f in mate))
-        mate_only = doc.insert(
-            Node.boolean(BooleanOp.Union, beam_a, beam_b, declare=mate)
-        )
-        ev = evaluate(doc)
-        with self.assertRaises(EvaluationError) as caught:
-            ev.value(mate_only)
-        self.assertEqual(caught.exception.kind, "undeclared_coincidence")
-        self.assertEqual(
-            caught.exception.finding.class_, BooleanCoincidence.Continuation
-        )
-        # What following the menu to its end reaches is the next test's
-        # naming wall: the scene's exact oracle,
-        # 2·(4·0.5·0.5 − 0.5·0.5·0.25) = 1.875, waits on that rule at
-        # the document layer (the kernel tour glues it).
-
-    def test_the_merge_stage_bottom_declaration_hits_the_naming_wall(self):
-        """The measured residue, pinned so its fall is loud: declare
-        the detector's FULL inventory — mate plus the `SameOriented`
-        exteriors, continuations — and the kernel glues, but the
-        boolean node still fails in the document layer's NAMING
-        emitter. The bottom plane merges beam A's bottom with BOTH of
+    def test_the_merge_stage_bottom_hits_the_naming_wall(self):
+        """The measured residue, pinned so its fall is loud: the union
+        glues the whole joint — the mate (the notch floor/ceiling and
+        the four crossing walls, all `SameOpposite`) plus the
+        `SameOriented` exteriors, continuations — but the boolean node
+        still fails in the document layer's NAMING emitter. The bottom plane merges beam A's bottom with BOTH of
         beam B's coplanar bottom halves, so a seam chord bordering the
         merged face reads through to two faces of one operand, and no
         rule picks the one it lies on: a missing rule, not a kernel
         bug (`work/wire/a-merged-face-with-several-same-side-constituents-has-no-chord-rule.md`).
-        The continuations are not optional — the mate alone refuses on
-        them (the test above) — so this wall is where the document
-        crosslap stands. When this test fails with the union
-        succeeding, the wall has fallen: pin the glued oracle here."""
+        This wall is where the document crosslap stands. When this test
+        fails with the union succeeding, the wall has fallen: pin the
+        glued oracle here."""
         doc = Doc()
         beam_a, beam_b = self.beams(doc)
-        ev = evaluate(doc)
-        findings = ev.find_flush_candidates(beam_a, beam_b)
-        self.assertEqual(len(findings), 9)
-        glued = doc.insert(Node.boolean(BooleanOp.Union, beam_a, beam_b))
-        doc.declare_all(glued, findings)
+        glued = doc.insert(Node.union([beam_a, beam_b]))
         ev = evaluate(doc)
         self.assertFalse(ev.succeeded(glued))
         with self.assertRaises(EvaluationError) as caught:
@@ -2320,18 +2228,10 @@ class TestCrosslapExploded(unittest.TestCase):
     def test_the_lift_is_a_placement_and_preserves_the_beam(self):
         doc = Doc()
         beam_a = doc.insert(
-            Node.boolean(
-                BooleanOp.Subtract,
-                slab(doc, (0, 4), (1.75, 2.25), (0, 0.5)),
-                slab(doc, (1.75, 2.25), (1.5, 2.5), (0.25, 0.75)),
-            )
+            Node.subtract(slab(doc, (0, 4), (1.75, 2.25), (0, 0.5)), slab(doc, (1.75, 2.25), (1.5, 2.5), (0.25, 0.75)))
         )
         beam_b = doc.insert(
-            Node.boolean(
-                BooleanOp.Subtract,
-                slab(doc, (1.75, 2.25), (0, 4), (0, 0.5)),
-                slab(doc, (1.5, 2.5), (1.75, 2.25), (-0.25, 0.25)),
-            )
+            Node.subtract(slab(doc, (1.75, 2.25), (0, 4), (0, 0.5)), slab(doc, (1.5, 2.5), (1.75, 2.25), (-0.25, 0.25)))
         )
         # A pure translation still names an axis: the evaluator
         # normalizes it, and a zero-length one refuses rather than
@@ -2417,14 +2317,11 @@ class TestHollowring(unittest.TestCase):
             )
         )
         # The axis in the sketch's own coordinates: the frame's v is world +y, so the world y axis is its own +y.
-        axis = doc.insert(Node.datum_axis_in_plane(frame, (
-            Formula.length_in(0, m),
-            Formula.length_in(0, m),
-        ), (
-            Formula.literal(0.0),
-            Formula.literal(1.0),
-        )))
-        return doc.insert(Node.revolve(profile, axis, Formula.angle_in(360, deg)))
+        axis = (
+            (Formula.length_in(0, m), Formula.length_in(0, m)),
+            (Formula.literal(0.0), Formula.literal(1.0)),
+        )
+        return doc.insert(Node.revolve(profile, *axis, Formula.angle_in(360, deg)))
 
     def test_hollowring_matches_the_torus_closed_forms(self):
         doc = Doc()
@@ -2556,14 +2453,11 @@ class TestKlein(unittest.TestCase):
         frame = doc.sketch_frame(plane=bulb_plane)
         band = doc.insert(Node.profile(self.band(md), plane=frame))
         # The axis in the sketch's own coordinates: the axis is the plane's own +v — said in the plane now.
-        axis = doc.insert(Node.datum_axis_in_plane(frame, (
-            Formula.length_in(0, m),
-            Formula.length_in(0, m),
-        ), (
-            Formula.literal(0.0),
-            Formula.literal(1.0),
-        )))
-        return doc.insert(Node.revolve(band, axis, Formula.angle_in(2 * math.pi, rad)))
+        axis = (
+            (Formula.length_in(0, m), Formula.length_in(0, m)),
+            (Formula.literal(0.0), Formula.literal(1.0)),
+        )
+        return doc.insert(Node.revolve(band, *axis, Formula.angle_in(2 * math.pi, rad)))
 
     def test_the_bulb_is_the_scenes_twelve_faces_four_of_them_cylinders(self):
         doc = Doc()
@@ -2634,14 +2528,11 @@ class TestBudfillet(unittest.TestCase):
         frame = doc.sketch_frame()
         profile = doc.insert(Node.profile(meridian, plane=frame))
         # The axis in the sketch's own coordinates: the frame's v is world +y, so the world y axis is its own +y.
-        axis = doc.insert(Node.datum_axis_in_plane(frame, (
-            Formula.length_in(0, m),
-            Formula.length_in(0, m),
-        ), (
-            Formula.literal(0.0),
-            Formula.literal(1.0),
-        )))
-        return doc.insert(Node.revolve(profile, axis, Formula.angle_in(2 * math.pi, rad)))
+        axis = (
+            (Formula.length_in(0, m), Formula.length_in(0, m)),
+            (Formula.literal(0.0), Formula.literal(1.0)),
+        )
+        return doc.insert(Node.revolve(profile, *axis, Formula.angle_in(2 * math.pi, rad)))
 
     def test_three_curved_rims_roll_in_the_scenes_two_calls(self):
         doc = Doc()
@@ -2673,7 +2564,7 @@ class TestBudfillet(unittest.TestCase):
             [GeomPred.adjacent_kinds(SurfaceKind.Sphere, SurfaceKind.Cone)],
         )
         self.assertEqual(len(mouth), 1, "the description names one rim")
-        first = doc.insert(Node.fillet(sharp, Formula.length_in(self.ROLL, m), mouth))
+        first = doc.insert(Node.fillet(doc.output(sharp, 0), Formula.length_in(self.ROLL, m), mouth))
 
         ev = evaluate(doc)
         lip = ev.select_where(
@@ -2750,7 +2641,7 @@ def teapot_frame_and_axis(doc):
 def fully_revolved(doc, frame, axis, meridian):
     """One full turn of `meridian` about `axis`, drawn on `frame`."""
     profile = doc.insert(Node.profile(meridian, plane=frame))
-    return doc.insert(Node.revolve(profile, axis, Formula.angle_in(2 * math.pi, rad)))
+    return doc.insert(Node.revolve(profile, *axis, Formula.angle_in(2 * math.pi, rad)))
 
 
 class TestTeapot(unittest.TestCase):
@@ -3094,7 +2985,7 @@ class TestTeapot(unittest.TestCase):
 
         # ---- the vessel: one revolve, two hollows ----
         vessel = doc.insert(Node.profile(self.vessel_meridian(), plane=frame))
-        pot = doc.insert(Node.revolve(vessel, axis, Formula.angle_in(2 * math.pi, rad)))
+        pot = doc.insert(Node.revolve(vessel, *axis, Formula.angle_in(2 * math.pi, rad)))
         ev = evaluate(doc)
         bands = self.in_program_order(
             doc, vessel, pot, band, self.seg_faces(ev, pot, SegTag.Band)
@@ -3114,12 +3005,12 @@ class TestTeapot(unittest.TestCase):
             "the mouth disc is the meridian's fourth segment in program order",
         )
         mouth = [bands[seg_mouth]]
-        sealed = doc.insert(Node.shell(pot, Formula.length_in(self.WALL, m), []))
-        cup = doc.insert(Node.shell(pot, Formula.length_in(self.WALL, m), mouth))
+        sealed = doc.insert(Node.shell(doc.output(pot, 0), Formula.length_in(self.WALL, m), []))
+        cup = doc.insert(Node.shell(doc.output(pot, 0), Formula.length_in(self.WALL, m), mouth))
 
         # ---- the lid: three rims, by name ----
         lid_profile = doc.insert(Node.profile(self.lid_meridian(), plane=frame))
-        sharp = doc.insert(Node.revolve(lid_profile, axis, Formula.angle_in(2 * math.pi, rad)))
+        sharp = doc.insert(Node.revolve(lid_profile, *axis, Formula.angle_in(2 * math.pi, rad)))
         ev = evaluate(doc)
         rims = self.in_program_order(doc, lid_profile, sharp, band_rim, self.rim_edges(ev, sharp))
         self.assertEqual(len(rims), 6, "an annular profile mints one rim per vertex")
@@ -3135,7 +3026,7 @@ class TestTeapot(unittest.TestCase):
                 got[1].meters, station, delta=1e-12, msg=f"rim at vertex {v}"
             )
         lid = doc.insert(
-            Node.fillet(sharp, Formula.length_in(self.ROLL, m), [rims[v] for v, _, _ in self.RIMS])
+            Node.fillet(doc.output(sharp, 0), Formula.length_in(self.ROLL, m), [rims[v] for v, _, _ in self.RIMS])
         )
 
         # ---- the spout: built about its own axis, then placed ----
@@ -3154,18 +3045,17 @@ class TestTeapot(unittest.TestCase):
         )
 
         # ---- the handle ----
-        spine = doc.insert(
-            Node.datum_axis(tuple(Formula.length_in(c, m) for c in self.HANDLE_C), (
-                Formula.literal(0.0),
-                Formula.literal(0.0),
-                Formula.literal(1.0),
-            ))
+        frame = doc.insert(
+            Node.datum_frame(
+                tuple(Formula.length_in(c, m) for c in self.HANDLE_C),
+                (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)),
+                (Formula.literal(0.0), Formula.literal(1.0), Formula.literal(0.0)),
+            )
         )
         half = math.pi / 2 + self.HANDLE_OVER
         handle = doc.insert(
             Node.tube(
-                spine,
-                (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)),
+                frame,
                 Formula.length_in(self.HANDLE_R, m),
                 TubeWindow.arc(Formula.angle_in(-half, rad), Formula.angle_in(half, rad)),
                 Formula.length_in(self.HANDLE_TUBE, m),
@@ -3174,8 +3064,8 @@ class TestTeapot(unittest.TestCase):
 
         # ---- the two joins, both refused ----
         joins = [
-            doc.insert(Node.boolean(BooleanOp.Union, cup, handle)),
-            doc.insert(Node.boolean(BooleanOp.Union, cup, spout)),
+            doc.insert(Node.union([cup, handle])),
+            doc.insert(Node.union([cup, spout])),
         ]
         return sealed, cup, sharp, lid, spout_body, spout, handle, joins
 
@@ -3237,7 +3127,7 @@ class TestTeapot(unittest.TestCase):
                 ev.face_carrier_kind(pot, name), SurfaceKind.Plane, "no planar pi half"
             )
 
-        node = doc.insert(Node.shell(pot, Formula.length_in(self.WALL, m), [mouth]))
+        node = doc.insert(Node.shell(doc.output(pot, 0), Formula.length_in(self.WALL, m), [mouth]))
         ev = evaluate(doc)
         body = ev.value(node).body()
         body.validate()
@@ -3633,7 +3523,7 @@ class TestTorusvessel(unittest.TestCase):
         )
         frame, axis = teapot_frame_and_axis(doc)
         operand = fully_revolved(doc, frame, axis, meridian)
-        return operand, doc.insert(Node.shell(operand, Formula.length_in(self.WALL, m), []))
+        return operand, doc.insert(Node.shell(doc.output(operand, 0), Formula.length_in(self.WALL, m), []))
 
     def test_a_torus_walled_vessel_hollows_through_the_document(self):
         doc = Doc()
@@ -3689,13 +3579,9 @@ class TestTwopeg(unittest.TestCase):
     Q the same plate with two through-bores subtracted, and the apart
     framing lifts Q by a rigid transform.
 
-    The MATE is ordinary work too, since the flush detector's reach
-    became the `Rest` ladder's reach: its three declared contacts are
-    one planar `Rest` and two CYLINDRICAL ones, and the detector
-    reports all three as findings a Python author can inspect and
-    declare. That is G19 closed, and the rows below are the
-    measurement — including the differential that says the curved
-    declarations are what unlock the arm."""
+    The MATE is ordinary work too: its three contacts are one planar
+    `Rest` and two CYLINDRICAL ones, and the union's margins decide
+    each one carrier and glue it (D10), so the mate is one body."""
 
     PLATE: ClassVar[tuple] = (6.0, 4.0, 1.0)
     PEG_R: ClassVar[float] = 0.5
@@ -3731,11 +3617,11 @@ class TestTwopeg(unittest.TestCase):
             boss = self.peg(
                 doc, cx, 0.4, self.PLATE[2] - 0.4 + self.ENGAGE
             )
-            p = doc.insert(Node.boolean(BooleanOp.Union, p, boss))
+            p = doc.insert(Node.union([p, boss]))
         q = self.plate(doc, self.PLATE[2])
         for cx in self.PEG_X:
             cutter = self.peg(doc, cx, self.PLATE[2] - 0.2, self.PLATE[2] + 0.4)
-            q = doc.insert(Node.boolean(BooleanOp.Subtract, q, cutter))
+            q = doc.insert(Node.subtract(q, cutter))
         return p, q, plain + 2 * stub, plain - 2 * stub
 
     def test_twopeg_apart_is_two_parts_and_a_rigid_lift(self):
@@ -3760,117 +3646,19 @@ class TestTwopeg(unittest.TestCase):
                 body.mass_properties().volume, want, delta=1e-12
             )
 
-    def test_the_mate_is_authorable_and_the_declaration_is_what_unlocks_it(self):
-        """Row 39's mate, through the curated surface, end to end.
-
-        The detector reports all THREE of this mate's contacts now —
-        the mating plane and both peg fits, since its reach is the
-        `Rest` ladder's reach — so the findings a Python author can
-        hold are the whole declaration, and the union GLUES at the
-        scene's own exactly-additive oracle, 2·6·4·1 = 48.
-
-        The differential that keeps this honest is the sibling row
-        below: declaring only the six `SameOriented` wall findings —
-        the pairs a Python author could hold and declare without any
-        curved rung being involved — still refuses, in the
-        reduction's curved-face arm. So the cylindrical declarations
-        are what unlock the arm, not a decoration on a union that
-        would have built anyway."""
+    def test_the_mate_glues_at_the_additive_oracle(self):
+        """Row 39's mate, through the curated surface, end to end: the
+        union GLUES the mating plane, both peg fits and the six flush
+        walls at the scene's own exactly-additive oracle,
+        2·6·4·1 = 48."""
         doc = Doc()
         p, q, _, _ = self.parts(doc)
+        mated = doc.insert(Node.union([p, q]))
         ev = evaluate(doc)
-        findings = ev.find_flush_candidates(p, q)
-        self.assertEqual(len(findings), 25)
-        # One mating plane and 18 peg-against-bore pairs oppose (Rest);
-        # the six flush walls are continuations.
-        self.assertEqual(
-            sum(1 for f in findings if f.relation == PlaneRelation.SameOpposite), 19
-        )
-        for f in findings:
-            self.assertEqual(
-                f.class_,
-                BooleanCoincidence.Rest
-                if f.relation == PlaneRelation.SameOpposite
-                else BooleanCoincidence.Continuation,
-            )
-
-        declared = doc.insert(Node.boolean(BooleanOp.Union, p, q, declare=findings))
-        ev = evaluate(doc)
-        self.assertTrue(ev.succeeded(declared))
-        body = ev.value(declared).body()
+        self.assertTrue(ev.succeeded(mated))
+        body = ev.value(mated).body()
         body.validate()
         self.assertAlmostEqual(body.mass_properties().volume, 48.0, delta=1e-12)
-
-    def test_declaring_only_the_walls_the_plane_rung_reaches_still_refuses(self):
-        """The other half of row 39, and the reason the mate above is
-        a statement about DECLARATION rather than about the detector.
-
-        The six `SameOriented` wall findings are declarable and always
-        were; on their own they leave the curved contact undeclared,
-        and the boolean refuses in the same curved-face arm it refused
-        in before the detector could see that contact at all.
-
-        SIX, not the seven the plane-only detector reported: the
-        seventh is the mating plane, and telling it from the eighteen
-        cylindrical `SameOpposite` findings from Python would mean
-        reading the opaque name text, which the binding forbids. The
-        seven-finding variant refuses identically — the declaration
-        that matters is the curved one either way."""
-        doc = Doc()
-        p, q, _, _ = self.parts(doc)
-        ev = evaluate(doc)
-        walls = [
-            f
-            for f in ev.find_flush_candidates(p, q)
-            if f.relation == PlaneRelation.SameOriented
-        ]
-        self.assertEqual(len(walls), 6)
-        declared = doc.insert(Node.boolean(BooleanOp.Union, p, q, declare=walls))
-        ev = evaluate(doc)
-        self.assertFalse(ev.succeeded(declared))
-        with self.assertRaises(EvaluationError) as caught:
-            ev.value(declared)
-        self.assertEqual(caught.exception.kind, "boolean")
-        self.assertIn("curved face", str(caught.exception))
-
-    def test_a_cylindrical_only_coincidence_is_a_finding_and_still_the_only_route(self):
-        """A solid cylinder standing inside a block's bore of the SAME
-        radius is a cylindrical `Rest` and nothing else: the block
-        overshoots both ways, so no plane of one coincides with a
-        plane of the other. The detector reports the wall pairs — its
-        rungs are the verifier's — and every one of them is a resting
-        contact.
-
-        What has NOT changed is the route: a `FlushFinding` still
-        cannot be built by hand, so a declaration can only come from
-        something the kernel reported (the no-fusion boundary)."""
-        import pncad
-
-        doc = Doc()
-        peg_p = doc.insert(Node.profile(circle((0 * m, 0 * m), 1 * m), plane=doc.sketch_frame(elevation=Formula.length_in(0, m))))
-        peg = doc.insert(Node.extrude(peg_p, Formula.length_in(1, m)))
-        block_outline = (
-            Open.at((-3 * m, -3 * m))
-            .line_to((3 * m, -3 * m))
-            .line_to((3 * m, 3 * m))
-            .line_to((-3 * m, 3 * m))
-            .line_to(Start)
-        )
-        block_p = doc.insert(
-            Node.profile(
-                [block_outline, circle((0 * m, 0 * m), 1 * m)],
-                plane=doc.sketch_frame(elevation=Formula.length_in(-1, m)),
-            )
-        )
-        block = doc.insert(Node.extrude(block_p, Formula.length_in(3, m)))
-        ev = evaluate(doc)
-        findings = ev.find_flush_candidates(peg, block)
-        self.assertEqual(len(findings), 4)
-        for f in findings:
-            self.assertEqual(f.relation, PlaneRelation.SameOpposite)
-            self.assertEqual(f.class_, BooleanCoincidence.Rest)
-        with self.assertRaises(TypeError):
-            pncad.FlushFinding()
 
 
 # ------------------------------------------------------------------
@@ -3908,14 +3696,11 @@ class TestMeshCrossCheck(unittest.TestCase):
         frame = doc.sketch_frame()
         profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in poly], plane=frame))
         # The axis in the sketch's own coordinates: the frame's v is world +y, so the world y axis is its own +y.
-        axis = doc.insert(Node.datum_axis_in_plane(frame, (
-            Formula.length_in(0, m),
-            Formula.length_in(0, m),
-        ), (
-            Formula.literal(0.0),
-            Formula.literal(1.0),
-        )))
-        chute = doc.insert(Node.revolve(profile, axis, Formula.angle_in(270, deg)))
+        axis = (
+            (Formula.length_in(0, m), Formula.length_in(0, m)),
+            (Formula.literal(0.0), Formula.literal(1.0)),
+        )
+        chute = doc.insert(Node.revolve(profile, *axis, Formula.angle_in(270, deg)))
 
         body = evaluate(doc).value(chute).body()
         body.validate()
@@ -4006,22 +3791,24 @@ class TestTubeAndHollowTube(unittest.TestCase):
     R, OUTER, WALL = 2.0, 0.5, 0.125
     T0, T1 = 0.0, 1.5
 
-    def spine(self, doc, direction=SPINE_Z):
+    def frame(self, doc, normal=(0.0, 0.0, 1.0)):
+        """The tube's frame: centred at the origin, `u` along x, and `v`
+        chosen so that `u x v` is `normal` (the spine axis)."""
+        n = normal
         return doc.insert(
-            Node.datum_axis((
-                Formula.length_in(0, m),
-                Formula.length_in(0, m),
-                Formula.length_in(0, m),
-            ), direction)
+            Node.datum_frame(
+                (Formula.length_in(0, m), Formula.length_in(0, m), Formula.length_in(0, m)),
+                (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)),
+                (Formula.literal(0.0), Formula.literal(n[2]), Formula.literal(-n[1])),
+            )
         )
 
     def test_the_solid_ring_meters_its_closed_form(self):
         doc = Doc()
-        spine = self.spine(doc)
+        frame = self.frame(doc)
         ring = doc.insert(
             Node.tube(
-                spine,
-                (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)),
+                frame,
                 Formula.length_in(self.R, m),
                 TubeWindow.full(),
                 Formula.length_in(self.OUTER, m),
@@ -4039,11 +3826,10 @@ class TestTubeAndHollowTube(unittest.TestCase):
         """Row 27: the full window, which closes the inner wall into a
         CAVITY rather than leaving an open end."""
         doc = Doc()
-        spine = self.spine(doc)
+        frame = self.frame(doc)
         torus = doc.insert(
             Node.hollow_tube(
-                spine,
-                (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)),
+                frame,
                 Formula.length_in(self.R, m),
                 TubeWindow.full(),
                 Formula.length_in(self.OUTER, m),
@@ -4067,11 +3853,10 @@ class TestTubeAndHollowTube(unittest.TestCase):
         """Row 26: the windowed hollow tube, an open elbow of annular
         section."""
         doc = Doc()
-        spine = self.spine(doc, (Formula.literal(0.0), Formula.literal(1.0), Formula.literal(0.0)))
+        frame = self.frame(doc, (0.0, 1.0, 0.0))
         elbow = doc.insert(
             Node.hollow_tube(
-                spine,
-                (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)),
+                frame,
                 Formula.length_in(self.R, m),
                 TubeWindow.arc(Formula.angle_in(self.T0, rad), Formula.angle_in(self.T1, rad)),
                 Formula.length_in(self.OUTER, m),
@@ -4092,21 +3877,20 @@ class TestTubeAndHollowTube(unittest.TestCase):
     def test_solid_minus_hollow_is_the_bore_in_one_document(self):
         """The row that DISCRIMINATES the two doors from outside.
 
-        One document, one spine, one window, two nodes with identical
+        One document, one frame, one window, two nodes with identical
         radii. Their volume difference is the bore's Pappus form,
         which is only true if the second node reached the hollow
         kernel door — a single door with a mode flag could pass a
         volume row on either node alone, but not this one."""
         doc = Doc()
-        spine = self.spine(doc, (Formula.literal(0.0), Formula.literal(1.0), Formula.literal(0.0)))
+        frame = self.frame(doc, (0.0, 1.0, 0.0))
         window = TubeWindow.arc(Formula.angle_in(self.T0, rad), Formula.angle_in(self.T1, rad))
         solid = doc.insert(
-            Node.tube(spine, (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)), Formula.length_in(self.R, m), window, Formula.length_in(self.OUTER, m))
+            Node.tube(frame, Formula.length_in(self.R, m), window, Formula.length_in(self.OUTER, m))
         )
         hollow = doc.insert(
             Node.hollow_tube(
-                spine,
-                (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)),
+                frame,
                 Formula.length_in(self.R, m),
                 TubeWindow.arc(Formula.angle_in(self.T0, rad), Formula.angle_in(self.T1, rad)),
                 Formula.length_in(self.OUTER, m),
@@ -4129,16 +3913,15 @@ class TestTubeAndHollowTube(unittest.TestCase):
         vertex the materializers answer with is a name a later node
         could carry."""
         doc = Doc()
-        spine = self.spine(doc)
+        frame = self.frame(doc)
         ring = doc.insert(
             Node.tube(
-                spine, (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)), Formula.length_in(self.R, m), TubeWindow.full(), Formula.length_in(self.OUTER, m)
+                frame, Formula.length_in(self.R, m), TubeWindow.full(), Formula.length_in(self.OUTER, m)
             )
         )
         elbow = doc.insert(
             Node.hollow_tube(
-                spine,
-                (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)),
+                frame,
                 Formula.length_in(self.R, m),
                 TubeWindow.arc(Formula.angle_in(self.T0, rad), Formula.angle_in(self.T1, rad)),
                 Formula.length_in(self.OUTER, m),
@@ -4170,11 +3953,10 @@ class TestTubeAndHollowTube(unittest.TestCase):
         narrowing what it PRODUCES, and that is the same flow every
         other body node offers."""
         doc = Doc()
-        spine = self.spine(doc, (Formula.literal(0.0), Formula.literal(1.0), Formula.literal(0.0)))
+        frame = self.frame(doc, (0.0, 1.0, 0.0))
         elbow = doc.insert(
             Node.hollow_tube(
-                spine,
-                (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)),
+                frame,
                 Formula.length_in(self.R, m),
                 TubeWindow.arc(Formula.angle_in(self.T0, rad), Formula.angle_in(self.T1, rad)),
                 Formula.length_in(self.OUTER, m),
@@ -4210,8 +3992,7 @@ class TestTubeAndHollowTube(unittest.TestCase):
         the solid door has no wall to be wrong about."""
         with self.assertRaises(TypeError):
             Node.tube(
-                self.spine(Doc()),
-                (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)),
+                self.frame(Doc()),
                 Formula.length_in(self.R, m),
                 TubeWindow.full(),
                 Formula.length_in(self.OUTER, m),
@@ -4220,11 +4001,10 @@ class TestTubeAndHollowTube(unittest.TestCase):
 
         def refuse(minor, wall):
             doc = Doc()
-            spine = self.spine(doc)
+            frame = self.frame(doc)
             node = doc.insert(
                 Node.hollow_tube(
-                    spine,
-                    (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)),
+                    frame,
                     Formula.length_in(self.R, m),
                     TubeWindow.full(),
                     Formula.length_in(minor, m),
@@ -4242,10 +4022,10 @@ class TestTubeAndHollowTube(unittest.TestCase):
         self.assertIn("wall is not definitely thicker", refuse(self.OUTER, 0.0))
         self.assertIn("wall leaves no bore", refuse(self.OUTER, self.OUTER))
         doc = Doc()
-        spine = self.spine(doc)
+        frame = self.frame(doc)
         collapsed = doc.insert(
             Node.hollow_tube(
-                spine, (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)), Formula.length_in(1e14, m), TubeWindow.full(),
+                frame, Formula.length_in(1e14, m), TubeWindow.full(),
                 Formula.length_in(1e12, m), Formula.length_in(1e-6, m),
             )
         )
@@ -4259,18 +4039,13 @@ class TestTubeAndHollowTube(unittest.TestCase):
         refuses rather than being read as the full ring."""
         with self.assertRaises(TypeError):
             Node.tube(
-                self.spine(Doc()), (
-                    Formula.literal(1.0),
-                    Formula.literal(0.0),
-                    Formula.literal(0.0),
-                ), Formula.length_in(self.R, m), None, Formula.length_in(self.OUTER, m)
+                self.frame(Doc()), Formula.length_in(self.R, m), None, Formula.length_in(self.OUTER, m)
             )
         doc = Doc()
-        spine = self.spine(doc)
+        frame = self.frame(doc)
         node = doc.insert(
             Node.tube(
-                spine,
-                (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)),
+                frame,
                 Formula.length_in(self.R, m),
                 TubeWindow.arc(Formula.angle_in(0, rad), Formula.angle_in(7, rad)),
                 Formula.length_in(self.OUTER, m),
@@ -4318,6 +4093,11 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # `tests/test_union.py` and `TestTheVDegreeParamBinding`
         # above.
         #
+        # `intersect` and `subtract` JOINED it at FORK-DM4 in place of
+        # the one `boolean` constructor: the document has three boolean
+        # nodes, `union`, `intersect` and `subtract`, and each has its
+        # own constructor. The positive form is `tests/test_union.py`.
+        #
         # `set_program` JOINED it at EDIT-PROGRAM: the whole-program
         # edit over a live profile, the fourth door this roster sees
         # that the census cannot. The positive form is
@@ -4350,14 +4130,14 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         self.assertEqual(
             sorted(n for n in dir(Node) if not n.startswith("_")),
             [
-                "assertion", "boolean", "chamfer", "datum_axis",
-                "datum_axis_in_plane", "datum_face_frame",
+                "assertion", "chamfer", "datum_axis",
+                "datum_face_frame",
                 "datum_frame", "datum_plane", "datum_point",
                 "extrude", "fillet", "gauge", "hollow_tube", "instantiate_part",
-                "loft", "mate", "measure", "part", "pattern",
-                "placed_union", "placed_union_at",
+                "intersect", "loft", "mate", "measure", "part", "pattern",
+                "place_in_world", "placed_union", "placed_union_at",
                 "polygon", "profile", "revolve", "shell", "sketch_frame",
-                "split", "transform", "transform_by", "tube", "union",
+                "split", "subtract", "transform", "transform_by", "tube", "union",
             ],
         )
         #
@@ -4379,10 +4159,9 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
                 "bind_v_degree_param", "declare_var", "define_var",
                 "delete_node", "delete_var", "fold",
                 "insert_node", "promote", "rebind", "rename_var",
-                "set_declare",
                 "set_extrude_side",
                 "set_gauge", "set_label", "set_members", "set_offset",
-                "set_param", "set_program", "set_roots",
+                "set_param", "set_program",
                 "set_tolerance", "set_var_distribution", "set_var_unit",
                 "set_var_value", "update_reference",
             ],
@@ -4398,11 +4177,7 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # `test_the_selector_surface_narrows_without_reading_names`
         # are the positive forms; `select`/`select_where` are
         # `Evaluation` METHODS (the materializer posture `all_edges`
-        # set), so the module-level absence below is shape, not gap —
-        # and `find_flush_candidates` joined them when G5 closed
-        # (LIB-PYG5): the detector is an `Evaluation` method too
-        # (`TestTable` is the positive form; `TestCrosslapAtTheNamingWall`
-        # runs the same detector to the naming wall).
+        # set), so the module-level absence below is shape, not gap.
         # `StableName` stays, and for a sharper reason than "nothing
         # spells it": a name is `str` on this side, so there is no
         # name TYPE and no grammar to half-parse. The six role-name
@@ -4410,20 +4185,18 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # `meridian_vertex`, `carried` — do not change that: each MINTS a name by naming
         # a ROLE and answers the same opaque text a materializer
         # answers, which is why they are module doors and not methods
-        # on a name class. A `FlushFinding`'s pair crosses as the same
-        # opaque texts.
+        # on a name class.
         for door in [
             # `Mesh`/`TessellateError` left this list when G11 closed
             # (LIB-G11) — `TestMeshCrossCheck` below is the positive
             # form, and `tests/test_mesh.py` is the door's own suite.
             # `tessellate` and the two STL writers stay, as `select`
-            # and `find_flush_candidates` do: they are METHODS on the
+            # does: they are METHODS on the
             # value they take (`Body.tessellate`, `Mesh.to_stl_ascii`,
             # `Mesh.to_stl_binary`), so the module-level absence below
             # is shape, not gap.
             "tessellate", "write_ascii", "write_binary",
             "select", "select_where",                 # methods, not module doors
-            "find_flush_candidates",                  # method, not a module door
             "StableName",                             # names stay text
             # `Workspace`, `ContentPin`, `DocRef` and
             # `random_document_id` LEFT this list when G15 closed
@@ -4520,11 +4293,9 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         #
         # "An expression goes in through no door at all" was the
         # sentence here, and LIB-B-MEASURES made it false without
-        # touching this row's claim: `MeasureExpr.value` and
-        # `Node.assertion`'s bound both take a `Formula` INTO a document,
-        # because the measurement sublanguage's leaves and an
-        # assertion's bound are the two slots whose dimension an
-        # ADDRESS cannot fix. What this row is about is the profile
+        # touching this row's claim: an assertion's value and its bound
+        # both take a `Formula` INTO a document, because they are the
+        # two expressions whose dimension an ADDRESS cannot fix. What this row is about is the profile
         # authoring lattice, where the two doors below still refuse —
         # the residue is narrower than it was, and it is still there.
         #
@@ -4550,9 +4321,6 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # `fillet`, `split` and `transform` left it when LIB-PYBUNDLE
         # closed G4/G6/G7 — the positive forms are `TestDiefillet`,
         # `TestTiltedcut` and `TestCrosslapExploded`/`TestDiepips`.
-        # `declare` left it when LIB-PYG5 closed G5 — the positive
-        # form is `TestTable` (`TestCrosslapAtTheNamingWall` declares the
-        # whole inventory and stops at the naming wall).
         # `sweep` STAYS: `wire_sweep` refuses unconditionally
         # (SWEEP_FRONTIER, the path-composition lane banked past M6).
         # `tube` LEFT this list at LIB-TUBE — see the paragraph two
@@ -4626,7 +4394,7 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         self.assertEqual(len(ev.all_bodies(cube)), 1)
 
         pip = slab(doc, (0.4, 0.6), (0.4, 0.6), (0.9, 1.2))
-        pipped = doc.insert(Node.boolean(BooleanOp.Subtract, cube, pip))
+        pipped = doc.insert(Node.subtract(cube, pip))
         ev = evaluate(doc)
         every_edge = ev.all_edges(pipped)
         self.assertEqual(len(every_edge), 24)
@@ -4638,21 +4406,21 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         self.assertEqual(ev.select(pipped, edges), every_edge)
         self.assertEqual(ev.select_where(pipped, edges, []), every_edge)
 
-        # Structural narrowing: the pocket's own edges came from
-        # operand B of the subtraction — its 4 floor edges whole, and
+        # Structural narrowing: the pocket's own edges came in through
+        # the subtraction's tool — names whose carried-in name `pip`
+        # minted — its 4 floor edges whole, and
         # its 4 wall edges, each cut by the cap and kept as its one
         # piece below it, named by its ends. The 4 edges of the OPENING
         # are `Seam` (minted where the cap crosses a pocket wall,
         # belonging to neither operand alone), and the cube kept its
         # 12: 8 + 4 + 12 = 24.
-        from_b = Selector.of(
-            NamePat.of_kind(EntityKind.Edge).seg(SegPat.tag(SegTag.FromB))
-        )
+        from_tool = SegPat.tag(SegTag.From).of([NamePat.any().node(pip)])
+        from_b = Selector.of(NamePat.of_kind(EntityKind.Edge).seg(from_tool))
         pocket = ev.select(pipped, from_b)
         self.assertEqual(len(pocket), 4)
         cut_walls = Selector.of(
             NamePat.of_kind(EntityKind.Edge).path(
-                [SegPat.tag(SegTag.FromB), SegPat.tag(SegTag.Fragment)]
+                [from_tool, SegPat.tag(SegTag.Fragment)]
             )
         )
         self.assertEqual(len(ev.select(pipped, cut_walls)), 4)
@@ -4704,7 +4472,7 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         doc = Doc()
         box = slab(doc, (0, 3), (0, 2), (0, 1.5))
         cavity = slab(doc, (0.25, 0.75), (0.25, 0.75), (0.25, 2.0))
-        hollow = doc.insert(Node.boolean(BooleanOp.Subtract, box, cavity))
+        hollow = doc.insert(Node.subtract(box, cavity))
 
         clear = doc.insert(Node.datum_plane((
             Formula.length_in(2.5, m),
@@ -4811,9 +4579,11 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         """The operand rule, measured rather than assumed — and the
         two nodes that live on either side of it.
 
-        A boolean's operand door refuses a plural payload: a split's
-        two halves refuse below, and a `Node.pattern`'s `instances`
-        refuse for the same reason. That was the argument for leaving
+        A subtract's operand reads one body, and the door refuses a
+        plural read: a split named alone is either of its two halves,
+        and a `Node.pattern`'s `instances` are a list of bodies (a
+        union or an intersect reads a family only WHOLE, as its one
+        members argument). That was the argument for leaving
         `Node.pattern` unbound, and it stopped being one when
         `Node.part` bound (LIB-B-PART): a Part PROJECTS one body out
         of a plural value, so the pattern's family reaches every
@@ -4849,10 +4619,9 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             Formula.literal(1.0),
         )))
         halves = doc.insert(Node.split(box, plane))
-        fused = doc.insert(Node.boolean(BooleanOp.Union, halves, other))
-        with self.assertRaises(EvaluationError) as caught:
-            evaluate(doc).value(fused)
-        self.assertEqual(caught.exception.kind, "wrong_operand")
+        with self.assertRaises(EditError) as caught:
+            doc.insert(Node.subtract(halves, other))
+        self.assertEqual(caught.exception.variant, "ambiguous_output")
 
         # The pattern refuses at the same seat for the same reason...
         family = doc.insert(
@@ -4863,21 +4632,18 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             ), Formula.length_in(4, m)))
         )
         self.assertEqual(evaluate(doc).value(family).kind, "instances")
-        plural = doc.insert(Node.boolean(BooleanOp.Union, family, other))
-        with self.assertRaises(EvaluationError) as plural_caught:
-            evaluate(doc).value(plural)
-        self.assertEqual(plural_caught.exception.kind, "wrong_operand")
+        with self.assertRaises(EditError) as plural_caught:
+            doc.insert(Node.subtract(family, other))
+        self.assertEqual(plural_caught.exception.variant, "slot_var_kind")
 
         # ...and a Part of it does not: one instance, one body, one
         # ordinary operand. The middle copy stands at x in [4, 5], and
         # the box it fuses with runs INTO it — a real union, and one
-        # with no flush wall to declare.
+        # with no flush wall to glue.
         copy = doc.insert(Node.part(family, PartSelect.instance(Formula.count(1))))
         self.assertEqual(evaluate(doc).value(copy).kind, "body")
         joined = doc.insert(
-            Node.boolean(
-                BooleanOp.Union, copy, slab(doc, (4.5, 5.5), (0.25, 0.75), (0.25, 0.75))
-            )
+            Node.union([copy, slab(doc, (4.5, 5.5), (0.25, 0.75), (0.25, 0.75))])
         )
         self.assertTrue(evaluate(doc).succeeded(joined))
 

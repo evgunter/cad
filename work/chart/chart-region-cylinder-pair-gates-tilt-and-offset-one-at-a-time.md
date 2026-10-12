@@ -31,3 +31,15 @@ section classifiers' `decide_across` (`crates/geom-brep/src/intersect.rs`)
 and `carrier_cyl_reach` (`crates/topo/src/boolean/carrier_eq.rs`) do:
 the zero side on `|datum| + tilt·lever`, a definite side on the datum
 shrunk toward zero by the tilt, the tilt row kept only to route.
+
+## A second site in the same file
+
+`proper_crossings`' parallel lane (`crates/topo/src/chart_region.rs:3058`)
+has the same shape in parameter space: `chart_region_parallel` (the
+segments' sine levered at the longer one) decided Zero, then
+`chart_region_collinear_offset` (the larger endpoint offset) decided Zero
+on its own, and the collinear lane served. A point of either segment
+stands off the other's line by up to the offset plus the sine levered at
+its length. Found by the sweep of
+`section-cert-axis-pose-decides-tilt-and-offset-one-at-a-time` (branch
+`cleave/section-cert-axis-pose`).

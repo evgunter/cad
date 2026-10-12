@@ -47,3 +47,28 @@ of a spiric rim landing a spline on a torus) or a test-only door.
 
 
 Correction (spline-carrier designers, PR 4261): an `Intersection` spline strut on an analytic face does not take the fitted lane. `analytic_derive` excuses it (`UncoveredClass::SplineCarrier`). `crates/topo/tests/m6_2_fitted_at_rest.rs` and `topo/tests/fixture/mod.rs` build exactly that face through public `mev`. So until the spline route lands, a fixture for the excusal is that face without the hand-attached row (`attach_pcurve`).
+
+## Moved by the projected image (branch `pcert/projected-image`, 2026-10-08)
+
+The correction above no longer holds. `UncoveredClass::SplineCarrier`
+is deleted: the m6_2 face mints its projected rows through public `mev`
+plus the closing mint, so it is not a fixture for the excusal.
+`not_owed` still excuses `NoFittedClass`, `MirrorTorusSpiric` and
+`FittedLaneUnsupported`. Only the last is reachable on an analytic
+chart: the m6_2 face at the `Dual` scalar, which holds no fitted door,
+leaves the face rowless (`the_dual_leaves_the_face_rowless_and_says_why`).
+A face-whole masking fixture could stand on that: a dual body with a
+spline strut beside an off-chart one. It is not built here.
+
+## The dual's m6_2 face is gone too (PR 4791, 2026-10-12)
+
+A lane-free door now refuses an analytic rung-3 edge
+(`CertifyError::NurbsLaneNotSupplied`), so the dual's mev refuses the
+m6_2 fixture's edge naming the scalar
+(`the_dual_holds_neither_lane_and_each_refusal_names_its_scalar`), and
+no face is left rowless. With `not_owed`'s `FittedLaneUnsupported` arm
+instrumented, the topo, sweep, editor-core, step-import and mesh `ci`
+suites reached it at no scalar. The arm stays: it is reachable by
+construction. An iso-curve spline edge on a spline chart certifies with
+no lane at the dual, and an analytic face beside it is owed a fitted or
+projected row for that carrier. It has no fixture.

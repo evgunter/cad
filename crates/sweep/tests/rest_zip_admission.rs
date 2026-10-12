@@ -1,24 +1,24 @@
-//! **The declared-REST zip admits only a pure REST contact**
+//! **A union at a tangent site never ships the overlap twice**
 //! (`work/zip/a-flush-declared-reflex-union-ships-the-wrong-volume`).
 //!
-//! The zip opens only where the join refuses, so each row pairs a lever
-//! (a contact the join refuses: a flat wall flush where the other
+//! Each row pairs a tangent site (a flat wall flush where the other
 //! solid's fillet starts, the tangent plane×cylinder pair) with an
-//! overlap a pure REST contact cannot have. The zip grafts B whole and
-//! discards only the contact patches, so a mate it admitted with its
-//! interiors overlapping would come back at `vol a + vol b`. Each such
-//! union either refuses or builds sound at its closed form; the
-//! controls build each lever with a pure contact, and each overlap
-//! without its lever. The last two rows take each lever off the pins'
-//! poses: more overlaps and pure contacts for the reflex lever, and the
-//! pure contacts the tangent lever must keep building.
+//! overlap a pure REST contact cannot have. The join reads the germ
+//! tangent to the wall in the face its fillet's rim turns into, so it
+//! connects the site; a union that grafted one solid whole and dropped
+//! only the contact patches would come back at `vol a + vol b`. Each
+//! such union either refuses or builds sound at its closed form; the
+//! controls build each site with a pure contact, and each overlap
+//! without its site. The last two rows take each site off the pins'
+//! poses: more overlaps and pure contacts for the reflex site, and the
+//! pure contacts the tangent site must keep building. The last pins a
+//! line kiss beside the site, which builds with its contact unrecorded.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{OrthoFrame, Point3, Tol};
 use sweep::test_support::{brick, extruded, finished, sketch_at};
-use topo::test_support::flush_declarations;
-use topo::{AtRestBody, BooleanDeclarations, BooleanError, BooleanResult};
+use topo::{AtRestBody, BooleanError, BooleanResult};
 
 use crate::common::differential::{ReflexPose, reflex_pose};
 use crate::common::rounded;
@@ -44,17 +44,16 @@ fn union(p: &AtRestBody<f64>, q: &AtRestBody<f64>) -> AtRestBody<f64> {
     }
 }
 
-/// Whether the join alone refuses `p ∪ q` under `d`: the lever that
-/// hands the union to the zip.
-fn join_refuses(p: &AtRestBody<f64>, q: &AtRestBody<f64>, d: &BooleanDeclarations) -> bool {
-    topo::test_support::boolean_join_refusal(topo::BooleanOp::Union, p, q, d, tol())
+/// Whether the join alone refuses `p ∪ q`.
+fn join_refuses(p: &AtRestBody<f64>, q: &AtRestBody<f64>) -> bool {
+    topo::test_support::boolean_join_refusal(topo::BooleanOp::Union, p, q, tol())
         .expect("the reduction runs")
         .is_some()
 }
 
 /// `r` refused, or is a body that has volume `want`, passes tiers 2
 /// and 3′ and the at-rest certificate, and is a legal operand.
-/// `overlap` is the interiors' common volume, which a zip that kept
+/// `overlap` is the interiors' common volume, which a union that kept
 /// both solids whole would add back. Answers whether it built.
 fn never_twice(
     what: &str,
@@ -90,8 +89,8 @@ fn never_twice(
 /// The reflex pose's `b` joined, through a bridge high over `a`, to a
 /// post resting on `a`'s top: its 1 × 1 footprint, corners rounded 0.25,
 /// starts at `x0`. At `x0 = −2` the post's west wall is flush with
-/// `a`'s where its fillets start, and the join refuses the tangent
-/// site. Answers the pose, `b′` and `vol a + vol b′ − v∩`.
+/// `a`'s where its fillets start: the tangent site. Answers the pose,
+/// `b′` and `vol a + vol b′ − v∩`.
 fn reflex_beside_a_post(
     profile: &str,
     sx: f64,
@@ -116,16 +115,13 @@ fn reflex_beside_a_post(
     (p, b, want)
 }
 
-/// **A reflex union behind a join lever never ships the overlap twice.**
+/// **A reflex union at a tangent site never ships the overlap twice.**
 /// `b`'s wall rests flush on `a`'s notch wall (a `Rest`) and its sheared
-/// cap crosses `a`'s 45° wall and top into `a`'s material; the post
-/// makes the join refuse, so the union is the zip's to answer. The cap's
-/// crossings are section segments with no contact patch beside them,
-/// so the zip declines and the join's refusal stands: each union
-/// refuses `Join(..)` or builds at `vol a + vol b′ − v∩`. It used to
-/// build `vol a + vol b′` at every pose here, in both operand orders.
+/// cap crosses `a`'s 45° wall and top into `a`'s material, with the
+/// post's tangent site beside it: each union refuses `Join(..)` or
+/// builds at `vol a + vol b′ − v∩`, in both operand orders.
 #[test]
-fn a_reflex_union_behind_a_join_lever_never_ships_the_overlap_twice() {
+fn a_reflex_union_at_a_tangent_site_never_ships_the_overlap_twice() {
     for (profile, sx, sy) in [
         ("sqQ1", -0.5, 0.25),
         ("sqQ1", -0.75, 0.1),
@@ -139,12 +135,7 @@ fn a_reflex_union_behind_a_join_lever_never_ships_the_overlap_twice() {
         let (p, b, want) = reflex_beside_a_post(profile, sx, sy, -2.0);
         for (order, x, y) in [("a ∪ b′", &p.a, &b), ("b′ ∪ a", &b, &p.a)] {
             let what = format!("{profile} ({sx}, {sy}) {order}");
-            let d = flush_declarations(x, y, tol());
-            assert!(
-                join_refuses(x, y, &d),
-                "{what}: the post no longer defeats the join, so this row no longer reaches the zip"
-            );
-            match topo::union_with(x, y, &d, tol()) {
+            match topo::union(x, y, tol()) {
                 Err(BooleanError::Join(_)) => {}
                 Err(e) => panic!("{what}: refused, but not by the join: {e:?}"),
                 built => {
@@ -155,43 +146,41 @@ fn a_reflex_union_behind_a_join_lever_never_ships_the_overlap_twice() {
     }
 }
 
-/// **The lever's controls build sound.** The same `b′` with the post
-/// off `a`'s west wall (`x0 = −1.9`): no lever, and the join builds the
-/// union at the closed form. And the lever with a pure contact (`sqQ1`
-/// at `(0.25, 0.25)`, whose cap clears `a`): the join refuses, and the
-/// zip builds it.
+/// **The tangent site's controls build sound.** The same `b′` with the
+/// post off `a`'s west wall (`x0 = −1.9`): no tangent site. And the site
+/// with a pure contact (`sqQ1` at `(0.25, 0.25)`, whose cap clears `a`).
+/// The join connects each, and builds the union at the closed form.
 #[test]
-fn a_join_levers_controls_build_sound() {
-    for (profile, sx, sy, x0, lever) in [
-        ("sqQ1", -0.5, 0.25, -1.9, false),
-        ("eBot", -0.25, -0.5, -1.9, false),
-        ("sqQ1", 0.25, 0.25, -2.0, true),
+fn a_tangent_sites_controls_build_sound() {
+    for (profile, sx, sy, x0) in [
+        ("sqQ1", -0.5, 0.25, -1.9),
+        ("eBot", -0.25, -0.5, -1.9),
+        ("sqQ1", 0.25, 0.25, -2.0),
     ] {
         let (p, b, want) = reflex_beside_a_post(profile, sx, sy, x0);
         for (order, x, y) in [("a ∪ b′", &p.a, &b), ("b′ ∪ a", &b, &p.a)] {
             let what = format!("{profile} ({sx}, {sy}), post at {x0}, {order}");
-            let d = flush_declarations(x, y, tol());
-            assert_eq!(join_refuses(x, y, &d), lever, "{what}: the lever");
+            assert!(!join_refuses(x, y), "{what}: the join connects");
             assert!(
-                never_twice(&what, topo::union_with(x, y, &d, tol()), want, p.want[0]),
+                never_twice(&what, topo::union(x, y, tol()), want, p.want[0]),
                 "{what}: refused"
             );
         }
     }
 }
 
-/// **A box dipping into a plate behind a tangent lever never ships the
+/// **A box dipping into a plate at a tangent site never ships the
 /// overlap twice.** A slab rests on the rounded 6 × 4 plate (`r = 1`)
 /// with its west wall flush where the plate's south-west fillet starts
-/// (the join refuses the tangent pair), and a box joined to the slab
+/// (the tangent plane×cylinder pair), and a box joined to the slab
 /// dips into the plate: across its straight south wall, or inside the
 /// contact, where the dip's boundary on the plate's top is the slab's
 /// own edges and no section segment marks it
-/// (`work/zip/a-dip-inside-a-rest-contact-is-refused-by-the-result-gate.md`).
-/// Each refuses or builds at box arithmetic. The control, a box above
-/// the plate, builds through the zip in both orders.
+/// (`work/fuse/a-dip-inside-a-rest-contact-is-refused-by-the-result-gate.md`).
+/// Each builds sound at box arithmetic, in both orders. The control, a
+/// box above the plate, joins too.
 #[test]
-fn a_box_dipping_into_a_plate_behind_a_tangent_lever_never_ships_the_overlap_twice() {
+fn a_box_dipping_into_a_plate_at_a_tangent_site_never_ships_the_overlap_twice() {
     let t = tol();
     let m1 = 1.0 - core::f64::consts::FRAC_1_SQRT_2;
     let plate = finished(
@@ -218,16 +207,18 @@ fn a_box_dipping_into_a_plate_behind_a_tangent_lever_never_ships_the_overlap_twi
             ("plate ∪ upper", &plate, &upper),
         ] {
             let what = format!("{name}, {order}");
-            let d = flush_declarations(p, q, t);
-            assert!(join_refuses(p, q, &d), "{what}: the lever");
-            let built = never_twice(&what, topo::union_with(p, q, &d, t), want, overlap);
-            assert!(built || !control, "{what}: the control refused");
+            assert!(
+                !control || !join_refuses(p, q),
+                "{what}: the control's join connects"
+            );
+            let built = never_twice(&what, topo::union(p, q, t), want, overlap);
+            assert!(built, "{what}: refused");
         }
     }
 }
 
-/// Both orders of `p ∪ q` behind a lever: each refuses or builds sound
-/// at `want`. Answers how many built.
+/// Both orders of `p ∪ q` at a tangent site: each refuses or builds
+/// sound at `want`. Answers how many built.
 fn both_orders(
     what: &str,
     p: &AtRestBody<f64>,
@@ -238,25 +229,19 @@ fn both_orders(
     let mut built = 0;
     for (order, x, y) in [("p ∪ q", p, q), ("q ∪ p", q, p)] {
         let what = format!("{what}, {order}");
-        let d = flush_declarations(x, y, tol());
-        assert!(
-            join_refuses(x, y, &d),
-            "{what}: the lever no longer defeats the join"
-        );
-        if never_twice(&what, topo::union_with(x, y, &d, tol()), want, overlap) {
+        if never_twice(&what, topo::union(x, y, tol()), want, overlap) {
             built += 1;
         }
     }
     built
 }
 
-/// **The reflex lever off the pin's poses.** Six overlapping poses (a
-/// further profile, `sx > 0`, the steepest shear) at which the zip,
-/// without its admission check, ships `vol a + vol b′` in both orders
-/// (measured with the check disabled), and six pure contacts
-/// (`v∩ = 0`) that the zip builds in both orders.
+/// **The reflex site off the pin's poses.** Six overlapping poses (a
+/// further profile, `sx > 0`, the steepest shear), each refused or built
+/// at `vol a + vol b′ − v∩`, and six pure contacts (`v∩ = 0`) that build
+/// in both orders.
 #[test]
-fn the_reflex_lever_off_the_pins_poses_never_ships_the_overlap_twice() {
+fn the_reflex_site_off_the_pins_poses_never_ships_the_overlap_twice() {
     for (profile, sx, sy) in [
         ("dRight", -1.0, -1.0),
         ("eBot", -0.5, -0.5),
@@ -310,28 +295,23 @@ fn rounded_at(at: (f64, f64, f64), w: f64, h: f64, r: f64, height: f64) -> AtRes
     )
 }
 
-fn declared_union(p: &AtRestBody<f64>, q: &AtRestBody<f64>) -> AtRestBody<f64> {
-    match topo::union_with(p, q, &flush_declarations(p, q, tol()), tol()) {
+fn stacked_union(p: &AtRestBody<f64>, q: &AtRestBody<f64>) -> AtRestBody<f64> {
+    match topo::union(p, q, tol()) {
         Ok(BooleanResult::Body(bb)) => bb.body,
         other => panic!("an operand's own union: {other:?}"),
     }
 }
 
-/// **The tangent lever keeps building pure contacts.** The rounded
+/// **The tangent site keeps building pure contacts.** The rounded
 /// 6 × 4 plate (`r = 1`) and an upper solid whose west wall is flush
 /// where the plate's south-west fillet starts. Eight pure contacts (two
 /// tangent sites, an east wall too, an overhang, a thin slab, a rounded
-/// slab, slabs carrying a post) build through the zip in both orders:
-/// what the admission check must not refuse. No overlap here reaches
-/// the check. Dips at other depths and places, a rounded peg, two dips,
-/// the plate's own boss rising into the slab and a second foot through
-/// the plate's north wall are each refused before it or by the result
-/// gate (the dips inside the contact are
-/// `work/zip/a-dip-inside-a-rest-contact-is-refused-by-the-result-gate.md`),
-/// so this row stays green without the check; it asserts only that each
-/// refuses or builds at box arithmetic.
+/// slab, slabs carrying a post) build in both orders. Dips at other
+/// depths and places, a rounded peg, two dips, the plate's own boss
+/// rising into the slab and a second foot through the plate's north wall
+/// each refuse or build at box arithmetic.
 #[test]
-fn the_tangent_lever_keeps_building_pure_contacts() {
+fn the_tangent_site_keeps_building_pure_contacts() {
     let m1 = 1.0 - core::f64::consts::FRAC_1_SQRT_2;
     let plate = rounded_at((0.0, 0.0, 0.0), 6.0, 4.0, 1.0, 1.0);
     let pv = vol(&plate);
@@ -354,11 +334,11 @@ fn the_tangent_lever_keeps_building_pure_contacts() {
         ),
         (
             "a post on the slab",
-            declared_union(&slab, &box_of((1.0, 2.0), (1.0, 2.0), (1.9, 3.0))),
+            stacked_union(&slab, &box_of((1.0, 2.0), (1.0, 2.0), (1.9, 3.0))),
         ),
         (
             "a rounded post on the slab",
-            declared_union(&slab, &rounded_at((1.0, 1.0, 1.9), 1.0, 1.0, 0.4, 1.0)),
+            stacked_union(&slab, &rounded_at((1.0, 1.0, 1.9), 1.0, 1.0, 0.4, 1.0)),
         ),
     ] {
         let what = format!("pure: {name}");
@@ -393,12 +373,12 @@ fn the_tangent_lever_keeps_building_pure_contacts() {
             (0.8, 1.5),
         ),
     ] {
-        let u = declared_union(&slab, &box_of(x, y, z));
+        let u = stacked_union(&slab, &box_of(x, y, z));
         let o = ov(x, y, z);
         both_orders(&format!("dip {name}"), &u, &plate, vol(&u) + pv - o, o);
     }
     let foot = 1.0 - (4.0 - core::f64::consts::PI) * 0.16;
-    let u = declared_union(&slab, &rounded_at((1.5, 1.5, 0.8), 1.0, 1.0, 0.4, 0.7));
+    let u = stacked_union(&slab, &rounded_at((1.5, 1.5, 0.8), 1.0, 1.0, 0.4, 0.7));
     both_orders(
         "dip a rounded peg",
         &u,
@@ -406,12 +386,12 @@ fn the_tangent_lever_keeps_building_pure_contacts() {
         vol(&u) + pv - 0.2 * foot,
         0.2 * foot,
     );
-    let u = declared_union(
-        &declared_union(&slab, &box_of((0.5, 1.0), (1.5, 2.0), (0.8, 1.5))),
+    let u = stacked_union(
+        &stacked_union(&slab, &box_of((0.5, 1.0), (1.5, 2.0), (0.8, 1.5))),
         &box_of((2.0, 2.5), (2.0, 2.5), (0.8, 1.5)),
     );
     both_orders("two dips", &u, &plate, vol(&u) + pv - 0.1, 0.1);
-    let lower = declared_union(&plate, &box_of((1.5, 2.5), (1.5, 2.5), (0.5, 1.2)));
+    let lower = stacked_union(&plate, &box_of((1.5, 2.5), (1.5, 2.5), (0.5, 1.2)));
     both_orders(
         "the plate's boss into the slab",
         &slab,
@@ -419,7 +399,7 @@ fn the_tangent_lever_keeps_building_pure_contacts() {
         vol(&slab) + vol(&lower) - 0.2,
         0.2,
     );
-    let u = declared_union(
+    let u = stacked_union(
         &box_of((0.0, 5.0), (m1, 3.0), (1.0, 2.0)),
         &box_of((4.0, 4.5), (2.5, 4.5), (0.5, 1.5)),
     );
@@ -430,4 +410,51 @@ fn the_tangent_lever_keeps_building_pure_contacts() {
         vol(&u) + pv - 0.375,
         0.375,
     );
+}
+
+/// **A line kiss beside the tangent site builds at its closed form and
+/// records its contact** (shape 2 of
+/// `work/fuse/a-dip-inside-a-rest-contact-is-refused-by-the-result-gate`).
+/// At these poses one of `b`'s cap edges from the reflex corner lies in
+/// `a`'s top, with the cap above it elsewhere: `v∩ = 0`, and `b` kisses
+/// `a` along that edge and at its far vertex. Each union, in both
+/// orders, builds at `vol a + vol b′`, passes tier 2, and passes tier 3′
+/// against its own records: the kiss's vertex rests on the piece of
+/// `a`'s top the section divides off, and the record lands there. The
+/// glue records face pairs, and no face pair meets here.
+#[test]
+fn a_line_kiss_beside_a_tangent_site_records_its_contact() {
+    for (profile, sx, sy) in [
+        ("dUp", 0.25, 0.25),
+        ("dUp", 0.5, 0.5),
+        ("dLeft", -0.5, -0.5),
+        ("dLeft", -0.25, 0.25),
+        ("dLeft", -0.1, -0.1),
+        ("dLeft", -1.0, -1.0),
+        ("dDown", -0.5, -0.5),
+        ("dDown", -0.1, -0.1),
+        ("dDown", -1.0, -1.0),
+        ("dRight", 0.25, 0.25),
+    ] {
+        let (p, b, want) = reflex_beside_a_post(profile, sx, sy, -2.0);
+        assert_eq!(
+            p.want[0], 0.0,
+            "{profile} ({sx}, {sy}): the kiss overlaps nothing"
+        );
+        for (order, x, y) in [("a ∪ b′", &p.a, &b), ("b′ ∪ a", &b, &p.a)] {
+            let what = format!("{profile} ({sx}, {sy}) {order}");
+            let bb = match topo::union(x, y, tol()) {
+                Ok(BooleanResult::Body(bb)) => bb,
+                other => panic!("{what}: the kiss does not build: {other:?}"),
+            };
+            let v = vol(&bb.body);
+            assert!((v - want).abs() < 1e-9, "{what}: volume {v} against {want}");
+            assert_eq!(topo::validate_closed(&bb.body), Ok(()), "{what}: tier 2");
+            assert_eq!(
+                topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()),
+                Ok(()),
+                "{what}: tier 3′ against its records"
+            );
+        }
+    }
 }

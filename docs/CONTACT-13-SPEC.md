@@ -1,19 +1,19 @@
 # CONTACT-13: the census reads every declared meeting
 
 **Binds one implementer lane.** Deleted at merge;
-`work/contact/CONTACT-13.md` survives. Read
+`work/contacthold/CONTACT-13.md` survives. Read
 `docs/prompts/implementer-discipline.md` in full first.
 
 Branch `contact/13-meeting-ledger`, from `main`.
 
 Read first:
-- The row, `work/contact/declared-only-meetings-clear-at-the-census-gate-unread`,
+- The row, `work/contacthold/declared-only-meetings-clear-at-the-census-gate-unread`,
   in full, including both built wrong clears and Ev's ruling.
 - PR 3422, whose body carries both designers' reports: the
   recommendation this unit builds, in their words.
 - The updated exclusion-step paragraph in `crates/topo/README.md`, as
   merged by PR 3422.
-- CONTACT-7's closing note in `work/contact/CONTACT-7.md`. The touch
+- CONTACT-7's closing note in `work/contact/CONTACT-7.md`, read at the SHA `docs/doc-ledger/contact-leaves-the-tracker.md` names. The touch
   analysis this unit extends is CONTACT-7's metric one: `mod metric`,
   `Distance`, and the visibility pieces.
 

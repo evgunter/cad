@@ -90,13 +90,14 @@
 use crate::common;
 use pncad::document::ExtrudeSide;
 use pncad::document::Formula;
+use viewer::session::BooleanSpec;
 
 use std::collections::BTreeSet;
 
 use common::{len, len3, scl3};
 use pncad::document::{
-    Alignment, AxisSense, BooleanOp, Dimension, Doc, DocEdit, DocumentId, Frame, FreeVar,
-    MateFrame, MatePrimitive, Node, ProfileProgram, RecipeNodeId, SlotId, VarId, VarName,
+    Alignment, AxisSense, Dimension, Doc, DocEdit, DocumentId, Frame, FreeVar, MateFrame,
+    MatePrimitive, Node, ProfileProgram, RecipeNodeId, SlotId, VarId, VarName,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{EntityKind, MM, StableName};
@@ -124,12 +125,13 @@ fn fixture(tol: Tol) -> (DocSession, RecipeNodeId) {
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(0.005),
             side: ExtrudeSide::Along,
         },
         tol,
     );
+    let (doc, _) = common::placed(&doc, extrude, tol);
     (DocSession::inline(doc, tol), extrude)
 }
 
@@ -277,27 +279,25 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
         },
         SessionOp::AddRevolve {
             profile: node,
-            axis: node,
+            axis_origin: common::len2([0.0, 0.0]),
+            axis_direction: common::scl2([0.0, 1.0]),
             angle: common::ang(1.0),
         },
         SessionOp::AddBoolean {
-            op: BooleanOp::Union,
-            a: node,
-            b: node,
-            declare: Vec::new(),
+            spec: BooleanSpec::Union(vec![node.into(), node.into()]),
         },
         SessionOp::AddSplit {
-            target: node,
+            target: node.into(),
             tool: node,
         },
         SessionOp::AddTransform {
-            input: node,
+            input: node.into(),
             translation: len3([0.0; 3]),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
             rotation_angle: common::ang(0.0),
         },
         SessionOp::AddPattern {
-            input: node,
+            input: node.into(),
             count: 2,
             rule: PatternRuleSpec::Linear {
                 direction: scl3([1.0, 0.0, 0.0]),
@@ -305,7 +305,7 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             },
         },
         SessionOp::AddPlacedUnion {
-            input: node,
+            input: node.into(),
             count: 2,
             rule: PatternRuleSpec::Linear {
                 direction: scl3([1.0, 0.0, 0.0]),
@@ -326,7 +326,7 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             of: node,
             select: PartSelectSpec::Instance(1),
         },
-        SessionOp::Duplicate { input: node },
+        SessionOp::Duplicate { input: node.into() },
         SessionOp::AddInstance {
             id: DocumentId::derive("view1b-no-such-part"),
         },
@@ -336,7 +336,7 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
         SessionOp::EditProfile {
             node,
             base: pncad::document::ProfileProgram {
-                plane: node,
+                frame: node.into(),
                 loops: vec![],
                 ids: Vec::new(),
             },
@@ -363,6 +363,7 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             node,
             slot: SlotId::Distance,
             var,
+            name: None,
         },
         SessionOp::DeclineOffer {
             node,
@@ -666,9 +667,8 @@ fn nothing_is_fenced_when_no_gesture_is_in_flight() {
 /// write only `doc.params`, which no display predicate reads, and every
 /// assertion below would hold for any implementation of them.
 ///
-/// The pattern also puts the instance UNDER a root rather than at one,
-/// so `drawn_targets` has a propagation to resolve rather than a
-/// singleton to return.
+/// The pattern places nothing (A10), so `drawn_targets` resolves the
+/// instance to its own copy.
 ///
 /// Where it goes red: give a value gesture an edit that changes the
 /// node graph and the identity block fails outright (`free_move_check`
@@ -697,12 +697,12 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
     }
 
     // A pattern over the probed instance: the slots a value gesture can
-    // open on in an assembly of bare instances, and the reason the
-    // instance's display state has a root to propagate to.
+    // open on in an assembly of bare instances. It places nothing
+    // (A10), so the instance's display state stays on its own copy.
     let pattern = common::session_insert(
         &mut session,
         SessionOp::AddPattern {
-            input: post,
+            input: post.into(),
             count: 2,
             rule: PatternRuleSpec::Linear {
                 direction: scl3([1.0, 0.0, 0.0]),
@@ -712,8 +712,8 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
     );
     assert_eq!(
         viewer::display::drawn_targets(session.doc(), post),
-        Ok(std::iter::once(pattern).collect()),
-        "the probe on the instance is drawn under the pattern root"
+        Ok(std::iter::once(bench.post_a_copy).collect()),
+        "the probe on the instance is drawn on the instance's own copy"
     );
 
     // Both node-writing gesture doors, one after the other.
@@ -764,12 +764,12 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
         assert_eq!(
             viewer::display::drawn_targets(session.doc(), post),
             viewer::display::drawn_targets(session.committed_doc(), post),
-            "{slot:?}: the two documents draw the probe on the same roots"
+            "{slot:?}: the two documents draw the probe on the same copies"
         );
 
         // A whole free-move gesture, mid-value-gesture, through
         // `perform` — and the view, resolved against the SCRATCH
-        // document, puts the previewed frame on the pattern root.
+        // document, puts the previewed frame on the instance's copy.
         perform(&mut session, SessionOp::BeginFreeMove { instance: post });
         perform(
             &mut session,
@@ -779,9 +779,12 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
             },
         );
         assert_eq!(
-            session.display_view().moved_roots.get(&pattern),
+            session
+                .display_view()
+                .moved_placements
+                .get(&bench.post_a_copy),
             Some(&probe),
-            "{slot:?}: the previewed probe reaches its drawn root under a scratch document"
+            "{slot:?}: the previewed probe reaches its drawn copy under a scratch document"
         );
         perform(&mut session, SessionOp::CommitFreeMove { instance: post });
         assert_eq!(session.display().free_move_of(post), Some(&probe));
@@ -1649,7 +1652,7 @@ fn two_fields(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, VarName) {
     let (doc, first) = common::inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(0.005),
             side: ExtrudeSide::Along,
         },
@@ -1658,7 +1661,7 @@ fn two_fields(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, VarName) {
     let (doc, second) = common::inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(0.003),
             side: ExtrudeSide::Along,
         },

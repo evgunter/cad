@@ -82,6 +82,7 @@ downstream door: `Node.pattern` says the unfused family and
 says the same family fused into one.
 """
 
+from collections.abc import Sequence
 from typing import Any, Final, Generic, Literal, Optional, TypeAlias, TypeVar, overload
 
 # --- errors -----------------------------------------------------------
@@ -110,29 +111,35 @@ class EditError(PncadError):
       doors that write one, `at` where the fault is a position in the
       graph). `input` is a node the subject NAMES — an operand that
       does not resolve, an input reached twice, the measure an
-      assertion constrains. `referenced_by` is a node DOWNSTREAM of
-      `node` that references it: the live consumer a delete would
-      dangle, the descendant root that makes an ancestor redundant.
+      assertion constrains.
     - `expected` and `found` are the DIMENSION pair — what the door
       required and what it was offered — under every spelling the
       kernel gives them (`expected`/`found`, `declared`/`referenced`,
       `measured`/`bound`). They are dimension words (`length`,
       `angle`, `count`, `scalar`), the same alphabet `Formula.dimension`
-      answers in.
-    - `count` is how many entries a short list would have had. It is
-      NOT `found`: a count and a dimension are two types, and one
-      attribute carries one.
-    - `first` and `again` are POSITIONS in a node's name designation,
-      and `variant` decides what `first` means. On
-      `repeated_designation` (a shell's ordered `open` list) the two
-      are the entry's first occurrence and the position it is named
-      again. On `selection_not_canonical` (a blend's sorted selection)
-      `first` alone is the entry that does not sort strictly before
-      the one after it, and `again` is `None` — the break is between
-      that entry and its successor, so the second position is the
-      first plus one and is not carried. One position is one
-      attribute: a second int would be a second spelling of the same
-      thing, which the variant already distinguishes.
+      answers in. A slot's kind refusal (`slot_var_kind`) spells them
+      as kinds: `found` the kind of the variable read, `expected` the
+      kind its read takes (`length`, `body`, `profile`, ..., or
+      `placeable`, `measured`) — at an operand the slot's kind, at a
+      formula the leaf's: the slot's own at the root, and the leaf's
+      inside a function (`sin(w)` at a length slot reads `w` as an
+      angle).
+    - `slot` is the slot's word; at an operand it is the field's
+      (`profile`, `target`, `from`, `cut`, `member`, ...), with
+      `index` the position of a section or a member.
+    - `count` is how many nodes a definition expands to
+      (`definition_too_large`), or how many entities a selection meant
+      to name one names (`selection_shape`). It is NOT `found`: a count
+      and a dimension are two types, and one attribute carries one.
+    - `first` and `again` are POSITIONS in a selection's names, and
+      the fault (`fault`) decides what `first` means. On `repeated` (a
+      face set names a face twice) the two are the entry's first
+      occurrence and the position it is named again. On
+      `not_canonical` (an edge set out of sorted order) `first` alone
+      is the entry that does not sort strictly before the one after
+      it, and `again` is `None` — the break is between that entry and
+      its successor, so the second position is the first plus one and
+      is not carried.
     - `slot` is the named expression slot (`distance`, `count`,
       `origin_x`); a slot is a NAME, never an index. `param` is a
       document parameter's name and `name` a stable name's text.
@@ -161,7 +168,6 @@ class EditError(PncadError):
     inner_variant: Optional[str]
     node: Optional[NodeId]
     input: Optional[NodeId]
-    referenced_by: Optional[NodeId]
     slot: Optional[str]
     param: Optional[str]
     name: Optional[str]
@@ -190,10 +196,9 @@ class EvaluationError(PncadError):
     `reason` is `unknown_node`, `wrong_kind`, `empty_boolean`,
     `node_failed`, or `poisoned`. `kind` (which door refused),
     `inner_kind` (the arm of the kernel refusal that door holds),
-    `through` (the nearest failed ancestor), `finding` (the
-    refusal-menu payload) and `document` (the part the node is in) are
-    always present, `None` where the reason has none (attributes never
-    go missing).
+    `through` (the nearest failed ancestor) and `document` (the part
+    the node is in) are always present, `None` where the reason has none
+    (attributes never go missing).
 
     The message speaks the failed node as the document holds it: its
     kind, its label and its tag, `Extrude "base plate" (3fa9c1d2a0b1)`.
@@ -224,17 +229,9 @@ class EvaluationError(PncadError):
     rather than a fault — which split half, which entity kind — is a
     different question and is not this attribute's.
 
-    `finding` is the boolean's refusal MENU: when
-    `kind == "undeclared_coincidence"`, it carries the candidate
-    declaration as a typed `FlushFinding` — the same value
-    `Evaluation.find_flush_candidates` answers with, ready for
-    `Node.boolean`'s `declare=` or `Doc.declare`. The menu has exactly
-    two arms:
-    declare that finding, or move the geometry.
-
     A refusal that CARRIES another node's refusal — `part_root_failed`,
-    a part whose product root failed, `part_root_poisoned`, a part
-    whose product root never ran because a node upstream of it failed,
+    a part whose world placement failed, `part_root_poisoned`, a part
+    whose world placement never ran because a node upstream of it failed,
     and `mate_placer_refused`, a mate whose poisoned placer could not
     derive its pose — names the node that failed and points at it, and
     never quotes it. The carried refusal is `__cause__`: an
@@ -254,7 +251,6 @@ class EvaluationError(PncadError):
     kind: Optional[str]
     inner_kind: Optional[str]
     through: Optional[NodeId]
-    finding: Optional[FlushFinding]
     document: Optional[DocRef]
 
 class ValidationFinding:
@@ -273,7 +269,7 @@ class ValidationFinding:
     A frozen value with no constructor: findings come off a refusal.
     Two that say the same thing compare equal and hash equal.
 
-    `variant` is which validator arm refused (`undeclared_contact`,
+    `variant` is which validator arm refused (`unrecorded_contact`,
     `census_undecidable`, `negative_volume`, …). The other five are
     that arm's payload and are `None` on an arm that carries none, so
     reading one never raises `AttributeError`:
@@ -281,8 +277,7 @@ class ValidationFinding:
     - `subject_kind` — what a census refusal is ABOUT: `"entity"` (one
       carrier outside the certifiable inventory) or `"face_pair"` (a
       candidate contact). Two different repairs: simplify or certify
-      the carrier, versus declare the coincidence or separate the two
-      faces.
+      the carrier, versus move the geometry so the two faces separate.
     - `entity_kind` — that entity's kind (`"face"`, `"edge"`,
       `"vertex"`, `"loop"`, `"half_edge"`, `"shell"`, `"solid"`);
       `None` for a `"face_pair"`, whose two sides are faces.
@@ -291,9 +286,12 @@ class ValidationFinding:
       …). The branch that matters: an `edge_face_pierce` is
       interpenetration and cannot be declared, while an
       `edge_edge_overlap` can be.
+    - `crossing_side` — an `edge_edge_cross`'s side verdict:
+      `"same_side"` is interpenetration, `"opposite_sides"` a contact,
+      `"undecided"` neither; `None` on every other finding.
     - `stale_kind` — which contact record the tier-3′ census could
       not confirm (`"vertex_vertex"`, `"vertex_on_face"`,
-      `"vertex_on_edge"`, `"edge_edge"`, `"curve_locus"`, `"patch"`).
+      `"vertex_on_edge"`, `"edge_edge"`, `"edge_face"`, `"patch"`).
       A record a declaration made is withdrawn or re-seated at that
       granularity, and withdrawing another one leaves the refusal
       standing. `"vertex_on_edge"` and `"edge_edge"` are records an op
@@ -320,6 +318,8 @@ class ValidationFinding:
     def entity_kind(self) -> Optional[str]: ...
     @property
     def contact_kind(self) -> Optional[str]: ...
+    @property
+    def crossing_side(self) -> Optional[str]: ...
     @property
     def stale_kind(self) -> Optional[str]: ...
     @property
@@ -353,10 +353,9 @@ class QuantityOpMismatch(PncadError):
 
     The class is the Rust type's own name. This is the quantity
     boundary only, and not the library's only dimension check: the
-    document layer's own refusal type reaches Python at SIX doors
+    document layer's own refusal type reaches Python at FIVE doors
     under four DOOR names rather than one type name — LiteralError
-    (literal construction, the MeasureExpr arithmetic constructors,
-    and the recorded-program lift), ParseError with `variant ==
+    (literal construction and the recorded-program lift), ParseError with `variant ==
     "dimension"` (`Doc.parse_formula`), EditError (`Doc.apply`), and
     PersistError with `variant == "dimension"` (`load`). Each carries
     the failing check's own tag, so which check refused is branchable
@@ -390,22 +389,13 @@ class LiteralError(PncadError):
 
     Not QuantityOpMismatch, which is the quantity boundary's operator
     check and a different type. The expression layer's refusal type has
-    dimension-mismatch arms too, and reaches Python at six doors under
+    dimension-mismatch arms too, and reaches Python at five doors under
     four class names in all: `load` does, from a hand-edited save file,
     and they arrive as PersistError with `variant == "dimension"` and
     the check's own tag as `inner_variant`; `Doc.apply` does, as
-    EditError; `Doc.parse_formula` does, and they
-    arrive as ParseError; and the MEASUREMENT sublanguage's arithmetic
-    constructors do (`MeasureExpr.add` and its siblings), arriving on
-    THIS class with the mismatch's own tag as `kind` — the same kernel
-    type refusing at the same layer, because that language asks
-    `Formula`'s own constructors for its dimensions rather than restating
-    the table.
-
-    `value` is the offending number where the refusing door had one in
-    hand, and `None` where it did not: a measurement constructor
-    refuses over two operands' DIMENSIONS, and there is no single
-    float to name."""
+    EditError; `Doc.parse_formula` does, and they arrive as ParseError;
+    and literal construction and the recorded-program lift arrive on
+    THIS class."""
 
     kind: str
     value: Optional[float]
@@ -599,7 +589,6 @@ class StepImportError(PncadError):
     `dangling_reference`, `wrong_entity_type`, `malformed_record`,
     `unsupported_entity`, `unsupported_unit`, `nothing_to_import`,
     `structure`, `missing_uncertainty`, `invalid_eps_override`,
-    `declaration_unresolved`,
     `malformed_real`, `topology`,
     `assembly`, `adoption`, `rim_off_wall_boundary`,
     `wall_column_structure`, `recognition_ambiguous`, `pcurves`,
@@ -645,23 +634,17 @@ class SelectRefusal(PncadError):
     own typed refusal, crossing under its own name.
 
     `reason` is `in_band`, `tied_disagrees`, `unreadable`,
-    `not_a_datum`, `datum_has_no_value`, `node_has_no_value`,
-    `not_a_length`, `pair_in_band`, `bad_value`, `band`, or
-    `distinct_finding` (a kernel defect). The other attributes are
-    the refusing arm's payload, always present and `None` where
-    inapplicable: `name` (the candidate's opaque name text, a flush
-    pair's first face), `other` (a flush pair's second face), `at` and
-    `other_at` (the nodes holding a flush pair's two faces, which tell
-    two copies of one body apart), `predicate` (the funnel site), `matched`/`candidates` (a tied
+    `not_a_datum`, `datum_has_no_value`, `not_a_length`, `bad_value`,
+    or `band`. The other attributes are the refusing arm's payload,
+    always present and `None` where inapplicable: `name` (the
+    candidate's opaque name text), `predicate` (the funnel site),
+    `matched`/`candidates` (a tied
     name's disagreement counts), `datum` (the non-datum reference, or
     the datum with no value), `found` (what it evaluated to),
     `dim` (a non-length comparand's dimension tag)."""
 
     reason: str
     name: Optional[str]
-    other: Optional[str]
-    at: Optional[NodeId]
-    other_at: Optional[NodeId]
     predicate: Optional[str]
     matched: Optional[int]
     candidates: Optional[int]
@@ -693,11 +676,11 @@ class AssemblyError(PncadError):
 
     The two verdict arms are NOT interchangeable. `at_rest` is a
     finding AGAINST the document — a refuted declaration or an
-    undeclared contact. `uncertified` is the declared direction's
+    unrecorded contact. `uncertified` is the declared direction's
     FRONTIER: nothing refuted, nothing undeclared, the census simply
     declined to certify, so nothing was decided about the geometry
     either way. A gather refusal arrives under the GATHER's own tag
-    (`no_body_roots`, `root_failed`, ...), not a wrapper tag.
+    (`empty_product`, `root_poisoned`, ...), not a wrapper tag.
 
     The two MINT arms each answer with a LIST, because a document with
     two broken mates is two repairs and learning about the second only
@@ -722,17 +705,25 @@ class AssemblyError(PncadError):
     through: Optional[NodeId]
 
 class ProductError(PncadError):
-    """The whole-document gather refused. A product is all of the
-    roots or none of them — there are no partial products.
+    """The whole-document gather refused. A product is every copy the
+    world's placements define or none of them — there are no partial
+    products.
 
     Its message names each node as the evaluation's own document holds
     it (kind, label and tag): the document the gather was taken of.
-    `node` and `through` carry the full ids."""
+    `node` and `through` carry the full ids: a failed or poisoned
+    placement and the failed node that poisoned it, and on
+    `stranded_placement` the placement whose body is gone.
+    `empty_product` is the world holding no placement; `unplaced_bodies`
+    is then the bodies nothing places, each its output variable — the
+    handle `Doc.place` takes — in document order, and `None` on every
+    other arm. (The `unplaced` arm is a different fact: placed material
+    living in an unplaced group's own space.)"""
 
     variant: str
     node: Optional[NodeId]
     through: Optional[NodeId]
-    name: Optional[str]
+    unplaced_bodies: Optional[list[Var]]
 
 class SplitError(PncadError):
     """The `split` refactoring refused."""
@@ -771,6 +762,7 @@ class InlineError(PncadError):
     variant: str
     node: Optional[NodeId]
     by: Optional[NodeId]
+    """`instance_read_uncarried`: the host node reading the instance."""
     name: Optional[str]
     param: Optional[str]
     key: Optional[str]
@@ -942,14 +934,14 @@ class NodePickError(PncadError):
 class ChecksError(PncadError):
     """The advisory-check registry could not RUN.
 
-    `variant` is `root_without_value` (a root produced no value in this
-    evaluation — checks are defined over roots that evaluated, and a
-    report over a partial one would claim more than was checked),
+    `variant` is `root_without_value` (a placement produced no value in
+    this evaluation — checks are defined over copies that evaluated, and
+    a report over a partial one would claim more than was checked),
     `band` (the tolerance forms no band), `evaluation_of_another
     _document` (the evaluation is not an evaluation of this document —
     DI3, refused before any check runs) or `product_unavailable` (the
-    roots gather into no product, so the registry has no subject for a
-    check that reads one). `node` names the root on the first arm and
+    placements gather into no product, so the registry has no subject
+    for a check that reads one). `node` names the placement on the first arm and
     is `None` on the others. Its message names each node as the
     evaluation's own document holds it, the gather's included.
 
@@ -1010,8 +1002,8 @@ class FrameError(PncadError):
     margin carries the band and no number. This is diagnostic data,
     for error text only and not a decision input: the escalation
     contract is that no sound branch exists here, so
-    the recourse is the message's own three levers — declare the
-    coincidence, move the geometry, or lower the tolerance.
+    the recourse is the message's own levers — move the geometry,
+    or lower the tolerance.
 
     `band` wraps a band-construction refusal, whose word rides on
     `inner_variant` (`invalid_value`, `invalid_lever_arm`, `empty`)
@@ -1129,27 +1121,6 @@ class MeasureUnavailable(PncadError):
 
     variant: str
     param: str
-
-class MeasureNodeFault(PncadError):
-    """`Node.measure` was handed an expression that reads a reference
-    the node does not carry.
-
-    `variant` is `ref_index_out_of_range`; `verb` is which primitive
-    reads it, `index` the out-of-range one, and `refs` how many the
-    node carries.
-
-    The kernel's own `Node::measure` decides this — the one
-    construction door, running the check the edit door and the load
-    door's re-check both run — so a measure these constructors accept
-    is one a document accepts. What the constructor adds is TIMING:
-    the index refuses where it is written, not at the `Doc.apply`
-    after it, where the same fault arrives as EditError
-    `measure_malformed`."""
-
-    variant: str
-    verb: str
-    index: int
-    refs: int
 
 class MeasureUnavailableAt(PncadError):
     """A measure whose answer is an ENCLOSURE, read at a build whose
@@ -1857,13 +1828,22 @@ class NodeId:
 
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
+    def __getitem__(self, index: _CountArg) -> IndexedRead:
+        """One member of the family this node's output is (a pattern's),
+        at `index`: `xs[i]`, taken at every body seat."""
 
-class BooleanOp:
-    """The regularized Boolean operator."""
+class IndexedRead:
+    """One member of a family, read by index: `xs[i]`, written on the
+    family's operand (`NodeId` or `Var`) with a count. It reads the
+    family, not a variable: an operation reading it names the member's
+    entities by the family's read, so `Node.union(xs)` and
+    `Node.union([xs[0], xs[1], xs[2]])` name alike. Every body seat
+    takes one; reading a node that is not a family refuses
+    `slot_var_kind` at `Doc.insert`, and an index outside the family
+    refuses `instance_out_of_range` at `evaluate`. The index is a
+    structural slot of the reading node (slot word `index`)."""
 
-    Union: Final[BooleanOp]
-    Intersect: Final[BooleanOp]
-    Subtract: Final[BooleanOp]
+    def __repr__(self) -> str: ...
 
 class ExtrudeSide:
     """Which side of its sketch plane a `Node.extrude` goes toward:
@@ -2097,7 +2077,7 @@ class PatternKind:
         it."""
 
     @staticmethod
-    def circular(axis: NodeId, step: _AngleArg) -> PatternKind:
+    def circular(axis: _Operand, step: _AngleArg) -> PatternKind:
         """Stepped around `axis`, an upstream `datum_axis` node. The
         step is signed by the right-hand rule about the axis and lies
         within a turn: zero raises EvaluationError (`degenerate_step`),
@@ -2111,19 +2091,10 @@ class PatternKind:
         EditError (`empty_placement_list`) at insert."""
 
 class PartSelect:
-    """Which body of a multi-body value a `Node.part` selects: the
-    named half of a split, or one instance of a pattern by index.
-
-    One class for the two because the node is one sentence — "this
-    body, out of those" — and the VALUE decides which arm is
-    well-typed. Any other pairing refuses at `evaluate`
-    (`wrong_operand`), never at construction.
+    """Which copy of a pattern a `Node.part` selects, by index. A
+    split's halves need no selector: each is an output of the split,
+    read as `doc.output(split, port)`.
     """
-
-    @staticmethod
-    def split_half(half: SplitHalf) -> PartSelect:
-        """The named half of a `Node.split` value. A half the cut left
-        with no material refuses at `evaluate` (`empty_half`)."""
 
     @staticmethod
     def instance(index: _CountArg) -> PartSelect:
@@ -2135,40 +2106,41 @@ class PartSelect:
         clamps."""
 
 class MeasurePrimitive:
-    """Which closed-form measurement a `MeasureExpr` leaf computes, and
-    over which of the measure node's references.
+    """Which closed-form measurement a measure computes, and of which
+    two references.
 
     Four verbs and no fifth: `distance` and `angle` are the geometric
     readings, `gap` is CONTACT-DESIGN C5's signed mating gap, and
     `min_clearance` is the one an engine answers.
 
-    Every argument is a POSITION — an index into the reference list
-    `Node.measure` is given, so a plain `int`, the structural-slot
-    exception `PartSelect.instance` and `NodePick.build` already ride.
-    An index past the end of that list raises MeasureNodeFault at
-    `Node.measure`; a negative one is not representable and raises
-    OverflowError at the call.
+    Each reference is a `(node, name)` pair: the entity's stable name
+    and the node its carrier is READ AT. A text that is not a name
+    raises ValueError here.
     """
 
     @staticmethod
-    def distance(a: int, b: int) -> MeasurePrimitive:
-        """The distance between two referenced entities — a length. A
-        carrier pair the v1 closed forms have no arm for refuses at
-        `evaluate` (`measure_unsupported`), naming the pair."""
+    def distance(a: tuple[NodeId, str], b: tuple[NodeId, str]) -> MeasurePrimitive:
+        """The distance between two referenced entities — a length.
+        Each reference names a face, an edge or a vertex (another kind
+        refuses `slot_var_kind` at insert). A carrier pair the v1
+        closed forms have no arm for refuses at `evaluate`
+        (`measure_unsupported`), naming the pair."""
 
     @staticmethod
-    def angle(a: int, b: int) -> MeasurePrimitive:
-        """The angle between two referenced entities — an angle."""
+    def angle(a: tuple[NodeId, str], b: tuple[NodeId, str]) -> MeasurePrimitive:
+        """The angle between two referenced entities — an angle. Each
+        reference names a face or an edge (another kind refuses
+        `slot_var_kind` at insert)."""
 
     @staticmethod
-    def min_clearance(a: int, b: int) -> MeasurePrimitive:
+    def min_clearance(a: tuple[NodeId, str], b: tuple[NodeId, str]) -> MeasurePrimitive:
         """The minimum clearance between two selections — a length, and
         the one verb whose value is an ENCLOSURE.
 
         Each reference's entity kind is its face scope: a body
         reference selects every face of that body, a face reference
-        selects the one. An edge or a vertex refuses at `evaluate`
-        (`measure_selection_kind`).
+        selects the one. An edge or a vertex refuses when the measure is
+        inserted (`slot_var_kind`).
 
         At the `f64` scalar this library evaluates at, the measure has
         NO VALUE: `Value.measure` raises MeasureUnavailableAt naming
@@ -2178,14 +2150,16 @@ class MeasurePrimitive:
         failure."""
 
     @staticmethod
-    def gap(outer: int, inner: int) -> MeasurePrimitive:
+    def gap(outer: tuple[NodeId, str], inner: tuple[NodeId, str]) -> MeasurePrimitive:
         """C5's SIGNED gap between a mating pair — a length.
 
         Argument order is the mating ROLE, not a symmetry: `outer` is
         the containing carrier (the socket, the bore, the plane the
         offset is measured from) and `inner` the contained one. C5's
         formulas are asymmetric in exactly that way, so the roles are
-        authored rather than inferred from which radius is larger."""
+        authored rather than inferred from which radius is larger. Each
+        reference names a face (another kind refuses `slot_var_kind` at
+        insert)."""
 
     @property
     def verb(self) -> str:
@@ -2194,101 +2168,29 @@ class MeasurePrimitive:
 
     @property
     def dimension(self) -> str:
-        """`length` or `angle`. Fixed per verb: the quantity kind
-        rides the expression."""
+        """`length` or `angle`. Fixed per verb."""
 
     @property
-    def refs(self) -> tuple[int, int]:
-        """The reference indices, in ARGUMENT order — a gap's pair
-        reads `(outer, inner)` and is not re-sorted."""
+    def refs(self) -> tuple[tuple[NodeId, str], tuple[NodeId, str]]:
+        """The two references, in ARGUMENT order — a gap's pair reads
+        `(outer, inner)` and is not re-sorted."""
 
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
     def __repr__(self) -> str: ...
 
-class AssertionDir:
-    """Which way a `Node.assertion` constrains its measure. Two
-    directions and both still gate: a clearance requirement is
-    `AtLeast`, a maximum-gap requirement is `AtMost`."""
+class AssertionRelation:
+    """The relation a `Node.assertion` states between its value and its
+    bound: `AtLeast`, `AtMost` or `Equal` (equal at the document's
+    tolerance)."""
 
-    AtLeast: Final[AssertionDir]
-    AtMost: Final[AssertionDir]
+    AtLeast: Final[AssertionRelation]
+    AtMost: Final[AssertionRelation]
+    Equal: Final[AssertionRelation]
 
     @property
     def symbol(self) -> str:
-        """The relation as a report reads it: `">="` or `"<="`."""
-
-class MeasureExpr:
-    """A dimension-checked measurement expression: the recipe's
-    arithmetic over a closed-form measurement leaf.
-
-    The dimension checker runs at CONSTRUCTION and it is the kernel's
-    own — the measurement language builds probe expressions and asks
-    `Formula`'s smart constructors what comes out, so a mis-dimensioned
-    tree refuses in the same words a document expression would have
-    earned, and it refuses where it is written rather than at the
-    `Doc.apply` after it. The refusal is LiteralError, carrying the
-    mismatch's own tag as `kind`.
-
-    A measurement nests at most 128 levels, the bound it shares with
-    `Formula`, a value leaf counting as the expression it holds; a
-    constructor that would nest deeper refuses (`kind`
-    `"nested_too_deep"`), so a flat chain of more than 128 terms
-    refuses.
-
-    No `__hash__`, for `Formula`'s reason: equality is an IEEE comparison
-    of the literals inside, so `0.0` and `-0.0` are equal trees whose
-    bit patterns are not.
-    """
-
-    @staticmethod
-    def primitive(p: MeasurePrimitive) -> MeasureExpr:
-        """A closed-form measurement leaf. Total."""
-
-    @staticmethod
-    def value(e: Formula) -> MeasureExpr:
-        """An ordinary document expression as a leaf — a literal
-        bound, a parameter, a whole arithmetic subtree of them.
-        `Doc.parse_formula` is where one comes from, and it is the only
-        door: a second spelling of that grammar is what `py/expr.rs`
-        already rules out."""
-
-    @staticmethod
-    def add(a: MeasureExpr, b: MeasureExpr) -> MeasureExpr: ...
-    @staticmethod
-    def sub(a: MeasureExpr, b: MeasureExpr) -> MeasureExpr: ...
-    @staticmethod
-    def neg(a: MeasureExpr) -> MeasureExpr:
-        """Negation — any dimension. Refuses (LiteralError, `kind`
-        `"nested_too_deep"`) only a tree that would nest deeper than an
-        expression may, as every constructor here does."""
-
-    @staticmethod
-    def mul(a: MeasureExpr, b: MeasureExpr) -> MeasureExpr:
-        """Product; at least one operand dimensionless."""
-
-    @staticmethod
-    def div(a: MeasureExpr, b: MeasureExpr) -> MeasureExpr:
-        """Quotient; the divisor must be dimensionless."""
-
-    @staticmethod
-    def min(a: MeasureExpr, b: MeasureExpr) -> MeasureExpr: ...
-    @staticmethod
-    def max(a: MeasureExpr, b: MeasureExpr) -> MeasureExpr: ...
-    @property
-    def dimension(self) -> str:
-        """`length`, `angle`, `count` or `scalar` — correct by
-        construction, and the dimension an assertion's bound has to
-        match."""
-
-    @property
-    def primitives(self) -> list[MeasurePrimitive]:
-        """Every primitive in the tree, in PRE-ORDER: the order the
-        construction door's bounds check runs over and the order the
-        evaluation reads them back in."""
-
-    def __eq__(self, other: object) -> bool: ...
-    def __repr__(self) -> str: ...
+        """The relation as a report reads it: `">="`, `"<="` or `"="`."""
 
 class Node:
     """A recipe node, before insertion."""
@@ -2308,17 +2210,17 @@ class Node:
     @staticmethod
     def polygon(
         points: list[tuple[_LengthArg, _LengthArg]],
-        plane: NodeId,
+        plane: _Operand,
     ) -> Node: ...
     @overload
     @staticmethod
-    def profile(outline: ClosedLoop, plane: NodeId) -> Node: ...
+    def profile(outline: ClosedLoop, plane: _Operand) -> Node: ...
     @overload
     @staticmethod
-    def profile(outline: list[ClosedLoop], plane: NodeId) -> Node: ...
+    def profile(outline: list[ClosedLoop], plane: _Operand) -> Node: ...
     @staticmethod
     def extrude(
-        profile: NodeId, distance: _LengthArg, side: ExtrudeSide = ExtrudeSide.Along
+        profile: _Operand, distance: _LengthArg, side: ExtrudeSide = ExtrudeSide.Along
     ) -> Node:
         """Extrude a profile to one side of its sketch plane.
 
@@ -2332,22 +2234,32 @@ class Node:
         `set_var_value` per value."""
 
     @staticmethod
-    def revolve(profile: NodeId, axis: NodeId, angle: _AngleArg) -> Node:
-        """Revolve a profile about a datum axis. `angle` mints a
-        literal in the node's `revolve_angle` slot, driven afterwards
-        by `DocEdit.set_param` as an extrude's `distance` is."""
+    def revolve(
+        profile: _Operand,
+        axis_origin: tuple[_LengthArg, _LengthArg],
+        axis_direction: tuple[_ScalarArg, _ScalarArg],
+        angle: _AngleArg,
+    ) -> Node:
+        """Revolve a profile about an axis line in its own plane.
+
+        `axis_origin` and `axis_direction` are the line in the
+        profile's own 2-D coordinates: four numbers in the plane, which
+        cannot leave it. The revolve's second output,
+        `Doc.output(revolve, 1)`, is the line lifted to 3-D, an axis
+        other nodes read. `angle` mints a literal in the node's
+        `revolve_angle` slot, driven afterwards by `DocEdit.set_param`
+        as an extrude's `distance` is."""
     @staticmethod
     def tube(
-        spine: NodeId,
-        u_ref: tuple[_ScalarArg, _ScalarArg, _ScalarArg],
+        frame: _Operand,
         major_radius: _LengthArg,
         window: TubeWindow,
         minor_radius: _LengthArg,
     ) -> Node:
         """A solid ring torus, or an elbow of one, from its intent parameters.
 
-        `spine` is a `Node.datum_axis`: its origin is the tube's centre
-        and its direction the spine axis. `u_ref` is the reference
+        `frame` is a `Node.datum_frame`: its origin is the tube's centre,
+        its normal (`u x v`) the spine axis, and its `u` the reference
         direction the window's angles are measured from. Every number
         is STORED, never reconstructed, so `minor_radius` comes back
         out of the body bit for bit.
@@ -2358,8 +2270,7 @@ class Node:
 
     @staticmethod
     def hollow_tube(
-        spine: NodeId,
-        u_ref: tuple[_ScalarArg, _ScalarArg, _ScalarArg],
+        frame: _Operand,
         major_radius: _LengthArg,
         window: TubeWindow,
         minor_radius: _LengthArg,
@@ -2377,9 +2288,9 @@ class Node:
         """
 
     @staticmethod
-    def loft(profiles: list[NodeId], v_degree: _CountArg) -> Node: ...
+    def loft(profiles: Sequence[_Operand], v_degree: _CountArg) -> Node: ...
     @staticmethod
-    def chamfer(target: NodeId, distance: _LengthArg, selection: list[str]) -> Node:
+    def chamfer(target: _Operand, distance: _LengthArg, selection: list[str]) -> Node:
         """Equal-setback flat chamfers on named edges of `target`.
 
         `Node.fillet`'s twin: `selection` is edge names as TEXT and the
@@ -2392,7 +2303,7 @@ class Node:
         """
 
     @staticmethod
-    def shell(target: NodeId, thickness: _LengthArg, open: list[str]) -> Node:
+    def shell(target: _Operand, thickness: _LengthArg, open: list[str]) -> Node:
         """Hollow `target` to a wall of `thickness`, opening the faces in
         `open` into rims.
 
@@ -2416,18 +2327,6 @@ class Node:
         direction: tuple[_ScalarArg, _ScalarArg, _ScalarArg],
     ) -> Node: ...
     @staticmethod
-    def datum_axis_in_plane(
-        plane: NodeId,
-        origin: tuple[_LengthArg, _LengthArg],
-        direction: tuple[_ScalarArg, _ScalarArg],
-    ) -> Node:
-        """An axis written IN a sketch frame — a revolve's axis.
-
-        The two pairs are `plane`'s own 2-D coordinates. A revolve
-        takes one of these and not a `datum_axis`: an axis written in
-        the frame cannot leave the plane it turns.
-        """
-    @staticmethod
     def datum_plane(
         origin: tuple[_LengthArg, _LengthArg, _LengthArg],
         normal: tuple[_ScalarArg, _ScalarArg, _ScalarArg],
@@ -2444,7 +2343,7 @@ class Node:
         non-finite coordinate raises `LiteralError` here.
         """
     @staticmethod
-    def datum_face_frame(at: NodeId, face: str, spin: _AngleArg) -> Node:
+    def datum_face_frame(at: _Operand, face: str, spin: _AngleArg) -> Node:
         """A sketch frame DERIVED from a face — "sketch on this face".
 
         `at` is the body-denoting node the face is read out of, and a
@@ -2458,8 +2357,8 @@ class Node:
         u-reference, right-handed. There is no default: pass
         `0 * rad` to take the u-reference unturned.
 
-        Refuses typed at `evaluate`, never here — `face_frame_resolve`
-        for a name that stopped denoting, `face_frame_kind` for an
+        Refuses typed at `evaluate`, never here — `select_resolve`
+        for a name that stopped denoting, `select_kind` for an
         edge or vertex name, `face_frame_not_planar` for a curved
         carrier, `face_frame_readback` for unreadable geometry.
         """
@@ -2491,7 +2390,7 @@ class Node:
         """
 
     @staticmethod
-    def fillet(target: NodeId, radius: _LengthArg, selection: list[str]) -> Node:
+    def fillet(target: _Operand, radius: _LengthArg, selection: list[str]) -> Node:
         """Constant-radius blends on named edges of `target`.
 
         `selection` is edge names as TEXT — the strings
@@ -2506,13 +2405,17 @@ class Node:
         """
 
     @staticmethod
-    def split(target: NodeId, tool: NodeId) -> Node:
-        """Split `target` by `tool` (a `datum_plane`). The value is a
-        split — read it with `Value.split()`, not `Value.body()`."""
+    def split(target: _BodyArg, tool: _Operand) -> Node:
+        """Split `target` by `tool` (a plane: a `datum_plane`, or a
+        `PoseDef` of kind plane). The value is a split — read it with
+        `Value.split()`, not `Value.body()`. Its two outputs are its
+        halves, read by port (`doc.output(split, 0)` is the half above
+        the plane's normal); a read of a half the cut left with no
+        material refuses at `evaluate` (`empty_half`)."""
 
     @staticmethod
     def transform(
-        input: NodeId,
+        input: _Operand,
         translation: tuple[_LengthArg, _LengthArg, _LengthArg],
         rotation_axis: tuple[_ScalarArg, _ScalarArg, _ScalarArg],
         rotation_angle: _AngleArg,
@@ -2524,55 +2427,77 @@ class Node:
         """
 
     @staticmethod
-    def transform_by(input: NodeId, placement: Placement) -> Node:
+    def transform_by(input: _Operand, placement: Placement) -> Node:
         """A placement of an upstream body by a `Placement` chain.
         `Node.transform` is this with one rigid step. Every rigid step's
         components are checked against the slot they land in (EditError
         `slot_dimension_mismatch` naming that step's slot)."""
 
     @staticmethod
-    def boolean(
-        op: BooleanOp, a: NodeId, b: NodeId, declare: list[FlushFinding] = []
-    ) -> Node:
-        """A Boolean of two upstream solids. `declare` is its declared
-        contact pairs, given as the INSPECTED findings (each carries
-        its pair and class) and held as the node's own payload; an
-        empty list declares nothing, and then operands that merely
-        TOUCH refuse with the typed menu (`EvaluationError`,
-        `kind == "undeclared_coincidence"`, `finding` attached) — the
-        kernel never infers that two faces are the same face.
-        `Doc.declare` / `Doc.declare_all` set the list on the live
-        node.
+    def place_in_world(body: _BodyArg, pose: Optional[Placement] = None) -> Node:
+        """One copy of `body` in the world at `pose`, the identity when
+        `None`: the operation whose output is a product copy. Inserting
+        it is `Doc.place`. The pose is a `Placement` chain, checked as
+        `Node.transform_by`'s is."""
 
-        A closed surface of one operand that lies wholly on the
-        other's — one body at both seats, or a member carried into a
-        union unchanged — is answered where every face of it is the
-        same face as one of the other's, by recipe or by declaration
-        (`A ∪ A` and `A ∩ A` are `A`, `A − A` is empty); where they
+    @staticmethod
+    def union(members: Sequence[_BodyArg] | _Operand) -> Node:
+        """The UNION: the material in any member, folded into ONE body
+        in the members' order.
+
+        `members` is a sequence of reads, each on its own (an operand,
+        or one member of a family, `xs[i]`), or ONE operand reading a
+        whole family — a pattern's output — whose bodies are the
+        members in index order. Any count is a union:
+        one member is that body, none is the typed empty body, and a
+        read listed twice is the same material twice (`[a, a]` is
+        `a`). A family read beside single reads in one list refuses at
+        `Doc.insert` (`slot_var_kind`), as does a member the document
+        does not hold (`unresolved_input`). Whether a member is a BODY
+        is the kernel's question at `evaluate`.
+
+        Not `placed_union`, whose members are one prototype under a
+        placement rule: here the membership is data, which
+        `DocEdit.set_members` rewrites on the live node.
+
+        Members whose faces a margin decides on one surface glue there,
+        and each such coincidence is recorded for the
+        `unproven_coincidence` check. A refusal only a fold step raises
+        is `kind == "union_fold_step"`, naming the member it folds in.
+
+        A closed surface of one member that lies wholly on another's —
+        one read at two seats, or a member carried into a union
+        unchanged — is answered where every face of it is the same face
+        as one of the other's, by recipe or by a decided margin; where they
         do not show that, the evaluation refuses with
         `inner_kind == "coincident_shell"`."""
 
     @staticmethod
-    def union(members: list[NodeId], declare: list[FlushFinding] = []) -> Node:
-        """The N-ARY union: two or more member bodies folded into ONE
-        body, in the LIST's order.
+    def intersect(members: Sequence[_BodyArg] | _Operand) -> Node:
+        """The INTERSECT: the material in every member, folded in the
+        members' order.
 
-        Not `boolean`, which is the binary operation over two named
-        operand slots, and not `placed_union`, whose members are one
-        prototype under a placement rule: here the members are
-        authored independently and the membership is a list, which
-        `DocEdit.set_members` rewrites on the live node. `declare` is
-        the same declared-pair list `boolean` takes, each pair fed at
-        the fold step its two members meet at; without one, members
-        that merely TOUCH refuse (`undeclared_coincidence`).
-
-        Refuses at `Doc.insert` on the list as stated: `too_few_members`
-        (with the `count` found), `duplicate_input`,
-        `unresolved_input`. Whether a member is a BODY is the kernel's
-        question at `evaluate`."""
+        `members` is `union`'s, read the same way: a
+        sequence of operands or one family read, any count — one
+        member is that body, none is the typed empty body, and
+        `[a, a]` is `a`. A fold step whose members share no material
+        is the typed empty body, not a refusal. `DocEdit.set_members`
+        rewrites the list on the live node."""
 
     @staticmethod
-    def pattern(input: NodeId, count: _CountArg, kind: PatternKind) -> Node:
+    def subtract(from_: _BodyArg, tool: _BodyArg) -> Node:
+        """The SUBTRACT: `from_` with the material of `tool` cut away.
+
+        The one pair node — difference neither commutes nor associates
+        — so its operands are named slots: `from` (spelled `from_`,
+        since `from` is a Python keyword; its slot word is `from`) and
+        `tool` (slot word `cut`). Several tools are one subtract of
+        their union, `Node.subtract(body, Node.union([t1, t2]))`. A
+        body cut by itself, `Node.subtract(a, a)`, is the typed empty
+        body."""
+
+    @staticmethod
+    def pattern(input: _Operand, count: _CountArg, kind: PatternKind) -> Node:
         """One prototype, `count` placements stepped by `kind`, N
         BODIES OUT — the replicated family with nothing fused.
 
@@ -2591,19 +2516,18 @@ class Node:
         `listed_on_pattern`), since it carries its own placements."""
 
     @staticmethod
-    def part(of: NodeId, select: PartSelect) -> Node:
-        """ONE body out of a multi-body value — a split's half or a
-        pattern's instance.
+    def part(of: _Operand, select: PartSelect) -> Node:
+        """ONE body out of a pattern's copies.
 
-        A projection, not an operation: the body is the half's or the
-        instance's own and the names pass through verbatim, so a
-        selector spelled against that half resolves here unchanged.
-        Refuses at `evaluate`: `wrong_operand` when the selector and
-        the value disagree in kind, `empty_half`,
-        `instance_out_of_range`."""
+        A projection, not an operation: the body is the instance's own
+        and the names pass through verbatim, so a selector spelled
+        against that instance resolves here unchanged. `of` reads a
+        list of bodies, or the insert raises EditError
+        (`slot_var_kind`); an index outside `0 .. count` refuses at
+        `evaluate` (`instance_out_of_range`)."""
 
     @staticmethod
-    def placed_union(input: NodeId, count: _CountArg, kind: PatternKind) -> Node:
+    def placed_union(input: _Operand, count: _CountArg, kind: PatternKind) -> Node:
         """The group boolean over a PARAMETRIC rule: one prototype,
         `count` placements stepped by `kind`, ONE body out.
 
@@ -2623,7 +2547,7 @@ class Node:
         count, and `placed_union_at` is its door."""
 
     @staticmethod
-    def placed_union_at(input: NodeId, frames: list[Frame]) -> Node:
+    def placed_union_at(input: _Operand, frames: list[Frame]) -> Node:
         """The group boolean over LISTED absolute frames. No count
         argument, because the list IS the count. An empty list, a
         non-finite frame, or an improper one raises EditError at
@@ -2712,20 +2636,21 @@ class Node:
         document.
 
         A dangling reference is not refused here: the solve refuses
-        typed naming its head (`mate_dangling_head`) — or, where the
+        typed naming its head (`mate_dangling_head`), or the side's
+        read when it is no face of a live body
+        (`mate_side_unresolved`) — or, where the
         head resolves and a pattern or transform placing it could not
         derive a pose, naming that placer and carrying the
         evaluation's own cause (`mate_placer_refused`, whose `error`
         is the node-failure tag)."""
 
     @staticmethod
-    def measure(expr: MeasureExpr, refs: list[tuple[NodeId, str]]) -> Node:
-        """A measurement sink: one dimension-generic node that denotes
-        no body and evaluates to a typed quantity.
-
-        `refs` is the reference list the expression's primitives index,
-        IN ORDER, each a `(node, name)` pair — the entity's stable name
-        and the node its carrier is READ AT.
+    def measure(primitive: MeasurePrimitive) -> Node:
+        """One measurement: a `Measure` node holds one closed-form
+        primitive and defines one observed scalar, its output
+        (`Doc.output(node)`), which only an assertion reads, directly
+        or through a definition. Arithmetic over measured values is an
+        ordinary `Formula` over the outputs.
 
         The read site is what makes a measure report PLACED geometry. A
         rigid transform is identity-preserving, so the moved body keeps
@@ -2735,44 +2660,44 @@ class Node:
         name the minting node for the authored one. Both are legal and
         they are different questions.
 
-        These references ARE recipe edges, unlike a boolean's declared
-        pairs and `Node.mate`'s names: a measure consumes the values it names, so
-        deleting a referenced node is refused at the delete door
-        (`delete_would_dangle`) like any other consumer's input.
+        These references ARE recipe edges, unlike `Node.mate`'s names:
+        each is a selection of the named
+        node's body (or, for a whole body, a read of it), so deleting a
+        referenced node is accepted and reported on the measure
+        (`stranded_read` and `stranded_selection`), like any other
+        reader's.
 
-        Every index is checked HERE, through the kernel's one
-        construction door, so a leaf pointing past the end of `refs`
-        raises MeasureNodeFault where it is written. Nothing else is
-        pre-checked: a name that no longer resolves
-        (`measure_ref_resolve`), a carrier pair with no v1 closed form
-        (`measure_unsupported`), a `min_clearance` handed an edge
-        (`measure_selection_kind`) and a non-finite result
-        (`measure_non_finite`) are the kernel's own typed refusals at
-        `evaluate`."""
+        What each primitive reads is checked at insert: `distance` a
+        face, an edge or a vertex, `angle` a face or an edge,
+        `min_clearance` a body or a face, `gap` a face; any other
+        refuses `slot_var_kind`. The rest are the kernel's own typed
+        refusals at `evaluate`: a name that no longer resolves
+        (`select_resolve`), a carrier pair with no v1 closed form
+        (`measure_unsupported`) and a non-finite result
+        (`measure_non_finite`)."""
 
     @staticmethod
-    def assertion(measure: NodeId, dir: AssertionDir, bound: Formula) -> Node:
+    def assertion(value: _SlotArg, relation: AssertionRelation, bound: Formula) -> Node:
         """A recorded tolerance requirement: design intent as document
         data, in the versioned recipe rather than in a script beside
         it.
 
-        `measure` is the `Node.measure` this constrains — an ordinary
-        recipe edge, so a failed or poisoned measure poisons the
-        assertion rather than producing a verdict about nothing.
+        `value` is the scalar this bounds: a measure's output
+        (`Doc.output(measure)`, one of `Doc.measure`'s `outputs`), or
+        any formula or variable — a variable read at its own kind,
+        anything else at the bound's dimension. A failed or
+        poisoned measure under it poisons the assertion rather than
+        producing a verdict about nothing.
 
         The bound is a `Formula` and not a typed quantity, because its
-        DIMENSION is the measure's. Every other node door takes a
-        `Length` or an `Angle` because a slot's address fixes what it
-        holds; this one's is fixed by the node it points at, and may be
-        an angle, a count or a plain scalar as readily as a length.
-        `Doc.parse_formula("0.5 mm")` is the one spelling, and it reaches
-        document parameters (`"min_web"`) in the same call — which is
-        what makes an assertion re-decidable by a parameter edit.
+        DIMENSION is the value's: it may be an angle, a count or a plain
+        scalar as readily as a length. `Doc.parse_formula("0.5 mm")` is
+        the one spelling, and it reaches document parameters
+        (`"min_web"`) in the same call — which is what makes an
+        assertion re-decidable by a parameter edit.
 
-        Two things are checked at `Doc.apply` and not here, because
-        both need the document: that `measure` names a measure at all
-        (EditError `assertion_target`) and that the bound's dimension
-        is the measured one (`assertion_dimension`). A document never
+        That the value's dimension is the bound's is checked at
+        `Doc.apply` (EditError `assertion_dimension`): a document never
         carries a comparison of radians with metres.
 
         REPORT-ONLY, structurally: no operation accepts a verdict as an
@@ -2793,6 +2718,74 @@ _LengthArg: TypeAlias = Var | Formula | WrittenLength | Length
 _AngleArg: TypeAlias = Var | Formula | WrittenAngle | Angle
 _ScalarArg: TypeAlias = Var | Formula | float
 _CountArg: TypeAlias = Var | Formula | int
+_Operand: TypeAlias = NodeId | Var | PoseDef
+"""What an operand takes: a node, read at its one output (a node with
+several, a revolve's body and axis or a split's two halves, refuses
+`ambiguous_output`: read its port with `Doc.output(node, port)`), a
+variable — an output by `Doc.output`, or a named one — or a pose
+defined at the seat (`PoseDef`). The slot admits one kind, and a read
+of another refuses `slot_var_kind`."""
+
+_BodyArg: TypeAlias = NodeId | Var | IndexedRead
+"""What a body seat takes: an operand, or one member of a family
+(`xs[i]`, `IndexedRead`)."""
+
+class PoseDef:
+    """A pose defined where it is read: pass it to an operand that reads
+    a pose (a split's `tool`, a profile's frame, a circular rule's
+    axis), and the edit door mints the pose variable there. No pose is
+    free and none is defined from nothing: each constructor reads
+    geometry, writes coordinates in a frame it reads, or constructs
+    from other poses."""
+
+    @staticmethod
+    def plane(at: _Operand, face: str) -> PoseDef:
+        """A face read as a plane: its carrier's plane, with the face's
+        outward normal. A curved face refuses `pose_read` at
+        `evaluate`."""
+    @staticmethod
+    def axis(at: _Operand, name: str) -> PoseDef:
+        """A cylinder's, a cone's or a torus's axis, a straight edge's
+        line, or a circular edge's axis."""
+    @staticmethod
+    def point(at: _Operand, name: str) -> PoseDef:
+        """A sphere's, a torus's or a circle's centre, a cone's apex, or
+        a vertex's point."""
+    @staticmethod
+    def in_frame(
+        frame: _Operand,
+        *,
+        origin: Optional[tuple[_LengthArg, _LengthArg, _LengthArg]] = None,
+        direction: Optional[tuple[_ScalarArg, _ScalarArg, _ScalarArg]] = None,
+        normal: Optional[tuple[_ScalarArg, _ScalarArg, _ScalarArg]] = None,
+        u: Optional[tuple[_ScalarArg, _ScalarArg, _ScalarArg]] = None,
+        v: Optional[tuple[_ScalarArg, _ScalarArg, _ScalarArg]] = None,
+    ) -> PoseDef:
+        """A pose written by coordinates in a frame: `origin` alone a
+        point, `direction` alone a direction, `origin` and `direction`
+        an axis, `origin` and `normal` a plane, `origin`, `u` and `v` a
+        frame. Any other combination raises `ValueError`."""
+    @staticmethod
+    def through(axis: _Operand, point: _Operand) -> PoseDef:
+        """The frame through an axis and a point: origin the foot of the
+        point on the axis, `z` the axis, `x` towards the point. A point
+        on the axis refuses `pose_degenerate` at `evaluate`."""
+    @staticmethod
+    def meet(a: _Operand, b: _Operand) -> PoseDef:
+        """The axis two planes meet in. Parallel planes refuse
+        `pose_degenerate` at `evaluate`."""
+    @staticmethod
+    def flip(pose: _Operand) -> PoseDef:
+        """The opposite sense of a direction, an axis, a plane or a
+        frame. A flip of a flip is the pose it flips: the edit door
+        normalises it, and a point, which has no sense, refuses."""
+    @staticmethod
+    def standoff(plane: _Operand, by: _LengthArg) -> PoseDef:
+        """A plane moved along its own normal by `by`."""
+    @staticmethod
+    def project(of: _Operand, to: str) -> PoseDef:
+        """A frame's `"plane"`, `"axis"` or `"point"`, or a plane's or
+        an axis's `"direction"`."""
 
 class Formula:
     """A dimension-checked expression — the recipe's arithmetic, as a
@@ -2936,6 +2929,15 @@ class VarName:
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 
+class Measured:
+    """What `Doc.measure` inserted: the measures, one per primitive in
+    order, and their outputs in the same order."""
+
+    @property
+    def measures(self) -> list[NodeId]: ...
+    @property
+    def outputs(self) -> list[Var]: ...
+
 class Var:
     """A document variable's identity: the id the document minted it,
     which every expression reading it holds. A rename moves the name
@@ -2958,6 +2960,8 @@ class Var:
         where the document held no such variable."""
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
+    def __getitem__(self, index: _CountArg) -> IndexedRead:
+        """One member of the family this variable holds, at `index`."""
 
 # --- parameter uncertainty and the analysis lane ----------------------
 # ERROR-DESIGN E1/E2. A distribution is inert document metadata: it
@@ -3193,6 +3197,30 @@ class McMeasure:
     def unmeasured(self) -> int: ...
     def __eq__(self, other: object) -> bool: ...
 
+class McValue:
+    """One asserted value's empirical summary — ADVISORY: the scalar an
+    assertion reads (a measure's output, or a formula over outputs such
+    as a web), read per sample with its measures bound. The statistics
+    are over the samples that HAD a value; `unmeasured` counts the rest
+    and is never averaged over."""
+
+    @property
+    def var(self) -> Var: ...
+    @property
+    def mean(self) -> float: ...
+    @property
+    def sigma(self) -> float:
+        """The sample standard deviation, the `N - 1` form."""
+    @property
+    def min(self) -> float: ...
+    @property
+    def max(self) -> float: ...
+    @property
+    def measured(self) -> int: ...
+    @property
+    def unmeasured(self) -> int: ...
+    def __eq__(self, other: object) -> bool: ...
+
 class McAssertion:
     """One assertion node's empirical summary.
 
@@ -3232,6 +3260,10 @@ class McReport:
     @property
     def measures(self) -> list[McMeasure]:
         """Per measure node, in the document's own node order."""
+    @property
+    def values(self) -> list[McValue]:
+        """Per value an assertion reads, each once, in the order of the
+        first assertion reading it."""
     @property
     def assertions(self) -> list[McAssertion]:
         """Per assertion node, in the document's own node order."""
@@ -3401,40 +3433,27 @@ class DocEdit:
         document does not hold (`unknown_node`) or an edit that would
         leave the label as it is (`label_unchanged`)."""
     @staticmethod
-    def set_members(node: NodeId, members: list[NodeId]) -> DocEdit:
-        """Replace a node's whole LIST input — a `Node.union`'s
-        members, a `Node.loft`'s sections — with the list stated in
-        full.
+    def set_members(node: NodeId, members: Sequence[_BodyArg] | _Operand) -> DocEdit:
+        """Replace a node's whole LIST input — a `Node.union`'s or a
+        `Node.intersect`'s members, a `Node.loft`'s sections — with the
+        list stated in full. `members` takes `Node.union`'s shape: a
+        sequence of operands, or one operand reading a family whole.
 
         The one edit that changes a live node's inputs: no positional
         spelling and no per-entry arm, so nothing is inferred about
         which old entry survived. Dropping a member is this edit
-        without it plus `delete_node` of the orphan; a union's
-        declared pairs are left as they were.
+        without it plus `delete_node` of the orphan.
 
         Every input check `Doc.insert` makes is remade of the
-        REWRITTEN node — `unresolved_input`, `duplicate_input`,
-        `too_few_members`, `would_cycle` — and a node carrying no list
-        refuses `set_members_on_non_list`."""
+        REWRITTEN node — `unresolved_input`, `slot_var_kind` (a family
+        read beside single reads), `would_cycle`. Any count is a list:
+        one member, or none, is a union or intersect still. A loft's
+        sections are spelled one read each, so a family there refuses
+        `loft_sections_spelled`, and a node carrying no list refuses
+        `set_members_on_non_list`."""
 
     @staticmethod
-    def set_declare(node: NodeId, findings: list[FlushFinding]) -> DocEdit:
-        """Replace a live boolean's or union's whole declared-pair list
-        with the pairs and classes of `findings`, the inspected
-        `FlushFinding`s `Node.boolean`'s `declare=` takes. An empty
-        list clears the declaration.
-
-        Refuses `set_declare_on_non_declaring` on a node that is
-        neither a boolean nor a union, `unknown_node` for a node the
-        document does not hold, the name checks an insert runs
-        (`declare_names_missing_node`, `name_step_never_minted`,
-        `read_site_missing_node`), and the pair rule an insert asks:
-        `declared_site_not_an_operand` for a pair read at a node that
-        is not one of `node`'s operands, `declared_name_not_upstream`
-        for a name not minted before `node`."""
-
-    @staticmethod
-    def set_param(node: NodeId, slot: str, expr: _SlotArg) -> DocEdit:
+    def set_param(node: NodeId, slot: str, value: _SlotArg | NodeId) -> DocEdit:
         """Replace a CONTINUOUS slot's expression on a live node — an
         extrude's `distance`, a fillet's `radius`, a revolve's
         `revolve_angle` — after the constructor that minted it.
@@ -3452,11 +3471,21 @@ class DocEdit:
         `stations`) refuse `structural_slot_needs_structural_edit`
         here; the `bind_*_param` trio is where they are edited.
 
+        An operand is a slot too: at an operand's word (`profile`,
+        `target`, `from`, `cut`, `input`, ...) the value is a read — a
+        `NodeId`, read at its output in that seat, or a `Var` — and the
+        node reads it from then on. A subtract's `tool` is the slot word
+        `cut` (`tool` is a split's plane). A loft's `section` and a
+        union's or an intersect's `member` carry a position the word
+        does not; `set_members` writes those lists whole.
+
         Refuses typed: `unknown_node`, `unknown_slot` naming the slot
-        the node lacks, `slot_dimension_mismatch` carrying the
-        required and offered dimensions, and `slot_unknown_var_name` /
-        `slot_var_kind` for a parameter reference the
-        document does not answer."""
+        the node lacks, `slot_dimension_mismatch` carrying what the
+        slot takes and the offered dimension (an expression at an
+        operand among them), and `slot_unknown_var_name` /
+        `slot_var_kind` for a read the slot does not take; at an
+        operand also `operand_unresolved`, `ambiguous_output`,
+        `defines_nothing` and `would_cycle`."""
 
     @staticmethod
     def set_tolerance(eps: float) -> DocEdit: ...
@@ -3552,19 +3581,6 @@ class DocEdit:
         broken E2 invariant (`invalid_distribution`,
         `non_finite_var`)."""
     @staticmethod
-    def set_roots(roots: list[NodeId]) -> DocEdit:
-        """Set the document's ordered PRODUCT ROOTS outright.
-
-        The designate/undesignate door: one TOTAL edit rather than
-        partial add/remove arms, so the product's solid order is
-        always stated rather than inferred from an edit sequence. The
-        four root invariants refuse under their own tags on
-        `EditError` — `root_not_live`, `root_duplicate`,
-        `root_ancestor` (one root upstream of another would gather its
-        material twice), `root_uncovered` (a live node reaching no
-        root is a silently dead subgraph)."""
-
-    @staticmethod
     def set_offset(instance: NodeId, offset: Optional[Placement]) -> DocEdit:
         """Set an instance's OFFSET in its gauge, or clear it with
         `None`.
@@ -3610,9 +3626,8 @@ class DocEdit:
         instance with no offset keeps none; a lone unlabelled dependent
         takes the gauge's label, and otherwise the label goes, reported
         as `label_dropped` maintenance. Refuses typed on `EditError`:
-        `fold_on_non_gauge`, `fold_would_dangle` (`referenced_by` reads
-        the gauge as an input), and `fold_would_start_placing` (`input`
-        is the mate that would start placing)."""
+        `fold_on_non_gauge` and `fold_would_start_placing` (`input` is
+        the mate that would start placing)."""
 
     @staticmethod
     def update_reference(node: NodeId, new_pin: ContentPin) -> DocEdit:
@@ -3681,19 +3696,20 @@ class DocEdit:
         program that does not close, replay or validate."""
 
     @staticmethod
-    def rebind(from_name: str, to_name: str) -> DocEdit:
-        """Repair a stored name: rewrite every document site that
-        references `from_name` EXACTLY to reference `to_name`.
+    def rebind(from_name: str, to_name: str, body: Var | None = None) -> DocEdit:
+        """Repair a stored name, addressed by body and name: with `body`
+        (`Doc.output(node)`), rewrite every selection of that body that
+        names `from_name` EXACTLY to name `to_name`; with no body, every
+        site no selection holds (a mate's heads, an appearance key).
 
-        THE name repair, and the only one. A selection is stored as a
-        stable name — a fillet's edges, a chamfer's, a shell's open
-        faces, a declaration's pairs — and an upstream edit can leave
-        one denoting something else or nothing at all. This says what
-        it now denotes, ONCE: no alias table persists and nothing
-        follows automatically, so a second name needing the same
-        repair is a second edit. Each rewritten site re-canonicalizes
-        as its own node would — a blend selection is a set, a shell's
-        designation an ordered list that drops a repeat.
+        THE name repair, and the only one. A selection stores stable
+        names — a fillet's edges, a chamfer's, a shell's open faces —
+        and an upstream edit can leave one denoting something else or
+        nothing at all. This says what it now denotes, ONCE: no alias
+        table persists and nothing follows automatically, so a second
+        name needing the same repair is a second edit. Each rewritten
+        selection re-canonicalizes as its kind does — an edge set
+        re-sorts, a face set drops a repeat.
 
         Neither half keeps the kernel's bare word (`from` is a Python
         keyword), so both take the role suffix, as
@@ -3718,7 +3734,8 @@ class DocEdit:
         (`unknown_var`), a name another variable holds
         (`var_name_taken`), the name it already has
         (`var_name_unchanged`), and clearing the name of a variable
-        nothing reads (`anonymous_var_unread`)."""
+        nothing reads (`anonymous_var_unread`) or more than one reader
+        reads (`shared_var_needs_name`: an unnamed variable has one)."""
     @staticmethod
     def delete_var(var: Var | VarName) -> DocEdit:
         """Delete a named variable. Its readers stay, unresolved:
@@ -3901,13 +3918,13 @@ class Doc:
         maintenance, so "the last accepted edit" means the last one
         accepted through this object."""
 
-    @property
-    def roots(self) -> list[NodeId]:
-        """The document's ordered product roots — what `product` and
-        `assemble` gather, in this order. Set through
-        `DocEdit.set_roots`; maintained by every other edit, so a
-        document always states its product rather than leaving it to
-        be inferred."""
+    def placements(self) -> list[NodeId]:
+        """The world placements, in document order: the nodes whose
+        copies are the product — what `product` and `assemble` gather,
+        in this order. Written through `place` (or an inserted
+        `Node.place_in_world`) and nothing else: no edit places or
+        unplaces as a side effect, so a body is in the product exactly
+        when a placement reads it."""
 
     def offset(self, node: NodeId) -> Optional[Placement]:
         """An instance's OFFSET in its gauge, or `None` when it carries
@@ -3942,14 +3959,9 @@ class Doc:
 
         The vocabulary, in full: `datum`, `profile`, `extrude`,
         `revolve`, `tube`, `hollow_tube`, `loft`, `sweep`, `fillet`,
-        `chamfer`, `shell`, `split`, `boolean_union`, `boolean_intersect`,
-        `boolean_subtract`, `union`, `transform`, `pattern`, `part`,
-        `placed_union`, `instantiate_part`, `mate`, `gauge`,
-        `measure`, `assertion`. A Boolean answers a word per
-        OPERATION, because union, intersect and subtract are three
-        kernel operations sharing one payload shape; the unprefixed
-        `union` is the different node, the n-ary one that folds a
-        member list.
+        `chamfer`, `shell`, `split`, `union`, `intersect`, `subtract`,
+        `transform`, `place_in_world`, `pattern`, `part`, `placed_union`,
+        `instantiate_part`, `mate`, `gauge`, `measure`, `assertion`.
 
         This is the NODE's kind, never its VALUE's: an extrude, a
         transform and a placed union all evaluate to a value whose
@@ -3987,6 +3999,23 @@ class Doc:
         and its clocking rider on a frame coincidence is decided there
         over the mated parts' extent, both read through `resolver` —
         see `apply` for what a mate refuses here (`mate_refused`)."""
+    def measure(
+        self,
+        primitives: list[MeasurePrimitive],
+        *,
+        resolver: Optional[Workspace] = None,
+    ) -> Measured:
+        """Insert measures: one `Measure` node per primitive, in order,
+        as one action — all land or none does. Answers a `Measured`:
+        the measures and their outputs, the observed values an assertion
+        reads. Arithmetic over them is an ordinary `Formula`: name an
+        output (`DocEdit.rename_var`) and write the arithmetic with
+        `Doc.parse_formula`; an assertion reads the formula, or
+        `DocEdit.declare_var` names it.
+
+        Exactly `insert(Node.measure(p))` per primitive, recorded as one
+        action and answered with the outputs, as `sketch_frame` is
+        `insert(Node.sketch_frame(...))`."""
     def sketch_frame(
         self,
         plane: Optional[SketchPlane] = None,
@@ -4001,24 +4030,25 @@ class Doc:
         the id once and pass it twice.
         """
 
-    def declare(self, node: NodeId, finding: FlushFinding) -> None:
-        """ADD one inspected finding's pair to the declared pairs of the
-        live boolean or union `node`, keeping every pair it declares
-        already (the detect/declare protocol's declare arm, and the
-        door an `undeclared_coincidence` refusal's recourse names:
-        following each refusal with its `finding` converges). A pair on
-        the same two sides as one already declared replaces it. Raises
-        EditError, typed: `set_declare_on_non_declaring` on a node
-        that is neither a boolean nor a union, `unknown_node`,
-        `declared_site_not_an_operand` for a finding inspected between
-        other operands than `node`'s, and the name checks an insert
-        runs."""
+    def place(
+        self,
+        body: _BodyArg,
+        pose: Optional[Placement] = None,
+        *,
+        label: Optional[str] = None,
+    ) -> NodeId:
+        """Place one copy of `body` in the world at `pose`, the identity
+        when `None`, and return the placement's id.
 
-    def declare_all(self, node: NodeId, findings: list[FlushFinding]) -> None:
-        """Set `node`'s whole declared-pair list to a SET of findings —
-        `DocEdit.set_declare`'s replace, where `declare` adds. An empty list raises
-        EditError (`no_findings`); `DocEdit.set_declare(node, [])` is
-        the spelling that clears."""
+        The one door that puts a body in the product: nothing places as
+        a side effect, so a boolean of two placed bodies leaves both
+        placed and the boolean unplaced until it is placed here. The
+        edit is the Rust façade's `DocEdit::place`, the insert of
+        `Node.place_in_world(body, pose)`. A split's half is placed by
+        its output, `place(doc.output(split, 1))`. Two placements of one
+        body are two copies. `label=` labels the placement in the same
+        call, as `insert`'s does."""
+
     @property
     def node_count(self) -> int: ...
     def order(self) -> list[NodeId]: ...
@@ -4374,6 +4404,7 @@ class SegTag:
     op-minted role, grouped by the op that mints it."""
 
     OutputBody: Final[SegTag]
+    From: Final[SegTag]
     Cap: Final[SegTag]
     Lateral: Final[SegTag]
     RimEdge: Final[SegTag]
@@ -4390,9 +4421,6 @@ class SegTag:
     RevolveCap: Final[SegTag]
     Pole: Final[SegTag]
     AxisEdge: Final[SegTag]
-    FromA: Final[SegTag]
-    FromB: Final[SegTag]
-    FromMember: Final[SegTag]
     Seam: Final[SegTag]
     Crossing: Final[SegTag]
     EdgeCrossing: Final[SegTag]
@@ -4404,7 +4432,6 @@ class SegTag:
     SplitFragment: Final[SegTag]
     CrossingVertex: Final[SegTag]
     OnToolVertex: Final[SegTag]
-    FromTarget: Final[SegTag]
     BlendFace: Final[SegTag]
     CornerFace: Final[SegTag]
     TrimEdge: Final[SegTag]
@@ -4423,15 +4450,17 @@ class SegTag:
     HoleRim: Final[SegTag]
     Instance: Final[SegTag]
     InPart: Final[SegTag]
+    Placed: Final[SegTag]
 
 class OpGroup:
     """The op group a role segment belongs to (`SegPat.group`).
 
-    `Shell` groups the hollowing verb's cavity twins and rims (`Inner`,
-    `Rim`, `HoleRim`). A shell's OUTER walls are carried through and
-    speak as `FromTarget`, which groups under `Fillet` — the tag names
-    the shape (an entity carried through one op), and which op carried
-    it is the minting node's business.
+    `Shared` groups `OutputBody` and `From`, an entity carried in
+    through a read: a union's, intersect's or subtract's operand
+    entities, a blend's surviving supports, a shell's outer walls. The
+    tag names the shape, and which op carried it is the minting node's
+    business. `Shell` groups the hollowing verb's cavity twins and rims
+    (`Inner`, `Rim`, `HoleRim`).
     """
 
     Shared: Final[OpGroup]
@@ -4442,6 +4471,7 @@ class OpGroup:
     Fillet: Final[OpGroup]
     Pattern: Final[OpGroup]
     InstantiatePart: Final[OpGroup]
+    PlaceInWorld: Final[OpGroup]
     Shell: Final[OpGroup]
 
 class CapEnd:
@@ -4643,10 +4673,12 @@ def meridian_vertex(end: MeridianEnd, node: NodeId, piece: Piece) -> str:
     `MeridianEnd.End`) on a partial revolve, or the surviving meridian
     vertex (`MeridianEnd.Seam`) on a full one. A vertex."""
 
-def carried(node: NodeId, inner: str) -> str:
+def carried(node: NodeId, read: Var, inner: str) -> str:
     """The name a survivor of `node` takes: the name `inner` it had in
-    the target's table, wrapped — the single-operand pass-through a
-    blend's shrunk support or a shell's outer wall wears one op later.
+    the table of `read` — the target read `node` takes its body in
+    through, `Doc.output(target, 0)` — wrapped: the single-operand
+    pass-through a blend's shrunk support or a shell's outer wall wears
+    one op later.
 
     `inner` is a name text like any other, and the kind is its own: a
     survivor is the same entity carried through one op, so the wrapper
@@ -4715,7 +4747,7 @@ class Body:
         contract rather than a wrinkle: `assemble`'s at-rest body
         carries its mates' minted records and passes over its seats,
         while `product`, which gathers the same solids and declares
-        nothing, reports every seat as an undeclared contact. With no
+        nothing, reports every seat as an unrecorded contact. With no
         declarations at all this is simply the strictest rung — the
         census still runs, and on a body with no coincidences it finds
         nothing.
@@ -4941,18 +4973,6 @@ class Datum:
     def origin(self) -> tuple[Length, Length, Length]: ...
     @property
     def direction(self) -> Optional[tuple[float, float, float]]: ...
-    @property
-    def in_plane(self) -> Optional[tuple[tuple[Length, Length], tuple[float, float]]]:
-        """An in-plane axis in its frame's own 2-D coordinates — the
-        origin then the direction, as authored. `None` for every other
-        kind, whose numbers are all world numbers.
-
-        The halves cross differently because they are different
-        things. The ORIGIN is a position, so it carries `Length`s —
-        the same shape `Node.datum_axis_in_plane` writes it in and the
-        same shape `Datum.origin` reads back. The DIRECTION is
-        dimensionless and stays bare. Frame-local is a change of
-        datum, not of dimension."""
 
     @property
     def axes(
@@ -4988,78 +5008,15 @@ class Verdict:
     @property
     def reason(self) -> Optional[str]: ...
 
-# --- detect / declare -------------------------------------------------
-# The flush-contact protocol's value vocabulary. A finding is a
-# REPORT: `Evaluation.find_flush_candidates` answers with them, the
-# caller inspects, and `Node.boolean` / `Node.union`'s `declare=`,
-# `Doc.declare` / `Doc.declare_all` and `DocEdit.set_declare` put
-# inspected findings on a boolean or union as its declared pairs. The
-# same value rides the
-# boolean's refusal menu (`EvaluationError.finding`). Detection and
-# declaration are separate doors ON PURPOSE: no fused
-# detect-and-declare door exists.
-
-class PlaneRelation:
-    """The verify door's relation verdict: `SameOpposite` = resting
-    contact (opposed outward normals), `SameOriented` = flush walls
-    (a continuation). `Distinct` exists as vocabulary; a
-    finding never carries it."""
-
-    SameOriented: Final[PlaneRelation]
-    SameOpposite: Final[PlaneRelation]
-    Distinct: Final[PlaneRelation]
+# --- contact ----------------------------------------------------------
 
 class ContactClass:
     """The contact class a mate asserts: `Rest` (cosurface contact,
     opposed senses, on any carrier the verify ladder names — plane,
-    sphere, cylinder, torus) or `Tangent`. A union's declaration
-    speaks `BooleanCoincidence`, which adds the continuation."""
+    sphere, cylinder, torus) or `Tangent`."""
 
     Rest: Final[ContactClass]
     Tangent: Final[ContactClass]
-
-class BooleanCoincidence:
-    """What a boolean node may declare about a face pair: a contact
-    (`Rest`, `Tangent`), a `Continuation` — one carrier with aligned
-    senses, as two stacked parts' outer walls are, which the union
-    merges — or a `Seam` — two carriers joining G1 with aligned senses,
-    as a cap on a tube does. The flush detector reports `Rest` for an
-    opposed pair and `Continuation` for an aligned one; it never reports
-    a seam."""
-
-    Rest: Final[BooleanCoincidence]
-    Tangent: Final[BooleanCoincidence]
-    Continuation: Final[BooleanCoincidence]
-    Seam: Final[BooleanCoincidence]
-
-class FlushRung:
-    """Which rung of the verify ladder decided a finding:
-    `SharedSource` = syntactic recipe identity (zero numerics),
-    `DecidedCoincident` = the geometric trilean's coincident arm."""
-
-    SharedSource: Final[FlushRung]
-    DecidedCoincident: Final[FlushRung]
-
-class FlushFinding:
-    """One flush finding: "this face pair would verify as declared" —
-    a VALUE to inspect and declare, never itself a declaration. The
-    detector's reach is the carrier ladder's, so a pair may be
-    cosurface on a plane, a sphere, a cylinder or a torus. `a`/`b` are the pair's names in the same OPAQUE text
-    alphabet every materializer speaks (store them, hand them back;
-    never parse). `class_` spells `class` (a Python keyword)
-    with the `or_` trailing-underscore precedent."""
-
-    @property
-    def a(self) -> str: ...
-    @property
-    def b(self) -> str: ...
-    @property
-    def relation(self) -> PlaneRelation: ...
-    @property
-    def class_(self) -> BooleanCoincidence: ...
-    @property
-    def rung(self) -> FlushRung: ...
-    def __eq__(self, other: object) -> bool: ...
 
 class Value:
     """A node's successful value."""
@@ -5417,6 +5374,17 @@ class Evaluation:
     """
 
     def value(self, node: NodeId) -> Value: ...
+    def reading(self, value: Var | Formula) -> Measurement:
+        """A scalar's value in this evaluation, measured values bound:
+        a variable — a measure's output, or a definition over outputs —
+        or a formula over them. The one reader of
+        an observed value outside an assertion.
+
+        A measure under it that did not land raises as `value` of that
+        measure does (`EvaluationError`, `MeasureUnavailableAt` for a
+        `min_clearance` at this point scalar); an evaluation over the
+        bound values that refuses raises `ExprError`."""
+
     def coincidences(self, node: NodeId) -> list[Coincidence]:
         """The coincidences `node` decided from values (D10), in
         decision order, each with what the coincidence door decided
@@ -5573,16 +5541,6 @@ class Evaluation:
         evaluation has no value for; then the loud `unnamed` bug arm
         if the winning face inverts to no name."""
 
-    def find_flush_candidates(self, a: NodeId, b: NodeId) -> list[FlushFinding]:
-        """The cross-body flush candidates between `a`'s and `b`'s
-        outputs, as of THIS evaluation — the detect arm of the
-        detect/declare protocol, run by the C4 verifier itself (a
-        finding cannot disagree with the boolean's verify-at-use).
-        Findings are DEFINITE and canonically ordered. Raises
-        `SelectRefusal`, typed (`node_has_no_value` when either node
-        has no value, `pair_in_band`, `tied_disagrees`, `unreadable`,
-        `band`, `distinct_finding` for a kernel defect) — an ambiguous
-        pair is never silently included or dropped."""
     @property
     def recomputed(self) -> int:
         """How many nodes ran their op. With no `prior=` that is every
@@ -5973,13 +5931,15 @@ class Subgroup:
     """A residual subgroup: what a fold left free.
 
     `normal`, `point` and `direction` are present on every arm and
-    `None` where that arm does not carry one. `planar` and `prismatic`
-    are point-FREE on purpose: rotations about any parallel axis, and
-    translations along any parallel line, are in the group."""
+    `None` where that arm does not carry one. `planar`, `prismatic`,
+    `parallel` and `plane_translation` are point-FREE on purpose:
+    rotations about any parallel axis, and translations along any
+    parallel line, are in the group."""
 
     @property
     def variant(self) -> str:
         """`se3`, `planar`, `cylindrical`, `prismatic`, `revolute`,
+        `spherical`, `parallel`, `translation`, `plane_translation`,
         `trivial`, or `empty`."""
 
     @property
@@ -6251,13 +6211,9 @@ def root_of(doc: Doc, instance: NodeId) -> NodeId:
     gauge chain names a deleted gauge (the group is then unplaced). Answers the node itself when it is not a
     live instance."""
 
-def reading_edges(doc: Doc) -> list[tuple[NodeId, NodeId]]:
-    """For each mate, the instantiate node each of its references
-    resolves through. Recomputed every time, never stored."""
-
 def relative_freedom_components(doc: Doc) -> list[list[NodeId]]:
-    """The relative-freedom partition: components over consuming
-    union reading edges, so mates couple what they constrain. Coarser
+    """The relative-freedom partition: components over reads and
+    gauge references, so mates couple what they constrain. Coarser
     than `groups`, which partitions instances alone."""
 
 class Maintenance:
@@ -6287,13 +6243,25 @@ class Maintenance:
     because the store carries it and no node does; the attachment is
     left exactly where it was, since the report never repairs.
 
+    A `stranded_selection` is the same loss in a selection: a selection
+    that survived the edit names `name`, whose referent the edit took.
+    `node` is the selection's first reader, which refuses at evaluation
+    until `DocEdit.rebind` with `body=` the selection's body repairs it.
+
+    A `stranded_read` names, on `node`, a node whose operand reads an
+    output the delete removed with its operation: the delete is legal,
+    and the node refuses `unresolved_read` at evaluation until the
+    operand is re-pointed (`DocEdit.set_members` for a list) or the
+    delete undone.
+
     A `label_dropped` names, on `node`, a gauge `DocEdit.fold` took out
     of the document whose label went with it: no single unlabelled
     node stood in for it. The label is in the row's message."""
 
     @property
     def variant(self) -> str:
-        """`offset_cleared`, `strand`, `stranded_appearance`, or
+        """`offset_cleared`, `strand`, `stranded_read`,
+        `stranded_selection`, `stranded_appearance`, or
         `label_dropped`."""
 
     @property
@@ -6306,23 +6274,27 @@ class Maintenance:
 # --- the gather and the at-rest gate ----------------------------------
 
 def product(doc: Doc, evaluation: Evaluation) -> Body:
-    """The document's PRODUCT: every body-denoting root's solids,
-    gathered in root-list order into one body.
+    """The document's PRODUCT: its world — every copy a placement
+    defines, in the placements' document order — gathered into one
+    body.
 
     What a document IS — and for an assembly the only useful reading,
     because an assembly's nodes are instances and mates and no single
-    node's value is the assembly. A pure function of the root list and
-    the evaluation.
+    node's value is the assembly. A pure function of the placements
+    and the evaluation; nothing is in it that `Doc.place` did not put
+    there.
 
     `evaluation` must be an evaluation OF `doc`, and the door checks
     it: an evaluation carries the id of the document it was run on,
     and a foreign one raises ProductError with tag
-    `evaluation_of_another_document` before the first root is read.
-    Node ids alone could not decide this — they are minted by a
+    `evaluation_of_another_document` before the first placement is
+    read. Node ids alone could not decide this — they are minted by a
     per-document counter, so two documents built from one recipe
     carry the same ids for the same nodes and a gather over the wrong
     one would succeed, in full, about other geometry. Raises
-    ProductError, typed."""
+    ProductError, typed: `empty_product` naming the unplaced bodies,
+    `stranded_placement` naming a placement whose body is gone, a
+    failed or poisoned placement, a graft or validity refusal."""
 
 def product_named(doc: Doc, evaluation: Evaluation) -> tuple[Body, list[str]]:
     """The product with the stable names its entities answer to —
@@ -6331,37 +6303,21 @@ def product_named(doc: Doc, evaluation: Evaluation) -> tuple[Body, list[str]]:
     coordinate. Raises ProductError, typed."""
 
 class RefusedRef:
-    """Why a mate reference named no product face.
+    """Why a mate side named no one product face.
 
-    The gate reads the name in the table of the operand the mate reads
-    it at, and carries it up the operand's consumers to the product.
-    `ref_vanished` is a name the operand does not spell, or one a
-    consumer merges, cuts or drops on its way up (`by`);
-    `ref_moved_above` is a face a node above the operand places again
-    before the product holds it (`at`, `by`); `ref_ambiguous` is more
-    than one product face. A head's KIND is not among the questions: a
-    mate head is a face by its type, refused where the name is made
-    (`mate_head_not_a_face`)."""
+    The face is resolved at the side's selection, so a name that does
+    not resolve refuses the mate itself (`mate_unevaluated` at the
+    gate). What is left here is the copy: `ref_ambiguous` is a body
+    placed more than once, so more than one world copy answers."""
 
     @property
     def variant(self) -> str:
-        """`ref_vanished`, `ref_moved_above`, or `ref_ambiguous`."""
+        """`ref_ambiguous`."""
 
     @property
-    def at(self) -> Optional[NodeId]:
-        """The operand the reference is read at, for
-        `ref_moved_above`."""
-
-    @property
-    def by(self) -> Optional[NodeId]:
-        """The node above the operand that places the face again
-        (`ref_moved_above`), or that consumed it on its way to the
-        product (`ref_vanished`, when the operand spells the name)."""
-
-    @property
-    def width(self) -> Optional[int]:
-        """How many faces answer. A mate declaration must name ONE
-        face, and a tie is never broken by picking."""
+    def width(self) -> int:
+        """How many world copies answer. A mate declaration must name
+        ONE face, and a tie is never broken by picking."""
 
 class MintedDeclaration:
     """One declaration the gate minted from a solved mate.
@@ -6391,9 +6347,7 @@ class Attribution:
         """`refuted` (the faces do not meet as declared — a finding
         against the document), `declined` (the census has no certifier
         lane for a face the declaration names, so nothing was decided
-        either way), or `unattributed` (no declaration of ANY document
-        in the tree answers — an UNDECLARED contact, the hard error by
-        definition).
+        either way).
 
         A declaration a document BELOW this one authored answers under
         `carried_refuted` and `carried_declined`: the same two
@@ -6402,9 +6356,9 @@ class Attribution:
         `via` are what say which document and by what path."""
 
     @property
-    def declaration(self) -> Optional[MintedDeclaration]:
-        """The declaration named, `None` for `unattributed`. Under a
-        `carried_*` relation its `mate` is a node of `of`."""
+    def declaration(self) -> MintedDeclaration:
+        """The declaration named. Under a `carried_*` relation its
+        `mate` is a node of `of`."""
 
     @property
     def of(self) -> Optional[str]:
@@ -6437,7 +6391,9 @@ class AtRestFinding:
     own story, which carries its own recourse."""
 
     @property
-    def attribution(self) -> Attribution: ...
+    def attribution(self) -> Optional[Attribution]:
+        """Which declaration the finding names, and in what relation;
+        `None` where it names none."""
 
 class MintRefusal:
     """One mate whose declaration the gather could not mint — a row of
@@ -6448,11 +6404,13 @@ class MintRefusal:
 
     @property
     def variant(self) -> str:
-        """`mate_reference_refused` or `no_at_rest_record`."""
+        """`mate_reference_refused`, `no_at_rest_record` or
+        `mate_unevaluated` (the mate has no value in the evaluation, so
+        it declares nothing; `str(refusal)` says why)."""
 
     @property
     def mate(self) -> NodeId:
-        """The mate that did not mint. Both arms carry one."""
+        """The mate that did not mint. Every arm carries one."""
 
     @property
     def side(self) -> Optional[MateSide]:
@@ -6515,6 +6473,70 @@ class Assembly:
         """Which inner mates this verdict answered for. Empty for a
         document that instantiates nothing with mates."""
 
+    @property
+    def interference(self) -> list[InterferenceFinding]:
+        """Every overlap between two copies' material, quiet or loud,
+        in the census's order. An overlap is reported here, never
+        raised."""
+
+class FaceSite:
+    """A face of a copy, as the copy's own name table spells it: the
+    name a selection of the copy reads."""
+
+    @property
+    def copy(self) -> Var:
+        """The copy: its placement's output variable."""
+
+    @property
+    def member(self) -> int:
+        """Which member of the placement's value the copy is (0 for a
+        placement of one body)."""
+
+    @property
+    def face(self) -> str:
+        """The face's name, as opaque text."""
+
+class InterferenceFinding:
+    """An overlap of two copies' material at rest.
+
+    One finding per connected overlap, named by the faces of both
+    copies that bound it. It is quiet only under a holding assertion
+    that reads a `gap` directly over an opposed pair of the two copies'
+    faces, admits only negative values (`<= b` or `= b`, `b`
+    negative), whose two faces bound the overlap, and between whose
+    carriers the overlap lies. Every other overlap is loud."""
+
+    @property
+    def a(self) -> Var:
+        """The copy earlier in gather order: its placement's output
+        variable."""
+
+    @property
+    def a_member(self) -> int: ...
+    @property
+    def b(self) -> Var:
+        """The other copy."""
+
+    @property
+    def b_member(self) -> int: ...
+    @property
+    def faces(self) -> Optional[list[FaceSite]]:
+        """The bounding faces, or `None` when the kernel could not
+        bound the overlap."""
+
+    @property
+    def unlocalized(self) -> Optional[str]:
+        """Why the overlap has no site — `refused`, `invalid`,
+        `empty`, `unnamed`, `containment` or `lane` — or `None`. An unlocalized overlap is
+        loud and nothing quiets it."""
+
+    @property
+    def quiet_by(self) -> Optional[NodeId]:
+        """The assertion that quiets it, or `None` when it is loud."""
+
+    @property
+    def loud(self) -> bool: ...
+
 def assemble(doc: Doc, evaluation: Evaluation) -> Assembly:
     """The AT-REST ASSEMBLY GATE: gather the product, mint every
     solved mate's declaration into its contact records, and run the
@@ -6524,6 +6546,9 @@ def assemble(doc: Doc, evaluation: Evaluation) -> Assembly:
     never make. `evaluation` must be an evaluation of `doc` that
     RESOLVED — an instantiate node with no resolver produced no body,
     so the gather refuses `root_failed` before the gate runs.
+
+    An overlap between two copies' material is not raised: it is an
+    `InterferenceFinding` on `Assembly.interference`.
 
     Raises AssemblyError, typed. Read `variant` first: `at_rest` is a
     verdict AGAINST the document, `uncertified` is the declared
@@ -6620,8 +6645,13 @@ def split(
     in one store.
 
     The cut must be ancestor- and consumer-closed and a union of WHOLE
-    placement groups. Pure — `doc` is untouched. Raises SplitError,
-    typed, naming the offending edge, group, parameter or name.
+    placement groups. A part delivers only its world: the cut's world
+    placements are the part's, the remainder places one copy of the
+    instance left behind, and a remainder read of a cut body the cut
+    does not place refuses (`severed_edge`), as does a name reaching a
+    cut body no one cut placement places (`name_outside_part_world`).
+    Pure — `doc` is untouched. Raises SplitError, typed, naming the
+    offending edge, group, parameter or name.
 
     `resolver` is the document seam the part's mate inserts lever
     through where one carries a clocking rider, decided over the mated
@@ -6686,7 +6716,15 @@ def inline(doc: Doc, instance: NodeId, resolver: Workspace) -> InlineOutcome:
     mate-placed instance inlines only over a part that is one group
     rooted at the empty chain on its world, holding no gauge and no
     other member carrying an offset, whose root takes its place;
-    otherwise it refuses `mate_placed`."""
+    otherwise it refuses `mate_placed`.
+
+    The host's identity placements of the instance are deleted — the
+    part's own placements arrive with its nodes — and a host node that
+    read the instance reads the inlined body: the body the part's one placement places. A part
+    whose world is not one body for that reader refuses
+    `instance_read_uncarried` (`by` the reader), and a host placement
+    with a pose of its own over a part whose world is not one identity
+    placement refuses `placement_pose_crosses` (`node` the placement)."""
 
 # --- the pin-update door ----------------------------------------------
 
@@ -6892,7 +6930,9 @@ class CheckEvidence:
     as `coincidence`) — a node decided two cells one from values and
     the coincidence door does not prove it structural. `reason` says
     what separates the two constructions, or why a cell's could not be
-    read. A report, never a refusal."""
+    read. A `profile_junction` row's `relation` is `tangent` or `cusp`
+    between two carriers and `same_oriented` on one. A report, never a
+    refusal."""
 
     @property
     def variant(self) -> str: ...
@@ -6932,17 +6972,28 @@ class Coincidence:
     """One coincidence a node decided from values (D10), with what the
     coincidence door decided about it.
 
-    `cells` are `(node, name)` pairs: the input node whose table names
-    the cell, and the name there (the opaque text the materializers
-    answer with); the plane a split cuts with is `(node, None)`.
-    `relation` is `same_oriented`, `same_opposite`, `on_carrier` or
-    `equal_angles`; `site` is `plane_ladder`, `carrier_ladder`,
-    `split_on` or `battery_turn`. `rung` is the door's rung that proved
-    it structural (`same_construction`), or `None`, and then `residual` says
-    what separates the two constructions."""
+    `cells` are pairs: an entity is `(read, name)`, the `Var` the
+    deciding node took it in through, whose table names it, and the
+    name there (the opaque text the materializers answer with); the
+    plane a split cuts with is `(read, None)`; and a profile's own piece
+    is `(profile, piece)`, the profile's `NodeId`. `relation` is
+    `same_oriented`, `same_opposite`, `on_carrier`, `equal_angles`,
+    `tangent`, `cusp`, `tangent_contact`, `seam`, `coaxial` or
+    `co_ruled`; `site` is `plane_ladder`, `carrier_ladder`,
+    `tangent_witness`, `coaxial_sphere`, `split_on`, `battery_turn`,
+    `battery_joint`, `battery_support_axis`, `profile_junction`,
+    `vertex_fusion` or `census_at_rest`. A
+    `profile_junction` row is `tangent` or `cusp` between two carriers
+    and `same_oriented` where its two pieces continue one carrier; a
+    `tangent_witness` row is `tangent_contact` (the outward sides
+    opposed) or `seam` (one face carried on into the other). `rung` is the door's rung that proved
+    it structural (`same_construction`, `carrier_verdict` or
+    `margin_identity`), or `None`, and then `residual` says what separates
+    the two constructions and what the replay with every variable a
+    symbol made of the row."""
 
     @property
-    def cells(self) -> list[tuple[NodeId, Optional[str]]]: ...
+    def cells(self) -> list[tuple[Var | NodeId, Optional[str]]]: ...
     @property
     def relation(self) -> str: ...
     @property
@@ -6953,10 +7004,12 @@ class Coincidence:
     def residual(self) -> Optional[str]: ...
 
 class CheckFinding:
-    """One finding of one check on one subject: a body-denoting root
-    output, attributed as `(root, output_ix)`, or a node of the
-    document (`node`), root or not — the node that decided an unproven
-    coincidence. Whichever it is not answers `None`.
+    """One finding of one check on one subject: a copy a placement
+    defines, attributed as `(root, output_ix)` with `root` the placement,
+    a node of the document (`node`) — the node that decided an unproven
+    coincidence — or two copies the at-rest census found touching with
+    no mate between them (`copies`). Whichever it is not answers
+    `None`.
 
     A REPORT about geometry, not a verdict on the program: holding one
     changes nothing. `subject_body` resolves the attribution back to
@@ -6972,15 +7025,21 @@ class CheckFinding:
     @property
     def root(self) -> NodeId | None:
         """The root whose value carries the subject body; `None` for a
-        finding about a node."""
+        finding about a node or two copies."""
     @property
     def output_ix(self) -> int | None:
         """Which output body of that root; `None` for a finding about a
-        node."""
+        node or two copies."""
     @property
     def node(self) -> NodeId | None:
         """The node the finding is about, root or not; `None` for a
-        finding about a root output."""
+        finding about a root output or two copies."""
+    @property
+    def copies(self) -> tuple[tuple[Var, int], tuple[Var, int]] | None:
+        """The two copies the finding is about, earlier in gather order
+        first, each as its placement's output and its member there (as
+        `InterferenceFinding.a` spells one); `None` for any other
+        subject."""
     @property
     def evidence(self) -> CheckEvidence: ...
     def __eq__(self, other: object) -> bool: ...
@@ -6999,8 +7058,8 @@ class ChecksReport:
 
     @property
     def findings(self) -> list[CheckFinding]:
-        """Deterministic order: each resident's own pass by root-list
-        position then output index, residents in registry order. NOT
+        """Deterministic order: each resident's own pass by placement
+        order then output index, residents in registry order. NOT
         one global sort."""
 
     @property
@@ -7022,8 +7081,8 @@ def run_checks(
     `enforce_checks` is the only door that turns one into a refusal.
 
     `evaluation` must be an evaluation OF `doc` that ran to completion:
-    subjects are the body-denoting outputs of the document's roots, so
-    a root that failed or was poisoned refuses `root_without_value`
+    subjects are the copies the document's placements define, so a
+    placement that failed or was poisoned refuses `root_without_value`
     rather than reporting over a partial evaluation.
 
     Expectations are TWO-DIRECTIONAL — an `expected_components` entry
@@ -7065,7 +7124,7 @@ def subject_body(
     same ones `Value.body` captures — so a subject reached through an
     attribution has the SAME tier-3′ verdict as the same body reached
     through its value, and a declared boolean's own certified seam is
-    not reported here as an undeclared contact."""
+    not reported here as an unrecorded contact."""
 
 def import_step(text: str, *, eps_in: Optional[Length] = None) -> ImportReport:
     """Parse a STEP text with the kernel's importer and adopt its

@@ -1,12 +1,10 @@
 //! M9-3 PR-A — the wall and the door (CONTACT-DESIGN C8 at the
-//! boolean): the front door admits declarations by carrier inventory
-//! and the DEV-1 Tangent witness lane; a VERIFIED declared `Rest`
-//! pair opens the declared-cosurface reduction rung and the carrier
-//! lump at both wall sites; declared `Tangent` pairs descend to the
-//! second-order sector trilean, save a union whose ruling runs through
-//! a plane face's interior, which refuses until the doubled-slit arm
-//! is built. Undeclared touching refuses forever,
-//! typed — the door only widens what a verified declaration unlocks.
+//! boolean): touching whose margins decide one carrier glues, a `Rest`
+//! pair opening the cosurface reduction rung and the carrier lump at
+//! both wall sites; a tangency the DEV-1 witness lane verifies descends
+//! to the second-order sector trilean, save a union whose ruling runs
+//! through a plane face's interior, which refuses until the reduction
+//! records a face–face curve touch.
 //!
 //! The canonical reachability fixture is the two-peg kernel shape's
 //! core: a bored plate (through-hole subtract) and an exactly-filling
@@ -19,14 +17,9 @@ use crate::common::operands::{slab as plate, three_arc_cylinder};
 use crate::common::three_arc;
 use geom_core::k_stats::Bracket;
 use geom_core::{Affine3, Mat3, Point2, Point3, Sign, Tol, Vec3};
-use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
-use sweep::ExtrudeSide;
+use profile::SketchPlane;
 use sweep::test_support::{extruded, finished};
-use sweep::{Extrusion, extrude};
-use topo::{
-    AtRestBody, Body, BooleanDeclarations, BooleanError, BooleanResult, ContactClass,
-    FacePairDeclaration,
-};
+use topo::{AtRestBody, BooleanError, BooleanResult};
 
 /// A radius-`r` three-arc cylinder at (2, 2), z ∈ [z0, z0 + h] (the
 /// boss_union authorship: three 120° arcs on ONE cylinder surface).
@@ -47,80 +40,23 @@ fn bored_plate() -> AtRestBody<f64> {
     }
 }
 
-/// The cylinder-surface faces of a body.
-fn cyl_faces(body: &Body<f64>) -> Vec<topo::FaceKey> {
-    body.faces()
-        .filter(|(_, f)| {
-            matches!(
-                body.get_surface(f.surface),
-                Some(geom::Surface::Cylinder { .. })
-            )
-        })
-        .map(|(k, _)| k)
-        .collect()
-}
-
-/// Every bore-wall × peg-wall pair declared under `class`, beside the
-/// peg ends flush with the plate's faces, which are continuations.
-fn wall_declarations(a: &Body<f64>, b: &Body<f64>, class: ContactClass) -> BooleanDeclarations {
-    let mut decls = crate::mate2_common::continuations(a, b);
-    for &fa in &cyl_faces(a) {
-        for &fb in &cyl_faces(b) {
-            decls
-                .coincident_faces
-                .push(FacePairDeclaration::new(fa, fb, class));
-        }
-    }
-    assert!(
-        !decls.coincident_faces.is_empty(),
-        "the fixture must have wall faces on both operands"
-    );
-    decls
-}
-
-/// C8, the invariant half: the same touching geometry WITHOUT a
-/// declaration keeps its typed refusal — value equality never glues,
-/// and the reduction rung's frontier doors are verbatim on undeclared
-/// incidences.
-#[test]
-fn undeclared_touching_curved_pair_still_refuses_typed() {
-    let bored = bored_plate();
-    let peg = cyl(0.0, 1.0, 0.5);
-    // The peg's ends are flush with the plate's faces — continuations,
-    // declared; the wall pair is not.
-    let flush = crate::mate2_common::continuations(&bored, &peg);
-    let err = topo::union_with(&bored, &peg, &flush, Tol::witness())
-        .expect_err("an undeclared exactly-filling peg must refuse");
-    // The SAME typed refusal, at the SAME site, as before this unit
-    // opened the declared rung: the sweep's curved frontier door on
-    // the on-carrier rim circle (the spike's run-1 measurement of the
-    // undeclared posture — bool_conic_curved_clearance decides Zero,
-    // the frontier door fires).
-    assert!(
-        matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
-        "the undeclared refusal stays at the classification frontier, typed: {err:?}"
-    );
-}
-
-/// The opened wall: with the nine bore×peg wall pairs declared `Rest`,
-/// classification RUNS — the front door admits the cylinder carriers,
-/// the reduction rung produces the v-v record family, and the v-v
-/// lane's carrier lump consumes the declared pairs (the recl wall,
+/// The opened wall: with the nine bore×peg wall pairs glued `Rest`,
+/// classification RUNS — the reduction rung produces the v-v record
+/// family, and the v-v lane's carrier lump consumes the glued pairs (the recl wall,
 /// previously an untyped `ClassificationInvariant`, is gone). The op
 /// then either succeeds with the closed-form volume or refuses typed
 /// strictly DOWNSTREAM of classification.
 #[test]
-fn declared_rest_two_peg_reaches_downstream_of_classification() {
+fn rest_two_peg_reaches_downstream_of_classification() {
     let bored = bored_plate();
     let peg = cyl(0.0, 1.0, 0.5);
-    let decls = wall_declarations(&bored, &peg, ContactClass::Rest);
     let bracket = Bracket::open();
-    let out = topo::union_with(&bored, &peg, &decls, Tol::witness());
+    let out = topo::union(&bored, &peg, Tol::witness());
     let log = bracket.finish();
     let v = log.verdicts;
-    // The carrier ladder's declared cylinder reading ran — the declared
-    // descent executed rather than being skipped past (telemetry from
-    // birth) — and read every declared wall pair coincident: the peg
+    // The carrier ladder's cylinder reading ran — the glued descent
+    // executed rather than being skipped past (telemetry from birth) —
+    // and read every glued wall pair coincident: the peg
     // fills the bore exactly, so each reach decides zero, and none
     // escalates.
     let reach: Vec<_> = v
@@ -129,17 +65,17 @@ fn declared_rest_two_peg_reaches_downstream_of_classification() {
         .collect();
     assert!(
         !reach.is_empty(),
-        "carrier_cyl_reach never reached the funnel — the declared descent did not run"
+        "carrier_cyl_reach never reached the funnel — the glued descent did not run"
     );
     assert!(
         reach.iter().all(|x| x.sign == geom_core::Sign::Zero),
-        "every declared wall pair reads coincident: {reach:?}"
+        "every glued wall pair reads coincident: {reach:?}"
     );
     assert!(
         !log.escalations
             .iter()
             .any(|e| e.source.predicate == Some("carrier_cyl_reach")),
-        "no declared wall pair's reach escalates: {:?}",
+        "no glued wall pair's reach escalates: {:?}",
         log.escalations
     );
     match out {
@@ -161,7 +97,7 @@ fn declared_rest_two_peg_reaches_downstream_of_classification() {
             // conventional-arc lane existed).
             //
             // The peg's ends are flush with the plate's faces —
-            // declared continuations the union merges — so no rim
+            // continuations the union merges — so no rim
             // circle survives between two coplanar faces.
             let rims = b
                 .body
@@ -179,24 +115,8 @@ fn declared_rest_two_peg_reaches_downstream_of_classification() {
         // PR-B: the zip's band closure landed — the union SUCCEEDS
         // (the Ok arm above carries the closed-form volume oracle);
         // any refusal is a regression of the opened lane.
-        Err(err) => panic!("the declared exactly-filling union must succeed: {err:?}"),
+        Err(err) => panic!("the exactly-filling union must succeed: {err:?}"),
     }
-}
-
-/// C4 verify-at-use on the curved door: a declared `Rest` pair whose
-/// radii definitely differ is CONTRADICTED at the door — definite
-/// counter-evidence beats every declaration.
-#[test]
-fn declared_rest_with_wrong_radius_contradicts() {
-    let bored = bored_plate();
-    let thin_peg = cyl(0.0, 1.0, 0.4);
-    let decls = wall_declarations(&bored, &thin_peg, ContactClass::Rest);
-    let err = topo::union_with(&bored, &thin_peg, &decls, Tol::witness())
-        .expect_err("a 0.4 peg declared Rest against a 0.5 bore must contradict");
-    assert!(
-        matches!(err, BooleanError::ContactContradicted { .. }),
-        "{err:?}"
-    );
 }
 
 /// A horizontal three-arc cylinder (axis +y at height `zc`, radius
@@ -218,89 +138,24 @@ fn lying_cyl(zc: f64) -> AtRestBody<f64> {
     finished("the lying cylinder", cyl, Tol::witness())
 }
 
-/// The plate-top × cylinder-wall pairs declared under `class`.
-fn top_wall_declarations(
-    plate: &Body<f64>,
-    cylinder: &Body<f64>,
-    class: ContactClass,
-) -> BooleanDeclarations {
-    let top: Vec<_> = plate
-        .faces()
-        .filter(|(_, f)| match plate.get_surface(f.surface) {
-            Some(geom::Surface::Plane { origin, normal, .. }) => {
-                (origin.z - 1.0).abs() < 1e-12 && normal.z > 0.5
-            }
-            _ => false,
-        })
-        .map(|(k, _)| k)
-        .collect();
-    assert_eq!(top.len(), 1, "one top face");
-    let mut decls = BooleanDeclarations::none();
-    for &fb in &cyl_faces(cylinder) {
-        decls
-            .coincident_faces
-            .push(FacePairDeclaration::new(top[0], fb, class));
-    }
-    decls
-}
-
-/// The Tangent door, three-outcome honest on the witness lane's own
-/// rows: definite counter-evidence CONTRADICTS (apart and crossing
-/// both), an in-band gap ESCALATES, and the touching pair VERIFIES,
-/// and its union then refuses because the ruling runs through the
-/// plate top's interior.
+/// The Tangent door on the witness lane's own rows: an in-band gap
+/// ESCALATES, and the touching pair VERIFIES, and its union then
+/// refuses because the ruling runs through the plate top's interior.
 #[test]
-fn tangent_door_contradicts_escalates_and_verifies() {
+fn tangent_door_escalates_and_verifies() {
     let a = finished("the plate", plate(), Tol::witness());
-    // Definitely apart (gap 0.5): contradicted.
-    let apart = lying_cyl(2.0);
-    let err = topo::union_with(
-        &a,
-        &apart,
-        &top_wall_declarations(&a, &apart, ContactClass::Tangent),
-        Tol::witness(),
-    )
-    .expect_err("a definite gap contradicts a Tangent declaration");
-    assert!(
-        matches!(err, BooleanError::ContactContradicted { .. }),
-        "{err:?}"
-    );
-    // Definitely crossing (overlap 0.2): contradicted.
-    let crossing = lying_cyl(1.3);
-    let err = topo::union_with(
-        &a,
-        &crossing,
-        &top_wall_declarations(&a, &crossing, ContactClass::Tangent),
-        Tol::witness(),
-    )
-    .expect_err("a definite crossing contradicts a Tangent declaration");
-    assert!(
-        matches!(err, BooleanError::ContactContradicted { .. }),
-        "{err:?}"
-    );
     // An in-band gap (the geometric mean of the run's band, so the
     // row holds at every sampled ε): ESCALATES — the sliver is a
-    // sliver whether or not intent is declared (C4's
-    // must-verify-DEFINITE list is never bridged).
+    // sliver (C4's must-verify-DEFINITE list is never bridged).
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
     let grazing = lying_cyl(1.5 + (band.zero() * band.escalate()).sqrt());
-    let err = topo::union_with(
-        &a,
-        &grazing,
-        &top_wall_declarations(&a, &grazing, ContactClass::Tangent),
-        Tol::witness(),
-    )
-    .expect_err("an in-band tangency gap escalates");
+    let err =
+        topo::union(&a, &grazing, Tol::witness()).expect_err("an in-band tangency gap escalates");
     assert!(matches!(err, BooleanError::Escalated { .. }), "{err:?}");
     // The genuinely-touching pair verifies.
     let resting = lying_cyl(1.5);
     let bracket = Bracket::open();
-    let out = topo::union_with(
-        &a,
-        &resting,
-        &top_wall_declarations(&a, &resting, ContactClass::Tangent),
-        Tol::witness(),
-    );
+    let out = topo::union(&a, &resting, Tol::witness());
     let v = bracket.finish().verdicts;
     // A verdict names its row, not its caller: any `pc_parallel_gap` Zero
     // in the bracket satisfies this, the witness lane's among them.
@@ -310,90 +165,15 @@ fn tangent_door_contradicts_escalates_and_verifies() {
         "the witness lane must have derived the ruling from the section's tangent gap"
     );
     // Verified, and the ruling runs through the plate top's interior:
-    // the union would have material on both sides of it, the doubled
-    // slit #131 rules for, whose arm is unbuilt, so it refuses typed.
+    // a face–face curve touch the reduction mints no row for, so the
+    // union refuses typed.
     match out {
         Err(BooleanError::TangentSlitArmUnbuilt { interior, .. }) => {
             assert_eq!(interior, topo::Operand::A, "the plate top's interior");
         }
         other => panic!(
-            "the verified tangent union refuses as the unbuilt slit arm: {:?}",
+            "the verified tangent union through a face refuses: {:?}",
             other.map(|_| ())
         ),
     }
-}
-
-/// Outside the DEV-1 witness lane the class refusal stands, naming
-/// the class: two parallel DISTINCT planes declared Tangent have no
-/// closed-form locus (plane×plane is not in the lane), and the
-/// refusal is the typed class door, not a silent carry.
-#[test]
-fn tangent_outside_the_witness_lane_refuses_by_class() {
-    let a = finished("the plate", plate::<f64>(), Tol::witness());
-    // A second plate floating above (planar faces only, gap 1).
-    let b = {
-        let lp = ProfileLoop::polygon([
-            Point2::new(1.0, 1.0),
-            Point2::new(3.0, 1.0),
-            Point2::new(3.0, 3.0),
-            Point2::new(1.0, 3.0),
-        ]);
-        let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 2.0)));
-        let profile = Profile::new(plane, vec![lp])
-            .validate(Tol::witness())
-            .unwrap();
-        let b = extrude(
-            &profile,
-            Extrusion::Distance {
-                depth: 1.0,
-                side: ExtrudeSide::Along,
-            },
-            Tol::witness(),
-        )
-        .unwrap()
-        .body;
-        finished("the floating plate", b, Tol::witness())
-    };
-    let top: Vec<_> = a
-        .faces()
-        .filter(|(_, f)| match a.get_surface(f.surface) {
-            Some(geom::Surface::Plane { origin, normal, .. }) => {
-                (origin.z - 1.0).abs() < 1e-12 && normal.z > 0.5
-            }
-            _ => false,
-        })
-        .map(|(k, _)| k)
-        .collect();
-    let bottom: Vec<_> = b
-        .faces()
-        .filter(|(_, f)| match b.get_surface(f.surface) {
-            Some(geom::Surface::Plane { origin, normal, .. }) => {
-                (origin.z - 2.0).abs() < 1e-12 && normal.z < -0.5
-            }
-            _ => false,
-        })
-        .map(|(k, _)| k)
-        .collect();
-    let mut decls = BooleanDeclarations::none();
-    decls.coincident_faces.push(FacePairDeclaration::new(
-        top[0],
-        bottom[0],
-        ContactClass::Tangent,
-    ));
-    let err = topo::union_with(&a, &b, &decls, Tol::witness())
-        .expect_err("plane×plane Tangent is outside the witness lane");
-    assert!(
-        matches!(
-            err,
-            BooleanError::UnsupportedDeclarationClass {
-                class: topo::BooleanCoincidence::TANGENT
-            }
-        ),
-        "{err:?}"
-    );
-    let msg = err.to_string();
-    assert!(
-        msg.contains("Tangent") && msg.contains("witness"),
-        "the refusal names the class and the lane: {msg}"
-    );
 }

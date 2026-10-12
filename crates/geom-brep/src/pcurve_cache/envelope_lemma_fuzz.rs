@@ -18,12 +18,16 @@
 
 test_utils::gated_to![
     "crates/geom-brep/src/pcurve_cache.rs",
+    "crates/geom-brep/src/pcurve_cache/projected.rs",
     "crates/geom/src/surfaces.rs",
     "crates/geom/src/curves.rs",
     "crates/geom/src/azimuth.rs",
 ];
 
 use std::collections::BTreeSet;
+
+mod projected;
+mod projected_searches;
 
 use super::{
     ChartWindings, Derivation, EnvelopeTerm, EnvelopeTerms, FocalImage, Pcurve, PcurveCache,
@@ -1228,7 +1232,11 @@ fn cone_section(s: &mut fuzz::Rng) -> Option<(Surface<f64>, Curve3<f64>)> {
         normal,
         u_ref: unit(s).cross(normal).normalize(),
     };
-    match crate::intersect::plane_cone_section(&plane, &cone, 4.0, band()) {
+    let reach = crate::Reach::Measured {
+        at: apex,
+        lever: 4.0,
+    };
+    match crate::intersect::plane_cone_section(&plane, &cone, &reach, band()) {
         Ok(crate::intersect::PlaneConeSection::TiltedEllipse(e)) => Some((cone, e)),
         _ => None,
     }

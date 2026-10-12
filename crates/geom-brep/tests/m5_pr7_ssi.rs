@@ -91,11 +91,12 @@ use geom_brep::CERT_SAMPLES;
 use geom_brep::ssi::BranchEnd;
 use geom_brep::ssi::{
     self, ChartAxis, ChartCorner, ChartEnd, ChartSide, ChartSpeedRefusal, RefineStop, RefusedRound,
-    RoundMargin, SSI_FLOOR, SSI_MAX_CELLS, SSI_MAX_STEPS, SSI_SEED_FLOOR, SSI_SETTLE_MAX,
-    SSI_TUBE_RADIUS, SettlingRefusal, SsiBoundaryContact, SsiDomain, SsiError, SsiLimb, SsiOperand,
-    SsiTube,
+    ResidualTrend, RoundMargin, SSI_FLOOR, SSI_MAX_CELLS, SSI_MAX_STEPS, SSI_SEED_FLOOR,
+    SSI_SETTLE_MAX, SSI_TUBE_RADIUS, SettlingRefusal, SsiBoundaryContact, SsiDomain, SsiError,
+    SsiLimb, SsiOperand, SsiTube,
 };
 use geom_core::spline::KnotVector;
+use geom_core::test_support::upper;
 use geom_core::{Margin, Point3, Vec3};
 use test_utils::vacuity;
 
@@ -186,7 +187,9 @@ fn threaded_cylinder() -> Surface<f64> {
 fn spatial_radius(cert: &geom_brep::SsiCertificate<f64>) -> f64 {
     match cert.tube {
         SsiTube::Spatial { radius } => radius,
-        SsiTube::Chart { .. } => panic!("the ℝ³ arm proved a chart tube: {cert:?}"),
+        SsiTube::Chart { .. } | SsiTube::TwoChart { .. } => {
+            panic!("the ℝ³ arm proved a chart tube: {cert:?}")
+        }
     }
 }
 
@@ -422,8 +425,8 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
     let n = carrier.control().len() / 2;
     let bad = displaced(&carrier, n, definitely_positive());
     match certify_against(&bad) {
-        Err(SsiError::CertificateLimb { limb, value }) => {
-            assert_eq!(limb, SsiLimb::OnLocus, "LIMB-1: value = {value}");
+        Err(SsiError::CertificateLimb { limb, margin }) => {
+            assert_eq!(limb, SsiLimb::OnLocus, "LIMB-1: margin = {margin}");
         }
         other => panic!("LIMB-1: expected limb 1 to refuse, got {other:?}"),
     }
@@ -445,20 +448,27 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
         let d = eps() * 0.05 * f64::from(k);
         let bad = displaced(&carrier, n, d);
         match certify_against(&bad) {
+            // Limb 2 refuses on its bound, or on its composite's value
+            // at a break against either operand, which subdividing the
+            // bound reads past ε.
             Err(SsiError::CertificateLimb {
-                limb: SsiLimb::HullSup,
-                value,
+                limb: SsiLimb::HullSup | SsiLimb::HullValue | SsiLimb::HullValueChart,
+                margin,
             }) => {
-                found = Some((d, value));
+                found = Some((d, upper(margin)));
                 break;
             }
             // A hull bound that lands just ABOVE ε is inside the
             // escalation band, so limb 2 speaks as an F6 escalation
             // rather than a definite refusal, naming the same limb.
             Err(SsiError::CertificateEscalated {
-                limb: SsiLimb::HullSup,
+                limb: SsiLimb::HullSup | SsiLimb::HullValue | SsiLimb::HullValueChart,
                 ref cause,
-            }) if cause.predicate == Some("ssi_hull_sup") => {
+            }) if matches!(
+                cause.predicate,
+                Some("ssi_hull_sup" | "ssi_hull_value" | "ssi_hull_value_chart")
+            ) =>
+            {
                 found = Some((d, f64::NAN));
                 break;
             }
@@ -1098,11 +1108,12 @@ fn shape_iii_the_wall_cut_certifies_all_three_limbs_and_refuses_a_corrupted_pcur
     //
     // A pcurve corruption leaves limb 1 clean — the foot-point check
     // re-projects from the corrupted warm start and converges to the
-    // true foot, so on-locus distance and orthogonality stay in band —
+    // true foot, so the on-locus distance stays in band —
     // while limb 2, which consumes the pcurve AS the parameter map,
-    // must see |S(P(t)) − C(t)| at the corruption's full size. The
-    // displacement scales from the resolved band (definitely positive
-    // at any battery ε).
+    // must see |S(P(t)) − C(t)| at the corruption's full size: measured
+    // at a break of its composite, past the band, so it refuses on that
+    // value rather than on its bound. The displacement scales from the
+    // resolved band (definitely positive at any battery ε).
     let Curve3::Nurbs(ref carrier) = b.carrier else {
         panic!("a rung-3 carrier is a NURBS curve");
     };
@@ -1128,10 +1139,10 @@ fn shape_iii_the_wall_cut_certifies_all_three_limbs_and_refuses_a_corrupted_pcur
     .expect_err("CORRUPT-PCURVE: a corrupted parameter map cannot certify");
     match err {
         SsiError::CertificateLimb {
-            limb: SsiLimb::HullSup,
-            value,
-        } => assert!(value > eps(), "CORRUPT-PCURVE: {value:e}"),
-        other => panic!("CORRUPT-PCURVE: expected limb 2 alone, got {other}"),
+            limb: SsiLimb::HullValueChart,
+            margin,
+        } => assert!(upper(margin) > eps(), "CORRUPT-PCURVE: {margin:e}"),
+        other => panic!("CORRUPT-PCURVE: expected limb 2's value at a break, got {other}"),
     }
 }
 
@@ -2353,9 +2364,13 @@ fn the_c5_table_retires_the_arm_whose_proof_is_complete() {
     }
     // Everything else on the general rung still refuses, and now names
     // its trace shape rather than a bare "unimplemented".
+    // NURBS × NURBS retired with its own proof, the two-chart tube.
+    let r = route(SurfaceKind::Nurbs, SurfaceKind::Nurbs);
+    assert!(r.implemented, "Nurbs×Nurbs is implemented");
+    assert!(r.note.contains("TWO-CHART"), "{}", r.note);
     for (a, b) in [
         (SurfaceKind::Cylinder, SurfaceKind::Torus),
-        (SurfaceKind::Nurbs, SurfaceKind::Nurbs),
+        (SurfaceKind::Nurbs, SurfaceKind::Cylinder),
         (SurfaceKind::Cone, SurfaceKind::Sphere),
     ] {
         let r = route(a, b);
@@ -4665,7 +4680,9 @@ fn a_curved_domes_cuts_prove_their_tube_at_the_widest_rung() {
                     geom_brep::ssi::certify::SSI_TUBE_RADIUS_MAX * dom.extent,
                     "{at}: the tube certified below the widest rung"
                 ),
-                SsiTube::Spatial { .. } => panic!("{at}: the chart arm proved a spatial tube"),
+                SsiTube::Spatial { .. } | SsiTube::TwoChart { .. } => {
+                    panic!("{at}: the chart arm proved another arm's tube")
+                }
             }
         }
     }
@@ -4770,19 +4787,19 @@ fn a_curved_domes_oblique_arc_certifies_across_its_inflections() {
     assert!(samples.contains(&n), "{at}: {n} samples");
 }
 
-/// **The `z = 0.2` arc across a dome of curvature 4/m is refined where
-/// the hull limb refused it, at ε 1e-9.** The fit rung prices the gap
-/// between samples by `‖C⁗‖ ≈ κ³`, and along this parabola `‖C⁗‖/κ³`
-/// runs from 4 at the centre to 23 at the branch ends. At d = 2 limb 2
-/// read the marched carrier in band at its end; the gap there is
-/// halved, and the arc certifies on about 348 samples, two more than
-/// the march's 346 (cause 4 of
+/// **The `z = 0.2` arc across a dome of curvature 4/m certifies on the
+/// march's samples, at ε 1e-9.** The fit rung prices the gap between
+/// samples by `‖C⁗‖ ≈ κ³`, and along this parabola `‖C⁗‖/κ³` runs from 4
+/// at the centre to 23 at the branch ends. At d = 2 limb 2's first hull
+/// read the marched carrier in band at its end; subdivided, it clears,
+/// and the arc certifies on the march's 346 samples with no refinement
+/// round (cause 4 of
 /// `work/ssi/plane-nurbs-ssi-does-not-certify-a-curved-dome.md`). At
 /// d = 1 the march's samples certify as they stand.
 #[test]
-fn a_curved_domes_open_arc_is_refined_where_the_hull_limb_refused() {
+fn a_curved_domes_open_arc_certifies_on_the_marchs_samples() {
     let b = band_at(1e-9);
-    for (d, samples) in [(1.0, 230..250), (2.0, 347..352)] {
+    for (d, samples) in [(1.0, 230..250), (2.0, 340..347)] {
         let (_, dom) = dome_tilt(d);
         let zcut = Surface::Plane {
             origin: Point3::new(0.5, -d / 8.0, 0.2),
@@ -4805,10 +4822,10 @@ fn a_curved_domes_open_arc_is_refined_where_the_hull_limb_refused() {
 fn rounds_at_the_wall(
     at: &str,
     r: &Result<geom_brep::SsiOutcome, SsiError>,
-) -> (usize, Vec<RefusedRound>, String) {
+) -> (usize, Vec<RefusedRound>, String, ResidualTrend) {
     let Err(
         e @ SsiError::RefinementExhausted {
-            stop: RefineStop::StepBudget { budget },
+            stop: RefineStop::StepBudget { budget, trend },
             samples,
             refusal,
             earlier,
@@ -4825,7 +4842,7 @@ fn rounds_at_the_wall(
         "{at}: refused at the round that would overrun it: {samples} samples"
     );
     let last = match **refusal {
-        SsiError::CertificateLimb { limb, value } => (limb, RoundMargin::Over(value)),
+        SsiError::CertificateLimb { limb, margin } => (limb, RoundMargin::Over(margin)),
         SsiError::CertificateEscalated { limb, cause } => (limb, RoundMargin::InBand(cause.margin)),
         ref other => panic!("{at}: a limb's refusal stands: {other:?}"),
     };
@@ -4839,17 +4856,20 @@ fn rounds_at_the_wall(
         *samples,
         rounds,
         e.render(geom_brep::recourse::Reading::Build),
+        *trend,
     )
 }
 
-/// **A loop past the step budget refuses typed at the wall.** At ε 1e-14
-/// the dome's level loop takes about 18 300 marched samples, inside the
-/// branch's 20 000 steps, and limb 2 reads it in band at about 2.4e-14 m;
-/// refinement's first round asks about 23 400 steps, so the wall refuses
-/// before it, naming the one refused round. A branch never grows past the
+/// **A loop past the step budget refuses typed at the wall.** At ε 8e-15
+/// the dome's level loop takes about 19 350 marched samples, inside the
+/// branch's 20 000 steps, and limb 2 reads it in band at about 8.8e-15 m;
+/// refinement's first round would overrun the steps, so the wall refuses
+/// before it, naming the one refused round. At 9e-15 the loop certifies
+/// on its marched samples, so 8e-15 is where this row's subject is. A branch never grows past the
 /// wall, and the refusal is the resource limit, not a verdict on the
-/// carrier. One round shows no margin falling or stopping, so the ending
-/// is the curvature-held march's: the domain, then the tolerance.
+/// carrier. One round shows no refused residual falling or stopping, so
+/// the ending is the curvature-held march's: the domain, then the
+/// tolerance.
 #[test]
 fn a_loop_past_the_step_budget_refuses_typed_at_the_wall() {
     let d = 1.0;
@@ -4859,13 +4879,14 @@ fn a_loop_past_the_step_budget_refuses_typed_at_the_wall() {
         normal: Vec3::new(0.0, 1.0, 0.0),
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
-    if !at_the_compiled_default("the level loop at 1e-14") {
+    if !at_the_compiled_default("the level loop at 8e-15") {
         return;
     }
-    let r = ssi::plane_nurbs_ssi(&level, &dome_wall(d), dom, band_at(1e-14));
-    let (samples, rounds, shown) = rounds_at_the_wall("the level loop at 1e-14", &r);
+    let r = ssi::plane_nurbs_ssi(&level, &dome_wall(d), dom, band_at(8e-15));
+    let (samples, rounds, shown, trend) = rounds_at_the_wall("the level loop at 8e-15", &r);
+    assert_eq!(trend, ResidualTrend::Falling, "one round shows no stall");
     assert!(
-        (18_000..18_600).contains(&samples),
+        (19_100..19_600).contains(&samples),
         "the march's samples: {samples}"
     );
     assert_eq!(rounds.len(), 1, "one refused round: {rounds:?}");
@@ -4878,13 +4899,20 @@ fn a_loop_past_the_step_budget_refuses_typed_at_the_wall() {
 }
 
 /// **Refinement past the arithmetic's floor meets the wall typed, with
-/// the floor in its history.** At ε 1e-14 limb 2 reads the dome's `z =
-/// 0.2` arc in band at 1.6–1.8e-14 m whatever its samples: the enclosure's
+/// the floor in its history.** At ε 8e-15 limb 2 reads the dome's `z =
+/// 0.2` arc in band at 9.0–9.4e-15 m whatever its samples: the enclosure's
 /// width, not a between-sample error, so halving every refused gap
-/// doubles the samples and leaves the margin where it was. The rounds
-/// run from about 4 250 samples until the next would overrun the
+/// doubles the samples and leaves the margin where it was. At 9e-15 the
+/// arc certifies, so the floor sits between the two. The rounds
+/// run from about 4 490 samples until the next would overrun the
 /// branch's step budget, every one in band on limb 2 at the same width,
 /// and the refusal is the wall's, its ending naming the floor.
+///
+/// "The same width" is read against what the alternative would show: a
+/// between-sample error falls at least as fast as the gaps, so over a
+/// sample growth `G ≥ 3` its spread `hi/lo` is at least `G`. The row
+/// puts the line at `√G`, the geometric midpoint between flat (`1`) and
+/// that (`G`); measured `hi/lo` is about 1.04 against `√G ≥ 1.73`.
 #[test]
 fn refinement_past_the_arithmetics_floor_meets_the_wall_typed() {
     let d = 1.0;
@@ -4894,14 +4922,20 @@ fn refinement_past_the_arithmetics_floor_meets_the_wall_typed() {
         normal: Vec3::new(0.0, 0.0, 1.0),
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
-    if !at_the_compiled_default("the zcut at 1e-14") {
+    if !at_the_compiled_default("the zcut at 8e-15") {
         return;
     }
-    let r = ssi::plane_nurbs_ssi(&zcut, &dome_wall(d), dom, band_at(1e-14));
-    let (_, rounds, shown) = rounds_at_the_wall("the zcut at 1e-14", &r);
+    let r = ssi::plane_nurbs_ssi(&zcut, &dome_wall(d), dom, band_at(8e-15));
+    let (_, rounds, shown, trend) = rounds_at_the_wall("the zcut at 8e-15", &r);
+    assert_eq!(
+        trend,
+        ResidualTrend::Stalled,
+        "the floor stalled the residual"
+    );
     assert!(
         shown.contains(
-            "the margin stopped falling, so at this ε and scale it is the arithmetic's floor"
+            "the refused residual stopped falling, so at this ε and scale it is the \
+             arithmetic's floor"
         ),
         "the ending names the floor: {shown}"
     );
@@ -4922,11 +4956,13 @@ fn refinement_past_the_arithmetics_floor_meets_the_wall_typed() {
             _ => panic!("limb 2 in band every round: {rounds:?}"),
         })
         .collect();
+    #[allow(clippy::cast_precision_loss)]
+    let growth = last as f64 / first as f64;
     let (lo, hi) = margins.iter().fold((f64::INFINITY, 0.0f64), |(lo, hi), m| {
         (lo.min(*m), hi.max(*m))
     });
     assert!(
-        (1.4e-14..2.0e-14).contains(&lo) && hi < 1.2 * lo,
+        (8.5e-15..1e-14).contains(&lo) && hi / lo < growth.sqrt(),
         "the margin flat at the enclosure's width while the samples grew: {rounds:?}"
     );
 }
@@ -6072,7 +6108,7 @@ fn a_sliver_the_march_could_step_through_refuses_as_near_tangent() {
 /// after, `β = −3, 1`, at ε 1e-6: the march on the straight part can keep
 /// a step landing on the other branch, and its carrier, across the two,
 /// fails limbs 1 and 2 at a margin halving does not lower. Refinement
-/// asks limb 3 once where the refused margin stops falling, and the tube
+/// asks limb 3 once where the refused residual stops falling, and the tube
 /// refuses with the clearer angle's lever, as main refused both pairs,
 /// where refining on would add three samples a round to the step wall.
 /// Run at its own band.
@@ -6091,17 +6127,32 @@ fn a_pair_bending_late_refuses_on_limb_3_without_refining_to_the_wall() {
 }
 
 /// **The uncertified door refines as far as limbs 1 and 2 locate a
-/// refusal.** It returns its last refused triple, so refinement's
-/// limb-3 ask, which ends refinement on a certifying door, passes on it.
-/// The late-bend pair of [`bend_pair`] 1e-3 apart, `β = −3`, traced
-/// through `(0.1, 0.5)` at a march tolerance and band of 1e-9: the triple
-/// holds 176 control points, where asking limb 3 would stop it at 173.
+/// refusal**, and returns its last refused triple. The late-bend pair of
+/// [`bend_pair`] 1e-3 apart, `β = −3`, traced through `(0.1, 0.5)` at a
+/// march tolerance and band of 1e-9: the triple holds 173 control
+/// points, limbs 1 and 2 pass it, and limb 3's tube straddles the band.
 #[test]
-fn the_uncertified_door_refines_past_the_limb_3_ask() {
+fn the_uncertified_door_refines_until_limbs_1_and_2_pass() {
     let (plane, dom) = graph_cut();
     let wall = bend_pair(0.5, -3.0, 0.75, 1e-3);
-    let (carrier, _, _) =
+    let (carrier, _, pb) =
         ssi::trace_plane_nurbs_uncertified(&plane, &wall, (0.1, 0.5), dom, 1e-9, band_at(1e-9))
             .unwrap_or_else(|e| panic!("the uncertified trace: {e}"));
-    assert_eq!(carrier.control().len(), 176, "refined past the limb-3 ask");
+    assert_eq!(
+        carrier.control().len(),
+        173,
+        "refined until limbs 1 and 2 pass"
+    );
+    let again = ssi::certify_rung3(
+        &carrier,
+        Some(&pb),
+        &SsiOperand::Analytic(&plane),
+        &SsiOperand::nurbs(&wall).expect("the wall's chart speeds mint"),
+        dom.extent,
+        band_at(1e-9),
+    );
+    assert!(
+        matches!(again, Err(SsiError::TubeStraddles { .. })),
+        "limbs 1 and 2 pass the returned triple and limb 3's tube straddles: {again:?}"
+    );
 }

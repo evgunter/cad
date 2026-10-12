@@ -52,7 +52,7 @@ fn the_interval_lane_encloses_the_same_definitional_surface() {
 
     assert_eq!(lifted.knots_u().knots(), exact.knots_u().knots());
     assert_eq!(lifted.knots_v().knots(), exact.knots_v().knots());
-    assert_eq!(lifted.weights(), exact.weights());
+    assert_eq!(lifted.weight_channel(), exact.weight_channel());
 
     // Sample counts DERIVE from the structure, not from a literal.
     let (nu, nv) = exact.control_counts();

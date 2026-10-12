@@ -50,7 +50,7 @@ use test_utils::tightness::{Anchor, Sup, control_net_box_diagonal};
 // ---------------------------------------------------------------------
 
 fn curve_eval(kv: &KnotVector, w: &[f64], coords: &[Vec<f64>], t: f64) -> Vec<f64> {
-    let span = kv.span_at(t);
+    let span = kv.span_at(t).expect("a numeric parameter");
     let n = basis::basis_funs(span, t);
     let mut den = 0.0;
     let mut num = vec![0.0; coords.len()];
@@ -75,7 +75,9 @@ fn surf_eval(
     v: f64,
 ) -> [f64; 3] {
     let nv = kv.control_count();
-    let (su, sv) = (ku.span_at(u), kv.span_at(v));
+    let (Some(su), Some(sv)) = (ku.span_at(u), kv.span_at(v)) else {
+        panic!("a numeric parameter pair");
+    };
     let nu_b = basis::basis_funs(su, u);
     let nv_b = basis::basis_funs(sv, v);
     let mut den = 0.0;
@@ -805,4 +807,104 @@ fn a_rotation_moves_the_bound_only_by_rounding() {
         seated_fold / DELTA,
         oblique_fold / DELTA
     );
+}
+
+// ---------------------------------------------------------------------
+// Cell selection on a C0 wall: windows ending on, beside and at a knot
+// ---------------------------------------------------------------------
+
+/// A wall linear in `u` and C0 quadratic in `v` (interior multiplicity
+/// equal to the degree) over four cells of `v`, `x = u`, `y = v`, and `z`
+/// a bump of a different height on each cell: `0.5`, `1`, `0` (the third
+/// cell is flat) and `−0.7`. A bound read on the wrong cell misses the
+/// bump the right one holds.
+fn c0_wall() -> (KnotVector, KnotVector, Vec<f64>, Vec<Vec<f64>>) {
+    let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let kv = KnotVector::clamped(
+        vec![
+            0.0, 0.0, 0.0, 0.25, 0.25, 0.5, 0.5, 0.75, 0.75, 1.0, 1.0, 1.0,
+        ],
+        2,
+    )
+    .unwrap();
+    let bumps = [0.0, 0.5, 0.0, 1.0, 0.0, 0.0, 0.0, -0.7, 0.0];
+    let (mut x, mut y, mut z) = (Vec::new(), Vec::new(), Vec::new());
+    for u in [0.0, 1.0] {
+        for (j, b) in bumps.iter().enumerate() {
+            x.push(u);
+            y.push(f64::from(u8::try_from(j).unwrap()) / 8.0);
+            z.push(*b);
+        }
+    }
+    (ku, kv, vec![1.0; 18], vec![x, y, z])
+}
+
+/// A degree-1 curve on `[0, 1]` from `a` to `b`.
+fn segment<const D: usize>(a: [f64; D], b: [f64; D]) -> (KnotVector, Vec<f64>, Vec<Vec<f64>>) {
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    (kv, vec![1.0; 2], (0..D).map(|d| vec![a[d], b[d]]).collect())
+}
+
+/// Every span's bound holds the oracle's residual at 257 points across
+/// that span, its ends included; `at` names the row.
+fn every_span_holds_its_samples(
+    at: &str,
+    wall: &(KnotVector, KnotVector, Vec<f64>, Vec<Vec<f64>>),
+    pc: &(KnotVector, Vec<f64>, Vec<Vec<f64>>),
+    ca: &(KnotVector, Vec<f64>, Vec<Vec<f64>>),
+    extra: &[f64],
+) {
+    let (sx, px, cx) = (lift(&wall.3), lift(&pc.2), lift(&ca.2));
+    let s = SurfaceCertData::new(&wall.0, &wall.1, &wall.2, &sx).unwrap();
+    let p = CurveCertData::new(&pc.0, &pc.1, &px).unwrap();
+    let c = CurveCertData::new(&ca.0, &ca.1, &cx).unwrap();
+    let residual = surface_curve_residual(&s, &p, &c, extra).unwrap();
+    for (w, &bound) in residual.breaks().windows(2).zip(residual.span_bounds()) {
+        for i in 0..=256u16 {
+            let t = w[0] + (w[1] - w[0]) * (f64::from(i) / 256.0);
+            let r = oracle_residual(wall, pc, ca, t);
+            assert!(
+                r <= bound + 1e-14,
+                "{at}: the span [{:e}, {:e}] bounds {bound:e}, but the residual at {t:e} is {r:e}",
+                w[0],
+                w[1]
+            );
+        }
+    }
+}
+
+/// **A window is bounded on every cell whose interior it meets.** The
+/// pcurve runs up the wall's `v` axis at `u = 0.3`, the carrier along
+/// `z = 0` beside it, so the residual is the wall's bump. The composite
+/// is cut on the knots, a few ulps above them, a few below, and on both
+/// sides of one, and every span's bound holds the residual sampled
+/// across it. A pcurve along the knot line `v = ½` (a window that is one
+/// point on a knot) is bounded too. Red under the cell selection
+/// skipping the first cell a window's interior meets: the span from just
+/// above `¼` to just above `½` then reads only the flat third cell, and
+/// bounds the second's bump of height 1 by 0.
+#[test]
+fn a_window_on_or_beside_a_c0_knot_is_bounded_on_every_cell_it_enters() {
+    let wall = c0_wall();
+    let up = |k: f64, n: usize| (0..n).fold(k, |x, _| x.next_up());
+    let down = |k: f64, n: usize| (0..n).fold(k, |x, _| x.next_down());
+    let knots = [0.25, 0.5, 0.75];
+    let rows: [(&str, Vec<f64>); 5] = [
+        ("on the knots", knots.to_vec()),
+        ("3 ulps above", knots.iter().map(|&k| up(k, 3)).collect()),
+        ("3 ulps below", knots.iter().map(|&k| down(k, 3)).collect()),
+        ("1 ulp above", knots.iter().map(|&k| up(k, 1)).collect()),
+        (
+            "either side of ½",
+            vec![0.25, down(0.5, 2), up(0.5, 2), 0.75],
+        ),
+    ];
+    let pc = segment([0.3, 0.0], [0.3, 1.0]);
+    let ca = segment([0.3, 0.0, 0.0], [0.3, 1.0, 0.0]);
+    for (at, extra) in &rows {
+        every_span_holds_its_samples(at, &wall, &pc, &ca, extra);
+    }
+    let pc = segment([0.0, 0.5], [1.0, 0.5]);
+    let ca = segment([0.0, 0.5, 0.0], [1.0, 0.5, 0.1]);
+    every_span_holds_its_samples("a point window on ½", &wall, &pc, &ca, &[0.5]);
 }

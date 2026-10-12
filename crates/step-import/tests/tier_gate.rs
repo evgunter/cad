@@ -41,11 +41,12 @@
 //!   evidence that the per-solid pass runs on real corpus geometry.
 //!
 //! **Scope** (R1 MINOR-1, RESOLVED in M9-2): the aggregate gate is
-//! now the tier-3′ form over the import-side declaration channel
-//! (D7 step 4 executed) — an imported assembly whose parts touch
-//! with vertex/line/planar boundary evidence refuses UNDECLARED and
-//! certifies WITH the declaration (`kiss_assembly`'s row below and
-//! `review_r1_tier_gate_probes.rs` pin both directions); cross-solid
+//! now the tier-3′ form, recording what it finds between solids
+//! (D7 step 4, `topo::record_at_rest`) — an imported assembly whose
+//! parts touch with vertex/line/planar boundary evidence certifies
+//! with its touches recorded (`kiss_assembly`'s row below and
+//! `review_r1_tier_gate_probes.rs`), and one whose parts overlap
+//! refuses; cross-solid
 //! curved proximity and nested instance extents refuse UNDECIDABLE
 //! (the census's conservative backstop); the full class-by-class
 //! reach is the census module docs' envelope statement.
@@ -529,7 +530,7 @@ const NIST09_STOPGAP: &str = "mapped curve: geometry attachment gate: the start-
 /// Every committed STEP file, with the disposition measured at M7-7.
 /// Paths are relative to this crate's manifest directory (the `../`
 /// rows are `step-export`'s corpus, which this crate imports from).
-const CORPUS: [(&str, Disposition); 75] = [
+const CORPUS: [(&str, Disposition); 77] = [
     ("tests/fixtures/band/band_a.stp", Pass(1, 1, 2, 4, 2)),
     ("tests/fixtures/band/band_a180.stp", Pass(1, 1, 2, 4, 2)),
     ("tests/fixtures/band/band_b180.stp", Pass(1, 1, 2, 4, 2)),
@@ -687,6 +688,21 @@ const CORPUS: [(&str, Disposition); 75] = [
         "tests/fixtures/rim-only-cap/rimonly2.step",
         Pass(1, 1, 2, 1, 1),
     ),
+    // -- tests/fixtures/seam-region/ ---------------------------------
+    // A ball with the cap x > 8 cut away and its sphere split at the
+    // equator into two faces of one surface, each holding a chart pole
+    // off its loop: tier 3 reads no side for their seam region
+    // (`poles_inside_a_seam_region.rs`). Its twin splits the lower face
+    // along the meridian through the south pole, where the region's side
+    // is then read.
+    (
+        "tests/fixtures/seam-region/side_cut_equator_split.step",
+        Pass(1, 1, 3, 3, 2),
+    ),
+    (
+        "tests/fixtures/seam-region/side_cut_meridian_split.step",
+        Pass(1, 1, 4, 6, 4),
+    ),
     // #653's import route: one D-prism, stated four ways. The two
     // `split_*` files state the cylindrical face's vertical boundary as
     // two collinear `EDGE_CURVE`s, which is what every exporter emits
@@ -756,7 +772,7 @@ const CORPUS: [(&str, Disposition); 75] = [
     ),
     (
         // Refuses in EVERY ambient-ε cell, but the refusal SITE and
-        // sub-reason shift with ε (edge #170 Surface2Residual at
+        // sub-reason shift with ε (edge #170 SurfaceResidual at
         // default/1e-12; edge #177 tangent-planes at 1e-6). This row's
         // fragment is the shared adoption-ladder preamble, so the shift
         // is invisible here BY DESIGN: pinning it would cost 9 more
@@ -851,13 +867,12 @@ const CORPUS: [(&str, Disposition); 75] = [
         Pass(1, 1, 26, 48, 24),
     ),
     (
-        // The touching two-solid assembly: since M9-2 the shared gate
-        // is the tier-3′ form, so the UNDECLARED corner kiss refuses
-        // typed here — and certifies WITH the import-side declaration
-        // (the WITH/WITHOUT pair is pinned in
-        // review_r1_tier_gate_probes.rs, the retired R1 finding).
+        // The touching two-solid assembly: the shared gate is the
+        // tier-3′ form, recording the corner kiss between its two
+        // solids as a contact (`topo::record_at_rest`; the record is
+        // pinned in review_r1_tier_gate_probes.rs).
         "../step-export/tests/fixtures/kiss_assembly.step",
-        Refused("undeclared contact"),
+        Pass(2, 2, 22, 48, 32),
     ),
     (
         "../step-export/tests/fixtures/lily_lantern.step",

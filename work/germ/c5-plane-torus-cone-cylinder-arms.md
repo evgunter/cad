@@ -8,6 +8,9 @@ github: 1057
 refs: [VERBS-C5ARMS, 1048]
 priority: P1
 cost: H
+design: true
+branch: germ/plane-torus-join-dispatch
+pr: 4743
 ---
 
 ## From GitHub issue 1057
@@ -87,6 +90,14 @@ waits on the props lane for a spiric-bounded face
 (`work/props/spiric-bounded-face-area-is-unimplemented.md`) and on
 SHELL's opened-arm lift (`work/shell/shell-open-lift-takes-the-per-chart-door-on-the-klein-elbow.md`).
 
+**2026-10-10 (FLUX, `spiric-bounded-face-area-is-unimplemented`).** The
+props lane for a spiric-bounded face landed (`geom_brep::props::spiric`):
+the sealed klein elbow, the elbow opened at one cap, the hand-built
+wall pair and the sectioned vessel all pass check 7 and measure against
+their cut-revolve oracles. Of (2) above, neither blocker stands: the
+props lane is in and SHELL's opened-arm lift closed, so rows 3/4/8's
+re-authoring is the demo's own work now.
+
 ## An obligation for the join-frame arm: the corner bar's lens (REACH, 2026-10-01)
 
 Since the pierce lane's sector-side charge is read at its peak (PR
@@ -107,3 +118,33 @@ Measured on branch `tang/abutting-rim`: a z-axis tube of radius
 `z` (its rim on the torus's 45° latitude), unioned undeclared. Since that
 branch the rim is an ON event at the crossing layer, and the union stops
 here, `GermFrameUnsupported { Plane × Torus }`, in both member orders.
+
+## U-T1, the plane × torus germ frame (GERM, 2026-10-11)
+
+`docs/GERM-TORUS-PLANE-FRAME-SPEC.md`'s first unit, on
+`germ/plane-torus-germ-frame`. `pair_section_frame_at` serves the
+meridian circles, the spiric ovals and the concentric circles, each
+germ on its own loop, and refuses every other transverse plane as
+`GermSectionSpiric { loops }`. Every served pose of the spec's §0 now
+stops at the germ-pair dispatch (F2, U-T2's door); TANG's tube stops at
+the wall side's section (F3b); the donut's corner bar refuses at its end
+square's null oval. The coaxial cylinder × sphere loop question (Q6)
+measured not live.
+
+## U-T2, the plane × torus join dispatch (GERM, 2026-10-11)
+
+On `germ/plane-torus-join-dispatch` (PR 4743). `kind_arm` takes the torus
+as a wall beside the sphere, cylinder and cone, so every served pose
+and the lily (undeclared, both orders) pass F2 and stop at the chord
+layer's section, now the typed `SplitJoinError::SectionUnarmed`: F3a
+(the plane face divided) with the plane first, F3b (the torus face
+divided) with the torus first. TANG's tube (cylinder × torus) takes the
+edge-plane lane, not the germ dispatch, and stops at F3b in all six ops
+as before; this unit does not move it. The torus face's ring closure
+was measured unreachable through the public ops before F3 (266 runs)
+and, read in-crate, a refusal (`RingIslandUnread { Torus }` on the
+cylinder-only chart); it is now `ring_path`'s path parity, as the
+sphere's and the cone's, reading meridian and parallel loop arcs. It
+refuses a spiric one until U-T4, and the tube's top and bottom circles
+(the parallels of radius `R`, whose plane touches the torus) until
+U-T3.

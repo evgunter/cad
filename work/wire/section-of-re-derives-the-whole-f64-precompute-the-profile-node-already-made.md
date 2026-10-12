@@ -1,7 +1,7 @@
 ---
 id: section-of-re-derives-the-whole-f64-precompute-the-profile-node-already-made
 kind: issue
-title: wire::section_of redoes a section profile's entire f64 precompute (resolve, replay, validate, naming) though the profile node already computed ProfilePre, which NodeValue does not carry
+title: NodeValue does not carry the profile node's ProfilePre structure record, so profile_edges_of has no caller that can hand it one (wire::section_of, which re-derived it whole, left in PR 4741)
 status: open
 opened: 2026-09-12
 refs: [2435]
@@ -93,3 +93,13 @@ carries the naming; the structure is on `ProfilePre`, which is
 None of the three is a reason to decide this row's PP1/PP2 question one
 way rather than the other — they are three more readers of whatever it
 decides.
+
+## `section_of` is gone; the row's subject is not (EDIT, 2026-10-11, PR 4741)
+
+The loft no longer re-derives anything. It reads each section
+operand's evaluated `ProfileValue` (`wire::section_value`), so
+`section_of`, the cost in this row's title, was deleted. What
+remains is the subject the 2026-09-16 edit added: `ProfilePre`'s
+structure is still not on `NodeValue`, and `profile_edges_of` and
+its two waiting consumers still need it. The PP1/PP2 question is
+unchanged.

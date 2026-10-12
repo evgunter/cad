@@ -120,8 +120,11 @@
 //! domain is served by the boundary cell's polynomial extension —
 //! exactly the spline's own clamped extension semantics (see the
 //! [`super::super`] span contract) — and a window that straddles a knot
-//! line is bounded on **every** cell it touches and maxed, which is
-//! sound on each cell's own territory and conservative off it.
+//! line is bounded on **every** cell whose interior it meets and maxed,
+//! which is sound on each cell's own territory and conservative off it.
+//! A cell the window meets only on its edge is not read: interior knot
+//! multiplicity is at most the degree, so the surface is continuous
+//! across a knot line and its value there is the neighbour's own.
 //!
 //! # C6 and the refusal posture
 //!
@@ -133,11 +136,13 @@
 //! bound, which fails every `≤ ε` comparison (D4 ¶2).
 
 use super::super::knots::{KnotVector, SplineError};
+use super::super::net::TensorCoeffs;
+use super::super::range::ParamRange;
 use super::{
     BernsteinSpans, ComposeError, CurveCertData, bern_mul_row, binom_row, to_bezier_spans_extra,
 };
 use crate::interval::certification::Certification;
-use crate::interval::{Interval, div_up, max_bound, norm_sup};
+use crate::interval::{Interval, div_up, max_bound, norm_sq, norm_sup};
 use crate::real::Bounds;
 
 // ---------------------------------------------------------------------
@@ -235,6 +240,7 @@ impl<'a> SurfaceCertData<'a> {
 pub struct SurfaceResidual {
     breaks: Vec<f64>,
     spans: Vec<f64>,
+    values: Vec<Interval>,
 }
 
 impl SurfaceResidual {
@@ -260,6 +266,15 @@ impl SurfaceResidual {
             .reduce(max_bound)
             .unwrap_or(f64::NAN)
     }
+
+    /// Certified enclosures of `|S(P(t)) − C(t)|` in meters AT the
+    /// breaks, one per entry of [`Self::breaks`]: the composite's end
+    /// coefficients there, which a Bernstein row interpolates, hulled
+    /// over the cells the span touches. Refused where the composition
+    /// is.
+    pub fn break_values(&self) -> &[Interval] {
+        &self.values
+    }
 }
 
 // ---------------------------------------------------------------------
@@ -282,18 +297,18 @@ struct TensorSpans {
 /// decomposition applied per v-column, then the v-direction one per
 /// (u-span, u-index) row — the tensor product of the two univariate
 /// insertions, `α` a ring quotient in **both** directions.
-fn tensor_channel(ku: &KnotVector, kv: &KnotVector, grid: &[Interval]) -> TensorSpans {
-    let nv = kv.control_count();
+fn tensor_channel(grid: &TensorCoeffs<'_>) -> TensorSpans {
+    let (ku, kv, net) = (grid.knots_u(), grid.knots_v(), grid.net());
     // Stage 1 (u): one decomposition per v-column; identical structure.
     let mut breaks_u = Vec::new();
     let mut deg_u = ku.degree();
     // stage1[su][a][jv]
     let mut stage1: Vec<Vec<Vec<Interval>>> = Vec::new();
-    for jv in 0..nv {
-        let col: Vec<Interval> = (0..ku.control_count())
-            .map(|iu| grid[iu * nv + jv])
-            .collect();
-        let bs = to_bezier_spans_extra(ku, &col, &[]);
+    for jv in 0..kv.control_count() {
+        let bs = ku.with_coeffs_from_fn(
+            |iu| net.get(iu, jv),
+            |pair| to_bezier_spans_extra(pair, &[]),
+        );
         if jv == 0 {
             breaks_u = bs.breaks.clone();
             deg_u = bs.degree;
@@ -317,7 +332,8 @@ fn tensor_channel(ku: &KnotVector, kv: &KnotVector, grid: &[Interval]) -> Tensor
     for span_rows in &stage1 {
         let mut cells: Vec<Vec<Interval>> = Vec::new();
         for (a, vrow) in span_rows.iter().enumerate() {
-            let bs = to_bezier_spans_extra(kv, vrow, &[]);
+            // `vrow` holds one entry per v-column: `kv`'s control count.
+            let bs = kv.with_coeffs_from_fn(|jv| vrow[jv], |pair| to_bezier_spans_extra(pair, &[]));
             if a == 0 {
                 breaks_v = bs.breaks.clone();
                 deg_v = bs.degree;
@@ -397,18 +413,37 @@ struct SpanRows<'a> {
     wc: &'a [Interval],
 }
 
-/// The residual bound of one `t`-span against one surface cell: the
+/// One `t`-span's residual against one surface cell: the bound over the
+/// span and the value at each of its ends.
+struct CellResidual {
+    /// [`coefficient_norm_bound`] of the composite; `NaN` wherever
+    /// interval arithmetic refuses (budget, a denominator that is not
+    /// one-signed).
+    bound: f64,
+    /// Enclosures of `|N/D|` at the span's start and end, read off the
+    /// end coefficients a Bernstein row interpolates.
+    ends: [Interval; 2],
+}
+
+/// The residual of one `t`-span against one surface cell: the
 /// module-docs composition, the difference formed at the coefficient
-/// level, then [`coefficient_norm_bound`]. `NaN` wherever interval
-/// arithmetic refuses (budget, a denominator that is not one-signed).
-fn cell_residual(surf: &[&TensorSpans; 4], su: usize, sv: usize, rows: &SpanRows<'_>) -> f64 {
+/// level, then its bound and its end values.
+fn cell_residual(
+    surf: &[&TensorSpans; 4],
+    su: usize,
+    sv: usize,
+    rows: &SpanRows<'_>,
+) -> CellResidual {
     let (mu, mv) = (surf[0].deg_u, surf[0].deg_v);
     // The one budget case the automatic NaN row cannot reach: a
     // degree-0 curve pair composes to degree-0 rows whose binomials
     // never overflow, while `C(m_u,i)·C(m_v,j)` still could. Refuse
     // explicitly rather than round silently.
     if mu + mv > super::BINOM_EXACT_MAX {
-        return f64::NAN;
+        return CellResidual {
+            bound: f64::NAN,
+            ends: [Interval::refused(); 2],
+        };
     }
     let (ua, ub) = (surf[0].breaks_u[su], surf[0].breaks_u[su + 1]);
     let (va, vb) = (surf[0].breaks_v[sv], surf[0].breaks_v[sv + 1]);
@@ -448,7 +483,14 @@ fn cell_residual(surf: &[&TensorSpans; 4], su: usize, sv: usize, rows: &SpanRows
             &bern_mul_row(rows.ac[d], &n[3]),
         )
     });
-    coefficient_norm_bound([&num[0], &num[1], &num[2]], &den)
+    let end = |k: usize| -> Interval {
+        let q: [Interval; 3] = core::array::from_fn(|d| num[d][k] / den[k]);
+        norm_sq(&q).sqrt()
+    };
+    CellResidual {
+        bound: coefficient_norm_bound([&num[0], &num[1], &num[2]], &den),
+        ends: [end(0), end(den.len() - 1)],
+    }
 }
 
 /// A certified upper bound on `|N(t)/D(t)|` over the span, for the
@@ -505,32 +547,43 @@ pub fn coefficient_norm_sup(num: [&[Interval]; 3]) -> f64 {
 // Cell selection (structure, f64) and the entry point
 // ---------------------------------------------------------------------
 
-/// The cell indices of the break list `breaks` whose closed interval
-/// meets the window `[lo, hi]`, clamped so an out-of-domain window is
-/// served by the boundary cell's polynomial extension (module docs,
-/// domain posture). Returns the inclusive index range.
+/// The cell indices of the break list `breaks` whose open interior
+/// meets `window`, or, where none does (a window that is one point on a
+/// break, or lies off the domain), whose closed interval meets it,
+/// clamped so an out-of-domain window is served by the boundary cell's
+/// polynomial extension (module docs, domain posture). Returns the
+/// inclusive index range. A [`ParamRange`] has no NaN or inverted
+/// spelling, so no window lands on a cell it does not name.
 ///
-/// Banked observation (PR 7b review NOTE 1, 2026-07-31): the overlap
-/// test is **closed**, so a window whose endpoint lands exactly on a
-/// knot pulls in the neighbor cell whose contribution is a
-/// single-point agreement (the two patch polynomials agree at the
-/// knot). A strict-interior test would be tighter and still sound —
-/// a future tightening, banked rather than slipped into a fix pass.
-fn cells_touched(breaks: &[f64], lo: f64, hi: f64) -> (usize, usize) {
+/// A cell the window meets only on its edge is left out, which is sound
+/// only for a quantity continuous across the breaks: there the value on
+/// the edge is the neighbour's own, and the neighbour is read. The
+/// surface is, its interior knot multiplicity being at most its degree
+/// ([`KnotVector::clamped`]).
+fn cells_touched(breaks: &[f64], window: ParamRange) -> (usize, usize) {
     let last = breaks.len() - 2;
-    let mut first_cell = last;
-    let mut last_cell = 0;
-    for cell in 0..=last {
-        if breaks[cell + 1] >= lo && breaks[cell] <= hi {
-            first_cell = first_cell.min(cell);
-            last_cell = last_cell.max(cell);
-        }
+    let (lo, hi) = (window.ends().0.get(), window.ends().1.get());
+    // The first cell whose upper break is above `lo` and the last whose
+    // lower break is below `hi`, or with `open` false, at or above and
+    // at or below.
+    let meets = |open: bool| {
+        let first = breaks[1..=last + 1].partition_point(|&b| b < lo || (open && b == lo));
+        let end = breaks[..=last]
+            .partition_point(|&b| b < hi || (!open && b == hi))
+            .checked_sub(1);
+        (first, end)
+    };
+    if let (first, Some(end)) = meets(true)
+        && first <= end
+    {
+        return (first, end);
     }
-    if first_cell > last_cell {
-        // The window misses the domain entirely: the nearest edge cell.
-        if hi < breaks[0] { (0, 0) } else { (last, last) }
-    } else {
-        (first_cell, last_cell)
+    match meets(false) {
+        // The window misses the domain below: the first cell.
+        (_, None) => (0, 0),
+        // Or above: the last cell.
+        (first, Some(_)) if first > last => (last, last),
+        (first, Some(end)) => (first, end),
     }
 }
 
@@ -614,16 +667,16 @@ pub fn surface_curve_residual(
     // carried; spatial channels center-shifted at the lift.
     let homog = |data: &CurveCertData<'_>, d: usize, shift: f64| -> BernsteinSpans {
         let s = Interval::point(shift);
-        let coeffs: Vec<Interval> = data.coords[d]
-            .iter()
-            .zip(data.weights.iter())
-            .map(|(x, w)| Interval::point(*w) * (*x - s))
-            .collect();
-        to_bezier_spans_extra(data.kv, &coeffs, &merged)
+        data.kv.with_coeffs_from_fn(
+            |i| Interval::point(data.weights[i]) * (data.coords[d][i] - s),
+            |pair| to_bezier_spans_extra(pair, &merged),
+        )
     };
     let weight = |data: &CurveCertData<'_>| -> BernsteinSpans {
-        let coeffs: Vec<Interval> = data.weights.iter().map(|w| Interval::point(*w)).collect();
-        to_bezier_spans_extra(data.kv, &coeffs, &merged)
+        data.kv.with_coeffs_from_fn(
+            |i| Interval::point(data.weights[i]),
+            |pair| to_bezier_spans_extra(pair, &merged),
+        )
     };
     let (pu, pv, pw) = (homog(pcurve, 0, 0.0), homog(pcurve, 1, 0.0), weight(pcurve));
     let (ax, ay, az, cw) = (
@@ -635,27 +688,29 @@ pub fn surface_curve_residual(
 
     // The surface's four homogeneous channels, tensor-decomposed —
     // spatial channels shifted by the SAME center.
-    let lift = |f: &dyn Fn(usize) -> Interval| -> Vec<Interval> {
-        (0..surface.weights.len()).map(f).collect()
+    let nv = surface.kv.control_count();
+    let lift = |f: &dyn Fn(usize) -> Interval| -> TensorSpans {
+        tensor_channel(&TensorCoeffs::from_fn(surface.ku, surface.kv, |i, j| {
+            f(i * nv + j)
+        }))
     };
     let schan: Vec<TensorSpans> = (0..3)
         .map(|d| {
             let c = Interval::point(center[d]);
-            let grid = lift(&|i| Interval::point(surface.weights[i]) * (surface.coords[d][i] - c));
-            tensor_channel(surface.ku, surface.kv, &grid)
+            lift(&|i| Interval::point(surface.weights[i]) * (surface.coords[d][i] - c))
         })
         .collect();
-    let swt = tensor_channel(
-        surface.ku,
-        surface.kv,
-        &lift(&|i| Interval::point(surface.weights[i])),
-    );
+    let swt = lift(&|i| Interval::point(surface.weights[i]));
     let surf: [&TensorSpans; 4] = [&schan[0], &schan[1], &schan[2], &swt];
 
     // Per shared t-span: the parameter window, the cells it touches,
     // and the largest bound across cells (ascending, D9).
     let breaks = pu.breaks.clone();
     let mut spans: Vec<f64> = Vec::with_capacity(breaks.len() - 1);
+    // Each span's end values, hulled over the cells it touches: the cell
+    // serving the curve at an end is one of them, and the others' values
+    // only widen the hull.
+    let mut ends: Vec<[Interval; 2]> = Vec::with_capacity(breaks.len() - 1);
     for s in 0..breaks.len() - 1 {
         let rows = SpanRows {
             u: &pu.spans[s],
@@ -665,30 +720,112 @@ pub fn surface_curve_residual(
             wc: &cw.spans[s],
         };
         let wden = row_hull(rows.wp);
-        let wu = row_hull(rows.u) / wden;
-        let wv = row_hull(rows.v) / wden;
-        if !wu.is_certified() || !wv.is_certified() {
+        let (Some(wu), Some(wv)) = (
+            ParamRange::certified(row_hull(rows.u) / wden),
+            ParamRange::certified(row_hull(rows.v) / wden),
+        ) else {
             spans.push(f64::NAN);
+            ends.push([Interval::refused(); 2]);
             continue;
-        }
+        };
         // Located in the SAME break arrays `cell_residual` indexes
         // below (`surf[0]`), not in a sibling channel's: all four
-        // channels are `tensor_channel(surface.ku, surface.kv, ..)` and
+        // channels are `tensor_channel` over `surface.ku × surface.kv` and
         // so carry identical breaks, but that is a construction fact
         // and nothing enforces it, so the index and the array it
         // indexes are one object here. `cells_touched` answers within
         // `0..=breaks.len() − 2`, which is what makes `breaks_u[su + 1]`
         // below an in-range read without a `.get`.
-        let (u0, u1) = cells_touched(&surf[0].breaks_u, wu.lo(), wu.hi());
-        let (v0, v1) = cells_touched(&surf[0].breaks_v, wv.lo(), wv.hi());
+        let (u0, u1) = cells_touched(&surf[0].breaks_u, wu);
+        let (v0, v1) = cells_touched(&surf[0].breaks_v, wv);
         // `cells_touched` always returns at least one cell.
         let cells = (u0..=u1).flat_map(|su| (v0..=v1).map(move |sv| (su, sv)));
-        spans.push(
-            cells
-                .map(|(su, sv)| cell_residual(&surf, su, sv, &rows))
-                .reduce(max_bound)
-                .unwrap_or(f64::NAN),
-        );
+        let mut bound = f64::NAN;
+        let mut at = [Interval::refused(); 2];
+        for (n, (su, sv)) in cells.enumerate() {
+            let cell = cell_residual(&surf, su, sv, &rows);
+            if n == 0 {
+                (bound, at) = (cell.bound, cell.ends);
+            } else {
+                bound = max_bound(bound, cell.bound);
+                at = core::array::from_fn(|e| Interval::hull(at[e], cell.ends[e]));
+            }
+        }
+        spans.push(bound);
+        ends.push(at);
     }
-    Ok(SurfaceResidual { breaks, spans })
+    // A break's value is read off the span it starts, the last break's
+    // off the last span's end.
+    let mut values: Vec<Interval> = ends.iter().map(|e| e[0]).collect();
+    values.push(ends.last().map_or(Interval::refused(), |e| e[1]));
+    Ok(SurfaceResidual {
+        breaks,
+        spans,
+        values,
+    })
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod tests {
+    use super::*;
+
+    /// The cell locator against a cell-by-cell scan of the same rule,
+    /// over windows inside, on, straddling and outside the breaks.
+    #[test]
+    fn cells_touched_is_the_open_overlap_else_the_closed_one_clamped() {
+        fn scan(breaks: &[f64], lo: f64, hi: f64) -> (usize, usize) {
+            let last = breaks.len() - 2;
+            let meets = |open: bool| {
+                let (mut first, mut end) = (last, 0);
+                for cell in 0..=last {
+                    let met = if open {
+                        breaks[cell + 1] > lo && breaks[cell] < hi
+                    } else {
+                        breaks[cell + 1] >= lo && breaks[cell] <= hi
+                    };
+                    if met {
+                        first = first.min(cell);
+                        end = end.max(cell);
+                    }
+                }
+                (first, end)
+            };
+            let (first, end) = meets(true);
+            if first <= end {
+                return (first, end);
+            }
+            let (first, end) = meets(false);
+            if first > end {
+                if hi < breaks[0] { (0, 0) } else { (last, last) }
+            } else {
+                (first, end)
+            }
+        }
+        let breaks = [0.0, 1.0, 2.0, 3.0];
+        let probes = [
+            f64::NEG_INFINITY,
+            -1.0,
+            0.0,
+            0.5,
+            1.0,
+            1.5,
+            2.0,
+            3.0,
+            4.0,
+            f64::INFINITY,
+        ];
+        for lo in probes {
+            for hi in probes {
+                let Some(w) = ParamRange::new(lo, hi) else {
+                    continue;
+                };
+                assert_eq!(
+                    cells_touched(&breaks, w),
+                    scan(&breaks, lo, hi),
+                    "[{lo}, {hi}]"
+                );
+            }
+        }
+    }
 }

@@ -874,15 +874,14 @@ fn survives_start_point_witness_on_full_rim_is_refused() {
     let rim = t.rims[0][0].unwrap();
     let e = t.body.get_edge(rim).unwrap();
     let c = t.body.get_curve_geom(e.curve).unwrap().certified().unwrap();
-    let EdgeDescription::Intersection { s1, s2, .. } = *c.description() else {
+    let EdgeDescription::Intersection { pair, .. } = *c.description() else {
         panic!("intersection rim");
     };
     let (carrier, (t0, t1)) = (c.carrier().clone(), c.params());
     let start = carrier.eval(t0);
     let forged = geom_brep::EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
-            s1,
-            s2,
+            pair,
             witness: start,
         },
         carrier,
@@ -1047,9 +1046,24 @@ fn survives_two_isolated_axis_vertices_pinch_is_non_manifold() {
         matches!(e, RevolveError::NonManifoldAxisContact { .. }),
         "{e:?}"
     );
-    // Partially it revolves fine (ordinary shared cap vertices).
+    // Partially it revolves fine: each axis vertex is one vertex both
+    // caps share, so the on-axis Zero fuses and leaves no two cells on
+    // one point for the census to need a record for.
     let t = revolve(&vp, axis_y(), Revolution::Partial(1.0), Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
+    for y in [0.0, 2.0] {
+        let on_axis = t
+            .body
+            .vertex_points()
+            .filter(|(_, p)| p.x.abs() + (p.y - y).abs() + p.z.abs() < 1e-12)
+            .count();
+        assert_eq!(on_axis, 1, "one vertex at the axis point y = {y}");
+    }
+    assert_eq!(
+        topo::validate_pseudomanifold(&t.body, &topo::ContactRecords::default(), Tol::witness()),
+        Ok(()),
+        "tier 3′ with no records"
+    );
 }
 
 #[test]
@@ -1108,13 +1122,15 @@ fn survives_near_full_period_rim_span_escalates() {
     let radius = 1.0;
     let span = TAU - 3.0 * eps() / radius;
     let spec = geom_brep::EdgeCurveSpec {
-        description: EdgeDescriptionSpec::Scaffold(geom_brep::MappedCurve::RevolvedPoint {
-            point: Point2::new(1.0, 0.0),
-            place: geom_core::Affine3::identity(),
-            axis_origin: center,
-            axis_dir: Vec3::new(0.0, 1.0, 0.0),
-            angle: span,
-        }),
+        description: EdgeDescriptionSpec::Scaffold(geom_brep::MappedCurve::whole(
+            geom_brep::MappedSource::RevolvedPoint {
+                point: Point2::new(1.0, 0.0),
+                place: geom_core::Affine3::identity(),
+                axis_origin: center,
+                axis_dir: Vec3::new(0.0, 1.0, 0.0),
+                angle: span,
+            },
+        )),
         carrier: Curve3::Circle {
             center,
             axis: Vec3::new(0.0, 1.0, 0.0),
@@ -1510,7 +1526,7 @@ fn survives_wire_quarter_arc_sphere_cap_with_tangent_join() {
     // join at (1,1) is TANGENT (smooth, distinct keys): the D2
     // conventional split must survive in BOTH bands, and tier 3 must
     // accept it while the transverse base join upgrades.
-    let mut lp = bulge_loop(vec![
+    let lp = bulge_loop(vec![
         (Point2::new(0.0, 0.0), 0.0),
         (Point2::new(1.0, 0.0), 0.0),
         // quarter arc to (0, 2), center (0,1)
@@ -1520,7 +1536,6 @@ fn survives_wire_quarter_arc_sphere_cap_with_tangent_join() {
     // The cylinder-sphere tangency this test is ABOUT is declared
     // (#101): the discipline gates the profile door; the D2 split and
     // tier-3 acceptance downstream are what the test pins.
-    lp = lp.with_tangent_joints(vec![2]);
     let vp = validated(vec![lp]);
     let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
     assert_all_tiers(&t.body);

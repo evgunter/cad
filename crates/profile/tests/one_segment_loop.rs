@@ -14,8 +14,8 @@ use core::f64::consts::{PI, TAU};
 
 use geom_core::{Arc2, Bounds, Interval, Point2, Real, Sign, Tol};
 use profile::{
-    ArcCheck, LoopRole, Profile, ProfileError, ProfileLoop, RawLoop, Segment, SegmentKind,
-    SegmentRef, SketchPlane,
+    ArcCheck, ConstructedLoop, ConstructedProfile, LoopRole, Profile, ProfileError, ProfileLoop,
+    RawLoop, Segment, SegmentKind, SegmentRef, SketchPlane,
 };
 
 /// A one-segment circle about `(cx, cy)` of radius `r`, its vertex at
@@ -314,28 +314,39 @@ fn a_crossing_at_or_near_a_full_turns_vertex_is_a_crossing() {
     }
 }
 
-/// **A one-segment loop has no joint to declare.** Its vertex joins the
-/// carrier to itself, so declaring it tangent is refused, typed, before
-/// anything reads the declaration; an index past it is out of range as
-/// on any loop.
+/// **A one-segment loop has no joint to construct.** Its vertex joins
+/// the carrier to itself, so a construction naming it tangent is
+/// refused, typed, before anything reads it; an index past it is out of
+/// range as on any loop. The lattice never builds either, so the rows
+/// are the fixture door's.
+///
+/// Red if either check is dropped (the full turn would validate with a
+/// joint it does not have).
 #[test]
-fn a_declared_joint_on_a_full_turn_is_refused() {
-    let declared = |joints: Vec<usize>| circle(0.0, 0.0, 1.0, TAU).with_tangent_joints(joints);
+fn a_constructed_joint_on_a_full_turn_is_refused() {
+    let built = |joints: Vec<usize>| ConstructedLoop::fixture(circle(0.0, 0.0, 1.0, TAU), joints);
+    let validate_built = |loops: Vec<ConstructedLoop<f64>>| {
+        ConstructedProfile::new(SketchPlane::xy(), loops).validate(Tol::witness())
+    };
     assert_eq!(
-        validate(vec![declared(vec![0])]).err(),
+        validate_built(vec![built(vec![0])]).err(),
         Some(ProfileError::TangentJointOnFullTurn { loop_index: 0 }),
     );
     assert_eq!(
-        validate(vec![square(2.0), declared(vec![0])]).err(),
+        validate_built(vec![
+            ConstructedLoop::fixture(square(2.0), Vec::new()),
+            built(vec![0])
+        ])
+        .err(),
         Some(ProfileError::TangentJointOnFullTurn { loop_index: 1 }),
     );
     assert_eq!(
-        validate(vec![declared(vec![1])]).err(),
+        validate_built(vec![built(vec![1])]).err(),
         Some(ProfileError::TangentJointOutOfRange {
             loop_index: 0,
             joint: 1,
             count: 1,
         }),
     );
-    assert!(validate(vec![declared(Vec::new())]).is_ok());
+    assert!(validate_built(vec![built(Vec::new())]).is_ok());
 }

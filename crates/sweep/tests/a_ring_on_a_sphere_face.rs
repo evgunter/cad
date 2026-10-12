@@ -13,8 +13,8 @@
 //! integral of the ball and box: each slice is a disc against a rectangle, exact, and
 //! only the stack over height is quadrature. A result whose ball face
 //! keeps the ring as a hole (the ball's side of ∪ and of ball ∖ box)
-//! refuses at the result gate, `VolumeUncomputable { RingOnCurvedFace }`
-//! (`work/flux/sphere-face-with-a-hole-has-no-closed-form.md`).
+//! is measured like the rest: the sphere arm reads every loop of a face
+//! by Gauss–Bonnet (`work/flux/sphere-face-with-a-hole-has-no-closed-form.md`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -22,11 +22,11 @@ use core::f64::consts::FRAC_PI_2;
 
 use geom_core::{Affine3, Point3, Tol, Vec3};
 use sweep::test_support::{ball_poled, ball_poled_y, ball_poled_z, brick, finished};
-use topo::{AtRestBody, BooleanDeclarations, BooleanError, BooleanResult};
+use topo::{AtRestBody, BooleanError, BooleanResult};
 
 use crate::common::oracles::{ball_volume, lens_volume};
 
-use Want::{Body, Gate, Lumps};
+use Want::{Body, Lumps};
 
 /// A box `[x0, x1] × [y0, y1] × [z0, z1]`.
 type Bounds = [(f64, f64); 3];
@@ -83,10 +83,8 @@ enum Want {
     /// Two lumps at tier 3 and at their volume, whose tier 3′ the census
     /// cannot decide: curved faces of the two lumps are within reach of
     /// each other
-    /// (`work/contact/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`).
+    /// (`work/restread/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`).
     Lumps,
-    /// The result gate's refusal of the ball face the ring holes.
-    Gate,
 }
 
 /// `a ∪ b`, `b ∪ a`, `a ∖ b`, `b ∖ a`, `a ∩ b`, `b ∩ a` against `wants`,
@@ -99,22 +97,14 @@ fn assert_six(
     (va, vb, shared): (f64, f64, f64),
     wants: [Want; 6],
 ) {
-    let (tol, none) = (Tol::witness(), BooleanDeclarations::none());
+    let tol = Tol::witness();
     let ops = [
-        (
-            "a ∪ b",
-            va + vb - shared,
-            topo::union_with(a, b, &none, tol),
-        ),
-        (
-            "b ∪ a",
-            va + vb - shared,
-            topo::union_with(b, a, &none, tol),
-        ),
-        ("a ∖ b", va - shared, topo::subtract_with(a, b, &none, tol)),
-        ("b ∖ a", vb - shared, topo::subtract_with(b, a, &none, tol)),
-        ("a ∩ b", shared, topo::intersect_with(a, b, &none, tol)),
-        ("b ∩ a", shared, topo::intersect_with(b, a, &none, tol)),
+        ("a ∪ b", va + vb - shared, topo::union(a, b, tol)),
+        ("b ∪ a", va + vb - shared, topo::union(b, a, tol)),
+        ("a ∖ b", va - shared, topo::subtract(a, b, tol)),
+        ("b ∖ a", vb - shared, topo::subtract(b, a, tol)),
+        ("a ∩ b", shared, topo::intersect(a, b, tol)),
+        ("b ∩ a", shared, topo::intersect(b, a, tol)),
     ];
     for ((op, volume, out), want) in ops.into_iter().zip(wants) {
         let label = format!("{pose}, {op}");
@@ -140,14 +130,6 @@ fn assert_six(
                     "{label}: volume {v} against the slice integral {volume}"
                 );
             }
-            (Err(BooleanError::ResultInvalid { errors }), Gate)
-                if matches!(
-                    errors.as_slice(),
-                    [topo::ValidationError::VolumeUncomputable {
-                        source: topo::MassPropsError::RingOnCurvedFace { .. },
-                        ..
-                    }]
-                ) => {}
             (out, want) => panic!(
                 "{label}: wanted {want:?}, got {:?}",
                 out.map(|r| r.body().map(|b| b.body.faces().count()))
@@ -157,9 +139,9 @@ fn assert_six(
 }
 
 /// A box against a ball whose face keeps the section as a hole on the
-/// ball's side of ∪ and of ball ∖ box: those two refuse at the result
-/// gate in both member orders, and the box's ∖ and ∩ build.
-const BOX_RING: [Want; 6] = [Gate, Gate, Body, Gate, Body, Body];
+/// ball's side of ∪ and of ball ∖ box: every op builds, the ringed ball
+/// face measured with its hole.
+const BOX_RING: [Want; 6] = [Body; 6];
 
 /// The operand and shared volumes of the box `bounds` against the ball
 /// `(r, c)`.
@@ -245,7 +227,7 @@ fn a_ring_on_the_section_circle_winds_by_its_arc() {
         &big,
         &small,
         (ball_volume(1.0), ball_volume(0.6), lens_volume(1.0, 0.6, d)),
-        [Gate, Gate, Gate, Body, Body, Body],
+        [Body, Body, Body, Body, Body, Body],
     );
 }
 
@@ -327,14 +309,13 @@ fn a_ring_inside_a_sphere_island_moves_and_stops_at_the_role_read() {
         .body
         .clone();
     let ball = ball_y(0.5, Vec3::new(0.3, 2.0, 1.2));
-    let none = BooleanDeclarations::none();
     for (op, out) in [
-        ("a ∪ b", topo::union_with(&slab, &ball, &none, tol)),
-        ("b ∪ a", topo::union_with(&ball, &slab, &none, tol)),
-        ("a ∖ b", topo::subtract_with(&slab, &ball, &none, tol)),
-        ("b ∖ a", topo::subtract_with(&ball, &slab, &none, tol)),
-        ("a ∩ b", topo::intersect_with(&slab, &ball, &none, tol)),
-        ("b ∩ a", topo::intersect_with(&ball, &slab, &none, tol)),
+        ("a ∪ b", topo::union(&slab, &ball, tol)),
+        ("b ∪ a", topo::union(&ball, &slab, tol)),
+        ("a ∖ b", topo::subtract(&slab, &ball, tol)),
+        ("b ∖ a", topo::subtract(&ball, &slab, tol)),
+        ("a ∩ b", topo::intersect(&slab, &ball, tol)),
+        ("b ∩ a", topo::intersect(&ball, &slab, tol)),
     ] {
         assert!(
             matches!(
@@ -401,7 +382,7 @@ fn an_island_holding_the_far_caps_pole_winds() {
                     &tool,
                     &unit_ball(Vec3::new(0.0, 1.0, 0.0), spin, tilt),
                     (vt, ball_volume(1.0), shared),
-                    [Body, Body, Gate, Body, Gate, Gate],
+                    [Body, Body, Body, Body, Body, Body],
                 );
             }
         }
@@ -428,7 +409,7 @@ fn a_bar_through_a_ball_winds_both_rings() {
                 &boxed(b),
                 &ball,
                 box_ball(b, 1.0, o),
-                [Gate, Gate, Lumps, Gate, Body, Body],
+                [Body, Body, Lumps, Body, Body, Body],
             );
         }
     }
@@ -454,7 +435,7 @@ fn a_ring_beside_an_outer_loop_on_the_run_is_read_from_an_edge_midpoint() {
             &boxed(b),
             &ball,
             box_ball(b, 1.0, o),
-            [Gate, Gate, Lumps, Gate, Body, Body],
+            [Body, Body, Lumps, Body, Body, Body],
         );
     }
     let b: Bounds = [
@@ -469,7 +450,7 @@ fn a_ring_beside_an_outer_loop_on_the_run_is_read_from_an_edge_midpoint() {
         &boxed(b),
         &ball,
         box_ball(b, 1.0, o),
-        [Gate, Gate, Lumps, Gate, Body, Body],
+        [Body, Body, Lumps, Body, Body, Body],
     );
 }
 
@@ -478,9 +459,9 @@ fn a_ring_beside_an_outer_loop_on_the_run_is_read_from_an_edge_midpoint() {
 /// turned off every axis (a review's random pair 82): the first
 /// outer-loop point's great circle crosses a run arc's plane in the
 /// escalation band, and the reading moves on to the next point rather
-/// than refusing the op. The small ball's ∖ and both ∩ build at the
-/// lens; the ops whose big ball keeps the ring as a hole refuse at the
-/// result gate. Above ε 1e-9 every op escalates first, certifying a
+/// than refusing the op. Every op builds, the ops whose big ball keeps
+/// the ring as a hole with that face measured over both its loops.
+/// Above ε 1e-9 every op escalates first, certifying a
 /// pcurve on the sphere's chart, as on main.
 #[test]
 fn a_path_escalating_at_a_graze_hands_the_winding_to_the_next() {
@@ -512,14 +493,13 @@ fn a_path_escalating_at_a_graze_hands_the_winding_to_the_next() {
         // widths here, and every op escalates certifying a pcurve on the
         // sphere's chart (in the merge, or the pcurve pass) before any
         // ring is read — on main too.
-        let none = BooleanDeclarations::none();
         for (op, got) in [
-            ("a ∪ b", topo::union_with(&a, &b, &none, tol)),
-            ("b ∪ a", topo::union_with(&b, &a, &none, tol)),
-            ("a ∖ b", topo::subtract_with(&a, &b, &none, tol)),
-            ("b ∖ a", topo::subtract_with(&b, &a, &none, tol)),
-            ("a ∩ b", topo::intersect_with(&a, &b, &none, tol)),
-            ("b ∩ a", topo::intersect_with(&b, &a, &none, tol)),
+            ("a ∪ b", topo::union(&a, &b, tol)),
+            ("b ∪ a", topo::union(&b, &a, tol)),
+            ("a ∖ b", topo::subtract(&a, &b, tol)),
+            ("b ∖ a", topo::subtract(&b, &a, tol)),
+            ("a ∩ b", topo::intersect(&a, &b, tol)),
+            ("b ∩ a", topo::intersect(&b, &a, tol)),
         ] {
             let err = got.err().map(|e| format!("{e:?}"));
             assert!(
@@ -541,6 +521,6 @@ fn a_path_escalating_at_a_graze_hands_the_winding_to_the_next() {
             ball_volume(r2),
             lens_volume(r1, r2, c2.norm()),
         ),
-        [Gate, Gate, Gate, Body, Body, Body],
+        [Body, Body, Body, Body, Body, Body],
     );
 }

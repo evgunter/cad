@@ -139,3 +139,43 @@ refused by tier 3 today — for a reason of tier 3's own, never for this
 one". If this unit gives tier 3 the reason, that sentence is this unit's
 to correct, and `crates/mesh/tests/loops_with_no_rim.rs` carries the
 tier-3 assertions that would move.
+
+## Evidence from the sphere arm (FLUX `flux/sphere-arm`, 2026-10-10)
+
+- **The ruling is ratified.** Ev answered `[ev]` PR 4549 ("this
+  works"): *a chart singularity inside a face is a vertex of it* now
+  bears a refusal, and `crates/geom-brep/README.md` C12 (7) states it.
+- **Its scope is wider than rim-only loops.** Props' sphere arm now
+  reads every sphere face by Gauss–Bonnet, and `sphere_loop_side`
+  reads a one-loop face as the side of its loop holding no chart pole.
+  Where a pole lies off the loop on EACH side, the face holds a pole
+  under either sense, so the reader answers `Unencoded` and the face
+  measures under its bit. That covers the rim-only cap, a tilted cap
+  around a pole, and a fillet corner patch whose chart puts a pole
+  inside it. This row's rule must refuse any sphere face with an
+  interior pole, not only a meridian-free one.
+- **A kernel-minted witness.** `crates/sweep/tests/m5_pr12_fix_pass.rs`,
+  `f4_an_oblique_trihedron_builds_and_passes_tier_3`: the fillet's
+  corner sphere face has chart axis `(0, −0.958, −0.286)` and its south
+  pole inside the corner triangle (barycentric weights 0.09, 1.04,
+  0.31). That row is green today and goes red in this row's PR, unless
+  the blend's chart choice is fixed first
+  (`work/band/a-blend-corner-patch-holds-a-chart-pole.md`).
+
+The sphere's rim-only arm (`sphere_rim_only_pole_level`,
+`rim_interior_side`) is gone from props with the iso flux branch, so
+the retirement this row describes has happened on the props side.
+
+## Rows that move when this lands (FLUX, PR 4746)
+
+`crates/step-import/tests/fixtures/seam-region/side_cut_equator_split.step`
+is a side-cut ball whose sphere is split at the equator, so each face
+holds a chart pole off its loop. `poles_inside_a_seam_region.rs` pins two
+things about it: it imports and measures, and with both sphere faces
+flipped check 6 reads no side for their seam region, leaving the flip to
+check 7. Check 6 reads a pole that lies inside a face as nothing, because
+this row is open. `side_cut_meridian_split.step` holds a pole inside a
+face too. When validity refuses such a face, all three rows in that file
+go red at import, and so does `tier_gate`'s corpus row. Re-point them
+then: `sphere_region_material_sign` may read a pole on no member's loop
+as outside the region once this rule is enforced.

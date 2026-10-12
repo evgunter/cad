@@ -56,7 +56,7 @@
 //! # Staleness is by picture, and it is a discard
 //!
 //! The key is [`PictureKey`] — the session's evaluation generation and
-//! the δ the roots were tessellated at, as one value because it is one
+//! the δ the copies were tessellated at, as one value because it is one
 //! question. A [`PickIndex`] built for one picture is never repaired
 //! against another: [`PickIndex::current_for`] answers whether the
 //! index still describes the picture on screen, and a stale one is
@@ -333,13 +333,13 @@ pub enum IdMapError {
 /// Why a pick index could not be built (closed enum, D4 ¶3).
 #[derive(Clone, Debug, PartialEq)]
 pub enum PickIndexError {
-    /// A root could not be built into a part: it has no value, its
-    /// value is not a body or lacks the body asked for, or its body
-    /// could not be tessellated or indexed. The node rides along
-    /// because the payload names the body and not the root that owns
-    /// it.
+    /// A world placement could not be built into a part: it has no
+    /// value, its value is not a body or lacks the body asked for, or
+    /// its body could not be tessellated or indexed. The node rides
+    /// along because the payload names the body and not the placement
+    /// that owns it.
     Node {
-        /// The root that refused.
+        /// The placement that refused.
         node: RecipeNodeId,
         /// The service's own refusal, unaltered.
         error: NodePickError,
@@ -450,10 +450,10 @@ impl PickIndexError {
 impl Say for PickIndexError {
     /// The arms that carry somebody else's refusal forward to its own
     /// `Display`: the layer that raised a failure names it, and this
-    /// one does not restate it. The root the [`PickIndexError::Node`]
-    /// arm reports is this layer's own contribution — the payload
-    /// names the body, not the root that owns it, and claims only that
-    /// the root was not indexed: why — no value, no body, or a
+    /// one does not restate it. The placement the
+    /// [`PickIndexError::Node`] arm reports is this layer's own
+    /// contribution — the payload names the body, not the placement
+    /// that owns it, and claims only that the placement was not indexed: why — no value, no body, or a
     /// tessellation or indexing refusal — is the payload's to say. The
     /// layout arm is this layer's own finding and says so itself.
     fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
@@ -461,7 +461,7 @@ impl Say for PickIndexError {
             Self::Node { node, error } => write!(
                 f,
                 "{} could not be indexed: {}",
-                by.node_as(*node, "root"),
+                by.node_as(*node, "placement"),
                 Said(error, by.about(*node))
             ),
             Self::Ids(error) => error.say(f, by),
@@ -637,10 +637,8 @@ struct PartWindows<K: DrawnKind> {
     /// entity's problem and not the index's.
     names: Vec<Result<StableName, UnnamedEntity>>,
     /// The inverse of [`Self::names`], across every part. A name can
-    /// be drawn under several (node, body) pairs — two `Transform`
-    /// roots over one extrude carry the extrude's names on both drawn
-    /// copies — which is why the value is a list and why
-    /// [`Self::of_target`] narrows it.
+    /// be drawn under several (node, body) pairs, which is why the
+    /// value is a list and why [`Self::of_target`] narrows it.
     by_name: BTreeMap<StableName, Vec<K::Id>>,
 }
 
@@ -767,7 +765,7 @@ impl<K: DrawnKind> PartWindows<K> {
     /// Every entity one NODE draws, across all its output bodies.
     ///
     /// A node's windows are consecutive — the parts are laid out in
-    /// root-then-payload order — but this collects rather than
+    /// placement-then-payload order — but this collects rather than
     /// slicing, because "consecutive across bodies" is a property of
     /// the build walk rather than a documented postcondition of the
     /// layout, and a highlight is not worth resting on it.
@@ -869,7 +867,7 @@ impl PartWindows<Patches> {
 }
 
 /// **What a picture IS**: the landed generation an index describes and
-/// the δ its roots were tessellated at.
+/// the δ its copies were tessellated at.
 ///
 /// **One value because it is one question.** *Is this the same
 /// picture?* is asked at every step of an index's life — by the cache
@@ -928,7 +926,7 @@ impl PictureKey {
         self.generation
     }
 
-    /// The tessellation half — what the roots were built at.
+    /// The tessellation half — what the copies were built at.
     #[must_use]
     pub fn delta(self) -> DisplayTolerance {
         self.delta
@@ -937,8 +935,8 @@ impl PictureKey {
 
 /// The pick index for one evaluation generation.
 ///
-/// Built from the document's roots, one [`NodePick`] per output body,
-/// in root order then payload order — the order the ids and the drawn
+/// Built from the document's world placements, one [`NodePick`] per
+/// copy, in placement order then payload order — the order the ids and the drawn
 /// parts both follow, so a reader of either can predict the other.
 #[derive(Debug)]
 pub struct PickIndex {
@@ -959,11 +957,10 @@ pub struct PickIndex {
 }
 
 impl PickIndex {
-    /// Build the index for `generation` from the document's roots.
+    /// Build the index for `generation` from the document's world
+    /// placements, one drawn part per copy (A10).
     ///
-    /// Roots that denote no body at all (datums, profiles, mates) are
-    /// skipped: they draw nothing and there is nothing to pick on
-    /// them. Every other refusal is returned — a root that failed or
+    /// Every refusal is returned — a placement that failed or
     /// would not tessellate is a picture the viewport cannot draw
     /// either, and swallowing it here would leave a viewport that
     /// silently picks nothing over part of the model.
@@ -982,15 +979,16 @@ impl PickIndex {
         })
     }
 
-    /// [`PickIndex::build`] over `memo`: a root whose node the
+    /// [`PickIndex::build`] over `memo`: a placement whose node the
     /// evaluation reused keeps its previous picture's `NodePick`, and a
-    /// root that was recomputed is tessellated through the per-face
+    /// placement that was recomputed is tessellated through the per-face
     /// patch memo — the same index, byte for byte, built from what did
     /// not change ([`PickMemo`]).
     ///
     /// The picture is closed on the memo whether or not it was built:
-    /// a refused index (a root that failed or would not tessellate)
-    /// evicts what it did not reach, and the roots after the refusal
+    /// a refused index (a placement that failed or would not
+    /// tessellate) evicts what it did not reach, and the placements
+    /// after the refusal
     /// are rebuilt once the document is fixed. That keeps the memo one
     /// picture's size through any sequence of answers — the node
     /// map, the patch memo and the per-patch pick-table map alike.
@@ -1012,7 +1010,7 @@ impl PickIndex {
         index
     }
 
-    /// The walk both doors share: every root's bodies through `parts`,
+    /// The walk both doors share: every placement's copy through `parts`,
     /// then the id windows over them.
     fn assemble(
         doc: &Doc<ProfileProgram>,
@@ -1021,10 +1019,9 @@ impl PickIndex {
         mut build_parts: impl FnMut(RecipeNodeId) -> Result<Vec<NodePick>, NodePickError>,
     ) -> Result<Self, PickIndexError> {
         let mut parts: Vec<NodePick> = Vec::new();
-        for &node in doc.roots() {
+        for node in doc.placements() {
             match build_parts(node) {
                 Ok(built) => parts.extend(built),
-                Err(NodePickError::NotABody { .. }) => {}
                 Err(error) => return Err(PickIndexError::Node { node, error }),
             }
         }
@@ -1106,7 +1103,7 @@ impl PickIndex {
 
     /// Every id drawn for one (node, body), ascending.
     ///
-    /// The index lays its parts out in root-then-payload order and
+    /// The index lays its parts out in placement-then-payload order and
     /// assigns ids in that same walk, so one body's ids are a
     /// contiguous run and this is a slice rather than a search.
     pub fn ids_in(&self, node: RecipeNodeId, body: u32) -> &[u32] {
@@ -1116,7 +1113,7 @@ impl PickIndex {
     /// Every id drawn for one NODE, across all its output bodies.
     ///
     /// The windows of a node's bodies are consecutive — the index lays
-    /// its parts out in root-then-payload order — but this collects
+    /// its parts out in placement-then-payload order — but this collects
     /// rather than slicing, because "consecutive across bodies" is a
     /// property of the build loop rather than a documented postcondition
     /// of the layout, and a highlight is not worth resting on it.
@@ -1193,13 +1190,13 @@ impl PickIndex {
             // index already holds, is a third chance to disagree with
             // it about where a part's run starts.
             let ids = self.patches.in_target(part.node(), part.body());
-            if display.hidden_roots.contains(&part.node()) {
+            if display.hidden_placements.contains(&part.node()) {
                 continue;
             }
             parts.push(ScenePart {
                 mesh: part.mesh(),
                 ids,
-                probe: display.moved_roots.get(&part.node()).copied(),
+                probe: display.moved_placements.get(&part.node()).copied(),
             });
         }
         if parts.is_empty() {
@@ -1298,7 +1295,7 @@ impl PickIndex {
         ray: &Ray,
         display: &DisplayView,
     ) -> Result<Option<PickHit>, HitTestError> {
-        let visible = |part: &&NodePick| !display.hidden_roots.contains(&part.node());
+        let visible = |part: &&NodePick| !display.hidden_placements.contains(&part.node());
         // The unmoved parts, one batch per space: the kernel orders
         // faces within one space only (A9, A11 (2)), and each space is
         // drawn where the display puts it — today an unplaced group's
@@ -1309,7 +1306,7 @@ impl PickIndex {
             .parts
             .iter()
             .filter(visible)
-            .filter(|part| !display.moved_roots.contains_key(&part.node()))
+            .filter(|part| !display.moved_placements.contains_key(&part.node()))
         {
             let space = eval.unplaced.get(&part.node()).map(|(group, _)| *group);
             unmoved.entry(space).or_default().push(part.target());
@@ -1322,8 +1319,8 @@ impl PickIndex {
         for targets in unmoved.values() {
             candidates.extend(group_answer(pick_face(eval, targets, ray))?);
         }
-        for (&node, frame) in &display.moved_roots {
-            if display.hidden_roots.contains(&node) {
+        for (&node, frame) in &display.moved_placements {
+            if display.hidden_placements.contains(&node) {
                 continue;
             }
             let targets: Vec<PickTarget<'_>> = self
@@ -1420,7 +1417,7 @@ impl PickIndex {
     ///
     /// A slice rather than a search for the reason
     /// [`PickIndex::ids_in`] is one: the index lays its parts out in
-    /// root-then-payload order and walks each part's boundaries in
+    /// placement-then-payload order and walks each part's boundaries in
     /// order, so one body's edges are a contiguous run.
     pub fn edges_in(&self, node: RecipeNodeId, body: u32) -> &[EdgeId] {
         self.edges.in_target(node, body)
@@ -1533,7 +1530,7 @@ impl PickIndex {
     /// is nothing to mark, which is the same rule
     /// [`PickIndex::scene_for`] draws by.
     pub fn edge_polyline_for(&self, id: EdgeId, display: &DisplayView) -> Vec<Point3<f64>> {
-        if display.hidden_roots.contains(&id.node) {
+        if display.hidden_placements.contains(&id.node) {
             return Vec::new();
         }
         let Some(part) = self.part_of(id.node, id.body) else {
@@ -2161,7 +2158,7 @@ struct Candidate {
 /// mark on empty space.
 fn placement(display: &DisplayView, node: RecipeNodeId) -> impl Fn(Point3<f64>) -> Point3<f64> {
     let map = display
-        .moved_roots
+        .moved_placements
         .get(&node)
         .copied()
         .map(|frame: Frame| frame.affine::<f64>());
@@ -2717,20 +2714,20 @@ mod tests {
     /// refusal.
     #[test]
     fn a_bodys_named_edges_count_the_loud_arm_and_not_the_ordinary_one() {
-        let (_, mut index, extrude) =
+        let (_, mut index, copy) =
             crate::test_support::plate_indexed(pncad::geom_core::Tol::witness());
-        let drawn = index.edges_in(extrude, 0).to_vec();
-        let clean = index.edge_names_in(extrude, 0);
+        let drawn = index.edges_in(copy, 0).to_vec();
+        let clean = index.edge_names_in(copy, 0);
         assert_eq!(clean.refused, None, "the plate names every edge it draws");
         assert_eq!(clean.named.len(), drawn.len());
 
         let first = index.unname_edge(drawn[1]);
         index.unname_edge(drawn[3]);
-        let names = index.edge_names_in(extrude, 0);
+        let names = index.edge_names_in(copy, 0);
         assert_eq!(
             names.refused,
             Some(EdgeNamesRefused {
-                node: extrude,
+                node: copy,
                 body: 0,
                 first,
                 named: drawn.len() - 2,
@@ -2746,20 +2743,20 @@ mod tests {
         assert_eq!(named, rest, "the named rest is kept, in boundary order");
 
         let absent = EdgeId {
-            node: extrude,
+            node: copy,
             body: 7,
             boundary: 0,
         };
         assert_eq!(
             index.edge_name_of(absent),
             Err(EdgeNameFault::NotDrawn {
-                node: extrude,
+                node: copy,
                 body: 7
             }),
             "body 7 is the ordinary arm's case"
         );
         assert_eq!(
-            index.edge_names_in(extrude, 7),
+            index.edge_names_in(copy, 7),
             EdgeNames {
                 named: Vec::new(),
                 refused: None,

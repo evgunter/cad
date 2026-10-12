@@ -206,8 +206,8 @@ use geom::Curve3;
 use geom::Surface;
 use geom::curves::boxes;
 use geom_brep::{
-    EdgeCurveSpec, EdgeDescriptionSpec, MustCarryDescription, MustCarryRefusal, edge_extent,
-    must_carry_over_edge,
+    EdgeCurveSpec, EdgeDescriptionSpec, MustCarryDescription, MustCarryRefusal, SurfacePair,
+    edge_extent, must_carry_over_edge,
 };
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Vec3};
 use topo::{
@@ -309,7 +309,7 @@ pub(super) fn unbuilt_geometry(at: EntityId, detail: &'static str) -> BlendError
 pub(super) fn op(site: &'static str, source: topo::EulerOpError) -> BlendError {
     BlendError::Op {
         site,
-        source: source.from_driver(),
+        source: Box::new(source.from_driver()),
     }
 }
 
@@ -3148,6 +3148,17 @@ fn not_a_support(edge: EdgeKey) -> BlendError {
     )
 }
 
+/// A certified box's six bounds at `T`, `None` when one is not finite.
+/// Box arithmetic produced them in `f64`, so each enters as one
+/// computed value ([`Real::from_computed`]), shared by every corner and
+/// face that reads it.
+fn lifted_box<T: Real>(lo: [f64; 3], hi: [f64; 3]) -> Option<([T; 3], [T; 3])> {
+    if lo.iter().chain(hi.iter()).any(|v| !v.is_finite()) {
+        return None;
+    }
+    Some((lo.map(T::from_computed), hi.map(T::from_computed)))
+}
+
 /// **A certified range of the latitude function over one piece whose
 /// carrier has no windowed closed form here** — an ellipse, a spiric
 /// oval or a NURBS curve: `(low, high)` bounding the distance from `c`
@@ -3176,13 +3187,12 @@ fn boxed_reach<T: Bounds>(
         Curve3::Nurbs(n) => boxes::nurbs_curve_aabb(n),
         Curve3::Line { .. } | Curve3::Circle { .. } => return None,
     };
-    let lo = [aabb.min_x, aabb.min_y, aabb.min_z];
-    let hi = [aabb.max_x, aabb.max_y, aabb.max_z];
-    if lo.iter().chain(hi.iter()).any(|v| !v.is_finite()) {
-        return None;
-    }
+    let (lo, hi) = lifted_box(
+        [aabb.min_x, aabb.min_y, aabb.min_z],
+        [aabb.max_x, aabb.max_y, aabb.max_z],
+    )?;
     let corner = |i: usize| {
-        let pick = |k: usize| T::from_f64(if i >> k & 1 == 0 { lo[k] } else { hi[k] });
+        let pick = |k: usize| if i >> k & 1 == 0 { lo[k] } else { hi[k] };
         Point3::new(pick(0), pick(1), pick(2))
     };
     let first = corner(0) - c;
@@ -3190,11 +3200,7 @@ fn boxed_reach<T: Bounds>(
         None => {
             // Nearest: the box's own distance from `c`, per axis the
             // overshoot past either face; farthest: a corner.
-            let gap = |k: usize, ck: T| {
-                (T::from_f64(lo[k]) - ck)
-                    .max(ck - T::from_f64(hi[k]))
-                    .max(T::zero())
-            };
+            let gap = |k: usize, ck: T| (lo[k] - ck).max(ck - hi[k]).max(T::zero());
             let near = (gap(0, c.x).powi(2) + gap(1, c.y).powi(2) + gap(2, c.z).powi(2)).sqrt();
             let far = (1..8).fold(first.norm(), |m, i| m.max((corner(i) - c).norm()));
             Some((near, far))
@@ -5184,7 +5190,10 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
         // branch refuses it as the surgery contradicting its own
         // routing.
         let witness = curve.mid_point(t0, t1);
-        EdgeDescriptionSpec::Intersection { s1, s2, witness }
+        EdgeDescriptionSpec::Intersection {
+            pair: SurfacePair::new(s1, s2),
+            witness,
+        }
     } else {
         // The band meets its support tangentially along the contact
         // locus, and the corner ball meets the band the same way: a
@@ -5207,13 +5216,15 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
                 ));
             };
             let extent = edge_extent(&curve, t0, t1, p0.distance(p1));
-            must_carry_over_edge(surf1, surf2, &curve, t0, t1, extent, band)
+            let (_, [sa, sb]) = SurfacePair::sorted(s1, surf1, s2, surf2);
+            must_carry_over_edge(sa, sb, &curve, t0, t1, extent, band)
         };
-        // In-band: a separation certifiable as neither positive nor
-        // zero — a band a few K·ε in radius, or a corner arc whose
-        // extent is the lever — escalated typed with the deciding
-        // station's own reading, at the link the contact edge belongs
-        // to. Refuted: a station reads the join a corner, so this
+        // In-band: a station certifiable as neither — a band a few K·ε
+        // in radius, or a corner arc whose extent is the lever —
+        // escalated typed as the decision its reading asks (the
+        // first-order arm or wedge, or the second-order separation),
+        // with that station's own diagnostics, at the link the contact
+        // edge belongs to. Refuted: a station reads the join a corner, so this
         // branch's premise — a definitely-smooth join — is refuted by
         // the geometry. The carrier kind routed the edge here, and
         // every kind whose surfaces cross at an angle is routed to the
@@ -5222,21 +5233,29 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
         // repaired by storing a description the routing did not
         // choose.
         let refused = |refusal| match refusal {
-            MustCarryRefusal::InBand(source) => BlendError::Escalated {
-                site: BlendSite::Link { edge: link },
-                decision: BlendDecision::ContactSecondOrder,
-                source: source.diag(),
-            },
+            MustCarryRefusal::InBand(escalation) => {
+                let (reading, source) = topo::DihedralReading::of_must_carry(escalation);
+                BlendError::Escalated {
+                    site: BlendSite::Link { edge: link },
+                    decision: BlendDecision::of_contact(reading),
+                    source,
+                }
+            }
             MustCarryRefusal::Refuted => BlendError::SurgeryInvariant {
                 at: EntityId::Edge(edge),
                 detail: "a contact edge routed as a smooth join reads definitely \
                          transverse at a certification station",
             },
         };
-        match verdict.description(s1, s2, witness).map_err(refused)? {
+        match verdict
+            .description(SurfacePair::new(s1, s2), witness)
+            .map_err(refused)?
+        {
             MustCarryDescription::Intrinsic(description) => description,
-            // The surfaces under-determine the locus, so the
-            // description stays CONVENTIONAL: an image in a chart,
+            // No intrinsic tangency is demanded (a zero-side
+            // station, or an all-positive pair outside the
+            // certificate's lane), so the description stays
+            // CONVENTIONAL: an image in a chart,
             // derived by the certification door from the exact carrier
             // above. `he_plus`'s chart: the locus lies exactly in both
             // surfaces, so either is a legitimate home — the argument
@@ -5251,8 +5270,10 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
             // lane admits: a corner arc on a slim wedge, whose extent
             // is the folded lever arm, or any band under a run with
             // `K < 2`. A pair the lane REFUSES lands here too once
-            // every station has read smooth first-order (a crossing
-            // out of lane is refuted above, as in lane): the
+            // every station has read smooth first-order and the
+            // second-order walk has not escalated, including when every
+            // station reads positive (a crossing or an in-band station
+            // out of lane refuses above, as in lane): the
             // certificate cannot store an intrinsic tangency there, so
             // the conventional image is the honest description, and
             // the door derives it — `geom_brep::chart_pcurve` images a
@@ -5597,6 +5618,70 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// **A boxed reach reads its box as computed values**: the carrier's
+    /// certified box is `f64` arithmetic over its hull, so at `Sym` its
+    /// bounds are unknowns, and the reach about a parameterized centre
+    /// re-values to nothing rather than to the box's `f64` numbers moved
+    /// by the centre alone.
+    #[test]
+    fn a_boxed_reach_reads_its_box_as_computed_values() {
+        use std::sync::Arc;
+
+        use geom::{Curve3, NurbsCurve3};
+        use geom_core::spline::KnotVector;
+        use geom_core::sym::revalue::revalue;
+        use geom_core::sym::with_session;
+        use geom_core::{ParamSymbol, Real, Sym, SymBudget};
+
+        use super::boxed_reach;
+
+        type S = Sym<f64>;
+        let nurbs = NurbsCurve3::new(
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+            vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(1.0, 2.0, 0.5),
+                Point3::new(2.5, -1.0, 1.0),
+            ],
+            vec![1.0, 1.0, 1.0],
+        )
+        .unwrap();
+        let sx = ParamSymbol::new(1);
+        let budget = SymBudget {
+            max_terms: 256,
+            max_degree: 16,
+        };
+        let (revalued, _) = with_session(budget, || {
+            let carrier = Curve3::Nurbs(Arc::new(nurbs.map_scalar(S::from_f64)));
+            let ends = (carrier.eval(S::zero()), carrier.eval(S::one()));
+            let c = Point3::new(
+                S::from_f64(-3.0) + S::param(sx, 0.0),
+                S::from_f64(0.5),
+                S::from_f64(0.25),
+            );
+            let u = Vec3::new(S::one(), S::zero(), S::zero());
+            let window = (S::zero(), S::one());
+            let (near, far) = boxed_reach(&carrier, window, ends, c, None).expect("a finite box");
+            let (low, high) =
+                boxed_reach(&carrier, window, ends, c, Some(u)).expect("a finite box");
+            let at = |_: ParamSymbol| Some(0.125);
+            [near, far, low, high].map(|v| revalue(v.node(), &at))
+        });
+        assert_eq!(
+            revalued, [None; 4],
+            "the box's bounds are unknowns: no reach re-values as if only the centre moved"
+        );
+        let none = |_: ParamSymbol| None::<f64>;
+        let (bounds, _) = with_session(budget, || {
+            let (lo, hi) = super::lifted_box::<S>([0.0, -1.0, 0.5], [1.0, 2.0, 3.5]).unwrap();
+            [lo, hi].map(|b| b.map(|v| revalue(v.node(), &none)))
+        });
+        assert_eq!(
+            bounds, [[None; 3]; 2],
+            "each of the box's six bounds is an unknown, the low corner's and the high's alike"
+        );
     }
 
     /// Review probe (PR 3715): tier 3 certifies an ellipse whose

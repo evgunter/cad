@@ -9,10 +9,12 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::AuthoredNode;
-use pncad::document::{Datum, Dimension, DimensionError, Formula, Node, RecipeNodeId};
+use pncad::document::{
+    Bodies, Datum, Dimension, DimensionError, Formula, Node, Operand, RecipeNodeId,
+};
 use pncad::prelude::StableName;
 use pncad::profile::SketchPlane;
-use pncad::select::SplitHalf;
+use pncad::topo::BooleanOp;
 
 /// The literal payload of one add-datum form (GAUTH-1): plain numbers
 /// in canonical units. The SESSION mints the `Expr` literals and
@@ -45,24 +47,6 @@ pub enum DatumSpec {
         /// Position components (`Length`).
         position: [Formula; 3],
     },
-    /// An axis written in a sketch frame — a revolve's axis of
-    /// revolution.
-    ///
-    /// `plane` is a PICK, not a field: it names the `Datum::Frame` the
-    /// two coordinate pairs are written against, and the pairs are
-    /// that frame's own 2-D coordinates. There is no third component,
-    /// which is the whole of why a revolve about one cannot leave the
-    /// sketch.
-    AxisInPlane {
-        /// The frame node the axis lives in.
-        plane: RecipeNodeId,
-        /// Origin components in the frame's coordinates (`Length`).
-        origin: [Formula; 2],
-        /// Direction components in the frame's coordinates (`Scalar`),
-        /// unnormalized — the kernel's `RevolveAxis` normalizes and
-        /// refuses a sliver at its own door.
-        direction: [Formula; 2],
-    },
     /// A sketch frame through `origin`, spanned by `u` and `v`.
     Frame {
         /// Origin components (`Length`).
@@ -77,8 +61,7 @@ pub enum DatumSpec {
     /// are the face's, and `spin` is the only number an author
     /// chooses.
     ///
-    /// Two PICKS and one field — [`Self::AxisInPlane`]'s shape, not
-    /// [`Self::Plane`]'s.
+    /// Two PICKS and one field, not [`Self::Plane`]'s shape.
     ///
     /// **`at` is the node whose BODY the ray met, never the feature
     /// that minted the face.** The name is read out of that body's own
@@ -91,8 +74,7 @@ pub enum DatumSpec {
     /// why it is said here.
     FaceFrame {
         /// The body-denoting node the face is read out of — a PICK,
-        /// and a DAG input exactly as [`Self::AxisInPlane`]'s `plane`
-        /// is.
+        /// and a DAG input.
         at: RecipeNodeId,
         /// The picked face, frozen — a PICK, resolved through `at`'s
         /// value under the N5 ladder.
@@ -238,7 +220,7 @@ pub enum PatternRuleSpec {
     },
 }
 
-/// **Which body of a multi-body value one part form selects** — the
+/// **Which copy of a pattern one part form selects** — the
 /// authoring counterpart of [`pncad::document::PartSelect`], beside
 /// [`PatternRuleSpec`] for its reason: it names what a form authors,
 /// in the numbers a form holds.
@@ -254,15 +236,73 @@ pub enum PatternRuleSpec {
 /// the same division of labour [`super::SessionOp::AddPattern`]'s
 /// count already takes.
 ///
-/// One shape for BOTH selections rather than two ops, because the two
-/// arms differ in what is selected and in nothing else — the pick, the
-/// door and the node are one apiece.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PartSelectSpec {
-    /// The named half of a `Node::Split` value.
-    SplitHalf(SplitHalf),
     /// The `i`-th instance of a `Node::Pattern` value.
     Instance(i64),
+}
+
+/// **What one boolean authors**: the operation and its operands, in
+/// the shape the node it lowers to takes ([`BooleanSpec::node`]).
+///
+/// Union and intersect take a LIST — any count is a document the door
+/// accepts (one member builds that body, none the typed empty body,
+/// and a node spelled twice glues) — while subtract takes exactly two
+/// operands that are not interchangeable: `from` is the body KEPT and
+/// `tool` the body REMOVED. Three arms rather than an operation beside
+/// a list, so a subtraction of the wrong count has no spelling.
+#[derive(Clone, Debug, PartialEq)]
+pub enum BooleanSpec {
+    /// The material in any member, members in fold order.
+    Union(Vec<Operand>),
+    /// The material in every member, members in fold order.
+    Intersect(Vec<Operand>),
+    /// `from` with `tool` cut away.
+    Subtract {
+        /// The body kept.
+        from: Operand,
+        /// The body removed.
+        tool: Operand,
+    },
+}
+
+impl BooleanSpec {
+    /// The operation — the kernel's enum, the boolean form's choice.
+    pub fn op(&self) -> BooleanOp {
+        match self {
+            Self::Union(_) => BooleanOp::Union,
+            Self::Intersect(_) => BooleanOp::Intersect,
+            Self::Subtract { .. } => BooleanOp::Subtract,
+        }
+    }
+
+    /// Every operand, in the node's order: the members, or `from`
+    /// then `tool`.
+    pub fn operands(&self) -> Vec<Operand> {
+        match self {
+            Self::Union(members) | Self::Intersect(members) => members.clone(),
+            Self::Subtract { from, tool } => vec![from.clone(), tool.clone()],
+        }
+    }
+
+    /// Lower to the node.
+    pub fn node(&self) -> AuthoredNode {
+        let spelled = |members: &[Operand]| {
+            Bodies::Spelled(members.iter().cloned().map(Into::into).collect())
+        };
+        match self {
+            Self::Union(members) => Node::Union {
+                members: spelled(members),
+            },
+            Self::Intersect(members) => Node::Intersect {
+                members: spelled(members),
+            },
+            Self::Subtract { from, tool } => Node::Subtract {
+                from: from.clone().into(),
+                tool: tool.clone().into(),
+            },
+        }
+    }
 }
 
 /// Lower one datum spec to its node.
@@ -276,15 +316,9 @@ pub(crate) fn datum_node(spec: DatumSpec) -> AuthoredNode {
         DatumSpec::Axis { origin, direction } => Datum::Axis { origin, direction },
         DatumSpec::Point { position } => Datum::Point { position },
         DatumSpec::Frame { origin, u, v } => Datum::Frame { origin, u, v },
-        DatumSpec::AxisInPlane {
-            plane,
-            origin,
-            direction,
-        } => Datum::AxisInPlane {
-            plane,
-            origin,
-            direction,
+        DatumSpec::FaceFrame { at, face, spin } => Datum::FaceFrame {
+            face: Operand::select(at, vec![face]),
+            spin,
         },
-        DatumSpec::FaceFrame { at, face, spin } => Datum::FaceFrame { at, face, spin },
     })
 }

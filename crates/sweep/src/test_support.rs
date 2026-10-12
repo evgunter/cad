@@ -127,7 +127,7 @@ use geom::NurbsCurve3;
 use geom_core::{Affine3, Band, Bounds, Decide, OrthoFrame, Point2, Point3, Real, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
-use topo::{Body, BooleanDeclarations, EdgeKey, FaceKey, LoopBoundary};
+use topo::{Body, BooleanInputs, EdgeKey, FaceKey, LoopBoundary};
 
 use crate::blend::BlendKind;
 use crate::blend::battery::{BlendRequest, Chain, Link, resolve_link, run_battery, walk_chains};
@@ -1016,6 +1016,23 @@ pub fn stacked_at(zs: &[f64]) -> Vec<Affine3<f64>> {
     zs.iter()
         .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
         .collect()
+}
+
+/// **Fixture sections at a lane scalar**: each loop of `sections`
+/// carried into `T` value by value as the constants a fixture's
+/// literals are ([`Real::from_f64`]), for a row that lofts at a scalar
+/// other than `f64` ([`crate::loft_body`] takes its sections in the
+/// scalar it builds at).
+pub fn lift_sections<T: Real>(sections: &[Section]) -> Vec<Section<ProfileLoop<T>>> {
+    sections
+        .iter()
+        .map(|s| s.iter().map(|lp| lp.map_scalar(T::from_f64)).collect())
+        .collect()
+}
+
+/// [`lift_sections`]' placements: each a fixture's constant.
+pub fn lift_places<T: Real>(places: &[Affine3<f64>]) -> Vec<Affine3<T>> {
+    places.iter().map(|p| p.map(T::from_f64)).collect()
 }
 
 /// [`loft_prism`] with its sections placed at `zs` instead of
@@ -2045,7 +2062,7 @@ pub fn realized(op: BooleanOp, a: &Body<f64>, b: &Body<f64>, tol: Tol) -> Body<f
         op,
         &finished("the fixture's operand A", a.clone(), tol),
         &finished("the fixture's operand B", b.clone(), tol),
-        &BooleanDeclarations::none(),
+        &BooleanInputs::default(),
         SweepStrategy::Realized,
         tol,
     )

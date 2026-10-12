@@ -6,13 +6,11 @@ test here goes through a document; none reaches into the kernel.
 
 import json
 import math
-import os
 import struct
 import unittest
 
 import pncad
 from pncad import (
-    BooleanOp,
     Cmp,
     Distribution,
     Doc,
@@ -27,8 +25,6 @@ from pncad import (
     Frame,
     GeomPred,
     Length,
-    MeasureExpr,
-    MeasurePrimitive,
     NamePat,
     Node,
     Open,
@@ -36,7 +32,6 @@ from pncad import (
     PatternKind,
     Piece,
     Role,
-    SelectRefusal,
     Selector,
     SketchPlane,
     Start,
@@ -119,10 +114,10 @@ class TestDocumentEditing(unittest.TestCase):
         box = unit_box(doc, 1 * m, 1 * m, 1 * m)
         before = doc.node_count
         with self.assertRaises(pncad.EditError) as caught:
-            # Deleting a node another node depends on must dangle.
-            doc.apply(DocEdit.delete_node(doc.order()[0]))
+            # An extrude reads a profile, not a body.
+            doc.insert(Node.extrude(box, Formula.length_in(1, m)))
         # The refusal carries a stable tag, not prose (§L4).
-        self.assertEqual(caught.exception.variant, "delete_would_dangle")
+        self.assertEqual(caught.exception.variant, "slot_var_kind")
         self.assertEqual(doc.node_count, before)
         self.assertTrue(evaluate(doc).succeeded(box))
 
@@ -171,19 +166,19 @@ class TestNodeKindReadDoor(unittest.TestCase):
         self.assertEqual(doc.node_kind(profile), "profile")
         self.assertEqual(doc.node_kind(solid), "extrude")
 
-    def test_a_boolean_answers_a_word_per_operation(self):
+    def test_each_boolean_node_answers_its_own_word(self):
         doc = Doc()
         a = unit_box(doc, 2 * m, 2 * m, 2 * m)
         b = slab(doc, (1 * m, 3 * m), (1 * m, 3 * m), (1 * m, 3 * m))
-        # One payload shape, three kernel operations, three words —
-        # which is what lets a caller say "this recipe spends no
-        # subtract" without reading the saved text.
-        cut = doc.insert(Node.boolean(BooleanOp.Subtract, a, b))
-        fused = doc.insert(Node.boolean(BooleanOp.Union, a, b))
-        common = doc.insert(Node.boolean(BooleanOp.Intersect, a, b))
-        self.assertEqual(doc.node_kind(cut), "boolean_subtract")
-        self.assertEqual(doc.node_kind(fused), "boolean_union")
-        self.assertEqual(doc.node_kind(common), "boolean_intersect")
+        # Three nodes, three words — which is what lets a caller say
+        # "this recipe spends no subtract" without reading the saved
+        # text.
+        cut = doc.insert(Node.subtract(a, b))
+        fused = doc.insert(Node.union([a, b]))
+        common = doc.insert(Node.intersect([a, b]))
+        self.assertEqual(doc.node_kind(cut), "subtract")
+        self.assertEqual(doc.node_kind(fused), "union")
+        self.assertEqual(doc.node_kind(common), "intersect")
 
     def test_it_is_the_nodes_kind_and_not_its_values(self):
         doc = Doc()
@@ -338,13 +333,11 @@ class TestEvaluation(unittest.TestCase):
     def test_boolean_union_through_the_document(self):
         # The post is strictly interior in x and y and pokes out of the
         # base's top, so the solids genuinely INTERPENETRATE and no two
-        # faces are coincident. That matters: the kernel never infers
-        # coincidence from values, so boxes merely touching on a shared
-        # plane are refused until the author declares the contact.
+        # faces are coincident: this is the union with nothing to glue.
         doc = Doc()
         base = slab(doc, (0 * m, 3 * m), (0 * m, 2 * m), (0 * m, 1 * m))  # 6.0
         post = slab(doc, (0.5 * m, 1.5 * m), (0.5 * m, 1.5 * m), (0.5 * m, 2 * m))
-        fused = doc.insert(Node.boolean(BooleanOp.Union, base, post))
+        fused = doc.insert(Node.union([base, post]))
 
         ev = evaluate(doc)
         self.assertTrue(ev.succeeded(fused), "the union evaluated")
@@ -354,51 +347,55 @@ class TestEvaluation(unittest.TestCase):
         # 6.0 base + 1.5 post - 0.5 shared = 7.0
         self.assertEqual(body.mass_properties().volume, 7.0)
 
-    def test_a_coincident_boolean_carries_its_typed_refusal(self):
-        # Fail-loud, visible from Python: two boxes sharing the z=0
-        # plane are NOT silently fused — and the refusal now arrives
-        # WITH its typed cause (LIB-DOORS F3; U9S's `no_value`
-        # placeholder is gone).
+    def test_a_coincident_boolean_glues_and_records(self):
+        # Two boxes sharing the x=0, y=0 and z=0 planes: the margins
+        # decide each pair one plane, so the subtract glues them (D10)
+        # and records each decision.
         doc = Doc()
         outer = unit_box(doc, 2 * m, 2 * m, 2 * m)
         inner = unit_box(doc, 1 * m, 1 * m, 1 * m)
-        cut = doc.insert(Node.boolean(BooleanOp.Subtract, outer, inner))
+        cut = doc.insert(Node.subtract(outer, inner))
+        ev = evaluate(doc)
+        self.assertTrue(ev.succeeded(cut))
+        body = ev.value(cut).body()
+        body.validate()
+        self.assertEqual(body.mass_properties().volume, 7.0)
+        rows = ev.coincidences(cut)
+        self.assertEqual(len(rows), 3, "one row per shared plane")
+        self.assertTrue(all(row.relation == "same_oriented" for row in rows))
+
+    def a_sliver(self, doc):
+        """Two boxes whose bottoms stand 2 nm apart, inside the
+        tolerance's ambiguity band: a subtract that refuses."""
+        outer = slab(doc, (0 * m, 2 * m), (0 * m, 2 * m), (0 * m, 2 * m))
+        inner = slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (2e-9 * m, 1 * m))
+        return doc.insert(Node.subtract(outer, inner)), outer
+
+    def test_a_sliver_carries_its_typed_refusal(self):
+        # Fail-loud, visible from Python: a sliver is NOT silently
+        # fused or parted — the refusal arrives WITH its typed cause.
+        doc = Doc()
+        cut, _ = self.a_sliver(doc)
         ev = evaluate(doc)
         self.assertFalse(ev.succeeded(cut))
         with self.assertRaises(EvaluationError) as caught:
             ev.value(cut)
         self.assertEqual(caught.exception.reason, "node_failed")
         self.assertEqual(caught.exception.node, cut)
-        # Since register R3 (LIB-PYG5) the undeclared-contact refusal
-        # is the typed MENU: its own stable tag, and the candidate
-        # declaration attached as a `FlushFinding` value.
-        self.assertEqual(caught.exception.kind, "undeclared_coincidence")
+        self.assertEqual(caught.exception.kind, "boolean")
+        self.assertEqual(caught.exception.inner_kind, "escalated")
         self.assertIsNone(caught.exception.through)
-        finding = caught.exception.finding
-        self.assertIsInstance(finding, pncad.FlushFinding)
-        # Both boxes rise from z=0: the shared bottom planes face the
-        # same way — a continuation, not a contact.
-        self.assertEqual(finding.relation, pncad.PlaneRelation.SameOriented)
-        self.assertEqual(finding.class_, pncad.BooleanCoincidence.Continuation)
-        self.assertEqual(finding.rung, pncad.FlushRung.DecidedCoincident)
-        # The pair's names speak the one opaque alphabet: each side is
-        # a FACE name of its own operand's evaluation.
-        self.assertIn(finding.a, ev.all_faces(outer))
-        self.assertIn(finding.b, ev.all_faces(inner))
-        # F6 (reopened on review): the MESSAGE is prose stating the
-        # problem and the two-armed recourse, not Debug guts.
+        # F6: the MESSAGE is prose stating the problem and its
+        # recourse, not Debug guts.
         message = str(caught.exception)
-        self.assertIn("Boolean refused an undeclared coincidence", message)
-        self.assertIn("add the candidate pair", message)
-        for guts in ("UndeclaredCoincidence", "UndeclaredContact", "{", "NodeError"):
+        self.assertIn("ambiguity band", message)
+        for guts in ("Escalated", "{", "NodeError"):
             self.assertNotIn(guts, message)
 
     def test_a_poisoned_node_names_its_failed_ancestor(self):
         doc = Doc()
-        outer = unit_box(doc, 2 * m, 2 * m, 2 * m)
-        inner = unit_box(doc, 1 * m, 1 * m, 1 * m)
-        cut = doc.insert(Node.boolean(BooleanOp.Subtract, outer, inner))
-        downstream = doc.insert(Node.boolean(BooleanOp.Union, cut, outer))
+        cut, outer = self.a_sliver(doc)
+        downstream = doc.insert(Node.union([cut, outer]))
         doc.apply(DocEdit.set_label(cut, "pocket"))
         ev = evaluate(doc)
         with self.assertRaises(EvaluationError) as caught:
@@ -407,26 +404,19 @@ class TestEvaluation(unittest.TestCase):
         self.assertEqual(caught.exception.node, downstream)
         self.assertEqual(caught.exception.through, cut)
         # The root cause's tag rides along: the ancestor's refusal.
-        self.assertEqual(caught.exception.kind, "undeclared_coincidence")
-        # The menu payload does NOT ride a poisoning — the recourse
-        # belongs to the node that refused; here it is None (attributes
-        # never go missing, LIB-DOORS F3).
-        self.assertIsNone(caught.exception.finding)
+        self.assertEqual(caught.exception.kind, "boolean")
         # The standing speaks each node as the evaluated document holds
         # it: kind, label and tag.
         self.assertIn(
-            f'Boolean {tag(downstream)} is poisoned by the failure at Boolean "pocket" '
+            f'Union {tag(downstream)} is poisoned by the failure at Subtract "pocket" '
             f"({tag(cut)})",
             str(caught.exception),
         )
 
 
-class TestDetectDeclareDoors(unittest.TestCase):
-    """LIB-PYG5 (G5): the detect/declare doors' own contracts —
-    positive paths through every spelling, adversarial args refused
-    typed. The scene-level flips live in `test_north_star.py`
-    (`TestTable`, `TestCrosslapAtTheNamingWall`); the guide's executed block is
-    the end-to-end menu recourse."""
+class TestTheUnionGluesItsContacts(unittest.TestCase):
+    """A union glues every resting contact its margins decide (D10):
+    no argument names the contact, and the coincidence is recorded."""
 
     def stacked(self):
         doc = Doc()
@@ -436,209 +426,32 @@ class TestDetectDeclareDoors(unittest.TestCase):
         )
         return doc, lower, upper
 
-    def test_every_declare_spelling_feeds_the_boolean(self):
-        # One resting contact; four spellings of the declare arm, each
-        # landing on the SAME union, each at the exact volume
-        # 1 + 0.5^2 * 0.5 = 1.125 (dyadic). The first states the pairs
-        # at construction; the other three set them on the live node.
-        spellings = ("node_boolean", "doc_declare", "doc_declare_all", "set_declare")
-        for spelling in spellings:
-            with self.subTest(spelling=spelling):
-                doc, lower, upper = self.stacked()
-                ev = evaluate(doc)
-                findings = ev.find_flush_candidates(lower, upper)
-                self.assertEqual(len(findings), 1)
-                self.assertEqual(
-                    findings[0].relation, pncad.PlaneRelation.SameOpposite
-                )
-                if spelling == "node_boolean":
-                    glued = doc.insert(
-                        Node.boolean(BooleanOp.Union, lower, upper, declare=findings)
-                    )
-                else:
-                    glued = doc.insert(Node.boolean(BooleanOp.Union, lower, upper))
-                    if spelling == "doc_declare":
-                        self.assertIsNone(doc.declare(glued, findings[0]))
-                    elif spelling == "doc_declare_all":
-                        self.assertIsNone(doc.declare_all(glued, findings))
-                    else:
-                        self.assertIsNone(
-                            doc.apply(DocEdit.set_declare(glued, findings))
-                        )
-                    self.assertEqual(
-                        doc.last_maintenance, [], "a declaration performs no maintenance"
-                    )
-                ev = evaluate(doc)
-                body = ev.value(glued).body()
-                body.validate()
-                self.assertEqual(body.mass_properties().volume, 1.125)
-
-    def test_a_refused_union_builds_once_its_live_node_declares_the_menu(self):
-        """The recourse loop on the n-ary union: the refusal's own
-        `finding` declared on the LIVE union makes it build, and
-        clearing the list brings the refusal back."""
+    def test_a_union_glues_its_resting_contact(self):
+        """One resting contact, at the exact volume
+        1 + 0.5^2 * 0.5 = 1.125 (dyadic)."""
         doc, lower, upper = self.stacked()
         fused = doc.insert(Node.union([lower, upper]))
-        with self.assertRaises(EvaluationError) as caught:
-            evaluate(doc).value(fused)
-        self.assertEqual(caught.exception.kind, "undeclared_coincidence")
-        finding = caught.exception.finding
-        self.assertIsNotNone(finding, "the refusal carries its menu")
-        doc.declare_all(fused, [finding])
-        body = evaluate(doc).value(fused).body()
+        ev = evaluate(doc)
+        body = ev.value(fused).body()
         body.validate()
         self.assertEqual(body.mass_properties().volume, 1.125)
-        # An empty list through the edit clears the declaration.
-        doc.apply(DocEdit.set_declare(fused, []))
-        with self.assertRaises(EvaluationError) as caught:
-            evaluate(doc).value(fused)
-        self.assertEqual(caught.exception.kind, "undeclared_coincidence")
+        relations = [row.relation for row in ev.coincidences(fused)]
+        self.assertEqual(relations, ["same_opposite"])
 
-    def test_following_each_refusal_with_declare_converges(self):
-        """`Doc.declare` ADDS the refusal's finding to the union's
-        declared pairs: three slabs stacked as a stepped pyramid meet in
-        two resting contacts, the union refuses one at a time, and
-        declaring each refusal's own `finding` builds after exactly two
-        rounds. (A whole-list replace would trade one contact for the
-        other forever.)"""
+    def test_a_stepped_pyramid_glues(self):
+        """Three slabs stacked as a stepped pyramid meet in two resting
+        contacts, and the union glues both."""
         doc = Doc()
         low = slab(doc, (0 * m, 3 * m), (0 * m, 3 * m), (0 * m, 1 * m))
         mid = slab(doc, (0.5 * m, 2.5 * m), (0.5 * m, 2.5 * m), (1 * m, 2 * m))
         top = slab(doc, (1 * m, 2 * m), (1 * m, 2 * m), (2 * m, 3 * m))
         fused = doc.insert(Node.union([low, mid, top]))
-        rounds = 0
-        while True:
-            try:
-                body = evaluate(doc).value(fused).body()
-                break
-            except EvaluationError as refused:
-                self.assertEqual(refused.kind, "undeclared_coincidence")
-                rounds += 1
-                self.assertLessEqual(rounds, 2, "the refusals do not converge")
-                doc.declare(fused, refused.finding)
-        self.assertEqual(rounds, 2, "one refusal per contact")
+        ev = evaluate(doc)
+        body = ev.value(fused).body()
         body.validate()
         self.assertEqual(body.mass_properties().volume, 9 + 4 + 1)
-
-    def test_declaring_on_a_node_that_joins_nothing_refuses_typed(self):
-        doc, lower, upper = self.stacked()
-        findings = evaluate(doc).find_flush_candidates(lower, upper)
-        for door in ("doc_declare_all", "set_declare"):
-            with self.subTest(door=door):
-                with self.assertRaises(EditError) as caught:
-                    if door == "doc_declare_all":
-                        doc.declare_all(lower, findings)
-                    else:
-                        doc.apply(DocEdit.set_declare(lower, findings))
-                self.assertEqual(
-                    caught.exception.variant, "set_declare_on_non_declaring"
-                )
-                self.assertEqual(caught.exception.node, lower)
-                self.assertIn("is not a boolean or a union", str(caught.exception))
-
-    def test_declaring_nothing_refuses_typed_at_the_sugar(self):
-        # An empty declaration records no intent — refused, never set
-        # (`no_findings`). Clearing is `DocEdit.set_declare(node, [])`.
-        doc, lower, upper = self.stacked()
-        glued = doc.insert(Node.boolean(BooleanOp.Union, lower, upper))
-        before = len(doc)
-        with self.assertRaises(EditError) as caught:
-            doc.declare_all(glued, [])
-        self.assertEqual(caught.exception.variant, "no_findings")
-        # The human message is the declare door's own prose, not a
-        # mangled literal and not a struct dump.
-        message = str(caught.exception)
-        self.assertIn("declare", message)
-        self.assertIn("records no intent", message)
-        self.assertIn("pass the findings", message)
-        self.assertNotIn("  ", message)
-        self.assertNotIn("{", message)
-        self.assertNotIn("NoFindings", message)
-        self.assertEqual(len(doc), before, "a refused declare changes nothing")
-
-    def test_detection_answers_empty_for_separated_and_refuses_unevaluated(self):
-        # Separated in EVERY plane family: a pair sharing any plane —
-        # even with disjoint faces (two boxes side by side on one
-        # floor) — is honestly a finding, so "no findings" needs no
-        # shared carrier at all.
-        doc = Doc()
-        a = slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
-        b = slab(doc, (3 * m, 4 * m), (5 * m, 6 * m), (2 * m, 3 * m))
-        ev = evaluate(doc)
-        self.assertEqual(ev.find_flush_candidates(a, b), [])
-        # A node the evaluation does not know refuses under its
-        # standing: "no flush pair" would be a claim about geometry
-        # that was never built.
-        c = slab(doc, (6 * m, 7 * m), (8 * m, 9 * m), (4 * m, 5 * m))
-        with self.assertRaises(SelectRefusal) as caught:
-            ev.find_flush_candidates(a, c)
-        self.assertEqual(caught.exception.reason, "node_has_no_value")
-        self.assertIn(
-            "is not a node of the document this evaluation ran over",
-            str(caught.exception),
-        )
-
-    def test_an_in_band_pair_refuses_naming_both_faces_and_their_nodes(self):
-        # The upper slab floats above the lower by the ambiguity band's
-        # midpoint (ε, Kε), so the pair is neither a finding nor
-        # dropped: `pair_in_band`, its two faces' names and the node
-        # holding each, said in the kernel's sentence.
-        eps = float(os.environ.get("CAD_TOLERANCE_EPS", "1e-9"))
-        k = float(os.environ.get("CAD_AMBIGUITY_K", "10"))
-        gap = 0.5 * (eps + k * eps)
-        doc = Doc()
-        lower = slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
-        upper = slab(
-            doc,
-            (0.25 * m, 0.75 * m),
-            (0.25 * m, 0.75 * m),
-            ((1 + gap) * m, 1.5 * m),
-        )
-        ev = evaluate(doc)
-        with self.assertRaises(SelectRefusal) as caught:
-            ev.find_flush_candidates(lower, upper)
-        refusal = caught.exception
-        self.assertEqual(refusal.reason, "pair_in_band")
-        self.assertEqual(refusal.at, lower, "the node holding the first face")
-        self.assertEqual(refusal.other_at, upper, "the node holding the second face")
-        self.assertIn(refusal.name, ev.all_faces(lower))
-        self.assertIn(refusal.other, ev.all_faces(upper))
-        self.assertEqual(refusal.predicate, "bool_plane_offset")
-        message = str(refusal)
-        self.assertIn(
-            f"the end cap of Extrude {tag(lower)} and the start cap of Extrude "
-            f"{tag(upper)} may coincide (margin ",
-            message,
-        )
-        self.assertIn("lies inside the ambiguity band", message)
-
-    def test_a_flush_refusal_speaks_the_labelled_node_that_has_no_value(self):
-        # The binding holds the evaluated document, so the standing in
-        # the message says the node's kind, label and tag.
-        doc = Doc()
-        outer = unit_box(doc, 2 * m, 2 * m, 2 * m)
-        inner = unit_box(doc, 1 * m, 1 * m, 1 * m)
-        cut = doc.insert(Node.boolean(BooleanOp.Subtract, outer, inner))
-        doc.apply(DocEdit.set_label(cut, "pocket"))
-        with self.assertRaises(SelectRefusal) as caught:
-            evaluate(doc).find_flush_candidates(outer, cut)
-        self.assertEqual(caught.exception.reason, "node_has_no_value")
-        self.assertIn(
-            f'Boolean "pocket" ({tag(cut)}) failed, so it has no value',
-            str(caught.exception),
-        )
-
-    def test_findings_are_values_with_opaque_names(self):
-        doc, lower, upper = self.stacked()
-        ev = evaluate(doc)
-        finding = ev.find_flush_candidates(lower, upper)[0]
-        # The names are the same alphabet the materializers speak.
-        self.assertIn(finding.a, ev.all_faces(lower))
-        self.assertIn(finding.b, ev.all_faces(upper))
-        self.assertEqual(finding.class_, pncad.BooleanCoincidence.Rest)
-        self.assertEqual(finding.rung, pncad.FlushRung.DecidedCoincident)
-        # Value semantics: re-detection answers an equal value.
-        self.assertEqual(finding, ev.find_flush_candidates(lower, upper)[0])
+        relations = [row.relation for row in ev.coincidences(fused)]
+        self.assertEqual(relations, ["same_opposite", "same_opposite"])
 
 
 class TestLiteralRefusals(unittest.TestCase):
@@ -1121,8 +934,9 @@ class TestStepExport(unittest.TestCase):
     def test_export_of_a_failed_node_is_a_typed_refusal(self):
         doc = Doc()
         outer = unit_box(doc, 2 * m, 2 * m, 2 * m)
-        inner = unit_box(doc, 1 * m, 1 * m, 1 * m)
-        cut = doc.insert(Node.boolean(BooleanOp.Subtract, outer, inner))
+        # The pocket's floor 2 nm off the block's: in band, so it refuses.
+        inner = slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (2e-9 * m, 1 * m))
+        cut = doc.insert(Node.subtract(outer, inner))
         ev = evaluate(doc)
         with self.assertRaises(pncad.ExportError) as caught:
             ev.step_string(cut)
@@ -1272,48 +1086,34 @@ class TestSketchPlaneFrame(unittest.TestCase):
 
 
 class TestDatumReadback(unittest.TestCase):
-    """What a datum's numbers cross AS. A position carries `Length`
-    whichever frame it is written in; a direction is dimensionless and
-    crosses bare. `Datum.in_plane` is the field that holds both, so it
-    is where the rule is visible in one value."""
+    """What a datum's numbers cross AS. A position carries `Length`; a
+    direction is dimensionless and crosses bare. An axis holds both, so
+    it is where the rule is visible in one value."""
 
     def axis(self, x, y):
         doc = Doc()
-        frame = doc.sketch_frame()
-        node = doc.insert(Node.datum_axis_in_plane(frame, (
+        node = doc.insert(Node.datum_axis((
             Formula.literal(x),
             Formula.literal(y),
+            Formula.length_in(0, m),
         ), (
             Formula.literal(0.0),
             Formula.literal(1.0),
+            Formula.literal(0.0),
         )))
         return evaluate(doc).value(node).datum()
 
-    def test_the_in_plane_origin_reads_back_as_the_length_pair_it_was_written_as(self):
-        """The write door takes `tuple[Length, Length]`; the read door
-        answers the same. A frame-local coordinate changes the datum a
-        position is measured from, not its dimension — so what goes in
-        comes back out, equal and still typed."""
+    def test_the_origin_reads_back_as_the_lengths_it_was_written_as(self):
+        """The write door takes `Length`s; the read door answers the
+        same — so what goes in comes back out, equal and still typed."""
         datum = self.axis(0.25 * m, 0.5 * m)
-        origin, direction = datum.in_plane
-        self.assertIsInstance(origin[0], Length)
-        self.assertIsInstance(origin[1], Length)
-        self.assertEqual(origin, (0.25 * m, 0.5 * m))
-        # The second pair is a DIRECTION: dimensionless, and bare.
-        self.assertEqual(direction, (0.0, 1.0))
-        self.assertNotIsInstance(direction[0], Length)
-
-    def test_the_world_origin_of_the_same_axis_is_dimensioned_too(self):
-        """The sibling field, so the class is read as one convention
-        rather than two: both origins are positions and both carry
-        `Length`."""
-        datum = self.axis(0.25 * m, 0.5 * m)
-        self.assertEqual(datum.kind, "axis_in_plane")
+        self.assertEqual(datum.kind, "axis")
         for coordinate in datum.origin:
             self.assertIsInstance(coordinate, Length)
-        # The sketch frame is the world xy plane, so the two spellings
-        # of the same point agree coordinate for coordinate.
         self.assertEqual(datum.origin, (0.25 * m, 0.5 * m, 0 * m))
+        # The second triple is a DIRECTION: dimensionless, and bare.
+        self.assertEqual(datum.direction, (0.0, 1.0, 0.0))
+        self.assertNotIsInstance(datum.direction[0], Length)
 
 
 class TestDatumPointAndFrame(unittest.TestCase):
@@ -1339,7 +1139,6 @@ class TestDatumPointAndFrame(unittest.TestCase):
         # standing in for a direction a point does not have.
         self.assertIsNone(datum.direction)
         self.assertIsNone(datum.axes)
-        self.assertIsNone(datum.in_plane)
 
     def test_a_selection_measures_its_distance_to_a_point(self):
         """The downstream door: `GeomPred.datum_distance` is UNSIGNED
@@ -1384,7 +1183,6 @@ class TestDatumPointAndFrame(unittest.TestCase):
         datum = evaluate(doc).value(frame).datum()
         self.assertEqual(datum.kind, "frame")
         self.assertEqual(datum.origin, (0 * m, 0 * m, 1 * m))
-        self.assertIsNone(datum.in_plane)
         u, v = datum.axes
         # An axis is a DIRECTION: dimensionless, and bare.
         self.assertNotIsInstance(u[0], Length)
@@ -1490,20 +1288,6 @@ class TestDatumPointAndFrame(unittest.TestCase):
         self.assertEqual(caught.exception.value, float("inf"))
 
 
-class TestBooleanDeclareArgument(unittest.TestCase):
-    """`Node.boolean`'s `declare=` is the boolean's own declared-pair
-    list; left out, it is empty and the boolean is undeclared."""
-
-    def test_the_default_is_the_undeclared_lane(self):
-        doc = Doc()
-        a = unit_box(doc, 1 * m, 1 * m, 1 * m)
-        b = slab(doc, (0.5 * m, 1.5 * m), (0.5 * m, 1.5 * m), (0.5 * m, 1.5 * m))
-        fused = doc.insert(Node.boolean(BooleanOp.Union, a, b))
-        self.assertTrue(evaluate(doc).succeeded(fused))
-        explicit = doc.insert(Node.boolean(BooleanOp.Union, a, b, declare=[]))
-        self.assertTrue(evaluate(doc).succeeded(explicit))
-
-
 class TestTheInnerArmBesideTheOpWord(unittest.TestCase):
     """The two words a refusal carries, from real documents.
 
@@ -1533,16 +1317,12 @@ class TestTheInnerArmBesideTheOpWord(unittest.TestCase):
         doc = Doc()
         frame = doc.sketch_frame()
         profile = self.square(doc, frame, x0)
-        axis = doc.insert(
-            Node.datum_axis_in_plane(frame, (
-                Formula.length_in(0, m),
-                Formula.length_in(0, m),
-            ), (
-                Formula.literal(0.0),
-                Formula.literal(1.0),
-            ))
-        )
-        node = doc.insert(Node.revolve(profile, axis, Formula.literal(angle)))
+        node = doc.insert(Node.revolve(
+            profile,
+            (Formula.length_in(0, m), Formula.length_in(0, m)),
+            (Formula.literal(0.0), Formula.literal(1.0)),
+            Formula.literal(angle),
+        ))
         with self.assertRaises(EvaluationError) as caught:
             evaluate(doc).value(node)
         return caught.exception
@@ -1573,20 +1353,6 @@ class TestTheInnerArmBesideTheOpWord(unittest.TestCase):
             (caught.exception.kind, caught.exception.inner_kind),
             ("extrude", "degenerate_extrusion"),
         )
-
-    def test_an_arm_with_no_inner_refusal_says_none(self):
-        # The undeclared-contact refusal is the document layer's own
-        # arm: its payload is the candidate declaration, which crosses
-        # whole as `finding`, and there is no inner enum to name.
-        doc = Doc()
-        outer = unit_box(doc, 2 * m, 2 * m, 2 * m)
-        inner = unit_box(doc, 1 * m, 1 * m, 1 * m)
-        cut = doc.insert(Node.boolean(BooleanOp.Subtract, outer, inner))
-        with self.assertRaises(EvaluationError) as caught:
-            evaluate(doc).value(cut)
-        self.assertEqual(caught.exception.kind, "undeclared_coincidence")
-        self.assertIsNone(caught.exception.inner_kind)
-        self.assertIsNotNone(caught.exception.finding)
 
     def test_a_poisoned_node_carries_both_of_its_ancestors_words(self):
         # The poisoning path reports the ROOT cause, so it reports both
@@ -1641,10 +1407,10 @@ class TestTheInnerArmBesideTheOpWord(unittest.TestCase):
         doc = Doc()
         frame = doc.sketch_frame()
         profile = self.square(doc, frame)
-        doc.insert(Node.extrude(profile, Formula.length_in(1, m)))
+        body = doc.insert(Node.extrude(profile, Formula.length_in(1, m)))
         with self.assertRaises(EditError) as caught:
-            doc.apply(DocEdit.delete_node(profile))
-        self.assertEqual(caught.exception.variant, "delete_would_dangle")
+            doc.insert(Node.extrude(body, Formula.length_in(1, m)))
+        self.assertEqual(caught.exception.variant, "slot_var_kind")
         self.assertIsNone(caught.exception.inner_variant)
 
     def test_the_edit_arms_that_hold_a_refusal_are_pre_checked_elsewhere(self):
@@ -1665,12 +1431,6 @@ class TestTheInnerArmBesideTheOpWord(unittest.TestCase):
         # constructor, so `invalid_distribution` cannot be inserted.
         with self.assertRaises(pncad.DistributionFault):
             Distribution.normal(0 * m)
-        # A measured expression's reference indices are checked by
-        # `Node.measure`, so `measure_malformed` cannot be inserted.
-        with self.assertRaises(pncad.MeasureNodeFault):
-            Node.measure(
-                MeasureExpr.primitive(MeasurePrimitive.distance(0, 5)), []
-            )
         # A profile program's geometry is checked by the PATHS chain,
         # so `profile_program_refused` cannot be inserted.
         with self.assertRaises(pncad.PathError):
@@ -1683,9 +1443,8 @@ class TestTheInnerArmBesideTheOpWord(unittest.TestCase):
                 .to((0 * m, 1 * m))
                 .line_to(Start)
             )
-        # `dimension` rides the expression-path edit and `roots` reads
-        # its word off the fault already — neither has a Python door
-        # that could carry a second one.
+        # `dimension` rides the expression-path edit, which has no
+        # Python door that could carry a second word.
         self.assertFalse(hasattr(DocEdit, "set_expr_at"))
         self.assertEqual(len(doc.order()), 0)
 
@@ -1698,7 +1457,6 @@ EDIT_ATTRS = (
     "inner_variant",
     "node",
     "input",
-    "referenced_by",
     "slot",
     "param",
     "name",
@@ -1796,7 +1554,7 @@ class TestTheWholeProgramEdit(unittest.TestCase):
     def test_a_step_the_edit_drops_strands_the_fillets_name(self):
         """The same program with the wall's step left out of `keep`:
         the fillet's name keeps its spelling and is reported as a
-        `strand` on the fillet node. Pushed back through
+        `stranded_selection` read by the fillet node. Pushed back through
         `Evaluation.resolve`, it is a typed `vanished` failure — the new
         step's leg is under an id never minted before, so the name
         never comes to denote it."""
@@ -1806,7 +1564,7 @@ class TestTheWholeProgramEdit(unittest.TestCase):
         keep = {new[0]: s[0], new[1]: s[1], new[3]: s[2], new[5]: s[4]}
         doc.apply(DocEdit.set_program(profile, reshaped, [keep]))
         (row,) = strands(doc)
-        self.assertEqual(row.variant, "strand")
+        self.assertEqual(row.variant, "stranded_selection")
         self.assertEqual(row.node, fillet)
         self.assertEqual(row.name, rim)
         verdict = evaluate(doc).resolve(row.name)
@@ -1953,22 +1711,22 @@ class TestTheEditDoorsPayload(unittest.TestCase):
             )
         return {a for a in EDIT_ATTRS if getattr(refusal, a) is not None}
 
-    def test_the_two_node_roles_answer_with_the_ids_that_were_used(self):
-        # A delete that would dangle names BOTH ends: the node asked
-        # for, and the live node still reading it. They are different
-        # roles, so folding them into one attribute would lose which
-        # is which — and the pair is what a caller needs to build the
-        # cascade.
+    def test_an_operand_refusal_names_the_slot_and_both_kinds(self):
+        # A read of the wrong kind names the operand it was written at
+        # and the two kinds — the one found and the one the slot
+        # admits — as words, so a caller can branch on them.
         doc = Doc()
         box = self.slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
-        profile = doc.order()[1]
         with self.assertRaises(EditError) as caught:
-            doc.apply(DocEdit.delete_node(profile))
+            doc.insert(Node.extrude(box, Formula.length_in(1, m)))
         refusal = caught.exception
-        self.assertEqual(refusal.variant, "delete_would_dangle")
-        self.assertEqual(refusal.node, profile)
-        self.assertEqual(refusal.referenced_by, box)
-        self.assertEqual(self.set_of(refusal), {"variant", "node", "referenced_by"})
+        self.assertEqual(refusal.variant, "slot_var_kind")
+        self.assertEqual(
+            (refusal.slot, refusal.found, refusal.expected), ("profile", "body", "profile")
+        )
+        self.assertEqual(
+            self.set_of(refusal), {"variant", "node", "slot", "found", "expected"}
+        )
 
     def test_a_foreign_id_arrives_under_the_role_the_door_read_it_in(self):
         # The SAME id, refused at two doors, lands under two different
@@ -2043,9 +1801,12 @@ class TestTheEditDoorsPayload(unittest.TestCase):
         with self.assertRaises(EditError) as caught:
             doc.apply(DocEdit.bind_count_param(pattern, VarName("len")))
         refusal = caught.exception
+        # The slot's kind refusal is one arm at every slot: `found`
+        # is the kind of the variable read, `expected` what the slot
+        # takes.
         self.assertEqual(refusal.variant, "slot_var_kind")
-        self.assertEqual(refusal.expected, "length")
-        self.assertEqual(refusal.found, "count")
+        self.assertEqual(refusal.expected, "count")
+        self.assertEqual(refusal.found, "length")
         self.assertEqual(
             self.set_of(refusal),
             {"variant", "node", "slot", "param", "expected", "found"},
@@ -2067,35 +1828,14 @@ class TestTheEditDoorsPayload(unittest.TestCase):
             self.set_of(offered.exception), {"variant", "param", "expected", "offered"}
         )
 
-    def test_a_refused_scalar_and_a_root_pair_cross_as_themselves(self):
+    def test_a_refused_scalar_crosses_as_itself(self):
         doc = Doc()
-        box = self.slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
+        self.slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
         with self.assertRaises(EditError) as eps:
             doc.apply(DocEdit.set_tolerance(-1.0))
         self.assertEqual(eps.exception.variant, "invalid_tolerance")
         self.assertEqual(eps.exception.value, -1.0)
         self.assertEqual(self.set_of(eps.exception), {"variant", "value"})
-
-        # A root that is an ancestor of another root reads the same
-        # two node roles a dangling delete does: the offender, and the
-        # node downstream that references it. `variant` is the FAULT's
-        # word already, so `inner_variant` stays `None`.
-        pattern = doc.insert(
-            Node.pattern(box, Formula.count(3), PatternKind.linear((
-                Formula.literal(1.0),
-                Formula.literal(0.0),
-                Formula.literal(0.0),
-            ), Formula.length_in(2, m)))
-        )
-        with self.assertRaises(EditError) as roots:
-            doc.apply(DocEdit.set_roots([box, pattern]))
-        self.assertEqual(roots.exception.variant, "root_ancestor")
-        self.assertEqual(roots.exception.node, box)
-        self.assertEqual(roots.exception.referenced_by, pattern)
-        self.assertIsNone(roots.exception.inner_variant)
-        self.assertEqual(
-            self.set_of(roots.exception), {"variant", "node", "referenced_by"}
-        )
 
     def test_an_arm_with_no_payload_answers_none_all_the_way_down(self):
         # The placement axis refuses with an inner word and NOTHING
@@ -2110,18 +1850,6 @@ class TestTheEditDoorsPayload(unittest.TestCase):
         self.assertEqual(refusal.variant, "placement_axis")
         self.assertEqual(refusal.inner_variant, "degenerate_direction")
         self.assertEqual(self.set_of(refusal), {"variant", "inner_variant"})
-
-    def test_the_declare_sugars_own_arm_carries_the_shape_and_no_payload(self):
-        # `DeclareError` is a second raise site of this class, and its
-        # own arm holds no document-layer payload — so it answers
-        # `None` for all of it rather than dropping the attributes a
-        # caller reads without branching.
-        doc = Doc()
-        box = self.slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
-        with self.assertRaises(EditError) as caught:
-            doc.declare_all(box, [])
-        self.assertEqual(caught.exception.variant, "no_findings")
-        self.assertEqual(self.set_of(caught.exception), {"variant"})
 
     def test_a_refusal_the_boundary_builds_has_the_same_shape(self):
         # `Node.placed_union` refuses BEFORE the document layer sees

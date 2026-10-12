@@ -24,7 +24,9 @@
 //! [`Reach`] allows ([`side_code`]): a line edge at its far vertex, in
 //! metres; a curved edge and a bisector through
 //! [`geom_brep::enters_material`]: `Enters ⇒ In`, `Exits ⇒ Out`,
-//! `Tangent ⇒ On`. Program 15.7's printed `IN = +1` (positive dot ⇒ IN)
+//! `Tangent ⇒ On` in the sector passes; the vertex-on-face pass reads a
+//! conic's `Tangent` against a plane face by its bend ([`pierce_side`]).
+//! Program 15.7's printed `IN = +1` (positive dot ⇒ IN)
 //! is coherent only for inward normals; under TOG §2's (and our)
 //! outward normals the derived mapping is the opposite — mirror-pinned
 //! by `mirror_check_side_codes`.
@@ -42,9 +44,11 @@
 //! identical / identical-reversed region cases); touch-only sharing of
 //! a single bound is NOT overlap.
 
-use geom_brep::{EntersMaterial, OutwardNormal, enters_material};
+#[cfg(test)]
+use geom_brep::enters_material;
+use geom_brep::{EntersMaterial, OutwardNormal, enters_material_reported};
 use geom_core::k_stats::{Magnitude, NonzeroSign};
-use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
+use geom_core::{Band, Decide, Decided, Margin, Point3, Sign, Vec3};
 
 use super::{
     BooleanDecision, BooleanError, Coincide, DeclarationRead, LeverArm, Operand, SideCode,
@@ -69,13 +73,106 @@ pub(super) enum Reach<T: geom_core::Real> {
         /// The edge's other end.
         far: Point3<T>,
     },
-    /// A curved edge, levered at its own extent: a conic's departure
-    /// tangent at the base vertex; a fitted (NURBS) edge's end-to-end
-    /// chord, levered at the chord's length.
+    /// A fitted (NURBS) edge: its end-to-end chord, levered at the
+    /// chord's length.
     Extent(T),
+    /// A conic edge: its departure tangent at the base vertex, levered
+    /// at the edge's own extent, and how it bends off that tangent
+    /// ([`Bend`]), which [`pierce_side`] reads where the tangent lies in
+    /// a plane face.
+    Conic {
+        /// The edge's extent ([`geom_brep::edge_extent`]): no longer
+        /// than its arc, so a point at that arc length lies on the edge.
+        extent: T,
+        /// The edge's bend at the base vertex.
+        bend: Bend<T>,
+    },
     /// A subdivision bisector: a direction with no point behind it,
     /// levered at its sector's arm.
     Bisector(T),
+}
+
+/// **How a conic edge bends off its departure tangent** at the sector's
+/// base vertex: what [`pierce_side`] reads one order down where the
+/// tangent lies in a plane face ([`conic_side`]).
+#[derive(Clone, Copy, Debug)]
+pub(super) struct Bend<T: geom_core::Real> {
+    /// The carrier's curvature vector at the base vertex: its second
+    /// derivative's part normal to the tangent, per arc length squared.
+    pub curvature: Vec3<T>,
+    /// What the carrier's curvature is bounded by along the edge.
+    pub bounds: BendBounds<T>,
+}
+
+/// The bounds a conic's curvature keeps everywhere on its carrier.
+#[derive(Clone, Copy, Debug)]
+pub(super) enum BendBounds<T: geom_core::Real> {
+    /// A circle or an ellipse: a plane curve whose curvature lies in
+    /// `[least, most]`, both positive, and whose points all lie within
+    /// `reach` of the base vertex and within `rise` of its tangent line
+    /// there.
+    Planar {
+        /// The least curvature anywhere on the carrier.
+        least: T,
+        /// The greatest.
+        most: T,
+        /// A bound on every point's distance from the base vertex.
+        reach: T,
+        /// A bound on every point's distance from the tangent line at
+        /// the base vertex, toward the principal normal.
+        rise: T,
+    },
+    /// A spiric section: no curvature bound is certified here, so its
+    /// tie with a face's plane reads no side.
+    Unbounded,
+}
+
+impl<T: Decide> Bend<T> {
+    /// The bend of the conic `carrier` where the walk leaves it: `deriv`
+    /// and `deriv2` the carrier's first and second derivatives there,
+    /// `span` its parameter span (`t₁ − t₀`).
+    pub(super) fn of(carrier: &geom::Curve3<T>, deriv: Vec3<T>, deriv2: Vec3<T>, span: T) -> Self {
+        let speed_sq = deriv.norm_squared();
+        let t = deriv.normalize();
+        let curvature = (deriv2 - t * deriv2.dot(t)) / speed_sq;
+        let bounds = match *carrier {
+            // The parameter is the angle, so the arc is `radius·span`
+            // long, no point lies further than the diameter, and the arc
+            // rises `radius·(1 − cos θ) = 2·radius·sin²(θ/2)` off its
+            // tangent at angle `θ`, most at `θ = min(span, π)` (the sine
+            // form, since `1 − cos θ` cancels to nothing at a small `θ`).
+            geom::Curve3::Circle { radius, .. } => BendBounds::Planar {
+                least: T::one() / radius,
+                most: T::one() / radius,
+                reach: (radius * span).min(radius * T::from_f64(2.0)),
+                rise: radius
+                    * T::from_f64(2.0)
+                    * (span.min(T::pi()) * T::from_f64(0.5)).sin().powi(2),
+            },
+            // Semi-axes `a ≥ b`: the curvature runs from `b/a²` at the
+            // ends of the minor axis to `a/b²` at the ends of the major,
+            // and no point lies further than the major diameter. Off its
+            // tangent the arc rises `y' = sin φ ≤ φ ≤ most·s`, so at most
+            // `most·S²/2` over its length `S ≤ a·span` (the speed is at
+            // most `a`), and never past the major diameter.
+            geom::Curve3::Ellipse { major, minor, .. } => {
+                let (a, b) = (major.abs().max(minor.abs()), major.abs().min(minor.abs()));
+                let most = a / b.powi(2);
+                BendBounds::Planar {
+                    least: b / a.powi(2),
+                    most,
+                    reach: a * T::from_f64(2.0),
+                    rise: (most * (a * span).powi(2) * T::from_f64(0.5)).min(a * T::from_f64(2.0)),
+                }
+            }
+            geom::Curve3::Spiric { .. } => BendBounds::Unbounded,
+            geom::Curve3::Line { .. } | geom::Curve3::Nurbs(_) => unreachable!(
+                "`Bend::of` reads a conic carrier, not a {:?}",
+                carrier.kind()
+            ),
+        };
+        Self { curvature, bounds }
+    }
 }
 
 impl<T: geom_core::Real> Reach<T> {
@@ -84,20 +181,32 @@ impl<T: geom_core::Real> Reach<T> {
     pub(super) fn length(self) -> T {
         match self {
             Self::Chord { base, far } => (far - base).norm(),
-            Self::Extent(l) | Self::Bisector(l) => l,
+            Self::Extent(l) | Self::Conic { extent: l, .. } | Self::Bisector(l) => l,
         }
     }
+}
 
-    /// The bound's signed departure from the plane through its base
-    /// vertex with unit normal `n`, as [`side_code`] reads it: a line
-    /// edge's far vertex, in metres; any other bound's direction `dir`
-    /// levered at its reach.
+impl<T: Decide> Reach<T> {
+    /// The bound's signed first-order departure from the plane through
+    /// its base vertex with unit normal `n`, as [`side_code`] reads it: a
+    /// line edge's far vertex, in metres; any other bound's direction
+    /// `dir` levered at its reach ([`rise`]). The vertex-on-face pass
+    /// quotes it for a sector whose bounds tie but whose tilt it cannot
+    /// decide (`bool_sector_coplanar`): the steeper bound's first-order
+    /// departure is what a smaller tolerance reads off the plane. A
+    /// conic's bend is [`conic_side`]'s.
     pub(super) fn departure(self, dir: Vec3<T>, n: Vec3<T>) -> T {
         match self {
             Self::Chord { base, far } => crate::sector_shape::plane_offset(base, n, far),
-            Self::Extent(l) | Self::Bisector(l) => dir.normalize().dot(n) * l,
+            Self::Extent(l) | Self::Conic { extent: l, .. } | Self::Bisector(l) => rise(dir, n, l),
         }
     }
+}
+
+/// A direction's first-order rise off the plane with unit normal `n`,
+/// levered at `arm`: `d̂·n̂·arm`, in metres.
+fn rise<T: Decide>(dir: Vec3<T>, n: Vec3<T>, arm: T) -> T {
+    Margin::levered(dir.normalize().dot(n), arm).value()
 }
 
 /// One (convex) sector of a vertex neighborhood.
@@ -122,6 +231,30 @@ pub(super) struct BoolSector<T: geom_core::Real> {
     pub normal: OutwardNormal<T>,
     /// The metering arm (shorter bounding chord, in meters).
     pub arm: T,
+}
+
+/// **Whether a face a bound's side is read against is a plane**, which
+/// decides what a bound in its tangent plane at the vertex means
+/// ([`pierce_side`]): on a plane, the bound lies in the face, and a
+/// conic tangent to it is read one order down; on a curved face, a
+/// bound in its tangent plane rides the face to first order, and is
+/// `On`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum FaceShape {
+    /// The face lies on a plane.
+    Plane,
+    /// The face lies on a curved surface.
+    Curved,
+}
+
+impl FaceShape {
+    /// The shape of a face on `surface`.
+    pub(super) fn of<T: geom_core::Real>(surface: &geom::Surface<T>) -> Self {
+        match surface.kind() {
+            geom::SurfaceKind::Plane => Self::Plane,
+            _ => Self::Curved,
+        }
+    }
 }
 
 impl<T: geom_core::Real> BoolSector<T> {
@@ -171,7 +304,7 @@ pub(super) fn build_sectors<T: Decide>(
     vertex: VertexKey,
     band: Band,
 ) -> Result<Vec<BoolSector<T>>, BooleanError> {
-    let corners = orbit_corners(body, operand, vertex);
+    let corners = orbit_corners(body, operand, vertex, band);
     // A lone orbit half-edge's corner runs from its chord round to it.
     let alone = corners.len() == 1;
     let mut sectors = Vec::with_capacity(corners.len() + 2);
@@ -255,6 +388,7 @@ pub(super) fn orbit_corners<T: Decide>(
     body: &Body<T>,
     operand: Operand,
     vertex: VertexKey,
+    band: Band,
 ) -> impl ExactSizeIterator<Item = Result<OrbitCorner<T>, BooleanError>> + '_ {
     let orbit = body.vertex_orbit_linked(vertex);
     if orbit.is_empty() {
@@ -310,10 +444,17 @@ pub(super) fn orbit_corners<T: Decide>(
             | geom::Curve3::Ellipse { .. }
             | geom::Curve3::Spiric { .. } => {
                 let (t0, t1) = curve.params();
-                let (tangent, _) = curve.walk_tangents(he == edge.he_plus);
+                let walk = he == edge.he_plus;
+                let (tangent, _) = curve.walk_tangents(walk);
                 let extent =
                     geom_brep::edge_extent(curve.carrier(), t0, t1, p_end.distance(p_base));
-                (tangent.normalize() * extent, Reach::Extent(extent))
+                let bend = Bend::of(
+                    curve.carrier(),
+                    tangent,
+                    curve.walk_departure_deriv2(walk),
+                    t1 - t0,
+                );
+                (tangent.normalize() * extent, Reach::Conic { extent, bend })
             }
         }
     };
@@ -322,7 +463,7 @@ pub(super) fn orbit_corners<T: Decide>(
         let he = orbit[i];
         let (end, end_reach) = chord(he); // this entry's own chord = CCW-last
         let (start, start_reach) = chord(orbit[(i + 1) % n]); // next chord = CCW-first
-        let (face, normal) = sector_face(body, operand, vertex, he)?;
+        let (face, normal) = sector_face(body, operand, vertex, he, band)?;
         Ok(OrbitCorner {
             he,
             start,
@@ -340,11 +481,18 @@ pub(super) fn orbit_corners<T: Decide>(
 /// The walk and the normals are [`crate::sector_face`] — ONE
 /// implementation, called from here and from the splitting lane's
 /// sector walk. What stays here is this lane's
-/// adaptation of it, and only that: the boolean error type, whose
-/// every arm carries the [`Operand`] the shared walk has no notion of.
-/// All four wired arms — `Plane`, `Cylinder`, `Sphere`, `Torus` —
-/// are live on this side; kinds without one refuse typed (C12.1, per
-/// arm).
+/// adaptation of it: the boolean error type, whose every arm carries
+/// the [`Operand`] the shared walk has no notion of, and the cone's
+/// apex. All five wired arms — `Plane`, `Cylinder`, `Sphere`, `Torus`,
+/// `Cone` — are live on this side; kinds without one refuse typed
+/// (C12.1, per arm).
+///
+/// **A sector based at a cone's apex refuses**
+/// ([`BooleanError::NormalAtConeApex`]). The walk mints the cone's
+/// normal from its implicit gradient, which is `0/0` on the axis, and
+/// the apex is the axis point ON the cone: a vertex there has no
+/// tangent plane, and the poison would otherwise reach the first
+/// decision that reads it under that decision's name.
 ///
 /// The normal arrives as an [`OutwardNormal`] with the face's `sense`
 /// folded in (S10), minted at the shared chokepoint — which makes that
@@ -361,6 +509,7 @@ pub(super) fn sector_face<T: Decide>(
     operand: Operand,
     vertex: VertexKey,
     he: HalfEdgeKey,
+    band: Band,
 ) -> Result<(FaceKey, OutwardNormal<T>), BooleanError> {
     let resolved = crate::sector_face::resolve(body, vertex, he).map_err(|e| match e {
         SectorFaceError::Unsupported { face, kind } => BooleanError::CurvedBooleanUnsupported {
@@ -378,14 +527,21 @@ pub(super) fn sector_face<T: Decide>(
         | SectorCarrier::Cylinder
         | SectorCarrier::Sphere
         | SectorCarrier::Torus => {}
-        // The boolean's sector algebra has no cone arm: a cone-carried
-        // sector refuses here, typed, as the split lane's does not.
         SectorCarrier::Cone => {
-            return Err(BooleanError::CurvedBooleanUnsupported {
-                operand,
-                face: resolved.face,
-                kind: geom::SurfaceKind::Cone,
-            });
+            let geom::Surface::Cone { apex, axis, .. } = *body.face_surface_linked(
+                resolved.face,
+                proven(&body.faces, resolved.face, EntityId::Face),
+            ) else {
+                unreachable!("the shared walk's cone arm read a face that carries no cone")
+            };
+            let p = body.resolve_vertex_point(vertex, Proven);
+            crate::face_normal::cone_axis_clearance(apex, axis, p, band).map_err(|_| {
+                BooleanError::NormalAtConeApex {
+                    operand,
+                    face: resolved.face,
+                    band,
+                }
+            })?;
         }
     }
     Ok((resolved.face, resolved.normal))
@@ -394,17 +550,18 @@ pub(super) fn sector_face<T: Decide>(
 /// The refusal for a bisector reading On between two bounds definitely
 /// on one side (`vtxfac`'s on-edge resolution,
 /// `recl::resolve_bisector_graze`): reachable only when K ≤ 2, where the
-/// Zero is the band's and does not decide. The payload says what is
-/// known: the reading lies within `±zero`.
-pub(super) fn bisector_zero_refusal(band: Band) -> BooleanError {
+/// Zero is the band's and does not decide. The side is read off a sign,
+/// so `on`, the Zero the bisector's code was decided on, is the nonzero
+/// gate's rejection, on the log under the predicate that decided it.
+pub(super) fn bisector_zero_refusal(on: OnReading, band: Band) -> BooleanError {
     BooleanError::Escalated {
         decision: BooleanDecision::BisectorSide,
-        diag: geom_core::Indeterminate {
-            margin: geom_core::MarginDiag::enclosure(-band.zero(), band.zero()),
+        diag: geom_core::k_stats::gate_rejection(
+            on.predicate,
+            on.decided,
             band,
-            predicate: Some("bool_sector_bisector_side"),
-            terminal_sliver: false,
-        },
+            geom_core::SizedPass::NonZero,
+        ),
     }
 }
 
@@ -439,17 +596,16 @@ pub(super) fn NO_CURVATURE<T: Decide>() -> T {
 ///   within the band of the plane. A direction levered at the SHORTER
 ///   chord of the sector would read Zero while a long edge's far end
 ///   stood thousands of bands off.
-/// - [`Reach::Extent`] (a conic or fitted edge): the departure
-///   direction levered at the edge's own extent — the displacement
-///   the first-order datum implies at the far end. A definite sign is
-///   exact (the sign of `t̂·n̂`). A Zero is a first-order tangency at
-///   the vertex: the arc departs within the band of the plane over its
-///   whole extent to first order, and where it goes at second order
-///   is not read here — the declared-`Tangent` descent owns that
-///   (`tangent_lump`), and an undeclared curved on-carrier sector
-///   refuses typed (C8). What this reading does NOT certify is an arc
-///   that departs tangentially and curves off; that residue is filed
-///   (`work/contact/boolean-conic-side-code-zero-is-first-order`).
+/// - [`Reach::Conic`] (a conic edge): the departure tangent levered at
+///   the edge's own extent. A definite sign is exact (the sign of
+///   `t̂·n̂`). A Zero is a first-order tangency, and reads `On` here:
+///   the sector passes that call this key their coincidence and
+///   tangent machinery on first-order ties. The vertex-on-face pass
+///   reads it one order down ([`pierce_side`], [`conic_side`]).
+/// - [`Reach::Extent`] (a fitted edge): the end-to-end chord levered at
+///   its length, so a Zero puts the far end within the band of the
+///   plane; the chord is a secant, and where the edge goes between its
+///   ends is not read here.
 /// - [`Reach::Bisector`]: a subdivision direction has no point behind
 ///   it, so it is levered at its sector's arm. Its Zero is not read as
 ///   a verdict where it could decide anything: a bisector's code only
@@ -504,41 +660,140 @@ pub(super) fn side_code<T: Decide>(
     lever: T,
     band: Band,
 ) -> Result<SideCode, BooleanError> {
+    read_side(dir, reach, face_normal, lever, None, band).map(|(side, _)| side.code)
+}
+
+/// **A bound's side of a pierced face, as the vertex-on-face pass reads
+/// it** ([`super::vtxfac`]): [`side_code`]'s reading, except that a
+/// conic whose tangent ties with a PLANE face is read one order down
+/// ([`conic_side`]). `tied` says the first order tied, which is what the
+/// pass's whole-sector lump keys on: a sector tangent to the face lumps
+/// whole, and its second order is the lump's, read off the two carriers.
+///
+/// Against a curved face a tie stays `On`: a bound in the face's tangent
+/// plane rides the face to first order, and which way it leaves the
+/// face is the two carriers' relative curvature, which no reading of the
+/// bound alone gives.
+pub(super) fn pierce_side<T: Decide>(
+    dir: Vec3<T>,
+    reach: Reach<T>,
+    face_normal: OutwardNormal<T>,
+    shape: FaceShape,
+    lever: T,
+    band: Band,
+) -> Result<PierceSide, BooleanError> {
+    pierce_side_reported(dir, reach, face_normal, shape, lever, band).map(|(side, _)| side)
+}
+
+/// [`pierce_side`], keeping the first-order Zero a bound read `On` on:
+/// what a caller that cannot use the `On` refuses through the gate
+/// ([`bisector_zero_refusal`]). `None` beside a side, and beside an `On`
+/// the second order read.
+pub(super) fn pierce_side_reported<T: Decide>(
+    dir: Vec3<T>,
+    reach: Reach<T>,
+    face_normal: OutwardNormal<T>,
+    shape: FaceShape,
+    lever: T,
+    band: Band,
+) -> Result<(PierceSide, Option<OnReading>), BooleanError> {
+    read_side(dir, reach, face_normal, lever, Some(shape), band)
+}
+
+/// The Zero a bound's first-order side reading decided, and the
+/// predicate that decided it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct OnReading {
+    /// The predicate that decided the Zero.
+    pub(super) predicate: &'static str,
+    /// The Zero, with the margin it was decided on.
+    pub(super) decided: Decided,
+}
+
+/// What [`pierce_side`] read of a bound.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct PierceSide {
+    /// The bound's side code.
+    pub code: SideCode,
+    /// Whether its first-order reading tied (`Zero`).
+    pub tied: bool,
+}
+
+/// [`side_code`] and [`pierce_side`]'s one body. `shape` is the face's
+/// where the reading may descend (the vertex-on-face pass's), `None`
+/// for the first-order reading; a conic's tie with a plane face is read
+/// one order down ([`conic_side`]).
+fn read_side<T: Decide>(
+    dir: Vec3<T>,
+    reach: Reach<T>,
+    face_normal: OutwardNormal<T>,
+    lever: T,
+    shape: Option<FaceShape>,
+    band: Band,
+) -> Result<(PierceSide, Option<OnReading>), BooleanError> {
     let n = face_normal.vec();
     let length = reach.length();
+    let tie = |code| PierceSide { code, tied: true };
+    let on = |predicate, decided| (tie(SideCode::On), Some(OnReading { predicate, decided }));
     let (verdict, displacement) = match reach {
         Reach::Chord { base, far } => {
             let offset = crate::sector_shape::plane_offset(base, n, far);
-            let verdict = match decide("bool_chord_side", Margin::of(offset), band) {
-                // Same mapping as `enters_material`: into the material
-                // is against the outward normal.
-                Ok(Sign::Negative) => SideCode::In,
-                Ok(Sign::Positive) => SideCode::Out,
-                Ok(Sign::Zero) => return Ok(SideCode::On),
-                Err(diag) => {
-                    return Err(BooleanError::coincidence(
-                        Coincide::SectorSide,
-                        DeclarationRead::Moot,
-                        diag,
-                    ));
-                }
-            };
+            let verdict =
+                match crate::validate::decide_reported("bool_chord_side", Margin::of(offset), band)
+                {
+                    // Same mapping as `enters_material`: into the material
+                    // is against the outward normal.
+                    Ok(Decided {
+                        sign: Sign::Negative,
+                        ..
+                    }) => SideCode::In,
+                    Ok(Decided {
+                        sign: Sign::Positive,
+                        ..
+                    }) => SideCode::Out,
+                    Ok(
+                        zero @ Decided {
+                            sign: Sign::Zero, ..
+                        },
+                    ) => return Ok(on("bool_chord_side", zero)),
+                    Err(diag) => {
+                        return Err(BooleanError::coincidence(
+                            Coincide::SectorSide,
+                            DeclarationRead::Moot,
+                            diag,
+                        ));
+                    }
+                };
             (verdict, offset.abs())
         }
-        Reach::Extent(_) | Reach::Bisector(_) => {
-            let verdict = match enters_material(dir, face_normal, length, band) {
-                Ok(EntersMaterial::Enters) => SideCode::In,
-                Ok(EntersMaterial::Exits) => SideCode::Out,
-                Ok(EntersMaterial::Tangent) => return Ok(SideCode::On),
+        Reach::Extent(_) | Reach::Conic { .. } | Reach::Bisector(_) => {
+            let verdict = match enters_material_reported(dir, face_normal, length, band) {
+                Ok((EntersMaterial::Enters, _)) => SideCode::In,
+                Ok((EntersMaterial::Exits, _)) => SideCode::Out,
+                Ok((EntersMaterial::Tangent, margin)) => {
+                    return match reach {
+                        Reach::Conic { extent, bend } if shape == Some(FaceShape::Plane) => {
+                            conic_side(dir, extent, bend, face_normal, band)
+                                .map(|code| (tie(code), None))
+                        }
+                        _ => Ok(on(
+                            "enters_material",
+                            Decided {
+                                sign: Sign::Zero,
+                                margin,
+                            },
+                        )),
+                    };
+                }
                 Err(escalation) => {
                     return Err(BooleanError::of_lever(
                         LeverArm::SectorSide,
                         DeclarationRead::Moot,
-                        at_departure(escalation, length, dir.normalize().dot(n) * length, band),
+                        at_departure(escalation, length, rise(dir, n, length), band),
                     ));
                 }
             };
-            (verdict, (dir.normalize().dot(n) * length).abs())
+            (verdict, rise(dir, n, length).abs())
         }
     };
     // **The sagitta bound, and why the textbook ½ is not in it.** At
@@ -557,7 +812,13 @@ pub(super) fn side_code<T: Decide>(
         band,
     ) {
         Ok(decided) => match Refused::of(decided, band) {
-            None => Ok(verdict),
+            None => Ok((
+                PierceSide {
+                    code: verdict,
+                    tied: false,
+                },
+                None,
+            )),
             Some(refused) => Err(BooleanError::CurvedSectorSideUnsupported { verdict: refused }),
         },
         Err(diag) => Err(BooleanError::Escalated {
@@ -567,10 +828,153 @@ pub(super) fn side_code<T: Decide>(
     }
 }
 
+/// **A conic bound's side of a plane face one order down**, where its
+/// departure tangent read `Zero` against the plane ([`pierce_side`]):
+/// which side the arc BENDS to.
+///
+/// Put the arc in its own plane, in the frame of its unit tangent `t̂`
+/// and principal normal `N̂` at the base vertex: a point at arc length
+/// `s` sits at `x·t̂ + y·N̂`, so its height over the face's plane is
+/// `x·(t̂·n̂) + y·(N̂·n̂)` exactly. The first term is the first-order
+/// residue the Zero left (`|x| ≤ s`), the second the bend.
+///
+/// **The bend's lower bound.** The tangent turns at the curvature
+/// `κ(s) ∈ [least, most]`, so its angle `φ(s)` lies between
+/// `least·s` and `most·s`. While `most·s ≤ π/2`, `sin φ ≥ sin(least·s)`,
+/// and integrating, `y(s) ≥ (1 − cos(least·s))/least
+/// = 2·sin²(least·s/2)/least`. So at `l = min(extent, π/(2·most))` the
+/// arc stands at least
+///
+/// `|N̂·n̂|·2·sin²(least·l/2)/least − |t̂·n̂|·l`
+///
+/// off the plane on the side `N̂·n̂` names, and a margin that clears the
+/// band is the verdict: bending against the outward normal is `In`,
+/// along it `Out`. `l` is capped at the extent, so the witness point
+/// lies on the edge.
+///
+/// **On.** Every point of the arc lies in its own plane, within `reach`
+/// of the vertex and within `rise` of the tangent line there toward
+/// `N̂` ([`BendBounds::Planar`]), so its height is at most
+/// `|t̂·n̂|·reach + |N̂·n̂|·rise`; where that reads `Zero` the whole edge
+/// lies in the plane to the band, and the bound is `On` as a line
+/// edge's is.
+///
+/// Anything else refuses, typed ([`BooleanDecision::ConicBend`]): a
+/// bend the band does not separate from the residue, and every spiric
+/// section, whose curvature carries no bound here.
+fn conic_side<T: Decide>(
+    dir: Vec3<T>,
+    extent: T,
+    bend: Bend<T>,
+    face_normal: OutwardNormal<T>,
+    band: Band,
+) -> Result<SideCode, BooleanError> {
+    let n = face_normal.vec();
+    let refused = |diag| BooleanError::Escalated {
+        decision: BooleanDecision::ConicBend,
+        diag,
+    };
+    let normal_part = bend.curvature.dot(n) / bend.curvature.norm();
+    // The bend's lower bound, signed as `N̂·n̂` is. A spiric section has
+    // no bend this reading certifies: it lifts nothing, and the margin
+    // below cannot clear.
+    let (lift, l) = match bend.bounds {
+        BendBounds::Planar {
+            least,
+            most,
+            reach,
+            rise: height,
+        } => {
+            if let Ok(Sign::Zero) = decide(
+                "bool_conic_flat",
+                Margin::of(rise(dir, n, reach).abs() + normal_part.abs() * height),
+                band,
+            ) {
+                return Ok(SideCode::On);
+            }
+            let l = extent.min(T::pi() * T::from_f64(0.5) / most);
+            let half_turn = (least * l * T::from_f64(0.5)).sin();
+            (
+                normal_part * half_turn.powi(2) * T::from_f64(2.0) / least,
+                l,
+            )
+        }
+        BendBounds::Unbounded => (T::zero(), extent),
+    };
+    crate::validate::decide_positive(
+        "bool_conic_bend",
+        Margin::of(lift.abs() - rise(dir, n, l).abs()),
+        band,
+    )
+    .map_err(refused)?;
+    // The signed lift is the one that just cleared, so its sign is
+    // decided wherever the margin was; the arm refuses rather than
+    // trusting that.
+    match crate::validate::decide_nonzero("bool_conic_bend_side", Margin::of(lift), band) {
+        // Same mapping as `enters_material`: into the material is
+        // against the outward normal.
+        Ok(NonzeroSign::Negative) => Ok(SideCode::In),
+        Ok(NonzeroSign::Positive) => Ok(SideCode::Out),
+        Err(diag) => Err(refused(diag)),
+    }
+}
+
+/// **The lever a pierced face's side verdicts charge** ([`side_code`]'s
+/// `lever`): the smallest radius of curvature the face has where the
+/// charge reads it, within a bound's reach of the pierce point.
+///
+/// [`geom_brep::min_radius_of_curvature`] bounds every bend of a plane,
+/// sphere, cylinder or torus wherever a bound goes, and is the lever
+/// for every reach. A cone's is `ρ` at the pierce point only: its
+/// normal curvature `cos α·(d·φ̂)²/ρ` grows toward the axis, so a bound
+/// reaching `l` toward it can meet a bend as tight as `ρ − l`.
+///
+/// The charge reads the bound no further than `l* = slope·lever/2`
+/// (capped at the reach), and the slope is a sine, so a lever of `2ρ/3`
+/// is never read past `ρ/3`, where the bend is no tighter than `2ρ/3`.
+/// The cone's lever is therefore `max(ρ − reach, 2ρ/3)`: the bend
+/// nearest the axis within the bound's reach, or within the stretch the
+/// charge reads where that is shorter. It is positive wherever the
+/// pierce normal is, since that door certified `ρ` definitely positive.
+///
+/// It bounds the bend of the pierced point's own nappe only. The charge
+/// does not see the other sheet of the double cone, which on a wide
+/// cone (`α` above about 78.7°) comes within `ρ/3` of the pierce.
+/// What reads a crossing onto that sheet is the crossing layer's
+/// far-nappe verdict, not this lever.
+#[derive(Clone, Copy, Debug)]
+pub(super) enum PierceLever<T: geom_core::Real> {
+    /// A bound on every bend the face makes.
+    Everywhere(T),
+    /// A cone's `ρ` at the pierce point.
+    ConeAt(T),
+}
+
+impl<T: Decide> PierceLever<T> {
+    /// The pierced `surface`'s lever at `p`.
+    pub(super) fn of(surface: &geom::Surface<T>, p: Point3<T>) -> Self {
+        let at_p = geom_brep::min_radius_of_curvature(surface, p);
+        match surface {
+            geom::Surface::Cone { .. } => Self::ConeAt(at_p),
+            _ => Self::Everywhere(at_p),
+        }
+    }
+
+    /// The lever for a bound reaching `reach` from the pierce point.
+    pub(super) fn within(self, reach: T) -> T {
+        match self {
+            Self::Everywhere(lever) => lever,
+            Self::ConeAt(rho) => (rho - reach).max(rho * T::from_f64(2.0 / 3.0)),
+        }
+    }
+}
+
 /// **A side reading's arm gate, quoted at the departure it reads**: the
 /// arm is in band or decided zero, and the reading it meters is the
 /// bound's departure from the face over that arm, `d̂·n̂·arm`, no longer
-/// than the arm. A tolerance that decides the arm but leaves the
+/// than the arm up to the in-band excess of the normal's length over one
+/// (which [`geom_brep::LeverEscalation::quoting_reading`] guards). A
+/// tolerance that decides the arm but leaves the
 /// departure in band reads no side, so the escalation carries the
 /// departure's own margin, through the arm gate's funnel, and the
 /// tolerance it offers decides both, logged under its own name
@@ -587,10 +991,7 @@ fn at_departure<T: Decide>(
 ) -> geom_brep::LeverEscalation {
     // `arm / departure` is finite unless the departure is exactly zero
     // (or poison).
-    if escalation.rung != geom_brep::LeverRung::Arm
-        || !escalation.diag.offers_tolerance()
-        || !geom_core::is_finite_length(arm / departure)
-    {
+    if !escalation.re_quotes() || !geom_core::is_finite_length(arm / departure) {
         return escalation;
     }
     match geom_core::k_stats::decide_positive(
@@ -598,9 +999,10 @@ fn at_departure<T: Decide>(
         Margin::of(departure.abs()),
         band,
     ) {
-        Err(diag) => escalation.with_diag(diag),
-        // Unreachable: the departure is no longer than an arm that did
-        // not read positive.
+        Err(diag) => escalation.quoting_reading(diag),
+        // Only where the face normal's in-band excess over unit length
+        // carries the departure past the band: the arm keeps its own
+        // margin, whose tolerance decides that departure too.
         Ok(()) => escalation,
     }
 }
@@ -917,7 +1319,7 @@ struct Along {
 /// site's surgery moves the orbit the bounds are read from.
 pub(super) fn germ_locus<T: Decide>(
     side: GermSide<'_, T>,
-    contacts: &super::ContactRecords,
+    contacts: &super::ReductionContacts,
 ) -> Result<super::Locus, BooleanError> {
     let in_face = super::Locus::InFace(side.sector.face);
     Ok(match along(side)? {
@@ -941,7 +1343,7 @@ pub(super) fn germ_locus<T: Decide>(
 pub(super) fn germ_loci<T: Decide>(
     a: GermSide<'_, T>,
     b: GermSide<'_, T>,
-    contacts: &super::ContactRecords,
+    contacts: &super::ReductionContacts,
     band: Band,
 ) -> Result<(super::Locus, super::Locus), BooleanError> {
     use super::Locus::{InFace, OnEdge};
@@ -1108,7 +1510,7 @@ pub(super) fn stale_site(_: StaleSite) -> BooleanError {
 fn touch<T: Decide>(
     side: GermSide<'_, T>,
     far: VertexKey,
-    contacts: &super::ContactRecords,
+    contacts: &super::ReductionContacts,
 ) -> Result<Touch, BooleanError> {
     let site = site_of(side.body, far)?;
     Ok(
@@ -1130,7 +1532,10 @@ fn touch<T: Decide>(
 }
 
 /// The recorded contacts of `operand`'s vertices on the partner's faces.
-fn on_faces(contacts: &super::ContactRecords, operand: Operand) -> &[super::VfContact] {
+fn on_faces(
+    contacts: &super::ReductionContacts,
+    operand: Operand,
+) -> &[crate::Cited<super::VfContact>] {
     match operand {
         Operand::A => &contacts.a_on_b,
         Operand::B => &contacts.b_on_a,
@@ -1154,7 +1559,7 @@ fn tangent_face<T: Decide>(
     side: GermSide<'_, T>,
     partner: GermSide<'_, T>,
     along: crate::entity::EdgeKey,
-    contacts: &super::ContactRecords,
+    contacts: &super::ReductionContacts,
 ) -> Result<Option<FaceKey>, BooleanError> {
     let edge = proven(&partner.body.edges, along, EntityId::Edge);
     let (u, v) = (
@@ -1263,14 +1668,14 @@ pub(super) fn direction_sense<T: Decide>(
     arm: T,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    match crate::validate::decide_nonzero("bool_dir_same", Margin::levered(u.dot(v), arm), band) {
-        Ok(NonzeroSign::Positive) => Ok(true),
-        Ok(NonzeroSign::Negative) => Ok(false),
-        Err(diag) => Err(BooleanError::Escalated {
-            decision: BooleanDecision::DirectionSense,
-            diag,
-        }),
-    }
+    Ok(
+        crate::validate::decide_nonzero("bool_dir_same", Margin::levered(u.dot(v), arm), band)
+            .map_err(|diag| BooleanError::Escalated {
+                decision: BooleanDecision::DirectionSense,
+                diag,
+            })?
+            == NonzeroSign::Positive,
+    )
 }
 
 /// `sectoroverlap` — coplanar sectors overlap test (module docs).
@@ -1309,7 +1714,7 @@ type SidePair = (SideCode, SideCode);
 
 /// The four side codes of a sector pair: each sector's bounds against
 /// the other's face.
-fn pair_codes<T: Decide>(
+pub(super) fn pair_codes<T: Decide>(
     sa: &BoolSector<T>,
     sb: &BoolSector<T>,
     band: Band,
@@ -1425,18 +1830,32 @@ pub(super) struct WedgeRead {
 /// A wedge is the two faces' inner half-spaces, met where the edge
 /// between them is convex and joined where it is reflex. Which one is
 /// read off one face's subdivision bisector, a direction inside it,
-/// against the other face's plane; a bisector on that plane is two
-/// faces tangent along the edge, whose half-spaces agree there and are
-/// read as convex. A wedge with no bisector to read is not classified.
-/// A corner of three or more faces is convex when every bound of every
-/// sector lies behind or on every other face's plane, and is then the
-/// faces' inner half-spaces met; it is hollow when every bound lies in
-/// front of or on every other face's plane, its complement then convex,
-/// and is the faces' inner half-spaces joined.
+/// against the other face's plane. A wedge with no bisector to read is
+/// not classified.
+/// A corner of three or more faces is convex when no bound of any
+/// sector lies in front of the plane of a face it does not bound, and
+/// is then the faces' inner half-spaces met; it is hollow when none
+/// lies behind one, its complement then convex, and is the faces' inner
+/// half-spaces joined. A bound bounds its own sector's face and the
+/// face across it: for its start the next sector's along the
+/// shared-bound chain (module docs), for its end the previous one's.
+///
+/// A bisector or bound on, or in band of, a plane it is read against
+/// says nothing of the wedge or corner where that plane is its own
+/// face's, or the face's across it, facing the same way, as far as the
+/// reading reaches (the edges it classes and the corner's sectors,
+/// `bool_corner_one_plane`): there met and joined read every direction
+/// alike, and a wedge so read is met. Anywhere else the faces part by up
+/// to the band at the bound's reach, which an edge reaching farther
+/// reads as metres, so the wedge or corner is read as a polygon cone,
+/// each edge at its own reach. A corner no bound reads decidedly off
+/// any plane is met where all its faces lie on one plane facing one
+/// way, and a polygon cone otherwise.
 ///
 /// A direction's class is its side codes against the faces combined:
 /// met, `Out` past any face, else `On` on any, else `In`; joined, `In`
-/// behind any face, else `On` on any, else `Out`.
+/// behind any face, else `On` on any, else `Out`. A direction in band
+/// of a face's plane reads the corner as a polygon cone, met or joined.
 pub(super) fn wedge_classes<T: Decide>(
     own: &[BoolSector<T>],
     other: &[BoolSector<T>],
@@ -1449,8 +1868,29 @@ pub(super) fn wedge_classes<T: Decide>(
         }
     }
     let code = |dir, reach, normal| plane_side_code(dir, reach, normal, band);
-    let (met, hollow) = match faces.as_slice() {
-        [(f0, _), (_, n1)] => {
+    // The farthest the reading reaches: the edges it classes, and the
+    // corner's own sectors.
+    let reach = own
+        .iter()
+        .filter(|s| s.end_edge())
+        .map(|s| s.end_reach.length())
+        .chain(other.iter().map(BoolSector::span))
+        .reduce(|a, b| a.max(b))
+        .unwrap_or_else(T::zero);
+    // Two unit normals a chord apart part their planes by that chord at
+    // the reach; opposed normals stand two apart.
+    let one_plane = |a: OutwardNormal<T>, b: OutwardNormal<T>| {
+        matches!(
+            geom_core::k_stats::decide_magnitude(
+                "bool_corner_one_plane",
+                Margin::levered((a.vec() - b.vec()).norm(), reach),
+                band,
+            ),
+            Ok(Magnitude::Zero)
+        )
+    };
+    let met = match faces.as_slice() {
+        [(f0, n0), (_, n1)] => {
             let inside =
                 other
                     .iter()
@@ -1463,39 +1903,49 @@ pub(super) fn wedge_classes<T: Decide>(
             let Some((dir, reach)) = inside else {
                 return Ok(None);
             };
-            (code(dir, reach, *n1)? != SideCode::Out, false)
+            match code(dir, reach, *n1) {
+                Ok(SideCode::In) => true,
+                Ok(SideCode::Out) => false,
+                Ok(SideCode::On) | Err(BooleanError::Escalated { .. }) if one_plane(*n0, *n1) => {
+                    true
+                }
+                Ok(SideCode::On) | Err(BooleanError::Escalated { .. }) => {
+                    return cone_read(own, other, band);
+                }
+                Err(e) => return Err(e),
+            }
         }
-        [_, _, _, ..] => {
-            // Convex while no bound lies past another face's plane, and
-            // its complement convex while none lies behind one. A
-            // reading in band refuses only while the corner may still be
-            // convex; past that the corner is read as a polygon cone.
+        [(_, first), _, _, ..] => {
+            let n = other.len();
             let (mut convex, mut reflex) = (true, true);
-            for s in other {
-                for &(f, n) in &faces {
-                    if f == s.face {
-                        continue;
-                    }
-                    for (dir, reach) in [(s.start, s.start_reach), (s.end, s.end_reach)] {
-                        match code(dir, reach, n) {
+            for (k, s) in other.iter().enumerate() {
+                let (next, prev) = (&other[(k + 1) % n], &other[(k + n - 1) % n]);
+                for (dir, reach, across) in
+                    [(s.start, s.start_reach, next), (s.end, s.end_reach, prev)]
+                {
+                    for &(f, normal) in &faces {
+                        if f == s.face || f == across.face {
+                            continue;
+                        }
+                        match code(dir, reach, normal) {
                             Ok(SideCode::Out) => convex = false,
                             Ok(SideCode::In) => reflex = false,
-                            Ok(SideCode::On) => {}
-                            Err(e) if convex => return Err(e),
-                            Err(_) => return cone_read(own, other, band),
-                        }
-                        if !convex && !reflex {
-                            return cone_read(own, other, band);
+                            Ok(SideCode::On) | Err(BooleanError::Escalated { .. })
+                                if one_plane(s.normal, normal)
+                                    || one_plane(across.normal, normal) => {}
+                            Ok(SideCode::On) | Err(BooleanError::Escalated { .. }) => {
+                                return cone_read(own, other, band);
+                            }
+                            Err(e) => return Err(e),
                         }
                     }
                 }
             }
-            // A corner both ways at once (every bound on every plane)
-            // reads as convex, as it did before hollow corners were read.
             match (convex, reflex) {
-                (true, _) => (true, false),
-                (false, true) => (false, true),
-                (false, false) => return cone_read(own, other, band),
+                (true, false) => true,
+                (false, true) => false,
+                (true, true) if faces.iter().all(|&(_, n)| one_plane(*first, n)) => true,
+                _ => return cone_read(own, other, band),
             }
         }
         _ => return Ok(None),
@@ -1511,7 +1961,7 @@ pub(super) fn wedge_classes<T: Decide>(
         for &(_, n) in &faces {
             match code(s.end, s.end_reach, n) {
                 Ok(c) => codes.push(c),
-                Err(_) if hollow => return cone_read(own, other, band),
+                Err(BooleanError::Escalated { .. }) => return cone_read(own, other, band),
                 Err(e) => return Err(e),
             }
         }
@@ -1950,17 +2400,17 @@ fn arc_side<T: Decide>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-    use crate::contact::BooleanCoincidence;
+    use crate::contact::GlueClass;
     use geom_core::Tol;
 
     fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()
     }
 
-    /// **A flat corner reads as convex**: three faces on one plane, every
-    /// bound on every other face's plane, read met, so an edge below
-    /// the plane is In and one above it Out, as before hollow corners
-    /// were read.
+    /// **A flat corner reads met**: three faces on one plane, every bound
+    /// on every other face's plane, which is its own face's as far as the
+    /// reading reaches, so an edge below the plane is In and one above
+    /// it Out.
     #[test]
     fn a_flat_three_face_corner_reads_met() {
         let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
@@ -2010,12 +2460,13 @@ mod tests {
     /// The sectors of a cone's corner at the origin over the closed
     /// polygon `base` (counterclockwise from above): the material inside
     /// the cone, or outside it where `hollow`. Face `k` lies between
-    /// corners `k` and `k + 1`, keyed `11 + k`.
+    /// corners `k` and `k + 1`, keyed `11 + k`; the sectors run in orbit
+    /// order, each sharing its start with the next one's end.
     fn cone_sectors(base: &[Vec3<f64>], hollow: bool) -> Vec<BoolSector<f64>> {
         let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
         let o = Point3::new(0.0, 0.0, 0.0);
         let n = base.len();
-        (0..n)
+        let mut sectors: Vec<_> = (0..n)
             .map(|k| {
                 let (a, b) = (base[k], base[(k + 1) % n]);
                 let (start, end, normal) = if hollow {
@@ -2040,7 +2491,11 @@ mod tests {
                     arm: 1.0,
                 }
             })
-            .collect()
+            .collect();
+        if hollow {
+            sectors.reverse();
+        }
+        sectors
     }
 
     /// One own edge per direction, keyed `21 + k`, each a line edge.
@@ -2303,21 +2758,189 @@ mod tests {
         );
     }
 
-    /// **A reflex edge read in band refuses while the corner may still be
-    /// convex**: a dart whose notch is an in-band offset deep reads its
-    /// first bound in band before any reads past another face, and
-    /// escalates as that side reading, rather than read as convex.
+    /// **A reflex edge on or in band of a plane decides no side of a
+    /// direction within the band of its faces**: a dart whose notch is
+    /// half the zero band deep, or halfway between the bands, reads a
+    /// direction inside a lobe In and its void Out, rather than read as
+    /// convex or refuse. A direction into the notch reads On where the
+    /// notch is within the zero band (its faces one plane at the
+    /// reading's reach, the corner met), and refuses as its side of the
+    /// face it lies in band of where the notch is in band.
     #[test]
-    fn an_in_band_reflex_edge_escalates_rather_than_read_convex() {
+    fn a_reflex_edge_on_or_in_band_reads_as_a_polygon_cone() {
         let b = band();
-        let mid = (b.zero() + b.escalate()) / 2.0;
-        let dirs = [Vec3::new(0.6, 0.05, 1.0)];
-        let got = wedge_classes(&probes(&dirs), &cone_sectors(&dart(mid / 2.0), false), b);
-        match got {
-            Err(BooleanError::Escalated { diag, .. }) => {
-                assert_eq!(diag.predicate, Some("bool_chord_side"), "{diag:?}");
+        for depth in [b.zero() / 2.0, (b.zero() + b.escalate()) / 4.0] {
+            for (hollow, lobe) in [(false, SideCode::In), (true, SideCode::Out)] {
+                let cone = cone_sectors(&dart(depth), hollow);
+                let read = wedge_classes(&probes(&[Vec3::new(0.6, 0.05, 1.0)]), &cone, b);
+                assert_eq!(
+                    read.unwrap().map(|r| classes(&r)),
+                    Some(vec![lobe]),
+                    "a lobe at depth {depth:e}, hollow {hollow}"
+                );
+                let notch = Vec3::new(depth / 2.0, 0.0, 1.0);
+                match wedge_classes(&probes(&[notch]), &cone, b) {
+                    Ok(Some(read)) if depth < b.zero() => {
+                        assert_eq!(classes(&read), [SideCode::On], "the notch, hollow {hollow}");
+                    }
+                    Err(BooleanError::Escalated { diag, .. }) if depth > b.zero() => {
+                        assert_eq!(diag.predicate, Some("bool_chord_side"), "{diag:?}");
+                    }
+                    other => panic!("the notch at depth {depth:e}, hollow {hollow}: {other:?}"),
+                }
             }
-            other => panic!("an in-band reflex edge escalates, got {other:?}"),
+        }
+    }
+
+    /// The sectors of a wedge about the `x` axis, in orbit order, as
+    /// [`build_sectors`] subdivides a vertex inside an edge: the
+    /// material sweeps counterclockwise about `+x` from the half-plane
+    /// at angle `a0` (from `+y` towards `+z`) to the one at `a1`, faces
+    /// keyed 11 and 12, each split at its bisector, the half-plane's
+    /// own direction off the axis.
+    fn wedge_sectors(a0: f64, a1: f64) -> Vec<BoolSector<f64>> {
+        let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let x = Vec3::new(1.0, 0.0, 0.0);
+        let off = |a: f64| Vec3::new(0.0, a.cos(), a.sin());
+        let (u0, u1) = (off(a0), off(a1));
+        let (n0, n1) = (-x.cross(u0), x.cross(u1));
+        let reach = |d: Vec3<f64>, edge: bool| {
+            if edge {
+                Reach::Chord {
+                    base: o,
+                    far: o + d,
+                }
+            } else {
+                Reach::Bisector(1.0)
+            }
+        };
+        [
+            (1, u0, false, x, true, n0, 11),
+            (2, -x, true, u0, false, n0, 11),
+            (3, u1, false, -x, true, n1, 12),
+            (4, x, true, u1, false, n1, 12),
+        ]
+        .map(
+            |(he, start, s_edge, end, e_edge, normal, face)| BoolSector {
+                he: HalfEdgeKey::from(key(he)),
+                start,
+                end,
+                start_reach: reach(start, s_edge),
+                end_reach: reach(end, e_edge),
+                face: FaceKey::from(key(face)),
+                normal: OutwardNormal::from_chart(normal, true),
+                arm: 1.0,
+            },
+        )
+        .to_vec()
+    }
+
+    /// The exact class of `d` against [`wedge_sectors`]`(a0, a1)`, read
+    /// off its angle about `x`: `d` well off both planes.
+    fn wedge_truth(d: Vec3<f64>, a0: f64, a1: f64) -> SideCode {
+        let tau = std::f64::consts::TAU;
+        let rel = (d.z.atan2(d.y) - a0).rem_euclid(tau);
+        if rel < (a1 - a0).rem_euclid(tau) {
+            SideCode::In
+        } else {
+            SideCode::Out
+        }
+    }
+
+    /// **A wedge reads each arm of its bisector against the half-planes'
+    /// angles**: a quarter-turn's bisector reads In and the wedge met; a
+    /// three-quarter turn's reads Out and the wedge joined, where an edge
+    /// in band of one face's plane past its half-plane reads the wedge
+    /// as a polygon cone, decidedly inside; a half-turn's
+    /// reads On on one plane facing one way, met; and a half-turn bent
+    /// by half the zero band at the bisector's arm, its planes 500 bands
+    /// apart at a 1 km edge, is read as a polygon cone (no side of its
+    /// link decided, so not pointed), which classes an edge in the
+    /// sliver between the planes by the bend. Each row is the edge's
+    /// exact class by its angle.
+    #[test]
+    fn a_wedge_reads_each_arm_of_its_bisector() {
+        use std::f64::consts::PI;
+        let b = band();
+        let bend = b.zero() / 2.0;
+        let dirs = [
+            Vec3::new(0.3, 0.8, 0.5),
+            Vec3::new(-0.2, -0.6, 0.7),
+            Vec3::new(0.1, -0.7, -0.6),
+            Vec3::new(0.4, 0.6, -0.8),
+        ];
+        let sliver = |a: f64| Some(Vec3::new(0.2, a.cos(), a.sin()).normalize() * 1e3);
+        let in_band = Some(Vec3::new(0.2, -1.0, (b.zero() + b.escalate()) / 2.0));
+        for (what, a1, met, pointed, extra) in [
+            ("a quarter-turn", PI / 2.0, true, true, None),
+            ("three quarters", 1.5 * PI, false, true, in_band),
+            ("a half-turn", PI, true, true, None),
+            (
+                "a half-turn bent reflex",
+                PI + bend,
+                true,
+                false,
+                sliver(PI + bend / 2.0),
+            ),
+            (
+                "a half-turn bent convex",
+                PI - bend,
+                true,
+                false,
+                sliver(PI - bend / 2.0),
+            ),
+        ] {
+            let dirs: Vec<_> = dirs.iter().copied().chain(extra).collect();
+            let read = wedge_classes(&probes(&dirs), &wedge_sectors(0.0, a1), b)
+                .unwrap_or_else(|e| panic!("{what}: {e:?}"))
+                .unwrap_or_else(|| panic!("{what}: read nothing"));
+            let want: Vec<_> = dirs.iter().map(|&d| wedge_truth(d, 0.0, a1)).collect();
+            assert_eq!(classes(&read), want, "{what}");
+            assert_eq!((read.met, read.pointed), (met, pointed), "{what}");
+        }
+    }
+
+    /// **A direction in band of a convex corner's face reads the corner
+    /// as a polygon cone, met or joined**: a triangular cone, and its
+    /// complement, read a direction in band of one face's plane, past
+    /// the end of its sector and decidedly past the next face, as Out of
+    /// the cone (In its complement), and refuse one as far off that
+    /// plane within the sector as its side of that face.
+    #[test]
+    fn a_direction_in_band_of_a_corners_face_reads_it_as_a_polygon_cone() {
+        let b = band();
+        let h = (b.zero() + b.escalate()) / 2.0;
+        let base = [
+            Vec3::new(1.0, 0.0, 1.0),
+            Vec3::new(-0.5, 0.75_f64.sqrt(), 1.0),
+            Vec3::new(-0.5, -(0.75_f64.sqrt()), 1.0),
+        ];
+        let n0 = base[1].cross(base[0]).normalize();
+        let past = base[0] + (base[0] - base[1]) * 0.5;
+        let within = (base[0] + base[1]) * 0.5;
+        // `past` lies beyond the base's edge from corner 2 to corner 0,
+        // on the side away from the base's centre.
+        let (e, q) = (base[0] - base[2], past - base[2]);
+        assert!(e.x * q.y - e.y * q.x < -1.0, "past the next face");
+        for (hollow, outside) in [(false, SideCode::Out), (true, SideCode::In)] {
+            let cone = cone_sectors(&base, hollow);
+            for side in [1.0, -1.0] {
+                let probe = past + n0 * (side * h);
+                let read = wedge_classes(&probes(&[probe]), &cone, b);
+                assert_eq!(
+                    read.unwrap().map(|r| classes(&r)),
+                    Some(vec![outside]),
+                    "hollow {hollow}, past the sector {probe:?}"
+                );
+                let probe = within + n0 * (side * h);
+                match wedge_classes(&probes(&[probe]), &cone, b) {
+                    Err(BooleanError::Escalated { diag, .. }) => {
+                        assert_eq!(diag.predicate, Some("bool_chord_side"), "{diag:?}");
+                    }
+                    other => panic!("hollow {hollow}, within the sector {probe:?}: {other:?}"),
+                }
+            }
         }
     }
 
@@ -4977,6 +5600,346 @@ mod tests {
         assert!(rho(d, 0.5) > 1.0, "the arm point has crossed back");
     }
 
+    /// A unit-radius quarter arc at the origin, leaving along `+x` in
+    /// the plane `z = 0` and bending toward `bend` (unit, normal to
+    /// `+x`): its tangent, and its reach as `orbit_corners` mints it.
+    fn quarter_arc(bend: Vec3<f64>) -> (Vec3<f64>, Reach<f64>) {
+        let carrier = geom::Curve3::Circle {
+            center: geom_core::Point3::origin() + bend,
+            axis: Vec3::new(1.0, 0.0, 0.0).cross(bend),
+            radius: 1.0,
+            u_ref: -bend,
+        };
+        let extent =
+            geom_brep::edge_extent(&carrier, 0.0, core::f64::consts::FRAC_PI_2, 2f64.sqrt());
+        let tangent = carrier.deriv(0.0);
+        let bend = Bend::of(
+            &carrier,
+            tangent,
+            carrier.deriv2(0.0),
+            core::f64::consts::FRAC_PI_2,
+        );
+        (tangent.normalize() * extent, Reach::Conic { extent, bend })
+    }
+
+    /// **A conic tangent to a face's plane at the vertex reads the side
+    /// it bends to, where the first order reads it On.** The arc's far
+    /// end stands a whole radius off the plane, on the side it bends
+    /// to; its tangent lies in the plane exactly.
+    #[test]
+    fn a_tangent_arc_reads_the_side_it_bends_to() {
+        let b = band();
+        let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
+        for (bend, want) in [
+            (Vec3::new(0.0, 0.0, -1.0), SideCode::In),
+            (Vec3::new(0.0, 0.0, 1.0), SideCode::Out),
+        ] {
+            let (dir, reach) = quarter_arc(bend);
+            assert_eq!(
+                enters_material(dir, n, reach.length(), b).unwrap(),
+                EntersMaterial::Tangent,
+                "the first order ties: {bend:?}"
+            );
+            assert_eq!(
+                side_code(dir, reach, n, NO_CURVATURE(), b).unwrap(),
+                SideCode::On,
+                "the sector passes read the first order: {bend:?}"
+            );
+            assert_eq!(
+                pierce_side(dir, reach, n, FaceShape::Plane, NO_CURVATURE(), b).unwrap(),
+                PierceSide {
+                    code: want,
+                    tied: true
+                },
+                "the arc bending toward {bend:?} reads its side"
+            );
+        }
+        let (dir, reach) = quarter_arc(Vec3::new(0.0, 1.0, 0.0));
+        assert_eq!(
+            pierce_side(dir, reach, n, FaceShape::Plane, NO_CURVATURE(), b)
+                .unwrap()
+                .code,
+            SideCode::On,
+            "an arc in the face's plane is On"
+        );
+    }
+
+    /// **Every verdict `pierce_side` gives a conic tied with a plane is
+    /// true of the arc, sampled** (review row, R1 of PR 4575). Circles
+    /// and ellipses through the origin, leaving with a first-order
+    /// residue inside the band (none, or most of the band either way)
+    /// and bending off `z = 0` by a stated multiple of the band, at
+    /// spans short of, at, and past the `π/(2·κ_max)` cap, and from both
+    /// ends of an ellipse's axes: an `In` must put a point of the edge
+    /// past the escalation band below the plane, an `Out` above it, and
+    /// an `On` keep every point within the escalation band. `In` and
+    /// `Out` are checked at the witness the derivation names, the point
+    /// at arc length `min(extent, π/(2·κ_max))`, found here by sampling.
+    #[test]
+    fn a_conic_tie_verdict_is_true_of_the_sampled_arc() {
+        let b = band();
+        let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
+        let base = geom_core::Point3::origin();
+        // A margin that decides definite clears the escalation band
+        // (less the sampling's own rounding).
+        let cleared = b.escalate() * (1.0 - 1e-6);
+        let (mut ins, mut outs, mut ons, mut refused) = (0, 0, 0, 0);
+        // (semi-axis along the start's inward normal, the other, span);
+        // equal semi-axes are a circle.
+        let shapes: &[(f64, f64, f64)] = &[
+            (1.0, 1.0, 0.3),
+            (1.0, 1.0, core::f64::consts::FRAC_PI_2),
+            (1.0, 1.0, 3.0),
+            (1.0, 1.0, 6.0),
+            (3.0, 1.0, 0.5),
+            (3.0, 1.0, 1.5),
+            (3.0, 1.0, 3.0),
+            (1.0, 3.0, 0.5),
+            (1.0, 3.0, 1.5),
+            (1.0, 3.0, 3.0),
+            (10.0, 0.1, 1.0),
+            (0.1, 10.0, 1.0),
+        ];
+        for &(along_n, along_t, span) in shapes {
+            for rho in [0.0, 0.6, -0.6] {
+                for q in [0.3, 0.9, 1.5, 3.0, 6.0, 9.0, 10.3, 11.0, 15.0, 30.0, 1e3] {
+                    for sense in [1.0, -1.0] {
+                        // The arc's own frame: it leaves along `t`,
+                        // bending toward `big_n`; `u` points from the
+                        // centre to the start.
+                        let mk = |beta: f64, cg: f64| {
+                            let t = Vec3::new(beta.cos(), 0.0, beta.sin());
+                            let sg = (1.0 - cg * cg).max(0.0).sqrt();
+                            let big_n = Vec3::new(-beta.sin() * cg, sg, beta.cos() * cg);
+                            let u = -big_n;
+                            let carrier = if along_n == along_t {
+                                geom::Curve3::Circle {
+                                    center: base + big_n * along_n,
+                                    axis: u.cross(t),
+                                    radius: along_n,
+                                    u_ref: u,
+                                }
+                            } else {
+                                geom::Curve3::Ellipse {
+                                    center: base + big_n * along_n,
+                                    axis: u.cross(t),
+                                    major: along_n,
+                                    minor: along_t,
+                                    u_ref: u,
+                                }
+                            };
+                            (carrier, big_n)
+                        };
+                        let (flat, _) = mk(0.0, 1.0);
+                        assert!(flat.eval(0.0).distance(base) < 1e-12);
+                        assert!(flat.deriv(0.0).normalize().dot(Vec3::new(1.0, 0.0, 0.0)) > 0.999);
+                        let samples = 4000;
+                        let param = |i: usize| span * i as f64 / samples as f64;
+                        let chord = flat.eval(span).distance(base);
+                        let extent = geom_brep::edge_extent(&flat, 0.0, span, chord);
+                        // The witness the derivation names, found
+                        // independently: the sample at arc length
+                        // `l = min(extent, π/(2·κ_max))`, with `κ_max`
+                        // sampled over the whole carrier.
+                        let kmax = (0..=samples)
+                            .map(|i| {
+                                let t = core::f64::consts::TAU * i as f64 / samples as f64;
+                                let (d1, d2) = (flat.deriv(t), flat.deriv2(t));
+                                d1.cross(d2).norm() / d1.norm().powi(3)
+                            })
+                            .fold(0.0f64, f64::max);
+                        let l = extent.min(core::f64::consts::FRAC_PI_2 / kmax);
+                        // The arc length `l` is found to a step of
+                        // `span / samples²`: coarse steps up to the one it
+                        // falls in, fine ones within it, so the witness
+                        // lands on `l` however short it is beside a step.
+                        let walk = |t0: f64, dt: f64, steps: usize, walked: f64| {
+                            let mut walked = walked;
+                            for i in 1..=steps {
+                                let (a, b) = (t0 + dt * (i - 1) as f64, t0 + dt * i as f64);
+                                let step = flat.eval(b).distance(flat.eval(a));
+                                if walked + step >= l {
+                                    return Err((a, step, walked));
+                                }
+                                walked += step;
+                            }
+                            Ok(walked)
+                        };
+                        let dt = span / samples as f64;
+                        let t_l = match walk(0.0, dt, samples, 0.0) {
+                            Ok(_) => span,
+                            Err((t0, _, walked)) => {
+                                match walk(t0, dt / samples as f64, samples, walked) {
+                                    Ok(_) => t0 + dt,
+                                    Err((a, step, walked)) => {
+                                        a + dt / samples as f64 * (l - walked) / step
+                                    }
+                                }
+                            }
+                        };
+                        // The arc's excursion along its own normal at `l`.
+                        let depth = (flat.eval(t_l) - base).z;
+                        let beta = (rho * b.zero() / extent).asin();
+                        let cg = sense * (q * b.zero() / depth).min(1.0);
+                        let (carrier, _) = mk(beta, cg);
+                        let tangent = carrier.deriv(0.0);
+                        let bend = Bend::of(&carrier, tangent, carrier.deriv2(0.0), span);
+                        let dir = tangent.normalize() * extent;
+                        let reach = Reach::Conic { extent, bend };
+                        if enters_material(dir, n, extent, b) != Ok(EntersMaterial::Tangent) {
+                            continue;
+                        }
+                        let heights: Vec<f64> = (0..=samples)
+                            .map(|i| (carrier.eval(param(i)) - base).z)
+                            .collect();
+                        let h_l = (carrier.eval(t_l) - base).z;
+                        let lo = heights.iter().copied().fold(f64::INFINITY, f64::min);
+                        let hi = heights.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+                        let what = format!(
+                            "axes ({along_n}, {along_t}), span {span}, rho {rho}, q {q}, \
+                             sense {sense}: heights [{lo:e}, {hi:e}], {h_l:e} at l = {l}"
+                        );
+                        match pierce_side(dir, reach, n, FaceShape::Plane, NO_CURVATURE(), b) {
+                            Ok(PierceSide {
+                                code: SideCode::In, ..
+                            }) => {
+                                ins += 1;
+                                assert!(
+                                    h_l < -cleared,
+                                    "In, but the witness is not past the band below: {what}"
+                                );
+                            }
+                            Ok(PierceSide {
+                                code: SideCode::Out,
+                                ..
+                            }) => {
+                                outs += 1;
+                                assert!(
+                                    h_l > cleared,
+                                    "Out, but the witness is not past the band above: {what}"
+                                );
+                            }
+                            Ok(PierceSide {
+                                code: SideCode::On, ..
+                            }) => {
+                                ons += 1;
+                                assert!(
+                                    lo.abs().max(hi.abs()) <= b.escalate(),
+                                    "On, but a point leaves the band: {what}"
+                                );
+                            }
+                            Err(BooleanError::Escalated {
+                                decision: BooleanDecision::ConicBend,
+                                ..
+                            }) => refused += 1,
+                            other => panic!("{what}: {other:?}"),
+                        }
+                    }
+                }
+            }
+        }
+        eprintln!("conic tie sweep: In {ins}, Out {outs}, On {ons}, refused {refused}");
+        assert!(ins > 0 && outs > 0 && ons > 0 && refused > 0);
+    }
+
+    /// **An arc long beside the band whose sagitta stays inside it is
+    /// `On`** (review row, R2 of PR 4575): radius 1000, and a span whose
+    /// sagitta is a tenth of the band, so the arc is over `10⁴` bands
+    /// long. Bending toward the plane's normal it lies in the plane to
+    /// the band; a height bound read at its reach refused.
+    #[test]
+    fn a_long_arc_whose_sagitta_is_in_the_band_is_on() {
+        let b = band();
+        let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
+        let r = 1e3;
+        let span = (0.2 * b.zero() / r).sqrt();
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        let x = Vec3::new(1.0, 0.0, 0.0);
+        let carrier = geom::Curve3::Circle {
+            center: geom_core::Point3::origin() + z * r,
+            axis: x.cross(z),
+            radius: r,
+            u_ref: -z,
+        };
+        let chord = carrier.eval(span).distance(geom_core::Point3::origin());
+        let far = (carrier.eval(span) - geom_core::Point3::origin()).z;
+        assert!(
+            chord > 1e4 * b.zero() && far < b.zero(),
+            "the arc is long beside the band (chord {chord:e}) and its far end in it ({far:e})"
+        );
+        let extent = geom_brep::edge_extent(&carrier, 0.0, span, chord);
+        let bend = Bend::of(&carrier, carrier.deriv(0.0), carrier.deriv2(0.0), span);
+        let dir = carrier.deriv(0.0).normalize() * extent;
+        assert_eq!(
+            pierce_side(
+                dir,
+                Reach::Conic { extent, bend },
+                n,
+                FaceShape::Plane,
+                NO_CURVATURE(),
+                b
+            )
+            .unwrap()
+            .code,
+            SideCode::On,
+            "the whole arc lies within the band of the plane"
+        );
+    }
+
+    /// **A conic tie refuses typed where its bend does not certify a
+    /// side** (an arc so short its lift stays in the band, and a spiric
+    /// section, whose curvature carries no bound), **and rides a curved
+    /// face `On`**: tangent to a cylinder of its own radius, it lies on
+    /// the face to first order, which is all a tangent plane says there.
+    #[test]
+    fn a_conic_tie_refuses_where_its_bend_certifies_nothing() {
+        let b = band();
+        let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
+        let conic_bend = |r: &Result<PierceSide, BooleanError>| {
+            matches!(
+                r,
+                Err(BooleanError::Escalated {
+                    decision: BooleanDecision::ConicBend,
+                    ..
+                })
+            )
+        };
+        let (dir, reach) = quarter_arc(Vec3::new(0.0, 0.0, 1.0));
+        assert_eq!(
+            pierce_side(dir, reach, n, FaceShape::Curved, 1.0, b)
+                .unwrap()
+                .code,
+            SideCode::On,
+            "a tie with a curved face rides it"
+        );
+        let Reach::Conic { extent, bend } = reach else {
+            unreachable!("`quarter_arc` mints a conic reach")
+        };
+        // Lifts `2·sin²(extent/2) ≈ extent²/2`: a third of the zero band.
+        let short = (2.0 * b.zero() / 3.0).sqrt();
+        let got = pierce_side(
+            dir,
+            Reach::Conic {
+                extent: short,
+                bend,
+            },
+            n,
+            FaceShape::Plane,
+            NO_CURVATURE(),
+            b,
+        );
+        assert!(conic_bend(&got), "a lift inside the band: {got:?}");
+        let spiric = Reach::Conic {
+            extent,
+            bend: Bend {
+                bounds: BendBounds::Unbounded,
+                ..bend
+            },
+        };
+        let got = pierce_side(dir, spiric, n, FaceShape::Plane, NO_CURVATURE(), b);
+        assert!(conic_bend(&got), "a spiric tie: {got:?}");
+    }
+
     /// **The charge's separation `Q = s²·R/4`, against the band, at
     /// radii far from 1.** Each row picks the slope `s` that puts `Q`
     /// at a stated multiple of the band, so a charge that reads a
@@ -5088,7 +6051,7 @@ mod tests {
             p,
             d,
             arm,
-            DeclarationRead::Spent(BooleanCoincidence::TANGENT),
+            DeclarationRead::Spent(GlueClass::TANGENT),
             b,
         )
         .expect_err("an in-band sagitta escalates the reading");
@@ -5099,7 +6062,7 @@ mod tests {
             decision,
             BooleanDecision::Coincidence(
                 Coincide::TangentSide,
-                DeclarationRead::Spent(BooleanCoincidence::TANGENT)
+                DeclarationRead::Spent(GlueClass::TANGENT)
             )
         );
         assert_eq!(diag.predicate, Some("tangent_sector_order2"));
@@ -5357,7 +6320,7 @@ mod tests {
             Operand::B,
             FaceKey::default(),
             0.5,
-            DeclarationRead::Spent(BooleanCoincidence::TANGENT),
+            DeclarationRead::Spent(GlueClass::TANGENT),
             b,
         )
         .unwrap();
@@ -5375,7 +6338,7 @@ mod tests {
             Operand::A,
             FaceKey::default(),
             0.5,
-            DeclarationRead::Spent(BooleanCoincidence::TANGENT),
+            DeclarationRead::Spent(GlueClass::TANGENT),
             b,
         )
         .unwrap();
@@ -5403,7 +6366,7 @@ mod tests {
             Operand::A,
             FaceKey::default(),
             0.25,
-            DeclarationRead::Spent(BooleanCoincidence::TANGENT),
+            DeclarationRead::Spent(GlueClass::TANGENT),
             b,
         )
         .unwrap();
@@ -5432,7 +6395,7 @@ mod tests {
                 Operand::A,
                 FaceKey::default(),
                 arm,
-                DeclarationRead::Spent(BooleanCoincidence::TANGENT),
+                DeclarationRead::Spent(GlueClass::TANGENT),
                 b,
             )
         };
@@ -5470,7 +6433,7 @@ mod tests {
             Operand::A,
             FaceKey::default(),
             0.5,
-            DeclarationRead::Spent(BooleanCoincidence::TANGENT),
+            DeclarationRead::Spent(GlueClass::TANGENT),
             b,
         ) {
             Err(BooleanError::ClassificationInvariant { .. }) => {}
@@ -5492,12 +6455,188 @@ mod tests {
             Operand::A,
             FaceKey::default(),
             0.5,
-            DeclarationRead::Spent(BooleanCoincidence::TANGENT),
+            DeclarationRead::Spent(GlueClass::TANGENT),
             b,
         ) {
             Err(BooleanError::CurvedBooleanUnsupported { .. }) => {}
             other => panic!("sphere tangency is outside the DEV-1 lane: {other:?}"),
         }
+    }
+
+    /// **A cone sector's normal is the cone face's outward normal at
+    /// its corner**, at every rim corner of a frustum wall and for both
+    /// senses: the chart normal `ŵ cos α − ẑ sin α` there, negated where
+    /// the face is reversed, as a subtracted cone's is.
+    #[test]
+    fn a_cone_sector_off_the_apex_is_the_faces_outward_normal() {
+        let alpha = 0.5_f64;
+        let (mut body, face) = super::super::boxes::tests::cone_wall(alpha, 0.0, 1.0, 0.5, 1.0);
+        let vertices: Vec<VertexKey> = body.vertices.keys().collect();
+        for sense in [true, false] {
+            body.set_face_sense(face, sense).unwrap();
+            let mut read = 0;
+            for &v in &vertices {
+                let p = body.resolve_vertex_point(v, Proven);
+                let w = Vec3::new(p.x, p.y, 0.0).normalize();
+                let chart = w * alpha.cos() - Vec3::new(0.0, 0.0, alpha.sin());
+                let want = OutwardNormal::from_chart(chart, sense).vec();
+                for he in body.vertex_orbit_linked(v) {
+                    match sector_face(&body, Operand::B, v, he, band()) {
+                        Ok((f, n)) if f == face => {
+                            read += 1;
+                            assert!(
+                                (n.vec() - want).norm() < 1e-12,
+                                "sense {sense} at {p:?}: {:?}, want {want:?}",
+                                n.vec()
+                            );
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            assert_eq!(read, 4, "sense {sense}: the wall's four corners");
+        }
+    }
+
+    /// **A sector based at a cone's apex refuses, named.** A prism's side
+    /// face is carried by a cone whose apex is one of the face's corners:
+    /// the sector there refuses with the apex refusal, naming the operand
+    /// and the face, where the walk's gradient is `0/0`; the face's next
+    /// corner, off the axis, reads its normal. Without the check the
+    /// poisoned normal reaches the corner rung, which escalated it as
+    /// `Corner(Straight)` on a plane through a full cone's apex.
+    #[test]
+    fn a_cone_sector_at_the_apex_refuses_naming_the_face() {
+        let p = crate::fixtures::raw_prism(3, Tol::witness());
+        let face = p.face_side[0];
+        let mut body = p.body;
+        let he = body
+            .get_loop(body.get_face(face).unwrap().outer)
+            .and_then(|l| match l.boundary {
+                crate::entity::LoopBoundary::Cycle { first } => Some(first),
+                crate::entity::LoopBoundary::Empty { .. } => None,
+            })
+            .unwrap();
+        // The sector CW-after `mate(he)` is this face's corner at `he`'s
+        // start; `next` is the corner after it.
+        let corner = |body: &Body<f64>, he: HalfEdgeKey| {
+            let orbit_he = body.mate(he).unwrap();
+            (body.get_half_edge(orbit_he).unwrap().start, orbit_he)
+        };
+        let (apex_vertex, apex_he) = corner(&body, he);
+        let next = body.get_half_edge(he).unwrap().next;
+        let (off_vertex, off_he) = corner(&body, next);
+        let apex = body.resolve_vertex_point(apex_vertex, Proven);
+        let off = body.resolve_vertex_point(off_vertex, Proven);
+        // An axis square to the edge between the two corners, so the
+        // second stands the edge's length off it.
+        let edge = off - apex;
+        let axis = edge.cross(Vec3::new(1.0, 1.0, 1.0)).normalize();
+        assert!(
+            edge.cross(axis).norm() > 0.1,
+            "the second corner stands off the axis"
+        );
+        body.set_face_surface(
+            face,
+            crate::FaceSurface::New {
+                surface: geom::Surface::Cone {
+                    apex,
+                    axis,
+                    half_angle: 0.5,
+                    u_ref: edge.normalize(),
+                },
+                sense: true,
+            },
+        )
+        .unwrap();
+        let b = band();
+        assert!(
+            matches!(
+                sector_face(&body, Operand::A, apex_vertex, apex_he, b),
+                Err(BooleanError::NormalAtConeApex { operand: Operand::A, face: f, band })
+                    if f == face && band == b
+            ),
+            "the apex corner: {:?}",
+            sector_face(&body, Operand::A, apex_vertex, apex_he, b)
+        );
+        let (f, n) = sector_face(&body, Operand::A, off_vertex, off_he, b)
+            .expect("a corner off the axis reads its normal");
+        assert!(f == face && n.vec().norm().is_finite(), "{n:?}");
+    }
+
+    /// **A cone's lever is the bend nearest the axis the charge can
+    /// read.** A bound leaving a pierce at `ρ = 0.1` along the generator
+    /// toward the apex, reaching 0.08, at a slope whose charge clears
+    /// the band read at `ρ` and does not read at the lever, `2ρ/3`
+    /// (`ρ − reach` is shorter, and the charge reads no further than
+    /// `ρ/3`): the side refuses, where read at `ρ` it certifies.
+    /// Measured, the reading at `ρ` never decides a wrong side on a cone
+    /// (over 2·10⁵ poses the ray's true separation never fell below the
+    /// charge's claim), so this row holds the lever against loosening,
+    /// not a wrong answer. A short bound takes `ρ − reach`, and a
+    /// sphere's lever is its own at every reach.
+    #[test]
+    fn a_cone_lever_is_the_bend_nearest_the_axis_within_reach() {
+        let b = band();
+        let alpha = 0.5_f64;
+        let cone = geom::Surface::Cone {
+            apex: Point3::origin(),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            half_angle: alpha,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let (rho, reach) = (0.1, 0.08);
+        let p = Point3::new(rho, 0.0, rho / alpha.tan());
+        let chart = Vec3::new(alpha.cos(), 0.0, -alpha.sin());
+        let normal = OutwardNormal::from_chart(chart, true);
+        let toward_apex = -(p - Point3::origin()).normalize();
+        // The charge at slope `s` is `s²·lever/4`: 1.2 escalations at
+        // `ρ`, 0.8 of one at `2ρ/3`.
+        let s = (4.8 * b.escalate() / rho).sqrt();
+        let dir = toward_apex * (1.0 - s * s).sqrt() + chart * s;
+        let bound = Reach::Chord {
+            base: p,
+            far: p + dir * reach,
+        };
+        let lever = PierceLever::of(&cone, p);
+        let within = lever.within(reach);
+        assert!(
+            (within - 2.0 * rho / 3.0).abs() < 1e-15,
+            "the lever a long bound reads: {within}"
+        );
+        assert!(
+            (lever.within(0.01) - (rho - 0.01)).abs() < 1e-15,
+            "the lever a short bound reads: {}",
+            lever.within(0.01)
+        );
+        assert!(
+            matches!(
+                side_code(dir, bound, normal, within, b),
+                Err(BooleanError::CurvedSectorSideUnsupported { .. }
+                    | BooleanError::Escalated {
+                        decision: BooleanDecision::PierceCurvature,
+                        ..
+                    })
+            ),
+            "read at the lever the side refuses: {:?}",
+            side_code(dir, bound, normal, within, b)
+        );
+        assert_eq!(
+            side_code(dir, bound, normal, rho, b).unwrap(),
+            SideCode::Out,
+            "read at ρ the same side certifies"
+        );
+        let sphere = geom::Surface::Sphere {
+            center: Point3::origin(),
+            radius: 2.0,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        assert_eq!(
+            PierceLever::of(&sphere, p).within(1e9),
+            2.0,
+            "a sphere's lever does not depend on the reach"
+        );
     }
 }
 

@@ -58,7 +58,7 @@
 use crate::common;
 
 use geom_core::Tol;
-use topo::{Body, ContactRecords, FaceKey, PatchContact, ValidationError};
+use topo::{Body, ContactRecords, FaceKey, ValidationError};
 
 /// The thin seat (MATE-4a's overhang seat, verbatim): the cap crosses
 /// the shelf's `y = 0.30` boundary edge at H and B and touches it at T,
@@ -119,13 +119,10 @@ fn shelf_over(post: common::Prism<f64>) -> (Body<f64>, FaceKey, FaceKey) {
 }
 
 fn errors(body: &Body<f64>, a: FaceKey, b: FaceKey) -> Vec<ValidationError> {
-    let records = ContactRecords {
-        patches: vec![PatchContact {
-            face_a: a,
-            face_b: b,
-        }],
-        ..ContactRecords::default()
-    };
+    let records = topo::ContactRecords::from_iter(vec![topo::Cited::new(
+        topo::Contact::new(body, topo::Cell::Face(a), topo::Cell::Face(b)).unwrap(),
+        topo::Cites::decided(0),
+    )]);
     match topo::validate_pseudomanifold(body, &records, Tol::witness()) {
         Ok(()) => Vec::new(),
         Err(e) => e,
@@ -180,7 +177,7 @@ fn both_seats_bare_are_still_loud() {
         // must still be reported as an unattributed contact.
         let contacts: Vec<_> = found
             .iter()
-            .filter(|e| matches!(e, ValidationError::UndeclaredContact { .. }))
+            .filter(|e| matches!(e, ValidationError::UnrecordedContact { .. }))
             .collect();
         assert!(
             !contacts.is_empty(),

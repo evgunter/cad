@@ -1,15 +1,12 @@
 //! The project-box enclosure (#91 C3): one part carrying the tour's
 //! longest boolean-of-boolean chain — cavity subtract, then 6 vent
 //! through-slots (each a two-ring tunnel seam through a wall), then 4
-//! round screw bosses standing ON the floor, each union declaring what
-//! the flush detector finds ([`crate::booleans::try_union_declared`]):
-//! the cap-on-floor contact, plus continuations against the disjoint
-//! tops of the bosses already standing, which the union does not need
-//! (work/tang/flush-detector-offers-disjoint-coplanar-pairs-as-continuations.md),
-//! then a through-bore down each boss and out through the floor: 15
-//! sequential ops, every one against the closed-form volume oracle (a
-//! volume + Seamed-kind gate per op; tier 3′ with declared contacts
-//! runs once, on the FINAL body, in `crate::run_body`).
+//! round screw bosses standing ON the floor, each union gluing its
+//! cap-on-floor contact on its decided zero (D10), then a through-bore
+//! down each boss and out through the floor: 15 sequential ops, every
+//! one against the closed-form volume oracle (a volume + Seamed-kind
+//! gate per op; tier 3′ with the result's contact records runs once,
+//! on the FINAL body, in `crate::run_body`).
 //!
 //! A six-turn compression spring stands on one boss, around its bore:
 //! ONE `sweep_body` along the whole coil, the long-turn helical sweep,
@@ -30,7 +27,7 @@ use pncad::prelude::{ConstructedLoop, circle_split};
 use pncad::topo::{AtRestBody, BooleanBody};
 
 use crate::bool_bodies::slab;
-use crate::booleans::{check, expect_seamed, finished, try_subtract, try_union_declared};
+use crate::booleans::{check, expect_seamed, finished, try_subtract, try_union};
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
 use pncad::authoring::{p2, p3, polygon, validated};
@@ -148,7 +145,11 @@ fn spring<S: Scalar>(
         .fold(f64::NEG_INFINITY, f64::max);
     let path = coil(BOSS_Z.1 + depth);
     let stations = usize::try_from(TURNS * per_turn + 1).expect("a station count");
-    sweep_body::<S>(wire, start_frame(&path), &path, stations, 3, tol).map(|l| l.body)
+    // The wire and its start frame are built in `f64`, so they enter `S`
+    // as the computed values they are.
+    let wire: Vec<_> = wire.iter().map(|lp| lp.lift_computed()).collect();
+    let place = start_frame(&path).map(S::from_computed);
+    sweep_body::<S>(&wire, place, &path, stations, 3, tol).map(|l| l.body)
 }
 
 /// The continuum volume of a wire of cross-section `area` swept along
@@ -304,14 +305,13 @@ pub(crate) fn build<S: Scalar>(tol: Tol) -> (BooleanBody<S>, f64) {
         }
     }
 
-    // Interior screw bosses: 4 cylinders standing on the floor, their
-    // flush findings declared.
+    // Interior screw bosses: 4 cylinders standing on the floor.
     for (cx, cy) in BOSS_AXES {
         vol += PI * BOSS_R * BOSS_R * (BOSS_Z.1 - BOSS_Z.0);
         acc = expect_seamed(
             "boss union",
             check(
-                try_union_declared(&acc.body, &rod(cx, cy, BOSS_R, BOSS_Z, tol), tol),
+                try_union(&acc.body, &rod(cx, cy, BOSS_R, BOSS_Z, tol), tol),
                 vol,
                 tol,
             ),
@@ -348,12 +348,11 @@ pub fn stop(tol: Tol) -> Stop {
     let (section_bodies, section_note) = crate::cutaway::sectioned_beside(&acc.body, &spring, tol);
     let note = format!(
         "15 sequential boolean nodes on ONE part (subtract -> 6 tunnel subtracts -> \
-         4 declared boss unions -> 4 bore subtracts), volume within 1e-9 of the closed-form \
+         4 boss unions -> 4 bore subtracts), volume within 1e-9 of the closed-form \
          oracle after every op, final V = {vol} (each boss adds pi R^2 x {boss_h}, \
          R = {BOSS_R}; each bore removes pi r^2 x {BORED_HEIGHT}, r = {BORE_R}); \
-         each boss stands on the floor; each union declares the detector's findings, \
-         its cap-on-floor contact plus continuations against the other bosses' disjoint \
-         tops. \
+         each boss stands on the floor, and its union glues the cap-on-floor contact \
+         on its decided zero. \
          SPRING: a {TURNS}-turn square-wire coil (mean radius {COIL_R}, wire {wire}, pitch \
          {PITCH}) as ONE sweep_body along a degree-3 interpolant of the helix, from \
          path_start_frame; its volume within {spring_gap:.2e} (relative) of A x L, the \
@@ -376,8 +375,7 @@ pub fn stop(tol: Tol) -> Stop {
                 sections are rings around the bores, showing what the whole one hides: \
                 a six-turn compression spring standing on a far boss, around its bore",
         ops: "extrude the shell, 7 slab cutters, 4 boss rods, 4 bore rods -> 15 sequential \
-              subtract/union nodes, each boss union through flush::find_flush_candidates \
-              -> declare_all -> union_with; sweep::sweep_body(square wire, 6-turn helix \
+              subtract/union nodes; sweep::sweep_body(square wire, 6-turn helix \
               interpolant, path_start_frame) -> the spring; topo::split(tilted plane) of \
               the box -> 2 bodies, of the spring -> below only; 3 transform nodes; \
               topo::plane_section(same plane) -> regions with holes",
@@ -426,8 +424,8 @@ mod tests {
     /// asserts the chain's per-op volume oracle and Seamed kind, the
     /// halves' section rings, `plane_section`'s areas against their
     /// closed forms and the spring's volume and footing; this adds what `crate::run_body`
-    /// asserts on the tour pass (tier 3′ on the box with its declared
-    /// contacts, tier 3 on every other body), and the above half's
+    /// asserts on the tour pass (tier 3′ on the box with its contact
+    /// records, tier 3 on every other body), and the above half's
     /// pieces: the cut frees the two bored bosses' tops, so that half is
     /// the walls' piece and two caps, each bounding material, and each a
     /// solid of its own.
@@ -445,7 +443,7 @@ mod tests {
             .as_ref()
             .expect("the box is a boolean result");
         pncad::topo::validate_pseudomanifold_certificate(&boxbody.body, contacts, tol)
-            .expect("the box: tier 3′ with its declared contacts");
+            .expect("the box: tier 3′ with its contact records");
         for part in [spring, above, below, spring_below] {
             pncad::topo::validate_geometric_certificate(&part.body, tol)
                 .unwrap_or_else(|e| panic!("{}: tier 3: {e:?}", part.name));

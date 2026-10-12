@@ -1,14 +1,13 @@
 //! **A ring on a cone face winds its island and re-homes its rings
 //! without a chart** ([`super::path_island_winding`],
-//! [`super::path_ring_side`]). No public door reaches a cone face's ring
-//! lane yet. The boolean's operand gate refuses a cone operand
-//! (`work/germ/boolean-sector-algebra-has-no-cone-arm.md`). The plane
+//! [`super::path_ring_side`]). The boolean reaches the island winding on
+//! whole poses (`sweep/tests/cone_join_lane.rs`, T1's lune); these rows
+//! read the lane on its own, over every frame. The plane
 //! split admits a cone face and re-homes through the same
 //! [`super::ChordJoiner`], but nothing it is handed carries a ring on one:
-//! a body at rest cannot (its volume refuses
-//! `MassPropsError::RingOnCurvedFace`), and a plane's section of a cone
-//! goes round the axis, so it reaches the face's seam rather than
-//! landing as a ring. So these rows build the lane's input on a cone
+//! a plane's section of a cone goes round the axis, so it reaches the
+//! face's seam rather than landing as a ring. So these rows build the
+//! lane's input on a cone
 //! sheet: a face of the cone
 //! between two rims and two rulings, a ring of it whose run is an
 //! island's boundary less one edge, and that edge as the closing chord.
@@ -43,8 +42,7 @@ fn edge_spec(body: &mut Body<f64>, surface: SurfaceKey, e: &IslandEdge) -> EdgeC
     };
     EdgeCurveSpec {
         description: geom_brep::EdgeDescriptionSpec::Intersection {
-            s1: surface,
-            s2,
+            pair: geom_brep::SurfacePair::new(surface, s2),
             witness: carrier.mid_point(t0, t1),
         },
         carrier,
@@ -431,7 +429,8 @@ fn a_path_escalating_by_a_corner_hands_the_winding_to_the_next() {
         let spec = edge_spec(&mut body, key, &closing);
         let cycle = body.loop_cycle(run.0).unwrap();
         let end = cycle.iter().position(|&he| he == run.1).unwrap();
-        let mut arcs = run_loop_arcs(&body, face, (&surface, &quadric), &cycle[..=end]).unwrap();
+        let mut arcs =
+            run_loop_arcs(&body, face, (&surface, &quadric), &cycle[..=end], band()).unwrap();
         arcs.push(LoopArc::of(&spec.carrier, (spec.param_start, spec.param_end)).unwrap());
         let q = spec.carrier.mid_point(spec.param_start, spec.param_end);
         let w = outer_references(&body, face, &[]).unwrap()[0];
@@ -505,7 +504,7 @@ fn a_path_escalating_by_a_corner_hands_re_homing_to_the_next() {
         let (run, closing) = run_from(&mut body, (face, key), island, 0);
         let (newf, remainder) = wall_off(&mut body, key, run, closing);
         let cycle = outer_cycle(&body, newf).unwrap().unwrap();
-        let arcs = run_loop_arcs(&body, newf, (&surface, &quadric), &cycle).unwrap();
+        let arcs = run_loop_arcs(&body, newf, (&surface, &quadric), &cycle, band()).unwrap();
         let skip: Vec<_> = cycle
             .iter()
             .map(|&he| body.get_half_edge(he).unwrap().edge)
@@ -581,7 +580,8 @@ fn the_arrival_arc_reads_its_second_meeting_with_the_closing_chord() {
         let quadric = Quadric::of(&surface).unwrap();
         let cycle = body.loop_cycle(run.0).unwrap();
         let end = cycle.iter().position(|&he| he == run.1).unwrap();
-        let mut arcs = run_loop_arcs(&body, face, (&surface, &quadric), &cycle[..=end]).unwrap();
+        let mut arcs =
+            run_loop_arcs(&body, face, (&surface, &quadric), &cycle[..=end], band()).unwrap();
         arcs.push(LoopArc::of(&spec.carrier, (spec.param_start, spec.param_end)).unwrap());
         let q = spec.carrier.mid_point(spec.param_start, spec.param_end);
         let w = outer_references(&body, face, &[]).unwrap()[0];

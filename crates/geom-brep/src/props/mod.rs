@@ -4,9 +4,11 @@
 //! flattens each face loop into [`LoopEdge`]s and injects them.
 //!
 //! **Two lanes, and this header describes one of them.** Everything
-//! below is the CLOSED-FORM lane: the M2 analytic surfaces over
-//! structurally verified iso-parameter rectangles, and a cylinder face
-//! over any region its rims and rulings bound. The other is
+//! below is the CLOSED-FORM lane: the M2 analytic surfaces over every
+//! loop of a face their closed forms read — a cylinder or torus face
+//! over any region its rims and rulings bound, a cone face over its
+//! boundary's vector area, a sphere face over any loops of circle arcs.
+//! The other is
 //! [`quad`], the certified-quadrature lane — NURBS patches, conic-
 //! trimmed faces, an enclosure with a `pad` rather than an exact
 //! number — and it is `pub`, larger than this lane, and governed by
@@ -40,28 +42,25 @@
 //!
 //! **Where the orientation lives after M5 S10.** `topo::Face` now
 //! carries an explicit `sense` bit, but this module remains almost
-//! entirely **winding-derived**, and that is deliberate. Both `A⃗` and
-//! the rim-recovered `s_f` read the face's stored loop traversal,
-//! which the interior-left rule already ties to the *outward* normal;
-//! `revert` reverses loops and flips `sense` in the same step, so
-//! feeding the bit into a winding-derived term would negate the volume
-//! twice. The bit enters only on the sphere: the **rimless** band,
-//! whose boundary has no rim to read `s_f` off and which previously
-//! hardcoded `+1`, and the face bounded by a tilted circle, whose
-//! Gauss–Bonnet area reads its arcs' curvature against the outward
-//! normal (`curved::sphere_circle_loop`). Everything else here is sense-invariant
-//! by derivation, and the *agreement* of the two encodings is a tier-3
-//! obligation (the validator's loop-role winding check), not this
-//! module's.
+//! entirely **winding-derived**, and that is deliberate. `A⃗` and every
+//! chart Green form read the face's stored loop traversal, which the
+//! interior-left rule already ties to the *outward* normal; `revert`
+//! reverses loops and flips `sense` in the same step, so feeding the
+//! bit into a winding-derived term would negate the volume twice. The
+//! bit enters only on the sphere, whose Gauss–Bonnet area reads its
+//! arcs' curvature against the outward normal and whose radial term
+//! `s_f` IS the bit (`curved::sphere_face`). There the boundary's own
+//! reading of the side (`curved::sphere_loop_side`) is held against
+//! the bit before it is used, and a contradiction refuses; elsewhere
+//! the *agreement* of the two encodings is a tier-3 obligation (check
+//! 6), not this module's.
 //!
-//! Areas of curved faces come from the chart Jacobians over the face's
-//! iso-parameter rectangle `[u0,u1]×[v0,v1]` — on a cylinder, over its
-//! chart region `−∮ v du`, every loop included; save a sphere face with
-//! a circle tilted against its chart on the boundary, which has no
-//! rectangle and whose area is Gauss–Bonnet's over its circle arcs
-//! (`curved::sphere_circle_loop`); planar face area is
-//! `‖A⃗_f‖` (rings subtract automatically via their stored opposite
-//! orientation).
+//! Areas of curved faces: a cylinder's and a torus's from the chart
+//! Jacobian over the region their loops bound (`−∮ v du` on the
+//! cylinder, every loop included); a cone's `|axis·A⃗|/sin α`; a
+//! sphere's Gauss–Bonnet's over its circle arcs, holes included; a
+//! planar face's `‖A⃗_f‖` (rings subtract automatically via their
+//! stored opposite orientation).
 //!
 //! # Boundary closed forms
 //!
@@ -75,156 +74,55 @@
 //! (derived by splitting `p − ref = (C − ref) + (p − C)` and using
 //! `(p−C)×d(p−C) = R²·n̂·dt`). Reversed traversal negates the form.
 //!
-//! # Iso-rectangle verification and stored-data discipline
+//! # Stored-data discipline and the iso-rectangle premise
 //!
 //! Every curved-face quantity is extracted from **stored** data —
 //! carrier parameter intervals (angle-true for circle carriers; spans
 //! minted from the segment's stored sweep or the sweep angle at
-//! construction), stored circle centers/axes/radii,
-//! and carrier endpoint evaluations — never from endpoint `atan2`
-//! chart inversion (the wedge-unwrap trap, M2 PR 6's blocker: two
-//! endpoint inversions differenced lose the winding and sit on a
-//! branch cut wherever an arc is anchored at the seam or a pole). The
-//! one `atan2` in the module is not an inversion and is the stated
-//! exception: `curved::sphere_wedge_azimuth` takes the polar angle of
-//! one meridian's departure direction in the frame the other meridian
-//! and the face's interior direction span, and its cut — the two
-//! meridians on one great circle — is the pair `props_band_coplanar`
-//! has just decided definitely not present; its doc argues the
-//! interval case and the interval twin pins it. The
-//! boundary is structurally verified to be the M2 iso-parameter
-//! inventory: each carrier's kind, its rim/meridian role, and its
-//! **incidence on the surface** (rim centers on the axis with parallel
-//! carrier axes and fitted radii; meridians axial/through the apex/in
-//! their meridian plane at the surface's radii) are certified as
-//! consistency residuals through the crate's
-//! [`decide`](crate::dihedral) funnel, and a definite failure of any
-//! of them is a typed [`PropsError`] — scope-boxed fail-loud. **No
+//! construction), stored circle centers/axes/radii, and carrier
+//! endpoint evaluations — never from endpoint `atan2` chart inversion
+//! (the wedge-unwrap trap, M2 PR 6's blocker: two endpoint inversions
+//! differenced lose the winding and sit on a branch cut wherever an
+//! arc is anchored at the seam or a pole). The `atan2`s the module
+//! does take are angles between two stored directions — a sphere
+//! loop's turning at a vertex, a projected arc's tangent–chord angle —
+//! each read where its cut is decided absent. Each kind's boundary is
+//! verified as its closed form needs — carrier kind, incidence on the
+//! surface, closure — through the crate's [`decide`](crate::dihedral)
+//! funnel, and a definite failure is a typed [`PropsError`]. **No
 //! silent quadrature fallback**: the [`quad`] lane exists and is
-//! `pub`, but nothing here routes to it on a refusal. A caller that
-//! wants it asks for it, so a refusal from this lane is a refusal the
-//! caller sees.
+//! `pub`, but nothing here routes to it on a refusal.
 //!
-//! **The rectangle itself is ONE named predicate** —
+//! **The iso-rectangle premise is ONE named predicate** —
 //! `curved::require_rims_at_extremes` (`props_rim_level`): *every rim
-//! sits at one of the face's two extreme `v`-levels*.
+//! sits at one of the face's two extreme `v`-levels*. Before S58 it
+//! was re-derived per consumer to three different strengths, and the
+//! rim-group span-sum rule that stood in for it admitted a
+//! cross-shaped domain and certified a 19%-low volume with
+//! `pad = 0.0` (#649). Its one consumer is **[`require_iso_rectangle`]**,
+//! the predicate's own public door for a lane that rests on the premise
+//! without wanting a volume (`mesh`'s swept-rectangle walk), on every
+//! curved kind, with its sense-free companion: every rim encodes the
+//! SAME side (`curved::unanimous_rim_side`).
 //!
-//! On the sphere it is one of TWO, and the second is about the same
-//! `[lo, hi]` from the other side: *every rim's interior side points
-//! INTO the extent*, `curved::require_rim_interior_sides`
-//! (`props_rim_interior_side`). A level says a latitude the boundary
-//! touches and never says which side of it the material is on, so the
-//! two faces a rim separates fold the same levels; what tells them
-//! apart is the rim's own traversal under the face's sense bit
-//! (`curved::rim_interior_side`). Where the levels are silent
-//! altogether — a rim-only polar cap — that traversal supplies the
-//! missing extreme instead of refusing the face
-//! (`curved::sphere_rim_only_pole_level`). Both live on the sphere arm
-//! because that is where the extent can be silent AND where the sense
-//! bit is what settles it: a rim of a ball bounds the cap under one
-//! bit and the ball minus the cap under the other.
+//! No side reading and no flux lane rests on it. The cylinder and the
+//! torus integrate the region their loops bound by their chart Green
+//! forms, the cone reads its boundary's vector area, and the sphere
+//! reads any loops of circles by Gauss–Bonnet, so a notched or ringed
+//! face measures and encodes its side as a rectangle does. [`boundary_material_sign_loops`] reads
+//! each kind's side off the quantity its flux integrates.
 //!
-//! **The cone's rim-only face has a missing extreme too, and it needs
-//! no bit** (`curved::cone_apex_level`): a cone is bounded on the apex
-//! side only, so `0` is the single candidate, and the fold sits in the
-//! shared parse where all three doors read it. What it does require is
-//! the sphere's premise transposed — every rim's traversal agreeing,
-//! which is unanimity of σ without σ, since σ is `d_u_sign` under one
-//! bit. A cylinder is unbounded along its axis both ways and has no
-//! candidate at all, so its rim-only face stays extent-less.
-//!
-//! **The SHAPE DOOR cannot ask the second, and asks its sense-free
-//! residue instead.** σ reads the face's sense bit and
-//! [`require_iso_rectangle`] is handed a surface and a loop, with no
-//! face, so that it answers a question about the boundary alone. What
-//! needs no bit is that every rim encodes the SAME side
-//! (`curved::unanimous_rim_side`), and the door takes that. The
-//! divergence it leaves is one rim: issue 1598's L-shaped complement
-//! has nothing for unanimity to compare — `Ok(())` from the door,
-//! `NotIsoRectangle { what: "props_rim_interior_side" }`
-//! from the flux lane, on one face. The door's own docs say what a
-//! consumer that needs the stronger premise reads instead. The total
-//! `u`-measure `w(v)` changes only where a rim is (between rim levels
-//! the boundary is meridians, which move no `u`-endpoint), so the rule
-//! establishes `w ≡ Δu`. Before S58 the property was re-derived per
-//! consumer to three different strengths; the rim-group span-sum rule
-//! that stood in for it on three of the four kinds admitted a
-//! cross-shaped domain and certified a 19%-low volume with `pad = 0.0`
-//! (#649).
-//!
-//! **What the predicate is and is not, stated exactly**:
-//!
-//! * Every **iso flux/area closed form** runs it before integrating —
-//!   cone and rim-bearing sphere — with **one exemption**, so
-//!   "every curved kind" is not the claim: the
-//!   **rimless sphere band**, which carries no rim, so the predicate
-//!   is vacuous on it rather than satisfied by it. What that arm does
-//!   establish (its meridians all lie on ONE great circle that the loop
-//!   runs once, which is where `Δu = π` comes from — or on two, the
-//!   wedge, whose `Δu` is the azimuth between them on the face's side;
-//!   its `v`-extent, from the fold that carries each arc's span-derived
-//!   pole extremes) is stated at `curved::sphere`, at the arm.
-//!   The **cylinder** and the **torus** do not run it: each one's flux
-//!   is a chart Green form over every loop (`curved::cylinder_chart`,
-//!   and `curved::torus_chart` over each loop's lift), which integrates
-//!   the region the boundary actually bounds and needs no rectangle.
-//! * **[`boundary_material_sign`] runs it too, on the cone and sphere
-//!   arms**, because each reaches a side derivation that rests on this
-//!   premise; the cylinder and torus arms read the sign of their chart
-//!   area, as their flux does. It was listed here as a second
-//!   exemption, on the argument that *"running the predicate there could only convert an
-//!   answer into an exemption"* — which covers the ERROR direction
-//!   only. The linearly-leveled arms derive a side from
-//!   `lo + hi − 2v`, *which extreme is this rim at*, and on a domain
-//!   that is not a rectangle that returns a definite ±1 depending on
-//!   where the owning body's loop flattening started rather than on
-//!   the face: two rotations of one edge cycle, two opposite signs.
-//!   Tier 3's curved check 6 turned the wrong one into a
-//!   `CurvedSenseInverted`, and check 7 being gated on
-//!   `errors.is_empty()`, the wrong diagnosis SUPPRESSED the honest
-//!   `NotIsoRectangle` the flux lane raises on the same face. The
-//!   premise and the side now travel together
-//!   (`curved::linear_rim_side`), so what its callers must treat as
-//!   exempt is what such a face now produces.
-//! * **[`require_iso_rectangle`] is the predicate's own public door**:
-//!   the per-kind boundary classification and `props_rim_level`, and
-//!   nothing integrated on top — for a consumer whose lane rests on
-//!   the premise without wanting a volume (`mesh`'s swept-rectangle
-//!   walk cites it before walking a face). It decides the premise on
-//!   every curved kind, the cylinder and torus included, whose flux
-//!   lanes no longer need it: its cylinder arm reads the extremes as
-//!   the cone's below, and its torus arm off the anchor meridian's
-//!   stored span (`curved::torus_parse`). It ADMITS every rimless
-//!   sphere band, and the flux lane measures the two it has a lune
-//!   for — the coplanar two-band face (`props_band_coplanar`,
-//!   `Δu = π`) and the wedge (`props_wedge_azimuth`, the azimuth
-//!   between the two meridian half-planes on the face's side) — while
-//!   refusing a rimless boundary that states neither; the premises
-//!   are the closed form's, not the shape's, and the door says so at
-//!   its definition.
-//! * `w ≡ Δu` is **one** of the two premises `area = r·Δu·(hi − lo)`
-//!   needs. The other is that `(lo, hi)` is the face's true
-//!   `v`-extent, and **this predicate does not establish it** — each
-//!   kind's own derivation does. The cone's are `min_max` over edge
-//!   ENDPOINT levels, exact because its meridians are lines, monotone
-//!   in `v`. The sphere's meridians are great-circle
-//!   arcs whose latitude peaks at a pole the arc may contain in its
-//!   interior, so its fold also carries each arc's span-derived pole
-//!   extremes (`curved::sphere_meridian_span_levels`, decided through
-//!   `props_meridian_pole`) — the stored-span derivation in fold
-//!   form.
-//!
-//! Outside that verification: on the cone and sphere the residuals
-//! certify carriers, not that the traversed arcs jointly close a loop.
-//! The cylinder's and torus's Green forms check closure on the
+//! Closure: the cylinder's and torus's Green forms check it on the
 //! traversed endpoints (`props_loop_closed`, and
 //! `props_chart_loops_closed` / `props_torus_lift_closed_u` and `_v`),
-//! because their anchor-freedom rests on it. No lane reads the
-//! loop-local vertex **tags** ([`LoopEdge`]).
+//! the sphere's Gauss–Bonnet and the cone's vector area on every
+//! junction (`props_loop_closed`). No lane reads the loop-local vertex **tags**
+//! ([`LoopEdge`]).
 
 mod curved;
 mod loop_area;
 pub mod quad;
+pub mod spiric;
 
 use geom::Curve3;
 use geom_core::spline::SpanLocate;
@@ -235,6 +133,7 @@ use crate::recourse::{Reading, RefusedArm, SizedDecision, StoredDefinite, Unsize
 pub use curved::{
     MaterialSign, boundary_material_sign, boundary_material_sign_loops, cone_face_closed_form,
     curved_face, curved_face_loops, require_iso_rectangle, require_one_chart_branch,
+    sphere_region_material_sign,
 };
 pub use loop_area::loop_vector_area;
 
@@ -383,10 +282,11 @@ pub enum PropsError {
     /// and never will in this lane: the `Nurbs` placeholder, and a
     /// `Curve3::Spiric` boundary edge on a plane (the oval's area is an
     /// elliptic integral) or on a cylinder, cone or sphere (a spiric
-    /// lies on none). The spiric's frontier is the props quadrature
-    /// lane for a spiric-bounded face — the spiric unit's props PR;
-    /// the variant carries no `what`, so the frontier is named here
-    /// and at each raising site.
+    /// lies on none). A spiric-bounded face is measured by the
+    /// quadrature lane instead ([`spiric`]), which `topo`'s face walk
+    /// routes it to by carrier kind; this lane's refusal is what a walk
+    /// holding no quadrature lane reads. The variant carries no `what`,
+    /// so the frontier is named here and at each raising site.
     Unimplemented,
     /// The boundary shape is outside the M2 iso-rectangle inventory,
     /// a stored-data consistency residual of an inventory premise is
@@ -436,8 +336,7 @@ pub enum PropsError {
     /// A cone face's `v` range definitely spans both nappes — not a
     /// face any M2 construction produces.
     NappeSpanning,
-    /// A sphere face bounded by circles tilted against its chart
-    /// (`curved::sphere_circle_loop`) fails a premise of its
+    /// A sphere face (`curved::sphere_face`) fails a premise of its
     /// Gauss–Bonnet closed form: an edge not a circle on the sphere,
     /// a loop that does not close, a cusp, or a degenerate area.
     /// Name-only, as [`Self::NotIsoRectangle`]: `what` is the deciding
@@ -446,11 +345,50 @@ pub enum PropsError {
         /// Which premise failed (the predicate's name).
         what: &'static str,
     },
-    /// The face's sense bit contradicts the side its boundary encodes
-    /// (`curved::sphere_circle_loop_side`): the face is inside-out, and
-    /// its radial flux term — read off the bit — would measure the
-    /// complement of the face.
+    /// A cone face (`curved::cone_face_closed_form`) fails a premise of
+    /// its vector-area closed form: a loop that does not close, that
+    /// winds the axis twice or sweeps past a turn through the apex, that
+    /// meets itself at a vertex, or a ring that winds the axis or
+    /// touches the apex. Name-only, as [`Self::SphereLoop`]: `what` is
+    /// the deciding predicate's name.
+    ConeLoop {
+        /// Which premise failed (the predicate's name).
+        what: &'static str,
+    },
+    /// **A face's holes cover more than its region**: every ring is
+    /// wound against the outer loop (`props_ring_winding` against
+    /// `props_cone_outer_side`), but their areas sum past the outer
+    /// loop's — the face's side (`props_cone_area_side`) is not the
+    /// outer loop's — so the face's area would come out
+    /// negative. Holes that overlap each other or leave the region.
+    HolesExceedFace,
+    /// A one-loop sphere face's sense bit contradicts the side its
+    /// boundary encodes (`curved::sphere_loop_side`), so its radial
+    /// flux term — read off the bit — would measure the complement of
+    /// the face.
+    /// Two causes, which the boundary cannot tell apart: the bit is
+    /// inverted, or the face holds in its interior the one chart pole
+    /// off its loop, which import must normalise into a vertex of the
+    /// face.
     SenseContradicted,
+    /// A sphere face WITH HOLES whose sense bit contradicts the side
+    /// its boundary encodes — the side of its loops with positive
+    /// area, which no chart pole enters — so the bit is inverted.
+    SenseInverted,
+    /// **A hole is wound the same way as its face** (`props_ring_winding`):
+    /// a ring's signed area has the sign of the face's whole, where a
+    /// hole's boundary is traversed opposite to the region it is cut
+    /// from. Its area would be ADDED to the face's. Stored data that is
+    /// wrong, whichever lane reads it: the closed forms' and the
+    /// cylinder quadrature's one decision (`curved::require_holes_wound_against`).
+    RingWoundWithFace,
+    /// **A loop's stored chart images are a period apart at a junction**
+    /// (`props_quad_junction_period`): one edge's image starts a whole
+    /// turn of the azimuth from where the edge before it ends, so the
+    /// loop closes in space but not on the chart, and no Green form over
+    /// the chart reads it. Stored data that is wrong: a boundary's images
+    /// on one face are minted in one branch of its chart.
+    ChartPeriodJump,
     /// A boundary edge's traversed **arc** leaves one branch of the
     /// chart, though its CARRIER is a certified iso curve: the arc's
     /// stored parameter span contains a chart singularity in its
@@ -621,7 +559,7 @@ pub enum PropsCheck {
     /// **The certified quadrature's convergence meter** against its
     /// target: the enclosure's own width, nothing of the model's, so
     /// there is no coincidence to declare and no geometry to move. A
-    /// kernel approximation limit ([`Unsized::LastResort`]), which is
+    /// kernel approximation limit ([`Unsized::Fit`]), which is
     /// the one shape D4 ¶1 (i) lets name loosening.
     Converged,
 }
@@ -687,9 +625,9 @@ impl PropsCheck {
     pub fn ending(self, arm: RefusedArm<'_>, reading: Reading) -> String {
         match self {
             Self::Exact => Unsized::Defect.recourse(arm, reading),
-            Self::Inventory => crate::recourse::not_yet(arm),
+            Self::Inventory => crate::recourse::not_yet(arm, reading),
             Self::Extent => FACE_EXTENT.recourse(arm, reading),
-            Self::Converged => Unsized::LastResort.recourse(arm, reading),
+            Self::Converged => Unsized::Fit.recourse(arm, reading),
         }
     }
 }
@@ -718,10 +656,41 @@ impl core::fmt::Display for PropsError {
                  Recourse: state its edges as circles ON the sphere, meeting end to end with \
                  no cusp, around an area short of the whole sphere"
             ),
+            Self::ConeLoop { what } => write!(
+                f,
+                "a cone face's boundary does not bound a region of its cone once ({what}). \
+                 Recourse: state each loop as edges ON one nappe, meeting end to end, \
+                 going round the axis at most once and meeting itself nowhere"
+            ),
+            Self::HolesExceedFace => write!(
+                f,
+                "a face's holes cover more area than its outer boundary encloses, so they \
+                 overlap one another or leave the face. {KERNEL_OR_FILE_DEFECT_ENDING}"
+            ),
             Self::SenseContradicted => write!(
                 f,
-                "a sphere face's orientation sense contradicts the side its boundary encodes, \
-                 so the face is inside-out. {KERNEL_OR_FILE_DEFECT_ENDING}"
+                "a sphere face's orientation sense contradicts the side its boundary encodes: \
+                 either the face is inside-out, or it holds a pole of its sphere in its \
+                 interior, which import must make a vertex of the face. \
+                 {KERNEL_OR_FILE_DEFECT_ENDING}"
+            ),
+            Self::SenseInverted => write!(
+                f,
+                "a sphere face with holes is inside-out: its orientation sense contradicts \
+                 the side of its boundary that has positive area. \
+                 {KERNEL_OR_FILE_DEFECT_ENDING}"
+            ),
+            Self::RingWoundWithFace => write!(
+                f,
+                "a hole in a face is traversed the same way as the face's own boundary, so \
+                 its area would be added to the face's rather than taken from it. \
+                 {KERNEL_OR_FILE_DEFECT_ENDING}"
+            ),
+            Self::ChartPeriodJump => write!(
+                f,
+                "a face's stored boundary images on its surface's chart do not meet: one \
+                 edge's image starts a whole turn around the surface from where the edge \
+                 before it ends. {KERNEL_OR_FILE_DEFECT_ENDING}"
             ),
             Self::NappeSpanning => write!(
                 f,
@@ -740,14 +709,15 @@ impl core::fmt::Display for PropsError {
                 f,
                 "this face's parameter extent is coincident with zero, so its area cannot be \
                  certified positive. {}",
-                FACE_EXTENT.recourse(RefusedArm::SignCertain, Reading::AtRest)
+                FACE_EXTENT.recourse(RefusedArm::SignCertain(None), Reading::AtRest)
             ),
             Self::Escalated { cause, check } => write!(
                 f,
-                "{} is too close to call at this tolerance: {}. {}",
-                check.subject(),
-                cause.payload(),
-                check.ending(RefusedArm::Undecided(cause), Reading::AtRest)
+                "{}",
+                cause.undecided(
+                    check.subject(),
+                    check.ending(RefusedArm::Undecided(cause), Reading::AtRest)
+                )
             ),
             Self::QuadratureBudget {
                 width_len,
@@ -969,8 +939,8 @@ mod tests {
         assert_eq!(
             converged,
             format!(
-                "whether the quadrature's enclosure has converged is too close to call at \
-                 this tolerance: margin 5e-9 lies inside the ambiguity band (1e-9, 1e-8). {}",
+                "whether the quadrature's enclosure has converged is undecided: margin 5e-9 lies \
+                 inside the ambiguity band (1e-9, 1e-8). {}",
                 geom_core::KERNEL_LIMIT_RECOURSE
             )
         );
@@ -1019,7 +989,14 @@ mod tests {
             PropsError::SphereLoop {
                 what: "props_sphere_loop_cusp",
             },
+            PropsError::ConeLoop {
+                what: "props_cone_loop_vertex",
+            },
+            PropsError::HolesExceedFace,
             PropsError::SenseContradicted,
+            PropsError::SenseInverted,
+            PropsError::RingWoundWithFace,
+            PropsError::ChartPeriodJump,
             PropsError::NappeSpanning,
             PropsError::NotOneChartBranch {
                 edge: 0,
@@ -1044,7 +1021,7 @@ mod tests {
             "state", "widen", "loosen", "report", "re-cut", "re-mint", "lie",
         ];
         let arms = props_error_arms();
-        assert_eq!(arms.len(), 11, "an arm was added without a row here");
+        assert_eq!(arms.len(), 16, "an arm was added without a row here");
         for arm in &arms {
             let msg = arm.to_string();
             assert_eq!(

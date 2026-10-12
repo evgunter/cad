@@ -29,7 +29,7 @@
 use core::f64::consts::PI;
 
 use geom_core::{Point2, Point3, Tol, Vec3};
-use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::{brick, finished};
 use topo::{Body, BooleanError};
 
@@ -41,7 +41,7 @@ fn vol(body: &Body<f64>) -> f64 {
 /// volume: bulge b = 0.6 on the vertical chord (0.5, 1) → (0.5, 1.5),
 /// so sagitta s = b·c/2, arc radius R = ((c/2)² + s²)/(2s), centre
 /// (0.5 + s − R, 1.25). b < 1 keeps the arc's end tangents off both
-/// neighbouring segments (no undeclared tangency) and R < centre-x
+/// neighbouring segments (no tangent junction to decide) and R < centre-x
 /// keeps the revolved torus a ring torus (r < R).
 const BULGE: f64 = 0.6;
 
@@ -78,7 +78,7 @@ fn vase_with_caps(sphere: bool) -> Body<f64> {
     } else {
         0.0 // straight generator: a cone with its apex on the axis
     };
-    let mut lp = bulge_loop(vec![
+    let lp = bulge_loop(vec![
         (Point2::new(0.0, 0.0), cap),   // bottom cap → (0.5, 0.5)
         (Point2::new(0.5, 0.5), 0.0),   // wall → (0.5, 1.0)
         (Point2::new(0.5, 1.0), BULGE), // torus arc → (0.5, 1.5)
@@ -86,9 +86,7 @@ fn vase_with_caps(sphere: bool) -> Body<f64> {
         (Point2::new(0.5, 2.0), cap),   // top cap → (0, 2.5)
         (Point2::new(0.0, 2.5), 0.0),   // axis seam → start
     ]);
-    if sphere {
-        lp = lp.with_tangent_joints(vec![1, 4]);
-    }
+
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
@@ -218,27 +216,29 @@ fn a_granted_crossing_union_with_a_torus_band_completes_in_containment() {
 /// torus band (y ∈ [1.05, 1.45] against the band's y ∈ [1.25 ± R_arc]
 /// ≈ [0.97, 1.53]). The torus is on the union's KIND roster, so the
 /// gate admits the pair; the crossing layer records the brick's plane
-/// against the torus band, and the union stops at the JOIN's germ
-/// frame, which has no `(Torus, Plane)` arm. That is the join-side door
-/// the torus gate admission was told to expect, measured.
+/// against the torus band, and the union passes the JOIN's germ frame
+/// and its germ-pair dispatch and stops at the torus side's section,
+/// which has no plane × torus arm.
 #[test]
-fn the_same_union_posed_into_the_torus_band_stops_at_the_germ_frame() {
+fn the_same_union_posed_into_the_torus_band_stops_at_the_chord() {
     let a = finished("the vase", vase(), Tol::witness());
     let b = finished(
         "the brick",
         brick((-1.0, 1.0), (1.05, 1.45), (-1.0, 1.0), Tol::witness()),
         Tol::witness(),
     );
-    let err =
-        topo::union(&a, &b, Tol::witness()).expect_err("a torus × plane germ has no join arm");
-    let BooleanError::GermFrameUnsupported {
-        a_kind: geom::SurfaceKind::Torus,
-        b_kind: geom::SurfaceKind::Plane,
-        ..
-    } = err
-    else {
-        panic!("expected the germ frame's (Torus, Plane) refusal, got {err:?}");
-    };
+    let err = topo::union(&a, &b, Tol::witness()).expect_err("a torus × plane germ has no chord");
+    assert!(
+        matches!(
+            &err,
+            BooleanError::Join(topo::SplitJoinError::SectionUnarmed {
+                divided: geom::SurfaceKind::Torus,
+                wall: geom::SurfaceKind::Torus,
+                ..
+            })
+        ),
+        "expected the torus side's section refusal, got {err:?}"
+    );
 }
 
 /// **Row 3 — what the ruling's own blind spot answered, and what it

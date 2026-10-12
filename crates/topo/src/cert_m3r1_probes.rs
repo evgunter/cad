@@ -32,7 +32,7 @@ use crate::test_support_fixtures::{describe_as_intersections, geometric_cube};
 use crate::validate::{self, ValidationError};
 use crate::{Body, FaceSurface};
 use geom::{NurbsSurface, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
 use geom_core::spline::KnotVector;
 use geom_core::{Point3, Tol};
 use std::sync::Arc;
@@ -60,7 +60,7 @@ fn nurbs_wall(bow: f64) -> Surface<f64> {
 /// the wall's four edges re-described as plane × NURBS `Intersection`s
 /// through the lane (M7-8). Returns the wall's surface key and the
 /// four edge keys.
-fn m7_8_cube() -> (
+pub(crate) fn m7_8_cube() -> (
     Body<f64>,
     crate::geometry::SurfaceKey,
     Vec<crate::entity::EdgeKey>,
@@ -119,7 +119,10 @@ fn m7_8_cube() -> (
             geom::NurbsCurve3::new(kv, vec![p0, p1], vec![1.0, 1.0]).unwrap(),
         ));
         let spec = EdgeCurveSpec {
-            description: EdgeDescriptionSpec::Intersection { s1, s2, witness },
+            description: EdgeDescriptionSpec::Intersection {
+                pair: SurfacePair::new(s1, s2),
+                witness,
+            },
             carrier,
             param_start: 0.0,
             param_end: 1.0,

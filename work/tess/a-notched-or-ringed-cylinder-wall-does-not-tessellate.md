@@ -45,3 +45,30 @@ horizontal, rulings vertical), holes included, inside one branch of the
 azimuth when the face window is under a period; a chart-polygon
 triangulation of that region, lifted through the cylinder, would serve
 both shapes.
+
+## More witnesses: a ring on a cone wall (GERM, `germ/cone-ring-volume`)
+
+A cone wall with a hole now measures too: the cone's closed form reads
+every loop's vector area (`geom_brep::props::cone_face_closed_form`).
+`mesh::tessellate` refuses those bodies with the same
+`RingOnCurvedFace` (`crates/mesh/src/curved.rs`, the ring check at the
+top of the curved patch). Witness: T1's ∪ in both member orders and
+cone ∖ box (`crates/sweep/tests/cone_join_lane.rs`'s
+`each_poses_body_is_its_closed_form_in_every_op`, which allows this
+refusal on exactly those three ops). Each body passes tier 3 and
+measures `OK SOUND`. The ring there is two ellipse arcs, so a chart
+polygon of rims and rulings does not cover it; the cone's chart region
+is bounded by the sections' images.
+
+## More witnesses (FLUX, `flux/ellipse-ring`)
+
+A wall whose ring is trimmed by ELLIPSE arcs now measures too: the
+cylinder quadrature reads every loop
+(`geom_brep::props::quad::cylinder_cut_face`). The unit pipe ∪ or ∖ the
+brick `(−1.1, 1.1) × (0.2, 0.7) × (−0.15, 0.15)` turned about the x axis
+through `(0, 0.45, 0)` by 0.3, 0.7, 1.0 or 1.3 rad meets its exact volume
+(`verbs_germarms::a_wall_ringed_by_ellipse_arcs_measures`), and the
+mesh's trimmed lane refuses that wall `RingOnCurvedFace` before its
+dispatch (`crates/mesh/src/trimmed.rs`, `tessellate_trimmed`'s ring
+guard). The fix above wants the trimmed lane's chart region as well:
+the same polygon with the ring's ellipse images for edges.

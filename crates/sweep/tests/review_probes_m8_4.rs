@@ -6,14 +6,13 @@
 //! candidates never win in the unit's own suite. P-E flips the chart's
 //! `v` orientation and demands the backward candidate — red if the
 //! direction half of the schedule is decorative. P-F checks that a
-//! description whose operand pair cannot certify never reaches the arm
-//! at all.
+//! description not naming the edge's own faces never reaches the arm.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::approx::band;
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Point3, Vec3};
 use profile::test_support::bulge_loop;
@@ -93,9 +92,8 @@ fn flat_bowed_seam(
 /// wall's chart optionally REVERSED in `v` before the description is
 /// attached — same surface point set, opposite `v` orientation.
 /// `None` is the ε-FINE cell, asserted rather than skipped: this seam's
-/// certified between-samples sup is ~5.47e-14 m (it was ~6.22e-12 m
-/// before `insert_once_ring` took the convex insertion form, 114x
-/// wider), so below ε_in = 1e-13 the
+/// certified between-samples sup is ~5.47e-14 m, so below ε_in = 1e-13
+/// the
 /// declare-and-check rung refuses TYPED carrying that number and there
 /// is no chart image to probe at all.
 fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo::SurfaceKey)> {
@@ -164,8 +162,7 @@ fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo:
         edge,
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
-                s1: plane,
-                s2: bowed,
+                pair: SurfacePair::new(plane, bowed),
                 witness: carrier.eval((t0 + t1) * 0.5),
             },
             carrier,
@@ -212,9 +209,9 @@ fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo:
 /// the seam class certifies it.** On the `v`-reversed chart the same
 /// carrier traverses the chart's `v` BACKWARD; the pick returns the
 /// geometrically correct negative-slope image, and the seam class reads
-/// a backward image against the boundary row run back
-/// (`geom_brep::reversed_column`) — its control hull against the row
-/// reversed, its parameter-map slack against `v(t) = a + b − t`. The
+/// a backward image against the boundary row read backwards — its
+/// control hull against the row reversed, its parameter-map slack
+/// against `v(t) = S − t`, `S` the reflection's sum. The
 /// carrier IS the reversed chart's column run back, so the certificate
 /// is exact: zero residual, zero envelope. Red if the backward image
 /// stops certifying, or certifies with slack it does not have.
@@ -285,15 +282,19 @@ fn probe_e_reversed_chart_takes_the_backward_candidate() {
     );
 }
 
-/// **P-F: a description whose operand pair cannot certify never
-/// reaches the arm.** The same locus described as bowed × bowed (no
-/// plane in the pair) must refuse at ATTACHMENT — the declare-and-check
-/// gate — so the mint's indifference to `s1`/`s2` is safe: by the time
-/// the arm runs, some certificate vouched for the pair.
+/// **P-F: a description that does not name the edge's two faces never
+/// reaches the arm.** The flat–bowed seam described as the bowed wall
+/// against itself refuses at ATTACHMENT, by adjacency
+/// (`DescriptionNotAdjacent`), before any certificate is asked: the
+/// pair is not the surfaces the edge's faces wear. That is all this row
+/// reaches. The mint fed a pair with no plane in it that does name the
+/// edge's faces, now certifiable through the NURBS × NURBS lane, is
+/// untested
+/// (`work/iso/the-m8-4-mint-with-a-non-plane-pair-is-untested.md`).
 #[test]
 fn probe_f_uncertifiable_pair_refuses_at_attachment() {
-    // ε-independent: a NURBS × NURBS pair has no certificate at any
-    // tolerance, so this row runs at every matrix cell.
+    // ε-independent: adjacency is decided on keys, at any tolerance, so
+    // this row runs at every matrix cell.
     let mut body = offset_square_prism();
     let (edge, _flat, bowed, _he) = flat_bowed_seam(&body);
     let (carrier, t0, t1) = {
@@ -310,8 +311,7 @@ fn probe_f_uncertifiable_pair_refuses_at_attachment() {
             edge,
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
-                    s1: bowed,
-                    s2: bowed,
+                    pair: SurfacePair::new(bowed, bowed),
                     witness: carrier.eval((t0 + t1) * 0.5),
                 },
                 carrier,
@@ -320,6 +320,12 @@ fn probe_f_uncertifiable_pair_refuses_at_attachment() {
             },
             Tol::witness(),
         )
-        .expect_err("a NURBS × NURBS pair has no certificate and must refuse at attachment");
-    println!("P-F refusal: {err:?}");
+        .expect_err("a pair that is not the edge's faces must refuse at attachment");
+    assert!(
+        matches!(
+            err,
+            topo::EulerOpError::DescriptionNotAdjacent { edge: Some(e) } if e == edge
+        ),
+        "P-F: expected the adjacency refusal naming the seam, got {err:?}"
+    );
 }

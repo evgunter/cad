@@ -6,7 +6,7 @@ status: open
 opened: 2026-09-24
 priority: P3
 cost: D
-refs: [3301, 3179, 3204, ray-wall-and-cone-near-root-cancels-over-a-small-lead]
+refs: [3301, 3179, 3204, 3755]
 ---
 
 
@@ -52,7 +52,7 @@ hypothetical: it is how check 10 first measured
 (`work/atrest/point-in-solid-reads-out-from-inside-a-re-posed-torus-barrel`,
 closed by ATREST-9 — the planar arm read arc-bounded caps as their
 vertex polygons, so the re-posed hollow torus barrel refused), and
-`work/contact/ray-wall-and-cone-near-root-cancels-over-a-small-lead` is
+`ray-wall-and-cone-near-root-cancels-over-a-small-lead` (closed, PR 3755) is
 a plausible future source of the same kind. Every defect of that kind
 in the walk now reaches `validate_geometric` and every verb that
 validates its own output; a finding against the walk's correctness is

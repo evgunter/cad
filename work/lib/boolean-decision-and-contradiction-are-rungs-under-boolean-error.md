@@ -75,11 +75,10 @@ PR 3513 adds, re-exported beside `BooleanDecision`: `Coincide`,
 `DeclarationRead` (what a coincidence's door read of the pair's
 declaration, carried with its `Coincide` by
 `BooleanDecision::Coincidence`), `LeverArm`, `WallRung` and
-`SectionRadius` one rung under `BooleanDecision`; `NeighbourOffset`, carried by
-`BooleanError::CoplanarNeighbours { offset, .. }`; and
-`RestZipFrontier`, carried by `BooleanError::RestZipUnsupported { what }`.
-The last two are payload rungs of `BooleanError` itself, so the sweep
-counts them, and their disposition is this row.
+`SectionRadius` one rung under `BooleanDecision`; and `NeighbourOffset`, carried by
+`BooleanError::CoplanarNeighbours { offset, .. }`. The last is a payload
+rung of `BooleanError` itself, so the sweep counts it, and its
+disposition is this row.
 
 Its third fix pass adds `SphereQuestion` (under
 `BooleanDecision::Sphere`), `SelfCheck` (under

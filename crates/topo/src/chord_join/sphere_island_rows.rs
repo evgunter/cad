@@ -92,8 +92,7 @@ fn spec(body: &mut Body<f64>, surface: SurfaceKey, a: &Arc3) -> EdgeCurveSpec<f6
     let s2 = body.add_surface(plane(a.plane.0, a.plane.1));
     EdgeCurveSpec {
         description: geom_brep::EdgeDescriptionSpec::Intersection {
-            s1: surface,
-            s2,
+            pair: geom_brep::SurfacePair::new(surface, s2),
             witness: a.carrier.mid_point(0.0, a.end),
         },
         carrier: a.carrier.clone(),
@@ -594,7 +593,7 @@ fn a_winding_no_path_decides_escalates_with_the_first_reading() {
         let left = quadric
             .outward(q, true)
             .cross(closing.carrier.deriv(geom::mid_param(t0, t1)) * (t1 - t0));
-        let mut arcs = run_loop_arcs(&body, face, (&surface, &quadric), &[h]).unwrap();
+        let mut arcs = run_loop_arcs(&body, face, (&surface, &quadric), &[h], band()).unwrap();
         arcs.push(LoopArc::of(&closing.carrier, (t0, t1)).unwrap());
         let reading = |w: Point3<f64>| {
             let path = quadric.paths((w, q), band()).unwrap().remove(0);
@@ -672,7 +671,7 @@ fn a_re_homing_no_path_decides_escalates_with_the_first_reading() {
             continue;
         };
         let cycle = outer_cycle(&body, made.face).unwrap().unwrap();
-        let arcs = run_loop_arcs(&body, made.face, (&surface, &quadric), &cycle).unwrap();
+        let arcs = run_loop_arcs(&body, made.face, (&surface, &quadric), &cycle, band()).unwrap();
         let skip: Vec<_> = cycle
             .iter()
             .map(|&he| body.get_half_edge(he).unwrap().edge)
@@ -699,4 +698,55 @@ fn a_re_homing_no_path_decides_escalates_with_the_first_reading() {
         asserted > 0 && distinct,
         "asserted {asserted}, distinct readings {distinct}"
     );
+}
+
+/// **A whole sphere is trimmed by nothing.** A face closed on itself
+/// along one slit arc (a latitude arc, or an arc of the equator) has no
+/// unmated boundary and no vertex on a pole, so its boundary gives no
+/// latitude at all: the chart trim is the unconstrained rectangle,
+/// never "a face the chart cannot express".
+#[test]
+fn a_sphere_closed_on_a_slit_has_no_trim() {
+    for f in frames() {
+        for z in [0.3, 0.0, -0.6] {
+            let s = Sph { f, r: 1.0 };
+            let mut body = Body::<f64>::new();
+            let (a, b) = (s.at(-1.0, z), s.at(1.0, z));
+            let seed = body.mvfs(a, true).unwrap();
+            let surface = body
+                .set_face_surface(
+                    seed.face,
+                    FaceSurface::New {
+                        surface: s.surface(),
+                        sense: true,
+                    },
+                )
+                .unwrap();
+            let e = spec(&mut body, surface, &arc3(s, a, s.at(0.0, z), b));
+            body.mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                b,
+                e,
+                tol(),
+            )
+            .unwrap();
+            let trim = crate::boolean::solid_contain::sphere_chart_trim(
+                &body,
+                seed.face,
+                s.f.o,
+                s.r,
+                s.f.z,
+                band(),
+            )
+            .unwrap()
+            .unwrap_or_else(|| panic!("z {z}: a whole sphere is expressible"));
+            assert!(
+                trim.az.is_none() && trim.north.is_none() && trim.south.is_none(),
+                "z {z}: {:?}",
+                (trim.az, trim.north, trim.south)
+            );
+        }
+    }
 }

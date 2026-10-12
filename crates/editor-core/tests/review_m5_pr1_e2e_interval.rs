@@ -36,7 +36,7 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    BooleanOp, BooleanValue, CancelToken, EvalOptions, Node, ProfileDoc, ValuePayload, evaluate,
+    BooleanValue, CancelToken, EvalOptions, Node, ProfileDoc, ValuePayload, evaluate,
 };
 use fixture::{ang, insert, len, on_frame, scl};
 use geom_core::Tol;
@@ -58,7 +58,7 @@ fn rotated_cutter_boolean_at_interval_certifies_end_to_end() {
     let (doc, cube) = insert(
         doc,
         Node::Extrude {
-            profile: cube_p,
+            profile: cube_p.into(),
             distance: len(2.0),
             side: ExtrudeSide::Along,
         },
@@ -81,7 +81,7 @@ fn rotated_cutter_boolean_at_interval_certifies_end_to_end() {
     let (doc, cut) = insert(
         doc,
         Node::Extrude {
-            profile: cut_p,
+            profile: cut_p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -99,11 +99,9 @@ fn rotated_cutter_boolean_at_interval_certifies_end_to_end() {
     );
     let (doc, sub) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: cube,
-            b: placed,
-            declare: Vec::new(),
+        Node::Subtract {
+            from: cube.into(),
+            tool: placed.into(),
         },
     );
 
@@ -204,7 +202,7 @@ fn a_degenerate_document_refuses_typed_end_to_end() {
     let (doc, degenerate) = insert(
         doc,
         Node::Extrude {
-            profile: prof,
+            profile: prof.into(),
             distance: len(0.0),
             side: ExtrudeSide::Along,
         },
