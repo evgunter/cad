@@ -965,3 +965,9 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - the `expected()` re-cut log has accreted about 25 dated entries, a changelog in a doc comment (Q8);
     - `disp=0` is monotone in the wrong direction: freezes starve dispute recording.
   - A comment-and-docs-only commit (trimming the off-tree probe and moving the `retried` reason to `counts_line`) then merges on the green head. — (NURBS orchestrator)
+- 2026-10-12 18:16Z — **PR 4887 merges (`c1514de8c7`).** The digest gains a `disp=` column, which reads 0 on all Sym lines.
+  - The style pass is comments only: the off-tree probe is trimmed and the `retried` reason sits at `counts_line`.
+  - **Filed:**
+    - `the-thread-count-digests-re-cut-log-is-a-changelog` (P4, E);
+    - `disp-zero-can-be-satisfied-by-freezes` (P4, M; a SYM/DECIDE seam when built).
+  - Build A is dispatched on the changelog trim (`nurbs/digest-log-trim`). Tier: orchestrator's read. It lands before build C's rational-bound re-cut, to keep their conflict small. — (NURBS orchestrator)
