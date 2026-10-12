@@ -2184,3 +2184,15 @@ That merge deleted the seam-vertex partner arms, so
 `the-seam-vertex-contact-partner-arms-have-no-planar-witness-under-maximal-edges`
 is closed as moot.
 - 2026-10-12 — Seam note from ENCL (PR 4811, merged at `abff76bb25`): editor-core's undecided sentences render through `Indeterminate::undecided`. Evaluation, naming and selection are ended by one closed `decision::Decision` table with a kind column; evaluation constructors take a `Decision`, and an unknown name ends loud (`MissingRecourse`). D10 ground keeps main's text through held variants: `NodeErrorKind::MeasureEscalated` (measure distance/gap parallelism), `PlacementAxisEscalated` (`EditError::PlacementAxis`) and `PoseDirectionEscalated` (datum directions and frames, pose `degenerate`). All three classify as Escalated, and pncad-py `tags.rs` and viewer `tree.rs` gained arms. Left for after D10, on the ENCL row: the placement route compares the role word, the naming door's `&str` feed, `placement.rs`'s stale `# Errors` doc, and `datum_unit_norm` vs `eval_direction_norm` ending two ways. (ENCL orchestrator)
+
+## 2026-10-12 — the junction / corner-tie fork goes to Ev
+
+One designer pair weighed both design rows: the PR 4284 residue (three or
+more members at one point) and the corner the result holds as several
+vertices. It took three reconciliation rounds; the pair crossed twice on
+whether a face through the point belongs in the name. They converged:
+- a non-corner vertex is the run of lines through it;
+- each sense is read against what the name cites;
+- a corner's copies are `Fragment(Borders)` fragments of it.
+
+Fork-log row 121; the `[ev]` PR states it in N2.

@@ -274,16 +274,33 @@ The qualifier depends on what was split:
   `Outside` (outside on both sides: a touch from outside) or `Inside` (inside
   on both sides: a touch from inside); a side lying on the face counts as
   inside. For the Split that body is the half the edge runs into, and a plane
-  only enters or leaves. The sense is read at the step that mints the vertex
-  and carried through a union's collapse, where reversing an edge swaps
-  `Enters` and `Leaves` and keeps the other two. Every crossing carries it, a
-  lone one included: a boolean's or union's is `Crossing { edge, face, sense
-  }`, the Split's `CrossingVertex` holds it as a field. A vertex where two
-  edges meet is `EdgeCrossing { a, a_sense, b, b_sense }`, each edge's sense
-  read against the other operand's closed body, the two in name order in a
-  union. Crossings of one line by one face with the same sense are ranked
-  along the line by its carrier's own parameter, in the edge's stored
-  orientation; an equal pair ties.
+  only enters or leaves. Every crossing carries it, a lone one included: a
+  boolean's or union's is `Crossing { edge, face, sense }`, the Split's
+  `CrossingVertex` holds it as a field.
+  A vertex where two or more lines meet is an `EdgeCrossing` over the run of
+  those lines, each with its sense, in name order. Its lines are the edges cut
+  at the vertex, edges that run flush on one line counted once as the least of
+  them, and, at a union, each seam through the vertex whose two faces bound
+  none of those edges, cited by its faces' parents as a seam edge is. So a
+  union vertex no member edge reaches is the run of its seams, and a lone
+  member edge through a seam is the run of the edge and the seam. A face
+  through the vertex that bounds none of its lines is not in its name: the
+  lines locate the vertex, as a corner resting on a face cites no face.
+  Each line's sense is read against the closed bodies of the members the
+  name's other entries belong to, other than the line's own: the crossing
+  face's member for a `Crossing`, the other lines' members for a run. A
+  boolean reads it at the step that mints the vertex. A union reads a member
+  edge's from its members' pairwise judgements, a side being inside when any
+  judgement classed it so, and a seam's by a verdict of its own; a side
+  neither reads refuses. Reversing an edge swaps `Enters` and `Leaves` and
+  keeps the other two.
+  Crossings of one line by one face with the same sense, and vertices with
+  the same run, are ranked along the (first) line by its carrier's own
+  parameter, in the edge's stored orientation; an equal pair ties.
+  Where the result holds an operand corner as several vertices, each is a
+  fragment of it, `Fragment(Borders)` over the walls that divide the corner
+  there, read as a face piece's walls are (`borders.rs`); equal sets tie, and
+  a corner the result holds as one vertex is its bare name.
 
 No rule reads a plane or a direction, and a union's reading of a seam pair in
 name order changes nothing. Name order spells a set; the flush rule below is
@@ -350,8 +367,9 @@ whole, `From(m, e)`, never a piece and never a set: the one it lies on,
 the least in name order where several do, a subtract's two seats among
 them, so no seat is preferred. A vertex at a member vertex is that vertex; one
 where a single face crosses or touches a member edge is the `Crossing` of that
-edge and that face; and one where two member edges meet is their
-`EdgeCrossing`, read from the finished body like a `Crossing`, so every member
+edge and that face; and every other is the `EdgeCrossing` run of the member
+edges and seams through it (N2), read from the finished body and its senses
+from the members' pairwise judgements, never from the fold, so every member
 order spells it alike. A reference to a member edge, or to a piece of one, that no longer
 resolves is offered every set listing that member edge.
 
@@ -572,7 +590,7 @@ the current run, the diagnosis is `GroupResized { node, was, now, cutters }`.
 - *The cutters.* `cutters` (`GroupCutters`, `resolve::group_cutters`) reads the
   minting node's two tables for the seam rows on the group's parent (a face
   group's seam edges, an edge group's seam and crossing vertices), matched on
-  the pair — a `Seam`'s or an `EdgeCrossing`'s two sides, a `Crossing`'s edge
+  the pair — a `Seam`'s two sides, an `EdgeCrossing`'s lines, a `Crossing`'s edge
   and face — with any `Fragment` tail and never on the row, and names
   every cutter whose seam with the parent only the last-good table spells
   (`gone`) or only the current one does (`new`); both empty says the two
