@@ -177,8 +177,6 @@ mod edit_placement_corpus_bits;
 mod edit_placement_type;
 #[path = "edit_recorded_notation.rs"]
 mod edit_recorded_notation;
-#[path = "review_4896_probes.rs"]
-mod review_4896_probes;
 #[path = "edit_ruled_carve.rs"]
 mod edit_ruled_carve;
 #[path = "edit_set_program.rs"]
@@ -227,6 +225,8 @@ mod resolve_piece_ladder;
 mod resolve_upstream_scope;
 #[path = "revalue_corpus.rs"]
 mod revalue_corpus;
+#[path = "review_4896_probes.rs"]
+mod review_4896_probes;
 #[path = "rv_dm7_probes.rs"]
 mod rv_dm7_probes;
 
