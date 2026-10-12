@@ -4907,7 +4907,11 @@ mod declaration_order_rows {
             let Err(BooleanError::Escalated { diag, .. }) = &got else {
                 panic!("{label}: an escalation: {got:?}");
             };
-            let m = diag.margin.diagnostic_f64_for_error_text().value().unwrap();
+            let m = diag
+                .margin
+                .diagnostic_f64_for_error_text()
+                .value()
+                .expect("a point margin");
             let offers = band.tolerance_deciding(m) > geom_core::tolerance::EPS_MIN;
             let text = got.expect_err("it refuses").to_string();
             assert!(

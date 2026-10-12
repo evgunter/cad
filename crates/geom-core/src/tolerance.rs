@@ -508,8 +508,8 @@ fn resolve_var(
 /// `OnceLock` wrapper above is a thin shell over this.
 ///
 /// ε ([`ENV_EPS`], [`eps_admissible`]) and K ([`ENV_K`], finite and
-/// > 1) are consulted; the returned `Vec` holds at most one error per
-/// var.
+/// above 1) are consulted; the returned `Vec` holds at most one error
+/// per var.
 fn resolve_from_env(
     lookup: impl Fn(&str) -> Option<String>,
 ) -> (Tolerance, Vec<ToleranceEnvError>) {
