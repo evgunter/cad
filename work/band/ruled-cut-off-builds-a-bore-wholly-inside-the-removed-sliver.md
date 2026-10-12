@@ -108,7 +108,8 @@ membership test (4).
   `band_ruled_cap_ring::a_bore_inside_the_d_rods_removed_sliver_refuses_as_a_bound_at_its_wall`
   and
   `review_band_ruled_ring_probes::a_bore_in_a_keyhole_creases_removed_sliver_refuses_as_a_bound_at_its_wall`.
-  Step 3 flips these two.
+  Step 3 flips these two once the reach reads the cap plane non-strictly
+  (below); without that, step 3 flips no bore row.
 - **The verdict is the request's, not the first face's** (PR 4797's
   fix pass). Both reviews found the first version first-hit: the
   reach returned at its first face that was not clear, arm (c) at its
@@ -162,3 +163,25 @@ membership test (4).
   as a measured crossing.
 - Sibling meters still two-valued:
   `blend-support-ring-meters-read-two-ways`.
+
+## Open for steps 2–4 (PR 4797's confirming review, 2026-10-12)
+
+- **Which face is named on a margin tie depends on edge order.**
+  `reach::Unclear` keeps the first reading on equal `hi`: one body in two
+  request orders names `Face(7v1)` or `Face(13v1)`. The kind and margin
+  are order-independent. Step 2 logs the verdict as the cause of
+  `Vanished`, so it decides whether the named entity must be canonical.
+- **"Wholly inside" is read per band, not over the union of bands.** A
+  void wholly inside the convex union of a mitre's two bands, crossing one
+  band's region, reads a crossing. That is conservative today; the ruling
+  ("wholly inside the material a fillet or chamfer band removes") does not
+  say whether a feature inside the union goes with them. Steps 3–4 meet
+  it at mitres and corners.
+- **Unprobed:** a face not clear for one (non-exact) reach but wholly
+  inside another exact reach records inside and drops the first reach's
+  bound (`reach.rs` `band_reach`, the `find_map … continue`). Sound by
+  union for one convexity; a mixed-convexity overlap at a shared vertex
+  was not built.
+- **The cap's inside path cannot decide an end-to-end verdict today**
+  (every cap ring's wall reads a bound first). It is pinned by unit rows
+  only, and step 3's non-strict cap-plane reading may reshape it.
