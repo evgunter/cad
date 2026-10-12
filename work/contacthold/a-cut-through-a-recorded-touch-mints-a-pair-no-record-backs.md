@@ -38,6 +38,9 @@ cell's record onto its pieces):
   and nothing relates the two minted vertices. Each side keeps one end
   record and refuses `UndeclaredContact { VertexVertex }` at
   (1, 1, 0.5) and `UndeclaredContact { EdgeEdgeOverlap }` along its half.
+  With the boolean's edge–edge record on the kiss (PR 4740), that
+  record lands on both sides, on each side's pair of edge pieces; each
+  side still refuses the minted pair at (1, 1, 0.5).
 - **Ridge on a slab** (a cube turned 45° about x, its bottom edge on the
   slab's top from x = 1 to 3, two vertex–face records bounding the
   overlap), split at x = 2: the ridge edge and the slab's top are cut at

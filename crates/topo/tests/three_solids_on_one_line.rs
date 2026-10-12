@@ -16,7 +16,7 @@
 //! - a third prism crossing one wedge about the line, or both;
 //! - one prism tilted about the line within the zero;
 //! - a prism whose side face holds the line;
-//! - the review's hunt seeds whose pierces the weld leaves apart;
+//! - the review's hunt seeds whose pierces meet at one point of the top;
 //! - one prism's corner moved off the line, within the zero, inside the
 //!   band and past it.
 //!
@@ -411,8 +411,10 @@ fn every_order(
 fn three_prisms_touching_along_one_line_build_one_body_in_every_member_order() {
     // Folded last, the plate leaves the three prisms' contacts to the
     // operands' records, and the 1.7-high prism the other two's stretch
-    // past its top.
-    let dropped = [6, 0, 2, 0];
+    // past its top; either then drops the edge-edge row of two of its
+    // operand's edges along the line, which no step but the one that
+    // joined them reads.
+    let dropped = [6, 1, 2, 1];
     every_order(
         "three prisms and the plate",
         &three(),
@@ -426,7 +428,7 @@ fn three_prisms_touching_along_one_line_build_one_body_in_every_member_order() {
         &three(),
         false,
         [15, 27, 18],
-        &[2, 2, 0],
+        &[2, 2, 1],
         &none,
     );
 }
@@ -440,7 +442,7 @@ fn four_prisms_touching_along_one_line_build_one_body_in_every_member_order() {
         &four(),
         true,
         [22, 48, 29],
-        &[12, 0, 2, 0, 6],
+        &[12, 2, 4, 2, 6],
         &none,
     );
 }
@@ -508,10 +510,10 @@ fn a_prism_tilted_within_the_zero_builds_as_upright() {
                 &prisms,
                 true,
                 [18, 39, 24],
-                &[6, 0, 2, 0],
+                &[6, 1, 2, 1],
                 &none,
             );
-            every_order(&label, &prisms, false, [15, 27, 18], &[2, 2, 0], &none);
+            every_order(&label, &prisms, false, [15, 27, 18], &[2, 2, 1], &none);
         }
     }
 }
@@ -582,7 +584,7 @@ fn a_prism_moved_off_the_line_builds_or_escalates_typed_in_every_member_order() 
             &three_off(k * eps),
             true,
             [18, 39, 24],
-            &[6, 0, 2, 0],
+            &[6, 1, 2, 1],
             &none,
         );
     }
@@ -671,13 +673,17 @@ fn three_prisms_flush_along_one_line_build_undeclared_in_every_member_order() {
     }
 }
 
-/// **Carrying each step's own contact records serves the same body
+/// **The carried fold serves the uncarried fold's body and passes 3′
 /// (D10)**: every member order of the 50° fixture, of four prisms, and
 /// of the 50° fixture with a corner moved 0.1ε, each step carrying the
-/// records the step before it returned, builds the uncarried fold's
-/// body.
+/// records the step before it returned. Where each step carries the
+/// last one's records nothing on the line is dropped, so the result
+/// passes 3′ with no finding: the `dropped` counts [`every_order`] pins
+/// are the uncarried fold's alone. Red if the carry changes the body,
+/// if a carried edge-edge row's lineage loses a touch, or if the census
+/// asks for a row the carry never brings.
 #[test]
-fn carrying_each_steps_records_serves_the_same_body() {
+fn the_carried_fold_passes_three_prime_in_every_member_order() {
     let eps = t().eps();
     for (label, prisms) in [
         ("three", three()),
@@ -692,6 +698,7 @@ fn carrying_each_steps_records_serves_the_same_body() {
             let uncarried = shape(&fold(&members, &order).unwrap().body);
             let mut body = members[order[0]].clone();
             let mut carried = topo::OperandRecords::default();
+            let mut last = None;
             for (k, &i) in order.iter().enumerate().skip(1) {
                 let inputs = topo::BooleanInputs {
                     records_a: carried,
@@ -709,9 +716,17 @@ fn carrying_each_steps_records_serves_the_same_body() {
                     other => panic!("{what}: step {k}: {other:?}"),
                 };
                 carried = r.contacts.carried();
-                body = r.body;
+                body = r.body.clone();
+                last = Some(r);
             }
             assert!(shape(&body) == uncarried, "{what}: another body");
+            let r = last.expect("at least two members");
+            assert_eq!(
+                validate_pseudomanifold(&r.body, &r.contacts, t()).err(),
+                None,
+                "{what}: the carried fold at 3′ ({} e-e rows)",
+                r.contacts.edge_edge().count()
+            );
         }
     }
 }
@@ -758,17 +773,16 @@ fn hunt(seed: u64, k: usize) -> Vec<Prism> {
         .collect()
 }
 
-/// **Pierces a weld leaves apart build one body in every member order**:
-/// the review's hunt seeds 506 (three prisms) and 507 (four), overlapping
+/// **Pierces of one point build one body in every member order**: the
+/// review's hunt seeds 506 (three prisms) and 507 (four), overlapping
 /// sectors through the plate's top at [`MEET`], some upright on the line
 /// and some leant about it. Folded first, their edges pierce the top at
-/// [`MEET`], and a pierce the weld has joined meets another copy of a
-/// pierce it already took, whose corners none of the joined vertex's
-/// hold: the pair stays apart. Every order builds sound by tier 3,
+/// [`MEET`], and one ring serves them all (`vtxfac::mint_ring`). Every
+/// order builds sound by tier 3,
 /// corners, a probe oracle about [`MEET`], a Monte Carlo volume, and one
 /// body.
 #[test]
-fn pierces_a_weld_leaves_apart_build_one_body_in_every_member_order() {
+fn pierces_of_one_point_build_one_body_in_every_member_order() {
     for (seed, k) in [(506, 3), (507, 4)] {
         let prisms = hunt(seed, k);
         let mut members = vec![finished(

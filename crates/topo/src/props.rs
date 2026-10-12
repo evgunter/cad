@@ -2379,6 +2379,51 @@ fn mass_properties_impl<T: Decide>(
     quad: &QuadHook<'_, T>,
     tol: Tol,
 ) -> Result<MassProperties<T>, MassPropsError> {
+    mass_properties_runs(body, faces, band, quad, tol).map(|(props, _)| props)
+}
+
+/// One face's flux term and its half-width, keyed by the face.
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+pub type FaceTerm = (FaceKey, f64, f64);
+
+/// [`mass_properties`] together with every face's own flux term and
+/// its half-width, in the order the fold sums them (face-arena order).
+/// Test vocabulary: the same walk and the same fold as
+/// [`mass_properties`], so the properties are its bits, and the terms
+/// are what a caller compares face by face where two bodies store
+/// their faces in different orders (the fold's sum depends on the
+/// order, each face's term does not).
+///
+/// # Errors
+///
+/// As [`mass_properties`].
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+pub fn mass_properties_with_face_terms(
+    body: &Body<f64>,
+    tol: Tol,
+) -> Result<(MassProperties<f64>, Vec<FaceTerm>), MassPropsError> {
+    let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
+    let faces = crate::query::all_faces(body);
+    let hook = reporting_hook(Some(QuadLane::certified()));
+    let (props, runs) = mass_properties_runs(body, &faces, band, &hook, tol)?;
+    let terms = runs
+        .iter()
+        .map(|run| (run.face, run.contribution.flux, run.contribution.flux_pad))
+        .collect();
+    Ok((props, terms))
+}
+
+/// The reporting walk: every face to the target, folded. The runs are
+/// handed back beside the sum for `mass_properties_with_face_terms`.
+fn mass_properties_runs<T: Decide>(
+    body: &Body<T>,
+    faces: &[FaceKey],
+    band: Band,
+    quad: &QuadHook<'_, T>,
+    tol: Tol,
+) -> Result<(MassProperties<T>, Vec<FaceRun<T>>), MassPropsError> {
     let runs = decide_faces(faces, |&face_key| {
         face_flux(body, face_key, band, quad, tol, RoundWindow::SCHEDULE)
     })?;
@@ -2392,7 +2437,7 @@ fn mass_properties_impl<T: Decide>(
     // no number.
     match fold_runs(&runs) {
         (_, Some((face, source))) => Err(MassPropsError::Face { face, source }),
-        (props, None) => Ok(props),
+        (props, None) => Ok((props, runs)),
     }
 }
 
@@ -2928,7 +2973,7 @@ impl fmt::Display for ShellClassifyPayload<'_> {
             ShellClassifyError::Props { source, .. } => write!(f, "{source}"),
             ShellClassifyError::Escalated { source, .. } => write!(
                 f,
-                "the sign of a shell's volume is too close to call: {}",
+                geom_core::undecided!("the sign of a shell's volume", payload),
                 source.payload()
             ),
             ShellClassifyError::ZeroVolume { .. } => f.write_str(

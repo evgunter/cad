@@ -199,6 +199,8 @@ mod mesh12_parse_vs_certification;
 mod mesh12_rim_row_reach;
 #[path = "mesh8_coherence.rs"]
 mod mesh8_coherence;
+#[path = "missed_ray_side.rs"]
+mod missed_ray_side;
 #[path = "neighbours_across_a_closed_edge.rs"]
 mod neighbours_across_a_closed_edge;
 #[path = "offset_doors_read_charts_not_material.rs"]
@@ -390,6 +392,8 @@ mod pierce_strut_at_a_pinch;
 mod review_4694_carry_probes;
 #[path = "review_4730_divided_carry_probes.rs"]
 mod review_4730_divided_carry_probes;
+#[path = "review_4740_r1_probes.rs"]
+mod review_4740_r1_probes;
 #[path = "review_cleave_mint_doors.rs"]
 mod review_cleave_mint_doors;
 #[path = "spline_reanchor_rows.rs"]

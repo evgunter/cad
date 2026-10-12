@@ -247,13 +247,8 @@ pub struct BooleanNaming {
     /// Seam edges surviving the zips, in zip/cycle order, result keys.
     pub seam_edges: Vec<EdgeKey>,
     /// Vertex fusions `(dead, kept)` in mint order, result keys: the
-    /// A-side pinch welds' first, then the zips'.
+    /// zips'.
     pub vertex_merges: Fusions,
-    /// The B-side pinch welds' vertex fusions `(dead, kept)` in mint
-    /// order, in B-CLONE keys: they ran before the graft, so a dead key
-    /// has no result key (translate the kept column through
-    /// `graft_vertices`).
-    pub weld_merges_b: Fusions,
     /// Face absorption groups `(kept, absorbed…)`, result keys:
     /// `merge_coplanar_faces`'.
     pub merge_groups: Vec<(FaceKey, Vec<FaceKey>)>,
@@ -325,11 +320,9 @@ pub struct BooleanNaming {
 }
 
 impl BooleanNaming {
-    /// Each result vertex an A-side weld or a zip fused away → the
-    /// vertex it finally fused into, following `vertex_merges` through
-    /// every hop (a discard's `bordered` ends are read through it). B-side
-    /// welds are not here: they killed B-clone keys before the graft, so
-    /// no result key names them (`weld_merges_b`).
+    /// Each result vertex a zip fused away → the vertex it finally
+    /// fused into, following `vertex_merges` through every hop (a
+    /// discard's `bordered` ends are read through it).
     #[must_use]
     pub fn fused_into(&self) -> BTreeMap<VertexKey, VertexKey> {
         self.vertex_merges
@@ -626,13 +619,9 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let mut finished = fin.body;
     let mut body = finished.begin_surgery();
     let mut seam_edges = Vec::new();
-    // Each operand's face divisions: the join's chord-mef rows, then the
-    // pinch welds'.
-    let fragments = [
-        [connected.a_fragments.as_slice(), &fin.weld_fragments_a].concat(),
-        [connected.b_fragments.as_slice(), &fin.weld_fragments_b].concat(),
-    ];
-    let mut desc = Descendants::welded(&fin.weld_merges_a, &fin.weld_merges_b)
+    // Each operand's face divisions: the join's chord-mef rows.
+    let fragments = [connected.a_fragments.clone(), connected.b_fragments.clone()];
+    let mut desc = Descendants::default()
         .with_copies(copies)
         .with_along(along)
         .with_fragments(fragments.clone());
@@ -658,7 +647,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     for shell in shells {
         body.movefac(shell)?;
     }
-    let vertex_merges = desc.vertex_merges()?;
+    let vertex_merges = desc.vertex_merges();
     let declared_pairs = declared_surface_pairs(&body, a, b, decls, &fin.graft);
     let (merged, edge_joins) = finish_output(
         &mut body,
@@ -697,7 +686,6 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         graft_faces,
         seam_edges,
         vertex_merges,
-        weld_merges_b: fin.weld_merges_b,
         merge_groups: merge_rows(&merged),
         merge_skipped: merged.skipped.clone(),
         face_fragments_a,
@@ -2608,7 +2596,7 @@ impl KeyView<'_> {
 }
 
 /// The D5 descendant map (M3 PR 6a, PR 5 review R5): result-stage
-/// entity replacement — pinch-weld and seam-zip vertex fusions and
+/// entity replacement — seam-zip vertex fusions and
 /// `merge_coplanar_faces` face absorption — as old key → surviving
 /// key rows, extending the graft's key lineage so a contact record
 /// drops ONLY when its coincidence is consumed (entity gone, not
@@ -2616,15 +2604,8 @@ impl KeyView<'_> {
 /// scan-to-bless (F1); the descendants ARE the mint-time knowledge.
 #[derive(Default)]
 pub(super) struct Descendants {
-    /// Each operand's pinch-weld fusions, in its clone keys: read
-    /// before its key view. A weld fuses ring vertices minted after the
-    /// contacts were recorded, so no record cites a weld's keys, and
-    /// these rows chase only a record a producer mints in clone keys. A
-    /// later zip may still fuse a weld's kept vertex.
-    a_welds: Fusions,
-    b_welds: Fusions,
-    /// The fusions after the pinch welds, in mint order, result keys:
-    /// the zips', then the pierce welds' ([`Self::absorb_fusions`]).
+    /// The vertex fusions, in mint order, result keys: the zips'
+    /// ([`Self::absorb_fusions`]).
     vertices: Fusions,
     /// Merge absorption, absorbed face → the group's kept face: an
     /// acyclic relation, since a kept face is never absorbed. A cycle
@@ -2644,7 +2625,7 @@ pub(super) struct Descendants {
     along: [Vec<(EdgeKey, EdgeKey)>; 2],
     /// Each operand's face divisions, `(new face, divided-from face)` in
     /// its clone keys, read before its key view: the join's chord-mef
-    /// fragments and the pinch welds'. A division keeps the divided
+    /// fragments. A division keeps the divided
     /// face's key on one piece, whichever piece that is, so a record
     /// naming the face is read through all of its pieces
     /// ([`Self::holder`]).
@@ -2657,15 +2638,6 @@ pub(super) struct Descendants {
 }
 
 impl Descendants {
-    /// The map that starts from each operand's pinch welds.
-    pub(super) fn welded(a: &Fusions, b: &Fusions) -> Self {
-        Self {
-            a_welds: a.clone(),
-            b_welds: b.clone(),
-            ..Self::default()
-        }
-    }
-
     /// The two ends of each of the reduction's null edges, per operand.
     pub(super) fn null_copies<T: Real>(
         null_edges: &[super::BoolNullEdgeRecord<T>],
@@ -2719,18 +2691,9 @@ impl Descendants {
         out
     }
 
-    /// Every vertex fusion in result keys, in mint order: the A-side
-    /// pinch welds' (A is `Direct`, so its clone keys are result keys),
-    /// then `vertices`.
-    ///
-    /// # Errors
-    ///
-    /// [`BooleanError::JoinDesync`] where a row of `vertices` names a key
-    /// a pinch weld killed ([`Fusions::extend`]).
-    pub(super) fn vertex_merges(&self) -> Result<Fusions, BooleanError> {
-        let mut out = self.a_welds.clone();
-        out.extend(&self.vertices)?;
-        Ok(out)
+    /// Every vertex fusion in result keys, in mint order.
+    pub(super) fn vertex_merges(&self) -> Fusions {
+        self.vertices.clone()
     }
 
     /// A zip's fusions ([`Self::absorb_fusions`]) and edge merges.
@@ -2787,9 +2750,9 @@ impl Descendants {
         self.cells.insert(dead, by);
     }
 
-    /// Operand `side`'s cell, read through its pinch welds (a vertex),
-    /// its key `view`, the zips' fusions (a vertex), then the face
-    /// absorptions and the substitution rows until live: `None` where
+    /// Operand `side`'s cell, read through its key `view`, the zips'
+    /// fusions (a vertex), then the face absorptions and the
+    /// substitution rows until live: `None` where
     /// the chain ends at a dead cell with no row (the cell left the
     /// result). An edge whose chain ends so is read on through the
     /// chords the join minted along it ([`Self::along`]), each by the
@@ -2809,7 +2772,7 @@ impl Descendants {
         view: &KeyView<'_>,
         cell: Cell,
     ) -> Result<Option<Cell>, BooleanError> {
-        if let Some(c) = self.chained(body, side, view, cell)? {
+        if let Some(c) = self.chained(body, view, cell)? {
             return Ok(Some(c));
         }
         let Cell::Edge(edge) = cell else {
@@ -2820,7 +2783,7 @@ impl Descendants {
         for &(_, chord) in rows.iter().filter(|&&(e, _)| e == edge) {
             // A chord is minted, never an `along` row's edge, so one
             // hop ends the read.
-            match (held, self.chained(body, side, view, Cell::Edge(chord))?) {
+            match (held, self.chained(body, view, Cell::Edge(chord))?) {
                 (_, None) => {}
                 (None, Some(c)) => held = Some(c),
                 (Some(h), Some(c)) if h == c => {}
@@ -2914,17 +2877,12 @@ impl Descendants {
     fn chained<T: Real>(
         &self,
         body: &Body<T>,
-        side: Operand,
         view: &KeyView<'_>,
         cell: Cell,
     ) -> Result<Option<Cell>, BooleanError> {
-        let welds = match side {
-            Operand::A => &self.a_welds,
-            Operand::B => &self.b_welds,
-        };
         let start = match cell {
             Cell::Vertex(v) => view
-                .vertex(welds.survivor(v))
+                .vertex(v)
                 .map(|k| Cell::Vertex(self.vertices.survivor(k))),
             Cell::Edge(e) => view.edge(e).map(Cell::Edge),
             Cell::Face(f) => view.face(f).map(Cell::Face),
@@ -3027,8 +2985,8 @@ fn piece_holds<T: Decide>(
 /// vertex-vertex row with the split vertex when its vertex is at it,
 /// stays on the parent when its vertex lies on the parent's span, and
 /// moves to the child otherwise. Each is asked as the census asks it
-/// ([`crate::census::on_segment_interior`]), as [`ee_lineage`] asks
-/// its own, so what lands is what the census confirms. Every edge-edge
+/// ([`crate::census::on_segment_interior`]), so what lands is what the
+/// census confirms. Every edge-edge
 /// row is placed by [`ee_lineage`]. Nothing searches the result for an
 /// edge the vertex lies on.
 ///
@@ -3128,12 +3086,42 @@ pub(super) fn ledger<T: Decide>(
                 clone,
                 side,
                 &red.edge_splits,
+                &red.null_edges,
                 row,
                 carried,
                 &mut pending,
                 band,
             )?;
         }
+    }
+    // Two pierces one ring serves, on two point keys: the ring joined
+    // them by a value decision. It is this op's, cited by a vertex-vertex
+    // record of the piercing operand's, so the carry records every pair
+    // of result cells the two reach. A pair on one point key is
+    // structure, and nothing is recorded.
+    for tie in &red.ring_ties {
+        let clone = match tie.operand {
+            Operand::A => &red.a,
+            Operand::B => &red.b,
+        };
+        let key = |v: VertexKey| {
+            clone
+                .get_vertex(v)
+                .map(|d| d.point)
+                .ok_or_else(|| desync("a ring tie's vertex does not resolve in its clone"))
+        };
+        if key(tie.a)? == key(tie.b)? {
+            continue;
+        }
+        let fresh = decide_one(
+            &mut pending,
+            (tie.operand, Cell::Vertex(tie.a)),
+            (tie.operand, Cell::Vertex(tie.b)),
+            tie.margin,
+        );
+        out[usize::from(tie.operand == Operand::B)]
+            .vv
+            .push(Cited::new(VvContact { a: tie.a, b: tie.b }, fresh));
     }
     Ok(Ledger {
         discovered: red.contacts.clone(),
@@ -3228,21 +3216,26 @@ fn pieces<T: Real>(
 /// split minted on the contact is recorded against the other edge's
 /// piece it rests on (or the vertex it meets). An edge-edge record
 /// names no vertex, so where the contact lies is decided against the
-/// pieces themselves, by the census's own segment questions
-/// ([`crate::census`]), so what lands is what the census confirms. Only
-/// the record's own lineage is read: its two edges' pieces, never
-/// another cell of the body. A bound the record already had is a vertex
-/// record of its own, carried by its own lineage, and is not restated.
+/// pieces themselves, on the census's own span and segment predicates
+/// ([`crate::census`]): the span first, since a short piece's line
+/// extrapolated along a long one reads a gap the piece does not have,
+/// then the segment question on either piece's line, the first decided
+/// answer. Only the record's own lineage is read: its two edges'
+/// pieces, never another cell of the body. A bound the record already
+/// had is a vertex record of its own, carried by its own lineage, and is
+/// not restated.
 ///
 /// # Errors
 ///
 /// [`BooleanError::Escalated`] (`VertexOnVertex`) where a segment
 /// question is in band; [`BooleanError::JoinDesync`] where a logged key
 /// does not resolve in its clone.
+#[allow(clippy::too_many_arguments)]
 fn ee_lineage<T: Decide>(
     clone: &Body<T>,
     side: Operand,
     splits: &[super::EdgeSplit],
+    null_edges: &[super::BoolNullEdgeRecord<T>],
     row: Cited<EeContact>,
     carried: &mut Rows,
     pending: &mut Vec<PendingRow>,
@@ -3275,7 +3268,15 @@ fn ee_lineage<T: Decide>(
     for pa in &a {
         for pb in &b {
             let (sa, sb) = (segment(pa)?, segment(pb)?);
-            if crate::census::segment_interiors_meet(sa, sb, band).map_err(lineage)? {
+            let meet = || {
+                crate::census::segment_interiors_meet(sa, sb, band)
+                    .or_else(|_| crate::census::segment_interiors_meet(sb, sa, band))
+                    .map_err(lineage)
+            };
+            if !crate::census::segments_apart(sa, sb, band)
+                && !crate::census::segments_apart(sb, sa, band)
+                && meet()?
+            {
                 push_cited(
                     &mut carried.ee,
                     Cited::new(EeContact { a: pa.0, b: pb.0 }, row.cites.clone()),
@@ -3288,7 +3289,13 @@ fn ee_lineage<T: Decide>(
             {
                 for v in [mine.1, mine.2].into_iter().filter(|v| minted.contains(v)) {
                     let q = point(v)?;
-                    if crate::census::on_segment_interior(q, their_seg, band).map_err(lineage)? {
+                    // Past the other piece's span the vertex is on no
+                    // part of it, and its line's reading there is the
+                    // carrier's, not the piece's.
+                    if !crate::census::past_segment(q, their_seg, band)
+                        && crate::census::on_segment_interior(q, their_seg, band)
+                            .map_err(lineage)?
+                    {
                         push_cited(
                             &mut carried.ve,
                             Cited::new(
@@ -3316,11 +3323,12 @@ fn ee_lineage<T: Decide>(
                         if apart == geom_core::k_stats::Magnitude::Zero {
                             // The minted vertex decided one with the other
                             // piece's end: this op's decision, cited
-                            // beside the carried record.
+                            // beside the carried record, naming the
+                            // vertex the end is a null-edge copy of.
                             let fresh = decide_one(
                                 pending,
                                 (side, Cell::Vertex(v)),
-                                (side, Cell::Vertex(w)),
+                                (side, Cell::Vertex(uncopied(null_edges, side, w)?)),
                                 margin,
                             );
                             push_cited(
@@ -3335,6 +3343,36 @@ fn ee_lineage<T: Decide>(
         }
     }
     Ok(())
+}
+
+/// The vertex `v` of operand `side`'s clone is a copy of: where a null
+/// edge minted `v` at another vertex, that vertex, read back through
+/// every null edge that hangs at a copy; `v` itself where none did. A
+/// decision's cells name the op's input, which holds no copy.
+///
+/// # Errors
+///
+/// [`BooleanError::JoinDesync`] where the copies' null edges close a
+/// cycle, so no vertex is the original.
+fn uncopied<T: Real>(
+    null_edges: &[super::BoolNullEdgeRecord<T>],
+    side: Operand,
+    mut v: VertexKey,
+) -> Result<VertexKey, BooleanError> {
+    for _ in 0..=null_edges.len() {
+        let minted = null_edges.iter().find(|r| {
+            r.operand == side
+                && r.at_vertex != v
+                && (r.attr.below_end == v || r.attr.above_end == v)
+        });
+        match minted {
+            Some(r) => v = r.at_vertex,
+            None => return Ok(v),
+        }
+    }
+    Err(BooleanError::JoinDesync {
+        what: "a vertex's null-edge copies close a cycle with no original",
+    })
 }
 
 /// One operand's own records re-entering an op, in its keys: the cell
@@ -3875,8 +3913,9 @@ fn carry_rows<T: Decide>(
             record(body, &mut out, (vs, x), (fs, y), cites.clone());
         }
     }
-    // Records of two edges or faces: the joins' (no reduction mints
-    // one) and each operand's carried ones, both cells chased.
+    // Records of two edges or faces: the reduction's touches along a
+    // line, the joins' and each operand's carried ones, both cells
+    // chased.
     for ([(xs, xc), (ys, yc)], cites) in cell_rows {
         if let (Some(x), Some(y)) = (
             desc.live(body, xs, view(xs), xc)?,
@@ -4118,6 +4157,7 @@ fn finding_arm(finding: &ValidationError) -> Option<InBandShell> {
         | V::LoopRoleInverted { .. }
         | V::CurvedSenseInverted { .. }
         | V::NegativeVolume { .. }
+        | V::SliverInsideOut { .. }
         | V::RingMeetsOuter { .. }
         | V::RingOutsideOuter { .. }
         | V::RingMeetsRing { .. }
@@ -6615,6 +6655,7 @@ mod tests {
                 crate::Cites::decided(0),
             )],
             b_on_a: vec![],
+            ee: vec![],
         };
         // Without the descendant row: the record drops (pre-D5 loss).
         let out = found(
@@ -6649,6 +6690,7 @@ mod tests {
             )],
             a_on_b: vec![],
             b_on_a: vec![],
+            ee: vec![],
         };
         let mut desc = Descendants::default();
         desc.vertices.push((dead_vertex, live_vertex)).unwrap();
@@ -6711,58 +6753,6 @@ mod tests {
                 })
             ),
             "absorbing a row that keeps the killed a refuses"
-        );
-    }
-
-    /// **The fusion list a boolean names is the A side's pinch welds,
-    /// then the rows after them, checked as one list.** A weld `(a, b)`
-    /// then a zip `(b, c)` fold `a` onto `c`; a zip row keeping the
-    /// weld's dead `a` is sound against the zips alone, so only the
-    /// derived list can refuse it. Red if [`Descendants::vertex_merges`]
-    /// drops the welds, puts them after the zips, or does not check the
-    /// two together: no other test in the topo or editor-core suites
-    /// goes red when the A welds leave `BooleanNaming::vertex_merges`.
-    #[test]
-    fn the_derived_vertex_merges_lead_with_the_a_welds_and_check_across_them() {
-        use super::Descendants;
-        use crate::entity::VertexKey;
-
-        let mut arena: slotmap::SlotMap<VertexKey, ()> = slotmap::SlotMap::with_key();
-        let [a, b, c, d] = [(); 4].map(|()| arena.insert(()));
-        let one = |row| {
-            let mut f = super::Fusions::default();
-            f.push(row).unwrap();
-            f
-        };
-        let none = super::Fusions::default();
-
-        let mut desc = Descendants::welded(&one((a, b)), &none);
-        desc.absorb_fusions(&one((b, c))).unwrap();
-        desc.absorb_fusions(&one((d, c))).unwrap();
-        let merges = desc.vertex_merges().unwrap();
-        assert_eq!(
-            merges.rows(),
-            [(a, b), (b, c), (d, c)],
-            "the A weld first, then the later rows in mint order"
-        );
-        assert_eq!(
-            merges.survivor(a),
-            c,
-            "the weld's dead key folds through the zip"
-        );
-
-        let mut corrupt = Descendants::welded(&one((a, b)), &none);
-        corrupt
-            .absorb_fusions(&one((c, a)))
-            .expect("the zips' own list cannot see the weld's kill");
-        assert!(
-            matches!(
-                corrupt.vertex_merges(),
-                Err(BooleanError::JoinDesync {
-                    what: "a fusion row names a key an earlier row killed"
-                })
-            ),
-            "a zip row keeping the weld's dead a refuses where the list is derived"
         );
     }
 
@@ -6830,83 +6820,6 @@ mod tests {
             joined(carry(&cycle).map(|_| ())),
             "a cell's substitution rows are cyclic",
             "carried records on a cycle"
-        );
-    }
-
-    /// **A v-v record follows a vertex either operand's pinch weld
-    /// fused away.** B's weld runs in B-clone keys before the graft, so
-    /// its dead key has no graft row: the chase reads the weld first,
-    /// then the graft. A's weld rows are result keys. Without the weld
-    /// rows both records drop.
-    ///
-    /// Only this row reaches the weld rows, by building `Descendants`
-    /// by hand: no boolean can hand them such a record. A weld fuses
-    /// pierce ring vertices `vtxfac` mints after the reduction's
-    /// contacts are recorded, and carried records cite operand keys, so
-    /// no record cites a weld's dead key.
-    #[test]
-    fn a_vv_record_follows_a_pinch_weld_on_either_side() {
-        use super::{Descendants, KeyView};
-        use crate::boolean::combine::GraftMap;
-        use crate::boolean::{ContactKind, ReductionContacts, VvContact};
-
-        let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
-        let mut body = quad_prism(&square, 1.0, Tol::witness());
-        let keys: Vec<crate::entity::VertexKey> = body.vertices().map(|(k, _)| k).collect();
-        let (a_live, a_kept, a_dead, b_dead, b_kept) =
-            (keys[0], keys[1], keys[2], keys[3], keys[4]);
-        body.vertices.remove(a_dead);
-        // B-clone keys: `b_dead` stands for the welded-away pierce (no
-        // graft row), `b_kept` for its partner, grafted to `keys[5]`.
-        let mut graft = GraftMap::default();
-        graft.vertices.insert(b_kept, keys[5]);
-        let contacts = ReductionContacts {
-            vv: vec![
-                crate::Cited::new(
-                    VvContact {
-                        a: a_live,
-                        b: b_dead,
-                    },
-                    crate::Cites::decided(0),
-                ),
-                crate::Cited::new(
-                    VvContact {
-                        a: a_dead,
-                        b: b_kept,
-                    },
-                    crate::Cites::decided(0),
-                ),
-            ],
-            ..ReductionContacts::default()
-        };
-        let remap = |desc: &Descendants| {
-            found(
-                &body,
-                &contacts,
-                [&KeyView::Direct, &KeyView::Graft(&graft)],
-                desc,
-            )
-            .unwrap()
-            .kinds()
-            .collect::<Vec<_>>()
-        };
-        let vv = |a: crate::VertexKey, b: crate::VertexKey| {
-            ContactKind::VertexVertex(a.min(b), a.max(b))
-        };
-        assert!(
-            remap(&Descendants::default()).is_empty(),
-            "without the weld rows neither record resolves"
-        );
-        let weld = |row| {
-            let mut w = super::Fusions::default();
-            w.push(row).unwrap();
-            w
-        };
-        let welded = Descendants::welded(&weld((a_dead, a_kept)), &weld((b_dead, b_kept)));
-        assert_eq!(
-            remap(&welded),
-            vec![vv(a_live, keys[5]), vv(a_kept, keys[5])],
-            "each record follows its side's weld"
         );
     }
 
@@ -7096,6 +7009,7 @@ mod tests {
                 VfContact { vertex: v, face },
                 crate::Cites::decided(0),
             )],
+            ee: vec![],
         };
         let remap = |c: &ReductionContacts| {
             found(&body, c, [&KeyView::Direct; 2], &desc)
