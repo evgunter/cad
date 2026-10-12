@@ -60,8 +60,9 @@
 //! whose zero second order under-determines the locus, an image in the
 //! section chart — so a coplanar product's boundary descriptions are
 //! adjacency-coherent at rest; on a NEAR-flush operand the same
-//! restatement meters the section chart's containment and refuses
-//! typed through certification when the band cannot decide it.
+//! restatement meters the section chart's containment, and a line chord
+//! the band cannot decide refuses as the edge's own reading
+//! ([`SplitFinishError::EdgeOnFacesEscalated`]).
 
 use geom_core::{Decide, Real, UnitVec3, Vec3};
 use slotmap::SecondaryMap;
@@ -348,11 +349,11 @@ pub enum SplitFinishError {
         /// The sagitta's diagnostic (`"tangent_second_order"`).
         diag: geom_core::Indeterminate,
     },
-    /// A section-boundary edge's exact carrier reads within the band of
-    /// a surface it lies on, and not clearly on it, where the edge is
-    /// described or restated in a section chart: its ends are vertices
-    /// the split read on the plane or the operand placed on its faces, so
-    /// the miss is theirs (D9 row 1).
+    /// A section-boundary edge's line chord, between vertices the split
+    /// read on the plane or the operand placed on its faces, reads within
+    /// the band of a surface it lies on, and not clearly on it, where the
+    /// edge is described or restated in a section chart
+    /// ([`crate::merge_faces::edge_on_faces_reading`]).
     EdgeOnFacesEscalated {
         /// The section-boundary edge.
         edge: EdgeKey,
@@ -426,39 +427,19 @@ impl From<EulerOpError> for SplitFinishError {
     }
 }
 
-/// The lever of a section-boundary edge read in band of a face it lies
-/// on ([`SplitFinishError::EdgeOnFacesEscalated`]): its residual passes
-/// only at zero, so no tolerance is its recourse.
-const EDGE_ON_FACES_LEVER: &str = "move the split plane or the geometry so each edge and vertex \
-                                   that meets the plane lies clearly on it or clearly off it";
-
 /// The finish's refusal for a section-boundary edge whose description
-/// on `carrier` the attachment gate refused, at the describe pass
-/// ([`EulerOpError::Certification`]) or at a section re-chart
-/// ([`EulerOpError::RechartFalsifies`]): a residual against a surface the
-/// edge lies on, read in band, is
-/// [`SplitFinishError::EdgeOnFacesEscalated`] where the carrier is exact;
-/// every other refusal is the Euler operation's.
-fn of_attachment<T: Real>(
+/// on a carrier of kind `carrier` the attachment gate refused, at the
+/// describe pass or at a section re-chart: the edge's own reading on its
+/// faces where [`crate::merge_faces::edge_on_faces_reading`] finds one,
+/// and otherwise the Euler operation's.
+fn of_attachment(
     edge: EdgeKey,
-    carrier: &geom::Curve3<T>,
+    carrier: geom::CurveKind,
     refusal: EulerOpError,
 ) -> SplitFinishError {
-    let (EulerOpError::Certification { error } | EulerOpError::RechartFalsifies { error, .. }) =
-        &refusal
-    else {
-        return refusal.into();
-    };
-    match error {
-        geom_brep::CertifyError::Escalated {
-            check:
-                geom_brep::CertCheck::SurfaceResidual { .. } | geom_brep::CertCheck::ChartResidual,
-            cause,
-            ..
-        } if !matches!(carrier, geom::Curve3::Nurbs(_)) => {
-            SplitFinishError::EdgeOnFacesEscalated { edge, diag: *cause }
-        }
-        _ => refusal.into(),
+    match crate::merge_faces::edge_on_faces_reading(carrier, &refusal) {
+        Some(diag) => SplitFinishError::EdgeOnFacesEscalated { edge, diag },
+        None => refusal.into(),
     }
 }
 
@@ -479,7 +460,7 @@ fn rechart_section<T: Decide + crate::props::AtRestPolicy>(
                 _ => return refusal.into(),
             };
             match restated.iter().find(|(e, _)| *e == edge) {
-                Some((_, spec)) => of_attachment(edge, &spec.carrier, refusal),
+                Some((_, spec)) => of_attachment(edge, spec.carrier.kind(), refusal),
                 None => refusal.into(),
             }
         })
@@ -530,9 +511,9 @@ impl core::fmt::Display for SplitFinishError {
                 .fmt(f),
             Self::EdgeOnFacesEscalated { diag, .. } => diag
                 .undecided(
-                    "whether an edge along the cut lies on both faces it bounds",
+                    crate::merge_faces::edge_on_faces_subject!("an edge along the cut"),
                     LeverOnly {
-                        lever: EDGE_ON_FACES_LEVER,
+                        lever: crate::merge_faces::EDGE_ON_PLANE_LEVER,
                     }
                     .recourse(RefusedArm::Undecided(diag), Reading::Build),
                 )
@@ -870,6 +851,11 @@ fn nest_hole_sections<T: Decide + crate::props::AtRestPolicy>(
         let charts = vec![Rechart::shared(chart, hole, false)];
         let stranded = body.stranded_by(&charts)?;
         let restated = section_plane_restatements(body, hole, &stranded)?;
+        // No pose is known to refuse here: the hole's edges were restated
+        // in a section chart over the same plane at its promotion, and
+        // read past the band there first; the parent's chart differs only
+        // in its reference direction, so this read can differ from that
+        // one by roundings.
         rechart_section(body, charts, &restated, tol)?;
         body.kfmrh(parent, hole)?;
         section_side.remove(hole);
@@ -1017,9 +1003,9 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
             match geom_brep::classify_dihedral(surf_self, surf_other, witness, arm, band) {
                 Ok(geom_brep::DihedralClass::Transverse) => {
                     let spec = draft.into_spec(geom_brep::SurfacePair::new(s_self, s_other));
-                    let carrier = spec.carrier.clone();
+                    let carrier = spec.carrier.kind();
                     body.set_edge_curve(edge, spec, tol)
-                        .map_err(|e| of_attachment(edge, &carrier, e))?;
+                        .map_err(|e| of_attachment(edge, carrier, e))?;
                 }
                 // A curved wall smooth against the section plane is
                 // either a π seam or a wedge end, and only the material
@@ -1129,9 +1115,9 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                         {
                             spec.description = spec.description.declared_by(mc);
                         }
-                        let carrier = spec.carrier.clone();
+                        let carrier = spec.carrier.kind();
                         body.set_edge_curve(edge, spec, tol)
-                            .map_err(|e| of_attachment(edge, &carrier, e))?;
+                            .map_err(|e| of_attachment(edge, carrier, e))?;
                     }
                 }
                 Err(escalation) => {
@@ -1897,48 +1883,38 @@ mod escalation_endings {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod edge_on_faces_rows {
+    use geom::CurveKind;
     use geom_brep::{CertCheck, CertifyError};
-    use geom_core::{Band, Indeterminate, MarginDiag, Point3, Vec3};
+    use geom_core::{Band, Indeterminate, MarginDiag};
 
     use super::{SplitFinishError, of_attachment};
     use crate::entity::EdgeKey;
     use crate::euler::{EulerOpError, RechartDoor};
     use crate::geometry::SurfaceKey;
 
-    /// **A section-boundary edge's residual read in band is the input's,
-    /// and nothing else is.** An exact carrier's residual against a
+    /// **A section-boundary line chord's residual read in band is the
+    /// input's, and nothing else is.** A line's residual against a
     /// surface it lies on, or its image's against the section chart, read
     /// in band where the edge is described or re-charted, refuses as the
-    /// edge's own reading, ending in the lever alone. A definite miss, the
-    /// witness's residual, an endpoint pin, any other check and a fitted
-    /// carrier's residual stay the attachment gate's refusal.
+    /// edge's own reading, ending in the lever alone. The same reading on a
+    /// circle, an ellipse or a spline, a definite miss, the witness's
+    /// residual, an endpoint pin and any other check stay the attachment
+    /// gate's refusal.
     #[test]
-    fn an_in_band_residual_is_the_edges_reading_and_nothing_else_is() {
+    fn an_in_band_residual_on_a_line_is_the_edges_reading_and_nothing_else_is() {
         let band = Band::new(1e-9, 1e-8).unwrap();
         let edge = EdgeKey::default();
         let surface = SurfaceKey::default();
-        let line = geom::Curve3::Line {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            dir: Vec3::new(1.0, 0.0, 0.0),
-        };
-        let fitted = geom::Curve3::Nurbs(std::sync::Arc::new(
-            geom::NurbsCurve3::new(
-                geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
-                vec![Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0)],
-                vec![1.0, 1.0],
-            )
-            .unwrap(),
-        ));
-        let in_band = Indeterminate {
+        let in_band = |predicate| Indeterminate {
             margin: MarginDiag::value(1e-9 * (1.0 + 5e-8)),
             band,
-            predicate: Some("pcurve_map_residual"),
+            predicate: Some(predicate),
             terminal_sliver: false,
         };
-        let escalated = |check| CertifyError::Escalated {
+        let escalated = |check, predicate| CertifyError::Escalated {
             check,
             sample: 8,
-            cause: in_band,
+            cause: in_band(predicate),
         };
         let at_both_doors = |error: CertifyError| {
             [
@@ -1950,18 +1926,22 @@ mod edge_on_faces_rows {
                 },
             ]
         };
-        for check in [
-            CertCheck::SurfaceResidual { surface },
-            CertCheck::ChartResidual,
+        for (check, predicate) in [
+            (
+                CertCheck::SurfaceResidual { surface },
+                "carrier_on_surface_1",
+            ),
+            (CertCheck::ChartResidual, "pcurve_map_residual"),
         ] {
-            for refusal in at_both_doors(escalated(check)) {
-                let got = of_attachment(edge, &line, refusal.clone());
+            for refusal in at_both_doors(escalated(check, predicate)) {
+                let got = of_attachment(edge, CurveKind::Line, refusal.clone());
                 assert!(
                     matches!(
                         got,
-                        SplitFinishError::EdgeOnFacesEscalated { diag, .. } if diag == in_band
+                        SplitFinishError::EdgeOnFacesEscalated { diag, .. }
+                            if diag == in_band(predicate)
                     ),
-                    "{check:?} in band on an exact carrier, {refusal:?}: {got:?}"
+                    "{check:?} in band on a line, {refusal:?}: {got:?}"
                 );
                 assert_eq!(
                     got.to_string(),
@@ -1969,16 +1949,18 @@ mod edge_on_faces_rows {
                         "whether an edge along the cut lies on both faces it bounds is \
                          undecided: {}. Recourse: move the split plane or the geometry so each \
                          edge and vertex that meets the plane lies clearly on it or clearly off \
-                         it",
-                        in_band.payload()
+                         it, and an edge that ends on it leaves it at a clear angle",
+                        in_band(predicate).payload()
                     ),
                     "{check:?}: the reading and the lever alone"
                 );
-                let got = of_attachment(edge, &fitted, refusal.clone());
-                assert!(
-                    matches!(got, SplitFinishError::Euler(ref e) if *e == refusal),
-                    "{check:?} on a fitted carrier stays the gate's: {got:?}"
-                );
+                for kind in [CurveKind::Circle, CurveKind::Ellipse, CurveKind::Nurbs] {
+                    let got = of_attachment(edge, kind, refusal.clone());
+                    assert!(
+                        matches!(got, SplitFinishError::Euler(ref e) if *e == refusal),
+                        "{check:?} on a {kind:?} stays the gate's: {got:?}"
+                    );
+                }
             }
         }
         let kernels = [
@@ -1992,13 +1974,16 @@ mod edge_on_faces_rows {
                 sample: 8,
                 margin: MarginDiag::value(3e-8),
             },
-            escalated(CertCheck::WitnessSurfaceResidual { surface }),
-            escalated(CertCheck::EndpointEnd),
-            escalated(CertCheck::Transversality),
+            escalated(
+                CertCheck::WitnessSurfaceResidual { surface },
+                "witness_on_surface_1",
+            ),
+            escalated(CertCheck::EndpointEnd, "carrier_endpoint_end"),
+            escalated(CertCheck::Transversality, "dihedral_wedge"),
         ];
         for error in kernels {
             for refusal in at_both_doors(error) {
-                let got = of_attachment(edge, &line, refusal.clone());
+                let got = of_attachment(edge, CurveKind::Line, refusal.clone());
                 assert!(
                     matches!(got, SplitFinishError::Euler(ref e) if *e == refusal),
                     "stays the gate's: {got:?}"

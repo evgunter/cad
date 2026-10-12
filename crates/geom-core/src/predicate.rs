@@ -1963,7 +1963,16 @@ pub const DIRECTION_LENGTH_SUBJECT: &str = "whether a direction has any length";
 
 /// [`COINCIDENCE_RECOURSE`] at a split, whose plane is the first
 /// lever.
-pub const SPLIT_PLANE_RECOURSE: &str = "move the split plane or the geometry";
+pub const SPLIT_PLANE_RECOURSE: &str = crate::split_plane_recourse!();
+
+/// [`SPLIT_PLANE_RECOURSE`] as a literal, for `concat!`.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! split_plane_recourse {
+    () => {
+        "move the split plane or the geometry"
+    };
+}
 
 /// The one ending of a refusal that only a kernel defect reaches:
 /// nothing the user changes in the model is a way through, so the

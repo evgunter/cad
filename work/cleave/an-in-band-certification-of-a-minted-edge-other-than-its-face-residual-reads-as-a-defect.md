@@ -91,26 +91,48 @@ the attachment refusals of both describers logged.
   Each is the input's: the vertex the split read on the plane lies at
   the zero band's edge, and the carrier one rounding past it (PR 4732:
   the certificate bounds the carrier, and the rounding is K-headroom
-  noise, not an amplified error). Every carrier at these sites is exact
-  (the split's carrier gate admits line, circle and ellipse edges only).
-- **Typed.** `splitting/finish.rs` `of_attachment` reads a refusal at
-  the describer's two arms and at both section re-charts (promotion and
-  nesting, `rechart_section`): an in-band `SurfaceResidual` or
-  `ChartResidual` on a non-spline carrier is
-  `SplitFinishError::EdgeOnFacesEscalated`, "whether an edge along the
-  cut lies on both faces it bounds is undecided: … Recourse: move the
-  split plane or the geometry so each edge and vertex that meets the
-  plane lies clearly on it or clearly off it", the lever alone. A
-  definite miss, the witness's residual, an endpoint pin, any other
-  check and a spline carrier stay the gate's refusal. After the change
+  noise, not an amplified error). Every one of these carriers is a line
+  chord. A circle or ellipse is not covered by that argument: the
+  review's dense census of planes nearly along a cylinder's axis
+  measured the split's elongated ellipses carrying amplified rounding in
+  band (774 runs at ε = 1e-12), which the join refuses before the
+  finish today.
+- **Typed, with one rule for both doors.**
+  `merge_faces::edge_on_faces_reading` holds the rule: an in-band
+  `SurfaceResidual` or `ChartResidual` on a line carrier is the edge's
+  own reading. Everything else stays the gate's refusal: a circle,
+  ellipse, spiric or spline, a definite miss, the witness's residual, an
+  endpoint pin, and any other check.
+  - The split's `of_attachment` reads it at the describer's two arms and
+    at both section re-charts (promotion and nesting,
+    `rechart_section`), into `SplitFinishError::EdgeOnFacesEscalated`.
+  - The Boolean's `of_attachment` reads it into `EdgeOnFaces`. This
+    narrows PR 4625's rule from every non-spline carrier to lines; its
+    12 witnesses are lines and do not move, and its ChartResidual arm
+    (the stale-line restatement) gains the same reading.
+  - The question ("whether … lies on both faces it bounds") and the
+    lever are spelt once (`edge_on_faces_subject!`,
+    `edge_on_faces_lever!`). The lever adds the angle an edge ending on
+    the face needs: "… lies clearly on it or clearly off it, and an edge
+    that ends on it leaves it at a clear angle". At the split it composes
+    `geom_core::split_plane_recourse!()`.
+  - The nesting re-chart has no witness. The hole's edges are restated
+    over the same plane at promotion first, so a pose would have to
+    differ between the two charts by roundings; the site says so. After the change
   all 123 / 67 / 174 census refusals at the finish type this way, and
   no other finish refusal is left.
 - **The lever tells the truth.** For each such run of the census's own
   tilts (81 / 46 / 105), the far vertex moved onto the plane (`d = 0`)
-  builds, and moved 1e-2 rad off on either side it builds. Moved only `3Kε` off, about half refuse
-  `SliverSector`: the plane still holds the corner, and a reading of its
-  faces there lands in band, which is that reading's own refusal and
-  lever. A milliradian still does so at ε = 1e-6.
+  builds, and the edge tilted 1e-2 rad off on either side builds. Moving
+  the far vertex only `3Kε` off leaves about half refusing
+  `SliverSector`: the edge still meets the plane at the corner, so it
+  needs a clear angle there, and a milliradian is still not one at
+  ε = 1e-6. The lever says so.
+- **Replay.** The Boolean census's band-edge grid is
+  `NT_EDGE=1 NT_FULL=1 near_tangent_census_probe` (a describe-pass
+  refusal reads `EdgeUndescribed` or `EdgeOnFaces`). The split census is
+  `split_near_tangent_census_probe`, and the seam census is
+  `seam_near_tangent_census_probe`.
 - **Pins.** `sweep` `split_edge_on_faces_poses`: 7 poses per ε row
   across the three sites and eight prisms, each refusing typed with the
   lever and building at `d = 0` and `d = ±1e-2`, red on main. `topo`

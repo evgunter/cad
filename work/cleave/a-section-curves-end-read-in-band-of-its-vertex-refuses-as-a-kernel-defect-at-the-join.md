@@ -41,15 +41,28 @@ edge:
   `Join(Euler(Certification { Escalated { EndpointStart | EndpointEnd } }))`,
   margin 1.0000000000287557e-6.
 
-Neither is an amplified kernel error: each margin is the input's offset
-read one rounding past ε (the PR 4732 ruling: the certificate bounds the
-carrier). Each wants its own decision and lever, and an endpoint residual
-alone cannot tell which: "move the split plane or the geometry so each
-vertex that meets the plane lies clearly on it or clearly off it" for the
-first, and "tilt the plane clearly square to (or along) the curved face's
-axis, or clearly off it" for the second. The finish's own describer types
-the first story (`SplitFinishError::EdgeOnFacesEscalated`); the join is
-upstream of it.
+On these poses the margin is the input's offset read one rounding past ε,
+the PR 4732 story (the certificate bounds the carrier). But that is not
+the door's typical in-band reading. The review of PR 4773 ran a dense
+cylinder census of planes nearly along the axis, cutting the split's own
+elongated ellipses (semi-major axis about `r/θ` at tilt `θ`). At
+ε = 1e-12, 774 runs refuse `Escalated { EndpointStart | EndpointEnd }` at
+about 1.1–1.4e-12, at every offset, with no vertex near the band. That is
+the ellipse's own rounding amplified into the band, a Q1 defect, for
+which "kernel defect" is the honest ending. An endpoint residual alone
+cannot tell the two populations apart.
+
+Where the miss is the input's, each story wants its own decision and
+lever:
+- for the first, "move the split plane or the geometry so each vertex
+  that meets the plane lies clearly on it or clearly off it";
+- for the second, "tilt the plane clearly square to (or along) the
+  curved face's axis, or clearly off it".
+
+The finish's describer already types the line-chord case
+(`SplitFinishError::EdgeOnFacesEscalated`, through
+`merge_faces::edge_on_faces_reading`, which deliberately leaves circles
+and ellipses to the gate). The join runs upstream of it.
 
 The definite neighbour, at ε = 1e-12: the plane along the ruling at
 azimuth 0 or 0.5, tilted 1e-6 off the axis, refuses
@@ -61,6 +74,11 @@ the measurement is added.
 
 ## Owed
 
-Decide what the join's endpoint pin refuses as when its margin is in band
-on an exact section curve, at both doors, and give each reading its
-lever; then check that moving the parts as told builds.
+First separate the two populations at the join: an in-band endpoint pin
+whose margin is an input offset (a vertex at the zero band's edge, or the
+conic arm's trilean read in its zero band) from one that carries the
+section conic's amplified rounding. Only the first may become an
+`Escalated` refusal of the input; the second stays the kernel's (Q1), or
+becomes an arm-side refusal on the carrier's conditioning, as GERM's row
+asks. Then give each input reading its lever, at both doors, and check
+that moving the parts as told builds.

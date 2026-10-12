@@ -13,7 +13,9 @@
 //! resort.
 //!
 //! The lever tells the truth: the far vertex moved onto the plane
-//! (`d = 0`), or clearly off it on either side, builds.
+//! (`d = 0`), or the edge tilted off it at a clear angle on either side,
+//! builds. Every pinned edge is a line chord, the one carrier whose
+//! in-band reading is the input's (`merge_faces::edge_on_faces_reading`).
 //!
 //! Each ε row has its own poses, every one measured refusing at that row
 //! (`examples/split_near_tangent_census_probe.rs`), beside the site it
@@ -55,14 +57,15 @@ const POSES: [(f64, &str, usize, f64, f64); 21] = [
 ];
 
 const LEVER: &str = "Recourse: move the split plane or the geometry so each edge and vertex that \
-                     meets the plane lies clearly on it or clearly off it";
+                     meets the plane lies clearly on it or clearly off it, and an edge that ends on \
+                     it leaves it at a clear angle";
 
-/// The tilt off the edge the lever's "clearly off" takes, in rad: the far
-/// vertex a centimetre off the unit edge, clear of the band at every ε
-/// row for the far vertex and for every reading of the corner's faces at
-/// `v`, which the plane still holds. A milliradian is not, at ε = 1e-6:
-/// some poses then read a bisector at `v` in the band
-/// (`SliverSector`), which is that reading's own refusal.
+/// The clear angle the lever asks of an edge that ends on the plane, in
+/// rad: the edge still meets the plane at `v`, so moving its far vertex
+/// clearly off is not enough (`3Kε` there leaves about half the census's
+/// poses reading a face of the corner in band, `SliverSector`). A
+/// centimetre over the unit edge clears every reading at every ε row; a
+/// milliradian does not at ε = 1e-6.
 const CLEARLY_OFF: f64 = 1e-2;
 
 /// At each ε row, each of its poses refuses
