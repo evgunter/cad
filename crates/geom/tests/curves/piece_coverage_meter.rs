@@ -444,3 +444,97 @@ fn only_the_piece_assembly_abstains() {
         "the certified lane agrees: {mi}"
     );
 }
+
+/// **A degree past the full schedule's exact range keeps its pieces.**
+/// At derivative degree 10 and 12 the 32-piece weights are not exact
+/// `f64`s, and the assembly reads 16 pieces instead of abstaining: on a
+/// degree-11 and a degree-13 Bézier net that sway `±1` the meter stays
+/// well above both chord assemblies and below the speed.
+#[test]
+fn a_high_degree_net_keeps_its_piece_reading() {
+    for degree in [11, 13] {
+        let n = degree + 1;
+        let xy: Vec<(f64, f64)> = (0..n)
+            .map(|i| (i as f64, if i % 2 == 0 { -1.0 } else { 1.0 }))
+            .collect();
+        let mut knots = vec![0.0; n];
+        knots.extend(std::iter::repeat_n(1.0, n));
+        let c = planar(&knots, degree, &xy);
+        let (m, mi) = meters(&c);
+        let chords = global_chord(&c).max(per_span_chord(&c));
+        let speed = (0..=400)
+            .map(|i| ceiling_at(&c, f64::from(i) / 400.0))
+            .fold(f64::INFINITY, f64::min);
+        assert!(
+            mi > 1.3 * chords && mi <= speed && m <= speed,
+            "degree {degree}: meter {m} / {mi}, chord assemblies {chords}, speed {speed}"
+        );
+    }
+}
+
+/// **A finer schedule can read lower** (recorded, not wanted): PR 4824's
+/// review probe case 2349, a degree-10 net that reads 1.3019 at 16
+/// pieces and 0.9953 at 32, because each sub-piece takes its own
+/// direction. The row records the 32-piece reading and that it stays
+/// sound; `the-integral-meters-piece-refinement-is-not-monotone` is the
+/// fix, which moves this reading back up — re-derive the row then.
+#[test]
+fn a_finer_schedule_can_read_lower_on_a_degree_ten_net() {
+    let mut knots = vec![0.0; 11];
+    knots.push(0.8284455455394362);
+    knots.extend([1.2418029074118602; 4]);
+    knots.extend([1.4730055634214718; 11]);
+    let net = [
+        (
+            -0.8815562390065059,
+            -0.6335917733379692,
+            -0.5212871485605084,
+        ),
+        (0.6393121701963538, 1.5736766182063207, 0.803115302228381),
+        (1.1075156131079207, -0.627422526781861, 1.1273988048852255),
+        (
+            -0.2909554093014055,
+            -0.19224858780193532,
+            1.5168916198261204,
+        ),
+        (
+            -1.8981705059772893,
+            0.25917888109405895,
+            -0.48083780672415344,
+        ),
+        (-1.3214274904496919, 1.2215792402233587, 1.7070515744998471),
+        (1.044288066856764, 0.8584413827991741, 1.9244710916101964),
+        (-0.7698869210485335, 0.757450190997226, -0.08473314740576487),
+        (
+            -1.4624303919030752,
+            0.25830146588240144,
+            -0.6007187280541237,
+        ),
+        (-0.7062761922653298, -1.4733562206944937, -1.511481897970791),
+        (1.1907806235043266, 1.980740257023497, 0.5054233250192071),
+        (0.11399841236031838, 1.0756353855391771, -0.3788142317844434),
+        (0.7355382613690677, -1.1389425436622784, 0.8190171107644),
+        (-0.658695834628594, 1.9171434672285872, -0.9368865107036051),
+        (-0.9803803255408838, -0.3038284162863536, 1.4006617905164997),
+        (
+            -0.006152120693329266,
+            0.5822102346614075,
+            -1.423371170381051,
+        ),
+    ];
+    let c = NurbsCurve3::<f64>::new(
+        KnotVector::clamped(knots, 10).unwrap(),
+        net.iter().map(|&(x, y, z)| Point3::new(x, y, z)).collect(),
+        vec![1.0; 16],
+    )
+    .unwrap();
+    let (m, mi) = meters(&c);
+    let (lo, hi) = c.domain();
+    let speed = (0..=2000)
+        .map(|i| ceiling_at(&c, lo + (hi - lo) * f64::from(i) / 2000.0))
+        .fold(f64::INFINITY, f64::min);
+    assert!(
+        (0.995..0.996).contains(&m) && mi <= m && m <= speed,
+        "case 2349: meter {m} / {mi} (32 pieces read 0.99527, 16 read 1.30192), speed {speed}"
+    );
+}

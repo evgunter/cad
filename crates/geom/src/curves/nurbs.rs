@@ -189,32 +189,49 @@ const RATIONAL_METER_SPLITS: usize = 16;
 
 /// The integral speed meter's piece schedule (D9: structure, never a
 /// decision): the third assembly of `speed_lower_bound`'s integral arm
-/// reads each nonempty span as this many equal pieces. See
-/// `piece_assembly`'s docs; `tests/curves/swaying_corner_meter.rs` pins
-/// what it buys (the reach on a swaying corner roughly doubles with
-/// each doubling of the count) and `tests/curves/piece_coverage_meter.rs`
-/// that every piece is read.
+/// reads each nonempty span as this many equal pieces, or as the
+/// largest power of two below it whose weights are exact
+/// ([`piece_count`]): 32 pieces to derivative degree 9, 16 to 12, 8 to
+/// 16, 4 to 24, 2 to 47. See `piece_assembly`'s docs;
+/// `tests/curves/swaying_corner_meter.rs` pins what it buys on a
+/// swaying corner, where each doubling of the count roughly doubles
+/// the reach (on other nets a finer schedule can read lower: each
+/// piece takes its own direction, so refinement is not monotone), and
+/// `tests/curves/piece_coverage_meter.rs` that every piece is read.
 const INTEGRAL_METER_SPLITS: usize = 32;
 
 /// The rational speed meter's piece schedule (D9: structure, never a
 /// decision): `rational_piece_assembly` reads each nonempty span as
-/// this many equal pieces, the same count as [`INTEGRAL_METER_SPLITS`]:
-/// on a curve whose weights are all equal its numerator is `w²·C′`,
-/// and the two arms then read the same reach, so the arm a curve takes
-/// costs it nothing (`tests/curves/swaying_corner_meter.rs` pins both
-/// arms and their agreement). Its frontier, on
-/// the six-point swaying corner with one weight raised 1.3×: degree 4
-/// meters at `a = 2` and refuses at `a = 4`, degree 5 refuses from
-/// `a = 2`.
-const RATIONAL_PIECE_SPLITS: usize = 32;
+/// this many equal pieces, falling back as [`piece_count`] does. It IS
+/// the integral arm's count, so on a curve whose weights are all equal
+/// the two arms read the same pieces: the rational numerator is
+/// `w²·C′`, its coefficients the derivative's degree-elevated, which
+/// reads at least the integral arm's piece bound and in practice
+/// nearly the same (`tests::the_rational_piece_reading_is_the_elevated_integral_one`).
+/// The whole arms differ by the rational arm's refined scan as well
+/// (`the-integral-arm-reads-below-the-rational-arm-on-an-equal-weight-net`). Its frontier, on the six-point
+/// swaying corner with one weight raised 1.3×: degree 4 meters at
+/// `a = 2` and refuses at `a = 4`, degree 5 refuses from `a = 2`.
+const RATIONAL_PIECE_SPLITS: usize = INTEGRAL_METER_SPLITS;
+
+/// The piece count for a degree-`q` Bernstein row under the schedule
+/// `splits`: the largest power of two at most `splits` that
+/// [`pieces_exact`] admits. Never zero: one piece (the span's own row)
+/// is exact at every degree.
+fn piece_count(q: usize, splits: usize) -> usize {
+    core::iter::successors(Some(splits), |s| (*s > 1).then_some(s / 2))
+        .find(|s| pieces_exact(q, *s))
+        .unwrap_or(1)
+}
 
 /// Whether [`piece_weights`] of degree `q` at `splits` pieces, and the
 /// sums of their columns, are exact `f64`s. With `splits` a power of
 /// two `S`, every value de Casteljau's recurrence forms at the dyadic
 /// breaks `k/S` over `q` levels is an integer over `S^q` no larger than
 /// `1`, and a column of `q + 1` of them sums to at most `q + 1`; both
-/// are exact while `(q + 1)·S^q ≤ 2⁵³` (to degree 12 at 16 pieces, 9 at
-/// 32; `tests::pieces_exact_reaches_its_stated_degrees`).
+/// are exact while `(q + 1)·S^q ≤ 2⁵³` (the degrees
+/// [`INTEGRAL_METER_SPLITS`] lists;
+/// `tests::pieces_exact_reaches_its_stated_degrees`).
 fn pieces_exact(q: usize, splits: usize) -> bool {
     let (Ok(s), Ok(q32), Ok(n)) = (
         u64::try_from(splits),
@@ -1357,9 +1374,9 @@ macro_rules! nurbs_curve {
             /// the exact coefficient of the exact piece; no refined net
             /// is rounded to `f64` on the way.
             ///
-            /// The assembly abstains (poison) where its weights cannot
-            /// be exact, a derivative degree above
-            /// [`pieces_exact`] at [`INTEGRAL_METER_SPLITS`], and where a piece's
+            /// The pieces are [`piece_count`]'s: [`INTEGRAL_METER_SPLITS`]
+            /// where their weights are exact, fewer above that degree.
+            /// The assembly abstains (poison) where a piece's
             /// coefficients sum to zero (`d` is `0/0`). It is not run
             /// at degree 1, where each piece reads the span's one
             /// coefficient and the per-span assembly already answers
@@ -1368,7 +1385,7 @@ macro_rules! nurbs_curve {
                 let poison = T::from_f64(f64::NAN);
                 let p = self.knots.degree();
                 let q = p - 1;
-                let Some(weights) = piece_weights(q, INTEGRAL_METER_SPLITS) else {
+                let Some(weights) = piece_weights(q, piece_count(q, INTEGRAL_METER_SPLITS)) else {
                     return poison;
                 };
                 let knots = self.knots.values();
@@ -1686,17 +1703,21 @@ macro_rules! nurbs_curve {
             /// Unlike the refined scan it needs no chord and no
             /// `sup‖C − c‖·sup|w′|` term: `N` is exact, and its
             /// coefficients converge on it as the pieces shrink. It
-            /// abstains (poison) where [`pieces_exact`] refuses degree `p` at
-            /// [`RATIONAL_PIECE_SPLITS`] (above 9), and
-            /// where a piece's `Nₖ` sum to zero.
+            /// reads [`piece_count`]'s pieces for degree `p`, and abstains
+            /// (poison) above degree 24, past which its binomials are no
+            /// longer pinned exact, and where a piece's `Nₖ` sum to zero.
             fn rational_piece_assembly(&self) -> T {
                 let poison = T::from_f64(f64::NAN);
                 let p = self.knots.degree();
                 let q = p - 1;
-                let (Some(wp), Some(wq)) = (
-                    piece_weights(p, RATIONAL_PIECE_SPLITS),
-                    piece_weights(q, RATIONAL_PIECE_SPLITS),
-                ) else {
+                if p > 24 {
+                    return poison;
+                }
+                // One count for both degrees' rows, so their pieces
+                // line up: the one the higher degree admits.
+                let splits = piece_count(p, RATIONAL_PIECE_SPLITS);
+                let (Some(wp), Some(wq)) = (piece_weights(p, splits), piece_weights(q, splits))
+                else {
                     return poison;
                 };
                 let held = self.knots.values();
@@ -2169,7 +2190,8 @@ fn rational_corrections<T: Real, const N: usize>(a: [T; N], w: [T; N]) -> [T; N]
 /// `C(k, i)` as exact `f64` structure (the multiplicative form, exact
 /// while every intermediate product is below 2⁵³ — every order a curve
 /// evaluator asks for, and every `k ≤ 17` the rational piece assembly
-/// asks for, is far inside that; `tests::binomial_is_exact_to_17`).
+/// asks for (`k ≤ 47`, degree ≤ 24), is far inside that;
+/// `tests::binomial_is_exact_to_47`).
 fn binomial(k: usize, i: usize) -> f64 {
     (0..i).fold(1.0, |acc, j| acc * (k - j) as f64 / (j + 1) as f64)
 }
@@ -2230,13 +2252,69 @@ impl<T: Real> NurbsCurve3<T> {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use super::{binomial, pieces_exact};
+    use super::{NurbsCurve3, binomial, derivative_net, pieces_exact};
+    use geom_core::Point3;
+    use geom_core::spline::KnotVector;
+    use test_utils::fuzz;
 
-    /// The degrees `pieces_exact`'s docs state, at both schedules.
+    /// **On a polynomial net the rational piece reading is the integral
+    /// one degree-elevated** (counterexample search). With `w ≡ 1` the
+    /// rational numerator's piece coefficients are the derivative's
+    /// raised from degree `p − 1` to `2p − 1`: the same mean, so the same
+    /// direction, and every raised coefficient a convex combination of
+    /// the originals, so the rational reading is never the lower. On
+    /// random integral nets, degree 2–6, it is at least the integral
+    /// arm's piece reading, to `1e-9` relative.
+    #[test]
+    fn the_rational_piece_reading_is_the_elevated_integral_one() {
+        let mut rng = fuzz::start("nurbs::arms_piece_readings");
+        let cases = fuzz::scaled(60);
+        for case in 0..cases {
+            let p = 2 + case % 5;
+            let n = p + 1 + rng.below(8);
+            let control: Vec<Point3<f64>> = (0..n)
+                .map(|_| {
+                    Point3::new(
+                        rng.range(-2.0, 2.0),
+                        rng.range(-2.0, 2.0),
+                        rng.range(-2.0, 2.0),
+                    )
+                })
+                .collect();
+            let mut knots = vec![0.0; p + 1];
+            let mut u = 0.0;
+            for _ in 0..n - p - 1 {
+                u += rng.range(0.2, 1.2);
+                knots.push(u);
+            }
+            u += rng.range(0.2, 1.2);
+            knots.extend(std::iter::repeat_n(u, p + 1));
+            let kv = KnotVector::clamped(knots, p).unwrap();
+            let c = NurbsCurve3::<f64>::new(kv, control, vec![1.0; n]).unwrap();
+            let coeffs = derivative_net(
+                &c.control,
+                c.knots().knots(),
+                c.knot_values().values(),
+                p,
+                0,
+            )
+            .unwrap();
+            let (pieces, rational) = (c.piece_assembly(&coeffs), c.rational_piece_assembly());
+            assert!(
+                rational >= pieces - 1e-9 * pieces.abs(),
+                "case {case} (deg {p}, {n} pts): integral pieces {pieces}, rational pieces {rational} — {}",
+                fuzz::replay()
+            );
+        }
+    }
+
+    /// The degrees `INTEGRAL_METER_SPLITS`'s docs state, at every
+    /// count `piece_count` falls back to.
     #[test]
     fn pieces_exact_reaches_its_stated_degrees() {
-        for (splits, top) in [(16, 12), (32, 9)] {
+        for (splits, top) in [(32, 9), (16, 12), (8, 16), (4, 24), (2, 47)] {
             assert!(pieces_exact(top, splits), "degree {top} at {splits} pieces");
             assert!(
                 !pieces_exact(top + 1, splits),
@@ -2251,11 +2329,11 @@ mod tests {
     }
 
     /// `binomial` against Pascal's triangle in integers, for every row
-    /// the rational piece assembly reads.
+    /// the rational piece assembly reads, and its pair products.
     #[test]
-    fn binomial_is_exact_to_17() {
+    fn binomial_is_exact_to_47() {
         let mut row: Vec<u64> = vec![1];
-        for n in 0..=17_usize {
+        for n in 0..=47_usize {
             for (k, c) in row.iter().enumerate() {
                 #[allow(clippy::cast_precision_loss)]
                 let exact = *c as f64;
@@ -2265,6 +2343,23 @@ mod tests {
                 .chain(row.windows(2).map(|w| w[0] + w[1]))
                 .chain(std::iter::once(1))
                 .collect();
+        }
+        // The rational piece assembly's pair weights `C(p − 1, a)·C(p, b)`.
+        let c = |n: usize, k: usize| -> u64 {
+            (0..k).fold(1, |acc, i| acc * (n - i) as u64 / (i + 1) as u64)
+        };
+        for p in 1..=24_usize {
+            for a in 0..p {
+                for b in 0..=p {
+                    #[allow(clippy::cast_precision_loss)]
+                    let exact = (c(p - 1, a) * c(p, b)) as f64;
+                    assert!(
+                        (binomial(p - 1, a) * binomial(p, b)).to_bits() == exact.to_bits(),
+                        "C({}, {a})·C({p}, {b})",
+                        p - 1
+                    );
+                }
+            }
         }
     }
 }

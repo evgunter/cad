@@ -175,21 +175,29 @@ fn a_swaying_rational_corner_meters_positive_and_below_its_speed() {
 
 /// **The arm choice is monotone in reach.** An equal-weight curve takes
 /// the integral arm and the same net with one weight one ulp off takes
-/// the rational arm; on the swaying family the first must read at least
-/// what the second does (to 1%), so being exactly polynomial never
-/// meters worse.
+/// the rational arm; at the shared piece count the two read the same
+/// bound (measured: the last ulp at `f64`, about `1e-12` relative at
+/// `Interval`), so being exactly polynomial never meters worse than
+/// `1e-9` relative below the rational reading.
 #[test]
 fn an_equal_weight_curve_meters_no_worse_than_one_ulp_off() {
     for (degree, a) in [(2, 2.0), (2, 4.0), (3, 2.0), (3, 4.0)] {
         let c = swaying(a, degree);
-        let off = reweighted(&c, |j| if j == 1 { 1.0 + f64::EPSILON } else { 1.0 });
-        let (m, mi) = meters(&c);
-        let (r, ri) = meters(&off);
-        assert!(
-            m >= 0.99 * r && mi >= 0.99 * ri,
-            "degree {degree}, a = {a}: equal weights meter {m} / {mi}, one ulp off {r} / {ri}"
-        );
+        let at = format!("degree {degree}, a = {a}");
+        arms_agree(&c, &at);
     }
+}
+
+/// The integral arm on `c` reads no lower than `1e-9` relative below
+/// the rational arm on `c` with one weight one ulp off, at both scalars.
+fn arms_agree(c: &NurbsCurve3<f64>, at: &str) {
+    let off = reweighted(c, |j| if j == 1 { 1.0 + f64::EPSILON } else { 1.0 });
+    let (m, mi) = meters(c);
+    let (r, ri) = meters(&off);
+    assert!(
+        m >= r - 1e-9 * r.abs() && mi >= ri - 1e-9 * ri.abs(),
+        "{at}: equal weights meter {m} / {mi}, one ulp off {r} / {ri}"
+    );
 }
 
 /// A random integral net, degree 1–5, on a random clamped vector with
