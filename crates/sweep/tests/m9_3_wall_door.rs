@@ -3,8 +3,8 @@
 //! pair opening the cosurface reduction rung and the carrier lump at
 //! both wall sites; a tangency the DEV-1 witness lane verifies descends
 //! to the second-order sector trilean, save a union whose ruling runs
-//! through a plane face's interior, which refuses until the
-//! doubled-slit arm is built.
+//! through a plane face's interior, which refuses until the reduction
+//! records a face–face curve touch.
 //!
 //! The canonical reachability fixture is the two-peg kernel shape's
 //! core: a bored plate (through-hole subtract) and an exactly-filling
@@ -165,14 +165,14 @@ fn tangent_door_escalates_and_verifies() {
         "the witness lane must have derived the ruling from the section's tangent gap"
     );
     // Verified, and the ruling runs through the plate top's interior:
-    // the union would have material on both sides of it, the doubled
-    // slit #131 rules for, whose arm is unbuilt, so it refuses typed.
+    // a face–face curve touch the reduction mints no row for, so the
+    // union refuses typed.
     match out {
         Err(BooleanError::TangentSlitArmUnbuilt { interior, .. }) => {
             assert_eq!(interior, topo::Operand::A, "the plate top's interior");
         }
         other => panic!(
-            "the verified tangent union refuses as the unbuilt slit arm: {:?}",
+            "the verified tangent union through a face refuses: {:?}",
             other.map(|_| ())
         ),
     }

@@ -74,6 +74,9 @@
 //!   against a fresh re-certification: a check of a body that
 //!   evaluates, so it routes beside [`orient`] rather than beside the
 //!   readers of stored data;
+//! - [`touch_union`] — every op on two operands that touch only along
+//!   a line, held to what the touch owes: a check of a body, so beside
+//!   [`solid_truth`];
 //! - [`revert_ops`] — ∖ in both operand orders and ∩: what a suite
 //!   drives a door WITH, as [`poses`];
 //! - [`differential`] — the differential batteries' polygon oracles,
@@ -267,6 +270,10 @@ pub mod pinch_cones;
 /// `point_in_solid`): a truth plus the check of a body against it, so
 /// beside [`differential`].
 pub mod solid_truth;
+/// Every op on two operands that touch only along a line, held to
+/// what a touch owes (the operand back, empty, two solids with the
+/// edge–edge record): a check of a body, so beside [`solid_truth`].
+pub mod touch_union;
 
 /// A station cut back into a rim by hand, and the reader that finds a
 /// body's stations, curved carriers included. Body authoring plus the
