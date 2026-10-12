@@ -37,6 +37,10 @@ struct Discard {
     /// region across them was discarded before, so it is one obstacle
     /// with this one.
     touches: Vec<EdgeKey>,
+    /// Its other boundary edges, which it died with: a discard of
+    /// another face of the parent across one of them is region of the
+    /// parent joined to this one there.
+    bounds: Vec<EdgeKey>,
 }
 
 /// The discards of one boolean, or of each step of a union's fold.
@@ -179,7 +183,12 @@ impl<K: Ord + Clone> Obstacles<K> {
                     .or_default()
                     .push(self.discards.len());
             }
-            self.discards.push(Discard { seams, touches });
+            let bounds = chains.iter().filter_map(|c| c.first().copied()).collect();
+            self.discards.push(Discard {
+                seams,
+                touches,
+                bounds,
+            });
         }
         Ok(())
     }
@@ -208,8 +217,75 @@ impl<K: Ord + Clone> Obstacles<K> {
         parent: &BTreeSet<K>,
         pieces: &[FaceKey],
         merged: &[FaceKey],
-        mut wall: impl FnMut(FaceKey) -> Result<W, NamingError>,
+        wall: impl FnMut(FaceKey) -> Result<W, NamingError>,
     ) -> Result<BTreeMap<Vec<W>, Vec<FaceKey>>, NamingError> {
+        let boundaries = pieces
+            .iter()
+            .chain(merged)
+            .map(|&f| face_half_edges(body, f))
+            .collect::<Result<Vec<_>, _>>()?;
+        let walls = self.walls(body, parent, &boundaries, pieces.len(), wall)?;
+        if pieces.len() + merged.len() >= 2 && walls.iter().any(BTreeSet::is_empty) {
+            return Err(bug(
+                "a piece of a face held as several borders no recorded discard between them",
+            ));
+        }
+        Ok(group(walls, pieces))
+    }
+
+    /// The rule at a corner: `copies`, the vertices of `body` that one
+    /// operand corner is held as, grouped by the divider walls each
+    /// meets. `parent` is the corner's faces and `is_piece` says which
+    /// faces of `body` hold part of them; a copy's boundary is those
+    /// faces' half-edges at the copy, read as a face piece's boundary is
+    /// ([`Obstacles::split`]), so a wall is a face across an edge at the
+    /// copy along which a piece of the corner meets an obstacle that
+    /// borders two or more copies. Several copies under one set are
+    /// N2's tie, an empty set among them.
+    pub(crate) fn split_corner<T: geom_core::Real, W: Ord + Clone>(
+        &self,
+        body: &Body<T>,
+        parent: &BTreeSet<K>,
+        copies: &[VertexKey],
+        mut is_piece: impl FnMut(FaceKey) -> Result<bool, NamingError>,
+        wall: impl FnMut(FaceKey) -> Result<W, NamingError>,
+    ) -> Result<BTreeMap<Vec<W>, Vec<VertexKey>>, NamingError> {
+        let mut boundaries = Vec::with_capacity(copies.len());
+        for &v in copies {
+            let mut at = Vec::new();
+            for e in body
+                .edges_of_vertex(v)
+                .ok_or_else(|| bug("a corner copy's star does not resolve"))?
+            {
+                let edge = body
+                    .get_edge(e)
+                    .ok_or_else(|| bug("a corner copy's edge is dangling"))?;
+                for he in [edge.he_plus, edge.he_minus] {
+                    let f = body
+                        .face_of_half_edge(he)
+                        .ok_or_else(|| bug("a corner copy's half-edge has no face"))?;
+                    if is_piece(f)? {
+                        at.push(he);
+                    }
+                }
+            }
+            boundaries.push(at);
+        }
+        let walls = self.walls(body, parent, &boundaries, copies.len(), wall)?;
+        Ok(group(walls, copies))
+    }
+
+    /// Each of the first `counted` `boundaries`' divider walls: the
+    /// faces across its half-edges along which it meets an obstacle of
+    /// `parent` that two or more boundaries meet.
+    fn walls<T: geom_core::Real, W: Ord + Clone>(
+        &self,
+        body: &Body<T>,
+        parent: &BTreeSet<K>,
+        boundaries: &[Vec<topo::HalfEdgeKey>],
+        counted: usize,
+        mut wall: impl FnMut(FaceKey) -> Result<W, NamingError>,
+    ) -> Result<Vec<BTreeSet<W>>, NamingError> {
         let mine: BTreeSet<usize> = parent
             .iter()
             .filter_map(|k| self.by_parent.get(k))
@@ -230,6 +306,17 @@ impl<K: Ord + Clone> Obstacles<K> {
                 link.join(w[0], w[1]);
             }
         }
+        let mut bound_of: BTreeMap<EdgeKey, Vec<usize>> = BTreeMap::new();
+        for &i in &mine {
+            for &k in &self.discards[i].bounds {
+                bound_of.entry(k).or_default().push(i);
+            }
+        }
+        for ds in bound_of.values() {
+            for w in ds.windows(2) {
+                link.join(w[0], w[1]);
+            }
+        }
         for &i in &mine {
             for k in &self.discards[i].touches {
                 for &j in seam_of.get(k).into_iter().flatten() {
@@ -237,7 +324,7 @@ impl<K: Ord + Clone> Obstacles<K> {
                 }
             }
         }
-        // Each piece edge's obstacle, and the wall across it.
+        // Each boundary edge's obstacle, and the wall across it.
         let bound = self.dead_split.len() + body.edges().count() + 1;
         let obstacle = |mut e: EdgeKey| -> Result<Option<usize>, NamingError> {
             for _ in 0..bound {
@@ -256,8 +343,8 @@ impl<K: Ord + Clone> Obstacles<K> {
             Err(bug("a piece edge's split lineage is cyclic"))
         };
         let mut met: Vec<(usize, usize, FaceKey)> = Vec::new();
-        for (p, &f) in pieces.iter().chain(merged).enumerate() {
-            for he in face_half_edges(body, f)? {
+        for (p, hes) in boundaries.iter().enumerate() {
+            for &he in hes {
                 let edge = body
                     .get_half_edge(he)
                     .ok_or_else(|| bug("a piece's half-edge is dangling"))?
@@ -277,21 +364,21 @@ impl<K: Ord + Clone> Obstacles<K> {
             touched.entry(o).or_default().insert(p);
         }
         let divides = |o: usize| touched.get(&o).is_some_and(|ps| ps.len() >= 2);
-        let mut walls: Vec<BTreeSet<W>> = vec![BTreeSet::new(); pieces.len()];
+        let mut walls: Vec<BTreeSet<W>> = vec![BTreeSet::new(); counted];
         for (o, p, across) in met {
-            if divides(o) && p < pieces.len() {
+            if divides(o) && p < counted {
                 walls[p].insert(wall(across)?);
             }
         }
-        if pieces.len() + merged.len() >= 2 && walls.iter().any(BTreeSet::is_empty) {
-            return Err(bug(
-                "a piece of a face held as several borders no recorded discard between them",
-            ));
-        }
-        let mut out: BTreeMap<Vec<W>, Vec<FaceKey>> = BTreeMap::new();
-        for (set, &f) in walls.into_iter().zip(pieces) {
-            out.entry(set.into_iter().collect()).or_default().push(f);
-        }
-        Ok(out)
+        Ok(walls)
     }
+}
+
+/// `items` grouped by their wall sets, the sets sorted.
+fn group<W: Ord, I: Copy>(walls: Vec<BTreeSet<W>>, items: &[I]) -> BTreeMap<Vec<W>, Vec<I>> {
+    let mut out: BTreeMap<Vec<W>, Vec<I>> = BTreeMap::new();
+    for (set, &i) in walls.into_iter().zip(items) {
+        out.entry(set.into_iter().collect()).or_default().push(i);
+    }
+    out
 }
