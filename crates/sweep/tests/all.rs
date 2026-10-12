@@ -309,6 +309,8 @@ mod band_ruled_cap_ring;
 mod band_ruled_d_hole;
 #[path = "band_turn_overrun_probe.rs"]
 mod band_turn_overrun_probe;
+#[path = "band_turn_overrun_verdict.rs"]
+mod band_turn_overrun_verdict;
 #[path = "bitdump.rs"]
 mod bitdump;
 #[path = "blend1_r1_probes.rs"]
@@ -779,6 +781,8 @@ mod germ_coplanar_conic;
 mod germ_interior_oval;
 #[path = "germ_interior_saddle.rs"]
 mod germ_interior_saddle;
+#[path = "germ_plane_torus_chord.rs"]
+mod germ_plane_torus_chord;
 #[path = "germ_plane_torus_frame.rs"]
 mod germ_plane_torus_frame;
 #[path = "germ_radial_hole.rs"]
@@ -1070,6 +1074,9 @@ mod wire_loft_end_profile_lift;
 
 #[path = "wedge_end_doors.rs"]
 mod wedge_end_doors;
+
+#[path = "review_4831_probes.rs"]
+mod review_4831_probes;
 
 #[path = "review_3701_probes.rs"]
 mod review_3701_probes;

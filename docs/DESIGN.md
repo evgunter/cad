@@ -951,9 +951,13 @@ Five commitments:
    Geometry that can't meet ε almost always indicates a modeling
    mistake; surfacing it beats absorbing it.
 4. **Fixed internal units — meters and radians — with a documented
-   model size range**; geometry outside the range is rejected at
-   construction. User-facing units are typed newtypes at the API
-   boundary only (D6).
+   model size range**: the session box is 1 km, no coordinate larger
+   in magnitude; geometry outside the range is rejected at
+   construction. The box fixes the smallest admissible ε, ε_min =
+   1 km · 2⁻⁵² ≈ 2.2e-13 m, the length f64 resolves at the box's
+   edge: a run's ε below ε_min is refused, and no refusal offers to
+   tighten the tolerance below it. User-facing units are typed
+   newtypes at the API boundary only (D6).
 5. **Strictness is enforced at the boundary, not relaxed inside**: STEP
    import is an adoption stage (D7) that brings external geometry up to
    kernel invariants *before* it becomes a kernel body; entities that

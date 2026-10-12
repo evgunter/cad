@@ -168,6 +168,7 @@ use core::ops::{Add, Mul, Sub};
 use geom_core::spline::ProjectiveScalar;
 use geom_core::spline::{
     self, KnotAlgebraError, KnotSpan, KnotVector, Knots, Span, SpanLocate, SplineError,
+    derivative_net,
 };
 use geom_core::{Interval, Point2, Point3, Real, Vec2, Vec3};
 use std::sync::OnceLock;
@@ -207,6 +208,20 @@ const RATIONAL_PIECE_SPLITS: usize = INTEGRAL_METER_SPLITS;
 /// and pair product it reads, to `2·24 − 1`), not the exactness limit
 /// of the multiplicative binomial, which lies well above it.
 const RATIONAL_PIECE_MAX_DEGREE: usize = 24;
+
+/// A spline's memoised meter: `compute` afresh inside a symbolic
+/// session, `cell`'s value outside one (filled on first read). A
+/// session's table holds the nodes it saw built, and a node minted
+/// anywhere else freezes in it to an unknown of its own
+/// (`geom_core::sym`, "No session, no tier"), so a memo served across
+/// that boundary would change what the session decides; inside one
+/// nothing the meter mints is kept.
+pub(crate) fn session_memo<V: Copy>(cell: &OnceLock<V>, compute: impl FnOnce() -> V) -> V {
+    if geom_core::sym::session_installed() {
+        return compute();
+    }
+    *cell.get_or_init(compute)
+}
 
 /// The piece count for a degree-`q` Bernstein row under the schedule
 /// `splits`: the largest power of two at most `splits` that
@@ -305,35 +320,6 @@ fn blossom<T: Real, V: Copy + Add<Output = V> + Sub<Output = V> + Mul<T, Output 
         }
     }
     d.last().copied()
-}
-
-/// The derivative net of the degree-`p` coefficients `net`, whose
-/// first entry is coefficient `first`: entry `k` is
-/// `p·(net[k+1] − net[k])/(u_{i+p+1} − u_{i+1})` with `i = first + k`.
-/// The knot difference is checked positive on the structure `knots`
-/// and formed in `T` over the `held` knots. `None` on a non-positive
-/// difference or a knot index past the vector.
-fn derivative_net<T: Real, P: Copy + Sub<Output = V>, V: Mul<T, Output = V>>(
-    net: &[P],
-    knots: &[f64],
-    held: &[T],
-    p: usize,
-    first: usize,
-) -> Option<Vec<V>> {
-    net.windows(2)
-        .enumerate()
-        .map(|(k, pair)| {
-            let i = first + k;
-            let du = *knots.get(i + p + 1)? - *knots.get(i + 1)?;
-            #[allow(clippy::neg_cmp_op_on_partial_ord)]
-            if !(du > 0.0) {
-                return None;
-            }
-            #[allow(clippy::cast_precision_loss)]
-            let scale = T::from_f64(p as f64) / (*held.get(i + p + 1)? - *held.get(i + 1)?);
-            Some((pair[1] - pair[0]) * scale)
-        })
-        .collect()
 }
 
 /// `Σⱼ wⱼ·rowⱼ` over the nonzero exact weights `w`, in ascending `j`;
@@ -485,13 +471,16 @@ macro_rules! nurbs_curve {
             /// new curve with an empty memo, and a clone carries the
             /// memo of the same value.
             speed: OnceLock<geom_core::InfSpeed<T>>,
+            /// [`Self::speed_upper_bound`], filled on first read, on the
+            /// same terms as `speed`.
+            speed_sup: OnceLock<geom_core::SupSpeed<T>>,
         }
 
         /// The curve's value, without the speed memo: whether it has
         /// been read yet is not part of what the curve is.
         impl<T: Real> core::fmt::Debug for $Curve<T> {
             fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-                let Self { knots, control, weights, weight_channel, speed: _ } = self;
+                let Self { knots, control, weights, weight_channel, speed: _, speed_sup: _ } = self;
                 f.debug_struct(stringify!($Curve))
                     .field("knots", knots)
                     .field("control", control)
@@ -646,7 +635,7 @@ macro_rules! nurbs_curve {
                 let knots = knots.into();
                 let weight_channel = net::weight_channel(&weights)?;
                 net::validate_counts(knots.structure().control_count(), control.len(), &weight_channel)?;
-                Ok(Self { knots, control, weights, weight_channel, speed: OnceLock::new() })
+                Ok(Self { knots, control, weights, weight_channel, speed: OnceLock::new(), speed_sup: OnceLock::new() })
             }
 
             /// The same curve on another parameter domain: the knots
@@ -755,7 +744,7 @@ macro_rules! nurbs_curve {
                     weights.len(),
                     weight_channel.len()
                 );
-                Self { knots, control, weights, weight_channel, speed: OnceLock::new() }
+                Self { knots, control, weights, weight_channel, speed: OnceLock::new(), speed_sup: OnceLock::new() }
             }
 
             /// The same curve read at another scalar: `f` applied to
@@ -1240,17 +1229,34 @@ macro_rules! nurbs_curve {
             /// the caller's trilean.
             ///
             /// **Memoised outside a symbolic session only.** A session's
-            /// table holds the nodes it saw built, and a node minted
-            /// anywhere else freezes in it to an unknown of its own
-            /// (`geom_core::sym`, "No session, no tier"), so a memo
-            /// served across that boundary would change what the
-            /// session decides. Inside one the meter is computed afresh,
-            /// and nothing it mints is kept.
+            /// table holds the nodes it saw built, and a memo served
+            /// across that boundary would change what it decides; inside
+            /// one the meter is computed afresh and nothing it mints is
+            /// kept.
             pub fn speed_lower_bound(&self) -> geom_core::InfSpeed<T> {
-                if geom_core::sym::session_installed() {
-                    return self.speed_lower_bound_uncached();
-                }
-                *self.speed.get_or_init(|| self.speed_lower_bound_uncached())
+                session_memo(&self.speed, || self.speed_lower_bound_uncached())
+            }
+
+            /// A certified **upper** bound on `‖C′(t)‖` over the whole
+            /// domain, in m/param: the pair-term bound of
+            /// [`geom_core::spline::rational_speed_sup`] (the
+            /// `geom_core::spline::derivative` module docs hold the
+            /// derivation), the max over the nonempty spans. At unit
+            /// weights it is the polynomial control difference bound
+            /// exactly. At `Interval` it is certified; at `f64` it is the
+            /// same expression in round-to-nearest. It never refuses.
+            ///
+            /// Memoised on the same terms as [`Self::speed_lower_bound`].
+            pub fn speed_upper_bound(&self) -> geom_core::SupSpeed<T> {
+                session_memo(&self.speed_sup, || {
+                    let points: Vec<[T; $dim]> = self.control.iter().map(|p| [$(p.$c),+]).collect();
+                    geom_core::SupSpeed::new(geom_core::spline::rational_speed_sup(
+                        &self.knots,
+                        &points,
+                        &self.weights,
+                        self.knots().first_span()..=self.knots().last_span(),
+                    ))
+                })
             }
 
             /// [`Self::speed_lower_bound`]'s computation: once per curve
@@ -1983,6 +1989,7 @@ impl<T: Real> NurbsCurve3<T> {
             weights: vec![T::one(), T::one()],
             weight_channel: vec![1.0, 1.0],
             speed: OnceLock::new(),
+            speed_sup: OnceLock::new(),
         }
     }
 
@@ -2000,7 +2007,8 @@ impl<T: Real> NurbsCurve3<T> {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use super::{NurbsCurve3, binomial, derivative_net, pieces_exact};
+    use super::{NurbsCurve3, binomial, pieces_exact};
+    use geom_core::spline::derivative_net;
     use geom_core::spline::{KnotVector, Knots};
     use geom_core::{Dual, Point3, Real, Sym};
     use test_utils::fuzz;

@@ -308,6 +308,15 @@ fn fixed_partners<T: Decide>(
                         ..
                     }) => ruling_pairs(face, &rulings, &crossings, band)?,
                     Some(WallSection {
+                        case: SectionCase::Loops { .. },
+                        ..
+                    }) => {
+                        return Err(SplitJoinError::SectionInvariant {
+                            face,
+                            what: "a split reached a torus face, which its reduce refuses",
+                        });
+                    }
+                    Some(WallSection {
                         case: SectionCase::Tangent(_),
                         ..
                     })

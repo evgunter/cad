@@ -1,7 +1,7 @@
 ---
 id: the-mitres-feet-distance-freezes-at-sym
 kind: issue
-title: A box mitre's feet distance freezes at Sym with every variable a symbol, so the isosceles margin is not the zero polynomial though its angle term is
+title: A box mitre's feet readings freeze at Sym with every variable a symbol, so the turn's margin is not the zero polynomial
 status: open
 opened: 2026-10-10
 priority: P1
@@ -39,8 +39,19 @@ limit recorded here. The probe is `probe_mitre_at_sym` in
 `--ignored --nocapture`, release).
 
 The door pins the eight rows unproven
-(`a_filleted_box_records_one_unproven_turn_per_corner`) and pins the
-angle term's identity apart
-(`a_box_mitres_angle_term_is_the_zero_polynomial`). The disc's joints
+(`a_filleted_box_records_one_unproven_turn_per_corner`). The disc's joints
 are a sibling of a different kind, a cost rather than an identity:
 `the-blend-joints-prove-only-past-the-door-s-budget`.
+
+## 2026-10-12 — the verdict reads the feet alone (overrun step 1)
+
+`a-non-isosceles-turn-overruns-past-the-mitre` step 1 replaced
+`fillet3_turn_isosceles` with two readings, both lengths
+(`turn_verdict`): the gap between the feet along the third edge,
+`(y₁ − y₂)·L̂` (`fillet3_turn_feet_gap`), and the overrun chord
+(`fillet3_turn_overrun_chord`, a norm), recorded jointly. The angle
+term is gone, and with it the half the algebra closed: on the same
+box, replayed at Sym, the gap renders as a sum of three frozen atoms
+and the chords as `max(sqrt(…), sqrt(…))` over frozen atoms, so the
+eight rows stay unproven. The gap takes no square root now, yet its
+three atoms (the feet's `line_meet`s) still freeze.
