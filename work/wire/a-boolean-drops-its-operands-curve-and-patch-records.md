@@ -57,3 +57,16 @@ the carry drops the face span, and the cut's new ends on the apex edge
 have nothing to inherit. Carrying an edge–face record through the cut's
 lineage (onto the pieces whose interiors still meet the face, as D1
 rules for an edge–edge one) is this row's owed step for that kind.
+
+## 2026-10-12: a carried edge-face or face-face record reads its face through the piece door (FUSE)
+
+FUSE closed `an-edge-or-face-record-follows-its-faces-key-through-a-division`
+as no path. Today no edge-face or face-face record has a carried kind,
+so `carry_rows`' `cell_rows` never chases a face cell. Once this row
+gives such a record a carried kind, its face read in `carry_rows` must
+not be `Descendants::live` by key. It must read the live pieces of a
+divided face through `Descendants::fragments`, as
+`Descendants::holder` does for a vertex-on-face record: the piece the
+edge's interior meets, or for a face-face record the pieces that still
+overlap. A section's division keeps the key on one piece, whichever it
+is.
