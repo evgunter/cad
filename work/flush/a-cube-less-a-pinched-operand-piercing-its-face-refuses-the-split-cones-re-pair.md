@@ -81,3 +81,22 @@ meshing) and nothing else moves. `pinch_runs` (3 024), `pierce_runs`
 (4 326), `corner_pairs` (16 314), `four_pairs` and
 `pinch_faces_tessellate` are byte-identical. Pinned by
 `join_pierce_runs_sweep::a_cube_less_a_pinched_operand_whose_splits_cross_the_seams_faces_builds`.
+
+## Fix pass (PR 4777's dual review)
+
+- **The mirror case.** Read from the operand's side (several faces of
+  the hosting side pairing with one of the other's), a joint between two
+  loops could name the host's outer loop as `mekr`'s ring and refuse
+  `Euler(RingIsOuter)`. The joint reads the same either way round, so
+  `glue` makes the outer loop the target and collapses the joint onto
+  `ob`'s vertex all the same. Pinned by running the pin's three poses
+  in both roles (`topo::swap_split_roles`, `sweep-testing` only); with
+  the swap on throughout, `dbl_battery` is 2 160 `SOUND`.
+- `repair` refuses typed a split section edge whose partner lies off the
+  other operand's section faces.
+- Guard: `ops::tests::a_face_pair_zip_is_the_reassembly_oracles_sequence`
+  zips every seam of three brick pairs under every op both ways
+  (`zip_seam`, and the splitting oracle's `reglue_pair`) and compares
+  the topology key for key.
+- `zip_split`'s `kfmrh` onto a curved host is unexercised:
+  `a-split-seams-kfmrh-onto-a-curved-host-is-unexercised`.

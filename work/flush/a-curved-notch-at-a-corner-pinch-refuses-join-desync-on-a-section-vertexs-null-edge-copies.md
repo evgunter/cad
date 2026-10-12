@@ -103,3 +103,20 @@ and by `finish::twin_copy_rows`.
 `3 1 0 ab S` meshes at δ 0.05 and panics the mesher at 0.02 on a
 `debug_assert!` its comment calls vacuous: filed as
 `work/tess/a-pinched-curved-wall-reaches-the-trimmed-meshs-vacuous-one-column-assert.md`.
+
+## Fix pass (PR 4777's dual review)
+
+- `twin_copy` aligns loop by loop: a section face with a ring reads each
+  half-edge's copy on the one twin loop that mirrors its own loop
+  (`finish::section_loops`), where reading every loop as one cycle could
+  find a unique, wrong mirror. `twin_copy_rows` now builds each twin by
+  running each loop backwards on fresh copies, so the expected copy
+  comes from the build, with a ring row.
+- The discard still hands the copy on as two end vertices: 9 of the 15
+  bodies have 4 bordered stretches each on an end pair more than one
+  result edge joins. Filed on REFS's slate as
+  `a-discard-names-a-bordered-stretch-by-its-two-end-vertices`, pinned at
+  `3 1 0 ba S`.
+- `CertificateExceeded` at δ 0.005 and 0.001 on 11 of the 15 bodies is
+  the probe's finer-δ sweep, and poses that build on the base show it
+  too (`work/tess/a-thin-arc-bounded-face-refuses-as-corrupt-geometry-at-a-coarse-delta.md`).

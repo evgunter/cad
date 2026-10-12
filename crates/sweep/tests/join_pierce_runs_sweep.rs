@@ -2901,19 +2901,29 @@ fn an_edge_in_the_partners_face_plane_records_its_rests_where_the_result_keeps_t
 /// own section faces at its own corners, so one cube face's edges pair
 /// with three of the operand's. The cube less the operand builds
 /// `SOUND` at the clipped volume, one vertex per cone at `v`, and
-/// meshes. Red if the zips pair faces only one to one: the op refuses
-/// `ZipCorrespondence`.
+/// meshes, also with the split seam glued from the operand's side
+/// (`topo::swap_split_roles`), where several faces of the hosting side
+/// pair with one of the other. Red if the zips pair faces only one to
+/// one (the op refuses `ZipCorrespondence`), or if a joint between two
+/// loops absorbs the host's outer loop as a ring (it refuses
+/// `Euler(RingIsOuter)`, the other side only).
 #[test]
 fn a_cube_less_a_pinched_operand_whose_splits_cross_the_seams_faces_builds() {
-    for (a, first, seed, fib) in [
-        (asym(), "asym", 268, 100),
-        (ltop(), "Ltop", 2296, 50),
-        (asym(), "asym", 15, 40),
-    ] {
-        let pose = format!("{first} seed={seed} fib{fib} yx S");
+    let poses = [
+        (asym as fn() -> Corner, "asym", 268, 100),
+        (ltop, "Ltop", 2296, 50),
+        (asym, "asym", 15, 40),
+    ];
+    for ((corner, first, seed, fib), swap) in
+        poses.into_iter().flat_map(|p| [(p, false), (p, true)])
+    {
+        let a = corner();
+        let pose = format!("{first} seed={seed} fib{fib} yx S, roles swapped {swap}");
         let d = dbl((&a, &asym()), seed, fib);
         let want = SIDE.powi(3) - d.common;
+        topo::swap_split_roles(swap);
         let r = topo::subtract(&d.cube, &d.pinched, tol());
+        topo::swap_split_roles(false);
         let finding = r.as_ref().ok().and_then(BooleanResult::body).map(|bb| {
             let cones = tag_cones("yx S", "xy", (&d.pieces, std::slice::from_ref(&d.planes)));
             cone_finding(&bb.body, a.v, cones).or_else(|| {
