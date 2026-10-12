@@ -11844,9 +11844,14 @@ mod tests {
                 ),
             ),
             (
-                "pcurve fitted certificate, in band",
-                pcurve(PcurveCertifyError::FittedEscalated { cause: in_band }),
-                KERNEL_LIMIT_RECOURSE.to_owned(),
+                "pcurve fitted certificate's tube, in band",
+                pcurve(PcurveCertifyError::FittedEscalated {
+                    decision: geom_brep::SsiDecision::Limb(geom_brep::SsiLimb::Tube),
+                    cause: in_band,
+                }),
+                "Recourse: move the geometry so the surfaces cross at a clearer angle, or, if \
+                 this angle is intended, tighten the tolerance below 5e-10 m"
+                    .to_owned(),
             ),
         ];
         for (row, error, ending) in rows {

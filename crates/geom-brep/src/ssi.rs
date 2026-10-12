@@ -1198,18 +1198,14 @@ impl core::fmt::Display for SsiError {
             ),
             Self::Escalated { decision, cause } => write!(
                 f,
-                concat!("ssi: whether {}", geom_core::undecided!(), ": {}"),
-                decision.question(),
+                concat!("ssi: {}", geom_core::undecided!(), ": {}"),
+                SsiDecision::Trace(*decision),
                 cause.payload()
             ),
             Self::CertificateEscalated { limb, cause } => write!(
                 f,
-                concat!(
-                    "ssi: whether the fitted carrier passes {}",
-                    geom_core::undecided!(),
-                    ": {}"
-                ),
-                limb.name(),
+                concat!("ssi: {}", geom_core::undecided!(), ": {}"),
+                SsiDecision::Limb(*limb),
                 cause.payload()
             ),
             Self::DomainUnusable { field, value } => {
@@ -1254,10 +1250,11 @@ impl SsiError {
                 crate::certify::recourse(CertCheck::Transversality, verdict.arm(), reading)
             }
             Self::PairTangent { verdict } => PAIR_TANGENCY.recourse(verdict.arm(), reading),
-            Self::Escalated { decision, cause } => decision.ending(cause, reading),
-            // Each limb ends by its own decision on every arm.
+            Self::Escalated { decision, cause } => {
+                SsiDecision::Trace(*decision).ending(cause, reading)
+            }
             Self::CertificateEscalated { limb, cause } => {
-                crate::certify::recourse(limb.check(), RefusedArm::Undecided(cause), reading)
+                SsiDecision::Limb(*limb).ending(cause, reading)
             }
             Self::CertificateLimb { limb, .. } => {
                 crate::certify::recourse(limb.check(), RefusedArm::SignCertain(None), reading)
@@ -2234,6 +2231,44 @@ impl TraceDecision {
             // Every arm is reported; a poisoned distance is no input's,
             // since both operands are refused at the door unless finite.
             Self::BoundarySection => defect_ending(reading).to_owned(),
+        }
+    }
+}
+
+/// **The decision an SSI escalation names**: a trace's
+/// ([`SsiError::Escalated`]) or a certificate limb's
+/// ([`SsiError::CertificateEscalated`]). A door that carries an SSI
+/// escalation on in its own refusal carries this with it, so the
+/// escalation ends by its own decision at every door.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SsiDecision {
+    /// A trace's own decision.
+    Trace(TraceDecision),
+    /// A certificate limb's trilean ([`SsiLimb::check`]).
+    Limb(SsiLimb),
+}
+
+impl SsiDecision {
+    /// The ending this decision's escalation on `cause` carries, read at
+    /// `at`: a trace's by [`TraceDecision::ending`], a limb's by its own
+    /// check, as the limb's decided refusal ends.
+    #[must_use]
+    pub fn ending(self, cause: &Indeterminate, at: impl Into<ReadAt>) -> String {
+        match self {
+            Self::Trace(decision) => decision.ending(cause, at.into().reading()),
+            Self::Limb(limb) => {
+                crate::certify::recourse(limb.check(), RefusedArm::Undecided(cause), at)
+            }
+        }
+    }
+}
+
+/// The question the decision asks, as "whether …".
+impl core::fmt::Display for SsiDecision {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Trace(decision) => write!(f, "whether {}", decision.question()),
+            Self::Limb(limb) => write!(f, "whether the fitted carrier passes {}", limb.name()),
         }
     }
 }

@@ -349,8 +349,14 @@ impl PlaneNurbsRefusal {
     /// ends by its limb's decision ([`SsiLimb::check`]).
     #[must_use]
     pub fn ending(&self, at: impl Into<ReadAt>) -> Option<String> {
-        if let Self::TubeNotOneArc { cause, .. } = *self {
-            return Some(cause.ending(crate::ssi::OneArcDoor::AtRest, at));
+        match self {
+            Self::TubeNotOneArc { cause, .. } => {
+                return Some(cause.ending(crate::ssi::OneArcDoor::AtRest, at));
+            }
+            Self::Escalated { limb, cause } => {
+                return Some(crate::ssi::SsiDecision::Limb(*limb).ending(cause, at));
+            }
+            _ => {}
         }
         self.decision().map(|(check, arm)| recourse(check, arm, at))
     }
