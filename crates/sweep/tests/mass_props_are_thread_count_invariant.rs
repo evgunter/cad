@@ -200,9 +200,11 @@ fn sym_bodies() -> Vec<(String, Body<Sym<f64>>)> {
     ]
 }
 
+/// `retried` is not a column: the session block opens `with_session`,
+/// which installs no retry ladder, so it would read zero by construction.
 fn counts_line(name: &str, door: &str, refused: bool, c: &SymCounts, shapes: usize) -> String {
     format!(
-        "{name} {door} {} decisions={} sz={} sg={} reg={} rref={} rcon={} num={} frozen={} shapes={}",
+        "{name} {door} {} decisions={} sz={} sg={} reg={} rref={} rcon={} num={} disp={} frozen={} shapes={}",
         if refused { "REFUSED" } else { "OK" },
         c.decisions(),
         c.symbolic_zero,
@@ -211,6 +213,7 @@ fn counts_line(name: &str, door: &str, refused: bool, c: &SymCounts, shapes: usi
         c.registrations_refused,
         c.registrations_contradicted,
         c.numeric,
+        c.theorems_disputed,
         c.frozen,
         shapes,
     )
@@ -590,6 +593,12 @@ fn digest() -> String {
 /// builds fewer forms, so fewer overflow the session's budget.
 /// Decisions, `sz`, `num`, shapes, verdicts and every f64 row are
 /// unchanged.
+///
+/// **Re-cut at all three ε when the `Sym` line began printing `disp`**
+/// (`SymCounts::theorems_disputed`: a sign the numeric channel decided
+/// whose form the contradiction check proved otherwise). Every `Sym`
+/// line gains the column, and it reads 0 on all twelve; nothing else
+/// moves.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),
