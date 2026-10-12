@@ -4086,6 +4086,7 @@ mod chain_rows {
 
 /// The door's one body, over records in two arenas (`one_arena`
 /// false, the operands') or one.
+#[allow(clippy::too_many_arguments)]
 fn carry_rows<T: Decide>(
     body: &Body<T>,
     discovered: &[Tagged<'_>],
