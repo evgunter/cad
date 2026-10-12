@@ -1549,16 +1549,34 @@ fn nearer_along<T: Decide>(
 /// so this picks an order among pairs rather than a partner: the
 /// half-turn, then the chord (`bool_join_nearest`, metres).
 fn nearer<T: Decide>(cand: Reach<T>, best: Reach<T>, band: Band) -> Result<bool, BooleanError> {
+    Ok(nearest_sign(cand, best, band).map_err(join_escalate)? == Sign::Negative)
+}
+
+/// [`nearer`]'s reading where the order it picks cannot change the
+/// matching ([`first_pair`]): an in-band chord difference keeps the
+/// incumbent, as an exact tie does (scan order, D9).
+fn nearer_or_scan<T: Decide>(cand: Reach<T>, best: Reach<T>, band: Band) -> bool {
+    matches!(nearest_sign(cand, best, band), Ok(Sign::Negative))
+}
+
+/// The half-turn, then the chord: [`nearer`]'s one reading.
+fn nearest_sign<T: Decide>(
+    cand: Reach<T>,
+    best: Reach<T>,
+    band: Band,
+) -> Result<Sign, geom_core::Indeterminate> {
     if cand.arm != best.arm {
-        return Ok(cand.arm == GermArm::Ahead);
+        return Ok(if cand.arm == GermArm::Ahead {
+            Sign::Negative
+        } else {
+            Sign::Positive
+        });
     }
-    Ok(decide(
+    decide(
         "bool_join_nearest",
         Margin::of(cand.chord - best.chord),
         band,
     )
-    .map_err(join_escalate)?
-        == Sign::Negative)
 }
 
 /// **`axis·((p − c) × v)`**, the one spelling of a conic's turn: for a
@@ -1808,11 +1826,47 @@ fn find_match<T: Decide>(
             }
         }
     }
+    first_pair(own, band)
+}
+
+/// **The pair [`find_match`] commits this round**, from each germ's
+/// nearest partner (`own`, keyed by germ, each naming `(partner,
+/// germ)`): the nearest of those pairs ([`nearer`]), met in scan order.
+///
+/// **Where every germ's nearest partner has it as its own nearest, the
+/// order cannot change the matching**, so an in-band order is not a
+/// refusal ([`nearer_or_scan`]). Committing a pair `(g, h)` consumes
+/// only `g` and `h`, and no other germ's nearest is either of them: a
+/// germ `q` whose nearest were `g` would be `g`'s nearest in turn, and
+/// `g`'s is `h`. A germ's nearest is read from its own candidates alone
+/// ([`nearer_along`] compares two of them, nothing else), so removing
+/// candidates other than it leaves it its nearest, and every other
+/// pair is the next round's pair again, still mutual. By induction the
+/// rounds commit exactly these pairs, whichever goes first; a germ
+/// with no partner gains none as candidates are consumed.
+///
+/// Where some germ's nearest does not keep it back, committing a pair
+/// can turn that germ to its next partner, a pair this round never
+/// ranked, so the order is read and its in-band reading escalates.
+fn first_pair<T: Decide>(
+    own: std::collections::BTreeMap<Slot, Met<T>>,
+    band: Band,
+) -> Result<Option<(Slot, Slot)>, BooleanError> {
+    let mutual = own.iter().all(|(germ, &(_, _, (partner, _)))| {
+        own.get(&partner)
+            .is_some_and(|&(_, _, (back, _))| back == *germ)
+    });
     let mut met: Vec<_> = own.into_values().collect();
     met.sort_by_key(|&(at, ..)| at);
     let mut best: Option<(Reach<T>, (Slot, Slot))> = None;
     for (_, reach, m) in met {
-        best = keep_nearer(best, (reach, m), |c, b| nearer(c, b, band))?;
+        best = keep_nearer(best, (reach, m), |c, b| {
+            if mutual {
+                Ok(nearer_or_scan(c, b, band))
+            } else {
+                nearer(c, b, band)
+            }
+        })?;
     }
     Ok(best.map(|(_, m)| m))
 }
@@ -6540,5 +6594,55 @@ mod kind_arm_rows {
                 assert_eq!(kind_arm(a, b), want, "{a:?} × {b:?}");
             }
         }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod first_pair_rows {
+    use super::*;
+
+    /// A straight germ's nearest partner at `chord`, met `at`th.
+    fn met(at: usize, germ: Slot, partner: Slot, chord: f64) -> (Slot, Met<f64>) {
+        let reach = Reach {
+            arm: GermArm::Ahead,
+            chord,
+            turn: None,
+        };
+        (germ, (at, reach, (partner, germ)))
+    }
+
+    /// **An in-band order between two pairs is free exactly where every
+    /// germ's nearest keeps it back.** Two disjoint pairs whose chords
+    /// differ by five ε (in band at its escalation threshold of ten):
+    /// all four germs mutual, the first pair met keeps the round; a
+    /// fifth germ whose nearest is one of the second pair's (so that
+    /// germ's nearest is not mutual) puts the order back in play, and
+    /// the same reading escalates on `bool_join_nearest`.
+    #[test]
+    fn an_in_band_order_is_free_only_among_mutual_nearests() {
+        let eps = 1e-6;
+        let band = Band::new(eps, 10.0 * eps).expect("a band");
+        let (a, b, c, d, e) = ((0, 0), (1, 0), (2, 0), (3, 0), (4, 0));
+        let mutual = || {
+            vec![
+                met(1, a, b, 1.0 + 5.0 * eps),
+                met(2, b, a, 1.0 + 5.0 * eps),
+                met(3, c, d, 1.0),
+                met(4, d, c, 1.0),
+            ]
+        };
+        let got = first_pair(mutual().into_iter().collect(), band);
+        assert!(
+            matches!(got, Ok(Some((partner, germ))) if partner == b && germ == a),
+            "all mutual: the pair met first keeps the round, got {got:?}"
+        );
+        let contested = mutual().into_iter().chain([met(5, e, d, 2.0)]).collect();
+        let got = first_pair(contested, band);
+        assert!(
+            matches!(&got, Err(BooleanError::Escalated { diag, .. })
+                if diag.predicate == Some("bool_join_nearest")),
+            "a germ whose nearest is not mutual: the order escalates, got {got:?}"
+        );
     }
 }
