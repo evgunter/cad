@@ -163,18 +163,18 @@ fn a_discarded_face_holds_the_edges_of_the_kept_face_that_runs_into_it() {
 }
 
 /// Each stretch's live edge, by its two ends in thousandths, sorted:
-/// the edge between its ends read through the zip's fusions, or the
-/// edge a join made of it. A stretch no live edge holds is left out
-/// only where the merge glued the faces beside it and the
-/// output stage joined one of its ends away (`naming.edge_joins`);
-/// any other is a stretch the rows lost, and panics.
+/// the edge between its ends once settled (`BooleanNaming::settler`),
+/// or the edge a join made of it. A stretch no live edge holds is left
+/// out only where the merge glued the faces beside it and the
+/// output stage joined one of its ends away (an end inside a joined
+/// edge); any other is a stretch the rows lost, and panics.
 fn stretches(
     out: &topo::BooleanBody<f64>,
     rows: &[(topo::VertexKey, topo::VertexKey)],
 ) -> Vec<Ends> {
     let body = &out.body;
-    let fused = out.naming.fused_into();
-    let settle = |v| fused.get(&v).copied().unwrap_or(v);
+    let settler = out.naming.settler(body);
+    let settle = |v| settler.settle(v).expect("every end settles on a live cell");
     let at = |v| {
         let p = topo::readback::vertex_point(body, v).expect("an edge's end is live");
         [p.x, p.y, p.z].map(|c| (c * 1000.0).round() as i64)
@@ -187,20 +187,21 @@ fn stretches(
         .iter()
         .filter_map(|&(u, w)| {
             let (u, w) = (settle(u), settle(w));
-            let edge = body
-                .edges()
-                .map(|(k, _)| k)
-                .find(|&k| {
-                    let [s, t] = ends(k);
-                    (s, t) == (u, w) || (s, t) == (w, u)
-                })
-                .or_else(|| out.naming.stretch_through_joins(body, (u, w)));
+            let between = match (u, w) {
+                (topo::Cell::Vertex(u), topo::Cell::Vertex(w)) => {
+                    body.edges().map(|(k, _)| k).find(|&k| {
+                        let [s, t] = ends(k);
+                        (s, t) == (u, w) || (s, t) == (w, u)
+                    })
+                }
+                // An end inside a joined edge or a merged face ends no edge.
+                _ => None,
+            };
+            let edge = between.or_else(|| out.naming.stretch_through_joins(body, (u, w)));
             let Some(edge) = edge else {
+                let joined_away = |c| matches!(c, topo::Cell::Edge(_));
                 assert!(
-                    out.naming
-                        .edge_joins
-                        .iter()
-                        .any(|j| j.vertex == u || j.vertex == w),
+                    joined_away(u) || joined_away(w),
                     "a held stretch {u:?}..{w:?} that no live edge holds has no end the \
                      output stage joined away"
                 );
