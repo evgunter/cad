@@ -68,6 +68,8 @@ mod a_loft_computes_its_walls_in_t;
 mod a_move_through_a_neighbour_inverts_the_body;
 #[path = "a_plane_across_a_one_face_wall.rs"]
 mod a_plane_across_a_one_face_wall;
+#[path = "review_4826_conic_side_probe.rs"]
+mod review_4826_conic_side_probe;
 #[path = "a_plane_along_an_elliptic_cut.rs"]
 mod a_plane_along_an_elliptic_cut;
 #[path = "a_plane_moved_to_a_cone_apex.rs"]
