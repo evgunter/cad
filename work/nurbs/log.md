@@ -858,3 +858,14 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - the f64 rounding-posture sentence is false by about 10⁷. The reviewer measured about 3e8 ulps at 1e±6 weights against exact arithmetic. It was pre-existing, but this diff restated it.
   - **Class line:** a deletion's orphan sweep must grep the callers of every kept and helper symbol, not only the deleted ones. The fix pass re-greps.
   - The fix pass goes to build C ahead of its measure-first rows. — (NURBS orchestrator)
+- 2026-10-12 15:10Z — **PR 4869 review** (memo invisible in Sym). Tier single FULL, reviewer session_01LtWLeFccm7GHfs9HZgQWtj at `afff68b0d8`. Verdict APPROVE-WITH-FIXES, no MAJOR.
+  - **Executed:**
+    - history runs, each worktree with its own target, which pin the rise exactly: the 4834 merge with only the arm choice reverted reads 1060/1177;
+    - `SESSION` is thread-local, so invisibility holds across the 4-thread walk;
+    - mutants: no bypass and read-only-in-session are red, fill-in-session survives;
+    - the golden at 1e-9 passes on the head.
+  - **NOTE-4, the proof-power question:**
+    - No decision changes.
+    - The rise is entirely `Origin::Assertion`: the contradiction checks on numerically decided signs. Beyond the 32/4 budget, about 1.8k check sites per validation freeze.
+    - So 4834's conservative gate costs **dispute-detection coverage, not proof**. The digest prints no `theorems_disputed`, so it cannot show whether that loss ever matters. That is filed as a guard gap via the fix pass.
+  - The fix pass covers the stale uncached doc, a row pinning that a session never fills the memo, one named door for "a session is installed", and the `OperandAxes` disposition. — (NURBS orchestrator)
