@@ -165,3 +165,17 @@ tier-3 assertions that would move.
 The sphere's rim-only arm (`sphere_rim_only_pole_level`,
 `rim_interior_side`) is gone from props with the iso flux branch, so
 the retirement this row describes has happened on the props side.
+
+## Rows that move when this lands (FLUX, PR 4746)
+
+`crates/step-import/tests/fixtures/seam-region/side_cut_equator_split.step`
+is a side-cut ball whose sphere is split at the equator, so each face
+holds a chart pole off its loop. `poles_inside_a_seam_region.rs` pins two
+things about it: it imports and measures, and with both sphere faces
+flipped check 6 reads no side for their seam region, leaving the flip to
+check 7. Check 6 reads a pole that lies inside a face as nothing, because
+this row is open. `side_cut_meridian_split.step` holds a pole inside a
+face too. When validity refuses such a face, all three rows in that file
+go red at import, and so does `tier_gate`'s corpus row. Re-point them
+then: `sphere_region_material_sign` may read a pole on no member's loop
+as outside the region once this rule is enforced.
