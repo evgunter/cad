@@ -128,7 +128,7 @@ use super::shell_witness::{
 };
 use super::solid_contain::{SolidContainment, closed_sphere_group};
 use super::voids;
-use super::zip::{Fusions, SeamCorrespondence, zip_seam};
+use super::zip::{Fusions, Seam, SeamCorrespondence, zip_seam, zip_split};
 use super::{
     BooleanError, BooleanInputs, BooleanOp, BooleanReduction, Cell, Contact, ContactRecords,
     EeContact, Glue, GluedPair, Operand, OperandRecords, ReductionContacts, SelfCheck,
@@ -630,8 +630,11 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let mut vertex_map = fin.vertex_map.clone();
     let points = super::zip::point_classes(&body, &vertex_map)?;
     let seams = super::zip::split_cones(&mut body, &fin.seams, &mut vertex_map, tol)?;
-    for &(a_face, b_face) in &seams {
-        let rep = zip_seam(&mut body, a_face, b_face, &vertex_map, tol)?;
+    for seam in &seams {
+        let rep = match seam {
+            Seam::Faces(a_face, b_face) => zip_seam(&mut body, *a_face, *b_face, &vertex_map, tol)?,
+            Seam::Split { faces, edges } => zip_split(&mut body, faces, edges, tol)?,
+        };
         desc.absorb_zip(&rep)?;
         seam_edges.extend(rep.seam_edges);
         vertex_map = fused_through(&vertex_map, &rep.vertex_merges);

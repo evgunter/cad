@@ -36,7 +36,10 @@
 //! cones of the result is split per cone, each new vertex on the split
 //! vertex's point key. The transient edge each split leaves lies on the
 //! section faces the zips consume, so no kept face's topology changes.
-//! The split and the zip read one alignment ([`align`]). After the zips,
+//! The split and the zip read one alignment ([`align`]); where the
+//! two operands' splits leave their section faces paired several to one
+//! (or several), the faces holding paired edges zip as one split seam
+//! ([`zip_split`]). After the zips,
 //! [`share_points`] puts the cones of a pinch that still sit on several
 //! keys onto one: the keys the correspondence ties ([`point_classes`]),
 //! read before the split.
@@ -415,8 +418,9 @@ type RunsAt = BTreeMap<VertexKey, Vec<usize>>;
 /// whose runs lie in several cones is a pinch: `mev_null`, which keeps
 /// its new vertex on the old one's point key, moves each cone's runs but
 /// the first to a vertex of their own ([`split_side`]). The seams are
-/// then re-paired ([`repair`]) and `vmap` is rebuilt from the edges the
-/// zips join. Returns the seams to zip.
+/// then re-paired ([`repair`]), a split seam where the faces holding
+/// paired edges are several of either operand's, and `vmap` is rebuilt
+/// from the edges the zips join. Returns the seams to zip.
 ///
 /// The split writes `body` before the re-pair can refuse: `body` is the
 /// boolean's working copy, which a refusal drops whole.
@@ -424,7 +428,7 @@ type RunsAt = BTreeMap<VertexKey, Vec<usize>>;
 /// # Errors
 ///
 /// [`BooleanError::ZipCorrespondence`] where a vertex's cones interleave
-/// round it, where the split faces do not pair one to one, or where a
+/// round it, where a split section face pairs with none, or where a
 /// cone still fuses a vertex to itself (the seams meet one cone twice at
 /// one vertex of each operand).
 pub(super) fn split_cones<T: Decide + crate::props::AtRestPolicy>(
@@ -432,7 +436,7 @@ pub(super) fn split_cones<T: Decide + crate::props::AtRestPolicy>(
     seams: &[(FaceKey, FaceKey)],
     vmap: &mut SeamCorrespondence,
     tol: Tol,
-) -> Result<Vec<(FaceKey, FaceKey)>, BooleanError> {
+) -> Result<Vec<Seam>, BooleanError> {
     let corr = |what| BooleanError::ZipCorrespondence { what };
     let outer = |body: &Body<T>, f: FaceKey| -> Result<LoopKey, BooleanError> {
         Ok(body
@@ -472,7 +476,7 @@ pub(super) fn split_cones<T: Decide + crate::props::AtRestPolicy>(
     let paired = if moved {
         repair(body, &pairs, &next, &a_sections, &b_sections)?
     } else {
-        seams.to_vec()
+        seams.iter().map(|&(a, b)| Seam::Faces(a, b)).collect()
     };
     // No cone may fuse a vertex to itself. It needs one cone holding two
     // runs on one vertex of each operand; no battery line reaches it once
@@ -656,24 +660,41 @@ fn peel(at: &[usize], cone_of: &[usize]) -> Option<Vec<(usize, usize)>> {
     }
 }
 
+/// What one zip consumes ([`split_cones`]).
+pub(super) enum Seam {
+    /// One section face of each operand whose cycles pair
+    /// ([`zip_seam`]).
+    Faces(FaceKey, FaceKey),
+    /// Split section faces whose edges pair across several faces of
+    /// each, with each A section half-edge's B partner ([`zip_split`]).
+    Split {
+        /// The A faces, then the B faces.
+        faces: Vec<FaceKey>,
+        /// `(A half-edge, B half-edge)`, one per segment.
+        edges: Vec<(HalfEdgeKey, HalfEdgeKey)>,
+    },
+}
+
 /// The seams after a split: an A section edge is the B ring edge it zips
-/// with (`align`: `ob[k]` with `rs[next[k]]`), so each A section face
-/// pairs with the B section face holding those edges.
+/// with (`align`: `ob[k]` with `rs[next[k]]`), and the faces holding
+/// paired edges are one seam. A seam of one face of each is a face pair.
+/// A split can leave more: a vertex of each operand holding corners of
+/// two cones, the two operands' vertices holding different pairs of
+/// those corners (each operand's split merging or dividing its section
+/// faces at its own vertex's corners), so one A face's edges pair with
+/// several B faces' or the other way round.
 ///
 /// # Errors
 ///
-/// [`BooleanError::ZipCorrespondence`] where the split faces do not pair
-/// one to one.
+/// [`BooleanError::ZipCorrespondence`] where a split section face pairs
+/// with none.
 fn repair<T: Decide>(
     body: &Body<T>,
     pairs: &[(HalfEdgeKey, HalfEdgeKey)],
     next: &[usize],
     a_sections: &[FaceKey],
     b_sections: &[FaceKey],
-) -> Result<Vec<(FaceKey, FaceKey)>, BooleanError> {
-    let refuse = || BooleanError::ZipCorrespondence {
-        what: "a split section face does not pair one to one",
-    };
+) -> Result<Vec<Seam>, BooleanError> {
     let face_of = |he: HalfEdgeKey| {
         let l = proven(&body.half_edges, he, EntityId::HalfEdge).parent_loop;
         linked(
@@ -685,22 +706,50 @@ fn repair<T: Decide>(
         )
         .face
     };
-    let mut paired: Vec<(FaceKey, FaceKey)> = Vec::new();
+    let edges: Vec<(HalfEdgeKey, HalfEdgeKey)> = (0..pairs.len())
+        .map(|k| (pairs[k].0, pairs[next[k]].1))
+        .collect();
+    let mut roots = Roots::new();
+    for &(ob, r) in &edges {
+        roots.union(face_of(ob), face_of(r));
+    }
+    let mut seams = Vec::new();
+    let mut done = BTreeSet::new();
     for &fa in a_sections {
-        let partners: BTreeSet<FaceKey> = (0..pairs.len())
-            .filter(|&k| face_of(pairs[k].0) == fa)
-            .map(|k| face_of(pairs[next[k]].1))
-            .collect();
-        match (partners.first(), partners.len()) {
-            (Some(&fb), 1) if b_sections.contains(&fb) => paired.push((fa, fb)),
-            _ => return Err(refuse()),
+        let root = roots.find(fa);
+        if !done.insert(root) {
+            continue;
         }
+        let of = |fs: &[FaceKey]| -> Vec<FaceKey> {
+            fs.iter()
+                .copied()
+                .filter(|&f| roots.find(f) == root)
+                .collect()
+        };
+        let (fas, fbs) = (of(a_sections), of(b_sections));
+        seams.push(match (&fas[..], &fbs[..]) {
+            (_, []) => {
+                return Err(BooleanError::ZipCorrespondence {
+                    what: "a split section face pairs with none",
+                });
+            }
+            (&[a], &[b]) => Seam::Faces(a, b),
+            _ => Seam::Split {
+                edges: edges
+                    .iter()
+                    .copied()
+                    .filter(|&(ob, _)| roots.find(face_of(ob)) == root)
+                    .collect(),
+                faces: [fas, fbs].concat(),
+            },
+        });
     }
-    let partnered: BTreeSet<FaceKey> = paired.iter().map(|&(_, b)| b).collect();
-    if partnered.len() != paired.len() || partnered.len() != b_sections.len() {
-        return Err(refuse());
+    if b_sections.iter().any(|&f| !done.contains(&roots.find(f))) {
+        return Err(BooleanError::ZipCorrespondence {
+            what: "a split section face pairs with none",
+        });
     }
-    Ok(paired)
+    Ok(seams)
 }
 
 /// Zips one section-face pair (module docs).
@@ -712,16 +761,12 @@ pub(super) fn zip_seam<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<ZipReport, BooleanError> {
     let corr = |what| BooleanError::ZipCorrespondence { what };
-    let mut report = ZipReport::default();
-
     // ---- Fuse: B's section face becomes a ring of A's. ----
-    let fused = body.kfmrh_minting(a_face, b_face, tol)?;
-    let ring = fused.ring;
+    let ring = body.kfmrh_minting(a_face, b_face, tol)?.ring;
     let outer = body
         .get_face(a_face)
         .ok_or_else(|| corr("A section face no longer resolves"))?
         .outer;
-
     let ob = section_cycle(body, outer)?;
     let rs = align(
         body,
@@ -730,60 +775,194 @@ pub(super) fn zip_seam<T: Decide + crate::props::AtRestPolicy>(
         &section_cycle(body, ring)?,
         vmap,
     )?;
-    let n = ob.len();
-    let ring_edges = rs
-        .iter()
-        .map(|&r| {
-            body.get_half_edge(r)
-                .map(|h| h.edge)
-                .ok_or_else(|| corr("ring half-edge no longer resolves"))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-
-    // ---- The loopglue zip (the reassembly-oracle sequence, driven by
-    // records): pair 0 via mekr (kills the ring loop) + kev; pairs
-    // n−1 … 1 via mef + kev + kef(rs[j+1 mod n]); final kef(rs[1]). ----
-    let point_of =
-        |body: &Body<T>, he: HalfEdgeKey| -> Result<geom_core::Point3<T>, BooleanError> {
-            let v = start_of(body, he)?;
-            body.get_vertex(v)
-                .and_then(|vd| body.get_point(vd.point).copied())
-                .ok_or_else(|| corr("seam vertex has no point"))
-        };
-    for j in fusion_order(n) {
-        let pj = point_of(body, ob[j])?;
-        let joint = if j == 0 {
-            Joint::Loops {
-                target: ob[0],
-                ring: rs[0],
-            }
-        } else {
-            Joint::Chord {
-                he1: ob[j],
-                he2: rs[j],
-            }
-        };
-        let (merge, _) = fuse_by_joint(body, joint, pj, corr, tol)?;
-        report.vertex_merges.push(merge)?;
-        if j != 0 {
-            body.kef_minting(rs[(j + 1) % n], tol)?;
-        }
-    }
-    body.kef_minting(rs[1 % n], tol)?;
-    for &he in &ob {
-        let edge = body
-            .get_half_edge(he)
-            .ok_or_else(|| corr("surviving seam half-edge no longer resolves"))?
-            .edge;
-        report.seam_edges.push(edge);
-    }
     // `rs[j]` runs between the correspondents of `ob[j]`'s start and
     // `ob[j - 1]`'s (`align`), so it lies on `ob[j - 1]`'s segment.
-    report.edge_merges = ring_edges
-        .into_iter()
+    let n = ob.len();
+    let edges: Vec<_> = (0..n).map(|j| (ob[j], rs[(j + 1) % n])).collect();
+    glue(body, &edges, fusion_order(n), tol)
+}
+
+/// Zips a split seam: section faces of both operands whose edges pair
+/// across several faces of each ([`repair`]). The faces become loops of
+/// the first, and [`glue`] zips them; `edges` pairs each A section
+/// half-edge with the B one on its segment.
+pub(super) fn zip_split<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    faces: &[FaceKey],
+    edges: &[(HalfEdgeKey, HalfEdgeKey)],
+    tol: Tol,
+) -> Result<ZipReport, BooleanError> {
+    let [host, rest @ ..] = faces else {
+        return Err(BooleanError::ZipCorrespondence {
+            what: "a split seam holds no face",
+        });
+    };
+    for &f in rest {
+        body.kfmrh_minting(*host, f, tol)?;
+    }
+    glue(body, edges, 0..edges.len(), tol)
+}
+
+/// **The loopglue zip, driven by records**: glues each A section
+/// half-edge `ob` of `edges` to its B partner `r`, which runs the same
+/// segment the other way, with every half-edge on loops of the section
+/// faces the zip consumes.
+///
+/// A zero-length joint between two vertices, collapsed by its `kev`
+/// ([`fuse_by_joint`]), fuses them and hands each of the two joined
+/// half-edges' predecessors the other as successor. Each joint makes one
+/// half-edge of a pair the other's successor, at `ob`'s start (`r`
+/// before `ob`) in `order`, then at each end left; a successor the
+/// fusions already set needs none. Once `ob` and `r` close a loop of
+/// their own, a face alone, `kef` kills `r`, and `ob` borders both
+/// operands' kept faces. A joint runs across two loops of one face as a
+/// `mekr`, across one loop as a `mef`, and across two faces once
+/// `kfmrh` has made the second a ring of the first.
+///
+/// One section face pair with its cycle in `fusion_order` is the
+/// reassembly-oracle sequence: pair 0 via `mekr` (which kills the ring
+/// loop) and `kev`, then pairs `n − 1 … 1` via `mef`, `kev` and the
+/// `kef` of the strip behind each.
+///
+/// # Errors
+///
+/// [`BooleanError::ZipCorrespondence`] where a successor is wrong at a
+/// vertex the fusions already made one (the seams meet one cone twice
+/// there), where a pair's loop does not close, or where a joint's faces
+/// both hold rings.
+fn glue<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    edges: &[(HalfEdgeKey, HalfEdgeKey)],
+    order: impl Iterator<Item = usize>,
+    tol: Tol,
+) -> Result<ZipReport, BooleanError> {
+    let corr = |what| BooleanError::ZipCorrespondence { what };
+    let n = edges.len();
+    let edge_of = |body: &Body<T>, he: HalfEdgeKey| {
+        body.get_half_edge(he)
+            .map(|h| h.edge)
+            .ok_or_else(|| corr("seam half-edge no longer resolves"))
+    };
+    let mut report = ZipReport::default();
+    for &(ob, r) in edges {
+        report.seam_edges.push(edge_of(body, ob)?);
+        report
+            .edge_merges
+            .push((edge_of(body, r)?, edge_of(body, ob)?));
+    }
+    let pair_of: BTreeMap<HalfEdgeKey, usize> = edges
+        .iter()
         .enumerate()
-        .map(|(j, dead)| (dead, report.seam_edges[(j + n - 1) % n]))
+        .flat_map(|(k, &(ob, r))| [(ob, k), (r, k)])
         .collect();
+    let he =
+        |body: &Body<T>, he: HalfEdgeKey| proven(&body.half_edges, he, EntityId::HalfEdge).clone();
+    let face_of = |body: &Body<T>, h: HalfEdgeKey| {
+        let l = he(body, h).parent_loop;
+        linked(
+            &body.loops,
+            l,
+            EntityId::Loop,
+            EntityId::HalfEdge(h),
+            "parent_loop",
+        )
+        .face
+    };
+    let closed = |body: &Body<T>, k: usize| {
+        let (ob, r) = edges[k];
+        he(body, ob).next == r && he(body, r).next == ob
+    };
+    // A closed pair alone in its face: `Some(true)`; closed but sharing
+    // its face with another loop: `Some(false)`.
+    let alone = |body: &Body<T>, k: usize| {
+        closed(body, k).then(|| {
+            let l = he(body, edges[k].0).parent_loop;
+            let f = proven(&body.faces, face_of(body, edges[k].0), EntityId::Face);
+            f.outer == l && f.rings.is_empty()
+        })
+    };
+    let mut killed = vec![false; n];
+    let starts = order.map(|k| (k, true));
+    for (k, start) in starts.chain((0..n).map(|k| (k, false))).collect::<Vec<_>>() {
+        if killed[k] {
+            continue;
+        }
+        let (ob, r) = edges[k];
+        let (h, o) = if start { (r, ob) } else { (ob, r) };
+        let x = he(body, h).next;
+        if x == o {
+            continue;
+        }
+        let (at_h, at_o) = (he(body, x).start, he(body, o).start);
+        if at_h == at_o {
+            return Err(corr("a cone the seams meet twice fuses a vertex to itself"));
+        }
+        let prev_o = he(body, o).prev;
+        // The joint's kept vertex is its first half-edge's start: `ob`'s
+        // at its start, its successor's at its end.
+        let (he1, he2) = if start { (o, x) } else { (x, o) };
+        let (l1, l2) = (he(body, he1).parent_loop, he(body, he2).parent_loop);
+        let joint = if l1 == l2 {
+            Joint::Chord { he1, he2 }
+        } else {
+            let (f1, f2) = (face_of(body, he1), face_of(body, he2));
+            if f1 != f2 {
+                let ringless = |f: FaceKey| proven(&body.faces, f, EntityId::Face).rings.is_empty();
+                match (ringless(f2), ringless(f1)) {
+                    (true, _) => body.kfmrh_minting(f1, f2, tol)?,
+                    (_, true) => body.kfmrh_minting(f2, f1, tol)?,
+                    _ => return Err(corr("a seam joint's two faces both hold rings")),
+                };
+            }
+            Joint::Loops {
+                target: he1,
+                ring: he2,
+            }
+        };
+        let p = body
+            .get_vertex(he(body, he1).start)
+            .and_then(|vd| body.get_point(vd.point).copied())
+            .ok_or_else(|| corr("seam vertex has no point"))?;
+        let (merge, _) = fuse_by_joint(body, joint, p, corr, tol)?;
+        report.vertex_merges.push(merge)?;
+        // The pairs this joint can have closed: `o`'s, then those of the
+        // two half-edges it handed new successors.
+        for touched in [o, x, prev_o] {
+            if let Some(&k) = pair_of.get(&touched)
+                && !killed[k]
+                && alone(body, k) == Some(true)
+            {
+                body.kef_minting(edges[k].1, tol)?;
+                killed[k] = true;
+            }
+        }
+    }
+    // A closed pair sharing its face: its rings first take faces of their
+    // own (`mfkrh`), then each kills as above.
+    for ring_first in [true, false] {
+        for k in 0..n {
+            if killed[k] {
+                continue;
+            }
+            match alone(body, k) {
+                None => return Err(corr("a seam pair's loop does not close")),
+                Some(true) => {}
+                Some(false) => {
+                    let l = he(body, edges[k].0).parent_loop;
+                    let f = proven(&body.faces, face_of(body, edges[k].0), EntityId::Face);
+                    if f.outer == l {
+                        if ring_first {
+                            continue;
+                        }
+                        return Err(corr("a seam pair's loop does not close"));
+                    }
+                    body.mfkrh_minting(l, FaceSurface::Inherit, tol)?;
+                }
+            }
+            body.kef_minting(edges[k].1, tol)?;
+            killed[k] = true;
+        }
+    }
     Ok(report)
 }
 

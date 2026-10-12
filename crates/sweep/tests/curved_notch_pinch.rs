@@ -261,7 +261,12 @@ fn curved_notch_pinch() {
 /// closed-form volume cannot side a cylinder wall cut along an ellipse,
 /// and a ray aimed at a planar face does. One pose per population of
 /// [`curved_notch_pinch`]; when the census lane lands, its pose's pinned
-/// finding flips and the pin is re-baselined there.
+/// finding flips and the pin is re-baselined there. At `0 3 2` and
+/// `3 1 0` a section face passes `v` twice, once by the bowed wall's arc
+/// and once by a line to the same point, so the discard reads the arc's
+/// kept ends off its own copy on the section face's twin
+/// (`finish::twin_copy`); red as `JoinDesync` if it reads them off the
+/// copies' vertex pairs, which two twin edges join.
 #[test]
 fn a_curved_notch_at_a_corner_pinch_builds_bodies_the_census_cannot_read_yet() {
     let x = curved_notch_body(bulge());
@@ -274,6 +279,8 @@ fn a_curved_notch_at_a_corner_pinch_builds_bodies_the_census_cannot_read_yet() {
         ((0, 0, 0), "ab I", true),
         ((0, 0, 0), "ab U", false),
         ((9, 4, 4), "ab S", true),
+        ((0, 3, 2), "ab U", false),
+        ((3, 1, 0), "ba S", true),
     ];
     for (pose, tag, undecidable) in pins {
         let label = format!("{pose:?} {tag}");

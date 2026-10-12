@@ -58,3 +58,46 @@ the two cubes' vertex-vertex pinch at the notch's corner. It has no
 coincident pierces, and `discarded`'s several-copies arm reads the
 null-edge copies the vertex-vertex insertion leaves, which the ring
 does not reach.
+
+## Measured (2026-10-12, main `300f7cefe`)
+
+Reproduces: 15 of `curved_notch_pinch`'s lines refuse `JoinDesync`,
+the four poses of the table above (the row's "5 poses" counts one
+twice).
+
+Read at `0 3 2 ab U`, in `finish::discarded`'s `kept_ends`. The A
+section face across the failing stretch runs
+`17 → 31 → 19 → 11 → 20 → 11 → 18`: it passes the pinch vertex `11`
+(at `v`) **twice**, once by a line `11 → 20` and back by the bowed
+wall's ellipse `20 → 11`. The stretch is the ellipse. Its twin runs the
+same polygon the other way on copies, `… 26 → 39 → 28 → 37 → 27 …`:
+`39 → 28` is the ellipse's copy and `28 → 37` the line's. `kept_ends`
+took the kept ends as the copies one twin edge joins, and two twin
+edges join a copy of `11` to `20`'s one copy. The read was ambiguous
+because it named an edge by its two ends on a face that passes one
+vertex twice; it was not a wrong copy set.
+
+## Fix (branch `flush/pinch-residue`)
+
+`discard_row` hands `kept_ends` the half-edge across the stretch, and
+`finish::twin_copy` reads its copy off its place: the twin's cycle is
+the section face's mirrored, each vertex a null-edge copy of the
+other's, so the mirror that aligns the two cycles maps each half-edge
+to its own copy. Where no single mirror aligns them it refuses as
+before.
+
+Release battery diff, base `300f7cefe` against the fix: the 15 lines
+build with the oracle's volume, tier 2, the certificate, one vertex per
+cone and the reuse union. Eight are clean. Seven carry the signatures
+that already have rows: `t3p=CensusUndecidable` on five
+(`work/restread/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`)
+and `mesh=Triangulation(Plane rings=0)` at δ 0.05 on four
+(`work/tess/a-thin-arc-bounded-face-refuses-as-corrupt-geometry-at-a-coarse-delta.md`),
+both with the evidence added there. Every other line of every pinch
+battery is byte-identical. Pinned by two poses added to
+`curved_notch_pinch::a_curved_notch_at_a_corner_pinch_builds_bodies_the_census_cannot_read_yet`
+and by `finish::twin_copy_rows`.
+
+`3 1 0 ab S` meshes at δ 0.05 and panics the mesher at 0.02 on a
+`debug_assert!` its comment calls vacuous: filed as
+`work/tess/a-pinched-curved-wall-reaches-the-trimmed-meshs-vacuous-one-column-assert.md`.

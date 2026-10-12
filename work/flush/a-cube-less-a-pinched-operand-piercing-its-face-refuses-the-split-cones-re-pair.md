@@ -40,3 +40,42 @@ the same way from every root `null::with_ring_root` sets (0 to 4) at
 the two sides' `split_side` merged section faces (`kef`) that the other
 side's did not, at the cube's ring vertex or at the operand's vertices
 at `v`.
+
+## Measured (2026-10-12, main `300f7cefe`)
+
+Reproduces: 36 of `dbl_battery`'s 2 160 lines refuse
+`ZipCorrespondence` ("a split section face does not pair one to one"),
+13 `Ltop asym yx S` and 23 `asym asym yx S`; every other line `SOUND`.
+
+Read at `asym 268 100 yx S`, in `zip::split_cones`. At `v` the cube
+(A) holds two vertices and the operand (B) two. A's hold corners
+`{0, 10}` and `{8, 13}`; B's hold `{8, 0}` and `{10, 13}`, so each A
+vertex corresponds to both B vertices. The cones (σ_B∘σ_A) are two,
+`{A run 0, B run 10, A run 13, B run 8}` and
+`{A run 8, B run 13, A run 10, B run 0}`, so every one of the four vertices is split. Each split's
+`mev_null` and the `kef`/`kemr` that kills its null edge swap the
+loop successors of the split's two corners. So after the splits A's
+section loops are `(0 10)(8 13)∘next` and B's `(0 8)(10 13)∘next`: A's
+three section faces merge into one, B's into three (one `kef`, one
+`kemr`). The face pairing can be one to one only where both products
+agree, and no two corners share a vertex on both sides. The refusal
+was the face-pair zip's limit, not a wrong split.
+
+## Fix (branch `flush/pinch-residue`)
+
+The zip glues edges, not faces (`zip::glue`). Each fusion joint and
+its `kev` hands the two joined half-edges' predecessors each other as
+successor. A pair `(ob, r)` is glued once `r` precedes `ob` and `ob`
+precedes `r`, a loop alone in its face, which `kef` then kills. A joint
+across two loops is a `mekr`, across one a `mef`, across two faces a
+`kfmrh` first. `zip_seam` drives it in `fusion_order`, which reproduces
+the reassembly-oracle sequence joint for joint. `repair` now groups
+the faces holding paired edges, and a group of more than one face of
+either operand zips as one split seam (`zip_split`).
+
+Release battery diff, base `300f7cefe` against the fix: the 36 lines go
+to `OK SOUND` (volume equal to the oracle, one vertex per cone at `v`,
+meshing) and nothing else moves. `pinch_runs` (3 024), `pierce_runs`
+(4 326), `corner_pairs` (16 314), `four_pairs` and
+`pinch_faces_tessellate` are byte-identical. Pinned by
+`join_pierce_runs_sweep::a_cube_less_a_pinched_operand_whose_splits_cross_the_seams_faces_builds`.

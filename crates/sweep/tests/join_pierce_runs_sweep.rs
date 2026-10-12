@@ -2891,3 +2891,42 @@ fn an_edge_in_the_partners_face_plane_records_its_rests_where_the_result_keeps_t
         .collect();
     assert!(bad.is_empty(), "every run SOUND:\n{}", bad.join("\n"));
 }
+
+/// **A cube less a pinched operand whose splits cross the seams' faces
+/// zips them as one seam** (`zip::zip_split`). Three of [`dbl`]'s poses
+/// (`asym 268 100`, `Ltop 2296 50`, `asym 15 40`): at `v` the cube holds
+/// two ring vertices and the operand its two vertices, each vertex
+/// holding corners of both cones of the difference, and each operand
+/// pairing those corners differently. Each split merges or divides its
+/// own section faces at its own corners, so one cube face's edges pair
+/// with three of the operand's. The cube less the operand builds
+/// `SOUND` at the clipped volume, one vertex per cone at `v`, and
+/// meshes. Red if the zips pair faces only one to one: the op refuses
+/// `ZipCorrespondence`.
+#[test]
+fn a_cube_less_a_pinched_operand_whose_splits_cross_the_seams_faces_builds() {
+    for (a, first, seed, fib) in [
+        (asym(), "asym", 268, 100),
+        (ltop(), "Ltop", 2296, 50),
+        (asym(), "asym", 15, 40),
+    ] {
+        let pose = format!("{first} seed={seed} fib{fib} yx S");
+        let d = dbl((&a, &asym()), seed, fib);
+        let want = SIDE.powi(3) - d.common;
+        let r = topo::subtract(&d.cube, &d.pinched, tol());
+        let finding = r.as_ref().ok().and_then(BooleanResult::body).map(|bb| {
+            let cones = tag_cones("yx S", "xy", (&d.pieces, std::slice::from_ref(&d.planes)));
+            cone_finding(&bb.body, a.v, cones).or_else(|| {
+                match mesh::tessellate(&bb.body, 0.05, tol())
+                    .map(|m| mesh::validate::check_mesh(&m))
+                {
+                    Ok(Ok(())) => None,
+                    other => Some(format!("the body does not mesh: {other:?}")),
+                }
+            })
+        });
+        let line = outcome(r, want, tol());
+        assert!(line.starts_with("OK SOUND"), "{pose}: {line}");
+        assert_eq!(finding, Some(None), "{pose}: one vertex per cone, meshing");
+    }
+}

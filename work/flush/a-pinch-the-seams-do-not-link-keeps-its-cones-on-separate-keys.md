@@ -8,6 +8,7 @@ cost: M
 refs: [4207]
 opened: 2026-10-07
 branch: flush/pinch-cluster
+design: true
 ---
 
 Found by PR 4207's review (the FULL lane, M2). PR 4207 puts a pinch's
@@ -148,3 +149,53 @@ switch that restored the per-pierce rings and the weld):
 refusals included) and `pinch_runs_battery` (3 024). Still nothing in
 the records ties a point-touch union's two keys, so the row stands on
 D10's coincidence read, as its INTENT stage 4 E section says.
+
+## Measured (2026-10-12, branch `flush/pinch-residue`)
+
+On main `300f7cefe` and on the branch alike (the branch's two fixes
+move no line of it): `four_pairs_battery` holds 287
+`PinchConesOnSeparateKeys` and 24 `OK BAD` lines whose finding is "the
+vertices at v do not share one point". `dbl_battery` is 2 160 `SOUND`
+on the branch: its two-key operand no longer reaches a refusal.
+
+A plain point-touch union of two cubes at a corner (a lane probe, not
+committed) is `BooleanResultKind::Assembly`: **two solids**, their two
+vertices at `v` on two point keys, one `VertexVertex` record between
+them citing one coincidence row (`DecisionSite::VertexFusion`, margin
+0). So ruling B's record half is already there; what is missing is the
+one key. The pinched operands of `four_pairs`, `three` and `tripod` are
+chains of such unions, and `unite_all` passes on the body without its
+records.
+
+## Why the lane stopped
+
+PR 4057's ruling is "a pinch is one vertex per cone: several vertices
+on one point key, and no face crosses between cones", and ruling B
+(PR 4728) records each value-decided grouping that leaves cones
+distinct at one key. Both read the cones of one body. The touch union
+here returns two parts of an assembly in contact at a point. Whether
+two parts' contacting vertices share a point key is not settled by
+PR 4057, ruling B or D10's coincidence paragraph, and each answer
+changes what the census reads off keys across solids. The final states:
+
+- **A. One key at the touch door.** Where a boolean decides two
+  operands' vertices coincide and returns them as a `VertexVertex`
+  contact, it puts them on one point key; the record still cites its
+  `VertexFusion` row. Ruling B's shape, extended from one body's cones
+  to an assembly's parts. A plain boolean reusing the result reads the
+  pinch from its keys, so the 287 typed refusals and 24 wrong bodies
+  should build (not measured). The census's same-point rung then reads
+  two solids' vertices as one point by structure.
+- **B. Keys per part; the carried record ties them.** The touch's
+  contact rides into the next op as an operand record
+  (`BooleanInputs { records_a, records_b }`), and the door ties the keys
+  a carried `VertexVertex` record names (`zip::point_classes` reads it
+  as it reads a seam tie). A plain boolean that drops the records keeps
+  refusing `PinchConesOnSeparateKeys`, typed. The natural spelling,
+  `union(&acc, &b)` on the last result, drops them.
+- **C. The later door decides.** Where an op's result brings two
+  vertices at one point into one solid (the hang, the split), the door
+  decides their coincidence by value (`one_vertex_at`, its margin),
+  records it as a `VertexFusion` row with a citing record, and shares
+  the key there. Nothing changes at the touch union; positions are read
+  at the door that makes the pinch.
