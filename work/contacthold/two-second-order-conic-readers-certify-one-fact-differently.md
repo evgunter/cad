@@ -2,11 +2,13 @@
 id: two-second-order-conic-readers-certify-one-fact-differently
 kind: issue
 title: The splitting lane's second-order conic reading is a bare sagitta while the boolean's conic_side is certified: one fact, two certifications
-status: open
+status: review
 opened: 2026-10-10
 priority: P2
 cost: M
 refs: [boolean-conic-side-code-zero-is-first-order, 4575]
+branch: contacthold/one-certified-conic-side
+pr: 4826
 ---
 
 
