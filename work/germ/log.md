@@ -985,3 +985,12 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - Fix pass 2: cloud session `session_01Dwdr5uZY3pD9V44RfyZkUx`. Then the row (sequential, M, tallied 0, major true, per precedent PR-4359/4553/4702) and merge.
 - 2026-10-12 04:21 — Check-in: nothing ready. 4646 fix pass 2 has merged main and is fixing the probe row. r4743 is running suites (ci-test.log 04:20).
 - 2026-10-12 05:23 — Check-in: nothing ready. 4646 fix pass 2 is reading a red 1e-6/1e-12 CI step; it must name each failing row against main's known reds. r4743 is running its ε rows (eps-head.log 05:12).
+- 2026-10-12 05:50 — **PR 4743 (U-T2) single review r4743 is in: APPROVE-WITH-FIXES, 0/2/2 (+style).**
+  - No MAJOR, so no second review.
+  - The ring closure held against an independent oracle: about 3M parity paths and about 12k winding and re-home readings, 0 mismatches at three ε.
+  - Every mutant is red, the suites are green, and every red is identical on main and filed.
+  - MINORs:
+    - the tube's top and bottom parallels are unread (`RingIslandUnread` on every donut face re-home); read them, or name the gap for U-T3;
+    - the winding row is blind to a dropped run arc.
+  - Report saved at `scratchpad/dr4743/R1.md`.
+  - Fix pass: cloud session `session_017m4PJne2QkExBYnqDhaFTr`. Then the row (sequential, M, tallied 0, major false) and merge.
